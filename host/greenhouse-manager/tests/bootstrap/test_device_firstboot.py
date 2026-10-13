@@ -8,9 +8,14 @@ import pytest
 
 from greenhouse_manager.bootstrap.device_firstboot import (
     COMPLETE_NAME,
+    PROVISIONING_CONFIRMATION,
     TRANSACTION_NAME,
     DeviceFirstbootError,
+    inspect_device_provisioning,
+    resume_device_provisioning,
     run_device_firstboot,
+    start_device_provisioning,
+    verify_device_ready,
 )
 
 
@@ -20,10 +25,12 @@ class FakeAdapters:
         *,
         release_id: str = "release-1",
         host_instance_id: str = "host-a",
+        clone_readback_verified: bool = True,
         fail_stage: str | None = None,
     ) -> None:
         self.release_id = release_id
         self.host_instance_id = host_instance_id
+        self.clone_readback_verified = clone_readback_verified
         self.fail_stage = fail_stage
         self.calls: list[str] = []
 
@@ -38,17 +45,26 @@ class FakeAdapters:
             "status": "PASS",
             "sealed_image": True,
             "release_id": self.release_id,
+            "clone_readback_verified": self.clone_readback_verified,
             "production_service_start": False,
         }
 
     def ensure_os_identity(self):
-        self._call("os_identity")
+        self._call("ensure_os_identity")
+        return self._os_identity()
+
+    def verify_os_identity(self):
+        self._call("verify_os_identity")
+        return self._os_identity()
+
+    def _os_identity(self):
         return {
             "status": "PASS",
             "host_instance_id": self.host_instance_id,
             "machine_id_ready": True,
             "ssh_host_identity_ready": True,
             "production_service_start": False,
+            "network_operation": False,
         }
 
     def create_identity(self, candidate_root: Path):
@@ -130,19 +146,85 @@ class FakeAdapters:
         }
 
 
-def test_firstboot_persists_marker_last_and_is_idempotent(tmp_path: Path) -> None:
+def start(
+    adapters: FakeAdapters,
+    transaction_root: Path,
+    candidate_root: Path,
+):
+    return start_device_provisioning(
+        adapters,
+        transaction_root,
+        candidate_root,
+        release_id=adapters.release_id,
+        confirmation=PROVISIONING_CONFIRMATION,
+    )
+
+
+def test_status_unprovisioned_is_read_only(tmp_path: Path) -> None:
+    adapters = FakeAdapters()
+    transaction_root = tmp_path / "firstboot"
+
+    report = inspect_device_provisioning(
+        adapters,
+        transaction_root,
+        tmp_path / "candidate",
+        release_id="release-1",
+    )
+
+    assert report["state"] == "UNPROVISIONED"
+    assert not transaction_root.exists()
+    assert adapters.calls == []
+
+
+def test_explicit_start_requires_exact_confirmation_before_mutation(
+    tmp_path: Path,
+) -> None:
+    adapters = FakeAdapters()
+    transaction_root = tmp_path / "firstboot"
+
+    with pytest.raises(
+        DeviceFirstbootError,
+        match="provisioning_confirmation_invalid",
+    ):
+        start_device_provisioning(
+            adapters,
+            transaction_root,
+            tmp_path / "candidate",
+            release_id="release-1",
+            confirmation="YES",
+        )
+
+    assert not transaction_root.exists()
+    assert adapters.calls == []
+
+
+def test_explicit_start_requires_clone_readback_evidence(tmp_path: Path) -> None:
+    adapters = FakeAdapters(clone_readback_verified=False)
+
+    with pytest.raises(
+        DeviceFirstbootError,
+        match="clone_readback_verified_invalid",
+    ):
+        start(
+            adapters,
+            tmp_path / "firstboot",
+            tmp_path / "candidate",
+        )
+
+    assert adapters.calls == ["preflight"]
+    assert not (tmp_path / "firstboot").exists()
+
+
+def test_explicit_start_runs_same_boot_and_writes_marker_last(tmp_path: Path) -> None:
     adapters = FakeAdapters()
     transaction_root = tmp_path / "firstboot"
     candidate_root = tmp_path / "candidate"
 
-    first = run_device_firstboot(
-        adapters,
-        transaction_root,
-        candidate_root,
-        release_id="release-1",
-    )
-    assert first["status"] == "PASS"
-    assert first["already_complete"] is False
+    report = start(adapters, transaction_root, candidate_root)
+
+    assert report["state"] == "DEVICE_READY"
+    assert report["already_complete"] is False
+    assert report["production_service_start"] is False
     assert (transaction_root / TRANSACTION_NAME).is_file()
     assert (transaction_root / COMPLETE_NAME).is_file()
 
@@ -155,39 +237,96 @@ def test_firstboot_persists_marker_last_and_is_idempotent(tmp_path: Path) -> Non
     assert transaction["system_id_sha256"] == hashlib.sha256(
         complete["system_id"].encode()
     ).hexdigest()
+    assert adapters.calls == [
+        "preflight",
+        "ensure_os_identity",
+        "identity",
+        "state",
+        "broker",
+        "dynsec",
+        "instance_stage",
+        "instance_commit",
+        "instance_postcheck",
+    ]
 
-    second_adapters = FakeAdapters(fail_stage="preflight")
-    second = run_device_firstboot(
-        second_adapters,
-        transaction_root,
-        candidate_root,
-        release_id="release-1",
-    )
-    assert second["already_complete"] is True
-    assert second_adapters.calls == []
 
-
-def test_firstboot_resume_rejects_host_binding_drift(tmp_path: Path) -> None:
+def test_duplicate_start_never_creates_second_transaction(tmp_path: Path) -> None:
     transaction_root = tmp_path / "firstboot"
     candidate_root = tmp_path / "candidate"
-    first = FakeAdapters(host_instance_id="host-a", fail_stage="identity")
+    start(FakeAdapters(), transaction_root, candidate_root)
+
+    second = FakeAdapters()
+    with pytest.raises(DeviceFirstbootError, match="provisioning_already_started"):
+        start(second, transaction_root, candidate_root)
+
+    assert second.calls == []
+
+
+def test_resume_requires_existing_transaction_and_does_not_create_one(
+    tmp_path: Path,
+) -> None:
+    transaction_root = tmp_path / "firstboot"
+    adapters = FakeAdapters()
+
+    with pytest.raises(
+        DeviceFirstbootError,
+        match="firstboot_transaction_root_missing",
+    ):
+        resume_device_provisioning(
+            adapters,
+            transaction_root,
+            tmp_path / "candidate",
+            release_id="release-1",
+        )
+
+    assert not transaction_root.exists()
+    assert adapters.calls == []
+
+
+def test_interrupted_start_resumes_without_reensuring_host_identity(
+    tmp_path: Path,
+) -> None:
+    transaction_root = tmp_path / "firstboot"
+    candidate_root = tmp_path / "candidate"
 
     with pytest.raises(RuntimeError, match="adapter_failure"):
-        run_device_firstboot(
-            first,
+        start(
+            FakeAdapters(fail_stage="identity"),
             transaction_root,
             candidate_root,
-            release_id="release-1",
         )
 
     transaction = json.loads(
         (transaction_root / TRANSACTION_NAME).read_text(encoding="utf-8")
     )
     assert transaction["stage"] == "OS_IDENTITY"
-    assert transaction["host_instance_id"] == "host-a"
+
+    resumed = FakeAdapters()
+    report = resume_device_provisioning(
+        resumed,
+        transaction_root,
+        candidate_root,
+        release_id="release-1",
+    )
+
+    assert report["state"] == "DEVICE_READY"
+    assert "ensure_os_identity" not in resumed.calls
+    assert resumed.calls[:3] == ["preflight", "verify_os_identity", "identity"]
+
+
+def test_resume_rejects_live_host_binding_drift(tmp_path: Path) -> None:
+    transaction_root = tmp_path / "firstboot"
+    candidate_root = tmp_path / "candidate"
+
+    with pytest.raises(RuntimeError, match="adapter_failure"):
+        start(
+            FakeAdapters(host_instance_id="host-a", fail_stage="identity"),
+            transaction_root,
+            candidate_root,
+        )
 
     with pytest.raises(DeviceFirstbootError, match="host_binding_drift"):
-        run_device_firstboot(
+        resume_device_provisioning(
             FakeAdapters(host_instance_id="host-b"),
             transaction_root,
             candidate_root,
@@ -195,21 +334,109 @@ def test_firstboot_resume_rejects_host_binding_drift(tmp_path: Path) -> None:
         )
 
 
-def test_firstboot_rejects_release_binding_drift(tmp_path: Path) -> None:
+def test_device_ready_verify_rechecks_current_live_host(tmp_path: Path) -> None:
     transaction_root = tmp_path / "firstboot"
     candidate_root = tmp_path / "candidate"
-    adapters = FakeAdapters(fail_stage="identity")
+    start(FakeAdapters(host_instance_id="host-a"), transaction_root, candidate_root)
 
-    with pytest.raises(RuntimeError):
-        run_device_firstboot(
-            adapters,
+    verifier = FakeAdapters(host_instance_id="host-a")
+    report = verify_device_ready(
+        verifier,
+        transaction_root,
+        candidate_root,
+        release_id="release-1",
+    )
+
+    assert report["state"] == "DEVICE_READY"
+    assert report["already_complete"] is True
+    assert verifier.calls == ["verify_os_identity"]
+
+
+def test_completed_disk_copied_to_other_host_fails_closed(tmp_path: Path) -> None:
+    transaction_root = tmp_path / "firstboot"
+    candidate_root = tmp_path / "candidate"
+    start(FakeAdapters(host_instance_id="host-a"), transaction_root, candidate_root)
+
+    with pytest.raises(DeviceFirstbootError, match="host_binding_drift"):
+        verify_device_ready(
+            FakeAdapters(host_instance_id="host-b"),
             transaction_root,
             candidate_root,
             release_id="release-1",
         )
 
-    with pytest.raises(DeviceFirstbootError, match="transaction_binding_invalid"):
+
+def test_legacy_wrapper_cannot_start_unprovisioned_device(tmp_path: Path) -> None:
+    adapters = FakeAdapters()
+    transaction_root = tmp_path / "firstboot"
+
+    with pytest.raises(
+        DeviceFirstbootError,
+        match="explicit_provisioning_start_required",
+    ):
         run_device_firstboot(
+            adapters,
+            transaction_root,
+            tmp_path / "candidate",
+            release_id="release-1",
+        )
+
+    assert not transaction_root.exists()
+    assert adapters.calls == []
+
+
+def test_legacy_wrapper_resumes_existing_transaction(tmp_path: Path) -> None:
+    transaction_root = tmp_path / "firstboot"
+    candidate_root = tmp_path / "candidate"
+
+    with pytest.raises(RuntimeError):
+        start(
+            FakeAdapters(fail_stage="identity"),
+            transaction_root,
+            candidate_root,
+        )
+
+    adapters = FakeAdapters()
+    report = run_device_firstboot(
+        adapters,
+        transaction_root,
+        candidate_root,
+        release_id="release-1",
+    )
+
+    assert report["state"] == "DEVICE_READY"
+    assert "ensure_os_identity" not in adapters.calls
+
+
+def test_status_reports_conflict_for_completed_host_drift(tmp_path: Path) -> None:
+    transaction_root = tmp_path / "firstboot"
+    candidate_root = tmp_path / "candidate"
+    start(FakeAdapters(host_instance_id="host-a"), transaction_root, candidate_root)
+
+    report = inspect_device_provisioning(
+        FakeAdapters(host_instance_id="host-b"),
+        transaction_root,
+        candidate_root,
+        release_id="release-1",
+    )
+
+    assert report["state"] == "CONFLICT"
+    assert report["error_code"] == "firstboot_host_binding_drift"
+
+
+def test_resume_rejects_release_binding_drift(tmp_path: Path) -> None:
+    transaction_root = tmp_path / "firstboot"
+    candidate_root = tmp_path / "candidate"
+
+    with pytest.raises(RuntimeError):
+        start(
+            FakeAdapters(release_id="release-1", fail_stage="identity"),
+            transaction_root,
+            candidate_root,
+        )
+
+    with pytest.raises(DeviceFirstbootError, match="transaction_binding_invalid"):
+        resume_device_provisioning(
             FakeAdapters(release_id="release-2"),
             transaction_root,
             candidate_root,
@@ -217,7 +444,7 @@ def test_firstboot_rejects_release_binding_drift(tmp_path: Path) -> None:
         )
 
 
-def test_firstboot_contract_has_no_r8_authorization_dependency() -> None:
+def test_contract_has_no_r8_authorization_or_docker_dependency() -> None:
     from greenhouse_manager.bootstrap import device_firstboot
 
     source = Path(device_firstboot.__file__).read_text(encoding="utf-8")
@@ -226,15 +453,10 @@ def test_firstboot_contract_has_no_r8_authorization_dependency() -> None:
     assert "docker" not in source.lower()
 
 
-def test_firstboot_complete_rejects_transaction_drift(tmp_path: Path) -> None:
+def test_complete_rejects_transaction_drift(tmp_path: Path) -> None:
     transaction_root = tmp_path / "firstboot"
     candidate_root = tmp_path / "candidate"
-    run_device_firstboot(
-        FakeAdapters(),
-        transaction_root,
-        candidate_root,
-        release_id="release-1",
-    )
+    start(FakeAdapters(), transaction_root, candidate_root)
 
     transaction_path = transaction_root / TRANSACTION_NAME
     transaction = json.loads(transaction_path.read_text(encoding="utf-8"))
@@ -245,11 +467,8 @@ def test_firstboot_complete_rejects_transaction_drift(tmp_path: Path) -> None:
     )
     transaction_path.chmod(0o600)
 
-    with pytest.raises(
-        DeviceFirstbootError,
-        match="complete_transaction_drift",
-    ):
-        run_device_firstboot(
+    with pytest.raises(DeviceFirstbootError, match="complete_transaction_drift"):
+        verify_device_ready(
             FakeAdapters(),
             transaction_root,
             candidate_root,
@@ -257,7 +476,7 @@ def test_firstboot_complete_rejects_transaction_drift(tmp_path: Path) -> None:
         )
 
 
-def test_firstboot_rejects_transaction_root_owner_drift(
+def test_transaction_root_owner_drift_is_rejected(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -267,25 +486,17 @@ def test_firstboot_rejects_transaction_root_owner_drift(
     transaction_root.mkdir(mode=0o700)
     transaction_root.chmod(0o700)
     actual_uid = device_firstboot.os.geteuid()
-    monkeypatch.setattr(
-        device_firstboot.os,
-        "geteuid",
-        lambda: actual_uid + 1,
-    )
+    monkeypatch.setattr(device_firstboot.os, "geteuid", lambda: actual_uid + 1)
 
-    with pytest.raises(
-        DeviceFirstbootError,
-        match="transaction_root_owner_invalid",
-    ):
-        run_device_firstboot(
+    with pytest.raises(DeviceFirstbootError, match="transaction_root_owner_invalid"):
+        start(
             FakeAdapters(),
             transaction_root,
             tmp_path / "candidate",
-            release_id="release-1",
         )
 
 
-def test_firstboot_atomic_write_rejects_preexisting_temp_symlink(
+def test_atomic_write_rejects_preexisting_temp_symlink(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -298,16 +509,9 @@ def test_firstboot_atomic_write_rejects_preexisting_temp_symlink(
     victim.write_text("unchanged", encoding="utf-8")
     temporary = root / ".transaction.json.fixed.tmp"
     temporary.symlink_to(victim)
-    monkeypatch.setattr(
-        device_firstboot.secrets,
-        "token_hex",
-        lambda _length: "fixed",
-    )
+    monkeypatch.setattr(device_firstboot.secrets, "token_hex", lambda _length: "fixed")
 
-    with pytest.raises(
-        DeviceFirstbootError,
-        match="firstboot_record_temp_exists",
-    ):
+    with pytest.raises(DeviceFirstbootError, match="firstboot_record_temp_exists"):
         device_firstboot._write_atomic(
             root / TRANSACTION_NAME,
             {"schema": "test"},
@@ -316,42 +520,33 @@ def test_firstboot_atomic_write_rejects_preexisting_temp_symlink(
     assert victim.read_text(encoding="utf-8") == "unchanged"
 
 
-def test_firstboot_rejects_candidate_symlink(tmp_path: Path) -> None:
+def test_start_rejects_candidate_symlink(tmp_path: Path) -> None:
     candidate_target = tmp_path / "candidate-target"
     candidate_target.mkdir(mode=0o700)
     candidate = tmp_path / "candidate"
     candidate.symlink_to(candidate_target, target_is_directory=True)
 
-    with pytest.raises(
-        DeviceFirstbootError,
-        match="candidate_root_symlink_forbidden",
-    ):
-        run_device_firstboot(
+    with pytest.raises(DeviceFirstbootError, match="candidate_root_symlink_forbidden"):
+        start(
             FakeAdapters(),
             tmp_path / "firstboot",
             candidate,
-            release_id="release-1",
         )
 
 
-def test_firstboot_transaction_binds_candidate_root(tmp_path: Path) -> None:
+def test_transaction_binds_candidate_root(tmp_path: Path) -> None:
     transaction_root = tmp_path / "firstboot"
     first_candidate = tmp_path / "candidate-a"
-    adapters = FakeAdapters(fail_stage="state")
 
     with pytest.raises(RuntimeError, match="adapter_failure"):
-        run_device_firstboot(
-            adapters,
+        start(
+            FakeAdapters(fail_stage="state"),
             transaction_root,
             first_candidate,
-            release_id="release-1",
         )
 
-    with pytest.raises(
-        DeviceFirstbootError,
-        match="transaction_binding_invalid",
-    ):
-        run_device_firstboot(
+    with pytest.raises(DeviceFirstbootError, match="transaction_binding_invalid"):
+        resume_device_provisioning(
             FakeAdapters(),
             transaction_root,
             tmp_path / "candidate-b",
@@ -359,18 +554,15 @@ def test_firstboot_transaction_binds_candidate_root(tmp_path: Path) -> None:
         )
 
 
-def test_firstboot_rejects_missing_persisted_host_binding(
-    tmp_path: Path,
-) -> None:
+def test_resume_rejects_missing_persisted_host_binding(tmp_path: Path) -> None:
     transaction_root = tmp_path / "firstboot"
     candidate_root = tmp_path / "candidate"
 
     with pytest.raises(RuntimeError, match="adapter_failure"):
-        run_device_firstboot(
+        start(
             FakeAdapters(fail_stage="identity"),
             transaction_root,
             candidate_root,
-            release_id="release-1",
         )
 
     transaction_path = transaction_root / TRANSACTION_NAME
@@ -382,11 +574,8 @@ def test_firstboot_rejects_missing_persisted_host_binding(
     )
     transaction_path.chmod(0o600)
 
-    with pytest.raises(
-        DeviceFirstbootError,
-        match="firstboot_host_binding_missing",
-    ):
-        run_device_firstboot(
+    with pytest.raises(DeviceFirstbootError, match="host_binding_missing"):
+        resume_device_provisioning(
             FakeAdapters(),
             transaction_root,
             candidate_root,
@@ -394,17 +583,10 @@ def test_firstboot_rejects_missing_persisted_host_binding(
         )
 
 
-def test_firstboot_complete_rejects_system_hash_drift(
-    tmp_path: Path,
-) -> None:
+def test_complete_rejects_system_hash_drift(tmp_path: Path) -> None:
     transaction_root = tmp_path / "firstboot"
     candidate_root = tmp_path / "candidate"
-    run_device_firstboot(
-        FakeAdapters(),
-        transaction_root,
-        candidate_root,
-        release_id="release-1",
-    )
+    start(FakeAdapters(), transaction_root, candidate_root)
 
     transaction_path = transaction_root / TRANSACTION_NAME
     transaction = json.loads(transaction_path.read_text(encoding="utf-8"))
@@ -415,11 +597,8 @@ def test_firstboot_complete_rejects_system_hash_drift(
     )
     transaction_path.chmod(0o600)
 
-    with pytest.raises(
-        DeviceFirstbootError,
-        match="complete_transaction_drift",
-    ):
-        run_device_firstboot(
+    with pytest.raises(DeviceFirstbootError, match="complete_transaction_drift"):
+        verify_device_ready(
             FakeAdapters(),
             transaction_root,
             candidate_root,
@@ -427,23 +606,13 @@ def test_firstboot_complete_rejects_system_hash_drift(
         )
 
 
-def test_firstboot_complete_rejects_candidate_root_drift(
-    tmp_path: Path,
-) -> None:
+def test_complete_rejects_candidate_root_drift(tmp_path: Path) -> None:
     transaction_root = tmp_path / "firstboot"
     candidate_root = tmp_path / "candidate-a"
-    run_device_firstboot(
-        FakeAdapters(),
-        transaction_root,
-        candidate_root,
-        release_id="release-1",
-    )
+    start(FakeAdapters(), transaction_root, candidate_root)
 
-    with pytest.raises(
-        DeviceFirstbootError,
-        match="complete_transaction_drift",
-    ):
-        run_device_firstboot(
+    with pytest.raises(DeviceFirstbootError, match="complete_transaction_drift"):
+        verify_device_ready(
             FakeAdapters(),
             transaction_root,
             tmp_path / "candidate-b",
