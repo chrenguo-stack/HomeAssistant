@@ -105,8 +105,14 @@ def _runner(
                     "exec_start",
                     "/usr/bin/true",
                 ),
-                "ExecStartPre": "",
-                "ExecStartPost": "",
+                "ExecStartPre": spec.get(
+                    "exec_start_pre",
+                    "",
+                ),
+                "ExecStartPost": spec.get(
+                    "exec_start_post",
+                    "",
+                ),
                 "TriggeredBy": spec.get(
                     "triggered_by",
                     "",
@@ -580,6 +586,7 @@ def test_e9_proves_order_only_from_before_after_edges(
         "WANTS",
         "REQUIRES",
         "TRIGGERS",
+        "TRIGGERED_BY",
     ]
 
 
@@ -786,5 +793,51 @@ def test_e9_zero_current_boot_time_stays_unknown(
         in evidence["fields"][
             "unresolved_edges"
         ]["value"]
+    )
+
+def test_e5_unclosed_aux_helper_fails_closed(
+    tmp_path: Path,
+) -> None:
+    _ssh_fixture(tmp_path)
+    loaded = {
+        "sshd-keygen.service": {
+            "conditions": "ConditionFirstBoot=yes",
+            "exec_start": "/usr/bin/ssh-keygen -A",
+            "exec_start_pre": "/usr/bin/custom-helper",
+            "before": "ssh.service",
+        },
+        "ssh.service": {
+            "after": "sshd-keygen.service",
+        },
+    }
+    evidence = collect_e5(
+        tmp_path.as_posix(),
+        runner=_runner(tmp_path, loaded=loaded),
+    )
+    assert evidence["status"] == "UNKNOWN"
+    assert evidence["complete"] is False
+
+
+def test_e6_empty_profile_does_not_prove_defaults(
+    tmp_path: Path,
+) -> None:
+    (
+        tmp_path
+        / "etc"
+        / "NetworkManager"
+        / "system-connections"
+    ).mkdir(parents=True)
+    evidence = collect_e6(
+        tmp_path.as_posix(),
+        runner=_runner(
+            tmp_path,
+            loaded={"NetworkManager.service": {}},
+        ),
+    )
+    assert evidence["status"] == "UNKNOWN"
+    assert evidence["complete"] is False
+    assert (
+        evidence["reason_code"]
+        == "STOP_NETWORK_IDENTITY_UNKNOWN"
     )
 

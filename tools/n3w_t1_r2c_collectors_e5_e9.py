@@ -370,6 +370,10 @@ def _unit_snapshot(
             else None
         )
     exec_start = values.get("ExecStart", "")
+    exec_aux_present = bool(
+        values.get("ExecStartPre", "").strip()
+        or values.get("ExecStartPost", "").strip()
+    )
     exec_class = "OTHER"
     if (
         "ssh-keygen" in exec_start
@@ -397,6 +401,7 @@ def _unit_snapshot(
             values.get("Conditions", "")
         ),
         "exec_class": exec_class,
+        "exec_aux_present": exec_aux_present,
         "timestamps": timestamps,
         "unit_file_bindings": bindings,
         "unresolved": sorted(set(unresolved)),
@@ -439,6 +444,7 @@ def _unit_summary(snapshot: dict[str, Any]) -> dict[str, Any]:
         "condition_result",
         "condition_names",
         "exec_class",
+        "exec_aux_present",
         "timestamps",
         "unit_file_bindings",
     )
@@ -677,11 +683,15 @@ def _sshd_config_analysis(root: str) -> dict[str, Any]:
                         )
             elif keyword == "hostcertificate":
                 for value in values:
-                    hostcerts.append(
-                        "APPROVED_SSH_ROOT"
-                        if value.startswith("/etc/ssh/")
-                        else "CUSTOM"
-                    )
+                    if value.startswith("/etc/ssh/"):
+                        hostcerts.append(
+                            "APPROVED_SSH_ROOT"
+                        )
+                    else:
+                        hostcerts.append("CUSTOM")
+                        unresolved.add(
+                            "SSH_HOSTCERT_PATH_CUSTOM"
+                        )
             elif keyword == "port":
                 for value in values:
                     if value == "22":
@@ -840,6 +850,15 @@ def collect_e5(
         unresolved.add("SSH_KEYGEN_PACKAGE_OWNER_UNKNOWN")
     if listener["status"] != "OBSERVED":
         unresolved.add("SSH_LISTENER_UNKNOWN")
+    for unit_name in SSH_UNITS:
+        snapshot = units[unit_name]
+        if (
+            snapshot.get("status") == "OBSERVED"
+            and snapshot.get("exec_aux_present")
+        ):
+            unresolved.add(
+                "SSH_AUX_HELPER_UNRESOLVED"
+            )
     for exposure_name in (
         "ssh.service",
         "sshd.service",
@@ -1098,6 +1117,21 @@ def collect_e6(
             runner,
         )
         unresolved.update(unit_unresolved)
+        renderer_units = {
+            unit
+            for unit in (
+                "NetworkManager.service",
+                "systemd-networkd.service",
+                "netplan-configure.service",
+            )
+            if units[unit].get("status") == "OBSERVED"
+        }
+        if not renderer_units:
+            unresolved.add("NETWORK_RENDERER_UNRESOLVED")
+        if renderer_units and not identity_fields:
+            unresolved.add(
+                "NETWORK_DEFAULT_SEMANTICS_UNBOUND"
+            )
     except (
         OSError,
         ReadonlyEvidenceError,
@@ -2077,18 +2111,54 @@ def collect_e9(
             for unit, snapshot in snapshots.items()
         },
     }
-    property_activation_edges = [
-        {
-            "source": unit,
-            "relation": relation.upper(),
-            "target": target,
-        }
-        for unit, snapshot in snapshots.items()
-        if snapshot.get("status") == "OBSERVED"
-        for relation in ("wants", "requires")
-        for target in snapshot.get(relation, [])
-        if target in snapshots
-    ]
+    activation_tokens = (
+        "ssh",
+        "network",
+        "machine",
+        "firstboot",
+        "random",
+        "journal",
+        "armbian",
+    )
+    property_activation_edges: list[dict[str, str]] = []
+    trigger_edges: list[dict[str, str]] = []
+    for unit, snapshot in snapshots.items():
+        if snapshot.get("status") != "OBSERVED":
+            continue
+        for relation in ("wants", "requires"):
+            for target in snapshot.get(relation, []):
+                if target in snapshots:
+                    property_activation_edges.append(
+                        {
+                            "source": unit,
+                            "relation": relation.upper(),
+                            "target": target,
+                        }
+                    )
+                elif any(
+                    token in target.lower()
+                    for token in activation_tokens
+                ):
+                    unresolved.add(
+                        f"EXTERNAL_{relation.upper()}_{target}"
+                    )
+        for relation in ("triggers", "triggered_by"):
+            for target in snapshot.get(relation, []):
+                if target in snapshots:
+                    trigger_edges.append(
+                        {
+                            "source": unit,
+                            "relation": relation.upper(),
+                            "target": target,
+                        }
+                    )
+                elif any(
+                    token in target.lower()
+                    for token in activation_tokens
+                ):
+                    unresolved.add(
+                        f"EXTERNAL_{relation.upper()}_{target}"
+                    )
     activation_edges = {
         "property_edges": sorted(
             property_activation_edges,
@@ -2098,23 +2168,21 @@ def collect_e9(
                 item["target"],
             ),
         ),
-        "trigger_edges": [
-            {
-                "source": unit,
-                "relation": "TRIGGERS",
-                "target": target,
-            }
-            for unit, snapshot in snapshots.items()
-            if snapshot.get("status") == "OBSERVED"
-            for target in snapshot.get("triggers", [])
-            if target in snapshots
-        ],
+        "trigger_edges": sorted(
+            trigger_edges,
+            key=lambda item: (
+                item["source"],
+                item["relation"],
+                item["target"],
+            ),
+        ),
         "wants_requires_symlinks": link_edges,
         "listener": listener,
         "ordering_semantics_excluded": [
             "WANTS",
             "REQUIRES",
             "TRIGGERS",
+            "TRIGGERED_BY",
         ],
     }
     envelope["method_ids"] = ["R3", "C4", "C6"]
