@@ -144,48 +144,52 @@ def scan_bounded(
             try:
                 with os.scandir(directory_fd) as entries:
                     ordered = sorted(entries, key=lambda item: item.name)
-                for entry in ordered:
-                    metadata = entry.stat(follow_symlinks=False)
-                    mode = metadata.st_mode
-                    kind = (
-                        "regular"
-                        if stat.S_ISREG(mode)
-                        else "directory"
-                        if stat.S_ISDIR(mode)
-                        else "symlink"
-                        if stat.S_ISLNK(mode)
-                        else "other"
-                    )
-                    rel_path = os.path.relpath(
-                        os.path.join(current_path, entry.name),
-                        root,
-                    )
-                    result.append(
-                        {
-                            "relative": rel_path,
-                            "kind": kind,
-                            "mode": format(stat.S_IMODE(mode), "04o"),
-                            "size": metadata.st_size if kind == "regular" else None,
-                        }
-                    )
-                    if len(result) > max_entries:
-                        raise ReadonlyEvidenceError("scan_entry_limit")
-                    if kind == "directory" and depth < max_depth:
-                        child_fd = os.open(
-                            entry.name,
-                            os.O_RDONLY
-                            | os.O_DIRECTORY
-                            | os.O_NOFOLLOW
-                            | os.O_CLOEXEC,
-                            dir_fd=directory_fd,
+                    for entry in ordered:
+                        metadata = entry.stat(follow_symlinks=False)
+                        mode = metadata.st_mode
+                        kind = (
+                            "regular"
+                            if stat.S_ISREG(mode)
+                            else "directory"
+                            if stat.S_ISDIR(mode)
+                            else "symlink"
+                            if stat.S_ISLNK(mode)
+                            else "other"
                         )
-                        queue.append(
-                            (
-                                os.path.join(current_path, entry.name),
-                                child_fd,
-                                depth + 1,
+                        rel_path = os.path.relpath(
+                            os.path.join(current_path, entry.name),
+                            root,
+                        )
+                        result.append(
+                            {
+                                "relative": rel_path,
+                                "kind": kind,
+                                "mode": format(stat.S_IMODE(mode), "04o"),
+                                "size": (
+                                    metadata.st_size
+                                    if kind == "regular"
+                                    else None
+                                ),
+                            }
+                        )
+                        if len(result) > max_entries:
+                            raise ReadonlyEvidenceError("scan_entry_limit")
+                        if kind == "directory" and depth < max_depth:
+                            child_fd = os.open(
+                                entry.name,
+                                os.O_RDONLY
+                                | os.O_DIRECTORY
+                                | os.O_NOFOLLOW
+                                | os.O_CLOEXEC,
+                                dir_fd=directory_fd,
                             )
-                        )
+                            queue.append(
+                                (
+                                    os.path.join(current_path, entry.name),
+                                    child_fd,
+                                    depth + 1,
+                                )
+                            )
             finally:
                 os.close(directory_fd)
     except BaseException:
