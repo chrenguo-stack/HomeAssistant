@@ -1,3 +1,26 @@
+## 2026-10-13 — KF-113 target-Armbian live evidence captured / clone-uniqueness guard remains
+
+```text
+KF-113_TARGET_ARMBIAN_CURRENT_HOST_EVIDENCE=CLOSED_PASS
+EXECUTION_SOURCE_HEAD=9155855a71f4750ebf7a7b22d9b4e000627e2f98
+TARGET_ARMBIAN=26.05.0
+TARGET_BOARD=S912-Phicomm-T1
+
+MACHINE_ID_CURRENT_STATE=POPULATED_SYNCHRONIZED
+SSH_HOST_KEYS_CURRENT_STATE=POPULATED
+NETWORKMANAGER_PROFILE_COUNT_IN_ETC_SYSTEM_CONNECTIONS=0
+
+SYSTEMD_SSH_FIRSTBOOT_KEYGEN_MECHANISM=PRESENT
+SYSTEMD_MACHINE_ID_COMMIT_MECHANISM=PRESENT_MOUNTPOINT_GATED
+ARMBIAN_FIRSTRUN_MECHANISM=PRESENT_BODY_NOT_CAPTURED
+
+OS_IDENTITY_SEMANTICS_PROVEN=false
+CONTROLLED_CLONE_BOOT_EVIDENCE_REQUIRED=true
+KF-113_CLONE_UNIQUENESS_GUARD=ACTIVE
+```
+
+Guard: exact target evidence now proves the current host state and the presence of relevant first-boot mechanisms, but not clone-time uniqueness. Do not capture a final Golden Master with populated machine-id or populated SSH host keys. Do not treat generic Linux behavior, `armbian-firstrun`, or an empty `/etc/NetworkManager/system-connections` directory as proof that clones will receive unique OS/network identity. R2 Seal source design must define an explicit identity-neutral final state and fail closed on unknown identity-bearing network state; R4 must prove uniqueness on controlled clone boots before factory acceptance.
+
 ## 2026-10-13 — KF-113 P2B read-only evidence executor closure
 
 ```text
