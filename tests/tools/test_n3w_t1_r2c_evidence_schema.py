@@ -145,11 +145,11 @@ def test_reason_fields_accept_codes_only() -> None:
     validate_report(report)
 
     report = _report()
-    report["requirements"]["E1"]["reason_code"] = "ssh stderr: 10.0.0.7"
+    report["requirements"]["E1"]["reason_code"] = "ssh stderr: SENSITIVE_NETWORK_VALUE"
     with pytest.raises(EvidenceSchemaError, match="E1_reason_code"):
         validate_report(report)
 
     report = _report()
-    report["stop_reasons"] = ["raw stderr contains 10.0.0.7"]
+    report["stop_reasons"] = ["raw stderr contains SENSITIVE_NETWORK_VALUE"]
     with pytest.raises(EvidenceSchemaError, match="stop_reasons"):
         validate_report(report)
