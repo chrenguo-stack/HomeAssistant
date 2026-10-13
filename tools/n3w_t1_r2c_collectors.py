@@ -12,7 +12,11 @@ from n3w_t1_r2c_firstrun import (
     analyze_firstrun_config,
     analyze_firstrun_tree,
 )
-from n3w_t1_r2c_readonly_commands import CommandResult, run_contract_command
+from n3w_t1_r2c_readonly_commands import (
+    CommandResult,
+    ReadonlyCommandError,
+    run_contract_command,
+)
 from n3w_t1_r2c_readonly_files import (
     ReadonlyEvidenceError,
     inspect_metadata,
@@ -137,7 +141,7 @@ def collect_e1(
         package_versions = _parse_package_versions(
             _command_text(packages, "PACKAGES")
         )
-    except (OSError, ReadonlyEvidenceError, R2CCollectError) as error:
+    except (OSError, ReadonlyCommandError, ReadonlyEvidenceError, R2CCollectError) as error:
         envelope["status"] = "ERROR"
         envelope["reason_code"] = (
             str(error)
@@ -299,7 +303,7 @@ def collect_e4(
             else None
         )
         mount = runner("C5_MACHINE_ID_MOUNT")
-    except (OSError, ReadonlyEvidenceError, R2CCollectError) as error:
+    except (OSError, ReadonlyCommandError, ReadonlyEvidenceError, R2CCollectError) as error:
         envelope["status"] = "ERROR"
         envelope["reason_code"] = (
             str(error)
@@ -391,10 +395,13 @@ def collect_e2(
         envelope["fields"]["firstrun_body_complete"] = _field(False, "ABSENT")
         return envelope
 
-    owner_status, owner_binding = _owner_binding(
-        runner,
-        "/" + FIRSTRUN_RELATIVE,
-    )
+    try:
+        owner_status, owner_binding = _owner_binding(
+            runner,
+            "/" + FIRSTRUN_RELATIVE,
+        )
+    except (OSError, ReadonlyCommandError, R2CCollectError):
+        owner_status, owner_binding = "UNKNOWN", "UNKNOWN"
     unresolved = list(tree["unresolved"])
     if owner_status != "OBSERVED":
         unresolved.append("PACKAGE_OWNER_UNRESOLVED")
@@ -495,6 +502,7 @@ def collect_e3(
         tree["main_complete"]
         and config["present"]
         and config["parse_complete"]
+        and not tree["unresolved"]
         and bool(tree["config_source_lines"])
         and bool(tree["referenced_config_keys"])
     )
