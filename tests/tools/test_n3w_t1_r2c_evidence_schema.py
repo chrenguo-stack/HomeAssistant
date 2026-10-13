@@ -135,3 +135,20 @@ def test_public_projection_drops_values_even_for_public_field_names() -> None:
     assert "10.0.0.7" not in rendered
     assert "aa:bb:cc:dd:ee:ff" not in rendered
     assert projected["fields"]["nm_state_inventory"] == {"status": "OBSERVED"}
+
+
+def test_reason_fields_accept_codes_only() -> None:
+    report = _report()
+    report["requirements"]["E1"]["reason_code"] = "STOP_TARGET_DRIFT"
+    report["stop_reasons"] = ["STOP_TARGET_DRIFT"]
+    validate_report(report)
+
+    report = _report()
+    report["requirements"]["E1"]["reason_code"] = "ssh stderr: 10.0.0.7"
+    with pytest.raises(EvidenceSchemaError, match="E1_reason_code"):
+        validate_report(report)
+
+    report = _report()
+    report["stop_reasons"] = ["raw stderr contains 10.0.0.7"]
+    with pytest.raises(EvidenceSchemaError, match="stop_reasons"):
+        validate_report(report)
