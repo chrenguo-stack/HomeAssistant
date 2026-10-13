@@ -55,14 +55,14 @@ MODULE_BINDINGS = (
         "3bca46f0f2b741586439c5d7302fdf96bec62fc8",
     ),
     (
-        "n3w_t1_r2c_collectors",
-        "tools/n3w_t1_r2c_collectors.py",
-        "0856dd53b4f09b37fa52abe1fa129255957ed9ec",
-    ),
-    (
         "n3w_t1_r2c_collectors_e5_e9",
         "tools/n3w_t1_r2c_collectors_e5_e9.py",
         "8041c776f2e49018639bd9d5bef33c7403f5792f",
+    ),
+    (
+        "n3w_t1_r2c_collectors",
+        "tools/n3w_t1_r2c_collectors.py",
+        "4fc776f9d920be82ea3c5d2afe00f40e99eec841",
     ),
     (
         "n3w_t1_r2c_remote_probe",
