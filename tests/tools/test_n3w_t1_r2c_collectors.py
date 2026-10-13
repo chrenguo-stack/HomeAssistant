@@ -132,3 +132,28 @@ def test_collect_e4_classifies_dbus_symlink_without_following(
     assert relation["dbus_points_to_etc"] is True
     assert evidence["fields"]["contents_equal"]["status"] == "UNKNOWN"
     assert "uninitialized" not in repr(evidence)
+
+
+def test_collect_e1_stops_on_target_drift(tmp_path: Path) -> None:
+    _write_platform_fixture(tmp_path)
+    (tmp_path / "etc" / "armbian-release").write_text(
+        "BOARD=UNEXPECTED-BOARD\n"
+        "BOARD_NAME=Aml.S912\n"
+        "VERSION=26.05.0\n"
+        "BRANCH=current\n"
+        "ARCH=arm64\n"
+        "IMAGE_TYPE=rebuild\n"
+    )
+    evidence = collect_e1(str(tmp_path), runner=_e1_runner)
+    assert evidence["status"] == "ERROR"
+    assert evidence["complete"] is False
+    assert evidence["reason_code"] == "STOP_TARGET_DRIFT"
+
+
+def test_collect_e4_marks_missing_machine_id_as_absent(tmp_path: Path) -> None:
+    (tmp_path / "etc").mkdir()
+    (tmp_path / "var" / "lib" / "dbus").mkdir(parents=True)
+    evidence = collect_e4(str(tmp_path), runner=_mount_not_present_runner)
+    assert evidence["fields"]["etc_machine_id"]["status"] == "ABSENT"
+    assert evidence["fields"]["dbus_machine_id"]["status"] == "ABSENT"
+    assert evidence["fields"]["contents_equal"]["status"] == "UNKNOWN"
