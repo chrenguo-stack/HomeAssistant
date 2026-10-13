@@ -1,3 +1,17 @@
+## 2026-10-13 — P2B read-only evidence executor CLOSED_PASS
+
+```text
+EXECUTION_SOURCE_HEAD=9155855a71f4750ebf7a7b22d9b4e000627e2f98
+CI=26/26 PASS
+P2B_READONLY_EVIDENCE_EXECUTOR_SOURCE_REVIEW=PASS
+BLOCKER_COUNT=0
+TARGET_ARMBIAN_READONLY_EVIDENCE_EXECUTION_READY=true
+T1_ACCESS=false
+T1_READONLY_AUTHORIZATION_GRANTED=false
+```
+
+The Mac-side executor is source-closed for the next separately authorized T1 read-only evidence gate. Real target-Armbian clone semantics and writable OS-identity policy remain unproven.
+
 ## 2026-10-13 — P2B OS identity probe source CLOSED_PASS
 
 ```text

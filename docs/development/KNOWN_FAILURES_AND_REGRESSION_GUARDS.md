@@ -1,3 +1,17 @@
+## 2026-10-13 — KF-113 P2B read-only evidence executor closure
+
+```text
+EXECUTION_SOURCE_HEAD=9155855a71f4750ebf7a7b22d9b4e000627e2f98
+CI=26/26 PASS
+A1_REMOTE_PYTHON_BYTECODE_WRITE=CLOSED
+A2_EXACT_EXECUTOR_SOURCE_AUTHORITY=CLOSED
+A3_TRANSPORT_FAILURE_CLASSIFICATION=CLOSED
+A4_PRIVATE_EVIDENCE_AUTHORITY=CLOSED
+P2B_READONLY_EVIDENCE_EXECUTOR_SOURCE=CLOSED_PASS
+```
+
+Guard: T1 evidence execution must use the exact reviewed source head, explicit read-only authorization, streamed no-copy probe transport, private local evidence, and fail-closed transport classification. This closure does not authorize writable OS-identity repair.
+
 ## 2026-10-13 — KF-113 P2B target-Armbian evidence boundary
 
 ```text
