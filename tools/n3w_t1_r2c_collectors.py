@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import gzip
+import hashlib
+import io
 import posixpath
 import re
 from collections.abc import Callable
 from typing import Any
 
+from n3w_t1_r2c_collectors_e5_e9 import _snapshot_units, _unit_summary
 from n3w_t1_r2c_evidence_schema import REQUIREMENT_FIELDS
 from n3w_t1_r2c_firstrun import (
     FIRSTRUN_RELATIVE,
@@ -18,6 +22,7 @@ from n3w_t1_r2c_readonly_commands import (
     run_contract_command,
 )
 from n3w_t1_r2c_readonly_files import (
+    MAX_TEXT_BYTES,
     ReadonlyEvidenceError,
     inspect_metadata,
     read_bounded_text,
@@ -39,6 +44,20 @@ EXPECTED_ARMBIAN_VERSION = "26.05.0"
 EXPECTED_ARMBIAN_ARCH = "arm64"
 EXPECTED_ARMBIAN_BOARD = "S912-Phicomm-T1"
 EXPECTED_KERNEL_ARCH = "aarch64"
+E4_UNITS = (
+    "systemd-machine-id-commit.service",
+    "systemd-firstboot.service",
+)
+E4_MANUAL_BASENAMES = frozenset(
+    {
+        "machine-id.5",
+        "machine-id.5.gz",
+        "systemd-firstboot.1",
+        "systemd-firstboot.1.gz",
+        "systemd-machine-id-setup.1",
+        "systemd-machine-id-setup.1.gz",
+    }
+)
 
 
 class R2CCollectError(RuntimeError):
@@ -270,6 +289,132 @@ def _lexical_symlink_points_to(
     return normalized == expected_relative
 
 
+def _read_manual_bytes(root: str, absolute_path: str) -> bytes:
+    relative = absolute_path.lstrip("/")
+    compressed = read_bounded_text(root, relative, limit=MAX_TEXT_BYTES)
+    if not absolute_path.endswith(".gz"):
+        return compressed
+    try:
+        with gzip.GzipFile(fileobj=io.BytesIO(compressed)) as stream:
+            data = stream.read(MAX_TEXT_BYTES + 1)
+    except (OSError, EOFError) as error:
+        raise R2CCollectError("E4_MANUAL_DECOMPRESS_FAILED") from error
+    if len(data) > MAX_TEXT_BYTES:
+        raise R2CCollectError("E4_MANUAL_DECOMPRESSED_TOO_LARGE")
+    return data
+
+
+def _collect_e4_fallback_sources(
+    root: str,
+    runner: CommandRunner,
+) -> tuple[dict[str, Any], str]:
+    try:
+        listing = runner(
+            "C3_LIST",
+            value="systemd",
+            approved_packages={"systemd"},
+        )
+    except (OSError, ReadonlyCommandError):
+        return {
+            "package_file_list": "UNKNOWN",
+            "sources": [],
+        }, "UNKNOWN"
+    if listing.returncode != 0:
+        return {
+            "package_file_list": "UNKNOWN",
+            "sources": [],
+        }, "UNKNOWN"
+    try:
+        text = _decode_text(listing.stdout, "SYSTEMD_PACKAGE_LIST")
+    except R2CCollectError:
+        return {
+            "package_file_list": "UNKNOWN",
+            "sources": [],
+        }, "UNKNOWN"
+
+    candidates = sorted(
+        {
+            line.strip()
+            for line in text.splitlines()
+            if line.strip().startswith("/usr/share/man/")
+            and posixpath.basename(line.strip()) in E4_MANUAL_BASENAMES
+        }
+    )
+    sources: list[dict[str, Any]] = []
+    unresolved = False
+    for path in candidates:
+        try:
+            data = _read_manual_bytes(root, path)
+            decoded = data.decode("utf-8", errors="replace").lower()
+        except (
+            OSError,
+            ReadonlyEvidenceError,
+            R2CCollectError,
+        ):
+            unresolved = True
+            continue
+        sources.append(
+            {
+                "role": posixpath.basename(path).removesuffix(".gz"),
+                "sha256": hashlib.sha256(data).hexdigest(),
+                "markers": {
+                    "etc_machine_id": "/etc/machine-id" in decoded,
+                    "var_lib_dbus_machine_id": "/var/lib/dbus/machine-id"
+                    in decoded,
+                    "run_machine_id": "/run/machine-id" in decoded,
+                    "uninitialized": "uninitialized" in decoded,
+                    "first_boot": "first boot" in decoded
+                    or "first-boot" in decoded,
+                    "machine_id_setup": "systemd-machine-id-setup" in decoded,
+                },
+            }
+        )
+    has_machine_id_authority = any(
+        item["role"] == "machine-id.5"
+        and (
+            item["markers"]["etc_machine_id"]
+            or item["markers"]["uninitialized"]
+        )
+        for item in sources
+    )
+    status = (
+        "OBSERVED"
+        if has_machine_id_authority and not unresolved
+        else "UNKNOWN"
+    )
+    return {
+        "package_file_list": "OBSERVED",
+        "source_count": len(sources),
+        "sources": sources,
+    }, status
+
+
+def _collect_e4_boot_contract(
+    root: str,
+    runner: CommandRunner,
+) -> tuple[dict[str, Any], str]:
+    try:
+        units, unresolved = _snapshot_units(
+            root,
+            E4_UNITS,
+            runner,
+        )
+    except (
+        OSError,
+        ReadonlyCommandError,
+        ReadonlyEvidenceError,
+    ):
+        return {"units": {}}, "UNKNOWN"
+    summaries = {
+        name: _unit_summary(snapshot)
+        for name, snapshot in units.items()
+    }
+    return {
+        "units": summaries,
+        "unresolved": unresolved,
+    }, "OBSERVED" if not unresolved else "UNKNOWN"
+
+
 def collect_e4(
     root: str,
     runner: CommandRunner = run_contract_command,
@@ -332,7 +477,15 @@ def collect_e4(
         }
         mount_status = "UNKNOWN"
 
-    envelope["method_ids"] = ["R1", "C5"]
+    boot_contract, boot_status = _collect_e4_boot_contract(
+        root,
+        runner,
+    )
+    fallback_sources, fallback_status = _collect_e4_fallback_sources(
+        root,
+        runner,
+    )
+    envelope["method_ids"] = ["R1", "C3", "C4", "C5"]
     envelope["fields"]["etc_machine_id"] = _field(etc_record, etc_status)
     envelope["fields"]["dbus_machine_id"] = _field(dbus_record, dbus_status)
     envelope["fields"]["path_relation"] = _field(relation, "OBSERVED")
@@ -344,11 +497,25 @@ def collect_e4(
         contents_equal,
         "OBSERVED" if contents_equal is not None else "UNKNOWN",
     )
-    envelope["fields"]["boot_condition_contract"] = _field(None, "NOT_EXECUTED")
-    envelope["fields"]["fallback_sources"] = _field(None, "NOT_EXECUTED")
-    envelope["status"] = "UNKNOWN"
-    envelope["complete"] = False
-    envelope["reason_code"] = "STOP_SEMANTICS_GAP"
+    envelope["fields"]["boot_condition_contract"] = _field(
+        boot_contract,
+        boot_status,
+    )
+    envelope["fields"]["fallback_sources"] = _field(
+        fallback_sources,
+        fallback_status,
+    )
+    identity_capture_statuses = {etc_status, dbus_status}
+    identity_capture_complete = not identity_capture_statuses & {"UNKNOWN", "ERROR"}
+    complete = (
+        identity_capture_complete
+        and mount_status == "OBSERVED"
+        and boot_status == "OBSERVED"
+        and fallback_status == "OBSERVED"
+    )
+    envelope["status"] = "OBSERVED" if complete else "UNKNOWN"
+    envelope["complete"] = complete
+    envelope["reason_code"] = None if complete else "STOP_SEMANTICS_GAP"
     return envelope
 
 
