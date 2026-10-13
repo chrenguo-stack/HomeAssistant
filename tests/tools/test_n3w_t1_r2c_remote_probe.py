@@ -23,10 +23,29 @@ def complete_requirement(requirement_id: str) -> dict:
 
 
 def bind_complete_collectors(monkeypatch: pytest.MonkeyPatch) -> None:
+    stable_analysis = {
+        "status": "OBSERVED",
+        "main_sha256": "a" * 64,
+        "files": [{"role": "main", "sha256": "a" * 64, "depth": 0}],
+        "helper_dependencies": [],
+        "config_source_lines": [{"file_role": "main", "line": 1}],
+        "referenced_config_keys": ["SET_HOSTNAME"],
+        "unresolved": [],
+    }
+    monkeypatch.setattr(
+        probe,
+        "analyze_firstrun_tree",
+        lambda _root: stable_analysis,
+    )
+    monkeypatch.setattr(
+        probe,
+        "_config_fingerprint",
+        lambda _root: ("OBSERVED", "b" * 64),
+    )
     for index in range(1, 10):
         requirement_id = f"E{index}"
 
-        def collector(_root, runner=None, requirement_id=requirement_id):
+        def collector(_root, requirement_id=requirement_id, **_kwargs):
             return complete_requirement(requirement_id)
 
         monkeypatch.setattr(probe, f"collect_e{index}", collector)
@@ -148,3 +167,68 @@ def test_probe_rejects_invalid_binding_inputs() -> None:
             grant_id="grant-test-4",
             target_binding_token_sha256="d" * 64,
         )
+
+
+def test_firstrun_source_change_marks_e2_e3_invalid(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bind_complete_collectors(monkeypatch)
+    analyses = iter(
+        (
+            {
+                "status": "OBSERVED",
+                "main_sha256": "1" * 64,
+                "files": [{"role": "main", "sha256": "1" * 64, "depth": 0}],
+                "helper_dependencies": [],
+                "config_source_lines": [{"file_role": "main", "line": 1}],
+                "referenced_config_keys": ["SET_HOSTNAME"],
+                "unresolved": [],
+            },
+            {
+                "status": "OBSERVED",
+                "main_sha256": "2" * 64,
+                "files": [{"role": "main", "sha256": "2" * 64, "depth": 0}],
+                "helper_dependencies": [],
+                "config_source_lines": [{"file_role": "main", "line": 1}],
+                "referenced_config_keys": ["SET_HOSTNAME"],
+                "unresolved": [],
+            },
+        )
+    )
+    monkeypatch.setattr(probe, "analyze_firstrun_tree", lambda _root: next(analyses))
+    monkeypatch.setattr(
+        probe,
+        "_config_fingerprint",
+        lambda _root: ("OBSERVED", "b" * 64),
+    )
+    monkeypatch.setattr(
+        probe,
+        "_read_boot_id",
+        lambda _root: "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
+    )
+
+    document = probe.collect_report(
+        root="/",
+        execution_id="r2c-test-continuity",
+        source_head="a" * 40,
+        probe_sha256="b" * 64,
+        contract_sha256="c" * 64,
+        grant_id="grant-test-continuity",
+        target_binding_token_sha256="d" * 64,
+    )
+
+    assert document["requirements"]["E2"]["status"] == "ERROR"
+    assert document["requirements"]["E3"]["status"] == "ERROR"
+    assert document["requirements"]["E2"]["reason_code"] == "STOP_TARGET_CHANGED"
+    assert "STOP_TARGET_CHANGED" in document["stop_reasons"]
+
+
+def test_firstrun_continuity_is_recorded_privately(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    document = report(monkeypatch)
+
+    for requirement_id in ("E2", "E3"):
+        provenance = document["requirements"][requirement_id]["provenance"]
+        assert provenance[-1]["continuity"] == "PASS"
+        assert len(provenance[-1]["source_set_sha256"]) == 64
