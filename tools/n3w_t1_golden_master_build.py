@@ -8,14 +8,15 @@ import os
 import re
 import secrets
 import shutil
+import subprocess
 import sys
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 from n3w_t1_golden_master_common import (
     GoldenMasterCommonError,
-    canonical_sha256,
     claim_authorization,
     load_authorization_record,
     public_tree_sha256,
@@ -348,7 +349,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         print(json.dumps(result, sort_keys=True, separators=(",", ":")))
         return 0
-    except (GoldenMasterBuildError, GoldenMasterCommonError, Exception) as error:
+    except (
+        OSError,
+        RuntimeError,
+        ValueError,
+        KeyError,
+        TypeError,
+        AttributeError,
+        ImportError,
+        subprocess.SubprocessError,
+    ) as error:
         try:
             consumed = (
                 load_authorization_record(
@@ -357,7 +367,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
                 is not None
             )
-        except Exception:
+        except (GoldenMasterCommonError, OSError, ValueError):
             consumed = False
         print(
             json.dumps(

@@ -5,8 +5,9 @@ import argparse
 import json
 import re
 import subprocess
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from n3w_t1_golden_master_common import public_tree_sha256, sha256_file
 
@@ -244,7 +245,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = execute_seal(args.source_root, args.authorization_id)
         print(json.dumps(result, sort_keys=True, separators=(",", ":")))
         return 0
-    except Exception as error:
+    except (
+        GoldenMasterSealHostError,
+        OSError,
+        ValueError,
+        KeyError,
+        TypeError,
+        subprocess.SubprocessError,
+    ) as error:
         print(
             json.dumps(
                 {

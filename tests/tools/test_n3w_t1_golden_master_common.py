@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from n3w_t1_golden_master_common import (
     GoldenMasterCommonError,
     authorization_record_path,
