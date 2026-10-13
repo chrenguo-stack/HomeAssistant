@@ -180,6 +180,9 @@ def _write_new_record(path: Path, document: Mapping[str, object]) -> None:
         json.dumps(document, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         + "\n"
     ).encode()
+    temporary = path.with_name(
+        f".{path.name}.{secrets.token_hex(8)}.claim"
+    )
     flags = (
         os.O_WRONLY
         | os.O_CREAT
@@ -187,9 +190,9 @@ def _write_new_record(path: Path, document: Mapping[str, object]) -> None:
         | getattr(os, "O_NOFOLLOW", 0)
     )
     try:
-        descriptor = os.open(path, flags, 0o600)
+        descriptor = os.open(temporary, flags, 0o600)
     except FileExistsError as error:
-        raise DeviceFirstbootError("firstboot_record_already_exists") from error
+        raise DeviceFirstbootError("firstboot_record_temp_exists") from error
 
     try:
         os.fchmod(descriptor, 0o600)
@@ -201,6 +204,10 @@ def _write_new_record(path: Path, document: Mapping[str, object]) -> None:
             stream.write(payload)
             stream.flush()
             os.fsync(stream.fileno())
+        try:
+            os.link(temporary, path, follow_symlinks=False)
+        except FileExistsError as error:
+            raise DeviceFirstbootError("firstboot_record_already_exists") from error
         _validate_record_metadata(path)
         parent_descriptor = os.open(
             path.parent,
@@ -213,6 +220,7 @@ def _write_new_record(path: Path, document: Mapping[str, object]) -> None:
     finally:
         if descriptor >= 0:
             os.close(descriptor)
+        temporary.unlink(missing_ok=True)
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -394,11 +402,7 @@ def _run_existing_transaction(
     *,
     release_id: str,
     transaction: dict[str, Any],
-    preflight_complete: bool,
 ) -> dict[str, Any]:
-    if not preflight_complete:
-        _preflight_clone(adapters, release_id)
-
     stage = str(transaction["stage"])
 
     if STAGES.index(stage) < STAGES.index("OS_IDENTITY"):
@@ -747,7 +751,6 @@ def start_device_provisioning(
         candidate,
         release_id=release_id,
         transaction=transaction,
-        preflight_complete=True,
     )
 
 
@@ -775,7 +778,6 @@ def resume_device_provisioning(
         candidate,
         release_id=release_id,
         transaction=transaction,
-        preflight_complete=False,
     )
 
 
