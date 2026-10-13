@@ -3,11 +3,10 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-
 from n3w_t1_r2c_evidence_schema import (
-    EvidenceSchemaError,
     REQUIREMENT_FIELDS,
     REQUIREMENT_IDS,
+    EvidenceSchemaError,
     public_requirement_projection,
     validate_report,
 )
