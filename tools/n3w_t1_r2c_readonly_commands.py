@@ -7,9 +7,9 @@ import shutil
 import stat
 import subprocess
 import time
+from collections.abc import Collection
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import Collection
 
 SAFE_PATH = "/usr/sbin:/usr/bin:/sbin:/bin"
 SAFE_DIRS = ("/usr/sbin", "/usr/bin", "/sbin", "/bin")
