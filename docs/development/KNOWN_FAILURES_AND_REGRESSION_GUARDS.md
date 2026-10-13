@@ -1,3 +1,26 @@
+## 2026-10-13 — KF-113 R2A/R2B final closure blocker repair guard
+
+```text
+KF-113_R2A_R2B_FINAL_CLOSURE_BLOCKERS=REPAIRED_SOURCE_CI_PENDING
+A1_ROOT_SYMLINK_FAIL_CLOSED=REPAIRED_SOURCE
+A2_POSITIVE_PRODUCT_NAMESPACE_AND_FORBIDDEN_INVENTORY=REPAIRED_SOURCE
+A3_GOLDEN_MASTER_AUTH_LEDGER=CLASSIFIED_NONSECRET_NO_REPLAY_PROVENANCE
+A4_FAULT_INJECTION_GAPS=REPAIRED_SOURCE
+
+R2C_TARGET_IDENTITY_ADAPTER=NOT_ENTERED
+OS_IDENTITY_SEMANTICS_PROVEN=false
+CONTROLLED_CLONE_BOOT_EVIDENCE_REQUIRED=true
+```
+
+Guard: a green CI result alone must not promote R2A/R2B to closure. Final source closure
+still requires exact-head CI plus focused review. The retained Golden Master
+authorization ledger is allowed only when it contains the exact release-bound BUILD
+record and, later, at most the matching SEAL record; any unknown entry fails closed.
+Real machine-id/SSH/NetworkManager/journal/random-seed mutation remains forbidden until
+the separately authorized R2C target-Armbian evidence gate closes.
+
+Authority: `docs/development/N3W_T1_GOLDEN_MASTER_R2A_R2B_FINAL_CLOSURE_BLOCKERS_SOURCE_REPAIR_20261013.md`.
+
 ## 2026-10-13 — KF-113 target-Armbian live evidence captured / clone-uniqueness guard remains
 
 ```text

@@ -4,14 +4,19 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
+import stat
 import subprocess
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
 from n3w_t1_golden_master_common import (
+    GoldenMasterCommonError,
+    authorization_record_path,
     canonical_sha256,
+    load_authorization_record,
     public_tree_sha256,
     sha256_file,
 )
@@ -19,10 +24,19 @@ from n3w_t1_golden_master_common import (
 SCHEMA = "gh.n3w.t1-golden-master-seal-host/1"
 RELEASE_SCHEMA = "gh.n3w.t1-golden-master-release/1"
 AUTHORIZATION_ID = "N3W_T1_GOLDEN_MASTER_R2_FINAL_SEAL_LIVE_APPLY_20261013_01"
+BUILD_AUTHORIZATION_ID = "N3W_T1_GOLDEN_MASTER_R2_BUILD_LIVE_APPLY_20261013_01"
+AUTHORIZATION_LEDGER_ROOT = Path("/var/lib/n3w-golden-master-authorizations")
+AUTHORIZATION_LEDGER_POLICY = "retained_nonsecret_no_replay_provenance"
 RELEASE_RELATIVE_PATH = Path(
     "infra/n3w-t1/production/golden-master-release.json"
 )
 IMAGE_LOCK_RELATIVE_PATH = Path("infra/n3w-t1/production/image-lock.json")
+PUBLIC_EXTERNAL_FILES = {
+    "guard_binary": Path("/usr/local/sbin/n3w-broker-ingress-guard"),
+    "guard_unit": Path(
+        "/etc/systemd/system/n3wfc4-broker-ingress-guard.service"
+    ),
+}
 DEFAULT_NETWORKS = frozenset(("bridge", "host", "none"))
 TARGET_PORTS = frozenset((1883, 8883, 18883, 8123, 47110, 47111, 47112))
 INSTANCE_PATHS = (
@@ -54,6 +68,33 @@ STAGING_GLOBS = (
     "/var/tmp/n3w-golden-master-build-*",
     "/var/tmp/n3w-fresh-bootstrap-*",
 )
+PRODUCT_NAMESPACE_RULES = (
+    (
+        Path("/opt"),
+        ("HomeAssistant", "greenhouse-"),
+        frozenset({"HomeAssistant"}),
+    ),
+    (
+        Path("/var/lib"),
+        ("greenhouse-manager", "n3w"),
+        frozenset({"n3w-golden-master-authorizations"}),
+    ),
+    (
+        Path("/usr/local/sbin"),
+        ("n3w-",),
+        frozenset({"n3w-broker-ingress-guard"}),
+    ),
+    (
+        Path("/etc/systemd/system"),
+        ("n3wfc4-",),
+        frozenset({"n3wfc4-broker-ingress-guard.service"}),
+    ),
+    (
+        Path("/etc/NetworkManager/dispatcher.d"),
+        ("90-n3wfc4-",),
+        frozenset(),
+    ),
+)
 _SHA40 = re.compile(r"[0-9a-f]{40}")
 _SHA64 = re.compile(r"[0-9a-f]{64}")
 _IMAGE_ID = re.compile(r"sha256:[0-9a-f]{64}")
@@ -84,6 +125,21 @@ class Runner:
         return completed.stdout
 
 
+def _source_root(path: Path) -> Path:
+    root = path.expanduser()
+    if not root.is_absolute():
+        raise GoldenMasterSealHostError("source_root_not_absolute")
+    if root.is_symlink() or not root.is_dir():
+        raise GoldenMasterSealHostError("source_root_invalid")
+    try:
+        resolved = root.resolve(strict=True)
+    except OSError as error:
+        raise GoldenMasterSealHostError("source_root_invalid") from error
+    if resolved != root:
+        raise GoldenMasterSealHostError("source_root_alias_forbidden")
+    return root
+
+
 def _load_release(source_root: Path) -> dict[str, Any]:
     path = source_root / RELEASE_RELATIVE_PATH
     if path.is_symlink() or not path.is_file():
@@ -104,10 +160,14 @@ def _load_release(source_root: Path) -> dict[str, Any]:
         or document.get("architecture") != "linux/arm64"
         or document.get("instance_material_absent") is not True
         or document.get("secret_values_included") is not False
+        or document.get("build_authorization_id") != BUILD_AUTHORIZATION_ID
+        or document.get("authorization_ledger_policy")
+        != AUTHORIZATION_LEDGER_POLICY
         or document.get("seal_state") != "UNSEALED"
         or document.get("production_service_start") is not False
     ):
         raise GoldenMasterSealHostError("release_manifest_contract_invalid")
+
     images = document.get("images")
     if not isinstance(images, dict) or set(images) != {
         "homeassistant",
@@ -128,6 +188,24 @@ def _load_release(source_root: Path) -> dict[str, Any]:
         ):
             raise GoldenMasterSealHostError(
                 f"release_manifest_image_record_invalid:{label}"
+            )
+
+    external = document.get("public_external_bindings")
+    if not isinstance(external, dict) or set(external) != set(PUBLIC_EXTERNAL_FILES):
+        raise GoldenMasterSealHostError(
+            "release_manifest_public_external_bindings_invalid"
+        )
+    for label, expected_path in PUBLIC_EXTERNAL_FILES.items():
+        record = external[label]
+        if (
+            not isinstance(record, dict)
+            or record.get("destination") != str(expected_path)
+            or _SHA64.fullmatch(str(record.get("sha256"))) is None
+            or not isinstance(record.get("mode"), int)
+            or isinstance(record.get("mode"), bool)
+        ):
+            raise GoldenMasterSealHostError(
+                f"release_manifest_public_external_invalid:{label}"
             )
     return document
 
@@ -223,6 +301,24 @@ def _verify_images(
             )
 
 
+def _verify_public_external_files(release: dict[str, Any]) -> None:
+    bindings = release["public_external_bindings"]
+    for label, path in PUBLIC_EXTERNAL_FILES.items():
+        if path.is_symlink() or not path.is_file():
+            raise GoldenMasterSealHostError(
+                f"public_external_file_missing:{label}"
+            )
+        metadata = path.stat()
+        record = bindings[label]
+        if (
+            sha256_file(path) != record["sha256"]
+            or stat.S_IMODE(metadata.st_mode) != record["mode"]
+        ):
+            raise GoldenMasterSealHostError(
+                f"public_external_file_binding_invalid:{label}"
+            )
+
+
 def _listener_count(runner: Runner) -> int:
     output = runner.run(("ss", "-H", "-lntu"))
     count = 0
@@ -270,6 +366,97 @@ def _require_no_staging_residue() -> None:
             raise GoldenMasterSealHostError(
                 f"staging_residue_present:{name}"
             )
+
+
+def _audit_product_namespace_whitelist() -> None:
+    for parent, prefixes, allowed in PRODUCT_NAMESPACE_RULES:
+        if not parent.is_dir() or parent.is_symlink():
+            raise GoldenMasterSealHostError(
+                f"product_namespace_parent_invalid:{parent}"
+            )
+        for path in parent.iterdir():
+            if not any(path.name.startswith(prefix) for prefix in prefixes):
+                continue
+            if path.name not in allowed:
+                raise GoldenMasterSealHostError(
+                    f"product_namespace_not_whitelisted:{path}"
+                )
+
+
+def _audit_authorization_ledger(
+    release: dict[str, Any],
+) -> dict[str, object]:
+    try:
+        build = load_authorization_record(
+            AUTHORIZATION_LEDGER_ROOT,
+            BUILD_AUTHORIZATION_ID,
+        )
+        seal = load_authorization_record(
+            AUTHORIZATION_LEDGER_ROOT,
+            AUTHORIZATION_ID,
+        )
+    except (GoldenMasterCommonError, OSError, ValueError) as error:
+        raise GoldenMasterSealHostError(
+            "authorization_ledger_invalid"
+        ) from error
+
+    if build is None:
+        raise GoldenMasterSealHostError(
+            "build_authorization_record_missing"
+        )
+    expected = {
+        "source_head": release["source_head"],
+        "payload_manifest_sha256": release["payload_manifest_sha256"],
+        "release_id": release["release_id"],
+    }
+    if build.get("operation") != "BUILD" or any(
+        build.get(key) != value for key, value in expected.items()
+    ):
+        raise GoldenMasterSealHostError(
+            "build_authorization_record_binding_invalid"
+        )
+    if seal is not None and (
+        seal.get("operation") != "SEAL"
+        or any(seal.get(key) != value for key, value in expected.items())
+    ):
+        raise GoldenMasterSealHostError(
+            "seal_authorization_record_binding_invalid"
+        )
+
+    expected_paths = {
+        authorization_record_path(
+            AUTHORIZATION_LEDGER_ROOT,
+            BUILD_AUTHORIZATION_ID,
+        )
+    }
+    if seal is not None:
+        expected_paths.add(
+            authorization_record_path(
+                AUTHORIZATION_LEDGER_ROOT,
+                AUTHORIZATION_ID,
+            )
+        )
+    try:
+        observed_paths = {
+            path
+            for path in AUTHORIZATION_LEDGER_ROOT.iterdir()
+            if path.exists() or path.is_symlink()
+        }
+    except OSError as error:
+        raise GoldenMasterSealHostError(
+            "authorization_ledger_invalid"
+        ) from error
+    if observed_paths != expected_paths:
+        raise GoldenMasterSealHostError(
+            "authorization_ledger_unknown_residue"
+        )
+
+    return {
+        "authorization_ledger_classified": True,
+        "authorization_ledger_policy": AUTHORIZATION_LEDGER_POLICY,
+        "build_authorization_proven": True,
+        "seal_authorization_claimed": seal is not None,
+    }
 
 
 def _audit_quiescence(runner: Runner) -> dict[str, object]:
@@ -332,6 +519,7 @@ def _audit_quiescence(runner: Runner) -> dict[str, object]:
 
     _require_absent_paths((*INSTANCE_PATHS, *EXTRA_ABSENT))
     _require_no_staging_residue()
+    _audit_product_namespace_whitelist()
 
     return {
         "product_container_count": 0,
@@ -342,6 +530,8 @@ def _audit_quiescence(runner: Runner) -> dict[str, object]:
         "instance_material_absent": True,
         "activation_units_absent": True,
         "staging_residue_absent": True,
+        "product_namespace_whitelist_exact": True,
+        "forbidden_instance_inventory_absent": True,
     }
 
 
@@ -350,15 +540,18 @@ def audit_public_master(
     *,
     runner: Runner | None = None,
 ) -> dict[str, object]:
-    root = source_root.resolve()
+    root = _source_root(source_root)
     release = _load_release(root)
     release_path = root / RELEASE_RELATIVE_PATH
     release_manifest_sha256 = sha256_file(release_path)
     excluded = frozenset({RELEASE_RELATIVE_PATH.as_posix()})
-    if (
-        public_tree_sha256(root, excluded=excluded)
-        != release["public_source_tree_sha256"]
-    ):
+    try:
+        observed_tree = public_tree_sha256(root, excluded=excluded)
+    except GoldenMasterCommonError as error:
+        raise GoldenMasterSealHostError(
+            "public_source_tree_invalid"
+        ) from error
+    if observed_tree != release["public_source_tree_sha256"]:
         raise GoldenMasterSealHostError("public_source_tree_binding_invalid")
 
     image_lock = root / IMAGE_LOCK_RELATIVE_PATH
@@ -367,6 +560,8 @@ def audit_public_master(
     if sha256_file(image_lock) != release["image_lock_sha256"]:
         raise GoldenMasterSealHostError("image_lock_binding_invalid")
 
+    _verify_public_external_files(release)
+    ledger = _audit_authorization_ledger(release)
     active = runner or Runner()
     _verify_images(active, release)
     quiescence = _audit_quiescence(active)
@@ -376,6 +571,8 @@ def audit_public_master(
         "release_manifest_sha256": release_manifest_sha256,
         "image_lock_sha256": release["image_lock_sha256"],
         "public_source_tree_sha256": release["public_source_tree_sha256"],
+        "public_external_bindings": release["public_external_bindings"],
+        **ledger,
         **quiescence,
     }
 
@@ -391,8 +588,10 @@ def audit_public_master(
         "exact_release_binding": True,
         "instance_material_absent": True,
         "public_source_tree_exact": True,
+        "public_external_files_exact": True,
         "image_lock_exact": True,
         "image_binding_exact": True,
+        **ledger,
         **quiescence,
         "target_identity_adapter_ready": False,
         "disk_capture_ready": False,
@@ -439,6 +638,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     except (
         GoldenMasterSealHostError,
+        GoldenMasterCommonError,
         OSError,
         ValueError,
         KeyError,

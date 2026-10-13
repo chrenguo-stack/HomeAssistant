@@ -1,3 +1,13 @@
+## 2026-10-13 — R2A/R2B final closure blocker repair
+
+- R2 Golden Master Build + Final Seal is formally **ENTERED_SOURCE**.
+- Exact repair base: `ef06c45ad1040a8221b68e1d22ec0abe363d7e42`.
+- A1 root-symlink authority, A2 positive no-secret/product whitelist, A3 Golden Master authorization-ledger classification, and A4 missing fault-injection coverage are repaired at source level.
+- Status: `IMPLEMENTED_CI_PENDING`; R2A/R2B are not yet CLOSED_SOURCE.
+- R2C target-Armbian identity adapter remains NOT_ENTERED; `OS_IDENTITY_SEMANTICS_PROVEN=false` and controlled clone-boot evidence remains required.
+- No T1/live/service/board/merge action occurred.
+- Authority: `docs/development/N3W_T1_GOLDEN_MASTER_R2A_R2B_FINAL_CLOSURE_BLOCKERS_SOURCE_REPAIR_20261013.md`.
+
 ## 2026-10-13 — P2B Target-Armbian read-only evidence CLOSED_PASS
 
 - Exact execution source: `9155855a71f4750ebf7a7b22d9b4e000627e2f98` / 26/26 CI PASS.

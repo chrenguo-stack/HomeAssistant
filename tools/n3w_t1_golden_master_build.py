@@ -31,6 +31,17 @@ AUTHORIZATION_LEDGER_ROOT = Path("/var/lib/n3w-golden-master-authorizations")
 RELEASE_RELATIVE_PATH = Path(
     "infra/n3w-t1/production/golden-master-release.json"
 )
+PUBLIC_EXTERNAL_CANDIDATES = {
+    "guard_binary": (
+        "stage/n3w-broker-ingress-guard",
+        "/usr/local/sbin/n3w-broker-ingress-guard",
+    ),
+    "guard_unit": (
+        "stage/n3wfc4-broker-ingress-guard.service",
+        "/etc/systemd/system/n3wfc4-broker-ingress-guard.service",
+    ),
+}
+AUTHORIZATION_LEDGER_POLICY = "retained_nonsecret_no_replay_provenance"
 _RELEASE_ID = re.compile(r"[A-Za-z0-9._-]{1,128}")
 
 
@@ -96,6 +107,23 @@ def _image_bindings(manifest: Mapping[str, Any]) -> dict[str, dict[str, object]]
     return result
 
 
+def _public_external_bindings(candidate_root: Path) -> dict[str, dict[str, object]]:
+    result: dict[str, dict[str, object]] = {}
+    for label, (relative, destination) in PUBLIC_EXTERNAL_CANDIDATES.items():
+        path = candidate_root / relative
+        if path.is_symlink() or not path.is_file():
+            raise GoldenMasterBuildError(
+                f"public_external_candidate_invalid:{label}"
+            )
+        metadata = path.stat()
+        result[label] = {
+            "destination": destination,
+            "sha256": sha256_file(path),
+            "mode": metadata.st_mode & 0o777,
+        }
+    return result
+
+
 class GoldenMasterBuildAdapters:
     def __init__(
         self,
@@ -140,9 +168,12 @@ class GoldenMasterBuildAdapters:
             ),
             "public_source_tree_sha256": public_source_tree_sha256,
             "images": _image_bindings(self.manifest),
+            "public_external_bindings": _public_external_bindings(candidate_root),
             "architecture": "linux/arm64",
             "instance_material_absent": True,
             "secret_values_included": False,
+            "build_authorization_id": AUTHORIZATION_ID,
+            "authorization_ledger_policy": AUTHORIZATION_LEDGER_POLICY,
             "seal_state": "UNSEALED",
             "production_service_start": False,
             "board_access": False,

@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 TOOLS = ROOT / "tools"
@@ -40,6 +43,12 @@ class FakeLive:
             json.dumps(MANIFEST["image_lock"], sort_keys=True, indent=2) + "\n",
             encoding="utf-8",
         )
+        guard = candidate_root / "stage/n3w-broker-ingress-guard"
+        guard.write_text("guard\n", encoding="utf-8")
+        guard.chmod(0o755)
+        unit = candidate_root / "stage/n3wfc4-broker-ingress-guard.service"
+        unit.write_text("[Unit]\n", encoding="utf-8")
+        unit.chmod(0o644)
         return {
             "status": "PASS",
             "public_only": True,
@@ -94,7 +103,73 @@ def test_build_adapter_stages_public_release_manifest(tmp_path: Path) -> None:
     assert document["instance_material_absent"] is True
     assert document["secret_values_included"] is False
     assert document["seal_state"] == "UNSEALED"
+    assert document["build_authorization_id"] == build.AUTHORIZATION_ID
+    assert (
+        document["authorization_ledger_policy"]
+        == build.AUTHORIZATION_LEDGER_POLICY
+    )
+    assert set(document["public_external_bindings"]) == {
+        "guard_binary",
+        "guard_unit",
+    }
     assert document["public_source_tree_sha256"] == public_tree_sha256(
         product,
         excluded=frozenset({build.RELEASE_RELATIVE_PATH.as_posix()}),
     )
+
+
+def test_build_wrapper_claims_durable_one_shot_authorization(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    payload = tmp_path / "payload"
+    payload.mkdir()
+    (payload / "payload-manifest.json").write_text("{}\n", encoding="utf-8")
+    ledger = tmp_path / "ledger"
+    monkeypatch.setattr(build, "AUTHORIZATION_LEDGER_ROOT", ledger)
+    monkeypatch.setattr(build.os, "geteuid", lambda: 0)
+
+    adapter = SimpleNamespace(release_sha256="d" * 64)
+
+    class Contract:
+        @staticmethod
+        def run_golden_master_build(
+            _adapter,
+            _candidate,
+            *,
+            before_mutation,
+        ):
+            before_mutation()
+            return {
+                "master_ready": True,
+                "instance_material_absent": True,
+            }
+
+    monkeypatch.setattr(
+        build,
+        "_load_payload",
+        lambda _root, _release: (
+            SimpleNamespace(),
+            Contract(),
+            {"source_head": "a" * 40},
+            adapter,
+        ),
+    )
+
+    report = build.execute_apply(
+        payload,
+        "release-1",
+        build.AUTHORIZATION_ID,
+    )
+    assert report["status"] == "PASS"
+    assert report["authorization_consumed"] is True
+
+    with pytest.raises(
+        build.GoldenMasterBuildError,
+        match="authorization_already_consumed",
+    ):
+        build.execute_apply(
+            payload,
+            "release-1",
+            build.AUTHORIZATION_ID,
+        )

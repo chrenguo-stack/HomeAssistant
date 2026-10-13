@@ -5,14 +5,21 @@ from pathlib import Path
 import pytest
 
 from greenhouse_manager.bootstrap.golden_master_installer import (
+    GoldenMasterRecoveryRequired,
     GoldenMasterStageError,
     run_golden_master_build,
 )
 
 
 class FakeAdapters:
-    def __init__(self, *, fail_stage: str | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        fail_stage: str | None = None,
+        cleanup_fails: bool = False,
+    ) -> None:
         self.fail_stage = fail_stage
+        self.cleanup_fails = cleanup_fails
         self.calls: list[str] = []
 
     def _call(self, name: str) -> None:
@@ -71,6 +78,8 @@ class FakeAdapters:
 
     def cleanup_master_candidate(self, _candidate_root: Path):
         self._call("cleanup")
+        if self.cleanup_fails:
+            raise RuntimeError("cleanup_failure")
         return {
             "status": "PASS",
             "public_transaction_owned_only": True,
@@ -103,3 +112,27 @@ def test_master_failure_cleans_only_master_transaction(tmp_path: Path) -> None:
     assert captured.value.failed_stage == "stage_public"
     assert captured.value.cleanup_result == "PASS"
     assert adapters.calls[-1] == "cleanup"
+
+
+def test_master_incomplete_public_commit_runs_cleanup(tmp_path: Path) -> None:
+    adapters = FakeAdapters(fail_stage="commit_public")
+
+    with pytest.raises(GoldenMasterStageError) as captured:
+        run_golden_master_build(adapters, tmp_path / "candidate")
+
+    assert captured.value.failed_stage == "commit_public"
+    assert captured.value.cleanup_result == "PASS"
+    assert adapters.calls[-1] == "cleanup"
+
+
+def test_master_cleanup_uncertainty_requires_recovery(tmp_path: Path) -> None:
+    adapters = FakeAdapters(
+        fail_stage="master_postcheck",
+        cleanup_fails=True,
+    )
+
+    with pytest.raises(GoldenMasterRecoveryRequired) as captured:
+        run_golden_master_build(adapters, tmp_path / "candidate")
+
+    assert captured.value.failed_stage == "master_postcheck"
+    assert captured.value.cleanup_result == "NOT_PROVEN"
