@@ -140,6 +140,8 @@ def _collect(
             reason_code="STOP_TRUNCATED",
         )
     try:
+        if requirement_id == "E3":
+            return collector(root)
         return collector(root, runner=runner)
     except Exception:
         return _collector_error(requirement_id)
