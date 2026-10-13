@@ -1738,7 +1738,7 @@ def _unit_link_edges(
                     )
                     continue
                 try:
-                    records = scan_bounded(
+                    records, _ = _scan(
                         root,
                         relative,
                         max_depth=0,
