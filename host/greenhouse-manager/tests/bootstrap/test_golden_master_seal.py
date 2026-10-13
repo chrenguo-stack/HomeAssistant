@@ -21,6 +21,8 @@ class FakeAdapters:
         random_seed_residue: bool = False,
         unknown_identity_state: bool = False,
         prepare_closes: bool = True,
+        target_specific: bool = True,
+        contract_drift_on_prepare: bool = False,
     ) -> None:
         self.machine_id_populated = machine_id_populated
         self.ssh_host_private_key_count = ssh_host_private_key_count
@@ -29,6 +31,9 @@ class FakeAdapters:
         self.random_seed_residue = random_seed_residue
         self.unknown_identity_state = unknown_identity_state
         self.prepare_closes = prepare_closes
+        self.target_specific = target_specific
+        self.contract_drift_on_prepare = contract_drift_on_prepare
+        self.target_identity_contract_sha256 = "e" * 64
         self.calls: list[str] = []
 
     def audit_public_release(self, release_id: str):
@@ -82,6 +87,8 @@ class FakeAdapters:
             "journal_identity_residue": self.journal_identity_residue,
             "random_seed_residue": self.random_seed_residue,
             "unknown_identity_state": self.unknown_identity_state,
+            "target_specific": self.target_specific,
+            "target_identity_contract_sha256": self.target_identity_contract_sha256,
             "os_identity_audit_sha256": "d" * 64,
             "secret_values_included": False,
             "production_service_start": False,
@@ -95,10 +102,14 @@ class FakeAdapters:
             self.network_identity_residue = False
             self.journal_identity_residue = False
             self.random_seed_residue = False
+        prepared_contract = self.target_identity_contract_sha256
+        if self.contract_drift_on_prepare:
+            prepared_contract = "f" * 64
         return {
             "status": "PASS",
             "capture_neutral": self.prepare_closes,
-            "target_specific": True,
+            "target_specific": self.target_specific,
+            "target_identity_contract_sha256": prepared_contract,
             "secret_values_included": False,
             "production_service_start": False,
             "rebooted": False,
@@ -163,6 +174,37 @@ def test_seal_rejects_failed_identity_neutralization_before_marker() -> None:
     with pytest.raises(
         GoldenMasterSealError,
         match="prepare_os_identity:capture_neutral_invalid",
+    ):
+        seal_golden_master(
+            adapters,
+            release_id="release-1",
+            confirmation=SEAL_CONFIRMATION,
+            claim_authorization=lambda: adapters.calls.append("claim"),
+        )
+
+    assert "record" not in adapters.calls
+
+
+def test_audit_rejects_generic_identity_authority() -> None:
+    adapters = FakeAdapters(
+        machine_id_populated=False,
+        ssh_host_private_key_count=0,
+        target_specific=False,
+    )
+
+    with pytest.raises(
+        GoldenMasterSealError,
+        match="os_identity:target_specific_invalid",
+    ):
+        audit_golden_master_seal(adapters, release_id="release-1")
+
+
+def test_seal_rejects_target_contract_drift_before_marker() -> None:
+    adapters = FakeAdapters(contract_drift_on_prepare=True)
+
+    with pytest.raises(
+        GoldenMasterSealError,
+        match="prepare_os_identity:target_contract_drift",
     ):
         seal_golden_master(
             adapters,

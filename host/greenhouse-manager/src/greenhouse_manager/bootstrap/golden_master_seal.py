@@ -144,9 +144,15 @@ def audit_golden_master_seal(
         identity,
         {
             "status": "PASS",
+            "target_specific": True,
             "secret_values_included": False,
             "production_service_start": False,
         },
+        "os_identity",
+    )
+    target_identity_contract_sha256 = _require_sha256(
+        identity,
+        "target_identity_contract_sha256",
         "os_identity",
     )
     os_identity_audit_sha256 = _require_sha256(
@@ -165,6 +171,7 @@ def audit_golden_master_seal(
         "release_manifest_sha256": release_manifest_sha256,
         "image_lock_sha256": image_lock_sha256,
         "public_audit_sha256": public_audit_sha256,
+        "target_identity_contract_sha256": target_identity_contract_sha256,
         "os_identity_audit_sha256": os_identity_audit_sha256,
         "secret_values_included": False,
         "production_service_start": False,
@@ -199,10 +206,22 @@ def seal_golden_master(
             },
             "prepare_os_identity",
         )
+        prepared_contract_sha256 = _require_sha256(
+            prepared,
+            "target_identity_contract_sha256",
+            "prepare_os_identity",
+        )
+        if prepared_contract_sha256 != preaudit["target_identity_contract_sha256"]:
+            raise GoldenMasterSealError("prepare_os_identity:target_contract_drift")
 
     postaudit = audit_golden_master_seal(adapters, release_id=release_id)
     if postaudit["disk_capture_ready"] is not True:
         raise GoldenMasterSealError("post_seal_capture_readiness_invalid")
+    if (
+        postaudit["target_identity_contract_sha256"]
+        != preaudit["target_identity_contract_sha256"]
+    ):
+        raise GoldenMasterSealError("post_seal_target_contract_drift")
 
     record = {
         "schema": SCHEMA,
@@ -211,6 +230,9 @@ def seal_golden_master(
         "release_manifest_sha256": postaudit["release_manifest_sha256"],
         "image_lock_sha256": postaudit["image_lock_sha256"],
         "public_audit_sha256": postaudit["public_audit_sha256"],
+        "target_identity_contract_sha256": postaudit[
+            "target_identity_contract_sha256"
+        ],
         "os_identity_audit_sha256": postaudit["os_identity_audit_sha256"],
         "disk_capture_ready": True,
         "shutdown_required": True,
