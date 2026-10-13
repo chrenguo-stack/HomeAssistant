@@ -345,3 +345,48 @@ def test_transport_output_limit_is_enforced_while_streaming() -> None:
         )
 
     assert len(raised.value.stdout) + len(raised.value.stderr) == 128
+
+
+def test_local_transport_spawn_failure_does_not_claim_t1_access(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = load_executor()
+    evidence = tmp_path / "evidence"
+
+    monkeypatch.setattr(
+        module,
+        "validate_local_source_authority",
+        lambda expected: {
+            "expected_source_head": expected,
+            "observed_source_head": expected,
+            "tracked_worktree_clean": True,
+            "module_blobs": {},
+            "contract_blob": module.EXPECTED_CONTRACT_BLOB_SHA,
+            "executor_blob": "e" * 40,
+        },
+    )
+    monkeypatch.setattr(module, "build_remote_program", lambda: b"program")
+    monkeypatch.setattr(module, "contract_sha256", lambda: "c" * 64)
+
+    def spawn_failed(_argv, **_kwargs):
+        raise OSError("ssh executable unavailable")
+
+    monkeypatch.setattr(module, "_run_transport_bounded", spawn_failed)
+
+    with pytest.raises(module.StopExecution, match="ssh_transport_error"):
+        module.execute(
+            target="root@192.0.2.10",
+            target_binding_id="target-spawn-failure",
+            evidence_root=evidence,
+            confirmation=module.CONFIRMATION,
+            grant_id="grant-spawn-failure",
+            authorization_expires_at="2099-01-01T00:00:00Z",
+            execution_id="execution-spawn-failure",
+            expected_source_head="a" * 40,
+        )
+
+    result = json.loads((evidence / "result.json").read_text(encoding="utf-8"))
+    assert result["authorization_consumed"] is False
+    assert result["replay_permitted"] is False
+    assert result["t1_access"] is False
