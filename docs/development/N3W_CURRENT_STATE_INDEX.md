@@ -1,3 +1,16 @@
+## 2026-10-13 — P2B Target-Armbian read-only evidence CLOSED_PASS
+
+- Exact execution source: `9155855a71f4750ebf7a7b22d9b4e000627e2f98` / 26/26 CI PASS.
+- Live read-only execution: PASS; no T1 file write, runtime/systemd mutation, production service start, board access, or merge.
+- Evidence hashes: stdout `97dd6a1c...`; report `be053eca...`; result `f4d2e6bd...`.
+- Exact target: Armbian 26.05.0 / S912-Phicomm-T1 / arm64.
+- Current host has populated, synchronized machine-id files and populated ECDSA/ED25519/RSA SSH host keys.
+- `sshd-keygen.service` has first-boot keygen semantics; `systemd-machine-id-commit.service` is mount-point gated; neither proves uniqueness for a cloned populated image.
+- `/etc/NetworkManager/system-connections` profile count observed: 0; NetworkManager clone uniqueness remains NOT_PROVEN.
+- Golden Master policy: final capture with populated machine-id or populated SSH host keys is forbidden; controlled clone-boot uniqueness proof remains mandatory.
+- Closure: `docs/development/N3W_T1_EXPLICIT_DEVICE_PROVISIONING_P2B_TARGET_ARMBIAN_READONLY_EVIDENCE_EXECUTION_CLOSURE_20261013.md`.
+- R2/R3/R4 are not entered. Next route is R2 Golden Master Build + Final Seal source design, with auto-entry disabled.
+
 ## 2026-10-13 — Current formal handoff: P2B Target-Armbian read-only evidence
 
 - Local dialogue ↔ GitHub alignment: PASS
