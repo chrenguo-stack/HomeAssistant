@@ -358,10 +358,14 @@ def public_requirement_projection(
         raise EvidenceSchemaError("fields_type")
     _exact_keys(fields, REQUIREMENT_FIELDS[requirement_id], f"{requirement_id}_fields")
     allowed = PUBLIC_FIELD_ALLOWLIST[requirement_id]
-    projected_fields = {
-        name: {"value": fields[name]["value"], "status": fields[name]["status"]}
-        for name in sorted(allowed)
-    }
+    projected_fields = {}
+    for name in sorted(allowed):
+        field = fields[name]
+        if not isinstance(field, Mapping):
+            raise EvidenceSchemaError(f"{requirement_id}_{name}_type")
+        _exact_keys(field, FIELD_KEYS, f"{requirement_id}_{name}")
+        _status(field["status"], REQUIREMENT_STATUSES, f"{requirement_id}_{name}_status")
+        projected_fields[name] = {"status": field["status"]}
     return {
         "status": envelope["status"],
         "complete": envelope["complete"],
