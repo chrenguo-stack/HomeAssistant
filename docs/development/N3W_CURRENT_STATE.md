@@ -1,3 +1,40 @@
+## 2026-10-13 — R2C probe/executor source progress local-dialogue ↔ GitHub alignment
+
+```text
+LOCAL_DIALOGUE_GITHUB_ALIGNMENT=PASS
+LOCAL_DIALOGUE_LAST_EXPLICIT_SOURCE_HEAD=b2b0a63292096fb624e733891466663d19abd86a
+FRESH_PR541_SOURCE_HEAD=a626eb8827a584b7a84f3838beaf08f86766cd73
+FRESH_PR541_SOURCE_TREE=4e13eea60bf175e1e00a5aecc6c17e7ee65f902b
+SOURCE_ADVANCE_FROM_LOCAL_DIALOGUE=9_COMMITS
+SOURCE_ADVANCE_FILE_COUNT=4
+SOURCE_ADVANCE_SCOPE=R2C_E2_E3_FIRSTRUN_STATIC_ANALYSIS_AND_TESTS
+MAIN=d423211b6196c2f2f0f01dff072c4f877fbe58ee
+MAIN_TREE=ee977996a4c962097684519841dce2e3bcba23f2
+PR541_STATE=OPEN_DRAFT
+PR541_MERGED=false
+R2C_E1_COLLECTION=IMPLEMENTED_INITIAL
+R2C_E2_COLLECTION=IMPLEMENTED_INITIAL
+R2C_E3_COLLECTION=IMPLEMENTED_INITIAL
+R2C_E4_COLLECTION=IMPLEMENTED_INITIAL
+R2C_E5_E9=NOT_COMPLETE
+R2C_REMOTE_EXECUTOR=NOT_IMPLEMENTED
+EXECUTION_READY=false
+SOURCE_HEAD_CI_SNAPSHOT=10/27_SUCCESS_0_FAILURE_17_PENDING
+PUBLIC_REPOSITORY_SAFETY_CI=PASS
+GOLDEN_MASTER_SOURCE_CI=PENDING
+HANDOFF_TEMPLATE_VERSION=1.3
+HANDOFF_TEMPLATE_BLOB=b9ef40acdaa8fae37feb5ffe5662afd0e89462a0
+PROJECT_WORKING_CONTEXT_VERSION=1.1
+T1_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+```
+
+Fresh repository evidence is authoritative: the current PR head is nine source/test commits ahead of the last source head explicitly visible in the local dialogue. Those commits add bounded `armbian-firstrun` static source/config analysis and E2/E3 collector regressions; they do not authorize or perform target access. The exact source head is not yet closure-ready because its CI is still incomplete. After three polls, 17 workflows remain pending; do not keep polling this head in the same session. Public repository safety is green; Golden Master source CI is still queued.
+
+The current candidate branch contains `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` V1.3 (blob `b9ef40ac...`). That is the formal handoff template. Do not substitute the historical template from `4300890d...` or the working-context file.
+
 ## 2026-10-13 — R2C read-only evidence preparation completed; execution not authorized
 
 ```text
