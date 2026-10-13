@@ -59,9 +59,7 @@ jobs:
             host/greenhouse-manager/src/greenhouse_manager/bootstrap/golden_master_installer.py \
             host/greenhouse-manager/src/greenhouse_manager/bootstrap/golden_master_seal.py \
             host/greenhouse-manager/tests/bootstrap/test_golden_master_installer.py \
-            host/greenhouse-manager/tests/bootstrap/test_golden_master_seal.py \
-            tools/n3w_t1_fresh_product_bootstrap.py \
-            tests/tools/test_n3w_t1_fresh_product_bootstrap.py
+            host/greenhouse-manager/tests/bootstrap/test_golden_master_seal.py
 
       - name: Golden master focused tests
         run: |
