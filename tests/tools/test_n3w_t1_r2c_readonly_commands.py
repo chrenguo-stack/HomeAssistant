@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from n3w_t1_r2c_readonly_commands import (
     ReadonlyCommandError,
     build_contract_argv,
