@@ -157,3 +157,15 @@ def test_collect_e4_marks_missing_machine_id_as_absent(tmp_path: Path) -> None:
     assert evidence["fields"]["etc_machine_id"]["status"] == "ABSENT"
     assert evidence["fields"]["dbus_machine_id"]["status"] == "ABSENT"
     assert evidence["fields"]["contents_equal"]["status"] == "UNKNOWN"
+
+
+def test_collect_e1_observed_conflict_is_drift_even_with_other_gaps(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "etc").mkdir()
+    (tmp_path / "etc" / "os-release").write_text("ID=ubuntu\n")
+    (tmp_path / "etc" / "armbian-release").write_text("ARCH=amd64\n")
+    evidence = collect_e1(str(tmp_path), runner=_e1_runner)
+    assert evidence["status"] == "ERROR"
+    assert evidence["complete"] is False
+    assert evidence["reason_code"] == "STOP_TARGET_DRIFT"
