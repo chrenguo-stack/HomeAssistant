@@ -122,6 +122,63 @@ def test_probe_records_machine_id_symlink_without_following(tmp_path: Path) -> N
     assert record["symlink_target"] == str(target)
 
 
+def test_probe_discovers_identity_units_without_hardcoded_name(
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    write(
+        tmp_path,
+        "usr/lib/systemd/system/custom-clone-identity.service",
+        "[Unit]\n"
+        "Before=network-pre.target\n"
+        "[Service]\n"
+        "Type=oneshot\n"
+        "ExecStart=/usr/bin/ssh-keygen -A\n",
+    )
+    write(
+        tmp_path,
+        "usr/lib/systemd/system/unrelated-example.service",
+        "[Service]\nExecStart=/usr/bin/true\n",
+    )
+
+    report = tool.collect(tmp_path)
+    names = {record["name"] for record in report["identity_related_units"]}
+
+    assert "custom-clone-identity.service" in names
+    assert "unrelated-example.service" not in names
+    record = next(
+        item
+        for item in report["identity_related_units"]
+        if item["name"] == "custom-clone-identity.service"
+    )
+    assert "ExecStart=/usr/bin/ssh-keygen -A" in record["identity_relevant_lines"]
+
+
+def test_probe_collects_additional_network_identity_fields(tmp_path: Path) -> None:
+    tool = load_tool()
+    write(
+        tmp_path,
+        "etc/NetworkManager/system-connections/wired.nmconnection",
+        "[connection]\n"
+        "uuid=11111111-2222-3333-4444-555555555555\n"
+        "type=ethernet\n"
+        "stable-id=fixed-token\n"
+        "autoconnect=true\n"
+        "[ipv4]\n"
+        "dhcp-client-id=stable\n"
+        "dhcp-iaid=ifname\n",
+        0o600,
+    )
+
+    report = tool.collect(tmp_path)
+    fields = report["networkmanager_profiles"][0]["selected_identity_fields"]
+
+    assert fields["connection.stable-id"] == "fixed-token"
+    assert fields["connection.autoconnect"] == "true"
+    assert fields["ipv4.dhcp-client-id"] == "stable"
+    assert fields["ipv4.dhcp-iaid"] == "ifname"
+
+
 def test_probe_never_reports_networkmanager_secrets(tmp_path: Path) -> None:
     tool = load_tool()
     write(
