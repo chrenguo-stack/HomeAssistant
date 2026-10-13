@@ -1,12 +1,9 @@
 from __future__ import annotations
 
 import os
-import sys
 from pathlib import Path
 
 import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 from n3w_t1_r2c_readonly_files import ReadonlyEvidenceError, inspect_metadata, read_bounded_text
 
 
