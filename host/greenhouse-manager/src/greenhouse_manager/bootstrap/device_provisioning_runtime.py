@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import stat
 from pathlib import Path
 from typing import Any
 
@@ -21,25 +22,49 @@ class DeviceProvisioningRuntimeError(RuntimeError):
     pass
 
 
-def _validate_factory_acceptance(path: Path) -> os.stat_result:
-    if path.is_symlink() or not path.is_file():
-        raise DeviceProvisioningRuntimeError("factory_acceptance_record_unsafe")
-    metadata = path.stat()
-    if metadata.st_uid != os.geteuid():
-        raise DeviceProvisioningRuntimeError("factory_acceptance_owner_invalid")
-    if metadata.st_mode & 0o777 != 0o600:
-        raise DeviceProvisioningRuntimeError("factory_acceptance_mode_invalid")
-    if metadata.st_nlink != 1:
-        raise DeviceProvisioningRuntimeError("factory_acceptance_link_count_invalid")
-    return metadata
-
-
 def _read_factory_acceptance(path: Path) -> dict[str, Any]:
-    _validate_factory_acceptance(path)
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+    )
     try:
-        document = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        raise DeviceProvisioningRuntimeError("factory_acceptance_record_invalid") from error
+        descriptor = os.open(path, flags)
+    except OSError as error:
+        raise DeviceProvisioningRuntimeError(
+            "factory_acceptance_record_unsafe"
+        ) from error
+
+    try:
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise DeviceProvisioningRuntimeError(
+                "factory_acceptance_record_unsafe"
+            )
+        if metadata.st_uid != os.geteuid():
+            raise DeviceProvisioningRuntimeError(
+                "factory_acceptance_owner_invalid"
+            )
+        if metadata.st_mode & 0o777 != 0o600:
+            raise DeviceProvisioningRuntimeError(
+                "factory_acceptance_mode_invalid"
+            )
+        if metadata.st_nlink != 1:
+            raise DeviceProvisioningRuntimeError(
+                "factory_acceptance_link_count_invalid"
+            )
+        try:
+            with os.fdopen(descriptor, "r", encoding="utf-8") as stream:
+                descriptor = -1
+                document = json.load(stream)
+        except (OSError, UnicodeError, json.JSONDecodeError) as error:
+            raise DeviceProvisioningRuntimeError(
+                "factory_acceptance_record_invalid"
+            ) from error
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+
     if not isinstance(document, dict):
         raise DeviceProvisioningRuntimeError("factory_acceptance_record_invalid")
     return document
