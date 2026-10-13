@@ -1,3 +1,5 @@
+> **2026-10-13 ARCHITECTURE REBIND**：本文件的 public/instance ownership split、commit/cleanup split、postcheck split 和 durable transaction 方向继续有效；但 product architecture term 已从 automatic firstboot 更新为 explicit device provisioning。现有 `device_firstboot.py` / `run_device_firstboot()` 仅视为 transitional implementation naming，不得解释为普通 boot 自动开始新 provisioning。新的 start/resume/DEVICE_READY verify-only/activation separation 由 `N3W_T1_EXPLICIT_DEVICE_PROVISIONING_COMMAND_AND_BOOT_DECOUPLING_DESIGN_FREEZE_20261013.md` 统辖。
+
 # N3-W T1 黄金母盘 / Firstboot 源码拆分与修复设计（2026-10-12）
 
 TASK=
