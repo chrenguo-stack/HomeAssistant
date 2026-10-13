@@ -132,3 +132,23 @@ CI and was reviewed immediately. Three additional source blockers were found:
 
 This same authorized gate repairs A5-A7 and adds focused regression coverage. A fresh
 exact-head CI pass plus one final focused review remain required before source closure.
+
+
+## 8. Final design-contract review follow-up
+
+After exact head `343112303a5cd14844ffdb66bc38353e2f414dcc` reached 27/27 PASS,
+the final design/ADR comparison found two R2B contract gaps:
+
+- A8: the pure Seal record did not include the source HEAD even though the frozen R2
+  design requires the Seal record to bind it;
+- A9: the reusable Seal audit executed public-release binding before the final
+  instance/no-secret audit, while the frozen Seal order requires final no-secret audit
+  before public-release binding and capture quiescence.
+
+This same authorized source gate repairs A8-A9. The public-release adapter must supply a
+valid 40-hex `source_head`; the audit result and final Seal record carry it. Audit
+ordering is now `instance absence → public release binding → capture quiescence →
+OS identity`, so the post-neutralization audit follows the frozen final ordering.
+
+R2C remains not entered. Real OS-identity mutation, disk capture, T1 access, board
+access, production service start and merge remain forbidden.

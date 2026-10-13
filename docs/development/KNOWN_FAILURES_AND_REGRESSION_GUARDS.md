@@ -1,3 +1,16 @@
+## 2026-10-13 — KF-113 Seal record/source-order guard
+
+```text
+SEAL_RECORD_SOURCE_HEAD_REQUIRED=true
+SEAL_PUBLIC_SOURCE_HEAD_FORMAT=40_HEX
+FINAL_SEAL_AUDIT_ORDER=INSTANCE_ABSENCE_THEN_PUBLIC_BINDING_THEN_QUIESCENCE_THEN_OS_IDENTITY
+R2C_TARGET_IDENTITY_ADAPTER=NOT_ENTERED
+```
+
+Guard: a Seal record that does not bind the exact source HEAD is incomplete provenance.
+After identity neutralization, the final reusable audit must prove instance/no-secret
+absence before public-release binding and capture quiescence.
+
 ## 2026-10-13 — KF-113 R2A/R2B exact-release and CI-process guards
 
 ```text

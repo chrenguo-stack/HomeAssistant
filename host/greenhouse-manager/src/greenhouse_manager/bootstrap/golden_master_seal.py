@@ -6,6 +6,7 @@ from typing import Any, Protocol
 
 SCHEMA = "gh.n3w.t1-golden-master-seal/1"
 SEAL_CONFIRMATION = "SEAL GOLDEN MASTER: YES"
+_SHA40 = re.compile(r"[0-9a-f]{40}")
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 
 
@@ -30,6 +31,13 @@ def _require(
     for key, value in expected.items():
         if report.get(key) != value:
             raise GoldenMasterSealError(f"{label}:{key}_invalid")
+
+
+def _require_sha40(report: Mapping[str, object], key: str, label: str) -> str:
+    value = report.get(key)
+    if not isinstance(value, str) or _SHA40.fullmatch(value) is None:
+        raise GoldenMasterSealError(f"{label}:{key}_invalid")
+    return value
 
 
 def _require_sha256(report: Mapping[str, object], key: str, label: str) -> str:
@@ -85,6 +93,18 @@ def audit_golden_master_seal(
     if not release_id:
         raise GoldenMasterSealError("release_id_invalid")
 
+    instance = adapters.audit_instance_absence()
+    _require(
+        instance,
+        {
+            "status": "PASS",
+            "instance_material_absent": True,
+            "secret_values_included": False,
+            "production_service_start": False,
+        },
+        "instance_absence",
+    )
+
     public = adapters.audit_public_release(release_id)
     _require(
         public,
@@ -95,6 +115,11 @@ def audit_golden_master_seal(
             "secret_values_included": False,
             "production_service_start": False,
         },
+        "public_release",
+    )
+    source_head = _require_sha40(
+        public,
+        "source_head",
         "public_release",
     )
     release_manifest_sha256 = _require_sha256(
@@ -111,18 +136,6 @@ def audit_golden_master_seal(
         public,
         "public_audit_sha256",
         "public_release",
-    )
-
-    instance = adapters.audit_instance_absence()
-    _require(
-        instance,
-        {
-            "status": "PASS",
-            "instance_material_absent": True,
-            "secret_values_included": False,
-            "production_service_start": False,
-        },
-        "instance_absence",
     )
 
     quiescence = adapters.audit_capture_quiescence()
@@ -166,6 +179,7 @@ def audit_golden_master_seal(
         "schema": SCHEMA,
         "status": "PASS",
         "release_id": release_id,
+        "source_head": source_head,
         "disk_capture_ready": not blockers,
         "identity_blockers": blockers,
         "release_manifest_sha256": release_manifest_sha256,
@@ -227,6 +241,7 @@ def seal_golden_master(
         "schema": SCHEMA,
         "status": "PASS",
         "release_id": release_id,
+        "source_head": postaudit["source_head"],
         "release_manifest_sha256": postaudit["release_manifest_sha256"],
         "image_lock_sha256": postaudit["image_lock_sha256"],
         "public_audit_sha256": postaudit["public_audit_sha256"],

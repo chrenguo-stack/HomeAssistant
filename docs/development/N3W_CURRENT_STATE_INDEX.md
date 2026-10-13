@@ -1,3 +1,11 @@
+## 2026-10-13 — R2A/R2B A8-A9 final design-contract repair
+
+- `343112303...` reached exact-head 27/27 CI PASS and was reviewed immediately.
+- Final design comparison found A8 missing Seal-record source HEAD binding and A9 final
+  Seal audit-order drift.
+- Both are repaired source-only; fresh exact-head CI and one final focused review remain.
+- R2C/live/T1/board/service/disk-capture/merge remain untouched.
+
 ## 2026-10-13 — R2A/R2B final focused review continuation
 
 - Green review head `f9406235...`: 27/27 CI PASS.

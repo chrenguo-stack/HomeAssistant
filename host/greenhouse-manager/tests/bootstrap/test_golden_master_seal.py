@@ -34,6 +34,7 @@ class FakeAdapters:
         self.target_specific = target_specific
         self.contract_drift_on_prepare = contract_drift_on_prepare
         self.target_identity_contract_sha256 = "e" * 64
+        self.source_head = "a" * 40
         self.calls: list[str] = []
 
     def audit_public_release(self, release_id: str):
@@ -42,6 +43,7 @@ class FakeAdapters:
             "status": "PASS",
             "release_id": release_id,
             "exact_release_binding": True,
+            "source_head": self.source_head,
             "release_manifest_sha256": "a" * 64,
             "image_lock_sha256": "b" * 64,
             "public_audit_sha256": "c" * 64,
@@ -131,6 +133,7 @@ def test_audit_classifies_known_populated_identity_as_not_capture_ready() -> Non
     report = audit_golden_master_seal(adapters, release_id="release-1")
 
     assert report["status"] == "PASS"
+    assert report["source_head"] == "a" * 40
     assert report["disk_capture_ready"] is False
     assert report["identity_blockers"] == [
         "machine_id_populated",
@@ -162,9 +165,17 @@ def test_seal_claims_before_identity_mutation_and_writes_marker_last() -> None:
     )
 
     assert report["disk_capture_ready"] is True
+    assert report["source_head"] == "a" * 40
     assert report["shutdown_required"] is True
     assert report["reboot_before_capture_forbidden"] is True
     assert adapters.calls.index("claim") < adapters.calls.index("prepare")
+    prepare_index = adapters.calls.index("prepare")
+    assert adapters.calls[prepare_index + 1 : prepare_index + 5] == [
+        "instance",
+        "public",
+        "quiescence",
+        "identity",
+    ]
     assert adapters.calls[-1] == "record"
 
 
@@ -233,3 +244,30 @@ def test_seal_confirmation_is_checked_before_authorization_claim() -> None:
 
     assert claimed == []
     assert adapters.calls == []
+
+
+def test_audit_rejects_invalid_source_head() -> None:
+    adapters = FakeAdapters()
+    adapters.source_head = "bad"
+
+    with pytest.raises(
+        GoldenMasterSealError,
+        match="public_release:source_head_invalid",
+    ):
+        audit_golden_master_seal(adapters, release_id="release-1")
+
+
+def test_audit_runs_no_instance_before_public_binding() -> None:
+    adapters = FakeAdapters(
+        machine_id_populated=False,
+        ssh_host_private_key_count=0,
+    )
+
+    audit_golden_master_seal(adapters, release_id="release-1")
+
+    assert adapters.calls[:4] == [
+        "instance",
+        "public",
+        "quiescence",
+        "identity",
+    ]
