@@ -293,7 +293,7 @@ def _network_fixture(root: Path) -> None:
         "[connection]\n"
         "id=private-profile-name\n"
         "uuid=12345678-1234-1234-1234-123456789abc\n"
-        "stable-id=\${CONNECTION}\n"
+        "stable-id=${CONNECTION}\n"
         "[ethernet]\n"
         "cloned-mac-address=random\n"
         "[ipv4]\n"
