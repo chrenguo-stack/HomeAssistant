@@ -23,9 +23,9 @@ SYSTEMCTL_PROPERTIES = (
     "ExecStartPost,TriggeredBy,Triggers,ActiveEnterTimestampMonotonic,"
     "InactiveExitTimestampMonotonic"
 )
-PACKAGE_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9+.-]*(?::[A-Za-z0-9_-]+)?\\Z")
+PACKAGE_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9+.-]*(?::[A-Za-z0-9_-]+)?\Z")
 UNIT_RE = re.compile(
-    r"[A-Za-z0-9_.@:-]+\\.(?:service|socket|target|mount|path|timer)\\Z"
+    r"[A-Za-z0-9_.@:-]+\.(?:service|socket|target|mount|path|timer)\Z"
 )
 
 
