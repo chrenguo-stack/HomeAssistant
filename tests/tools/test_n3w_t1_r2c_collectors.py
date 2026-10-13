@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 from pathlib import Path
 
 from n3w_t1_r2c_collectors import collect_e1, collect_e2, collect_e3, collect_e4
@@ -41,8 +42,13 @@ def _e1_runner(command_id: str, **_: object) -> CommandResult:
 
 
 def _mount_not_present_runner(command_id: str, **_: object) -> CommandResult:
-    assert command_id == "C5_MACHINE_ID_MOUNT"
-    return _result("findmnt", returncode=1)
+    if command_id == "C5_MACHINE_ID_MOUNT":
+        return _result("findmnt", returncode=1)
+    if command_id == "C4_UNIT":
+        return _result("systemctl", b"LoadState=not-found\n")
+    if command_id == "C3_LIST":
+        return _result("dpkg-query", b"")
+    raise AssertionError(command_id)
 
 
 def _write_platform_fixture(root: Path) -> None:
@@ -157,6 +163,83 @@ def test_collect_e4_marks_missing_machine_id_as_absent(tmp_path: Path) -> None:
     assert evidence["fields"]["etc_machine_id"]["status"] == "ABSENT"
     assert evidence["fields"]["dbus_machine_id"]["status"] == "ABSENT"
     assert evidence["fields"]["contents_equal"]["status"] == "UNKNOWN"
+
+
+def _e4_complete_runner(command_id: str, **kwargs: object) -> CommandResult:
+    if command_id == "C5_MACHINE_ID_MOUNT":
+        return _result("findmnt", returncode=1)
+    if command_id == "C3_LIST":
+        return _result(
+            "dpkg-query",
+            b"/usr/share/man/man5/machine-id.5.gz\n",
+        )
+    if command_id == "C4_UNIT":
+        unit = str(kwargs["value"])
+        return _result(
+            "systemctl",
+            (
+                f"Id={unit}\n"
+                "LoadState=loaded\n"
+                f"FragmentPath=/usr/lib/systemd/system/{unit}\n"
+                "DropInPaths=\n"
+                "UnitFileState=static\n"
+                "ActiveState=inactive\n"
+                "SubState=dead\n"
+                "Before=network.target\n"
+                "After=local-fs.target\n"
+                "Wants=\n"
+                "Requires=\n"
+                "ConditionResult=yes\n"
+                "Conditions=[ConditionFirstBoot=|yes]\n"
+                "ExecStart=/usr/lib/systemd/systemd-test\n"
+                "ExecStartPre=\n"
+                "ExecStartPost=\n"
+                "TriggeredBy=\n"
+                "Triggers=\n"
+                "ActiveEnterTimestampMonotonic=0\n"
+                "InactiveExitTimestampMonotonic=0\n"
+            ).encode(),
+        )
+    raise AssertionError(command_id)
+
+
+def test_collect_e4_captures_units_and_installed_machine_id_manual(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "etc").mkdir()
+    (tmp_path / "var" / "lib" / "dbus").mkdir(parents=True)
+    value = ("c" * 32) + "\n"
+    (tmp_path / "etc" / "machine-id").write_text(value)
+    (tmp_path / "var" / "lib" / "dbus" / "machine-id").write_text(value)
+
+    units = tmp_path / "usr" / "lib" / "systemd" / "system"
+    units.mkdir(parents=True)
+    for name in (
+        "systemd-machine-id-commit.service",
+        "systemd-firstboot.service",
+    ):
+        (units / name).write_text("[Unit]\nConditionFirstBoot=yes\n")
+
+    manual = tmp_path / "usr" / "share" / "man" / "man5"
+    manual.mkdir(parents=True)
+    manual_text = (
+        "machine-id uses /etc/machine-id. "
+        "The uninitialized state is handled on first boot. "
+        "A fallback may use /run/machine-id."
+    ).encode()
+    (manual / "machine-id.5.gz").write_bytes(gzip.compress(manual_text))
+
+    evidence = collect_e4(str(tmp_path), runner=_e4_complete_runner)
+
+    assert evidence["status"] == "OBSERVED"
+    assert evidence["complete"] is True
+    assert evidence["reason_code"] is None
+    assert evidence["method_ids"] == ["R1", "C3", "C4", "C5"]
+    assert evidence["fields"]["boot_condition_contract"]["status"] == "OBSERVED"
+    assert evidence["fields"]["fallback_sources"]["status"] == "OBSERVED"
+    sources = evidence["fields"]["fallback_sources"]["value"]["sources"]
+    assert sources[0]["role"] == "machine-id.5"
+    assert sources[0]["markers"]["run_machine_id"] is True
 
 
 def test_collect_e1_observed_conflict_is_drift_even_with_other_gaps(
