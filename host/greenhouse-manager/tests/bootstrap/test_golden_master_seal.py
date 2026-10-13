@@ -23,6 +23,7 @@ class FakeAdapters:
         prepare_closes: bool = True,
         target_specific: bool = True,
         contract_drift_on_prepare: bool = False,
+        release_drift_on_prepare: bool = False,
     ) -> None:
         self.machine_id_populated = machine_id_populated
         self.ssh_host_private_key_count = ssh_host_private_key_count
@@ -33,6 +34,7 @@ class FakeAdapters:
         self.prepare_closes = prepare_closes
         self.target_specific = target_specific
         self.contract_drift_on_prepare = contract_drift_on_prepare
+        self.release_drift_on_prepare = release_drift_on_prepare
         self.target_identity_contract_sha256 = "e" * 64
         self.source_head = "a" * 40
         self.calls: list[str] = []
@@ -107,6 +109,8 @@ class FakeAdapters:
         prepared_contract = self.target_identity_contract_sha256
         if self.contract_drift_on_prepare:
             prepared_contract = "f" * 64
+        if self.release_drift_on_prepare:
+            self.source_head = "b" * 40
         return {
             "status": "PASS",
             "capture_neutral": self.prepare_closes,
@@ -271,3 +275,20 @@ def test_audit_runs_no_instance_before_public_binding() -> None:
         "quiescence",
         "identity",
     ]
+
+
+def test_seal_rejects_public_release_drift_before_marker() -> None:
+    adapters = FakeAdapters(release_drift_on_prepare=True)
+
+    with pytest.raises(
+        GoldenMasterSealError,
+        match="post_seal_public_release_drift:source_head",
+    ):
+        seal_golden_master(
+            adapters,
+            release_id="release-1",
+            confirmation=SEAL_CONFIRMATION,
+            claim_authorization=lambda: adapters.calls.append("claim"),
+        )
+
+    assert "record" not in adapters.calls

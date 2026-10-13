@@ -236,6 +236,15 @@ def seal_golden_master(
         != preaudit["target_identity_contract_sha256"]
     ):
         raise GoldenMasterSealError("post_seal_target_contract_drift")
+    for key in (
+        "source_head",
+        "release_manifest_sha256",
+        "image_lock_sha256",
+    ):
+        if postaudit[key] != preaudit[key]:
+            raise GoldenMasterSealError(
+                f"post_seal_public_release_drift:{key}"
+            )
 
     record = {
         "schema": SCHEMA,
