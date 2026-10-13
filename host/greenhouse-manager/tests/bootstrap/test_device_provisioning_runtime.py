@@ -212,6 +212,47 @@ def test_exact_factory_acceptance_binding_becomes_eligible(
     assert report["production_service_start"] is False
 
 
+def test_factory_acceptance_reader_uses_one_validated_descriptor(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _ready(monkeypatch)
+    marker = tmp_path / "FACTORY_ACCEPTED.json"
+    marker.write_text(
+        json.dumps(
+            {
+                "schema": FACTORY_ACCEPTED_SCHEMA,
+                "status": "PASS",
+                "factory_accepted": True,
+                "release_id": "release-1",
+                "host_instance_id": "host-a",
+                "system_id": "system-a",
+                "system_id_sha256": hashlib.sha256(b"system-a").hexdigest(),
+            }
+        ),
+        encoding="utf-8",
+    )
+    marker.chmod(0o600)
+
+    monkeypatch.setattr(
+        Path,
+        "read_text",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("validated pathname must not be reopened")
+        ),
+    )
+
+    report = evaluate_product_activation(
+        FakeAdapters(),
+        tmp_path / "transaction",
+        tmp_path / "candidate",
+        marker,
+        release_id="release-1",
+    )
+
+    assert report["activation_eligible"] is True
+
+
 def test_factory_acceptance_binding_drift_fails_closed(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
