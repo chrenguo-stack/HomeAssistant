@@ -230,7 +230,7 @@ PUBLIC_FIELD_ALLOWLIST = {
 }
 HEX40 = re.compile(r"[0-9a-f]{40}\Z")
 HEX64 = re.compile(r"[0-9a-f]{64}\Z")
-REASON_RE = re.compile(r"[A-Z][A-Z0-9_]{0,127}\\Z")
+REASON_RE = re.compile(r"[A-Z][A-Z0-9_]{0,127}\Z")
 
 
 class EvidenceSchemaError(RuntimeError):
