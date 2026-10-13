@@ -102,6 +102,43 @@ PRODUCT_NAMESPACE_RULES = (
 _SHA40 = re.compile(r"[0-9a-f]{40}")
 _SHA64 = re.compile(r"[0-9a-f]{64}")
 _IMAGE_ID = re.compile(r"sha256:[0-9a-f]{64}")
+_RELEASE_KEYS = frozenset(
+    {
+        "schema",
+        "release_id",
+        "source_head",
+        "payload_manifest_sha256",
+        "image_lock_sha256",
+        "public_source_tree_sha256",
+        "images",
+        "public_external_bindings",
+        "architecture",
+        "instance_material_absent",
+        "secret_values_included",
+        "build_authorization_id",
+        "authorization_ledger_policy",
+        "seal_state",
+        "production_service_start",
+        "board_access",
+    }
+)
+_IMAGE_RECORD_KEYS = frozenset(
+    {
+        "image",
+        "image_id",
+        "platform",
+        "tar_sha256",
+        "rootfs_layers_sha256",
+        "config_contract_sha256",
+    }
+)
+_PUBLIC_EXTERNAL_RECORD_KEYS = frozenset(
+    {"destination", "sha256", "mode"}
+)
+_PUBLIC_EXTERNAL_EXPECTED_MODES = {
+    "guard_binary": 0o755,
+    "guard_unit": 0o644,
+}
 
 
 class GoldenMasterSealHostError(RuntimeError):
@@ -154,6 +191,7 @@ def _load_release(source_root: Path) -> dict[str, Any]:
         raise GoldenMasterSealHostError("release_manifest_invalid") from error
     if (
         not isinstance(document, dict)
+        or set(document) != _RELEASE_KEYS
         or document.get("schema") != RELEASE_SCHEMA
         or not isinstance(document.get("release_id"), str)
         or not document["release_id"]
@@ -169,6 +207,7 @@ def _load_release(source_root: Path) -> dict[str, Any]:
         != AUTHORIZATION_LEDGER_POLICY
         or document.get("seal_state") != "UNSEALED"
         or document.get("production_service_start") is not False
+        or document.get("board_access") is not False
     ):
         raise GoldenMasterSealHostError("release_manifest_contract_invalid")
 
@@ -182,6 +221,7 @@ def _load_release(source_root: Path) -> dict[str, Any]:
     for label, record in images.items():
         if (
             not isinstance(record, dict)
+            or set(record) != _IMAGE_RECORD_KEYS
             or not isinstance(record.get("image"), str)
             or not record["image"]
             or _IMAGE_ID.fullmatch(str(record.get("image_id"))) is None
@@ -203,10 +243,12 @@ def _load_release(source_root: Path) -> dict[str, Any]:
         record = external[label]
         if (
             not isinstance(record, dict)
+            or set(record) != _PUBLIC_EXTERNAL_RECORD_KEYS
             or record.get("destination") != str(expected_path)
             or _SHA64.fullmatch(str(record.get("sha256"))) is None
             or not isinstance(record.get("mode"), int)
             or isinstance(record.get("mode"), bool)
+            or record.get("mode") != _PUBLIC_EXTERNAL_EXPECTED_MODES[label]
         ):
             raise GoldenMasterSealHostError(
                 f"release_manifest_public_external_invalid:{label}"
@@ -548,12 +590,23 @@ def _audit_quiescence(runner: Runner) -> dict[str, object]:
 def audit_public_master(
     source_root: Path,
     *,
+    expected_release_manifest_sha256: str,
     runner: Runner | None = None,
 ) -> dict[str, object]:
+    if _SHA64.fullmatch(expected_release_manifest_sha256) is None:
+        raise GoldenMasterSealHostError(
+            "expected_release_manifest_sha256_invalid"
+        )
     root = _source_root(source_root)
-    release = _load_release(root)
     release_path = root / RELEASE_RELATIVE_PATH
+    if release_path.is_symlink() or not release_path.is_file():
+        raise GoldenMasterSealHostError("release_manifest_missing")
     release_manifest_sha256 = sha256_file(release_path)
+    if release_manifest_sha256 != expected_release_manifest_sha256:
+        raise GoldenMasterSealHostError(
+            "release_manifest_external_binding_invalid"
+        )
+    release = _load_release(root)
     excluded = frozenset({RELEASE_RELATIVE_PATH.as_posix()})
     try:
         observed_tree = public_tree_sha256(root, excluded=excluded)
@@ -632,14 +685,24 @@ def _parser() -> argparse.ArgumentParser:
         required=True,
     )
     parser.add_argument("--authorization-id")
+    parser.add_argument("--expected-release-manifest-sha256")
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
+        if not args.expected_release_manifest_sha256:
+            raise GoldenMasterSealHostError(
+                "expected_release_manifest_sha256_required"
+            )
         if args.phase == "public-audit":
-            result = audit_public_master(args.source_root)
+            result = audit_public_master(
+                args.source_root,
+                expected_release_manifest_sha256=(
+                    args.expected_release_manifest_sha256
+                ),
+            )
         else:
             if not args.authorization_id:
                 raise GoldenMasterSealHostError("authorization_id_required")

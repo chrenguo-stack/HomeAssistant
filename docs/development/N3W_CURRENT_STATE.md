@@ -1,3 +1,33 @@
+## 2026-10-13 — R2A/R2B final focused review found A5-A7 / source repair in progress
+
+```text
+REVIEWED_GREEN_HEAD=f9406235bff21a201c0a6bab465423340b8e83bb
+REVIEWED_GREEN_HEAD_CI=27/27 PASS
+
+A1_ROOT_SYMLINK_FAIL_CLOSED=CLOSED_SOURCE
+A2_POSITIVE_NO_SECRET_AUDIT=CLOSED_SOURCE
+A3_AUTH_LEDGER_CLASSIFICATION=CLOSED_SOURCE
+A4_FAULT_INJECTION_COVERAGE=CLOSED_SOURCE
+A5_EXTERNAL_RELEASE_MANIFEST_HASH_BINDING=REPAIRED_CI_PENDING
+A6_RELEASE_SCHEMA_AND_BOARD_ACCESS_CONTRACT=REPAIRED_CI_PENDING
+A7_PUBLIC_EXTERNAL_MODE_POLICY=REPAIRED_CI_PENDING
+
+R2A_R2B_SOURCE_CLOSURE=PENDING_FRESH_CI_AND_FINAL_REVIEW
+R2C_TARGET_ARMBIAN_SEAL_ADAPTER=NOT_ENTERED
+T1_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+MERGE=false
+```
+
+The same-gate repair also updates the durable project working context and new-chat
+template with mandatory CI continuation rules: max three polls, direct links for
+unfinished runs, automatic same-gate review after green CI, and direct repair of small
+already-authorized source defects.
+
+Authority: `docs/development/N3W_T1_GOLDEN_MASTER_R2A_R2B_FINAL_CLOSURE_BLOCKERS_SOURCE_REPAIR_20261013.md`.
+
 ## 2026-10-13 — R2A/R2B final closure blockers source repair implemented / CI pending
 
 ```text

@@ -206,7 +206,13 @@ def test_release_manifest_tree_binding_detects_drift(
         seal.GoldenMasterSealHostError,
         match="public_source_tree_binding_invalid",
     ):
-        seal.audit_public_master(root, runner=FakeRunner())
+        seal.audit_public_master(
+            root,
+            expected_release_manifest_sha256=sha256_file(
+                root / seal.RELEASE_RELATIVE_PATH
+            ),
+            runner=FakeRunner(),
+        )
 
 
 def test_public_audit_rejects_source_root_symlink(
@@ -228,8 +234,12 @@ def test_public_audit_proves_positive_product_whitelist(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    root = _source(monkeypatch, tmp_path)
     report = seal.audit_public_master(
-        _source(monkeypatch, tmp_path),
+        root,
+        expected_release_manifest_sha256=sha256_file(
+            root / seal.RELEASE_RELATIVE_PATH
+        ),
         runner=FakeRunner(),
     )
 
@@ -262,7 +272,13 @@ def test_public_audit_rejects_unknown_product_namespace(
         seal.GoldenMasterSealHostError,
         match="product_namespace_not_whitelisted",
     ):
-        seal.audit_public_master(root, runner=FakeRunner())
+        seal.audit_public_master(
+            root,
+            expected_release_manifest_sha256=sha256_file(
+                root / seal.RELEASE_RELATIVE_PATH
+            ),
+            runner=FakeRunner(),
+        )
 
 
 def test_public_audit_rejects_unknown_authorization_residue(
@@ -278,7 +294,13 @@ def test_public_audit_rejects_unknown_authorization_residue(
         seal.GoldenMasterSealHostError,
         match="authorization_ledger_unknown_residue",
     ):
-        seal.audit_public_master(root, runner=FakeRunner())
+        seal.audit_public_master(
+            root,
+            expected_release_manifest_sha256=sha256_file(
+                root / seal.RELEASE_RELATIVE_PATH
+            ),
+            runner=FakeRunner(),
+        )
 
 
 def test_public_audit_rejects_external_public_file_drift(
@@ -295,7 +317,13 @@ def test_public_audit_rejects_external_public_file_drift(
         seal.GoldenMasterSealHostError,
         match="public_external_file_binding_invalid",
     ):
-        seal.audit_public_master(root, runner=FakeRunner())
+        seal.audit_public_master(
+            root,
+            expected_release_manifest_sha256=sha256_file(
+                root / seal.RELEASE_RELATIVE_PATH
+            ),
+            runner=FakeRunner(),
+        )
 
 
 def test_public_audit_rejects_instance_material(
@@ -311,7 +339,13 @@ def test_public_audit_rejects_instance_material(
         seal.GoldenMasterSealHostError,
         match="instance_or_activation_path_present",
     ):
-        seal.audit_public_master(root, runner=FakeRunner())
+        seal.audit_public_master(
+            root,
+            expected_release_manifest_sha256=sha256_file(
+                root / seal.RELEASE_RELATIVE_PATH
+            ),
+            runner=FakeRunner(),
+        )
 
 
 def test_public_audit_rejects_image_id_drift(
@@ -359,3 +393,68 @@ def test_product_namespace_policy_covers_n3wfc4_etc_residue() -> None:
         and not allowed
         for parent, prefixes, allowed in seal.PRODUCT_NAMESPACE_RULES
     )
+
+
+def test_public_audit_requires_external_release_hash(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    root = _source(monkeypatch, tmp_path)
+
+    with pytest.raises(
+        seal.GoldenMasterSealHostError,
+        match="release_manifest_external_binding_invalid",
+    ):
+        seal.audit_public_master(
+            root,
+            expected_release_manifest_sha256="f" * 64,
+            runner=FakeRunner(),
+        )
+
+
+def test_release_manifest_rejects_extra_fields(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    root = _source(monkeypatch, tmp_path)
+    path = root / seal.RELEASE_RELATIVE_PATH
+    document = json.loads(path.read_text(encoding="utf-8"))
+    document["unexpected"] = "forbidden"
+    path.write_text(
+        json.dumps(document, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        seal.GoldenMasterSealHostError,
+        match="release_manifest_contract_invalid",
+    ):
+        seal.audit_public_master(
+            root,
+            expected_release_manifest_sha256=sha256_file(path),
+            runner=FakeRunner(),
+        )
+
+
+def test_release_manifest_requires_board_access_false(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    root = _source(monkeypatch, tmp_path)
+    path = root / seal.RELEASE_RELATIVE_PATH
+    document = json.loads(path.read_text(encoding="utf-8"))
+    document["board_access"] = True
+    path.write_text(
+        json.dumps(document, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        seal.GoldenMasterSealHostError,
+        match="release_manifest_contract_invalid",
+    ):
+        seal.audit_public_master(
+            root,
+            expected_release_manifest_sha256=sha256_file(path),
+            runner=FakeRunner(),
+        )

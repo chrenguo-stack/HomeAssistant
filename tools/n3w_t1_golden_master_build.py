@@ -36,10 +36,12 @@ PUBLIC_EXTERNAL_CANDIDATES = {
     "guard_binary": (
         "stage/n3w-broker-ingress-guard",
         "/usr/local/sbin/n3w-broker-ingress-guard",
+        0o755,
     ),
     "guard_unit": (
         "stage/n3wfc4-broker-ingress-guard.service",
         "/etc/systemd/system/n3wfc4-broker-ingress-guard.service",
+        0o644,
     ),
 }
 AUTHORIZATION_LEDGER_POLICY = "retained_nonsecret_no_replay_provenance"
@@ -110,17 +112,26 @@ def _image_bindings(manifest: Mapping[str, Any]) -> dict[str, dict[str, object]]
 
 def _public_external_bindings(candidate_root: Path) -> dict[str, dict[str, object]]:
     result: dict[str, dict[str, object]] = {}
-    for label, (relative, destination) in PUBLIC_EXTERNAL_CANDIDATES.items():
+    for label, (
+        relative,
+        destination,
+        expected_mode,
+    ) in PUBLIC_EXTERNAL_CANDIDATES.items():
         path = candidate_root / relative
         if path.is_symlink() or not path.is_file():
             raise GoldenMasterBuildError(
                 f"public_external_candidate_invalid:{label}"
             )
         metadata = path.stat()
+        observed_mode = metadata.st_mode & 0o777
+        if observed_mode != expected_mode:
+            raise GoldenMasterBuildError(
+                f"public_external_candidate_mode_invalid:{label}"
+            )
         result[label] = {
             "destination": destination,
             "sha256": sha256_file(path),
-            "mode": metadata.st_mode & 0o777,
+            "mode": expected_mode,
         }
     return result
 

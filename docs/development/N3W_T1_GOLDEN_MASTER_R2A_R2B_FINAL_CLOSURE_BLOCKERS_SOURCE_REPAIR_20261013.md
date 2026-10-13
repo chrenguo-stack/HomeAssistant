@@ -116,3 +116,19 @@ authorized source-repair gate:
 
 These are source-only repairs. R2C remains not entered and no live authorization is
 implied.
+
+
+## 7. Final focused closure review follow-up
+
+The exact head `f9406235bff21a201c0a6bab465423340b8e83bb` reached 27/27 green
+CI and was reviewed immediately. Three additional source blockers were found:
+
+- A5: `exact_release_binding=true` was self-asserted because Seal did not require the
+  external release-manifest SHA emitted by the Build result;
+- A6: release/image/external-file schemas accepted unclassified extra fields and Seal
+  did not require `board_access=false`;
+- A7: external guard file mode was recorded from the candidate rather than checked
+  against the frozen 0755/0644 policy.
+
+This same authorized gate repairs A5-A7 and adds focused regression coverage. A fresh
+exact-head CI pass plus one final focused review remain required before source closure.

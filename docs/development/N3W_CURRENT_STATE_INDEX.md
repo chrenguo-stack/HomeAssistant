@@ -1,3 +1,13 @@
+## 2026-10-13 — R2A/R2B final focused review continuation
+
+- Green review head `f9406235...`: 27/27 CI PASS.
+- Focused review ran immediately and found A5 external release-manifest hash authority,
+  A6 strict release schema/`board_access=false`, and A7 external file mode-policy gaps.
+- A5-A7 are repaired in the same source-only gate; fresh CI/final review pending.
+- Durable CI workflow rules are now part of `N3W_PROJECT_WORKING_CONTEXT.md` and the
+  new-chat template.
+- R2C/live/T1/board/service/merge remain untouched.
+
 ## 2026-10-13 — R2A/R2B final closure blocker repair
 
 - R2 Golden Master Build + Final Seal is formally **ENTERED_SOURCE**.

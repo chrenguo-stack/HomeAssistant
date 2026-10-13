@@ -191,3 +191,32 @@ def test_invalid_occupied_authorization_slot_is_no_replay(
     path.chmod(0o600)
 
     assert build._authorization_consumed_fail_closed() is True
+
+
+def test_build_rejects_wrong_public_external_mode(tmp_path: Path) -> None:
+    payload = tmp_path / "payload"
+    payload.mkdir()
+    (payload / "payload-manifest.json").write_text("{}\n", encoding="utf-8")
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+    live = FakeLive()
+    original = live.stage_public_runtime
+
+    def stage(candidate_root: Path):
+        report = original(candidate_root)
+        (candidate_root / "stage/n3w-broker-ingress-guard").chmod(0o644)
+        return report
+
+    live.stage_public_runtime = stage
+    adapter = build.GoldenMasterBuildAdapters(
+        live,
+        payload_root=payload,
+        manifest=MANIFEST,
+        release_id="release-1",
+    )
+
+    with pytest.raises(
+        build.GoldenMasterBuildError,
+        match="public_external_candidate_mode_invalid:guard_binary",
+    ):
+        adapter.stage_public_runtime(candidate)

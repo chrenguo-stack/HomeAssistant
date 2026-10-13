@@ -1,3 +1,22 @@
+## 2026-10-13 — KF-113 R2A/R2B exact-release and CI-process guards
+
+```text
+EXTERNAL_RELEASE_MANIFEST_SHA_REQUIRED=true
+RELEASE_SCHEMA_EXTRA_FIELDS_REJECTED=true
+RELEASE_BOARD_ACCESS_MUST_BE_FALSE=true
+PUBLIC_EXTERNAL_MODE_POLICY=guard_binary_0755,guard_unit_0644
+CI_POLL_MAX=3
+CI_PENDING_DIRECT_LINKS_REQUIRED=true
+CI_ALL_GREEN_CONTINUE_REQUIRED_REVIEW=true
+SAME_GATE_LOW_RISK_REPAIR_CONTINUE=true
+R2C_TARGET_IDENTITY_ADAPTER=NOT_ENTERED
+```
+
+Guard: Seal must not call a self-declared release manifest “exact” without an external
+expected SHA-256 from the Build result. Green CI must flow directly into the required
+focused review, but same-gate automation must stop before any scope expansion or live
+mutation.
+
 ## 2026-10-13 — KF-113 R2A/R2B final closure blocker repair guard
 
 ```text

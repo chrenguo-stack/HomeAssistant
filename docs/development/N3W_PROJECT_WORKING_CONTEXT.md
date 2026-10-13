@@ -1,7 +1,7 @@
 # N3W_PROJECT_WORKING_CONTEXT
 
 > Status: durable public project working context  
-> Version: `N3W_PROJECT_WORKING_CONTEXT_VERSION=1.0`  
+> Version: `N3W_PROJECT_WORKING_CONTEXT_VERSION=1.1`  
 > Scope: N3-W development for the greenhouse monitoring system  
 > Repository: `chrenguo-stack/HomeAssistant`
 
@@ -154,6 +154,44 @@ For active engineering changes:
 Historical frozen branches or artifacts are evidence, not automatically deployment candidates.
 
 ---
+
+
+
+### 4.3 CI observation and same-gate continuation — hard execution rules
+
+These rules are mandatory for routine GitHub CI handling and are not optional chat
+preferences.
+
+```text
+CI_POLL_MAX=3
+CI_PENDING_DIRECT_LINKS_REQUIRED=true
+CI_ALL_GREEN_CONTINUE_REQUIRED_REVIEW=true
+CI_FAILURE_READ_JOB_AND_LOG=true
+SAME_GATE_LOW_RISK_REPAIR_CONTINUE=true
+CROSS_GATE_AUTO_EXECUTE=false
+```
+
+Execution rules:
+
+1. Poll the same CI head at most three times in one reply. If work is still pending,
+   stop polling and give direct links for every unfinished workflow/run that matters.
+2. If all required CI for the current exact head is complete and green, immediately
+   continue the review/closure step already required by the current gate. Do not stop
+   merely to ask the user to say “continue” or “start review” again.
+3. If CI fails, inspect the failed job/step/log before reporting the result. When the
+   cause is a small, clearly identified source/test/style defect inside the already
+   authorized gate, repair it directly, trigger fresh CI, and continue the same gate.
+4. The same rule applies when focused review finds a small, bounded, low-risk defect
+   inside the current source-only gate: repair it directly rather than manufacturing a
+   second approval step.
+5. Stop and request a new decision only when the action would expand scope, cross into
+   a new gate, perform live/T1/board/service/credential mutation, consume a new
+   authorization, merge, or change an already frozen product/design decision.
+6. Green CI is never by itself a closure result. Required focused/source review still
+   runs before closure.
+
+When a workflow remains unfinished, a run ID without a clickable/direct URL is
+insufficient.
 
 ## 5. Development environment convention
 
@@ -435,7 +473,7 @@ Those belong in current state, progress alignment, known failures, or the curren
 A change to this file should explain the durable process need it addresses and should update the handoff template when the change affects new-chat continuation.
 
 ```text
-N3W_PROJECT_WORKING_CONTEXT_VERSION=1.0
+N3W_PROJECT_WORKING_CONTEXT_VERSION=1.1
 STABLE_CONVENTIONS_ONLY=true
 STAGE_SPECIFIC_VALUES_PROHIBITED=true
 HANDOFF_TEMPLATE_EXPECTED_TO_REFERENCE_THIS_FILE=true
