@@ -1,3 +1,5 @@
+> **2026-10-13 SUPERSEDED TRIGGER MODEL NOTE**：本文件冻结的 master/instance 数据边界、Seal、clone uniqueness、restore/upgrade、factory/user ownership 等架构继续有效；但“first boot 作为新初始化触发器”的含义已被后续设计取代。当前 authority 要求 BOOT_STARTS_NEW_PROVISIONING=false，只有显式 provisioning command 才能开始全新实例化；boot 仅可 resume 已开始 transaction 或 verify DEVICE_READY。详见 `docs/development/N3W_T1_EXPLICIT_DEVICE_PROVISIONING_COMMAND_AND_BOOT_DECOUPLING_DESIGN_FREEZE_20261013.md` 与修订后的 ADR-0009。
+
 # N3-W T1 黄金母盘与每机首次初始化架构合同冻结（2026-10-12）
 
 TASK=
