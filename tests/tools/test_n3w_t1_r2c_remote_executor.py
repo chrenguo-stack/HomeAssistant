@@ -8,7 +8,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from n3w_t1_r2c_evidence_schema import REQUIREMENT_FIELDS
 
 ROOT = Path(__file__).resolve().parents[2]
