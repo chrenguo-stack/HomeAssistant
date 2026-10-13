@@ -1,3 +1,17 @@
+## 2026-10-13 — R2C probe source continuation formal new-chat handoff
+
+```text
+FORMAL_HANDOFF=docs/development/N3W_T1_GOLDEN_MASTER_R2C_READONLY_PROBE_SOURCE_CONTINUATION_NEW_CHAT_HANDOFF_V1.0_20261013.md
+HANDOFF_COMMIT=da4074f753e0a4dab25d12918f0a7657f520383c
+HANDOFF_TEMPLATE_VERSION=1.3
+HANDOFF_TEMPLATE_BLOB=b9ef40acdaa8fae37feb5ffe5662afd0e89462a0
+R2C_SOURCE_AUTHORITY=a626eb8827a584b7a84f3838beaf08f86766cd73
+NEXT_ONE_GATE=N3W_T1_GOLDEN_MASTER_R2C_READONLY_PROBE_E5_E9_SOURCE_CONTINUATION_20261013_01
+HANDOFF_READY_FOR_NEW_CHAT=true
+```
+
+Formal handoff uses the current candidate-branch V1.3 template. The handoff and this pointer update are documentation-only and do not promote their commit SHAs into R2C product-source authority.
+
 ## 2026-10-13 — R2C probe/executor source progress local-dialogue ↔ GitHub alignment
 
 ```text
