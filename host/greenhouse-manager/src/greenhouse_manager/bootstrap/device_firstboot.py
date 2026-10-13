@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import os
 import re
 import secrets
+import stat
+from contextlib import contextmanager
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Protocol
@@ -13,6 +16,7 @@ SCHEMA = "gh.n3w.t1-device-firstboot/1"
 TRANSACTION_SCHEMA = "gh.n3w.t1-device-firstboot-transaction/1"
 COMPLETE_SCHEMA = "gh.n3w.t1-device-firstboot-complete/1"
 TRANSACTION_NAME = "transaction.json"
+INITIALIZER_LOCK_NAME = ".initializer.lock"
 COMPLETE_NAME = "FIRSTBOOT_COMPLETE.json"
 PROVISIONING_CONFIRMATION = "START DEVICE PROVISIONING: YES"
 STAGES = (
@@ -120,6 +124,38 @@ def _validate_record_metadata(path: Path) -> os.stat_result:
     if metadata.st_mode & 0o777 != 0o600:
         raise DeviceFirstbootError("firstboot_record_mode_invalid")
     return metadata
+
+
+@contextmanager
+def _exclusive_initializer(root: Path):
+    _validate_private_directory(root, "transaction_root")
+    path = root / INITIALIZER_LOCK_NAME
+    flags = (
+        os.O_RDWR
+        | os.O_CREAT
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+    )
+    descriptor = os.open(path, flags, 0o600)
+    try:
+        metadata = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_uid != os.geteuid()
+            or metadata.st_mode & 0o777 != 0o600
+            or metadata.st_nlink != 1
+        ):
+            raise DeviceFirstbootError("initializer_lock_metadata_invalid")
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise DeviceFirstbootError("initializer_already_running") from error
+        try:
+            yield
+        finally:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+    finally:
+        os.close(descriptor)
 
 
 def _write_atomic(path: Path, document: Mapping[str, object]) -> None:
@@ -743,14 +779,15 @@ def start_device_provisioning(
 
     _preflight_clone(adapters, release_id)
     root = _private_root(root_path)
-    transaction = _create_transaction_once(root, release_id, candidate)
-    return _run_existing_transaction(
-        adapters,
-        root,
-        candidate,
-        release_id=release_id,
-        transaction=transaction,
-    )
+    with _exclusive_initializer(root):
+        transaction = _create_transaction_once(root, release_id, candidate)
+        return _run_existing_transaction(
+            adapters,
+            root,
+            candidate,
+            release_id=release_id,
+            transaction=transaction,
+        )
 
 
 def resume_device_provisioning(
@@ -768,16 +805,17 @@ def resume_device_provisioning(
     candidate = Path(candidate_root).expanduser()
     _validate_candidate_root(candidate, allow_absent=True)
 
-    if (root / COMPLETE_NAME).exists() or (root / COMPLETE_NAME).is_symlink():
-        raise DeviceFirstbootError("device_already_ready")
-    transaction = _load_existing_transaction(root, release_id, candidate)
-    return _run_existing_transaction(
-        adapters,
-        root,
-        candidate,
-        release_id=release_id,
-        transaction=transaction,
-    )
+    with _exclusive_initializer(root):
+        if (root / COMPLETE_NAME).exists() or (root / COMPLETE_NAME).is_symlink():
+            raise DeviceFirstbootError("device_already_ready")
+        transaction = _load_existing_transaction(root, release_id, candidate)
+        return _run_existing_transaction(
+            adapters,
+            root,
+            candidate,
+            release_id=release_id,
+            transaction=transaction,
+        )
 
 
 def run_device_firstboot(

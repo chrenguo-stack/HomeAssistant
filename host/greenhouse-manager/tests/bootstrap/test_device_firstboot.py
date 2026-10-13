@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 from pathlib import Path
@@ -8,6 +9,7 @@ import pytest
 
 from greenhouse_manager.bootstrap.device_firstboot import (
     COMPLETE_NAME,
+    INITIALIZER_LOCK_NAME,
     PROVISIONING_CONFIRMATION,
     TRANSACTION_NAME,
     DeviceFirstbootError,
@@ -645,3 +647,86 @@ def test_new_transaction_claim_rejects_preexisting_claim_symlink(
 
     assert victim.read_text(encoding="utf-8") == "unchanged"
     assert not (transaction_root / TRANSACTION_NAME).exists()
+
+def test_start_holds_exclusive_lock_during_transaction(tmp_path: Path) -> None:
+    transaction_root = tmp_path / "firstboot"
+    candidate_root = tmp_path / "candidate"
+
+    class ConcurrentAdapters(FakeAdapters):
+        def ensure_os_identity(self):
+            concurrent = FakeAdapters()
+            with pytest.raises(
+                DeviceFirstbootError, match="initializer_already_running"
+            ):
+                resume_device_provisioning(
+                    concurrent,
+                    transaction_root,
+                    candidate_root,
+                    release_id="release-1",
+                )
+            assert concurrent.calls == []
+            return super().ensure_os_identity()
+
+    report = start(ConcurrentAdapters(), transaction_root, candidate_root)
+    assert report["state"] == "DEVICE_READY"
+
+
+def test_simultaneous_resume_cannot_advance_existing_transaction(
+    tmp_path: Path,
+) -> None:
+    transaction_root = tmp_path / "firstboot"
+    candidate_root = tmp_path / "candidate"
+    with pytest.raises(RuntimeError, match="adapter_failure"):
+        start(FakeAdapters(fail_stage="identity"), transaction_root, candidate_root)
+
+    lock_path = transaction_root / INITIALIZER_LOCK_NAME
+    before = (transaction_root / TRANSACTION_NAME).read_bytes()
+    with lock_path.open("rb") as lock_stream:
+        fcntl.flock(lock_stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        concurrent = FakeAdapters()
+        with pytest.raises(DeviceFirstbootError, match="initializer_already_running"):
+            resume_device_provisioning(
+                concurrent,
+                transaction_root,
+                candidate_root,
+                release_id="release-1",
+            )
+        assert concurrent.calls == []
+        assert (transaction_root / TRANSACTION_NAME).read_bytes() == before
+
+    resumed = FakeAdapters()
+    report = resume_device_provisioning(
+        resumed, transaction_root, candidate_root, release_id="release-1"
+    )
+    assert report["state"] == "DEVICE_READY"
+
+
+def test_failed_initializer_releases_lock_without_losing_transaction(
+    tmp_path: Path,
+) -> None:
+    transaction_root = tmp_path / "firstboot"
+    candidate_root = tmp_path / "candidate"
+    with pytest.raises(RuntimeError, match="adapter_failure"):
+        start(FakeAdapters(fail_stage="state"), transaction_root, candidate_root)
+
+    assert (transaction_root / INITIALIZER_LOCK_NAME).is_file()
+    resumed = FakeAdapters()
+    report = resume_device_provisioning(
+        resumed, transaction_root, candidate_root, release_id="release-1"
+    )
+    assert report["state"] == "DEVICE_READY"
+    assert "identity" not in resumed.calls
+
+
+def test_initializer_lock_symlink_is_rejected(tmp_path: Path) -> None:
+    transaction_root = tmp_path / "firstboot"
+    transaction_root.mkdir(mode=0o700)
+    candidate_root = tmp_path / "candidate"
+    victim = tmp_path / "victim"
+    victim.write_text("untouched", encoding="utf-8")
+    (transaction_root / INITIALIZER_LOCK_NAME).symlink_to(victim)
+
+    with pytest.raises((DeviceFirstbootError, OSError)):
+        start(FakeAdapters(), transaction_root, candidate_root)
+    assert not (transaction_root / TRANSACTION_NAME).exists()
+    assert victim.read_text(encoding="utf-8") == "untouched"
