@@ -10,6 +10,8 @@ on:
       - "host/greenhouse-manager/tests/bootstrap/test_device_provisioning_runtime.py"
       - "tools/n3w_t1_os_identity_readonly_probe.py"
       - "tests/tools/test_n3w_t1_os_identity_readonly_probe.py"
+      - "tools/execution_packages/n3w/p2b/t1_os_identity_readonly_evidence/**"
+      - "tests/execution_packages/n3w/p2b/t1_os_identity_readonly_evidence/**"
       - "infra/n3w-t1/systemd/n3wfc4-provision-resume.service"
       - "docs/adr/0009-t1-golden-master-firstboot-production-lifecycle.md"
       - "docs/development/N3W_T1_EXPLICIT_DEVICE_PROVISIONING_*.md"
@@ -23,6 +25,8 @@ on:
       - "host/greenhouse-manager/tests/bootstrap/test_device_provisioning_runtime.py"
       - "tools/n3w_t1_os_identity_readonly_probe.py"
       - "tests/tools/test_n3w_t1_os_identity_readonly_probe.py"
+      - "tools/execution_packages/n3w/p2b/t1_os_identity_readonly_evidence/**"
+      - "tests/execution_packages/n3w/p2b/t1_os_identity_readonly_evidence/**"
       - "infra/n3w-t1/systemd/n3wfc4-provision-resume.service"
       - "docs/adr/0009-t1-golden-master-firstboot-production-lifecycle.md"
       - "docs/development/N3W_T1_EXPLICIT_DEVICE_PROVISIONING_*.md"
@@ -50,15 +54,15 @@ jobs:
 
       - name: Compile
         run: |
-          python -m py_compile             host/greenhouse-manager/src/greenhouse_manager/bootstrap/device_firstboot.py             host/greenhouse-manager/src/greenhouse_manager/bootstrap/device_provisioning_runtime.py             tools/n3w_t1_os_identity_readonly_probe.py
+          python -m py_compile             host/greenhouse-manager/src/greenhouse_manager/bootstrap/device_firstboot.py             host/greenhouse-manager/src/greenhouse_manager/bootstrap/device_provisioning_runtime.py             tools/n3w_t1_os_identity_readonly_probe.py             tools/execution_packages/n3w/p2b/t1_os_identity_readonly_evidence/executor.py
 
       - name: Ruff
         run: |
-          ruff check             host/greenhouse-manager/src/greenhouse_manager/bootstrap/device_firstboot.py             host/greenhouse-manager/src/greenhouse_manager/bootstrap/device_provisioning_runtime.py             host/greenhouse-manager/tests/bootstrap/test_device_firstboot.py             host/greenhouse-manager/tests/bootstrap/test_device_provisioning_runtime.py             tools/n3w_t1_os_identity_readonly_probe.py             tests/tools/test_n3w_t1_os_identity_readonly_probe.py
+          ruff check             host/greenhouse-manager/src/greenhouse_manager/bootstrap/device_firstboot.py             host/greenhouse-manager/src/greenhouse_manager/bootstrap/device_provisioning_runtime.py             host/greenhouse-manager/tests/bootstrap/test_device_firstboot.py             host/greenhouse-manager/tests/bootstrap/test_device_provisioning_runtime.py             tools/n3w_t1_os_identity_readonly_probe.py             tests/tools/test_n3w_t1_os_identity_readonly_probe.py             tools/execution_packages/n3w/p2b/t1_os_identity_readonly_evidence/executor.py             tests/execution_packages/n3w/p2b/t1_os_identity_readonly_evidence/test_executor.py
 
       - name: Focused provisioning tests
         run: |
-          pytest -q             host/greenhouse-manager/tests/bootstrap/test_device_firstboot.py             host/greenhouse-manager/tests/bootstrap/test_device_provisioning_runtime.py             tests/tools/test_n3w_t1_os_identity_readonly_probe.py
+          pytest -q             host/greenhouse-manager/tests/bootstrap/test_device_firstboot.py             host/greenhouse-manager/tests/bootstrap/test_device_provisioning_runtime.py             tests/tools/test_n3w_t1_os_identity_readonly_probe.py             tests/execution_packages/n3w/p2b/t1_os_identity_readonly_evidence/test_executor.py
 
       - name: Static authority boundary
         run: |

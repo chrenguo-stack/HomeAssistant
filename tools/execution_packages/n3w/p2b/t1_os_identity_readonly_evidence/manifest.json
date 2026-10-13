@@ -1,0 +1,28 @@
+{
+  "schema": "gh.n3w.t1-os-identity-readonly-evidence-execution-package/1",
+  "gate_id": "N3W_T1_EXPLICIT_DEVICE_PROVISIONING_P2B_TARGET_ARMBIAN_READONLY_EVIDENCE_EXECUTION",
+  "probe_source_commit": "a43c5750a8051946a9f08e3b3b2af3c5d7b9de69",
+  "probe_blob_sha": "26a2f47c9c83fef5637f551ea75ba6b5d5ba3866",
+  "execution_authority": {
+    "t1_readonly_authorization_required": true,
+    "t1_mutation": false,
+    "t1_file_write": false,
+    "live_runtime_mutation": false,
+    "systemd_live_mutation": false,
+    "activation_topology_live_mutation": false,
+    "production_service_start": false,
+    "board_access": false,
+    "merge": false
+  },
+  "transport": {
+    "probe_streamed_over_ssh_stdin": true,
+    "remote_probe_file_created": false,
+    "sudo_noninteractive_required": true
+  },
+  "evidence": {
+    "operator_side_private_root_required": true,
+    "operator_side_private_root_mode": "0700",
+    "evidence_files_mode": "0600",
+    "repository_evidence_root_forbidden": true
+  }
+}
