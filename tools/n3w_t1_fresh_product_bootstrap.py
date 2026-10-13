@@ -490,6 +490,20 @@ class LiveFreshInstallerAdapters:
     def preflight(self):
         return _preflight(self.runner)
 
+    def preflight_master(self):
+        self.preflight()
+        instance_material_absent = all(
+            not Path(target).exists() and not Path(target).is_symlink()
+            for target in (*INSTANCE_FINAL_DIRS.keys(), *INSTANCE_FINAL_FILES.keys())
+        )
+        if not instance_material_absent:
+            raise BootstrapError("master_instance_material_present")
+        return {
+            "status": "PASS",
+            "instance_material_absent": True,
+            "production_service_start": False,
+        }
+
     def load_images(self):
         for label in ("homeassistant", "manager", "broker"):
             record = self.manifest["images"][label]

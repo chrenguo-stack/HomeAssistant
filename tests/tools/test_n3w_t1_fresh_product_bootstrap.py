@@ -663,3 +663,24 @@ def test_legacy_commit_preflights_all_targets_before_first_move(
     assert instance_source.is_dir()
     assert not instance_target.exists()
     assert public_target.is_dir()
+
+def test_live_adapter_master_preflight_maps_minimal_host(monkeypatch) -> None:
+    tool = load_tool()
+    monkeypatch.setattr(
+        tool,
+        "_preflight",
+        lambda _runner: {
+            "status": "PASS",
+            "production_service_start": False,
+        },
+    )
+    adapter = tool.LiveFreshInstallerAdapters(Path("/tmp/payload"), {}, object())
+
+    report = adapter.preflight_master()
+
+    assert report == {
+        "status": "PASS",
+        "instance_material_absent": True,
+        "production_service_start": False,
+    }
+
