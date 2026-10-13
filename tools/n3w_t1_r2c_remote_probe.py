@@ -117,14 +117,6 @@ def _reason_codes(requirements: dict[str, dict[str, Any]]) -> list[str]:
     )
 
 
-def _collector_error(requirement_id: str) -> dict[str, Any]:
-    return _empty_requirement(
-        requirement_id,
-        status="ERROR",
-        reason_code=f"STOP_{requirement_id}_COLLECTION_ERROR",
-    )
-
-
 def _collect(
     requirement_id: str,
     collector,
@@ -139,12 +131,9 @@ def _collect(
             status="ERROR",
             reason_code="STOP_TRUNCATED",
         )
-    try:
-        if requirement_id == "E3":
-            return collector(root)
-        return collector(root, runner=runner)
-    except Exception:
-        return _collector_error(requirement_id)
+    if requirement_id == "E3":
+        return collector(root)
+    return collector(root, runner=runner)
 
 
 def collect_report(
