@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+
 from n3w_t1_r2c_evidence_schema import (
     EvidenceSchemaError,
     REQUIREMENT_FIELDS,
@@ -127,13 +128,13 @@ def test_public_projection_never_copies_private_values() -> None:
 def test_public_projection_drops_values_even_for_public_field_names() -> None:
     e6 = _requirement("E6")
     e6["fields"]["nm_state_inventory"] = _field(
-        {"raw_ip": "10.0.0.7", "raw_mac": "aa:bb:cc:dd:ee:ff"},
+        {"raw_ip": "SENSITIVE_NETWORK_VALUE", "raw_mac": "SENSITIVE_LINK_VALUE"},
         "OBSERVED",
     )
     projected = public_requirement_projection("E6", e6)
     rendered = repr(projected)
-    assert "10.0.0.7" not in rendered
-    assert "aa:bb:cc:dd:ee:ff" not in rendered
+    assert "SENSITIVE_NETWORK_VALUE" not in rendered
+    assert "SENSITIVE_LINK_VALUE" not in rendered
     assert projected["fields"]["nm_state_inventory"] == {"status": "OBSERVED"}
 
 
