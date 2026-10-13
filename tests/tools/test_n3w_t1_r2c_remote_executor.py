@@ -147,7 +147,7 @@ def test_wrong_confirmation_stops_before_evidence_or_transport(
     def forbidden(*_args, **_kwargs):
         raise AssertionError("transport must not run")
 
-    monkeypatch.setattr(module.subprocess, "run", forbidden)
+    monkeypatch.setattr(module, "_run_transport_bounded", forbidden)
     evidence = tmp_path / "evidence"
 
     with pytest.raises(module.StopExecution, match="readonly_confirmation_invalid"):
@@ -217,9 +217,8 @@ def test_execute_claims_before_single_remote_request_and_persists_evidence(
         )
         assert claim["claimed"] is True
         assert claim["consumed"] is False
-        assert kwargs["input"] == program
-        assert kwargs["check"] is False
-        assert kwargs["capture_output"] is True
+        assert kwargs["input_data"] == program
+        assert kwargs["timeout_seconds"] == 150
         return subprocess.CompletedProcess(
             argv,
             0,
@@ -227,7 +226,7 @@ def test_execute_claims_before_single_remote_request_and_persists_evidence(
             stderr=b"",
         )
 
-    monkeypatch.setattr(module.subprocess, "run", fake_run)
+    monkeypatch.setattr(module, "_run_transport_bounded", fake_run)
     result = module.execute(
         target="root@192.0.2.10",
         target_binding_id=binding_id,
@@ -297,14 +296,9 @@ def test_timeout_consumes_authorization_without_retry(
     def timed_out(_argv, **_kwargs):
         nonlocal calls
         calls += 1
-        raise subprocess.TimeoutExpired(
-            cmd=["ssh"],
-            timeout=150,
-            output=b"partial",
-            stderr=b"transport-unknown",
-        )
+        raise module.TransportTimeout(b"partial", b"transport-unknown")
 
-    monkeypatch.setattr(module.subprocess, "run", timed_out)
+    monkeypatch.setattr(module, "_run_transport_bounded", timed_out)
 
     with pytest.raises(module.StopExecution, match="readonly_probe_timeout"):
         module.execute(
@@ -333,3 +327,21 @@ def test_executor_source_forbids_unsafe_transport_shortcuts() -> None:
     assert "stricthostkeychecking=no" not in source
     assert "scp " not in source
     assert "ssh-keygen -r" not in source
+
+
+def test_transport_output_limit_is_enforced_while_streaming() -> None:
+    module = load_executor()
+
+    with pytest.raises(module.TransportOutputLimit) as raised:
+        module._run_transport_bounded(
+            [
+                sys.executable,
+                "-c",
+                "import sys; sys.stdout.buffer.write(b'x' * 4096)",
+            ],
+            input_data=b"",
+            timeout_seconds=5,
+            output_limit=128,
+        )
+
+    assert len(raised.value.stdout) + len(raised.value.stderr) == 128
