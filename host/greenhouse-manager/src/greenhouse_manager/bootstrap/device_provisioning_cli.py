@@ -124,8 +124,8 @@ def main(
     _emit(
         destination,
         {
-            "schema": SCHEMA,
             **report,
+            "schema": SCHEMA,
             "production_service_start": False,
         },
     )
