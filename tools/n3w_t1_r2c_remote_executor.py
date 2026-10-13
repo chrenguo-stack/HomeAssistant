@@ -721,14 +721,16 @@ def execute(
         ),
     )
 
-    authorization_consumed = True
+    authorization_consumed = False
     try:
         completed = _run_transport_bounded(
             argv,
             input_data=program,
             timeout_seconds=timeout_seconds,
         )
+        authorization_consumed = True
     except TransportTimeout as error:
+        authorization_consumed = True
         stdout = error.stdout
         stderr = error.stderr
         _persist_transport_outputs(root, stdout, stderr)
@@ -743,6 +745,7 @@ def execute(
         _persist_result(root, result)
         raise StopExecution("readonly_probe_timeout") from error
     except TransportOutputLimit as error:
+        authorization_consumed = True
         stdout = error.stdout
         stderr = error.stderr
         _persist_truncated_transport_summary(root, stdout, stderr)
