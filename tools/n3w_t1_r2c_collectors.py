@@ -25,6 +25,10 @@ ARMBIAN_RELEASE_KEYS = (
 )
 MACHINE_ID_RE = re.compile(r"[0-9a-fA-F]{32}\Z")
 CommandRunner = Callable[..., CommandResult]
+EXPECTED_ARMBIAN_VERSION = "26.05.0"
+EXPECTED_ARMBIAN_ARCH = "arm64"
+EXPECTED_ARMBIAN_BOARD = "S912-Phicomm-T1"
+EXPECTED_KERNEL_ARCH = "aarch64"
 
 
 class R2CCollectError(RuntimeError):
@@ -137,6 +141,12 @@ def collect_e1(
         )
         return envelope
 
+    target_matches = (
+        armbian_release.get("VERSION") == EXPECTED_ARMBIAN_VERSION
+        and armbian_release.get("ARCH") == EXPECTED_ARMBIAN_ARCH
+        and armbian_release.get("BOARD") == EXPECTED_ARMBIAN_BOARD
+        and architecture_text == EXPECTED_KERNEL_ARCH
+    )
     envelope["method_ids"] = ["R1", "R2", "C1", "C2", "C3"]
     envelope["fields"]["os_release"] = _field(os_release, os_status)
     envelope["fields"]["armbian_release"] = _field(
@@ -172,9 +182,14 @@ def collect_e1(
         and bool(architecture_text)
         and bool(package_versions)
     )
-    envelope["status"] = "OBSERVED" if complete else "UNKNOWN"
-    envelope["complete"] = complete
-    envelope["reason_code"] = None if complete else "STOP_EVIDENCE_GAP"
+    if not target_matches:
+        envelope["status"] = "ERROR"
+        envelope["complete"] = False
+        envelope["reason_code"] = "STOP_TARGET_DRIFT"
+    else:
+        envelope["status"] = "OBSERVED" if complete else "UNKNOWN"
+        envelope["complete"] = complete
+        envelope["reason_code"] = None if complete else "STOP_EVIDENCE_GAP"
     return envelope
 
 
@@ -189,24 +204,39 @@ def _machine_id_value_class(data: bytes) -> str:
     return "INVALID"
 
 
-def _machine_id_record(root: str, relative: str) -> tuple[dict[str, Any], bytes | None]:
+def _machine_id_record(
+    root: str,
+    relative: str,
+) -> tuple[dict[str, Any], bytes | None, str]:
     metadata = inspect_metadata(root, relative)
     if metadata["status"] == "ABSENT":
-        return {"kind": "absent", "content_class": "ABSENT"}, None
+        return {"kind": "absent", "content_class": "ABSENT"}, None, "ABSENT"
     if metadata["kind"] == "symlink":
         target = read_symlink_target(root, relative)
-        return {
-            "kind": "symlink",
-            "target_kind": "ABSOLUTE" if target.startswith("/") else "RELATIVE",
-        }, None
+        return (
+            {
+                "kind": "symlink",
+                "target_kind": "ABSOLUTE" if target.startswith("/") else "RELATIVE",
+            },
+            None,
+            "OBSERVED",
+        )
     if metadata["kind"] != "regular":
-        return {"kind": metadata["kind"], "content_class": "UNSUPPORTED"}, None
+        return (
+            {"kind": metadata["kind"], "content_class": "UNSUPPORTED"},
+            None,
+            "UNKNOWN",
+        )
     data = read_bounded_text(root, relative, limit=256)
-    return {
-        "kind": "regular",
-        "mode": metadata.get("mode"),
-        "content_class": _machine_id_value_class(data),
-    }, data
+    return (
+        {
+            "kind": "regular",
+            "mode": metadata.get("mode"),
+            "content_class": _machine_id_value_class(data),
+        },
+        data,
+        "OBSERVED",
+    )
 
 
 def _lexical_symlink_points_to(
@@ -228,8 +258,11 @@ def collect_e4(
 ) -> dict[str, Any]:
     envelope = empty_requirement("E4")
     try:
-        etc_record, etc_value = _machine_id_record(root, "etc/machine-id")
-        dbus_record, dbus_value = _machine_id_record(
+        etc_record, etc_value, etc_status = _machine_id_record(
+            root,
+            "etc/machine-id",
+        )
+        dbus_record, dbus_value, dbus_status = _machine_id_record(
             root,
             "var/lib/dbus/machine-id",
         )
@@ -282,8 +315,8 @@ def collect_e4(
         mount_status = "UNKNOWN"
 
     envelope["method_ids"] = ["R1", "C5"]
-    envelope["fields"]["etc_machine_id"] = _field(etc_record, "OBSERVED")
-    envelope["fields"]["dbus_machine_id"] = _field(dbus_record, "OBSERVED")
+    envelope["fields"]["etc_machine_id"] = _field(etc_record, etc_status)
+    envelope["fields"]["dbus_machine_id"] = _field(dbus_record, dbus_status)
     envelope["fields"]["path_relation"] = _field(relation, "OBSERVED")
     envelope["fields"]["mount_relation"] = _field(
         mount_relation,
