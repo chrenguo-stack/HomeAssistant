@@ -288,8 +288,9 @@ def validate_report(report: Mapping[str, Any]) -> None:
         _status(envelope["status"], REQUIREMENT_STATUSES, f"{requirement_id}_status")
         if not isinstance(envelope["complete"], bool):
             raise EvidenceSchemaError(f"{requirement_id}_complete")
-        if envelope["reason_code"] is not None and not isinstance(
-            envelope["reason_code"], str
+        reason_code = envelope["reason_code"]
+        if reason_code is not None and (
+            not isinstance(reason_code, str) or not REASON_RE.fullmatch(reason_code)
         ):
             raise EvidenceSchemaError(f"{requirement_id}_reason_code")
         method_ids = envelope["method_ids"]
@@ -325,7 +326,8 @@ def validate_report(report: Mapping[str, Any]) -> None:
         "public_projection_review",
     )
     if not isinstance(report["stop_reasons"], list) or any(
-        not isinstance(reason, str) or not reason for reason in report["stop_reasons"]
+        not isinstance(reason, str) or not REASON_RE.fullmatch(reason)
+        for reason in report["stop_reasons"]
     ):
         raise EvidenceSchemaError("stop_reasons")
 
