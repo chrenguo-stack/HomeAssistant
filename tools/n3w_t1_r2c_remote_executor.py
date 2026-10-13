@@ -9,7 +9,7 @@ import re
 import shlex
 import stat
 import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -65,7 +65,7 @@ MODULE_BINDINGS = (
     (
         "n3w_t1_r2c_remote_probe",
         "tools/n3w_t1_r2c_remote_probe.py",
-        "53954764e26d5698a03bda55ffd01afb04e1e612",
+        "2bf65c59155b0246fd02420a03bae0cce3836401",
     ),
 )
 PLACEHOLDERS = (
@@ -131,11 +131,11 @@ def validate_timeout(timeout_seconds: int) -> None:
 def validate_expiry(value: str) -> str:
     try:
         parsed = datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(
-            tzinfo=timezone.utc
+            tzinfo=UTC
         )
     except ValueError as error:
         raise StopExecution("authorization_expiry_invalid") from error
-    if parsed <= datetime.now(timezone.utc):
+    if parsed <= datetime.now(UTC):
         raise StopExecution("authorization_expired")
     return value
 
