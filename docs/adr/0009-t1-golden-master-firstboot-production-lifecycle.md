@@ -2,6 +2,7 @@
 
 - 状态：项目所有者已批准 / 架构合同冻结；PR #541 合并前仅在候选分支生效
 - 日期：2026-10-12
+- 2026-10-13 架构修订：产品初始化与普通 boot 解耦；新初始化只能由显式 provisioning 命令启动
 - 决策：`N3W_T1_GOLDEN_MASTER_FIRSTBOOT_ARCHITECTURE_CONTRACT_AND_ADR_DESIGN_FREEZE`
 - 上位依据：技术路线 V0.7、V0.5 H0/H1、ADR-0004、已批准 S1 开发计划
 - 关联阶段：H0、H1、S1、T1 production image、factory firstboot
@@ -32,28 +33,52 @@ R8 也未拥有 clone 后 `/etc/machine-id`、SSH host keys 等 OS 唯一化生�
 
 ## 2. 核心决策
 
-量产架构冻结为：
+量产架构修订并冻结为：
 
 ~~~text
 GOLDEN_MASTER_BUILD
 → MASTER_VALIDATED
-→ SEALED
+→ FINAL_SEAL
 → DISK_IMAGE_CAPTURED
-→ CLONED_DEVICE_FIRSTBOOT
+→ CLONE_WRITE_VERIFIED
+→ CLONE_BOOTED_UNPROVISIONED
+→ EXPLICIT_PROVISION_COMMAND
+→ INITIALIZING
 → DEVICE_READY
 → FACTORY_ACCEPTED
 → USER_ONBOARDING / ACTIVE
 ~~~
 
-这不是一个单一的大状态机。它分为两类 authority：
+核心原则：
+
+~~~text
+BOOT_STARTS_NEW_PROVISIONING=false
+EXPLICIT_PROVISION_COMMAND_REQUIRED=true
+PROVISION_COMMAND_REBOOT_REQUIRED=false
+INITIALIZING_AUTO_RESUME_AFTER_REBOOT=true
+PRODUCT_SERVICE_ACTIVATION_SEPARATE=true
+~~~
+
+普通开机不再是“开始产品初始化”的 authority。未初始化克隆机可以启动到受限的主机/诊断环境，
+用于确认 release、克隆写入、主机状态和工厂前置条件；只要操作者没有执行显式 provisioning
+命令，就不得生成 SYSTEM_ID、产品 CA、MQTT service credentials、DynSec 实例或 Manager
+业务状态。
+
+这不是一个单一的大状态机。它分为三类 authority：
 
 1. **镜像发布记录**
-   `BUILD → VALIDATED → SEALED → CAPTURED`
-2. **每机持久初始化状态**
-   `UNINITIALIZED → INITIALIZING → DEVICE_READY → FACTORY_ACCEPTED → ACTIVE`
+   `BUILD → VALIDATED → FINAL_SEAL → CAPTURED`
+2. **克隆写入/验收记录**
+   `WRITTEN → WRITE_VERIFIED → BOOTED_UNPROVISIONED`
+3. **每机产品实例化状态**
+   `UNPROVISIONED → INITIALIZING → DEVICE_READY → FACTORY_ACCEPTED → ACTIVE`
 
-`USER_ONBOARDING_PENDING` 是可观察条件，不额外建立一套会漂移的独立状态 authority：
-设备已 `FACTORY_ACCEPTED` 且 Home Assistant 尚无 Owner 时即处于该条件。
+`USER_ONBOARDING_PENDING` 仍是可观察条件，不另建独立 authority。
+
+注意：本修订只把**产品实例化**与普通 boot 解耦。目标 Armbian 在 machine-id、SSH host key、
+NetworkManager 等 OS 唯一状态上的真实 boot 行为仍必须由目标版本证据冻结。最终 Seal 后是否
+允许再次启动母盘，不能仅凭本 ADR 假定安全；在 OS 行为未证明前，FINAL_SEAL 后仍按
+“审计 → shutdown → 离线采集，不再重启母盘”执行。
 
 ## 3. 四类数据边界
 
@@ -203,31 +228,52 @@ Seal 工具必须采用**正面保留清单 + 禁止项审计**，不能把“�
 
 如果构建介质比目标 eMMC 大，必须有独立的“可收缩/可复制到目标介质”合同；不得因为构建盘空间更大就假定 raw image 可直接写入较小目标。
 
-## 7. 每机 firstboot 合同
+## 7. 每机显式 provisioning 合同
 
-### 7.1 firstboot 不是 R8 `_08` 重放
+### 7.1 普通 boot 不是初始化触发器
 
-当前 R8 `_08` 是一次性人工 live-apply authorization。产品自动 firstboot 不得复用、清除或重放
-`_08` / `_03` 等历史授权。
+产品初始化从“first boot 自动开始”改为“显式命令开始”。
 
-firstboot 的执行 authority 是：
+概念上的正式入口冻结为：
 
 ~~~text
-sealed image state
-+ local persistent firstboot transaction
-+ exact image/version contract
+n3w-t1-provision start --confirm "START DEVICE PROVISIONING: YES"
 ~~~
 
-其授权和重入语义必须由产品代码独立冻结，不以人工一次性授权 ledger 作为每次开机正确性依据。
+具体可执行文件名可以在源码 Gate 中微调，但语义不得改变：
 
-### 7.2 顺序
+- `status` / audit 可以只读执行；
+- `start` 是开始全新产品实例化的唯一正常入口；
+- `start` 不要求重启，命令在当前 boot 中立即进入 durable transaction；
+- 不提供“把 INITIALIZING/DEVICE_READY 再切回 UNPROVISIONED”的普通反向命令；
+- 操作错误应重新写入合格黄金镜像或走未来独立 factory-reset 合同，不能删除 marker 假装未初始化。
 
-每机首次初始化按以下最小顺序：
+R8 `_08` 仍是历史 single-host live-apply authorization，不得作为该命令的产品 authority。
+
+### 7.2 start 前置条件
+
+`provision start` 至少必须 fail-closed 验证：
+
+- 当前 release manifest / image lock /公共程序与 sealed release 一致；
+- clone write verification / factory evidence 属于当前 release；
+- 当前不存在已完成产品身份；
+- 当前不存在未知或冲突的 provisioning transaction；
+- 生产 Broker/Manager/HA 没有绕过 activation gate；
+- host identity 前置条件满足，或由后续已冻结的 OS-identity adapter 在 transaction 中安全建立。
+
+克隆整盘 read-back hash 仍属于**写盘后、首次启动前**的最强 bit-exact 验证。
+其 evidence 可以由工装/外部生产记录保存；若写入设备内 marker，必须明确记录这是
+read-back PASS 之后的第一个受控差异，不得再把整盘 bit-exact 等同为 marker 写入后的磁盘状态。
+
+### 7.3 provisioning 顺序
+
+显式命令成功 claim 后立即进入：
 
 ~~~text
-SEALED_CLONE
+UNPROVISIONED / CLONE_VERIFIED
 → acquire single initializer lock
-→ establish OS/host identity
+→ create durable transaction
+→ establish / verify OS-host identity
 → create product identity
 → create system/Broker cryptographic materials
 → create service credentials and DynSec
@@ -238,21 +284,43 @@ SEALED_CLONE
 → DEVICE_READY
 ~~~
 
-必须先生成 OS/host 唯一身份，再允许 SSH 或任何依赖该身份的对外服务成为稳定产品入口。
+命令结束时不要求正式产品服务已经激活。
 
-### 7.3 断电恢复
+### 7.4 boot / resume 行为
 
-firstboot 必须有 durable transaction record，并满足：
+boot-time helper 不允许开始一个全新的 provisioning transaction。它只允许：
+
+~~~text
+no transaction + no completion marker
+→ do nothing / remain UNPROVISIONED
+
+INITIALIZING + valid durable transaction
+→ automatically resume the existing transaction
+
+DEVICE_READY + valid completion marker
+→ verify-only; do not regenerate identity
+~~~
+
+因此：
+
+- 普通 reboot 永远不能把 UNPROVISIONED 自动推进到 INITIALIZING；
+- 一旦显式命令已经进入 INITIALIZING，断电/重启后允许自动恢复；
+- 完成态必须重新核对当前 live host identity 与持久 host binding，不能仅比较两个持久文件彼此一致；
+- backup restore、upgrade、factory reset 不得伪装为 fresh provisioning。
+
+### 7.5 durable transaction
+
+transaction 必须满足：
 
 1. 同一时间只有一个 initializer；
-2. transaction 绑定 image release/version、firstboot schema 和本机 host identity；
-3. 完整生成并已校验的身份组件重启后复用，不重新生成；
-4. 未提交的临时组件只允许在 transaction-owned staging 中恢复/重建；
-5. 正式目录出现未知、混合或被篡改状态时 fail-closed；
-6. 多目录提交过程中业务服务保持禁止；
-7. 关键文件与父目录持久化后，最后写完成 marker；
-8. 完成后普通 reboot/upgrade 不得重新进入身份创建；
-9. backup restore 与 factory-reset 不能假冒 fresh clone firstboot。
+2. 绑定 exact release/version、transaction schema、当前 host identity；
+3. 已完成并校验的身份组件重启后复用，不重新生成；
+4. 未提交临时组件只在 transaction-owned staging 中恢复/重建；
+5. 正式目录出现未知、混合或篡改状态时 fail-closed；
+6. 多目录提交期间业务服务保持禁止；
+7. 关键文件及父目录持久化后，最后写 completion marker；
+8. `DEVICE_READY` 后普通 reboot/upgrade 不得重进身份生成；
+9. completed fast-path 必须验证当前 live host binding。
 
 ## 8. 每机生成时机
 
@@ -352,20 +420,34 @@ firstboot 必须有 durable transaction record，并满足：
 
 ## 12. 服务开放顺序
 
-长期生产服务不得仅因为“镜像中 unit 已 enabled”就自动绕过初始化门。
+产品实例化与产品服务 activation 是两个独立 gate。
 
-最小顺序：
+`n3w-t1-provision start` 的职责是把合格公共克隆转成具体设备实例，最终到
+`DEVICE_READY`；它不能把“初始化成功”自动等价为“可以对外提供正式服务”。
+
+冻结顺序：
 
 ~~~text
-OS/host identity ready
-→ product identity/secrets committed
-→ guard installed and verified
-→ instance config verified
-→ factory acceptance contract satisfied
-→ production activation permitted
+CLONE_BOOTED_UNPROVISIONED
+→ explicit provisioning command
+→ INITIALIZING
+→ DEVICE_READY
+→ factory acceptance
+→ FACTORY_ACCEPTED
+→ explicit/authorized product activation
+→ guard verified
+→ Broker
+→ authenticated readiness
+→ Manager + Home Assistant
 ~~~
 
-Broker 的外部 TLS listener 必须晚于 ingress guard 的有效保护。
+因此：
+
+- UNPROVISIONED：生产服务必须保持禁止；
+- INITIALIZING：生产服务必须保持禁止；
+- DEVICE_READY：允许受控 factory audit，不自动进入正式 ACTIVE；
+- FACTORY_ACCEPTED 后才允许产品 activation；
+- Broker 外部 TLS listener 必须晚于 ingress guard 的有效保护。
 
 Home Assistant 可以在正式用户现场处于“无 Owner、等待官方 onboarding”的运行状态；
 该状态不得被误判为工厂已经拥有用户所有权。
@@ -405,12 +487,12 @@ MIN_POST_PEAK_FREE_BYTES = 5 GiB
 | `/opt/HomeAssistant` 公共源码 | MOVE_TO_MASTER_BUILD |
 | Compose | MODIFY：公共模板与 instance values 分离 |
 | systemd / ingress guard definitions | MOVE_TO_MASTER_BUILD；activation gate 分离 |
-| `create_identity` | MOVE_TO_FIRSTBOOT |
-| `create_state` | MOVE_TO_FIRSTBOOT |
-| `create_broker` | MOVE_TO_FIRSTBOOT |
-| `initialize_dynsec` | MOVE_TO_FIRSTBOOT |
-| MQTT service credentials | MOVE_TO_FIRSTBOOT |
-| system/Broker CA 与 TLS key | MOVE_TO_FIRSTBOOT |
+| `create_identity` | MOVE_TO_PROVISIONING |
+| `create_state` | MOVE_TO_PROVISIONING |
+| `create_broker` | MOVE_TO_PROVISIONING |
+| `initialize_dynsec` | MOVE_TO_PROVISIONING |
+| MQTT service credentials | MOVE_TO_PROVISIONING |
+| system/Broker CA 与 TLS key | MOVE_TO_PROVISIONING |
 | stopped_postcheck 验证器 | KEEP/MODIFY；拆为 master 与 instance audit |
 | 每台量产机传完整 offline payload 并重新 load | RETIRE from normal clone production path |
 | R8 `_08` | KEEP only for current bounded live-apply lineage；NOT a firstboot mechanism |
