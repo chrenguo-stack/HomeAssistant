@@ -370,7 +370,13 @@ def _require_no_staging_residue() -> None:
 
 def _audit_product_namespace_whitelist() -> None:
     for parent, prefixes, allowed in PRODUCT_NAMESPACE_RULES:
-        if not parent.is_dir() or parent.is_symlink():
+        if parent.is_symlink():
+            raise GoldenMasterSealHostError(
+                f"product_namespace_parent_invalid:{parent}"
+            )
+        if not parent.exists():
+            continue
+        if not parent.is_dir():
             raise GoldenMasterSealHostError(
                 f"product_namespace_parent_invalid:{parent}"
             )

@@ -127,7 +127,11 @@ def test_build_wrapper_claims_durable_one_shot_authorization(
     (payload / "payload-manifest.json").write_text("{}\n", encoding="utf-8")
     ledger = tmp_path / "ledger"
     monkeypatch.setattr(build, "AUTHORIZATION_LEDGER_ROOT", ledger)
-    monkeypatch.setattr(build.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(
+        build,
+        "os",
+        SimpleNamespace(geteuid=lambda: 0),
+    )
 
     adapter = SimpleNamespace(release_sha256="d" * 64)
 
