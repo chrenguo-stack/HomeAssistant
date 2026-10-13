@@ -298,8 +298,9 @@ target-Armbian evidence gate must capture at least:
 No secret values are needed; names, metadata, selected config fields and hashes are
 sufficient.
 
-This evidence gate requires a new explicit T1 read-only authorization. The already
-consumed P2B authorization is not replayed.
+This evidence gate requires a new explicit T1 read-only authorization. The previously
+claimed P2B authorization is not replayed. The P2B authorization remains
+`AUTHORIZATION_CONSUMED=false`.
 
 ## 7. R2A/R2B source files
 

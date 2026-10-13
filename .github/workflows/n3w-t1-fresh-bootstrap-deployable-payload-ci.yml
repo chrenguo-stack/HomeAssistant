@@ -6,6 +6,9 @@ on:
       - ".github/workflows/n3w-t1-fresh-bootstrap-deployable-payload-ci.yml"
       - "host/greenhouse-manager/**"
       - "tools/n3w_t1_fresh_product_bootstrap.py"
+      - "tools/n3w_t1_golden_master_common.py"
+      - "tools/n3w_t1_golden_master_build.py"
+      - "tools/n3w_t1_golden_master_seal.py"
       - "tools/n3w_t1_fresh_product_staging_host.py"
       - "tools/n3w_t1_clean_product_deployment_gate.py"
       - "tools/n3w_broker_ingress_guard.py"
@@ -23,6 +26,9 @@ on:
       - ".github/workflows/n3w-t1-fresh-bootstrap-deployable-payload-ci.yml"
       - "host/greenhouse-manager/**"
       - "tools/n3w_t1_fresh_product_bootstrap.py"
+      - "tools/n3w_t1_golden_master_common.py"
+      - "tools/n3w_t1_golden_master_build.py"
+      - "tools/n3w_t1_golden_master_seal.py"
       - "tools/n3w_t1_fresh_product_staging_host.py"
       - "tools/n3w_t1_clean_product_deployment_gate.py"
       - "tools/n3w_broker_ingress_guard.py"
@@ -422,6 +428,7 @@ jobs:
           PY
 
           python tools/n3w_t1_fresh_product_bootstrap.py             --payload-root "$PAYLOAD"             --phase self-check
+          PYTHONDONTWRITEBYTECODE=1 python "$PAYLOAD/tools/n3w_t1_golden_master_build.py"             --payload-root "$PAYLOAD"             --release-id ci-golden-master             --phase self-check
 
           python - "$PAYLOAD" <<'PY'
           import json

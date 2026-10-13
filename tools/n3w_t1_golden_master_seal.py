@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import subprocess
@@ -9,7 +10,11 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from n3w_t1_golden_master_common import public_tree_sha256, sha256_file
+from n3w_t1_golden_master_common import (
+    canonical_sha256,
+    public_tree_sha256,
+    sha256_file,
+)
 
 SCHEMA = "gh.n3w.t1-golden-master-seal-host/1"
 RELEASE_SCHEMA = "gh.n3w.t1-golden-master-release/1"
@@ -18,8 +23,40 @@ RELEASE_RELATIVE_PATH = Path(
     "infra/n3w-t1/production/golden-master-release.json"
 )
 IMAGE_LOCK_RELATIVE_PATH = Path("infra/n3w-t1/production/image-lock.json")
+DEFAULT_NETWORKS = frozenset(("bridge", "host", "none"))
+TARGET_PORTS = frozenset((1883, 8883, 18883, 8123, 47110, 47111, 47112))
+INSTANCE_PATHS = (
+    "/var/lib/greenhouse-manager",
+    "/var/lib/n3wfc4-broker",
+    "/var/lib/n3wfc4-homeassistant",
+    "/opt/greenhouse-secrets",
+    "/etc/n3wfc4",
+)
+EXTRA_ABSENT = (
+    "/etc/NetworkManager/dispatcher.d/90-n3wfc4-broker-ingress-guard",
+    "/usr/local/sbin/n3w-t1-broker-authenticated-readiness",
+    "/usr/local/sbin/n3w-broker-certificate-lifecycle",
+    "/etc/systemd/system/n3wfc4-broker-activation.service",
+    "/etc/systemd/system/n3wfc4-services-activation.service",
+    "/etc/systemd/system/n3wfc4-broker-certificate-lifecycle.service",
+    "/etc/systemd/system/n3wfc4-broker-certificate-lifecycle.timer",
+    "/etc/systemd/system/n3wfc4-provision-resume.service",
+)
+GUARD_UNIT = "n3wfc4-broker-ingress-guard.service"
+ABSENT_UNITS = (
+    "n3wfc4-broker-activation.service",
+    "n3wfc4-services-activation.service",
+    "n3wfc4-broker-certificate-lifecycle.service",
+    "n3wfc4-broker-certificate-lifecycle.timer",
+    "n3wfc4-provision-resume.service",
+)
+STAGING_GLOBS = (
+    "/var/tmp/n3w-golden-master-build-*",
+    "/var/tmp/n3w-fresh-bootstrap-*",
+)
 _SHA40 = re.compile(r"[0-9a-f]{40}")
 _SHA64 = re.compile(r"[0-9a-f]{64}")
+_IMAGE_ID = re.compile(r"sha256:[0-9a-f]{64}")
 
 
 class GoldenMasterSealHostError(RuntimeError):
@@ -27,7 +64,12 @@ class GoldenMasterSealHostError(RuntimeError):
 
 
 class Runner:
-    def run(self, argv: Sequence[str]) -> str:
+    def run(
+        self,
+        argv: Sequence[str],
+        *,
+        allowed: frozenset[int] = frozenset({0}),
+    ) -> str:
         completed = subprocess.run(
             tuple(argv),
             capture_output=True,
@@ -35,7 +77,7 @@ class Runner:
             check=False,
             timeout=120,
         )
-        if completed.returncode != 0:
+        if completed.returncode not in allowed:
             raise GoldenMasterSealHostError(
                 f"command_failed:{Path(argv[0]).name}:{completed.returncode}"
             )
@@ -73,12 +115,24 @@ def _load_release(source_root: Path) -> dict[str, Any]:
         "broker",
     }:
         raise GoldenMasterSealHostError("release_manifest_images_invalid")
+    for label, record in images.items():
+        if (
+            not isinstance(record, dict)
+            or not isinstance(record.get("image"), str)
+            or not record["image"]
+            or _IMAGE_ID.fullmatch(str(record.get("image_id"))) is None
+            or record.get("platform") != "linux/arm64"
+            or _SHA64.fullmatch(str(record.get("tar_sha256"))) is None
+            or _SHA64.fullmatch(str(record.get("rootfs_layers_sha256"))) is None
+            or _SHA64.fullmatch(str(record.get("config_contract_sha256"))) is None
+        ):
+            raise GoldenMasterSealHostError(
+                f"release_manifest_image_record_invalid:{label}"
+            )
     return document
 
 
 def _normalized_hash(value: object) -> str:
-    import hashlib
-
     payload = json.dumps(
         value,
         sort_keys=True,
@@ -142,9 +196,14 @@ def _verify_images(
                 f"image_inspect_invalid:{label}"
             )
         item = values[0]
-        if item.get("Architecture") != "arm64" or item.get("Os") != "linux":
+        if (
+            item.get("Id") != record["image_id"]
+            or item.get("Architecture") != "arm64"
+            or item.get("Os") != "linux"
+            or record["platform"] != "linux/arm64"
+        ):
             raise GoldenMasterSealHostError(
-                f"image_platform_invalid:{label}"
+                f"image_exact_binding_invalid:{label}"
             )
         rootfs = item.get("RootFS")
         layers = rootfs.get("Layers") if isinstance(rootfs, dict) else None
@@ -164,6 +223,128 @@ def _verify_images(
             )
 
 
+def _listener_count(runner: Runner) -> int:
+    output = runner.run(("ss", "-H", "-lntu"))
+    count = 0
+    for line in output.splitlines():
+        fields = line.split()
+        if len(fields) < 5:
+            continue
+        try:
+            port = int(fields[4].rsplit(":", 1)[1].rstrip("]"))
+        except (IndexError, ValueError):
+            continue
+        if port in TARGET_PORTS:
+            count += 1
+    return count
+
+
+def _unit_load_state(runner: Runner, unit: str) -> str:
+    return runner.run(
+        ("systemctl", "show", "-p", "LoadState", "--value", unit),
+        allowed=frozenset({0, 1}),
+    ).strip()
+
+
+def _systemctl(runner: Runner, operation: str, unit: str) -> str:
+    return runner.run(
+        ("systemctl", operation, unit),
+        allowed=frozenset({0, 1, 3, 4}),
+    ).strip()
+
+
+def _require_absent_paths(paths: Sequence[str]) -> None:
+    for value in paths:
+        path = Path(value)
+        if path.exists() or path.is_symlink():
+            raise GoldenMasterSealHostError(
+                f"instance_or_activation_path_present:{value}"
+            )
+
+
+def _require_no_staging_residue() -> None:
+    for pattern in STAGING_GLOBS:
+        parent = Path(pattern).parent
+        name = Path(pattern).name
+        if any(parent.glob(name)):
+            raise GoldenMasterSealHostError(
+                f"staging_residue_present:{name}"
+            )
+
+
+def _audit_quiescence(runner: Runner) -> dict[str, object]:
+    containers = tuple(
+        value
+        for value in runner.run(("docker", "ps", "-aq")).splitlines()
+        if value
+    )
+    if containers:
+        raise GoldenMasterSealHostError("product_container_present")
+
+    volumes = tuple(
+        value
+        for value in runner.run(("docker", "volume", "ls", "-q")).splitlines()
+        if value
+    )
+    if volumes:
+        raise GoldenMasterSealHostError("product_volume_present")
+
+    networks = frozenset(
+        value
+        for value in runner.run(
+            ("docker", "network", "ls", "--format", "{{.Name}}")
+        ).splitlines()
+        if value
+    )
+    if networks != DEFAULT_NETWORKS:
+        raise GoldenMasterSealHostError("product_network_set_invalid")
+
+    listeners = _listener_count(runner)
+    if listeners:
+        raise GoldenMasterSealHostError("product_listener_present")
+
+    firewall = runner.run(("iptables-save", "-t", "filter"))
+    if (
+        "N3WFC4-BROKER-INGRESS" in firewall
+        or "n3wfc4-broker-ingress-v1" in firewall
+    ):
+        raise GoldenMasterSealHostError("product_firewall_active")
+
+    if _unit_load_state(runner, GUARD_UNIT) != "loaded":
+        raise GoldenMasterSealHostError("guard_unit_missing")
+    if _systemctl(runner, "is-active", GUARD_UNIT) not in {
+        "inactive",
+        "unknown",
+    }:
+        raise GoldenMasterSealHostError("guard_unit_active")
+    if _systemctl(runner, "is-enabled", GUARD_UNIT) not in {
+        "disabled",
+        "static",
+        "indirect",
+    }:
+        raise GoldenMasterSealHostError("guard_unit_enabled")
+
+    for unit in ABSENT_UNITS:
+        if _unit_load_state(runner, unit) not in {"", "not-found"}:
+            raise GoldenMasterSealHostError(
+                f"activation_unit_present:{unit}"
+            )
+
+    _require_absent_paths((*INSTANCE_PATHS, *EXTRA_ABSENT))
+    _require_no_staging_residue()
+
+    return {
+        "product_container_count": 0,
+        "product_volume_count": 0,
+        "product_network_count": 0,
+        "product_listener_count": 0,
+        "product_firewall_active": False,
+        "instance_material_absent": True,
+        "activation_units_absent": True,
+        "staging_residue_absent": True,
+    }
+
+
 def audit_public_master(
     source_root: Path,
     *,
@@ -171,6 +352,8 @@ def audit_public_master(
 ) -> dict[str, object]:
     root = source_root.resolve()
     release = _load_release(root)
+    release_path = root / RELEASE_RELATIVE_PATH
+    release_manifest_sha256 = sha256_file(release_path)
     excluded = frozenset({RELEASE_RELATIVE_PATH.as_posix()})
     if (
         public_tree_sha256(root, excluded=excluded)
@@ -186,10 +369,15 @@ def audit_public_master(
 
     active = runner or Runner()
     _verify_images(active, release)
-    if active.run(("docker", "ps", "-aq")).strip():
-        raise GoldenMasterSealHostError("product_container_present")
-    if active.run(("docker", "volume", "ls", "-q")).strip():
-        raise GoldenMasterSealHostError("product_volume_present")
+    quiescence = _audit_quiescence(active)
+    public_audit = {
+        "release_id": release["release_id"],
+        "source_head": release["source_head"],
+        "release_manifest_sha256": release_manifest_sha256,
+        "image_lock_sha256": release["image_lock_sha256"],
+        "public_source_tree_sha256": release["public_source_tree_sha256"],
+        **quiescence,
+    }
 
     return {
         "schema": SCHEMA,
@@ -197,11 +385,15 @@ def audit_public_master(
         "phase": "public-audit",
         "release_id": release["release_id"],
         "source_head": release["source_head"],
+        "release_manifest_sha256": release_manifest_sha256,
+        "image_lock_sha256": release["image_lock_sha256"],
+        "public_audit_sha256": canonical_sha256(public_audit),
         "exact_release_binding": True,
         "instance_material_absent": True,
         "public_source_tree_exact": True,
         "image_lock_exact": True,
         "image_binding_exact": True,
+        **quiescence,
         "target_identity_adapter_ready": False,
         "disk_capture_ready": False,
         "authorization_claimed": False,
