@@ -170,6 +170,7 @@ def _source(
         "authorization_ledger_policy": seal.AUTHORIZATION_LEDGER_POLICY,
         "seal_state": "UNSEALED",
         "production_service_start": False,
+        "board_access": False,
     }
     release["public_source_tree_sha256"] = public_tree_sha256(root)
     path = root / seal.RELEASE_RELATIVE_PATH
@@ -227,7 +228,13 @@ def test_public_audit_rejects_source_root_symlink(
         seal.GoldenMasterSealHostError,
         match="source_root_invalid",
     ):
-        seal.audit_public_master(alias, runner=FakeRunner())
+        seal.audit_public_master(
+            alias,
+            expected_release_manifest_sha256=sha256_file(
+                root / seal.RELEASE_RELATIVE_PATH
+            ),
+            runner=FakeRunner(),
+        )
 
 
 def test_public_audit_proves_positive_product_whitelist(
@@ -370,7 +377,13 @@ def test_public_audit_rejects_image_id_drift(
         seal.GoldenMasterSealHostError,
         match="image_exact_binding_invalid",
     ):
-        seal.audit_public_master(root, runner=runner)
+        seal.audit_public_master(
+            root,
+            expected_release_manifest_sha256=sha256_file(
+                root / seal.RELEASE_RELATIVE_PATH
+            ),
+            runner=runner,
+        )
 
 
 def test_seal_fails_before_authorization_without_target_adapter(
