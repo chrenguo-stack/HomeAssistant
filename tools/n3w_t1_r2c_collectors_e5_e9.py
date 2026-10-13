@@ -108,6 +108,7 @@ MAC_KEYS = {
     "addr-gen-mode",
     "macaddress",
 }
+R3_TOTAL_ENTRY_LIMIT = 512
 
 
 class RemainingCollectError(RuntimeError):
@@ -173,6 +174,20 @@ def _scan(
         )
     except FileNotFoundError:
         return [], "ABSENT"
+    except ReadonlyEvidenceError as error:
+        if str(error) == "scan_entry_limit":
+            raise RemainingCollectError("STOP_TRUNCATED") from error
+        raise
+
+
+def _add_scan_count(
+    current: int,
+    records: list[dict[str, Any]],
+) -> int:
+    total = current + len(records)
+    if total > R3_TOTAL_ENTRY_LIMIT:
+        raise RemainingCollectError("STOP_TRUNCATED")
+    return total
 
 
 def _read_regular(
@@ -678,6 +693,9 @@ def _sshd_config_analysis(root: str) -> dict[str, Any]:
                         unresolved.add(
                             "SSH_PORT_UNRESOLVED"
                         )
+    if not hostkeys:
+        hostkeys.append("DEFAULT_UNBOUND")
+        unresolved.add("SSH_HOSTKEY_DEFAULT_SEMANTICS_UNBOUND")
     port_class = "DEFAULT"
     if "UNKNOWN" in port_classes:
         port_class = "UNKNOWN"
@@ -822,6 +840,26 @@ def collect_e5(
         unresolved.add("SSH_KEYGEN_PACKAGE_OWNER_UNKNOWN")
     if listener["status"] != "OBSERVED":
         unresolved.add("SSH_LISTENER_UNKNOWN")
+    for exposure_name in (
+        "ssh.service",
+        "sshd.service",
+        "ssh.socket",
+    ):
+        exposure = units[exposure_name]
+        if exposure.get("status") != "OBSERVED":
+            continue
+        ordered_after_keygen = (
+            exposure_name in keygen.get("before", [])
+            or "sshd-keygen.service" in exposure.get("after", [])
+        )
+        ordered_before_keygen = (
+            exposure_name in keygen.get("after", [])
+            or "sshd-keygen.service" in exposure.get("before", [])
+        )
+        if ordered_before_keygen:
+            unresolved.add("SSH_EXPOSURE_BEFORE_KEYGEN")
+        elif not ordered_after_keygen:
+            unresolved.add("SSH_KEYGEN_EXPOSURE_ORDER_UNKNOWN")
 
     envelope["method_ids"] = [
         "R1",
@@ -967,12 +1005,17 @@ def collect_e6(
     netplan_records: list[dict[str, Any]] = []
     identity_fields: list[tuple[str, str]] = []
     unresolved: set[str] = set()
+    total_entries = 0
     try:
         for role, relative, depth in roots:
             records, status = _scan(
                 root,
                 relative,
                 max_depth=depth,
+            )
+            total_entries = _add_scan_count(
+                total_entries,
+                records,
             )
             role_counts = Counter(
                 _network_role(item["relative"])
@@ -989,21 +1032,20 @@ def collect_e6(
                 file_role = _network_role(
                     item["relative"]
                 )
-                if (
-                    item["kind"] == "symlink"
-                    and file_role
-                    in {
-                        "PROFILE",
-                        "NETPLAN",
-                        "NM_CONFIG",
-                        "SYSTEMD_NETWORK",
-                    }
-                ):
+                if item["kind"] == "symlink":
                     unresolved.add(
-                        "NETWORK_CONFIG_SYMLINK"
+                        "NETWORK_STATE_SYMLINK"
                     )
                     continue
                 if item["kind"] != "regular":
+                    continue
+                if (
+                    file_role == "STATE_METADATA"
+                    and role in {"NM_VAR", "NM_RUN"}
+                ):
+                    unresolved.add(
+                        "NETWORK_STATE_UNCLASSIFIED"
+                    )
                     continue
                 if file_role not in {
                     "PROFILE",
@@ -1076,6 +1118,8 @@ def collect_e6(
         identity_fields,
         MAC_KEYS,
     )
+    if identity_fields:
+        unresolved.add("NETWORK_PRECEDENCE_UNBOUND")
     effective = {
         "source_roles": sorted(
             role
@@ -1086,6 +1130,11 @@ def collect_e6(
             {key for key, _ in identity_fields}
         ),
         "identity_field_count": len(identity_fields),
+        "precedence_binding": (
+            "UNBOUND_TO_INSTALLED_SEMANTICS"
+            if identity_fields
+            else "NO_IDENTITY_FIELDS_OBSERVED"
+        ),
         "unit_statuses": {
             unit: snapshot.get("status")
             for unit, snapshot in sorted(units.items())
@@ -1282,6 +1331,7 @@ def collect_e7(
     roots: dict[str, Any] = {}
     relation = Counter()
     unresolved: set[str] = set()
+    total_entries = 0
     try:
         for role, relative in (
             ("PERSISTENT", "var/log/journal"),
@@ -1291,6 +1341,10 @@ def collect_e7(
                 root,
                 relative,
                 max_depth=1,
+            )
+            total_entries = _add_scan_count(
+                total_entries,
+                records,
             )
             roots[role] = {
                 "status": status,
@@ -1340,6 +1394,17 @@ def collect_e7(
             runner,
         )
         unresolved.update(unit_unresolved)
+        for critical_unit in (
+            "systemd-journald.service",
+            "systemd-journal-flush.service",
+        ):
+            if (
+                units[critical_unit].get("status")
+                != "OBSERVED"
+            ):
+                unresolved.add(
+                    "JOURNAL_CRITICAL_UNIT_UNRESOLVED"
+                )
     except (
         OSError,
         ReadonlyEvidenceError,
@@ -1488,18 +1553,41 @@ def collect_e8(
                     package.stdout,
                     "SYSTEMD_PACKAGE_LIST",
                 )
-                package_seed_path_count = sum(
-                    1
+                package_seed_paths = [
+                    line.strip()
                     for line in package_text.splitlines()
                     if "random-seed" in line.lower()
+                ]
+                package_seed_path_count = len(
+                    package_seed_paths
                 )
+                unknown_seed_owner_count = sum(
+                    1
+                    for path in package_seed_paths
+                    if (
+                        (
+                            path.endswith(".service")
+                            or "/bin/" in path
+                            or "/sbin/" in path
+                        )
+                        and not path.endswith(
+                            "/systemd-random-seed.service"
+                        )
+                    )
+                )
+                if unknown_seed_owner_count:
+                    unresolved.add(
+                        "ALTERNATE_SEED_OWNER_UNBOUND"
+                    )
             else:
                 package_seed_path_count = 0
+                unknown_seed_owner_count = 0
                 unresolved.add(
                     "RANDOM_SEED_PACKAGE_LIST_UNKNOWN"
                 )
         except (OSError, ReadonlyCommandError):
             package_seed_path_count = 0
+            unknown_seed_owner_count = 0
             unresolved.add(
                 "RANDOM_SEED_PACKAGE_LIST_UNKNOWN"
             )
@@ -1516,6 +1604,10 @@ def collect_e8(
                     "kind": metadata.get("kind"),
                 }
             )
+            if metadata["status"] == "OBSERVED":
+                unresolved.add(
+                    "ALTERNATE_SEED_STATE_PRESENT"
+                )
     except (
         OSError,
         ReadonlyEvidenceError,
@@ -1586,6 +1678,9 @@ def collect_e8(
             "systemd_package_random_seed_path_count": (
                 package_seed_path_count
             ),
+            "unknown_seed_owner_count": (
+                unknown_seed_owner_count
+            ),
         },
         (
             "OBSERVED"
@@ -1623,6 +1718,7 @@ def _unit_link_edges(
 ) -> tuple[list[dict[str, str]], list[str]]:
     edges: list[dict[str, str]] = []
     unresolved: set[str] = set()
+    total_entries = 0
     for unit in units:
         for relation in ("wants", "requires"):
             suffix = f"{unit}.{relation}"
@@ -1646,6 +1742,10 @@ def _unit_link_edges(
                         root,
                         relative,
                         max_depth=0,
+                    )
+                    total_entries = _add_scan_count(
+                        total_entries,
+                        records,
                     )
                 except (
                     OSError,
@@ -1872,6 +1972,16 @@ def collect_e9(
             order_edges,
             external_unresolved,
         ) = _ordering_graph(snapshots)
+        try:
+            listener = _listener_classification(
+                runner("C6_LISTEN")
+            )
+        except (OSError, ReadonlyCommandError):
+            listener = {
+                "status": "UNKNOWN",
+                "classes": [],
+                "count": 0,
+            }
     except (
         OSError,
         ReadonlyEvidenceError,
@@ -1900,6 +2010,7 @@ def collect_e9(
         "systemd-networkd.service",
         "network-pre.target",
         "network.target",
+        "network-online.target",
     }
     ssh_sources = identity_sources | {
         "sshd-keygen.service"
@@ -1950,6 +2061,15 @@ def collect_e9(
         for unit, snapshot in snapshots.items()
         if snapshot.get("status") == "OBSERVED"
     }
+    timestamp_unknown = any(
+        value is None
+        for values in timestamps.values()
+        for value in values.values()
+    )
+    if timestamp_unknown:
+        unresolved.add("CURRENT_BOOT_TIMESTAMP_UNKNOWN")
+    if listener["status"] != "OBSERVED":
+        unresolved.add("SSH_LISTENER_UNKNOWN")
     dependency_graph = {
         "ordering_edges": order_edges,
         "unit_statuses": {
@@ -1957,7 +2077,27 @@ def collect_e9(
             for unit, snapshot in snapshots.items()
         },
     }
+    property_activation_edges = [
+        {
+            "source": unit,
+            "relation": relation.upper(),
+            "target": target,
+        }
+        for unit, snapshot in snapshots.items()
+        if snapshot.get("status") == "OBSERVED"
+        for relation in ("wants", "requires")
+        for target in snapshot.get(relation, [])
+        if target in snapshots
+    ]
     activation_edges = {
+        "property_edges": sorted(
+            property_activation_edges,
+            key=lambda item: (
+                item["source"],
+                item["relation"],
+                item["target"],
+            ),
+        ),
         "trigger_edges": [
             {
                 "source": unit,
@@ -1970,13 +2110,14 @@ def collect_e9(
             if target in snapshots
         ],
         "wants_requires_symlinks": link_edges,
+        "listener": listener,
         "ordering_semantics_excluded": [
             "WANTS",
             "REQUIRES",
             "TRIGGERS",
         ],
     }
-    envelope["method_ids"] = ["R3", "C4"]
+    envelope["method_ids"] = ["R3", "C4", "C6"]
     envelope["fields"]["unit_dependency_graph"] = (
         _field(dependency_graph, "OBSERVED")
     )
@@ -1988,7 +2129,10 @@ def collect_e9(
         "OBSERVED",
     )
     envelope["fields"]["current_boot_timestamps"] = (
-        _field(timestamps, "OBSERVED")
+        _field(
+            timestamps,
+            "UNKNOWN" if timestamp_unknown else "OBSERVED",
+        )
     )
     envelope["fields"]["identity_before_network"] = (
         _field(
@@ -2019,6 +2163,7 @@ def collect_e9(
     capture_errors = bool(
         unit_unresolved
         or link_unresolved
+        or listener["status"] != "OBSERVED"
     )
     envelope["complete"] = not capture_errors
     envelope["status"] = (

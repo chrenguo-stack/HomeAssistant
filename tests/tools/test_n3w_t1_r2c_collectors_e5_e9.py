@@ -333,13 +333,17 @@ def test_e6_classifies_network_identity_without_raw_values(
             loaded=loaded,
         ),
     )
-    assert evidence["status"] == "OBSERVED"
-    assert evidence["complete"] is True
+    assert evidence["status"] == "UNKNOWN"
+    assert evidence["complete"] is False
     assert (
         evidence["fields"][
             "unknown_identity_state"
         ]["value"]
-        is False
+        is True
+    )
+    assert (
+        evidence["reason_code"]
+        == "STOP_NETWORK_IDENTITY_UNKNOWN"
     )
     assert (
         "uuid"
@@ -645,3 +649,142 @@ def test_e9_unknown_unit_capture_fails_closed(
         evidence["reason_code"]
         == "STOP_BOOT_ORDER_CAPTURE_GAP"
     )
+
+def test_e5_default_hostkey_semantics_stay_unbound(
+    tmp_path: Path,
+) -> None:
+    _ssh_fixture(tmp_path)
+    (tmp_path / "etc" / "ssh" / "sshd_config").write_text(
+        "Port 22\n"
+    )
+    loaded = {
+        "sshd-keygen.service": {
+            "conditions": "ConditionFirstBoot=yes",
+            "exec_start": "/usr/bin/ssh-keygen -A",
+            "before": "ssh.service",
+        },
+        "ssh.service": {
+            "after": "sshd-keygen.service",
+        },
+    }
+    evidence = collect_e5(
+        tmp_path.as_posix(),
+        runner=_runner(tmp_path, loaded=loaded),
+    )
+    assert evidence["status"] == "UNKNOWN"
+    assert evidence["complete"] is False
+    assert (
+        "DEFAULT_UNBOUND"
+        in evidence["fields"][
+            "hostkey_path_classes"
+        ]["value"]["hostkey"]
+    )
+
+
+def test_e6_unclassified_runtime_state_fails_closed(
+    tmp_path: Path,
+) -> None:
+    state = (
+        tmp_path
+        / "var"
+        / "lib"
+        / "NetworkManager"
+        / "opaque-state"
+    )
+    state.parent.mkdir(parents=True)
+    state.write_text("PRIVATE-STATE-SENTINEL\n")
+    evidence = collect_e6(
+        tmp_path.as_posix(),
+        runner=_runner(
+            tmp_path,
+            loaded={unit: {} for unit in E6_UNITS},
+        ),
+    )
+    assert evidence["status"] == "UNKNOWN"
+    assert evidence["complete"] is False
+    assert "PRIVATE-STATE-SENTINEL" not in repr(evidence)
+
+
+def test_e6_scan_budget_stops_instead_of_truncating(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "var" / "lib" / "NetworkManager"
+    root.mkdir(parents=True)
+    for index in range(513):
+        (root / f"state-{index:03d}").write_text("")
+    evidence = collect_e6(
+        tmp_path.as_posix(),
+        runner=_runner(
+            tmp_path,
+            loaded={unit: {} for unit in E6_UNITS},
+        ),
+    )
+    assert evidence["status"] == "ERROR"
+    assert evidence["reason_code"] == "STOP_TRUNCATED"
+
+
+def test_e7_missing_critical_unit_fails_closed(
+    tmp_path: Path,
+) -> None:
+    journald = (
+        tmp_path
+        / "etc"
+        / "systemd"
+        / "journald.conf"
+    )
+    journald.parent.mkdir(parents=True)
+    journald.write_text(
+        "[Journal]\nStorage=volatile\nSplitMode=uid\n"
+    )
+    evidence = collect_e7(
+        tmp_path.as_posix(),
+        runner=_runner(
+            tmp_path,
+            loaded={"systemd-journald.service": {}},
+        ),
+    )
+    assert evidence["status"] == "UNKNOWN"
+    assert evidence["complete"] is False
+
+
+def test_e9_preserves_activation_properties_and_listener(
+    tmp_path: Path,
+) -> None:
+    loaded = _e9_loaded(requires_only=True)
+    evidence = collect_e9(
+        tmp_path.as_posix(),
+        runner=_runner(tmp_path, loaded=loaded),
+    )
+    activation = evidence["fields"][
+        "activation_edges"
+    ]["value"]
+    assert any(
+        edge["relation"] == "REQUIRES"
+        for edge in activation["property_edges"]
+    )
+    assert activation["listener"]["status"] == "OBSERVED"
+    assert "C6" in evidence["method_ids"]
+
+
+def test_e9_zero_current_boot_time_stays_unknown(
+    tmp_path: Path,
+) -> None:
+    loaded = _e9_loaded()
+    loaded["NetworkManager.service"]["active_enter"] = "0"
+    evidence = collect_e9(
+        tmp_path.as_posix(),
+        runner=_runner(tmp_path, loaded=loaded),
+    )
+    assert (
+        evidence["fields"][
+            "current_boot_timestamps"
+        ]["status"]
+        == "UNKNOWN"
+    )
+    assert (
+        "CURRENT_BOOT_TIMESTAMP_UNKNOWN"
+        in evidence["fields"][
+            "unresolved_edges"
+        ]["value"]
+    )
+
