@@ -79,3 +79,26 @@ def test_authorization_record_tamper_fails_closed(tmp_path: Path) -> None:
         match="authorization_record_invalid",
     ):
         load_authorization_record(ledger, "AUTH-2")
+
+
+def test_authorization_record_rejects_extra_fields(tmp_path: Path) -> None:
+    ledger = tmp_path / "ledger"
+    claim_authorization(
+        ledger,
+        authorization_id="AUTH-3",
+        operation="BUILD",
+        source_head="a" * 40,
+        payload_manifest_sha256="b" * 64,
+        release_id="release-3",
+    )
+    path = authorization_record_path(ledger, "AUTH-3")
+    document = json.loads(path.read_text(encoding="utf-8"))
+    document["unexpected"] = "must-not-be-carried"
+    path.write_text(json.dumps(document), encoding="utf-8")
+    path.chmod(0o600)
+
+    with pytest.raises(
+        GoldenMasterCommonError,
+        match="authorization_record_invalid",
+    ):
+        load_authorization_record(ledger, "AUTH-3")

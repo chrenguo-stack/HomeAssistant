@@ -9,6 +9,16 @@ from pathlib import Path
 from typing import Any
 
 AUTHORIZATION_LEDGER_SCHEMA = "gh.n3w.t1-golden-master-authorization/1"
+_AUTHORIZATION_RECORD_KEYS = frozenset(
+    {
+        "schema",
+        "authorization_id",
+        "operation",
+        "source_head",
+        "payload_manifest_sha256",
+        "release_id",
+    }
+)
 _SHA40 = re.compile(r"[0-9a-f]{40}")
 _SHA64 = re.compile(r"[0-9a-f]{64}")
 
@@ -107,6 +117,7 @@ def load_authorization_record(
         raise GoldenMasterCommonError("authorization_record_invalid") from error
     if (
         not isinstance(document, dict)
+        or set(document) != _AUTHORIZATION_RECORD_KEYS
         or document.get("schema") != AUTHORIZATION_LEDGER_SCHEMA
         or document.get("authorization_id") != authorization_id
         or document.get("operation") not in {"BUILD", "SEAL"}

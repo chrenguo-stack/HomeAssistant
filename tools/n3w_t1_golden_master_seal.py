@@ -84,6 +84,11 @@ PRODUCT_NAMESPACE_RULES = (
         frozenset({"n3w-broker-ingress-guard"}),
     ),
     (
+        Path("/etc"),
+        ("n3wfc4",),
+        frozenset(),
+    ),
+    (
         Path("/etc/systemd/system"),
         ("n3wfc4-",),
         frozenset({"n3wfc4-broker-ingress-guard.service"}),

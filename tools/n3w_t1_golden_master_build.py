@@ -17,6 +17,7 @@ from typing import Any
 
 from n3w_t1_golden_master_common import (
     GoldenMasterCommonError,
+    authorization_record_path,
     claim_authorization,
     load_authorization_record,
     public_tree_sha256,
@@ -349,6 +350,26 @@ def execute_apply(
     }
 
 
+def _authorization_consumed_fail_closed() -> bool:
+    try:
+        return (
+            load_authorization_record(
+                AUTHORIZATION_LEDGER_ROOT,
+                AUTHORIZATION_ID,
+            )
+            is not None
+        )
+    except (GoldenMasterCommonError, OSError, ValueError):
+        path = authorization_record_path(
+            AUTHORIZATION_LEDGER_ROOT,
+            AUTHORIZATION_ID,
+        )
+        try:
+            return path.exists() or path.is_symlink()
+        except OSError:
+            return True
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="n3w-t1-golden-master-build")
     parser.add_argument("--payload-root", type=Path, required=True)
@@ -390,16 +411,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         ImportError,
         subprocess.SubprocessError,
     ) as error:
-        try:
-            consumed = (
-                load_authorization_record(
-                    AUTHORIZATION_LEDGER_ROOT,
-                    AUTHORIZATION_ID,
-                )
-                is not None
-            )
-        except (GoldenMasterCommonError, OSError, ValueError):
-            consumed = False
+        consumed = _authorization_consumed_fail_closed()
         print(
             json.dumps(
                 {

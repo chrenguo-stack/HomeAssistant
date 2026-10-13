@@ -350,3 +350,12 @@ def test_seal_fails_before_authorization_without_target_adapter(
             tmp_path,
             seal.AUTHORIZATION_ID,
         )
+
+
+def test_product_namespace_policy_covers_n3wfc4_etc_residue() -> None:
+    assert any(
+        parent == Path("/etc")
+        and "n3wfc4" in prefixes
+        and not allowed
+        for parent, prefixes, allowed in seal.PRODUCT_NAMESPACE_RULES
+    )

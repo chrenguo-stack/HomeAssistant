@@ -99,3 +99,20 @@ MERGE=false
 
 A fresh exact-head CI pass and focused closure review are still required before R2A/R2B
 can be marked CLOSED_SOURCE.
+
+
+## 6. Focused closure-review follow-up
+
+The first all-green exact head was reviewed immediately rather than promoted from CI
+alone. Three additional fail-closed gaps were found and repaired inside the same
+authorized source-repair gate:
+
+1. authorization records now reject extra JSON keys, so the retained ledger cannot
+   carry unclassified payload while still being called non-secret provenance;
+2. an occupied/corrupt authorization slot is reported fail-closed as no-replay instead
+   of being misreported as unconsumed after a partial durable claim;
+3. the product namespace whitelist now covers unknown `/etc/n3wfc4*` residue, not only
+   the exact `/etc/n3wfc4` path.
+
+These are source-only repairs. R2C remains not entered and no live authorization is
+implied.

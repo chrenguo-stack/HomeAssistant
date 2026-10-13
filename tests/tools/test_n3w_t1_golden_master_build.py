@@ -177,3 +177,17 @@ def test_build_wrapper_claims_durable_one_shot_authorization(
             "release-1",
             build.AUTHORIZATION_ID,
         )
+
+
+def test_invalid_occupied_authorization_slot_is_no_replay(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    ledger = tmp_path / "ledger"
+    ledger.mkdir(mode=0o700)
+    monkeypatch.setattr(build, "AUTHORIZATION_LEDGER_ROOT", ledger)
+    path = build.authorization_record_path(ledger, build.AUTHORIZATION_ID)
+    path.write_text("{not-json", encoding="utf-8")
+    path.chmod(0o600)
+
+    assert build._authorization_consumed_fail_closed() is True
