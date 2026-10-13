@@ -6,11 +6,7 @@ import re
 from collections import deque
 from typing import Any
 
-from n3w_t1_r2c_readonly_files import (
-    ReadonlyEvidenceError,
-    inspect_metadata,
-    read_bounded_text,
-)
+from n3w_t1_r2c_readonly_files import inspect_metadata, read_bounded_text
 
 FIRSTRUN_RELATIVE = "usr/lib/armbian/armbian-firstrun"
 FIRSTRUN_CONFIG_RELATIVE = "etc/default/armbian-firstrun"
