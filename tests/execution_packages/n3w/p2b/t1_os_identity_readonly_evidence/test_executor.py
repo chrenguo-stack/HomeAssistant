@@ -104,6 +104,7 @@ def test_wrong_confirmation_stops_before_subprocess(
     def forbidden(*_args, **_kwargs):
         raise AssertionError("subprocess must not run")
 
+    expected_head = "a" * 40
     monkeypatch.setattr(module.subprocess, "run", forbidden)
     evidence = tmp_path / "evidence"
 
@@ -112,7 +113,7 @@ def test_wrong_confirmation_stops_before_subprocess(
             target="root@192.0.2.10",
             evidence_root=evidence,
             confirmation="NO",
-            expected_source_head=current_head(),
+            expected_source_head=expected_head,
         )
 
     assert not evidence.exists()
