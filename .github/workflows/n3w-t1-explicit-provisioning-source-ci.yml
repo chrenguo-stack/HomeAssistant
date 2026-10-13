@@ -1,0 +1,93 @@
+name: N3W T1 explicit provisioning source CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/n3w-t1-explicit-provisioning-source-ci.yml"
+      - "host/greenhouse-manager/src/greenhouse_manager/bootstrap/device_firstboot.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/bootstrap/device_provisioning_runtime.py"
+      - "host/greenhouse-manager/tests/bootstrap/test_device_firstboot.py"
+      - "host/greenhouse-manager/tests/bootstrap/test_device_provisioning_runtime.py"
+      - "tools/n3w_t1_os_identity_readonly_probe.py"
+      - "tests/tools/test_n3w_t1_os_identity_readonly_probe.py"
+      - "infra/n3w-t1/systemd/n3wfc4-provision-resume.service"
+      - "docs/adr/0009-t1-golden-master-firstboot-production-lifecycle.md"
+      - "docs/development/N3W_T1_EXPLICIT_DEVICE_PROVISIONING_*.md"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/n3w-t1-explicit-provisioning-source-ci.yml"
+      - "host/greenhouse-manager/src/greenhouse_manager/bootstrap/device_firstboot.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/bootstrap/device_provisioning_runtime.py"
+      - "host/greenhouse-manager/tests/bootstrap/test_device_firstboot.py"
+      - "host/greenhouse-manager/tests/bootstrap/test_device_provisioning_runtime.py"
+      - "tools/n3w_t1_os_identity_readonly_probe.py"
+      - "tests/tools/test_n3w_t1_os_identity_readonly_probe.py"
+      - "infra/n3w-t1/systemd/n3wfc4-provision-resume.service"
+      - "docs/adr/0009-t1-golden-master-firstboot-production-lifecycle.md"
+      - "docs/development/N3W_T1_EXPLICIT_DEVICE_PROVISIONING_*.md"
+
+permissions:
+  contents: read
+
+jobs:
+  source-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: host/greenhouse-manager/pyproject.toml
+
+      - name: Install test dependencies
+        run: python -m pip install -e 'host/greenhouse-manager[dev]'
+
+      - name: Compile
+        run: |
+          python -m py_compile             host/greenhouse-manager/src/greenhouse_manager/bootstrap/device_firstboot.py             host/greenhouse-manager/src/greenhouse_manager/bootstrap/device_provisioning_runtime.py             tools/n3w_t1_os_identity_readonly_probe.py
+
+      - name: Ruff
+        run: |
+          ruff check             host/greenhouse-manager/src/greenhouse_manager/bootstrap/device_firstboot.py             host/greenhouse-manager/src/greenhouse_manager/bootstrap/device_provisioning_runtime.py             host/greenhouse-manager/tests/bootstrap/test_device_firstboot.py             host/greenhouse-manager/tests/bootstrap/test_device_provisioning_runtime.py             tools/n3w_t1_os_identity_readonly_probe.py             tests/tools/test_n3w_t1_os_identity_readonly_probe.py
+
+      - name: Focused provisioning tests
+        run: |
+          pytest -q             host/greenhouse-manager/tests/bootstrap/test_device_firstboot.py             host/greenhouse-manager/tests/bootstrap/test_device_provisioning_runtime.py             tests/tools/test_n3w_t1_os_identity_readonly_probe.py
+
+      - name: Static authority boundary
+        run: |
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+
+          runtime = Path(
+              "host/greenhouse-manager/src/greenhouse_manager/bootstrap/"
+              "device_provisioning_runtime.py"
+          )
+          runtime_text = runtime.read_text(encoding="utf-8")
+          assert "start_device_provisioning" not in runtime_text
+          assert "systemctl start" not in runtime_text
+          assert "docker compose up" not in runtime_text.lower()
+
+          probe = Path("tools/n3w_t1_os_identity_readonly_probe.py")
+          tree = ast.parse(probe.read_text(encoding="utf-8"), filename=str(probe))
+          forbidden = {"subprocess", "socket"}
+          for node in ast.walk(tree):
+              if isinstance(node, ast.Import):
+                  names = {alias.name.split(".", 1)[0] for alias in node.names}
+                  assert not names & forbidden, (probe, names)
+              elif isinstance(node, ast.ImportFrom) and node.module:
+                  name = node.module.split(".", 1)[0]
+                  assert name not in forbidden, (probe, name)
+          PY
+
+      - name: Resume unit remains source-only
+        run: |
+          grep -Fq 'ExecStart=/usr/local/sbin/n3w-t1-provision resume-if-needed'             infra/n3w-t1/systemd/n3wfc4-provision-resume.service
+          ! grep -Fq 'n3wfc4-provision-resume.service'             infra/n3w-t1/install-systemd-persistence.sh
