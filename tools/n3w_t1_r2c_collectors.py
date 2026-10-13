@@ -6,6 +6,12 @@ from collections.abc import Callable
 from typing import Any
 
 from n3w_t1_r2c_evidence_schema import REQUIREMENT_FIELDS
+from n3w_t1_r2c_firstrun import (
+    FIRSTRUN_RELATIVE,
+    FirstrunAnalysisError,
+    analyze_firstrun_config,
+    analyze_firstrun_tree,
+)
 from n3w_t1_r2c_readonly_commands import CommandResult, run_contract_command
 from n3w_t1_r2c_readonly_files import (
     ReadonlyEvidenceError,
@@ -339,4 +345,160 @@ def collect_e4(
     envelope["status"] = "UNKNOWN"
     envelope["complete"] = False
     envelope["reason_code"] = "STOP_SEMANTICS_GAP"
+    return envelope
+
+
+
+def _owner_binding(
+    runner: CommandRunner,
+    absolute_path: str,
+) -> tuple[str, str]:
+    result = runner(
+        "C3_OWNER",
+        value=absolute_path,
+        approved_paths={absolute_path},
+    )
+    if result.returncode != 0:
+        return "UNKNOWN", "UNKNOWN"
+    text = _decode_text(result.stdout, "PACKAGE_OWNER").strip()
+    if not text:
+        return "UNKNOWN", "UNKNOWN"
+    return "OBSERVED", "BOUND"
+
+
+def collect_e2(
+    root: str,
+    runner: CommandRunner = run_contract_command,
+    *,
+    analysis: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    envelope = empty_requirement("E2")
+    try:
+        tree = analysis if analysis is not None else analyze_firstrun_tree(root)
+    except (OSError, ReadonlyEvidenceError, FirstrunAnalysisError) as error:
+        envelope["status"] = "ERROR"
+        envelope["reason_code"] = (
+            str(error)
+            if isinstance(error, FirstrunAnalysisError)
+            and re.fullmatch(r"[A-Z][A-Z0-9_]{0,127}", str(error))
+            else "STOP_E2_COLLECTION_ERROR"
+        )
+        return envelope
+
+    if tree["status"] == "ABSENT":
+        envelope["status"] = "ABSENT"
+        envelope["reason_code"] = "STOP_UNRESOLVED_IMPLEMENTATION"
+        envelope["fields"]["firstrun_body_complete"] = _field(False, "ABSENT")
+        return envelope
+
+    owner_status, owner_binding = _owner_binding(
+        runner,
+        "/" + FIRSTRUN_RELATIVE,
+    )
+    unresolved = list(tree["unresolved"])
+    if owner_status != "OBSERVED":
+        unresolved.append("PACKAGE_OWNER_UNRESOLVED")
+
+    envelope["method_ids"] = ["R1", "C3"]
+    envelope["provenance"] = [
+        {
+            "file_role": "armbian_firstrun",
+            "package_owner": owner_binding,
+        }
+    ]
+    envelope["fields"]["firstrun_body_complete"] = _field(
+        tree["main_complete"],
+        "OBSERVED",
+    )
+    envelope["fields"]["body_sha256"] = _field(
+        tree["main_sha256"],
+        "OBSERVED" if tree["main_sha256"] else "UNKNOWN",
+    )
+    envelope["fields"]["identity_control_flow"] = _field(
+        {
+            "identity_relevant_lines": tree["identity_lines"],
+            "source_file_count": len(tree["files"]),
+        },
+        "OBSERVED",
+    )
+    envelope["fields"]["helper_dependencies"] = _field(
+        {
+            "reference_count": len(tree["helper_dependencies"]),
+            "source_file_count": len(tree["files"]),
+            "dependencies": tree["helper_dependencies"],
+        },
+        "OBSERVED",
+    )
+    envelope["fields"]["conditions"] = _field(
+        tree["conditions"],
+        "OBSERVED",
+    )
+    envelope["fields"]["writes_declared_by_source"] = _field(
+        tree["writes"],
+        "OBSERVED",
+    )
+
+    complete = tree["main_complete"] and not unresolved
+    envelope["complete"] = complete
+    envelope["status"] = "OBSERVED" if complete else "UNKNOWN"
+    envelope["reason_code"] = (
+        None if complete else "STOP_UNRESOLVED_IMPLEMENTATION"
+    )
+    return envelope
+
+
+def collect_e3(
+    root: str,
+    *,
+    analysis: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    envelope = empty_requirement("E3")
+    try:
+        tree = analysis if analysis is not None else analyze_firstrun_tree(root)
+        config = analyze_firstrun_config(
+            root,
+            tree["referenced_config_keys"],
+        )
+    except (OSError, ReadonlyEvidenceError, FirstrunAnalysisError) as error:
+        envelope["status"] = "ERROR"
+        envelope["reason_code"] = (
+            str(error)
+            if isinstance(error, FirstrunAnalysisError)
+            and re.fullmatch(r"[A-Z][A-Z0-9_]{0,127}", str(error))
+            else "STOP_E3_COLLECTION_ERROR"
+        )
+        return envelope
+
+    envelope["method_ids"] = ["R1", "R2"]
+    envelope["fields"]["firstrun_config_present"] = _field(
+        config["present"],
+        "OBSERVED" if config["present"] else "ABSENT",
+    )
+    envelope["fields"]["setting_names"] = _field(
+        config["setting_names"],
+        "OBSERVED",
+    )
+    envelope["fields"]["identity_setting_classes"] = _field(
+        config["classes"],
+        "OBSERVED" if config["parse_complete"] else "UNKNOWN",
+    )
+    envelope["fields"]["config_parse_complete"] = _field(
+        config["parse_complete"],
+        "OBSERVED",
+    )
+    envelope["fields"]["source_references"] = _field(
+        tree["config_source_lines"],
+        "OBSERVED" if tree["config_source_lines"] else "UNKNOWN",
+    )
+
+    complete = (
+        tree["main_complete"]
+        and config["present"]
+        and config["parse_complete"]
+        and bool(tree["config_source_lines"])
+        and bool(tree["referenced_config_keys"])
+    )
+    envelope["complete"] = complete
+    envelope["status"] = "OBSERVED" if complete else "UNKNOWN"
+    envelope["reason_code"] = None if complete else "STOP_CONFIG_UNRESOLVED"
     return envelope
