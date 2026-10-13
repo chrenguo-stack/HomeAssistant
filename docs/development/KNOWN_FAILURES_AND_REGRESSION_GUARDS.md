@@ -1,3 +1,16 @@
+## 2026-10-13 — KF-113 P2B target-Armbian evidence boundary
+
+```text
+KF-113_P2B_PROBE_SOURCE=CLOSED_PASS
+SOURCE=a43c5750a8051946a9f08e3b3b2af3c5d7b9de69
+CI=26/26 PASS
+OS_IDENTITY_SEMANTICS_PROVEN=false
+REAL_OS_IDENTITY_MUTATION_ADAPTER_FROZEN=false
+TARGET_ARMBIAN_READONLY_EVIDENCE_REQUIRED=true
+```
+
+Guard: never implement clone-time machine-id/SSH/NetworkManager mutation from generic Linux assumptions. Freeze the writable adapter only from exact target-Armbian evidence.
+
 ## 2026-10-13 — KF-113 P2A boot/activation policy closure
 
 ```text

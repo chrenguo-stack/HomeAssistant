@@ -1,3 +1,16 @@
+## 2026-10-13 — P2B OS identity probe source CLOSED_PASS
+
+```text
+SOURCE=a43c5750a8051946a9f08e3b3b2af3c5d7b9de69
+CI=26/26 PASS
+P2B_OS_IDENTITY_PROBE_SOURCE_REVIEW=PASS
+BLOCKER_COUNT=0
+NEXT=TARGET_ARMBIAN_READONLY_EVIDENCE
+T1_ACCESS=false
+```
+
+The read-only evidence probe is source-ready. Real target-Armbian clone semantics and writable `ensure_os_identity()` remain unproven and intentionally unfrozen.
+
 ## 2026-10-13 — P2A Boot / Activation Policy independent review CLOSED_PASS
 
 ```text
