@@ -311,7 +311,8 @@ def test_interrupted_start_resumes_without_reensuring_host_identity(
 
     assert report["state"] == "DEVICE_READY"
     assert "ensure_os_identity" not in resumed.calls
-    assert resumed.calls[:3] == ["preflight", "verify_os_identity", "identity"]
+    assert "preflight" not in resumed.calls
+    assert resumed.calls[:2] == ["verify_os_identity", "identity"]
 
 
 def test_resume_rejects_live_host_binding_drift(tmp_path: Path) -> None:
@@ -618,3 +619,29 @@ def test_complete_rejects_candidate_root_drift(tmp_path: Path) -> None:
             tmp_path / "candidate-b",
             release_id="release-1",
         )
+
+
+def test_new_transaction_claim_rejects_preexisting_claim_symlink(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from greenhouse_manager.bootstrap import device_firstboot
+
+    transaction_root = tmp_path / "firstboot"
+    transaction_root.mkdir(mode=0o700)
+    transaction_root.chmod(0o700)
+    victim = tmp_path / "victim"
+    victim.write_text("unchanged", encoding="utf-8")
+    claim = transaction_root / ".transaction.json.fixed.claim"
+    claim.symlink_to(victim)
+    monkeypatch.setattr(device_firstboot.secrets, "token_hex", lambda _length: "fixed")
+
+    with pytest.raises(DeviceFirstbootError, match="firstboot_record_temp_exists"):
+        start(
+            FakeAdapters(),
+            transaction_root,
+            tmp_path / "candidate",
+        )
+
+    assert victim.read_text(encoding="utf-8") == "unchanged"
+    assert not (transaction_root / TRANSACTION_NAME).exists()
