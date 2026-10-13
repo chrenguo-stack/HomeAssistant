@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -16,10 +17,20 @@ from n3w_t1_r2c_collectors_e5_e9 import (
     collect_e9,
 )
 from n3w_t1_r2c_evidence_schema import REQUIREMENT_FIELDS, validate_report
+from n3w_t1_r2c_firstrun import (
+    FIRSTRUN_CONFIG_RELATIVE,
+    FirstrunAnalysisError,
+    analyze_firstrun_tree,
+)
 from n3w_t1_r2c_readonly_commands import (
     COMMAND_TIMEOUT_SECONDS,
     ReadonlyCommandError,
     run_contract_command,
+)
+from n3w_t1_r2c_readonly_files import (
+    ReadonlyEvidenceError,
+    inspect_metadata,
+    read_bounded_text,
 )
 
 PROBE_SCHEMA = "gh.n3w.t1-r2c-readonly-probe/1"
@@ -107,6 +118,44 @@ def _read_boot_id(root: str) -> str:
     return value
 
 
+def _firstrun_fingerprint(analysis: dict[str, Any]) -> str:
+    stable = {
+        "status": analysis.get("status"),
+        "main_sha256": analysis.get("main_sha256"),
+        "files": analysis.get("files"),
+        "helper_dependencies": analysis.get("helper_dependencies"),
+        "config_source_lines": analysis.get("config_source_lines"),
+        "referenced_config_keys": analysis.get("referenced_config_keys"),
+        "unresolved": analysis.get("unresolved"),
+    }
+    return hashlib.sha256(
+        json.dumps(stable, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+
+
+def _config_fingerprint(root: str) -> tuple[str, str | None]:
+    metadata = inspect_metadata(root, FIRSTRUN_CONFIG_RELATIVE)
+    if metadata["status"] == "ABSENT":
+        return "ABSENT", None
+    if metadata["kind"] != "regular":
+        return "UNKNOWN", None
+    data = read_bounded_text(root, FIRSTRUN_CONFIG_RELATIVE)
+    return "OBSERVED", hashlib.sha256(data).hexdigest()
+
+
+def _mark_firstrun_continuity_failure(
+    requirements: dict[str, dict[str, Any]],
+    reason_code: str,
+) -> None:
+    for requirement_id in ("E2", "E3"):
+        envelope = requirements.get(requirement_id)
+        if envelope is None:
+            continue
+        envelope["status"] = "ERROR"
+        envelope["complete"] = False
+        envelope["reason_code"] = reason_code
+
+
 def _reason_codes(requirements: dict[str, dict[str, Any]]) -> list[str]:
     return sorted(
         {
@@ -123,6 +172,7 @@ def _collect(
     *,
     root: str,
     runner: BudgetRunner,
+    firstrun_analysis: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if runner.exhausted or time.monotonic() >= runner.deadline:
         runner.exhausted = True
@@ -131,8 +181,17 @@ def _collect(
             status="ERROR",
             reason_code="STOP_TRUNCATED",
         )
+    if requirement_id == "E2":
+        return collector(
+            root,
+            runner=runner,
+            analysis=firstrun_analysis,
+        )
     if requirement_id == "E3":
-        return collector(root)
+        return collector(
+            root,
+            analysis=firstrun_analysis,
+        )
     return collector(root, runner=runner)
 
 
@@ -163,6 +222,10 @@ def collect_report(
     runner = BudgetRunner(deadline)
     boot_before = _read_boot_id(root)
     requirements: dict[str, dict[str, Any]] = {}
+    firstrun_analysis: dict[str, Any] | None = None
+    firstrun_source_before: str | None = None
+    firstrun_config_before: tuple[str, str | None] | None = None
+    firstrun_continuity_error = False
 
     collectors = (
         ("E1", collect_e1),
@@ -177,12 +240,74 @@ def collect_report(
     )
 
     for index, (requirement_id, collector) in enumerate(collectors):
+        if requirement_id == "E2":
+            try:
+                firstrun_analysis = analyze_firstrun_tree(root)
+                firstrun_source_before = _firstrun_fingerprint(
+                    firstrun_analysis
+                )
+                firstrun_config_before = _config_fingerprint(root)
+            except (
+                OSError,
+                FirstrunAnalysisError,
+                ReadonlyEvidenceError,
+            ):
+                firstrun_analysis = None
+                firstrun_continuity_error = True
         requirements[requirement_id] = _collect(
             requirement_id,
             collector,
             root=root,
             runner=runner,
+            firstrun_analysis=firstrun_analysis,
         )
+        if requirement_id == "E3":
+            if firstrun_continuity_error:
+                _mark_firstrun_continuity_failure(
+                    requirements,
+                    "STOP_EVIDENCE_GAP",
+                )
+            elif (
+                firstrun_analysis is not None
+                and firstrun_source_before is not None
+                and firstrun_config_before is not None
+            ):
+                try:
+                    source_after = _firstrun_fingerprint(
+                        analyze_firstrun_tree(root)
+                    )
+                    config_after = _config_fingerprint(root)
+                except (
+                    OSError,
+                    FirstrunAnalysisError,
+                    ReadonlyEvidenceError,
+                ):
+                    _mark_firstrun_continuity_failure(
+                        requirements,
+                        "STOP_EVIDENCE_GAP",
+                    )
+                else:
+                    if (
+                        source_after != firstrun_source_before
+                        or config_after != firstrun_config_before
+                    ):
+                        _mark_firstrun_continuity_failure(
+                            requirements,
+                            "STOP_TARGET_CHANGED",
+                        )
+                    else:
+                        continuity = {
+                            "file_role": "armbian_firstrun_collection",
+                            "continuity": "PASS",
+                            "source_set_sha256": firstrun_source_before,
+                            "config_state": firstrun_config_before[0],
+                        }
+                        requirements["E2"]["provenance"].append(
+                            continuity
+                        )
+                        requirements["E3"]["provenance"].append(
+                            continuity
+                        )
         if (
             requirement_id == "E1"
             and requirements[requirement_id].get("reason_code")
