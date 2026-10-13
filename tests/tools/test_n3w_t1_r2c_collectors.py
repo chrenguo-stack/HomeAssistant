@@ -263,3 +263,23 @@ def test_collect_e3_dynamic_config_stays_unresolved(tmp_path: Path) -> None:
         evidence["fields"]["identity_setting_classes"]["status"]
         == "UNKNOWN"
     )
+
+
+
+def test_collect_e3_does_not_complete_when_source_closure_is_unresolved(
+    tmp_path: Path,
+) -> None:
+    _write_firstrun_fixture(tmp_path)
+    main = tmp_path / "usr" / "lib" / "armbian" / "armbian-firstrun"
+    main.write_text(
+        "#!/bin/sh\n"
+        "source /etc/default/armbian-firstrun\n"
+        'if [ "${SET_HOSTNAME}" = "yes" ]; then\n'
+        '  hostnamectl set-hostname "${TARGET_HOSTNAME}"\n'
+        "fi\n"
+        'source "${HELPER_PATH}"\n'
+    )
+    evidence = collect_e3(str(tmp_path))
+    assert evidence["status"] == "UNKNOWN"
+    assert evidence["complete"] is False
+    assert evidence["reason_code"] == "STOP_CONFIG_UNRESOLVED"
