@@ -141,11 +141,18 @@ def collect_e1(
         )
         return envelope
 
-    target_matches = (
-        armbian_release.get("VERSION") == EXPECTED_ARMBIAN_VERSION
-        and armbian_release.get("ARCH") == EXPECTED_ARMBIAN_ARCH
-        and armbian_release.get("BOARD") == EXPECTED_ARMBIAN_BOARD
-        and architecture_text == EXPECTED_KERNEL_ARCH
+    target_observations = (
+        (armbian_release.get("VERSION"), EXPECTED_ARMBIAN_VERSION),
+        (armbian_release.get("ARCH"), EXPECTED_ARMBIAN_ARCH),
+        (armbian_release.get("BOARD"), EXPECTED_ARMBIAN_BOARD),
+        (architecture_text or None, EXPECTED_KERNEL_ARCH),
+    )
+    target_drift = any(
+        observed is not None and observed != expected
+        for observed, expected in target_observations
+    )
+    target_identity_complete = all(
+        observed is not None for observed, _ in target_observations
     )
     envelope["method_ids"] = ["R1", "R2", "C1", "C2", "C3"]
     envelope["fields"]["os_release"] = _field(os_release, os_status)
@@ -182,11 +189,12 @@ def collect_e1(
         and bool(architecture_text)
         and bool(package_versions)
     )
-    if not target_matches:
+    if target_drift:
         envelope["status"] = "ERROR"
         envelope["complete"] = False
         envelope["reason_code"] = "STOP_TARGET_DRIFT"
     else:
+        complete = complete and target_identity_complete
         envelope["status"] = "OBSERVED" if complete else "UNKNOWN"
         envelope["complete"] = complete
         envelope["reason_code"] = None if complete else "STOP_EVIDENCE_GAP"
