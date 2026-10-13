@@ -1,3 +1,14 @@
+## 2026-10-13 — Current formal handoff: P2B Target-Armbian read-only evidence
+
+- Local dialogue ↔ GitHub alignment: PASS
+- PR #541 closure head before handoff: `77a3f3bba2ebc5770de41d83d67070efde9d09b9` / 26/26 CI PASS
+- Exact execution source: `9155855a71f4750ebf7a7b22d9b4e000627e2f98`
+- Handoff template: v1.2
+- Formal handoff: `docs/development/N3W_T1_EXPLICIT_DEVICE_PROVISIONING_P2B_TARGET_ARMBIAN_READONLY_EVIDENCE_PREEXECUTION_NEW_CHAT_HANDOFF_V1.0_20261013.md`
+- Next gate: `N3W_T1_EXPLICIT_DEVICE_PROVISIONING_P2B_TARGET_ARMBIAN_READONLY_EVIDENCE_EXECUTION`
+- T1 read-only authorization: NOT GRANTED
+- Important chat-only artifacts: 0 / team-share completeness PASS
+
 ## 2026-10-13 — P2B read-only evidence executor closure
 
 - Exact execution source: `9155855a71f4750ebf7a7b22d9b4e000627e2f98`

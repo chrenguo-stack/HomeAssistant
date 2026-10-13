@@ -1,3 +1,19 @@
+## 2026-10-13 — P2B new-chat handoff / local-dialogue ↔ GitHub alignment
+
+```text
+LOCAL_DIALOGUE_GITHUB_ALIGNMENT=PASS
+PR541_CLOSURE_HEAD=77a3f3bba2ebc5770de41d83d67070efde9d09b9
+PR541_CLOSURE_HEAD_CI=26/26 PASS
+EXECUTION_SOURCE_HEAD=9155855a71f4750ebf7a7b22d9b4e000627e2f98
+HANDOFF=docs/development/N3W_T1_EXPLICIT_DEVICE_PROVISIONING_P2B_TARGET_ARMBIAN_READONLY_EVIDENCE_PREEXECUTION_NEW_CHAT_HANDOFF_V1.0_20261013.md
+NEXT_ONE_GATE=N3W_T1_EXPLICIT_DEVICE_PROVISIONING_P2B_TARGET_ARMBIAN_READONLY_EVIDENCE_EXECUTION
+T1_READONLY_AUTHORIZATION_GRANTED=false
+IMPORTANT_CHAT_ONLY_ARTIFACT_COUNT=0
+TEAM_SHARE_COMPLETENESS=PASS
+```
+
+The current chat and GitHub now agree: P2B probe/executor source is CLOSED_PASS; real target-Armbian OS-identity semantics remain an evidence gap; no T1/live/board/merge action occurred. The handoff uses template v1.2 and freezes the exact reviewed executor head rather than the later docs-only PR head.
+
 ## 2026-10-13 — P2B read-only evidence executor CLOSED_PASS
 
 ```text
