@@ -17,13 +17,30 @@ MACHINE_ID_PATHS = (
     "etc/machine-id",
     "var/lib/dbus/machine-id",
 )
-UNIT_NAMES = (
-    "systemd-machine-id-commit.service",
-    "ssh.service",
-    "sshd.service",
-    "ssh-keygen.service",
-    "NetworkManager.service",
-    "armbian-firstlogin.service",
+IDENTITY_UNIT_NAME_TOKENS = (
+    "machine-id",
+    "ssh",
+    "networkmanager",
+    "hostname",
+    "armbian-first",
+    "armbian-firstrun",
+)
+IDENTITY_UNIT_CONTENT_TOKENS = (
+    "/etc/machine-id",
+    "systemd-machine-id",
+    "ssh-keygen",
+    "ssh_host_",
+    "networkmanager",
+    "/etc/hostname",
+    "hostnamectl",
+    "armbian-first",
+    "armbian-firstrun",
+)
+UNIT_SUFFIXES = (
+    ".service",
+    ".timer",
+    ".socket",
+    ".path",
 )
 UNIT_DIRS = (
     "etc/systemd/system",
@@ -34,11 +51,17 @@ NM_FIELDS = (
     ("connection", "type"),
     ("connection", "interface-name"),
     ("connection", "uuid"),
+    ("connection", "stable-id"),
+    ("connection", "autoconnect"),
     ("ethernet", "cloned-mac-address"),
+    ("ethernet", "generate-mac-address-mask"),
     ("ipv4", "dhcp-client-id"),
+    ("ipv4", "dhcp-iaid"),
     ("ipv6", "dhcp-duid"),
+    ("ipv6", "dhcp-iaid"),
     ("ipv6", "addr-gen-mode"),
     ("802-11-wireless", "cloned-mac-address"),
+    ("802-11-wireless", "generate-mac-address-mask"),
 )
 OS_RELEASE_FIELDS = (
     "ID",
@@ -234,40 +257,65 @@ def _networkmanager_profiles(root: Path) -> list[dict[str, Any]]:
     return records
 
 
+def _unit_candidate_name(name: str) -> bool:
+    lowered = name.lower()
+    return any(token in lowered for token in IDENTITY_UNIT_NAME_TOKENS)
+
+
+def _unit_relevant_lines(text: str) -> list[str]:
+    result: list[str] = []
+    for raw in text.splitlines():
+        line = raw.strip()
+        lowered = line.lower()
+        if any(token in lowered for token in IDENTITY_UNIT_CONTENT_TOKENS):
+            result.append(line)
+            continue
+        if line.startswith(("Condition", "Before=", "After=", "WantedBy=")):
+            result.append(line)
+    return result
+
+
 def _unit_records(root: Path) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
-    for unit in UNIT_NAMES:
-        for directory in UNIT_DIRS:
-            path = _rooted(root, f"{directory}/{unit}")
+    seen: set[str] = set()
+    for directory in UNIT_DIRS:
+        base = _rooted(root, directory)
+        if not base.exists() or not base.is_dir() or base.is_symlink():
+            continue
+        for path in sorted(base.rglob("*")):
+            if path.name.endswith(tuple(UNIT_SUFFIXES)) is False:
+                continue
+            relative = path.relative_to(root).as_posix()
+            if relative in seen:
+                continue
             metadata = _metadata(path)
             if not metadata.get("present"):
                 continue
+
             record: dict[str, Any] = {
-                "name": unit,
-                "path": f"/{directory}/{unit}",
+                "name": path.name,
+                "path": f"/{relative}",
                 "metadata": metadata,
             }
+            matched = _unit_candidate_name(path.name)
             if metadata.get("kind") == "symlink":
-                record["symlink_target"] = os.readlink(path)
+                target = os.readlink(path)
+                record["symlink_target"] = target
+                matched = matched or any(
+                    token in target.lower()
+                    for token in IDENTITY_UNIT_NAME_TOKENS
+                )
             elif metadata.get("kind") == "regular":
                 data = _read_regular_bytes(path)
-                record["sha256"] = hashlib.sha256(data).hexdigest()
-                lines = data.decode("utf-8", errors="replace").splitlines()
-                record["identity_relevant_lines"] = [
-                    line.strip()
-                    for line in lines
-                    if line.strip().startswith(
-                        (
-                            "ExecStart=",
-                            "ExecStartPre=",
-                            "Condition",
-                            "Before=",
-                            "After=",
-                            "WantedBy=",
-                        )
-                    )
-                ]
-            records.append(record)
+                text = data.decode("utf-8", errors="replace")
+                relevant = _unit_relevant_lines(text)
+                matched = matched or bool(relevant)
+                if matched:
+                    record["sha256"] = hashlib.sha256(data).hexdigest()
+                    record["identity_relevant_lines"] = relevant
+            if matched:
+                records.append(record)
+                seen.add(relative)
     return records
 
 
