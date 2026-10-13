@@ -92,7 +92,7 @@ NetworkManager 等 OS 唯一状态上的真实 boot 行为仍必须由目标版�
 - `/opt/HomeAssistant` 公共程序、schema、模板和 image lock；
 - 公共 Compose 模板；
 - systemd unit 定义、Broker ingress guard 程序；
-- firstboot、seal、factory-audit、backup/restore、upgrade/rollback 程序；
+- provisioning、resume、seal、factory-audit、backup/restore、upgrade/rollback 程序；
 - 不含设备实例值和秘密的公共 CA 策略、配置模板和版本清单。
 
 ### 3.2 B 层：每机 OS / host identity
@@ -149,7 +149,7 @@ ARMBIAN + NETWORK + DOCKER/COMPOSE
 3. 拒绝无法确定或带非空 containerd imports 的存储权威；
 4. 导入并验证 exact HA/Manager/Broker ARM64 镜像；
 5. 安装 `/opt/HomeAssistant` 公共源码/模板；
-6. 安装公共 Compose、systemd unit、guard、firstboot/seal/audit 工具；
+6. 安装公共 Compose、systemd unit、guard、provisioning/resume/seal/audit 工具；
 7. 验证公共软件完整性、权限和镜像绑定；
 8. 保持产品实例身份与秘密未生成；
 9. 不把用户数据或测试业务状态写入母盘。
@@ -168,7 +168,7 @@ RootFS/config binding 等能力迁移到此阶段。
 
 - Docker 与三个 exact image 存在且绑定正确；
 - 公共程序、Compose 模板、systemd 定义、guard、firstboot 程序存在；
-- firstboot 的静态依赖、权限和失败关闭合同可执行；
+- provisioning/resume 的静态依赖、权限和失败关闭合同可执行；
 - 业务生产服务默认未开放到外网；
 - 不要求留下正式产品实例身份。
 
@@ -198,7 +198,7 @@ RootFS/config binding 等能力迁移到此阶段。
 - exact OS / Docker / image / program provenance；
 - image lock；
 - 公共配置模板；
-- firstboot / seal / audit / recovery 工具；
+- provisioning / resume / seal / audit / recovery 工具；
 - secret-free build manifest；
 - 镜像版本、source SHA、artifact provenance；
 - 必要的无秘密工厂诊断定义。
@@ -352,7 +352,7 @@ transaction 必须满足：
 
 ## 9. FACTORY_ACCEPTANCE 合同
 
-工厂验收在 firstboot 完成后执行，至少证明：
+工厂验收在显式 provisioning 完成并进入 DEVICE_READY 后执行，至少证明：
 
 - OS/host identity 完整且重启稳定；
 - 产品身份与密钥 manifest 完整；
@@ -382,7 +382,7 @@ transaction 必须满足：
 - A 的 service credential 不能认证到 B，反向亦然；
 - 两机 Manager/HA/DynSec/业务数据库初始为空；
 - 同时接入同一 LAN 不发生 DHCP identity、hostname、Manager discovery 或 system ownership collision；
-- firstboot 重跑不会重新生成已承诺稳定的身份。
+- 重复执行 provisioning start 或普通 reboot 不会重新生成已承诺稳定的身份。
 
 公共 CI/文档不得输出私钥、password 或可离线恢复秘密；必要时仅保存摘要或挑战式 PASS 结果。
 
@@ -402,7 +402,7 @@ transaction 必须满足：
 
 ### 11.3 Factory reset
 
-不能用“删除 firstboot marker 然后重跑”定义。
+不能用“删除 provisioning completion marker 然后重跑”定义。
 
 必须独立冻结：
 
@@ -495,7 +495,7 @@ MIN_POST_PEAK_FREE_BYTES = 5 GiB
 | system/Broker CA 与 TLS key | MOVE_TO_PROVISIONING |
 | stopped_postcheck 验证器 | KEEP/MODIFY；拆为 master 与 instance audit |
 | 每台量产机传完整 offline payload 并重新 load | RETIRE from normal clone production path |
-| R8 `_08` | KEEP only for current bounded live-apply lineage；NOT a firstboot mechanism |
+| R8 `_08` | KEEP only for current bounded live-apply lineage；NOT a provisioning mechanism |
 
 ## 15. 对当前 R8/F5 结论的处理
 
@@ -509,7 +509,7 @@ PRODUCT_SOURCE_HEAD=5ed613673ec1ead29a1153d0e3916bdd3539a3fb
 其含义仅为：
 
 - current single-host fresh-bootstrap source 的 F5 storage authority/imports 问题已关闭；
-- 不代表黄金母盘、Seal、clone firstboot、断电恢复或工厂量产验收已完成。
+- 不代表黄金母盘、Seal、clone provisioning、断电恢复或工厂量产验收已完成。
 
 不重开 KF-111/F5，不把架构分层修复伪装成 F5 regression。
 
@@ -528,9 +528,9 @@ R3 cleanup 以后独立执行。
 
 Astra 独立复核提出的架构 blocker 在本设计层按以下合同关闭：
 
-- AB1 单机安装 / master build / firstboot 职责：本 ADR 第 4、7、14 节关闭；
+- AB1 单机安装 / master build / explicit provisioning 职责：本 ADR 第 4、7、14 节关闭；
 - AB2 Seal 与无实例秘密合同：第 5 节关闭；
-- AB3 firstboot 断电恢复与现有一次性授权混用：第 7 节关闭；
+- AB3 provisioning 断电恢复与现有一次性授权混用：第 7 节关闭；
 - AB4 工厂验收 / 用户所有权 / 服务开放：第 8、9、12 节关闭；
 - AB5 clone / restore / upgrade 语义：第 10、11 节关闭。
 
@@ -547,7 +547,7 @@ IMPLEMENTATION_AND_LIVE_ACCEPTANCE_PENDING=true
 
 ### G2：source decomposition / repair
 
-实现公共 master-build 与 per-device firstboot 两阶段编排，最大化复用现有构造器和验证器。
+实现公共 master-build 与 per-device explicit provisioning 两阶段编排，最大化复用现有构造器和验证器。
 
 ### G3：golden-master candidate
 
@@ -572,7 +572,7 @@ IMPLEMENTATION_AND_LIVE_ACCEPTANCE_PENDING=true
 后续实现/实机证据决定：
 
 - 目标 Armbian 上 machine-id 应采用“缺失文件”还是“空文件”等具体 seal 操作；
-- SSH unit 与 firstboot 的 exact systemd ordering；
+- SSH/OS identity 与 provisioning/resume 的 exact systemd ordering；
 - per-device hostname 的最终格式；
 - factory acceptance 是否需要有线离线 jig / isolated LAN；
 - `PRODUCT_RUNTIME_MIN_FREE_REQUIREMENT` 的数值；
