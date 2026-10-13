@@ -1,3 +1,14 @@
+## 2026-10-13 — R2C probe/executor source progress aligned to fresh PR #541
+
+- Local-dialogue last explicit source head: `b2b0a63292096fb624e733891466663d19abd86a`.
+- Fresh PR #541/candidate source head: `a626eb8827a584b7a84f3838beaf08f86766cd73`; tree `4e13eea60bf175e1e00a5aecc6c17e7ee65f902b`.
+- GitHub is 9 commits ahead of that local-dialogue source point, touching only `tools/n3w_t1_r2c_firstrun.py`, `tools/n3w_t1_r2c_collectors.py` and their two focused test files.
+- E1/E2/E3/E4 initial collectors are present; E2/E3 now include bounded `armbian-firstrun` source/config static analysis. E5-E9 and the remote executor remain incomplete; `EXECUTION_READY=false`.
+- Exact-head CI snapshot after the third poll: 10/27 success, 0 failure, 17 pending. Public repository safety PASS; Golden Master source CI still pending. Stop polling and use direct run/PR-check links.
+- No T1/live/board/merge action occurred; actual R2C evidence execution remains unauthorized.
+- Correct formal handoff template: candidate branch `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` V1.3, blob `b9ef40acdaa8fae37feb5ffe5662afd0e89462a0`. Historical `4300890d...` template is not the current template.
+- Main remains `d423211b6196c2f2f0f01dff072c4f877fbe58ee`; PR #541 remains OPEN_DRAFT and unmerged.
+
 ## 2026-10-13 — R2C evidence-preparation contract PASS
 
 - Current preparation: `docs/development/N3W_T1_GOLDEN_MASTER_R2C_TARGET_ARMBIAN_READONLY_EVIDENCE_PREPARATION_20261013.md`.
