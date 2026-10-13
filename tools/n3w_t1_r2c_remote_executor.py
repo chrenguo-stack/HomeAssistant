@@ -67,7 +67,7 @@ MODULE_BINDINGS = (
     (
         "n3w_t1_r2c_remote_probe",
         "tools/n3w_t1_r2c_remote_probe.py",
-        "2bf65c59155b0246fd02420a03bae0cce3836401",
+        "e29b140e0d9cee4853ffaf9e58547d98b2b5d9e3",
     ),
 )
 PLACEHOLDERS = (
