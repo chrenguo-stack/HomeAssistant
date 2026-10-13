@@ -1,3 +1,18 @@
+## 2026-10-13 — KF-113 P2A boot/activation policy closure
+
+```text
+KF-113_P2A_STATUS=CLOSED_PASS
+SOURCE=a971067d8b11677253c930d8975960de58473a58
+CI=25/25 PASS
+BOOT_STARTS_NEW_PROVISIONING=false
+FACTORY_ACCEPTANCE_GATE=SOURCE_POLICY_CLOSED
+FACTORY_MARKER_TOCTOU=CLOSED
+PRODUCTION_SERVICE_START=false
+P2B_REMAINS_OPEN=true
+```
+
+P2A does not close the target-Armbian OS-host identity, deployable host CLI, clone-evidence, golden install, factory-marker creation, or production activation-owner work.
+
 > **KF-113 P1 INDEPENDENT SOURCE REVIEW CLOSED_PASS / SINGLE-INITIALIZER CLOSED（2026-10-13）**：exact review head `e464c103c9c5cbc2aa2d57d9e853d9e85e73596d` closes the previously discovered concurrency blocker. A persistent private lock inode plus `flock(LOCK_EX|LOCK_NB)` now serializes both explicit start and existing-transaction resume for the entire transaction engine; a competing initializer fails before adapter mutation, failed execution releases the kernel lock without losing the durable transaction, and unsafe lock metadata/symlink paths fail closed. This prevents two stale transaction copies from independently advancing and later regressing durable stage state. P1 authority split, UNPROVISIONED no-auto-start, completed current-host binding and explicit CLI confirmation remain correct. Exact-head workflows: 25 completed / 25 SUCCESS / 0 failure. A1/A2/A3/A4=CLOSED_SOURCE; P1 blocker count=0; source-only P2 may proceed. Existing production activation units/dispatcher are still not approved as the UNPROVISIONED golden-image boot chain. Authority=`docs/development/N3W_T1_EXPLICIT_DEVICE_PROVISIONING_SINGLE_INITIALIZER_REPAIR_INDEPENDENT_SOURCE_REVIEW_20261013.md`.
 
 > **KF-113 P1 SOURCE IMPLEMENTED / CI PASS / REVIEW PENDING（2026-10-13）**：exact P1 source `e906d3d836fefe2bc2cafc0ff7877232974b5211` splits read-only inspect, explicit start, existing-transaction resume and DEVICE_READY verify authorities. UNPROVISIONED legacy wrapper now fails with `explicit_provisioning_start_required`; completed verify rechecks current live host binding; start requires exact operator confirmation and clone-readback evidence; resume cannot create a transaction. Final required CI all PASS. An intermediate H0/H1 failure at `46e70ffc...` was Ruff SIM102 before tests and was repaired by logic-equivalent style cleanup; it is not a product failure. Status remains `IMPLEMENTED_PENDING_INDEPENDENT_SOURCE_REVIEW`: do not mark A4 CLOSED or enter P2 until the independent review of exact P1 source completes. Existing activation units/NetworkManager dispatcher remain untouched and are still forbidden as an UNPROVISIONED golden-image auto-start chain pending P2. Authority=`docs/development/N3W_T1_EXPLICIT_DEVICE_PROVISIONING_COMMAND_AUTHORITY_SPLIT_SOURCE_REPAIR_P1_PROGRESS_ALIGNMENT_20261013.md`。

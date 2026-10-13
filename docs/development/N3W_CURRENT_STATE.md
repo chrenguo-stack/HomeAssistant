@@ -1,3 +1,16 @@
+## 2026-10-13 — P2A Boot / Activation Policy independent review CLOSED_PASS
+
+```text
+P2A_REVIEW_HEAD=a971067d8b11677253c930d8975960de58473a58
+P2A_CI=25/25 PASS
+P2A_INDEPENDENT_SOURCE_REVIEW=PASS
+P2A_BLOCKER_COUNT=0
+P2A=CLOSED_PASS
+NEXT=P2B_SOURCE_MAPPING
+```
+
+P2A now proves boot NOOP/resume/verify separation, no boot-time start authority, fail-closed FACTORY_ACCEPTED binding, same-descriptor marker validation/read, and no production-service start authority. The resume unit remains source-only and is not deployed by the legacy persistence installer.
+
 > **2026-10-13 explicit provisioning P1 INDEPENDENT SOURCE REVIEW PASS / single-initializer blocker CLOSED**：fresh review head `e464c103c9c5cbc2aa2d57d9e853d9e85e73596d` closes the prior P1 concurrency blocker. `start_device_provisioning()` and `resume_device_provisioning()` now hold one exclusive non-blocking initializer lock across durable transaction creation/load and the full provisioning engine, so concurrent start/resume or resume/resume cannot execute adapter side effects or overwrite a newer transaction stage with a stale in-memory copy. Lock metadata is fail-closed (regular file, current euid, 0600, nlink=1), process exit releases the kernel lock, and tests prove failed execution remains resumable. Plain boot still cannot start a new transaction; completed DEVICE_READY still revalidates current live host identity; CLI confirmation and production-activation separation remain intact. Exact-head CI is 25/25 SUCCESS. A1/A2/A3/A4=CLOSED_SOURCE; P1 blocker count=0; READY_FOR_P2=true for repository/source-only P2 work. No T1/systemd live/activation topology/board mutation and no merge. Authority=`docs/development/N3W_T1_EXPLICIT_DEVICE_PROVISIONING_SINGLE_INITIALIZER_REPAIR_INDEPENDENT_SOURCE_REVIEW_20261013.md`.
 
 > **2026-10-13 explicit provisioning P1 SOURCE IMPLEMENTED / CI PASS / independent review pending**：exact P1 source head `e906d3d836fefe2bc2cafc0ff7877232974b5211` implements the pure authority split `inspect_device_provisioning / start_device_provisioning / resume_device_provisioning / verify_device_ready`; legacy `run_device_firstboot()` can no longer start a new UNPROVISIONED transaction. Start requires exact confirmation `START DEVICE PROVISIONING: YES` plus clone-readback preflight; resume requires an existing transaction and does not recreate one; DEVICE_READY verify rechecks current live host binding. P1 delta from prechange repository head `43809801862541a0b310424b2c8a1685f53ad733` is exactly four source/test files. Final exact-head CI all PASS: deployment gate 38333338398, fresh-install host-only 38333338482, public safety 38333338422, greenhouse-manager 38333338438, H0/H1 38333338423, exact ARM64 38333338491, fresh-bootstrap deployable 38333338501. Prior `46e70ffc...` H0/H1 Ruff SIM102 failure was lint-only and is closed by the final head. No T1/R3/board/systemd/activation/live mutation. P1 independent source review has NOT been executed; A4 completed-live-host repair is IMPLEMENTED_PENDING_REVIEW; P2 remains HOLD. Authority=`docs/development/N3W_T1_EXPLICIT_DEVICE_PROVISIONING_COMMAND_AUTHORITY_SPLIT_SOURCE_REPAIR_P1_PROGRESS_ALIGNMENT_20261013.md`. Next=`N3W_T1_EXPLICIT_DEVICE_PROVISIONING_COMMAND_AUTHORITY_SPLIT_SOURCE_REPAIR_P1_INDEPENDENT_SOURCE_REVIEW`.
