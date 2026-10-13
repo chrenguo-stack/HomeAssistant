@@ -707,10 +707,7 @@ def _listener_classification(
         if len(parts) < 4:
             continue
         local = parts[3]
-        if not (
-            local.endswith(":22")
-            or local.endswith("]:22")
-        ):
+        if not local.endswith((":22", "]:22")):
             continue
         host = local.rsplit(":", 1)[0].strip("[]")
         if host in {"0.0.0.0", "::", "*"}:
@@ -933,10 +930,7 @@ def _network_role(relative: str) -> str:
         or "/systemd/network/" in lowered
     ):
         return "SYSTEMD_NETWORK"
-    if (
-        lowered.endswith(".conf")
-        or lowered.endswith("networkmanager.conf")
-    ):
+    if lowered.endswith((".conf", "networkmanager.conf")):
         return "NM_CONFIG"
     if "secret_key" in lowered:
         return "SECRET_KEY_METADATA"
