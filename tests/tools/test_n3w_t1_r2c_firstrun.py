@@ -105,3 +105,22 @@ def test_dynamic_config_value_stays_unresolved(tmp_path: Path) -> None:
     assert config["parse_complete"] is False
     assert config["classes"]["TARGET_HOSTNAME"] == "UNKNOWN"
     assert "CONFIG_VALUE_DYNAMIC" in config["unresolved"]
+
+
+
+def test_static_source_outside_approved_helper_root_is_not_read(
+    tmp_path: Path,
+) -> None:
+    main = tmp_path / "usr" / "lib" / "armbian" / "armbian-firstrun"
+    outside = tmp_path / "etc" / "other-source"
+    main.parent.mkdir(parents=True)
+    outside.parent.mkdir(parents=True)
+    main.write_text(
+        "#!/bin/sh\n"
+        "source /etc/other-source\n"
+        "hostnamectl set-hostname static-placeholder\n"
+    )
+    outside.write_text("hostnamectl set-hostname should-not-be-read\n")
+    analysis = analyze_firstrun_tree(str(tmp_path))
+    assert "STATIC_SOURCE_OUTSIDE_HELPER_ROOT" in analysis["unresolved"]
+    assert len(analysis["files"]) == 1
