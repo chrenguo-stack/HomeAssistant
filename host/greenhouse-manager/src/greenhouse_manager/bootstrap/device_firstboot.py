@@ -733,14 +733,13 @@ def start_device_provisioning(
     _validate_candidate_root(candidate, allow_absent=True)
 
     existing = _existing_private_root(root_path)
-    if existing is not None:
-        if (
-            (existing / TRANSACTION_NAME).exists()
-            or (existing / TRANSACTION_NAME).is_symlink()
-            or (existing / COMPLETE_NAME).exists()
-            or (existing / COMPLETE_NAME).is_symlink()
-        ):
-            raise DeviceFirstbootError("provisioning_already_started")
+    if existing is not None and (
+        (existing / TRANSACTION_NAME).exists()
+        or (existing / TRANSACTION_NAME).is_symlink()
+        or (existing / COMPLETE_NAME).exists()
+        or (existing / COMPLETE_NAME).is_symlink()
+    ):
+        raise DeviceFirstbootError("provisioning_already_started")
 
     _preflight_clone(adapters, release_id)
     root = _private_root(root_path)
