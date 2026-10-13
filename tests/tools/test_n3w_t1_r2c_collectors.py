@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from n3w_t1_r2c_collectors import collect_e1, collect_e4
+from n3w_t1_r2c_collectors import collect_e1, collect_e2, collect_e3, collect_e4
 from n3w_t1_r2c_readonly_commands import CommandResult
 
 
@@ -169,3 +169,97 @@ def test_collect_e1_observed_conflict_is_drift_even_with_other_gaps(
     assert evidence["status"] == "ERROR"
     assert evidence["complete"] is False
     assert evidence["reason_code"] == "STOP_TARGET_DRIFT"
+
+
+
+def _owner_runner(command_id: str, **_: object) -> CommandResult:
+    assert command_id == "C3_OWNER"
+    return _result("dpkg-query", b"armbian-bsp: /usr/lib/armbian/armbian-firstrun\n")
+
+
+def _write_firstrun_fixture(root: Path) -> None:
+    main = root / "usr" / "lib" / "armbian" / "armbian-firstrun"
+    helper = root / "usr" / "lib" / "armbian" / "helper-identity.sh"
+    config = root / "etc" / "default" / "armbian-firstrun"
+    main.parent.mkdir(parents=True)
+    config.parent.mkdir(parents=True)
+    main.write_text(
+        "#!/bin/sh\n"
+        "source /etc/default/armbian-firstrun\n"
+        'if [ "${SET_HOSTNAME}" = "yes" ]; then\n'
+        '  hostnamectl set-hostname "${TARGET_HOSTNAME}"\n'
+        "fi\n"
+        "source /usr/lib/armbian/helper-identity.sh\n"
+    )
+    helper.write_text(
+        'if [ "${SSH_HOST_KEY_REGENERATE}" = "yes" ]; then\n'
+        "  ssh-keygen -A\n"
+        "fi\n"
+    )
+    config.write_text(
+        "SET_HOSTNAME=yes\n"
+        "TARGET_HOSTNAME=custom-value\n"
+        "SSH_HOST_KEY_REGENERATE=no\n"
+    )
+
+
+def test_collect_e2_closes_static_source_and_owner_binding(tmp_path: Path) -> None:
+    _write_firstrun_fixture(tmp_path)
+    evidence = collect_e2(str(tmp_path), runner=_owner_runner)
+    assert evidence["status"] == "OBSERVED"
+    assert evidence["complete"] is True
+    assert evidence["reason_code"] is None
+    assert evidence["fields"]["firstrun_body_complete"]["value"] is True
+    assert len(evidence["fields"]["body_sha256"]["value"]) == 64
+    assert evidence["provenance"] == [
+        {
+            "file_role": "armbian_firstrun",
+            "package_owner": "BOUND",
+        }
+    ]
+
+
+def test_collect_e2_dynamic_source_stays_unresolved(tmp_path: Path) -> None:
+    main = tmp_path / "usr" / "lib" / "armbian" / "armbian-firstrun"
+    main.parent.mkdir(parents=True)
+    main.write_text(
+        "#!/bin/sh\n"
+        'source "${HELPER_PATH}"\n'
+        "hostnamectl set-hostname static-placeholder\n"
+    )
+    evidence = collect_e2(str(tmp_path), runner=_owner_runner)
+    assert evidence["status"] == "UNKNOWN"
+    assert evidence["complete"] is False
+    assert evidence["reason_code"] == "STOP_UNRESOLVED_IMPLEMENTATION"
+
+
+def test_collect_e3_reports_classes_not_config_values(tmp_path: Path) -> None:
+    _write_firstrun_fixture(tmp_path)
+    evidence = collect_e3(str(tmp_path))
+    assert evidence["status"] == "OBSERVED"
+    assert evidence["complete"] is True
+    classes = evidence["fields"]["identity_setting_classes"]["value"]
+    assert classes == {
+        "SET_HOSTNAME": "BOOLEAN",
+        "SSH_HOST_KEY_REGENERATE": "BOOLEAN",
+        "TARGET_HOSTNAME": "CUSTOM",
+    }
+    assert "custom-value" not in repr(evidence)
+
+
+def test_collect_e3_dynamic_config_stays_unresolved(tmp_path: Path) -> None:
+    _write_firstrun_fixture(tmp_path)
+    config = tmp_path / "etc" / "default" / "armbian-firstrun"
+    config.write_text(
+        "SET_HOSTNAME=yes\n"
+        "TARGET_HOSTNAME=$(hostname)\n"
+        "SSH_HOST_KEY_REGENERATE=no\n"
+    )
+    evidence = collect_e3(str(tmp_path))
+    assert evidence["status"] == "UNKNOWN"
+    assert evidence["complete"] is False
+    assert evidence["reason_code"] == "STOP_CONFIG_UNRESOLVED"
+    assert (
+        evidence["fields"]["identity_setting_classes"]["status"]
+        == "UNKNOWN"
+    )
