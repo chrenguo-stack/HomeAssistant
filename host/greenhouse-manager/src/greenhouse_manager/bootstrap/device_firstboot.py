@@ -14,6 +14,7 @@ TRANSACTION_SCHEMA = "gh.n3w.t1-device-firstboot-transaction/1"
 COMPLETE_SCHEMA = "gh.n3w.t1-device-firstboot-complete/1"
 TRANSACTION_NAME = "transaction.json"
 COMPLETE_NAME = "FIRSTBOOT_COMPLETE.json"
+PROVISIONING_CONFIRMATION = "START DEVICE PROVISIONING: YES"
 STAGES = (
     "PRECHECK",
     "OS_IDENTITY",
@@ -34,6 +35,7 @@ class DeviceFirstbootError(RuntimeError):
 class DeviceFirstbootAdapters(Protocol):
     def preflight_clone(self) -> Mapping[str, object]: ...
     def ensure_os_identity(self) -> Mapping[str, object]: ...
+    def verify_os_identity(self) -> Mapping[str, object]: ...
     def create_identity(self, candidate_root: Path) -> Mapping[str, object]: ...
     def create_state(
         self,
@@ -169,6 +171,50 @@ def _write_atomic(path: Path, document: Mapping[str, object]) -> None:
         temporary.unlink(missing_ok=True)
 
 
+def _write_new_record(path: Path, document: Mapping[str, object]) -> None:
+    _validate_private_directory(path.parent, "transaction_root")
+    if path.exists() or path.is_symlink():
+        raise DeviceFirstbootError("firstboot_record_already_exists")
+
+    payload = (
+        json.dumps(document, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        + "\n"
+    ).encode()
+    flags = (
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    try:
+        descriptor = os.open(path, flags, 0o600)
+    except FileExistsError as error:
+        raise DeviceFirstbootError("firstboot_record_already_exists") from error
+
+    try:
+        os.fchmod(descriptor, 0o600)
+        metadata = os.fstat(descriptor)
+        if metadata.st_uid != os.geteuid():
+            raise DeviceFirstbootError("firstboot_record_owner_invalid")
+        with os.fdopen(descriptor, "wb") as stream:
+            descriptor = -1
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        _validate_record_metadata(path)
+        parent_descriptor = os.open(
+            path.parent,
+            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+        )
+        try:
+            os.fsync(parent_descriptor)
+        finally:
+            os.close(parent_descriptor)
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+
+
 def _read_json(path: Path) -> dict[str, Any]:
     _validate_record_metadata(path)
     try:
@@ -192,37 +238,43 @@ def _system_id(report: Mapping[str, object]) -> str:
     return value
 
 
-def _load_transaction(
+def _create_transaction_once(
+    root: Path,
+    release_id: str,
+    candidate_root: Path,
+) -> dict[str, Any]:
+    document: dict[str, Any] = {
+        "schema": TRANSACTION_SCHEMA,
+        "release_id": release_id,
+        "candidate_root": str(candidate_root),
+        "candidate_dev": None,
+        "candidate_ino": None,
+        "stage": "PRECHECK",
+        "host_instance_id": None,
+        "system_id": None,
+        "system_id_sha256": None,
+    }
+    _write_new_record(root / TRANSACTION_NAME, document)
+    return document
+
+
+def _load_existing_transaction(
     root: Path,
     release_id: str,
     candidate_root: Path,
 ) -> dict[str, Any]:
     path = root / TRANSACTION_NAME
-    candidate_text = str(candidate_root)
-    if not path.exists():
-        document: dict[str, Any] = {
-            "schema": TRANSACTION_SCHEMA,
-            "release_id": release_id,
-            "candidate_root": candidate_text,
-            "candidate_dev": None,
-            "candidate_ino": None,
-            "stage": "PRECHECK",
-            "host_instance_id": None,
-            "system_id": None,
-            "system_id_sha256": None,
-        }
-        _write_atomic(path, document)
-        return document
+    if not path.exists() and not path.is_symlink():
+        raise DeviceFirstbootError("firstboot_transaction_missing")
     document = _read_json(path)
     if (
         document.get("schema") != TRANSACTION_SCHEMA
         or document.get("release_id") != release_id
-        or document.get("candidate_root") != candidate_text
+        or document.get("candidate_root") != str(candidate_root)
         or document.get("stage") not in STAGES
     ):
         raise DeviceFirstbootError("firstboot_transaction_binding_invalid")
     return document
-
 
 def _advance(root: Path, transaction: dict[str, Any], stage: str, **values: object) -> None:
     current = transaction.get("stage")
@@ -271,36 +323,23 @@ def _complete_report(
     return document
 
 
-def run_device_firstboot(
-    adapters: DeviceFirstbootAdapters,
-    transaction_root: str | Path,
-    candidate_root: str | Path,
-    *,
-    release_id: str,
-) -> dict[str, Any]:
+def _validate_release_id(release_id: str) -> None:
     if not re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", release_id):
         raise DeviceFirstbootError("release_id_invalid")
 
-    root = _private_root(Path(transaction_root).expanduser())
-    candidate = Path(candidate_root).expanduser()
-    _validate_candidate_root(candidate, allow_absent=True)
 
-    complete = _complete_report(root, release_id, candidate)
-    if complete is not None:
-        return {
-            "schema": SCHEMA,
-            "status": "PASS",
-            "release_id": release_id,
-            "host_instance_id": complete["host_instance_id"],
-            "system_id": complete["system_id"],
-            "already_complete": True,
-            "production_service_start": False,
-            "board_access": False,
-        }
+def _existing_private_root(path: Path) -> Path | None:
+    if not path.is_absolute():
+        raise DeviceFirstbootError("transaction_root_not_absolute")
+    if path.is_symlink():
+        raise DeviceFirstbootError("transaction_root_symlink_forbidden")
+    if not path.exists():
+        return None
+    _validate_private_directory(path, "transaction_root")
+    return path
 
-    transaction = _load_transaction(root, release_id, candidate)
-    stage = str(transaction["stage"])
 
+def _preflight_clone(adapters: DeviceFirstbootAdapters, release_id: str) -> None:
     preflight = adapters.preflight_clone()
     _require(
         preflight,
@@ -308,34 +347,62 @@ def run_device_firstboot(
             "status": "PASS",
             "sealed_image": True,
             "release_id": release_id,
+            "clone_readback_verified": True,
             "production_service_start": False,
         },
         "preflight",
     )
 
-    os_identity = adapters.ensure_os_identity()
+
+def _host_instance_id(report: Mapping[str, object], label: str) -> str:
     _require(
-        os_identity,
+        report,
         {
             "status": "PASS",
             "machine_id_ready": True,
             "ssh_host_identity_ready": True,
             "production_service_start": False,
+            "network_operation": False,
         },
-        "os_identity",
+        label,
     )
-    host_instance_id = os_identity.get("host_instance_id")
-    if not isinstance(host_instance_id, str) or not host_instance_id:
-        raise DeviceFirstbootError("os_identity:host_instance_id_invalid")
-    bound_host = transaction.get("host_instance_id")
-    if STAGES.index(stage) >= STAGES.index("OS_IDENTITY"):
-        if not isinstance(bound_host, str) or not bound_host:
-            raise DeviceFirstbootError("firstboot_host_binding_missing")
-        if bound_host != host_instance_id:
-            raise DeviceFirstbootError("firstboot_host_binding_drift")
-    elif bound_host is not None:
-        raise DeviceFirstbootError("firstboot_host_binding_invalid")
-    else:
+    value = report.get("host_instance_id")
+    if not isinstance(value, str) or not value:
+        raise DeviceFirstbootError(f"{label}:host_instance_id_invalid")
+    return value
+
+
+def _verify_live_host_binding(
+    adapters: DeviceFirstbootAdapters,
+    expected_host_instance_id: object,
+) -> str:
+    if not isinstance(expected_host_instance_id, str) or not expected_host_instance_id:
+        raise DeviceFirstbootError("firstboot_host_binding_missing")
+    current = _host_instance_id(adapters.verify_os_identity(), "verify_os_identity")
+    if current != expected_host_instance_id:
+        raise DeviceFirstbootError("firstboot_host_binding_drift")
+    return current
+
+
+def _run_existing_transaction(
+    adapters: DeviceFirstbootAdapters,
+    root: Path,
+    candidate: Path,
+    *,
+    release_id: str,
+    transaction: dict[str, Any],
+    preflight_complete: bool,
+) -> dict[str, Any]:
+    if not preflight_complete:
+        _preflight_clone(adapters, release_id)
+
+    stage = str(transaction["stage"])
+
+    if STAGES.index(stage) < STAGES.index("OS_IDENTITY"):
+        host_instance_id = _host_instance_id(
+            adapters.ensure_os_identity(),
+            "ensure_os_identity",
+        )
         _advance(
             root,
             transaction,
@@ -343,6 +410,11 @@ def run_device_firstboot(
             host_instance_id=host_instance_id,
         )
         stage = "OS_IDENTITY"
+    else:
+        host_instance_id = _verify_live_host_binding(
+            adapters,
+            transaction.get("host_instance_id"),
+        )
 
     system_id = transaction.get("system_id")
     system_id_sha256 = transaction.get("system_id_sha256")
@@ -509,10 +581,11 @@ def run_device_firstboot(
         "production_service_start": False,
         "board_access": False,
     }
-    _write_atomic(root / COMPLETE_NAME, complete_document)
+    _write_new_record(root / COMPLETE_NAME, complete_document)
     return {
         "schema": SCHEMA,
         "status": "PASS",
+        "state": "DEVICE_READY",
         "release_id": release_id,
         "host_instance_id": host_instance_id,
         "system_id": system_id,
@@ -520,3 +593,216 @@ def run_device_firstboot(
         "production_service_start": False,
         "board_access": False,
     }
+
+
+def verify_device_ready(
+    adapters: DeviceFirstbootAdapters,
+    transaction_root: str | Path,
+    candidate_root: str | Path,
+    *,
+    release_id: str,
+) -> dict[str, Any]:
+    _validate_release_id(release_id)
+    root_path = Path(transaction_root).expanduser()
+    root = _existing_private_root(root_path)
+    if root is None:
+        raise DeviceFirstbootError("firstboot_transaction_root_missing")
+    candidate = Path(candidate_root).expanduser()
+    _validate_candidate_root(candidate, allow_absent=True)
+
+    complete = _complete_report(root, release_id, candidate)
+    if complete is None:
+        raise DeviceFirstbootError("firstboot_complete_missing")
+    current_host = _verify_live_host_binding(
+        adapters,
+        complete.get("host_instance_id"),
+    )
+    return {
+        "schema": SCHEMA,
+        "status": "PASS",
+        "state": "DEVICE_READY",
+        "release_id": release_id,
+        "host_instance_id": current_host,
+        "system_id": complete["system_id"],
+        "already_complete": True,
+        "production_service_start": False,
+        "board_access": False,
+    }
+
+
+def inspect_device_provisioning(
+    adapters: DeviceFirstbootAdapters,
+    transaction_root: str | Path,
+    candidate_root: str | Path,
+    *,
+    release_id: str,
+) -> dict[str, Any]:
+    _validate_release_id(release_id)
+    root_path = Path(transaction_root).expanduser()
+    candidate = Path(candidate_root).expanduser()
+    _validate_candidate_root(candidate, allow_absent=True)
+
+    try:
+        root = _existing_private_root(root_path)
+        if root is None:
+            return {
+                "schema": SCHEMA,
+                "status": "PASS",
+                "state": "UNPROVISIONED",
+                "release_id": release_id,
+                "production_service_start": False,
+                "board_access": False,
+            }
+
+        transaction_path = root / TRANSACTION_NAME
+        complete_path = root / COMPLETE_NAME
+        transaction_present = transaction_path.exists() or transaction_path.is_symlink()
+        complete_present = complete_path.exists() or complete_path.is_symlink()
+
+        if not transaction_present and not complete_present:
+            return {
+                "schema": SCHEMA,
+                "status": "PASS",
+                "state": "UNPROVISIONED",
+                "release_id": release_id,
+                "production_service_start": False,
+                "board_access": False,
+            }
+
+        if complete_present:
+            report = verify_device_ready(
+                adapters,
+                root,
+                candidate,
+                release_id=release_id,
+            )
+            return {
+                **report,
+                "already_complete": True,
+            }
+
+        transaction = _load_existing_transaction(root, release_id, candidate)
+        stage = str(transaction["stage"])
+        if STAGES.index(stage) >= STAGES.index("OS_IDENTITY"):
+            _verify_live_host_binding(
+                adapters,
+                transaction.get("host_instance_id"),
+            )
+        return {
+            "schema": SCHEMA,
+            "status": "PASS",
+            "state": "INITIALIZING",
+            "stage": stage,
+            "release_id": release_id,
+            "production_service_start": False,
+            "board_access": False,
+        }
+    except DeviceFirstbootError as error:
+        return {
+            "schema": SCHEMA,
+            "status": "PASS",
+            "state": "CONFLICT",
+            "release_id": release_id,
+            "error_code": str(error),
+            "production_service_start": False,
+            "board_access": False,
+        }
+
+
+def start_device_provisioning(
+    adapters: DeviceFirstbootAdapters,
+    transaction_root: str | Path,
+    candidate_root: str | Path,
+    *,
+    release_id: str,
+    confirmation: str,
+) -> dict[str, Any]:
+    _validate_release_id(release_id)
+    if confirmation != PROVISIONING_CONFIRMATION:
+        raise DeviceFirstbootError("provisioning_confirmation_invalid")
+
+    root_path = Path(transaction_root).expanduser()
+    candidate = Path(candidate_root).expanduser()
+    _validate_candidate_root(candidate, allow_absent=True)
+
+    existing = _existing_private_root(root_path)
+    if existing is not None:
+        if (
+            (existing / TRANSACTION_NAME).exists()
+            or (existing / TRANSACTION_NAME).is_symlink()
+            or (existing / COMPLETE_NAME).exists()
+            or (existing / COMPLETE_NAME).is_symlink()
+        ):
+            raise DeviceFirstbootError("provisioning_already_started")
+
+    _preflight_clone(adapters, release_id)
+    root = _private_root(root_path)
+    transaction = _create_transaction_once(root, release_id, candidate)
+    return _run_existing_transaction(
+        adapters,
+        root,
+        candidate,
+        release_id=release_id,
+        transaction=transaction,
+        preflight_complete=True,
+    )
+
+
+def resume_device_provisioning(
+    adapters: DeviceFirstbootAdapters,
+    transaction_root: str | Path,
+    candidate_root: str | Path,
+    *,
+    release_id: str,
+) -> dict[str, Any]:
+    _validate_release_id(release_id)
+    root_path = Path(transaction_root).expanduser()
+    root = _existing_private_root(root_path)
+    if root is None:
+        raise DeviceFirstbootError("firstboot_transaction_root_missing")
+    candidate = Path(candidate_root).expanduser()
+    _validate_candidate_root(candidate, allow_absent=True)
+
+    if (root / COMPLETE_NAME).exists() or (root / COMPLETE_NAME).is_symlink():
+        raise DeviceFirstbootError("device_already_ready")
+    transaction = _load_existing_transaction(root, release_id, candidate)
+    return _run_existing_transaction(
+        adapters,
+        root,
+        candidate,
+        release_id=release_id,
+        transaction=transaction,
+        preflight_complete=False,
+    )
+
+
+def run_device_firstboot(
+    adapters: DeviceFirstbootAdapters,
+    transaction_root: str | Path,
+    candidate_root: str | Path,
+    *,
+    release_id: str,
+) -> dict[str, Any]:
+    state = inspect_device_provisioning(
+        adapters,
+        transaction_root,
+        candidate_root,
+        release_id=release_id,
+    )
+    if state["state"] == "UNPROVISIONED":
+        raise DeviceFirstbootError("explicit_provisioning_start_required")
+    if state["state"] == "INITIALIZING":
+        return resume_device_provisioning(
+            adapters,
+            transaction_root,
+            candidate_root,
+            release_id=release_id,
+        )
+    if state["state"] == "DEVICE_READY":
+        return verify_device_ready(
+            adapters,
+            transaction_root,
+            candidate_root,
+            release_id=release_id,
+        )
+    raise DeviceFirstbootError(str(state.get("error_code", "provisioning_conflict")))
