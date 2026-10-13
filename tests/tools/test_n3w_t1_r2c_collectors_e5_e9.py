@@ -314,7 +314,7 @@ def _network_fixture(root: Path) -> None:
         "    eth0:\n"
         "      dhcp4: true\n"
         "      dhcp-identifier: mac\n"
-        "      macaddress: 02:11:22:33:44:55\n"
+        "      macaddress: custom-link-identity\n"
     )
 
 
@@ -352,7 +352,7 @@ def test_e6_classifies_network_identity_without_raw_values(
         "12345678-1234-1234-1234-123456789abc"
         not in rendered
     )
-    assert "02:11:22:33:44:55" not in rendered
+    assert "custom-link-identity" not in rendered
     assert "private-profile-name" not in rendered
 
 
