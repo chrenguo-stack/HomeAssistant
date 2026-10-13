@@ -1,3 +1,40 @@
+## 2026-10-13 — R2C read-only evidence preparation completed; execution not authorized
+
+```text
+PREPARATION_BASE=1006cc07694f3da7cc232907bb4f7f6354cea5cf
+MAIN_REBOUND=d423211b6196c2f2f0f01dff072c4f877fbe58ee
+REVIEWED_R2A_R2B_SOURCE_HEAD=51ea220ac5510f4a55f0166bbab7f1cec5bed407
+HANDOFF_ADVANCE_SOURCE_TEST_WORKFLOW_DRIFT=false
+R2C_READONLY_EVIDENCE_PREPARATION=PASS_DOCUMENTED_CONTRACT
+R2C_EVIDENCE_REQUIREMENT_COUNT=9
+R2C_TARGET_ARMBIAN_SEAL_ADAPTER=NOT_ENTERED
+EXECUTABLE_PACKAGE_IMPLEMENTED=false
+EXECUTION_READY=false
+R2A_SOURCE_REPAIR=CLOSED_SOURCE
+R2B_HOST_INDEPENDENT_SOURCE_REPAIR=CLOSED_SOURCE
+A1_A10=CLOSED_SOURCE
+OS_IDENTITY_SEMANTICS_PROVEN=false
+CONTROLLED_CLONE_BOOT_EVIDENCE_REQUIRED=true
+DISK_CAPTURE_READY=false
+ACTUAL_T1_EXECUTION_AUTHORIZATION_GRANTED=false
+P2B_AUTHORIZATION_REPLAY_PERMITTED=false
+T1_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+MERGE=false
+AUTO_EXECUTE_NEXT_GATE=false
+STOP=true
+```
+
+Authority: `docs/development/N3W_T1_GOLDEN_MASTER_R2C_TARGET_ARMBIAN_READONLY_EVIDENCE_PREPARATION_20261013.md`.
+Nine requirements now have bounded read-only capture methods, exact evidence fields,
+private/public boundaries, structured outcomes and STOP conditions. This is a
+repository-only documentation contract, not a runnable probe or live acceptance.
+Next route remains `N3W_T1_GOLDEN_MASTER_R2C_TARGET_ARMBIAN_SEAL_ADAPTER_READONLY_EVIDENCE`;
+before access, implement/review/bind the exact minimal probe/executor and obtain new
+explicit R2C authorization. No P2B replay, no Seal mutation and no automatic execution.
+
 ## 2026-10-13 — R2A/R2B closure new-chat handoff / local-dialogue ↔ GitHub alignment
 
 ```text

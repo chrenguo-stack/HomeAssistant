@@ -1,3 +1,13 @@
+## 2026-10-13 — R2C evidence-preparation contract PASS
+
+- Current preparation: `docs/development/N3W_T1_GOLDEN_MASTER_R2C_TARGET_ARMBIAN_READONLY_EVIDENCE_PREPARATION_20261013.md`.
+- Fresh base `1006cc07694f3da7cc232907bb4f7f6354cea5cf`; main unchanged; two docs-only commits since reviewed R2A/R2B source, no source/test/workflow drift.
+- Nine requirement mappings, read-only command contract, public/private projection and structured STOP rules frozen.
+- Preparation PASS; executable package not implemented; actual execution authorization not granted.
+- R2A/R2B and A1–A10 remain CLOSED_SOURCE; R2C adapter NOT_ENTERED; OS semantics unproven; controlled clone boot still required.
+- Next route: R2C read-only evidence; prerequisites are exact reviewed executor plus new explicit authorization. STOP before T1 access.
+- No T1/live/board/service/merge action; KF-113 guard retained, no new failure class.
+
 ## 2026-10-13 — R2A/R2B source closure → R2C preparation handoff
 
 - Local dialogue ↔ GitHub alignment: PASS.
