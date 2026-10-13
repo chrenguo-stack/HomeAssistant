@@ -162,7 +162,7 @@ def test_seal_rejects_failed_identity_neutralization_before_marker() -> None:
 
     with pytest.raises(
         GoldenMasterSealError,
-        match="post_seal_capture_readiness_invalid",
+        match="prepare_os_identity:capture_neutral_invalid",
     ):
         seal_golden_master(
             adapters,

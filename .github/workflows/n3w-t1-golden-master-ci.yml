@@ -91,5 +91,7 @@ jobs:
           assert "systemctl" not in text
           assert "docker " not in text
           assert "/etc/machine-id" not in text
-          assert "ssh_host_" not in text
+          assert "/etc/ssh" not in text
+          assert "ssh-keygen" not in text
+          assert "systemd-machine-id-setup" not in text
           PY
