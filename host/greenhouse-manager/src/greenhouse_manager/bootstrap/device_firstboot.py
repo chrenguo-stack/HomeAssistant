@@ -243,6 +243,9 @@ def _create_transaction_once(
     release_id: str,
     candidate_root: Path,
 ) -> dict[str, Any]:
+    complete_path = root / COMPLETE_NAME
+    if complete_path.exists() or complete_path.is_symlink():
+        raise DeviceFirstbootError("device_already_ready")
     document: dict[str, Any] = {
         "schema": TRANSACTION_SCHEMA,
         "release_id": release_id,
