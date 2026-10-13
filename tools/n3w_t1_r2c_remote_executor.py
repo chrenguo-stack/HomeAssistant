@@ -6,9 +6,11 @@ import hashlib
 import json
 import os
 import re
+import selectors
 import shlex
 import stat
 import subprocess
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -84,6 +86,20 @@ MAX_TRANSPORT_OUTPUT_BYTES = 8 * 1024 * 1024
 
 class StopExecution(RuntimeError):
     pass
+
+
+class TransportTimeout(RuntimeError):
+    def __init__(self, stdout: bytes, stderr: bytes) -> None:
+        super().__init__("transport_timeout")
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+class TransportOutputLimit(RuntimeError):
+    def __init__(self, stdout: bytes, stderr: bytes) -> None:
+        super().__init__("transport_output_limit")
+        self.stdout = stdout
+        self.stderr = stderr
 
 
 def git_blob_sha(data: bytes) -> str:
@@ -346,6 +362,140 @@ def ssh_argv(target: str, remote_command: str) -> list[str]:
     ]
 
 
+def _kill_process(process: subprocess.Popen[bytes]) -> None:
+    if process.poll() is None:
+        process.kill()
+    process.wait()
+
+
+def _run_transport_bounded(
+    argv: list[str],
+    *,
+    input_data: bytes,
+    timeout_seconds: int,
+    output_limit: int = MAX_TRANSPORT_OUTPUT_BYTES,
+) -> subprocess.CompletedProcess[bytes]:
+    if not (0 < output_limit <= MAX_TRANSPORT_OUTPUT_BYTES):
+        raise StopExecution("transport_output_limit_invalid")
+    process = subprocess.Popen(
+        argv,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        close_fds=True,
+        start_new_session=True,
+    )
+    assert process.stdin is not None
+    assert process.stdout is not None
+    assert process.stderr is not None
+    streams = {
+        process.stdout.fileno(): "stdout",
+        process.stderr.fileno(): "stderr",
+    }
+    buffers = {"stdout": bytearray(), "stderr": bytearray()}
+    selector = selectors.DefaultSelector()
+    for stream in (process.stdout, process.stderr):
+        os.set_blocking(stream.fileno(), False)
+        selector.register(stream, selectors.EVENT_READ, streams[stream.fileno()])
+    os.set_blocking(process.stdin.fileno(), False)
+    selector.register(process.stdin, selectors.EVENT_WRITE, "stdin")
+    offset = 0
+    deadline = time.monotonic() + timeout_seconds
+    try:
+        while selector.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                _kill_process(process)
+                raise TransportTimeout(
+                    bytes(buffers["stdout"]),
+                    bytes(buffers["stderr"]),
+                )
+            events = selector.select(min(0.1, remaining))
+            for key, _ in events:
+                role = key.data
+                if role == "stdin":
+                    if offset >= len(input_data):
+                        selector.unregister(process.stdin)
+                        process.stdin.close()
+                        continue
+                    try:
+                        written = os.write(
+                            process.stdin.fileno(),
+                            input_data[offset : offset + 65536],
+                        )
+                    except BrokenPipeError:
+                        selector.unregister(process.stdin)
+                        process.stdin.close()
+                    else:
+                        offset += written
+                    continue
+
+                stream = key.fileobj
+                data = os.read(stream.fileno(), 65536)
+                if not data:
+                    selector.unregister(stream)
+                    continue
+                current_total = len(buffers["stdout"]) + len(buffers["stderr"])
+                available = output_limit - current_total
+                if len(data) > available:
+                    if available > 0:
+                        buffers[role].extend(data[:available])
+                    _kill_process(process)
+                    raise TransportOutputLimit(
+                        bytes(buffers["stdout"]),
+                        bytes(buffers["stderr"]),
+                    )
+                buffers[role].extend(data)
+
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            _kill_process(process)
+            raise TransportTimeout(
+                bytes(buffers["stdout"]),
+                bytes(buffers["stderr"]),
+            )
+        try:
+            returncode = process.wait(timeout=remaining)
+        except subprocess.TimeoutExpired as error:
+            _kill_process(process)
+            raise TransportTimeout(
+                bytes(buffers["stdout"]),
+                bytes(buffers["stderr"]),
+            ) from error
+    finally:
+        selector.close()
+        for stream in (process.stdin, process.stdout, process.stderr):
+            if not stream.closed:
+                stream.close()
+
+    return subprocess.CompletedProcess(
+        argv,
+        returncode,
+        stdout=bytes(buffers["stdout"]),
+        stderr=bytes(buffers["stderr"]),
+    )
+
+
+def _persist_truncated_transport_summary(
+    root: Path,
+    stdout: bytes,
+    stderr: bytes,
+) -> None:
+    write_private(
+        root / "transport-output-summary.json",
+        _json_bytes(
+            {
+                "status": "STOP_TRUNCATED",
+                "stdout_bytes_captured": len(stdout),
+                "stderr_bytes_captured": len(stderr),
+                "stdout_sha256_captured": sha256_bytes(stdout),
+                "stderr_sha256_captured": sha256_bytes(stderr),
+                "output_limit_bytes": MAX_TRANSPORT_OUTPUT_BYTES,
+            }
+        ),
+    )
+
+
 def _stop_result(
     *,
     error_code: str,
@@ -376,20 +526,7 @@ def _stop_result(
 
 
 def _persist_transport_outputs(root: Path, stdout: bytes, stderr: bytes) -> None:
-    total = len(stdout) + len(stderr)
-    if total > MAX_TRANSPORT_OUTPUT_BYTES:
-        write_private(
-            root / "transport-output-summary.json",
-            _json_bytes(
-                {
-                    "status": "STOP_TRUNCATED",
-                    "stdout_bytes": len(stdout),
-                    "stderr_bytes": len(stderr),
-                    "stdout_sha256": sha256_bytes(stdout),
-                    "stderr_sha256": sha256_bytes(stderr),
-                }
-            ),
-        )
+    if len(stdout) + len(stderr) > MAX_TRANSPORT_OUTPUT_BYTES:
         raise StopExecution("transport_output_limit")
     write_private(root / "stdout.bin", stdout)
     write_private(root / "stderr.bin", stderr)
@@ -586,24 +723,15 @@ def execute(
 
     authorization_consumed = True
     try:
-        completed = subprocess.run(
+        completed = _run_transport_bounded(
             argv,
-            input=program,
-            capture_output=True,
-            check=False,
-            timeout=timeout_seconds,
+            input_data=program,
+            timeout_seconds=timeout_seconds,
         )
-    except subprocess.TimeoutExpired as error:
-        stdout = error.stdout or b""
-        stderr = error.stderr or b""
-        if isinstance(stdout, str):
-            stdout = stdout.encode()
-        if isinstance(stderr, str):
-            stderr = stderr.encode()
-        try:
-            _persist_transport_outputs(root, stdout, stderr)
-        except StopExecution:
-            pass
+    except TransportTimeout as error:
+        stdout = error.stdout
+        stderr = error.stderr
+        _persist_transport_outputs(root, stdout, stderr)
         result = _stop_result(
             error_code="readonly_probe_timeout",
             stdout=stdout,
@@ -614,6 +742,20 @@ def execute(
         )
         _persist_result(root, result)
         raise StopExecution("readonly_probe_timeout") from error
+    except TransportOutputLimit as error:
+        stdout = error.stdout
+        stderr = error.stderr
+        _persist_truncated_transport_summary(root, stdout, stderr)
+        result = _stop_result(
+            error_code="transport_output_limit",
+            stdout=stdout,
+            stderr=stderr,
+            returncode=None,
+            timed_out=False,
+            authorization_consumed=authorization_consumed,
+        )
+        _persist_result(root, result)
+        raise StopExecution("transport_output_limit") from error
     except OSError as error:
         stdout = b""
         stderr = b""
@@ -629,19 +771,7 @@ def execute(
         _persist_result(root, result)
         raise StopExecution("ssh_transport_error") from error
 
-    try:
-        _persist_transport_outputs(root, completed.stdout, completed.stderr)
-    except StopExecution:
-        result = _stop_result(
-            error_code="transport_output_limit",
-            stdout=completed.stdout,
-            stderr=completed.stderr,
-            returncode=completed.returncode,
-            timed_out=False,
-            authorization_consumed=authorization_consumed,
-        )
-        _persist_result(root, result)
-        raise
+    _persist_transport_outputs(root, completed.stdout, completed.stderr)
 
     if completed.returncode != 0:
         result = _stop_result(
