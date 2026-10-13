@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import time
 
-import pytest
-
 import n3w_t1_r2c_remote_probe as probe
+import pytest
 from n3w_t1_r2c_evidence_schema import REQUIREMENT_FIELDS, validate_report
 from n3w_t1_r2c_readonly_commands import ReadonlyCommandError
 
