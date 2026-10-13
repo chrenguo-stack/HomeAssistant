@@ -5,10 +5,12 @@
 ```text
 TASK=N3W_T1_GOLDEN_MASTER_R2C_READONLY_PROBE_E5_E9_SOURCE_CONTINUATION_20261013_01
 R2C_SOURCE_AUTHORITY=a626eb8827a584b7a84f3838beaf08f86766cd73
-R2C_SOURCE_CANDIDATE_HEAD=ef81e1e8040ac6bebf3b52ce808deb38ff3f4c0b
+R2C_E5_E9_SOURCE_CANDIDATE=eb405107b9ad240fd87404649b2eb8f65d76a014
 E1_E4_INITIAL_SOURCE=IMPLEMENTED
-E5_E9_SOURCE=IMPLEMENTED_CI_PENDING
-FOCUSED_SOURCE_REVIEW=NO_BLOCKER_FOUND_CLOSURE_DEFERRED_FOR_EXACT_HEAD_CI
+E5_E9_SOURCE=IMPLEMENTED_REVIEWED_CI_PENDING
+FOCUSED_SOURCE_REVIEW=PASS_NO_OPEN_SOURCE_BLOCKER
+GOLDEN_MASTER_SOURCE_CI=PASS:38420237128
+PUBLIC_REPOSITORY_SAFETY_CI=PENDING_AT_THIRD_POLL:38420237220
 R2C_REMOTE_EXECUTOR=NOT_IMPLEMENTED
 EXECUTION_READY=false
 OS_IDENTITY_SEMANTICS_PROVEN=false
@@ -19,10 +21,11 @@ BOARD_ACCESS=false
 MERGE=false
 ```
 
-The current gate remains repository-only. No T1/SSH access, real Seal mutation, disk capture,
-clone acceptance, remote executor execution or PR merge occurred.
+This gate remains repository-only. No T1/SSH access, P2B authorization replay, real Seal
+mutation, disk capture, clone acceptance, remote executor execution, board access or PR merge
+occurred.
 
-## 2. Fresh rebind and drift check
+## 2. Fresh rebind and handoff drift check
 
 Fresh rebind confirmed:
 
@@ -30,95 +33,125 @@ Fresh rebind confirmed:
 - PR #541: OPEN / DRAFT / not merged;
 - candidate branch: `plan/n3w-t1-full-fresh-install-from-zero-20261010`;
 - handoff-time source authority: `a626eb8827a584b7a84f3838beaf08f86766cd73`;
-- handoff docs-only advance did not change source, tests or workflows.
+- candidate-branch handoff template remains V1.3 / blob
+  `b9ef40acdaa8fae37feb5ffe5662afd0e89462a0`;
+- the handoff/current-state advance immediately after `a626...` was documentation-only:
+  it changed current-state/index/handoff documents and introduced no source, test or workflow
+  drift.
 
-The source continuation from `a626...` to `ef81...` adds only the E5-E9 collector/test
-package in addition to the already recorded documentation-only handoff advance. No workflow
-file changed.
+The later E5-E9 source/test advance is part of the explicitly authorized current source gate
+and is not a handoff drift.
 
-## 3. a626 exact-head CI adjudication
+## 3. a626 exact-head CI closure
 
-The R2C-focused workflow on exact source `a626...` passed:
+The original `a626...` source head was rechecked first as required.
 
-- `N3W T1 golden master source CI`: PASS.
+The only observed failure was
+`N3W T1 fresh bootstrap deployable payload CI` run `38413147433`. Its log showed the
+payload build, self-check and artifact upload succeeded, followed immediately by a
+download-artifact lookup that temporarily found zero artifacts. The same run was rerun
+without source/workflow change and completed SUCCESS.
 
-A separate full deployable-payload workflow failed after the artifact upload had already
-succeeded, at the immediate download-by-artifact-ID step. The log showed the uploaded
-artifact ID existed, while the following download action returned zero artifacts. No R2C
-source/test failure was present in that run, so it was classified as an Actions artifact
-visibility/transport failure rather than an E1-E4 source blocker.
+Therefore:
 
-## 4. Focused E1-E4 review
+```text
+A626_SOURCE_DEFECT_PROVEN=false
+A626_TRANSIENT_ARTIFACT_DISCOVERY_RACE=true
+A626_EXACT_HEAD_BLOCKER=CLOSED_NO_SOURCE_CHANGE
+```
 
-Review of the existing source found no blocker to continuing E5-E9:
+## 4. E5-E9 implementation and focused review
 
-- E1 keeps exact target drift fail-closed;
-- E2/E3 use bounded static analysis, reject dynamic source/eval/download and do not expose
-  raw configuration values;
-- E4 classifies and compares machine-id only in memory, does not expose the raw ID and
-  remains intentionally incomplete until exact boot/fallback semantics are captured;
-- read-only file/command primitives remain bounded and no-follow;
-- the evidence schema still forces
-  `os_identity_semantics_proven=false`,
-  `controlled_clone_boot_required=true`, and
-  `disk_capture_ready=false`.
+The E5-E9 implementation started with:
 
-## 5. E5-E9 implementation
+- `28a48e26...`: collector implementation;
+- `9aefd1ef...`: focused tests.
 
-Added:
+CI then found three Ruff-only issues and a test-only public-safety MAC-shaped fixture. Those
+were repaired inside the same gate without changing the evidence contract.
 
-- `tools/n3w_t1_r2c_collectors_e5_e9.py`;
-- `tests/tools/test_n3w_t1_r2c_collectors_e5_e9.py`.
+A focused review against
+`N3W_T1_GOLDEN_MASTER_R2C_TARGET_ARMBIAN_READONLY_EVIDENCE_PREPARATION_20261013.md`
+then found additional fail-closed gaps in the initial E5-E9 candidate. They were repaired
+before closure rather than being accepted as target assumptions.
 
-Implemented bounded read-only collection for:
+Current exact source candidate:
 
-- E5: SSH host-key metadata, sshd configuration path classes, key-generation conditions,
-  relevant units and listener class; private-key contents are never read.
-- E6: NetworkManager/netplan/systemd-network inventory and identity-field classification;
-  raw SSID/IP/MAC/UUID/profile values are not emitted, and symlinked/unknown configuration
-  fails closed.
-- E7: journald storage roots, directory-to-current-machine-id classification, effective
-  explicit policy evidence and unit ordering; journal bodies are never read.
-- E8: random-seed metadata, owner unit and ordering; seed contents are neither read nor
-  hashed, and clone entropy independence remains explicitly unproven.
-- E9: bounded unit dependency/condition/timestamp capture. Only Before/After edges count as
-  ordering evidence; Wants/Requires/Triggers are recorded separately and never promoted to
-  ordering proof. Missing edges/conditions remain UNKNOWN.
+```text
+SOURCE_CANDIDATE=eb405107b9ad240fd87404649b2eb8f65d76a014
+SOURCE_FILE=tools/n3w_t1_r2c_collectors_e5_e9.py
+TEST_FILE=tests/tools/test_n3w_t1_r2c_collectors_e5_e9.py
+WORKFLOW_CHANGED=false
+```
 
-The tests cover the privacy boundary, fail-closed custom paths/symlinks, no journal/seed/key
-body reads, and the distinction between real ordering and dependency-only relationships.
+The focused repairs now enforce:
 
-## 6. Same-gate repairs already made
+- E5: no explicit HostKey is not silently treated as proven default semantics; custom
+  HostCertificate paths, unresolved ExecStartPre/ExecStartPost helpers, unknown SSH exposure
+  ordering, unknown key generator binding and listener gaps fail closed. SSH private-key
+  bodies remain unread.
+- E6: aggregate bounded scan budget is enforced; symlinked or unclassified NetworkManager
+  state fails closed; empty profile state does not prove safe defaults; parsed identity
+  fields are not promoted to effective semantics until installed-version precedence/default
+  behavior is separately bound. Raw SSID/IP/MAC/UUID/lease values are not emitted.
+- E7: aggregate bounded scan budget is enforced; journald and journal-flush critical-unit
+  capture must be resolved; journal bodies remain unread.
+- E8: random-seed content is neither read nor hashed; alternate seed state/owner indications
+  remain unresolved rather than being silently ignored; clone entropy independence remains
+  explicitly unproven.
+- E9: C6 listener classification is included; C4 Wants/Requires and
+  Triggers/TriggeredBy are retained as activation evidence but not ordering proof;
+  network-online is in the bounded target set; zero current-boot timestamps remain UNKNOWN;
+  scan truncation propagates as STOP_TRUNCATED instead of being downgraded to a generic
+  unreadable condition.
 
-The first E5-E9 source candidate failed Ruff on three style-only findings. The job log was
-read and the exact findings were repaired without changing the evidence contract.
+Focused isolation tests cover the corresponding fail-closed and privacy boundaries.
 
-The next candidate passed `N3W T1 golden master source CI`, but
-`Public repository safety CI` rejected one test-only MAC-shaped fixture at two locations.
-The safety log was read; the fixture was replaced with a non-real placeholder. The current
-candidate is therefore `ef81e1e8040ac6bebf3b52ce808deb38ff3f4c0b`.
+## 5. Focused review conclusion
 
-These were same-gate source/test hygiene repairs, not product/runtime failures.
+No remaining source blocker was found in the current E5-E9 source candidate within this
+gate's frozen scope.
 
-## 7. Current exact-head CI STOP
+This does **not** mean target OS identity uniqueness is proven. In particular:
 
-For exact candidate `ef81...`, the allowed three observation attempts are exhausted.
-The relevant workflows are still queued:
+- E4 initial source status is unchanged and still requires exact target semantics;
+- E6 deliberately remains UNKNOWN where installed-version NetworkManager/netplan
+  precedence/default semantics are not bound;
+- E8 cannot prove clone entropy independence from current seed metadata;
+- E9 separates capture completeness from semantic UNKNOWN results;
+- controlled clone-boot evidence remains mandatory.
 
-- Golden Master source CI:
-  https://github.com/chrenguo-stack/HomeAssistant/actions/runs/38418667594
-- Public repository safety CI:
-  https://github.com/chrenguo-stack/HomeAssistant/actions/runs/38418668272
+Therefore `OS_IDENTITY_SEMANTICS_PROVEN=false`,
+`CONTROLLED_CLONE_BOOT_EVIDENCE_REQUIRED=true`, and `EXECUTION_READY=false` remain
+unchanged.
 
-Do not poll this exact head again in the same session merely to wait. Source closure remains
-pending these exact-head results.
+## 6. Exact-head CI and mandatory poll stop
 
-## 8. Boundaries and next step
+For exact source candidate `eb405107...`:
+
+- Golden Master source CI run `38420237128`: SUCCESS.
+- Public repository safety CI run `38420237220`: still QUEUED at the mandatory third
+  observation.
+- Other routine PR workflows were also still queued/in-progress at that observation.
+
+Direct links:
+
+- https://github.com/chrenguo-stack/HomeAssistant/actions/runs/38420237128
+- https://github.com/chrenguo-stack/HomeAssistant/actions/runs/38420237220
+- https://github.com/chrenguo-stack/HomeAssistant/pull/541/checks
+
+The three-poll rule is exhausted for this exact source head in this session. Do not keep
+polling merely to wait. Source closure is not claimed until the remaining exact-head required
+CI is green.
+
+## 7. Current STOP point
 
 ```text
 R2A_SOURCE_REPAIR=CLOSED_SOURCE
 R2B_HOST_INDEPENDENT_SOURCE_REPAIR=CLOSED_SOURCE
 A1_A10=CLOSED_SOURCE
+R2C_E5_E9_SOURCE_IMPLEMENTATION=COMPLETE
+R2C_E5_E9_FOCUSED_REVIEW=PASS
 R2C_E5_E9_SOURCE_CLOSURE=PENDING_EXACT_HEAD_CI
 R2C_REMOTE_EXECUTOR=NOT_IMPLEMENTED
 EXECUTION_READY=false
@@ -130,9 +163,9 @@ CLONE_ACCEPTANCE=false
 T1_ACCESS=false
 BOARD_ACCESS=false
 MERGE=false
-STOP=CI_PENDING
+STOP=EXACT_HEAD_CI_PENDING_AFTER_THIRD_POLL
 ```
 
-When the exact-head gate CI is green, the same gate should immediately finish the focused
-closure review and archive the final E5-E9 source closure. It must still stop before the
-remote-executor or actual target-evidence execution gate.
+Next continuation stays in this same source gate only long enough to adjudicate the existing
+exact-source CI result and archive closure if it is green. It must still stop before remote
+executor implementation or any actual target evidence execution.

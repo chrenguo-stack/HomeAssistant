@@ -1,3 +1,42 @@
+## 2026-10-13 — R2C E5-E9 focused source review PASS; exact-source CI still pending
+
+```text
+TASK=N3W_T1_GOLDEN_MASTER_R2C_READONLY_PROBE_E5_E9_SOURCE_CONTINUATION_20261013_01
+R2C_SOURCE_AUTHORITY=a626eb8827a584b7a84f3838beaf08f86766cd73
+R2C_E5_E9_SOURCE_CANDIDATE=eb405107b9ad240fd87404649b2eb8f65d76a014
+E5_E9_SOURCE=IMPLEMENTED_REVIEWED_CI_PENDING
+FOCUSED_SOURCE_REVIEW=PASS_NO_OPEN_SOURCE_BLOCKER
+GOLDEN_MASTER_SOURCE_CI_RUN=38420237128:SUCCESS
+PUBLIC_REPOSITORY_SAFETY_CI_RUN=38420237220:PENDING_AT_THIRD_POLL
+R2C_REMOTE_EXECUTOR=NOT_IMPLEMENTED
+EXECUTION_READY=false
+OS_IDENTITY_SEMANTICS_PROVEN=false
+CONTROLLED_CLONE_BOOT_EVIDENCE_REQUIRED=true
+T1_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+```
+
+The original handoff advance after `a626...` was reverified as docs-only with no
+source/test/workflow drift. Exact `a626...` deployable-payload failure was an artifact
+visibility race; rerun succeeded without source change.
+
+E5-E9 were implemented and then independently checked against the frozen R2C read-only
+evidence contract. The first candidate had fail-closed gaps around SSH default/helper
+semantics, NetworkManager unknown/default/precedence handling, scan budgets, journald
+critical units, random-seed alternate ownership and E9 activation/listener/timestamp
+classification. Same-gate repairs are now at exact source candidate `eb405107...`; focused
+review finds no remaining source blocker. Golden Master source CI is green. Public repository
+safety and routine exact-head CI had not finished by the third observation, so closure is
+still pending and further wait-polling is stopped.
+
+Authority:
+`docs/development/N3W_T1_GOLDEN_MASTER_R2C_READONLY_PROBE_E5_E9_SOURCE_CONTINUATION_PROGRESS_20261013.md`.
+
+No T1/SSH, remote executor, real Seal, disk capture, clone acceptance, board access or merge
+occurred.
+
 ## 2026-10-13 — R2C E5-E9 source continuation implemented; exact-head CI queued
 
 ```text
