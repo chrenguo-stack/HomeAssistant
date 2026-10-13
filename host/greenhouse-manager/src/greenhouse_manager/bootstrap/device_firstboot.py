@@ -7,8 +7,8 @@ import os
 import re
 import secrets
 import stat
-from contextlib import contextmanager
 from collections.abc import Mapping
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Protocol
 
