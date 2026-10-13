@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import stat
+from collections import deque
 from pathlib import PurePosixPath
 from typing import Any
 
@@ -87,3 +88,109 @@ def read_bounded_text(root: str, relative: str, limit: int = MAX_TEXT_BYTES) -> 
         return result
     finally:
         os.close(descriptor)
+
+
+def read_symlink_target(root: str, relative: str) -> str:
+    parent, name = _open_parent(root, relative)
+    try:
+        metadata = os.stat(name, dir_fd=parent, follow_symlinks=False)
+        if not stat.S_ISLNK(metadata.st_mode):
+            raise ReadonlyEvidenceError("not_symlink")
+        return os.readlink(name, dir_fd=parent)
+    finally:
+        os.close(parent)
+
+
+def scan_bounded(
+    root: str,
+    relative: str,
+    *,
+    max_depth: int,
+    max_entries: int = 512,
+) -> list[dict[str, Any]]:
+    if not isinstance(max_depth, int) or not (0 <= max_depth <= 3):
+        raise ReadonlyEvidenceError("invalid_scan_depth")
+    if not isinstance(max_entries, int) or not (0 < max_entries <= 512):
+        raise ReadonlyEvidenceError("invalid_scan_limit")
+
+    start_parts = _parts(relative)
+    root_fd = os.open(
+        root,
+        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+    )
+    try:
+        current_fd = os.dup(root_fd)
+        try:
+            for piece in start_parts:
+                next_fd = os.open(
+                    piece,
+                    os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                    dir_fd=current_fd,
+                )
+                os.close(current_fd)
+                current_fd = next_fd
+            start_path = os.path.join(root, *start_parts)
+        except BaseException:
+            os.close(current_fd)
+            raise
+    finally:
+        os.close(root_fd)
+
+    result: list[dict[str, Any]] = []
+    queue: deque[tuple[str, int, int]] = deque([(start_path, current_fd, 0)])
+    try:
+        while queue:
+            current_path, directory_fd, depth = queue.popleft()
+            try:
+                with os.scandir(directory_fd) as entries:
+                    ordered = sorted(entries, key=lambda item: item.name)
+                for entry in ordered:
+                    metadata = entry.stat(follow_symlinks=False)
+                    mode = metadata.st_mode
+                    kind = (
+                        "regular"
+                        if stat.S_ISREG(mode)
+                        else "directory"
+                        if stat.S_ISDIR(mode)
+                        else "symlink"
+                        if stat.S_ISLNK(mode)
+                        else "other"
+                    )
+                    rel_path = os.path.relpath(
+                        os.path.join(current_path, entry.name),
+                        root,
+                    )
+                    result.append(
+                        {
+                            "relative": rel_path,
+                            "kind": kind,
+                            "mode": format(stat.S_IMODE(mode), "04o"),
+                            "size": metadata.st_size if kind == "regular" else None,
+                        }
+                    )
+                    if len(result) > max_entries:
+                        raise ReadonlyEvidenceError("scan_entry_limit")
+                    if kind == "directory" and depth < max_depth:
+                        child_fd = os.open(
+                            entry.name,
+                            os.O_RDONLY
+                            | os.O_DIRECTORY
+                            | os.O_NOFOLLOW
+                            | os.O_CLOEXEC,
+                            dir_fd=directory_fd,
+                        )
+                        queue.append(
+                            (
+                                os.path.join(current_path, entry.name),
+                                child_fd,
+                                depth + 1,
+                            )
+                        )
+            finally:
+                os.close(directory_fd)
+    except BaseException:
+        while queue:
+            _, fd, _ = queue.popleft()
+            os.close(fd)
+        raise
+    return result
