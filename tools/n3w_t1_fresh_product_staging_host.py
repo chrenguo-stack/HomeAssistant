@@ -1219,12 +1219,10 @@ def main() -> int:
                     continue
                 if event.get("event") == "image_requested":
                     if not claim_seen:
-                        process.terminate()
                         raise FreshHostTransportError("image_requested_before_authorization")
                     label = str(event.get("label"))
                     expected = IMAGE_LABELS[len(requested)] if len(requested) < len(IMAGE_LABELS) else None
                     if label != expected or label in requested:
-                        process.terminate()
                         raise FreshHostTransportError("image_request_order_invalid")
                     _transfer_requested_image(
                         args.t1,
@@ -1244,10 +1242,8 @@ def main() -> int:
                         or label not in requested
                         or event.get("staged_tar_deleted") is not True
                     ):
-                        process.terminate()
                         raise FreshHostTransportError("image_load_event_invalid")
                     if _remote_free_bytes(args.t1) < MIN_POST_PEAK_FREE_BYTES:
-                        process.terminate()
                         raise FreshHostTransportError("postload_reserve_breached")
                     loaded.append(label)
             return_code = process.wait()
