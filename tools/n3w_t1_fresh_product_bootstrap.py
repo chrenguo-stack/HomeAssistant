@@ -1469,7 +1469,10 @@ print(json.dumps({
         }
 
     def stopped_postcheck(self, system_id: str):
-        self.master_postcheck(require_instance_absent=False)
+        self.master_postcheck(
+            require_instance_absent=False,
+            staged_units_enabled=True,
+        )
         instance = self.instance_stopped_postcheck(system_id)
         return {
             "status": "PASS",
