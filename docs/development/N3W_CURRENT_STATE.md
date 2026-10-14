@@ -1,3 +1,68 @@
+## 2026-10-14 — F3 R2 live failure -> image-tar atomic publish R3 source closure
+
+```text
+TASK=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_IMAGE_TAR_ATOMIC_PUBLISH_SOURCE_REPAIR_20261014_01
+RESULT=CLOSED_SOURCE_WITH_EXACT_R3_ARTIFACT
+
+PR_544=OPEN_DRAFT_MERGEABLE
+SOURCE_BRANCH=fix/n3w-t1-f3-claim-marker-payload-set-20261014
+R3_SOURCE_HEAD=4887a76ef61d176b38e3656a9b04f7e0f13bce2f
+R3_SOURCE_TREE=8cdbd3ec5b83aa168d0559e2927421f9337e0d8b
+R3_SOURCE_CI=15_SUCCESS_0_FAILURE_0_PENDING
+
+R2_LIVE_RESULT=STOP_PARTIAL
+R2_FAILED_STAGE=load_images
+R2_FAILURE_CODE=image_tar_binding_invalid
+R2_AUTHORIZATION_CLAIMED=true
+R2_AUTHORIZATION_CONSUMED=true
+R2_AUTHORIZATION_REPLAY_PERMITTED=false
+R2_CLEANUP_RESULT=PASS
+
+KF_114=CLOSED_PASS_LIVE_REVALIDATED
+KF_115=GUARDED_SOURCE_LIVE_REVALIDATION_PENDING
+
+ROOT_CAUSE=SCP_DIRECT_FINAL_PATH_PUBLISH_RACED_REMOTE_FINAL_PATH_EXISTENCE_CHECK
+REPAIR=TRANSFER_TEMP_PART_VERIFY_THEN_ATOMIC_RENAME_TO_FINAL
+
+R3_ARTIFACT_RUN_ID=38592674907
+R3_ARTIFACT_JOB_ID=115951322590
+R3_ARTIFACT_ID=11908830316
+R3_ARTIFACT_NAME=n3w-t1-fresh-bootstrap-deployable-4887a76ef61d176b38e3656a9b04f7e0f13bce2f
+R3_ARTIFACT_DIGEST=sha256:d10432c4c6caa8e7ce50ce4cf672ac966e3a190e3f0ddbd79866a1f26a878263
+R3_RUNTIME_PAYLOAD_SHA256=c280c527debb6e47de202285867585f9eceb903e9da4d4598dd2301023cce68b
+R3_PAYLOAD_MANIFEST_SHA256=91088382aafc794bc90ecd8b3005d6eb148d080fb9fd14461faa936935c5c2c2
+R3_POST_UPLOAD_BINDING=PASS
+
+R3_AUTHORIZATION_ID=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R3_20261014_01
+R3_AUTHORIZATION_GRANTED=false
+R3_AUTHORIZATION_CLAIMED=false
+R3_AUTHORIZATION_CONSUMED=false
+
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+F4_AUTHORIZATION_GRANTED=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_R3_READONLY_PREAUTH_PREFLIGHT_20261015_01
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+R2 proved the KF-114 claim-marker repair on the real path because durable claim succeeded and execution reached
+the first image request. The later failure was a distinct transport race: the host wrote the large image tar
+directly to its final pathname while the remote installer treated pathname existence as completion and could
+validate a partial file. Post-failure evidence later showed the fully transferred Home Assistant tar exactly
+matched the manifest, ruling out persistent artifact corruption.
+
+The repaired host wrapper now transfers to a separate temp path, validates exact size/SHA-256, then atomically
+renames to the final incoming path. Exact repaired-head CI is 15/15 PASS and the R3 deployable artifact passed
+post-upload inner/transport binding. R2 remains permanently consumed/no-replay. R3 is source-bound only and
+has not been granted.
+
+Authority:
+- `docs/development/N3W_T1_F3_IMAGE_TAR_ATOMIC_PUBLISH_R3_SOURCE_REPAIR_20261014.md`
+- `docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md:KF-115`
+- PR #544 exact source/CI/artifact evidence
+
 ## 2026-10-14 — F3 R2 live-apply preexecution closure / new-chat handoff next
 
 ```text

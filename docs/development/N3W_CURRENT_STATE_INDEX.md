@@ -1,3 +1,16 @@
+## 2026-10-14 — F3 image-tar atomic publish R3 source/artifact closure
+
+- R2 live apply consumed its one-shot authorization and stopped at `load_images:image_tar_binding_invalid`; cleanup PASS, no production service start, no board access.
+- KF-114 is live revalidated: R2 durable claim succeeded and execution advanced to `image_requested`, so the prior claim-marker payload-inventory defect did not recur.
+- New KF-115 root cause: `scp` wrote the large image directly to the final `incoming/*.tar` path while the remote installer used final-path existence as the transfer-complete signal.
+- Repair: transfer to a sibling `.part` path, verify exact size/SHA-256, require same-filesystem publication, then atomic rename to the final incoming path; existing remote binding remains fail-closed.
+- Exact R3 source: `4887a76ef61d176b38e3656a9b04f7e0f13bce2f` / tree `8cdbd3ec5b83aa168d0559e2927421f9337e0d8b`; CI 15/15 SUCCESS.
+- Exact R3 artifact: run `38592674907`, job `115951322590`, artifact ID `11908830316`, digest `sha256:d10432c4c6caa8e7ce50ce4cf672ac966e3a190e3f0ddbd79866a1f26a878263`.
+- R3 runtime payload SHA-256 `c280c527debb6e47de202285867585f9eceb903e9da4d4598dd2301023cce68b`; payload manifest SHA-256 `91088382aafc794bc90ecd8b3005d6eb148d080fb9fd14461faa936935c5c2c2`; post-upload binding PASS.
+- R2 authorization is consumed/no-replay. Proposed R3 authorization `N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R3_20261014_01` remains granted=false/claimed=false/consumed=false.
+- F4 remains unauthorized; production services remain not started; board access=false; PR #544 remains unmerged.
+- Next one gate: `N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_R3_READONLY_PREAUTH_PREFLIGHT_20261015_01`; no automatic R3 live apply.
+
 ## 2026-10-14 — F3 R2 preexecution aligned / new-chat live authorization decision next
 
 - GitHub main and local execution HEAD are both `0030585ad88d75b399b56849dafc235429bb3299`; main tree `df60fe244c15565466a4ab6a7ded5c45ced929e6`; local worktree cleanliness requires one fresh recheck before mutation.
