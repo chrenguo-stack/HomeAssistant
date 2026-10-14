@@ -1,3 +1,13 @@
+## 2026-10-14 — Current formal handoff: R2C repaired source to Gate 0/1
+
+- Formal handoff: `docs/development/N3W_T1_GOLDEN_MASTER_R2C_E1_SOURCE_CLOSURE_TO_GATE_0_1_NEW_CHAT_HANDOFF_V1.0_20261014.md`.
+- Correct template: candidate-branch `NEW_CHAT_HANDOFF_TEMPLATE.md` V1.3 / blob `b9ef40acdaa8fae37feb5ffe5662afd0e89462a0`.
+- E1 source authority: `4898e519c317195dc22915a8d7b47f246a4121cf`; pre-handoff docs head `feebc0497b120eb3383fd48914dc72454b441a33`.
+- Both exact heads completed 42 SUCCESS, 1 conditional skip and 0 failure.
+- GitHub contains all durable source, tests, bindings, closure and current-state artifacts; important chat-only artifact count=0 and team-share completeness=PASS.
+- Private raw evidence remains outside public GitHub by policy; public-safe hashes and conclusions are in the execution closure.
+- Next one gate is repaired-source Gate 0/1 package/preclaim preparation only; no T1/SSH, authorization claim, Seal, disk capture, board action or merge.
+
 ## 2026-10-14 — R2C E1 collection diagnostic source repair CLOSED_SOURCE
 
 - Source repair: `4898e519c317195dc22915a8d7b47f246a4121cf`.

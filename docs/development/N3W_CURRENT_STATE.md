@@ -1,3 +1,27 @@
+## 2026-10-14 — Current formal handoff: R2C repaired source to Gate 0/1
+
+~~~text
+FORMAL_HANDOFF=docs/development/N3W_T1_GOLDEN_MASTER_R2C_E1_SOURCE_CLOSURE_TO_GATE_0_1_NEW_CHAT_HANDOFF_V1.0_20261014.md
+HANDOFF_TEMPLATE_VERSION=1.3
+PROJECT_WORKING_CONTEXT_VERSION=1.1
+E1_SOURCE_REPAIR_HEAD=4898e519c317195dc22915a8d7b47f246a4121cf
+PRE_HANDOFF_HEAD=feebc0497b120eb3383fd48914dc72454b441a33
+PRE_HANDOFF_HEAD_CI=42_SUCCESS_1_CONDITIONAL_SKIP_0_FAILURE
+IMPORTANT_CHAT_ONLY_ARTIFACT_COUNT=0
+TEAM_SHARE_COMPLETENESS=PASS
+NEXT_ONE_GATE=N3W_T1_GOLDEN_MASTER_R2C_REPAIRED_SOURCE_TARGET_ARMBIAN_READONLY_EVIDENCE_GATE_0_1_20261014_01
+T1_ACCESS_DURING_HANDOFF=false
+NEW_AUTHORIZATION_GRANTED=false
+MERGE=false
+~~~
+
+本轮源码、测试、module binding、验证结果、执行闭环和当前状态均已进入 GitHub；本地
+与远端 candidate head 在 handoff 写入前一致且工作区干净。私有原始 target evidence
+按安全边界留在用户管理的私有位置，公开安全 hashes 和结论已进入 GitHub。
+
+新会话只进入修复后源码的 Gate 0/1 重新绑定与 package/preclaim 准备。不得访问 T1、
+不得 claim 或重放 authorization、不得执行 Seal、disk capture、board action 或 merge。
+
 ## 2026-10-14 — R2C E1 collection diagnostic source repair CLOSED_SOURCE
 
 ~~~text
