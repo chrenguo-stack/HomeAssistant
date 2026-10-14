@@ -1,3 +1,14 @@
+## 2026-10-14 — R2C target-Armbian read-only evidence Gate 0/1 PASS
+
+- Exact preexecution source head: `403413f89373d0650579c3886274e59be37783bc`; current-head CI `27/27_PASS`.
+- Gate 0 fresh rebind confirmed PR #541 OPEN/DRAFT/unmerged and no source/test/workflow drift after remote-executor validation.
+- Gate 1 bound executor blob `389a7684...`, contract blob `b575e33b...`, seven module blobs, streamed-program SHA-256 `6d24ac8e...` and contract SHA-256 `f3f0213c...`.
+- Private target locator, existing known-host binding, target-binding token, execution ID and fresh expiry remain operator-side final-preclaim inputs.
+- Proposed one-shot confirmation is documented but not granted; authorization claimed/consumed=false.
+- `EXECUTION_READY=false`; actual R2C evidence execution, T1/SSH/live/board/merge remain false.
+- Authority: `docs/development/N3W_T1_GOLDEN_MASTER_R2C_TARGET_ARMBIAN_READONLY_EVIDENCE_PREEXECUTION_AND_AUTHORIZATION_PREPARATION_20261014.md`.
+- Next gate is the separately authorized one-shot R2C target-Armbian read-only evidence execution.
+
 ## 2026-10-14 — R2C remote executor source CLOSED_SOURCE
 
 - Implementation head: `01256f67fc6b7496b476963ede37496abe099327`.
