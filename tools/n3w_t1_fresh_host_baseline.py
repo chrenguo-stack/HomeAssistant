@@ -195,7 +195,7 @@ def main() -> int:
             result = execute_install()
         print(json.dumps(result, sort_keys=True, separators=(",", ":")))
         return 0 if result.get("status") in {"PASS", "MISSING"} else 2
-    except Exception as error:
+    except (FreshHostBaselineError, OSError, subprocess.TimeoutExpired) as error:
         print(
             json.dumps(
                 {
