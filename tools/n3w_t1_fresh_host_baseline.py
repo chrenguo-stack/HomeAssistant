@@ -129,6 +129,14 @@ def execute_install(runner: Runner | None = None) -> dict[str, object]:
     release = _os_release()
     _validate_target_host(release)
     active = runner or Runner()
+    before = _check(active)
+    if before["status"] == "PASS":
+        return {
+            **before,
+            "installed": False,
+            "package_source": "existing_approved_baseline",
+            "package_versions": {},
+        }
     active.run(("apt-get", "update"), timeout=900.0)
     versions = {
         package: _candidate(active.run(("apt-cache", "policy", package)), package)
