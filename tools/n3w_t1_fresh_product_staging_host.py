@@ -727,7 +727,7 @@ import tarfile
 from pathlib import Path
 
 root = Path(sys.argv[1])
-archive = root / "payload.tar.gz"
+archive = root / "runtime-payload.tar.gz"
 
 def sha(path):
     digest = hashlib.sha256()
@@ -765,7 +765,7 @@ def _remote_prepare_payload(
     archive_sha256: str,
     manifest_sha256: str,
 ) -> None:
-    _run(("scp", str(archive), f"{t1}:{remote_dir}/payload.tar.gz"), timeout=900)
+    _run(("scp", str(archive), f"{t1}:{remote_dir}/runtime-payload.tar.gz"), timeout=900)
     script = _remote_payload_extract_script()
     command = _remote_command(
         ("python3", "-c", script, remote_dir, archive_sha256, manifest_sha256)
@@ -773,28 +773,87 @@ def _remote_prepare_payload(
     _run(("ssh", "-n", t1, command), timeout=600)
 
 
-def _remote_load_images_sequentially(
+def _remote_free_bytes(t1: str) -> int:
+    report = _remote_storage_report(t1)
+    return min(
+        int(report["staging_free_bytes"]),
+        int(report["docker_free_bytes"]),
+        int(report["image_store_free_bytes"]),
+    )
+
+
+def _transfer_requested_image(
     t1: str,
     remote_dir: str,
+    work: Path,
     manifest: dict[str, Any],
+    capacity: dict[str, Any],
+    label: str,
 ) -> None:
-    transport = _transport_contract(manifest)
-    for label in IMAGE_LABELS:
-        relative = str(transport["images"][label]["path"])
-        remote_tar = f"{remote_dir}/{relative}"
-        _run(
-            (
-                "ssh",
-                "-n",
-                t1,
-                _remote_command(("docker", "load", "--input", remote_tar)),
+    if label not in IMAGE_LABELS:
+        raise FreshHostTransportError("image_request_label_invalid")
+    transport = _transport_contract(manifest, capacity)
+    record = transport["images"][label]
+    free_before = _remote_free_bytes(t1)
+    if free_before < int(record["required_free_bytes"]):
+        raise FreshHostTransportError(f"remote_capacity_insufficient:{label}")
+    relative = str(record["path"])
+    remote_tar = f"{remote_dir}/{relative}"
+    local_tar = work / str(record["artifact_file"])
+    parent = str(Path(remote_tar).parent)
+    _run(
+        (
+            "ssh",
+            "-n",
+            t1,
+            _remote_command(("mkdir", "-p", "--", parent)),
+        ),
+        timeout=60,
+    )
+    absent = _run(
+        (
+            "ssh",
+            "-n",
+            t1,
+            _remote_command(("test", "!", "-e", remote_tar)),
+        ),
+        timeout=30,
+        check=False,
+    )
+    if absent.returncode != 0:
+        raise FreshHostTransportError(f"remote_image_tar_already_present:{label}")
+    _run(("scp", str(local_tar), f"{t1}:{remote_tar}"), timeout=1800)
+    verify_script = (
+        "import hashlib,os,sys;"
+        "p=sys.argv[1];e=sys.argv[2];n=int(sys.argv[3]);"
+        "h=hashlib.sha256();"
+        "f=open(p,'rb');"
+        "\nwhile True:"
+        "\n b=f.read(1048576);"
+        "\n if not b: break;"
+        "\n h.update(b);"
+        "\nf.close();"
+        "\nassert os.path.getsize(p)==n;"
+        "\nassert h.hexdigest()==e"
+    )
+    _run(
+        (
+            "ssh",
+            "-n",
+            t1,
+            _remote_command(
+                (
+                    "python3",
+                    "-c",
+                    verify_script,
+                    remote_tar,
+                    str(record["tar_sha256"]),
+                    str(record["tar_size_bytes"]),
+                )
             ),
-            timeout=1800,
-        )
-        _run(
-            ("ssh", "-n", t1, _remote_command(("rm", "-f", remote_tar))),
-            timeout=60,
-        )
+        ),
+        timeout=600,
+    )
 
 
 def _authorization_record_remote_path(authorization_id: str) -> str:
@@ -846,6 +905,8 @@ def main() -> int:
             archive,
             manifest_sha256=args.manifest_sha256,
         )
+        capacity = _capacity_contract(work, manifest)
+        _verify_image_artifacts(work, manifest, capacity)
         storage = _remote_storage_report(args.t1)
         plan = _plan_transport(
             manifest,
@@ -855,6 +916,7 @@ def main() -> int:
                 int(storage["docker_free_bytes"]),
                 int(storage["image_store_free_bytes"]),
             ),
+            capacity=capacity,
         )
         if not plan.capacity_pass:
             raise FreshHostTransportError("remote_capacity_insufficient")
@@ -915,16 +977,60 @@ def main() -> int:
             bufsize=1,
         )
         remote_apply_started = True
+        requested: list[str] = []
+        loaded: list[str] = []
         assert process.stdout is not None
         for line in process.stdout:
             sys.stdout.write(line)
             sys.stdout.flush()
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                event = {}
             if (
-                '"event":"authorization_claimed"' in line
-                and authorization in line
+                event.get("event") == "authorization_claimed"
+                and event.get("authorization_id") == authorization
             ):
                 claim_seen = True
+                continue
+            if event.get("event") == "image_requested":
+                if not claim_seen:
+                    process.terminate()
+                    raise FreshHostTransportError("image_requested_before_authorization")
+                label = str(event.get("label"))
+                expected = IMAGE_LABELS[len(requested)] if len(requested) < len(IMAGE_LABELS) else None
+                if label != expected or label in requested:
+                    process.terminate()
+                    raise FreshHostTransportError("image_request_order_invalid")
+                _transfer_requested_image(
+                    args.t1,
+                    remote_dir,
+                    work,
+                    manifest,
+                    capacity,
+                    label,
+                )
+                requested.append(label)
+                continue
+            if event.get("event") == "image_loaded":
+                label = str(event.get("label"))
+                expected = IMAGE_LABELS[len(loaded)] if len(loaded) < len(IMAGE_LABELS) else None
+                if (
+                    label != expected
+                    or label not in requested
+                    or event.get("staged_tar_deleted") is not True
+                ):
+                    process.terminate()
+                    raise FreshHostTransportError("image_load_event_invalid")
+                if _remote_free_bytes(args.t1) < MIN_POST_PEAK_FREE_BYTES:
+                    process.terminate()
+                    raise FreshHostTransportError("postload_reserve_breached")
+                loaded.append(label)
         return_code = process.wait()
+        if return_code == 0 and (
+            tuple(requested) != IMAGE_LABELS or tuple(loaded) != IMAGE_LABELS
+        ):
+            raise FreshHostTransportError("image_event_sequence_incomplete")
 
         try:
             marker_probe = _run(
@@ -1056,7 +1162,7 @@ def main() -> int:
                     "authorization_claimed": True,
                     "authorization_consumed": True,
                     "replay_allowed": False,
-                    "fresh_product_staged": True,
+                    "public_product_staged": True,
                     "remote_payload_preserved": True,
                     "production_service_start": False,
                     "board_access": False,
