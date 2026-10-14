@@ -1,3 +1,47 @@
+## 2026-10-14 — F3 fresh read-only preclaim PASS / live apply explicitly authorized
+
+```text
+TASK=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_FRESH_READONLY_PRECLAIM_20261014_01
+RESULT=CLOSED_PASS
+
+F3_AUTHORIZATION_ID=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_20261014_01
+F3_AUTHORIZATION_GRANTED=true
+F3_AUTHORIZATION_CLAIMED=false
+F3_AUTHORIZATION_CONSUMED=false
+
+HOST_BASELINE=MISSING_EXPECTED
+HOST_BASELINE_INSTALL_REQUIRED=true
+TARGET_OS=ubuntu_26.04_resolute_aarch64
+ROOT_FREE_BYTES=12616491008
+CAPACITY_ADMISSION=PREBASELINE_ROOT_PASS
+CAPACITY_PASS=true
+WORST_IMAGE_REQUIRED_FREE_BYTES=10135822686
+MINIMUM_POST_PEAK_FREE_BYTES=5368709120
+
+PAYLOAD_TRANSFER=false
+DOCKER_MUTATION=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+
+NEXT_ONE_GATE=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_20261014_01
+AUTO_EXECUTE_F4=false
+```
+
+Fresh target preclaim completed successfully. Docker/Compose remain absent as expected on the fresh host; the
+exact artifact capacity envelope fits the target with the existing 5 GiB post-peak reserve. No payload was
+transferred, no package/Docker/product mutation occurred, and the one-shot authorization remains unclaimed and
+unconsumed at this checkpoint.
+
+The operator explicitly granted the exact F3 live authorization above. F3 execution remains two-stage:
+F3-A exact public product staging, then F3-B explicit per-device provisioning. F4 production Broker/Manager/Home
+Assistant activation remains separately unauthorized and forbidden.
+
+The production controlled-override framework is approved for F5 design only. It does not relax current F3
+checks. Authority:
+`docs/development/N3W_T1_PRODUCTION_CONTROLLED_OVERRIDE_FRAMEWORK_DESIGN_20261014.md`.
+
+Private T1 locator and raw private evidence are intentionally not archived in public GitHub.
+
 ## 2026-10-14 — F3 preauth preparation CLOSED_PASS / fresh read-only preclaim next
 
 ```text
