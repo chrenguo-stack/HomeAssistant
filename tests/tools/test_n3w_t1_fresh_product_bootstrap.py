@@ -338,6 +338,8 @@ def test_authorization_ledger_blocks_same_authorization_across_payload_dirs(
     assert record["payload_manifest_sha256"] == tool._sha256_file(
         first / "payload-manifest.json"
     )
+    assert tool._authorization_record_matches(first, manifest) is True
+    assert tool._authorization_record_matches(second, manifest) is False
 
     with pytest.raises(
         tool.BootstrapError,
