@@ -16,18 +16,27 @@ from typing import Any, Sequence
 
 REPOSITORY = "chrenguo-stack/HomeAssistant"
 REMOTE_STAGING_ROOT = "/var/tmp"
-TRANSPORT_SCHEMA = "gh.n3w-t1-fresh-transport/1"
+TRANSPORT_SCHEMA = "gh.n3w-t1-fresh-transport/2"
+CAPACITY_SCHEMA = "gh.n3w-t1-fresh-capacity/1"
 MIN_POST_PEAK_FREE_BYTES = 5 * 1024 * 1024 * 1024
 IMAGE_LABELS = ("homeassistant", "manager", "broker")
 AUTHORIZATION_LEDGER_ROOT = "/var/lib/n3w-fresh-bootstrap-authorizations"
+IMAGE_ARTIFACT_FILES = {
+    "homeassistant": "homeassistant-arm64.tar",
+    "manager": "greenhouse-manager-arm64.tar",
+    "broker": "broker-arm64.tar",
+}
 ARTIFACT_OUTER_FILES = frozenset(
     (
         "executor.sha256",
         "host-wrapper.py",
         "host-wrapper.sha256",
-        "payload-archive.sha256",
-        "payload-archive.tar.gz",
+        "runtime-payload.sha256",
+        "runtime-payload.tar.gz",
         "payload-manifest.sha256",
+        "capacity-contract.json",
+        "capacity-contract.sha256",
+        *IMAGE_ARTIFACT_FILES.values(),
     )
 )
 
@@ -38,19 +47,14 @@ class FreshHostTransportError(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class TransportPlan:
-    archive_size_bytes: int
-    payload_uncompressed_bytes: int
-    extraction_peak_bytes: int
-    image_load_peak_bytes: int
-    content_store_estimate_bytes: int
-    snapshot_store_estimate_bytes: int
-    storage_model: str
-    required_peak_bytes: int
+    runtime_archive_size_bytes: int
+    runtime_payload_uncompressed_bytes: int
+    runtime_extraction_peak_bytes: int
+    worst_image_required_free_bytes: int
     minimum_post_peak_free_bytes: int
-    required_free_bytes: int
     remote_free_bytes: int
-    free_after_estimated_peak_bytes: int
     image_load_order: tuple[str, ...]
+    remote_staged_image_count_max: int
     capacity_pass: bool
 
     def to_dict(self) -> dict[str, object]:
@@ -267,14 +271,17 @@ def _verify_outer_artifact(
     if actual != ARTIFACT_OUTER_FILES:
         raise FreshHostTransportError("artifact_outer_file_set_invalid")
 
-    archive = work / "payload-archive.tar.gz"
+    archive = work / "runtime-payload.tar.gz"
     actual_archive_sha = _sha256_file(archive)
     if actual_archive_sha != archive_sha256:
-        raise FreshHostTransportError("payload_archive_sha256_mismatch")
-    if _read_sidecar(work / "payload-archive.sha256") != actual_archive_sha:
-        raise FreshHostTransportError("payload_archive_sidecar_mismatch")
+        raise FreshHostTransportError("runtime_payload_sha256_mismatch")
+    if _read_sidecar(work / "runtime-payload.sha256") != actual_archive_sha:
+        raise FreshHostTransportError("runtime_payload_sidecar_mismatch")
     if _read_sidecar(work / "payload-manifest.sha256") != manifest_sha256:
         raise FreshHostTransportError("payload_manifest_sidecar_mismatch")
+    capacity = work / "capacity-contract.json"
+    if _read_sidecar(work / "capacity-contract.sha256") != _sha256_file(capacity):
+        raise FreshHostTransportError("capacity_contract_sidecar_mismatch")
 
     downloaded_wrapper = work / "host-wrapper.py"
     wrapper_sha = _sha256_file(downloaded_wrapper)
@@ -333,7 +340,34 @@ def _read_payload_manifest(
     return document
 
 
-def _transport_contract(manifest: dict[str, Any]) -> dict[str, Any]:
+def _capacity_contract(
+    work: Path,
+    manifest: dict[str, Any],
+) -> dict[str, Any]:
+    path = work / "capacity-contract.json"
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise FreshHostTransportError("capacity_contract_invalid") from error
+    if (
+        not isinstance(document, dict)
+        or document.get("schema") != CAPACITY_SCHEMA
+        or document.get("source_head") != manifest.get("source_head")
+        or document.get("minimum_post_peak_free_bytes")
+        != MIN_POST_PEAK_FREE_BYTES
+        or document.get("image_load_order") != list(IMAGE_LABELS)
+    ):
+        raise FreshHostTransportError("capacity_contract_binding_invalid")
+    images = document.get("images")
+    if not isinstance(images, dict) or set(images) != set(IMAGE_LABELS):
+        raise FreshHostTransportError("capacity_contract_images_invalid")
+    return document
+
+
+def _transport_contract(
+    manifest: dict[str, Any],
+    capacity: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     transport = manifest.get("transport")
     if not isinstance(transport, dict) or transport.get("schema") != TRANSPORT_SCHEMA:
         raise FreshHostTransportError("transport_contract_missing")
@@ -344,42 +378,74 @@ def _transport_contract(manifest: dict[str, Any]) -> dict[str, Any]:
 
     order = transport.get("image_load_order")
     images = transport.get("images")
-    payload_bytes = transport.get("payload_uncompressed_bytes")
+    runtime_bytes = transport.get("runtime_payload_uncompressed_bytes")
     if order != list(IMAGE_LABELS) or not isinstance(images, dict):
         raise FreshHostTransportError("transport_image_order_invalid")
-    if not isinstance(payload_bytes, int) or isinstance(payload_bytes, bool) or payload_bytes <= 0:
-        raise FreshHostTransportError("transport_payload_size_invalid")
-
-    file_records = manifest.get("files")
-    if not isinstance(file_records, list):
-        raise FreshHostTransportError("payload_manifest_files_invalid")
-    file_sizes = {
-        record.get("path"): record.get("size")
-        for record in file_records
-        if isinstance(record, dict)
-    }
+    if (
+        not isinstance(runtime_bytes, int)
+        or isinstance(runtime_bytes, bool)
+        or runtime_bytes <= 0
+    ):
+        raise FreshHostTransportError("transport_runtime_payload_size_invalid")
 
     for label in IMAGE_LABELS:
         record = images.get(label)
-        if not isinstance(record, dict):
+        manifest_record = manifest.get("images", {}).get(label)
+        if not isinstance(record, dict) or not isinstance(manifest_record, dict):
             raise FreshHostTransportError(f"transport_image_missing:{label}")
         path = record.get("path")
+        artifact_file = record.get("artifact_file")
         tar_size = record.get("tar_size_bytes")
         loaded_size = record.get("loaded_size_bytes")
+        required_free = record.get("required_free_bytes")
         image_ref = record.get("image_ref")
-        if not isinstance(path, str) or not path.startswith("artifact/"):
-            raise FreshHostTransportError(f"transport_image_path_invalid:{label}")
-        if file_sizes.get(path) != tar_size:
-            raise FreshHostTransportError(f"transport_image_tar_size_invalid:{label}")
+        tar_sha = record.get("tar_sha256")
         if (
-            not isinstance(loaded_size, int)
+            not isinstance(path, str)
+            or not path.startswith("incoming/")
+            or artifact_file != IMAGE_ARTIFACT_FILES[label]
+            or not isinstance(tar_size, int)
+            or isinstance(tar_size, bool)
+            or tar_size <= 0
+            or not isinstance(loaded_size, int)
             or isinstance(loaded_size, bool)
             or loaded_size <= 0
+            or not isinstance(required_free, int)
+            or isinstance(required_free, bool)
+            or required_free != tar_size + loaded_size + MIN_POST_PEAK_FREE_BYTES
             or not isinstance(image_ref, str)
             or not image_ref
+            or not isinstance(tar_sha, str)
+            or len(tar_sha) != 64
+            or manifest_record.get("artifact_file") != artifact_file
+            or manifest_record.get("path") != path
+            or manifest_record.get("tar_size_bytes") != tar_size
+            or manifest_record.get("loaded_size_bytes") != loaded_size
+            or manifest_record.get("required_free_bytes") != required_free
+            or manifest_record.get("tar_sha256") != tar_sha
         ):
             raise FreshHostTransportError(f"transport_image_metadata_invalid:{label}")
+        if capacity is not None and capacity["images"].get(label) != record:
+            raise FreshHostTransportError(f"capacity_image_binding_invalid:{label}")
     return transport
+
+
+def _verify_image_artifacts(
+    work: Path,
+    manifest: dict[str, Any],
+    capacity: dict[str, Any],
+) -> None:
+    transport = _transport_contract(manifest, capacity)
+    for label in IMAGE_LABELS:
+        record = transport["images"][label]
+        path = work / str(record["artifact_file"])
+        if (
+            path.is_symlink()
+            or not path.is_file()
+            or path.stat().st_size != int(record["tar_size_bytes"])
+            or _sha256_file(path) != record["tar_sha256"]
+        ):
+            raise FreshHostTransportError(f"image_artifact_binding_invalid:{label}")
 
 
 def _plan_transport(
@@ -387,45 +453,29 @@ def _plan_transport(
     *,
     archive_size_bytes: int,
     remote_free_bytes: int,
+    capacity: dict[str, Any] | None = None,
 ) -> TransportPlan:
-    transport = _transport_contract(manifest)
-    payload_bytes = int(transport["payload_uncompressed_bytes"])
-    extraction_peak = archive_size_bytes + payload_bytes
-
-    current_payload = payload_bytes
-    content_bytes = 0
-    snapshot_bytes = 0
-    image_peak = current_payload
-    images = transport["images"]
-    for label in IMAGE_LABELS:
-        record = images[label]
-        loaded_size = int(record["loaded_size_bytes"])
-        tar_size = int(record["tar_size_bytes"])
-        content_bytes += tar_size
-        snapshot_bytes += loaded_size
-        image_peak = max(
-            image_peak,
-            current_payload + content_bytes + snapshot_bytes,
-        )
-        current_payload -= tar_size
-
-    required_peak = max(extraction_peak, image_peak)
-    required_free = required_peak + MIN_POST_PEAK_FREE_BYTES
+    transport = _transport_contract(manifest, capacity)
+    runtime_bytes = int(transport["runtime_payload_uncompressed_bytes"])
+    extraction_peak = archive_size_bytes + runtime_bytes
+    worst_image_required = max(
+        int(transport["images"][label]["required_free_bytes"])
+        for label in IMAGE_LABELS
+    )
+    required = max(
+        extraction_peak + MIN_POST_PEAK_FREE_BYTES,
+        worst_image_required,
+    )
     return TransportPlan(
-        archive_size_bytes=archive_size_bytes,
-        payload_uncompressed_bytes=payload_bytes,
-        extraction_peak_bytes=extraction_peak,
-        image_load_peak_bytes=image_peak,
-        content_store_estimate_bytes=content_bytes,
-        snapshot_store_estimate_bytes=snapshot_bytes,
-        storage_model="tar_plus_containerd_content_plus_snapshot",
-        required_peak_bytes=required_peak,
+        runtime_archive_size_bytes=archive_size_bytes,
+        runtime_payload_uncompressed_bytes=runtime_bytes,
+        runtime_extraction_peak_bytes=extraction_peak,
+        worst_image_required_free_bytes=worst_image_required,
         minimum_post_peak_free_bytes=MIN_POST_PEAK_FREE_BYTES,
-        required_free_bytes=required_free,
         remote_free_bytes=remote_free_bytes,
-        free_after_estimated_peak_bytes=remote_free_bytes - required_peak,
         image_load_order=IMAGE_LABELS,
-        capacity_pass=remote_free_bytes >= required_free,
+        remote_staged_image_count_max=1,
+        capacity_pass=remote_free_bytes >= required,
     )
 
 
