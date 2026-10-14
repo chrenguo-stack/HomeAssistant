@@ -86,6 +86,80 @@ def test_collect_e1_observes_exact_platform_fields(tmp_path: Path) -> None:
     }
 
 
+def test_collect_e1_accounts_for_absent_approved_package(
+    tmp_path: Path,
+) -> None:
+    _write_platform_fixture(tmp_path)
+
+    def runner(command_id: str, **kwargs: object) -> CommandResult:
+        result = _e1_runner(command_id, **kwargs)
+        if command_id != "C3_PACKAGES":
+            return result
+        return _result(
+            "dpkg-query",
+            (
+                b"systemd\t255.4\tarm64\n"
+                b"openssh-server\t1:9.6p1\tarm64\n"
+                b"network-manager\t1.46.0\tarm64\n"
+            ),
+            returncode=1,
+            stderr=b"dpkg-query: no packages found matching netplan.io\n",
+        )
+
+    evidence = collect_e1(str(tmp_path), runner=runner)
+
+    assert evidence["status"] == "OBSERVED"
+    assert evidence["complete"] is True
+    assert evidence["provenance"] == [
+        {
+            "method_id": "C3",
+            "query_returncode": 1,
+            "requested_package_count": 4,
+            "observed_package_count": 3,
+            "absent_packages": ["netplan.io"],
+        }
+    ]
+
+
+def test_collect_e1_rejects_unexpected_package_query_failure(
+    tmp_path: Path,
+) -> None:
+    _write_platform_fixture(tmp_path)
+
+    def runner(command_id: str, **kwargs: object) -> CommandResult:
+        result = _e1_runner(command_id, **kwargs)
+        if command_id == "C3_PACKAGES":
+            return _result("dpkg-query", returncode=2)
+        return result
+
+    evidence = collect_e1(str(tmp_path), runner=runner)
+
+    assert evidence["status"] == "ERROR"
+    assert evidence["reason_code"] == "STOP_PACKAGES_COMMAND_FAILED"
+
+
+def test_collect_e1_requires_exact_absence_diagnostic(
+    tmp_path: Path,
+) -> None:
+    _write_platform_fixture(tmp_path)
+
+    def runner(command_id: str, **kwargs: object) -> CommandResult:
+        result = _e1_runner(command_id, **kwargs)
+        if command_id != "C3_PACKAGES":
+            return result
+        return _result(
+            "dpkg-query",
+            b"systemd\t255.4\tarm64\n",
+            returncode=1,
+            stderr=b"unclassified failure\n",
+        )
+
+    evidence = collect_e1(str(tmp_path), runner=runner)
+
+    assert evidence["status"] == "ERROR"
+    assert evidence["reason_code"] == "STOP_PACKAGE_ABSENCE_UNPROVEN"
+
+
 def test_collect_e1_missing_release_is_incomplete_not_false_pass(tmp_path: Path) -> None:
     (tmp_path / "etc").mkdir()
     (tmp_path / "etc" / "armbian-release").write_text("ARCH=arm64\n")

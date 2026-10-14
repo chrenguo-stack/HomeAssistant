@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import errno
 from pathlib import Path
 
 from n3w_t1_r2c_collectors_e5_e9 import (
     E6_UNITS,
     E7_UNITS,
+    _reason,
+    _unit_snapshot,
     collect_e5,
     collect_e6,
     collect_e7,
@@ -12,6 +15,7 @@ from n3w_t1_r2c_collectors_e5_e9 import (
     collect_e9,
 )
 from n3w_t1_r2c_readonly_commands import CommandResult
+from n3w_t1_r2c_readonly_files import ReadonlyEvidenceError
 
 
 def _result(
@@ -403,6 +407,56 @@ def test_e6_symlinked_profile_is_unknown_and_not_followed(
     assert "raw-private-uuid" not in repr(evidence)
 
 
+def test_e6_accepts_only_exact_usr_merge_lib_alias(
+    tmp_path: Path,
+) -> None:
+    netplan = tmp_path / "usr" / "lib" / "netplan"
+    netplan.mkdir(parents=True)
+    (netplan / "10-default.yaml").write_text(
+        "network:\n  version: 2\n  renderer: NetworkManager\n"
+    )
+    (tmp_path / "lib").symlink_to("usr/lib")
+
+    evidence = collect_e6(
+        tmp_path.as_posix(),
+        runner=_runner(
+            tmp_path,
+            loaded={unit: {} for unit in E6_UNITS},
+        ),
+    )
+
+    assert evidence["status"] == "UNKNOWN"
+    assert evidence["reason_code"] == "STOP_NETWORK_IDENTITY_UNKNOWN"
+    assert evidence["fields"]["nm_state_inventory"]["value"][
+        "NETPLAN_LIB"
+    ]["status"] == "OBSERVED"
+
+
+def test_e6_rejects_unapproved_lib_alias_without_following(
+    tmp_path: Path,
+) -> None:
+    outside = tmp_path / "private-lib"
+    (outside / "netplan").mkdir(parents=True)
+    (outside / "netplan" / "secret.yaml").write_text(
+        "PRIVATE-LIB-SENTINEL\n"
+    )
+    (tmp_path / "lib").symlink_to("private-lib")
+
+    evidence = collect_e6(
+        tmp_path.as_posix(),
+        runner=_runner(
+            tmp_path,
+            loaded={unit: {} for unit in E6_UNITS},
+        ),
+    )
+
+    assert evidence["status"] == "UNKNOWN"
+    assert evidence["fields"]["nm_state_inventory"]["value"][
+        "NETPLAN_LIB"
+    ]["status"] == "UNKNOWN"
+    assert "PRIVATE-LIB-SENTINEL" not in repr(evidence)
+
+
 def test_e7_classifies_journal_directories_without_names_or_body(
     tmp_path: Path,
 ) -> None:
@@ -468,6 +522,37 @@ def test_e7_classifies_journal_directories_without_names_or_body(
         "JOURNAL-BODY-SENTINEL"
         not in rendered
     )
+
+
+def test_e7_journal_root_symlink_is_unknown_and_not_followed(
+    tmp_path: Path,
+) -> None:
+    outside = tmp_path / "private-journal"
+    outside.mkdir()
+    (outside / "secret.journal").write_text("PRIVATE-JOURNAL-SENTINEL")
+    journal = tmp_path / "var" / "log" / "journal"
+    journal.parent.mkdir(parents=True)
+    journal.symlink_to(outside)
+    config = tmp_path / "etc" / "systemd" / "journald.conf"
+    config.parent.mkdir(parents=True)
+    config.write_text("[Journal]\nStorage=volatile\nSplitMode=uid\n")
+
+    evidence = collect_e7(
+        tmp_path.as_posix(),
+        runner=_runner(
+            tmp_path,
+            loaded={unit: {} for unit in E7_UNITS[:-1]},
+        ),
+    )
+
+    assert evidence["status"] == "UNKNOWN"
+    assert evidence["reason_code"] == "STOP_JOURNAL_CLASSIFICATION"
+    assert evidence["fields"]["journal_roots"]["value"]["PERSISTENT"] == {
+        "status": "UNKNOWN",
+        "kind": "symlink",
+        "entry_count": 0,
+    }
+    assert "PRIVATE-JOURNAL-SENTINEL" not in repr(evidence)
 
 
 def test_e8_never_reads_or_hashes_random_seed_body(
@@ -587,6 +672,84 @@ def test_e9_proves_order_only_from_before_after_edges(
         "REQUIRES",
         "TRIGGERS",
         "TRIGGERED_BY",
+    ]
+
+
+def test_e9_handles_usr_merge_lib_alias_without_duplicate_scan(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "usr" / "lib").mkdir(parents=True)
+    (tmp_path / "lib").symlink_to("usr/lib")
+
+    evidence = collect_e9(
+        tmp_path.as_posix(),
+        runner=_runner(tmp_path, loaded=_e9_loaded()),
+    )
+
+    assert evidence["status"] == "OBSERVED"
+    assert evidence["complete"] is True
+
+
+def test_e9_unapproved_lib_alias_is_unknown_not_collection_error(
+    tmp_path: Path,
+) -> None:
+    outside = tmp_path / "private-lib"
+    outside.mkdir()
+    (tmp_path / "lib").symlink_to("private-lib")
+
+    evidence = collect_e9(
+        tmp_path.as_posix(),
+        runner=_runner(tmp_path, loaded=_e9_loaded()),
+    )
+
+    assert evidence["status"] == "UNKNOWN"
+    assert evidence["reason_code"] == "STOP_BOOT_ORDER_CAPTURE_GAP"
+
+
+def test_reason_classifies_controlled_read_and_filesystem_errors() -> None:
+    assert (
+        _reason(ReadonlyEvidenceError("file_too_large"), "STOP_FALLBACK")
+        == "STOP_READONLY_FILE_TOO_LARGE"
+    )
+    assert (
+        _reason(OSError(errno.ELOOP, "private detail"), "STOP_FALLBACK")
+        == "STOP_FILESYSTEM_ELOOP"
+    )
+
+
+def test_masked_unit_dev_null_is_observed_without_reading_device(
+    tmp_path: Path,
+) -> None:
+    unit = "systemd-firstboot.service"
+
+    def runner(command_id: str, **kwargs: object) -> CommandResult:
+        assert command_id == "C4_UNIT"
+        assert kwargs["value"] == unit
+        return _result(
+            "systemctl",
+            (
+                f"Id={unit}\n"
+                "LoadState=masked\n"
+                "FragmentPath=/dev/null\n"
+                "DropInPaths=\n"
+                "ConditionResult=no\n"
+            ).encode(),
+        )
+
+    snapshot = _unit_snapshot(
+        tmp_path.as_posix(),
+        unit,
+        runner,
+        {unit},
+    )
+
+    assert snapshot["status"] == "OBSERVED"
+    assert snapshot["unit_file_bindings"] == [
+        {
+            "role": "fragment",
+            "path_class": "MASKED_NULL",
+            "sha256": None,
+        }
     ]
 
 
@@ -840,4 +1003,3 @@ def test_e6_empty_profile_does_not_prove_defaults(
         evidence["reason_code"]
         == "STOP_NETWORK_IDENTITY_UNKNOWN"
     )
-

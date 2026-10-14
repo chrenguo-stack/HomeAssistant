@@ -17,6 +17,7 @@ from n3w_t1_r2c_firstrun import (
     analyze_firstrun_tree,
 )
 from n3w_t1_r2c_readonly_commands import (
+    PACKAGE_SET,
     CommandResult,
     ReadonlyCommandError,
     run_contract_command,
@@ -128,10 +129,38 @@ def _parse_package_versions(text: str) -> dict[str, dict[str, str]]:
     for line in text.splitlines():
         parts = line.split("\t")
         if len(parts) != 3 or not all(parts):
-            raise R2CCollectError("PACKAGE_OUTPUT_INVALID")
+            raise R2CCollectError("STOP_PACKAGE_OUTPUT_INVALID")
         package, version, architecture = parts
+        if package not in PACKAGE_SET or package in result:
+            raise R2CCollectError("STOP_PACKAGE_OUTPUT_INVALID")
         result[package] = {"version": version, "architecture": architecture}
     return result
+
+
+def _package_inventory(
+    result: CommandResult,
+) -> tuple[dict[str, dict[str, str]], list[str]]:
+    if result.returncode not in {0, 1}:
+        raise R2CCollectError("STOP_PACKAGES_COMMAND_FAILED")
+    package_versions = _parse_package_versions(
+        _decode_text(result.stdout, "PACKAGES").strip()
+    )
+    missing = sorted(set(PACKAGE_SET) - set(package_versions))
+    if result.returncode == 0 and missing:
+        raise R2CCollectError("STOP_PACKAGE_OUTPUT_INCOMPLETE")
+    if result.returncode == 1:
+        if not missing:
+            raise R2CCollectError("STOP_PACKAGE_QUERY_NONZERO")
+        stderr = _decode_text(result.stderr, "PACKAGES").strip()
+        prefix = "dpkg-query: no packages found matching "
+        proven_absent = {
+            line.removeprefix(prefix)
+            for line in stderr.splitlines()
+            if line.startswith(prefix)
+        }
+        if proven_absent != set(missing):
+            raise R2CCollectError("STOP_PACKAGE_ABSENCE_UNPROVEN")
+    return package_versions, missing
 
 
 def collect_e1(
@@ -157,9 +186,7 @@ def collect_e1(
         systemd_text = _command_text(systemd, "SYSTEMD")
         architecture_text = _command_text(architecture, "ARCH")
         python_text = _command_text(python, "PYTHON")
-        package_versions = _parse_package_versions(
-            _command_text(packages, "PACKAGES")
-        )
+        package_versions, missing_packages = _package_inventory(packages)
     except (OSError, ReadonlyCommandError, ReadonlyEvidenceError, R2CCollectError) as error:
         envelope["status"] = "ERROR"
         envelope["reason_code"] = (
@@ -211,12 +238,21 @@ def collect_e1(
         },
         "OBSERVED",
     )
+    envelope["provenance"] = [
+        {
+            "method_id": "C3",
+            "query_returncode": packages.returncode,
+            "requested_package_count": len(PACKAGE_SET),
+            "observed_package_count": len(package_versions),
+            "absent_packages": missing_packages,
+        }
+    ]
     complete = (
         os_status == "OBSERVED"
         and armbian_status == "OBSERVED"
         and bool(systemd_text)
         and bool(architecture_text)
-        and bool(package_versions)
+        and len(package_versions) + len(missing_packages) == len(PACKAGE_SET)
     )
     if target_drift:
         envelope["status"] = "ERROR"

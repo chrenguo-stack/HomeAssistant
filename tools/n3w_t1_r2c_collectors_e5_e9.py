@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import fnmatch
 import hashlib
 import posixpath
@@ -139,6 +140,24 @@ def _reason(error: BaseException, fallback: str) -> str:
     value = str(error)
     if isinstance(error, RemainingCollectError) and REASON_RE.fullmatch(value):
         return value
+    if isinstance(error, ReadonlyEvidenceError):
+        readonly_reasons = {
+            "file_changed_during_read": "STOP_READONLY_FILE_CHANGED",
+            "file_too_large": "STOP_READONLY_FILE_TOO_LARGE",
+            "invalid_read_limit": "STOP_READONLY_INVALID_READ_LIMIT",
+            "invalid_relative_path": "STOP_READONLY_INVALID_PATH",
+            "invalid_scan_depth": "STOP_READONLY_INVALID_SCAN_DEPTH",
+            "invalid_scan_limit": "STOP_READONLY_INVALID_SCAN_LIMIT",
+            "not_regular_file": "STOP_READONLY_NOT_REGULAR",
+            "not_symlink": "STOP_READONLY_NOT_SYMLINK",
+            "scan_entry_limit": "STOP_TRUNCATED",
+        }
+        if value in readonly_reasons:
+            return readonly_reasons[value]
+    if isinstance(error, OSError) and error.errno in errno.errorcode:
+        reason = f"STOP_FILESYSTEM_{errno.errorcode[error.errno]}"
+        if REASON_RE.fullmatch(reason):
+            return reason
     return fallback
 
 
@@ -154,6 +173,30 @@ def _metadata(root: str, relative: str) -> dict[str, Any]:
         return inspect_metadata(root, relative)
     except FileNotFoundError:
         return {"status": "ABSENT", "kind": None, "size": None}
+
+
+def _resolve_usr_merge_relative(
+    root: str,
+    relative: str,
+) -> tuple[str | None, str | None]:
+    if relative != "lib" and not relative.startswith("lib/"):
+        return relative, None
+    try:
+        metadata = _metadata(root, "lib")
+        if metadata["status"] == "ABSENT" or metadata["kind"] == "directory":
+            return relative, None
+        if metadata["kind"] != "symlink":
+            return None, "USR_MERGE_ALIAS_UNRESOLVED"
+        target = read_symlink_target(root, "lib")
+    except (OSError, ReadonlyEvidenceError):
+        return None, "USR_MERGE_ALIAS_UNREADABLE"
+    if target not in {"usr/lib", "/usr/lib"}:
+        return None, "USR_MERGE_ALIAS_UNAPPROVED"
+    suffix = relative.removeprefix("lib").lstrip("/")
+    resolved = "usr/lib"
+    if suffix:
+        resolved = f"{resolved}/{suffix}"
+    return resolved, None
 
 
 def _scan(
@@ -281,6 +324,15 @@ def _unit_file_bindings(
             continue
         try:
             relative = _relative_absolute(path)
+            relative, alias_unresolved = _resolve_usr_merge_relative(
+                root,
+                relative,
+            )
+            if alias_unresolved or relative is None:
+                unresolved.append(
+                    alias_unresolved or "USR_MERGE_ALIAS_UNRESOLVED"
+                )
+                continue
             metadata = _metadata(root, relative)
             if (
                 metadata["status"] != "OBSERVED"
@@ -346,11 +398,21 @@ def _unit_snapshot(
             "reason": "LOAD_STATE_MISSING",
         }
     fragment_path = values.get("FragmentPath", "")
+    masked_null = load_state == "masked" and fragment_path == "/dev/null"
     bindings, unresolved = _unit_file_bindings(
         root,
-        fragment_path,
+        "" if masked_null else fragment_path,
         values.get("DropInPaths", ""),
     )
+    if masked_null:
+        bindings.insert(
+            0,
+            {
+                "role": "fragment",
+                "path_class": "MASKED_NULL",
+                "sha256": None,
+            },
+        )
     if load_state == "loaded" and not fragment_path:
         unresolved.append("UNIT_FRAGMENT_PATH_MISSING")
     timestamps: dict[str, int | None] = {}
@@ -1027,9 +1089,23 @@ def collect_e6(
     total_entries = 0
     try:
         for role, relative, depth in roots:
-            records, status = _scan(
+            scan_relative, alias_unresolved = _resolve_usr_merge_relative(
                 root,
                 relative,
+            )
+            if alias_unresolved or scan_relative is None:
+                unresolved.add(
+                    alias_unresolved or "USR_MERGE_ALIAS_UNRESOLVED"
+                )
+                inventory[role] = {
+                    "status": "UNKNOWN",
+                    "entry_count": 0,
+                    "role_counts": {},
+                }
+                continue
+            records, status = _scan(
+                root,
+                scan_relative,
                 max_depth=depth,
             )
             total_entries = _add_scan_count(
@@ -1371,6 +1447,18 @@ def collect_e7(
             ("PERSISTENT", "var/log/journal"),
             ("RUNTIME", "run/log/journal"),
         ):
+            root_metadata = _metadata(root, relative)
+            if (
+                root_metadata["status"] == "OBSERVED"
+                and root_metadata["kind"] != "directory"
+            ):
+                roots[role] = {
+                    "status": "UNKNOWN",
+                    "kind": root_metadata["kind"],
+                    "entry_count": 0,
+                }
+                unresolved.add("JOURNAL_ROOT_NOT_DIRECTORY")
+                continue
             records, status = _scan(
                 root,
                 relative,
@@ -1382,6 +1470,11 @@ def collect_e7(
             )
             roots[role] = {
                 "status": status,
+                "kind": (
+                    "directory"
+                    if status == "OBSERVED"
+                    else None
+                ),
                 "entry_count": len(records),
             }
             prefix_depth = len(relative.split("/"))
@@ -1753,15 +1846,28 @@ def _unit_link_edges(
     edges: list[dict[str, str]] = []
     unresolved: set[str] = set()
     total_entries = 0
+    bases: list[str] = []
+    for candidate in (
+        "etc/systemd/system",
+        "run/systemd/system",
+        "usr/lib/systemd/system",
+        "lib/systemd/system",
+    ):
+        resolved, alias_unresolved = _resolve_usr_merge_relative(
+            root,
+            candidate,
+        )
+        if alias_unresolved or resolved is None:
+            unresolved.add(
+                alias_unresolved or "USR_MERGE_ALIAS_UNRESOLVED"
+            )
+            continue
+        if resolved not in bases:
+            bases.append(resolved)
     for unit in units:
         for relation in ("wants", "requires"):
             suffix = f"{unit}.{relation}"
-            for base in (
-                "etc/systemd/system",
-                "run/systemd/system",
-                "usr/lib/systemd/system",
-                "lib/systemd/system",
-            ):
+            for base in bases:
                 relative = f"{base}/{suffix}"
                 metadata = _metadata(root, relative)
                 if metadata["status"] == "ABSENT":
