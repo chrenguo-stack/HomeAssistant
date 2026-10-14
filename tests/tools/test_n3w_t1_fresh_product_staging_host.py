@@ -26,68 +26,95 @@ def load_tool():
 
 
 def manifest() -> dict[str, object]:
+    reserve = 5 * 1024 * 1024 * 1024
     images = {
         "homeassistant": {
-            "path": "artifact/homeassistant-arm64.tar",
+            "path": "incoming/homeassistant-arm64.tar",
+            "artifact_file": "homeassistant-arm64.tar",
+            "tar_sha256": "a" * 64,
             "tar_size_bytes": 1000,
             "loaded_size_bytes": 1400,
+            "required_free_bytes": reserve + 2400,
             "image_ref": "local/ha:test",
         },
         "manager": {
-            "path": "artifact/greenhouse-manager-arm64.tar",
+            "path": "incoming/greenhouse-manager-arm64.tar",
+            "artifact_file": "greenhouse-manager-arm64.tar",
+            "tar_sha256": "b" * 64,
             "tar_size_bytes": 200,
             "loaded_size_bytes": 250,
+            "required_free_bytes": reserve + 450,
             "image_ref": "local/manager:test",
         },
         "broker": {
-            "path": "artifact/broker-arm64.tar",
+            "path": "incoming/broker-arm64.tar",
+            "artifact_file": "broker-arm64.tar",
+            "tar_sha256": "c" * 64,
             "tar_size_bytes": 100,
             "loaded_size_bytes": 120,
+            "required_free_bytes": reserve + 220,
             "image_ref": "local/broker:test",
         },
     }
     return {
-        "files": [
-            {"path": record["path"], "size": record["tar_size_bytes"]}
-            for record in images.values()
-        ],
+        "source_head": "d" * 40,
+        "images": {
+            label: {
+                **record,
+                "image": record["image_ref"],
+            }
+            for label, record in images.items()
+        },
+        "files": [],
         "transport": {
-            "schema": "gh.n3w-t1-fresh-transport/1",
+            "schema": "gh.n3w-t1-fresh-transport/2",
             "remote_staging_root": "/var/tmp",
-            "minimum_post_peak_free_bytes": 5 * 1024 * 1024 * 1024,
-            "payload_uncompressed_bytes": 1500,
+            "minimum_post_peak_free_bytes": reserve,
+            "runtime_payload_uncompressed_bytes": 1500,
             "image_load_order": ["homeassistant", "manager", "broker"],
             "images": images,
         },
     }
 
 
-def test_transport_plan_keeps_five_gib_after_worst_peak() -> None:
+def capacity() -> dict[str, object]:
+    m = manifest()
+    return {
+        "schema": "gh.n3w-t1-fresh-capacity/1",
+        "source_head": m["source_head"],
+        "minimum_post_peak_free_bytes": 5 * 1024 * 1024 * 1024,
+        "image_load_order": ["homeassistant", "manager", "broker"],
+        "images": m["transport"]["images"],
+    }
+
+
+def test_transport_plan_keeps_five_gib_after_worst_step() -> None:
     tool = load_tool()
     remote_free = 8 * 1024 * 1024 * 1024
     plan = tool._plan_transport(
         manifest(),
         archive_size_bytes=500,
         remote_free_bytes=remote_free,
+        capacity=capacity(),
     )
 
-    assert plan.extraction_peak_bytes == 2000
-    assert plan.image_load_peak_bytes == 3900
-    assert plan.content_store_estimate_bytes == 1300
-    assert plan.snapshot_store_estimate_bytes == 1770
-    assert plan.required_peak_bytes == 3900
-    assert plan.required_free_bytes == 3900 + 5 * 1024 * 1024 * 1024
+    assert plan.runtime_extraction_peak_bytes == 2000
+    assert plan.worst_image_required_free_bytes == (
+        5 * 1024 * 1024 * 1024 + 2400
+    )
+    assert plan.remote_staged_image_count_max == 1
     assert plan.capacity_pass is True
 
 
-def test_transport_plan_fails_without_post_peak_reserve() -> None:
+def test_transport_plan_fails_without_worst_image_envelope() -> None:
     tool = load_tool()
-    required = 3900 + 5 * 1024 * 1024 * 1024
+    required = 5 * 1024 * 1024 * 1024 + 2400
 
     plan = tool._plan_transport(
         manifest(),
         archive_size_bytes=500,
         remote_free_bytes=required - 1,
+        capacity=capacity(),
     )
 
     assert plan.capacity_pass is False
