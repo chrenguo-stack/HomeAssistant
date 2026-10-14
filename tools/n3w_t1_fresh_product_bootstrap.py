@@ -195,11 +195,14 @@ def _load_manifest(root: Path) -> dict[str, Any]:
         ):
             raise BootstrapError("payload_file_record_invalid")
         expected[relative] = (digest, size)
-    actual = {
-        item.relative_to(root).as_posix(): item
-        for item in root.rglob("*")
-        if item.is_file() and item.name != "payload-manifest.json"
-    }
+    actual: dict[str, Path] = {}
+    for item in root.rglob("*"):
+        if not item.is_file():
+            continue
+        relative = item.relative_to(root).as_posix()
+        if relative in {"payload-manifest.json", CLAIM_MARKER_NAME}:
+            continue
+        actual[relative] = item
     if set(actual) != set(expected):
         raise BootstrapError("payload_file_set_invalid")
     for relative, item in actual.items():
