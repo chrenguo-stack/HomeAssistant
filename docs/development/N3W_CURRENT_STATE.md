@@ -1,3 +1,52 @@
+## 2026-10-14 — F3 preauth preparation CLOSED_PASS / fresh read-only preclaim next
+
+```text
+TASK=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_PREAUTH_PREPARATION_20261014_01
+RESULT=CLOSED_PASS_REPOSITORY_PREPARATION
+
+MAIN=0030585ad88d75b399b56849dafc235429bb3299
+F3_ARTIFACT_SOURCE_HEAD=3e05e82a7d7e871d2966e78e8cb5caff601a0152
+F3_ARTIFACT_RUN_ID=38536117520
+F3_ARTIFACT_ID=11880082975
+F3_ARTIFACT_DIGEST=sha256:de6228bd453b0c9de31cb80778b9b50e6df8620a4c2131dcebd8fa3ff29c1f97
+RUNTIME_PAYLOAD_SHA256=747f1c58314d10bba5e51bf3c26cb4621158a06f2f82e912511b10bbce09f752
+PAYLOAD_MANIFEST_SHA256=7a20577dfe1ee61902d92441bcebc73d744cf038775993ee61e1ab05dc43b9d0
+
+F3_ARTIFACT_SOURCE_EQUIVALENT_TO_MAIN_FOR_F3_CRITICAL_SOURCE=true
+F3_EXECUTION_MODEL=PUBLIC_STAGING_THEN_EXPLICIT_DEVICE_PROVISIONING
+F3_AUTHORIZATION_ID=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_20261014_01
+F3_AUTHORIZATION_GRANTED=false
+F3_AUTHORIZATION_CLAIMED=false
+F3_AUTHORIZATION_CONSUMED=false
+
+T1_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+PRODUCTION_SERVICE_START=false
+
+NEXT_ONE_GATE=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_FRESH_READONLY_PRECLAIM_20261014_01
+AUTO_EXECUTE_F3_APPLY=false
+```
+
+F3 repository preparation revalidated the merged-main source, exact F2-bound deployable artifact, host wrapper,
+baseline installer, public staging/bootstrap, explicit provisioning entrypoint and F3/F4 service boundary.
+The artifact source is four commits behind current main, but the intervening changes are only PR #542 F2
+tooling/workflow/docs; no F3-critical source drift was found.
+
+F3 is explicitly two live substeps after authorization: first exact public staging (including Docker baseline
+installation if still required and one-image-at-a-time loads), then explicit per-device provisioning through
+`n3w-t1-provision start/verify`. Production Broker/Manager/Home Assistant activation remains F4-only.
+
+Rollback classification is also frozen: if Docker baseline installation succeeds but a later F3 staging step
+fails, product transaction cleanup may leave a Docker-ready minimal host rather than the original Docker-free
+F2 host. That is not a full rollback to the exact pre-F3 host and must be classified honestly.
+
+No T1 access or mutation occurred during this preparation. The next gate is a fresh read-only target preclaim;
+it cannot transfer payload, install packages, mutate Docker/product state, or claim the F3 authorization.
+
+Authority:
+`docs/development/N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_PREAUTH_PREPARATION_20261014.md`.
+
 ## 2026-10-14 — F2 real fresh-Armbian read-only preflight CLOSED_PASS / PR #542 merge next
 
 ```text
