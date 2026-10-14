@@ -1698,6 +1698,31 @@ def _authorization_record_present(
     return True
 
 
+def _authorization_record_matches(
+    payload_root: Path,
+    manifest: dict[str, Any],
+) -> bool:
+    if not _authorization_record_present():
+        return False
+    path = _authorization_record_path()
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise BootstrapError("authorization_record_invalid") from error
+    marker = payload_root / CLAIM_MARKER_NAME
+    if (
+        marker.is_symlink()
+        or not marker.is_file()
+        or marker.read_text(encoding="utf-8").strip() != AUTHORIZATION_ID
+    ):
+        return False
+    return bool(
+        document.get("source_head") == manifest.get("source_head")
+        and document.get("payload_manifest_sha256")
+        == _sha256_file(payload_root / "payload-manifest.json")
+    )
+
+
 def _claim_authorization(
     payload_root: Path,
     manifest: dict[str, Any],
@@ -1757,7 +1782,10 @@ def _claim_authorization(
         os.fsync(stream.fileno())
 
 
-def execute_apply(payload_root: Path, authorization_id: str, runner: Runner | None = None) -> dict[str, object]:
+def execute_claim(
+    payload_root: Path,
+    authorization_id: str,
+) -> dict[str, object]:
     if authorization_id != AUTHORIZATION_ID:
         raise BootstrapError("authorization_id_mismatch")
     if os.geteuid() != 0:
@@ -1765,6 +1793,34 @@ def execute_apply(payload_root: Path, authorization_id: str, runner: Runner | No
     manifest = _load_manifest(payload_root)
     if _authorization_record_present():
         raise BootstrapError("authorization_already_consumed")
+    _claim_authorization(payload_root, manifest)
+    return {
+        "schema": SCHEMA,
+        "status": "PASS",
+        "phase": "claim",
+        "event": "authorization_claimed",
+        "authorization_id": AUTHORIZATION_ID,
+        "authorization_claimed": True,
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "source_head": manifest["source_head"],
+        "production_service_start": False,
+        "board_access": False,
+    }
+
+
+def execute_apply(payload_root: Path, authorization_id: str, runner: Runner | None = None) -> dict[str, object]:
+    if authorization_id != AUTHORIZATION_ID:
+        raise BootstrapError("authorization_id_mismatch")
+    if os.geteuid() != 0:
+        raise BootstrapError("root_required")
+    manifest = _load_manifest(payload_root)
+    record_present = _authorization_record_present()
+    preclaimed = False
+    if record_present:
+        if not _authorization_record_matches(payload_root, manifest):
+            raise BootstrapError("authorization_already_consumed")
+        preclaimed = True
     active = runner or Runner()
     adapters = LiveFreshInstallerAdapters(payload_root, manifest, active)
     contract = _load_contract(payload_root)
@@ -1787,10 +1843,13 @@ def execute_apply(payload_root: Path, authorization_id: str, runner: Runner | No
         )
 
     candidate = Path("/var/tmp") / f"n3w-fresh-bootstrap-{secrets.token_hex(8)}"
-    claimed = False
+    claimed = preclaimed
 
     def claim_once() -> None:
         nonlocal claimed
+        if preclaimed:
+            claimed = True
+            return
         claim()
         claimed = True
 
@@ -1868,7 +1927,11 @@ def self_check(payload_root: Path) -> dict[str, object]:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--payload-root", type=Path, required=True)
-    parser.add_argument("--phase", choices=("self-check", "preflight", "apply"), required=True)
+    parser.add_argument(
+        "--phase",
+        choices=("self-check", "preflight", "claim", "apply"),
+        required=True,
+    )
     parser.add_argument("--authorization-id")
     return parser
 
@@ -1881,6 +1944,10 @@ def main() -> int:
             result = self_check(root)
         elif args.phase == "preflight":
             result = execute_preflight(root)
+        elif args.phase == "claim":
+            if not args.authorization_id:
+                raise BootstrapError("authorization_id_required")
+            result = execute_claim(root, args.authorization_id)
         else:
             if not args.authorization_id:
                 raise BootstrapError("authorization_id_required")
