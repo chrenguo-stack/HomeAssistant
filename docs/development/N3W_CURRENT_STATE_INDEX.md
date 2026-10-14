@@ -1,3 +1,14 @@
+## 2026-10-14 — R2C E1 collection diagnostic source repair CLOSED_SOURCE
+
+- Source repair: `4898e519c317195dc22915a8d7b47f246a4121cf`.
+- E1 now preserves bounded command, read-only evidence and filesystem failure classes instead of collapsing them into one generic reason.
+- Standard systemd realpaths are accepted only through an exact allowlist plus root ownership, regular-file, executable and no group/world-write checks.
+- Validation: 87/87 local R2C tests PASS; Ruff PASS; tool-unit tests 9 PASS; public repository safety PASS; exact source-head CI 42 SUCCESS, 1 conditional skip, 0 failure.
+- Historical E1 remains ERROR and the immutable report is unchanged; no target result is promoted.
+- No T1 access, authorization reuse, target write, service mutation, board access or merge occurred.
+- Authority: `docs/development/N3W_T1_GOLDEN_MASTER_R2C_E1_COLLECTION_DIAGNOSTIC_SOURCE_REPAIR_20261014.md`.
+- Any future target observation requires fresh Gate 0/1 and a new explicit one-shot authorization.
+
 ## 2026-10-14 — R2C repaired-source one-shot PASS / capture still FAILED
 
 - Exact source `a7cf9b569133bcd6a08ace65027b4730cdd54a11` executed once after fresh private preclaim.

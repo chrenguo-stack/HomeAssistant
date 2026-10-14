@@ -1,3 +1,40 @@
+## 2026-10-14 — R2C E1 collection diagnostic source repair CLOSED_SOURCE
+
+~~~text
+TASK=N3W_T1_GOLDEN_MASTER_R2C_E1_COLLECTION_DIAGNOSTIC_SOURCE_REPAIR
+SOURCE_REPAIR=4898e519c317195dc22915a8d7b47f246a4121cf
+RESULT=CLOSED_SOURCE
+LOCAL_R2C_TESTS=87/87_PASS
+RUFF=PASS
+PUBLIC_REPOSITORY_SAFETY=PASS
+SOURCE_HEAD_CI=42_SUCCESS_1_CONDITIONAL_SKIP_0_FAILURE
+HISTORICAL_E1_STATUS=ERROR
+HISTORICAL_REPORT_CHANGED=false
+E1_TARGET_OBSERVATION_PROVEN=false
+T1_ACCESS=false
+AUTHORIZATION_REUSED=false
+MERGE=false
+OS_IDENTITY_SEMANTICS_PROVEN=false
+CONTROLLED_CLONE_BOOT_REQUIRED=true
+DISK_CAPTURE_READY=false
+~~~
+
+Repository-only repair now preserves bounded E1 command, read-only evidence and filesystem
+failure classes instead of collapsing them into `STOP_E1_COLLECTION_ERROR`. Exact standard
+systemd realpaths outside the command search directories are accepted only when root-owned,
+regular, executable and not group/world-writable; all other out-of-path targets remain rejected.
+The exact source-repair head completed PR #541 CI with 42 successful checks, one conditional
+skip and zero failures.
+
+The historical report is immutable and still records E1 ERROR. No new target observation is
+claimed, no T1 access occurred and the consumed authorization was not reused.
+
+Authority:
+`docs/development/N3W_T1_GOLDEN_MASTER_R2C_E1_COLLECTION_DIAGNOSTIC_SOURCE_REPAIR_20261014.md`.
+
+Any future target observation requires a fresh exact-source/package rebind, fresh Gate 0/1 and
+a new explicit one-shot authorization.
+
 ## 2026-10-14 — R2C repaired-source one-shot PASS / capture still FAILED
 
 ~~~text
