@@ -1,3 +1,91 @@
+## 2026-10-14 — F3 R2 live-apply preexecution closure / new-chat handoff next
+
+```text
+TASK=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_R2_PREEXECUTION_ALIGNMENT_20261014_01
+RESULT=CLOSED_PASS_READY_FOR_NEW_AUTHORIZATION_DECISION
+
+GITHUB_MAIN=0030585ad88d75b399b56849dafc235429bb3299
+GITHUB_MAIN_TREE=df60fe244c15565466a4ab6a7ded5c45ced929e6
+LOCAL_EXECUTION_HEAD=0030585ad88d75b399b56849dafc235429bb3299
+LOCAL_MAIN_BINDING=PASS
+LOCAL_WORKTREE_CLEAN=UNKNOWN_FRESH:RECHECK_BEFORE_R2_APPLY
+
+PR_544=OPEN_DRAFT_MERGEABLE
+R2_SOURCE_BRANCH=fix/n3w-t1-f3-claim-marker-payload-set-20261014
+R2_SOURCE_HEAD=2615cfa07205cc12c82159bf087d36a7f930c2bb
+R2_SOURCE_TREE=ebaa477e52c224ade0b86b6c7d6c45d62738ea5c
+R2_SOURCE_CI=14_SUCCESS_0_FAILURE_0_PENDING
+
+R2_ARTIFACT_RUN_ID=38571591838
+R2_ARTIFACT_JOB_ID=115877938113
+R2_ARTIFACT_ID=11897938768
+R2_ARTIFACT_NAME=n3w-t1-fresh-bootstrap-deployable-2615cfa07205cc12c82159bf087d36a7f930c2bb
+R2_ARTIFACT_DIGEST=sha256:381bd702ac89ec91aa59661e6058569027870e8ab3324f3fa7f8e214edd4262a
+R2_RUNTIME_PAYLOAD_SHA256=443887ace8e265008470044761b92a412336b855b0f79ae5c2633da16f755086
+R2_PAYLOAD_MANIFEST_SHA256=e2745281d37f675f6e769bc795c33a4dc766131ce44faa88ea9ffb4e87501fbf
+R2_POST_UPLOAD_BINDING=PASS
+
+OLD_F3_AUTHORIZATION_ID=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_20261014_01
+OLD_F3_AUTHORIZATION_CLAIMED=true
+OLD_F3_AUTHORIZATION_CONSUMED=true
+OLD_F3_AUTHORIZATION_REPLAY_PERMITTED=false
+OLD_F3_RESULT=STOP_PARTIAL:payload_file_set_invalid
+
+KF_114=GUARDED_SOURCE_LIVE_REVALIDATION_PENDING
+
+POST_FAILURE_READONLY_PROBE=PASS
+R2_EXACT_ARTIFACT_PREFLIGHT=PASS
+R2_HOST_BASELINE=PASS
+R2_CAPACITY_ADMISSION=PASS
+
+R2_AUTHORIZATION_ID=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R2_20261014_01
+R2_AUTHORIZATION_GRANTED=false
+R2_AUTHORIZATION_CLAIMED=false
+R2_AUTHORIZATION_CONSUMED=false
+
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+F4_AUTHORIZATION_GRANTED=false
+
+PARALLEL_DOCS_PR_543=OPEN_DRAFT
+PARALLEL_DOCS_HEAD=69fa2f9129a0ad8844f3550582e39115e4037035
+PARALLEL_DOCS_CI=11_SUCCESS_0_FAILURE_0_PENDING
+PARALLEL_DOCS_SCOPE=F3_PREAUTH_RECORD_PLUS_F5_CONTROLLED_OVERRIDE_AND_SSH_CONNECTION_REUSE_DESIGN
+PARALLEL_DOCS_AFFECT_R2_EXECUTABLE_SOURCE=false
+
+NEXT_ONE_GATE=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R2_20261014_01
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+The first F3 live attempt durably consumed its exact one-shot authorization and then failed before public
+product staging because the strict payload inventory treated the bootstrap's own root-level
+`.authorization-claimed` marker as unexpected payload drift. The source root cause is proven and repaired:
+the exact control marker is excluded from immutable payload inventory while remaining independently bound to
+the durable authorization ledger and exact manifest. All other unknown payload files still fail closed.
+
+Fresh post-failure evidence proves the target is at a clean recoverable boundary: Docker/Compose are installed
+and healthy; product containers/images/volumes are zero; only default Docker networks exist; product paths,
+N3W systemd units and product listeners are absent; the old payload/manifest and claim marker remain exact;
+no image tar is staged. The old authorization is permanently consumed/no-replay.
+
+The repaired exact R2 artifact passed a fresh target preflight against the current Docker-ready host. Latest
+preflight reported Ubuntu 26.04 resolute/aarch64, Docker 29.1.3, Compose 2.40.3+ds1-0ubuntu1, 11,866,329,088
+bytes free, worst-image required free 10,135,822,686 bytes, capacity PASS, no payload transfer, no Docker
+mutation, no production service start and no R2 authorization claim.
+
+Local Mac execution HEAD was freshly confirmed equal to GitHub main at `0030585...`. No fresh worktree-clean
+proof was captured after that binding check, so the R2 live gate must recheck it before mutation.
+
+PR #543 remains a separate docs-only draft branch containing the approved F5 controlled-override and
+one-password SSH-connection-reuse designs. Those future production-flow decisions do not change the exact R2
+executable source or artifact and must not be merged into the R2 live gate implicitly.
+
+Authority:
+- `docs/development/N3W_T1_F3_CLAIM_MARKER_PAYLOAD_SET_FAILURE_R2_SOURCE_REPAIR_20261014.md`
+- `docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md:KF-114`
+- PR #544 exact source/artifact evidence
+- PR #543 docs-only future-production design evidence
+
 ## 2026-10-14 — F2 real fresh-Armbian read-only preflight CLOSED_PASS / PR #542 merge next
 
 ```text
