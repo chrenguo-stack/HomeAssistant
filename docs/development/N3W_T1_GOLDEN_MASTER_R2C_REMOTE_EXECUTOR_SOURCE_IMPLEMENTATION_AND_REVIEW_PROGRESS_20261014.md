@@ -5,12 +5,15 @@
 ```text
 TASK=N3W_T1_GOLDEN_MASTER_R2C_REMOTE_EXECUTOR_SOURCE_IMPLEMENTATION_AND_REVIEW_20261014_01
 SOURCE_CANDIDATE=01256f67fc6b7496b476963ede37496abe099327
+VALIDATION_HEAD=7f7daca7f62e964147b715063d8ed17cf9be7767
+CURRENT_CANDIDATE_HEAD=0fb4a6787c81e180925e203aa687d2f47b99dc0d
+VALIDATION_HEAD_CI=27/27_PASS
 PR=541
 PR_STATE=OPEN_DRAFT
 R2C_E5_E9_SOURCE=CLOSED_SOURCE
-R2C_REMOTE_EXECUTOR=IMPLEMENTED_REVIEWED_CI_PENDING
+R2C_REMOTE_EXECUTOR=CLOSED_SOURCE
 FOCUSED_SOURCE_REVIEW=PASS_NO_OPEN_SOURCE_BLOCKER
-EXACT_SOURCE_CI_CLOSURE=PENDING
+EXACT_SOURCE_CI_CLOSURE=PASS
 EXECUTION_READY=false
 ACTUAL_R2C_EVIDENCE_EXECUTION=false
 ACTUAL_T1_EXECUTION_AUTHORIZATION_GRANTED=false
@@ -88,29 +91,40 @@ The executor intentionally leaves `static_review_status=NOT_EXECUTED`,
 `disk_capture_ready=false`. A successful capture therefore cannot auto-enter Seal or clone
 acceptance.
 
-## 5. Exact-source CI stop
+## 5. Exact-source CI closure
 
-For exact source candidate `01256f67fc6b7496b476963ede37496abe099327`, the third allowed
-CI observation still showed the relevant runs queued:
+The exact validation head 7f7daca7f62e964147b715063d8ed17cf9be7767 has a complete
+27/27 PASS workflow snapshot. The key gate runs are:
 
-- Golden Master source CI: run `38481657513`;
-- Public repository safety CI: run `38481657467`.
+- Golden Master source CI: 38482867521 — success;
+- Public repository safety CI: 38482867451 — success;
+- Production stack staging payload CI: 38482867190 — success.
 
-There was no completed failure on this exact head at the stop. Per
-`N3W_PROJECT_WORKING_CONTEXT.md`, do not continue polling this exact head in this reply.
+All 27 workflow runs associated with the validation head completed successfully; there is
+no pending or failed workflow in this exact-head snapshot.
 
-Direct links:
+Fresh compare from validation head to current candidate head
+0fb4a6787c81e180925e203aa687d2f47b99dc0d is one commit, adding only
+docs/development/N3W_T1_GOLDEN_MASTER_R2C_REMOTE_EXECUTOR_SOURCE_CLOSURE_ARCHIVE_NEW_CHAT_HANDOFF_V1.0_20261014.md.
+There is no source, test, or workflow drift after validation.
 
-- https://github.com/chrenguo-stack/HomeAssistant/actions/runs/38481657513
-- https://github.com/chrenguo-stack/HomeAssistant/actions/runs/38481657467
-- https://github.com/chrenguo-stack/HomeAssistant/pull/541/checks
+The remote executor source blob and its focused test blob remain unchanged from the reviewed
+implementation. The 01256f67... → 7f7daca7... delta contains only the previously reviewed
+Ruff bytes-fixture correction in tests/tools/test_n3w_t1_r2c_collectors.py; it does not
+weaken remote-executor coverage.
 
-## 6. Current STOP point
+## 6. Current closure and STOP point
 
 ```text
 R2C_REMOTE_EXECUTOR_SOURCE_IMPLEMENTATION=COMPLETE
 R2C_REMOTE_EXECUTOR_FOCUSED_REVIEW=PASS
-R2C_REMOTE_EXECUTOR_SOURCE_CLOSURE=PENDING_EXACT_SOURCE_CI
+R2C_REMOTE_EXECUTOR_SOURCE_CLOSURE=CLOSED_SOURCE
+REMOTE_EXECUTOR_IMPLEMENTATION_HEAD=01256f67fc6b7496b476963ede37496abe099327
+REMOTE_EXECUTOR_VALIDATION_HEAD=7f7daca7f62e964147b715063d8ed17cf9be7767
+VALIDATION_HEAD_CI=27/27_PASS
+CURRENT_CANDIDATE_HEAD=0fb4a6787c81e180925e203aa687d2f47b99dc0d
+HANDOFF_ADVANCE=DOCS_ONLY
+OPEN_SOURCE_BLOCKER_COUNT=0
 EXECUTION_READY=false
 ACTUAL_T1_EXECUTION_AUTHORIZATION_GRANTED=false
 ACTUAL_R2C_EVIDENCE_EXECUTION=false
@@ -120,9 +134,10 @@ CLONE_ACCEPTANCE=false
 T1_ACCESS=false
 BOARD_ACCESS=false
 MERGE=false
-STOP=EXACT_SOURCE_CI_PENDING_AFTER_THIRD_POLL
+STOP=BEFORE_R2C_TARGET_ARMBIAN_READONLY_EVIDENCE_PREEXECUTION
 ```
 
-If the exact-source CI becomes green, the next repository action is source closure/archive only.
-Actual T1 read-only evidence still requires a fresh target/host-key binding and a new explicit
-R2C authorization; it is not implied by this source gate.
+This source gate is closed. Actual T1 read-only evidence still requires a fresh
+target/host-key binding and a new explicit R2C authorization; it is not implied by
+this repository source closure. No target execution, authorization claim, Seal/disk/clone
+operation, board access, or merge is entered automatically.
