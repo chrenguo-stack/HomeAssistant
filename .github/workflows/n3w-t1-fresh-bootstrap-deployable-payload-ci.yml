@@ -257,23 +257,26 @@ jobs:
                   "image": manager_image,
                   "image_id": manager_id,
                   "platform": "linux/arm64",
-                  "path": "artifact/greenhouse-manager-arm64.tar",
+                  "artifact_file": "greenhouse-manager-arm64.tar",
+                  "path": "incoming/greenhouse-manager-arm64.tar",
               },
               "homeassistant": {
                   "image": "local/n3w-homeassistant:2026.10.0-0c73235a",
                   "image_id": "sha256:b0e1ee82adfb19fa1ff3049034535633b1c4f0df6606721c0e77383854b99879",
                   "platform": "linux/arm64",
-                  "path": "artifact/homeassistant-arm64.tar",
+                  "artifact_file": "homeassistant-arm64.tar",
+                  "path": "incoming/homeassistant-arm64.tar",
               },
               "broker": {
                   "image": "local/n3w-mosquitto:2.1.2-3184566d",
                   "image_id": "sha256:4c199d7c9d377d018313a2199f6839978f6fd2219c405ad664d0a830c14b9c7b",
                   "platform": "linux/arm64",
-                  "path": "artifact/broker-arm64.tar",
+                  "artifact_file": "broker-arm64.tar",
+                  "path": "incoming/broker-arm64.tar",
               },
           }
           for record in images.values():
-              path = root / record["path"]
+              path = root / "artifact" / record["artifact_file"]
               record["tar_sha256"] = sha(path)
               record["tar_size_bytes"] = path.stat().st_size
               inspected = json.loads(
