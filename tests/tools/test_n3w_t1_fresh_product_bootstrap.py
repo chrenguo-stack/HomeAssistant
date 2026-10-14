@@ -348,6 +348,31 @@ def test_authorization_ledger_blocks_same_authorization_across_payload_dirs(
         tool._claim_authorization(second, manifest)
 
 
+def test_claim_marker_is_not_payload_inventory_drift(tmp_path: Path) -> None:
+    tool = load_tool()
+    manifest = {
+        "schema": tool.PAYLOAD_SCHEMA,
+        "authorization_id": tool.AUTHORIZATION_ID,
+        "source_head": "a" * 40,
+        "files": [],
+        "images": {},
+    }
+    (tmp_path / "payload-manifest.json").write_text(
+        json.dumps(manifest),
+        encoding="utf-8",
+    )
+    (tmp_path / tool.CLAIM_MARKER_NAME).write_text(
+        tool.AUTHORIZATION_ID + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        tool.BootstrapError,
+        match="payload_image_inventory_invalid",
+    ):
+        tool._load_manifest(tmp_path)
+
+
 def test_stopped_postcheck_splits_state_owner_and_root_audits() -> None:
     source = TOOL.read_text(encoding="utf-8")
 
