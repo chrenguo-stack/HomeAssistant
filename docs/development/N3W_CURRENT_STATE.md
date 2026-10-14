@@ -1,3 +1,55 @@
+## 2026-10-14 — R2C repaired-source Gate 0/1 CLOSED_PASS / STOP before target execution
+
+~~~text
+TASK=N3W_T1_GOLDEN_MASTER_R2C_REPAIRED_SOURCE_TARGET_ARMBIAN_READONLY_EVIDENCE_GATE_0_1_20261014_01
+RESULT=CLOSED_PASS_PREPARATION_ONLY
+SOURCE_AUTHORITY=4898e519c317195dc22915a8d7b47f246a4121cf
+HANDOFF_COMMIT=13bdaabcaa16212885e47ef38d65fc3c31c5af92
+SOURCE_TEST_WORKFLOW_DRIFT=false
+
+EXECUTOR_BLOB=7d18066b2a80701ced8f43f939c7a965a1a14d99
+CONTRACT_BLOB=b575e33be67676f8b5e61fac6bc4a94a3dce37ff
+CONTRACT_SHA256=f3f0213cca63918341b9b0221133d882eb8e24f444d8432f8fdf1f94929b6866
+STREAMED_PROGRAM_BYTES=195807
+STREAMED_PROGRAM_SHA256=a1a4b86ec2aa1e27e74e00ee2e1c345379f5e340088f030e638e4f4137edf178
+MODULE_BINDINGS=PASS
+
+AUTHORIZATION_GRANTED=false
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+PRIVATE_TARGET_PRECLAIM=PENDING
+T1_ACCESS=false
+SSH_EXECUTION=false
+SSH_KEYSCAN=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+GATE_0=PASS
+GATE_1=PASS
+EXECUTION_READY=false
+NEXT_ROUTE=SEPARATE_PRIVATE_FINAL_PRECLAIM_AND_NEW_EXPLICIT_ONE_SHOT_AUTHORIZATION_DECISION
+AUTO_EXECUTE_NEXT_GATE=false
+STOP=true
+~~~
+
+Fresh compare from `4898e519...` to the handoff head proved two documentation-only commits and
+no source/test/workflow drift. Exact source and handoff heads each show 27/27 successful workflow
+runs in the fresh GitHub workflow-run view; the source closure's finer check summary remains
+42 SUCCESS, 1 conditional skip, 0 failure.
+
+The exact seven-module streamed program was reconstructed without contacting T1. Contract,
+module blobs, program size/hash, strict host-key policy, bounded timeout/output behavior,
+exclusive one-shot claim handling and public/private evidence boundaries all passed Gate 0/1
+review.
+
+Private target locator, existing host-key binding and future grant/execution identifiers remain
+outside public GitHub. No new authorization was granted or claimed. Stop before any SSH request,
+Seal, disk capture, clone boot, board action or merge.
+
+Authority:
+`docs/development/N3W_T1_GOLDEN_MASTER_R2C_REPAIRED_SOURCE_TARGET_ARMBIAN_READONLY_EVIDENCE_GATE_0_1_CLOSURE_20261014.md`.
+
 ## 2026-10-14 — Current formal handoff: R2C repaired source to Gate 0/1
 
 ~~~text
