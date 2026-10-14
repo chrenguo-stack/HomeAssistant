@@ -43,6 +43,7 @@ BROKER_UID = 1883
 BROKER_GID = 1883
 PRODUCT_UNITS = (
     "n3wfc4-broker-ingress-guard.service",
+    "n3wfc4-provision-resume.service",
     "n3wfc4-broker-activation.service",
     "n3wfc4-services-activation.service",
     "n3wfc4-broker-certificate-lifecycle.service",
@@ -59,7 +60,11 @@ FINAL_DIRS = {
 }
 FINAL_FILES = {
     "/usr/local/sbin/n3w-broker-ingress-guard": "stage/n3w-broker-ingress-guard",
+    "/usr/local/sbin/n3w-t1-provision": "stage/n3w-t1-provision",
+    "/usr/local/sbin/n3w-t1-systemd-staged-install": "stage/n3w-t1-systemd-staged-install",
+    "/usr/local/sbin/n3w-t1-production-activation-enable": "stage/n3w-t1-production-activation-enable",
     "/etc/systemd/system/n3wfc4-broker-ingress-guard.service": "stage/n3wfc4-broker-ingress-guard.service",
+    "/etc/systemd/system/n3wfc4-provision-resume.service": "stage/n3wfc4-provision-resume.service",
 }
 PUBLIC_FINAL_DIRS = {
     "/opt/HomeAssistant": FINAL_DIRS["/opt/HomeAssistant"],
@@ -207,6 +212,11 @@ def _load_manifest(root: Path) -> dict[str, Any]:
     for label, record in images.items():
         if not isinstance(record, dict):
             raise BootstrapError(f"payload_image_record_invalid:{label}")
+        relative = record.get("path")
+        artifact_file = record.get("artifact_file")
+        tar_size = record.get("tar_size_bytes")
+        loaded_size = record.get("loaded_size_bytes")
+        required_free = record.get("required_free_bytes")
         if (
             not isinstance(record.get("image"), str)
             or re.fullmatch(r"sha256:[0-9a-f]{64}", str(record.get("image_id"))) is None
@@ -236,17 +246,31 @@ def _load_manifest(root: Path) -> dict[str, Any]:
                 str(record.get("docker_archive_record_sha256")),
             )
             is None
-            or not isinstance(record.get("path"), str)
+            or not isinstance(relative, str)
+            or not relative.startswith("incoming/")
+            or Path(relative).name != relative.split("/", 1)[1]
+            or not isinstance(artifact_file, str)
+            or Path(artifact_file).name != artifact_file
             or re.fullmatch(r"[0-9a-f]{64}", str(record.get("tar_sha256"))) is None
+            or not isinstance(tar_size, int)
+            or isinstance(tar_size, bool)
+            or tar_size <= 0
+            or not isinstance(loaded_size, int)
+            or isinstance(loaded_size, bool)
+            or loaded_size <= 0
+            or not isinstance(required_free, int)
+            or isinstance(required_free, bool)
+            or required_free <= tar_size
         ):
             raise BootstrapError(f"payload_image_record_invalid:{label}")
-        image_path = root / str(record["path"])
-        if (
-            not image_path.is_file()
-            or image_path.is_symlink()
-            or _sha256_file(image_path) != record["tar_sha256"]
-        ):
-            raise BootstrapError(f"payload_image_tar_binding_invalid:{label}")
+    transport = document.get("transport")
+    if (
+        not isinstance(transport, dict)
+        or transport.get("schema") != "gh.n3w-t1-fresh-transport/2"
+        or transport.get("image_load_order") != ["homeassistant", "manager", "broker"]
+        or transport.get("minimum_post_peak_free_bytes") != MIN_ROOT_FREE_BYTES
+    ):
+        raise BootstrapError("payload_transport_invalid")
     lock = document.get("image_lock")
     if not isinstance(lock, dict) or lock.get("schema") != "gh.n3w-t1-fresh-production-image-lock/1":
         raise BootstrapError("payload_image_lock_invalid")
@@ -505,17 +529,53 @@ class LiveFreshInstallerAdapters:
         }
 
     def load_images(self):
-        for label in ("homeassistant", "manager", "broker"):
+        transport = self.manifest["transport"]
+        reserve = int(transport["minimum_post_peak_free_bytes"])
+        incoming = self.payload_root / "incoming"
+        incoming.mkdir(mode=0o700, exist_ok=True)
+        for label in tuple(transport["image_load_order"]):
             record = self.manifest["images"][label]
+            tar_path = self.payload_root / str(record["path"])
+            unexpected = [
+                path.name
+                for path in incoming.iterdir()
+                if path.is_file() and path != tar_path
+            ]
+            if unexpected:
+                raise BootstrapError("multiple_staged_image_tars_forbidden")
+            print(
+                json.dumps(
+                    {
+                        "schema": SCHEMA,
+                        "event": "image_requested",
+                        "label": label,
+                        "path": record["path"],
+                        "artifact_file": record["artifact_file"],
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+                flush=True,
+            )
+            deadline = time.monotonic() + 1800.0
+            while not tar_path.exists():
+                if time.monotonic() >= deadline:
+                    raise BootstrapError(f"image_transfer_timeout:{label}")
+                time.sleep(0.25)
+            if (
+                tar_path.is_symlink()
+                or not tar_path.is_file()
+                or tar_path.stat().st_size != int(record["tar_size_bytes"])
+                or _sha256_file(tar_path) != record["tar_sha256"]
+            ):
+                raise BootstrapError(f"image_tar_binding_invalid:{label}")
+            free_before_load = shutil.disk_usage(self.payload_root).free
+            if free_before_load < int(record["loaded_size_bytes"]) + reserve:
+                raise BootstrapError(f"image_capacity_insufficient:{label}")
             image = str(record["image"])
             self.created_images.append(image)
             self.runner.run(
-                (
-                    "docker",
-                    "load",
-                    "--input",
-                    str(self.payload_root / str(record["path"])),
-                ),
+                ("docker", "load", "--input", str(tar_path)),
                 timeout=1800,
             )
             self.loaded_image_bindings[label] = _verify_runtime_image(
@@ -523,8 +583,22 @@ class LiveFreshInstallerAdapters:
                 label,
                 record,
             )
-            tar_path = self.payload_root / str(record["path"])
             tar_path.unlink()
+            if shutil.disk_usage(self.payload_root).free < reserve:
+                raise BootstrapError(f"postload_reserve_breached:{label}")
+            print(
+                json.dumps(
+                    {
+                        "schema": SCHEMA,
+                        "event": "image_loaded",
+                        "label": label,
+                        "staged_tar_deleted": True,
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+                flush=True,
+            )
         return {
             "status": "PASS",
             "image_count": 3,
