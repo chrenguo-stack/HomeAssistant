@@ -94,3 +94,27 @@ def test_check_reports_missing_when_docker_is_not_installed(
     assert report["status"] == "MISSING"
     assert report["docker_active"] is False
     assert report["docker_version"] is None
+
+
+def test_install_is_idempotent_when_approved_baseline_is_ready(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(baseline.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(
+        baseline,
+        "_os_release",
+        lambda: {
+            "ID": "ubuntu",
+            "VERSION_ID": "26.04",
+            "VERSION_CODENAME": "resolute",
+        },
+    )
+    monkeypatch.setattr(baseline.platform, "machine", lambda: "aarch64")
+    monkeypatch.setattr(baseline.shutil, "which", lambda _name: "/usr/bin/docker")
+    runner = FakeRunner()
+
+    report = baseline.execute_install(runner)
+
+    assert report["status"] == "PASS"
+    assert report["installed"] is False
+    assert all(command[0] != "apt-get" for command in runner.commands)
