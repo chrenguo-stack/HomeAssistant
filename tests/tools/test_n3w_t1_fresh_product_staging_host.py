@@ -636,6 +636,7 @@ def _run_apply_main(
     process_returncode: int,
     run_results: list[object],
     claim_failure: bool = False,
+    claim_record_state: bool | None = False,
 ) -> tuple[int, dict[str, object]]:
     tool = load_tool()
     work = tmp_path / "work"
@@ -678,6 +679,11 @@ def _run_apply_main(
         def fail_claim(*_args, **_kwargs):
             raise tool.FreshHostTransportError("authorization_claim_failed")
         monkeypatch.setattr(tool, "_remote_claim_authorization", fail_claim)
+        monkeypatch.setattr(
+            tool,
+            "_remote_authorization_record_state",
+            lambda *_args, **_kwargs: claim_record_state,
+        )
     else:
         monkeypatch.setattr(
             tool,
@@ -896,6 +902,50 @@ def test_claim_failure_remains_preclaim_and_replayable(
     assert report["authorization_consumed"] is False
     assert report["payload_transfer"] is True
     assert report["docker_mutation"] is False
+    assert report["remote_payload_preserved"] is True
+
+
+def test_claim_failure_with_durable_record_is_consumed_no_replay(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    rc, report = _run_apply_main(
+        monkeypatch,
+        tmp_path,
+        process_lines=[],
+        process_returncode=1,
+        run_results=[],
+        claim_failure=True,
+        claim_record_state=True,
+    )
+
+    assert rc == 2
+    assert report["status"] == "STOP_PARTIAL"
+    assert report["authorization_claimed"] is True
+    assert report["authorization_consumed"] is True
+    assert report["replay_allowed"] is False
+    assert report["remote_payload_preserved"] is True
+
+
+def test_claim_failure_with_unknown_record_state_is_consumed_no_replay(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    rc, report = _run_apply_main(
+        monkeypatch,
+        tmp_path,
+        process_lines=[],
+        process_returncode=1,
+        run_results=[],
+        claim_failure=True,
+        claim_record_state=None,
+    )
+
+    assert rc == 2
+    assert report["status"] == "STOP_UNKNOWN"
+    assert report["authorization_claimed"] is None
+    assert report["authorization_consumed"] is True
+    assert report["replay_allowed"] is False
     assert report["remote_payload_preserved"] is True
 
 
