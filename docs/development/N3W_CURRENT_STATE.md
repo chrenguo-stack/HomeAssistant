@@ -1,3 +1,48 @@
+## 2026-10-14 — R2C repaired-source one-shot PASS / capture still FAILED
+
+~~~text
+R2C_EXECUTION_SOURCE_HEAD=a7cf9b569133bcd6a08ace65027b4730cdd54a11
+R2C_EXECUTION_RESULT=PASS
+R2C_REMOTE_EXIT=0
+R2C_CAPTURE_STATUS=FAILED
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+REPLAY_PERMITTED=false
+T1_ACCESS=true
+INTENTIONAL_TARGET_WRITE=false
+SERVICE_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+E1=ERROR
+E2=UNKNOWN
+E3=UNKNOWN
+E4=UNKNOWN
+E5=UNKNOWN
+E6=UNKNOWN
+E7=UNKNOWN
+E8=OBSERVED_COMPLETE
+E9=UNKNOWN
+POST_CAPTURE_PUBLIC_PROJECTION_REVIEW=PASS
+OS_IDENTITY_SEMANTICS_PROVEN=false
+CONTROLLED_CLONE_BOOT_REQUIRED=true
+DISK_CAPTURE_READY=false
+~~~
+
+The new exact one-shot grant was claimed after a complete private final-preclaim. One bounded
+SSH execution completed with remote exit zero and valid report schema. No target write or
+service mutation occurred. The grant is consumed and cannot be replayed.
+
+The repaired collectors converted E6/E7/E9 generic errors to bounded UNKNOWN results, but E1
+still returned `STOP_E1_COLLECTION_ERROR`. E2-E5 remain unresolved and only E8 is complete.
+The public candidate is reproducible and passed the post-capture safety review. Raw private
+evidence remains outside the repository.
+
+Authority:
+`docs/development/N3W_T1_GOLDEN_MASTER_R2C_READONLY_EVIDENCE_REEXECUTION_CLOSURE_20261014.md`.
+
+Next gate is repository-only E1 collection diagnostic review and repair. Any later target run
+requires a new source/package rebind and a new explicit one-shot authorization.
+
 ## 2026-10-14 — R2C evidence-gap source review and repair CLOSED_SOURCE
 
 ~~~text

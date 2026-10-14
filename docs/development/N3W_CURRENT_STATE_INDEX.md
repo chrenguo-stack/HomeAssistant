@@ -1,3 +1,14 @@
+## 2026-10-14 — R2C repaired-source one-shot PASS / capture still FAILED
+
+- Exact source `a7cf9b569133bcd6a08ace65027b4730cdd54a11` executed once after fresh private preclaim.
+- SSH transport, remote exit and report schema passed; authorization claimed/consumed=true and replay=false.
+- No intentional target write, service mutation, board access or merge occurred.
+- E6/E7/E9 are now bounded UNKNOWN rather than generic ERROR; E1 remains `STOP_E1_COLLECTION_ERROR`; E2-E5 remain UNKNOWN; E8 remains complete.
+- Public candidate is reproducible and passed post-capture safety review without raw values or private target identifiers.
+- OS identity semantics remain unproven; controlled clone boot remains required; disk capture and Final Seal remain forbidden.
+- Authority: `docs/development/N3W_T1_GOLDEN_MASTER_R2C_READONLY_EVIDENCE_REEXECUTION_CLOSURE_20261014.md`.
+- Next gate is repository-only E1 diagnostic review and repair; any later target run requires a new explicit one-shot authorization.
+
 ## 2026-10-14 — R2C evidence-gap source review and repair CLOSED_SOURCE
 
 - Source-repair authority: `040caff5dabe13bc419155593a32f4e2a727a309`.
