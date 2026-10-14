@@ -31,6 +31,8 @@ ARTIFACT_OUTER_FILES = frozenset(
         "executor.sha256",
         "host-wrapper.py",
         "host-wrapper.sha256",
+        "host-baseline.py",
+        "host-baseline.sha256",
         "runtime-payload.sha256",
         "runtime-payload.tar.gz",
         "payload-manifest.sha256",
@@ -287,6 +289,10 @@ def _verify_outer_artifact(
     wrapper_sha = _sha256_file(downloaded_wrapper)
     if _read_sidecar(work / "host-wrapper.sha256") != wrapper_sha:
         raise FreshHostTransportError("host_wrapper_sidecar_mismatch")
+    baseline = work / "host-baseline.py"
+    baseline_sha = _sha256_file(baseline)
+    if _read_sidecar(work / "host-baseline.sha256") != baseline_sha:
+        raise FreshHostTransportError("host_baseline_sidecar_mismatch")
     current = Path(__file__).resolve()
     if current.is_file() and _sha256_file(current) != wrapper_sha:
         raise FreshHostTransportError("running_host_wrapper_not_exact_artifact_copy")
@@ -856,6 +862,94 @@ def _transfer_requested_image(
     )
 
 
+def _remote_baseline_report(
+    t1: str,
+    baseline_tool: Path,
+    phase: str,
+) -> dict[str, Any]:
+    if phase not in {"check", "install"}:
+        raise FreshHostTransportError("host_baseline_phase_invalid")
+    source = baseline_tool.read_text(encoding="utf-8")
+    command = _remote_command(("python3", "-c", source, "--phase", phase))
+    completed = _run(
+        ("ssh", "-n", t1, command),
+        timeout=2400 if phase == "install" else 120,
+        check=False,
+    )
+    output = completed.stdout.strip() or completed.stderr.strip()
+    documents = []
+    for line in output.splitlines():
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            documents.append(value)
+    if not documents:
+        raise FreshHostTransportError("host_baseline_output_invalid")
+    report = documents[-1]
+    if completed.returncode != 0 or report.get("status") == "STOP":
+        raise FreshHostTransportError(
+            f"host_baseline_{phase}_failed:{str(report.get('reason') or report.get('status'))[:200]}"
+        )
+    return report
+
+
+def _remote_root_free_bytes(t1: str) -> int:
+    completed = _run(
+        (
+            "ssh",
+            "-n",
+            t1,
+            _remote_command(("df", "-B1", "--output=avail", "/")),
+        ),
+        timeout=30,
+    )
+    values = [
+        line.strip()
+        for line in completed.stdout.splitlines()
+        if line.strip().isdigit()
+    ]
+    if len(values) != 1:
+        raise FreshHostTransportError("root_free_probe_invalid")
+    return int(values[0])
+
+
+def _remote_claim_authorization(
+    t1: str,
+    remote_dir: str,
+    authorization: str,
+) -> None:
+    command = _remote_command(
+        (
+            "python3",
+            f"{remote_dir}/tools/n3w_t1_fresh_product_bootstrap.py",
+            "--payload-root",
+            remote_dir,
+            "--phase",
+            "claim",
+            "--authorization-id",
+            authorization,
+        )
+    )
+    completed = _run(("ssh", "-n", t1, command), timeout=120, check=False)
+    claimed = False
+    for line in completed.stdout.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if (
+            isinstance(event, dict)
+            and event.get("event") == "authorization_claimed"
+            and event.get("authorization_id") == authorization
+            and event.get("authorization_consumed") is True
+        ):
+            claimed = True
+    if completed.returncode != 0 or not claimed:
+        raise FreshHostTransportError("authorization_claim_failed")
+
+
 def _authorization_record_remote_path(authorization_id: str) -> str:
     digest = hashlib.sha256(authorization_id.encode("utf-8")).hexdigest()
     return f"{AUTHORIZATION_LEDGER_ROOT}/{digest}.json"
@@ -907,6 +1001,56 @@ def main() -> int:
         )
         capacity = _capacity_contract(work, manifest)
         _verify_image_artifacts(work, manifest, capacity)
+        baseline_tool = work / "host-baseline.py"
+        baseline = _remote_baseline_report(args.t1, baseline_tool, "check")
+
+        if args.phase == "preflight" and baseline.get("status") != "PASS":
+            _emit(
+                {
+                    "schema": "gh.n3w-t1-fresh-host-preflight/1",
+                    "status": "PASS",
+                    "phase": "preflight",
+                    "host_baseline": baseline,
+                    "host_baseline_install_required": True,
+                    "root_free_bytes": _remote_root_free_bytes(args.t1),
+                    "capacity_admission": "DEFER_UNTIL_POST_BASELINE",
+                    "payload_transfer": False,
+                    "docker_mutation": False,
+                    "production_service_start": False,
+                    "authorization_claimed": False,
+                    "authorization_consumed": False,
+                    "board_access": False,
+                }
+            )
+            return 0
+
+        manifest_authorization = manifest.get("authorization_id")
+        if args.phase == "apply":
+            if (
+                not isinstance(manifest_authorization, str)
+                or not manifest_authorization
+                or args.authorization_id != manifest_authorization
+            ):
+                raise FreshHostTransportError("authorization_id_mismatch")
+            authorization = manifest_authorization
+            remote_dir = _remote_mktemp(args.t1, "n3w-fresh-bootstrap")
+            payload_transfer_started = True
+            _remote_prepare_payload(
+                args.t1,
+                remote_dir,
+                archive,
+                archive_sha256=args.archive_sha256,
+                manifest_sha256=args.manifest_sha256,
+            )
+            payload_transfer_complete = True
+            _remote_claim_authorization(args.t1, remote_dir, authorization)
+            claim_seen = True
+            remote_apply_started = True
+            if baseline.get("status") != "PASS":
+                baseline = _remote_baseline_report(args.t1, baseline_tool, "install")
+                if baseline.get("status") != "PASS":
+                    raise FreshHostTransportError("host_baseline_install_not_ready")
+
         storage = _remote_storage_report(args.t1)
         plan = _plan_transport(
             manifest,
@@ -926,8 +1070,11 @@ def main() -> int:
                     "schema": "gh.n3w-t1-fresh-host-preflight/1",
                     "status": "PASS",
                     "phase": "preflight",
+                    "host_baseline": baseline,
+                    "host_baseline_install_required": False,
                     "storage": storage,
                     "transport": plan.to_dict(),
+                    "capacity_admission": "PASS",
                     "payload_transfer": False,
                     "docker_mutation": False,
                     "production_service_start": False,
@@ -938,25 +1085,8 @@ def main() -> int:
             )
             return 0
 
-        manifest_authorization = manifest.get("authorization_id")
-        if (
-            not isinstance(manifest_authorization, str)
-            or not manifest_authorization
-            or args.authorization_id != manifest_authorization
-        ):
-            raise FreshHostTransportError("authorization_id_mismatch")
-        authorization = manifest_authorization
-
-        remote_dir = _remote_mktemp(args.t1, "n3w-fresh-bootstrap")
-        payload_transfer_started = True
-        _remote_prepare_payload(
-            args.t1,
-            remote_dir,
-            archive,
-            archive_sha256=args.archive_sha256,
-            manifest_sha256=args.manifest_sha256,
-        )
-        payload_transfer_complete = True
+        assert authorization is not None
+        assert remote_dir is not None
         command = _remote_command(
             (
                 "python3",
