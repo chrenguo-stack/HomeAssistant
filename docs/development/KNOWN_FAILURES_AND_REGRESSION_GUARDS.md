@@ -1,3 +1,22 @@
+## 2026-10-14 — KF-113 per-device fresh-route active-path guard after F0
+
+```text
+F0_RESULT=CLOSED_PASS_SOURCE_DESIGN
+GOLDEN_MASTER_SOURCE_RETAINED_AS_HISTORY=true
+GOLDEN_MASTER_SOURCE_ALLOWED_IN_ACTIVE_FRESH_PAYLOAD=false
+SEALED_IMAGE_CLONE_READBACK_ALLOWED_IN_FRESH_PROVISION_PRECHECK=false
+ALL_THREE_IMAGE_TARS_MATERIALIZED_TOGETHER=false
+F3_ENABLE_PRODUCTION_ACTIVATION_UNITS=false
+MIN_POST_PEAK_FREE_BYTES_POLICY=KEEP_EXISTING_5_GIB
+```
+
+Guard: ADR-0010 does not make retired Golden Master/Seal/clone source illegal to retain, but that
+source must not remain in the active per-device fresh artifact, import/call path or provisioning
+precondition. F3 must finish with Broker/Manager/Home Assistant stopped and must not enable their
+activation units. The 5 GiB capacity reserve remains unchanged until a separate evidence-backed
+decision changes it. F1 must use exact one-image-at-a-time delivery with fail-closed per-image
+capacity checks and an externally inspectable capacity sidecar.
+
 ## 2026-10-14 — KF-113 Golden Master clone route retired by product decision
 
 ```text

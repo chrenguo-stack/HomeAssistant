@@ -1,3 +1,14 @@
+## 2026-10-14 — Per-device fresh Armbian F0 source/gap review CLOSED_PASS
+
+- Reviewed exact candidate head `f7bf8828c72f2df9fe497c05c4a2b4557d3f695b` / tree `a3595a1ea67b648c399eb24f9913be36ed13a6af`; PR #541 remains open draft/unmerged; 27/27 exact-head workflows succeeded.
+- Selected default delivery: Mac one-image-at-a-time verified stage/load; no full payload archive and no three simultaneous image tars on T1.
+- Direct T1 registry pull is not selected because HA/Broker have exact external digests but Manager currently only has exact source-build + bound artifact authority, not a published registry digest.
+- Five F1 gaps are frozen: Docker/Compose fresh-host install, transport /2 + capacity sidecar, Golden Master removal from active payload, fresh-host provisioning preflight replacing clone-only semantics, and stopped-boundary-safe systemd/resume wiring.
+- Existing 5 GiB reserve remains unchanged. F1 will emit the exact dynamic per-image capacity envelope; F2 will bind it to fresh T1 free space.
+- No T1 access, live mutation, service start, board access or merge occurred.
+- Closure: `docs/development/N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F0_SOURCE_REBIND_AND_GAP_REVIEW_CLOSURE_20261014.md`.
+- Stop before F1; no automatic transition.
+
 ## 2026-10-14 — Current formal handoff: per-device fresh Armbian deployment to F0
 
 - Formal handoff: `docs/development/N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_PRODUCT_DEPLOYMENT_F0_NEW_CHAT_HANDOFF_V1.0_20261014.md`.

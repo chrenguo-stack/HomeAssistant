@@ -1,3 +1,48 @@
+## 2026-10-14 — Per-device fresh Armbian F0 CLOSED_PASS / STOP before F1
+
+~~~text
+TASK=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F0_SOURCE_REBIND_AND_GAP_REVIEW_20261014_01
+REVIEWED_SOURCE_HEAD=f7bf8828c72f2df9fe497c05c4a2b4557d3f695b
+REVIEWED_SOURCE_TREE=a3595a1ea67b648c399eb24f9913be36ed13a6af
+RESULT=CLOSED_PASS_SOURCE_DESIGN
+PR_541=OPEN_DRAFT_UNMERGED
+SOURCE_CI=27_SUCCESS_0_FAILURE_0_PENDING
+
+SELECTED_IMAGE_DELIVERY_CONTRACT=MAC_ONE_IMAGE_AT_A_TIME_VERIFIED_STAGE_LOAD_V2
+TARGET_REGISTRY_PULL_DEFAULT=false
+MANAGER_EXTERNAL_REGISTRY_DIGEST_AUTHORITY=ABSENT
+ALL_THREE_IMAGE_TARS_MATERIALIZED_TOGETHER=false
+FULL_PAYLOAD_ARCHIVE_ON_T1=false
+MIN_POST_PEAK_FREE_BYTES_POLICY=KEEP_EXISTING_5_GIB
+
+F1_REQUIRED=true
+F2_FRESH_T1_READONLY_PREFLIGHT_NOT_ENTERED=true
+F3_LIVE_DEPLOYMENT_NOT_AUTHORIZED=true
+F4_ACTIVATION_NOT_AUTHORIZED=true
+T1_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+NEXT_ROUTE=F1_INSTALLER_AND_TRANSPORT_SOURCE_REPAIR_DECISION
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+F0 fresh rebind found five bounded active-route gaps: fresh Armbian currently has no repository-owned
+Docker/Compose install step; transport /1 still materializes all three image tars; fresh artifact still
+packages/runs Golden Master helpers; explicit provisioning still requires sealed-image/clone-readback
+preflight; and current systemd persistence enablement is incompatible with the F3 stopped boundary.
+
+Default delivery is now frozen to Mac one-image-at-a-time verified staging/load. HA and Broker retain
+exact external digest authority; Manager remains exact source-build + bound artifact and has no current
+external registry digest, so target-side three-image registry pull is not the minimal F1 route.
+
+Capacity is changed from one stale static full-payload peak to an exact per-image dynamic envelope.
+The existing 5 GiB reserve is not lowered. F1 must emit a small capacity sidecar; F2 must compare that
+envelope with a fresh target free-space reading. No F0 live capacity PASS is claimed.
+
+Authority:
+`docs/development/N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F0_SOURCE_REBIND_AND_GAP_REVIEW_CLOSURE_20261014.md`.
+
 ## 2026-10-14 — Current formal handoff: per-device fresh Armbian deployment to F0
 
 ~~~text
