@@ -1,3 +1,24 @@
+## 2026-10-14 — Current formal handoff: per-device fresh Armbian deployment to F0
+
+~~~text
+FORMAL_HANDOFF=docs/development/N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_PRODUCT_DEPLOYMENT_F0_NEW_CHAT_HANDOFF_V1.0_20261014.md
+HANDOFF_TEMPLATE_VERSION=1.3
+PROJECT_WORKING_CONTEXT_VERSION=1.1
+SOURCE_AUTHORITY=7736ddcef5fb28947048f0a7a4ae367a63c94ab3
+SOURCE_TREE=8697a554baf72dc05459b1e40fdfa6c4c07e6f8f
+SOURCE_HEAD_CI=27_SUCCESS_0_FAILURE_0_PENDING
+IMPORTANT_CHAT_ONLY_ARTIFACT_COUNT=0
+TEAM_SHARE_COMPLETENESS=PASS
+NEXT_ONE_GATE=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F0_SOURCE_REBIND_AND_GAP_REVIEW_20261014_01
+T1_ACCESS_DURING_HANDOFF=false
+NEW_ROUTE_LIVE_AUTHORIZATION_GRANTED=false
+MERGE=false
+~~~
+
+新会话只进入 repository-only F0：重新盘点可复用源码、选择容量安全的 exact image delivery
+合同、重算峰值容量并冻结 F1 最小修复清单。不得访问 T1、实现 F1、重开 R2C/Seal/clone、
+claim authorization、执行 live/board mutation 或 merge。
+
 ## 2026-10-14 — Golden Master clone route RETIRED / per-device fresh Armbian approved
 
 ~~~text

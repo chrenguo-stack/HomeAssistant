@@ -1,3 +1,13 @@
+## 2026-10-14 — Current formal handoff: per-device fresh Armbian deployment to F0
+
+- Formal handoff: `docs/development/N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_PRODUCT_DEPLOYMENT_F0_NEW_CHAT_HANDOFF_V1.0_20261014.md`.
+- Correct template: candidate-branch `NEW_CHAT_HANDOFF_TEMPLATE.md` V1.3 / blob `b9ef40acdaa8fae37feb5ffe5662afd0e89462a0`.
+- Source authority: `7736ddcef5fb28947048f0a7a4ae367a63c94ab3`; exact source-head CI 27/27 success, zero failure/pending.
+- Current product route: per-device official Armbian install followed by repository-owned automated HA/Manager/Broker deployment and explicit provisioning.
+- Next one gate: `N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F0_SOURCE_REBIND_AND_GAP_REVIEW_20261014_01`.
+- F0 is GitHub/repository only: no T1 access, F1 implementation, authorization claim, live mutation, board access or merge.
+- Important chat-only artifact count is zero; team-share completeness is PASS.
+
 ## 2026-10-14 — Golden Master clone route retired; per-device fresh Armbian is current
 
 - Architecture authority: `docs/adr/0010-t1-per-device-fresh-armbian-automated-product-deployment.md`.
