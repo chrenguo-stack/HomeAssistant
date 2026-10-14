@@ -1,3 +1,18 @@
+## 2026-10-14 — F3 R2 preexecution aligned / new-chat live authorization decision next
+
+- GitHub main and local execution HEAD are both `0030585ad88d75b399b56849dafc235429bb3299`; main tree `df60fe244c15565466a4ab6a7ded5c45ced929e6`; local worktree cleanliness requires one fresh recheck before mutation.
+- PR #544 is OPEN/DRAFT/MERGEABLE. Exact repaired executable source is `2615cfa07205cc12c82159bf087d36a7f930c2bb` / tree `ebaa477e52c224ade0b86b6c7d6c45d62738ea5c`; source CI 14/14 SUCCESS.
+- Exact R2 artifact: run `38571591838`, job `115877938113`, artifact ID `11897938768`, digest `sha256:381bd702ac89ec91aa59661e6058569027870e8ab3324f3fa7f8e214edd4262a`.
+- R2 runtime payload SHA-256 `443887ace8e265008470044761b92a412336b855b0f79ae5c2633da16f755086`; payload manifest SHA-256 `e2745281d37f675f6e769bc795c33a4dc766131ce44faa88ea9ffb4e87501fbf`; post-upload binding PASS.
+- First F3 authorization `...F3_LIVE_APPLY_20261014_01` is durably claimed+consumed and permanently no-replay after `STOP_PARTIAL:payload_file_set_invalid`.
+- Root cause is proven and recorded as KF-114: post-claim apply re-read treated the legitimate root-level `.authorization-claimed` marker as payload drift. Repair excludes only that exact control marker while retaining independent ledger/marker/manifest binding and hard failure for every other unknown file.
+- Post-failure target probe PASS: Docker baseline installed/active; zero product containers/images/volumes; only default networks; product paths/units/listeners absent; old exact payload and claim marker preserved; zero staged image tars.
+- Exact R2 read-only preflight PASS: Ubuntu 26.04/resolute/aarch64, Docker 29.1.3, Compose 2.40.3+ds1-0ubuntu1, capacity PASS, no payload transfer, no Docker mutation, no service start, no R2 authorization claim.
+- Proposed R2 authorization: `N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R2_20261014_01`; granted=false, claimed=false, consumed=false.
+- PR #543 remains a separate docs-only OPEN/DRAFT branch at `69fa2f9129a0ad8844f3550582e39115e4037035`, CI 11/11 SUCCESS. Its F5 controlled-override and one-password SSH connection-reuse designs do not change R2 executable source/artifact.
+- F4 remains unauthorized; Golden Master/R2C/Seal/clone route remains retired.
+- Next one gate: `N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R2_20261014_01`; execute only in the next chat after fresh rebind and explicit new authorization.
+
 ## 2026-10-14 — F2 fresh T1 real read-only preflight CLOSED_PASS / PR #542 merge next
 
 - PR #542 exact accepted source: `33bf71de0cf35984af74e1614aca72a893890b38` / tree `0ee122fcafb424ef94a79ab14c79dcb292a7a030`.
