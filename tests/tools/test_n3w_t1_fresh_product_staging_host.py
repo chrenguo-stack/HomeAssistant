@@ -635,6 +635,7 @@ def _run_apply_main(
     process_lines: list[str],
     process_returncode: int,
     run_results: list[object],
+    claim_failure: bool = False,
 ) -> tuple[int, dict[str, object]]:
     tool = load_tool()
     work = tmp_path / "work"
@@ -664,6 +665,25 @@ def _run_apply_main(
         },
     )
     monkeypatch.setattr(tool, "_capacity_contract", lambda *_args, **_kwargs: capacity())
+    monkeypatch.setattr(
+        tool,
+        "_remote_baseline_report",
+        lambda *_args, **_kwargs: {
+            "status": "PASS",
+            "docker_active": True,
+            "production_service_start": False,
+        },
+    )
+    if claim_failure:
+        def fail_claim(*_args, **_kwargs):
+            raise tool.FreshHostTransportError("authorization_claim_failed")
+        monkeypatch.setattr(tool, "_remote_claim_authorization", fail_claim)
+    else:
+        monkeypatch.setattr(
+            tool,
+            "_remote_claim_authorization",
+            lambda *_args, **_kwargs: None,
+        )
     monkeypatch.setattr(tool, "_verify_image_artifacts", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
         tool,
@@ -784,7 +804,7 @@ def test_marker_probe_failure_after_claim_is_consumed_no_replay(
     assert report["replay_allowed"] is False
 
 
-def test_marker_probe_failure_without_claim_is_unknown_and_consumed(
+def test_marker_probe_failure_after_durable_preclaim_is_partial(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -798,8 +818,8 @@ def test_marker_probe_failure_without_claim_is_unknown_and_consumed(
     )
 
     assert rc == 2
-    assert report["status"] == "STOP_UNKNOWN"
-    assert report["authorization_claimed"] is None
+    assert report["status"] == "STOP_PARTIAL"
+    assert report["authorization_claimed"] is True
     assert report["authorization_consumed"] is True
     assert report["replay_allowed"] is False
 
@@ -855,29 +875,25 @@ def test_postsuccess_cleanup_failure_preserves_consumed_state(
     assert report["public_product_staged"] is True
 
 
-def test_preclaim_failure_does_not_claim_and_does_not_fake_cleanup_success(
+def test_claim_failure_remains_preclaim_and_replayable(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     tool = load_tool()
-
-    class MarkerAbsent:
-        returncode = 1
-
-    class CleanupFailed:
-        returncode = 255
 
     rc, report = _run_apply_main(
         monkeypatch,
         tmp_path,
         process_lines=[],
         process_returncode=1,
-        run_results=[MarkerAbsent(), CleanupFailed()],
+        run_results=[],
+        claim_failure=True,
     )
 
-    assert rc == 1
+    assert rc == 2
     assert report["status"] == "STOP_PRECLAIM"
     assert report["authorization_claimed"] is False
     assert report["authorization_consumed"] is False
-    assert report["remote_payload_removed"] is False
+    assert report["payload_transfer"] is True
+    assert report["docker_mutation"] is False
     assert report["remote_payload_preserved"] is True
