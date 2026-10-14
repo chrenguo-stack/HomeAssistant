@@ -1180,7 +1180,7 @@ def main() -> int:
                     "authorization_claimed": True,
                     "authorization_consumed": True,
                     "replay_allowed": False,
-                    "fresh_product_staged": True,
+                    "public_product_staged": True,
                     "remote_payload_removed": False,
                     "remote_payload_preserved": True,
                     "production_service_start": False,
