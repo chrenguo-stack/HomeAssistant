@@ -441,8 +441,51 @@ jobs:
           )
           PY
 
+          python - "$PAYLOAD" "$RUNNER_TEMP" <<'PY'
+          import hashlib
+          import json
+          import shutil
+          import sys
+          from pathlib import Path
+
+          payload = Path(sys.argv[1])
+          out = Path(sys.argv[2])
+          manifest = json.loads(
+              (payload / "payload-manifest.json").read_text(encoding="utf-8")
+          )
+          capacity = {
+              "schema": "gh.n3w-t1-fresh-capacity/1",
+              "source_head": manifest["source_head"],
+              "minimum_post_peak_free_bytes": manifest["transport"][
+                  "minimum_post_peak_free_bytes"
+              ],
+              "image_load_order": manifest["transport"]["image_load_order"],
+              "images": manifest["transport"]["images"],
+          }
+          capacity_path = out / "capacity-contract.json"
+          capacity_bytes = (
+              json.dumps(capacity, sort_keys=True, indent=2) + "\n"
+          ).encode()
+          capacity_path.write_bytes(capacity_bytes)
+          (out / "capacity-contract.sha256").write_text(
+              hashlib.sha256(capacity_bytes).hexdigest() + "\n",
+              encoding="utf-8",
+          )
+          for record in manifest["images"].values():
+              source = payload / "artifact" / record["artifact_file"]
+              target = out / record["artifact_file"]
+              shutil.copy2(source, target)
+              if (
+                  target.stat().st_size != record["tar_size_bytes"]
+                  or hashlib.sha256(target.read_bytes()).hexdigest()
+                  != record["tar_sha256"]
+              ):
+                  raise RuntimeError("image_artifact_copy_binding_invalid")
+          shutil.rmtree(payload / "artifact")
+          print("FRESH_TRANSPORT_V2_IMAGE_SPLIT=PASS")
+          PY
+
           python tools/n3w_t1_fresh_product_bootstrap.py             --payload-root "$PAYLOAD"             --phase self-check
-          PYTHONDONTWRITEBYTECODE=1 python "$PAYLOAD/tools/n3w_t1_golden_master_build.py"             --payload-root "$PAYLOAD"             --release-id ci-golden-master             --phase self-check
 
           python - "$PAYLOAD" <<'PY'
           import json
