@@ -1,3 +1,9 @@
+> **2026-10-14 CURRENT ROUTE INPUT / DESIGN NOT AUTO-ACCEPTED**：ADR-0010 恢复逐台 fresh
+> Armbian 自动部署为当前产品路线，因此本文记录的 3.44 GB admission deficit 再次成为
+> active blocker input。但旧 streaming 设计不自动恢复为已批准实现；F0 必须在 exact digest
+> registry pull 与 one-image-at-a-time Mac stream 中选择最小路径并重新计算容量。Authority：
+> `docs/adr/0010-t1-per-device-fresh-armbian-automated-product-deployment.md`。
+
 > **2026-10-12 architecture alignment update / HOLD**：ADR-0009 已冻结黄金母盘 + 每机 firstboot 量产生命周期。本文的 streaming transport 设计不再是当前下一门 source repair；其定位收窄为 `MASTER_BUILD_WORKSPACE_REQUIREMENT` 的可选优化。正常量产 clone 不重复执行三镜像 docker load。当前 `STREAMING_SOURCE_REPAIR_NOW=HOLD`；5 GiB 只保留为 R8 单机安装工具历史保守策略，不得等同于 `PRODUCT_RUNTIME_MIN_FREE_REQUIREMENT`。Authority: `docs/adr/0009-t1-golden-master-firstboot-production-lifecycle.md` and `docs/development/N3W_T1_GOLDEN_MASTER_FIRSTBOOT_ARCHITECTURE_CONTRACT_AND_ADR_DESIGN_FREEZE_20261012.md`.
 
 # N3-W T1 fresh bootstrap R8 — storage capacity remediation design

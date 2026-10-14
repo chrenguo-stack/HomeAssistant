@@ -1,4 +1,43 @@
+## 2026-10-14 — Golden Master clone route RETIRED / per-device fresh Armbian approved
+
+~~~text
+ARCHITECTURE_AUTHORITY=docs/adr/0010-t1-per-device-fresh-armbian-automated-product-deployment.md
+EXECUTION_PLAN=docs/development/N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_PRODUCT_DEPLOYMENT_PLAN_20261014.md
+DECISION=APPROVED
+
+GOLDEN_MASTER_BUILD_FOR_CLONING=RETIRED_BY_PRODUCT_DECISION
+R2C_TARGET_ARMBIAN_READONLY_EVIDENCE=RETIRED_BY_PRODUCT_DECISION
+R2C_PROBE_EXECUTOR=RETIRED_BY_PRODUCT_DECISION
+FINAL_SEAL=RETIRED_BY_PRODUCT_DECISION
+DISK_IMAGE_CAPTURE=RETIRED_BY_PRODUCT_DECISION
+CLONE_WRITE_AND_BOOT_GATES=RETIRED_BY_PRODUCT_DECISION
+
+CURRENT_PRODUCT_ROUTE=PER_DEVICE_OFFICIAL_ARMBIAN_INSTALL_THEN_AUTOMATED_PRODUCT_DEPLOYMENT
+R2C_PROBE_EXECUTOR_SOURCE_DISPOSITION=ARCHIVED_DIAGNOSTIC_REFERENCE
+HISTORICAL_EVIDENCE=RETAINED
+END_TO_END_FRESH_T1_DEPLOYMENT=NOT_PROVEN
+KNOWN_ACTIVE_BLOCKER=OLD_OFFLINE_PAYLOAD_STORAGE_PEAK
+NEXT_ONE_GATE=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F0_SOURCE_REBIND_AND_GAP_REVIEW_20261014_01
+
+T1_ACCESS=false
+LIVE_MUTATION=false
+NEW_ROUTE_LIVE_AUTHORIZATION_GRANTED=false
+BOARD_ACCESS=false
+MERGE=false
+~~~
+
+项目不再投入 R2C/Seal/clone production gates。每台 T1 单独安装并首次启动官方 Armbian，
+随后由 repository-owned 自动化部署和显式 provisioning 创建 HA、Manager、Broker 及每机
+产品身份。历史源码和证据保留，但不得作为重新进入退役路线的授权。
+
+可以在真实 T1 上完成一次新路线演练并现场修复，但必须在 F0/F1 源码和 CI 关闭后，先做
+F2 read-only preflight，再分别取得 F3 部署和 F4 激活授权。现场问题必须回到 GitHub
+源码/测试修复；禁止只在目标机保留临时补丁或重放 consumed authorization。
+
 ## 2026-10-14 — R2C repaired-source Gate 0/1 CLOSED_PASS / STOP before target execution
+
+> **Historical closure only**：本节记录在 ADR-0010 产品决策之前完成的 Gate 0/1；不得作为
+> 继续 R2C、申请 target authorization 或覆盖当前 next gate 的依据。
 
 ~~~text
 TASK=N3W_T1_GOLDEN_MASTER_R2C_REPAIRED_SOURCE_TARGET_ARMBIAN_READONLY_EVIDENCE_GATE_0_1_20261014_01
@@ -28,7 +67,7 @@ MERGE=false
 GATE_0=PASS
 GATE_1=PASS
 EXECUTION_READY=false
-NEXT_ROUTE=SEPARATE_PRIVATE_FINAL_PRECLAIM_AND_NEW_EXPLICIT_ONE_SHOT_AUTHORIZATION_DECISION
+NEXT_ROUTE=SUPERSEDED_BY_ADR_0010
 AUTO_EXECUTE_NEXT_GATE=false
 STOP=true
 ~~~
@@ -44,8 +83,8 @@ exclusive one-shot claim handling and public/private evidence boundaries all pas
 review.
 
 Private target locator, existing host-key binding and future grant/execution identifiers remain
-outside public GitHub. No new authorization was granted or claimed. Stop before any SSH request,
-Seal, disk capture, clone boot, board action or merge.
+outside public GitHub. No new authorization was granted or claimed. No SSH request, Seal, disk
+capture, clone boot, board action or merge occurred.
 
 Authority:
 `docs/development/N3W_T1_GOLDEN_MASTER_R2C_REPAIRED_SOURCE_TARGET_ARMBIAN_READONLY_EVIDENCE_GATE_0_1_CLOSURE_20261014.md`.

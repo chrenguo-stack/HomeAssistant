@@ -1,6 +1,13 @@
 # ADR-0009：T1 黄金母盘、每机首次初始化与量产生命周期合同
 
-- 状态：项目所有者已批准 / 架构合同冻结；PR #541 合并前仅在候选分支生效
+> **2026-10-14 SUPERSEDED / RETIRED_BY_PRODUCT_DECISION**：项目所有者已停止
+> Golden Master 整盘克隆生产路线。R2C target evidence、Final Seal、disk capture、
+> clone-write verification、clone boot uniqueness 和 multi-clone acceptance 不再是当前
+> 产品 gate。新的正式路线是逐台安装官方 Armbian 并自动部署产品，authority 为
+> `docs/adr/0010-t1-per-device-fresh-armbian-automated-product-deployment.md`。本文保留为
+> 历史设计和已有源码/证据解释，不得用于自动重新进入已退役路线。
+
+- 状态：SUPERSEDED / RETIRED_BY_PRODUCT_DECISION；仅保留历史设计与证据解释
 - 日期：2026-10-12
 - 2026-10-13 架构修订：产品初始化与普通 boot 解耦；新初始化只能由显式 provisioning 命令启动
 - 决策：`N3W_T1_GOLDEN_MASTER_FIRSTBOOT_ARCHITECTURE_CONTRACT_AND_ADR_DESIGN_FREEZE`

@@ -1,3 +1,10 @@
+> **2026-10-14 CURRENT ROUTE RESTORED WITH NEW CONSTRAINTS**：ADR-0010 已将逐台 official
+> Armbian + automated product deployment 设为当前生产路线，取代 ADR-0009 的整盘克隆
+> 路线。本文的 minimal-host baseline 和 bootstrap 职责重新成为 source input，但旧 R8
+> full offline payload 仍有已证明的容量 blocker，不能直接视为可执行完成态。当前 authority：
+> `docs/adr/0010-t1-per-device-fresh-armbian-automated-product-deployment.md` 与
+> `docs/development/N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_PRODUCT_DEPLOYMENT_PLAN_20261014.md`。
+
 > **2026-10-12 scope correction after ADR-0009**：本文件继续作为“单台 minimal Armbian+Docker T1 fresh install / 灾难重建工具”的历史与源码设计依据，但不再定义正常批量量产路径。正式量产采用黄金公共镜像 → Seal → disk image capture → clone → per-device firstboot。本文第 2 节中由 bootstrap 一次性安装软件并生成实例身份的组合流程不得直接作为可克隆母盘完成态。F5/source closure 保留，不重开。Current production-lifecycle authority: `docs/adr/0009-t1-golden-master-firstboot-production-lifecycle.md`.
 
 # N3-W T1 最小宿主基线与全新产品 Bootstrap 决策（2026-10-11）

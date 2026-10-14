@@ -1,3 +1,27 @@
+## 2026-10-14 — KF-113 Golden Master clone route retired by product decision
+
+```text
+GOLDEN_MASTER_BUILD_FOR_CLONING=RETIRED_BY_PRODUCT_DECISION
+R2C_TARGET_ARMBIAN_SEAL_ADAPTER=RETIRED_BY_PRODUCT_DECISION
+R2C_TARGET_ARMBIAN_READONLY_EVIDENCE=RETIRED_BY_PRODUCT_DECISION
+R2C_PROBE_EXECUTOR=RETIRED_BY_PRODUCT_DECISION
+FINAL_SEAL=RETIRED_BY_PRODUCT_DECISION
+DISK_IMAGE_CAPTURE=RETIRED_BY_PRODUCT_DECISION
+CLONE_WRITE_AND_BOOT_GATES=RETIRED_BY_PRODUCT_DECISION
+R2C_PROBE_EXECUTOR_SOURCE_DISPOSITION=ARCHIVED_DIAGNOSTIC_REFERENCE
+HISTORICAL_EVIDENCE=RETAIN
+REENTRY_REQUIRES_NEW_PRODUCT_OWNER_DECISION=true
+```
+
+Guard: do not continue R2C, Seal, disk capture or clone acceptance merely because their source
+exists or historical handoffs name them as next gates. Current authority is ADR-0010. All
+historical one-shot authorization remains consumed/non-replayable. Per-device fresh Armbian
+does not waive product identity, secret, TLS, ACL, rollback or acceptance requirements.
+
+The historical R8 transport capacity failure is active input again, not a reason to lower the
+5 GiB reserve without evidence. Select and test a lower-peak exact image-delivery contract before
+live deployment.
+
 ## 2026-10-13 — KF-113 R2A/R2B source closure guard
 
 ```text

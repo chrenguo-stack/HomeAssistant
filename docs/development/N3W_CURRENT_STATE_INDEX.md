@@ -1,14 +1,24 @@
-## 2026-10-14 — R2C repaired-source Gate 0/1 CLOSED_PASS
+## 2026-10-14 — Golden Master clone route retired; per-device fresh Armbian is current
 
+- Architecture authority: `docs/adr/0010-t1-per-device-fresh-armbian-automated-product-deployment.md`.
+- Execution plan: `docs/development/N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_PRODUCT_DEPLOYMENT_PLAN_20261014.md`.
+- R2C target evidence, Final Seal, disk capture, clone-write verification and clone-boot acceptance are `RETIRED_BY_PRODUCT_DECISION`.
+- R2C probe/executor execution is `RETIRED_BY_PRODUCT_DECISION`; its source is retained only as an archived diagnostic reference. Historical evidence and consumed/no-replay authorization records remain intact.
+- Current route: per-device official Armbian install and first boot, followed by repository-owned automated HA/Manager/Broker deployment and explicit provisioning.
+- Real T1 end-to-end fresh deployment is not yet proven; the old offline payload has a known 3.44 GB storage-peak deficit.
+- A real-machine rehearsal is approved in principle only after source/CI closure, fresh read-only preflight and separate deployment/activation authorizations.
+- Next one gate: `N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F0_SOURCE_REBIND_AND_GAP_REVIEW_20261014_01`; GitHub/local source only, no T1 access.
+
+## 2026-10-14 — Historical R2C repaired-source Gate 0/1 CLOSED_PASS
+
+- This closure predates ADR-0010 and is retained as history only; it no longer authorizes a next R2C gate.
 - Gate: `N3W_T1_GOLDEN_MASTER_R2C_REPAIRED_SOURCE_TARGET_ARMBIAN_READONLY_EVIDENCE_GATE_0_1_20261014_01`.
 - Source authority remains `4898e519c317195dc22915a8d7b47f246a4121cf`; handoff commit `13bdaabcaa16212885e47ef38d65fc3c31c5af92` introduced docs only.
-- Fresh compare proves no source/test/workflow drift; fresh workflow-run view is 27/27 success for both exact source authority and handoff head.
+- Fresh compare proved no source/test/workflow drift; the exact source and handoff heads each had 27/27 successful workflow runs.
 - Exact executor blob: `7d18066b2a80701ced8f43f939c7a965a1a14d99`.
 - Contract blob/SHA-256: `b575e33be67676f8b5e61fac6bc4a94a3dce37ff` / `f3f0213cca63918341b9b0221133d882eb8e24f444d8432f8fdf1f94929b6866`.
 - Rebuilt streamed program: 195807 bytes, SHA-256 `a1a4b86ec2aa1e27e74e00ee2e1c345379f5e340088f030e638e4f4137edf178`; seven module bindings PASS.
-- Strict host-key, timeout/output bounds, private 0700/0600 + O_EXCL evidence handling, one-shot non-replay and public/private boundaries reviewed PASS.
-- No T1/SSH/keyscan, no authorization claim, no live mutation, no board access and no merge occurred.
-- Private final-preclaim is still PENDING and requires a new explicit one-shot authorization decision; Gate 0/1 does not auto-enter target execution.
+- No T1/SSH/keyscan, authorization claim, live mutation, board access or merge occurred.
 - Authority: `docs/development/N3W_T1_GOLDEN_MASTER_R2C_REPAIRED_SOURCE_TARGET_ARMBIAN_READONLY_EVIDENCE_GATE_0_1_CLOSURE_20261014.md`.
 
 ## 2026-10-14 — Current formal handoff: R2C repaired source to Gate 0/1

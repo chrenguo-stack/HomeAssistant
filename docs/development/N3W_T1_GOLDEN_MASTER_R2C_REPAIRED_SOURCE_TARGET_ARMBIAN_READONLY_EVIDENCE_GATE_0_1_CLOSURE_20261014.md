@@ -1,5 +1,9 @@
 # N3W T1 Golden Master R2C repaired-source target-Armbian read-only evidence Gate 0/1 closure
 
+> **2026-10-14 HISTORICAL CLOSURE / RETIRED_BY_PRODUCT_DECISION**：本文件保留 Gate 0/1
+> 已完成事实，但 ADR-0010 已停止 R2C/Seal/clone 产品路线。本文的 private final-preclaim、
+> new authorization 和 next-route 表述均已失效，不得作为继续执行依据。
+
 Date: 2026-10-14  
 PR: #541 (OPEN / DRAFT / unmerged)  
 Gate: `N3W_T1_GOLDEN_MASTER_R2C_REPAIRED_SOURCE_TARGET_ARMBIAN_READONLY_EVIDENCE_GATE_0_1_20261014_01`
