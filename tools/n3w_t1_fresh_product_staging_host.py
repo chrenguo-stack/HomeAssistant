@@ -1062,7 +1062,13 @@ def main() -> int:
             ),
             capacity=capacity,
         )
-        if not plan.capacity_pass:
+        if args.phase == "apply":
+            if (
+                plan.remote_free_bytes
+                < plan.worst_image_required_free_bytes
+            ):
+                raise FreshHostTransportError("remote_capacity_insufficient")
+        elif not plan.capacity_pass:
             raise FreshHostTransportError("remote_capacity_insufficient")
         if args.phase == "preflight":
             _emit(
