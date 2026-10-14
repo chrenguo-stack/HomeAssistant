@@ -48,7 +48,20 @@ def test_install_pins_resolved_ubuntu_package_versions(
         },
     )
     monkeypatch.setattr(baseline.platform, "machine", lambda: "aarch64")
-    monkeypatch.setattr(baseline.shutil, "which", lambda _name: "/usr/bin/docker")
+    checks = iter(
+        (
+            {"status": "MISSING"},
+            {
+                "status": "PASS",
+                "docker_active": True,
+                "docker_version": "28.2.2",
+                "compose_version": "2.38.2",
+                "production_service_start": False,
+                "board_access": False,
+            },
+        )
+    )
+    monkeypatch.setattr(baseline, "_check", lambda _runner: next(checks))
     runner = FakeRunner()
 
     report = baseline.execute_install(runner)
