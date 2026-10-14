@@ -611,10 +611,13 @@ def test_split_cleanup_ownership_does_not_cross_boundaries() -> None:
 def test_postcheck_is_split_between_master_and_instance() -> None:
     source = TOOL.read_text(encoding="utf-8")
 
-    assert "def master_postcheck(self, *, require_instance_absent: bool = True)" in source
+    assert "def master_postcheck(" in source
+    assert "require_instance_absent: bool = True" in source
+    assert "staged_units_enabled: bool = False" in source
     assert "postcheck_master_instance_material_present" in source
     assert "def instance_stopped_postcheck(self, system_id: str)" in source
-    assert "self.master_postcheck(require_instance_absent=False)" in source
+    assert "require_instance_absent=False" in source
+    assert "staged_units_enabled=True" in source
     assert "instance = self.instance_stopped_postcheck(system_id)" in source
 
 
@@ -684,3 +687,24 @@ def test_live_adapter_master_preflight_maps_minimal_host(monkeypatch) -> None:
         "production_service_start": False,
     }
 
+
+
+def test_public_runtime_installs_explicit_provisioning_entrypoint() -> None:
+    tool = load_tool()
+    public_files = set(tool.PUBLIC_FINAL_FILES)
+
+    assert "/usr/local/sbin/n3w-t1-provision" in public_files
+    assert "/etc/systemd/system/n3wfc4-provision-resume.service" in public_files
+    assert "/usr/local/sbin/n3w-t1-systemd-staged-install" in public_files
+    assert "/usr/local/sbin/n3w-t1-production-activation-enable" in public_files
+
+
+def test_transport_v2_requests_one_image_only_after_authorization() -> None:
+    source = TOOL.read_text(encoding="utf-8")
+
+    assert '"event": "image_requested"' in source
+    assert '"event": "image_loaded"' in source
+    assert "multiple_staged_image_tars_forbidden" in source
+    assert "image_capacity_insufficient" in source
+    assert "staged_tar_deleted" in source
+    assert 'run_fresh_public_staging(' in source
