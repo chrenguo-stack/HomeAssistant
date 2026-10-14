@@ -1,3 +1,38 @@
+## 2026-10-14 — R2C target-Armbian read-only evidence Gate 0/1 PASS
+
+```text
+R2C_PREEXECUTION_SOURCE_HEAD=403413f89373d0650579c3886274e59be37783bc
+R2C_PREEXECUTION_HEAD_CI=27/27_PASS
+R2C_STREAMED_PROGRAM_SHA256=6d24ac8e7eff38be165c69eaaff4042808017887969e79c08a1c87ab9518ac25
+R2C_CONTRACT_SHA256=f3f0213cca63918341b9b0221133d882eb8e24f444d8432f8fdf1f94929b6866
+R2C_PREEXECUTION_PACKAGE=PREPARED
+PRIVATE_TARGET_PRECLAIM=PENDING
+AUTHORIZATION_GRANTED=false
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+EXECUTION_READY=false
+ACTUAL_R2C_EVIDENCE_EXECUTION=false
+T1_ACCESS=false
+SSH_EXECUTION=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+```
+
+Gate 0 fresh repository binding passed: PR #541 remained OPEN/DRAFT/unmerged; the exact
+preexecution source head completed 27/27 CI successfully and retained the reviewed source,
+test and workflow bindings. Gate 1 froze the deterministic streamed probe, contract and all
+module blobs, plus the private target/host-key preclaim, one-shot authorization, transport,
+evidence and STOP contracts.
+
+No target locator, host key, target binding token or raw evidence was committed. The proposed
+confirmation is not granted by Gate 0/1 approval. The next live read-only gate requires a fresh
+private target preclaim and a separate explicit confirmation before any authorization claim or
+SSH request.
+
+Authority:
+`docs/development/N3W_T1_GOLDEN_MASTER_R2C_TARGET_ARMBIAN_READONLY_EVIDENCE_PREEXECUTION_AND_AUTHORIZATION_PREPARATION_20261014.md`.
+
 ## 2026-10-14 — R2C remote executor source CLOSED_SOURCE
 
 ```text
