@@ -1,3 +1,54 @@
+## 2026-10-15 — R2 preserved payload controlled cleanup restored R3 capacity
+
+```text
+TASK=N3W_T1_F3_R2_PRESERVED_PAYLOAD_CONTROLLED_CLEANUP_FOR_R3_CAPACITY_20261015_01
+RESULT=CLOSED_PASS
+
+PRE_CLEANUP_ROOT_FREE_BYTES=9416998912
+R3_REQUIRED_FREE_BYTES=10135822686
+PRE_CLEANUP_CAPACITY_PASS=false
+R2_PRESERVED_PAYLOAD_BYTES=2448859346
+
+R2_PAYLOAD_EXACT_BINDING=PASS
+R2_MANIFEST_LEDGER_BINDING=PASS
+R2_HOMEASSISTANT_TAR_BINDING=PASS
+R2_DELETE_GUARD=PASS
+
+R2_PAYLOAD_DELETED=true
+R2_LEDGER_PRESERVED=true
+R3_LEDGER_ABSENT=true
+OLDER_FAILED_PAYLOAD_PRESERVED=true
+
+POST_CLEANUP_ROOT_FREE_BYTES=11866021888
+R3_CAPACITY_PASS=true
+
+CONTAINERS=0
+IMAGES=0
+VOLUMES=0
+NETWORKS=bridge,host,none
+PRODUCT_LISTENERS=NONE
+
+R2_AUTHORIZATION=CONSUMED_NO_REPLAY
+R3_AUTHORIZATION_GRANTED=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+F4_AUTHORIZATION_GRANTED=false
+MERGE=false
+
+CURRENT_GATE=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_R3_READONLY_PREAUTH_PREFLIGHT_20261015_01
+CURRENT_STEP=EXACT_R3_LOCAL_HOST_WRAPPER_SOURCE_BINDING_AND_FINAL_PREAUTH_CLOSURE
+AUTO_EXECUTE_R3_LIVE_APPLY=false
+```
+
+The R3 read-only preflight correctly stopped on capacity before authorization. The blocker was the preserved
+R2 failed-transaction payload, not product-state drift. After exact marker/manifest/tar/ledger rebinding, only
+that R2 transaction-owned payload was deleted. The consumed R2 ledger and the earlier small failed payload
+remain preserved. Product Docker state is still empty and the root free-space envelope now passes R3.
+
+Authority:
+- `docs/development/N3W_T1_F3_R2_PRESERVED_PAYLOAD_CONTROLLED_CLEANUP_FOR_R3_CAPACITY_CLOSURE_20261015.md`
+- `docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md:KF-115`
+
 ## 2026-10-14 — F3 R2 live failure -> image-tar atomic publish R3 source closure
 
 ```text

@@ -1,3 +1,14 @@
+## 2026-10-15 — R2 preserved payload cleanup CLOSED_PASS / R3 capacity restored
+
+- R3 read-only preauth stopped before authorization because root free space was `9416998912` bytes versus required `10135822686`.
+- The blocker was the exact preserved R2 failed payload (`2448859346` bytes), including the fully transferred Home Assistant tar; product Docker state remained empty.
+- Pre-delete binding passed for the R2 claim marker, exact manifest SHA, Home Assistant tar size/SHA, and durable consumed/no-replay ledger; R3 ledger remained absent.
+- Only the exact R2 transaction-owned payload was deleted. The R2 ledger and the earlier small failed payload were preserved.
+- Post-cleanup root free space is `11866021888` bytes and R3 capacity PASS.
+- Product boundary remains: containers/images/volumes 0, networks bridge/host/none, product listeners none, production service start=false, board access=false.
+- R3 authorization remains granted=false/claimed=false/consumed=false.
+- Current gate returns to `N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_R3_READONLY_PREAUTH_PREFLIGHT_20261015_01`; next step is exact local R3 host-wrapper binding and final preauth closure, not live apply.
+
 ## 2026-10-14 — F3 image-tar atomic publish R3 source/artifact closure
 
 - R2 live apply consumed its one-shot authorization and stopped at `load_images:image_tar_binding_invalid`; cleanup PASS, no production service start, no board access.
