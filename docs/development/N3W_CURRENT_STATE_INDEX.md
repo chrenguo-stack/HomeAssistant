@@ -1,3 +1,14 @@
+## 2026-10-14 — F1B focused closure repair progress
+
+- Gate: N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F1B_FOCUSED_CLOSURE_REVIEW_20261014_01
+- Repaired source authority: f1306067667c1a58b172b543c452c1a388ec119e
+- Review: A1/A2/A4-A9 closed source; A3/A10 repaired same-gate and pending exact-head CI.
+- A3: KF-108 recurrence; uncertain durable claim now fails closed consumed/no-replay.
+- A10: host-side event/transfer failure now explicitly reaps remote SSH apply process.
+- CI: running; 2 polls used at progress checkpoint, zero failures observed.
+- T1/live/board/merge: false; F2 not entered.
+- Authority: docs/development/N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F1B_FOCUSED_CLOSURE_REVIEW_REPAIR_PROGRESS_20261014.md
+
 ## 2026-10-14 — Current formal handoff: F1B source/CI to focused closure review
 
 - Formal handoff: `docs/development/N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F1B_TO_FOCUSED_CLOSURE_REVIEW_NEW_CHAT_HANDOFF_V1.0_20261014.md`.
