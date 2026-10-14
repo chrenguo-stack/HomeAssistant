@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import re
 import sys
 from pathlib import Path
@@ -70,7 +71,7 @@ def test_release_reader_rejects_image_lock_drift(
     tool = load_tool()
     release = tmp_path / "fresh-release.json"
     release.write_text(
-        __import__("json").dumps(
+        json.dumps(
             {
                 "schema": tool.RELEASE_SCHEMA,
                 "release_id": "a" * 40,
