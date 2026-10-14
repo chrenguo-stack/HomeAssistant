@@ -1,8 +1,1237 @@
+## 2026-10-14 — F1B CLOSED_PASS / CI execution convergence V1
+
+- F1B repaired source: `f1306067667c1a58b172b543c452c1a388ec119e`; `39bb520e...` is proven docs-only source-equivalent.
+- Final source-equivalent CI: 27/27 SUCCESS.
+- Deployable artifact: ID `11879005989`, digest `sha256:e10399bcc4a586b598a0e11cdfe2ebc88706b164a8d9eaa3f726ab0959d97b97`.
+- F1B A1-A10: CLOSED; focused closure result: CLOSED_PASS.
+- CI convergence V1 adds PR-level `cancel-in-progress` to the three heavy ARM64/artifact workflows; no path-filter/test/product-runtime change.
+- PR #541 had 261 changed files at convergence entry; a small/stacked next-phase PR is recommended after V1 CI rather than continuing the umbrella indefinitely.
+- No T1/live/board/merge/F2 execution in this gate.
+- Authorities: `docs/development/N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F1B_FOCUSED_CLOSURE_20261014.md` and `docs/development/N3W_CI_EXECUTION_CONVERGENCE_V1_SOURCE_REPAIR_20261014.md`.
+
+## 2026-10-14 — F1B focused closure repair progress
+
+- Gate: N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F1B_FOCUSED_CLOSURE_REVIEW_20261014_01
+- Repaired source authority: f1306067667c1a58b172b543c452c1a388ec119e
+- Review: A1/A2/A4-A9 closed source; A3/A10 repaired same-gate and pending exact-head CI.
+- A3: KF-108 recurrence; uncertain durable claim now fails closed consumed/no-replay.
+- A10: host-side event/transfer failure now explicitly reaps remote SSH apply process.
+- CI: running; 2 polls used at progress checkpoint, zero failures observed.
+- T1/live/board/merge: false; F2 not entered.
+- Authority: docs/development/N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F1B_FOCUSED_CLOSURE_REVIEW_REPAIR_PROGRESS_20261014.md
+
+## 2026-10-14 — Current formal handoff: F1B source/CI to focused closure review
+
+- Formal handoff: `docs/development/N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F1B_TO_FOCUSED_CLOSURE_REVIEW_NEW_CHAT_HANDOFF_V1.0_20261014.md`.
+- Correct template: candidate-branch `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` V1.3 / blob `b9ef40acdaa8fae37feb5ffe5662afd0e89462a0`.
+- Exact historical handoff standard authority: `4300890dff0ce63d5a547df21426e287d084d9ee`.
+- F1B exact source authority: `f011bf389a0909383b9e485d089b89f9120e9173` / tree `46b454267db93e3aee96882c351912a34f5a162a`; PR #541 remains OPEN/DRAFT/unmerged.
+- Exact source-head CI: 27/27 SUCCESS, zero failure/pending.
+- Deployable artifact: ID `11875663387`, digest `sha256:ed43762adfa6f9a0e034d6974dc79b87a7a7bb357f60659413d5b368ca8f250f`.
+- F1B implements transport /2, capacity sidecar, one-image-at-a-time staging/load, preclaim capacity admission, active Golden Master removal, and real `n3w-t1-provision` host wiring.
+- No T1 access, live mutation, board access or merge occurred.
+- Next one gate: `N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F1B_FOCUSED_CLOSURE_REVIEW_20261014_01`.
+- Focused closure review is explicitly deferred to the next chat; do not auto-enter F2.
+- Important chat-only artifact count is zero; team-share completeness is PASS.
+
+## 2026-10-14 — F1 entered; F1A source repair
+
+- F0 post-closure CI: 27/27 success.
+- F1 is split into F1A boundary repair and F1B transport/host-wiring repair.
+- F1A adds fresh-Armbian Docker/Compose baseline installation source, fresh-host provisioning preflight semantics, and staged-vs-production systemd enable separation.
+- User-facing explicit start remains `sudo n3w-t1-provision start --confirm "START DEVICE PROVISIONING: YES"`; no alternate `n3w-t1-provision-start` command is introduced.
+- No T1 access, live mutation, board access or merge.
+- Plan: `docs/development/N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F1_SOURCE_REPAIR_PLAN_20261014.md`.
+
+## 2026-10-14 — Per-device fresh Armbian F0 source/gap review CLOSED_PASS
+
+- Reviewed exact candidate head `f7bf8828c72f2df9fe497c05c4a2b4557d3f695b` / tree `a3595a1ea67b648c399eb24f9913be36ed13a6af`; PR #541 remains open draft/unmerged; 27/27 exact-head workflows succeeded.
+- Selected default delivery: Mac one-image-at-a-time verified stage/load; no full payload archive and no three simultaneous image tars on T1.
+- Direct T1 registry pull is not selected because HA/Broker have exact external digests but Manager currently only has exact source-build + bound artifact authority, not a published registry digest.
+- Five F1 gaps are frozen: Docker/Compose fresh-host install, transport /2 + capacity sidecar, Golden Master removal from active payload, fresh-host provisioning preflight replacing clone-only semantics, and stopped-boundary-safe systemd/resume wiring.
+- Existing 5 GiB reserve remains unchanged. F1 will emit the exact dynamic per-image capacity envelope; F2 will bind it to fresh T1 free space.
+- No T1 access, live mutation, service start, board access or merge occurred.
+- Closure: `docs/development/N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F0_SOURCE_REBIND_AND_GAP_REVIEW_CLOSURE_20261014.md`.
+- Stop before F1; no automatic transition.
+
+## 2026-10-14 — Current formal handoff: per-device fresh Armbian deployment to F0
+
+- Formal handoff: `docs/development/N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_PRODUCT_DEPLOYMENT_F0_NEW_CHAT_HANDOFF_V1.0_20261014.md`.
+- Correct template: candidate-branch `NEW_CHAT_HANDOFF_TEMPLATE.md` V1.3 / blob `b9ef40acdaa8fae37feb5ffe5662afd0e89462a0`.
+- Source authority: `7736ddcef5fb28947048f0a7a4ae367a63c94ab3`; exact source-head CI 27/27 success, zero failure/pending.
+- Current product route: per-device official Armbian install followed by repository-owned automated HA/Manager/Broker deployment and explicit provisioning.
+- Next one gate: `N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F0_SOURCE_REBIND_AND_GAP_REVIEW_20261014_01`.
+- F0 is GitHub/repository only: no T1 access, F1 implementation, authorization claim, live mutation, board access or merge.
+- Important chat-only artifact count is zero; team-share completeness is PASS.
+
+## 2026-10-14 — Golden Master clone route retired; per-device fresh Armbian is current
+
+- Architecture authority: `docs/adr/0010-t1-per-device-fresh-armbian-automated-product-deployment.md`.
+- Execution plan: `docs/development/N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_PRODUCT_DEPLOYMENT_PLAN_20261014.md`.
+- R2C target evidence, Final Seal, disk capture, clone-write verification and clone-boot acceptance are `RETIRED_BY_PRODUCT_DECISION`.
+- R2C probe/executor execution is `RETIRED_BY_PRODUCT_DECISION`; its source is retained only as an archived diagnostic reference. Historical evidence and consumed/no-replay authorization records remain intact.
+- Current route: per-device official Armbian install and first boot, followed by repository-owned automated HA/Manager/Broker deployment and explicit provisioning.
+- Real T1 end-to-end fresh deployment is not yet proven; the old offline payload has a known 3.44 GB storage-peak deficit.
+- A real-machine rehearsal is approved in principle only after source/CI closure, fresh read-only preflight and separate deployment/activation authorizations.
+- Next one gate: `N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F0_SOURCE_REBIND_AND_GAP_REVIEW_20261014_01`; GitHub/local source only, no T1 access.
+
+## 2026-10-14 — Historical R2C repaired-source Gate 0/1 CLOSED_PASS
+
+- This closure predates ADR-0010 and is retained as history only; it no longer authorizes a next R2C gate.
+- Gate: `N3W_T1_GOLDEN_MASTER_R2C_REPAIRED_SOURCE_TARGET_ARMBIAN_READONLY_EVIDENCE_GATE_0_1_20261014_01`.
+- Source authority remains `4898e519c317195dc22915a8d7b47f246a4121cf`; handoff commit `13bdaabcaa16212885e47ef38d65fc3c31c5af92` introduced docs only.
+- Fresh compare proved no source/test/workflow drift; the exact source and handoff heads each had 27/27 successful workflow runs.
+- Exact executor blob: `7d18066b2a80701ced8f43f939c7a965a1a14d99`.
+- Contract blob/SHA-256: `b575e33be67676f8b5e61fac6bc4a94a3dce37ff` / `f3f0213cca63918341b9b0221133d882eb8e24f444d8432f8fdf1f94929b6866`.
+- Rebuilt streamed program: 195807 bytes, SHA-256 `a1a4b86ec2aa1e27e74e00ee2e1c345379f5e340088f030e638e4f4137edf178`; seven module bindings PASS.
+- No T1/SSH/keyscan, authorization claim, live mutation, board access or merge occurred.
+- Authority: `docs/development/N3W_T1_GOLDEN_MASTER_R2C_REPAIRED_SOURCE_TARGET_ARMBIAN_READONLY_EVIDENCE_GATE_0_1_CLOSURE_20261014.md`.
+
+## 2026-10-14 — Current formal handoff: R2C repaired source to Gate 0/1
+
+- Formal handoff: `docs/development/N3W_T1_GOLDEN_MASTER_R2C_E1_SOURCE_CLOSURE_TO_GATE_0_1_NEW_CHAT_HANDOFF_V1.0_20261014.md`.
+- Correct template: candidate-branch `NEW_CHAT_HANDOFF_TEMPLATE.md` V1.3 / blob `b9ef40acdaa8fae37feb5ffe5662afd0e89462a0`.
+- E1 source authority: `4898e519c317195dc22915a8d7b47f246a4121cf`; pre-handoff docs head `feebc0497b120eb3383fd48914dc72454b441a33`.
+- Both exact heads completed 42 SUCCESS, 1 conditional skip and 0 failure.
+- GitHub contains all durable source, tests, bindings, closure and current-state artifacts; important chat-only artifact count=0 and team-share completeness=PASS.
+- Private raw evidence remains outside public GitHub by policy; public-safe hashes and conclusions are in the execution closure.
+- Next one gate is repaired-source Gate 0/1 package/preclaim preparation only; no T1/SSH, authorization claim, Seal, disk capture, board action or merge.
+
+## 2026-10-14 — R2C E1 collection diagnostic source repair CLOSED_SOURCE
+
+- Source repair: `4898e519c317195dc22915a8d7b47f246a4121cf`.
+- E1 now preserves bounded command, read-only evidence and filesystem failure classes instead of collapsing them into one generic reason.
+- Standard systemd realpaths are accepted only through an exact allowlist plus root ownership, regular-file, executable and no group/world-write checks.
+- Validation: 87/87 local R2C tests PASS; Ruff PASS; tool-unit tests 9 PASS; public repository safety PASS; exact source-head CI 42 SUCCESS, 1 conditional skip, 0 failure.
+- Historical E1 remains ERROR and the immutable report is unchanged; no target result is promoted.
+- No T1 access, authorization reuse, target write, service mutation, board access or merge occurred.
+- Authority: `docs/development/N3W_T1_GOLDEN_MASTER_R2C_E1_COLLECTION_DIAGNOSTIC_SOURCE_REPAIR_20261014.md`.
+- Any future target observation requires fresh Gate 0/1 and a new explicit one-shot authorization.
+
+## 2026-10-14 — R2C repaired-source one-shot PASS / capture still FAILED
+
+- Exact source `a7cf9b569133bcd6a08ace65027b4730cdd54a11` executed once after fresh private preclaim.
+- SSH transport, remote exit and report schema passed; authorization claimed/consumed=true and replay=false.
+- No intentional target write, service mutation, board access or merge occurred.
+- E6/E7/E9 are now bounded UNKNOWN rather than generic ERROR; E1 remains `STOP_E1_COLLECTION_ERROR`; E2-E5 remain UNKNOWN; E8 remains complete.
+- Public candidate is reproducible and passed post-capture safety review without raw values or private target identifiers.
+- OS identity semantics remain unproven; controlled clone boot remains required; disk capture and Final Seal remain forbidden.
+- Authority: `docs/development/N3W_T1_GOLDEN_MASTER_R2C_READONLY_EVIDENCE_REEXECUTION_CLOSURE_20261014.md`.
+- Next gate is repository-only E1 diagnostic review and repair; any later target run requires a new explicit one-shot authorization.
+
+## 2026-10-14 — R2C evidence-gap source review and repair CLOSED_SOURCE
+
+- Source-repair authority: `040caff5dabe13bc419155593a32f4e2a727a309`.
+- E1 exact package-absence proof, E6/E9 exact usr-merge alias handling, E7 non-directory root classification, controlled error reasons and E4 masked-unit classification are repaired.
+- Validation: 83/83 local R2C tests PASS; PR #541 source-head CI 42 SUCCESS, 1 conditional skip, 0 failure.
+- Historical capture is unchanged; E2/E3/E5 semantic gaps remain and no target-specific result is promoted.
+- No T1 access, authorization reuse, target write, service mutation, board access or merge occurred.
+- OS identity semantics remain unproven; controlled clone boot remains required; disk capture and Final Seal remain forbidden.
+- Authority: `docs/development/N3W_T1_GOLDEN_MASTER_R2C_EVIDENCE_GAP_SOURCE_REVIEW_AND_REPAIR_20261014.md`.
+- Any target rerun requires fresh Gate 0/1 and a new explicit one-shot authorization.
+
+## 2026-10-14 — R2C one-shot target execution PASS / capture STOP_EVIDENCE_GAPS
+
+- Exact frozen source 403413f89373d0650579c3886274e59be37783bc executed once through the T1-specific strict host-key binding.
+- SSH transport, remote exit and report schema passed; authorization claimed/consumed=true and replay=false.
+- No intentional target write, service mutation, board access or merge occurred.
+- Capture status FAILED: E8 complete; E2-E5 UNKNOWN; E1/E6/E7/E9 ERROR.
+- Public candidate is reproducible and passed post-capture safety review with no raw value, IP, MAC, SSH-key or target-alias disclosure.
+- Earlier preclaim description corrected: the similarly named local alias was a local virtual-machine alias, not T1; no T1-specific binding existed at the first STOP.
+- OS identity semantics remain unproven; controlled clone boot remains required; disk capture and Final Seal remain forbidden.
+- Authority: docs/development/N3W_T1_GOLDEN_MASTER_R2C_TARGET_ARMBIAN_READONLY_EVIDENCE_EXECUTION_CLOSURE_20261014.md.
+- Next gate is repository-only evidence-gap source review and repair; any rerun requires new source closure and a new explicit authorization.
+
+## 2026-10-14 — R2C authorization received / private preclaim STOP before claim
+
+- Exact confirmation received; authorization decision was granted but never claimed or consumed.
+- Exact source package at `403413f89373d0650579c3886274e59be37783bc` revalidated PASS.
+- Private preclaim stopped because an existing trusted host-key binding could not be established; effective local SSH trust policy is incompatible with the frozen strict-host-key contract.
+- Historical target connectivity did not preserve an independently verifiable fingerprint and is not accepted as a trust substitute.
+- No T1 contact, SSH, key scan/acceptance, evidence-root creation, probe execution, live mutation, board access or merge occurred.
+- Resume requires an out-of-band verified private strict host-key binding, fresh preclaim and a new explicit one-shot authorization.
+- Authority: `docs/development/N3W_T1_GOLDEN_MASTER_R2C_TARGET_ARMBIAN_READONLY_EVIDENCE_PRECLAIM_STOP_20261014.md`.
+
+## 2026-10-14 — R2C target-Armbian read-only evidence Gate 0/1 PASS
+
+- Exact preexecution source head: `403413f89373d0650579c3886274e59be37783bc`; current-head CI `27/27_PASS`.
+- Gate 0 fresh rebind confirmed PR #541 OPEN/DRAFT/unmerged and no source/test/workflow drift after remote-executor validation.
+- Gate 1 bound executor blob `389a7684...`, contract blob `b575e33b...`, seven module blobs, streamed-program SHA-256 `6d24ac8e...` and contract SHA-256 `f3f0213c...`.
+- Private target locator, existing known-host binding, target-binding token, execution ID and fresh expiry remain operator-side final-preclaim inputs.
+- Proposed one-shot confirmation is documented but not granted; authorization claimed/consumed=false.
+- `EXECUTION_READY=false`; actual R2C evidence execution, T1/SSH/live/board/merge remain false.
+- Authority: `docs/development/N3W_T1_GOLDEN_MASTER_R2C_TARGET_ARMBIAN_READONLY_EVIDENCE_PREEXECUTION_AND_AUTHORIZATION_PREPARATION_20261014.md`.
+- Next gate is the separately authorized one-shot R2C target-Armbian read-only evidence execution.
+
+## 2026-10-14 — R2C remote executor source CLOSED_SOURCE
+
+- Implementation head: `01256f67fc6b7496b476963ede37496abe099327`.
+- Validation head: `7f7daca7f62e964147b715063d8ed17cf9be7767`.
+- Current candidate head: `0fb4a6787c81e180925e203aa687d2f47b99dc0d`; the one-commit advance after validation is handoff documentation only.
+- Remote executor source and focused test blobs remain unchanged; no source/test/workflow drift was introduced after validation.
+- Validation head CI is `27/27_PASS`; Golden Master source CI `38482867521` and Public repository safety CI `38482867451` are successful.
+- Focused source review PASS; open source blocker count 0.
+- `R2C_REMOTE_EXECUTOR=CLOSED_SOURCE`; execution-ready=false; OS identity semantics remain unproven and controlled clone boot remains required.
+- No new R2C authorization, T1/live/board/merge action occurred.
+- Progress: `docs/development/N3W_T1_GOLDEN_MASTER_R2C_REMOTE_EXECUTOR_SOURCE_IMPLEMENTATION_AND_REVIEW_PROGRESS_20261014.md`.
+
+Next route is R2C target-Armbian read-only evidence preexecution and explicit authorization. It is not entered automatically by this source closure.
+
+## 2026-10-13 — R2C E5-E9 source gate CLOSED_SOURCE
+
+- Reviewed source authority: `eb405107b9ad240fd87404649b2eb8f65d76a014`.
+- Validation head: `41ed371cca6c585f1ee7678fc5f02e7aec9da0b0`.
+- E5-E9 focused closure review: PASS; no open source blocker in the frozen scope.
+- Required CI: Golden Master source `38424345366` PASS; Public repository safety `38424345487` PASS; staging payload `38424345349` PASS.
+- The prior staging-payload failure was an artifact-visibility race; bounded exact-ID retry closes the CI-infrastructure issue without weakening exact artifact binding.
+- R2C remote executor remains NOT_IMPLEMENTED; execution-ready=false; OS identity semantics remain unproven; controlled clone boot remains required.
+- No T1/live/board/merge action occurred.
+- Progress authority: `docs/development/N3W_T1_GOLDEN_MASTER_R2C_READONLY_PROBE_E5_E9_SOURCE_CONTINUATION_PROGRESS_20261013.md`.
+- Next route is remote-executor source work, but it is not entered by this closure.
+
+## 2026-10-13 — R2C E5-E9 reviewed source candidate; CI STOP pending
+
+- Source authority remains `a626eb8827a584b7a84f3838beaf08f86766cd73` until exact-source closure.
+- Current reviewed E5-E9 source candidate: `eb405107b9ad240fd87404649b2eb8f65d76a014`.
+- Original handoff advance after `a626...` was confirmed docs-only; no source/test/workflow drift.
+- Exact `a626...` deployable-payload failure was an Actions artifact-visibility race; rerun succeeded unchanged.
+- E5-E9 implementation was focused-reviewed against the frozen R2C read-only contract. Initial fail-closed gaps were repaired in the same source gate; current focused review has no open source blocker.
+- Exact candidate Golden Master source CI `38420237128` is SUCCESS.
+- Public repository safety CI `38420237220` and other routine exact-head workflows were still pending at the third observation. Do not keep polling this exact source head in this session.
+- Progress authority: `docs/development/N3W_T1_GOLDEN_MASTER_R2C_READONLY_PROBE_E5_E9_SOURCE_CONTINUATION_PROGRESS_20261013.md`.
+- Remote executor remains NOT_IMPLEMENTED; execution-ready=false; OS identity semantics remain unproven; controlled clone boot remains required; T1/live/board/merge remain false.
+
+## 2026-10-13 — R2C E5-E9 source candidate CI-pending
+
+- Current source authority remains `a626eb8827a584b7a84f3838beaf08f86766cd73`.
+- E5-E9 source candidate: `ef81e1e8040ac6bebf3b52ce808deb38ff3f4c0b`.
+- E5-E9 bounded read-only collectors/tests are implemented; focused source inspection found no blocker.
+- Same-gate Ruff and public-safety fixture findings were repaired.
+- Exact-head Golden Master source CI run `38418667594` and Public repository safety run `38418668272` were still queued at the mandatory third poll; closure is pending, no further wait polling in this session.
+- Progress: `docs/development/N3W_T1_GOLDEN_MASTER_R2C_READONLY_PROBE_E5_E9_SOURCE_CONTINUATION_PROGRESS_20261013.md`.
+- R2C remote executor remains not implemented; execution-ready=false; T1/live/board/merge remain false; OS identity semantics remain unproven and controlled clone boot remains required.
+
+## 2026-10-13 — Current formal handoff: R2C probe source continuation
+
+- Formal handoff: `docs/development/N3W_T1_GOLDEN_MASTER_R2C_READONLY_PROBE_SOURCE_CONTINUATION_NEW_CHAT_HANDOFF_V1.0_20261013.md`.
+- Handoff commit: `da4074f753e0a4dab25d12918f0a7657f520383c`.
+- Correct template: candidate-branch `NEW_CHAT_HANDOFF_TEMPLATE.md` V1.3 / blob `b9ef40acdaa8fae37feb5ffe5662afd0e89462a0`.
+- R2C source authority remains `a626eb8827a584b7a84f3838beaf08f86766cd73`; docs-only handoff commits are not source authority.
+- Next one gate: `N3W_T1_GOLDEN_MASTER_R2C_READONLY_PROBE_E5_E9_SOURCE_CONTINUATION_20261013_01`.
+- T1/live/board/merge remain false; actual R2C target execution remains unauthorized.
+
+## 2026-10-13 — R2C probe/executor source progress aligned to fresh PR #541
+
+- Local-dialogue last explicit source head: `b2b0a63292096fb624e733891466663d19abd86a`.
+- Fresh PR #541/candidate source head: `a626eb8827a584b7a84f3838beaf08f86766cd73`; tree `4e13eea60bf175e1e00a5aecc6c17e7ee65f902b`.
+- GitHub is 9 commits ahead of that local-dialogue source point, touching only `tools/n3w_t1_r2c_firstrun.py`, `tools/n3w_t1_r2c_collectors.py` and their two focused test files.
+- E1/E2/E3/E4 initial collectors are present; E2/E3 now include bounded `armbian-firstrun` source/config static analysis. E5-E9 and the remote executor remain incomplete; `EXECUTION_READY=false`.
+- Exact-head CI snapshot after the third poll: 10/27 success, 0 failure, 17 pending. Public repository safety PASS; Golden Master source CI still pending. Stop polling and use direct run/PR-check links.
+- No T1/live/board/merge action occurred; actual R2C evidence execution remains unauthorized.
+- Correct formal handoff template: candidate branch `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` V1.3, blob `b9ef40acdaa8fae37feb5ffe5662afd0e89462a0`. Historical `4300890d...` template is not the current template.
+- Main remains `d423211b6196c2f2f0f01dff072c4f877fbe58ee`; PR #541 remains OPEN_DRAFT and unmerged.
+
+## 2026-10-13 — R2C evidence-preparation contract PASS
+
+- Current preparation: `docs/development/N3W_T1_GOLDEN_MASTER_R2C_TARGET_ARMBIAN_READONLY_EVIDENCE_PREPARATION_20261013.md`.
+- Fresh base `1006cc07694f3da7cc232907bb4f7f6354cea5cf`; main unchanged; two docs-only commits since reviewed R2A/R2B source, no source/test/workflow drift.
+- Nine requirement mappings, read-only command contract, public/private projection and structured STOP rules frozen.
+- Preparation PASS; executable package not implemented; actual execution authorization not granted.
+- R2A/R2B and A1–A10 remain CLOSED_SOURCE; R2C adapter NOT_ENTERED; OS semantics unproven; controlled clone boot still required.
+- Next route: R2C read-only evidence; prerequisites are exact reviewed executor plus new explicit authorization. STOP before T1 access.
+- No T1/live/board/service/merge action; KF-113 guard retained, no new failure class.
+
+## 2026-10-13 — R2A/R2B source closure → R2C preparation handoff
+
+- Local dialogue ↔ GitHub alignment: PASS.
+- Formal handoff: `docs/development/N3W_T1_GOLDEN_MASTER_R2A_R2B_SOURCE_CLOSURE_TO_R2C_READONLY_EVIDENCE_PREPARATION_NEW_CHAT_HANDOFF_V1.0_20261013.md`.
+- Template: `NEW_CHAT_HANDOFF_TEMPLATE` v1.3; working context v1.1.
+- R2A/R2B: CLOSED_SOURCE; A1-A10 CLOSED_SOURCE.
+- PR #541 closure head `e946d1cb...`: 27/27 PASS; docs-only vs reviewed source head.
+- Next one gate: `N3W_T1_GOLDEN_MASTER_R2C_TARGET_ARMBIAN_SEAL_ADAPTER_READONLY_EVIDENCE_PREPARATION_20261013_01`.
+- No T1/live/board/merge action; chat-only engineering artifact count=0.
+
+## 2026-10-13 — R2A/R2B CLOSED_SOURCE
+
+- Reviewed source authority: `51ea220ac5510f4a55f0166bbab7f1cec5bed407`.
+- Exact-head CI: 27/27 PASS.
+- A1-A10: CLOSED_SOURCE.
+- R2A build source and host-independent R2B Seal source: CLOSED_SOURCE.
+- R2C target-Armbian identity adapter: NOT_ENTERED.
+- OS identity semantics remain unproven; controlled clone-boot evidence remains required.
+- Next one gate: R2C target-Armbian read-only evidence preparation only; no T1 access in
+  the preparation gate.
+
+## 2026-10-13 — R2A/R2B A10 pre/post immutable release continuity
+
+- ee4ff129... reached 27/27 CI PASS and was reviewed immediately.
+- A10 repairs pre/post source HEAD, release-manifest SHA-256 and image-lock SHA-256 continuity across identity preparation.
+- R2 source design is aligned with the accepted ledger/release/schema/mode/order/continuity contracts.
+- Fresh exact-head CI + final focused review remain before CLOSED_SOURCE.
+- R2C/live/T1/board/service/disk-capture/merge remain untouched.
+
+## 2026-10-13 — R2A/R2B A8-A9 final design-contract repair
+
+- `343112303...` reached exact-head 27/27 CI PASS and was reviewed immediately.
+- Final design comparison found A8 missing Seal-record source HEAD binding and A9 final
+  Seal audit-order drift.
+- Both are repaired source-only; fresh exact-head CI and one final focused review remain.
+- R2C/live/T1/board/service/disk-capture/merge remain untouched.
+
+## 2026-10-13 — R2A/R2B final focused review continuation
+
+- Green review head `f9406235...`: 27/27 CI PASS.
+- Focused review ran immediately and found A5 external release-manifest hash authority,
+  A6 strict release schema/`board_access=false`, and A7 external file mode-policy gaps.
+- A5-A7 are repaired in the same source-only gate; fresh CI/final review pending.
+- Durable CI workflow rules are now part of `N3W_PROJECT_WORKING_CONTEXT.md` and the
+  new-chat template.
+- R2C/live/T1/board/service/merge remain untouched.
+
+## 2026-10-13 — R2A/R2B final closure blocker repair
+
+- R2 Golden Master Build + Final Seal is formally **ENTERED_SOURCE**.
+- Exact repair base: `ef06c45ad1040a8221b68e1d22ec0abe363d7e42`.
+- A1 root-symlink authority, A2 positive no-secret/product whitelist, A3 Golden Master authorization-ledger classification, and A4 missing fault-injection coverage are repaired at source level.
+- Status: `IMPLEMENTED_CI_PENDING`; R2A/R2B are not yet CLOSED_SOURCE.
+- R2C target-Armbian identity adapter remains NOT_ENTERED; `OS_IDENTITY_SEMANTICS_PROVEN=false` and controlled clone-boot evidence remains required.
+- No T1/live/service/board/merge action occurred.
+- Authority: `docs/development/N3W_T1_GOLDEN_MASTER_R2A_R2B_FINAL_CLOSURE_BLOCKERS_SOURCE_REPAIR_20261013.md`.
+
+## 2026-10-13 — P2B Target-Armbian read-only evidence CLOSED_PASS
+
+- Exact execution source: `9155855a71f4750ebf7a7b22d9b4e000627e2f98` / 26/26 CI PASS.
+- Live read-only execution: PASS; no T1 file write, runtime/systemd mutation, production service start, board access, or merge.
+- Evidence hashes: stdout `97dd6a1c...`; report `be053eca...`; result `f4d2e6bd...`.
+- Exact target: Armbian 26.05.0 / S912-Phicomm-T1 / arm64.
+- Current host has populated, synchronized machine-id files and populated ECDSA/ED25519/RSA SSH host keys.
+- `sshd-keygen.service` has first-boot keygen semantics; `systemd-machine-id-commit.service` is mount-point gated; neither proves uniqueness for a cloned populated image.
+- `/etc/NetworkManager/system-connections` profile count observed: 0; NetworkManager clone uniqueness remains NOT_PROVEN.
+- Golden Master policy: final capture with populated machine-id or populated SSH host keys is forbidden; controlled clone-boot uniqueness proof remains mandatory.
+- Closure: `docs/development/N3W_T1_EXPLICIT_DEVICE_PROVISIONING_P2B_TARGET_ARMBIAN_READONLY_EVIDENCE_EXECUTION_CLOSURE_20261013.md`.
+- R2/R3/R4 are not entered. Next route is R2 Golden Master Build + Final Seal source design, with auto-entry disabled.
+
+## 2026-10-13 — Current formal handoff: P2B Target-Armbian read-only evidence
+
+- Local dialogue ↔ GitHub alignment: PASS
+- PR #541 closure head before handoff: `77a3f3bba2ebc5770de41d83d67070efde9d09b9` / 26/26 CI PASS
+- Exact execution source: `9155855a71f4750ebf7a7b22d9b4e000627e2f98`
+- Handoff template: v1.2
+- Formal handoff: `docs/development/N3W_T1_EXPLICIT_DEVICE_PROVISIONING_P2B_TARGET_ARMBIAN_READONLY_EVIDENCE_PREEXECUTION_NEW_CHAT_HANDOFF_V1.0_20261013.md`
+- Next gate: `N3W_T1_EXPLICIT_DEVICE_PROVISIONING_P2B_TARGET_ARMBIAN_READONLY_EVIDENCE_EXECUTION`
+- T1 read-only authorization: NOT GRANTED
+- Important chat-only artifacts: 0 / team-share completeness PASS
+
+## 2026-10-13 — P2B read-only evidence executor closure
+
+- Exact execution source: `9155855a71f4750ebf7a7b22d9b4e000627e2f98`
+- Exact-head CI: 26/26 PASS
+- Focused closure review: PASS, 0 blockers
+- Closure: `N3W_T1_EXPLICIT_DEVICE_PROVISIONING_P2B_READONLY_EVIDENCE_EXECUTOR_FOCUSED_CLOSURE_REVIEW_20261013.md`
+- Next gate: `N3W_T1_EXPLICIT_DEVICE_PROVISIONING_P2B_TARGET_ARMBIAN_READONLY_EVIDENCE_EXECUTION`
+- T1 read-only authorization remains required and ungranted.
+
+## 2026-10-13 — P2B OS identity probe source closure
+
+- Exact source: `a43c5750a8051946a9f08e3b3b2af3c5d7b9de69`
+- CI: 26/26 PASS
+- Review: `N3W_T1_EXPLICIT_DEVICE_PROVISIONING_P2B_OS_IDENTITY_PROBE_INDEPENDENT_SOURCE_REVIEW_20261013.md`
+- Next gate: `N3W_T1_EXPLICIT_DEVICE_PROVISIONING_P2B_TARGET_ARMBIAN_READONLY_EVIDENCE_EXECUTION`
+- Live/T1 access remains unauthorized.
+
+## 2026-10-13 — Explicit Device Provisioning P2A CLOSED_PASS
+
+- Exact source: `a971067d8b11677253c930d8975960de58473a58`
+- CI: 25/25 PASS
+- Independent review: PASS, 0 blockers
+- Closure: `N3W_T1_EXPLICIT_DEVICE_PROVISIONING_P2A_BOOT_ACTIVATION_POLICY_INDEPENDENT_SOURCE_REVIEW_20261013.md`
+- Next source gate: P2B host adapter / CLI / OS-identity evidence mapping
+
+> **2026-10-13 explicit provisioning P1 independent review CLOSED_PASS**：review head=`e464c103c9c5cbc2aa2d57d9e853d9e85e73596d`; prior single-initializer blocker is closed by an exclusive lock held across start/resume transaction execution. Exact-head CI=25/25 SUCCESS; A1/A2/A3/A4=CLOSED_SOURCE; blocker count=0; plain boot no-auto-start, DEVICE_READY current-host verify, CLI confirmation and activation separation remain closed. P2 is now eligible for source-only implementation; live T1/systemd/activation/board/merge remain untouched. Authority=`docs/development/N3W_T1_EXPLICIT_DEVICE_PROVISIONING_SINGLE_INITIALIZER_REPAIR_INDEPENDENT_SOURCE_REVIEW_20261013.md`.
+
+> **2026-10-13 explicit provisioning P1 CI PASS / handoff point**：P1 exact source=`e906d3d836fefe2bc2cafc0ff7877232974b5211`; inspect/start/resume/verify authority split implemented; exact-head 7/7 required workflows SUCCESS; completed non-success=0. P1 independent source review NOT_EXECUTED, so A4/source authority split remain IMPLEMENTED_PENDING_REVIEW and P2=HOLD. No T1/systemd/activation/board/live mutation. Progress authority=`docs/development/N3W_T1_EXPLICIT_DEVICE_PROVISIONING_COMMAND_AUTHORITY_SPLIT_SOURCE_REPAIR_P1_PROGRESS_ALIGNMENT_20261013.md`. Current handoff will be `docs/development/N3W_T1_EXPLICIT_DEVICE_PROVISIONING_COMMAND_AUTHORITY_SPLIT_SOURCE_REPAIR_P1_CI_PASS_NEW_CHAT_HANDOFF_V1.0_20261013.md` using `NEW_CHAT_HANDOFF_TEMPLATE.md` v1.2. Next=`N3W_T1_EXPLICIT_DEVICE_PROVISIONING_COMMAND_AUTHORITY_SPLIT_SOURCE_REPAIR_P1_INDEPENDENT_SOURCE_REVIEW`.
+
+> **2026-10-13 explicit provisioning source-repair design**：exact source=`3dbd972...`；source authority 必须拆为 inspect/start/resume/verify，START_AUTHORITY != RESUME_AUTHORITY != VERIFY_AUTHORITY。P1 只做 pure authority split、explicit confirmation、completed live-host verify、host-only tests 与 legacy R8 regressions；不装 systemd、不改 activation topology、不访问 T1。P2 才接 host wrapper/resume unit/golden install policy/activation eligibility。Authority=`docs/development/N3W_T1_EXPLICIT_DEVICE_PROVISIONING_COMMAND_AND_BOOT_DECOUPLING_SOURCE_REPAIR_DESIGN_20261013.md`。Next=`N3W_T1_EXPLICIT_DEVICE_PROVISIONING_COMMAND_AUTHORITY_SPLIT_SOURCE_REPAIR_P1`。
+
+> **2026-10-13 explicit provisioning design freeze**：BOOT_STARTS_NEW_PROVISIONING=false；EXPLICIT_PROVISION_COMMAND_REQUIRED=true；PROVISION_COMMAND_REBOOT_REQUIRED=false；INITIALIZING_AUTO_RESUME_AFTER_REBOOT=true；PRODUCT_SERVICE_ACTIVATION_SEPARATE=true。黄金镜像/clone 默认 UNPROVISIONED，clone 可 boot+audit 后在同一 boot 中显式执行 provisioning。R1 的 ownership split / durable transaction hardening 保留，completed-live-host binding 被吸收到 DEVICE_READY verify-only contract。OS identity boot behavior 仍 OPEN_EVIDENCE。Source 未改。Authority=`docs/development/N3W_T1_EXPLICIT_DEVICE_PROVISIONING_COMMAND_AND_BOOT_DECOUPLING_DESIGN_FREEZE_20261013.md`。Next=`N3W_T1_EXPLICIT_DEVICE_PROVISIONING_COMMAND_AND_BOOT_DECOUPLING_SOURCE_REPAIR_DESIGN`。
+
+> **2026-10-13 R1 focused closure review**：A1=CLOSED, A2=CLOSED, A3=CLOSED, A4=PARTIAL. Remaining blocker: completed firstboot fast-path does not revalidate persisted `host_instance_id` against the current host before returning `already_complete=True`. Source head reviewed=`3dbd972...`; required CI at PR head `5591d5...` PASS. R1 remains open; R2 HOLD. Next=`N3W_T1_GOLDEN_MASTER_FIRSTBOOT_R1_COMPLETED_HOST_BINDING_FOCUSED_REPAIR`.
+
+> **2026-10-12 R1 review blockers repair**：SOURCE_HEAD=`3dbd9723063e1f5f14605b1bcf13bee4c54c84ab`. A1 legacy commit preflight/order, A2 firstboot authority ownership, A3 secure atomic record write, A4 candidate/host/SYSTEM_ID-hash binding are repaired at source level with regression tests. Exact-head CI pending; no live/T1/R3/board mutation. R2 HOLD until focused closure. Authority: `docs/development/N3W_T1_GOLDEN_MASTER_FIRSTBOOT_SOURCE_DECOMPOSITION_REPAIR_R1_REVIEW_BLOCKERS_REPAIR_PROGRESS_20261012.md`.
+
+> **2026-10-12 R1 source decomposition repair**：SOURCE_HEAD=`90275626aafd2bcbc724cfcececc3911234dd23e`. Public/instance stage, commit+cleanup ownership and postcheck are split; pure golden-master and durable device-firstboot contracts added. Existing R8 orchestration and host transport are unchanged. Focused CI PASS (H0/H1, greenhouse-manager, deployment gate, public safety; fresh-bootstrap source-contract step PASS); extended ARM64/artifact workflows pending. SB1–SB3 closed source, SB4 partial contract, SB5–SB7 open. No live mutation. Authority: `docs/development/N3W_T1_GOLDEN_MASTER_FIRSTBOOT_SOURCE_DECOMPOSITION_REPAIR_R1_PROGRESS_20261012.md`.
+
+> **2026-10-12 source decomposition design**：R8 exact source mapping confirms the minimal repair seam: split public/instance staging, commit+cleanup ownership and postcheck, while keeping `run_fresh_staging` compatibility and reusing `system_init/fresh_product_state/fresh_broker`. New pure contracts are planned for golden-master build and device firstboot; host OS identity, Seal and factory live implementation remain later packages. Product source unchanged. Current implementation blockers SB1–SB7; R1 targets SB1–SB3 + SB4 skeleton. Next=`N3W_T1_GOLDEN_MASTER_FIRSTBOOT_SOURCE_DECOMPOSITION_REPAIR_R1`. Authority: `docs/development/N3W_T1_GOLDEN_MASTER_FIRSTBOOT_SOURCE_DECOMPOSITION_AND_REPAIR_DESIGN_20261012.md`.
+
+> **2026-10-12 golden-master/firstboot production architecture freeze**：ADR-0009 now separates normal production into golden-master build, Seal/capture, per-device firstboot, factory acceptance and user onboarding. R8/F5 `5ed613...` remains CLOSED_SOURCE for the single-host fresh-bootstrap scope only. Architecture blockers AB1–AB5 are CLOSED_DESIGN; source implementation and live clone acceptance remain open. Streaming capacity source repair is HOLD and reclassified as optional master-build optimization; 5 GiB is not product runtime free-space authority. R3 untouched; _08 NOT_GRANTED. Current authority: `docs/adr/0009-t1-golden-master-firstboot-production-lifecycle.md`. Next: `N3W_T1_GOLDEN_MASTER_FIRSTBOOT_SOURCE_DECOMPOSITION_AND_REPAIR_DESIGN`.
+
+> **2026-10-12 R8 storage capacity blocker / remediation design**：exact current transport admission FAIL: 12,671,384,447 required vs 9,229,160,448 free. Artifact integrity PASS. Root cause class=deployment staging peak + fixed 5 GiB reserve, not proof that product runtime cannot fit. Accepted design keeps 5 GiB unchanged initially and changes staging to verified archive-member streaming + per-image dynamic capacity gate, preserving authorization before first Docker mutation. R3 evidence stays untouched; _08 NOT_GRANTED. Authority: docs/development/N3W_T1_FRESH_BOOTSTRAP_R8_STORAGE_CAPACITY_REMEDIATION_DESIGN_20261012.md. Next source gate=N3W_T1_FRESH_BOOTSTRAP_R8_STORAGE_CAPACITY_STREAMING_SOURCE_REPAIR.
+
+> **2026-10-12 R8 F5 closure and replacement artifact preparation**：Independent source review F5=CLOSED, DOWNSTREAM_SOURCE_BLOCKER=NO, reviewed head 5ed613673ec1ead29a1153d0e3916bdd3539a3fb exact 25/25 CI PASS. Replacement deployable artifact #11746610745 (run #38245536856) CI ZIP and post-upload inner binding PASS; T1 artifact transfer and live preflight NOT_EXECUTED. R3 payload cleanup only planned; _08 NOT_GRANTED; no T1/board/live mutation or PR merge. Current preparation authority: docs/development/N3W_T1_FRESH_BOOTSTRAP_R8_REPLACEMENT_ARTIFACT_BINDING_AND_READONLY_PREEXECUTION_PREPARATION_20261012.md. Next stage requires a separately bounded fresh T1 read-only preexecution; no automatic transition to live apply.
+
+> **2026-10-12 current handoff correction**：正式 current handoff 已切换到 docs/development/N3W_T1_FRESH_BOOTSTRAP_R8_F5_FINAL_CLOSURE_REVIEW_NEW_CHAT_HANDOFF_V1.1_20261012.md；V1.0 superseded。模板 authority=current NEW_CHAT_HANDOFF_TEMPLATE.md v1.2 + N3W_PROJECT_WORKING_CONTEXT.md v1.0。NEXT_ONE_GATE 仍为 N3W_T1_FRESH_BOOTSTRAP_R8_F5_FINAL_CLOSURE_REVIEW_20261012_01。
+
+> **2026-10-12 R8 F5 final source-repair handoff**：exact review/source head=5ed613673ec1ead29a1153d0e3916bdd3539a3fb，CI=25/25 PASS；containerd non-empty imports now fail closed and generated storage-probe execution regressions pass. _08 NOT_GRANTED. 本轮在此 STOP；新对话只进入 N3W_T1_FRESH_BOOTSTRAP_R8_F5_FINAL_CLOSURE_REVIEW_20261012_01。
+
+> **2026-10-12 Astra R3 focused closure**：PRODUCT_SOURCE_HEAD=41d05b99813ae5ea3887b4f2b80b75164f35dda4；PR_HEAD=7ebceebe6f52310b60a0e1adf0e9486a8968f575；current CI=25/25 PASS。复核仅限 F5、D1、A8、DOWNSTREAM_SOURCE_BLOCKER；_07 NOT_GRANTED；不访问 T1、不清 R3 retained payload、不 merge。
+
+> **2026-10-12 Astra R2 blocker repair**：product head=41d05b99...；F5 actual image-store root + D1 UID-999 stopped audit + A8 timeout fallback committed；_06=SUPERSEDED_UNGRANTED；_07=NOT_GRANTED；CI pending；T1 unchanged。
+
+> **2026-10-12 Astra R2 closure review**：PRODUCT_SOURCE_HEAD=dec88fdc...，CI=25/25 PASS；复核目标仅为关闭上一轮 F1-F6/A8 并确认是否可以进入 replacement artifact binding + real-T1 read-only preflight。_06 NOT_GRANTED；T1/board/runtime mutation=false。
+
+> **2026-10-12 Astra blockers repair in progress**：product head=3e88e41a...；F1-F6 source repairs plus repository-owned artifact download fallback committed. _04=SUPERSEDED_UNGRANTED；_05=NOT_GRANTED；CI pending；T1 unchanged。
+
+> **2026-10-12 KF-111 R4 Astra review brief**：exact product-source=c263b9df...；复核重点为 cross-store image identity、RootFS binding 强度、Docker29 coverage、failure observability、cleanup/no-replay、后续 staging blocker 与 artifact download fallback。_04 NOT_GRANTED，T1 暂不修改。
+
+> **2026-10-12 KF-111 root cause confirmed / source repair**：R3 HA image load 实际成功，但 Docker 29 containerd runtime ID=`c261fa53...` 与 CI Docker 28 build/config ID=`b0e1ee82...` 不同，触发 single-ID binding fail 后事务安全回滚。该差异与仓库既有 KF-098 cross-store contract 一致。修复改为 exact tar + platform + RootFS fingerprint；`_03` 已消费，successor `..._04` NOT_GRANTED；KF-110=LIVE_REVALIDATED，KF-111=OPEN_SOURCE_REPAIR_CI_PENDING。
+
+> **2026-10-12 fresh bootstrap R3 STOP_PARTIAL**：`_03` 已 claim/consume，不可重放。fresh installer cleanup 后 minimal baseline PASS；remote payload 保留且三个 image tar 均仍存在，故失败锁定在第一个 Home Assistant image load/binding step。当前仅做只读取证；生产服务/board/merge 均未触及。
+
+> **2026-10-12 fresh bootstrap R3 local artifact download STOP_PRECLAIM x2**：已授权 `..._03` 连续两次在 Mac 端 `gh run download` 获取 replacement artifact #11729783144 时失败；两次均明确 `authorization_claimed=false`、`authorization_consumed=false`、`payload_transfer=false`、`docker_mutation=false`、`remote_payload_preserved=false`，因此真实 T1 未进入 staging，`_03` 仍可在 claim 前继续。GitHub artifact metadata 仍为 unexpired 且 exact source=`1f191b26...`。后续只替换本地 artifact 获取传输层：GitHub REST redirect + resumable curl；必须先验证 outer ZIP digest `03098b8c...`，再由 artifact 自带 exact host wrapper 继续原有 binding/apply 路径。产品源码、payload、authorization identity 不旋转。
+
+> **2026-10-12 fresh bootstrap live apply R3 authorization granted**：`N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_LIVE_APPLY_20261012_03` 已明确批准，当前 GRANTED_PENDING_CLAIM；exact source=`1f191b26...`，artifact #11729783144；尚未 claim/consume，生产服务启动/board/merge 均不在授权范围。
+
+> **2026-10-12 fresh bootstrap replacement R3 preexecution CLOSED_PASS**：exact-head 25/25 PASS；replacement artifact #11729783144 post-upload binding PASS；真实 T1 minimal baseline + capacity preflight 均 PASS，未传 payload/未改 Docker/未 claim authorization。KF-109=GUARDED_SOURCE / LIVE_REVALIDATED；KF-110=GUARDED_SOURCE / LIVE_REVALIDATION_PENDING；`..._03` 仍 NOT_GRANTED。
+
+> **2026-10-12 fresh bootstrap apply R2 STOP_PRECLAIM**：真实 T1 以 `payload_file_set_invalid` fail-closed，claim=false/consumed=false，remote staging cleanup=PASS。根因是 manifest 冻结后的 payload-tree rehearsal 可能写入 pycache，而打包前缺少最终 file-set check。source repair 已加入 bytecode suppression + final self-check + pycache guard；successor `..._03` NOT_GRANTED。
+
+> **2026-10-12 fresh bootstrap live apply R2 authorization granted**：`N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_LIVE_APPLY_20261012_02` 已明确批准，当前 GRANTED_PENDING_CLAIM；exact source=`9b12116e...`，artifact #11726716679；尚未 claim/consume，生产服务启动/board/merge 均不在授权范围。
+
+> **2026-10-12 fresh bootstrap replacement R2 preexecution CLOSED_PASS**：exact-head 25/25 PASS；replacement artifact #11726716679 post-upload binding PASS；旧 preclaim staging residue 精确清理后 minimal baseline PASS；replacement artifact 真实 T1 capacity preflight PASS，未传 payload/未改 Docker/未 claim authorization。KF-109=GUARDED_SOURCE / LIVE_REVALIDATION_PENDING；`..._02` 仍 NOT_GRANTED。
+
+> **2026-10-12 remote-extract repair R2**：首轮 corrected CI 的 stale authorization test fixture 与 public-doc private-IP safety failure 已修；产品 extractor 修复保持不变，replacement CI/artifact 继续收敛，`..._02` 仍 NOT_GRANTED。
+
+> **2026-10-12 fresh bootstrap apply #01 STOP_PRECLAIM**：remote payload prepare 的生成 Python 因 compound statement 位于 semicolon 后触发 SyntaxError；claim=false/consumed=false，Docker/product mutation=false。source repair 已加入 multiline extractor + executable regression；旧 exact grant superseded，successor `N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_LIVE_APPLY_20261012_02` NOT_GRANTED，等待新 CI/artifact/preexecution。
+
+> **2026-10-12 fresh bootstrap live apply authorization granted**：`N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_LIVE_APPLY_20261012_01` 已由用户明确批准，当前 GRANTED_PENDING_CLAIM；尚未 claim/consume。下一步仅执行 exact artifact 的 one-shot live apply。
+
+> **2026-10-12 fresh bootstrap live preexecution read-only CLOSED_PASS**：真实 T1 minimal-host inventory PASS；exact artifact #11725615364 transport/capacity preflight PASS，payload 未传输、Docker 未 mutation、authorization 未 claim/consume。下一边界为 explicit one-shot live apply authorization。
+
+> **2026-10-12 fresh bootstrap A4 + final review CLOSED_PASS**：product-source `2118eb09...` exact-head 25/25 PASS；fresh deployable artifact #11725615364 post-upload/inner binding PASS。A4 unknown-outcome/no-replay 修复已 guarded，A1-A10 最终源码与执行路径复核全 PASS。下一阶段仅 fresh live preexecution read-only；live apply 未授权，PR #541 不合并。
+
+> **2026-10-12 fresh bootstrap deployable source/artifact alignment PASS**：exact product-source `d5a1be83...` 25/25 workflow PASS；fresh deployable artifact #11723440338 exact binding PASS。source/CI gate CLOSED_PASS；下一门只读复核 exact HEAD / artifact 的最终源码与执行路径，不进入 T1 live apply。
+
+> **2026-10-12 fresh deployable path R1**：fresh-only Compose + dynamic exact Manager image-lock contract + hardened tar extraction 已提交；live adapter/payload workflow 为同 gate 下一提交。T1 mutation=false。
+
+> **2026-10-12 fresh bootstrap deployment readiness = NOT_READY**：exact fresh ARM64 三镜像 evidence PASS，但 deployable live path 尚缺；旧 staging payload 明确禁止用于已清空 T1。下一门为 fresh-bootstrap-specific deployable path source repair（GitHub/host only）。
+
+> **2026-10-12 minimal-baseline normalization CLOSED_PASS**：真实 T1 已达到 `ARMBIAN + DOCKER + NETWORK ONLY`；0 containers/images/volumes，只有 Docker 默认网络，产品路径/unit/firewall/listener 全部清空。destructive authorization 已 consumed/no-replay。下一门为 fresh bootstrap deployment-readiness review（host/GitHub only）。
+
+> **2026-10-12 normalization live authorization granted**：exact one-shot destructive authorization 已授予但尚未 claim；source authority=`43207da98...`，fresh preflight PASS，当前 T1 尚未修改。
+
+> **2026-10-12 normalization live preexecution PASS**：fresh real-T1 preflight 无 drift；45-volume exact set / 5 product networks / firewall ownership 全部匹配冻结 manifest。destructive authorization 仍 NOT_GRANTED。
+
+> **2026-10-12 normalization source CLOSED_PASS**：exact-head 全部 CI PASS；manifest/executor 已具备进入 live preexecution 的源码资格，但 destructive authorization 仍未授予，T1 mutation=false。
+
+> **2026-10-12 normalization exact source entered**：45-volume / 5-network / 8-path exact manifest 与 one-shot normalization executor 已提交；dedicated source CI pending，live destructive authorization NOT_GRANTED。
+
+> **2026-10-12 dialogue/GitHub alignment PASS**：read-only inventory 与 classifier repair 已全绿归档；public-safe live facts 已进入 GitHub，chat-only required artifact=0。下一门只做 exact normalization manifest/executor source + CI，live deletion 未授权。
+
+> **2026-10-12 live normalization inventory complete / classifier repair pending CI**：read-only inventory SHA `0ad246ee...`；45 volumes 精确匹配历史 frozen set，默认 Docker networks/firewall framework 从删除候选中剥离。
+
+> **2026-10-12 normalization read-only gate authorized**：versioned read-only inventory executor 已提交并等待 CI；live T1 inventory 尚未执行，destructive authorization 尚未请求。
+
+> **2026-10-12 R6 CLOSED_PASS / normalization preflight prepared**：exact ARM64 three-image artifact #11718067835 post-upload binding PASS；下一步只读盘点 T1，先生成 exact cleanup manifest，再单独申请 destructive authorization。
+
+> **2026-10-12 R5 CLOSED_PASS / R6 pending CI**：host-only 从零安装已闭环；exact ARM64 Manager/HA/Broker 三镜像 + fresh runtime identity binding CI 已提交。
+
+> **2026-10-12 R4 CLOSED_PASS / R5 pending CI**：fresh transport exact artifact #11709005237 已通过上传后复核；host-only full-fresh install CI 已提交，真实 T1 不变。\n\n> **2026-10-11 R4 pending CI**：fresh host transport 已实现 payload-aware 容量计算和顺序 image-tar release 合同；read-only preflight 在任何大文件传输前完成。当前 CLI 不开放 apply。下一门 R5 为 host-only isolated full-fresh CI。
+
+> **2026-10-11 R3 source repair pending CI**：minimal-host fresh installer orchestration 已落地；R1 fresh-state core 已提升为 Manager package 正式模块，旧 tool 只保留 CLI wrapper。下一步 R4 处理 host wrapper 与 artifact transport；当前 T1 不变。
+
+> **2026-10-11 R2 source repair pending CI**：fresh Broker TLS + DynSec source bootstrap 已实现并接入独立 M2 Dynamic Security CI contract；node credentials 不预创建，Broker transport CA 与 System CA 分离。T1 不变，exact production-image fresh runtime matrix留给 R6。
+
+> **2026-10-11 R1 source repair pending CI**：minimal-host fresh bootstrap R1 已实现 fresh Manager/N3-W state constructor，删除 fresh path 对 legacy provenance 的依赖；CI pending。T1 不变，`..._03` 继续 superseded。
+
+> **2026-10-11 source design closure**：minimal-host fresh product bootstrap design PASS。当前正式安装起点仅为 Armbian + Docker + Network；所有 greenhouse product state 均由 installer 从零创建。旧 staging executor 不继续兼容扩展；下一门 R1 只做 fresh Manager/N3-W state constructors 与 host CI，T1 mutation=false。
+
+> **2026-10-11 current baseline authority**：`TARGET_T1_BASELINE=ARMBIAN + DOCKER + NETWORK ONLY` 已冻结。正式 T1 installer 不再依赖预创建 identity/secret/DynSec/Manager DB/guard/45-volume frozen set；这些均改由 fresh product bootstrap 创建。Run #91 artifact exact binding 保留为证据但 deployment eligibility 已 superseded；`..._03` 未授权且不再使用。下一门：`N3W_T1_MINIMAL_HOST_BASELINE_BOOTSTRAP_SOURCE_DESIGN_20261011_01`，仅 host/GitHub，无 live mutation。
+
+> **2026-10-11 corrected current handoff**：Run #78 当前正式交接为 `docs/development/N3W_T1_PRODUCTION_STACK_STAGING_RUN78_EXACT_ARTIFACT_BINDING_NEW_CHAT_HANDOFF_V1.1_20261011.md`。此前 V1.0 使用了已废弃的旧执行模式，现仅保留为历史记录，不再作为 current handoff authority。当前执行方式以 `docs/development/N3W_PROJECT_WORKING_CONTEXT.md` 为准；技术停止点不变：Run #78 CI PASS，artifact binding 尚未执行，`..._03` 未授权。
+
+> **2026-10-11 new-chat handoff target**：当前正式切换点为 Run #78 exact artifact / 三镜像 tar / payload size + SHA256 binding review；product source authority=`cb4131e47727d0cf7421133000c3a421c860a99b`，run #78=`38140472427` PASS，artifact binding 尚未执行，`..._03` authorization 尚未授予。
+
+> **2026-10-11 KF-107 offline-image R1 CI FAIL / local-runtime-ref repair in CI**：staging payload run `38139358261` 的外部镜像 pull/save/load 已完成，但 Docker save/load 未恢复原 registry `repository:tag@digest` 可寻址引用，round-trip re-inspect 因 `No such image` FAIL；该失败仅发生在 host CI，无 T1 access/live mutation。repair 已改为 exact upstream digest pull+verify → deterministic local runtime tag → save/remove/load → local tag + exact config/platform reverify；production Compose 对 HA/Broker 使用 local immutable tag + `pull_policy: never`，image-lock 保留 upstream source ref + manifest digest provenance；T1 apply 仍只允许 local docker load。host wrapper 同步改为大 payload streaming SHA + extract 后删除 outer archive。authorization `..._03` 仍 NOT_GRANTED。
+
+```text
+KF107=OPEN_SOURCE_REPAIR_CI_PENDING
+R1_PAYLOAD_CI=FAIL_HOST_ONLY
+T1_ACCESS=false
+LIVE_MUTATION=false
+SUCCESSOR_03=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_03
+SUCCESSOR_AUTHORIZATION_STATE=NOT_GRANTED
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
+> **2026-10-11 staging apply #02 timeout / rollback PASS / successor #03 source repair**：authorization `..._02` 已 claim+consume。fresh preflight、state-root、Manager image load、Manager state prepare 均 PASS；随后 exact Home Assistant `docker pull` 在 1200 s 超时，executor structured STOP，rollback `status=PASS/errors=[]`，未启动生产服务。底层网络原因 TBD；已确认 KF-107：one-shot post-claim critical section 不应依赖外部 registry。source repair 已改为 payload CI 预先冻结 exact ARM64 HA/Broker tar，T1 apply 只做 local `docker load`。authorization 已旋转为 `N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_03`，当前 NOT_GRANTED，等待新 CI / artifact binding / fresh T1 preflight。
+
+```text
+KF107=OPEN_SOURCE_REPAIR_CI_PENDING
+PREDECESSOR_02=CONSUMED_FAILED_ROLLBACK_PASS
+SUCCESSOR_03=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_03
+SUCCESSOR_AUTHORIZATION_STATE=NOT_GRANTED
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
+> **2026-10-11 successor staging apply CLAIMED / IN PROGRESS**：repository-owned host wrapper 已输出 `apply_transport_invoked`，因此 authorization `N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02` 已永久 claimed+consumed，禁止 replay。当前 host wrapper 尚未返回最终 executor 结果；其实现使用 `subprocess.run(..., capture_output=True)`，remote stdout/stderr 会在 SSH 子进程结束后才一次性回传，所以 image load/pull 等长步骤期间原 Terminal 可能长时间静默，这本身不是失败证据。原 Terminal 必须保持运行；并行只允许 read-only observation。
+
+```text
+AUTHORIZATION_STATE=CLAIMED_IN_PROGRESS
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+REPLAY_FORBIDDEN=true
+FINAL_TRANSACTION_RESULT=UNKNOWN
+PRODUCTION_SERVICE_START=NOT_YET_OBSERVED
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
+> **2026-10-11 successor staging authorization GRANTED_PENDING_CLAIM**：用户已明确批准 exact authorization `N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02`。successor payload binding 与 fresh T1 preflight 均已 PASS；当前尚未 claim/consume。只允许 repository-owned host wrapper + artifact `11697988392` 进入单次 staging-only apply。host wrapper 发出 `apply_transport_invoked` 即为 claim 点；此后无论 PASS、rollback、SSH 中断或 host error 都永久 no-replay。生产服务启动、unit enable、dispatcher install、reboot、board access、PR merge 仍禁止。
+
+```text
+AUTHORIZATION_STATE=GRANTED_PENDING_CLAIM
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+LIVE_STAGING_APPLY=AUTHORIZED
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
+> **2026-10-11 successor fresh T1 preflight PASS / explicit authorization required**：repository-owned host wrapper + successor exact payload 已在 T1 read-only preflight PASS，`HOST_WRAPPER_RC=0` / `transport_completion=KNOWN_SUCCESS`。0 containers、45-volume frozen set、project networks empty、production listeners 0、guard exact、DynSec exact、identity claim 1、Manager DB clean、n3w root absent、production images absent、services stopped 全部重证。authorization `N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02` 仍 NOT_GRANTED / claimed=false / consumed=false。下一步只能在用户明确批准该 exact ID 后进入一次性 staging-only apply。
+
+```text
+SUCCESSOR_FRESH_T1_PREFLIGHT=PASS
+SUCCESSOR_AUTHORIZATION=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
+SUCCESSOR_AUTHORIZATION_STATE=NOT_GRANTED
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+LIVE_STAGING_APPLY=READY_AFTER_EXPLICIT_APPROVAL
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
+> **2026-10-11 successor staging payload bound / fresh T1 preflight next**：successor authorization `N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02` 的 exact payload CI run `38130333387` PASS；Manager state run `38130333275` 与 Public safety run `38130333328` PASS。artifact ID `11697988392` 已独立下载重绑：ZIP `da0aa461...`、payload archive `1a788d9c...`、manifest `cead5f2c...`、executor `5ff02f68...`、host wrapper `30ca74ec...` 均一致。下一步仅 repository-owned host wrapper fresh T1 preflight；successor authorization 尚未授予/claim/consume。
+
+```text
+SUCCESSOR_PAYLOAD_BINDING=PASS
+SUCCESSOR_FRESH_T1_PREFLIGHT=NEXT
+SUCCESSOR_AUTHORIZATION=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
+SUCCESSOR_AUTHORIZATION_STATE=NOT_GRANTED
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
+> **2026-10-11 KF-106 source CI PASS / successor staging authorization rotated**：image identity repair + repository-owned Mac host wrapper 已通过 dedicated CI（Manager state run `38129756566`、payload run `38129756547`）。run #34 artifact 仍绑定已消费的 predecessor authorization `..._01`，因此只作为修复证据，禁止 live reuse。source/payload authorization 已旋转为 `N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02`；successor 尚未授权，需 fresh successor payload CI + artifact rebind + fresh T1 preflight + 用户明确批准后才可 claim。
+
+```text
+KF106=GUARDED_LIVE_REVALIDATION_PENDING
+KF078_HOST_WRAPPER_SOURCE_CI=PASS
+PREDECESSOR_AUTHORIZATION=CONSUMED_NO_REPLAY
+SUCCESSOR_AUTHORIZATION=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
+SUCCESSOR_AUTHORIZATION_STATE=NOT_GRANTED
+T1_MUTATION=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
+> **2026-10-11 staging apply failed safely / rollback PASS / source repair pending**：one-shot staging apply 已正式 claim+consume，fresh preflight 与 state-root prepare PASS 后在 exact Manager `docker load` 的 image-ID oracle 停止；executor rollback `status=PASS/errors=[]`，未启动 Broker/Manager/HA。根因域为 Docker classic vs containerd image-store ID 语义不兼容；cross-store exact config/target digest repair 已实现。Mac 外层同时暴露 zsh 不支持 Bash-only `PIPESTATUS` 的 KF-078 recurrence；现已新增 repository-owned Python host transport，无 pipeline-status 依赖。新 source/payload CI pending；旧 authorization 永久 no-replay，尚无 successor live authorization。
+
+```text
+KF106=OPEN_SOURCE_REPAIR_CI_PENDING
+KF078=OPEN_HOST_WRAPPER_CI_PENDING
+PRODUCTION_ROLLBACK=PASS
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+REPLAY_FORBIDDEN=true
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
+> **2026-10-11 fresh T1 staging preflight PASS / one-shot apply ready**：KF-105 repaired replacement payload 已在 T1 以 read-only preflight 模式 PASS。现场保持 0 containers / frozen 45-volume set / project networks empty / production listeners 0 / guard exact / DynSec exact / secret bundle 11 files / identity claim 1 / Manager DB quick_check ok + business rows 0 + provenance 1 / n3w root absent / production images absent / services stopped。authorization 尚未 claim/consume。下一步仅允许 exact payload + exact executor + exact authorization ID 进入一次性 staging apply；从 apply 启动瞬间起 authorization 即视为 claimed 且永久不可重放，即使 SSH 中断或 executor rollback。
+
+```text
+KF105=CLOSED_GUARDED
+FRESH_T1_PREFLIGHT=PASS
+LIVE_STAGING_APPLY=READY
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
+> **2026-10-11 fresh T1 preflight STOP / KF-105 provenance fingerprint mismatch**：exact staging payload 已到达 T1，但仅执行 read-only preflight；结果 `status=STOP` / `reason=manager_database_provenance_drift`。未传 `--authorization-id`，apply phase 未进入，因此 T1 production mutation=false、authorization claimed/consumed=false。源码复核确认 H0/H1 `system_id_fingerprint()` 是完整 SYSTEM_ID SHA-256 的前 24 个十六进制字符，而 staging executor / Manager-state preparer / synthetic CI fixture 错按完整 64 字符比较。source repair + tests 已提交，replacement CI/payload 尚待闭环；旧 payload 已 superseded，禁止继续用于 T1。
+
+```text
+KF105=OPEN_SOURCE_REPAIR_CI_PENDING
+T1_MUTATION=false
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
+> **2026-10-11 exact staging payload bound / fresh T1 preflight next**：payload workflow run `38126850777` PASS；exact PR-head source `ea6738551e583a14ad5685e181109b7e57f8fb1b`，artifact ID `11697172862`，artifact ZIP SHA256 `371b7aff...`，payload archive SHA256 `35e9b7e2...`，manifest SHA256 `3e73fbf6...`，executor SHA256 `3f82a52d...`，Manager tar SHA256 `2ef0421d...`。先前 run `38126385865` 使用 PR synthetic merge SHA `21727a26...`，其 payload 已 superseded，禁止用于 T1。下一步仅 fresh T1 preflight；authorization 仍未 claim/consume，production services 保持 stopped。
+
+```text
+PAYLOAD_BINDING=PASS
+FRESH_T1_PREFLIGHT=NEXT
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
+> **2026-10-11 staging executor hardened CI PASS / payload build entered**：hardened executor source head `b9305b5fff1d046ebbc86530d12521ea227681a6` dedicated CI run `38125884756` PASS；docs-only head `7f54561...` run `38125935452` 亦 PASS。Codex 旧 payload 明确 superseded，不得用于 T1。已新增 repository-owned content-addressed payload workflow `.github/workflows/n3w-t1-production-stack-staging-payload-ci.yml`（commit `96113b82...`），将重新下载并校验 frozen Manager artifact、生成 executor/manifest/archive SHA，并保持 authorization claimed/consumed=false。当前仍禁止 T1 mutation；fresh T1 preflight 只在新 payload CI PASS 并完成 artifact rebind 后进入。
+
+```text
+HARDENED_EXECUTOR_CI=PASS
+PAYLOAD_BUILD_CI=PENDING
+T1_MUTATION=false
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
+> **2026-10-11 KF-104 source repair CLOSED_PASS / production staging authorization prepared**：Dedicated CI run `38124163390` PASS，exact frozen ARM64 Manager artifact load、state prepare/audit、rendered production Compose 均通过；Manager DB 未改变、business rows=0、replay/relay/key state 为空、Docker volume set unchanged。下一阶段仅为“staging，不启动服务”：需新的一次性 live authorization `N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_01`。staging 明确禁止 Broker/Manager/HA start、unit enable、dispatcher install、reboot、board access、PR merge。Authority: `docs/development/N3W_T1_PRODUCTION_STACK_STAGING_LIVE_AUTHORIZATION_PREEXECUTION_20261011.md`.
+
+```text
+KF104=CLOSED_PASS
+SOURCE_REPAIR_CI_RUN=38124163390
+LIVE_STAGING_AUTHORIZATION=REQUIRED_NOT_GRANTED
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
+> **2026-10-11 KF-104 CI fixture repair / fresh rerun pending**：专用 run `38122599845` 在 focused source tests 的 import 阶段失败：`jsonschema` 未安装，25 passed / 5 failed；Compose render、exact frozen ARM64 Manager image build、state prepare/audit 均未执行，因此未证明 product source failure。根因是 workflow 仅安装 `pytest`，未安装 Manager 正式 runtime deps。已于 commit `925034dfb3bdb42c30a4db8bcf0c63a38340f12e` 改为安装 `host/greenhouse-manager[dev]`。当前仅 CI fixture 修复，T1 未变更、生产服务未启动、板卡未访问。Authority: `docs/development/N3W_T1_PRODUCTION_STACK_MANAGER_STATE_BINDING_SOURCE_REPAIR_PROGRESS_20261011.md`.
+
+> **2026-10-11 production Manager state binding source repair implemented / CI pending**：fresh read-only evidence confirmed one existing claim for preserved SYSTEM_ID, clean portable Manager DB (business rows 0, provenance 1), absent default pairing/N3-W runtime paths, and UID999 unable to create portable-root children. KF-104 opened. Source repair now explicitly binds `GH_PAIRING_DB_PATH` + history to `manager/manager-state.sqlite3`, freezes replay/relay-auth/key paths under `n3w/`, removes the whole portable-root RW mount from Manager, and requires only scoped `manager/` + `n3w/` writable mounts. Added exact-image Manager state preparer and dedicated CI using frozen ARM64 Manager source `511db028...`. Current T1 remains unmodified; production services remain stopped. Authority: `docs/development/N3W_T1_PRODUCTION_STACK_MANAGER_STATE_BINDING_SOURCE_REPAIR_PROGRESS_20261011.md`.
+
+```text
+KF104=OPEN_SOURCE_REPAIR_CI_PENDING
+IDENTITY_CLAIM_PRESENT_FOR_PRESERVED_SYSTEM=true
+PORTABLE_MANAGER_DB_CLEAN=true
+PRODUCTION_MANAGER_STATE_BINDING_SOURCE_REPAIR=IMPLEMENTED
+PRODUCTION_MANAGER_START=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
+> **2026-10-11 production activation read-only blocker**：restore-root forensic 已完成，恢复身份绑定通过，但 marker 仍要求 activation 前完成 identity claim；Manager subtree 另有 1 个 unexpected empty directory。源码复核确认 current production Compose 启用 N3-W runtime，却未绑定该 runtime 启动所需的 existing state paths，故当前 Compose 不得直接启动 Manager。下一门：`N3W_T1_PRODUCTION_STACK_IDENTITY_CLAIM_AND_RUNTIME_STATE_READONLY_BINDING_20261011_01`。Authority: `docs/development/N3W_T1_PRODUCTION_STACK_RESTORE_ROOT_FORENSIC_STATUS_20261011.md`.
+
+> **2026-10-11 Manager restore-root classification**：`/var/lib/greenhouse-manager` 已识别为 H0/H1 portable-restore 根，SQLite quick_check PASS，无 symlink/special file；但 root mode=0711 未与 accepted 0700 contract 对齐，且 `manager/registration.sqlite3` 为意外的 root:root:0755 目录；RESTORE marker 的 activation-disabled / identity-claim-required 状态与当前 identity claim 尚待只读取证。禁止 chmod/chown/delete/activation。Next: `N3W_T1_PRODUCTION_STACK_RESTORE_IDENTITY_AND_MANAGER_ROOT_READONLY_FORENSIC_20261011_01`. Authority: `docs/development/N3W_T1_PRODUCTION_STACK_MANAGER_STATE_READONLY_CLASSIFICATION_PROGRESS_20261011.md`.
+
+> **2026-10-11 production activation preexecution PARTIAL_PASS / staging required / Manager state classification pending**：fresh T1 read-only probe 保持 S20 closed baseline：0 containers、45 volumes + exact set SHA、两个项目网络为空、1883/8883/18883/8123/47112/47111 均无监听、guard active/enabled、post-S20 DynSec SHA exact、R5 snapshot exact、secret root 0700、transaction dir absent。三个 production images 均 ABSENT，/opt/HomeAssistant 与 production Compose/image-lock/HA config/Broker config、activation env/readiness/persistence/dispatcher、Broker/Services activation unit、certificate timer 均 ABSENT/not-found，统一分类为 STAGING_REQUIRED 而非 product failure。唯一尚未分类的 live target 是 `/var/lib/greenhouse-manager`：root:root:0711、top-level 8 entries；production Manager 将以 999:999 RW bind 此路径，因此必须先 read-only 证明这 8 项是否为后续 clean-product identity/state authority，禁止猜测、删除或 chown。Authority: `docs/development/N3W_T1_PRODUCTION_STACK_ACTIVATION_READONLY_PREEXECUTION_PROGRESS_20261011.md`.
+
+```text
+NEXT_ONE_GATE=N3W_T1_PRODUCTION_STACK_MANAGER_STATE_READONLY_CLASSIFICATION_20261011_01
+LIVE_RUNTIME_MUTATION=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
+> **2026-10-11 production stack activation read-only preexecution entered**：S20 已 CLOSED_PASS，R5 authorization 已消费/禁止 replay。下一门冻结为 `N3W_T1_PRODUCTION_STACK_ACTIVATION_READONLY_PREEXECUTION_20261011_01`，只读核对 exact production images、source/install target collision、systemd/readiness/dispatcher material、Manager/HA state roots、guard/listeners、S20 DynSec/secret baseline 与磁盘余量。缺少待部署文件/镜像只记 `STAGING_REQUIRED`；unexpected runtime/container/listener/secret/DynSec drift fail closed。任何 Broker/Manager/HA start 仍需新的 explicit authorization。Authority: `docs/development/N3W_T1_PRODUCTION_STACK_ACTIVATION_READONLY_PREEXECUTION_20261011.md`.
+
+> **2026-10-11 S20 three-service secret handoff CLOSED_PASS**：R5 transaction apply PASS，executor postcheck PASS，事务退出后的独立 T1 read-only audit 也 PASS。当前 exact post-apply DynSec SHA=`95d99839ec9a6b8003e1375883a3f9263a92e0dbc49c8ca5478196027081a90a`，exact 3 service clients + 3 service roles 已落地，node client 仍为 0；credential bundle integrity/owner/mode verified，HA runtime 尚未启动因此 `homeassistant_runtime_verified=false` 属预期状态。Docker 仍 0 containers / frozen 45-volume set，两个项目网络为空，guard exact，host MQTT listeners 0，R1-R5 rollback evidence exact，transaction material absent。R5 one-shot authorization 已永久 claim+consume，禁止 replay。S20 正式结束；下一门仅 production stack activation read-only preexecution，任何 Broker/Manager/HA start 仍需新的 explicit authorization。Authority: `docs/development/N3W_T1_S20_R5_POSTAPPLY_INDEPENDENT_READONLY_CLOSURE_20261011.md`.
+
+```text
+S20_THREE_SERVICE_SECRET_HANDOFF=CLOSED_PASS
+R5_TRANSACTION_APPLY=PASS
+R5_EXECUTOR_POSTCHECK=PASS
+R5_INDEPENDENT_POSTAPPLY_AUDIT=PASS
+PRODUCTION_SERVICE_IDENTITIES=3
+PRODUCTION_NODE_IDENTITIES=0
+PRODUCTION_SECRET_BUNDLE=VERIFIED
+R5_AUTHORIZATION_CONSUMED=true
+R5_REPLAY=false
+PRODUCTION_BROKER_STARTED=false
+PRODUCTION_MANAGER_STARTED=false
+PRODUCTION_HOMEASSISTANT_STARTED=false
+NEXT_ONE_GATE=N3W_T1_PRODUCTION_STACK_ACTIVATION_READONLY_PREEXECUTION_20261011_01
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
+> **2026-10-11 R5 APPLY_PASS**：one-shot R5 authorization 已 claim+consume；final preclaim、apply、executor postcheck 均 PASS。exact 3 service clients + 3 service roles 已建立，node client 未创建；transaction Broker 已停止；Docker 仍为 0 containers / frozen 45-volume set；project networks empty；host MQTT listeners 0；post-apply DynSec SHA=`95d99839ec9a6b8003e1375883a3f9263a92e0dbc49c8ca5478196027081a90a`。authorization 禁止 replay。下一门：`N3W_T1_S20_R5_POSTAPPLY_INDEPENDENT_READONLY_CLOSURE_20261011_01`。Authority: `docs/development/N3W_T1_S20_R5_APPLY_PROGRESS_20261011.md`.
+
+> **2026-10-11 R5 one-shot live authorization GRANTED / not yet claimed**：用户已明确授权 `N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_R5_20261011_01`。授权当前 `GRANTED=true / CLAIMED=false / CONSUMED=false`。执行前必须由 exact CI-bound executor 立即重跑 read-only preclaim；任一基线漂移则在 claim 前停止。只有 preclaim PASS 后才允许 emit `AUTHORIZATION_CLAIMED=true` 并进入 R5 transaction。授权 scope 仅限创建独立 R5 rollback snapshot、生成三套正式 service secret bundle、启动 isolated temporary Broker、写入并验证三套 DynSec service identities、停止临时 Broker和 exact postcheck。禁止 production Broker/Manager/HA start、board access、R1-R4 replay、第二次 R5 attempt、PR merge。Authority: `docs/development/N3W_T1_S20_R5_REAL_THREE_SERVICE_SECRET_HANDOFF_LIVE_AUTHORIZATION_20261011.md`.
+
+> **2026-10-11 R5 fresh T1 read-only preclaim CLOSED_PASS / live apply still unauthorized**：exact CI-bound R5 executor `a83303191d54ba7c4c1f065a2de6abcb69a55a2eb10831da5ecb9a6e47c13b75` 及 4 个 frozen dependencies 已通过 memory-only stream 在 clean T1 上执行，preclaim `status=PASS`。T1 baseline：0 containers、45 volumes、volume set SHA `20fc845741d31da34f1d1e563e5057c78ec5dc7c4cfd3a495a5f3a4f2bfd011b`、project networks empty、guard exact、MQTT host listeners 1883/8883/18883 全 0、DynSec baseline exact、target service identities absent、R1-R4 retained snapshots exact、R5 rollback snapshot absent、production secret destination absent、Broker/TLS/server-name contract exact、local arm64 Broker image exact。authorization 仍未 claim/consume，live mutation=false。下一步只可请求新的 one-shot R5 live apply authorization；preclaim PASS 本身不授权 mutation。Authority: `docs/development/N3W_T1_S20_R5_FRESH_T1_READONLY_PRECLAIM_CLOSURE_20261011.md`.
+
+```text
+R5_FRESH_T1_READONLY_PRECLAIM=PASS
+R5_PRECLAIM_STATUS=PASS
+R5_PROPOSED_LIVE_AUTHORIZATION=N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_R5_20261011_01
+R5_AUTHORIZATION_GRANTED=false
+R5_AUTHORIZATION_CLAIMED=false
+R5_AUTHORIZATION_CONSUMED=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
+> **2026-10-11 R5 fresh T1 read-only preclaim first transport attempt stopped before executor main**：remote identity preflight PASS（Linux/aarch64, kernel 6.18.26-ophub, Docker 29.7.1），exact CI-bound executor SHA256=`a83303191d54ba7c4c1f065a2de6abcb69a55a2eb10831da5ecb9a6e47c13b75`。bootstrap 失败于 import-time `ModuleNotFoundError: greenhouse_manager`，原因是 clean T1 不存在假定的 `/opt/HomeAssistant/host/greenhouse-manager/src` package tree；executor main 未进入，runtime preclaim 未读取，authorization 未 claim/consume，live mutation 未发生。当前 gate 不变，retry 改为从 exact CI head 同时 stream executor + 4 个 frozen dependencies，并在 T1 Python memory 中装载，不写 repository/source/bytecode 到 T1。
+
+> **2026-10-11 R5 admin-readiness TLS source repair CLOSED_PASS / fresh T1 read-only preclaim next**：corrected `N3W T1 S20 real service handoff CI` run `38102338780` 三个 job 全部 PASS：source `74 passed`、volume-lifecycle PASS、tls-readiness PASS。隔离 TLS 证据明确得到 `R5_ADMIN_READINESS_TLS_TRANSPORT=PASS`、`TLS_SERVER_NAME_VERIFICATION=PASS`、`TRANSACTION_BROKER_VOLUME_SET_UNCHANGED=true`；连接主机固定为 `armbian:8883` + exact mounted CA，transaction Broker 仍 `--network none` + `--add-host armbian:127.0.0.1`，未增加 plaintext 1883 listener，也未使用 `--insecure`。CI trigger head `1ecc12ded60c7ea53e0af94722a05f3b4f0e4654` 到 review head `321f2906749e873bf94cfd948ac9a2dd1d0ed474` 的 delta 仅 docs，无 source/workflow drift。R5 live apply 仍未授权；下一门只进入 fresh T1 read-only preclaim。Authority: `docs/development/N3W_T1_S20_R5_ADMIN_READINESS_TLS_TRANSPORT_SOURCE_REPAIR_CLOSURE_20261011.md`.
+
+```text
+N3W_T1_S20_R5_ADMIN_READINESS_TLS_TRANSPORT_SOURCE_REPAIR=PASS
+R5_SOURCE_TESTS=PASS_74
+R5_VOLUME_LIFECYCLE=PASS
+R5_ADMIN_READINESS_TLS_TRANSPORT=PASS
+TLS_SERVER_NAME_VERIFICATION=PASS
+PLAINTEXT_1883_LISTENER_ADDED=false
+TLS_INSECURE=false
+R5_LIVE_APPLY=false
+R5_AUTHORIZATION_GRANTED=false
+NEXT_ONE_GATE=N3W_T1_S20_R5_FRESH_T1_READONLY_PRECLAIM_20261011_01
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
+> **2026-10-11 R5 admin-readiness TLS transport source repair entered / source implemented / corrected CI pending**：用户已明确允许进入 `N3W_T1_S20_R5_ADMIN_READINESS_TLS_TRANSPORT_SOURCE_REPAIR`。R5 source 已将 transaction clients 从 plaintext `127.0.0.1:1883` 改为 exact TLS `armbian:8883` + `--cafile /mosquitto/config/n3w-ca.pem`，transaction container 继续 `--network none` 并用 `--add-host armbian:127.0.0.1` 保持仅容器内 loopback；禁止 `--insecure`，不新增 plaintext listener。anonymous negative probe 也已改走同一 TLS transport，避免 transport failure 假冒 anonymous rejection。R1-R4 authorization 均保持 consumed/no-replay；R4 snapshot 转为 retained evidence，R5 future rollback snapshot 独立为 `dynsec-s20-r5-pre-three-service.json`，prospective R5 live authorization 仅在 source 中定义，尚未获得 live mutation 批准。首次 TLS-isolated CI 因 fixture 在 `sudo chown 1883:1883 server.key` 后用非 sudo chmod 而失败，未启动 Broker；已修为 `sudo chmod 600`，fresh run `38102338780` 在本轮最后允许的 poll 时仍 queued。Authority: `docs/development/N3W_T1_S20_R5_ADMIN_READINESS_TLS_TRANSPORT_SOURCE_REPAIR_PROGRESS_20261011.md`.
+
+```text
+CURRENT_GATE=N3W_T1_S20_R5_ADMIN_READINESS_TLS_TRANSPORT_SOURCE_REPAIR
+R5_SOURCE_REPAIR_AUTHORIZED=true
+R5_SOURCE_REPAIR_IMPLEMENTED=true
+R5_LIVE_APPLY_AUTHORIZED=false
+R5_PROSPECTIVE_AUTHORIZATION=N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_R5_20261011_01
+R5_AUTHORIZATION_CLAIMED=false
+R5_AUTHORIZATION_CONSUMED=false
+R5_CLIENT_HOST=armbian
+R5_CLIENT_PORT=8883
+R5_CLIENT_CA=/mosquitto/config/n3w-ca.pem
+R5_CONTAINER_NETWORK=none
+R5_CONTAINER_HOST_ALIAS=armbian:127.0.0.1
+R5_TLS_INSECURE=false
+R5_PLAINTEXT_LISTENER_ADDED=false
+R5_ROLLBACK_SNAPSHOT=/etc/n3wfc4/private/dynsec-s20-r5-pre-three-service.json
+R4_RETAINED_SNAPSHOT_MUTATION=false
+R5_CORRECTED_CI_RUN=38102338780
+R5_SOURCE_REPAIR_CI_REVIEW=PENDING
+LIVE_T1_MUTATION=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
+> **2026-10-11 S20 transaction Broker anonymous-volume recurrence CLOSED_PASS**：R4 live orphan 已在 bounded authorization 下唯一删除并精确恢复 frozen 45-volume set；source 已改为 `--tmpfs /mosquitto/log`，corrected `N3W T1 S20 real service handoff CI` run `38101584262` 的 `source` 与 `volume-lifecycle` 两个 job 均 PASS，focused pytest `70 passed`，Docker-isolated proof 明确输出 `TRANSACTION_BROKER_VOLUME_SET_UNCHANGED=true`。CI tested head `47337faa8da0b359af5631d7f9d3cec6fdd47505` 到 review head 的 delta 仅 docs，无 source/workflow drift。已纠正 known-failure 编号冲突：原有 `KF-102` 保持 S19 isolated DynSec harness authority；S20 R4 temporary Broker readiness/rollback 归入 `KF-103`。其中 anonymous-log-volume 子问题已 GUARDED，但 admin-readiness TLS transport 子问题仍 OPEN。严格停止在 R5 之前。Authority: `docs/development/N3W_T1_S20_TRANSACTION_BROKER_LOG_VOLUME_LEAK_SOURCE_REPAIR_CLOSURE_20261011.md`.
+
+```text
+R4_VOLUME_DRIFT_RECOVERED=true
+DOCKER_VOLUME_COUNT=45
+DOCKER_VOLUME_SET_SHA256=20fc845741d31da34f1d1e563e5057c78ec5dc7c4cfd3a495a5f3a4f2bfd011b
+S20_TRANSACTION_BROKER_LOG_VOLUME_LEAK_SOURCE_REPAIR=PASS
+TRANSACTION_BROKER_LOG_BACKING=tmpfs
+DOCKER_VOLUME_LIFECYCLE_CI=PASS
+SOURCE_FOCUSED_TESTS=PASS_70
+KF102_AUTHORITY=S19_ISOLATED_DYNSEC_HARNESS
+KF103_AUTHORITY=S20_R4_TEMP_BROKER_READINESS_ROLLBACK
+KF103_VOLUME_SUBISSUE=GUARDED
+KF103_ADMIN_READINESS_TLS_TRANSPORT=OPEN
+R5_APPLY=false
+AUTO_ENTER_R5=false
+STOP_BEFORE_R5=true
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
+> **2026-10-11 S20 R4 volume drift recovery CLOSED_PASS / recurrence source repair implemented**：exact R4 orphan volume 已在 bounded authorization `N3W_T1_S20_R4_BOUNDED_EXTRA_VOLUME_RECOVERY_20261011_01` 下唯一删除，authorization 已 CLAIMED+CONSUMED，postcheck 恢复 frozen 45-volume set SHA `20fc845741d31da34f1d1e563e5057c78ec5dc7c4cfd3a495a5f3a4f2bfd011b`，其余 DynSec/Broker config/network/guard/listener 基线不变。为防复发，S20 transaction Broker 已显式加入 `--tmpfs /mosquitto/log`，不再让 image-declared `/mosquitto/log` 自动生成匿名 Docker volume；focused source test 已补强。Docker-isolated lifecycle proof 已并入既有 `N3W T1 S20 real service handoff CI`，首版 fixture 因错误从 `.Mounts` 查 tmpfs 而失败，已修正为读取 `.HostConfig.Tmpfs`；当前 corrected run `38101584262` 尚待完成。当前不得进入 R5。Authority: `docs/development/N3W_T1_S20_TRANSACTION_BROKER_LOG_VOLUME_LEAK_SOURCE_REPAIR_PROGRESS_20261011.md`.
+
+```text
+R4_VOLUME_DRIFT_RECOVERED=true
+DOCKER_VOLUME_COUNT=45
+DOCKER_VOLUME_SET_SHA256=20fc845741d31da34f1d1e563e5057c78ec5dc7c4cfd3a495a5f3a4f2bfd011b
+R4_RECOVERY_AUTHORIZATION_CONSUMED=true
+TRANSACTION_BROKER_LOG_BACKING=tmpfs
+ANONYMOUS_LOG_VOLUME_RECURRENCE_SOURCE_REPAIR_IMPLEMENTED=true
+DOCKER_ISOLATED_PROOF_PENDING=true
+NEXT_ONE_GATE=N3W_T1_S20_TRANSACTION_BROKER_LOG_VOLUME_LEAK_SOURCE_REPAIR_CI_REVIEW
+LIVE_T1_MUTATION=false
+PRODUCTION_SERVICE_START=false
+R5_APPLY=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+MERGE=false
+```
+
+> **2026-10-11 R4 bounded extra-volume recovery authorization GRANTED**：用户已明确授权 `N3W_T1_S20_R4_BOUNDED_EXTRA_VOLUME_RECOVERY_20261011_01`。授权当前仅为 GRANTED，尚未 CLAIMED / CONSUMED。唯一允许删除的对象是已由 Docker events 直接证明属于 R4 transaction container `/mosquitto/log` 的匿名 volume `a16dba0851cd3fee17660cf65029622951c7b7d99cbe066b9d177605b62db2e7`。执行前必须重新证明 46-volume frozen set、candidate identity/refcount=0 及安全基线；任一 precheck 漂移则停止且不消费授权。授权一旦执行唯一 `docker volume rm` 即视为 consumed，无论成功失败均不允许第二次删除。目标 postcheck：45 volumes + frozen set SHA `20fc845741d31da34f1d1e563e5057c78ec5dc7c4cfd3a495a5f3a4f2bfd011b`，其余基线不变。禁止 production Broker/Manager/HA start、R5 apply、board access、PR merge。Authority: `docs/development/N3W_T1_S20_R4_BOUNDED_EXTRA_VOLUME_RECOVERY_AUTHORIZATION_20261011.md`.
+
+> **2026-10-11 S20 R4 extra Docker volume readonly attribution CLOSED_PASS**：fresh T1 baseline 仍为 0 containers / 46 volumes，volume set SHA `918671f5...`，DynSec/Broker config/guard/networks 均保持冻结状态。唯一新增匿名 volume 已被 Docker event 直接绑定到 R4 transaction container `0c8b4bb8...` 的 `/mosquitto/log`：同秒 create+mount，R4 container destroy 时 unmount；exact Mosquitto image 声明 `/mosquitto/data` 与 `/mosquitto/log`，R4 executor 只显式 bind `/mosquitto/data`，因此该 volume 的 R4 provenance 已从 inference 升级为 PROVEN。当前无任何 container 引用该 volume。只读 gate 已 PASS，但删除尚未授权；下一阶段只能设计并等待单一 volume bounded recovery authorization，禁止进入 R5 或启动 production services。
+
+```text
+R4_EXTRA_DOCKER_VOLUME_ATTRIBUTION=PASS
+EXTRA_VOLUME_IDENTITY=a16dba0851cd3fee17660cf65029622951c7b7d99cbe066b9d177605b62db2e7
+EXTRA_VOLUME_DESTINATION=/mosquitto/log
+R4_TRANSACTION_PROVENANCE=true
+CURRENT_CONTAINER_REFERENCE_COUNT=0
+READY_FOR_BOUNDED_VOLUME_RECOVERY_AUTHORIZATION=true
+SAFE_DELETION_NOT_YET_AUTHORIZED=true
+PROPOSED_AUTHORIZATION=N3W_T1_S20_R4_BOUNDED_EXTRA_VOLUME_RECOVERY_20261011_01
+GRANTED=false
+NEXT_STAGE=N3W_T1_S20_R4_BOUNDED_EXTRA_VOLUME_RECOVERY_AUTHORIZATION_DESIGN
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+```
+
+Authority: `docs/development/N3W_T1_S20_R4_EXTRA_DOCKER_VOLUME_READONLY_ATTRIBUTION_CLOSURE_20261011.md`.
+
+> **2026-10-11 current new-chat handoff frozen**：R4 failure / rollback volume drift / readiness transport failure 已完成正式新会话交接。下一会话必须从 handoff 的只读 volume attribution gate 开始，不得 replay R1-R4 authorization，不得删除未知 volume，不得启动 production services，不得进入 R5，不得访问板卡或 merge PR #541。
+
+```text
+CURRENT_NEW_CHAT_HANDOFF=docs/development/N3W_T1_S20_R4_ROLLBACK_VOLUME_DRIFT_AND_READINESS_FAILURE_NEW_CHAT_HANDOFF_V1.0_20261011.md
+HANDOFF_COMMIT=9e2743958b9824fae78f90a2b302de4a7cf25dd1
+HANDOFF_READY_FOR_NEW_CHAT=true
+NEXT_ONE_GATE=N3W_T1_S20_R4_EXTRA_DOCKER_VOLUME_READONLY_ATTRIBUTION_20261011_01
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+```
+
+> **2026-10-11 S20 R4 apply FAIL / rollback product-state restored but Docker volume baseline drift / readiness root cause confirmed**：R4 authorization `N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_R4_20261010_01` 已 claim+consume，永久禁止 replay。R4 temporary Broker 已成功 create/start 并存活约 21 s，说明此前 TLS startup blocker 已关闭；失败点前移到 readiness/admin control：executor `admin.conf` 固定 `127.0.0.1:1883` plain MQTT，而 exact live Broker config 只有 TLS `listener 8883`，全部 `mosquitto_rr` readiness probe exitCode=1，未进入 createRole/createClient。rollback 外部取证证明 DynSec exact baseline、R1/R2/R3/R4 snapshots exact、secret/transaction material absent、0 containers、0 MQTT listeners、两项目网络为空、guard active+enabled；但 Docker volume 从 45 漂移为 46，set SHA 从 `20fc8457...` 变为 `918671f5...`。这正是 `_rollback_postcheck` 的 volume-set mismatch，因此 rollback 只能记为 CLOSED_PARTIAL / manual recovery required。当前先只读识别新增 volume，未授权删除，也未授权 R5。
+
+```text
+S20_APPLY_R4=FAIL
+S20_APPLY_R4_ROLLBACK=CLOSED_PARTIAL
+R4_AUTHORIZATION_CLAIMED=true
+R4_AUTHORIZATION_CONSUMED=true
+R4_AUTHORIZATION_REPLAY=false
+R4_TEMP_BROKER_STARTUP=PASS
+R4_READINESS_ROOT_CAUSE_STATUS=CONFIRMED
+R4_READINESS_ROOT_CAUSE=ADMIN_CLIENT_CONFIG_HARDCODES_PLAINTEXT_127_0_0_1_1883_WHILE_EXACT_TEMP_BROKER_CONFIG_EXPOSES_TLS_8883_ONLY
+SERVICE_DYNSEC_MUTATION_REACHED=false
+REAL_DYNSEC_BASELINE_EXACT=true
+PRODUCTION_SECRET_DESTINATION_PRESENT=false
+TRANSACTION_CONTAINER_PRESENT=false
+HOST_MQTT_LISTENERS=0
+DOCKER_VOLUME_COUNT=46
+DOCKER_VOLUME_SET_BASELINE_EXACT=false
+MANUAL_RECOVERY_REQUIRED=true
+KF_102=OPEN_GUARDED_BY_NEW_READONLY_ATTRIBUTION_GATE
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS=false
+PR541=OPEN_DRAFT
+NEXT_ONE_GATE=N3W_T1_S20_R4_EXTRA_DOCKER_VOLUME_READONLY_ATTRIBUTION_20261011_01
+```
+
+Authority: `docs/development/N3W_T1_S20_R4_READINESS_AND_ROLLBACK_VOLUME_DRIFT_PROGRESS_ALIGNMENT_20261011.md`.
+
+> **2026-10-10 S20 R3 apply FAIL / rollback CLOSED_PASS / persistent startup blocker corrected / R4 prepared**：R3 authorization `N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_R3_20261010_01` 已 claim+consume，禁止 replay。独立只读取证证明 R3 exact baseline restored：0 containers、0 MQTT listeners、45-volume set unchanged、两项目网络为空、guard active/enabled、DynSec admin-only、三服务身份/roles 与 node 均 absent、secret/transaction material absent；R1/R2/R3 snapshots 均 root:root 0600 且 exact baseline SHA。因此 R3 rollback=CLOSED_PASS。R3 Docker events 仍为 create→start→die(exitCode=1)→destroy，且无 docker exec。fresh live config 证据确认 `/etc/n3wfc4/mosquitto.conf` 的 TLS directives 指向 `/mosquitto/config/n3w-ca.pem`、`n3w-server.pem`、`n3w-server.key`，而 R3 executor 将文件挂载到 `/mosquitto/tls/*`，属于确定性的 Broker config→mount path mismatch。R4 已改为单一常量合同，preclaim 显式验证 config TLS path，并将 host TLS 文件挂到 exact config target；同时补强 snapshot create/restore 和 secret-parent rollback provenance。
+
+```text
+S20_APPLY_R3=FAIL
+S20_APPLY_R3_ROLLBACK=CLOSED_PASS
+R3_AUTHORIZATION_CONSUMED=true
+R3_AUTHORIZATION_REPLAY=false
+R3_ROOT_CAUSE_STATUS=CONFIRMED
+R3_ROOT_CAUSE=EXACT_BROKER_CONFIG_REFERENCES_MOSQUITTO_CONFIG_N3W_TLS_PATHS_BUT_EXECUTOR_MOUNTS_MOSQUITTO_TLS_PATHS
+R4_AUTHORIZATION_ID=N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_R4_20261010_01
+R4_USER_APPROVAL=NOT_YET_GRANTED
+R4_AUTHORIZATION_CLAIMED=false
+R4_AUTHORIZATION_CONSUMED=false
+R1_R2_R3_RETAINED_SNAPSHOT_MUTATION=false
+R4_ROLLBACK_SNAPSHOT=/etc/n3wfc4/private/dynsec-s20-r4-pre-three-service.json
+LIVE_T1_MUTATION=false
+PRODUCTION_BROKER_STARTED=false
+BOARD_ACCESS=false
+NEXT_ONE_GATE=N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_R4_SOURCE_CI_AND_PRECLAIM_20261010_01
+```
+
+Authority: `docs/development/N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_R3_FAILURE_AND_R4_TLS_PATH_CONTRACT_REPAIR_20261010.md`.
+
+> **2026-10-10 S20 R2 apply FAIL / rollback CLOSED_PASS / second startup root cause confirmed / R3 TLS bind repair prepared**：R2 authorization `N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_R2_20261010_01` 已 claim+consume，禁止 replay。R2 executor 内部 rollback postcheck 与独立 external forensic 均证明 exact baseline restored：0 containers、0 MQTT listeners、45-volume set unchanged、两项目网络为空、guard active/enabled、DynSec admin-only、三服务身份/roles 与 node 均 absent、secret/transaction material absent；R1/R2 snapshots 均 root:root 0600 且 exact baseline SHA。因此 R2 rollback=CLOSED_PASS。R2 Docker events 仍为 create→start→die(exitCode=1)→destroy，且无 docker exec。第二根因确认：executor 将整个 root:root 0700 的 host TLS 目录 bind 到 `/mosquitto/tls`；Mosquitto 以 root 启动后默认降权为 mosquitto 用户，导致 post-drop 无法 traverse 该目录。production Compose 本来就是逐个 TLS file bind，因此 R3 source 已改为 ca.pem/server.pem/server.key 独立只读挂载，并同时保留 R1/R2 snapshot 作为证据，R3 新建独立 rollback snapshot。
+
+```text
+S20_APPLY_R2=FAIL
+S20_APPLY_R2_ROLLBACK=CLOSED_PASS
+R2_AUTHORIZATION_CONSUMED=true
+R2_AUTHORIZATION_REPLAY=false
+R2_ROOT_CAUSE_STATUS=CONFIRMED
+R2_ROOT_CAUSE=ROOT_ONLY_TLS_DIRECTORY_BIND_BLOCKS_MOSQUITTO_POST_DROP_TRAVERSAL
+R3_TLS_DIRECTORY_BIND=false
+R3_TLS_FILE_BIND=true
+R1_RETAINED_SNAPSHOT_MUTATION=false
+R2_RETAINED_SNAPSHOT_MUTATION=false
+R3_ROLLBACK_SNAPSHOT=/etc/n3wfc4/private/dynsec-s20-r3-pre-three-service.json
+R3_AUTHORIZATION_ID=N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_R3_20261010_01
+R3_USER_APPROVAL=NOT_YET_GRANTED
+R3_AUTHORIZATION_CLAIMED=false
+R3_AUTHORIZATION_CONSUMED=false
+LIVE_T1_MUTATION=false
+PRODUCTION_BROKER_STARTED=false
+BOARD_ACCESS=false
+NEXT_ONE_GATE=N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_R3_SOURCE_CI_AND_PRECLAIM_20261010_01
+```
+
+Authority: `docs/development/N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_R2_FAILURE_AND_R3_TLS_BIND_REPAIR_20261010.md`.
+
+> **2026-10-10 S20 R2 source review / retained R1 snapshot policy frozen / new authorization pending**：R1 authorization 已永久消耗且不可 replay。R2 不删除、不覆盖、不复用 R1 snapshot；R1 retained evidence 必须在 preclaim 中以 root:root 0600 + exact baseline SHA 重新验证。R2 使用独立 create-new-only snapshot `/etc/n3wfc4/private/dynsec-s20-r2-pre-three-service.json`，只有 fresh preclaim PASS + 新明确授权后才能 claim，且该 snapshot 仍是 claim 后第一笔写入。rollback 只使用 R2 snapshot；cleanup 现在必须证明 secret/transaction material 实际消失，并增加完整 rollback postcheck。新的 authorization ID 已定义，但尚未获得用户 live mutation 批准。
+
+```text
+S20_R2_SOURCE_REVIEW=PASS_PENDING_CI
+R1_AUTHORIZATION_CONSUMED=true
+R1_AUTHORIZATION_REPLAY=false
+R1_RETAINED_SNAPSHOT_MUTATION=false
+R2_ROLLBACK_SNAPSHOT=/etc/n3wfc4/private/dynsec-s20-r2-pre-three-service.json
+R2_AUTHORIZATION_ID=N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_R2_20261010_01
+R2_USER_APPROVAL=NOT_YET_GRANTED
+R2_AUTHORIZATION_CLAIMED=false
+R2_AUTHORIZATION_CONSUMED=false
+LIVE_T1_MUTATION=false
+PRODUCTION_BROKER_STARTED=false
+BOARD_ACCESS=false
+NEXT_ONE_GATE=N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_R2_SOURCE_CI_AND_PRECLAIM_20261010_01
+```
+
+Authority: `docs/development/N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_R2_SOURCE_REVIEW_AND_AUTHORIZATION_DESIGN_20261010.md`.
+
+> **2026-10-10 S20 real three-service handoff R1 FAIL / rollback CLOSED_PASS / root cause confirmed**：一次性授权 `N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_20261010_01` 已 claim 并永久消耗。R1 临时 Broker 使用 exact frozen image 成功 create/start，但约 1 秒后 exitCode=1；fresh forensic 证明 DynSec exact baseline restored、三服务 client/role 均不存在、secret/transaction material 已清理、0 containers、0 MQTT listeners、45 volumes 与原集合一致、两项目网络为空、guard active/enabled，因此 rollback=CLOSED_PASS。根因确认：executor 错误强制 Broker `--user 1883:1883`，而镜像默认 `User=""` 走 `/docker-entrypoint.sh`；生产 TLS 目录为 root:root 0700，UID1883 无法 traverse/read TLS material。source repair 已移除 Broker user override，保留 one-shot secret client `docker exec --user 0:0`，并增加 early-exit diagnosis。R1 snapshot 保留为证据；任何 R2 live apply 必须新 authorization ID + 新明确批准，旧授权不得 replay。
+
+```text
+S20_APPLY_R1=FAIL
+S20_APPLY_R1_ROLLBACK=CLOSED_PASS
+R1_ROOT_CAUSE_STATUS=CONFIRMED
+R1_ROOT_CAUSE=FORCED_UID1883_BYPASSED_IMAGE_ENTRYPOINT_PRIVILEGE_FLOW
+R1_AUTHORIZATION_CLAIMED=true
+R1_AUTHORIZATION_CONSUMED=true
+R1_AUTHORIZATION_REPLAY=false
+SOURCE_FIX=67ad72411d8e90b2ac0e7d157528b9d4b2ff2beb
+REGRESSION_TESTS=cf9d4ca985bb7f150618651480ac9b738c636338
+LIVE_T1_MUTATION=false
+PRODUCTION_BROKER_STARTED=false
+BOARD_ACCESS=false
+NEXT_ONE_GATE=N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_R2_SOURCE_REVIEW_AND_AUTHORIZATION
+```
+
+Authority: `docs/development/N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_R1_FAILURE_FORENSIC_20261010.md`.
+
+> **2026-10-10 S20 real three-service secret handoff design PASS**：真实三服务凭据事务、claim 边界、fresh rollback、secret ownership、isolated Broker apply/verification 与 fail-closed rollback 已冻结；live authorization 尚未授予。
+
+```text
+S20_REAL_THREE_SERVICE_SECRET_HANDOFF_DESIGN=PASS
+AUTHORIZATION_ID=N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_APPLY_20261010_01
+EXPLICIT_AUTHORIZATION_STATUS=PENDING_USER_APPROVAL
+LIVE_RUNTIME_MUTATION=false
+NEXT_ONE_GATE_AFTER_APPROVAL=N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_SOURCE_PREPARATION_AND_APPLY_20261010_01
+AUTHORITY=docs/development/N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_DESIGN_AND_EXPLICIT_AUTHORIZATION_20261010.md
+```
+
+> **2026-10-10 S20 preflight R2 CLOSED_PASS**：source + fresh T1 read-only rebind 均通过；真实 production Compose/image lock 与 ARM64 image binding 已闭环，T1 host guards/冻结 SHA/无监听状态匹配。生产三服务身份仍未创建；下一门仅进入 secret handoff design + explicit authorization。
+
+```text
+S20_PREFLIGHT_R2=CLOSED_PASS
+T1_FRESH_READONLY_REBIND=PASS
+DOCKER_VOLUME_CURRENT_SORTED_SET_SHA256=20fc845741d31da34f1d1e563e5057c78ec5dc7c4cfd3a495a5f3a4f2bfd011b
+READY_FOR_REAL_SERVICE_IDENTITY_AUTHORIZATION=true
+NEXT_ONE_GATE=N3W_T1_S20_REAL_THREE_SERVICE_SECRET_HANDOFF_DESIGN_AND_EXPLICIT_AUTHORIZATION_20261010_01
+AUTHORITY=docs/development/N3W_T1_S20_PRODUCTION_THREE_SERVICE_CREDENTIAL_HANDOFF_AND_DEPLOYMENT_PREFLIGHT_R2_CLOSURE_20261010.md
+```
+
+> **2026-10-10 S20 preflight R2 source stop**：HA bootstrap runtime 已 CLOSED_PASS；但最终 production Compose/deployment source authority 仍未生成。现有 `infra/compose/t1/docker-compose.manager.yml` 仍为历史 N1 lab 配置，deployment gate 只绑定 synthetic fixture，因此 T1 fresh read-only rebind 暂停。
+
+```text
+S20_PREFLIGHT_R2_RESULT=FAIL_CLOSED
+S20_FAILURE_CLASS=SOURCE_DEPLOYMENT_BINDING
+FINAL_CLEAN_PRODUCT_PRODUCTION_COMPOSE=SOURCE_GAP
+DEPLOYMENT_GATE_REAL_REPOSITORY_COMPOSE_BINDING=UNPROVEN
+T1_FRESH_READONLY_REBIND=NOT_EXECUTED_SOURCE_GAP_STOP
+READY_FOR_REAL_SERVICE_IDENTITY_AUTHORIZATION=false
+NEXT_ONE_GATE=N3W_T1_S20_FINAL_PRODUCTION_COMPOSE_AND_IMAGE_BINDING_SOURCE_REPAIR_20261010_01
+AUTHORITY=docs/development/N3W_T1_S20_PRODUCTION_THREE_SERVICE_CREDENTIAL_HANDOFF_AND_DEPLOYMENT_PREFLIGHT_R2_20261010.md
+```
+
+> **2026-10-10 S20 HA bootstrap isolated runtime CLOSED_PASS**：run `38039664411` / exact source `0412d6009c963bf80eb7ce2e21e3fefac69e09a2` 已通过首次自动创建、真实 MQTT 连接、保留 storage 重建、existing_match、entry_id 稳定、无重复 entry 与重建后重新连接。生产 T1 网络/身份尚未部署，PR #541 仍 OPEN DRAFT。
+
+```text
+S20_HA_ISOLATED_RUNTIME_CI=PASS:38039664411
+S20_HA_FIRST_BOOT_AUTOMATIC_CONFIG_FLOW=PASS
+S20_HA_RECREATE_EXISTING_MATCH=PASS
+S20_HA_ENTRY_ID_STABLE=PASS
+S20_HA_DUPLICATE_ENTRY=NONE
+S20_HA_RECREATE_MQTT_RECONNECT=PASS
+S20_PRODUCTION_TOPOLOGY_CHANGE=false
+READY_FOR_REAL_SERVICE_IDENTITY_AUTHORIZATION=false
+NEXT_ONE_GATE=N3W_T1_S20_PRODUCTION_THREE_SERVICE_CREDENTIAL_HANDOFF_AND_DEPLOYMENT_PREFLIGHT_R2_20261010_01
+AUTHORITY=docs/development/N3W_T1_S20_HA_BOOTSTRAP_PERMISSION_MAPPING_AND_RUNTIME_ORACLE_REPAIR_CLOSURE_20261010.md
+```
+
+> **2026-10-10 S20 clean-product credential binding source repair progress**：source candidate 已实现，focused source CI 已 PASS；exact Home Assistant 2026.10.0 isolated runtime CI run `38028945518` 在三次 assistant poll 后仍运行，现按项目规则停止轮询。生产 mutation 仍全部禁止。
+
+```text
+S19_ISOLATED_IDENTITY_AND_ACL_ACCEPTANCE=CLOSED_PASS
+S20_SOURCE_REPAIR_CANDIDATE=IMPLEMENTED
+S20_THREE_SERVICE_CREDENTIAL_COUNT=3
+S20_NODE_CREDENTIAL_COUNT_BEFORE_GATE_F=0
+S20_MANAGER_PROVISIONING_SECRET_BINDING=PASS_SOURCE
+S20_HA_AUTOMATIC_FIRST_BOOT_CONFIG_FLOW=SOURCE_IMPLEMENTED_RUNTIME_PENDING
+S20_HA_LOOPBACK_1883=SOURCE_IMPLEMENTED_RUNTIME_PENDING
+S20_FOCUSED_SOURCE_CI=PASS
+HA_ISOLATED_RUNTIME_CI_RUN=38028945518
+HA_ISOLATED_RUNTIME_CI=PENDING_NO_MORE_POLLING
+READY_FOR_REAL_SERVICE_IDENTITY_AUTHORIZATION=false
+PRODUCTION_CLIENT_CREATION=false
+PRODUCTION_BROKER_STARTED=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+CURRENT_STOP_POINT=WAIT_HA_ISOLATED_RUNTIME_CI_RESULT
+```
+
+Authority: `docs/development/N3W_T1_S20_CLEAN_PRODUCT_CREDENTIAL_BINDING_SOURCE_REPAIR_PROGRESS_20261010.md`。以下 `S20 FAIL_CLOSED / SOURCE` 记录是本轮修补的上游历史状态，不再表示“尚未开始修补”，但其生产写入禁令继续有效。
+
+> **2026-10-10 S20 fresh source preflight closure**：`FAIL_CLOSED / SOURCE`。S19 隔离权限验收继续保持 `CLOSED_PASS`；生产三服务账号仍未创建，正式 Broker 仍未启动。本轮 source rebind 已证明 Manager/Provisioning 的源码消费接口，但 fresh production deployment 尚未绑定两份独立秘密文件的最终 runtime 路径，Home Assistant 也只有历史 `automatic_apply=false` 的官方 Reconfigure handoff，尚无 clean-product 自动持久化/消费闭环。按第一处实质缺口 STOP，T1 SSH fresh rebind 未执行。
+
+```text
+S20_PREFLIGHT_RESULT=FAIL_CLOSED
+S20_FAILURE_CLASS=SOURCE
+MAIN_EXACT=d423211b6196c2f2f0f01dff072c4f877fbe58ee
+PR541_SOURCE_REBIND_HEAD=9c55ee465668d822369a8e61a5d88d1ed37fe1fd
+S19_ISOLATED_IDENTITY_AND_ACL_ACCEPTANCE=CLOSED_PASS
+S20_PRODUCTION_CLIENTS_CREATED=false
+T1_PRODUCTION_BROKER_STARTED=false
+S20_T1_FRESH_RUNTIME_REBIND=NOT_EXECUTED_SOURCE_GAP_STOP
+READY_FOR_REAL_SERVICE_IDENTITY_AUTHORIZATION=false
+NEXT_ROUTE=S20_SCOPED_MISSING_CONSUMER_OR_DEPLOYMENT_BINDING_REVIEW
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+STOP=true
+```
+
+Authority: `docs/development/N3W_T1_S20_PRODUCTION_SERVICE_CREDENTIAL_HANDOFF_READONLY_PREFLIGHT_20261010.md`。以下旧的 `S20 READONLY PENDING` 快照保留为历史，不再代表当前 gate 状态。
+
+> **2026-10-10 最新新会话交接 authority**：`docs/development/N3W_T1_S20_PRODUCTION_SERVICE_CREDENTIAL_HANDOFF_READONLY_PREFLIGHT_NEW_CHAT_HANDOFF_V1.0_20261010.md`（PR #541 OPEN DRAFT）。**S19 isolated ACL = CLOSED_PASS；S20 production three-service secret handoff = READONLY PENDING。** 以下文件所含早期 S0/S14 或其他历史 NEXT_ONE_GATE 快照已被本条 supersede，不得作为当前下一执行门。只允许在新会话执行 `N3W_T1_S20_PRODUCTION_THREE_SERVICE_CREDENTIAL_HANDOFF_AND_DEPLOYMENT_PREFLIGHT`；生产 mutation、Broker 启动、端口开放与板卡访问均禁止。
+
+## 2026-10-10 PR #541 S19 isolated permissions CLOSED_PASS; S20 source/runtime read-only next
+
+Latest **branch** authority (does not imply merged main): `docs/development/N3W_T1_S19_ISOLATED_SERVICE_IDENTITY_INIT_PREEXECUTION_20261010.md` and `docs/development/N3W_T1_S20_PRODUCTION_SERVICE_CREDENTIAL_HANDOFF_READONLY_PREFLIGHT_20261010.md`. Exact main `d423211b6196c2f2f0f01dff072c4f877fbe58ee`; PR #541 `OPEN_DRAFT`, software-only fresh T1 rebuild preserves Armbian/SSH/NetworkManager/Docker, 45 pre-existing Docker volumes, and the two currently empty `n3wfc4` networks. Early OS disk wipe plan is SUPERSEDED. Product shall have a single Home Assistant instance.
+
+```text
+CURRENT_ROUTE=T1_SOFTWARE_ONLY_CLEAN_REDEPLOY_PRESERVE_ARMBIAN
+S19_R1_STATIC_SERVICE_ACLS=PASS
+S19_R3_PROVISIONING_CONTROL_RUNTIME=PASS
+S19_R5_NODE_MANAGER_HA_POSITIVE_DELIVERY=PASS
+S19_R6A_CORRECT_WRONG_CLIENT_ID_ANONYMOUS=PASS
+S19_R6B_CROSS_TOPIC_AND_DEFAULT_RECEIVE_DENY=PASS
+S19_ISOLATED_IDENTITY_AND_ACL_ACCEPTANCE=CLOSED_PASS
+S19_R2_R4_HISTORICAL_FAILURES=RETAINED
+S19_R4_TEST_FIXTURE_ADMIN_UNAUTHORIZED_INGRESS_PUBLISH=PROVEN
+S19_R4_EXACT_RUNTIME_ACK_REASON=NOT_OBSERVED
+S20_PRODUCTION_HANDOFF=OPEN_PREFLIGHT
+S20_PRODUCTION_CLIENTS_CREATED=false
+T1_PRODUCTION_BROKER_STARTED=false
+T1_HOST_TCP8883_PUBLISHED=false
+T1_LAST_REPORTED_DYNSEC_SHA256=94f3c0a3dbed90f3d2a3e96696dba8bed8093194903aeed106559090764d1ad5
+T1_LAST_REPORTED_S18_BACKUP_SHA256=93c751a788200498869de39a3218a82de53e5cd3d29170360ea55959d0af85da
+NEXT_ONE_GATE=N3W_T1_S20_PRODUCTION_THREE_SERVICE_CREDENTIAL_HANDOFF_AND_DEPLOYMENT_PREFLIGHT
+S20_READONLY_SOURCE_RUNTIME_REBIND_REQUIRED=true
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+```
+
+S20 high-value blocker: verify **real Manager/Provisioning/HA consumers and their separate private password-file ownership/mounts** before provisioning any production accounts. Manager supports `GH_MQTT_PASSWORD_FILE`, Provisioning supports `GH_N3W_PROVISIONING_PASSWORD_FILE`; Home Assistant fresh runtime secret consumption is not yet exact-bound. Historical migration package auto-generates a node account and MUST NOT be used for first-pair clean-product production (node credentials created only per actual Gate F pairing). Host state is only the latest operator report from S19-R6B on 2026-10-10, not a new SSH runtime observation; S20 must refresh read-only host evidence.
+
+New chat authority to be generated using `NEW_CHAT_HANDOFF_STANDARD.md` + `templates/NEW_CHAT_HANDOFF_TEMPLATE.md`, frozen at `4300890dff0ce63d5a547df21426e287d084d9ee`. This top-of-file snapshot supersedes older same-file NEXT_ONE_GATE records. PR remains draft; no merge authorized.
+
+## 2026-10-10 T1 S0 R1 real evidence classified; inspect failed 6/6, S0 R2 exact mounts next
+
+```text
+CURRENT_ROUTE=SOFTWARE_STACK_CLEAN_REINSTALL_ON_EXISTING_ARMBIAN
+CURRENT_GATE=N3W_T1_SOFTWARE_OWNERSHIP_S0_R1_EVIDENCE_CLASSIFICATION_AND_NEW_CHAT_HANDOFF
+S0_R1_EVIDENCE_TIMESTAMP_LOCAL=2026-10-10T08:09:13+08:00
+S0_R1_RAW_REPORT_SHA256=74127af80fec997a51717cf08c72879813e7885b6a9ff99a76c999783121132f
+S0_R1_CONTAINER_COUNT=6
+S0_R1_CONTAINER_INSPECT_FAILURE=6_OF_6
+S0_R1_NETWORK_MEMBERSHIP=PASS
+S0_R1_SYSTEMD_UNIT_NAMES=PASS
+S0_R1_DOCKER_ANONYMOUS_VOLUME_COUNT=46
+S0_R1_EXACT_HOST_MOUNT_SOURCES=UNVERIFIED
+S0_R1_EXACT_CONTAINER_FULL_ID_NAME_BINDING=UNVERIFIED
+DELETE_CONTAINERS_APPROVED=false
+DELETE_VOLUMES_APPROVED=false
+DELETE_HOST_DIRECTORIES_APPROVED=false
+N3W_MANAGER_AND_BROKER=REDEPLOY_CANDIDATES_ONLY
+FC4_HOMEASSISTANT=HOLD_OWNERSHIP_UNVERIFIED
+HOMEASSISTANT_AND_RECIPES_BROKER=PRESERVE_BY_DEFAULT
+N3W_PRIVATE_AND_SERVICES_NETWORK=RUNNING_PRODUCTION_KEEP
+KF101=OPEN_HARNESS_METADATA_CAPTURE_NO_PRODUCT_DEFECT_PROVEN
+OS_REINSTALL=false
+SYSTEM_DISK_ERASE=false
+T1_RUNTIME_MUTATION=false
+PR540=CLOSED_UNMERGED_SUPERSEDED
+PR541=OPEN_DRAFT
+NEW_CHAT_HANDOFF=docs/development/N3W_T1_SOFTWARE_OWNERSHIP_S0_R1_FAILED_INSPECT_NEW_CHAT_HANDOFF_V1.0_20261010.md
+S0_R1_AUTHORITY=docs/development/N3W_T1_SOFTWARE_OWNERSHIP_S0_R1_EVIDENCE_CLASSIFICATION_AND_CLEAN_MANIFEST_20261010.md
+S0_R2_RUNBOOK=docs/development/N3W_T1_SOFTWARE_OWNERSHIP_S0_R2_EXACT_DOCKER_JSON_AND_MOUNT_READONLY_RUNBOOK_20261010.md
+NEXT_ONE_GATE=N3W_T1_SOFTWARE_OWNERSHIP_S0_R2_EXACT_CONTAINER_AND_DATA_BINDING_READONLY
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+```
+
+The real uploaded evidence establishes six container names and states, six failed Go-template inspect metadata probes, 46 anonymous volume names, N3-W Docker network memberships, related unit names and listening ports. **No exact host data directory path or Docker volume belongs to an approved delete target.** Corrected S0 R2 read-only Docker JSON whitelist runbook is GitHub archived and must be executed next in a fresh conversation. Preserve Armbian, Docker, SSH, NetworkManager and both ambiguous HA/Broker resources until ownership proven. No T1 deletion or runtime action executed.
+
+---
+
+## 2026-10-10 T1 software clean redeploy S0 exact ownership inventory — preserve Armbian
+
+```text
+CURRENT_ONE_GATE=N3W_T1_SOFTWARE_OWNERSHIP_READONLY_EVIDENCE_AND_CLEAN_TARGET_DRY_RUN
+CURRENT_ROUTE=SOFTWARE_STACK_CLEAN_REINSTALL_ON_EXISTING_ARMBIAN
+PR541=OPEN_DRAFT_SOFTWARE_CLEAN_REDEPLOY
+PR540=CLOSED_SUPERSEDED_UNMERGED
+OS_REINSTALL=false
+SYSTEM_DISK_ERASE=false
+PRESERVE=ARMBIAN_KERNEL_NETWORKMANAGER_SSH_DOCKER_ENGINE
+NEXT_T1_ACTION=READONLY_CONTAINER_MOUNT_PROJECT_NETWORK_SYSTEMD_INVENTORY
+LAST_KNOWN_MANAGER_BROKER=UP
+LAST_KNOWN_FC4_HOMEASSISTANT=UP
+LAST_KNOWN_HOMEASSISTANT=UP
+LAST_KNOWN_RECIPES_BROKER=EXITED
+HA_INSTANCE_OWNERSHIP=UNKNOWN
+RECIPES_BROKER_OWNERSHIP=UNKNOWN_PRESERVE
+DELETE_TARGET_SET=NOT_YET_PROVEN
+DESTRUCTIVE_CLEARANCE=false
+HOST_MUTATION_THIS_GATE=false
+NEXT_INPUT=N3W_T1_SOFTWARE_OWNERSHIP_*.txt
+AUTHORITY_DOC=docs/development/N3W_T1_SOFTWARE_CLEAN_REDEPLOY_PRESERVE_ARMBIAN_AUTHORITY_20261010.md
+S0_RUNBOOK=docs/development/N3W_T1_SOFTWARE_OWNERSHIP_S0_READONLY_INVENTORY_AND_CLEAN_TARGET_GATE_20261010.md
+NEXT_ONE_GATE=N3W_T1_SOFTWARE_OWNERSHIP_EVIDENCE_CLASSIFICATION_AND_EXACT_CLEAN_MANIFEST
+```
+
+The user's corrected decision is to preserve existing Armbian, boot disk, SSH, Ethernet, network management and Docker, while rebuilding the exact greenhouse software stack and its application data. No host wipe or old R4/B1I1 rollback source work. Two live HA containers and a recipes Broker require accurate Compose mount attribution before any scoped deletion. Exact read-only command has been versioned in PR541. No T1 deletion, stop or restart occurred in this gate.
+
+---
+
+## 2026-10-10 T1 software-only clean redeploy — Armbian preserved; OS wipe superseded
+
+```text
+CURRENT_ONE_GATE=N3W_T1_SOFTWARE_OWNERSHIP_READONLY_EVIDENCE_AND_CLEAN_TARGET_DRY_RUN
+CURRENT_USER_DECISION=PRESERVE_EXISTING_ARMBIAN_FRESH_DEPLOY_GREENHOUSE_SOFTWARE
+OS_REINSTALL=false
+MMCBLK2_ERASE=false
+PRESERVE_HOST=ARMBIAN_SSH_NETWORKMANAGER_DOCKER_AND_UNRELATED_SERVICES
+CLEAN_TARGET_SCOPE=TO_BE_IDENTIFIED_EXACT_GREENHOUSE_OWNERSHIP_ONLY
+KNOWN_GREENHOUSE_MANAGER=running
+KNOWN_N3W_BROKER=running
+KNOWN_HOME_ASSISTANT_CONTAINERS=fc4-homeassistant_AND_homeassistant_BOTH_RUNNING
+KNOWN_RECIPES_BROKER=exited_OWNERSHIP_UNVERIFIED
+NO_AUTOMATIC_DELETE=HA_OR_RECIPES_OR_SHARED_DOCKER_VOLUMES
+N3W_BROKER_CA_DYNSEC_RESET=PLANNED_AFTER_SCOPE_EVIDENCE
+NEW_MANAGER=FRESH_3_RW_ZERO_BUSINESS_STATE
+R4_B1I1_ROLLBACK=ABANDONED
+PR540=CLOSED_UNMERGED
+PR541=OPEN_DRAFT
+LIVE_T1_MUTATION_THIS_GATE=false
+NEXT_USER_REPORT=N3W_T1_SOFTWARE_OWNERSHIP_*.txt
+NEXT_ONE_GATE=N3W_T1_SOFTWARE_OWNERSHIP_READONLY_EVIDENCE_AND_CLEAN_TARGET_DRY_RUN
+AUTHORITY_DOC=docs/development/N3W_T1_SOFTWARE_CLEAN_REDEPLOY_PRESERVE_ARMBIAN_AUTHORITY_20261010.md
+```
+
+Prior whole-host clean installation was a superseded interpretation. Armbian, SSH, network, boot partition and Docker engine remain; inventory actual Compose ownership, mounts, HA dual-instance and recipes broker before preparing a precise greenhouse-only deletion and installation manifest. Do not restart or delete any live service in the read-only inventory.
+
+---
+
+## 2026-10-10 Full-clean T1 F0 real host read-only evidence — board boot-media check next
+
+```text
+CURRENT_ONE_GATE=N3W_T1_FULL_FRESH_INSTALL_F0_BOOT_MEDIA_PREFLIGHT
+F0_USER_UPLOADED_REPORT=2026-10-10_075411+0800_READ_ONLY
+T1_OS=ARMbian_26.05.0_resolute
+T1_ARCH=ARM64
+T1_BOOT_DEVICE=/dev/mmcblk2p1_vfat
+T1_ROOT_DEVICE=/dev/mmcblk2p2_ext4
+T1_DISK=/dev/mmcblk2_14.6G
+T1_VISIBLE_EXTRA_DATA_DISKS=NONE_IN_LSBLK
+T1_MANAGER_BROKER_AND_HOME_ASSISTANT=RUNNING_AT_F0_OBSERVATION
+T1_SSH_REMOTE_WIPE_OF_RUNNING_ROOT=FORBIDDEN
+T1_EXACT_SOC_BOARD_MODEL=UNKNOWN
+MMC_STORAGE_TYPE=NEEDS_SYSFS_CONFIRMATION
+EXTERNAL_BOOT_REINSTALL_ACCESS=NOT_YET_VERIFIED
+NEXT_USER_BOOT_REPORT=N3W_T1_BOOT_PREFLIGHT_*.txt
+OLD_PR540=CLOSED_UNMERGED_SUPERSEDED
+NEW_PR541=OPEN_DRAFT
+T1_DISK_ERASE=false
+T1_SERVICE_RESTART=false
+NEXT_ONE_GATE=N3W_T1_FULL_FRESH_INSTALL_F0_BOOT_MEDIA_PREFLIGHT
+AUTHORITY_DOC=docs/development/N3W_T1_FULL_FRESH_INSTALL_F0_LIVE_READONLY_EVIDENCE_20261010.md
+```
+
+F0 output shows active OS and /boot on partitions of the same ~14.6G MMC device /dev/mmcblk2. Machine model, supported external installer/console and reliable post-reinstall access remain unknown; continue read-only board-compatibility checks before any system-disk erase. User is to execute Mac Terminal SSH boot media preflight and upload the report; no service mutations or T1 wipe performed.
+
+---
+
+## 2026-10-10 T1 deployment direction changed to full clean OS installation
+
+```text
+CURRENT_ONE_GATE=N3W_T1_FULL_FRESH_INSTALL_PREPARATION_AND_INSTALLATION_BLUEPRINT
+USER_DIRECTION=STOP_ROLLBACK_ENGINEERING_DEPLOY_T1_FROM_ZERO
+PR540_R4_B1I1=SUPERSEDED_STOP_SOURCE_WORK
+NEW_BRANCH=plan/n3w-t1-full-fresh-install-from-zero-20261010
+DEPLOY_TARGET=COMPLETE_FRESH_T1_OS_AND_N3W_STACK
+OLD_OS_DOCKER_BROKER_MANAGER_HA_BUSINESS_DATA_MIGRATION=false
+OLD_CA_DYNSEC_SESSION_TRUST_STATE_REUSE=false
+HOME_ASSISTANT_REINSTALL=true
+BROKER_FRESH_CA_TLS_DYNSEC=true
+MANAGER_FRESH_DB_0_0_0_AND_EMPTY_RELAY_KEYS=true
+N3W_BOARD_PAIRING_AFTER_T1_ACCEPTANCE=true
+ROLLBACK_MODEL=NOT_IN_NEW_PLAN
+T1_HOST_DISK_IDENTIFICATION=NOT_YET_PERFORMED
+T1_MUTATION=false
+TARGET_DISK_WIPE_AUTHORIZED=false
+F0_PRECHECK=READ_ONLY_PENDING
+CURRENT_DIRECTION_DOC=docs/development/N3W_T1_FULL_FRESH_INSTALL_DIRECTION_AND_EXECUTION_PLAN_20261010.md
+F0_SCOPE_DOC=docs/development/N3W_T1_FULL_FRESH_INSTALL_F0_READONLY_HOST_INVENTORY_AND_ERASE_SCOPE_20261010.md
+NEXT_ONE_GATE=N3W_T1_FULL_FRESH_INSTALL_F0_READONLY_EVIDENCE_AND_F1_INSTALL_PACKAGE_PREPARATION
+```
+
+User explicitly abandoned the old Manager rollback R4/B1I1 direction. All new engineering effort goes toward installing a verified clean T1 OS and then fresh Broker TLS/DynSec, Manager with zero business state, independent Home Assistant, persistence, and board first pairing. No T1 host or disk has been examined in this GitHub planning turn, no wiping has occurred, and no irreversible operation will be attempted without identifying the exact target device/disk and acknowledging full host data loss. Historical GitHub design records remain archived rather than being used as new deployment prerequisites.
+
+---
+
 # N3-W Current State Index
 
 Current authority: `docs/development/N3W_CURRENT_STATE.md`  
-Current progress alignment: `docs/development/N3W_FC4_CA_ROLLOVER_PRODUCT_LIFECYCLE_DECISION_20260930.md`  
-Current new-chat handoff: `docs/development/N3W_PR475_PR478_POSTMERGE_MAIN_ALIGNMENT_NEW_CHAT_HANDOFF_V1.0_20260927.md`  
+Current progress alignment: `docs/development/N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_PROGRESS_20261011.md`  
+Current new-chat handoff: `docs/development/N3W_T1_PRODUCTION_STACK_STAGING_RUN78_EXACT_ARTIFACT_BINDING_NEW_CHAT_HANDOFF_V1.0_20261011.md`  
 Long-term working context: `docs/development/N3W_PROJECT_WORKING_CONTEXT.md`  
 Current handoff template: `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` v1.2  
 Latest merged product-source authority: PR #500 / merge `c578bcb2e31f50771b6b08c231704da6bf36b729` / exact physical artifact `10959875986`  

@@ -1,3 +1,254 @@
+## 2026-10-14 — KF-113 per-device fresh-route active-path guard after F0
+
+```text
+F0_RESULT=CLOSED_PASS_SOURCE_DESIGN
+GOLDEN_MASTER_SOURCE_RETAINED_AS_HISTORY=true
+GOLDEN_MASTER_SOURCE_ALLOWED_IN_ACTIVE_FRESH_PAYLOAD=false
+SEALED_IMAGE_CLONE_READBACK_ALLOWED_IN_FRESH_PROVISION_PRECHECK=false
+ALL_THREE_IMAGE_TARS_MATERIALIZED_TOGETHER=false
+F3_ENABLE_PRODUCTION_ACTIVATION_UNITS=false
+MIN_POST_PEAK_FREE_BYTES_POLICY=KEEP_EXISTING_5_GIB
+```
+
+Guard: ADR-0010 does not make retired Golden Master/Seal/clone source illegal to retain, but that
+source must not remain in the active per-device fresh artifact, import/call path or provisioning
+precondition. F3 must finish with Broker/Manager/Home Assistant stopped and must not enable their
+activation units. The 5 GiB capacity reserve remains unchanged until a separate evidence-backed
+decision changes it. F1 must use exact one-image-at-a-time delivery with fail-closed per-image
+capacity checks and an externally inspectable capacity sidecar.
+
+## 2026-10-14 — KF-113 Golden Master clone route retired by product decision
+
+```text
+GOLDEN_MASTER_BUILD_FOR_CLONING=RETIRED_BY_PRODUCT_DECISION
+R2C_TARGET_ARMBIAN_SEAL_ADAPTER=RETIRED_BY_PRODUCT_DECISION
+R2C_TARGET_ARMBIAN_READONLY_EVIDENCE=RETIRED_BY_PRODUCT_DECISION
+R2C_PROBE_EXECUTOR=RETIRED_BY_PRODUCT_DECISION
+FINAL_SEAL=RETIRED_BY_PRODUCT_DECISION
+DISK_IMAGE_CAPTURE=RETIRED_BY_PRODUCT_DECISION
+CLONE_WRITE_AND_BOOT_GATES=RETIRED_BY_PRODUCT_DECISION
+R2C_PROBE_EXECUTOR_SOURCE_DISPOSITION=ARCHIVED_DIAGNOSTIC_REFERENCE
+HISTORICAL_EVIDENCE=RETAIN
+REENTRY_REQUIRES_NEW_PRODUCT_OWNER_DECISION=true
+```
+
+Guard: do not continue R2C, Seal, disk capture or clone acceptance merely because their source
+exists or historical handoffs name them as next gates. Current authority is ADR-0010. All
+historical one-shot authorization remains consumed/non-replayable. Per-device fresh Armbian
+does not waive product identity, secret, TLS, ACL, rollback or acceptance requirements.
+
+The historical R8 transport capacity failure is active input again, not a reason to lower the
+5 GiB reserve without evidence. Select and test a lower-peak exact image-delivery contract before
+live deployment.
+
+## 2026-10-13 — KF-113 R2A/R2B source closure guard
+
+```text
+R2A_SOURCE_REPAIR=CLOSED_SOURCE
+R2B_HOST_INDEPENDENT_SOURCE_REPAIR=CLOSED_SOURCE
+R2C_TARGET_ARMBIAN_SEAL_ADAPTER=NOT_ENTERED
+OS_IDENTITY_SEMANTICS_PROVEN=false
+CONTROLLED_CLONE_BOOT_EVIDENCE_REQUIRED=true
+DISK_CAPTURE_READY=false
+```
+
+Guard: R2A/R2B source closure must never be promoted to target-Armbian Seal correctness,
+disk-capture readiness or clone uniqueness. Those claims require R2C/R4 evidence.
+
+## 2026-10-13 — KF-113 pre/post Seal immutable-release continuity guard
+
+POST_SEAL_SOURCE_HEAD_CONTINUITY_REQUIRED=true
+POST_SEAL_RELEASE_MANIFEST_SHA256_CONTINUITY_REQUIRED=true
+POST_SEAL_IMAGE_LOCK_SHA256_CONTINUITY_REQUIRED=true
+PUBLIC_AUDIT_SHA256_CONTINUITY_REQUIRED=false:SEAL_AUTH_LEDGER_CAN_CHANGE_AFTER_CLAIM
+SEAL_RECORD_WRITE_ON_RELEASE_DRIFT=false
+
+Guard: identity neutralization may change only target OS-identity state allowed by R2C. It must not silently move Seal to another source/release/image-lock.
+
+## 2026-10-13 — KF-113 Seal record/source-order guard
+
+```text
+SEAL_RECORD_SOURCE_HEAD_REQUIRED=true
+SEAL_PUBLIC_SOURCE_HEAD_FORMAT=40_HEX
+FINAL_SEAL_AUDIT_ORDER=INSTANCE_ABSENCE_THEN_PUBLIC_BINDING_THEN_QUIESCENCE_THEN_OS_IDENTITY
+R2C_TARGET_IDENTITY_ADAPTER=NOT_ENTERED
+```
+
+Guard: a Seal record that does not bind the exact source HEAD is incomplete provenance.
+After identity neutralization, the final reusable audit must prove instance/no-secret
+absence before public-release binding and capture quiescence.
+
+## 2026-10-13 — KF-113 R2A/R2B exact-release and CI-process guards
+
+```text
+EXTERNAL_RELEASE_MANIFEST_SHA_REQUIRED=true
+RELEASE_SCHEMA_EXTRA_FIELDS_REJECTED=true
+RELEASE_BOARD_ACCESS_MUST_BE_FALSE=true
+PUBLIC_EXTERNAL_MODE_POLICY=guard_binary_0755,guard_unit_0644
+CI_POLL_MAX=3
+CI_PENDING_DIRECT_LINKS_REQUIRED=true
+CI_ALL_GREEN_CONTINUE_REQUIRED_REVIEW=true
+SAME_GATE_LOW_RISK_REPAIR_CONTINUE=true
+R2C_TARGET_IDENTITY_ADAPTER=NOT_ENTERED
+```
+
+Guard: Seal must not call a self-declared release manifest “exact” without an external
+expected SHA-256 from the Build result. Green CI must flow directly into the required
+focused review, but same-gate automation must stop before any scope expansion or live
+mutation.
+
+## 2026-10-13 — KF-113 R2A/R2B final closure blocker repair guard
+
+```text
+KF-113_R2A_R2B_FINAL_CLOSURE_BLOCKERS=REPAIRED_SOURCE_CI_PENDING
+A1_ROOT_SYMLINK_FAIL_CLOSED=REPAIRED_SOURCE
+A2_POSITIVE_PRODUCT_NAMESPACE_AND_FORBIDDEN_INVENTORY=REPAIRED_SOURCE
+A3_GOLDEN_MASTER_AUTH_LEDGER=CLASSIFIED_NONSECRET_NO_REPLAY_PROVENANCE
+A4_FAULT_INJECTION_GAPS=REPAIRED_SOURCE
+
+R2C_TARGET_IDENTITY_ADAPTER=NOT_ENTERED
+OS_IDENTITY_SEMANTICS_PROVEN=false
+CONTROLLED_CLONE_BOOT_EVIDENCE_REQUIRED=true
+```
+
+Guard: a green CI result alone must not promote R2A/R2B to closure. Final source closure
+still requires exact-head CI plus focused review. The retained Golden Master
+authorization ledger is allowed only when it contains the exact release-bound BUILD
+record and, later, at most the matching SEAL record; any unknown entry fails closed.
+Real machine-id/SSH/NetworkManager/journal/random-seed mutation remains forbidden until
+the separately authorized R2C target-Armbian evidence gate closes.
+
+Authority: `docs/development/N3W_T1_GOLDEN_MASTER_R2A_R2B_FINAL_CLOSURE_BLOCKERS_SOURCE_REPAIR_20261013.md`.
+
+## 2026-10-13 — KF-113 target-Armbian live evidence captured / clone-uniqueness guard remains
+
+```text
+KF-113_TARGET_ARMBIAN_CURRENT_HOST_EVIDENCE=CLOSED_PASS
+EXECUTION_SOURCE_HEAD=9155855a71f4750ebf7a7b22d9b4e000627e2f98
+TARGET_ARMBIAN=26.05.0
+TARGET_BOARD=S912-Phicomm-T1
+
+MACHINE_ID_CURRENT_STATE=POPULATED_SYNCHRONIZED
+SSH_HOST_KEYS_CURRENT_STATE=POPULATED
+NETWORKMANAGER_PROFILE_COUNT_IN_ETC_SYSTEM_CONNECTIONS=0
+
+SYSTEMD_SSH_FIRSTBOOT_KEYGEN_MECHANISM=PRESENT
+SYSTEMD_MACHINE_ID_COMMIT_MECHANISM=PRESENT_MOUNTPOINT_GATED
+ARMBIAN_FIRSTRUN_MECHANISM=PRESENT_BODY_NOT_CAPTURED
+
+OS_IDENTITY_SEMANTICS_PROVEN=false
+CONTROLLED_CLONE_BOOT_EVIDENCE_REQUIRED=true
+KF-113_CLONE_UNIQUENESS_GUARD=ACTIVE
+```
+
+Guard: exact target evidence now proves the current host state and the presence of relevant first-boot mechanisms, but not clone-time uniqueness. Do not capture a final Golden Master with populated machine-id or populated SSH host keys. Do not treat generic Linux behavior, `armbian-firstrun`, or an empty `/etc/NetworkManager/system-connections` directory as proof that clones will receive unique OS/network identity. R2 Seal source design must define an explicit identity-neutral final state and fail closed on unknown identity-bearing network state; R4 must prove uniqueness on controlled clone boots before factory acceptance.
+
+## 2026-10-13 — KF-113 P2B read-only evidence executor closure
+
+```text
+EXECUTION_SOURCE_HEAD=9155855a71f4750ebf7a7b22d9b4e000627e2f98
+CI=26/26 PASS
+A1_REMOTE_PYTHON_BYTECODE_WRITE=CLOSED
+A2_EXACT_EXECUTOR_SOURCE_AUTHORITY=CLOSED
+A3_TRANSPORT_FAILURE_CLASSIFICATION=CLOSED
+A4_PRIVATE_EVIDENCE_AUTHORITY=CLOSED
+P2B_READONLY_EVIDENCE_EXECUTOR_SOURCE=CLOSED_PASS
+```
+
+Guard: T1 evidence execution must use the exact reviewed source head, explicit read-only authorization, streamed no-copy probe transport, private local evidence, and fail-closed transport classification. This closure does not authorize writable OS-identity repair.
+
+## 2026-10-13 — KF-113 P2B target-Armbian evidence boundary
+
+```text
+KF-113_P2B_PROBE_SOURCE=CLOSED_PASS
+SOURCE=a43c5750a8051946a9f08e3b3b2af3c5d7b9de69
+CI=26/26 PASS
+OS_IDENTITY_SEMANTICS_PROVEN=false
+REAL_OS_IDENTITY_MUTATION_ADAPTER_FROZEN=false
+TARGET_ARMBIAN_READONLY_EVIDENCE_REQUIRED=true
+```
+
+Guard: never implement clone-time machine-id/SSH/NetworkManager mutation from generic Linux assumptions. Freeze the writable adapter only from exact target-Armbian evidence.
+
+## 2026-10-13 — KF-113 P2A boot/activation policy closure
+
+```text
+KF-113_P2A_STATUS=CLOSED_PASS
+SOURCE=a971067d8b11677253c930d8975960de58473a58
+CI=25/25 PASS
+BOOT_STARTS_NEW_PROVISIONING=false
+FACTORY_ACCEPTANCE_GATE=SOURCE_POLICY_CLOSED
+FACTORY_MARKER_TOCTOU=CLOSED
+PRODUCTION_SERVICE_START=false
+P2B_REMAINS_OPEN=true
+```
+
+P2A does not close the target-Armbian OS-host identity, deployable host CLI, clone-evidence, golden install, factory-marker creation, or production activation-owner work.
+
+> **KF-113 P1 INDEPENDENT SOURCE REVIEW CLOSED_PASS / SINGLE-INITIALIZER CLOSED（2026-10-13）**：exact review head `e464c103c9c5cbc2aa2d57d9e853d9e85e73596d` closes the previously discovered concurrency blocker. A persistent private lock inode plus `flock(LOCK_EX|LOCK_NB)` now serializes both explicit start and existing-transaction resume for the entire transaction engine; a competing initializer fails before adapter mutation, failed execution releases the kernel lock without losing the durable transaction, and unsafe lock metadata/symlink paths fail closed. This prevents two stale transaction copies from independently advancing and later regressing durable stage state. P1 authority split, UNPROVISIONED no-auto-start, completed current-host binding and explicit CLI confirmation remain correct. Exact-head workflows: 25 completed / 25 SUCCESS / 0 failure. A1/A2/A3/A4=CLOSED_SOURCE; P1 blocker count=0; source-only P2 may proceed. Existing production activation units/dispatcher are still not approved as the UNPROVISIONED golden-image boot chain. Authority=`docs/development/N3W_T1_EXPLICIT_DEVICE_PROVISIONING_SINGLE_INITIALIZER_REPAIR_INDEPENDENT_SOURCE_REVIEW_20261013.md`.
+
+> **KF-113 P1 SOURCE IMPLEMENTED / CI PASS / REVIEW PENDING（2026-10-13）**：exact P1 source `e906d3d836fefe2bc2cafc0ff7877232974b5211` splits read-only inspect, explicit start, existing-transaction resume and DEVICE_READY verify authorities. UNPROVISIONED legacy wrapper now fails with `explicit_provisioning_start_required`; completed verify rechecks current live host binding; start requires exact operator confirmation and clone-readback evidence; resume cannot create a transaction. Final required CI all PASS. An intermediate H0/H1 failure at `46e70ffc...` was Ruff SIM102 before tests and was repaired by logic-equivalent style cleanup; it is not a product failure. Status remains `IMPLEMENTED_PENDING_INDEPENDENT_SOURCE_REVIEW`: do not mark A4 CLOSED or enter P2 until the independent review of exact P1 source completes. Existing activation units/NetworkManager dispatcher remain untouched and are still forbidden as an UNPROVISIONED golden-image auto-start chain pending P2. Authority=`docs/development/N3W_T1_EXPLICIT_DEVICE_PROVISIONING_COMMAND_AUTHORITY_SPLIT_SOURCE_REPAIR_P1_PROGRESS_ALIGNMENT_20261013.md`。
+
+> **KF-113 EXPLICIT PROVISIONING SOURCE DESIGN — P1 READY（2026-10-13）**：read-only exact-source review confirms current R1 `run_device_firstboot()` still conflates new-transaction creation, resume and complete fast-path. Correct successor contract is four-way authority: read-only inspect, explicit start (唯一可创建新 transaction), resume (existing INITIALIZING only), verify DEVICE_READY (current live host binding required). Current `greenhouse-init` remains low-level system identity CLI and must not become the product-wide provisioning authority. Existing broker/services activation units, NetworkManager dispatcher and persistence installer can auto-enter production activation when installed/enabled, so they must not be used unchanged as the UNPROVISIONED golden-image boot chain; preserve existing runtime semantics until a separate P2 activation package. status=SOURCE_REPAIR_DESIGN_PASS_P1_READY; source/live/T1 mutation=false. Authority=`docs/development/N3W_T1_EXPLICIT_DEVICE_PROVISIONING_COMMAND_AND_BOOT_DECOUPLING_SOURCE_REPAIR_DESIGN_20261013.md`。
+
+> **KF-113 ARCHITECTURE_REFINED — EXPLICIT PROVISIONING REQUIRED（2026-10-13）**：R1 focused review 后的 completed-host-binding blocker 保留，但上游触发模型已修订：普通 boot 不再有资格开始全新产品初始化；新的唯一正常入口是显式 provisioning command。UNPROVISIONED boot 只允许受限 audit，不能生成 SYSTEM_ID/CA/credential/DynSec/业务状态；INITIALIZING 才允许 reboot auto-resume；DEVICE_READY boot 必须 verify current live host identity 并禁止重新 provision。Provisioning completion 不自动激活生产服务，FACTORY_ACCEPTED 后才具备 activation 资格。该设计避免母盘/clone 因普通开机误触发产品实例化，但不替代目标 Armbian 的 OS first-boot identity evidence；FINAL_SEAL 后当前仍要求 shutdown→offline capture。status=EXPLICIT_PROVISIONING_DESIGN_FROZEN_SOURCE_PENDING；source/live/T1 mutation=false。Authority=`docs/development/N3W_T1_EXPLICIT_DEVICE_PROVISIONING_COMMAND_AND_BOOT_DECOUPLING_DESIGN_FREEZE_20261013.md`。
+
+> **KF-113 R1 FOCUSED_CLOSURE_REVIEW — ONE BLOCKER REMAINS（2026-10-13）**：A1 legacy commit compatibility, A2 firstboot authority owner/mode validation, and A3 secure atomic record writes are CLOSED. A4 is PARTIAL: active/resumed transaction candidate/host/SYSTEM_ID binding is fail-closed, but completed-state fast-path accepts mutually consistent `transaction.json` and `FIRSTBOOT_COMPLETE.json` before proving the current host identity still matches the persisted host binding. An initialized disk moved to another host can therefore be accepted as already complete by this contract. This does not invalidate the sealed-master production route, but it leaves the durable transaction host-binding contract incomplete. status=R1_ONE_FOCUSED_BLOCKER_REMAINS; NEW_R1_BLOCKER_COUNT=1; R2=HOLD. Authority=`docs/development/N3W_T1_GOLDEN_MASTER_FIRSTBOOT_SOURCE_DECOMPOSITION_REPAIR_R1_REVIEW_BLOCKERS_FOCUSED_CLOSURE_REVIEW_20261013.md`.
+
+> **KF-113 R1 REVIEW_BLOCKERS_REPAIR_IMPLEMENTED / CI_PENDING（2026-10-12）**：independent R1 review found four focused blockers: A1 legacy commit no longer preflighted all final targets before first rename; A2 firstboot durable authority trusted mode without owner binding; A3 atomic transaction temp path lacked exclusive/nofollow creation; A4 candidate/host/complete SYSTEM_ID-hash binding was incomplete. Exact source head `3dbd9723063e1f5f14605b1bcf13bee4c54c84ab` repairs all four at source level and adds regressions. Legacy R8 `fresh_installer.py`, staging-host transport, F5 and _08 semantics remain unchanged. Real machine-id/SSH adapter, Seal and clone/factory acceptance remain later blockers. status=R1_REVIEW_BLOCKERS_REPAIRED_SOURCE_CI_PENDING; no T1/R3/board/live mutation. Authority=`docs/development/N3W_T1_GOLDEN_MASTER_FIRSTBOOT_SOURCE_DECOMPOSITION_REPAIR_R1_REVIEW_BLOCKERS_REPAIR_PROGRESS_20261012.md`.
+
+> **KF-113 R1 SOURCE_REPAIR_IMPLEMENTED / FOCUSED_CI_PASS（2026-10-12）**：R1 head `90275626...` separates public master assets from per-device instance assets in staging, commit/cleanup ownership and stopped postcheck, while keeping legacy `fresh_installer.py`, staging-host transport, _08 and F5 contracts unchanged. Pure `golden_master_installer` and durable `device_firstboot` contracts were added; firstboot release/host/SYSTEM_ID binding and marker-last completion are fail-closed, but real Armbian OS-identity mutation is intentionally not implemented. Exact-head H0/H1, greenhouse-manager, deployment-gate and public-safety workflows PASS; fresh deployable source-contract step PASS; extended ARM64/artifact workflows pending. SB1–SB3=CLOSED_SOURCE; SB4=PARTIAL_CONTRACT_IMPLEMENTED; SB5 Seal, SB6 OS identity adapter, SB7 factory/clone harness remain OPEN. status=R1_IMPLEMENTED_FOCUSED_CI_PASS_EXTENDED_CI_PENDING; no T1/R3/board/live mutation and _08 NOT_GRANTED. Authority=`docs/development/N3W_T1_GOLDEN_MASTER_FIRSTBOOT_SOURCE_DECOMPOSITION_REPAIR_R1_PROGRESS_20261012.md`.
+
+> **KF-113 SOURCE_DECOMPOSITION_DESIGN_CLOSED / R1_PENDING（2026-10-12）**：ADR-0009 architecture blockers are closed at design level. Exact source review at `5ed613...` confirmed implementation seams: SB1 mixed public/instance `stage_runtime`; SB2 mixed final commit/cleanup ownership; SB3 mixed master/instance stopped-postcheck; SB4 no durable product firstboot transaction; SB5 no Seal implementation; SB6 no clone OS-identity adapter; SB7 no factory/cross-clone uniqueness harness. Existing `system_init`, fresh state, Broker materials/DynSec and ADR-0004 restore components remain reuse authorities. Repair is deliberately staged: R1 closes SB1–SB3 and adds SB4 pure contract skeleton while preserving legacy R8 orchestration/report semantics; R2 master-build/Seal; R3 OS-identity + per-device firstboot; R4 factory/clone harness. No source/T1/live mutation occurred in the design gate. status=SOURCE_DECOMPOSITION_DESIGN_CLOSED_R1_PENDING; authority=`docs/development/N3W_T1_GOLDEN_MASTER_FIRSTBOOT_SOURCE_DECOMPOSITION_AND_REPAIR_DESIGN_20261012.md`.
+
+> **KF-113 OPEN_SOURCE_DESIGN — R8 single-host fresh bootstrap lacked golden-master / Seal / per-device-firstboot lifecycle separation（2026-10-12）**：independent architecture review confirmed the formal project route is common/golden image + per-device initialization (V0.7/V0.5 H0/H1, ADR-0004, approved S1 plan). Current R8 is valid as a bounded single-host fresh installer but cannot be treated as a clonable master because it combines public software load with generation of SYSTEM_ID/MANAGER_ID, CA/TLS private keys, MQTT service credentials and DynSec, while clone OS identity/SSH-host-key lifecycle is outside its contract. ADR-0009 now closes AB1–AB5 at DESIGN level: build/Seal/capture/firstboot/factory/onboarding boundaries, clone-vs-restore semantics, power-loss transaction requirements and capacity-contract split are frozen. Product/source implementation and A/B clone live acceptance remain open. `STREAMING_SOURCE_REPAIR_NOW=HOLD`; R3 untouched; _08 NOT_GRANTED. DOMAIN=INFRASTRUCTURE; status=OPEN_SOURCE_DESIGN; authority=`docs/adr/0009-t1-golden-master-firstboot-production-lifecycle.md`.
+
+> **KF-112 RECLASSIFIED / HOLD — R8 fresh-install staging capacity is not the normal clone-production capacity contract（2026-10-12）**：exact R8 current transport still fails its own admission on the observed T1, and the streaming model reduces but does not eliminate that single-host install-space deficit under the historical fixed 5 GiB reserve. ADR-0009 splits `MASTER_BUILD_WORKSPACE_REQUIREMENT`, `PRODUCT_RUNTIME_MIN_FREE_REQUIREMENT`, and `UPGRADE_ROLLBACK_WORKSPACE_REQUIREMENT`. Therefore streaming is no longer the immediate production source-repair gate; implement it only if the controlled master-build environment remains space-blocked after the new lifecycle design. Do not lower 5 GiB merely to force PASS; do not claim it as product runtime minimum. Original capacity evidence remains valid for R8 single-host fresh install.
+
+> **KF-112 OPEN_DESIGN — fresh bootstrap capacity gate blocked by full image-tar materialization + fixed reserve（2026-10-12）**：fresh minimal-host T1 has 9,229,160,448 free bytes on the single ext4 filesystem; exact R8 artifact/manifest integrity PASS, but current transport model requires 12,671,384,447 bytes because it fully expands the 2,535,561,761-byte payload, counts containerd content+snapshot growth and additionally requires a fixed 5 GiB post-peak reserve. Current design does not prove 5 GiB is a measured hardware minimum. Remediation design keeps the reserve unchanged first, removes duplicate `/var/tmp` image-tar materialization by streaming exact image members from the verified compressed archive into Docker after the one-shot claim, and adds dynamic per-image capacity rechecks. R3 retained evidence is not deleted in this gate. DOMAIN=INFRASTRUCTURE; status=OPEN_DESIGN; authority=docs/development/N3W_T1_FRESH_BOOTSTRAP_R8_STORAGE_CAPACITY_REMEDIATION_DESIGN_20261012.md.
+
+> **2026-10-12 KF-111 R8 F5 independent source closure**：F5=CLOSED; direct external containerd config-root and non-empty imports generated-probe execution regressions PASS, imports rejection occurs before image-store root/capacity authority resolution, payload transfer and one-shot claim. DOWNSTREAM_SOURCE_BLOCKER=NO; exact tested head 5ed613673ec1ead29a1153d0e3916bdd3539a3fb CI 25/25 PASS. Replacement artifact #11746610745 uploaded/downloaded integrity-bound by CI. KF-111 R8 F5 source status=CLOSED_SOURCE_PENDING_FRESH_T1_LIVE_REVALIDATION; not a live acceptance. _03 consumed/no-replay; _04/_05/_06/_07 superseded-ungranted; _08 NOT_GRANTED; retained R3 payload preserved, no T1 access or production mutation.
+
+> **2026-10-12 KF-111 R8 update**：Astra R3 found the remaining F5 false-PASS path: external containerd primary TOML could contain non-empty imports overriding root, while the host capacity probe treated only the primary file as effective authority. Source repair at 0957958c535d67c29cec411df98829d00e7a9028 now rejects non-empty imports before payload transfer/authorization claim. Generated-probe execution tests cover direct root resolution and imports rejection; after two test-fixture-only corrections, exact head 5ed613673ec1ead29a1153d0e3916bdd3539a3fb is 25/25 CI PASS. D1/A8 remain CLOSED. KF-111 status=SOURCE_REPAIR_CI_GREEN_PENDING_FINAL_INDEPENDENT_REVIEW; no T1/live/board mutation and _08 remains NOT_GRANTED.
+
+> **2026-10-12 KF-111 Astra R2 update**：R2 closure review closed prior F1/F2/F3/F4/F6 but found F5 storage-authority blocker and D1 postcheck state-owner mismatch. Repair head 41d05b99... removes DockerRootDir/containerd guessing, distinguishes classic/external/embedded containerd, binds external Docker↔containerd socket authority and effective containerd root, and fail-closes when unresolved. stopped_postcheck now audits Manager/N3W state as runtime UID/GID 999 via direct child mounts while root-only identity/DynSec/credential checks remain isolated. A8 timeout fallback coverage was added. Status remains OPEN_SOURCE_REPAIR_CI_PENDING; _07 NOT_GRANTED.
+
+> **2026-10-12 KF-111 Astra expansion**：independent review identified six blockers before the next one-shot apply: incomplete cross-store config/artifact binding; DynSec anonymous log-volume leakage; staged mutation of the credential bundle; payload-local-only authorization claim; Docker-28-only capacity model; and generic postclaim failure reporting. Product source 3e88e41a... contains repairs for all six, plus an integrity-preserving repository-owned artifact download fallback. Status remains OPEN_SOURCE_REPAIR_CI_PENDING until exact CI, replacement artifact binding, read-only T1 preflight and a new independent review close the findings. _04 is superseded without grant; _05 remains NOT_GRANTED.
+
+> **KF-111 OPEN_SOURCE_REPAIR_CI_PENDING — fresh bootstrap Docker 28→29 cross-image-store runtime ID representation regression（2026-10-12）**：R3 exact artifact 在真实 T1 通过 outer ZIP SHA、outer file-set、payload/manifest checks 后 durable claim；随后 fresh installer 返回 `fresh_install_failed` 并成功 cleanup 到 minimal baseline。retained payload 的三个 image tar 均仍在；后续 Docker events 证明 Home Assistant load 实际成功，runtime ID=`sha256:c261fa53...`，而 artifact/CI build/config ID=`sha256:b0e1ee82...`，随后 cleanup untag/delete。CI Docker 28.0.4、T1 Docker 29.7.1；根因是 fresh bootstrap 把 `.Id` 当跨 image-store 唯一 identity，违反仓库既有 KF-098 cross-store contract。repair 改为 exact tar + arm64/linux + artifact-owned RootFS layer fingerprint，并在 stopped postcheck 复验。Authorization `_03` consumed/no-replay；successor `_04` NOT_GRANTED。Authority: `docs/development/N3W_T1_FRESH_BOOTSTRAP_R3_POSTCLAIM_FIRST_IMAGE_LOAD_FORENSIC_20261012.md`.
+
+> **KF-110 GUARDED_SOURCE / LIVE_REVALIDATED — fresh bootstrap deployable payload manifest freeze 后被 rehearsal bytecode 污染（2026-10-12）**：replacement artifact #11726716679 在真实 T1 解包后由 bootstrap 正确报 `payload_file_set_invalid`，且发生在 authorization claim 前；host wrapper 证明 staging cleanup 成功。根因是 deployable workflow 在 manifest `files` inventory 生成后，从 payload tree 通过 importlib 执行 rehearsal，可能创建 `__pycache__/*.pyc`，随后 archive 整个 payload tree；post-upload binding 未重新比较完整文件集。repair：rehearsal 设置 `PYTHONDONTWRITEBYTECODE=1`，并在打包前再次运行 bootstrap self-check、显式拒绝 payload pycache regular files，同时加入 workflow contract regression。replacement source `1f191b26...` exact-head 25/25 PASS；artifact #11729783144 post-upload re-download binding PASS；真实 T1 minimal baseline 与 replacement capacity preflight 均 PASS。R3 真实 one-shot apply 已通过 repaired payload file-set path、完成 durable claim 并进入 image load，因此 LIVE_REVALIDATION 已成立；该 R3 authorization 随后在 KF-111 域 consumed/no-replay。Authority: `docs/development/N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_PAYLOAD_FILE_SET_INVALID_SOURCE_REPAIR_20261012.md`.
+
+> **KF-109 GUARDED_SOURCE / LIVE_REVALIDATED — fresh bootstrap remote payload extractor emitted syntactically invalid `python3 -c` program（2026-10-12）**：首次 minimal-host fresh bootstrap live apply 在 claim 前停止。host wrapper 已传输 payload 到 own remote staging，但 generated Python 把 compound `def`（后续还有 `with`）放在 semicolon 后，remote Python 直接 SyntaxError；因此 authorization 未 claim/consume、Docker/product mutation 未发生、production service 未启动，remote staging residue 保留。既有 host-wrapper CI 将 `_remote_prepare_payload` mock 掉，未覆盖 generated script syntax。repair 改为 multiline remote Python，并新增 exact generated-program compile/execute 与 symlink rejection regression。replacement source `9b12116e...` exact-head 25/25 PASS；artifact #11726716679 post-upload re-download binding PASS；旧 preclaim staging residue 精确清理后 minimal baseline 与 replacement capacity preflight 均 PASS。旧 artifact/grant 因 executable wrapper 漂移被 supersede；successor authorization `N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_LIVE_APPLY_20261012_02` 未授权。上一轮 R2 真实 apply 已成功完成 repaired remote extraction 并启动 bootstrap，随后由更内层的 payload file-set gate 以 `payload_file_set_invalid` 安全停止，因此 extractor live revalidation 已成立。Authority: `docs/development/N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_PRECLAIM_REMOTE_EXTRACT_SOURCE_REPAIR_20261012.md`.
+
+> **KF-108 GUARDED_SOURCE / LIVE_REVALIDATION_PENDING — fresh bootstrap host wrapper post-start authorization state could be falsely reset to preflight/unconsumed (2026-10-12)**：final source/execution-path review 发现，fresh bootstrap host wrapper 在 remote apply 已启动后，如果 authorization marker probe 抛出 transport/SSH exception，或 remote executor 已 PASS、最终 remote payload cleanup 抛出 exception，旧 generic outer handler 会输出 preflight STOP，并把 `authorization_claimed=false`、`authorization_consumed=false`、`docker_mutation=false` 写死；这会破坏 UNKNOWN propagation / one-shot no-replay 语义。修复后 wrapper 显式跟踪 remote apply start / claim observation / payload transfer state：remote apply 启动后无法证明未 claim 时必须 `STOP_UNKNOWN` 或 `STOP_PARTIAL`，统一 `authorization_consumed=true` + `replay_allowed=false`；executor 已 PASS 但仅最后清理失败时输出 `STOP_POSTSUCCESS_CLEANUP` 并保留 apply PASS 与 consumed/no-replay；真正 preclaim failure 才允许 unconsumed。regression 覆盖 marker-probe failure（已见 claim / 未见 claim）、post-success cleanup failure、true preclaim cleanup failure。product-source `2118eb09524ef4c475b381c17b7740c202388446` exact-head 25/25 workflow PASS，fresh deployable source-contract focused suite `51 passed`；真实 T1 未访问，因此 live revalidation 仍 pending。Authority: `docs/development/N3W_T1_MINIMAL_HOST_FRESH_PRODUCT_BOOTSTRAP_A4_AUTHORIZATION_STATE_AND_FINAL_REVIEW_CLOSURE_20261012.md`.
+
+> **KF-107 GUARDED_SOURCE / ARTIFACT_AND_LIVE_REVALIDATION_PENDING — one-shot production staging depended on live external image pull (2026-10-11)**：authorization `..._02` 在 post-claim critical section 内执行 exact Home Assistant registry pull，1200 s TimeoutExpired 后 structured STOP；rollback `status=PASS/errors=[]`，未启动生产服务，`..._02` 永久 consumed/no-replay。底层网络超时根因仍为 TBD，但已确认的基础设施缺陷是 live one-shot apply 不应依赖外部 registry。offline payload R1 CI 又证明 legacy Docker save/load 不保留原 registry digest-qualified 可寻址引用。现有 repair 已收敛为：CI 从 exact digest-qualified upstream ref 拉取并验证 HA/Broker，绑定 deterministic local runtime tag，save/remove/load 后按 local tag + exact config/platform 重验；production Compose 使用 local immutable tag + `pull_policy: never`；image-lock 保留 upstream source ref + ARM64 manifest digest provenance；T1 apply 只允许 local `docker load`。exact product-source head `cb4131e47727d0cf7421133000c3a421c860a99b` 的 deployment gate #361、staging payload #78、production image binding #245、Manager state binding #101、public safety #4083 均 PASS。source/CI repair 因而已 guarded；Run #78 exact artifact / 三镜像 tar / payload size+SHA256 binding 尚未执行，之后仍需 fresh T1 preflight 与新的 explicit `..._03` authorization。Authority: `docs/development/N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_PROGRESS_20261011.md`.
+
+> **KF-106 GUARDED / LIVE REVALIDATION PENDING — Docker classic/containerd image identity oracle mismatch (2026-10-11)**：production staging one-shot apply 在 fresh preflight 与 state-root prepare PASS 后，exact Manager tar 已成功 `docker load`，但旧 executor 因只接受 classic config-digest image ID 而以 `image_binding_drift` STOP；rollback status=PASS/errors=[]，生产基线恢复，原授权永久 consumed/no-replay。source repair 现严格接受两种 exact storage-model 语义：classic store 的 config digest 或 containerd store 的 OCI target digest；Descriptor 若存在必须 exact，platform 仍必须 linux/arm64，其他值 fail-closed。Manager state binding CI run `38129756566` PASS，staging payload/host-wrapper CI run `38129756547` PASS，并显式绑定 frozen Manager config digest `ef0f28c2...` 与 OCI target digest `abd9560c...`。successor live authorization 尚未授予，live revalidation pending。Authority: `docs/development/N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_PROGRESS_20261011.md`.
+
+> **KF-078 UPDATE — repository-owned staging host wrapper source CI PASS (2026-10-11)**：上一轮 consumed staging apply 后的 Mac 外层命令因 zsh 不支持 Bash-only `PIPESTATUS[0]` 报错；该错误发生在 executor rollback PASS 之后。现已新增 repository-versioned Python host wrapper，使用 subprocess 参数数组、`ssh -n`、直接 return-code 捕获、双端 payload hash 校验、apply 前 one-shot claim 事件与失败证据保留；staging payload CI run `38129756547` 已覆盖并 PASS。successor live execution 仍需新 payload + fresh T1 preflight + 新授权。
+
+> **KF-105 CLOSED/GUARDED — production staging H0/H1 provenance fingerprint width mismatch (2026-10-11)**：首轮 exact T1 preflight 在任何 mutation 前以 `manager_database_provenance_drift` 安全 STOP；根因确认是 staging executor / Manager-state preparer / synthetic CI fixture 错把 H0/H1 24-char SYSTEM_ID fingerprint 当完整 64-char SHA-256。修复后完整 64-char SHA 继续作为 public-safe SYSTEM_ID authority，provenance 严格使用其前 24 字符；Manager state binding CI run `38127849143` PASS，replacement payload CI run `38127849103` PASS，replacement fresh T1 preflight PASS，且 container/volume/network/listener/guard/DynSec/secret/identity/Manager DB 基线全部保持，authorization 仍未 claim/consume。状态 GUARDED。Authority: `docs/development/N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_PROGRESS_20261011.md`.
+
+> **KF-104 CLOSED / GUARDED — production Manager runtime state binding mismatch (2026-10-11)**：S20 后 fresh read-only evidence 证明 portable Manager DB 为 `manager/manager-state.sqlite3` 且业务表全空、provenance=1；旧 production Compose 却启用 N3-W runtime 而未显式绑定 pairing DB，并依赖不存在的 replay/relay-authorization/relay-keys 默认路径。修复后 Compose 显式绑定 portable Manager DB，把 replay/relay-authorization/relay-keys 冻结在独立 `n3w/` state root，并把 Manager writable mount 收窄到 `manager/` + `n3w/`，不再把 bootstrap identity/private-key root 整体 RW 暴露给 Manager。Dedicated CI run 38124163390 PASS：exact frozen ARM64 Manager artifact load PASS、state prepare/audit PASS、Manager DB 未改变、业务行保持 0、replay/relay/key state 为空、Docker volume set unchanged、T1/board access false。live T1 staging 仍需新授权；禁止以 source closure 代替 live activation acceptance。Authority: `docs/development/N3W_T1_PRODUCTION_STACK_MANAGER_STATE_BINDING_SOURCE_REPAIR_PROGRESS_20261011.md`.
+
+> **KF-103 CLOSED/GUARDED — 2026-10-11**：R5 live transaction 与独立 post-apply read-only audit 均 PASS。三服务身份/凭据已正式落地，transaction Broker 退出后 Docker 仍保持 0 containers / frozen 45-volume set，host MQTT listeners 0，R1-R5 evidence exact。R4 匿名 volume 与 admin-readiness TLS 两个 harness 子问题均已修复并由 CI + real R5 acceptance 覆盖。R5 authorization 已消费且禁止 replay。后续任何生产 Broker/Manager/HA activation 属新阶段、新授权，不再归入 KF-103 重放。
+
+> **KF-103 UPDATE — R5 fresh T1 read-only preclaim PASS (2026-10-11)**：memory-only streamed exact executor + four frozen dependencies 已在 clean T1 上通过 read-only preclaim。现场继续保持 0 containers / frozen 45-volume set、project networks empty、MQTT host listeners 0、DynSec baseline exact、target service identities absent、R1-R4 snapshots exact、R5 rollback snapshot absent、production service secret destination absent；Broker TLS path + `armbian` server-name contract和 exact local arm64 image 均验证通过。authorization 仍未 claim/consume，live mutation=false。KF-103 source/harness blockers 现已达到可请求 R5 one-shot live apply authorization 的条件，但 preclaim PASS 本身不构成授权。Authority: `docs/development/N3W_T1_S20_R5_FRESH_T1_READONLY_PRECLAIM_CLOSURE_20261011.md`.
+
+> **KF-078 UPDATE — clean-T1 streamed Python executor dependency transport (2026-10-11)**：R5 fresh read-only preclaim 首次 transport 错把 `/opt/HomeAssistant/host/greenhouse-manager/src` 当成 clean T1 已存在 package tree，导致 top-level streamed executor 在 import-time 以 `ModuleNotFoundError: greenhouse_manager` 停止；executor main 未进入、authorization 未 claim/consume、无 live mutation。后续 streamed Python executor 必须把 exact executor 及其 frozen project dependencies 作为同一 source-authority bundle 传输，并在 remote Python memory 中建立 package/module namespace；不得把不存在的 repository checkout 当运行时前置条件。当前 R5 retry 采用 memory-only dependency bundle，保持 read-only gate。
+
+> **KF-103 UPDATE — admin-readiness TLS source repair CLOSED/GUARDED (2026-10-11)**：corrected S20 run `38102338780` 的 source / volume-lifecycle / tls-readiness 三个 job 全部 PASS；source focused pytest `74 passed`。isolated TLS 运行证明 `armbian:8883` + exact CA + `--network none` + `--add-host armbian:127.0.0.1` 能完成 DynSec `listClients` readiness，同时错误 hostname `127.0.0.1` 被 TLS hostname verification 拒绝；未增加 plaintext listener、未使用 `--insecure`，volume set 不变。因此 KF-103 的 admin-readiness TLS source 子问题现已 GUARDED；下一步仅 fresh T1 read-only preclaim，R5 live apply 仍需独立一次性授权。Authority: `docs/development/N3W_T1_S20_R5_ADMIN_READINESS_TLS_TRANSPORT_SOURCE_REPAIR_CLOSURE_20261011.md`.
+
+> **KF-103 UPDATE — admin-readiness TLS source repair implemented / corrected CI pending (2026-10-11)**：R5 source 已将 transaction client/admin/anonymous probe 统一绑定到 exact TLS transport `armbian:8883` + mounted CA，transaction Broker 保持 `--network none` 并仅通过 `--add-host armbian:127.0.0.1` 在容器内 loopback 解析证书名；不使用 `--insecure`，不增加 plaintext 1883 listener。R1-R4 authorization 仍永久 consumed/no-replay；R5 使用独立 prospective authorization 与独立 rollback snapshot，当前仅 source repair，live apply 未授权。首个 TLS-isolated CI failure 已确认是 fixture 权限顺序问题（chown 后非 sudo chmod），未启动 Broker、未触达 TLS readiness；已修复，fresh run `38102338780` pending review。R4 anonymous-volume 子问题继续 GUARDED。Authority: `docs/development/N3W_T1_S20_R5_ADMIN_READINESS_TLS_TRANSPORT_SOURCE_REPAIR_PROGRESS_20261011.md`.
+
+> **KF-103 UPDATE — R4 volume drift recovered; anonymous-log-volume recurrence CLOSED/GUARDED (2026-10-11)**：bounded recovery 已唯一删除 proven R4 orphan `a16dba0851cd3fee17660cf65029622951c7b7d99cbe066b9d177605b62db2e7`，postcheck 精确恢复 frozen 45-volume set SHA `20fc845741d31da34f1d1e563e5057c78ec5dc7c4cfd3a495a5f3a4f2bfd011b`，且 DynSec/Broker config/network/guard/listener 基线保持。recurrence root 已修：transaction Broker 显式 `--tmpfs /mosquitto/log` 覆盖 exact Mosquitto image-declared log volume；corrected `N3W T1 S20 real service handoff CI` run `38101584262` 的 source job 与 volume-lifecycle job 均 PASS，focused suite `70 passed`，Docker-isolated proof 输出 `TRANSACTION_BROKER_VOLUME_SET_UNCHANGED=true`。注意：KF-103 的 admin-readiness TLS transport 子问题仍 OPEN，R5 未进入。Authority: `docs/development/N3W_T1_S20_TRANSACTION_BROKER_LOG_VOLUME_LEAK_SOURCE_REPAIR_CLOSURE_20261011.md`.
+
+> **KF-103 UPDATE — R4 orphan volume provenance CLOSED (2026-10-11)**：read-only attribution 已直接证明新增匿名 volume `a16dba0851cd3fee17660cf65029622951c7b7d99cbe066b9d177605b62db2e7` 由 R4 temporary Broker container 创建并挂载到 `/mosquitto/log`，container destroy 时已 unmount，当前 container count=0。exact Mosquitto image 同时声明 `/mosquitto/data`、`/mosquitto/log`，而 R4 executor 仅 bind `/mosquitto/data`，因此 anonymous log volume lifecycle 是 confirmed harness defect，不再是 inference。删除仍需新的 exact one-volume bounded authorization；在恢复 frozen 45-volume set 前继续禁止 production service start、R5 apply 和 PR merge。Authority: `docs/development/N3W_T1_S20_R4_EXTRA_DOCKER_VOLUME_READONLY_ATTRIBUTION_CLOSURE_20261011.md`.
+
+> **KF-103 — S20 临时 Broker readiness transport 与 Docker volume lifecycle guard（2026-10-11）**：R4 修复 TLS mount target 后，临时 Mosquitto 已成功 create/start 并存活约 21 s；但 executor 的 admin client config 固定连接 `127.0.0.1:1883`，而 exact live `/etc/n3wfc4/mosquitto.conf` 只提供 TLS `listener 8883`，导致全部 `mosquitto_rr` readiness probe exitCode=1，未进入 createRole/createClient。R4 rollback 已恢复 DynSec、secret、container、listener、network 等 transaction state，但 Docker volume inventory 从 frozen 45 / set SHA `20fc8457...` 漂移到 46 / set SHA `918671f5...`，因此 `_rollback_postcheck` 在 volume-set gate 处报 `rollback_incomplete_manual_recovery_required`。后续临时 Broker readiness 必须绑定 exact Broker listener/TLS/CA/server-name contract，禁止硬编码不存在的 plaintext listener；transaction 前后必须逐项核对所有 Docker artifact，包括 anonymous volumes；rollback volume mismatch 必须输出 exact unexpected volume identity；claimed authorization 永久禁止 replay；在 volume baseline 恢复并独立闭环前，禁止 production service start、下一次 live apply 或 PR merge。Authority: `docs/development/N3W_T1_S20_R4_READINESS_AND_ROLLBACK_VOLUME_DRIFT_PROGRESS_ALIGNMENT_20261011.md`。
+
 # KNOWN_FAILURES_AND_REGRESSION_GUARDS
 
 > 目的：快速定位并闪避本项目已经实际发生过的问题。  
@@ -52,6 +303,10 @@
 | KF-072 | PHYSICAL_HARNESS | UNKNOWN propagation / unobserved fact serialization |
 | KF-075 | PRODUCT | existing-identity MQTT credential recovery product-path gap |
 | KF-076 | INFRASTRUCTURE | GitHub connector PR state transition / post-merge workflow authority |
+| KF-108 | SECURITY | fresh bootstrap one-shot authorization UNKNOWN propagation / no-replay state reporting |
+| KF-109 | PHYSICAL_HARNESS | fresh bootstrap remote payload extractor generated-script syntax / execution coverage |
+| KF-110 | PHYSICAL_HARNESS | fresh bootstrap post-manifest payload-tree bytecode contamination / final file-set gate |
+| KF-111 | PRODUCT | fresh bootstrap Docker 28→29 cross-image-store runtime ID representation / portable RootFS binding |
 | KF-077 | INFRASTRUCTURE | Git blob proof oracle / canonical blob framing |
 | KF-078 | PHYSICAL_HARNESS | executor stdin / TTY / shell-portability / transport-framing contract；2026-09-26 B1 live staging recurrence |
 | KF-079 | INFRASTRUCTURE | T1 GitHub dependency / offline source authority |
@@ -76,9 +331,34 @@
 | KF-099 | PRODUCT | simplified pairing client incorrectly advanced `rejected + continue` hello results into `/v2/pairing/begin`; PR #500 source repair merged at `c578bcb2e31f50771b6b08c231704da6bf36b729` with 14/14 CI PASS; exact repaired firmware was written to Board B and a 90 s passive validation observed 18 rejected hello retries on one pairing_id, 18 distinct nonces, 18 `repair_intent_required` results, zero `/begin`, complete client capture, and unchanged registration/credential state; status GUARDED |
 | KF-100 | INFRASTRUCTURE | T1 Broker TLS server certificate had finite lifetime but no expiry lifecycle owner, automatic same-CA renewal path, durable status, or scheduled runtime owner. PR #506 added lifecycle audit/renewal/rollback + daily persistent timer; CA signing authority, deployment preflight, exact installation, first audit, timer enablement and current-boot activation all passed. The first autonomous scheduled firing completed successfully at 2026-09-30 00:51:14 CST with durable HEALTHY status and Broker/TLS continuity. A later isolated T1 short-lived-certificate lab exercised the exact installed lifecycle tool end-to-end: real renewal changed the test certificate while preserving the test server key/CA and serving the new certificate over live TLS; a forced post-renew mismatch triggered renewal_failed_rolled_back, restored the original certificate, and live TLS returned to that original identity. Production Broker/certificate/status/timer remained unchanged throughout. FC4 CA age-based rollover is CLOSED_NOT_PLANNED because the current product generation is expected to retire before the CA expires in 2036; expiry monitoring remains active and exceptional CA loss/exposure/compromise forces reopening. Route CLOSED_PASS; status GUARDED |
 
+| KF-101 | PHYSICAL_HARNESS | T1 S0 Docker inspect Go-template metadata probe produced 6/6 INSPECT_FAILED, hiding exact mount/source authority; stderr unavailable; root TBD, no product defect proven |
+| KF-102 | PHYSICAL_HARNESS | T1 S19-R4 isolated MQTT acceptance fixture used DynSec admin to publish node ingress despite absent ordinary-topic send permission; later proper node identity R5 PASS; stage-safe failure reporting required |
+| KF-103 | PHYSICAL_HARNESS | T1 S20-R4 temporary Broker transaction harness：anonymous `/mosquitto/log` volume leak 已修复并有 Docker lifecycle CI 防回退；admin readiness 仍错误指向 plaintext `127.0.0.1:1883`，而 exact Broker 仅有 TLS `8883`，因此该子问题继续 OPEN |
+| KF-105 | PHYSICAL_HARNESS | production staging preflight 曾把 H0/H1 provenance 的 24-char SYSTEM_ID fingerprint 误当完整 64-char SHA-256；首轮 exact T1 preflight 在 mutation 前安全 STOP；source repair + dedicated CI + replacement payload + fresh T1 preflight 均 PASS |
+| KF-106 | INFRASTRUCTURE | production staging exact-image oracle 曾只接受 classic Docker config-digest image ID，未覆盖 containerd target/manifest digest；one-shot apply fail-closed 且 rollback PASS；cross-store exact identity source repair + dedicated CI 已 PASS，successor live revalidation pending |
+| KF-107 | INFRASTRUCTURE | one-shot staging post-claim critical section 曾直接从外部 registry pull HA/Broker；HA exact pull 1200 s timeout 后 rollback PASS；source repair 改为 payload CI 冻结三镜像 tar、T1 local load，network root cause TBD |
+
 `KF-061`～`KF-065` 的下方条目只保留 secret-safe 事故摘要和回归规则；raw handoff、Setup Secret、板卡身份、私有路径与其他 private evidence 继续只存在于 private evidence。`KF-068` 的历史文档 PR #340 已关闭未合并，当前不再占用编号；`KF-075` 由 PR #350 分配给 existing-identity MQTT credential recovery 产品路径缺口；`KF-076` 已用于 GitHub connector authority；`KF-077`～`KF-081` 用于 R2B KF-075 Manager deployment 期间发现并闭环的 executor/source-authority 基础设施问题；`KF-082` 用于 Board B live credential recovery / post-closure 阶段发现并闭环的 executor/oracle 归一化问题；`KF-083`/`KF-084` 由 2026-09-03 Board A R2 runtime-liveness closeout 分配；`KF-085`/`KF-086` 由 2026-09-04 R2B verification-harness closeout/audit 分配；`KF-087`～`KF-089` 由 2026-09-04 Board B real-world failover disposition 分配，并于 2026-09-06 折叠进中央索引；`KF-090` 于 2026-09-08 分配给 physical-target confirmation / fresh-silicon-identity guard；`KF-092` 于 2026-09-15 的 Relay MAC delivery feedback 修复路线冻结为 CLOSED_PASS；`KF-093`～`KF-095` 于 2026-09-17～18 的 Direct/Relay failover 取证与 PR #423/#424/#425 修复路线分配；`KF-096` 于 2026-09-18 的 PR #425 实机 Relay 稳态复验中分配给周期性 Direct-recovery probe telemetry blackout；`KF-097` 于 2026-09-25 分配给 T1 Broker 固定 LAN IPv4 publication 导致的换网启动失败。`KF-078` 于 2026-09-26 B1 live exact-source staging 中确认复发：多轮临时 Mac→SSH shell 执行器在 mutation 前因 stdin owner、shell word-splitting、`pipefail`、target 注入和 phase framing 缺陷提前退出；因此由 `GUARDED` 重新置为 `OPEN`，不新增重复 KF 编号。完成 repository-versioned live executor 与实际 Mac/SSH regression 后再评估关闭。 `KF-091` 当前未分配。开放文档 PR 的编号冲突必须在各自 merge 前独立协调。
 
 该表是 primary `DOMAIN` authority；下方历史索引保持原事实文字不变。
+
+## 2026-10-10 KF-101（OPEN；已停止危险推断）
+
+| ID | 阶段 / 模块 | 现象 | 根因 | 修复 / 闪避规则 | 状态 |
+|---|---|---|---|---|---|
+| KF-101 | N3W T1 软件清洁重装 S0 容器数据归属只读取证 | 6 个 Docker 容器详情全部 `INSPECT_FAILED`；容器名称、网络、46 个卷列表成功，实际 Mount Source/卷归属均未获取；不能产生精确删除清单 | TBD；`docker inspect --format` 的实际 stderr 未被本地输出收集，可能为模板兼容/缺字段等，不得猜根因 | 使用 `docker inspect --type container <exact-id>` 的 JSON → T1 上已安装 Python 白名单提取，记录每容器返回码并证明 name/full ID/挂载/Compose/volume/单位路径映射；任何失败 STOP、不得删除/复用原名单；参考 `docs/development/N3W_T1_SOFTWARE_OWNERSHIP_S0_R2_EXACT_DOCKER_JSON_AND_MOUNT_READONLY_RUNBOOK_20261010.md` | OPEN |
+
+## 2026-10-10 KF-102（RESOLVED；隔离 Broker 权限测试发送身份错误）
+
+| ID | 阶段 / 模块 | 现象 | 根因 | 修复 / 回归规则 | 状态 |
+|---|---|---|---|---|---|
+| KF-102 | N3W T1 S19 isolated DynSec MQTT acceptance / harness | R4 首条 Manager ingress 投递 FAIL，R2 早期整体失败缺乏阶段定位；不能由“Manager 没收到”归咎产品 ACL | **R4 的测试夹具明确使用临时 DynSec 管理员向普通节点入口 Topic 发布，而 admin 没有 `publishClientSend` 授权**（R4-R1 只读候选 ACL 确认）；该旧测试确切 PUBACK 错误码未记录，R2 具体失败步骤仍 UNKNOWN | R5 使用 main 产品 `dynsec_plan.py` 构造独立 throwaway 节点发送，真实节点→Manager→HA 投递 PASS；R6A/R6B 正负例 PASS。今后发布测试必须采用原产品合法 publisher，不通过扩大管理员权限“修复”；失败门报告阶段和 MQTT5 权限 reason，不能仅看超时/无消息。旧 R2/R4 记录保留 | RESOLVED |
+
+## 2026-10-11 KF-103（OPEN；volume lifecycle 子问题 GUARDED，admin-readiness transport 子问题待修）
+
+| ID | 阶段 / 模块 | 现象 | 根因 | 修复 / 回归规则 | 状态 |
+|---|---|---|---|---|---|
+| KF-103 | N3W T1 S20 R4 temporary Broker readiness / rollback harness | R4 临时 Broker 已成功 create/start，但 admin readiness 反复失败；rollback 后 Docker volume inventory 从 frozen 45 漂移到 46，留下一个匿名 volume | 两个独立 harness 缺陷：① client config 固定 plaintext `127.0.0.1:1883`，与 exact Broker TLS-only `8883` 不一致；② exact Mosquitto image 声明 `/mosquitto/log`，R4 executor 原先未覆盖该路径，Docker 自动创建匿名 volume | volume 子问题已 CLOSED/GUARDED：唯一 orphan 已 bounded recovery 删除并恢复 exact 45-volume set；source 改为 `--tmpfs /mosquitto/log`；corrected run `38101584262` source + Docker lifecycle 均 PASS，`70 passed` 且 `TRANSACTION_BROKER_VOLUME_SET_UNCHANGED=true`。admin-readiness TLS transport 仍须后续独立修复；在此之前不得宣称整个 KF-103 已关闭 | OPEN |
 
 ## 快速索引
 

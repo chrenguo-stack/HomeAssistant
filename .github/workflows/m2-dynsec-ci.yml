@@ -41,6 +41,31 @@ jobs:
             echo "run=false" >> "$GITHUB_OUTPUT"
           fi
 
+  fresh-bootstrap-contract:
+    needs: scope
+    if: needs.scope.outputs.run == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Manager test environment
+        run: python -m pip install -e 'host/greenhouse-manager[dev]'
+
+      - name: Verify fresh Broker bootstrap source contract
+        run: |
+          set -euo pipefail
+          python -m pytest -q host/greenhouse-manager/tests/bootstrap/test_fresh_broker.py
+          ruff check host/greenhouse-manager/src/greenhouse_manager/bootstrap/fresh_broker.py host/greenhouse-manager/tests/bootstrap/test_fresh_broker.py
+          printf 'FRESH_BROKER_TLS_SOURCE=PASS\n'
+          printf 'FRESH_DYNSEC_SERVICE_BOOTSTRAP_SOURCE=PASS\n'
+          printf 'NODE_CREDENTIAL_COUNT=0\n'
+          printf 'T1_ACCESS=false\n'
+          printf 'BOARD_ACCESS=false\n'
+
   dynsec-integration:
     needs: scope
     if: needs.scope.outputs.run == 'true'

@@ -1,0 +1,4 @@
+default_config:
+
+n3w_mqtt_bootstrap:
+  metadata_file: /run/n3w/ha-mqtt-bootstrap.json

@@ -1,0 +1,130 @@
+name: N3W T1 golden master source CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/n3w-t1-golden-master-ci.yml"
+      - "host/greenhouse-manager/src/greenhouse_manager/bootstrap/golden_master_installer.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/bootstrap/golden_master_seal.py"
+      - "host/greenhouse-manager/tests/bootstrap/test_golden_master_installer.py"
+      - "host/greenhouse-manager/tests/bootstrap/test_golden_master_seal.py"
+      - "tools/n3w_t1_fresh_product_bootstrap.py"
+      - "tools/n3w_t1_golden_master_common.py"
+      - "tools/n3w_t1_golden_master_build.py"
+      - "tools/n3w_t1_golden_master_seal.py"
+      - "tools/n3w_t1_r2c_*.py"
+      - "tests/tools/test_n3w_t1_fresh_product_bootstrap.py"
+      - "tests/tools/test_n3w_t1_golden_master_common.py"
+      - "tests/tools/test_n3w_t1_golden_master_build.py"
+      - "tests/tools/test_n3w_t1_golden_master_seal.py"
+      - "tests/tools/test_n3w_t1_r2c_*.py"
+      - "docs/adr/0009-t1-golden-master-firstboot-production-lifecycle.md"
+      - "docs/development/N3W_T1_GOLDEN_MASTER_*.md"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/n3w-t1-golden-master-ci.yml"
+      - "host/greenhouse-manager/src/greenhouse_manager/bootstrap/golden_master_installer.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/bootstrap/golden_master_seal.py"
+      - "host/greenhouse-manager/tests/bootstrap/test_golden_master_installer.py"
+      - "host/greenhouse-manager/tests/bootstrap/test_golden_master_seal.py"
+      - "tools/n3w_t1_fresh_product_bootstrap.py"
+      - "tools/n3w_t1_golden_master_common.py"
+      - "tools/n3w_t1_golden_master_build.py"
+      - "tools/n3w_t1_golden_master_seal.py"
+      - "tools/n3w_t1_r2c_*.py"
+      - "tests/tools/test_n3w_t1_fresh_product_bootstrap.py"
+      - "tests/tools/test_n3w_t1_golden_master_common.py"
+      - "tests/tools/test_n3w_t1_golden_master_build.py"
+      - "tests/tools/test_n3w_t1_golden_master_seal.py"
+      - "tests/tools/test_n3w_t1_r2c_*.py"
+      - "docs/adr/0009-t1-golden-master-firstboot-production-lifecycle.md"
+      - "docs/development/N3W_T1_GOLDEN_MASTER_*.md"
+
+permissions:
+  contents: read
+
+jobs:
+  source-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: host/greenhouse-manager/pyproject.toml
+
+      - name: Install test dependencies
+        run: python -m pip install -e 'host/greenhouse-manager[dev]'
+
+      - name: Compile
+        run: |
+          python -m py_compile \
+            host/greenhouse-manager/src/greenhouse_manager/bootstrap/golden_master_installer.py \
+            host/greenhouse-manager/src/greenhouse_manager/bootstrap/golden_master_seal.py \
+            tools/n3w_t1_fresh_product_bootstrap.py \
+            tools/n3w_t1_golden_master_common.py \
+            tools/n3w_t1_golden_master_build.py \
+            tools/n3w_t1_golden_master_seal.py \
+            tools/n3w_t1_r2c_*.py
+
+      - name: Ruff
+        run: |
+          ruff check \
+            host/greenhouse-manager/src/greenhouse_manager/bootstrap/golden_master_installer.py \
+            host/greenhouse-manager/src/greenhouse_manager/bootstrap/golden_master_seal.py \
+            host/greenhouse-manager/tests/bootstrap/test_golden_master_installer.py \
+            host/greenhouse-manager/tests/bootstrap/test_golden_master_seal.py \
+            tools/n3w_t1_golden_master_common.py \
+            tools/n3w_t1_golden_master_build.py \
+            tools/n3w_t1_golden_master_seal.py \
+            tools/n3w_t1_r2c_*.py \
+            tests/tools/test_n3w_t1_golden_master_common.py \
+            tests/tools/test_n3w_t1_golden_master_build.py \
+            tests/tools/test_n3w_t1_golden_master_seal.py \
+            tests/tools/test_n3w_t1_r2c_*.py
+
+      - name: Golden master focused tests
+        run: |
+          pytest -q \
+            host/greenhouse-manager/tests/bootstrap/test_golden_master_installer.py \
+            host/greenhouse-manager/tests/bootstrap/test_golden_master_seal.py
+          pytest -q tests/tools/test_n3w_t1_fresh_product_bootstrap.py -k master_preflight
+          PYTHONPATH=tools pytest -q \
+            tests/tools/test_n3w_t1_golden_master_common.py \
+            tests/tools/test_n3w_t1_golden_master_build.py \
+            tests/tools/test_n3w_t1_golden_master_seal.py \
+            tests/tools/test_n3w_t1_r2c_*.py
+
+      - name: Static live-boundary guard
+        run: |
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+
+          path = Path(
+              "host/greenhouse-manager/src/greenhouse_manager/bootstrap/"
+              "golden_master_seal.py"
+          )
+          tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+          forbidden = {"subprocess", "socket"}
+          for node in ast.walk(tree):
+              if isinstance(node, ast.Import):
+                  names = {alias.name.split(".", 1)[0] for alias in node.names}
+                  assert not names & forbidden, (path, names)
+              elif isinstance(node, ast.ImportFrom) and node.module:
+                  name = node.module.split(".", 1)[0]
+                  assert name not in forbidden, (path, name)
+          text = path.read_text(encoding="utf-8")
+          assert "systemctl" not in text
+          assert "docker " not in text
+          assert "/etc/machine-id" not in text
+          assert "/etc/ssh" not in text
+          assert "ssh-keygen" not in text
+          assert "systemd-machine-id-setup" not in text
+          PY

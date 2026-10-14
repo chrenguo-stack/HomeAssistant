@@ -1,0 +1,673 @@
+from __future__ import annotations
+
+import importlib.util
+import json
+import sys
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[2]
+TOOL = ROOT / "tools/n3w_t1_clean_product_deployment_gate.py"
+IMAGE_LOCK = ROOT / "infra/n3w-t1/production/image-lock.json"
+
+
+def load_tool():
+    name = "n3w_t1_clean_product_deployment_gate"
+    specification = importlib.util.spec_from_file_location(
+        name,
+        TOOL,
+    )
+    assert specification is not None
+    assert specification.loader is not None
+    module = importlib.util.module_from_spec(specification)
+    sys.modules[name] = module
+    specification.loader.exec_module(module)
+    return module
+
+
+def _bind(
+    source: str,
+    target: str,
+    *,
+    read_only: bool = True,
+) -> dict:
+    return {
+        "type": "bind",
+        "source": source,
+        "target": target,
+        "read_only": read_only,
+    }
+
+
+def _publication(host_ip: str, port: int) -> dict:
+    return {
+        "mode": "ingress",
+        "host_ip": host_ip,
+        "target": port,
+        "published": str(port),
+        "protocol": "tcp",
+    }
+
+
+def rendered_compose(
+    manager_image: str = "local/greenhouse-manager:s20-511db028",
+) -> dict:
+    return {
+        "name": "n3wfc4",
+        "services": {
+            "manager": {
+                "image": manager_image,
+                "pull_policy": "never",
+                "user": "999:999",
+                "network_mode": "host",
+                "restart": "no",
+                "profiles": ["application"],
+                "read_only": True,
+                "depends_on": {
+                    "broker": {
+                        "condition": "service_started",
+                    }
+                },
+                "environment": {
+                    "GH_SYSTEM_ID": "greenhouse",
+                    "GH_MQTT_HOST": "armbian",
+                    "GH_MQTT_PORT": "8883",
+                    "GH_MQTT_USERNAME": "ghs_greenhouse_manager",
+                    "GH_MQTT_PASSWORD_FILE": (
+                        "/run/secrets/gh_manager_mqtt_password"
+                    ),
+                    "GH_MQTT_CLIENT_ID": "gh-manager-greenhouse",
+                    "GH_MQTT_TLS": "true",
+                    "GH_MQTT_CA_FILE": "/run/n3w/tls/ca.pem",
+                    "GH_HA_DISCOVERY_ENABLED": "true",
+                    "GH_PAIRING_DB_PATH": (
+                        "/var/lib/greenhouse-manager/"
+                        "manager/manager-state.sqlite3"
+                    ),
+                    "GH_HISTORY_DB_PATH": (
+                        "/var/lib/greenhouse-manager/"
+                        "manager/manager-state.sqlite3"
+                    ),
+                    "GH_N3W_RUNTIME_ENABLED": "true",
+                    "GH_N3W_REPLAY_DB_PATH": (
+                        "/var/lib/greenhouse-manager/n3w/replay.sqlite3"
+                    ),
+                    "GH_N3W_RELAY_AUTHORIZATION_DB_PATH": (
+                        "/var/lib/greenhouse-manager/n3w/"
+                        "relay-authorization.sqlite3"
+                    ),
+                    "GH_N3W_RELAY_KEY_DIR": (
+                        "/var/lib/greenhouse-manager/n3w/relay-keys"
+                    ),
+                    "GH_N3W_PRODUCT_PAIRING_ENABLED": "false",
+                    "GH_N3W_PAIRING_MANAGER_ID": (
+                        "gh-manager-greenhouse"
+                    ),
+                    "GH_N3W_PAIRING_ADVERTISED_HOST": "auto",
+                    "GH_N3W_PROVISIONING_USERNAME": (
+                        "ghs_greenhouse_provisioning"
+                    ),
+                    "GH_N3W_PROVISIONING_PASSWORD_FILE": (
+                        "/run/secrets/"
+                        "gh_n3w_provisioning_mqtt_password"
+                    ),
+                    "GH_N3W_PROVISIONING_CLIENT_ID": (
+                        "gh-provisioning-greenhouse"
+                    ),
+                    "GH_N3W_NODE_BROKER_HOST": (
+                        "gate-f-unbound.invalid"
+                    ),
+                    "GH_N3W_NODE_BROKER_PORT": "8883",
+                    "GH_N3W_NODE_BROKER_TLS_SERVER_NAME": "armbian",
+                    "GH_N3W_NODE_BROKER_CA_FILE": (
+                        "/run/n3w/tls/ca.pem"
+                    ),
+                },
+                "volumes": [
+                    _bind(
+                        "/var/lib/greenhouse-manager/manager",
+                        "/var/lib/greenhouse-manager/manager",
+                        read_only=False,
+                    ),
+                    _bind(
+                        "/var/lib/greenhouse-manager/n3w",
+                        "/var/lib/greenhouse-manager/n3w",
+                        read_only=False,
+                    ),
+                    _bind(
+                        "/opt/greenhouse-secrets/mqtt/manager/password",
+                        "/run/secrets/gh_manager_mqtt_password",
+                    ),
+                    _bind(
+                        (
+                            "/opt/greenhouse-secrets/mqtt/"
+                            "provisioning/password"
+                        ),
+                        (
+                            "/run/secrets/"
+                            "gh_n3w_provisioning_mqtt_password"
+                        ),
+                    ),
+                    _bind(
+                        "/etc/n3wfc4/tls/ca.pem",
+                        "/run/n3w/tls/ca.pem",
+                    ),
+                ],
+            },
+            "homeassistant": {
+                "image": "local/n3w-homeassistant:2026.10.0-0c73235a",
+                "pull_policy": "never",
+                "network_mode": "host",
+                "restart": "no",
+                "profiles": ["application"],
+                "depends_on": {
+                    "broker": {
+                        "condition": "service_started",
+                    }
+                },
+                "volumes": [
+                    _bind(
+                        "/var/lib/n3wfc4-homeassistant",
+                        "/config",
+                        read_only=False,
+                    ),
+                    _bind(
+                        (
+                            "/opt/HomeAssistant/infra/n3w-t1/"
+                            "production/homeassistant-configuration.yaml"
+                        ),
+                        "/config/configuration.yaml",
+                    ),
+                    _bind(
+                        (
+                            "/opt/HomeAssistant/infra/n3w-t1/"
+                            "homeassistant/custom_components/"
+                            "n3w_mqtt_bootstrap"
+                        ),
+                        (
+                            "/config/custom_components/"
+                            "n3w_mqtt_bootstrap"
+                        ),
+                    ),
+                    _bind(
+                        (
+                            "/opt/greenhouse-secrets/mqtt/"
+                            "homeassistant/password"
+                        ),
+                        "/run/secrets/gh_homeassistant_mqtt_password",
+                    ),
+                    _bind(
+                        (
+                            "/opt/greenhouse-secrets/mqtt/"
+                            "homeassistant/mqtt-bootstrap.json"
+                        ),
+                        "/run/n3w/ha-mqtt-bootstrap.json",
+                    ),
+                ],
+            },
+            "broker": {
+                "image": "local/n3w-mosquitto:2.1.2-3184566d",
+                "pull_policy": "never",
+                "restart": "no",
+                "ports": [
+                    _publication("0.0.0.0", 8883),
+                    _publication("127.0.0.1", 1883),
+                ],
+                "volumes": [
+                    _bind(
+                        (
+                            "/opt/HomeAssistant/infra/n3w-t1/"
+                            "broker/mosquitto.conf"
+                        ),
+                        "/mosquitto/config/mosquitto.conf",
+                    ),
+                    _bind(
+                        "/etc/n3wfc4/tls/ca.pem",
+                        "/mosquitto/tls/ca.pem",
+                    ),
+                    _bind(
+                        "/etc/n3wfc4/tls/server.pem",
+                        "/mosquitto/tls/server.pem",
+                    ),
+                    _bind(
+                        "/etc/n3wfc4/tls/server.key",
+                        "/mosquitto/tls/server.key",
+                    ),
+                    _bind(
+                        "/var/lib/n3wfc4-broker",
+                        "/mosquitto/data",
+                        read_only=False,
+                    ),
+                ],
+                "networks": {
+                    "n3wfc4-private": None,
+                    "n3wfc4-services": None,
+                },
+            },
+        },
+        "networks": {
+            "n3wfc4-private": {
+                "name": "n3wfc4-private",
+            },
+            "n3wfc4-services": {
+                "name": "n3wfc4-services",
+            },
+        },
+    }
+
+
+def test_accepts_clean_product_contract() -> None:
+    tool = load_tool()
+
+    report = tool.validate_compose_document(
+        rendered_compose()
+    )
+
+    assert report["status"] == "PASS"
+    assert report["compose_project_name"] == "n3wfc4"
+    assert report["manager_runtime_uid_gid"] == "999:999"
+    assert report["manager_secret_file_count"] == 2
+    assert report["manager_portable_root_mounted"] is False
+    assert report["manager_runtime_state_mounts"] == [
+        "/var/lib/greenhouse-manager/manager",
+        "/var/lib/greenhouse-manager/n3w",
+    ]
+    assert report["manager_pairing_database"].endswith(
+        "/manager/manager-state.sqlite3"
+    )
+    assert report["homeassistant_password_mount_readonly"] is True
+    assert report["broker_tls_publication"] == "ipv4_wildcard_8883"
+    assert report["broker_homeassistant_publication"] == (
+        "ipv4_loopback_1883"
+    )
+    assert report["bare_compose_up_starts_application_services"] is False
+    assert report["manager_tls_server_name"] == "armbian"
+    assert report["manager_exact_namespace_tls_runtime_probe_required"] is True
+    assert report["product_pairing_enabled"] is False
+    assert report["node_broker_host_gate_f_unbound"] is True
+
+
+def test_accepts_repository_image_lock() -> None:
+    tool = load_tool()
+    document = json.loads(IMAGE_LOCK.read_text(encoding="utf-8"))
+
+    report = tool.validate_image_lock_document(document)
+
+    assert report["manager_runtime_uid"] == 999
+    assert report["manager_runtime_gid"] == 999
+    assert report["homeassistant_arm64_digest"].startswith("sha256:")
+    assert report["broker_arm64_digest"].startswith("sha256:")
+
+
+@pytest.mark.parametrize(
+    "host_ip",
+    [
+        "0.0.0.0",
+        "192.0.2.10",
+        "127.0.1.1",
+    ],
+)
+def test_rejects_nonexact_homeassistant_loopback_publication(
+    host_ip: str,
+) -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"]["broker"]["ports"][1]["host_ip"] = host_ip
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="broker_1883_publication_invalid",
+    ):
+        tool.validate_compose_document(document)
+
+
+def test_rejects_manager_inline_password() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"]["manager"]["environment"][
+        "GH_MQTT_PASSWORD"
+    ] = "forbidden"
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="manager_inline_password_forbidden",
+    ):
+        tool.validate_compose_document(document)
+
+
+def test_rejects_manager_endpoint_drift() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"]["manager"]["environment"][
+        "GH_MQTT_HOST"
+    ] = "mosquitto"
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="manager_runtime_environment_invalid",
+    ):
+        tool.validate_compose_document(document)
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        "/run/secrets/gh_homeassistant_mqtt_password",
+        "/run/n3w/ha-mqtt-bootstrap.json",
+    ],
+)
+def test_rejects_writable_homeassistant_private_mount(
+    target: str,
+) -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    for mount in document["services"]["homeassistant"]["volumes"]:
+        if mount["target"] == target:
+            mount["read_only"] = False
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="bind_mount_contract_invalid",
+    ):
+        tool.validate_compose_document(document)
+
+
+def test_rejects_manager_runtime_user_drift() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"]["manager"]["user"] = "1000:1000"
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="manager_runtime_user_invalid",
+    ):
+        tool.validate_compose_document(document)
+
+
+@pytest.mark.parametrize("service", ["manager", "homeassistant"])
+def test_rejects_application_profile_removal(service: str) -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"][service]["profiles"] = []
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match=f"{service}_profile_invalid",
+    ):
+        tool.validate_compose_document(document)
+
+
+def test_rejects_broker_tls_mount_target_drift() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"]["broker"]["volumes"][1][
+        "target"
+    ] = "/mosquitto/config/n3w-ca.pem"
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="bind_mount_target_count_invalid",
+    ):
+        tool.validate_compose_document(document)
+
+
+def test_rejects_broker_network_drift() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"]["broker"]["networks"] = {
+        "n3wfc4-private": None,
+    }
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="broker_network_attachment_set_invalid",
+    ):
+        tool.validate_compose_document(document)
+
+
+@pytest.mark.parametrize(
+    "host_ip",
+    [
+        "127.0.0.1",
+        "192.0.2.10",
+    ],
+)
+def test_rejects_nonwildcard_tls_publication(
+    host_ip: str,
+) -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"]["broker"]["ports"][0]["host_ip"] = host_ip
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="broker_8883_publication_invalid",
+    ):
+        tool.validate_compose_document(document)
+
+
+def test_rejects_extra_compose_network() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["networks"]["unexpected"] = {
+        "name": "unexpected",
+    }
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="compose_network_set_invalid",
+    ):
+        tool.validate_compose_document(document)
+
+
+def test_rejects_image_lock_drift() -> None:
+    tool = load_tool()
+    document = json.loads(IMAGE_LOCK.read_text(encoding="utf-8"))
+    document["manager"]["runtime_uid"] = 1000
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="manager_image_lock_invalid",
+    ):
+        tool.validate_image_lock_document(document)
+
+
+def test_rejects_manager_raw_loopback_as_tls_host() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"]["manager"]["environment"]["GH_MQTT_HOST"] = (
+        "127.0.0.1"
+    )
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="manager_runtime_environment_invalid",
+    ):
+        tool.validate_compose_document(document)
+
+
+def test_rejects_product_pairing_before_gate_f() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"]["manager"]["environment"][
+        "GH_N3W_PRODUCT_PAIRING_ENABLED"
+    ] = "true"
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="manager_runtime_environment_invalid",
+    ):
+        tool.validate_compose_document(document)
+
+
+def test_rejects_manager_portable_root_mount() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"]["manager"]["volumes"].append(
+        _bind(
+            "/var/lib/greenhouse-manager",
+            "/var/lib/greenhouse-manager",
+            read_only=False,
+        )
+    )
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="manager_portable_root_mount_forbidden",
+    ):
+        tool.validate_compose_document(document)
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        (
+            "GH_PAIRING_DB_PATH",
+            "/var/lib/greenhouse-manager/registration.sqlite3",
+        ),
+        (
+            "GH_N3W_REPLAY_DB_PATH",
+            "/tmp/replay.sqlite3",
+        ),
+        (
+            "GH_N3W_RELAY_AUTHORIZATION_DB_PATH",
+            "/tmp/relay-authorization.sqlite3",
+        ),
+        (
+            "GH_N3W_RELAY_KEY_DIR",
+            "/tmp/relay-keys",
+        ),
+    ],
+)
+def test_rejects_manager_state_environment_drift(
+    name: str,
+    value: str,
+) -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"]["manager"]["environment"][name] = value
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="manager_runtime_environment_invalid",
+    ):
+        tool.validate_compose_document(document)
+
+
+@pytest.mark.parametrize(
+    ("service", "error"),
+    [
+        ("homeassistant", "homeassistant_pull_policy_invalid"),
+        ("broker", "broker_pull_policy_invalid"),
+    ],
+)
+def test_rejects_external_service_pull_policy_drift(
+    service: str,
+    error: str,
+) -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"][service]["pull_policy"] = "missing"
+
+    with pytest.raises(tool.DeploymentContractError, match=error):
+        tool.validate_compose_document(document)
+
+
+def test_accepts_fresh_dynamic_system_identity() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    environment = document["services"]["manager"]["environment"]
+    environment.update(
+        {
+            "GH_SYSTEM_ID": "freshci01",
+            "GH_MQTT_USERNAME": "ghs_freshci01_manager",
+            "GH_MQTT_CLIENT_ID": "gh-manager-freshci01",
+            "GH_N3W_PAIRING_MANAGER_ID": "gh-manager-freshci01",
+            "GH_N3W_PROVISIONING_USERNAME": "ghs_freshci01_provisioning",
+            "GH_N3W_PROVISIONING_CLIENT_ID": "gh-provisioning-freshci01",
+        }
+    )
+    report = tool.validate_compose_document(document)
+    assert report["status"] == "PASS"
+
+
+def test_rejects_fresh_identity_cross_binding_drift() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    document["services"]["manager"]["environment"]["GH_SYSTEM_ID"] = "freshci01"
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="manager_runtime_environment_invalid",
+    ):
+        tool.validate_compose_document(document)
+
+
+def fresh_image_lock() -> dict:
+    source_head = "0123456789abcdef0123456789abcdef01234567"
+    return {
+        "schema": "gh.n3w-t1-fresh-production-image-lock/1",
+        "source_head": source_head,
+        "manager": {
+            "source_sha": source_head,
+            "image": "local/greenhouse-manager:fresh-0123456789ab",
+            "image_id": "sha256:" + "1" * 64,
+            "tar_sha256": "2" * 64,
+            "platform": "linux/arm64",
+            "entrypoint": ["greenhouse-manager"],
+            "user": "greenhouse",
+            "runtime_uid": 999,
+            "runtime_gid": 999,
+            "pull_policy": "never",
+        },
+        "homeassistant": {
+            "source_ref": tool_value("EXPECTED_HA_SOURCE_REF"),
+            "image": tool_value("EXPECTED_HA_IMAGE"),
+            "manifest_digest": tool_value("EXPECTED_HA_DIGEST"),
+            "image_id": tool_value("EXPECTED_HA_IMAGE_ID"),
+            "platform": "linux/arm64",
+            "entrypoint": ["/init"],
+            "effective_default_uid": 0,
+            "effective_default_gid": 0,
+            "pull_policy": "never",
+        },
+        "broker": {
+            "source_ref": tool_value("EXPECTED_BROKER_SOURCE_REF"),
+            "image": tool_value("EXPECTED_BROKER_IMAGE"),
+            "manifest_digest": tool_value("EXPECTED_BROKER_DIGEST"),
+            "image_id": tool_value("EXPECTED_BROKER_IMAGE_ID"),
+            "platform": "linux/arm64",
+            "entrypoint": ["/docker-entrypoint.sh"],
+            "pull_policy": "never",
+        },
+    }
+
+
+def tool_value(name: str):
+    return getattr(load_tool(), name)
+
+
+def test_accepts_fresh_manager_image_lock_and_compose() -> None:
+    tool = load_tool()
+    lock = fresh_image_lock()
+    manager_image = lock["manager"]["image"]
+    document = rendered_compose(manager_image=manager_image)
+
+    report = tool.validate_deployment(document, lock)
+
+    assert report["status"] == "PASS"
+    assert report["image_lock_schema"] == tool.FRESH_IMAGE_LOCK_SCHEMA
+    assert report["manager_image"] == manager_image
+    assert report["manager_runtime_uid"] == 999
+
+
+def test_rejects_fresh_lock_source_image_mismatch() -> None:
+    tool = load_tool()
+    lock = fresh_image_lock()
+    lock["manager"]["image"] = "local/greenhouse-manager:fresh-wrong"
+
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="manager_image_lock_invalid",
+    ):
+        tool.validate_image_lock_document(lock)

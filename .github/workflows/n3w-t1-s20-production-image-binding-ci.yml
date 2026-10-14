@@ -1,0 +1,241 @@
+name: N3W T1 S20 production image binding CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/n3w-t1-s20-production-image-binding-ci.yml"
+      - "host/greenhouse-manager/**"
+      - "infra/n3w-t1/production/**"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/n3w-t1-s20-production-image-binding-ci.yml"
+      - "host/greenhouse-manager/**"
+      - "infra/n3w-t1/production/**"
+
+permissions:
+  contents: read
+
+jobs:
+  bind-images:
+    runs-on: ubuntu-24.04
+    env:
+      MANAGER_SOURCE_SHA: 511db028780988a7c07cb9342c8be507380bae0f
+      MANAGER_IMAGE_TAG: local/greenhouse-manager:s20-511db028
+      HA_IMAGE: ghcr.io/home-assistant/home-assistant:2026.10.0
+      BROKER_IMAGE: m.daocloud.io/docker.io/library/eclipse-mosquitto:2.1.2-alpine
+      ARTIFACT_NAME: n3w-s20-production-image-binding-511db028
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Verify Manager source binding
+        shell: bash
+        run: |
+          set -euo pipefail
+          git cat-file -e "$MANAGER_SOURCE_SHA^{commit}"
+          test "$(git rev-parse "$MANAGER_SOURCE_SHA:host/greenhouse-manager/Dockerfile")" = "82ee1312905c2d289ef7d6e231333091030df212"
+          test "$(git rev-parse "$MANAGER_SOURCE_SHA:host/greenhouse-manager/pyproject.toml")" = "48c271cdeb7ba7a8b25f8fd2807d845f42c2c069"
+
+      - name: Build exact ARM64 Manager image
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/n3w-s20-image-binding"
+          WORK="$RUNNER_TEMP/n3w-s20-manager-source"
+          mkdir -p "$OUT" "$WORK"
+          git archive "$MANAGER_SOURCE_SHA" host/greenhouse-manager | tar -x -C "$WORK"
+          docker buildx build \
+            --platform linux/arm64 \
+            --file "$WORK/host/greenhouse-manager/Dockerfile" \
+            --tag "$MANAGER_IMAGE_TAG" \
+            --output "type=docker,dest=$OUT/greenhouse-manager-arm64.tar" \
+            "$WORK/host/greenhouse-manager"
+          docker load -i "$OUT/greenhouse-manager-arm64.tar"
+          docker image inspect "$MANAGER_IMAGE_TAG" > "$OUT/manager-image-inspect.json"
+          docker run --rm \
+            --platform linux/arm64 \
+            --entrypoint sh \
+            "$MANAGER_IMAGE_TAG" \
+            -c 'printf "RUNTIME_UID=%s\nRUNTIME_GID=%s\n" "$(id -u)" "$(id -g)"' \
+            > "$OUT/manager-runtime-identity.txt"
+
+      - name: Resolve ARM64 external image manifests
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/n3w-s20-image-binding"
+          docker buildx imagetools inspect --raw "$HA_IMAGE" > "$OUT/ha-index.json"
+          docker buildx imagetools inspect --raw "$BROKER_IMAGE" > "$OUT/broker-index.json"
+          python - "$OUT" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          out = Path(sys.argv[1])
+
+          def arm64_digest(path: Path) -> str:
+              document = json.loads(path.read_text(encoding="utf-8"))
+              manifests = document.get("manifests")
+              if not isinstance(manifests, list):
+                  raise SystemExit(f"{path.name}: manifest index missing")
+              matches = []
+              for item in manifests:
+                  if not isinstance(item, dict):
+                      continue
+                  platform = item.get("platform")
+                  if not isinstance(platform, dict):
+                      continue
+                  if platform.get("os") == "linux" and platform.get("architecture") == "arm64":
+                      digest = item.get("digest")
+                      if isinstance(digest, str) and digest.startswith("sha256:"):
+                          matches.append(digest)
+              if len(matches) != 1:
+                  raise SystemExit(f"{path.name}: ARM64 manifest count={len(matches)}")
+              return matches[0]
+
+          ha = arm64_digest(out / "ha-index.json")
+          broker = arm64_digest(out / "broker-index.json")
+          (out / "external-arm64-digests.txt").write_text(
+              f"HA_ARM64_DIGEST={ha}\nBROKER_ARM64_DIGEST={broker}\n",
+              encoding="utf-8",
+          )
+          print(f"HA_ARM64_DIGEST={ha}")
+          print(f"BROKER_ARM64_DIGEST={broker}")
+          PY
+          . "$OUT/external-arm64-digests.txt"
+          docker pull --platform linux/arm64 "$HA_IMAGE@$HA_ARM64_DIGEST"
+          docker pull --platform linux/arm64 "$BROKER_IMAGE@$BROKER_ARM64_DIGEST"
+          docker image inspect "$HA_IMAGE@$HA_ARM64_DIGEST" > "$OUT/ha-image-inspect.json"
+          docker image inspect "$BROKER_IMAGE@$BROKER_ARM64_DIGEST" > "$OUT/broker-image-inspect.json"
+
+      - name: Create image binding manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/n3w-s20-image-binding"
+          python - "$OUT" <<'PY'
+          import hashlib
+          import json
+          import os
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          out = Path(sys.argv[1])
+
+          def sha256(path: Path) -> str:
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+
+          def load_one(path: Path) -> dict:
+              document = json.loads(path.read_text(encoding="utf-8"))
+              if not isinstance(document, list) or len(document) != 1:
+                  raise SystemExit(f"{path.name}: inspect count invalid")
+              value = document[0]
+              if not isinstance(value, dict):
+                  raise SystemExit(f"{path.name}: inspect invalid")
+              return value
+
+          manager = load_one(out / "manager-image-inspect.json")
+          ha = load_one(out / "ha-image-inspect.json")
+          broker = load_one(out / "broker-image-inspect.json")
+          external = dict(
+              line.split("=", 1)
+              for line in (out / "external-arm64-digests.txt").read_text(encoding="utf-8").splitlines()
+              if "=" in line
+          )
+          runtime = dict(
+              line.split("=", 1)
+              for line in (out / "manager-runtime-identity.txt").read_text(encoding="utf-8").splitlines()
+              if "=" in line
+          )
+
+          if manager.get("Architecture") != "arm64" or manager.get("Os") != "linux":
+              raise SystemExit("manager platform invalid")
+          config = manager.get("Config")
+          if not isinstance(config, dict):
+              raise SystemExit("manager config invalid")
+          if config.get("Entrypoint") != ["greenhouse-manager"]:
+              raise SystemExit("manager entrypoint invalid")
+          if config.get("User") != "greenhouse":
+              raise SystemExit("manager user invalid")
+          if runtime.get("RUNTIME_UID") != "999" or runtime.get("RUNTIME_GID") != "999":
+              raise SystemExit("manager runtime uid/gid invalid")
+          for label, image in (("ha", ha), ("broker", broker)):
+              if image.get("Architecture") != "arm64" or image.get("Os") != "linux":
+                  raise SystemExit(f"{label} platform invalid")
+
+          manager_id = manager.get("Id")
+          if not isinstance(manager_id, str) or not manager_id.startswith("sha256:"):
+              raise SystemExit("manager image id invalid")
+
+          manifest = {
+              "schema": "gh.n3w-t1-s20-production-image-binding/1",
+              "manager": {
+                  "source_sha": os.environ["MANAGER_SOURCE_SHA"],
+                  "tag": os.environ["MANAGER_IMAGE_TAG"],
+                  "image_id": manager_id,
+                  "tar_sha256": sha256(out / "greenhouse-manager-arm64.tar"),
+                  "platform": "linux/arm64",
+                  "entrypoint": "greenhouse-manager",
+                  "user": "greenhouse",
+                  "runtime_uid": runtime["RUNTIME_UID"],
+                  "runtime_gid": runtime["RUNTIME_GID"],
+              },
+              "homeassistant": {
+                  "source_ref": os.environ["HA_IMAGE"],
+                  "arm64_manifest_digest": external["HA_ARM64_DIGEST"],
+                  "platform": "linux/arm64",
+              },
+              "broker": {
+                  "source_ref": os.environ["BROKER_IMAGE"],
+                  "arm64_manifest_digest": external["BROKER_ARM64_DIGEST"],
+                  "platform": "linux/arm64",
+              },
+              "github": {
+                  "run_id": os.environ["GITHUB_RUN_ID"],
+                  "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+                  "workflow_sha": os.environ["GITHUB_SHA"],
+              },
+              "t1_access": False,
+              "live_mutation": False,
+              "board_access": False,
+          }
+          (out / "binding.json").write_text(
+              json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(manifest, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload exact image binding artifact
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ runner.temp }}/n3w-s20-image-binding/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Publish binding summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            printf 'MANAGER_SOURCE_SHA=%s\n' "$MANAGER_SOURCE_SHA"
+            printf 'MANAGER_IMAGE_TAG=%s\n' "$MANAGER_IMAGE_TAG"
+            printf 'ARTIFACT_NAME=%s\n' "$ARTIFACT_NAME"
+            printf 'ARTIFACT_ID=%s\n' "${{ steps.upload.outputs.artifact-id }}"
+            printf 'ARTIFACT_DIGEST=%s\n' "${{ steps.upload.outputs.artifact-digest }}"
+            cat "$RUNNER_TEMP/n3w-s20-image-binding/manager-runtime-identity.txt"
+            cat "$RUNNER_TEMP/n3w-s20-image-binding/external-arm64-digests.txt"
+          } >> "$GITHUB_STEP_SUMMARY"

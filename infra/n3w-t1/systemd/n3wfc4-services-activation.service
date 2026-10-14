@@ -1,0 +1,20 @@
+[Unit]
+Description=N3W FC4 Manager and Home Assistant activation
+Requires=docker.service n3wfc4-broker-activation.service
+After=docker.service n3wfc4-broker-activation.service
+PartOf=docker.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/n3wfc4/broker-activation.env
+Environment=COMPOSE_IGNORE_ORPHANS=true
+ExecStartPre=/usr/local/sbin/n3w-t1-broker-authenticated-readiness --metadata-file /opt/greenhouse-secrets/mqtt/homeassistant/mqtt-bootstrap.json --password-file /opt/greenhouse-secrets/mqtt/homeassistant/password --timeout-seconds 120
+ExecStart=/usr/bin/docker compose --project-name ${N3WFC4_COMPOSE_PROJECT_NAME} --env-file ${N3WFC4_COMPOSE_ENV_FILE} -f ${N3WFC4_COMPOSE_FILE} --profile application up --no-deps --no-log-prefix --abort-on-container-exit manager homeassistant
+ExecStop=/usr/bin/docker compose --project-name ${N3WFC4_COMPOSE_PROJECT_NAME} --env-file ${N3WFC4_COMPOSE_ENV_FILE} -f ${N3WFC4_COMPOSE_FILE} stop homeassistant manager
+Restart=always
+RestartSec=5
+TimeoutStartSec=180
+TimeoutStopSec=120
+
+[Install]
+WantedBy=docker.service

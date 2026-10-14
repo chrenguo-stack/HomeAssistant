@@ -1,0 +1,58 @@
+name: N3W T1 fresh install host-only CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/n3w-t1-fresh-install-host-only-ci.yml"
+      - "host/greenhouse-manager/src/greenhouse_manager/bootstrap/fresh_installer.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/bootstrap/fresh_product_state.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/bootstrap/fresh_broker.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/bootstrap/system_init.py"
+      - "host/greenhouse-manager/tests/bootstrap/test_fresh_install_host_only.py"
+      - "tools/n3w_t1_fresh_host_baseline.py"
+      - "tests/tools/test_n3w_t1_fresh_host_baseline.py"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/n3w-t1-fresh-install-host-only-ci.yml"
+      - "host/greenhouse-manager/src/greenhouse_manager/bootstrap/fresh_installer.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/bootstrap/fresh_product_state.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/bootstrap/fresh_broker.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/bootstrap/system_init.py"
+      - "host/greenhouse-manager/tests/bootstrap/test_fresh_install_host_only.py"
+      - "tools/n3w_t1_fresh_host_baseline.py"
+      - "tests/tools/test_n3w_t1_fresh_host_baseline.py"
+
+permissions:
+  contents: read
+
+jobs:
+  full-fresh-host-model:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Manager test environment
+        run: python -m pip install -e 'host/greenhouse-manager[dev]'
+
+      - name: Run full fresh-install host-only matrix
+        run: |
+          set -euo pipefail
+          python -m pytest -q             host/greenhouse-manager/tests/bootstrap/test_fresh_install_host_only.py             tests/tools/test_n3w_t1_fresh_host_baseline.py
+          python -m py_compile             tools/n3w_t1_fresh_host_baseline.py
+          python tools/n3w_t1_fresh_host_baseline.py --phase self-check
+          ruff check             host/greenhouse-manager/tests/bootstrap/test_fresh_install_host_only.py             tests/tools/test_n3w_t1_fresh_host_baseline.py             tools/n3w_t1_fresh_host_baseline.py
+          printf 'EMPTY_HOST_FULL_FRESH_INSTALL=PASS\n'
+          printf 'DIRTY_BASELINE_FAIL_CLOSED=PASS\n'
+          printf 'PARTIAL_CANDIDATE_REPLAY_BLOCKED=PASS\n'
+          printf 'SECRET_STDOUT=ABSENT\n'
+          printf 'NODE_CREDENTIAL_COUNT=0\n'
+          printf 'PRODUCTION_SERVICES_STARTED=false\n'
+          printf 'FAULT_CLEANUP_TRANSACTION_OWNED_ONLY=PASS\n'
+          printf 'T1_ACCESS=false\n'
+          printf 'BOARD_ACCESS=false\n'
