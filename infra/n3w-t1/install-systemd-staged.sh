@@ -8,7 +8,6 @@ SERVICES=n3wfc4-services-activation.service
 CERT_TIMER=n3wfc4-broker-certificate-lifecycle.timer
 
 /usr/bin/systemctl enable "$GUARD" "$PROVISION"
-/usr/bin/systemctl disable "$ACTIVATION" "$SERVICES" "$CERT_TIMER"
 
 guard_state="$(/usr/bin/systemctl is-enabled "$GUARD")"
 provision_state="$(/usr/bin/systemctl is-enabled "$PROVISION")"
