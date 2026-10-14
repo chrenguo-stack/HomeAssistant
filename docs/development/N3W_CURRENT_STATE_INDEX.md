@@ -1,3 +1,16 @@
+## 2026-10-14 — F2 fresh T1 real read-only preflight CLOSED_PASS / PR #542 merge next
+
+- PR #542 exact accepted source: `33bf71de0cf35984af74e1614aca72a893890b38` / tree `0ee122fcafb424ef94a79ab14c79dcb292a7a030`.
+- Exact source-head CI: 12/12 SUCCESS; PR was Open Draft, mergeable, 1 ahead / 0 behind with no review threads before documentation alignment.
+- Real fresh-Armbian F2 result: PASS, failures=[]; public-safe target binding SHA-256 `2b149655aab07a3941fa76d0fd03e6b632e628077d5cddcf4eafa0e2c9e313fd`.
+- Exact deployable artifact: run `38536117520`, artifact ID `11880082975`, digest `sha256:de6228bd453b0c9de31cb80778b9b50e6df8620a4c2131dcebd8fa3ff29c1f97`, source main `3e05e82a7d7e871d2966e78e8cb5caff601a0152`.
+- Live evidence repaired three F2 false negatives: password SSH compatibility, durable Armbian firstrun completion, and fresh empty APT-index handling with exact resolute/universe source proof.
+- F2 was read-only: no T1 file write, apt update, package install, Docker mutation, product deployment, production service start or board access.
+- F3 remains NOT_STARTED / NOT_AUTHORIZED.
+- Closure: `docs/development/N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F2_LIVE_READONLY_PREFLIGHT_CLOSURE_20261014.md`.
+- Formal handoff: `docs/development/N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F2_CLOSED_PASS_TO_PR542_MERGE_NEW_CHAT_HANDOFF_V1.0_20261014.md`.
+- Next one gate: `N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F2_PR542_MERGE_CLOSURE_20261014_01`; merge PR #542 first, then fresh-rebind main/post-merge CI; do not auto-enter F3.
+
 ## 2026-10-14 — F1B CLOSED_PASS / CI execution convergence V1
 
 - F1B repaired source: `f1306067667c1a58b172b543c452c1a388ec119e`; `39bb520e...` is proven docs-only source-equivalent.
