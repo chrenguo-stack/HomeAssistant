@@ -998,6 +998,17 @@ def _emit(value: dict[str, object]) -> None:
     print(json.dumps(value, sort_keys=True, separators=(",", ":")), flush=True)
 
 
+def _stop_remote_apply_process(process: subprocess.Popen[str]) -> None:
+    if process.poll() is not None:
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=10)
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--t1", required=True)
@@ -1192,53 +1203,57 @@ def main() -> int:
         requested: list[str] = []
         loaded: list[str] = []
         assert process.stdout is not None
-        for line in process.stdout:
-            sys.stdout.write(line)
-            sys.stdout.flush()
-            try:
-                event = json.loads(line)
-            except json.JSONDecodeError:
-                event = {}
-            if (
-                event.get("event") == "authorization_claimed"
-                and event.get("authorization_id") == authorization
-            ):
-                claim_seen = True
-                continue
-            if event.get("event") == "image_requested":
-                if not claim_seen:
-                    process.terminate()
-                    raise FreshHostTransportError("image_requested_before_authorization")
-                label = str(event.get("label"))
-                expected = IMAGE_LABELS[len(requested)] if len(requested) < len(IMAGE_LABELS) else None
-                if label != expected or label in requested:
-                    process.terminate()
-                    raise FreshHostTransportError("image_request_order_invalid")
-                _transfer_requested_image(
-                    args.t1,
-                    remote_dir,
-                    work,
-                    manifest,
-                    capacity,
-                    label,
-                )
-                requested.append(label)
-                continue
-            if event.get("event") == "image_loaded":
-                label = str(event.get("label"))
-                expected = IMAGE_LABELS[len(loaded)] if len(loaded) < len(IMAGE_LABELS) else None
+        try:
+            for line in process.stdout:
+                sys.stdout.write(line)
+                sys.stdout.flush()
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    event = {}
                 if (
-                    label != expected
-                    or label not in requested
-                    or event.get("staged_tar_deleted") is not True
+                    event.get("event") == "authorization_claimed"
+                    and event.get("authorization_id") == authorization
                 ):
-                    process.terminate()
-                    raise FreshHostTransportError("image_load_event_invalid")
-                if _remote_free_bytes(args.t1) < MIN_POST_PEAK_FREE_BYTES:
-                    process.terminate()
-                    raise FreshHostTransportError("postload_reserve_breached")
-                loaded.append(label)
-        return_code = process.wait()
+                    claim_seen = True
+                    continue
+                if event.get("event") == "image_requested":
+                    if not claim_seen:
+                        process.terminate()
+                        raise FreshHostTransportError("image_requested_before_authorization")
+                    label = str(event.get("label"))
+                    expected = IMAGE_LABELS[len(requested)] if len(requested) < len(IMAGE_LABELS) else None
+                    if label != expected or label in requested:
+                        process.terminate()
+                        raise FreshHostTransportError("image_request_order_invalid")
+                    _transfer_requested_image(
+                        args.t1,
+                        remote_dir,
+                        work,
+                        manifest,
+                        capacity,
+                        label,
+                    )
+                    requested.append(label)
+                    continue
+                if event.get("event") == "image_loaded":
+                    label = str(event.get("label"))
+                    expected = IMAGE_LABELS[len(loaded)] if len(loaded) < len(IMAGE_LABELS) else None
+                    if (
+                        label != expected
+                        or label not in requested
+                        or event.get("staged_tar_deleted") is not True
+                    ):
+                        process.terminate()
+                        raise FreshHostTransportError("image_load_event_invalid")
+                    if _remote_free_bytes(args.t1) < MIN_POST_PEAK_FREE_BYTES:
+                        process.terminate()
+                        raise FreshHostTransportError("postload_reserve_breached")
+                    loaded.append(label)
+            return_code = process.wait()
+        except Exception:
+            _stop_remote_apply_process(process)
+            raise
         if return_code == 0 and (
             tuple(requested) != IMAGE_LABELS or tuple(loaded) != IMAGE_LABELS
         ):
