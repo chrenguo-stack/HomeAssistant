@@ -1,3 +1,32 @@
+## 2026-10-14 — F1B focused closure review found and repaired two same-gate host-wrapper blockers; exact repaired source CI running
+
+TASK=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F1B_FOCUSED_CLOSURE_REVIEW_20261014_01
+ORIGINAL_F1B_SOURCE_HEAD=f011bf389a0909383b9e485d089b89f9120e9173
+REPAIRED_SOURCE_HEAD=f1306067667c1a58b172b543c452c1a388ec119e
+A1=CLOSED_SOURCE
+A2=CLOSED_SOURCE
+A3=CLOSED_SOURCE_PENDING_CI
+A4=CLOSED_SOURCE
+A5=CLOSED_SOURCE
+A6=CLOSED_SOURCE
+A7=CLOSED_SOURCE
+A8=CLOSED_SOURCE
+A9=CLOSED_SOURCE
+A10=CLOSED_SOURCE_PENDING_CI
+A3_FINDING=durable claim could be lost at SSH/result boundary and falsely report unconsumed; repaired with durable-ledger present/absent/unknown classification, unknown fails closed consumed/no-replay
+A10_FINDING=host-side image/event error could leave remote SSH apply process unreaped; repaired with bounded terminate/wait/kill
+KF_CLASSIFICATION=KF-108_RECURRENCE_NO_NEW_KF
+EXACT_REPAIRED_HEAD_CI=RUNNING
+CI_POLL_COUNT_AT_PROGRESS=2
+T1_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+F2_ENTERED=false
+F1B_FOCUSED_CLOSURE=OPEN_PENDING_EXACT_HEAD_CI_AND_ARTIFACT
+
+Authority: docs/development/N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F1B_FOCUSED_CLOSURE_REVIEW_REPAIR_PROGRESS_20261014.md
+
 ## 2026-10-14 — F1B exact-head CI GREEN / handoff to focused closure review
 
 ~~~text
