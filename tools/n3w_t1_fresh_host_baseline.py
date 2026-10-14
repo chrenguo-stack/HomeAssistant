@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import platform
+import shutil
 import subprocess
 import sys
 from collections.abc import Sequence
@@ -80,17 +81,31 @@ def _candidate(policy: str, package: str) -> str:
 def _check(runner: Runner) -> dict[str, object]:
     release = _os_release()
     _validate_target_host(release)
+    if shutil.which("docker") is None:
+        return {
+            "schema": SCHEMA,
+            "status": "MISSING",
+            "os_id": release.get("ID"),
+            "os_version": release.get("VERSION_ID"),
+            "os_codename": release.get("VERSION_CODENAME"),
+            "architecture": platform.machine(),
+            "docker_active": False,
+            "docker_version": None,
+            "compose_version": None,
+            "production_service_start": False,
+            "board_access": False,
+        }
     docker_state = runner.run(
         ("systemctl", "is-active", "docker"),
         allowed=frozenset({0, 3, 4}),
     )
     docker_version = runner.run(
         ("docker", "version", "--format", "{{.Server.Version}}"),
-        allowed=frozenset({0, 127}),
+        allowed=frozenset({0}),
     )
     compose_version = runner.run(
         ("docker", "compose", "version", "--short"),
-        allowed=frozenset({0, 127}),
+        allowed=frozenset({0}),
     )
     ready = docker_state == "active" and bool(docker_version) and bool(compose_version)
     return {
@@ -151,7 +166,8 @@ def self_check() -> dict[str, object]:
         "docker compose up",
         "armbian-install",
     )
-    found = [value for value in forbidden if value in source]
+    executable = source.split("\ndef self_check(", 1)[0]
+    found = [value for value in forbidden if value in executable]
     return {
         "schema": SCHEMA,
         "status": "PASS" if not found else "STOP",
