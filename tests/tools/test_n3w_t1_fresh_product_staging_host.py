@@ -949,6 +949,71 @@ def test_claim_failure_with_unknown_record_state_is_consumed_no_replay(
     assert report["remote_payload_preserved"] is True
 
 
+def test_remote_apply_process_is_stopped_and_reaped_on_host_error() -> None:
+    tool = load_tool()
+    calls: list[object] = []
+
+    class Process:
+        def poll(self):
+            calls.append("poll")
+            return None
+
+        def terminate(self):
+            calls.append("terminate")
+
+        def wait(self, timeout=None):
+            calls.append(("wait", timeout))
+            return 0
+
+        def kill(self):
+            calls.append("kill")
+
+    tool._stop_remote_apply_process(Process())
+
+    assert calls == ["poll", "terminate", ("wait", 10)]
+    source = TOOL.read_text(encoding="utf-8")
+    assert (
+        "except Exception:\n"
+        "            _stop_remote_apply_process(process)\n"
+        "            raise"
+    ) in source
+
+
+def test_remote_apply_process_is_killed_if_terminate_does_not_finish() -> None:
+    tool = load_tool()
+    calls: list[object] = []
+    waits = 0
+
+    class Process:
+        def poll(self):
+            calls.append("poll")
+            return None
+
+        def terminate(self):
+            calls.append("terminate")
+
+        def wait(self, timeout=None):
+            nonlocal waits
+            waits += 1
+            calls.append(("wait", timeout))
+            if waits == 1:
+                raise tool.subprocess.TimeoutExpired("ssh", timeout)
+            return 0
+
+        def kill(self):
+            calls.append("kill")
+
+    tool._stop_remote_apply_process(Process())
+
+    assert calls == [
+        "poll",
+        "terminate",
+        ("wait", 10),
+        "kill",
+        ("wait", 10),
+    ]
+
+
 def test_prebaseline_capacity_is_checked_before_authorization_claim() -> None:
     source = TOOL.read_text(encoding="utf-8")
     baseline_index = source.index(
