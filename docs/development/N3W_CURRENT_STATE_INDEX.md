@@ -1,3 +1,12 @@
+## 2026-10-14 — F1 entered; F1A source repair
+
+- F0 post-closure CI: 27/27 success.
+- F1 is split into F1A boundary repair and F1B transport/host-wiring repair.
+- F1A adds fresh-Armbian Docker/Compose baseline installation source, fresh-host provisioning preflight semantics, and staged-vs-production systemd enable separation.
+- User-facing explicit start remains `sudo n3w-t1-provision start --confirm "START DEVICE PROVISIONING: YES"`; no alternate `n3w-t1-provision-start` command is introduced.
+- No T1 access, live mutation, board access or merge.
+- Plan: `docs/development/N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F1_SOURCE_REPAIR_PLAN_20261014.md`.
+
 ## 2026-10-14 — Per-device fresh Armbian F0 source/gap review CLOSED_PASS
 
 - Reviewed exact candidate head `f7bf8828c72f2df9fe497c05c4a2b4557d3f695b` / tree `a3595a1ea67b648c399eb24f9913be36ed13a6af`; PR #541 remains open draft/unmerged; 27/27 exact-head workflows succeeded.

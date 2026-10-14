@@ -12,6 +12,8 @@ DISPATCHER = (
     / "NetworkManager/dispatcher.d/90-n3wfc4-broker-ingress-guard"
 )
 PERSISTENCE_INSTALLER = INFRA / "install-systemd-persistence.sh"
+FRESH_STAGED_INSTALLER = INFRA / "install-systemd-staged.sh"
+PRODUCTION_ACTIVATOR = INFRA / "activate-systemd-production.sh"
 
 
 def read(path: Path) -> str:
@@ -176,3 +178,28 @@ def test_systemd_persistence_installer_enables_all_units_without_starting_them()
     assert "restart " not in script
     assert "start " not in script
     assert "stop " not in script
+
+
+def test_fresh_staged_installer_keeps_production_activation_disabled() -> None:
+    script = read(FRESH_STAGED_INSTALLER)
+
+    assert '/usr/bin/systemctl enable "$GUARD" "$PROVISION"' in script
+    assert '/usr/bin/systemctl disable "$ACTIVATION" "$SERVICES" "$CERT_TIMER"' in script
+    assert '"$guard_state" = "enabled"' in script
+    assert '"$provision_state" = "enabled"' in script
+    assert '"$activation_state" != "enabled"' in script
+    assert '"$services_state" != "enabled"' in script
+    assert '"$cert_timer_state" != "enabled"' in script
+    assert "FRESH_STAGED_SYSTEMD_INSTALL=PASS" in script
+    assert "enable --now" not in script
+    assert "systemctl start" not in script
+
+
+def test_production_activator_is_enable_only_and_separate_from_f3() -> None:
+    script = read(PRODUCTION_ACTIVATOR)
+
+    assert '/usr/bin/systemctl enable "$ACTIVATION" "$SERVICES" "$CERT_TIMER"' in script
+    assert "PRODUCTION_ACTIVATION_ENABLE=PASS" in script
+    assert "enable --now" not in script
+    assert "systemctl start" not in script
+    assert "systemctl restart" not in script

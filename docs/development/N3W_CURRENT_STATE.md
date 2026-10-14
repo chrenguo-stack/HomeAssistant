@@ -1,3 +1,24 @@
+## 2026-10-14 — F1 entered / F1A source repair
+
+~~~text
+TASK=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F1_INSTALLER_AND_TRANSPORT_SOURCE_REPAIR_20261014_01
+F0_POST_CLOSURE_CI=27_SUCCESS_0_FAILURE_0_PENDING
+F1_SPLIT=F1A_THEN_F1B
+CURRENT_SUBGATE=F1A_FRESH_HOST_BASELINE_PROVISIONING_AND_ACTIVATION_BOUNDARY_SOURCE_REPAIR
+USER_PROVISION_COMMAND=RETAIN:n3w-t1-provision start
+T1_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+~~~
+
+F1A adds the repository-owned fresh-Armbian Docker/Compose baseline source contract, replaces
+clone-only explicit-provisioning preflight semantics with fresh-host/release readiness, and creates
+a separate F3 staged-systemd boundary that cannot enable Broker/Manager/HA activation units.
+Transport v2 and real host provisioning CLI wiring remain F1B.
+
+Authority: `docs/development/N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F1_SOURCE_REPAIR_PLAN_20261014.md`.
+
 ## 2026-10-14 — Per-device fresh Armbian F0 CLOSED_PASS / STOP before F1
 
 ~~~text

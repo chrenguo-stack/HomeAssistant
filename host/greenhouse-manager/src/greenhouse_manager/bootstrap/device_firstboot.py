@@ -37,7 +37,7 @@ class DeviceFirstbootError(RuntimeError):
 
 
 class DeviceFirstbootAdapters(Protocol):
-    def preflight_clone(self) -> Mapping[str, object]: ...
+    def preflight_fresh_host(self) -> Mapping[str, object]: ...
     def ensure_os_identity(self) -> Mapping[str, object]: ...
     def verify_os_identity(self) -> Mapping[str, object]: ...
     def create_identity(self, candidate_root: Path) -> Mapping[str, object]: ...
@@ -386,15 +386,16 @@ def _existing_private_root(path: Path) -> Path | None:
     return path
 
 
-def _preflight_clone(adapters: DeviceFirstbootAdapters, release_id: str) -> None:
-    preflight = adapters.preflight_clone()
+def _preflight_fresh_host(adapters: DeviceFirstbootAdapters, release_id: str) -> None:
+    preflight = adapters.preflight_fresh_host()
     _require(
         preflight,
         {
             "status": "PASS",
-            "sealed_image": True,
+            "fresh_host_ready": True,
             "release_id": release_id,
-            "clone_readback_verified": True,
+            "release_binding_verified": True,
+            "product_state_absent": True,
             "production_service_start": False,
         },
         "preflight",
@@ -777,7 +778,7 @@ def start_device_provisioning(
     ):
         raise DeviceFirstbootError("provisioning_already_started")
 
-    _preflight_clone(adapters, release_id)
+    _preflight_fresh_host(adapters, release_id)
     root = _private_root(root_path)
     with _exclusive_initializer(root):
         transaction = _create_transaction_once(root, release_id, candidate)

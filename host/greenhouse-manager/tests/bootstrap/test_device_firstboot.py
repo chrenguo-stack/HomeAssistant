@@ -27,12 +27,12 @@ class FakeAdapters:
         *,
         release_id: str = "release-1",
         host_instance_id: str = "host-a",
-        clone_readback_verified: bool = True,
+        release_binding_verified: bool = True,
         fail_stage: str | None = None,
     ) -> None:
         self.release_id = release_id
         self.host_instance_id = host_instance_id
-        self.clone_readback_verified = clone_readback_verified
+        self.release_binding_verified = release_binding_verified
         self.fail_stage = fail_stage
         self.calls: list[str] = []
 
@@ -41,13 +41,14 @@ class FakeAdapters:
         if self.fail_stage == name:
             raise RuntimeError("adapter_failure")
 
-    def preflight_clone(self):
+    def preflight_fresh_host(self):
         self._call("preflight")
         return {
             "status": "PASS",
-            "sealed_image": True,
+            "fresh_host_ready": True,
             "release_id": self.release_id,
-            "clone_readback_verified": self.clone_readback_verified,
+            "release_binding_verified": self.release_binding_verified,
+            "product_state_absent": True,
             "production_service_start": False,
         }
 
@@ -200,12 +201,12 @@ def test_explicit_start_requires_exact_confirmation_before_mutation(
     assert adapters.calls == []
 
 
-def test_explicit_start_requires_clone_readback_evidence(tmp_path: Path) -> None:
-    adapters = FakeAdapters(clone_readback_verified=False)
+def test_explicit_start_requires_fresh_release_binding_evidence(tmp_path: Path) -> None:
+    adapters = FakeAdapters(release_binding_verified=False)
 
     with pytest.raises(
         DeviceFirstbootError,
-        match="clone_readback_verified_invalid",
+        match="release_binding_verified_invalid",
     ):
         start(
             adapters,
