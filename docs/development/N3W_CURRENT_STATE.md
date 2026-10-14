@@ -1,3 +1,54 @@
+## 2026-10-14 — F2 real fresh-Armbian read-only preflight CLOSED_PASS / PR #542 merge next
+
+```text
+TASK=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F2_FRESH_T1_READONLY_PREFLIGHT_20261014_01
+RESULT=CLOSED_PASS
+
+MAIN=3e05e82a7d7e871d2966e78e8cb5caff601a0152
+PR_542=OPEN_DRAFT_MERGEABLE
+PR_542_BASE=3e05e82a7d7e871d2966e78e8cb5caff601a0152
+F2_SOURCE_HEAD=33bf71de0cf35984af74e1614aca72a893890b38
+F2_SOURCE_TREE=0ee122fcafb424ef94a79ab14c79dcb292a7a030
+F2_SOURCE_CI=12_SUCCESS_0_FAILURE_0_PENDING
+F2_LIVE_ACCEPTANCE=PASS
+F2_FAILURES=[]
+
+ARTIFACT_RUN_ID=38536117520
+ARTIFACT_ID=11880082975
+ARTIFACT_DIGEST=sha256:de6228bd453b0c9de31cb80778b9b50e6df8620a4c2131dcebd8fa3ff29c1f97
+ARTIFACT_SOURCE_HEAD=3e05e82a7d7e871d2966e78e8cb5caff601a0152
+TARGET_SHA256=2b149655aab07a3941fa76d0fd03e6b632e628077d5cddcf4eafa0e2c9e313fd
+
+T1_ACCESS=true:READONLY_F2_ONLY
+T1_FILE_WRITE=false
+LIVE_RUNTIME_MUTATION=false
+PACKAGE_INDEX_REFRESH=false
+PACKAGE_INSTALL=false
+DOCKER_MUTATION=false
+PRODUCT_DEPLOYMENT=false
+PRODUCTION_SERVICE_START=false
+F3_AUTHORIZED=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F2_PR542_MERGE_CLOSURE_20261014_01
+AUTO_EXECUTE_F3=false
+```
+
+Real-target F2 first exposed three bounded preflight assumptions: fresh hosts may require password SSH before
+management-key bootstrap; a completed Armbian firstrun can have a zero monotonic timestamp after reboot while
+remaining disabled/inactive/successful; and a genuinely fresh system may have zero APT package-index files
+even though the correct Ubuntu ports/resolute/universe source is configured. All three were repaired in the
+F2 source/tests, passed fresh exact-head CI, and the final exact-source real-target run returned PASS with an
+empty failure list.
+
+Private raw evidence remains outside public GitHub by policy; the public target binding is SHA-256 only.
+F2 grants no F3 mutation authority.
+
+Authorities:
+- docs/development/N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F2_LIVE_READONLY_PREFLIGHT_CLOSURE_20261014.md
+- docs/development/N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F2_CLOSED_PASS_TO_PR542_MERGE_NEW_CHAT_HANDOFF_V1.0_20261014.md
+
 ## 2026-10-14 — F1B CLOSED_PASS; CI execution convergence V1 entered
 
 TASK=N3W_CI_EXECUTION_CONVERGENCE_V1_20261014_01
