@@ -12,6 +12,7 @@ from greenhouse_manager.bootstrap.fresh_broker import (
 from greenhouse_manager.bootstrap.fresh_installer import (
     FreshInstallerError,
     FreshInstallerRecoveryRequired,
+    run_fresh_public_staging,
     run_fresh_staging,
 )
 from greenhouse_manager.bootstrap.fresh_product_state import (
@@ -246,3 +247,99 @@ def test_existing_candidate_root_is_rejected_before_preflight(
         run_fresh_staging(adapters, candidate)
 
     assert adapters.calls == []
+
+
+class PublicAdapters(SourceAdapters):
+    def preflight_master(self):
+        self.calls.append("preflight_master")
+        return {
+            "status": "PASS",
+            "instance_material_absent": True,
+            "production_service_start": False,
+        }
+
+    def stage_public_runtime(self, _candidate_root: Path):
+        self.calls.append("public_runtime")
+        return {
+            "status": "PASS",
+            "public_only": True,
+            "instance_material_created": False,
+            "services_stopped": True,
+            "production_service_start": False,
+        }
+
+    def commit_public_candidate(self, _candidate_root: Path):
+        self.calls.append("public_commit")
+        return {
+            "status": "PASS",
+            "public_committed": True,
+            "instance_material_created": False,
+            "production_service_start": False,
+        }
+
+    def enable_staged_units(self):
+        self.calls.append("staged_units")
+        return {
+            "status": "PASS",
+            "provision_resume_enabled": True,
+            "production_activation_enabled": False,
+            "production_service_start": False,
+        }
+
+    def public_stopped_postcheck(self):
+        self.calls.append("public_postcheck")
+        return {
+            "status": "PASS",
+            "public_product_staged": True,
+            "instance_material_absent": True,
+            "product_listener_count": 0,
+            "production_service_start": False,
+        }
+
+    def cleanup_master_candidate(self, candidate_root: Path):
+        self.calls.append("cleanup_master")
+        shutil.rmtree(candidate_root, ignore_errors=True)
+        return {
+            "status": "PASS",
+            "public_transaction_owned_only": True,
+            "instance_material_modified": False,
+            "production_service_start": False,
+        }
+
+
+def test_public_staging_stops_before_per_device_provisioning(tmp_path: Path) -> None:
+    adapters = PublicAdapters()
+    report = run_fresh_public_staging(adapters, tmp_path / "candidate")
+
+    assert report["status"] == "PASS"
+    assert report["public_product_staged"] is True
+    assert report["instance_material_absent"] is True
+    assert report["explicit_provisioning_required"] is True
+    assert report["production_service_start"] is False
+    assert adapters.calls == [
+        "preflight_master",
+        "load_images",
+        "public_runtime",
+        "public_commit",
+        "staged_units",
+        "public_postcheck",
+    ]
+    assert "identity" not in adapters.calls
+    assert "state" not in adapters.calls
+    assert "broker" not in adapters.calls
+    assert "dynsec" not in adapters.calls
+
+
+def test_public_staging_failure_uses_public_only_cleanup(tmp_path: Path) -> None:
+    adapters = PublicAdapters()
+
+    def fail_units():
+        adapters.calls.append("staged_units")
+        raise RuntimeError("injected")
+
+    adapters.enable_staged_units = fail_units  # type: ignore[method-assign]
+
+    with pytest.raises(FreshInstallerError, match="fresh_install_failed"):
+        run_fresh_public_staging(adapters, tmp_path / "candidate")
+
+    assert adapters.calls[-1] == "cleanup_master"
