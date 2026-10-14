@@ -471,14 +471,20 @@ jobs:
               hashlib.sha256(capacity_bytes).hexdigest() + "\n",
               encoding="utf-8",
           )
+          def sha(path):
+              digest = hashlib.sha256()
+              with path.open("rb") as stream:
+                  for block in iter(lambda: stream.read(1024 * 1024), b""):
+                      digest.update(block)
+              return digest.hexdigest()
+
           for record in manifest["images"].values():
               source = payload / "artifact" / record["artifact_file"]
               target = out / record["artifact_file"]
               shutil.copy2(source, target)
               if (
                   target.stat().st_size != record["tar_size_bytes"]
-                  or hashlib.sha256(target.read_bytes()).hexdigest()
-                  != record["tar_sha256"]
+                  or sha(target) != record["tar_sha256"]
               ):
                   raise RuntimeError("image_artifact_copy_binding_invalid")
           shutil.rmtree(payload / "artifact")
@@ -797,7 +803,50 @@ jobs:
           assert executor_sha == (
               root / "executor.sha256"
           ).read_text(encoding="utf-8").strip()
+
+          import json
+          manifest = json.loads(manifest_stream.getvalue().decode()) if hasattr(manifest_stream, "getvalue") else None
+          if manifest is None:
+              with tarfile.open(archive, "r:gz") as bundle:
+                  member = next(
+                      item
+                      for item in bundle.getmembers()
+                      if item.name.lstrip("./") == "payload-manifest.json"
+                  )
+                  stream = bundle.extractfile(member)
+                  assert stream is not None
+                  manifest = json.loads(stream.read().decode())
+          capacity = json.loads(
+              (root / "capacity-contract.json").read_text(encoding="utf-8")
+          )
+          assert capacity["schema"] == "gh.n3w-t1-fresh-capacity/1"
+          assert capacity["source_head"] == manifest["source_head"]
+          assert capacity["images"] == manifest["transport"]["images"]
+          assert manifest["transport"]["schema"] == "gh.n3w-t1-fresh-transport/2"
+          for label, record in manifest["images"].items():
+              image_path = root / record["artifact_file"]
+              digest = hashlib.sha256()
+              with image_path.open("rb") as image_stream:
+                  for block in iter(lambda: image_stream.read(1024 * 1024), b""):
+                      digest.update(block)
+              assert image_path.stat().st_size == record["tar_size_bytes"]
+              assert digest.hexdigest() == record["tar_sha256"]
+              assert record["path"].startswith("incoming/")
+              assert capacity["images"][label]["required_free_bytes"] == (
+                  record["tar_size_bytes"]
+                  + record["loaded_size_bytes"]
+                  + capacity["minimum_post_peak_free_bytes"]
+              )
+          with tarfile.open(archive, "r:gz") as bundle:
+              runtime_names = {
+                  member.name.lstrip("./")
+                  for member in bundle.getmembers()
+                  if member.isfile()
+              }
+          assert not any(name.startswith("artifact/") for name in runtime_names)
+          assert not any("golden_master" in name for name in runtime_names)
           print("FRESH_BOOTSTRAP_INNER_BINDING=PASS")
+          print("FRESH_TRANSPORT_V2_POST_UPLOAD_BINDING=PASS")
           PY
           printf 'ARTIFACT_ID=%s\n' "$ARTIFACT_ID"
           printf 'ARTIFACT_DIGEST=%s\n' "$ARTIFACT_DIGEST"
