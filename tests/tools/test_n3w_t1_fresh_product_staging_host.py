@@ -897,3 +897,20 @@ def test_claim_failure_remains_preclaim_and_replayable(
     assert report["payload_transfer"] is True
     assert report["docker_mutation"] is False
     assert report["remote_payload_preserved"] is True
+
+
+def test_prebaseline_capacity_is_checked_before_authorization_claim() -> None:
+    source = TOOL.read_text(encoding="utf-8")
+    baseline_index = source.index(
+        'baseline = _remote_baseline_report(args.t1, baseline_tool, "check")'
+    )
+    prebaseline_index = source.index(
+        '"remote_capacity_insufficient_prebaseline"'
+    )
+    claim_index = source.index(
+        "_remote_claim_authorization(args.t1, remote_dir, authorization)"
+    )
+
+    assert baseline_index < prebaseline_index < claim_index
+    assert '"capacity_admission": "PREBASELINE_ROOT_PASS"' in source
+    assert '"transport": prebaseline_plan.to_dict()' in source
