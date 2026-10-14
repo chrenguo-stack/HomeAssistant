@@ -955,6 +955,45 @@ def _authorization_record_remote_path(authorization_id: str) -> str:
     return f"{AUTHORIZATION_LEDGER_ROOT}/{digest}.json"
 
 
+def _remote_authorization_record_state(
+    t1: str,
+    authorization_id: str,
+) -> bool | None:
+    script = (
+        "import os,sys;"
+        "sys.exit(0 if os.path.lexists(sys.argv[1]) else 1)"
+    )
+    try:
+        completed = _run(
+            (
+                "ssh",
+                "-n",
+                t1,
+                _remote_command(
+                    (
+                        "python3",
+                        "-c",
+                        script,
+                        _authorization_record_remote_path(authorization_id),
+                    )
+                ),
+            ),
+            timeout=30,
+            check=False,
+        )
+    except (
+        FreshHostTransportError,
+        OSError,
+        subprocess.TimeoutExpired,
+    ):
+        return None
+    if completed.returncode == 0:
+        return True
+    if completed.returncode == 1:
+        return False
+    return None
+
+
 def _emit(value: dict[str, object]) -> None:
     print(json.dumps(value, sort_keys=True, separators=(",", ":")), flush=True)
 
@@ -1058,7 +1097,29 @@ def main() -> int:
                 manifest_sha256=args.manifest_sha256,
             )
             payload_transfer_complete = True
-            _remote_claim_authorization(args.t1, remote_dir, authorization)
+            try:
+                _remote_claim_authorization(args.t1, remote_dir, authorization)
+            except (
+                FreshHostTransportError,
+                OSError,
+                subprocess.TimeoutExpired,
+            ) as error:
+                record_state = _remote_authorization_record_state(
+                    args.t1,
+                    authorization,
+                )
+                if record_state is True:
+                    claim_seen = True
+                    remote_apply_started = True
+                    raise FreshHostTransportError(
+                        "authorization_claim_result_lost_consumed"
+                    ) from error
+                if record_state is None:
+                    remote_apply_started = True
+                    raise FreshHostTransportError(
+                        "authorization_claim_state_unknown"
+                    ) from error
+                raise
             claim_seen = True
             remote_apply_started = True
             if baseline.get("status") != "PASS":
