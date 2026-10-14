@@ -48,6 +48,13 @@ def _load_module(path: Path, name: str) -> ModuleType:
 def _read_release(path: Path = RELEASE_PATH) -> dict[str, object]:
     if path.is_symlink() or not path.is_file():
         raise ProvisionHostError("fresh_release_missing")
+    metadata = path.stat()
+    if (
+        metadata.st_uid != os.geteuid()
+        or metadata.st_mode & 0o777 != 0o644
+        or metadata.st_nlink != 1
+    ):
+        raise ProvisionHostError("fresh_release_metadata_invalid")
     try:
         document = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
@@ -72,8 +79,22 @@ def _read_release(path: Path = RELEASE_PATH) -> dict[str, object]:
         "broker",
     }:
         raise ProvisionHostError("fresh_release_images_invalid")
-    if not isinstance(image_lock, dict):
+    if (
+        not isinstance(image_lock, dict)
+        or image_lock.get("source_head") != source_head
+    ):
         raise ProvisionHostError("fresh_release_image_lock_invalid")
+    for label in ("homeassistant", "manager", "broker"):
+        record = images.get(label)
+        locked = image_lock.get(label)
+        if (
+            not isinstance(record, dict)
+            or not isinstance(locked, dict)
+            or record.get("image") != locked.get("image")
+            or record.get("image_id") != locked.get("image_id")
+            or record.get("platform") != "linux/arm64"
+        ):
+            raise ProvisionHostError(f"fresh_release_image_binding_invalid:{label}")
     return document
 
 
