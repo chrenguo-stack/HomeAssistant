@@ -1003,8 +1003,22 @@ def main() -> int:
         _verify_image_artifacts(work, manifest, capacity)
         baseline_tool = work / "host-baseline.py"
         baseline = _remote_baseline_report(args.t1, baseline_tool, "check")
+        prebaseline_plan: TransportPlan | None = None
+        if baseline.get("status") != "PASS":
+            root_free = _remote_root_free_bytes(args.t1)
+            prebaseline_plan = _plan_transport(
+                manifest,
+                archive_size_bytes=archive.stat().st_size,
+                remote_free_bytes=root_free,
+                capacity=capacity,
+            )
+            if not prebaseline_plan.capacity_pass:
+                raise FreshHostTransportError(
+                    "remote_capacity_insufficient_prebaseline"
+                )
 
         if args.phase == "preflight" and baseline.get("status") != "PASS":
+            assert prebaseline_plan is not None
             _emit(
                 {
                     "schema": "gh.n3w-t1-fresh-host-preflight/1",
@@ -1012,8 +1026,9 @@ def main() -> int:
                     "phase": "preflight",
                     "host_baseline": baseline,
                     "host_baseline_install_required": True,
-                    "root_free_bytes": _remote_root_free_bytes(args.t1),
-                    "capacity_admission": "DEFER_UNTIL_POST_BASELINE",
+                    "root_free_bytes": prebaseline_plan.remote_free_bytes,
+                    "transport": prebaseline_plan.to_dict(),
+                    "capacity_admission": "PREBASELINE_ROOT_PASS",
                     "payload_transfer": False,
                     "docker_mutation": False,
                     "production_service_start": False,
