@@ -66,6 +66,12 @@ class FreshInstallerAdapters(Protocol):
     ) -> Mapping[str, object]: ...
     def stopped_postcheck(self, system_id: str) -> Mapping[str, object]: ...
     def cleanup(self, candidate_root: Path) -> Mapping[str, object]: ...
+    def preflight_master(self) -> Mapping[str, object]: ...
+    def stage_public_runtime(self, candidate_root: Path) -> Mapping[str, object]: ...
+    def commit_public_candidate(self, candidate_root: Path) -> Mapping[str, object]: ...
+    def enable_staged_units(self) -> Mapping[str, object]: ...
+    def public_stopped_postcheck(self) -> Mapping[str, object]: ...
+    def cleanup_master_candidate(self, candidate_root: Path) -> Mapping[str, object]: ...
 
 
 def _safe_failure_code(error: Exception) -> str:
@@ -120,6 +126,159 @@ def _validate_preflight(report: Mapping[str, object]) -> None:
         },
         "preflight",
     )
+
+
+def run_fresh_public_staging(
+    adapters: FreshInstallerAdapters,
+    candidate_root: str | Path,
+    *,
+    before_mutation: Callable[[], None] | None = None,
+) -> dict[str, Any]:
+    candidate = Path(candidate_root).expanduser()
+    if not candidate.is_absolute():
+        raise FreshInstallerError("candidate_root_not_absolute")
+    if candidate.exists() or candidate.is_symlink():
+        raise FreshInstallerError("candidate_root_already_exists")
+
+    steps: list[str] = []
+    mutation_started = False
+    current_stage = "preflight"
+
+    try:
+        preflight = adapters.preflight_master()
+        _require(
+            preflight,
+            {
+                "status": "PASS",
+                "instance_material_absent": True,
+                "production_service_start": False,
+            },
+            "preflight",
+        )
+        steps.append("preflight")
+
+        if before_mutation is not None:
+            before_mutation()
+
+        mutation_started = True
+        current_stage = "load_images"
+        image_report = adapters.load_images()
+        _require(
+            image_report,
+            {
+                "status": "PASS",
+                "image_count": 3,
+                "offline": True,
+                "registry_pull": False,
+                "platform": "linux/arm64",
+                "production_service_start": False,
+            },
+            "load_images",
+        )
+        steps.append("load_images")
+
+        current_stage = "public_runtime"
+        runtime = adapters.stage_public_runtime(candidate)
+        _require(
+            runtime,
+            {
+                "status": "PASS",
+                "public_only": True,
+                "instance_material_created": False,
+                "services_stopped": True,
+                "production_service_start": False,
+            },
+            "public_runtime",
+        )
+        steps.append("public_runtime")
+
+        current_stage = "public_commit"
+        commit = adapters.commit_public_candidate(candidate)
+        _require(
+            commit,
+            {
+                "status": "PASS",
+                "public_committed": True,
+                "instance_material_created": False,
+                "production_service_start": False,
+            },
+            "public_commit",
+        )
+        steps.append("public_commit")
+
+        current_stage = "staged_units"
+        units = adapters.enable_staged_units()
+        _require(
+            units,
+            {
+                "status": "PASS",
+                "provision_resume_enabled": True,
+                "production_activation_enabled": False,
+                "production_service_start": False,
+            },
+            "staged_units",
+        )
+        steps.append("staged_units")
+
+        current_stage = "postcheck"
+        postcheck = adapters.public_stopped_postcheck()
+        _require(
+            postcheck,
+            {
+                "status": "PASS",
+                "public_product_staged": True,
+                "instance_material_absent": True,
+                "product_listener_count": 0,
+                "production_service_start": False,
+            },
+            "postcheck",
+        )
+        steps.append("postcheck")
+
+        return {
+            "schema": SCHEMA,
+            "status": "PASS",
+            "steps": steps,
+            "public_product_staged": True,
+            "instance_material_absent": True,
+            "explicit_provisioning_required": True,
+            "production_service_start": False,
+            "activation_authorized": False,
+            "board_access": False,
+        }
+    except Exception as error:
+        failure_code = _safe_failure_code(error)
+        if mutation_started:
+            try:
+                cleanup = adapters.cleanup_master_candidate(candidate)
+                _require(
+                    cleanup,
+                    {
+                        "status": "PASS",
+                        "public_transaction_owned_only": True,
+                        "instance_material_modified": False,
+                        "production_service_start": False,
+                    },
+                    "cleanup",
+                )
+            except Exception as cleanup_error:
+                raise FreshInstallerRecoveryRequired(
+                    current_stage,
+                    failure_code,
+                    "NOT_PROVEN",
+                ) from cleanup_error
+            raise FreshInstallerStageError(
+                current_stage,
+                failure_code,
+                "PASS",
+            ) from error
+        if isinstance(error, FreshInstallerError):
+            raise
+        raise FreshInstallerStageError(
+            current_stage,
+            failure_code,
+            "NOT_STARTED",
+        ) from error
 
 
 def run_fresh_staging(
