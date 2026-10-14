@@ -824,7 +824,20 @@ def test_postsuccess_cleanup_failure_preserves_consumed_state(
                 },
                 separators=(",", ":"),
             )
-            + "\n"
+            + "\n",
+            *[
+                json.dumps(
+                    {"event": event, "label": label, **(
+                        {"staged_tar_deleted": True}
+                        if event == "image_loaded"
+                        else {}
+                    )},
+                    separators=(",", ":"),
+                )
+                + "\n"
+                for label in ("homeassistant", "manager", "broker")
+                for event in ("image_requested", "image_loaded")
+            ],
         ],
         process_returncode=0,
         run_results=[
