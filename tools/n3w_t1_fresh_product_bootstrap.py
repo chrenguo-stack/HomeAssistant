@@ -1530,6 +1530,17 @@ print(json.dumps({
     def cleanup_master_candidate(self, candidate_root: Path):
         errors: list[str] = []
         self._cleanup_candidate_containers(errors)
+        for unit in (
+            "n3wfc4-broker-ingress-guard.service",
+            "n3wfc4-provision-resume.service",
+        ):
+            try:
+                self.runner.run(
+                    ("systemctl", "disable", unit),
+                    allowed=frozenset({0, 1}),
+                )
+            except (BootstrapError, OSError, subprocess.SubprocessError):
+                errors.append("staged_unit_disable_failed")
         public_targets = frozenset(
             (*PUBLIC_FINAL_DIRS.keys(), *PUBLIC_FINAL_FILES.keys())
         )
