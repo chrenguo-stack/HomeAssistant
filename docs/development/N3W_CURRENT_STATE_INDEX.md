@@ -1,3 +1,14 @@
+## 2026-10-14 — F1B CLOSED_PASS / CI execution convergence V1
+
+- F1B repaired source: `f1306067667c1a58b172b543c452c1a388ec119e`; `39bb520e...` is proven docs-only source-equivalent.
+- Final source-equivalent CI: 27/27 SUCCESS.
+- Deployable artifact: ID `11879005989`, digest `sha256:e10399bcc4a586b598a0e11cdfe2ebc88706b164a8d9eaa3f726ab0959d97b97`.
+- F1B A1-A10: CLOSED; focused closure result: CLOSED_PASS.
+- CI convergence V1 adds PR-level `cancel-in-progress` to the three heavy ARM64/artifact workflows; no path-filter/test/product-runtime change.
+- PR #541 had 261 changed files at convergence entry; a small/stacked next-phase PR is recommended after V1 CI rather than continuing the umbrella indefinitely.
+- No T1/live/board/merge/F2 execution in this gate.
+- Authorities: `docs/development/N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F1B_FOCUSED_CLOSURE_20261014.md` and `docs/development/N3W_CI_EXECUTION_CONVERGENCE_V1_SOURCE_REPAIR_20261014.md`.
+
 ## 2026-10-14 — F1B focused closure repair progress
 
 - Gate: N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F1B_FOCUSED_CLOSURE_REVIEW_20261014_01
