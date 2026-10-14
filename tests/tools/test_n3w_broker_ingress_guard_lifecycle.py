@@ -184,7 +184,7 @@ def test_fresh_staged_installer_keeps_production_activation_disabled() -> None:
     script = read(FRESH_STAGED_INSTALLER)
 
     assert '/usr/bin/systemctl enable "$GUARD" "$PROVISION"' in script
-    assert '/usr/bin/systemctl disable "$ACTIVATION" "$SERVICES" "$CERT_TIMER"' in script
+    assert '/usr/bin/systemctl disable "$ACTIVATION" "$SERVICES" "$CERT_TIMER"' not in script
     assert '"$guard_state" = "enabled"' in script
     assert '"$provision_state" = "enabled"' in script
     assert '"$activation_state" != "enabled"' in script
@@ -193,6 +193,7 @@ def test_fresh_staged_installer_keeps_production_activation_disabled() -> None:
     assert "FRESH_STAGED_SYSTEMD_INSTALL=PASS" in script
     assert "enable --now" not in script
     assert "systemctl start" not in script
+    assert "systemctl disable" not in script
 
 
 def test_production_activator_is_enable_only_and_separate_from_f3() -> None:
