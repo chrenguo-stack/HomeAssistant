@@ -48,6 +48,7 @@ def test_install_pins_resolved_ubuntu_package_versions(
         },
     )
     monkeypatch.setattr(baseline.platform, "machine", lambda: "aarch64")
+    monkeypatch.setattr(baseline.shutil, "which", lambda _name: "/usr/bin/docker")
     runner = FakeRunner()
 
     report = baseline.execute_install(runner)
@@ -71,3 +72,25 @@ def test_self_check_has_no_product_activation_authority() -> None:
     assert report["status"] == "PASS"
     assert report["forbidden_operations"] == []
     assert report["production_service_start"] is False
+
+
+def test_check_reports_missing_when_docker_is_not_installed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        baseline,
+        "_os_release",
+        lambda: {
+            "ID": "ubuntu",
+            "VERSION_ID": "26.04",
+            "VERSION_CODENAME": "resolute",
+        },
+    )
+    monkeypatch.setattr(baseline.platform, "machine", lambda: "aarch64")
+    monkeypatch.setattr(baseline.shutil, "which", lambda _name: None)
+
+    report = baseline._check(FakeRunner())
+
+    assert report["status"] == "MISSING"
+    assert report["docker_active"] is False
+    assert report["docker_version"] is None
