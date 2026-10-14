@@ -1,3 +1,53 @@
+## 2026-10-14 — R2C one-shot target execution PASS / evidence capture FAILED
+
+~~~text
+R2C_PREEXECUTION_SOURCE_HEAD=403413f89373d0650579c3886274e59be37783bc
+R2C_EXECUTION_RESULT=PASS
+R2C_CAPTURE_STATUS=FAILED
+R2C_GATE_RESULT=STOP_EVIDENCE_GAPS
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+REPLAY_PERMITTED=false
+T1_ACCESS=true
+INTENTIONAL_TARGET_WRITE=false
+SERVICE_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+E1=ERROR
+E2=UNKNOWN
+E3=UNKNOWN
+E4=UNKNOWN
+E5=UNKNOWN
+E6=ERROR
+E7=ERROR
+E8=OBSERVED_COMPLETE
+E9=ERROR
+OS_IDENTITY_SEMANTICS_PROVEN=false
+CONTROLLED_CLONE_BOOT_REQUIRED=true
+DISK_CAPTURE_READY=false
+~~~
+
+After the operator established a T1-specific strict host-key binding from the local T1 console,
+a fresh private preclaim passed and the second explicit one-shot authorization was claimed.
+Exactly one bounded SSH execution completed with remote exit zero and valid report schema. The
+collector made no target write or service mutation. The authorization is consumed and cannot be
+replayed.
+
+Evidence capture failed closed: only E8 is complete; E2-E5 retain semantic gaps; E1, E6 and E9
+returned generic collection errors; E7 returned STOP_EXPECTED_DIRECTORY. The post-capture
+public projection safety review passed, but OS identity semantics remain unproven and disk
+capture remains forbidden.
+
+The earlier preclaim history is corrected: its similarly named local alias was a local
+virtual-machine alias, not T1. At that time no T1-specific strict alias or trusted binding
+existed, so the first preclaim STOP and non-consumption remain valid.
+
+Authority:
+docs/development/N3W_T1_GOLDEN_MASTER_R2C_TARGET_ARMBIAN_READONLY_EVIDENCE_EXECUTION_CLOSURE_20261014.md.
+
+Next gate is repository-only R2C evidence-gap source review and repair. Any target rerun requires
+fresh source closure and a new explicit one-shot authorization.
+
 ## 2026-10-14 — R2C target-Armbian read-only evidence authorization received / private preclaim STOP
 
 ```text

@@ -1,3 +1,15 @@
+## 2026-10-14 — R2C one-shot target execution PASS / capture STOP_EVIDENCE_GAPS
+
+- Exact frozen source 403413f89373d0650579c3886274e59be37783bc executed once through the T1-specific strict host-key binding.
+- SSH transport, remote exit and report schema passed; authorization claimed/consumed=true and replay=false.
+- No intentional target write, service mutation, board access or merge occurred.
+- Capture status FAILED: E8 complete; E2-E5 UNKNOWN; E1/E6/E7/E9 ERROR.
+- Public candidate is reproducible and passed post-capture safety review with no raw value, IP, MAC, SSH-key or target-alias disclosure.
+- Earlier preclaim description corrected: the similarly named local alias was a local virtual-machine alias, not T1; no T1-specific binding existed at the first STOP.
+- OS identity semantics remain unproven; controlled clone boot remains required; disk capture and Final Seal remain forbidden.
+- Authority: docs/development/N3W_T1_GOLDEN_MASTER_R2C_TARGET_ARMBIAN_READONLY_EVIDENCE_EXECUTION_CLOSURE_20261014.md.
+- Next gate is repository-only evidence-gap source review and repair; any rerun requires new source closure and a new explicit authorization.
+
 ## 2026-10-14 — R2C authorization received / private preclaim STOP before claim
 
 - Exact confirmation received; authorization decision was granted but never claimed or consumed.

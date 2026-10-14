@@ -69,10 +69,12 @@ the private transport trust prerequisite.
 
 ## 3. Private preclaim boundary
 
-The private inspection found a single locally configured target candidate, but could not prove
-an existing trusted host-key binding. Historical records show prior SSH use of the target, but
-do not retain an independently verifiable host-key fingerprint; prior connectivity is not a
-substitute for the frozen trust check.
+The private inspection initially found one similarly named local SSH alias, but a later strict
+review established that it belonged to a local virtual-machine environment and was not T1.
+The actual preclaim condition was that no T1-specific SSH alias or existing trusted host-key
+binding was present. Historical records show prior SSH use of the target, but do not retain an
+independently verifiable host-key fingerprint; prior connectivity is not a substitute for the
+frozen trust check.
 
 No private locator, address, port, alias, hostname, host key, fingerprint, target-binding token,
 raw SSH configuration, raw evidence or other target identifier is recorded here.
@@ -103,6 +105,13 @@ After the trusted binding exists, resume only by:
 
 Alternative disposition: reopen the source/configuration gate to add an explicitly bound
 private known-hosts path before any live execution. No path is entered automatically.
+
+## 4A. Later correction
+
+After this STOP was archived, the operator obtained the T1 ED25519 host identity from the local
+T1 console and established a separate strict private binding. The unrelated local
+virtual-machine alias was not used or modified. This correction does not change the safe STOP:
+the first authorization remained unclaimed and unconsumed.
 
 ## 5. Preserved boundaries
 
