@@ -1,3 +1,15 @@
+## 2026-10-14 — F3 preclaim PASS / exact live authorization granted
+
+- Gate `N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_FRESH_READONLY_PRECLAIM_20261014_01`: CLOSED_PASS.
+- Target baseline: Ubuntu 26.04/resolute/aarch64; Docker/Compose absent as expected; `host_baseline_install_required=true`.
+- Capacity: root free 12,616,491,008 bytes; worst-image required free 10,135,822,686 bytes; 5 GiB post-peak reserve retained; `PREBASELINE_ROOT_PASS`.
+- Preclaim remained read-only: no payload transfer, Docker mutation, production service start, board access, authorization claim or consumption.
+- Exact F3 one-shot authorization was explicitly granted: `N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_20261014_01`.
+- Authorization state at this checkpoint: granted=true, claimed=false, consumed=false.
+- Next one gate is exact F3 live apply. F4 remains separately unauthorized; no automatic transition.
+- F5 production design now includes a controlled-override framework: only source-whitelisted environment deviations may be overridden; unknown/safety/identity/integrity/authorization failures remain hard-stop; override success must be recorded as `PASS_WITH_OVERRIDE`.
+- Controlled-override authority: `docs/development/N3W_T1_PRODUCTION_CONTROLLED_OVERRIDE_FRAMEWORK_DESIGN_20261014.md`.
+
 ## 2026-10-14 — F3 preauth preparation CLOSED_PASS / read-only preclaim next
 
 - Current main authority: `0030585ad88d75b399b56849dafc235429bb3299`.
