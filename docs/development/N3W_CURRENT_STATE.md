@@ -1,3 +1,36 @@
+## 2026-10-14 — R2C target-Armbian read-only evidence authorization received / private preclaim STOP
+
+```text
+R2C_PREEXECUTION_SOURCE_HEAD=403413f89373d0650579c3886274e59be37783bc
+R2C_PREEXECUTION_PACKAGE_VALIDATION=PASS
+AUTHORIZATION_CONFIRMATION_RECEIVED=true
+AUTHORIZATION_GRANTED=true
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+PRIVATE_PRECLAIM_RESULT=STOP_EXISTING_KNOWN_HOST_BINDING_ABSENT
+EXECUTION_READY=false
+ACTUAL_R2C_EVIDENCE_EXECUTION=false
+T1_ACCESS=false
+SSH_EXECUTION=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+```
+
+The exact one-shot confirmation was received, but the private final preclaim stopped before
+claim because no existing trusted host-key binding could be established and the effective local
+SSH trust policy is incompatible with the frozen strict-host-key contract. Historical SSH use
+does not provide an independently verifiable fingerprint. No target connection, authorization
+claim, evidence-root creation, trust-on-first-use, host-key acceptance or configuration mutation
+occurred.
+
+The next decision is to establish and independently verify a private strict host-key binding, or
+to reopen the source/configuration gate for an explicitly bound private known-hosts path. Either
+route requires a fresh final preclaim and a new explicit one-shot authorization before SSH.
+
+Authority:
+`docs/development/N3W_T1_GOLDEN_MASTER_R2C_TARGET_ARMBIAN_READONLY_EVIDENCE_PRECLAIM_STOP_20261014.md`.
+
 ## 2026-10-14 — R2C target-Armbian read-only evidence Gate 0/1 PASS
 
 ```text

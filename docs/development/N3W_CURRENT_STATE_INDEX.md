@@ -1,3 +1,13 @@
+## 2026-10-14 — R2C authorization received / private preclaim STOP before claim
+
+- Exact confirmation received; authorization decision was granted but never claimed or consumed.
+- Exact source package at `403413f89373d0650579c3886274e59be37783bc` revalidated PASS.
+- Private preclaim stopped because an existing trusted host-key binding could not be established; effective local SSH trust policy is incompatible with the frozen strict-host-key contract.
+- Historical target connectivity did not preserve an independently verifiable fingerprint and is not accepted as a trust substitute.
+- No T1 contact, SSH, key scan/acceptance, evidence-root creation, probe execution, live mutation, board access or merge occurred.
+- Resume requires an out-of-band verified private strict host-key binding, fresh preclaim and a new explicit one-shot authorization.
+- Authority: `docs/development/N3W_T1_GOLDEN_MASTER_R2C_TARGET_ARMBIAN_READONLY_EVIDENCE_PRECLAIM_STOP_20261014.md`.
+
 ## 2026-10-14 — R2C target-Armbian read-only evidence Gate 0/1 PASS
 
 - Exact preexecution source head: `403413f89373d0650579c3886274e59be37783bc`; current-head CI `27/27_PASS`.
