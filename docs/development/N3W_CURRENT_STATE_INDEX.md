@@ -1,3 +1,17 @@
+## 2026-10-14 — Current formal handoff: F1B source/CI to focused closure review
+
+- Formal handoff: `docs/development/N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F1B_TO_FOCUSED_CLOSURE_REVIEW_NEW_CHAT_HANDOFF_V1.0_20261014.md`.
+- Correct template: candidate-branch `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` V1.3 / blob `b9ef40acdaa8fae37feb5ffe5662afd0e89462a0`.
+- Exact historical handoff standard authority: `4300890dff0ce63d5a547df21426e287d084d9ee`.
+- F1B exact source authority: `f011bf389a0909383b9e485d089b89f9120e9173` / tree `46b454267db93e3aee96882c351912a34f5a162a`; PR #541 remains OPEN/DRAFT/unmerged.
+- Exact source-head CI: 27/27 SUCCESS, zero failure/pending.
+- Deployable artifact: ID `11875663387`, digest `sha256:ed43762adfa6f9a0e034d6974dc79b87a7a7bb357f60659413d5b368ca8f250f`.
+- F1B implements transport /2, capacity sidecar, one-image-at-a-time staging/load, preclaim capacity admission, active Golden Master removal, and real `n3w-t1-provision` host wiring.
+- No T1 access, live mutation, board access or merge occurred.
+- Next one gate: `N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F1B_FOCUSED_CLOSURE_REVIEW_20261014_01`.
+- Focused closure review is explicitly deferred to the next chat; do not auto-enter F2.
+- Important chat-only artifact count is zero; team-share completeness is PASS.
+
 ## 2026-10-14 — F1 entered; F1A source repair
 
 - F0 post-closure CI: 27/27 success.
