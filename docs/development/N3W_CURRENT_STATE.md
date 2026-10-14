@@ -1,3 +1,35 @@
+## 2026-10-14 — R2C evidence-gap source review and repair CLOSED_SOURCE
+
+~~~text
+TASK=N3W_T1_GOLDEN_MASTER_R2C_EVIDENCE_GAP_SOURCE_REVIEW_AND_REPAIR
+SOURCE_REPAIR_AUTHORITY=040caff5dabe13bc419155593a32f4e2a727a309
+RESULT=CLOSED_SOURCE
+LOCAL_R2C_TESTS=83/83_PASS
+SOURCE_HEAD_CI=42_SUCCESS_1_CONDITIONAL_SKIP_0_FAILURE
+T1_ACCESS=false
+AUTHORIZATION_REUSED=false
+HISTORICAL_CAPTURE_REINTERPRETED=false
+MERGE=false
+OS_IDENTITY_SEMANTICS_PROVEN=false
+CONTROLLED_CLONE_BOOT_REQUIRED=true
+DISK_CAPTURE_READY=false
+~~~
+
+Repository-only review repaired the bounded source causes behind historical E1/E6/E7/E9
+collector errors: exact package-absence proof, exact usr-merge `/lib` alias handling,
+non-following journal-root classification, bounded filesystem reasons and masked `/dev/null`
+unit classification. Arbitrary symlinks remain fail-closed and are never followed.
+
+The clean repair commit passed 83/83 local R2C tests and PR #541 completed with 42 successful
+checks, one conditional skip and zero failures. This does not change the historical one-shot
+report or resolve E2/E3/E5 semantic gaps. No T1 access or authorization reuse occurred.
+
+Authority:
+`docs/development/N3W_T1_GOLDEN_MASTER_R2C_EVIDENCE_GAP_SOURCE_REVIEW_AND_REPAIR_20261014.md`.
+
+Any target rerun requires a fresh source/package rebind, fresh Gate 0/1 and a new explicit
+one-shot authorization. The consumed historical authorization remains non-replayable.
+
 ## 2026-10-14 — R2C one-shot target execution PASS / evidence capture FAILED
 
 ~~~text

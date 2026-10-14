@@ -1,3 +1,14 @@
+## 2026-10-14 — R2C evidence-gap source review and repair CLOSED_SOURCE
+
+- Source-repair authority: `040caff5dabe13bc419155593a32f4e2a727a309`.
+- E1 exact package-absence proof, E6/E9 exact usr-merge alias handling, E7 non-directory root classification, controlled error reasons and E4 masked-unit classification are repaired.
+- Validation: 83/83 local R2C tests PASS; PR #541 source-head CI 42 SUCCESS, 1 conditional skip, 0 failure.
+- Historical capture is unchanged; E2/E3/E5 semantic gaps remain and no target-specific result is promoted.
+- No T1 access, authorization reuse, target write, service mutation, board access or merge occurred.
+- OS identity semantics remain unproven; controlled clone boot remains required; disk capture and Final Seal remain forbidden.
+- Authority: `docs/development/N3W_T1_GOLDEN_MASTER_R2C_EVIDENCE_GAP_SOURCE_REVIEW_AND_REPAIR_20261014.md`.
+- Any target rerun requires fresh Gate 0/1 and a new explicit one-shot authorization.
+
 ## 2026-10-14 — R2C one-shot target execution PASS / capture STOP_EVIDENCE_GAPS
 
 - Exact frozen source 403413f89373d0650579c3886274e59be37783bc executed once through the T1-specific strict host-key binding.
