@@ -1,3 +1,16 @@
+## 2026-10-14 — F3 preauth preparation CLOSED_PASS / read-only preclaim next
+
+- Current main authority: `0030585ad88d75b399b56849dafc235429bb3299`.
+- Exact F3 artifact remains run `38536117520`, artifact `11880082975`, digest `sha256:de6228bd453b0c9de31cb80778b9b50e6df8620a4c2131dcebd8fa3ff29c1f97`, source `3e05e82a...`; it is unexpired and F3-critical-source-equivalent to current main.
+- Runtime payload SHA-256: `747f1c58314d10bba5e51bf3c26cb4621158a06f2f82e912511b10bbce09f752`; payload manifest SHA-256: `7a20577dfe1ee61902d92441bcebc73d744cf038775993ee61e1ab05dc43b9d0`.
+- F3 execution is frozen as two substeps inside one authorized F3 route: public staging first, then explicit `n3w-t1-provision start/verify`; host-wrapper apply alone is not full F3 PASS.
+- F4 production service activation remains separate and forbidden in F3.
+- F3 authorization ID is `N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_20261014_01`; granted/claimed/consumed are all false.
+- No T1/live/board mutation occurred in preparation.
+- Rollback nuance: a post-Docker-install failure may leave a Docker-ready minimal host; do not describe it as exact rollback to the Docker-free F2 host.
+- Preparation authority: `docs/development/N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_PREAUTH_PREPARATION_20261014.md`.
+- Next one gate: `N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_FRESH_READONLY_PRECLAIM_20261014_01`.
+
 ## 2026-10-14 — F2 fresh T1 real read-only preflight CLOSED_PASS / PR #542 merge next
 
 - PR #542 exact accepted source: `33bf71de0cf35984af74e1614aca72a893890b38` / tree `0ee122fcafb424ef94a79ab14c79dcb292a7a030`.
