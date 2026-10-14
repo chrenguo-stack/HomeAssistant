@@ -1,3 +1,13 @@
+## 2026-10-15 — F3 R3 read-only preauth CLOSED_PASS
+
+- Exact R3 source `4887a76ef61d176b38e3656a9b04f7e0f13bce2f` is present locally and is an ancestor of the current PR #544 candidate.
+- Exact host-wrapper blob `5322bcfe04ef175c0ab10e8238c11a5ae6fe2f87` and bootstrap blob `95ebb40cf53fe5981e7e3fa4b24d1145a2d3afcc` both matched.
+- Local main remains `0030585ad88d75b399b56849dafc235429bb3299` with a clean worktree; no checkout or local mutation occurred.
+- Target capacity is PASS after controlled R2 payload cleanup: `11866021888` free bytes vs `10135822686` required.
+- Product boundary remains empty: containers/images/volumes 0, default Docker networks only, product listeners none.
+- R2 authorization remains consumed/no-replay; R3 authorization remains ungranted/unclaimed/unconsumed.
+- Next one gate: `N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R3_20261014_01`; explicit new authorization required.
+
 ## 2026-10-15 — R2 preserved payload cleanup CLOSED_PASS / R3 capacity restored
 
 - R3 read-only preauth stopped before authorization because root free space was `9416998912` bytes versus required `10135822686`.
