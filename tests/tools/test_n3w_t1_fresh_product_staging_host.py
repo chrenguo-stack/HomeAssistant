@@ -457,10 +457,21 @@ def test_artifact_download_timeout_enters_integrity_checked_fallback(
     assert {path.name for path in work.iterdir()} == tool.ARTIFACT_OUTER_FILES
 
 
-def test_sequential_load_releases_each_tar(
+def test_transfer_requested_image_is_capacity_gated_and_single_file(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     tool = load_tool()
+    work = tmp_path / "work"
+    work.mkdir()
+    local = work / "homeassistant-arm64.tar"
+    local.write_bytes(b"x" * 1000)
+    m = manifest()
+    m["transport"]["images"]["homeassistant"]["tar_sha256"] = tool._sha256_file(local)
+    m["images"]["homeassistant"]["tar_sha256"] = tool._sha256_file(local)
+    c = capacity()
+    c["images"]["homeassistant"]["tar_sha256"] = tool._sha256_file(local)
+
     calls: list[tuple[str, ...]] = []
 
     class Result:
@@ -468,22 +479,29 @@ def test_sequential_load_releases_each_tar(
         stdout = ""
         stderr = ""
 
+    monkeypatch.setattr(
+        tool,
+        "_remote_free_bytes",
+        lambda _t1: 8 * 1024 * 1024 * 1024,
+    )
+
     def fake_run(command, **_kwargs):
         calls.append(tuple(command))
         return Result()
 
     monkeypatch.setattr(tool, "_run", fake_run)
-    tool._remote_load_images_sequentially(
+    tool._transfer_requested_image(
         "root@example",
         "/var/tmp/payload",
-        manifest(),
+        work,
+        m,
+        c,
+        "homeassistant",
     )
 
-    assert len(calls) == 6
-    for index in range(0, 6, 2):
-        assert "docker load --input" in calls[index][3]
-        assert "rm -f" in calls[index + 1][3]
-    assert all("docker pull" not in " ".join(call) for call in calls)
+    assert sum(1 for call in calls if call and call[0] == "scp") == 1
+    assert all("docker load" not in " ".join(call) for call in calls)
+
 
 
 def test_cli_exposes_preflight_and_apply_with_explicit_authorization() -> None:
@@ -502,10 +520,10 @@ def _write_payload_archive(path: Path, *, link: bool) -> str:
     manifest = json.dumps(
         {
             "transport": {
-                "schema": "gh.n3w-t1-fresh-transport/1",
+                "schema": "gh.n3w-t1-fresh-transport/2",
                 "remote_staging_root": "/var/tmp",
                 "minimum_post_peak_free_bytes": 5 * 1024 * 1024 * 1024,
-                "payload_uncompressed_bytes": 1,
+                "runtime_payload_uncompressed_bytes": 1,
                 "image_load_order": ["homeassistant", "manager", "broker"],
                 "images": {},
             },
@@ -533,7 +551,7 @@ def test_remote_payload_extract_script_compiles_and_executes(tmp_path: Path) -> 
 
     remote = tmp_path / "remote"
     remote.mkdir()
-    archive = remote / "payload.tar.gz"
+    archive = remote / "runtime-payload.tar.gz"
     manifest_sha = _write_payload_archive(archive, link=False)
     archive_sha = tool._sha256_file(archive)
 
@@ -562,7 +580,7 @@ def test_remote_payload_extract_script_rejects_symlink(tmp_path: Path) -> None:
 
     remote = tmp_path / "remote"
     remote.mkdir()
-    archive = remote / "payload.tar.gz"
+    archive = remote / "runtime-payload.tar.gz"
     manifest_sha = _write_payload_archive(archive, link=True)
     archive_sha = tool._sha256_file(archive)
 
@@ -587,7 +605,7 @@ def test_remote_payload_extract_script_rejects_symlink(tmp_path: Path) -> None:
 
 def test_payload_reader_rejects_symlink_member(tmp_path: Path) -> None:
     tool = load_tool()
-    archive = tmp_path / "payload.tar.gz"
+    archive = tmp_path / "runtime-payload.tar.gz"
     manifest_sha = _write_payload_archive(archive, link=True)
 
     with pytest.raises(
@@ -621,7 +639,7 @@ def _run_apply_main(
     tool = load_tool()
     work = tmp_path / "work"
     work.mkdir()
-    archive = work / "payload.tar.gz"
+    archive = work / "runtime-payload.tar.gz"
     archive.write_bytes(b"x")
     authorization = AUTHORIZATION_ID
 
@@ -645,23 +663,30 @@ def _run_apply_main(
             "image_store_free_bytes": 8 * 1024 * 1024 * 1024,
         },
     )
+    monkeypatch.setattr(tool, "_capacity_contract", lambda *_args, **_kwargs: capacity())
+    monkeypatch.setattr(tool, "_verify_image_artifacts", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        tool,
+        "_remote_free_bytes",
+        lambda *_args, **_kwargs: 8 * 1024 * 1024 * 1024,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_transfer_requested_image",
+        lambda *_args, **_kwargs: None,
+    )
     monkeypatch.setattr(
         tool,
         "_plan_transport",
         lambda *_args, **_kwargs: tool.TransportPlan(
-            archive_size_bytes=1,
-            payload_uncompressed_bytes=1,
-            extraction_peak_bytes=2,
-            image_load_peak_bytes=2,
-            content_store_estimate_bytes=1,
-            snapshot_store_estimate_bytes=1,
-            storage_model="tar_plus_containerd_content_plus_snapshot",
-            required_peak_bytes=2,
+            runtime_archive_size_bytes=1,
+            runtime_payload_uncompressed_bytes=1,
+            runtime_extraction_peak_bytes=2,
+            worst_image_required_free_bytes=5 * 1024 * 1024 * 1024 + 2,
             minimum_post_peak_free_bytes=5 * 1024 * 1024 * 1024,
-            required_free_bytes=5 * 1024 * 1024 * 1024 + 2,
             remote_free_bytes=8 * 1024 * 1024 * 1024,
-            free_after_estimated_peak_bytes=8 * 1024 * 1024 * 1024 - 2,
             image_load_order=("homeassistant", "manager", "broker"),
+            remote_staged_image_count_max=1,
             capacity_pass=True,
         ),
     )
@@ -814,7 +839,7 @@ def test_postsuccess_cleanup_failure_preserves_consumed_state(
     assert report["authorization_claimed"] is True
     assert report["authorization_consumed"] is True
     assert report["replay_allowed"] is False
-    assert report["fresh_product_staged"] is True
+    assert report["public_product_staged"] is True
 
 
 def test_preclaim_failure_does_not_claim_and_does_not_fake_cleanup_success(
