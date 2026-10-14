@@ -1022,6 +1022,52 @@ print(json.dumps({"status": "PASS"}))
         )
         os.chmod(unit, 0o644)
 
+        provision = stage / "n3w-t1-provision"
+        shutil.copy2(
+            self.payload_root / "runtime-source/usr/local/sbin/n3w-t1-provision",
+            provision,
+        )
+        os.chmod(provision, 0o755)
+
+        staged_installer = stage / "n3w-t1-systemd-staged-install"
+        shutil.copy2(
+            self.payload_root
+            / "runtime-source/usr/local/sbin/n3w-t1-systemd-staged-install",
+            staged_installer,
+        )
+        os.chmod(staged_installer, 0o755)
+
+        production_activator = stage / "n3w-t1-production-activation-enable"
+        shutil.copy2(
+            self.payload_root
+            / "runtime-source/usr/local/sbin/n3w-t1-production-activation-enable",
+            production_activator,
+        )
+        os.chmod(production_activator, 0o755)
+
+        provision_unit = stage / "n3wfc4-provision-resume.service"
+        shutil.copy2(
+            self.payload_root
+            / "runtime-source/etc/systemd/system/n3wfc4-provision-resume.service",
+            provision_unit,
+        )
+        os.chmod(provision_unit, 0o644)
+
+        release = {
+            "schema": "gh.n3w-t1-fresh-release/1",
+            "release_id": self.manifest["source_head"],
+            "source_head": self.manifest["source_head"],
+            "images": self.manifest["images"],
+            "image_lock": self.manifest["image_lock"],
+            "instance_material_absent": True,
+            "explicit_provisioning_required": True,
+            "production_service_start": False,
+        }
+        (production / "fresh-release.json").write_text(
+            json.dumps(release, sort_keys=True, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
         return {
             "status": "PASS",
             "public_only": True,
@@ -1134,7 +1180,12 @@ print(json.dumps({"status": "PASS"}))
             "production_service_start": False,
         }
 
-    def master_postcheck(self, *, require_instance_absent: bool = True):
+    def master_postcheck(
+        self,
+        *,
+        require_instance_absent: bool = True,
+        staged_units_enabled: bool = False,
+    ):
         if self.runner.run(("docker", "ps", "-aq")).strip():
             raise BootstrapError("postcheck_container_present")
         image_ids = {
@@ -1179,12 +1230,27 @@ print(json.dumps({"status": "PASS"}))
             raise BootstrapError("postcheck_guard_unit_missing")
         if _systemctl(self.runner, "is-active", unit) not in {"inactive", "unknown"}:
             raise BootstrapError("postcheck_guard_active")
-        if _systemctl(self.runner, "is-enabled", unit) not in {
-            "disabled",
-            "static",
-            "indirect",
-        }:
-            raise BootstrapError("postcheck_guard_enabled")
+        guard_enabled = _systemctl(self.runner, "is-enabled", unit)
+        provision_enabled = _systemctl(
+            self.runner,
+            "is-enabled",
+            "n3wfc4-provision-resume.service",
+        )
+        if staged_units_enabled:
+            if guard_enabled != "enabled" or provision_enabled != "enabled":
+                raise BootstrapError("postcheck_staged_units_not_enabled")
+            for activation_unit in (
+                "n3wfc4-broker-activation.service",
+                "n3wfc4-services-activation.service",
+                "n3wfc4-broker-certificate-lifecycle.timer",
+            ):
+                if _systemctl(self.runner, "is-enabled", activation_unit) == "enabled":
+                    raise BootstrapError("postcheck_production_activation_enabled")
+        else:
+            if guard_enabled not in {"disabled", "static", "indirect"}:
+                raise BootstrapError("postcheck_guard_enabled")
+            if provision_enabled not in {"disabled", "static", "indirect", "not-found", ""}:
+                raise BootstrapError("postcheck_provision_resume_enabled")
 
         for target in (*PUBLIC_FINAL_DIRS.keys(), *PUBLIC_FINAL_FILES.keys()):
             path = Path(target)
@@ -1204,6 +1270,30 @@ print(json.dumps({"status": "PASS"}))
             "master_ready": True,
             "instance_material_absent": require_instance_absent,
             "product_listener_count": 0,
+            "production_service_start": False,
+        }
+
+    def enable_staged_units(self):
+        output = self.runner.run(("/usr/local/sbin/n3w-t1-systemd-staged-install",))
+        if "FRESH_STAGED_SYSTEMD_INSTALL=PASS" not in output:
+            raise BootstrapError("staged_systemd_install_invalid")
+        return {
+            "status": "PASS",
+            "provision_resume_enabled": True,
+            "production_activation_enabled": False,
+            "production_service_start": False,
+        }
+
+    def public_stopped_postcheck(self):
+        report = self.master_postcheck(
+            require_instance_absent=True,
+            staged_units_enabled=True,
+        )
+        return {
+            "status": "PASS",
+            "public_product_staged": True,
+            "instance_material_absent": report["instance_material_absent"],
+            "product_listener_count": report["product_listener_count"],
             "production_service_start": False,
         }
 
@@ -1691,7 +1781,7 @@ def execute_apply(payload_root: Path, authorization_id: str, runner: Runner | No
         claimed = True
 
     try:
-        report = contract.run_fresh_staging(
+        report = contract.run_fresh_public_staging(
             adapters,
             candidate,
             before_mutation=claim_once,
@@ -1727,8 +1817,9 @@ def execute_apply(payload_root: Path, authorization_id: str, runner: Runner | No
         "authorization_claimed": True,
         "authorization_consumed": True,
         "replay_allowed": False,
-        "fresh_product_staged": report["fresh_product_staged"],
-        "node_credential_count": report["node_credential_count"],
+        "public_product_staged": report["public_product_staged"],
+        "instance_material_absent": report["instance_material_absent"],
+        "explicit_provisioning_required": report["explicit_provisioning_required"],
         "production_service_start": False,
         "activation_authorized": False,
         "board_access": False,
