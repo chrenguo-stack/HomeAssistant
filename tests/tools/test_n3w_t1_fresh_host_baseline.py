@@ -16,6 +16,20 @@ class FakeRunner:
             return "Candidate: 28.2.2-0ubuntu1"
         if command == ("apt-cache", "policy", "docker-compose-v2"):
             return "Candidate: 2.38.2-0ubuntu1"
+        if command == (
+            "dpkg-query",
+            "-W",
+            "-f=${Status}\t${Version}",
+            "docker.io",
+        ):
+            return "install ok installed\t28.2.2-0ubuntu1"
+        if command == (
+            "dpkg-query",
+            "-W",
+            "-f=${Status}\t${Version}",
+            "docker-compose-v2",
+        ):
+            return "install ok installed\t2.38.2-0ubuntu1"
         if command == ("systemctl", "is-active", "docker"):
             return "active"
         if command[:3] == ("docker", "version", "--format"):
@@ -131,3 +145,30 @@ def test_install_is_idempotent_when_approved_baseline_is_ready(
     assert report["status"] == "PASS"
     assert report["installed"] is False
     assert all(command[0] != "apt-get" for command in runner.commands)
+
+
+def test_check_rejects_unapproved_docker_package_source(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        baseline,
+        "_os_release",
+        lambda: {
+            "ID": "ubuntu",
+            "VERSION_ID": "26.04",
+            "VERSION_CODENAME": "resolute",
+        },
+    )
+    monkeypatch.setattr(baseline.platform, "machine", lambda: "aarch64")
+    monkeypatch.setattr(baseline.shutil, "which", lambda _name: "/usr/bin/docker")
+
+    class UnknownPackageRunner(FakeRunner):
+        def run(self, argv, **kwargs):
+            if tuple(argv)[:2] == ("dpkg-query", "-W"):
+                return ""
+            return super().run(argv, **kwargs)
+
+    report = baseline._check(UnknownPackageRunner())
+
+    assert report["status"] == "MISSING"
+    assert report["package_source"] == "ubuntu_apt_required"
