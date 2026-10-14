@@ -1,3 +1,14 @@
+## 2026-10-14 — F5 量产 SSH 连接复用 V1 设计已批准
+
+- 量产远程接管 V1：操作员首次输入一次 SSH 密码，后续 ssh/scp 通过同一 SSH 控制连接复用，不再重复提示密码。
+- 保留 Host Key 校验；Host Key 错误不得通过关闭校验绕过。
+- 当前阶段明确不做：每机永久 SSH 管理 key、key rotation、bootstrap key 生命周期、独立 n3w-admin 账户、自动关闭 password auth、重新 enrollment 状态机。
+- SSH 连接复用不改变 artifact、runtime payload、image digest 或 source binding 哈希。
+- 每机 TLS/设备身份继续独立生成；量产验收不要求整盘 SHA-256 相同。
+- 本设计仅进入 F5，不修改当前 F3/F4 合同。
+- Authority: `docs/development/N3W_T1_PRODUCTION_SSH_CONNECTION_REUSE_V1_DESIGN_20261014.md`.
+- 当前 F3 状态保持：authorization granted=true, claimed=false, consumed=false；next gate 仍为 exact F3 live apply。
+
 ## 2026-10-14 — F3 preclaim PASS / exact live authorization granted
 
 - Gate `N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_FRESH_READONLY_PRECLAIM_20261014_01`: CLOSED_PASS.
