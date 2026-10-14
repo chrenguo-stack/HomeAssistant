@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
+import n3w_t1_r2c_readonly_commands as commands
 import pytest
 from n3w_t1_r2c_readonly_commands import (
     ReadonlyCommandError,
     build_contract_argv,
+    resolve_executable,
     run_contract_command,
 )
 
@@ -91,3 +96,56 @@ def test_bounded_runner_enforces_output_and_timeout_parameters() -> None:
         run_contract_command("C1_ARCH", output_limit=1)
     with pytest.raises(ReadonlyCommandError, match="invalid_timeout"):
         run_contract_command("C1_ARCH", timeout_seconds=0)
+
+
+def _write_executable(path: Path, mode: int = 0o755) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("#!/bin/sh\nexit 0\n")
+    path.chmod(mode)
+
+
+def test_resolve_executable_accepts_exact_trusted_systemd_realpath(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    safe_bin = tmp_path / "usr" / "bin"
+    target = tmp_path / "usr" / "lib" / "systemd" / "systemd"
+    _write_executable(target)
+    safe_bin.mkdir(parents=True)
+    (safe_bin / "systemd").symlink_to(target)
+    monkeypatch.setattr(commands, "SAFE_PATH", safe_bin.as_posix())
+    monkeypatch.setattr(commands, "SAFE_DIRS", (safe_bin.as_posix(),))
+    monkeypatch.setattr(
+        commands,
+        "APPROVED_EXECUTABLE_REALPATHS",
+        {"systemd": frozenset({target.as_posix()})},
+    )
+    monkeypatch.setattr(commands, "TRUSTED_EXECUTABLE_UID", os.getuid())
+
+    assert resolve_executable("systemd") == target.as_posix()
+
+
+def test_resolve_executable_rejects_unapproved_or_writable_realpath(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    safe_bin = tmp_path / "usr" / "bin"
+    target = tmp_path / "opt" / "systemd"
+    _write_executable(target)
+    safe_bin.mkdir(parents=True)
+    (safe_bin / "systemd").symlink_to(target)
+    monkeypatch.setattr(commands, "SAFE_PATH", safe_bin.as_posix())
+    monkeypatch.setattr(commands, "SAFE_DIRS", (safe_bin.as_posix(),))
+    monkeypatch.setattr(commands, "TRUSTED_EXECUTABLE_UID", os.getuid())
+
+    with pytest.raises(ReadonlyCommandError, match="executable_outside_safe_path"):
+        resolve_executable("systemd")
+
+    monkeypatch.setattr(
+        commands,
+        "APPROVED_EXECUTABLE_REALPATHS",
+        {"systemd": frozenset({target.as_posix()})},
+    )
+    target.chmod(0o775)
+    with pytest.raises(ReadonlyCommandError, match="executable_not_trusted"):
+        resolve_executable("systemd")

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import errno
 import gzip
 from pathlib import Path
 
 from n3w_t1_r2c_collectors import collect_e1, collect_e2, collect_e3, collect_e4
-from n3w_t1_r2c_readonly_commands import CommandResult
+from n3w_t1_r2c_readonly_commands import CommandResult, ReadonlyCommandError
 
 
 def _result(
@@ -136,6 +137,40 @@ def test_collect_e1_rejects_unexpected_package_query_failure(
 
     assert evidence["status"] == "ERROR"
     assert evidence["reason_code"] == "STOP_PACKAGES_COMMAND_FAILED"
+
+
+def test_collect_e1_preserves_controlled_command_error_class(
+    tmp_path: Path,
+) -> None:
+    _write_platform_fixture(tmp_path)
+
+    def runner(command_id: str, **_: object) -> CommandResult:
+        assert command_id == "C1_SYSTEMD"
+        raise ReadonlyCommandError("executable_outside_safe_path")
+
+    evidence = collect_e1(str(tmp_path), runner=runner)
+
+    assert evidence["status"] == "ERROR"
+    assert (
+        evidence["reason_code"]
+        == "STOP_COMMAND_EXECUTABLE_OUTSIDE_SAFE_PATH"
+    )
+
+
+def test_collect_e1_preserves_filesystem_errno_without_error_text(
+    tmp_path: Path,
+) -> None:
+    _write_platform_fixture(tmp_path)
+
+    def runner(command_id: str, **_: object) -> CommandResult:
+        assert command_id == "C1_SYSTEMD"
+        raise OSError(errno.ELOOP, "private target detail")
+
+    evidence = collect_e1(str(tmp_path), runner=runner)
+
+    assert evidence["status"] == "ERROR"
+    assert evidence["reason_code"] == "STOP_FILESYSTEM_ELOOP"
+    assert "private target detail" not in repr(evidence)
 
 
 def test_collect_e1_requires_exact_absence_diagnostic(

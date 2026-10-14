@@ -42,7 +42,7 @@ MODULE_BINDINGS = (
     (
         "n3w_t1_r2c_readonly_commands",
         "tools/n3w_t1_r2c_readonly_commands.py",
-        "6bc8cf35029955d4168a8077a13059a39a1c6218",
+        "8e66154edf9494141681ab76d969f9f1cdc38050",
     ),
     (
         "n3w_t1_r2c_evidence_schema",
@@ -62,7 +62,7 @@ MODULE_BINDINGS = (
     (
         "n3w_t1_r2c_collectors",
         "tools/n3w_t1_r2c_collectors.py",
-        "9c34dbbac3f00eb45713958d27d549ac418e92b2",
+        "5253ac1328e03eca81fc916f0a14d6074021a11b",
     ),
     (
         "n3w_t1_r2c_remote_probe",

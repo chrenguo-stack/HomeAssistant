@@ -13,6 +13,15 @@ from pathlib import PurePosixPath
 
 SAFE_PATH = "/usr/sbin:/usr/bin:/sbin:/bin"
 SAFE_DIRS = ("/usr/sbin", "/usr/bin", "/sbin", "/bin")
+APPROVED_EXECUTABLE_REALPATHS = {
+    "systemd": frozenset(
+        {
+            "/usr/lib/systemd/systemd",
+            "/lib/systemd/systemd",
+        }
+    ),
+}
+TRUSTED_EXECUTABLE_UID = 0
 MAX_COMMAND_OUTPUT_BYTES = 256 * 1024
 COMMAND_TIMEOUT_SECONDS = 10.0
 PACKAGE_QUERY_FORMAT = "${binary:Package}\\t${Version}\\t${Architecture}\\n"
@@ -128,13 +137,22 @@ def resolve_executable(name: str) -> str:
     if found is None:
         raise ReadonlyCommandError("executable_not_found")
     resolved = os.path.realpath(found)
-    if not any(
+    in_safe_directory = any(
         resolved == root or resolved.startswith(root + "/") for root in SAFE_DIRS
+    )
+    if (
+        not in_safe_directory
+        and resolved not in APPROVED_EXECUTABLE_REALPATHS.get(name, frozenset())
     ):
         raise ReadonlyCommandError("executable_outside_safe_path")
     metadata = os.stat(resolved)
     if not stat.S_ISREG(metadata.st_mode) or not os.access(resolved, os.X_OK):
         raise ReadonlyCommandError("executable_not_regular")
+    if (
+        metadata.st_uid != TRUSTED_EXECUTABLE_UID
+        or metadata.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
+    ):
+        raise ReadonlyCommandError("executable_not_trusted")
     return resolved
 
 

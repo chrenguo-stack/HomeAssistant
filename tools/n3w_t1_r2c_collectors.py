@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import gzip
 import hashlib
 import io
@@ -163,6 +164,28 @@ def _package_inventory(
     return package_versions, missing
 
 
+def _e1_reason(error: BaseException) -> str:
+    value = str(error)
+    if isinstance(error, R2CCollectError):
+        if re.fullmatch(r"STOP_[A-Z][A-Z0-9_]{0,122}", value):
+            return value
+        if re.fullmatch(r"[A-Z][A-Z0-9_]{0,122}", value):
+            return f"STOP_{value}"
+    if isinstance(error, ReadonlyCommandError) and re.fullmatch(
+        r"[a-z][a-z0-9_]{0,95}",
+        value,
+    ):
+        return f"STOP_COMMAND_{value.upper()}"
+    if isinstance(error, ReadonlyEvidenceError) and re.fullmatch(
+        r"[a-z][a-z0-9_]{0,95}",
+        value,
+    ):
+        return f"STOP_READONLY_{value.upper()}"
+    if isinstance(error, OSError) and error.errno in errno.errorcode:
+        return f"STOP_FILESYSTEM_{errno.errorcode[error.errno]}"
+    return "STOP_E1_COLLECTION_ERROR"
+
+
 def collect_e1(
     root: str,
     runner: CommandRunner = run_contract_command,
@@ -189,12 +212,7 @@ def collect_e1(
         package_versions, missing_packages = _package_inventory(packages)
     except (OSError, ReadonlyCommandError, ReadonlyEvidenceError, R2CCollectError) as error:
         envelope["status"] = "ERROR"
-        envelope["reason_code"] = (
-            str(error)
-            if isinstance(error, R2CCollectError)
-            and re.fullmatch(r"[A-Z][A-Z0-9_]{0,127}", str(error))
-            else "STOP_E1_COLLECTION_ERROR"
-        )
+        envelope["reason_code"] = _e1_reason(error)
         return envelope
 
     target_observations = (
