@@ -699,16 +699,15 @@ jobs:
           test -z "$(find "$PAYLOAD" -type f -path '*/__pycache__/*' -print -quit)"
 
           MANIFEST_SHA="$(sha256sum "$PAYLOAD/payload-manifest.json" | awk '{print $1}')"
-          ARCHIVE="$RUNNER_TEMP/fresh-bootstrap-payload.tar.gz"
+          ARCHIVE="$RUNNER_TEMP/runtime-payload.tar.gz"
           tar -C "$PAYLOAD" -czf "$ARCHIVE" .
           ARCHIVE_SHA="$(sha256sum "$ARCHIVE" | awk '{print $1}')"
-          cp "$ARCHIVE" "$RUNNER_TEMP/payload-archive.tar.gz"
-          printf '%s\n' "$ARCHIVE_SHA" > "$RUNNER_TEMP/payload-archive.sha256"
+          printf '%s\n' "$ARCHIVE_SHA" > "$RUNNER_TEMP/runtime-payload.sha256"
           printf '%s\n' "$MANIFEST_SHA" > "$RUNNER_TEMP/payload-manifest.sha256"
           sha256sum "$PAYLOAD/tools/n3w_t1_fresh_product_bootstrap.py" | awk '{print $1}' > "$RUNNER_TEMP/executor.sha256"
           cp tools/n3w_t1_fresh_product_staging_host.py "$RUNNER_TEMP/host-wrapper.py"
           sha256sum "$RUNNER_TEMP/host-wrapper.py" | awk '{print $1}' > "$RUNNER_TEMP/host-wrapper.sha256"
-          printf 'PAYLOAD_ARCHIVE_SHA256=%s\n' "$ARCHIVE_SHA"
+          printf 'RUNTIME_PAYLOAD_SHA256=%s\n' "$ARCHIVE_SHA"
           printf 'PAYLOAD_MANIFEST_SHA256=%s\n' "$MANIFEST_SHA"
 
       - name: Upload fresh deployable payload
@@ -717,10 +716,15 @@ jobs:
         with:
           name: n3w-t1-fresh-bootstrap-deployable-${{ env.SOURCE_HEAD }}
           path: |
-            ${{ runner.temp }}/payload-archive.tar.gz
-            ${{ runner.temp }}/payload-archive.sha256
-            ${{ runner.temp }}/executor.sha256
+            ${{ runner.temp }}/runtime-payload.tar.gz
+            ${{ runner.temp }}/runtime-payload.sha256
             ${{ runner.temp }}/payload-manifest.sha256
+            ${{ runner.temp }}/capacity-contract.json
+            ${{ runner.temp }}/capacity-contract.sha256
+            ${{ runner.temp }}/homeassistant-arm64.tar
+            ${{ runner.temp }}/greenhouse-manager-arm64.tar
+            ${{ runner.temp }}/broker-arm64.tar
+            ${{ runner.temp }}/executor.sha256
             ${{ runner.temp }}/host-wrapper.py
             ${{ runner.temp }}/host-wrapper.sha256
           if-no-files-found: error
@@ -740,7 +744,8 @@ jobs:
           ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
         run: |
           set -euo pipefail
-          test "$(sha256sum "$RUNNER_TEMP/redownload/payload-archive.tar.gz" | awk '{print $1}')" = "$(cat "$RUNNER_TEMP/redownload/payload-archive.sha256")"
+          test "$(sha256sum "$RUNNER_TEMP/redownload/runtime-payload.tar.gz" | awk '{print $1}')" = "$(cat "$RUNNER_TEMP/redownload/runtime-payload.sha256")"
+          test "$(sha256sum "$RUNNER_TEMP/redownload/capacity-contract.json" | awk '{print $1}')" = "$(cat "$RUNNER_TEMP/redownload/capacity-contract.sha256")"
           test "$(sha256sum "$RUNNER_TEMP/redownload/host-wrapper.py" | awk '{print $1}')" = "$(cat "$RUNNER_TEMP/redownload/host-wrapper.sha256")"
           python - "$RUNNER_TEMP/redownload" <<'PY'
           import hashlib
@@ -750,16 +755,21 @@ jobs:
 
           root = Path(sys.argv[1])
           expected = {
-              "payload-archive.tar.gz",
-              "payload-archive.sha256",
+              "runtime-payload.tar.gz",
+              "runtime-payload.sha256",
               "payload-manifest.sha256",
+              "capacity-contract.json",
+              "capacity-contract.sha256",
+              "homeassistant-arm64.tar",
+              "greenhouse-manager-arm64.tar",
+              "broker-arm64.tar",
               "executor.sha256",
               "host-wrapper.py",
               "host-wrapper.sha256",
           }
           assert {path.name for path in root.iterdir()} == expected
 
-          archive = root / "payload-archive.tar.gz"
+          archive = root / "runtime-payload.tar.gz"
           with tarfile.open(archive, "r:gz") as bundle:
               manifest_members = [
                   member
