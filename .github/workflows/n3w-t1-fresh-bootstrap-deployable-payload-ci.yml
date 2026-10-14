@@ -375,21 +375,36 @@ jobs:
 
           records = []
           for path in sorted(p for p in root.rglob("*") if p.is_file()):
+              relative = path.relative_to(root).as_posix()
+              if relative.startswith("artifact/"):
+                  continue
               records.append({
-                  "path": path.relative_to(root).as_posix(),
+                  "path": relative,
                   "sha256": sha(path),
                   "size": path.stat().st_size,
               })
 
+          reserve = 5 * 1024 * 1024 * 1024
           transport_images = {
               label: {
                   "path": record["path"],
+                  "artifact_file": record["artifact_file"],
+                  "tar_sha256": record["tar_sha256"],
                   "tar_size_bytes": record["tar_size_bytes"],
                   "loaded_size_bytes": record["loaded_size_bytes"],
+                  "required_free_bytes": (
+                      record["tar_size_bytes"]
+                      + record["loaded_size_bytes"]
+                      + reserve
+                  ),
                   "image_ref": record["image"],
               }
               for label, record in images.items()
           }
+          for label, transport_record in transport_images.items():
+              images[label]["required_free_bytes"] = transport_record[
+                  "required_free_bytes"
+              ]
           manifest = {
               "schema": "gh.n3w-t1-fresh-bootstrap-payload/1",
               "source_head": head,
@@ -400,10 +415,10 @@ jobs:
               "image_lock": image_lock,
               "files": records,
               "transport": {
-                  "schema": "gh.n3w-t1-fresh-transport/1",
+                  "schema": "gh.n3w-t1-fresh-transport/2",
                   "remote_staging_root": "/var/tmp",
-                  "minimum_post_peak_free_bytes": 5 * 1024 * 1024 * 1024,
-                  "payload_uncompressed_bytes": 0,
+                  "minimum_post_peak_free_bytes": reserve,
+                  "runtime_payload_uncompressed_bytes": 0,
                   "image_load_order": ["homeassistant", "manager", "broker"],
                   "images": transport_images,
               },
@@ -416,9 +431,9 @@ jobs:
           for _ in range(8):
               encoded = (json.dumps(manifest, sort_keys=True, indent=2) + "\n").encode()
               total = data_size + len(encoded)
-              if manifest["transport"]["payload_uncompressed_bytes"] == total:
+              if manifest["transport"]["runtime_payload_uncompressed_bytes"] == total:
                   break
-              manifest["transport"]["payload_uncompressed_bytes"] = total
+              manifest["transport"]["runtime_payload_uncompressed_bytes"] = total
           else:
               raise RuntimeError("payload_size_did_not_converge")
           (root / "payload-manifest.json").write_bytes(
