@@ -7,6 +7,7 @@ on:
       - "host/greenhouse-manager/**"
       - "tools/n3w_t1_fresh_product_bootstrap.py"
       - "tools/n3w_t1_fresh_product_staging_host.py"
+      - "tools/n3w_t1_fresh_host_baseline.py"
       - "tools/n3w_t1_device_provisioning_host.py"
       - "tests/tools/test_n3w_t1_device_provisioning_host.py"
       - "infra/n3w-t1/n3w-t1-provision"
@@ -30,6 +31,7 @@ on:
       - "host/greenhouse-manager/**"
       - "tools/n3w_t1_fresh_product_bootstrap.py"
       - "tools/n3w_t1_fresh_product_staging_host.py"
+      - "tools/n3w_t1_fresh_host_baseline.py"
       - "tools/n3w_t1_device_provisioning_host.py"
       - "tests/tools/test_n3w_t1_device_provisioning_host.py"
       - "infra/n3w-t1/n3w-t1-provision"
@@ -725,6 +727,8 @@ jobs:
           sha256sum "$PAYLOAD/tools/n3w_t1_fresh_product_bootstrap.py" | awk '{print $1}' > "$RUNNER_TEMP/executor.sha256"
           cp tools/n3w_t1_fresh_product_staging_host.py "$RUNNER_TEMP/host-wrapper.py"
           sha256sum "$RUNNER_TEMP/host-wrapper.py" | awk '{print $1}' > "$RUNNER_TEMP/host-wrapper.sha256"
+          cp tools/n3w_t1_fresh_host_baseline.py "$RUNNER_TEMP/host-baseline.py"
+          sha256sum "$RUNNER_TEMP/host-baseline.py" | awk '{print $1}' > "$RUNNER_TEMP/host-baseline.sha256"
           printf 'RUNTIME_PAYLOAD_SHA256=%s\n' "$ARCHIVE_SHA"
           printf 'PAYLOAD_MANIFEST_SHA256=%s\n' "$MANIFEST_SHA"
 
@@ -745,6 +749,8 @@ jobs:
             ${{ runner.temp }}/executor.sha256
             ${{ runner.temp }}/host-wrapper.py
             ${{ runner.temp }}/host-wrapper.sha256
+            ${{ runner.temp }}/host-baseline.py
+            ${{ runner.temp }}/host-baseline.sha256
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
@@ -765,6 +771,7 @@ jobs:
           test "$(sha256sum "$RUNNER_TEMP/redownload/runtime-payload.tar.gz" | awk '{print $1}')" = "$(cat "$RUNNER_TEMP/redownload/runtime-payload.sha256")"
           test "$(sha256sum "$RUNNER_TEMP/redownload/capacity-contract.json" | awk '{print $1}')" = "$(cat "$RUNNER_TEMP/redownload/capacity-contract.sha256")"
           test "$(sha256sum "$RUNNER_TEMP/redownload/host-wrapper.py" | awk '{print $1}')" = "$(cat "$RUNNER_TEMP/redownload/host-wrapper.sha256")"
+          test "$(sha256sum "$RUNNER_TEMP/redownload/host-baseline.py" | awk '{print $1}')" = "$(cat "$RUNNER_TEMP/redownload/host-baseline.sha256")"
           python - "$RUNNER_TEMP/redownload" <<'PY'
           import hashlib
           import tarfile
@@ -784,6 +791,8 @@ jobs:
               "executor.sha256",
               "host-wrapper.py",
               "host-wrapper.sha256",
+              "host-baseline.py",
+              "host-baseline.sha256",
           }
           assert {path.name for path in root.iterdir()} == expected
 
