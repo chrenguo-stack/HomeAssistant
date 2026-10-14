@@ -61,3 +61,53 @@ def test_resume_path_has_no_start_authority() -> None:
     assert "RESUME_EXISTING" in reconcile
     assert '"boot_action": "NOOP"' in reconcile
     assert '"boot_action": "VERIFY_ONLY"' in reconcile
+
+
+def test_release_reader_rejects_image_lock_drift(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    release = tmp_path / "fresh-release.json"
+    release.write_text(
+        __import__("json").dumps(
+            {
+                "schema": tool.RELEASE_SCHEMA,
+                "release_id": "a" * 40,
+                "source_head": "a" * 40,
+                "instance_material_absent": True,
+                "explicit_provisioning_required": True,
+                "images": {
+                    label: {
+                        "image": f"local/{label}:exact",
+                        "image_id": "sha256:" + "1" * 64,
+                        "platform": "linux/arm64",
+                    }
+                    for label in ("homeassistant", "manager", "broker")
+                },
+                "image_lock": {
+                    "schema": "gh.n3w-t1-fresh-production-image-lock/1",
+                    "source_head": "a" * 40,
+                    **{
+                        label: {
+                            "image": f"local/{label}:exact",
+                            "image_id": "sha256:" + (
+                                "2" * 64 if label == "manager" else "1" * 64
+                            ),
+                        }
+                        for label in ("homeassistant", "manager", "broker")
+                    },
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    release.chmod(0o644)
+    monkeypatch.setattr(tool.os, "geteuid", lambda: release.stat().st_uid)
+
+    with pytest.raises(
+        tool.ProvisionHostError,
+        match="fresh_release_image_binding_invalid:manager",
+    ):
+        tool._read_release(release)
