@@ -78,6 +78,22 @@ def _candidate(policy: str, package: str) -> str:
     raise FreshHostBaselineError(f"package_candidate_missing:{package}")
 
 
+def _installed_package_version(runner: Runner, package: str) -> str | None:
+    output = runner.run(
+        (
+            "dpkg-query",
+            "-W",
+            "-f=${Status}\t${Version}",
+            package,
+        ),
+        allowed=frozenset({0, 1}),
+    )
+    if not output.startswith("install ok installed\t"):
+        return None
+    version = output.split("\t", 1)[1].strip()
+    return version or None
+
+
 def _check(runner: Runner) -> dict[str, object]:
     release = _os_release()
     _validate_target_host(release)
@@ -92,6 +108,26 @@ def _check(runner: Runner) -> dict[str, object]:
             "docker_active": False,
             "docker_version": None,
             "compose_version": None,
+            "production_service_start": False,
+            "board_access": False,
+        }
+    package_versions = {
+        package: _installed_package_version(runner, package)
+        for package in PACKAGES
+    }
+    if any(version is None for version in package_versions.values()):
+        return {
+            "schema": SCHEMA,
+            "status": "MISSING",
+            "os_id": release.get("ID"),
+            "os_version": release.get("VERSION_ID"),
+            "os_codename": release.get("VERSION_CODENAME"),
+            "architecture": platform.machine(),
+            "docker_active": False,
+            "docker_version": None,
+            "compose_version": None,
+            "package_source": "ubuntu_apt_required",
+            "package_versions": package_versions,
             "production_service_start": False,
             "board_access": False,
         }
@@ -118,6 +154,8 @@ def _check(runner: Runner) -> dict[str, object]:
         "docker_active": docker_state == "active",
         "docker_version": docker_version or None,
         "compose_version": compose_version or None,
+        "package_source": "ubuntu_apt",
+        "package_versions": package_versions,
         "production_service_start": False,
         "board_access": False,
     }
@@ -134,8 +172,8 @@ def execute_install(runner: Runner | None = None) -> dict[str, object]:
         return {
             **before,
             "installed": False,
-            "package_source": "existing_approved_baseline",
-            "package_versions": {},
+            "package_source": "ubuntu_apt",
+            "package_versions": before.get("package_versions", {}),
         }
     active.run(("apt-get", "update"), timeout=900.0)
     versions = {
