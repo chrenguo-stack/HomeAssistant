@@ -695,6 +695,7 @@ def test_transfer_requested_image_is_capacity_gated_and_single_file(
 
 
 def test_cli_exposes_preflight_and_apply_with_explicit_authorization() -> None:
+    tool = load_tool()
     source = TOOL.read_text(encoding="utf-8")
 
     assert 'choices=("preflight", "apply")' in source
