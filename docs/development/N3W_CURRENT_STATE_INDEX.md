@@ -1,3 +1,16 @@
+## 2026-10-15 — F4 runtime acceptance and persistence SOURCE PREPARATION CLOSED_PASS
+
+- Transition-control PR #548 exact head `9cfd7459abe90054fe4657f5925da252f003f95a` completed 13/13 CI SUCCESS before this stacked preparation.
+- Remaining pre-reboot F4 route is frozen: `RUNTIME_STARTED → RUNTIME_ACCEPTED → Broker/Services persistence → first fresh certificate audit → certificate timer enable → PRE_REBOOT_READY`.
+- The same one-shot F4 authorization continues through these phases; reboot requires a later separate authorization.
+- Runtime acceptance must use direct state/functional probes and must not treat missing log text as failure evidence.
+- Historical `activate-systemd-production.sh` is not the fresh-route owner because it enables Broker/Services and the certificate timer together.
+- First certificate audit uses the generic lifecycle engine with fresh per-device identity; it writes bounded lifecycle status but must not replace certificates or restart Broker.
+- Reboot and board work remain out of scope.
+- Current STOP: `AFTER_RUNTIME_ACCEPTANCE_PERSISTENCE_PREPARATION_BEFORE_SOURCE_REPAIR`.
+- Next one gate: `N3W_T1_F4_RUNTIME_ACCEPTANCE_AND_PERSISTENCE_SOURCE_REPAIR_20261015_01`.
+- Authority: `docs/development/N3W_T1_F4_RUNTIME_ACCEPTANCE_AND_PERSISTENCE_SOURCE_PREPARATION_20261015.md`.
+
 ## 2026-10-15 — F4 transition-control source independent review CLOSED_PASS
 
 - Reviewed source head: `be14b74e6c74cc8ac036e41cc99b49439a2fc20c`; exact-head CI was 13/13 SUCCESS.
