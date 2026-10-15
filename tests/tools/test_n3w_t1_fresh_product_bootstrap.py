@@ -653,6 +653,7 @@ def test_public_runtime_creates_fresh_candidate_root(tmp_path: Path) -> None:
     adapter = tool.LiveFreshInstallerAdapters(
         payload,
         {
+            "source_head": "0" * 40,
             "image_lock": {"schema": "test"},
             "images": {"manager": {"image": "manager"}},
         },
@@ -681,6 +682,7 @@ def test_public_runtime_rejects_existing_candidate_root(tmp_path: Path) -> None:
     adapter = tool.LiveFreshInstallerAdapters(
         payload,
         {
+            "source_head": "0" * 40,
             "image_lock": {"schema": "test"},
             "images": {"manager": {"image": "manager"}},
         },
@@ -702,6 +704,7 @@ def test_public_runtime_rejects_symlink_candidate_root(tmp_path: Path) -> None:
     adapter = tool.LiveFreshInstallerAdapters(
         payload,
         {
+            "source_head": "0" * 40,
             "image_lock": {"schema": "test"},
             "images": {"manager": {"image": "manager"}},
         },
@@ -721,6 +724,7 @@ def test_public_runtime_reuse_requires_existing_stage(tmp_path: Path) -> None:
     adapter = tool.LiveFreshInstallerAdapters(
         payload,
         {
+            "source_head": "0" * 40,
             "image_lock": {"schema": "test"},
             "images": {"manager": {"image": "manager"}},
         },
