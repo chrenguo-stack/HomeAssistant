@@ -8,9 +8,14 @@ import json
 import os
 import re
 import shutil
+import socket
+import ssl
 import stat
 import subprocess
 import sys
+import time
+import urllib.error
+import urllib.request
 from collections.abc import Sequence
 from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
@@ -34,6 +39,7 @@ PROVISION_CLI = Path("/usr/local/sbin/n3w-t1-provision")
 PROVISIONING_ROOT = Path("/var/lib/n3w-t1-provisioning")
 FACTORY_ACCEPTED_PATH = PROVISIONING_ROOT / "FACTORY_ACCEPTED.json"
 TRANSACTION_PATH = PROVISIONING_ROOT / "F4_ACTIVATION_TRANSACTION.json"
+RUNTIME_ACCEPTANCE_PATH = PROVISIONING_ROOT / "F4_RUNTIME_ACCEPTANCE.json"
 F4_LOCK_PATH = PROVISIONING_ROOT / ".f4-activation.lock"
 
 BROKER_UNIT = "n3wfc4-broker-activation.service"
@@ -56,6 +62,11 @@ SERVER_KEY = ETC_N3W / "tls/server.key"
 CA_KEY = Path("/opt/greenhouse-secrets/broker-ca/ca.key")
 SYSTEM_CA = Path("/var/lib/greenhouse-manager/identity/system-ca.pem")
 SERVER_NAME = "armbian"
+BROKER_PROJECT = "n3wfc4"
+BROKER_NETWORKS = frozenset({"n3wfc4-private", "n3wfc4-services"})
+MANAGER_HEALTH_URL = "http://127.0.0.1:47112/healthz"
+CERT_STATUS_FILE = CERT_STATUS_ROOT / "status.json"
+CERT_LOCK_FILE = CERT_STATUS_ROOT / ".certificate-lifecycle.lock"
 
 INSTALL_MAP = {
     "tools/n3w_t1_f4_activation_host.py": (
@@ -1285,6 +1296,1045 @@ def _activate(confirmation: str, authorization_id: str) -> dict[str, object]:
             raise
 
 
+
+def _compose_service_inspect(service: str) -> dict[str, object]:
+    output = _run(
+        (
+            "docker",
+            "ps",
+            "--filter",
+            f"label=com.docker.compose.project={BROKER_PROJECT}",
+            "--filter",
+            f"label=com.docker.compose.service={service}",
+            "--format",
+            "{{.ID}}",
+        ),
+        timeout=30,
+    )
+    identifiers = tuple(
+        line.strip() for line in output.splitlines() if line.strip()
+    )
+    if len(identifiers) != 1:
+        raise F4Error(f"runtime_service_not_unique:{service}")
+    try:
+        documents = json.loads(
+            _run(("docker", "inspect", identifiers[0]), timeout=30)
+        )
+    except json.JSONDecodeError as error:
+        raise F4Error(f"runtime_inspect_json_invalid:{service}") from error
+    if (
+        not isinstance(documents, list)
+        or len(documents) != 1
+        or not isinstance(documents[0], dict)
+    ):
+        raise F4Error(f"runtime_inspect_invalid:{service}")
+    document = documents[0]
+    state = document.get("State")
+    config = document.get("Config")
+    if (
+        not isinstance(state, dict)
+        or state.get("Running") is not True
+        or not isinstance(config, dict)
+    ):
+        raise F4Error(f"runtime_service_not_running:{service}")
+    labels = config.get("Labels")
+    if (
+        not isinstance(labels, dict)
+        or labels.get("com.docker.compose.project") != BROKER_PROJECT
+        or labels.get("com.docker.compose.service") != service
+    ):
+        raise F4Error(f"runtime_service_labels_invalid:{service}")
+    return document
+
+
+def _runtime_image_acceptance(
+    release: dict[str, object],
+    inspects: dict[str, dict[str, object]],
+) -> dict[str, object]:
+    module = _load_fresh_module()
+    bindings: dict[str, dict[str, str]] = {}
+    for label in ("broker", "manager", "homeassistant"):
+        record = release["images"][label]
+        binding = module._verify_runtime_image(
+            module.Runner(),
+            label,
+            record,
+        )
+        document = inspects[label]
+        config = document["Config"]
+        if (
+            document.get("Image") != binding["runtime_id"]
+            or config.get("Image") != record["image"]
+        ):
+            raise F4Error(f"runtime_container_image_drift:{label}")
+        bindings[label] = binding
+    return {
+        label: {
+            "rootfs_layers_sha256": value["rootfs_layers_sha256"],
+            "config_contract_sha256": value["config_contract_sha256"],
+        }
+        for label, value in bindings.items()
+    }
+
+
+def _broker_runtime_contract(document: dict[str, object]) -> None:
+    network = document.get("NetworkSettings")
+    host = document.get("HostConfig")
+    if not isinstance(network, dict) or not isinstance(host, dict):
+        raise F4Error("broker_runtime_metadata_invalid")
+    networks = network.get("Networks")
+    ports = network.get("Ports")
+    if not isinstance(networks, dict) or set(networks) != BROKER_NETWORKS:
+        raise F4Error("broker_network_set_invalid")
+    if not isinstance(ports, dict):
+        raise F4Error("broker_port_binding_invalid")
+    expected = {
+        "1883/tcp": ("127.0.0.1", "1883"),
+        "8883/tcp": ("0.0.0.0", "8883"),
+    }
+    if set(ports) != set(expected):
+        raise F4Error("broker_port_set_invalid")
+    for key, pair in expected.items():
+        rows = ports.get(key)
+        if (
+            not isinstance(rows, list)
+            or len(rows) != 1
+            or not isinstance(rows[0], dict)
+            or (rows[0].get("HostIp"), rows[0].get("HostPort")) != pair
+        ):
+            raise F4Error(f"broker_port_binding_invalid:{key}")
+
+
+def _mount_contract(
+    document: dict[str, object],
+    expected: dict[str, bool],
+    *,
+    label: str,
+) -> None:
+    mounts = document.get("Mounts")
+    if not isinstance(mounts, list):
+        raise F4Error(f"{label}_mounts_invalid")
+    observed: dict[str, bool] = {}
+    for item in mounts:
+        if not isinstance(item, dict):
+            raise F4Error(f"{label}_mount_invalid")
+        target = item.get("Destination")
+        if not isinstance(target, str):
+            raise F4Error(f"{label}_mount_target_invalid")
+        observed[target] = item.get("RW") is True
+    if observed != expected:
+        raise F4Error(f"{label}_mount_contract_invalid")
+
+
+def _manager_runtime_contract(document: dict[str, object]) -> None:
+    config = document.get("Config")
+    host = document.get("HostConfig")
+    if not isinstance(config, dict) or not isinstance(host, dict):
+        raise F4Error("manager_runtime_metadata_invalid")
+    if (
+        config.get("User") != "999:999"
+        or host.get("NetworkMode") != "host"
+        or host.get("ReadonlyRootfs") is not True
+    ):
+        raise F4Error("manager_runtime_contract_invalid")
+    env = config.get("Env")
+    if not isinstance(env, list):
+        raise F4Error("manager_environment_invalid")
+    values = {
+        item.split("=", 1)[0]: item.split("=", 1)[1]
+        for item in env
+        if isinstance(item, str) and "=" in item
+    }
+    required = {
+        "GH_MQTT_HOST": "armbian",
+        "GH_MQTT_PORT": "8883",
+        "GH_MQTT_TLS": "true",
+        "GH_MQTT_PASSWORD_FILE": "/run/secrets/gh_manager_mqtt_password",
+        "GH_N3W_PROVISIONING_PASSWORD_FILE": (
+            "/run/secrets/gh_n3w_provisioning_mqtt_password"
+        ),
+        "GH_N3W_PRODUCT_PAIRING_ENABLED": "false",
+    }
+    if any(values.get(key) != value for key, value in required.items()):
+        raise F4Error("manager_environment_contract_invalid")
+    for key in (
+        "GH_MQTT_USERNAME",
+        "GH_MQTT_CLIENT_ID",
+        "GH_N3W_PROVISIONING_USERNAME",
+        "GH_N3W_PROVISIONING_CLIENT_ID",
+    ):
+        if not values.get(key):
+            raise F4Error(f"manager_environment_missing:{key}")
+    if (
+        values["GH_MQTT_USERNAME"] == values["GH_N3W_PROVISIONING_USERNAME"]
+        or values["GH_MQTT_CLIENT_ID"]
+        == values["GH_N3W_PROVISIONING_CLIENT_ID"]
+    ):
+        raise F4Error("manager_service_identity_not_distinct")
+    _mount_contract(
+        document,
+        {
+            "/var/lib/greenhouse-manager/manager": True,
+            "/var/lib/greenhouse-manager/n3w": True,
+            "/run/secrets/gh_manager_mqtt_password": False,
+            "/run/secrets/gh_n3w_provisioning_mqtt_password": False,
+            "/run/n3w/tls/ca.pem": False,
+        },
+        label="manager",
+    )
+
+
+def _homeassistant_runtime_contract(document: dict[str, object]) -> None:
+    host = document.get("HostConfig")
+    if not isinstance(host, dict) or host.get("NetworkMode") != "host":
+        raise F4Error("homeassistant_network_contract_invalid")
+    _mount_contract(
+        document,
+        {
+            "/config": True,
+            "/config/configuration.yaml": False,
+            "/config/custom_components/n3w_mqtt_bootstrap": False,
+            "/run/secrets/gh_homeassistant_mqtt_password": False,
+            "/run/n3w/ha-mqtt-bootstrap.json": False,
+        },
+        label="homeassistant",
+    )
+
+
+def _verified_tls_runtime() -> dict[str, object]:
+    try:
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        context.check_hostname = True
+        context.verify_mode = ssl.CERT_REQUIRED
+        context.load_verify_locations(cafile=str(CA_CERT))
+        with socket.create_connection(("127.0.0.1", 8883), timeout=10) as raw:
+            with context.wrap_socket(
+                raw,
+                server_hostname=SERVER_NAME,
+            ) as wrapped:
+                peer = wrapped.getpeercert(binary_form=True)
+    except (OSError, ssl.SSLError) as error:
+        raise F4Error("broker_live_tls_probe_failed") from error
+    if not peer:
+        raise F4Error("broker_live_tls_peer_missing")
+    local_der = ssl.PEM_cert_to_DER_cert(
+        SERVER_CERT.read_text(encoding="ascii")
+    )
+    if hashlib.sha256(peer).hexdigest() != hashlib.sha256(local_der).hexdigest():
+        raise F4Error("broker_live_tls_certificate_mismatch")
+    return {
+        "ca_verified": True,
+        "server_name_verified": True,
+        "live_certificate_matches": True,
+    }
+
+
+def _guard_runtime_verify() -> dict[str, object]:
+    source = Path("/usr/local/sbin/n3w-broker-ingress-guard")
+    _regular_source(source)
+    script = r"""
+import json
+import runpy
+m = runpy.run_path("/usr/local/sbin/n3w-broker-ingress-guard")
+decision = m["read_network_decision"]()
+inventory = m["parse_firewall_inventory"](m["_save_filter_table"]())
+m["_validate_prestate"](inventory)
+m["validate_applied_state"](inventory, decision.trusted_subnet)
+print(json.dumps({
+    "status": "PASS",
+    "anchor_count": len(inventory.anchor_positions),
+    "input_anchor_count": len(inventory.input_anchor_positions),
+    "last_drop": bool(inventory.custom_chain_rules and "DROP" in inventory.custom_chain_rules[-1]),
+}, sort_keys=True))
+"""
+    try:
+        document = json.loads(
+            _run(("python3", "-c", script), timeout=30)
+        )
+    except json.JSONDecodeError as error:
+        raise F4Error("guard_runtime_verify_json_invalid") from error
+    if (
+        not isinstance(document, dict)
+        or document.get("status") != "PASS"
+        or document.get("anchor_count") != 1
+        or document.get("input_anchor_count") != 1
+        or document.get("last_drop") is not True
+    ):
+        raise F4Error("guard_runtime_verify_failed")
+    return document
+
+
+def _manager_health() -> dict[str, object]:
+    deadline = time.monotonic() + 120
+    last_error = "manager_health_timeout"
+    while time.monotonic() < deadline:
+        try:
+            with urllib.request.urlopen(
+                MANAGER_HEALTH_URL,
+                timeout=3,
+            ) as response:
+                payload = response.read(16384)
+            document = json.loads(payload)
+            if (
+                isinstance(document, dict)
+                and document.get("schema") == "gh.pair.simple-health/1"
+                and document.get("status") == "ok"
+            ):
+                return {
+                    "schema": document["schema"],
+                    "status": "ok",
+                }
+            last_error = "manager_health_contract_invalid"
+        except (
+            OSError,
+            urllib.error.URLError,
+            json.JSONDecodeError,
+        ):
+            last_error = "manager_health_unavailable"
+        time.sleep(1)
+    raise F4Error(last_error)
+
+
+def _container_established_socket_count(
+    container: str,
+    remote_port: int,
+) -> int:
+    script = r"""
+import glob
+import json
+import os
+import socket
+import sys
+
+port = int(sys.argv[1])
+inodes = set()
+for path in ("/proc/net/tcp", "/proc/net/tcp6"):
+    try:
+        rows = open(path, encoding="ascii").read().splitlines()[1:]
+    except OSError:
+        continue
+    for row in rows:
+        fields = row.split()
+        if len(fields) < 10 or fields[3] != "01":
+            continue
+        remote = fields[2]
+        try:
+            remote_port = int(remote.rsplit(":", 1)[1], 16)
+        except (ValueError, IndexError):
+            continue
+        if remote_port == port:
+            inodes.add(fields[9])
+
+owned = set()
+for fd in glob.glob("/proc/[0-9]*/fd/*"):
+    try:
+        target = os.readlink(fd)
+    except OSError:
+        continue
+    if target.startswith("socket:[") and target.endswith("]"):
+        owned.add(target[8:-1])
+
+print(json.dumps({"count": len(inodes & owned)}))
+"""
+    try:
+        document = json.loads(
+            _run(
+                (
+                    "docker",
+                    "exec",
+                    "--user",
+                    "0:0",
+                    container,
+                    "python3",
+                    "-c",
+                    script,
+                    str(remote_port),
+                ),
+                timeout=30,
+            )
+        )
+    except json.JSONDecodeError as error:
+        raise F4Error("runtime_socket_probe_json_invalid") from error
+    count = document.get("count") if isinstance(document, dict) else None
+    if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+        raise F4Error("runtime_socket_probe_invalid")
+    return count
+
+
+def _manager_state_audit(container: str) -> dict[str, object]:
+    script = r"""
+import hashlib
+import json
+import os
+from pathlib import Path
+from greenhouse_manager.bootstrap.fresh_product_state import audit_fresh_state
+
+system_id = os.environ["GH_SYSTEM_ID"]
+report = audit_fresh_state(
+    Path("/var/lib/greenhouse-manager/manager"),
+    Path("/var/lib/greenhouse-manager/n3w"),
+    expected_system_id_sha256=hashlib.sha256(system_id.encode()).hexdigest(),
+)
+print(json.dumps({
+    "status": report["status"],
+    "manager_business_row_count": report["manager_business_row_count"],
+    "replay_node_count": report["replay_node_count"],
+    "replay_tuple_count": report["replay_tuple_count"],
+    "relay_active_node_count": report["relay_active_node_count"],
+    "relay_key_file_count": report["relay_key_file_count"],
+    "node_credential_count": report["node_credential_count"],
+}, sort_keys=True))
+"""
+    try:
+        document = json.loads(
+            _run(
+                (
+                    "docker",
+                    "exec",
+                    "--user",
+                    "999:999",
+                    container,
+                    "python",
+                    "-c",
+                    script,
+                ),
+                timeout=90,
+            )
+        )
+    except json.JSONDecodeError as error:
+        raise F4Error("manager_state_audit_json_invalid") from error
+    if (
+        not isinstance(document, dict)
+        or document.get("status") != "PASS"
+        or any(
+            document.get(key) != 0
+            for key in (
+                "manager_business_row_count",
+                "replay_node_count",
+                "replay_tuple_count",
+                "relay_active_node_count",
+                "relay_key_file_count",
+                "node_credential_count",
+            )
+        )
+    ):
+        raise F4Error("manager_state_audit_failed")
+    return document
+
+
+def _homeassistant_private_audit(container: str) -> dict[str, object]:
+    script = r"""
+import hashlib
+import hmac
+import json
+from pathlib import Path
+
+storage = json.loads(Path("/config/.storage/core.config_entries").read_text())
+metadata = json.loads(Path("/run/n3w/ha-mqtt-bootstrap.json").read_text())
+password = Path("/run/secrets/gh_homeassistant_mqtt_password").read_text().rstrip("\r\n")
+entries = storage.get("data", {}).get("entries", [])
+mqtt = [item for item in entries if isinstance(item, dict) and item.get("domain") == "mqtt"]
+enabled = [item for item in mqtt if item.get("disabled_by") is None]
+match = False
+entry_hash = None
+if len(enabled) == 1:
+    entry = enabled[0]
+    data = entry.get("data") if isinstance(entry.get("data"), dict) else {}
+    entry_id = entry.get("entry_id")
+    match = (
+        data.get("broker", data.get("host")) == metadata.get("broker")
+        and data.get("port") == metadata.get("port")
+        and str(data.get("protocol")) == str(metadata.get("protocol"))
+        and data.get("username") == metadata.get("username")
+        and data.get("client_id") == metadata.get("client_id")
+        and data.get("transport", "tcp") == "tcp"
+        and data.get("certificate") is None
+        and data.get("client_cert") is None
+        and data.get("client_key") is None
+        and isinstance(data.get("password"), str)
+        and hmac.compare_digest(data["password"], password)
+    )
+    if isinstance(entry_id, str) and entry_id:
+        entry_hash = hashlib.sha256(entry_id.encode()).hexdigest()
+
+entity_path = Path("/config/.storage/core.entity_registry")
+mqtt_entity_count = 0
+if entity_path.is_file():
+    entity = json.loads(entity_path.read_text())
+    rows = entity.get("data", {}).get("entities", [])
+    mqtt_entity_count = sum(
+        1
+        for item in rows
+        if isinstance(item, dict) and item.get("platform") == "mqtt"
+    )
+
+print(json.dumps({
+    "mqtt_entry_count": len(mqtt),
+    "enabled_mqtt_entry_count": len(enabled),
+    "entry_matches_private_bootstrap": match,
+    "entry_id_sha256": entry_hash,
+    "mqtt_entity_count": mqtt_entity_count,
+}, sort_keys=True))
+"""
+    deadline = time.monotonic() + 180
+    while time.monotonic() < deadline:
+        try:
+            document = json.loads(
+                _run(
+                    (
+                        "docker",
+                        "exec",
+                        "--user",
+                        "0:0",
+                        container,
+                        "python3",
+                        "-c",
+                        script,
+                    ),
+                    timeout=30,
+                )
+            )
+        except (F4Error, json.JSONDecodeError):
+            time.sleep(2)
+            continue
+        if (
+            isinstance(document, dict)
+            and document.get("mqtt_entry_count") == 1
+            and document.get("enabled_mqtt_entry_count") == 1
+            and document.get("entry_matches_private_bootstrap") is True
+            and isinstance(document.get("entry_id_sha256"), str)
+            and re.fullmatch(
+                r"[0-9a-f]{64}",
+                str(document["entry_id_sha256"]),
+            )
+            and document.get("mqtt_entity_count") == 0
+        ):
+            return document
+        time.sleep(2)
+    raise F4Error("homeassistant_private_runtime_audit_failed")
+
+
+def _root_identity_runtime_audit(manager_image: str) -> dict[str, object]:
+    script = r"""
+import json
+from pathlib import Path
+from greenhouse_manager.bootstrap.system_init import verify_initialization
+from greenhouse_manager.bootstrap.fresh_broker import audit_fresh_dynsec_document
+from greenhouse_manager.ops.t1_clean_service_credential_bundle import verify_clean_service_credential_bundle
+
+identity = verify_initialization(Path("/identity"))
+dynsec = audit_fresh_dynsec_document(
+    Path("/broker/dynamic-security.json"),
+    system_id=identity.system_id,
+)
+credentials = verify_clean_service_credential_bundle(Path("/secrets/mqtt"))
+if credentials.get("system_id") != identity.system_id:
+    raise RuntimeError("credential_system_id_drift")
+print(json.dumps({
+    "dynsec_service_client_count": dynsec["service_client_count"],
+    "dynsec_service_role_count": dynsec["service_role_count"],
+    "dynsec_node_client_count": dynsec["node_client_count"],
+    "dynsec_node_role_count": dynsec["node_role_count"],
+    "credential_service_count": credentials["service_count"],
+    "credential_node_count": credentials["node_credential_count"],
+}, sort_keys=True))
+"""
+    name = f"n3w-f4-root-audit-{os.getpid()}"
+    try:
+        document = json.loads(
+            _run(
+                (
+                    "docker",
+                    "run",
+                    "--rm",
+                    "--name",
+                    name,
+                    "--network",
+                    "none",
+                    "--user",
+                    "0:0",
+                    "--read-only",
+                    "--tmpfs",
+                    "/tmp:size=4m,mode=1777",
+                    "--mount",
+                    "type=bind,src=/var/lib/greenhouse-manager/identity,dst=/identity,readonly",
+                    "--mount",
+                    "type=bind,src=/var/lib/n3wfc4-broker,dst=/broker,readonly",
+                    "--mount",
+                    "type=bind,src=/opt/greenhouse-secrets,dst=/secrets,readonly",
+                    "--entrypoint",
+                    "python",
+                    manager_image,
+                    "-c",
+                    script,
+                ),
+                timeout=120,
+            )
+        )
+    except json.JSONDecodeError as error:
+        raise F4Error("root_identity_runtime_audit_json_invalid") from error
+    if (
+        not isinstance(document, dict)
+        or document.get("dynsec_service_client_count") != 3
+        or document.get("dynsec_service_role_count") != 3
+        or document.get("dynsec_node_client_count") != 0
+        or document.get("dynsec_node_role_count") != 0
+        or document.get("credential_service_count") != 3
+        or document.get("credential_node_count") != 0
+    ):
+        raise F4Error("root_identity_runtime_audit_failed")
+    return document
+
+
+def _runtime_acceptance_report() -> dict[str, object]:
+    verified = _provision_verify()
+    transaction = _validate_transaction_binding(verified)
+    _validate_factory_binding(verified)
+    if transaction.get("stage") != "RUNTIME_STARTED":
+        raise F4Error("runtime_acceptance_stage_invalid")
+    _verify_installed_material(transaction)
+
+    running = _running_services()
+    if running != frozenset({"broker", "manager", "homeassistant"}):
+        raise F4Error("runtime_service_set_invalid")
+
+    release = _read_release()
+    inspects = {
+        label: _compose_service_inspect(label)
+        for label in ("broker", "manager", "homeassistant")
+    }
+    image_bindings = _runtime_image_acceptance(release, inspects)
+    _broker_runtime_contract(inspects["broker"])
+    _manager_runtime_contract(inspects["manager"])
+    _homeassistant_runtime_contract(inspects["homeassistant"])
+
+    guard = _guard_runtime_verify()
+    tls = _verified_tls_runtime()
+    health = _manager_health()
+
+    manager_name = str(inspects["manager"].get("Name", "")).lstrip("/")
+    homeassistant_name = str(
+        inspects["homeassistant"].get("Name", "")
+    ).lstrip("/")
+    if not manager_name or not homeassistant_name:
+        raise F4Error("runtime_container_name_missing")
+
+    manager_state = _manager_state_audit(manager_name)
+    manager_socket_count = _container_established_socket_count(
+        manager_name,
+        8883,
+    )
+    if manager_socket_count < 1:
+        raise F4Error("manager_mqtt_socket_missing")
+
+    homeassistant = _homeassistant_private_audit(homeassistant_name)
+    ha_socket_count = _container_established_socket_count(
+        homeassistant_name,
+        1883,
+    )
+    if ha_socket_count < 1:
+        raise F4Error("homeassistant_mqtt_socket_missing")
+
+    manager_image = str(release["images"]["manager"]["image"])
+    root_audit = _root_identity_runtime_audit(manager_image)
+
+    runtime = _runtime_activity()
+    if runtime["production_service_start"] is not True:
+        raise F4Error("runtime_activity_not_proven")
+
+    return {
+        "schema": "gh.n3w-t1-f4-runtime-acceptance/1",
+        "status": "PASS",
+        "release_id": verified["release_id"],
+        "host_instance_id_sha256": _sha256_text(
+            str(verified["host_instance_id"])
+        ),
+        "system_id_sha256": _sha256_text(str(verified["system_id"])),
+        "package_source_head": transaction["package_source_head"],
+        "package_manifest_sha256": transaction[
+            "package_manifest_sha256"
+        ],
+        "running_services": sorted(running),
+        "image_bindings": image_bindings,
+        "broker_port_binding_exact": True,
+        "broker_network_set_exact": True,
+        "ingress_guard": guard,
+        "tls": tls,
+        "manager_health": health,
+        "manager_state": manager_state,
+        "manager_mqtt_socket_count": manager_socket_count,
+        "homeassistant": homeassistant,
+        "homeassistant_mqtt_socket_count": ha_socket_count,
+        "identity_runtime_audit": root_audit,
+        "product_pairing_enabled": False,
+        "production_service_start": True,
+        "persistence_enabled": False,
+        "certificate_timer_enabled": False,
+        "secret_values_included": False,
+        "board_access": False,
+    }
+
+
+def _downstream_fail_closed(
+    stage_prefix: str,
+    error: BaseException,
+) -> None:
+    rollback_errors: list[str] = []
+    for unit in (CERT_TIMER, SERVICES_UNIT, BROKER_UNIT):
+        try:
+            _run(("systemctl", "disable", unit), timeout=60)
+        except OPERATION_ERRORS as rollback_error:
+            rollback_errors.append(type(rollback_error).__name__)
+    for unit in (SERVICES_UNIT, BROKER_UNIT):
+        try:
+            _run(("systemctl", "stop", unit), timeout=120)
+        except OPERATION_ERRORS as rollback_error:
+            rollback_errors.append(type(rollback_error).__name__)
+    runtime = _runtime_activity()
+    rollback_proven = (
+        runtime["production_service_start"] is False
+        and _systemctl("is-enabled", BROKER_UNIT) != "enabled"
+        and _systemctl("is-enabled", SERVICES_UNIT) != "enabled"
+        and _systemctl("is-enabled", CERT_TIMER) != "enabled"
+        and not rollback_errors
+    )
+    stop_stage = (
+        f"STOPPED_{stage_prefix}"
+        if rollback_proven
+        else f"STOPPED_{stage_prefix}_ROLLBACK_UNPROVEN"
+    )
+    _advance_transaction(
+        stop_stage,
+        error_code=str(error)[:300],
+        production_service_start=runtime["production_service_start"],
+        persistence_enabled=False,
+        certificate_timer_enabled=False,
+        rollback_proven=rollback_proven,
+        rollback_error_count=len(rollback_errors),
+    )
+
+
+def _accept_runtime(authorization_id: str) -> dict[str, object]:
+    with _exclusive_f4():
+        verified = _provision_verify()
+        transaction = _validate_transaction_binding(verified)
+        if transaction.get("authorization_id") != authorization_id:
+            raise F4Error("runtime_acceptance_authorization_id_mismatch")
+        if transaction.get("stage") != "RUNTIME_STARTED":
+            raise F4Error("runtime_acceptance_replay_forbidden")
+        try:
+            report = _runtime_acceptance_report()
+            _new_private_record(RUNTIME_ACCEPTANCE_PATH, report)
+            report_sha256 = _sha256_file(RUNTIME_ACCEPTANCE_PATH)
+            _advance_transaction(
+                "RUNTIME_ACCEPTED",
+                runtime_acceptance_passed=True,
+                runtime_acceptance_report_sha256=report_sha256,
+                homeassistant_mqtt_entry_id_sha256=report[
+                    "homeassistant"
+                ]["entry_id_sha256"],
+                production_service_start=True,
+                persistence_enabled=False,
+                certificate_timer_enabled=False,
+            )
+            return {
+                "status": "PASS",
+                "state": "RUNTIME_ACCEPTED",
+                "runtime_acceptance_report_sha256": report_sha256,
+                "production_service_start": True,
+                "persistence_enabled": False,
+                "certificate_timer_enabled": False,
+                "board_access": False,
+            }
+        except OPERATION_ERRORS as error:
+            try:
+                _downstream_fail_closed("RUNTIME_ACCEPTANCE", error)
+            except OPERATION_ERRORS as rollback_error:
+                raise F4Error(
+                    "runtime_acceptance_failed_rollback_unproven:"
+                    + type(rollback_error).__name__
+                ) from error
+            raise
+
+
+def _enable_persistence(authorization_id: str) -> dict[str, object]:
+    with _exclusive_f4():
+        verified = _provision_verify()
+        transaction = _validate_transaction_binding(verified)
+        _validate_factory_binding(verified)
+        _verify_installed_material(transaction)
+        if transaction.get("authorization_id") != authorization_id:
+            raise F4Error("persistence_authorization_id_mismatch")
+        if (
+            transaction.get("stage") != "RUNTIME_ACCEPTED"
+            or transaction.get("runtime_acceptance_passed") is not True
+        ):
+            raise F4Error("persistence_stage_invalid")
+        before = _runtime_activity()
+        if before["production_service_start"] is not True:
+            raise F4Error("persistence_runtime_not_active")
+        try:
+            _run(
+                (
+                    "systemctl",
+                    "enable",
+                    BROKER_UNIT,
+                    SERVICES_UNIT,
+                ),
+                timeout=60,
+            )
+            if (
+                _systemctl("is-enabled", BROKER_UNIT) != "enabled"
+                or _systemctl("is-enabled", SERVICES_UNIT) != "enabled"
+                or _systemctl("is-enabled", CERT_TIMER) == "enabled"
+            ):
+                raise F4Error("persistence_enablement_invalid")
+            after = _runtime_activity()
+            if (
+                after["production_service_start"] is not True
+                or after["running_services"]
+                != before["running_services"]
+            ):
+                raise F4Error("persistence_runtime_changed")
+            _advance_transaction(
+                "PERSISTENCE_ENABLED",
+                broker_services_persistence_enabled=True,
+                production_service_start=True,
+                persistence_enabled=True,
+                certificate_timer_enabled=False,
+            )
+            return {
+                "status": "PASS",
+                "state": "PERSISTENCE_ENABLED",
+                "broker_services_persistence_enabled": True,
+                "certificate_timer_enabled": False,
+                "production_service_start": True,
+                "board_access": False,
+            }
+        except OPERATION_ERRORS as error:
+            try:
+                _downstream_fail_closed("PERSISTENCE", error)
+            except OPERATION_ERRORS as rollback_error:
+                raise F4Error(
+                    "persistence_failed_rollback_unproven:"
+                    + type(rollback_error).__name__
+                ) from error
+            raise
+
+
+def _certificate_identity_snapshot() -> dict[str, str]:
+    return {
+        "server_cert": _sha256_file(SERVER_CERT),
+        "server_key": _sha256_file(SERVER_KEY),
+        "ca_cert": _sha256_file(CA_CERT),
+        "ca_key": _sha256_file(CA_KEY),
+        "system_ca": _sha256_file(SYSTEM_CA),
+    }
+
+
+def _certificate_audit_command() -> tuple[str, ...]:
+    return (
+        "/usr/local/sbin/n3w-broker-certificate-lifecycle",
+        "audit",
+        "--server-cert",
+        str(SERVER_CERT),
+        "--server-key",
+        str(SERVER_KEY),
+        "--ca-cert",
+        str(CA_CERT),
+        "--ca-key",
+        str(CA_KEY),
+        "--system-ca",
+        str(SYSTEM_CA),
+        "--server-name",
+        SERVER_NAME,
+        "--status-file",
+        str(CERT_STATUS_FILE),
+        "--allowed-root",
+        str(ETC_N3W),
+        "--allowed-root",
+        str(CA_KEY.parent),
+        "--allowed-root",
+        str(SYSTEM_CA.parent),
+        "--activation-unit",
+        BROKER_UNIT,
+        "--probe-host",
+        "127.0.0.1",
+        "--probe-port",
+        "8883",
+    )
+
+
+def _certificate_first_audit(authorization_id: str) -> dict[str, object]:
+    with _exclusive_f4():
+        verified = _provision_verify()
+        transaction = _validate_transaction_binding(verified)
+        _validate_factory_binding(verified)
+        _verify_installed_material(transaction)
+        if transaction.get("authorization_id") != authorization_id:
+            raise F4Error("certificate_audit_authorization_id_mismatch")
+        if (
+            transaction.get("stage") != "PERSISTENCE_ENABLED"
+            or transaction.get("broker_services_persistence_enabled")
+            is not True
+            or transaction.get("certificate_first_audit_passed") is True
+        ):
+            raise F4Error("certificate_audit_stage_invalid")
+        if _systemctl("is-enabled", CERT_TIMER) == "enabled":
+            raise F4Error("certificate_timer_enabled_too_early")
+        before_identity = _certificate_identity_snapshot()
+        broker = _compose_service_inspect("broker")
+        before_container = {
+            "id": broker.get("Id"),
+            "started_at": broker.get("State", {}).get("StartedAt"),
+        }
+        try:
+            document = json.loads(
+                _run(_certificate_audit_command(), timeout=120)
+            )
+        except json.JSONDecodeError as error:
+            raise F4Error("certificate_audit_json_invalid") from error
+        if (
+            not isinstance(document, dict)
+            or document.get("action") != "audit"
+            or document.get("result") != "ok"
+            or document.get("server_state") != "HEALTHY"
+            or document.get("ca_state") != "HEALTHY"
+            or document.get("system_ca_state") != "HEALTHY"
+            or document.get("renewal_attempted") is not False
+            or document.get("rollback_attempted") is not False
+        ):
+            error = F4Error("certificate_first_audit_not_healthy")
+            try:
+                _downstream_fail_closed("CERTIFICATE_AUDIT", error)
+            except OPERATION_ERRORS as rollback_error:
+                raise F4Error(
+                    "certificate_audit_failed_rollback_unproven:"
+                    + type(rollback_error).__name__
+                ) from error
+            raise error
+        after_identity = _certificate_identity_snapshot()
+        after_broker = _compose_service_inspect("broker")
+        if (
+            after_identity != before_identity
+            or after_broker.get("Id") != before_container["id"]
+            or after_broker.get("State", {}).get("StartedAt")
+            != before_container["started_at"]
+        ):
+            error = F4Error("certificate_audit_runtime_changed")
+            try:
+                _downstream_fail_closed("CERTIFICATE_AUDIT", error)
+            except OPERATION_ERRORS as rollback_error:
+                raise F4Error(
+                    "certificate_audit_changed_rollback_unproven:"
+                    + type(rollback_error).__name__
+                ) from error
+            raise error
+        _verified_tls_runtime()
+        if (
+            not CERT_STATUS_FILE.is_file()
+            or CERT_STATUS_FILE.is_symlink()
+            or not CERT_LOCK_FILE.is_file()
+            or CERT_LOCK_FILE.is_symlink()
+            or {item.name for item in CERT_STATUS_ROOT.iterdir()}
+            != {CERT_STATUS_FILE.name, CERT_LOCK_FILE.name}
+        ):
+            raise F4Error("certificate_status_authority_invalid")
+        for target in (CERT_STATUS_FILE, CERT_LOCK_FILE):
+            metadata = target.stat()
+            if (
+                metadata.st_uid != 0
+                or metadata.st_gid != 0
+                or stat.S_IMODE(metadata.st_mode) != 0o600
+                or metadata.st_nlink != 1
+            ):
+                raise F4Error("certificate_status_metadata_invalid")
+        status_sha256 = _sha256_file(CERT_STATUS_FILE)
+        _advance_transaction(
+            "PERSISTENCE_ENABLED",
+            certificate_first_audit_passed=True,
+            certificate_status_sha256=status_sha256,
+            certificate_server_state="HEALTHY",
+            certificate_ca_state="HEALTHY",
+            certificate_system_ca_state="HEALTHY",
+            certificate_timer_enabled=False,
+            production_service_start=True,
+            persistence_enabled=True,
+        )
+        return {
+            "status": "PASS",
+            "state": "PERSISTENCE_ENABLED",
+            "certificate_first_audit_passed": True,
+            "certificate_status_sha256": status_sha256,
+            "certificate_timer_enabled": False,
+            "production_service_start": True,
+            "board_access": False,
+        }
+
+
+def _enable_certificate_timer(authorization_id: str) -> dict[str, object]:
+    with _exclusive_f4():
+        verified = _provision_verify()
+        transaction = _validate_transaction_binding(verified)
+        _validate_factory_binding(verified)
+        _verify_installed_material(transaction)
+        if transaction.get("authorization_id") != authorization_id:
+            raise F4Error("certificate_timer_authorization_id_mismatch")
+        if (
+            transaction.get("stage") != "PERSISTENCE_ENABLED"
+            or transaction.get("certificate_first_audit_passed") is not True
+            or not isinstance(transaction.get("certificate_status_sha256"), str)
+            or _sha256_file(CERT_STATUS_FILE)
+            != transaction.get("certificate_status_sha256")
+        ):
+            raise F4Error("certificate_timer_stage_invalid")
+        if _systemctl("is-active", CERT_TIMER) in {
+            "active",
+            "activating",
+            "reloading",
+        }:
+            raise F4Error("certificate_timer_active_before_enable")
+        try:
+            _run(("systemctl", "enable", CERT_TIMER), timeout=60)
+            if _systemctl("is-enabled", CERT_TIMER) != "enabled":
+                raise F4Error("certificate_timer_enable_failed")
+            if _systemctl("is-active", CERT_TIMER) in {
+                "active",
+                "activating",
+                "reloading",
+            }:
+                raise F4Error("certificate_timer_started_unexpectedly")
+            runtime = _runtime_activity()
+            if runtime["production_service_start"] is not True:
+                raise F4Error("certificate_timer_runtime_changed")
+            _advance_transaction(
+                "PERSISTENCE_ENABLED",
+                certificate_timer_enabled=True,
+                certificate_timer_active_before_reboot=False,
+                pre_reboot_ready=True,
+                production_service_start=True,
+                persistence_enabled=True,
+            )
+            return {
+                "status": "PASS",
+                "state": "PRE_REBOOT_READY",
+                "pre_reboot_ready": True,
+                "certificate_timer_enabled": True,
+                "certificate_timer_active_before_reboot": False,
+                "production_service_start": True,
+                "board_access": False,
+            }
+        except OPERATION_ERRORS as error:
+            try:
+                _downstream_fail_closed("CERTIFICATE_TIMER", error)
+            except OPERATION_ERRORS as rollback_error:
+                raise F4Error(
+                    "certificate_timer_failed_rollback_unproven:"
+                    + type(rollback_error).__name__
+                ) from error
+            raise
+
+
 def _status() -> dict[str, object]:
     transaction_present = TRANSACTION_PATH.exists() or TRANSACTION_PATH.is_symlink()
     factory_present = (
@@ -1348,6 +2398,15 @@ def _parser() -> argparse.ArgumentParser:
     activate = subparsers.add_parser("activate")
     activate.add_argument("--confirm", required=True)
     activate.add_argument("--authorization-id", required=True)
+
+    for command in (
+        "accept-runtime",
+        "enable-persistence",
+        "certificate-audit",
+        "enable-certificate-timer",
+    ):
+        item = subparsers.add_parser(command)
+        item.add_argument("--authorization-id", required=True)
     return parser
 
 
@@ -1371,11 +2430,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.package_manifest_sha256,
                 args.package_source_head,
             )
-        else:
+        elif args.command == "activate":
             report = _activate(
                 args.confirm,
                 args.authorization_id,
             )
+        elif args.command == "accept-runtime":
+            report = _accept_runtime(args.authorization_id)
+        elif args.command == "enable-persistence":
+            report = _enable_persistence(args.authorization_id)
+        elif args.command == "certificate-audit":
+            report = _certificate_first_audit(args.authorization_id)
+        else:
+            report = _enable_certificate_timer(args.authorization_id)
         _emit({**report, "schema": SCHEMA})
         return 0
     except OPERATION_ERRORS as error:
