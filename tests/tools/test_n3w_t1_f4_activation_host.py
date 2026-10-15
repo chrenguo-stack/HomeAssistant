@@ -396,7 +396,7 @@ def test_fresh_certificate_binding_has_no_fixed_fingerprint() -> None:
     assert "/opt/greenhouse-secrets/broker-ca/ca.key" in payload
     assert "/var/lib/greenhouse-manager/identity/system-ca.pem" in payload
     assert "N3WFC4_CERT_SERVER_NAME=armbian" in payload
-    assert "N3WFC4_CERT_ALLOWED_ROOT_SECRET=/opt/greenhouse-secrets/broker-ca" in payload
+    assert "N3WFC4_CERT_ALLOWED_ROOT_BROKER_CA=/opt/greenhouse-secrets/broker-ca" in payload
     assert "b305f61656a0e795" not in payload
     assert "8272aa061d70bf0b" not in payload
     assert "745c29f156b35cdb" not in payload
@@ -429,7 +429,7 @@ def test_systemd_activation_units_fail_closed_on_f4_phase() -> None:
         "eligibility --phase certificate"
         in certificate
     )
-    assert "N3WFC4_CERT_ALLOWED_ROOT_SECRET" in certificate
+    assert "N3WFC4_CERT_ALLOWED_ROOT_BROKER_CA" in certificate
 
 
 def test_persistence_helper_remains_enable_only() -> None:
