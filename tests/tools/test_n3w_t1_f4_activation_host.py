@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+from contextlib import nullcontext
 from pathlib import Path
 
 import pytest
@@ -172,7 +173,13 @@ def test_prepare_claims_before_factory_acceptance_and_install(
         lambda stage, **_fields: events.append(stage) or {"stage": stage},
     )
 
-    result = tool._prepare(tmp_path, tool.PREPARE_CONFIRMATION)
+    monkeypatch.setattr(tool, "_exclusive_f4", lambda: nullcontext())
+
+    result = tool._prepare(
+        tmp_path,
+        tool.PREPARE_CONFIRMATION,
+        "N3W_T1_F4_TEST_AUTH_01",
+    )
 
     assert audit_calls == 2
     assert events == [
@@ -220,8 +227,14 @@ def test_prepare_failure_consumes_and_stops(
         lambda stage, **_fields: stages.append(stage) or {"stage": stage},
     )
 
+    monkeypatch.setattr(tool, "_exclusive_f4", lambda: nullcontext())
+
     with pytest.raises(tool.F4Error, match="install_failed"):
-        tool._prepare(tmp_path, tool.PREPARE_CONFIRMATION)
+        tool._prepare(
+            tmp_path,
+            tool.PREPARE_CONFIRMATION,
+            "N3W_T1_F4_TEST_AUTH_02",
+        )
 
     assert stages == ["STOPPED_PREPARE"]
 
@@ -233,6 +246,7 @@ def test_activate_orders_guard_broker_readiness_services_without_enable(
     calls: list[tuple[str, ...]] = []
     stages: list[str] = []
 
+    monkeypatch.setattr(tool, "_exclusive_f4", lambda: nullcontext())
     monkeypatch.setattr(
         tool,
         "_activation_eligibility",
@@ -241,6 +255,11 @@ def test_activate_orders_guard_broker_readiness_services_without_enable(
             "transaction_stage": "PREPARED",
             "eligibility_phase": phase,
         },
+    )
+    monkeypatch.setattr(
+        tool,
+        "_read_private_record",
+        lambda _path: {"authorization_id": "N3W_T1_F4_TEST_AUTH_03"},
     )
 
     def run(argv, **_kwargs):
@@ -268,7 +287,10 @@ def test_activate_orders_guard_broker_readiness_services_without_enable(
         lambda stage, **_fields: stages.append(stage) or {"stage": stage},
     )
 
-    result = tool._activate(tool.ACTIVATE_CONFIRMATION)
+    result = tool._activate(
+        tool.ACTIVATE_CONFIRMATION,
+        "N3W_T1_F4_TEST_AUTH_03",
+    )
 
     assert stages == [
         "BROKER_STARTING",
@@ -293,10 +315,16 @@ def test_activation_failure_stops_started_runtime(
     calls: list[tuple[str, ...]] = []
     stages: list[str] = []
 
+    monkeypatch.setattr(tool, "_exclusive_f4", lambda: nullcontext())
     monkeypatch.setattr(
         tool,
         "_activation_eligibility",
         lambda _phase: {"transaction_stage": "PREPARED"},
+    )
+    monkeypatch.setattr(
+        tool,
+        "_read_private_record",
+        lambda _path: {"authorization_id": "N3W_T1_F4_TEST_AUTH_04"},
     )
 
     def run(argv, **_kwargs):
@@ -321,12 +349,44 @@ def test_activation_failure_stops_started_runtime(
     )
 
     with pytest.raises(tool.F4Error, match="services_start_failed"):
-        tool._activate(tool.ACTIVATE_CONFIRMATION)
+        tool._activate(
+            tool.ACTIVATE_CONFIRMATION,
+            "N3W_T1_F4_TEST_AUTH_04",
+        )
 
     assert ("systemctl", "stop", tool.SERVICES_UNIT) in calls
     assert ("systemctl", "stop", tool.BROKER_UNIT) in calls
     assert stages[-1] == "STOPPED_RUNTIME"
     assert "RUNTIME_STARTED" not in stages
+
+
+def test_authorization_id_is_bound_and_invalid_ids_fail() -> None:
+    tool = load_tool()
+    audit = {
+        "release_id": "a" * 40,
+        "host_instance_id": "host-a",
+        "system_id": "system-a",
+        "system_id_sha256": tool._sha256_text("system-a"),
+    }
+
+    document = tool._transaction_document(
+        audit,
+        "N3W_T1_F4_LIVE_AUTH_01",
+    )
+    assert document["authorization_id"] == "N3W_T1_F4_LIVE_AUTH_01"
+    assert document["authorization_consumed"] is True
+    assert document["replay_allowed"] is False
+
+    with pytest.raises(tool.F4Error, match="authorization_id_invalid"):
+        tool._transaction_document(audit, "bad authorization")
+
+
+def test_f4_execution_has_single_initializer_lock() -> None:
+    source = TOOL.read_text(encoding="utf-8")
+
+    assert "fcntl.LOCK_EX | fcntl.LOCK_NB" in source
+    assert "f4_operation_already_running" in source
+    assert "with _exclusive_f4():" in source
 
 
 def test_fresh_certificate_binding_has_no_fixed_fingerprint() -> None:
