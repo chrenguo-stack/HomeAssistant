@@ -112,7 +112,11 @@ def test_eligibility_is_phase_locked(
     monkeypatch.setattr(
         tool,
         "_validate_transaction_binding",
-        lambda _v: {"stage": "PREPARED"},
+        lambda _v: {
+            "stage": "PREPARED",
+            "package_source_head": "c" * 40,
+            "package_manifest_sha256": "b" * 64,
+        },
     )
     with pytest.raises(tool.F4Error, match="broker:PREPARED"):
         tool._activation_eligibility("broker")
@@ -122,21 +126,33 @@ def test_eligibility_is_phase_locked(
     monkeypatch.setattr(
         tool,
         "_validate_transaction_binding",
-        lambda _v: {"stage": "BROKER_STARTING"},
+        lambda _v: {
+            "stage": "BROKER_STARTING",
+            "package_source_head": "c" * 40,
+            "package_manifest_sha256": "b" * 64,
+        },
     )
     assert tool._activation_eligibility("broker")["activation_eligible"] is True
 
     monkeypatch.setattr(
         tool,
         "_validate_transaction_binding",
-        lambda _v: {"stage": "SERVICES_STARTING"},
+        lambda _v: {
+            "stage": "SERVICES_STARTING",
+            "package_source_head": "c" * 40,
+            "package_manifest_sha256": "b" * 64,
+        },
     )
     assert tool._activation_eligibility("services")["activation_eligible"] is True
 
     monkeypatch.setattr(
         tool,
         "_validate_transaction_binding",
-        lambda _v: {"stage": "RUNTIME_STARTED"},
+        lambda _v: {
+            "stage": "RUNTIME_STARTED",
+            "package_source_head": "c" * 40,
+            "package_manifest_sha256": "b" * 64,
+        },
     )
     assert tool._activation_eligibility("broker")["activation_eligible"] is True
     assert tool._activation_eligibility("services")["activation_eligible"] is True
@@ -146,7 +162,11 @@ def test_eligibility_is_phase_locked(
     monkeypatch.setattr(
         tool,
         "_validate_transaction_binding",
-        lambda _v: {"stage": "RUNTIME_ACCEPTED"},
+        lambda _v: {
+            "stage": "RUNTIME_ACCEPTED",
+            "package_source_head": "c" * 40,
+            "package_manifest_sha256": "b" * 64,
+        },
     )
     assert tool._activation_eligibility("broker")["activation_eligible"] is True
     assert tool._activation_eligibility("services")["activation_eligible"] is True
@@ -158,7 +178,11 @@ def test_eligibility_is_phase_locked(
     monkeypatch.setattr(
         tool,
         "_validate_transaction_binding",
-        lambda _v: {"stage": "PERSISTENCE_ENABLED"},
+        lambda _v: {
+            "stage": "PERSISTENCE_ENABLED",
+            "package_source_head": "c" * 40,
+            "package_manifest_sha256": "b" * 64,
+        },
     )
     assert tool._activation_eligibility("broker")["activation_eligible"] is True
     assert tool._activation_eligibility("services")["activation_eligible"] is True
