@@ -2560,8 +2560,14 @@ def _downstream_fail_closed(
         except OPERATION_ERRORS as rollback_error:
             rollback_errors.append(type(rollback_error).__name__)
     runtime = _runtime_activity()
+    try:
+        listener_ports = _product_listener_ports()
+    except OPERATION_ERRORS as rollback_error:
+        rollback_errors.append(type(rollback_error).__name__)
+        listener_ports = None
     rollback_proven = (
         runtime["production_service_start"] is False
+        and listener_ports == []
         and _systemctl("is-enabled", BROKER_UNIT) != "enabled"
         and _systemctl("is-enabled", SERVICES_UNIT) != "enabled"
         and _systemctl("is-enabled", CERT_TIMER) != "enabled"
@@ -2578,6 +2584,7 @@ def _downstream_fail_closed(
         production_service_start=runtime["production_service_start"],
         persistence_enabled=False,
         certificate_timer_enabled=False,
+        product_listener_ports=listener_ports,
         rollback_proven=rollback_proven,
         rollback_error_count=len(rollback_errors),
     )
@@ -2639,9 +2646,15 @@ def _enable_persistence(authorization_id: str) -> dict[str, object]:
             or transaction.get("runtime_acceptance_passed") is not True
         ):
             raise F4Error("persistence_stage_invalid")
+        _validate_runtime_acceptance_binding(transaction)
         before = _runtime_activity()
-        if before["production_service_start"] is not True:
+        if (
+            before["production_service_start"] is not True
+            or set(before["running_services"] or [])
+            != {"broker", "manager", "homeassistant"}
+        ):
             raise F4Error("persistence_runtime_not_active")
+        before_snapshot = _runtime_container_snapshot()
         try:
             _run(
                 (
@@ -2661,10 +2674,13 @@ def _enable_persistence(authorization_id: str) -> dict[str, object]:
             after = _runtime_activity()
             if (
                 after["production_service_start"] is not True
-                or after["running_services"]
-                != before["running_services"]
+                or set(after["running_services"] or [])
+                != {"broker", "manager", "homeassistant"}
+                or after["running_services"] != before["running_services"]
+                or _runtime_container_snapshot() != before_snapshot
             ):
                 raise F4Error("persistence_runtime_changed")
+            _validate_runtime_acceptance_binding(transaction)
             _advance_transaction(
                 "PERSISTENCE_ENABLED",
                 broker_services_persistence_enabled=True,
@@ -2751,14 +2767,28 @@ def _certificate_first_audit(authorization_id: str) -> dict[str, object]:
             raise F4Error("certificate_audit_stage_invalid")
         if _systemctl("is-enabled", CERT_TIMER) == "enabled":
             raise F4Error("certificate_timer_enabled_too_early")
+        _validate_runtime_acceptance_binding(transaction)
+        runtime = _runtime_activity()
+        if (
+            runtime["production_service_start"] is not True
+            or set(runtime["running_services"] or [])
+            != {"broker", "manager", "homeassistant"}
+        ):
+            raise F4Error("certificate_audit_runtime_not_active")
+        if (
+            not CERT_STATUS_ROOT.is_dir()
+            or CERT_STATUS_ROOT.is_symlink()
+            or CERT_STATUS_ROOT.stat().st_uid != 0
+            or CERT_STATUS_ROOT.stat().st_gid != 0
+            or stat.S_IMODE(CERT_STATUS_ROOT.stat().st_mode) != 0o700
+            or any(CERT_STATUS_ROOT.iterdir())
+        ):
+            raise F4Error("certificate_first_audit_prestate_invalid")
 
         try:
+            _validate_tls_material()
             before_identity = _certificate_identity_snapshot()
-            broker = _compose_service_inspect("broker")
-            before_container = {
-                "id": broker.get("Id"),
-                "started_at": broker.get("State", {}).get("StartedAt"),
-            }
+            before_snapshot = _runtime_container_snapshot()
             try:
                 document = json.loads(
                     _run(_certificate_audit_command(), timeout=120)
@@ -2778,15 +2808,17 @@ def _certificate_first_audit(authorization_id: str) -> dict[str, object]:
                 raise F4Error("certificate_first_audit_not_healthy")
 
             after_identity = _certificate_identity_snapshot()
-            after_broker = _compose_service_inspect("broker")
+            after_runtime = _runtime_activity()
             if (
                 after_identity != before_identity
-                or after_broker.get("Id") != before_container["id"]
-                or after_broker.get("State", {}).get("StartedAt")
-                != before_container["started_at"]
+                or after_runtime["production_service_start"] is not True
+                or set(after_runtime["running_services"] or [])
+                != {"broker", "manager", "homeassistant"}
+                or _runtime_container_snapshot() != before_snapshot
             ):
                 raise F4Error("certificate_audit_runtime_changed")
 
+            _validate_runtime_acceptance_binding(transaction)
             _verified_tls_runtime()
             if (
                 not CERT_STATUS_FILE.is_file()
@@ -2806,6 +2838,14 @@ def _certificate_first_audit(authorization_id: str) -> dict[str, object]:
                     or metadata.st_nlink != 1
                 ):
                     raise F4Error("certificate_status_metadata_invalid")
+            try:
+                durable_status = json.loads(
+                    CERT_STATUS_FILE.read_text(encoding="utf-8")
+                )
+            except (OSError, UnicodeError, json.JSONDecodeError) as error:
+                raise F4Error("certificate_status_json_invalid") from error
+            if durable_status != document:
+                raise F4Error("certificate_status_document_mismatch")
             status_sha256 = _sha256_file(CERT_STATUS_FILE)
             _advance_transaction(
                 "PERSISTENCE_ENABLED",
@@ -2854,12 +2894,25 @@ def _enable_certificate_timer(authorization_id: str) -> dict[str, object]:
             != transaction.get("certificate_status_sha256")
         ):
             raise F4Error("certificate_timer_stage_invalid")
+        _validate_runtime_acceptance_binding(transaction)
+        runtime_before = _runtime_activity()
+        if (
+            runtime_before["production_service_start"] is not True
+            or set(runtime_before["running_services"] or [])
+            != {"broker", "manager", "homeassistant"}
+            or _systemctl("is-enabled", BROKER_UNIT) != "enabled"
+            or _systemctl("is-enabled", SERVICES_UNIT) != "enabled"
+            or _systemctl("is-active", CERT_SERVICE)
+            in {"active", "activating", "reloading"}
+        ):
+            raise F4Error("certificate_timer_runtime_prestate_invalid")
         if _systemctl("is-active", CERT_TIMER) in {
             "active",
             "activating",
             "reloading",
         }:
             raise F4Error("certificate_timer_active_before_enable")
+        before_snapshot = _runtime_container_snapshot()
         try:
             _run(("systemctl", "enable", CERT_TIMER), timeout=60)
             if _systemctl("is-enabled", CERT_TIMER) != "enabled":
@@ -2871,8 +2924,18 @@ def _enable_certificate_timer(authorization_id: str) -> dict[str, object]:
             }:
                 raise F4Error("certificate_timer_started_unexpectedly")
             runtime = _runtime_activity()
-            if runtime["production_service_start"] is not True:
+            if (
+                runtime["production_service_start"] is not True
+                or set(runtime["running_services"] or [])
+                != {"broker", "manager", "homeassistant"}
+                or _runtime_container_snapshot() != before_snapshot
+                or _systemctl("is-active", CERT_SERVICE)
+                in {"active", "activating", "reloading"}
+                or _sha256_file(CERT_STATUS_FILE)
+                != transaction.get("certificate_status_sha256")
+            ):
                 raise F4Error("certificate_timer_runtime_changed")
+            _validate_runtime_acceptance_binding(transaction)
             _advance_transaction(
                 "PERSISTENCE_ENABLED",
                 certificate_timer_enabled=True,
