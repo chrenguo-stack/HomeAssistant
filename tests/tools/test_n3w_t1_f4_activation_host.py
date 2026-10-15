@@ -62,6 +62,7 @@ def test_command_surface_has_no_provisioning_replay_authority() -> None:
     assert 'subparsers.add_parser("activate")' in source
     assert 'subparsers.add_parser("repair-prepared-control")' in source
     assert '"repair-prepared-activation-authority"' in source
+    assert '"repair-stopped-runtime-start"' in source
     assert 'subparsers.add_parser("eligibility")' in source
     assert "START DEVICE PROVISIONING: YES" not in source
     assert 'PROVISION_CLI), "verify"' in source
@@ -420,6 +421,55 @@ def test_activate_orders_guard_broker_readiness_services_without_enable(
     assert result["runtime_acceptance_required"] is True
     assert result["persistence_enabled"] is False
     assert result["certificate_timer_enabled"] is False
+
+
+def test_runtime_service_set_waits_for_complete_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    observations = iter(
+        (
+            frozenset({"broker"}),
+            frozenset({"broker", "manager"}),
+            frozenset({"broker", "manager", "homeassistant"}),
+        )
+    )
+    sleeps: list[float] = []
+
+    monkeypatch.setattr(
+        tool,
+        "_systemctl",
+        lambda mode, unit: "active"
+        if mode == "is-active" and unit == tool.SERVICES_UNIT
+        else "unknown",
+    )
+    monkeypatch.setattr(tool, "_running_services", lambda: next(observations))
+    monkeypatch.setattr(tool.time, "monotonic", lambda: 0.0)
+    monkeypatch.setattr(tool.time, "sleep", sleeps.append)
+
+    result = tool._wait_for_runtime_service_set(
+        timeout_seconds=60.0,
+        poll_seconds=1.0,
+    )
+
+    assert result == frozenset({"broker", "manager", "homeassistant"})
+    assert sleeps == [1.0, 1.0]
+
+
+def test_runtime_service_set_fails_if_services_unit_dies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    monkeypatch.setattr(tool, "_systemctl", lambda *_args: "failed")
+
+    with pytest.raises(
+        tool.F4Error,
+        match="application_services_not_active_during_start:failed",
+    ):
+        tool._wait_for_runtime_service_set(
+            timeout_seconds=60.0,
+            poll_seconds=1.0,
+        )
 
 
 def test_activation_failure_stops_started_runtime(
@@ -1545,6 +1595,239 @@ def test_prepared_activation_authority_repair_rebinds_only_launcher(
         is True
     )
     assert report["activation_authority_repair_replay_allowed"] is False
+
+
+def test_stopped_runtime_repair_rebinds_launcher_and_enables_retry(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    package_root = tmp_path / "package"
+    launcher_relative = "tools/n3w_t1_f4_activation_host.py"
+    launcher_source = package_root / launcher_relative
+    launcher_source.parent.mkdir(parents=True)
+    launcher_source.write_text(
+        "#!/usr/bin/python3\nprint('runtime wait')\n",
+        encoding="utf-8",
+    )
+    launcher_sha = tool._sha256_file(launcher_source)
+
+    package_files = {}
+    installed_files = {}
+    for relative, (target, mode) in tool.INSTALL_MAP.items():
+        if relative == launcher_relative:
+            package_files[relative] = {
+                "sha256": launcher_sha,
+                "size": launcher_source.stat().st_size,
+            }
+            installed_files[str(target)] = {
+                "sha256": tool.RUNTIME_START_REPAIR_FROM_LAUNCHER_SHA256,
+                "size": 100,
+                "mode": mode,
+                "uid": 0,
+                "gid": 0,
+            }
+        else:
+            package_files[relative] = {"sha256": "d" * 64, "size": 10}
+            installed_files[str(target)] = {
+                "sha256": "d" * 64,
+                "size": 10,
+                "mode": mode,
+                "uid": 0,
+                "gid": 0,
+            }
+    for target in (tool.COMPOSE_TARGET, tool.BROKER_ENV, tool.CERT_ENV):
+        installed_files[str(target)] = {
+            "sha256": "e" * 64,
+            "size": 20,
+            "mode": 0o600,
+            "uid": 0,
+            "gid": 0,
+        }
+
+    failed_auth = "N3W_T1_F4_ACTIVATE_FAILED_TEST"
+    transaction = {
+        "stage": "STOPPED_RUNTIME",
+        "authorization_id": "N3W_T1_F4_PREPARE_TEST",
+        "control_repair_authorization_id": "N3W_T1_F4_REPAIR_TEST",
+        "activation_authority_repair_authorization_id": (
+            "N3W_T1_F4_AUTHORITY_REPAIR_TEST"
+        ),
+        "activation_authorization_id": failed_auth,
+        "activation_authorization_claimed": True,
+        "activation_authorization_consumed": True,
+        "activation_authorization_replay_allowed": False,
+        "error_code": "runtime_service_set_invalid",
+        "rollback_proven": True,
+        "rollback_error_count": 0,
+        "production_service_start": False,
+        "package_source_head": tool.RUNTIME_START_REPAIR_FROM_SOURCE_HEAD,
+        "package_manifest_sha256": (
+            tool.RUNTIME_START_REPAIR_FROM_MANIFEST_SHA256
+        ),
+        "installed_files": installed_files,
+    }
+    package = {
+        "root": package_root,
+        "manifest_sha256": "f" * 64,
+        "source_head": "1" * 40,
+        "files": package_files,
+    }
+    stages = []
+
+    monkeypatch.setattr(tool, "_validate_package", lambda *_a, **_k: package)
+    monkeypatch.setattr(tool, "_exclusive_f4", nullcontext)
+    monkeypatch.setattr(tool, "_provision_verify", lambda: verified(tool))
+    monkeypatch.setattr(tool, "_validate_factory_binding", lambda _v: {})
+    monkeypatch.setattr(
+        tool,
+        "_validate_transaction_binding",
+        lambda _v: transaction,
+    )
+    monkeypatch.setattr(tool, "_verify_installed_material", lambda _t: None)
+    monkeypatch.setattr(
+        tool,
+        "_runtime_activity",
+        lambda: {
+            "production_service_start": False,
+            "running_services": [],
+        },
+    )
+    monkeypatch.setattr(tool, "_product_listener_ports", list)
+    monkeypatch.setattr(
+        tool,
+        "_advance_transaction",
+        lambda stage, **fields: stages.append((stage, fields))
+        or {**transaction, **fields, "stage": stage},
+    )
+
+    def replace_file(
+        source,
+        target,
+        mode,
+        *,
+        expected_current,
+        expected_sha256,
+        expected_size,
+    ):
+        assert source == launcher_source
+        assert target == tool.INSTALL_MAP[launcher_relative][0]
+        assert mode == 0o755
+        assert expected_current["sha256"] == (
+            tool.RUNTIME_START_REPAIR_FROM_LAUNCHER_SHA256
+        )
+        assert expected_sha256 == launcher_sha
+        assert expected_size == launcher_source.stat().st_size
+
+    monkeypatch.setattr(tool, "_atomic_replace_bound_file", replace_file)
+    monkeypatch.setattr(
+        tool,
+        "_file_binding",
+        lambda _path: {
+            "sha256": launcher_sha,
+            "size": launcher_source.stat().st_size,
+            "mode": 0o755,
+            "uid": 0,
+            "gid": 0,
+        },
+    )
+    monkeypatch.setattr(
+        tool,
+        "_read_private_record",
+        lambda _path: {
+            **transaction,
+            "installed_files": {
+                **installed_files,
+                str(tool.INSTALL_MAP[launcher_relative][0]): {
+                    "sha256": launcher_sha,
+                    "size": launcher_source.stat().st_size,
+                    "mode": 0o755,
+                    "uid": 0,
+                    "gid": 0,
+                },
+            },
+        },
+    )
+
+    report = tool._repair_stopped_runtime_start(
+        package_root,
+        tool.RUNTIME_START_REPAIR_CONFIRMATION,
+        "N3W_T1_F4_RUNTIME_START_REPAIR_TEST",
+        "f" * 64,
+        "1" * 40,
+    )
+
+    assert stages[0][0] == "RUNTIME_START_REPAIR_CLAIMED"
+    assert stages[-1][0] == "PREPARED"
+    assert report["runtime_start_race_repair_passed"] is True
+    assert report["activation_retry_eligible"] is True
+    assert report["failed_activation_authorization_id"] == failed_auth
+    assert report["runtime_start_repair_authorization_consumed"] is True
+    assert failed_auth in stages[0][1]["activation_authorization_history"]
+
+
+def test_activate_allows_successor_only_after_bounded_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    stages = []
+    transaction = {
+        "authorization_id": "N3W_T1_F4_PREPARE_AUTH",
+        "activation_authorization_id": "N3W_T1_F4_FAILED_ACTIVATE_AUTH",
+        "activation_authorization_claimed": True,
+        "activation_authorization_consumed": True,
+        "activation_authorization_replay_allowed": False,
+        "activation_authorization_history": [
+            "N3W_T1_F4_FAILED_ACTIVATE_AUTH"
+        ],
+        "runtime_start_repair_authorization_id": (
+            "N3W_T1_F4_RUNTIME_START_REPAIR_AUTH"
+        ),
+        "runtime_start_repair_authorization_claimed": True,
+        "runtime_start_repair_authorization_consumed": True,
+        "runtime_start_repair_replay_allowed": False,
+        "activation_retry_eligible": True,
+    }
+
+    monkeypatch.setattr(tool, "_exclusive_f4", lambda: nullcontext())
+    monkeypatch.setattr(
+        tool,
+        "_activation_eligibility",
+        lambda _phase: {"transaction_stage": "PREPARED"},
+    )
+    monkeypatch.setattr(tool, "_read_private_record", lambda _path: transaction)
+    monkeypatch.setattr(
+        tool,
+        "_advance_transaction",
+        lambda stage, **fields: stages.append((stage, fields))
+        or {**transaction, **fields, "stage": stage},
+    )
+    monkeypatch.setattr(tool, "_run", lambda *_a, **_k: "")
+    monkeypatch.setattr(
+        tool,
+        "_systemctl",
+        lambda mode, unit: "active"
+        if mode == "is-active"
+        and unit in {tool.GUARD_UNIT, tool.SERVICES_UNIT}
+        else "unknown",
+    )
+    monkeypatch.setattr(
+        tool,
+        "_wait_for_runtime_service_set",
+        lambda: tool.EXPECTED_RUNTIME_SERVICES,
+    )
+
+    result = tool._activate(
+        tool.ACTIVATE_CONFIRMATION,
+        "N3W_T1_F4_ACTIVATE_SUCCESSOR_AUTH",
+    )
+
+    assert stages[0][0] == "ACTIVATION_CLAIMED"
+    assert stages[0][1]["activation_retry_eligible"] is False
+    assert "N3W_T1_F4_FAILED_ACTIVATE_AUTH" in (
+        stages[0][1]["activation_authorization_history"]
+    )
+    assert result["state"] == "RUNTIME_STARTED"
 
 
 def test_mount_contract_ignores_only_tmpfs_and_binds_exact_source(
