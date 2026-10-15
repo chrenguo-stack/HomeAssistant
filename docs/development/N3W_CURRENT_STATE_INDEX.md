@@ -1,3 +1,25 @@
+## 2026-10-15 — F4 transition-control source independent review CLOSED_PASS
+
+- Reviewed source head: `be14b74e6c74cc8ac036e41cc99b49439a2fc20c`; exact-head CI was 13/13 SUCCESS.
+- F3→F4 transition control is CLOSED_PASS for its bounded scope.
+- Independent review repaired exact package/source binding, installed-control drift checks, restart eligibility after transition, and Docker-backed rollback proof.
+- Full F4 live execution remains blocked: runtime end-to-end acceptance, durable RUNTIME_ACCEPTED transition, persistence enablement, first certificate lifecycle audit/timer enablement and reboot acceptance are not yet source-closed.
+- No T1 access, production service start, board access or merge occurred.
+- Next one gate: `N3W_T1_F4_RUNTIME_ACCEPTANCE_AND_PERSISTENCE_SOURCE_PREPARATION_20261015_01`.
+- Review authority: `docs/development/N3W_T1_F4_FACTORY_ACCEPTANCE_AND_ACTIVATION_SOURCE_REPAIR_INDEPENDENT_REVIEW_20261015.md`.
+
+## 2026-10-15 — F4 factory acceptance and activation SOURCE REPAIR implemented
+
+- Gate `N3W_T1_F4_FACTORY_ACCEPTANCE_AND_ACTIVATION_SOURCE_REPAIR_20261015_01` is implemented and awaiting exact-head CI plus independent source review.
+- Adds one-shot F4 transaction + secure `FACTORY_ACCEPTED.json` creation after a fresh stopped-state audit.
+- Broker/Services/certificate starts are phase-locked by fresh-route F4 systemd unit variants; direct Services start cannot bypass the top-level transition.
+- Adds exclusive execution lock and exact F4 authorization-id binding; provisioning `start` replay remains absent.
+- Initial activation stops at `RUNTIME_STARTED`; persistence, certificate timer enablement, detailed end-to-end runtime acceptance and reboot remain later gates.
+- Historical shared activation/certificate units remain unchanged; the fresh route uses isolated F4 variants.
+- Real T1 remains `DEVICE_READY`; no live mutation occurred.
+- Next one gate after CI: `N3W_T1_F4_FACTORY_ACCEPTANCE_AND_ACTIVATION_SOURCE_REPAIR_INDEPENDENT_REVIEW_20261015_01`.
+- Progress authority: `docs/development/N3W_T1_F4_FACTORY_ACCEPTANCE_AND_ACTIVATION_SOURCE_REPAIR_PROGRESS_20261015.md`.
+
 ## 2026-10-15 — F4 service activation and end-to-end acceptance PREPARATION CLOSED_PASS
 
 - Source/repository preparation for F4 is CLOSED_PASS; no live F4 authorization was granted.
