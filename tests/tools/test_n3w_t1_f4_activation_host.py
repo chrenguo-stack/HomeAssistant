@@ -1900,6 +1900,7 @@ def test_runtime_acceptance_recovery_rebinds_launcher_and_enables_successors(
         "production_service_start": False,
         "persistence_enabled": False,
         "certificate_timer_enabled": False,
+        "product_listener_ports": [],
         "package_source_head": (
             tool.RUNTIME_ACCEPTANCE_RECOVERY_FROM_SOURCE_HEAD
         ),
@@ -2069,6 +2070,7 @@ def test_runtime_acceptance_recovery_rejects_nonlauncher_delta(
         "production_service_start": False,
         "persistence_enabled": False,
         "certificate_timer_enabled": False,
+        "product_listener_ports": [],
         "package_source_head": (
             tool.RUNTIME_ACCEPTANCE_RECOVERY_FROM_SOURCE_HEAD
         ),
@@ -2175,6 +2177,7 @@ def test_runtime_acceptance_recovery_failure_stays_stopped(
         "production_service_start": False,
         "persistence_enabled": False,
         "certificate_timer_enabled": False,
+        "product_listener_ports": [],
         "package_source_head": (
             tool.RUNTIME_ACCEPTANCE_RECOVERY_FROM_SOURCE_HEAD
         ),
