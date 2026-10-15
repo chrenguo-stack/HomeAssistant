@@ -365,7 +365,12 @@ def test_activate_orders_guard_broker_readiness_services_without_enable(
     monkeypatch.setattr(
         tool,
         "_read_private_record",
-        lambda _path: {"authorization_id": "N3W_T1_F4_TEST_AUTH_03"},
+        lambda _path: {
+            "authorization_id": "N3W_T1_F4_PREPARE_TEST_AUTH_03",
+            "control_repair_authorization_id": (
+                "N3W_T1_F4_CONTROL_REPAIR_TEST_AUTH_03"
+            ),
+        },
     )
 
     def run(argv, **_kwargs):
@@ -395,10 +400,11 @@ def test_activate_orders_guard_broker_readiness_services_without_enable(
 
     result = tool._activate(
         tool.ACTIVATE_CONFIRMATION,
-        "N3W_T1_F4_TEST_AUTH_03",
+        "N3W_T1_F4_ACTIVATE_TEST_AUTH_03",
     )
 
     assert stages == [
+        "ACTIVATION_CLAIMED",
         "BROKER_STARTING",
         "BROKER_READY",
         "SERVICES_STARTING",
@@ -409,6 +415,7 @@ def test_activate_orders_guard_broker_readiness_services_without_enable(
     assert ("systemctl", "start", tool.SERVICES_UNIT) in calls
     assert not any("enable" in call for call in calls)
     assert result["state"] == "RUNTIME_STARTED"
+    assert result["authorization_id"] == "N3W_T1_F4_ACTIVATE_TEST_AUTH_03"
     assert result["runtime_acceptance_required"] is True
     assert result["persistence_enabled"] is False
     assert result["certificate_timer_enabled"] is False
@@ -430,7 +437,9 @@ def test_activation_failure_stops_started_runtime(
     monkeypatch.setattr(
         tool,
         "_read_private_record",
-        lambda _path: {"authorization_id": "N3W_T1_F4_TEST_AUTH_04"},
+        lambda _path: {
+            "authorization_id": "N3W_T1_F4_PREPARE_TEST_AUTH_04"
+        },
     )
 
     def run(argv, **_kwargs):
@@ -457,13 +466,99 @@ def test_activation_failure_stops_started_runtime(
     with pytest.raises(tool.F4Error, match="services_start_failed"):
         tool._activate(
             tool.ACTIVATE_CONFIRMATION,
-            "N3W_T1_F4_TEST_AUTH_04",
+            "N3W_T1_F4_ACTIVATE_TEST_AUTH_04",
         )
 
     assert ("systemctl", "stop", tool.SERVICES_UNIT) in calls
     assert ("systemctl", "stop", tool.BROKER_UNIT) in calls
     assert stages[-1] == "STOPPED_RUNTIME"
     assert "RUNTIME_STARTED" not in stages
+
+
+def test_activate_requires_distinct_successor_authorization(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    monkeypatch.setattr(tool, "_exclusive_f4", lambda: nullcontext())
+    monkeypatch.setattr(
+        tool,
+        "_activation_eligibility",
+        lambda _phase: {"transaction_stage": "PREPARED"},
+    )
+    monkeypatch.setattr(
+        tool,
+        "_read_private_record",
+        lambda _path: {
+            "authorization_id": "N3W_T1_F4_PREPARE_AUTH",
+            "control_repair_authorization_id": "N3W_T1_F4_REPAIR_AUTH",
+        },
+    )
+
+    with pytest.raises(
+        tool.F4Error,
+        match="activation_authorization_not_distinct",
+    ):
+        tool._activate(
+            tool.ACTIVATE_CONFIRMATION,
+            "N3W_T1_F4_PREPARE_AUTH",
+        )
+
+    with pytest.raises(
+        tool.F4Error,
+        match="activation_authorization_not_distinct",
+    ):
+        tool._activate(
+            tool.ACTIVATE_CONFIRMATION,
+            "N3W_T1_F4_REPAIR_AUTH",
+        )
+
+
+def test_activate_claims_successor_authorization_before_live_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    order: list[str] = []
+    monkeypatch.setattr(tool, "_exclusive_f4", lambda: nullcontext())
+    monkeypatch.setattr(
+        tool,
+        "_activation_eligibility",
+        lambda _phase: {"transaction_stage": "PREPARED"},
+    )
+    monkeypatch.setattr(
+        tool,
+        "_read_private_record",
+        lambda _path: {
+            "authorization_id": "N3W_T1_F4_PREPARE_AUTH",
+        },
+    )
+
+    def advance(stage, **_fields):
+        order.append(stage)
+        return {"stage": stage}
+
+    def run(argv, **_kwargs):
+        order.append("RUN:" + ":".join(argv))
+        raise tool.F4Error("guard_start_failed")
+
+    monkeypatch.setattr(tool, "_advance_transaction", advance)
+    monkeypatch.setattr(tool, "_run", run)
+    monkeypatch.setattr(
+        tool,
+        "_runtime_activity",
+        lambda: {
+            "production_service_start": False,
+            "running_services": [],
+        },
+    )
+
+    with pytest.raises(tool.F4Error, match="guard_start_failed"):
+        tool._activate(
+            tool.ACTIVATE_CONFIRMATION,
+            "N3W_T1_F4_ACTIVATE_NEW_AUTH",
+        )
+
+    assert order[0] == "ACTIVATION_CLAIMED"
+    assert order[1].startswith("RUN:systemctl:start:")
 
 
 def test_runtime_activity_fails_closed_when_compose_probe_is_unproven(
