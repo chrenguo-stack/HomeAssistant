@@ -6,18 +6,21 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
 import sys
 from collections.abc import Sequence
 from contextlib import contextmanager
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from types import ModuleType
 
 SCHEMA = "gh.n3w-t1-f4-activation-host/1"
 TRANSACTION_SCHEMA = "gh.n3w-t1-f4-activation-transaction/1"
 FACTORY_ACCEPTED_SCHEMA = "gh.n3w.t1-factory-accepted/1"
+PACKAGE_SCHEMA = "gh.n3w-t1-f4-activation-package/1"
+PACKAGE_MANIFEST_NAME = "f4-package-manifest.json"
 
 PREPARE_CONFIRMATION = "PREPARE F4 ACTIVATION: YES"
 ACTIVATE_CONFIRMATION = "START F4 ACTIVATION: YES"
@@ -222,6 +225,27 @@ def _runtime_activity() -> dict[str, object]:
 
 def _sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _file_binding(path: Path) -> dict[str, object]:
+    if path.is_symlink() or not path.is_file():
+        raise F4Error(f"installed_file_invalid:{path}")
+    metadata = path.stat()
+    return {
+        "sha256": _sha256_file(path),
+        "size": metadata.st_size,
+        "mode": stat.S_IMODE(metadata.st_mode),
+        "uid": metadata.st_uid,
+        "gid": metadata.st_gid,
+    }
 
 
 def _require_root() -> None:
@@ -548,6 +572,7 @@ def _factory_document(audit: dict[str, object]) -> dict[str, object]:
 def _transaction_document(
     audit: dict[str, object],
     authorization_id: str,
+    package: dict[str, object],
 ) -> dict[str, object]:
     if (
         not authorization_id.startswith("N3W_T1_F4_")
@@ -560,6 +585,8 @@ def _transaction_document(
         "status": "CLAIMED",
         "stage": "CLAIMED",
         "authorization_id": authorization_id,
+        "package_source_head": package["source_head"],
+        "package_manifest_sha256": package["manifest_sha256"],
         "authorization_claimed": True,
         "authorization_consumed": True,
         "replay_allowed": False,
@@ -620,7 +647,43 @@ def _validate_transaction_binding(
     for key, value in expected.items():
         if document.get(key) != value:
             raise F4Error(f"f4_transaction_binding_invalid:{key}")
+    if (
+        not isinstance(document.get("package_source_head"), str)
+        or re.fullmatch(r"[0-9a-f]{40}", str(document["package_source_head"]))
+        is None
+        or not isinstance(document.get("package_manifest_sha256"), str)
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(document["package_manifest_sha256"]),
+        )
+        is None
+    ):
+        raise F4Error("f4_transaction_package_binding_invalid")
     return document
+
+
+def _verify_installed_material(
+    transaction: dict[str, object],
+) -> None:
+    expected = transaction.get("installed_files")
+    if not isinstance(expected, dict):
+        raise F4Error("installed_material_binding_missing")
+    required = {
+        str(target)
+        for target, _mode in INSTALL_MAP.values()
+    } | {
+        str(COMPOSE_TARGET),
+        str(BROKER_ENV),
+        str(CERT_ENV),
+    }
+    if set(expected) != required:
+        raise F4Error("installed_material_file_set_invalid")
+    for raw_path, binding in expected.items():
+        if not isinstance(raw_path, str) or not isinstance(binding, dict):
+            raise F4Error("installed_material_binding_invalid")
+        observed = _file_binding(Path(raw_path))
+        if observed != binding:
+            raise F4Error(f"installed_material_drift:{raw_path}")
 
 
 def _activation_eligibility(phase: str) -> dict[str, object]:
@@ -655,6 +718,8 @@ def _activation_eligibility(phase: str) -> dict[str, object]:
         raise F4Error("eligibility_phase_invalid")
     if stage not in allowed:
         raise F4Error(f"f4_transaction_stage_not_eligible:{phase}:{stage}")
+    _verify_installed_material(transaction)
+    runtime = _runtime_activity()
     return {
         "status": "PASS",
         "state": "FACTORY_ACCEPTED",
@@ -663,7 +728,11 @@ def _activation_eligibility(phase: str) -> dict[str, object]:
         "factory_accepted": marker["factory_accepted"],
         "transaction_stage": stage,
         "eligibility_phase": phase,
-        "production_service_start": False,
+        "package_source_head": transaction["package_source_head"],
+        "package_manifest_sha256": transaction["package_manifest_sha256"],
+        "production_service_start": runtime["production_service_start"],
+        "runtime_service_probe": runtime["runtime_service_probe"],
+        "running_services": runtime["running_services"],
         "board_access": False,
     }
 
@@ -673,7 +742,105 @@ def _regular_source(path: Path) -> None:
         raise F4Error(f"package_source_invalid:{path}")
 
 
-def _atomic_install(source: Path, target: Path, mode: int) -> None:
+def _safe_package_file(root: Path, relative: str) -> Path:
+    pure = PurePosixPath(relative)
+    if (
+        pure.is_absolute()
+        or not pure.parts
+        or any(part in {"", ".", ".."} for part in pure.parts)
+        or pure.as_posix() != relative
+    ):
+        raise F4Error("package_manifest_path_invalid")
+    current = root
+    for part in pure.parts:
+        current = current / part
+        if current.is_symlink():
+            raise F4Error(f"package_source_symlink:{relative}")
+    if not current.is_file():
+        raise F4Error(f"package_source_missing:{relative}")
+    return current
+
+
+def _validate_package(
+    package_root: Path,
+    *,
+    expected_manifest_sha256: str,
+    expected_source_head: str,
+) -> dict[str, object]:
+    root = Path(os.path.abspath(os.fspath(package_root)))
+    if root.is_symlink() or not root.is_dir():
+        raise F4Error("package_root_invalid")
+    if re.fullmatch(r"[0-9a-f]{64}", expected_manifest_sha256) is None:
+        raise F4Error("package_manifest_sha256_invalid")
+    if re.fullmatch(r"[0-9a-f]{40}", expected_source_head) is None:
+        raise F4Error("package_source_head_invalid")
+
+    manifest_path = root / PACKAGE_MANIFEST_NAME
+    _regular_source(manifest_path)
+    if _sha256_file(manifest_path) != expected_manifest_sha256:
+        raise F4Error("package_manifest_sha256_mismatch")
+    if manifest_path.stat().st_size > 1024 * 1024:
+        raise F4Error("package_manifest_oversized")
+    try:
+        document = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise F4Error("package_manifest_json_invalid") from error
+    if (
+        not isinstance(document, dict)
+        or document.get("schema") != PACKAGE_SCHEMA
+        or document.get("source_head") != expected_source_head
+        or document.get("secret_values_included") is not False
+        or document.get("production_service_start") is not False
+        or document.get("board_access") is not False
+    ):
+        raise F4Error("package_manifest_contract_invalid")
+
+    records = document.get("files")
+    if not isinstance(records, list):
+        raise F4Error("package_manifest_files_invalid")
+    expected_paths = set(INSTALL_MAP)
+    observed: dict[str, dict[str, object]] = {}
+    for record in records:
+        if not isinstance(record, dict):
+            raise F4Error("package_manifest_record_invalid")
+        relative = record.get("path")
+        sha256 = record.get("sha256")
+        size = record.get("size")
+        if (
+            not isinstance(relative, str)
+            or relative in observed
+            or not isinstance(sha256, str)
+            or re.fullmatch(r"[0-9a-f]{64}", sha256) is None
+            or not isinstance(size, int)
+            or isinstance(size, bool)
+            or size < 0
+        ):
+            raise F4Error("package_manifest_record_invalid")
+        source = _safe_package_file(root, relative)
+        if source.stat().st_size != size or _sha256_file(source) != sha256:
+            raise F4Error(f"package_file_binding_invalid:{relative}")
+        observed[relative] = {
+            "sha256": sha256,
+            "size": size,
+        }
+    if set(observed) != expected_paths:
+        raise F4Error("package_file_set_invalid")
+    return {
+        "root": root,
+        "manifest_sha256": expected_manifest_sha256,
+        "source_head": expected_source_head,
+        "files": observed,
+    }
+
+
+def _atomic_install(
+    source: Path,
+    target: Path,
+    mode: int,
+    *,
+    expected_sha256: str | None = None,
+    expected_size: int | None = None,
+) -> None:
     _regular_source(source)
     if target.exists() or target.is_symlink():
         raise F4Error(f"install_target_exists:{target}")
@@ -698,6 +865,13 @@ def _atomic_install(source: Path, target: Path, mode: int) -> None:
             os.fsync(output_stream.fileno())
         os.chmod(temporary, mode)
         os.chown(temporary, 0, 0)
+        if expected_size is not None and temporary.stat().st_size != expected_size:
+            raise F4Error(f"install_size_mismatch:{target}")
+        if (
+            expected_sha256 is not None
+            and _sha256_file(temporary) != expected_sha256
+        ):
+            raise F4Error(f"install_sha256_mismatch:{target}")
         os.link(temporary, target, follow_symlinks=False)
         temporary.unlink()
         installed = True
@@ -813,16 +987,28 @@ def _certificate_env_payload() -> str:
     )
 
 
-def _install_activation_material(package_root: Path) -> dict[str, object]:
-    root = Path(os.path.abspath(os.fspath(package_root)))
-    if root.is_symlink() or not root.is_dir():
-        raise F4Error("package_root_invalid")
+def _install_activation_material(
+    package: dict[str, object],
+) -> dict[str, object]:
+    root = Path(str(package["root"]))
+    files = package["files"]
+    if not isinstance(files, dict):
+        raise F4Error("package_files_invalid")
     _validate_tls_material()
     created: list[Path] = []
     status_root_created = False
     try:
         for relative, (target, mode) in INSTALL_MAP.items():
-            _atomic_install(root / relative, target, mode)
+            binding = files.get(relative)
+            if not isinstance(binding, dict):
+                raise F4Error(f"package_file_binding_missing:{relative}")
+            _atomic_install(
+                root / relative,
+                target,
+                mode,
+                expected_sha256=str(binding["sha256"]),
+                expected_size=int(binding["size"]),
+            )
             created.append(target)
 
         _atomic_install(LIVE_COMPOSE_SOURCE, COMPOSE_TARGET, 0o644)
@@ -846,9 +1032,14 @@ def _install_activation_material(package_root: Path) -> dict[str, object]:
                 raise F4Error(f"installed_unit_active:{unit}")
             if _systemctl("is-enabled", unit) == "enabled":
                 raise F4Error(f"installed_unit_enabled:{unit}")
+        installed_files = {
+            str(target): _file_binding(target)
+            for target in created
+        }
         return {
             "status": "PASS",
             "activation_material_installed": True,
+            "installed_files": installed_files,
             "production_service_start": False,
             "persistence_enabled": False,
             "certificate_timer_enabled": False,
@@ -881,14 +1072,21 @@ def _prepare(
     package_root: Path,
     confirmation: str,
     authorization_id: str,
+    package_manifest_sha256: str,
+    package_source_head: str,
 ) -> dict[str, object]:
     if confirmation != PREPARE_CONFIRMATION:
         raise F4Error("prepare_confirmation_invalid")
+    package = _validate_package(
+        package_root,
+        expected_manifest_sha256=package_manifest_sha256,
+        expected_source_head=package_source_head,
+    )
     with _exclusive_f4():
         audit = _factory_audit(require_claim_absent=True)
         _new_private_record(
             TRANSACTION_PATH,
-            _transaction_document(audit, authorization_id),
+            _transaction_document(audit, authorization_id, package),
         )
         try:
             fresh = _factory_audit(require_claim_absent=False)
@@ -904,10 +1102,13 @@ def _prepare(
                 FACTORY_ACCEPTED_PATH,
                 _factory_document(fresh),
             )
-            install = _install_activation_material(package_root)
+            install = _install_activation_material(package)
             _advance_transaction(
                 "PREPARED",
                 activation_material_installed=True,
+                installed_files=install["installed_files"],
+                package_source_head=package["source_head"],
+                package_manifest_sha256=package["manifest_sha256"],
                 production_service_start=False,
                 persistence_enabled=False,
             )
@@ -919,6 +1120,8 @@ def _prepare(
                     "activation_material_installed"
                 ],
                 "authorization_id": authorization_id,
+                "package_source_head": package["source_head"],
+                "package_manifest_sha256": package["manifest_sha256"],
                 "authorization_claimed": True,
                 "authorization_consumed": True,
                 "replay_allowed": False,
@@ -1138,10 +1341,9 @@ def _parser() -> argparse.ArgumentParser:
     prepare = subparsers.add_parser("prepare")
     prepare.add_argument("--confirm", required=True)
     prepare.add_argument("--authorization-id", required=True)
-    prepare.add_argument(
-        "--package-root",
-        default=str(PRODUCT_ROOT),
-    )
+    prepare.add_argument("--package-root", required=True)
+    prepare.add_argument("--package-manifest-sha256", required=True)
+    prepare.add_argument("--package-source-head", required=True)
 
     activate = subparsers.add_parser("activate")
     activate.add_argument("--confirm", required=True)
@@ -1166,6 +1368,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 Path(args.package_root),
                 args.confirm,
                 args.authorization_id,
+                args.package_manifest_sha256,
+                args.package_source_head,
             )
         else:
             report = _activate(
