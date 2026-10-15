@@ -805,6 +805,7 @@ def _transfer_requested_image(
         raise FreshHostTransportError(f"remote_capacity_insufficient:{label}")
     relative = str(record["path"])
     remote_tar = f"{remote_dir}/{relative}"
+    remote_transfer = f"{remote_dir}.image-{label}.part"
     local_tar = work / str(record["artifact_file"])
     parent = str(Path(remote_tar).parent)
     _run(
@@ -816,19 +817,25 @@ def _transfer_requested_image(
         ),
         timeout=60,
     )
-    absent = _run(
+    for path, failure in (
+        (remote_tar, f"remote_image_tar_already_present:{label}"),
         (
-            "ssh",
-            "-n",
-            t1,
-            _remote_command(("test", "!", "-e", remote_tar)),
+            remote_transfer,
+            f"remote_image_transfer_temp_already_present:{label}",
         ),
-        timeout=30,
-        check=False,
-    )
-    if absent.returncode != 0:
-        raise FreshHostTransportError(f"remote_image_tar_already_present:{label}")
-    _run(("scp", str(local_tar), f"{t1}:{remote_tar}"), timeout=1800)
+    ):
+        absent = _run(
+            (
+                "ssh",
+                "-n",
+                t1,
+                _remote_command(("test", "!", "-e", path)),
+            ),
+            timeout=30,
+            check=False,
+        )
+        if absent.returncode != 0:
+            raise FreshHostTransportError(failure)
     verify_script = (
         "import hashlib,os,sys;"
         "p=sys.argv[1];e=sys.argv[2];n=int(sys.argv[3]);"
@@ -842,24 +849,70 @@ def _transfer_requested_image(
         "\nassert os.path.getsize(p)==n;"
         "\nassert h.hexdigest()==e"
     )
-    _run(
-        (
-            "ssh",
-            "-n",
-            t1,
-            _remote_command(
-                (
-                    "python3",
-                    "-c",
-                    verify_script,
-                    remote_tar,
-                    str(record["tar_sha256"]),
-                    str(record["tar_size_bytes"]),
-                )
-            ),
-        ),
-        timeout=600,
+    publish_script = (
+        "import os,sys;"
+        "src=sys.argv[1];dst=sys.argv[2];"
+        "\nif os.path.lexists(dst):"
+        "\n raise RuntimeError('image_publish_target_exists');"
+        "\nif os.stat(src).st_dev != os.stat(os.path.dirname(dst)).st_dev:"
+        "\n raise RuntimeError('image_publish_cross_device');"
+        "\nos.rename(src,dst)"
     )
+    try:
+        _run(
+            ("scp", str(local_tar), f"{t1}:{remote_transfer}"),
+            timeout=1800,
+        )
+        _run(
+            (
+                "ssh",
+                "-n",
+                t1,
+                _remote_command(
+                    (
+                        "python3",
+                        "-c",
+                        verify_script,
+                        remote_transfer,
+                        str(record["tar_sha256"]),
+                        str(record["tar_size_bytes"]),
+                    )
+                ),
+            ),
+            timeout=600,
+        )
+        _run(
+            (
+                "ssh",
+                "-n",
+                t1,
+                _remote_command(
+                    (
+                        "python3",
+                        "-c",
+                        publish_script,
+                        remote_transfer,
+                        remote_tar,
+                    )
+                ),
+            ),
+            timeout=60,
+        )
+    except Exception:
+        try:
+            _run(
+                (
+                    "ssh",
+                    "-n",
+                    t1,
+                    _remote_command(("rm", "-f", "--", remote_transfer)),
+                ),
+                timeout=60,
+                check=False,
+            )
+        except Exception:
+            pass
+        raise
 
 
 def _remote_baseline_report(

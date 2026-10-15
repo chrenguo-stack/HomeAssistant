@@ -1,3 +1,407 @@
+## 2026-10-15 — F3 R4 live apply CLOSED_PASS / STOP before explicit provisioning
+
+```text
+TASK=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R4_20261015_01
+RESULT=CLOSED_PASS
+
+R4_EXECUTABLE_SOURCE_HEAD=6ac82ae0872b05644e59470ffef7307dad14d359
+R4_ARTIFACT_ID=11942497052
+R4_AUTHORIZATION_CLAIMED=true
+R4_AUTHORIZATION_CONSUMED=true
+R4_REPLAY_PERMITTED=false
+
+HOMEASSISTANT_IMAGE_LOADED=true
+MANAGER_IMAGE_LOADED=true
+BROKER_IMAGE_LOADED=true
+ALL_STAGED_IMAGE_TARS_DELETED=true
+
+PUBLIC_PRODUCT_STAGED=true
+INSTANCE_MATERIAL_ABSENT=true
+EXPLICIT_PROVISIONING_REQUIRED=true
+ACTIVATION_AUTHORIZED=false
+PRODUCTION_SERVICE_START=false
+REMOTE_PAYLOAD_REMOVED=true
+BOARD_ACCESS=false
+
+KF_116=CLOSED_PASS_LIVE_REVALIDATED
+
+EXPLICIT_DEVICE_PROVISIONING_EXECUTED=false
+F4_ENTERED=false
+MERGE=false
+
+CURRENT_STOP_POINT=AFTER_R4_PUBLIC_PRODUCT_STAGING_BEFORE_EXPLICIT_DEVICE_PROVISIONING
+NEXT_ONE_GATE=NONE:R4_CLOSURE_STOP
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+The exact R4 live executor passed after one earlier password-prompt timeout that stopped preclaim with no
+authorization consumption or mutation. The successful execution durably consumed the one-shot R4
+authorization, loaded all three exact images, deleted each staged tar, completed public product staging, kept
+instance material absent and production services stopped, and removed the remote payload. KF-116 is now
+closed by real-target revalidation.
+
+Authority: `docs/development/N3W_T1_F3_R4_LIVE_APPLY_CLOSURE_20261015.md`.
+
+## 2026-10-15 — R4 live apply authorized for direct next-chat execution
+
+```text
+TASK=N3W_T1_F3_R4_LIVE_APPLY_NEW_CHAT_TRANSITION_20261015_01
+RESULT=READY_FOR_DIRECT_NEW_CHAT_LIVE_APPLY
+
+R4_EXECUTABLE_SOURCE_HEAD=6ac82ae0872b05644e59470ffef7307dad14d359
+R4_SOURCE_CI=15_SUCCESS_0_FAILURE_0_PENDING
+R4_ARTIFACT_ID=11942497052
+R4_ARTIFACT_DIGEST=sha256:1a8813b788fc4d597acfaafee417daa4bf6fc4bd3ea547d22dd1d689c462c4af
+R4_READONLY_PREAUTH=CLOSED_PASS
+
+R4_AUTHORIZATION=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R4_20261015_01
+R4_AUTHORIZATION_GRANTED=true
+R4_AUTHORIZATION_CLAIMED=false
+R4_AUTHORIZATION_CONSUMED=false
+R4_REPLAY_PERMITTED=true:UNTIL_FIRST_DURABLE_CLAIM_ONLY
+
+NEW_CHAT_REPEAT_R4_PREAUTH=false
+NEW_CHAT_REPEAT_SOURCE_CI=false
+NEW_CHAT_REPEAT_COMPLETED_VALIDATIONS=false
+NEW_CHAT_DIRECT_ENTRY_TO_R4_LIVE_APPLY=true
+
+T1_CURRENT_PRODUCT_BOUNDARY=CLEAN
+R3_AUTHORIZATION=CONSUMED_NO_REPLAY
+R3_FORENSIC_PAYLOAD_PRESERVE=true
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+F4_AUTHORIZATION_GRANTED=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R4_20261015_01
+AUTO_EXECUTE_AFTER_R4=false
+```
+
+The user explicitly directed the next chat to enter the exact R4 live-apply gate without repeating the
+source CI, R4 read-only preauthorization, or other validations completed in this conversation. This direction
+is recorded as the R4 one-shot live authorization grant. The authorization remains unclaimed/unconsumed until
+the exact live executor reaches its durable claim boundary. Any repository/source/runtime contradiction still
+requires fail-closed STOP; it does not authorize re-running completed acceptance gates.
+
+## 2026-10-15 — F3 R4 read-only preauth CLOSED_PASS / explicit live authorization decision next
+
+```text
+TASK=N3W_T1_F3_R4_READONLY_PREAUTH_PREFLIGHT_20261015_01
+RESULT=CLOSED_PASS_READY_FOR_EXPLICIT_R4_LIVE_AUTHORIZATION_DECISION
+
+R4_EXECUTABLE_SOURCE_HEAD=6ac82ae0872b05644e59470ffef7307dad14d359
+R4_SOURCE_CI=15_SUCCESS_0_FAILURE_0_PENDING
+R4_HOST_WRAPPER_BLOB=5322bcfe04ef175c0ab10e8238c11a5ae6fe2f87
+R4_BOOTSTRAP_BLOB=278a5f9935e91d0674166a6098ee6c25f8efee04
+
+R3_LEDGER_PRESENT=true
+R4_LEDGER_PRESENT=false
+CONTAINERS=0
+IMAGES=0
+VOLUMES=0
+NETWORKS=bridge,host,none
+PRODUCT_PATHS=NONE
+PRODUCT_LISTENERS=NONE
+R3_REMOTE_PAYLOAD_BYTES=305874
+R3_REMOTE_IMAGE_TAR_COUNT=0
+ROOT_FREE_BYTES=11864342528
+REFERENCE_REQUIRED_FREE_BYTES=10135822686
+CAPACITY_PASS=true
+
+R3_AUTHORIZATION=CONSUMED_NO_REPLAY
+R4_AUTHORIZATION_GRANTED=false
+R4_AUTHORIZATION_CLAIMED=false
+R4_AUTHORIZATION_CONSUMED=false
+
+KF_116=SOURCE_REPAIRED_LIVE_REVALIDATION_PENDING
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+F4_AUTHORIZATION_GRANTED=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R4_20261015_01
+AUTO_EXECUTE_R4_LIVE_APPLY=false
+```
+
+Authority: `docs/development/N3W_T1_F3_R4_READONLY_PREAUTH_PREFLIGHT_CLOSURE_20261015.md`.
+
+## 2026-10-15 — F3 R3 live apply STOP_PARTIAL at public_runtime; KF-115 live revalidated
+
+```text
+TASK=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R3_20261014_01
+RESULT=STOP_PARTIAL
+
+R3_AUTHORIZATION_GRANTED=true
+R3_AUTHORIZATION_CLAIMED=true
+R3_AUTHORIZATION_CONSUMED=true
+R3_AUTHORIZATION_REPLAY_ALLOWED=false
+
+HOMEASSISTANT_IMAGE_LOADED=true
+MANAGER_IMAGE_LOADED=true
+BROKER_IMAGE_LOADED=true
+ALL_STAGED_IMAGE_TARS_DELETED=true
+
+FAILED_STAGE=public_runtime
+FAILURE_CODE=adapter_failure
+CLEANUP_RESULT=PASS
+REMOTE_PAYLOAD_PRESERVED=true
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+
+KF_115=CLOSED_PASS_LIVE_REVALIDATED
+KF_116=OPEN_SOURCE_REPAIR_REQUIRED
+ROOT_CAUSE=PUBLIC_ONLY_CANDIDATE_ROOT_NOT_CREATED_BEFORE_STAGE_MKDIR
+
+NEXT_ONE_GATE=N3W_T1_F3_PUBLIC_RUNTIME_CANDIDATE_ROOT_SOURCE_REPAIR_20261015_01
+AUTO_EXECUTE_LIVE_RETRY=false
+```
+
+R3 proved the image transport repair on the real path: Home Assistant, Manager and Broker each reached
+`image_loaded` with `staged_tar_deleted=true`. The later failure is a distinct public-runtime source defect.
+The exact public-only flow chooses a fresh non-existent candidate root and then calls
+`stage_public_runtime()`; the live adapter attempts `candidate_root/stage.mkdir()` without first creating the
+candidate parent. That deterministically raises a FileNotFoundError, which is sanitized to `adapter_failure`.
+R3 is permanently consumed/no-replay.
+
+Authority: `docs/development/N3W_T1_F3_R3_PUBLIC_RUNTIME_CANDIDATE_ROOT_FAILURE_20261015.md`.
+
+## 2026-10-15 — F3 R3 read-only preauth CLOSED_PASS / explicit live authorization decision next
+
+```text
+TASK=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_R3_READONLY_PREAUTH_PREFLIGHT_20261015_01
+RESULT=CLOSED_PASS_READY_FOR_EXPLICIT_R3_LIVE_AUTHORIZATION_DECISION
+
+R3_EXECUTABLE_SOURCE_HEAD=4887a76ef61d176b38e3656a9b04f7e0f13bce2f
+R3_HOST_WRAPPER_BLOB=5322bcfe04ef175c0ab10e8238c11a5ae6fe2f87
+R3_BOOTSTRAP_BLOB=95ebb40cf53fe5981e7e3fa4b24d1145a2d3afcc
+R3_LOCAL_EXECUTION_BINDING=PASS
+
+LOCAL_CURRENT_HEAD=0030585ad88d75b399b56849dafc235429bb3299
+LOCAL_WORKTREE_CLEAN=true
+R3_CAPACITY_PASS=true
+POST_CLEANUP_ROOT_FREE_BYTES=11866021888
+R3_REQUIRED_FREE_BYTES=10135822686
+
+R2_AUTHORIZATION=CONSUMED_NO_REPLAY
+R3_AUTHORIZATION_GRANTED=false
+R3_AUTHORIZATION_CLAIMED=false
+R3_AUTHORIZATION_CONSUMED=false
+
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+F4_AUTHORIZATION_GRANTED=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R3_20261014_01
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+Authority: `docs/development/N3W_T1_F3_R3_READONLY_PREAUTH_PREFLIGHT_CLOSURE_20261015.md`.
+
+## 2026-10-15 — R2 preserved payload controlled cleanup restored R3 capacity
+
+```text
+TASK=N3W_T1_F3_R2_PRESERVED_PAYLOAD_CONTROLLED_CLEANUP_FOR_R3_CAPACITY_20261015_01
+RESULT=CLOSED_PASS
+
+PRE_CLEANUP_ROOT_FREE_BYTES=9416998912
+R3_REQUIRED_FREE_BYTES=10135822686
+PRE_CLEANUP_CAPACITY_PASS=false
+R2_PRESERVED_PAYLOAD_BYTES=2448859346
+
+R2_PAYLOAD_EXACT_BINDING=PASS
+R2_MANIFEST_LEDGER_BINDING=PASS
+R2_HOMEASSISTANT_TAR_BINDING=PASS
+R2_DELETE_GUARD=PASS
+
+R2_PAYLOAD_DELETED=true
+R2_LEDGER_PRESERVED=true
+R3_LEDGER_ABSENT=true
+OLDER_FAILED_PAYLOAD_PRESERVED=true
+
+POST_CLEANUP_ROOT_FREE_BYTES=11866021888
+R3_CAPACITY_PASS=true
+
+CONTAINERS=0
+IMAGES=0
+VOLUMES=0
+NETWORKS=bridge,host,none
+PRODUCT_LISTENERS=NONE
+
+R2_AUTHORIZATION=CONSUMED_NO_REPLAY
+R3_AUTHORIZATION_GRANTED=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+F4_AUTHORIZATION_GRANTED=false
+MERGE=false
+
+CURRENT_GATE=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_R3_READONLY_PREAUTH_PREFLIGHT_20261015_01
+CURRENT_STEP=EXACT_R3_LOCAL_HOST_WRAPPER_SOURCE_BINDING_AND_FINAL_PREAUTH_CLOSURE
+AUTO_EXECUTE_R3_LIVE_APPLY=false
+```
+
+The R3 read-only preflight correctly stopped on capacity before authorization. The blocker was the preserved
+R2 failed-transaction payload, not product-state drift. After exact marker/manifest/tar/ledger rebinding, only
+that R2 transaction-owned payload was deleted. The consumed R2 ledger and the earlier small failed payload
+remain preserved. Product Docker state is still empty and the root free-space envelope now passes R3.
+
+Authority:
+- `docs/development/N3W_T1_F3_R2_PRESERVED_PAYLOAD_CONTROLLED_CLEANUP_FOR_R3_CAPACITY_CLOSURE_20261015.md`
+- `docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md:KF-115`
+
+## 2026-10-14 — F3 R2 live failure -> image-tar atomic publish R3 source closure
+
+```text
+TASK=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_IMAGE_TAR_ATOMIC_PUBLISH_SOURCE_REPAIR_20261014_01
+RESULT=CLOSED_SOURCE_WITH_EXACT_R3_ARTIFACT
+
+PR_544=OPEN_DRAFT_MERGEABLE
+SOURCE_BRANCH=fix/n3w-t1-f3-claim-marker-payload-set-20261014
+R3_SOURCE_HEAD=4887a76ef61d176b38e3656a9b04f7e0f13bce2f
+R3_SOURCE_TREE=8cdbd3ec5b83aa168d0559e2927421f9337e0d8b
+R3_SOURCE_CI=15_SUCCESS_0_FAILURE_0_PENDING
+
+R2_LIVE_RESULT=STOP_PARTIAL
+R2_FAILED_STAGE=load_images
+R2_FAILURE_CODE=image_tar_binding_invalid
+R2_AUTHORIZATION_CLAIMED=true
+R2_AUTHORIZATION_CONSUMED=true
+R2_AUTHORIZATION_REPLAY_PERMITTED=false
+R2_CLEANUP_RESULT=PASS
+
+KF_114=CLOSED_PASS_LIVE_REVALIDATED
+KF_115=GUARDED_SOURCE_LIVE_REVALIDATION_PENDING
+
+ROOT_CAUSE=SCP_DIRECT_FINAL_PATH_PUBLISH_RACED_REMOTE_FINAL_PATH_EXISTENCE_CHECK
+REPAIR=TRANSFER_TEMP_PART_VERIFY_THEN_ATOMIC_RENAME_TO_FINAL
+
+R3_ARTIFACT_RUN_ID=38592674907
+R3_ARTIFACT_JOB_ID=115951322590
+R3_ARTIFACT_ID=11908830316
+R3_ARTIFACT_NAME=n3w-t1-fresh-bootstrap-deployable-4887a76ef61d176b38e3656a9b04f7e0f13bce2f
+R3_ARTIFACT_DIGEST=sha256:d10432c4c6caa8e7ce50ce4cf672ac966e3a190e3f0ddbd79866a1f26a878263
+R3_RUNTIME_PAYLOAD_SHA256=c280c527debb6e47de202285867585f9eceb903e9da4d4598dd2301023cce68b
+R3_PAYLOAD_MANIFEST_SHA256=91088382aafc794bc90ecd8b3005d6eb148d080fb9fd14461faa936935c5c2c2
+R3_POST_UPLOAD_BINDING=PASS
+
+R3_AUTHORIZATION_ID=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R3_20261014_01
+R3_AUTHORIZATION_GRANTED=false
+R3_AUTHORIZATION_CLAIMED=false
+R3_AUTHORIZATION_CONSUMED=false
+
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+F4_AUTHORIZATION_GRANTED=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_R3_READONLY_PREAUTH_PREFLIGHT_20261015_01
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+R2 proved the KF-114 claim-marker repair on the real path because durable claim succeeded and execution reached
+the first image request. The later failure was a distinct transport race: the host wrote the large image tar
+directly to its final pathname while the remote installer treated pathname existence as completion and could
+validate a partial file. Post-failure evidence later showed the fully transferred Home Assistant tar exactly
+matched the manifest, ruling out persistent artifact corruption.
+
+The repaired host wrapper now transfers to a separate temp path, validates exact size/SHA-256, then atomically
+renames to the final incoming path. Exact repaired-head CI is 15/15 PASS and the R3 deployable artifact passed
+post-upload inner/transport binding. R2 remains permanently consumed/no-replay. R3 is source-bound only and
+has not been granted.
+
+Authority:
+- `docs/development/N3W_T1_F3_IMAGE_TAR_ATOMIC_PUBLISH_R3_SOURCE_REPAIR_20261014.md`
+- `docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md:KF-115`
+- PR #544 exact source/CI/artifact evidence
+
+## 2026-10-14 — F3 R2 live-apply preexecution closure / new-chat handoff next
+
+```text
+TASK=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_R2_PREEXECUTION_ALIGNMENT_20261014_01
+RESULT=CLOSED_PASS_READY_FOR_NEW_AUTHORIZATION_DECISION
+
+GITHUB_MAIN=0030585ad88d75b399b56849dafc235429bb3299
+GITHUB_MAIN_TREE=df60fe244c15565466a4ab6a7ded5c45ced929e6
+LOCAL_EXECUTION_HEAD=0030585ad88d75b399b56849dafc235429bb3299
+LOCAL_MAIN_BINDING=PASS
+LOCAL_WORKTREE_CLEAN=UNKNOWN_FRESH:RECHECK_BEFORE_R2_APPLY
+
+PR_544=OPEN_DRAFT_MERGEABLE
+R2_SOURCE_BRANCH=fix/n3w-t1-f3-claim-marker-payload-set-20261014
+R2_SOURCE_HEAD=2615cfa07205cc12c82159bf087d36a7f930c2bb
+R2_SOURCE_TREE=ebaa477e52c224ade0b86b6c7d6c45d62738ea5c
+R2_SOURCE_CI=14_SUCCESS_0_FAILURE_0_PENDING
+
+R2_ARTIFACT_RUN_ID=38571591838
+R2_ARTIFACT_JOB_ID=115877938113
+R2_ARTIFACT_ID=11897938768
+R2_ARTIFACT_NAME=n3w-t1-fresh-bootstrap-deployable-2615cfa07205cc12c82159bf087d36a7f930c2bb
+R2_ARTIFACT_DIGEST=sha256:381bd702ac89ec91aa59661e6058569027870e8ab3324f3fa7f8e214edd4262a
+R2_RUNTIME_PAYLOAD_SHA256=443887ace8e265008470044761b92a412336b855b0f79ae5c2633da16f755086
+R2_PAYLOAD_MANIFEST_SHA256=e2745281d37f675f6e769bc795c33a4dc766131ce44faa88ea9ffb4e87501fbf
+R2_POST_UPLOAD_BINDING=PASS
+
+OLD_F3_AUTHORIZATION_ID=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_20261014_01
+OLD_F3_AUTHORIZATION_CLAIMED=true
+OLD_F3_AUTHORIZATION_CONSUMED=true
+OLD_F3_AUTHORIZATION_REPLAY_PERMITTED=false
+OLD_F3_RESULT=STOP_PARTIAL:payload_file_set_invalid
+
+KF_114=GUARDED_SOURCE_LIVE_REVALIDATION_PENDING
+
+POST_FAILURE_READONLY_PROBE=PASS
+R2_EXACT_ARTIFACT_PREFLIGHT=PASS
+R2_HOST_BASELINE=PASS
+R2_CAPACITY_ADMISSION=PASS
+
+R2_AUTHORIZATION_ID=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R2_20261014_01
+R2_AUTHORIZATION_GRANTED=false
+R2_AUTHORIZATION_CLAIMED=false
+R2_AUTHORIZATION_CONSUMED=false
+
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+F4_AUTHORIZATION_GRANTED=false
+
+PARALLEL_DOCS_PR_543=OPEN_DRAFT
+PARALLEL_DOCS_HEAD=69fa2f9129a0ad8844f3550582e39115e4037035
+PARALLEL_DOCS_CI=11_SUCCESS_0_FAILURE_0_PENDING
+PARALLEL_DOCS_SCOPE=F3_PREAUTH_RECORD_PLUS_F5_CONTROLLED_OVERRIDE_AND_SSH_CONNECTION_REUSE_DESIGN
+PARALLEL_DOCS_AFFECT_R2_EXECUTABLE_SOURCE=false
+
+NEXT_ONE_GATE=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R2_20261014_01
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+The first F3 live attempt durably consumed its exact one-shot authorization and then failed before public
+product staging because the strict payload inventory treated the bootstrap's own root-level
+`.authorization-claimed` marker as unexpected payload drift. The source root cause is proven and repaired:
+the exact control marker is excluded from immutable payload inventory while remaining independently bound to
+the durable authorization ledger and exact manifest. All other unknown payload files still fail closed.
+
+Fresh post-failure evidence proves the target is at a clean recoverable boundary: Docker/Compose are installed
+and healthy; product containers/images/volumes are zero; only default Docker networks exist; product paths,
+N3W systemd units and product listeners are absent; the old payload/manifest and claim marker remain exact;
+no image tar is staged. The old authorization is permanently consumed/no-replay.
+
+The repaired exact R2 artifact passed a fresh target preflight against the current Docker-ready host. Latest
+preflight reported Ubuntu 26.04 resolute/aarch64, Docker 29.1.3, Compose 2.40.3+ds1-0ubuntu1, 11,866,329,088
+bytes free, worst-image required free 10,135,822,686 bytes, capacity PASS, no payload transfer, no Docker
+mutation, no production service start and no R2 authorization claim.
+
+Local Mac execution HEAD was freshly confirmed equal to GitHub main at `0030585...`. No fresh worktree-clean
+proof was captured after that binding check, so the R2 live gate must recheck it before mutation.
+
+PR #543 remains a separate docs-only draft branch containing the approved F5 controlled-override and
+one-password SSH-connection-reuse designs. Those future production-flow decisions do not change the exact R2
+executable source or artifact and must not be merged into the R2 live gate implicitly.
+
+Authority:
+- `docs/development/N3W_T1_F3_CLAIM_MARKER_PAYLOAD_SET_FAILURE_R2_SOURCE_REPAIR_20261014.md`
+- `docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md:KF-114`
+- PR #544 exact source/artifact evidence
+- PR #543 docs-only future-production design evidence
+
 ## 2026-10-14 — F2 real fresh-Armbian read-only preflight CLOSED_PASS / PR #542 merge next
 
 ```text

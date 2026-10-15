@@ -1,3 +1,113 @@
+## 2026-10-15 — KF-116 F3 public-only candidate-root creation guard
+
+```text
+KF-116_STATUS=CLOSED_PASS_LIVE_REVALIDATED
+DOMAIN=PHYSICAL_HARNESS
+LIVE_RESULT=STOP_PARTIAL
+FAILED_STAGE=public_runtime
+FAILURE_CODE=adapter_failure
+R3_AUTHORIZATION_CLAIMED=true
+R3_AUTHORIZATION_CONSUMED=true
+R3_AUTHORIZATION_REPLAY_PERMITTED=false
+CLEANUP_RESULT=PASS
+REMOTE_PAYLOAD_PRESERVED=true
+
+ROOT_CAUSE=PUBLIC_ONLY_ORCHESTRATION_REQUIRES_FRESH_NONEXISTENT_CANDIDATE_ROOT_BUT_LIVE_STAGE_PUBLIC_RUNTIME_CALLS_CANDIDATE_ROOT_STAGE_MKDIR_WITHOUT_CREATING_PARENT
+TEST_GAP=FAKE_ORCHESTRATION_ADAPTERS_PLUS_NO_LIVE_ADAPTER_PUBLIC_RUNTIME_NONEXISTENT_ROOT_TEST
+REPAIRED_SOURCE_HEAD=6ac82ae0872b05644e59470ffef7307dad14d359
+REPAIRED_SOURCE_CI=15_SUCCESS_0_FAILURE_0_PENDING
+R4_EXACT_ARTIFACT_ID=11942497052
+R4_EXACT_ARTIFACT_DIGEST=sha256:1a8813b788fc4d597acfaafee417daa4bf6fc4bd3ea547d22dd1d689c462c4af
+R4_PREAUTH_RESULT=CLOSED_PASS
+R4_LEDGER_PRESENT=true
+R4_AUTHORIZATION_GRANTED=true
+R4_AUTHORIZATION_CLAIMED=true
+R4_AUTHORIZATION_CONSUMED=true
+R4_AUTHORIZATION_REPLAY_PERMITTED=false
+R4_LIVE_REVALIDATION=PASS:PUBLIC_PRODUCT_STAGED_AND_HOST_WRAPPER_PASS
+R4_REMOTE_PAYLOAD_REMOVED=true
+R4_PRODUCTION_SERVICE_START=false
+R4_BOARD_ACCESS=false
+NEXT_ONE_GATE=NONE:R4_CLOSURE_STOP
+```
+
+Guard: the public-only staging path must atomically create its exact fresh candidate root before creating the
+`stage` child, while rejecting a pre-existing or symlink candidate root. The existing `reuse_stage=True`
+path must continue to require an already-valid stage created by the instance path. Add a real live-adapter
+regression test for a non-existent public-only candidate root and a negative existing/symlink-root case.
+
+R3 is permanently consumed and must not be replayed. R4 completed the repaired live path successfully and its
+one-shot authorization is now also permanently consumed/no-replay. Future explicit provisioning or F4 work
+requires a separate gate and must not reuse R4.
+
+Authorities:
+- `docs/development/N3W_T1_F3_R3_PUBLIC_RUNTIME_CANDIDATE_ROOT_FAILURE_20261015.md`
+- `docs/development/N3W_T1_F3_PUBLIC_RUNTIME_CANDIDATE_ROOT_R4_SOURCE_REPAIR_CLOSURE_20261015.md`
+- `docs/development/N3W_T1_F3_R4_LIVE_APPLY_CLOSURE_20261015.md`.
+
+## 2026-10-14 — KF-115 F3 image-tar atomic publish guard
+
+```text
+KF-115_STATUS=CLOSED_PASS_LIVE_REVALIDATED
+DOMAIN=PHYSICAL_HARNESS
+LIVE_RESULT=STOP_PARTIAL
+FAILED_STAGE=load_images
+FAILURE_CODE=image_tar_binding_invalid
+R2_AUTHORIZATION_CLAIMED=true
+R2_AUTHORIZATION_CONSUMED=true
+R2_AUTHORIZATION_REPLAY_PERMITTED=false
+
+ROOT_CAUSE=SCP_WROTE_IMAGE_TAR_DIRECTLY_TO_FINAL_INCOMING_PATH_WHILE_REMOTE_INSTALLER_USED_FINAL_PATH_EXISTENCE_AS_TRANSFER_COMPLETE_SIGNAL
+REPAIR=TRANSFER_TO_SIBLING_TEMP_PART_VERIFY_SIZE_AND_SHA256_THEN_ATOMIC_RENAME_TO_FINAL_PATH
+REPAIRED_SOURCE_HEAD=4887a76ef61d176b38e3656a9b04f7e0f13bce2f
+REPAIRED_SOURCE_CI=15_SUCCESS_0_FAILURE_0_PENDING
+R3_EXACT_ARTIFACT_ID=11908830316
+R3_EXACT_ARTIFACT_DIGEST=sha256:d10432c4c6caa8e7ce50ce4cf672ac966e3a190e3f0ddbd79866a1f26a878263
+R3_LIVE_REVALIDATION=PASS:ALL_THREE_IMAGES_REQUESTED_LOADED_AND_STAGED_TARS_DELETED
+R3_PREAUTH_CAPACITY=PASS_AFTER_CONTROLLED_R2_PRESERVED_PAYLOAD_CLEANUP
+R3_PREAUTH_LOCAL_EXECUTION_BINDING=PASS
+```
+
+Guard: the host transport must never expose the final `incoming/*.tar` pathname while bytes are still being
+written. Transfer to a separate sibling temp path, verify exact size and SHA-256 there, require same-filesystem
+atomic publication, and only then rename to the final image path. Do not replace this with sleeps or weaken the
+remote installer binding check. Any claimed authorization remains consumed/no-replay after failure.
+
+Authority:
+`docs/development/N3W_T1_F3_IMAGE_TAR_ATOMIC_PUBLISH_R3_SOURCE_REPAIR_20261014.md`.
+
+## 2026-10-14 — KF-114 F3 claim-marker payload inventory guard
+
+```text
+KF-114_STATUS=CLOSED_PASS_LIVE_REVALIDATED
+DOMAIN=PHYSICAL_HARNESS
+FIRST_LIVE_RESULT=STOP_PARTIAL
+FIRST_LIVE_REASON=payload_file_set_invalid
+OLD_AUTHORIZATION_CLAIMED=true
+OLD_AUTHORIZATION_CONSUMED=true
+OLD_AUTHORIZATION_REPLAY_PERMITTED=false
+
+ROOT_CAUSE=POST_CLAIM_EXECUTE_APPLY_RELOADED_STRICT_PAYLOAD_INVENTORY_AND_TREATED_ITS_OWN_ROOT_LEVEL_.authorization-claimed_MARKER_AS_UNEXPECTED_PAYLOAD_FILE
+
+REPAIRED_SOURCE_HEAD=2615cfa07205cc12c82159bf087d36a7f930c2bb
+REPAIRED_SOURCE_CI=14_SUCCESS_0_FAILURE_0_PENDING
+REPAIRED_EXACT_ARTIFACT_ID=11897938768
+REPAIRED_EXACT_ARTIFACT_DIGEST=sha256:381bd702ac89ec91aa59661e6058569027870e8ab3324f3fa7f8e214edd4262a
+R2_READONLY_PREFLIGHT=PASS
+R2_LIVE_REVALIDATION=PASS:CLAIM_MARKER_PATH_ADVANCED_TO_IMAGE_REQUESTED
+```
+
+Guard: split claim -> apply must allow only the exact root-level `.authorization-claimed` control marker to
+exist outside the immutable payload manifest file set after durable claim. Every other unexpected payload file
+remains a hard failure. The marker is not trusted merely because it is excluded from payload inventory:
+`_authorization_record_matches()` must still bind the marker, durable ledger, source head and exact payload
+manifest SHA. A claimed authorization is consumed even when apply fails and must never be replayed. The
+original F3 authorization is permanently consumed; the R2 successor authorization remains ungranted until a
+fresh explicit live decision.
+
+Authority:
+`docs/development/N3W_T1_F3_CLAIM_MARKER_PAYLOAD_SET_FAILURE_R2_SOURCE_REPAIR_20261014.md`.
+
 ## 2026-10-14 — KF-113 per-device fresh-route active-path guard after F0
 
 ```text
@@ -307,6 +417,7 @@ P2A does not close the target-Armbian OS-host identity, deployable host CLI, clo
 | KF-109 | PHYSICAL_HARNESS | fresh bootstrap remote payload extractor generated-script syntax / execution coverage |
 | KF-110 | PHYSICAL_HARNESS | fresh bootstrap post-manifest payload-tree bytecode contamination / final file-set gate |
 | KF-111 | PRODUCT | fresh bootstrap Docker 28→29 cross-image-store runtime ID representation / portable RootFS binding |
+| KF-114 | PHYSICAL_HARNESS | fresh bootstrap split claim→apply durable claim marker / strict payload file-set inventory boundary |
 | KF-077 | INFRASTRUCTURE | Git blob proof oracle / canonical blob framing |
 | KF-078 | PHYSICAL_HARNESS | executor stdin / TTY / shell-portability / transport-framing contract；2026-09-26 B1 live staging recurrence |
 | KF-079 | INFRASTRUCTURE | T1 GitHub dependency / offline source authority |

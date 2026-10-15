@@ -11,7 +11,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = ROOT / "tools/n3w_t1_fresh_product_staging_host.py"
-AUTHORIZATION_ID = "N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_20261014_01"
+AUTHORIZATION_ID = "N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R3_20261014_01"
 
 
 def load_tool():
@@ -499,7 +499,36 @@ def test_transfer_requested_image_is_capacity_gated_and_single_file(
         "homeassistant",
     )
 
-    assert sum(1 for call in calls if call and call[0] == "scp") == 1
+    scp_indexes = [
+        index
+        for index, call in enumerate(calls)
+        if call and call[0] == "scp"
+    ]
+    assert len(scp_indexes) == 1
+    scp_index = scp_indexes[0]
+    remote_transfer = "/var/tmp/payload.image-homeassistant.part"
+    remote_tar = "/var/tmp/payload/incoming/homeassistant-arm64.tar"
+    assert calls[scp_index][-1] == f"root@example:{remote_transfer}"
+    assert remote_tar not in calls[scp_index][-1]
+
+    verify_index = next(
+        index
+        for index, call in enumerate(calls)
+        if call
+        and call[0] == "ssh"
+        and remote_transfer in call[-1]
+        and "hashlib" in call[-1]
+    )
+    publish_index = next(
+        index
+        for index, call in enumerate(calls)
+        if call
+        and call[0] == "ssh"
+        and remote_transfer in call[-1]
+        and remote_tar in call[-1]
+        and "os.rename" in call[-1]
+    )
+    assert scp_index < verify_index < publish_index
     assert all("docker load" not in " ".join(call) for call in calls)
 
 

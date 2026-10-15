@@ -1,3 +1,92 @@
+## 2026-10-15 — F3 R4 live apply CLOSED_PASS
+
+- Exact R4 source `6ac82ae0872b05644e59470ffef7307dad14d359` completed the real T1 F3 public staging path.
+- The first retry in this chat stopped preclaim on an SSH password-prompt timeout and did not consume authorization or mutate product state.
+- The successful R4 run loaded Home Assistant, Manager and Broker; every staged image tar was deleted after load.
+- Bootstrap closure: `public_product_staged=true`, `instance_material_absent=true`, `explicit_provisioning_required=true`, `activation_authorized=false`, `production_service_start=false`.
+- Host closure: `status=PASS`, R4 authorization claimed/consumed, replay forbidden, remote payload removed, board access false.
+- KF-116 is `CLOSED_PASS_LIVE_REVALIDATED`.
+- STOP before explicit per-device provisioning, F4 activation/end-to-end acceptance, board work or PR #544 merge.
+- Closure authority: `docs/development/N3W_T1_F3_R4_LIVE_APPLY_CLOSURE_20261015.md`.
+
+## 2026-10-15 — R4 live apply authorized / direct next-chat entry
+
+- R4 source repair and read-only preauth are already CLOSED_PASS and must not be repeated merely because the chat changes.
+- Exact R4 source: `6ac82ae0872b05644e59470ffef7307dad14d359`; exact CI: 15/15 SUCCESS; artifact ID `11942497052`, digest `sha256:1a8813b788fc4d597acfaafee417daa4bf6fc4bd3ea547d22dd1d689c462c4af`.
+- User granted the exact next one-shot live gate `N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R4_20261015_01` for direct execution in the next chat.
+- R4 authorization is granted but still unclaimed/unconsumed; it becomes consumed/no-replay at the first durable claim.
+- T1 product boundary remains clean; R3 is permanently consumed/no-replay and its small forensic payload remains preserved.
+- Next chat must read the formal handoff and enter R4 live apply directly; no separate R4 preauth/CI repetition and no automatic F4/board/merge transition.
+
+## 2026-10-15 — F3 R4 read-only preauth CLOSED_PASS
+
+- Exact R4 source `6ac82ae0872b05644e59470ffef7307dad14d359` is green at 15/15 CI with exact deployable artifact ID `11942497052`.
+- R3 consumed ledger remains present; R4 ledger is absent, so R4 remains unclaimed/unconsumed.
+- Product boundary is clean: containers/images/volumes 0, networks bridge/host/none, product paths absent, product listeners none.
+- R3 forensic payload remains preserved at 305874 bytes with zero image tar files.
+- Root free space is `11864342528` bytes, above the established F3 required-free reference `10135822686`; capacity PASS.
+- KF-116 is source repaired and live revalidation pending.
+- Next one gate: `N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R4_20261015_01`; explicit new authorization required.
+
+## 2026-10-15 — F3 R3 STOP_PARTIAL / KF-115 CLOSED / KF-116 opened
+
+- R3 one-shot authorization was durably claimed and is permanently consumed/no-replay.
+- All three exact images completed `image_requested -> image_loaded`; every staged tar was deleted after load. KF-115 is therefore CLOSED_PASS_LIVE_REVALIDATED.
+- R3 then stopped at `public_runtime` with `failure_code=adapter_failure`; cleanup PASS, remote payload preserved, no production service start, no board access.
+- Exact-source review finds a deterministic public-only candidate-root defect: orchestration selects and requires a non-existent candidate root, then the live adapter calls `candidate_root/stage.mkdir()` without creating the parent candidate directory.
+- The resulting FileNotFoundError is sanitized to generic `adapter_failure`, matching the live result.
+- New guard/failure record: KF-116 OPEN_SOURCE_REPAIR_REQUIRED.
+- Next one gate: `N3W_T1_F3_PUBLIC_RUNTIME_CANDIDATE_ROOT_SOURCE_REPAIR_20261015_01`. R3 must not be replayed.
+
+## 2026-10-15 — F3 R3 read-only preauth CLOSED_PASS
+
+- Exact R3 source `4887a76ef61d176b38e3656a9b04f7e0f13bce2f` is present locally and is an ancestor of the current PR #544 candidate.
+- Exact host-wrapper blob `5322bcfe04ef175c0ab10e8238c11a5ae6fe2f87` and bootstrap blob `95ebb40cf53fe5981e7e3fa4b24d1145a2d3afcc` both matched.
+- Local main remains `0030585ad88d75b399b56849dafc235429bb3299` with a clean worktree; no checkout or local mutation occurred.
+- Target capacity is PASS after controlled R2 payload cleanup: `11866021888` free bytes vs `10135822686` required.
+- Product boundary remains empty: containers/images/volumes 0, default Docker networks only, product listeners none.
+- R2 authorization remains consumed/no-replay; R3 authorization remains ungranted/unclaimed/unconsumed.
+- Next one gate: `N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R3_20261014_01`; explicit new authorization required.
+
+## 2026-10-15 — R2 preserved payload cleanup CLOSED_PASS / R3 capacity restored
+
+- R3 read-only preauth stopped before authorization because root free space was `9416998912` bytes versus required `10135822686`.
+- The blocker was the exact preserved R2 failed payload (`2448859346` bytes), including the fully transferred Home Assistant tar; product Docker state remained empty.
+- Pre-delete binding passed for the R2 claim marker, exact manifest SHA, Home Assistant tar size/SHA, and durable consumed/no-replay ledger; R3 ledger remained absent.
+- Only the exact R2 transaction-owned payload was deleted. The R2 ledger and the earlier small failed payload were preserved.
+- Post-cleanup root free space is `11866021888` bytes and R3 capacity PASS.
+- Product boundary remains: containers/images/volumes 0, networks bridge/host/none, product listeners none, production service start=false, board access=false.
+- R3 authorization remains granted=false/claimed=false/consumed=false.
+- Current gate returns to `N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_R3_READONLY_PREAUTH_PREFLIGHT_20261015_01`; next step is exact local R3 host-wrapper binding and final preauth closure, not live apply.
+
+## 2026-10-14 — F3 image-tar atomic publish R3 source/artifact closure
+
+- R2 live apply consumed its one-shot authorization and stopped at `load_images:image_tar_binding_invalid`; cleanup PASS, no production service start, no board access.
+- KF-114 is live revalidated: R2 durable claim succeeded and execution advanced to `image_requested`, so the prior claim-marker payload-inventory defect did not recur.
+- New KF-115 root cause: `scp` wrote the large image directly to the final `incoming/*.tar` path while the remote installer used final-path existence as the transfer-complete signal.
+- Repair: transfer to a sibling `.part` path, verify exact size/SHA-256, require same-filesystem publication, then atomic rename to the final incoming path; existing remote binding remains fail-closed.
+- Exact R3 source: `4887a76ef61d176b38e3656a9b04f7e0f13bce2f` / tree `8cdbd3ec5b83aa168d0559e2927421f9337e0d8b`; CI 15/15 SUCCESS.
+- Exact R3 artifact: run `38592674907`, job `115951322590`, artifact ID `11908830316`, digest `sha256:d10432c4c6caa8e7ce50ce4cf672ac966e3a190e3f0ddbd79866a1f26a878263`.
+- R3 runtime payload SHA-256 `c280c527debb6e47de202285867585f9eceb903e9da4d4598dd2301023cce68b`; payload manifest SHA-256 `91088382aafc794bc90ecd8b3005d6eb148d080fb9fd14461faa936935c5c2c2`; post-upload binding PASS.
+- R2 authorization is consumed/no-replay. Proposed R3 authorization `N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R3_20261014_01` remains granted=false/claimed=false/consumed=false.
+- F4 remains unauthorized; production services remain not started; board access=false; PR #544 remains unmerged.
+- Next one gate: `N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_R3_READONLY_PREAUTH_PREFLIGHT_20261015_01`; no automatic R3 live apply.
+
+## 2026-10-14 — F3 R2 preexecution aligned / new-chat live authorization decision next
+
+- GitHub main and local execution HEAD are both `0030585ad88d75b399b56849dafc235429bb3299`; main tree `df60fe244c15565466a4ab6a7ded5c45ced929e6`; local worktree cleanliness requires one fresh recheck before mutation.
+- PR #544 is OPEN/DRAFT/MERGEABLE. Exact repaired executable source is `2615cfa07205cc12c82159bf087d36a7f930c2bb` / tree `ebaa477e52c224ade0b86b6c7d6c45d62738ea5c`; source CI 14/14 SUCCESS.
+- Exact R2 artifact: run `38571591838`, job `115877938113`, artifact ID `11897938768`, digest `sha256:381bd702ac89ec91aa59661e6058569027870e8ab3324f3fa7f8e214edd4262a`.
+- R2 runtime payload SHA-256 `443887ace8e265008470044761b92a412336b855b0f79ae5c2633da16f755086`; payload manifest SHA-256 `e2745281d37f675f6e769bc795c33a4dc766131ce44faa88ea9ffb4e87501fbf`; post-upload binding PASS.
+- First F3 authorization `...F3_LIVE_APPLY_20261014_01` is durably claimed+consumed and permanently no-replay after `STOP_PARTIAL:payload_file_set_invalid`.
+- Root cause is proven and recorded as KF-114: post-claim apply re-read treated the legitimate root-level `.authorization-claimed` marker as payload drift. Repair excludes only that exact control marker while retaining independent ledger/marker/manifest binding and hard failure for every other unknown file.
+- Post-failure target probe PASS: Docker baseline installed/active; zero product containers/images/volumes; only default networks; product paths/units/listeners absent; old exact payload and claim marker preserved; zero staged image tars.
+- Exact R2 read-only preflight PASS: Ubuntu 26.04/resolute/aarch64, Docker 29.1.3, Compose 2.40.3+ds1-0ubuntu1, capacity PASS, no payload transfer, no Docker mutation, no service start, no R2 authorization claim.
+- Proposed R2 authorization: `N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R2_20261014_01`; granted=false, claimed=false, consumed=false.
+- PR #543 remains a separate docs-only OPEN/DRAFT branch at `69fa2f9129a0ad8844f3550582e39115e4037035`, CI 11/11 SUCCESS. Its F5 controlled-override and one-password SSH connection-reuse designs do not change R2 executable source/artifact.
+- F4 remains unauthorized; Golden Master/R2C/Seal/clone route remains retired.
+- Next one gate: `N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R2_20261014_01`; execute only in the next chat after fresh rebind and explicit new authorization.
+
 ## 2026-10-14 — F2 fresh T1 real read-only preflight CLOSED_PASS / PR #542 merge next
 
 - PR #542 exact accepted source: `33bf71de0cf35984af74e1614aca72a893890b38` / tree `0ee122fcafb424ef94a79ab14c79dcb292a7a030`.
