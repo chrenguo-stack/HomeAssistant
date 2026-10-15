@@ -703,6 +703,7 @@ def test_cli_exposes_preflight_and_apply_with_explicit_authorization() -> None:
     assert 'parser.add_argument("--artifact-zip-sha256", required=True)' in source
     assert '"--artifact-cache-root"' in source
     assert "DEFAULT_ARTIFACT_CACHE_ROOT" in source
+    assert tool.DEFAULT_ARTIFACT_CACHE_ROOT == "~/Documents/N3W/exact-artifacts"
     assert "artifact_zip_sha256_mismatch" in source
     assert "authorization_id_mismatch" in source
     assert '"docker_mutation": False' in source
