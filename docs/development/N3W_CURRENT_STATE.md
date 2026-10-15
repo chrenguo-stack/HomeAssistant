@@ -1,3 +1,34 @@
+## 2026-10-15 — New-chat handoff frozen for explicit provisioning live start
+
+```text
+HANDOFF=docs/development/N3W_T1_EXPLICIT_PER_DEVICE_PROVISIONING_LIVE_START_NEW_CHAT_HANDOFF_V1.0_20261015.md
+HANDOFF_TEMPLATE_VERSION=1.3
+HANDOFF_TEMPLATE_BLOB=b9ef40acdaa8fae37feb5ffe5662afd0e89462a0
+HANDOFF_STANDARD_AUTHORITY=4300890dff0ce63d5a547df21426e287d084d9ee
+
+READONLY_PREAUTH=CLOSED_PASS
+REPEAT_READONLY_PREAUTH=false
+REPEAT_R4=false
+REPEAT_MAC_CACHE_ACCEPTANCE=false
+REPEAT_SOURCE_CI=false
+
+NEXT_ONE_GATE=N3W_T1_EXPLICIT_PER_DEVICE_PROVISIONING_LIVE_START_20261015_01
+AUTHORIZATION_GRANTED=true
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+
+CURRENT_CHAT_OPERATIONS_FROZEN=true
+AUTO_EXECUTE_CURRENT_CHAT=false
+F4_AUTHORIZATION_GRANTED=false
+BOARD_ACCESS=false
+MERGE=false
+```
+
+The user froze the current chat after the real explicit-provisioning read-only preauth passed and directed the
+next chat to enter the exact live-start Gate without repeating completed validations. The live-start authorization
+is recorded as granted but remains unclaimed/unconsumed because no provisioning start was executed in this chat.
+The formal handoff uses the current candidate-branch V1.3 template, not the historical template.
+
 ## 2026-10-15 — Explicit per-device provisioning read-only preauth CLOSED_PASS
 
 ```text
