@@ -492,6 +492,9 @@ def test_activate_requires_distinct_successor_authorization(
         lambda _path: {
             "authorization_id": "N3W_T1_F4_PREPARE_AUTH",
             "control_repair_authorization_id": "N3W_T1_F4_REPAIR_AUTH",
+            "activation_authority_repair_authorization_id": (
+                "N3W_T1_F4_ACTIVATION_AUTHORITY_REPAIR_AUTH"
+            ),
         },
     )
 
@@ -513,6 +516,15 @@ def test_activate_requires_distinct_successor_authorization(
             "N3W_T1_F4_REPAIR_AUTH",
         )
 
+
+    with pytest.raises(
+        tool.F4Error,
+        match="activation_authorization_not_distinct",
+    ):
+        tool._activate(
+            tool.ACTIVATE_CONFIRMATION,
+            "N3W_T1_F4_ACTIVATION_AUTHORITY_REPAIR_AUTH",
+        )
 
 def test_activate_claims_successor_authorization_before_live_mutation(
     monkeypatch: pytest.MonkeyPatch,
