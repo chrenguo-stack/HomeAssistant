@@ -1,3 +1,41 @@
+## 2026-10-15 — F4 stopped runtime acceptance recovery source repair CLOSED_PASS
+
+~~~text
+TASK=N3W_T1_F4_STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_SOURCE_REPAIR_20261015_01
+RESULT=CLOSED_PASS
+
+SOURCE_REPAIR_PR=571
+SOURCE_REPAIR_HEAD=f0bcc2ac50326b9a988405af8a2aad4c51694810
+DESIGN_PR=570
+DESIGN_HEAD=5e7bdeb384c1684536d40af23454d987603a2ce8
+
+EXACT_CONTROL_PACKAGE_RUN=38767114055
+EXACT_CONTROL_PACKAGE_ARTIFACT_ID=11990381805
+EXACT_CONTROL_PACKAGE_ARTIFACT_NAME=n3w-t1-f4-control-package-f0bcc2ac50326b9a988405af8a2aad4c51694810
+
+KF-121_STATUS=SOURCE_REPAIR_CLOSED_PASS_PENDING_LIVE_REVALIDATION
+
+CURRENT_T1_STAGE=STOPPED_RUNTIME_ACCEPTANCE
+CURRENT_T1_PRODUCTION_SERVICE_START=false
+CURRENT_T1_PERSISTENCE_ENABLED=false
+FAILED_RUNTIME_ACCEPTANCE_AUTHORIZATION=CONSUMED_NO_REPLAY
+
+LIVE_RECOVERY_AUTHORIZATION_GRANTED=false
+LIVE_SUCCESSOR_ACTIVATION_AUTHORIZATION_GRANTED=false
+LIVE_SUCCESSOR_RUNTIME_ACCEPTANCE_AUTHORIZATION_GRANTED=false
+
+NEXT_ONE_GATE=N3W_T1_F4_STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_EXACT_ARTIFACT_BINDING_AND_LIVE_PREEXECUTION_PREPARATION_20261015_01
+CROSS_GATE_AUTO_EXECUTE=false
+~~~
+
+PR #571 closes the source side of the stopped-runtime-acceptance recovery route. The recovery command executes only
+from the validated successor package launcher, binds the exact failed incident, permits only a launcher replacement,
+stays stopped through PREPARED, preserves the failed acceptance authority/history, reuses the existing bounded
+activation path, and permits one distinct successor runtime acceptance only when the recovery proof is present.
+
+The real T1 has not been changed by this gate. Exact artifact availability is proven, but artifact download/hash
+binding/transfer/live preexecution are not yet authorized.
+
 ## 2026-10-15 — stopped runtime acceptance recovery source design CLOSED_PASS
 
 ~~~text
