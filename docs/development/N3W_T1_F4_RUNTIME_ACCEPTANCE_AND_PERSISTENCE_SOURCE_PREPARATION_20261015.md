@@ -204,9 +204,11 @@ MANAGER_PASSWORD_FILE_READ_ONLY=true
 PROVISIONING_PASSWORD_FILE_READ_ONLY=true
 MANAGER_AND_PROVISIONING_IDENTITY_DISTINCT=true
 
-MANAGER_HEALTH_HTTP=PASS
-MANAGER_HEALTH_SCHEMA=gh.pair.simple-health/1
-MANAGER_HEALTH_STATUS=ok
+MANAGER_CONTAINER_ID_STABLE=true
+MANAGER_STARTED_AT_STABLE=true
+MANAGER_STABILITY_WINDOW_SECONDS=10
+MANAGER_MQTT_ESTABLISHED_SOCKET_COUNT=1
+MANAGER_PAIRING_HTTP_HEALTH_APPLICABLE=false
 
 MANAGER_HOST_NETWORK_BROKER_TLS_NAMESPACE_PROBE=PASS
 MANAGER_BROKER_SERVER_NAME=armbian
@@ -220,8 +222,11 @@ RELAY_KEY_STATE_EMPTY=true
 GH_N3W_PRODUCT_PAIRING_ENABLED=false
 ~~~
 
-The current simplified Manager health endpoint is the functional health oracle. Broker logs may be supporting
-evidence only; absence of a log line is not a failure oracle.
+Because fresh DEVICE_READY intentionally has GH_N3W_PRODUCT_PAIRING_ENABLED=false, the simplified product
+pairing worker and its HTTP /healthz endpoint are not expected to run. That endpoint must therefore not be used as
+the F4 Manager health oracle. Functional liveness is instead proven by a bounded stable container identity/StartedAt
+window plus one continuously established Manager MQTT/8883 socket, exact TLS/runtime configuration and the fresh
+state audit. Broker logs may be supporting evidence only; absence of a log line is not a failure oracle.
 
 The Manager empty-state verification should reuse the fresh-state audit semantics already used by F3 instead of
 inventing a new database interpretation.
@@ -501,7 +506,8 @@ ANONYMOUS_REJECTED=true
 ZERO_NODE_DYNSEC=true
 
 MANAGER_RUNTIME_CONTRACT=true
-MANAGER_HEALTH=true
+MANAGER_RUNTIME_STABILITY=true
+MANAGER_MQTT_SOCKET_STABLE=true
 MANAGER_NAMESPACE_TLS_PROBE=true
 MANAGER_EMPTY_STATE=true
 PAIRING_DISABLED=true
