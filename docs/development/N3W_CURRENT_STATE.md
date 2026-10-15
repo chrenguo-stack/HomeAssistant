@@ -1,3 +1,33 @@
+## 2026-10-15 — GitHub convergence after DEVICE_READY CLOSED_PASS
+
+```text
+TASK=N3W_T1_GITHUB_CONVERGENCE_MERGE_EXECUTION_20261015_01
+RESULT=CLOSED_PASS
+
+PR544_MERGED=true
+PR544_MERGE_COMMIT=c3e61bc15baece56eb1b8111d1ed2b8c9ae2241d
+
+PR545_MERGED=true
+PR545_MERGE_COMMIT=a1f4aa614f498c816276f4f4e69aef2bca89d70d
+
+PR543_MERGE_AS_IS=false
+PR543_F5_DOCS_PRESERVED=true
+
+PROVISIONING_STATE=DEVICE_READY
+PRODUCTION_SERVICE_START=false
+F4_ENTERED=false
+BOARD_ACCESS=false
+
+CURRENT_STOP_POINT=AFTER_DEVICE_READY_AFTER_GITHUB_CONVERGENCE_BEFORE_F4
+NEXT_ONE_GATE=N3W_T1_F4_SERVICE_ACTIVATION_AND_END_TO_END_ACCEPTANCE_PREPARATION_20261015_01
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+PR #544 and PR #545 have been merged to main in order. PR #543 is superseded as an active F3/current-state
+branch; its two still-valid F5 design documents were preserved byte-for-byte in a clean docs-only convergence
+follow-up. No T1 or service mutation occurred. Closure authority:
+`docs/development/N3W_T1_GITHUB_CONVERGENCE_AFTER_DEVICE_READY_CLOSURE_20261015.md`.
+
 ## 2026-10-15 — Explicit per-device provisioning LIVE START CLOSED_PASS
 
 ```text
