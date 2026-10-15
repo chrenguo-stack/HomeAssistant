@@ -1,3 +1,53 @@
+## 2026-10-15 — F4 runtime acceptance R1 stopped-state forensic: Manager MQTT session stayed connected until rollback
+
+~~~text
+TASK=N3W_T1_F4_RUNTIME_ACCEPTANCE_R1_MANAGER_MQTT_SOCKET_FORENSIC_READONLY_20261015_01
+RESULT=PARTIAL_PASS_ROOT_CAUSE_NARROWED
+
+LIVE_RUNTIME_MUTATION=false
+PRODUCTION_SERVICE_START_MUTATION=false
+BOARD_ACCESS=false
+
+TRANSACTION_STAGE=STOPPED_RUNTIME_ACCEPTANCE
+ERROR_CODE=manager_mqtt_socket_count_invalid
+ROLLBACK_PROVEN=true
+ROLLBACK_ERROR_COUNT=0
+PRODUCT_LISTENER_PORTS=[]
+RUNTIME_ACCEPTANCE_AUTHORIZATION=CONSUMED_NO_REPLAY
+RUNTIME_ACCEPTANCE_REPORT_PRESENT=false
+
+MANAGER_CONTAINER_RESTART_COUNT=0
+MANAGER_CONTAINER_OOM_KILLED=false
+MANAGER_CONTAINER_EXIT_CODE=137
+MANAGER_STARTED_AT=2026-10-15T14:32:04.514214222Z
+MANAGER_FINISHED_AT=2026-10-15T15:30:36.088141749Z
+
+BROKER_MANAGER_AUTHENTICATED_CONNECT_AT=2026-10-15T14:32:15.264549180Z
+BROKER_MANAGER_TLS_NEGOTIATED_AT=2026-10-15T14:32:15.264686765Z
+BROKER_MANAGER_DISCONNECT_AT=2026-10-15T15:30:36.082122041Z
+MANAGER_DISCONNECT_MATCHES_ROLLBACK_STOP=true
+
+ACCEPTANCE_TLS_PROBE_CONNECT_AT=2026-10-15T15:30:08.252808824Z
+ACCEPTANCE_TLS_PROBE_DISCONNECT_AT=2026-10-15T15:30:08.311452766Z
+
+REAL_MANAGER_MQTT_CONNECTIVITY_FAILURE_PROVEN=false
+MANAGER_MQTT_SESSION_CONTINUITY_THROUGH_ACCEPTANCE_FAILURE=PROVEN_BY_BROKER_LOG
+SOCKET_COUNT_ORACLE_CONTRADICTS_BROKER_SESSION_EVIDENCE=true
+ROOT_CAUSE=NARROWED_TO_SOCKET_COUNT_ORACLE_PATH
+EXACT_SOCKET_PROBE_MECHANISM_ROOT_CAUSE=TBD
+~~~
+
+The Broker retained one authenticated Manager MQTT client continuously from 14:32:15.264Z until 15:30:36.082Z.
+The Manager container finished at 15:30:36.088Z, so the Manager disconnect aligns with the fail-closed rollback stop,
+not with a spontaneous MQTT failure before acceptance.
+
+The unauthenticated 8883 connection at 15:30:08.252Z matches the acceptance source's host-side live TLS probe and
+closed at 15:30:08.311Z. It is separate from the long-lived authenticated Manager session.
+
+Therefore this failure must not be classified as a proven Manager/Broker connectivity defect. The next read-only
+substep is to identify why the in-container socket-owner probe returned a count other than exactly one despite
+Broker-side evidence of the live Manager MQTT session.
+
 # N3-W T1 F4 Runtime Acceptance R1 Failure and Manager MQTT Socket Forensic Preparation — 2026-10-15
 
 ~~~text
