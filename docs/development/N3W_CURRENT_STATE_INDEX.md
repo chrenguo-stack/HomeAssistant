@@ -1,3 +1,14 @@
+## 2026-10-15 — Mac local exact artifact cache V1 source CLOSED_PASS
+
+- PR #545 exact source `d1a7847c1e0612ac80b31b85262011110f329794` is green at 14/14 CI.
+- Default long-term Mac store is `~/Documents/N3W/exact-artifacts`; operator override is supported with `--artifact-cache-root`.
+- Exact cache hit re-hashes the ZIP and preserves all existing runtime/manifest/capacity/host/image binding checks; no GitHub large-artifact download occurs on a verified hit.
+- Cache miss verifies GitHub metadata + ZIP SHA-256 and atomically publishes the exact entry; corrupted existing entries fail closed.
+- No T1 access, provisioning, F4, board work, or merge occurred.
+- Real Mac cache population/hit acceptance remains pending.
+- Next one gate: `N3W_T1_MAC_LOCAL_EXACT_ARTIFACT_CACHE_V1_MAC_ACCEPTANCE_20261015_01`.
+- Closure authority: `docs/development/N3W_T1_MAC_LOCAL_EXACT_ARTIFACT_CACHE_V1_SOURCE_REPAIR_CLOSURE_20261015.md`.
+
 ## 2026-10-15 — F3 R4 live apply CLOSED_PASS
 
 - Exact R4 source `6ac82ae0872b05644e59470ffef7307dad14d359` completed the real T1 F3 public staging path.
