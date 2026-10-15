@@ -2,9 +2,9 @@
 
 ~~~text
 TASK=N3W_T1_F4_RUNTIME_ACCEPTANCE_AND_PERSISTENCE_SOURCE_REPAIR_20261015_01
-STATUS=IMPLEMENTED_R1_PENDING_CI_AND_INDEPENDENT_REVIEW
+STATUS=IMPLEMENTED_R2_PENDING_EXACT_HEAD_CI_AND_FINAL_REVIEW
 
-STACK_BASE=cd69684f757a6a2fe67ab1a0cde9350717f2df3d
+STACK_BASE=7e4ab972469f5755893136a250d7c8e9f3538b60
 TRANSITION_PR=548
 PREPARATION_PR=549
 
@@ -171,3 +171,53 @@ CERTIFICATE_DIRECT_SYSTEMD_START_BEFORE_PRE_REBOOT_READY_DENIED=true
 The pairing HTTP health endpoint belongs to the product-pairing composition and is intentionally absent while
 GH_N3W_PRODUCT_PAIRING_ENABLED=false. F4 therefore uses direct container identity stability, exact runtime
 configuration, Manager MQTT socket continuity and fresh-state audit instead.
+
+
+## R2 independent-review blocker repairs
+
+After the first all-green R1 head, continued independent review found additional acceptance-proof gaps. They were
+repaired before any real-T1 use:
+
+~~~text
+A9_INGRESS_GUARD_ACTIVE_AND_ENABLED_PROOF=CLOSED
+A10_UNEXPECTED_PRODUCT_CONTAINER_GUARD=CLOSED
+A11_EXACT_RUNTIME_SERVICE_IDENTITY_BINDING=CLOSED
+A12_HOMEASSISTANT_DIRECT_HTTP_READINESS=CLOSED
+A13_DURABLE_RUNTIME_ACCEPTANCE_REBINDING=CLOSED
+A14_PERSISTENCE_CONTAINER_IDENTITY_CONTINUITY=CLOSED
+A15_CERTIFICATE_AUDIT_FULL_RUNTIME_CONTINUITY=CLOSED
+A16_CERTIFICATE_TIMER_FULL_RUNTIME_CONTINUITY=CLOSED
+A17_ROLLBACK_LISTENER_ABSENCE_PROOF=CLOSED
+STACKED_PREPARATION_ANCESTRY=ALIGNED
+~~~
+
+Details:
+
+- ingress-guard acceptance now requires the service to be both active and enabled in addition to exact installed
+  rule validation;
+- runtime acceptance inventories all running containers and rejects any extra running container using one of the
+  three product images;
+- Manager runtime username/client ID, Provisioning username/client ID, and Home Assistant bootstrap identity are
+  rebound to the exact private service identity records; only booleans are emitted;
+- Home Assistant now requires a direct HTTP API readiness response in addition to one exact MQTT entry and a live
+  MQTT socket;
+- every downstream persistence/certificate step revalidates the immutable RUNTIME_ACCEPTANCE report SHA and its
+  package/Home Assistant fingerprint binding;
+- persistence enablement now proves all three container IDs/StartedAt values stayed unchanged;
+- first certificate audit requires an empty private lifecycle status root, rechecks TLS material, proves all three
+  production containers stayed unchanged, and requires the durable status document to equal the audit output;
+- certificate timer enablement requires Broker/Services still enabled, the lifecycle service inactive, the exact
+  three-container runtime unchanged, and the previously accepted status hash unchanged;
+- downstream rollback is not declared proven unless all product target listeners are absent as well as the
+  production runtime being stopped and persistence disabled.
+
+The source branch now explicitly contains the final PR #549 preparation head in its ancestry. No source content was
+taken from a stale preparation revision.
+
+~~~text
+R2_LIVE_T1_ACCESS=false
+R2_LIVE_RUNTIME_MUTATION=false
+R2_PRODUCTION_SERVICE_START=false
+R2_BOARD_ACCESS=false
+R2_MERGE=false
+~~~
