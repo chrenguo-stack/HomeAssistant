@@ -1,3 +1,13 @@
+## 2026-10-15 — F3 R3 STOP_PARTIAL / KF-115 CLOSED / KF-116 opened
+
+- R3 one-shot authorization was durably claimed and is permanently consumed/no-replay.
+- All three exact images completed `image_requested -> image_loaded`; every staged tar was deleted after load. KF-115 is therefore CLOSED_PASS_LIVE_REVALIDATED.
+- R3 then stopped at `public_runtime` with `failure_code=adapter_failure`; cleanup PASS, remote payload preserved, no production service start, no board access.
+- Exact-source review finds a deterministic public-only candidate-root defect: orchestration selects and requires a non-existent candidate root, then the live adapter calls `candidate_root/stage.mkdir()` without creating the parent candidate directory.
+- The resulting FileNotFoundError is sanitized to generic `adapter_failure`, matching the live result.
+- New guard/failure record: KF-116 OPEN_SOURCE_REPAIR_REQUIRED.
+- Next one gate: `N3W_T1_F3_PUBLIC_RUNTIME_CANDIDATE_ROOT_SOURCE_REPAIR_20261015_01`. R3 must not be replayed.
+
 ## 2026-10-15 — F3 R3 read-only preauth CLOSED_PASS
 
 - Exact R3 source `4887a76ef61d176b38e3656a9b04f7e0f13bce2f` is present locally and is an ancestor of the current PR #544 candidate.
