@@ -1,3 +1,12 @@
+## 2026-10-15 — KF-119 live recovery CLOSED_PASS
+
+- Exact `STOPPED_RUNTIME -> PREPARED` recovery completed successfully.
+- The failed activation authorization is preserved in history and remains permanently no-replay.
+- Transaction is `PREPARED`, `runtime_start_race_repair_passed=true`, `activation_retry_eligible=true`.
+- Exact installed source is `8f870d02...`; launcher binding is exact; production runtime remains stopped.
+- `SERVICES_ACTIVE=failed` is residual systemd state from the prior failed activation, while `running_services=[]`, Broker inactive, and product runtime stopped; the next fresh `systemctl start` is expected to transition the unit anew.
+- Next gate requires a new activation authorization: `N3W_T1_F4_ACTIVATE_TO_RUNTIME_STARTED_LIVE_R2_20261015_01`.
+
 ## 2026-10-15 — F4 runtime-start race live control repair authorized
 
 - Explicit authorization granted for `N3W_T1_F4_RUNTIME_START_RACE_CONTROL_REPAIR_LIVE_20261015_01`.
