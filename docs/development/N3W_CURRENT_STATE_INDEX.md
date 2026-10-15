@@ -1,3 +1,12 @@
+## 2026-10-15 — F4 runtime-start race source repair CLOSED_PASS
+
+- The first activation authorization is consumed/no-replay and the real T1 is safely `STOPPED_RUNTIME` with rollback proven.
+- Forensics show Broker, Manager and Home Assistant were started; Manager/HA were then terminated by the fail-closed rollback, with no OOM or Docker error evidence.
+- Root cause: one immediate service-set check after starting a `Type=simple` Services unit could observe a transient incomplete Docker service set.
+- Repaired source `8f870d02...` uses a bounded 60-second exact-service-set wait and a locked `STOPPED_RUNTIME -> PREPARED` recovery route.
+- Exact-head CI 13/13 PASS; replacement artifact ID `11978339595`.
+- Next gate requires explicit authorization: `N3W_T1_F4_RUNTIME_START_RACE_CONTROL_REPAIR_LIVE_20261015_01`.
+
 ## 2026-10-15 — KF-118 live repair CLOSED_PASS
 
 - Exact launcher-only repair completed and rebound T1 to source `444ed085...` / manifest `b5d06f...`.
