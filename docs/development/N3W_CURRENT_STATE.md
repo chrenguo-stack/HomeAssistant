@@ -1,3 +1,47 @@
+## 2026-10-15 — F3 R4 live apply CLOSED_PASS / STOP before explicit provisioning
+
+```text
+TASK=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R4_20261015_01
+RESULT=CLOSED_PASS
+
+R4_EXECUTABLE_SOURCE_HEAD=6ac82ae0872b05644e59470ffef7307dad14d359
+R4_ARTIFACT_ID=11942497052
+R4_AUTHORIZATION_CLAIMED=true
+R4_AUTHORIZATION_CONSUMED=true
+R4_REPLAY_PERMITTED=false
+
+HOMEASSISTANT_IMAGE_LOADED=true
+MANAGER_IMAGE_LOADED=true
+BROKER_IMAGE_LOADED=true
+ALL_STAGED_IMAGE_TARS_DELETED=true
+
+PUBLIC_PRODUCT_STAGED=true
+INSTANCE_MATERIAL_ABSENT=true
+EXPLICIT_PROVISIONING_REQUIRED=true
+ACTIVATION_AUTHORIZED=false
+PRODUCTION_SERVICE_START=false
+REMOTE_PAYLOAD_REMOVED=true
+BOARD_ACCESS=false
+
+KF_116=CLOSED_PASS_LIVE_REVALIDATED
+
+EXPLICIT_DEVICE_PROVISIONING_EXECUTED=false
+F4_ENTERED=false
+MERGE=false
+
+CURRENT_STOP_POINT=AFTER_R4_PUBLIC_PRODUCT_STAGING_BEFORE_EXPLICIT_DEVICE_PROVISIONING
+NEXT_ONE_GATE=NONE:R4_CLOSURE_STOP
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+The exact R4 live executor passed after one earlier password-prompt timeout that stopped preclaim with no
+authorization consumption or mutation. The successful execution durably consumed the one-shot R4
+authorization, loaded all three exact images, deleted each staged tar, completed public product staging, kept
+instance material absent and production services stopped, and removed the remote payload. KF-116 is now
+closed by real-target revalidation.
+
+Authority: `docs/development/N3W_T1_F3_R4_LIVE_APPLY_CLOSURE_20261015.md`.
+
 ## 2026-10-15 — R4 live apply authorized for direct next-chat execution
 
 ```text
