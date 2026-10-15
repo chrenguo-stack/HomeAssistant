@@ -93,3 +93,35 @@ R3 is permanently consumed and must never be replayed.
 NEXT_ONE_GATE=N3W_T1_F3_PUBLIC_RUNTIME_CANDIDATE_ROOT_SOURCE_REPAIR_20261015_01
 AUTO_EXECUTE_LIVE_RETRY=false
 ```
+
+## Post-failure read-only target evidence
+
+The post-failure read-only probe confirms the cleanup boundary emitted by the live run:
+
+```text
+R3_LEDGER_PRESENT=true
+CONTAINERS=0
+IMAGES=0
+VOLUMES=0
+NETWORKS=bridge,host,none
+PRODUCT_PATHS=NONE
+PRODUCT_LISTENERS=NONE
+R3_REMOTE_PAYLOAD_PRESERVED=true
+R3_REMOTE_PAYLOAD_BYTES=305874
+R3_REMOTE_IMAGE_TAR_COUNT=0
+ROOT_FREE_BYTES=11864358912
+R3_REQUIRED_FREE_BYTES=10135822686
+R3_CAPACITY_HEADROOM_BYTES=1728536226
+```
+
+This proves the failed transaction did not leave a product container, image, volume, product network, public
+product path or listener behind. All three image tar files had already been deleted after successful image
+loads, and the cleanup subsequently removed the loaded images. The small preserved R3 payload is forensic
+evidence for the consumed transaction and must not be replayed.
+
+```text
+POSTFAIL_READONLY_RESULT=PASS
+CLEANUP_RESULT=PASS_LIVE_REVALIDATED
+PRODUCT_STATE_RETURNED_TO_CLEAN_BOUNDARY=true
+R3_AUTHORIZATION_STATE=CONSUMED_NO_REPLAY
+```
