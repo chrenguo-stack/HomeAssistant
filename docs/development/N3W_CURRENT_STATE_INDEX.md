@@ -1,7 +1,7 @@
 ## 2026-10-15 — F4 runtime acceptance and persistence SOURCE REPAIR R1 implemented
 
 - Extends the same F4 transaction owner from `RUNTIME_STARTED` to `PRE_REBOOT_READY`; reboot remains separate.
-- Adds direct runtime acceptance for exact images, Broker publications/TLS/guard, Manager health/state/MQTT socket, Home Assistant one-entry bootstrap state/MQTT socket, DynSec/credential inventory and negative authentication probes.
+- Adds direct runtime acceptance for exact images, Broker publications/TLS/guard, Manager exact mounts/state/container+MQTT stability, Home Assistant one-entry bootstrap state/MQTT socket, DynSec/credential inventory and negative authentication probes.
 - Enables Broker/Services persistence only after `RUNTIME_ACCEPTED`; certificate timer remains separate.
 - Adds fresh per-device first certificate audit with no cert/key/Broker restart drift before timer enablement.
 - Adds common fail-closed rollback for downstream F4 failures.
