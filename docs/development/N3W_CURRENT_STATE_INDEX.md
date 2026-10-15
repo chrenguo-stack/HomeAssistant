@@ -1,3 +1,11 @@
+## 2026-10-15 — KF-118 live repair CLOSED_PASS
+
+- Exact launcher-only repair completed and rebound T1 to source `444ed085...` / manifest `b5d06f...`.
+- Installed launcher direct `status` and `eligibility --phase inspect` both PASS; launcher exact SHA/mode/shebang PASS.
+- T1 remains `PREPARED`; Broker/Services/timer inactive; production_service_start=false.
+- The previously granted activation authorization remains unclaimed/unconsumed and may now resume directly.
+- Next gate: `N3W_T1_F4_ACTIVATE_TO_RUNTIME_STARTED_LIVE_20261015_01`.
+
 ## 2026-10-15 — KF-118 activation-authority live control repair authorized
 
 - Explicit repair authorization granted for `N3W_T1_F4_ACTIVATION_AUTHORITY_CONTROL_REPAIR_LIVE_20261015_01`.
