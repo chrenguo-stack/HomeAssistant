@@ -1,3 +1,13 @@
+## 2026-10-15 — Real T1 F4 read-only preauthorization CLOSED_PASS
+
+- Real T1 remains `DEVICE_READY` on release `6ac82ae...`; zero product containers/listeners and no F4 lifecycle records exist.
+- Initial aggregate STOP was a false negative caused by incorrectly requiring ingress-guard active state before F4; source requires enablement only at this stopped boundary and F4 activation starts the guard later.
+- Exact three product images, product source, per-device identity/service credentials/TLS and canonical-target absence all PASS.
+- Exact F4 control package capacity PASS with 6.3 GB free; no live mutation occurred.
+- Current STOP: `AFTER_REAL_T1_READONLY_PREAUTH_BEFORE_EXPLICIT_F4_LIVE_PREPARE_AUTHORIZATION`.
+- Next one gate: `N3W_T1_F4_EXACT_CONTROL_PACKAGE_TRANSFER_AND_PREPARE_LIVE_20261015_01`; new explicit authorization required.
+- Authority: `docs/development/N3W_T1_F4_REAL_T1_READONLY_PREAUTH_CLOSURE_20261015.md`.
+
 ## 2026-10-15 — F4 preauth ingress-guard false negative corrected
 
 - Initial real-T1 preauth reported STOP only because the preparation contract required ingress-guard active state.
