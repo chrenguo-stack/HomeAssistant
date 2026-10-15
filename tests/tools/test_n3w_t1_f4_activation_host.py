@@ -91,6 +91,7 @@ def test_factory_binding_requires_exact_release_host_and_system(
 
 def test_eligibility_is_phase_locked(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     tool = load_tool()
     current = verified(tool)
@@ -170,10 +171,8 @@ def test_eligibility_is_phase_locked(
     )
     assert tool._activation_eligibility("broker")["activation_eligible"] is True
     assert tool._activation_eligibility("services")["activation_eligible"] is True
-    assert (
-        tool._activation_eligibility("certificate")["activation_eligible"]
-        is True
-    )
+    with pytest.raises(tool.F4Error, match="certificate:RUNTIME_ACCEPTED"):
+        tool._activation_eligibility("certificate")
 
     monkeypatch.setattr(
         tool,
@@ -186,6 +185,27 @@ def test_eligibility_is_phase_locked(
     )
     assert tool._activation_eligibility("broker")["activation_eligible"] is True
     assert tool._activation_eligibility("services")["activation_eligible"] is True
+    with pytest.raises(tool.F4Error, match="certificate_runtime_not_authorized"):
+        tool._activation_eligibility("certificate")
+
+    status_file = tmp_path / "status.json"
+    status_file.write_text("{}\n", encoding="utf-8")
+    monkeypatch.setattr(tool, "CERT_STATUS_FILE", status_file)
+    status_sha = tool._sha256_file(status_file)
+    monkeypatch.setattr(
+        tool,
+        "_validate_transaction_binding",
+        lambda _v: {
+            "stage": "PERSISTENCE_ENABLED",
+            "package_source_head": "c" * 40,
+            "package_manifest_sha256": "b" * 64,
+            "broker_services_persistence_enabled": True,
+            "certificate_first_audit_passed": True,
+            "certificate_timer_enabled": True,
+            "pre_reboot_ready": True,
+            "certificate_status_sha256": status_sha,
+        },
+    )
     assert (
         tool._activation_eligibility("certificate")["activation_eligible"]
         is True
