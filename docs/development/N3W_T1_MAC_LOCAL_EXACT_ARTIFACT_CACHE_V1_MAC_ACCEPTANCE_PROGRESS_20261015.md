@@ -111,3 +111,43 @@ MERGE=false
 ```
 
 Mac acceptance must not resume until the repaired exact-head CI and newly generated exact deployable artifact pass.
+
+
+## Source repair CI closure / Mac acceptance resume authority
+
+```text
+REPAIRED_SOURCE_HEAD=13b08208c91400a7e6a91ddbc47620a6146eb2a1
+CI_TOTAL=14
+CI_SUCCESS=14
+CI_FAILURE=0
+CI_PENDING=0
+
+FRESH_DEPLOYABLE_RUN_ID=38696945364
+FRESH_DEPLOYABLE_JOB_ID=116295658889
+ARTIFACT_ID=11954286988
+ARTIFACT_NAME=n3w-t1-fresh-bootstrap-deployable-13b08208c91400a7e6a91ddbc47620a6146eb2a1
+ARTIFACT_SIZE_BYTES=2535589326
+ARTIFACT_ZIP_SHA256=047a40ed640bc1bfcbc8adb7007da2a4eea1f8abedffbc3cb2e2a4d9f6817928
+RUNTIME_PAYLOAD_SHA256=bc884befe99d223ce39788bab0b5555ff34faebd050c0dffbeebc77c523f7097
+PAYLOAD_MANIFEST_SHA256=10c4f298c1034694a93d260970dac09c1a495f7d0b337922de0ba48698874a6c
+
+FRESH_BOOTSTRAP_INNER_BINDING=PASS
+FRESH_TRANSPORT_V2_POST_UPLOAD_BINDING=PASS
+FRESH_BOOTSTRAP_DEPLOYABLE_POST_UPLOAD_BINDING=PASS
+```
+
+The repaired exact artifact is unexpired and bound to the repaired source head. Mac acceptance may resume using this
+new artifact only. The older artifact ID 11953163662 remains historical evidence and must not be used for the
+repaired acceptance.
+
+The acceptance remains Mac-local only:
+
+```text
+T1_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+PRODUCTION_SERVICE_START=false
+EXPLICIT_DEVICE_PROVISIONING=false
+F4=false
+BOARD_ACCESS=false
+MERGE=false
+```
