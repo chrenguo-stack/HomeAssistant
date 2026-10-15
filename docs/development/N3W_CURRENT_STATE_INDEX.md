@@ -1,3 +1,14 @@
+## 2026-10-15 — Mac local exact artifact cache V1 MAC ACCEPTANCE CLOSED_PASS
+
+- Repaired executable source `13b08208c91400a7e6a91ddbc47620a6146eb2a1` passed 14/14 CI.
+- Exact deployable artifact ID `11954286988`, ZIP SHA-256 `047a40ed640bc1bfcbc8adb7007da2a4eea1f8abedffbc3cb2e2a4d9f6817928`.
+- Real Mac first acquisition was `MISS_POPULATED`; inner binding PASS and durable store populated under `~/Documents/N3W/exact-artifacts`.
+- Real Mac second acquisition was `HIT`; inner binding PASS while GitHub metadata/download functions were hard-disabled, proving no second large-artifact download.
+- The earlier Mac API EOF/TLS timeout was repaired with authenticated IPv4/HTTP1.1 curl plus bounded retries; SHA/binding authority was unchanged.
+- No T1 access, provisioning, production service start, F4, board work, or merge occurred.
+- Current STOP: after Mac cache acceptance and before explicit per-device provisioning; provisioning requires separate authorization.
+- Closure authority: `docs/development/N3W_T1_MAC_LOCAL_EXACT_ARTIFACT_CACHE_V1_MAC_ACCEPTANCE_CLOSURE_20261015.md`.
+
 ## 2026-10-15 — Mac local exact artifact cache V1 source CLOSED_PASS
 
 - PR #545 exact source `d1a7847c1e0612ac80b31b85262011110f329794` is green at 14/14 CI.
