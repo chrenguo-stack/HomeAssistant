@@ -1,3 +1,12 @@
+## 2026-10-15 — KF-117 F4 installed launcher source repair CLOSED_PASS
+
+- Original F4 PREPARE returned PASS and permanently consumed its authorization.
+- The first direct installed status invocation exposed a real control-material defect: the 0755 Python launcher lacked a shebang.
+- Source repair head `2b30e541...` restores `#!/usr/bin/python3`, tracks mode 100755, directly executes the launcher in CI, and adds a bounded exact-defect PREPARED repair command.
+- Exact source CI is 13/13 SUCCESS; replacement artifact ID `11976241619`.
+- No live repair has been executed; production services remain unauthorized/stopped.
+- Next gate: `N3W_T1_F4_KF117_PREPARED_CONTROL_REPAIR_READONLY_PREFLIGHT_20261015_01`.
+
 ## 2026-10-15 — F4 runtime acceptance and persistence SOURCE REPAIR R1 implemented
 
 - Extends the same F4 transaction owner from `RUNTIME_STARTED` to `PRE_REBOOT_READY`; reboot remains separate.
