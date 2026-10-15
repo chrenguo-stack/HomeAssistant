@@ -888,6 +888,17 @@ def test_certificate_timer_enable_is_enable_only(
     monkeypatch.setattr(tool, "_sha256_file", lambda _path: "a" * 64)
     monkeypatch.setattr(
         tool,
+        "_certificate_identity_snapshot",
+        lambda: {
+            "server_cert": "1",
+            "server_key": "2",
+            "ca_cert": "3",
+            "ca_key": "4",
+            "system_ca": "5",
+        },
+    )
+    monkeypatch.setattr(
+        tool,
         "_runtime_container_snapshot",
         lambda: {
             "broker": {"id": "b", "started_at": "1"},
