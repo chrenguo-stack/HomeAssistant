@@ -1886,6 +1886,147 @@ print(json.dumps({
     return document
 
 
+def _broker_auth_negative_and_provisioning_probe(
+    manager_image: str,
+) -> dict[str, object]:
+    script = r"""
+import json
+import threading
+import time
+from pathlib import Path
+
+import paho.mqtt.client as mqtt
+
+SERVICES = ("manager", "provisioning", "homeassistant")
+
+
+def material(service):
+    identity = json.loads(
+        Path(f"/secrets/{service}/identity.json").read_text()
+    )
+    password = Path(f"/secrets/{service}/password").read_text().rstrip("\r\n")
+    return identity, password
+
+
+def attempt(*, username, password, client_id):
+    event = threading.Event()
+    result = {"known": False, "accepted": False}
+
+    def on_connect(_client, _userdata, _flags, reason_code, _properties):
+        result["known"] = True
+        result["accepted"] = not reason_code.is_failure
+        event.set()
+
+    client = mqtt.Client(
+        mqtt.CallbackAPIVersion.VERSION2,
+        client_id=client_id,
+        protocol=mqtt.MQTTv5,
+    )
+    client.on_connect = on_connect
+    if username is not None:
+        client.username_pw_set(username, password)
+    client.tls_set(ca_certs="/ca.pem")
+    client.connect("armbian", 8883, keepalive=10)
+    client.loop_start()
+    try:
+        if not event.wait(8):
+            raise RuntimeError("mqtt_probe_outcome_unknown")
+    finally:
+        client.loop_stop()
+        try:
+            client.disconnect()
+        except Exception:
+            pass
+    return result
+
+
+materials = {
+    service: material(service)
+    for service in SERVICES
+}
+negative = {}
+for service, (identity, password) in materials.items():
+    probe = attempt(
+        username=identity["username"],
+        password=password,
+        client_id=identity["client_id"] + "-f4-invalid",
+    )
+    if not probe["known"]:
+        raise RuntimeError("wrong_client_id_probe_unknown")
+    negative[service] = not probe["accepted"]
+
+anonymous = attempt(
+    username=None,
+    password=None,
+    client_id="n3w-f4-anonymous-probe",
+)
+if not anonymous["known"]:
+    raise RuntimeError("anonymous_probe_unknown")
+
+identity, password = materials["provisioning"]
+provisioning = attempt(
+    username=identity["username"],
+    password=password,
+    client_id=identity["client_id"],
+)
+if not provisioning["known"]:
+    raise RuntimeError("provisioning_probe_unknown")
+
+print(json.dumps({
+    "manager_wrong_client_id_rejected": negative["manager"],
+    "provisioning_wrong_client_id_rejected": negative["provisioning"],
+    "homeassistant_wrong_client_id_rejected": negative["homeassistant"],
+    "anonymous_rejected": not anonymous["accepted"],
+    "provisioning_exact_credential_auth": provisioning["accepted"],
+}, sort_keys=True))
+"""
+    name = f"n3w-f4-auth-probe-{os.getpid()}"
+    try:
+        document = json.loads(
+            _run(
+                (
+                    "docker",
+                    "run",
+                    "--rm",
+                    "--name",
+                    name,
+                    "--network",
+                    "host",
+                    "--user",
+                    "0:0",
+                    "--read-only",
+                    "--tmpfs",
+                    "/tmp:size=4m,mode=1777",
+                    "--mount",
+                    "type=bind,src=/opt/greenhouse-secrets/mqtt,dst=/secrets,readonly",
+                    "--mount",
+                    "type=bind,src=/etc/n3wfc4/tls/ca.pem,dst=/ca.pem,readonly",
+                    "--entrypoint",
+                    "python",
+                    manager_image,
+                    "-c",
+                    script,
+                ),
+                timeout=90,
+            )
+        )
+    except json.JSONDecodeError as error:
+        raise F4Error("broker_auth_probe_json_invalid") from error
+    expected_true = (
+        "manager_wrong_client_id_rejected",
+        "provisioning_wrong_client_id_rejected",
+        "homeassistant_wrong_client_id_rejected",
+        "anonymous_rejected",
+        "provisioning_exact_credential_auth",
+    )
+    if (
+        not isinstance(document, dict)
+        or any(document.get(key) is not True for key in expected_true)
+    ):
+        raise F4Error("broker_auth_probe_failed")
+    return document
+
+
 def _runtime_acceptance_report() -> dict[str, object]:
     verified = _provision_verify()
     transaction = _validate_transaction_binding(verified)
@@ -1937,6 +2078,9 @@ def _runtime_acceptance_report() -> dict[str, object]:
 
     manager_image = str(release["images"]["manager"]["image"])
     root_audit = _root_identity_runtime_audit(manager_image)
+    auth_probe = _broker_auth_negative_and_provisioning_probe(
+        manager_image
+    )
 
     runtime = _runtime_activity()
     if runtime["production_service_start"] is not True:
@@ -1966,6 +2110,9 @@ def _runtime_acceptance_report() -> dict[str, object]:
         "homeassistant": homeassistant,
         "homeassistant_mqtt_socket_count": ha_socket_count,
         "identity_runtime_audit": root_audit,
+        "broker_auth_probe": auth_probe,
+        "manager_live_authenticated_connection_proven": True,
+        "homeassistant_live_authenticated_connection_proven": True,
         "product_pairing_enabled": False,
         "production_service_start": True,
         "persistence_enabled": False,
