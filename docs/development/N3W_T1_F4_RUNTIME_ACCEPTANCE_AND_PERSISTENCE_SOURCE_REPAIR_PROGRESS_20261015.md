@@ -39,8 +39,8 @@ The source now checks, before writing RUNTIME_ACCEPTED:
 - installed ingress-guard rules through the installed guard's own validation functions;
 - live TLS/8883 CA + hostname + bound server-certificate verification;
 - Manager host-network, 999:999, read-only-rootfs, environment and mount contract;
-- Manager simplified health endpoint;
-- direct established Manager MQTT socket evidence;
+- Manager exact bind-source/RW and tmpfs contract;
+- bounded stable Manager container identity/StartedAt plus exactly one established MQTT/8883 socket; pairing HTTP health is intentionally not expected while product pairing is disabled;
 - fresh Manager database/replay/relay state remains empty;
 - Home Assistant private MQTT config-entry audit: exactly one enabled entry, exact metadata/password match in memory,
   one-way entry-ID fingerprint only, and zero MQTT entities before board pairing;
@@ -101,7 +101,7 @@ certificate service not started by this gate
 production runtime still active
 ~~~
 
-The transaction remains PERSISTENCE_ENABLED and records pre_reboot_ready=true.
+The transaction remains PERSISTENCE_ENABLED and records pre_reboot_ready=true. The certificate service eligibility guard requires this completed first-audit/timer-ready state, so direct systemd service start before PRE_REBOOT_READY remains denied.
 
 ### Fail-closed downstream rollback
 
@@ -153,3 +153,21 @@ BOARD_ACCESS=false
 
 NEXT_ONE_GATE=N3W_T1_F4_RUNTIME_ACCEPTANCE_AND_PERSISTENCE_SOURCE_REPAIR_INDEPENDENT_REVIEW_20261015_01
 ~~~
+
+
+## R1 independent-review repairs in progress
+
+Source review after the first R1 CI run found and repaired additional blockers before any live use:
+
+~~~text
+MANAGER_PAIRING_HTTP_HEALTH_ORACLE=false
+MANAGER_CONTAINER_AND_MQTT_STABILITY_ORACLE=true
+MANAGER_BIND_SOURCE_AND_TMPFS_EXACT=true
+BROKER_EXTRA_UNBOUND_EXPOSED_PORT_TOLERATED=true
+BROKER_EXTRA_HOST_PUBLICATION_REJECTED=true
+CERTIFICATE_DIRECT_SYSTEMD_START_BEFORE_PRE_REBOOT_READY_DENIED=true
+~~~
+
+The pairing HTTP health endpoint belongs to the product-pairing composition and is intentionally absent while
+GH_N3W_PRODUCT_PAIRING_ENABLED=false. F4 therefore uses direct container identity stability, exact runtime
+configuration, Manager MQTT socket continuity and fresh-state audit instead.
