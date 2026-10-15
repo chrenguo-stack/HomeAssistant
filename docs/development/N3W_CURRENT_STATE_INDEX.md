@@ -1,3 +1,10 @@
+## 2026-10-15 — F4 preauth ingress-guard false negative corrected
+
+- Initial real-T1 preauth reported STOP only because the preparation contract required ingress-guard active state.
+- Source authority proves F3 staged install is enable-only for the guard; F4 activation starts it before Broker.
+- Correct pre-F4 requirement: guard enabled=true; active may be inactive or active and is observe-only.
+- Product defect=false; no live mutation occurred; same read-only probe need not be repeated solely for this correction.
+
 ## 2026-10-15 — F4 exact control package + read-only preauth PREPARATION CLOSED_PASS
 
 - Exact F4 source head: `ad65bf7d10db76f12a09e19b337f4a0c7782894a`; source CI 13/13 SUCCESS.
