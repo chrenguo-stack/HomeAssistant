@@ -1,3 +1,43 @@
+## 2026-10-15 — F3 R3 live apply STOP_PARTIAL at public_runtime; KF-115 live revalidated
+
+```text
+TASK=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R3_20261014_01
+RESULT=STOP_PARTIAL
+
+R3_AUTHORIZATION_GRANTED=true
+R3_AUTHORIZATION_CLAIMED=true
+R3_AUTHORIZATION_CONSUMED=true
+R3_AUTHORIZATION_REPLAY_ALLOWED=false
+
+HOMEASSISTANT_IMAGE_LOADED=true
+MANAGER_IMAGE_LOADED=true
+BROKER_IMAGE_LOADED=true
+ALL_STAGED_IMAGE_TARS_DELETED=true
+
+FAILED_STAGE=public_runtime
+FAILURE_CODE=adapter_failure
+CLEANUP_RESULT=PASS
+REMOTE_PAYLOAD_PRESERVED=true
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+
+KF_115=CLOSED_PASS_LIVE_REVALIDATED
+KF_116=OPEN_SOURCE_REPAIR_REQUIRED
+ROOT_CAUSE=PUBLIC_ONLY_CANDIDATE_ROOT_NOT_CREATED_BEFORE_STAGE_MKDIR
+
+NEXT_ONE_GATE=N3W_T1_F3_PUBLIC_RUNTIME_CANDIDATE_ROOT_SOURCE_REPAIR_20261015_01
+AUTO_EXECUTE_LIVE_RETRY=false
+```
+
+R3 proved the image transport repair on the real path: Home Assistant, Manager and Broker each reached
+`image_loaded` with `staged_tar_deleted=true`. The later failure is a distinct public-runtime source defect.
+The exact public-only flow chooses a fresh non-existent candidate root and then calls
+`stage_public_runtime()`; the live adapter attempts `candidate_root/stage.mkdir()` without first creating the
+candidate parent. That deterministically raises a FileNotFoundError, which is sanitized to `adapter_failure`.
+R3 is permanently consumed/no-replay.
+
+Authority: `docs/development/N3W_T1_F3_R3_PUBLIC_RUNTIME_CANDIDATE_ROOT_FAILURE_20261015.md`.
+
 ## 2026-10-15 — F3 R3 read-only preauth CLOSED_PASS / explicit live authorization decision next
 
 ```text
