@@ -1,3 +1,12 @@
+## 2026-10-15 — KF-121 forensic narrowed to socket-count oracle path
+
+- Broker logs prove the authenticated Manager client connected at 14:32:15.264Z and did not disconnect until 15:30:36.082Z.
+- Manager container finished at 15:30:36.088Z with restart_count=0 and OOMKilled=false; disconnect timing matches fail-closed rollback.
+- The acceptance host TLS probe is separately visible at 15:30:08.252Z→15:30:08.311Z.
+- Therefore a real Manager MQTT connectivity loss before the acceptance failure is not proven; Broker evidence instead shows session continuity.
+- KF-121 is narrowed to the Manager in-container socket-count oracle path. Exact mechanism remains TBD pending one more stopped-state read-only container-security inspection.
+- Runtime remains safely stopped at STOPPED_RUNTIME_ACCEPTANCE. No retry/restart is authorized.
+
 ## 2026-10-15 — F4 runtime acceptance R1 FAIL / fail-closed rollback PASS
 
 ~~~text
