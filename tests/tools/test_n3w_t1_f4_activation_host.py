@@ -790,6 +790,20 @@ def test_persistence_enables_only_broker_and_services(
     monkeypatch.setattr(tool, "_verify_installed_material", lambda _tx: None)
     monkeypatch.setattr(
         tool,
+        "_validate_runtime_acceptance_binding",
+        lambda _tx: {"status": "PASS"},
+    )
+    monkeypatch.setattr(
+        tool,
+        "_runtime_container_snapshot",
+        lambda: {
+            "broker": {"id": "b", "started_at": "1"},
+            "manager": {"id": "m", "started_at": "1"},
+            "homeassistant": {"id": "h", "started_at": "1"},
+        },
+    )
+    monkeypatch.setattr(
+        tool,
         "_runtime_activity",
         lambda: {
             "production_service_start": True,
@@ -866,13 +880,31 @@ def test_certificate_timer_enable_is_enable_only(
     )
     monkeypatch.setattr(tool, "_validate_factory_binding", lambda _verified: {})
     monkeypatch.setattr(tool, "_verify_installed_material", lambda _tx: None)
+    monkeypatch.setattr(
+        tool,
+        "_validate_runtime_acceptance_binding",
+        lambda _tx: {"status": "PASS"},
+    )
     monkeypatch.setattr(tool, "_sha256_file", lambda _path: "a" * 64)
+    monkeypatch.setattr(
+        tool,
+        "_runtime_container_snapshot",
+        lambda: {
+            "broker": {"id": "b", "started_at": "1"},
+            "manager": {"id": "m", "started_at": "1"},
+            "homeassistant": {"id": "h", "started_at": "1"},
+        },
+    )
 
     def systemctl(mode: str, unit: str):
         if unit == tool.CERT_TIMER and mode == "is-enabled":
             return "enabled" if enabled else "disabled"
         if unit == tool.CERT_TIMER and mode == "is-active":
             return "inactive"
+        if unit == tool.CERT_SERVICE and mode == "is-active":
+            return "inactive"
+        if unit in {tool.BROKER_UNIT, tool.SERVICES_UNIT} and mode == "is-enabled":
+            return "enabled"
         return "unknown"
 
     def run(argv, **_kwargs):
@@ -907,6 +939,169 @@ def test_certificate_timer_enable_is_enable_only(
     assert result["state"] == "PRE_REBOOT_READY"
     assert result["certificate_timer_enabled"] is True
     assert result["certificate_timer_active_before_reboot"] is False
+
+
+def test_service_identity_runtime_binding_requires_exact_roles(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    identities = {
+        "manager": {
+            "service": "manager",
+            "system_id": "system-a",
+            "generation": 1,
+            "username": "manager-user",
+            "client_id": "manager-client",
+        },
+        "provisioning": {
+            "service": "provisioning",
+            "system_id": "system-a",
+            "generation": 1,
+            "username": "provision-user",
+            "client_id": "provision-client",
+        },
+        "homeassistant": {
+            "service": "homeassistant",
+            "system_id": "system-a",
+            "generation": 1,
+            "username": "ha-user",
+            "client_id": "ha-client",
+        },
+    }
+    bootstrap = {
+        "schema": "gh.n3w.t1-clean-homeassistant-mqtt-bootstrap/1",
+        "service": "homeassistant",
+        "broker": "127.0.0.1",
+        "port": 1883,
+        "protocol": "5",
+        "username": "ha-user",
+        "client_id": "ha-client",
+        "generation": 1,
+        "official_config_flow_only": True,
+        "direct_storage_edit_forbidden": True,
+        "automatic_apply": True,
+        "runtime_verified": False,
+    }
+
+    def private_json(path, **_kwargs):
+        if path.name == "mqtt-bootstrap.json":
+            return bootstrap
+        return identities[path.parent.name]
+
+    monkeypatch.setattr(tool, "_private_service_json", private_json)
+    document = {
+        "Config": {
+            "Env": [
+                "GH_SYSTEM_ID=system-a",
+                "GH_MQTT_USERNAME=manager-user",
+                "GH_MQTT_CLIENT_ID=manager-client",
+                "GH_N3W_PROVISIONING_USERNAME=provision-user",
+                "GH_N3W_PROVISIONING_CLIENT_ID=provision-client",
+            ]
+        }
+    }
+
+    report = tool._service_identity_runtime_binding(
+        document,
+        expected_system_id="system-a",
+    )
+
+    assert report["manager_identity_exact"] is True
+    assert report["homeassistant_bootstrap_identity_exact"] is True
+
+    document["Config"]["Env"][1] = "GH_MQTT_USERNAME=provision-user"
+    with pytest.raises(tool.F4Error, match="service_identity_drift"):
+        tool._service_identity_runtime_binding(
+            document,
+            expected_system_id="system-a",
+        )
+
+
+def test_product_container_guard_rejects_extra_product_image(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    release = {
+        "images": {
+            "broker": {"image": "broker:image"},
+            "manager": {"image": "manager:image"},
+            "homeassistant": {"image": "ha:image"},
+        }
+    }
+    inspects = {
+        "broker": {"Id": "b"},
+        "manager": {"Id": "m"},
+        "homeassistant": {"Id": "h"},
+    }
+
+    def run(argv, **_kwargs):
+        if argv[:3] == ("docker", "ps", "--format"):
+            return "b\nm\nh\nx\n"
+        if argv[:2] == ("docker", "inspect"):
+            return json.dumps(
+                [
+                    {"Id": "b", "Config": {"Image": "broker:image"}},
+                    {"Id": "m", "Config": {"Image": "manager:image"}},
+                    {"Id": "h", "Config": {"Image": "ha:image"}},
+                    {"Id": "x", "Config": {"Image": "other:image"}},
+                ]
+            )
+        raise AssertionError(argv)
+
+    monkeypatch.setattr(tool, "_run", run)
+    report = tool._product_container_guard(release, inspects)
+    assert report["unexpected_product_container_count"] == 0
+
+    def run_extra(argv, **_kwargs):
+        if argv[:3] == ("docker", "ps", "--format"):
+            return "b\nm\nh\nx\n"
+        if argv[:2] == ("docker", "inspect"):
+            return json.dumps(
+                [
+                    {"Id": "b", "Config": {"Image": "broker:image"}},
+                    {"Id": "m", "Config": {"Image": "manager:image"}},
+                    {"Id": "h", "Config": {"Image": "ha:image"}},
+                    {"Id": "x", "Config": {"Image": "manager:image"}},
+                ]
+            )
+        raise AssertionError(argv)
+
+    monkeypatch.setattr(tool, "_run", run_extra)
+    with pytest.raises(tool.F4Error, match="unexpected_product_container"):
+        tool._product_container_guard(release, inspects)
+
+
+def test_downstream_rollback_requires_listener_absence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    stages: list[tuple[str, dict[str, object]]] = []
+    monkeypatch.setattr(tool, "_run", lambda *_args, **_kwargs: "")
+    monkeypatch.setattr(
+        tool,
+        "_runtime_activity",
+        lambda: {
+            "production_service_start": False,
+            "running_services": [],
+        },
+    )
+    monkeypatch.setattr(
+        tool,
+        "_systemctl",
+        lambda mode, _unit: "disabled" if mode == "is-enabled" else "inactive",
+    )
+    monkeypatch.setattr(tool, "_product_listener_ports", lambda: [8883])
+    monkeypatch.setattr(
+        tool,
+        "_advance_transaction",
+        lambda stage, **fields: stages.append((stage, fields)) or fields,
+    )
+
+    tool._downstream_fail_closed("TEST", tool.F4Error("failed"))
+
+    assert stages[-1][0] == "STOPPED_TEST_ROLLBACK_UNPROVEN"
+    assert stages[-1][1]["rollback_proven"] is False
+    assert stages[-1][1]["product_listener_ports"] == [8883]
 
 
 def test_mount_contract_ignores_only_tmpfs_and_binds_exact_source(
