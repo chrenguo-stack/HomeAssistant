@@ -1,3 +1,10 @@
+## 2026-10-15 — KF-117 PREPARED live control repair authorized
+
+- Explicit authorization granted for `N3W_T1_F4_KF117_PREPARED_CONTROL_REPAIR_LIVE_20261015_01`.
+- Scope is limited to exact replacement of the defective F4 launcher and transaction rebinding back to `PREPARED`.
+- Original PREPARE remains permanently consumed/no-replay.
+- No Broker/Manager/Home Assistant start, persistence, certificate lifecycle mutation, reboot or board access is authorized.
+
 ## 2026-10-15 — KF-117 PREPARED repair preflight CLOSED_PASS
 
 - Exact defective launcher binding confirmed on the real T1.
