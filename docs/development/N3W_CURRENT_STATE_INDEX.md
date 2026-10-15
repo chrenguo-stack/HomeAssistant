@@ -1,3 +1,12 @@
+## 2026-10-15 — KF-121 forensic narrowed: Manager MQTT session remained connected
+
+- Broker retained logs prove the authenticated Manager MQTT session stayed connected from 14:32:15.264Z until rollback at 15:30:36.082Z.
+- Manager container finished at 15:30:36.088Z with restart_count=0 and OOMKilled=false.
+- The separate anonymous 8883 connection at 15:30:08.252Z→15:30:08.311Z matches the host-side acceptance TLS probe.
+- Therefore the R1 failure is not evidence of a real Manager MQTT outage; it is narrowed to the in-container socket-count oracle path.
+- Exact probe mechanism remains TBD pending stopped-container security/capability inspection.
+- Runtime remains STOPPED_RUNTIME_ACCEPTANCE; the consumed acceptance authorization is no-replay and no runtime restart is authorized.
+
 ## 2026-10-15 — F4 runtime acceptance R1 failed safely; KF-121 opened
 
 - Fresh precheck passed on exact source `ffcbb1a...` with Broker, Manager and Home Assistant running and persistence disabled.
