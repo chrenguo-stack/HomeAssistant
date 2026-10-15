@@ -1504,13 +1504,40 @@ def _running_services() -> frozenset[str]:
 def _activate(confirmation: str, authorization_id: str) -> dict[str, object]:
     if confirmation != ACTIVATE_CONFIRMATION:
         raise F4Error("activate_confirmation_invalid")
+    if (
+        not authorization_id.startswith("N3W_T1_F4_")
+        or len(authorization_id) > 200
+        or not authorization_id.replace("_", "").replace("-", "").isalnum()
+    ):
+        raise F4Error("activation_authorization_id_invalid")
     with _exclusive_f4():
         eligible = _activation_eligibility("inspect")
         if eligible.get("transaction_stage") != "PREPARED":
             raise F4Error("activation_replay_forbidden")
         transaction = _read_private_record(TRANSACTION_PATH)
-        if transaction.get("authorization_id") != authorization_id:
-            raise F4Error("activation_authorization_id_mismatch")
+        prior_authorizations = {
+            value
+            for value in (
+                transaction.get("authorization_id"),
+                transaction.get("control_repair_authorization_id"),
+            )
+            if isinstance(value, str)
+        }
+        if authorization_id in prior_authorizations:
+            raise F4Error("activation_authorization_not_distinct")
+        if transaction.get("activation_authorization_claimed") is True:
+            raise F4Error("activation_authorization_replay_forbidden")
+
+        _advance_transaction(
+            "ACTIVATION_CLAIMED",
+            activation_authorization_id=authorization_id,
+            activation_authorization_claimed=True,
+            activation_authorization_consumed=True,
+            activation_authorization_replay_allowed=False,
+            production_service_start=False,
+            persistence_enabled=False,
+        )
+
         broker_attempted = False
         services_attempted = False
         try:
