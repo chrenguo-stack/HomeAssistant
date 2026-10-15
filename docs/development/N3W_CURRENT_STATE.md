@@ -1,3 +1,178 @@
+## 2026-10-15 — Explicit per-device provisioning LIVE START CLOSED_PASS
+
+```text
+TASK=N3W_T1_EXPLICIT_PER_DEVICE_PROVISIONING_LIVE_START_20261015_01
+RESULT=CLOSED_PASS
+DEPLOYED_RELEASE_SOURCE_HEAD=6ac82ae0872b05644e59470ffef7307dad14d359
+
+AUTHORIZATION_GRANTED=true
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+AUTHORIZATION_REPLAY_PERMITTED=false
+
+START_EXECUTED_EXACTLY_ONCE=true
+START_COMMAND_EXIT=0
+SECOND_START_EXECUTED=false
+
+TRANSACTION_JSON_PRESENT=true
+FIRSTBOOT_COMPLETE_JSON_PRESENT=true
+
+VERIFY_STATUS=PASS
+VERIFY_STATE=DEVICE_READY
+VERIFY_EXIT=0
+VERIFY_PARSE_EXIT=0
+
+PRODUCTION_SERVICE_START=false
+F4_ENTERED=false
+BOARD_ACCESS=false
+MERGE=false
+
+CURRENT_STOP_POINT=AFTER_DEVICE_READY_BEFORE_F4
+NEXT_ONE_GATE=NONE:F4_REQUIRES_SEPARATE_PREPARATION_AND_NEW_AUTHORIZATION
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+The one-shot explicit provisioning authorization is permanently consumed/no-replay. A local chat-supplied JSON
+formatting helper failed with a Python quoting SyntaxError after the remote `start` had already returned exit 0;
+this was not a product failure. Durable transaction + completion were present, and a separate verify-only command
+proved `PASS / DEVICE_READY` for release `6ac82ae...`. Broker/services/certificate activation remained
+inactive, their later activation units remained not-found, and F4 was not entered. No second `start` may be
+executed. Closure authority:
+`docs/development/N3W_T1_EXPLICIT_PER_DEVICE_PROVISIONING_LIVE_START_CLOSURE_20261015.md`.
+
+## 2026-10-15 — New-chat handoff frozen for explicit provisioning live start
+
+```text
+HANDOFF=docs/development/N3W_T1_EXPLICIT_PER_DEVICE_PROVISIONING_LIVE_START_NEW_CHAT_HANDOFF_V1.0_20261015.md
+HANDOFF_TEMPLATE_VERSION=1.3
+HANDOFF_TEMPLATE_BLOB=b9ef40acdaa8fae37feb5ffe5662afd0e89462a0
+HANDOFF_STANDARD_AUTHORITY=4300890dff0ce63d5a547df21426e287d084d9ee
+
+READONLY_PREAUTH=CLOSED_PASS
+REPEAT_READONLY_PREAUTH=false
+REPEAT_R4=false
+REPEAT_MAC_CACHE_ACCEPTANCE=false
+REPEAT_SOURCE_CI=false
+
+NEXT_ONE_GATE=N3W_T1_EXPLICIT_PER_DEVICE_PROVISIONING_LIVE_START_20261015_01
+AUTHORIZATION_GRANTED=true
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+
+CURRENT_CHAT_OPERATIONS_FROZEN=true
+AUTO_EXECUTE_CURRENT_CHAT=false
+F4_AUTHORIZATION_GRANTED=false
+BOARD_ACCESS=false
+MERGE=false
+```
+
+The user froze the current chat after the real explicit-provisioning read-only preauth passed and directed the
+next chat to enter the exact live-start Gate without repeating completed validations. The live-start authorization
+is recorded as granted but remains unclaimed/unconsumed because no provisioning start was executed in this chat.
+The formal handoff uses the current candidate-branch V1.3 template, not the historical template.
+
+## 2026-10-15 — Explicit per-device provisioning read-only preauth CLOSED_PASS
+
+```text
+TASK=N3W_T1_EXPLICIT_PER_DEVICE_PROVISIONING_READONLY_PREAUTH_20261015_01
+RESULT=CLOSED_PASS
+
+DEPLOYED_RELEASE_SOURCE_HEAD=6ac82ae0872b05644e59470ffef7307dad14d359
+PROVISIONING_STATE=UNPROVISIONED
+TRANSACTION_JSON=ABSENT
+FIRSTBOOT_COMPLETE_JSON=ABSENT
+
+INSTANCE_MATERIAL_ABSENT=true
+EXPLICIT_PROVISIONING_REQUIRED=true
+PRODUCTION_SERVICE_START=false
+
+CURRENT_STOP_POINT=AFTER_READONLY_PREAUTH_BEFORE_EXPLICIT_PROVISIONING_START
+NEXT_ONE_GATE=N3W_T1_EXPLICIT_PER_DEVICE_PROVISIONING_LIVE_START_20261015_01
+LIVE_MUTATION_AUTHORIZATION_REQUIRED=true
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+Real target read-only preauth passed. The staged public product remains unprovisioned; no transaction or completion
+record exists, and later production activation units are absent/inactive as required by the F3 staged boundary.
+No provisioning start or live mutation occurred.
+
+Authority: `docs/development/N3W_T1_EXPLICIT_PER_DEVICE_PROVISIONING_READONLY_PREAUTH_CLOSURE_20261015.md`.
+
+## 2026-10-15 — Mac local exact artifact cache V1 MAC ACCEPTANCE CLOSED_PASS
+
+```text
+TASK=N3W_T1_MAC_LOCAL_EXACT_ARTIFACT_CACHE_V1_MAC_ACCEPTANCE_20261015_01
+RESULT=CLOSED_PASS
+
+PR=545
+REPAIRED_EXECUTABLE_SOURCE_HEAD=13b08208c91400a7e6a91ddbc47620a6146eb2a1
+SOURCE_CI=14_SUCCESS_0_FAILURE_0_PENDING
+
+ARTIFACT_ID=11954286988
+ARTIFACT_ZIP_SHA256=047a40ed640bc1bfcbc8adb7007da2a4eea1f8abedffbc3cb2e2a4d9f6817928
+
+FIRST_ACQUISITION=MISS_POPULATED
+FIRST_INNER_BINDING=PASS
+SECOND_ACQUISITION=HIT
+SECOND_INNER_BINDING=PASS
+SECOND_HIT_GITHUB_ACCESS=false
+PERSISTENT_STORE=true
+
+T1_ACCESS=false
+EXPLICIT_DEVICE_PROVISIONING=false
+PRODUCTION_SERVICE_START=false
+F4=false
+BOARD_ACCESS=false
+MERGE=false
+
+CURRENT_STOP_POINT=AFTER_MAC_CACHE_ACCEPTANCE_BEFORE_EXPLICIT_DEVICE_PROVISIONING
+NEXT_ONE_GATE=NONE:EXPLICIT_DEVICE_PROVISIONING_REQUIRES_SEPARATE_AUTHORIZATION
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+Real Mac acceptance proved the durable exact artifact store end to end. The first use populated
+`~/Documents/N3W/exact-artifacts`; all inner bindings passed. The second use returned `HIT` while GitHub
+metadata/download functions were hard-disabled, proving that a verified cache hit does not download the large
+artifact again. No T1 access, provisioning, F4, board work, or merge occurred.
+
+Authority: `docs/development/N3W_T1_MAC_LOCAL_EXACT_ARTIFACT_CACHE_V1_MAC_ACCEPTANCE_CLOSURE_20261015.md`.
+
+## 2026-10-15 — Mac local exact artifact cache V1 source CLOSED_PASS / Mac acceptance next
+
+```text
+TASK=N3W_T1_MAC_LOCAL_EXACT_ARTIFACT_CACHE_V1_SOURCE_DESIGN_AND_REPAIR_20261015_01
+RESULT=CLOSED_SOURCE_PASS
+
+PR=545
+SOURCE_HEAD=d1a7847c1e0612ac80b31b85262011110f329794
+CI=14_SUCCESS_0_FAILURE_0_PENDING
+
+DEFAULT_DURABLE_STORE=~/Documents/N3W/exact-artifacts
+CUSTOM_STORE_SUPPORTED=true
+CACHE_HIT_REHASH_REQUIRED=true
+CACHE_HIT_GITHUB_LARGE_DOWNLOAD=false
+CACHE_CORRUPTION_FAIL_CLOSED=true
+CACHE_MISS_ATOMIC_PUBLISH=true
+
+REAL_MAC_CACHE_POPULATION=false
+REAL_MAC_CACHE_HIT_ACCEPTANCE=false
+T1_ACCESS=false
+EXPLICIT_DEVICE_PROVISIONING=false
+F4=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_MAC_LOCAL_EXACT_ARTIFACT_CACHE_V1_MAC_ACCEPTANCE_20261015_01
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+The post-R4 local artifact optimization is now source-closed. Exact cache entries are stored in a durable
+Mac location, are bound by artifact identity plus ZIP SHA-256, are re-hashed on every hit, and keep the
+existing inner payload/image binding checks. Corrupt/mismatched existing entries fail closed instead of
+silently re-downloading. The source Gate did not access T1 or enter provisioning/F4.
+
+Authority: `docs/development/N3W_T1_MAC_LOCAL_EXACT_ARTIFACT_CACHE_V1_SOURCE_REPAIR_CLOSURE_20261015.md`.
+
 ## 2026-10-15 — F3 R4 live apply CLOSED_PASS / STOP before explicit provisioning
 
 ```text

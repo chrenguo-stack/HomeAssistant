@@ -1,3 +1,60 @@
+## 2026-10-15 — Explicit per-device provisioning LIVE START CLOSED_PASS
+
+- Gate `N3W_T1_EXPLICIT_PER_DEVICE_PROVISIONING_LIVE_START_20261015_01` is CLOSED_PASS.
+- Exact provisioning `start` executed once and returned exit 0; `transaction.json` and `FIRSTBOOT_COMPLETE.json` are present.
+- Authorization is claimed/consumed and permanently no-replay; no second `start` is permitted.
+- Separate verify-only execution returned `PASS / DEVICE_READY` for deployed release `6ac82ae0872b05644e59470ffef7307dad14d359`.
+- Product identity and host-instance identity are present; no private values are persisted in public GitHub.
+- Broker activation, services activation and certificate-lifecycle timer were inactive; later activation units were not found; production service start=false.
+- F4, board/USB/serial/Flash/NVS/RF work and PR merge were not entered.
+- The first post-start result parser had a local Python quoting SyntaxError after the successful remote start; classified as a local evidence-wrapper defect, not a product/T1/source failure.
+- Current STOP: `AFTER_DEVICE_READY_BEFORE_F4`; F4 requires separate preparation and new authorization.
+- Closure authority: `docs/development/N3W_T1_EXPLICIT_PER_DEVICE_PROVISIONING_LIVE_START_CLOSURE_20261015.md`.
+
+## 2026-10-15 — Handoff frozen: explicit provisioning live start next
+
+- Formal handoff: `docs/development/N3W_T1_EXPLICIT_PER_DEVICE_PROVISIONING_LIVE_START_NEW_CHAT_HANDOFF_V1.0_20261015.md`.
+- Correct template: candidate-branch `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` V1.3 / blob `b9ef40acdaa8fae37feb5ffe5662afd0e89462a0`; do not use the historical template.
+- Exact historical handoff standard authority: `4300890dff0ce63d5a547df21426e287d084d9ee`.
+- Real explicit-provisioning read-only preauth is already CLOSED_PASS and must not be repeated in the new chat.
+- R4 and Mac local exact-artifact-cache acceptance are already CLOSED_PASS and must not be repeated.
+- User granted direct next-chat entry to `N3W_T1_EXPLICIT_PER_DEVICE_PROVISIONING_LIVE_START_20261015_01`.
+- Live-start authorization is granted but unclaimed/unconsumed; claim occurs when durable `transaction.json` is created.
+- Current chat is frozen: no provisioning start, F4, board work or merge occurred.
+- New chat must do only the minimum GitHub fresh rebind needed to prove handoff advancement is docs-only, then enter the live-start Gate directly.
+
+## 2026-10-15 — Explicit per-device provisioning read-only preauth CLOSED_PASS
+
+- Real target reports `UNPROVISIONED` with status PASS for deployed release `6ac82ae0872b05644e59470ffef7307dad14d359`.
+- `transaction.json` and `FIRSTBOOT_COMPLETE.json` are both absent.
+- Public product still reports instance material absent and explicit provisioning required.
+- Only ingress guard and provisioning resume are enabled; later activation units are absent/inactive by design.
+- No live provisioning mutation occurred.
+- STOP before `N3W_T1_EXPLICIT_PER_DEVICE_PROVISIONING_LIVE_START_20261015_01`; separate live authorization required.
+- Closure authority: `docs/development/N3W_T1_EXPLICIT_PER_DEVICE_PROVISIONING_READONLY_PREAUTH_CLOSURE_20261015.md`.
+
+## 2026-10-15 — Mac local exact artifact cache V1 MAC ACCEPTANCE CLOSED_PASS
+
+- Repaired executable source `13b08208c91400a7e6a91ddbc47620a6146eb2a1` passed 14/14 CI.
+- Exact deployable artifact ID `11954286988`, ZIP SHA-256 `047a40ed640bc1bfcbc8adb7007da2a4eea1f8abedffbc3cb2e2a4d9f6817928`.
+- Real Mac first acquisition was `MISS_POPULATED`; inner binding PASS and durable store populated under `~/Documents/N3W/exact-artifacts`.
+- Real Mac second acquisition was `HIT`; inner binding PASS while GitHub metadata/download functions were hard-disabled, proving no second large-artifact download.
+- The earlier Mac API EOF/TLS timeout was repaired with authenticated IPv4/HTTP1.1 curl plus bounded retries; SHA/binding authority was unchanged.
+- No T1 access, provisioning, production service start, F4, board work, or merge occurred.
+- Current STOP: after Mac cache acceptance and before explicit per-device provisioning; provisioning requires separate authorization.
+- Closure authority: `docs/development/N3W_T1_MAC_LOCAL_EXACT_ARTIFACT_CACHE_V1_MAC_ACCEPTANCE_CLOSURE_20261015.md`.
+
+## 2026-10-15 — Mac local exact artifact cache V1 source CLOSED_PASS
+
+- PR #545 exact source `d1a7847c1e0612ac80b31b85262011110f329794` is green at 14/14 CI.
+- Default long-term Mac store is `~/Documents/N3W/exact-artifacts`; operator override is supported with `--artifact-cache-root`.
+- Exact cache hit re-hashes the ZIP and preserves all existing runtime/manifest/capacity/host/image binding checks; no GitHub large-artifact download occurs on a verified hit.
+- Cache miss verifies GitHub metadata + ZIP SHA-256 and atomically publishes the exact entry; corrupted existing entries fail closed.
+- No T1 access, provisioning, F4, board work, or merge occurred.
+- Real Mac cache population/hit acceptance remains pending.
+- Next one gate: `N3W_T1_MAC_LOCAL_EXACT_ARTIFACT_CACHE_V1_MAC_ACCEPTANCE_20261015_01`.
+- Closure authority: `docs/development/N3W_T1_MAC_LOCAL_EXACT_ARTIFACT_CACHE_V1_SOURCE_REPAIR_CLOSURE_20261015.md`.
+
 ## 2026-10-15 — F3 R4 live apply CLOSED_PASS
 
 - Exact R4 source `6ac82ae0872b05644e59470ffef7307dad14d359` completed the real T1 F3 public staging path.
