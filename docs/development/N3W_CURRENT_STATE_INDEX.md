@@ -1,3 +1,12 @@
+## 2026-10-15 — KF-121 source repair ready; no live retry yet
+
+- Stopped Manager inspection confirms runtime `999:999`, all Linux capabilities dropped, no-new-privileges, private PID namespace and host network.
+- This matches the failed socket oracle's forced-root `/proc/<pid>/fd` ownership mismatch.
+- PR #569 removes the forced user override and preserves exact-one MQTT socket acceptance.
+- Exact source CI passed on the source repair head; KF-121 is now source-closed pending real-T1 revalidation.
+- T1 remains `STOPPED_RUNTIME_ACCEPTANCE`; the failed acceptance authorization is permanently no-replay.
+- No runtime restart, new live acceptance authorization, persistence or certificate step is authorized yet.
+
 ## 2026-10-15 — KF-121 forensic narrowed: Manager MQTT session remained connected
 
 - Broker retained logs prove the authenticated Manager MQTT session stayed connected from 14:32:15.264Z until rollback at 15:30:36.082Z.
