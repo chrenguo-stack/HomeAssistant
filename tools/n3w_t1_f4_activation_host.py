@@ -14,8 +14,6 @@ import stat
 import subprocess
 import sys
 import time
-import urllib.error
-import urllib.request
 from collections.abc import Sequence
 from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
@@ -1392,10 +1390,14 @@ def _broker_runtime_contract(document: dict[str, object]) -> None:
         "1883/tcp": ("127.0.0.1", "1883"),
         "8883/tcp": ("0.0.0.0", "8883"),
     }
-    if set(ports) != set(expected):
+    if not set(expected) <= set(ports):
         raise F4Error("broker_port_set_invalid")
-    for key, pair in expected.items():
-        rows = ports.get(key)
+    for key, rows in ports.items():
+        if key not in expected:
+            if rows not in (None, []):
+                raise F4Error(f"broker_unexpected_publication:{key}")
+            continue
+        pair = expected[key]
         if (
             not isinstance(rows, list)
             or len(rows) != 1
@@ -1407,23 +1409,75 @@ def _broker_runtime_contract(document: dict[str, object]) -> None:
 
 def _mount_contract(
     document: dict[str, object],
-    expected: dict[str, bool],
+    expected: dict[str, tuple[str, bool]],
     *,
     label: str,
 ) -> None:
     mounts = document.get("Mounts")
     if not isinstance(mounts, list):
         raise F4Error(f"{label}_mounts_invalid")
-    observed: dict[str, bool] = {}
+    observed: dict[str, tuple[str, bool]] = {}
     for item in mounts:
         if not isinstance(item, dict):
             raise F4Error(f"{label}_mount_invalid")
+        mount_type = item.get("Type")
         target = item.get("Destination")
         if not isinstance(target, str):
             raise F4Error(f"{label}_mount_target_invalid")
-        observed[target] = item.get("RW") is True
+        if mount_type == "tmpfs":
+            continue
+        if mount_type != "bind":
+            raise F4Error(f"{label}_unexpected_mount_type")
+        source = item.get("Source")
+        if not isinstance(source, str):
+            raise F4Error(f"{label}_mount_source_invalid")
+        observed[target] = (source, item.get("RW") is True)
     if observed != expected:
         raise F4Error(f"{label}_mount_contract_invalid")
+
+
+def _tmpfs_option_set(value: object) -> frozenset[str]:
+    if not isinstance(value, str):
+        raise F4Error("manager_tmpfs_options_invalid")
+    return frozenset(
+        item.strip().lower()
+        for item in value.split(",")
+        if item.strip()
+    )
+
+
+def _tmpfs_size_matches(options: frozenset[str], mib: int) -> bool:
+    values = {
+        item.split("=", 1)[1]
+        for item in options
+        if item.startswith("size=") and "=" in item
+    }
+    return len(values) == 1 and next(iter(values)) in {
+        f"{mib}m",
+        str(mib * 1024 * 1024),
+        f"{mib * 1024}k",
+    }
+
+
+def _manager_tmpfs_contract(host: dict[str, object]) -> None:
+    tmpfs = host.get("Tmpfs")
+    if not isinstance(tmpfs, dict) or set(tmpfs) != {
+        "/tmp",
+        "/run/greenhouse-manager",
+    }:
+        raise F4Error("manager_tmpfs_set_invalid")
+
+    temporary = _tmpfs_option_set(tmpfs["/tmp"])
+    runtime = _tmpfs_option_set(tmpfs["/run/greenhouse-manager"])
+    if (
+        not _tmpfs_size_matches(temporary, 16)
+        or "mode=1777" not in temporary
+        or not _tmpfs_size_matches(runtime, 4)
+        or not ({"mode=0700", "mode=700"} & runtime)
+        or "uid=999" not in runtime
+        or "gid=999" not in runtime
+    ):
+        raise F4Error("manager_tmpfs_contract_invalid")
 
 
 def _manager_runtime_contract(document: dict[str, object]) -> None:
@@ -1474,14 +1528,30 @@ def _manager_runtime_contract(document: dict[str, object]) -> None:
     _mount_contract(
         document,
         {
-            "/var/lib/greenhouse-manager/manager": True,
-            "/var/lib/greenhouse-manager/n3w": True,
-            "/run/secrets/gh_manager_mqtt_password": False,
-            "/run/secrets/gh_n3w_provisioning_mqtt_password": False,
-            "/run/n3w/tls/ca.pem": False,
+            "/var/lib/greenhouse-manager/manager": (
+                "/var/lib/greenhouse-manager/manager",
+                True,
+            ),
+            "/var/lib/greenhouse-manager/n3w": (
+                "/var/lib/greenhouse-manager/n3w",
+                True,
+            ),
+            "/run/secrets/gh_manager_mqtt_password": (
+                "/opt/greenhouse-secrets/mqtt/manager/password",
+                False,
+            ),
+            "/run/secrets/gh_n3w_provisioning_mqtt_password": (
+                "/opt/greenhouse-secrets/mqtt/provisioning/password",
+                False,
+            ),
+            "/run/n3w/tls/ca.pem": (
+                "/etc/n3wfc4/tls/ca.pem",
+                False,
+            ),
         },
         label="manager",
     )
+    _manager_tmpfs_contract(host)
 
 
 def _homeassistant_runtime_contract(document: dict[str, object]) -> None:
@@ -1491,11 +1561,29 @@ def _homeassistant_runtime_contract(document: dict[str, object]) -> None:
     _mount_contract(
         document,
         {
-            "/config": True,
-            "/config/configuration.yaml": False,
-            "/config/custom_components/n3w_mqtt_bootstrap": False,
-            "/run/secrets/gh_homeassistant_mqtt_password": False,
-            "/run/n3w/ha-mqtt-bootstrap.json": False,
+            "/config": (
+                "/var/lib/n3wfc4-homeassistant",
+                True,
+            ),
+            "/config/configuration.yaml": (
+                "/opt/HomeAssistant/infra/n3w-t1/production/"
+                "homeassistant-configuration.yaml",
+                False,
+            ),
+            "/config/custom_components/n3w_mqtt_bootstrap": (
+                "/opt/HomeAssistant/infra/n3w-t1/homeassistant/"
+                "custom_components/n3w_mqtt_bootstrap",
+                False,
+            ),
+            "/run/secrets/gh_homeassistant_mqtt_password": (
+                "/opt/greenhouse-secrets/mqtt/homeassistant/password",
+                False,
+            ),
+            "/run/n3w/ha-mqtt-bootstrap.json": (
+                "/opt/greenhouse-secrets/mqtt/homeassistant/"
+                "mqtt-bootstrap.json",
+                False,
+            ),
         },
         label="homeassistant",
     )
@@ -1507,12 +1595,14 @@ def _verified_tls_runtime() -> dict[str, object]:
         context.check_hostname = True
         context.verify_mode = ssl.CERT_REQUIRED
         context.load_verify_locations(cafile=str(CA_CERT))
-        with socket.create_connection(("127.0.0.1", 8883), timeout=10) as raw:
-            with context.wrap_socket(
+        with (
+            socket.create_connection(("127.0.0.1", 8883), timeout=10) as raw,
+            context.wrap_socket(
                 raw,
                 server_hostname=SERVER_NAME,
-            ) as wrapped:
-                peer = wrapped.getpeercert(binary_form=True)
+            ) as wrapped,
+        ):
+            peer = wrapped.getpeercert(binary_form=True)
     except (OSError, ssl.SSLError) as error:
         raise F4Error("broker_live_tls_probe_failed") from error
     if not peer:
@@ -1562,37 +1652,6 @@ print(json.dumps({
     ):
         raise F4Error("guard_runtime_verify_failed")
     return document
-
-
-def _manager_health() -> dict[str, object]:
-    deadline = time.monotonic() + 120
-    last_error = "manager_health_timeout"
-    while time.monotonic() < deadline:
-        try:
-            with urllib.request.urlopen(
-                MANAGER_HEALTH_URL,
-                timeout=3,
-            ) as response:
-                payload = response.read(16384)
-            document = json.loads(payload)
-            if (
-                isinstance(document, dict)
-                and document.get("schema") == "gh.pair.simple-health/1"
-                and document.get("status") == "ok"
-            ):
-                return {
-                    "schema": document["schema"],
-                    "status": "ok",
-                }
-            last_error = "manager_health_contract_invalid"
-        except (
-            OSError,
-            urllib.error.URLError,
-            json.JSONDecodeError,
-        ):
-            last_error = "manager_health_unavailable"
-        time.sleep(1)
-    raise F4Error(last_error)
 
 
 def _container_established_socket_count(
@@ -1659,6 +1718,38 @@ print(json.dumps({"count": len(inodes & owned)}))
     if not isinstance(count, int) or isinstance(count, bool) or count < 0:
         raise F4Error("runtime_socket_probe_invalid")
     return count
+
+
+def _manager_runtime_stability(
+    container: str,
+    *,
+    expected_id: str,
+    expected_started_at: str,
+) -> dict[str, object]:
+    samples = 0
+    deadline = time.monotonic() + 10
+    while True:
+        document = _compose_service_inspect("manager")
+        state = document.get("State")
+        if (
+            document.get("Id") != expected_id
+            or not isinstance(state, dict)
+            or state.get("StartedAt") != expected_started_at
+            or state.get("Running") is not True
+        ):
+            raise F4Error("manager_runtime_identity_changed")
+        if _container_established_socket_count(container, 8883) != 1:
+            raise F4Error("manager_mqtt_socket_count_invalid")
+        samples += 1
+        if time.monotonic() >= deadline:
+            break
+        time.sleep(1)
+    return {
+        "stable_window_seconds": 10,
+        "sample_count": samples,
+        "container_identity_stable": True,
+        "mqtt_socket_stable": True,
+    }
 
 
 def _manager_state_audit(container: str) -> dict[str, object]:
@@ -2051,7 +2142,6 @@ def _runtime_acceptance_report() -> dict[str, object]:
 
     guard = _guard_runtime_verify()
     tls = _verified_tls_runtime()
-    health = _manager_health()
 
     manager_name = str(inspects["manager"].get("Name", "")).lstrip("/")
     homeassistant_name = str(
@@ -2061,12 +2151,20 @@ def _runtime_acceptance_report() -> dict[str, object]:
         raise F4Error("runtime_container_name_missing")
 
     manager_state = _manager_state_audit(manager_name)
-    manager_socket_count = _container_established_socket_count(
+    manager_id = inspects["manager"].get("Id")
+    manager_state_doc = inspects["manager"].get("State")
+    if (
+        not isinstance(manager_id, str)
+        or not isinstance(manager_state_doc, dict)
+        or not isinstance(manager_state_doc.get("StartedAt"), str)
+    ):
+        raise F4Error("manager_runtime_identity_invalid")
+    manager_stability = _manager_runtime_stability(
         manager_name,
-        8883,
+        expected_id=manager_id,
+        expected_started_at=str(manager_state_doc["StartedAt"]),
     )
-    if manager_socket_count != 1:
-        raise F4Error("manager_mqtt_socket_count_invalid")
+    manager_socket_count = 1
 
     homeassistant = _homeassistant_private_audit(homeassistant_name)
     ha_socket_count = _container_established_socket_count(
@@ -2104,7 +2202,7 @@ def _runtime_acceptance_report() -> dict[str, object]:
         "broker_network_set_exact": True,
         "ingress_guard": guard,
         "tls": tls,
-        "manager_health": health,
+        "manager_runtime_stability": manager_stability,
         "manager_state": manager_state,
         "manager_mqtt_socket_count": manager_socket_count,
         "homeassistant": homeassistant,
