@@ -1,3 +1,23 @@
+## 2026-10-15 — F4 read-only preauth contract correction: ingress guard stopped-boundary false negative closed
+
+~~~text
+TASK=N3W_T1_F4_REAL_T1_READONLY_PREAUTH_20261015_01
+OBSERVED_RESULT=STOP_FALSE_NEGATIVE
+ROOT_CAUSE=PREAUTH_CONTRACT_INCORRECTLY_REQUIRED_INGRESS_GUARD_ACTIVE
+SOURCE_CONTRACT=F3_INSTALL_ENABLE_ONLY;F4_ACTIVATE_STARTS_AND_REQUIRES_ACTIVE
+CORRECTION=PREAUTH_REQUIRES_INGRESS_GUARD_ENABLED;ACTIVE_STATE_OBSERVE_ONLY
+PRODUCT_DEFECT=false
+LIVE_RUNTIME_MUTATION=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+~~~
+
+The real T1 returned `ingress_guard_enabled=enabled` and `ingress_guard_active=inactive`. This is valid at the
+pre-F4 stopped boundary because `install-systemd-staged.sh` enables the guard without starting it; the F4 activation
+owner starts and verifies the guard immediately before Broker startup. The initial STOP was therefore a preauth
+oracle false negative, not a product failure. No repeat of the same read-only probe is required solely for this
+correction.
+
 ## 2026-10-15 — F4 exact control package + read-only preauth PREPARATION CLOSED_PASS
 
 ~~~text
