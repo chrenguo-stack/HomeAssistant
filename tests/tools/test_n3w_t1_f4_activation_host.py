@@ -1204,7 +1204,7 @@ def test_prepared_control_repair_rebinds_only_launcher(
             "running_services": [],
         },
     )
-    monkeypatch.setattr(tool, "_product_listener_ports", lambda: [])
+    monkeypatch.setattr(tool, "_product_listener_ports", list)
     monkeypatch.setattr(
         tool,
         "_advance_transaction",
