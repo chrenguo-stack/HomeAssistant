@@ -1,3 +1,34 @@
+## 2026-10-15 — KF-121 source repair implemented; live revalidation still required
+
+Fresh stopped-container inspection confirms the failed Manager container contract:
+
+~~~text
+USER=999:999
+CAP_DROP=[ALL]
+SECURITY_OPT=[no-new-privileges:true]
+PID_MODE=private(default)
+NETWORK_MODE=host
+~~~
+
+This matches the source-review hypothesis: the failed acceptance helper forced `docker exec --user 0:0` while
+discovering socket ownership through `/proc/<pid>/fd`, despite the Manager process running as UID/GID 999:999 with
+all capabilities dropped. Broker evidence independently proves the authenticated Manager MQTT session remained alive
+until rollback.
+
+Source repair PR #569 removes the forced user override, preserves the exact-one socket requirement, and records a bad
+observed count in future failure codes. Its exact source CI set passed on the first source head. The repair is not yet
+live-validated on T1.
+
+~~~text
+KF-121_STATUS=SOURCE_REPAIR_CLOSED_PASS_PENDING_LIVE_REVALIDATION
+SOURCE_REPAIR_PR=569
+SOURCE_REPAIR_BASE=ffcbb1a890e42ac776c6d90000bf3f25195da01d
+FAILED_ACCEPTANCE_AUTHORIZATION_REPLAY=false
+T1_STAGE=STOPPED_RUNTIME_ACCEPTANCE
+PRODUCTION_SERVICE_START=false
+NEXT_LIVE_ACTION=NOT_AUTHORIZED
+~~~
+
 ## 2026-10-15 — KF-121 forensic narrowed to socket-count oracle path
 
 - Broker logs prove the authenticated Manager client connected at 14:32:15.264Z and did not disconnect until 15:30:36.082Z.
