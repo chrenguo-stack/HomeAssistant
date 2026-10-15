@@ -43,6 +43,7 @@ CERT_TIMER = "n3wfc4-broker-certificate-lifecycle.timer"
 ETC_N3W = Path("/etc/n3wfc4")
 BROKER_ENV = ETC_N3W / "broker-activation.env"
 COMPOSE_TARGET = ETC_N3W / "docker-compose.yml"
+COMPOSE_ENV = ETC_N3W / "docker-compose.env"
 CERT_ENV = ETC_N3W / "broker-certificate-lifecycle.env"
 CERT_STATUS_ROOT = Path("/var/lib/n3wfc4-certificate-lifecycle")
 
@@ -163,12 +164,59 @@ def _runtime_activity() -> dict[str, object]:
     broker_state = _systemctl("is-active", BROKER_UNIT)
     services_state = _systemctl("is-active", SERVICES_UNIT)
     active_states = {"active", "activating", "reloading"}
+    unit_active = broker_state in active_states or services_state in active_states
+    running_services: list[str] | None = None
+    runtime_probe = "NOT_APPLICABLE"
+    if COMPOSE_TARGET.is_file() and not COMPOSE_TARGET.is_symlink():
+        if not COMPOSE_ENV.is_file() or COMPOSE_ENV.is_symlink():
+            return {
+                "broker_active_state": broker_state,
+                "services_active_state": services_state,
+                "runtime_service_probe": "UNPROVEN",
+                "running_services": None,
+                "production_service_start": None,
+            }
+        try:
+            output = _run(
+                (
+                    "docker",
+                    "compose",
+                    "--project-name",
+                    "n3wfc4",
+                    "--env-file",
+                    str(COMPOSE_ENV),
+                    "-f",
+                    str(COMPOSE_TARGET),
+                    "--profile",
+                    "application",
+                    "ps",
+                    "--status",
+                    "running",
+                    "--services",
+                ),
+                timeout=60,
+            )
+            running_services = sorted(
+                line.strip()
+                for line in output.splitlines()
+                if line.strip()
+            )
+            runtime_probe = "PASS"
+        except OPERATION_ERRORS:
+            return {
+                "broker_active_state": broker_state,
+                "services_active_state": services_state,
+                "runtime_service_probe": "UNPROVEN",
+                "running_services": None,
+                "production_service_start": None,
+            }
+    containers_active = bool(running_services)
     return {
         "broker_active_state": broker_state,
         "services_active_state": services_state,
-        "production_service_start": (
-            broker_state in active_states or services_state in active_states
-        ),
+        "runtime_service_probe": runtime_probe,
+        "running_services": running_services,
+        "production_service_start": unit_active or containers_active,
     }
 
 
@@ -582,8 +630,24 @@ def _activation_eligibility(phase: str) -> dict[str, object]:
     stage = str(transaction.get("stage", "UNKNOWN"))
     required = {
         "inspect": INSPECT_STAGES,
-        "broker": frozenset({"BROKER_STARTING"}),
-        "services": frozenset({"SERVICES_STARTING"}),
+        "broker": frozenset(
+            {
+                "BROKER_STARTING",
+                "BROKER_READY",
+                "SERVICES_STARTING",
+                "RUNTIME_STARTED",
+                "RUNTIME_ACCEPTED",
+                "PERSISTENCE_ENABLED",
+            }
+        ),
+        "services": frozenset(
+            {
+                "SERVICES_STARTING",
+                "RUNTIME_STARTED",
+                "RUNTIME_ACCEPTED",
+                "PERSISTENCE_ENABLED",
+            }
+        ),
         "certificate": frozenset({"RUNTIME_ACCEPTED", "PERSISTENCE_ENABLED"}),
     }
     allowed = required.get(phase)
@@ -991,7 +1055,7 @@ def _activate(confirmation: str, authorization_id: str) -> dict[str, object]:
                     rollback_errors.append(type(rollback_error).__name__)
             runtime = _runtime_activity()
             rollback_proven = (
-                not bool(runtime["production_service_start"])
+                runtime["production_service_start"] is False
                 and not rollback_errors
             )
             stop_stage = (
@@ -1035,6 +1099,8 @@ def _status() -> dict[str, object]:
         "transaction_stage": stage,
         "broker_active_state": runtime["broker_active_state"],
         "services_active_state": runtime["services_active_state"],
+        "runtime_service_probe": runtime["runtime_service_probe"],
+        "running_services": runtime["running_services"],
         "production_service_start": runtime["production_service_start"],
         "board_access": False,
     }
@@ -1116,6 +1182,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "production_service_start": None,
                 "broker_active_state": "unknown",
                 "services_active_state": "unknown",
+                "runtime_service_probe": "UNPROVEN",
+                "running_services": None,
             }
         _emit(
             {
@@ -1127,6 +1195,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 ],
                 "broker_active_state": runtime["broker_active_state"],
                 "services_active_state": runtime["services_active_state"],
+                "runtime_service_probe": runtime["runtime_service_probe"],
+                "running_services": runtime["running_services"],
                 "board_access": False,
             },
             error=True,
