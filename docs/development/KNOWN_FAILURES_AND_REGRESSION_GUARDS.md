@@ -1,3 +1,23 @@
+### 2026-10-15 source-repair update
+
+The stopped Manager container is confirmed as `999:999`, `CapDrop=["ALL"]`,
+`no-new-privileges:true`, default/private PID namespace and host network mode. Combined with Broker-side proof that
+the authenticated Manager MQTT session stayed connected until fail-closed stop, this closes the source-analysis gap:
+the acceptance oracle forced an execution UID that did not match the Manager runtime identity while relying on a
+`/proc/<pid>/fd` ownership walk.
+
+PR #569 implements the narrow repair by inheriting the configured container user instead of forcing root. It keeps
+the exact-one socket contract and adds the observed count to any future failure code.
+
+~~~text
+KF-121_STATUS=SOURCE_REPAIR_CLOSED_PASS_PENDING_LIVE_REVALIDATION
+PRODUCT_MQTT_FAILURE_PROVEN=false
+SOCKET_ORACLE_SOURCE_DEFECT=CONFIRMED_BY_CONTRACT_AND_LIVE_EVIDENCE
+LIVE_REVALIDATION_REQUIRED=true
+RUNTIME_RESTART_AUTHORIZED=false
+FAILED_AUTHORIZATION_REPLAY=false
+~~~
+
 ### 2026-10-15 forensic update
 
 Broker-side retained logs prove the authenticated Manager MQTT session remained connected from
