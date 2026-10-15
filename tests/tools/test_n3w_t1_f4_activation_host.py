@@ -117,6 +117,8 @@ def test_eligibility_is_phase_locked(
         "_validate_transaction_binding",
         lambda _v: {"stage": "RUNTIME_STARTED"},
     )
+    assert tool._activation_eligibility("broker")["activation_eligible"] is True
+    assert tool._activation_eligibility("services")["activation_eligible"] is True
     with pytest.raises(tool.F4Error, match="certificate:RUNTIME_STARTED"):
         tool._activation_eligibility("certificate")
 
@@ -125,6 +127,20 @@ def test_eligibility_is_phase_locked(
         "_validate_transaction_binding",
         lambda _v: {"stage": "RUNTIME_ACCEPTED"},
     )
+    assert tool._activation_eligibility("broker")["activation_eligible"] is True
+    assert tool._activation_eligibility("services")["activation_eligible"] is True
+    assert (
+        tool._activation_eligibility("certificate")["activation_eligible"]
+        is True
+    )
+
+    monkeypatch.setattr(
+        tool,
+        "_validate_transaction_binding",
+        lambda _v: {"stage": "PERSISTENCE_ENABLED"},
+    )
+    assert tool._activation_eligibility("broker")["activation_eligible"] is True
+    assert tool._activation_eligibility("services")["activation_eligible"] is True
     assert (
         tool._activation_eligibility("certificate")["activation_eligible"]
         is True
@@ -358,6 +374,34 @@ def test_activation_failure_stops_started_runtime(
     assert ("systemctl", "stop", tool.BROKER_UNIT) in calls
     assert stages[-1] == "STOPPED_RUNTIME"
     assert "RUNTIME_STARTED" not in stages
+
+
+def test_runtime_activity_fails_closed_when_compose_probe_is_unproven(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    compose = tmp_path / "docker-compose.yml"
+    env = tmp_path / "docker-compose.env"
+    compose.write_text("services: {}\n", encoding="utf-8")
+    env.write_text("GH_SYSTEM_ID=test\n", encoding="utf-8")
+
+    monkeypatch.setattr(tool, "COMPOSE_TARGET", compose)
+    monkeypatch.setattr(tool, "COMPOSE_ENV", env)
+    monkeypatch.setattr(tool, "_systemctl", lambda _mode, _unit: "inactive")
+    monkeypatch.setattr(
+        tool,
+        "_run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            tool.F4Error("probe_failed")
+        ),
+    )
+
+    runtime = tool._runtime_activity()
+
+    assert runtime["runtime_service_probe"] == "UNPROVEN"
+    assert runtime["production_service_start"] is None
+    assert runtime["running_services"] is None
 
 
 def test_authorization_id_is_bound_and_invalid_ids_fail() -> None:
