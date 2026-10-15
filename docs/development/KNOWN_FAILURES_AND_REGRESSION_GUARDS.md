@@ -1,3 +1,40 @@
+## 2026-10-15 — KF-120 F4 downstream continuation authorization reuse
+
+~~~text
+KF-120_STATUS=GUARDED_SOURCE_LIVE_CONTROL_UPDATE_PENDING
+DOMAIN=T1_DEPLOYMENT
+
+DETECTED_AFTER_RUNTIME_STARTED_R2=true
+RUNTIME_ACCEPTANCE_MUTATION=false
+PERSISTENCE_MUTATION=false
+CERTIFICATE_LIFECYCLE_MUTATION=false
+
+ROOT_CAUSE=DOWNSTREAM_F4_COMMANDS_REUSED_ORIGINAL_PREPARE_TRANSACTION_AUTHORIZATION_ID
+AFFECTED_COMMANDS=[accept-runtime,enable-persistence,certificate-audit,enable-certificate-timer]
+
+REAL_T1_STAGE=RUNTIME_STARTED
+REAL_T1_RUNNING_SERVICES=[broker,homeassistant,manager]
+REAL_T1_PRODUCTION_SERVICE_START=true
+REAL_T1_PERSISTENCE_ENABLED=false
+
+INSTALLED_SOURCE_HEAD=8f870d027eea674a4443097ab0d5761542b28a73
+REPAIRED_SOURCE_HEAD=ffcbb1a890e42ac776c6d90000bf3f25195da01d
+REPAIRED_SOURCE_CI=13_SUCCESS_0_FAILURE_0_PENDING
+REPAIRED_EXACT_ARTIFACT_ID=11982052678
+REPAIRED_PACKAGE_MANIFEST_SHA256=4df1d95b0849aa4ca574f31f8fd55e57fe118fba1c5913d2d8b3f96e286ec669
+~~~
+
+Guard: runtime acceptance, persistence enablement, certificate audit and certificate timer enablement are distinct
+mutation/acceptance boundaries. Each must use a new authorization ID that differs from every prior F4 authority and
+must be durably claimed/consumed before its operation.
+
+A T1 already at RUNTIME_STARTED on source `8f870d02...` requires the bounded
+`repair-runtime-continuation-authority` launcher-only live control update before runtime acceptance. The update
+must preserve the exact running container set and container identities/timestamps and must not restart services.
+
+Authority:
+`docs/development/N3W_T1_F4_RUNTIME_STARTED_R2_AND_CONTINUATION_AUTHORITY_SOURCE_REPAIR_CLOSURE_20261015.md`.
+
 ## 2026-10-15 — KF-119 F4 runtime service-set startup observation race
 
 ~~~text
