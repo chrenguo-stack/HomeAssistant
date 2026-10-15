@@ -2549,14 +2549,16 @@ def _downstream_fail_closed(
     error: BaseException,
 ) -> None:
     rollback_errors: list[str] = []
-    for unit in (CERT_TIMER, SERVICES_UNIT, BROKER_UNIT):
+    for argv, timeout in (
+        (("systemctl", "stop", CERT_TIMER), 60),
+        (("systemctl", "disable", CERT_TIMER), 60),
+        (("systemctl", "stop", CERT_SERVICE), 120),
+        (("systemctl", "disable", SERVICES_UNIT, BROKER_UNIT), 60),
+        (("systemctl", "stop", SERVICES_UNIT), 120),
+        (("systemctl", "stop", BROKER_UNIT), 120),
+    ):
         try:
-            _run(("systemctl", "disable", unit), timeout=60)
-        except OPERATION_ERRORS as rollback_error:
-            rollback_errors.append(type(rollback_error).__name__)
-    for unit in (SERVICES_UNIT, BROKER_UNIT):
-        try:
-            _run(("systemctl", "stop", unit), timeout=120)
+            _run(argv, timeout=timeout)
         except OPERATION_ERRORS as rollback_error:
             rollback_errors.append(type(rollback_error).__name__)
     runtime = _runtime_activity()
@@ -2571,6 +2573,10 @@ def _downstream_fail_closed(
         and _systemctl("is-enabled", BROKER_UNIT) != "enabled"
         and _systemctl("is-enabled", SERVICES_UNIT) != "enabled"
         and _systemctl("is-enabled", CERT_TIMER) != "enabled"
+        and _systemctl("is-active", CERT_TIMER)
+        not in {"active", "activating", "reloading"}
+        and _systemctl("is-active", CERT_SERVICE)
+        not in {"active", "activating", "reloading"}
         and not rollback_errors
     )
     stop_stage = (
@@ -2913,6 +2919,7 @@ def _enable_certificate_timer(authorization_id: str) -> dict[str, object]:
         }:
             raise F4Error("certificate_timer_active_before_enable")
         before_snapshot = _runtime_container_snapshot()
+        before_certificate_identity = _certificate_identity_snapshot()
         try:
             _run(("systemctl", "enable", CERT_TIMER), timeout=60)
             if _systemctl("is-enabled", CERT_TIMER) != "enabled":
@@ -2929,6 +2936,8 @@ def _enable_certificate_timer(authorization_id: str) -> dict[str, object]:
                 or set(runtime["running_services"] or [])
                 != {"broker", "manager", "homeassistant"}
                 or _runtime_container_snapshot() != before_snapshot
+                or _certificate_identity_snapshot()
+                != before_certificate_identity
                 or _systemctl("is-active", CERT_SERVICE)
                 in {"active", "activating", "reloading"}
                 or _sha256_file(CERT_STATUS_FILE)
