@@ -557,6 +557,59 @@ def test_exact_artifact_cache_binding_mismatch_fails_closed(
         )
 
 
+def test_artifact_metadata_uses_ipv4_http1_curl_with_bounded_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    calls: list[tuple[str, ...]] = []
+
+    class Result:
+        def __init__(self, stdout: str) -> None:
+            self.returncode = 0
+            self.stdout = stdout
+            self.stderr = ""
+
+    document = {
+        "id": 123,
+        "name": "artifact",
+        "expired": False,
+        "digest": "sha256:" + "a" * 64,
+        "workflow_run": {"id": 456},
+    }
+
+    def fake_run(command, **_kwargs):
+        call = tuple(command)
+        calls.append(call)
+        if call[:3] == ("gh", "auth", "token"):
+            return Result("token\n")
+        if call and call[0] == "curl":
+            return Result(json.dumps(document))
+        raise AssertionError(call)
+
+    monkeypatch.setattr(tool, "_run", fake_run)
+
+    result = tool._artifact_metadata(
+        run_id="456",
+        artifact_name="artifact",
+        artifact_id=123,
+        artifact_zip_sha256="a" * 64,
+    )
+
+    assert result == document
+    assert len(calls) == 2
+    assert calls[0] == ("gh", "auth", "token")
+    curl = calls[1]
+    assert curl[0] == "curl"
+    assert "-4" in curl
+    assert "--http1.1" in curl
+    assert "--retry" in curl
+    assert "3" in curl
+    assert "--retry-all-errors" in curl
+    assert "--connect-timeout" in curl
+    assert "--max-time" in curl
+    assert not any(part == "api" for part in curl)
+
+
 def test_exact_artifact_cache_miss_populates_then_hits(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -706,6 +759,8 @@ def test_cli_exposes_preflight_and_apply_with_explicit_authorization() -> None:
     assert "DEFAULT_ARTIFACT_CACHE_ROOT" in source
     assert tool.DEFAULT_ARTIFACT_CACHE_ROOT == "~/Documents/N3W/exact-artifacts"
     assert "artifact_zip_sha256_mismatch" in source
+    assert source.count('"--retry-all-errors"') >= 3
+    assert "timeout=7200" in source
     assert "authorization_id_mismatch" in source
     assert '"docker_mutation": False' in source
 
