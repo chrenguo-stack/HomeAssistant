@@ -62,6 +62,10 @@ SYSTEM_CA = Path("/var/lib/greenhouse-manager/identity/system-ca.pem")
 SERVER_NAME = "armbian"
 BROKER_PROJECT = "n3wfc4"
 BROKER_NETWORKS = frozenset({"n3wfc4-private", "n3wfc4-services"})
+SERVICE_SECRET_ROOT = Path("/opt/greenhouse-secrets/mqtt")
+PRODUCT_TARGET_PORTS = frozenset(
+    {1883, 8883, 18883, 8123, 47110, 47111, 47112}
+)
 CERT_STATUS_FILE = CERT_STATUS_ROOT / "status.json"
 CERT_LOCK_FILE = CERT_STATUS_ROOT / ".certificate-lifecycle.lock"
 
@@ -254,6 +258,69 @@ def _file_binding(path: Path) -> dict[str, object]:
         "uid": metadata.st_uid,
         "gid": metadata.st_gid,
     }
+
+
+def _private_service_json(
+    path: Path,
+    *,
+    uid: int,
+    gid: int,
+) -> dict[str, object]:
+    if path.is_symlink() or not path.is_file():
+        raise F4Error(f"service_identity_file_invalid:{path.name}")
+    metadata = path.stat()
+    if (
+        metadata.st_uid != uid
+        or metadata.st_gid != gid
+        or stat.S_IMODE(metadata.st_mode) != 0o600
+        or metadata.st_nlink != 1
+    ):
+        raise F4Error(f"service_identity_metadata_invalid:{path.name}")
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise F4Error(f"service_identity_json_invalid:{path.name}") from error
+    if not isinstance(document, dict):
+        raise F4Error(f"service_identity_document_invalid:{path.name}")
+    return document
+
+
+def _runtime_container_snapshot() -> dict[str, dict[str, str]]:
+    result: dict[str, dict[str, str]] = {}
+    for service in ("broker", "manager", "homeassistant"):
+        document = _compose_service_inspect(service)
+        state = document.get("State")
+        identifier = document.get("Id")
+        if (
+            not isinstance(state, dict)
+            or not isinstance(identifier, str)
+            or not identifier
+            or not isinstance(state.get("StartedAt"), str)
+            or not state.get("StartedAt")
+        ):
+            raise F4Error(f"runtime_identity_invalid:{service}")
+        result[service] = {
+            "id": identifier,
+            "started_at": str(state["StartedAt"]),
+        }
+    return result
+
+
+def _product_listener_ports() -> list[int]:
+    output = _run(("ss", "-ltnH"), timeout=20)
+    observed: set[int] = set()
+    for line in output.splitlines():
+        fields = line.split()
+        if len(fields) < 4:
+            continue
+        local = fields[3]
+        try:
+            port = int(local.rsplit(":", 1)[1])
+        except (IndexError, ValueError):
+            continue
+        if port in PRODUCT_TARGET_PORTS:
+            observed.add(port)
+    return sorted(observed)
 
 
 def _require_root() -> None:
