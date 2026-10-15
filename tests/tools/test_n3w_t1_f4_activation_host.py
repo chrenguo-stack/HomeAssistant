@@ -1409,6 +1409,9 @@ def test_prepared_control_repair_rebinds_only_launcher(
         expected_sha256,
         expected_size,
     ):
+        assert state["stage"] == "STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_CLAIMED"
+        assert state["runtime_acceptance_recovery_authorization_claimed"] is True
+        assert state["runtime_acceptance_recovery_authorization_consumed"] is True
         assert source == launcher_source
         assert target == tool.INSTALL_MAP[launcher_relative][0]
         assert mode == 0o755
@@ -2356,6 +2359,216 @@ def test_runtime_acceptance_recovery_failure_stays_stopped(
     assert state["runtime_acceptance_recovery_passed"] is False
     assert state["activation_retry_eligible"] is False
     assert state["runtime_acceptance_retry_eligible"] is False
+
+
+def test_stopped_acceptance_recovery_to_runtime_acceptance_end_to_end(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    package_root = tmp_path / "package"
+    launcher_relative = "tools/n3w_t1_f4_activation_host.py"
+    launcher_source = package_root / launcher_relative
+    launcher_source.parent.mkdir(parents=True)
+    launcher_source.write_text(
+        "#!/usr/bin/python3\nprint('acceptance recovery e2e')\n",
+        encoding="utf-8",
+    )
+    launcher_sha = tool._sha256_file(launcher_source)
+
+    package_files = {}
+    installed_files = {}
+    for relative, (target, mode) in tool.INSTALL_MAP.items():
+        if relative == launcher_relative:
+            package_files[relative] = {
+                "sha256": launcher_sha,
+                "size": launcher_source.stat().st_size,
+            }
+            installed_files[str(target)] = {
+                "sha256": (
+                    tool.RUNTIME_ACCEPTANCE_RECOVERY_FROM_LAUNCHER_SHA256
+                ),
+                "size": 100,
+                "mode": mode,
+                "uid": 0,
+                "gid": 0,
+            }
+        else:
+            package_files[relative] = {"sha256": "d" * 64, "size": 10}
+            installed_files[str(target)] = {
+                "sha256": "d" * 64,
+                "size": 10,
+                "mode": mode,
+                "uid": 0,
+                "gid": 0,
+            }
+    for target in (tool.COMPOSE_TARGET, tool.BROKER_ENV, tool.CERT_ENV):
+        installed_files[str(target)] = {
+            "sha256": "e" * 64,
+            "size": 20,
+            "mode": 0o600,
+            "uid": 0,
+            "gid": 0,
+        }
+
+    failed_activation = "N3W_T1_F4_ACTIVATE_ORIGINAL"
+    failed_acceptance = "N3W_T1_F4_ACCEPT_RUNTIME_ORIGINAL"
+    recovery_auth = "N3W_T1_F4_ACCEPTANCE_RECOVERY_SUCCESSOR"
+    successor_activation = "N3W_T1_F4_ACTIVATE_RECOVERED"
+    successor_acceptance = "N3W_T1_F4_ACCEPT_RUNTIME_RECOVERED"
+
+    state = {
+        "stage": "STOPPED_RUNTIME_ACCEPTANCE",
+        "authorization_id": "N3W_T1_F4_PREPARE_ORIGINAL",
+        "activation_authorization_id": failed_activation,
+        "activation_authorization_claimed": True,
+        "activation_authorization_consumed": True,
+        "activation_authorization_replay_allowed": False,
+        "activation_authorization_history": [],
+        "runtime_acceptance_authorization_id": failed_acceptance,
+        "runtime_acceptance_authorization_claimed": True,
+        "runtime_acceptance_authorization_consumed": True,
+        "runtime_acceptance_authorization_replay_allowed": False,
+        "runtime_acceptance_authorization_history": [],
+        "runtime_acceptance_passed": None,
+        "error_code": "manager_mqtt_socket_count_invalid",
+        "rollback_proven": True,
+        "rollback_error_count": 0,
+        "product_listener_ports": [],
+        "production_service_start": False,
+        "persistence_enabled": False,
+        "certificate_timer_enabled": False,
+        "package_source_head": (
+            tool.RUNTIME_ACCEPTANCE_RECOVERY_FROM_SOURCE_HEAD
+        ),
+        "package_manifest_sha256": (
+            tool.RUNTIME_ACCEPTANCE_RECOVERY_FROM_MANIFEST_SHA256
+        ),
+        "installed_files": installed_files,
+    }
+    package = {
+        "root": package_root,
+        "manifest_sha256": "f" * 64,
+        "source_head": "1" * 40,
+        "files": package_files,
+    }
+    stages = []
+
+    def advance(stage, **fields):
+        state.update(fields)
+        state["stage"] = stage
+        stages.append(stage)
+        return dict(state)
+
+    monkeypatch.setattr(tool, "_validate_package", lambda *_a, **_k: package)
+    monkeypatch.setattr(
+        tool,
+        "_runtime_acceptance_recovery_entrypoint",
+        lambda *_a, **_k: None,
+    )
+    monkeypatch.setattr(tool, "_exclusive_f4", nullcontext)
+    monkeypatch.setattr(tool, "_provision_verify", lambda: verified(tool))
+    monkeypatch.setattr(tool, "_validate_factory_binding", lambda _v: {})
+    monkeypatch.setattr(
+        tool,
+        "_validate_transaction_binding",
+        lambda _v: state,
+    )
+    monkeypatch.setattr(tool, "_verify_installed_material", lambda _t: None)
+    monkeypatch.setattr(
+        tool,
+        "_runtime_acceptance_recovery_stopped_prestate",
+        lambda: None,
+    )
+    monkeypatch.setattr(tool, "_advance_transaction", advance)
+    monkeypatch.setattr(tool, "_read_private_record", lambda _path: state)
+    monkeypatch.setattr(
+        tool,
+        "_atomic_replace_bound_file",
+        lambda *_a, **_k: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_file_binding",
+        lambda _path: {
+            "sha256": launcher_sha,
+            "size": launcher_source.stat().st_size,
+            "mode": 0o755,
+            "uid": 0,
+            "gid": 0,
+        },
+    )
+
+    recovery = tool._repair_stopped_runtime_acceptance(
+        package_root,
+        tool.RUNTIME_ACCEPTANCE_RECOVERY_CONFIRMATION,
+        recovery_auth,
+        "f" * 64,
+        "1" * 40,
+    )
+    assert recovery["state"] == "PREPARED"
+    assert state["runtime_acceptance_authorization_id"] == failed_acceptance
+    assert state["activation_retry_eligible"] is True
+    assert state["runtime_acceptance_retry_eligible"] is True
+
+    monkeypatch.setattr(
+        tool,
+        "_activation_eligibility",
+        lambda _phase: {"transaction_stage": state["stage"]},
+    )
+    monkeypatch.setattr(tool, "_run", lambda *_a, **_k: "")
+    monkeypatch.setattr(
+        tool,
+        "_systemctl",
+        lambda mode, unit: "active"
+        if mode == "is-active"
+        and unit in {tool.GUARD_UNIT, tool.SERVICES_UNIT}
+        else "unknown",
+    )
+    monkeypatch.setattr(
+        tool,
+        "_wait_for_runtime_service_set",
+        lambda: tool.EXPECTED_RUNTIME_SERVICES,
+    )
+
+    activation = tool._activate(
+        tool.ACTIVATE_CONFIRMATION,
+        successor_activation,
+    )
+    assert activation["state"] == "RUNTIME_STARTED"
+    assert state["activation_authorization_id"] == successor_activation
+    assert failed_activation in state["activation_authorization_history"]
+    assert state["runtime_acceptance_retry_eligible"] is True
+    assert state["persistence_enabled"] is False
+
+    monkeypatch.setattr(
+        tool,
+        "_runtime_acceptance_report",
+        lambda: {"homeassistant": {"entry_id_sha256": "e" * 64}},
+    )
+    monkeypatch.setattr(tool, "_new_private_record", lambda *_a, **_k: None)
+    monkeypatch.setattr(tool, "_sha256_file", lambda _path: "f" * 64)
+
+    acceptance = tool._accept_runtime(successor_acceptance)
+    assert acceptance["state"] == "RUNTIME_ACCEPTED"
+    assert state["runtime_acceptance_authorization_id"] == successor_acceptance
+    assert failed_acceptance in state["runtime_acceptance_authorization_history"]
+    assert state["runtime_acceptance_retry_eligible"] is False
+    assert state["runtime_acceptance_recovery_authorization_id"] == recovery_auth
+    assert state["persistence_enabled"] is False
+    assert state["certificate_timer_enabled"] is False
+
+    assert stages[:3] == [
+        "STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_CLAIMED",
+        "STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_CLAIMED",
+        "PREPARED",
+    ]
+    assert "ACTIVATION_CLAIMED" in stages
+    assert "BROKER_STARTING" in stages
+    assert "BROKER_READY" in stages
+    assert "SERVICES_STARTING" in stages
+    assert "RUNTIME_STARTED" in stages
+    assert stages[-1] == "RUNTIME_ACCEPTED"
 
 
 def test_accept_runtime_allows_one_distinct_successor_after_recovery(
