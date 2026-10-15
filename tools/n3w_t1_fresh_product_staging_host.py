@@ -107,13 +107,33 @@ def _artifact_metadata(
     artifact_id: int,
     artifact_zip_sha256: str,
 ) -> dict[str, object]:
+    token = _run(("gh", "auth", "token"), timeout=30).stdout.strip()
+    if not token:
+        raise FreshHostTransportError("github_token_unavailable")
     completed = _run(
         (
-            "gh",
-            "api",
-            f"repos/{REPOSITORY}/actions/artifacts/{artifact_id}",
+            "curl",
+            "-4",
+            "-fsS",
+            "--http1.1",
+            "--retry",
+            "3",
+            "--retry-all-errors",
+            "--retry-delay",
+            "2",
+            "--connect-timeout",
+            "20",
+            "--max-time",
+            "120",
+            "-H",
+            f"Authorization: Bearer {token}",
+            "-H",
+            "Accept: application/vnd.github+json",
+            "-H",
+            "X-GitHub-Api-Version: 2022-11-28",
+            f"https://api.github.com/repos/{REPOSITORY}/actions/artifacts/{artifact_id}",
         ),
-        timeout=60,
+        timeout=150,
     )
     try:
         document = json.loads(completed.stdout)
@@ -260,7 +280,18 @@ def _download_remote_artifact_zip(
         _run(
             (
                 "curl",
-                "-sS",
+                "-4",
+                "-fsS",
+                "--http1.1",
+                "--retry",
+                "3",
+                "--retry-all-errors",
+                "--retry-delay",
+                "2",
+                "--connect-timeout",
+                "20",
+                "--max-time",
+                "120",
                 "-D",
                 str(headers),
                 "-o",
@@ -273,7 +304,7 @@ def _download_remote_artifact_zip(
                 "X-GitHub-Api-Version: 2022-11-28",
                 f"https://api.github.com/repos/{REPOSITORY}/actions/artifacts/{artifact_id}/zip",
             ),
-            timeout=60,
+            timeout=150,
         )
         location = ""
         for line in headers.read_text(
@@ -292,18 +323,21 @@ def _download_remote_artifact_zip(
                 "-fL",
                 "--http1.1",
                 "--retry",
-                "3",
+                "5",
+                "--retry-all-errors",
+                "--retry-delay",
+                "2",
                 "--connect-timeout",
                 "20",
                 "--speed-time",
-                "90",
+                "120",
                 "--speed-limit",
                 "1024",
                 "-o",
                 str(destination),
                 location,
             ),
-            timeout=1800,
+            timeout=7200,
         )
     finally:
         headers.unlink(missing_ok=True)
