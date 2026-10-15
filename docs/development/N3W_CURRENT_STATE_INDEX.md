@@ -1,3 +1,41 @@
+## 2026-10-15 — F4 stopped runtime acceptance recovery design complete
+
+- Design PR #570 / head `5e7bdeb384c1684536d40af23454d987603a2ce8`.
+- The current T1 remains `STOPPED_RUNTIME_ACCEPTANCE`; production runtime is stopped and the failed acceptance authorization remains consumed/no-replay.
+- Recovery will execute from the successor exact package launcher, permit only the installed F4 launcher to change, and stop at `PREPARED`.
+- Later live execution requires three distinct authorizations: control recovery, successor activation, successor runtime acceptance.
+- Existing bounded `activate` logic is reused; no second runtime-start implementation is designed.
+- Next gate: `N3W_T1_F4_STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_SOURCE_REPAIR_20261015_01`.
+- No T1 mutation is authorized by the design gate.
+
+## 2026-10-15 — KF-121 source repair ready; no live retry yet
+
+- Stopped Manager inspection confirms runtime `999:999`, all Linux capabilities dropped, no-new-privileges, private PID namespace and host network.
+- This matches the failed socket oracle's forced-root `/proc/<pid>/fd` ownership mismatch.
+- PR #569 removes the forced user override and preserves exact-one MQTT socket acceptance.
+- Exact source CI passed on the source repair head; KF-121 is now source-closed pending real-T1 revalidation.
+- T1 remains `STOPPED_RUNTIME_ACCEPTANCE`; the failed acceptance authorization is permanently no-replay.
+- No runtime restart, new live acceptance authorization, persistence or certificate step is authorized yet.
+
+## 2026-10-15 — KF-121 forensic narrowed: Manager MQTT session remained connected
+
+- Broker retained logs prove the authenticated Manager MQTT session stayed connected from 14:32:15.264Z until rollback at 15:30:36.082Z.
+- Manager container finished at 15:30:36.088Z with restart_count=0 and OOMKilled=false.
+- The separate anonymous 8883 connection at 15:30:08.252Z→15:30:08.311Z matches the host-side acceptance TLS probe.
+- Therefore the R1 failure is not evidence of a real Manager MQTT outage; it is narrowed to the in-container socket-count oracle path.
+- Exact probe mechanism remains TBD pending stopped-container security/capability inspection.
+- Runtime remains STOPPED_RUNTIME_ACCEPTANCE; the consumed acceptance authorization is no-replay and no runtime restart is authorized.
+
+## 2026-10-15 — F4 runtime acceptance R1 failed safely; KF-121 opened
+
+- Fresh precheck passed on exact source `ffcbb1a...` with Broker, Manager and Home Assistant running and persistence disabled.
+- The one-shot runtime-acceptance authorization was claimed/consumed and is permanently no-replay.
+- Acceptance failed with `manager_mqtt_socket_count_invalid`.
+- Exact fail-closed rollback completed: durable stage `STOPPED_RUNTIME_ACCEPTANCE`, running service set empty, production start=false, Broker/Services disabled, persistence=false, certificate timer disabled.
+- The failing socket count itself was not persisted, so root cause is still TBD; do not label this a product defect or oracle defect yet.
+- KF-121 is OPEN.
+- Next gate: `N3W_T1_F4_RUNTIME_ACCEPTANCE_R1_MANAGER_MQTT_SOCKET_FORENSIC_READONLY_20261015_01`. No runtime restart or retry is authorized.
+
 ## 2026-10-15 — KF-120 live control repair CLOSED_PASS
 
 - Running T1 launcher-only control repair completed without restarting Broker, Manager or Home Assistant.

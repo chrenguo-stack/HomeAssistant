@@ -1,3 +1,66 @@
+### 2026-10-15 source-repair update
+
+The stopped Manager container is confirmed as `999:999`, `CapDrop=["ALL"]`,
+`no-new-privileges:true`, default/private PID namespace and host network mode. Combined with Broker-side proof that
+the authenticated Manager MQTT session stayed connected until fail-closed stop, this closes the source-analysis gap:
+the acceptance oracle forced an execution UID that did not match the Manager runtime identity while relying on a
+`/proc/<pid>/fd` ownership walk.
+
+PR #569 implements the narrow repair by inheriting the configured container user instead of forcing root. It keeps
+the exact-one socket contract and adds the observed count to any future failure code.
+
+~~~text
+KF-121_STATUS=SOURCE_REPAIR_CLOSED_PASS_PENDING_LIVE_REVALIDATION
+PRODUCT_MQTT_FAILURE_PROVEN=false
+SOCKET_ORACLE_SOURCE_DEFECT=CONFIRMED_BY_CONTRACT_AND_LIVE_EVIDENCE
+LIVE_REVALIDATION_REQUIRED=true
+RUNTIME_RESTART_AUTHORIZED=false
+FAILED_AUTHORIZATION_REPLAY=false
+~~~
+
+### 2026-10-15 forensic update
+
+Broker-side retained logs prove the authenticated Manager MQTT session remained connected from
+`2026-10-15T14:32:15.264Z` until `2026-10-15T15:30:36.082Z`. The stopped Manager container finished at
+`2026-10-15T15:30:36.088Z`, so the disconnect aligns with fail-closed rollback rather than a pre-existing Manager
+MQTT outage. A separate unauthenticated 8883 connection at 15:30:08.252Z→15:30:08.311Z matches the source's
+host-side TLS certificate probe.
+
+~~~text
+MANAGER_MQTT_SESSION_CONTINUITY_THROUGH_FAILURE=PROVEN
+REAL_MANAGER_MQTT_CONNECTIVITY_FAILURE_PROVEN=false
+SOCKET_COUNT_ORACLE_CONTRADICTS_BROKER_SESSION_EVIDENCE=true
+EXACT_SOCKET_PROBE_MECHANISM_ROOT_CAUSE=TBD
+~~~
+
+Do not weaken the runtime-acceptance contract generically. First inspect the stopped Manager container's exact
+user/capability/security configuration and reconcile it with the probe's `docker exec --user 0:0` +
+`/proc/<pid>/fd` ownership method.
+
+## 2026-10-15 — KF-121 F4 runtime acceptance Manager MQTT socket-count failure
+
+~~~text
+KF-121_STATUS=OPEN
+DOMAIN=T1_F4_RUNTIME_ACCEPTANCE
+
+FAILED_GATE=N3W_T1_F4_RUNTIME_ACCEPTANCE_LIVE_20261015_01
+FAILED_AUTHORIZATION=CONSUMED_NO_REPLAY
+PRECHECK=PASS
+FAILURE_ERROR_CODE=manager_mqtt_socket_count_invalid
+POST_STAGE=STOPPED_RUNTIME_ACCEPTANCE
+ROLLBACK_PROVEN=true
+
+PRODUCT_DEFECT_PROVEN=false
+ACCEPTANCE_ORACLE_DEFECT_PROVEN=false
+RUNTIME_CONNECTIVITY_DEFECT_PROVEN=false
+ROOT_CAUSE=TBD
+~~~
+
+Guard: do not replay the consumed runtime-acceptance authorization. The current source requires exactly one Manager established TCP socket to remote port 8883 on every sample of a 10-second stability window, but the failure path does not preserve the observed count. A stopped-state read-only forensic gate must first distinguish a real Manager MQTT disconnect/reconnect from an over-strict or incorrect socket oracle. Do not restart the runtime merely to collect evidence, and do not weaken the acceptance check before root cause is proven.
+
+Authority:
+`docs/development/N3W_T1_F4_RUNTIME_ACCEPTANCE_R1_FAILURE_AND_MANAGER_MQTT_SOCKET_FORENSIC_PREPARATION_20261015.md`.
+
 ## 2026-10-15 — KF-120 F4 downstream continuation authorization reuse
 
 ~~~text

@@ -1,3 +1,108 @@
+## 2026-10-15 — stopped runtime acceptance recovery source design CLOSED_PASS
+
+~~~text
+TASK=N3W_T1_F4_STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_SOURCE_DESIGN_20261015_01
+RESULT=CLOSED_PASS
+DESIGN_PR=570
+DESIGN_HEAD=5e7bdeb384c1684536d40af23454d987603a2ce8
+
+CURRENT_T1_STAGE=STOPPED_RUNTIME_ACCEPTANCE
+PRODUCTION_SERVICE_START=false
+FAILED_RUNTIME_ACCEPTANCE_AUTHORIZATION=CONSUMED_NO_REPLAY
+
+RECOVERY_ENTRYPOINT=SUCCESSOR_EXACT_PACKAGE_LAUNCHER
+RECOVERY_ALLOWED_INSTALLED_DELTA=LAUNCHER_ONLY
+RECOVERY_SUCCESS_STAGE=PREPARED
+RECOVERY_REUSE_EXISTING_ACTIVATE_IMPLEMENTATION=true
+
+NEW_RECOVERY_AUTH_REQUIRED=true
+NEW_ACTIVATION_AUTH_REQUIRED=true
+NEW_RUNTIME_ACCEPTANCE_AUTH_REQUIRED=true
+
+NEXT_ONE_GATE=N3W_T1_F4_STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_SOURCE_REPAIR_20261015_01
+T1_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+~~~
+
+The design preserves the failed acceptance authorization as permanently no-replay, adds a dedicated stopped-state
+control-recovery authorization, returns only to PREPARED while runtime remains stopped, reuses the existing bounded
+activation successor path, and requires a separate successor runtime-acceptance authorization. Persistence,
+certificate lifecycle, reboot and board work remain outside the route.
+
+## 2026-10-15 — KF-121 source repair implemented; live revalidation still required
+
+Fresh stopped-container inspection confirms the failed Manager container contract:
+
+~~~text
+USER=999:999
+CAP_DROP=[ALL]
+SECURITY_OPT=[no-new-privileges:true]
+PID_MODE=private(default)
+NETWORK_MODE=host
+~~~
+
+This matches the source-review hypothesis: the failed acceptance helper forced `docker exec --user 0:0` while
+discovering socket ownership through `/proc/<pid>/fd`, despite the Manager process running as UID/GID 999:999 with
+all capabilities dropped. Broker evidence independently proves the authenticated Manager MQTT session remained alive
+until rollback.
+
+Source repair PR #569 removes the forced user override, preserves the exact-one socket requirement, and records a bad
+observed count in future failure codes. Its exact source CI set passed on the first source head. The repair is not yet
+live-validated on T1.
+
+~~~text
+KF-121_STATUS=SOURCE_REPAIR_CLOSED_PASS_PENDING_LIVE_REVALIDATION
+SOURCE_REPAIR_PR=569
+SOURCE_REPAIR_BASE=ffcbb1a890e42ac776c6d90000bf3f25195da01d
+FAILED_ACCEPTANCE_AUTHORIZATION_REPLAY=false
+T1_STAGE=STOPPED_RUNTIME_ACCEPTANCE
+PRODUCTION_SERVICE_START=false
+NEXT_LIVE_ACTION=NOT_AUTHORIZED
+~~~
+
+## 2026-10-15 — KF-121 forensic narrowed to socket-count oracle path
+
+- Broker logs prove the authenticated Manager client connected at 14:32:15.264Z and did not disconnect until 15:30:36.082Z.
+- Manager container finished at 15:30:36.088Z with restart_count=0 and OOMKilled=false; disconnect timing matches fail-closed rollback.
+- The acceptance host TLS probe is separately visible at 15:30:08.252Z→15:30:08.311Z.
+- Therefore a real Manager MQTT connectivity loss before the acceptance failure is not proven; Broker evidence instead shows session continuity.
+- KF-121 is narrowed to the Manager in-container socket-count oracle path. Exact mechanism remains TBD pending one more stopped-state read-only container-security inspection.
+- Runtime remains safely stopped at STOPPED_RUNTIME_ACCEPTANCE. No retry/restart is authorized.
+
+## 2026-10-15 — F4 runtime acceptance R1 FAIL / fail-closed rollback PASS
+
+~~~text
+TASK=N3W_T1_F4_RUNTIME_ACCEPTANCE_LIVE_20261015_01
+RESULT=FAIL_STOPPED
+
+PRECHECK=PASS
+PRECHECK_STAGE=RUNTIME_STARTED
+PRECHECK_SOURCE_HEAD=ffcbb1a890e42ac776c6d90000bf3f25195da01d
+PRECHECK_RUNNING_SERVICES=[broker,homeassistant,manager]
+
+RUNTIME_ACCEPTANCE_AUTHORIZATION=CONSUMED_NO_REPLAY
+FAILURE_ERROR_CODE=manager_mqtt_socket_count_invalid
+ACCEPT_RC=2
+
+POST_STAGE=STOPPED_RUNTIME_ACCEPTANCE
+ROLLBACK_PROVEN=true
+POST_RUNNING_SERVICES=[]
+POST_PRODUCTION_SERVICE_START=false
+POST_PERSISTENCE_ENABLED=false
+POST_BROKER_SERVICES_ENABLED=false
+POST_CERTIFICATE_TIMER_ENABLED=false
+
+KF-121_STATUS=OPEN
+ROOT_CAUSE=TBD
+CURRENT_STOP_POINT=AFTER_RUNTIME_ACCEPTANCE_R1_FAIL_CLOSED_ROLLBACK
+NEXT_ONE_GATE=N3W_T1_F4_RUNTIME_ACCEPTANCE_R1_MANAGER_MQTT_SOCKET_FORENSIC_READONLY_20261015_01
+AUTO_EXECUTE_LIVE_RETRY=false
+~~~
+
+The acceptance authorization is permanently consumed and must not be replayed. The next gate is stopped-state read-only forensics only.
+
 ## 2026-10-15 — F4 runtime continuation authority live repair CLOSED_PASS
 
 ~~~text
