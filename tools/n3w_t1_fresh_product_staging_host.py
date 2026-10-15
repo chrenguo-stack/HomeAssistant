@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import shlex
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -26,6 +27,9 @@ IMAGE_ARTIFACT_FILES = {
     "manager": "greenhouse-manager-arm64.tar",
     "broker": "broker-arm64.tar",
 }
+ARTIFACT_CACHE_SCHEMA = "gh.n3w-t1-exact-artifact-cache/1"
+DEFAULT_ARTIFACT_CACHE_ROOT = "~/.cache/n3w-t1/exact-artifacts"
+ARTIFACT_CACHE_FILES = frozenset(("artifact.zip", "binding.json"))
 ARTIFACT_OUTER_FILES = frozenset(
     (
         "executor.sha256",
@@ -156,49 +160,102 @@ def _safe_extract_artifact_zip(
                         target.write(block)
 
 
-def _download_artifact(
-    work: Path,
+def _artifact_cache_binding(
     *,
     run_id: str,
     artifact_name: str,
     artifact_id: int,
     artifact_zip_sha256: str,
-) -> None:
-    _artifact_metadata(
+) -> dict[str, object]:
+    return {
+        "schema": ARTIFACT_CACHE_SCHEMA,
+        "repository": REPOSITORY,
+        "run_id": str(run_id),
+        "artifact_name": artifact_name,
+        "artifact_id": artifact_id,
+        "artifact_zip_sha256": artifact_zip_sha256,
+    }
+
+
+def _artifact_cache_entry(
+    cache_root: Path,
+    *,
+    artifact_id: int,
+    artifact_zip_sha256: str,
+) -> Path:
+    if artifact_id <= 0:
+        raise FreshHostTransportError("artifact_cache_id_invalid")
+    if (
+        len(artifact_zip_sha256) != 64
+        or any(
+            character not in "0123456789abcdef"
+            for character in artifact_zip_sha256
+        )
+    ):
+        raise FreshHostTransportError("artifact_cache_sha256_invalid")
+    root = cache_root.expanduser()
+    if root.exists() and (root.is_symlink() or not root.is_dir()):
+        raise FreshHostTransportError("artifact_cache_root_unsafe")
+    artifact_root = root / str(artifact_id)
+    if artifact_root.exists() and (
+        artifact_root.is_symlink() or not artifact_root.is_dir()
+    ):
+        raise FreshHostTransportError("artifact_cache_artifact_root_unsafe")
+    return artifact_root / artifact_zip_sha256
+
+
+def _cached_artifact_zip(
+    cache_root: Path,
+    *,
+    run_id: str,
+    artifact_name: str,
+    artifact_id: int,
+    artifact_zip_sha256: str,
+) -> Path | None:
+    entry = _artifact_cache_entry(
+        cache_root,
+        artifact_id=artifact_id,
+        artifact_zip_sha256=artifact_zip_sha256,
+    )
+    if not entry.exists():
+        return None
+    if entry.is_symlink() or not entry.is_dir():
+        raise FreshHostTransportError("artifact_cache_entry_unsafe")
+    if {path.name for path in entry.iterdir()} != ARTIFACT_CACHE_FILES:
+        raise FreshHostTransportError("artifact_cache_file_set_invalid")
+
+    archive = entry / "artifact.zip"
+    binding_path = entry / "binding.json"
+    for path in (archive, binding_path):
+        if path.is_symlink() or not path.is_file():
+            raise FreshHostTransportError("artifact_cache_file_unsafe")
+
+    try:
+        binding = json.loads(binding_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise FreshHostTransportError("artifact_cache_binding_invalid") from error
+    expected = _artifact_cache_binding(
         run_id=run_id,
         artifact_name=artifact_name,
         artifact_id=artifact_id,
         artifact_zip_sha256=artifact_zip_sha256,
     )
-    try:
-        _run(
-            (
-                "gh",
-                "run",
-                "download",
-                run_id,
-                "-R",
-                REPOSITORY,
-                "-n",
-                artifact_name,
-                "-D",
-                str(work),
-            ),
-            timeout=900,
-        )
-        return
-    except (
-        FreshHostTransportError,
-        OSError,
-        subprocess.TimeoutExpired,
-    ):
-        pass
+    if binding != expected:
+        raise FreshHostTransportError("artifact_cache_binding_mismatch")
+    if _sha256_file(archive) != artifact_zip_sha256:
+        raise FreshHostTransportError("artifact_cache_zip_sha256_mismatch")
+    return archive
 
+
+def _download_remote_artifact_zip(
+    destination: Path,
+    *,
+    artifact_id: int,
+) -> None:
     token = _run(("gh", "auth", "token"), timeout=30).stdout.strip()
     if not token:
         raise FreshHostTransportError("github_token_unavailable")
-    headers = work.parent / f"{work.name}.headers"
-    archive = work.parent / f"{work.name}.artifact.zip"
+    headers = destination.parent / "artifact-download.headers"
     try:
         _run(
             (
@@ -243,18 +300,124 @@ def _download_artifact(
                 "--speed-limit",
                 "1024",
                 "-o",
-                str(archive),
+                str(destination),
                 location,
             ),
             timeout=1800,
         )
+    finally:
+        headers.unlink(missing_ok=True)
+
+
+def _populate_artifact_cache(
+    work: Path,
+    cache_root: Path,
+    *,
+    run_id: str,
+    artifact_name: str,
+    artifact_id: int,
+    artifact_zip_sha256: str,
+) -> None:
+    entry = _artifact_cache_entry(
+        cache_root,
+        artifact_id=artifact_id,
+        artifact_zip_sha256=artifact_zip_sha256,
+    )
+    if entry.exists():
+        raise FreshHostTransportError("artifact_cache_publish_target_exists")
+
+    root = cache_root.expanduser()
+    root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if root.is_symlink() or not root.is_dir():
+        raise FreshHostTransportError("artifact_cache_root_unsafe")
+    artifact_root = root / str(artifact_id)
+    artifact_root.mkdir(exist_ok=True, mode=0o700)
+    if artifact_root.is_symlink() or not artifact_root.is_dir():
+        raise FreshHostTransportError("artifact_cache_artifact_root_unsafe")
+
+    staging = Path(
+        tempfile.mkdtemp(
+            prefix=f".{artifact_zip_sha256[:12]}.",
+            dir=artifact_root,
+        )
+    )
+    published = False
+    try:
+        archive = staging / "artifact.zip"
+        _download_remote_artifact_zip(
+            archive,
+            artifact_id=artifact_id,
+        )
         if _sha256_file(archive) != artifact_zip_sha256:
             raise FreshHostTransportError("artifact_zip_sha256_mismatch")
         _safe_extract_artifact_zip(archive, work)
-    finally:
-        headers.unlink(missing_ok=True)
-        archive.unlink(missing_ok=True)
 
+        binding = _artifact_cache_binding(
+            run_id=run_id,
+            artifact_name=artifact_name,
+            artifact_id=artifact_id,
+            artifact_zip_sha256=artifact_zip_sha256,
+        )
+        (staging / "binding.json").write_text(
+            json.dumps(
+                binding,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        if {path.name for path in staging.iterdir()} != ARTIFACT_CACHE_FILES:
+            raise FreshHostTransportError("artifact_cache_staging_file_set_invalid")
+        if entry.exists():
+            raise FreshHostTransportError("artifact_cache_publish_target_exists")
+        staging.rename(entry)
+        published = True
+    finally:
+        if not published and staging.exists():
+            shutil.rmtree(staging)
+
+
+def _download_artifact(
+    work: Path,
+    *,
+    run_id: str,
+    artifact_name: str,
+    artifact_id: int,
+    artifact_zip_sha256: str,
+    cache_root: Path | None = None,
+) -> str:
+    root = (
+        cache_root
+        if cache_root is not None
+        else Path(DEFAULT_ARTIFACT_CACHE_ROOT)
+    )
+    cached = _cached_artifact_zip(
+        root,
+        run_id=run_id,
+        artifact_name=artifact_name,
+        artifact_id=artifact_id,
+        artifact_zip_sha256=artifact_zip_sha256,
+    )
+    if cached is not None:
+        _safe_extract_artifact_zip(cached, work)
+        return "HIT"
+
+    _artifact_metadata(
+        run_id=run_id,
+        artifact_name=artifact_name,
+        artifact_id=artifact_id,
+        artifact_zip_sha256=artifact_zip_sha256,
+    )
+    _populate_artifact_cache(
+        work,
+        root,
+        run_id=run_id,
+        artifact_name=artifact_name,
+        artifact_id=artifact_id,
+        artifact_zip_sha256=artifact_zip_sha256,
+    )
+    return "MISS_POPULATED"
 
 def _read_sidecar(path: Path) -> str:
     value = path.read_text(encoding="utf-8").strip()
@@ -1072,6 +1235,10 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--artifact-zip-sha256", required=True)
     parser.add_argument("--archive-sha256", required=True)
     parser.add_argument("--manifest-sha256", required=True)
+    parser.add_argument(
+        "--artifact-cache-root",
+        default=DEFAULT_ARTIFACT_CACHE_ROOT,
+    )
     parser.add_argument("--authorization-id")
     return parser
 
@@ -1085,14 +1252,18 @@ def main() -> int:
     claim_seen = False
     payload_transfer_started = False
     payload_transfer_complete = False
+    artifact_cache_status = "UNKNOWN"
+    github_large_artifact_download: bool | None = None
     try:
-        _download_artifact(
+        artifact_cache_status = _download_artifact(
             work,
             run_id=args.run_id,
             artifact_name=args.artifact_name,
             artifact_id=args.artifact_id,
             artifact_zip_sha256=args.artifact_zip_sha256,
+            cache_root=Path(args.artifact_cache_root),
         )
+        github_large_artifact_download = artifact_cache_status != "HIT"
         archive = _verify_outer_artifact(
             work,
             archive_sha256=args.archive_sha256,
@@ -1104,6 +1275,7 @@ def main() -> int:
         )
         capacity = _capacity_contract(work, manifest)
         _verify_image_artifacts(work, manifest, capacity)
+        artifact_cache_status = f"{artifact_cache_status}_VERIFIED"
         baseline_tool = work / "host-baseline.py"
         baseline = _remote_baseline_report(args.t1, baseline_tool, "check")
         prebaseline_plan: TransportPlan | None = None
@@ -1132,6 +1304,8 @@ def main() -> int:
                     "root_free_bytes": prebaseline_plan.remote_free_bytes,
                     "transport": prebaseline_plan.to_dict(),
                     "capacity_admission": "PREBASELINE_ROOT_PASS",
+                    "artifact_cache_status": artifact_cache_status,
+                    "github_large_artifact_download": github_large_artifact_download,
                     "payload_transfer": False,
                     "docker_mutation": False,
                     "production_service_start": False,
@@ -1221,6 +1395,8 @@ def main() -> int:
                     "storage": storage,
                     "transport": plan.to_dict(),
                     "capacity_admission": "PASS",
+                    "artifact_cache_status": artifact_cache_status,
+                    "github_large_artifact_download": github_large_artifact_download,
                     "payload_transfer": False,
                     "docker_mutation": False,
                     "production_service_start": False,
@@ -1474,6 +1650,8 @@ def main() -> int:
                 "authorization_consumed": True,
                 "replay_allowed": False,
                 "remote_payload_removed": True,
+                "artifact_cache_status": artifact_cache_status,
+                "github_large_artifact_download": github_large_artifact_download,
                 "production_service_start": False,
                 "board_access": False,
             }
@@ -1514,6 +1692,8 @@ def main() -> int:
                     "authorization_consumed": False,
                     "payload_transfer": payload_transfer,
                     "docker_mutation": False,
+                    "artifact_cache_status": artifact_cache_status,
+                    "github_large_artifact_download": github_large_artifact_download,
                     "remote_payload_preserved": remote_dir is not None,
                     "production_service_start": False,
                     "board_access": False,
@@ -1526,6 +1706,8 @@ def main() -> int:
                 "status": "STOP",
                 "phase": "preflight",
                 "reason": str(error),
+                "artifact_cache_status": artifact_cache_status,
+                "github_large_artifact_download": github_large_artifact_download,
                 "payload_transfer": False,
                 "docker_mutation": False,
                 "production_service_start": False,
