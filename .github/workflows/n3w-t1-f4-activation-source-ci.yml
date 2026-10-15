@@ -82,7 +82,7 @@ jobs:
           grep -Fq 'eligibility --phase broker' infra/n3w-t1/f4/n3wfc4-broker-activation.service
           grep -Fq 'eligibility --phase services' infra/n3w-t1/f4/n3wfc4-services-activation.service
           grep -Fq 'eligibility --phase certificate' infra/n3w-t1/f4/n3wfc4-broker-certificate-lifecycle.service
-          grep -Fq 'N3WFC4_CERT_ALLOWED_ROOT_SECRET' infra/n3w-t1/f4/n3wfc4-broker-certificate-lifecycle.service
+          grep -Fq 'N3WFC4_CERT_ALLOWED_ROOT_BROKER_CA' infra/n3w-t1/f4/n3wfc4-broker-certificate-lifecycle.service
           ! grep -Fq 'enable --now' infra/n3w-t1/activate-systemd-production.sh
           ! grep -Fq 'systemctl start' infra/n3w-t1/activate-systemd-production.sh
           ! grep -Fq 'systemctl restart' infra/n3w-t1/activate-systemd-production.sh
