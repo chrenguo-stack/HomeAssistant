@@ -1,3 +1,14 @@
+## 2026-10-15 — F3 R4 live apply CLOSED_PASS
+
+- Exact R4 source `6ac82ae0872b05644e59470ffef7307dad14d359` completed the real T1 F3 public staging path.
+- The first retry in this chat stopped preclaim on an SSH password-prompt timeout and did not consume authorization or mutate product state.
+- The successful R4 run loaded Home Assistant, Manager and Broker; every staged image tar was deleted after load.
+- Bootstrap closure: `public_product_staged=true`, `instance_material_absent=true`, `explicit_provisioning_required=true`, `activation_authorized=false`, `production_service_start=false`.
+- Host closure: `status=PASS`, R4 authorization claimed/consumed, replay forbidden, remote payload removed, board access false.
+- KF-116 is `CLOSED_PASS_LIVE_REVALIDATED`.
+- STOP before explicit per-device provisioning, F4 activation/end-to-end acceptance, board work or PR #544 merge.
+- Closure authority: `docs/development/N3W_T1_F3_R4_LIVE_APPLY_CLOSURE_20261015.md`.
+
 ## 2026-10-15 — R4 live apply authorized / direct next-chat entry
 
 - R4 source repair and read-only preauth are already CLOSED_PASS and must not be repeated merely because the chat changes.
