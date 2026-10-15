@@ -1,3 +1,17 @@
+## 2026-10-15 — F4 recovery source repair closed; exact artifact binding next
+
+- Recovery design: PR #570 / `5e7bdeb384c1684536d40af23454d987603a2ce8`.
+- Recovery source repair: PR #571 / `f0bcc2ac50326b9a988405af8a2aad4c51694810`.
+- Exact source CI and exact control package CI are PASS.
+- Exact control package artifact exists: run `38767114055`, artifact `11990381805`,
+  `n3w-t1-f4-control-package-f0bcc2ac50326b9a988405af8a2aad4c51694810`.
+- KF-121 remains source-closed pending live revalidation.
+- Real T1 remains `STOPPED_RUNTIME_ACCEPTANCE`; runtime/persistence remain off and the failed acceptance authorization
+  remains consumed/no-replay.
+- No live recovery/activation/acceptance authorization has been granted.
+- Next gate: `N3W_T1_F4_STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_EXACT_ARTIFACT_BINDING_AND_LIVE_PREEXECUTION_PREPARATION_20261015_01`.
+- Cross-gate auto execution remains false.
+
 ## 2026-10-15 — F4 stopped runtime acceptance recovery design complete
 
 - Design PR #570 / head `5e7bdeb384c1684536d40af23454d987603a2ce8`.
