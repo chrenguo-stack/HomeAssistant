@@ -2,7 +2,7 @@
 
 ~~~text
 TASK=N3W_T1_F4_RUNTIME_ACCEPTANCE_MANAGER_SOCKET_PROBE_SOURCE_REPAIR_20261015_01
-STATUS=IMPLEMENTED_PENDING_CI_AND_REVIEW
+STATUS=SOURCE_REPAIR_CLOSED_PASS_PENDING_LIVE_REVALIDATION
 
 BASE_SOURCE_HEAD=ffcbb1a890e42ac776c6d90000bf3f25195da01d
 FAILED_LIVE_GATE=N3W_T1_F4_RUNTIME_ACCEPTANCE_LIVE_20261015_01
@@ -84,3 +84,40 @@ BOARD_ACCESS=false
 
 No live retry is allowed from this source-repair gate. A later exact artifact, stopped-state repair/recovery design and
 new distinct live authorization are required before touching the real T1 again.
+
+
+## CI and source review closure
+
+~~~text
+SOURCE_REPAIR_HEAD=0c9f91a56e6bb8bb9384f088885621596812e166
+PR=569
+PR_STATE=OPEN_DRAFT
+MERGEABLE=true
+
+M0_VERTICAL_SLICE_CI=PASS
+C07_NODE_RETIREMENT_CI=PASS
+M2_MANAGER_RUNTIME_SECRET_OWNERSHIP_CI=PASS
+M2_NODE_AUTH_NATIVE_BOARD_LAB_CI=PASS
+M2_NODE_AUTH_BOARD_LAB_CI=PASS
+M2_NODE_AUTH_ISOLATED_LAB_CI=PASS
+M2_PRIVATE_MOSQUITTO_CI=PASS
+M2_DYNAMIC_SECURITY_CI=PASS
+H3_N2_STAGE2B3_PAIRING_RUNTIME_CI=PASS
+GREENHOUSE_MANAGER_CI=PASS
+PUBLIC_REPOSITORY_SAFETY_CI=PASS
+N3W_T1_F4_ACTIVATION_SOURCE_CI=PASS
+N3W_T1_F4_EXACT_CONTROL_PACKAGE_CI=PASS
+~~~
+
+Independent diff review found no broad runtime-policy weakening:
+
+- the exact-one Manager MQTT socket requirement remains;
+- the 10-second Manager identity/stability window remains;
+- Home Assistant uses the same helper but inherits its own configured container user;
+- Manager container capabilities/security options are untouched;
+- no runtime start/retry behavior is changed;
+- no code path compares against the old unsuffixed `manager_mqtt_socket_count_invalid` string in this source/test delta.
+
+KF-121 is not declared fully closed by source review alone. It advances to
+`SOURCE_REPAIR_CLOSED_PASS_PENDING_LIVE_REVALIDATION`; a new exact artifact and a distinct, explicitly authorized
+stopped-state recovery/re-acceptance route are required to prove the repair on the real T1.
