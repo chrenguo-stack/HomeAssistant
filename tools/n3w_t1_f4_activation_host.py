@@ -64,15 +64,15 @@ INSTALL_MAP = {
         Path("/usr/local/sbin/n3w-broker-certificate-lifecycle"),
         0o755,
     ),
-    "infra/n3w-t1/systemd/n3wfc4-broker-activation.service": (
+    "infra/n3w-t1/f4/n3wfc4-broker-activation.service": (
         Path("/etc/systemd/system/n3wfc4-broker-activation.service"),
         0o644,
     ),
-    "infra/n3w-t1/systemd/n3wfc4-services-activation.service": (
+    "infra/n3w-t1/f4/n3wfc4-services-activation.service": (
         Path("/etc/systemd/system/n3wfc4-services-activation.service"),
         0o644,
     ),
-    "infra/n3w-t1/systemd/n3wfc4-broker-certificate-lifecycle.service": (
+    "infra/n3w-t1/f4/n3wfc4-broker-certificate-lifecycle.service": (
         Path("/etc/systemd/system/n3wfc4-broker-certificate-lifecycle.service"),
         0o644,
     ),
