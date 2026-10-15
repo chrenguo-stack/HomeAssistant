@@ -1,3 +1,61 @@
+## 2026-10-15 — F4 read-only preauth contract correction: ingress guard stopped-boundary false negative closed
+
+~~~text
+TASK=N3W_T1_F4_REAL_T1_READONLY_PREAUTH_20261015_01
+OBSERVED_RESULT=STOP_FALSE_NEGATIVE
+ROOT_CAUSE=PREAUTH_CONTRACT_INCORRECTLY_REQUIRED_INGRESS_GUARD_ACTIVE
+SOURCE_CONTRACT=F3_INSTALL_ENABLE_ONLY;F4_ACTIVATE_STARTS_AND_REQUIRES_ACTIVE
+CORRECTION=PREAUTH_REQUIRES_INGRESS_GUARD_ENABLED;ACTIVE_STATE_OBSERVE_ONLY
+PRODUCT_DEFECT=false
+LIVE_RUNTIME_MUTATION=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+~~~
+
+The real T1 returned `ingress_guard_enabled=enabled` and `ingress_guard_active=inactive`. This is valid at the
+pre-F4 stopped boundary because `install-systemd-staged.sh` enables the guard without starting it; the F4 activation
+owner starts and verifies the guard immediately before Broker startup. The initial STOP was therefore a preauth
+oracle false negative, not a product failure. No repeat of the same read-only probe is required solely for this
+correction.
+
+## 2026-10-15 — F4 exact control package + read-only preauth PREPARATION CLOSED_PASS
+
+~~~text
+TASK=N3W_T1_F4_EXACT_CONTROL_PACKAGE_AND_READONLY_PREAUTH_PREPARATION_20261015_01
+RESULT=CLOSED_PASS_SOURCE_PREPARATION
+
+SOURCE_HEAD=ad65bf7d10db76f12a09e19b337f4a0c7782894a
+SOURCE_CI=13_SUCCESS_0_FAILURE_0_PENDING
+
+ARTIFACT_ID=11967018401
+ARTIFACT_ZIP_SHA256=6308fdc64347949d463f251713c359571b40f067182cfd4d686ba4495d6d162f
+CONTROL_TAR_SHA256=13ecd035890dc88731bac6909ed1cb13ca33afd86b04d5d147d24003afbcf9f7
+PACKAGE_MANIFEST_SHA256=9ed2ce124fbe0e621b4443a655c1cb78285db79b30489e2d41bcf73f4ee5e230
+
+F4_EXACT_CONTROL_PACKAGE_BINDING=CLOSED_PASS
+F4_READONLY_PREAUTH_CONTRACT=FROZEN
+F4_LIVE_TRANSFER_CONTRACT=FROZEN
+F4_LIVE_CLAIM_BOUNDARY=FROZEN
+
+REAL_T1_READONLY_PREAUTH=false
+LIVE_F4_AUTHORIZATION=NOT_GRANTED
+T1_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+MERGE=false
+
+CURRENT_STOP_POINT=AFTER_F4_EXACT_PACKAGE_PREAUTH_PREPARATION_BEFORE_REAL_T1_READONLY_PREAUTH
+NEXT_ONE_GATE=N3W_T1_F4_REAL_T1_READONLY_PREAUTH_20261015_01
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+The exact GitHub artifact was downloaded and re-hashed locally; its ZIP, transport tar, build report, package
+manifest and exact eight-file payload all rebound to source head ad65bf7d10db76f12a09e19b337f4a0c7782894a.
+The later real-T1 preauthorization is strictly read-only; remote package transfer remains deferred until a new
+explicit F4 live authorization. Authority:
+docs/development/N3W_T1_F4_EXACT_CONTROL_PACKAGE_AND_READONLY_PREAUTH_PREPARATION_20261015.md.
+
 ## 2026-10-15 — F4 pre-reboot SOURCE independent review CLOSED_PASS
 
 ~~~text
