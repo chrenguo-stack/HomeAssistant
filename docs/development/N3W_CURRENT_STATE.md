@@ -1,3 +1,44 @@
+## 2026-10-15 — R4 live apply authorized for direct next-chat execution
+
+```text
+TASK=N3W_T1_F3_R4_LIVE_APPLY_NEW_CHAT_TRANSITION_20261015_01
+RESULT=READY_FOR_DIRECT_NEW_CHAT_LIVE_APPLY
+
+R4_EXECUTABLE_SOURCE_HEAD=6ac82ae0872b05644e59470ffef7307dad14d359
+R4_SOURCE_CI=15_SUCCESS_0_FAILURE_0_PENDING
+R4_ARTIFACT_ID=11942497052
+R4_ARTIFACT_DIGEST=sha256:1a8813b788fc4d597acfaafee417daa4bf6fc4bd3ea547d22dd1d689c462c4af
+R4_READONLY_PREAUTH=CLOSED_PASS
+
+R4_AUTHORIZATION=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R4_20261015_01
+R4_AUTHORIZATION_GRANTED=true
+R4_AUTHORIZATION_CLAIMED=false
+R4_AUTHORIZATION_CONSUMED=false
+R4_REPLAY_PERMITTED=true:UNTIL_FIRST_DURABLE_CLAIM_ONLY
+
+NEW_CHAT_REPEAT_R4_PREAUTH=false
+NEW_CHAT_REPEAT_SOURCE_CI=false
+NEW_CHAT_REPEAT_COMPLETED_VALIDATIONS=false
+NEW_CHAT_DIRECT_ENTRY_TO_R4_LIVE_APPLY=true
+
+T1_CURRENT_PRODUCT_BOUNDARY=CLEAN
+R3_AUTHORIZATION=CONSUMED_NO_REPLAY
+R3_FORENSIC_PAYLOAD_PRESERVE=true
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+F4_AUTHORIZATION_GRANTED=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R4_20261015_01
+AUTO_EXECUTE_AFTER_R4=false
+```
+
+The user explicitly directed the next chat to enter the exact R4 live-apply gate without repeating the
+source CI, R4 read-only preauthorization, or other validations completed in this conversation. This direction
+is recorded as the R4 one-shot live authorization grant. The authorization remains unclaimed/unconsumed until
+the exact live executor reaches its durable claim boundary. Any repository/source/runtime contradiction still
+requires fail-closed STOP; it does not authorize re-running completed acceptance gates.
+
 ## 2026-10-15 — F3 R4 read-only preauth CLOSED_PASS / explicit live authorization decision next
 
 ```text
