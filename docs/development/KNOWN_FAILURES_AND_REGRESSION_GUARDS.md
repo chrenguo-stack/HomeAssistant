@@ -1,3 +1,27 @@
+## 2026-10-15 — KF-121 F4 runtime acceptance Manager MQTT socket-count failure
+
+~~~text
+KF-121_STATUS=OPEN
+DOMAIN=T1_F4_RUNTIME_ACCEPTANCE
+
+FAILED_GATE=N3W_T1_F4_RUNTIME_ACCEPTANCE_LIVE_20261015_01
+FAILED_AUTHORIZATION=CONSUMED_NO_REPLAY
+PRECHECK=PASS
+FAILURE_ERROR_CODE=manager_mqtt_socket_count_invalid
+POST_STAGE=STOPPED_RUNTIME_ACCEPTANCE
+ROLLBACK_PROVEN=true
+
+PRODUCT_DEFECT_PROVEN=false
+ACCEPTANCE_ORACLE_DEFECT_PROVEN=false
+RUNTIME_CONNECTIVITY_DEFECT_PROVEN=false
+ROOT_CAUSE=TBD
+~~~
+
+Guard: do not replay the consumed runtime-acceptance authorization. The current source requires exactly one Manager established TCP socket to remote port 8883 on every sample of a 10-second stability window, but the failure path does not preserve the observed count. A stopped-state read-only forensic gate must first distinguish a real Manager MQTT disconnect/reconnect from an over-strict or incorrect socket oracle. Do not restart the runtime merely to collect evidence, and do not weaken the acceptance check before root cause is proven.
+
+Authority:
+`docs/development/N3W_T1_F4_RUNTIME_ACCEPTANCE_R1_FAILURE_AND_MANAGER_MQTT_SOCKET_FORENSIC_PREPARATION_20261015.md`.
+
 ## 2026-10-15 — KF-120 F4 downstream continuation authorization reuse
 
 ~~~text
