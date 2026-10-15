@@ -75,7 +75,6 @@ jobs:
             tools/n3w_t1_f4_activation_host.py \
             tools/n3w_t1_f4_package_builder.py \
             tests/tools/test_n3w_t1_f4_activation_host.py \
-            tests/tools/test_n3w_t1_f4_package_builder.py \
             tests/tools/test_n3w_t1_f4_package_builder.py
 
       - name: Focused F4 tests
