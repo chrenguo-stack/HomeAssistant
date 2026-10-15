@@ -926,6 +926,11 @@ def test_accept_runtime_failure_uses_fail_closed_rollback(
     )
     monkeypatch.setattr(
         tool,
+        "_advance_transaction",
+        lambda stage, **_fields: {"stage": stage},
+    )
+    monkeypatch.setattr(
+        tool,
         "_downstream_fail_closed",
         lambda stage, _error: rollback.append(stage),
     )
