@@ -1,3 +1,13 @@
+## 2026-10-15 — F4 stopped runtime acceptance recovery design complete
+
+- Design PR #570 / head `24119a51559702b67f7bb3c113011b733381f152`.
+- The current T1 remains `STOPPED_RUNTIME_ACCEPTANCE`; production runtime is stopped and the failed acceptance authorization remains consumed/no-replay.
+- Recovery will execute from the successor exact package launcher, permit only the installed F4 launcher to change, and stop at `PREPARED`.
+- Later live execution requires three distinct authorizations: control recovery, successor activation, successor runtime acceptance.
+- Existing bounded `activate` logic is reused; no second runtime-start implementation is designed.
+- Next gate: `N3W_T1_F4_STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_SOURCE_REPAIR_20261015_01`.
+- No T1 mutation is authorized by the design gate.
+
 ## 2026-10-15 — KF-121 source repair ready; no live retry yet
 
 - Stopped Manager inspection confirms runtime `999:999`, all Linux capabilities dropped, no-new-privileges, private PID namespace and host network.
