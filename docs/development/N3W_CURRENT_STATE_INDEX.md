@@ -1,3 +1,10 @@
+## 2026-10-15 — F4 runtime continuation authority live control repair authorized
+
+- Explicit authorization granted for `N3W_T1_F4_RUNTIME_CONTINUATION_AUTHORITY_CONTROL_REPAIR_LIVE_20261015_01`.
+- Scope is launcher-only while the current `RUNTIME_STARTED` containers remain running with unchanged identities.
+- Exact successor source `ffcbb1a...`; exact artifact ID `11982052678`; exact-head CI 13/13 PASS.
+- Runtime acceptance, persistence, certificate lifecycle mutation, reboot and board access remain unauthorized.
+
 ## 2026-10-15 — F4 RUNTIME_STARTED R2 CLOSED_PASS
 
 - R2 live activation passed and the real T1 is now `RUNTIME_STARTED` with Broker, Manager and Home Assistant running.
