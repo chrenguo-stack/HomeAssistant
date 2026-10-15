@@ -1,3 +1,13 @@
+## 2026-10-15 — F4 transition-control source independent review CLOSED_PASS
+
+- Reviewed source head: `be14b74e6c74cc8ac036e41cc99b49439a2fc20c`; exact-head CI was 13/13 SUCCESS.
+- F3→F4 transition control is CLOSED_PASS for its bounded scope.
+- Independent review repaired exact package/source binding, installed-control drift checks, restart eligibility after transition, and Docker-backed rollback proof.
+- Full F4 live execution remains blocked: runtime end-to-end acceptance, durable RUNTIME_ACCEPTED transition, persistence enablement, first certificate lifecycle audit/timer enablement and reboot acceptance are not yet source-closed.
+- No T1 access, production service start, board access or merge occurred.
+- Next one gate: `N3W_T1_F4_RUNTIME_ACCEPTANCE_AND_PERSISTENCE_SOURCE_PREPARATION_20261015_01`.
+- Review authority: `docs/development/N3W_T1_F4_FACTORY_ACCEPTANCE_AND_ACTIVATION_SOURCE_REPAIR_INDEPENDENT_REVIEW_20261015.md`.
+
 ## 2026-10-15 — F4 factory acceptance and activation SOURCE REPAIR implemented
 
 - Gate `N3W_T1_F4_FACTORY_ACCEPTANCE_AND_ACTIVATION_SOURCE_REPAIR_20261015_01` is implemented and awaiting exact-head CI plus independent source review.
