@@ -1,3 +1,22 @@
+### 2026-10-15 forensic update
+
+Broker-side retained logs prove the authenticated Manager MQTT session remained connected from
+`2026-10-15T14:32:15.264Z` until `2026-10-15T15:30:36.082Z`. The stopped Manager container finished at
+`2026-10-15T15:30:36.088Z`, so the disconnect aligns with fail-closed rollback rather than a pre-existing Manager
+MQTT outage. A separate unauthenticated 8883 connection at 15:30:08.252Z→15:30:08.311Z matches the source's
+host-side TLS certificate probe.
+
+~~~text
+MANAGER_MQTT_SESSION_CONTINUITY_THROUGH_FAILURE=PROVEN
+REAL_MANAGER_MQTT_CONNECTIVITY_FAILURE_PROVEN=false
+SOCKET_COUNT_ORACLE_CONTRADICTS_BROKER_SESSION_EVIDENCE=true
+EXACT_SOCKET_PROBE_MECHANISM_ROOT_CAUSE=TBD
+~~~
+
+Do not weaken the runtime-acceptance contract generically. First inspect the stopped Manager container's exact
+user/capability/security configuration and reconcile it with the probe's `docker exec --user 0:0` +
+`/proc/<pid>/fd` ownership method.
+
 ## 2026-10-15 — KF-121 F4 runtime acceptance Manager MQTT socket-count failure
 
 ~~~text
