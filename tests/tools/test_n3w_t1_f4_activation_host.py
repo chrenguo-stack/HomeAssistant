@@ -1838,7 +1838,10 @@ def test_runtime_acceptance_recovery_stopped_prestate_is_exact(
     tool = load_tool()
     report = {
         "production_service_start": False,
+        "runtime_service_probe": "PASS",
         "running_services": [],
+        "broker_active_state": "inactive",
+        "services_active_state": "failed",
     }
     states = {
         ("is-enabled", tool.BROKER_UNIT): "disabled",
@@ -1863,6 +1866,14 @@ def test_runtime_acceptance_recovery_stopped_prestate_is_exact(
     tool._runtime_acceptance_recovery_stopped_prestate()
 
     states[("is-enabled", tool.BROKER_UNIT)] = "unknown"
+    with pytest.raises(
+        tool.F4Error,
+        match="runtime_acceptance_recovery_runtime_not_stopped",
+    ):
+        tool._runtime_acceptance_recovery_stopped_prestate()
+
+    states[("is-enabled", tool.BROKER_UNIT)] = "disabled"
+    report["runtime_service_probe"] = "UNPROVEN"
     with pytest.raises(
         tool.F4Error,
         match="runtime_acceptance_recovery_runtime_not_stopped",
