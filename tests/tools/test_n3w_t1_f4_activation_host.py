@@ -344,14 +344,14 @@ def test_fresh_certificate_binding_has_no_fixed_fingerprint() -> None:
 
 def test_systemd_activation_units_fail_closed_on_f4_phase() -> None:
     broker = (
-        ROOT / "infra/n3w-t1/systemd/n3wfc4-broker-activation.service"
+        ROOT / "infra/n3w-t1/f4/n3wfc4-broker-activation.service"
     ).read_text(encoding="utf-8")
     services = (
-        ROOT / "infra/n3w-t1/systemd/n3wfc4-services-activation.service"
+        ROOT / "infra/n3w-t1/f4/n3wfc4-services-activation.service"
     ).read_text(encoding="utf-8")
     certificate = (
         ROOT
-        / "infra/n3w-t1/systemd/n3wfc4-broker-certificate-lifecycle.service"
+        / "infra/n3w-t1/f4/n3wfc4-broker-certificate-lifecycle.service"
     ).read_text(encoding="utf-8")
 
     assert (
