@@ -1,3 +1,15 @@
+## 2026-10-15 — Handoff frozen: explicit provisioning live start next
+
+- Formal handoff: `docs/development/N3W_T1_EXPLICIT_PER_DEVICE_PROVISIONING_LIVE_START_NEW_CHAT_HANDOFF_V1.0_20261015.md`.
+- Correct template: candidate-branch `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` V1.3 / blob `b9ef40acdaa8fae37feb5ffe5662afd0e89462a0`; do not use the historical template.
+- Exact historical handoff standard authority: `4300890dff0ce63d5a547df21426e287d084d9ee`.
+- Real explicit-provisioning read-only preauth is already CLOSED_PASS and must not be repeated in the new chat.
+- R4 and Mac local exact-artifact-cache acceptance are already CLOSED_PASS and must not be repeated.
+- User granted direct next-chat entry to `N3W_T1_EXPLICIT_PER_DEVICE_PROVISIONING_LIVE_START_20261015_01`.
+- Live-start authorization is granted but unclaimed/unconsumed; claim occurs when durable `transaction.json` is created.
+- Current chat is frozen: no provisioning start, F4, board work or merge occurred.
+- New chat must do only the minimum GitHub fresh rebind needed to prove handoff advancement is docs-only, then enter the live-start Gate directly.
+
 ## 2026-10-15 — Explicit per-device provisioning read-only preauth CLOSED_PASS
 
 - Real target reports `UNPROVISIONED` with status PASS for deployed release `6ac82ae0872b05644e59470ffef7307dad14d359`.
