@@ -485,7 +485,7 @@ def test_package_manifest_exact_binding_and_tamper_rejection(
     assert package["manifest_sha256"] == manifest_sha
     assert set(package["files"]) == set(tool.INSTALL_MAP)
 
-    first = tmp_path / sorted(tool.INSTALL_MAP)[0]
+    first = tmp_path / min(tool.INSTALL_MAP)
     first.write_text("tampered\n", encoding="utf-8")
     with pytest.raises(tool.F4Error, match="package_file_binding_invalid"):
         tool._validate_package(
