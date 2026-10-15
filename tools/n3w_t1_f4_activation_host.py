@@ -76,6 +76,20 @@ RUNTIME_CONTINUATION_AUTHORITY_REPAIR_FROM_MANIFEST_SHA256 = (
 RUNTIME_CONTINUATION_AUTHORITY_REPAIR_FROM_LAUNCHER_SHA256 = (
     "56445c031e20a7b4870b65dd8d0ee96b019314deb634123904f418630b268907"
 )
+
+RUNTIME_ACCEPTANCE_RECOVERY_CONFIRMATION = (
+    "RECOVER F4 STOPPED RUNTIME ACCEPTANCE: YES"
+)
+RUNTIME_ACCEPTANCE_RECOVERY_FROM_SOURCE_HEAD = (
+    "ffcbb1a890e42ac776c6d90000bf3f25195da01d"
+)
+RUNTIME_ACCEPTANCE_RECOVERY_FROM_MANIFEST_SHA256 = (
+    "4df1d95b0849aa4ca574f31f8fd55e57fe118fba1c5913d2d8b3f96e286ec669"
+)
+RUNTIME_ACCEPTANCE_RECOVERY_FROM_LAUNCHER_SHA256 = (
+    "f7f742505f439675fb19ecf8f98b8235703d6e2a1c5c9217ecfe01a025be3c8b"
+)
+
 EXPECTED_RUNTIME_SERVICES = frozenset({"broker", "manager", "homeassistant"})
 RUNTIME_SERVICE_SET_TIMEOUT_SECONDS = 60.0
 RUNTIME_SERVICE_SET_POLL_SECONDS = 1.0
@@ -1882,6 +1896,371 @@ def _repair_runtime_continuation_authority(
             raise
 
 
+def _runtime_acceptance_recovery_entrypoint(
+    launcher_source: Path,
+    launcher_binding: dict[str, object],
+) -> None:
+    executing = Path(os.path.abspath(__file__))
+    if (
+        executing.is_symlink()
+        or not executing.is_file()
+        or executing != launcher_source
+        or executing.stat().st_size != launcher_binding.get("size")
+        or _sha256_file(executing) != launcher_binding.get("sha256")
+    ):
+        raise F4Error("runtime_acceptance_recovery_entrypoint_invalid")
+
+
+def _runtime_acceptance_recovery_stopped_prestate() -> None:
+    runtime = _runtime_activity()
+    if (
+        runtime["production_service_start"] is not False
+        or runtime["runtime_service_probe"] != "PASS"
+        or runtime["running_services"] != []
+        or runtime["broker_active_state"] not in {"inactive", "failed"}
+        or runtime["services_active_state"] not in {"inactive", "failed"}
+        or _product_listener_ports() != []
+        or _systemctl("is-enabled", BROKER_UNIT) != "disabled"
+        or _systemctl("is-enabled", SERVICES_UNIT) != "disabled"
+        or _systemctl("is-enabled", CERT_TIMER) != "disabled"
+        or _systemctl("is-active", CERT_TIMER) != "inactive"
+        or _systemctl("is-active", CERT_SERVICE) != "inactive"
+        or RUNTIME_ACCEPTANCE_PATH.exists()
+        or RUNTIME_ACCEPTANCE_PATH.is_symlink()
+    ):
+        raise F4Error("runtime_acceptance_recovery_runtime_not_stopped")
+
+
+def _repair_stopped_runtime_acceptance(
+    package_root: Path,
+    confirmation: str,
+    repair_authorization_id: str,
+    package_manifest_sha256: str,
+    package_source_head: str,
+) -> dict[str, object]:
+    if confirmation != RUNTIME_ACCEPTANCE_RECOVERY_CONFIRMATION:
+        raise F4Error("runtime_acceptance_recovery_confirmation_invalid")
+    package = _validate_package(
+        package_root,
+        expected_manifest_sha256=package_manifest_sha256,
+        expected_source_head=package_source_head,
+    )
+    launcher_relative = "tools/n3w_t1_f4_activation_host.py"
+    launcher_target, launcher_mode = INSTALL_MAP[launcher_relative]
+    launcher_binding = package["files"].get(launcher_relative)
+    if not isinstance(launcher_binding, dict):
+        raise F4Error("runtime_acceptance_recovery_launcher_binding_missing")
+    launcher_source = Path(str(package["root"])) / launcher_relative
+    if not launcher_source.read_bytes().startswith(b"#!/usr/bin/python3\n"):
+        raise F4Error("runtime_acceptance_recovery_launcher_shebang_invalid")
+    if (
+        package["source_head"] == RUNTIME_ACCEPTANCE_RECOVERY_FROM_SOURCE_HEAD
+        or package["manifest_sha256"]
+        == RUNTIME_ACCEPTANCE_RECOVERY_FROM_MANIFEST_SHA256
+        or launcher_binding.get("sha256")
+        == RUNTIME_ACCEPTANCE_RECOVERY_FROM_LAUNCHER_SHA256
+    ):
+        raise F4Error("runtime_acceptance_recovery_successor_not_distinct")
+    _runtime_acceptance_recovery_entrypoint(
+        launcher_source,
+        launcher_binding,
+    )
+
+    with _exclusive_f4():
+        verified = _provision_verify()
+        _validate_factory_binding(verified)
+        transaction = _validate_transaction_binding(verified)
+        if (
+            transaction.get("stage") != "STOPPED_RUNTIME_ACCEPTANCE"
+            or transaction.get("error_code")
+            != "manager_mqtt_socket_count_invalid"
+            or transaction.get("rollback_proven") is not True
+            or transaction.get("rollback_error_count") != 0
+            or transaction.get("production_service_start") is not False
+            or transaction.get("persistence_enabled") is not False
+            or transaction.get("certificate_timer_enabled") is not False
+            or transaction.get("product_listener_ports") != []
+            or transaction.get("runtime_acceptance_authorization_claimed")
+            is not True
+            or transaction.get("runtime_acceptance_authorization_consumed")
+            is not True
+            or transaction.get("runtime_acceptance_authorization_replay_allowed")
+            is not False
+            or transaction.get("runtime_acceptance_passed") is True
+            or transaction.get("package_source_head")
+            != RUNTIME_ACCEPTANCE_RECOVERY_FROM_SOURCE_HEAD
+            or transaction.get("package_manifest_sha256")
+            != RUNTIME_ACCEPTANCE_RECOVERY_FROM_MANIFEST_SHA256
+            or transaction.get(
+                "runtime_acceptance_recovery_authorization_claimed"
+            )
+            is True
+        ):
+            raise F4Error("runtime_acceptance_recovery_prestate_invalid")
+
+        failed_acceptance_authorization = transaction.get(
+            "runtime_acceptance_authorization_id"
+        )
+        if not isinstance(failed_acceptance_authorization, str):
+            raise F4Error(
+                "runtime_acceptance_recovery_failed_authorization_missing"
+            )
+
+        _verify_installed_material(transaction)
+        current_installed = transaction.get("installed_files")
+        if not isinstance(current_installed, dict):
+            raise F4Error(
+                "runtime_acceptance_recovery_installed_files_invalid"
+            )
+        current_launcher = current_installed.get(str(launcher_target))
+        if (
+            not isinstance(current_launcher, dict)
+            or current_launcher.get("sha256")
+            != RUNTIME_ACCEPTANCE_RECOVERY_FROM_LAUNCHER_SHA256
+        ):
+            raise F4Error(
+                "runtime_acceptance_recovery_source_binding_invalid"
+            )
+
+        for relative, (target, _mode) in INSTALL_MAP.items():
+            if relative == launcher_relative:
+                continue
+            new_binding = package["files"].get(relative)
+            installed_binding = current_installed.get(str(target))
+            if (
+                not isinstance(new_binding, dict)
+                or not isinstance(installed_binding, dict)
+                or new_binding.get("sha256") != installed_binding.get("sha256")
+                or new_binding.get("size") != installed_binding.get("size")
+            ):
+                raise F4Error(
+                    "runtime_acceptance_recovery_unexpected_delta:"
+                    + relative
+                )
+
+        _runtime_acceptance_recovery_stopped_prestate()
+        _validate_successor_authorization(
+            transaction,
+            repair_authorization_id,
+            claimed_field=(
+                "runtime_acceptance_recovery_authorization_claimed"
+            ),
+            invalid_code=(
+                "runtime_acceptance_recovery_authorization_id_invalid"
+            ),
+            replay_code=(
+                "runtime_acceptance_recovery_authorization_replay_forbidden"
+            ),
+        )
+
+        _advance_transaction(
+            "STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_CLAIMED",
+            runtime_acceptance_recovery_authorization_id=(
+                repair_authorization_id
+            ),
+            runtime_acceptance_recovery_authorization_claimed=True,
+            runtime_acceptance_recovery_authorization_consumed=True,
+            runtime_acceptance_recovery_authorization_replay_allowed=False,
+            runtime_acceptance_recovery_from_source_head=(
+                RUNTIME_ACCEPTANCE_RECOVERY_FROM_SOURCE_HEAD
+            ),
+            runtime_acceptance_recovery_from_manifest_sha256=(
+                RUNTIME_ACCEPTANCE_RECOVERY_FROM_MANIFEST_SHA256
+            ),
+            runtime_acceptance_recovery_target_source_head=(
+                package["source_head"]
+            ),
+            runtime_acceptance_recovery_target_manifest_sha256=(
+                package["manifest_sha256"]
+            ),
+            runtime_acceptance_last_failure_stage=(
+                "STOPPED_RUNTIME_ACCEPTANCE"
+            ),
+            runtime_acceptance_last_failure_error_code=(
+                "manager_mqtt_socket_count_invalid"
+            ),
+            runtime_acceptance_last_failure_authorization_id=(
+                failed_acceptance_authorization
+            ),
+            runtime_acceptance_last_failure_source_head=(
+                RUNTIME_ACCEPTANCE_RECOVERY_FROM_SOURCE_HEAD
+            ),
+            runtime_acceptance_last_failure_manifest_sha256=(
+                RUNTIME_ACCEPTANCE_RECOVERY_FROM_MANIFEST_SHA256
+            ),
+            runtime_acceptance_last_failure_rollback_proven=True,
+            runtime_acceptance_last_failure_rollback_error_count=0,
+            activation_retry_eligible=False,
+            runtime_acceptance_retry_eligible=False,
+            production_service_start=False,
+            persistence_enabled=False,
+            certificate_timer_enabled=False,
+        )
+
+        try:
+            _atomic_replace_bound_file(
+                launcher_source,
+                launcher_target,
+                launcher_mode,
+                expected_current=current_launcher,
+                expected_sha256=str(launcher_binding["sha256"]),
+                expected_size=int(launcher_binding["size"]),
+            )
+            updated_files = dict(current_installed)
+            updated_files[str(launcher_target)] = _file_binding(
+                launcher_target
+            )
+            _advance_transaction(
+                "STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_CLAIMED",
+                installed_files=updated_files,
+                package_source_head=package["source_head"],
+                package_manifest_sha256=package["manifest_sha256"],
+                runtime_acceptance_recovery_launcher_replaced=True,
+                production_service_start=False,
+                persistence_enabled=False,
+                certificate_timer_enabled=False,
+            )
+            _runtime_acceptance_recovery_stopped_prestate()
+            _advance_transaction(
+                "PREPARED",
+                installed_files=updated_files,
+                package_source_head=package["source_head"],
+                package_manifest_sha256=package["manifest_sha256"],
+                runtime_acceptance_recovery_passed=True,
+                activation_retry_eligible=True,
+                runtime_acceptance_retry_eligible=True,
+                broker_ready=False,
+                runtime_started=False,
+                runtime_acceptance_required=True,
+                runtime_acceptance_passed=False,
+                runtime_acceptance_report_sha256=None,
+                homeassistant_mqtt_entry_id_sha256=None,
+                error_code=None,
+                rollback_proven=None,
+                rollback_error_count=None,
+                product_listener_ports=[],
+                production_service_start=False,
+                persistence_enabled=False,
+                certificate_timer_enabled=False,
+            )
+            repaired = _read_private_record(TRANSACTION_PATH)
+            _verify_installed_material(repaired)
+            _runtime_acceptance_recovery_stopped_prestate()
+            return {
+                "status": "PASS",
+                "state": "PREPARED",
+                "runtime_acceptance_recovery_passed": True,
+                "runtime_acceptance_recovery_authorization_id": (
+                    repair_authorization_id
+                ),
+                "runtime_acceptance_recovery_authorization_claimed": True,
+                "runtime_acceptance_recovery_authorization_consumed": True,
+                "runtime_acceptance_recovery_authorization_replay_allowed": False,
+                "failed_runtime_acceptance_authorization_id": (
+                    failed_acceptance_authorization
+                ),
+                "failed_runtime_acceptance_authorization_preserved": True,
+                "activation_retry_eligible": True,
+                "runtime_acceptance_retry_eligible": True,
+                "package_source_head": package["source_head"],
+                "package_manifest_sha256": package["manifest_sha256"],
+                "production_service_start": False,
+                "persistence_enabled": False,
+                "certificate_timer_enabled": False,
+                "board_access": False,
+            }
+        except OPERATION_ERRORS as error:
+            launcher_state_proven = False
+            try:
+                current = _read_private_record(TRANSACTION_PATH)
+                expected_new_launcher = {
+                    "sha256": str(launcher_binding["sha256"]),
+                    "size": int(launcher_binding["size"]),
+                    "mode": launcher_mode,
+                    "uid": 0,
+                    "gid": 0,
+                }
+                try:
+                    observed_launcher = _file_binding(launcher_target)
+                except OPERATION_ERRORS:
+                    observed_launcher = None
+
+                if observed_launcher == expected_new_launcher:
+                    reconciled_files = dict(current_installed)
+                    reconciled_files[str(launcher_target)] = observed_launcher
+                    _advance_transaction(
+                        str(current["stage"]),
+                        installed_files=reconciled_files,
+                        package_source_head=package["source_head"],
+                        package_manifest_sha256=package["manifest_sha256"],
+                        runtime_acceptance_recovery_launcher_replaced=True,
+                        runtime_acceptance_recovery_launcher_state_unproven=False,
+                    )
+                    launcher_state_proven = True
+                elif observed_launcher == current_launcher:
+                    _advance_transaction(
+                        str(current["stage"]),
+                        runtime_acceptance_recovery_launcher_replaced=False,
+                        runtime_acceptance_recovery_launcher_state_unproven=False,
+                    )
+                    launcher_state_proven = True
+                else:
+                    _advance_transaction(
+                        str(current["stage"]),
+                        runtime_acceptance_recovery_launcher_state_unproven=True,
+                    )
+
+                _downstream_fail_closed(
+                    "RUNTIME_ACCEPTANCE_RECOVERY",
+                    error,
+                )
+                stopped = _read_private_record(TRANSACTION_PATH)
+                stop_stage = str(stopped["stage"])
+                rollback_proven = (
+                    stopped.get("rollback_proven") is True
+                    and launcher_state_proven
+                )
+                if not rollback_proven:
+                    stop_stage = (
+                        "STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_"
+                        "ROLLBACK_UNPROVEN"
+                    )
+                _advance_transaction(
+                    stop_stage,
+                    runtime_acceptance_recovery_passed=False,
+                    runtime_acceptance_recovery_error_code=str(error)[:300],
+                    activation_retry_eligible=False,
+                    runtime_acceptance_retry_eligible=False,
+                    production_service_start=False,
+                    persistence_enabled=False,
+                    certificate_timer_enabled=False,
+                    rollback_proven=rollback_proven,
+                )
+            except OPERATION_ERRORS as rollback_error:
+                try:
+                    _advance_transaction(
+                        "STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_"
+                        "ROLLBACK_UNPROVEN",
+                        runtime_acceptance_recovery_passed=False,
+                        runtime_acceptance_recovery_error_code=str(error)[:300],
+                        runtime_acceptance_recovery_launcher_state_unproven=True,
+                        activation_retry_eligible=False,
+                        runtime_acceptance_retry_eligible=False,
+                        production_service_start=False,
+                        persistence_enabled=False,
+                        certificate_timer_enabled=False,
+                        rollback_proven=False,
+                    )
+                except OPERATION_ERRORS:
+                    pass
+                raise F4Error(
+                    "runtime_acceptance_recovery_failed_"
+                    "rollback_unproven:"
+                    + type(rollback_error).__name__
+                ) from error
+            raise
+
+
 def _repair_stopped_runtime_start(
     package_root: Path,
     confirmation: str,
@@ -2121,6 +2500,7 @@ def _all_prior_authorization_ids(
         "activation_authority_repair_authorization_id",
         "runtime_start_repair_authorization_id",
         "runtime_continuation_authority_repair_authorization_id",
+        "runtime_acceptance_recovery_authorization_id",
         "activation_authorization_id",
         "runtime_acceptance_authorization_id",
         "persistence_authorization_id",
@@ -2130,12 +2510,22 @@ def _all_prior_authorization_ids(
         value = transaction.get(key)
         if isinstance(value, str):
             values.add(value)
-    history = transaction.get("activation_authorization_history", [])
-    if not isinstance(history, list) or not all(
-        isinstance(value, str) for value in history
+    for history_field, error_code in (
+        (
+            "activation_authorization_history",
+            "activation_authorization_history_invalid",
+        ),
+        (
+            "runtime_acceptance_authorization_history",
+            "runtime_acceptance_authorization_history_invalid",
+        ),
     ):
-        raise F4Error("activation_authorization_history_invalid")
-    values.update(history)
+        history = transaction.get(history_field, [])
+        if not isinstance(history, list) or not all(
+            isinstance(value, str) for value in history
+        ):
+            raise F4Error(error_code)
+        values.update(history)
     return frozenset(values)
 
 
@@ -3513,19 +3903,82 @@ def _accept_runtime(authorization_id: str) -> dict[str, object]:
         transaction = _validate_transaction_binding(verified)
         if transaction.get("stage") != "RUNTIME_STARTED":
             raise F4Error("runtime_acceptance_replay_forbidden")
-        _validate_successor_authorization(
-            transaction,
-            authorization_id,
-            claimed_field="runtime_acceptance_authorization_claimed",
-            invalid_code="runtime_acceptance_authorization_id_invalid",
-            replay_code="runtime_acceptance_authorization_replay_forbidden",
+        if (
+            not authorization_id.startswith("N3W_T1_F4_")
+            or len(authorization_id) > 200
+            or not authorization_id.replace("_", "").replace("-", "").isalnum()
+        ):
+            raise F4Error("runtime_acceptance_authorization_id_invalid")
+        if authorization_id in _all_prior_authorization_ids(transaction):
+            raise F4Error("continuation_authorization_not_distinct")
+
+        prior_claimed = (
+            transaction.get("runtime_acceptance_authorization_claimed")
+            is True
         )
+        retry_eligible = (
+            transaction.get("runtime_acceptance_retry_eligible") is True
+        )
+        if prior_claimed and (
+            not retry_eligible
+            or transaction.get("runtime_acceptance_recovery_passed")
+            is not True
+            or transaction.get(
+                "runtime_acceptance_recovery_authorization_claimed"
+            )
+            is not True
+            or transaction.get(
+                "runtime_acceptance_recovery_authorization_consumed"
+            )
+            is not True
+            or transaction.get(
+                "runtime_acceptance_recovery_authorization_replay_allowed"
+            )
+            is not False
+        ):
+            raise F4Error(
+                "runtime_acceptance_authorization_replay_forbidden"
+            )
+
+        history_raw = transaction.get(
+            "runtime_acceptance_authorization_history",
+            [],
+        )
+        if not isinstance(history_raw, list) or not all(
+            isinstance(value, str) for value in history_raw
+        ):
+            raise F4Error(
+                "runtime_acceptance_authorization_history_invalid"
+            )
+        history = list(dict.fromkeys(history_raw))
+        previous_acceptance = transaction.get(
+            "runtime_acceptance_authorization_id"
+        )
+        if prior_claimed:
+            if not isinstance(previous_acceptance, str):
+                raise F4Error(
+                    "runtime_acceptance_prior_authorization_missing"
+                )
+            if (
+                transaction.get(
+                    "runtime_acceptance_last_failure_authorization_id"
+                )
+                != previous_acceptance
+            ):
+                raise F4Error(
+                    "runtime_acceptance_recovery_failure_binding_invalid"
+                )
+            if previous_acceptance not in history:
+                history.append(previous_acceptance)
+
         _advance_transaction(
             "RUNTIME_STARTED",
+            runtime_acceptance_authorization_history=history,
             runtime_acceptance_authorization_id=authorization_id,
             runtime_acceptance_authorization_claimed=True,
             runtime_acceptance_authorization_consumed=True,
             runtime_acceptance_authorization_replay_allowed=False,
+            runtime_acceptance_retry_eligible=False,
             production_service_start=True,
             persistence_enabled=False,
         )
@@ -4060,6 +4513,27 @@ def _parser() -> argparse.ArgumentParser:
         required=True,
     )
 
+    runtime_acceptance_recovery = subparsers.add_parser(
+        "repair-stopped-runtime-acceptance"
+    )
+    runtime_acceptance_recovery.add_argument("--confirm", required=True)
+    runtime_acceptance_recovery.add_argument(
+        "--authorization-id",
+        required=True,
+    )
+    runtime_acceptance_recovery.add_argument(
+        "--package-root",
+        required=True,
+    )
+    runtime_acceptance_recovery.add_argument(
+        "--package-manifest-sha256",
+        required=True,
+    )
+    runtime_acceptance_recovery.add_argument(
+        "--package-source-head",
+        required=True,
+    )
+
     activate = subparsers.add_parser("activate")
     activate.add_argument("--confirm", required=True)
     activate.add_argument("--authorization-id", required=True)
@@ -4121,6 +4595,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         elif args.command == "repair-stopped-runtime-start":
             report = _repair_stopped_runtime_start(
+                Path(args.package_root),
+                args.confirm,
+                args.authorization_id,
+                args.package_manifest_sha256,
+                args.package_source_head,
+            )
+        elif args.command == "repair-stopped-runtime-acceptance":
+            report = _repair_stopped_runtime_acceptance(
                 Path(args.package_root),
                 args.confirm,
                 args.authorization_id,
