@@ -1953,6 +1953,14 @@ def _repair_stopped_runtime_acceptance(
     launcher_source = Path(str(package["root"])) / launcher_relative
     if not launcher_source.read_bytes().startswith(b"#!/usr/bin/python3\n"):
         raise F4Error("runtime_acceptance_recovery_launcher_shebang_invalid")
+    if (
+        package["source_head"] == RUNTIME_ACCEPTANCE_RECOVERY_FROM_SOURCE_HEAD
+        or package["manifest_sha256"]
+        == RUNTIME_ACCEPTANCE_RECOVERY_FROM_MANIFEST_SHA256
+        or launcher_binding.get("sha256")
+        == RUNTIME_ACCEPTANCE_RECOVERY_FROM_LAUNCHER_SHA256
+    ):
+        raise F4Error("runtime_acceptance_recovery_successor_not_distinct")
     _runtime_acceptance_recovery_entrypoint(
         launcher_source,
         launcher_binding,
@@ -3911,8 +3919,27 @@ def _accept_runtime(authorization_id: str) -> dict[str, object]:
         retry_eligible = (
             transaction.get("runtime_acceptance_retry_eligible") is True
         )
-        if prior_claimed and not retry_eligible:
-            raise F4Error("runtime_acceptance_authorization_replay_forbidden")
+        if prior_claimed:
+            if (
+                not retry_eligible
+                or transaction.get("runtime_acceptance_recovery_passed")
+                is not True
+                or transaction.get(
+                    "runtime_acceptance_recovery_authorization_claimed"
+                )
+                is not True
+                or transaction.get(
+                    "runtime_acceptance_recovery_authorization_consumed"
+                )
+                is not True
+                or transaction.get(
+                    "runtime_acceptance_recovery_authorization_replay_allowed"
+                )
+                is not False
+            ):
+                raise F4Error(
+                    "runtime_acceptance_authorization_replay_forbidden"
+                )
 
         history_raw = transaction.get(
             "runtime_acceptance_authorization_history",
@@ -3932,6 +3959,15 @@ def _accept_runtime(authorization_id: str) -> dict[str, object]:
             if not isinstance(previous_acceptance, str):
                 raise F4Error(
                     "runtime_acceptance_prior_authorization_missing"
+                )
+            if (
+                transaction.get(
+                    "runtime_acceptance_last_failure_authorization_id"
+                )
+                != previous_acceptance
+            ):
+                raise F4Error(
+                    "runtime_acceptance_recovery_failure_binding_invalid"
                 )
             if previous_acceptance not in history:
                 history.append(previous_acceptance)
