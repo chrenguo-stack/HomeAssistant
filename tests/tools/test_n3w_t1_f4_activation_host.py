@@ -1831,6 +1831,45 @@ def test_runtime_acceptance_recovery_entrypoint_requires_exact_package_launcher(
         )
 
 
+def test_runtime_acceptance_recovery_stopped_prestate_is_exact(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    report = {
+        "production_service_start": False,
+        "running_services": [],
+    }
+    states = {
+        ("is-enabled", tool.BROKER_UNIT): "disabled",
+        ("is-enabled", tool.SERVICES_UNIT): "disabled",
+        ("is-enabled", tool.CERT_TIMER): "disabled",
+        ("is-active", tool.CERT_TIMER): "inactive",
+        ("is-active", tool.CERT_SERVICE): "inactive",
+    }
+    monkeypatch.setattr(tool, "_runtime_activity", lambda: dict(report))
+    monkeypatch.setattr(tool, "_product_listener_ports", list)
+    monkeypatch.setattr(
+        tool,
+        "_systemctl",
+        lambda mode, unit: states[(mode, unit)],
+    )
+    monkeypatch.setattr(
+        tool,
+        "RUNTIME_ACCEPTANCE_PATH",
+        tmp_path / "missing-runtime-acceptance.json",
+    )
+
+    tool._runtime_acceptance_recovery_stopped_prestate()
+
+    states[("is-enabled", tool.BROKER_UNIT)] = "unknown"
+    with pytest.raises(
+        tool.F4Error,
+        match="runtime_acceptance_recovery_runtime_not_stopped",
+    ):
+        tool._runtime_acceptance_recovery_stopped_prestate()
+
+
 def test_runtime_acceptance_recovery_rebinds_launcher_and_enables_successors(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -2228,6 +2267,13 @@ def test_runtime_acceptance_recovery_failure_stays_stopped(
         raise tool.F4Error("replacement_failed")
 
     monkeypatch.setattr(tool, "_atomic_replace_bound_file", fail_replace)
+    monkeypatch.setattr(
+        tool,
+        "_file_binding",
+        lambda _path: installed_files[
+            str(tool.INSTALL_MAP[launcher_relative][0])
+        ],
+    )
 
     def fail_closed(prefix, _error):
         assert prefix == "RUNTIME_ACCEPTANCE_RECOVERY"
