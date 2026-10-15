@@ -1,6 +1,6 @@
 ## 2026-10-15 — F4 stopped runtime acceptance recovery design complete
 
-- Design PR #570 / head `24119a51559702b67f7bb3c113011b733381f152`.
+- Design PR #570 / head `5e7bdeb384c1684536d40af23454d987603a2ce8`.
 - The current T1 remains `STOPPED_RUNTIME_ACCEPTANCE`; production runtime is stopped and the failed acceptance authorization remains consumed/no-replay.
 - Recovery will execute from the successor exact package launcher, permit only the installed F4 launcher to change, and stop at `PREPARED`.
 - Later live execution requires three distinct authorizations: control recovery, successor activation, successor runtime acceptance.
