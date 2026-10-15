@@ -64,6 +64,12 @@ jobs:
       - name: Install test dependencies
         run: python -m pip install -e 'host/greenhouse-manager[dev]'
 
+      - name: F4 launcher executable contract
+        run: |
+          test -x tools/n3w_t1_f4_activation_host.py
+          test "$(head -n 1 tools/n3w_t1_f4_activation_host.py)" = "#!/usr/bin/python3"
+          ./tools/n3w_t1_f4_activation_host.py --help >/dev/null
+
       - name: Compile F4 host and package builder
         run: |
           python -m py_compile tools/n3w_t1_f4_activation_host.py
