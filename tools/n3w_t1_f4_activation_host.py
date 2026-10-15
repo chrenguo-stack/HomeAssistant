@@ -761,6 +761,44 @@ def _verify_installed_material(
             raise F4Error(f"installed_material_drift:{raw_path}")
 
 
+def _validate_runtime_acceptance_binding(
+    transaction: dict[str, object],
+) -> dict[str, object]:
+    expected_sha = transaction.get("runtime_acceptance_report_sha256")
+    if (
+        transaction.get("runtime_acceptance_passed") is not True
+        or not isinstance(expected_sha, str)
+        or re.fullmatch(r"[0-9a-f]{64}", expected_sha) is None
+        or not RUNTIME_ACCEPTANCE_PATH.is_file()
+        or RUNTIME_ACCEPTANCE_PATH.is_symlink()
+        or _sha256_file(RUNTIME_ACCEPTANCE_PATH) != expected_sha
+    ):
+        raise F4Error("runtime_acceptance_binding_invalid")
+    report = _read_private_record(RUNTIME_ACCEPTANCE_PATH)
+    if (
+        report.get("schema") != "gh.n3w-t1-f4-runtime-acceptance/1"
+        or report.get("status") != "PASS"
+        or report.get("package_source_head")
+        != transaction.get("package_source_head")
+        or report.get("package_manifest_sha256")
+        != transaction.get("package_manifest_sha256")
+        or report.get("production_service_start") is not True
+        or report.get("persistence_enabled") is not False
+        or report.get("certificate_timer_enabled") is not False
+        or report.get("secret_values_included") is not False
+        or report.get("board_access") is not False
+    ):
+        raise F4Error("runtime_acceptance_report_contract_invalid")
+    homeassistant = report.get("homeassistant")
+    if (
+        not isinstance(homeassistant, dict)
+        or transaction.get("homeassistant_mqtt_entry_id_sha256")
+        != homeassistant.get("entry_id_sha256")
+    ):
+        raise F4Error("runtime_acceptance_homeassistant_binding_invalid")
+    return report
+
+
 def _activation_eligibility(phase: str) -> dict[str, object]:
     verified = _provision_verify()
     marker = _validate_factory_binding(verified)
