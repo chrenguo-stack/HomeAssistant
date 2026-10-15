@@ -1,3 +1,15 @@
+## 2026-10-15 — F4 service activation and end-to-end acceptance PREPARATION CLOSED_PASS
+
+- Source/repository preparation for F4 is CLOSED_PASS; no live F4 authorization was granted.
+- Real T1 remains `DEVICE_READY` with production services stopped.
+- Existing source already has secure FACTORY_ACCEPTED validation and strong stopped-state audit primitives, but no fresh-route owner currently creates the factory-acceptance record or owns the full activation transaction.
+- Four source blockers are frozen: FACTORY_ACCEPTED creator, activation-authority wiring, fresh activation install package, and fresh per-device certificate-lifecycle binding.
+- Historical fixed-instance production staging/certificate assumptions must not be revived unchanged for the fresh-Armbian route.
+- Initial F4 live ordering is frozen as factory audit/acceptance → install while disabled → Broker → authenticated readiness → Manager/HA → runtime acceptance → persistence → certificate lifecycle; reboot remains a separate explicit live subgate.
+- Current STOP: `AFTER_F4_PREPARATION_BEFORE_F4_SOURCE_REPAIR`.
+- Next one gate: `N3W_T1_F4_FACTORY_ACCEPTANCE_AND_ACTIVATION_SOURCE_REPAIR_20261015_01`.
+- Authority: `docs/development/N3W_T1_F4_SERVICE_ACTIVATION_AND_END_TO_END_ACCEPTANCE_PREPARATION_20261015.md`.
+
 ## 2026-10-15 — GitHub convergence after DEVICE_READY CLOSED_PASS
 
 - PR #544 merged to main at `c3e61bc15baece56eb1b8111d1ed2b8c9ae2241d`.
