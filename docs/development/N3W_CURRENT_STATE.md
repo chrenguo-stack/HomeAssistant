@@ -1,3 +1,30 @@
+## 2026-10-15 — Explicit per-device provisioning read-only preauth CLOSED_PASS
+
+```text
+TASK=N3W_T1_EXPLICIT_PER_DEVICE_PROVISIONING_READONLY_PREAUTH_20261015_01
+RESULT=CLOSED_PASS
+
+DEPLOYED_RELEASE_SOURCE_HEAD=6ac82ae0872b05644e59470ffef7307dad14d359
+PROVISIONING_STATE=UNPROVISIONED
+TRANSACTION_JSON=ABSENT
+FIRSTBOOT_COMPLETE_JSON=ABSENT
+
+INSTANCE_MATERIAL_ABSENT=true
+EXPLICIT_PROVISIONING_REQUIRED=true
+PRODUCTION_SERVICE_START=false
+
+CURRENT_STOP_POINT=AFTER_READONLY_PREAUTH_BEFORE_EXPLICIT_PROVISIONING_START
+NEXT_ONE_GATE=N3W_T1_EXPLICIT_PER_DEVICE_PROVISIONING_LIVE_START_20261015_01
+LIVE_MUTATION_AUTHORIZATION_REQUIRED=true
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+Real target read-only preauth passed. The staged public product remains unprovisioned; no transaction or completion
+record exists, and later production activation units are absent/inactive as required by the F3 staged boundary.
+No provisioning start or live mutation occurred.
+
+Authority: `docs/development/N3W_T1_EXPLICIT_PER_DEVICE_PROVISIONING_READONLY_PREAUTH_CLOSURE_20261015.md`.
+
 ## 2026-10-15 — Mac local exact artifact cache V1 MAC ACCEPTANCE CLOSED_PASS
 
 ```text
