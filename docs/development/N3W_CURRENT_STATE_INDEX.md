@@ -1,3 +1,10 @@
+## 2026-10-15 — KF-118 activation-authority live control repair authorized
+
+- Explicit repair authorization granted for `N3W_T1_F4_ACTIVATION_AUTHORITY_CONTROL_REPAIR_LIVE_20261015_01`.
+- Bounded scope: replace only the installed F4 launcher, rebind package provenance, return to `PREPARED`, STOP.
+- Exact successor source `444ed085...`; exact artifact ID `11976711799`; source CI 13/13 PASS.
+- The separate activate authorization remains granted but unclaimed/unconsumed and will resume only after this repair PASS.
+
 ## 2026-10-15 — F4 activation authorization boundary repaired before live start
 
 - The already-granted activate gate remains unclaimed/unconsumed.
