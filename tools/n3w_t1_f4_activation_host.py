@@ -3919,27 +3919,26 @@ def _accept_runtime(authorization_id: str) -> dict[str, object]:
         retry_eligible = (
             transaction.get("runtime_acceptance_retry_eligible") is True
         )
-        if prior_claimed:
-            if (
-                not retry_eligible
-                or transaction.get("runtime_acceptance_recovery_passed")
-                is not True
-                or transaction.get(
-                    "runtime_acceptance_recovery_authorization_claimed"
-                )
-                is not True
-                or transaction.get(
-                    "runtime_acceptance_recovery_authorization_consumed"
-                )
-                is not True
-                or transaction.get(
-                    "runtime_acceptance_recovery_authorization_replay_allowed"
-                )
-                is not False
-            ):
-                raise F4Error(
-                    "runtime_acceptance_authorization_replay_forbidden"
-                )
+        if prior_claimed and (
+            not retry_eligible
+            or transaction.get("runtime_acceptance_recovery_passed")
+            is not True
+            or transaction.get(
+                "runtime_acceptance_recovery_authorization_claimed"
+            )
+            is not True
+            or transaction.get(
+                "runtime_acceptance_recovery_authorization_consumed"
+            )
+            is not True
+            or transaction.get(
+                "runtime_acceptance_recovery_authorization_replay_allowed"
+            )
+            is not False
+        ):
+            raise F4Error(
+                "runtime_acceptance_authorization_replay_forbidden"
+            )
 
         history_raw = transaction.get(
             "runtime_acceptance_authorization_history",
