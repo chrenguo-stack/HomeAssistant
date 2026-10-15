@@ -6,11 +6,11 @@ on:
       - ".github/workflows/n3w-t1-f4-activation-source-ci.yml"
       - "tools/n3w_t1_f4_activation_host.py"
       - "tests/tools/test_n3w_t1_f4_activation_host.py"
-      - "infra/n3w-t1/systemd/n3wfc4-broker-activation.service"
-      - "infra/n3w-t1/systemd/n3wfc4-services-activation.service"
-      - "infra/n3w-t1/systemd/n3wfc4-broker-certificate-lifecycle.service"
+      - "infra/n3w-t1/f4/n3wfc4-broker-activation.service"
+      - "infra/n3w-t1/f4/n3wfc4-services-activation.service"
+      - "infra/n3w-t1/f4/n3wfc4-broker-certificate-lifecycle.service"
       - "infra/n3w-t1/systemd/n3wfc4-broker-certificate-lifecycle.timer"
-      - "infra/n3w-t1/broker-certificate-lifecycle.env.example"
+      - "infra/n3w-t1/f4/broker-certificate-lifecycle.env.example"
       - "infra/n3w-t1/activate-systemd-production.sh"
       - "tools/n3w_t1_broker_authenticated_readiness.py"
       - "tools/n3w_broker_certificate_lifecycle.py"
@@ -25,11 +25,11 @@ on:
       - ".github/workflows/n3w-t1-f4-activation-source-ci.yml"
       - "tools/n3w_t1_f4_activation_host.py"
       - "tests/tools/test_n3w_t1_f4_activation_host.py"
-      - "infra/n3w-t1/systemd/n3wfc4-broker-activation.service"
-      - "infra/n3w-t1/systemd/n3wfc4-services-activation.service"
-      - "infra/n3w-t1/systemd/n3wfc4-broker-certificate-lifecycle.service"
+      - "infra/n3w-t1/f4/n3wfc4-broker-activation.service"
+      - "infra/n3w-t1/f4/n3wfc4-services-activation.service"
+      - "infra/n3w-t1/f4/n3wfc4-broker-certificate-lifecycle.service"
       - "infra/n3w-t1/systemd/n3wfc4-broker-certificate-lifecycle.timer"
-      - "infra/n3w-t1/broker-certificate-lifecycle.env.example"
+      - "infra/n3w-t1/f4/broker-certificate-lifecycle.env.example"
       - "infra/n3w-t1/activate-systemd-production.sh"
       - "tools/n3w_t1_broker_authenticated_readiness.py"
       - "tools/n3w_broker_certificate_lifecycle.py"
@@ -79,10 +79,10 @@ jobs:
 
       - name: Static F3 to F4 boundary
         run: |
-          grep -Fq 'eligibility --phase broker' infra/n3w-t1/systemd/n3wfc4-broker-activation.service
-          grep -Fq 'eligibility --phase services' infra/n3w-t1/systemd/n3wfc4-services-activation.service
-          grep -Fq 'eligibility --phase certificate' infra/n3w-t1/systemd/n3wfc4-broker-certificate-lifecycle.service
-          grep -Fq 'N3WFC4_CERT_ALLOWED_ROOT_SECRET' infra/n3w-t1/systemd/n3wfc4-broker-certificate-lifecycle.service
+          grep -Fq 'eligibility --phase broker' infra/n3w-t1/f4/n3wfc4-broker-activation.service
+          grep -Fq 'eligibility --phase services' infra/n3w-t1/f4/n3wfc4-services-activation.service
+          grep -Fq 'eligibility --phase certificate' infra/n3w-t1/f4/n3wfc4-broker-certificate-lifecycle.service
+          grep -Fq 'N3WFC4_CERT_ALLOWED_ROOT_SECRET' infra/n3w-t1/f4/n3wfc4-broker-certificate-lifecycle.service
           ! grep -Fq 'enable --now' infra/n3w-t1/activate-systemd-production.sh
           ! grep -Fq 'systemctl start' infra/n3w-t1/activate-systemd-production.sh
           ! grep -Fq 'systemctl restart' infra/n3w-t1/activate-systemd-production.sh
