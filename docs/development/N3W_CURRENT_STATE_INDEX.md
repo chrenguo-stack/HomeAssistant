@@ -1,3 +1,13 @@
+## 2026-10-15 — F4 RUNTIME_STARTED R2 CLOSED_PASS
+
+- R2 live activation passed and the real T1 is now `RUNTIME_STARTED` with Broker, Manager and Home Assistant running.
+- Broker/Services remain disabled; persistence=false; certificate timer disabled.
+- R2 activation authorization is consumed/no-replay.
+- Pre-runtime-acceptance review found that all four downstream continuation commands reused the consumed PREPARE authorization.
+- Repaired source `ffcbb1a...` gives runtime acceptance, persistence, certificate audit and certificate timer their own distinct one-shot authorization contracts and adds a live launcher-only control update.
+- Exact-head CI is 13/13 PASS; replacement artifact ID `11982052678`.
+- Next gate requires explicit authorization: `N3W_T1_F4_RUNTIME_CONTINUATION_AUTHORITY_CONTROL_REPAIR_LIVE_20261015_01`.
+
 ## 2026-10-15 — F4 activate R2 live gate authorized
 
 - Explicit authorization granted for `N3W_T1_F4_ACTIVATE_TO_RUNTIME_STARTED_LIVE_R2_20261015_01`.
