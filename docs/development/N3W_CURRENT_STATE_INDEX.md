@@ -1,3 +1,10 @@
+## 2026-10-15 — F4 live PREPARE authorized
+
+- Exact authorization `N3W_T1_F4_EXACT_CONTROL_PACKAGE_TRANSFER_AND_PREPARE_LIVE_20261015_01` granted.
+- Scope ends at durable `PREPARED`; no Broker/Manager/Home Assistant start, persistence, certificate timer, reboot or board access.
+- Authorization becomes permanently consumed/no-replay when `F4_ACTIVATION_TRANSACTION.json` is durably created.
+- Source head `ad65bf7...`; exact artifact ID `11967018401`; real-T1 read-only preauth CLOSED_PASS.
+
 ## 2026-10-15 — Real T1 F4 read-only preauthorization CLOSED_PASS
 
 - Real T1 remains `DEVICE_READY` on release `6ac82ae...`; zero product containers/listeners and no F4 lifecycle records exist.
