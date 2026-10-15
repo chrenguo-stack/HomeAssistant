@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import importlib.util
 import json
@@ -10,6 +11,7 @@ import shutil
 import stat
 import subprocess
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 from types import ModuleType
 from typing import Sequence
@@ -30,6 +32,7 @@ PROVISION_CLI = Path("/usr/local/sbin/n3w-t1-provision")
 PROVISIONING_ROOT = Path("/var/lib/n3w-t1-provisioning")
 FACTORY_ACCEPTED_PATH = PROVISIONING_ROOT / "FACTORY_ACCEPTED.json"
 TRANSACTION_PATH = PROVISIONING_ROOT / "F4_ACTIVATION_TRANSACTION.json"
+F4_LOCK_PATH = PROVISIONING_ROOT / ".f4-activation.lock"
 
 BROKER_UNIT = "n3wfc4-broker-activation.service"
 SERVICES_UNIT = "n3wfc4-services-activation.service"
@@ -334,6 +337,42 @@ def _validate_private_root() -> Path:
     return PROVISIONING_ROOT
 
 
+@contextmanager
+def _exclusive_f4():
+    root = _validate_private_root()
+    if F4_LOCK_PATH.parent != root:
+        raise F4Error("f4_lock_parent_invalid")
+    flags = (
+        os.O_RDWR
+        | os.O_CREAT
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+    )
+    descriptor = os.open(F4_LOCK_PATH, flags, 0o600)
+    try:
+        os.fchmod(descriptor, 0o600)
+        os.fchown(descriptor, 0, 0)
+        metadata = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_uid != 0
+            or metadata.st_gid != 0
+            or stat.S_IMODE(metadata.st_mode) != 0o600
+            or metadata.st_nlink != 1
+        ):
+            raise F4Error("f4_lock_metadata_invalid")
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise F4Error("f4_operation_already_running") from error
+        try:
+            yield
+        finally:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+    finally:
+        os.close(descriptor)
+
+
 def _new_private_record(path: Path, document: dict[str, object]) -> None:
     root = _validate_private_root()
     if path.parent != root:
@@ -448,11 +487,21 @@ def _factory_document(audit: dict[str, object]) -> dict[str, object]:
     }
 
 
-def _transaction_document(audit: dict[str, object]) -> dict[str, object]:
+def _transaction_document(
+    audit: dict[str, object],
+    authorization_id: str,
+) -> dict[str, object]:
+    if (
+        not authorization_id.startswith("N3W_T1_F4_")
+        or len(authorization_id) > 200
+        or not authorization_id.replace("_", "").replace("-", "").isalnum()
+    ):
+        raise F4Error("authorization_id_invalid")
     return {
         "schema": TRANSACTION_SCHEMA,
         "status": "CLAIMED",
         "stage": "CLAIMED",
+        "authorization_id": authorization_id,
         "authorization_claimed": True,
         "authorization_consumed": True,
         "replay_allowed": False,
@@ -748,52 +797,66 @@ def _install_activation_material(package_root: Path) -> dict[str, object]:
         raise
 
 
-def _prepare(package_root: Path, confirmation: str) -> dict[str, object]:
+def _prepare(
+    package_root: Path,
+    confirmation: str,
+    authorization_id: str,
+) -> dict[str, object]:
     if confirmation != PREPARE_CONFIRMATION:
         raise F4Error("prepare_confirmation_invalid")
-    audit = _factory_audit(require_claim_absent=True)
-    _new_private_record(TRANSACTION_PATH, _transaction_document(audit))
-    try:
-        fresh = _factory_audit(require_claim_absent=False)
-        for key in ("release_id", "host_instance_id", "system_id", "system_id_sha256"):
-            if fresh.get(key) != audit.get(key):
-                raise F4Error(f"factory_audit_binding_changed:{key}")
+    with _exclusive_f4():
+        audit = _factory_audit(require_claim_absent=True)
         _new_private_record(
-            FACTORY_ACCEPTED_PATH,
-            _factory_document(fresh),
+            TRANSACTION_PATH,
+            _transaction_document(audit, authorization_id),
         )
-        install = _install_activation_material(package_root)
-        _advance_transaction(
-            "PREPARED",
-            activation_material_installed=True,
-            production_service_start=False,
-            persistence_enabled=False,
-        )
-        return {
-            "status": "PASS",
-            "state": "FACTORY_ACCEPTED",
-            "factory_accepted": True,
-            "activation_material_installed": install[
-                "activation_material_installed"
-            ],
-            "authorization_claimed": True,
-            "authorization_consumed": True,
-            "replay_allowed": False,
-            "production_service_start": False,
-            "persistence_enabled": False,
-            "board_access": False,
-        }
-    except Exception as error:
         try:
+            fresh = _factory_audit(require_claim_absent=False)
+            for key in (
+                "release_id",
+                "host_instance_id",
+                "system_id",
+                "system_id_sha256",
+            ):
+                if fresh.get(key) != audit.get(key):
+                    raise F4Error(f"factory_audit_binding_changed:{key}")
+            _new_private_record(
+                FACTORY_ACCEPTED_PATH,
+                _factory_document(fresh),
+            )
+            install = _install_activation_material(package_root)
             _advance_transaction(
-                "STOPPED_PREPARE",
-                error_code=str(error)[:300],
+                "PREPARED",
+                activation_material_installed=True,
                 production_service_start=False,
                 persistence_enabled=False,
             )
-        except Exception:
-            pass
-        raise
+            return {
+                "status": "PASS",
+                "state": "FACTORY_ACCEPTED",
+                "factory_accepted": True,
+                "activation_material_installed": install[
+                    "activation_material_installed"
+                ],
+                "authorization_id": authorization_id,
+                "authorization_claimed": True,
+                "authorization_consumed": True,
+                "replay_allowed": False,
+                "production_service_start": False,
+                "persistence_enabled": False,
+                "board_access": False,
+            }
+        except Exception as error:
+            try:
+                _advance_transaction(
+                    "STOPPED_PREPARE",
+                    error_code=str(error)[:300],
+                    production_service_start=False,
+                    persistence_enabled=False,
+                )
+            except Exception:
+                pass
+            raise
 
 
 def _running_services() -> frozenset[str]:
@@ -819,111 +882,118 @@ def _running_services() -> frozenset[str]:
     return frozenset(line.strip() for line in output.splitlines() if line.strip())
 
 
-def _activate(confirmation: str) -> dict[str, object]:
+def _activate(confirmation: str, authorization_id: str) -> dict[str, object]:
     if confirmation != ACTIVATE_CONFIRMATION:
         raise F4Error("activate_confirmation_invalid")
-    eligible = _activation_eligibility("inspect")
-    if eligible.get("transaction_stage") != "PREPARED":
-        raise F4Error("activation_replay_forbidden")
-    broker_attempted = False
-    services_attempted = False
-    try:
-        _run(("systemctl", "start", GUARD_UNIT), timeout=60)
-        if _systemctl("is-active", GUARD_UNIT) != "active":
-            raise F4Error("ingress_guard_not_active")
-
-        _advance_transaction(
-            "BROKER_STARTING",
-            production_service_start=False,
-            persistence_enabled=False,
-        )
-        broker_attempted = True
-        _run(("systemctl", "start", BROKER_UNIT), timeout=180)
-        _run(
-            (
-                "/usr/local/sbin/n3w-t1-broker-authenticated-readiness",
-                "--metadata-file",
-                "/opt/greenhouse-secrets/mqtt/homeassistant/mqtt-bootstrap.json",
-                "--password-file",
-                "/opt/greenhouse-secrets/mqtt/homeassistant/password",
-                "--timeout-seconds",
-                "120",
-            ),
-            timeout=150,
-        )
-        _advance_transaction(
-            "BROKER_READY",
-            broker_ready=True,
-            production_service_start=True,
-            persistence_enabled=False,
-        )
-
-        _advance_transaction(
-            "SERVICES_STARTING",
-            broker_ready=True,
-            production_service_start=True,
-            persistence_enabled=False,
-        )
-        services_attempted = True
-        _run(("systemctl", "start", SERVICES_UNIT), timeout=240)
-        if _systemctl("is-active", SERVICES_UNIT) != "active":
-            raise F4Error("application_services_not_active")
-        running = _running_services()
-        if running != frozenset({"broker", "manager", "homeassistant"}):
-            raise F4Error("runtime_service_set_invalid")
-        _advance_transaction(
-            "RUNTIME_STARTED",
-            broker_ready=True,
-            runtime_started=True,
-            production_service_start=True,
-            persistence_enabled=False,
-            runtime_acceptance_required=True,
-        )
-        return {
-            "status": "PASS",
-            "state": "RUNTIME_STARTED",
-            "broker_ready": True,
-            "runtime_services": sorted(running),
-            "runtime_acceptance_required": True,
-            "production_service_start": True,
-            "persistence_enabled": False,
-            "certificate_timer_enabled": False,
-            "board_access": False,
-        }
-    except Exception as error:
-        rollback_errors: list[str] = []
-        if services_attempted:
-            try:
-                _run(("systemctl", "stop", SERVICES_UNIT), timeout=120)
-            except Exception as rollback_error:
-                rollback_errors.append(type(rollback_error).__name__)
-        if broker_attempted:
-            try:
-                _run(("systemctl", "stop", BROKER_UNIT), timeout=120)
-            except Exception as rollback_error:
-                rollback_errors.append(type(rollback_error).__name__)
-        runtime = _runtime_activity()
-        rollback_proven = (
-            not bool(runtime["production_service_start"])
-            and not rollback_errors
-        )
-        stop_stage = (
-            "STOPPED_RUNTIME"
-            if rollback_proven
-            else "STOPPED_RUNTIME_ROLLBACK_UNPROVEN"
-        )
+    with _exclusive_f4():
+        eligible = _activation_eligibility("inspect")
+        if eligible.get("transaction_stage") != "PREPARED":
+            raise F4Error("activation_replay_forbidden")
+        transaction = _read_private_record(TRANSACTION_PATH)
+        if transaction.get("authorization_id") != authorization_id:
+            raise F4Error("activation_authorization_id_mismatch")
+        broker_attempted = False
+        services_attempted = False
         try:
+            _run(("systemctl", "start", GUARD_UNIT), timeout=60)
+            if _systemctl("is-active", GUARD_UNIT) != "active":
+                raise F4Error("ingress_guard_not_active")
+
             _advance_transaction(
-                stop_stage,
-                error_code=str(error)[:300],
-                production_service_start=runtime["production_service_start"],
+                "BROKER_STARTING",
+                production_service_start=False,
                 persistence_enabled=False,
-                rollback_proven=rollback_proven,
-                rollback_error_count=len(rollback_errors),
             )
-        except Exception:
-            pass
-        raise
+            broker_attempted = True
+            _run(("systemctl", "start", BROKER_UNIT), timeout=180)
+            _run(
+                (
+                    "/usr/local/sbin/n3w-t1-broker-authenticated-readiness",
+                    "--metadata-file",
+                    "/opt/greenhouse-secrets/mqtt/homeassistant/mqtt-bootstrap.json",
+                    "--password-file",
+                    "/opt/greenhouse-secrets/mqtt/homeassistant/password",
+                    "--timeout-seconds",
+                    "120",
+                ),
+                timeout=150,
+            )
+            _advance_transaction(
+                "BROKER_READY",
+                broker_ready=True,
+                production_service_start=True,
+                persistence_enabled=False,
+            )
+
+            _advance_transaction(
+                "SERVICES_STARTING",
+                broker_ready=True,
+                production_service_start=True,
+                persistence_enabled=False,
+            )
+            services_attempted = True
+            _run(("systemctl", "start", SERVICES_UNIT), timeout=240)
+            if _systemctl("is-active", SERVICES_UNIT) != "active":
+                raise F4Error("application_services_not_active")
+            running = _running_services()
+            if running != frozenset({"broker", "manager", "homeassistant"}):
+                raise F4Error("runtime_service_set_invalid")
+            _advance_transaction(
+                "RUNTIME_STARTED",
+                broker_ready=True,
+                runtime_started=True,
+                production_service_start=True,
+                persistence_enabled=False,
+                runtime_acceptance_required=True,
+            )
+            return {
+                "status": "PASS",
+                "state": "RUNTIME_STARTED",
+                "authorization_id": authorization_id,
+                "broker_ready": True,
+                "runtime_services": sorted(running),
+                "runtime_acceptance_required": True,
+                "production_service_start": True,
+                "persistence_enabled": False,
+                "certificate_timer_enabled": False,
+                "board_access": False,
+            }
+        except Exception as error:
+            rollback_errors: list[str] = []
+            if services_attempted:
+                try:
+                    _run(("systemctl", "stop", SERVICES_UNIT), timeout=120)
+                except Exception as rollback_error:
+                    rollback_errors.append(type(rollback_error).__name__)
+            if broker_attempted:
+                try:
+                    _run(("systemctl", "stop", BROKER_UNIT), timeout=120)
+                except Exception as rollback_error:
+                    rollback_errors.append(type(rollback_error).__name__)
+            runtime = _runtime_activity()
+            rollback_proven = (
+                not bool(runtime["production_service_start"])
+                and not rollback_errors
+            )
+            stop_stage = (
+                "STOPPED_RUNTIME"
+                if rollback_proven
+                else "STOPPED_RUNTIME_ROLLBACK_UNPROVEN"
+            )
+            try:
+                _advance_transaction(
+                    stop_stage,
+                    error_code=str(error)[:300],
+                    production_service_start=runtime[
+                        "production_service_start"
+                    ],
+                    persistence_enabled=False,
+                    rollback_proven=rollback_proven,
+                    rollback_error_count=len(rollback_errors),
+                )
+            except Exception:
+                pass
+            raise
 
 
 def _status() -> dict[str, object]:
@@ -979,6 +1049,7 @@ def _parser() -> argparse.ArgumentParser:
 
     prepare = subparsers.add_parser("prepare")
     prepare.add_argument("--confirm", required=True)
+    prepare.add_argument("--authorization-id", required=True)
     prepare.add_argument(
         "--package-root",
         default=str(PRODUCT_ROOT),
@@ -986,6 +1057,7 @@ def _parser() -> argparse.ArgumentParser:
 
     activate = subparsers.add_parser("activate")
     activate.add_argument("--confirm", required=True)
+    activate.add_argument("--authorization-id", required=True)
     return parser
 
 
@@ -1005,9 +1077,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             report = _prepare(
                 Path(args.package_root),
                 args.confirm,
+                args.authorization_id,
             )
         else:
-            report = _activate(args.confirm)
+            report = _activate(
+                args.confirm,
+                args.authorization_id,
+            )
         _emit({**report, "schema": SCHEMA})
         return 0
     except (
