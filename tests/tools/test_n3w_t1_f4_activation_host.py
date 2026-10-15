@@ -1409,9 +1409,6 @@ def test_prepared_control_repair_rebinds_only_launcher(
         expected_sha256,
         expected_size,
     ):
-        assert state["stage"] == "STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_CLAIMED"
-        assert state["runtime_acceptance_recovery_authorization_claimed"] is True
-        assert state["runtime_acceptance_recovery_authorization_consumed"] is True
         assert source == launcher_source
         assert target == tool.INSTALL_MAP[launcher_relative][0]
         assert mode == 0o755
@@ -2011,6 +2008,9 @@ def test_runtime_acceptance_recovery_rebinds_launcher_and_enables_successors(
         assert source == launcher_source
         assert target == tool.INSTALL_MAP[launcher_relative][0]
         assert mode == 0o755
+        assert state["stage"] == "STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_CLAIMED"
+        assert state["runtime_acceptance_recovery_authorization_claimed"] is True
+        assert state["runtime_acceptance_recovery_authorization_consumed"] is True
         assert expected_current["sha256"] == (
             tool.RUNTIME_ACCEPTANCE_RECOVERY_FROM_LAUNCHER_SHA256
         )
