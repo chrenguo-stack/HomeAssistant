@@ -2065,8 +2065,8 @@ def _runtime_acceptance_report() -> dict[str, object]:
         manager_name,
         8883,
     )
-    if manager_socket_count < 1:
-        raise F4Error("manager_mqtt_socket_missing")
+    if manager_socket_count != 1:
+        raise F4Error("manager_mqtt_socket_count_invalid")
 
     homeassistant = _homeassistant_private_audit(homeassistant_name)
     ha_socket_count = _container_established_socket_count(
