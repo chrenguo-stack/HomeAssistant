@@ -2162,9 +2162,9 @@ def _repair_stopped_runtime_acceptance(
                 "board_access": False,
             }
         except OPERATION_ERRORS as error:
+            launcher_state_proven = False
             try:
                 current = _read_private_record(TRANSACTION_PATH)
-                observed_launcher = _file_binding(launcher_target)
                 expected_new_launcher = {
                     "sha256": str(launcher_binding["sha256"]),
                     "size": int(launcher_binding["size"]),
@@ -2172,6 +2172,11 @@ def _repair_stopped_runtime_acceptance(
                     "uid": 0,
                     "gid": 0,
                 }
+                try:
+                    observed_launcher = _file_binding(launcher_target)
+                except OPERATION_ERRORS:
+                    observed_launcher = None
+
                 if observed_launcher == expected_new_launcher:
                     reconciled_files = dict(current_installed)
                     reconciled_files[str(launcher_target)] = observed_launcher
@@ -2181,12 +2186,16 @@ def _repair_stopped_runtime_acceptance(
                         package_source_head=package["source_head"],
                         package_manifest_sha256=package["manifest_sha256"],
                         runtime_acceptance_recovery_launcher_replaced=True,
+                        runtime_acceptance_recovery_launcher_state_unproven=False,
                     )
+                    launcher_state_proven = True
                 elif observed_launcher == current_launcher:
                     _advance_transaction(
                         str(current["stage"]),
                         runtime_acceptance_recovery_launcher_replaced=False,
+                        runtime_acceptance_recovery_launcher_state_unproven=False,
                     )
+                    launcher_state_proven = True
                 else:
                     _advance_transaction(
                         str(current["stage"]),
@@ -2198,16 +2207,44 @@ def _repair_stopped_runtime_acceptance(
                     error,
                 )
                 stopped = _read_private_record(TRANSACTION_PATH)
+                stop_stage = str(stopped["stage"])
+                rollback_proven = (
+                    stopped.get("rollback_proven") is True
+                    and launcher_state_proven
+                )
+                if not rollback_proven:
+                    stop_stage = (
+                        "STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_"
+                        "ROLLBACK_UNPROVEN"
+                    )
                 _advance_transaction(
-                    str(stopped["stage"]),
+                    stop_stage,
                     runtime_acceptance_recovery_passed=False,
                     runtime_acceptance_recovery_error_code=str(error)[:300],
                     activation_retry_eligible=False,
                     runtime_acceptance_retry_eligible=False,
+                    production_service_start=False,
                     persistence_enabled=False,
                     certificate_timer_enabled=False,
+                    rollback_proven=rollback_proven,
                 )
             except OPERATION_ERRORS as rollback_error:
+                try:
+                    _advance_transaction(
+                        "STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_"
+                        "ROLLBACK_UNPROVEN",
+                        runtime_acceptance_recovery_passed=False,
+                        runtime_acceptance_recovery_error_code=str(error)[:300],
+                        runtime_acceptance_recovery_launcher_state_unproven=True,
+                        activation_retry_eligible=False,
+                        runtime_acceptance_retry_eligible=False,
+                        production_service_start=False,
+                        persistence_enabled=False,
+                        certificate_timer_enabled=False,
+                        rollback_proven=False,
+                    )
+                except OPERATION_ERRORS:
+                    pass
                 raise F4Error(
                     "runtime_acceptance_recovery_failed_"
                     "rollback_unproven:"
