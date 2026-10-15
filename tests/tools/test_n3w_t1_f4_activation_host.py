@@ -2053,6 +2053,50 @@ def test_runtime_acceptance_recovery_rebinds_launcher_and_enables_successors(
     assert state["package_source_head"] == "1" * 40
 
 
+def test_runtime_acceptance_recovery_rejects_old_successor_package(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    package_root = tmp_path / "package"
+    launcher_relative = "tools/n3w_t1_f4_activation_host.py"
+    launcher_source = package_root / launcher_relative
+    launcher_source.parent.mkdir(parents=True)
+    launcher_source.write_text(
+        "#!/usr/bin/python3\nprint('old recovery')\n",
+        encoding="utf-8",
+    )
+    package = {
+        "root": package_root,
+        "manifest_sha256": (
+            tool.RUNTIME_ACCEPTANCE_RECOVERY_FROM_MANIFEST_SHA256
+        ),
+        "source_head": tool.RUNTIME_ACCEPTANCE_RECOVERY_FROM_SOURCE_HEAD,
+        "files": {
+            launcher_relative: {
+                "sha256": (
+                    tool.RUNTIME_ACCEPTANCE_RECOVERY_FROM_LAUNCHER_SHA256
+                ),
+                "size": launcher_source.stat().st_size,
+            }
+        },
+    }
+
+    monkeypatch.setattr(tool, "_validate_package", lambda *_a, **_k: package)
+
+    with pytest.raises(
+        tool.F4Error,
+        match="runtime_acceptance_recovery_successor_not_distinct",
+    ):
+        tool._repair_stopped_runtime_acceptance(
+            package_root,
+            tool.RUNTIME_ACCEPTANCE_RECOVERY_CONFIRMATION,
+            "N3W_T1_F4_RUNTIME_ACCEPTANCE_RECOVERY_TEST",
+            tool.RUNTIME_ACCEPTANCE_RECOVERY_FROM_MANIFEST_SHA256,
+            tool.RUNTIME_ACCEPTANCE_RECOVERY_FROM_SOURCE_HEAD,
+        )
+
+
 def test_runtime_acceptance_recovery_rejects_nonlauncher_delta(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -2326,11 +2370,16 @@ def test_accept_runtime_allows_one_distinct_successor_after_recovery(
         "runtime_acceptance_recovery_authorization_id": (
             "N3W_T1_F4_ACCEPTANCE_RECOVERY"
         ),
+        "runtime_acceptance_recovery_authorization_claimed": True,
+        "runtime_acceptance_recovery_authorization_consumed": True,
+        "runtime_acceptance_recovery_authorization_replay_allowed": False,
+        "runtime_acceptance_recovery_passed": True,
         "runtime_acceptance_authorization_id": old_auth,
         "runtime_acceptance_authorization_claimed": True,
         "runtime_acceptance_authorization_consumed": True,
         "runtime_acceptance_authorization_replay_allowed": False,
         "runtime_acceptance_retry_eligible": True,
+        "runtime_acceptance_last_failure_authorization_id": old_auth,
         "runtime_acceptance_authorization_history": [],
     }
     stages = []
@@ -2364,6 +2413,72 @@ def test_accept_runtime_allows_one_distinct_successor_after_recovery(
     ]
     assert stages[0][1]["runtime_acceptance_retry_eligible"] is False
     assert result["state"] == "RUNTIME_ACCEPTED"
+
+
+def test_accept_runtime_rejects_retry_without_recovery_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    old_auth = "N3W_T1_F4_OLD_ACCEPT"
+    transaction = {
+        "stage": "RUNTIME_STARTED",
+        "runtime_acceptance_authorization_id": old_auth,
+        "runtime_acceptance_authorization_claimed": True,
+        "runtime_acceptance_retry_eligible": True,
+        "runtime_acceptance_recovery_passed": False,
+        "runtime_acceptance_last_failure_authorization_id": old_auth,
+    }
+
+    monkeypatch.setattr(tool, "_exclusive_f4", lambda: nullcontext())
+    monkeypatch.setattr(tool, "_provision_verify", lambda: verified(tool))
+    monkeypatch.setattr(
+        tool,
+        "_validate_transaction_binding",
+        lambda _v: transaction,
+    )
+
+    with pytest.raises(
+        tool.F4Error,
+        match="runtime_acceptance_authorization_replay_forbidden",
+    ):
+        tool._accept_runtime("N3W_T1_F4_NEW_ACCEPT")
+
+
+def test_accept_runtime_rejects_mismatched_failed_authorization_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    old_auth = "N3W_T1_F4_OLD_ACCEPT"
+    transaction = {
+        "stage": "RUNTIME_STARTED",
+        "runtime_acceptance_recovery_authorization_id": (
+            "N3W_T1_F4_ACCEPTANCE_RECOVERY"
+        ),
+        "runtime_acceptance_recovery_authorization_claimed": True,
+        "runtime_acceptance_recovery_authorization_consumed": True,
+        "runtime_acceptance_recovery_authorization_replay_allowed": False,
+        "runtime_acceptance_recovery_passed": True,
+        "runtime_acceptance_authorization_id": old_auth,
+        "runtime_acceptance_authorization_claimed": True,
+        "runtime_acceptance_retry_eligible": True,
+        "runtime_acceptance_last_failure_authorization_id": (
+            "N3W_T1_F4_DIFFERENT_FAILED_ACCEPT"
+        ),
+    }
+
+    monkeypatch.setattr(tool, "_exclusive_f4", lambda: nullcontext())
+    monkeypatch.setattr(tool, "_provision_verify", lambda: verified(tool))
+    monkeypatch.setattr(
+        tool,
+        "_validate_transaction_binding",
+        lambda _v: transaction,
+    )
+
+    with pytest.raises(
+        tool.F4Error,
+        match="runtime_acceptance_recovery_failure_binding_invalid",
+    ):
+        tool._accept_runtime("N3W_T1_F4_NEW_ACCEPT")
 
 
 def test_accept_runtime_rejects_claimed_authorization_without_recovery_retry(
