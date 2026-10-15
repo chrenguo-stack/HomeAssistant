@@ -1694,6 +1694,9 @@ def _activate(confirmation: str, authorization_id: str) -> dict[str, object]:
             for value in (
                 transaction.get("authorization_id"),
                 transaction.get("control_repair_authorization_id"),
+                transaction.get(
+                    "activation_authority_repair_authorization_id"
+                ),
             )
             if isinstance(value, str)
         }
