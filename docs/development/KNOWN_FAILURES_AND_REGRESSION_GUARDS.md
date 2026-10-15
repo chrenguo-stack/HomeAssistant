@@ -1,3 +1,38 @@
+## 2026-10-15 — KF-119 F4 runtime service-set startup observation race
+
+~~~text
+KF-119_STATUS=GUARDED_SOURCE_LIVE_RECOVERY_PENDING
+DOMAIN=T1_DEPLOYMENT
+
+FAILED_GATE=N3W_T1_F4_ACTIVATE_TO_RUNTIME_STARTED_LIVE_20261015_01
+FAILED_AUTHORIZATION=CONSUMED_NO_REPLAY
+REAL_T1_STAGE=STOPPED_RUNTIME
+ERROR_CODE=runtime_service_set_invalid
+ROLLBACK_PROVEN=true
+ROLLBACK_ERROR_COUNT=0
+PRODUCTION_SERVICE_START=false
+PRODUCT_LISTENER_PORTS=[]
+
+ROOT_CAUSE=ONE_SHOT_DOCKER_SERVICE_SET_CHECK_IMMEDIATELY_AFTER_TYPE_SIMPLE_SERVICES_START
+DEFECTIVE_SOURCE_HEAD=444ed085104080ea68ea073c1ff426f676d70db1
+REPAIRED_SOURCE_HEAD=8f870d027eea674a4443097ab0d5761542b28a73
+REPAIRED_SOURCE_CI=13_SUCCESS_0_FAILURE_0_PENDING
+REPAIRED_EXACT_ARTIFACT_ID=11978339595
+REPAIRED_PACKAGE_MANIFEST_SHA256=c88c4677cb621f20e7f093bfcfca9d6ef8ae3752b2c8d0bddba9d0bc1732e868
+~~~
+
+Guard: after starting the F4 Services unit, do not require the exact Docker runtime service set from a single
+immediate observation. Use a bounded wait while the unit remains active/activating, reject unexpected services,
+fail immediately if the unit itself fails, and time out fail-closed.
+
+A failed activation authorization is permanently consumed. Recovery from the exact guarded
+`STOPPED_RUNTIME/runtime_service_set_invalid/rollback_proven=true` state requires a separate one-shot control
+repair, preserves the failed authorization in history, returns to `PREPARED`, and a later retry requires a new
+activation authorization.
+
+Authority:
+`docs/development/N3W_T1_F4_RUNTIME_START_RACE_SOURCE_REPAIR_CLOSURE_20261015.md`.
+
 ## 2026-10-15 — KF-118 F4 activation authorization separation guard
 
 ~~~text
