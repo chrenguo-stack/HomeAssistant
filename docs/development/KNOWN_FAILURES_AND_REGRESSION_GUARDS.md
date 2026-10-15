@@ -1,3 +1,34 @@
+### 2026-10-15 KF-121 recovery-source closure
+
+~~~text
+KF-121_STATUS=SOURCE_REPAIR_CLOSED_PASS_PENDING_LIVE_REVALIDATION
+SOCKET_ORACLE_SOURCE_REPAIR_PR=569
+RECOVERY_SOURCE_REPAIR_PR=571
+RECOVERY_SOURCE_REPAIR_HEAD=f0bcc2ac50326b9a988405af8a2aad4c51694810
+LIVE_REVALIDATION_REQUIRED=true
+~~~
+
+The stopped-runtime-acceptance recovery path is now source-closed.
+
+Regression guards:
+
+- never reuse the consumed failed runtime-acceptance authorization;
+- recovery must bind the exact failed source/manifest/launcher and exact STOPPED incident state;
+- unknown runtime state is not equivalent to stopped;
+- recovery must execute from the exact validated successor package launcher;
+- only the installed F4 launcher may differ during control recovery;
+- claim/consume the recovery authorization before launcher replacement;
+- preserve the failed acceptance ID and failure facts durably;
+- reconcile old/new launcher binding on any post-claim failure;
+- unproven launcher state forces `STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_ROLLBACK_UNPROVEN`;
+- recovery success stops at PREPARED with the product runtime still off;
+- successor activation and successor runtime acceptance require separate new authorizations;
+- successor runtime acceptance requires proven recovery state and preserves the old acceptance ID in history;
+- persistence, certificate lifecycle, reboot and board work remain forbidden until runtime acceptance passes again.
+
+Live closure is still pending. Do not mark KF-121 fully CLOSED_PASS until the repaired exact artifact is bound,
+recovered through PREPARED and RUNTIME_STARTED, and runtime acceptance passes on the real T1.
+
 ### 2026-10-15 source-repair update
 
 The stopped Manager container is confirmed as `999:999`, `CapDrop=["ALL"]`,
