@@ -1,3 +1,10 @@
+## 2026-10-15 — F4 activate R2 live gate authorized
+
+- Explicit authorization granted for `N3W_T1_F4_ACTIVATE_TO_RUNTIME_STARTED_LIVE_R2_20261015_01`.
+- Real T1 is `PREPARED`, `activation_retry_eligible=true`, with runtime-start race repair PASS.
+- Failed R1 activation authorization remains permanently consumed/no-replay.
+- Scope ends at `RUNTIME_STARTED`; runtime acceptance, persistence, certificate lifecycle, reboot and board access remain unauthorized.
+
 ## 2026-10-15 — KF-119 live recovery CLOSED_PASS
 
 - Exact `STOPPED_RUNTIME -> PREPARED` recovery completed successfully.
