@@ -1,3 +1,13 @@
+## 2026-10-15 — Explicit per-device provisioning read-only preauth CLOSED_PASS
+
+- Real target reports `UNPROVISIONED` with status PASS for deployed release `6ac82ae0872b05644e59470ffef7307dad14d359`.
+- `transaction.json` and `FIRSTBOOT_COMPLETE.json` are both absent.
+- Public product still reports instance material absent and explicit provisioning required.
+- Only ingress guard and provisioning resume are enabled; later activation units are absent/inactive by design.
+- No live provisioning mutation occurred.
+- STOP before `N3W_T1_EXPLICIT_PER_DEVICE_PROVISIONING_LIVE_START_20261015_01`; separate live authorization required.
+- Closure authority: `docs/development/N3W_T1_EXPLICIT_PER_DEVICE_PROVISIONING_READONLY_PREAUTH_CLOSURE_20261015.md`.
+
 ## 2026-10-15 — Mac local exact artifact cache V1 MAC ACCEPTANCE CLOSED_PASS
 
 - Repaired executable source `13b08208c91400a7e6a91ddbc47620a6146eb2a1` passed 14/14 CI.
