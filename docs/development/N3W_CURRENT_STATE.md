@@ -1,3 +1,42 @@
+## 2026-10-15 — Mac local exact artifact cache V1 MAC ACCEPTANCE CLOSED_PASS
+
+```text
+TASK=N3W_T1_MAC_LOCAL_EXACT_ARTIFACT_CACHE_V1_MAC_ACCEPTANCE_20261015_01
+RESULT=CLOSED_PASS
+
+PR=545
+REPAIRED_EXECUTABLE_SOURCE_HEAD=13b08208c91400a7e6a91ddbc47620a6146eb2a1
+SOURCE_CI=14_SUCCESS_0_FAILURE_0_PENDING
+
+ARTIFACT_ID=11954286988
+ARTIFACT_ZIP_SHA256=047a40ed640bc1bfcbc8adb7007da2a4eea1f8abedffbc3cb2e2a4d9f6817928
+
+FIRST_ACQUISITION=MISS_POPULATED
+FIRST_INNER_BINDING=PASS
+SECOND_ACQUISITION=HIT
+SECOND_INNER_BINDING=PASS
+SECOND_HIT_GITHUB_ACCESS=false
+PERSISTENT_STORE=true
+
+T1_ACCESS=false
+EXPLICIT_DEVICE_PROVISIONING=false
+PRODUCTION_SERVICE_START=false
+F4=false
+BOARD_ACCESS=false
+MERGE=false
+
+CURRENT_STOP_POINT=AFTER_MAC_CACHE_ACCEPTANCE_BEFORE_EXPLICIT_DEVICE_PROVISIONING
+NEXT_ONE_GATE=NONE:EXPLICIT_DEVICE_PROVISIONING_REQUIRES_SEPARATE_AUTHORIZATION
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+Real Mac acceptance proved the durable exact artifact store end to end. The first use populated
+`~/Documents/N3W/exact-artifacts`; all inner bindings passed. The second use returned `HIT` while GitHub
+metadata/download functions were hard-disabled, proving that a verified cache hit does not download the large
+artifact again. No T1 access, provisioning, F4, board work, or merge occurred.
+
+Authority: `docs/development/N3W_T1_MAC_LOCAL_EXACT_ARTIFACT_CACHE_V1_MAC_ACCEPTANCE_CLOSURE_20261015.md`.
+
 ## 2026-10-15 — Mac local exact artifact cache V1 source CLOSED_PASS / Mac acceptance next
 
 ```text
