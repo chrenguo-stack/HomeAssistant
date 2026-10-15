@@ -202,6 +202,7 @@ retry_eligible = runtime_acceptance_retry_eligible is true
 if prior_claimed and not retry_eligible:
     reject
 
+new authorization must satisfy the normal F4 ID syntax
 new authorization must be distinct from every prior F4 authorization
 
 if prior_claimed:
@@ -212,6 +213,19 @@ claim new runtime acceptance authorization
 set runtime_acceptance_retry_eligible=false
 continue normal runtime acceptance
 ~~~
+
+Important implementation constraint: the current
+`_validate_successor_authorization(..., claimed_field="runtime_acceptance_authorization_claimed")`
+cannot be called unchanged for this successor path, because that helper rejects every already-claimed field before it
+can consider retry eligibility.
+
+SOURCE_REPAIR must therefore either:
+
+1. extend the helper with an explicit retry-eligibility contract; or
+2. keep the helper unchanged for other stages and implement the runtime-acceptance retry check locally using the same
+   syntax/all-prior-ID rules.
+
+Do not weaken persistence or certificate authorization checks as a side effect.
 
 The old failed authorization therefore remains permanently present in history and remains rejected forever.
 
@@ -310,7 +324,24 @@ RUNTIME_ACCEPTANCE.json remains absent
 
 No container start is permitted as part of this function.
 
-### 8.5 Recovery success state
+### 8.5 Preserve the failed acceptance evidence before leaving STOPPED
+
+Before changing the durable stage to PREPARED, copy the incident facts into explicit durable fields:
+
+~~~text
+runtime_acceptance_last_failure_stage=STOPPED_RUNTIME_ACCEPTANCE
+runtime_acceptance_last_failure_error_code=manager_mqtt_socket_count_invalid
+runtime_acceptance_last_failure_authorization_id=<consumed failed auth>
+runtime_acceptance_last_failure_source_head=ffcbb1a890e42ac776c6d90000bf3f25195da01d
+runtime_acceptance_last_failure_manifest_sha256=4df1d95b0849aa4ca574f31f8fd55e57fe118fba1c5913d2d8b3f96e286ec669
+runtime_acceptance_last_failure_rollback_proven=true
+runtime_acceptance_last_failure_rollback_error_count=0
+~~~
+
+This prevents a later PREPARED/RUNTIME_STARTED record from carrying ambiguous stale top-level STOP fields while still
+preserving the exact failed incident.
+
+### 8.6 Recovery success state
 
 On success write:
 
@@ -332,6 +363,11 @@ runtime_acceptance_passed=false
 runtime_acceptance_report_sha256=null
 homeassistant_mqtt_entry_id_sha256=null
 
+error_code=null
+rollback_proven=null
+rollback_error_count=null
+product_listener_ports=[]
+
 production_service_start=false
 persistence_enabled=false
 certificate_timer_enabled=false
@@ -340,11 +376,9 @@ certificate_timer_enabled=false
 Do not delete:
 
 - original activation authorization history;
-- failed runtime-acceptance authorization;
-- KF-121 failure error evidence;
+- failed runtime-acceptance authorization/history;
+- the explicit `runtime_acceptance_last_failure_*` evidence;
 - recovery authorization evidence.
-
-If necessary, copy the old failure into explicit recovery-history fields before clearing any current-stage-only field.
 
 ## 9. Recovery failure behavior
 
@@ -530,6 +564,8 @@ The SOURCE_REPAIR gate must cover at least:
 - keep runtime stopped/listeners empty;
 - keep persistence and timer false;
 - preserve failed acceptance authorization evidence;
+- copy the failed STOP fields into explicit `runtime_acceptance_last_failure_*` evidence before clearing stale
+  top-level STOP-only fields;
 - update source/manifest and installed launcher binding only.
 
 ### Recovery failure
