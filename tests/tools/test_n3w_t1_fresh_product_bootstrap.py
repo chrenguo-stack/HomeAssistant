@@ -39,7 +39,7 @@ def test_future_authorization_is_fresh_bootstrap_specific() -> None:
     tool = load_tool()
     assert tool.AUTHORIZATION_ID == (
         "N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_"
-        "F3_LIVE_APPLY_R3_20261014_01"
+        "F3_LIVE_APPLY_R4_20261015_01"
     )
     assert "PRODUCTION_STACK_STAGING" not in tool.AUTHORIZATION_ID
 
@@ -615,6 +615,120 @@ def test_legacy_runtime_wrapper_uses_split_stage_ownership() -> None:
     assert "instance_report = self.stage_instance_runtime(" in source
     assert "public_report = self.stage_public_runtime(" in source
     assert "reuse_stage=True" in source
+
+
+def _prepare_public_runtime_payload(payload_root: Path) -> None:
+    product = payload_root / "runtime-source/opt/HomeAssistant"
+    production = product / "infra/n3w-t1/production"
+    production.mkdir(parents=True)
+    (production / "docker-compose.fresh.yml").write_text(
+        "services: {}\n",
+        encoding="utf-8",
+    )
+
+    sbin = payload_root / "runtime-source/usr/local/sbin"
+    sbin.mkdir(parents=True)
+    for name in (
+        "n3w-broker-ingress-guard",
+        "n3w-t1-provision",
+        "n3w-t1-systemd-staged-install",
+        "n3w-t1-production-activation-enable",
+    ):
+        (sbin / name).write_text(name + "\n", encoding="utf-8")
+
+    systemd = payload_root / "runtime-source/etc/systemd/system"
+    systemd.mkdir(parents=True)
+    for name in (
+        "n3wfc4-broker-ingress-guard.service",
+        "n3wfc4-provision-resume.service",
+    ):
+        (systemd / name).write_text(name + "\n", encoding="utf-8")
+
+
+def test_public_runtime_creates_fresh_candidate_root(tmp_path: Path) -> None:
+    tool = load_tool()
+    payload = tmp_path / "payload"
+    _prepare_public_runtime_payload(payload)
+    candidate = tmp_path / "candidate"
+    adapter = tool.LiveFreshInstallerAdapters(
+        payload,
+        {
+            "image_lock": {"schema": "test"},
+            "images": {"manager": {"image": "manager"}},
+        },
+        object(),
+    )
+
+    report = adapter.stage_public_runtime(candidate)
+
+    assert report["status"] == "PASS"
+    assert candidate.is_dir()
+    assert candidate.stat().st_mode & 0o777 == 0o700
+    assert (candidate / "stage").is_dir()
+    assert (candidate / "stage").stat().st_mode & 0o777 == 0o700
+    assert (
+        candidate
+        / "stage/opt-HomeAssistant/infra/n3w-t1/production/docker-compose.yml"
+    ).is_file()
+
+
+def test_public_runtime_rejects_existing_candidate_root(tmp_path: Path) -> None:
+    tool = load_tool()
+    payload = tmp_path / "payload"
+    _prepare_public_runtime_payload(payload)
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+    adapter = tool.LiveFreshInstallerAdapters(
+        payload,
+        {
+            "image_lock": {"schema": "test"},
+            "images": {"manager": {"image": "manager"}},
+        },
+        object(),
+    )
+
+    with pytest.raises(tool.BootstrapError, match="candidate_root_already_exists"):
+        adapter.stage_public_runtime(candidate)
+
+
+def test_public_runtime_rejects_symlink_candidate_root(tmp_path: Path) -> None:
+    tool = load_tool()
+    payload = tmp_path / "payload"
+    _prepare_public_runtime_payload(payload)
+    target = tmp_path / "target"
+    target.mkdir()
+    candidate = tmp_path / "candidate"
+    candidate.symlink_to(target, target_is_directory=True)
+    adapter = tool.LiveFreshInstallerAdapters(
+        payload,
+        {
+            "image_lock": {"schema": "test"},
+            "images": {"manager": {"image": "manager"}},
+        },
+        object(),
+    )
+
+    with pytest.raises(tool.BootstrapError, match="candidate_root_symlink_forbidden"):
+        adapter.stage_public_runtime(candidate)
+
+
+def test_public_runtime_reuse_requires_existing_stage(tmp_path: Path) -> None:
+    tool = load_tool()
+    payload = tmp_path / "payload"
+    _prepare_public_runtime_payload(payload)
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+    adapter = tool.LiveFreshInstallerAdapters(
+        payload,
+        {
+            "image_lock": {"schema": "test"},
+            "images": {"manager": {"image": "manager"}},
+        },
+        object(),
+    )
+
+    with pytest.raises(tool.BootstrapError, match="stage_root_missing"):
+        adapter.stage_public_runtime(candidate, reuse_stage=True)
 
 
 def test_split_cleanup_ownership_does_not_cross_boundaries() -> None:
