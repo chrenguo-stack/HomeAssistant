@@ -1,3 +1,12 @@
+## 2026-10-15 — R4 live apply authorized / direct next-chat entry
+
+- R4 source repair and read-only preauth are already CLOSED_PASS and must not be repeated merely because the chat changes.
+- Exact R4 source: `6ac82ae0872b05644e59470ffef7307dad14d359`; exact CI: 15/15 SUCCESS; artifact ID `11942497052`, digest `sha256:1a8813b788fc4d597acfaafee417daa4bf6fc4bd3ea547d22dd1d689c462c4af`.
+- User granted the exact next one-shot live gate `N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R4_20261015_01` for direct execution in the next chat.
+- R4 authorization is granted but still unclaimed/unconsumed; it becomes consumed/no-replay at the first durable claim.
+- T1 product boundary remains clean; R3 is permanently consumed/no-replay and its small forensic payload remains preserved.
+- Next chat must read the formal handoff and enter R4 live apply directly; no separate R4 preauth/CI repetition and no automatic F4/board/merge transition.
+
 ## 2026-10-15 — F3 R4 read-only preauth CLOSED_PASS
 
 - Exact R4 source `6ac82ae0872b05644e59470ffef7307dad14d359` is green at 15/15 CI with exact deployable artifact ID `11942497052`.
