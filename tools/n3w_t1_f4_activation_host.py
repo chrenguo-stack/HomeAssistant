@@ -1904,7 +1904,7 @@ def _runtime_acceptance_recovery_entrypoint(
     if (
         executing.is_symlink()
         or not executing.is_file()
-        or not os.path.samefile(executing, launcher_source)
+        or executing != launcher_source
         or executing.stat().st_size != launcher_binding.get("size")
         or _sha256_file(executing) != launcher_binding.get("sha256")
     ):
@@ -1917,13 +1917,11 @@ def _runtime_acceptance_recovery_stopped_prestate() -> None:
         runtime["production_service_start"] is not False
         or runtime["running_services"] != []
         or _product_listener_ports() != []
-        or _systemctl("is-enabled", BROKER_UNIT) == "enabled"
-        or _systemctl("is-enabled", SERVICES_UNIT) == "enabled"
-        or _systemctl("is-enabled", CERT_TIMER) == "enabled"
-        or _systemctl("is-active", CERT_TIMER)
-        in {"active", "activating", "reloading"}
-        or _systemctl("is-active", CERT_SERVICE)
-        in {"active", "activating", "reloading"}
+        or _systemctl("is-enabled", BROKER_UNIT) != "disabled"
+        or _systemctl("is-enabled", SERVICES_UNIT) != "disabled"
+        or _systemctl("is-enabled", CERT_TIMER) != "disabled"
+        or _systemctl("is-active", CERT_TIMER) != "inactive"
+        or _systemctl("is-active", CERT_SERVICE) != "inactive"
         or RUNTIME_ACCEPTANCE_PATH.exists()
         or RUNTIME_ACCEPTANCE_PATH.is_symlink()
     ):
@@ -1970,6 +1968,7 @@ def _repair_stopped_runtime_acceptance(
             or transaction.get("production_service_start") is not False
             or transaction.get("persistence_enabled") is not False
             or transaction.get("certificate_timer_enabled") is not False
+            or transaction.get("product_listener_ports") != []
             or transaction.get("runtime_acceptance_authorization_claimed")
             is not True
             or transaction.get("runtime_acceptance_authorization_consumed")
@@ -2100,6 +2099,16 @@ def _repair_stopped_runtime_acceptance(
             updated_files[str(launcher_target)] = _file_binding(
                 launcher_target
             )
+            _advance_transaction(
+                "STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_CLAIMED",
+                installed_files=updated_files,
+                package_source_head=package["source_head"],
+                package_manifest_sha256=package["manifest_sha256"],
+                runtime_acceptance_recovery_launcher_replaced=True,
+                production_service_start=False,
+                persistence_enabled=False,
+                certificate_timer_enabled=False,
+            )
             _runtime_acceptance_recovery_stopped_prestate()
             _advance_transaction(
                 "PREPARED",
@@ -2151,6 +2160,36 @@ def _repair_stopped_runtime_acceptance(
             }
         except OPERATION_ERRORS as error:
             try:
+                current = _read_private_record(TRANSACTION_PATH)
+                observed_launcher = _file_binding(launcher_target)
+                expected_new_launcher = {
+                    "sha256": str(launcher_binding["sha256"]),
+                    "size": int(launcher_binding["size"]),
+                    "mode": launcher_mode,
+                    "uid": 0,
+                    "gid": 0,
+                }
+                if observed_launcher == expected_new_launcher:
+                    reconciled_files = dict(current_installed)
+                    reconciled_files[str(launcher_target)] = observed_launcher
+                    _advance_transaction(
+                        str(current["stage"]),
+                        installed_files=reconciled_files,
+                        package_source_head=package["source_head"],
+                        package_manifest_sha256=package["manifest_sha256"],
+                        runtime_acceptance_recovery_launcher_replaced=True,
+                    )
+                elif observed_launcher == current_launcher:
+                    _advance_transaction(
+                        str(current["stage"]),
+                        runtime_acceptance_recovery_launcher_replaced=False,
+                    )
+                else:
+                    _advance_transaction(
+                        str(current["stage"]),
+                        runtime_acceptance_recovery_launcher_state_unproven=True,
+                    )
+
                 _downstream_fail_closed(
                     "RUNTIME_ACCEPTANCE_RECOVERY",
                     error,
