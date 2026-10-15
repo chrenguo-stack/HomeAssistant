@@ -1,3 +1,14 @@
+## 2026-10-15 — F4 exact control package + read-only preauth PREPARATION CLOSED_PASS
+
+- Exact F4 source head: `ad65bf7d10db76f12a09e19b337f4a0c7782894a`; source CI 13/13 SUCCESS.
+- Artifact ID `11967018401` downloaded and locally rebound: ZIP SHA256 `6308fd...`, control tar SHA256 `13ecd0...`, package manifest SHA256 `9ed2ce...`, file count 8.
+- Real-T1 preauthorization contract is frozen as read-only: DEVICE_READY/release/host binding, no F4 claim records, zero product runtime, staged guard/provisioning predecessor state, exact product images/identity/secrets/TLS, and canonical F4 install targets absent.
+- Package transfer/extraction is deferred to a later explicitly authorized live F4 gate; no canonical target may mutate before the durable F4 claim.
+- Reboot and board work remain separate.
+- Current STOP: `AFTER_F4_EXACT_PACKAGE_PREAUTH_PREPARATION_BEFORE_REAL_T1_READONLY_PREAUTH`.
+- Next one gate: `N3W_T1_F4_REAL_T1_READONLY_PREAUTH_20261015_01`.
+- Authority: `docs/development/N3W_T1_F4_EXACT_CONTROL_PACKAGE_AND_READONLY_PREAUTH_PREPARATION_20261015.md`.
+
 ## 2026-10-15 — F4 pre-reboot SOURCE independent review CLOSED_PASS
 
 - Reviewed exact source head: `ad65bf7d10db76f12a09e19b337f4a0c7782894a`; exact-head CI 13/13 SUCCESS.
