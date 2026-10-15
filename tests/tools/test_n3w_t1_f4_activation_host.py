@@ -2151,6 +2151,58 @@ def test_broker_extra_unbound_exposed_port_is_allowed() -> None:
         tool._broker_runtime_contract(document)
 
 
+def test_container_socket_probe_uses_configured_container_user(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    calls: list[tuple[str, ...]] = []
+
+    def run(argv, **_kwargs):
+        calls.append(tuple(argv))
+        return '{"count": 1}'
+
+    monkeypatch.setattr(tool, "_run", run)
+
+    assert tool._container_established_socket_count("manager-container", 8883) == 1
+    assert len(calls) == 1
+    assert calls[0][:3] == ("docker", "exec", "manager-container")
+    assert "--user" not in calls[0]
+    assert calls[0][-1] == "8883"
+
+
+def test_manager_runtime_stability_reports_observed_socket_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    monkeypatch.setattr(tool.time, "monotonic", lambda: 0.0)
+    monkeypatch.setattr(
+        tool,
+        "_compose_service_inspect",
+        lambda _service: {
+            "Id": "manager-container",
+            "State": {
+                "Running": True,
+                "StartedAt": "2026-10-15T00:00:00Z",
+            },
+        },
+    )
+    monkeypatch.setattr(
+        tool,
+        "_container_established_socket_count",
+        lambda _container, _port: 0,
+    )
+
+    with pytest.raises(
+        tool.F4Error,
+        match="manager_mqtt_socket_count_invalid:0",
+    ):
+        tool._manager_runtime_stability(
+            "manager",
+            expected_id="manager-container",
+            expected_started_at="2026-10-15T00:00:00Z",
+        )
+
+
 def test_manager_runtime_stability_requires_same_container_and_one_mqtt_socket(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
