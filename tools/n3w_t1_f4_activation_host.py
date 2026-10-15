@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 from __future__ import annotations
 
 import argparse
@@ -11,10 +10,10 @@ import shutil
 import stat
 import subprocess
 import sys
+from collections.abc import Sequence
 from contextlib import contextmanager
 from pathlib import Path
 from types import ModuleType
-from typing import Sequence
 
 SCHEMA = "gh.n3w-t1-f4-activation-host/1"
 TRANSACTION_SCHEMA = "gh.n3w-t1-f4-activation-transaction/1"
@@ -106,6 +105,18 @@ class F4Error(RuntimeError):
     pass
 
 
+OPERATION_ERRORS = (
+    F4Error,
+    ImportError,
+    KeyError,
+    OSError,
+    RuntimeError,
+    subprocess.SubprocessError,
+    TypeError,
+    ValueError,
+)
+
+
 def _emit(document: dict[str, object], *, error: bool = False) -> None:
     stream = sys.stderr if error else sys.stdout
     stream.write(
@@ -124,8 +135,7 @@ def _run(
         check=False,
         text=True,
         stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         timeout=timeout,
     )
     if completed.returncode not in allowed:
@@ -734,7 +744,7 @@ def _certificate_env_payload() -> str:
         f"N3WFC4_CERT_SERVER_NAME={SERVER_NAME}\n"
         "N3WFC4_CERT_STATUS_FILE=/var/lib/n3wfc4-certificate-lifecycle/status.json\n"
         "N3WFC4_CERT_ALLOWED_ROOT_FC4=/etc/n3wfc4\n"
-        "N3WFC4_CERT_ALLOWED_ROOT_SECRET=/opt/greenhouse-secrets/broker-ca\n"
+        "N3WFC4_CERT_ALLOWED_ROOT_BROKER_CA=/opt/greenhouse-secrets/broker-ca\n"
         "N3WFC4_CERT_ALLOWED_ROOT_SYSTEM=/var/lib/greenhouse-manager/identity\n"
     )
 
@@ -779,21 +789,27 @@ def _install_activation_material(package_root: Path) -> dict[str, object]:
             "persistence_enabled": False,
             "certificate_timer_enabled": False,
         }
-    except Exception:
+    except OPERATION_ERRORS as original_error:
+        cleanup_errors: list[str] = []
         for target in reversed(created):
             try:
                 target.unlink(missing_ok=True)
-            except OSError:
-                pass
+            except OSError as cleanup_error:
+                cleanup_errors.append(type(cleanup_error).__name__)
         if status_root_created:
             try:
                 CERT_STATUS_ROOT.rmdir()
-            except OSError:
-                pass
+            except OSError as cleanup_error:
+                cleanup_errors.append(type(cleanup_error).__name__)
         try:
             _run(("systemctl", "daemon-reload"), timeout=60)
-        except Exception:
-            pass
+        except OPERATION_ERRORS as cleanup_error:
+            cleanup_errors.append(type(cleanup_error).__name__)
+        if cleanup_errors:
+            raise F4Error(
+                "activation_install_failed_cleanup_unproven:"
+                + ",".join(cleanup_errors)
+            ) from original_error
         raise
 
 
@@ -846,7 +862,7 @@ def _prepare(
                 "persistence_enabled": False,
                 "board_access": False,
             }
-        except Exception as error:
+        except OPERATION_ERRORS as error:
             try:
                 _advance_transaction(
                     "STOPPED_PREPARE",
@@ -854,8 +870,11 @@ def _prepare(
                     production_service_start=False,
                     persistence_enabled=False,
                 )
-            except Exception:
-                pass
+            except OPERATION_ERRORS as stop_record_error:
+                raise F4Error(
+                    "prepare_failed_stop_record_unproven:"
+                    + type(stop_record_error).__name__
+                ) from error
             raise
 
 
@@ -958,17 +977,17 @@ def _activate(confirmation: str, authorization_id: str) -> dict[str, object]:
                 "certificate_timer_enabled": False,
                 "board_access": False,
             }
-        except Exception as error:
+        except OPERATION_ERRORS as error:
             rollback_errors: list[str] = []
             if services_attempted:
                 try:
                     _run(("systemctl", "stop", SERVICES_UNIT), timeout=120)
-                except Exception as rollback_error:
+                except OPERATION_ERRORS as rollback_error:
                     rollback_errors.append(type(rollback_error).__name__)
             if broker_attempted:
                 try:
                     _run(("systemctl", "stop", BROKER_UNIT), timeout=120)
-                except Exception as rollback_error:
+                except OPERATION_ERRORS as rollback_error:
                     rollback_errors.append(type(rollback_error).__name__)
             runtime = _runtime_activity()
             rollback_proven = (
@@ -991,8 +1010,11 @@ def _activate(confirmation: str, authorization_id: str) -> dict[str, object]:
                     rollback_proven=rollback_proven,
                     rollback_error_count=len(rollback_errors),
                 )
-            except Exception:
-                pass
+            except OPERATION_ERRORS as stop_record_error:
+                raise F4Error(
+                    "runtime_failed_stop_record_unproven:"
+                    + type(stop_record_error).__name__
+                ) from error
             raise
 
 
@@ -1086,19 +1108,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         _emit({**report, "schema": SCHEMA})
         return 0
-    except (
-        F4Error,
-        ImportError,
-        KeyError,
-        OSError,
-        RuntimeError,
-        subprocess.SubprocessError,
-        TypeError,
-        ValueError,
-    ) as error:
+    except OPERATION_ERRORS as error:
         try:
             runtime = _runtime_activity()
-        except Exception:
+        except OPERATION_ERRORS:
             runtime = {
                 "production_service_start": None,
                 "broker_active_state": "unknown",
