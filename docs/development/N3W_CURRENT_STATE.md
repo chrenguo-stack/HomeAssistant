@@ -1,3 +1,45 @@
+## 2026-10-15 — Explicit per-device provisioning LIVE START CLOSED_PASS
+
+```text
+TASK=N3W_T1_EXPLICIT_PER_DEVICE_PROVISIONING_LIVE_START_20261015_01
+RESULT=CLOSED_PASS
+DEPLOYED_RELEASE_SOURCE_HEAD=6ac82ae0872b05644e59470ffef7307dad14d359
+
+AUTHORIZATION_GRANTED=true
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+AUTHORIZATION_REPLAY_PERMITTED=false
+
+START_EXECUTED_EXACTLY_ONCE=true
+START_COMMAND_EXIT=0
+SECOND_START_EXECUTED=false
+
+TRANSACTION_JSON_PRESENT=true
+FIRSTBOOT_COMPLETE_JSON_PRESENT=true
+
+VERIFY_STATUS=PASS
+VERIFY_STATE=DEVICE_READY
+VERIFY_EXIT=0
+VERIFY_PARSE_EXIT=0
+
+PRODUCTION_SERVICE_START=false
+F4_ENTERED=false
+BOARD_ACCESS=false
+MERGE=false
+
+CURRENT_STOP_POINT=AFTER_DEVICE_READY_BEFORE_F4
+NEXT_ONE_GATE=NONE:F4_REQUIRES_SEPARATE_PREPARATION_AND_NEW_AUTHORIZATION
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+The one-shot explicit provisioning authorization is permanently consumed/no-replay. A local chat-supplied JSON
+formatting helper failed with a Python quoting SyntaxError after the remote `start` had already returned exit 0;
+this was not a product failure. Durable transaction + completion were present, and a separate verify-only command
+proved `PASS / DEVICE_READY` for release `6ac82ae...`. Broker/services/certificate activation remained
+inactive, their later activation units remained not-found, and F4 was not entered. No second `start` may be
+executed. Closure authority:
+`docs/development/N3W_T1_EXPLICIT_PER_DEVICE_PROVISIONING_LIVE_START_CLOSURE_20261015.md`.
+
 ## 2026-10-15 — New-chat handoff frozen for explicit provisioning live start
 
 ```text
