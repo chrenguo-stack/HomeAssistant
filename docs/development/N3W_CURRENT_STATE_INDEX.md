@@ -1,3 +1,13 @@
+## 2026-10-15 — Formal handoff: RUNTIME_STARTED R2 → runtime acceptance
+
+- Formal handoff: `docs/development/N3W_T1_F4_RUNTIME_STARTED_R2_TO_RUNTIME_ACCEPTANCE_NEW_CHAT_HANDOFF_V1.0_20261015.md`.
+- Correct template: candidate-branch `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` V1.3 / blob `b9ef40acdaa8fae37feb5ffe5662afd0e89462a0`.
+- Exact historical handoff standard authority: `4300890dff0ce63d5a547df21426e287d084d9ee`.
+- Last direct T1 state: `RUNTIME_STARTED`, Broker/Home Assistant/Manager running, persistence disabled.
+- Installed control source is still `8f870d02...`; successor distinct-continuation source `ffcbb1a...` has 13/13 CI PASS and exact artifact `11982052678`.
+- Already-authorized entry control repair remains unclaimed; runtime acceptance is the next logical Gate selected by the user.
+- New chat must finish the entry control repair first if still required, then execute runtime acceptance, and STOP before persistence.
+
 ## 2026-10-15 — F4 runtime continuation authority live control repair authorized
 
 - Explicit authorization granted for `N3W_T1_F4_RUNTIME_CONTINUATION_AUTHORITY_CONTROL_REPAIR_LIVE_20261015_01`.
