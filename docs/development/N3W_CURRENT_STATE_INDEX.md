@@ -1,3 +1,14 @@
+## 2026-10-15 — F4 pre-reboot SOURCE independent review CLOSED_PASS
+
+- Reviewed exact source head: `ad65bf7d10db76f12a09e19b337f4a0c7782894a`; exact-head CI 13/13 SUCCESS.
+- Exact F4 control artifact: ID `11967018401`, digest `sha256:6308fdc64347949d463f251713c359571b40f067182cfd4d686ba4495d6d162f`.
+- Complete pre-reboot source path is CLOSED_PASS through `PRE_REBOOT_READY`; reboot remains separate.
+- Review closed runtime identity/readiness, unexpected product-container, durable acceptance rebinding, persistence/container continuity, certificate audit/timer continuity and listener-backed rollback proof.
+- No T1 access, live runtime mutation, production service start, board access or merge occurred.
+- Current STOP: `AFTER_F4_PRE_REBOOT_SOURCE_REVIEW_BEFORE_EXACT_PACKAGE_READONLY_PREAUTH_PREPARATION`.
+- Next one gate: `N3W_T1_F4_EXACT_CONTROL_PACKAGE_AND_READONLY_PREAUTH_PREPARATION_20261015_01`.
+- Authority: `docs/development/N3W_T1_F4_RUNTIME_ACCEPTANCE_AND_PERSISTENCE_SOURCE_REPAIR_INDEPENDENT_REVIEW_20261015.md`.
+
 ## 2026-10-15 — F4 runtime acceptance and persistence SOURCE REPAIR R1 implemented
 
 - Extends the same F4 transaction owner from `RUNTIME_STARTED` to `PRE_REBOOT_READY`; reboot remains separate.
