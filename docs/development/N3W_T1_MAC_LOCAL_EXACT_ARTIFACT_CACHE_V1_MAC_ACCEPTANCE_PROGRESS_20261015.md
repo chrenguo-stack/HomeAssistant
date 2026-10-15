@@ -1,0 +1,53 @@
+# N3-W T1 Mac 本地 exact artifact cache V1 Mac acceptance progress
+# 2026-10-15
+
+## Attempt 1
+
+```text
+TASK=N3W_T1_MAC_LOCAL_EXACT_ARTIFACT_CACHE_V1_MAC_ACCEPTANCE_20261015_01
+RESULT=STOP_PRECACHE_METADATA_NETWORK
+
+EXECUTABLE_SOURCE_HEAD=d1a7847c1e0612ac80b31b85262011110f329794
+ARTIFACT_ID=11953163662
+ARTIFACT_NAME=n3w-t1-fresh-bootstrap-deployable-d1a7847c1e0612ac80b31b85262011110f329794
+ARTIFACT_ZIP_SHA256=6f0ec341494bc6ba2a9b9d03a2c3968b708241dd069408a3dc72f63f3e79a89c
+
+FAILURE_STAGE=github_artifact_metadata_lookup
+FAILURE_SURFACE=gh_api
+FAILURE_CLASS=NETWORK_EOF
+CACHE_POPULATION_STARTED=false
+LARGE_ARTIFACT_DOWNLOAD_STARTED=false
+T1_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+PRODUCTION_SERVICE_START=false
+EXPLICIT_DEVICE_PROVISIONING=false
+F4=false
+BOARD_ACCESS=false
+```
+
+Observed Mac error:
+
+```text
+FreshHostTransportError:
+command_failed:gh:1:Get "https://api.github.com/repos/chrenguo-stack/HomeAssistant/actions/artifacts/11953163662": EOF
+```
+
+The failure happened in `_artifact_metadata()`, before `_populate_artifact_cache()`.
+Therefore the exact artifact was not downloaded and no cache entry was published.
+
+Fresh GitHub-side verification after the failure confirms the target artifact still exists and is unexpired:
+
+```text
+ARTIFACT_ID=11953163662
+EXPIRED=false
+SIZE_BYTES=2535588821
+DIGEST=sha256:6f0ec341494bc6ba2a9b9d03a2c3968b708241dd069408a3dc72f63f3e79a89c
+```
+
+No evidence currently indicates artifact drift or an authentication rejection. The observed failure is a transport EOF on the lightweight metadata request.
+
+## Next step
+
+Run a minimal Mac-side `gh api` metadata probe first. If it succeeds with the exact ID/name/digest/expired tuple, rerun the same Mac acceptance command. Do not change cache contents manually.
+
+If repeated metadata EOF reproduces, return to source repair and add bounded retry around the metadata lookup before continuing acceptance.
