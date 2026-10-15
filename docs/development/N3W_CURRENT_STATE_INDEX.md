@@ -1,3 +1,13 @@
+## 2026-10-15 — F3 R4 read-only preauth CLOSED_PASS
+
+- Exact R4 source `6ac82ae0872b05644e59470ffef7307dad14d359` is green at 15/15 CI with exact deployable artifact ID `11942497052`.
+- R3 consumed ledger remains present; R4 ledger is absent, so R4 remains unclaimed/unconsumed.
+- Product boundary is clean: containers/images/volumes 0, networks bridge/host/none, product paths absent, product listeners none.
+- R3 forensic payload remains preserved at 305874 bytes with zero image tar files.
+- Root free space is `11864342528` bytes, above the established F3 required-free reference `10135822686`; capacity PASS.
+- KF-116 is source repaired and live revalidation pending.
+- Next one gate: `N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R4_20261015_01`; explicit new authorization required.
+
 ## 2026-10-15 — F3 R3 STOP_PARTIAL / KF-115 CLOSED / KF-116 opened
 
 - R3 one-shot authorization was durably claimed and is permanently consumed/no-replay.
