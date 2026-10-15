@@ -63,6 +63,19 @@ RUNTIME_START_REPAIR_FROM_MANIFEST_SHA256 = (
 RUNTIME_START_REPAIR_FROM_LAUNCHER_SHA256 = (
     "fcbbf9d20f1ca82089f5e3dfd1bd8923cc8893ebaf6a04c36b36e0c46f330a01"
 )
+
+RUNTIME_CONTINUATION_AUTHORITY_REPAIR_CONFIRMATION = (
+    "REPAIR F4 RUNTIME CONTINUATION AUTHORITY: YES"
+)
+RUNTIME_CONTINUATION_AUTHORITY_REPAIR_FROM_SOURCE_HEAD = (
+    "8f870d027eea674a4443097ab0d5761542b28a73"
+)
+RUNTIME_CONTINUATION_AUTHORITY_REPAIR_FROM_MANIFEST_SHA256 = (
+    "c88c4677cb621f20e7f093bfcfca9d6ef8ae3752b2c8d0bddba9d0bc1732e868"
+)
+RUNTIME_CONTINUATION_AUTHORITY_REPAIR_FROM_LAUNCHER_SHA256 = (
+    "56445c031e20a7b4870b65dd8d0ee96b019314deb634123904f418630b268907"
+)
 EXPECTED_RUNTIME_SERVICES = frozenset({"broker", "manager", "homeassistant"})
 RUNTIME_SERVICE_SET_TIMEOUT_SECONDS = 60.0
 RUNTIME_SERVICE_SET_POLL_SECONDS = 1.0
@@ -1895,6 +1908,54 @@ def _wait_for_runtime_service_set(
         time.sleep(poll_seconds)
 
 
+def _all_prior_authorization_ids(
+    transaction: dict[str, object],
+) -> frozenset[str]:
+    values: set[str] = set()
+    for key in (
+        "authorization_id",
+        "control_repair_authorization_id",
+        "activation_authority_repair_authorization_id",
+        "runtime_start_repair_authorization_id",
+        "runtime_continuation_authority_repair_authorization_id",
+        "activation_authorization_id",
+        "runtime_acceptance_authorization_id",
+        "persistence_authorization_id",
+        "certificate_audit_authorization_id",
+        "certificate_timer_authorization_id",
+    ):
+        value = transaction.get(key)
+        if isinstance(value, str):
+            values.add(value)
+    history = transaction.get("activation_authorization_history", [])
+    if not isinstance(history, list) or not all(
+        isinstance(value, str) for value in history
+    ):
+        raise F4Error("activation_authorization_history_invalid")
+    values.update(history)
+    return frozenset(values)
+
+
+def _validate_successor_authorization(
+    transaction: dict[str, object],
+    authorization_id: str,
+    *,
+    claimed_field: str,
+    invalid_code: str,
+    replay_code: str,
+) -> None:
+    if (
+        not authorization_id.startswith("N3W_T1_F4_")
+        or len(authorization_id) > 200
+        or not authorization_id.replace("_", "").replace("-", "").isalnum()
+    ):
+        raise F4Error(invalid_code)
+    if authorization_id in _all_prior_authorization_ids(transaction):
+        raise F4Error("continuation_authorization_not_distinct")
+    if transaction.get(claimed_field) is True:
+        raise F4Error(replay_code)
+
+
 def _activation_prior_authorization_ids(
     transaction: dict[str, object],
 ) -> frozenset[str]:
@@ -1915,7 +1976,7 @@ def _activation_prior_authorization_ids(
     ):
         raise F4Error("activation_authorization_history_invalid")
     values.update(history)
-    return frozenset(values)
+    return _all_prior_authorization_ids(transaction)
 
 
 def _activate(confirmation: str, authorization_id: str) -> dict[str, object]:
@@ -3263,10 +3324,24 @@ def _accept_runtime(authorization_id: str) -> dict[str, object]:
     with _exclusive_f4():
         verified = _provision_verify()
         transaction = _validate_transaction_binding(verified)
-        if transaction.get("authorization_id") != authorization_id:
-            raise F4Error("runtime_acceptance_authorization_id_mismatch")
         if transaction.get("stage") != "RUNTIME_STARTED":
             raise F4Error("runtime_acceptance_replay_forbidden")
+        _validate_successor_authorization(
+            transaction,
+            authorization_id,
+            claimed_field="runtime_acceptance_authorization_claimed",
+            invalid_code="runtime_acceptance_authorization_id_invalid",
+            replay_code="runtime_acceptance_authorization_replay_forbidden",
+        )
+        _advance_transaction(
+            "RUNTIME_STARTED",
+            runtime_acceptance_authorization_id=authorization_id,
+            runtime_acceptance_authorization_claimed=True,
+            runtime_acceptance_authorization_consumed=True,
+            runtime_acceptance_authorization_replay_allowed=False,
+            production_service_start=True,
+            persistence_enabled=False,
+        )
         try:
             report = _runtime_acceptance_report()
             _new_private_record(RUNTIME_ACCEPTANCE_PATH, report)
@@ -3308,13 +3383,18 @@ def _enable_persistence(authorization_id: str) -> dict[str, object]:
         transaction = _validate_transaction_binding(verified)
         _validate_factory_binding(verified)
         _verify_installed_material(transaction)
-        if transaction.get("authorization_id") != authorization_id:
-            raise F4Error("persistence_authorization_id_mismatch")
         if (
             transaction.get("stage") != "RUNTIME_ACCEPTED"
             or transaction.get("runtime_acceptance_passed") is not True
         ):
             raise F4Error("persistence_stage_invalid")
+        _validate_successor_authorization(
+            transaction,
+            authorization_id,
+            claimed_field="persistence_authorization_claimed",
+            invalid_code="persistence_authorization_id_invalid",
+            replay_code="persistence_authorization_replay_forbidden",
+        )
         _validate_runtime_acceptance_binding(transaction)
         before = _runtime_activity()
         if (
@@ -3324,6 +3404,15 @@ def _enable_persistence(authorization_id: str) -> dict[str, object]:
         ):
             raise F4Error("persistence_runtime_not_active")
         before_snapshot = _runtime_container_snapshot()
+        _advance_transaction(
+            "RUNTIME_ACCEPTED",
+            persistence_authorization_id=authorization_id,
+            persistence_authorization_claimed=True,
+            persistence_authorization_consumed=True,
+            persistence_authorization_replay_allowed=False,
+            production_service_start=True,
+            persistence_enabled=False,
+        )
         try:
             _run(
                 (
@@ -3425,8 +3514,6 @@ def _certificate_first_audit(authorization_id: str) -> dict[str, object]:
         transaction = _validate_transaction_binding(verified)
         _validate_factory_binding(verified)
         _verify_installed_material(transaction)
-        if transaction.get("authorization_id") != authorization_id:
-            raise F4Error("certificate_audit_authorization_id_mismatch")
         if (
             transaction.get("stage") != "PERSISTENCE_ENABLED"
             or transaction.get("broker_services_persistence_enabled")
@@ -3434,6 +3521,13 @@ def _certificate_first_audit(authorization_id: str) -> dict[str, object]:
             or transaction.get("certificate_first_audit_passed") is True
         ):
             raise F4Error("certificate_audit_stage_invalid")
+        _validate_successor_authorization(
+            transaction,
+            authorization_id,
+            claimed_field="certificate_audit_authorization_claimed",
+            invalid_code="certificate_audit_authorization_id_invalid",
+            replay_code="certificate_audit_authorization_replay_forbidden",
+        )
         if _systemctl("is-enabled", CERT_TIMER) == "enabled":
             raise F4Error("certificate_timer_enabled_too_early")
         _validate_runtime_acceptance_binding(transaction)
@@ -3454,6 +3548,16 @@ def _certificate_first_audit(authorization_id: str) -> dict[str, object]:
         ):
             raise F4Error("certificate_first_audit_prestate_invalid")
 
+        _advance_transaction(
+            "PERSISTENCE_ENABLED",
+            certificate_audit_authorization_id=authorization_id,
+            certificate_audit_authorization_claimed=True,
+            certificate_audit_authorization_consumed=True,
+            certificate_audit_authorization_replay_allowed=False,
+            production_service_start=True,
+            persistence_enabled=True,
+            certificate_timer_enabled=False,
+        )
         try:
             _validate_tls_material()
             before_identity = _certificate_identity_snapshot()
@@ -3553,8 +3657,6 @@ def _enable_certificate_timer(authorization_id: str) -> dict[str, object]:
         transaction = _validate_transaction_binding(verified)
         _validate_factory_binding(verified)
         _verify_installed_material(transaction)
-        if transaction.get("authorization_id") != authorization_id:
-            raise F4Error("certificate_timer_authorization_id_mismatch")
         if (
             transaction.get("stage") != "PERSISTENCE_ENABLED"
             or transaction.get("certificate_first_audit_passed") is not True
@@ -3563,6 +3665,13 @@ def _enable_certificate_timer(authorization_id: str) -> dict[str, object]:
             != transaction.get("certificate_status_sha256")
         ):
             raise F4Error("certificate_timer_stage_invalid")
+        _validate_successor_authorization(
+            transaction,
+            authorization_id,
+            claimed_field="certificate_timer_authorization_claimed",
+            invalid_code="certificate_timer_authorization_id_invalid",
+            replay_code="certificate_timer_authorization_replay_forbidden",
+        )
         _validate_runtime_acceptance_binding(transaction)
         runtime_before = _runtime_activity()
         if (
@@ -3583,6 +3692,16 @@ def _enable_certificate_timer(authorization_id: str) -> dict[str, object]:
             raise F4Error("certificate_timer_active_before_enable")
         before_snapshot = _runtime_container_snapshot()
         before_certificate_identity = _certificate_identity_snapshot()
+        _advance_transaction(
+            "PERSISTENCE_ENABLED",
+            certificate_timer_authorization_id=authorization_id,
+            certificate_timer_authorization_claimed=True,
+            certificate_timer_authorization_consumed=True,
+            certificate_timer_authorization_replay_allowed=False,
+            production_service_start=True,
+            persistence_enabled=True,
+            certificate_timer_enabled=False,
+        )
         try:
             _run(("systemctl", "enable", CERT_TIMER), timeout=60)
             if _systemctl("is-enabled", CERT_TIMER) != "enabled":
