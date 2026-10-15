@@ -640,3 +640,250 @@ def test_persistence_helper_remains_enable_only() -> None:
     assert "enable --now" not in script
     assert "systemctl start" not in script
     assert "systemctl restart" not in script
+
+
+def test_runtime_continuation_command_surface() -> None:
+    tool = load_tool()
+    source = TOOL.read_text(encoding="utf-8")
+
+    for command in (
+        "accept-runtime",
+        "enable-persistence",
+        "certificate-audit",
+        "enable-certificate-timer",
+    ):
+        assert f'"{command}"' in source
+    assert "activate-systemd-production.sh" not in source
+
+
+def test_accept_runtime_advances_only_after_report_persisted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    events: list[str] = []
+    verified_state = verified(tool)
+    transaction = {
+        "authorization_id": "N3W_T1_F4_TEST_AUTH_05",
+        "stage": "RUNTIME_STARTED",
+    }
+    report = {
+        "homeassistant": {"entry_id_sha256": "e" * 64},
+    }
+
+    monkeypatch.setattr(tool, "_exclusive_f4", lambda: nullcontext())
+    monkeypatch.setattr(tool, "_provision_verify", lambda: verified_state)
+    monkeypatch.setattr(
+        tool,
+        "_validate_transaction_binding",
+        lambda _verified: transaction,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_runtime_acceptance_report",
+        lambda: events.append("acceptance") or report,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_new_private_record",
+        lambda path, _document: events.append(f"persist:{path.name}"),
+    )
+    monkeypatch.setattr(
+        tool,
+        "_sha256_file",
+        lambda _path: "f" * 64,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_advance_transaction",
+        lambda stage, **_fields: events.append(f"advance:{stage}")
+        or {"stage": stage},
+    )
+
+    result = tool._accept_runtime("N3W_T1_F4_TEST_AUTH_05")
+
+    assert events == [
+        "acceptance",
+        f"persist:{tool.RUNTIME_ACCEPTANCE_PATH.name}",
+        "advance:RUNTIME_ACCEPTED",
+    ]
+    assert result["state"] == "RUNTIME_ACCEPTED"
+    assert result["persistence_enabled"] is False
+    assert result["certificate_timer_enabled"] is False
+
+
+def test_accept_runtime_failure_uses_fail_closed_rollback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    verified_state = verified(tool)
+    transaction = {
+        "authorization_id": "N3W_T1_F4_TEST_AUTH_06",
+        "stage": "RUNTIME_STARTED",
+    }
+    rollback: list[str] = []
+
+    monkeypatch.setattr(tool, "_exclusive_f4", lambda: nullcontext())
+    monkeypatch.setattr(tool, "_provision_verify", lambda: verified_state)
+    monkeypatch.setattr(
+        tool,
+        "_validate_transaction_binding",
+        lambda _verified: transaction,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_runtime_acceptance_report",
+        lambda: (_ for _ in ()).throw(tool.F4Error("acceptance_failed")),
+    )
+    monkeypatch.setattr(
+        tool,
+        "_downstream_fail_closed",
+        lambda stage, _error: rollback.append(stage),
+    )
+
+    with pytest.raises(tool.F4Error, match="acceptance_failed"):
+        tool._accept_runtime("N3W_T1_F4_TEST_AUTH_06")
+
+    assert rollback == ["RUNTIME_ACCEPTANCE"]
+
+
+def test_persistence_enables_only_broker_and_services(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    verified_state = verified(tool)
+    transaction = {
+        "authorization_id": "N3W_T1_F4_TEST_AUTH_07",
+        "stage": "RUNTIME_ACCEPTED",
+        "runtime_acceptance_passed": True,
+    }
+    calls: list[tuple[str, ...]] = []
+    enabled: set[str] = set()
+
+    monkeypatch.setattr(tool, "_exclusive_f4", lambda: nullcontext())
+    monkeypatch.setattr(tool, "_provision_verify", lambda: verified_state)
+    monkeypatch.setattr(
+        tool,
+        "_validate_transaction_binding",
+        lambda _verified: transaction,
+    )
+    monkeypatch.setattr(tool, "_validate_factory_binding", lambda _verified: {})
+    monkeypatch.setattr(tool, "_verify_installed_material", lambda _tx: None)
+    monkeypatch.setattr(
+        tool,
+        "_runtime_activity",
+        lambda: {
+            "production_service_start": True,
+            "running_services": ["broker", "homeassistant", "manager"],
+        },
+    )
+
+    def run(argv, **_kwargs):
+        call = tuple(argv)
+        calls.append(call)
+        if call[:2] == ("systemctl", "enable"):
+            enabled.update(call[2:])
+        return ""
+
+    monkeypatch.setattr(tool, "_run", run)
+    monkeypatch.setattr(
+        tool,
+        "_systemctl",
+        lambda mode, unit: (
+            "enabled"
+            if mode == "is-enabled" and unit in enabled
+            else "disabled"
+        ),
+    )
+    monkeypatch.setattr(
+        tool,
+        "_advance_transaction",
+        lambda stage, **_fields: {"stage": stage},
+    )
+
+    result = tool._enable_persistence("N3W_T1_F4_TEST_AUTH_07")
+
+    assert (
+        "systemctl",
+        "enable",
+        tool.BROKER_UNIT,
+        tool.SERVICES_UNIT,
+    ) in calls
+    assert tool.CERT_TIMER not in enabled
+    assert result["state"] == "PERSISTENCE_ENABLED"
+    assert result["certificate_timer_enabled"] is False
+
+
+def test_certificate_first_audit_uses_audit_not_auto_renew() -> None:
+    tool = load_tool()
+    command = tool._certificate_audit_command()
+
+    assert command[1] == "audit"
+    assert "auto-renew" not in command
+    assert str(tool.CA_KEY.parent) in command
+    assert str(tool.SYSTEM_CA.parent) in command
+
+
+def test_certificate_timer_enable_is_enable_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    verified_state = verified(tool)
+    transaction = {
+        "authorization_id": "N3W_T1_F4_TEST_AUTH_08",
+        "stage": "PERSISTENCE_ENABLED",
+        "certificate_first_audit_passed": True,
+        "certificate_status_sha256": "a" * 64,
+    }
+    calls: list[tuple[str, ...]] = []
+    enabled = False
+
+    monkeypatch.setattr(tool, "_exclusive_f4", lambda: nullcontext())
+    monkeypatch.setattr(tool, "_provision_verify", lambda: verified_state)
+    monkeypatch.setattr(
+        tool,
+        "_validate_transaction_binding",
+        lambda _verified: transaction,
+    )
+    monkeypatch.setattr(tool, "_validate_factory_binding", lambda _verified: {})
+    monkeypatch.setattr(tool, "_verify_installed_material", lambda _tx: None)
+    monkeypatch.setattr(tool, "_sha256_file", lambda _path: "a" * 64)
+
+    def systemctl(mode: str, unit: str):
+        if unit == tool.CERT_TIMER and mode == "is-enabled":
+            return "enabled" if enabled else "disabled"
+        if unit == tool.CERT_TIMER and mode == "is-active":
+            return "inactive"
+        return "unknown"
+
+    def run(argv, **_kwargs):
+        nonlocal enabled
+        call = tuple(argv)
+        calls.append(call)
+        if call == ("systemctl", "enable", tool.CERT_TIMER):
+            enabled = True
+        return ""
+
+    monkeypatch.setattr(tool, "_systemctl", systemctl)
+    monkeypatch.setattr(tool, "_run", run)
+    monkeypatch.setattr(
+        tool,
+        "_runtime_activity",
+        lambda: {
+            "production_service_start": True,
+            "running_services": ["broker", "homeassistant", "manager"],
+        },
+    )
+    monkeypatch.setattr(
+        tool,
+        "_advance_transaction",
+        lambda stage, **_fields: {"stage": stage},
+    )
+
+    result = tool._enable_certificate_timer(
+        "N3W_T1_F4_TEST_AUTH_08"
+    )
+
+    assert calls == [("systemctl", "enable", tool.CERT_TIMER)]
+    assert result["state"] == "PRE_REBOOT_READY"
+    assert result["certificate_timer_enabled"] is True
+    assert result["certificate_timer_active_before_reboot"] is False
