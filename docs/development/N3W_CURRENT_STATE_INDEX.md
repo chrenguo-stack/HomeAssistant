@@ -1,3 +1,13 @@
+## 2026-10-15 — GitHub convergence after DEVICE_READY CLOSED_PASS
+
+- PR #544 merged to main at `c3e61bc15baece56eb1b8111d1ed2b8c9ae2241d`.
+- PR #545 was retargeted to updated main and merged at `a1f4aa614f498c816276f4f4e69aef2bca89d70d`.
+- PR #543 is superseded and must not be merged as-is; its two still-valid F5 design documents were preserved byte-for-byte in the convergence follow-up.
+- Real T1 remains `DEVICE_READY`; production services remain stopped; F4 was not entered.
+- Current stop: after GitHub convergence and before F4.
+- Next one gate: `N3W_T1_F4_SERVICE_ACTIVATION_AND_END_TO_END_ACCEPTANCE_PREPARATION_20261015_01`.
+- Closure authority: `docs/development/N3W_T1_GITHUB_CONVERGENCE_AFTER_DEVICE_READY_CLOSURE_20261015.md`.
+
 ## 2026-10-15 — Explicit per-device provisioning LIVE START CLOSED_PASS
 
 - Gate `N3W_T1_EXPLICIT_PER_DEVICE_PROVISIONING_LIVE_START_20261015_01` is CLOSED_PASS.
