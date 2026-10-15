@@ -2162,23 +2162,6 @@ def _validate_successor_authorization(
 def _activation_prior_authorization_ids(
     transaction: dict[str, object],
 ) -> frozenset[str]:
-    values: set[str] = set()
-    for key in (
-        "authorization_id",
-        "control_repair_authorization_id",
-        "activation_authority_repair_authorization_id",
-        "runtime_start_repair_authorization_id",
-        "activation_authorization_id",
-    ):
-        value = transaction.get(key)
-        if isinstance(value, str):
-            values.add(value)
-    history = transaction.get("activation_authorization_history", [])
-    if not isinstance(history, list) or not all(
-        isinstance(value, str) for value in history
-    ):
-        raise F4Error("activation_authorization_history_invalid")
-    values.update(history)
     return _all_prior_authorization_ids(transaction)
 
 
