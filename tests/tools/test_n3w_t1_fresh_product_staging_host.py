@@ -400,61 +400,222 @@ def test_generated_storage_probe_rejects_containerd_imports(
     assert "containerd_imports_unsupported" in completed.stderr
 
 
-def test_artifact_download_timeout_enters_integrity_checked_fallback(
+def _write_artifact_zip(tool, path: Path) -> str:
+    import zipfile
+
+    with zipfile.ZipFile(path, "w") as bundle:
+        for name in sorted(tool.ARTIFACT_OUTER_FILES):
+            bundle.writestr(name, name.encode())
+    return tool._sha256_file(path)
+
+
+def _write_cache_entry(
+    tool,
+    cache_root: Path,
+    source_zip: Path,
+    *,
+    run_id: str,
+    artifact_name: str,
+    artifact_id: int,
+    artifact_sha: str,
+) -> Path:
+    entry = cache_root / str(artifact_id) / artifact_sha
+    entry.mkdir(parents=True)
+    (entry / "artifact.zip").write_bytes(source_zip.read_bytes())
+    binding = tool._artifact_cache_binding(
+        run_id=run_id,
+        artifact_name=artifact_name,
+        artifact_id=artifact_id,
+        artifact_zip_sha256=artifact_sha,
+    )
+    (entry / "binding.json").write_text(
+        json.dumps(binding, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    return entry
+
+
+def test_exact_artifact_cache_hit_skips_github_download(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     tool = load_tool()
+    source_zip = tmp_path / "source.zip"
+    artifact_sha = _write_artifact_zip(tool, source_zip)
+    cache_root = tmp_path / "cache"
+    _write_cache_entry(
+        tool,
+        cache_root,
+        source_zip,
+        run_id="1",
+        artifact_name="artifact",
+        artifact_id=123,
+        artifact_sha=artifact_sha,
+    )
     work = tmp_path / "work"
     work.mkdir()
-    source_zip = tmp_path / "source.zip"
 
-    import zipfile
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("github access forbidden on exact cache hit")
 
-    with zipfile.ZipFile(source_zip, "w") as bundle:
-        for name in sorted(tool.ARTIFACT_OUTER_FILES):
-            bundle.writestr(name, name.encode())
+    monkeypatch.setattr(tool, "_artifact_metadata", forbidden)
+    monkeypatch.setattr(tool, "_download_remote_artifact_zip", forbidden)
 
-    artifact_sha = tool._sha256_file(source_zip)
-    monkeypatch.setattr(tool, "_artifact_metadata", lambda **_kwargs: {})
-
-    class Result:
-        def __init__(self, stdout=""):
-            self.returncode = 0
-            self.stdout = stdout
-            self.stderr = ""
-
-    def fake_run(command, **_kwargs):
-        command = tuple(command)
-        if command[:3] == ("gh", "run", "download"):
-            raise tool.subprocess.TimeoutExpired(command, 900)
-        if command == ("gh", "auth", "token"):
-            return Result("test-token\n")
-        if command and command[0] == "curl" and "-D" in command:
-            headers = Path(command[command.index("-D") + 1])
-            headers.write_text(
-                "HTTP/1.1 302 Found\n"
-                "Location: https://blob.example.invalid/artifact\n\n",
-                encoding="utf-8",
-            )
-            return Result()
-        if command and command[0] == "curl" and "-o" in command:
-            destination = Path(command[command.index("-o") + 1])
-            destination.write_bytes(source_zip.read_bytes())
-            return Result()
-        raise AssertionError(command)
-
-    monkeypatch.setattr(tool, "_run", fake_run)
-
-    tool._download_artifact(
+    status = tool._download_artifact(
         work,
         run_id="1",
         artifact_name="artifact",
         artifact_id=123,
         artifact_zip_sha256=artifact_sha,
+        cache_root=cache_root,
     )
 
+    assert status == "HIT"
     assert {path.name for path in work.iterdir()} == tool.ARTIFACT_OUTER_FILES
+
+
+def test_exact_artifact_cache_sha_mismatch_fails_closed_without_download(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    source_zip = tmp_path / "source.zip"
+    artifact_sha = _write_artifact_zip(tool, source_zip)
+    cache_root = tmp_path / "cache"
+    entry = _write_cache_entry(
+        tool,
+        cache_root,
+        source_zip,
+        run_id="1",
+        artifact_name="artifact",
+        artifact_id=123,
+        artifact_sha=artifact_sha,
+    )
+    (entry / "artifact.zip").write_bytes(b"corrupt")
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("invalid cache must not be hidden by download")
+
+    monkeypatch.setattr(tool, "_artifact_metadata", forbidden)
+    monkeypatch.setattr(tool, "_download_remote_artifact_zip", forbidden)
+
+    with pytest.raises(
+        tool.FreshHostTransportError,
+        match="artifact_cache_zip_sha256_mismatch",
+    ):
+        tool._download_artifact(
+            tmp_path / "work",
+            run_id="1",
+            artifact_name="artifact",
+            artifact_id=123,
+            artifact_zip_sha256=artifact_sha,
+            cache_root=cache_root,
+        )
+
+
+def test_exact_artifact_cache_binding_mismatch_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    source_zip = tmp_path / "source.zip"
+    artifact_sha = _write_artifact_zip(tool, source_zip)
+    cache_root = tmp_path / "cache"
+    entry = _write_cache_entry(
+        tool,
+        cache_root,
+        source_zip,
+        run_id="1",
+        artifact_name="artifact",
+        artifact_id=123,
+        artifact_sha=artifact_sha,
+    )
+    binding = json.loads((entry / "binding.json").read_text(encoding="utf-8"))
+    binding["run_id"] = "different"
+    (entry / "binding.json").write_text(
+        json.dumps(binding, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("binding mismatch must not trigger download")
+
+    monkeypatch.setattr(tool, "_artifact_metadata", forbidden)
+    monkeypatch.setattr(tool, "_download_remote_artifact_zip", forbidden)
+
+    with pytest.raises(
+        tool.FreshHostTransportError,
+        match="artifact_cache_binding_mismatch",
+    ):
+        tool._download_artifact(
+            tmp_path / "work",
+            run_id="1",
+            artifact_name="artifact",
+            artifact_id=123,
+            artifact_zip_sha256=artifact_sha,
+            cache_root=cache_root,
+        )
+
+
+def test_exact_artifact_cache_miss_populates_then_hits(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    source_zip = tmp_path / "source.zip"
+    artifact_sha = _write_artifact_zip(tool, source_zip)
+    cache_root = tmp_path / "cache"
+    metadata_calls: list[object] = []
+    download_calls: list[object] = []
+
+    monkeypatch.setattr(
+        tool,
+        "_artifact_metadata",
+        lambda **kwargs: metadata_calls.append(kwargs) or {},
+    )
+
+    def fake_download(destination: Path, *, artifact_id: int) -> None:
+        download_calls.append(artifact_id)
+        destination.write_bytes(source_zip.read_bytes())
+
+    monkeypatch.setattr(tool, "_download_remote_artifact_zip", fake_download)
+
+    first_work = tmp_path / "first"
+    first_work.mkdir()
+    first = tool._download_artifact(
+        first_work,
+        run_id="1",
+        artifact_name="artifact",
+        artifact_id=123,
+        artifact_zip_sha256=artifact_sha,
+        cache_root=cache_root,
+    )
+
+    assert first == "MISS_POPULATED"
+    assert len(metadata_calls) == 1
+    assert download_calls == [123]
+    entry = cache_root / "123" / artifact_sha
+    assert {path.name for path in entry.iterdir()} == tool.ARTIFACT_CACHE_FILES
+    assert tool._sha256_file(entry / "artifact.zip") == artifact_sha
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("second exact use must be cache-only")
+
+    monkeypatch.setattr(tool, "_artifact_metadata", forbidden)
+    monkeypatch.setattr(tool, "_download_remote_artifact_zip", forbidden)
+    second_work = tmp_path / "second"
+    second_work.mkdir()
+    second = tool._download_artifact(
+        second_work,
+        run_id="1",
+        artifact_name="artifact",
+        artifact_id=123,
+        artifact_zip_sha256=artifact_sha,
+        cache_root=cache_root,
+    )
+
+    assert second == "HIT"
+    assert {path.name for path in second_work.iterdir()} == tool.ARTIFACT_OUTER_FILES
 
 
 def test_transfer_requested_image_is_capacity_gated_and_single_file(
@@ -540,6 +701,8 @@ def test_cli_exposes_preflight_and_apply_with_explicit_authorization() -> None:
     assert 'parser.add_argument("--authorization-id")' in source
     assert 'parser.add_argument("--artifact-id", type=int, required=True)' in source
     assert 'parser.add_argument("--artifact-zip-sha256", required=True)' in source
+    assert '"--artifact-cache-root"' in source
+    assert "DEFAULT_ARTIFACT_CACHE_ROOT" in source
     assert "artifact_zip_sha256_mismatch" in source
     assert "authorization_id_mismatch" in source
     assert '"docker_mutation": False' in source
