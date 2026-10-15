@@ -1,3 +1,12 @@
+## 2026-10-15 — KF-120 live control repair CLOSED_PASS
+
+- Running T1 launcher-only control repair completed without restarting Broker, Manager or Home Assistant.
+- Container IDs and StartedAt timestamps were identical before and after the update.
+- Transaction remains `RUNTIME_STARTED`, product runtime remains active, persistence remains disabled.
+- Exact installed source is now `ffcbb1a...`.
+- KF-120 is `CLOSED_PASS_LIVE_REVALIDATED`.
+- Next gate requires a new distinct runtime-acceptance authorization: `N3W_T1_F4_RUNTIME_ACCEPTANCE_LIVE_20261015_01`.
+
 ## 2026-10-15 — F4 runtime continuation authority live control repair authorized
 
 - Explicit authorization granted for `N3W_T1_F4_RUNTIME_CONTINUATION_AUTHORITY_CONTROL_REPAIR_LIVE_20261015_01`.
