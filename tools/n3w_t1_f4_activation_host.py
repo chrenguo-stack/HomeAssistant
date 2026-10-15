@@ -146,6 +146,19 @@ def _systemctl(mode: str, unit: str) -> str:
     return completed.stdout.strip() or "unknown"
 
 
+def _runtime_activity() -> dict[str, object]:
+    broker_state = _systemctl("is-active", BROKER_UNIT)
+    services_state = _systemctl("is-active", SERVICES_UNIT)
+    active_states = {"active", "activating", "reloading"}
+    return {
+        "broker_active_state": broker_state,
+        "services_active_state": services_state,
+        "production_service_start": (
+            broker_state in active_states or services_state in active_states
+        ),
+    }
+
+
 def _sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
@@ -620,8 +633,23 @@ def _openssl_public_from_key(path: Path) -> str:
 
 
 def _validate_tls_material() -> None:
-    for path in (CA_CERT, SERVER_CERT, SERVER_KEY, CA_KEY, SYSTEM_CA):
+    expected = {
+        CA_CERT: (0, 0, 0o644),
+        SERVER_CERT: (0, 0, 0o644),
+        SERVER_KEY: (1883, 1883, 0o600),
+        CA_KEY: (0, 0, 0o600),
+        SYSTEM_CA: (0, 0, 0o600),
+    }
+    for path, (uid, gid, mode) in expected.items():
         _regular_source(path)
+        metadata = path.stat()
+        if (
+            metadata.st_uid != uid
+            or metadata.st_gid != gid
+            or stat.S_IMODE(metadata.st_mode) != mode
+            or metadata.st_nlink != 1
+        ):
+            raise F4Error(f"tls_material_metadata_invalid:{path.name}")
     if _openssl_public_from_cert(CA_CERT) != _openssl_public_from_key(CA_KEY):
         raise F4Error("broker_ca_key_mismatch")
     if _openssl_public_from_cert(SERVER_CERT) != _openssl_public_from_key(SERVER_KEY):
@@ -863,22 +891,35 @@ def _activate(confirmation: str) -> dict[str, object]:
             "board_access": False,
         }
     except Exception as error:
+        rollback_errors: list[str] = []
         if services_attempted:
             try:
                 _run(("systemctl", "stop", SERVICES_UNIT), timeout=120)
-            except Exception:
-                pass
+            except Exception as rollback_error:
+                rollback_errors.append(type(rollback_error).__name__)
         if broker_attempted:
             try:
                 _run(("systemctl", "stop", BROKER_UNIT), timeout=120)
-            except Exception:
-                pass
+            except Exception as rollback_error:
+                rollback_errors.append(type(rollback_error).__name__)
+        runtime = _runtime_activity()
+        rollback_proven = (
+            not bool(runtime["production_service_start"])
+            and not rollback_errors
+        )
+        stop_stage = (
+            "STOPPED_RUNTIME"
+            if rollback_proven
+            else "STOPPED_RUNTIME_ROLLBACK_UNPROVEN"
+        )
         try:
             _advance_transaction(
-                "STOPPED_RUNTIME",
+                stop_stage,
                 error_code=str(error)[:300],
-                production_service_start=False,
+                production_service_start=runtime["production_service_start"],
                 persistence_enabled=False,
+                rollback_proven=rollback_proven,
+                rollback_error_count=len(rollback_errors),
             )
         except Exception:
             pass
@@ -894,12 +935,15 @@ def _status() -> dict[str, object]:
     if transaction_present:
         transaction = _read_private_record(TRANSACTION_PATH)
         stage = str(transaction.get("stage", "UNKNOWN"))
+    runtime = _runtime_activity()
     return {
         "status": "PASS",
         "transaction_present": transaction_present,
         "factory_accepted_present": factory_present,
         "transaction_stage": stage,
-        "production_service_start": False,
+        "broker_active_state": runtime["broker_active_state"],
+        "services_active_state": runtime["services_active_state"],
+        "production_service_start": runtime["production_service_start"],
         "board_access": False,
     }
 
@@ -976,12 +1020,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         TypeError,
         ValueError,
     ) as error:
+        try:
+            runtime = _runtime_activity()
+        except Exception:
+            runtime = {
+                "production_service_start": None,
+                "broker_active_state": "unknown",
+                "services_active_state": "unknown",
+            }
         _emit(
             {
                 "schema": SCHEMA,
                 "status": "FAIL",
                 "error_code": str(error)[:400] or type(error).__name__,
-                "production_service_start": False,
+                "production_service_start": runtime[
+                    "production_service_start"
+                ],
+                "broker_active_state": runtime["broker_active_state"],
+                "services_active_state": runtime["services_active_state"],
                 "board_access": False,
             },
             error=True,
