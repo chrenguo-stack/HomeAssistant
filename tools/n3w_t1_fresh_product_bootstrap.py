@@ -17,7 +17,7 @@ from typing import Any, Sequence
 
 SCHEMA = "gh.n3w-t1-fresh-product-bootstrap/1"
 PAYLOAD_SCHEMA = "gh.n3w-t1-fresh-bootstrap-payload/1"
-AUTHORIZATION_ID = "N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R3_20261014_01"
+AUTHORIZATION_ID = "N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R4_20261015_01"
 CLAIM_MARKER_NAME = ".authorization-claimed"
 AUTHORIZATION_LEDGER_SCHEMA = "gh.n3w-t1-fresh-authorization-ledger/1"
 AUTHORIZATION_LEDGER_ROOT = Path("/var/lib/n3w-fresh-bootstrap-authorizations")
@@ -985,12 +985,19 @@ print(json.dumps({"status": "PASS"}))
         reuse_stage: bool = False,
     ):
         stage = candidate_root / "stage"
-        if stage.is_symlink():
-            raise BootstrapError("stage_root_symlink_forbidden")
-        if stage.exists():
-            if not reuse_stage or not stage.is_dir():
-                raise BootstrapError("stage_root_already_exists")
+        if candidate_root.is_symlink():
+            raise BootstrapError("candidate_root_symlink_forbidden")
+        if reuse_stage:
+            if not candidate_root.is_dir():
+                raise BootstrapError("candidate_root_missing")
+            if stage.is_symlink():
+                raise BootstrapError("stage_root_symlink_forbidden")
+            if not stage.is_dir():
+                raise BootstrapError("stage_root_missing")
         else:
+            if candidate_root.exists():
+                raise BootstrapError("candidate_root_already_exists")
+            candidate_root.mkdir(mode=0o700)
             stage.mkdir(mode=0o700)
 
         source_root = self.payload_root / "runtime-source/opt/HomeAssistant"
