@@ -23,7 +23,7 @@ BASELINE_RELATIVE = "tools/n3w_t1_fresh_host_baseline.py"
 EXPECTED_BLOBS = {
     IDENTITY_RELATIVE: "26a2f47c9c83fef5637f551ea75ba6b5d5ba3866",
     INVENTORY_RELATIVE: "073bbc936cef3648411a95023a59d6b7e04d4a32",
-    STAGING_RELATIVE: "2b54cca91190f7b70f4e6cc2bd9756f5925ca81b",
+    STAGING_RELATIVE: "f6b211428c64d6b7149fabc1bc89b9d1fe02c654",
     BASELINE_RELATIVE: "d6f72a7a595f7ba5b8d9d2e5dc06188dbfa973b2",
 }
 SCHEMA = "gh.n3w-t1-f2-fresh-readonly-preflight-execution/1"
