@@ -720,13 +720,27 @@ def _activation_eligibility(phase: str) -> dict[str, object]:
                 "PERSISTENCE_ENABLED",
             }
         ),
-        "certificate": frozenset({"RUNTIME_ACCEPTED", "PERSISTENCE_ENABLED"}),
+        "certificate": frozenset({"PERSISTENCE_ENABLED"}),
     }
     allowed = required.get(phase)
     if allowed is None:
         raise F4Error("eligibility_phase_invalid")
     if stage not in allowed:
         raise F4Error(f"f4_transaction_stage_not_eligible:{phase}:{stage}")
+    if phase == "certificate":
+        status_sha256 = transaction.get("certificate_status_sha256")
+        if (
+            transaction.get("broker_services_persistence_enabled") is not True
+            or transaction.get("certificate_first_audit_passed") is not True
+            or transaction.get("certificate_timer_enabled") is not True
+            or transaction.get("pre_reboot_ready") is not True
+            or not isinstance(status_sha256, str)
+            or re.fullmatch(r"[0-9a-f]{64}", status_sha256) is None
+            or not CERT_STATUS_FILE.is_file()
+            or CERT_STATUS_FILE.is_symlink()
+            or _sha256_file(CERT_STATUS_FILE) != status_sha256
+        ):
+            raise F4Error("certificate_runtime_not_authorized")
     _verify_installed_material(transaction)
     runtime = _runtime_activity()
     return {
