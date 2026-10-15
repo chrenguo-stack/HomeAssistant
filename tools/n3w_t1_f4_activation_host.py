@@ -1566,13 +1566,17 @@ def _homeassistant_runtime_contract(document: dict[str, object]) -> None:
                 True,
             ),
             "/config/configuration.yaml": (
-                "/opt/HomeAssistant/infra/n3w-t1/production/"
-                "homeassistant-configuration.yaml",
+                (
+                    "/opt/HomeAssistant/infra/n3w-t1/production/"
+                    "homeassistant-configuration.yaml"
+                ),
                 False,
             ),
             "/config/custom_components/n3w_mqtt_bootstrap": (
-                "/opt/HomeAssistant/infra/n3w-t1/homeassistant/"
-                "custom_components/n3w_mqtt_bootstrap",
+                (
+                    "/opt/HomeAssistant/infra/n3w-t1/homeassistant/"
+                    "custom_components/n3w_mqtt_bootstrap"
+                ),
                 False,
             ),
             "/run/secrets/gh_homeassistant_mqtt_password": (
@@ -1580,8 +1584,10 @@ def _homeassistant_runtime_contract(document: dict[str, object]) -> None:
                 False,
             ),
             "/run/n3w/ha-mqtt-bootstrap.json": (
-                "/opt/greenhouse-secrets/mqtt/homeassistant/"
-                "mqtt-bootstrap.json",
+                (
+                    "/opt/greenhouse-secrets/mqtt/homeassistant/"
+                    "mqtt-bootstrap.json"
+                ),
                 False,
             ),
         },
