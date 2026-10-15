@@ -118,8 +118,8 @@ F4_RUNTIME_ACCEPTANCE_PRESENT=false
 PRODUCT_CONTAINERS=0
 PRODUCT_LISTENERS=0
 
-INGRESS_GUARD_ACTIVE=true
 INGRESS_GUARD_ENABLED=true
+INGRESS_GUARD_ACTIVE=OBSERVE_ONLY:active_OR_inactive_ACCEPTABLE_BEFORE_F4_ACTIVATE
 PROVISION_RESUME_ENABLED=true
 
 BROKER_ACTIVATION_ACTIVE=false
@@ -170,6 +170,10 @@ An unexpected existing file is not overwritten and is a STOP for forensic classi
 
 The already-staged ingress-guard executable/unit and provisioning-resume unit are predecessor authorities and are
 not part of this absence list.
+
+The F3 staged installer enables the ingress-guard unit but does not start it. Therefore an inactive guard is valid
+at this pre-F4 stopped boundary. F4 activate explicitly starts the guard and requires active state before Broker
+startup. Read-only preauthorization must require guard enablement, not pre-activation active state.
 
 ## 6. Capacity contract
 
