@@ -643,7 +643,7 @@ def test_persistence_helper_remains_enable_only() -> None:
 
 
 def test_runtime_continuation_command_surface() -> None:
-    tool = load_tool()
+    load_tool()
     source = TOOL.read_text(encoding="utf-8")
 
     for command in (
@@ -887,3 +887,130 @@ def test_certificate_timer_enable_is_enable_only(
     assert result["state"] == "PRE_REBOOT_READY"
     assert result["certificate_timer_enabled"] is True
     assert result["certificate_timer_active_before_reboot"] is False
+
+
+def test_mount_contract_ignores_only_tmpfs_and_binds_exact_source(
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    document = {
+        "Mounts": [
+            {
+                "Type": "bind",
+                "Source": "/source/a",
+                "Destination": "/target/a",
+                "RW": False,
+            },
+            {
+                "Type": "tmpfs",
+                "Source": "",
+                "Destination": "/tmp",
+                "RW": True,
+            },
+        ]
+    }
+
+    tool._mount_contract(
+        document,
+        {"/target/a": ("/source/a", False)},
+        label="test",
+    )
+
+    document["Mounts"][0]["Source"] = "/source/drift"
+    with pytest.raises(tool.F4Error, match="mount_contract_invalid"):
+        tool._mount_contract(
+            document,
+            {"/target/a": ("/source/a", False)},
+            label="test",
+        )
+
+
+def test_manager_tmpfs_contract_accepts_semantic_sizes() -> None:
+    tool = load_tool()
+
+    tool._manager_tmpfs_contract(
+        {
+            "Tmpfs": {
+                "/tmp": "size=16m,mode=1777",
+                "/run/greenhouse-manager": (
+                    "size=4194304,mode=0700,uid=999,gid=999"
+                ),
+            }
+        }
+    )
+
+    with pytest.raises(tool.F4Error, match="manager_tmpfs_contract_invalid"):
+        tool._manager_tmpfs_contract(
+            {
+                "Tmpfs": {
+                    "/tmp": "size=16m,mode=1777",
+                    "/run/greenhouse-manager": (
+                        "size=4m,mode=0700,uid=0,gid=999"
+                    ),
+                }
+            }
+        )
+
+
+def test_broker_extra_unbound_exposed_port_is_allowed() -> None:
+    tool = load_tool()
+    document = {
+        "NetworkSettings": {
+            "Networks": {
+                "n3wfc4-private": {},
+                "n3wfc4-services": {},
+            },
+            "Ports": {
+                "1883/tcp": [
+                    {"HostIp": "127.0.0.1", "HostPort": "1883"}
+                ],
+                "8883/tcp": [
+                    {"HostIp": "0.0.0.0", "HostPort": "8883"}
+                ],
+                "9001/tcp": None,
+            },
+        },
+        "HostConfig": {},
+    }
+
+    tool._broker_runtime_contract(document)
+
+    document["NetworkSettings"]["Ports"]["9001/tcp"] = [
+        {"HostIp": "0.0.0.0", "HostPort": "9001"}
+    ]
+    with pytest.raises(tool.F4Error, match="unexpected_publication"):
+        tool._broker_runtime_contract(document)
+
+
+def test_manager_runtime_stability_requires_same_container_and_one_mqtt_socket(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    clock = iter([0.0, 10.0])
+    monkeypatch.setattr(tool.time, "monotonic", lambda: next(clock))
+    monkeypatch.setattr(tool.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(
+        tool,
+        "_compose_service_inspect",
+        lambda _service: {
+            "Id": "manager-container",
+            "State": {
+                "Running": True,
+                "StartedAt": "2026-10-15T00:00:00Z",
+            },
+        },
+    )
+    monkeypatch.setattr(
+        tool,
+        "_container_established_socket_count",
+        lambda _container, _port: 1,
+    )
+
+    report = tool._manager_runtime_stability(
+        "manager",
+        expected_id="manager-container",
+        expected_started_at="2026-10-15T00:00:00Z",
+    )
+
+    assert report["container_identity_stable"] is True
+    assert report["mqtt_socket_stable"] is True
