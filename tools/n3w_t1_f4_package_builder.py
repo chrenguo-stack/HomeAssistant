@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 from __future__ import annotations
 
 import argparse
@@ -113,7 +112,7 @@ def build_package(
             "production_service_start": False,
             "board_access": False,
         }
-    except Exception:
+    except (OSError, PackageBuildError, RuntimeError, ValueError):
         shutil.rmtree(destination, ignore_errors=True)
         raise
 
