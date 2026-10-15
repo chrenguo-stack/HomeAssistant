@@ -1493,6 +1493,64 @@ def _runtime_image_acceptance(
     }
 
 
+def _product_container_guard(
+    release: dict[str, object],
+    inspects: dict[str, dict[str, object]],
+) -> dict[str, object]:
+    expected_ids = {
+        str(document.get("Id"))
+        for document in inspects.values()
+        if isinstance(document.get("Id"), str)
+    }
+    if len(expected_ids) != 3:
+        raise F4Error("expected_runtime_container_set_invalid")
+    images = release.get("images")
+    if not isinstance(images, dict):
+        raise F4Error("release_images_invalid")
+    product_images = {
+        str(images[label]["image"])
+        for label in ("broker", "manager", "homeassistant")
+    }
+    identifiers = tuple(
+        line.strip()
+        for line in _run(
+            ("docker", "ps", "--format", "{{.ID}}"),
+            timeout=30,
+        ).splitlines()
+        if line.strip()
+    )
+    if not identifiers:
+        raise F4Error("running_container_inventory_empty")
+    try:
+        documents = json.loads(
+            _run(("docker", "inspect", *identifiers), timeout=30)
+        )
+    except json.JSONDecodeError as error:
+        raise F4Error("running_container_inventory_invalid") from error
+    if not isinstance(documents, list):
+        raise F4Error("running_container_inventory_invalid")
+    seen_expected: set[str] = set()
+    unexpected = 0
+    for document in documents:
+        if not isinstance(document, dict):
+            raise F4Error("running_container_inventory_invalid")
+        identifier = document.get("Id")
+        config = document.get("Config")
+        if not isinstance(identifier, str) or not isinstance(config, dict):
+            raise F4Error("running_container_inventory_invalid")
+        if identifier in expected_ids:
+            seen_expected.add(identifier)
+            continue
+        if config.get("Image") in product_images:
+            unexpected += 1
+    if seen_expected != expected_ids or unexpected != 0:
+        raise F4Error("unexpected_product_container_running")
+    return {
+        "expected_product_container_count": 3,
+        "unexpected_product_container_count": 0,
+    }
+
+
 def _broker_runtime_contract(document: dict[str, object]) -> None:
     network = document.get("NetworkSettings")
     host = document.get("HostConfig")
@@ -1746,6 +1804,10 @@ def _verified_tls_runtime() -> dict[str, object]:
 def _guard_runtime_verify() -> dict[str, object]:
     source = Path("/usr/local/sbin/n3w-broker-ingress-guard")
     _regular_source(source)
+    if _systemctl("is-active", GUARD_UNIT) != "active":
+        raise F4Error("ingress_guard_not_active")
+    if _systemctl("is-enabled", GUARD_UNIT) != "enabled":
+        raise F4Error("ingress_guard_not_enabled")
     script = r"""
 import json
 import runpy
@@ -1775,7 +1837,12 @@ print(json.dumps({
         or document.get("last_drop") is not True
     ):
         raise F4Error("guard_runtime_verify_failed")
-    return document
+    return {
+        **document,
+        "active": True,
+        "enabled": True,
+        "effective": True,
+    }
 
 
 def _container_established_socket_count(
@@ -2029,6 +2096,130 @@ print(json.dumps({
     raise F4Error("homeassistant_private_runtime_audit_failed")
 
 
+def _homeassistant_http_readiness() -> dict[str, object]:
+    deadline = time.monotonic() + 60
+    last_error = "not_attempted"
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection(("127.0.0.1", 8123), timeout=5) as stream:
+                stream.settimeout(5)
+                stream.sendall(
+                    b"GET /api/ HTTP/1.1\r\n"
+                    b"Host: 127.0.0.1\r\n"
+                    b"Connection: close\r\n\r\n"
+                )
+                first = stream.recv(256).split(b"\r\n", 1)[0]
+            parts = first.split()
+            if (
+                len(parts) >= 2
+                and parts[0].startswith(b"HTTP/")
+                and parts[1].isdigit()
+            ):
+                status = int(parts[1])
+                if status in {200, 401}:
+                    return {
+                        "ready": True,
+                        "http_status": status,
+                    }
+                last_error = f"http_status_{status}"
+            else:
+                last_error = "http_status_line_invalid"
+        except OSError as error:
+            last_error = type(error).__name__
+        time.sleep(2)
+    raise F4Error(f"homeassistant_http_readiness_failed:{last_error}")
+
+
+def _service_identity_runtime_binding(
+    manager_document: dict[str, object],
+    *,
+    expected_system_id: str,
+) -> dict[str, object]:
+    config = manager_document.get("Config")
+    if not isinstance(config, dict) or not isinstance(config.get("Env"), list):
+        raise F4Error("manager_environment_invalid")
+    environment = {
+        item.split("=", 1)[0]: item.split("=", 1)[1]
+        for item in config["Env"]
+        if isinstance(item, str) and "=" in item
+    }
+    manager = _private_service_json(
+        SERVICE_SECRET_ROOT / "manager/identity.json",
+        uid=999,
+        gid=999,
+    )
+    provisioning = _private_service_json(
+        SERVICE_SECRET_ROOT / "provisioning/identity.json",
+        uid=999,
+        gid=999,
+    )
+    homeassistant = _private_service_json(
+        SERVICE_SECRET_ROOT / "homeassistant/identity.json",
+        uid=0,
+        gid=0,
+    )
+    bootstrap = _private_service_json(
+        SERVICE_SECRET_ROOT / "homeassistant/mqtt-bootstrap.json",
+        uid=0,
+        gid=0,
+    )
+    identities = {
+        "manager": manager,
+        "provisioning": provisioning,
+        "homeassistant": homeassistant,
+    }
+    for service, identity in identities.items():
+        if (
+            identity.get("service") != service
+            or identity.get("system_id") != expected_system_id
+            or not isinstance(identity.get("generation"), int)
+            or not isinstance(identity.get("username"), str)
+            or not identity.get("username")
+            or not isinstance(identity.get("client_id"), str)
+            or not identity.get("client_id")
+        ):
+            raise F4Error(f"service_identity_binding_invalid:{service}")
+    if (
+        environment.get("GH_SYSTEM_ID") != expected_system_id
+        or environment.get("GH_MQTT_USERNAME") != manager["username"]
+        or environment.get("GH_MQTT_CLIENT_ID") != manager["client_id"]
+        or environment.get("GH_N3W_PROVISIONING_USERNAME")
+        != provisioning["username"]
+        or environment.get("GH_N3W_PROVISIONING_CLIENT_ID")
+        != provisioning["client_id"]
+    ):
+        raise F4Error("manager_runtime_service_identity_drift")
+    if (
+        bootstrap.get("schema")
+        != "gh.n3w.t1-clean-homeassistant-mqtt-bootstrap/1"
+        or bootstrap.get("service") != "homeassistant"
+        or bootstrap.get("username") != homeassistant["username"]
+        or bootstrap.get("client_id") != homeassistant["client_id"]
+        or bootstrap.get("generation") != homeassistant["generation"]
+        or bootstrap.get("broker") != "127.0.0.1"
+        or bootstrap.get("port") != 1883
+        or str(bootstrap.get("protocol")) != "5"
+        or bootstrap.get("official_config_flow_only") is not True
+        or bootstrap.get("direct_storage_edit_forbidden") is not True
+        or bootstrap.get("automatic_apply") is not True
+        or bootstrap.get("runtime_verified") is not False
+    ):
+        raise F4Error("homeassistant_bootstrap_identity_drift")
+    usernames = {str(identity["username"]) for identity in identities.values()}
+    client_ids = {str(identity["client_id"]) for identity in identities.values()}
+    if len(usernames) != 3 or len(client_ids) != 3:
+        raise F4Error("service_identity_distinctness_invalid")
+    return {
+        "manager_identity_exact": True,
+        "provisioning_identity_exact": True,
+        "homeassistant_identity_exact": True,
+        "manager_runtime_identity_exact": True,
+        "homeassistant_bootstrap_identity_exact": True,
+        "service_usernames_distinct": True,
+        "service_client_ids_distinct": True,
+    }
+
+
 def _root_identity_runtime_audit(manager_image: str) -> dict[str, object]:
     script = r"""
 import json
@@ -2260,9 +2451,14 @@ def _runtime_acceptance_report() -> dict[str, object]:
         for label in ("broker", "manager", "homeassistant")
     }
     image_bindings = _runtime_image_acceptance(release, inspects)
+    product_containers = _product_container_guard(release, inspects)
     _broker_runtime_contract(inspects["broker"])
     _manager_runtime_contract(inspects["manager"])
     _homeassistant_runtime_contract(inspects["homeassistant"])
+    identity_binding = _service_identity_runtime_binding(
+        inspects["manager"],
+        expected_system_id=str(verified["system_id"]),
+    )
 
     guard = _guard_runtime_verify()
     tls = _verified_tls_runtime()
@@ -2291,6 +2487,7 @@ def _runtime_acceptance_report() -> dict[str, object]:
     manager_socket_count = 1
 
     homeassistant = _homeassistant_private_audit(homeassistant_name)
+    homeassistant_readiness = _homeassistant_http_readiness()
     ha_socket_count = _container_established_socket_count(
         homeassistant_name,
         1883,
@@ -2322,14 +2519,17 @@ def _runtime_acceptance_report() -> dict[str, object]:
         ],
         "running_services": sorted(running),
         "image_bindings": image_bindings,
+        "product_containers": product_containers,
         "broker_port_binding_exact": True,
         "broker_network_set_exact": True,
+        "service_identity_binding": identity_binding,
         "ingress_guard": guard,
         "tls": tls,
         "manager_runtime_stability": manager_stability,
         "manager_state": manager_state,
         "manager_mqtt_socket_count": manager_socket_count,
         "homeassistant": homeassistant,
+        "homeassistant_readiness": homeassistant_readiness,
         "homeassistant_mqtt_socket_count": ha_socket_count,
         "identity_runtime_audit": root_audit,
         "broker_auth_probe": auth_probe,
