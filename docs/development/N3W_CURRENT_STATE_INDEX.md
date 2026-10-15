@@ -1,3 +1,20 @@
+## 2026-10-15 — KF-117 live repair CLOSED_PASS
+
+- Exact successor repair authorization was claimed/consumed once and is no-replay.
+- Transaction returned to `PREPARED` bound to source `2b30e541...` and manifest `4407e16e...`.
+- The repaired installed launcher executed directly for both `status` and `eligibility --phase inspect`; both PASS.
+- Broker/Services remained inactive; running_services=[]; production_service_start=false.
+- The later local hash-display helper failed in zsh quoting after the successful remote repair and direct-execution checks; classified as local evidence-wrapper failure, not T1/product failure.
+- KF-117 is now `CLOSED_PASS_LIVE_REVALIDATED`.
+- Next gate requires separate explicit authorization: `N3W_T1_F4_ACTIVATE_TO_RUNTIME_STARTED_LIVE_20261015_01`.
+
+## 2026-10-15 — KF-117 PREPARED live control repair authorized
+
+- Explicit authorization granted for `N3W_T1_F4_KF117_PREPARED_CONTROL_REPAIR_LIVE_20261015_01`.
+- Scope is limited to exact replacement of the defective F4 launcher and transaction rebinding back to `PREPARED`.
+- Original PREPARE remains permanently consumed/no-replay.
+- No Broker/Manager/Home Assistant start, persistence, certificate lifecycle mutation, reboot or board access is authorized.
+
 ## 2026-10-15 — KF-117 PREPARED repair preflight CLOSED_PASS
 
 - Exact defective launcher binding confirmed on the real T1.
