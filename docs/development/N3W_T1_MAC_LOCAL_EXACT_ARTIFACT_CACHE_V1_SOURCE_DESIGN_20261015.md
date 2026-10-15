@@ -81,19 +81,26 @@ cache entry 以 artifact ID + exact ZIP SHA256 隔离，不允许只按文件名
 
 因此 local cache 不能绕过任何已有 binding。
 
-## 3. 默认目录
+## 3. 持久目录
 
-V1 默认：
+V1 不再使用 `~/.cache`。这些 exact artifact 是后续重复部署可长期复用的生产输入，不应放在
+可能被系统或清理工具当作临时缓存处理的目录。
+
+默认使用用户可见、长期保留的目录：
 
 ```text
-~/.cache/n3w-t1/exact-artifacts/
+~/Documents/N3W/exact-artifacts/
   <artifact_id>/
     <artifact_zip_sha256>/
       artifact.zip
       binding.json
 ```
 
-CLI 允许通过 `--artifact-cache-root` 指定其他 Mac 本地目录。
+操作者也可以通过 `--artifact-cache-root <path>` 人工指定其他固定目录，例如外置磁盘、
+专用项目目录或 `~/Downloads/N3W-exact-artifacts`。显式参数优先于默认目录。
+
+选择 `~/Documents/N3W/exact-artifacts` 而不是 Downloads 作为默认值，是因为 Downloads
+仍常被人工或清理工具定期整理；Documents 更符合“长期 artifact store”的产品语义。
 
 `binding.json` 只允许公开安全字段：
 
@@ -195,7 +202,7 @@ docs/development/*
 3. cache hit binding mismatch -> fail closed；
 4. cache miss -> metadata PASS -> download -> SHA PASS -> atomic cache publish；
 5. cache miss 首次成功后第二次运行 -> cache hit；
-6. CLI 暴露 `--artifact-cache-root`；
+6. 默认路径固定为 `~/Documents/N3W/exact-artifacts`，CLI 暴露 `--artifact-cache-root` 人工覆盖；
 7. existing inner artifact/image verification remains after cache acquisition；
 8. authorization claim ordering仍在完整 local exact verification之后。
 
