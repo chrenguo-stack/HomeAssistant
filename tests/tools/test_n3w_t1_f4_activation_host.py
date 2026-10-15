@@ -833,6 +833,7 @@ def test_runtime_continuation_command_surface() -> None:
     source = TOOL.read_text(encoding="utf-8")
 
     for command in (
+        "repair-runtime-continuation-authority",
         "accept-runtime",
         "enable-persistence",
         "certificate-audit",
@@ -849,7 +850,8 @@ def test_accept_runtime_advances_only_after_report_persisted(
     events: list[str] = []
     verified_state = verified(tool)
     transaction = {
-        "authorization_id": "N3W_T1_F4_TEST_AUTH_05",
+        "authorization_id": "N3W_T1_F4_PREPARE_AUTH_05",
+        "activation_authorization_id": "N3W_T1_F4_ACTIVATE_AUTH_05",
         "stage": "RUNTIME_STARTED",
     }
     report = {
@@ -885,9 +887,10 @@ def test_accept_runtime_advances_only_after_report_persisted(
         or {"stage": stage},
     )
 
-    result = tool._accept_runtime("N3W_T1_F4_TEST_AUTH_05")
+    result = tool._accept_runtime("N3W_T1_F4_ACCEPT_RUNTIME_AUTH_05")
 
     assert events == [
+        "advance:RUNTIME_STARTED",
         "acceptance",
         f"persist:{tool.RUNTIME_ACCEPTANCE_PATH.name}",
         "advance:RUNTIME_ACCEPTED",
@@ -903,7 +906,8 @@ def test_accept_runtime_failure_uses_fail_closed_rollback(
     tool = load_tool()
     verified_state = verified(tool)
     transaction = {
-        "authorization_id": "N3W_T1_F4_TEST_AUTH_06",
+        "authorization_id": "N3W_T1_F4_PREPARE_AUTH_06",
+        "activation_authorization_id": "N3W_T1_F4_ACTIVATE_AUTH_06",
         "stage": "RUNTIME_STARTED",
     }
     rollback: list[str] = []
@@ -927,7 +931,7 @@ def test_accept_runtime_failure_uses_fail_closed_rollback(
     )
 
     with pytest.raises(tool.F4Error, match="acceptance_failed"):
-        tool._accept_runtime("N3W_T1_F4_TEST_AUTH_06")
+        tool._accept_runtime("N3W_T1_F4_ACCEPT_RUNTIME_AUTH_06")
 
     assert rollback == ["RUNTIME_ACCEPTANCE"]
 
@@ -938,7 +942,11 @@ def test_persistence_enables_only_broker_and_services(
     tool = load_tool()
     verified_state = verified(tool)
     transaction = {
-        "authorization_id": "N3W_T1_F4_TEST_AUTH_07",
+        "authorization_id": "N3W_T1_F4_PREPARE_AUTH_07",
+        "activation_authorization_id": "N3W_T1_F4_ACTIVATE_AUTH_07",
+        "runtime_acceptance_authorization_id": (
+            "N3W_T1_F4_ACCEPT_RUNTIME_AUTH_07"
+        ),
         "stage": "RUNTIME_ACCEPTED",
         "runtime_acceptance_passed": True,
     }
@@ -1000,7 +1008,9 @@ def test_persistence_enables_only_broker_and_services(
         lambda stage, **_fields: {"stage": stage},
     )
 
-    result = tool._enable_persistence("N3W_T1_F4_TEST_AUTH_07")
+    result = tool._enable_persistence(
+        "N3W_T1_F4_ENABLE_PERSISTENCE_AUTH_07"
+    )
 
     assert (
         "systemctl",
@@ -1029,7 +1039,17 @@ def test_certificate_timer_enable_is_enable_only(
     tool = load_tool()
     verified_state = verified(tool)
     transaction = {
-        "authorization_id": "N3W_T1_F4_TEST_AUTH_08",
+        "authorization_id": "N3W_T1_F4_PREPARE_AUTH_08",
+        "activation_authorization_id": "N3W_T1_F4_ACTIVATE_AUTH_08",
+        "runtime_acceptance_authorization_id": (
+            "N3W_T1_F4_ACCEPT_RUNTIME_AUTH_08"
+        ),
+        "persistence_authorization_id": (
+            "N3W_T1_F4_ENABLE_PERSISTENCE_AUTH_08"
+        ),
+        "certificate_audit_authorization_id": (
+            "N3W_T1_F4_CERTIFICATE_AUDIT_AUTH_08"
+        ),
         "stage": "PERSISTENCE_ENABLED",
         "certificate_first_audit_passed": True,
         "certificate_status_sha256": "a" * 64,
@@ -1109,7 +1129,7 @@ def test_certificate_timer_enable_is_enable_only(
     )
 
     result = tool._enable_certificate_timer(
-        "N3W_T1_F4_TEST_AUTH_08"
+        "N3W_T1_F4_CERTIFICATE_TIMER_AUTH_08"
     )
 
     assert calls == [("systemctl", "enable", tool.CERT_TIMER)]
@@ -1828,6 +1848,209 @@ def test_activate_allows_successor_only_after_bounded_recovery(
         stages[0][1]["activation_authorization_history"]
     )
     assert result["state"] == "RUNTIME_STARTED"
+
+
+def test_successor_authorization_rejects_any_prior_f4_authority() -> None:
+    tool = load_tool()
+    transaction = {
+        "authorization_id": "N3W_T1_F4_PREPARE_AUTH",
+        "control_repair_authorization_id": "N3W_T1_F4_CONTROL_REPAIR_AUTH",
+        "activation_authorization_id": "N3W_T1_F4_ACTIVATE_AUTH",
+        "runtime_acceptance_authorization_id": "N3W_T1_F4_ACCEPT_AUTH",
+        "activation_authorization_history": [
+            "N3W_T1_F4_OLD_ACTIVATE_AUTH"
+        ],
+    }
+
+    for prior in (
+        "N3W_T1_F4_PREPARE_AUTH",
+        "N3W_T1_F4_CONTROL_REPAIR_AUTH",
+        "N3W_T1_F4_ACTIVATE_AUTH",
+        "N3W_T1_F4_ACCEPT_AUTH",
+        "N3W_T1_F4_OLD_ACTIVATE_AUTH",
+    ):
+        with pytest.raises(
+            tool.F4Error,
+            match="continuation_authorization_not_distinct",
+        ):
+            tool._validate_successor_authorization(
+                transaction,
+                prior,
+                claimed_field="persistence_authorization_claimed",
+                invalid_code="invalid",
+                replay_code="replay",
+            )
+
+
+def test_runtime_continuation_authority_repair_keeps_runtime_running(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    package_root = tmp_path / "package"
+    launcher_relative = "tools/n3w_t1_f4_activation_host.py"
+    launcher_source = package_root / launcher_relative
+    launcher_source.parent.mkdir(parents=True)
+    launcher_source.write_text(
+        "#!/usr/bin/python3\nprint('continuation authority')\n",
+        encoding="utf-8",
+    )
+    launcher_sha = tool._sha256_file(launcher_source)
+
+    package_files = {}
+    installed_files = {}
+    for relative, (target, mode) in tool.INSTALL_MAP.items():
+        if relative == launcher_relative:
+            package_files[relative] = {
+                "sha256": launcher_sha,
+                "size": launcher_source.stat().st_size,
+            }
+            installed_files[str(target)] = {
+                "sha256": (
+                    tool.RUNTIME_CONTINUATION_AUTHORITY_REPAIR_FROM_LAUNCHER_SHA256
+                ),
+                "size": 100,
+                "mode": mode,
+                "uid": 0,
+                "gid": 0,
+            }
+        else:
+            package_files[relative] = {"sha256": "d" * 64, "size": 10}
+            installed_files[str(target)] = {
+                "sha256": "d" * 64,
+                "size": 10,
+                "mode": mode,
+                "uid": 0,
+                "gid": 0,
+            }
+
+    for target in (tool.COMPOSE_TARGET, tool.BROKER_ENV, tool.CERT_ENV):
+        installed_files[str(target)] = {
+            "sha256": "e" * 64,
+            "size": 20,
+            "mode": 0o600,
+            "uid": 0,
+            "gid": 0,
+        }
+
+    transaction = {
+        "stage": "RUNTIME_STARTED",
+        "runtime_started": True,
+        "runtime_acceptance_required": True,
+        "production_service_start": True,
+        "persistence_enabled": False,
+        "authorization_id": "N3W_T1_F4_PREPARE_AUTH",
+        "activation_authorization_id": "N3W_T1_F4_ACTIVATE_R2_AUTH",
+        "package_source_head": (
+            tool.RUNTIME_CONTINUATION_AUTHORITY_REPAIR_FROM_SOURCE_HEAD
+        ),
+        "package_manifest_sha256": (
+            tool.RUNTIME_CONTINUATION_AUTHORITY_REPAIR_FROM_MANIFEST_SHA256
+        ),
+        "installed_files": installed_files,
+    }
+    package = {
+        "root": package_root,
+        "manifest_sha256": "f" * 64,
+        "source_head": "1" * 40,
+        "files": package_files,
+    }
+    stages = []
+    snapshot = {
+        "broker": {"id": "b", "started_at": "1"},
+        "manager": {"id": "m", "started_at": "1"},
+        "homeassistant": {"id": "h", "started_at": "1"},
+    }
+
+    monkeypatch.setattr(tool, "_validate_package", lambda *_a, **_k: package)
+    monkeypatch.setattr(tool, "_exclusive_f4", nullcontext)
+    monkeypatch.setattr(tool, "_provision_verify", lambda: verified(tool))
+    monkeypatch.setattr(tool, "_validate_factory_binding", lambda _v: {})
+    monkeypatch.setattr(
+        tool,
+        "_validate_transaction_binding",
+        lambda _v: transaction,
+    )
+    monkeypatch.setattr(tool, "_verify_installed_material", lambda _t: None)
+    monkeypatch.setattr(
+        tool,
+        "_runtime_activity",
+        lambda: {
+            "production_service_start": True,
+            "running_services": ["broker", "homeassistant", "manager"],
+        },
+    )
+    monkeypatch.setattr(tool, "_runtime_container_snapshot", lambda: snapshot)
+    monkeypatch.setattr(
+        tool,
+        "_advance_transaction",
+        lambda stage, **fields: stages.append((stage, fields))
+        or {**transaction, **fields, "stage": stage},
+    )
+
+    def replace_file(
+        source,
+        target,
+        mode,
+        *,
+        expected_current,
+        expected_sha256,
+        expected_size,
+    ):
+        assert source == launcher_source
+        assert target == tool.INSTALL_MAP[launcher_relative][0]
+        assert mode == 0o755
+        assert expected_current["sha256"] == (
+            tool.RUNTIME_CONTINUATION_AUTHORITY_REPAIR_FROM_LAUNCHER_SHA256
+        )
+        assert expected_sha256 == launcher_sha
+        assert expected_size == launcher_source.stat().st_size
+
+    monkeypatch.setattr(tool, "_atomic_replace_bound_file", replace_file)
+    monkeypatch.setattr(
+        tool,
+        "_file_binding",
+        lambda _path: {
+            "sha256": launcher_sha,
+            "size": launcher_source.stat().st_size,
+            "mode": 0o755,
+            "uid": 0,
+            "gid": 0,
+        },
+    )
+    monkeypatch.setattr(
+        tool,
+        "_read_private_record",
+        lambda _path: {
+            **transaction,
+            "installed_files": {
+                **installed_files,
+                str(tool.INSTALL_MAP[launcher_relative][0]): {
+                    "sha256": launcher_sha,
+                    "size": launcher_source.stat().st_size,
+                    "mode": 0o755,
+                    "uid": 0,
+                    "gid": 0,
+                },
+            },
+        },
+    )
+
+    report = tool._repair_runtime_continuation_authority(
+        package_root,
+        tool.RUNTIME_CONTINUATION_AUTHORITY_REPAIR_CONFIRMATION,
+        "N3W_T1_F4_RUNTIME_CONTINUATION_REPAIR_TEST",
+        "f" * 64,
+        "1" * 40,
+    )
+
+    assert stages[0][0] == "RUNTIME_STARTED"
+    assert stages[-1][0] == "RUNTIME_STARTED"
+    assert report["runtime_continuation_authority_repair_passed"] is True
+    assert report["production_service_start"] is True
+    assert report[
+        "runtime_continuation_authority_repair_authorization_consumed"
+    ] is True
 
 
 def test_mount_contract_ignores_only_tmpfs_and_binds_exact_source(
