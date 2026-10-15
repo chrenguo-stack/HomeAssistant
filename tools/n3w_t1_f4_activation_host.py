@@ -2802,8 +2802,6 @@ print(json.dumps({"count": len(inodes & owned)}))
                 (
                     "docker",
                     "exec",
-                    "--user",
-                    "0:0",
                     container,
                     "python3",
                     "-c",
@@ -2839,8 +2837,11 @@ def _manager_runtime_stability(
             or state.get("Running") is not True
         ):
             raise F4Error("manager_runtime_identity_changed")
-        if _container_established_socket_count(container, 8883) != 1:
-            raise F4Error("manager_mqtt_socket_count_invalid")
+        socket_count = _container_established_socket_count(container, 8883)
+        if socket_count != 1:
+            raise F4Error(
+                f"manager_mqtt_socket_count_invalid:{socket_count}"
+            )
         samples += 1
         if time.monotonic() >= deadline:
             break
