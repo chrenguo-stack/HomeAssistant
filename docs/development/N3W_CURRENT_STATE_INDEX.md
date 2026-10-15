@@ -1,3 +1,10 @@
+## 2026-10-15 — KF-117 PREPARED repair preflight CLOSED_PASS
+
+- Exact defective launcher binding confirmed on the real T1.
+- F4 transaction remains `PREPARED`; Factory Accepted is present; Broker/Services are inactive; no production runtime is running.
+- Original PREPARE authorization remains consumed/no-replay.
+- Next gate requires a new explicit live repair authorization: `N3W_T1_F4_KF117_PREPARED_CONTROL_REPAIR_LIVE_20261015_01`.
+
 ## 2026-10-15 — KF-117 F4 installed launcher source repair CLOSED_PASS
 
 - Original F4 PREPARE returned PASS and permanently consumed its authorization.
