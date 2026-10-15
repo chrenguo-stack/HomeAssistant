@@ -1,7 +1,7 @@
 ## 2026-10-15 — KF-116 F3 public-only candidate-root creation guard
 
 ```text
-KF-116_STATUS=SOURCE_REPAIRED_LIVE_REVALIDATION_PENDING
+KF-116_STATUS=CLOSED_PASS_LIVE_REVALIDATED
 DOMAIN=PHYSICAL_HARNESS
 LIVE_RESULT=STOP_PARTIAL
 FAILED_STAGE=public_runtime
@@ -19,9 +19,16 @@ REPAIRED_SOURCE_CI=15_SUCCESS_0_FAILURE_0_PENDING
 R4_EXACT_ARTIFACT_ID=11942497052
 R4_EXACT_ARTIFACT_DIGEST=sha256:1a8813b788fc4d597acfaafee417daa4bf6fc4bd3ea547d22dd1d689c462c4af
 R4_PREAUTH_RESULT=CLOSED_PASS
-R4_LEDGER_PRESENT=false
-R4_AUTHORIZATION_GRANTED=false
-NEXT_ONE_GATE=N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R4_20261015_01
+R4_LEDGER_PRESENT=true
+R4_AUTHORIZATION_GRANTED=true
+R4_AUTHORIZATION_CLAIMED=true
+R4_AUTHORIZATION_CONSUMED=true
+R4_AUTHORIZATION_REPLAY_PERMITTED=false
+R4_LIVE_REVALIDATION=PASS:PUBLIC_PRODUCT_STAGED_AND_HOST_WRAPPER_PASS
+R4_REMOTE_PAYLOAD_REMOVED=true
+R4_PRODUCTION_SERVICE_START=false
+R4_BOARD_ACCESS=false
+NEXT_ONE_GATE=NONE:R4_CLOSURE_STOP
 ```
 
 Guard: the public-only staging path must atomically create its exact fresh candidate root before creating the
@@ -29,11 +36,14 @@ Guard: the public-only staging path must atomically create its exact fresh candi
 path must continue to require an already-valid stage created by the instance path. Add a real live-adapter
 regression test for a non-existent public-only candidate root and a negative existing/symlink-root case.
 
-R3 is permanently consumed and must not be replayed. A repaired live attempt requires a new exact source,
-new exact deployable artifact and new one-shot authorization.
+R3 is permanently consumed and must not be replayed. R4 completed the repaired live path successfully and its
+one-shot authorization is now also permanently consumed/no-replay. Future explicit provisioning or F4 work
+requires a separate gate and must not reuse R4.
 
-Authority:
-`docs/development/N3W_T1_F3_R3_PUBLIC_RUNTIME_CANDIDATE_ROOT_FAILURE_20261015.md`.
+Authorities:
+- `docs/development/N3W_T1_F3_R3_PUBLIC_RUNTIME_CANDIDATE_ROOT_FAILURE_20261015.md`
+- `docs/development/N3W_T1_F3_PUBLIC_RUNTIME_CANDIDATE_ROOT_R4_SOURCE_REPAIR_CLOSURE_20261015.md`
+- `docs/development/N3W_T1_F3_R4_LIVE_APPLY_CLOSURE_20261015.md`.
 
 ## 2026-10-14 — KF-115 F3 image-tar atomic publish guard
 
