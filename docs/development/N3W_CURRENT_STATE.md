@@ -1,3 +1,39 @@
+## 2026-10-15 — Mac local exact artifact cache V1 source CLOSED_PASS / Mac acceptance next
+
+```text
+TASK=N3W_T1_MAC_LOCAL_EXACT_ARTIFACT_CACHE_V1_SOURCE_DESIGN_AND_REPAIR_20261015_01
+RESULT=CLOSED_SOURCE_PASS
+
+PR=545
+SOURCE_HEAD=d1a7847c1e0612ac80b31b85262011110f329794
+CI=14_SUCCESS_0_FAILURE_0_PENDING
+
+DEFAULT_DURABLE_STORE=~/Documents/N3W/exact-artifacts
+CUSTOM_STORE_SUPPORTED=true
+CACHE_HIT_REHASH_REQUIRED=true
+CACHE_HIT_GITHUB_LARGE_DOWNLOAD=false
+CACHE_CORRUPTION_FAIL_CLOSED=true
+CACHE_MISS_ATOMIC_PUBLISH=true
+
+REAL_MAC_CACHE_POPULATION=false
+REAL_MAC_CACHE_HIT_ACCEPTANCE=false
+T1_ACCESS=false
+EXPLICIT_DEVICE_PROVISIONING=false
+F4=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_MAC_LOCAL_EXACT_ARTIFACT_CACHE_V1_MAC_ACCEPTANCE_20261015_01
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+The post-R4 local artifact optimization is now source-closed. Exact cache entries are stored in a durable
+Mac location, are bound by artifact identity plus ZIP SHA-256, are re-hashed on every hit, and keep the
+existing inner payload/image binding checks. Corrupt/mismatched existing entries fail closed instead of
+silently re-downloading. The source Gate did not access T1 or enter provisioning/F4.
+
+Authority: `docs/development/N3W_T1_MAC_LOCAL_EXACT_ARTIFACT_CACHE_V1_SOURCE_REPAIR_CLOSURE_20261015.md`.
+
 ## 2026-10-15 — F3 R4 live apply CLOSED_PASS / STOP before explicit provisioning
 
 ```text
