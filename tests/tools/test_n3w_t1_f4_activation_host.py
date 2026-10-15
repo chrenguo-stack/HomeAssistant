@@ -61,6 +61,7 @@ def test_command_surface_has_no_provisioning_replay_authority() -> None:
     assert 'subparsers.add_parser("prepare")' in source
     assert 'subparsers.add_parser("activate")' in source
     assert 'subparsers.add_parser("repair-prepared-control")' in source
+    assert '"repair-prepared-activation-authority"' in source
     assert 'subparsers.add_parser("eligibility")' in source
     assert "START DEVICE PROVISIONING: YES" not in source
     assert 'PROVISION_CLI), "verify"' in source
@@ -1369,6 +1370,169 @@ def test_prepared_control_repair_rebinds_only_launcher(
     assert report["control_repair_passed"] is True
     assert report["control_repair_authorization_consumed"] is True
     assert report["control_repair_replay_allowed"] is False
+
+
+def test_prepared_activation_authority_repair_rebinds_only_launcher(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    package_root = tmp_path / "package"
+    launcher_relative = "tools/n3w_t1_f4_activation_host.py"
+    launcher_source = package_root / launcher_relative
+    launcher_source.parent.mkdir(parents=True)
+    launcher_source.write_text(
+        "#!/usr/bin/python3\nprint('new activation authority')\n",
+        encoding="utf-8",
+    )
+    launcher_sha = tool._sha256_file(launcher_source)
+
+    package_files = {}
+    installed_files = {}
+    for relative, (target, mode) in tool.INSTALL_MAP.items():
+        if relative == launcher_relative:
+            package_files[relative] = {
+                "sha256": launcher_sha,
+                "size": launcher_source.stat().st_size,
+            }
+            installed_files[str(target)] = {
+                "sha256": (
+                    tool.ACTIVATION_AUTHORITY_REPAIR_FROM_LAUNCHER_SHA256
+                ),
+                "size": 100,
+                "mode": mode,
+                "uid": 0,
+                "gid": 0,
+            }
+        else:
+            package_files[relative] = {"sha256": "d" * 64, "size": 10}
+            installed_files[str(target)] = {
+                "sha256": "d" * 64,
+                "size": 10,
+                "mode": mode,
+                "uid": 0,
+                "gid": 0,
+            }
+    for target in (tool.COMPOSE_TARGET, tool.BROKER_ENV, tool.CERT_ENV):
+        installed_files[str(target)] = {
+            "sha256": "e" * 64,
+            "size": 20,
+            "mode": 0o600,
+            "uid": 0,
+            "gid": 0,
+        }
+
+    transaction = {
+        "stage": "PREPARED",
+        "authorization_id": "N3W_T1_F4_PREPARE_TEST",
+        "control_repair_authorization_id": "N3W_T1_F4_REPAIR_TEST",
+        "control_repair_passed": True,
+        "package_source_head": (
+            tool.ACTIVATION_AUTHORITY_REPAIR_FROM_SOURCE_HEAD
+        ),
+        "package_manifest_sha256": (
+            tool.ACTIVATION_AUTHORITY_REPAIR_FROM_MANIFEST_SHA256
+        ),
+        "installed_files": installed_files,
+    }
+    package = {
+        "root": package_root,
+        "manifest_sha256": "f" * 64,
+        "source_head": "1" * 40,
+        "files": package_files,
+    }
+    stages = []
+
+    monkeypatch.setattr(tool, "_validate_package", lambda *_a, **_k: package)
+    monkeypatch.setattr(tool, "_exclusive_f4", nullcontext)
+    monkeypatch.setattr(tool, "_provision_verify", lambda: verified(tool))
+    monkeypatch.setattr(tool, "_validate_factory_binding", lambda _v: {})
+    monkeypatch.setattr(
+        tool,
+        "_validate_transaction_binding",
+        lambda _v: transaction,
+    )
+    monkeypatch.setattr(tool, "_verify_installed_material", lambda _t: None)
+    monkeypatch.setattr(
+        tool,
+        "_runtime_activity",
+        lambda: {
+            "production_service_start": False,
+            "running_services": [],
+        },
+    )
+    monkeypatch.setattr(tool, "_product_listener_ports", list)
+    monkeypatch.setattr(
+        tool,
+        "_advance_transaction",
+        lambda stage, **fields: stages.append((stage, fields))
+        or {**transaction, **fields, "stage": stage},
+    )
+
+    def replace_file(
+        source,
+        target,
+        mode,
+        *,
+        expected_current,
+        expected_sha256,
+        expected_size,
+    ):
+        assert source == launcher_source
+        assert target == tool.INSTALL_MAP[launcher_relative][0]
+        assert mode == 0o755
+        assert expected_current["sha256"] == (
+            tool.ACTIVATION_AUTHORITY_REPAIR_FROM_LAUNCHER_SHA256
+        )
+        assert expected_sha256 == launcher_sha
+        assert expected_size == launcher_source.stat().st_size
+
+    monkeypatch.setattr(tool, "_atomic_replace_bound_file", replace_file)
+    monkeypatch.setattr(
+        tool,
+        "_file_binding",
+        lambda _path: {
+            "sha256": launcher_sha,
+            "size": launcher_source.stat().st_size,
+            "mode": 0o755,
+            "uid": 0,
+            "gid": 0,
+        },
+    )
+    monkeypatch.setattr(
+        tool,
+        "_read_private_record",
+        lambda _path: {
+            **transaction,
+            "installed_files": {
+                **installed_files,
+                str(tool.INSTALL_MAP[launcher_relative][0]): {
+                    "sha256": launcher_sha,
+                    "size": launcher_source.stat().st_size,
+                    "mode": 0o755,
+                    "uid": 0,
+                    "gid": 0,
+                },
+            },
+        },
+    )
+
+    report = tool._repair_prepared_activation_authority(
+        package_root,
+        tool.ACTIVATION_AUTHORITY_REPAIR_CONFIRMATION,
+        "N3W_T1_F4_ACTIVATION_AUTHORITY_REPAIR_TEST",
+        "f" * 64,
+        "1" * 40,
+    )
+
+    assert stages[0][0] == "ACTIVATION_AUTHORITY_REPAIR_CLAIMED"
+    assert stages[-1][0] == "PREPARED"
+    assert report["activation_authority_repair_passed"] is True
+    assert (
+        report["activation_authority_repair_authorization_consumed"]
+        is True
+    )
+    assert report["activation_authority_repair_replay_allowed"] is False
 
 
 def test_mount_contract_ignores_only_tmpfs_and_binds_exact_source(
