@@ -1,3 +1,16 @@
+## 2026-10-15 — Explicit per-device provisioning LIVE START CLOSED_PASS
+
+- Gate `N3W_T1_EXPLICIT_PER_DEVICE_PROVISIONING_LIVE_START_20261015_01` is CLOSED_PASS.
+- Exact provisioning `start` executed once and returned exit 0; `transaction.json` and `FIRSTBOOT_COMPLETE.json` are present.
+- Authorization is claimed/consumed and permanently no-replay; no second `start` is permitted.
+- Separate verify-only execution returned `PASS / DEVICE_READY` for deployed release `6ac82ae0872b05644e59470ffef7307dad14d359`.
+- Product identity and host-instance identity are present; no private values are persisted in public GitHub.
+- Broker activation, services activation and certificate-lifecycle timer were inactive; later activation units were not found; production service start=false.
+- F4, board/USB/serial/Flash/NVS/RF work and PR merge were not entered.
+- The first post-start result parser had a local Python quoting SyntaxError after the successful remote start; classified as a local evidence-wrapper defect, not a product/T1/source failure.
+- Current STOP: `AFTER_DEVICE_READY_BEFORE_F4`; F4 requires separate preparation and new authorization.
+- Closure authority: `docs/development/N3W_T1_EXPLICIT_PER_DEVICE_PROVISIONING_LIVE_START_CLOSURE_20261015.md`.
+
 ## 2026-10-15 — Handoff frozen: explicit provisioning live start next
 
 - Formal handoff: `docs/development/N3W_T1_EXPLICIT_PER_DEVICE_PROVISIONING_LIVE_START_NEW_CHAT_HANDOFF_V1.0_20261015.md`.
