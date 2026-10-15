@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
+import json
 import sys
 from contextlib import nullcontext
 from pathlib import Path
@@ -19,6 +21,15 @@ def load_tool():
     sys.modules[name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def package_binding(tool):
+    return {
+        "root": Path("/tmp/f4-package"),
+        "manifest_sha256": "b" * 64,
+        "source_head": "c" * 40,
+        "files": {},
+    }
 
 
 def verified(tool):
@@ -87,6 +98,16 @@ def test_eligibility_is_phase_locked(
 
     monkeypatch.setattr(tool, "_provision_verify", lambda: current)
     monkeypatch.setattr(tool, "_validate_factory_binding", lambda _v: marker)
+    monkeypatch.setattr(tool, "_verify_installed_material", lambda _t: None)
+    monkeypatch.setattr(
+        tool,
+        "_runtime_activity",
+        lambda: {
+            "production_service_start": False,
+            "runtime_service_probe": "PASS",
+            "running_services": [],
+        },
+    )
 
     monkeypatch.setattr(
         tool,
@@ -175,13 +196,21 @@ def test_prepare_claims_before_factory_acceptance_and_install(
         elif path == tool.FACTORY_ACCEPTED_PATH:
             events.append("factory_accept")
 
+    monkeypatch.setattr(
+        tool,
+        "_validate_package",
+        lambda *_args, **_kwargs: package_binding(tool),
+    )
     monkeypatch.setattr(tool, "_factory_audit", factory_audit)
     monkeypatch.setattr(tool, "_new_private_record", new_record)
     monkeypatch.setattr(
         tool,
         "_install_activation_material",
-        lambda _root: events.append("install")
-        or {"activation_material_installed": True},
+        lambda _package: events.append("install")
+        or {
+            "activation_material_installed": True,
+            "installed_files": {},
+        },
     )
     monkeypatch.setattr(
         tool,
@@ -195,6 +224,8 @@ def test_prepare_claims_before_factory_acceptance_and_install(
         tmp_path,
         tool.PREPARE_CONFIRMATION,
         "N3W_T1_F4_TEST_AUTH_01",
+        "b" * 64,
+        "c" * 40,
     )
 
     assert audit_calls == 2
@@ -228,6 +259,11 @@ def test_prepare_failure_consumes_and_stops(
 
     monkeypatch.setattr(
         tool,
+        "_validate_package",
+        lambda *_args, **_kwargs: package_binding(tool),
+    )
+    monkeypatch.setattr(
+        tool,
         "_factory_audit",
         lambda **_kwargs: dict(audit),
     )
@@ -250,6 +286,8 @@ def test_prepare_failure_consumes_and_stops(
             tmp_path,
             tool.PREPARE_CONFIRMATION,
             "N3W_T1_F4_TEST_AUTH_02",
+            "b" * 64,
+            "c" * 40,
         )
 
     assert stages == ["STOPPED_PREPARE"]
@@ -404,6 +442,94 @@ def test_runtime_activity_fails_closed_when_compose_probe_is_unproven(
     assert runtime["running_services"] is None
 
 
+def test_package_manifest_exact_binding_and_tamper_rejection(
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    source_head = "d" * 40
+    records = []
+    for index, relative in enumerate(sorted(tool.INSTALL_MAP)):
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = f"payload-{index}\n".encode()
+        path.write_bytes(payload)
+        records.append(
+            {
+                "path": relative,
+                "sha256": hashlib.sha256(payload).hexdigest(),
+                "size": len(payload),
+            }
+        )
+    manifest = {
+        "schema": tool.PACKAGE_SCHEMA,
+        "source_head": source_head,
+        "files": records,
+        "secret_values_included": False,
+        "production_service_start": False,
+        "board_access": False,
+    }
+    manifest_path = tmp_path / tool.PACKAGE_MANIFEST_NAME
+    manifest_path.write_text(
+        json.dumps(manifest, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    manifest_sha = tool._sha256_file(manifest_path)
+
+    package = tool._validate_package(
+        tmp_path,
+        expected_manifest_sha256=manifest_sha,
+        expected_source_head=source_head,
+    )
+
+    assert package["source_head"] == source_head
+    assert package["manifest_sha256"] == manifest_sha
+    assert set(package["files"]) == set(tool.INSTALL_MAP)
+
+    first = tmp_path / sorted(tool.INSTALL_MAP)[0]
+    first.write_text("tampered\n", encoding="utf-8")
+    with pytest.raises(tool.F4Error, match="package_file_binding_invalid"):
+        tool._validate_package(
+            tmp_path,
+            expected_manifest_sha256=manifest_sha,
+            expected_source_head=source_head,
+        )
+
+
+def test_installed_material_drift_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    targets = [
+        *(target for target, _mode in tool.INSTALL_MAP.values()),
+        tool.COMPOSE_TARGET,
+        tool.BROKER_ENV,
+        tool.CERT_ENV,
+    ]
+    remapped = {}
+    expected = {}
+    for index, target in enumerate(targets):
+        path = tmp_path / f"target-{index}"
+        path.write_text(f"target-{index}\n", encoding="utf-8")
+        remapped[str(target)] = path
+        expected[str(target)] = tool._file_binding(path)
+
+    original = tool._file_binding
+
+    def binding(path: Path):
+        mapped = remapped.get(str(path))
+        if mapped is None:
+            return original(path)
+        return original(mapped)
+
+    monkeypatch.setattr(tool, "_file_binding", binding)
+    tool._verify_installed_material({"installed_files": expected})
+
+    remapped[str(targets[0])].write_text("drift\n", encoding="utf-8")
+    with pytest.raises(tool.F4Error, match="installed_material_drift"):
+        tool._verify_installed_material({"installed_files": expected})
+
+
 def test_authorization_id_is_bound_and_invalid_ids_fail() -> None:
     tool = load_tool()
     audit = {
@@ -416,13 +542,18 @@ def test_authorization_id_is_bound_and_invalid_ids_fail() -> None:
     document = tool._transaction_document(
         audit,
         "N3W_T1_F4_LIVE_AUTH_01",
+        package_binding(tool),
     )
     assert document["authorization_id"] == "N3W_T1_F4_LIVE_AUTH_01"
     assert document["authorization_consumed"] is True
     assert document["replay_allowed"] is False
 
     with pytest.raises(tool.F4Error, match="authorization_id_invalid"):
-        tool._transaction_document(audit, "bad authorization")
+        tool._transaction_document(
+            audit,
+            "bad authorization",
+            package_binding(tool),
+        )
 
 
 def test_f4_execution_has_single_initializer_lock() -> None:
