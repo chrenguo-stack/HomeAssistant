@@ -62,7 +62,6 @@ SYSTEM_CA = Path("/var/lib/greenhouse-manager/identity/system-ca.pem")
 SERVER_NAME = "armbian"
 BROKER_PROJECT = "n3wfc4"
 BROKER_NETWORKS = frozenset({"n3wfc4-private", "n3wfc4-services"})
-MANAGER_HEALTH_URL = "http://127.0.0.1:47112/healthz"
 CERT_STATUS_FILE = CERT_STATUS_ROOT / "status.json"
 CERT_LOCK_FILE = CERT_STATUS_ROOT / ".certificate-lifecycle.lock"
 
@@ -2037,7 +2036,7 @@ def attempt(*, username, password, client_id):
     if username is not None:
         client.username_pw_set(username, password)
     client.tls_set(ca_certs="/ca.pem")
-    client.connect("armbian", 8883, keepalive=10)
+    client.connect("127.0.0.1", 8883, keepalive=10)
     client.loop_start()
     try:
         if not event.wait(8):
