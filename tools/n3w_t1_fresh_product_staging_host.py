@@ -28,7 +28,7 @@ IMAGE_ARTIFACT_FILES = {
     "broker": "broker-arm64.tar",
 }
 ARTIFACT_CACHE_SCHEMA = "gh.n3w-t1-exact-artifact-cache/1"
-DEFAULT_ARTIFACT_CACHE_ROOT = "~/.cache/n3w-t1/exact-artifacts"
+DEFAULT_ARTIFACT_CACHE_ROOT = "~/Documents/N3W/exact-artifacts"
 ARTIFACT_CACHE_FILES = frozenset(("artifact.zip", "binding.json"))
 ARTIFACT_OUTER_FILES = frozenset(
     (
