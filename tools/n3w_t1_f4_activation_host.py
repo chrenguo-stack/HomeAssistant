@@ -1915,7 +1915,10 @@ def _runtime_acceptance_recovery_stopped_prestate() -> None:
     runtime = _runtime_activity()
     if (
         runtime["production_service_start"] is not False
+        or runtime["runtime_service_probe"] != "PASS"
         or runtime["running_services"] != []
+        or runtime["broker_active_state"] not in {"inactive", "failed"}
+        or runtime["services_active_state"] not in {"inactive", "failed"}
         or _product_listener_ports() != []
         or _systemctl("is-enabled", BROKER_UNIT) != "disabled"
         or _systemctl("is-enabled", SERVICES_UNIT) != "disabled"
