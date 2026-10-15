@@ -2182,29 +2182,83 @@ def _certificate_first_audit(authorization_id: str) -> dict[str, object]:
             raise F4Error("certificate_audit_stage_invalid")
         if _systemctl("is-enabled", CERT_TIMER) == "enabled":
             raise F4Error("certificate_timer_enabled_too_early")
-        before_identity = _certificate_identity_snapshot()
-        broker = _compose_service_inspect("broker")
-        before_container = {
-            "id": broker.get("Id"),
-            "started_at": broker.get("State", {}).get("StartedAt"),
-        }
+
         try:
-            document = json.loads(
-                _run(_certificate_audit_command(), timeout=120)
+            before_identity = _certificate_identity_snapshot()
+            broker = _compose_service_inspect("broker")
+            before_container = {
+                "id": broker.get("Id"),
+                "started_at": broker.get("State", {}).get("StartedAt"),
+            }
+            try:
+                document = json.loads(
+                    _run(_certificate_audit_command(), timeout=120)
+                )
+            except json.JSONDecodeError as error:
+                raise F4Error("certificate_audit_json_invalid") from error
+            if (
+                not isinstance(document, dict)
+                or document.get("action") != "audit"
+                or document.get("result") != "ok"
+                or document.get("server_state") != "HEALTHY"
+                or document.get("ca_state") != "HEALTHY"
+                or document.get("system_ca_state") != "HEALTHY"
+                or document.get("renewal_attempted") is not False
+                or document.get("rollback_attempted") is not False
+            ):
+                raise F4Error("certificate_first_audit_not_healthy")
+
+            after_identity = _certificate_identity_snapshot()
+            after_broker = _compose_service_inspect("broker")
+            if (
+                after_identity != before_identity
+                or after_broker.get("Id") != before_container["id"]
+                or after_broker.get("State", {}).get("StartedAt")
+                != before_container["started_at"]
+            ):
+                raise F4Error("certificate_audit_runtime_changed")
+
+            _verified_tls_runtime()
+            if (
+                not CERT_STATUS_FILE.is_file()
+                or CERT_STATUS_FILE.is_symlink()
+                or not CERT_LOCK_FILE.is_file()
+                or CERT_LOCK_FILE.is_symlink()
+                or {item.name for item in CERT_STATUS_ROOT.iterdir()}
+                != {CERT_STATUS_FILE.name, CERT_LOCK_FILE.name}
+            ):
+                raise F4Error("certificate_status_authority_invalid")
+            for target in (CERT_STATUS_FILE, CERT_LOCK_FILE):
+                metadata = target.stat()
+                if (
+                    metadata.st_uid != 0
+                    or metadata.st_gid != 0
+                    or stat.S_IMODE(metadata.st_mode) != 0o600
+                    or metadata.st_nlink != 1
+                ):
+                    raise F4Error("certificate_status_metadata_invalid")
+            status_sha256 = _sha256_file(CERT_STATUS_FILE)
+            _advance_transaction(
+                "PERSISTENCE_ENABLED",
+                certificate_first_audit_passed=True,
+                certificate_status_sha256=status_sha256,
+                certificate_server_state="HEALTHY",
+                certificate_ca_state="HEALTHY",
+                certificate_system_ca_state="HEALTHY",
+                certificate_timer_enabled=False,
+                production_service_start=True,
+                persistence_enabled=True,
             )
-        except json.JSONDecodeError as error:
-            raise F4Error("certificate_audit_json_invalid") from error
-        if (
-            not isinstance(document, dict)
-            or document.get("action") != "audit"
-            or document.get("result") != "ok"
-            or document.get("server_state") != "HEALTHY"
-            or document.get("ca_state") != "HEALTHY"
-            or document.get("system_ca_state") != "HEALTHY"
-            or document.get("renewal_attempted") is not False
-            or document.get("rollback_attempted") is not False
-        ):
-            error = F4Error("certificate_first_audit_not_healthy")
+            return {
+                "status": "PASS",
+                "state": "PERSISTENCE_ENABLED",
+                "certificate_first_audit_passed": True,
+                "certificate_status_sha256": status_sha256,
+                "certificate_timer_enabled": False,
+                "production_service_start": True,
+                "board_access": False,
+            }
+        except OPERATION_ERRORS as error:
             try:
                 _downstream_fail_closed("CERTIFICATE_AUDIT", error)
             except OPERATION_ERRORS as rollback_error:
@@ -2212,64 +2266,7 @@ def _certificate_first_audit(authorization_id: str) -> dict[str, object]:
                     "certificate_audit_failed_rollback_unproven:"
                     + type(rollback_error).__name__
                 ) from error
-            raise error
-        after_identity = _certificate_identity_snapshot()
-        after_broker = _compose_service_inspect("broker")
-        if (
-            after_identity != before_identity
-            or after_broker.get("Id") != before_container["id"]
-            or after_broker.get("State", {}).get("StartedAt")
-            != before_container["started_at"]
-        ):
-            error = F4Error("certificate_audit_runtime_changed")
-            try:
-                _downstream_fail_closed("CERTIFICATE_AUDIT", error)
-            except OPERATION_ERRORS as rollback_error:
-                raise F4Error(
-                    "certificate_audit_changed_rollback_unproven:"
-                    + type(rollback_error).__name__
-                ) from error
-            raise error
-        _verified_tls_runtime()
-        if (
-            not CERT_STATUS_FILE.is_file()
-            or CERT_STATUS_FILE.is_symlink()
-            or not CERT_LOCK_FILE.is_file()
-            or CERT_LOCK_FILE.is_symlink()
-            or {item.name for item in CERT_STATUS_ROOT.iterdir()}
-            != {CERT_STATUS_FILE.name, CERT_LOCK_FILE.name}
-        ):
-            raise F4Error("certificate_status_authority_invalid")
-        for target in (CERT_STATUS_FILE, CERT_LOCK_FILE):
-            metadata = target.stat()
-            if (
-                metadata.st_uid != 0
-                or metadata.st_gid != 0
-                or stat.S_IMODE(metadata.st_mode) != 0o600
-                or metadata.st_nlink != 1
-            ):
-                raise F4Error("certificate_status_metadata_invalid")
-        status_sha256 = _sha256_file(CERT_STATUS_FILE)
-        _advance_transaction(
-            "PERSISTENCE_ENABLED",
-            certificate_first_audit_passed=True,
-            certificate_status_sha256=status_sha256,
-            certificate_server_state="HEALTHY",
-            certificate_ca_state="HEALTHY",
-            certificate_system_ca_state="HEALTHY",
-            certificate_timer_enabled=False,
-            production_service_start=True,
-            persistence_enabled=True,
-        )
-        return {
-            "status": "PASS",
-            "state": "PERSISTENCE_ENABLED",
-            "certificate_first_audit_passed": True,
-            "certificate_status_sha256": status_sha256,
-            "certificate_timer_enabled": False,
-            "production_service_start": True,
-            "board_access": False,
-        }
+            raise
 
 
 def _enable_certificate_timer(authorization_id: str) -> dict[str, object]:
