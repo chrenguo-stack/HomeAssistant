@@ -63,6 +63,11 @@ def test_command_surface_has_no_provisioning_replay_authority() -> None:
     assert 'subparsers.add_parser("repair-prepared-control")' in source
     assert '"repair-prepared-activation-authority"' in source
     assert '"repair-stopped-runtime-start"' in source
+    assert '"repair-stopped-runtime-acceptance"' in source
+    assert (
+        tool.RUNTIME_ACCEPTANCE_RECOVERY_CONFIRMATION
+        == "RECOVER F4 STOPPED RUNTIME ACCEPTANCE: YES"
+    )
     assert 'subparsers.add_parser("eligibility")' in source
     assert "START DEVICE PROVISIONING: YES" not in source
     assert 'PROVISION_CLI), "verify"' in source
@@ -1791,6 +1796,542 @@ def test_stopped_runtime_repair_rebinds_launcher_and_enables_retry(
     assert failed_auth in stages[0][1]["activation_authorization_history"]
 
 
+def test_runtime_acceptance_recovery_entrypoint_requires_exact_package_launcher(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    package_launcher = tmp_path / "tools/n3w_t1_f4_activation_host.py"
+    package_launcher.parent.mkdir(parents=True)
+    package_launcher.write_text(
+        "#!/usr/bin/python3\nprint('recovery')\n",
+        encoding="utf-8",
+    )
+    binding = {
+        "sha256": tool._sha256_file(package_launcher),
+        "size": package_launcher.stat().st_size,
+    }
+
+    monkeypatch.setattr(tool, "__file__", str(package_launcher))
+    tool._runtime_acceptance_recovery_entrypoint(
+        package_launcher,
+        binding,
+    )
+
+    other = tmp_path / "other.py"
+    other.write_text("#!/usr/bin/python3\n", encoding="utf-8")
+    monkeypatch.setattr(tool, "__file__", str(other))
+    with pytest.raises(
+        tool.F4Error,
+        match="runtime_acceptance_recovery_entrypoint_invalid",
+    ):
+        tool._runtime_acceptance_recovery_entrypoint(
+            package_launcher,
+            binding,
+        )
+
+
+def test_runtime_acceptance_recovery_rebinds_launcher_and_enables_successors(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    package_root = tmp_path / "package"
+    launcher_relative = "tools/n3w_t1_f4_activation_host.py"
+    launcher_source = package_root / launcher_relative
+    launcher_source.parent.mkdir(parents=True)
+    launcher_source.write_text(
+        "#!/usr/bin/python3\nprint('acceptance recovery')\n",
+        encoding="utf-8",
+    )
+    launcher_sha = tool._sha256_file(launcher_source)
+
+    package_files = {}
+    installed_files = {}
+    for relative, (target, mode) in tool.INSTALL_MAP.items():
+        if relative == launcher_relative:
+            package_files[relative] = {
+                "sha256": launcher_sha,
+                "size": launcher_source.stat().st_size,
+            }
+            installed_files[str(target)] = {
+                "sha256": (
+                    tool.RUNTIME_ACCEPTANCE_RECOVERY_FROM_LAUNCHER_SHA256
+                ),
+                "size": 100,
+                "mode": mode,
+                "uid": 0,
+                "gid": 0,
+            }
+        else:
+            package_files[relative] = {"sha256": "d" * 64, "size": 10}
+            installed_files[str(target)] = {
+                "sha256": "d" * 64,
+                "size": 10,
+                "mode": mode,
+                "uid": 0,
+                "gid": 0,
+            }
+    for target in (tool.COMPOSE_TARGET, tool.BROKER_ENV, tool.CERT_ENV):
+        installed_files[str(target)] = {
+            "sha256": "e" * 64,
+            "size": 20,
+            "mode": 0o600,
+            "uid": 0,
+            "gid": 0,
+        }
+
+    failed_acceptance = "N3W_T1_F4_ACCEPT_RUNTIME_FAILED_TEST"
+    state = {
+        "stage": "STOPPED_RUNTIME_ACCEPTANCE",
+        "authorization_id": "N3W_T1_F4_PREPARE_TEST",
+        "activation_authorization_id": "N3W_T1_F4_ACTIVATE_TEST",
+        "activation_authorization_claimed": True,
+        "activation_authorization_consumed": True,
+        "activation_authorization_replay_allowed": False,
+        "runtime_acceptance_authorization_id": failed_acceptance,
+        "runtime_acceptance_authorization_claimed": True,
+        "runtime_acceptance_authorization_consumed": True,
+        "runtime_acceptance_authorization_replay_allowed": False,
+        "runtime_acceptance_passed": None,
+        "error_code": "manager_mqtt_socket_count_invalid",
+        "rollback_proven": True,
+        "rollback_error_count": 0,
+        "production_service_start": False,
+        "persistence_enabled": False,
+        "certificate_timer_enabled": False,
+        "package_source_head": (
+            tool.RUNTIME_ACCEPTANCE_RECOVERY_FROM_SOURCE_HEAD
+        ),
+        "package_manifest_sha256": (
+            tool.RUNTIME_ACCEPTANCE_RECOVERY_FROM_MANIFEST_SHA256
+        ),
+        "installed_files": installed_files,
+    }
+    package = {
+        "root": package_root,
+        "manifest_sha256": "f" * 64,
+        "source_head": "1" * 40,
+        "files": package_files,
+    }
+    stages = []
+
+    monkeypatch.setattr(tool, "_validate_package", lambda *_a, **_k: package)
+    monkeypatch.setattr(
+        tool,
+        "_runtime_acceptance_recovery_entrypoint",
+        lambda *_a, **_k: None,
+    )
+    monkeypatch.setattr(tool, "_exclusive_f4", nullcontext)
+    monkeypatch.setattr(tool, "_provision_verify", lambda: verified(tool))
+    monkeypatch.setattr(tool, "_validate_factory_binding", lambda _v: {})
+    monkeypatch.setattr(
+        tool,
+        "_validate_transaction_binding",
+        lambda _v: state,
+    )
+    monkeypatch.setattr(tool, "_verify_installed_material", lambda _t: None)
+    monkeypatch.setattr(
+        tool,
+        "_runtime_acceptance_recovery_stopped_prestate",
+        lambda: None,
+    )
+
+    def advance(stage, **fields):
+        state.update(fields)
+        state["stage"] = stage
+        stages.append((stage, dict(fields)))
+        return dict(state)
+
+    monkeypatch.setattr(tool, "_advance_transaction", advance)
+
+    def replace_file(
+        source,
+        target,
+        mode,
+        *,
+        expected_current,
+        expected_sha256,
+        expected_size,
+    ):
+        assert source == launcher_source
+        assert target == tool.INSTALL_MAP[launcher_relative][0]
+        assert mode == 0o755
+        assert expected_current["sha256"] == (
+            tool.RUNTIME_ACCEPTANCE_RECOVERY_FROM_LAUNCHER_SHA256
+        )
+        assert expected_sha256 == launcher_sha
+        assert expected_size == launcher_source.stat().st_size
+
+    monkeypatch.setattr(tool, "_atomic_replace_bound_file", replace_file)
+    monkeypatch.setattr(
+        tool,
+        "_file_binding",
+        lambda _path: {
+            "sha256": launcher_sha,
+            "size": launcher_source.stat().st_size,
+            "mode": 0o755,
+            "uid": 0,
+            "gid": 0,
+        },
+    )
+    monkeypatch.setattr(tool, "_read_private_record", lambda _path: state)
+
+    report = tool._repair_stopped_runtime_acceptance(
+        package_root,
+        tool.RUNTIME_ACCEPTANCE_RECOVERY_CONFIRMATION,
+        "N3W_T1_F4_RUNTIME_ACCEPTANCE_RECOVERY_TEST",
+        "f" * 64,
+        "1" * 40,
+    )
+
+    assert stages[0][0] == "STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_CLAIMED"
+    assert stages[-1][0] == "PREPARED"
+    assert stages[0][1]["runtime_acceptance_last_failure_authorization_id"] == (
+        failed_acceptance
+    )
+    assert report["runtime_acceptance_recovery_passed"] is True
+    assert report["activation_retry_eligible"] is True
+    assert report["runtime_acceptance_retry_eligible"] is True
+    assert report["failed_runtime_acceptance_authorization_preserved"] is True
+    assert state["runtime_acceptance_authorization_id"] == failed_acceptance
+    assert state["production_service_start"] is False
+    assert state["persistence_enabled"] is False
+    assert state["certificate_timer_enabled"] is False
+    assert state["error_code"] is None
+    assert state["package_source_head"] == "1" * 40
+
+
+def test_runtime_acceptance_recovery_rejects_nonlauncher_delta(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    package_root = tmp_path / "package"
+    launcher_relative = "tools/n3w_t1_f4_activation_host.py"
+    launcher_source = package_root / launcher_relative
+    launcher_source.parent.mkdir(parents=True)
+    launcher_source.write_text(
+        "#!/usr/bin/python3\nprint('acceptance recovery')\n",
+        encoding="utf-8",
+    )
+    launcher_sha = tool._sha256_file(launcher_source)
+
+    package_files = {}
+    installed_files = {}
+    changed = None
+    for relative, (target, mode) in tool.INSTALL_MAP.items():
+        if relative == launcher_relative:
+            package_files[relative] = {
+                "sha256": launcher_sha,
+                "size": launcher_source.stat().st_size,
+            }
+            installed_files[str(target)] = {
+                "sha256": (
+                    tool.RUNTIME_ACCEPTANCE_RECOVERY_FROM_LAUNCHER_SHA256
+                ),
+                "size": 100,
+                "mode": mode,
+                "uid": 0,
+                "gid": 0,
+            }
+        else:
+            package_files[relative] = {"sha256": "d" * 64, "size": 10}
+            installed_files[str(target)] = {
+                "sha256": "d" * 64,
+                "size": 10,
+                "mode": mode,
+                "uid": 0,
+                "gid": 0,
+            }
+            if changed is None:
+                changed = relative
+    assert changed is not None
+    package_files[changed] = {"sha256": "c" * 64, "size": 10}
+    for target in (tool.COMPOSE_TARGET, tool.BROKER_ENV, tool.CERT_ENV):
+        installed_files[str(target)] = {
+            "sha256": "e" * 64,
+            "size": 20,
+            "mode": 0o600,
+            "uid": 0,
+            "gid": 0,
+        }
+
+    transaction = {
+        "stage": "STOPPED_RUNTIME_ACCEPTANCE",
+        "runtime_acceptance_authorization_id": "N3W_T1_F4_FAILED_ACCEPT",
+        "runtime_acceptance_authorization_claimed": True,
+        "runtime_acceptance_authorization_consumed": True,
+        "runtime_acceptance_authorization_replay_allowed": False,
+        "error_code": "manager_mqtt_socket_count_invalid",
+        "rollback_proven": True,
+        "rollback_error_count": 0,
+        "production_service_start": False,
+        "persistence_enabled": False,
+        "certificate_timer_enabled": False,
+        "package_source_head": (
+            tool.RUNTIME_ACCEPTANCE_RECOVERY_FROM_SOURCE_HEAD
+        ),
+        "package_manifest_sha256": (
+            tool.RUNTIME_ACCEPTANCE_RECOVERY_FROM_MANIFEST_SHA256
+        ),
+        "installed_files": installed_files,
+    }
+    package = {
+        "root": package_root,
+        "manifest_sha256": "f" * 64,
+        "source_head": "1" * 40,
+        "files": package_files,
+    }
+
+    monkeypatch.setattr(tool, "_validate_package", lambda *_a, **_k: package)
+    monkeypatch.setattr(
+        tool,
+        "_runtime_acceptance_recovery_entrypoint",
+        lambda *_a, **_k: None,
+    )
+    monkeypatch.setattr(tool, "_exclusive_f4", nullcontext)
+    monkeypatch.setattr(tool, "_provision_verify", lambda: verified(tool))
+    monkeypatch.setattr(tool, "_validate_factory_binding", lambda _v: {})
+    monkeypatch.setattr(
+        tool,
+        "_validate_transaction_binding",
+        lambda _v: transaction,
+    )
+    monkeypatch.setattr(tool, "_verify_installed_material", lambda _t: None)
+
+    with pytest.raises(
+        tool.F4Error,
+        match="runtime_acceptance_recovery_unexpected_delta",
+    ):
+        tool._repair_stopped_runtime_acceptance(
+            package_root,
+            tool.RUNTIME_ACCEPTANCE_RECOVERY_CONFIRMATION,
+            "N3W_T1_F4_RUNTIME_ACCEPTANCE_RECOVERY_TEST",
+            "f" * 64,
+            "1" * 40,
+        )
+
+
+def test_runtime_acceptance_recovery_failure_stays_stopped(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    package_root = tmp_path / "package"
+    launcher_relative = "tools/n3w_t1_f4_activation_host.py"
+    launcher_source = package_root / launcher_relative
+    launcher_source.parent.mkdir(parents=True)
+    launcher_source.write_text(
+        "#!/usr/bin/python3\nprint('acceptance recovery')\n",
+        encoding="utf-8",
+    )
+    launcher_sha = tool._sha256_file(launcher_source)
+
+    package_files = {}
+    installed_files = {}
+    for relative, (target, mode) in tool.INSTALL_MAP.items():
+        if relative == launcher_relative:
+            package_files[relative] = {
+                "sha256": launcher_sha,
+                "size": launcher_source.stat().st_size,
+            }
+            installed_files[str(target)] = {
+                "sha256": (
+                    tool.RUNTIME_ACCEPTANCE_RECOVERY_FROM_LAUNCHER_SHA256
+                ),
+                "size": 100,
+                "mode": mode,
+                "uid": 0,
+                "gid": 0,
+            }
+        else:
+            package_files[relative] = {"sha256": "d" * 64, "size": 10}
+            installed_files[str(target)] = {
+                "sha256": "d" * 64,
+                "size": 10,
+                "mode": mode,
+                "uid": 0,
+                "gid": 0,
+            }
+    for target in (tool.COMPOSE_TARGET, tool.BROKER_ENV, tool.CERT_ENV):
+        installed_files[str(target)] = {
+            "sha256": "e" * 64,
+            "size": 20,
+            "mode": 0o600,
+            "uid": 0,
+            "gid": 0,
+        }
+
+    state = {
+        "stage": "STOPPED_RUNTIME_ACCEPTANCE",
+        "runtime_acceptance_authorization_id": "N3W_T1_F4_FAILED_ACCEPT",
+        "runtime_acceptance_authorization_claimed": True,
+        "runtime_acceptance_authorization_consumed": True,
+        "runtime_acceptance_authorization_replay_allowed": False,
+        "error_code": "manager_mqtt_socket_count_invalid",
+        "rollback_proven": True,
+        "rollback_error_count": 0,
+        "production_service_start": False,
+        "persistence_enabled": False,
+        "certificate_timer_enabled": False,
+        "package_source_head": (
+            tool.RUNTIME_ACCEPTANCE_RECOVERY_FROM_SOURCE_HEAD
+        ),
+        "package_manifest_sha256": (
+            tool.RUNTIME_ACCEPTANCE_RECOVERY_FROM_MANIFEST_SHA256
+        ),
+        "installed_files": installed_files,
+    }
+    package = {
+        "root": package_root,
+        "manifest_sha256": "f" * 64,
+        "source_head": "1" * 40,
+        "files": package_files,
+    }
+    stages = []
+
+    monkeypatch.setattr(tool, "_validate_package", lambda *_a, **_k: package)
+    monkeypatch.setattr(
+        tool,
+        "_runtime_acceptance_recovery_entrypoint",
+        lambda *_a, **_k: None,
+    )
+    monkeypatch.setattr(tool, "_exclusive_f4", nullcontext)
+    monkeypatch.setattr(tool, "_provision_verify", lambda: verified(tool))
+    monkeypatch.setattr(tool, "_validate_factory_binding", lambda _v: {})
+    monkeypatch.setattr(
+        tool,
+        "_validate_transaction_binding",
+        lambda _v: state,
+    )
+    monkeypatch.setattr(tool, "_verify_installed_material", lambda _t: None)
+    monkeypatch.setattr(
+        tool,
+        "_runtime_acceptance_recovery_stopped_prestate",
+        lambda: None,
+    )
+
+    def advance(stage, **fields):
+        state.update(fields)
+        state["stage"] = stage
+        stages.append((stage, dict(fields)))
+        return dict(state)
+
+    monkeypatch.setattr(tool, "_advance_transaction", advance)
+    monkeypatch.setattr(tool, "_read_private_record", lambda _path: state)
+
+    def fail_replace(*_a, **_k):
+        raise tool.F4Error("replacement_failed")
+
+    monkeypatch.setattr(tool, "_atomic_replace_bound_file", fail_replace)
+
+    def fail_closed(prefix, _error):
+        assert prefix == "RUNTIME_ACCEPTANCE_RECOVERY"
+        state.update(
+            stage="STOPPED_RUNTIME_ACCEPTANCE_RECOVERY",
+            rollback_proven=True,
+            rollback_error_count=0,
+            production_service_start=False,
+        )
+
+    monkeypatch.setattr(tool, "_downstream_fail_closed", fail_closed)
+
+    with pytest.raises(tool.F4Error, match="replacement_failed"):
+        tool._repair_stopped_runtime_acceptance(
+            package_root,
+            tool.RUNTIME_ACCEPTANCE_RECOVERY_CONFIRMATION,
+            "N3W_T1_F4_RUNTIME_ACCEPTANCE_RECOVERY_TEST",
+            "f" * 64,
+            "1" * 40,
+        )
+
+    assert state["stage"] == "STOPPED_RUNTIME_ACCEPTANCE_RECOVERY"
+    assert state["runtime_acceptance_recovery_authorization_consumed"] is True
+    assert state["runtime_acceptance_recovery_authorization_replay_allowed"] is False
+    assert state["runtime_acceptance_recovery_passed"] is False
+    assert state["activation_retry_eligible"] is False
+    assert state["runtime_acceptance_retry_eligible"] is False
+
+
+def test_accept_runtime_allows_one_distinct_successor_after_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    old_auth = "N3W_T1_F4_ACCEPT_RUNTIME_FAILED"
+    transaction = {
+        "stage": "RUNTIME_STARTED",
+        "authorization_id": "N3W_T1_F4_PREPARE",
+        "activation_authorization_id": "N3W_T1_F4_ACTIVATE_SUCCESSOR",
+        "runtime_acceptance_recovery_authorization_id": (
+            "N3W_T1_F4_ACCEPTANCE_RECOVERY"
+        ),
+        "runtime_acceptance_authorization_id": old_auth,
+        "runtime_acceptance_authorization_claimed": True,
+        "runtime_acceptance_authorization_consumed": True,
+        "runtime_acceptance_authorization_replay_allowed": False,
+        "runtime_acceptance_retry_eligible": True,
+        "runtime_acceptance_authorization_history": [],
+    }
+    stages = []
+
+    monkeypatch.setattr(tool, "_exclusive_f4", lambda: nullcontext())
+    monkeypatch.setattr(tool, "_provision_verify", lambda: verified(tool))
+    monkeypatch.setattr(
+        tool,
+        "_validate_transaction_binding",
+        lambda _v: transaction,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_runtime_acceptance_report",
+        lambda: {"homeassistant": {"entry_id_sha256": "e" * 64}},
+    )
+    monkeypatch.setattr(tool, "_new_private_record", lambda *_a, **_k: None)
+    monkeypatch.setattr(tool, "_sha256_file", lambda _path: "f" * 64)
+    monkeypatch.setattr(
+        tool,
+        "_advance_transaction",
+        lambda stage, **fields: stages.append((stage, fields))
+        or {**transaction, **fields, "stage": stage},
+    )
+
+    result = tool._accept_runtime("N3W_T1_F4_ACCEPT_RUNTIME_SUCCESSOR")
+
+    assert stages[0][0] == "RUNTIME_STARTED"
+    assert stages[0][1]["runtime_acceptance_authorization_history"] == [
+        old_auth
+    ]
+    assert stages[0][1]["runtime_acceptance_retry_eligible"] is False
+    assert result["state"] == "RUNTIME_ACCEPTED"
+
+
+def test_accept_runtime_rejects_claimed_authorization_without_recovery_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    transaction = {
+        "stage": "RUNTIME_STARTED",
+        "runtime_acceptance_authorization_id": "N3W_T1_F4_OLD_ACCEPT",
+        "runtime_acceptance_authorization_claimed": True,
+        "runtime_acceptance_retry_eligible": False,
+    }
+
+    monkeypatch.setattr(tool, "_exclusive_f4", lambda: nullcontext())
+    monkeypatch.setattr(tool, "_provision_verify", lambda: verified(tool))
+    monkeypatch.setattr(
+        tool,
+        "_validate_transaction_binding",
+        lambda _v: transaction,
+    )
+
+    with pytest.raises(
+        tool.F4Error,
+        match="runtime_acceptance_authorization_replay_forbidden",
+    ):
+        tool._accept_runtime("N3W_T1_F4_NEW_ACCEPT")
+
+
 def test_activate_allows_successor_only_after_bounded_recovery(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1862,8 +2403,14 @@ def test_successor_authorization_rejects_any_prior_f4_authority() -> None:
         "control_repair_authorization_id": "N3W_T1_F4_CONTROL_REPAIR_AUTH",
         "activation_authorization_id": "N3W_T1_F4_ACTIVATE_AUTH",
         "runtime_acceptance_authorization_id": "N3W_T1_F4_ACCEPT_AUTH",
+        "runtime_acceptance_recovery_authorization_id": (
+            "N3W_T1_F4_ACCEPT_RECOVERY_AUTH"
+        ),
         "activation_authorization_history": [
             "N3W_T1_F4_OLD_ACTIVATE_AUTH"
+        ],
+        "runtime_acceptance_authorization_history": [
+            "N3W_T1_F4_OLD_ACCEPT_AUTH"
         ],
     }
 
@@ -1872,7 +2419,9 @@ def test_successor_authorization_rejects_any_prior_f4_authority() -> None:
         "N3W_T1_F4_CONTROL_REPAIR_AUTH",
         "N3W_T1_F4_ACTIVATE_AUTH",
         "N3W_T1_F4_ACCEPT_AUTH",
+        "N3W_T1_F4_ACCEPT_RECOVERY_AUTH",
         "N3W_T1_F4_OLD_ACTIVATE_AUTH",
+        "N3W_T1_F4_OLD_ACCEPT_AUTH",
     ):
         with pytest.raises(
             tool.F4Error,
