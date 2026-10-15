@@ -1,3 +1,11 @@
+## 2026-10-15 — F4 runtime-start race live control repair authorized
+
+- Explicit authorization granted for `N3W_T1_F4_RUNTIME_START_RACE_CONTROL_REPAIR_LIVE_20261015_01`.
+- Scope is limited to exact `STOPPED_RUNTIME -> PREPARED` launcher-only recovery.
+- Failed activation authorization remains permanently consumed/no-replay.
+- Exact successor source `8f870d02...`; exact artifact ID `11978339595`.
+- No Broker/Manager/Home Assistant start, retry activation, persistence, certificate lifecycle mutation, reboot or board access is authorized.
+
 ## 2026-10-15 — F4 runtime-start race source repair CLOSED_PASS
 
 - The first activation authorization is consumed/no-replay and the real T1 is safely `STOPPED_RUNTIME` with rollback proven.
