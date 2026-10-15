@@ -1,3 +1,11 @@
+## 2026-10-15 — F4 activation authorization boundary repaired before live start
+
+- The already-granted activate gate remains unclaimed/unconsumed.
+- Pre-live review found the old executor reused the consumed PREPARE authorization ID; no activation mutation occurred.
+- Repaired source `444ed085...` requires a distinct one-shot activation authorization and claims it before any runtime mutation; exact-head CI 13/13 PASS.
+- Real T1 remains `PREPARED` on installed source `2b30e541...`; one bounded launcher-only control update is required before activation can resume.
+- Next gate: `N3W_T1_F4_ACTIVATION_AUTHORITY_CONTROL_REPAIR_LIVE_20261015_01`.
+
 ## 2026-10-15 — KF-117 live repair CLOSED_PASS
 
 - Exact successor repair authorization was claimed/consumed once and is no-replay.
