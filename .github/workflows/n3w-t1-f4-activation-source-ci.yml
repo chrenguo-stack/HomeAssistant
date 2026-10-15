@@ -5,7 +5,9 @@ on:
     paths:
       - ".github/workflows/n3w-t1-f4-activation-source-ci.yml"
       - "tools/n3w_t1_f4_activation_host.py"
+      - "tools/n3w_t1_f4_package_builder.py"
       - "tests/tools/test_n3w_t1_f4_activation_host.py"
+      - "tests/tools/test_n3w_t1_f4_package_builder.py"
       - "infra/n3w-t1/f4/n3wfc4-broker-activation.service"
       - "infra/n3w-t1/f4/n3wfc4-services-activation.service"
       - "infra/n3w-t1/f4/n3wfc4-broker-certificate-lifecycle.service"
@@ -24,7 +26,9 @@ on:
     paths:
       - ".github/workflows/n3w-t1-f4-activation-source-ci.yml"
       - "tools/n3w_t1_f4_activation_host.py"
+      - "tools/n3w_t1_f4_package_builder.py"
       - "tests/tools/test_n3w_t1_f4_activation_host.py"
+      - "tests/tools/test_n3w_t1_f4_package_builder.py"
       - "infra/n3w-t1/f4/n3wfc4-broker-activation.service"
       - "infra/n3w-t1/f4/n3wfc4-services-activation.service"
       - "infra/n3w-t1/f4/n3wfc4-broker-certificate-lifecycle.service"
@@ -60,14 +64,24 @@ jobs:
       - name: Install test dependencies
         run: python -m pip install -e 'host/greenhouse-manager[dev]'
 
-      - name: Compile F4 host
-        run: python -m py_compile tools/n3w_t1_f4_activation_host.py
+      - name: F4 launcher executable contract
+        run: |
+          test -x tools/n3w_t1_f4_activation_host.py
+          test "$(head -n 1 tools/n3w_t1_f4_activation_host.py)" = "#!/usr/bin/python3"
+          ./tools/n3w_t1_f4_activation_host.py --help >/dev/null
+
+      - name: Compile F4 host and package builder
+        run: |
+          python -m py_compile tools/n3w_t1_f4_activation_host.py
+          python -m py_compile tools/n3w_t1_f4_package_builder.py
 
       - name: Ruff
         run: |
           ruff check \
             tools/n3w_t1_f4_activation_host.py \
-            tests/tools/test_n3w_t1_f4_activation_host.py
+            tools/n3w_t1_f4_package_builder.py \
+            tests/tools/test_n3w_t1_f4_activation_host.py \
+            tests/tools/test_n3w_t1_f4_package_builder.py
 
       - name: Focused F4 tests
         run: |

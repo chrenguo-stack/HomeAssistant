@@ -1,3 +1,15 @@
+## 2026-10-15 — F4 runtime acceptance and persistence SOURCE REPAIR R1 implemented
+
+- Extends the same F4 transaction owner from `RUNTIME_STARTED` to `PRE_REBOOT_READY`; reboot remains separate.
+- Adds direct runtime acceptance for exact images, Broker publications/TLS/guard, Manager exact mounts/state/container+MQTT stability, Home Assistant one-entry bootstrap state/MQTT socket, DynSec/credential inventory and negative authentication probes.
+- Enables Broker/Services persistence only after `RUNTIME_ACCEPTED`; certificate timer remains separate.
+- Adds fresh per-device first certificate audit with no cert/key/Broker restart drift before timer enablement.
+- Adds common fail-closed rollback for downstream F4 failures.
+- Adds exact F4 control package builder and artifact workflow.
+- Real T1 remains `DEVICE_READY`; no live F4 authorization exists.
+- Next one gate after CI: `N3W_T1_F4_RUNTIME_ACCEPTANCE_AND_PERSISTENCE_SOURCE_REPAIR_INDEPENDENT_REVIEW_20261015_01`.
+- Progress authority: `docs/development/N3W_T1_F4_RUNTIME_ACCEPTANCE_AND_PERSISTENCE_SOURCE_REPAIR_PROGRESS_20261015.md`.
+
 ## 2026-10-15 — F4 runtime acceptance and persistence SOURCE PREPARATION CLOSED_PASS
 
 - Transition-control PR #548 exact head `9cfd7459abe90054fe4657f5925da252f003f95a` completed 13/13 CI SUCCESS before this stacked preparation.
