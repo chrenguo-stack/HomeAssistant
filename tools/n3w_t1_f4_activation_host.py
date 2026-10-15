@@ -40,6 +40,19 @@ CONTROL_REPAIR_DEFECT_LAUNCHER_SHA256 = (
     "070f24eb3e53953747392562d425e2c43385c9b5d9c704bc89c4a82bfdc766b7"
 )
 
+ACTIVATION_AUTHORITY_REPAIR_CONFIRMATION = (
+    "REPAIR F4 ACTIVATION AUTHORITY: YES"
+)
+ACTIVATION_AUTHORITY_REPAIR_FROM_SOURCE_HEAD = (
+    "2b30e541d561e6878525a95ee15aa426cc743595"
+)
+ACTIVATION_AUTHORITY_REPAIR_FROM_MANIFEST_SHA256 = (
+    "4407e16e29b3da2fe498f82909dedce85dd6c822bd0cd1f4da5c58330a64a7b4"
+)
+ACTIVATION_AUTHORITY_REPAIR_FROM_LAUNCHER_SHA256 = (
+    "2a91b0fe3edfce86187d98eadbe47d3f91a5e40a477f938bf8ff728bd0bef0ff"
+)
+
 PRODUCT_ROOT = Path("/opt/HomeAssistant")
 RELEASE_PATH = PRODUCT_ROOT / "infra/n3w-t1/production/fresh-release.json"
 LIVE_COMPOSE_SOURCE = PRODUCT_ROOT / "infra/n3w-t1/production/docker-compose.yml"
@@ -1473,6 +1486,167 @@ def _repair_prepared_control(
             except OPERATION_ERRORS as stop_record_error:
                 raise F4Error(
                     "control_repair_failed_stop_record_unproven:"
+                    + type(stop_record_error).__name__
+                ) from error
+            raise
+
+
+def _repair_prepared_activation_authority(
+    package_root: Path,
+    confirmation: str,
+    repair_authorization_id: str,
+    package_manifest_sha256: str,
+    package_source_head: str,
+) -> dict[str, object]:
+    if confirmation != ACTIVATION_AUTHORITY_REPAIR_CONFIRMATION:
+        raise F4Error("activation_authority_repair_confirmation_invalid")
+    if (
+        not repair_authorization_id.startswith("N3W_T1_F4_")
+        or len(repair_authorization_id) > 200
+        or not repair_authorization_id.replace("_", "").replace("-", "").isalnum()
+    ):
+        raise F4Error("activation_authority_repair_authorization_id_invalid")
+    package = _validate_package(
+        package_root,
+        expected_manifest_sha256=package_manifest_sha256,
+        expected_source_head=package_source_head,
+    )
+    launcher_relative = "tools/n3w_t1_f4_activation_host.py"
+    launcher_target, launcher_mode = INSTALL_MAP[launcher_relative]
+    launcher_binding = package["files"].get(launcher_relative)
+    if not isinstance(launcher_binding, dict):
+        raise F4Error("activation_authority_repair_launcher_binding_missing")
+    launcher_source = Path(str(package["root"])) / launcher_relative
+    if not launcher_source.read_bytes().startswith(b"#!/usr/bin/python3\n"):
+        raise F4Error("activation_authority_repair_launcher_shebang_invalid")
+
+    with _exclusive_f4():
+        verified = _provision_verify()
+        _validate_factory_binding(verified)
+        transaction = _validate_transaction_binding(verified)
+        if (
+            transaction.get("stage") != "PREPARED"
+            or transaction.get("package_source_head")
+            != ACTIVATION_AUTHORITY_REPAIR_FROM_SOURCE_HEAD
+            or transaction.get("package_manifest_sha256")
+            != ACTIVATION_AUTHORITY_REPAIR_FROM_MANIFEST_SHA256
+            or transaction.get("control_repair_passed") is not True
+            or transaction.get("activation_authorization_claimed") is True
+            or transaction.get(
+                "activation_authority_repair_authorization_claimed"
+            )
+            is True
+        ):
+            raise F4Error("activation_authority_repair_prestate_invalid")
+        _verify_installed_material(transaction)
+        current_installed = transaction.get("installed_files")
+        if not isinstance(current_installed, dict):
+            raise F4Error("activation_authority_repair_installed_files_invalid")
+        current_launcher = current_installed.get(str(launcher_target))
+        if (
+            not isinstance(current_launcher, dict)
+            or current_launcher.get("sha256")
+            != ACTIVATION_AUTHORITY_REPAIR_FROM_LAUNCHER_SHA256
+        ):
+            raise F4Error("activation_authority_repair_source_binding_invalid")
+
+        for relative, (target, _mode) in INSTALL_MAP.items():
+            if relative == launcher_relative:
+                continue
+            new_binding = package["files"].get(relative)
+            installed_binding = current_installed.get(str(target))
+            if (
+                not isinstance(new_binding, dict)
+                or not isinstance(installed_binding, dict)
+                or new_binding.get("sha256") != installed_binding.get("sha256")
+                or new_binding.get("size") != installed_binding.get("size")
+            ):
+                raise F4Error(
+                    f"activation_authority_repair_unexpected_delta:{relative}"
+                )
+
+        runtime = _runtime_activity()
+        if (
+            runtime["production_service_start"] is not False
+            or runtime["running_services"] not in ([], None)
+            or _product_listener_ports() != []
+        ):
+            raise F4Error("activation_authority_repair_runtime_not_stopped")
+
+        _advance_transaction(
+            "ACTIVATION_AUTHORITY_REPAIR_CLAIMED",
+            activation_authority_repair_authorization_id=repair_authorization_id,
+            activation_authority_repair_authorization_claimed=True,
+            activation_authority_repair_authorization_consumed=True,
+            activation_authority_repair_replay_allowed=False,
+            activation_authority_repair_from_source_head=(
+                ACTIVATION_AUTHORITY_REPAIR_FROM_SOURCE_HEAD
+            ),
+            activation_authority_repair_from_manifest_sha256=(
+                ACTIVATION_AUTHORITY_REPAIR_FROM_MANIFEST_SHA256
+            ),
+            activation_authority_repair_target_source_head=package[
+                "source_head"
+            ],
+            activation_authority_repair_target_manifest_sha256=package[
+                "manifest_sha256"
+            ],
+            production_service_start=False,
+            persistence_enabled=False,
+        )
+        try:
+            _atomic_replace_bound_file(
+                launcher_source,
+                launcher_target,
+                launcher_mode,
+                expected_current=current_launcher,
+                expected_sha256=str(launcher_binding["sha256"]),
+                expected_size=int(launcher_binding["size"]),
+            )
+            updated_files = dict(current_installed)
+            updated_files[str(launcher_target)] = _file_binding(launcher_target)
+            _advance_transaction(
+                "PREPARED",
+                installed_files=updated_files,
+                package_source_head=package["source_head"],
+                package_manifest_sha256=package["manifest_sha256"],
+                activation_authority_repair_passed=True,
+                activation_authority_repair_launcher_sha256=launcher_binding[
+                    "sha256"
+                ],
+                production_service_start=False,
+                persistence_enabled=False,
+            )
+            repaired = _read_private_record(TRANSACTION_PATH)
+            _verify_installed_material(repaired)
+            return {
+                "status": "PASS",
+                "state": "PREPARED",
+                "activation_authority_repair_passed": True,
+                "activation_authority_repair_authorization_id": (
+                    repair_authorization_id
+                ),
+                "activation_authority_repair_authorization_claimed": True,
+                "activation_authority_repair_authorization_consumed": True,
+                "activation_authority_repair_replay_allowed": False,
+                "package_source_head": package["source_head"],
+                "package_manifest_sha256": package["manifest_sha256"],
+                "production_service_start": False,
+                "persistence_enabled": False,
+                "board_access": False,
+            }
+        except OPERATION_ERRORS as error:
+            try:
+                _advance_transaction(
+                    "STOPPED_ACTIVATION_AUTHORITY_REPAIR",
+                    activation_authority_repair_passed=False,
+                    activation_authority_repair_error_code=str(error)[:300],
+                    production_service_start=False,
+                    persistence_enabled=False,
+                )
+            except OPERATION_ERRORS as stop_record_error:
+                raise F4Error(
+                    "activation_authority_repair_failed_stop_record_unproven:"
                     + type(stop_record_error).__name__
                 ) from error
             raise
@@ -3273,6 +3447,24 @@ def _parser() -> argparse.ArgumentParser:
     repair.add_argument("--package-manifest-sha256", required=True)
     repair.add_argument("--package-source-head", required=True)
 
+    activation_authority_repair = subparsers.add_parser(
+        "repair-prepared-activation-authority"
+    )
+    activation_authority_repair.add_argument("--confirm", required=True)
+    activation_authority_repair.add_argument(
+        "--authorization-id",
+        required=True,
+    )
+    activation_authority_repair.add_argument("--package-root", required=True)
+    activation_authority_repair.add_argument(
+        "--package-manifest-sha256",
+        required=True,
+    )
+    activation_authority_repair.add_argument(
+        "--package-source-head",
+        required=True,
+    )
+
     activate = subparsers.add_parser("activate")
     activate.add_argument("--confirm", required=True)
     activate.add_argument("--authorization-id", required=True)
@@ -3310,6 +3502,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         elif args.command == "repair-prepared-control":
             report = _repair_prepared_control(
+                Path(args.package_root),
+                args.confirm,
+                args.authorization_id,
+                args.package_manifest_sha256,
+                args.package_source_head,
+            )
+        elif args.command == "repair-prepared-activation-authority":
+            report = _repair_prepared_activation_authority(
                 Path(args.package_root),
                 args.confirm,
                 args.authorization_id,
