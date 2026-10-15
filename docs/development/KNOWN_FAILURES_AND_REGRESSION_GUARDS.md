@@ -1,3 +1,36 @@
+## 2026-10-15 — KF-118 F4 activation authorization separation guard
+
+~~~text
+KF-118_STATUS=GUARDED_SOURCE_LIVE_CONTROL_UPDATE_PENDING
+DOMAIN=T1_DEPLOYMENT
+DETECTED_PRE_LIVE=true
+PRODUCT_RUNTIME_MUTATION=false
+
+ROOT_CAUSE=ACTIVATE_REQUIRED_TRANSACTION_PREPARE_AUTHORIZATION_ID_INSTEAD_OF_A_DISTINCT_ACTIVATION_AUTHORIZATION
+RISK=REUSE_OF_ALREADY_CONSUMED_PREPARE_AUTHORITY_FOR_NEW_LIVE_RUNTIME_MUTATION
+
+REPAIRED_SOURCE_HEAD=444ed085104080ea68ea073c1ff426f676d70db1
+REPAIRED_SOURCE_CI=13_SUCCESS_0_FAILURE_0_PENDING
+REPAIRED_EXACT_ARTIFACT_ID=11976711799
+REPAIRED_PACKAGE_MANIFEST_SHA256=b5d06fa0531b23155c41c245ae07f8edc2fc71a0552cb566d96dc83e424eaad1
+
+REAL_T1_STAGE=PREPARED
+REAL_T1_INSTALLED_SOURCE_HEAD=2b30e541d561e6878525a95ee15aa426cc743595
+ACTIVATE_AUTHORIZATION_GRANTED=true
+ACTIVATE_AUTHORIZATION_CLAIMED=false
+ACTIVATE_AUTHORIZATION_CONSUMED=false
+~~~
+
+Guard: PREPARE, control repair, activation-authority control repair and runtime activation must use distinct
+authorization IDs. Activation must durably claim/consume its own authorization before any guard/Broker/Services
+mutation. Never satisfy activation by replaying the PREPARE authorization.
+
+A real T1 already at PREPARED on source 2b30e541... requires the bounded
+`repair-prepared-activation-authority` control update before activation may resume.
+
+Authority:
+`docs/development/N3W_T1_F4_ACTIVATION_AUTHORITY_BOUNDARY_REPAIR_20261015.md`.
+
 ## 2026-10-15 — KF-117 F4 installed activation launcher shebang/executable guard
 
 ```text
