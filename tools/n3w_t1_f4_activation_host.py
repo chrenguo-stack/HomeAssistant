@@ -1679,6 +1679,209 @@ def _repair_prepared_activation_authority(
             raise
 
 
+def _repair_runtime_continuation_authority(
+    package_root: Path,
+    confirmation: str,
+    repair_authorization_id: str,
+    package_manifest_sha256: str,
+    package_source_head: str,
+) -> dict[str, object]:
+    if confirmation != RUNTIME_CONTINUATION_AUTHORITY_REPAIR_CONFIRMATION:
+        raise F4Error("runtime_continuation_authority_repair_confirmation_invalid")
+    if (
+        not repair_authorization_id.startswith("N3W_T1_F4_")
+        or len(repair_authorization_id) > 200
+        or not repair_authorization_id.replace("_", "").replace("-", "").isalnum()
+    ):
+        raise F4Error(
+            "runtime_continuation_authority_repair_authorization_id_invalid"
+        )
+    package = _validate_package(
+        package_root,
+        expected_manifest_sha256=package_manifest_sha256,
+        expected_source_head=package_source_head,
+    )
+    launcher_relative = "tools/n3w_t1_f4_activation_host.py"
+    launcher_target, launcher_mode = INSTALL_MAP[launcher_relative]
+    launcher_binding = package["files"].get(launcher_relative)
+    if not isinstance(launcher_binding, dict):
+        raise F4Error(
+            "runtime_continuation_authority_repair_launcher_binding_missing"
+        )
+    launcher_source = Path(str(package["root"])) / launcher_relative
+    if not launcher_source.read_bytes().startswith(b"#!/usr/bin/python3\n"):
+        raise F4Error(
+            "runtime_continuation_authority_repair_launcher_shebang_invalid"
+        )
+
+    with _exclusive_f4():
+        verified = _provision_verify()
+        _validate_factory_binding(verified)
+        transaction = _validate_transaction_binding(verified)
+        if (
+            transaction.get("stage") != "RUNTIME_STARTED"
+            or transaction.get("runtime_started") is not True
+            or transaction.get("runtime_acceptance_required") is not True
+            or transaction.get("production_service_start") is not True
+            or transaction.get("persistence_enabled") is not False
+            or transaction.get("package_source_head")
+            != RUNTIME_CONTINUATION_AUTHORITY_REPAIR_FROM_SOURCE_HEAD
+            or transaction.get("package_manifest_sha256")
+            != RUNTIME_CONTINUATION_AUTHORITY_REPAIR_FROM_MANIFEST_SHA256
+            or transaction.get(
+                "runtime_continuation_authority_repair_authorization_claimed"
+            )
+            is True
+        ):
+            raise F4Error(
+                "runtime_continuation_authority_repair_prestate_invalid"
+            )
+
+        _verify_installed_material(transaction)
+        current_installed = transaction.get("installed_files")
+        if not isinstance(current_installed, dict):
+            raise F4Error(
+                "runtime_continuation_authority_repair_installed_files_invalid"
+            )
+        current_launcher = current_installed.get(str(launcher_target))
+        if (
+            not isinstance(current_launcher, dict)
+            or current_launcher.get("sha256")
+            != RUNTIME_CONTINUATION_AUTHORITY_REPAIR_FROM_LAUNCHER_SHA256
+        ):
+            raise F4Error(
+                "runtime_continuation_authority_repair_source_binding_invalid"
+            )
+
+        for relative, (target, _mode) in INSTALL_MAP.items():
+            if relative == launcher_relative:
+                continue
+            new_binding = package["files"].get(relative)
+            installed_binding = current_installed.get(str(target))
+            if (
+                not isinstance(new_binding, dict)
+                or not isinstance(installed_binding, dict)
+                or new_binding.get("sha256") != installed_binding.get("sha256")
+                or new_binding.get("size") != installed_binding.get("size")
+            ):
+                raise F4Error(
+                    "runtime_continuation_authority_repair_unexpected_delta:"
+                    + relative
+                )
+
+        _validate_successor_authorization(
+            transaction,
+            repair_authorization_id,
+            claimed_field=(
+                "runtime_continuation_authority_repair_authorization_claimed"
+            ),
+            invalid_code=(
+                "runtime_continuation_authority_repair_authorization_id_invalid"
+            ),
+            replay_code=(
+                "runtime_continuation_authority_repair_authorization_replay_forbidden"
+            ),
+        )
+
+        runtime_before = _runtime_activity()
+        if (
+            runtime_before["production_service_start"] is not True
+            or set(runtime_before["running_services"] or [])
+            != EXPECTED_RUNTIME_SERVICES
+        ):
+            raise F4Error(
+                "runtime_continuation_authority_repair_runtime_not_active"
+            )
+        before_snapshot = _runtime_container_snapshot()
+
+        _advance_transaction(
+            "RUNTIME_STARTED",
+            runtime_continuation_authority_repair_authorization_id=(
+                repair_authorization_id
+            ),
+            runtime_continuation_authority_repair_authorization_claimed=True,
+            runtime_continuation_authority_repair_authorization_consumed=True,
+            runtime_continuation_authority_repair_replay_allowed=False,
+            runtime_continuation_authority_repair_from_source_head=(
+                RUNTIME_CONTINUATION_AUTHORITY_REPAIR_FROM_SOURCE_HEAD
+            ),
+            runtime_continuation_authority_repair_from_manifest_sha256=(
+                RUNTIME_CONTINUATION_AUTHORITY_REPAIR_FROM_MANIFEST_SHA256
+            ),
+            runtime_continuation_authority_repair_target_source_head=(
+                package["source_head"]
+            ),
+            runtime_continuation_authority_repair_target_manifest_sha256=(
+                package["manifest_sha256"]
+            ),
+            production_service_start=True,
+            persistence_enabled=False,
+        )
+        try:
+            _atomic_replace_bound_file(
+                launcher_source,
+                launcher_target,
+                launcher_mode,
+                expected_current=current_launcher,
+                expected_sha256=str(launcher_binding["sha256"]),
+                expected_size=int(launcher_binding["size"]),
+            )
+            updated_files = dict(current_installed)
+            updated_files[str(launcher_target)] = _file_binding(launcher_target)
+            runtime_after = _runtime_activity()
+            if (
+                runtime_after["production_service_start"] is not True
+                or set(runtime_after["running_services"] or [])
+                != EXPECTED_RUNTIME_SERVICES
+                or _runtime_container_snapshot() != before_snapshot
+            ):
+                raise F4Error(
+                    "runtime_continuation_authority_repair_runtime_changed"
+                )
+            _advance_transaction(
+                "RUNTIME_STARTED",
+                installed_files=updated_files,
+                package_source_head=package["source_head"],
+                package_manifest_sha256=package["manifest_sha256"],
+                runtime_continuation_authority_repair_passed=True,
+                runtime_started=True,
+                runtime_acceptance_required=True,
+                production_service_start=True,
+                persistence_enabled=False,
+            )
+            repaired = _read_private_record(TRANSACTION_PATH)
+            _verify_installed_material(repaired)
+            return {
+                "status": "PASS",
+                "state": "RUNTIME_STARTED",
+                "runtime_continuation_authority_repair_passed": True,
+                "runtime_continuation_authority_repair_authorization_id": (
+                    repair_authorization_id
+                ),
+                "runtime_continuation_authority_repair_authorization_claimed": True,
+                "runtime_continuation_authority_repair_authorization_consumed": True,
+                "runtime_continuation_authority_repair_replay_allowed": False,
+                "package_source_head": package["source_head"],
+                "package_manifest_sha256": package["manifest_sha256"],
+                "production_service_start": True,
+                "persistence_enabled": False,
+                "board_access": False,
+            }
+        except OPERATION_ERRORS as error:
+            try:
+                _downstream_fail_closed(
+                    "RUNTIME_CONTINUATION_CONTROL_REPAIR",
+                    error,
+                )
+            except OPERATION_ERRORS as rollback_error:
+                raise F4Error(
+                    "runtime_continuation_authority_repair_failed_"
+                    "rollback_unproven:"
+                    + type(rollback_error).__name__
+                ) from error
+            raise
+
+
 def _repair_stopped_runtime_start(
     package_root: Path,
     confirmation: str,
@@ -3840,6 +4043,24 @@ def _parser() -> argparse.ArgumentParser:
         required=True,
     )
 
+    runtime_continuation_repair = subparsers.add_parser(
+        "repair-runtime-continuation-authority"
+    )
+    runtime_continuation_repair.add_argument("--confirm", required=True)
+    runtime_continuation_repair.add_argument(
+        "--authorization-id",
+        required=True,
+    )
+    runtime_continuation_repair.add_argument("--package-root", required=True)
+    runtime_continuation_repair.add_argument(
+        "--package-manifest-sha256",
+        required=True,
+    )
+    runtime_continuation_repair.add_argument(
+        "--package-source-head",
+        required=True,
+    )
+
     runtime_start_repair = subparsers.add_parser(
         "repair-stopped-runtime-start"
     )
@@ -3900,6 +4121,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         elif args.command == "repair-prepared-activation-authority":
             report = _repair_prepared_activation_authority(
+                Path(args.package_root),
+                args.confirm,
+                args.authorization_id,
+                args.package_manifest_sha256,
+                args.package_source_head,
+            )
+        elif args.command == "repair-runtime-continuation-authority":
+            report = _repair_runtime_continuation_authority(
                 Path(args.package_root),
                 args.confirm,
                 args.authorization_id,
