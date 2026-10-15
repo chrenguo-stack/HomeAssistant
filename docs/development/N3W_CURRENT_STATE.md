@@ -1,3 +1,36 @@
+## 2026-10-15 — stopped runtime acceptance recovery source design CLOSED_PASS
+
+~~~text
+TASK=N3W_T1_F4_STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_SOURCE_DESIGN_20261015_01
+RESULT=CLOSED_PASS
+DESIGN_PR=570
+DESIGN_HEAD=24119a51559702b67f7bb3c113011b733381f152
+
+CURRENT_T1_STAGE=STOPPED_RUNTIME_ACCEPTANCE
+PRODUCTION_SERVICE_START=false
+FAILED_RUNTIME_ACCEPTANCE_AUTHORIZATION=CONSUMED_NO_REPLAY
+
+RECOVERY_ENTRYPOINT=SUCCESSOR_EXACT_PACKAGE_LAUNCHER
+RECOVERY_ALLOWED_INSTALLED_DELTA=LAUNCHER_ONLY
+RECOVERY_SUCCESS_STAGE=PREPARED
+RECOVERY_REUSE_EXISTING_ACTIVATE_IMPLEMENTATION=true
+
+NEW_RECOVERY_AUTH_REQUIRED=true
+NEW_ACTIVATION_AUTH_REQUIRED=true
+NEW_RUNTIME_ACCEPTANCE_AUTH_REQUIRED=true
+
+NEXT_ONE_GATE=N3W_T1_F4_STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_SOURCE_REPAIR_20261015_01
+T1_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+~~~
+
+The design preserves the failed acceptance authorization as permanently no-replay, adds a dedicated stopped-state
+control-recovery authorization, returns only to PREPARED while runtime remains stopped, reuses the existing bounded
+activation successor path, and requires a separate successor runtime-acceptance authorization. Persistence,
+certificate lifecycle, reboot and board work remain outside the route.
+
 ## 2026-10-15 — KF-121 source repair implemented; live revalidation still required
 
 Fresh stopped-container inspection confirms the failed Manager container contract:
