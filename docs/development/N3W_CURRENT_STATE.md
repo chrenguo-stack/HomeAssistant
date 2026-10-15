@@ -1,3 +1,34 @@
+## 2026-10-15 — F4 service activation and end-to-end acceptance PREPARATION CLOSED_PASS
+
+```text
+TASK=N3W_T1_F4_SERVICE_ACTIVATION_AND_END_TO_END_ACCEPTANCE_PREPARATION_20261015_01
+RESULT=CLOSED_PASS_SOURCE_PREPARATION
+
+SOURCE_AUTHORITY_MAIN=0877b0fc51727df9a9175fdfb838616a3c625147
+LIVE_PRODUCT_RELEASE_ID=6ac82ae0872b05644e59470ffef7307dad14d359
+LIVE_PRODUCT_STATE=DEVICE_READY
+
+F4_B1_FACTORY_ACCEPTANCE_CREATOR=OPEN_SOURCE_REPAIR
+F4_B2_ACTIVATION_AUTHORITY_WIRING=OPEN_SOURCE_REPAIR
+F4_B3_FRESH_ACTIVATION_INSTALL_PACKAGE=OPEN_SOURCE_REPAIR
+F4_B4_FRESH_CERT_LIFECYCLE_BINDING=OPEN_SOURCE_REPAIR
+
+F4_AUTHORIZATION=NOT_GRANTED
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+
+CURRENT_STOP_POINT=AFTER_F4_PREPARATION_BEFORE_F4_SOURCE_REPAIR
+NEXT_ONE_GATE=N3W_T1_F4_FACTORY_ACCEPTANCE_AND_ACTIVATION_SOURCE_REPAIR_20261015_01
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+Fresh source mapping confirms the real T1 stopped boundary is intentional. The current source can securely validate
+an exact FACTORY_ACCEPTED record but does not yet own factory-audit record creation or the complete fresh-route F4
+activation transaction. The historical certificate-lifecycle installer also carries fixed prior-instance assumptions
+and must be adapted to the per-device fresh identity model before use. No T1 access or production-service mutation
+occurred. Preparation authority:
+`docs/development/N3W_T1_F4_SERVICE_ACTIVATION_AND_END_TO_END_ACCEPTANCE_PREPARATION_20261015.md`.
+
 ## 2026-10-15 — GitHub convergence after DEVICE_READY CLOSED_PASS
 
 ```text
