@@ -1,3 +1,56 @@
+## 2026-10-15 — KF-117 F4 installed activation launcher shebang/executable guard
+
+```text
+KF-117_STATUS=GUARDED_SOURCE_LIVE_REPAIR_PENDING
+DOMAIN=T1_DEPLOYMENT
+
+FIRST_LIVE_GATE=N3W_T1_F4_EXACT_CONTROL_PACKAGE_TRANSFER_AND_PREPARE_LIVE_20261015_01
+FIRST_LIVE_PREPARE_RESULT=PASS
+FIRST_LIVE_AUTHORIZATION_CLAIMED=true
+FIRST_LIVE_AUTHORIZATION_CONSUMED=true
+FIRST_LIVE_AUTHORIZATION_REPLAY_PERMITTED=false
+FIRST_LIVE_STAGE=PREPARED
+FIRST_LIVE_PRODUCTION_SERVICE_START=false
+
+FAILURE_OBSERVED_AT=POST_PREPARE_DIRECT_STATUS_INVOCATION
+FAILURE_SIGNATURE=/usr/local/sbin/n3w-t1-f4-activation:line_1:from:command_not_found
+
+ROOT_CAUSE=F4_ACTIVATION_HOST_LOST_PYTHON_SHEBANG_DURING_EARLIER_RUFF_EXE001_REPAIR_WHILE_INSTALL_MAP_STILL_INSTALLED_IT_MODE_0755_AND_SYSTEMD_UNITS_EXECUTED_IT_DIRECTLY
+TEST_GAP=CI_COMPILED_AND_IMPORTED_THE_FILE_BUT_DID_NOT_EXECUTE_THE_TRACKED_LAUNCHER_DIRECTLY
+
+DEFECTIVE_SOURCE_HEAD=ad65bf7d10db76f12a09e19b337f4a0c7782894a
+DEFECTIVE_PACKAGE_MANIFEST_SHA256=9ed2ce124fbe0e621b4443a655c1cb78285db79b30489e2d41bcf73f4ee5e230
+DEFECTIVE_LAUNCHER_SHA256=070f24eb3e53953747392562d425e2c43385c9b5d9c704bc89c4a82bfdc766b7
+
+REPAIRED_SOURCE_HEAD=2b30e541d561e6878525a95ee15aa426cc743595
+REPAIRED_SOURCE_CI=13_SUCCESS_0_FAILURE_0_PENDING
+REPAIRED_EXACT_ARTIFACT_ID=11976241619
+REPAIRED_EXACT_ARTIFACT_DIGEST=sha256:17b3a5443e500629a876dc4fbd3fc1fecd6de9ad861e6ab988dfe2484e3c031d
+REPAIRED_CONTROL_TAR_SHA256=d2afa7fa033ef4b586a8cd470ed099bea74fbba7b8ac1dd64042c8716642c974
+REPAIRED_PACKAGE_MANIFEST_SHA256=4407e16e29b3da2fe498f82909dedce85dd6c822bd0cd1f4da5c58330a64a7b4
+REPAIRED_LAUNCHER_SHA256=2a91b0fe3edfce86187d98eadbe47d3f91a5e40a477f938bf8ff728bd0bef0ff
+REPAIRED_LAUNCHER_FIRST_LINE=#!/usr/bin/python3
+REPAIRED_REPOSITORY_MODE=100755
+
+LIVE_REPAIR_AUTHORIZATION_GRANTED=false
+LIVE_REPAIR_RESULT=NOT_EXECUTED
+```
+
+Guard: the F4 activation host is an installed executable and is also called directly by systemd
+`ExecStartPre`; therefore it must carry a valid Python shebang and be tracked executable. CI must run the file
+directly before source tests. Do not "fix" EXE001 by deleting the shebang.
+
+The original F4 PREPARE authorization is permanently consumed and must not be replayed. The repaired source includes
+a bounded `repair-prepared-control` command that is eligible only for the exact known defective PREPARED package.
+It verifies the original installed binding and stopped runtime, allows only the launcher payload to differ, records
+a separate one-shot repair authorization, atomically replaces the launcher, and rebinds the durable transaction to
+the successor exact package. Any claimed repair authorization is also no-replay.
+
+Live repair requires a separate explicit authorization after a fresh read-only PREPARED-state classification.
+
+Authority:
+`docs/development/N3W_T1_F4_KF117_INSTALLED_LAUNCHER_SOURCE_REPAIR_CLOSURE_20261015.md`.
+
 ## 2026-10-15 — KF-116 F3 public-only candidate-root creation guard
 
 ```text
