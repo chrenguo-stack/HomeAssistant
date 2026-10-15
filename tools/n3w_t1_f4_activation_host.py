@@ -1951,9 +1951,12 @@ def _activate(confirmation: str, authorization_id: str) -> dict[str, object]:
             raise F4Error("activation_authorization_history_invalid")
         history = list(dict.fromkeys(history_raw))
         previous_activation = transaction.get("activation_authorization_id")
-        if prior_activation_claimed and isinstance(previous_activation, str):
-            if previous_activation not in history:
-                history.append(previous_activation)
+        if (
+            prior_activation_claimed
+            and isinstance(previous_activation, str)
+            and previous_activation not in history
+        ):
+            history.append(previous_activation)
 
         _advance_transaction(
             "ACTIVATION_CLAIMED",
