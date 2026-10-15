@@ -51,3 +51,63 @@ No evidence currently indicates artifact drift or an authentication rejection. T
 Run a minimal Mac-side `gh api` metadata probe first. If it succeeds with the exact ID/name/digest/expired tuple, rerun the same Mac acceptance command. Do not change cache contents manually.
 
 If repeated metadata EOF reproduces, return to source repair and add bounded retry around the metadata lookup before continuing acceptance.
+
+
+## Attempt 2 — reproducible Mac API transport failure
+
+The minimal Mac read-only probe was repeated outside the acceptance wrapper:
+
+```text
+gh api repos/chrenguo-stack/HomeAssistant/actions/artifacts/11953163662
+→ net/http: TLS handshake timeout
+```
+
+This independently reproduces the first attempt's API EOF at the same lightweight metadata boundary.
+
+```text
+MAC_GITHUB_API_TRANSIENT_REPRODUCED=true
+FIRST_FAILURE=EOF
+SECOND_FAILURE=TLS_HANDSHAKE_TIMEOUT
+ARTIFACT_DRIFT_EVIDENCE=false
+AUTH_REJECTION_EVIDENCE=false
+CACHE_POPULATION_STARTED=false
+LARGE_ARTIFACT_DOWNLOAD_STARTED=false
+T1_ACCESS=false
+```
+
+GitHub-side connector evidence continues to show artifact ID 11953163662 as unexpired with the exact expected digest.
+
+## Acceptance-discovered source repair
+
+The Mac acceptance uncovered a source robustness gap: artifact metadata used `gh api` with no bounded transport retry.
+The repair replaces that network call with authenticated `curl` using:
+
+```text
+IPv4=true
+HTTP1_1=true
+RETRY=3
+RETRY_ALL_ERRORS=true
+RETRY_DELAY_SECONDS=2
+CONNECT_TIMEOUT_SECONDS=20
+MAX_METADATA_TIME_SECONDS=120
+```
+
+The artifact redirect lookup receives the same bounded retry contract. The large artifact transfer keeps exact
+SHA-256 verification and is strengthened to retry all transport errors up to five retries; the outer host timeout
+is extended for the one-time multi-gigabyte population.
+
+New regression coverage proves metadata lookup uses the IPv4/HTTP1.1/retry curl path and that the prior
+`gh api` network path is no longer used for artifact metadata.
+
+The F2 exact host-wrapper blob binding is updated with the repaired wrapper.
+
+```text
+SOURCE_REPAIR_IN_PROGRESS=true
+T1_ACCESS=false
+PROVISIONING=false
+F4=false
+BOARD_ACCESS=false
+MERGE=false
+```
+
+Mac acceptance must not resume until the repaired exact-head CI and newly generated exact deployable artifact pass.
