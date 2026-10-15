@@ -1,3 +1,15 @@
+## 2026-10-15 — F4 factory acceptance and activation SOURCE REPAIR implemented
+
+- Gate `N3W_T1_F4_FACTORY_ACCEPTANCE_AND_ACTIVATION_SOURCE_REPAIR_20261015_01` is implemented and awaiting exact-head CI plus independent source review.
+- Adds one-shot F4 transaction + secure `FACTORY_ACCEPTED.json` creation after a fresh stopped-state audit.
+- Broker/Services/certificate starts are phase-locked by fresh-route F4 systemd unit variants; direct Services start cannot bypass the top-level transition.
+- Adds exclusive execution lock and exact F4 authorization-id binding; provisioning `start` replay remains absent.
+- Initial activation stops at `RUNTIME_STARTED`; persistence, certificate timer enablement, detailed end-to-end runtime acceptance and reboot remain later gates.
+- Historical shared activation/certificate units remain unchanged; the fresh route uses isolated F4 variants.
+- Real T1 remains `DEVICE_READY`; no live mutation occurred.
+- Next one gate after CI: `N3W_T1_F4_FACTORY_ACCEPTANCE_AND_ACTIVATION_SOURCE_REPAIR_INDEPENDENT_REVIEW_20261015_01`.
+- Progress authority: `docs/development/N3W_T1_F4_FACTORY_ACCEPTANCE_AND_ACTIVATION_SOURCE_REPAIR_PROGRESS_20261015.md`.
+
 ## 2026-10-15 — F4 service activation and end-to-end acceptance PREPARATION CLOSED_PASS
 
 - Source/repository preparation for F4 is CLOSED_PASS; no live F4 authorization was granted.
