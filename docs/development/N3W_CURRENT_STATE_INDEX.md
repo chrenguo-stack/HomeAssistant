@@ -1,3 +1,13 @@
+## 2026-10-15 — F4 runtime acceptance R1 failed safely; KF-121 opened
+
+- Fresh precheck passed on exact source `ffcbb1a...` with Broker, Manager and Home Assistant running and persistence disabled.
+- The one-shot runtime-acceptance authorization was claimed/consumed and is permanently no-replay.
+- Acceptance failed with `manager_mqtt_socket_count_invalid`.
+- Exact fail-closed rollback completed: durable stage `STOPPED_RUNTIME_ACCEPTANCE`, running service set empty, production start=false, Broker/Services disabled, persistence=false, certificate timer disabled.
+- The failing socket count itself was not persisted, so root cause is still TBD; do not label this a product defect or oracle defect yet.
+- KF-121 is OPEN.
+- Next gate: `N3W_T1_F4_RUNTIME_ACCEPTANCE_R1_MANAGER_MQTT_SOCKET_FORENSIC_READONLY_20261015_01`. No runtime restart or retry is authorized.
+
 ## 2026-10-15 — KF-120 live control repair CLOSED_PASS
 
 - Running T1 launcher-only control repair completed without restarting Broker, Manager or Home Assistant.
