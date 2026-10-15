@@ -102,3 +102,27 @@ LIVE_REPAIR_AUTHORIZATION=NOT_GRANTED
 
 The original PREPARE is not replayable. The successor live repair is limited to the separately authorized exact
 control repair route and must stop again at PREPARED.
+
+
+## Live repair result
+
+~~~text
+LIVE_REPAIR_RESULT=PASS
+CONTROL_REPAIR_AUTHORIZATION_CLAIMED=true
+CONTROL_REPAIR_AUTHORIZATION_CONSUMED=true
+CONTROL_REPAIR_REPLAY_ALLOWED=false
+CONTROL_REPAIR_PASSED=true
+
+POST_REPAIR_TRANSACTION_STAGE=PREPARED
+POST_REPAIR_PACKAGE_SOURCE_HEAD=2b30e541d561e6878525a95ee15aa426cc743595
+POST_REPAIR_PACKAGE_MANIFEST_SHA256=4407e16e29b3da2fe498f82909dedce85dd6c822bd0cd1f4da5c58330a64a7b4
+POST_REPAIR_DIRECT_STATUS=PASS
+POST_REPAIR_DIRECT_INSPECT_ELIGIBILITY=PASS
+POST_REPAIR_PRODUCTION_SERVICE_START=false
+POST_REPAIR_RUNNING_SERVICES=[]
+KF-117_STATUS=CLOSED_PASS_LIVE_REVALIDATED
+~~~
+
+The final supplemental local hash-display command failed in the Mac zsh wrapper after the repair command,
+direct installed `status`, and direct installed `eligibility --phase inspect` had already returned PASS.
+That local wrapper failure caused no remote mutation and does not invalidate the live repair evidence.
