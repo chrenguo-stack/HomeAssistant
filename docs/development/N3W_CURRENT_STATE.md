@@ -1,3 +1,36 @@
+## 2026-10-16 — F4 durable reboot closure post-reboot binding source repair IMPLEMENTED / CI pending
+
+~~~text
+TASK=N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_SOURCE_REPAIR_20261016_01
+STATUS=IMPLEMENTED_CI_PENDING
+REPAIR_BASE=f21b89d32297cef207f0e6bf4418af3069e7cb5f
+
+A3_POSTREBOOT_PRECONDITION_REUSE=REPAIRED
+IMMUTABLE_CONTROL_BINDING_SPLIT=true
+PRE_REBOOT_RUNTIME_PROTECTIONS_WEAKENED=false
+POST_REBOOT_TIMER_ACTIVE_COMPATIBLE=true
+POST_REBOOT_STARTED_AT_CHANGE_COMPATIBLE=true
+F4_TRANSACTION_HASH_EXACT=true
+INSTALLED_CONTROL_HASHES_EXACT=true
+RECOVERY_LINK_EXACT=true
+
+T1_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+CURRENT_STAGE=F4
+CURRENT_STOP_POINT=POSTREBOOT_BINDING_SOURCE_REPAIR_IMPLEMENTED_CI_PENDING
+NEXT_ONE_GATE=N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_SOURCE_REVIEW_20261016_01
+AUTO_EXECUTE_NEXT_GATE=true
+~~~
+
+The finalizer no longer reuses pre-reboot runtime invariants after reboot. Immutable installed-control verification
+is now separated from runtime/timer assertions, while the existing pre-reboot callers keep their stronger checks.
+The full existing read-only reboot verifier remains the authority for post-reboot runtime acceptance.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_SOURCE_REPAIR_PROGRESS_20261016.md`.
+
 ## 2026-10-16 — F4 durable reboot closure review found executor-binding blocker / repaired source pending CI
 
 ~~~text

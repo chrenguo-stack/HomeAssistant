@@ -1264,3 +1264,100 @@ def test_verify_reboot_accepted_is_read_only_terminal_check(
     assert result["state"] == "REBOOT_ACCEPTED"
     assert result["reboot_acceptance_finalized"] is True
     assert result["accepted_claim_sha256"] == accepted_sha
+
+
+def test_material_binding_is_post_reboot_safe_without_pre_reboot_runtime_checks(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    state_root = tmp_path / "state"
+    state_root.mkdir(mode=0o700)
+    transaction_path = state_root / "F4_ACTIVATION_TRANSACTION.json"
+    install_path = state_root / "F4_REBOOT_SUCCESSOR_INSTALL_AUTHORIZATION.json"
+    manifest_path = tmp_path / "reboot-successor-manifest.json"
+    target = tmp_path / "guard.py"
+    target.write_text("exact-control", encoding="utf-8")
+    target.chmod(0o755)
+
+    transaction = {
+        "stage": "PERSISTENCE_ENABLED",
+        "runtime_acceptance_passed": True,
+        "persistence_enabled": True,
+        "broker_services_persistence_enabled": True,
+        "certificate_first_audit_passed": True,
+        "certificate_timer_enabled": True,
+        "pre_reboot_ready": True,
+        "board_access": False,
+    }
+    transaction_path.write_text(
+        json.dumps(transaction, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    transaction_path.chmod(0o600)
+    transaction_sha = tool._sha256(transaction_path)
+
+    source_head = "a" * 40
+    target_sha = tool._sha256(target)
+    manifest = {
+        "schema": tool.PACKAGE_SCHEMA,
+        "source_head": source_head,
+    }
+    manifest_path.write_text(
+        json.dumps(manifest, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    manifest_path.chmod(0o644)
+    manifest_sha = tool._sha256(manifest_path)
+
+    install = {
+        "schema": tool.SCHEMA_INSTALL,
+        "stage": "CONTROL_READY",
+        "source_head": source_head,
+        "control_manifest_sha256": manifest_sha,
+        "f4_transaction_sha256": transaction_sha,
+        "control_repair_authorization_claimed": True,
+        "control_repair_authorization_consumed": True,
+        "control_repair_authorization_replay_allowed": False,
+        "installation_verified": True,
+        "board_access": False,
+        "files": {
+            "guard.py": {
+                "sha256": target_sha,
+                "size": target.stat().st_size,
+                "target": str(target),
+                "mode": 0o755,
+            }
+        },
+    }
+    install_path.write_text(
+        json.dumps(install, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    install_path.chmod(0o600)
+
+    monkeypatch.setattr(tool, "F4_TRANSACTION", transaction_path)
+    monkeypatch.setattr(tool, "INSTALL_CLAIM_PATH", install_path)
+    monkeypatch.setattr(tool, "CONTROL_MANIFEST", manifest_path)
+    monkeypatch.setattr(tool, "CONTROL_TARGETS", {"guard.py": (target, 0o755)})
+    monkeypatch.setattr(
+        tool,
+        "_validate_recovery_ready_link",
+        lambda *_args, **_kwargs: None,
+    )
+
+    def pre_reboot_must_not_run(_expected_sha: str):
+        raise AssertionError("pre_reboot_runtime_check_reused")
+
+    monkeypatch.setattr(tool, "_base_pre_reboot", pre_reboot_must_not_run)
+
+    observed_transaction, observed_claim = (
+        tool._verify_installed_control_material_binding(
+            source_head=source_head,
+            manifest_sha256=manifest_sha,
+            expected_transaction_sha256=transaction_sha,
+        )
+    )
+
+    assert observed_transaction == transaction
+    assert observed_claim == install

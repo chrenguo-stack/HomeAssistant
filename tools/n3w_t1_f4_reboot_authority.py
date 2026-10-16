@@ -547,13 +547,30 @@ def claim_install(
         }
 
 
-def _verify_installed_control(
+def _verify_installed_control_material_binding(
     *,
     source_head: str,
     manifest_sha256: str,
     expected_transaction_sha256: str,
     allowed_stages: frozenset[str] = frozenset({"CONTROL_READY"}),
-) -> tuple[ModuleType, dict[str, object], dict[str, object]]:
+) -> tuple[dict[str, object], dict[str, object]]:
+    if re.fullmatch(r"[0-9a-f]{64}", expected_transaction_sha256) is None:
+        raise AuthorityError("transaction_sha256_invalid")
+    if _sha256(F4_TRANSACTION) != expected_transaction_sha256:
+        raise AuthorityError("f4_transaction_sha256_mismatch")
+    transaction = _record(F4_TRANSACTION, 0o600)
+    if (
+        transaction.get("stage") != "PERSISTENCE_ENABLED"
+        or transaction.get("runtime_acceptance_passed") is not True
+        or transaction.get("persistence_enabled") is not True
+        or transaction.get("broker_services_persistence_enabled") is not True
+        or transaction.get("certificate_first_audit_passed") is not True
+        or transaction.get("certificate_timer_enabled") is not True
+        or transaction.get("pre_reboot_ready") is not True
+        or transaction.get("board_access") is not False
+    ):
+        raise AuthorityError("f4_transaction_material_binding_invalid")
+
     claim = _record(INSTALL_CLAIM_PATH, 0o600)
     if (
         claim.get("schema") != SCHEMA_INSTALL
@@ -607,8 +624,27 @@ def _verify_installed_control(
             or binding.get("size") != metadata.st_size
         ):
             raise AuthorityError(f"installed_target_binding_invalid:{relative}")
+    return transaction, claim
 
-    module, transaction = _base_pre_reboot(expected_transaction_sha256)
+
+def _verify_installed_control(
+    *,
+    source_head: str,
+    manifest_sha256: str,
+    expected_transaction_sha256: str,
+    allowed_stages: frozenset[str] = frozenset({"CONTROL_READY"}),
+) -> tuple[ModuleType, dict[str, object], dict[str, object]]:
+    transaction, claim = _verify_installed_control_material_binding(
+        source_head=source_head,
+        manifest_sha256=manifest_sha256,
+        expected_transaction_sha256=expected_transaction_sha256,
+        allowed_stages=allowed_stages,
+    )
+    module, pre_reboot_transaction = _base_pre_reboot(
+        expected_transaction_sha256
+    )
+    if pre_reboot_transaction != transaction:
+        raise AuthorityError("f4_transaction_readback_mismatch")
     if (
         _canonical_sha(module._runtime_container_snapshot())
         != claim.get("pre_runtime_snapshot_sha256")
@@ -1606,7 +1642,7 @@ def finalize_reboot_acceptance(
         if _sha256(REBOOT_CLAIM_PATH) != pending_claim_sha256:
             raise AuthorityError("reboot_pending_claim_sha256_mismatch")
         claim = _record(REBOOT_CLAIM_PATH, 0o600)
-        _verify_installed_control(
+        _verify_installed_control_material_binding(
             source_head=expected_installed_source_head,
             manifest_sha256=expected_installed_manifest_sha256,
             expected_transaction_sha256=expected_transaction_sha256,

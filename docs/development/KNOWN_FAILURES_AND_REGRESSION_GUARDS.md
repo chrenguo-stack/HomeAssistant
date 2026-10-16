@@ -1,3 +1,22 @@
+### 2026-10-16 KF-121 post-reboot binding repair implemented
+
+~~~text
+A3_PRE_REBOOT_HELPER_REUSE=REPAIRED
+IMMUTABLE_BINDING_SPLIT=true
+POSTREBOOT_TIMER_ACTIVE_ALLOWED=true
+POSTREBOOT_RUNTIME_STARTED_AT_CHANGE_ALLOWED=true
+PRE_REBOOT_PROTECTIONS_PRESERVED=true
+T1_MUTATION=false
+~~~
+
+The durable-closure finalizer no longer applies pre-reboot runtime invariants to an already rebooted device. Exact
+installed material and frozen transaction hashes remain fail-closed, while post-reboot liveness/identity acceptance
+continues to come from the dedicated read-only reboot verifier.
+
+Status: SOURCE_REPAIR_IMPLEMENTED_CI_PENDING.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_SOURCE_REPAIR_PROGRESS_20261016.md`.
+
 ### 2026-10-16 KF-121 durable-closure finalizer executor-binding repair
 
 ~~~text

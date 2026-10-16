@@ -1,3 +1,16 @@
+## 2026-10-16 — F4 durable reboot closure post-reboot binding source repair
+
+- Gate: `N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_SOURCE_REPAIR_20261016_01`.
+- Split exact immutable installed-control verification from pre-reboot runtime/timer/snapshot assertions.
+- Finalizer and accepted-state verifier no longer require certificate timer inactive after reboot.
+- Finalizer and accepted-state verifier no longer require container `StartedAt` to equal the pre-reboot snapshot.
+- Exact F4 transaction hash, control manifest/files and recovery linkage remain enforced.
+- Existing pre-reboot flows retain the original stronger helper and protections.
+- Added regression coverage proving the material-only helper does not call `_base_pre_reboot()`.
+- Real T1 remains untouched.
+- Next: exact-head CI and focused source review.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_SOURCE_REPAIR_PROGRESS_20261016.md`.
+
 ## 2026-10-16 — F4 durable reboot closure source review repair
 
 - First source-repair head `b4287d574907...` passed 13/13 CI but focused review found an executor deployment-binding blocker.
