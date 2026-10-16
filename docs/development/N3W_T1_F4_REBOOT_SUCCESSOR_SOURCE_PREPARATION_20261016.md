@@ -30,6 +30,8 @@ The source also confirms the intended boot chain:
 - certificate timer is persistent, targets the lifecycle service, and is enabled via `timers.target`;
 - certificate lifecycle service itself checks F4 certificate eligibility before auto-renew.
 
+A second source blocker is also in the reboot/lifecycle boundary. The certificate lifecycle service runs `eligibility --phase certificate` before every scheduled lifecycle invocation. That eligibility currently requires the live `status.json` SHA-256 to remain exactly equal to the SHA recorded by the first audit. But the lifecycle helper rewrites `status.json` on every successful `auto-renew` invocation, including no-renewal health checks because the status contains a fresh check timestamp. Therefore after the first scheduled lifecycle run, the transaction's first-audit status hash becomes stale and the next lifecycle invocation can be rejected. Reboot acceptance must not freeze this latent one-run-only timer behavior as production-ready.
+
 Required source repair before live reboot:
 
 1. add a bounded reboot authorization command owned by the F4 activation host;
@@ -39,7 +41,9 @@ Required source repair before live reboot:
 5. record a reboot-pending state/binding sufficient for read-only recovery after SSH disconnect;
 6. do not perform board access or any unrelated mutation;
 7. provide a post-reboot read-only verifier that proves the persisted recovery contract and closes the reboot transaction without replaying the authorization;
-8. preserve existing fail-closed behavior and public-safe evidence rules.
+8. replace the one-run-only certificate-status hash gate with a durable lifecycle authority contract that accepts legitimate root-owned lifecycle status evolution while still rejecting tamper/drift;
+9. add regression coverage proving at least two successive scheduled lifecycle checks remain eligible after reboot without weakening certificate/material guards;
+10. preserve existing fail-closed behavior and public-safe evidence rules.
 
 Until that source repair is reviewed, tested, built, and installed as an exact successor artifact:
 
