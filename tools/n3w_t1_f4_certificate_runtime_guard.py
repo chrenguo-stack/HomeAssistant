@@ -24,7 +24,7 @@ STATUS_SCHEMA = "gh.n3w-broker-certificate-lifecycle/1"
 ALLOWED_STAGES = frozenset({"PERSISTENCE_ENABLED"})
 EXPECTED_SERVICES = frozenset({"broker", "manager", "homeassistant"})
 ALLOWED_RESULTS = frozenset({"ok", "monitoring_warning", "renewed", "ca_rollover_required"})
-ALLOWED_STATES = frozenset({"HEALTHY", "WARNING", "CRITICAL", "EXPIRED", "CA_ROLLOVER_REQUIRED"})
+ALLOWED_STATES = frozenset({"HEALTHY", "WARNING", "RENEW_DUE", "CRITICAL", "EXPIRED", "CA_ROLLOVER_REQUIRED"})
 
 
 class GuardError(RuntimeError):
