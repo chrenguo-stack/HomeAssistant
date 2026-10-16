@@ -1,3 +1,17 @@
+## 2026-10-16 — F4 certificate first audit successor read-only closure PASS
+
+- Gate `N3W_T1_F4_CERTIFICATE_FIRST_AUDIT_SUCCESSOR_POSTEXECUTION_READONLY_CLOSURE_20261016_01` is CLOSED_PASS.
+- Real T1 remains `PERSISTENCE_ENABLED`.
+- Transaction, runtime-acceptance report, and certificate-status hashes were unchanged by the collector.
+- Runtime identity and certificate identity remained unchanged.
+- Certificate first audit remains passed; server, CA, and system CA remain HEALTHY.
+- Broker and Services persistence remain enabled; Broker, Manager, and Home Assistant remain running.
+- Certificate timer remains disabled/inactive; certificate lifecycle service remains inactive.
+- No live mutation, reboot, or board access occurred.
+- Closure authority: `docs/development/N3W_T1_F4_CERTIFICATE_FIRST_AUDIT_SUCCESSOR_POSTEXECUTION_READONLY_CLOSURE_20261016.md`.
+- Next one gate: `N3W_T1_F4_CERTIFICATE_TIMER_ENABLEMENT_SUCCESSOR_LIVE_20261016_01`.
+- The next gate requires a fresh explicit one-shot authorization.
+
 ## 2026-10-16 — F4 certificate first audit successor PASS
 
 - Gate `N3W_T1_F4_CERTIFICATE_FIRST_AUDIT_SUCCESSOR_LIVE_20261016_01` is CLOSED_PASS.

@@ -1,3 +1,19 @@
+### 2026-10-16 KF-121 certificate first audit postexecution closure
+
+~~~text
+CERTIFICATE_FIRST_AUDIT_POSTEXECUTION_READONLY=CLOSED_PASS
+POST_STAGE=PERSISTENCE_ENABLED
+TRANSACTION_UNCHANGED=true
+RUNTIME_ACCEPTANCE_REPORT_UNCHANGED=true
+CERTIFICATE_STATUS_UNCHANGED=true
+RUNTIME_IDENTITY_UNCHANGED=true
+CERTIFICATE_IDENTITY_UNCHANGED=true
+CERTIFICATE_TIMER_ENABLED=false
+PRE_REBOOT_READY=false
+~~~
+
+Guard: the first certificate audit is durably closed, but certificate timer enablement remains a separate one-shot live gate. Do not replay the consumed audit authorization. Timer enablement must not start the timer before reboot, mutate certificate material, restart the runtime, reboot, or access boards.
+
 ### 2026-10-16 KF-121 certificate first audit successor closure
 
 ~~~text
