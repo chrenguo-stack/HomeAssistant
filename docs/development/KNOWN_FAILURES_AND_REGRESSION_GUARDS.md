@@ -1,3 +1,20 @@
+### 2026-10-16 KF-121 successor runtime acceptance live closure
+
+~~~text
+SUCCESSOR_RUNTIME_ACCEPTANCE=CLOSED_PASS
+POST_STAGE=RUNTIME_ACCEPTED
+RUNTIME_ACCEPTANCE_AUTHORIZATION_CONSUMED=true
+RUNTIME_ACCEPTANCE_AUTHORIZATION_REPLAY_ALLOWED=false
+RUNTIME_ACCEPTANCE_PASSED=true
+MANAGER_AUTHENTICATED_CONNECTION=true
+HOMEASSISTANT_AUTHENTICATED_CONNECTION=true
+HOMEASSISTANT_HTTP_READY=true
+PERSISTENCE_ENABLED=false
+CERTIFICATE_TIMER_ENABLED=false
+~~~
+
+Guard: the successor runtime-acceptance authorization is consumed and must never be replayed. Runtime acceptance now passes, but this does not authorize persistence, certificate lifecycle, reboot, or board work. Those remain separate later gates.
+
 ### 2026-10-16 KF-121 successor activation postexecution closure
 
 ~~~text

@@ -1,3 +1,16 @@
+## 2026-10-16 — F4 successor runtime acceptance PASS
+
+- Gate `N3W_T1_F4_RUNTIME_ACCEPTANCE_SUCCESSOR_LIVE_20261016_01` is CLOSED_PASS.
+- Real T1 advanced from `RUNTIME_STARTED` to `RUNTIME_ACCEPTED`.
+- Successor runtime-acceptance authorization is claimed, consumed, and non-replayable.
+- Runtime acceptance report SHA-256: `c938244cda069247f3288d0cc14fbdd37dcf7c389e8a16669ea8a6c3fcecbfd4`.
+- Manager and Home Assistant authenticated MQTT connections are proven; both show one MQTT socket.
+- Home Assistant HTTP readiness passed.
+- Product pairing remains disabled.
+- Persistence and certificate timer remain disabled; no board access occurred.
+- Closure: `docs/development/N3W_T1_F4_RUNTIME_ACCEPTANCE_SUCCESSOR_LIVE_CLOSURE_20261016.md`.
+- Next one gate: `N3W_T1_F4_RUNTIME_ACCEPTANCE_SUCCESSOR_POSTEXECUTION_READONLY_CLOSURE_20261016_01`.
+
 ## 2026-10-16 — F4 successor activation read-only closure PASS
 
 - Read-only closure is CLOSED_PASS.
