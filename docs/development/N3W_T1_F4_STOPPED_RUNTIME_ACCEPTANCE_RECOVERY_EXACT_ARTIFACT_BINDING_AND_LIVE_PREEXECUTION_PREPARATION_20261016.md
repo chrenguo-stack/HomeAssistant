@@ -1,3 +1,31 @@
+## 2026-10-16 exact-artifact preparation CI closure
+
+~~~text
+PR=573
+PR_HEAD=d432caa26cf339ba5a85251accebb9442b830fa6
+PR_MERGEABLE=true
+PR_STATE=OPEN_DRAFT
+
+M0_VERTICAL_SLICE_CI=PASS
+C07_NODE_RETIREMENT_CI=PASS
+M2_MANAGER_RUNTIME_SECRET_OWNERSHIP_CI=PASS
+M2_NODE_AUTH_NATIVE_BOARD_LAB_CI=PASS
+M2_NODE_AUTH_BOARD_LAB_CI=PASS
+M2_NODE_AUTH_ISOLATED_LAB_CI=PASS
+M2_PRIVATE_MOSQUITTO_CI=PASS
+M2_DYNAMIC_SECURITY_CI=PASS
+H3_N2_STAGE2B3_PAIRING_RUNTIME_CI=PASS
+GREENHOUSE_MANAGER_CI=PASS
+PUBLIC_REPOSITORY_SAFETY_CI=PASS
+N3W_T1_F4_ACTIVATION_SOURCE_CI=PASS
+
+CI_RESULT=12_OF_12_PASS
+NEXT_GATE_ELIGIBLE=true
+~~~
+
+The preparation gate is now fully closed. The next gate is the already-versioned real-T1 read-only preexecution.
+It remains non-mutating and does not transfer the exact artifact or grant/consume the recovery authorization.
+
 # N3-W T1 F4 Stopped Runtime Acceptance Recovery — Exact Artifact Binding and Live Preexecution Preparation
 
 Date: 2026-10-16
