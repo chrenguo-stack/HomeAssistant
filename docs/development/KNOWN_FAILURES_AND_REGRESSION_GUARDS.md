@@ -1,3 +1,16 @@
+### 2026-10-16 KF-121 PREPARED null-history repair result
+
+~~~text
+KF-121_POST_RECOVERY_HISTORY_BLOCKER=REPAIRED_PENDING_POSTEXECUTION_READONLY_CLOSURE
+NULL_HISTORY_REPAIR_EXECUTION=PASS
+RUNTIME_ACCEPTANCE_AUTHORIZATION_HISTORY=[]
+REPAIR_AUTHORIZATION_CONSUMED=true
+SUCCESSOR_ACTIVATION_EXECUTED=false
+SUCCESSOR_RUNTIME_ACCEPTANCE_EXECUTED=false
+~~~
+
+Regression guard: the consumed null-history repair authorization must never be replayed. Keep successor activation and successor runtime acceptance as distinct later one-shot gates.
+
 ### 2026-10-16 KF-121 PREPARED null-history staging closure
 
 ~~~text
