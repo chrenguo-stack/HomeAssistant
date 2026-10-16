@@ -29,6 +29,18 @@ def fake_fingerprint(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def read_json_test_fixture(
+    path: Path,
+    mode: int,
+) -> dict[str, object]:
+    assert path.is_file()
+    assert not path.is_symlink()
+    assert path.stat().st_mode & 0o777 == mode
+    document = json.loads(path.read_text(encoding="utf-8"))
+    assert isinstance(document, dict)
+    return document
+
+
 def test_runtime_guard_accepts_legitimate_status_evolution(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -63,7 +75,12 @@ def test_runtime_guard_accepts_legitimate_status_evolution(
     monkeypatch.setattr(tool, "SERVER_CERT", server)
     monkeypatch.setattr(tool, "CA_CERT", ca)
     monkeypatch.setattr(tool, "SYSTEM_CA", system_ca)
-    monkeypatch.setattr(tool, "_certificate_fingerprint", lambda path, _mode: fake_fingerprint(path))
+    monkeypatch.setattr(tool, "_json", read_json_test_fixture)
+    monkeypatch.setattr(
+        tool,
+        "_certificate_fingerprint",
+        lambda path, _mode: fake_fingerprint(path),
+    )
 
     def status_document(checked_at: str) -> dict[str, object]:
         return {
@@ -144,7 +161,12 @@ def test_runtime_guard_rejects_status_certificate_mismatch(
     monkeypatch.setattr(tool, "SERVER_CERT", server)
     monkeypatch.setattr(tool, "CA_CERT", ca)
     monkeypatch.setattr(tool, "SYSTEM_CA", system_ca)
-    monkeypatch.setattr(tool, "_certificate_fingerprint", lambda path, _mode: fake_fingerprint(path))
+    monkeypatch.setattr(tool, "_json", read_json_test_fixture)
+    monkeypatch.setattr(
+        tool,
+        "_certificate_fingerprint",
+        lambda path, _mode: fake_fingerprint(path),
+    )
 
     with pytest.raises(tool.GuardError, match="server_sha256_fingerprint"):
         tool.check()
@@ -164,3 +186,11 @@ def test_dropin_replaces_old_exact_status_gate() -> None:
         "n3w-t1-f4-certificate-runtime-guard check"
     ) in dropin
     assert "eligibility --phase certificate" not in dropin
+
+
+def test_production_guard_keeps_root_owned_record_contract() -> None:
+    source = TOOL.read_text(encoding="utf-8")
+    assert "metadata.st_uid != 0" in source
+    assert "metadata.st_gid != 0" in source
+    assert "metadata.st_nlink != 1" in source
+    assert "stat.S_IMODE(metadata.st_mode) != mode" in source
