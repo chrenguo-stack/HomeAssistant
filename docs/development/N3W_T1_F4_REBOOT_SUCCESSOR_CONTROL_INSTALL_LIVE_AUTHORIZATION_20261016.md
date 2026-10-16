@@ -149,3 +149,77 @@ NEXT_ROUTE=N3W_T1_F4_REBOOT_SUCCESSOR_CERTIFICATE_IDENTITY_HASH_READONLY_FORENSI
 
 Do not rerun the live install until the identity-hash mismatch is classified.
 
+## Certificate identity hash forensic — CLOSED_PASS
+
+The pre-claim stop was caused by comparing two different evidence-digest algorithms, not by certificate/key drift.
+
+Observed on the live T1:
+
+```text
+CERTIFICATE_IDENTITY_CANONICAL_SHA256=68264cf00af8a5748fc20c17edb4969533d326905bb3e959960b3f2ab0103947
+CERTIFICATE_IDENTITY_LEGACY_TEXT_SHA256=0a7bdd09d9647eac208dccfa150779b31db55ba61636230f35da089bf5067a4f
+LEGACY_EXPECTED_MATCH=true
+
+SERVER_CERT_KEY_MATCH=true
+CA_CERT_KEY_MATCH=true
+
+F4_DURABLE_CONTRACT=PASS
+TLS_MATERIAL_CONTRACT=PASS
+TLS_RUNTIME_CONTRACT=PASS
+
+TX_UNCHANGED=true
+RUNTIME_ACCEPTANCE_UNCHANGED=true
+CERT_STATUS_UNCHANGED=true
+BOOT_ID_UNCHANGED=true
+
+INSTALL_AUTHORIZATION_CLAIMED=false
+INSTALL_AUTHORIZATION_CONSUMED=false
+CONTROL_FILES_INSTALLED=false
+REBOOT_AUTHORIZATION_CLAIMED=false
+REBOOT_EXECUTED=false
+BOARD_ACCESS=false
+FORENSIC_MUTATION=false
+FORENSIC_COMPLETE=true
+```
+
+The five individual certificate/key file SHA-256 values are unchanged from the legacy evidence set. Certificate
+status fingerprints match the live server certificate, broker CA certificate and Manager system CA certificate.
+The server certificate/public key matches the server private key, and the broker CA certificate/public key matches
+the CA private key.
+
+`CA_SYSTEM_CA_CERT_MATCH=false` is not treated as a failure: the broker CA and Manager system CA are separate
+identity materials in the F4 contract. Their required condition here is that each live certificate matches its
+own status fingerprint and that the repository-owned F4 TLS material/runtime validators pass, which they did.
+
+The successor authority uses canonical JSON SHA-256 of `_certificate_identity_snapshot()`, so the correct
+immediate successor-control baseline is:
+
+```text
+CURRENT_CERTIFICATE_IDENTITY_CANONICAL_SHA256=68264cf00af8a5748fc20c17edb4969533d326905bb3e959960b3f2ab0103947
+```
+
+The previous live wrapper incorrectly compared that canonical digest against the older path-delimited evidence
+digest `0a7bdd...`.
+
+Because no install claim record exists and the authorization was not claimed or consumed, the already explicit
+authorization
+`N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_LIVE_20261016_01`
+remains unconsumed and may continue within the same exact authorized scope after a fresh pre-claim state check.
+
+The exact successor transport tar remains staged only at:
+
+```text
+/var/tmp/n3w-f4-reboot-successor-5368acc1eb50f1fc62bbd7c16ff9e64139131a29-53385.tar
+sha256=e429201e41c8bb9154fe9c3397e06421bef147dc9117fea8d72184e97edef0a0
+```
+
+No successor control file, installed manifest, install claim, reboot claim or reboot actuation exists yet.
+
+```text
+CERTIFICATE_IDENTITY_FORENSIC_RESULT=CLOSED_PASS
+CERTIFICATE_DRIFT=false
+IDENTITY_DIGEST_METHOD_MISMATCH=true
+CONTROL_INSTALL_AUTHORIZATION_REMAINS_UNCONSUMED=true
+NEXT_ROUTE=N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_LIVE_20261016_01
+```
+
