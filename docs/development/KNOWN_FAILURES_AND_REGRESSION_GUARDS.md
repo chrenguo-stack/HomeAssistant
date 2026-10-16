@@ -1,3 +1,27 @@
+### 2026-10-16 KF-121 post-reboot binding focused source review closure
+
+~~~text
+SOURCE_REVIEW_RESULT=CLOSED_PASS
+SOURCE_REVIEW_HEAD=19bd98386c4828c0768f2f3936429db8c7a59adf
+SOURCE_REVIEW_CI=PASS:13/13
+POSTREBOOT_BINDING_SOURCE_BLOCKER=NONE_OPEN
+NEW_KF_ROOT_CAUSE_PROVEN=false
+REAL_T1_DURABLE_REBOOT_CLAIM=REBOOT_PENDING
+FINALIZER_EXECUTED_ON_REAL_T1=false
+T1_MUTATION=false
+~~~
+
+Focused review confirmed the repaired split: post-reboot finalization/terminal verification use immutable installed
+material binding, while pre-reboot callers retain the stronger runtime/timer/snapshot checks. The finalizer is
+self-bound to an exact staged package, performs one atomic terminal ledger replacement only after fresh acceptance,
+and preserves the consumed/no-replay reboot authority plus the pending-claim hash chain. Certificate-status evidence
+is carried through the fresh reboot report and its canonical hash.
+
+Status: SOURCE_REVIEW_CLOSED_PASS; the source blocker is closed, but target-local durable finalization is a later,
+separately authorized gate and has not run.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_SOURCE_REVIEW_CLOSURE_20261016.md`.
+
 ### 2026-10-16 KF-121 sync audit corrected terminal-verifier binding and fixtures
 
 ~~~text

@@ -1,3 +1,48 @@
+## 2026-10-16 — F4 post-reboot binding focused source review CLOSED_PASS
+
+~~~text
+TASK=N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_SOURCE_REVIEW_20261016_01
+RESULT=CLOSED_PASS
+SOURCE_REVIEW_HEAD=19bd98386c4828c0768f2f3936429db8c7a59adf
+SOURCE_REVIEW_TREE=f5b66faf690c88d655e01ffc0a5d5ef122b589af
+SOURCE_REVIEW_CI=PASS:13/13
+CANDIDATE_HEAD_AT_REVIEW_START=78e16f0208047868dba4751fc7c21fecae1d7783
+SOURCE_DRIFT_AFTER_HANDOFF=DOCS_ONLY
+
+A1_FINALIZER_EXECUTOR_BINDING=PASS
+A2_INSTALLED_CONTROL_MATERIAL_BINDING=PASS
+A3_PRE_REBOOT_PROTECTIONS_PRESERVED=PASS
+A4_FINALIZER_POSTREBOOT_ORDERING=PASS
+A5_TERMINAL_VERIFIER_READONLY_AND_POSTREBOOT_SAFE=PASS
+A6_AUTHORIZATION_NO_REPLAY_AND_HASH_CHAIN=PASS
+A7_ATOMICITY_AND_INTERRUPTION_SEMANTICS=PASS
+A8_CERTIFICATE_STATUS_BINDING=PASS
+A9_TEST_COVERAGE=PASS
+A10_PACKAGE_BUILDABILITY_FOR_LATER_GATE=PASS
+
+REAL_T1_DURABLE_REBOOT_CLAIM=REBOOT_PENDING
+FINALIZER_EXECUTED_ON_REAL_T1=false
+T1_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+CURRENT_STAGE=F4
+CURRENT_STOP_POINT=POSTREBOOT_BINDING_SOURCE_REVIEW_CLOSED_PASS
+NEXT_ROUTE=DEFINE_EXACT_ARTIFACT_AND_READONLY_PREAUTH_GATE_FOR_LEDGER_FINALIZATION
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+Fresh review confirmed that the handoff advance after source head `19bd9838...` is documentation-only and the exact
+source head still has 13/13 successful workflows. The staged-finalizer self-binding, immutable installed-control
+binding, retained pre-reboot protections, atomic terminal write, read-only terminal verifier, consumed/no-replay
+authorization chain and certificate-status evidence binding all passed focused review.
+
+The source review is closed, but the real T1 durable reboot claim is still `REBOOT_PENDING`. No finalizer was run on
+the real T1. The next stage must first define an exact finalizer artifact plus read-only preauthorization gate.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_SOURCE_REVIEW_CLOSURE_20261016.md`.
+
 ## 2026-10-16 — F4 post-reboot binding sync audit + terminal verifier / fixture repair
 
 ~~~text

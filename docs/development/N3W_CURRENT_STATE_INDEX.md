@@ -1,3 +1,14 @@
+## 2026-10-16 — F4 post-reboot binding focused source review CLOSED_PASS
+
+- Exact reviewed product source remains `19bd98386c4828c0768f2f3936429db8c7a59adf` / tree `f5b66faf690c88d655e01ffc0a5d5ef122b589af`.
+- Candidate head at review start was `78e16f0208047868dba4751fc7c21fecae1d7783`; the only change after the reviewed source head was the docs-only new-chat handoff.
+- Exact source-head CI remains PASS 13/13; the exact reboot-successor package build/verify job also passed.
+- A1–A10 focused review all PASS: staged executor binding, installed material binding, retained pre-reboot guards, post-reboot ordering, read-only terminal verification, no-replay/hash chain, atomic interruption semantics, certificate-status evidence, test coverage and later package buildability.
+- No new source blocker or distinct new KF root cause was proven.
+- Real T1 was not accessed or mutated; its last proven durable reboot claim remains `REBOOT_PENDING`.
+- Next route is to define an exact artifact + read-only preauthorization gate for ledger finalization. It is not auto-executed.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_SOURCE_REVIEW_CLOSURE_20261016.md`.
+
 ## 2026-10-16 — F4 post-reboot binding sync audit + repair
 
 - Fresh audit showed GitHub was only partially synchronized: CI #217 final failure and the corrected root cause were not yet in durable current-state evidence.
