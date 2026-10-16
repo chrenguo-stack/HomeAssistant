@@ -78,3 +78,35 @@ PASS_NEXT_ONE_GATE=N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_LIVE_20261016_01
 AUTO_EXECUTE_LIVE_INSTALL=false
 REBOOT_AUTHORIZATION_GRANTED=false
 ```
+
+## First execution result — STOP before any mutation
+
+The first read-only execution stopped at the baseline runtime identity comparison:
+
+```text
+PREAUTH_FAIL=runtime_snapshot_before
+```
+
+This occurred before artifact staging, authorization claim, successor-control installation, systemd reload, reboot, or
+board access. The exact cause is not yet classified.
+
+The stored baseline hash
+`7a6c2f989ce2a585012f9a44841c6a53036e064ba3051aa95d407b789bac6b92`
+is the canonical SHA-256 of the three service container identities
+(`Id` + `StartedAt` for Broker, Manager and Home Assistant). A mismatch therefore means at least one current
+container identity differs from that earlier baseline. It does not by itself prove product failure.
+
+Next action is a separate read-only runtime-snapshot drift forensic. No live install authorization is eligible until
+the drift is classified and the preauthorization gate is rerun against an accepted current baseline.
+
+```text
+READONLY_PREAUTH_RESULT=STOP
+STOP_REASON=runtime_snapshot_before
+ARTIFACT_STAGING=false
+AUTHORIZATION_CLAIMED=false
+LIVE_RUNTIME_MUTATION=false
+REBOOT_EXECUTED=false
+BOARD_ACCESS=false
+NEXT_ROUTE=N3W_T1_F4_REBOOT_SUCCESSOR_RUNTIME_SNAPSHOT_DRIFT_READONLY_FORENSIC_20261016_01
+```
+
