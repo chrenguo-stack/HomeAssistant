@@ -1,3 +1,12 @@
+## 2026-10-16 — F4 reboot successor control-install live gate authorized
+
+- User explicitly authorized `N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_LIVE_20261016_01`.
+- Exact source head: `5368acc1eb50f1fc62bbd7c16ff9e64139131a29`.
+- Exact successor artifact ID: `12028807237`; ZIP SHA-256 `5af048d98ebfdcfb4ede62a8e958e3583dc60e2057d36d6f20123cbd7b74d4b4`; control tar SHA-256 `e429201e41c8bb9154fe9c3397e06421bef147dc9117fea8d72184e97edef0a0`; manifest SHA-256 `2f2ae69dbf78d5f578fa60bbee7fb269a5d0c3b17a00e2f697bc65d3ed91c40c`.
+- Authorization is limited to exact artifact staging, durable one-shot control-install claim, exact control installation, daemon-reload, and verification.
+- Reboot/reboot-claim, service restarts, board access and merge remain unauthorized.
+- On PASS, next route is a postexecution read-only closure, not reboot.
+
 ## 2026-10-16 — F4 reboot successor control-install preauth R2 PASS
 
 - Gate `N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_READONLY_PREAUTH_R2_20261016_01` is CLOSED_PASS.
