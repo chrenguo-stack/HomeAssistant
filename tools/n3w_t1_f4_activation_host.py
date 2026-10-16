@@ -2643,11 +2643,11 @@ def _repair_prepared_authorization_history(
             or transaction.get(
                 "runtime_acceptance_last_failure_source_head"
             )
-            != PREPARED_AUTHORIZATION_HISTORY_REPAIR_FROM_SOURCE_HEAD
+            != RUNTIME_ACCEPTANCE_RECOVERY_FROM_SOURCE_HEAD
             or transaction.get(
                 "runtime_acceptance_last_failure_manifest_sha256"
             )
-            != PREPARED_AUTHORIZATION_HISTORY_REPAIR_FROM_MANIFEST_SHA256
+            != RUNTIME_ACCEPTANCE_RECOVERY_FROM_MANIFEST_SHA256
             or transaction.get(
                 "runtime_acceptance_last_failure_rollback_proven"
             )
