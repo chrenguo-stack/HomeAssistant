@@ -1024,6 +1024,7 @@ def test_claim_reboot_persists_consumed_authority_before_actuation(
     assert result["host_reboot_actuation_required"] is True
 
 
+
 def _test_acceptance_report(tool, *, pre_boot: str, post_boot: str) -> dict[str, object]:
     return {
         "schema": tool.REBOOT_ACCEPTANCE_SCHEMA,
@@ -1046,6 +1047,23 @@ def _test_acceptance_report(tool, *, pre_boot: str, post_boot: str) -> dict[str,
     }
 
 
+def _test_executor_package(tool, tmp_path: Path) -> dict[str, object]:
+    root = tmp_path / "executor-package"
+    authority = root / "tools" / "n3w_t1_f4_reboot_authority.py"
+    authority.parent.mkdir(parents=True)
+    authority.write_text("executor", encoding="utf-8")
+    binding = {
+        "sha256": tool._sha256(authority),
+        "size": authority.stat().st_size,
+    }
+    return {
+        "root": root,
+        "files": {
+            "tools/n3w_t1_f4_reboot_authority.py": binding,
+        },
+    }
+
+
 def test_finalize_reboot_acceptance_persists_terminal_state(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -1054,11 +1072,15 @@ def test_finalize_reboot_acceptance_persists_terminal_state(
     claim_path = tmp_path / "reboot-claim.json"
     pre_boot = "a" * 64
     post_boot = "b" * 64
+    installed_source = "c" * 40
+    installed_manifest = "d" * 64
+    executor_source = "1" * 40
+    executor_manifest = "2" * 64
     pending = {
         "schema": tool.SCHEMA_REBOOT,
         "stage": "REBOOT_PENDING",
-        "source_head": "c" * 40,
-        "control_manifest_sha256": "d" * 64,
+        "source_head": installed_source,
+        "control_manifest_sha256": installed_manifest,
         "f4_transaction_sha256": "e" * 64,
         "pre_certificate_snapshot_sha256": "f" * 64,
         "reboot_authorization_id": "N3W_T1_F4_REBOOT_SUCCESSOR_LIVE_20261016_01",
@@ -1075,10 +1097,19 @@ def test_finalize_reboot_acceptance_persists_terminal_state(
     )
     claim_path.chmod(0o600)
     pending_sha = tool._sha256(claim_path)
+    package = _test_executor_package(tool, tmp_path)
 
     monkeypatch.setattr(tool, "REBOOT_CLAIM_PATH", claim_path)
     monkeypatch.setattr(tool, "_exclusive", lambda: nullcontext())
-    monkeypatch.setattr(tool, "_verify_installed_control", lambda **_kwargs: None)
+    monkeypatch.setattr(tool, "_package", lambda *_args, **_kwargs: package)
+    monkeypatch.setattr(tool, "_validate_recovery_entrypoint", lambda _package: None)
+
+    observed_installed = {}
+
+    def verify_installed(**kwargs):
+        observed_installed.update(kwargs)
+
+    monkeypatch.setattr(tool, "_verify_installed_control", verify_installed)
     monkeypatch.setattr(tool, "_boot_id_sha256", lambda: post_boot)
     monkeypatch.setattr(
         tool,
@@ -1105,14 +1136,21 @@ def test_finalize_reboot_acceptance_persists_terminal_state(
     monkeypatch.setattr(tool, "_atomic_write_record", write_record)
 
     result = tool.finalize_reboot_acceptance(
-        source_head="c" * 40,
-        manifest_sha256="d" * 64,
+        package_root=package["root"],
+        source_head=executor_source,
+        manifest_sha256=executor_manifest,
+        expected_installed_source_head=installed_source,
+        expected_installed_manifest_sha256=installed_manifest,
         expected_transaction_sha256="e" * 64,
         expected_pending_claim_sha256=pending_sha,
     )
 
     accepted = json.loads(claim_path.read_text(encoding="utf-8"))
     assert accepted["stage"] == "REBOOT_ACCEPTED"
+    assert accepted["source_head"] == installed_source
+    assert accepted["control_manifest_sha256"] == installed_manifest
+    assert accepted["acceptance_finalizer_source_head"] == executor_source
+    assert accepted["acceptance_finalizer_manifest_sha256"] == executor_manifest
     assert accepted["reboot_acceptance_passed"] is True
     assert accepted["reboot_acceptance_finalized"] is True
     assert accepted["reboot_executed"] is True
@@ -1120,6 +1158,8 @@ def test_finalize_reboot_acceptance_persists_terminal_state(
     assert accepted["reboot_authorization_replay_allowed"] is False
     assert accepted["pre_acceptance_claim_sha256"] == pending_sha
     assert accepted["post_boot_id_sha256"] == post_boot
+    assert observed_installed["source_head"] == installed_source
+    assert observed_installed["manifest_sha256"] == installed_manifest
     assert result["state"] == "REBOOT_ACCEPTED"
     assert result["accepted_claim_sha256"] == tool._sha256(claim_path)
 
@@ -1132,15 +1172,21 @@ def test_finalize_reboot_acceptance_rejects_pending_claim_hash_mismatch(
     claim_path = tmp_path / "reboot-claim.json"
     claim_path.write_text("{}\n", encoding="utf-8")
     claim_path.chmod(0o600)
+    package = _test_executor_package(tool, tmp_path)
     monkeypatch.setattr(tool, "REBOOT_CLAIM_PATH", claim_path)
     monkeypatch.setattr(tool, "_exclusive", lambda: nullcontext())
+    monkeypatch.setattr(tool, "_package", lambda *_args, **_kwargs: package)
+    monkeypatch.setattr(tool, "_validate_recovery_entrypoint", lambda _package: None)
     with pytest.raises(
         tool.AuthorityError,
         match="reboot_pending_claim_sha256_mismatch",
     ):
         tool.finalize_reboot_acceptance(
-            source_head="a" * 40,
-            manifest_sha256="b" * 64,
+            package_root=package["root"],
+            source_head="1" * 40,
+            manifest_sha256="2" * 64,
+            expected_installed_source_head="a" * 40,
+            expected_installed_manifest_sha256="b" * 64,
             expected_transaction_sha256="c" * 64,
             expected_pending_claim_sha256="d" * 64,
         )
@@ -1154,12 +1200,18 @@ def test_verify_reboot_accepted_is_read_only_terminal_check(
     claim_path = tmp_path / "reboot-claim.json"
     pre_boot = "a" * 64
     post_boot = "b" * 64
+    installed_source = "c" * 40
+    installed_manifest = "d" * 64
+    executor_source = "1" * 40
+    executor_manifest = "2" * 64
+    package = _test_executor_package(tool, tmp_path)
+    executor_sha = package["files"]["tools/n3w_t1_f4_reboot_authority.py"]["sha256"]
     report = _test_acceptance_report(tool, pre_boot=pre_boot, post_boot=post_boot)
     accepted = {
         "schema": tool.SCHEMA_REBOOT,
         "stage": "REBOOT_ACCEPTED",
-        "source_head": "c" * 40,
-        "control_manifest_sha256": "d" * 64,
+        "source_head": installed_source,
+        "control_manifest_sha256": installed_manifest,
         "f4_transaction_sha256": "e" * 64,
         "reboot_authorization_id": "N3W_T1_F4_REBOOT_SUCCESSOR_LIVE_20261016_01",
         "reboot_authorization_claimed": True,
@@ -1173,6 +1225,9 @@ def test_verify_reboot_accepted_is_read_only_terminal_check(
         "pre_acceptance_claim_sha256": "f" * 64,
         "acceptance_report_sha256": tool._canonical_sha(report),
         "acceptance_report": report,
+        "acceptance_finalizer_source_head": executor_source,
+        "acceptance_finalizer_manifest_sha256": executor_manifest,
+        "acceptance_finalizer_executor_sha256": executor_sha,
         "board_access": False,
     }
     claim_path.write_text(
@@ -1183,6 +1238,8 @@ def test_verify_reboot_accepted_is_read_only_terminal_check(
     accepted_sha = tool._sha256(claim_path)
 
     monkeypatch.setattr(tool, "REBOOT_CLAIM_PATH", claim_path)
+    monkeypatch.setattr(tool, "_package", lambda *_args, **_kwargs: package)
+    monkeypatch.setattr(tool, "_validate_recovery_entrypoint", lambda _package: None)
     monkeypatch.setattr(tool, "_verify_installed_control", lambda **_kwargs: None)
     monkeypatch.setattr(tool, "_boot_id_sha256", lambda: post_boot)
     monkeypatch.setattr(
@@ -1193,8 +1250,11 @@ def test_verify_reboot_accepted_is_read_only_terminal_check(
 
     before = claim_path.read_bytes()
     result = tool.verify_reboot_accepted(
-        source_head="c" * 40,
-        manifest_sha256="d" * 64,
+        package_root=package["root"],
+        source_head=executor_source,
+        manifest_sha256=executor_manifest,
+        expected_installed_source_head=installed_source,
+        expected_installed_manifest_sha256=installed_manifest,
         expected_transaction_sha256="e" * 64,
         expected_accepted_claim_sha256=accepted_sha,
     )

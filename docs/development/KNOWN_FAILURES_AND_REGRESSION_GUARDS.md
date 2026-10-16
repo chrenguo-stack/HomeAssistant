@@ -1,3 +1,23 @@
+### 2026-10-16 KF-121 durable-closure finalizer executor-binding repair
+
+~~~text
+FIRST_REPAIR_CI=PASS:13/13
+FOCUSED_REVIEW=FOUND_A2_EXECUTOR_DEPLOYMENT_BINDING_BLOCKER
+A2=REPAIRED_SOURCE_CI_PENDING
+FINALIZER_EXECUTION=EXACT_STAGED_ARTIFACT_SELF_BOUND
+INSTALLED_CONTROL_REPLACEMENT_REQUIRED=false
+T1_MUTATION=false
+~~~
+
+The first ledger-finalization implementation was logically correct but not safely deployable: it treated the new
+finalizer source as if it were already installed on the T1. The corrected design keeps the installed control exact
+and unchanged, and requires the new finalizer to prove its own exact staged-artifact identity before it may mutate
+only the reboot ledger.
+
+Status: SOURCE_REVIEW_REPAIR_CI_PENDING.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_SOURCE_REVIEW_REPAIR_20261016.md`.
+
 ### 2026-10-16 KF-121 durable reboot-acceptance closure source repair implemented
 
 ~~~text

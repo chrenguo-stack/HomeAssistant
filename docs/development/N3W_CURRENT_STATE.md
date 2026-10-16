@@ -1,3 +1,35 @@
+## 2026-10-16 — F4 durable reboot closure review found executor-binding blocker / repaired source pending CI
+
+~~~text
+TASK=N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_SOURCE_REPAIR_20261016_01
+REVIEWED_HEAD=b4287d574907c8715c4e837139d9df5cd4864177
+REVIEW_RESULT=BLOCKED_REPAIRED_SOURCE_PENDING_CI
+
+A1_LEDGER_TERMINAL_TRANSITION=IMPLEMENTED
+A2_FINALIZER_EXECUTOR_DEPLOYMENT_BINDING=REPAIRED
+FINALIZER_EXECUTION_MODEL=EXACT_STAGED_ARTIFACT
+NEW_INSTALLED_CONTROL_REPLACEMENT_REQUIRED=false
+REBOOT_VERIFIER_REMAINS_READ_ONLY=true
+AUTHORIZATION_CONSUMED_NO_REPLAY_PRESERVED=true
+
+T1_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+CURRENT_STAGE=F4
+CURRENT_STOP_POINT=DURABLE_REBOOT_CLOSURE_SOURCE_REVIEW_REPAIR_CI_PENDING
+NEXT_ONE_GATE=N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_SOURCE_REVIEW_20261016_02
+AUTO_EXECUTE_NEXT_GATE=true
+~~~
+
+The first implementation was not deployable without replacing the already verified installed control, because it
+conflated the new finalizer artifact identity with the old installed-control identity. The repair now self-binds the
+finalizer to an exact staged artifact while separately verifying the existing installed control. No manual T1 patch
+or immutable-product replacement is required by the ledger finalization path.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_SOURCE_REVIEW_REPAIR_20261016.md`.
+
 ## 2026-10-16 — F4 reboot acceptance durable-closure source repair IMPLEMENTED / CI pending
 
 ~~~text

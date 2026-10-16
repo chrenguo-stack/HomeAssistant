@@ -1,3 +1,14 @@
+## 2026-10-16 — F4 durable reboot closure source review repair
+
+- First source-repair head `b4287d574907...` passed 13/13 CI but focused review found an executor deployment-binding blocker.
+- Initial finalizer incorrectly required the real T1's installed control to match the new finalizer source/manifest.
+- Repaired model: execute the finalizer from an exact staged artifact with self-binding, while separately verifying the already installed `CONTROL_READY` artifact.
+- No immutable installed product material must be replaced to advance the mutable reboot ledger.
+- Pending-claim hash, acceptance-report hash, old installed-control binding and finalizer-executor binding are all preserved.
+- Real T1 remains untouched.
+- Next: exact-head CI and focused source review R2.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_SOURCE_REVIEW_REPAIR_20261016.md`.
+
 ## 2026-10-16 — F4 reboot acceptance durable-closure source repair IMPLEMENTED / CI pending
 
 - Repair gate: `N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_SOURCE_REPAIR_20261016_01`.

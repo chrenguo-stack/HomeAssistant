@@ -1578,30 +1578,46 @@ def _validate_reboot_acceptance_report(
 
 def finalize_reboot_acceptance(
     *,
+    package_root: Path,
     source_head: str,
     manifest_sha256: str,
+    expected_installed_source_head: str,
+    expected_installed_manifest_sha256: str,
     expected_transaction_sha256: str,
     expected_pending_claim_sha256: str,
 ) -> dict[str, object]:
     with _exclusive():
+        package = _package(
+            package_root,
+            source_head=source_head,
+            manifest_sha256=manifest_sha256,
+        )
+        _validate_recovery_entrypoint(package)
         pending_claim_sha256 = _require_sha256(
             expected_pending_claim_sha256,
             "reboot_pending_claim_sha256_invalid",
         )
+        _require_sha256(
+            expected_installed_manifest_sha256,
+            "reboot_installed_manifest_sha256_invalid",
+        )
+        if re.fullmatch(r"[0-9a-f]{40}", expected_installed_source_head) is None:
+            raise AuthorityError("reboot_installed_source_head_invalid")
         if _sha256(REBOOT_CLAIM_PATH) != pending_claim_sha256:
             raise AuthorityError("reboot_pending_claim_sha256_mismatch")
         claim = _record(REBOOT_CLAIM_PATH, 0o600)
         _verify_installed_control(
-            source_head=source_head,
-            manifest_sha256=manifest_sha256,
+            source_head=expected_installed_source_head,
+            manifest_sha256=expected_installed_manifest_sha256,
             expected_transaction_sha256=expected_transaction_sha256,
             allowed_stages=frozenset({"CONTROL_READY"}),
         )
         if (
             claim.get("schema") != SCHEMA_REBOOT
             or claim.get("stage") != "REBOOT_PENDING"
-            or claim.get("source_head") != source_head
-            or claim.get("control_manifest_sha256") != manifest_sha256
+            or claim.get("source_head") != expected_installed_source_head
+            or claim.get("control_manifest_sha256")
+            != expected_installed_manifest_sha256
             or claim.get("f4_transaction_sha256") != expected_transaction_sha256
             or claim.get("reboot_authorization_claimed") is not True
             or claim.get("reboot_authorization_consumed") is not True
@@ -1614,6 +1630,15 @@ def finalize_reboot_acceptance(
         report = _post_reboot_acceptance_report()
         _validate_reboot_acceptance_report(report, claim)
         report_sha256 = _canonical_sha(report)
+        executor_binding = package["files"].get(
+            "tools/n3w_t1_f4_reboot_authority.py"
+        )
+        if not isinstance(executor_binding, dict):
+            raise AuthorityError("reboot_acceptance_executor_binding_invalid")
+        executor_sha256 = _require_sha256(
+            executor_binding.get("sha256"),
+            "reboot_acceptance_executor_sha256_invalid",
+        )
         accepted = dict(claim)
         accepted.update(
             {
@@ -1625,6 +1650,9 @@ def finalize_reboot_acceptance(
                 "post_boot_id_sha256": report["post_boot_id_sha256"],
                 "acceptance_report_sha256": report_sha256,
                 "acceptance_report": report,
+                "acceptance_finalizer_source_head": source_head,
+                "acceptance_finalizer_manifest_sha256": manifest_sha256,
+                "acceptance_finalizer_executor_sha256": executor_sha256,
             }
         )
         _atomic_write_record(REBOOT_CLAIM_PATH, accepted)
@@ -1645,38 +1673,65 @@ def finalize_reboot_acceptance(
             "accepted_claim_sha256": _sha256(REBOOT_CLAIM_PATH),
             "acceptance_report_sha256": report_sha256,
             "post_boot_id_sha256": report["post_boot_id_sha256"],
+            "acceptance_finalizer_source_head": source_head,
+            "acceptance_finalizer_manifest_sha256": manifest_sha256,
+            "acceptance_finalizer_executor_sha256": executor_sha256,
             "board_access": False,
         }
 
-
 def verify_reboot_accepted(
     *,
+    package_root: Path,
     source_head: str,
     manifest_sha256: str,
+    expected_installed_source_head: str,
+    expected_installed_manifest_sha256: str,
     expected_transaction_sha256: str,
     expected_accepted_claim_sha256: str,
 ) -> dict[str, object]:
+    package = _package(
+        package_root,
+        source_head=source_head,
+        manifest_sha256=manifest_sha256,
+    )
+    _validate_recovery_entrypoint(package)
     accepted_claim_sha256 = _require_sha256(
         expected_accepted_claim_sha256,
         "reboot_accepted_claim_sha256_invalid",
     )
+    _require_sha256(
+        expected_installed_manifest_sha256,
+        "reboot_installed_manifest_sha256_invalid",
+    )
+    if re.fullmatch(r"[0-9a-f]{40}", expected_installed_source_head) is None:
+        raise AuthorityError("reboot_installed_source_head_invalid")
     if _sha256(REBOOT_CLAIM_PATH) != accepted_claim_sha256:
         raise AuthorityError("reboot_accepted_claim_sha256_mismatch")
     claim = _record(REBOOT_CLAIM_PATH, 0o600)
     _verify_installed_control(
-        source_head=source_head,
-        manifest_sha256=manifest_sha256,
+        source_head=expected_installed_source_head,
+        manifest_sha256=expected_installed_manifest_sha256,
         expected_transaction_sha256=expected_transaction_sha256,
         allowed_stages=frozenset({"CONTROL_READY"}),
     )
     report = claim.get("acceptance_report")
     report_sha256 = claim.get("acceptance_report_sha256")
     pre_acceptance_claim_sha256 = claim.get("pre_acceptance_claim_sha256")
+    executor_binding = package["files"].get(
+        "tools/n3w_t1_f4_reboot_authority.py"
+    )
+    if not isinstance(executor_binding, dict):
+        raise AuthorityError("reboot_acceptance_executor_binding_invalid")
+    executor_sha256 = _require_sha256(
+        executor_binding.get("sha256"),
+        "reboot_acceptance_executor_sha256_invalid",
+    )
     if (
         claim.get("schema") != SCHEMA_REBOOT
         or claim.get("stage") != "REBOOT_ACCEPTED"
-        or claim.get("source_head") != source_head
-        or claim.get("control_manifest_sha256") != manifest_sha256
+        or claim.get("source_head") != expected_installed_source_head
+        or claim.get("control_manifest_sha256")
+        != expected_installed_manifest_sha256
         or claim.get("f4_transaction_sha256") != expected_transaction_sha256
         or claim.get("reboot_authorization_claimed") is not True
         or claim.get("reboot_authorization_consumed") is not True
@@ -1691,6 +1746,9 @@ def verify_reboot_accepted(
         or re.fullmatch(r"[0-9a-f]{64}", report_sha256) is None
         or _canonical_sha(report) != report_sha256
         or claim.get("post_boot_id_sha256") != _boot_id_sha256()
+        or claim.get("acceptance_finalizer_source_head") != source_head
+        or claim.get("acceptance_finalizer_manifest_sha256") != manifest_sha256
+        or claim.get("acceptance_finalizer_executor_sha256") != executor_sha256
         or claim.get("board_access") is not False
     ):
         raise AuthorityError("reboot_accepted_claim_contract_invalid")
@@ -1710,9 +1768,11 @@ def verify_reboot_accepted(
         "accepted_claim_sha256": accepted_claim_sha256,
         "acceptance_report_sha256": report_sha256,
         "post_boot_id_sha256": claim["post_boot_id_sha256"],
+        "acceptance_finalizer_source_head": source_head,
+        "acceptance_finalizer_manifest_sha256": manifest_sha256,
+        "acceptance_finalizer_executor_sha256": executor_sha256,
         "board_access": False,
     }
-
 
 def _common(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--source-head", required=True)
@@ -1757,6 +1817,15 @@ def _parser() -> argparse.ArgumentParser:
     _common(verify_reboot_parser)
 
     finalize_reboot_parser = sub.add_parser("finalize-reboot-acceptance")
+    finalize_reboot_parser.add_argument("--package-root", type=Path, required=True)
+    finalize_reboot_parser.add_argument(
+        "--expected-installed-source-head",
+        required=True,
+    )
+    finalize_reboot_parser.add_argument(
+        "--expected-installed-manifest-sha256",
+        required=True,
+    )
     finalize_reboot_parser.add_argument(
         "--expected-pending-claim-sha256",
         required=True,
@@ -1764,6 +1833,15 @@ def _parser() -> argparse.ArgumentParser:
     _common(finalize_reboot_parser)
 
     verify_accepted_parser = sub.add_parser("verify-reboot-accepted")
+    verify_accepted_parser.add_argument("--package-root", type=Path, required=True)
+    verify_accepted_parser.add_argument(
+        "--expected-installed-source-head",
+        required=True,
+    )
+    verify_accepted_parser.add_argument(
+        "--expected-installed-manifest-sha256",
+        required=True,
+    )
     verify_accepted_parser.add_argument(
         "--expected-accepted-claim-sha256",
         required=True,
@@ -1834,8 +1912,13 @@ def main(argv: list[str] | None = None) -> int:
             )
         elif args.command == "finalize-reboot-acceptance":
             document = finalize_reboot_acceptance(
+                package_root=args.package_root,
                 source_head=args.source_head,
                 manifest_sha256=args.manifest_sha256,
+                expected_installed_source_head=args.expected_installed_source_head,
+                expected_installed_manifest_sha256=(
+                    args.expected_installed_manifest_sha256
+                ),
                 expected_transaction_sha256=args.expected_transaction_sha256,
                 expected_pending_claim_sha256=(
                     args.expected_pending_claim_sha256
@@ -1843,8 +1926,13 @@ def main(argv: list[str] | None = None) -> int:
             )
         else:
             document = verify_reboot_accepted(
+                package_root=args.package_root,
                 source_head=args.source_head,
                 manifest_sha256=args.manifest_sha256,
+                expected_installed_source_head=args.expected_installed_source_head,
+                expected_installed_manifest_sha256=(
+                    args.expected_installed_manifest_sha256
+                ),
                 expected_transaction_sha256=args.expected_transaction_sha256,
                 expected_accepted_claim_sha256=(
                     args.expected_accepted_claim_sha256
