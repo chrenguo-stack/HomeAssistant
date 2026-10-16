@@ -1,3 +1,15 @@
+## 2026-10-17 — F4 durable reboot ledger finalization preauth prepared
+
+- Source review remains CLOSED_PASS at exact product source `19bd98386c4828c0768f2f3936429db8c7a59adf`; no product-source drift has occurred.
+- Exact finalizer artifact is run `38924889363`, job `117053791078`, artifact `12056436272`.
+- Verified artifact ZIP SHA-256: `ff2b35a7b7a3384ac2a1ee290c93ccdb7130de4166b2385aa60e3ca36a2bf764`.
+- Verified transport TAR SHA-256: `ade461a836d1a118291c5e7d2e3bfcb7e990ead41c2832c31f84705e578a50ba`.
+- Verified manifest SHA-256: `bab1f7f1a4834d4f85bd01ae05d4569d32798e6661c72caf0d2636cfbaecbe70`.
+- Verified finalizer executor SHA-256: `c4a738656e98b5f8bae27a34aba845c002287b253f99f54cf459f8d292f7d9ec`.
+- Next action requires the user's macOS Terminal/T1 SSH path: bounded `/tmp` staging and read-only preauthorization only.
+- No real-T1 ledger mutation, reboot replay, board access or merge has occurred.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_LEDGER_FINALIZATION_ARTIFACT_AND_READONLY_PREAUTH_PREEXECUTION_20261017.md`.
+
 ## 2026-10-16 — F4 post-reboot binding focused source review CLOSED_PASS
 
 - Exact reviewed product source remains `19bd98386c4828c0768f2f3936429db8c7a59adf` / tree `f5b66faf690c88d655e01ffc0a5d5ef122b589af`.
