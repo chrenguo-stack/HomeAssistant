@@ -45,3 +45,17 @@ def test_exact_successor_control_package(tmp_path: Path) -> None:
     assert manifest["live_runtime_mutation"] is False
     assert manifest["reboot_executed"] is False
     assert manifest["board_access"] is False
+
+
+def test_package_file_set_matches_authority_contract() -> None:
+    builder = load_tool()
+    authority_path = ROOT / "tools/n3w_t1_f4_reboot_authority.py"
+    spec = importlib.util.spec_from_file_location(
+        "n3w_t1_f4_reboot_authority_for_package_test",
+        authority_path,
+    )
+    assert spec is not None and spec.loader is not None
+    authority = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(authority)
+
+    assert set(builder.FILES) == set(authority.CONTROL_TARGETS)
