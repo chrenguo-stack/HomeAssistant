@@ -1,3 +1,16 @@
+### 2026-10-16 KF-121 persistence postexecution closure
+
+~~~text
+PERSISTENCE_POSTEXECUTION_READONLY=CLOSED_PASS
+POST_STAGE=PERSISTENCE_ENABLED
+TRANSACTION_UNCHANGED=true
+RUNTIME_ACCEPTANCE_REPORT_UNCHANGED=true
+CERTIFICATE_STATUS_ROOT_EMPTY=true
+CERTIFICATE_TIMER_ENABLED=false
+~~~
+
+Guard: persistence is durably closed at PERSISTENCE_ENABLED. The first certificate audit remains a separate later live gate. It may write only the bounded lifecycle status/lock authority; it must not replace certificate/key material, enable the certificate timer, reboot, or access boards.
+
 ### 2026-10-16 KF-121 persistence enablement successor closure
 
 ~~~text
