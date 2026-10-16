@@ -1,3 +1,27 @@
+### 2026-10-16 KF-121 durable reboot-acceptance closure source repair implemented
+
+~~~text
+SOURCE_REPAIR=IMPLEMENTED_CI_PENDING
+LIVE_REBOOT_ACCEPTANCE_REMAINS=PASS
+REBOOT_VERIFIER_READ_ONLY=true
+FINALIZE_REBOOT_ACCEPTANCE_ADDED=true
+VERIFY_REBOOT_ACCEPTED_ADDED=true
+PENDING_CLAIM_HASH_CHAIN_PRESERVED=true
+AUTHORIZATION_REPLAY_ALLOWED=false
+T1_MUTATION=false
+~~~
+
+The open durable-closure blocker now has a source implementation. The repair separates immutable product material
+from mutable device transaction state: no installed-product/F4-transaction hash is rewritten merely to close the
+reboot ledger. Instead the exact pending record is hash-bound, acceptance is re-proven through the existing read-only
+verifier, and a repository-owned atomic transition persists the terminal accepted state with a chained reference to
+the prior pending claim.
+
+Status: SOURCE_REPAIR_IMPLEMENTED_CI_PENDING. Do not execute the new finalizer on the real T1 until exact-head CI,
+focused review and an exact repaired artifact/preauthorization gate pass.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_SOURCE_REPAIR_PROGRESS_20261016.md`.
+
 ### 2026-10-16 KF-121 reboot acceptance durable-closure blocker
 
 ~~~text

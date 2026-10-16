@@ -1,3 +1,36 @@
+## 2026-10-16 — F4 reboot acceptance durable-closure source repair IMPLEMENTED / CI pending
+
+~~~text
+TASK=N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_SOURCE_REPAIR_20261016_01
+STATUS=IMPLEMENTED_CI_PENDING
+REPAIR_BASE=6d2758a6a6dda4dae2d98cdcc625a5dcaeb1606a
+
+REBOOT_VERIFIER_REMAINS_READ_ONLY=true
+DURABLE_ACCEPTANCE_FINALIZER_ADDED=true
+READONLY_TERMINAL_VERIFIER_ADDED=true
+PENDING_CLAIM_HASH_CHAIN_PRESERVED=true
+AUTHORIZATION_CONSUMED_NO_REPLAY_PRESERVED=true
+IMMUTABLE_PRODUCT_MATERIAL_HASHES_UNCHANGED_BY_FINALIZATION=true
+MUTABLE_DEVICE_LEDGER_TRANSITION=REBOOT_PENDING_TO_REBOOT_ACCEPTED
+
+T1_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+CURRENT_STAGE=F4
+CURRENT_STOP_POINT=DURABLE_REBOOT_CLOSURE_SOURCE_REPAIR_IMPLEMENTED_CI_PENDING
+NEXT_ONE_GATE=N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_SOURCE_REVIEW_20261016_01
+AUTO_EXECUTE_NEXT_GATE=true
+~~~
+
+The source repair keeps the post-reboot verifier read-only and adds a separate fail-closed finalizer plus a read-only
+terminal verifier. The pending-record SHA-256 is carried into the accepted terminal record, preserving the evidence
+chain while allowing the mutable device transaction ledger to reach `REBOOT_ACCEPTED`. Installed product material
+and the frozen F4 transaction are not rewritten by this finalization design.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_SOURCE_REPAIR_PROGRESS_20261016.md`.
+
 ## 2026-10-16 — F4 reboot successor final closure / PR #605 pre-merge review BLOCKED
 
 ~~~text

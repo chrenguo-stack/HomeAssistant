@@ -1,3 +1,15 @@
+## 2026-10-16 — F4 reboot acceptance durable-closure source repair IMPLEMENTED / CI pending
+
+- Repair gate: `N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_SOURCE_REPAIR_20261016_01`.
+- Existing post-reboot verifier remains read-only.
+- Added `finalize-reboot-acceptance`: exact pending-claim hash check -> fresh read-only acceptance proof -> atomic `REBOOT_ACCEPTED` ledger transition.
+- Added `verify-reboot-accepted`: read-only verification of accepted claim hash, report hash, boot binding and consumed/no-replay authorization state.
+- The pending claim SHA-256 is preserved inside the terminal record as `pre_acceptance_claim_sha256`.
+- No F4 transaction or immutable product-material hash rewrite is required by finalization.
+- Real T1 is not touched in this source-repair gate.
+- Next: exact-head CI and focused source review.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_SOURCE_REPAIR_PROGRESS_20261016.md`.
+
 ## 2026-10-16 — F4 reboot successor final closure / PR #605 pre-merge review BLOCKED
 
 - The real-T1 reboot acceptance remains valid and `REBOOT_ACCEPTED`.

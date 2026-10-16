@@ -20,6 +20,7 @@ from types import ModuleType
 
 SCHEMA_INSTALL = "gh.n3w-t1-f4-reboot-successor-install-authorization/1"
 SCHEMA_REBOOT = "gh.n3w-t1-f4-reboot-authorization/1"
+REBOOT_ACCEPTANCE_SCHEMA = "gh.n3w-t1-f4-reboot-acceptance/1"
 SCHEMA_RECOVERY = "gh.n3w-t1-f4-reboot-successor-control-recovery-authorization/1"
 PACKAGE_SCHEMA = "gh.n3w-t1-f4-reboot-successor-control-package/1"
 MANIFEST_NAME = "reboot-successor-manifest.json"
@@ -237,6 +238,30 @@ def _load_f4() -> ModuleType:
     sys.modules[spec.name] = module
     loader.exec_module(module)
     return module
+
+
+def _load_reboot_verify() -> ModuleType:
+    if REBOOT_VERIFY.is_symlink() or not REBOOT_VERIFY.is_file():
+        raise AuthorityError("reboot_verify_invalid")
+    loader = importlib.machinery.SourceFileLoader(
+        "n3w_f4_reboot_acceptance_verify",
+        str(REBOOT_VERIFY),
+    )
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    if spec is None:
+        raise AuthorityError("reboot_verify_import_invalid")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    loader.exec_module(module)
+    return module
+
+
+def _post_reboot_acceptance_report() -> dict[str, object]:
+    module = _load_reboot_verify()
+    report = module.verify()
+    if not isinstance(report, dict):
+        raise AuthorityError("reboot_acceptance_report_invalid")
+    return report
 
 
 def _boot_id_sha256() -> str:
@@ -1516,6 +1541,179 @@ def verify_reboot_claim(
     }
 
 
+def _validate_reboot_acceptance_report(
+    report: dict[str, object],
+    claim: dict[str, object],
+) -> None:
+    required_true = (
+        "reboot_acceptance_passed",
+        "f4_transaction_unchanged",
+        "provision_resume_verified",
+        "broker_services_persistence_verified",
+        "certificate_timer_runtime_verified",
+        "certificate_service_result_verified",
+        "certificate_identity_unchanged",
+        "manager_runtime_stability_verified",
+        "homeassistant_mqtt_integration_not_duplicated",
+        "manager_business_state_fresh",
+    )
+    certificate_status_sha256 = report.get("certificate_status_sha256")
+    post_boot_id_sha256 = report.get("post_boot_id_sha256")
+    if (
+        report.get("schema") != REBOOT_ACCEPTANCE_SCHEMA
+        or report.get("status") != "PASS"
+        or report.get("state") != "REBOOT_ACCEPTED"
+        or report.get("pre_boot_id_sha256") != claim.get("pre_boot_id_sha256")
+        or not isinstance(post_boot_id_sha256, str)
+        or re.fullmatch(r"[0-9a-f]{64}", post_boot_id_sha256) is None
+        or post_boot_id_sha256 != _boot_id_sha256()
+        or post_boot_id_sha256 == claim.get("pre_boot_id_sha256")
+        or not isinstance(certificate_status_sha256, str)
+        or re.fullmatch(r"[0-9a-f]{64}", certificate_status_sha256) is None
+        or report.get("board_access") is not False
+        or any(report.get(key) is not True for key in required_true)
+    ):
+        raise AuthorityError("reboot_acceptance_report_invalid")
+
+
+def finalize_reboot_acceptance(
+    *,
+    source_head: str,
+    manifest_sha256: str,
+    expected_transaction_sha256: str,
+    expected_pending_claim_sha256: str,
+) -> dict[str, object]:
+    with _exclusive():
+        pending_claim_sha256 = _require_sha256(
+            expected_pending_claim_sha256,
+            "reboot_pending_claim_sha256_invalid",
+        )
+        if _sha256(REBOOT_CLAIM_PATH) != pending_claim_sha256:
+            raise AuthorityError("reboot_pending_claim_sha256_mismatch")
+        claim = _record(REBOOT_CLAIM_PATH, 0o600)
+        _verify_installed_control(
+            source_head=source_head,
+            manifest_sha256=manifest_sha256,
+            expected_transaction_sha256=expected_transaction_sha256,
+            allowed_stages=frozenset({"CONTROL_READY"}),
+        )
+        if (
+            claim.get("schema") != SCHEMA_REBOOT
+            or claim.get("stage") != "REBOOT_PENDING"
+            or claim.get("source_head") != source_head
+            or claim.get("control_manifest_sha256") != manifest_sha256
+            or claim.get("f4_transaction_sha256") != expected_transaction_sha256
+            or claim.get("reboot_authorization_claimed") is not True
+            or claim.get("reboot_authorization_consumed") is not True
+            or claim.get("reboot_authorization_replay_allowed") is not False
+            or claim.get("reboot_acceptance_passed") is not False
+            or claim.get("board_access") is not False
+        ):
+            raise AuthorityError("reboot_pending_claim_contract_invalid")
+
+        report = _post_reboot_acceptance_report()
+        _validate_reboot_acceptance_report(report, claim)
+        report_sha256 = _canonical_sha(report)
+        accepted = dict(claim)
+        accepted.update(
+            {
+                "stage": "REBOOT_ACCEPTED",
+                "reboot_acceptance_passed": True,
+                "reboot_acceptance_finalized": True,
+                "reboot_executed": True,
+                "pre_acceptance_claim_sha256": pending_claim_sha256,
+                "post_boot_id_sha256": report["post_boot_id_sha256"],
+                "acceptance_report_sha256": report_sha256,
+                "acceptance_report": report,
+            }
+        )
+        _atomic_write_record(REBOOT_CLAIM_PATH, accepted)
+        persisted = _record(REBOOT_CLAIM_PATH, 0o600)
+        if persisted != accepted:
+            raise AuthorityError("reboot_acceptance_persistence_mismatch")
+        return {
+            "schema": SCHEMA_REBOOT,
+            "status": "PASS",
+            "state": "REBOOT_ACCEPTED",
+            "reboot_authorization_claimed": True,
+            "reboot_authorization_consumed": True,
+            "reboot_authorization_replay_allowed": False,
+            "reboot_acceptance_passed": True,
+            "reboot_acceptance_finalized": True,
+            "reboot_executed": True,
+            "pre_acceptance_claim_sha256": pending_claim_sha256,
+            "accepted_claim_sha256": _sha256(REBOOT_CLAIM_PATH),
+            "acceptance_report_sha256": report_sha256,
+            "post_boot_id_sha256": report["post_boot_id_sha256"],
+            "board_access": False,
+        }
+
+
+def verify_reboot_accepted(
+    *,
+    source_head: str,
+    manifest_sha256: str,
+    expected_transaction_sha256: str,
+    expected_accepted_claim_sha256: str,
+) -> dict[str, object]:
+    accepted_claim_sha256 = _require_sha256(
+        expected_accepted_claim_sha256,
+        "reboot_accepted_claim_sha256_invalid",
+    )
+    if _sha256(REBOOT_CLAIM_PATH) != accepted_claim_sha256:
+        raise AuthorityError("reboot_accepted_claim_sha256_mismatch")
+    claim = _record(REBOOT_CLAIM_PATH, 0o600)
+    _verify_installed_control(
+        source_head=source_head,
+        manifest_sha256=manifest_sha256,
+        expected_transaction_sha256=expected_transaction_sha256,
+        allowed_stages=frozenset({"CONTROL_READY"}),
+    )
+    report = claim.get("acceptance_report")
+    report_sha256 = claim.get("acceptance_report_sha256")
+    pre_acceptance_claim_sha256 = claim.get("pre_acceptance_claim_sha256")
+    if (
+        claim.get("schema") != SCHEMA_REBOOT
+        or claim.get("stage") != "REBOOT_ACCEPTED"
+        or claim.get("source_head") != source_head
+        or claim.get("control_manifest_sha256") != manifest_sha256
+        or claim.get("f4_transaction_sha256") != expected_transaction_sha256
+        or claim.get("reboot_authorization_claimed") is not True
+        or claim.get("reboot_authorization_consumed") is not True
+        or claim.get("reboot_authorization_replay_allowed") is not False
+        or claim.get("reboot_acceptance_passed") is not True
+        or claim.get("reboot_acceptance_finalized") is not True
+        or claim.get("reboot_executed") is not True
+        or not isinstance(pre_acceptance_claim_sha256, str)
+        or re.fullmatch(r"[0-9a-f]{64}", pre_acceptance_claim_sha256) is None
+        or not isinstance(report, dict)
+        or not isinstance(report_sha256, str)
+        or re.fullmatch(r"[0-9a-f]{64}", report_sha256) is None
+        or _canonical_sha(report) != report_sha256
+        or claim.get("post_boot_id_sha256") != _boot_id_sha256()
+        or claim.get("board_access") is not False
+    ):
+        raise AuthorityError("reboot_accepted_claim_contract_invalid")
+    _validate_reboot_acceptance_report(report, claim)
+    if report.get("post_boot_id_sha256") != claim.get("post_boot_id_sha256"):
+        raise AuthorityError("reboot_accepted_post_boot_binding_invalid")
+    return {
+        "schema": SCHEMA_REBOOT,
+        "status": "PASS",
+        "state": "REBOOT_ACCEPTED",
+        "reboot_authorization_consumed": True,
+        "reboot_authorization_replay_allowed": False,
+        "reboot_acceptance_passed": True,
+        "reboot_acceptance_finalized": True,
+        "reboot_executed": True,
+        "pre_acceptance_claim_sha256": pre_acceptance_claim_sha256,
+        "accepted_claim_sha256": accepted_claim_sha256,
+        "acceptance_report_sha256": report_sha256,
+        "post_boot_id_sha256": claim["post_boot_id_sha256"],
+        "board_access": False,
+    }
+
+
 def _common(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--source-head", required=True)
     parser.add_argument("--manifest-sha256", required=True)
@@ -1557,6 +1755,20 @@ def _parser() -> argparse.ArgumentParser:
 
     verify_reboot_parser = sub.add_parser("verify-reboot-claim")
     _common(verify_reboot_parser)
+
+    finalize_reboot_parser = sub.add_parser("finalize-reboot-acceptance")
+    finalize_reboot_parser.add_argument(
+        "--expected-pending-claim-sha256",
+        required=True,
+    )
+    _common(finalize_reboot_parser)
+
+    verify_accepted_parser = sub.add_parser("verify-reboot-accepted")
+    verify_accepted_parser.add_argument(
+        "--expected-accepted-claim-sha256",
+        required=True,
+    )
+    _common(verify_accepted_parser)
     return parser
 
 
@@ -1614,11 +1826,29 @@ def main(argv: list[str] | None = None) -> int:
                 authorization_id=args.authorization_id,
                 expected_transaction_sha256=args.expected_transaction_sha256,
             )
-        else:
+        elif args.command == "verify-reboot-claim":
             document = verify_reboot_claim(
                 source_head=args.source_head,
                 manifest_sha256=args.manifest_sha256,
                 expected_transaction_sha256=args.expected_transaction_sha256,
+            )
+        elif args.command == "finalize-reboot-acceptance":
+            document = finalize_reboot_acceptance(
+                source_head=args.source_head,
+                manifest_sha256=args.manifest_sha256,
+                expected_transaction_sha256=args.expected_transaction_sha256,
+                expected_pending_claim_sha256=(
+                    args.expected_pending_claim_sha256
+                ),
+            )
+        else:
+            document = verify_reboot_accepted(
+                source_head=args.source_head,
+                manifest_sha256=args.manifest_sha256,
+                expected_transaction_sha256=args.expected_transaction_sha256,
+                expected_accepted_claim_sha256=(
+                    args.expected_accepted_claim_sha256
+                ),
             )
     except (
         AuthorityError,
