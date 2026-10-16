@@ -1,3 +1,17 @@
+## 2026-10-16 — F4 recovery live read-only preexecution PASS
+
+- Real T1 transaction remains `STOPPED_RUNTIME_ACCEPTANCE` with transaction SHA-256
+  `805fb27f44d36d7e512260373be7dbb8058164d3ea4ce4c1d13659169062dbcf`.
+- Failed source/manifest/launcher exactly match the frozen R1 failure authority.
+- Installed-material binding PASS; running services and product listeners are empty.
+- Broker/Services remain disabled; certificate lifecycle remains stopped; ingress guard remains active.
+- Failed runtime-acceptance authorization remains consumed/no-replay.
+- All three prospective successor authorization IDs are collision-free and still ungranted.
+- Reserved staging path is absent; no artifact was transferred.
+- Next gate:
+  `N3W_T1_F4_STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_EXACT_ARTIFACT_STAGING_PREEXECUTION_20261016_01`.
+- Auto-execution remains false.
+
 ## 2026-10-16 — Recovery artifact preparation CI complete
 
 PR #573 exact head `d432caa26cf339ba5a85251accebb9442b830fa6` is mergeable and all 12 triggered workflows are PASS.
