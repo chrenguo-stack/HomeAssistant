@@ -34,6 +34,7 @@ def test_verify_requires_new_boot_identity(
         "board_access": False,
     }
     monkeypatch.setattr(tool, "_json", lambda _path, _mode: claim)
+    monkeypatch.setattr(tool, "_installed_control_binding", lambda _claim: None)
     monkeypatch.setattr(tool, "_boot_id_sha256", lambda: "a" * 64)
 
     with pytest.raises(tool.VerifyError, match="reboot_not_observed"):
@@ -55,7 +56,8 @@ def test_verify_rejects_changed_f4_transaction(
         "f4_transaction_sha256": "b" * 64,
         "board_access": False,
     }
-    monkeypatch.setattr(tool, "_json", lambda _path: claim)
+    monkeypatch.setattr(tool, "_json", lambda _path, _mode: claim)
+    monkeypatch.setattr(tool, "_installed_control_binding", lambda _claim: None)
     monkeypatch.setattr(tool, "_boot_id_sha256", lambda: "c" * 64)
     monkeypatch.setattr(tool, "_sha256", lambda _path: "d" * 64)
 
