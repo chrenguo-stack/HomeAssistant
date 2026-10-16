@@ -1,3 +1,16 @@
+## 2026-10-17 — PR #608 merge decision ready
+
+- PR #608 remains Draft/open/unmerged, `mergeable=true`, `mergeable_state=clean`.
+- Main/base remains `b12c69be5c1d1d61887e9be4a776f575141d44c6`; head remains `6b9d311c4055230fd758abe20b40d7d545b04d81`.
+- CI PASS 14/14; active `protect-main` required status contexts are 13/13 terminal acceptable.
+- Required approving reviews: 0; unresolved review threads: 0.
+- Main ruleset permits only regular `merge`; squash/rebase are not allowed.
+- Tree-equivalence and main-preservation reviews remain PASS.
+- Merge is not yet authorized. A separate merge-execution gate must first mark the Draft PR ready and re-check for newly triggered workflows.
+- A docs-only post-merge state-alignment gate is required after any successful merge.
+- Next gate: `N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_MERGE_EXECUTION_20261017_01`.
+- Authority: `docs/development/N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_MERGE_DECISION_20261017.md`.
+
 ## 2026-10-17 — F4 clean consolidation PR #608 review CLOSED_PASS
 
 - PR #608 remains Draft/open/unmerged and targets `main` from exact clean head `6b9d311c4055230fd758abe20b40d7d545b04d81`.
