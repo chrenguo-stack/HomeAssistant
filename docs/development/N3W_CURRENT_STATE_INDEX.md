@@ -1,3 +1,16 @@
+## 2026-10-17 — PR #608 merged to main
+
+- PR #608 is CLOSED/MERGED.
+- New main: `f62752b32dff991f3de1490b85b33533237d1b59`.
+- Merge method: regular `merge`, the only method allowed by the active main ruleset.
+- Merge commit parents are exact old main `b12c69be5c1d1d61887e9be4a776f575141d44c6` and clean candidate head `6b9d311c4055230fd758abe20b40d7d545b04d81`.
+- Merge tree equals candidate tree exactly: `29951e55ab800f77a2d5b3012adcd94e874bbd8d`.
+- Pre-merge CI 14/14 PASS; tree-equivalence and main-preservation reviews remain PASS.
+- No T1 mutation or board access occurred in the merge gate.
+- F4 repository closure is not final until the preparation-frozen project ledgers on main are updated by a separate docs-only post-merge alignment gate.
+- Next gate: `N3W_T1_F4_POSTMERGE_STATE_ALIGNMENT_20261017_01`.
+- Authority: `docs/development/N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_MERGE_EXECUTION_CLOSURE_20261017.md`.
+
 ## 2026-10-17 — PR #608 merge decision ready
 
 - PR #608 remains Draft/open/unmerged, `mergeable=true`, `mergeable_state=clean`.
