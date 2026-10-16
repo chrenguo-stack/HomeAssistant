@@ -6,6 +6,7 @@ import importlib.machinery
 import importlib.util
 import json
 import re
+import stat
 import subprocess
 import sys
 import time
@@ -18,12 +19,28 @@ CLAIM_PATH = Path("/var/lib/n3w-t1-provisioning/F4_REBOOT_AUTHORIZATION.json")
 F4_TRANSACTION = Path("/var/lib/n3w-t1-provisioning/F4_ACTIVATION_TRANSACTION.json")
 F4_HOST = Path("/usr/local/sbin/n3w-t1-f4-activation")
 RUNTIME_GUARD = Path("/usr/local/sbin/n3w-t1-f4-certificate-runtime-guard")
+REBOOT_AUTHORITY = Path("/usr/local/sbin/n3w-t1-f4-reboot-authority")
+REBOOT_VERIFY = Path("/usr/local/sbin/n3w-t1-f4-reboot-verify")
+CONTROL_MANIFEST = Path(
+    "/usr/local/share/n3w-t1-f4-reboot-successor/reboot-successor-manifest.json"
+)
+PACKAGE_SCHEMA = "gh.n3w-t1-f4-reboot-successor-control-package/1"
 DROPIN = Path(
     "/etc/systemd/system/n3wfc4-broker-certificate-lifecycle.service.d/"
     "10-runtime-status-evolution.conf"
 )
 BOOT_ID = Path("/proc/sys/kernel/random/boot_id")
 EXPECTED_SERVICES = frozenset({"broker", "manager", "homeassistant"})
+CONTROL_TARGETS = {
+    "tools/n3w_t1_f4_certificate_runtime_guard.py": (RUNTIME_GUARD, 0o755),
+    "tools/n3w_t1_f4_reboot_authority.py": (REBOOT_AUTHORITY, 0o755),
+    "tools/n3w_t1_f4_reboot_verify.py": (REBOOT_VERIFY, 0o755),
+    (
+        "infra/n3w-t1/f4/reboot-successor/"
+        "n3wfc4-broker-certificate-lifecycle.service.d/"
+        "10-runtime-status-evolution.conf"
+    ): (DROPIN, 0o644),
+}
 
 
 class VerifyError(RuntimeError):
@@ -38,11 +55,16 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _json(path: Path) -> dict[str, object]:
+def _json(path: Path, mode: int) -> dict[str, object]:
     if path.is_symlink() or not path.is_file():
         raise VerifyError(f"record_invalid:{path.name}")
     metadata = path.stat()
-    if metadata.st_uid != 0 or metadata.st_gid != 0 or metadata.st_nlink != 1:
+    if (
+        metadata.st_uid != 0
+        or metadata.st_gid != 0
+        or metadata.st_nlink != 1
+        or stat.S_IMODE(metadata.st_mode) != mode
+    ):
         raise VerifyError(f"record_metadata_invalid:{path.name}")
     try:
         document = json.loads(path.read_text(encoding="utf-8"))
@@ -51,6 +73,52 @@ def _json(path: Path) -> dict[str, object]:
     if not isinstance(document, dict):
         raise VerifyError(f"record_document_invalid:{path.name}")
     return document
+
+
+def _installed_control_binding(claim: dict[str, object]) -> None:
+    source_head = claim.get("source_head")
+    manifest_sha256 = claim.get("control_manifest_sha256")
+    if (
+        not isinstance(source_head, str)
+        or re.fullmatch(r"[0-9a-f]{40}", source_head) is None
+        or not isinstance(manifest_sha256, str)
+        or re.fullmatch(r"[0-9a-f]{64}", manifest_sha256) is None
+    ):
+        raise VerifyError("control_binding_claim_invalid")
+    manifest = _json(CONTROL_MANIFEST, 0o644)
+    if (
+        _sha256(CONTROL_MANIFEST) != manifest_sha256
+        or manifest.get("schema") != PACKAGE_SCHEMA
+        or manifest.get("source_head") != source_head
+    ):
+        raise VerifyError("control_manifest_binding_invalid")
+    records = manifest.get("files")
+    if not isinstance(records, list):
+        raise VerifyError("control_manifest_files_invalid")
+    bindings = {}
+    for item in records:
+        if not isinstance(item, dict):
+            raise VerifyError("control_manifest_file_record_invalid")
+        relative = item.get("path")
+        if not isinstance(relative, str) or relative in bindings:
+            raise VerifyError("control_manifest_file_path_invalid")
+        bindings[relative] = item
+    if set(bindings) != set(CONTROL_TARGETS):
+        raise VerifyError("control_manifest_file_set_invalid")
+    for relative, (target, mode) in CONTROL_TARGETS.items():
+        item = bindings[relative]
+        if target.is_symlink() or not target.is_file():
+            raise VerifyError(f"control_target_invalid:{relative}")
+        metadata = target.stat()
+        if (
+            metadata.st_uid != 0
+            or metadata.st_gid != 0
+            or metadata.st_nlink != 1
+            or stat.S_IMODE(metadata.st_mode) != mode
+            or item.get("sha256") != _sha256(target)
+            or item.get("size") != metadata.st_size
+        ):
+            raise VerifyError(f"control_target_binding_invalid:{relative}")
 
 
 def _boot_id_sha256() -> str:
@@ -142,7 +210,7 @@ def _inactive_oneshot_success(unit: str) -> None:
 
 
 def verify() -> dict[str, object]:
-    claim = _json(CLAIM_PATH)
+    claim = _json(CLAIM_PATH, 0o600)
     if (
         claim.get("schema") != CLAIM_SCHEMA
         or claim.get("stage") != "REBOOT_PENDING"
@@ -153,6 +221,8 @@ def verify() -> dict[str, object]:
         or claim.get("board_access") is not False
     ):
         raise VerifyError("reboot_claim_invalid")
+
+    _installed_control_binding(claim)
 
     pre_boot = claim.get("pre_boot_id_sha256")
     current_boot = _boot_id_sha256()
@@ -172,7 +242,7 @@ def verify() -> dict[str, object]:
         raise VerifyError("f4_transaction_changed_across_reboot")
 
     module = _load_f4()
-    transaction = _json(F4_TRANSACTION)
+    transaction = _json(F4_TRANSACTION, 0o600)
     if (
         transaction.get("stage") != "PERSISTENCE_ENABLED"
         or transaction.get("runtime_acceptance_passed") is not True
