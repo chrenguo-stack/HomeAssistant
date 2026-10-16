@@ -585,7 +585,7 @@ def install_control(
             source_head=source_head,
             manifest_sha256=manifest_sha256,
         )
-        module, transaction = _base_pre_reboot(expected_transaction_sha256)
+        module, _transaction = _base_pre_reboot(expected_transaction_sha256)
         if (
             _canonical_sha(module._runtime_container_snapshot())
             != claim.get("pre_runtime_snapshot_sha256")
@@ -593,7 +593,7 @@ def install_control(
             != claim.get("pre_certificate_snapshot_sha256")
         ):
             raise AuthorityError("install_control_prestate_drift")
-        for _relative, (target, _mode) in CONTROL_TARGETS.items():
+        for target, _mode in CONTROL_TARGETS.values():
             if target.exists() or target.is_symlink():
                 raise AuthorityError(f"install_target_preexisting:{target.name}")
         if CONTROL_MANIFEST.exists() or CONTROL_MANIFEST.is_symlink():
