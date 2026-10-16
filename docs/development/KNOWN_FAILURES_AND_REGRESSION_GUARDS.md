@@ -1,3 +1,19 @@
+### 2026-10-16 KF-121 PREPARED null-history repair source closure
+
+~~~text
+KF-121_POST_RECOVERY_HISTORY_BLOCKER=OPEN_PENDING_LIVE_REPAIR
+SOURCE_REPAIR=PASS
+SOURCE_HEAD=72b796671e25c30f0d154788e2a4374f030eb7d1
+SOURCE_CI=13_OF_13_PASS
+EXACT_ARTIFACT_BOUND=true
+ALLOWED_PACKAGE_DELTA=LAUNCHER_ONLY
+LIVE_REPAIR_EXECUTED=false
+~~~
+
+Regression guard: do not use the superseded candidate artifact, do not weaken generic malformed-history rejection,
+and do not manually edit the transaction. The live repair must use the exact successor package, a distinct one-shot
+repair authorization, normalize only the known null history field, and remain at PREPARED.
+
 ## 2026-10-15 — KF-116 F3 public-only candidate-root creation guard
 
 ```text
