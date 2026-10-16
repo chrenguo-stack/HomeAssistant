@@ -1,3 +1,15 @@
+## 2026-10-16 — F4 persistence successor read-only closure PASS
+
+- Gate `N3W_T1_F4_PERSISTENCE_ENABLEMENT_SUCCESSOR_POSTEXECUTION_READONLY_CLOSURE_20261016_01` is CLOSED_PASS.
+- Real T1 remains `PERSISTENCE_ENABLED`.
+- Transaction and runtime-acceptance report hashes were unchanged by the collector.
+- Broker and Services boot persistence remain enabled.
+- Broker, Manager and Home Assistant remain running.
+- Certificate timer remains disabled/inactive; certificate lifecycle service remains inactive.
+- Certificate status root remains clean for the first certificate audit.
+- No live mutation or board access occurred.
+- Next one gate: `N3W_T1_F4_CERTIFICATE_FIRST_AUDIT_SUCCESSOR_LIVE_20261016_01`.
+
 ## 2026-10-16 — F4 persistence enablement successor PASS
 
 - Gate `N3W_T1_F4_PERSISTENCE_ENABLEMENT_SUCCESSOR_LIVE_20261016_01` is CLOSED_PASS.
