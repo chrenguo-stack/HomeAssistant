@@ -1,3 +1,15 @@
+## 2026-10-17 — F4 post-merge alignment PR #609 review CLOSED_PASS
+
+- PR #609 remains Draft/open/unmerged and targets exact merged main `f62752b32dff991f3de1490b85b33533237d1b59`.
+- Alignment head: `97239c1cfc500e70c4231a0d52a45ef44beb4785`; 1 commit, 9 docs-only changed paths.
+- CI PASS 12/12.
+- Five final integration records are exact blob matches; three project ledgers preserve the historical authority content as exact suffixes.
+- 1733 non-changed blob paths are unchanged from exact main.
+- Product source mutation=false; T1 mutation=false; board access=false.
+- F4 repository closure is not final until this exact alignment payload is merged and then proven reachable from main.
+- Next gate: `N3W_T1_F4_POSTMERGE_STATE_ALIGNMENT_MERGE_DECISION_20261017_01`.
+- Authority: `docs/development/N3W_T1_F4_POSTMERGE_STATE_ALIGNMENT_REVIEW_CLOSURE_20261017.md`.
+
 ## 2026-10-17 — PR #608 merged to main
 
 - PR #608 is CLOSED/MERGED.
