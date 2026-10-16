@@ -1,3 +1,15 @@
+## 2026-10-16 — F4 successor runtime activation PASS
+
+- Gate `N3W_T1_F4_RUNTIME_ACTIVATION_SUCCESSOR_LIVE_20261016_01` is CLOSED_PASS.
+- Fresh preclaim passed from exact PREPARED transaction `80764615...`.
+- Successor activation authorization is claimed, consumed and permanently non-replayable.
+- Activation command returned 0 and advanced the real T1 to `RUNTIME_STARTED`.
+- Broker, Manager and Home Assistant are running; Broker readiness passed.
+- Runtime acceptance remains unexecuted and requires a later separate one-shot authorization.
+- Persistence and certificate timer remain disabled; no reboot or board work occurred.
+- Closure authority: `docs/development/N3W_T1_F4_RUNTIME_ACTIVATION_SUCCESSOR_LIVE_CLOSURE_20261016.md`.
+- Next one gate: `N3W_T1_F4_RUNTIME_ACTIVATION_SUCCESSOR_POSTEXECUTION_READONLY_CLOSURE_20261016_01`.
+
 ## 2026-10-16 — Formal successor-activation handoff published
 
 - Formal handoff: `docs/development/N3W_T1_F4_RUNTIME_ACTIVATION_SUCCESSOR_LIVE_PREEXECUTION_NEW_CHAT_HANDOFF_V1.0_20261016.md`.
