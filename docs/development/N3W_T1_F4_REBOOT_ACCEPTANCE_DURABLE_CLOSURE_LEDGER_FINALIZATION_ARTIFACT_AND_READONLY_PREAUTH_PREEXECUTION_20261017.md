@@ -116,8 +116,10 @@ set -euo pipefail
 : "${T1_SSH:?set T1_SSH to the private T1 SSH target}"
 ROOT="$(mktemp -d)"
 trap 'rm -rf "$ROOT"' EXIT
-gh run download 38924889363 -R chrenguo-stack/HomeAssistant -n n3w-t1-f4-reboot-successor-control-19bd98386c4828c0768f2f3936429db8c7a59adf -D "$ROOT/artifact"
-printf '%s  %s\n' ff2b35a7b7a3384ac2a1ee290c93ccdb7130de4166b2385aa60e3ca36a2bf764 "$ROOT/artifact.zip.expected" >/dev/null
+gh api /repos/chrenguo-stack/HomeAssistant/actions/artifacts/12056436272/zip > "$ROOT/artifact.zip"
+test "$(shasum -a 256 "$ROOT/artifact.zip" | awk '{print $1}')" = ff2b35a7b7a3384ac2a1ee290c93ccdb7130de4166b2385aa60e3ca36a2bf764
+mkdir "$ROOT/artifact"
+unzip -q "$ROOT/artifact.zip" -d "$ROOT/artifact"
 test "$(shasum -a 256 "$ROOT/artifact/n3w-t1-f4-reboot-successor-control.tar" | awk '{print $1}')" = ade461a836d1a118291c5e7d2e3bfcb7e990ead41c2832c31f84705e578a50ba
 mkdir "$ROOT/package"
 tar -xf "$ROOT/artifact/n3w-t1-f4-reboot-successor-control.tar" -C "$ROOT/package"
