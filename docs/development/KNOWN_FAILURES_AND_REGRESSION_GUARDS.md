@@ -1,3 +1,19 @@
+### 2026-10-16 KF-121 pre-reboot readiness postexecution closure
+
+~~~text
+PRE_REBOOT_READY_POSTEXECUTION_READONLY=CLOSED_PASS
+POST_STAGE=PERSISTENCE_ENABLED
+PRE_REBOOT_READY=true
+CERTIFICATE_PHASE_ELIGIBILITY=PASS
+TRANSACTION_UNCHANGED=true
+RUNTIME_ACCEPTANCE_REPORT_UNCHANGED=true
+CERTIFICATE_STATUS_UNCHANGED=true
+RUNTIME_IDENTITY_UNCHANGED=true
+CERTIFICATE_IDENTITY_UNCHANGED=true
+~~~
+
+Guard: PRE_REBOOT_READY is now independently verified, but it does not authorize reboot. Reboot must be a separate explicit one-shot live gate. After reboot, acceptance must prove persisted Broker, Services and certificate lifecycle behavior before any further board or production work.
+
 ### 2026-10-16 KF-121 certificate timer enablement successor closure
 
 ~~~text
