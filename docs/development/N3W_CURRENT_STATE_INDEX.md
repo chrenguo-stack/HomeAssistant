@@ -1,3 +1,89 @@
+## 2026-10-16 — F4 reboot successor preauth R2 collector syntax stop
+
+The R2 read-only collector passed the F4 durable/runtime/TLS/Manager/Home Assistant checks and confirmed the proposed install authorization does not collide with prior authorization history. It then stopped on a non-portable awk listener-port expression. No artifact staging, authorization claim, live mutation, reboot, or board access occurred. This is a collector defect, not a proven product failure. The R2 gate remains open and must be rerun with the corrected portable listener collector.
+
+## Runtime snapshot drift forensic — CLOSED_PASS / baseline refresh justified
+
+The read-only forensic completed without mutation:
+
+```text
+FORENSIC_COMPLETE=true
+FORENSIC_MUTATION=false
+AUTHORIZATION_CLAIMED=false
+ARTIFACT_STAGING=false
+REBOOT_EXECUTED=false
+BOARD_ACCESS=false
+```
+
+Observed durable state remained exact:
+
+```text
+F4_TRANSACTION_SHA256=49e7839ffe5d9e00391577a78c7c6ceb9c85a9a7cdd240ee22cc38485a3e569b
+RUNTIME_ACCEPTANCE_SHA256=c938244cda069247f3288d0cc14fbdd37dcf7c389e8a16669ea8a6c3fcecbfd4
+CERTIFICATE_STATUS_SHA256=446404d0e3725bf0e8fa9b6bd11bd67c83f16871a6e196b1cc950043ad229af4
+BOOT_ID_SHA256=459bba3071dd3d48b7dd0a2cb750cfa9dcb09b456236564940c8fad85f79f95d
+CURRENT_RUNTIME_SNAPSHOT_SHA256=29183afd73d71d4e85d8481d96f062b7c099d6721b46708a49495d58a39994f0
+OLD_RUNTIME_SNAPSHOT_SHA256=7a6c2f989ce2a585012f9a44841c6a53036e064ba3051aa95d407b789bac6b92
+```
+
+The host boot did not change. The three product containers are healthy, use the expected images and contracts, and all
+have restart_count=0. Their container objects were created on 2026-10-15, but their current StartedAt values are
+2026-10-16 03:43:52Z / 03:43:59Z. The Broker and Services systemd units likewise entered active state at the same
+current runtime start boundary. This is consistent with a controlled service stop/start of existing containers, not
+a host reboot or an observed crash-loop/container recreation.
+
+All current source-level runtime contracts passed:
+
+- F4 status and certificate eligibility PASS;
+- runtime image/product container contracts PASS;
+- Manager runtime stability PASS;
+- Home Assistant private/runtime audit PASS;
+- TLS runtime PASS;
+- product listener set exactly 1883,8123,8883;
+- transaction/runtime-acceptance/certificate-status records remained unchanged before/after forensic;
+- current boot identity remained unchanged during forensic.
+
+Therefore the previous preauthorization condition that required the live runtime identity hash to equal the older
+PRE_REBOOT_READY snapshot is too strict for this stage. Container Id/StartedAt is a volatile runtime identity and
+may legitimately change after a controlled service restart while the durable F4 acceptance and current runtime
+contracts remain intact.
+
+The corrected preauthorization rule is:
+
+1. require the durable accepted F4 records and certificate records to match their frozen hashes;
+2. prove the current runtime contracts are healthy;
+3. capture the current healthy runtime snapshot at gate entry;
+4. require that same current snapshot to remain unchanged through the read-only gate and later bounded control
+   installation;
+5. do not require equality to the historical volatile runtime snapshot.
+
+```text
+RUNTIME_SNAPSHOT_DRIFT_CLASS=CONTROLLED_RUNTIME_RESTART_COMPATIBLE
+PRODUCT_FAILURE_PROVEN=false
+HOST_REBOOT_OBSERVED=false
+DURABLE_F4_DRIFT=false
+CURRENT_RUNTIME_CONTRACT=PASS
+CURRENT_RUNTIME_BASELINE_SHA256=29183afd73d71d4e85d8481d96f062b7c099d6721b46708a49495d58a39994f0
+READONLY_FORENSIC_RESULT=CLOSED_PASS
+NEXT_ROUTE=N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_READONLY_PREAUTH_R2_20261016_01
+```
+
+## 2026-10-16 — F4 reboot successor install preauth STOP / runtime snapshot drift
+
+- Read-only gate `N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_READONLY_PREAUTH_20261016_01` stopped at `PREAUTH_FAIL=runtime_snapshot_before`.
+- No artifact staging, authorization claim, live mutation, reboot or board access occurred.
+- The failed comparison is the canonical Broker/Manager/Home Assistant container identity snapshot (`Id` + `StartedAt`) against the earlier PRE_REBOOT_READY baseline.
+- A changed snapshot is not by itself a product failure; current runtime health and the changed service identity must be classified first.
+- Next route: `N3W_T1_F4_REBOOT_SUCCESSOR_RUNTIME_SNAPSHOT_DRIFT_READONLY_FORENSIC_20261016_01`.
+
+## 2026-10-16 — F4 reboot successor control-install read-only preauth ready
+
+- Next gate is `N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_READONLY_PREAUTH_20261016_01`.
+- It is read-only: no artifact staging, authorization claim, host mutation, reboot or board access.
+- Exact successor artifact remains ID `12028807237`, bound to source `5368acc1eb50f1fc62bbd7c16ff9e64139131a29` and manifest SHA-256 `2f2ae69dbf78d5f578fa60bbee7fb269a5d0c3b17a00e2f697bc65d3ed91c40c`.
+- The collector must prove the PRE_REBOOT_READY baseline remains unchanged and all successor install/claim targets remain absent.
+- A PASS may only advance to an explicit authorization decision for `N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_LIVE_20261016_01`; it does not authorize installation or reboot.
+
 ## 2026-10-16 — F4 reboot successor source repair PASS
 
 - Gate `N3W_T1_F4_REBOOT_SUCCESSOR_SOURCE_REPAIR_20261016_01` is CLOSED_PASS at PR #600 exact HEAD `5368acc1eb50f1fc62bbd7c16ff9e64139131a29`.
