@@ -1,3 +1,18 @@
+### 2026-10-16 KF-121 successor activation postexecution closure
+
+~~~text
+SUCCESSOR_ACTIVATION_POSTEXECUTION_READONLY=CLOSED_PASS
+POST_STAGE=RUNTIME_STARTED
+TRANSACTION_UNCHANGED=true
+RUNNING_SERVICES=[broker,homeassistant,manager]
+RUNTIME_ACCEPTANCE_REQUIRED=true
+RUNTIME_ACCEPTANCE_PASSED=false
+PERSISTENCE_ENABLED=false
+CERTIFICATE_TIMER_ENABLED=false
+~~~
+
+Guard: the successor activation authorization is consumed and must never be replayed. The activation read-only closure does not count as runtime acceptance. Do not advance to persistence, certificate lifecycle, reboot, or board work before the later runtime-acceptance route is explicitly opened and passes.
+
 ### 2026-10-16 KF-121 successor activation live revalidation
 
 ~~~text
