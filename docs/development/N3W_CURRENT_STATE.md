@@ -1,3 +1,45 @@
+## First live execution — pre-claim STOP on certificate identity comparison
+
+The authorized live gate stopped before any authorization claim or control-file installation:
+
+```text
+LOCAL_EXACT_ARTIFACT=PASS
+SOURCE_HEAD=5368acc1eb50f1fc62bbd7c16ff9e64139131a29
+MANIFEST_FILE_COUNT=4
+LIVE_INSTALL_FAIL=certificate_identity_before
+AUTHORIZATION_CLAIMED=false
+REBOOT_EXECUTED=false
+BOARD_ACCESS=false
+STOP=true
+```
+
+The exact transport tar was copied to the T1 before this check, but the repository-owned successor authority was
+not invoked and the install authorization was not claimed or consumed. The package extraction/install stage was
+not reached.
+
+The failure is currently classified as a pre-claim forensic STOP, not as a product failure. The failed comparison
+used an expected historical certificate-identity digest that was produced by an earlier evidence collector, while
+the live wrapper calculated the current identity by canonical-JSON hashing
+`_certificate_identity_snapshot()`. These digest methods must be proven equivalent before the mismatch may be
+treated as certificate/key drift.
+
+```text
+CONTROL_INSTALL_GATE_RESULT=STOP_PRECLAIM
+TRANSPORT_TAR_STAGED=true
+PACKAGE_EXTRACTION_REACHED=false
+INSTALL_AUTHORIZATION_CLAIMED=false
+INSTALL_AUTHORIZATION_CONSUMED=false
+CONTROL_FILES_INSTALLED=false
+DAEMON_RELOAD_REACHED=false
+REBOOT_AUTHORIZATION_CLAIMED=false
+REBOOT_EXECUTED=false
+BOARD_ACCESS=false
+
+NEXT_ROUTE=N3W_T1_F4_REBOOT_SUCCESSOR_CERTIFICATE_IDENTITY_HASH_READONLY_FORENSIC_20261016_01
+```
+
+Do not rerun the live install until the identity-hash mismatch is classified.
+
 ## 2026-10-16 — F4 reboot successor control-install live authorization granted
 
 ~~~text
