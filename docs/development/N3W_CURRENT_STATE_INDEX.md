@@ -1,3 +1,16 @@
+## 2026-10-16 — F4 persistence enablement successor PASS
+
+- Gate `N3W_T1_F4_PERSISTENCE_ENABLEMENT_SUCCESSOR_LIVE_20261016_01` is CLOSED_PASS.
+- Real T1 advanced from `RUNTIME_ACCEPTED` to `PERSISTENCE_ENABLED`.
+- Persistence authorization is claimed, consumed, and non-replayable.
+- Broker and Services activation units are enabled.
+- Current runtime stayed up with Broker, Manager, and Home Assistant running.
+- Runtime acceptance remains passed and bound to the unchanged acceptance report.
+- Certificate timer remains disabled; certificate audit was not executed.
+- No reboot or board access occurred.
+- Closure authority: `docs/development/N3W_T1_F4_PERSISTENCE_ENABLEMENT_SUCCESSOR_LIVE_CLOSURE_20261016.md`.
+- Next one gate: `N3W_T1_F4_PERSISTENCE_ENABLEMENT_SUCCESSOR_POSTEXECUTION_READONLY_CLOSURE_20261016_01`.
+
 ## 2026-10-16 — F4 successor runtime acceptance read-only closure PASS
 
 - Gate `N3W_T1_F4_RUNTIME_ACCEPTANCE_SUCCESSOR_POSTEXECUTION_READONLY_CLOSURE_20261016_01` is CLOSED_PASS.
