@@ -1,3 +1,13 @@
+### 2026-10-16 KF-121 reboot successor control-install live authorization boundary
+
+~~~text
+CONTROL_INSTALL_GATE=N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_LIVE_20261016_01
+CONTROL_INSTALL_AUTHORIZATION_GRANTED=true
+REBOOT_AUTHORIZATION_GRANTED=false
+~~~
+
+Guard: consume the dedicated install authorization durably before installing successor control files. A pre-claim failure may be retried only after classifying the failure; a post-claim failure must never replay the consumed authorization. The install gate may stage the exact artifact, install only the manifest-bound successor control and reload systemd, but must not claim reboot authority, reboot/power off the host, restart product services, access boards, or merge PRs. A successful CONTROL_READY result must go through a separate postexecution read-only closure before any reboot authorization decision.
+
 ### 2026-10-16 KF-121 reboot successor control-install preauth R2 closure
 
 ~~~text
