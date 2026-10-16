@@ -1,3 +1,11 @@
+## 2026-10-16 — Null-history exact artifact staging preflight ready
+
+- Current gate: `N3W_T1_F4_PREPARED_AUTHORIZATION_HISTORY_NULL_EXACT_ARTIFACT_STAGING_PREEXECUTION_20261016_01`.
+- Current substage: `AWAITING_STAGE_A`.
+- Stage A is read-only on T1.
+- Prospective repair authorization is reserved only and remains ungranted.
+- Stage B, if later entered, is staging-only and must stop before the repair command.
+
 ## 2026-10-16 — PREPARED authorization-history repair exact artifact ready
 
 - PR #579 final source head `72b796671e25c30f0d154788e2a4374f030eb7d1`: 13/13 CI PASS.
