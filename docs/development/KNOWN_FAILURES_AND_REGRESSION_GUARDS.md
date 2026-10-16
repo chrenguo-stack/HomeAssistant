@@ -1,3 +1,20 @@
+### 2026-10-16 KF-121 post-reboot binding CI test-fixture repair
+
+~~~text
+CI_215=FAIL
+FAILURE_CLASS=TEST_FIXTURE
+PRODUCT_SOURCE_DEFECT_PROVEN=false
+PRODUCTION_SOURCE_CHANGED=false
+TEST_FIX=COMMITTED_CI_PENDING
+T1_MUTATION=false
+~~~
+
+The failed focused tests did not establish a new product-source defect. They used stale mocks for the helper renamed
+by the post-reboot binding repair and attempted to run production root-owned-record metadata checks on non-root CI
+temporary files. The test seam has been corrected without weakening production ownership checks.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_CI_TEST_FIX_20261016.md`.
+
 ### 2026-10-16 KF-121 post-reboot binding repair implemented
 
 ~~~text

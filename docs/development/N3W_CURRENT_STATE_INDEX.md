@@ -1,3 +1,13 @@
+## 2026-10-16 — F4 post-reboot binding CI test fix
+
+- CI #215 failed only in two newly added focused tests; 133 focused tests passed.
+- Root cause: stale mock target after the production helper split, plus production root-ownership checks applied to non-root GitHub-runner temporary files.
+- Repair changes tests only; production source from `b099ea221ca4...` is unchanged.
+- Finalizer and terminal verifier tests mock `_verify_installed_control_material_binding()`.
+- The isolated material-binding regression test keeps functional hash/contract checks but bypasses host ownership metadata through a test-only JSON reader.
+- Real T1 remains untouched.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_CI_TEST_FIX_20261016.md`.
+
 ## 2026-10-16 — F4 durable reboot closure post-reboot binding source repair
 
 - Gate: `N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_SOURCE_REPAIR_20261016_01`.

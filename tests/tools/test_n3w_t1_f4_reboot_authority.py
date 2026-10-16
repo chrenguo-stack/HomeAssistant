@@ -1109,7 +1109,7 @@ def test_finalize_reboot_acceptance_persists_terminal_state(
     def verify_installed(**kwargs):
         observed_installed.update(kwargs)
 
-    monkeypatch.setattr(tool, "_verify_installed_control", verify_installed)
+    monkeypatch.setattr(\n        tool,\n        "_verify_installed_control_material_binding",\n        verify_installed,\n    )
     monkeypatch.setattr(tool, "_boot_id_sha256", lambda: post_boot)
     monkeypatch.setattr(
         tool,
@@ -1240,7 +1240,7 @@ def test_verify_reboot_accepted_is_read_only_terminal_check(
     monkeypatch.setattr(tool, "REBOOT_CLAIM_PATH", claim_path)
     monkeypatch.setattr(tool, "_package", lambda *_args, **_kwargs: package)
     monkeypatch.setattr(tool, "_validate_recovery_entrypoint", lambda _package: None)
-    monkeypatch.setattr(tool, "_verify_installed_control", lambda **_kwargs: None)
+    monkeypatch.setattr(\n        tool,\n        "_verify_installed_control_material_binding",\n        lambda **_kwargs: None,\n    )
     monkeypatch.setattr(tool, "_boot_id_sha256", lambda: post_boot)
     monkeypatch.setattr(
         tool,
@@ -1340,6 +1340,11 @@ def test_material_binding_is_post_reboot_safe_without_pre_reboot_runtime_checks(
     monkeypatch.setattr(tool, "INSTALL_CLAIM_PATH", install_path)
     monkeypatch.setattr(tool, "CONTROL_MANIFEST", manifest_path)
     monkeypatch.setattr(tool, "CONTROL_TARGETS", {"guard.py": (target, 0o755)})
+    monkeypatch.setattr(
+        tool,
+        "_record",
+        lambda path, _mode: json.loads(path.read_text(encoding="utf-8")),
+    )
     monkeypatch.setattr(
         tool,
         "_validate_recovery_ready_link",

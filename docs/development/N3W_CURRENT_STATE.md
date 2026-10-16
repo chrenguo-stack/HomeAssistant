@@ -1,3 +1,31 @@
+## 2026-10-16 — F4 post-reboot binding CI #215 test-fixture failure repaired
+
+~~~text
+BASE_HEAD=b099ea221ca4b76a64223beccaa656aea0e6dce7
+CI_215=FAIL:FOCUSED_F4_TESTS
+FAILED_TESTS=2
+CLASSIFICATION=TEST_FIXTURE_FAILURE
+PRODUCT_SOURCE_DEFECT_PROVEN=false
+
+PRODUCTION_SOURCE_CHANGED=false
+TEST_FIX_COMMITTED=true
+T1_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+CURRENT_STAGE=F4
+CURRENT_STOP_POINT=POSTREBOOT_BINDING_TEST_FIX_CI_PENDING
+NEXT_ONE_GATE=N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_SOURCE_REVIEW_20261016_01
+AUTO_EXECUTE_NEXT_GATE=true
+~~~
+
+CI #215 exposed stale mocks and non-root temporary-file metadata in the new unit tests. The repair is test-only:
+finalizer/terminal-verifier tests now mock the new material-binding helper, and the isolated material-binding test
+uses a test JSON reader rather than production root-ownership enforcement.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_CI_TEST_FIX_20261016.md`.
+
 ## 2026-10-16 — F4 durable reboot closure post-reboot binding source repair IMPLEMENTED / CI pending
 
 ~~~text
