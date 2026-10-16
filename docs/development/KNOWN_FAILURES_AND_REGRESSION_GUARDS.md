@@ -1,3 +1,20 @@
+### 2026-10-16 KF-121 successor activation live revalidation
+
+~~~text
+SUCCESSOR_ACTIVATION_LIVE=CLOSED_PASS
+POST_STAGE=RUNTIME_STARTED
+ACTIVATION_AUTHORIZATION_CONSUMED=true
+ACTIVATION_AUTHORIZATION_REPLAY_ALLOWED=false
+BROKER_READY=true
+RUNNING_SERVICES=[broker,homeassistant,manager]
+RUNTIME_ACCEPTANCE_REQUIRED=true
+RUNTIME_ACCEPTANCE_PASSED=false
+PERSISTENCE_ENABLED=false
+CERTIFICATE_TIMER_ENABLED=false
+~~~
+
+KF-121's successor activation leg is now live-revalidated. This does not close the later runtime-acceptance leg. Regression guard: never replay the consumed successor activation authorization, do not treat the activation-only listener observation as full runtime acceptance, and do not enter runtime acceptance, persistence, certificate timer, or reboot without their required later gate/authorization.
+
 ### 2026-10-16 KF-121 PREPARED authorization-history null blocker closure
 
 ~~~text
