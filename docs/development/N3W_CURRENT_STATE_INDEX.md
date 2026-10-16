@@ -1,3 +1,15 @@
+## 2026-10-17 — F4 clean consolidation candidate constructed
+
+- Candidate branch: `integrate/n3w-t1-f4-stack-consolidation-20261017`.
+- Candidate head: `6b9d311c4055230fd758abe20b40d7d545b04d81`.
+- Parent is exact main `b12c69be5c1d1d61887e9be4a776f575141d44c6`; only two clean commits were added.
+- Main-to-candidate diff is exactly the 70-file allowlist.
+- Product equivalence 19/19 PASS; immutable evidence 44/44 PASS; frozen ledgers 3/3 PASS; metadata 4/4 PASS.
+- No unlisted path drift and no historical PR/commit replay.
+- No consolidation PR or merge has been created yet.
+- Next gate: `N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_DRAFT_PR_AND_CI_20261017_01`.
+- Authority: `docs/development/N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_CONSTRUCTION_CLOSURE_20261017.md`.
+
 ## 2026-10-17 — F4 stack consolidation preparation CLOSED_PASS
 
 - Fresh main remains `b12c69be5c1d1d61887e9be4a776f575141d44c6`.
