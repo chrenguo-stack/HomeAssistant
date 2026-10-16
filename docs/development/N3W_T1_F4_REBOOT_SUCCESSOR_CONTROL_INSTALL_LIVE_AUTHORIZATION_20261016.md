@@ -223,3 +223,64 @@ CONTROL_INSTALL_AUTHORIZATION_REMAINS_UNCONSUMED=true
 NEXT_ROUTE=N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_LIVE_20261016_01
 ```
 
+## Live control-install execution — POSTCLAIM FAILURE / authorization consumed
+
+The second live execution passed all pre-claim checks, staged the exact package, durably claimed the install
+authorization, and then failed during the repository-owned installed-control verification:
+
+```text
+PRECLAIM_F4_CONTRACT=PASS
+PRECLAIM_TLS_CONTRACT=PASS
+STAGED_EXACT_PACKAGE=PASS
+
+state=INSTALL_CLAIMED
+control_repair_authorization_claimed=true
+control_repair_authorization_consumed=true
+control_repair_authorization_replay_allowed=false
+claim_sha256=81a314abe887c08339b8c0792519b3e1620d7b0d9b0be8fee6be1bba2815c810
+
+DURABLE_INSTALL_CLAIM=PASS
+INSTALL_CLAIM_SHA256=81a314abe887c08339b8c0792519b3e1620d7b0d9b0be8fee6be1bba2815c810
+
+INSTALL_RC=2
+error_code=command_failed:/usr/local/sbin/n3w-t1-f4-certificate-runtime-guard:2:...f4_runtime_contract_invalid...
+
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+AUTHORIZATION_REPLAY_ALLOWED=false
+POSTCLAIM_FAILURE=true
+DO_NOT_RETRY_AUTHORIZATION=true
+REBOOT_EXECUTED=false
+BOARD_ACCESS=false
+```
+
+Source review of exact head `5368acc1eb50f1fc62bbd7c16ff9e64139131a29` identifies a deterministic defect
+in `n3w_t1_f4_certificate_runtime_guard.py`: its `_f4_control_contract()` requires
+`runtime.get("board_access") is False`, but the frozen F4 host's `_runtime_activity()` never returns a
+`board_access` field. Therefore the expression is always false for an otherwise healthy runtime and the guard
+raises `f4_runtime_contract_invalid`.
+
+This is a source defect in the newly installed successor guard, not evidence that the live product runtime failed.
+
+The install authority's source order is also important: before invoking the failing guard it writes
+`CONTROL_APPLYING`, installs all manifest-bound control targets and the installed manifest, executes
+`systemctl daemon-reload`, then calls `_verify_installed_control()`. Because the observed failure originated
+inside the installed guard, the live T1 must be treated as a postclaim partially completed control install until a
+read-only forensic confirms the exact state.
+
+The consumed authorization
+`N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_LIVE_20261016_01`
+must never be replayed.
+
+```text
+CONTROL_INSTALL_RESULT=POSTCLAIM_FAILURE
+SOURCE_DEFECT_CONFIRMED=true
+SOURCE_DEFECT=f4_runtime_contract_requires_nonexistent_board_access_field
+INSTALL_AUTHORIZATION_CONSUMED=true
+INSTALL_AUTHORIZATION_REPLAY_ALLOWED=false
+REBOOT_AUTHORIZATION_CLAIMED=false
+REBOOT_EXECUTED=false
+BOARD_ACCESS=false
+NEXT_ROUTE=N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_READONLY_FORENSIC_20261016_01
+```
+
