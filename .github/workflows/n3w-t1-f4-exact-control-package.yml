@@ -161,6 +161,14 @@ jobs:
             reboot-successor-control
           sha256sum out/n3w-t1-f4-reboot-successor-control.tar \
             > out/n3w-t1-f4-reboot-successor-control.tar.sha256
+          cp tools/n3w_t1_f4_reboot_authority.py \
+            out/n3w_t1_f4_reboot_authority.py
+          cp tools/n3w_t1_f4_reboot_verify.py \
+            out/n3w_t1_f4_reboot_verify.py
+          sha256sum \
+            out/n3w_t1_f4_reboot_authority.py \
+            out/n3w_t1_f4_reboot_verify.py \
+            > out/n3w-t1-f4-reboot-successor-execution-source.sha256
 
       - uses: actions/upload-artifact@v4
         with:
@@ -168,6 +176,9 @@ jobs:
           path: |
             out/n3w-t1-f4-reboot-successor-control.tar
             out/n3w-t1-f4-reboot-successor-control.tar.sha256
+            out/n3w_t1_f4_reboot_authority.py
+            out/n3w_t1_f4_reboot_verify.py
+            out/n3w-t1-f4-reboot-successor-execution-source.sha256
             out/reboot-successor-build-report.json
           if-no-files-found: error
           retention-days: 14
