@@ -1,3 +1,7 @@
+## 2026-10-16 — F4 reboot successor preauth R2 collector syntax stop
+
+The R2 read-only collector passed the F4 durable/runtime/TLS/Manager/Home Assistant checks and confirmed the proposed install authorization does not collide with prior authorization history. It then stopped on a non-portable awk listener-port expression. No artifact staging, authorization claim, live mutation, reboot, or board access occurred. This is a collector defect, not a proven product failure. The R2 gate remains open and must be rerun with the corrected portable listener collector.
+
 ## Runtime snapshot drift forensic — CLOSED_PASS / baseline refresh justified
 
 The read-only forensic completed without mutation:
