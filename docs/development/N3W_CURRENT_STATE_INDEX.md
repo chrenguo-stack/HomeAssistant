@@ -1,3 +1,15 @@
+## 2026-10-17 — F4 durable reboot ledger CLOSED_PASS
+
+- Real-T1 finalizer passed and atomically advanced the durable reboot ledger to `REBOOT_ACCEPTED`.
+- Accepted claim SHA-256: `48bb962b2d979f0e6f80a36bfc4f33aff6eca77e1b3a655f5773a9c4ebb879e9`.
+- Prior pending claim remains chained as `61429105bc05f135f3d0b8be338d74899b2466cb65fa896be4254d37a54c5028`.
+- Independent read-only terminal verification passed; terminal contract passed.
+- Reboot authorization remains consumed/no-replay.
+- F4 transaction and installed control were not changed by ledger finalization.
+- KF-121 durable-ledger blocker is CLOSED_PASS.
+- Next route: fresh PR #605 final/pre-merge review. Merge is not authorized.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_LEDGER_FINALIZATION_LIVE_AND_TERMINAL_VERIFY_CLOSURE_20261017.md`.
+
 ## 2026-10-17 — F4 ledger-finalization live gate authorized
 
 - Exact read-only preauth is CLOSED_PASS.
