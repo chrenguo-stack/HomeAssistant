@@ -3,6 +3,7 @@
 - PRE_REBOOT_READY postexecution closure is CLOSED_PASS.
 - Current F4 activation source has no repository-owned reboot command or durable reboot authorization claim.
 - A raw host reboot is forbidden because it would bypass the one-shot F4 authority model.
+- Certificate lifecycle eligibility also has a one-run-only status-hash defect: every lifecycle check rewrites status.json, but the next check currently requires the original first-audit hash.
 - Live reboot authorization is not ready.
 - Next one gate: `N3W_T1_F4_REBOOT_SUCCESSOR_SOURCE_REPAIR_20261016_01`.
 
