@@ -1,3 +1,27 @@
+## 2026-10-16 — PREPARED null-history staging Stage A PASS
+
+~~~text
+CURRENT_GATE=N3W_T1_F4_PREPARED_AUTHORIZATION_HISTORY_NULL_EXACT_ARTIFACT_STAGING_PREEXECUTION_20261016_01
+CURRENT_SUBSTAGE=STAGE_B_ELIGIBLE
+
+STAGE_A_RESULT=PASS
+REAL_T1_STAGE=PREPARED
+REAL_T1_TRANSACTION_SHA256=bd1e69c2bce2291e835e8bd341434ad889fbdae8630d9bf897a7fdb27dade1ad
+RUNTIME_ACCEPTANCE_AUTHORIZATION_HISTORY=null
+INSTALLED_MATERIAL_BINDING_PASS=true
+PROSPECTIVE_REPAIR_AUTHORIZATION_COLLISION=false
+NEW_STAGING_PATHS_ABSENT=true
+RUNNING_SERVICES=[]
+PRODUCT_LISTENER_PORTS=[]
+
+ARTIFACT_TRANSFER_TO_T1=false
+REPAIR_AUTHORIZATION_GRANTED=false
+REPAIR_COMMAND_EXECUTED=false
+~~~
+
+Stage B may now stage the exact package to the dedicated new recovery-history path only. It must not edit the
+transaction or installed launcher and must stop before repair authorization or repair command execution.
+
 ## 2026-10-16 — PREPARED null-history exact artifact staging gate prepared
 
 ~~~text
