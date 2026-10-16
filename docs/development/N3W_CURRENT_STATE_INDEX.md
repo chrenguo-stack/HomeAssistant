@@ -1,3 +1,17 @@
+## 2026-10-16 — F4 CONTROL_APPLYING recovery artifact + read-only preauth CLOSED_PASS
+
+- Gate `N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_ARTIFACT_AND_READONLY_PREAUTH` is CLOSED_PASS.
+- Exact recovery artifact: run `38876051692`, job `116891251243`, artifact `12035207393`.
+- Artifact ZIP SHA-256 is `128f365afec6447873e6182a1ee5a59f20fd90b1ca3932ed7531b96c08773000`; transport tar and manifest bindings also passed.
+- Fresh read-only T1 preauth passed with no mutation.
+- The real install claim remains exact `CONTROL_APPLYING`; original installed bytes remain exact; the original install authorization remains consumed/no-replay.
+- F4 transaction, runtime acceptance, certificate status, boot identity, runtime identity and certificate identity all match the frozen forensic baseline.
+- Recovery claim and reboot claim are both absent; Broker, Manager and Home Assistant remain active.
+- Proposed recovery authorization remains granted=false / claimed=false / consumed=false.
+- Next one gate: `N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_LIVE_20261016_01`.
+- Auto-execution is false. No reboot, certificate lifecycle action, board access or merge occurred.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_ARTIFACT_AND_READONLY_PREAUTH_CLOSURE_20261016.md`.
+
 ## 2026-10-16 — F4 CONTROL_APPLYING recovery source repair CLOSED_PASS
 
 - Gate `N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_SOURCE_REPAIR_20261016_01` is CLOSED_PASS.

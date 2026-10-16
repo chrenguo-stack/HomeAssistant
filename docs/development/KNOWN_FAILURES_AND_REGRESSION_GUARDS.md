@@ -1,3 +1,25 @@
+### 2026-10-16 KF-121 CONTROL_APPLYING recovery artifact/preauth closure
+
+~~~text
+RECOVERY_SOURCE_REPAIR=CLOSED_PASS
+RECOVERY_EXACT_ARTIFACT=PASS
+READONLY_PREAUTH=PASS
+REAL_T1_INSTALL_CLAIM=CONTROL_APPLYING
+ORIGINAL_INSTALL_AUTHORIZATION=CONSUMED_NO_REPLAY
+RECOVERY_CLAIM_PRESENT=false
+REBOOT_CLAIM_PRESENT=false
+LIVE_RECOVERY_EXECUTED=false
+~~~
+
+The KF-121 recovery path now has both a reviewed source implementation and an exact recovery artifact. Fresh
+read-only evidence proves that the real T1 still matches the frozen postclaim baseline and is eligible to request a
+separate live recovery authorization. This is not live recovery acceptance: the proposed recovery authorization
+remains ungranted/unclaimed/unconsumed, and the real claim remains `CONTROL_APPLYING`.
+
+Status: GUARDED_SOURCE_AND_PREAUTH_CLOSED_PASS_LIVE_RECOVERY_PENDING.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_ARTIFACT_AND_READONLY_PREAUTH_CLOSURE_20261016.md`.
+
 ### 2026-10-16 KF-121 CONTROL_APPLYING recovery source closure
 
 ~~~text
