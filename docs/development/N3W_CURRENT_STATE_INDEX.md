@@ -1,3 +1,17 @@
+## 2026-10-16 — F4 successor runtime acceptance read-only closure PASS
+
+- Gate `N3W_T1_F4_RUNTIME_ACCEPTANCE_SUCCESSOR_POSTEXECUTION_READONLY_CLOSURE_20261016_01` is CLOSED_PASS.
+- Real T1 remains `RUNTIME_ACCEPTED`.
+- Transaction SHA-256 remains `822c456624d67c1ffa4e4e6b1812c2f84be1d4991606b94cba012370d9a8a9fe`.
+- Runtime-acceptance report SHA-256 remains `c938244cda069247f3288d0cc14fbdd37dcf7c389e8a16669ea8a6c3fcecbfd4`.
+- Both hashes were unchanged by the read-only collector.
+- Broker, Manager and Home Assistant remain running; observed product listener ports are 1883, 8123 and 8883.
+- Runtime acceptance remains passed.
+- Persistence and certificate timer remain disabled.
+- Closure authority: `docs/development/N3W_T1_F4_RUNTIME_ACCEPTANCE_SUCCESSOR_POSTEXECUTION_READONLY_CLOSURE_20261016.md`.
+- Next one gate: `N3W_T1_F4_PERSISTENCE_ENABLEMENT_SUCCESSOR_LIVE_20261016_01`.
+- The next gate requires a new explicit one-shot authorization.
+
 ## 2026-10-16 — F4 successor runtime acceptance PASS
 
 - Gate `N3W_T1_F4_RUNTIME_ACCEPTANCE_SUCCESSOR_LIVE_20261016_01` is CLOSED_PASS.
