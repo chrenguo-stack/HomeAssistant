@@ -1,3 +1,11 @@
+## 2026-10-16 — F4 reboot successor control-install read-only preauth ready
+
+- Next gate is `N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_READONLY_PREAUTH_20261016_01`.
+- It is read-only: no artifact staging, authorization claim, host mutation, reboot or board access.
+- Exact successor artifact remains ID `12028807237`, bound to source `5368acc1eb50f1fc62bbd7c16ff9e64139131a29` and manifest SHA-256 `2f2ae69dbf78d5f578fa60bbee7fb269a5d0c3b17a00e2f697bc65d3ed91c40c`.
+- The collector must prove the PRE_REBOOT_READY baseline remains unchanged and all successor install/claim targets remain absent.
+- A PASS may only advance to an explicit authorization decision for `N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_LIVE_20261016_01`; it does not authorize installation or reboot.
+
 ## 2026-10-16 — F4 reboot successor source repair PASS
 
 - Gate `N3W_T1_F4_REBOOT_SUCCESSOR_SOURCE_REPAIR_20261016_01` is CLOSED_PASS at PR #600 exact HEAD `5368acc1eb50f1fc62bbd7c16ff9e64139131a29`.
