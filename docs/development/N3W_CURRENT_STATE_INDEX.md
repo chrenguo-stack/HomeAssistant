@@ -1,3 +1,28 @@
+## 2026-10-16 — Recovery artifact preparation CI complete
+
+PR #573 exact head `d432caa26cf339ba5a85251accebb9442b830fa6` is mergeable and all 12 triggered workflows are PASS.
+
+Current gate advances to
+`N3W_T1_F4_STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_LIVE_READONLY_PREEXECUTION_20261016_01`.
+
+This gate is read-only: no artifact transfer, no recovery authorization grant/claim/consume, no runtime mutation,
+no production service start, no board access and no reboot.
+
+## 2026-10-16 — F4 recovery exact artifact binding PASS; read-only T1 preexecution next
+
+- PR #571 exact source remains `f0bcc2ac50326b9a988405af8a2aad4c51694810` with all exact-head CI PASS.
+- Successor artifact: run `38767114055`, job `116533101018`, artifact `11990381805`.
+- ZIP SHA-256 `7c633170dfcbe2f9587fd51eaa48455505069c21b2c76df48e9d9ef54249b225`.
+- Control tar SHA-256 `9d1ba965ac72887dbac6cc48381d228843c6c489e92217ef65886d73cd0c309d`.
+- Manifest SHA-256 `37c620daf57a3f49614a4c2824c55b7e20413ef63593cd1781e4f359fb4729b5`.
+- Successor launcher SHA-256 `eaf28175909479007d6d1df7522811d032890dcaa2a2280228c93e6dce128bb3`, size `177919`.
+- Previous exact artifact was independently re-downloaded; old manifest/launcher reproduce the live failed-source bindings.
+- Old/new package path sets are equal; all seven non-launcher files are byte-identical. Only the launcher differs.
+- No artifact has been transferred to T1. No recovery authorization has been granted.
+- Read-only runbook prepared at `docs/development/N3W_T1_F4_STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_LIVE_READONLY_PREEXECUTION_RUNBOOK_20261016.md`.
+- Next gate: `N3W_T1_F4_STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_LIVE_READONLY_PREEXECUTION_20261016_01`.
+- Auto-execution remains false.
+
 ## 2026-10-15 — F4 recovery source repair closed; exact artifact binding next
 
 - Recovery design: PR #570 / `5e7bdeb384c1684536d40af23454d987603a2ce8`.
