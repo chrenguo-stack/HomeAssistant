@@ -1,3 +1,237 @@
+## CONTROL_APPLYING forensic — root cause reproduced
+
+The read-only forensic confirmed the exact live postclaim state:
+
+```text
+INSTALL_CLAIM_PRESENT=true
+INSTALL_CLAIM_SHA256=6c8cad9331094bbb0abe89ff67bc75b724d66c7eb97cdf6f4117c3bce5ed4d80
+CLAIM_STAGE=CONTROL_APPLYING
+CLAIM_SOURCE_HEAD=5368acc1eb50f1fc62bbd7c16ff9e64139131a29
+CLAIM_CONTROL_MANIFEST_SHA256=2f2ae69dbf78d5f578fa60bbee7fb269a5d0c3b17a00e2f697bc65d3ed91c40c
+CLAIM_PRE_RUNTIME_SNAPSHOT_SHA256=29183afd73d71d4e85d8481d96f062b7c099d6721b46708a49495d58a39994f0
+CLAIM_PRE_CERTIFICATE_SNAPSHOT_SHA256=68264cf00af8a5748fc20c17edb4969533d326905bb3e959960b3f2ab0103947
+CLAIM_CONTROL_REPAIR_AUTHORIZATION_CLAIMED=true
+CLAIM_CONTROL_REPAIR_AUTHORIZATION_CONSUMED=true
+CLAIM_CONTROL_REPAIR_AUTHORIZATION_REPLAY_ALLOWED=false
+CLAIM_INSTALLATION_APPLY_STARTED=true
+CLAIM_INSTALLATION_VERIFIED=null
+
+REBOOT_CLAIM_PRESENT=false
+AUTHORITY_LOCK_PRESENT=true
+
+SUCCESSOR_DROPIN_LOADED=true
+CERT_TIMER_ENABLED=enabled
+CERT_TIMER_ACTIVE=inactive
+CERT_SERVICE_ACTIVE=inactive
+BROKER_ACTIVE=active
+SERVICES_ACTIVE=active
+```
+
+All five installed successor artifacts match the original exact PR #600 package byte-for-byte and have the expected
+root ownership/modes. The installed manifest remains the exact original manifest.
+
+The broken guard failure is reproduced exactly:
+
+```text
+INSTALLED_GUARD_RC=2
+error_code=f4_runtime_contract_invalid
+```
+
+The frozen F4 host reports:
+
+```json
+{"broker_active_state":"active","production_service_start":true,"running_services":["broker","homeassistant","manager"],"runtime_service_probe":"PASS","services_active_state":"active"}
+```
+
+and therefore:
+
+```text
+F4_RUNTIME_ACTIVITY_HAS_BOARD_ACCESS=false
+```
+
+This independently confirms the source defect in PR #600: the installed guard requires a `board_access` key that
+the authoritative F4 `_runtime_activity()` schema does not expose.
+
+The forensic collector itself then stopped on an unrelated local wrapper defect
+(`F4: unbound variable`) before its final status/immutability tail. No live mutation was performed by the
+forensic. A short read-only tail check is still required to close live-state immutability.
+
+## PR #605 focused source repair
+
+PR #605 repairs only the invalid runtime-schema assumption and adds regression coverage for:
+
+- a healthy real-shape F4 runtime activity result with no `board_access` key;
+- rejection of an incomplete product runtime service set.
+
+Exact repair head:
+
+```text
+PR=605
+SOURCE_REPAIR_HEAD=99e0c4aecb013cf0dc8b350f851a38d670b9d6e7
+SOURCE_CI=13_SUCCESS_0_FAILURE_0_PENDING
+```
+
+Exact repaired successor artifact:
+
+```text
+ARTIFACT_ID=12029738934
+ARTIFACT_ZIP_SHA256=9fda3a2b21bf37484018f9d58bed60bb0f5ba28bc977a5a2ff33c8063c5bb03c
+CONTROL_TAR_SHA256=3f23029c601e8d66661ca36941467021af0eb376929c87a42ce258a4e4d98291
+MANIFEST_SHA256=085e3fd1c56ee4f4d35f1acc9408a4874f5a09dde90bc93d4df84a87ba90d43d
+REPAIRED_GUARD_SHA256=0bf84b4459e0ce86d45f9713f8d583f74d76ca49b002381867dbe39716913d38
+```
+
+The other three control-file hashes are unchanged from PR #600.
+
+No repaired artifact has been staged or installed on the T1. The consumed original install authorization cannot be
+replayed. Any live repair requires a new dedicated postclaim recovery authorization after the remaining read-only
+tail check and a recovery design review.
+
+## Live control-install execution — POSTCLAIM FAILURE / authorization consumed
+
+The second live execution passed all pre-claim checks, staged the exact package, durably claimed the install
+authorization, and then failed during the repository-owned installed-control verification:
+
+```text
+PRECLAIM_F4_CONTRACT=PASS
+PRECLAIM_TLS_CONTRACT=PASS
+STAGED_EXACT_PACKAGE=PASS
+
+state=INSTALL_CLAIMED
+control_repair_authorization_claimed=true
+control_repair_authorization_consumed=true
+control_repair_authorization_replay_allowed=false
+claim_sha256=81a314abe887c08339b8c0792519b3e1620d7b0d9b0be8fee6be1bba2815c810
+
+DURABLE_INSTALL_CLAIM=PASS
+INSTALL_CLAIM_SHA256=81a314abe887c08339b8c0792519b3e1620d7b0d9b0be8fee6be1bba2815c810
+
+INSTALL_RC=2
+error_code=command_failed:/usr/local/sbin/n3w-t1-f4-certificate-runtime-guard:2:...f4_runtime_contract_invalid...
+
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+AUTHORIZATION_REPLAY_ALLOWED=false
+POSTCLAIM_FAILURE=true
+DO_NOT_RETRY_AUTHORIZATION=true
+REBOOT_EXECUTED=false
+BOARD_ACCESS=false
+```
+
+Source review of exact head `5368acc1eb50f1fc62bbd7c16ff9e64139131a29` identifies a deterministic defect
+in `n3w_t1_f4_certificate_runtime_guard.py`: its `_f4_control_contract()` requires
+`runtime.get("board_access") is False`, but the frozen F4 host's `_runtime_activity()` never returns a
+`board_access` field. Therefore the expression is always false for an otherwise healthy runtime and the guard
+raises `f4_runtime_contract_invalid`.
+
+This is a source defect in the newly installed successor guard, not evidence that the live product runtime failed.
+
+The install authority's source order is also important: before invoking the failing guard it writes
+`CONTROL_APPLYING`, installs all manifest-bound control targets and the installed manifest, executes
+`systemctl daemon-reload`, then calls `_verify_installed_control()`. Because the observed failure originated
+inside the installed guard, the live T1 must be treated as a postclaim partially completed control install until a
+read-only forensic confirms the exact state.
+
+The consumed authorization
+`N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_LIVE_20261016_01`
+must never be replayed.
+
+```text
+CONTROL_INSTALL_RESULT=POSTCLAIM_FAILURE
+SOURCE_DEFECT_CONFIRMED=true
+SOURCE_DEFECT=f4_runtime_contract_requires_nonexistent_board_access_field
+INSTALL_AUTHORIZATION_CONSUMED=true
+INSTALL_AUTHORIZATION_REPLAY_ALLOWED=false
+REBOOT_AUTHORIZATION_CLAIMED=false
+REBOOT_EXECUTED=false
+BOARD_ACCESS=false
+NEXT_ROUTE=N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_READONLY_FORENSIC_20261016_01
+```
+
+## Certificate identity hash forensic — CLOSED_PASS
+
+The pre-claim stop was caused by comparing two different evidence-digest algorithms, not by certificate/key drift.
+
+Observed on the live T1:
+
+```text
+CERTIFICATE_IDENTITY_CANONICAL_SHA256=68264cf00af8a5748fc20c17edb4969533d326905bb3e959960b3f2ab0103947
+CERTIFICATE_IDENTITY_LEGACY_TEXT_SHA256=0a7bdd09d9647eac208dccfa150779b31db55ba61636230f35da089bf5067a4f
+LEGACY_EXPECTED_MATCH=true
+
+SERVER_CERT_KEY_MATCH=true
+CA_CERT_KEY_MATCH=true
+
+F4_DURABLE_CONTRACT=PASS
+TLS_MATERIAL_CONTRACT=PASS
+TLS_RUNTIME_CONTRACT=PASS
+
+TX_UNCHANGED=true
+RUNTIME_ACCEPTANCE_UNCHANGED=true
+CERT_STATUS_UNCHANGED=true
+BOOT_ID_UNCHANGED=true
+
+INSTALL_AUTHORIZATION_CLAIMED=false
+INSTALL_AUTHORIZATION_CONSUMED=false
+CONTROL_FILES_INSTALLED=false
+REBOOT_AUTHORIZATION_CLAIMED=false
+REBOOT_EXECUTED=false
+BOARD_ACCESS=false
+FORENSIC_MUTATION=false
+FORENSIC_COMPLETE=true
+```
+
+The five individual certificate/key file SHA-256 values are unchanged from the legacy evidence set. Certificate
+status fingerprints match the live server certificate, broker CA certificate and Manager system CA certificate.
+The server certificate/public key matches the server private key, and the broker CA certificate/public key matches
+the CA private key.
+
+`CA_SYSTEM_CA_CERT_MATCH=false` is not treated as a failure: the broker CA and Manager system CA are separate
+identity materials in the F4 contract. Their required condition here is that each live certificate matches its
+own status fingerprint and that the repository-owned F4 TLS material/runtime validators pass, which they did.
+
+The successor authority uses canonical JSON SHA-256 of `_certificate_identity_snapshot()`, so the correct
+immediate successor-control baseline is:
+
+```text
+CURRENT_CERTIFICATE_IDENTITY_CANONICAL_SHA256=68264cf00af8a5748fc20c17edb4969533d326905bb3e959960b3f2ab0103947
+```
+
+The previous live wrapper incorrectly compared that canonical digest against the older path-delimited evidence
+digest `0a7bdd...`.
+
+Because no install claim record exists and the authorization was not claimed or consumed, the already explicit
+authorization
+`N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_LIVE_20261016_01`
+remains unconsumed and may continue within the same exact authorized scope after a fresh pre-claim state check.
+
+The exact successor transport tar remains staged only at:
+
+```text
+/var/tmp/n3w-f4-reboot-successor-5368acc1eb50f1fc62bbd7c16ff9e64139131a29-53385.tar
+sha256=e429201e41c8bb9154fe9c3397e06421bef147dc9117fea8d72184e97edef0a0
+```
+
+No successor control file, installed manifest, install claim, reboot claim or reboot actuation exists yet.
+
+```text
+CERTIFICATE_IDENTITY_FORENSIC_RESULT=CLOSED_PASS
+CERTIFICATE_DRIFT=false
+IDENTITY_DIGEST_METHOD_MISMATCH=true
+CONTROL_INSTALL_AUTHORIZATION_REMAINS_UNCONSUMED=true
+NEXT_ROUTE=N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_LIVE_20261016_01
+```
+
+### 2026-10-16 KF-121 reboot successor control-install live authorization boundary
+
+~~~text
+CONTROL_INSTALL_GATE=N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_LIVE_20261016_01
+CONTROL_INSTALL_AUTHORIZATION_GRANTED=true
+REBOOT_AUTHORIZATION_GRANTED=false
+~~~
+
+Guard: consume the dedicated install authorization durably before installing successor control files. A pre-claim failure may be retried only after classifying the failure; a post-claim failure must never replay the consumed authorization. The install gate may stage the exact artifact, install only the manifest-bound successor control and reload systemd, but must not claim reboot authority, reboot/power off the host, restart product services, access boards, or merge PRs. A successful CONTROL_READY result must go through a separate postexecution read-only closure before any reboot authorization decision.
+
 ### 2026-10-16 KF-121 reboot successor control-install preauth R2 closure
 
 ~~~text
