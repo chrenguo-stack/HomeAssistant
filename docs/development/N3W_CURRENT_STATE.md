@@ -1,3 +1,36 @@
+## 2026-10-17 — F4 clean consolidation Draft PR #608 created; CI 13/14
+
+~~~text
+TASK=N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_DRAFT_PR_AND_CI_20261017_01
+STATUS=PR_CREATED_CI_PARTIAL_STOP_POLL_LIMIT
+
+PR=608
+PR_STATE=OPEN_DRAFT_NOT_MERGED
+PR_HEAD=6b9d311c4055230fd758abe20b40d7d545b04d81
+PR_BASE=main
+PR_CHANGED_FILES=70
+PR_COMMITS=2
+PR_MERGEABLE=true
+
+CI_SUCCESS=13
+CI_IN_PROGRESS=1
+CI_TOTAL=14
+CI_POLL_MAX_REACHED=true
+IN_PROGRESS_WORKFLOW=N3W_T1_F4_activation_source_CI
+IN_PROGRESS_RUN_ID=38935594970
+
+MERGE=false
+CURRENT_STAGE=F4
+CURRENT_STOP_POINT=WAITING_FOR_PR608_LAST_CI_BEFORE_TREE_EQUIVALENCE_REVIEW
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+Clean consolidation PR #608 now exists as Draft and targets current main directly. After the allowed maximum of three
+CI polls, 13/14 observed workflows are successful; only the F4 activation source CI remains in progress. No merge or
+tree-equivalence closure is claimed until that final run completes.
+
+Authority: `docs/development/N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_DRAFT_PR_AND_CI_PROGRESS_20261017.md`.
+
 ## 2026-10-17 — F4 clean consolidation candidate constructed
 
 ~~~text
