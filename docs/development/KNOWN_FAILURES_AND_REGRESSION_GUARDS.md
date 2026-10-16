@@ -1,3 +1,19 @@
+### 2026-10-17 F4 repository integration post-merge alignment
+
+~~~text
+PR608_MERGED=true
+PR608_MERGE_COMMIT=f62752b32dff991f3de1490b85b33533237d1b59
+F4_PRODUCT_IN_MAIN=true
+KF_121_DURABLE_LEDGER_BLOCKER=CLOSED_PASS
+NEW_FAILURE_OPENED_BY_MERGE=false
+ALIGNMENT_SCOPE=DOCS_ONLY
+~~~
+
+No new known failure was opened by the clean F4 merge. KF-121 remains closed. Repository-integration closure is
+considered final when the corresponding post-merge alignment payload is reachable from main.
+
+Authority: `docs/development/N3W_T1_F4_POSTMERGE_STATE_ALIGNMENT_20261017.md`.
+
 ### 2026-10-17 KF-121 durable reboot ledger final closure
 
 ~~~text
