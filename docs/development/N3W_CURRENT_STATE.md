@@ -1,3 +1,25 @@
+## 2026-10-16 — F4 reboot successor control-install live authorization granted
+
+~~~text
+TASK=N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_LIVE_20261016_01
+AUTHORIZATION_GRANTED=true
+AUTHORIZATION_ID=N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_LIVE_20261016_01
+
+SOURCE_REPAIR_HEAD=5368acc1eb50f1fc62bbd7c16ff9e64139131a29
+PREAUTH_R2=CLOSED_PASS
+EXACT_ARTIFACT_ID=12028807237
+EXACT_MANIFEST_SHA256=2f2ae69dbf78d5f578fa60bbee7fb269a5d0c3b17a00e2f697bc65d3ed91c40c
+
+REBOOT_AUTHORIZATION_GRANTED=false
+REBOOT=false
+BOARD_ACCESS=false
+MERGE=false
+~~~
+
+The user explicitly authorized the bounded successor-control installation gate. The authorization covers exact artifact staging, durable one-shot install claim/consumption, installation of the exact successor control files and manifest, daemon-reload, and install verification. It does not authorize reboot, reboot-claim, service restarts, board access, or merge.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_LIVE_AUTHORIZATION_20261016.md`.
+
 ## 2026-10-16 — F4 reboot successor control-install preauth R2 CLOSED_PASS
 
 ~~~text
