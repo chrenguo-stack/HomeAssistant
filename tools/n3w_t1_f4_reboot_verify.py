@@ -84,8 +84,7 @@ def _run(argv: tuple[str, ...], timeout: float = 60.0) -> str:
         check=False,
         text=True,
         stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         timeout=timeout,
     )
     if completed.returncode != 0:
