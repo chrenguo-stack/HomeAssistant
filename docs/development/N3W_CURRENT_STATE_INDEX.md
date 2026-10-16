@@ -1,3 +1,15 @@
+## 2026-10-16 — PREPARED null-history blocker closed
+
+- Post-repair read-only closure is CLOSED_PASS.
+- Real T1 remains `PREPARED`.
+- Transaction SHA-256 remains `80764615ad82250c5e1919255d808509d67ed67cdab838faedfa85cfc5c246b6`.
+- `runtime_acceptance_authorization_history=[]` is durably valid.
+- Installed exact launcher eligibility inspect returns PASS.
+- Prospective successor activation authorization `N3W_T1_F4_RUNTIME_ACTIVATION_SUCCESSOR_LIVE_20261016_01` has no collision.
+- Product runtime remains stopped.
+- Next gate: `N3W_T1_F4_RUNTIME_ACTIVATION_SUCCESSOR_LIVE_20261016_01`.
+- New explicit successor activation authorization is required.
+
 ## 2026-10-16 — PREPARED null-history repair PASS
 
 - Live null-history repair is CLOSED_PASS.
