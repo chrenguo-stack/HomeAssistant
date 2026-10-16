@@ -1,3 +1,74 @@
+## 2026-10-17 — F4 post-merge state alignment prepared
+
+- PR #608 is merged; main is `f62752b32dff991f3de1490b85b33533237d1b59`.
+- Accepted F4 product source is already in main; no product-source mutation is part of this alignment.
+- Real-T1 closure remains PASS with durable `REBOOT_ACCEPTED`; KF-121 remains CLOSED_PASS.
+- Five final integration records from construction through merge execution are added to main by this docs-only payload.
+- Repository closure becomes final when this exact alignment payload is reachable from main; this avoids an infinite self-alignment loop.
+- Merge of this alignment payload remains a separate explicit decision.
+- Authority: `docs/development/N3W_T1_F4_POSTMERGE_STATE_ALIGNMENT_20261017.md`.
+
+## 2026-10-17 — PR #608 merged to main
+
+- PR #608 is CLOSED/MERGED.
+- New main: `f62752b32dff991f3de1490b85b33533237d1b59`.
+- Merge method: regular `merge`, the only method allowed by the active main ruleset.
+- Merge commit parents are exact old main `b12c69be5c1d1d61887e9be4a776f575141d44c6` and clean candidate head `6b9d311c4055230fd758abe20b40d7d545b04d81`.
+- Merge tree equals candidate tree exactly: `29951e55ab800f77a2d5b3012adcd94e874bbd8d`.
+- Pre-merge CI 14/14 PASS; tree-equivalence and main-preservation reviews remain PASS.
+- No T1 mutation or board access occurred in the merge gate.
+- F4 repository closure is not final until the preparation-frozen project ledgers on main are updated by a separate docs-only post-merge alignment gate.
+- Next gate: `N3W_T1_F4_POSTMERGE_STATE_ALIGNMENT_20261017_01`.
+- Authority: `docs/development/N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_MERGE_EXECUTION_CLOSURE_20261017.md`.
+
+## 2026-10-17 — PR #608 merge decision ready
+
+- PR #608 remains Draft/open/unmerged, `mergeable=true`, `mergeable_state=clean`.
+- Main/base remains `b12c69be5c1d1d61887e9be4a776f575141d44c6`; head remains `6b9d311c4055230fd758abe20b40d7d545b04d81`.
+- CI PASS 14/14; active `protect-main` required status contexts are 13/13 terminal acceptable.
+- Required approving reviews: 0; unresolved review threads: 0.
+- Main ruleset permits only regular `merge`; squash/rebase are not allowed.
+- Tree-equivalence and main-preservation reviews remain PASS.
+- Merge is not yet authorized. A separate merge-execution gate must first mark the Draft PR ready and re-check for newly triggered workflows.
+- A docs-only post-merge state-alignment gate is required after any successful merge.
+- Next gate: `N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_MERGE_EXECUTION_20261017_01`.
+- Authority: `docs/development/N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_MERGE_DECISION_20261017.md`.
+
+## 2026-10-17 — F4 clean consolidation PR #608 review CLOSED_PASS
+
+- PR #608 remains Draft/open/unmerged and targets `main` from exact clean head `6b9d311c4055230fd758abe20b40d7d545b04d81`.
+- CI is PASS 14/14.
+- Tree-equivalence review PASS; main-preservation review PASS.
+- Changed paths are exactly 70/70 allowlisted; no unlisted path drift.
+- Product blobs: 19/19 exact; immutable evidence: 44/44 exact; frozen ledgers: 3/3 exact; metadata: 4/4 exact.
+- 1666 non-allowlisted blob paths were checked and are unchanged from exact main.
+- Real-T1 durable reboot closure remains PASS / `REBOOT_ACCEPTED`; KF-121 durable blocker remains closed.
+- PR #608 is technically ready for a separate merge decision; merge remains unauthorized.
+- Next gate: `N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_MERGE_DECISION_20261017_01`.
+- Authority: `docs/development/N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_DRAFT_PR_AND_CI_CLOSURE_20261017.md`.
+
+## 2026-10-17 — F4 clean consolidation PR #608 created
+
+- Draft PR #608 targets `main` from `integrate/n3w-t1-f4-stack-consolidation-20261017`.
+- Head is exact clean candidate `6b9d311c4055230fd758abe20b40d7d545b04d81`; 2 commits, 70 changed files.
+- GitHub reports mergeable=true; merge remains unauthorized.
+- Candidate CI is 13/14 PASS after the maximum three polls.
+- Remaining run: N3W T1 F4 activation source CI, run `38935594970`.
+- STOP until the final CI completes; then resume the same gate for focused tree-equivalence/main-preservation review.
+- Authority: `docs/development/N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_DRAFT_PR_AND_CI_PROGRESS_20261017.md`.
+
+## 2026-10-17 — F4 clean consolidation candidate constructed
+
+- Candidate branch: `integrate/n3w-t1-f4-stack-consolidation-20261017`.
+- Candidate head: `6b9d311c4055230fd758abe20b40d7d545b04d81`.
+- Parent is exact main `b12c69be5c1d1d61887e9be4a776f575141d44c6`; only two clean commits were added.
+- Main-to-candidate diff is exactly the 70-file allowlist.
+- Product equivalence 19/19 PASS; immutable evidence 44/44 PASS; frozen ledgers 3/3 PASS; metadata 4/4 PASS.
+- No unlisted path drift and no historical PR/commit replay.
+- No consolidation PR or merge has been created yet.
+- Next gate: `N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_DRAFT_PR_AND_CI_20261017_01`.
+- Authority: `docs/development/N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_CONSTRUCTION_CLOSURE_20261017.md`.
+
 ## 2026-10-17 — F4 stack consolidation preparation CLOSED_PASS
 
 - Fresh main remains `b12c69be5c1d1d61887e9be4a776f575141d44c6`.
