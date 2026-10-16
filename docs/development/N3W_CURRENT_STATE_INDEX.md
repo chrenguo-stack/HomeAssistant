@@ -1,3 +1,15 @@
+## 2026-10-16 — PREPARED authorization-history repair exact artifact ready
+
+- PR #579 final source head `72b796671e25c30f0d154788e2a4374f030eb7d1`: 13/13 CI PASS.
+- Exact artifact ID: `12019940824`.
+- Artifact ZIP SHA-256: `3ffdd68a97f43bc5922a7309e9697f94b3e65817d0034f4f0ea91e0f0215cfd1`.
+- Control tar SHA-256: `4a3126a5267f1ec5e6fca7c98c8b5da7013731ca46d69013beff2ab67f995e86`.
+- Manifest SHA-256: `b609642342f7fa9de72b14d02d746ad70e819634ca868d0cae246a58e9d73695`.
+- Successor launcher SHA-256: `d4bb8e4b91061e6ebf489806956728964a04c9b3909cffea9dd326e30d32d43b`.
+- Package comparison against current recovered source: only the launcher differs; all 7 non-launcher files are byte-identical.
+- Real T1 remains `PREPARED`; no live mutation was performed.
+- Next gate: `N3W_T1_F4_PREPARED_AUTHORIZATION_HISTORY_NULL_EXACT_ARTIFACT_STAGING_PREEXECUTION_20261016_01`.
+
 ## 2026-10-15 — F4 runtime acceptance and persistence SOURCE REPAIR R1 implemented
 
 - Extends the same F4 transaction owner from `RUNTIME_STARTED` to `PRE_REBOOT_READY`; reboot remains separate.
