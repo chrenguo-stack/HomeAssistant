@@ -1,3 +1,33 @@
+### 2026-10-16 KF-121 reboot successor live acceptance closure
+
+~~~text
+REBOOT_SUCCESSOR_LIVE=CLOSED_PASS
+POST_REBOOT_ACCEPTANCE=REBOOT_ACCEPTED
+BOOT_ID_CHANGED=true
+F4_TRANSACTION_UNCHANGED=true
+PROVISION_RESUME_VERIFIED=true
+BROKER_SERVICES_PERSISTENCE_VERIFIED=true
+CERTIFICATE_TIMER_RUNTIME_VERIFIED=true
+CERTIFICATE_IDENTITY_UNCHANGED=true
+MANAGER_RUNTIME_STABILITY_VERIFIED=true
+HOMEASSISTANT_MQTT_INTEGRATION_NOT_DUPLICATED=true
+MANAGER_BUSINESS_STATE_FRESH=true
+REBOOT_AUTHORIZATION=CONSUMED_NO_REPLAY
+BOARD_ACCESS=false
+~~~
+
+The KF-121 reboot-successor boundary is now live-revalidated on the real T1. The authorized reboot was proven by a
+new boot identity, and the complete post-reboot persistence/runtime acceptance contract passed. The earlier
+CONTROL_APPLYING guard defect and its recovery path are both closed for this bounded F4 sequence.
+
+The post-reboot verifier is read-only, so the durable reboot authorization record remains `REBOOT_PENDING`; the
+separate acceptance output is the evidence that closes this one-shot acceptance. Never replay the consumed reboot
+authorization.
+
+Status: CLOSED_PASS_LIVE_REVALIDATED_FIRST_REBOOT_ACCEPTED.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_LIVE_AND_POSTREBOOT_ACCEPTANCE_CLOSURE_20261016.md`.
+
 ### 2026-10-16 KF-121 CONTROL_APPLYING recovery live closure
 
 ~~~text

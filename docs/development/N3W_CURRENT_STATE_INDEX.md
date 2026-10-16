@@ -1,3 +1,18 @@
+## 2026-10-16 — F4 reboot successor live + post-reboot acceptance CLOSED_PASS
+
+- Gate `N3W_T1_F4_REBOOT_SUCCESSOR_LIVE_20261016_01` completed and post-reboot acceptance returned `REBOOT_ACCEPTED`.
+- One-shot reboot authorization is claimed, consumed and permanently non-replayable.
+- Durable reboot claim SHA-256: `61429105bc05f135f3d0b8be338d74899b2466cb65fa896be4254d37a54c5028`; durable stage remains `REBOOT_PENDING` because the acceptance verifier is read-only.
+- Boot identity changed from `459bba3071dd3d48b7dd0a2cb750cfa9dcb09b456236564940c8fad85f79f95d` to `e04f445426ee875b1c429a33c6b1e6893175727118fc8ad28e24c431c1fa66c7`.
+- F4 transaction stayed unchanged; provisioning resume and Broker/Services persistence passed.
+- Certificate timer runtime and lifecycle-service result passed; certificate status remained `446404d0e3725bf0e8fa9b6bd11bd67c83f16871a6e196b1cc950043ad229af4`; certificate identity remained unchanged.
+- Manager runtime stability and business-state freshness passed; Home Assistant MQTT integration was not duplicated.
+- Install claim remains `CONTROL_READY`; recovery claim remains `RECOVERY_VERIFIED`.
+- No board access or merge occurred.
+- Next one gate: `N3W_T1_F4_REBOOT_SUCCESSOR_FINAL_CLOSURE_AND_PR605_PREMERGE_REVIEW_20261016_01`.
+- Auto-execution is false.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_LIVE_AND_POSTREBOOT_ACCEPTANCE_CLOSURE_20261016.md`.
+
 ## 2026-10-16 — F4 CONTROL_APPLYING recovery live + postexecution CLOSED_PASS
 
 - The real-T1 recovery gate completed successfully and advanced the durable install claim from `CONTROL_APPLYING` to `CONTROL_READY`.
