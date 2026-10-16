@@ -10,10 +10,6 @@ on:
       - "tools/n3w_t1_f4_reboot_successor_package_builder.py"
       - "tests/tools/test_n3w_t1_f4_certificate_runtime_guard.py"
       - "infra/n3w-t1/f4/reboot-successor/**"
-      - "tools/n3w_t1_f4_certificate_runtime_guard.py"
-      - "tools/n3w_t1_f4_reboot_successor_package_builder.py"
-      - "tests/tools/test_n3w_t1_f4_certificate_runtime_guard.py"
-      - "infra/n3w-t1/f4/reboot-successor/**"
       - "tests/tools/test_n3w_t1_f4_activation_host.py"
       - "tests/tools/test_n3w_t1_f4_package_builder.py"
       - "infra/n3w-t1/f4/n3wfc4-broker-activation.service"
@@ -35,6 +31,10 @@ on:
       - ".github/workflows/n3w-t1-f4-activation-source-ci.yml"
       - "tools/n3w_t1_f4_activation_host.py"
       - "tools/n3w_t1_f4_package_builder.py"
+      - "tools/n3w_t1_f4_certificate_runtime_guard.py"
+      - "tools/n3w_t1_f4_reboot_successor_package_builder.py"
+      - "tests/tools/test_n3w_t1_f4_certificate_runtime_guard.py"
+      - "infra/n3w-t1/f4/reboot-successor/**"
       - "tests/tools/test_n3w_t1_f4_activation_host.py"
       - "tests/tools/test_n3w_t1_f4_package_builder.py"
       - "infra/n3w-t1/f4/n3wfc4-broker-activation.service"
@@ -94,13 +94,13 @@ jobs:
             tests/tools/test_n3w_t1_f4_certificate_runtime_guard.py \
             tests/tools/test_n3w_t1_f4_package_builder.py \
             tools/n3w_t1_f4_certificate_runtime_guard.py \
-            tools/n3w_t1_f4_reboot_successor_package_builder.py \
-            tests/tools/test_n3w_t1_f4_certificate_runtime_guard.py
+            tools/n3w_t1_f4_reboot_successor_package_builder.py
 
       - name: Focused F4 tests
         run: |
           pytest -q \
             tests/tools/test_n3w_t1_f4_activation_host.py \
+            tests/tools/test_n3w_t1_f4_certificate_runtime_guard.py \
             host/greenhouse-manager/tests/bootstrap/test_device_provisioning_runtime.py \
             tests/tools/test_n3w_broker_certificate_lifecycle.py \
             tests/tools/test_n3w_broker_ingress_guard_lifecycle.py
