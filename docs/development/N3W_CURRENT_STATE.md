@@ -1,3 +1,24 @@
+## 2026-10-16 — F4 reboot successor install preauth STOP on runtime snapshot drift
+
+~~~text
+TASK=N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_READONLY_PREAUTH_20261016_01
+RESULT=STOP_READONLY
+STOP_REASON=runtime_snapshot_before
+
+EXPECTED_RUNTIME_SNAPSHOT_SHA256=7a6c2f989ce2a585012f9a44841c6a53036e064ba3051aa95d407b789bac6b92
+
+ARTIFACT_STAGING=false
+AUTHORIZATION_CLAIMED=false
+LIVE_RUNTIME_MUTATION=false
+REBOOT_EXECUTED=false
+BOARD_ACCESS=false
+
+NEXT_ROUTE=N3W_T1_F4_REBOOT_SUCCESSOR_RUNTIME_SNAPSHOT_DRIFT_READONLY_FORENSIC_20261016_01
+AUTO_EXECUTE_LIVE_INSTALL=false
+~~~
+
+The read-only wrapper stopped before any mutation because the current canonical Broker/Manager/Home Assistant container identity snapshot no longer equals the earlier PRE_REBOOT_READY snapshot hash. This is not yet classified as a product fault; the hash covers container Id + StartedAt, so an otherwise healthy container recreation/restart is sufficient to change it. A read-only forensic must determine which service identity changed and whether the durable F4/runtime/certificate contracts remain intact before the install preauth may continue.
+
 ## 2026-10-16 — F4 reboot successor control-install read-only preauthorization prepared
 
 ~~~text
