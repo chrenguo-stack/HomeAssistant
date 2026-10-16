@@ -1,3 +1,41 @@
+## 2026-10-16 — F4 reboot successor source repair CLOSED_PASS
+
+~~~text
+TASK=N3W_T1_F4_REBOOT_SUCCESSOR_SOURCE_REPAIR_20261016_01
+RESULT=CLOSED_PASS_SOURCE_REPAIR
+
+PR=600
+SOURCE_REPAIR_HEAD=5368acc1eb50f1fc62bbd7c16ff9e64139131a29
+SOURCE_CI=14_SUCCESS_0_FAILURE_0_PENDING
+
+EXACT_ARTIFACT_RUN_ID=38859830604
+EXACT_ARTIFACT_ID=12028807237
+EXACT_ARTIFACT_ZIP_SHA256=5af048d98ebfdcfb4ede62a8e958e3583dc60e2057d36d6f20123cbd7b74d4b4
+EXACT_CONTROL_TAR_SHA256=e429201e41c8bb9154fe9c3397e06421bef147dc9117fea8d72184e97edef0a0
+EXACT_MANIFEST_SHA256=2f2ae69dbf78d5f578fa60bbee7fb269a5d0c3b17a00e2f697bc65d3ed91c40c
+
+REBOOT_SUCCESSOR_AUTHORITY_READY=true
+DURABLE_INSTALL_CLAIM_READY=true
+DURABLE_REBOOT_CLAIM_READY=true
+POST_REBOOT_READONLY_VERIFIER_READY=true
+CERTIFICATE_STATUS_RUNTIME_EVOLUTION_GUARD_READY=true
+LIVE_REBOOT_AUTHORIZATION_READY=false
+RAW_SYSTEMCTL_REBOOT_FORBIDDEN=true
+
+T1_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+REBOOT=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_READONLY_PREAUTH_20261016_01
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+PR #600 exact HEAD closes the reboot-successor source blockers. The successor authority is deliberately separate from the already installed F4 activation host so that the frozen F4 installed-material hash contract is not invalidated; it imports and reuses that host's existing verification authority. The exact successor artifact now contains the runtime certificate guard, reboot authority, post-reboot verifier and systemd drop-in. Repeated lifecycle status evolution, including the RENEW_DUE + CA_ROLLOVER_REQUIRED boundary, is covered without weakening certificate/material guards. The T1 has not yet been modified: control installation requires its own read-only preauthorization gate and later fresh explicit one-shot live authorization. Reboot remains a still later separate gate.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_SOURCE_REPAIR_CLOSURE_20261016.md`.
+
 ## 2026-10-16 — F4 reboot successor source preparation
 
 ~~~text
