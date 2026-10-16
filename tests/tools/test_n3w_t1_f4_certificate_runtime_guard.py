@@ -6,6 +6,7 @@ import json
 import sys
 from datetime import timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -361,3 +362,47 @@ def test_production_guard_preserves_full_f4_control_contract() -> None:
     assert "module._validate_factory_binding(verified)" in source
     assert "module._verify_installed_material(verified_transaction)" in source
     assert "module._runtime_activity()" in source
+
+
+
+def test_f4_control_contract_accepts_runtime_activity_without_board_access(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    transaction = {"stage": "PERSISTENCE_ENABLED"}
+    fake = SimpleNamespace(
+        _provision_verify=lambda: {"status": "PASS"},
+        _validate_transaction_binding=lambda _verified: transaction,
+        _validate_factory_binding=lambda _verified: None,
+        _verify_installed_material=lambda _transaction: None,
+        _runtime_activity=lambda: {
+            "production_service_start": True,
+            "running_services": ["broker", "homeassistant", "manager"],
+            "runtime_service_probe": "PASS",
+        },
+    )
+    monkeypatch.setattr(tool, "_load_f4", lambda: fake)
+
+    tool._f4_control_contract(transaction)
+
+
+def test_f4_control_contract_rejects_incomplete_runtime_service_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    transaction = {"stage": "PERSISTENCE_ENABLED"}
+    fake = SimpleNamespace(
+        _provision_verify=lambda: {"status": "PASS"},
+        _validate_transaction_binding=lambda _verified: transaction,
+        _validate_factory_binding=lambda _verified: None,
+        _verify_installed_material=lambda _transaction: None,
+        _runtime_activity=lambda: {
+            "production_service_start": True,
+            "running_services": ["broker", "manager"],
+            "runtime_service_probe": "PASS",
+        },
+    )
+    monkeypatch.setattr(tool, "_load_f4", lambda: fake)
+
+    with pytest.raises(tool.GuardError, match="f4_runtime_contract_invalid"):
+        tool._f4_control_contract(transaction)
