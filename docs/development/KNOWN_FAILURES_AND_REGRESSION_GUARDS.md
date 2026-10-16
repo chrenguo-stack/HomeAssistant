@@ -1,3 +1,18 @@
+### 2026-10-16 KF-121 recovery execution update
+
+~~~text
+KF-121_STATUS=SOURCE_REPAIR_CLOSED_PASS_PENDING_LIVE_REVALIDATION
+RECOVERY_EXECUTION=PASS
+RECOVERY_TARGET_STAGE=PREPARED
+RECOVERY_AUTHORIZATION_CONSUMED=true
+SUCCESSOR_ACTIVATION_EXECUTED=false
+SUCCESSOR_RUNTIME_ACCEPTANCE_EXECUTED=false
+~~~
+
+The repaired exact launcher is now installed and the transaction has returned to PREPARED while the product runtime remains stopped.
+
+Regression guard: the consumed recovery authorization must never be replayed. Successor activation and successor runtime acceptance require distinct future authorization IDs and separate gates.
+
 ### 2026-10-16 KF-121 exact recovery staging update
 
 ~~~text

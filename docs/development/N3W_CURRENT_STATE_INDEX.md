@@ -1,3 +1,16 @@
+## 2026-10-16 — F4 stopped-acceptance recovery reached PREPARED
+
+- Recovery live execution is CLOSED_PASS.
+- Transaction changed from `805fb27f...` to `bd1e69c2...`.
+- Stage is now `PREPARED`.
+- Installed launcher is the repaired exact launcher `eaf28175909479007d6d1df7522811d032890dcaa2a2280228c93e6dce128bb3`.
+- Recovery authorization `N3W_T1_F4_STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_LIVE_20261016_01` is claimed/consumed/no-replay.
+- Failed runtime-acceptance authorization remains preserved.
+- Activation retry and runtime-acceptance retry are eligible.
+- Runtime remains stopped; services/listeners are empty; persistence/certificate timer remain off.
+- Next gate: `N3W_T1_F4_STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_POSTEXECUTION_READONLY_CLOSURE_20261016_01`.
+- Successor activation remains unauthorized.
+
 ## 2026-10-16 — F4 exact recovery artifact staged and rebound
 
 - Exact staging gate `N3W_T1_F4_STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_EXACT_ARTIFACT_STAGING_PREEXECUTION_20261016_01` is CLOSED_PASS.
