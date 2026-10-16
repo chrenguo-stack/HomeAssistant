@@ -1,3 +1,23 @@
+### 2026-10-16 KF-121 live read-only preexecution update
+
+~~~text
+KF-121_STATUS=SOURCE_REPAIR_CLOSED_PASS_PENDING_LIVE_REVALIDATION
+LIVE_READONLY_PREEXECUTION=PASS
+REAL_T1_STAGE=STOPPED_RUNTIME_ACCEPTANCE
+ARTIFACT_TRANSFER_TO_T1=false
+RECOVERY_AUTHORIZATION_GRANTED=false
+~~~
+
+Fresh real-T1 evidence shows no post-failure drift: exact failed source/manifest/launcher bindings remain intact,
+installed-material verification passes, the product runtime/listener set remains empty, and the failed acceptance
+authorization remains consumed/no-replay.
+
+This does not close KF-121. Full live closure still requires the repaired exact launcher to be staged, the bounded
+recovery command to reach PREPARED, a distinct successor activation to reach RUNTIME_STARTED, and a distinct
+successor runtime acceptance to pass.
+
+Regression guard: do not collapse staging, recovery, activation and runtime acceptance into one live mutation gate.
+
 ### 2026-10-15 KF-121 recovery-source closure
 
 ~~~text
