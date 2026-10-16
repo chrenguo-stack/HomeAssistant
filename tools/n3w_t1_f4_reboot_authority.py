@@ -1059,6 +1059,7 @@ def _validate_recovery_claim_for_apply(
         or recovery_claim.get("recovery_verified") is not False
         or recovery_claim.get("installation_verified") is not False
         or recovery_claim.get("live_runtime_mutation") is not False
+        or recovery_claim.get("reboot_executed") is not False
         or recovery_claim.get("board_access") is not False
     ):
         raise AuthorityError("control_recovery_claim_contract_invalid")
@@ -1114,6 +1115,8 @@ def _verify_recovered_control(
         or recovery_claim.get("recovery_verified") is not False
         or recovery_claim.get("installation_verified") is not False
         or recovery_claim.get("live_runtime_mutation") is not True
+        or recovery_claim.get("reboot_executed") is not False
+        or recovery_claim.get("board_access") is not False
     ):
         raise AuthorityError("control_recovery_verify_prestate_invalid")
 
@@ -1214,6 +1217,8 @@ def _validate_recovery_ready_link(
         or recovery_claim.get("recovery_verified") is not True
         or recovery_claim.get("installation_verified") is not True
         or recovery_claim.get("live_runtime_mutation") is not True
+        or recovery_claim.get("reboot_executed") is not False
+        or recovery_claim.get("board_access") is not False
         or recovery_claim.get("source_head") != source_head
         or recovery_claim.get("control_manifest_sha256") != manifest_sha256
         or recovery_claim.get("f4_transaction_sha256")
@@ -1273,6 +1278,9 @@ def recover_control(
             }
         )
         _atomic_write_record(CONTROL_RECOVERY_CLAIM_PATH, applying)
+        persisted_applying = _record(CONTROL_RECOVERY_CLAIM_PATH, 0o600)
+        if persisted_applying != applying:
+            raise AuthorityError("control_recovery_applying_persistence_mismatch")
 
         bindings = applying.get("files")
         root = package.get("root")

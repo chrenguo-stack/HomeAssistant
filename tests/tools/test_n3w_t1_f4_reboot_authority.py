@@ -609,6 +609,47 @@ def test_claim_control_recovery_persists_consumed_authority_before_mutation(
     assert result["live_runtime_mutation"] is False
 
 
+def test_recovery_apply_rejects_reboot_executed_marker(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    recovery_path = tmp_path / "recovery.json"
+    claim = {
+        "schema": tool.SCHEMA_RECOVERY,
+        "stage": "RECOVERY_CLAIMED",
+        "source_head": "a" * 40,
+        "control_manifest_sha256": "b" * 64,
+        "f4_transaction_sha256": "c" * 64,
+        "recovery_from_install_claim_sha256": "d" * 64,
+        "pre_boot_id_sha256": "e" * 64,
+        "control_recovery_authorization_claimed": True,
+        "control_recovery_authorization_consumed": True,
+        "control_recovery_authorization_replay_allowed": False,
+        "recovery_apply_started": False,
+        "recovery_verified": False,
+        "installation_verified": False,
+        "live_runtime_mutation": False,
+        "reboot_executed": True,
+        "board_access": False,
+    }
+    monkeypatch.setattr(tool, "CONTROL_RECOVERY_CLAIM_PATH", recovery_path)
+    monkeypatch.setattr(tool, "_record", lambda _path, _mode: claim)
+
+    with pytest.raises(
+        tool.AuthorityError,
+        match="control_recovery_claim_contract_invalid",
+    ):
+        tool._validate_recovery_claim_for_apply(
+            package_root=tmp_path,
+            source_head="a" * 40,
+            manifest_sha256="b" * 64,
+            expected_transaction_sha256="c" * 64,
+            expected_install_claim_sha256="d" * 64,
+            expected_boot_id_sha256="e" * 64,
+        )
+
+
 def _recovery_apply_fixture(
     tool,
     tmp_path: Path,
@@ -709,6 +750,73 @@ def _recovery_apply_fixture(
         install_claim,
         recovery_claim,
     )
+
+
+def test_recover_control_requires_durable_applying_before_replacement(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    (
+        recovery_path,
+        install_path,
+        targets,
+        package,
+        install_claim,
+        recovery_claim,
+    ) = _recovery_apply_fixture(tool, tmp_path)
+    monkeypatch.setattr(tool, "CONTROL_RECOVERY_CLAIM_PATH", recovery_path)
+    monkeypatch.setattr(tool, "INSTALL_CLAIM_PATH", install_path)
+    monkeypatch.setattr(tool, "CONTROL_TARGETS", targets)
+    monkeypatch.setattr(tool, "_exclusive", lambda: nullcontext())
+    monkeypatch.setattr(
+        tool,
+        "_validate_recovery_claim_for_apply",
+        lambda **_kwargs: (
+            package,
+            SimpleNamespace(),
+            {},
+            install_claim,
+            recovery_claim,
+        ),
+    )
+
+    def write_record(path: Path, document: dict[str, object]) -> None:
+        path.write_text(
+            json.dumps(document, sort_keys=True, separators=(",", ":")) + "\n",
+            encoding="utf-8",
+        )
+        path.chmod(0o600)
+
+    def mismatched_record(path: Path, _mode: int) -> dict[str, object]:
+        document = json.loads(path.read_text(encoding="utf-8"))
+        if path == recovery_path:
+            document["recovery_apply_started"] = False
+        return document
+
+    replacements: list[str] = []
+    monkeypatch.setattr(tool, "_atomic_write_record", write_record)
+    monkeypatch.setattr(tool, "_record", mismatched_record)
+    monkeypatch.setattr(
+        tool,
+        "_replace_exact_file",
+        lambda _source, target, _mode: replacements.append(target.name),
+    )
+
+    with pytest.raises(
+        tool.AuthorityError,
+        match="control_recovery_applying_persistence_mismatch",
+    ):
+        tool.recover_control(
+            package_root=package["root"],
+            source_head="a" * 40,
+            manifest_sha256=recovery_claim["control_manifest_sha256"],
+            expected_transaction_sha256="c" * 64,
+            expected_install_claim_sha256="d" * 64,
+            expected_boot_id_sha256="e" * 64,
+        )
+
+    assert replacements == []
 
 
 def test_recover_control_commits_control_ready_only_after_verified_record(
