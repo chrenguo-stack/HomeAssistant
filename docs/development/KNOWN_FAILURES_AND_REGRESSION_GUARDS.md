@@ -1,3 +1,28 @@
+### 2026-10-16 KF-121 reboot acceptance durable-closure blocker
+
+~~~text
+LIVE_REBOOT_ACCEPTANCE=PASS:REBOOT_ACCEPTED
+DURABLE_REBOOT_CLAIM_STAGE=REBOOT_PENDING
+DURABLE_REBOOT_ACCEPTANCE_PASSED=false
+READONLY_VERIFIER_PERSISTS_ACCEPTANCE=false
+FINALIZE_REBOOT_ACCEPTANCE_COMMAND_PRESENT=false
+PR605_MERGE_READY=false
+~~~
+
+The live reboot itself is not failed or reopened. The blocker is that successful post-reboot acceptance has no
+target-local terminal state transition. The consumed authorization record remains durably pending even though the
+read-only verifier proved acceptance. The source-preparation contract required a read-only verifier plus closure of
+the reboot transaction; external GitHub evidence alone does not satisfy the target-local terminal-state half of that
+contract.
+
+Guard: do not replay the consumed reboot authorization, delete or hand-edit the reboot claim, or treat
+`REBOOT_PENDING` as equivalent to a durable accepted terminal state. Repair source first with a fail-closed
+repository-owned finalization path and independent terminal-state verification.
+
+Status: LIVE_REBOOT_ACCEPTED_SOURCE_DURABLE_CLOSURE_OPEN_BLOCKER.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_FINAL_CLOSURE_AND_PR605_PREMERGE_REVIEW_20261016.md`.
+
 ### 2026-10-16 KF-121 reboot successor live acceptance closure
 
 ~~~text

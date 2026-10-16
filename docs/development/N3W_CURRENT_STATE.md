@@ -1,3 +1,45 @@
+## 2026-10-16 — F4 reboot successor final closure / PR #605 pre-merge review BLOCKED
+
+~~~text
+TASK=N3W_T1_F4_REBOOT_SUCCESSOR_FINAL_CLOSURE_AND_PR605_PREMERGE_REVIEW_20261016_01
+RESULT=STOP_BLOCKED_SOURCE_REPAIR_REQUIRED
+
+REVIEW_HEAD=e2a38fa2d7c5c9996a57327e6f03dae5991e8123
+REVIEW_HEAD_CI=PASS:13/13
+SOURCE_DRIFT_SINCE_DA64=DOCS_ONLY
+LIVE_REBOOT_ACCEPTANCE=PASS:REBOOT_ACCEPTED
+
+A1_DURABLE_REBOOT_TRANSACTION_CLOSURE=OPEN_BLOCKER
+DURABLE_REBOOT_CLAIM_STAGE=REBOOT_PENDING
+DURABLE_REBOOT_ACCEPTANCE_PASSED=false
+READONLY_VERIFIER_PERSISTS_ACCEPTANCE=false
+FINALIZE_REBOOT_ACCEPTANCE_COMMAND_PRESENT=false
+
+PR605_MERGE_READY=false
+MAIN_INTEGRATION_READY=false
+STACK_PARENTS_OPEN_DRAFT=PR598,PR599,PR600
+
+CURRENT_STAGE=F4
+CURRENT_STOP_POINT=REBOOT_ACCEPTED_BUT_DURABLE_REBOOT_TRANSACTION_NOT_CLOSED
+NEXT_ONE_GATE=N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_SOURCE_REPAIR_20261016_01
+AUTO_EXECUTE_NEXT_GATE=false
+
+T1_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+~~~
+
+The real-T1 reboot acceptance remains PASS. The blocker is source state ownership after that acceptance: the
+read-only verifier returns `REBOOT_ACCEPTED`, but no repository-owned command persists a terminal accepted state,
+so the durable claim remains `REBOOT_PENDING` with `reboot_acceptance_passed=false`. This does not invalidate the
+live evidence, but it does block final source closure and PR #605 merge readiness.
+
+PR #605 is also stacked on open draft PR #600 -> PR #599 -> PR #598, so main integration is not a direct PR #605
+merge even after the source blocker is repaired.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_FINAL_CLOSURE_AND_PR605_PREMERGE_REVIEW_20261016.md`.
+
 ## 2026-10-16 — F4 reboot successor live + post-reboot acceptance CLOSED_PASS
 
 ~~~text

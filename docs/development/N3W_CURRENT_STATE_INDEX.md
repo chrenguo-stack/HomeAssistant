@@ -1,3 +1,15 @@
+## 2026-10-16 — F4 reboot successor final closure / PR #605 pre-merge review BLOCKED
+
+- The real-T1 reboot acceptance remains valid and `REBOOT_ACCEPTED`.
+- PR #605 exact review head `e2a38fa2...` is 13/13 CI green and has only docs drift since the prior source-review head `da64d1cd...`.
+- Pre-merge review found one source-state-machine blocker: the durable reboot claim remains `REBOOT_PENDING` with `reboot_acceptance_passed=false` after successful acceptance.
+- The post-reboot verifier is intentionally read-only and returns `REBOOT_ACCEPTED` only as output; no repository-owned finalization command persists the terminal accepted state.
+- The claim creator rejects a pre-existing reboot-claim path, so the pending record also permanently occupies the one-shot claim path.
+- PR #605 is not merge-ready. Main integration is additionally stacked behind open draft PR #600, PR #599 and PR #598.
+- Next one gate: `N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_SOURCE_REPAIR_20261016_01`.
+- No T1 access, runtime mutation, board access or merge occurred in this review.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_FINAL_CLOSURE_AND_PR605_PREMERGE_REVIEW_20261016.md`.
+
 ## 2026-10-16 — F4 reboot successor live + post-reboot acceptance CLOSED_PASS
 
 - Gate `N3W_T1_F4_REBOOT_SUCCESSOR_LIVE_20261016_01` completed and post-reboot acceptance returned `REBOOT_ACCEPTED`.
