@@ -1,3 +1,15 @@
+### 2026-10-16 KF-121 persistence enablement successor closure
+
+~~~text
+PERSISTENCE_ENABLEMENT_SUCCESSOR=CLOSED_PASS
+POST_STAGE=PERSISTENCE_ENABLED
+BROKER_SERVICES_PERSISTENCE_ENABLED=true
+CERTIFICATE_TIMER_ENABLED=false
+RUNTIME_ACCEPTANCE_PASSED=true
+~~~
+
+Guard: the persistence authorization is consumed and must never be replayed. Broker/Services persistence is now enabled, but certificate audit/timer, reboot, and board work remain separate later gates. Do not use the historical combined activation helper that would enable the certificate timer in the same operation.
+
 ### 2026-10-16 KF-121 successor runtime acceptance postexecution closure
 
 ~~~text
