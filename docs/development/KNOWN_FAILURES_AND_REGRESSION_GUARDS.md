@@ -1,3 +1,20 @@
+### 2026-10-16 KF-121 successor CONTROL_APPLYING postclaim failure
+
+~~~text
+POSTCLAIM_FAILURE_CONFIRMED=true
+INSTALL_AUTHORIZATION_CONSUMED=true
+INSTALL_AUTHORIZATION_REPLAY_ALLOWED=false
+INSTALL_CLAIM_STAGE=CONTROL_APPLYING
+SOURCE_DEFECT=f4_runtime_contract_requires_nonexistent_board_access_field
+SOURCE_REPAIR_PR=605
+SOURCE_REPAIR_HEAD=99e0c4aecb013cf0dc8b350f851a38d670b9d6e7
+PRODUCT_RUNTIME_HEALTHY=true
+REBOOT_AUTHORIZATION_CLAIMED=false
+REBOOT_EXECUTED=false
+~~~
+
+Guard: after a consumed install authorization reaches CONTROL_APPLYING, never replay that authorization and never treat a later repair as a fresh original install. If the exact control files have already been installed and a verifier defect is discovered, recovery must be a distinct repository-owned postclaim recovery transaction with a fresh authorization. It must bind the old claim SHA/state, old installed material, repaired source/artifact, current F4/runtime/certificate/boot identities, preserve the original consumed authorization history, and only then advance to a verified CONTROL_READY state. Raw file overwrite, raw claim editing and reboot are forbidden before recovery closure.
+
 ## CONTROL_APPLYING forensic — root cause reproduced
 
 The read-only forensic confirmed the exact live postclaim state:
