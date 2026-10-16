@@ -1,3 +1,30 @@
+### 2026-10-16 KF-121 CONTROL_APPLYING recovery source closure
+
+~~~text
+SOURCE_REPAIR_RESULT=CLOSED_PASS
+PR=605
+SOURCE_REVIEW_HEAD=da64d1cdfbe7e198abc1d536014769f56471d0cb
+GITHUB_CI=PASS:13/13
+ORIGINAL_INSTALL_AUTHORIZATION_REPLAY_ALLOWED=false
+RECOVERY_APPLYING_DURABILITY_READBACK=PASS
+CONTROL_READY_AFTER_FULL_VERIFICATION_ONLY=true
+REAL_T1_RECOVERY_EXECUTED=false
+~~~
+
+The original KF-121 guard-schema root cause is now source-guarded by a dedicated, exact-package,
+fail-closed `CONTROL_APPLYING` recovery path. The recovery contract binds the historical install
+claim and installed bytes, the repaired package, F4 transaction, runtime identity, certificate
+identity, certificate status and boot identity. A fresh recovery authorization must be durably
+claimed and consumed before any later live replacement; `RECOVERY_APPLYING` must be read back
+before the first target replacement, and `CONTROL_READY` may be persisted only after full
+verification and durable `RECOVERY_VERIFIED`.
+
+Status: GUARDED_SOURCE_CLOSED_PASS_LIVE_RECOVERY_PENDING. This does not mean the real T1 has been
+recovered. The last proven T1 claim remains `CONTROL_APPLYING`, and live recovery requires a new
+artifact/read-only preauthorization stage followed by a separately authorized live gate.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_SOURCE_REPAIR_CLOSURE_20261016.md`.
+
 ### 2026-10-16 KF-121 reboot successor control install postclaim guard failure
 
 ~~~text
@@ -17,7 +44,7 @@ one-shot install authorization had been consumed and all control files were inst
 authorization, rerun the original installer, manually replace targets, trigger certificate lifecycle, or reboot.
 PR #605 guards the schema mismatch, but the installed authority cannot resume `CONTROL_APPLYING`; recovery requires
 a dedicated exact-package continuation contract, regression tests, a fresh independent recovery authorization and
-post-write verification before `CONTROL_READY` may be persisted. Status: OPEN_RECOVERY_SOURCE_REPAIR. Authority:
+post-write verification before `CONTROL_READY` may be persisted. Status: SOURCE_RECOVERY_GUARDED; live recovery remains pending. Authority:
 `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_POSTCLAIM_FAILURE_FORENSIC_20261016.md`.
 
 ### 2026-10-16 KF-121 reboot authority gap

@@ -1,3 +1,17 @@
+## 2026-10-16 — F4 CONTROL_APPLYING recovery source repair CLOSED_PASS
+
+- Gate `N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_SOURCE_REPAIR_20261016_01` is CLOSED_PASS.
+- PR #605 reviewed source head is `da64d1cdfbe7e198abc1d536014769f56471d0cb` / tree `93e9308fa58e680a95b9b4dfb6314023dcd6f911`; PR remains draft and unmerged.
+- All 13 exact-source workflows passed, including F4 source CI, exact control package and public repository safety.
+- Recovery is fail-closed: old install authorization cannot be replayed, old installed bytes and repaired package are exact-bound, and F4/runtime/certificate/status/boot identities are bound.
+- `RECOVERY_APPLYING` must be persisted and read back before the first file replacement.
+- `CONTROL_READY` is persisted only after repaired-control verification and durable `RECOVERY_VERIFIED`.
+- The real T1 was not accessed; its last proven install claim remains `CONTROL_APPLYING`.
+- No live recovery authorization, reboot authorization, certificate lifecycle action, board access or merge occurred.
+- Next one gate: `N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_ARTIFACT_AND_READONLY_PREAUTH`.
+- Auto-execution is false.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_SOURCE_REPAIR_CLOSURE_20261016.md`.
+
 ## 2026-10-16 — F4 CONTROL_APPLYING recovery source-repair new-chat handoff published
 
 - Formal handoff uses template V1.3 / blob `b9ef40acdaa8fae37feb5ffe5662afd0e89462a0`.

@@ -1,3 +1,41 @@
+## 2026-10-16 — F4 CONTROL_APPLYING recovery source repair CLOSED_PASS
+
+~~~text
+EXECUTION_ID=N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_SOURCE_REPAIR_20261016_01
+RESULT=CLOSED_PASS
+PR=605
+SOURCE_REVIEW_HEAD=da64d1cdfbe7e198abc1d536014769f56471d0cb
+SOURCE_REVIEW_TREE=93e9308fa58e680a95b9b4dfb6314023dcd6f911
+GITHUB_CI=PASS:13/13
+FOCUSED_SOURCE_REVIEW=PASS
+RECOVERY_AUTHORIZATION_REPLAY_GUARD=PASS
+CONTROL_APPLYING_RECOVERY_CONTRACT=PASS
+CONTROL_READY_COMMIT_ORDERING=PASS
+
+REAL_T1_INSTALL_CLAIM_LAST_PROVEN=CONTROL_APPLYING
+T1_RECOVERY_EXECUTED=false
+LIVE_RECOVERY_AUTHORIZATION_CLAIMED=false
+REBOOT_EXECUTED=false
+BOARD_ACCESS=false
+MERGE=false
+
+CURRENT_STAGE=F4
+CURRENT_STOP_POINT=CONTROL_APPLYING_RECOVERY_SOURCE_REPAIR_CLOSED_PASS
+NEXT_ONE_GATE=N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_ARTIFACT_AND_READONLY_PREAUTH
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+PR #605 now contains the dedicated fail-closed recovery source path for the previously consumed `CONTROL_APPLYING`
+install. Exact source head `da64d1cdfbe7e198abc1d536014769f56471d0cb` passed 13/13 workflows and focused source review. The recovery state
+must be durable before any file replacement, the old install authorization remains permanently non-replayable, and
+`CONTROL_READY` is committed only after full exact-package and identity verification.
+
+This closes source repair only. The real T1 has not been touched and remains, by last proven forensic evidence, at
+`CONTROL_APPLYING`. Live recovery, reboot, certificate lifecycle execution, board access and PR merge remain
+unauthorized.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_SOURCE_REPAIR_CLOSURE_20261016.md`.
+
 ## 2026-10-16 — F4 CONTROL_APPLYING recovery source-repair new-chat handoff published
 
 ~~~text
