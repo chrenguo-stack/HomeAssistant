@@ -1,3 +1,19 @@
+## 2026-10-16 — F4 reboot successor control install postclaim failure forensic CLOSED_PASS
+
+- The one-shot control-install authorization is claimed, consumed and permanently non-replayable.
+- The durable install claim is `CONTROL_APPLYING`; all original successor files and manifest are installed and the
+  lifecycle drop-in is loaded.
+- The installed runtime guard deterministically rejects the healthy F4 runtime because it requires a nonexistent
+  `_runtime_activity().board_access` member.
+- PR #605 exact head `99e0c4ae...` contains the focused guard fix and 13 successful workflow runs, but remains draft
+  and is not a T1 recovery authority.
+- F4 transaction, runtime acceptance, certificate status, boot identity, runtime identity and certificate identity
+  remained unchanged; Broker, Manager and Home Assistant remain healthy.
+- Do not replay the consumed install authorization, rerun `install-control`, edit installed files manually, trigger
+  certificate lifecycle, claim reboot authority, or reboot.
+- Next one gate: `N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_SOURCE_REPAIR_20261016_01`.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_POSTCLAIM_FAILURE_FORENSIC_20261016.md`.
+
 ## 2026-10-16 — F4 reboot successor source preparation
 
 - PRE_REBOOT_READY postexecution closure is CLOSED_PASS.

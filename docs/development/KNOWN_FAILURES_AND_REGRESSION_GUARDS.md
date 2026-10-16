@@ -1,3 +1,25 @@
+### 2026-10-16 KF-121 reboot successor control install postclaim guard failure
+
+~~~text
+INSTALL_CLAIM_STAGE=CONTROL_APPLYING
+CONTROL_REPAIR_AUTHORIZATION_CONSUMED=true
+CONTROL_REPAIR_AUTHORIZATION_REPLAY_ALLOWED=false
+ORIGINAL_SUCCESSOR_FILES_INSTALLED=true
+SUCCESSOR_DROPIN_LOADED=true
+BROKEN_RUNTIME_GUARD_REPRODUCED=true
+REBOOT_AUTHORIZATION_CLAIMED=false
+REBOOT_EXECUTED=false
+~~~
+
+The successor runtime guard required `runtime.get("board_access") is False`, but the frozen F4
+`_runtime_activity()` contract has no `board_access` member. The healthy runtime was therefore rejected after the
+one-shot install authorization had been consumed and all control files were installed. Never replay that
+authorization, rerun the original installer, manually replace targets, trigger certificate lifecycle, or reboot.
+PR #605 guards the schema mismatch, but the installed authority cannot resume `CONTROL_APPLYING`; recovery requires
+a dedicated exact-package continuation contract, regression tests, a fresh independent recovery authorization and
+post-write verification before `CONTROL_READY` may be persisted. Status: OPEN_RECOVERY_SOURCE_REPAIR. Authority:
+`docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_POSTCLAIM_FAILURE_FORENSIC_20261016.md`.
+
 ### 2026-10-16 KF-121 reboot authority gap
 
 ~~~text

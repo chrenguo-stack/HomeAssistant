@@ -1,3 +1,38 @@
+## 2026-10-16 — F4 reboot successor control install postclaim failure forensic CLOSED_PASS
+
+~~~text
+TASK=N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_POSTCLAIM_FAILURE_FORENSIC_20261016_01
+RESULT=CLOSED_PASS_POSTCLAIM_FORENSIC
+
+INSTALL_CLAIM_STAGE=CONTROL_APPLYING
+CONTROL_REPAIR_AUTHORIZATION_CLAIMED=true
+CONTROL_REPAIR_AUTHORIZATION_CONSUMED=true
+CONTROL_REPAIR_AUTHORIZATION_REPLAY_ALLOWED=false
+
+ORIGINAL_SUCCESSOR_FILES_INSTALLED=true
+SUCCESSOR_DROPIN_LOADED=true
+BROKEN_RUNTIME_GUARD_REPRODUCED=true
+CURRENT_PRODUCT_RUNTIME_HEALTHY=true
+
+REBOOT_AUTHORIZATION_CLAIMED=false
+REBOOT_EXECUTED=false
+BOARD_ACCESS=false
+
+NEXT_ONE_GATE=N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_SOURCE_REPAIR_20261016_01
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+The exact control installation consumed its one-shot authorization, persisted `CONTROL_APPLYING`, installed the four
+successor files and manifest, loaded the lifecycle drop-in, then failed on a deterministic runtime-guard source
+defect. The frozen F4 `_runtime_activity()` result has no `board_access` member, but the original guard required that
+member to be false. PR #605 exact head `99e0c4ae...` removes only that impossible requirement and its 13 workflow
+runs pass. Real T1 durable records, boot identity, runtime identity, certificate identity and active product services
+remain unchanged. The original authorization is permanently non-replayable; reboot and manual file replacement are
+forbidden. A dedicated source-reviewed `CONTROL_APPLYING` recovery path and a fresh recovery authorization are
+required before any further T1 write.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_POSTCLAIM_FAILURE_FORENSIC_20261016.md`.
+
 ## 2026-10-16 — F4 reboot successor source preparation
 
 ~~~text
