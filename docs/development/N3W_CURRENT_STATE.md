@@ -1,3 +1,92 @@
+## CONTROL_APPLYING forensic — root cause reproduced
+
+The read-only forensic confirmed the exact live postclaim state:
+
+```text
+INSTALL_CLAIM_PRESENT=true
+INSTALL_CLAIM_SHA256=6c8cad9331094bbb0abe89ff67bc75b724d66c7eb97cdf6f4117c3bce5ed4d80
+CLAIM_STAGE=CONTROL_APPLYING
+CLAIM_SOURCE_HEAD=5368acc1eb50f1fc62bbd7c16ff9e64139131a29
+CLAIM_CONTROL_MANIFEST_SHA256=2f2ae69dbf78d5f578fa60bbee7fb269a5d0c3b17a00e2f697bc65d3ed91c40c
+CLAIM_PRE_RUNTIME_SNAPSHOT_SHA256=29183afd73d71d4e85d8481d96f062b7c099d6721b46708a49495d58a39994f0
+CLAIM_PRE_CERTIFICATE_SNAPSHOT_SHA256=68264cf00af8a5748fc20c17edb4969533d326905bb3e959960b3f2ab0103947
+CLAIM_CONTROL_REPAIR_AUTHORIZATION_CLAIMED=true
+CLAIM_CONTROL_REPAIR_AUTHORIZATION_CONSUMED=true
+CLAIM_CONTROL_REPAIR_AUTHORIZATION_REPLAY_ALLOWED=false
+CLAIM_INSTALLATION_APPLY_STARTED=true
+CLAIM_INSTALLATION_VERIFIED=null
+
+REBOOT_CLAIM_PRESENT=false
+AUTHORITY_LOCK_PRESENT=true
+
+SUCCESSOR_DROPIN_LOADED=true
+CERT_TIMER_ENABLED=enabled
+CERT_TIMER_ACTIVE=inactive
+CERT_SERVICE_ACTIVE=inactive
+BROKER_ACTIVE=active
+SERVICES_ACTIVE=active
+```
+
+All five installed successor artifacts match the original exact PR #600 package byte-for-byte and have the expected
+root ownership/modes. The installed manifest remains the exact original manifest.
+
+The broken guard failure is reproduced exactly:
+
+```text
+INSTALLED_GUARD_RC=2
+error_code=f4_runtime_contract_invalid
+```
+
+The frozen F4 host reports:
+
+```json
+{"broker_active_state":"active","production_service_start":true,"running_services":["broker","homeassistant","manager"],"runtime_service_probe":"PASS","services_active_state":"active"}
+```
+
+and therefore:
+
+```text
+F4_RUNTIME_ACTIVITY_HAS_BOARD_ACCESS=false
+```
+
+This independently confirms the source defect in PR #600: the installed guard requires a `board_access` key that
+the authoritative F4 `_runtime_activity()` schema does not expose.
+
+The forensic collector itself then stopped on an unrelated local wrapper defect
+(`F4: unbound variable`) before its final status/immutability tail. No live mutation was performed by the
+forensic. A short read-only tail check is still required to close live-state immutability.
+
+## PR #605 focused source repair
+
+PR #605 repairs only the invalid runtime-schema assumption and adds regression coverage for:
+
+- a healthy real-shape F4 runtime activity result with no `board_access` key;
+- rejection of an incomplete product runtime service set.
+
+Exact repair head:
+
+```text
+PR=605
+SOURCE_REPAIR_HEAD=99e0c4aecb013cf0dc8b350f851a38d670b9d6e7
+SOURCE_CI=13_SUCCESS_0_FAILURE_0_PENDING
+```
+
+Exact repaired successor artifact:
+
+```text
+ARTIFACT_ID=12029738934
+ARTIFACT_ZIP_SHA256=9fda3a2b21bf37484018f9d58bed60bb0f5ba28bc977a5a2ff33c8063c5bb03c
+CONTROL_TAR_SHA256=3f23029c601e8d66661ca36941467021af0eb376929c87a42ce258a4e4d98291
+MANIFEST_SHA256=085e3fd1c56ee4f4d35f1acc9408a4874f5a09dde90bc93d4df84a87ba90d43d
+REPAIRED_GUARD_SHA256=0bf84b4459e0ce86d45f9713f8d583f74d76ca49b002381867dbe39716913d38
+```
+
+The other three control-file hashes are unchanged from PR #600.
+
+No repaired artifact has been staged or installed on the T1. The consumed original install authorization cannot be
+replayed. Any live repair requires a new dedicated postclaim recovery authorization after the remaining read-only
+tail check and a recovery design review.
+
 ## Live control-install execution — POSTCLAIM FAILURE / authorization consumed
 
 The second live execution passed all pre-claim checks, staged the exact package, durably claimed the install
