@@ -1,3 +1,14 @@
+## 2026-10-17 — F4 ledger-finalization live gate authorized
+
+- Exact read-only preauth is CLOSED_PASS.
+- Explicit authorization is granted for `N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_LEDGER_FINALIZATION_LIVE_20261017_01`.
+- Scope is one exact atomic `REBOOT_PENDING -> REBOOT_ACCEPTED` ledger transition plus immediate read-only terminal verification.
+- Expected pending claim remains `61429105bc05f135f3d0b8be338d74899b2466cb65fa896be4254d37a54c5028`.
+- Old reboot/recovery authorizations remain consumed/no-replay and are not reused.
+- No reboot, installed-control replacement, F4 transaction mutation, certificate lifecycle trigger, board access or merge is authorized.
+- On finalizer failure or ambiguity: STOP, no automatic retry.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_LEDGER_FINALIZATION_LIVE_PREEXECUTION_20261017.md`.
+
 ## 2026-10-17 — F4 ledger-finalization read-only preauth CLOSED_PASS
 
 - Exact reviewed finalizer artifact binding passed.
