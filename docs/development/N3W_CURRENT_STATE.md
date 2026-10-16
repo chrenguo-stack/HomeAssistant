@@ -1,3 +1,26 @@
+## 2026-10-16 — PR #573 CI 12/12 PASS; F4 recovery read-only preexecution active
+
+~~~text
+PR573_HEAD=d432caa26cf339ba5a85251accebb9442b830fa6
+PR573_CI=12_OF_12_PASS
+PR573_MERGEABLE=true
+
+PREVIOUS_GATE=N3W_T1_F4_STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_EXACT_ARTIFACT_BINDING_AND_LIVE_PREEXECUTION_PREPARATION_20261015_01
+PREVIOUS_GATE_RESULT=CLOSED_PASS
+
+CURRENT_GATE=N3W_T1_F4_STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_LIVE_READONLY_PREEXECUTION_20261016_01
+
+LIVE_RUNTIME_MUTATION=false
+ARTIFACT_TRANSFER_TO_T1=false
+RECOVERY_AUTHORIZATION_GRANTED=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+REBOOT=false
+~~~
+
+The current gate may read the real T1 only. It must stop after the versioned read-only collector output and may not
+repair, normalize, transfer or execute anything.
+
 ## 2026-10-16 — F4 stopped-acceptance recovery exact artifact bound; live read-only preexecution prepared
 
 ~~~text
