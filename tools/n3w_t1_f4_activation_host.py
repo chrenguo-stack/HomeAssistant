@@ -90,6 +90,19 @@ RUNTIME_ACCEPTANCE_RECOVERY_FROM_LAUNCHER_SHA256 = (
     "f7f742505f439675fb19ecf8f98b8235703d6e2a1c5c9217ecfe01a025be3c8b"
 )
 
+PREPARED_AUTHORIZATION_HISTORY_REPAIR_CONFIRMATION = (
+    "REPAIR F4 PREPARED AUTHORIZATION HISTORY: YES"
+)
+PREPARED_AUTHORIZATION_HISTORY_REPAIR_FROM_SOURCE_HEAD = (
+    "f0bcc2ac50326b9a988405af8a2aad4c51694810"
+)
+PREPARED_AUTHORIZATION_HISTORY_REPAIR_FROM_MANIFEST_SHA256 = (
+    "37c620daf57a3f49614a4c2824c55b7e20413ef63593cd1781e4f359fb4729b5"
+)
+PREPARED_AUTHORIZATION_HISTORY_REPAIR_FROM_LAUNCHER_SHA256 = (
+    "eaf28175909479007d6d1df7522811d032890dcaa2a2280228c93e6dce128bb3"
+)
+
 EXPECTED_RUNTIME_SERVICES = frozenset({"broker", "manager", "homeassistant"})
 RUNTIME_SERVICE_SET_TIMEOUT_SECONDS = 60.0
 RUNTIME_SERVICE_SET_POLL_SECONDS = 1.0
@@ -2490,6 +2503,349 @@ def _wait_for_runtime_service_set(
         time.sleep(poll_seconds)
 
 
+def _prepared_authorization_history_repair_entrypoint(
+    launcher_source: Path,
+    launcher_binding: dict[str, object],
+) -> None:
+    executing = Path(os.path.abspath(__file__))
+    if (
+        executing.is_symlink()
+        or not executing.is_file()
+        or executing != launcher_source
+        or executing.stat().st_size != launcher_binding.get("size")
+        or _sha256_file(executing) != launcher_binding.get("sha256")
+    ):
+        raise F4Error(
+            "prepared_authorization_history_repair_entrypoint_invalid"
+        )
+
+
+def _prepared_authorization_history_repair_prior_ids(
+    transaction: dict[str, object],
+) -> frozenset[str]:
+    values: set[str] = set()
+    for key in (
+        "authorization_id",
+        "control_repair_authorization_id",
+        "activation_authority_repair_authorization_id",
+        "runtime_start_repair_authorization_id",
+        "runtime_continuation_authority_repair_authorization_id",
+        "runtime_acceptance_recovery_authorization_id",
+        "prepared_authorization_history_repair_authorization_id",
+        "activation_authorization_id",
+        "runtime_acceptance_authorization_id",
+        "persistence_authorization_id",
+        "certificate_audit_authorization_id",
+        "certificate_timer_authorization_id",
+    ):
+        value = transaction.get(key)
+        if isinstance(value, str):
+            values.add(value)
+
+    activation_history = transaction.get(
+        "activation_authorization_history",
+        [],
+    )
+    if not isinstance(activation_history, list) or not all(
+        isinstance(value, str) for value in activation_history
+    ):
+        raise F4Error("activation_authorization_history_invalid")
+    values.update(activation_history)
+
+    if transaction.get("runtime_acceptance_authorization_history") is not None:
+        raise F4Error(
+            "prepared_authorization_history_repair_defect_not_present"
+        )
+    return frozenset(values)
+
+
+def _repair_prepared_authorization_history(
+    package_root: Path,
+    confirmation: str,
+    repair_authorization_id: str,
+    package_manifest_sha256: str,
+    package_source_head: str,
+) -> dict[str, object]:
+    if confirmation != PREPARED_AUTHORIZATION_HISTORY_REPAIR_CONFIRMATION:
+        raise F4Error(
+            "prepared_authorization_history_repair_confirmation_invalid"
+        )
+    if (
+        not repair_authorization_id.startswith("N3W_T1_F4_")
+        or len(repair_authorization_id) > 200
+        or not repair_authorization_id.replace("_", "").replace("-", "").isalnum()
+    ):
+        raise F4Error(
+            "prepared_authorization_history_repair_authorization_id_invalid"
+        )
+
+    package = _validate_package(
+        package_root,
+        expected_manifest_sha256=package_manifest_sha256,
+        expected_source_head=package_source_head,
+    )
+    launcher_relative = "tools/n3w_t1_f4_activation_host.py"
+    launcher_target, launcher_mode = INSTALL_MAP[launcher_relative]
+    launcher_binding = package["files"].get(launcher_relative)
+    if not isinstance(launcher_binding, dict):
+        raise F4Error(
+            "prepared_authorization_history_repair_launcher_binding_missing"
+        )
+    launcher_source = Path(str(package["root"])) / launcher_relative
+    if not launcher_source.read_bytes().startswith(b"#!/usr/bin/python3\n"):
+        raise F4Error(
+            "prepared_authorization_history_repair_launcher_shebang_invalid"
+        )
+    if (
+        package["source_head"]
+        == PREPARED_AUTHORIZATION_HISTORY_REPAIR_FROM_SOURCE_HEAD
+        or package["manifest_sha256"]
+        == PREPARED_AUTHORIZATION_HISTORY_REPAIR_FROM_MANIFEST_SHA256
+        or launcher_binding.get("sha256")
+        == PREPARED_AUTHORIZATION_HISTORY_REPAIR_FROM_LAUNCHER_SHA256
+    ):
+        raise F4Error(
+            "prepared_authorization_history_repair_successor_not_distinct"
+        )
+    _prepared_authorization_history_repair_entrypoint(
+        launcher_source,
+        launcher_binding,
+    )
+
+    with _exclusive_f4():
+        verified = _provision_verify()
+        _validate_factory_binding(verified)
+        transaction = _validate_transaction_binding(verified)
+        if (
+            transaction.get("stage") != "PREPARED"
+            or transaction.get("package_source_head")
+            != PREPARED_AUTHORIZATION_HISTORY_REPAIR_FROM_SOURCE_HEAD
+            or transaction.get("package_manifest_sha256")
+            != PREPARED_AUTHORIZATION_HISTORY_REPAIR_FROM_MANIFEST_SHA256
+            or transaction.get("runtime_acceptance_recovery_passed")
+            is not True
+            or transaction.get(
+                "runtime_acceptance_recovery_authorization_claimed"
+            )
+            is not True
+            or transaction.get(
+                "runtime_acceptance_recovery_authorization_consumed"
+            )
+            is not True
+            or transaction.get(
+                "runtime_acceptance_recovery_authorization_replay_allowed"
+            )
+            is not False
+            or transaction.get("activation_retry_eligible") is not True
+            or transaction.get("runtime_acceptance_retry_eligible") is not True
+            or transaction.get("runtime_acceptance_passed") is not False
+            or transaction.get("production_service_start") is not False
+            or transaction.get("persistence_enabled") is not False
+            or transaction.get("certificate_timer_enabled") is not False
+            or transaction.get("product_listener_ports") != []
+            or transaction.get("runtime_acceptance_authorization_history")
+            is not None
+            or transaction.get(
+                "prepared_authorization_history_repair_authorization_claimed"
+            )
+            is True
+        ):
+            raise F4Error(
+                "prepared_authorization_history_repair_prestate_invalid"
+            )
+
+        failed_acceptance_authorization = transaction.get(
+            "runtime_acceptance_authorization_id"
+        )
+        if (
+            not isinstance(failed_acceptance_authorization, str)
+            or transaction.get(
+                "runtime_acceptance_last_failure_authorization_id"
+            )
+            != failed_acceptance_authorization
+        ):
+            raise F4Error(
+                "prepared_authorization_history_repair_failure_binding_invalid"
+            )
+
+        _verify_installed_material(transaction)
+        current_installed = transaction.get("installed_files")
+        if not isinstance(current_installed, dict):
+            raise F4Error(
+                "prepared_authorization_history_repair_installed_files_invalid"
+            )
+        current_launcher = current_installed.get(str(launcher_target))
+        if (
+            not isinstance(current_launcher, dict)
+            or current_launcher.get("sha256")
+            != PREPARED_AUTHORIZATION_HISTORY_REPAIR_FROM_LAUNCHER_SHA256
+        ):
+            raise F4Error(
+                "prepared_authorization_history_repair_source_binding_invalid"
+            )
+
+        for relative, (target, _mode) in INSTALL_MAP.items():
+            if relative == launcher_relative:
+                continue
+            new_binding = package["files"].get(relative)
+            installed_binding = current_installed.get(str(target))
+            if (
+                not isinstance(new_binding, dict)
+                or not isinstance(installed_binding, dict)
+                or new_binding.get("sha256") != installed_binding.get("sha256")
+                or new_binding.get("size") != installed_binding.get("size")
+            ):
+                raise F4Error(
+                    "prepared_authorization_history_repair_unexpected_delta:"
+                    + relative
+                )
+
+        _runtime_acceptance_recovery_stopped_prestate()
+        prior = _prepared_authorization_history_repair_prior_ids(transaction)
+        if repair_authorization_id in prior:
+            raise F4Error("continuation_authorization_not_distinct")
+
+        _advance_transaction(
+            "PREPARED_AUTHORIZATION_HISTORY_REPAIR_CLAIMED",
+            prepared_authorization_history_repair_authorization_id=(
+                repair_authorization_id
+            ),
+            prepared_authorization_history_repair_authorization_claimed=True,
+            prepared_authorization_history_repair_authorization_consumed=True,
+            prepared_authorization_history_repair_authorization_replay_allowed=False,
+            prepared_authorization_history_repair_from_source_head=(
+                PREPARED_AUTHORIZATION_HISTORY_REPAIR_FROM_SOURCE_HEAD
+            ),
+            prepared_authorization_history_repair_from_manifest_sha256=(
+                PREPARED_AUTHORIZATION_HISTORY_REPAIR_FROM_MANIFEST_SHA256
+            ),
+            prepared_authorization_history_repair_target_source_head=(
+                package["source_head"]
+            ),
+            prepared_authorization_history_repair_target_manifest_sha256=(
+                package["manifest_sha256"]
+            ),
+            production_service_start=False,
+            persistence_enabled=False,
+            certificate_timer_enabled=False,
+        )
+
+        try:
+            _atomic_replace_bound_file(
+                launcher_source,
+                launcher_target,
+                launcher_mode,
+                expected_current=current_launcher,
+                expected_sha256=str(launcher_binding["sha256"]),
+                expected_size=int(launcher_binding["size"]),
+            )
+            updated_files = dict(current_installed)
+            updated_files[str(launcher_target)] = _file_binding(launcher_target)
+            _advance_transaction(
+                "PREPARED_AUTHORIZATION_HISTORY_REPAIR_CLAIMED",
+                installed_files=updated_files,
+                package_source_head=package["source_head"],
+                package_manifest_sha256=package["manifest_sha256"],
+                prepared_authorization_history_repair_launcher_replaced=True,
+                runtime_acceptance_authorization_history=[],
+                production_service_start=False,
+                persistence_enabled=False,
+                certificate_timer_enabled=False,
+            )
+            _runtime_acceptance_recovery_stopped_prestate()
+            _advance_transaction(
+                "PREPARED",
+                installed_files=updated_files,
+                package_source_head=package["source_head"],
+                package_manifest_sha256=package["manifest_sha256"],
+                prepared_authorization_history_repair_passed=True,
+                runtime_acceptance_authorization_history=[],
+                production_service_start=False,
+                persistence_enabled=False,
+                certificate_timer_enabled=False,
+            )
+            repaired = _read_private_record(TRANSACTION_PATH)
+            _verify_installed_material(repaired)
+            _runtime_acceptance_recovery_stopped_prestate()
+            _all_prior_authorization_ids(repaired)
+            return {
+                "status": "PASS",
+                "state": "PREPARED",
+                "prepared_authorization_history_repair_passed": True,
+                "prepared_authorization_history_repair_authorization_id": (
+                    repair_authorization_id
+                ),
+                "prepared_authorization_history_repair_authorization_claimed": True,
+                "prepared_authorization_history_repair_authorization_consumed": True,
+                "prepared_authorization_history_repair_authorization_replay_allowed": False,
+                "runtime_acceptance_authorization_history": [],
+                "package_source_head": package["source_head"],
+                "package_manifest_sha256": package["manifest_sha256"],
+                "production_service_start": False,
+                "persistence_enabled": False,
+                "certificate_timer_enabled": False,
+                "board_access": False,
+            }
+        except OPERATION_ERRORS as error:
+            launcher_state_proven = False
+            try:
+                current = _read_private_record(TRANSACTION_PATH)
+                observed_launcher = _file_binding(launcher_target)
+                expected_new_launcher = {
+                    "sha256": str(launcher_binding["sha256"]),
+                    "size": int(launcher_binding["size"]),
+                    "mode": launcher_mode,
+                    "uid": 0,
+                    "gid": 0,
+                }
+                if observed_launcher == expected_new_launcher:
+                    reconciled_files = dict(current_installed)
+                    reconciled_files[str(launcher_target)] = observed_launcher
+                    _advance_transaction(
+                        str(current["stage"]),
+                        installed_files=reconciled_files,
+                        package_source_head=package["source_head"],
+                        package_manifest_sha256=package["manifest_sha256"],
+                        prepared_authorization_history_repair_launcher_replaced=True,
+                        prepared_authorization_history_repair_launcher_state_unproven=False,
+                    )
+                    launcher_state_proven = True
+                elif observed_launcher == current_launcher:
+                    launcher_state_proven = True
+                else:
+                    _advance_transaction(
+                        str(current["stage"]),
+                        prepared_authorization_history_repair_launcher_state_unproven=True,
+                    )
+            except OPERATION_ERRORS:
+                launcher_state_proven = False
+
+            try:
+                _downstream_fail_closed(
+                    "PREPARED_AUTHORIZATION_HISTORY_REPAIR",
+                    error,
+                )
+            except OPERATION_ERRORS as rollback_error:
+                raise F4Error(
+                    "prepared_authorization_history_repair_failed_"
+                    "rollback_unproven:"
+                    + type(rollback_error).__name__
+                ) from error
+            if not launcher_state_proven:
+                stopped = _read_private_record(TRANSACTION_PATH)
+                _advance_transaction(
+                    "STOPPED_PREPARED_AUTHORIZATION_HISTORY_REPAIR_"
+                    "ROLLBACK_UNPROVEN",
+                    rollback_proven=False,
+                    rollback_error_count=stopped.get(
+                        "rollback_error_count",
+                        0,
+                    ),
+                    prepared_authorization_history_repair_launcher_state_unproven=True,
+                )
+            raise
+
+
 def _all_prior_authorization_ids(
     transaction: dict[str, object],
 ) -> frozenset[str]:
@@ -2501,6 +2857,7 @@ def _all_prior_authorization_ids(
         "runtime_start_repair_authorization_id",
         "runtime_continuation_authority_repair_authorization_id",
         "runtime_acceptance_recovery_authorization_id",
+        "prepared_authorization_history_repair_authorization_id",
         "activation_authorization_id",
         "runtime_acceptance_authorization_id",
         "persistence_authorization_id",
@@ -4534,6 +4891,30 @@ def _parser() -> argparse.ArgumentParser:
         required=True,
     )
 
+    prepared_authorization_history_repair = subparsers.add_parser(
+        "repair-prepared-authorization-history"
+    )
+    prepared_authorization_history_repair.add_argument(
+        "--confirm",
+        required=True,
+    )
+    prepared_authorization_history_repair.add_argument(
+        "--authorization-id",
+        required=True,
+    )
+    prepared_authorization_history_repair.add_argument(
+        "--package-root",
+        required=True,
+    )
+    prepared_authorization_history_repair.add_argument(
+        "--package-manifest-sha256",
+        required=True,
+    )
+    prepared_authorization_history_repair.add_argument(
+        "--package-source-head",
+        required=True,
+    )
+
     activate = subparsers.add_parser("activate")
     activate.add_argument("--confirm", required=True)
     activate.add_argument("--authorization-id", required=True)
@@ -4603,6 +4984,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         elif args.command == "repair-stopped-runtime-acceptance":
             report = _repair_stopped_runtime_acceptance(
+                Path(args.package_root),
+                args.confirm,
+                args.authorization_id,
+                args.package_manifest_sha256,
+                args.package_source_head,
+            )
+        elif args.command == "repair-prepared-authorization-history":
+            report = _repair_prepared_authorization_history(
                 Path(args.package_root),
                 args.confirm,
                 args.authorization_id,
