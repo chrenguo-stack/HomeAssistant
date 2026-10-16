@@ -1,3 +1,29 @@
+## 2026-10-16 — F4 reboot successor control-install read-only preauthorization prepared
+
+~~~text
+TASK=N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_READONLY_PREAUTH_20261016_01
+STATUS=READY_FOR_USER_TERMINAL_EXECUTION
+
+SOURCE_REPAIR_HEAD=5368acc1eb50f1fc62bbd7c16ff9e64139131a29
+SOURCE_CLOSURE_PR=601
+EXACT_ARTIFACT_ID=12028807237
+EXACT_MANIFEST_SHA256=2f2ae69dbf78d5f578fa60bbee7fb269a5d0c3b17a00e2f697bc65d3ed91c40c
+
+T1_MUTATION=false
+ARTIFACT_STAGING=false
+AUTHORIZATION_CLAIM=false
+REBOOT=false
+BOARD_ACCESS=false
+
+PROPOSED_CONTROL_INSTALL_AUTHORIZATION=N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_LIVE_20261016_01
+AUTHORIZATION_GRANTED=false
+AUTO_EXECUTE_LIVE_INSTALL=false
+~~~
+
+The next operation is a strict read-only T1 collector. It must prove the existing PRE_REBOOT_READY baseline is unchanged, the successor install/reboot claim records and install targets are absent, the existing certificate lifecycle service has no successor drop-in loaded, and the proposed live install authorization does not collide with earlier F4 authorization history. It does not stage the artifact or mutate the host.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_READONLY_PREAUTH_20261016.md`.
+
 ## 2026-10-16 — F4 reboot successor source repair CLOSED_PASS
 
 ~~~text
