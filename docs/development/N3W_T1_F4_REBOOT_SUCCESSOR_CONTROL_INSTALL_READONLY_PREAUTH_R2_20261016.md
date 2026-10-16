@@ -56,3 +56,7 @@ PASS_NEXT_ONE_GATE=N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_LIVE_20261016_01
 AUTO_EXECUTE_LIVE_INSTALL=false
 REBOOT_AUTHORIZATION_GRANTED=false
 ```
+
+## R2 first execution result
+
+The first R2 execution remained read-only and passed the F4 durable contract, runtime image contract, product container contract, TLS runtime, Manager stability, Home Assistant runtime audit, and authorization-collision checks. It then stopped because the listener-port collector used a non-portable multiline awk condition on the target host. This is classified as a collector-script defect, not a product failure. No artifact staging, authorization claim, live runtime mutation, reboot, or board access occurred. The R2 gate remains open and must be rerun with a portable single-line awk condition before the live install gate can be considered.
