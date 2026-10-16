@@ -1,3 +1,16 @@
+### 2026-10-16 KF-121 downstream authorization-history blocker
+
+~~~text
+KF-121_RECOVERY_EXECUTION=PASS
+KF-121_POSTEXECUTION_READONLY=PASS
+RUNTIME_ACCEPTANCE_AUTHORIZATION_HISTORY=null
+DOWNSTREAM_SOURCE_BLOCKER=OPEN
+~~~
+
+The exact recovered PREPARED transaction carries a null runtime-acceptance authorization history. Generic global authorization validation correctly rejects non-list history values, so successor activation is blocked before it can consume a new authorization.
+
+Regression guard: do not weaken generic malformed-history rejection and do not manually edit the transaction. Repair only the exact known null legacy representation through a separately versioned PREPARED-state one-shot repair path.
+
 ### 2026-10-16 KF-121 recovery execution update
 
 ~~~text
