@@ -64,9 +64,14 @@ def test_command_surface_has_no_provisioning_replay_authority() -> None:
     assert '"repair-prepared-activation-authority"' in source
     assert '"repair-stopped-runtime-start"' in source
     assert '"repair-stopped-runtime-acceptance"' in source
+    assert '"repair-prepared-authorization-history"' in source
     assert (
         tool.RUNTIME_ACCEPTANCE_RECOVERY_CONFIRMATION
         == "RECOVER F4 STOPPED RUNTIME ACCEPTANCE: YES"
+    )
+    assert (
+        tool.PREPARED_AUTHORIZATION_HISTORY_REPAIR_CONFIRMATION
+        == "REPAIR F4 PREPARED AUTHORIZATION HISTORY: YES"
     )
     assert 'subparsers.add_parser("eligibility")' in source
     assert "START DEVICE PROVISIONING: YES" not in source
@@ -2794,6 +2799,9 @@ def test_successor_authorization_rejects_any_prior_f4_authority() -> None:
         "runtime_acceptance_recovery_authorization_id": (
             "N3W_T1_F4_ACCEPT_RECOVERY_AUTH"
         ),
+        "prepared_authorization_history_repair_authorization_id": (
+            "N3W_T1_F4_PREPARED_HISTORY_REPAIR_AUTH"
+        ),
         "activation_authorization_history": [
             "N3W_T1_F4_OLD_ACTIVATE_AUTH"
         ],
@@ -2808,6 +2816,7 @@ def test_successor_authorization_rejects_any_prior_f4_authority() -> None:
         "N3W_T1_F4_ACTIVATE_AUTH",
         "N3W_T1_F4_ACCEPT_AUTH",
         "N3W_T1_F4_ACCEPT_RECOVERY_AUTH",
+        "N3W_T1_F4_PREPARED_HISTORY_REPAIR_AUTH",
         "N3W_T1_F4_OLD_ACTIVATE_AUTH",
         "N3W_T1_F4_OLD_ACCEPT_AUTH",
     ):
@@ -3172,3 +3181,282 @@ def test_manager_runtime_stability_requires_same_container_and_one_mqtt_socket(
 
     assert report["container_identity_stable"] is True
     assert report["mqtt_socket_stable"] is True
+
+
+
+def test_prepared_authorization_history_repair_prior_ids_accepts_exact_null() -> None:
+    tool = load_tool()
+    transaction = {
+        "authorization_id": "N3W_T1_F4_PREPARE",
+        "activation_authorization_id": "N3W_T1_F4_ACTIVATE_CURRENT",
+        "runtime_acceptance_authorization_id": "N3W_T1_F4_ACCEPT_FAILED",
+        "runtime_acceptance_recovery_authorization_id": (
+            "N3W_T1_F4_RECOVERY_CURRENT"
+        ),
+        "activation_authorization_history": [
+            "N3W_T1_F4_ACTIVATE_OLD",
+        ],
+        "runtime_acceptance_authorization_history": None,
+    }
+
+    observed = tool._prepared_authorization_history_repair_prior_ids(
+        transaction
+    )
+
+    assert "N3W_T1_F4_PREPARE" in observed
+    assert "N3W_T1_F4_ACTIVATE_CURRENT" in observed
+    assert "N3W_T1_F4_ACCEPT_FAILED" in observed
+    assert "N3W_T1_F4_RECOVERY_CURRENT" in observed
+    assert "N3W_T1_F4_ACTIVATE_OLD" in observed
+
+    transaction["runtime_acceptance_authorization_history"] = []
+    with pytest.raises(
+        tool.F4Error,
+        match="prepared_authorization_history_repair_defect_not_present",
+    ):
+        tool._prepared_authorization_history_repair_prior_ids(transaction)
+
+
+def test_prepared_authorization_history_repair_normalizes_null_and_stays_prepared(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    package_root = tmp_path / "package"
+    launcher_relative = "tools/n3w_t1_f4_activation_host.py"
+    launcher_source = package_root / launcher_relative
+    launcher_source.parent.mkdir(parents=True)
+    launcher_source.write_text(
+        "#!/usr/bin/python3\nprint('history repair')\n",
+        encoding="utf-8",
+    )
+    launcher_sha = tool._sha256_file(launcher_source)
+
+    package_files = {}
+    installed_files = {}
+    for relative, (target, mode) in tool.INSTALL_MAP.items():
+        if relative == launcher_relative:
+            package_files[relative] = {
+                "sha256": launcher_sha,
+                "size": launcher_source.stat().st_size,
+            }
+            installed_files[str(target)] = {
+                "sha256": (
+                    tool.PREPARED_AUTHORIZATION_HISTORY_REPAIR_FROM_LAUNCHER_SHA256
+                ),
+                "size": 177919,
+                "mode": mode,
+                "uid": 0,
+                "gid": 0,
+            }
+        else:
+            package_files[relative] = {
+                "sha256": "d" * 64,
+                "size": 10,
+            }
+            installed_files[str(target)] = {
+                "sha256": "d" * 64,
+                "size": 10,
+                "mode": mode,
+                "uid": 0,
+                "gid": 0,
+            }
+
+    for target in (tool.COMPOSE_TARGET, tool.BROKER_ENV, tool.CERT_ENV):
+        installed_files[str(target)] = {
+            "sha256": "e" * 64,
+            "size": 20,
+            "mode": 0o600,
+            "uid": 0,
+            "gid": 0,
+        }
+
+    failed_acceptance = "N3W_T1_F4_RUNTIME_ACCEPTANCE_FAILED"
+    recovery_auth = "N3W_T1_F4_ACCEPTANCE_RECOVERY_USED"
+    repair_auth = "N3W_T1_F4_PREPARED_HISTORY_REPAIR_NEW"
+    state = {
+        "stage": "PREPARED",
+        "authorization_id": "N3W_T1_F4_PREPARE",
+        "activation_authorization_id": "N3W_T1_F4_ACTIVATE_R2",
+        "activation_authorization_claimed": True,
+        "activation_authorization_consumed": True,
+        "activation_authorization_replay_allowed": False,
+        "activation_authorization_history": [
+            "N3W_T1_F4_ACTIVATE_R1",
+        ],
+        "runtime_acceptance_authorization_id": failed_acceptance,
+        "runtime_acceptance_authorization_claimed": True,
+        "runtime_acceptance_authorization_consumed": True,
+        "runtime_acceptance_authorization_replay_allowed": False,
+        "runtime_acceptance_authorization_history": None,
+        "runtime_acceptance_passed": False,
+        "runtime_acceptance_recovery_authorization_id": recovery_auth,
+        "runtime_acceptance_recovery_authorization_claimed": True,
+        "runtime_acceptance_recovery_authorization_consumed": True,
+        "runtime_acceptance_recovery_authorization_replay_allowed": False,
+        "runtime_acceptance_recovery_passed": True,
+        "runtime_acceptance_last_failure_stage": (
+            "STOPPED_RUNTIME_ACCEPTANCE"
+        ),
+        "runtime_acceptance_last_failure_error_code": (
+            "manager_mqtt_socket_count_invalid"
+        ),
+        "runtime_acceptance_last_failure_authorization_id": (
+            failed_acceptance
+        ),
+        "runtime_acceptance_last_failure_source_head": (
+            tool.RUNTIME_ACCEPTANCE_RECOVERY_FROM_SOURCE_HEAD
+        ),
+        "runtime_acceptance_last_failure_manifest_sha256": (
+            tool.RUNTIME_ACCEPTANCE_RECOVERY_FROM_MANIFEST_SHA256
+        ),
+        "runtime_acceptance_last_failure_rollback_proven": True,
+        "runtime_acceptance_last_failure_rollback_error_count": 0,
+        "activation_retry_eligible": True,
+        "runtime_acceptance_retry_eligible": True,
+        "production_service_start": False,
+        "persistence_enabled": False,
+        "certificate_timer_enabled": False,
+        "product_listener_ports": [],
+        "package_source_head": (
+            tool.PREPARED_AUTHORIZATION_HISTORY_REPAIR_FROM_SOURCE_HEAD
+        ),
+        "package_manifest_sha256": (
+            tool.PREPARED_AUTHORIZATION_HISTORY_REPAIR_FROM_MANIFEST_SHA256
+        ),
+        "installed_files": installed_files,
+    }
+    package = {
+        "root": package_root,
+        "manifest_sha256": "f" * 64,
+        "source_head": "1" * 40,
+        "files": package_files,
+    }
+    stages = []
+
+    def advance(stage, **fields):
+        state.update(fields)
+        state["stage"] = stage
+        stages.append(stage)
+        return dict(state)
+
+    monkeypatch.setattr(tool, "_validate_package", lambda *_a, **_k: package)
+    monkeypatch.setattr(
+        tool,
+        "_prepared_authorization_history_repair_entrypoint",
+        lambda *_a, **_k: None,
+    )
+    monkeypatch.setattr(tool, "_exclusive_f4", nullcontext)
+    monkeypatch.setattr(tool, "_provision_verify", lambda: verified(tool))
+    monkeypatch.setattr(tool, "_validate_factory_binding", lambda _v: {})
+    monkeypatch.setattr(
+        tool,
+        "_validate_transaction_binding",
+        lambda _v: state,
+    )
+    monkeypatch.setattr(tool, "_verify_installed_material", lambda _t: None)
+    monkeypatch.setattr(
+        tool,
+        "_runtime_acceptance_recovery_stopped_prestate",
+        lambda: None,
+    )
+    monkeypatch.setattr(tool, "_advance_transaction", advance)
+    monkeypatch.setattr(tool, "_read_private_record", lambda _path: state)
+    monkeypatch.setattr(
+        tool,
+        "_atomic_replace_bound_file",
+        lambda *_a, **_k: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_file_binding",
+        lambda _path: {
+            "sha256": launcher_sha,
+            "size": launcher_source.stat().st_size,
+            "mode": 0o755,
+            "uid": 0,
+            "gid": 0,
+        },
+    )
+
+    result = tool._repair_prepared_authorization_history(
+        package_root,
+        tool.PREPARED_AUTHORIZATION_HISTORY_REPAIR_CONFIRMATION,
+        repair_auth,
+        "f" * 64,
+        "1" * 40,
+    )
+
+    assert result["state"] == "PREPARED"
+    assert result["prepared_authorization_history_repair_passed"] is True
+    assert result[
+        "prepared_authorization_history_repair_authorization_consumed"
+    ] is True
+    assert result["runtime_acceptance_authorization_history"] == []
+    assert state["runtime_acceptance_authorization_history"] == []
+    assert state["runtime_acceptance_authorization_id"] == failed_acceptance
+    assert state["runtime_acceptance_recovery_authorization_id"] == recovery_auth
+    assert state["activation_retry_eligible"] is True
+    assert state["runtime_acceptance_retry_eligible"] is True
+    assert stages == [
+        "PREPARED_AUTHORIZATION_HISTORY_REPAIR_CLAIMED",
+        "PREPARED_AUTHORIZATION_HISTORY_REPAIR_CLAIMED",
+        "PREPARED",
+    ]
+
+
+def test_prepared_authorization_history_repair_rejects_non_null_history(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    package_root = tmp_path / "package"
+    launcher_relative = "tools/n3w_t1_f4_activation_host.py"
+    launcher_source = package_root / launcher_relative
+    launcher_source.parent.mkdir(parents=True)
+    launcher_source.write_text(
+        "#!/usr/bin/python3\nprint('history repair')\n",
+        encoding="utf-8",
+    )
+    package = {
+        "root": package_root,
+        "manifest_sha256": "f" * 64,
+        "source_head": "1" * 40,
+        "files": {
+            launcher_relative: {
+                "sha256": tool._sha256_file(launcher_source),
+                "size": launcher_source.stat().st_size,
+            }
+        },
+    }
+    transaction = {
+        "stage": "PREPARED",
+        "runtime_acceptance_authorization_history": [],
+    }
+
+    monkeypatch.setattr(tool, "_validate_package", lambda *_a, **_k: package)
+    monkeypatch.setattr(
+        tool,
+        "_prepared_authorization_history_repair_entrypoint",
+        lambda *_a, **_k: None,
+    )
+    monkeypatch.setattr(tool, "_exclusive_f4", nullcontext)
+    monkeypatch.setattr(tool, "_provision_verify", lambda: verified(tool))
+    monkeypatch.setattr(tool, "_validate_factory_binding", lambda _v: {})
+    monkeypatch.setattr(
+        tool,
+        "_validate_transaction_binding",
+        lambda _v: transaction,
+    )
+
+    with pytest.raises(
+        tool.F4Error,
+        match="prepared_authorization_history_repair_prestate_invalid",
+    ):
+        tool._repair_prepared_authorization_history(
+            package_root,
+            tool.PREPARED_AUTHORIZATION_HISTORY_REPAIR_CONFIRMATION,
+            "N3W_T1_F4_PREPARED_HISTORY_REPAIR_NEW",
+            "f" * 64,
+            "1" * 40,
+        )
