@@ -2624,6 +2624,38 @@ def _repair_prepared_authorization_history(
             != PREPARED_AUTHORIZATION_HISTORY_REPAIR_FROM_MANIFEST_SHA256
             or transaction.get("runtime_acceptance_recovery_passed")
             is not True
+            or transaction.get("runtime_acceptance_authorization_claimed")
+            is not True
+            or transaction.get("runtime_acceptance_authorization_consumed")
+            is not True
+            or transaction.get(
+                "runtime_acceptance_authorization_replay_allowed"
+            )
+            is not False
+            or transaction.get(
+                "runtime_acceptance_last_failure_stage"
+            )
+            != "STOPPED_RUNTIME_ACCEPTANCE"
+            or transaction.get(
+                "runtime_acceptance_last_failure_error_code"
+            )
+            != "manager_mqtt_socket_count_invalid"
+            or transaction.get(
+                "runtime_acceptance_last_failure_source_head"
+            )
+            != PREPARED_AUTHORIZATION_HISTORY_REPAIR_FROM_SOURCE_HEAD
+            or transaction.get(
+                "runtime_acceptance_last_failure_manifest_sha256"
+            )
+            != PREPARED_AUTHORIZATION_HISTORY_REPAIR_FROM_MANIFEST_SHA256
+            or transaction.get(
+                "runtime_acceptance_last_failure_rollback_proven"
+            )
+            is not True
+            or transaction.get(
+                "runtime_acceptance_last_failure_rollback_error_count"
+            )
+            != 0
             or transaction.get(
                 "runtime_acceptance_recovery_authorization_claimed"
             )
