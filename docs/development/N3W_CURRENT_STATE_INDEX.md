@@ -1,3 +1,13 @@
+## 2026-10-16 — F4 exact recovery staging gate prepared
+
+- Current gate:
+  `N3W_T1_F4_STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_EXACT_ARTIFACT_STAGING_PREEXECUTION_20261016_01`.
+- Current substage: `AWAITING_STAGE_A`.
+- Stage A is read-only and revalidates local exact artifact + fresh remote staging preconditions.
+- Stage B is bounded to dedicated T1 staging paths only and remains unexecuted until Stage A PASS is reviewed.
+- Recovery command and recovery authorization remain outside the current substage.
+- Product runtime, persistence, certificate lifecycle, reboot and board access remain off.
+
 ## 2026-10-16 — F4 recovery live read-only preexecution PASS
 
 - Real T1 transaction remains `STOPPED_RUNTIME_ACCEPTANCE` with transaction SHA-256
