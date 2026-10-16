@@ -73,3 +73,37 @@ def test_verifier_is_read_only_for_reboot_control() -> None:
     assert '("shutdown"' not in source
     assert "write_text(" not in source
     assert "os.replace(" not in source
+
+
+
+def test_inactive_certificate_oneshot_must_have_success_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    monkeypatch.setattr(
+        tool,
+        "_run",
+        lambda *_args, **_kwargs: (
+            "ActiveState=inactive\n"
+            "Result=exit-code\n"
+            "ExecMainStatus=2\n"
+        ),
+    )
+    with pytest.raises(tool.VerifyError, match="oneshot_not_successful"):
+        tool._inactive_oneshot_success("certificate.service")
+
+
+def test_inactive_certificate_oneshot_success_is_accepted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    monkeypatch.setattr(
+        tool,
+        "_run",
+        lambda *_args, **_kwargs: (
+            "ActiveState=inactive\n"
+            "Result=success\n"
+            "ExecMainStatus=0\n"
+        ),
+    )
+    tool._inactive_oneshot_success("certificate.service")
