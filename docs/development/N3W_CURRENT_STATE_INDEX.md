@@ -1,3 +1,17 @@
+## 2026-10-16 — F4 timer enablement successor read-only closure PASS
+
+- Gate `N3W_T1_F4_CERTIFICATE_TIMER_ENABLEMENT_SUCCESSOR_POSTEXECUTION_READONLY_CLOSURE_20261016_01` is CLOSED_PASS.
+- Real T1 remains transaction stage `PERSISTENCE_ENABLED` with `pre_reboot_ready=true`.
+- Certificate phase eligibility passed.
+- Transaction, runtime-acceptance report, and certificate-status hashes were unchanged.
+- Runtime and certificate identities remained unchanged.
+- Broker and Services persistence remain enabled.
+- Certificate timer remains enabled but inactive; certificate lifecycle service remains inactive.
+- Broker, Manager, and Home Assistant remain running.
+- No live mutation, reboot, or board access occurred.
+- Next one gate: `N3W_T1_F4_REBOOT_SUCCESSOR_LIVE_20261016_01`.
+- Reboot requires a fresh explicit one-shot authorization.
+
 ## 2026-10-16 — F4 certificate timer enablement successor PASS
 
 - Gate `N3W_T1_F4_CERTIFICATE_TIMER_ENABLEMENT_SUCCESSOR_LIVE_20261016_01` is CLOSED_PASS.
