@@ -1,3 +1,24 @@
+## 2026-10-16 — Formal handoff ready for successor activation
+
+~~~text
+HANDOFF_FILE=docs/development/N3W_T1_F4_RUNTIME_ACTIVATION_SUCCESSOR_LIVE_PREEXECUTION_NEW_CHAT_HANDOFF_V1.0_20261016.md
+HANDOFF_PR=588
+HANDOFF_TEMPLATE_VERSION=1.3
+PROJECT_WORKING_CONTEXT_VERSION=1.1
+HANDOFF_READY_FOR_NEW_CHAT=true
+
+NEXT_ONE_GATE=N3W_T1_F4_RUNTIME_ACTIVATION_SUCCESSOR_LIVE_20261016_01
+SUCCESSOR_ACTIVATION_AUTHORIZATION_GRANTED=false
+
+REPEAT_NULL_HISTORY_SOURCE_REPAIR=false
+REPEAT_SOURCE_CI=false
+REPEAT_EXACT_ARTIFACT_BINDING_OR_STAGING=false
+REPEAT_NULL_HISTORY_LIVE_REPAIR=false
+REPEAT_POSTEXECUTION_READONLY_CLOSURE=false
+~~~
+
+The handoff is the current stage delta only. New chat should fresh-rebind the repository/source/handoff pointers, then start directly from the successor activation gate. Previously verified null-history closure work is not to be replayed.
+
 ## 2026-10-16 — New-chat freeze before successor runtime activation
 
 ~~~text
