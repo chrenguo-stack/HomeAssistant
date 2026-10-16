@@ -92,6 +92,7 @@ def test_runtime_guard_accepts_legitimate_status_evolution(
     monkeypatch.setattr(tool, "CA_CERT", ca)
     monkeypatch.setattr(tool, "SYSTEM_CA", system_ca)
     monkeypatch.setattr(tool, "_json", read_json_test_fixture)
+    monkeypatch.setattr(tool, "_f4_control_contract", lambda _transaction: None)
     monkeypatch.setattr(
         tool,
         "_certificate_fingerprint",
@@ -178,6 +179,7 @@ def test_runtime_guard_rejects_status_certificate_mismatch(
     monkeypatch.setattr(tool, "CA_CERT", ca)
     monkeypatch.setattr(tool, "SYSTEM_CA", system_ca)
     monkeypatch.setattr(tool, "_json", read_json_test_fixture)
+    monkeypatch.setattr(tool, "_f4_control_contract", lambda _transaction: None)
     monkeypatch.setattr(
         tool,
         "_certificate_fingerprint",
@@ -256,6 +258,7 @@ def test_two_real_lifecycle_checks_remain_runtime_guard_eligible(
     monkeypatch.setattr(guard, "CA_CERT", material["ca_cert"])
     monkeypatch.setattr(guard, "SYSTEM_CA", material["ca_cert"])
     monkeypatch.setattr(guard, "_json", read_json_test_fixture)
+    monkeypatch.setattr(guard, "_f4_control_contract", lambda _transaction: None)
     monkeypatch.setattr(
         guard,
         "_certificate_fingerprint",
@@ -275,3 +278,13 @@ def test_two_real_lifecycle_checks_remain_runtime_guard_eligible(
         hashes.append(report["runtime_status_sha256"])
 
     assert hashes[0] != hashes[1]
+
+
+
+def test_production_guard_preserves_full_f4_control_contract() -> None:
+    source = TOOL.read_text(encoding="utf-8")
+    assert "module._provision_verify()" in source
+    assert "module._validate_transaction_binding(verified)" in source
+    assert "module._validate_factory_binding(verified)" in source
+    assert "module._verify_installed_material(verified_transaction)" in source
+    assert "module._runtime_activity()" in source
