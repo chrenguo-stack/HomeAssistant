@@ -125,14 +125,7 @@ mkdir "$ROOT/package"
 tar -xf "$ROOT/artifact/n3w-t1-f4-reboot-successor-control.tar" -C "$ROOT/package"
 test "$(shasum -a 256 "$ROOT/package/reboot-successor-control/reboot-successor-manifest.json" | awk '{print $1}')" = bab1f7f1a4834d4f85bd01ae05d4569d32798e6661c72caf0d2636cfbaecbe70
 test "$(shasum -a 256 "$ROOT/package/reboot-successor-control/tools/n3w_t1_f4_reboot_authority.py" | awk '{print $1}')" = c4a738656e98b5f8bae27a34aba845c002287b253f99f54cf459f8d292f7d9ec
-tar -C "$ROOT/package" -cf "$ROOT/preauth-package.tar" reboot-successor-control
-scp "$ROOT/preauth-package.tar" "$T1_SSH:/tmp/n3w-f4-ledger-finalizer-preauth.tar"
-ssh "$T1_SSH" 'set -euo pipefail
-D=/tmp/n3w-f4-ledger-finalizer-preauth
-rm -rf "$D"
-mkdir -m 700 "$D"
-tar -xf /tmp/n3w-f4-ledger-finalizer-preauth.tar -C "$D"
-sudo python3 - "$D/reboot-successor-control" <<'"'"'PY'"'"'
+cat > "$ROOT/preauth.py" <<'PY'
 import importlib.util
 import json
 import sys
@@ -202,7 +195,10 @@ result = {
     "board_access": False,
 }
 print(json.dumps(result, sort_keys=True, separators=(",", ":")))
-PY'
+PY
+tar -C "$ROOT/package" -cf "$ROOT/preauth-package.tar" reboot-successor-control
+scp "$ROOT/preauth-package.tar" "$ROOT/preauth.py" "$T1_SSH:/tmp/"
+ssh "$T1_SSH" 'set -euo pipefail; D=/tmp/n3w-f4-ledger-finalizer-preauth; rm -rf "$D"; mkdir -m 700 "$D"; tar -xf /tmp/preauth-package.tar -C "$D"; sudo python3 /tmp/preauth.py "$D/reboot-successor-control"'
 ```
 
 ## 5. Expected result and STOP boundary
