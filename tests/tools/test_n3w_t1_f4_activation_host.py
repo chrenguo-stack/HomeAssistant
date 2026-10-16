@@ -3301,10 +3301,10 @@ def test_prepared_authorization_history_repair_normalizes_null_and_stays_prepare
             failed_acceptance
         ),
         "runtime_acceptance_last_failure_source_head": (
-            tool.PREPARED_AUTHORIZATION_HISTORY_REPAIR_FROM_SOURCE_HEAD
+            tool.RUNTIME_ACCEPTANCE_RECOVERY_FROM_SOURCE_HEAD
         ),
         "runtime_acceptance_last_failure_manifest_sha256": (
-            tool.PREPARED_AUTHORIZATION_HISTORY_REPAIR_FROM_MANIFEST_SHA256
+            tool.RUNTIME_ACCEPTANCE_RECOVERY_FROM_MANIFEST_SHA256
         ),
         "runtime_acceptance_last_failure_rollback_proven": True,
         "runtime_acceptance_last_failure_rollback_error_count": 0,
