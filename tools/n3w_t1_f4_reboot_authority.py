@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import importlib.machinery
 import importlib.util
@@ -11,7 +12,9 @@ import re
 import stat
 import subprocess
 import sys
-from collections.abc import Sequence
+import tempfile
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
 from types import ModuleType
 
@@ -21,12 +24,15 @@ PACKAGE_SCHEMA = "gh.n3w-t1-f4-reboot-successor-control-package/1"
 MANIFEST_NAME = "reboot-successor-manifest.json"
 
 STATE_ROOT = Path("/var/lib/n3w-t1-provisioning")
+LOCK_PATH = STATE_ROOT / ".f4-reboot-successor-authority.lock"
 INSTALL_CLAIM_PATH = STATE_ROOT / "F4_REBOOT_SUCCESSOR_INSTALL_AUTHORIZATION.json"
 REBOOT_CLAIM_PATH = STATE_ROOT / "F4_REBOOT_AUTHORIZATION.json"
 F4_TRANSACTION = STATE_ROOT / "F4_ACTIVATION_TRANSACTION.json"
 
 F4_HOST = Path("/usr/local/sbin/n3w-t1-f4-activation")
 RUNTIME_GUARD = Path("/usr/local/sbin/n3w-t1-f4-certificate-runtime-guard")
+REBOOT_AUTHORITY = Path("/usr/local/sbin/n3w-t1-f4-reboot-authority")
+REBOOT_VERIFY = Path("/usr/local/sbin/n3w-t1-f4-reboot-verify")
 CONTROL_MANIFEST = Path(
     "/usr/local/share/n3w-t1-f4-reboot-successor/reboot-successor-manifest.json"
 )
@@ -38,6 +44,8 @@ BOOT_ID = Path("/proc/sys/kernel/random/boot_id")
 
 CONTROL_TARGETS = {
     "tools/n3w_t1_f4_certificate_runtime_guard.py": (RUNTIME_GUARD, 0o755),
+    "tools/n3w_t1_f4_reboot_authority.py": (REBOOT_AUTHORITY, 0o755),
+    "tools/n3w_t1_f4_reboot_verify.py": (REBOOT_VERIFY, 0o755),
     (
         "infra/n3w-t1/f4/reboot-successor/"
         "n3wfc4-broker-certificate-lifecycle.service.d/"
@@ -50,6 +58,95 @@ EXPECTED_SERVICES = {"broker", "manager", "homeassistant"}
 
 class AuthorityError(RuntimeError):
     pass
+
+
+@contextmanager
+def _exclusive() -> Iterator[None]:
+    if STATE_ROOT.is_symlink() or not STATE_ROOT.is_dir():
+        raise AuthorityError("state_root_invalid")
+    metadata = STATE_ROOT.stat()
+    if (
+        metadata.st_uid != 0
+        or metadata.st_gid != 0
+        or stat.S_IMODE(metadata.st_mode) != 0o700
+    ):
+        raise AuthorityError("state_root_metadata_invalid")
+    descriptor = os.open(LOCK_PATH, os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        os.fchmod(descriptor, 0o600)
+        os.fchown(descriptor, 0, 0)
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(descriptor)
+
+
+def _atomic_write_record(
+    path: Path,
+    document: dict[str, object],
+) -> None:
+    if path.parent.is_symlink() or not path.parent.is_dir():
+        raise AuthorityError("record_parent_invalid")
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.",
+        dir=str(path.parent),
+    )
+    temporary = Path(temporary_name)
+    try:
+        os.fchmod(descriptor, 0o600)
+        os.fchown(descriptor, 0, 0)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            stream.write(
+                json.dumps(document, sort_keys=True, separators=(",", ":"))
+                + "\n"
+            )
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+        directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _install_exact_file(source: Path, target: Path, mode: int) -> None:
+    if source.is_symlink() or not source.is_file():
+        raise AuthorityError(f"install_source_invalid:{source.name}")
+    target.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+    if target.parent.is_symlink() or not target.parent.is_dir():
+        raise AuthorityError(f"install_parent_invalid:{target.name}")
+    if target.exists() or target.is_symlink():
+        raise AuthorityError(f"install_target_preexisting:{target.name}")
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{target.name}.",
+        dir=str(target.parent),
+    )
+    temporary = Path(temporary_name)
+    try:
+        os.fchmod(descriptor, mode)
+        os.fchown(descriptor, 0, 0)
+        with source.open("rb") as input_stream, os.fdopen(
+            descriptor,
+            "wb",
+        ) as output_stream:
+            while True:
+                block = input_stream.read(1024 * 1024)
+                if not block:
+                    break
+                output_stream.write(block)
+            output_stream.flush()
+            os.fsync(output_stream.fileno())
+        os.replace(temporary, target)
+        directory = os.open(target.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def _sha256(path: Path) -> str:
@@ -351,16 +448,51 @@ def install_claim_payload(
     }
 
 
+def claim_install(
+    *,
+    package_root: Path,
+    source_head: str,
+    manifest_sha256: str,
+    authorization_id: str,
+    expected_transaction_sha256: str,
+) -> dict[str, object]:
+    with _exclusive():
+        payload = install_claim_payload(
+            package_root=package_root,
+            source_head=source_head,
+            manifest_sha256=manifest_sha256,
+            authorization_id=authorization_id,
+            expected_transaction_sha256=expected_transaction_sha256,
+        )
+        _atomic_write_record(INSTALL_CLAIM_PATH, payload)
+        persisted = _record(INSTALL_CLAIM_PATH, 0o600)
+        if persisted != payload:
+            raise AuthorityError("install_claim_persistence_mismatch")
+        return {
+            "schema": SCHEMA_INSTALL,
+            "status": "PASS",
+            "state": "INSTALL_CLAIMED",
+            "control_repair_authorization_claimed": True,
+            "control_repair_authorization_consumed": True,
+            "control_repair_authorization_replay_allowed": False,
+            "claim_sha256": _sha256(INSTALL_CLAIM_PATH),
+            "live_runtime_mutation": False,
+            "reboot_executed": False,
+            "board_access": False,
+        }
+
+
 def _verify_installed_control(
     *,
     source_head: str,
     manifest_sha256: str,
     expected_transaction_sha256: str,
+    allowed_stages: frozenset[str] = frozenset({"CONTROL_READY"}),
 ) -> tuple[ModuleType, dict[str, object], dict[str, object]]:
     claim = _record(INSTALL_CLAIM_PATH, 0o600)
     if (
         claim.get("schema") != SCHEMA_INSTALL
-        or claim.get("stage") != "INSTALL_CLAIMED"
+        or claim.get("stage") not in allowed_stages
         or claim.get("source_head") != source_head
         or claim.get("control_manifest_sha256") != manifest_sha256
         or claim.get("f4_transaction_sha256") != expected_transaction_sha256
@@ -427,6 +559,95 @@ def _verify_installed_control(
     return module, transaction, claim
 
 
+def install_control(
+    *,
+    package_root: Path,
+    source_head: str,
+    manifest_sha256: str,
+    expected_transaction_sha256: str,
+) -> dict[str, object]:
+    with _exclusive():
+        claim = _record(INSTALL_CLAIM_PATH, 0o600)
+        if (
+            claim.get("schema") != SCHEMA_INSTALL
+            or claim.get("stage") != "INSTALL_CLAIMED"
+            or claim.get("source_head") != source_head
+            or claim.get("control_manifest_sha256") != manifest_sha256
+            or claim.get("f4_transaction_sha256")
+            != expected_transaction_sha256
+            or claim.get("control_repair_authorization_claimed") is not True
+            or claim.get("control_repair_authorization_consumed") is not True
+            or claim.get("control_repair_authorization_replay_allowed") is not False
+        ):
+            raise AuthorityError("install_control_prestate_invalid")
+        package = _package(
+            package_root,
+            source_head=source_head,
+            manifest_sha256=manifest_sha256,
+        )
+        module, transaction = _base_pre_reboot(expected_transaction_sha256)
+        if (
+            _canonical_sha(module._runtime_container_snapshot())
+            != claim.get("pre_runtime_snapshot_sha256")
+            or _canonical_sha(module._certificate_identity_snapshot())
+            != claim.get("pre_certificate_snapshot_sha256")
+        ):
+            raise AuthorityError("install_control_prestate_drift")
+        for _relative, (target, _mode) in CONTROL_TARGETS.items():
+            if target.exists() or target.is_symlink():
+                raise AuthorityError(f"install_target_preexisting:{target.name}")
+        if CONTROL_MANIFEST.exists() or CONTROL_MANIFEST.is_symlink():
+            raise AuthorityError("installed_manifest_preexisting")
+        applying = dict(claim)
+        applying.update(
+            {
+                "stage": "CONTROL_APPLYING",
+                "installation_apply_started": True,
+            }
+        )
+        _atomic_write_record(INSTALL_CLAIM_PATH, applying)
+
+        for relative, (target, mode) in CONTROL_TARGETS.items():
+            _install_exact_file(
+                package["root"] / relative,
+                target,
+                mode,
+            )
+        _install_exact_file(
+            package["root"] / MANIFEST_NAME,
+            CONTROL_MANIFEST,
+            0o644,
+        )
+        _run(("systemctl", "daemon-reload"), timeout=30)
+
+        _verify_installed_control(
+            source_head=source_head,
+            manifest_sha256=manifest_sha256,
+            expected_transaction_sha256=expected_transaction_sha256,
+            allowed_stages=frozenset({"CONTROL_APPLYING"}),
+        )
+        ready = _record(INSTALL_CLAIM_PATH, 0o600)
+        ready.update(
+            {
+                "stage": "CONTROL_READY",
+                "installation_verified": True,
+            }
+        )
+        _atomic_write_record(INSTALL_CLAIM_PATH, ready)
+        return {
+            "schema": SCHEMA_INSTALL,
+            "status": "PASS",
+            "state": "CONTROL_READY",
+            "installation_verified": True,
+            "f4_transaction_unchanged": True,
+            "runtime_identity_unchanged": True,
+            "certificate_identity_unchanged": True,
+            "live_runtime_mutation": True,
+            "reboot_executed": False,
+            "board_access": False,
+        }
+
+
 def verify_install(
     *,
     source_head: str,
@@ -437,6 +658,7 @@ def verify_install(
         source_head=source_head,
         manifest_sha256=manifest_sha256,
         expected_transaction_sha256=expected_transaction_sha256,
+        allowed_stages=frozenset({"CONTROL_READY"}),
     )
     return {
         "schema": SCHEMA_INSTALL,
@@ -465,6 +687,7 @@ def reboot_claim_payload(
         source_head=source_head,
         manifest_sha256=manifest_sha256,
         expected_transaction_sha256=expected_transaction_sha256,
+        allowed_stages=frozenset({"CONTROL_READY"}),
     )
     install_auth = install_claim.get("control_repair_authorization_id")
     additional = {install_auth} if isinstance(install_auth, str) else set()
@@ -489,6 +712,38 @@ def reboot_claim_payload(
     }
 
 
+def claim_reboot(
+    *,
+    source_head: str,
+    manifest_sha256: str,
+    authorization_id: str,
+    expected_transaction_sha256: str,
+) -> dict[str, object]:
+    with _exclusive():
+        payload = reboot_claim_payload(
+            source_head=source_head,
+            manifest_sha256=manifest_sha256,
+            authorization_id=authorization_id,
+            expected_transaction_sha256=expected_transaction_sha256,
+        )
+        _atomic_write_record(REBOOT_CLAIM_PATH, payload)
+        persisted = _record(REBOOT_CLAIM_PATH, 0o600)
+        if persisted != payload:
+            raise AuthorityError("reboot_claim_persistence_mismatch")
+        return {
+            "schema": SCHEMA_REBOOT,
+            "status": "PASS",
+            "state": "REBOOT_PENDING",
+            "reboot_authorization_claimed": True,
+            "reboot_authorization_consumed": True,
+            "reboot_authorization_replay_allowed": False,
+            "reboot_acceptance_passed": False,
+            "claim_sha256": _sha256(REBOOT_CLAIM_PATH),
+            "host_reboot_actuation_required": True,
+            "board_access": False,
+        }
+
+
 def verify_reboot_claim(
     *,
     source_head: str,
@@ -500,6 +755,7 @@ def verify_reboot_claim(
         source_head=source_head,
         manifest_sha256=manifest_sha256,
         expected_transaction_sha256=expected_transaction_sha256,
+        allowed_stages=frozenset({"CONTROL_READY"}),
     )
     if (
         claim.get("schema") != SCHEMA_REBOOT
@@ -538,15 +794,19 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="command", required=True)
 
-    install = sub.add_parser("install-claim-payload")
+    install = sub.add_parser("claim-install")
     install.add_argument("--package-root", type=Path, required=True)
     install.add_argument("--authorization-id", required=True)
     _common(install)
 
+    apply_control = sub.add_parser("install-control")
+    apply_control.add_argument("--package-root", type=Path, required=True)
+    _common(apply_control)
+
     verify_install_parser = sub.add_parser("verify-install")
     _common(verify_install_parser)
 
-    reboot = sub.add_parser("reboot-claim-payload")
+    reboot = sub.add_parser("claim-reboot")
     reboot.add_argument("--authorization-id", required=True)
     _common(reboot)
 
@@ -558,12 +818,19 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
-        if args.command == "install-claim-payload":
-            document = install_claim_payload(
+        if args.command == "claim-install":
+            document = claim_install(
                 package_root=args.package_root,
                 source_head=args.source_head,
                 manifest_sha256=args.manifest_sha256,
                 authorization_id=args.authorization_id,
+                expected_transaction_sha256=args.expected_transaction_sha256,
+            )
+        elif args.command == "install-control":
+            document = install_control(
+                package_root=args.package_root,
+                source_head=args.source_head,
+                manifest_sha256=args.manifest_sha256,
                 expected_transaction_sha256=args.expected_transaction_sha256,
             )
         elif args.command == "verify-install":
@@ -572,8 +839,8 @@ def main(argv: list[str] | None = None) -> int:
                 manifest_sha256=args.manifest_sha256,
                 expected_transaction_sha256=args.expected_transaction_sha256,
             )
-        elif args.command == "reboot-claim-payload":
-            document = reboot_claim_payload(
+        elif args.command == "claim-reboot":
+            document = claim_reboot(
                 source_head=args.source_head,
                 manifest_sha256=args.manifest_sha256,
                 authorization_id=args.authorization_id,
