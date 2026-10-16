@@ -1,3 +1,13 @@
+## 2026-10-17 — F4 clean consolidation PR #608 created
+
+- Draft PR #608 targets `main` from `integrate/n3w-t1-f4-stack-consolidation-20261017`.
+- Head is exact clean candidate `6b9d311c4055230fd758abe20b40d7d545b04d81`; 2 commits, 70 changed files.
+- GitHub reports mergeable=true; merge remains unauthorized.
+- Candidate CI is 13/14 PASS after the maximum three polls.
+- Remaining run: N3W T1 F4 activation source CI, run `38935594970`.
+- STOP until the final CI completes; then resume the same gate for focused tree-equivalence/main-preservation review.
+- Authority: `docs/development/N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_DRAFT_PR_AND_CI_PROGRESS_20261017.md`.
+
 ## 2026-10-17 — F4 clean consolidation candidate constructed
 
 - Candidate branch: `integrate/n3w-t1-f4-stack-consolidation-20261017`.
