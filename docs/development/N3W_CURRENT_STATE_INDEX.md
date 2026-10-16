@@ -1,3 +1,11 @@
+## 2026-10-16 — F4 reboot successor install preauth STOP / runtime snapshot drift
+
+- Read-only gate `N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_READONLY_PREAUTH_20261016_01` stopped at `PREAUTH_FAIL=runtime_snapshot_before`.
+- No artifact staging, authorization claim, live mutation, reboot or board access occurred.
+- The failed comparison is the canonical Broker/Manager/Home Assistant container identity snapshot (`Id` + `StartedAt`) against the earlier PRE_REBOOT_READY baseline.
+- A changed snapshot is not by itself a product failure; current runtime health and the changed service identity must be classified first.
+- Next route: `N3W_T1_F4_REBOOT_SUCCESSOR_RUNTIME_SNAPSHOT_DRIFT_READONLY_FORENSIC_20261016_01`.
+
 ## 2026-10-16 — F4 reboot successor control-install read-only preauth ready
 
 - Next gate is `N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_READONLY_PREAUTH_20261016_01`.
