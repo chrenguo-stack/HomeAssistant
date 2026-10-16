@@ -4,11 +4,12 @@
 PRE_REBOOT_READY=true
 REBOOT_SOURCE_OWNER_PRESENT=false
 REBOOT_AUTHORIZATION_DURABLE_CLAIM_PRESENT=false
+CERTIFICATE_STATUS_RUNTIME_EVOLUTION_GUARD_READY=false
 RAW_SYSTEMCTL_REBOOT_FORBIDDEN=true
 LIVE_REBOOT_AUTHORIZATION_READY=false
 ~~~
 
-Guard: do not reboot the fresh F4 T1 from an ad-hoc shell. The reboot gate must first gain repository-owned one-shot authorization claim/consumption and post-reboot recovery verification. The consumed activation/runtime/persistence/certificate authorizations must not be reused.
+Guard: do not reboot the fresh F4 T1 from an ad-hoc shell. The reboot gate must first gain repository-owned one-shot authorization claim/consumption and post-reboot recovery verification. Also do not accept the current certificate eligibility hash rule as production-complete: lifecycle status legitimately changes on each scheduled check, so repeated lifecycle execution must remain authorized without accepting arbitrary status tamper. The consumed activation/runtime/persistence/certificate authorizations must not be reused.
 
 ### 2026-10-16 KF-121 pre-reboot readiness postexecution closure
 
