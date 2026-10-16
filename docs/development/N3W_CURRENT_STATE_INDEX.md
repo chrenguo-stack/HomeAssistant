@@ -1,3 +1,13 @@
+## 2026-10-16 — Post-recovery history blocker
+
+- Recovery postexecution read-only verification PASS; real T1 remains `PREPARED`.
+- Transaction SHA-256 remains `bd1e69c2bce2291e835e8bd341434ad889fbdae8630d9bf897a7fdb27dade1ad`.
+- Live evidence: `runtime_acceptance_authorization_history=null`.
+- Current launcher requires history fields to be lists, so successor activation would fail before authorization evaluation.
+- Successor activation and successor runtime acceptance are blocked.
+- Next gate: `N3W_T1_F4_PREPARED_AUTHORIZATION_HISTORY_NULL_SOURCE_REPAIR_20261016_01`.
+- No live mutation is authorized by this discovery.
+
 ## 2026-10-16 — F4 stopped-acceptance recovery reached PREPARED
 
 - Recovery live execution is CLOSED_PASS.
