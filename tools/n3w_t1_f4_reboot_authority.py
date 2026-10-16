@@ -27,8 +27,6 @@ F4_TRANSACTION = STATE_ROOT / "F4_ACTIVATION_TRANSACTION.json"
 
 F4_HOST = Path("/usr/local/sbin/n3w-t1-f4-activation")
 RUNTIME_GUARD = Path("/usr/local/sbin/n3w-t1-f4-certificate-runtime-guard")
-REBOOT_AUTHORITY = Path("/usr/local/sbin/n3w-t1-f4-reboot-authority")
-REBOOT_VERIFY = Path("/usr/local/sbin/n3w-t1-f4-reboot-verify")
 CONTROL_MANIFEST = Path(
     "/usr/local/share/n3w-t1-f4-reboot-successor/reboot-successor-manifest.json"
 )
@@ -40,8 +38,6 @@ BOOT_ID = Path("/proc/sys/kernel/random/boot_id")
 
 CONTROL_TARGETS = {
     "tools/n3w_t1_f4_certificate_runtime_guard.py": (RUNTIME_GUARD, 0o755),
-    "tools/n3w_t1_f4_reboot_authority.py": (REBOOT_AUTHORITY, 0o755),
-    "tools/n3w_t1_f4_reboot_verify.py": (REBOOT_VERIFY, 0o755),
     (
         "infra/n3w-t1/f4/reboot-successor/"
         "n3wfc4-broker-certificate-lifecycle.service.d/"
