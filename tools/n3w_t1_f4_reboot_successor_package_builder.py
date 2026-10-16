@@ -11,6 +11,8 @@ SCHEMA = "gh.n3w-t1-f4-reboot-successor-control-package/1"
 MANIFEST_NAME = "reboot-successor-manifest.json"
 FILES = (
     "tools/n3w_t1_f4_certificate_runtime_guard.py",
+    "tools/n3w_t1_f4_reboot_authority.py",
+    "tools/n3w_t1_f4_reboot_verify.py",
     (
         "infra/n3w-t1/f4/reboot-successor/"
         "n3wfc4-broker-certificate-lifecycle.service.d/"
