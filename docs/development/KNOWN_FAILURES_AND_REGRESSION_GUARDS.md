@@ -1,3 +1,17 @@
+### 2026-10-16 KF-121 successor runtime acceptance postexecution closure
+
+~~~text
+SUCCESSOR_RUNTIME_ACCEPTANCE_POSTEXECUTION_READONLY=CLOSED_PASS
+POST_STAGE=RUNTIME_ACCEPTED
+TRANSACTION_UNCHANGED=true
+RUNTIME_ACCEPTANCE_REPORT_UNCHANGED=true
+RUNTIME_ACCEPTANCE_PASSED=true
+PERSISTENCE_ENABLED=false
+CERTIFICATE_TIMER_ENABLED=false
+~~~
+
+Guard: runtime acceptance is durably closed at RUNTIME_ACCEPTED. Do not replay either consumed runtime-acceptance authorization. The next route may enable Broker/Services persistence only after a new explicit one-shot authorization; it must not enable the certificate timer, reboot, or touch boards.
+
 ### 2026-10-16 KF-121 successor runtime acceptance live closure
 
 ~~~text
