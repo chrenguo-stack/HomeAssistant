@@ -299,7 +299,7 @@ def test_runtime_guard_accepts_ca_rollover_required_status(
     guard = load_tool()
     helpers = load_lifecycle_helpers()
     lifecycle = helpers.load_tool()
-    material = helpers.make_material(tmp_path, server_days=20, ca_days=850)
+    material = helpers.make_material(tmp_path, server_days=45, ca_days=850)
     status_dir = tmp_path / "status"
     status_dir.mkdir(mode=0o700)
     status = status_dir / "status.json"
