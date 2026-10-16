@@ -1,3 +1,16 @@
+### 2026-10-16 KF-121 PREPARED authorization-history null blocker closure
+
+~~~text
+NULL_HISTORY_BLOCKER=CLOSED_PASS
+POSTEXECUTION_READONLY_RESULT=PASS
+SUCCESSOR_ACTIVATION_PATH_READABLE=true
+PROSPECTIVE_SUCCESSOR_ACTIVATION_AUTHORIZATION_COLLISION=false
+~~~
+
+The real T1 now carries a valid empty runtime-acceptance authorization history and the normal activation eligibility path reads the repaired PREPARED transaction successfully.
+
+Regression guard: do not replay the consumed history-repair authorization. Successor activation must use a new distinct one-shot authorization, and successor runtime acceptance remains a later separate gate.
+
 ### 2026-10-16 KF-121 PREPARED null-history repair result
 
 ~~~text
