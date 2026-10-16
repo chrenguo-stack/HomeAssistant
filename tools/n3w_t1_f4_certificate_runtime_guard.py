@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import re
 import ssl
 import stat
@@ -130,7 +129,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = _parser().parse_args(argv)
+    _parser().parse_args(argv)
     try:
         document = check()
     except (GuardError, OSError, ValueError) as error:
