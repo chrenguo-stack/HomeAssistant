@@ -11,9 +11,9 @@ import re
 import stat
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path, PurePosixPath
 from types import ModuleType
-from typing import Sequence
 
 SCHEMA_INSTALL = "gh.n3w-t1-f4-reboot-successor-install-authorization/1"
 SCHEMA_REBOOT = "gh.n3w-t1-f4-reboot-authorization/1"
@@ -133,8 +133,7 @@ def _run(argv: Sequence[str], timeout: float = 60.0) -> str:
         check=False,
         text=True,
         stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         timeout=timeout,
     )
     if result.returncode != 0:
