@@ -28,7 +28,7 @@ def test_exact_successor_control_package(tmp_path: Path) -> None:
 
     assert result["status"] == "PASS"
     assert result["source_head"] == "a" * 40
-    assert result["file_count"] == 2
+    assert result["file_count"] == 4
     assert result["secret_values_included"] is False
     assert result["live_runtime_mutation"] is False
     assert result["reboot_executed"] is False
