@@ -1,3 +1,43 @@
+## 2026-10-17 — F4 stack consolidation to main design CLOSED_PASS
+
+~~~text
+TASK=N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_DESIGN_20261017_01
+RESULT=CLOSED_PASS_READY_FOR_PREPARATION_GATE
+
+MAIN_BASE=b12c69be5c1d1d61887e9be4a776f575141d44c6
+PRODUCT_SOURCE_AUTHORITY=19bd98386c4828c0768f2f3936429db8c7a59adf
+IMMUTABLE_EVIDENCE_AUTHORITY=62f2a107d834b31b498e230ee68f66833580f4c5
+
+PAYLOAD_FILE_COUNT=63
+PRODUCT_SOURCE_FILE_COUNT=19
+IMMUTABLE_EVIDENCE_FILE_COUNT=44
+MUTABLE_LEDGER_FILE_COUNT=3
+
+PRODUCT_BLOB_EQUIVALENCE=PASS:19/19
+HISTORICAL_CHERRY_PICK=false
+HISTORICAL_PR_CHAIN_DIRECT_MERGE=false
+SIDE_BRANCH_SOURCE_IMPORT=false
+
+CONSOLIDATION_BRANCH_CREATED=false
+CONSOLIDATION_PR_CREATED=false
+MERGE=false
+BOARD_ACCESS=false
+T1_MUTATION=false
+
+CURRENT_STAGE=F4
+CURRENT_STOP_POINT=STACK_CONSOLIDATION_DESIGN_CLOSED_WAITING_FOR_PREPARATION_GATE
+NEXT_ONE_GATE=N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_PREPARATION_20261017_01
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+The clean-main integration design is frozen. The consolidation will be built from fresh main by exact blob overlay,
+not by replaying the historical draft PR chain. Product source is fixed to the reviewed source head; immutable
+evidence is fixed by a 63-file payload manifest; the three mutable project ledgers will be frozen immediately before
+branch construction.
+
+Authority: `docs/development/N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_DESIGN_20261017.md`.
+Payload: `docs/development/N3W_T1_F4_STACK_CONSOLIDATION_PAYLOAD_MANIFEST_20261017.json`.
+
 ## 2026-10-17 — PR #605 final/pre-merge PASS relative to base; main integration blocked on stack consolidation
 
 ~~~text
