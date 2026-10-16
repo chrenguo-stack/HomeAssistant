@@ -1,3 +1,15 @@
+## 2026-10-16 — F4 reboot successor control-install preauth R2 PASS
+
+- Gate `N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_READONLY_PREAUTH_R2_20261016_01` is CLOSED_PASS.
+- Current accepted runtime snapshot is `29183afd73d71d4e85d8481d96f062b7c099d6721b46708a49495d58a39994f0`; current boot identity is `459bba3071dd3d48b7dd0a2cb750cfa9dcb09b456236564940c8fad85f79f95d`.
+- F4 transaction, runtime-acceptance report and certificate-status hashes remain unchanged.
+- Runtime image/container, TLS, Manager stability and Home Assistant runtime contracts all passed.
+- Product listeners are exactly 1883, 8123 and 8883.
+- Successor claim files, installed control files, manifest and systemd drop-in remain absent; proposed install authorization does not collide with existing F4 authorization history.
+- No artifact staging, authorization claim, live mutation, reboot or board access occurred.
+- Next gate: `N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_LIVE_20261016_01`.
+- That gate requires a fresh explicit one-shot user authorization and still does not authorize reboot.
+
 ## 2026-10-16 — F4 reboot successor preauth R2 collector syntax stop
 
 The R2 read-only collector passed the F4 durable/runtime/TLS/Manager/Home Assistant checks and confirmed the proposed install authorization does not collide with prior authorization history. It then stopped on a non-portable awk listener-port expression. No artifact staging, authorization claim, live mutation, reboot, or board access occurred. This is a collector defect, not a proven product failure. The R2 gate remains open and must be rerun with the corrected portable listener collector.
