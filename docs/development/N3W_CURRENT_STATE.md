@@ -1,3 +1,39 @@
+## 2026-10-16 — F4 reboot successor control-install preauth R2 CLOSED_PASS
+
+~~~text
+TASK=N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_READONLY_PREAUTH_R2_20261016_01
+RESULT=CLOSED_PASS
+
+TRANSACTION_SHA256=49e7839ffe5d9e00391577a78c7c6ceb9c85a9a7cdd240ee22cc38485a3e569b
+RUNTIME_ACCEPTANCE_SHA256=c938244cda069247f3288d0cc14fbdd37dcf7c389e8a16669ea8a6c3fcecbfd4
+CERTIFICATE_STATUS_SHA256=446404d0e3725bf0e8fa9b6bd11bd67c83f16871a6e196b1cc950043ad229af4
+BOOT_ID_SHA256=459bba3071dd3d48b7dd0a2cb750cfa9dcb09b456236564940c8fad85f79f95d
+CURRENT_RUNTIME_SNAPSHOT_SHA256=29183afd73d71d4e85d8481d96f062b7c099d6721b46708a49495d58a39994f0
+
+RUNTIME_SNAPSHOT_STABLE=true
+BOOT_ID_STABLE=true
+F4_DURABLE_STATE_UNCHANGED=true
+SUCCESSOR_RESIDUE_ABSENT=true
+SUCCESSOR_DROPIN_LOADED=false
+PRODUCT_LISTENER_PORTS=1883,8123,8883
+INSTALL_AUTHORIZATION_COLLISION=false
+
+ARTIFACT_STAGING=false
+AUTHORIZATION_CLAIMED=false
+LIVE_RUNTIME_MUTATION=false
+REBOOT_EXECUTED=false
+BOARD_ACCESS=false
+
+NEXT_ONE_GATE=N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_LIVE_20261016_01
+CONTROL_INSTALL_AUTHORIZATION_GRANTED=false
+REBOOT_AUTHORIZATION_GRANTED=false
+AUTO_EXECUTE_LIVE_INSTALL=false
+~~~
+
+The corrected R2 read-only preauthorization is closed PASS. The current T1 runtime is healthy and stable, all frozen durable F4/runtime/certificate records remain exact, all successor-control residue remains absent, and the proposed install authorization is fresh. This PASS does not authorize mutation. The next gate is a separate explicit one-shot control-install authorization. Reboot remains out of scope and requires its own later authorization.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_READONLY_PREAUTH_R2_CLOSURE_20261016.md`.
+
 ## 2026-10-16 — F4 reboot successor preauth R2 collector syntax stop
 
 The R2 read-only collector passed the F4 durable/runtime/TLS/Manager/Home Assistant checks and confirmed the proposed install authorization does not collide with prior authorization history. It then stopped on a non-portable awk listener-port expression. No artifact staging, authorization claim, live mutation, reboot, or board access occurred. This is a collector defect, not a proven product failure. The R2 gate remains open and must be rerun with the corrected portable listener collector.
