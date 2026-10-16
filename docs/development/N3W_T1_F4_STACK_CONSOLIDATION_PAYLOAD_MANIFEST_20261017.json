@@ -1,0 +1,595 @@
+{
+  "schema": "n3w-t1-f4-stack-consolidation-payload-manifest/1",
+  "generated_date": "2026-10-17",
+  "repository": "chrenguo-stack/HomeAssistant",
+  "main_base_sha": "b12c69be5c1d1d61887e9be4a776f575141d44c6",
+  "product_source_authority_sha": "19bd98386c4828c0768f2f3936429db8c7a59adf",
+  "product_source_authority_tree": "f5b66faf690c88d655e01ffc0a5d5ef122b589af",
+  "immutable_evidence_authority_sha": "62f2a107d834b31b498e230ee68f66833580f4c5",
+  "immutable_evidence_authority_tree": "1a2cb562a75d295e3e3296ba3ea5cfbb0dd1ca4a",
+  "payload_file_count": 63,
+  "product_source_file_count": 19,
+  "immutable_evidence_file_count": 44,
+  "mutable_ledgers_frozen_later": [
+    "docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md",
+    "docs/development/N3W_CURRENT_STATE.md",
+    "docs/development/N3W_CURRENT_STATE_INDEX.md"
+  ],
+  "policy": {
+    "apply_exact_blobs_onto_fresh_main": true,
+    "cherry_pick_historical_commits": false,
+    "merge_historical_stack_prs_directly": false,
+    "preserve_side_prs_as_historical_evidence": true,
+    "product_blob_equivalence_required": true,
+    "no_unlisted_payload_paths": true
+  },
+  "entries": [
+    {
+      "path": ".github/workflows/n3w-t1-f4-activation-source-ci.yml",
+      "status": "added",
+      "category": "product_source",
+      "mode": "100644",
+      "blob_sha": "dffbe732513c2e1df961ed280506c52bf88867e6",
+      "size": 7245,
+      "source_review_blob_sha": "dffbe732513c2e1df961ed280506c52bf88867e6"
+    },
+    {
+      "path": ".github/workflows/n3w-t1-f4-exact-control-package.yml",
+      "status": "added",
+      "category": "product_source",
+      "mode": "100644",
+      "blob_sha": "320b8c4408baff329ec6edd13b740a2e3a890745",
+      "size": 6853,
+      "source_review_blob_sha": "320b8c4408baff329ec6edd13b740a2e3a890745"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_CERTIFICATE_FIRST_AUDIT_SUCCESSOR_LIVE_CLOSURE_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "75b6ab9f1248ca52d23dbe6cdb45bb048a4d90ab",
+      "size": 1952,
+      "source_review_blob_sha": "75b6ab9f1248ca52d23dbe6cdb45bb048a4d90ab"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_CERTIFICATE_FIRST_AUDIT_SUCCESSOR_POSTEXECUTION_READONLY_CLOSURE_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "cead84619ad5a7a1d29fa48643c145d80f7d9fe6",
+      "size": 1811,
+      "source_review_blob_sha": "cead84619ad5a7a1d29fa48643c145d80f7d9fe6"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_CERTIFICATE_TIMER_ENABLEMENT_SUCCESSOR_LIVE_CLOSURE_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "309f86086efa68008fb3d4f1cd95c19e37a625e8",
+      "size": 1747,
+      "source_review_blob_sha": "309f86086efa68008fb3d4f1cd95c19e37a625e8"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_CERTIFICATE_TIMER_ENABLEMENT_SUCCESSOR_POSTEXECUTION_READONLY_CLOSURE_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "4f9a214bef68fb5866b245106dee16df2d982728",
+      "size": 1622,
+      "source_review_blob_sha": "4f9a214bef68fb5866b245106dee16df2d982728"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_FACTORY_ACCEPTANCE_AND_ACTIVATION_SOURCE_REPAIR_INDEPENDENT_REVIEW_20261015.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "07d89e6370b78e50f97403c5ac567edece136479",
+      "size": 6507,
+      "source_review_blob_sha": "07d89e6370b78e50f97403c5ac567edece136479"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_FACTORY_ACCEPTANCE_AND_ACTIVATION_SOURCE_REPAIR_PROGRESS_20261015.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "4552de0541872e9a485684da2217cfa7d510fcfd",
+      "size": 8168,
+      "source_review_blob_sha": "4552de0541872e9a485684da2217cfa7d510fcfd"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_PERSISTENCE_ENABLEMENT_SUCCESSOR_LIVE_CLOSURE_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "cef97adfc5ff38fdb6d522cb52cc30c4887bb195",
+      "size": 1514,
+      "source_review_blob_sha": "cef97adfc5ff38fdb6d522cb52cc30c4887bb195"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_PERSISTENCE_ENABLEMENT_SUCCESSOR_POSTEXECUTION_READONLY_CLOSURE_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "b05585c0fa69f4ac11fa8203fcd672dca6312ae3",
+      "size": 1176,
+      "source_review_blob_sha": "b05585c0fa69f4ac11fa8203fcd672dca6312ae3"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_PR605_FINAL_PREMERGE_AND_STACK_INTEGRATION_REVIEW_20261017.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "51de5bbf3d3fb3629007792a2d2f1d056ca3a3ae",
+      "size": 3574,
+      "source_review_blob_sha": null
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_PREPARED_AUTHORIZATION_HISTORY_NULL_EXACT_ARTIFACT_STAGING_CLOSURE_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "de4910b96f4d62720d7f55107dc06d925b78c589",
+      "size": 4460,
+      "source_review_blob_sha": "de4910b96f4d62720d7f55107dc06d925b78c589"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_PREPARED_AUTHORIZATION_HISTORY_NULL_EXACT_ARTIFACT_STAGING_PREEXECUTION_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "a55938249fcb8a820a92c3265867493a1e5abe9c",
+      "size": 4378,
+      "source_review_blob_sha": "a55938249fcb8a820a92c3265867493a1e5abe9c"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_PREPARED_AUTHORIZATION_HISTORY_NULL_LIVE_REPAIR_CLOSURE_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "6b965a06a9c7113d08bc8fb32b000bb17778e8b1",
+      "size": 4502,
+      "source_review_blob_sha": "6b965a06a9c7113d08bc8fb32b000bb17778e8b1"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_PREPARED_AUTHORIZATION_HISTORY_NULL_LIVE_REPAIR_EXECUTION_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "d2fd17c8f57463f5ff007d97c0305a0ae8487883",
+      "size": 3523,
+      "source_review_blob_sha": "d2fd17c8f57463f5ff007d97c0305a0ae8487883"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_PREPARED_AUTHORIZATION_HISTORY_NULL_SOURCE_CLOSURE_AND_EXACT_ARTIFACT_BINDING_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "c69abc6b0cebefc33aa7447c31c1ddf7e586cbc7",
+      "size": 6380,
+      "source_review_blob_sha": "c69abc6b0cebefc33aa7447c31c1ddf7e586cbc7"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_PREPARED_AUTHORIZATION_HISTORY_REPAIR_POSTEXECUTION_READONLY_CLOSURE_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "6ee806ee0259aa97b8c1928152062db2220bc44a",
+      "size": 4436,
+      "source_review_blob_sha": "6ee806ee0259aa97b8c1928152062db2220bc44a"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_LEDGER_FINALIZATION_ARTIFACT_AND_READONLY_PREAUTH_CLOSURE_20261017.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "49b35205c4d10987a8ce49d2bc812cb9d41706c4",
+      "size": 3498,
+      "source_review_blob_sha": null
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_LEDGER_FINALIZATION_ARTIFACT_AND_READONLY_PREAUTH_PREEXECUTION_20261017.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "857e1e5edd8661f687f35d4c341090347a9bcac1",
+      "size": 11442,
+      "source_review_blob_sha": null
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_LEDGER_FINALIZATION_LIVE_AND_TERMINAL_VERIFY_CLOSURE_20261017.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "a48a4d342ac5b05f1e9c640d01a21e263a549b1b",
+      "size": 2975,
+      "source_review_blob_sha": null
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_LEDGER_FINALIZATION_LIVE_PREEXECUTION_20261017.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "824c564df40d2a5a4c80b0ced9eade36ca334f7c",
+      "size": 3815,
+      "source_review_blob_sha": null
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_CI_TEST_FIX_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "ba6b5645dd9397aa3729d28636a6c33bd7f7039e",
+      "size": 2000,
+      "source_review_blob_sha": "ba6b5645dd9397aa3729d28636a6c33bd7f7039e"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_SOURCE_REPAIR_PROGRESS_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "9eace86201aafc158398f38b1b7f16cd4305a19a",
+      "size": 2447,
+      "source_review_blob_sha": "9eace86201aafc158398f38b1b7f16cd4305a19a"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_SOURCE_REVIEW_CLOSURE_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "97284ef341841eb59b77c6d8924feca0b9a5fd23",
+      "size": 7720,
+      "source_review_blob_sha": null
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_SOURCE_REVIEW_NEW_CHAT_HANDOFF_V1.0_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "5fdd908e1e813fd702ad42d78f5f8afa7ff5b133",
+      "size": 13840,
+      "source_review_blob_sha": null
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_SYNC_AND_FIXTURE_REPAIR_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "f52c34875cf1b0078d86819ac7a2d5de83cb3faa",
+      "size": 3024,
+      "source_review_blob_sha": "f52c34875cf1b0078d86819ac7a2d5de83cb3faa"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_SOURCE_REPAIR_PROGRESS_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "c64426cbc2762c6c4727b7fa3511bdee71d89d64",
+      "size": 2251,
+      "source_review_blob_sha": "c64426cbc2762c6c4727b7fa3511bdee71d89d64"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_SOURCE_REVIEW_REPAIR_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "9555f416a0e9d72897e2370a5f7325c90873df9c",
+      "size": 2216,
+      "source_review_blob_sha": "9555f416a0e9d72897e2370a5f7325c90873df9c"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_ARTIFACT_AND_READONLY_PREAUTH_CLOSURE_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "570d3ee5d84c2d19924825b917fa9b60aff11c91",
+      "size": 3897,
+      "source_review_blob_sha": "570d3ee5d84c2d19924825b917fa9b60aff11c91"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_POSTEXECUTION_READONLY_CLOSURE_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "d2fa9ebe53dd68e4d3a06275976a60e504fc7a29",
+      "size": 3777,
+      "source_review_blob_sha": "d2fa9ebe53dd68e4d3a06275976a60e504fc7a29"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_SOURCE_REPAIR_CLOSURE_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "d35b57d1fcfd8b28b5bd2b6fd708ef7322d4b216",
+      "size": 3237,
+      "source_review_blob_sha": "d35b57d1fcfd8b28b5bd2b6fd708ef7322d4b216"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_SOURCE_REPAIR_NEW_CHAT_HANDOFF_V1.0_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "0da6a8ae7a8052d52692411bcc8a412c5c214b3a",
+      "size": 16479,
+      "source_review_blob_sha": "0da6a8ae7a8052d52692411bcc8a412c5c214b3a"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_POSTCLAIM_FAILURE_FORENSIC_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "e40c32e1e74190698393a34723a44f74600e99e8",
+      "size": 5345,
+      "source_review_blob_sha": "e40c32e1e74190698393a34723a44f74600e99e8"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_FINAL_CLOSURE_AND_PR605_PREMERGE_REVIEW_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "d88d0b065a83bce5b98af4bbce7d070f8fc1bdca",
+      "size": 3797,
+      "source_review_blob_sha": "d88d0b065a83bce5b98af4bbce7d070f8fc1bdca"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_LIVE_AND_POSTREBOOT_ACCEPTANCE_CLOSURE_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "a7f78fb14e34c9226a1a06bf372730cb4f297c36",
+      "size": 3435,
+      "source_review_blob_sha": "a7f78fb14e34c9226a1a06bf372730cb4f297c36"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_SOURCE_PREPARATION_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "6972bb63bfc27a7c07de3d96f4b9502dce382452",
+      "size": 4248,
+      "source_review_blob_sha": "6972bb63bfc27a7c07de3d96f4b9502dce382452"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_RUNTIME_ACCEPTANCE_AND_PERSISTENCE_SOURCE_PREPARATION_20261015.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "82df45dd1baed0de198947968eeb16e715f47864",
+      "size": 15821,
+      "source_review_blob_sha": "82df45dd1baed0de198947968eeb16e715f47864"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_RUNTIME_ACCEPTANCE_AND_PERSISTENCE_SOURCE_REPAIR_PROGRESS_20261015.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "c3ed1a6181804955a68e44e894e4ca1b10e95567",
+      "size": 8469,
+      "source_review_blob_sha": "c3ed1a6181804955a68e44e894e4ca1b10e95567"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_RUNTIME_ACCEPTANCE_MANAGER_SOCKET_PROBE_SOURCE_REPAIR_PROGRESS_20261015.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "e295f2a8b20cb61499875e7267a9fd5019b8a0b8",
+      "size": 4821,
+      "source_review_blob_sha": "e295f2a8b20cb61499875e7267a9fd5019b8a0b8"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_RUNTIME_ACCEPTANCE_SUCCESSOR_LIVE_CLOSURE_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "eff58e9d13dd801bf0cb44bda532d0e95b58061d",
+      "size": 1895,
+      "source_review_blob_sha": "eff58e9d13dd801bf0cb44bda532d0e95b58061d"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_RUNTIME_ACCEPTANCE_SUCCESSOR_POSTEXECUTION_READONLY_CLOSURE_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "6cfc78dee15ca5ef09b5ae5a74275f3541a46b9e",
+      "size": 1465,
+      "source_review_blob_sha": "6cfc78dee15ca5ef09b5ae5a74275f3541a46b9e"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_RUNTIME_ACTIVATION_SUCCESSOR_LIVE_CLOSURE_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "6dd21095cbead18729f35fc16837350acedc7d25",
+      "size": 3320,
+      "source_review_blob_sha": "6dd21095cbead18729f35fc16837350acedc7d25"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_RUNTIME_ACTIVATION_SUCCESSOR_LIVE_PREEXECUTION_NEW_CHAT_HANDOFF_V1.0_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "c5dbbd06d3b395251ecea3ce5850cb5bbf8391dd",
+      "size": 26413,
+      "source_review_blob_sha": "c5dbbd06d3b395251ecea3ce5850cb5bbf8391dd"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_RUNTIME_ACTIVATION_SUCCESSOR_POSTEXECUTION_READONLY_CLOSURE_20261016.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "a7668de3e48563201cdfa7301f05c7ce887c9115",
+      "size": 1388,
+      "source_review_blob_sha": "a7668de3e48563201cdfa7301f05c7ce887c9115"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_SOURCE_DESIGN_20261015.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "0f4b02aa31ccded87b4669dfd7e08b5678d0bf99",
+      "size": 20464,
+      "source_review_blob_sha": "0f4b02aa31ccded87b4669dfd7e08b5678d0bf99"
+    },
+    {
+      "path": "docs/development/N3W_T1_F4_STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_SOURCE_REPAIR_PROGRESS_20261015.md",
+      "status": "added",
+      "category": "durable_evidence",
+      "mode": "100644",
+      "blob_sha": "a788dfa596c9a8973cb0de4d844ebc3f424712cb",
+      "size": 4488,
+      "source_review_blob_sha": "a788dfa596c9a8973cb0de4d844ebc3f424712cb"
+    },
+    {
+      "path": "infra/n3w-t1/f4/broker-certificate-lifecycle.env.example",
+      "status": "added",
+      "category": "product_source",
+      "mode": "100644",
+      "blob_sha": "21227882a83875d8eb01f14dad0489e3a09b827a",
+      "size": 587,
+      "source_review_blob_sha": "21227882a83875d8eb01f14dad0489e3a09b827a"
+    },
+    {
+      "path": "infra/n3w-t1/f4/n3wfc4-broker-activation.service",
+      "status": "added",
+      "category": "product_source",
+      "mode": "100644",
+      "blob_sha": "18893d688fafea604fcfde8718f5e185cf4f5d29",
+      "size": 951,
+      "source_review_blob_sha": "18893d688fafea604fcfde8718f5e185cf4f5d29"
+    },
+    {
+      "path": "infra/n3w-t1/f4/n3wfc4-broker-certificate-lifecycle.service",
+      "status": "added",
+      "category": "product_source",
+      "mode": "100644",
+      "blob_sha": "c96bd277d7a1934541ed72739e4f0b07da875ce0",
+      "size": 995,
+      "source_review_blob_sha": "c96bd277d7a1934541ed72739e4f0b07da875ce0"
+    },
+    {
+      "path": "infra/n3w-t1/f4/n3wfc4-services-activation.service",
+      "status": "added",
+      "category": "product_source",
+      "mode": "100644",
+      "blob_sha": "e25f4553177c009bbe019c5cd8a9ddd3b0c07e46",
+      "size": 1143,
+      "source_review_blob_sha": "e25f4553177c009bbe019c5cd8a9ddd3b0c07e46"
+    },
+    {
+      "path": "infra/n3w-t1/f4/reboot-successor/n3wfc4-broker-certificate-lifecycle.service.d/10-runtime-status-evolution.conf",
+      "status": "added",
+      "category": "product_source",
+      "mode": "100644",
+      "blob_sha": "c94463adc786e329b1d92d8160d5a63c5ef6a0ea",
+      "size": 95,
+      "source_review_blob_sha": "c94463adc786e329b1d92d8160d5a63c5ef6a0ea"
+    },
+    {
+      "path": "tests/tools/test_n3w_t1_f4_activation_host.py",
+      "status": "added",
+      "category": "product_source",
+      "mode": "100644",
+      "blob_sha": "11c5fe284a9a17873f2c46fabc438b5964a9b8e8",
+      "size": 113400,
+      "source_review_blob_sha": "11c5fe284a9a17873f2c46fabc438b5964a9b8e8"
+    },
+    {
+      "path": "tests/tools/test_n3w_t1_f4_certificate_runtime_guard.py",
+      "status": "added",
+      "category": "product_source",
+      "mode": "100644",
+      "blob_sha": "44f55ca77809541b197410bbc3559d16255557c0",
+      "size": 14576,
+      "source_review_blob_sha": "44f55ca77809541b197410bbc3559d16255557c0"
+    },
+    {
+      "path": "tests/tools/test_n3w_t1_f4_package_builder.py",
+      "status": "added",
+      "category": "product_source",
+      "mode": "100644",
+      "blob_sha": "8758a2f5e51f2c2c4bb06f17f3a749ba911ba6e5",
+      "size": 2547,
+      "source_review_blob_sha": "8758a2f5e51f2c2c4bb06f17f3a749ba911ba6e5"
+    },
+    {
+      "path": "tests/tools/test_n3w_t1_f4_reboot_authority.py",
+      "status": "added",
+      "category": "product_source",
+      "mode": "100644",
+      "blob_sha": "70450b1123f545bb8fc0a52b5a2e77d2a84f2552",
+      "size": 48622,
+      "source_review_blob_sha": "70450b1123f545bb8fc0a52b5a2e77d2a84f2552"
+    },
+    {
+      "path": "tests/tools/test_n3w_t1_f4_reboot_successor_package_builder.py",
+      "status": "added",
+      "category": "product_source",
+      "mode": "100644",
+      "blob_sha": "0806ebe5d6bcb70b12b07aa1a6c21a6fc759708e",
+      "size": 2036,
+      "source_review_blob_sha": "0806ebe5d6bcb70b12b07aa1a6c21a6fc759708e"
+    },
+    {
+      "path": "tests/tools/test_n3w_t1_f4_reboot_verify.py",
+      "status": "added",
+      "category": "product_source",
+      "mode": "100644",
+      "blob_sha": "da85e2e906b57b55f1f38b3d40f661adf69a29c5",
+      "size": 4733,
+      "source_review_blob_sha": "da85e2e906b57b55f1f38b3d40f661adf69a29c5"
+    },
+    {
+      "path": "tools/n3w_t1_f4_activation_host.py",
+      "status": "added",
+      "category": "product_source",
+      "mode": "100755",
+      "blob_sha": "2314a20b4560dc2f9ea6c3918c5f91b4f23b5ec7",
+      "size": 195883,
+      "source_review_blob_sha": "2314a20b4560dc2f9ea6c3918c5f91b4f23b5ec7"
+    },
+    {
+      "path": "tools/n3w_t1_f4_certificate_runtime_guard.py",
+      "status": "added",
+      "category": "product_source",
+      "mode": "100755",
+      "blob_sha": "681f34e9149aa39f2d6bef2075539ccc886b4fe4",
+      "size": 7711,
+      "source_review_blob_sha": "681f34e9149aa39f2d6bef2075539ccc886b4fe4"
+    },
+    {
+      "path": "tools/n3w_t1_f4_package_builder.py",
+      "status": "added",
+      "category": "product_source",
+      "mode": "100644",
+      "blob_sha": "197b88acd7d516500212ea009df480e5e42c39f5",
+      "size": 4713,
+      "source_review_blob_sha": "197b88acd7d516500212ea009df480e5e42c39f5"
+    },
+    {
+      "path": "tools/n3w_t1_f4_reboot_authority.py",
+      "status": "added",
+      "category": "product_source",
+      "mode": "100755",
+      "blob_sha": "54d6d596f3ca4f03dd7f61a2a318f7ca5aafd7d1",
+      "size": 78634,
+      "source_review_blob_sha": "54d6d596f3ca4f03dd7f61a2a318f7ca5aafd7d1"
+    },
+    {
+      "path": "tools/n3w_t1_f4_reboot_successor_package_builder.py",
+      "status": "added",
+      "category": "product_source",
+      "mode": "100644",
+      "blob_sha": "ff9266bef72c7cb4d0e4d5a2d95dadfa29799642",
+      "size": 3966,
+      "source_review_blob_sha": "ff9266bef72c7cb4d0e4d5a2d95dadfa29799642"
+    },
+    {
+      "path": "tools/n3w_t1_f4_reboot_verify.py",
+      "status": "added",
+      "category": "product_source",
+      "mode": "100755",
+      "blob_sha": "0f0f67c985197cce9b7d5abb55d0ca958e8ec5a0",
+      "size": 15707,
+      "source_review_blob_sha": "0f0f67c985197cce9b7d5abb55d0ca958e8ec5a0"
+    }
+  ]
+}

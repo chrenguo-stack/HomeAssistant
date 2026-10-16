@@ -1,3 +1,517 @@
+### 2026-10-17 KF-121 durable reboot ledger final closure
+
+~~~text
+LIVE_REBOOT_ACCEPTANCE=PASS
+POST_REBOOT_ACCEPTANCE=PASS
+DURABLE_REBOOT_CLAIM_STAGE=REBOOT_ACCEPTED
+ACCEPTED_CLAIM_SHA256=48bb962b2d979f0e6f80a36bfc4f33aff6eca77e1b3a655f5773a9c4ebb879e9
+PRE_ACCEPTANCE_CLAIM_SHA256=61429105bc05f135f3d0b8be338d74899b2466cb65fa896be4254d37a54c5028
+ACCEPTANCE_REPORT_SHA256=ecb7bca66f27a9372b23ed928407de7a2e9d6ec957fcc5a0c1e0245dce40fecf
+TERMINAL_VERIFY=PASS
+REBOOT_AUTHORIZATION=CONSUMED_NO_REPLAY
+F4_TRANSACTION_UNCHANGED=true
+INSTALLED_CONTROL_UNCHANGED=true
+BOARD_ACCESS=false
+~~~
+
+The previously open KF-121 target-local durable-ledger blocker is closed. The exact reviewed finalizer persisted the
+accepted terminal state and the independent read-only terminal verifier confirmed the accepted claim, prior pending
+hash chain, acceptance report, finalizer identity and consumed/no-replay authorization state.
+
+Status: CLOSED_PASS_DURABLE_REBOOT_ACCEPTED.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_LEDGER_FINALIZATION_LIVE_AND_TERMINAL_VERIFY_CLOSURE_20261017.md`.
+
+### 2026-10-16 KF-121 post-reboot binding focused source review closure
+
+~~~text
+SOURCE_REVIEW_RESULT=CLOSED_PASS
+SOURCE_REVIEW_HEAD=19bd98386c4828c0768f2f3936429db8c7a59adf
+SOURCE_REVIEW_CI=PASS:13/13
+POSTREBOOT_BINDING_SOURCE_BLOCKER=NONE_OPEN
+NEW_KF_ROOT_CAUSE_PROVEN=false
+REAL_T1_DURABLE_REBOOT_CLAIM=REBOOT_PENDING
+FINALIZER_EXECUTED_ON_REAL_T1=false
+T1_MUTATION=false
+~~~
+
+Focused review confirmed the repaired split: post-reboot finalization/terminal verification use immutable installed
+material binding, while pre-reboot callers retain the stronger runtime/timer/snapshot checks. The finalizer is
+self-bound to an exact staged package, performs one atomic terminal ledger replacement only after fresh acceptance,
+and preserves the consumed/no-replay reboot authority plus the pending-claim hash chain. Certificate-status evidence
+is carried through the fresh reboot report and its canonical hash.
+
+Status: SOURCE_REVIEW_CLOSED_PASS; the source blocker is closed, but target-local durable finalization is a later,
+separately authorized gate and has not run.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_SOURCE_REVIEW_CLOSURE_20261016.md`.
+
+### 2026-10-16 KF-121 sync audit corrected terminal-verifier binding and fixtures
+
+~~~text
+PRE_REPAIR_GITHUB_SYNC=PARTIAL
+CI_217=FAIL:133_PASS_2_FAIL
+TERMINAL_VERIFY_PRE_REBOOT_HELPER_REUSE=FOUND_AND_REPAIRED
+TEST_FIXTURE_FAILURES=REPAIRED
+PRODUCTION_ROOT_OWNERSHIP_CHECK_WEAKENED=false
+T1_MUTATION=false
+~~~
+
+Fresh source review during the synchronization audit corrected the earlier "fixture-only" classification. The
+accepted-state verifier still reached the pre-reboot helper, so source repair was required in addition to fixture
+repair. The terminal verifier now uses exact immutable installed-control binding only; the dedicated reboot verifier
+remains the live post-reboot acceptance authority. Tests explicitly guard against reintroducing the pre-reboot helper.
+
+Status: SOURCE_AND_FIXTURE_REPAIR_CI_PENDING.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_SYNC_AND_FIXTURE_REPAIR_20261016.md`.
+
+### 2026-10-16 KF-121 post-reboot binding CI test-fixture repair
+
+~~~text
+CI_215=FAIL
+FAILURE_CLASS=TEST_FIXTURE
+PRODUCT_SOURCE_DEFECT_PROVEN=false
+PRODUCTION_SOURCE_CHANGED=false
+TEST_FIX=COMMITTED_CI_PENDING
+T1_MUTATION=false
+~~~
+
+The failed focused tests did not establish a new product-source defect. They used stale mocks for the helper renamed
+by the post-reboot binding repair and attempted to run production root-owned-record metadata checks on non-root CI
+temporary files. The test seam has been corrected without weakening production ownership checks.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_CI_TEST_FIX_20261016.md`.
+
+### 2026-10-16 KF-121 post-reboot binding repair implemented
+
+~~~text
+A3_PRE_REBOOT_HELPER_REUSE=REPAIRED
+IMMUTABLE_BINDING_SPLIT=true
+POSTREBOOT_TIMER_ACTIVE_ALLOWED=true
+POSTREBOOT_RUNTIME_STARTED_AT_CHANGE_ALLOWED=true
+PRE_REBOOT_PROTECTIONS_PRESERVED=true
+T1_MUTATION=false
+~~~
+
+The durable-closure finalizer no longer applies pre-reboot runtime invariants to an already rebooted device. Exact
+installed material and frozen transaction hashes remain fail-closed, while post-reboot liveness/identity acceptance
+continues to come from the dedicated read-only reboot verifier.
+
+Status: SOURCE_REPAIR_IMPLEMENTED_CI_PENDING.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_SOURCE_REPAIR_PROGRESS_20261016.md`.
+
+### 2026-10-16 KF-121 durable-closure finalizer executor-binding repair
+
+~~~text
+FIRST_REPAIR_CI=PASS:13/13
+FOCUSED_REVIEW=FOUND_A2_EXECUTOR_DEPLOYMENT_BINDING_BLOCKER
+A2=REPAIRED_SOURCE_CI_PENDING
+FINALIZER_EXECUTION=EXACT_STAGED_ARTIFACT_SELF_BOUND
+INSTALLED_CONTROL_REPLACEMENT_REQUIRED=false
+T1_MUTATION=false
+~~~
+
+The first ledger-finalization implementation was logically correct but not safely deployable: it treated the new
+finalizer source as if it were already installed on the T1. The corrected design keeps the installed control exact
+and unchanged, and requires the new finalizer to prove its own exact staged-artifact identity before it may mutate
+only the reboot ledger.
+
+Status: SOURCE_REVIEW_REPAIR_CI_PENDING.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_SOURCE_REVIEW_REPAIR_20261016.md`.
+
+### 2026-10-16 KF-121 durable reboot-acceptance closure source repair implemented
+
+~~~text
+SOURCE_REPAIR=IMPLEMENTED_CI_PENDING
+LIVE_REBOOT_ACCEPTANCE_REMAINS=PASS
+REBOOT_VERIFIER_READ_ONLY=true
+FINALIZE_REBOOT_ACCEPTANCE_ADDED=true
+VERIFY_REBOOT_ACCEPTED_ADDED=true
+PENDING_CLAIM_HASH_CHAIN_PRESERVED=true
+AUTHORIZATION_REPLAY_ALLOWED=false
+T1_MUTATION=false
+~~~
+
+The open durable-closure blocker now has a source implementation. The repair separates immutable product material
+from mutable device transaction state: no installed-product/F4-transaction hash is rewritten merely to close the
+reboot ledger. Instead the exact pending record is hash-bound, acceptance is re-proven through the existing read-only
+verifier, and a repository-owned atomic transition persists the terminal accepted state with a chained reference to
+the prior pending claim.
+
+Status: SOURCE_REPAIR_IMPLEMENTED_CI_PENDING. Do not execute the new finalizer on the real T1 until exact-head CI,
+focused review and an exact repaired artifact/preauthorization gate pass.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_SOURCE_REPAIR_PROGRESS_20261016.md`.
+
+### 2026-10-16 KF-121 reboot acceptance durable-closure blocker
+
+~~~text
+LIVE_REBOOT_ACCEPTANCE=PASS:REBOOT_ACCEPTED
+DURABLE_REBOOT_CLAIM_STAGE=REBOOT_PENDING
+DURABLE_REBOOT_ACCEPTANCE_PASSED=false
+READONLY_VERIFIER_PERSISTS_ACCEPTANCE=false
+FINALIZE_REBOOT_ACCEPTANCE_COMMAND_PRESENT=false
+PR605_MERGE_READY=false
+~~~
+
+The live reboot itself is not failed or reopened. The blocker is that successful post-reboot acceptance has no
+target-local terminal state transition. The consumed authorization record remains durably pending even though the
+read-only verifier proved acceptance. The source-preparation contract required a read-only verifier plus closure of
+the reboot transaction; external GitHub evidence alone does not satisfy the target-local terminal-state half of that
+contract.
+
+Guard: do not replay the consumed reboot authorization, delete or hand-edit the reboot claim, or treat
+`REBOOT_PENDING` as equivalent to a durable accepted terminal state. Repair source first with a fail-closed
+repository-owned finalization path and independent terminal-state verification.
+
+Status: LIVE_REBOOT_ACCEPTED_SOURCE_DURABLE_CLOSURE_OPEN_BLOCKER.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_FINAL_CLOSURE_AND_PR605_PREMERGE_REVIEW_20261016.md`.
+
+### 2026-10-16 KF-121 reboot successor live acceptance closure
+
+~~~text
+REBOOT_SUCCESSOR_LIVE=CLOSED_PASS
+POST_REBOOT_ACCEPTANCE=REBOOT_ACCEPTED
+BOOT_ID_CHANGED=true
+F4_TRANSACTION_UNCHANGED=true
+PROVISION_RESUME_VERIFIED=true
+BROKER_SERVICES_PERSISTENCE_VERIFIED=true
+CERTIFICATE_TIMER_RUNTIME_VERIFIED=true
+CERTIFICATE_IDENTITY_UNCHANGED=true
+MANAGER_RUNTIME_STABILITY_VERIFIED=true
+HOMEASSISTANT_MQTT_INTEGRATION_NOT_DUPLICATED=true
+MANAGER_BUSINESS_STATE_FRESH=true
+REBOOT_AUTHORIZATION=CONSUMED_NO_REPLAY
+BOARD_ACCESS=false
+~~~
+
+The KF-121 reboot-successor boundary is now live-revalidated on the real T1. The authorized reboot was proven by a
+new boot identity, and the complete post-reboot persistence/runtime acceptance contract passed. The earlier
+CONTROL_APPLYING guard defect and its recovery path are both closed for this bounded F4 sequence.
+
+The post-reboot verifier is read-only, so the durable reboot authorization record remains `REBOOT_PENDING`; the
+separate acceptance output is the evidence that closes this one-shot acceptance. Never replay the consumed reboot
+authorization.
+
+Status: CLOSED_PASS_LIVE_REVALIDATED_FIRST_REBOOT_ACCEPTED.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_LIVE_AND_POSTREBOOT_ACCEPTANCE_CLOSURE_20261016.md`.
+
+### 2026-10-16 KF-121 CONTROL_APPLYING recovery live closure
+
+~~~text
+CONTROL_APPLYING_RECOVERY_LIVE=CLOSED_PASS
+POSTEXECUTION_READONLY=CLOSED_PASS
+INSTALL_CLAIM_STAGE=CONTROL_READY
+RECOVERY_CLAIM_STAGE=RECOVERY_VERIFIED
+RECOVERY_AUTHORIZATION=CONSUMED_NO_REPLAY
+REBOOT_CLAIM_PRESENT=false
+REBOOT_EXECUTED=false
+BOARD_ACCESS=false
+~~~
+
+The KF-121 CONTROL_APPLYING continuation path is now source-reviewed, exact-artifact bound, live-revalidated and
+independently verified after execution. The repaired control material is exact, the original failed install claim is
+durably linked to the recovery record, and all F4 runtime/certificate/boot identities stayed unchanged.
+
+Status: GUARDED_RECOVERY_CLOSED_PASS_REBOOT_SUCCESSOR_PENDING. The prior CONTROL_APPLYING recovery blocker is closed;
+the broader F4 reboot successor still requires its own explicit one-shot reboot authorization and post-reboot
+acceptance.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_POSTEXECUTION_READONLY_CLOSURE_20261016.md`.
+
+### 2026-10-16 KF-121 CONTROL_APPLYING recovery artifact/preauth closure
+
+~~~text
+RECOVERY_SOURCE_REPAIR=CLOSED_PASS
+RECOVERY_EXACT_ARTIFACT=PASS
+READONLY_PREAUTH=PASS
+REAL_T1_INSTALL_CLAIM=CONTROL_APPLYING
+ORIGINAL_INSTALL_AUTHORIZATION=CONSUMED_NO_REPLAY
+RECOVERY_CLAIM_PRESENT=false
+REBOOT_CLAIM_PRESENT=false
+LIVE_RECOVERY_EXECUTED=false
+~~~
+
+The KF-121 recovery path now has both a reviewed source implementation and an exact recovery artifact. Fresh
+read-only evidence proves that the real T1 still matches the frozen postclaim baseline and is eligible to request a
+separate live recovery authorization. This is not live recovery acceptance: the proposed recovery authorization
+remains ungranted/unclaimed/unconsumed, and the real claim remains `CONTROL_APPLYING`.
+
+Status: GUARDED_SOURCE_AND_PREAUTH_CLOSED_PASS_LIVE_RECOVERY_PENDING.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_ARTIFACT_AND_READONLY_PREAUTH_CLOSURE_20261016.md`.
+
+### 2026-10-16 KF-121 CONTROL_APPLYING recovery source closure
+
+~~~text
+SOURCE_REPAIR_RESULT=CLOSED_PASS
+PR=605
+SOURCE_REVIEW_HEAD=da64d1cdfbe7e198abc1d536014769f56471d0cb
+GITHUB_CI=PASS:13/13
+ORIGINAL_INSTALL_AUTHORIZATION_REPLAY_ALLOWED=false
+RECOVERY_APPLYING_DURABILITY_READBACK=PASS
+CONTROL_READY_AFTER_FULL_VERIFICATION_ONLY=true
+REAL_T1_RECOVERY_EXECUTED=false
+~~~
+
+The original KF-121 guard-schema root cause is now source-guarded by a dedicated, exact-package,
+fail-closed `CONTROL_APPLYING` recovery path. The recovery contract binds the historical install
+claim and installed bytes, the repaired package, F4 transaction, runtime identity, certificate
+identity, certificate status and boot identity. A fresh recovery authorization must be durably
+claimed and consumed before any later live replacement; `RECOVERY_APPLYING` must be read back
+before the first target replacement, and `CONTROL_READY` may be persisted only after full
+verification and durable `RECOVERY_VERIFIED`.
+
+Status: GUARDED_SOURCE_CLOSED_PASS_LIVE_RECOVERY_PENDING. This does not mean the real T1 has been
+recovered. The last proven T1 claim remains `CONTROL_APPLYING`, and live recovery requires a new
+artifact/read-only preauthorization stage followed by a separately authorized live gate.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_SOURCE_REPAIR_CLOSURE_20261016.md`.
+
+### 2026-10-16 KF-121 reboot successor control install postclaim guard failure
+
+~~~text
+INSTALL_CLAIM_STAGE=CONTROL_APPLYING
+CONTROL_REPAIR_AUTHORIZATION_CONSUMED=true
+CONTROL_REPAIR_AUTHORIZATION_REPLAY_ALLOWED=false
+ORIGINAL_SUCCESSOR_FILES_INSTALLED=true
+SUCCESSOR_DROPIN_LOADED=true
+BROKEN_RUNTIME_GUARD_REPRODUCED=true
+REBOOT_AUTHORIZATION_CLAIMED=false
+REBOOT_EXECUTED=false
+~~~
+
+The successor runtime guard required `runtime.get("board_access") is False`, but the frozen F4
+`_runtime_activity()` contract has no `board_access` member. The healthy runtime was therefore rejected after the
+one-shot install authorization had been consumed and all control files were installed. Never replay that
+authorization, rerun the original installer, manually replace targets, trigger certificate lifecycle, or reboot.
+PR #605 guards the schema mismatch, but the installed authority cannot resume `CONTROL_APPLYING`; recovery requires
+a dedicated exact-package continuation contract, regression tests, a fresh independent recovery authorization and
+post-write verification before `CONTROL_READY` may be persisted. Status: SOURCE_RECOVERY_GUARDED; live recovery remains pending. Authority:
+`docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_POSTCLAIM_FAILURE_FORENSIC_20261016.md`.
+
+### 2026-10-16 KF-121 reboot authority gap
+
+~~~text
+PRE_REBOOT_READY=true
+REBOOT_SOURCE_OWNER_PRESENT=false
+REBOOT_AUTHORIZATION_DURABLE_CLAIM_PRESENT=false
+CERTIFICATE_STATUS_RUNTIME_EVOLUTION_GUARD_READY=false
+RAW_SYSTEMCTL_REBOOT_FORBIDDEN=true
+LIVE_REBOOT_AUTHORIZATION_READY=false
+~~~
+
+Guard: do not reboot the fresh F4 T1 from an ad-hoc shell. The reboot gate must first gain repository-owned one-shot authorization claim/consumption and post-reboot recovery verification. Also do not accept the current certificate eligibility hash rule as production-complete: lifecycle status legitimately changes on each scheduled check, so repeated lifecycle execution must remain authorized without accepting arbitrary status tamper. The consumed activation/runtime/persistence/certificate authorizations must not be reused.
+
+### 2026-10-16 KF-121 pre-reboot readiness postexecution closure
+
+~~~text
+PRE_REBOOT_READY_POSTEXECUTION_READONLY=CLOSED_PASS
+POST_STAGE=PERSISTENCE_ENABLED
+PRE_REBOOT_READY=true
+CERTIFICATE_PHASE_ELIGIBILITY=PASS
+TRANSACTION_UNCHANGED=true
+RUNTIME_ACCEPTANCE_REPORT_UNCHANGED=true
+CERTIFICATE_STATUS_UNCHANGED=true
+RUNTIME_IDENTITY_UNCHANGED=true
+CERTIFICATE_IDENTITY_UNCHANGED=true
+~~~
+
+Guard: PRE_REBOOT_READY is now independently verified, but it does not authorize reboot. Reboot must be a separate explicit one-shot live gate. After reboot, acceptance must prove persisted Broker, Services and certificate lifecycle behavior before any further board or production work.
+
+### 2026-10-16 KF-121 certificate timer enablement successor closure
+
+~~~text
+CERTIFICATE_TIMER_ENABLEMENT_SUCCESSOR=CLOSED_PASS
+POST_STAGE=PERSISTENCE_ENABLED
+CERTIFICATE_TIMER_ENABLED=true
+CERTIFICATE_TIMER_ACTIVE_BEFORE_REBOOT=false
+CERTIFICATE_SERVICE_ACTIVE=false
+PRE_REBOOT_READY=true
+RUNTIME_IDENTITY_UNCHANGED=true
+CERTIFICATE_IDENTITY_UNCHANGED=true
+~~~
+
+Guard: the certificate-timer authorization is consumed and must never be replayed. PRE_REBOOT_READY does not authorize reboot. Reboot remains a separate explicit live gate and must independently prove the full persisted recovery contract after boot. Board access also remains out of scope.
+
+### 2026-10-16 KF-121 certificate first audit postexecution closure
+
+~~~text
+CERTIFICATE_FIRST_AUDIT_POSTEXECUTION_READONLY=CLOSED_PASS
+POST_STAGE=PERSISTENCE_ENABLED
+TRANSACTION_UNCHANGED=true
+RUNTIME_ACCEPTANCE_REPORT_UNCHANGED=true
+CERTIFICATE_STATUS_UNCHANGED=true
+RUNTIME_IDENTITY_UNCHANGED=true
+CERTIFICATE_IDENTITY_UNCHANGED=true
+CERTIFICATE_TIMER_ENABLED=false
+PRE_REBOOT_READY=false
+~~~
+
+Guard: the first certificate audit is durably closed, but certificate timer enablement remains a separate one-shot live gate. Do not replay the consumed audit authorization. Timer enablement must not start the timer before reboot, mutate certificate material, restart the runtime, reboot, or access boards.
+
+### 2026-10-16 KF-121 certificate first audit successor closure
+
+~~~text
+CERTIFICATE_FIRST_AUDIT_SUCCESSOR=CLOSED_PASS
+POST_STAGE=PERSISTENCE_ENABLED
+CERTIFICATE_FIRST_AUDIT_PASSED=true
+CERTIFICATE_SERVER_STATE=HEALTHY
+CERTIFICATE_CA_STATE=HEALTHY
+CERTIFICATE_SYSTEM_CA_STATE=HEALTHY
+CERTIFICATE_IDENTITY_UNCHANGED=true
+CERTIFICATE_TIMER_ENABLED=false
+PRE_REBOOT_READY=false
+~~~
+
+Guard: the certificate-audit authorization is consumed and must never be replayed. A successful first audit does not authorize certificate timer enablement, reboot, or board work. The timer remains a separate later gate.
+
+### 2026-10-16 KF-121 persistence postexecution closure
+
+~~~text
+PERSISTENCE_POSTEXECUTION_READONLY=CLOSED_PASS
+POST_STAGE=PERSISTENCE_ENABLED
+TRANSACTION_UNCHANGED=true
+RUNTIME_ACCEPTANCE_REPORT_UNCHANGED=true
+CERTIFICATE_STATUS_ROOT_EMPTY=true
+CERTIFICATE_TIMER_ENABLED=false
+~~~
+
+Guard: persistence is durably closed at PERSISTENCE_ENABLED. The first certificate audit remains a separate later live gate. It may write only the bounded lifecycle status/lock authority; it must not replace certificate/key material, enable the certificate timer, reboot, or access boards.
+
+### 2026-10-16 KF-121 persistence enablement successor closure
+
+~~~text
+PERSISTENCE_ENABLEMENT_SUCCESSOR=CLOSED_PASS
+POST_STAGE=PERSISTENCE_ENABLED
+BROKER_SERVICES_PERSISTENCE_ENABLED=true
+CERTIFICATE_TIMER_ENABLED=false
+RUNTIME_ACCEPTANCE_PASSED=true
+~~~
+
+Guard: the persistence authorization is consumed and must never be replayed. Broker/Services persistence is now enabled, but certificate audit/timer, reboot, and board work remain separate later gates. Do not use the historical combined activation helper that would enable the certificate timer in the same operation.
+
+### 2026-10-16 KF-121 successor runtime acceptance postexecution closure
+
+~~~text
+SUCCESSOR_RUNTIME_ACCEPTANCE_POSTEXECUTION_READONLY=CLOSED_PASS
+POST_STAGE=RUNTIME_ACCEPTED
+TRANSACTION_UNCHANGED=true
+RUNTIME_ACCEPTANCE_REPORT_UNCHANGED=true
+RUNTIME_ACCEPTANCE_PASSED=true
+PERSISTENCE_ENABLED=false
+CERTIFICATE_TIMER_ENABLED=false
+~~~
+
+Guard: runtime acceptance is durably closed at RUNTIME_ACCEPTED. Do not replay either consumed runtime-acceptance authorization. The next route may enable Broker/Services persistence only after a new explicit one-shot authorization; it must not enable the certificate timer, reboot, or touch boards.
+
+### 2026-10-16 KF-121 successor runtime acceptance live closure
+
+~~~text
+SUCCESSOR_RUNTIME_ACCEPTANCE=CLOSED_PASS
+POST_STAGE=RUNTIME_ACCEPTED
+RUNTIME_ACCEPTANCE_AUTHORIZATION_CONSUMED=true
+RUNTIME_ACCEPTANCE_AUTHORIZATION_REPLAY_ALLOWED=false
+RUNTIME_ACCEPTANCE_PASSED=true
+MANAGER_AUTHENTICATED_CONNECTION=true
+HOMEASSISTANT_AUTHENTICATED_CONNECTION=true
+HOMEASSISTANT_HTTP_READY=true
+PERSISTENCE_ENABLED=false
+CERTIFICATE_TIMER_ENABLED=false
+~~~
+
+Guard: the successor runtime-acceptance authorization is consumed and must never be replayed. Runtime acceptance now passes, but this does not authorize persistence, certificate lifecycle, reboot, or board work. Those remain separate later gates.
+
+### 2026-10-16 KF-121 successor activation postexecution closure
+
+~~~text
+SUCCESSOR_ACTIVATION_POSTEXECUTION_READONLY=CLOSED_PASS
+POST_STAGE=RUNTIME_STARTED
+TRANSACTION_UNCHANGED=true
+RUNNING_SERVICES=[broker,homeassistant,manager]
+RUNTIME_ACCEPTANCE_REQUIRED=true
+RUNTIME_ACCEPTANCE_PASSED=false
+PERSISTENCE_ENABLED=false
+CERTIFICATE_TIMER_ENABLED=false
+~~~
+
+Guard: the successor activation authorization is consumed and must never be replayed. The activation read-only closure does not count as runtime acceptance. Do not advance to persistence, certificate lifecycle, reboot, or board work before the later runtime-acceptance route is explicitly opened and passes.
+
+### 2026-10-16 KF-121 successor activation live revalidation
+
+~~~text
+SUCCESSOR_ACTIVATION_LIVE=CLOSED_PASS
+POST_STAGE=RUNTIME_STARTED
+ACTIVATION_AUTHORIZATION_CONSUMED=true
+ACTIVATION_AUTHORIZATION_REPLAY_ALLOWED=false
+BROKER_READY=true
+RUNNING_SERVICES=[broker,homeassistant,manager]
+RUNTIME_ACCEPTANCE_REQUIRED=true
+RUNTIME_ACCEPTANCE_PASSED=false
+PERSISTENCE_ENABLED=false
+CERTIFICATE_TIMER_ENABLED=false
+~~~
+
+KF-121's successor activation leg is now live-revalidated. This does not close the later runtime-acceptance leg. Regression guard: never replay the consumed successor activation authorization, do not treat the activation-only listener observation as full runtime acceptance, and do not enter runtime acceptance, persistence, certificate timer, or reboot without their required later gate/authorization.
+
+### 2026-10-16 KF-121 PREPARED authorization-history null blocker closure
+
+~~~text
+NULL_HISTORY_BLOCKER=CLOSED_PASS
+POSTEXECUTION_READONLY_RESULT=PASS
+SUCCESSOR_ACTIVATION_PATH_READABLE=true
+PROSPECTIVE_SUCCESSOR_ACTIVATION_AUTHORIZATION_COLLISION=false
+~~~
+
+The real T1 now carries a valid empty runtime-acceptance authorization history and the normal activation eligibility path reads the repaired PREPARED transaction successfully.
+
+Regression guard: do not replay the consumed history-repair authorization. Successor activation must use a new distinct one-shot authorization, and successor runtime acceptance remains a later separate gate.
+
+### 2026-10-16 KF-121 PREPARED null-history repair result
+
+~~~text
+KF-121_POST_RECOVERY_HISTORY_BLOCKER=REPAIRED_PENDING_POSTEXECUTION_READONLY_CLOSURE
+NULL_HISTORY_REPAIR_EXECUTION=PASS
+RUNTIME_ACCEPTANCE_AUTHORIZATION_HISTORY=[]
+REPAIR_AUTHORIZATION_CONSUMED=true
+SUCCESSOR_ACTIVATION_EXECUTED=false
+SUCCESSOR_RUNTIME_ACCEPTANCE_EXECUTED=false
+~~~
+
+Regression guard: the consumed null-history repair authorization must never be replayed. Keep successor activation and successor runtime acceptance as distinct later one-shot gates.
+
+### 2026-10-16 KF-121 PREPARED null-history staging closure
+
+~~~text
+KF-121_POST_RECOVERY_HISTORY_BLOCKER=OPEN_PENDING_LIVE_REPAIR
+EXACT_HISTORY_REPAIR_ARTIFACT_STAGING=PASS
+REPAIR_COMMAND_EXECUTED=false
+REPAIR_AUTHORIZATION_GRANTED=false
+~~~
+
+Regression guard: exact staging is not the repair. Do not manually edit the transaction, do not reuse any prior F4 authorization, and do not execute the staged repair launcher until a new explicit one-shot repair authorization is granted. The live repair must remain at PREPARED and must not start the product runtime.
+
+### 2026-10-16 KF-121 PREPARED null-history repair source closure
+
+~~~text
+KF-121_POST_RECOVERY_HISTORY_BLOCKER=OPEN_PENDING_LIVE_REPAIR
+SOURCE_REPAIR=PASS
+SOURCE_HEAD=72b796671e25c30f0d154788e2a4374f030eb7d1
+SOURCE_CI=13_OF_13_PASS
+EXACT_ARTIFACT_BOUND=true
+ALLOWED_PACKAGE_DELTA=LAUNCHER_ONLY
+LIVE_REPAIR_EXECUTED=false
+~~~
+
+Regression guard: do not use the superseded candidate artifact, do not weaken generic malformed-history rejection,
+and do not manually edit the transaction. The live repair must use the exact successor package, a distinct one-shot
+repair authorization, normalize only the known null history field, and remain at PREPARED.
+
 ## 2026-10-15 — KF-116 F3 public-only candidate-root creation guard
 
 ```text

@@ -1,0 +1,80 @@
+# N3-W T1 F4 reboot successor CONTROL_APPLYING recovery postexecution read-only closure
+
+Date: 2026-10-16
+
+```text
+TASK=N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_POSTEXECUTION_READONLY_CLOSURE_20261016_01
+RESULT=CLOSED_PASS
+
+LIVE_RECOVERY_GATE=N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_LIVE_20261016_01
+LIVE_RECOVERY_RESULT=PASS_CONTROL_READY
+
+RECOVERY_EXECUTABLE_SOURCE_HEAD=66788b22fc55f7bf1c003e0b97bc7e75ce859e35
+RECOVERY_ARTIFACT_ID=12035207393
+RECOVERY_MANIFEST_SHA256=f970a4e49730f0f653e52508ef13bec2f018d8c47ea589ff295cfe398529f9a7
+
+RECOVERY_AUTHORIZATION=N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_LIVE_20261016_01
+RECOVERY_AUTHORIZATION_CLAIMED=true
+RECOVERY_AUTHORIZATION_CONSUMED=true
+RECOVERY_AUTHORIZATION_REPLAY_ALLOWED=false
+
+PREAPPLY_RECOVERY_CLAIM_SHA256=4e247e025b3869044597f12e477f4c29d8774e028adbab09173e0f7c1060345b
+POST_RECOVERY_CLAIM_STAGE=RECOVERY_VERIFIED
+POST_RECOVERY_CLAIM_SHA256=0a115f2a32a1e94710b3a853bb506fe1bb80ead3cc86d98560efdc2a5d68d481
+POST_INSTALL_CLAIM_STAGE=CONTROL_READY
+POST_INSTALL_CLAIM_SHA256=7dc7027e3a2c280258cf21084abfdbf812398d37040f2491a58d98560cfb3778
+INSTALLATION_VERIFIED=true
+RECOVERY_VERIFIED=true
+
+F4_TRANSACTION_SHA256=49e7839ffe5d9e00391577a78c7c6ceb9c85a9a7cdd240ee22cc38485a3e569b
+RUNTIME_ACCEPTANCE_SHA256=c938244cda069247f3288d0cc14fbdd37dcf7c389e8a16669ea8a6c3fcecbfd4
+CERTIFICATE_STATUS_SHA256=446404d0e3725bf0e8fa9b6bd11bd67c83f16871a6e196b1cc950043ad229af4
+BOOT_ID_SHA256=459bba3071dd3d48b7dd0a2cb750cfa9dcb09b456236564940c8fad85f79f95d
+RUNTIME_SNAPSHOT_SHA256=29183afd73d71d4e85d8481d96f062b7c099d6721b46708a49495d58a39994f0
+CERTIFICATE_IDENTITY_CANONICAL_SHA256=68264cf00af8a5748fc20c17edb4969533d326905bb3e959960b3f2ab0103947
+
+INSTALLED_RECOVERY_BYTES_EXACT=true
+READY_LINKS_ORIGINAL_INSTALL_CLAIM=true
+READY_LINKS_RECOVERY_RECORD=true
+PRODUCTION_RUNTIME_ACTIVE=true
+RUNNING_SERVICES_EXACT=broker,homeassistant,manager
+
+LIVE_RECOVERY_RUNTIME_MUTATION=true
+POSTEXECUTION_READONLY_MUTATION=false
+REBOOT_CLAIM_PRESENT=false
+REBOOT_EXECUTED=false
+CERTIFICATE_LIFECYCLE_TRIGGERED=false
+BOARD_ACCESS=false
+MERGE=false
+
+REBOOT_PREAUTH_ELIGIBLE=true
+PROPOSED_REBOOT_AUTHORIZATION=N3W_T1_F4_REBOOT_SUCCESSOR_LIVE_20261016_01
+REBOOT_AUTHORIZATION_GRANTED=false
+REBOOT_AUTHORIZATION_CLAIMED=false
+REBOOT_AUTHORIZATION_CONSUMED=false
+
+NEXT_ONE_GATE=N3W_T1_F4_REBOOT_SUCCESSOR_LIVE_20261016_01
+AUTO_EXECUTE_NEXT_GATE=false
+STOP=true
+```
+
+## Closure
+
+The one-shot CONTROL_APPLYING recovery completed successfully and the authorization is permanently consumed/no-replay.
+The recovery record is durably `RECOVERY_VERIFIED`, the installation claim is durably `CONTROL_READY`, and the
+ready claim links both the original failed install claim and the final recovery record.
+
+The independent postexecution collector then re-ran the installed-control verifier and confirmed that the repaired
+runtime guard, reboot authority, reboot verifier, lifecycle drop-in and manifest are the exact bound bytes. The F4
+transaction, runtime-acceptance record, certificate status, boot identity, runtime identity and certificate identity
+remain unchanged. Broker, Manager and Home Assistant remain active. No reboot claim exists.
+
+The recovery operation itself performed the authorized live control-file replacement and systemd daemon reload.
+The postexecution collector was read-only. No reboot, certificate lifecycle invocation, board access or merge
+occurred.
+
+The prior CONTROL_APPLYING blocker is therefore closed. The T1 is again eligible to enter the separately authorized
+reboot successor gate. Reboot remains ungranted and must not be executed until its own exact one-shot authorization is
+explicitly granted and durably claimed.
+
+No private T1 locator or credential is stored in this public closure.
