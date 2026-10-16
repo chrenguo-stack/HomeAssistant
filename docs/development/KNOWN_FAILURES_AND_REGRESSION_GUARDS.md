@@ -1,3 +1,15 @@
+### 2026-10-16 KF-121 reboot authority gap
+
+~~~text
+PRE_REBOOT_READY=true
+REBOOT_SOURCE_OWNER_PRESENT=false
+REBOOT_AUTHORIZATION_DURABLE_CLAIM_PRESENT=false
+RAW_SYSTEMCTL_REBOOT_FORBIDDEN=true
+LIVE_REBOOT_AUTHORIZATION_READY=false
+~~~
+
+Guard: do not reboot the fresh F4 T1 from an ad-hoc shell. The reboot gate must first gain repository-owned one-shot authorization claim/consumption and post-reboot recovery verification. The consumed activation/runtime/persistence/certificate authorizations must not be reused.
+
 ### 2026-10-16 KF-121 pre-reboot readiness postexecution closure
 
 ~~~text
