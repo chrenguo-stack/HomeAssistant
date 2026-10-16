@@ -55,6 +55,12 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _canonical_sha(document: object) -> str:
+    return hashlib.sha256(
+        json.dumps(document, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+
+
 def _json(path: Path, mode: int) -> dict[str, object]:
     if path.is_symlink() or not path.is_file():
         raise VerifyError(f"record_invalid:{path.name}")
@@ -257,6 +263,20 @@ def verify() -> dict[str, object]:
     module._validate_factory_binding(verified)
     module._verify_installed_material(transaction)
     module._validate_runtime_acceptance_binding(transaction)
+    pre_certificate_snapshot_sha256 = claim.get(
+        "pre_certificate_snapshot_sha256"
+    )
+    if (
+        not isinstance(pre_certificate_snapshot_sha256, str)
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            pre_certificate_snapshot_sha256,
+        )
+        is None
+        or _canonical_sha(module._certificate_identity_snapshot())
+        != pre_certificate_snapshot_sha256
+    ):
+        raise VerifyError("certificate_identity_changed_across_reboot")
 
     _unit_success(module.PROVISION_UNIT)
     _unit_success(module.GUARD_UNIT)
@@ -376,6 +396,7 @@ def verify() -> dict[str, object]:
         "certificate_timer_runtime_verified": True,
         "certificate_service_result_verified": True,
         "certificate_status_sha256": guard["runtime_status_sha256"],
+        "certificate_identity_unchanged": True,
         "manager_runtime_stability_verified": True,
         "homeassistant_mqtt_integration_not_duplicated": True,
         "manager_business_state_fresh": True,
