@@ -1,3 +1,16 @@
+## 2026-10-17 — F4 clean consolidation PR #608 review CLOSED_PASS
+
+- PR #608 remains Draft/open/unmerged and targets `main` from exact clean head `6b9d311c4055230fd758abe20b40d7d545b04d81`.
+- CI is PASS 14/14.
+- Tree-equivalence review PASS; main-preservation review PASS.
+- Changed paths are exactly 70/70 allowlisted; no unlisted path drift.
+- Product blobs: 19/19 exact; immutable evidence: 44/44 exact; frozen ledgers: 3/3 exact; metadata: 4/4 exact.
+- 1666 non-allowlisted blob paths were checked and are unchanged from exact main.
+- Real-T1 durable reboot closure remains PASS / `REBOOT_ACCEPTED`; KF-121 durable blocker remains closed.
+- PR #608 is technically ready for a separate merge decision; merge remains unauthorized.
+- Next gate: `N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_MERGE_DECISION_20261017_01`.
+- Authority: `docs/development/N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_DRAFT_PR_AND_CI_CLOSURE_20261017.md`.
+
 ## 2026-10-17 — F4 clean consolidation PR #608 created
 
 - Draft PR #608 targets `main` from `integrate/n3w-t1-f4-stack-consolidation-20261017`.
