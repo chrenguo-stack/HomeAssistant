@@ -1,3 +1,48 @@
+## 2026-10-17 — PR #608 merged to main; post-merge state alignment pending
+
+~~~text
+TASK=N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_MERGE_EXECUTION_20261017_01
+RESULT=CLOSED_PASS_PR608_MERGED_TO_MAIN
+
+PR=608
+PR_STATE=CLOSED_MERGED
+PR_HEAD=6b9d311c4055230fd758abe20b40d7d545b04d81
+
+OLD_MAIN=b12c69be5c1d1d61887e9be4a776f575141d44c6
+MERGE_COMMIT=f62752b32dff991f3de1490b85b33533237d1b59
+NEW_MAIN=f62752b32dff991f3de1490b85b33533237d1b59
+
+CANDIDATE_TREE=29951e55ab800f77a2d5b3012adcd94e874bbd8d
+MERGE_TREE=29951e55ab800f77a2d5b3012adcd94e874bbd8d
+TREE_IDENTITY=PASS
+
+MERGE_METHOD=merge
+EXPECTED_HEAD_ENFORCED=true
+PREMERGE_CI=PASS:14/14
+PREMERGE_TREE_EQUIVALENCE=PASS
+PREMERGE_MAIN_PRESERVATION=PASS
+
+BOARD_ACCESS=false
+T1_MUTATION=false
+
+CURRENT_STAGE=F4
+CURRENT_STOP_POINT=PR608_MERGED_WAITING_FOR_POSTMERGE_STATE_ALIGNMENT
+POSTMERGE_STATE_ALIGNMENT_REQUIRED=true
+F4_REPOSITORY_CLOSURE_FINAL=false
+
+NEXT_ONE_GATE=N3W_T1_F4_POSTMERGE_STATE_ALIGNMENT_20261017_01
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+PR #608 was successfully merged to main using the ruleset-permitted regular merge method with exact expected head.
+The merge commit has the exact reviewed candidate tree and exact old-main/candidate parents, so no merge-only content
+was introduced.
+
+The authoritative project ledgers on main are still the preparation-frozen snapshots by design. A separate docs-only
+post-merge alignment gate is required before F4 repository closure can be declared final.
+
+Authority: `docs/development/N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_MERGE_EXECUTION_CLOSURE_20261017.md`.
+
 ## 2026-10-17 — PR #608 merge decision READY_FOR_EXPLICIT_MERGE_EXECUTION_AUTHORIZATION
 
 ~~~text
