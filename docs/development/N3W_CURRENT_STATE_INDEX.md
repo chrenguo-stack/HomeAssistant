@@ -1,3 +1,14 @@
+## 2026-10-16 — F4 reboot successor source repair PASS
+
+- Gate `N3W_T1_F4_REBOOT_SUCCESSOR_SOURCE_REPAIR_20261016_01` is CLOSED_PASS at PR #600 exact HEAD `5368acc1eb50f1fc62bbd7c16ff9e64139131a29`.
+- All 14 observed CI workflows on that exact HEAD passed.
+- Exact successor artifact ID is `12028807237`; ZIP SHA-256 `5af048d98ebfdcfb4ede62a8e958e3583dc60e2057d36d6f20123cbd7b74d4b4`; control tar SHA-256 `e429201e41c8bb9154fe9c3397e06421bef147dc9117fea8d72184e97edef0a0`; manifest SHA-256 `2f2ae69dbf78d5f578fa60bbee7fb269a5d0c3b17a00e2f697bc65d3ed91c40c`.
+- Repository-owned durable successor install/reboot claims and a post-reboot read-only verifier are now present.
+- Certificate lifecycle status may evolve across repeated legitimate checks while certificate/material/runtime tamper remains fail-closed; the RENEW_DUE + CA_ROLLOVER_REQUIRED case is explicitly covered.
+- No T1 access, live mutation, reboot, board access, or merge occurred in source closure.
+- Raw ad-hoc reboot remains forbidden because the successor control is not installed on the T1 yet.
+- Next one gate: `N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_READONLY_PREAUTH_20261016_01`.
+
 ## 2026-10-16 — F4 reboot successor source preparation
 
 - PRE_REBOOT_READY postexecution closure is CLOSED_PASS.

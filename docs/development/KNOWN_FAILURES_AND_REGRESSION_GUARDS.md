@@ -1,3 +1,18 @@
+### 2026-10-16 KF-121 reboot authority gap source repair closure
+
+~~~text
+REBOOT_AUTHORITY_GAP_SOURCE_REPAIR=CLOSED_PASS
+SOURCE_REPAIR_HEAD=5368acc1eb50f1fc62bbd7c16ff9e64139131a29
+DURABLE_INSTALL_CLAIM_READY=true
+DURABLE_REBOOT_CLAIM_READY=true
+POST_REBOOT_READONLY_VERIFIER_READY=true
+CERTIFICATE_STATUS_RUNTIME_EVOLUTION_GUARD_READY=true
+LIVE_REBOOT_AUTHORIZATION_READY=false
+RAW_SYSTEMCTL_REBOOT_FORBIDDEN=true
+~~~
+
+Guard: the source defect is repaired, but source closure is not live installation and is not reboot authorization. The exact successor control must first pass a read-only T1 preauthorization/preinstallation inspection and then receive a fresh one-shot control-install authorization. Only after exact installation and verification may a separate fresh reboot authorization be claimed. The reboot claim must be durably consumed before reboot actuation, and the post-reboot verifier must prove a changed boot identity, unchanged F4 transaction and certificate identity, exact installed successor control, restored runtime/persistence, active certificate timer, non-duplicated Home Assistant MQTT integration, fresh Manager business state, and no board access. Repeated legitimate certificate lifecycle status evolution, including RENEW_DUE with CA_ROLLOVER_REQUIRED, must remain guard-eligible; arbitrary status/material drift must remain fail-closed.
+
 ### 2026-10-16 KF-121 reboot authority gap
 
 ~~~text
