@@ -1,3 +1,16 @@
+## 2026-10-16 — F4 exact recovery artifact staged and rebound
+
+- Exact staging gate `N3W_T1_F4_STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_EXACT_ARTIFACT_STAGING_PREEXECUTION_20261016_01` is CLOSED_PASS.
+- Staged tar SHA-256: `9d1ba965ac72887dbac6cc48381d228843c6c489e92217ef65886d73cd0c309d`.
+- Staged manifest SHA-256: `37c620daf57a3f49614a4c2824c55b7e20413ef63593cd1781e4f359fb4729b5`.
+- Staged successor launcher SHA-256: `eaf28175909479007d6d1df7522811d032890dcaa2a2280228c93e6dce128bb3`.
+- Transaction remains `805fb27f44d36d7e512260373be7dbb8058164d3ea4ce4c1d13659169062dbcf` / `STOPPED_RUNTIME_ACCEPTANCE`.
+- Installed old launcher remains unchanged at `f7f742505f439675fb19ecf8f98b8235703d6e2a1c5c9217ecfe01a025be3c8b`.
+- Runtime services/listeners remain empty.
+- Recovery authorization remains ungranted/unclaimed/unconsumed.
+- Next gate: `N3W_T1_F4_STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_LIVE_EXECUTION_20261016_01`.
+- Next gate requires a new explicit one-shot recovery authorization.
+
 ## 2026-10-16 — F4 exact recovery staging gate prepared
 
 - Current gate:

@@ -1,3 +1,16 @@
+### 2026-10-16 KF-121 exact recovery staging update
+
+~~~text
+KF-121_STATUS=SOURCE_REPAIR_CLOSED_PASS_PENDING_LIVE_REVALIDATION
+EXACT_RECOVERY_ARTIFACT_STAGING=PASS
+RECOVERY_COMMAND_EXECUTED=false
+RECOVERY_AUTHORIZATION_GRANTED=false
+~~~
+
+The exact repaired package is staged and rebound on the real T1 without altering the installed launcher, transaction, runtime state or authorization ledger.
+
+Regression guard: staging alone does not constitute recovery or live revalidation. The next gate must use the package launcher as the recovery entrypoint, stop at PREPARED, and keep recovery, activation and runtime acceptance as separate live gates.
+
 ### 2026-10-16 KF-121 live read-only preexecution update
 
 ~~~text
