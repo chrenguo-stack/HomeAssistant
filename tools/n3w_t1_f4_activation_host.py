@@ -2678,9 +2678,21 @@ def _repair_prepared_authorization_history(
             or transaction.get("runtime_acceptance_authorization_history")
             is not None
             or transaction.get(
+                "prepared_authorization_history_repair_authorization_id"
+            )
+            is not None
+            or transaction.get(
                 "prepared_authorization_history_repair_authorization_claimed"
             )
-            is True
+            is not None
+            or transaction.get(
+                "prepared_authorization_history_repair_authorization_consumed"
+            )
+            is not None
+            or transaction.get(
+                "prepared_authorization_history_repair_authorization_replay_allowed"
+            )
+            is not None
         ):
             raise F4Error(
                 "prepared_authorization_history_repair_prestate_invalid"
