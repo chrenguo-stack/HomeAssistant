@@ -3,12 +3,15 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import sys
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = ROOT / "tools/n3w_t1_f4_certificate_runtime_guard.py"
+LIFECYCLE_TEST = ROOT / "tests/tools/test_n3w_broker_certificate_lifecycle.py"
 
 
 def load_tool():
@@ -16,6 +19,19 @@ def load_tool():
     spec = importlib.util.spec_from_file_location(name, TOOL)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+
+
+
+def load_lifecycle_helpers():
+    name = "n3w_broker_certificate_lifecycle_test_helpers"
+    spec = importlib.util.spec_from_file_location(name, LIFECYCLE_TEST)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
     spec.loader.exec_module(module)
     return module
 
@@ -194,3 +210,68 @@ def test_production_guard_keeps_root_owned_record_contract() -> None:
     assert "metadata.st_gid != 0" in source
     assert "metadata.st_nlink != 1" in source
     assert "stat.S_IMODE(metadata.st_mode) != mode" in source
+
+
+
+def test_two_real_lifecycle_checks_remain_runtime_guard_eligible(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    guard = load_tool()
+    helpers = load_lifecycle_helpers()
+    lifecycle = helpers.load_tool()
+    material = helpers.make_material(tmp_path, server_days=120, ca_days=3650)
+    status_dir = tmp_path / "status"
+    status_dir.mkdir(mode=0o700)
+    status = status_dir / "status.json"
+    transaction = tmp_path / "transaction.json"
+
+    config = lifecycle.LifecycleConfig(
+        server_cert=material["server_cert"],
+        server_key=material["server_key"],
+        ca_cert=material["ca_cert"],
+        ca_key=material["ca_key"],
+        system_ca=material["ca_cert"],
+        server_name="broker.test",
+        status_file=status,
+        allowed_roots=(tmp_path,),
+    )
+
+    write_json(
+        transaction,
+        {
+            "stage": "PERSISTENCE_ENABLED",
+            "broker_services_persistence_enabled": True,
+            "persistence_enabled": True,
+            "certificate_first_audit_passed": True,
+            "certificate_timer_enabled": True,
+            "pre_reboot_ready": True,
+            "certificate_status_sha256": "f" * 64,
+        },
+    )
+
+    monkeypatch.setattr(guard, "TRANSACTION_PATH", transaction)
+    monkeypatch.setattr(guard, "CERT_STATUS_FILE", status)
+    monkeypatch.setattr(guard, "SERVER_CERT", material["server_cert"])
+    monkeypatch.setattr(guard, "CA_CERT", material["ca_cert"])
+    monkeypatch.setattr(guard, "SYSTEM_CA", material["ca_cert"])
+    monkeypatch.setattr(guard, "_json", read_json_test_fixture)
+    monkeypatch.setattr(
+        guard,
+        "_certificate_fingerprint",
+        lambda path, _mode: lifecycle._certificate_info(path).fingerprint,
+    )
+
+    base_now = lifecycle._certificate_info(
+        material["server_cert"]
+    ).not_before + timedelta(days=1)
+    hashes: list[str] = []
+    for current in (base_now, base_now + timedelta(days=1)):
+        document, code = lifecycle.auto_renew(config, now=current)
+        assert code == 0
+        lifecycle._atomic_write_status(status, document)
+        report = guard.check()
+        assert report["status"] == "PASS"
+        hashes.append(report["runtime_status_sha256"])
+
+    assert hashes[0] != hashes[1]
