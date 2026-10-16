@@ -1,3 +1,18 @@
+### 2026-10-16 KF-121 certificate timer enablement successor closure
+
+~~~text
+CERTIFICATE_TIMER_ENABLEMENT_SUCCESSOR=CLOSED_PASS
+POST_STAGE=PERSISTENCE_ENABLED
+CERTIFICATE_TIMER_ENABLED=true
+CERTIFICATE_TIMER_ACTIVE_BEFORE_REBOOT=false
+CERTIFICATE_SERVICE_ACTIVE=false
+PRE_REBOOT_READY=true
+RUNTIME_IDENTITY_UNCHANGED=true
+CERTIFICATE_IDENTITY_UNCHANGED=true
+~~~
+
+Guard: the certificate-timer authorization is consumed and must never be replayed. PRE_REBOOT_READY does not authorize reboot. Reboot remains a separate explicit live gate and must independently prove the full persisted recovery contract after boot. Board access also remains out of scope.
+
 ### 2026-10-16 KF-121 certificate first audit postexecution closure
 
 ~~~text
