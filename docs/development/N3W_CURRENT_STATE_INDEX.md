@@ -1,3 +1,16 @@
+## 2026-10-17 — F4 stack consolidation design CLOSED_PASS
+
+- Clean integration will start from fresh `main`; historical F4 commits will not be cherry-picked.
+- Product source authority is exact reviewed head `19bd98386c4828c0768f2f3936429db8c7a59adf`.
+- Immutable evidence authority is `62f2a107d834b31b498e230ee68f66833580f4c5`.
+- Frozen payload manifest contains 63 exact blobs: 19 product-source files + 44 immutable evidence files.
+- All 19 product blobs are byte-identical to the reviewed source authority.
+- The three mutable ledgers are intentionally frozen later in the preparation gate.
+- PRs #601-#606 remain historical side branches; PR #607 alternative recovery source is explicitly excluded from product consolidation.
+- No consolidation branch or PR has been created; no merge is authorized.
+- Next gate: `N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_PREPARATION_20261017_01`.
+- Authority: `docs/development/N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_DESIGN_20261017.md`.
+
 ## 2026-10-17 — PR #605 final/pre-merge + F4 stack integration review
 
 - PR #605 final/pre-merge review passes relative to its current PR #600 base.
