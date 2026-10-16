@@ -1,3 +1,14 @@
+### 2026-10-16 KF-121 PREPARED null-history staging closure
+
+~~~text
+KF-121_POST_RECOVERY_HISTORY_BLOCKER=OPEN_PENDING_LIVE_REPAIR
+EXACT_HISTORY_REPAIR_ARTIFACT_STAGING=PASS
+REPAIR_COMMAND_EXECUTED=false
+REPAIR_AUTHORIZATION_GRANTED=false
+~~~
+
+Regression guard: exact staging is not the repair. Do not manually edit the transaction, do not reuse any prior F4 authorization, and do not execute the staged repair launcher until a new explicit one-shot repair authorization is granted. The live repair must remain at PREPARED and must not start the product runtime.
+
 ### 2026-10-16 KF-121 PREPARED null-history repair source closure
 
 ~~~text
