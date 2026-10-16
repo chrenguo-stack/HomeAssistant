@@ -6,6 +6,13 @@ on:
       - ".github/workflows/n3w-t1-f4-exact-control-package.yml"
       - "tools/n3w_t1_f4_activation_host.py"
       - "tools/n3w_t1_f4_package_builder.py"
+      - "tools/n3w_t1_f4_certificate_runtime_guard.py"
+      - "tools/n3w_t1_f4_reboot_successor_package_builder.py"
+      - "tools/n3w_t1_f4_reboot_authority.py"
+      - "tools/n3w_t1_f4_reboot_verify.py"
+      - "tests/tools/test_n3w_t1_f4_reboot_authority.py"
+      - "tests/tools/test_n3w_t1_f4_reboot_verify.py"
+      - "tests/tools/test_n3w_t1_f4_reboot_successor_package_builder.py"
       - "infra/n3w-t1/f4/**"
       - "infra/n3w-t1/systemd/n3wfc4-broker-certificate-lifecycle.timer"
       - "infra/n3w-t1/NetworkManager/dispatcher.d/90-n3wfc4-broker-ingress-guard"
@@ -17,6 +24,13 @@ on:
       - ".github/workflows/n3w-t1-f4-exact-control-package.yml"
       - "tools/n3w_t1_f4_activation_host.py"
       - "tools/n3w_t1_f4_package_builder.py"
+      - "tools/n3w_t1_f4_certificate_runtime_guard.py"
+      - "tools/n3w_t1_f4_reboot_successor_package_builder.py"
+      - "tools/n3w_t1_f4_reboot_authority.py"
+      - "tools/n3w_t1_f4_reboot_verify.py"
+      - "tests/tools/test_n3w_t1_f4_reboot_authority.py"
+      - "tests/tools/test_n3w_t1_f4_reboot_verify.py"
+      - "tests/tools/test_n3w_t1_f4_reboot_successor_package_builder.py"
       - "infra/n3w-t1/f4/**"
       - "infra/n3w-t1/systemd/n3wfc4-broker-certificate-lifecycle.timer"
       - "infra/n3w-t1/NetworkManager/dispatcher.d/90-n3wfc4-broker-ingress-guard"
@@ -96,5 +110,74 @@ jobs:
             out/n3w-t1-f4-control-package.tar
             out/n3w-t1-f4-control-package.tar.sha256
             out/build-report.json
+          if-no-files-found: error
+          retention-days: 14
+
+  exact-f4-reboot-successor-control:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      SOURCE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build exact reboot successor control package
+        run: |
+          mkdir -p out
+          python tools/n3w_t1_f4_reboot_successor_package_builder.py \
+            --repository . \
+            --destination out/reboot-successor-control \
+            --source-head "$SOURCE_HEAD" \
+            > out/reboot-successor-build-report.json
+
+      - name: Verify exact reboot successor control package
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(
+              Path("out/reboot-successor-build-report.json").read_text()
+          )
+          assert report["status"] == "PASS"
+          assert report["source_head"] == os.environ["SOURCE_HEAD"]
+          assert report["file_count"] == 4
+          assert report["live_runtime_mutation"] is False
+          assert report["reboot_executed"] is False
+          assert report["board_access"] is False
+
+          manifest = Path(
+              "out/reboot-successor-control/reboot-successor-manifest.json"
+          )
+          digest = hashlib.sha256(manifest.read_bytes()).hexdigest()
+          assert digest == report["manifest_sha256"]
+          document = json.loads(manifest.read_text())
+          assert document["source_head"] == os.environ["SOURCE_HEAD"]
+          assert len(document["files"]) == 4
+          PY
+
+      - name: Seal reboot successor transport tar
+        run: |
+          tar -C out -cf out/n3w-t1-f4-reboot-successor-control.tar \
+            reboot-successor-control
+          sha256sum out/n3w-t1-f4-reboot-successor-control.tar \
+            > out/n3w-t1-f4-reboot-successor-control.tar.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: n3w-t1-f4-reboot-successor-control-${{ env.SOURCE_HEAD }}
+          path: |
+            out/n3w-t1-f4-reboot-successor-control.tar
+            out/n3w-t1-f4-reboot-successor-control.tar.sha256
+            out/reboot-successor-build-report.json
           if-no-files-found: error
           retention-days: 14
