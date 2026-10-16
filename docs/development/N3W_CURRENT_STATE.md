@@ -1,3 +1,55 @@
+## 2026-10-16 — F4 reboot successor CONTROL_APPLYING forensic CLOSED_PASS
+
+~~~text
+TASK=N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_READONLY_FORENSIC_20261016_01
+RESULT=CLOSED_PASS_FORENSIC
+
+INSTALL_AUTHORIZATION_ID=N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_LIVE_20261016_01
+INSTALL_AUTHORIZATION_CONSUMED=true
+INSTALL_AUTHORIZATION_REPLAY_ALLOWED=false
+INSTALL_CLAIM_STAGE=CONTROL_APPLYING
+INSTALL_CLAIM_SHA256=6c8cad9331094bbb0abe89ff67bc75b724d66c7eb97cdf6f4117c3bce5ed4d80
+
+SOURCE_DEFECT_CONFIRMED=true
+SOURCE_DEFECT=f4_runtime_contract_requires_nonexistent_board_access_field
+
+SOURCE_REPAIR_PR=605
+SOURCE_REPAIR_HEAD=99e0c4aecb013cf0dc8b350f851a38d670b9d6e7
+SOURCE_REPAIR_CI=13_SUCCESS_0_FAILURE_0_PENDING
+
+REPAIR_ARTIFACT_ID=12029738934
+REPAIR_ARTIFACT_ZIP_SHA256=9fda3a2b21bf37484018f9d58bed60bb0f5ba28bc977a5a2ff33c8063c5bb03c
+REPAIR_CONTROL_TAR_SHA256=3f23029c601e8d66661ca36941467021af0eb376929c87a42ce258a4e4d98291
+REPAIR_MANIFEST_SHA256=085e3fd1c56ee4f4d35f1acc9408a4874f5a09dde90bc93d4df84a87ba90d43d
+
+PRODUCT_RUNTIME_HEALTHY=true
+BROKER_ACTIVE=active
+SERVICES_ACTIVE=active
+CERT_TIMER_ENABLED=enabled
+CERT_TIMER_ACTIVE=inactive
+CERT_SERVICE_ACTIVE=inactive
+PRODUCT_LISTENER_PORTS=1883,8123,8883
+
+TX_UNCHANGED=true
+RUNTIME_ACCEPTANCE_UNCHANGED=true
+CERT_STATUS_UNCHANGED=true
+BOOT_ID_UNCHANGED=true
+RUNTIME_IDENTITY_UNCHANGED=true
+CERTIFICATE_IDENTITY_UNCHANGED=true
+
+REBOOT_AUTHORIZATION_CLAIMED=false
+REBOOT_EXECUTED=false
+BOARD_ACCESS=false
+
+NEXT_ONE_GATE=N3W_T1_F4_REBOOT_SUCCESSOR_POSTCLAIM_RECOVERY_SOURCE_DESIGN_20261016_01
+RECOVERY_AUTHORIZATION_GRANTED=false
+AUTO_EXECUTE_LIVE_RECOVERY=false
+~~~
+
+The read-only forensic proves the T1 is a healthy product runtime with an exact partially completed successor-control installation at CONTROL_APPLYING. The original install authorization is consumed and non-replayable. All old control files and manifest are exactly installed, the successor drop-in is loaded, and the installed guard's failure is deterministically explained by its invalid requirement for a board_access field that the frozen F4 _runtime_activity() schema does not provide. PR #605 repairs only that source defect and all 13 workflows on its exact HEAD passed. The next step is source design for a dedicated postclaim recovery authority; no live recovery or reboot is authorized.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_READONLY_FORENSIC_CLOSURE_20261016.md`.
+
 ## CONTROL_APPLYING forensic — root cause reproduced
 
 The read-only forensic confirmed the exact live postclaim state:
