@@ -1,3 +1,16 @@
+## 2026-10-16 — F4 reboot successor CONTROL_APPLYING forensic PASS
+
+- Read-only forensic `N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_READONLY_FORENSIC_20261016_01` is CLOSED_PASS.
+- The consumed control-install claim is exactly at `CONTROL_APPLYING`; replay is forbidden.
+- All old successor control files and the installed manifest exactly match the PR #600 artifact, and the systemd drop-in is loaded.
+- The installed guard deterministically fails because it requires a `board_access` field that the frozen F4 `_runtime_activity()` result does not contain.
+- Broker/Services remain active; certificate timer remains enabled/inactive; certificate service remains inactive; listeners remain exactly 1883,8123,8883.
+- F4 transaction, runtime acceptance, certificate status, boot identity, runtime identity and certificate identity remain unchanged.
+- PR #605 exact HEAD `99e0c4aecb013cf0dc8b350f851a38d670b9d6e7` repairs only that guard defect and has 13/13 observed workflow PASS.
+- Exact repaired artifact ID: `12029738934`; ZIP SHA-256 `9fda3a2b21bf37484018f9d58bed60bb0f5ba28bc977a5a2ff33c8063c5bb03c`; control tar SHA-256 `3f23029c601e8d66661ca36941467021af0eb376929c87a42ce258a4e4d98291`; manifest SHA-256 `085e3fd1c56ee4f4d35f1acc9408a4874f5a09dde90bc93d4df84a87ba90d43d`.
+- Do not replay the consumed install authorization and do not perform raw file overwrite/reboot.
+- Next gate: `N3W_T1_F4_REBOOT_SUCCESSOR_POSTCLAIM_RECOVERY_SOURCE_DESIGN_20261016_01`.
+
 ## CONTROL_APPLYING forensic — root cause reproduced
 
 The read-only forensic confirmed the exact live postclaim state:
