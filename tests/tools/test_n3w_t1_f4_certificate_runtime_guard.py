@@ -238,6 +238,13 @@ def test_two_real_lifecycle_checks_remain_runtime_guard_eligible(
         status_file=status,
         allowed_roots=(tmp_path,),
     )
+    base_now = lifecycle._certificate_info(
+        material["server_cert"]
+    ).not_before + timedelta(days=1)
+    initial_document, initial_code = lifecycle.audit(config, now=base_now)
+    assert initial_code == 0
+    lifecycle._atomic_write_status(status, initial_document)
+    first_audit_sha = hashlib.sha256(status.read_bytes()).hexdigest()
 
     write_json(
         transaction,
@@ -248,7 +255,7 @@ def test_two_real_lifecycle_checks_remain_runtime_guard_eligible(
             "certificate_first_audit_passed": True,
             "certificate_timer_enabled": True,
             "pre_reboot_ready": True,
-            "certificate_status_sha256": "f" * 64,
+            "certificate_status_sha256": first_audit_sha,
         },
     )
 
@@ -265,21 +272,87 @@ def test_two_real_lifecycle_checks_remain_runtime_guard_eligible(
         lambda path, _mode: lifecycle._certificate_info(path).fingerprint,
     )
 
-    base_now = lifecycle._certificate_info(
-        material["server_cert"]
-    ).not_before + timedelta(days=1)
-    hashes: list[str] = []
-    for current in (base_now, base_now + timedelta(days=1)):
+    first_precheck = guard.check()
+    assert first_precheck["status"] == "PASS"
+    runtime_hashes = [first_precheck["runtime_status_sha256"]]
+
+    for current in (
+        base_now + timedelta(days=1),
+        base_now + timedelta(days=2),
+    ):
         document, code = lifecycle.auto_renew(config, now=current)
         assert code == 0
         lifecycle._atomic_write_status(status, document)
         report = guard.check()
         assert report["status"] == "PASS"
-        hashes.append(report["runtime_status_sha256"])
+        runtime_hashes.append(report["runtime_status_sha256"])
 
-    assert hashes[0] != hashes[1]
+    assert runtime_hashes[0] == first_audit_sha
+    assert runtime_hashes[1] != first_audit_sha
+    assert runtime_hashes[2] != runtime_hashes[1]
 
 
+def test_runtime_guard_accepts_ca_rollover_required_status(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    guard = load_tool()
+    helpers = load_lifecycle_helpers()
+    lifecycle = helpers.load_tool()
+    material = helpers.make_material(tmp_path, server_days=20, ca_days=850)
+    status_dir = tmp_path / "status"
+    status_dir.mkdir(mode=0o700)
+    status = status_dir / "status.json"
+    transaction = tmp_path / "transaction.json"
+    config = lifecycle.LifecycleConfig(
+        server_cert=material["server_cert"],
+        server_key=material["server_key"],
+        ca_cert=material["ca_cert"],
+        ca_key=material["ca_key"],
+        system_ca=material["ca_cert"],
+        server_name="broker.test",
+        status_file=status,
+        allowed_roots=(tmp_path,),
+    )
+    current = lifecycle._certificate_info(
+        material["server_cert"]
+    ).not_before + timedelta(days=1)
+    document, code = lifecycle.auto_renew(config, now=current)
+    assert code == 2
+    assert document["result"] == "ca_rollover_required"
+    assert document["server_state"] == "RENEW_DUE"
+    assert document["ca_state"] == "CA_ROLLOVER_REQUIRED"
+    lifecycle._atomic_write_status(status, document)
+
+    write_json(
+        transaction,
+        {
+            "stage": "PERSISTENCE_ENABLED",
+            "broker_services_persistence_enabled": True,
+            "persistence_enabled": True,
+            "certificate_first_audit_passed": True,
+            "certificate_timer_enabled": True,
+            "pre_reboot_ready": True,
+            "certificate_status_sha256": "a" * 64,
+        },
+    )
+    monkeypatch.setattr(guard, "TRANSACTION_PATH", transaction)
+    monkeypatch.setattr(guard, "CERT_STATUS_FILE", status)
+    monkeypatch.setattr(guard, "SERVER_CERT", material["server_cert"])
+    monkeypatch.setattr(guard, "CA_CERT", material["ca_cert"])
+    monkeypatch.setattr(guard, "SYSTEM_CA", material["ca_cert"])
+    monkeypatch.setattr(guard, "_json", read_json_test_fixture)
+    monkeypatch.setattr(guard, "_f4_control_contract", lambda _transaction: None)
+    monkeypatch.setattr(
+        guard,
+        "_certificate_fingerprint",
+        lambda path, _mode: lifecycle._certificate_info(path).fingerprint,
+    )
+
+    report = guard.check()
+    assert report["status"] == "PASS"
+    assert report["server_state"] == "RENEW_DUE"
+    assert report["ca_state"] == "CA_ROLLOVER_REQUIRED"
 
 def test_production_guard_preserves_full_f4_control_contract() -> None:
     source = TOOL.read_text(encoding="utf-8")
