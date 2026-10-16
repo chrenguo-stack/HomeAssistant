@@ -1,3 +1,24 @@
+## 2026-10-16 — Recovery postexecution read-only PASS; downstream history blocker found
+
+~~~text
+TASK=N3W_T1_F4_STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_POSTEXECUTION_READONLY_CLOSURE_20261016_01
+READONLY_RESULT=PASS
+REAL_T1_STAGE=PREPARED
+REAL_T1_TRANSACTION_SHA256=bd1e69c2bce2291e835e8bd341434ad889fbdae8630d9bf897a7fdb27dade1ad
+
+RUNTIME_ACCEPTANCE_AUTHORIZATION_HISTORY=null
+DOWNSTREAM_SOURCE_BLOCKER=OPEN
+SUCCESSOR_ACTIVATION_SAFE_TO_EXECUTE=false
+SUCCESSOR_RUNTIME_ACCEPTANCE_SAFE_TO_EXECUTE=false
+
+NEXT_ONE_GATE=N3W_T1_F4_PREPARED_AUTHORIZATION_HISTORY_NULL_SOURCE_REPAIR_20261016_01
+LIVE_MUTATION=false
+~~~
+
+The durable recovery state itself is valid and remains fully stopped. A new blocker was exposed by the fresh authorization-ledger capture: the runtime-acceptance history field is null while the repaired launcher requires a list before any successor activation authorization can be evaluated.
+
+No successor activation authorization is granted. A source-only repair is now in progress.
+
 ## 2026-10-16 — F4 stopped-runtime-acceptance recovery live execution CLOSED_PASS
 
 ~~~text
