@@ -2799,6 +2799,9 @@ def test_successor_authorization_rejects_any_prior_f4_authority() -> None:
         "runtime_acceptance_recovery_authorization_id": (
             "N3W_T1_F4_ACCEPT_RECOVERY_AUTH"
         ),
+        "prepared_authorization_history_repair_authorization_id": (
+            "N3W_T1_F4_PREPARED_HISTORY_REPAIR_AUTH"
+        ),
         "activation_authorization_history": [
             "N3W_T1_F4_OLD_ACTIVATE_AUTH"
         ],
@@ -2813,6 +2816,7 @@ def test_successor_authorization_rejects_any_prior_f4_authority() -> None:
         "N3W_T1_F4_ACTIVATE_AUTH",
         "N3W_T1_F4_ACCEPT_AUTH",
         "N3W_T1_F4_ACCEPT_RECOVERY_AUTH",
+        "N3W_T1_F4_PREPARED_HISTORY_REPAIR_AUTH",
         "N3W_T1_F4_OLD_ACTIVATE_AUTH",
         "N3W_T1_F4_OLD_ACCEPT_AUTH",
     ):
