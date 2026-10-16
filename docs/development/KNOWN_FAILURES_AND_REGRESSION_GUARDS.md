@@ -1,3 +1,18 @@
+### 2026-10-16 KF-121 reboot successor control-install preauth R2 closure
+
+~~~text
+CONTROL_INSTALL_PREAUTH_R2=CLOSED_PASS
+CURRENT_RUNTIME_SNAPSHOT_SHA256=29183afd73d71d4e85d8481d96f062b7c099d6721b46708a49495d58a39994f0
+BOOT_ID_SHA256=459bba3071dd3d48b7dd0a2cb750cfa9dcb09b456236564940c8fad85f79f95d
+F4_DURABLE_STATE_UNCHANGED=true
+SUCCESSOR_RESIDUE_ABSENT=true
+INSTALL_AUTHORIZATION_COLLISION=false
+CONTROL_INSTALL_AUTHORIZATION_GRANTED=false
+REBOOT_AUTHORIZATION_GRANTED=false
+~~~
+
+Guard: a historical volatile container-identity snapshot is not a permanent durable acceptance record. Before successor control installation, prove the frozen F4 transaction/runtime-acceptance/certificate records, current boot identity and current runtime contracts; then freeze the current healthy runtime snapshot across the immediate install boundary. Do not stage/install successor control without a fresh explicit one-shot control-install authorization. A successful install does not authorize reboot; reboot remains a separate later one-shot authorization and must never be inferred from PRE_REBOOT_READY or control-install completion.
+
 ### 2026-10-16 KF-121 reboot authority gap source repair closure
 
 ~~~text
