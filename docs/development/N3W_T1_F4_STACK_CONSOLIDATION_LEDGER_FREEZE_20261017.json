@@ -1,0 +1,45 @@
+{
+  "schema": "n3w-t1-f4-stack-consolidation-ledger-freeze/1",
+  "generated_date": "2026-10-17",
+  "repository": "chrenguo-stack/HomeAssistant",
+  "preparation_base_head": "cc842417d26d9c626556b745a586efac74d9d695",
+  "main_base_sha": "b12c69be5c1d1d61887e9be4a776f575141d44c6",
+  "product_source_authority_sha": "19bd98386c4828c0768f2f3936429db8c7a59adf",
+  "immutable_evidence_authority_sha": "62f2a107d834b31b498e230ee68f66833580f4c5",
+  "consolidation_branch": "integrate/n3w-t1-f4-stack-consolidation-20261017",
+  "mutable_ledgers": [
+    {
+      "path": "docs/development/N3W_CURRENT_STATE.md",
+      "blob_sha": "8ad5670d51fa6da22bea89f45462ee1425c88e52",
+      "mode": "100644"
+    },
+    {
+      "path": "docs/development/N3W_CURRENT_STATE_INDEX.md",
+      "blob_sha": "cf7573a50645bc0a527fd276da2134fb2f032b49",
+      "mode": "100644"
+    },
+    {
+      "path": "docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md",
+      "blob_sha": "ec880ffeb9c97ea89cb40e49a8bf21b35c5e8370",
+      "mode": "100644"
+    }
+  ],
+  "construction": {
+    "commit_a_message": "feat: consolidate exact N3W T1 F4 product snapshot",
+    "commit_a_file_count": 19,
+    "commit_b_message": "docs: consolidate N3W T1 F4 durable evidence",
+    "commit_b_immutable_evidence_file_count": 44,
+    "commit_b_mutable_ledger_file_count": 3,
+    "commit_b_consolidation_metadata_file_count": 4,
+    "final_allowlist_file_count": 70
+  },
+  "metadata_paths": [
+    "docs/development/N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_DESIGN_20261017.md",
+    "docs/development/N3W_T1_F4_STACK_CONSOLIDATION_PAYLOAD_MANIFEST_20261017.json",
+    "docs/development/N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_PREPARATION_20261017.md",
+    "docs/development/N3W_T1_F4_STACK_CONSOLIDATION_LEDGER_FREEZE_20261017.json"
+  ],
+  "branch_created": false,
+  "pr_created": false,
+  "merge": false
+}

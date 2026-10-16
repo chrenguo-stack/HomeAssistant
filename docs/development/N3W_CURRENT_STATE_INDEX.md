@@ -1,3 +1,15 @@
+## 2026-10-17 — F4 stack consolidation preparation CLOSED_PASS
+
+- Fresh main remains `b12c69be5c1d1d61887e9be4a776f575141d44c6`.
+- 63-entry payload manifest revalidation passed: 19/19 exact product blobs and 44/44 immutable evidence blobs.
+- Consolidation branch name is reserved as `integrate/n3w-t1-f4-stack-consolidation-20261017`; it is not created yet.
+- Construction is frozen as two commits: exact product snapshot first, durable evidence/ledger/metadata second.
+- Final allowlist is 70 files: 19 product + 44 immutable evidence + 3 frozen ledgers + 4 consolidation metadata files.
+- The three mutable ledgers are frozen by exact blob SHA in `docs/development/N3W_T1_F4_STACK_CONSOLIDATION_LEDGER_FREEZE_20261017.json`.
+- No main mutation, consolidation PR or merge occurred.
+- Next gate: `N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_CONSTRUCTION_20261017_01`.
+- Authority: `docs/development/N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_PREPARATION_20261017.md`.
+
 ## 2026-10-17 — F4 stack consolidation design CLOSED_PASS
 
 - Clean integration will start from fresh `main`; historical F4 commits will not be cherry-picked.
