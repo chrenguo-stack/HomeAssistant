@@ -7,6 +7,7 @@ PRE_REBOOT_READY=true
 
 REBOOT_SOURCE_OWNER_PRESENT=false
 REBOOT_AUTHORIZATION_DURABLE_CLAIM_PRESENT=false
+CERTIFICATE_STATUS_RUNTIME_EVOLUTION_GUARD_READY=false
 LIVE_REBOOT_AUTHORIZATION_READY=false
 RAW_SYSTEMCTL_REBOOT_FORBIDDEN=true
 
@@ -14,7 +15,7 @@ NEXT_ONE_GATE=N3W_T1_F4_REBOOT_SUCCESSOR_SOURCE_REPAIR_20261016_01
 AUTO_EXECUTE_NEXT_GATE=true
 ~~~
 
-Source review found that the current F4 activation host stops at certificate timer enablement and has no repository-owned reboot command or durable reboot authorization claim. A raw host reboot would bypass the one-shot authority model. Reboot live execution is therefore blocked until a successor source repair is reviewed, tested, built, and installed.
+Source review found that the current F4 activation host stops at certificate timer enablement and has no repository-owned reboot command or durable reboot authorization claim. A raw host reboot would bypass the one-shot authority model. In addition, certificate eligibility currently binds every scheduled lifecycle run to the first-audit status hash even though the lifecycle helper rewrites status.json on each check; without repair this becomes a one-run-only timer gate. Reboot live execution is therefore blocked until both source gaps are repaired, reviewed, tested, built, and installed.
 
 ## 2026-10-16 — F4 certificate timer enablement successor postexecution read-only closure CLOSED_PASS
 
