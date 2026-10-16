@@ -1,3 +1,325 @@
+## 2026-10-17 — F4 post-merge alignment PR #609 review CLOSED_PASS
+
+- PR #609 remains Draft/open/unmerged and targets exact merged main `f62752b32dff991f3de1490b85b33533237d1b59`.
+- Alignment head: `97239c1cfc500e70c4231a0d52a45ef44beb4785`; 1 commit, 9 docs-only changed paths.
+- CI PASS 12/12.
+- Five final integration records are exact blob matches; three project ledgers preserve the historical authority content as exact suffixes.
+- 1733 non-changed blob paths are unchanged from exact main.
+- Product source mutation=false; T1 mutation=false; board access=false.
+- F4 repository closure is not final until this exact alignment payload is merged and then proven reachable from main.
+- Next gate: `N3W_T1_F4_POSTMERGE_STATE_ALIGNMENT_MERGE_DECISION_20261017_01`.
+- Authority: `docs/development/N3W_T1_F4_POSTMERGE_STATE_ALIGNMENT_REVIEW_CLOSURE_20261017.md`.
+
+## 2026-10-17 — PR #608 merged to main
+
+- PR #608 is CLOSED/MERGED.
+- New main: `f62752b32dff991f3de1490b85b33533237d1b59`.
+- Merge method: regular `merge`, the only method allowed by the active main ruleset.
+- Merge commit parents are exact old main `b12c69be5c1d1d61887e9be4a776f575141d44c6` and clean candidate head `6b9d311c4055230fd758abe20b40d7d545b04d81`.
+- Merge tree equals candidate tree exactly: `29951e55ab800f77a2d5b3012adcd94e874bbd8d`.
+- Pre-merge CI 14/14 PASS; tree-equivalence and main-preservation reviews remain PASS.
+- No T1 mutation or board access occurred in the merge gate.
+- F4 repository closure is not final until the preparation-frozen project ledgers on main are updated by a separate docs-only post-merge alignment gate.
+- Next gate: `N3W_T1_F4_POSTMERGE_STATE_ALIGNMENT_20261017_01`.
+- Authority: `docs/development/N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_MERGE_EXECUTION_CLOSURE_20261017.md`.
+
+## 2026-10-17 — PR #608 merge decision ready
+
+- PR #608 remains Draft/open/unmerged, `mergeable=true`, `mergeable_state=clean`.
+- Main/base remains `b12c69be5c1d1d61887e9be4a776f575141d44c6`; head remains `6b9d311c4055230fd758abe20b40d7d545b04d81`.
+- CI PASS 14/14; active `protect-main` required status contexts are 13/13 terminal acceptable.
+- Required approving reviews: 0; unresolved review threads: 0.
+- Main ruleset permits only regular `merge`; squash/rebase are not allowed.
+- Tree-equivalence and main-preservation reviews remain PASS.
+- Merge is not yet authorized. A separate merge-execution gate must first mark the Draft PR ready and re-check for newly triggered workflows.
+- A docs-only post-merge state-alignment gate is required after any successful merge.
+- Next gate: `N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_MERGE_EXECUTION_20261017_01`.
+- Authority: `docs/development/N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_MERGE_DECISION_20261017.md`.
+
+## 2026-10-17 — F4 clean consolidation PR #608 review CLOSED_PASS
+
+- PR #608 remains Draft/open/unmerged and targets `main` from exact clean head `6b9d311c4055230fd758abe20b40d7d545b04d81`.
+- CI is PASS 14/14.
+- Tree-equivalence review PASS; main-preservation review PASS.
+- Changed paths are exactly 70/70 allowlisted; no unlisted path drift.
+- Product blobs: 19/19 exact; immutable evidence: 44/44 exact; frozen ledgers: 3/3 exact; metadata: 4/4 exact.
+- 1666 non-allowlisted blob paths were checked and are unchanged from exact main.
+- Real-T1 durable reboot closure remains PASS / `REBOOT_ACCEPTED`; KF-121 durable blocker remains closed.
+- PR #608 is technically ready for a separate merge decision; merge remains unauthorized.
+- Next gate: `N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_MERGE_DECISION_20261017_01`.
+- Authority: `docs/development/N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_DRAFT_PR_AND_CI_CLOSURE_20261017.md`.
+
+## 2026-10-17 — F4 clean consolidation PR #608 created
+
+- Draft PR #608 targets `main` from `integrate/n3w-t1-f4-stack-consolidation-20261017`.
+- Head is exact clean candidate `6b9d311c4055230fd758abe20b40d7d545b04d81`; 2 commits, 70 changed files.
+- GitHub reports mergeable=true; merge remains unauthorized.
+- Candidate CI is 13/14 PASS after the maximum three polls.
+- Remaining run: N3W T1 F4 activation source CI, run `38935594970`.
+- STOP until the final CI completes; then resume the same gate for focused tree-equivalence/main-preservation review.
+- Authority: `docs/development/N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_DRAFT_PR_AND_CI_PROGRESS_20261017.md`.
+
+## 2026-10-17 — F4 clean consolidation candidate constructed
+
+- Candidate branch: `integrate/n3w-t1-f4-stack-consolidation-20261017`.
+- Candidate head: `6b9d311c4055230fd758abe20b40d7d545b04d81`.
+- Parent is exact main `b12c69be5c1d1d61887e9be4a776f575141d44c6`; only two clean commits were added.
+- Main-to-candidate diff is exactly the 70-file allowlist.
+- Product equivalence 19/19 PASS; immutable evidence 44/44 PASS; frozen ledgers 3/3 PASS; metadata 4/4 PASS.
+- No unlisted path drift and no historical PR/commit replay.
+- No consolidation PR or merge has been created yet.
+- Next gate: `N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_DRAFT_PR_AND_CI_20261017_01`.
+- Authority: `docs/development/N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_CONSTRUCTION_CLOSURE_20261017.md`.
+
+## 2026-10-17 — F4 stack consolidation preparation CLOSED_PASS
+
+- Fresh main remains `b12c69be5c1d1d61887e9be4a776f575141d44c6`.
+- 63-entry payload manifest revalidation passed: 19/19 exact product blobs and 44/44 immutable evidence blobs.
+- Consolidation branch name is reserved as `integrate/n3w-t1-f4-stack-consolidation-20261017`; it is not created yet.
+- Construction is frozen as two commits: exact product snapshot first, durable evidence/ledger/metadata second.
+- Final allowlist is 70 files: 19 product + 44 immutable evidence + 3 frozen ledgers + 4 consolidation metadata files.
+- The three mutable ledgers are frozen by exact blob SHA in `docs/development/N3W_T1_F4_STACK_CONSOLIDATION_LEDGER_FREEZE_20261017.json`.
+- No main mutation, consolidation PR or merge occurred.
+- Next gate: `N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_CONSTRUCTION_20261017_01`.
+- Authority: `docs/development/N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_PREPARATION_20261017.md`.
+
+## 2026-10-17 — F4 stack consolidation design CLOSED_PASS
+
+- Clean integration will start from fresh `main`; historical F4 commits will not be cherry-picked.
+- Product source authority is exact reviewed head `19bd98386c4828c0768f2f3936429db8c7a59adf`.
+- Immutable evidence authority is `62f2a107d834b31b498e230ee68f66833580f4c5`.
+- Frozen payload manifest contains 63 exact blobs: 19 product-source files + 44 immutable evidence files.
+- All 19 product blobs are byte-identical to the reviewed source authority.
+- The three mutable ledgers are intentionally frozen later in the preparation gate.
+- PRs #601-#606 remain historical side branches; PR #607 alternative recovery source is explicitly excluded from product consolidation.
+- No consolidation branch or PR has been created; no merge is authorized.
+- Next gate: `N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_PREPARATION_20261017_01`.
+- Authority: `docs/development/N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_DESIGN_20261017.md`.
+
+## 2026-10-17 — PR #605 final/pre-merge + F4 stack integration review
+
+- PR #605 final/pre-merge review passes relative to its current PR #600 base.
+- Current reviewed product source remains `19bd98386c4828c0768f2f3936429db8c7a59adf`; later PR #605 changes are documentation-only.
+- PR #605 head `0acf1c6e5dca0b103e3c3aaceb26c847bfad65d3` passed 13/13 observed workflows.
+- Real-T1 durable reboot ledger is `REBOOT_ACCEPTED`; terminal verification passed; KF-121 durable-ledger blocker is closed.
+- The ancestry `#598 -> #599 -> #600 -> #605` is valid but is not rooted at main.
+- Fresh binding found upstream parents #597, #596 and #595 before #598; #595 is itself not based on current main.
+- PRs #601-#604 are a side branch from #600 and are not ancestors of current #605.
+- Current main -> PR #605 head is 272 commits / 65 changed files.
+- Direct PR #605 -> main merge is not ready. Recommended next route is explicit F4 stack-consolidation design.
+- Merge remains unauthorized.
+- Authority: `docs/development/N3W_T1_F4_PR605_FINAL_PREMERGE_AND_STACK_INTEGRATION_REVIEW_20261017.md`.
+
+## 2026-10-17 — F4 durable reboot ledger CLOSED_PASS
+
+- Real-T1 finalizer passed and atomically advanced the durable reboot ledger to `REBOOT_ACCEPTED`.
+- Accepted claim SHA-256: `48bb962b2d979f0e6f80a36bfc4f33aff6eca77e1b3a655f5773a9c4ebb879e9`.
+- Prior pending claim remains chained as `61429105bc05f135f3d0b8be338d74899b2466cb65fa896be4254d37a54c5028`.
+- Independent read-only terminal verification passed; terminal contract passed.
+- Reboot authorization remains consumed/no-replay.
+- F4 transaction and installed control were not changed by ledger finalization.
+- KF-121 durable-ledger blocker is CLOSED_PASS.
+- Next route: fresh PR #605 final/pre-merge review. Merge is not authorized.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_LEDGER_FINALIZATION_LIVE_AND_TERMINAL_VERIFY_CLOSURE_20261017.md`.
+
+## 2026-10-17 — F4 ledger-finalization live gate authorized
+
+- Exact read-only preauth is CLOSED_PASS.
+- Explicit authorization is granted for `N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_LEDGER_FINALIZATION_LIVE_20261017_01`.
+- Scope is one exact atomic `REBOOT_PENDING -> REBOOT_ACCEPTED` ledger transition plus immediate read-only terminal verification.
+- Expected pending claim remains `61429105bc05f135f3d0b8be338d74899b2466cb65fa896be4254d37a54c5028`.
+- Old reboot/recovery authorizations remain consumed/no-replay and are not reused.
+- No reboot, installed-control replacement, F4 transaction mutation, certificate lifecycle trigger, board access or merge is authorized.
+- On finalizer failure or ambiguity: STOP, no automatic retry.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_LEDGER_FINALIZATION_LIVE_PREEXECUTION_20261017.md`.
+
+## 2026-10-17 — F4 ledger-finalization read-only preauth CLOSED_PASS
+
+- Exact reviewed finalizer artifact binding passed.
+- Real-T1 read-only preauthorization passed with no production-state mutation.
+- Durable reboot claim remains exact `REBOOT_PENDING`; pending SHA-256 remains `61429105bc05f135f3d0b8be338d74899b2466cb65fa896be4254d37a54c5028`.
+- F4 transaction and installed `CONTROL_READY` material binding remain unchanged.
+- Post-reboot boot identity remains `e04f445426ee875b1c429a33c6b1e6893175727118fc8ad28e24c431c1fa66c7`.
+- Fresh acceptance-report SHA-256: `ecb7bca66f27a9372b23ed928407de7a2e9d6ec957fcc5a0c1e0245dce40fecf`.
+- Old reboot authorization remains consumed/no-replay.
+- Next gate requires a separate explicit live ledger-finalization authorization; it is not auto-executed.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_LEDGER_FINALIZATION_ARTIFACT_AND_READONLY_PREAUTH_CLOSURE_20261017.md`.
+
+## 2026-10-17 — F4 durable reboot ledger finalization preauth prepared
+
+- Source review remains CLOSED_PASS at exact product source `19bd98386c4828c0768f2f3936429db8c7a59adf`; no product-source drift has occurred.
+- Exact finalizer artifact is run `38924889363`, job `117053791078`, artifact `12056436272`.
+- Verified artifact ZIP SHA-256: `ff2b35a7b7a3384ac2a1ee290c93ccdb7130de4166b2385aa60e3ca36a2bf764`.
+- Verified transport TAR SHA-256: `ade461a836d1a118291c5e7d2e3bfcb7e990ead41c2832c31f84705e578a50ba`.
+- Verified manifest SHA-256: `bab1f7f1a4834d4f85bd01ae05d4569d32798e6661c72caf0d2636cfbaecbe70`.
+- Verified finalizer executor SHA-256: `c4a738656e98b5f8bae27a34aba845c002287b253f99f54cf459f8d292f7d9ec`.
+- Next action requires the user's macOS Terminal/T1 SSH path: bounded `/tmp` staging and read-only preauthorization only.
+- No real-T1 ledger mutation, reboot replay, board access or merge has occurred.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_LEDGER_FINALIZATION_ARTIFACT_AND_READONLY_PREAUTH_PREEXECUTION_20261017.md`.
+
+## 2026-10-16 — F4 post-reboot binding focused source review CLOSED_PASS
+
+- Exact reviewed product source remains `19bd98386c4828c0768f2f3936429db8c7a59adf` / tree `f5b66faf690c88d655e01ffc0a5d5ef122b589af`.
+- Candidate head at review start was `78e16f0208047868dba4751fc7c21fecae1d7783`; the only change after the reviewed source head was the docs-only new-chat handoff.
+- Exact source-head CI remains PASS 13/13; the exact reboot-successor package build/verify job also passed.
+- A1–A10 focused review all PASS: staged executor binding, installed material binding, retained pre-reboot guards, post-reboot ordering, read-only terminal verification, no-replay/hash chain, atomic interruption semantics, certificate-status evidence, test coverage and later package buildability.
+- No new source blocker or distinct new KF root cause was proven.
+- Real T1 was not accessed or mutated; its last proven durable reboot claim remains `REBOOT_PENDING`.
+- Next route is to define an exact artifact + read-only preauthorization gate for ledger finalization. It is not auto-executed.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_SOURCE_REVIEW_CLOSURE_20261016.md`.
+
+## 2026-10-16 — F4 post-reboot binding sync audit + repair
+
+- Fresh audit showed GitHub was only partially synchronized: CI #217 final failure and the corrected root cause were not yet in durable current-state evidence.
+- PR #605 was updated with the missing CI #217 evidence before further mutation.
+- Corrected source finding: `verify_reboot_accepted()` still reused the pre-reboot `_verify_installed_control()`; this is now replaced by the post-reboot-safe material-binding helper.
+- The terminal-verifier regression test now fails if the pre-reboot helper is called.
+- Test mocks now return the material helper's tuple contract.
+- The non-root CI fixture models root-owned installed-target metadata without changing production ownership enforcement.
+- No T1/runtime/board/merge mutation.
+- Next: exact-head CI, then focused post-reboot binding source review.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_SYNC_AND_FIXTURE_REPAIR_20261016.md`.
+
+## 2026-10-16 — F4 post-reboot binding CI test fix
+
+- CI #215 failed only in two newly added focused tests; 133 focused tests passed.
+- Root cause: stale mock target after the production helper split, plus production root-ownership checks applied to non-root GitHub-runner temporary files.
+- Repair changes tests only; production source from `b099ea221ca4...` is unchanged.
+- Finalizer and terminal verifier tests mock `_verify_installed_control_material_binding()`.
+- The isolated material-binding regression test keeps functional hash/contract checks but bypasses host ownership metadata through a test-only JSON reader.
+- Real T1 remains untouched.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_CI_TEST_FIX_20261016.md`.
+
+## 2026-10-16 — F4 durable reboot closure post-reboot binding source repair
+
+- Gate: `N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_SOURCE_REPAIR_20261016_01`.
+- Split exact immutable installed-control verification from pre-reboot runtime/timer/snapshot assertions.
+- Finalizer and accepted-state verifier no longer require certificate timer inactive after reboot.
+- Finalizer and accepted-state verifier no longer require container `StartedAt` to equal the pre-reboot snapshot.
+- Exact F4 transaction hash, control manifest/files and recovery linkage remain enforced.
+- Existing pre-reboot flows retain the original stronger helper and protections.
+- Added regression coverage proving the material-only helper does not call `_base_pre_reboot()`.
+- Real T1 remains untouched.
+- Next: exact-head CI and focused source review.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_SOURCE_REPAIR_PROGRESS_20261016.md`.
+
+## 2026-10-16 — F4 durable reboot closure source review repair
+
+- First source-repair head `b4287d574907...` passed 13/13 CI but focused review found an executor deployment-binding blocker.
+- Initial finalizer incorrectly required the real T1's installed control to match the new finalizer source/manifest.
+- Repaired model: execute the finalizer from an exact staged artifact with self-binding, while separately verifying the already installed `CONTROL_READY` artifact.
+- No immutable installed product material must be replaced to advance the mutable reboot ledger.
+- Pending-claim hash, acceptance-report hash, old installed-control binding and finalizer-executor binding are all preserved.
+- Real T1 remains untouched.
+- Next: exact-head CI and focused source review R2.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_SOURCE_REVIEW_REPAIR_20261016.md`.
+
+## 2026-10-16 — F4 reboot acceptance durable-closure source repair IMPLEMENTED / CI pending
+
+- Repair gate: `N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_SOURCE_REPAIR_20261016_01`.
+- Existing post-reboot verifier remains read-only.
+- Added `finalize-reboot-acceptance`: exact pending-claim hash check -> fresh read-only acceptance proof -> atomic `REBOOT_ACCEPTED` ledger transition.
+- Added `verify-reboot-accepted`: read-only verification of accepted claim hash, report hash, boot binding and consumed/no-replay authorization state.
+- The pending claim SHA-256 is preserved inside the terminal record as `pre_acceptance_claim_sha256`.
+- No F4 transaction or immutable product-material hash rewrite is required by finalization.
+- Real T1 is not touched in this source-repair gate.
+- Next: exact-head CI and focused source review.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_SOURCE_REPAIR_PROGRESS_20261016.md`.
+
+## 2026-10-16 — F4 reboot successor final closure / PR #605 pre-merge review BLOCKED
+
+- The real-T1 reboot acceptance remains valid and `REBOOT_ACCEPTED`.
+- PR #605 exact review head `e2a38fa2...` is 13/13 CI green and has only docs drift since the prior source-review head `da64d1cd...`.
+- Pre-merge review found one source-state-machine blocker: the durable reboot claim remains `REBOOT_PENDING` with `reboot_acceptance_passed=false` after successful acceptance.
+- The post-reboot verifier is intentionally read-only and returns `REBOOT_ACCEPTED` only as output; no repository-owned finalization command persists the terminal accepted state.
+- The claim creator rejects a pre-existing reboot-claim path, so the pending record also permanently occupies the one-shot claim path.
+- PR #605 is not merge-ready. Main integration is additionally stacked behind open draft PR #600, PR #599 and PR #598.
+- Next one gate: `N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_SOURCE_REPAIR_20261016_01`.
+- No T1 access, runtime mutation, board access or merge occurred in this review.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_FINAL_CLOSURE_AND_PR605_PREMERGE_REVIEW_20261016.md`.
+
+## 2026-10-16 — F4 reboot successor live + post-reboot acceptance CLOSED_PASS
+
+- Gate `N3W_T1_F4_REBOOT_SUCCESSOR_LIVE_20261016_01` completed and post-reboot acceptance returned `REBOOT_ACCEPTED`.
+- One-shot reboot authorization is claimed, consumed and permanently non-replayable.
+- Durable reboot claim SHA-256: `61429105bc05f135f3d0b8be338d74899b2466cb65fa896be4254d37a54c5028`; durable stage remains `REBOOT_PENDING` because the acceptance verifier is read-only.
+- Boot identity changed from `459bba3071dd3d48b7dd0a2cb750cfa9dcb09b456236564940c8fad85f79f95d` to `e04f445426ee875b1c429a33c6b1e6893175727118fc8ad28e24c431c1fa66c7`.
+- F4 transaction stayed unchanged; provisioning resume and Broker/Services persistence passed.
+- Certificate timer runtime and lifecycle-service result passed; certificate status remained `446404d0e3725bf0e8fa9b6bd11bd67c83f16871a6e196b1cc950043ad229af4`; certificate identity remained unchanged.
+- Manager runtime stability and business-state freshness passed; Home Assistant MQTT integration was not duplicated.
+- Install claim remains `CONTROL_READY`; recovery claim remains `RECOVERY_VERIFIED`.
+- No board access or merge occurred.
+- Next one gate: `N3W_T1_F4_REBOOT_SUCCESSOR_FINAL_CLOSURE_AND_PR605_PREMERGE_REVIEW_20261016_01`.
+- Auto-execution is false.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_LIVE_AND_POSTREBOOT_ACCEPTANCE_CLOSURE_20261016.md`.
+
+## 2026-10-16 — F4 CONTROL_APPLYING recovery live + postexecution CLOSED_PASS
+
+- The real-T1 recovery gate completed successfully and advanced the durable install claim from `CONTROL_APPLYING` to `CONTROL_READY`.
+- Recovery authorization `N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_LIVE_20261016_01` is consumed/no-replay.
+- Final recovery record is `RECOVERY_VERIFIED`, SHA-256 `0a115f2a32a1e94710b3a853bb506fe1bb80ead3cc86d98560efdc2a5d68d481`.
+- Final install claim is `CONTROL_READY`, SHA-256 `7dc7027e3a2c280258cf21084abfdbf812398d37040f2491a58d98560cfb3778`.
+- Postexecution read-only verification passed for exact installed bytes, original-claim/recovery linkage, transaction/runtime/certificate/boot identities, and the running Broker/Manager/Home Assistant set.
+- No reboot claim exists; no reboot, certificate lifecycle invocation, board access or merge occurred.
+- Reboot preauthorization eligibility is restored.
+- Next one gate: `N3W_T1_F4_REBOOT_SUCCESSOR_LIVE_20261016_01`.
+- Proposed reboot authorization remains granted=false / claimed=false / consumed=false.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_POSTEXECUTION_READONLY_CLOSURE_20261016.md`.
+
+## 2026-10-16 — F4 CONTROL_APPLYING recovery artifact + read-only preauth CLOSED_PASS
+
+- Gate `N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_ARTIFACT_AND_READONLY_PREAUTH` is CLOSED_PASS.
+- Exact recovery artifact: run `38876051692`, job `116891251243`, artifact `12035207393`.
+- Artifact ZIP SHA-256 is `128f365afec6447873e6182a1ee5a59f20fd90b1ca3932ed7531b96c08773000`; transport tar and manifest bindings also passed.
+- Fresh read-only T1 preauth passed with no mutation.
+- The real install claim remains exact `CONTROL_APPLYING`; original installed bytes remain exact; the original install authorization remains consumed/no-replay.
+- F4 transaction, runtime acceptance, certificate status, boot identity, runtime identity and certificate identity all match the frozen forensic baseline.
+- Recovery claim and reboot claim are both absent; Broker, Manager and Home Assistant remain active.
+- Proposed recovery authorization remains granted=false / claimed=false / consumed=false.
+- Next one gate: `N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_LIVE_20261016_01`.
+- Auto-execution is false. No reboot, certificate lifecycle action, board access or merge occurred.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_ARTIFACT_AND_READONLY_PREAUTH_CLOSURE_20261016.md`.
+
+## 2026-10-16 — F4 CONTROL_APPLYING recovery source repair CLOSED_PASS
+
+- Gate `N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_SOURCE_REPAIR_20261016_01` is CLOSED_PASS.
+- PR #605 reviewed source head is `da64d1cdfbe7e198abc1d536014769f56471d0cb` / tree `93e9308fa58e680a95b9b4dfb6314023dcd6f911`; PR remains draft and unmerged.
+- All 13 exact-source workflows passed, including F4 source CI, exact control package and public repository safety.
+- Recovery is fail-closed: old install authorization cannot be replayed, old installed bytes and repaired package are exact-bound, and F4/runtime/certificate/status/boot identities are bound.
+- `RECOVERY_APPLYING` must be persisted and read back before the first file replacement.
+- `CONTROL_READY` is persisted only after repaired-control verification and durable `RECOVERY_VERIFIED`.
+- The real T1 was not accessed; its last proven install claim remains `CONTROL_APPLYING`.
+- No live recovery authorization, reboot authorization, certificate lifecycle action, board access or merge occurred.
+- Next one gate: `N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_ARTIFACT_AND_READONLY_PREAUTH`.
+- Auto-execution is false.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_SOURCE_REPAIR_CLOSURE_20261016.md`.
+
+## 2026-10-16 — F4 CONTROL_APPLYING recovery source-repair new-chat handoff published
+
+- Formal handoff uses template V1.3 / blob `b9ef40acdaa8fae37feb5ffe5662afd0e89462a0`.
+- Current stage remains F4; the real install claim remains `CONTROL_APPLYING`.
+- PR #605 archive baseline is `925d0d06db5f93b54f0ee91a13a298286bbd278d` / tree
+  `7dc7d456e5fbbd9e4a9c9cc32e39a7e505306cec`.
+- New chat enters only `N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_SOURCE_REPAIR_20261016_01`.
+- No T1 access, live recovery authorization, reboot, certificate lifecycle trigger, board access or merge is authorized.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_SOURCE_REPAIR_NEW_CHAT_HANDOFF_V1.0_20261016.md`.
+
+## 2026-10-16 — F4 reboot successor control install postclaim failure forensic CLOSED_PASS
+
+- The one-shot control-install authorization is claimed, consumed and permanently non-replayable.
+- The durable install claim is `CONTROL_APPLYING`; all original successor files and manifest are installed and the
+  lifecycle drop-in is loaded.
+- The installed runtime guard deterministically rejects the healthy F4 runtime because it requires a nonexistent
+  `_runtime_activity().board_access` member.
+- PR #605 exact head `99e0c4ae...` contains the focused guard fix and 13 successful workflow runs, but remains draft
+  and is not a T1 recovery authority.
+- F4 transaction, runtime acceptance, certificate status, boot identity, runtime identity and certificate identity
+  remained unchanged; Broker, Manager and Home Assistant remain healthy.
+- Do not replay the consumed install authorization, rerun `install-control`, edit installed files manually, trigger
+  certificate lifecycle, claim reboot authority, or reboot.
+- Next one gate: `N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_SOURCE_REPAIR_20261016_01`.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_INSTALL_POSTCLAIM_FAILURE_FORENSIC_20261016.md`.
+
 ## 2026-10-16 — F4 reboot successor source preparation
 
 - PRE_REBOOT_READY postexecution closure is CLOSED_PASS.

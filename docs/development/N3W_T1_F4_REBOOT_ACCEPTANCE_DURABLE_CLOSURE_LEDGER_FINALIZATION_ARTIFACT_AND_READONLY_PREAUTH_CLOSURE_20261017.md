@@ -1,0 +1,72 @@
+# N3-W T1 F4 durable reboot ledger finalization — exact artifact and read-only preauthorization closure
+
+Date: 2026-10-17
+
+```text
+TASK=N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_LEDGER_FINALIZATION_ARTIFACT_AND_READONLY_PREAUTH_20261017_01
+RESULT=CLOSED_PASS_READY_FOR_SEPARATE_LIVE_LEDGER_FINALIZATION_AUTHORIZATION
+
+PR=605
+PR_STATE=OPEN_DRAFT_NOT_MERGED
+PRODUCT_SOURCE_REVIEW_HEAD=19bd98386c4828c0768f2f3936429db8c7a59adf
+PRODUCT_SOURCE_REVIEW_TREE=f5b66faf690c88d655e01ffc0a5d5ef122b589af
+PRODUCT_SOURCE_DRIFT_AFTER_REVIEW=NONE
+SOURCE_REVIEW_CI=PASS:13/13
+
+ARTIFACT_RUN_ID=38924889363
+ARTIFACT_JOB_ID=117053791078
+ARTIFACT_ID=12056436272
+ARTIFACT_ZIP_SHA256=ff2b35a7b7a3384ac2a1ee290c93ccdb7130de4166b2385aa60e3ca36a2bf764
+TRANSPORT_TAR_SHA256=ade461a836d1a118291c5e7d2e3bfcb7e990ead41c2832c31f84705e578a50ba
+FINALIZER_MANIFEST_SHA256=bab1f7f1a4834d4f85bd01ae05d4569d32798e6661c72caf0d2636cfbaecbe70
+FINALIZER_EXECUTOR_SHA256=c4a738656e98b5f8bae27a34aba845c002287b253f99f54cf459f8d292f7d9ec
+
+PREAUTH_STATUS=PASS
+PREAUTH_STATE=LEDGER_FINALIZATION_PREAUTHORIZED_READONLY
+PREAUTH_PRODUCTION_STATE_MUTATION=false
+PREAUTH_BOARD_ACCESS=false
+
+INSTALLED_SOURCE_HEAD=66788b22fc55f7bf1c003e0b97bc7e75ce859e35
+INSTALLED_MANIFEST_SHA256=f970a4e49730f0f653e52508ef13bec2f018d8c47ea589ff295cfe398529f9a7
+F4_TRANSACTION_SHA256=49e7839ffe5d9e00391577a78c7c6ceb9c85a9a7cdd240ee22cc38485a3e569b
+PENDING_REBOOT_CLAIM_SHA256=61429105bc05f135f3d0b8be338d74899b2466cb65fa896be4254d37a54c5028
+POST_BOOT_ID_SHA256=e04f445426ee875b1c429a33c6b1e6893175727118fc8ad28e24c431c1fa66c7
+CERTIFICATE_STATUS_SHA256=446404d0e3725bf0e8fa9b6bd11bd67c83f16871a6e196b1cc950043ad229af4
+ACCEPTANCE_REPORT_SHA256=ecb7bca66f27a9372b23ed928407de7a2e9d6ec957fcc5a0c1e0245dce40fecf
+
+REAL_T1_DURABLE_REBOOT_CLAIM=REBOOT_PENDING
+REBOOT_AUTHORIZATION_CONSUMED=true
+REBOOT_AUTHORIZATION_REPLAY_ALLOWED=false
+FINALIZER_LIVE_AUTHORIZATION_GRANTED=false
+FINALIZER_EXECUTED_ON_REAL_T1=false
+
+NEXT_ONE_GATE=N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_LEDGER_FINALIZATION_LIVE_20261017_01
+AUTO_EXECUTE_NEXT_GATE=false
+BOARD_ACCESS=false
+MERGE=false
+STOP=true
+```
+
+## Closure
+
+The exact finalizer artifact was independently bound to the reviewed source head, manifest and executor bytes before
+real-T1 inspection.
+
+The bounded read-only preauthorization then passed against the real T1. It proved that the durable reboot claim is
+still the exact historical `REBOOT_PENDING` record, the pending-claim SHA-256 is unchanged, the F4 transaction is
+unchanged, the installed `CONTROL_READY` source/manifest/material binding is unchanged, the current post-reboot boot
+identity is unchanged, and a fresh post-reboot acceptance report still passes.
+
+The fresh certificate-status SHA-256 remains
+`446404d0e3725bf0e8fa9b6bd11bd67c83f16871a6e196b1cc950043ad229af4`. The freshly computed acceptance-report
+SHA-256 is
+`ecb7bca66f27a9372b23ed928407de7a2e9d6ec957fcc5a0c1e0245dce40fecf`.
+
+The consumed reboot authorization remains consumed and non-replayable. The preauthorization did not write the
+production ledger and did not perform any board operation. Temporary staging was bounded to the target's temporary
+area and is not treated as product-state mutation.
+
+This closes the artifact-and-read-only-preauth gate only. The durable ledger is still `REBOOT_PENDING`. A separate
+explicit live authorization is required before the exact staged finalizer may advance it to `REBOOT_ACCEPTED`.
+
+No private T1 locator or credential is stored in this public closure.

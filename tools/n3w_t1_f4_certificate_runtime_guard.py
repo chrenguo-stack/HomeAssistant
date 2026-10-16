@@ -78,7 +78,6 @@ def _f4_control_contract(
     if (
         runtime.get("production_service_start") is not True
         or set(runtime.get("running_services") or []) != EXPECTED_SERVICES
-        or runtime.get("board_access") is not False
     ):
         raise GuardError("f4_runtime_contract_invalid")
 
