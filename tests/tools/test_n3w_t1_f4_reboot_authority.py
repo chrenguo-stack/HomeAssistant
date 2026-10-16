@@ -86,7 +86,8 @@ def test_reboot_claim_payload_is_one_shot(
     install_claim = {
         "control_repair_authorization_id": (
             "N3W_T1_F4_REBOOT_CONTROL_REPAIR_20261016_01"
-        )
+        ),
+        "pre_certificate_snapshot_sha256": "f" * 64,
     }
     monkeypatch.setattr(
         tool,
