@@ -1,3 +1,49 @@
+## 2026-10-17 — PR #608 merge decision READY_FOR_EXPLICIT_MERGE_EXECUTION_AUTHORIZATION
+
+~~~text
+TASK=N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_MERGE_DECISION_20261017_01
+RESULT=READY_FOR_EXPLICIT_MERGE_EXECUTION_AUTHORIZATION
+
+PR=608
+PR_STATE=OPEN_DRAFT_NOT_MERGED
+PR_MERGEABLE=true
+PR_MERGEABLE_STATE=clean
+PR_HEAD=6b9d311c4055230fd758abe20b40d7d545b04d81
+PR_BASE=b12c69be5c1d1d61887e9be4a776f575141d44c6
+
+CI_RESULT=PASS:14/14
+REQUIRED_STATUS_CHECKS=PASS:13/13_TERMINAL_ACCEPTABLE
+REQUIRED_APPROVING_REVIEW_COUNT=0
+UNRESOLVED_REVIEW_THREADS=0
+ALLOWED_MERGE_METHOD=merge
+
+TREE_EQUIVALENCE_REVIEW=PASS
+MAIN_PRESERVATION_REVIEW=PASS
+UNLISTED_PATH_DRIFT=NONE
+
+READY_FOR_REVIEW_TRANSITION_REQUIRED=true
+MERGE_AUTHORIZATION_GRANTED=false
+MERGE=false
+MAIN_MUTATION=false
+BOARD_ACCESS=false
+T1_MUTATION=false
+
+POSTMERGE_STATE_ALIGNMENT_REQUIRED=true
+CURRENT_STAGE=F4
+CURRENT_STOP_POINT=PR608_WAITING_FOR_EXPLICIT_MERGE_EXECUTION_AUTHORIZATION
+NEXT_ONE_GATE=N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_MERGE_EXECUTION_20261017_01
+AUTO_MERGE=false
+~~~
+
+PR #608 is technically ready for a separate merge-execution authorization. Main/base/head remain exact, all observed
+CI and all ruleset-required status contexts are acceptable, and the active main ruleset permits only the regular
+`merge` method. The PR remains Draft and unmerged.
+
+A future merge execution must mark the PR ready, re-check any newly triggered workflows, and merge only if the exact
+head/base contract still holds. Post-merge current-state alignment remains a separate required gate.
+
+Authority: `docs/development/N3W_T1_F4_STACK_CONSOLIDATION_TO_MAIN_MERGE_DECISION_20261017.md`.
+
 ## 2026-10-17 — F4 clean consolidation PR #608 review CLOSED_PASS
 
 ~~~text
