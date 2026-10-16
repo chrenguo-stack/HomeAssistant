@@ -1,3 +1,14 @@
+## 2026-10-16 — F4 successor activation read-only closure PASS
+
+- Read-only closure is CLOSED_PASS.
+- Real T1 remains RUNTIME_STARTED.
+- Transaction SHA-256 remains 19fd5b712aed6eb5cb100d6c0dbad99b32c44a70824099b123689543b213eb30 and was unchanged by the collector.
+- Broker, Manager and Home Assistant remain running.
+- Observed product listener ports: 1883, 8123, 8883.
+- Runtime acceptance remains pending; persistence and certificate timer remain disabled.
+- Closure: docs/development/N3W_T1_F4_RUNTIME_ACTIVATION_SUCCESSOR_POSTEXECUTION_READONLY_CLOSURE_20261016.md
+- Next gate: N3W_T1_F4_RUNTIME_ACCEPTANCE_SUCCESSOR_LIVE_20261016_01.
+
 ## 2026-10-16 — F4 successor runtime activation PASS
 
 - Gate `N3W_T1_F4_RUNTIME_ACTIVATION_SUCCESSOR_LIVE_20261016_01` is CLOSED_PASS.
