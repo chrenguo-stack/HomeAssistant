@@ -1,0 +1,155 @@
+# N3-W T1 F4 Stopped Runtime Acceptance Recovery — Live Execution Closure
+
+Date: 2026-10-16
+
+~~~text
+TASK=N3W_T1_F4_STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_LIVE_EXECUTION_20261016_01
+RESULT=CLOSED_PASS
+
+SOURCE_HEAD=f0bcc2ac50326b9a988405af8a2aad4c51694810
+PACKAGE_MANIFEST_SHA256=37c620daf57a3f49614a4c2824c55b7e20413ef63593cd1781e4f359fb4729b5
+
+PRE_EXECUTION_TRANSACTION_SHA256=805fb27f44d36d7e512260373be7dbb8058164d3ea4ce4c1d13659169062dbcf
+POST_EXECUTION_TRANSACTION_SHA256=bd1e69c2bce2291e835e8bd341434ad889fbdae8630d9bf897a7fdb27dade1ad
+
+OLD_INSTALLED_LAUNCHER_SHA256=f7f742505f439675fb19ecf8f98b8235703d6e2a1c5c9217ecfe01a025be3c8b
+NEW_INSTALLED_LAUNCHER_SHA256=eaf28175909479007d6d1df7522811d032890dcaa2a2280228c93e6dce128bb3
+NEW_INSTALLED_LAUNCHER_SIZE=177919
+NEW_INSTALLED_LAUNCHER_MODE=0755
+
+RECOVERY_AUTHORIZATION_ID=N3W_T1_F4_STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_LIVE_20261016_01
+RECOVERY_AUTHORIZATION_CLAIMED=true
+RECOVERY_AUTHORIZATION_CONSUMED=true
+RECOVERY_AUTHORIZATION_REPLAY_ALLOWED=false
+
+FAILED_RUNTIME_ACCEPTANCE_AUTHORIZATION_ID=N3W_T1_F4_RUNTIME_ACCEPTANCE_LIVE_20261015_01
+FAILED_RUNTIME_ACCEPTANCE_AUTHORIZATION_PRESERVED=true
+
+TARGET_STAGE=PREPARED
+PRODUCTION_SERVICE_START=false
+PERSISTENCE_ENABLED=false
+CERTIFICATE_TIMER_ENABLED=false
+RUNNING_SERVICES=[]
+PRODUCT_LISTENER_PORTS=[]
+
+SUCCESSOR_ACTIVATION_EXECUTED=false
+SUCCESSOR_RUNTIME_ACCEPTANCE_EXECUTED=false
+BOARD_ACCESS=false
+REBOOT=false
+MERGE=false
+~~~
+
+## 1. Preclaim proof
+
+Immediately before the one-shot recovery command:
+
+~~~text
+RECOVERY_PRECLAIM_RESULT=PASS
+authorization_collision=false
+stage=STOPPED_RUNTIME_ACCEPTANCE
+transaction_sha256=805fb27f44d36d7e512260373be7dbb8058164d3ea4ce4c1d13659169062dbcf
+installed_launcher_sha256=f7f742505f439675fb19ecf8f98b8235703d6e2a1c5c9217ecfe01a025be3c8b
+staged_launcher_sha256=eaf28175909479007d6d1df7522811d032890dcaa2a2280228c93e6dce128bb3
+running_services=[]
+product_listener_ports=[]
+~~~
+
+## 2. One-shot recovery command
+
+~~~text
+RECOVERY_COMMAND_RC=0
+RECOVERY_COMMAND_STATUS=PASS
+RECOVERY_COMMAND_STATE=PREPARED
+~~~
+
+The command consumed the distinct recovery authorization and reported:
+
+~~~text
+runtime_acceptance_recovery_passed=true
+runtime_acceptance_recovery_authorization_claimed=true
+runtime_acceptance_recovery_authorization_consumed=true
+runtime_acceptance_recovery_authorization_replay_allowed=false
+
+failed_runtime_acceptance_authorization_id=N3W_T1_F4_RUNTIME_ACCEPTANCE_LIVE_20261015_01
+failed_runtime_acceptance_authorization_preserved=true
+
+activation_retry_eligible=true
+runtime_acceptance_retry_eligible=true
+~~~
+
+## 3. Poststate
+
+~~~text
+stage=PREPARED
+package_source_head=f0bcc2ac50326b9a988405af8a2aad4c51694810
+package_manifest_sha256=37c620daf57a3f49614a4c2824c55b7e20413ef63593cd1781e4f359fb4729b5
+
+installed_launcher_sha256=eaf28175909479007d6d1df7522811d032890dcaa2a2280228c93e6dce128bb3
+installed_launcher_size=177919
+installed_launcher_mode=0755
+installed_launcher_uid=0
+installed_launcher_gid=0
+
+runtime_acceptance_recovery_passed=true
+activation_retry_eligible=true
+runtime_acceptance_retry_eligible=true
+runtime_acceptance_passed=false
+
+production_service_start=false
+persistence_enabled=false
+certificate_timer_enabled=false
+
+running_services=[]
+product_listener_ports=[]
+broker_enabled=disabled
+services_enabled=disabled
+certificate_timer_enabled_runtime=disabled
+runtime_acceptance_report_present=false
+~~~
+
+The product runtime did not start during recovery.
+
+## 4. Authorization closure
+
+The recovery authorization is permanently consumed:
+
+~~~text
+N3W_T1_F4_STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_LIVE_20261016_01
+claimed=true
+consumed=true
+replay_allowed=false
+~~~
+
+It must never be reused, including after later failures.
+
+The old failed runtime-acceptance authorization remains preserved as historical failure evidence and remains
+consumed/no-replay.
+
+## 5. Gate result
+
+~~~text
+RECOVERY_ENTRYPOINT_EXACT=PASS
+ONE_SHOT_AUTHORIZATION=PASS
+INSTALLED_LAUNCHER_REPLACEMENT=PASS
+TRANSACTION_TRANSITION_TO_PREPARED=PASS
+FAILED_ACCEPTANCE_EVIDENCE_PRESERVED=PASS
+RUNTIME_REMAINED_STOPPED=PASS
+SUCCESSOR_ACTIVATION_NOT_EXECUTED=PASS
+SUCCESSOR_RUNTIME_ACCEPTANCE_NOT_EXECUTED=PASS
+
+GATE_RESULT=CLOSED_PASS
+~~~
+
+## 6. Next gate
+
+~~~text
+NEXT_ONE_GATE=N3W_T1_F4_STOPPED_RUNTIME_ACCEPTANCE_RECOVERY_POSTEXECUTION_READONLY_CLOSURE_20261016_01
+NEXT_GATE_MODE=T1_READ_ONLY
+AUTO_EXECUTE_NEXT_GATE=true
+
+SUCCESSOR_ACTIVATION_AUTHORIZATION_GRANTED=false
+SUCCESSOR_RUNTIME_ACCEPTANCE_AUTHORIZATION_GRANTED=false
+~~~
+
+The next gate must independently confirm the durable PREPARED state and current authorization ledger before any
+successor activation authorization is granted.
