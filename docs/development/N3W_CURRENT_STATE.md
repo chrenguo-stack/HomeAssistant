@@ -1,3 +1,22 @@
+## 2026-10-16 — F4 CONTROL_APPLYING recovery source-repair new-chat handoff published
+
+~~~text
+HANDOFF_TEMPLATE_VERSION=1.3
+HANDOFF_TEMPLATE_BLOB=b9ef40acdaa8fae37feb5ffe5662afd0e89462a0
+CURRENT_STAGE=F4
+CURRENT_STOP_POINT=POSTCLAIM_FAILURE_FORENSIC_CLOSED_PASS_WITH_INSTALL_CLAIM_CONTROL_APPLYING
+NEXT_ONE_GATE=N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_SOURCE_REPAIR_20261016_01
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+HANDOFF_READY_FOR_NEW_CHAT=true
+~~~
+
+The formal handoff freezes PR #605 archive head `925d0d06...`, preserves the consumed/non-replayable original install
+authorization, and bounds the next chat to repository source, focused tests, CI and review only. It does not authorize
+T1 access, live recovery, certificate lifecycle execution, reboot, board work, merge or the next gate.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_SOURCE_REPAIR_NEW_CHAT_HANDOFF_V1.0_20261016.md`.
+
 ## 2026-10-16 — F4 reboot successor control install postclaim failure forensic CLOSED_PASS
 
 ~~~text

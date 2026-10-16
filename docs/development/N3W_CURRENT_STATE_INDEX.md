@@ -1,3 +1,13 @@
+## 2026-10-16 — F4 CONTROL_APPLYING recovery source-repair new-chat handoff published
+
+- Formal handoff uses template V1.3 / blob `b9ef40acdaa8fae37feb5ffe5662afd0e89462a0`.
+- Current stage remains F4; the real install claim remains `CONTROL_APPLYING`.
+- PR #605 archive baseline is `925d0d06db5f93b54f0ee91a13a298286bbd278d` / tree
+  `7dc7d456e5fbbd9e4a9c9cc32e39a7e505306cec`.
+- New chat enters only `N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_SOURCE_REPAIR_20261016_01`.
+- No T1 access, live recovery authorization, reboot, certificate lifecycle trigger, board access or merge is authorized.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_SOURCE_REPAIR_NEW_CHAT_HANDOFF_V1.0_20261016.md`.
+
 ## 2026-10-16 — F4 reboot successor control install postclaim failure forensic CLOSED_PASS
 
 - The one-shot control-install authorization is claimed, consumed and permanently non-replayable.
