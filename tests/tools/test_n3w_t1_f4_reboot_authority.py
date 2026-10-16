@@ -1108,6 +1108,7 @@ def test_finalize_reboot_acceptance_persists_terminal_state(
 
     def verify_installed(**kwargs):
         observed_installed.update(kwargs)
+        return {}, {}
 
     monkeypatch.setattr(
         tool,
@@ -1244,10 +1245,25 @@ def test_verify_reboot_accepted_is_read_only_terminal_check(
     monkeypatch.setattr(tool, "REBOOT_CLAIM_PATH", claim_path)
     monkeypatch.setattr(tool, "_package", lambda *_args, **_kwargs: package)
     monkeypatch.setattr(tool, "_validate_recovery_entrypoint", lambda _package: None)
+    observed_material_binding = {}
+
+    def verify_material_binding(**kwargs):
+        observed_material_binding.update(kwargs)
+        return {}, {}
+
     monkeypatch.setattr(
         tool,
         "_verify_installed_control_material_binding",
-        lambda **_kwargs: None,
+        verify_material_binding,
+    )
+
+    def pre_reboot_helper_must_not_run(**_kwargs):
+        raise AssertionError("pre_reboot_verify_installed_control_reused")
+
+    monkeypatch.setattr(
+        tool,
+        "_verify_installed_control",
+        pre_reboot_helper_must_not_run,
     )
     monkeypatch.setattr(tool, "_boot_id_sha256", lambda: post_boot)
     monkeypatch.setattr(
@@ -1272,6 +1288,11 @@ def test_verify_reboot_accepted_is_read_only_terminal_check(
     assert result["state"] == "REBOOT_ACCEPTED"
     assert result["reboot_acceptance_finalized"] is True
     assert result["accepted_claim_sha256"] == accepted_sha
+    assert observed_material_binding["source_head"] == installed_source
+    assert (
+        observed_material_binding["manifest_sha256"]
+        == installed_manifest
+    )
 
 
 def test_material_binding_is_post_reboot_safe_without_pre_reboot_runtime_checks(
@@ -1358,6 +1379,22 @@ def test_material_binding_is_post_reboot_safe_without_pre_reboot_runtime_checks(
         "_validate_recovery_ready_link",
         lambda *_args, **_kwargs: None,
     )
+
+    real_stat = Path.stat
+
+    def root_owned_target_stat(path: Path, *args, **kwargs):
+        metadata = real_stat(path, *args, **kwargs)
+        if path == target:
+            return SimpleNamespace(
+                st_uid=0,
+                st_gid=0,
+                st_nlink=1,
+                st_mode=metadata.st_mode,
+                st_size=metadata.st_size,
+            )
+        return metadata
+
+    monkeypatch.setattr(Path, "stat", root_owned_target_stat)
 
     def pre_reboot_must_not_run(_expected_sha: str):
         raise AssertionError("pre_reboot_runtime_check_reused")

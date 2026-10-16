@@ -1744,7 +1744,7 @@ def verify_reboot_accepted(
     if _sha256(REBOOT_CLAIM_PATH) != accepted_claim_sha256:
         raise AuthorityError("reboot_accepted_claim_sha256_mismatch")
     claim = _record(REBOOT_CLAIM_PATH, 0o600)
-    _verify_installed_control(
+    _verify_installed_control_material_binding(
         source_head=expected_installed_source_head,
         manifest_sha256=expected_installed_manifest_sha256,
         expected_transaction_sha256=expected_transaction_sha256,

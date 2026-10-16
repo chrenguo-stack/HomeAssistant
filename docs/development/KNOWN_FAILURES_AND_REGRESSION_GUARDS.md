@@ -1,3 +1,23 @@
+### 2026-10-16 KF-121 sync audit corrected terminal-verifier binding and fixtures
+
+~~~text
+PRE_REPAIR_GITHUB_SYNC=PARTIAL
+CI_217=FAIL:133_PASS_2_FAIL
+TERMINAL_VERIFY_PRE_REBOOT_HELPER_REUSE=FOUND_AND_REPAIRED
+TEST_FIXTURE_FAILURES=REPAIRED
+PRODUCTION_ROOT_OWNERSHIP_CHECK_WEAKENED=false
+T1_MUTATION=false
+~~~
+
+Fresh source review during the synchronization audit corrected the earlier "fixture-only" classification. The
+accepted-state verifier still reached the pre-reboot helper, so source repair was required in addition to fixture
+repair. The terminal verifier now uses exact immutable installed-control binding only; the dedicated reboot verifier
+remains the live post-reboot acceptance authority. Tests explicitly guard against reintroducing the pre-reboot helper.
+
+Status: SOURCE_AND_FIXTURE_REPAIR_CI_PENDING.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_SYNC_AND_FIXTURE_REPAIR_20261016.md`.
+
 ### 2026-10-16 KF-121 post-reboot binding CI test-fixture repair
 
 ~~~text

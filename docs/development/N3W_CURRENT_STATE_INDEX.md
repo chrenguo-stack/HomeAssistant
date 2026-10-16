@@ -1,3 +1,15 @@
+## 2026-10-16 — F4 post-reboot binding sync audit + repair
+
+- Fresh audit showed GitHub was only partially synchronized: CI #217 final failure and the corrected root cause were not yet in durable current-state evidence.
+- PR #605 was updated with the missing CI #217 evidence before further mutation.
+- Corrected source finding: `verify_reboot_accepted()` still reused the pre-reboot `_verify_installed_control()`; this is now replaced by the post-reboot-safe material-binding helper.
+- The terminal-verifier regression test now fails if the pre-reboot helper is called.
+- Test mocks now return the material helper's tuple contract.
+- The non-root CI fixture models root-owned installed-target metadata without changing production ownership enforcement.
+- No T1/runtime/board/merge mutation.
+- Next: exact-head CI, then focused post-reboot binding source review.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_SYNC_AND_FIXTURE_REPAIR_20261016.md`.
+
 ## 2026-10-16 — F4 post-reboot binding CI test fix
 
 - CI #215 failed only in two newly added focused tests; 133 focused tests passed.

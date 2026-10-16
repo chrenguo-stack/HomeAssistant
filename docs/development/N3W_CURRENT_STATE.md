@@ -1,3 +1,41 @@
+## 2026-10-16 — F4 post-reboot binding sync audit + terminal verifier / fixture repair
+
+~~~text
+TASK=N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_SYNC_AND_FIXTURE_REPAIR_20261016_01
+BASE_HEAD=b463c086366e12a227336a853acd5947d80d365e
+STATUS=REPAIR_COMMITTED_CI_PENDING
+
+PRE_REPAIR_GITHUB_SYNC=PARTIAL
+MISSING_PRE_REPAIR=CI_217_FINAL_FAILURE_AND_CORRECTED_ROOT_CAUSE
+CI_217=FAIL:FOCUSED_F4_TESTS
+CI_217_TESTS=133_PASS_2_FAIL
+
+TERMINAL_VERIFY_PRE_REBOOT_HELPER_REUSE=REPAIRED
+TERMINAL_VERIFY_MATERIAL_BINDING_ONLY=true
+PRE_REBOOT_RUNTIME_PROTECTIONS_WEAKENED=false
+
+TEST_MOCK_CONTRACT=REPAIRED
+NONROOT_TARGET_METADATA_FIXTURE=REPAIRED
+PRODUCTION_ROOT_OWNERSHIP_CHECK_WEAKENED=false
+
+T1_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+CURRENT_STAGE=F4
+CURRENT_STOP_POINT=POSTREBOOT_BINDING_SYNC_AND_FIXTURE_REPAIR_CI_PENDING
+NEXT_ONE_GATE=N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_SOURCE_REVIEW_20261016_01
+AUTO_EXECUTE_NEXT_GATE=true
+~~~
+
+A fresh local-chat/GitHub audit found that the final CI #217 failure had not yet been durably archived and that the
+terminal accepted-state verifier still reused the pre-reboot installed-control helper. The missing evidence was
+archived to PR #605 before mutation. The terminal verifier now uses the post-reboot-safe immutable material binding,
+and both failing fixtures are repaired without weakening production root-ownership checks.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_POSTREBOOT_BINDING_SYNC_AND_FIXTURE_REPAIR_20261016.md`.
+
 ## 2026-10-16 — F4 post-reboot binding CI #215 test-fixture failure repaired
 
 ~~~text
