@@ -33,7 +33,7 @@ def test_verify_requires_new_boot_identity(
         "f4_transaction_sha256": "b" * 64,
         "board_access": False,
     }
-    monkeypatch.setattr(tool, "_json", lambda _path: claim)
+    monkeypatch.setattr(tool, "_json", lambda _path, _mode: claim)
     monkeypatch.setattr(tool, "_boot_id_sha256", lambda: "a" * 64)
 
     with pytest.raises(tool.VerifyError, match="reboot_not_observed"):
@@ -107,3 +107,54 @@ def test_inactive_certificate_oneshot_success_is_accepted(
         ),
     )
     tool._inactive_oneshot_success("certificate.service")
+
+
+
+def test_control_binding_rejects_tampered_installed_file(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    manifest = tmp_path / "manifest.json"
+    target = tmp_path / "guard.py"
+    target.write_text("exact", encoding="utf-8")
+    target.chmod(0o755)
+
+    monkeypatch.setattr(tool, "CONTROL_MANIFEST", manifest)
+    monkeypatch.setattr(
+        tool,
+        "CONTROL_TARGETS",
+        {"guard.py": (target, 0o755)},
+    )
+
+    document = {
+        "schema": tool.PACKAGE_SCHEMA,
+        "source_head": "a" * 40,
+        "files": [
+            {
+                "path": "guard.py",
+                "sha256": "0" * 64,
+                "size": target.stat().st_size,
+            }
+        ],
+    }
+    manifest.write_text(
+        __import__("json").dumps(document) + "\n",
+        encoding="utf-8",
+    )
+    manifest.chmod(0o644)
+
+    monkeypatch.setattr(
+        tool,
+        "_json",
+        lambda path, _mode: __import__("json").loads(
+            path.read_text(encoding="utf-8")
+        ),
+    )
+
+    claim = {
+        "source_head": "a" * 40,
+        "control_manifest_sha256": tool._sha256(manifest),
+    }
+    with pytest.raises(tool.VerifyError, match="control_target_binding_invalid"):
+        tool._installed_control_binding(claim)
