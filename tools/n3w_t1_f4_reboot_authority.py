@@ -696,12 +696,25 @@ def reboot_claim_payload(
         f4_transaction=transaction,
         additional=additional,
     )
+    pre_certificate_snapshot_sha256 = install_claim.get(
+        "pre_certificate_snapshot_sha256"
+    )
+    if (
+        not isinstance(pre_certificate_snapshot_sha256, str)
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            pre_certificate_snapshot_sha256,
+        )
+        is None
+    ):
+        raise AuthorityError("pre_certificate_snapshot_binding_invalid")
     return {
         "schema": SCHEMA_REBOOT,
         "stage": "REBOOT_PENDING",
         "source_head": source_head,
         "control_manifest_sha256": manifest_sha256,
         "f4_transaction_sha256": expected_transaction_sha256,
+        "pre_certificate_snapshot_sha256": pre_certificate_snapshot_sha256,
         "reboot_authorization_id": authorization_id,
         "reboot_authorization_claimed": True,
         "reboot_authorization_consumed": True,
