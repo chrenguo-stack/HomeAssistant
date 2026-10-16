@@ -1,3 +1,16 @@
+## 2026-10-16 — F4 CONTROL_APPLYING recovery live + postexecution CLOSED_PASS
+
+- The real-T1 recovery gate completed successfully and advanced the durable install claim from `CONTROL_APPLYING` to `CONTROL_READY`.
+- Recovery authorization `N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_LIVE_20261016_01` is consumed/no-replay.
+- Final recovery record is `RECOVERY_VERIFIED`, SHA-256 `0a115f2a32a1e94710b3a853bb506fe1bb80ead3cc86d98560efdc2a5d68d481`.
+- Final install claim is `CONTROL_READY`, SHA-256 `7dc7027e3a2c280258cf21084abfdbf812398d37040f2491a58d98560cfb3778`.
+- Postexecution read-only verification passed for exact installed bytes, original-claim/recovery linkage, transaction/runtime/certificate/boot identities, and the running Broker/Manager/Home Assistant set.
+- No reboot claim exists; no reboot, certificate lifecycle invocation, board access or merge occurred.
+- Reboot preauthorization eligibility is restored.
+- Next one gate: `N3W_T1_F4_REBOOT_SUCCESSOR_LIVE_20261016_01`.
+- Proposed reboot authorization remains granted=false / claimed=false / consumed=false.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_POSTEXECUTION_READONLY_CLOSURE_20261016.md`.
+
 ## 2026-10-16 — F4 CONTROL_APPLYING recovery artifact + read-only preauth CLOSED_PASS
 
 - Gate `N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_ARTIFACT_AND_READONLY_PREAUTH` is CLOSED_PASS.

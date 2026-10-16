@@ -1,3 +1,26 @@
+### 2026-10-16 KF-121 CONTROL_APPLYING recovery live closure
+
+~~~text
+CONTROL_APPLYING_RECOVERY_LIVE=CLOSED_PASS
+POSTEXECUTION_READONLY=CLOSED_PASS
+INSTALL_CLAIM_STAGE=CONTROL_READY
+RECOVERY_CLAIM_STAGE=RECOVERY_VERIFIED
+RECOVERY_AUTHORIZATION=CONSUMED_NO_REPLAY
+REBOOT_CLAIM_PRESENT=false
+REBOOT_EXECUTED=false
+BOARD_ACCESS=false
+~~~
+
+The KF-121 CONTROL_APPLYING continuation path is now source-reviewed, exact-artifact bound, live-revalidated and
+independently verified after execution. The repaired control material is exact, the original failed install claim is
+durably linked to the recovery record, and all F4 runtime/certificate/boot identities stayed unchanged.
+
+Status: GUARDED_RECOVERY_CLOSED_PASS_REBOOT_SUCCESSOR_PENDING. The prior CONTROL_APPLYING recovery blocker is closed;
+the broader F4 reboot successor still requires its own explicit one-shot reboot authorization and post-reboot
+acceptance.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_SUCCESSOR_CONTROL_APPLYING_RECOVERY_POSTEXECUTION_READONLY_CLOSURE_20261016.md`.
+
 ### 2026-10-16 KF-121 CONTROL_APPLYING recovery artifact/preauth closure
 
 ~~~text
