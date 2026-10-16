@@ -1,3 +1,19 @@
+### 2026-10-16 KF-121 certificate first audit successor closure
+
+~~~text
+CERTIFICATE_FIRST_AUDIT_SUCCESSOR=CLOSED_PASS
+POST_STAGE=PERSISTENCE_ENABLED
+CERTIFICATE_FIRST_AUDIT_PASSED=true
+CERTIFICATE_SERVER_STATE=HEALTHY
+CERTIFICATE_CA_STATE=HEALTHY
+CERTIFICATE_SYSTEM_CA_STATE=HEALTHY
+CERTIFICATE_IDENTITY_UNCHANGED=true
+CERTIFICATE_TIMER_ENABLED=false
+PRE_REBOOT_READY=false
+~~~
+
+Guard: the certificate-audit authorization is consumed and must never be replayed. A successful first audit does not authorize certificate timer enablement, reboot, or board work. The timer remains a separate later gate.
+
 ### 2026-10-16 KF-121 persistence postexecution closure
 
 ~~~text
