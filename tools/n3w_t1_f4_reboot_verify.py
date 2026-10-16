@@ -118,6 +118,29 @@ def _unit_success(unit: str) -> None:
         raise VerifyError(f"unit_not_successful:{unit}")
 
 
+def _inactive_oneshot_success(unit: str) -> None:
+    output = _run(
+        (
+            "systemctl",
+            "show",
+            unit,
+            "--property=ActiveState,Result,ExecMainStatus",
+        ),
+        timeout=20,
+    )
+    values = {}
+    for line in output.splitlines():
+        key, separator, value = line.partition("=")
+        if separator:
+            values[key] = value
+    if (
+        values.get("ActiveState") != "inactive"
+        or values.get("Result") != "success"
+        or values.get("ExecMainStatus") != "0"
+    ):
+        raise VerifyError(f"oneshot_not_successful:{unit}")
+
+
 def verify() -> dict[str, object]:
     claim = _json(CLAIM_PATH)
     if (
@@ -203,6 +226,7 @@ def verify() -> dict[str, object]:
         time.sleep(2.0)
     if module._systemctl("is-active", module.CERT_SERVICE) != "inactive":
         raise VerifyError("certificate_service_post_reboot_invalid")
+    _inactive_oneshot_success(module.CERT_SERVICE)
 
     running = module._wait_for_runtime_service_set(
         timeout_seconds=300.0,
@@ -234,6 +258,19 @@ def verify() -> dict[str, object]:
         raise VerifyError("runtime_container_name_missing")
 
     manager_state = module._manager_state_audit(manager_name)
+    manager_id = inspects["manager"].get("Id")
+    manager_runtime_state = inspects["manager"].get("State")
+    if (
+        not isinstance(manager_id, str)
+        or not isinstance(manager_runtime_state, dict)
+        or not isinstance(manager_runtime_state.get("StartedAt"), str)
+    ):
+        raise VerifyError("manager_runtime_identity_invalid")
+    module._manager_runtime_stability(
+        manager_name,
+        expected_id=manager_id,
+        expected_started_at=str(manager_runtime_state["StartedAt"]),
+    )
     homeassistant = module._homeassistant_private_audit(homeassistant_name)
     if (
         manager_state.get("status") != "PASS"
@@ -267,7 +304,9 @@ def verify() -> dict[str, object]:
         "provision_resume_verified": True,
         "broker_services_persistence_verified": True,
         "certificate_timer_runtime_verified": True,
+        "certificate_service_result_verified": True,
         "certificate_status_sha256": guard["runtime_status_sha256"],
+        "manager_runtime_stability_verified": True,
         "homeassistant_mqtt_integration_not_duplicated": True,
         "manager_business_state_fresh": True,
         "board_access": False,
