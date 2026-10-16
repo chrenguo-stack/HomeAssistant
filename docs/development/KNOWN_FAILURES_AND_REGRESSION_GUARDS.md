@@ -1,3 +1,27 @@
+### 2026-10-17 KF-121 durable reboot ledger final closure
+
+~~~text
+LIVE_REBOOT_ACCEPTANCE=PASS
+POST_REBOOT_ACCEPTANCE=PASS
+DURABLE_REBOOT_CLAIM_STAGE=REBOOT_ACCEPTED
+ACCEPTED_CLAIM_SHA256=48bb962b2d979f0e6f80a36bfc4f33aff6eca77e1b3a655f5773a9c4ebb879e9
+PRE_ACCEPTANCE_CLAIM_SHA256=61429105bc05f135f3d0b8be338d74899b2466cb65fa896be4254d37a54c5028
+ACCEPTANCE_REPORT_SHA256=ecb7bca66f27a9372b23ed928407de7a2e9d6ec957fcc5a0c1e0245dce40fecf
+TERMINAL_VERIFY=PASS
+REBOOT_AUTHORIZATION=CONSUMED_NO_REPLAY
+F4_TRANSACTION_UNCHANGED=true
+INSTALLED_CONTROL_UNCHANGED=true
+BOARD_ACCESS=false
+~~~
+
+The previously open KF-121 target-local durable-ledger blocker is closed. The exact reviewed finalizer persisted the
+accepted terminal state and the independent read-only terminal verifier confirmed the accepted claim, prior pending
+hash chain, acceptance report, finalizer identity and consumed/no-replay authorization state.
+
+Status: CLOSED_PASS_DURABLE_REBOOT_ACCEPTED.
+
+Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_LEDGER_FINALIZATION_LIVE_AND_TERMINAL_VERIFY_CLOSURE_20261017.md`.
+
 ### 2026-10-16 KF-121 post-reboot binding focused source review closure
 
 ~~~text
