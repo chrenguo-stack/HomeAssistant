@@ -1,3 +1,15 @@
+## 2026-10-17 — F4 ledger-finalization read-only preauth CLOSED_PASS
+
+- Exact reviewed finalizer artifact binding passed.
+- Real-T1 read-only preauthorization passed with no production-state mutation.
+- Durable reboot claim remains exact `REBOOT_PENDING`; pending SHA-256 remains `61429105bc05f135f3d0b8be338d74899b2466cb65fa896be4254d37a54c5028`.
+- F4 transaction and installed `CONTROL_READY` material binding remain unchanged.
+- Post-reboot boot identity remains `e04f445426ee875b1c429a33c6b1e6893175727118fc8ad28e24c431c1fa66c7`.
+- Fresh acceptance-report SHA-256: `ecb7bca66f27a9372b23ed928407de7a2e9d6ec957fcc5a0c1e0245dce40fecf`.
+- Old reboot authorization remains consumed/no-replay.
+- Next gate requires a separate explicit live ledger-finalization authorization; it is not auto-executed.
+- Authority: `docs/development/N3W_T1_F4_REBOOT_ACCEPTANCE_DURABLE_CLOSURE_LEDGER_FINALIZATION_ARTIFACT_AND_READONLY_PREAUTH_CLOSURE_20261017.md`.
+
 ## 2026-10-17 — F4 durable reboot ledger finalization preauth prepared
 
 - Source review remains CLOSED_PASS at exact product source `19bd98386c4828c0768f2f3936429db8c7a59adf`; no product-source drift has occurred.
