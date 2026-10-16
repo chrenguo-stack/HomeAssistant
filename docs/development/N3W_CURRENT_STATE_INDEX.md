@@ -1,3 +1,17 @@
+## 2026-10-17 — PR #605 final/pre-merge + F4 stack integration review
+
+- PR #605 final/pre-merge review passes relative to its current PR #600 base.
+- Current reviewed product source remains `19bd98386c4828c0768f2f3936429db8c7a59adf`; later PR #605 changes are documentation-only.
+- PR #605 head `0acf1c6e5dca0b103e3c3aaceb26c847bfad65d3` passed 13/13 observed workflows.
+- Real-T1 durable reboot ledger is `REBOOT_ACCEPTED`; terminal verification passed; KF-121 durable-ledger blocker is closed.
+- The ancestry `#598 -> #599 -> #600 -> #605` is valid but is not rooted at main.
+- Fresh binding found upstream parents #597, #596 and #595 before #598; #595 is itself not based on current main.
+- PRs #601-#604 are a side branch from #600 and are not ancestors of current #605.
+- Current main -> PR #605 head is 272 commits / 65 changed files.
+- Direct PR #605 -> main merge is not ready. Recommended next route is explicit F4 stack-consolidation design.
+- Merge remains unauthorized.
+- Authority: `docs/development/N3W_T1_F4_PR605_FINAL_PREMERGE_AND_STACK_INTEGRATION_REVIEW_20261017.md`.
+
 ## 2026-10-17 — F4 durable reboot ledger CLOSED_PASS
 
 - Real-T1 finalizer passed and atomically advanced the durable reboot ledger to `REBOOT_ACCEPTED`.
