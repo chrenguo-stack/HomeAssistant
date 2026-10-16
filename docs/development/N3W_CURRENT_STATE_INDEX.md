@@ -1,3 +1,24 @@
+## 2026-10-16 — Formal successor-activation handoff published
+
+- Formal handoff: `docs/development/N3W_T1_F4_RUNTIME_ACTIVATION_SUCCESSOR_LIVE_PREEXECUTION_NEW_CHAT_HANDOFF_V1.0_20261016.md`.
+- Handoff PR: #588.
+- Correct template: `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` V1.3 / blob `b9ef40acdaa8fae37feb5ffe5662afd0e89462a0`.
+- Exact historical handoff-standard authority remains `4300890dff0ce63d5a547df21426e287d084d9ee`; do not use its historical template.
+- New chat starts directly at `N3W_T1_F4_RUNTIME_ACTIVATION_SUCCESSOR_LIVE_20261016_01`.
+- Successor activation authorization remains ungranted.
+- Do not repeat the already CLOSED_PASS null-history source/CI/artifact/staging/live-repair/postexecution-read-only sequence.
+
+## 2026-10-16 — New-chat freeze before successor activation
+
+- Current state is aligned after the PREPARED authorization-history repair postexecution read-only closure.
+- Real T1 remains `PREPARED`; transaction SHA-256 is `80764615ad82250c5e1919255d808509d67ed67cdab838faedfa85cfc5c246b6`.
+- Installed source is `72b796671e25c30f0d154788e2a4374f030eb7d1`; installed launcher SHA-256 is `d4bb8e4b91061e6ebf489806956728964a04c9b3909cffea9dd326e30d32d43b`.
+- Null-history blocker is CLOSED_PASS; do not repeat its source/artifact/staging/live-repair/read-only sequence.
+- Product runtime remains stopped; successor activation path is readable.
+- Proposed successor activation authorization `N3W_T1_F4_RUNTIME_ACTIVATION_SUCCESSOR_LIVE_20261016_01` remains ungranted.
+- New chat starts directly at `N3W_T1_F4_RUNTIME_ACTIVATION_SUCCESSOR_LIVE_20261016_01`.
+- Successor runtime acceptance remains a later separate gate.
+
 ## 2026-10-16 — PREPARED null-history blocker closed
 
 - Post-repair read-only closure is CLOSED_PASS.
