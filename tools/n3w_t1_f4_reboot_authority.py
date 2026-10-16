@@ -20,6 +20,7 @@ from types import ModuleType
 
 SCHEMA_INSTALL = "gh.n3w-t1-f4-reboot-successor-install-authorization/1"
 SCHEMA_REBOOT = "gh.n3w-t1-f4-reboot-authorization/1"
+SCHEMA_RECOVERY = "gh.n3w-t1-f4-reboot-successor-control-recovery-authorization/1"
 PACKAGE_SCHEMA = "gh.n3w-t1-f4-reboot-successor-control-package/1"
 MANIFEST_NAME = "reboot-successor-manifest.json"
 
@@ -27,6 +28,9 @@ STATE_ROOT = Path("/var/lib/n3w-t1-provisioning")
 LOCK_PATH = STATE_ROOT / ".f4-reboot-successor-authority.lock"
 INSTALL_CLAIM_PATH = STATE_ROOT / "F4_REBOOT_SUCCESSOR_INSTALL_AUTHORIZATION.json"
 REBOOT_CLAIM_PATH = STATE_ROOT / "F4_REBOOT_AUTHORIZATION.json"
+CONTROL_RECOVERY_CLAIM_PATH = (
+    STATE_ROOT / "F4_REBOOT_SUCCESSOR_CONTROL_RECOVERY_AUTHORIZATION.json"
+)
 F4_TRANSACTION = STATE_ROOT / "F4_ACTIVATION_TRANSACTION.json"
 
 F4_HOST = Path("/usr/local/sbin/n3w-t1-f4-activation")
@@ -120,6 +124,42 @@ def _install_exact_file(source: Path, target: Path, mode: int) -> None:
         raise AuthorityError(f"install_parent_invalid:{target.name}")
     if target.exists() or target.is_symlink():
         raise AuthorityError(f"install_target_preexisting:{target.name}")
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{target.name}.",
+        dir=str(target.parent),
+    )
+    temporary = Path(temporary_name)
+    try:
+        os.fchmod(descriptor, mode)
+        os.fchown(descriptor, 0, 0)
+        with source.open("rb") as input_stream, os.fdopen(
+            descriptor,
+            "wb",
+        ) as output_stream:
+            while True:
+                block = input_stream.read(1024 * 1024)
+                if not block:
+                    break
+                output_stream.write(block)
+            output_stream.flush()
+            os.fsync(output_stream.fileno())
+        os.replace(temporary, target)
+        directory = os.open(target.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _replace_exact_file(source: Path, target: Path, mode: int) -> None:
+    if source.is_symlink() or not source.is_file():
+        raise AuthorityError(f"recovery_source_invalid:{source.name}")
+    if target.is_symlink() or not target.is_file():
+        raise AuthorityError(f"recovery_target_invalid:{target.name}")
+    if target.parent.is_symlink() or not target.parent.is_dir():
+        raise AuthorityError(f"recovery_parent_invalid:{target.name}")
     descriptor, temporary_name = tempfile.mkstemp(
         prefix=f".{target.name}.",
         dir=str(target.parent),
@@ -502,6 +542,17 @@ def _verify_installed_control(
         or claim.get("board_access") is not False
     ):
         raise AuthorityError("install_claim_contract_invalid")
+    if (
+        claim.get("stage") == "CONTROL_READY"
+        and claim.get("installation_verified") is not True
+    ):
+        raise AuthorityError("install_claim_not_verified")
+    _validate_recovery_ready_link(
+        claim,
+        source_head=source_head,
+        manifest_sha256=manifest_sha256,
+        expected_transaction_sha256=expected_transaction_sha256,
+    )
 
     manifest = _record(CONTROL_MANIFEST, 0o644)
     if (
@@ -674,6 +725,660 @@ def verify_install(
     }
 
 
+def _require_sha256(value: object, code: str) -> str:
+    if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{64}", value) is None:
+        raise AuthorityError(code)
+    return value
+
+
+def _verify_claim_installed_files(claim: dict[str, object]) -> None:
+    source_head = claim.get("source_head")
+    manifest_sha256 = claim.get("control_manifest_sha256")
+    if (
+        not isinstance(source_head, str)
+        or re.fullmatch(r"[0-9a-f]{40}", source_head) is None
+        or not isinstance(manifest_sha256, str)
+        or re.fullmatch(r"[0-9a-f]{64}", manifest_sha256) is None
+    ):
+        raise AuthorityError("installed_claim_source_binding_invalid")
+
+    manifest = _record(CONTROL_MANIFEST, 0o644)
+    if (
+        _sha256(CONTROL_MANIFEST) != manifest_sha256
+        or manifest.get("schema") != PACKAGE_SCHEMA
+        or manifest.get("source_head") != source_head
+    ):
+        raise AuthorityError("installed_manifest_invalid")
+
+    bindings = claim.get("files")
+    if not isinstance(bindings, dict) or set(bindings) != set(CONTROL_TARGETS):
+        raise AuthorityError("install_claim_file_set_invalid")
+    for relative, (target, mode) in CONTROL_TARGETS.items():
+        binding = bindings.get(relative)
+        if not isinstance(binding, dict):
+            raise AuthorityError(f"installed_binding_invalid:{relative}")
+        if target.is_symlink() or not target.is_file():
+            raise AuthorityError(f"installed_target_missing:{relative}")
+        metadata = target.stat()
+        if (
+            metadata.st_uid != 0
+            or metadata.st_gid != 0
+            or metadata.st_nlink != 1
+            or stat.S_IMODE(metadata.st_mode) != mode
+            or binding.get("target") != str(target)
+            or binding.get("mode") != mode
+            or binding.get("sha256") != _sha256(target)
+            or binding.get("size") != metadata.st_size
+        ):
+            raise AuthorityError(f"installed_target_binding_invalid:{relative}")
+
+
+def _validate_recovery_identity_bindings(
+    module: ModuleType,
+    transaction: dict[str, object],
+    *,
+    expected_runtime_snapshot_sha256: object,
+    expected_certificate_snapshot_sha256: object,
+    expected_boot_id_sha256: object,
+) -> None:
+    runtime_sha256 = _require_sha256(
+        expected_runtime_snapshot_sha256,
+        "recovery_runtime_snapshot_sha256_invalid",
+    )
+    certificate_sha256 = _require_sha256(
+        expected_certificate_snapshot_sha256,
+        "recovery_certificate_snapshot_sha256_invalid",
+    )
+    boot_sha256 = _require_sha256(
+        expected_boot_id_sha256,
+        "recovery_boot_id_sha256_invalid",
+    )
+    if _canonical_sha(module._runtime_container_snapshot()) != runtime_sha256:
+        raise AuthorityError("recovery_runtime_identity_drift")
+    if _canonical_sha(module._certificate_identity_snapshot()) != certificate_sha256:
+        raise AuthorityError("recovery_certificate_identity_drift")
+    if _boot_id_sha256() != boot_sha256:
+        raise AuthorityError("recovery_boot_identity_drift")
+
+    status_sha256 = _require_sha256(
+        transaction.get("certificate_status_sha256"),
+        "recovery_certificate_status_sha256_invalid",
+    )
+    status_path = getattr(module, "CERT_STATUS_FILE", None)
+    if not isinstance(status_path, Path):
+        raise AuthorityError("recovery_certificate_status_path_invalid")
+    _record(status_path, 0o600)
+    if _sha256(status_path) != status_sha256:
+        raise AuthorityError("recovery_certificate_status_drift")
+
+
+def _validate_control_applying_prestate(
+    *,
+    expected_install_claim_sha256: str,
+    expected_transaction_sha256: str,
+    expected_boot_id_sha256: str,
+) -> tuple[ModuleType, dict[str, object], dict[str, object]]:
+    install_claim_sha256 = _require_sha256(
+        expected_install_claim_sha256,
+        "recovery_install_claim_sha256_invalid",
+    )
+    _require_sha256(
+        expected_boot_id_sha256,
+        "recovery_boot_id_sha256_invalid",
+    )
+    if _sha256(INSTALL_CLAIM_PATH) != install_claim_sha256:
+        raise AuthorityError("recovery_install_claim_sha256_mismatch")
+    claim = _record(INSTALL_CLAIM_PATH, 0o600)
+    if (
+        claim.get("schema") != SCHEMA_INSTALL
+        or claim.get("stage") != "CONTROL_APPLYING"
+        or claim.get("f4_transaction_sha256") != expected_transaction_sha256
+        or claim.get("control_repair_authorization_claimed") is not True
+        or claim.get("control_repair_authorization_consumed") is not True
+        or claim.get("control_repair_authorization_replay_allowed") is not False
+        or claim.get("installation_apply_started") is not True
+        or claim.get("installation_verified") is True
+        or claim.get("board_access") is not False
+    ):
+        raise AuthorityError("recovery_control_applying_claim_invalid")
+    if REBOOT_CLAIM_PATH.exists() or REBOOT_CLAIM_PATH.is_symlink():
+        raise AuthorityError("recovery_reboot_claim_preexisting")
+
+    _verify_claim_installed_files(claim)
+    module, transaction = _base_pre_reboot(expected_transaction_sha256)
+    _validate_recovery_identity_bindings(
+        module,
+        transaction,
+        expected_runtime_snapshot_sha256=claim.get(
+            "pre_runtime_snapshot_sha256"
+        ),
+        expected_certificate_snapshot_sha256=claim.get(
+            "pre_certificate_snapshot_sha256"
+        ),
+        expected_boot_id_sha256=expected_boot_id_sha256,
+    )
+    return module, transaction, claim
+
+
+def _recovery_file_bindings(
+    package: dict[str, object],
+) -> dict[str, dict[str, object]]:
+    files = package.get("files")
+    if not isinstance(files, dict) or set(files) != set(CONTROL_TARGETS):
+        raise AuthorityError("recovery_package_file_set_invalid")
+    result: dict[str, dict[str, object]] = {}
+    for relative, (target, mode) in CONTROL_TARGETS.items():
+        binding = files.get(relative)
+        if not isinstance(binding, dict):
+            raise AuthorityError(f"recovery_package_binding_invalid:{relative}")
+        sha256 = _require_sha256(
+            binding.get("sha256"),
+            f"recovery_package_sha256_invalid:{relative}",
+        )
+        size = binding.get("size")
+        if not isinstance(size, int) or size < 0:
+            raise AuthorityError(f"recovery_package_size_invalid:{relative}")
+        result[relative] = {
+            "sha256": sha256,
+            "size": size,
+            "target": str(target),
+            "mode": mode,
+        }
+    return result
+
+
+def _validate_recovery_entrypoint(package: dict[str, object]) -> None:
+    relative = "tools/n3w_t1_f4_reboot_authority.py"
+    root = package.get("root")
+    files = package.get("files")
+    if not isinstance(root, Path) or not isinstance(files, dict):
+        raise AuthorityError("recovery_entrypoint_package_invalid")
+    source = root / relative
+    binding = files.get(relative)
+    executing = Path(os.path.abspath(__file__))
+    if (
+        not isinstance(binding, dict)
+        or executing.is_symlink()
+        or not executing.is_file()
+        or source.is_symlink()
+        or not source.is_file()
+        or executing != source
+        or _sha256(executing) != binding.get("sha256")
+        or executing.stat().st_size != binding.get("size")
+    ):
+        raise AuthorityError("recovery_entrypoint_invalid")
+
+
+def control_recovery_claim_payload(
+    *,
+    package_root: Path,
+    source_head: str,
+    manifest_sha256: str,
+    authorization_id: str,
+    expected_transaction_sha256: str,
+    expected_install_claim_sha256: str,
+    expected_boot_id_sha256: str,
+) -> dict[str, object]:
+    if (
+        CONTROL_RECOVERY_CLAIM_PATH.exists()
+        or CONTROL_RECOVERY_CLAIM_PATH.is_symlink()
+    ):
+        raise AuthorityError("control_recovery_claim_preexisting")
+    package = _package(
+        package_root,
+        source_head=source_head,
+        manifest_sha256=manifest_sha256,
+    )
+    _validate_recovery_entrypoint(package)
+    _module, transaction, install_claim = _validate_control_applying_prestate(
+        expected_install_claim_sha256=expected_install_claim_sha256,
+        expected_transaction_sha256=expected_transaction_sha256,
+        expected_boot_id_sha256=expected_boot_id_sha256,
+    )
+    install_authorization = install_claim.get("control_repair_authorization_id")
+    if not isinstance(install_authorization, str):
+        raise AuthorityError("control_repair_authorization_id_invalid")
+    _fresh_authorization(
+        authorization_id,
+        f4_transaction=transaction,
+        additional={install_authorization},
+    )
+    return {
+        "schema": SCHEMA_RECOVERY,
+        "stage": "RECOVERY_CLAIMED",
+        "recovery_from_install_claim_sha256": expected_install_claim_sha256,
+        "recovery_from_source_head": install_claim["source_head"],
+        "recovery_from_control_manifest_sha256": install_claim[
+            "control_manifest_sha256"
+        ],
+        "source_head": source_head,
+        "control_manifest_sha256": manifest_sha256,
+        "f4_transaction_sha256": expected_transaction_sha256,
+        "pre_runtime_snapshot_sha256": install_claim[
+            "pre_runtime_snapshot_sha256"
+        ],
+        "pre_certificate_snapshot_sha256": install_claim[
+            "pre_certificate_snapshot_sha256"
+        ],
+        "pre_boot_id_sha256": expected_boot_id_sha256,
+        "control_recovery_authorization_id": authorization_id,
+        "control_recovery_authorization_claimed": True,
+        "control_recovery_authorization_consumed": True,
+        "control_recovery_authorization_replay_allowed": False,
+        "files": _recovery_file_bindings(package),
+        "recovery_apply_started": False,
+        "recovery_verified": False,
+        "installation_verified": False,
+        "live_runtime_mutation": False,
+        "reboot_executed": False,
+        "board_access": False,
+    }
+
+
+def claim_control_recovery(
+    *,
+    package_root: Path,
+    source_head: str,
+    manifest_sha256: str,
+    authorization_id: str,
+    expected_transaction_sha256: str,
+    expected_install_claim_sha256: str,
+    expected_boot_id_sha256: str,
+) -> dict[str, object]:
+    with _exclusive():
+        payload = control_recovery_claim_payload(
+            package_root=package_root,
+            source_head=source_head,
+            manifest_sha256=manifest_sha256,
+            authorization_id=authorization_id,
+            expected_transaction_sha256=expected_transaction_sha256,
+            expected_install_claim_sha256=expected_install_claim_sha256,
+            expected_boot_id_sha256=expected_boot_id_sha256,
+        )
+        _atomic_write_record(CONTROL_RECOVERY_CLAIM_PATH, payload)
+        persisted = _record(CONTROL_RECOVERY_CLAIM_PATH, 0o600)
+        if persisted != payload:
+            raise AuthorityError("control_recovery_claim_persistence_mismatch")
+        return {
+            "schema": SCHEMA_RECOVERY,
+            "status": "PASS",
+            "state": "RECOVERY_CLAIMED",
+            "control_recovery_authorization_claimed": True,
+            "control_recovery_authorization_consumed": True,
+            "control_recovery_authorization_replay_allowed": False,
+            "claim_sha256": _sha256(CONTROL_RECOVERY_CLAIM_PATH),
+            "live_runtime_mutation": False,
+            "reboot_executed": False,
+            "board_access": False,
+        }
+
+
+def _validate_recovery_package_binding(
+    package: dict[str, object],
+    recovery_claim: dict[str, object],
+) -> None:
+    expected = recovery_claim.get("files")
+    observed = _recovery_file_bindings(package)
+    if not isinstance(expected, dict) or observed != expected:
+        raise AuthorityError("control_recovery_package_binding_mismatch")
+
+
+def _validate_recovery_claim_for_apply(
+    *,
+    package_root: Path,
+    source_head: str,
+    manifest_sha256: str,
+    expected_transaction_sha256: str,
+    expected_install_claim_sha256: str,
+    expected_boot_id_sha256: str,
+) -> tuple[
+    dict[str, object],
+    ModuleType,
+    dict[str, object],
+    dict[str, object],
+    dict[str, object],
+]:
+    recovery_claim = _record(CONTROL_RECOVERY_CLAIM_PATH, 0o600)
+    if (
+        recovery_claim.get("schema") != SCHEMA_RECOVERY
+        or recovery_claim.get("stage") != "RECOVERY_CLAIMED"
+        or recovery_claim.get("source_head") != source_head
+        or recovery_claim.get("control_manifest_sha256") != manifest_sha256
+        or recovery_claim.get("f4_transaction_sha256")
+        != expected_transaction_sha256
+        or recovery_claim.get("recovery_from_install_claim_sha256")
+        != expected_install_claim_sha256
+        or recovery_claim.get("pre_boot_id_sha256") != expected_boot_id_sha256
+        or recovery_claim.get("control_recovery_authorization_claimed")
+        is not True
+        or recovery_claim.get("control_recovery_authorization_consumed")
+        is not True
+        or recovery_claim.get("control_recovery_authorization_replay_allowed")
+        is not False
+        or recovery_claim.get("recovery_apply_started") is not False
+        or recovery_claim.get("recovery_verified") is not False
+        or recovery_claim.get("installation_verified") is not False
+        or recovery_claim.get("live_runtime_mutation") is not False
+        or recovery_claim.get("board_access") is not False
+    ):
+        raise AuthorityError("control_recovery_claim_contract_invalid")
+
+    package = _package(
+        package_root,
+        source_head=source_head,
+        manifest_sha256=manifest_sha256,
+    )
+    _validate_recovery_entrypoint(package)
+    _validate_recovery_package_binding(package, recovery_claim)
+    module, transaction, install_claim = _validate_control_applying_prestate(
+        expected_install_claim_sha256=expected_install_claim_sha256,
+        expected_transaction_sha256=expected_transaction_sha256,
+        expected_boot_id_sha256=expected_boot_id_sha256,
+    )
+    if (
+        recovery_claim.get("recovery_from_source_head")
+        != install_claim.get("source_head")
+        or recovery_claim.get("recovery_from_control_manifest_sha256")
+        != install_claim.get("control_manifest_sha256")
+        or recovery_claim.get("pre_runtime_snapshot_sha256")
+        != install_claim.get("pre_runtime_snapshot_sha256")
+        or recovery_claim.get("pre_certificate_snapshot_sha256")
+        != install_claim.get("pre_certificate_snapshot_sha256")
+    ):
+        raise AuthorityError("control_recovery_original_claim_binding_invalid")
+
+    authorization_id = recovery_claim.get("control_recovery_authorization_id")
+    install_authorization = install_claim.get("control_repair_authorization_id")
+    if not isinstance(authorization_id, str) or not isinstance(
+        install_authorization,
+        str,
+    ):
+        raise AuthorityError("control_recovery_authorization_id_invalid")
+    _fresh_authorization(
+        authorization_id,
+        f4_transaction=transaction,
+        additional={install_authorization},
+    )
+    return package, module, transaction, install_claim, recovery_claim
+
+
+def _verify_recovered_control(
+    *,
+    recovery_claim: dict[str, object],
+    expected_transaction_sha256: str,
+) -> tuple[ModuleType, dict[str, object]]:
+    if (
+        recovery_claim.get("schema") != SCHEMA_RECOVERY
+        or recovery_claim.get("stage") != "RECOVERY_APPLYING"
+        or recovery_claim.get("recovery_apply_started") is not True
+        or recovery_claim.get("recovery_verified") is not False
+        or recovery_claim.get("installation_verified") is not False
+        or recovery_claim.get("live_runtime_mutation") is not True
+    ):
+        raise AuthorityError("control_recovery_verify_prestate_invalid")
+
+    source_head = recovery_claim.get("source_head")
+    manifest_sha256 = recovery_claim.get("control_manifest_sha256")
+    if (
+        not isinstance(source_head, str)
+        or not isinstance(manifest_sha256, str)
+    ):
+        raise AuthorityError("control_recovery_source_binding_invalid")
+    manifest = _record(CONTROL_MANIFEST, 0o644)
+    if (
+        _sha256(CONTROL_MANIFEST) != manifest_sha256
+        or manifest.get("schema") != PACKAGE_SCHEMA
+        or manifest.get("source_head") != source_head
+    ):
+        raise AuthorityError("control_recovery_installed_manifest_invalid")
+
+    bindings = recovery_claim.get("files")
+    if not isinstance(bindings, dict) or set(bindings) != set(CONTROL_TARGETS):
+        raise AuthorityError("control_recovery_file_set_invalid")
+    for relative, (target, mode) in CONTROL_TARGETS.items():
+        binding = bindings.get(relative)
+        if not isinstance(binding, dict):
+            raise AuthorityError(f"control_recovery_binding_invalid:{relative}")
+        if target.is_symlink() or not target.is_file():
+            raise AuthorityError(f"control_recovery_target_missing:{relative}")
+        metadata = target.stat()
+        if (
+            metadata.st_uid != 0
+            or metadata.st_gid != 0
+            or metadata.st_nlink != 1
+            or stat.S_IMODE(metadata.st_mode) != mode
+            or binding.get("target") != str(target)
+            or binding.get("mode") != mode
+            or binding.get("sha256") != _sha256(target)
+            or binding.get("size") != metadata.st_size
+        ):
+            raise AuthorityError(
+                f"control_recovery_target_binding_invalid:{relative}"
+            )
+
+    module, transaction = _base_pre_reboot(expected_transaction_sha256)
+    _validate_recovery_identity_bindings(
+        module,
+        transaction,
+        expected_runtime_snapshot_sha256=recovery_claim.get(
+            "pre_runtime_snapshot_sha256"
+        ),
+        expected_certificate_snapshot_sha256=recovery_claim.get(
+            "pre_certificate_snapshot_sha256"
+        ),
+        expected_boot_id_sha256=recovery_claim.get("pre_boot_id_sha256"),
+    )
+    dropins = _run(
+        (
+            "systemctl",
+            "show",
+            module.CERT_SERVICE,
+            "--property=DropInPaths",
+            "--value",
+        ),
+        timeout=20,
+    )
+    if str(DROPIN) not in dropins:
+        raise AuthorityError("runtime_guard_dropin_not_loaded")
+    guard = json.loads(_run((str(RUNTIME_GUARD), "check"), timeout=60))
+    if guard.get("status") != "PASS":
+        raise AuthorityError("runtime_guard_not_pass")
+    return module, transaction
+
+
+def _validate_recovery_ready_link(
+    install_claim: dict[str, object],
+    *,
+    source_head: str,
+    manifest_sha256: str,
+    expected_transaction_sha256: str,
+) -> None:
+    original_claim_sha256 = install_claim.get(
+        "recovery_from_install_claim_sha256"
+    )
+    if original_claim_sha256 is None:
+        return
+    _require_sha256(
+        original_claim_sha256,
+        "control_recovery_original_claim_sha256_invalid",
+    )
+    recovery_claim_sha256 = _require_sha256(
+        install_claim.get("recovery_claim_sha256"),
+        "control_recovery_claim_sha256_invalid",
+    )
+    recovery_claim = _record(CONTROL_RECOVERY_CLAIM_PATH, 0o600)
+    if (
+        _sha256(CONTROL_RECOVERY_CLAIM_PATH) != recovery_claim_sha256
+        or recovery_claim.get("schema") != SCHEMA_RECOVERY
+        or recovery_claim.get("stage") != "RECOVERY_VERIFIED"
+        or recovery_claim.get("recovery_verified") is not True
+        or recovery_claim.get("installation_verified") is not True
+        or recovery_claim.get("live_runtime_mutation") is not True
+        or recovery_claim.get("source_head") != source_head
+        or recovery_claim.get("control_manifest_sha256") != manifest_sha256
+        or recovery_claim.get("f4_transaction_sha256")
+        != expected_transaction_sha256
+        or recovery_claim.get("recovery_from_install_claim_sha256")
+        != original_claim_sha256
+        or recovery_claim.get("control_recovery_authorization_id")
+        != install_claim.get("control_recovery_authorization_id")
+        or recovery_claim.get("control_recovery_authorization_claimed")
+        is not True
+        or recovery_claim.get("control_recovery_authorization_consumed")
+        is not True
+        or recovery_claim.get("control_recovery_authorization_replay_allowed")
+        is not False
+        or recovery_claim.get("files") != install_claim.get("files")
+    ):
+        raise AuthorityError("control_recovery_ready_link_invalid")
+    if (
+        install_claim.get("control_recovery_authorization_claimed") is not True
+        or install_claim.get("control_recovery_authorization_consumed") is not True
+        or install_claim.get("control_recovery_authorization_replay_allowed")
+        is not False
+    ):
+        raise AuthorityError("control_recovery_ready_authorization_invalid")
+
+
+def recover_control(
+    *,
+    package_root: Path,
+    source_head: str,
+    manifest_sha256: str,
+    expected_transaction_sha256: str,
+    expected_install_claim_sha256: str,
+    expected_boot_id_sha256: str,
+) -> dict[str, object]:
+    with _exclusive():
+        (
+            package,
+            _module,
+            _transaction,
+            install_claim,
+            recovery_claim,
+        ) = _validate_recovery_claim_for_apply(
+            package_root=package_root,
+            source_head=source_head,
+            manifest_sha256=manifest_sha256,
+            expected_transaction_sha256=expected_transaction_sha256,
+            expected_install_claim_sha256=expected_install_claim_sha256,
+            expected_boot_id_sha256=expected_boot_id_sha256,
+        )
+        applying = dict(recovery_claim)
+        applying.update(
+            {
+                "stage": "RECOVERY_APPLYING",
+                "recovery_apply_started": True,
+                "live_runtime_mutation": True,
+            }
+        )
+        _atomic_write_record(CONTROL_RECOVERY_CLAIM_PATH, applying)
+
+        bindings = applying.get("files")
+        root = package.get("root")
+        if not isinstance(bindings, dict) or not isinstance(root, Path):
+            raise AuthorityError("control_recovery_apply_binding_invalid")
+        for relative, (target, mode) in CONTROL_TARGETS.items():
+            source = root / relative
+            binding = bindings.get(relative)
+            if not isinstance(binding, dict):
+                raise AuthorityError(
+                    f"control_recovery_apply_binding_invalid:{relative}"
+                )
+            if (
+                _sha256(source) != binding.get("sha256")
+                or source.stat().st_size != binding.get("size")
+            ):
+                raise AuthorityError(f"control_recovery_package_drift:{relative}")
+            _replace_exact_file(source, target, mode)
+            if (
+                _sha256(target) != binding.get("sha256")
+                or target.stat().st_size != binding.get("size")
+            ):
+                raise AuthorityError(
+                    f"control_recovery_replace_unverified:{relative}"
+                )
+
+        manifest_source = root / MANIFEST_NAME
+        if _sha256(manifest_source) != manifest_sha256:
+            raise AuthorityError("control_recovery_manifest_drift")
+        _replace_exact_file(manifest_source, CONTROL_MANIFEST, 0o644)
+        if _sha256(CONTROL_MANIFEST) != manifest_sha256:
+            raise AuthorityError("control_recovery_manifest_replace_unverified")
+        _run(("systemctl", "daemon-reload"), timeout=30)
+
+        _verify_recovered_control(
+            recovery_claim=applying,
+            expected_transaction_sha256=expected_transaction_sha256,
+        )
+        verified = dict(applying)
+        verified.update(
+            {
+                "stage": "RECOVERY_VERIFIED",
+                "recovery_verified": True,
+                "installation_verified": True,
+            }
+        )
+        _atomic_write_record(CONTROL_RECOVERY_CLAIM_PATH, verified)
+        persisted_recovery = _record(CONTROL_RECOVERY_CLAIM_PATH, 0o600)
+        if persisted_recovery != verified:
+            raise AuthorityError("control_recovery_verification_persistence_mismatch")
+        recovery_claim_sha256 = _sha256(CONTROL_RECOVERY_CLAIM_PATH)
+
+        ready = dict(install_claim)
+        ready.update(
+            {
+                "stage": "CONTROL_READY",
+                "source_head": source_head,
+                "control_manifest_sha256": manifest_sha256,
+                "files": verified["files"],
+                "installation_verified": True,
+                "recovery_from_install_claim_sha256": (
+                    expected_install_claim_sha256
+                ),
+                "recovery_from_source_head": verified[
+                    "recovery_from_source_head"
+                ],
+                "recovery_from_control_manifest_sha256": verified[
+                    "recovery_from_control_manifest_sha256"
+                ],
+                "control_recovery_authorization_id": verified[
+                    "control_recovery_authorization_id"
+                ],
+                "control_recovery_authorization_claimed": True,
+                "control_recovery_authorization_consumed": True,
+                "control_recovery_authorization_replay_allowed": False,
+                "recovery_claim_sha256": recovery_claim_sha256,
+            }
+        )
+        _atomic_write_record(INSTALL_CLAIM_PATH, ready)
+        persisted_ready = _record(INSTALL_CLAIM_PATH, 0o600)
+        if persisted_ready != ready:
+            raise AuthorityError("control_ready_persistence_mismatch")
+        _validate_recovery_ready_link(
+            persisted_ready,
+            source_head=source_head,
+            manifest_sha256=manifest_sha256,
+            expected_transaction_sha256=expected_transaction_sha256,
+        )
+        return {
+            "schema": SCHEMA_RECOVERY,
+            "status": "PASS",
+            "state": "CONTROL_READY",
+            "control_recovery_authorization_consumed": True,
+            "control_recovery_authorization_replay_allowed": False,
+            "recovery_verified": True,
+            "installation_verified": True,
+            "f4_transaction_unchanged": True,
+            "runtime_identity_unchanged": True,
+            "certificate_identity_unchanged": True,
+            "boot_identity_unchanged": True,
+            "live_runtime_mutation": True,
+            "reboot_executed": False,
+            "board_access": False,
+        }
+
+
 def reboot_claim_payload(
     *,
     source_head: str,
@@ -689,8 +1394,14 @@ def reboot_claim_payload(
         expected_transaction_sha256=expected_transaction_sha256,
         allowed_stages=frozenset({"CONTROL_READY"}),
     )
-    install_auth = install_claim.get("control_repair_authorization_id")
-    additional = {install_auth} if isinstance(install_auth, str) else set()
+    additional = {
+        value
+        for value in (
+            install_claim.get("control_repair_authorization_id"),
+            install_claim.get("control_recovery_authorization_id"),
+        )
+        if isinstance(value, str)
+    }
     _fresh_authorization(
         authorization_id,
         f4_transaction=transaction,
@@ -819,6 +1530,19 @@ def _parser() -> argparse.ArgumentParser:
     verify_install_parser = sub.add_parser("verify-install")
     _common(verify_install_parser)
 
+    recovery_claim = sub.add_parser("claim-control-recovery")
+    recovery_claim.add_argument("--package-root", type=Path, required=True)
+    recovery_claim.add_argument("--authorization-id", required=True)
+    recovery_claim.add_argument("--expected-install-claim-sha256", required=True)
+    recovery_claim.add_argument("--expected-boot-id-sha256", required=True)
+    _common(recovery_claim)
+
+    recovery_apply = sub.add_parser("recover-control")
+    recovery_apply.add_argument("--package-root", type=Path, required=True)
+    recovery_apply.add_argument("--expected-install-claim-sha256", required=True)
+    recovery_apply.add_argument("--expected-boot-id-sha256", required=True)
+    _common(recovery_apply)
+
     reboot = sub.add_parser("claim-reboot")
     reboot.add_argument("--authorization-id", required=True)
     _common(reboot)
@@ -851,6 +1575,29 @@ def main(argv: list[str] | None = None) -> int:
                 source_head=args.source_head,
                 manifest_sha256=args.manifest_sha256,
                 expected_transaction_sha256=args.expected_transaction_sha256,
+            )
+        elif args.command == "claim-control-recovery":
+            document = claim_control_recovery(
+                package_root=args.package_root,
+                source_head=args.source_head,
+                manifest_sha256=args.manifest_sha256,
+                authorization_id=args.authorization_id,
+                expected_transaction_sha256=args.expected_transaction_sha256,
+                expected_install_claim_sha256=(
+                    args.expected_install_claim_sha256
+                ),
+                expected_boot_id_sha256=args.expected_boot_id_sha256,
+            )
+        elif args.command == "recover-control":
+            document = recover_control(
+                package_root=args.package_root,
+                source_head=args.source_head,
+                manifest_sha256=args.manifest_sha256,
+                expected_transaction_sha256=args.expected_transaction_sha256,
+                expected_install_claim_sha256=(
+                    args.expected_install_claim_sha256
+                ),
+                expected_boot_id_sha256=args.expected_boot_id_sha256,
             )
         elif args.command == "claim-reboot":
             document = claim_reboot(
