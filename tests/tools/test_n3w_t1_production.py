@@ -195,6 +195,7 @@ def test_cleanup_failure_preserves_device_fact_but_fails_process(tmp_path):
     result = run(tmp_path, tool, FakeBackend(close_ok=False))
     assert result["device_acceptance"] is True
     assert result["operator_session_closed"] is False
+    assert result["evidence_complete"] is True
     assert result["final_outcome"] == "FAIL"
 
 
@@ -361,7 +362,10 @@ def test_close_run_requires_target_terminal_proof(tmp_path):
     )
     assert result["status"] == "FAIL"
     assert result["device_acceptance"] is True
+    assert result["evidence_complete"] is False
+    assert result["operator_session_closed"] is True
     assert result["failure_code"] == "target_run_not_closed"
+    assert result["final_outcome"] == "FAIL"
 
 
 def test_target_close_does_not_claim_operator_session_cleanup(tmp_path):
@@ -372,4 +376,5 @@ def test_target_close_does_not_claim_operator_session_cleanup(tmp_path):
     assert close_report["operator_session_closed_claimed"] is False
     assert result["device_acceptance"] is True
     assert result["operator_session_closed"] is False
+    assert result["evidence_complete"] is True
     assert result["final_outcome"] == "FAIL"
