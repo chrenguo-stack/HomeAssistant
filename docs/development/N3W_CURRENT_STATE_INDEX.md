@@ -1,3 +1,17 @@
+## 2026-10-17 — F5 V1 architecture contract freeze candidate / PR #610
+
+- Current base main at gate start: `cdd597e43149e872e26f81c63bc72f4320e61bcc`; no drift was observed.
+- PR #610 is a Draft docs-only architecture-contract PR; merge is not authorized.
+- F4 remains closed: product in main, runtime PASS, durable reboot ledger `REBOOT_ACCEPTED`, KF-121 CLOSED_PASS, repository closure final.
+- F5 V1 architecture is frozen on the candidate as: Mac thin orchestrator + minimal durable T1 production authority + reuse of existing F3/provisioning/F4 primitives.
+- Normal production has one explicit production approval. One planned reboot means two SSH password prompts: one before reboot and one after; passwords are not persisted.
+- First production override allowlist is empty; unknown/Hard Stop items remain fail-closed and the existing 5 GiB F3 reserve stays strict.
+- Repeatability Plan B is selected: preserve T1-A; use fresh T1-B for final F5 physical acceptance; no third T1 or ESP32 board work is required by default.
+- F5 source blockers are production-run authority, unified orchestration/transport, release-environment binding, and final result/evidence contract.
+- Source implementation, T1 access, board access and merge have not started.
+- Authority candidate: `docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_ARCHITECTURE_CONTRACT_FREEZE_20261017.md`.
+- Independent review archive: `docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_ARCHITECTURE_AND_SOURCE_DESIGN_ASTRA_REVIEW_20261017.md`.
+
 ## 2026-10-17 — F4 post-merge state alignment prepared
 
 - PR #608 is merged; main is `f62752b32dff991f3de1490b85b33533237d1b59`.
