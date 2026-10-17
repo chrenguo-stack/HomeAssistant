@@ -4,15 +4,23 @@ on:
   pull_request:
     paths:
       - "tools/n3w_t1_production.py"
+      - "tools/n3w_t1_production_runtime.py"
       - "tools/n3w_t1_production_authority.py"
       - "tools/n3w_t1_ssh_transport.py"
       - "tools/n3w_t1_production_contract.py"
+      - "tools/n3w_t1_fresh_host_baseline.py"
+      - "tools/n3w_t1_fresh_product_staging_host.py"
+      - "tools/execution_packages/n3w/f2/t1_fresh_readonly_preflight/executor.py"
       - "tools/n3w_t1_device_provisioning_host.py"
       - "tools/n3w_t1_f4_activation_host.py"
       - "tests/tools/test_n3w_t1_production.py"
+      - "tests/tools/test_n3w_t1_production_runtime.py"
       - "tests/tools/test_n3w_t1_production_authority.py"
       - "tests/tools/test_n3w_t1_ssh_transport.py"
       - "tests/tools/test_n3w_t1_production_contract.py"
+      - "tests/tools/test_n3w_t1_fresh_host_baseline.py"
+      - "tests/tools/test_n3w_t1_fresh_product_staging_host.py"
+      - "tests/execution_packages/n3w/f2/t1_fresh_readonly_preflight/test_executor.py"
       - "tests/tools/test_n3w_t1_device_provisioning_host.py"
       - "tests/tools/test_n3w_t1_f4_activation_host.py"
       - ".github/workflows/n3w-t1-f5-production-process-v1-source-ci.yml"
@@ -26,7 +34,7 @@ permissions:
 jobs:
   focused:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -36,10 +44,10 @@ jobs:
         run: python -m pip install "pytest>=8,<9"
       - name: Compile
         run: |
-          python -m py_compile             tools/n3w_t1_production.py             tools/n3w_t1_production_authority.py             tools/n3w_t1_ssh_transport.py             tools/n3w_t1_production_contract.py             tools/n3w_t1_device_provisioning_host.py             tools/n3w_t1_f4_activation_host.py
+          python -m py_compile             tools/n3w_t1_production.py             tools/n3w_t1_production_runtime.py             tools/n3w_t1_production_authority.py             tools/n3w_t1_ssh_transport.py             tools/n3w_t1_production_contract.py             tools/n3w_t1_fresh_host_baseline.py             tools/n3w_t1_fresh_product_staging_host.py             tools/execution_packages/n3w/f2/t1_fresh_readonly_preflight/executor.py             tools/n3w_t1_device_provisioning_host.py             tools/n3w_t1_f4_activation_host.py
       - name: Focused tests
         run: |
-          python -m pytest -q             tests/tools/test_n3w_t1_production.py             tests/tools/test_n3w_t1_production_authority.py             tests/tools/test_n3w_t1_ssh_transport.py             tests/tools/test_n3w_t1_production_contract.py             tests/tools/test_n3w_t1_device_provisioning_host.py             tests/tools/test_n3w_t1_f4_activation_host.py
+          python -m pytest -q             tests/tools/test_n3w_t1_production.py             tests/tools/test_n3w_t1_production_runtime.py             tests/tools/test_n3w_t1_production_authority.py             tests/tools/test_n3w_t1_ssh_transport.py             tests/tools/test_n3w_t1_production_contract.py             tests/tools/test_n3w_t1_fresh_host_baseline.py             tests/tools/test_n3w_t1_fresh_product_staging_host.py             tests/execution_packages/n3w/f2/t1_fresh_readonly_preflight/test_executor.py             tests/tools/test_n3w_t1_device_provisioning_host.py             tests/tools/test_n3w_t1_f4_activation_host.py
       - name: Real sshd transport integration
         run: |
           set -euo pipefail
@@ -131,9 +139,14 @@ jobs:
           from pathlib import Path
 
           production = Path("tools/n3w_t1_production.py").read_text()
+          runtime = Path("tools/n3w_t1_production_runtime.py").read_text()
           authority = Path("tools/n3w_t1_production_authority.py").read_text()
           transport = Path("tools/n3w_t1_ssh_transport.py").read_text()
           assert "repair-" not in production
+          assert "repair-" not in runtime
+          assert "exact_release_runtime_backend_required" not in production
+          assert "claim-production-reboot-actuation" in runtime
+          assert '("sudo", "-n", "systemctl", "reboot")' in runtime
           assert '"replay_allowed": False' in authority
           assert '"UNKNOWN"' in authority
           assert "PasswordAuthentication=no" in transport
