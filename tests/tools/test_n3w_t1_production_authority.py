@@ -53,11 +53,11 @@ def make_plan(contract):
     return plan
 
 
-def binding(plan, predecessor=None):
+def binding(plan, predecessor=None, phase="HOST_BASELINE"):
     return {
         "source_head": plan["source_head"],
         "release_id": plan["release_id"],
-        "artifact_sha256": plan["phase_artifact_sha256"]["HOST_BASELINE"],
+        "artifact_sha256": plan["phase_artifact_sha256"][phase],
         "predecessor_sha256": predecessor,
         "target_binding_sha256": plan["target_binding_sha256"],
     }
@@ -168,4 +168,144 @@ def test_unknown_is_terminal_and_not_reusable(monkeypatch, tmp_path):
             binding(plan),
             root=ledger,
             now=103,
+        )
+
+
+def test_phase_rejects_valid_sha_not_bound_to_approved_release(
+    monkeypatch,
+    tmp_path,
+):
+    _contract, tool, plan, ledger = approve(monkeypatch, tmp_path)
+    wrong = binding(plan)
+    wrong["artifact_sha256"] = "f" * 64
+    with pytest.raises(
+        tool.ProductionAuthorityError,
+        match="phase_artifact_binding_mismatch",
+    ):
+        tool.claim_phase(
+            plan["run_id"],
+            "HOST_BASELINE",
+            wrong,
+            root=ledger,
+            now=101,
+        )
+
+
+def test_duplicate_json_key_is_rejected(monkeypatch, tmp_path):
+    _contract, tool, plan, ledger = approve(monkeypatch, tmp_path)
+    run_path = ledger / plan["run_id"] / "run.json"
+    raw = run_path.read_text(encoding="utf-8").strip()
+    run_path.write_text(raw[:-1] + ',"state":"APPROVED"}\n', encoding="utf-8")
+    run_path.chmod(0o600)
+    with pytest.raises(
+        tool.ProductionAuthorityError,
+        match="authority_record_duplicate_key",
+    ):
+        tool.inspect_run(plan["run_id"], root=ledger)
+
+
+def test_unknown_run_field_is_rejected(monkeypatch, tmp_path):
+    import json
+
+    _contract, tool, plan, ledger = approve(monkeypatch, tmp_path)
+    run_path = ledger / plan["run_id"] / "run.json"
+    document = json.loads(run_path.read_text(encoding="utf-8"))
+    document["unexpected"] = True
+    run_path.write_text(json.dumps(document), encoding="utf-8")
+    run_path.chmod(0o600)
+    with pytest.raises(
+        tool.ProductionAuthorityError,
+        match="run_record_fields_invalid",
+    ):
+        tool.inspect_run(plan["run_id"], root=ledger)
+
+
+def test_unknown_phase_field_is_rejected(monkeypatch, tmp_path):
+    import json
+
+    _contract, tool, plan, ledger = approve(monkeypatch, tmp_path)
+    claimed = tool.claim_phase(
+        plan["run_id"],
+        "HOST_BASELINE",
+        binding(plan),
+        root=ledger,
+        now=101,
+    )
+    phase_path = ledger / plan["run_id"] / "phase-HOST_BASELINE.json"
+    document = json.loads(phase_path.read_text(encoding="utf-8"))
+    document["unexpected"] = True
+    phase_path.write_text(json.dumps(document), encoding="utf-8")
+    phase_path.chmod(0o600)
+    with pytest.raises(
+        tool.ProductionAuthorityError,
+        match="phase_record_fields_invalid",
+    ):
+        tool.begin_phase(
+            plan["run_id"],
+            "HOST_BASELINE",
+            claimed["claim_sha256"],
+            root=ledger,
+        )
+
+
+def test_unknown_prior_run_blocks_new_run_id(monkeypatch, tmp_path):
+    contract, tool, plan, ledger = approve(monkeypatch, tmp_path)
+    claimed = tool.claim_phase(
+        plan["run_id"],
+        "HOST_BASELINE",
+        binding(plan),
+        root=ledger,
+        now=101,
+    )
+    applying = tool.begin_phase(
+        plan["run_id"],
+        "HOST_BASELINE",
+        claimed["claim_sha256"],
+        root=ledger,
+    )
+    tool.fail_phase(
+        plan["run_id"],
+        "HOST_BASELINE",
+        applying["claim_sha256"],
+        state="UNKNOWN",
+        failure_code="lost_reply",
+        root=ledger,
+    )
+    second = make_plan(contract)
+    second["run_id"] = "8" * 64
+    second["plan_digest"] = "0" * 64
+    second["plan_digest"] = contract.canonical_sha256(second)
+    with pytest.raises(
+        tool.ProductionAuthorityError,
+        match="existing_unknown_run_blocks_approval",
+    ):
+        tool.approve_run(
+            second,
+            root=ledger,
+            now=100,
+            identity={
+                "target_binding_sha256": second["target_binding_sha256"],
+                "ssh_host_key_sha256": second["ssh_host_key_sha256"],
+            },
+        )
+
+
+def test_active_prior_run_blocks_new_run_id(monkeypatch, tmp_path):
+    contract, tool, _plan, ledger = approve(monkeypatch, tmp_path)
+    second = make_plan(contract)
+    second["run_id"] = "8" * 64
+    second["plan_digest"] = "0" * 64
+    second["plan_digest"] = contract.canonical_sha256(second)
+    with pytest.raises(
+        tool.ProductionAuthorityError,
+        match="existing_active_run_blocks_approval",
+    ):
+        tool.approve_run(
+            second,
+            root=ledger,
+            now=100,
+            identity={
+                "target_binding_sha256": second["target_binding_sha256"],
+                "ssh_host_key_sha256": second["ssh_host_key_sha256"],
+            },
         )
