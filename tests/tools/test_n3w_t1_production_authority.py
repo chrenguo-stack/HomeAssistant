@@ -243,7 +243,7 @@ def test_unknown_phase_field_is_rejected(monkeypatch, tmp_path):
         tool.begin_phase(
             plan["run_id"],
             "HOST_BASELINE",
-            claimed["claim_sha256"],
+            tool._sha256_file(phase_path),
             root=ledger,
         )
 
