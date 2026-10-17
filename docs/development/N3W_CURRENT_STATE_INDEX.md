@@ -1,3 +1,17 @@
+## 2026-10-17 — F5 CLOSE_RUN minimal integration CLOSED_PASS
+
+- PR #612 remains Draft/open and unmerged.
+- Source closure head: `98566f72f89c8a2f81d606f8995be9dcbba99978`.
+- Generic phase completion cannot close CLOSE_RUN.
+- Dedicated CLOSE_RUN requires every previous phase to be SUCCEEDED/consumed/non-replayable and binds the exact FINALIZE result.
+- Target TERMINAL/PASS requires FINALIZE REBOOT_ACCEPTED and device_acceptance=true.
+- Device acceptance, evidence completeness and operator-session cleanup remain separate facts.
+- All seven F5/F4 production integration gates from F4_PREPARE through CLOSE_RUN are CLOSED_PASS.
+- CI on the closure head is PASS 17/17.
+- No T1 access, T1 mutation, live reboot, board access or merge occurred.
+- Next gate: `N3W_T1_F5_PRODUCTION_PROCESS_V1_WHOLE_SOURCE_CLOSURE_AND_EXACT_RELEASE_PREPARATION_20261017_01`.
+- Authority: `docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_CLOSE_RUN_MINIMAL_INTEGRATION_CLOSURE_20261017.md`.
+
 ## 2026-10-17 — F5 FINALIZE phase-context minimal integration CLOSED_PASS
 
 - PR #612 remains Draft/open and unmerged.
