@@ -1,3 +1,22 @@
+## 2026-10-17 — F5 runtime-entrypoint / HOST_BASELINE scope delta APPROVED
+
+~~~text
+TASK=N3W_T1_F5_PRODUCTION_PROCESS_V1_RUNTIME_ENTRYPOINT_AND_HOST_BASELINE_SOURCE_REPAIR_20261017_01
+SCOPE_DELTA=APPROVED
+ADD_NEW_PATH=tools/n3w_t1_production_runtime.py
+ADD_NEW_TEST=tests/tools/test_n3w_t1_production_runtime.py
+
+T1_ACCESS=false
+T1_MUTATION=false
+LIVE_REBOOT=false
+BOARD_ACCESS=false
+MERGE=false
+~~~
+
+The approved repair remains inside the frozen F5 architecture: a thin Mac runtime composition layer, target durable authority, unified SSH epochs, exact HOST_BASELINE package policy, and reuse of existing F3/provision/F4 primitives.
+
+Authority: `docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_RUNTIME_ENTRYPOINT_AND_HOST_BASELINE_SCOPE_DELTA_20261017.md`.
+
 ## 2026-10-17 — F5 whole-source closure review BLOCKED / runtime-entrypoint repair required
 
 ~~~text

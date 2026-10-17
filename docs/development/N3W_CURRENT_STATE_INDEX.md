@@ -1,3 +1,11 @@
+## 2026-10-17 — F5 runtime-entrypoint / HOST_BASELINE scope delta APPROVED
+
+- Approved new source path: `tools/n3w_t1_production_runtime.py`.
+- Approved new test path: `tests/tools/test_n3w_t1_production_runtime.py`.
+- Existing F2/F3/HOST_BASELINE/production/SSH boundaries remain the repair surfaces.
+- No T1 access, live reboot, board access or merge is authorized.
+- Authority: `docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_RUNTIME_ENTRYPOINT_AND_HOST_BASELINE_SCOPE_DELTA_20261017.md`.
+
 ## 2026-10-17 — F5 whole-source closure review BLOCKED / runtime-entrypoint repair required
 
 - PR #612 remains Draft/open and unmerged; main has not drifted.
