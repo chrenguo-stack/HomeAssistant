@@ -28,6 +28,58 @@ PHASES = (
     "CLOSE_RUN",
 )
 
+REQUIRED_ARTIFACT_NAMES = (
+    "mac_orchestrator",
+    "target_authority",
+    "f3_payload",
+    "f4_control",
+    "reboot_control",
+    "manager_image_tar",
+    "manager_image_content",
+    "mosquitto_image_tar",
+    "mosquitto_image_content",
+    "home_assistant_image_tar",
+    "home_assistant_image_content",
+    "transport_contract",
+)
+
+PHASE_ARTIFACT_NAMES = {
+    "HOST_BASELINE": ("target_authority", "transport_contract"),
+    "F3_DEPLOY": (
+        "f3_payload",
+        "manager_image_tar",
+        "manager_image_content",
+        "mosquitto_image_tar",
+        "mosquitto_image_content",
+        "home_assistant_image_tar",
+        "home_assistant_image_content",
+        "transport_contract",
+    ),
+    "PROVISION": ("f3_payload", "target_authority"),
+    "F4_PREPARE": ("f4_control", "target_authority"),
+    "F4_ACTIVATE": ("f4_control", "target_authority"),
+    "F4_ACCEPT": ("f4_control", "target_authority"),
+    "PERSIST_CERT": ("f4_control", "target_authority"),
+    "REBOOT_CONTROL": ("reboot_control", "f4_control", "target_authority"),
+    "FINALIZE": ("reboot_control", "f4_control", "target_authority"),
+    "CLOSE_RUN": ("mac_orchestrator", "target_authority"),
+}
+
+PREFLIGHT_CHECK_IDS = (
+    "RELEASE.EXACT_BINDING",
+    "HOST.OS_ARCH",
+    "HOST.FIRSTBOOT",
+    "HOST.IDENTITY",
+    "HOST.SSH_TRUST",
+    "HOST.PRIVILEGE",
+    "HOST.NETWORK_TIME",
+    "HOST.DOCKER_CONTRACT",
+    "HOST.PRODUCT_ABSENT",
+    "HOST.STORAGE_AUTHORITY",
+    "CAPACITY.TRANSPORT_PEAK",
+    "CAPACITY.POST_PEAK_RESERVE",
+)
+
 CHECK_CATALOG = {
     "AUTH.RUN_PHASE": "HARD_STOP",
     "AUTH.TARGET_BINDING": "HARD_STOP",
@@ -35,7 +87,18 @@ CHECK_CATALOG = {
     "SSH.HOST_KEY": "HARD_STOP",
     "SSH.CONNECTION_REUSE": "HARD_STOP",
     "RELEASE.EXACT_BYTES": "HARD_STOP",
+    "RELEASE.EXACT_BINDING": "HARD_STOP",
     "RELEASE.ENVIRONMENT": "HARD_STOP",
+    "HOST.OS_ARCH": "HARD_STOP",
+    "HOST.FIRSTBOOT": "HARD_STOP",
+    "HOST.IDENTITY": "HARD_STOP",
+    "HOST.SSH_TRUST": "HARD_STOP",
+    "HOST.PRIVILEGE": "HARD_STOP",
+    "HOST.NETWORK_TIME": "HARD_STOP",
+    "HOST.DOCKER_CONTRACT": "HARD_STOP",
+    "HOST.PRODUCT_ABSENT": "HARD_STOP",
+    "HOST.STORAGE_AUTHORITY": "HARD_STOP",
+    "CAPACITY.TRANSPORT_PEAK": "HARD_STOP",
     "CAPACITY.POST_PEAK_RESERVE": "HARD_STOP",
     "PROVISION.DEVICE_READY": "HARD_STOP",
     "F4.RUNTIME_ACCEPTED": "HARD_STOP",
@@ -146,7 +209,9 @@ def validate_release(document: object) -> dict[str, Any]:
     release_id = _sha(document.get("release_id"), "release_id_invalid")
     source_head = _source(document.get("source_head"), "release_source_head_invalid")
     artifacts = document.get("artifacts")
-    if not isinstance(artifacts, dict) or not artifacts:
+    if not isinstance(artifacts, dict) or set(artifacts) != set(
+        REQUIRED_ARTIFACT_NAMES
+    ):
         raise ProductionContractError("release_artifacts_invalid")
     normalized_artifacts: dict[str, dict[str, str]] = {}
     for name, record in artifacts.items():
@@ -210,6 +275,44 @@ def validate_release(document: object) -> dict[str, Any]:
     return normalized
 
 
+def phase_artifact_sha256(release: object, phase: str) -> str:
+    normalized = validate_release(release)
+    if phase not in PHASE_ARTIFACT_NAMES:
+        raise ProductionContractError("phase_artifact_phase_invalid")
+    binding = {
+        name: normalized["artifacts"][name]["sha256"]
+        for name in PHASE_ARTIFACT_NAMES[phase]
+    }
+    return canonical_sha256(binding)
+
+
+def validate_preflight_report(document: object) -> dict[str, Any]:
+    if not isinstance(document, dict):
+        raise ProductionContractError("preflight_invalid")
+    _exact(
+        document,
+        {"status", "read_only", "mutation_performed", "checks"},
+        "preflight_fields_invalid",
+    )
+    if (
+        document.get("status") != "PASS"
+        or document.get("read_only") is not True
+        or document.get("mutation_performed") is not False
+    ):
+        raise ProductionContractError("preflight_not_read_only_pass")
+    checks = document.get("checks")
+    if not isinstance(checks, dict) or set(checks) != set(PREFLIGHT_CHECK_IDS):
+        raise ProductionContractError("preflight_checks_invalid")
+    if any(value != "PASS" for value in checks.values()):
+        raise ProductionContractError("preflight_check_not_pass")
+    return {
+        "status": "PASS",
+        "read_only": True,
+        "mutation_performed": False,
+        "checks": {check_id: "PASS" for check_id in PREFLIGHT_CHECK_IDS},
+    }
+
+
 def validate_plan(document: object) -> dict[str, Any]:
     if not isinstance(document, dict):
         raise ProductionContractError("plan_invalid")
@@ -223,6 +326,8 @@ def validate_plan(document: object) -> dict[str, Any]:
             "source_head",
             "target_binding_sha256",
             "ssh_host_key_sha256",
+            "preflight_sha256",
+            "phase_artifact_sha256",
             "plan_digest",
             "approved_at",
             "expires_at",
@@ -242,6 +347,18 @@ def validate_plan(document: object) -> dict[str, Any]:
     _source(document.get("source_head"), "plan_source_head_invalid")
     _sha(document.get("target_binding_sha256"), "plan_target_binding_invalid")
     _sha(document.get("ssh_host_key_sha256"), "plan_host_key_invalid")
+    _sha(document.get("preflight_sha256"), "plan_preflight_sha256_invalid")
+    phase_artifacts = document.get("phase_artifact_sha256")
+    if (
+        not isinstance(phase_artifacts, dict)
+        or set(phase_artifacts) != set(PHASES)
+    ):
+        raise ProductionContractError("plan_phase_artifacts_invalid")
+    for phase in PHASES:
+        _sha(
+            phase_artifacts.get(phase),
+            f"plan_phase_artifact_sha256_invalid:{phase}",
+        )
     plan_digest = _sha(document.get("plan_digest"), "plan_digest_invalid")
     approved_at = document.get("approved_at")
     expires_at = document.get("expires_at")
