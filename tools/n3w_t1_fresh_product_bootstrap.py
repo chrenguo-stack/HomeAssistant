@@ -2203,13 +2203,17 @@ def execute_apply(payload_root: Path, authorization_id: str, runner: Runner | No
     }
 
 
+def _require_production_root() -> None:
+    if os.geteuid() != 0:
+        raise BootstrapError("root_required")
+
+
 def execute_production_apply(
     payload_root: Path,
     production_context_path: Path,
     runner: Runner | None = None,
 ) -> dict[str, object]:
-    if os.geteuid() != 0:
-        raise BootstrapError("root_required")
+    _require_production_root()
     manifest = _load_manifest(payload_root)
     if _manifest_mode(manifest) != "production":
         raise BootstrapError("production_payload_schema_required")
