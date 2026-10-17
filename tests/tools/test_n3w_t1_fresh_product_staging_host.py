@@ -1278,3 +1278,94 @@ def test_prebaseline_capacity_is_checked_before_authorization_claim() -> None:
     assert baseline_index < prebaseline_index < claim_index
     assert '"capacity_admission": "PREBASELINE_ROOT_PASS"' in source
     assert '"transport": prebaseline_plan.to_dict()' in source
+
+
+
+def test_production_mode_requires_managed_transport(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    monkeypatch.delenv("N3W_T1_SSH_MANAGED_REQUIRED", raising=False)
+    with pytest.raises(
+        tool.FreshHostTransportError,
+        match="managed_ssh_transport_required",
+    ):
+        tool.execute_production(
+            t1="root@t1.local",
+            production_release=tmp_path / "release.json",
+            production_f3_artifact=tmp_path / "artifact.zip",
+            production_phase_context=tmp_path / "context.json",
+        )
+
+
+def test_production_context_binds_f3_phase_artifact(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    release = {
+        "release_id": "1" * 64,
+        "source_head": "a" * 40,
+    }
+    context = {
+        "schema": "gh.n3w-t1-production-phase-context/1",
+        "phase": "F3_DEPLOY",
+        "binding": {
+            "source_head": "a" * 40,
+            "release_id": "1" * 64,
+            "artifact_sha256": "2" * 64,
+        },
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "board_access": False,
+    }
+    path = tmp_path / "context.json"
+    path.write_text(json.dumps(context), encoding="utf-8")
+
+    contract = type(
+        "Contract",
+        (),
+        {"phase_artifact_sha256": staticmethod(lambda _r, _p: "2" * 64)},
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "n3w_t1_production_contract",
+        contract,
+    )
+    assert tool._load_production_context_for_f3(path, release) == context
+
+
+def test_production_baseline_requires_exact_release_versions(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    release = {
+        "environment": {
+            "packages": {
+                "docker.io": "1.0",
+                "docker-compose-v2": "2.0",
+            }
+        }
+    }
+    monkeypatch.setattr(
+        tool,
+        "_remote_baseline_report",
+        lambda *_args, **_kwargs: {
+            "status": "PASS",
+            "package_versions": {
+                "docker.io": "later",
+                "docker-compose-v2": "2.0",
+            },
+        },
+    )
+    with pytest.raises(
+        tool.FreshHostTransportError,
+        match="production_host_baseline_not_ready",
+    ):
+        tool._production_baseline_ready(
+            "root@t1.local",
+            tmp_path,
+            release,
+        )
