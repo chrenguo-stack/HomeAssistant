@@ -1,3 +1,60 @@
+## 2026-10-17 — F5 V1 architecture contract freeze candidate / PR #610
+
+~~~text
+TASK=N3W_T1_F5_PRODUCTION_PROCESS_V1_ARCHITECTURE_CONTRACT_FREEZE_20261017_01
+RESULT=DOCS_ONLY_CONTRACT_FROZEN_ON_PR_CANDIDATE
+
+BASE_MAIN=cdd597e43149e872e26f81c63bc72f4320e61bcc
+BASE_MAIN_DRIFT=NONE_AT_GATE_START
+PR610=OPEN_DRAFT
+PR610_BRANCH=docs/n3w-t1-f5-v1-architecture-contract-freeze-20261017
+
+F4_PRODUCT_IN_MAIN=true
+F4_RUNTIME_CLOSURE=PASS
+F4_DURABLE_REBOOT_LEDGER=REBOOT_ACCEPTED
+KF_121_DURABLE_LEDGER_BLOCKER=CLOSED_PASS
+F4_REPOSITORY_CLOSURE_FINAL=true
+
+F5_ARCHITECTURE=MAC_THIN_ORCHESTRATOR_PLUS_TARGET_DURABLE_AUTHORITY_PLUS_EXISTING_F3_PROVISION_F4_PRIMITIVES
+F5_PRODUCTION_APPROVAL_COUNT=1
+F5_SSH_MODEL=ONE_PASSWORD_PER_CONNECTION_EPOCH_TWO_FOR_ONE_REBOOT
+F5_INITIAL_OVERRIDE_ALLOWLIST=EMPTY
+F5_REPEATABILITY_PLAN=B
+F5_T1B_FINAL_LIVE_ACCEPTANCE=true
+F5_BOARD_ACCESS_REQUIRED=false
+
+F5_SOURCE_BLOCKERS=PRODUCTION_AUTHORITY;ORCHESTRATION;RELEASE_ENVIRONMENT_BINDING;RESULT_EVIDENCE_CONTRACT
+F5_SOURCE_IMPLEMENTATION_STARTED=false
+PRODUCT_SOURCE_MUTATION=false
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+ARCHITECTURE_CONTRACT_PATH=docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_ARCHITECTURE_CONTRACT_FREEZE_20261017.md
+ASTRA_REVIEW_PATH=docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_ARCHITECTURE_AND_SOURCE_DESIGN_ASTRA_REVIEW_20261017.md
+ASTRA_REVIEW_UPLOAD_SHA256=0f7000cca761c8fe1b2905b722636665e731410967f67f4efe779182b0050f93
+
+CURRENT_STAGE=F5_0_ARCHITECTURE_CONTRACT_FREEZE
+CURRENT_STOP_POINT=PR610_DOCS_CANDIDATE_REQUIRES_CI_FOCUSED_REVIEW_AND_SEPARATE_MERGE_DECISION
+AUTO_MERGE=false
+~~~
+
+F5-0 accepts the independent Astra review as the primary design input and freezes the production architecture on a
+docs-only candidate. The normal production path will use a Mac thin orchestrator, a minimal durable T1 run/phase
+authority and the already accepted F3/provisioning/F4 primitives.
+
+The old “one SSH password for the whole run” target is corrected: one normal reboot creates two SSH connection epochs,
+so the operator enters one password before reboot and one after reboot. This is still one production approval.
+
+The first production override allowlist is empty. The existing 5 GiB F3 reserve remains strict. T1-A is not erased for
+F5; fresh T1-B is reserved for final F5 physical repeatability acceptance after source/CI/release closure.
+
+No new KF is opened by planned F5 work. No product source, T1 runtime or board state is changed in this gate.
+
+Authority candidate:
+`docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_ARCHITECTURE_CONTRACT_FREEZE_20261017.md`.
+
 ## 2026-10-17 — F4 post-merge state alignment prepared after PR #608 merge
 
 ~~~text
