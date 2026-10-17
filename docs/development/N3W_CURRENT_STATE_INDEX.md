@@ -1,3 +1,18 @@
+## 2026-10-17 — F5 REBOOT_CONTROL phase-context minimal integration CLOSED_PASS
+
+- PR #612 remains Draft/open and unmerged.
+- Source closure head: `ee5218b87ad9f3ea68f85d840173bf91c0dfcb4c`.
+- Normal F5 REBOOT_CONTROL requires exact target-validated phase context and same-run PERSIST_CERT predecessor.
+- Reboot control package source must equal the approved production source.
+- Existing F4 reboot-successor install/verify/claim primitives remain authoritative.
+- Control install must preserve F4 transaction, runtime identity and certificate identity.
+- Successful phase completion stops at durable REBOOT_PENDING; no reboot command is executed in this gate.
+- A separate one-shot durable actuation marker records reboot_actuation_attempted before any future reboot actuation and forbids replay.
+- CI on the closure head is PASS 17/17.
+- No T1 access, T1 mutation, live reboot, board access or merge occurred.
+- Next gate: `N3W_T1_F5_PRODUCTION_PROCESS_V1_FINALIZE_PHASE_CONTEXT_MINIMAL_INTEGRATION_20261017_01`.
+- Authority: `docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_REBOOT_CONTROL_PHASE_CONTEXT_MINIMAL_INTEGRATION_CLOSURE_20261017.md`.
+
 ## 2026-10-17 — F5 PERSIST_CERT phase-context minimal integration CLOSED_PASS
 
 - PR #612 remains Draft/open and unmerged.
