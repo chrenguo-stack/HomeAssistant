@@ -4125,3 +4125,295 @@ def test_production_accept_runtime_rejects_legacy_authority_mixed_with_context(
             "N3W_T1_F4_LEGACY_ACCEPT_AUTH",
             context_path,
         )
+
+
+
+def _persist_cert_production_context(tool):
+    context = _production_context(tool)
+    context["phase"] = tool.PRODUCTION_PERSIST_CERT_PHASE
+    context["claim_sha256"] = "a" * 64
+    context["binding_sha256"] = "b" * 64
+    return context
+
+
+def _production_runtime_accepted_transaction(tool, run_id):
+    return {
+        "authorization_id": "N3W_T1_F4_PRODUCTION_F4_PREPARE_" + run_id,
+        "authorization_claimed": True,
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "activation_authorization_id": (
+            "N3W_T1_F4_PRODUCTION_F4_ACTIVATE_" + run_id
+        ),
+        "activation_authorization_claimed": True,
+        "activation_authorization_consumed": True,
+        "activation_authorization_replay_allowed": False,
+        "runtime_acceptance_authorization_id": (
+            "N3W_T1_F4_PRODUCTION_F4_ACCEPT_" + run_id
+        ),
+        "runtime_acceptance_authorization_claimed": True,
+        "runtime_acceptance_authorization_consumed": True,
+        "runtime_acceptance_authorization_replay_allowed": False,
+        "runtime_acceptance_passed": True,
+        "runtime_acceptance_report_sha256": "c" * 64,
+        "stage": "RUNTIME_ACCEPTED",
+        "production_service_start": True,
+        "persistence_enabled": False,
+        "certificate_timer_enabled": False,
+    }
+
+
+def test_production_persist_cert_runs_existing_primitives_in_order_once(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    context = _persist_cert_production_context(tool)
+    context_path = tmp_path / "persist-cert-context.json"
+    context_path.write_text(json.dumps(context), encoding="utf-8")
+    _install_fake_production_authority(monkeypatch, context)
+    ledger = tmp_path / "ledger"
+    transaction_path = tmp_path / "F4_ACTIVATION_TRANSACTION.json"
+    acceptance_path = tmp_path / "F4_RUNTIME_ACCEPTANCE.json"
+    cert_status = tmp_path / "certificate-status.json"
+    transaction = _production_runtime_accepted_transaction(
+        tool,
+        context["run_id"],
+    )
+    transaction_path.write_text(
+        json.dumps(transaction, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    acceptance_path.write_text(
+        '{"schema":"gh.n3w-t1-f4-runtime-acceptance/1","status":"PASS"}\n',
+        encoding="utf-8",
+    )
+    transaction["runtime_acceptance_report_sha256"] = tool._sha256_file(
+        acceptance_path
+    )
+    transaction_path.write_text(
+        json.dumps(transaction, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(tool, "PRODUCTION_EXECUTION_LEDGER_ROOT", ledger)
+    monkeypatch.setattr(tool, "TRANSACTION_PATH", transaction_path)
+    monkeypatch.setattr(tool, "RUNTIME_ACCEPTANCE_PATH", acceptance_path)
+    monkeypatch.setattr(tool, "CERT_STATUS_FILE", cert_status)
+    monkeypatch.setattr(tool, "_provision_verify", lambda: verified(tool))
+    monkeypatch.setattr(
+        tool,
+        "_validate_transaction_binding",
+        lambda _verified: transaction,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_validate_runtime_acceptance_binding",
+        lambda _transaction: {"status": "PASS"},
+    )
+    calls: list[tuple[str, str]] = []
+    ids = tool._production_persist_cert_authorization_ids(context)
+
+    def enable_persistence(authorization_id):
+        calls.append(("persistence", authorization_id))
+        return {
+            "status": "PASS",
+            "state": "PERSISTENCE_ENABLED",
+            "broker_services_persistence_enabled": True,
+            "certificate_timer_enabled": False,
+            "production_service_start": True,
+            "board_access": False,
+        }
+
+    def certificate_audit(authorization_id):
+        calls.append(("certificate_audit", authorization_id))
+        cert_status.write_text('{"result":"ok"}\n', encoding="utf-8")
+        return {
+            "status": "PASS",
+            "state": "PERSISTENCE_ENABLED",
+            "certificate_first_audit_passed": True,
+            "certificate_status_sha256": tool._sha256_file(cert_status),
+            "certificate_timer_enabled": False,
+            "production_service_start": True,
+            "board_access": False,
+        }
+
+    def certificate_timer(authorization_id):
+        calls.append(("certificate_timer", authorization_id))
+        final_transaction = {
+            **transaction,
+            "stage": "PERSISTENCE_ENABLED",
+            "broker_services_persistence_enabled": True,
+            "persistence_enabled": True,
+            "certificate_first_audit_passed": True,
+            "certificate_status_sha256": tool._sha256_file(cert_status),
+            "certificate_timer_enabled": True,
+            "certificate_timer_active_before_reboot": False,
+            "pre_reboot_ready": True,
+            "production_service_start": True,
+        }
+        transaction_path.write_text(
+            json.dumps(final_transaction, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        return {
+            "status": "PASS",
+            "state": "PRE_REBOOT_READY",
+            "pre_reboot_ready": True,
+            "certificate_timer_enabled": True,
+            "certificate_timer_active_before_reboot": False,
+            "production_service_start": True,
+            "board_access": False,
+        }
+
+    monkeypatch.setattr(tool, "_enable_persistence", enable_persistence)
+    monkeypatch.setattr(tool, "_certificate_first_audit", certificate_audit)
+    monkeypatch.setattr(
+        tool,
+        "_enable_certificate_timer",
+        certificate_timer,
+    )
+
+    report = tool._persist_cert_entry(context_path)
+
+    assert calls == [
+        ("persistence", ids["persistence"]),
+        ("certificate_audit", ids["certificate_audit"]),
+        ("certificate_timer", ids["certificate_timer"]),
+    ]
+    assert report["state"] == "PRE_REBOOT_READY"
+    assert report["production_phase"] == "PERSIST_CERT"
+    assert report["authorization_consumed"] is True
+    assert report["replay_allowed"] is False
+    claim_path, complete_path = tool._production_execution_paths(context)
+    assert claim_path.is_file()
+    assert complete_path.is_file()
+    completion = json.loads(complete_path.read_text(encoding="utf-8"))
+    assert completion["pre_reboot_ready"] is True
+    assert completion["persistence_enabled"] is True
+    assert completion["certificate_timer_enabled"] is True
+
+    with pytest.raises(
+        tool.F4Error,
+        match=(
+            "production_persist_cert_prestate_invalid"
+            "|production_persist_cert_already_consumed"
+        ),
+    ):
+        tool._persist_cert_entry(context_path)
+    assert len(calls) == 3
+
+
+def test_production_persist_cert_failure_after_claim_is_not_replayable(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    context = _persist_cert_production_context(tool)
+    context_path = tmp_path / "persist-cert-context.json"
+    context_path.write_text(json.dumps(context), encoding="utf-8")
+    _install_fake_production_authority(monkeypatch, context)
+    ledger = tmp_path / "ledger"
+    transaction_path = tmp_path / "F4_ACTIVATION_TRANSACTION.json"
+    acceptance_path = tmp_path / "F4_RUNTIME_ACCEPTANCE.json"
+    transaction = _production_runtime_accepted_transaction(
+        tool,
+        context["run_id"],
+    )
+    acceptance_path.write_text(
+        '{"schema":"gh.n3w-t1-f4-runtime-acceptance/1","status":"PASS"}\n',
+        encoding="utf-8",
+    )
+    transaction["runtime_acceptance_report_sha256"] = tool._sha256_file(
+        acceptance_path
+    )
+    transaction_path.write_text(
+        json.dumps(transaction, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(tool, "PRODUCTION_EXECUTION_LEDGER_ROOT", ledger)
+    monkeypatch.setattr(tool, "TRANSACTION_PATH", transaction_path)
+    monkeypatch.setattr(tool, "RUNTIME_ACCEPTANCE_PATH", acceptance_path)
+    monkeypatch.setattr(tool, "_provision_verify", lambda: verified(tool))
+    monkeypatch.setattr(
+        tool,
+        "_validate_transaction_binding",
+        lambda _verified: transaction,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_validate_runtime_acceptance_binding",
+        lambda _transaction: {"status": "PASS"},
+    )
+    calls = 0
+
+    def fail_persistence(_authorization_id):
+        nonlocal calls
+        calls += 1
+        raise tool.F4Error("injected_persist_cert_failure")
+
+    monkeypatch.setattr(tool, "_enable_persistence", fail_persistence)
+
+    with pytest.raises(
+        tool.ProductionClaimedError,
+        match="injected_persist_cert_failure",
+    ) as captured:
+        tool._persist_cert_entry(context_path)
+    assert getattr(captured.value, "production_claimed", False) is True
+    claim_path, complete_path = tool._production_execution_paths(context)
+    assert claim_path.is_file()
+    assert not complete_path.exists()
+
+    with pytest.raises(
+        tool.F4Error,
+        match="production_persist_cert_already_consumed",
+    ):
+        tool._persist_cert_entry(context_path)
+    assert calls == 1
+
+
+def test_production_persist_cert_rejects_wrong_f4_accept_predecessor(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    context = _persist_cert_production_context(tool)
+    context_path = tmp_path / "persist-cert-context.json"
+    context_path.write_text(json.dumps(context), encoding="utf-8")
+    _install_fake_production_authority(monkeypatch, context)
+    ledger = tmp_path / "ledger"
+    transaction_path = tmp_path / "F4_ACTIVATION_TRANSACTION.json"
+    acceptance_path = tmp_path / "F4_RUNTIME_ACCEPTANCE.json"
+    transaction = _production_runtime_accepted_transaction(
+        tool,
+        context["run_id"],
+    )
+    transaction["runtime_acceptance_authorization_id"] = (
+        "N3W_T1_F4_PRODUCTION_F4_ACCEPT_" + "f" * 64
+    )
+    acceptance_path.write_text(
+        '{"schema":"gh.n3w-t1-f4-runtime-acceptance/1","status":"PASS"}\n',
+        encoding="utf-8",
+    )
+    transaction["runtime_acceptance_report_sha256"] = tool._sha256_file(
+        acceptance_path
+    )
+    transaction_path.write_text(
+        json.dumps(transaction, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(tool, "PRODUCTION_EXECUTION_LEDGER_ROOT", ledger)
+    monkeypatch.setattr(tool, "TRANSACTION_PATH", transaction_path)
+    monkeypatch.setattr(tool, "RUNTIME_ACCEPTANCE_PATH", acceptance_path)
+    monkeypatch.setattr(tool, "_provision_verify", lambda: verified(tool))
+    monkeypatch.setattr(
+        tool,
+        "_validate_transaction_binding",
+        lambda _verified: transaction,
+    )
+
+    with pytest.raises(
+        tool.F4Error,
+        match="production_persist_cert_predecessor_invalid",
+    ):
+        tool._persist_cert_entry(context_path)
+    assert not ledger.exists()

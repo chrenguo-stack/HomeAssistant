@@ -122,6 +122,7 @@ F4_LOCK_PATH = PROVISIONING_ROOT / ".f4-activation.lock"
 PRODUCTION_PHASE = "F4_PREPARE"
 PRODUCTION_ACTIVATE_PHASE = "F4_ACTIVATE"
 PRODUCTION_ACCEPT_PHASE = "F4_ACCEPT"
+PRODUCTION_PERSIST_CERT_PHASE = "PERSIST_CERT"
 PRODUCTION_EXECUTION_CLAIM_SCHEMA = (
     "gh.n3w-t1-f4-production-execution-claim/1"
 )
@@ -139,6 +140,12 @@ PRODUCTION_ACCEPTANCE_CLAIM_SCHEMA = (
 )
 PRODUCTION_ACCEPTANCE_COMPLETE_SCHEMA = (
     "gh.n3w-t1-f4-production-acceptance-complete/1"
+)
+PRODUCTION_PERSIST_CERT_CLAIM_SCHEMA = (
+    "gh.n3w-t1-f4-production-persist-cert-claim/1"
+)
+PRODUCTION_PERSIST_CERT_COMPLETE_SCHEMA = (
+    "gh.n3w-t1-f4-production-persist-cert-complete/1"
 )
 PRODUCTION_EXECUTION_LEDGER_ROOT = Path(
     "/var/lib/n3w-t1-f4-production-executions"
@@ -981,6 +988,243 @@ def _complete_production_acceptance(
         "result_sha256": _json_sha256(report),
         "runtime_accepted": True,
         "production_service_start": True,
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "board_access": False,
+    }
+    _write_new_production_json(complete_path, record)
+
+
+def _production_persist_cert_authorization_ids(
+    context: dict[str, Any],
+) -> dict[str, str]:
+    run_id = str(context["run_id"])
+    return {
+        "persistence": (
+            "N3W_T1_F4_PRODUCTION_PERSIST_CERT_PERSISTENCE_" + run_id
+        ),
+        "certificate_audit": (
+            "N3W_T1_F4_PRODUCTION_PERSIST_CERT_CERTIFICATE_AUDIT_" + run_id
+        ),
+        "certificate_timer": (
+            "N3W_T1_F4_PRODUCTION_PERSIST_CERT_CERTIFICATE_TIMER_" + run_id
+        ),
+    }
+
+
+def _validate_production_persist_cert_predecessor(
+    context: dict[str, Any],
+    transaction: dict[str, object],
+) -> None:
+    run_id = str(context["run_id"])
+    if (
+        transaction.get("authorization_id")
+        != "N3W_T1_F4_PRODUCTION_F4_PREPARE_" + run_id
+        or transaction.get("activation_authorization_id")
+        != "N3W_T1_F4_PRODUCTION_F4_ACTIVATE_" + run_id
+        or transaction.get("runtime_acceptance_authorization_id")
+        != "N3W_T1_F4_PRODUCTION_F4_ACCEPT_" + run_id
+        or transaction.get("runtime_acceptance_authorization_claimed")
+        is not True
+        or transaction.get("runtime_acceptance_authorization_consumed")
+        is not True
+        or transaction.get("runtime_acceptance_authorization_replay_allowed")
+        is not False
+        or transaction.get("runtime_acceptance_passed") is not True
+        or not isinstance(
+            transaction.get("runtime_acceptance_report_sha256"),
+            str,
+        )
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(transaction.get("runtime_acceptance_report_sha256")),
+        )
+        is None
+    ):
+        raise F4Error("production_persist_cert_predecessor_invalid")
+
+
+def _production_persist_cert_claim_present(
+    context: dict[str, Any],
+) -> bool:
+    _validate_production_execution_root()
+    claim_path, _complete_path = _production_execution_paths(context)
+    if not claim_path.exists() and not claim_path.is_symlink():
+        return False
+    if claim_path.is_symlink() or not claim_path.is_file():
+        raise F4Error("production_persist_cert_claim_invalid")
+    metadata = claim_path.stat()
+    if (
+        metadata.st_uid != os.geteuid()
+        or stat.S_IMODE(metadata.st_mode) != 0o600
+        or metadata.st_nlink != 1
+    ):
+        raise F4Error("production_persist_cert_claim_invalid")
+    try:
+        record = json.loads(claim_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise F4Error("production_persist_cert_claim_invalid") from error
+    expected = {
+        "schema",
+        "run_id",
+        "phase",
+        "phase_claim_sha256",
+        "plan_sha256",
+        "binding_sha256",
+        "source_head",
+        "production_release_id",
+        "artifact_sha256",
+        "predecessor_sha256",
+        "target_binding_sha256",
+        "f4_transaction_pre_sha256",
+        "persistence_authorization_id",
+        "certificate_audit_authorization_id",
+        "certificate_timer_authorization_id",
+        "authorization_consumed",
+        "replay_allowed",
+        "board_access",
+    }
+    binding = context["binding"]
+    authorizations = _production_persist_cert_authorization_ids(context)
+    if (
+        not isinstance(record, dict)
+        or set(record) != expected
+        or record.get("schema") != PRODUCTION_PERSIST_CERT_CLAIM_SCHEMA
+        or record.get("run_id") != context["run_id"]
+        or record.get("phase") != PRODUCTION_PERSIST_CERT_PHASE
+        or record.get("phase_claim_sha256") != context["claim_sha256"]
+        or record.get("plan_sha256") != context["plan_sha256"]
+        or record.get("binding_sha256") != context["binding_sha256"]
+        or record.get("source_head") != binding["source_head"]
+        or record.get("production_release_id") != binding["release_id"]
+        or record.get("artifact_sha256") != binding["artifact_sha256"]
+        or record.get("predecessor_sha256") != binding["predecessor_sha256"]
+        or record.get("target_binding_sha256")
+        != binding["target_binding_sha256"]
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(record.get("f4_transaction_pre_sha256")),
+        )
+        is None
+        or record.get("persistence_authorization_id")
+        != authorizations["persistence"]
+        or record.get("certificate_audit_authorization_id")
+        != authorizations["certificate_audit"]
+        or record.get("certificate_timer_authorization_id")
+        != authorizations["certificate_timer"]
+        or record.get("authorization_consumed") is not True
+        or record.get("replay_allowed") is not False
+        or record.get("board_access") is not False
+    ):
+        raise F4Error("production_persist_cert_claim_invalid")
+    return True
+
+
+def _claim_production_persist_cert(
+    context: dict[str, Any],
+    *,
+    transaction_pre_sha256: str,
+) -> None:
+    if re.fullmatch(r"[0-9a-f]{64}", transaction_pre_sha256) is None:
+        raise F4Error("production_persist_cert_transaction_binding_invalid")
+    _validate_production_execution_root()
+    PRODUCTION_EXECUTION_LEDGER_ROOT.mkdir(mode=0o700, exist_ok=True)
+    if PRODUCTION_EXECUTION_LEDGER_ROOT.is_symlink():
+        raise F4Error("production_execution_ledger_root_invalid")
+    os.chmod(PRODUCTION_EXECUTION_LEDGER_ROOT, 0o700)
+    _validate_production_execution_root()
+    claim_path, complete_path = _production_execution_paths(context)
+    if (
+        claim_path.exists()
+        or claim_path.is_symlink()
+        or complete_path.exists()
+        or complete_path.is_symlink()
+    ):
+        raise F4Error("production_persist_cert_already_consumed")
+    binding = context["binding"]
+    authorizations = _production_persist_cert_authorization_ids(context)
+    record = {
+        "schema": PRODUCTION_PERSIST_CERT_CLAIM_SCHEMA,
+        "run_id": context["run_id"],
+        "phase": PRODUCTION_PERSIST_CERT_PHASE,
+        "phase_claim_sha256": context["claim_sha256"],
+        "plan_sha256": context["plan_sha256"],
+        "binding_sha256": context["binding_sha256"],
+        "source_head": binding["source_head"],
+        "production_release_id": binding["release_id"],
+        "artifact_sha256": binding["artifact_sha256"],
+        "predecessor_sha256": binding["predecessor_sha256"],
+        "target_binding_sha256": binding["target_binding_sha256"],
+        "f4_transaction_pre_sha256": transaction_pre_sha256,
+        "persistence_authorization_id": authorizations["persistence"],
+        "certificate_audit_authorization_id": (
+            authorizations["certificate_audit"]
+        ),
+        "certificate_timer_authorization_id": (
+            authorizations["certificate_timer"]
+        ),
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "board_access": False,
+    }
+    _write_new_production_json(claim_path, record)
+
+
+def _complete_production_persist_cert(
+    context: dict[str, Any],
+    *,
+    persistence_report: dict[str, object],
+    certificate_audit_report: dict[str, object],
+    certificate_timer_report: dict[str, object],
+) -> None:
+    if not _production_persist_cert_claim_present(context):
+        raise F4Error("production_persist_cert_claim_missing")
+    claim_path, complete_path = _production_execution_paths(context)
+    if complete_path.exists() or complete_path.is_symlink():
+        raise F4Error("production_persist_cert_complete_exists")
+    for path in (
+        TRANSACTION_PATH,
+        RUNTIME_ACCEPTANCE_PATH,
+        CERT_STATUS_FILE,
+    ):
+        if path.is_symlink() or not path.is_file():
+            raise F4Error("production_persist_cert_durable_record_missing")
+    transaction = _read_private_record(TRANSACTION_PATH)
+    if (
+        transaction.get("stage") != "PERSISTENCE_ENABLED"
+        or transaction.get("broker_services_persistence_enabled") is not True
+        or transaction.get("persistence_enabled") is not True
+        or transaction.get("certificate_first_audit_passed") is not True
+        or transaction.get("certificate_timer_enabled") is not True
+        or transaction.get("certificate_timer_active_before_reboot")
+        is not False
+        or transaction.get("pre_reboot_ready") is not True
+        or transaction.get("production_service_start") is not True
+        or transaction.get("certificate_status_sha256")
+        != _sha256_file(CERT_STATUS_FILE)
+    ):
+        raise F4Error("production_persist_cert_final_state_invalid")
+    record = {
+        "schema": PRODUCTION_PERSIST_CERT_COMPLETE_SCHEMA,
+        "run_id": context["run_id"],
+        "phase": PRODUCTION_PERSIST_CERT_PHASE,
+        "production_claim_record_sha256": _sha256_file(claim_path),
+        "f4_activation_transaction_sha256": _sha256_file(TRANSACTION_PATH),
+        "runtime_acceptance_report_sha256": _sha256_file(
+            RUNTIME_ACCEPTANCE_PATH
+        ),
+        "certificate_status_sha256": _sha256_file(CERT_STATUS_FILE),
+        "persistence_result_sha256": _json_sha256(persistence_report),
+        "certificate_audit_result_sha256": _json_sha256(
+            certificate_audit_report
+        ),
+        "certificate_timer_result_sha256": _json_sha256(
+            certificate_timer_report
+        ),
+        "pre_reboot_ready": True,
+        "production_service_start": True,
+        "persistence_enabled": True,
+        "certificate_timer_enabled": True,
         "authorization_consumed": True,
         "replay_allowed": False,
         "board_access": False,
@@ -5661,6 +5905,129 @@ def _enable_certificate_timer(authorization_id: str) -> dict[str, object]:
             raise
 
 
+def _persist_cert_entry(
+    production_phase_context: Path,
+) -> dict[str, object]:
+    context = _load_production_phase_context(
+        production_phase_context,
+        required_phase=PRODUCTION_PERSIST_CERT_PHASE,
+    )
+    verified = _provision_verify()
+    transaction = _validate_transaction_binding(verified)
+    if (
+        transaction.get("stage") != "RUNTIME_ACCEPTED"
+        or transaction.get("production_service_start") is not True
+        or transaction.get("persistence_enabled") is not False
+        or transaction.get("certificate_timer_enabled") is not False
+    ):
+        raise F4Error("production_persist_cert_prestate_invalid")
+    _validate_production_persist_cert_predecessor(context, transaction)
+    _validate_runtime_acceptance_binding(transaction)
+    if _production_persist_cert_claim_present(context):
+        raise F4Error("production_persist_cert_already_consumed")
+    _claim_production_persist_cert(
+        context,
+        transaction_pre_sha256=_sha256_file(TRANSACTION_PATH),
+    )
+    authorizations = _production_persist_cert_authorization_ids(context)
+    try:
+        persistence_report = _enable_persistence(
+            authorizations["persistence"]
+        )
+        if (
+            persistence_report.get("status") != "PASS"
+            or persistence_report.get("state") != "PERSISTENCE_ENABLED"
+            or persistence_report.get(
+                "broker_services_persistence_enabled"
+            )
+            is not True
+            or persistence_report.get("certificate_timer_enabled")
+            is not False
+            or persistence_report.get("production_service_start")
+            is not True
+            or persistence_report.get("board_access") is not False
+        ):
+            raise F4Error("production_persistence_result_invalid")
+
+        certificate_audit_report = _certificate_first_audit(
+            authorizations["certificate_audit"]
+        )
+        if (
+            certificate_audit_report.get("status") != "PASS"
+            or certificate_audit_report.get("state")
+            != "PERSISTENCE_ENABLED"
+            or certificate_audit_report.get(
+                "certificate_first_audit_passed"
+            )
+            is not True
+            or re.fullmatch(
+                r"[0-9a-f]{64}",
+                str(
+                    certificate_audit_report.get(
+                        "certificate_status_sha256"
+                    )
+                ),
+            )
+            is None
+            or certificate_audit_report.get(
+                "certificate_timer_enabled"
+            )
+            is not False
+            or certificate_audit_report.get("production_service_start")
+            is not True
+            or certificate_audit_report.get("board_access") is not False
+        ):
+            raise F4Error("production_certificate_audit_result_invalid")
+
+        certificate_timer_report = _enable_certificate_timer(
+            authorizations["certificate_timer"]
+        )
+        if (
+            certificate_timer_report.get("status") != "PASS"
+            or certificate_timer_report.get("state") != "PRE_REBOOT_READY"
+            or certificate_timer_report.get("pre_reboot_ready") is not True
+            or certificate_timer_report.get("certificate_timer_enabled")
+            is not True
+            or certificate_timer_report.get(
+                "certificate_timer_active_before_reboot"
+            )
+            is not False
+            or certificate_timer_report.get("production_service_start")
+            is not True
+            or certificate_timer_report.get("board_access") is not False
+        ):
+            raise F4Error("production_certificate_timer_result_invalid")
+
+        _complete_production_persist_cert(
+            context,
+            persistence_report=persistence_report,
+            certificate_audit_report=certificate_audit_report,
+            certificate_timer_report=certificate_timer_report,
+        )
+    except OPERATION_ERRORS as error:
+        raise ProductionClaimedError(str(error)) from error
+    binding = context["binding"]
+    return {
+        **certificate_timer_report,
+        "production_run_id": context["run_id"],
+        "production_phase": PRODUCTION_PERSIST_CERT_PHASE,
+        "phase_claim_sha256": context["claim_sha256"],
+        "production_release_id": binding["release_id"],
+        "production_artifact_sha256": binding["artifact_sha256"],
+        "production_predecessor_sha256": binding["predecessor_sha256"],
+        "target_binding_sha256": binding["target_binding_sha256"],
+        "persistence_result_sha256": _json_sha256(persistence_report),
+        "certificate_audit_result_sha256": _json_sha256(
+            certificate_audit_report
+        ),
+        "certificate_timer_result_sha256": _json_sha256(
+            certificate_timer_report
+        ),
+        "authorization_consumed": True,
+        "replay_allowed": False,
+    }
+
+
 def _status() -> dict[str, object]:
     transaction_present = TRANSACTION_PATH.exists() or TRANSACTION_PATH.is_symlink()
     factory_present = (
@@ -5834,6 +6201,13 @@ def _parser() -> argparse.ArgumentParser:
     accept_runtime.add_argument("--authorization-id")
     accept_runtime.add_argument("--production-phase-context", type=Path)
 
+    persist_cert = subparsers.add_parser("persist-cert")
+    persist_cert.add_argument(
+        "--production-phase-context",
+        type=Path,
+        required=True,
+    )
+
     for command in (
         "enable-persistence",
         "certificate-audit",
@@ -5922,6 +6296,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "accept-runtime":
             report = _accept_runtime_entry(
                 args.authorization_id,
+                args.production_phase_context,
+            )
+        elif args.command == "persist-cert":
+            report = _persist_cert_entry(
                 args.production_phase_context,
             )
         elif args.command == "enable-persistence":
