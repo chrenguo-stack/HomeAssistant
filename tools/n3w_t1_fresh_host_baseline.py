@@ -410,13 +410,17 @@ def _approved_versions_available(
             )
 
 
+def _require_root() -> None:
+    if os.geteuid() != 0:
+        raise FreshHostBaselineError("root_required")
+
+
 def execute_production_install(
     production_phase_context: Path,
     approved_release: Path,
     runner: Runner | None = None,
 ) -> dict[str, object]:
-    if os.geteuid() != 0:
-        raise FreshHostBaselineError("root_required")
+    _require_root()
     context = _load_production_context(production_phase_context)
     release = _load_approved_release(approved_release)
     environment = _approved_environment(release, context)

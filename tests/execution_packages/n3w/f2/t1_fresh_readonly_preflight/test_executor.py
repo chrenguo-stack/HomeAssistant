@@ -513,7 +513,7 @@ def test_production_preflight_requires_managed_ssh(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    tool = load_executor()
+    tool = load()
     args = tool.parser().parse_args(
         [
             "--execute",
@@ -535,7 +535,7 @@ def test_production_preflight_requires_managed_ssh(
 
 
 def test_production_package_policy_rejects_visible_version_drift() -> None:
-    tool = load_executor()
+    tool = load()
     release = {
         "environment": {
             "packages": {

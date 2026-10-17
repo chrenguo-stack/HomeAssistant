@@ -51,7 +51,7 @@ def test_candidate_requires_real_version() -> None:
 def test_install_pins_resolved_ubuntu_package_versions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(baseline.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(baseline, "_require_root", lambda: None)
     monkeypatch.setattr(
         baseline,
         "_os_release",
@@ -126,7 +126,7 @@ def test_check_reports_missing_when_docker_is_not_installed(
 def test_install_is_idempotent_when_approved_baseline_is_ready(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(baseline.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(baseline, "_require_root", lambda: None)
     monkeypatch.setattr(
         baseline,
         "_os_release",
@@ -218,7 +218,7 @@ def test_production_install_uses_only_approved_versions_after_claim(
     release_path = tmp_path / "release.json"
     context_path.write_text("{}", encoding="utf-8")
     release_path.write_text("{}", encoding="utf-8")
-    monkeypatch.setattr(baseline.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(baseline, "_require_root", lambda: None)
     monkeypatch.setattr(
         baseline,
         "PRODUCTION_EXECUTION_LEDGER_ROOT",
@@ -330,7 +330,7 @@ def test_production_install_rejects_installed_version_drift_after_claim(
             },
         },
     }
-    monkeypatch.setattr(baseline.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(baseline, "_require_root", lambda: None)
     monkeypatch.setattr(
         baseline,
         "PRODUCTION_EXECUTION_LEDGER_ROOT",
