@@ -37,6 +37,11 @@ def make_plan(contract):
         "source_head": "a" * 40,
         "target_binding_sha256": "4" * 64,
         "ssh_host_key_sha256": "5" * 64,
+        "preflight_sha256": "7" * 64,
+        "phase_artifact_sha256": {
+            phase: f"{index:064x}"
+            for index, phase in enumerate(contract.PHASES, 1)
+        },
         "plan_digest": "0" * 64,
         "approved_at": 100,
         "expires_at": 500,
@@ -52,7 +57,7 @@ def binding(plan, predecessor=None):
     return {
         "source_head": plan["source_head"],
         "release_id": plan["release_id"],
-        "artifact_sha256": "6" * 64,
+        "artifact_sha256": plan["phase_artifact_sha256"]["HOST_BASELINE"],
         "predecessor_sha256": predecessor,
         "target_binding_sha256": plan["target_binding_sha256"],
     }
