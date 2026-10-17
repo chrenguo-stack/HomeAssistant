@@ -1,3 +1,16 @@
+## 2026-10-17 — F5 whole-source closure review BLOCKED / runtime-entrypoint repair required
+
+- PR #612 remains Draft/open and unmerged; main has not drifted.
+- The seven phase-level closures remain valid and are not reopened.
+- Whole-source blocker B1: normal `n3w-t1-production run` has no concrete runtime backend and requires test-only/external backend injection.
+- B2: HOST_BASELINE is not F5 phase-bound and still chooses current APT candidates instead of exact approved release versions.
+- B3: the normal F2/F3 host path is not yet assembled through the unified F5 SSH adapter.
+- B4: CI does not yet run the actual packaged normal entrypoint with a concrete backend.
+- F5-7 exact production release build is NOT_READY and has not started.
+- A new runtime composition module is proposed; because it is outside the frozen source-work-package new-path list, explicit scope-delta review is required before product-source mutation.
+- Next gate: `N3W_T1_F5_PRODUCTION_PROCESS_V1_RUNTIME_ENTRYPOINT_AND_HOST_BASELINE_SOURCE_REPAIR_20261017_01`.
+- Authority: `docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_WHOLE_SOURCE_CLOSURE_REVIEW_20261017.md`.
+
 ## 2026-10-17 — F5 CLOSE_RUN minimal integration CLOSED_PASS
 
 - PR #612 remains Draft/open and unmerged.

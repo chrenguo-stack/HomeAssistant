@@ -1,3 +1,38 @@
+## 2026-10-17 — F5 whole-source closure review BLOCKED / runtime-entrypoint repair required
+
+~~~text
+TASK=N3W_T1_F5_PRODUCTION_PROCESS_V1_WHOLE_SOURCE_CLOSURE_AND_EXACT_RELEASE_PREPARATION_20261017_01
+RESULT=BLOCKED_SOURCE_REPAIR_REQUIRED
+
+PR=612
+REVIEW_HEAD=97e9451fc2195b27d4e961c4db84f8e044542e60
+BASE_MAIN=9c81b889d97ed896b80d27af15069d16af0e0bdb
+MAIN_DRIFT=NONE
+
+B1_NORMAL_RUNTIME_BACKEND=OPEN
+B2_HOST_BASELINE_PHASE_AND_APPROVED_VERSION_BINDING=OPEN
+B3_UNIFIED_F2_F3_SSH_ORCHESTRATION=OPEN
+B4_ACTUAL_PACKAGED_ENTRYPOINT_CI=OPEN
+
+PHASE_LEVEL_CLOSURES_REOPENED=false
+EXACT_PRODUCTION_RELEASE_BUILT=false
+SOURCE_SCOPE_EXPANSION_REQUIRED=true
+
+T1_ACCESS=false
+T1_MUTATION=false
+LIVE_REBOOT=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_F5_PRODUCTION_PROCESS_V1_RUNTIME_ENTRYPOINT_AND_HOST_BASELINE_SOURCE_REPAIR_20261017_01
+STOP=true
+~~~
+
+Whole-source review found that the individually closed phase adapters are valid, but the normal standalone production entrypoint is not yet assembled: the CLI requires injected backend_factory, HOST_BASELINE still installs current APT candidates without an F5 phase context, and the F2/F3 host path is not yet wired through the unified SSH adapter. F5-7 exact release build is therefore not started.
+
+Authority:
+`docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_WHOLE_SOURCE_CLOSURE_REVIEW_20261017.md`.
+
 ## 2026-10-17 — F5 CLOSE_RUN minimal integration CLOSED_PASS
 
 ~~~text
