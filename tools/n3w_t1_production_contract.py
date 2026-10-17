@@ -126,6 +126,7 @@ PUBLIC_RESULT_FIELDS = frozenset({
     "terminal_phase",
     "board_access",
     "production_service_start",
+    "private_result_sha256",
 })
 
 FORBIDDEN_PUBLIC_KEY_TOKENS = (
@@ -472,6 +473,7 @@ def public_result(private_result: object) -> dict[str, Any]:
         for key, value in private_result.items()
         if key in PUBLIC_RESULT_FIELDS
     }
+    public["private_result_sha256"] = canonical_sha256(private_result)
     if set(public) != PUBLIC_RESULT_FIELDS:
         raise ProductionContractError("public_result_required_field_missing")
     if _forbidden(public):
