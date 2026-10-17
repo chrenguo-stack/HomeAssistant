@@ -26,9 +26,8 @@ def release(tool):
         "release_id": "0" * 64,
         "source_head": "a" * 40,
         "artifacts": {
-            "f3": {"sha256": "1" * 64},
-            "f4": {"sha256": "2" * 64},
-            "reboot": {"sha256": "3" * 64},
+            name: {"sha256": f"{index:064x}"}
+            for index, name in enumerate(tool.REQUIRED_ARTIFACT_NAMES, 1)
         },
         "environment": {
             "os": {"id": "ubuntu", "version": "26.04", "codename": "resolute"},
@@ -172,3 +171,40 @@ def test_public_result_rejects_hard_stop_override_id():
         match="result_override_check_ids_invalid",
     ):
         tool.public_result(private)
+
+
+def test_release_requires_complete_exact_artifact_set():
+    tool = load_tool()
+    document = release(tool)
+    document["artifacts"].pop("transport_contract")
+    document["release_id"] = tool.canonical_sha256(
+        {key: value for key, value in document.items() if key != "release_id"}
+    )
+    with pytest.raises(tool.ProductionContractError, match="release_artifacts_invalid"):
+        tool.validate_release(document)
+
+
+def test_phase_artifact_digest_is_bound_to_approved_release():
+    tool = load_tool()
+    document = release(tool)
+    original = tool.phase_artifact_sha256(document, "F3_DEPLOY")
+    document["artifacts"]["manager_image_tar"]["sha256"] = "f" * 64
+    document["release_id"] = tool.canonical_sha256(
+        {key: value for key, value in document.items() if key != "release_id"}
+    )
+    changed = tool.phase_artifact_sha256(document, "F3_DEPLOY")
+    assert changed != original
+
+
+def test_preflight_requires_every_frozen_readonly_check():
+    tool = load_tool()
+    report = {
+        "status": "PASS",
+        "read_only": True,
+        "mutation_performed": False,
+        "checks": {check_id: "PASS" for check_id in tool.PREFLIGHT_CHECK_IDS},
+    }
+    assert tool.validate_preflight_report(report) == report
+    report["checks"].pop("HOST.PRODUCT_ABSENT")
+    with pytest.raises(tool.ProductionContractError, match="preflight_checks_invalid"):
+        tool.validate_preflight_report(report)
