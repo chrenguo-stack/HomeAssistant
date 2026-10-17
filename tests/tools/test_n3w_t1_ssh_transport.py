@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import importlib.util
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -89,6 +90,7 @@ def test_children_reuse_master_and_disable_fallback(tmp_path):
     transport.scp_to(source, "/var/tmp/payload")
     interactive = [command for command, flag in runner.calls if flag]
     assert len(interactive) == 1
+    assert "NumberOfPasswordPrompts=1" in interactive[0]
     for command, flag in runner.calls:
         if not flag and command[0] in {"ssh", "scp"} and "BatchMode=yes" in command:
             assert "PasswordAuthentication=no" in command
@@ -172,3 +174,91 @@ def test_expected_disconnect_requires_master_to_be_gone(tmp_path):
     transport.start_epoch()
     with pytest.raises(tool.SSHTransportError, match="ssh_cleanup_failed"):
         transport.close_epoch(expected_disconnect=True)
+
+
+
+@pytest.mark.skipif(
+    os.environ.get("N3W_REAL_SSHD_INTEGRATION") != "1",
+    reason="real sshd integration is enabled only by the dedicated CI step",
+)
+def test_real_sshd_reuses_master_and_requires_one_password_per_epoch(tmp_path):
+    tool = load_tool()
+    target = os.environ["N3W_REAL_SSHD_TARGET"]
+    known_hosts_path = Path(os.environ["N3W_REAL_SSHD_KNOWN_HOSTS"])
+    password = os.environ["N3W_REAL_SSHD_PASSWORD"]
+    expected = tool.known_host_key_sha256(known_hosts_path, target)
+
+    counter = tmp_path / "askpass-count"
+    askpass = tmp_path / "askpass.sh"
+    askpass.write_text(
+        "#!/bin/sh\n"
+        "printf '1\\n' >> \"$N3W_ASKPASS_COUNTER\"\n"
+        "printf '%s\\n' \"$N3W_ASKPASS_PASSWORD\"\n",
+        encoding="utf-8",
+    )
+    askpass.chmod(0o700)
+
+    class AskpassRunner(tool.Runner):
+        def run(self, argv, *, timeout, interactive=False, check=True):
+            if not interactive:
+                return super().run(
+                    argv,
+                    timeout=timeout,
+                    interactive=False,
+                    check=check,
+                )
+            environment = os.environ.copy()
+            environment["SSH_ASKPASS"] = str(askpass)
+            environment["SSH_ASKPASS_REQUIRE"] = "force"
+            environment["DISPLAY"] = "n3w-ci:0"
+            environment["N3W_ASKPASS_COUNTER"] = str(counter)
+            environment["N3W_ASKPASS_PASSWORD"] = password
+            return subprocess.run(
+                tuple(argv),
+                check=check,
+                text=True,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=timeout,
+                env=environment,
+                start_new_session=True,
+            )
+
+    transport = tool.SSHTransport(
+        target=target,
+        known_hosts=known_hosts_path,
+        expected_host_key_sha256=expected,
+        runner=AskpassRunner(),
+        work_root=tmp_path,
+    )
+    first = transport.start_epoch()
+    assert first["epoch"] == 1
+    assert counter.read_text(encoding="utf-8").splitlines() == ["1"]
+
+    command = transport.run_remote(("printf", "n3w-real-ssh-ok"))
+    assert command.stdout == "n3w-real-ssh-ok"
+
+    source = tmp_path / "payload"
+    source.write_text("n3w-real-scp-ok", encoding="utf-8")
+    remote_path = "/tmp/n3w-f5-real-ssh-payload"
+    transport.scp_to(source, remote_path)
+    copied = transport.run_remote(("cat", remote_path))
+    assert copied.stdout == "n3w-real-scp-ok"
+
+    transport.runner.run(
+        (
+            "ssh",
+            "-S",
+            str(transport.control_path),
+            "-O",
+            "exit",
+            target,
+        ),
+        timeout=20,
+    )
+    second = transport.start_post_reboot_epoch()
+    assert second["epoch"] == 2
+    assert counter.read_text(encoding="utf-8").splitlines() == ["1", "1"]
+    transport.run_remote(("rm", "-f", remote_path))
+    transport.close_epoch()

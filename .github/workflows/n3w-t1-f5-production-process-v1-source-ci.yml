@@ -36,6 +36,79 @@ jobs:
       - name: Focused tests
         run: |
           python -m pytest -q             tests/tools/test_n3w_t1_production.py             tests/tools/test_n3w_t1_production_authority.py             tests/tools/test_n3w_t1_ssh_transport.py             tests/tools/test_n3w_t1_production_contract.py
+      - name: Real sshd transport integration
+        run: |
+          set -euo pipefail
+          if ! command -v sshd >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y openssh-server
+          fi
+
+          SSHD_DIR="$RUNNER_TEMP/n3w-f5-sshd"
+          TEST_USER="n3wf5ci"
+          TEST_PASSWORD="n3w-ci-password-2026"
+          mkdir -p "$SSHD_DIR"
+          ssh-keygen -q -t ed25519 -N "" -f "$SSHD_DIR/ssh_host_ed25519_key"
+          sudo chown root:root "$SSHD_DIR/ssh_host_ed25519_key"
+          sudo chmod 600 "$SSHD_DIR/ssh_host_ed25519_key"
+          awk '{print "127.0.0.1 " $1 " " $2}'             "$SSHD_DIR/ssh_host_ed25519_key.pub" > "$SSHD_DIR/known_hosts"
+          chmod 600 "$SSHD_DIR/known_hosts"
+
+          if id "$TEST_USER" >/dev/null 2>&1; then
+            sudo userdel -r "$TEST_USER" || true
+          fi
+          sudo useradd --create-home --shell /bin/bash "$TEST_USER"
+          printf '%s:%s\n' "$TEST_USER" "$TEST_PASSWORD" | sudo chpasswd
+          sudo mkdir -p /run/sshd
+
+          cat > "$SSHD_DIR/sshd_config" <<EOF
+          Port 22
+          ListenAddress 127.0.0.1
+          AddressFamily inet
+          HostKey $SSHD_DIR/ssh_host_ed25519_key
+          PidFile $SSHD_DIR/sshd.pid
+          UsePAM no
+          PasswordAuthentication yes
+          KbdInteractiveAuthentication no
+          ChallengeResponseAuthentication no
+          PubkeyAuthentication no
+          PermitRootLogin no
+          PermitEmptyPasswords no
+          AllowUsers $TEST_USER
+          Subsystem sftp internal-sftp
+          LogLevel VERBOSE
+          EOF
+
+          cleanup() {
+            if [[ -f "$SSHD_DIR/sshd.pid" ]]; then
+              sudo kill "$(cat "$SSHD_DIR/sshd.pid")" || true
+            fi
+            sudo userdel -r "$TEST_USER" || true
+          }
+          trap cleanup EXIT
+
+          if sudo ss -ltn | grep -Eq 'LISTEN.+:22[[:space:]]'; then
+            echo "port 22 already in use"
+            exit 1
+          fi
+          sudo /usr/sbin/sshd -t -f "$SSHD_DIR/sshd_config"
+          sudo /usr/sbin/sshd -f "$SSHD_DIR/sshd_config" -E "$SSHD_DIR/sshd.log"
+
+          ready=false
+          for _ in $(seq 1 20); do
+            if timeout 1 bash -c '</dev/tcp/127.0.0.1/22' 2>/dev/null; then
+              ready=true
+              break
+            fi
+            sleep 0.25
+          done
+          if [[ "$ready" != "true" ]]; then
+            cat "$SSHD_DIR/sshd.log" || true
+            exit 1
+          fi
+
+          N3W_REAL_SSHD_INTEGRATION=1           N3W_REAL_SSHD_TARGET="$TEST_USER@127.0.0.1"           N3W_REAL_SSHD_KNOWN_HOSTS="$SSHD_DIR/known_hosts"           N3W_REAL_SSHD_PASSWORD="$TEST_PASSWORD"             python -m pytest -q               tests/tools/test_n3w_t1_ssh_transport.py               -k real_sshd
+
       - name: Static contract guards
         run: |
           python - <<'PY'

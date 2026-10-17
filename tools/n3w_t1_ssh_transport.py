@@ -193,6 +193,8 @@ class SSHTransport:
                     "KbdInteractiveAuthentication=yes",
                     "-o",
                     "PreferredAuthentications=keyboard-interactive,password",
+                    "-o",
+                    "NumberOfPasswordPrompts=1",
                     self.target,
                 ),
                 timeout=180,
