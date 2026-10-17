@@ -3492,7 +3492,7 @@ def _install_fake_production_authority(monkeypatch, context):
 
     def validate_phase_context(document, *, required_phase):
         assert document == context
-        assert required_phase == "F4_PREPARE"
+        assert required_phase == context["phase"]
         return {
             "status": "PASS",
             "run_id": context["run_id"],
@@ -3727,3 +3727,172 @@ def test_production_prepare_requires_bound_predecessor(
 
     with pytest.raises(tool.F4Error, match="production_phase_context_invalid"):
         tool._load_production_phase_context(context_path)
+
+
+
+def _activation_production_context(tool):
+    context = _production_context(tool)
+    context["phase"] = tool.PRODUCTION_ACTIVATE_PHASE
+    context["claim_sha256"] = "6" * 64
+    context["binding_sha256"] = "7" * 64
+    return context
+
+
+def test_production_activate_uses_phase_context_once_without_second_confirmation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    context = _activation_production_context(tool)
+    context_path = tmp_path / "activation-context.json"
+    context_path.write_text(json.dumps(context), encoding="utf-8")
+    _install_fake_production_authority(monkeypatch, context)
+    ledger = tmp_path / "ledger"
+    transaction = tmp_path / "F4_ACTIVATION_TRANSACTION.json"
+    transaction.write_text('{"stage":"PREPARED"}\n', encoding="utf-8")
+    monkeypatch.setattr(tool, "PRODUCTION_EXECUTION_LEDGER_ROOT", ledger)
+    monkeypatch.setattr(tool, "TRANSACTION_PATH", transaction)
+    monkeypatch.setattr(
+        tool,
+        "_activation_eligibility",
+        lambda phase: {
+            "status": "PASS",
+            "transaction_stage": "PREPARED",
+            "eligibility_phase": phase,
+            "production_service_start": False,
+        },
+    )
+    calls = 0
+
+    def activate(confirmation, authorization_id):
+        nonlocal calls
+        calls += 1
+        assert confirmation == tool.ACTIVATE_CONFIRMATION
+        assert authorization_id == (
+            "N3W_T1_F4_PRODUCTION_F4_ACTIVATE_" + context["run_id"]
+        )
+        transaction.write_text('{"stage":"RUNTIME_STARTED"}\n', encoding="utf-8")
+        return {
+            "status": "PASS",
+            "state": "RUNTIME_STARTED",
+            "runtime_acceptance_required": True,
+            "production_service_start": True,
+            "persistence_enabled": False,
+            "certificate_timer_enabled": False,
+            "board_access": False,
+        }
+
+    monkeypatch.setattr(tool, "_activate", activate)
+
+    report = tool._activate_entry(None, None, context_path)
+
+    assert report["status"] == "PASS"
+    assert report["production_phase"] == "F4_ACTIVATE"
+    assert report["production_run_id"] == context["run_id"]
+    assert report["production_predecessor_sha256"] == (
+        context["binding"]["predecessor_sha256"]
+    )
+    assert report["authorization_consumed"] is True
+    assert report["replay_allowed"] is False
+    claim_path, complete_path = tool._production_execution_paths(context)
+    assert claim_path.is_file()
+    assert complete_path.is_file()
+    claim = json.loads(claim_path.read_text(encoding="utf-8"))
+    assert claim["predecessor_sha256"] == context["binding"]["predecessor_sha256"]
+    assert re.fullmatch(r"[0-9a-f]{64}", claim["f4_transaction_pre_sha256"])
+    completion = json.loads(complete_path.read_text(encoding="utf-8"))
+    assert completion["runtime_started"] is True
+    assert completion["f4_activation_transaction_sha256"] == (
+        tool._sha256_file(transaction)
+    )
+
+    with pytest.raises(
+        tool.F4Error,
+        match="production_activation_prestate_invalid|production_activation_already_consumed",
+    ):
+        tool._activate_entry(None, None, context_path)
+    assert calls == 1
+
+
+def test_production_activate_failure_after_claim_is_not_replayable(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    context = _activation_production_context(tool)
+    context_path = tmp_path / "activation-context.json"
+    context_path.write_text(json.dumps(context), encoding="utf-8")
+    _install_fake_production_authority(monkeypatch, context)
+    ledger = tmp_path / "ledger"
+    transaction = tmp_path / "F4_ACTIVATION_TRANSACTION.json"
+    transaction.write_text('{"stage":"PREPARED"}\n', encoding="utf-8")
+    monkeypatch.setattr(tool, "PRODUCTION_EXECUTION_LEDGER_ROOT", ledger)
+    monkeypatch.setattr(tool, "TRANSACTION_PATH", transaction)
+    monkeypatch.setattr(
+        tool,
+        "_activation_eligibility",
+        lambda _phase: {
+            "transaction_stage": "PREPARED",
+            "production_service_start": False,
+        },
+    )
+    calls = 0
+
+    def activate(*_args, **_kwargs):
+        nonlocal calls
+        calls += 1
+        raise tool.F4Error("injected_activation_failure")
+
+    monkeypatch.setattr(tool, "_activate", activate)
+
+    with pytest.raises(
+        tool.ProductionClaimedError,
+        match="injected_activation_failure",
+    ) as captured:
+        tool._activate_entry(None, None, context_path)
+    assert getattr(captured.value, "production_claimed", False) is True
+    claim_path, complete_path = tool._production_execution_paths(context)
+    assert claim_path.is_file()
+    assert not complete_path.exists()
+
+    with pytest.raises(
+        tool.F4Error,
+        match="production_activation_already_consumed",
+    ):
+        tool._activate_entry(None, None, context_path)
+    assert calls == 1
+
+
+def test_production_activate_rejects_prepare_context_before_local_claim(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    context = _production_context(tool)
+    context_path = tmp_path / "prepare-context.json"
+    context_path.write_text(json.dumps(context), encoding="utf-8")
+    _install_fake_production_authority(monkeypatch, context)
+    ledger = tmp_path / "ledger"
+    monkeypatch.setattr(tool, "PRODUCTION_EXECUTION_LEDGER_ROOT", ledger)
+
+    with pytest.raises(tool.F4Error, match="production_phase_context_invalid"):
+        tool._activate_entry(None, None, context_path)
+    assert not ledger.exists()
+
+
+def test_production_activate_rejects_legacy_authority_mixed_with_context(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    context = _activation_production_context(tool)
+    context_path = tmp_path / "activation-context.json"
+    context_path.write_text(json.dumps(context), encoding="utf-8")
+    _install_fake_production_authority(monkeypatch, context)
+
+    with pytest.raises(tool.F4Error, match="activate_authority_mode_conflict"):
+        tool._activate_entry(
+            tool.ACTIVATE_CONFIRMATION,
+            "N3W_T1_F4_LEGACY_ACTIVATE_AUTH",
+            context_path,
+        )

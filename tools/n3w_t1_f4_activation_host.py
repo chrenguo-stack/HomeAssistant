@@ -120,11 +120,18 @@ TRANSACTION_PATH = PROVISIONING_ROOT / "F4_ACTIVATION_TRANSACTION.json"
 RUNTIME_ACCEPTANCE_PATH = PROVISIONING_ROOT / "F4_RUNTIME_ACCEPTANCE.json"
 F4_LOCK_PATH = PROVISIONING_ROOT / ".f4-activation.lock"
 PRODUCTION_PHASE = "F4_PREPARE"
+PRODUCTION_ACTIVATE_PHASE = "F4_ACTIVATE"
 PRODUCTION_EXECUTION_CLAIM_SCHEMA = (
     "gh.n3w-t1-f4-production-execution-claim/1"
 )
 PRODUCTION_EXECUTION_COMPLETE_SCHEMA = (
     "gh.n3w-t1-f4-production-execution-complete/1"
+)
+PRODUCTION_ACTIVATION_CLAIM_SCHEMA = (
+    "gh.n3w-t1-f4-production-activation-claim/1"
+)
+PRODUCTION_ACTIVATION_COMPLETE_SCHEMA = (
+    "gh.n3w-t1-f4-production-activation-complete/1"
 )
 PRODUCTION_EXECUTION_LEDGER_ROOT = Path(
     "/var/lib/n3w-t1-f4-production-executions"
@@ -418,7 +425,11 @@ def _write_new_production_json(
         os.close(directory_fd)
 
 
-def _load_production_phase_context(path: Path) -> dict[str, Any]:
+def _load_production_phase_context(
+    path: Path,
+    *,
+    required_phase: str = PRODUCTION_PHASE,
+) -> dict[str, Any]:
     if path.is_symlink() or not path.is_file():
         raise F4Error("production_phase_context_missing")
     try:
@@ -449,7 +460,7 @@ def _load_production_phase_context(path: Path) -> dict[str, Any]:
         not isinstance(document, dict)
         or set(document) != required
         or document.get("schema") != "gh.n3w-t1-production-phase-context/1"
-        or document.get("phase") != PRODUCTION_PHASE
+        or document.get("phase") != required_phase
         or re.fullmatch(r"[0-9a-f]{64}", str(document.get("run_id"))) is None
         or re.fullmatch(
             r"[0-9a-f]{64}",
@@ -504,12 +515,12 @@ def _load_production_phase_context(path: Path) -> dict[str, Any]:
         raise F4Error("production_authority_dependency_missing") from error
     validated = validate_phase_context(
         document,
-        required_phase=PRODUCTION_PHASE,
+        required_phase=required_phase,
     )
     if (
         validated.get("status") != "PASS"
         or validated.get("run_id") != document["run_id"]
-        or validated.get("phase") != PRODUCTION_PHASE
+        or validated.get("phase") != required_phase
         or validated.get("claim_sha256") != document["claim_sha256"]
         or validated.get("authorization_consumed") is not True
         or validated.get("replay_allowed") is not False
@@ -650,6 +661,150 @@ def _complete_production_execution(
         "result_sha256": _json_sha256(report),
         "factory_accepted": True,
         "production_service_start": False,
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "board_access": False,
+    }
+    _write_new_production_json(complete_path, record)
+
+
+def _production_activation_claim_present(
+    context: dict[str, Any],
+) -> bool:
+    _validate_production_execution_root()
+    claim_path, _complete_path = _production_execution_paths(context)
+    if not claim_path.exists() and not claim_path.is_symlink():
+        return False
+    if claim_path.is_symlink() or not claim_path.is_file():
+        raise F4Error("production_activation_claim_invalid")
+    metadata = claim_path.stat()
+    if (
+        metadata.st_uid != os.geteuid()
+        or stat.S_IMODE(metadata.st_mode) != 0o600
+        or metadata.st_nlink != 1
+    ):
+        raise F4Error("production_activation_claim_invalid")
+    try:
+        record = json.loads(claim_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise F4Error("production_activation_claim_invalid") from error
+    expected = {
+        "schema",
+        "run_id",
+        "phase",
+        "phase_claim_sha256",
+        "plan_sha256",
+        "binding_sha256",
+        "source_head",
+        "production_release_id",
+        "artifact_sha256",
+        "predecessor_sha256",
+        "target_binding_sha256",
+        "f4_transaction_pre_sha256",
+        "f4_authorization_id",
+        "authorization_consumed",
+        "replay_allowed",
+        "board_access",
+    }
+    binding = context["binding"]
+    if (
+        not isinstance(record, dict)
+        or set(record) != expected
+        or record.get("schema") != PRODUCTION_ACTIVATION_CLAIM_SCHEMA
+        or record.get("run_id") != context["run_id"]
+        or record.get("phase") != PRODUCTION_ACTIVATE_PHASE
+        or record.get("phase_claim_sha256") != context["claim_sha256"]
+        or record.get("plan_sha256") != context["plan_sha256"]
+        or record.get("binding_sha256") != context["binding_sha256"]
+        or record.get("source_head") != binding["source_head"]
+        or record.get("production_release_id") != binding["release_id"]
+        or record.get("artifact_sha256") != binding["artifact_sha256"]
+        or record.get("predecessor_sha256") != binding["predecessor_sha256"]
+        or record.get("target_binding_sha256")
+        != binding["target_binding_sha256"]
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(record.get("f4_transaction_pre_sha256")),
+        )
+        is None
+        or record.get("authorization_consumed") is not True
+        or record.get("replay_allowed") is not False
+        or record.get("board_access") is not False
+    ):
+        raise F4Error("production_activation_claim_invalid")
+    return True
+
+
+def _production_activation_authorization_id(
+    context: dict[str, Any],
+) -> str:
+    return "N3W_T1_F4_PRODUCTION_F4_ACTIVATE_" + str(context["run_id"])
+
+
+def _claim_production_activation(
+    context: dict[str, Any],
+    *,
+    transaction_pre_sha256: str,
+    authorization_id: str,
+) -> None:
+    if re.fullmatch(r"[0-9a-f]{64}", transaction_pre_sha256) is None:
+        raise F4Error("production_activation_transaction_binding_invalid")
+    _validate_production_execution_root()
+    PRODUCTION_EXECUTION_LEDGER_ROOT.mkdir(mode=0o700, exist_ok=True)
+    if PRODUCTION_EXECUTION_LEDGER_ROOT.is_symlink():
+        raise F4Error("production_execution_ledger_root_invalid")
+    os.chmod(PRODUCTION_EXECUTION_LEDGER_ROOT, 0o700)
+    _validate_production_execution_root()
+    claim_path, complete_path = _production_execution_paths(context)
+    if (
+        claim_path.exists()
+        or claim_path.is_symlink()
+        or complete_path.exists()
+        or complete_path.is_symlink()
+    ):
+        raise F4Error("production_activation_already_consumed")
+    binding = context["binding"]
+    record = {
+        "schema": PRODUCTION_ACTIVATION_CLAIM_SCHEMA,
+        "run_id": context["run_id"],
+        "phase": PRODUCTION_ACTIVATE_PHASE,
+        "phase_claim_sha256": context["claim_sha256"],
+        "plan_sha256": context["plan_sha256"],
+        "binding_sha256": context["binding_sha256"],
+        "source_head": binding["source_head"],
+        "production_release_id": binding["release_id"],
+        "artifact_sha256": binding["artifact_sha256"],
+        "predecessor_sha256": binding["predecessor_sha256"],
+        "target_binding_sha256": binding["target_binding_sha256"],
+        "f4_transaction_pre_sha256": transaction_pre_sha256,
+        "f4_authorization_id": authorization_id,
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "board_access": False,
+    }
+    _write_new_production_json(claim_path, record)
+
+
+def _complete_production_activation(
+    context: dict[str, Any],
+    report: dict[str, object],
+) -> None:
+    if not _production_activation_claim_present(context):
+        raise F4Error("production_activation_claim_missing")
+    claim_path, complete_path = _production_execution_paths(context)
+    if complete_path.exists() or complete_path.is_symlink():
+        raise F4Error("production_activation_complete_exists")
+    if TRANSACTION_PATH.is_symlink() or not TRANSACTION_PATH.is_file():
+        raise F4Error("production_activation_transaction_missing")
+    record = {
+        "schema": PRODUCTION_ACTIVATION_COMPLETE_SCHEMA,
+        "run_id": context["run_id"],
+        "phase": PRODUCTION_ACTIVATE_PHASE,
+        "production_claim_record_sha256": _sha256_file(claim_path),
+        "f4_activation_transaction_sha256": _sha256_file(TRANSACTION_PATH),
+        "result_sha256": _json_sha256(report),
+        "runtime_started": True,
+        "production_service_start": True,
         "authorization_consumed": True,
         "replay_allowed": False,
         "board_access": False,
@@ -3515,6 +3670,72 @@ def _activate(confirmation: str, authorization_id: str) -> dict[str, object]:
             raise
 
 
+def _activate_entry(
+    confirmation: str | None,
+    authorization_id: str | None,
+    production_phase_context: Path | None,
+) -> dict[str, object]:
+    if production_phase_context is None:
+        return _activate(
+            confirmation or "",
+            authorization_id or "",
+        )
+    if confirmation is not None or authorization_id is not None:
+        raise F4Error("activate_authority_mode_conflict")
+    context = _load_production_phase_context(
+        production_phase_context,
+        required_phase=PRODUCTION_ACTIVATE_PHASE,
+    )
+    eligibility = _activation_eligibility("inspect")
+    if (
+        eligibility.get("transaction_stage") != "PREPARED"
+        or eligibility.get("production_service_start") is not False
+    ):
+        raise F4Error("production_activation_prestate_invalid")
+    if _production_activation_claim_present(context):
+        raise F4Error("production_activation_already_consumed")
+    transaction_pre_sha256 = _sha256_file(TRANSACTION_PATH)
+    production_authorization_id = _production_activation_authorization_id(
+        context
+    )
+    _claim_production_activation(
+        context,
+        transaction_pre_sha256=transaction_pre_sha256,
+        authorization_id=production_authorization_id,
+    )
+    try:
+        report = _activate(
+            ACTIVATE_CONFIRMATION,
+            production_authorization_id,
+        )
+        if (
+            report.get("status") != "PASS"
+            or report.get("state") != "RUNTIME_STARTED"
+            or report.get("runtime_acceptance_required") is not True
+            or report.get("production_service_start") is not True
+            or report.get("persistence_enabled") is not False
+            or report.get("certificate_timer_enabled") is not False
+            or report.get("board_access") is not False
+        ):
+            raise F4Error("production_activation_result_invalid")
+        _complete_production_activation(context, report)
+    except OPERATION_ERRORS as error:
+        raise ProductionClaimedError(str(error)) from error
+    binding = context["binding"]
+    return {
+        **report,
+        "production_run_id": context["run_id"],
+        "production_phase": PRODUCTION_ACTIVATE_PHASE,
+        "phase_claim_sha256": context["claim_sha256"],
+        "production_release_id": binding["release_id"],
+        "production_artifact_sha256": binding["artifact_sha256"],
+        "production_predecessor_sha256": binding["predecessor_sha256"],
+        "target_binding_sha256": binding["target_binding_sha256"],
+        "authorization_consumed": True,
+        "replay_allowed": False,
+    }
+
+
 
 def _compose_service_inspect(service: str) -> dict[str, object]:
     output = _run(
@@ -5363,8 +5584,9 @@ def _parser() -> argparse.ArgumentParser:
     )
 
     activate = subparsers.add_parser("activate")
-    activate.add_argument("--confirm", required=True)
-    activate.add_argument("--authorization-id", required=True)
+    activate.add_argument("--confirm")
+    activate.add_argument("--authorization-id")
+    activate.add_argument("--production-phase-context", type=Path)
 
     for command in (
         "accept-runtime",
@@ -5447,9 +5669,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.package_source_head,
             )
         elif args.command == "activate":
-            report = _activate(
+            report = _activate_entry(
                 args.confirm,
                 args.authorization_id,
+                args.production_phase_context,
             )
         elif args.command == "accept-runtime":
             report = _accept_runtime(args.authorization_id)
