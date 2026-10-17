@@ -41,6 +41,8 @@ class FakeRunner:
         command = tuple(argv)
         self.calls.append((command, interactive))
         returncode = 0
+        if interactive and command[0] == "ssh" and "-MNf" in command:
+            self.master_available = True
         if "-O" in command and "exit" in command:
             if self.exit_fails:
                 returncode = 255
