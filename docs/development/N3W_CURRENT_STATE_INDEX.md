@@ -1,3 +1,18 @@
+## 2026-10-17 — F5 PERSIST_CERT phase-context minimal integration CLOSED_PASS
+
+- PR #612 remains Draft/open and unmerged.
+- Source closure head: `12703d0f0383140cb9655a4042818d08e5c15e54`.
+- Normal F5 PERSIST_CERT requires exact target-validated `PERSIST_CERT` phase context.
+- Same-run F4_PREPARE → F4_ACTIVATE → F4_ACCEPT predecessor binding is required.
+- One durable non-replayable local PERSIST_CERT claim is written before mutation.
+- Existing persistence, first certificate audit and certificate timer enable-only primitives remain the mutation owners.
+- Three distinct internal authorization IDs are bound, claimed and consumed.
+- Successful completion requires PRE_REBOOT_READY, persistence enabled, first certificate audit passed and certificate timer enabled but not active before reboot.
+- CI on the closure head is PASS 17/17.
+- No live reboot, T1 access, T1 mutation, board access or merge occurred.
+- Next gate: `N3W_T1_F5_PRODUCTION_PROCESS_V1_REBOOT_CONTROL_PHASE_CONTEXT_MINIMAL_INTEGRATION_20261017_01`.
+- Authority: `docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_PERSIST_CERT_PHASE_CONTEXT_MINIMAL_INTEGRATION_CLOSURE_20261017.md`.
+
 ## 2026-10-17 — F5 F4_ACCEPT phase-context minimal integration CLOSED_PASS
 
 - PR #612 remains Draft/open and unmerged.
