@@ -217,6 +217,20 @@ def _replace(path: Path, document: dict[str, Any]) -> None:
 
 
 @contextmanager
+def _root_exclusive(root: Path) -> Iterator[None]:
+    descriptor = os.open(
+        root,
+        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+    )
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        yield
+    finally:
+        fcntl.flock(descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
+
+
+@contextmanager
 def _exclusive(root: Path, run_id: str) -> Iterator[None]:
     run_dir = _run_dir(root, run_id)
     _validate_dir(run_dir)
@@ -296,6 +310,15 @@ def _load_run(root: Path, run_id: str) -> dict[str, Any]:
         raise ProductionAuthorityError("run_terminal_state_invalid")
     if run["terminal_state"] is not None and run["state"] != "TERMINAL":
         raise ProductionAuthorityError("run_terminal_state_invalid")
+    if run["terminal_state"] == "PASS" and run["failure_class"] is not None:
+        raise ProductionAuthorityError("run_terminal_state_invalid")
+    if run["terminal_state"] == "FAIL" and run["failure_class"] not in {
+        "FAILED",
+        "UNKNOWN",
+    }:
+        raise ProductionAuthorityError("run_terminal_state_invalid")
+    if run["terminal_state"] is None and run["failure_class"] is not None:
+        raise ProductionAuthorityError("run_terminal_state_invalid")
     return run
 
 
@@ -345,6 +368,19 @@ def _load_phase(root: Path, run_id: str, phase: str) -> dict[str, Any]:
         not isinstance(failure_code, str) or not failure_code
     ):
         raise ProductionAuthorityError("phase_record_failure_code_invalid")
+    state = record["state"]
+    if state in {"CLAIMED", "APPLYING"} and (
+        result_sha is not None or failure_code is not None
+    ):
+        raise ProductionAuthorityError("phase_record_state_invalid")
+    if state == "SUCCEEDED" and (
+        result_sha is None or failure_code is not None
+    ):
+        raise ProductionAuthorityError("phase_record_state_invalid")
+    if state in {"FAILED", "UNKNOWN"} and (
+        result_sha is not None or failure_code is None
+    ):
+        raise ProductionAuthorityError("phase_record_state_invalid")
     return record
 
 
@@ -380,30 +416,31 @@ def approve_run(
     if observed.get("ssh_host_key_sha256") != normalized["ssh_host_key_sha256"]:
         raise ProductionAuthorityError("run_host_key_binding_mismatch")
     _ensure_root(root)
-    _guard_existing_target_runs(root, normalized["target_binding_sha256"])
-    run_dir = _run_dir(root, normalized["run_id"])
-    try:
-        run_dir.mkdir(mode=0o700)
-    except FileExistsError as error:
-        raise ProductionAuthorityError("run_already_exists") from error
-    os.chmod(run_dir, 0o700)
-    record = {
-        "schema": RUN_SCHEMA,
-        "run_id": normalized["run_id"],
-        "plan": normalized,
-        "plan_sha256": canonical_sha256(normalized),
-        "state": "APPROVED",
-        "authorization_consumed": True,
-        "replay_allowed": False,
-        "last_completed_phase": None,
-        "last_claimed_phase": None,
-        "terminal_state": None,
-        "failure_class": None,
-        "created_at": current,
-        "updated_at": current,
-        "board_access": False,
-    }
-    _write_new(_run_path(root, normalized["run_id"]), record)
+    with _root_exclusive(root):
+        _guard_existing_target_runs(root, normalized["target_binding_sha256"])
+        run_dir = _run_dir(root, normalized["run_id"])
+        try:
+            run_dir.mkdir(mode=0o700)
+        except FileExistsError as error:
+            raise ProductionAuthorityError("run_already_exists") from error
+        os.chmod(run_dir, 0o700)
+        record = {
+            "schema": RUN_SCHEMA,
+            "run_id": normalized["run_id"],
+            "plan": normalized,
+            "plan_sha256": canonical_sha256(normalized),
+            "state": "APPROVED",
+            "authorization_consumed": True,
+            "replay_allowed": False,
+            "last_completed_phase": None,
+            "last_claimed_phase": None,
+            "terminal_state": None,
+            "failure_class": None,
+            "created_at": current,
+            "updated_at": current,
+            "board_access": False,
+        }
+        _write_new(_run_path(root, normalized["run_id"]), record)
     return {
         "schema": RUN_SCHEMA,
         "status": "PASS",
@@ -437,7 +474,11 @@ def claim_phase(
     with _exclusive(root, run_id):
         run = _load_run(root, run_id)
         plan = run["plan"]
-        if current >= plan["expires_at"] or run["terminal_state"] is not None:
+        if (
+            current < plan["approved_at"]
+            or current >= plan["expires_at"]
+            or run["terminal_state"] is not None
+        ):
             raise ProductionAuthorityError("run_not_claimable")
         if binding["source_head"] != plan["source_head"]:
             raise ProductionAuthorityError("phase_source_head_mismatch")
