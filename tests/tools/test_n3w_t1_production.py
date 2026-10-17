@@ -379,3 +379,64 @@ def test_target_close_does_not_claim_operator_session_cleanup(tmp_path):
     assert result["operator_session_closed"] is False
     assert result["evidence_complete"] is True
     assert result["final_outcome"] == "FAIL"
+
+
+
+def test_cli_run_uses_default_runtime_backend_without_external_injection(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import types
+
+    tool = load_tool()
+    release_path = tmp_path / "approved-release.json"
+    release_path.write_text(
+        json.dumps(release(tool)),
+        encoding="utf-8",
+    )
+    backend = FakeBackend()
+    observed = {}
+    runtime = types.ModuleType("n3w_t1_production_runtime")
+
+    def create_backend(
+        release_document,
+        supplied_release_path,
+        *,
+        private_record_path=None,
+    ):
+        observed["release"] = release_document
+        observed["release_path"] = supplied_release_path
+        observed["private_record_path"] = private_record_path
+        return backend
+
+    runtime.create_backend = create_backend
+    monkeypatch.setitem(
+        sys.modules,
+        "n3w_t1_production_runtime",
+        runtime,
+    )
+    monkeypatch.setattr(
+        "builtins.input",
+        lambda _prompt: "START PRODUCTION RUN",
+    )
+    private = tmp_path / "private.json"
+    public = tmp_path / "public.json"
+
+    code = tool.main(
+        [
+            "run",
+            "--release",
+            str(release_path),
+            "--private-record",
+            str(private),
+            "--public-record",
+            str(public),
+        ]
+    )
+
+    assert code == 0
+    assert observed["release_path"] == release_path
+    assert observed["private_record_path"] == private
+    assert backend.approvals == 1
+    assert backend.phases == list(tool.PHASES)
+    assert public.is_file()
