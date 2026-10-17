@@ -126,9 +126,13 @@ jobs:
           PAYLOAD="$WORK/payload"
           mkdir -p             "$PAYLOAD/tools"             "$PAYLOAD/contract"             "$PAYLOAD/runtime-source/opt/HomeAssistant/infra/n3w-t1/production"             "$PAYLOAD/runtime-source/opt/HomeAssistant/infra/n3w-t1/broker"             "$PAYLOAD/runtime-source/opt/HomeAssistant/infra/n3w-t1/homeassistant/custom_components/n3w_mqtt_bootstrap"             "$PAYLOAD/runtime-source/opt/HomeAssistant/infra/n3w-t1/systemd"             "$PAYLOAD/runtime-source/opt/HomeAssistant/infra/n3w-t1/NetworkManager/dispatcher.d"             "$PAYLOAD/runtime-source/opt/HomeAssistant/tools"             "$PAYLOAD/runtime-source/usr/local/sbin"             "$PAYLOAD/runtime-source/etc/systemd/system"
           cp tools/n3w_t1_fresh_product_bootstrap.py "$PAYLOAD/tools/"
+          cp tools/n3w_t1_production_authority.py "$PAYLOAD/tools/"
+          cp tools/n3w_t1_production_contract.py "$PAYLOAD/tools/"
           cp host/greenhouse-manager/src/greenhouse_manager/bootstrap/fresh_installer.py "$PAYLOAD/contract/"
           cp tools/n3w_t1_fresh_product_bootstrap.py "$PAYLOAD/runtime-source/opt/HomeAssistant/tools/"
           cp tools/n3w_t1_device_provisioning_host.py "$PAYLOAD/runtime-source/opt/HomeAssistant/tools/"
+          cp tools/n3w_t1_production_authority.py "$PAYLOAD/runtime-source/opt/HomeAssistant/tools/"
+          cp tools/n3w_t1_production_contract.py "$PAYLOAD/runtime-source/opt/HomeAssistant/tools/"
           cp host/greenhouse-manager/src/greenhouse_manager/bootstrap/device_firstboot.py "$PAYLOAD/runtime-source/opt/HomeAssistant/tools/n3w_t1_device_firstboot.py"
           cp infra/n3w-t1/production/docker-compose.fresh.yml "$PAYLOAD/runtime-source/opt/HomeAssistant/infra/n3w-t1/production/"
           cp infra/n3w-t1/production/homeassistant-configuration.yaml "$PAYLOAD/runtime-source/opt/HomeAssistant/infra/n3w-t1/production/"
@@ -737,6 +741,116 @@ jobs:
           printf 'RUNTIME_PAYLOAD_SHA256=%s\n' "$ARCHIVE_SHA"
           printf 'PAYLOAD_MANIFEST_SHA256=%s\n' "$MANIFEST_SHA"
 
+          PROD_PAYLOAD="$RUNNER_TEMP/f5-production-f3-payload"
+          PROD_OUT="$RUNNER_TEMP/f5-production-f3-outer"
+          cp -a "$PAYLOAD" "$PROD_PAYLOAD"
+          mkdir -p "$PROD_OUT"
+          python - "$PROD_PAYLOAD" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          path = root / "payload-manifest.json"
+          manifest = json.loads(path.read_text(encoding="utf-8"))
+          manifest["schema"] = "gh.n3w-t1-fresh-bootstrap-payload/2"
+          manifest.pop("authorization_id", None)
+          manifest.pop("authorization_claimed", None)
+          manifest.pop("authorization_consumed", None)
+          data_size = sum(item["size"] for item in manifest["files"])
+          for _ in range(8):
+              encoded = (
+                  json.dumps(manifest, sort_keys=True, indent=2) + "\n"
+              ).encode()
+              total = data_size + len(encoded)
+              if (
+                  manifest["transport"]["runtime_payload_uncompressed_bytes"]
+                  == total
+              ):
+                  break
+              manifest["transport"]["runtime_payload_uncompressed_bytes"] = total
+          else:
+              raise RuntimeError("production_payload_size_did_not_converge")
+          path.write_bytes(
+              (json.dumps(manifest, sort_keys=True, indent=2) + "\n").encode()
+          )
+          PY
+          python tools/n3w_t1_fresh_product_bootstrap.py --payload-root "$PROD_PAYLOAD" --phase self-check
+          PROD_MANIFEST_SHA="$(sha256sum "$PROD_PAYLOAD/payload-manifest.json" | awk '{print $1}')"
+          PROD_ARCHIVE="$PROD_OUT/runtime-payload.tar.gz"
+          tar -C "$PROD_PAYLOAD" -czf "$PROD_ARCHIVE" .
+          sha256sum "$PROD_ARCHIVE" | awk '{print $1}' > "$PROD_OUT/runtime-payload.sha256"
+          printf '%s\n' "$PROD_MANIFEST_SHA" > "$PROD_OUT/payload-manifest.sha256"
+          cp "$RUNNER_TEMP/capacity-contract.json" "$PROD_OUT/"
+          cp "$RUNNER_TEMP/capacity-contract.sha256" "$PROD_OUT/"
+          cp "$RUNNER_TEMP/homeassistant-arm64.tar" "$PROD_OUT/"
+          cp "$RUNNER_TEMP/greenhouse-manager-arm64.tar" "$PROD_OUT/"
+          cp "$RUNNER_TEMP/broker-arm64.tar" "$PROD_OUT/"
+          sha256sum "$PROD_PAYLOAD/tools/n3w_t1_fresh_product_bootstrap.py" | awk '{print $1}' > "$PROD_OUT/executor.sha256"
+          cp tools/n3w_t1_fresh_product_staging_host.py "$PROD_OUT/host-wrapper.py"
+          sha256sum "$PROD_OUT/host-wrapper.py" | awk '{print $1}' > "$PROD_OUT/host-wrapper.sha256"
+          cp tools/n3w_t1_fresh_host_baseline.py "$PROD_OUT/host-baseline.py"
+          sha256sum "$PROD_OUT/host-baseline.py" | awk '{print $1}' > "$PROD_OUT/host-baseline.sha256"
+          python - "$PROD_OUT" <<'PY'
+          import hashlib
+          import json
+          import tarfile
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          expected = {
+              "runtime-payload.tar.gz",
+              "runtime-payload.sha256",
+              "payload-manifest.sha256",
+              "capacity-contract.json",
+              "capacity-contract.sha256",
+              "homeassistant-arm64.tar",
+              "greenhouse-manager-arm64.tar",
+              "broker-arm64.tar",
+              "executor.sha256",
+              "host-wrapper.py",
+              "host-wrapper.sha256",
+              "host-baseline.py",
+              "host-baseline.sha256",
+          }
+          assert {item.name for item in root.iterdir()} == expected
+          archive = root / "runtime-payload.tar.gz"
+          with tarfile.open(archive, "r:gz") as bundle:
+              member = next(
+                  item
+                  for item in bundle.getmembers()
+                  if item.name.lstrip("./") == "payload-manifest.json"
+              )
+              stream = bundle.extractfile(member)
+              assert stream is not None
+              manifest = json.loads(stream.read().decode())
+              names = {
+                  item.name.lstrip("./")
+                  for item in bundle.getmembers()
+                  if item.isfile()
+              }
+          assert manifest["schema"] == "gh.n3w-t1-fresh-bootstrap-payload/2"
+          assert "authorization_id" not in manifest
+          assert "authorization_claimed" not in manifest
+          assert "authorization_consumed" not in manifest
+          assert "tools/n3w_t1_production_authority.py" in names
+          assert "tools/n3w_t1_production_contract.py" in names
+          assert (
+              "runtime-source/opt/HomeAssistant/tools/"
+              "n3w_t1_production_authority.py"
+          ) in names
+          assert (
+              "runtime-source/opt/HomeAssistant/tools/"
+              "n3w_t1_production_contract.py"
+          ) in names
+          digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+          assert digest == (
+              root / "runtime-payload.sha256"
+          ).read_text(encoding="utf-8").strip()
+          print("F5_PRODUCTION_F3_PAYLOAD_BINDING=PASS")
+          PY
+
       - name: Upload fresh deployable payload
         id: upload
         uses: actions/upload-artifact@v4
@@ -756,6 +870,17 @@ jobs:
             ${{ runner.temp }}/host-wrapper.sha256
             ${{ runner.temp }}/host-baseline.py
             ${{ runner.temp }}/host-baseline.sha256
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Upload F5 production F3 payload
+        id: upload_f5_production_f3
+        uses: actions/upload-artifact@v4
+        with:
+          name: n3w-t1-f5-production-f3-${{ env.SOURCE_HEAD }}
+          path: |
+            ${{ runner.temp }}/f5-production-f3-outer/*
           if-no-files-found: error
           retention-days: 30
           compression-level: 0

@@ -1,3 +1,136 @@
+## 2026-10-17 — F5 runtime-entrypoint / HOST_BASELINE scope delta APPROVED
+
+- Approved new source path: `tools/n3w_t1_production_runtime.py`.
+- Approved new test path: `tests/tools/test_n3w_t1_production_runtime.py`.
+- Existing F2/F3/HOST_BASELINE/production/SSH boundaries remain the repair surfaces.
+- No T1 access, live reboot, board access or merge is authorized.
+- Authority: `docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_RUNTIME_ENTRYPOINT_AND_HOST_BASELINE_SCOPE_DELTA_20261017.md`.
+
+## 2026-10-17 — F5 whole-source closure review BLOCKED / runtime-entrypoint repair required
+
+- PR #612 remains Draft/open and unmerged; main has not drifted.
+- The seven phase-level closures remain valid and are not reopened.
+- Whole-source blocker B1: normal `n3w-t1-production run` has no concrete runtime backend and requires test-only/external backend injection.
+- B2: HOST_BASELINE is not F5 phase-bound and still chooses current APT candidates instead of exact approved release versions.
+- B3: the normal F2/F3 host path is not yet assembled through the unified F5 SSH adapter.
+- B4: CI does not yet run the actual packaged normal entrypoint with a concrete backend.
+- F5-7 exact production release build is NOT_READY and has not started.
+- A new runtime composition module is proposed; because it is outside the frozen source-work-package new-path list, explicit scope-delta review is required before product-source mutation.
+- Next gate: `N3W_T1_F5_PRODUCTION_PROCESS_V1_RUNTIME_ENTRYPOINT_AND_HOST_BASELINE_SOURCE_REPAIR_20261017_01`.
+- Authority: `docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_WHOLE_SOURCE_CLOSURE_REVIEW_20261017.md`.
+
+## 2026-10-17 — F5 CLOSE_RUN minimal integration CLOSED_PASS
+
+- PR #612 remains Draft/open and unmerged.
+- Source closure head: `98566f72f89c8a2f81d606f8995be9dcbba99978`.
+- Generic phase completion cannot close CLOSE_RUN.
+- Dedicated CLOSE_RUN requires every previous phase to be SUCCEEDED/consumed/non-replayable and binds the exact FINALIZE result.
+- Target TERMINAL/PASS requires FINALIZE REBOOT_ACCEPTED and device_acceptance=true.
+- Device acceptance, evidence completeness and operator-session cleanup remain separate facts.
+- All seven F5/F4 production integration gates from F4_PREPARE through CLOSE_RUN are CLOSED_PASS.
+- CI on the closure head is PASS 17/17.
+- No T1 access, T1 mutation, live reboot, board access or merge occurred.
+- Next gate: `N3W_T1_F5_PRODUCTION_PROCESS_V1_WHOLE_SOURCE_CLOSURE_AND_EXACT_RELEASE_PREPARATION_20261017_01`.
+- Authority: `docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_CLOSE_RUN_MINIMAL_INTEGRATION_CLOSURE_20261017.md`.
+
+## 2026-10-17 — F5 FINALIZE phase-context minimal integration CLOSED_PASS
+
+- PR #612 remains Draft/open and unmerged.
+- Source closure head: `894a26e2e2f7dcc98ae1340abb0712d286634c57`.
+- Normal F5 FINALIZE requires exact target phase context, same-run reboot actuation, an actual new boot, and unchanged F4 transaction.
+- Existing F4 reboot-acceptance finalizer and terminal verifier remain authoritative.
+- device_acceptance=true is returned only after durable REBOOT_ACCEPTED verification.
+- FINALIZE is one-shot/non-replayable after its local production claim.
+- CI on the closure head is PASS 17/17.
+- No T1 access, T1 mutation, live reboot, board access or merge occurred.
+- Next gate: `N3W_T1_F5_PRODUCTION_PROCESS_V1_CLOSE_RUN_MINIMAL_INTEGRATION_20261017_01`.
+- Authority: `docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_FINALIZE_PHASE_CONTEXT_MINIMAL_INTEGRATION_CLOSURE_20261017.md`.
+
+## 2026-10-17 — F5 REBOOT_CONTROL phase-context minimal integration CLOSED_PASS
+
+- PR #612 remains Draft/open and unmerged.
+- Source closure head: `ee5218b87ad9f3ea68f85d840173bf91c0dfcb4c`.
+- Normal F5 REBOOT_CONTROL requires exact target-validated phase context and same-run PERSIST_CERT predecessor.
+- Reboot control package source must equal the approved production source.
+- Existing F4 reboot-successor install/verify/claim primitives remain authoritative.
+- Control install must preserve F4 transaction, runtime identity and certificate identity.
+- Successful phase completion stops at durable REBOOT_PENDING; no reboot command is executed in this gate.
+- A separate one-shot durable actuation marker records reboot_actuation_attempted before any future reboot actuation and forbids replay.
+- CI on the closure head is PASS 17/17.
+- No T1 access, T1 mutation, live reboot, board access or merge occurred.
+- Next gate: `N3W_T1_F5_PRODUCTION_PROCESS_V1_FINALIZE_PHASE_CONTEXT_MINIMAL_INTEGRATION_20261017_01`.
+- Authority: `docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_REBOOT_CONTROL_PHASE_CONTEXT_MINIMAL_INTEGRATION_CLOSURE_20261017.md`.
+
+## 2026-10-17 — F5 PERSIST_CERT phase-context minimal integration CLOSED_PASS
+
+- PR #612 remains Draft/open and unmerged.
+- Source closure head: `12703d0f0383140cb9655a4042818d08e5c15e54`.
+- Normal F5 PERSIST_CERT requires exact target-validated `PERSIST_CERT` phase context.
+- Same-run F4_PREPARE → F4_ACTIVATE → F4_ACCEPT predecessor binding is required.
+- One durable non-replayable local PERSIST_CERT claim is written before mutation.
+- Existing persistence, first certificate audit and certificate timer enable-only primitives remain the mutation owners.
+- Three distinct internal authorization IDs are bound, claimed and consumed.
+- Successful completion requires PRE_REBOOT_READY, persistence enabled, first certificate audit passed and certificate timer enabled but not active before reboot.
+- CI on the closure head is PASS 17/17.
+- No live reboot, T1 access, T1 mutation, board access or merge occurred.
+- Next gate: `N3W_T1_F5_PRODUCTION_PROCESS_V1_REBOOT_CONTROL_PHASE_CONTEXT_MINIMAL_INTEGRATION_20261017_01`.
+- Authority: `docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_PERSIST_CERT_PHASE_CONTEXT_MINIMAL_INTEGRATION_CLOSURE_20261017.md`.
+
+## 2026-10-17 — F5 F4_ACCEPT phase-context minimal integration CLOSED_PASS
+
+- PR #612 remains Draft/open and unmerged.
+- Source closure head: `7f214750128138d7bfaf2b374d9e3302b12d442a`.
+- Normal F5 F4_ACCEPT requires exact target-validated `F4_ACCEPT` phase context.
+- The local F4 predecessor chain must belong to the same production run and be RUNTIME_STARTED with services active and persistence disabled.
+- A durable non-replayable local acceptance claim is written before runtime acceptance.
+- Existing runtime acceptance and fail-closed rollback logic remains the mutation owner.
+- Successful completion requires RUNTIME_ACCEPTED and binds the durable runtime-acceptance report.
+- CI on the closure head is PASS 17/17.
+- No T1 access, T1 mutation, board access or merge occurred.
+- Next gate: `N3W_T1_F5_PRODUCTION_PROCESS_V1_PERSIST_CERT_PHASE_CONTEXT_MINIMAL_INTEGRATION_20261017_01`.
+- Authority: `docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_F4_ACCEPT_PHASE_CONTEXT_MINIMAL_INTEGRATION_CLOSURE_20261017.md`.
+
+## 2026-10-17 — F5 F4_ACTIVATE phase-context minimal integration CLOSED_PASS
+
+- PR #612 remains Draft/open and unmerged.
+- Source closure head: `c400c1d9b09a497c2537c10f9afceff726437b48`.
+- Normal F5 F4_ACTIVATE now requires exact target-validated `F4_ACTIVATE` phase context.
+- F4 must still be PREPARED with production services stopped before the local activation claim is written.
+- The local activation claim is durable and non-replayable and binds the pre-activation F4 transaction SHA256.
+- No second human approval is introduced; the internal F4 activation authorization is derived from the approved production run.
+- Existing F4 activation and rollback logic remains the mutation owner.
+- Successful completion requires RUNTIME_STARTED with runtime acceptance still required and persistence/certificate timer disabled.
+- CI on the closure head is PASS 17/17.
+- No T1 access, T1 mutation, board access or merge occurred.
+- Next gate: `N3W_T1_F5_PRODUCTION_PROCESS_V1_F4_ACCEPT_PHASE_CONTEXT_MINIMAL_INTEGRATION_20261017_01`.
+- Authority: `docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_F4_ACTIVATE_PHASE_CONTEXT_MINIMAL_INTEGRATION_CLOSURE_20261017.md`.
+
+## 2026-10-17 — F5 F4_PREPARE phase-context minimal integration CLOSED_PASS
+
+- PR #612 remains Draft/open and unmerged.
+- Source closure head: `f4e3a76d5c5ab9259f9e3d53ed57fb6b9626f527`.
+- Normal F5 F4_PREPARE now requires exact target-validated `F4_PREPARE` phase context.
+- No second human approval is introduced; the F5 adapter derives the internal F4 authorization identifier from the approved production run.
+- A durable non-replayable local execution claim is written before the existing F4 prepare mutation.
+- Successful prepare is hash-bound to `FACTORY_ACCEPTED.json` and `F4_ACTIVATION_TRANSACTION.json`.
+- Existing F4 prepare business logic is reused; F4_ACTIVATE, runtime acceptance, persistence, certificate and reboot paths were not changed by this gate.
+- F5 source CI, fresh-bootstrap deployable payload CI, F4 activation source CI and F4 exact-control-package CI all passed on the closure head.
+- No T1 access, T1 mutation, board access or merge occurred.
+- Next gate: `N3W_T1_F5_PRODUCTION_PROCESS_V1_F4_ACTIVATE_PHASE_CONTEXT_MINIMAL_INTEGRATION_20261017_01`.
+- Authority: `docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_F4_PREPARE_PHASE_CONTEXT_MINIMAL_INTEGRATION_CLOSURE_20261017.md`.
+
+## 2026-10-17 — F5 V1 source work-package preparation CLOSED_PASS
+
+- Fresh main remains `9c81b889d97ed896b80d27af15069d16af0e0bdb`; no drift was observed.
+- Dedicated source branch: `feat/n3w-t1-f5-production-process-v1-source-20261017`, rooted at exact main.
+- F5-1 through F5-6 are frozen as one coherent source work package and one future source PR.
+- Four new logical modules, four focused tests and one dedicated F5 source-CI workflow are reserved.
+- Existing F3/F2/provision/F4 adapters, tests and packaging workflows are bounded by an exact base-blob allowlist.
+- `device_firstboot.py`, `fresh_installer.py`, the F4 reboot verifier and certificate runtime guard remain byte-identical by default.
+- Product source implementation has not started; no T1-B access, T1 mutation, board access or merge occurred.
+- Next gate: `N3W_T1_F5_PRODUCTION_PROCESS_V1_SOURCE_WORK_PACKAGE_IMPLEMENTATION_20261017_01`.
+- Authority: `docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_SOURCE_WORK_PACKAGE_PREPARATION_20261017.md`.
+
 ## 2026-10-17 — F5 V1 architecture contract merged; post-merge alignment prepared
 
 - PR #610 is CLOSED/MERGED.

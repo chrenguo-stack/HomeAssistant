@@ -59,6 +59,24 @@ CONTROL_TARGETS = {
 }
 AUTH_PATTERN = re.compile(r"^N3W_T1_F4_[A-Z0-9_]{8,160}$")
 EXPECTED_SERVICES = {"broker", "manager", "homeassistant"}
+PRODUCTION_REBOOT_CONTROL_PHASE = "REBOOT_CONTROL"
+PRODUCTION_FINALIZE_PHASE = "FINALIZE"
+PRODUCTION_CONTEXT_SCHEMA = "gh.n3w-t1-production-phase-context/1"
+PRODUCTION_REBOOT_CONTROL_CLAIM_SCHEMA = (
+    "gh.n3w-t1-f5-production-reboot-control-execution-claim/1"
+)
+PRODUCTION_REBOOT_CONTROL_COMPLETE_SCHEMA = (
+    "gh.n3w-t1-f5-production-reboot-control-execution-complete/1"
+)
+PRODUCTION_FINALIZE_CLAIM_SCHEMA = (
+    "gh.n3w-t1-f5-production-finalize-execution-claim/1"
+)
+PRODUCTION_FINALIZE_COMPLETE_SCHEMA = (
+    "gh.n3w-t1-f5-production-finalize-execution-complete/1"
+)
+PRODUCTION_EXECUTION_LEDGER_ROOT = Path(
+    "/var/lib/n3w-t1-f4-production-executions"
+)
 
 
 class AuthorityError(RuntimeError):
@@ -188,6 +206,626 @@ def _replace_exact_file(source: Path, target: Path, mode: int) -> None:
             os.close(directory)
     finally:
         temporary.unlink(missing_ok=True)
+
+
+def _validate_production_execution_root() -> None:
+    root = PRODUCTION_EXECUTION_LEDGER_ROOT
+    if root.is_symlink():
+        raise AuthorityError("production_execution_ledger_root_invalid")
+    if not root.exists():
+        return
+    metadata = root.stat()
+    if (
+        not root.is_dir()
+        or metadata.st_uid != os.geteuid()
+        or stat.S_IMODE(metadata.st_mode) != 0o700
+    ):
+        raise AuthorityError("production_execution_ledger_root_invalid")
+
+
+def _production_execution_paths(
+    context: dict[str, object],
+) -> tuple[Path, Path]:
+    digest = hashlib.sha256(
+        (
+            str(context["run_id"])
+            + "\n"
+            + str(context["phase"])
+            + "\n"
+            + str(context["claim_sha256"])
+            + "\n"
+        ).encode("utf-8")
+    ).hexdigest()
+    return (
+        PRODUCTION_EXECUTION_LEDGER_ROOT / f"{digest}.claim.json",
+        PRODUCTION_EXECUTION_LEDGER_ROOT / f"{digest}.complete.json",
+    )
+
+
+def _write_new_production_json(
+    path: Path,
+    document: dict[str, object],
+) -> None:
+    root = PRODUCTION_EXECUTION_LEDGER_ROOT
+    _validate_production_execution_root()
+    if path.parent != root:
+        raise AuthorityError("production_execution_record_parent_invalid")
+    payload = (
+        json.dumps(document, sort_keys=True, separators=(",", ":")) + "\n"
+    ).encode("utf-8")
+    descriptor = os.open(
+        path,
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | getattr(os, "O_NOFOLLOW", 0),
+        0o600,
+    )
+    with os.fdopen(descriptor, "wb") as stream:
+        stream.write(payload)
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.chmod(path, 0o600)
+    directory = os.open(
+        root,
+        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+    )
+    try:
+        os.fsync(directory)
+    finally:
+        os.close(directory)
+
+
+def _load_production_phase_context(
+    path: Path,
+    *,
+    required_phase: str = PRODUCTION_REBOOT_CONTROL_PHASE,
+) -> dict[str, object]:
+    if path.is_symlink() or not path.is_file():
+        raise AuthorityError("production_phase_context_missing")
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise AuthorityError("production_phase_context_invalid") from error
+    required = {
+        "schema",
+        "run_id",
+        "phase",
+        "claim_sha256",
+        "plan_sha256",
+        "binding",
+        "binding_sha256",
+        "authorization_consumed",
+        "replay_allowed",
+        "board_access",
+    }
+    binding_fields = {
+        "source_head",
+        "release_id",
+        "artifact_sha256",
+        "predecessor_sha256",
+        "target_binding_sha256",
+    }
+    binding = document.get("binding") if isinstance(document, dict) else None
+    if (
+        not isinstance(document, dict)
+        or set(document) != required
+        or document.get("schema") != PRODUCTION_CONTEXT_SCHEMA
+        or document.get("phase") != required_phase
+        or re.fullmatch(r"[0-9a-f]{64}", str(document.get("run_id"))) is None
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(document.get("claim_sha256")),
+        )
+        is None
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(document.get("plan_sha256")),
+        )
+        is None
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(document.get("binding_sha256")),
+        )
+        is None
+        or document.get("authorization_consumed") is not True
+        or document.get("replay_allowed") is not False
+        or document.get("board_access") is not False
+        or not isinstance(binding, dict)
+        or set(binding) != binding_fields
+        or re.fullmatch(
+            r"[0-9a-f]{40}",
+            str(binding.get("source_head")),
+        )
+        is None
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(binding.get("release_id")),
+        )
+        is None
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(binding.get("artifact_sha256")),
+        )
+        is None
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(binding.get("predecessor_sha256")),
+        )
+        is None
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(binding.get("target_binding_sha256")),
+        )
+        is None
+    ):
+        raise AuthorityError("production_phase_context_invalid")
+    try:
+        from n3w_t1_production_authority import validate_phase_context
+    except ImportError as error:
+        raise AuthorityError("production_authority_dependency_missing") from error
+    validated = validate_phase_context(
+        document,
+        required_phase=required_phase,
+    )
+    if (
+        validated.get("status") != "PASS"
+        or validated.get("run_id") != document["run_id"]
+        or validated.get("phase") != required_phase
+        or validated.get("claim_sha256") != document["claim_sha256"]
+        or validated.get("authorization_consumed") is not True
+        or validated.get("replay_allowed") is not False
+        or validated.get("board_access") is not False
+    ):
+        raise AuthorityError("production_phase_context_not_authorized")
+    return document
+
+
+def _production_reboot_authorization_ids(
+    context: dict[str, object],
+) -> dict[str, str]:
+    run_id = str(context["run_id"])
+    return {
+        "install": (
+            "N3W_T1_F4_PRODUCTION_REBOOT_CONTROL_INSTALL_" + run_id
+        ),
+        "reboot": (
+            "N3W_T1_F4_PRODUCTION_REBOOT_CONTROL_REBOOT_" + run_id
+        ),
+    }
+
+
+def _validate_production_reboot_predecessor(
+    context: dict[str, object],
+    transaction: dict[str, object],
+) -> None:
+    run_id = str(context["run_id"])
+    expected = {
+        "authorization_id": "N3W_T1_F4_PRODUCTION_F4_PREPARE_" + run_id,
+        "activation_authorization_id": (
+            "N3W_T1_F4_PRODUCTION_F4_ACTIVATE_" + run_id
+        ),
+        "runtime_acceptance_authorization_id": (
+            "N3W_T1_F4_PRODUCTION_F4_ACCEPT_" + run_id
+        ),
+        "persistence_authorization_id": (
+            "N3W_T1_F4_PRODUCTION_PERSIST_CERT_PERSISTENCE_" + run_id
+        ),
+        "certificate_audit_authorization_id": (
+            "N3W_T1_F4_PRODUCTION_PERSIST_CERT_CERTIFICATE_AUDIT_" + run_id
+        ),
+        "certificate_timer_authorization_id": (
+            "N3W_T1_F4_PRODUCTION_PERSIST_CERT_CERTIFICATE_TIMER_" + run_id
+        ),
+    }
+    if any(transaction.get(key) != value for key, value in expected.items()):
+        raise AuthorityError("production_reboot_predecessor_invalid")
+    required_true = (
+        "runtime_acceptance_passed",
+        "broker_services_persistence_enabled",
+        "persistence_enabled",
+        "certificate_first_audit_passed",
+        "certificate_timer_enabled",
+        "pre_reboot_ready",
+        "production_service_start",
+        "persistence_authorization_claimed",
+        "persistence_authorization_consumed",
+        "certificate_audit_authorization_claimed",
+        "certificate_audit_authorization_consumed",
+        "certificate_timer_authorization_claimed",
+        "certificate_timer_authorization_consumed",
+    )
+    if (
+        transaction.get("stage") != "PERSISTENCE_ENABLED"
+        or any(transaction.get(key) is not True for key in required_true)
+        or transaction.get("certificate_timer_active_before_reboot")
+        is not False
+        or transaction.get("persistence_authorization_replay_allowed")
+        is not False
+        or transaction.get("certificate_audit_authorization_replay_allowed")
+        is not False
+        or transaction.get("certificate_timer_authorization_replay_allowed")
+        is not False
+        or transaction.get("board_access") is not False
+    ):
+        raise AuthorityError("production_reboot_predecessor_invalid")
+
+
+def _production_reboot_control_claim_present(
+    context: dict[str, object],
+) -> bool:
+    _validate_production_execution_root()
+    claim_path, _complete_path = _production_execution_paths(context)
+    if not claim_path.exists() and not claim_path.is_symlink():
+        return False
+    if claim_path.is_symlink() or not claim_path.is_file():
+        raise AuthorityError("production_reboot_control_claim_invalid")
+    metadata = claim_path.stat()
+    if (
+        metadata.st_uid != os.geteuid()
+        or stat.S_IMODE(metadata.st_mode) != 0o600
+        or metadata.st_nlink != 1
+    ):
+        raise AuthorityError("production_reboot_control_claim_invalid")
+    try:
+        record = json.loads(claim_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise AuthorityError("production_reboot_control_claim_invalid") from error
+    binding = context["binding"]
+    authorizations = _production_reboot_authorization_ids(context)
+    if (
+        not isinstance(binding, dict)
+        or record.get("schema") != PRODUCTION_REBOOT_CONTROL_CLAIM_SCHEMA
+        or record.get("run_id") != context["run_id"]
+        or record.get("phase") != PRODUCTION_REBOOT_CONTROL_PHASE
+        or record.get("phase_claim_sha256") != context["claim_sha256"]
+        or record.get("plan_sha256") != context["plan_sha256"]
+        or record.get("binding_sha256") != context["binding_sha256"]
+        or record.get("source_head") != binding["source_head"]
+        or record.get("release_id") != binding["release_id"]
+        or record.get("artifact_sha256") != binding["artifact_sha256"]
+        or record.get("predecessor_sha256") != binding["predecessor_sha256"]
+        or record.get("target_binding_sha256")
+        != binding["target_binding_sha256"]
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(record.get("f4_transaction_pre_sha256")),
+        )
+        is None
+        or re.fullmatch(
+            r"[0-9a-f]{40}",
+            str(record.get("control_source_head")),
+        )
+        is None
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(record.get("control_manifest_sha256")),
+        )
+        is None
+        or record.get("install_authorization_id")
+        != authorizations["install"]
+        or record.get("reboot_authorization_id")
+        != authorizations["reboot"]
+        or record.get("authorization_consumed") is not True
+        or record.get("replay_allowed") is not False
+        or record.get("board_access") is not False
+    ):
+        raise AuthorityError("production_reboot_control_claim_invalid")
+    return True
+
+
+def _claim_production_reboot_control(
+    context: dict[str, object],
+    *,
+    source_head: str,
+    manifest_sha256: str,
+    transaction_sha256: str,
+) -> None:
+    _validate_production_execution_root()
+    PRODUCTION_EXECUTION_LEDGER_ROOT.mkdir(mode=0o700, exist_ok=True)
+    if PRODUCTION_EXECUTION_LEDGER_ROOT.is_symlink():
+        raise AuthorityError("production_execution_ledger_root_invalid")
+    os.chmod(PRODUCTION_EXECUTION_LEDGER_ROOT, 0o700)
+    _validate_production_execution_root()
+    claim_path, complete_path = _production_execution_paths(context)
+    if (
+        claim_path.exists()
+        or claim_path.is_symlink()
+        or complete_path.exists()
+        or complete_path.is_symlink()
+    ):
+        raise AuthorityError("production_reboot_control_already_consumed")
+    binding = context["binding"]
+    if not isinstance(binding, dict):
+        raise AuthorityError("production_reboot_control_binding_invalid")
+    authorizations = _production_reboot_authorization_ids(context)
+    record = {
+        "schema": PRODUCTION_REBOOT_CONTROL_CLAIM_SCHEMA,
+        "run_id": context["run_id"],
+        "phase": PRODUCTION_REBOOT_CONTROL_PHASE,
+        "phase_claim_sha256": context["claim_sha256"],
+        "plan_sha256": context["plan_sha256"],
+        "binding_sha256": context["binding_sha256"],
+        "source_head": binding["source_head"],
+        "release_id": binding["release_id"],
+        "artifact_sha256": binding["artifact_sha256"],
+        "predecessor_sha256": binding["predecessor_sha256"],
+        "target_binding_sha256": binding["target_binding_sha256"],
+        "f4_transaction_pre_sha256": transaction_sha256,
+        "control_source_head": source_head,
+        "control_manifest_sha256": manifest_sha256,
+        "install_authorization_id": authorizations["install"],
+        "reboot_authorization_id": authorizations["reboot"],
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "board_access": False,
+    }
+    _write_new_production_json(claim_path, record)
+
+
+def _complete_production_reboot_control(
+    context: dict[str, object],
+    *,
+    install_claim_sha256: str,
+    reboot_claim_sha256: str,
+) -> None:
+    if not _production_reboot_control_claim_present(context):
+        raise AuthorityError("production_reboot_control_claim_missing")
+    claim_path, complete_path = _production_execution_paths(context)
+    if complete_path.exists() or complete_path.is_symlink():
+        raise AuthorityError("production_reboot_control_complete_exists")
+    production_claim = json.loads(claim_path.read_text(encoding="utf-8"))
+    if (
+        _sha256(INSTALL_CLAIM_PATH) != install_claim_sha256
+        or _sha256(REBOOT_CLAIM_PATH) != reboot_claim_sha256
+        or _sha256(F4_TRANSACTION)
+        != production_claim.get("f4_transaction_pre_sha256")
+    ):
+        raise AuthorityError("production_reboot_control_durable_binding_invalid")
+    reboot_claim = _record(REBOOT_CLAIM_PATH, 0o600)
+    if (
+        reboot_claim.get("stage") != "REBOOT_PENDING"
+        or reboot_claim.get("reboot_authorization_claimed") is not True
+        or reboot_claim.get("reboot_authorization_consumed") is not True
+        or reboot_claim.get("reboot_authorization_replay_allowed") is not False
+        or reboot_claim.get("reboot_acceptance_passed") is not False
+        or reboot_claim.get("reboot_actuation_attempted") is True
+        or reboot_claim.get("board_access") is not False
+    ):
+        raise AuthorityError("production_reboot_control_final_state_invalid")
+    record = {
+        "schema": PRODUCTION_REBOOT_CONTROL_COMPLETE_SCHEMA,
+        "run_id": context["run_id"],
+        "phase": PRODUCTION_REBOOT_CONTROL_PHASE,
+        "production_claim_record_sha256": _sha256(claim_path),
+        "f4_transaction_sha256": _sha256(F4_TRANSACTION),
+        "install_claim_sha256": install_claim_sha256,
+        "reboot_pending_claim_sha256": reboot_claim_sha256,
+        "pre_boot_id_sha256": reboot_claim["pre_boot_id_sha256"],
+        "reboot_authorization_consumed": True,
+        "reboot_actuation_attempted": False,
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "board_access": False,
+    }
+    _write_new_production_json(complete_path, record)
+
+
+def _read_production_reboot_control_complete(
+    context: dict[str, object],
+) -> dict[str, object]:
+    _claim_path, complete_path = _production_execution_paths(context)
+    if complete_path.is_symlink() or not complete_path.is_file():
+        raise AuthorityError("production_reboot_control_complete_missing")
+    metadata = complete_path.stat()
+    if (
+        metadata.st_uid != os.geteuid()
+        or stat.S_IMODE(metadata.st_mode) != 0o600
+        or metadata.st_nlink != 1
+    ):
+        raise AuthorityError("production_reboot_control_complete_invalid")
+    try:
+        record = json.loads(complete_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise AuthorityError("production_reboot_control_complete_invalid") from error
+    if (
+        record.get("schema") != PRODUCTION_REBOOT_CONTROL_COMPLETE_SCHEMA
+        or record.get("run_id") != context["run_id"]
+        or record.get("phase") != PRODUCTION_REBOOT_CONTROL_PHASE
+        or record.get("authorization_consumed") is not True
+        or record.get("replay_allowed") is not False
+        or record.get("board_access") is not False
+    ):
+        raise AuthorityError("production_reboot_control_complete_invalid")
+    return record
+
+
+def _production_finalize_claim_present(
+    context: dict[str, object],
+) -> bool:
+    _validate_production_execution_root()
+    claim_path, _complete_path = _production_execution_paths(context)
+    if not claim_path.exists() and not claim_path.is_symlink():
+        return False
+    if claim_path.is_symlink() or not claim_path.is_file():
+        raise AuthorityError("production_finalize_claim_invalid")
+    metadata = claim_path.stat()
+    if (
+        metadata.st_uid != os.geteuid()
+        or stat.S_IMODE(metadata.st_mode) != 0o600
+        or metadata.st_nlink != 1
+    ):
+        raise AuthorityError("production_finalize_claim_invalid")
+    try:
+        record = json.loads(claim_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise AuthorityError("production_finalize_claim_invalid") from error
+    binding = context["binding"]
+    if (
+        not isinstance(binding, dict)
+        or record.get("schema") != PRODUCTION_FINALIZE_CLAIM_SCHEMA
+        or record.get("run_id") != context["run_id"]
+        or record.get("phase") != PRODUCTION_FINALIZE_PHASE
+        or record.get("phase_claim_sha256") != context["claim_sha256"]
+        or record.get("plan_sha256") != context["plan_sha256"]
+        or record.get("binding_sha256") != context["binding_sha256"]
+        or record.get("source_head") != binding["source_head"]
+        or record.get("release_id") != binding["release_id"]
+        or record.get("artifact_sha256") != binding["artifact_sha256"]
+        or record.get("predecessor_sha256") != binding["predecessor_sha256"]
+        or record.get("target_binding_sha256")
+        != binding["target_binding_sha256"]
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(record.get("reboot_pending_claim_sha256")),
+        )
+        is None
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(record.get("f4_transaction_sha256")),
+        )
+        is None
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(record.get("pre_boot_id_sha256")),
+        )
+        is None
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(record.get("post_boot_id_sha256")),
+        )
+        is None
+        or record.get("pre_boot_id_sha256")
+        == record.get("post_boot_id_sha256")
+        or record.get("reboot_actuation_run_id") != context["run_id"]
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(record.get("reboot_actuation_phase_claim_sha256")),
+        )
+        is None
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(record.get("pre_actuation_claim_sha256")),
+        )
+        is None
+        or record.get("authorization_consumed") is not True
+        or record.get("replay_allowed") is not False
+        or record.get("board_access") is not False
+    ):
+        raise AuthorityError("production_finalize_claim_invalid")
+    return True
+
+
+def _claim_production_finalize(
+    context: dict[str, object],
+    *,
+    pending_claim_sha256: str,
+    reboot_claim: dict[str, object],
+    post_boot_id_sha256: str,
+) -> None:
+    _validate_production_execution_root()
+    PRODUCTION_EXECUTION_LEDGER_ROOT.mkdir(mode=0o700, exist_ok=True)
+    if PRODUCTION_EXECUTION_LEDGER_ROOT.is_symlink():
+        raise AuthorityError("production_execution_ledger_root_invalid")
+    os.chmod(PRODUCTION_EXECUTION_LEDGER_ROOT, 0o700)
+    _validate_production_execution_root()
+    claim_path, complete_path = _production_execution_paths(context)
+    if (
+        claim_path.exists()
+        or claim_path.is_symlink()
+        or complete_path.exists()
+        or complete_path.is_symlink()
+    ):
+        raise AuthorityError("production_finalize_already_consumed")
+    binding = context["binding"]
+    if not isinstance(binding, dict):
+        raise AuthorityError("production_finalize_binding_invalid")
+    record = {
+        "schema": PRODUCTION_FINALIZE_CLAIM_SCHEMA,
+        "run_id": context["run_id"],
+        "phase": PRODUCTION_FINALIZE_PHASE,
+        "phase_claim_sha256": context["claim_sha256"],
+        "plan_sha256": context["plan_sha256"],
+        "binding_sha256": context["binding_sha256"],
+        "source_head": binding["source_head"],
+        "release_id": binding["release_id"],
+        "artifact_sha256": binding["artifact_sha256"],
+        "predecessor_sha256": binding["predecessor_sha256"],
+        "target_binding_sha256": binding["target_binding_sha256"],
+        "reboot_pending_claim_sha256": pending_claim_sha256,
+        "f4_transaction_sha256": reboot_claim["f4_transaction_sha256"],
+        "pre_boot_id_sha256": reboot_claim["pre_boot_id_sha256"],
+        "post_boot_id_sha256": post_boot_id_sha256,
+        "reboot_actuation_run_id": reboot_claim["reboot_actuation_run_id"],
+        "reboot_actuation_phase_claim_sha256": reboot_claim[
+            "reboot_actuation_phase_claim_sha256"
+        ],
+        "pre_actuation_claim_sha256": reboot_claim[
+            "pre_actuation_claim_sha256"
+        ],
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "board_access": False,
+    }
+    _write_new_production_json(claim_path, record)
+
+
+def _complete_production_finalize(
+    context: dict[str, object],
+    *,
+    accepted_claim_sha256: str,
+    acceptance_report_sha256: str,
+    post_boot_id_sha256: str,
+) -> None:
+    if not _production_finalize_claim_present(context):
+        raise AuthorityError("production_finalize_claim_missing")
+    claim_path, complete_path = _production_execution_paths(context)
+    if complete_path.exists() or complete_path.is_symlink():
+        raise AuthorityError("production_finalize_complete_exists")
+    finalize_claim = json.loads(claim_path.read_text(encoding="utf-8"))
+    if (
+        _sha256(REBOOT_CLAIM_PATH) != accepted_claim_sha256
+        or finalize_claim.get("post_boot_id_sha256") != post_boot_id_sha256
+        or _boot_id_sha256() != post_boot_id_sha256
+    ):
+        raise AuthorityError("production_finalize_durable_binding_invalid")
+    accepted = _record(REBOOT_CLAIM_PATH, 0o600)
+    if (
+        accepted.get("stage") != "REBOOT_ACCEPTED"
+        or accepted.get("reboot_acceptance_passed") is not True
+        or accepted.get("reboot_acceptance_finalized") is not True
+        or accepted.get("reboot_executed") is not True
+        or accepted.get("reboot_authorization_consumed") is not True
+        or accepted.get("reboot_authorization_replay_allowed") is not False
+        or accepted.get("reboot_actuation_attempted") is not True
+        or accepted.get("reboot_actuation_claimed") is not True
+        or accepted.get("reboot_actuation_replay_allowed") is not False
+        or accepted.get("reboot_actuation_run_id") != context["run_id"]
+        or accepted.get("pre_acceptance_claim_sha256")
+        != finalize_claim.get("reboot_pending_claim_sha256")
+        or accepted.get("acceptance_report_sha256")
+        != acceptance_report_sha256
+        or accepted.get("post_boot_id_sha256") != post_boot_id_sha256
+        or accepted.get("board_access") is not False
+    ):
+        raise AuthorityError("production_finalize_final_state_invalid")
+    record = {
+        "schema": PRODUCTION_FINALIZE_COMPLETE_SCHEMA,
+        "run_id": context["run_id"],
+        "phase": PRODUCTION_FINALIZE_PHASE,
+        "production_claim_record_sha256": _sha256(claim_path),
+        "pre_acceptance_pending_claim_sha256": finalize_claim[
+            "reboot_pending_claim_sha256"
+        ],
+        "accepted_claim_sha256": accepted_claim_sha256,
+        "acceptance_report_sha256": acceptance_report_sha256,
+        "post_boot_id_sha256": post_boot_id_sha256,
+        "device_acceptance": True,
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "board_access": False,
+    }
+    _write_new_production_json(complete_path, record)
 
 
 def _sha256(path: Path) -> str:
@@ -1577,6 +2215,389 @@ def verify_reboot_claim(
     }
 
 
+def production_reboot_control(
+    *,
+    package_root: Path,
+    source_head: str,
+    manifest_sha256: str,
+    production_phase_context: Path,
+) -> dict[str, object]:
+    context = _load_production_phase_context(production_phase_context)
+    if _production_reboot_control_claim_present(context):
+        raise AuthorityError("production_reboot_control_already_consumed")
+    binding = context["binding"]
+    if (
+        not isinstance(binding, dict)
+        or source_head != binding.get("source_head")
+    ):
+        raise AuthorityError("production_reboot_control_source_mismatch")
+    package = _package(
+        package_root,
+        source_head=source_head,
+        manifest_sha256=manifest_sha256,
+    )
+    transaction_sha256 = _sha256(F4_TRANSACTION)
+    _module, transaction = _base_pre_reboot(transaction_sha256)
+    _validate_production_reboot_predecessor(context, transaction)
+    if (
+        INSTALL_CLAIM_PATH.exists()
+        or INSTALL_CLAIM_PATH.is_symlink()
+        or REBOOT_CLAIM_PATH.exists()
+        or REBOOT_CLAIM_PATH.is_symlink()
+    ):
+        raise AuthorityError("production_reboot_control_preexisting_claim")
+    _claim_production_reboot_control(
+        context,
+        source_head=source_head,
+        manifest_sha256=manifest_sha256,
+        transaction_sha256=transaction_sha256,
+    )
+    authorizations = _production_reboot_authorization_ids(context)
+    try:
+        install = claim_install(
+            package_root=package["root"],
+            source_head=source_head,
+            manifest_sha256=manifest_sha256,
+            authorization_id=authorizations["install"],
+            expected_transaction_sha256=transaction_sha256,
+        )
+        if (
+            install.get("status") != "PASS"
+            or install.get("state") != "INSTALL_CLAIMED"
+            or install.get("control_repair_authorization_consumed")
+            is not True
+        ):
+            raise AuthorityError("production_reboot_install_claim_invalid")
+        install_control(
+            package_root=package["root"],
+            source_head=source_head,
+            manifest_sha256=manifest_sha256,
+            expected_transaction_sha256=transaction_sha256,
+        )
+        verified_install = verify_install(
+            source_head=source_head,
+            manifest_sha256=manifest_sha256,
+            expected_transaction_sha256=transaction_sha256,
+        )
+        if (
+            verified_install.get("status") != "PASS"
+            or verified_install.get("state") != "CONTROL_READY"
+            or verified_install.get("installation_verified") is not True
+            or verified_install.get("f4_transaction_unchanged") is not True
+            or verified_install.get("runtime_identity_unchanged") is not True
+            or verified_install.get("certificate_identity_unchanged")
+            is not True
+            or verified_install.get("reboot_executed") is not False
+        ):
+            raise AuthorityError("production_reboot_control_verify_invalid")
+        reboot = claim_reboot(
+            source_head=source_head,
+            manifest_sha256=manifest_sha256,
+            authorization_id=authorizations["reboot"],
+            expected_transaction_sha256=transaction_sha256,
+        )
+        if (
+            reboot.get("status") != "PASS"
+            or reboot.get("state") != "REBOOT_PENDING"
+            or reboot.get("reboot_authorization_consumed") is not True
+            or reboot.get("reboot_authorization_replay_allowed") is not False
+            or reboot.get("host_reboot_actuation_required") is not True
+        ):
+            raise AuthorityError("production_reboot_claim_invalid")
+        verified_reboot = verify_reboot_claim(
+            source_head=source_head,
+            manifest_sha256=manifest_sha256,
+            expected_transaction_sha256=transaction_sha256,
+        )
+        if (
+            verified_reboot.get("status") != "PASS"
+            or verified_reboot.get("state") != "REBOOT_PENDING"
+            or verified_reboot.get("host_reboot_actuation_required")
+            is not True
+        ):
+            raise AuthorityError("production_reboot_verify_invalid")
+        install_claim_sha256 = _sha256(INSTALL_CLAIM_PATH)
+        reboot_claim_sha256 = _sha256(REBOOT_CLAIM_PATH)
+        _complete_production_reboot_control(
+            context,
+            install_claim_sha256=install_claim_sha256,
+            reboot_claim_sha256=reboot_claim_sha256,
+        )
+    except (
+        AuthorityError,
+        ImportError,
+        KeyError,
+        OSError,
+        RuntimeError,
+        subprocess.SubprocessError,
+        TypeError,
+        ValueError,
+    ) as error:
+        raise AuthorityError(
+            "production_reboot_control_claimed:" + str(error)[:260]
+        ) from error
+    binding = context["binding"]
+    if not isinstance(binding, dict):
+        raise AuthorityError("production_reboot_control_binding_invalid")
+    reboot_claim = _record(REBOOT_CLAIM_PATH, 0o600)
+    return {
+        "schema": SCHEMA_REBOOT,
+        "status": "PASS",
+        "state": "REBOOT_PENDING",
+        "production_run_id": context["run_id"],
+        "production_phase": PRODUCTION_REBOOT_CONTROL_PHASE,
+        "phase_claim_sha256": context["claim_sha256"],
+        "production_release_id": binding["release_id"],
+        "production_artifact_sha256": binding["artifact_sha256"],
+        "production_predecessor_sha256": binding["predecessor_sha256"],
+        "target_binding_sha256": binding["target_binding_sha256"],
+        "control_source_head": source_head,
+        "control_manifest_sha256": manifest_sha256,
+        "f4_transaction_sha256": transaction_sha256,
+        "reboot_pending_claim_sha256": _sha256(REBOOT_CLAIM_PATH),
+        "pre_boot_id_sha256": reboot_claim["pre_boot_id_sha256"],
+        "reboot_authorization_consumed": True,
+        "reboot_authorization_replay_allowed": False,
+        "reboot_actuation_attempted": False,
+        "host_reboot_actuation_required": True,
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "reboot_executed": False,
+        "board_access": False,
+    }
+
+
+def claim_production_reboot_actuation(
+    *,
+    production_phase_context: Path,
+    expected_pending_claim_sha256: str,
+) -> dict[str, object]:
+    context = _load_production_phase_context(production_phase_context)
+    expected = _require_sha256(
+        expected_pending_claim_sha256,
+        "production_reboot_pending_claim_sha256_invalid",
+    )
+    complete = _read_production_reboot_control_complete(context)
+    if complete.get("reboot_pending_claim_sha256") != expected:
+        raise AuthorityError("production_reboot_pending_claim_binding_invalid")
+    with _exclusive():
+        if _sha256(REBOOT_CLAIM_PATH) != expected:
+            raise AuthorityError("production_reboot_pending_claim_sha256_mismatch")
+        claim = _record(REBOOT_CLAIM_PATH, 0o600)
+        source_head = claim.get("source_head")
+        manifest_sha256 = claim.get("control_manifest_sha256")
+        transaction_sha256 = claim.get("f4_transaction_sha256")
+        if (
+            not isinstance(source_head, str)
+            or not isinstance(manifest_sha256, str)
+            or not isinstance(transaction_sha256, str)
+        ):
+            raise AuthorityError("production_reboot_actuation_binding_invalid")
+        verify_reboot_claim(
+            source_head=source_head,
+            manifest_sha256=manifest_sha256,
+            expected_transaction_sha256=transaction_sha256,
+        )
+        if claim.get("reboot_actuation_attempted") is True:
+            raise AuthorityError("production_reboot_actuation_replay_forbidden")
+        updated = dict(claim)
+        updated.update(
+            {
+                "reboot_actuation_attempted": True,
+                "reboot_actuation_claimed": True,
+                "reboot_actuation_replay_allowed": False,
+                "reboot_actuation_run_id": context["run_id"],
+                "reboot_actuation_phase_claim_sha256": context[
+                    "claim_sha256"
+                ],
+                "pre_actuation_claim_sha256": expected,
+            }
+        )
+        _atomic_write_record(REBOOT_CLAIM_PATH, updated)
+        persisted = _record(REBOOT_CLAIM_PATH, 0o600)
+        if persisted != updated:
+            raise AuthorityError(
+                "production_reboot_actuation_persistence_mismatch"
+            )
+        return {
+            "schema": SCHEMA_REBOOT,
+            "status": "PASS",
+            "state": "REBOOT_ACTUATION_CLAIMED",
+            "production_run_id": context["run_id"],
+            "production_phase": PRODUCTION_REBOOT_CONTROL_PHASE,
+            "pre_actuation_claim_sha256": expected,
+            "actuation_claim_sha256": _sha256(REBOOT_CLAIM_PATH),
+            "reboot_actuation_attempted": True,
+            "reboot_actuation_claimed": True,
+            "reboot_actuation_replay_allowed": False,
+            "host_reboot_actuation_required": True,
+            "reboot_executed": False,
+            "board_access": False,
+        }
+
+
+def production_finalize_reboot_acceptance(
+    *,
+    package_root: Path,
+    source_head: str,
+    manifest_sha256: str,
+    production_phase_context: Path,
+) -> dict[str, object]:
+    context = _load_production_phase_context(
+        production_phase_context,
+        required_phase=PRODUCTION_FINALIZE_PHASE,
+    )
+    if _production_finalize_claim_present(context):
+        raise AuthorityError("production_finalize_already_consumed")
+    binding = context["binding"]
+    if (
+        not isinstance(binding, dict)
+        or source_head != binding.get("source_head")
+    ):
+        raise AuthorityError("production_finalize_source_mismatch")
+    package = _package(
+        package_root,
+        source_head=source_head,
+        manifest_sha256=manifest_sha256,
+    )
+    _validate_recovery_entrypoint(package)
+    pending_claim_sha256 = _sha256(REBOOT_CLAIM_PATH)
+    reboot_claim = _record(REBOOT_CLAIM_PATH, 0o600)
+    transaction_sha256 = reboot_claim.get("f4_transaction_sha256")
+    pre_boot_id_sha256 = reboot_claim.get("pre_boot_id_sha256")
+    post_boot_id_sha256 = _boot_id_sha256()
+    if (
+        reboot_claim.get("schema") != SCHEMA_REBOOT
+        or reboot_claim.get("stage") != "REBOOT_PENDING"
+        or reboot_claim.get("source_head") != source_head
+        or reboot_claim.get("control_manifest_sha256") != manifest_sha256
+        or not isinstance(transaction_sha256, str)
+        or re.fullmatch(r"[0-9a-f]{64}", transaction_sha256) is None
+        or _sha256(F4_TRANSACTION) != transaction_sha256
+        or not isinstance(pre_boot_id_sha256, str)
+        or re.fullmatch(r"[0-9a-f]{64}", pre_boot_id_sha256) is None
+        or post_boot_id_sha256 == pre_boot_id_sha256
+        or reboot_claim.get("reboot_authorization_claimed") is not True
+        or reboot_claim.get("reboot_authorization_consumed") is not True
+        or reboot_claim.get("reboot_authorization_replay_allowed") is not False
+        or reboot_claim.get("reboot_acceptance_passed") is not False
+        or reboot_claim.get("reboot_actuation_attempted") is not True
+        or reboot_claim.get("reboot_actuation_claimed") is not True
+        or reboot_claim.get("reboot_actuation_replay_allowed") is not False
+        or reboot_claim.get("reboot_actuation_run_id") != context["run_id"]
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(reboot_claim.get("reboot_actuation_phase_claim_sha256")),
+        )
+        is None
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(reboot_claim.get("pre_actuation_claim_sha256")),
+        )
+        is None
+        or reboot_claim.get("board_access") is not False
+    ):
+        raise AuthorityError("production_finalize_prestate_invalid")
+    _claim_production_finalize(
+        context,
+        pending_claim_sha256=pending_claim_sha256,
+        reboot_claim=reboot_claim,
+        post_boot_id_sha256=post_boot_id_sha256,
+    )
+    try:
+        finalized = finalize_reboot_acceptance(
+            package_root=package["root"],
+            source_head=source_head,
+            manifest_sha256=manifest_sha256,
+            expected_installed_source_head=source_head,
+            expected_installed_manifest_sha256=manifest_sha256,
+            expected_transaction_sha256=transaction_sha256,
+            expected_pending_claim_sha256=pending_claim_sha256,
+        )
+        if (
+            finalized.get("status") != "PASS"
+            or finalized.get("state") != "REBOOT_ACCEPTED"
+            or finalized.get("reboot_authorization_consumed") is not True
+            or finalized.get("reboot_authorization_replay_allowed") is not False
+            or finalized.get("reboot_acceptance_passed") is not True
+            or finalized.get("reboot_acceptance_finalized") is not True
+            or finalized.get("reboot_executed") is not True
+            or finalized.get("pre_acceptance_claim_sha256")
+            != pending_claim_sha256
+            or finalized.get("post_boot_id_sha256") != post_boot_id_sha256
+            or finalized.get("acceptance_finalizer_source_head")
+            != source_head
+            or finalized.get("acceptance_finalizer_manifest_sha256")
+            != manifest_sha256
+            or finalized.get("board_access") is not False
+        ):
+            raise AuthorityError("production_finalize_result_invalid")
+        accepted_claim_sha256 = _require_sha256(
+            finalized.get("accepted_claim_sha256"),
+            "production_finalize_accepted_claim_sha256_invalid",
+        )
+        acceptance_report_sha256 = _require_sha256(
+            finalized.get("acceptance_report_sha256"),
+            "production_finalize_acceptance_report_sha256_invalid",
+        )
+        verified = verify_reboot_accepted(
+            package_root=package["root"],
+            source_head=source_head,
+            manifest_sha256=manifest_sha256,
+            expected_installed_source_head=source_head,
+            expected_installed_manifest_sha256=manifest_sha256,
+            expected_transaction_sha256=transaction_sha256,
+            expected_accepted_claim_sha256=accepted_claim_sha256,
+        )
+        if (
+            verified.get("status") != "PASS"
+            or verified.get("state") != "REBOOT_ACCEPTED"
+            or verified.get("reboot_acceptance_passed") is not True
+            or verified.get("reboot_acceptance_finalized") is not True
+            or verified.get("reboot_executed") is not True
+            or verified.get("accepted_claim_sha256")
+            != accepted_claim_sha256
+            or verified.get("acceptance_report_sha256")
+            != acceptance_report_sha256
+            or verified.get("post_boot_id_sha256") != post_boot_id_sha256
+            or verified.get("board_access") is not False
+        ):
+            raise AuthorityError("production_finalize_verify_invalid")
+        _complete_production_finalize(
+            context,
+            accepted_claim_sha256=accepted_claim_sha256,
+            acceptance_report_sha256=acceptance_report_sha256,
+            post_boot_id_sha256=post_boot_id_sha256,
+        )
+    except (
+        AuthorityError,
+        ImportError,
+        KeyError,
+        OSError,
+        RuntimeError,
+        subprocess.SubprocessError,
+        TypeError,
+        ValueError,
+    ) as error:
+        raise AuthorityError(
+            "production_finalize_claimed:" + str(error)[:260]
+        ) from error
+    return {
+        **verified,
+        "production_run_id": context["run_id"],
+        "production_phase": PRODUCTION_FINALIZE_PHASE,
+        "phase_claim_sha256": context["claim_sha256"],
+        "production_release_id": binding["release_id"],
+        "production_artifact_sha256": binding["artifact_sha256"],
+        "production_predecessor_sha256": binding["predecessor_sha256"],
+        "target_binding_sha256": binding["target_binding_sha256"],
+        "reboot_pending_claim_sha256": pending_claim_sha256,
+        "device_acceptance": True,
+        "authorization_consumed": True,
+        "replay_allowed": False,
+    }
+
+
 def _validate_reboot_acceptance_report(
     report: dict[str, object],
     claim: dict[str, object],
@@ -1849,6 +2870,29 @@ def _parser() -> argparse.ArgumentParser:
     reboot.add_argument("--authorization-id", required=True)
     _common(reboot)
 
+    production_reboot = sub.add_parser("production-reboot-control")
+    production_reboot.add_argument("--package-root", type=Path, required=True)
+    production_reboot.add_argument("--source-head", required=True)
+    production_reboot.add_argument("--manifest-sha256", required=True)
+    production_reboot.add_argument(
+        "--production-phase-context",
+        type=Path,
+        required=True,
+    )
+
+    production_actuation = sub.add_parser(
+        "claim-production-reboot-actuation"
+    )
+    production_actuation.add_argument(
+        "--production-phase-context",
+        type=Path,
+        required=True,
+    )
+    production_actuation.add_argument(
+        "--expected-pending-claim-sha256",
+        required=True,
+    )
+
     verify_reboot_parser = sub.add_parser("verify-reboot-claim")
     _common(verify_reboot_parser)
 
@@ -1867,6 +2911,16 @@ def _parser() -> argparse.ArgumentParser:
         required=True,
     )
     _common(finalize_reboot_parser)
+
+    production_finalize = sub.add_parser("production-finalize")
+    production_finalize.add_argument("--package-root", type=Path, required=True)
+    production_finalize.add_argument("--source-head", required=True)
+    production_finalize.add_argument("--manifest-sha256", required=True)
+    production_finalize.add_argument(
+        "--production-phase-context",
+        type=Path,
+        required=True,
+    )
 
     verify_accepted_parser = sub.add_parser("verify-reboot-accepted")
     verify_accepted_parser.add_argument("--package-root", type=Path, required=True)
@@ -1940,11 +2994,32 @@ def main(argv: list[str] | None = None) -> int:
                 authorization_id=args.authorization_id,
                 expected_transaction_sha256=args.expected_transaction_sha256,
             )
+        elif args.command == "production-reboot-control":
+            document = production_reboot_control(
+                package_root=args.package_root,
+                source_head=args.source_head,
+                manifest_sha256=args.manifest_sha256,
+                production_phase_context=args.production_phase_context,
+            )
+        elif args.command == "claim-production-reboot-actuation":
+            document = claim_production_reboot_actuation(
+                production_phase_context=args.production_phase_context,
+                expected_pending_claim_sha256=(
+                    args.expected_pending_claim_sha256
+                ),
+            )
         elif args.command == "verify-reboot-claim":
             document = verify_reboot_claim(
                 source_head=args.source_head,
                 manifest_sha256=args.manifest_sha256,
                 expected_transaction_sha256=args.expected_transaction_sha256,
+            )
+        elif args.command == "production-finalize":
+            document = production_finalize_reboot_acceptance(
+                package_root=args.package_root,
+                source_head=args.source_head,
+                manifest_sha256=args.manifest_sha256,
+                production_phase_context=args.production_phase_context,
             )
         elif args.command == "finalize-reboot-acceptance":
             document = finalize_reboot_acceptance(

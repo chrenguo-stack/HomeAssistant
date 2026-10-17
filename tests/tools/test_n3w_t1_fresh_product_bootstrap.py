@@ -853,3 +853,229 @@ def test_transport_v2_requests_one_image_only_after_authorization() -> None:
     assert "image_capacity_insufficient" in source
     assert "staged_tar_deleted" in source
     assert 'run_fresh_public_staging(' in source
+
+
+def _production_context(tool):
+    return {
+        "schema": "gh.n3w-t1-production-phase-context/1",
+        "run_id": "1" * 64,
+        "phase": tool.PRODUCTION_PHASE,
+        "claim_sha256": "2" * 64,
+        "plan_sha256": "3" * 64,
+        "binding": {
+            "source_head": "a" * 40,
+            "release_id": "4" * 64,
+            "artifact_sha256": "5" * 64,
+            "predecessor_sha256": "6" * 64,
+            "target_binding_sha256": "7" * 64,
+        },
+        "binding_sha256": "8" * 64,
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "board_access": False,
+    }
+
+
+def _install_fake_production_authority(monkeypatch, context):
+    import types
+
+    authority = types.SimpleNamespace(
+        validate_phase_context=lambda document, required_phase: {
+            "status": "PASS",
+            "run_id": document["run_id"],
+            "phase": required_phase,
+            "claim_sha256": document["claim_sha256"],
+        }
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "n3w_t1_production_authority",
+        authority,
+    )
+
+
+def test_production_manifest_v2_has_no_historical_authorization() -> None:
+    tool = load_tool()
+    document = {
+        "schema": tool.PRODUCTION_PAYLOAD_SCHEMA,
+        "source_head": "a" * 40,
+    }
+    assert tool._manifest_mode(document) == "production"
+    for field in (
+        "authorization_id",
+        "authorization_claimed",
+        "authorization_consumed",
+    ):
+        changed = dict(document)
+        changed[field] = tool.AUTHORIZATION_ID if field == "authorization_id" else False
+        with pytest.raises(
+            tool.BootstrapError,
+            match="production_payload_authorization_forbidden",
+        ):
+            tool._manifest_mode(changed)
+
+
+def test_legacy_authorization_cannot_apply_production_payload(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    monkeypatch.setattr(tool.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(
+        tool,
+        "_load_manifest",
+        lambda _root: {
+            "schema": tool.PRODUCTION_PAYLOAD_SCHEMA,
+            "source_head": "a" * 40,
+        },
+    )
+    with pytest.raises(
+        tool.BootstrapError,
+        match="legacy_authorization_forbidden_for_production_payload",
+    ):
+        tool.execute_apply(tmp_path, tool.AUTHORIZATION_ID)
+
+
+def test_production_apply_uses_phase_context_and_is_not_replayable(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    monkeypatch.setattr(tool, "_require_production_root", lambda: None)
+    ledger = tmp_path / "production-ledger"
+    monkeypatch.setattr(tool, "PRODUCTION_EXECUTION_LEDGER_ROOT", ledger)
+    (tmp_path / "payload-manifest.json").write_text("{}\n", encoding="utf-8")
+    monkeypatch.setattr(
+        tool,
+        "_load_manifest",
+        lambda _root: {
+            "schema": tool.PRODUCTION_PAYLOAD_SCHEMA,
+            "source_head": "a" * 40,
+        },
+    )
+    context = _production_context(tool)
+    context_path = tmp_path / "phase-context.json"
+    context_path.write_text(json.dumps(context), encoding="utf-8")
+    _install_fake_production_authority(monkeypatch, context)
+
+    class Contract:
+        @staticmethod
+        def run_fresh_public_staging(_adapters, _candidate, before_mutation):
+            before_mutation()
+            return {
+                "public_product_staged": True,
+                "instance_material_absent": True,
+                "explicit_provisioning_required": True,
+            }
+
+    monkeypatch.setattr(tool, "_load_contract", lambda _root: Contract)
+    result = tool.execute_production_apply(
+        tmp_path,
+        context_path,
+        runner=object(),
+    )
+    assert result["status"] == "PASS"
+    assert result["production_run_id"] == context["run_id"]
+    assert result["production_phase"] == tool.PRODUCTION_PHASE
+    record_path = tool._production_execution_record_path(context)
+    record = json.loads(record_path.read_text(encoding="utf-8"))
+    assert record["state"] == "SUCCEEDED"
+    assert record["authorization_consumed"] is True
+    assert record["replay_allowed"] is False
+    assert "authorization_id" not in record
+
+    with pytest.raises(
+        tool.BootstrapError,
+        match="production_execution_already_consumed",
+    ):
+        tool.execute_production_apply(
+            tmp_path,
+            context_path,
+            runner=object(),
+        )
+
+
+def test_production_apply_failure_after_claim_is_consumed_no_replay(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    monkeypatch.setattr(tool, "_require_production_root", lambda: None)
+    ledger = tmp_path / "production-ledger"
+    monkeypatch.setattr(tool, "PRODUCTION_EXECUTION_LEDGER_ROOT", ledger)
+    (tmp_path / "payload-manifest.json").write_text("{}\n", encoding="utf-8")
+    monkeypatch.setattr(
+        tool,
+        "_load_manifest",
+        lambda _root: {
+            "schema": tool.PRODUCTION_PAYLOAD_SCHEMA,
+            "source_head": "a" * 40,
+        },
+    )
+    context = _production_context(tool)
+    context_path = tmp_path / "phase-context.json"
+    context_path.write_text(json.dumps(context), encoding="utf-8")
+    _install_fake_production_authority(monkeypatch, context)
+
+    class Contract:
+        @staticmethod
+        def run_fresh_public_staging(_adapters, _candidate, before_mutation):
+            before_mutation()
+            raise RuntimeError("injected_failure")
+
+    monkeypatch.setattr(tool, "_load_contract", lambda _root: Contract)
+    with pytest.raises(RuntimeError, match="injected_failure") as captured:
+        tool.execute_production_apply(
+            tmp_path,
+            context_path,
+            runner=object(),
+        )
+    assert getattr(captured.value, "production_claimed", False) is True
+    record = json.loads(
+        tool._production_execution_record_path(context).read_text(
+            encoding="utf-8"
+        )
+    )
+    assert record["state"] == "APPLYING"
+    assert record["replay_allowed"] is False
+    with pytest.raises(
+        tool.BootstrapError,
+        match="production_execution_already_consumed",
+    ):
+        tool.execute_production_apply(
+            tmp_path,
+            context_path,
+            runner=object(),
+        )
+
+
+def test_production_apply_rejects_source_mismatch_before_execution_claim(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    monkeypatch.setattr(tool, "_require_production_root", lambda: None)
+    ledger = tmp_path / "production-ledger"
+    monkeypatch.setattr(tool, "PRODUCTION_EXECUTION_LEDGER_ROOT", ledger)
+    monkeypatch.setattr(
+        tool,
+        "_load_manifest",
+        lambda _root: {
+            "schema": tool.PRODUCTION_PAYLOAD_SCHEMA,
+            "source_head": "b" * 40,
+        },
+    )
+    context = _production_context(tool)
+    context_path = tmp_path / "phase-context.json"
+    context_path.write_text(json.dumps(context), encoding="utf-8")
+    _install_fake_production_authority(monkeypatch, context)
+    with pytest.raises(
+        tool.BootstrapError,
+        match="production_context_source_head_mismatch",
+    ):
+        tool.execute_production_apply(
+            tmp_path,
+            context_path,
+            runner=object(),
+        )
+    assert not ledger.exists()

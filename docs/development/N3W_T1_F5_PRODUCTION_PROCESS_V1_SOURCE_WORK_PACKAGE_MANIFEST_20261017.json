@@ -1,0 +1,202 @@
+{
+  "schema": "n3w.t1.f5.source_work_package.preparation.v1",
+  "task": "N3W_T1_F5_PRODUCTION_PROCESS_V1_SOURCE_WORK_PACKAGE_PREPARATION_20261017_01",
+  "result": "CLOSED_PASS_READY_FOR_SOURCE_IMPLEMENTATION",
+  "base_main": "9c81b889d97ed896b80d27af15069d16af0e0bdb",
+  "base_tree": "ffd168f596a98762e003797ce862e996b11e7671",
+  "source_branch": "feat/n3w-t1-f5-production-process-v1-source-20261017",
+  "architecture_authority": [
+    {
+      "path": "docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_ARCHITECTURE_CONTRACT_FREEZE_20261017.md",
+      "blob": "c55cf899cee9f251b84b31c38f9441abda0122d3"
+    },
+    {
+      "path": "docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_ARCHITECTURE_AND_SOURCE_DESIGN_ASTRA_REVIEW_20261017.md",
+      "blob": "237f4400eab739aed89c9b65e793675bbc0832cd"
+    },
+    {
+      "path": "docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_ARCHITECTURE_CONTRACT_POSTMERGE_STATE_ALIGNMENT_20261017.md",
+      "blob": "20b98729728ba02b6402c778f3f87b8bac75a543"
+    }
+  ],
+  "scope": {
+    "stages": [
+      "F5-1",
+      "F5-2",
+      "F5-3",
+      "F5-4",
+      "F5-5",
+      "F5-6"
+    ],
+    "one_coherent_source_work_package": true,
+    "one_coherent_source_pr": true,
+    "t1_access": false,
+    "t1_mutation": false,
+    "board_access": false,
+    "merge": false,
+    "source_implementation_started": false
+  },
+  "new_paths": [
+    "tools/n3w_t1_production.py",
+    "tools/n3w_t1_production_authority.py",
+    "tools/n3w_t1_ssh_transport.py",
+    "tools/n3w_t1_production_contract.py",
+    "tests/tools/test_n3w_t1_production.py",
+    "tests/tools/test_n3w_t1_production_authority.py",
+    "tests/tools/test_n3w_t1_ssh_transport.py",
+    "tests/tools/test_n3w_t1_production_contract.py",
+    ".github/workflows/n3w-t1-f5-production-process-v1-source-ci.yml",
+    "tools/n3w_t1_production_runtime.py",
+    "tests/tools/test_n3w_t1_production_runtime.py"
+  ],
+  "existing_modify_allowlist": [
+    {
+      "path": "tools/n3w_t1_fresh_product_bootstrap.py",
+      "base_blob": "278a5f9935e91d0674166a6098ee6c25f8efee04"
+    },
+    {
+      "path": "tools/n3w_t1_fresh_product_staging_host.py",
+      "base_blob": "e924f02265564666efab89986479d1b5af40123d"
+    },
+    {
+      "path": "tools/n3w_t1_fresh_host_baseline.py",
+      "base_blob": "d6f72a7a595f7ba5b8d9d2e5dc06188dbfa973b2"
+    },
+    {
+      "path": "tools/execution_packages/n3w/f2/t1_fresh_readonly_preflight/executor.py",
+      "base_blob": "e71fa1eeaafa88d6411f80b02fb931f313f8ec3b"
+    },
+    {
+      "path": "tools/n3w_t1_device_provisioning_host.py",
+      "base_blob": "6e63d03027a251248bbe418b60175f9f241a2865"
+    },
+    {
+      "path": "tools/n3w_t1_f4_activation_host.py",
+      "base_blob": "2314a20b4560dc2f9ea6c3918c5f91b4f23b5ec7"
+    },
+    {
+      "path": "tools/n3w_t1_f4_reboot_authority.py",
+      "base_blob": "54d6d596f3ca4f03dd7f61a2a318f7ca5aafd7d1"
+    },
+    {
+      "path": "tools/n3w_t1_f4_package_builder.py",
+      "base_blob": "197b88acd7d516500212ea009df480e5e42c39f5"
+    },
+    {
+      "path": "tools/n3w_t1_f4_reboot_successor_package_builder.py",
+      "base_blob": "ff9266bef72c7cb4d0e4d5a2d95dadfa29799642"
+    },
+    {
+      "path": "tests/tools/test_n3w_t1_fresh_product_bootstrap.py",
+      "base_blob": "8ab5ac856de4fbe0283f4ab63012e8b2816558a4"
+    },
+    {
+      "path": "tests/tools/test_n3w_t1_fresh_product_staging_host.py",
+      "base_blob": "604afdfd8de606a2792e2c14b1dd9831ad320f7d"
+    },
+    {
+      "path": "tests/tools/test_n3w_t1_fresh_host_baseline.py",
+      "base_blob": "399ce3dcb241bb3009c44153beb7184bff4ccd63"
+    },
+    {
+      "path": "tests/execution_packages/n3w/f2/t1_fresh_readonly_preflight/test_executor.py",
+      "base_blob": "feb8bb703a0ee98ce7f1a16151086a3779327e16"
+    },
+    {
+      "path": "tests/tools/test_n3w_t1_device_provisioning_host.py",
+      "base_blob": "f33005526de5be07f7df35b0274dafb5c63880f3"
+    },
+    {
+      "path": "tests/tools/test_n3w_t1_f4_activation_host.py",
+      "base_blob": "11c5fe284a9a17873f2c46fabc438b5964a9b8e8"
+    },
+    {
+      "path": "tests/tools/test_n3w_t1_f4_reboot_authority.py",
+      "base_blob": "70450b1123f545bb8fc0a52b5a2e77d2a84f2552"
+    },
+    {
+      "path": "tests/tools/test_n3w_t1_f4_package_builder.py",
+      "base_blob": "8758a2f5e51f2c2c4bb06f17f3a749ba911ba6e5"
+    },
+    {
+      "path": "tests/tools/test_n3w_t1_f4_reboot_successor_package_builder.py",
+      "base_blob": "0806ebe5d6bcb70b12b07aa1a6c21a6fc759708e"
+    },
+    {
+      "path": ".github/workflows/n3w-t1-fresh-bootstrap-deployable-payload-ci.yml",
+      "base_blob": "d22cc23f9c610c2ff3a27f23d0481f8f673d167d"
+    },
+    {
+      "path": ".github/workflows/n3w-t1-f4-exact-control-package.yml",
+      "base_blob": "320b8c4408baff329ec6edd13b740a2e3a890745"
+    },
+    {
+      "path": ".github/workflows/n3w-t1-f2-readonly-preflight-source-ci.yml",
+      "base_blob": "bb5c18b30b7488656b6e8f65ac9147cc7dbb2c83"
+    },
+    {
+      "path": ".github/workflows/n3w-t1-explicit-provisioning-source-ci.yml",
+      "base_blob": "6eb8f55e7bc5dbe3d75426e1e5f0f19144c2b3bf"
+    },
+    {
+      "path": ".github/workflows/n3w-t1-f4-activation-source-ci.yml",
+      "base_blob": "dffbe732513c2e1df961ed280506c52bf88867e6"
+    }
+  ],
+  "preserve_by_default": [
+    {
+      "path": "host/greenhouse-manager/src/greenhouse_manager/bootstrap/device_firstboot.py",
+      "base_blob": "e604195a818b606820e7976002b389b8400f4e8b"
+    },
+    {
+      "path": "host/greenhouse-manager/src/greenhouse_manager/bootstrap/fresh_installer.py",
+      "base_blob": "a99d17a92dcf9c91e352563e63ad676d4b94d164"
+    },
+    {
+      "path": "tools/n3w_t1_f4_reboot_verify.py",
+      "base_blob": "0f0f67c985197cce9b7d5abb55d0ca958e8ec5a0"
+    },
+    {
+      "path": "tools/n3w_t1_f4_certificate_runtime_guard.py",
+      "base_blob": "681f34e9149aa39f2d6bef2075539ccc886b4fe4"
+    }
+  ],
+  "invariants": [
+    "Reuse existing F3/provisioning/F4 execution primitives; do not rewrite F4 for UI.",
+    "Normal production exposes no repair commands or arbitrary remote shell surface.",
+    "One explicit production approval covers the full normal plan; one planned reboot uses two SSH authentication epochs.",
+    "No password persistence and no new permanent SSH login key.",
+    "Initial production override allowlist is empty; unknown check or unknown failure is HARD_STOP.",
+    "Existing 5 GiB post-peak reserve remains strict.",
+    "Production run/phase authority is durable on the target and fail-closed on UNKNOWN; no silent replay.",
+    "Approved release binds exact source, package/image digests, OS and Docker/Compose policy, check policy and result schema.",
+    "Public evidence uses an allowlist and excludes credentials, private keys, plaintext passwords and raw private locators.",
+    "Golden Master cloning, Final Seal, board/ESP32 work and user onboarding remain out of scope."
+  ],
+  "implementation_order": [
+    "F5-1 production run/phase authority and F3/provision/F4 boundary binding",
+    "F5-2 Mac production orchestrator and fixed normal-stage dispatcher",
+    "F5-3 SSH transport adapter and two-epoch authentication handling",
+    "F5-4 controlled check/override policy framework with empty production allowlist",
+    "F5-5 stable result schema and public/private evidence split",
+    "F5-6 integrated regression, negative, packaging and actual-entrypoint CI"
+  ],
+  "scope_delta_rule": "Any path outside new_paths or existing_modify_allowlist requires an explicit reviewed scope delta before mutation. preserve_by_default paths remain byte-identical unless a concrete implementation blocker proves a minimal change is required.",
+  "next_one_gate": "N3W_T1_F5_PRODUCTION_PROCESS_V1_SOURCE_WORK_PACKAGE_IMPLEMENTATION_20261017_01",
+  "scope_delta_20261017": {
+    "task": "N3W_T1_F5_PRODUCTION_PROCESS_V1_RUNTIME_ENTRYPOINT_AND_HOST_BASELINE_SOURCE_REPAIR_20261017_01",
+    "approved": true,
+    "added_new_paths": [
+      "tools/n3w_t1_production_runtime.py",
+      "tests/tools/test_n3w_t1_production_runtime.py"
+    ],
+    "rationale": [
+      "Assemble the normal standalone F5 production entrypoint without backend_factory injection.",
+      "Bind HOST_BASELINE mutation to exact approved release package versions and target durable phase authority.",
+      "Route the normal F2/F3 host path through the F5-owned SSH connection epoch."
+    ],
+    "t1_access": false,
+    "board_access": false,
+    "merge": false
+  }
+}

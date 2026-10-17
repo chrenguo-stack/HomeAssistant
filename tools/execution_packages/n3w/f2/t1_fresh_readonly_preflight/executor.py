@@ -726,6 +726,261 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
         raise StopExecution(error_code) from error
 
 
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _managed_transport_required(target: str) -> None:
+    if (
+        os.environ.get("N3W_T1_SSH_MANAGED_REQUIRED") != "1"
+        or os.environ.get("N3W_T1_SSH_TARGET") != target
+        or not os.environ.get("N3W_T1_SSH_CONTROL_PATH")
+        or not os.environ.get("N3W_T1_SSH_KNOWN_HOSTS")
+    ):
+        raise StopExecution("managed_ssh_transport_required")
+
+
+def _production_release(path: Path) -> dict[str, Any]:
+    if path.is_symlink() or not path.is_file():
+        raise StopExecution("production_release_invalid")
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise StopExecution("production_release_invalid") from error
+    contract = load_module(
+        "n3w_f2_production_contract",
+        "tools/n3w_t1_production_contract.py",
+    )
+    try:
+        return contract.validate_release(document)
+    except Exception as error:
+        raise StopExecution("production_release_invalid") from error
+
+
+def _production_capacity_preflight(
+    target: str,
+    release: dict[str, Any],
+    artifact: Path,
+) -> dict[str, Any]:
+    if (
+        artifact.is_symlink()
+        or not artifact.is_file()
+        or _sha256_file(artifact)
+        != release["artifacts"]["f3_payload"]["sha256"]
+    ):
+        raise StopExecution("production_f3_artifact_binding_invalid")
+    staging = load_module("n3w_f2_production_staging", STAGING_RELATIVE)
+    work = Path(tempfile.mkdtemp(prefix="n3w-f2-production-artifact."))
+    try:
+        staging._safe_extract_artifact_zip(artifact, work)
+        archive_sha = staging._read_sidecar(work / "runtime-payload.sha256")
+        manifest_sha = staging._read_sidecar(work / "payload-manifest.sha256")
+        archive = staging._verify_outer_artifact(
+            work,
+            archive_sha256=archive_sha,
+            manifest_sha256=manifest_sha,
+        )
+        manifest = staging._read_payload_manifest(
+            archive,
+            manifest_sha256=manifest_sha,
+        )
+        if manifest.get("source_head") != release["source_head"]:
+            raise StopExecution("production_f3_source_binding_invalid")
+        capacity = staging._capacity_contract(work, manifest)
+        staging._verify_image_artifacts(work, manifest, capacity)
+        label_to_release = {
+            "manager": ("manager_image_tar", "manager_image_content"),
+            "broker": ("mosquitto_image_tar", "mosquitto_image_content"),
+            "homeassistant": (
+                "home_assistant_image_tar",
+                "home_assistant_image_content",
+            ),
+        }
+        contract = load_module(
+            "n3w_f2_production_contract_hash",
+            "tools/n3w_t1_production_contract.py",
+        )
+        for label, (tar_name, content_name) in label_to_release.items():
+            record = manifest["images"][label]
+            if (
+                record.get("tar_sha256")
+                != release["artifacts"][tar_name]["sha256"]
+                or contract.canonical_sha256(record)
+                != release["artifacts"][content_name]["sha256"]
+            ):
+                raise StopExecution(
+                    f"production_image_release_binding_invalid:{label}"
+                )
+        if (
+            _sha256_file(work / "capacity-contract.json")
+            != release["artifacts"]["transport_contract"]["sha256"]
+        ):
+            raise StopExecution("production_transport_contract_binding_invalid")
+        baseline = staging._remote_baseline_report(
+            target,
+            work / "host-baseline.py",
+            "check",
+        )
+        if baseline.get("status") == "PASS":
+            storage = staging._remote_storage_report(target)
+            free = min(
+                int(storage[key])
+                for key in (
+                    "staging_free_bytes",
+                    "docker_free_bytes",
+                    "image_store_free_bytes",
+                )
+            )
+            admission = "PASS"
+        else:
+            storage = None
+            free = staging._remote_root_free_bytes(target)
+            admission = "PREBASELINE_ROOT_PASS"
+        plan = staging._plan_transport(
+            manifest,
+            archive_size_bytes=archive.stat().st_size,
+            remote_free_bytes=free,
+            capacity=capacity,
+        )
+        if plan.capacity_pass is not True:
+            raise StopExecution("transport_capacity_insufficient")
+        return {
+            "status": "PASS",
+            "host_baseline": baseline,
+            "storage": storage,
+            "transport": plan.to_dict(),
+            "capacity_admission": admission,
+            "payload_transfer": False,
+            "docker_mutation": False,
+            "authorization_claimed": False,
+        }
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def _production_package_policy_failures(
+    release: dict[str, Any],
+    supplement: dict[str, Any],
+    capacity: dict[str, Any],
+) -> list[str]:
+    expected = release["environment"]["packages"]
+    baseline = capacity.get("host_baseline", {})
+    failures: list[str] = []
+    if baseline.get("status") == "PASS":
+        if baseline.get("package_versions") != expected:
+            failures.append("approved_package_version")
+        return failures
+    candidates = supplement.get("package_candidates", {})
+    apt = supplement.get("apt", {})
+    source = apt.get("source", {})
+    deferred = (
+        apt.get("lists_file_count") == 0
+        and source.get("ubuntu_ports") is True
+        and source.get("resolute") is True
+        and source.get("universe") is True
+    )
+    visible = all(candidates.get(package) for package in expected)
+    if visible and any(
+        candidates.get(package) != version
+        for package, version in expected.items()
+    ):
+        failures.append("approved_package_version")
+    elif not visible and not deferred:
+        failures.append("approved_package_version")
+    return failures
+
+
+def execute_production(args: argparse.Namespace) -> dict[str, Any]:
+    if args.confirm != CONFIRMATION:
+        raise StopExecution("readonly_confirmation_invalid")
+    if args.target is None or args.evidence_root is None:
+        raise StopExecution("production_preflight_arguments_missing")
+    if args.production_release is None or args.production_f3_artifact is None:
+        raise StopExecution("production_preflight_arguments_missing")
+    validate_target(args.target)
+    validate_timeout(args.timeout_seconds)
+    _managed_transport_required(args.target)
+    release = _production_release(args.production_release)
+    root = evidence_root(args.evidence_root)
+    try:
+        identity_source = (REPO_ROOT / IDENTITY_RELATIVE).read_bytes()
+        identity = ssh_stream(
+            args.target,
+            REMOTE_IDENTITY_COMMAND,
+            identity_source,
+            args.timeout_seconds,
+        )
+        supplement = ssh_stream(
+            args.target,
+            "sudo -n python3 -B -",
+            SUPPLEMENT_SCRIPT.encode(),
+            args.timeout_seconds,
+        )
+        inventory = load_module(
+            "n3w_f2_production_inventory",
+            INVENTORY_RELATIVE,
+        ).collect(args.target)
+        capacity = _production_capacity_preflight(
+            args.target,
+            release,
+            args.production_f3_artifact,
+        )
+        failures = accept(identity, supplement, inventory, capacity)
+        failures.extend(
+            _production_package_policy_failures(
+                release,
+                supplement,
+                capacity,
+            )
+        )
+        failures = sorted(set(failures))
+        for name, document in (
+            ("identity.json", identity),
+            ("supplement.json", supplement),
+            ("inventory.json", inventory),
+            ("capacity.json", capacity),
+        ):
+            write_private(root / name, document)
+        if failures:
+            raise StopExecution(
+                "production_preflight_failed:" + ",".join(failures)
+            )
+        contract = load_module(
+            "n3w_f2_production_result_contract",
+            "tools/n3w_t1_production_contract.py",
+        )
+        result = {
+            "status": "PASS",
+            "read_only": True,
+            "mutation_performed": False,
+            "checks": {
+                check_id: "PASS"
+                for check_id in contract.PREFLIGHT_CHECK_IDS
+            },
+        }
+        write_private(root / "result.json", result)
+        return result
+    except Exception as error:
+        error_code = (
+            str(error)
+            if isinstance(error, StopExecution)
+            else f"readonly_preflight_component_failed:{type(error).__name__}"
+        )
+        _persist_stop(
+            root,
+            target=args.target,
+            error_code=error_code,
+        )
+        if isinstance(error, StopExecution):
+            raise
+        raise StopExecution(error_code) from error
+
+
 def parser() -> argparse.ArgumentParser:
     value = argparse.ArgumentParser()
     value.add_argument("--execute", action="store_true")
@@ -738,12 +993,32 @@ def parser() -> argparse.ArgumentParser:
     value.add_argument("--artifact-id", type=int)
     value.add_argument("--artifact-zip-sha256")
     value.add_argument("--expected-artifact-source-head")
+    value.add_argument("--production-release", type=Path)
+    value.add_argument("--production-f3-artifact", type=Path)
     value.add_argument("--timeout-seconds", type=int, default=90)
     return value
 
 
 def main() -> int:
     args = parser().parse_args()
+    if args.production_release is not None:
+        try:
+            result = execute_production(args)
+        except StopExecution as error:
+            print(
+                json.dumps(
+                    {
+                        "schema": SCHEMA,
+                        "status": "STOP",
+                        "error_code": str(error),
+                        "read_only": True,
+                        "f3_authorized": False,
+                    }
+                )
+            )
+            return 2
+        print(json.dumps(result, sort_keys=True))
+        return 0
     required = (
         args.target,
         args.evidence_root,

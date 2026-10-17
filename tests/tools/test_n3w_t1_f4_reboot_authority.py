@@ -1411,3 +1411,603 @@ def test_material_binding_is_post_reboot_safe_without_pre_reboot_runtime_checks(
 
     assert observed_transaction == transaction
     assert observed_claim == install
+
+
+
+def _production_reboot_context(tool):
+    return {
+        "schema": tool.PRODUCTION_CONTEXT_SCHEMA,
+        "run_id": "9" * 64,
+        "phase": tool.PRODUCTION_REBOOT_CONTROL_PHASE,
+        "claim_sha256": "8" * 64,
+        "plan_sha256": "7" * 64,
+        "binding": {
+            "source_head": "a" * 40,
+            "release_id": "1" * 64,
+            "artifact_sha256": "2" * 64,
+            "predecessor_sha256": "3" * 64,
+            "target_binding_sha256": "4" * 64,
+        },
+        "binding_sha256": "5" * 64,
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "board_access": False,
+    }
+
+
+def _production_pre_reboot_transaction(tool, run_id):
+    return {
+        "stage": "PERSISTENCE_ENABLED",
+        "authorization_id": "N3W_T1_F4_PRODUCTION_F4_PREPARE_" + run_id,
+        "activation_authorization_id": (
+            "N3W_T1_F4_PRODUCTION_F4_ACTIVATE_" + run_id
+        ),
+        "runtime_acceptance_authorization_id": (
+            "N3W_T1_F4_PRODUCTION_F4_ACCEPT_" + run_id
+        ),
+        "persistence_authorization_id": (
+            "N3W_T1_F4_PRODUCTION_PERSIST_CERT_PERSISTENCE_" + run_id
+        ),
+        "certificate_audit_authorization_id": (
+            "N3W_T1_F4_PRODUCTION_PERSIST_CERT_CERTIFICATE_AUDIT_" + run_id
+        ),
+        "certificate_timer_authorization_id": (
+            "N3W_T1_F4_PRODUCTION_PERSIST_CERT_CERTIFICATE_TIMER_" + run_id
+        ),
+        "runtime_acceptance_passed": True,
+        "broker_services_persistence_enabled": True,
+        "persistence_enabled": True,
+        "certificate_first_audit_passed": True,
+        "certificate_timer_enabled": True,
+        "certificate_timer_active_before_reboot": False,
+        "pre_reboot_ready": True,
+        "production_service_start": True,
+        "persistence_authorization_claimed": True,
+        "persistence_authorization_consumed": True,
+        "persistence_authorization_replay_allowed": False,
+        "certificate_audit_authorization_claimed": True,
+        "certificate_audit_authorization_consumed": True,
+        "certificate_audit_authorization_replay_allowed": False,
+        "certificate_timer_authorization_claimed": True,
+        "certificate_timer_authorization_consumed": True,
+        "certificate_timer_authorization_replay_allowed": False,
+        "board_access": False,
+    }
+
+
+def test_production_reboot_control_binds_phase_and_stops_before_actuation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    context = _production_reboot_context(tool)
+    context_path = tmp_path / "context.json"
+    context_path.write_text(json.dumps(context), encoding="utf-8")
+    ledger = tmp_path / "production-ledger"
+    transaction_path = tmp_path / "F4_ACTIVATION_TRANSACTION.json"
+    install_path = tmp_path / "F4_REBOOT_INSTALL.json"
+    reboot_path = tmp_path / "F4_REBOOT_AUTHORIZATION.json"
+    transaction = _production_pre_reboot_transaction(
+        tool,
+        context["run_id"],
+    )
+    transaction_path.write_text(json.dumps(transaction), encoding="utf-8")
+    transaction_path.chmod(0o600)
+    monkeypatch.setattr(tool, "PRODUCTION_EXECUTION_LEDGER_ROOT", ledger)
+    monkeypatch.setattr(tool, "F4_TRANSACTION", transaction_path)
+    monkeypatch.setattr(tool, "INSTALL_CLAIM_PATH", install_path)
+    monkeypatch.setattr(tool, "REBOOT_CLAIM_PATH", reboot_path)
+    monkeypatch.setattr(
+        tool,
+        "_load_production_phase_context",
+        lambda _path: context,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_package",
+        lambda *_args, **_kwargs: {"root": tmp_path},
+    )
+    monkeypatch.setattr(
+        tool,
+        "_base_pre_reboot",
+        lambda _sha: (SimpleNamespace(), transaction),
+    )
+    ids = tool._production_reboot_authorization_ids(context)
+
+    def claim_install(**kwargs):
+        assert kwargs["authorization_id"] == ids["install"]
+        install_path.write_text(
+            json.dumps({"stage": "INSTALL_CLAIMED"}),
+            encoding="utf-8",
+        )
+        install_path.chmod(0o600)
+        return {
+            "status": "PASS",
+            "state": "INSTALL_CLAIMED",
+            "control_repair_authorization_consumed": True,
+        }
+
+    monkeypatch.setattr(tool, "claim_install", claim_install)
+    monkeypatch.setattr(
+        tool,
+        "install_control",
+        lambda **_kwargs: {"status": "PASS", "state": "CONTROL_READY"},
+    )
+    monkeypatch.setattr(
+        tool,
+        "verify_install",
+        lambda **_kwargs: {
+            "status": "PASS",
+            "state": "CONTROL_READY",
+            "installation_verified": True,
+            "f4_transaction_unchanged": True,
+            "runtime_identity_unchanged": True,
+            "certificate_identity_unchanged": True,
+            "reboot_executed": False,
+        },
+    )
+
+    def claim_reboot(**kwargs):
+        assert kwargs["authorization_id"] == ids["reboot"]
+        reboot = {
+            "schema": tool.SCHEMA_REBOOT,
+            "stage": "REBOOT_PENDING",
+            "source_head": "a" * 40,
+            "control_manifest_sha256": "b" * 64,
+            "f4_transaction_sha256": tool._sha256(transaction_path),
+            "reboot_authorization_claimed": True,
+            "reboot_authorization_consumed": True,
+            "reboot_authorization_replay_allowed": False,
+            "pre_boot_id_sha256": "6" * 64,
+            "reboot_acceptance_passed": False,
+            "board_access": False,
+        }
+        reboot_path.write_text(json.dumps(reboot), encoding="utf-8")
+        reboot_path.chmod(0o600)
+        return {
+            "status": "PASS",
+            "state": "REBOOT_PENDING",
+            "reboot_authorization_consumed": True,
+            "reboot_authorization_replay_allowed": False,
+            "host_reboot_actuation_required": True,
+        }
+
+    monkeypatch.setattr(tool, "claim_reboot", claim_reboot)
+    monkeypatch.setattr(
+        tool,
+        "verify_reboot_claim",
+        lambda **_kwargs: {
+            "status": "PASS",
+            "state": "REBOOT_PENDING",
+            "host_reboot_actuation_required": True,
+        },
+    )
+    monkeypatch.setattr(
+        tool,
+        "_record",
+        lambda path, _mode: json.loads(path.read_text(encoding="utf-8")),
+    )
+
+    report = tool.production_reboot_control(
+        package_root=tmp_path,
+        source_head="a" * 40,
+        manifest_sha256="b" * 64,
+        production_phase_context=context_path,
+    )
+
+    assert report["status"] == "PASS"
+    assert report["state"] == "REBOOT_PENDING"
+    assert report["production_phase"] == "REBOOT_CONTROL"
+    assert report["reboot_actuation_attempted"] is False
+    assert report["reboot_executed"] is False
+    assert report["host_reboot_actuation_required"] is True
+    claim_path, complete_path = tool._production_execution_paths(context)
+    assert claim_path.is_file()
+    assert complete_path.is_file()
+
+    with pytest.raises(
+        tool.AuthorityError,
+        match="production_reboot_control_already_consumed",
+    ):
+        tool.production_reboot_control(
+            package_root=tmp_path,
+            source_head="a" * 40,
+            manifest_sha256="b" * 64,
+            production_phase_context=context_path,
+        )
+
+
+def test_production_reboot_control_rejects_wrong_persist_cert_predecessor():
+    tool = load_tool()
+    context = _production_reboot_context(tool)
+    transaction = _production_pre_reboot_transaction(
+        tool,
+        context["run_id"],
+    )
+    transaction["certificate_timer_authorization_id"] = (
+        "N3W_T1_F4_PRODUCTION_PERSIST_CERT_CERTIFICATE_TIMER_" + "f" * 64
+    )
+    with pytest.raises(
+        tool.AuthorityError,
+        match="production_reboot_predecessor_invalid",
+    ):
+        tool._validate_production_reboot_predecessor(
+            context,
+            transaction,
+        )
+
+
+def test_production_reboot_actuation_claim_is_durable_and_no_replay(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    context = _production_reboot_context(tool)
+    context_path = tmp_path / "context.json"
+    context_path.write_text(json.dumps(context), encoding="utf-8")
+    ledger = tmp_path / "production-ledger"
+    ledger.mkdir(mode=0o700)
+    monkeypatch.setattr(tool, "PRODUCTION_EXECUTION_LEDGER_ROOT", ledger)
+    monkeypatch.setattr(
+        tool,
+        "_load_production_phase_context",
+        lambda _path: context,
+    )
+    claim_path, complete_path = tool._production_execution_paths(context)
+    claim_path.write_text(
+        json.dumps(
+            {
+                "schema": tool.PRODUCTION_REBOOT_CONTROL_CLAIM_SCHEMA,
+                "run_id": context["run_id"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    claim_path.chmod(0o600)
+    reboot_path = tmp_path / "F4_REBOOT_AUTHORIZATION.json"
+    pending = {
+        "schema": tool.SCHEMA_REBOOT,
+        "stage": "REBOOT_PENDING",
+        "source_head": "a" * 40,
+        "control_manifest_sha256": "b" * 64,
+        "f4_transaction_sha256": "c" * 64,
+        "reboot_authorization_claimed": True,
+        "reboot_authorization_consumed": True,
+        "reboot_authorization_replay_allowed": False,
+        "pre_boot_id_sha256": "d" * 64,
+        "reboot_acceptance_passed": False,
+        "board_access": False,
+    }
+    reboot_path.write_text(json.dumps(pending), encoding="utf-8")
+    reboot_path.chmod(0o600)
+    pending_sha = tool._sha256(reboot_path)
+    complete_path.write_text(
+        json.dumps(
+            {
+                "schema": tool.PRODUCTION_REBOOT_CONTROL_COMPLETE_SCHEMA,
+                "run_id": context["run_id"],
+                "phase": tool.PRODUCTION_REBOOT_CONTROL_PHASE,
+                "reboot_pending_claim_sha256": pending_sha,
+                "authorization_consumed": True,
+                "replay_allowed": False,
+                "board_access": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    complete_path.chmod(0o600)
+    monkeypatch.setattr(tool, "REBOOT_CLAIM_PATH", reboot_path)
+    monkeypatch.setattr(tool, "_exclusive", lambda: nullcontext())
+    monkeypatch.setattr(
+        tool,
+        "verify_reboot_claim",
+        lambda **_kwargs: {
+            "status": "PASS",
+            "state": "REBOOT_PENDING",
+        },
+    )
+    monkeypatch.setattr(
+        tool,
+        "_record",
+        lambda path, _mode: json.loads(path.read_text(encoding="utf-8")),
+    )
+
+    def write_record(path: Path, document: dict[str, object]) -> None:
+        path.write_text(json.dumps(document), encoding="utf-8")
+        path.chmod(0o600)
+
+    monkeypatch.setattr(tool, "_atomic_write_record", write_record)
+
+    result = tool.claim_production_reboot_actuation(
+        production_phase_context=context_path,
+        expected_pending_claim_sha256=pending_sha,
+    )
+
+    assert result["state"] == "REBOOT_ACTUATION_CLAIMED"
+    assert result["reboot_actuation_attempted"] is True
+    assert result["reboot_executed"] is False
+    updated = json.loads(reboot_path.read_text(encoding="utf-8"))
+    assert updated["reboot_actuation_attempted"] is True
+    assert updated["pre_actuation_claim_sha256"] == pending_sha
+
+    with pytest.raises(
+        tool.AuthorityError,
+        match=(
+            "production_reboot_pending_claim_sha256_mismatch"
+            "|production_reboot_actuation_replay_forbidden"
+        ),
+    ):
+        tool.claim_production_reboot_actuation(
+            production_phase_context=context_path,
+            expected_pending_claim_sha256=pending_sha,
+        )
+
+
+
+def test_production_reboot_control_rejects_control_source_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    context = _production_reboot_context(tool)
+    context_path = tmp_path / "context.json"
+    context_path.write_text(json.dumps(context), encoding="utf-8")
+    monkeypatch.setattr(
+        tool,
+        "_load_production_phase_context",
+        lambda _path: context,
+    )
+    with pytest.raises(
+        tool.AuthorityError,
+        match="production_reboot_control_source_mismatch",
+    ):
+        tool.production_reboot_control(
+            package_root=tmp_path,
+            source_head="b" * 40,
+            manifest_sha256="c" * 64,
+            production_phase_context=context_path,
+        )
+
+
+
+def _production_finalize_context(tool):
+    context = _production_reboot_context(tool)
+    context["phase"] = tool.PRODUCTION_FINALIZE_PHASE
+    context["claim_sha256"] = "6" * 64
+    context["binding_sha256"] = "5" * 64
+    return context
+
+
+def test_production_finalize_reuses_finalizer_and_terminal_verify(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    context = _production_finalize_context(tool)
+    context_path = tmp_path / "finalize-context.json"
+    context_path.write_text(json.dumps(context), encoding="utf-8")
+    ledger = tmp_path / "production-ledger"
+    transaction_path = tmp_path / "F4_ACTIVATION_TRANSACTION.json"
+    reboot_path = tmp_path / "F4_REBOOT_AUTHORIZATION.json"
+    transaction_path.write_text('{"stage":"PERSISTENCE_ENABLED"}', encoding="utf-8")
+    transaction_path.chmod(0o600)
+    transaction_sha = tool._sha256(transaction_path)
+    pre_boot = "1" * 64
+    post_boot = "2" * 64
+    pending = {
+        "schema": tool.SCHEMA_REBOOT,
+        "stage": "REBOOT_PENDING",
+        "source_head": "a" * 40,
+        "control_manifest_sha256": "b" * 64,
+        "f4_transaction_sha256": transaction_sha,
+        "reboot_authorization_claimed": True,
+        "reboot_authorization_consumed": True,
+        "reboot_authorization_replay_allowed": False,
+        "pre_boot_id_sha256": pre_boot,
+        "reboot_acceptance_passed": False,
+        "reboot_actuation_attempted": True,
+        "reboot_actuation_claimed": True,
+        "reboot_actuation_replay_allowed": False,
+        "reboot_actuation_run_id": context["run_id"],
+        "reboot_actuation_phase_claim_sha256": "3" * 64,
+        "pre_actuation_claim_sha256": "4" * 64,
+        "board_access": False,
+    }
+    reboot_path.write_text(json.dumps(pending), encoding="utf-8")
+    reboot_path.chmod(0o600)
+    pending_sha = tool._sha256(reboot_path)
+    monkeypatch.setattr(tool, "PRODUCTION_EXECUTION_LEDGER_ROOT", ledger)
+    monkeypatch.setattr(tool, "F4_TRANSACTION", transaction_path)
+    monkeypatch.setattr(tool, "REBOOT_CLAIM_PATH", reboot_path)
+    monkeypatch.setattr(
+        tool,
+        "_load_production_phase_context",
+        lambda _path, **_kwargs: context,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_package",
+        lambda *_args, **_kwargs: {"root": tmp_path},
+    )
+    monkeypatch.setattr(tool, "_validate_recovery_entrypoint", lambda _pkg: None)
+    monkeypatch.setattr(tool, "_boot_id_sha256", lambda: post_boot)
+    monkeypatch.setattr(
+        tool,
+        "_record",
+        lambda path, _mode: json.loads(path.read_text(encoding="utf-8")),
+    )
+    observed = {}
+
+    def finalize(**kwargs):
+        observed["finalize"] = kwargs
+        accepted = {
+            **pending,
+            "stage": "REBOOT_ACCEPTED",
+            "reboot_acceptance_passed": True,
+            "reboot_acceptance_finalized": True,
+            "reboot_executed": True,
+            "pre_acceptance_claim_sha256": pending_sha,
+            "post_boot_id_sha256": post_boot,
+            "acceptance_report_sha256": "7" * 64,
+        }
+        reboot_path.write_text(json.dumps(accepted), encoding="utf-8")
+        reboot_path.chmod(0o600)
+        accepted_sha = tool._sha256(reboot_path)
+        observed["accepted_sha"] = accepted_sha
+        return {
+            "status": "PASS",
+            "state": "REBOOT_ACCEPTED",
+            "reboot_authorization_consumed": True,
+            "reboot_authorization_replay_allowed": False,
+            "reboot_acceptance_passed": True,
+            "reboot_acceptance_finalized": True,
+            "reboot_executed": True,
+            "pre_acceptance_claim_sha256": pending_sha,
+            "accepted_claim_sha256": accepted_sha,
+            "acceptance_report_sha256": "7" * 64,
+            "post_boot_id_sha256": post_boot,
+            "acceptance_finalizer_source_head": "a" * 40,
+            "acceptance_finalizer_manifest_sha256": "b" * 64,
+            "board_access": False,
+        }
+
+    def verify(**kwargs):
+        observed["verify"] = kwargs
+        return {
+            "status": "PASS",
+            "state": "REBOOT_ACCEPTED",
+            "reboot_authorization_consumed": True,
+            "reboot_authorization_replay_allowed": False,
+            "reboot_acceptance_passed": True,
+            "reboot_acceptance_finalized": True,
+            "reboot_executed": True,
+            "pre_acceptance_claim_sha256": pending_sha,
+            "accepted_claim_sha256": observed["accepted_sha"],
+            "acceptance_report_sha256": "7" * 64,
+            "post_boot_id_sha256": post_boot,
+            "acceptance_finalizer_source_head": "a" * 40,
+            "acceptance_finalizer_manifest_sha256": "b" * 64,
+            "board_access": False,
+        }
+
+    monkeypatch.setattr(tool, "finalize_reboot_acceptance", finalize)
+    monkeypatch.setattr(tool, "verify_reboot_accepted", verify)
+
+    report = tool.production_finalize_reboot_acceptance(
+        package_root=tmp_path,
+        source_head="a" * 40,
+        manifest_sha256="b" * 64,
+        production_phase_context=context_path,
+    )
+
+    assert report["state"] == "REBOOT_ACCEPTED"
+    assert report["production_phase"] == "FINALIZE"
+    assert report["device_acceptance"] is True
+    assert report["reboot_pending_claim_sha256"] == pending_sha
+    assert observed["finalize"]["expected_pending_claim_sha256"] == pending_sha
+    assert (
+        observed["verify"]["expected_accepted_claim_sha256"]
+        == observed["accepted_sha"]
+    )
+    claim_path, complete_path = tool._production_execution_paths(context)
+    assert claim_path.is_file()
+    assert complete_path.is_file()
+    completion = json.loads(complete_path.read_text(encoding="utf-8"))
+    assert completion["device_acceptance"] is True
+
+    with pytest.raises(
+        tool.AuthorityError,
+        match="production_finalize_already_consumed",
+    ):
+        tool.production_finalize_reboot_acceptance(
+            package_root=tmp_path,
+            source_head="a" * 40,
+            manifest_sha256="b" * 64,
+            production_phase_context=context_path,
+        )
+
+
+def test_production_finalize_requires_actuation_mark_and_new_boot(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    context = _production_finalize_context(tool)
+    context_path = tmp_path / "finalize-context.json"
+    context_path.write_text(json.dumps(context), encoding="utf-8")
+    transaction_path = tmp_path / "F4_ACTIVATION_TRANSACTION.json"
+    reboot_path = tmp_path / "F4_REBOOT_AUTHORIZATION.json"
+    transaction_path.write_text("{}", encoding="utf-8")
+    transaction_path.chmod(0o600)
+    pre_boot = "1" * 64
+    pending = {
+        "schema": tool.SCHEMA_REBOOT,
+        "stage": "REBOOT_PENDING",
+        "source_head": "a" * 40,
+        "control_manifest_sha256": "b" * 64,
+        "f4_transaction_sha256": tool._sha256(transaction_path),
+        "reboot_authorization_claimed": True,
+        "reboot_authorization_consumed": True,
+        "reboot_authorization_replay_allowed": False,
+        "pre_boot_id_sha256": pre_boot,
+        "reboot_acceptance_passed": False,
+        "reboot_actuation_attempted": False,
+        "board_access": False,
+    }
+    reboot_path.write_text(json.dumps(pending), encoding="utf-8")
+    reboot_path.chmod(0o600)
+    monkeypatch.setattr(tool, "F4_TRANSACTION", transaction_path)
+    monkeypatch.setattr(tool, "REBOOT_CLAIM_PATH", reboot_path)
+    monkeypatch.setattr(
+        tool,
+        "_load_production_phase_context",
+        lambda _path, **_kwargs: context,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_package",
+        lambda *_args, **_kwargs: {"root": tmp_path},
+    )
+    monkeypatch.setattr(tool, "_validate_recovery_entrypoint", lambda _pkg: None)
+    monkeypatch.setattr(tool, "_boot_id_sha256", lambda: pre_boot)
+    monkeypatch.setattr(
+        tool,
+        "_record",
+        lambda path, _mode: json.loads(path.read_text(encoding="utf-8")),
+    )
+
+    with pytest.raises(
+        tool.AuthorityError,
+        match="production_finalize_prestate_invalid",
+    ):
+        tool.production_finalize_reboot_acceptance(
+            package_root=tmp_path,
+            source_head="a" * 40,
+            manifest_sha256="b" * 64,
+            production_phase_context=context_path,
+        )
+
+
+def test_production_finalize_rejects_source_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    context = _production_finalize_context(tool)
+    context_path = tmp_path / "finalize-context.json"
+    context_path.write_text(json.dumps(context), encoding="utf-8")
+    monkeypatch.setattr(
+        tool,
+        "_load_production_phase_context",
+        lambda _path, **_kwargs: context,
+    )
+    with pytest.raises(
+        tool.AuthorityError,
+        match="production_finalize_source_mismatch",
+    ):
+        tool.production_finalize_reboot_acceptance(
+            package_root=tmp_path,
+            source_head="b" * 40,
+            manifest_sha256="c" * 64,
+            production_phase_context=context_path,
+        )

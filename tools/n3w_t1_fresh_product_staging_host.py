@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import shlex
 import shutil
 import subprocess
@@ -1246,6 +1247,424 @@ def _remote_authorization_record_state(
 
 def _emit(value: dict[str, object]) -> None:
     print(json.dumps(value, sort_keys=True, separators=(",", ":")), flush=True)
+
+
+
+def _managed_transport_required(t1: str) -> None:
+    if (
+        os.environ.get("N3W_T1_SSH_MANAGED_REQUIRED") != "1"
+        or os.environ.get("N3W_T1_SSH_TARGET") != t1
+        or not os.environ.get("N3W_T1_SSH_CONTROL_PATH")
+        or not os.environ.get("N3W_T1_SSH_KNOWN_HOSTS")
+    ):
+        raise FreshHostTransportError("managed_ssh_transport_required")
+
+
+def _load_production_release(path: Path) -> dict[str, Any]:
+    if path.is_symlink() or not path.is_file():
+        raise FreshHostTransportError("production_release_invalid")
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise FreshHostTransportError("production_release_invalid") from error
+    try:
+        from n3w_t1_production_contract import validate_release
+    except ImportError as error:
+        raise FreshHostTransportError(
+            "production_contract_dependency_missing"
+        ) from error
+    try:
+        return validate_release(document)
+    except Exception as error:
+        raise FreshHostTransportError("production_release_invalid") from error
+
+
+def _load_production_context_for_f3(
+    path: Path,
+    release: dict[str, Any],
+) -> dict[str, Any]:
+    if path.is_symlink() or not path.is_file():
+        raise FreshHostTransportError("production_phase_context_invalid")
+    try:
+        context = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise FreshHostTransportError(
+            "production_phase_context_invalid"
+        ) from error
+    try:
+        from n3w_t1_production_contract import phase_artifact_sha256
+    except ImportError as error:
+        raise FreshHostTransportError(
+            "production_contract_dependency_missing"
+        ) from error
+    binding = context.get("binding") if isinstance(context, dict) else None
+    if (
+        not isinstance(context, dict)
+        or context.get("schema")
+        != "gh.n3w-t1-production-phase-context/1"
+        or context.get("phase") != "F3_DEPLOY"
+        or not isinstance(binding, dict)
+        or binding.get("source_head") != release["source_head"]
+        or binding.get("release_id") != release["release_id"]
+        or binding.get("artifact_sha256")
+        != phase_artifact_sha256(release, "F3_DEPLOY")
+        or context.get("authorization_consumed") is not True
+        or context.get("replay_allowed") is not False
+        or context.get("board_access") is not False
+    ):
+        raise FreshHostTransportError("production_phase_context_invalid")
+    return context
+
+
+def _prepare_production_artifact(
+    work: Path,
+    release: dict[str, Any],
+    artifact: Path,
+) -> tuple[Path, dict[str, Any], dict[str, Any]]:
+    if (
+        artifact.is_symlink()
+        or not artifact.is_file()
+        or _sha256_file(artifact)
+        != release["artifacts"]["f3_payload"]["sha256"]
+    ):
+        raise FreshHostTransportError("production_f3_artifact_binding_invalid")
+    _safe_extract_artifact_zip(artifact, work)
+    archive_sha = _read_sidecar(work / "runtime-payload.sha256")
+    manifest_sha = _read_sidecar(work / "payload-manifest.sha256")
+    archive = _verify_outer_artifact(
+        work,
+        archive_sha256=archive_sha,
+        manifest_sha256=manifest_sha,
+    )
+    manifest = _read_payload_manifest(
+        archive,
+        manifest_sha256=manifest_sha,
+    )
+    if (
+        manifest.get("schema") != "gh.n3w-t1-fresh-bootstrap-payload/2"
+        or manifest.get("source_head") != release["source_head"]
+        or {
+            "authorization_id",
+            "authorization_claimed",
+            "authorization_consumed",
+        }
+        & set(manifest)
+    ):
+        raise FreshHostTransportError("production_payload_manifest_invalid")
+    files = manifest.get("files")
+    if not isinstance(files, list):
+        raise FreshHostTransportError("production_payload_manifest_invalid")
+    file_paths = {
+        str(record.get("path"))
+        for record in files
+        if isinstance(record, dict)
+    }
+    required_authority_files = {
+        "tools/n3w_t1_production_authority.py",
+        "tools/n3w_t1_production_contract.py",
+        (
+            "runtime-source/opt/HomeAssistant/tools/"
+            "n3w_t1_production_authority.py"
+        ),
+        (
+            "runtime-source/opt/HomeAssistant/tools/"
+            "n3w_t1_production_contract.py"
+        ),
+    }
+    if not required_authority_files.issubset(file_paths):
+        raise FreshHostTransportError(
+            "production_payload_authority_files_missing"
+        )
+    capacity = _capacity_contract(work, manifest)
+    _verify_image_artifacts(work, manifest, capacity)
+    label_to_release = {
+        "manager": ("manager_image_tar", "manager_image_content"),
+        "broker": ("mosquitto_image_tar", "mosquitto_image_content"),
+        "homeassistant": (
+            "home_assistant_image_tar",
+            "home_assistant_image_content",
+        ),
+    }
+    try:
+        from n3w_t1_production_contract import canonical_sha256
+    except ImportError as error:
+        raise FreshHostTransportError(
+            "production_contract_dependency_missing"
+        ) from error
+    for label, (tar_name, content_name) in label_to_release.items():
+        record = manifest["images"][label]
+        if (
+            record.get("tar_sha256")
+            != release["artifacts"][tar_name]["sha256"]
+            or canonical_sha256(record)
+            != release["artifacts"][content_name]["sha256"]
+        ):
+            raise FreshHostTransportError(
+                f"production_image_release_binding_invalid:{label}"
+            )
+    if (
+        _sha256_file(work / "capacity-contract.json")
+        != release["artifacts"]["transport_contract"]["sha256"]
+    ):
+        raise FreshHostTransportError(
+            "production_transport_contract_binding_invalid"
+        )
+    return archive, manifest, capacity
+
+
+def _production_baseline_ready(
+    t1: str,
+    work: Path,
+    release: dict[str, Any],
+) -> None:
+    baseline = _remote_baseline_report(
+        t1,
+        work / "host-baseline.py",
+        "check",
+    )
+    if (
+        baseline.get("status") != "PASS"
+        or baseline.get("package_versions")
+        != release["environment"]["packages"]
+    ):
+        raise FreshHostTransportError(
+            "production_host_baseline_not_ready"
+        )
+
+
+def execute_production(
+    *,
+    t1: str,
+    production_release: Path,
+    production_f3_artifact: Path,
+    production_phase_context: Path,
+) -> dict[str, object]:
+    _managed_transport_required(t1)
+    release = _load_production_release(production_release)
+    context = _load_production_context_for_f3(
+        production_phase_context,
+        release,
+    )
+    work = Path(tempfile.mkdtemp(prefix="n3w-f5-f3-production."))
+    remote_dir: str | None = None
+    production_claim_seen = False
+    process_started = False
+    try:
+        archive, manifest, capacity = _prepare_production_artifact(
+            work,
+            release,
+            production_f3_artifact,
+        )
+        _production_baseline_ready(t1, work, release)
+        storage = _remote_storage_report(t1)
+        plan = _plan_transport(
+            manifest,
+            archive_size_bytes=archive.stat().st_size,
+            remote_free_bytes=min(
+                int(storage["staging_free_bytes"]),
+                int(storage["docker_free_bytes"]),
+                int(storage["image_store_free_bytes"]),
+            ),
+            capacity=capacity,
+        )
+        if not plan.capacity_pass:
+            raise FreshHostTransportError(
+                "production_remote_capacity_insufficient"
+            )
+        remote_dir = _remote_mktemp(t1, "n3w-f5-f3")
+        _remote_prepare_payload(
+            t1,
+            remote_dir,
+            archive,
+            archive_sha256=_read_sidecar(
+                work / "runtime-payload.sha256"
+            ),
+            manifest_sha256=_read_sidecar(
+                work / "payload-manifest.sha256"
+            ),
+        )
+        remote_context = f"{remote_dir}/production-phase-context.json"
+        _run(
+            (
+                "scp",
+                str(production_phase_context),
+                f"{t1}:{remote_context}",
+            ),
+            timeout=120,
+        )
+        command = _remote_command(
+            (
+                "sudo",
+                "-n",
+                "env",
+                f"PYTHONPATH={remote_dir}/tools",
+                "python3",
+                f"{remote_dir}/tools/n3w_t1_fresh_product_bootstrap.py",
+                "--payload-root",
+                remote_dir,
+                "--phase",
+                "apply",
+                "--production-phase-context",
+                remote_context,
+            )
+        )
+        process = subprocess.Popen(
+            ("ssh", "-n", t1, command),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+        process_started = True
+        requested: list[str] = []
+        loaded: list[str] = []
+        final_report: dict[str, Any] | None = None
+        assert process.stdout is not None
+        try:
+            for line in process.stdout:
+                sys.stdout.write(line)
+                sys.stdout.flush()
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(event, dict):
+                    continue
+                if (
+                    event.get("event")
+                    == "production_phase_execution_claimed"
+                ):
+                    if (
+                        event.get("production_run_id")
+                        != context["run_id"]
+                        or event.get("production_phase") != "F3_DEPLOY"
+                        or event.get("authorization_consumed") is not True
+                        or event.get("replay_allowed") is not False
+                    ):
+                        raise FreshHostTransportError(
+                            "production_claim_event_invalid"
+                        )
+                    production_claim_seen = True
+                    continue
+                if event.get("event") == "image_requested":
+                    if not production_claim_seen:
+                        raise FreshHostTransportError(
+                            "image_requested_before_production_claim"
+                        )
+                    label = str(event.get("label"))
+                    expected = (
+                        IMAGE_LABELS[len(requested)]
+                        if len(requested) < len(IMAGE_LABELS)
+                        else None
+                    )
+                    if label != expected or label in requested:
+                        raise FreshHostTransportError(
+                            "image_request_order_invalid"
+                        )
+                    _transfer_requested_image(
+                        t1,
+                        remote_dir,
+                        work,
+                        manifest,
+                        capacity,
+                        label,
+                    )
+                    requested.append(label)
+                    continue
+                if event.get("event") == "image_loaded":
+                    label = str(event.get("label"))
+                    expected = (
+                        IMAGE_LABELS[len(loaded)]
+                        if len(loaded) < len(IMAGE_LABELS)
+                        else None
+                    )
+                    if (
+                        label != expected
+                        or label not in requested
+                        or event.get("staged_tar_deleted") is not True
+                    ):
+                        raise FreshHostTransportError(
+                            "image_load_event_invalid"
+                        )
+                    if (
+                        _remote_free_bytes(t1)
+                        < MIN_POST_PEAK_FREE_BYTES
+                    ):
+                        raise FreshHostTransportError(
+                            "postload_reserve_breached"
+                        )
+                    loaded.append(label)
+                    continue
+                if (
+                    event.get("status") == "PASS"
+                    and event.get("production_phase") == "F3_DEPLOY"
+                ):
+                    final_report = event
+            return_code = process.wait()
+        except Exception:
+            _stop_remote_apply_process(process)
+            raise
+        if (
+            return_code != 0
+            or not production_claim_seen
+            or tuple(requested) != IMAGE_LABELS
+            or tuple(loaded) != IMAGE_LABELS
+            or not isinstance(final_report, dict)
+            or final_report.get("production_run_id")
+            != context["run_id"]
+            or final_report.get("authorization_consumed") is not True
+            or final_report.get("replay_allowed") is not False
+            or final_report.get("public_product_staged") is not True
+            or final_report.get("production_service_start") is not False
+            or final_report.get("board_access") is not False
+        ):
+            raise FreshHostTransportError(
+                "production_f3_execution_not_proven"
+            )
+        cleanup = _run(
+            (
+                "ssh",
+                "-n",
+                t1,
+                _remote_command(("rm", "-rf", "--", remote_dir)),
+            ),
+            timeout=120,
+            check=False,
+        )
+        if cleanup.returncode != 0:
+            raise FreshHostTransportError(
+                "production_f3_cleanup_unproven"
+            )
+        remote_dir = None
+        return {
+            **final_report,
+            "remote_payload_removed": True,
+            "managed_ssh_transport": True,
+        }
+    except Exception as error:
+        if process_started or production_claim_seen:
+            raise FreshHostTransportError(
+                "production_f3_claimed_or_unknown:" + str(error)[:240]
+            ) from error
+        raise
+    finally:
+        if remote_dir is not None and not production_claim_seen:
+            try:
+                _run(
+                    (
+                        "ssh",
+                        "-n",
+                        t1,
+                        _remote_command(
+                            ("rm", "-rf", "--", remote_dir)
+                        ),
+                    ),
+                    timeout=120,
+                    check=False,
+                )
+            except Exception:
+                pass
+        shutil.rmtree(work, ignore_errors=True)
 
 
 def _stop_remote_apply_process(process: subprocess.Popen[str]) -> None:
