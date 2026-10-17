@@ -175,3 +175,26 @@ F3 仍用于证明严格路径在真实 fresh Armbian T1 上完整可行；不�
 > 后台检查继续严格，前台操作显著简化；只有经过工程验证并在源码中明确白名单化的环境偏差才允许人工放行。
 
 这既避免“检查过严导致无必要阻塞”，也避免“操作员一键忽略真正故障”。
+
+
+## 9. F5-0 架构合同冻结补充 — 2026-10-17
+
+本节由 F5-0 正式冻结，并在与前文存在歧义时优先。
+
+~~~text
+F5_INITIAL_OVERRIDE_ALLOWLIST=EMPTY
+UNKNOWN_CHECK_ID=HARD_STOP
+UNKNOWN_FAILURE=HARD_STOP
+GLOBAL_FORCE_INSTALL=false
+F3_5_GIB_RULE=UNCHANGED
+CAPACITY_POST_PEAK_RESERVE_POLICY=HARD_STOP
+~~~
+
+首版 F5 实现受控放行的分类、记录和 `PASS_WITH_OVERRIDE` 结果机制，但正式生产白名单为空。
+这意味着 T1-B 首次 clean 验收不能依靠人工 override 通过。
+
+前文“双阈值”仍保留为未来可扩展设计：只有在 exact artifact / transport 峰值模型和独立政策审查
+证明安全绝对下限后，中间区间才可以被加入源码白名单。在此之前，现有 5 GiB 严格门槛不下调。
+
+“Docker 已存在”“额外 ExposedPorts 元数据”等已经由现有正常合同正确处理的状态，不人为改造成
+OVERRIDABLE。符合合同就是普通 PASS；真正未知或不符合安全边界的情况继续 STOP。
