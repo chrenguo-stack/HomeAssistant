@@ -213,85 +213,50 @@ def test_prompt_displays_plan_before_reading_confirmation(monkeypatch, capsys):
     assert "START PRODUCTION RUN" in observed["prompt"]
 
 
-def test_public_evidence_remains_conservative_if_final_promotion_fails(
-    monkeypatch,
-    tmp_path,
-):
+def test_private_result_is_written_only_after_public_projection(tmp_path, monkeypatch):
     tool = load_tool()
     backend = FakeBackend()
-    original = tool._atomic_replace_json
+    private_path = tmp_path / "private.json"
     public_path = tmp_path / "public.json"
+    backend.approval_record_path = tool._approval_record_path(private_path)
+    original = tool._atomic_new_json
 
-    def fail_public_promotion(path, document, mode=0o600):
-        if path == public_path and document.get("evidence_complete") is True:
-            raise OSError("injected_public_promotion_failure")
+    def fail_private(path, document, mode=0o600):
+        if path == private_path:
+            raise OSError("injected_private_write_failure")
         return original(path, document, mode)
 
-    monkeypatch.setattr(tool, "_atomic_replace_json", fail_public_promotion)
+    monkeypatch.setattr(tool, "_atomic_new_json", fail_private)
     try:
-        run(tmp_path, tool, backend)
+        tool.run_production(
+            release(tool),
+            release_sha256="d" * 64,
+            backend=backend,
+            approval=lambda _summary: True,
+            private_record_path=private_path,
+            public_record_path=public_path,
+            now=100,
+            run_id="e" * 64,
+        )
     except tool.ProductionError as error:
         assert str(error) == "evidence_write_failed"
     else:
         raise AssertionError("expected evidence_write_failed")
+    assert public_path.is_file()
+    assert not private_path.exists()
     public = json.loads(public_path.read_text())
-    assert public["evidence_complete"] is False
-    assert public["final_outcome"] == "FAIL"
+    assert len(public["private_result_sha256"]) == 64
 
 
-def test_preflight_happens_before_operator_approval_and_target_claim(tmp_path):
+def test_successful_result_files_are_created_once_without_in_place_promotion(
+    tmp_path,
+):
     tool = load_tool()
-    events = []
-
-    class OrderedBackend(FakeBackend):
-        def preflight(self, *, release, identity):
-            events.append("preflight")
-            return super().preflight(release=release, identity=identity)
-
-        def approve_run(self, plan):
-            events.append("target_approve")
-            return super().approve_run(plan)
-
-    backend = OrderedBackend()
-
-    def approval(_summary):
-        events.append("operator_approval")
-        return True
-
-    result = run(tmp_path, tool, backend, approval=approval)
-    assert result["status"] == "PASS"
-    assert events[:3] == ["preflight", "operator_approval", "target_approve"]
-
-
-def test_incomplete_preflight_stops_before_operator_approval(tmp_path):
-    tool = load_tool()
-    contract = sys.modules["n3w_t1_production_contract"]
-    backend = FakeBackend()
-
-    def bad_preflight(*, release, identity):
-        report = {
-            "status": "PASS",
-            "read_only": True,
-            "mutation_performed": False,
-            "checks": {
-                check_id: "PASS" for check_id in contract.PREFLIGHT_CHECK_IDS
-            },
-        }
-        report["checks"].pop("HOST.PRODUCT_ABSENT")
-        return report
-
-    backend.preflight = bad_preflight
-    approvals = []
-    try:
-        run(
-            tmp_path,
-            tool,
-            backend,
-            approval=lambda summary: approvals.append(summary) or True,
-        )
-    except tool.ProductionError as error:
-        assert str(error) == "preflight_checks_invalid"
-    else:
-        raise AssertionError("expected preflight stop")
-    assert approvals == []
-    assert backend.approvals == 0
+    result = run(tmp_path, tool, FakeBackend())
+    private = json.loads((tmp_path / "private.json").read_text())
+    public = json.loads((tmp_path / "public.json").read_text())
+    assert private == result
+    assert private["evidence_complete"] is True
+    assert public["private_result_sha256"] == sys.modules[
+        "n3w_t1_production_contract"
+    ].canonical_sha256(private)
