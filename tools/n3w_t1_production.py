@@ -27,6 +27,7 @@ from n3w_t1_production_contract import (
 
 
 APPROVAL_RECORD_SCHEMA = "gh.n3w-t1-production-approval-record/1"
+EVIDENCE_SEAL_SCHEMA = "gh.n3w-t1-production-evidence-seal/1"
 
 
 class ProductionError(RuntimeError):
@@ -78,6 +79,12 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _json_bytes(document: dict[str, Any]) -> bytes:
+    return (
+        json.dumps(document, sort_keys=True, separators=(",", ":")) + "\n"
+    ).encode("utf-8")
+
+
 def _atomic_new_json(path: Path, document: dict[str, Any], mode: int = 0o600) -> None:
     if path.exists() or path.is_symlink():
         raise ProductionError("record_already_exists")
@@ -85,9 +92,7 @@ def _atomic_new_json(path: Path, document: dict[str, Any], mode: int = 0o600) ->
     if path.parent.is_symlink() or not path.parent.is_dir():
         raise ProductionError("record_parent_invalid")
     os.chmod(path.parent, 0o700)
-    payload = (
-        json.dumps(document, sort_keys=True, separators=(",", ":")) + "\n"
-    ).encode("utf-8")
+    payload = _json_bytes(document)
     descriptor = os.open(
         path,
         os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
@@ -110,6 +115,57 @@ def _atomic_new_json(path: Path, document: dict[str, Any], mode: int = 0o600) ->
 
 def _approval_record_path(private_record_path: Path) -> Path:
     return private_record_path.with_name(f"{private_record_path.name}.approval.json")
+
+
+def _evidence_seal_path(private_record_path: Path) -> Path:
+    return private_record_path.with_name(f"{private_record_path.name}.evidence-seal.json")
+
+
+def _read_evidence_seal(
+    private_record_path: Path,
+    private_result: dict[str, Any],
+) -> dict[str, Any]:
+    path = _evidence_seal_path(private_record_path)
+    if path.is_symlink() or not path.is_file():
+        raise ProductionError("evidence_seal_missing")
+    metadata = path.stat()
+    if (
+        metadata.st_uid != os.geteuid()
+        or stat.S_IMODE(metadata.st_mode) != 0o600
+        or metadata.st_nlink != 1
+    ):
+        raise ProductionError("evidence_seal_metadata_invalid")
+    try:
+        seal = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise ProductionError("evidence_seal_invalid") from error
+    required = {
+        "schema",
+        "status",
+        "final_outcome",
+        "evidence_complete",
+        "private_result_sha256",
+        "public_result_sha256",
+        "run_id_sha256",
+        "board_access",
+    }
+    if (
+        not isinstance(seal, dict)
+        or set(seal) != required
+        or seal.get("schema") != EVIDENCE_SEAL_SCHEMA
+        or seal.get("status") != "PASS"
+        or seal.get("evidence_complete") is not True
+        or seal.get("board_access") is not False
+        or seal.get("final_outcome") != private_result.get("final_outcome")
+        or seal.get("run_id_sha256") != private_result.get("run_id_sha256")
+        or seal.get("private_result_sha256") != _sha256_file(private_record_path)
+    ):
+        raise ProductionError("evidence_seal_invalid")
+    public = public_result(private_result)
+    expected_public_file_sha256 = hashlib.sha256(_json_bytes(public)).hexdigest()
+    if seal.get("public_result_sha256") != expected_public_file_sha256:
+        raise ProductionError("evidence_seal_public_binding_invalid")
+    return seal
 
 
 def _read_private_record(path: Path) -> dict[str, Any]:
@@ -215,10 +271,12 @@ def run_production(
 ) -> dict[str, Any]:
     normalized_release = validate_release(release)
     approval_record_path = _approval_record_path(private_record_path)
+    evidence_seal_path = _evidence_seal_path(private_record_path)
     for output_path in (
         approval_record_path,
         private_record_path,
         public_record_path,
+        evidence_seal_path,
     ):
         if output_path.exists() or output_path.is_symlink():
             raise ProductionError("record_already_exists")
@@ -357,6 +415,17 @@ def run_production(
         _atomic_new_json(private_record_path, private, 0o600)
         public = public_result(private)
         _atomic_new_json(public_record_path, public, 0o600)
+        seal = {
+            "schema": EVIDENCE_SEAL_SCHEMA,
+            "status": "PASS",
+            "final_outcome": private["final_outcome"],
+            "evidence_complete": True,
+            "private_result_sha256": _sha256_file(private_record_path),
+            "public_result_sha256": _sha256_file(public_record_path),
+            "run_id_sha256": private["run_id_sha256"],
+            "board_access": False,
+        }
+        _atomic_new_json(evidence_seal_path, seal, 0o600)
     except Exception as error:
         raise ProductionError("evidence_write_failed") from error
     return private
@@ -366,14 +435,15 @@ def inspect_record(path: Path) -> dict[str, Any]:
     document = _read_private_record(path)
     if document.get("schema") != RESULT_SCHEMA:
         raise ProductionError("private_record_schema_invalid")
+    seal = _read_evidence_seal(path, document)
     return {
         "schema": RESULT_SCHEMA,
         "status": "PASS",
-        "final_outcome": document.get("final_outcome"),
+        "final_outcome": seal["final_outcome"],
         "terminal_phase": document.get("terminal_phase"),
         "device_acceptance": document.get("device_acceptance"),
         "operator_session_closed": document.get("operator_session_closed"),
-        "evidence_complete": document.get("evidence_complete"),
+        "evidence_complete": seal["evidence_complete"],
         "override_used": document.get("override_used"),
         "board_access": False,
     }
@@ -381,12 +451,14 @@ def inspect_record(path: Path) -> dict[str, Any]:
 
 def verify_record(path: Path) -> dict[str, Any]:
     document = _read_private_record(path)
+    seal = _read_evidence_seal(path, document)
     public = public_result(document)
     return {
         "schema": RESULT_SCHEMA,
         "status": "PASS",
         "private_result_sha256": _sha256_file(path),
         "public_result": public,
+        "evidence_seal": seal,
         "board_access": False,
     }
 

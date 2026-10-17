@@ -241,6 +241,7 @@ def test_public_result_is_not_written_if_private_write_fails(tmp_path, monkeypat
         )
     assert not private_path.exists()
     assert not public_path.exists()
+    assert not tool._evidence_seal_path(private_path).exists()
 
 
 def test_public_write_failure_cannot_leave_false_public_pass(tmp_path, monkeypatch):
@@ -270,6 +271,42 @@ def test_public_write_failure_cannot_leave_false_public_pass(tmp_path, monkeypat
         )
     assert private_path.is_file()
     assert not public_path.exists()
+    assert not tool._evidence_seal_path(private_path).exists()
+    with pytest.raises(tool.ProductionError, match="evidence_seal_missing"):
+        tool.inspect_record(private_path)
+
+
+def test_seal_write_failure_leaves_uncommitted_evidence_unusable(tmp_path, monkeypatch):
+    tool = load_tool()
+    backend = FakeBackend()
+    private_path = tmp_path / "private.json"
+    public_path = tmp_path / "public.json"
+    seal_path = tool._evidence_seal_path(private_path)
+    backend.approval_record_path = tool._approval_record_path(private_path)
+    original = tool._atomic_new_json
+
+    def fail_seal(path, document, mode=0o600):
+        if path == seal_path:
+            raise OSError("injected_seal_write_failure")
+        return original(path, document, mode)
+
+    monkeypatch.setattr(tool, "_atomic_new_json", fail_seal)
+    with pytest.raises(tool.ProductionError, match="evidence_write_failed"):
+        tool.run_production(
+            release(tool),
+            release_sha256="d" * 64,
+            backend=backend,
+            approval=lambda _summary: True,
+            private_record_path=private_path,
+            public_record_path=public_path,
+            now=100,
+            run_id="e" * 64,
+        )
+    assert private_path.is_file()
+    assert public_path.is_file()
+    assert not seal_path.exists()
+    with pytest.raises(tool.ProductionError, match="evidence_seal_missing"):
+        tool.inspect_record(private_path)
 
 
 def test_successful_result_files_are_created_once_without_in_place_promotion(
@@ -284,3 +321,13 @@ def test_successful_result_files_are_created_once_without_in_place_promotion(
     assert public["private_result_sha256"] == sys.modules[
         "n3w_t1_production_contract"
     ].canonical_sha256(private)
+    seal_path = tool._evidence_seal_path(tmp_path / "private.json")
+    seal = json.loads(seal_path.read_text())
+    assert seal["evidence_complete"] is True
+    assert seal["private_result_sha256"] == tool._sha256_file(
+        tmp_path / "private.json"
+    )
+    assert seal["public_result_sha256"] == tool._sha256_file(
+        tmp_path / "public.json"
+    )
+    assert tool.inspect_record(tmp_path / "private.json")["final_outcome"] == "PASS"
