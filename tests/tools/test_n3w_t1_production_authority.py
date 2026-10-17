@@ -309,3 +309,44 @@ def test_active_prior_run_blocks_new_run_id(monkeypatch, tmp_path):
                 "ssh_host_key_sha256": second["ssh_host_key_sha256"],
             },
         )
+
+
+def test_clock_rollback_stops_new_phase_claim(monkeypatch, tmp_path):
+    _contract, tool, plan, ledger = approve(monkeypatch, tmp_path)
+    with pytest.raises(tool.ProductionAuthorityError, match="run_not_claimable"):
+        tool.claim_phase(
+            plan["run_id"],
+            "HOST_BASELINE",
+            binding(plan),
+            root=ledger,
+            now=99,
+        )
+
+
+def test_impossible_phase_state_is_rejected(monkeypatch, tmp_path):
+    import json
+
+    _contract, tool, plan, ledger = approve(monkeypatch, tmp_path)
+    tool.claim_phase(
+        plan["run_id"],
+        "HOST_BASELINE",
+        binding(plan),
+        root=ledger,
+        now=101,
+    )
+    phase_path = ledger / plan["run_id"] / "phase-HOST_BASELINE.json"
+    document = json.loads(phase_path.read_text(encoding="utf-8"))
+    document["state"] = "SUCCEEDED"
+    phase_path.write_text(json.dumps(document), encoding="utf-8")
+    phase_path.chmod(0o600)
+    with pytest.raises(
+        tool.ProductionAuthorityError,
+        match="phase_record_state_invalid",
+    ):
+        tool._load_phase(ledger, plan["run_id"], "HOST_BASELINE")
+
+
+def test_approval_uses_root_ledger_lock():
+    _contract, tool = load_modules()
+    source = TOOL.read_text(encoding="utf-8")
+    assert "with _root_exclusive(root):" in source
