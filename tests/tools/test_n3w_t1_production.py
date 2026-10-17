@@ -31,9 +31,8 @@ def release(tool):
         "release_id": "0" * 64,
         "source_head": "a" * 40,
         "artifacts": {
-            "f3": {"sha256": "1" * 64},
-            "f4": {"sha256": "2" * 64},
-            "reboot": {"sha256": "3" * 64},
+            name: {"sha256": f"{index:064x}"}
+            for index, name in enumerate(contract.REQUIRED_ARTIFACT_NAMES, 1)
         },
         "environment": {
             "os": {"id": "ubuntu", "version": "26.04", "codename": "resolute"},
@@ -63,6 +62,7 @@ class FakeBackend:
         self.epochs = 0
         self.reboots = 0
         self.phases = []
+        self.preflights = 0
         self.approval_record_path = None
 
     def connect_pre_reboot(self):
@@ -73,6 +73,18 @@ class FakeBackend:
         return {
             "target_binding_sha256": "b" * 64,
             "ssh_host_key_sha256": "c" * 64,
+        }
+
+    def preflight(self, *, release, identity):
+        self.preflights += 1
+        contract = sys.modules["n3w_t1_production_contract"]
+        return {
+            "status": "PASS",
+            "read_only": True,
+            "mutation_performed": False,
+            "checks": {
+                check_id: "PASS" for check_id in contract.PREFLIGHT_CHECK_IDS
+            },
         }
 
     def approve_run(self, plan):
@@ -133,6 +145,7 @@ def test_full_run_has_one_approval_two_epochs_and_fixed_phases(tmp_path):
     assert result["status"] == "PASS"
     assert result["final_outcome"] == "PASS"
     assert backend.approvals == 1
+    assert backend.preflights == 1
     assert backend.epochs == 2
     assert backend.reboots == 1
     assert backend.phases == list(tool.PHASES)
@@ -224,3 +237,61 @@ def test_public_evidence_remains_conservative_if_final_promotion_fails(
     public = json.loads(public_path.read_text())
     assert public["evidence_complete"] is False
     assert public["final_outcome"] == "FAIL"
+
+
+def test_preflight_happens_before_operator_approval_and_target_claim(tmp_path):
+    tool = load_tool()
+    events = []
+
+    class OrderedBackend(FakeBackend):
+        def preflight(self, *, release, identity):
+            events.append("preflight")
+            return super().preflight(release=release, identity=identity)
+
+        def approve_run(self, plan):
+            events.append("target_approve")
+            return super().approve_run(plan)
+
+    backend = OrderedBackend()
+
+    def approval(_summary):
+        events.append("operator_approval")
+        return True
+
+    result = run(tmp_path, tool, backend, approval=approval)
+    assert result["status"] == "PASS"
+    assert events[:3] == ["preflight", "operator_approval", "target_approve"]
+
+
+def test_incomplete_preflight_stops_before_operator_approval(tmp_path):
+    tool = load_tool()
+    contract = sys.modules["n3w_t1_production_contract"]
+    backend = FakeBackend()
+
+    def bad_preflight(*, release, identity):
+        report = {
+            "status": "PASS",
+            "read_only": True,
+            "mutation_performed": False,
+            "checks": {
+                check_id: "PASS" for check_id in contract.PREFLIGHT_CHECK_IDS
+            },
+        }
+        report["checks"].pop("HOST.PRODUCT_ABSENT")
+        return report
+
+    backend.preflight = bad_preflight
+    approvals = []
+    try:
+        run(
+            tmp_path,
+            tool,
+            backend,
+            approval=lambda summary: approvals.append(summary) or True,
+        )
+    except tool.ProductionError as error:
+        assert str(error) == "plan_not_created"
+    else:
+        raise AssertionError("expected preflight stop")
+    assert approvals == []
+    assert backend.approvals == 0
