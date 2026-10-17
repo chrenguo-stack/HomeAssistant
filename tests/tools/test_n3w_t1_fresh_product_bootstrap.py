@@ -941,7 +941,7 @@ def test_production_apply_uses_phase_context_and_is_not_replayable(
     tmp_path: Path,
 ) -> None:
     tool = load_tool()
-    monkeypatch.setattr(tool.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(tool, "_require_production_root", lambda: None)
     ledger = tmp_path / "production-ledger"
     monkeypatch.setattr(tool, "PRODUCTION_EXECUTION_LEDGER_ROOT", ledger)
     (tmp_path / "payload-manifest.json").write_text("{}\n", encoding="utf-8")
@@ -1000,7 +1000,7 @@ def test_production_apply_failure_after_claim_is_consumed_no_replay(
     tmp_path: Path,
 ) -> None:
     tool = load_tool()
-    monkeypatch.setattr(tool.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(tool, "_require_production_root", lambda: None)
     ledger = tmp_path / "production-ledger"
     monkeypatch.setattr(tool, "PRODUCTION_EXECUTION_LEDGER_ROOT", ledger)
     (tmp_path / "payload-manifest.json").write_text("{}\n", encoding="utf-8")
@@ -1054,7 +1054,7 @@ def test_production_apply_rejects_source_mismatch_before_execution_claim(
     tmp_path: Path,
 ) -> None:
     tool = load_tool()
-    monkeypatch.setattr(tool.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(tool, "_require_production_root", lambda: None)
     ledger = tmp_path / "production-ledger"
     monkeypatch.setattr(tool, "PRODUCTION_EXECUTION_LEDGER_ROOT", ledger)
     monkeypatch.setattr(
