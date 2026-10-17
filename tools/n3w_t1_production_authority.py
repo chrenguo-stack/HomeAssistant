@@ -309,8 +309,13 @@ def _load_phase(root: Path, run_id: str, phase: str) -> dict[str, Any]:
     predecessor = binding.get("predecessor_sha256")
     if predecessor is not None:
         _sha(predecessor, "phase_record_predecessor_invalid")
+    source_head = binding.get("source_head")
+    if (
+        not isinstance(source_head, str)
+        or re.fullmatch(r"[0-9a-f]{40}", source_head) is None
+    ):
+        raise ProductionAuthorityError("phase_record_source_invalid")
     for key, code in (
-        ("source_head", "phase_record_source_invalid"),
         ("release_id", "phase_record_release_invalid"),
         ("artifact_sha256", "phase_record_artifact_invalid"),
         ("target_binding_sha256", "phase_record_target_invalid"),
