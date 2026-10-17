@@ -350,3 +350,165 @@ def test_approval_uses_root_ledger_lock():
     _contract, tool = load_modules()
     source = TOOL.read_text(encoding="utf-8")
     assert "with _root_exclusive(root):" in source
+
+
+
+def _complete_prior_phases_for_close_run(tool, plan, ledger):
+    predecessor = None
+    finalize_result = None
+    for index, phase in enumerate(tool.PHASES[:-1], 1):
+        claimed = tool.claim_phase(
+            plan["run_id"],
+            phase,
+            binding(plan, predecessor, phase),
+            root=ledger,
+            now=100 + index,
+        )
+        applying = tool.begin_phase(
+            plan["run_id"],
+            phase,
+            claimed["claim_sha256"],
+            root=ledger,
+        )
+        if phase == "FINALIZE":
+            finalize_result = {
+                "status": "PASS",
+                "production_run_id": plan["run_id"],
+                "production_phase": "FINALIZE",
+                "state": "REBOOT_ACCEPTED",
+                "device_acceptance": True,
+                "accepted_claim_sha256": "a" * 64,
+                "acceptance_report_sha256": "b" * 64,
+                "post_boot_id_sha256": "c" * 64,
+                "authorization_consumed": True,
+                "replay_allowed": False,
+                "board_access": False,
+            }
+            result_sha = tool.canonical_sha256(finalize_result)
+        else:
+            result_sha = f"{index:064x}"
+        completed = tool.complete_phase(
+            plan["run_id"],
+            phase,
+            applying["claim_sha256"],
+            result_sha,
+            root=ledger,
+        )
+        predecessor = completed["claim_sha256"]
+    assert finalize_result is not None
+    return predecessor, finalize_result
+
+
+def test_close_run_requires_bound_finalize_and_closes_target_only(
+    monkeypatch,
+    tmp_path,
+):
+    _contract, tool, plan, ledger = approve(monkeypatch, tmp_path)
+    predecessor, finalize_result = _complete_prior_phases_for_close_run(
+        tool,
+        plan,
+        ledger,
+    )
+    claimed = tool.claim_phase(
+        plan["run_id"],
+        "CLOSE_RUN",
+        binding(plan, predecessor, "CLOSE_RUN"),
+        root=ledger,
+        now=120,
+    )
+    applying = tool.begin_phase(
+        plan["run_id"],
+        "CLOSE_RUN",
+        claimed["claim_sha256"],
+        root=ledger,
+    )
+
+    report = tool.close_run(
+        plan["run_id"],
+        applying["claim_sha256"],
+        finalize_result,
+        root=ledger,
+    )
+
+    assert report["status"] == "PASS"
+    assert report["target_run_terminal"] is True
+    assert report["target_terminal_state"] == "PASS"
+    assert report["device_acceptance"] is True
+    assert report["evidence_complete"] is True
+    assert report["operator_session_closed_claimed"] is False
+    inspected = tool.inspect_run(plan["run_id"], root=ledger)
+    assert inspected["state"] == "TERMINAL"
+    assert inspected["terminal_state"] == "PASS"
+    assert inspected["last_completed_phase"] == "CLOSE_RUN"
+
+
+def test_generic_complete_cannot_bypass_close_run(monkeypatch, tmp_path):
+    _contract, tool, plan, ledger = approve(monkeypatch, tmp_path)
+    predecessor, _finalize_result = _complete_prior_phases_for_close_run(
+        tool,
+        plan,
+        ledger,
+    )
+    claimed = tool.claim_phase(
+        plan["run_id"],
+        "CLOSE_RUN",
+        binding(plan, predecessor, "CLOSE_RUN"),
+        root=ledger,
+        now=120,
+    )
+    applying = tool.begin_phase(
+        plan["run_id"],
+        "CLOSE_RUN",
+        claimed["claim_sha256"],
+        root=ledger,
+    )
+
+    with pytest.raises(
+        tool.ProductionAuthorityError,
+        match="close_run_requires_specialized_closure",
+    ):
+        tool.complete_phase(
+            plan["run_id"],
+            "CLOSE_RUN",
+            applying["claim_sha256"],
+            "f" * 64,
+            root=ledger,
+        )
+
+    inspected = tool.inspect_run(plan["run_id"], root=ledger)
+    assert inspected["terminal_state"] is None
+
+
+def test_close_run_rejects_unbound_finalize_result(monkeypatch, tmp_path):
+    _contract, tool, plan, ledger = approve(monkeypatch, tmp_path)
+    predecessor, finalize_result = _complete_prior_phases_for_close_run(
+        tool,
+        plan,
+        ledger,
+    )
+    claimed = tool.claim_phase(
+        plan["run_id"],
+        "CLOSE_RUN",
+        binding(plan, predecessor, "CLOSE_RUN"),
+        root=ledger,
+        now=120,
+    )
+    applying = tool.begin_phase(
+        plan["run_id"],
+        "CLOSE_RUN",
+        claimed["claim_sha256"],
+        root=ledger,
+    )
+    drifted = dict(finalize_result)
+    drifted["accepted_claim_sha256"] = "d" * 64
+
+    with pytest.raises(
+        tool.ProductionAuthorityError,
+        match="close_run_finalize_result_binding_mismatch",
+    ):
+        tool.close_run(
+            plan["run_id"],
+            applying["claim_sha256"],
+            drifted,
+            root=ledger,
+        )

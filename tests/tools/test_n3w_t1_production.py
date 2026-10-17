@@ -56,9 +56,15 @@ def release(tool):
 
 
 class FakeBackend:
-    def __init__(self, finalize_accepts=True, close_ok=True):
+    def __init__(
+        self,
+        finalize_accepts=True,
+        close_ok=True,
+        target_close_ok=True,
+    ):
         self.finalize_accepts = finalize_accepts
         self.close_ok = close_ok
+        self.target_close_ok = target_close_ok
         self.approvals = 0
         self.epochs = 0
         self.reboots = 0
@@ -107,6 +113,18 @@ class FakeBackend:
         }
         if phase == "FINALIZE":
             report["device_acceptance"] = self.finalize_accepts
+        if phase == "CLOSE_RUN":
+            report.update(
+                {
+                    "target_run_terminal": self.target_close_ok,
+                    "target_terminal_state": (
+                        "PASS" if self.target_close_ok else None
+                    ),
+                    "device_acceptance": self.finalize_accepts,
+                    "evidence_complete": self.target_close_ok,
+                    "operator_session_closed_claimed": False,
+                }
+            )
         return report
 
     def transition_reboot(self):
@@ -331,3 +349,27 @@ def test_successful_result_files_are_created_once_without_in_place_promotion(
         tmp_path / "public.json"
     )
     assert tool.inspect_record(tmp_path / "private.json")["final_outcome"] == "PASS"
+
+
+
+def test_close_run_requires_target_terminal_proof(tmp_path):
+    tool = load_tool()
+    result = run(
+        tmp_path,
+        tool,
+        FakeBackend(target_close_ok=False),
+    )
+    assert result["status"] == "FAIL"
+    assert result["device_acceptance"] is True
+    assert result["failure_code"] == "target_run_not_closed"
+
+
+def test_target_close_does_not_claim_operator_session_cleanup(tmp_path):
+    tool = load_tool()
+    result = run(tmp_path, tool, FakeBackend(close_ok=False))
+    close_report = result["phase_reports"]["CLOSE_RUN"]
+    assert close_report["target_run_terminal"] is True
+    assert close_report["operator_session_closed_claimed"] is False
+    assert result["device_acceptance"] is True
+    assert result["operator_session_closed"] is False
+    assert result["final_outcome"] == "FAIL"

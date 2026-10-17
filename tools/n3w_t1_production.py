@@ -360,6 +360,16 @@ def run_production(
                 if report.get("device_acceptance") is not True:
                     raise ProductionError("device_acceptance_not_proven")
                 device_acceptance = True
+            if phase == "CLOSE_RUN":
+                if (
+                    report.get("target_run_terminal") is not True
+                    or report.get("target_terminal_state") != "PASS"
+                    or report.get("device_acceptance") is not True
+                    or report.get("evidence_complete") is not True
+                    or report.get("operator_session_closed_claimed")
+                    is not False
+                ):
+                    raise ProductionError("target_run_not_closed")
 
         if terminal_phase != "CLOSE_RUN":
             raise ProductionError("run_terminal_phase_missing")

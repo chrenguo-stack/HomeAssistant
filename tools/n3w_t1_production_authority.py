@@ -25,6 +25,7 @@ from n3w_t1_production_contract import (
 RUN_SCHEMA = "gh.n3w-t1-production-run-authority/1"
 PHASE_SCHEMA = "gh.n3w-t1-production-phase-claim/1"
 CONTEXT_SCHEMA = "gh.n3w-t1-production-phase-context/1"
+CLOSE_RUN_EVIDENCE_SCHEMA = "gh.n3w-t1-production-close-run-evidence/1"
 LEDGER_ROOT = Path("/var/lib/n3w-t1-production-runs")
 MACHINE_ID_PATH = Path("/etc/machine-id")
 SSH_HOST_PUBLIC_KEY = Path("/etc/ssh/ssh_host_ed25519_key.pub")
@@ -634,6 +635,8 @@ def complete_phase(
     *,
     root: Path = LEDGER_ROOT,
 ) -> dict[str, Any]:
+    if phase == "CLOSE_RUN":
+        raise ProductionAuthorityError("close_run_requires_specialized_closure")
     expected = _sha(expected_claim_sha256, "phase_claim_sha256_invalid")
     result_digest = _sha(result_sha256, "phase_result_sha256_invalid")
     with _exclusive(root, run_id):
@@ -664,6 +667,134 @@ def complete_phase(
         "phase": phase,
         "claim_sha256": final_sha,
         "result_sha256": result_digest,
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "board_access": False,
+    }
+
+
+def close_run(
+    run_id: str,
+    expected_claim_sha256: str,
+    finalize_result: object,
+    *,
+    root: Path = LEDGER_ROOT,
+) -> dict[str, Any]:
+    _require_root()
+    expected = _sha(expected_claim_sha256, "phase_claim_sha256_invalid")
+    if not isinstance(finalize_result, dict):
+        raise ProductionAuthorityError("close_run_finalize_result_invalid")
+    if (
+        finalize_result.get("status") != "PASS"
+        or finalize_result.get("production_run_id") != run_id
+        or finalize_result.get("production_phase") != "FINALIZE"
+        or finalize_result.get("state") != "REBOOT_ACCEPTED"
+        or finalize_result.get("device_acceptance") is not True
+        or finalize_result.get("authorization_consumed") is not True
+        or finalize_result.get("replay_allowed") is not False
+        or finalize_result.get("board_access") is not False
+        or SHA256_RE.fullmatch(
+            str(finalize_result.get("accepted_claim_sha256"))
+        )
+        is None
+        or SHA256_RE.fullmatch(
+            str(finalize_result.get("acceptance_report_sha256"))
+        )
+        is None
+        or SHA256_RE.fullmatch(
+            str(finalize_result.get("post_boot_id_sha256"))
+        )
+        is None
+    ):
+        raise ProductionAuthorityError("close_run_finalize_result_invalid")
+    finalize_result_sha256 = canonical_sha256(finalize_result)
+
+    with _exclusive(root, run_id):
+        run = _load_run(root, run_id)
+        if (
+            run.get("terminal_state") is not None
+            or run.get("state") != "IN_PROGRESS"
+        ):
+            raise ProductionAuthorityError("close_run_prestate_invalid")
+
+        for prior_phase in PHASES[:-1]:
+            prior_path = _phase_path(root, run_id, prior_phase)
+            prior = _load_phase(root, run_id, prior_phase)
+            if (
+                prior.get("state") != "SUCCEEDED"
+                or prior.get("authorization_consumed") is not True
+                or prior.get("replay_allowed") is not False
+                or prior.get("failure_code") is not None
+                or SHA256_RE.fullmatch(str(prior.get("result_sha256")))
+                is None
+            ):
+                raise ProductionAuthorityError(
+                    f"close_run_prior_phase_invalid:{prior_phase}"
+                )
+
+        finalize_path = _phase_path(root, run_id, "FINALIZE")
+        finalize_phase = _load_phase(root, run_id, "FINALIZE")
+        if finalize_phase.get("result_sha256") != finalize_result_sha256:
+            raise ProductionAuthorityError(
+                "close_run_finalize_result_binding_mismatch"
+            )
+
+        path = _phase_path(root, run_id, "CLOSE_RUN")
+        if _sha256_file(path) != expected:
+            raise ProductionAuthorityError("phase_claim_sha256_mismatch")
+        record = _load_phase(root, run_id, "CLOSE_RUN")
+        if (
+            record.get("state") != "APPLYING"
+            or record.get("authorization_consumed") is not True
+            or record.get("replay_allowed") is not False
+            or record.get("binding", {}).get("predecessor_sha256")
+            != _sha256_file(finalize_path)
+        ):
+            raise ProductionAuthorityError("close_run_claim_invalid")
+
+        close_evidence = {
+            "schema": CLOSE_RUN_EVIDENCE_SCHEMA,
+            "run_id": run_id,
+            "target_binding_sha256": run["plan"]["target_binding_sha256"],
+            "finalize_result_sha256": finalize_result_sha256,
+            "device_acceptance": True,
+            "evidence_complete": True,
+            "override_check_ids": [],
+            "operator_session_closed_claimed": False,
+            "board_access": False,
+        }
+        close_result_sha256 = canonical_sha256(close_evidence)
+        current = int(time.time())
+        updated_phase = dict(record)
+        updated_phase["state"] = "SUCCEEDED"
+        updated_phase["result_sha256"] = close_result_sha256
+        updated_phase["updated_at"] = current
+        _replace(path, updated_phase)
+        final_phase_sha256 = _sha256_file(path)
+
+        updated_run = dict(run)
+        updated_run["state"] = "TERMINAL"
+        updated_run["last_completed_phase"] = "CLOSE_RUN"
+        updated_run["terminal_state"] = "PASS"
+        updated_run["failure_class"] = None
+        updated_run["updated_at"] = current
+        _replace(_run_path(root, run_id), updated_run)
+
+    return {
+        "schema": CLOSE_RUN_EVIDENCE_SCHEMA,
+        "status": "PASS",
+        "phase": "CLOSE_RUN",
+        "state": "SUCCEEDED",
+        "run_id": run_id,
+        "claim_sha256": final_phase_sha256,
+        "result_sha256": close_result_sha256,
+        "finalize_result_sha256": finalize_result_sha256,
+        "target_run_terminal": True,
+        "target_terminal_state": "PASS",
+        "device_acceptance": True,
+        "evidence_complete": True,
+        "override_check_ids": [],
+        "operator_session_closed_claimed": False,
         "authorization_consumed": True,
         "replay_allowed": False,
         "board_access": False,
@@ -775,6 +906,10 @@ def _parser() -> argparse.ArgumentParser:
     complete.add_argument("--phase", choices=PHASES, required=True)
     complete.add_argument("--expected-claim-sha256", required=True)
     complete.add_argument("--result-sha256", required=True)
+    close = sub.add_parser("close-run")
+    close.add_argument("--run-id", required=True)
+    close.add_argument("--expected-claim-sha256", required=True)
+    close.add_argument("--finalize-result", type=Path, required=True)
     fail = sub.add_parser("fail")
     fail.add_argument("--run-id", required=True)
     fail.add_argument("--phase", choices=PHASES, required=True)
@@ -813,6 +948,12 @@ def main(argv: list[str] | None = None) -> int:
                 args.phase,
                 args.expected_claim_sha256,
                 args.result_sha256,
+            )
+        elif args.command == "close-run":
+            document = close_run(
+                args.run_id,
+                args.expected_claim_sha256,
+                _load_json(args.finalize_result),
             )
         else:
             document = fail_phase(
