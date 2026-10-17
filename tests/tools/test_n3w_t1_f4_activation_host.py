@@ -4210,6 +4210,11 @@ def test_production_persist_cert_runs_existing_primitives_in_order_once(
         "_validate_runtime_acceptance_binding",
         lambda _transaction: {"status": "PASS"},
     )
+    monkeypatch.setattr(
+        tool,
+        "_read_private_record",
+        lambda path: json.loads(path.read_text(encoding="utf-8")),
+    )
     calls: list[tuple[str, str]] = []
     ids = tool._production_persist_cert_authorization_ids(context)
 
@@ -4250,6 +4255,22 @@ def test_production_persist_cert_runs_existing_primitives_in_order_once(
             "certificate_timer_active_before_reboot": False,
             "pre_reboot_ready": True,
             "production_service_start": True,
+            "persistence_authorization_id": ids["persistence"],
+            "persistence_authorization_claimed": True,
+            "persistence_authorization_consumed": True,
+            "persistence_authorization_replay_allowed": False,
+            "certificate_audit_authorization_id": (
+                ids["certificate_audit"]
+            ),
+            "certificate_audit_authorization_claimed": True,
+            "certificate_audit_authorization_consumed": True,
+            "certificate_audit_authorization_replay_allowed": False,
+            "certificate_timer_authorization_id": (
+                ids["certificate_timer"]
+            ),
+            "certificate_timer_authorization_claimed": True,
+            "certificate_timer_authorization_consumed": True,
+            "certificate_timer_authorization_replay_allowed": False,
         }
         transaction_path.write_text(
             json.dumps(final_transaction, sort_keys=True) + "\n",

@@ -1190,6 +1190,7 @@ def _complete_production_persist_cert(
         if path.is_symlink() or not path.is_file():
             raise F4Error("production_persist_cert_durable_record_missing")
     transaction = _read_private_record(TRANSACTION_PATH)
+    authorizations = _production_persist_cert_authorization_ids(context)
     if (
         transaction.get("stage") != "PERSISTENCE_ENABLED"
         or transaction.get("broker_services_persistence_enabled") is not True
@@ -1200,8 +1201,32 @@ def _complete_production_persist_cert(
         is not False
         or transaction.get("pre_reboot_ready") is not True
         or transaction.get("production_service_start") is not True
+        or transaction.get("runtime_acceptance_report_sha256")
+        != _sha256_file(RUNTIME_ACCEPTANCE_PATH)
         or transaction.get("certificate_status_sha256")
         != _sha256_file(CERT_STATUS_FILE)
+        or transaction.get("persistence_authorization_id")
+        != authorizations["persistence"]
+        or transaction.get("persistence_authorization_claimed") is not True
+        or transaction.get("persistence_authorization_consumed") is not True
+        or transaction.get("persistence_authorization_replay_allowed")
+        is not False
+        or transaction.get("certificate_audit_authorization_id")
+        != authorizations["certificate_audit"]
+        or transaction.get("certificate_audit_authorization_claimed")
+        is not True
+        or transaction.get("certificate_audit_authorization_consumed")
+        is not True
+        or transaction.get("certificate_audit_authorization_replay_allowed")
+        is not False
+        or transaction.get("certificate_timer_authorization_id")
+        != authorizations["certificate_timer"]
+        or transaction.get("certificate_timer_authorization_claimed")
+        is not True
+        or transaction.get("certificate_timer_authorization_consumed")
+        is not True
+        or transaction.get("certificate_timer_authorization_replay_allowed")
+        is not False
     ):
         raise F4Error("production_persist_cert_final_state_invalid")
     record = {
