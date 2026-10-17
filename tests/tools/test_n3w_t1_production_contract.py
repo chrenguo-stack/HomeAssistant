@@ -114,6 +114,7 @@ def test_public_result_drops_non_allowlisted_material():
     public = tool.public_result(private)
     assert "internal_material" not in public
     assert public["final_outcome"] == "PASS"
+    assert public["private_result_sha256"] == tool.canonical_sha256(private)
 
 
 def test_unknown_check_pass_is_still_hard_stop():
