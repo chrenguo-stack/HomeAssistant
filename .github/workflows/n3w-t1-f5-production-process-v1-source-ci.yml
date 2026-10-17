@@ -87,8 +87,19 @@ jobs:
           }
           trap cleanup EXIT
 
-          if sudo ss -ltn | grep -Eq 'LISTEN.+:22[[:space:]]'; then
-            echo "port 22 already in use"
+          sudo systemctl stop ssh.socket ssh.service 2>/dev/null || true
+          sudo service ssh stop 2>/dev/null || true
+          port_free=false
+          for _ in $(seq 1 20); do
+            if ! sudo ss -ltn | grep -Eq 'LISTEN.+:22[[:space:]]'; then
+              port_free=true
+              break
+            fi
+            sleep 0.25
+          done
+          if [[ "$port_free" != "true" ]]; then
+            sudo ss -ltnp || true
+            echo "port 22 still in use after stopping runner ssh service"
             exit 1
           fi
           sudo /usr/sbin/sshd -t -f "$SSHD_DIR/sshd_config"
