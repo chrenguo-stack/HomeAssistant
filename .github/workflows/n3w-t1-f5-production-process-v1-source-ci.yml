@@ -46,7 +46,8 @@ jobs:
 
           SSHD_DIR="$RUNNER_TEMP/n3w-f5-sshd"
           TEST_USER="n3wf5ci"
-          TEST_PASSWORD="n3w-ci-password-2026"
+          TEST_PASSWORD="$(openssl rand -hex 24)"
+          echo "::add-mask::$TEST_PASSWORD"
           mkdir -p "$SSHD_DIR"
           ssh-keygen -q -t ed25519 -N "" -f "$SSHD_DIR/ssh_host_ed25519_key"
           sudo chown root:root "$SSHD_DIR/ssh_host_ed25519_key"
