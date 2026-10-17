@@ -1,3 +1,17 @@
+## 2026-10-17 — F5 F4_PREPARE phase-context minimal integration CLOSED_PASS
+
+- PR #612 remains Draft/open and unmerged.
+- Source closure head: `f4e3a76d5c5ab9259f9e3d53ed57fb6b9626f527`.
+- Normal F5 F4_PREPARE now requires exact target-validated `F4_PREPARE` phase context.
+- No second human approval is introduced; the F5 adapter derives the internal F4 authorization identifier from the approved production run.
+- A durable non-replayable local execution claim is written before the existing F4 prepare mutation.
+- Successful prepare is hash-bound to `FACTORY_ACCEPTED.json` and `F4_ACTIVATION_TRANSACTION.json`.
+- Existing F4 prepare business logic is reused; F4_ACTIVATE, runtime acceptance, persistence, certificate and reboot paths were not changed by this gate.
+- F5 source CI, fresh-bootstrap deployable payload CI, F4 activation source CI and F4 exact-control-package CI all passed on the closure head.
+- No T1 access, T1 mutation, board access or merge occurred.
+- Next gate: `N3W_T1_F5_PRODUCTION_PROCESS_V1_F4_ACTIVATE_PHASE_CONTEXT_MINIMAL_INTEGRATION_20261017_01`.
+- Authority: `docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_F4_PREPARE_PHASE_CONTEXT_MINIMAL_INTEGRATION_CLOSURE_20261017.md`.
+
 ## 2026-10-17 — F5 V1 source work-package preparation CLOSED_PASS
 
 - Fresh main remains `9c81b889d97ed896b80d27af15069d16af0e0bdb`; no drift was observed.
