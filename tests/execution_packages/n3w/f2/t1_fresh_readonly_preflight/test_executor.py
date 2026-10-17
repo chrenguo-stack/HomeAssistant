@@ -506,3 +506,61 @@ def test_source_has_no_t1_mutation_commands():
     assert '"numberofpasswordprompts=1"' in source
     assert '"preferredauthentications=publickey,password"' in source
     assert '"batchmode=yes"' not in source
+
+
+
+def test_production_preflight_requires_managed_ssh(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_executor()
+    args = tool.parser().parse_args(
+        [
+            "--execute",
+            "--target",
+            "root@t1.local",
+            "--evidence-root",
+            str(tmp_path / "evidence"),
+            "--confirm",
+            tool.CONFIRMATION,
+            "--production-release",
+            str(tmp_path / "release.json"),
+            "--production-f3-artifact",
+            str(tmp_path / "artifact.zip"),
+        ]
+    )
+    monkeypatch.delenv("N3W_T1_SSH_MANAGED_REQUIRED", raising=False)
+    with pytest.raises(tool.StopExecution, match="managed_ssh_transport_required"):
+        tool.execute_production(args)
+
+
+def test_production_package_policy_rejects_visible_version_drift() -> None:
+    tool = load_executor()
+    release = {
+        "environment": {
+            "packages": {
+                "docker.io": "1.0",
+                "docker-compose-v2": "2.0",
+            }
+        }
+    }
+    supplement = {
+        "package_candidates": {
+            "docker.io": "1.1",
+            "docker-compose-v2": "2.0",
+        },
+        "apt": {
+            "lists_file_count": 10,
+            "source": {
+                "ubuntu_ports": True,
+                "resolute": True,
+                "universe": True,
+            },
+        },
+    }
+    capacity = {"host_baseline": {"status": "MISSING"}}
+    assert tool._production_package_policy_failures(
+        release,
+        supplement,
+        capacity,
+    ) == ["approved_package_version"]
