@@ -1,3 +1,16 @@
+## 2026-10-17 — F5 FINALIZE phase-context minimal integration CLOSED_PASS
+
+- PR #612 remains Draft/open and unmerged.
+- Source closure head: `894a26e2e2f7dcc98ae1340abb0712d286634c57`.
+- Normal F5 FINALIZE requires exact target phase context, same-run reboot actuation, an actual new boot, and unchanged F4 transaction.
+- Existing F4 reboot-acceptance finalizer and terminal verifier remain authoritative.
+- device_acceptance=true is returned only after durable REBOOT_ACCEPTED verification.
+- FINALIZE is one-shot/non-replayable after its local production claim.
+- CI on the closure head is PASS 17/17.
+- No T1 access, T1 mutation, live reboot, board access or merge occurred.
+- Next gate: `N3W_T1_F5_PRODUCTION_PROCESS_V1_CLOSE_RUN_MINIMAL_INTEGRATION_20261017_01`.
+- Authority: `docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_FINALIZE_PHASE_CONTEXT_MINIMAL_INTEGRATION_CLOSURE_20261017.md`.
+
 ## 2026-10-17 — F5 REBOOT_CONTROL phase-context minimal integration CLOSED_PASS
 
 - PR #612 remains Draft/open and unmerged.

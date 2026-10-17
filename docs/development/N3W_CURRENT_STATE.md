@@ -1,3 +1,37 @@
+## 2026-10-17 — F5 FINALIZE phase-context minimal integration CLOSED_PASS
+
+~~~text
+TASK=N3W_T1_F5_PRODUCTION_PROCESS_V1_FINALIZE_PHASE_CONTEXT_MINIMAL_INTEGRATION_20261017_01
+RESULT=CLOSED_PASS
+
+PR=612
+SOURCE_HEAD=894a26e2e2f7dcc98ae1340abb0712d286634c57
+CI_RESULT=PASS:17/17
+
+NORMAL_F5_FINALIZE_REQUIRES_PRODUCTION_PHASE_CONTEXT=true
+SAME_RUN_REBOOT_ACTUATION_REQUIRED=true
+REBOOT_ACTUATION_ATTEMPTED_REQUIRED=true
+NEW_BOOT_ID_REQUIRED=true
+F4_TRANSACTION_UNCHANGED=true
+EXISTING_REBOOT_FINALIZER_REUSED=true
+EXISTING_REBOOT_TERMINAL_VERIFY_REUSED=true
+DEVICE_ACCEPTANCE_ONLY_AFTER_TERMINAL_VERIFY=true
+REPLAY_ALLOWED=false
+
+T1_ACCESS=false
+T1_MUTATION=false
+LIVE_REBOOT=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_F5_PRODUCTION_PROCESS_V1_CLOSE_RUN_MINIMAL_INTEGRATION_20261017_01
+~~~
+
+F5 FINALIZE now binds the same production run and actuation-marked REBOOT_PENDING claim to the existing durable F4 reboot finalizer and terminal verifier. It requires an actual new boot, preserves the frozen F4 transaction binding, and returns device_acceptance=true only after REBOOT_ACCEPTED is durably verified. All 17 observed CI workflows passed on the closure head.
+
+Authority:
+`docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_FINALIZE_PHASE_CONTEXT_MINIMAL_INTEGRATION_CLOSURE_20261017.md`.
+
 ## 2026-10-17 — F5 REBOOT_CONTROL phase-context minimal integration CLOSED_PASS
 
 ~~~text
