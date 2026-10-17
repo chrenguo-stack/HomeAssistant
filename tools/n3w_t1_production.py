@@ -354,9 +354,9 @@ def run_production(
         "approval_record_sha256": approval_record_sha256,
     }
     try:
+        _atomic_new_json(private_record_path, private, 0o600)
         public = public_result(private)
         _atomic_new_json(public_record_path, public, 0o600)
-        _atomic_new_json(private_record_path, private, 0o600)
     except Exception as error:
         raise ProductionError("evidence_write_failed") from error
     return private
