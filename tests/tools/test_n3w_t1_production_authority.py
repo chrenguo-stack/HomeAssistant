@@ -61,35 +61,40 @@ def binding(plan, predecessor=None):
 def approve(monkeypatch, tmp_path):
     contract, tool = load_modules()
     monkeypatch.setattr(tool, "_require_root", lambda: None)
-    monkeypatch.setattr(tool.os, "geteuid", lambda: 0)
+    ledger = tmp_path / "ledger"
     plan = make_plan(contract)
     tool.approve_run(
         plan,
-        root=tmp_path,
+        root=ledger,
         now=100,
         identity={
             "target_binding_sha256": plan["target_binding_sha256"],
             "ssh_host_key_sha256": plan["ssh_host_key_sha256"],
         },
     )
-    return contract, tool, plan
+    return contract, tool, plan, ledger
 
 
 def test_arbitrary_id_is_not_authorization(monkeypatch, tmp_path):
     _contract, tool = load_modules()
     monkeypatch.setattr(tool, "_require_root", lambda: None)
-    monkeypatch.setattr(tool.os, "geteuid", lambda: 0)
     with pytest.raises(tool.ProductionAuthorityError):
-        tool.claim_phase("8" * 64, "HOST_BASELINE", {}, root=tmp_path, now=101)
+        tool.claim_phase(
+            "8" * 64,
+            "HOST_BASELINE",
+            {},
+            root=tmp_path / "ledger",
+            now=101,
+        )
 
 
 def test_duplicate_claim_is_no_replay(monkeypatch, tmp_path):
-    _contract, tool, plan = approve(monkeypatch, tmp_path)
+    _contract, tool, plan, ledger = approve(monkeypatch, tmp_path)
     first = tool.claim_phase(
         plan["run_id"],
         "HOST_BASELINE",
         binding(plan),
-        root=tmp_path,
+        root=ledger,
         now=101,
     )
     assert first["replay_allowed"] is False
@@ -98,49 +103,49 @@ def test_duplicate_claim_is_no_replay(monkeypatch, tmp_path):
             plan["run_id"],
             "HOST_BASELINE",
             binding(plan),
-            root=tmp_path,
+            root=ledger,
             now=102,
         )
 
 
 def test_context_requires_exact_applying_claim(monkeypatch, tmp_path):
-    _contract, tool, plan = approve(monkeypatch, tmp_path)
+    _contract, tool, plan, ledger = approve(monkeypatch, tmp_path)
     claimed = tool.claim_phase(
         plan["run_id"],
         "HOST_BASELINE",
         binding(plan),
-        root=tmp_path,
+        root=ledger,
         now=101,
     )
     applying = tool.begin_phase(
         plan["run_id"],
         "HOST_BASELINE",
         claimed["claim_sha256"],
-        root=tmp_path,
+        root=ledger,
     )
-    context = tool.phase_context(plan["run_id"], "HOST_BASELINE", root=tmp_path)
+    context = tool.phase_context(plan["run_id"], "HOST_BASELINE", root=ledger)
     assert context["claim_sha256"] == applying["claim_sha256"]
     assert tool.validate_phase_context(
         context,
         required_phase="HOST_BASELINE",
-        root=tmp_path,
+        root=ledger,
     )["status"] == "PASS"
 
 
 def test_unknown_is_terminal_and_not_reusable(monkeypatch, tmp_path):
-    _contract, tool, plan = approve(monkeypatch, tmp_path)
+    _contract, tool, plan, ledger = approve(monkeypatch, tmp_path)
     claimed = tool.claim_phase(
         plan["run_id"],
         "HOST_BASELINE",
         binding(plan),
-        root=tmp_path,
+        root=ledger,
         now=101,
     )
     applying = tool.begin_phase(
         plan["run_id"],
         "HOST_BASELINE",
         claimed["claim_sha256"],
-        root=tmp_path,
+        root=ledger,
     )
     failed = tool.fail_phase(
         plan["run_id"],
@@ -148,7 +153,7 @@ def test_unknown_is_terminal_and_not_reusable(monkeypatch, tmp_path):
         applying["claim_sha256"],
         state="UNKNOWN",
         failure_code="lost_reply",
-        root=tmp_path,
+        root=ledger,
     )
     assert failed["replay_allowed"] is False
     with pytest.raises(tool.ProductionAuthorityError):
@@ -156,6 +161,6 @@ def test_unknown_is_terminal_and_not_reusable(monkeypatch, tmp_path):
             plan["run_id"],
             "F3_DEPLOY",
             binding(plan),
-            root=tmp_path,
+            root=ledger,
             now=103,
         )

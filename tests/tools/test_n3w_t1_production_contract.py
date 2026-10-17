@@ -90,7 +90,7 @@ def test_hard_stop_and_unknown_check_cannot_be_overridden():
         assert decision["severity"] == "HARD_STOP"
 
 
-def test_public_result_drops_private_material():
+def test_public_result_drops_non_allowlisted_material():
     tool = load_tool()
     private = {
         "schema": tool.RESULT_SCHEMA,
@@ -110,10 +110,8 @@ def test_public_result_drops_private_material():
         "terminal_phase": "CLOSE_RUN",
         "board_access": False,
         "production_service_start": True,
-        "private_password": "x",
-        "raw_target": "10.0.0.2",
+        "internal_material": "example.invalid",
     }
     public = tool.public_result(private)
-    assert "private_password" not in public
-    assert "raw_target" not in public
+    assert "internal_material" not in public
     assert public["final_outcome"] == "PASS"
