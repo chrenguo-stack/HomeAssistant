@@ -32,6 +32,7 @@ def release(tool):
         "environment": {
             "os": {"id": "ubuntu", "version": "26.04", "codename": "resolute"},
             "architecture": "aarch64",
+            "package_source": "ubuntu_apt",
             "packages": {
                 "docker.io": "28.2.2-0ubuntu1",
                 "docker-compose-v2": "2.37.1+ds1-1",

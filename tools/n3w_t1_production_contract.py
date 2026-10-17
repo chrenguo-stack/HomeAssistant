@@ -230,7 +230,7 @@ def validate_release(document: object) -> dict[str, Any]:
         raise ProductionContractError("release_environment_invalid")
     _exact(
         environment,
-        {"os", "architecture", "packages"},
+        {"os", "architecture", "package_source", "packages"},
         "release_environment_fields_invalid",
     )
     os_record = environment.get("os")
@@ -244,6 +244,8 @@ def validate_release(document: object) -> dict[str, Any]:
         raise ProductionContractError("release_os_value_invalid")
     if environment.get("architecture") not in {"aarch64", "arm64"}:
         raise ProductionContractError("release_architecture_invalid")
+    if environment.get("package_source") != "ubuntu_apt":
+        raise ProductionContractError("release_package_source_invalid")
     packages = environment.get("packages")
     if not isinstance(packages, dict) or set(packages) != {
         "docker.io",
@@ -265,6 +267,7 @@ def validate_release(document: object) -> dict[str, Any]:
         "environment": {
             "os": dict(os_record),
             "architecture": environment["architecture"],
+            "package_source": environment["package_source"],
             "packages": dict(packages),
         },
         "check_policy": policy,
