@@ -5,6 +5,7 @@ import importlib.util
 import json
 import os
 import sys
+import types
 from contextlib import nullcontext
 from pathlib import Path
 
@@ -59,6 +60,7 @@ def test_command_surface_has_no_provisioning_replay_authority() -> None:
     )
     assert 'subparsers.add_parser("audit")' in source
     assert 'subparsers.add_parser("prepare")' in source
+    assert '"--production-phase-context"' in source
     assert 'subparsers.add_parser("activate")' in source
     assert 'subparsers.add_parser("repair-prepared-control")' in source
     assert '"repair-prepared-activation-authority"' in source
@@ -3460,3 +3462,268 @@ def test_prepared_authorization_history_repair_rejects_non_null_history(
             "f" * 64,
             "1" * 40,
         )
+
+
+
+def _production_context(tool):
+    binding = {
+        "source_head": "c" * 40,
+        "release_id": "d" * 64,
+        "artifact_sha256": "e" * 64,
+        "predecessor_sha256": "f" * 64,
+        "target_binding_sha256": "1" * 64,
+    }
+    return {
+        "schema": "gh.n3w-t1-production-phase-context/1",
+        "run_id": "2" * 64,
+        "phase": tool.PRODUCTION_PHASE,
+        "claim_sha256": "3" * 64,
+        "plan_sha256": "4" * 64,
+        "binding": binding,
+        "binding_sha256": "5" * 64,
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "board_access": False,
+    }
+
+
+def _install_fake_production_authority(monkeypatch, context):
+    authority = types.ModuleType("n3w_t1_production_authority")
+
+    def validate_phase_context(document, *, required_phase):
+        assert document == context
+        assert required_phase == "F4_PREPARE"
+        return {
+            "status": "PASS",
+            "run_id": context["run_id"],
+            "phase": context["phase"],
+            "claim_sha256": context["claim_sha256"],
+            "authorization_consumed": True,
+            "replay_allowed": False,
+            "board_access": False,
+        }
+
+    authority.validate_phase_context = validate_phase_context
+    monkeypatch.setitem(
+        sys.modules,
+        "n3w_t1_production_authority",
+        authority,
+    )
+
+
+def test_production_prepare_uses_phase_context_once_without_second_confirmation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    context = _production_context(tool)
+    context_path = tmp_path / "phase-context.json"
+    context_path.write_text(json.dumps(context), encoding="utf-8")
+    _install_fake_production_authority(monkeypatch, context)
+    ledger = tmp_path / "ledger"
+    factory = tmp_path / "FACTORY_ACCEPTED.json"
+    transaction = tmp_path / "F4_ACTIVATION_TRANSACTION.json"
+    monkeypatch.setattr(tool, "PRODUCTION_EXECUTION_LEDGER_ROOT", ledger)
+    monkeypatch.setattr(tool, "FACTORY_ACCEPTED_PATH", factory)
+    monkeypatch.setattr(tool, "TRANSACTION_PATH", transaction)
+    monkeypatch.setattr(
+        tool,
+        "_validate_package",
+        lambda *_args, **_kwargs: package_binding(tool),
+    )
+    calls = 0
+
+    def prepare(
+        _package_root,
+        confirmation,
+        authorization_id,
+        _manifest_sha256,
+        _source_head,
+    ):
+        nonlocal calls
+        calls += 1
+        assert confirmation == tool.PREPARE_CONFIRMATION
+        assert authorization_id == (
+            "N3W_T1_F4_PRODUCTION_F4_PREPARE_" + context["run_id"]
+        )
+        factory.write_text('{"factory_accepted":true}\n', encoding="utf-8")
+        transaction.write_text('{"stage":"PREPARED"}\n', encoding="utf-8")
+        return {
+            "status": "PASS",
+            "state": "FACTORY_ACCEPTED",
+            "factory_accepted": True,
+            "authorization_consumed": True,
+            "replay_allowed": False,
+            "production_service_start": False,
+            "persistence_enabled": False,
+            "board_access": False,
+        }
+
+    monkeypatch.setattr(tool, "_prepare", prepare)
+
+    report = tool._prepare_entry(
+        tmp_path,
+        None,
+        None,
+        "b" * 64,
+        "c" * 40,
+        context_path,
+    )
+
+    assert report["status"] == "PASS"
+    assert report["production_phase"] == "F4_PREPARE"
+    assert report["production_run_id"] == context["run_id"]
+    assert report["production_release_id"] == context["binding"]["release_id"]
+    assert report["production_predecessor_sha256"] == (
+        context["binding"]["predecessor_sha256"]
+    )
+    assert report["authorization_consumed"] is True
+    assert report["replay_allowed"] is False
+    claim_path, complete_path = tool._production_execution_paths(context)
+    assert claim_path.is_file()
+    assert complete_path.is_file()
+    completion = json.loads(complete_path.read_text(encoding="utf-8"))
+    assert completion["factory_accepted_sha256"] == tool._sha256_file(factory)
+    assert completion["f4_activation_transaction_sha256"] == (
+        tool._sha256_file(transaction)
+    )
+
+    with pytest.raises(
+        tool.F4Error,
+        match="production_execution_already_consumed",
+    ):
+        tool._prepare_entry(
+            tmp_path,
+            None,
+            None,
+            "b" * 64,
+            "c" * 40,
+            context_path,
+        )
+    assert calls == 1
+
+
+def test_production_prepare_failure_after_claim_is_not_replayable(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    context = _production_context(tool)
+    context_path = tmp_path / "phase-context.json"
+    context_path.write_text(json.dumps(context), encoding="utf-8")
+    _install_fake_production_authority(monkeypatch, context)
+    ledger = tmp_path / "ledger"
+    monkeypatch.setattr(tool, "PRODUCTION_EXECUTION_LEDGER_ROOT", ledger)
+    monkeypatch.setattr(
+        tool,
+        "_validate_package",
+        lambda *_args, **_kwargs: package_binding(tool),
+    )
+    calls = 0
+
+    def prepare(*_args, **_kwargs):
+        nonlocal calls
+        calls += 1
+        raise tool.F4Error("injected_prepare_failure")
+
+    monkeypatch.setattr(tool, "_prepare", prepare)
+
+    with pytest.raises(
+        tool.ProductionClaimedError,
+        match="injected_prepare_failure",
+    ) as captured:
+        tool._prepare_entry(
+            tmp_path,
+            None,
+            None,
+            "b" * 64,
+            "c" * 40,
+            context_path,
+        )
+    assert getattr(captured.value, "production_claimed", False) is True
+    claim_path, complete_path = tool._production_execution_paths(context)
+    assert claim_path.is_file()
+    assert not complete_path.exists()
+
+    with pytest.raises(
+        tool.F4Error,
+        match="production_execution_already_consumed",
+    ):
+        tool._prepare_entry(
+            tmp_path,
+            None,
+            None,
+            "b" * 64,
+            "c" * 40,
+            context_path,
+        )
+    assert calls == 1
+
+
+def test_production_prepare_rejects_source_mismatch_before_local_claim(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    context = _production_context(tool)
+    context["binding"]["source_head"] = "9" * 40
+    context_path = tmp_path / "phase-context.json"
+    context_path.write_text(json.dumps(context), encoding="utf-8")
+    _install_fake_production_authority(monkeypatch, context)
+    ledger = tmp_path / "ledger"
+    monkeypatch.setattr(tool, "PRODUCTION_EXECUTION_LEDGER_ROOT", ledger)
+    monkeypatch.setattr(
+        tool,
+        "_validate_package",
+        lambda *_args, **_kwargs: package_binding(tool),
+    )
+
+    with pytest.raises(
+        tool.F4Error,
+        match="production_context_source_head_mismatch",
+    ):
+        tool._prepare_entry(
+            tmp_path,
+            None,
+            None,
+            "b" * 64,
+            "c" * 40,
+            context_path,
+        )
+    assert not ledger.exists()
+
+
+def test_production_prepare_rejects_legacy_authority_mixed_with_context(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    context = _production_context(tool)
+    context_path = tmp_path / "phase-context.json"
+    context_path.write_text(json.dumps(context), encoding="utf-8")
+    _install_fake_production_authority(monkeypatch, context)
+
+    with pytest.raises(tool.F4Error, match="prepare_authority_mode_conflict"):
+        tool._prepare_entry(
+            tmp_path,
+            tool.PREPARE_CONFIRMATION,
+            "N3W_T1_F4_LEGACY_AUTH",
+            "b" * 64,
+            "c" * 40,
+            context_path,
+        )
+
+
+def test_production_prepare_requires_bound_predecessor(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    context = _production_context(tool)
+    context["binding"]["predecessor_sha256"] = None
+    context_path = tmp_path / "phase-context.json"
+    context_path.write_text(json.dumps(context), encoding="utf-8")
+    _install_fake_production_authority(monkeypatch, context)
+
+    with pytest.raises(tool.F4Error, match="production_phase_context_invalid"):
+        tool._load_production_phase_context(context_path)

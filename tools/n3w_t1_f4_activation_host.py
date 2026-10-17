@@ -19,6 +19,7 @@ from collections.abc import Sequence
 from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
 from types import ModuleType
+from typing import Any
 
 SCHEMA = "gh.n3w-t1-f4-activation-host/1"
 TRANSACTION_SCHEMA = "gh.n3w-t1-f4-activation-transaction/1"
@@ -118,6 +119,16 @@ FACTORY_ACCEPTED_PATH = PROVISIONING_ROOT / "FACTORY_ACCEPTED.json"
 TRANSACTION_PATH = PROVISIONING_ROOT / "F4_ACTIVATION_TRANSACTION.json"
 RUNTIME_ACCEPTANCE_PATH = PROVISIONING_ROOT / "F4_RUNTIME_ACCEPTANCE.json"
 F4_LOCK_PATH = PROVISIONING_ROOT / ".f4-activation.lock"
+PRODUCTION_PHASE = "F4_PREPARE"
+PRODUCTION_EXECUTION_CLAIM_SCHEMA = (
+    "gh.n3w-t1-f4-production-execution-claim/1"
+)
+PRODUCTION_EXECUTION_COMPLETE_SCHEMA = (
+    "gh.n3w-t1-f4-production-execution-complete/1"
+)
+PRODUCTION_EXECUTION_LEDGER_ROOT = Path(
+    "/var/lib/n3w-t1-f4-production-executions"
+)
 
 BROKER_UNIT = "n3wfc4-broker-activation.service"
 SERVICES_UNIT = "n3wfc4-services-activation.service"
@@ -198,6 +209,10 @@ INSPECT_STAGES = frozenset(
 
 class F4Error(RuntimeError):
     pass
+
+
+class ProductionClaimedError(F4Error):
+    production_claimed = True
 
 
 OPERATION_ERRORS = (
@@ -324,6 +339,322 @@ def _sha256_file(path: Path) -> str:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def _json_sha256(document: object) -> str:
+    payload = json.dumps(
+        document,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _validate_production_execution_root() -> None:
+    root = PRODUCTION_EXECUTION_LEDGER_ROOT
+    if root.is_symlink():
+        raise F4Error("production_execution_ledger_root_invalid")
+    if not root.exists():
+        return
+    metadata = root.stat()
+    if (
+        not root.is_dir()
+        or metadata.st_uid != os.geteuid()
+        or stat.S_IMODE(metadata.st_mode) != 0o700
+    ):
+        raise F4Error("production_execution_ledger_root_invalid")
+
+
+def _production_execution_paths(
+    context: dict[str, Any],
+) -> tuple[Path, Path]:
+    digest = hashlib.sha256(
+        (
+            context["run_id"]
+            + "\n"
+            + context["phase"]
+            + "\n"
+            + context["claim_sha256"]
+            + "\n"
+        ).encode("utf-8")
+    ).hexdigest()
+    return (
+        PRODUCTION_EXECUTION_LEDGER_ROOT / f"{digest}.claim.json",
+        PRODUCTION_EXECUTION_LEDGER_ROOT / f"{digest}.complete.json",
+    )
+
+
+def _write_new_production_json(
+    path: Path,
+    document: dict[str, Any],
+) -> None:
+    root = PRODUCTION_EXECUTION_LEDGER_ROOT
+    _validate_production_execution_root()
+    if path.parent != root:
+        raise F4Error("production_execution_record_parent_invalid")
+    payload = (
+        json.dumps(document, sort_keys=True, separators=(",", ":")) + "\n"
+    ).encode("utf-8")
+    descriptor = os.open(
+        path,
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | getattr(os, "O_NOFOLLOW", 0),
+        0o600,
+    )
+    with os.fdopen(descriptor, "wb") as stream:
+        stream.write(payload)
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.chmod(path, 0o600)
+    directory_fd = os.open(
+        root,
+        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+    )
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+
+
+def _load_production_phase_context(path: Path) -> dict[str, Any]:
+    if path.is_symlink() or not path.is_file():
+        raise F4Error("production_phase_context_missing")
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise F4Error("production_phase_context_invalid") from error
+    required = {
+        "schema",
+        "run_id",
+        "phase",
+        "claim_sha256",
+        "plan_sha256",
+        "binding",
+        "binding_sha256",
+        "authorization_consumed",
+        "replay_allowed",
+        "board_access",
+    }
+    binding_fields = {
+        "source_head",
+        "release_id",
+        "artifact_sha256",
+        "predecessor_sha256",
+        "target_binding_sha256",
+    }
+    binding = document.get("binding") if isinstance(document, dict) else None
+    if (
+        not isinstance(document, dict)
+        or set(document) != required
+        or document.get("schema") != "gh.n3w-t1-production-phase-context/1"
+        or document.get("phase") != PRODUCTION_PHASE
+        or re.fullmatch(r"[0-9a-f]{64}", str(document.get("run_id"))) is None
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(document.get("claim_sha256")),
+        )
+        is None
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(document.get("plan_sha256")),
+        )
+        is None
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(document.get("binding_sha256")),
+        )
+        is None
+        or document.get("authorization_consumed") is not True
+        or document.get("replay_allowed") is not False
+        or document.get("board_access") is not False
+        or not isinstance(binding, dict)
+        or set(binding) != binding_fields
+        or re.fullmatch(
+            r"[0-9a-f]{40}",
+            str(binding.get("source_head")),
+        )
+        is None
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(binding.get("release_id")),
+        )
+        is None
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(binding.get("artifact_sha256")),
+        )
+        is None
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(binding.get("predecessor_sha256")),
+        )
+        is None
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(binding.get("target_binding_sha256")),
+        )
+        is None
+    ):
+        raise F4Error("production_phase_context_invalid")
+    try:
+        from n3w_t1_production_authority import validate_phase_context
+    except ImportError as error:
+        raise F4Error("production_authority_dependency_missing") from error
+    validated = validate_phase_context(
+        document,
+        required_phase=PRODUCTION_PHASE,
+    )
+    if (
+        validated.get("status") != "PASS"
+        or validated.get("run_id") != document["run_id"]
+        or validated.get("phase") != PRODUCTION_PHASE
+        or validated.get("claim_sha256") != document["claim_sha256"]
+        or validated.get("authorization_consumed") is not True
+        or validated.get("replay_allowed") is not False
+        or validated.get("board_access") is not False
+    ):
+        raise F4Error("production_phase_context_not_authorized")
+    return document
+
+
+def _production_execution_claim_present(
+    context: dict[str, Any],
+) -> bool:
+    _validate_production_execution_root()
+    claim_path, _complete_path = _production_execution_paths(context)
+    if not claim_path.exists() and not claim_path.is_symlink():
+        return False
+    if claim_path.is_symlink() or not claim_path.is_file():
+        raise F4Error("production_execution_claim_invalid")
+    metadata = claim_path.stat()
+    if (
+        metadata.st_uid != os.geteuid()
+        or stat.S_IMODE(metadata.st_mode) != 0o600
+        or metadata.st_nlink != 1
+    ):
+        raise F4Error("production_execution_claim_invalid")
+    try:
+        record = json.loads(claim_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise F4Error("production_execution_claim_invalid") from error
+    expected = {
+        "schema",
+        "run_id",
+        "phase",
+        "phase_claim_sha256",
+        "plan_sha256",
+        "binding_sha256",
+        "source_head",
+        "production_release_id",
+        "artifact_sha256",
+        "predecessor_sha256",
+        "target_binding_sha256",
+        "f4_package_source_head",
+        "f4_package_manifest_sha256",
+        "f4_authorization_id",
+        "authorization_consumed",
+        "replay_allowed",
+        "board_access",
+    }
+    binding = context["binding"]
+    if (
+        not isinstance(record, dict)
+        or set(record) != expected
+        or record.get("schema") != PRODUCTION_EXECUTION_CLAIM_SCHEMA
+        or record.get("run_id") != context["run_id"]
+        or record.get("phase") != PRODUCTION_PHASE
+        or record.get("phase_claim_sha256") != context["claim_sha256"]
+        or record.get("plan_sha256") != context["plan_sha256"]
+        or record.get("binding_sha256") != context["binding_sha256"]
+        or record.get("source_head") != binding["source_head"]
+        or record.get("production_release_id") != binding["release_id"]
+        or record.get("artifact_sha256") != binding["artifact_sha256"]
+        or record.get("predecessor_sha256") != binding["predecessor_sha256"]
+        or record.get("target_binding_sha256")
+        != binding["target_binding_sha256"]
+        or record.get("authorization_consumed") is not True
+        or record.get("replay_allowed") is not False
+        or record.get("board_access") is not False
+    ):
+        raise F4Error("production_execution_claim_invalid")
+    return True
+
+
+def _production_authorization_id(context: dict[str, Any]) -> str:
+    return "N3W_T1_F4_PRODUCTION_F4_PREPARE_" + str(context["run_id"])
+
+
+def _claim_production_execution(
+    package: dict[str, object],
+    context: dict[str, Any],
+    authorization_id: str,
+) -> None:
+    _validate_production_execution_root()
+    PRODUCTION_EXECUTION_LEDGER_ROOT.mkdir(mode=0o700, exist_ok=True)
+    if PRODUCTION_EXECUTION_LEDGER_ROOT.is_symlink():
+        raise F4Error("production_execution_ledger_root_invalid")
+    os.chmod(PRODUCTION_EXECUTION_LEDGER_ROOT, 0o700)
+    _validate_production_execution_root()
+    claim_path, complete_path = _production_execution_paths(context)
+    if (
+        claim_path.exists()
+        or claim_path.is_symlink()
+        or complete_path.exists()
+        or complete_path.is_symlink()
+    ):
+        raise F4Error("production_execution_already_consumed")
+    binding = context["binding"]
+    record = {
+        "schema": PRODUCTION_EXECUTION_CLAIM_SCHEMA,
+        "run_id": context["run_id"],
+        "phase": PRODUCTION_PHASE,
+        "phase_claim_sha256": context["claim_sha256"],
+        "plan_sha256": context["plan_sha256"],
+        "binding_sha256": context["binding_sha256"],
+        "source_head": binding["source_head"],
+        "production_release_id": binding["release_id"],
+        "artifact_sha256": binding["artifact_sha256"],
+        "predecessor_sha256": binding["predecessor_sha256"],
+        "target_binding_sha256": binding["target_binding_sha256"],
+        "f4_package_source_head": package["source_head"],
+        "f4_package_manifest_sha256": package["manifest_sha256"],
+        "f4_authorization_id": authorization_id,
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "board_access": False,
+    }
+    _write_new_production_json(claim_path, record)
+
+
+def _complete_production_execution(
+    context: dict[str, Any],
+    report: dict[str, object],
+) -> None:
+    if not _production_execution_claim_present(context):
+        raise F4Error("production_execution_claim_missing")
+    claim_path, complete_path = _production_execution_paths(context)
+    if complete_path.exists() or complete_path.is_symlink():
+        raise F4Error("production_execution_complete_exists")
+    for path in (FACTORY_ACCEPTED_PATH, TRANSACTION_PATH):
+        if path.is_symlink() or not path.is_file():
+            raise F4Error("production_prepare_durable_record_missing")
+    record = {
+        "schema": PRODUCTION_EXECUTION_COMPLETE_SCHEMA,
+        "run_id": context["run_id"],
+        "phase": PRODUCTION_PHASE,
+        "production_claim_record_sha256": _sha256_file(claim_path),
+        "factory_accepted_sha256": _sha256_file(FACTORY_ACCEPTED_PATH),
+        "f4_activation_transaction_sha256": _sha256_file(TRANSACTION_PATH),
+        "result_sha256": _json_sha256(report),
+        "factory_accepted": True,
+        "production_service_start": False,
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "board_access": False,
+    }
+    _write_new_production_json(complete_path, record)
 
 
 def _file_binding(path: Path) -> dict[str, object]:
@@ -1399,6 +1730,77 @@ def _prepare(
                     + type(stop_record_error).__name__
                 ) from error
             raise
+
+
+def _prepare_entry(
+    package_root: Path,
+    confirmation: str | None,
+    authorization_id: str | None,
+    package_manifest_sha256: str,
+    package_source_head: str,
+    production_phase_context: Path | None,
+) -> dict[str, object]:
+    if production_phase_context is None:
+        return _prepare(
+            package_root,
+            confirmation or "",
+            authorization_id or "",
+            package_manifest_sha256,
+            package_source_head,
+        )
+    if confirmation is not None or authorization_id is not None:
+        raise F4Error("prepare_authority_mode_conflict")
+    context = _load_production_phase_context(production_phase_context)
+    package = _validate_package(
+        package_root,
+        expected_manifest_sha256=package_manifest_sha256,
+        expected_source_head=package_source_head,
+    )
+    binding = context["binding"]
+    if binding["source_head"] != package["source_head"]:
+        raise F4Error("production_context_source_head_mismatch")
+    if _production_execution_claim_present(context):
+        raise F4Error("production_execution_already_consumed")
+    production_authorization_id = _production_authorization_id(context)
+    _claim_production_execution(
+        package,
+        context,
+        production_authorization_id,
+    )
+    try:
+        report = _prepare(
+            package_root,
+            PREPARE_CONFIRMATION,
+            production_authorization_id,
+            package_manifest_sha256,
+            package_source_head,
+        )
+        if (
+            report.get("status") != "PASS"
+            or report.get("state") != "FACTORY_ACCEPTED"
+            or report.get("factory_accepted") is not True
+            or report.get("authorization_consumed") is not True
+            or report.get("replay_allowed") is not False
+            or report.get("production_service_start") is not False
+            or report.get("persistence_enabled") is not False
+            or report.get("board_access") is not False
+        ):
+            raise F4Error("production_prepare_result_invalid")
+        _complete_production_execution(context, report)
+    except OPERATION_ERRORS as error:
+        raise ProductionClaimedError(str(error)) from error
+    return {
+        **report,
+        "production_run_id": context["run_id"],
+        "production_phase": PRODUCTION_PHASE,
+        "phase_claim_sha256": context["claim_sha256"],
+        "production_release_id": binding["release_id"],
+        "production_artifact_sha256": binding["artifact_sha256"],
+        "production_predecessor_sha256": binding["predecessor_sha256"],
+        "target_binding_sha256": binding["target_binding_sha256"],
+        "authorization_consumed": True,
+        "replay_allowed": False,
+    }
 
 
 def _repair_prepared_control(
@@ -4850,11 +5252,12 @@ def _parser() -> argparse.ArgumentParser:
     )
 
     prepare = subparsers.add_parser("prepare")
-    prepare.add_argument("--confirm", required=True)
-    prepare.add_argument("--authorization-id", required=True)
+    prepare.add_argument("--confirm")
+    prepare.add_argument("--authorization-id")
     prepare.add_argument("--package-root", required=True)
     prepare.add_argument("--package-manifest-sha256", required=True)
     prepare.add_argument("--package-source-head", required=True)
+    prepare.add_argument("--production-phase-context", type=Path)
 
     repair = subparsers.add_parser("repair-prepared-control")
     repair.add_argument("--confirm", required=True)
@@ -4987,12 +5390,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "eligibility":
             report = _activation_eligibility(args.phase)
         elif args.command == "prepare":
-            report = _prepare(
+            report = _prepare_entry(
                 Path(args.package_root),
                 args.confirm,
                 args.authorization_id,
                 args.package_manifest_sha256,
                 args.package_source_head,
+                args.production_phase_context,
             )
         elif args.command == "repair-prepared-control":
             report = _repair_prepared_control(
@@ -5058,6 +5462,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         _emit({**report, "schema": SCHEMA})
         return 0
     except OPERATION_ERRORS as error:
+        claimed = bool(getattr(error, "production_claimed", False))
         try:
             runtime = _runtime_activity()
         except OPERATION_ERRORS:
@@ -5073,6 +5478,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "schema": SCHEMA,
                 "status": "FAIL",
                 "error_code": str(error)[:400] or type(error).__name__,
+                "authorization_consumed": True if claimed else None,
+                "replay_allowed": False if claimed else None,
                 "production_service_start": runtime[
                     "production_service_start"
                 ],
