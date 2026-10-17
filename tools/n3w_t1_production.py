@@ -108,51 +108,6 @@ def _atomic_new_json(path: Path, document: dict[str, Any], mode: int = 0o600) ->
         os.close(directory_fd)
 
 
-def _atomic_replace_json(
-    path: Path,
-    document: dict[str, Any],
-    mode: int = 0o600,
-) -> None:
-    if path.is_symlink() or not path.is_file():
-        raise ProductionError("record_replace_target_invalid")
-    metadata = path.stat()
-    if (
-        metadata.st_uid != os.geteuid()
-        or stat.S_IMODE(metadata.st_mode) != mode
-        or metadata.st_nlink != 1
-    ):
-        raise ProductionError("record_replace_target_metadata_invalid")
-    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    if temporary.exists() or temporary.is_symlink():
-        raise ProductionError("record_replace_temporary_exists")
-    payload = (
-        json.dumps(document, sort_keys=True, separators=(",", ":")) + "\n"
-    ).encode("utf-8")
-    descriptor = os.open(
-        temporary,
-        os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
-        mode,
-    )
-    try:
-        with os.fdopen(descriptor, "wb") as stream:
-            stream.write(payload)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.chmod(temporary, mode)
-        os.replace(temporary, path)
-        directory_fd = os.open(
-            path.parent,
-            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
-        )
-        try:
-            os.fsync(directory_fd)
-        finally:
-            os.close(directory_fd)
-    finally:
-        if temporary.exists():
-            temporary.unlink()
-
-
 def _approval_record_path(private_record_path: Path) -> Path:
     return private_record_path.with_name(f"{private_record_path.name}.approval.json")
 
@@ -364,10 +319,20 @@ def run_production(
     if plan is None:
         raise ProductionError(failure_code or "plan_not_created")
 
+    outcome = (
+        "FAIL"
+        if failure_code is not None
+        else final_outcome(
+            device_acceptance=device_acceptance,
+            operator_session_closed=session_closed,
+            evidence_complete=True,
+            override_check_ids=override_check_ids,
+        )
+    )
     private = {
         "schema": RESULT_SCHEMA,
-        "status": "FAIL",
-        "final_outcome": "FAIL",
+        "status": "PASS" if outcome != "FAIL" else "FAIL",
+        "final_outcome": outcome,
         "release_id": normalized_release["release_id"],
         "release_sha256": release_sha256,
         "source_head": normalized_release["source_head"],
@@ -376,7 +341,7 @@ def run_production(
         "ssh_host_key_sha256": plan["ssh_host_key_sha256"],
         "device_acceptance": device_acceptance,
         "operator_session_closed": session_closed,
-        "evidence_complete": False,
+        "evidence_complete": True,
         "override_used": bool(override_check_ids),
         "override_check_ids": override_check_ids,
         "terminal_phase": terminal_phase,
@@ -389,32 +354,12 @@ def run_production(
         "approval_record_sha256": approval_record_sha256,
     }
     try:
+        public = public_result(private)
+        _atomic_new_json(public_record_path, public, 0o600)
         _atomic_new_json(private_record_path, private, 0o600)
-        _atomic_new_json(public_record_path, public_result(private), 0o600)
-        completed = dict(private)
-        completed["evidence_complete"] = True
-        completed["final_outcome"] = (
-            "FAIL"
-            if failure_code is not None
-            else final_outcome(
-                device_acceptance=device_acceptance,
-                operator_session_closed=session_closed,
-                evidence_complete=True,
-                override_check_ids=override_check_ids,
-            )
-        )
-        completed["status"] = (
-            "PASS" if completed["final_outcome"] != "FAIL" else "FAIL"
-        )
-        _atomic_replace_json(private_record_path, completed, 0o600)
-        _atomic_replace_json(
-            public_record_path,
-            public_result(completed),
-            0o600,
-        )
     except Exception as error:
         raise ProductionError("evidence_write_failed") from error
-    return completed
+    return private
 
 
 def inspect_record(path: Path) -> dict[str, Any]:
