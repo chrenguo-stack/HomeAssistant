@@ -31,6 +31,47 @@ SSH_HOST_PUBLIC_KEY = Path("/etc/ssh/ssh_host_ed25519_key.pub")
 RUN_ID_RE = re.compile(r"[0-9a-f]{64}")
 SHA256_RE = re.compile(r"[0-9a-f]{64}")
 
+RUN_RECORD_FIELDS = {
+    "schema",
+    "run_id",
+    "plan",
+    "plan_sha256",
+    "state",
+    "authorization_consumed",
+    "replay_allowed",
+    "last_completed_phase",
+    "last_claimed_phase",
+    "terminal_state",
+    "failure_class",
+    "created_at",
+    "updated_at",
+    "board_access",
+}
+
+PHASE_BINDING_FIELDS = {
+    "source_head",
+    "release_id",
+    "artifact_sha256",
+    "predecessor_sha256",
+    "target_binding_sha256",
+}
+
+PHASE_RECORD_FIELDS = {
+    "schema",
+    "run_id",
+    "phase",
+    "state",
+    "binding",
+    "binding_sha256",
+    "authorization_consumed",
+    "replay_allowed",
+    "result_sha256",
+    "failure_code",
+    "claimed_at",
+    "updated_at",
+    "board_access",
+}
+
 
 class ProductionAuthorityError(RuntimeError):
     pass
@@ -92,6 +133,15 @@ def _ensure_root(root: Path) -> None:
     _validate_dir(root)
 
 
+def _strict_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    document: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in document:
+            raise ProductionAuthorityError("authority_record_duplicate_key")
+        document[key] = value
+    return document
+
+
 def _read(path: Path) -> dict[str, Any]:
     if path.is_symlink() or not path.is_file():
         raise ProductionAuthorityError("authority_record_missing")
@@ -103,7 +153,12 @@ def _read(path: Path) -> dict[str, Any]:
     ):
         raise ProductionAuthorityError("authority_record_metadata_invalid")
     try:
-        document = json.loads(path.read_text(encoding="utf-8"))
+        document = json.loads(
+            path.read_text(encoding="utf-8"),
+            object_pairs_hook=_strict_object,
+        )
+    except ProductionAuthorityError:
+        raise
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise ProductionAuthorityError("authority_record_invalid") from error
     if not isinstance(document, dict):
@@ -211,16 +266,95 @@ def target_identity(
 
 def _load_run(root: Path, run_id: str) -> dict[str, Any]:
     run = _read(_run_path(root, run_id))
+    if set(run) != RUN_RECORD_FIELDS:
+        raise ProductionAuthorityError("run_record_fields_invalid")
     if (
         run.get("schema") != RUN_SCHEMA
         or run.get("run_id") != run_id
         or run.get("authorization_consumed") is not True
         or run.get("replay_allowed") is not False
+        or run.get("board_access") is not False
         or not isinstance(run.get("plan"), dict)
+        or run.get("state") not in {"APPROVED", "IN_PROGRESS", "TERMINAL"}
+        or run.get("terminal_state") not in {None, "PASS", "FAIL"}
+        or run.get("failure_class") not in {None, "FAILED", "UNKNOWN"}
+        or run.get("last_completed_phase") not in {None, *PHASES}
+        or run.get("last_claimed_phase") not in {None, *PHASES}
+        or not isinstance(run.get("created_at"), int)
+        or isinstance(run.get("created_at"), bool)
+        or not isinstance(run.get("updated_at"), int)
+        or isinstance(run.get("updated_at"), bool)
     ):
         raise ProductionAuthorityError("run_record_invalid")
-    validate_plan(run["plan"])
+    normalized_plan = validate_plan(run["plan"])
+    if (
+        normalized_plan["run_id"] != run_id
+        or run.get("plan_sha256") != canonical_sha256(normalized_plan)
+    ):
+        raise ProductionAuthorityError("run_plan_binding_invalid")
+    if run["terminal_state"] is None and run["state"] == "TERMINAL":
+        raise ProductionAuthorityError("run_terminal_state_invalid")
+    if run["terminal_state"] is not None and run["state"] != "TERMINAL":
+        raise ProductionAuthorityError("run_terminal_state_invalid")
     return run
+
+
+def _load_phase(root: Path, run_id: str, phase: str) -> dict[str, Any]:
+    record = _read(_phase_path(root, run_id, phase))
+    if set(record) != PHASE_RECORD_FIELDS:
+        raise ProductionAuthorityError("phase_record_fields_invalid")
+    binding = record.get("binding")
+    if not isinstance(binding, dict) or set(binding) != PHASE_BINDING_FIELDS:
+        raise ProductionAuthorityError("phase_record_binding_invalid")
+    predecessor = binding.get("predecessor_sha256")
+    if predecessor is not None:
+        _sha(predecessor, "phase_record_predecessor_invalid")
+    for key, code in (
+        ("source_head", "phase_record_source_invalid"),
+        ("release_id", "phase_record_release_invalid"),
+        ("artifact_sha256", "phase_record_artifact_invalid"),
+        ("target_binding_sha256", "phase_record_target_invalid"),
+    ):
+        _sha(binding.get(key), code)
+    if (
+        record.get("schema") != PHASE_SCHEMA
+        or record.get("run_id") != run_id
+        or record.get("phase") != phase
+        or record.get("state")
+        not in {"CLAIMED", "APPLYING", "SUCCEEDED", "FAILED", "UNKNOWN"}
+        or record.get("authorization_consumed") is not True
+        or record.get("replay_allowed") is not False
+        or record.get("board_access") is not False
+        or record.get("binding_sha256") != canonical_sha256(binding)
+        or not isinstance(record.get("claimed_at"), int)
+        or isinstance(record.get("claimed_at"), bool)
+        or not isinstance(record.get("updated_at"), int)
+        or isinstance(record.get("updated_at"), bool)
+    ):
+        raise ProductionAuthorityError("phase_record_invalid")
+    result_sha = record.get("result_sha256")
+    if result_sha is not None:
+        _sha(result_sha, "phase_record_result_invalid")
+    failure_code = record.get("failure_code")
+    if failure_code is not None and (
+        not isinstance(failure_code, str) or not failure_code
+    ):
+        raise ProductionAuthorityError("phase_record_failure_code_invalid")
+    return record
+
+
+def _guard_existing_target_runs(root: Path, target_binding_sha256: str) -> None:
+    for entry in root.iterdir():
+        if RUN_ID_RE.fullmatch(entry.name) is None:
+            raise ProductionAuthorityError("ledger_root_entry_invalid")
+        _validate_dir(entry)
+        run = _load_run(root, entry.name)
+        if run["plan"]["target_binding_sha256"] != target_binding_sha256:
+            continue
+        if run["terminal_state"] is None:
+            raise ProductionAuthorityError("existing_active_run_blocks_approval")
+        if run["failure_class"] == "UNKNOWN":
+            raise ProductionAuthorityError("existing_unknown_run_blocks_approval")
 
 
 def approve_run(
@@ -241,6 +375,7 @@ def approve_run(
     if observed.get("ssh_host_key_sha256") != normalized["ssh_host_key_sha256"]:
         raise ProductionAuthorityError("run_host_key_binding_mismatch")
     _ensure_root(root)
+    _guard_existing_target_runs(root, normalized["target_binding_sha256"])
     run_dir = _run_dir(root, normalized["run_id"])
     try:
         run_dir.mkdir(mode=0o700)
@@ -291,14 +426,7 @@ def claim_phase(
     _require_root()
     if phase not in PHASES or not isinstance(binding, dict):
         raise ProductionAuthorityError("phase_binding_invalid")
-    required = {
-        "source_head",
-        "release_id",
-        "artifact_sha256",
-        "predecessor_sha256",
-        "target_binding_sha256",
-    }
-    if set(binding) != required:
+    if set(binding) != PHASE_BINDING_FIELDS:
         raise ProductionAuthorityError("phase_binding_fields_invalid")
     current = int(time.time()) if now is None else now
     with _exclusive(root, run_id):
@@ -310,14 +438,19 @@ def claim_phase(
             raise ProductionAuthorityError("phase_source_head_mismatch")
         if binding["release_id"] != plan["release_id"]:
             raise ProductionAuthorityError("phase_release_id_mismatch")
-        _sha(binding["artifact_sha256"], "phase_artifact_sha256_invalid")
+        artifact_sha256 = _sha(
+            binding["artifact_sha256"],
+            "phase_artifact_sha256_invalid",
+        )
+        if artifact_sha256 != plan["phase_artifact_sha256"][phase]:
+            raise ProductionAuthorityError("phase_artifact_binding_mismatch")
         if binding["target_binding_sha256"] != plan["target_binding_sha256"]:
             raise ProductionAuthorityError("phase_target_binding_mismatch")
         predecessor = _predecessor(phase)
         predecessor_sha256 = None
         if predecessor is not None:
             predecessor_path = _phase_path(root, run_id, predecessor)
-            predecessor_record = _read(predecessor_path)
+            predecessor_record = _load_phase(root, run_id, predecessor)
             if predecessor_record.get("state") != "SUCCEEDED":
                 raise ProductionAuthorityError("phase_predecessor_not_succeeded")
             predecessor_sha256 = _sha256_file(predecessor_path)
@@ -373,7 +506,7 @@ def begin_phase(
         path = _phase_path(root, run_id, phase)
         if _sha256_file(path) != expected:
             raise ProductionAuthorityError("phase_claim_sha256_mismatch")
-        record = _read(path)
+        record = _load_phase(root, run_id, phase)
         if record.get("state") != "CLAIMED":
             raise ProductionAuthorityError("phase_begin_prestate_invalid")
         record["state"] = "APPLYING"
@@ -401,7 +534,7 @@ def phase_context(
 ) -> dict[str, Any]:
     run = _load_run(root, run_id)
     path = _phase_path(root, run_id, phase)
-    claim = _read(path)
+    claim = _load_phase(root, run_id, phase)
     if (
         claim.get("state") != "APPLYING"
         or claim.get("authorization_consumed") is not True
@@ -461,7 +594,7 @@ def complete_phase(
         path = _phase_path(root, run_id, phase)
         if _sha256_file(path) != expected:
             raise ProductionAuthorityError("phase_claim_sha256_mismatch")
-        record = _read(path)
+        record = _load_phase(root, run_id, phase)
         if record.get("state") != "APPLYING":
             raise ProductionAuthorityError("phase_complete_prestate_invalid")
         record["state"] = "SUCCEEDED"
@@ -509,7 +642,7 @@ def fail_phase(
         path = _phase_path(root, run_id, phase)
         if _sha256_file(path) != expected:
             raise ProductionAuthorityError("phase_claim_sha256_mismatch")
-        record = _read(path)
+        record = _load_phase(root, run_id, phase)
         if record.get("state") not in {"CLAIMED", "APPLYING"}:
             raise ProductionAuthorityError("phase_failure_prestate_invalid")
         record["state"] = state
@@ -543,7 +676,9 @@ def inspect_run(run_id: str, *, root: Path = LEDGER_ROOT) -> dict[str, Any]:
     for phase in PHASES:
         path = _phase_path(root, run_id, phase)
         if path.exists() or path.is_symlink():
-            phases[phase] = str(_read(path).get("state", "UNKNOWN"))
+            phases[phase] = str(
+                _load_phase(root, run_id, phase).get("state", "UNKNOWN")
+            )
     return {
         "schema": RUN_SCHEMA,
         "status": "PASS",
@@ -561,7 +696,10 @@ def inspect_run(run_id: str, *, root: Path = LEDGER_ROOT) -> dict[str, Any]:
 def _load_json(path: Path) -> dict[str, Any]:
     if path.is_symlink() or not path.is_file():
         raise ProductionAuthorityError("json_input_invalid")
-    document = json.loads(path.read_text(encoding="utf-8"))
+    document = json.loads(
+        path.read_text(encoding="utf-8"),
+        object_pairs_hook=_strict_object,
+    )
     if not isinstance(document, dict):
         raise ProductionAuthorityError("json_input_invalid")
     return document
