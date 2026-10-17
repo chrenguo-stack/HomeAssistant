@@ -283,6 +283,7 @@ def run_production(
     connected = False
     post_reboot_connected = False
     device_acceptance = False
+    evidence_complete = False
     session_closed = False
     override_check_ids: list[str] = []
     terminal_phase: str | None = None
@@ -370,6 +371,7 @@ def run_production(
                     is not False
                 ):
                     raise ProductionError("target_run_not_closed")
+                evidence_complete = True
 
         if terminal_phase != "CLOSE_RUN":
             raise ProductionError("run_terminal_phase_missing")
@@ -393,7 +395,7 @@ def run_production(
         else final_outcome(
             device_acceptance=device_acceptance,
             operator_session_closed=session_closed,
-            evidence_complete=True,
+            evidence_complete=evidence_complete,
             override_check_ids=override_check_ids,
         )
     )
@@ -409,7 +411,7 @@ def run_production(
         "ssh_host_key_sha256": plan["ssh_host_key_sha256"],
         "device_acceptance": device_acceptance,
         "operator_session_closed": session_closed,
-        "evidence_complete": True,
+        "evidence_complete": evidence_complete,
         "override_used": bool(override_check_ids),
         "override_check_ids": override_check_ids,
         "terminal_phase": terminal_phase,
@@ -453,7 +455,7 @@ def inspect_record(path: Path) -> dict[str, Any]:
         "terminal_phase": document.get("terminal_phase"),
         "device_acceptance": document.get("device_acceptance"),
         "operator_session_closed": document.get("operator_session_closed"),
-        "evidence_complete": seal["evidence_complete"],
+        "evidence_complete": document.get("evidence_complete"),
         "override_used": document.get("override_used"),
         "board_access": False,
     }
