@@ -289,6 +289,88 @@ class SSHTransport:
             "N3W_T1_SSH_CONNECTION_EPOCH": str(self._epoch),
         }
 
+    def _managed_wrapper_script(self, executable: str) -> str:
+        return (
+            "#!/bin/sh\n"
+            f"exec {shlex.quote(executable)} "
+            "-F /dev/null "
+            "-o StrictHostKeyChecking=yes "
+            "-o \"UserKnownHostsFile=$N3W_T1_SSH_KNOWN_HOSTS\" "
+            "-o GlobalKnownHostsFile=/dev/null "
+            "-o HashKnownHosts=no "
+            "-o IdentitiesOnly=yes "
+            "-o IdentityAgent=none "
+            "-o ControlMaster=no "
+            "-o ControlPersist=no "
+            "-o \"ControlPath=$N3W_T1_SSH_CONTROL_PATH\" "
+            "-o BatchMode=yes "
+            "-o PubkeyAuthentication=no "
+            "-o PasswordAuthentication=no "
+            "-o KbdInteractiveAuthentication=no "
+            "-o PreferredAuthentications=none "
+            "-o ProxyCommand=/usr/bin/false "
+            "\"$@\"\n"
+        )
+
+    def managed_environment(
+        self,
+        base: dict[str, str] | None = None,
+    ) -> dict[str, str]:
+        self.assert_master()
+        if self._directory is None:
+            raise SSHTransportError("ssh_epoch_not_started")
+        wrapper_root = self._directory / "bin"
+        if wrapper_root.exists():
+            if (
+                wrapper_root.is_symlink()
+                or not wrapper_root.is_dir()
+                or wrapper_root.stat().st_uid != os.geteuid()
+                or stat.S_IMODE(wrapper_root.stat().st_mode) != 0o700
+            ):
+                raise SSHTransportError("ssh_wrapper_root_invalid")
+        else:
+            wrapper_root.mkdir(mode=0o700)
+        for name in ("ssh", "scp"):
+            executable = shutil.which(name)
+            if executable is None:
+                raise SSHTransportError(f"{name}_binary_missing")
+            wrapper = wrapper_root / name
+            expected = self._managed_wrapper_script(executable)
+            if wrapper.exists() or wrapper.is_symlink():
+                if (
+                    wrapper.is_symlink()
+                    or not wrapper.is_file()
+                    or wrapper.stat().st_uid != os.geteuid()
+                    or stat.S_IMODE(wrapper.stat().st_mode) != 0o700
+                    or wrapper.read_text(encoding="utf-8") != expected
+                ):
+                    raise SSHTransportError("ssh_wrapper_invalid")
+            else:
+                descriptor = os.open(
+                    wrapper,
+                    os.O_WRONLY
+                    | os.O_CREAT
+                    | os.O_EXCL
+                    | getattr(os, "O_NOFOLLOW", 0),
+                    0o700,
+                )
+                try:
+                    os.write(descriptor, expected.encode("utf-8"))
+                    os.fsync(descriptor)
+                finally:
+                    os.close(descriptor)
+                os.chmod(wrapper, 0o700)
+        environment = dict(os.environ if base is None else base)
+        environment.update(self.legacy_environment())
+        environment["N3W_T1_SSH_MANAGED_REQUIRED"] = "1"
+        original_path = environment.get("PATH", "")
+        environment["PATH"] = (
+            str(wrapper_root)
+            if not original_path
+            else f"{wrapper_root}{os.pathsep}{original_path}"
+        )
+        return environment
+
     def _cleanup_local(self) -> None:
         directory = self._directory
         self._control_path = None

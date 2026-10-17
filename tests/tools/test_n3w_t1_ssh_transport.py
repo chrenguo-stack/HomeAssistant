@@ -177,6 +177,33 @@ def test_expected_disconnect_requires_master_to_be_gone(tmp_path):
 
 
 
+def test_managed_environment_prepends_fail_closed_ssh_wrappers(tmp_path):
+    tool = load_tool()
+    path, digest = known_hosts(tmp_path)
+    runner = FakeRunner()
+    transport = tool.SSHTransport(
+        target="root@t1.local",
+        known_hosts=path,
+        expected_host_key_sha256=digest,
+        runner=runner,
+        work_root=tmp_path,
+    )
+    transport.start_epoch()
+    environment = transport.managed_environment({"PATH": "/usr/bin:/bin"})
+    wrapper_root = Path(environment["PATH"].split(os.pathsep)[0])
+    assert environment["N3W_T1_SSH_MANAGED_REQUIRED"] == "1"
+    assert environment["N3W_T1_SSH_TARGET"] == "root@t1.local"
+    assert (wrapper_root / "ssh").is_file()
+    assert (wrapper_root / "scp").is_file()
+    for name in ("ssh", "scp"):
+        body = (wrapper_root / name).read_text(encoding="utf-8")
+        assert "ControlPath=$N3W_T1_SSH_CONTROL_PATH" in body
+        assert "PasswordAuthentication=no" in body
+        assert "PubkeyAuthentication=no" in body
+        assert "ProxyCommand=/usr/bin/false" in body
+    transport.close_epoch()
+
+
 @pytest.mark.skipif(
     os.environ.get("N3W_REAL_SSHD_INTEGRATION") != "1",
     reason="real sshd integration is enabled only by the dedicated CI step",
@@ -238,6 +265,19 @@ def test_real_sshd_reuses_master_and_requires_one_password_per_epoch(tmp_path):
 
     command = transport.run_remote(("printf", "n3w-real-ssh-ok"))
     assert command.stdout == "n3w-real-ssh-ok"
+
+    managed = transport.managed_environment(os.environ.copy())
+    managed_command = subprocess.run(
+        ("ssh", "-n", target, "printf n3w-managed-ssh-ok"),
+        check=True,
+        text=True,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=30,
+        env=managed,
+    )
+    assert managed_command.stdout == "n3w-managed-ssh-ok"
 
     source = tmp_path / "payload"
     source.write_text("n3w-real-scp-ok", encoding="utf-8")
