@@ -1,3 +1,34 @@
+## 2026-10-17 — F5 F4_ACTIVATE phase-context minimal integration CLOSED_PASS
+
+~~~text
+TASK=N3W_T1_F5_PRODUCTION_PROCESS_V1_F4_ACTIVATE_PHASE_CONTEXT_MINIMAL_INTEGRATION_20261017_01
+RESULT=CLOSED_PASS
+
+PR=612
+SOURCE_HEAD=c400c1d9b09a497c2537c10f9afceff726437b48
+CI_RESULT=PASS:17/17
+
+NORMAL_F5_F4_ACTIVATE_REQUIRES_PRODUCTION_PHASE_CONTEXT=true
+LOCAL_EXECUTION_CLAIM_BEFORE_MUTATION=PASS
+REPLAY_ALLOWED=false
+SECOND_HUMAN_APPROVAL=false
+EXISTING_F4_ACTIVATE_PRIMITIVE_REUSED=true
+RUNTIME_STARTED_REQUIRED=true
+RUNTIME_ACCEPTANCE_REQUIRED=true
+
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_F5_PRODUCTION_PROCESS_V1_F4_ACCEPT_PHASE_CONTEXT_MINIMAL_INTEGRATION_20261017_01
+~~~
+
+The normal F5 activation route now validates exact `F4_ACTIVATE` target authority, requires the F4 transaction to be PREPARED with services stopped, writes a durable non-replayable local activation claim before mutation, reuses the existing F4 activation primitive, and accepts success only at RUNTIME_STARTED with runtime acceptance still pending. All 17 observed CI workflows passed on the closure head.
+
+Authority:
+`docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_F4_ACTIVATE_PHASE_CONTEXT_MINIMAL_INTEGRATION_CLOSURE_20261017.md`.
+
 ## 2026-10-17 — F5 F4_PREPARE phase-context minimal integration CLOSED_PASS
 
 ~~~text

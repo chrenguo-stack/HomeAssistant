@@ -1,3 +1,18 @@
+## 2026-10-17 — F5 F4_ACTIVATE phase-context minimal integration CLOSED_PASS
+
+- PR #612 remains Draft/open and unmerged.
+- Source closure head: `c400c1d9b09a497c2537c10f9afceff726437b48`.
+- Normal F5 F4_ACTIVATE now requires exact target-validated `F4_ACTIVATE` phase context.
+- F4 must still be PREPARED with production services stopped before the local activation claim is written.
+- The local activation claim is durable and non-replayable and binds the pre-activation F4 transaction SHA256.
+- No second human approval is introduced; the internal F4 activation authorization is derived from the approved production run.
+- Existing F4 activation and rollback logic remains the mutation owner.
+- Successful completion requires RUNTIME_STARTED with runtime acceptance still required and persistence/certificate timer disabled.
+- CI on the closure head is PASS 17/17.
+- No T1 access, T1 mutation, board access or merge occurred.
+- Next gate: `N3W_T1_F5_PRODUCTION_PROCESS_V1_F4_ACCEPT_PHASE_CONTEXT_MINIMAL_INTEGRATION_20261017_01`.
+- Authority: `docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_F4_ACTIVATE_PHASE_CONTEXT_MINIMAL_INTEGRATION_CLOSURE_20261017.md`.
+
 ## 2026-10-17 — F5 F4_PREPARE phase-context minimal integration CLOSED_PASS
 
 - PR #612 remains Draft/open and unmerged.
