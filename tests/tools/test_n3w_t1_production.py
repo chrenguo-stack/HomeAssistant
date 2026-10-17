@@ -290,7 +290,7 @@ def test_incomplete_preflight_stops_before_operator_approval(tmp_path):
             approval=lambda summary: approvals.append(summary) or True,
         )
     except tool.ProductionError as error:
-        assert str(error) == "plan_not_created"
+        assert str(error) == "preflight_checks_invalid"
     else:
         raise AssertionError("expected preflight stop")
     assert approvals == []
