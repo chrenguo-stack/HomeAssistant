@@ -1,3 +1,18 @@
+## 2026-10-17 — F5 V1 architecture contract merged; post-merge alignment prepared
+
+- PR #610 is CLOSED/MERGED.
+- New main at alignment start is `77e403b99fe8bb8dbe75ba04afab470ff9b4c853`.
+- Reviewed PR head was `3180a547ad4077a026d65e9766ee15c6111f2432`; head-to-new-main content delta is none.
+- F5 V1 architecture contract is now in main.
+- Frozen architecture: Mac thin orchestrator + minimal durable T1 production authority + existing F3/provisioning/F4 primitives.
+- Normal production keeps one explicit production approval and two SSH password prompts for one planned reboot.
+- Initial production override allowlist remains empty; existing 5 GiB F3 reserve remains strict.
+- Repeatability Plan B remains selected: preserve T1-A; use fresh T1-B for final F5 physical acceptance.
+- F5 source implementation, T1-B access and board access have not started.
+- F3/F4 closures remain valid; KF-121 remains CLOSED_PASS.
+- This payload is docs-only. Repository alignment becomes final when the exact alignment payload is reachable from main.
+- Authority: `docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_ARCHITECTURE_CONTRACT_POSTMERGE_STATE_ALIGNMENT_20261017.md`.
+
 ## 2026-10-17 — F5 V1 architecture contract freeze candidate / PR #610
 
 - Current base main at gate start: `cdd597e43149e872e26f81c63bc72f4320e61bcc`; no drift was observed.
