@@ -2304,7 +2304,11 @@ def self_check(payload_root: Path) -> dict[str, object]:
         "schema": SCHEMA,
         "status": "PASS" if not found else "STOP",
         "source_head": manifest["source_head"],
-        "authorization_id": AUTHORIZATION_ID,
+        "authorization_id": (
+            AUTHORIZATION_ID
+            if _manifest_mode(manifest) == "legacy"
+            else None
+        ),
         "forbidden_operations": found,
         "live_mutation_executed": False,
         "production_service_start": False,
