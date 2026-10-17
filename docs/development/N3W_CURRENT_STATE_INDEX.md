@@ -1,3 +1,17 @@
+## 2026-10-17 — F5 F4_ACCEPT phase-context minimal integration CLOSED_PASS
+
+- PR #612 remains Draft/open and unmerged.
+- Source closure head: `7f214750128138d7bfaf2b374d9e3302b12d442a`.
+- Normal F5 F4_ACCEPT requires exact target-validated `F4_ACCEPT` phase context.
+- The local F4 predecessor chain must belong to the same production run and be RUNTIME_STARTED with services active and persistence disabled.
+- A durable non-replayable local acceptance claim is written before runtime acceptance.
+- Existing runtime acceptance and fail-closed rollback logic remains the mutation owner.
+- Successful completion requires RUNTIME_ACCEPTED and binds the durable runtime-acceptance report.
+- CI on the closure head is PASS 17/17.
+- No T1 access, T1 mutation, board access or merge occurred.
+- Next gate: `N3W_T1_F5_PRODUCTION_PROCESS_V1_PERSIST_CERT_PHASE_CONTEXT_MINIMAL_INTEGRATION_20261017_01`.
+- Authority: `docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_F4_ACCEPT_PHASE_CONTEXT_MINIMAL_INTEGRATION_CLOSURE_20261017.md`.
+
 ## 2026-10-17 — F5 F4_ACTIVATE phase-context minimal integration CLOSED_PASS
 
 - PR #612 remains Draft/open and unmerged.

@@ -1,3 +1,36 @@
+## 2026-10-17 — F5 F4_ACCEPT phase-context minimal integration CLOSED_PASS
+
+~~~text
+TASK=N3W_T1_F5_PRODUCTION_PROCESS_V1_F4_ACCEPT_PHASE_CONTEXT_MINIMAL_INTEGRATION_20261017_01
+RESULT=CLOSED_PASS
+
+PR=612
+SOURCE_HEAD=7f214750128138d7bfaf2b374d9e3302b12d442a
+CI_RESULT=PASS:17/17
+
+NORMAL_F5_F4_ACCEPT_REQUIRES_PRODUCTION_PHASE_CONTEXT=true
+PRODUCTION_PREDECESSOR_CHAIN=PASS
+LOCAL_EXECUTION_CLAIM_BEFORE_MUTATION=PASS
+REPLAY_ALLOWED=false
+SECOND_HUMAN_APPROVAL=false
+EXISTING_F4_RUNTIME_ACCEPTANCE_PRIMITIVE_REUSED=true
+RUNTIME_ACCEPTED_REQUIRED=true
+PERSISTENCE_ENABLED=false
+CERTIFICATE_TIMER_ENABLED=false
+
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_F5_PRODUCTION_PROCESS_V1_PERSIST_CERT_PHASE_CONTEXT_MINIMAL_INTEGRATION_20261017_01
+~~~
+
+The normal F5 runtime-acceptance route now validates exact `F4_ACCEPT` target authority, verifies the same-run F4 predecessor chain, writes a durable non-replayable local acceptance claim before mutation, reuses the existing runtime-acceptance primitive, and closes only at RUNTIME_ACCEPTED with the acceptance report hash-bound. All 17 observed CI workflows passed on the closure head.
+
+Authority:
+`docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_F4_ACCEPT_PHASE_CONTEXT_MINIMAL_INTEGRATION_CLOSURE_20261017.md`.
+
 ## 2026-10-17 — F5 F4_ACTIVATE phase-context minimal integration CLOSED_PASS
 
 ~~~text
