@@ -131,6 +131,7 @@ def test_one_reboot_is_two_authentication_epochs(tmp_path):
         work_root=tmp_path,
     )
     first = transport.start_epoch()
+    runner.master_available = False
     second = transport.start_post_reboot_epoch()
     assert first["epoch"] == 1
     assert second["epoch"] == 2
