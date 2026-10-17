@@ -121,6 +121,7 @@ RUNTIME_ACCEPTANCE_PATH = PROVISIONING_ROOT / "F4_RUNTIME_ACCEPTANCE.json"
 F4_LOCK_PATH = PROVISIONING_ROOT / ".f4-activation.lock"
 PRODUCTION_PHASE = "F4_PREPARE"
 PRODUCTION_ACTIVATE_PHASE = "F4_ACTIVATE"
+PRODUCTION_ACCEPT_PHASE = "F4_ACCEPT"
 PRODUCTION_EXECUTION_CLAIM_SCHEMA = (
     "gh.n3w-t1-f4-production-execution-claim/1"
 )
@@ -132,6 +133,12 @@ PRODUCTION_ACTIVATION_CLAIM_SCHEMA = (
 )
 PRODUCTION_ACTIVATION_COMPLETE_SCHEMA = (
     "gh.n3w-t1-f4-production-activation-complete/1"
+)
+PRODUCTION_ACCEPTANCE_CLAIM_SCHEMA = (
+    "gh.n3w-t1-f4-production-acceptance-claim/1"
+)
+PRODUCTION_ACCEPTANCE_COMPLETE_SCHEMA = (
+    "gh.n3w-t1-f4-production-acceptance-complete/1"
 )
 PRODUCTION_EXECUTION_LEDGER_ROOT = Path(
     "/var/lib/n3w-t1-f4-production-executions"
@@ -804,6 +811,175 @@ def _complete_production_activation(
         "f4_activation_transaction_sha256": _sha256_file(TRANSACTION_PATH),
         "result_sha256": _json_sha256(report),
         "runtime_started": True,
+        "production_service_start": True,
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "board_access": False,
+    }
+    _write_new_production_json(complete_path, record)
+
+
+def _production_acceptance_claim_present(
+    context: dict[str, Any],
+) -> bool:
+    _validate_production_execution_root()
+    claim_path, _complete_path = _production_execution_paths(context)
+    if not claim_path.exists() and not claim_path.is_symlink():
+        return False
+    if claim_path.is_symlink() or not claim_path.is_file():
+        raise F4Error("production_acceptance_claim_invalid")
+    metadata = claim_path.stat()
+    if (
+        metadata.st_uid != os.geteuid()
+        or stat.S_IMODE(metadata.st_mode) != 0o600
+        or metadata.st_nlink != 1
+    ):
+        raise F4Error("production_acceptance_claim_invalid")
+    try:
+        record = json.loads(claim_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise F4Error("production_acceptance_claim_invalid") from error
+    expected = {
+        "schema",
+        "run_id",
+        "phase",
+        "phase_claim_sha256",
+        "plan_sha256",
+        "binding_sha256",
+        "source_head",
+        "production_release_id",
+        "artifact_sha256",
+        "predecessor_sha256",
+        "target_binding_sha256",
+        "f4_transaction_pre_sha256",
+        "f4_authorization_id",
+        "authorization_consumed",
+        "replay_allowed",
+        "board_access",
+    }
+    binding = context["binding"]
+    if (
+        not isinstance(record, dict)
+        or set(record) != expected
+        or record.get("schema") != PRODUCTION_ACCEPTANCE_CLAIM_SCHEMA
+        or record.get("run_id") != context["run_id"]
+        or record.get("phase") != PRODUCTION_ACCEPT_PHASE
+        or record.get("phase_claim_sha256") != context["claim_sha256"]
+        or record.get("plan_sha256") != context["plan_sha256"]
+        or record.get("binding_sha256") != context["binding_sha256"]
+        or record.get("source_head") != binding["source_head"]
+        or record.get("production_release_id") != binding["release_id"]
+        or record.get("artifact_sha256") != binding["artifact_sha256"]
+        or record.get("predecessor_sha256") != binding["predecessor_sha256"]
+        or record.get("target_binding_sha256")
+        != binding["target_binding_sha256"]
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(record.get("f4_transaction_pre_sha256")),
+        )
+        is None
+        or record.get("authorization_consumed") is not True
+        or record.get("replay_allowed") is not False
+        or record.get("board_access") is not False
+    ):
+        raise F4Error("production_acceptance_claim_invalid")
+    return True
+
+
+def _production_acceptance_authorization_id(
+    context: dict[str, Any],
+) -> str:
+    return "N3W_T1_F4_PRODUCTION_F4_ACCEPT_" + str(context["run_id"])
+
+
+def _validate_production_acceptance_predecessor(
+    context: dict[str, Any],
+    transaction: dict[str, object],
+) -> None:
+    run_id = str(context["run_id"])
+    if (
+        transaction.get("authorization_id")
+        != "N3W_T1_F4_PRODUCTION_F4_PREPARE_" + run_id
+        or transaction.get("activation_authorization_id")
+        != "N3W_T1_F4_PRODUCTION_F4_ACTIVATE_" + run_id
+        or transaction.get("activation_authorization_claimed") is not True
+        or transaction.get("activation_authorization_consumed") is not True
+        or transaction.get("activation_authorization_replay_allowed")
+        is not False
+        or transaction.get("runtime_started") is not True
+        or transaction.get("runtime_acceptance_required") is not True
+    ):
+        raise F4Error("production_acceptance_predecessor_invalid")
+
+
+def _claim_production_acceptance(
+    context: dict[str, Any],
+    *,
+    transaction_pre_sha256: str,
+    authorization_id: str,
+) -> None:
+    if re.fullmatch(r"[0-9a-f]{64}", transaction_pre_sha256) is None:
+        raise F4Error("production_acceptance_transaction_binding_invalid")
+    _validate_production_execution_root()
+    PRODUCTION_EXECUTION_LEDGER_ROOT.mkdir(mode=0o700, exist_ok=True)
+    if PRODUCTION_EXECUTION_LEDGER_ROOT.is_symlink():
+        raise F4Error("production_execution_ledger_root_invalid")
+    os.chmod(PRODUCTION_EXECUTION_LEDGER_ROOT, 0o700)
+    _validate_production_execution_root()
+    claim_path, complete_path = _production_execution_paths(context)
+    if (
+        claim_path.exists()
+        or claim_path.is_symlink()
+        or complete_path.exists()
+        or complete_path.is_symlink()
+    ):
+        raise F4Error("production_acceptance_already_consumed")
+    binding = context["binding"]
+    record = {
+        "schema": PRODUCTION_ACCEPTANCE_CLAIM_SCHEMA,
+        "run_id": context["run_id"],
+        "phase": PRODUCTION_ACCEPT_PHASE,
+        "phase_claim_sha256": context["claim_sha256"],
+        "plan_sha256": context["plan_sha256"],
+        "binding_sha256": context["binding_sha256"],
+        "source_head": binding["source_head"],
+        "production_release_id": binding["release_id"],
+        "artifact_sha256": binding["artifact_sha256"],
+        "predecessor_sha256": binding["predecessor_sha256"],
+        "target_binding_sha256": binding["target_binding_sha256"],
+        "f4_transaction_pre_sha256": transaction_pre_sha256,
+        "f4_authorization_id": authorization_id,
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "board_access": False,
+    }
+    _write_new_production_json(claim_path, record)
+
+
+def _complete_production_acceptance(
+    context: dict[str, Any],
+    report: dict[str, object],
+) -> None:
+    if not _production_acceptance_claim_present(context):
+        raise F4Error("production_acceptance_claim_missing")
+    claim_path, complete_path = _production_execution_paths(context)
+    if complete_path.exists() or complete_path.is_symlink():
+        raise F4Error("production_acceptance_complete_exists")
+    for path in (TRANSACTION_PATH, RUNTIME_ACCEPTANCE_PATH):
+        if path.is_symlink() or not path.is_file():
+            raise F4Error("production_acceptance_durable_record_missing")
+    acceptance_sha256 = _sha256_file(RUNTIME_ACCEPTANCE_PATH)
+    if report.get("runtime_acceptance_report_sha256") != acceptance_sha256:
+        raise F4Error("production_acceptance_report_binding_invalid")
+    record = {
+        "schema": PRODUCTION_ACCEPTANCE_COMPLETE_SCHEMA,
+        "run_id": context["run_id"],
+        "phase": PRODUCTION_ACCEPT_PHASE,
+        "production_claim_record_sha256": _sha256_file(claim_path),
+        "f4_activation_transaction_sha256": _sha256_file(TRANSACTION_PATH),
+        "runtime_acceptance_report_sha256": acceptance_sha256,
+        "result_sha256": _json_sha256(report),
+        "runtime_accepted": True,
         "production_service_start": True,
         "authorization_consumed": True,
         "replay_allowed": False,
@@ -5041,6 +5217,72 @@ def _accept_runtime(authorization_id: str) -> dict[str, object]:
             raise
 
 
+def _accept_runtime_entry(
+    authorization_id: str | None,
+    production_phase_context: Path | None,
+) -> dict[str, object]:
+    if production_phase_context is None:
+        return _accept_runtime(authorization_id or "")
+    if authorization_id is not None:
+        raise F4Error("runtime_acceptance_authority_mode_conflict")
+    context = _load_production_phase_context(
+        production_phase_context,
+        required_phase=PRODUCTION_ACCEPT_PHASE,
+    )
+    verified = _provision_verify()
+    transaction = _validate_transaction_binding(verified)
+    if (
+        transaction.get("stage") != "RUNTIME_STARTED"
+        or transaction.get("production_service_start") is not True
+        or transaction.get("persistence_enabled") is not False
+    ):
+        raise F4Error("production_acceptance_prestate_invalid")
+    _validate_production_acceptance_predecessor(context, transaction)
+    if _production_acceptance_claim_present(context):
+        raise F4Error("production_acceptance_already_consumed")
+    transaction_pre_sha256 = _sha256_file(TRANSACTION_PATH)
+    production_authorization_id = _production_acceptance_authorization_id(
+        context
+    )
+    _claim_production_acceptance(
+        context,
+        transaction_pre_sha256=transaction_pre_sha256,
+        authorization_id=production_authorization_id,
+    )
+    try:
+        report = _accept_runtime(production_authorization_id)
+        if (
+            report.get("status") != "PASS"
+            or report.get("state") != "RUNTIME_ACCEPTED"
+            or report.get("production_service_start") is not True
+            or report.get("persistence_enabled") is not False
+            or report.get("certificate_timer_enabled") is not False
+            or report.get("board_access") is not False
+            or re.fullmatch(
+                r"[0-9a-f]{64}",
+                str(report.get("runtime_acceptance_report_sha256")),
+            )
+            is None
+        ):
+            raise F4Error("production_acceptance_result_invalid")
+        _complete_production_acceptance(context, report)
+    except OPERATION_ERRORS as error:
+        raise ProductionClaimedError(str(error)) from error
+    binding = context["binding"]
+    return {
+        **report,
+        "production_run_id": context["run_id"],
+        "production_phase": PRODUCTION_ACCEPT_PHASE,
+        "phase_claim_sha256": context["claim_sha256"],
+        "production_release_id": binding["release_id"],
+        "production_artifact_sha256": binding["artifact_sha256"],
+        "production_predecessor_sha256": binding["predecessor_sha256"],
+        "target_binding_sha256": binding["target_binding_sha256"],
+        "authorization_consumed": True,
+        "replay_allowed": False,
+    }
+
+
 def _enable_persistence(authorization_id: str) -> dict[str, object]:
     with _exclusive_f4():
         verified = _provision_verify()
@@ -5588,8 +5830,11 @@ def _parser() -> argparse.ArgumentParser:
     activate.add_argument("--authorization-id")
     activate.add_argument("--production-phase-context", type=Path)
 
+    accept_runtime = subparsers.add_parser("accept-runtime")
+    accept_runtime.add_argument("--authorization-id")
+    accept_runtime.add_argument("--production-phase-context", type=Path)
+
     for command in (
-        "accept-runtime",
         "enable-persistence",
         "certificate-audit",
         "enable-certificate-timer",
@@ -5675,7 +5920,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.production_phase_context,
             )
         elif args.command == "accept-runtime":
-            report = _accept_runtime(args.authorization_id)
+            report = _accept_runtime_entry(
+                args.authorization_id,
+                args.production_phase_context,
+            )
         elif args.command == "enable-persistence":
             report = _enable_persistence(args.authorization_id)
         elif args.command == "certificate-audit":

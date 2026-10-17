@@ -3897,3 +3897,231 @@ def test_production_activate_rejects_legacy_authority_mixed_with_context(
             "N3W_T1_F4_LEGACY_ACTIVATE_AUTH",
             context_path,
         )
+
+
+
+def _accept_production_context(tool):
+    context = _production_context(tool)
+    context["phase"] = tool.PRODUCTION_ACCEPT_PHASE
+    context["claim_sha256"] = "8" * 64
+    context["binding_sha256"] = "9" * 64
+    return context
+
+
+def _production_runtime_started_transaction(tool, run_id):
+    return {
+        "authorization_id": "N3W_T1_F4_PRODUCTION_F4_PREPARE_" + run_id,
+        "authorization_claimed": True,
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "activation_authorization_id": (
+            "N3W_T1_F4_PRODUCTION_F4_ACTIVATE_" + run_id
+        ),
+        "activation_authorization_claimed": True,
+        "activation_authorization_consumed": True,
+        "activation_authorization_replay_allowed": False,
+        "runtime_started": True,
+        "runtime_acceptance_required": True,
+        "stage": "RUNTIME_STARTED",
+        "production_service_start": True,
+        "persistence_enabled": False,
+    }
+
+
+def test_production_accept_runtime_uses_phase_context_once_without_second_authorization(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    context = _accept_production_context(tool)
+    context_path = tmp_path / "accept-context.json"
+    context_path.write_text(json.dumps(context), encoding="utf-8")
+    _install_fake_production_authority(monkeypatch, context)
+    ledger = tmp_path / "ledger"
+    transaction_path = tmp_path / "F4_ACTIVATION_TRANSACTION.json"
+    acceptance_path = tmp_path / "F4_RUNTIME_ACCEPTANCE.json"
+    transaction = _production_runtime_started_transaction(
+        tool,
+        context["run_id"],
+    )
+    transaction_path.write_text(
+        json.dumps(transaction, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(tool, "PRODUCTION_EXECUTION_LEDGER_ROOT", ledger)
+    monkeypatch.setattr(tool, "TRANSACTION_PATH", transaction_path)
+    monkeypatch.setattr(tool, "RUNTIME_ACCEPTANCE_PATH", acceptance_path)
+    monkeypatch.setattr(tool, "_provision_verify", lambda: verified(tool))
+    monkeypatch.setattr(
+        tool,
+        "_validate_transaction_binding",
+        lambda _verified: transaction,
+    )
+    calls = 0
+
+    def accept_runtime(authorization_id):
+        nonlocal calls
+        calls += 1
+        assert authorization_id == (
+            "N3W_T1_F4_PRODUCTION_F4_ACCEPT_" + context["run_id"]
+        )
+        acceptance_path.write_text(
+            '{"schema":"gh.n3w-t1-f4-runtime-acceptance/1","status":"PASS"}\n',
+            encoding="utf-8",
+        )
+        transaction_path.write_text(
+            '{"stage":"RUNTIME_ACCEPTED"}\n',
+            encoding="utf-8",
+        )
+        return {
+            "status": "PASS",
+            "state": "RUNTIME_ACCEPTED",
+            "runtime_acceptance_report_sha256": tool._sha256_file(
+                acceptance_path
+            ),
+            "production_service_start": True,
+            "persistence_enabled": False,
+            "certificate_timer_enabled": False,
+            "board_access": False,
+        }
+
+    monkeypatch.setattr(tool, "_accept_runtime", accept_runtime)
+
+    report = tool._accept_runtime_entry(None, context_path)
+
+    assert report["status"] == "PASS"
+    assert report["production_phase"] == "F4_ACCEPT"
+    assert report["production_run_id"] == context["run_id"]
+    assert report["authorization_consumed"] is True
+    assert report["replay_allowed"] is False
+    claim_path, complete_path = tool._production_execution_paths(context)
+    assert claim_path.is_file()
+    assert complete_path.is_file()
+    claim = json.loads(claim_path.read_text(encoding="utf-8"))
+    assert claim["predecessor_sha256"] == context["binding"]["predecessor_sha256"]
+    assert re.fullmatch(r"[0-9a-f]{64}", claim["f4_transaction_pre_sha256"])
+    completion = json.loads(complete_path.read_text(encoding="utf-8"))
+    assert completion["runtime_accepted"] is True
+    assert completion["runtime_acceptance_report_sha256"] == (
+        tool._sha256_file(acceptance_path)
+    )
+
+    with pytest.raises(
+        tool.F4Error,
+        match="production_acceptance_prestate_invalid|production_acceptance_already_consumed",
+    ):
+        tool._accept_runtime_entry(None, context_path)
+    assert calls == 1
+
+
+def test_production_accept_runtime_failure_after_claim_is_not_replayable(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    context = _accept_production_context(tool)
+    context_path = tmp_path / "accept-context.json"
+    context_path.write_text(json.dumps(context), encoding="utf-8")
+    _install_fake_production_authority(monkeypatch, context)
+    ledger = tmp_path / "ledger"
+    transaction_path = tmp_path / "F4_ACTIVATION_TRANSACTION.json"
+    transaction = _production_runtime_started_transaction(
+        tool,
+        context["run_id"],
+    )
+    transaction_path.write_text(
+        json.dumps(transaction, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(tool, "PRODUCTION_EXECUTION_LEDGER_ROOT", ledger)
+    monkeypatch.setattr(tool, "TRANSACTION_PATH", transaction_path)
+    monkeypatch.setattr(tool, "_provision_verify", lambda: verified(tool))
+    monkeypatch.setattr(
+        tool,
+        "_validate_transaction_binding",
+        lambda _verified: transaction,
+    )
+    calls = 0
+
+    def accept_runtime(_authorization_id):
+        nonlocal calls
+        calls += 1
+        raise tool.F4Error("injected_acceptance_failure")
+
+    monkeypatch.setattr(tool, "_accept_runtime", accept_runtime)
+
+    with pytest.raises(
+        tool.ProductionClaimedError,
+        match="injected_acceptance_failure",
+    ) as captured:
+        tool._accept_runtime_entry(None, context_path)
+    assert getattr(captured.value, "production_claimed", False) is True
+    claim_path, complete_path = tool._production_execution_paths(context)
+    assert claim_path.is_file()
+    assert not complete_path.exists()
+
+    with pytest.raises(
+        tool.F4Error,
+        match="production_acceptance_already_consumed",
+    ):
+        tool._accept_runtime_entry(None, context_path)
+    assert calls == 1
+
+
+def test_production_accept_runtime_rejects_wrong_local_predecessor_before_claim(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    context = _accept_production_context(tool)
+    context_path = tmp_path / "accept-context.json"
+    context_path.write_text(json.dumps(context), encoding="utf-8")
+    _install_fake_production_authority(monkeypatch, context)
+    ledger = tmp_path / "ledger"
+    transaction_path = tmp_path / "F4_ACTIVATION_TRANSACTION.json"
+    transaction = _production_runtime_started_transaction(
+        tool,
+        context["run_id"],
+    )
+    transaction["activation_authorization_id"] = (
+        "N3W_T1_F4_PRODUCTION_F4_ACTIVATE_" + "f" * 64
+    )
+    transaction_path.write_text(
+        json.dumps(transaction, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(tool, "PRODUCTION_EXECUTION_LEDGER_ROOT", ledger)
+    monkeypatch.setattr(tool, "TRANSACTION_PATH", transaction_path)
+    monkeypatch.setattr(tool, "_provision_verify", lambda: verified(tool))
+    monkeypatch.setattr(
+        tool,
+        "_validate_transaction_binding",
+        lambda _verified: transaction,
+    )
+
+    with pytest.raises(
+        tool.F4Error,
+        match="production_acceptance_predecessor_invalid",
+    ):
+        tool._accept_runtime_entry(None, context_path)
+    assert not ledger.exists()
+
+
+def test_production_accept_runtime_rejects_legacy_authority_mixed_with_context(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    context = _accept_production_context(tool)
+    context_path = tmp_path / "accept-context.json"
+    context_path.write_text(json.dumps(context), encoding="utf-8")
+    _install_fake_production_authority(monkeypatch, context)
+
+    with pytest.raises(
+        tool.F4Error,
+        match="runtime_acceptance_authority_mode_conflict",
+    ):
+        tool._accept_runtime_entry(
+            "N3W_T1_F4_LEGACY_ACCEPT_AUTH",
+            context_path,
+        )
