@@ -280,7 +280,7 @@ def test_production_start_failure_after_claim_is_not_replayable(
     firstboot = FakeFirstboot(transaction, fail=True)
 
     with pytest.raises(
-        RuntimeError,
+        tool.ProductionClaimedError,
         match="injected_provision_failure",
     ) as captured:
         tool._start_device_provisioning(

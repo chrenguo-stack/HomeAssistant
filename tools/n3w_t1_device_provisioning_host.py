@@ -44,6 +44,10 @@ class ProvisionHostError(RuntimeError):
     pass
 
 
+class ProductionClaimedError(ProvisionHostError):
+    production_claimed = True
+
+
 def _load_module(path: Path, name: str) -> ModuleType:
     if path.is_symlink() or not path.is_file():
         raise ProvisionHostError(f"module_source_invalid:{path.name}")
@@ -463,11 +467,7 @@ def _start_device_provisioning(
             raise ProvisionHostError("production_provisioning_result_invalid")
         _complete_production_execution(firstboot, context, report)
     except Exception as error:
-        try:
-            setattr(error, "production_claimed", True)
-        except Exception:
-            pass
-        raise
+        raise ProductionClaimedError(str(error)) from error
     return {
         **report,
         "production_run_id": context["run_id"],
