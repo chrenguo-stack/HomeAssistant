@@ -563,9 +563,12 @@ def _complete_production_reboot_control(
     claim_path, complete_path = _production_execution_paths(context)
     if complete_path.exists() or complete_path.is_symlink():
         raise AuthorityError("production_reboot_control_complete_exists")
+    production_claim = json.loads(claim_path.read_text(encoding="utf-8"))
     if (
         _sha256(INSTALL_CLAIM_PATH) != install_claim_sha256
         or _sha256(REBOOT_CLAIM_PATH) != reboot_claim_sha256
+        or _sha256(F4_TRANSACTION)
+        != production_claim.get("f4_transaction_pre_sha256")
     ):
         raise AuthorityError("production_reboot_control_durable_binding_invalid")
     reboot_claim = _record(REBOOT_CLAIM_PATH, 0o600)
@@ -2023,6 +2026,12 @@ def production_reboot_control(
     context = _load_production_phase_context(production_phase_context)
     if _production_reboot_control_claim_present(context):
         raise AuthorityError("production_reboot_control_already_consumed")
+    binding = context["binding"]
+    if (
+        not isinstance(binding, dict)
+        or source_head != binding.get("source_head")
+    ):
+        raise AuthorityError("production_reboot_control_source_mismatch")
     package = _package(
         package_root,
         source_head=source_head,
@@ -2075,6 +2084,10 @@ def production_reboot_control(
             verified_install.get("status") != "PASS"
             or verified_install.get("state") != "CONTROL_READY"
             or verified_install.get("installation_verified") is not True
+            or verified_install.get("f4_transaction_unchanged") is not True
+            or verified_install.get("runtime_identity_unchanged") is not True
+            or verified_install.get("certificate_identity_unchanged")
+            is not True
             or verified_install.get("reboot_executed") is not False
         ):
             raise AuthorityError("production_reboot_control_verify_invalid")

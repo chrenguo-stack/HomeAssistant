@@ -1540,6 +1540,9 @@ def test_production_reboot_control_binds_phase_and_stops_before_actuation(
             "status": "PASS",
             "state": "CONTROL_READY",
             "installation_verified": True,
+            "f4_transaction_unchanged": True,
+            "runtime_identity_unchanged": True,
+            "certificate_identity_unchanged": True,
             "reboot_executed": False,
         },
     )
@@ -1737,4 +1740,30 @@ def test_production_reboot_actuation_claim_is_durable_and_no_replay(
         tool.claim_production_reboot_actuation(
             production_phase_context=context_path,
             expected_pending_claim_sha256=pending_sha,
+        )
+
+
+
+def test_production_reboot_control_rejects_control_source_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    context = _production_reboot_context(tool)
+    context_path = tmp_path / "context.json"
+    context_path.write_text(json.dumps(context), encoding="utf-8")
+    monkeypatch.setattr(
+        tool,
+        "_load_production_phase_context",
+        lambda _path: context,
+    )
+    with pytest.raises(
+        tool.AuthorityError,
+        match="production_reboot_control_source_mismatch",
+    ):
+        tool.production_reboot_control(
+            package_root=tmp_path,
+            source_head="b" * 40,
+            manifest_sha256="c" * 64,
+            production_phase_context=context_path,
         )
