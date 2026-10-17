@@ -17,10 +17,16 @@ from typing import Any, Sequence
 
 SCHEMA = "gh.n3w-t1-fresh-product-bootstrap/1"
 PAYLOAD_SCHEMA = "gh.n3w-t1-fresh-bootstrap-payload/1"
+PRODUCTION_PAYLOAD_SCHEMA = "gh.n3w-t1-fresh-bootstrap-payload/2"
 AUTHORIZATION_ID = "N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE_APPLY_R4_20261015_01"
 CLAIM_MARKER_NAME = ".authorization-claimed"
 AUTHORIZATION_LEDGER_SCHEMA = "gh.n3w-t1-fresh-authorization-ledger/1"
 AUTHORIZATION_LEDGER_ROOT = Path("/var/lib/n3w-fresh-bootstrap-authorizations")
+PRODUCTION_PHASE = "F3_DEPLOY"
+PRODUCTION_EXECUTION_LEDGER_SCHEMA = "gh.n3w-t1-fresh-production-execution/1"
+PRODUCTION_EXECUTION_LEDGER_ROOT = Path(
+    "/var/lib/n3w-fresh-bootstrap-production-executions"
+)
 IMAGE_CONFIG_KEYS = (
     "Entrypoint",
     "Cmd",
@@ -157,6 +163,26 @@ def _image_config_contract(config: object) -> dict[str, object]:
     return result
 
 
+def _manifest_mode(document: object) -> str:
+    if not isinstance(document, dict):
+        raise BootstrapError("payload_manifest_schema_invalid")
+    schema = document.get("schema")
+    if schema == PAYLOAD_SCHEMA:
+        if document.get("authorization_id") != AUTHORIZATION_ID:
+            raise BootstrapError("payload_authorization_invalid")
+        return "legacy"
+    if schema == PRODUCTION_PAYLOAD_SCHEMA:
+        forbidden = {
+            "authorization_id",
+            "authorization_claimed",
+            "authorization_consumed",
+        }
+        if forbidden & set(document):
+            raise BootstrapError("production_payload_authorization_forbidden")
+        return "production"
+    raise BootstrapError("payload_manifest_schema_invalid")
+
+
 def _load_manifest(root: Path) -> dict[str, Any]:
     path = root / "payload-manifest.json"
     if not path.is_file() or path.is_symlink():
@@ -165,10 +191,7 @@ def _load_manifest(root: Path) -> dict[str, Any]:
         document = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise BootstrapError("payload_manifest_invalid") from error
-    if not isinstance(document, dict) or document.get("schema") != PAYLOAD_SCHEMA:
-        raise BootstrapError("payload_manifest_schema_invalid")
-    if document.get("authorization_id") != AUTHORIZATION_ID:
-        raise BootstrapError("payload_authorization_invalid")
+    _manifest_mode(document)
     source_head = document.get("source_head")
     if not isinstance(source_head, str) or re.fullmatch(r"[0-9a-f]{40}", source_head) is None:
         raise BootstrapError("payload_source_head_invalid")
@@ -1658,6 +1681,273 @@ def _authorization_record_path(
     return AUTHORIZATION_LEDGER_ROOT / f"{digest}.json"
 
 
+def _validate_production_execution_ledger_root() -> None:
+    root = PRODUCTION_EXECUTION_LEDGER_ROOT
+    if root.is_symlink():
+        raise BootstrapError("production_execution_ledger_root_invalid")
+    if not root.exists():
+        return
+    metadata = root.stat()
+    if (
+        not root.is_dir()
+        or metadata.st_uid != os.geteuid()
+        or metadata.st_mode & 0o777 != 0o700
+    ):
+        raise BootstrapError("production_execution_ledger_root_invalid")
+
+
+def _production_execution_record_path(context: dict[str, Any]) -> Path:
+    digest = hashlib.sha256(
+        (
+            context["run_id"]
+            + "\n"
+            + context["phase"]
+            + "\n"
+            + context["claim_sha256"]
+            + "\n"
+        ).encode("utf-8")
+    ).hexdigest()
+    return PRODUCTION_EXECUTION_LEDGER_ROOT / f"{digest}.json"
+
+
+def _load_production_phase_context(path: Path) -> dict[str, Any]:
+    if path.is_symlink() or not path.is_file():
+        raise BootstrapError("production_phase_context_missing")
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise BootstrapError("production_phase_context_invalid") from error
+    required = {
+        "schema",
+        "run_id",
+        "phase",
+        "claim_sha256",
+        "plan_sha256",
+        "binding",
+        "binding_sha256",
+        "authorization_consumed",
+        "replay_allowed",
+        "board_access",
+    }
+    binding_fields = {
+        "source_head",
+        "release_id",
+        "artifact_sha256",
+        "predecessor_sha256",
+        "target_binding_sha256",
+    }
+    binding = document.get("binding") if isinstance(document, dict) else None
+    if (
+        not isinstance(document, dict)
+        or set(document) != required
+        or document.get("schema") != "gh.n3w-t1-production-phase-context/1"
+        or document.get("phase") != PRODUCTION_PHASE
+        or re.fullmatch(r"[0-9a-f]{64}", str(document.get("run_id"))) is None
+        or re.fullmatch(r"[0-9a-f]{64}", str(document.get("claim_sha256"))) is None
+        or re.fullmatch(r"[0-9a-f]{64}", str(document.get("plan_sha256"))) is None
+        or re.fullmatch(r"[0-9a-f]{64}", str(document.get("binding_sha256"))) is None
+        or document.get("authorization_consumed") is not True
+        or document.get("replay_allowed") is not False
+        or document.get("board_access") is not False
+        or not isinstance(binding, dict)
+        or set(binding) != binding_fields
+        or re.fullmatch(r"[0-9a-f]{40}", str(binding.get("source_head"))) is None
+        or re.fullmatch(r"[0-9a-f]{64}", str(binding.get("release_id"))) is None
+        or re.fullmatch(r"[0-9a-f]{64}", str(binding.get("artifact_sha256"))) is None
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(binding.get("target_binding_sha256")),
+        )
+        is None
+        or (
+            binding.get("predecessor_sha256") is not None
+            and re.fullmatch(
+                r"[0-9a-f]{64}",
+                str(binding.get("predecessor_sha256")),
+            )
+            is None
+        )
+    ):
+        raise BootstrapError("production_phase_context_invalid")
+    try:
+        from n3w_t1_production_authority import validate_phase_context
+    except ImportError as error:
+        raise BootstrapError("production_authority_dependency_missing") from error
+    validated = validate_phase_context(
+        document,
+        required_phase=PRODUCTION_PHASE,
+    )
+    if (
+        validated.get("status") != "PASS"
+        or validated.get("run_id") != document["run_id"]
+        or validated.get("phase") != PRODUCTION_PHASE
+        or validated.get("claim_sha256") != document["claim_sha256"]
+    ):
+        raise BootstrapError("production_phase_context_not_authorized")
+    return document
+
+
+def _production_execution_record_present(
+    context: dict[str, Any],
+) -> bool:
+    _validate_production_execution_ledger_root()
+    path = _production_execution_record_path(context)
+    if not path.exists():
+        return False
+    if path.is_symlink() or not path.is_file():
+        raise BootstrapError("production_execution_record_invalid")
+    metadata = path.stat()
+    if (
+        metadata.st_uid != os.geteuid()
+        or metadata.st_mode & 0o777 != 0o600
+        or metadata.st_nlink != 1
+    ):
+        raise BootstrapError("production_execution_record_invalid")
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise BootstrapError("production_execution_record_invalid") from error
+    required = {
+        "schema",
+        "run_id",
+        "phase",
+        "phase_claim_sha256",
+        "plan_sha256",
+        "source_head",
+        "payload_manifest_sha256",
+        "release_id",
+        "phase_artifact_sha256",
+        "target_binding_sha256",
+        "state",
+        "result_sha256",
+        "authorization_consumed",
+        "replay_allowed",
+    }
+    if (
+        not isinstance(record, dict)
+        or set(record) != required
+        or record.get("schema") != PRODUCTION_EXECUTION_LEDGER_SCHEMA
+        or record.get("run_id") != context["run_id"]
+        or record.get("phase") != PRODUCTION_PHASE
+        or record.get("phase_claim_sha256") != context["claim_sha256"]
+        or record.get("plan_sha256") != context["plan_sha256"]
+        or record.get("authorization_consumed") is not True
+        or record.get("replay_allowed") is not False
+        or record.get("state") not in {"APPLYING", "SUCCEEDED"}
+        or (
+            record.get("state") == "APPLYING"
+            and record.get("result_sha256") is not None
+        )
+        or (
+            record.get("state") == "SUCCEEDED"
+            and re.fullmatch(
+                r"[0-9a-f]{64}",
+                str(record.get("result_sha256")),
+            )
+            is None
+        )
+    ):
+        raise BootstrapError("production_execution_record_invalid")
+    return True
+
+
+def _claim_production_execution(
+    payload_root: Path,
+    manifest: dict[str, Any],
+    context: dict[str, Any],
+) -> None:
+    _validate_production_execution_ledger_root()
+    PRODUCTION_EXECUTION_LEDGER_ROOT.mkdir(mode=0o700, exist_ok=True)
+    os.chmod(PRODUCTION_EXECUTION_LEDGER_ROOT, 0o700)
+    _validate_production_execution_ledger_root()
+    binding = context["binding"]
+    record = {
+        "schema": PRODUCTION_EXECUTION_LEDGER_SCHEMA,
+        "run_id": context["run_id"],
+        "phase": PRODUCTION_PHASE,
+        "phase_claim_sha256": context["claim_sha256"],
+        "plan_sha256": context["plan_sha256"],
+        "source_head": manifest["source_head"],
+        "payload_manifest_sha256": _sha256_file(
+            payload_root / "payload-manifest.json"
+        ),
+        "release_id": binding["release_id"],
+        "phase_artifact_sha256": binding["artifact_sha256"],
+        "target_binding_sha256": binding["target_binding_sha256"],
+        "state": "APPLYING",
+        "result_sha256": None,
+        "authorization_consumed": True,
+        "replay_allowed": False,
+    }
+    path = _production_execution_record_path(context)
+    payload = (
+        json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n"
+    ).encode("utf-8")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, flags, 0o600)
+    except FileExistsError as error:
+        raise BootstrapError("production_execution_already_consumed") from error
+    with os.fdopen(descriptor, "wb") as stream:
+        stream.write(payload)
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.chmod(path, 0o600)
+    directory_fd = os.open(
+        PRODUCTION_EXECUTION_LEDGER_ROOT,
+        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+    )
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+
+
+def _complete_production_execution(
+    context: dict[str, Any],
+    result: dict[str, object],
+) -> None:
+    path = _production_execution_record_path(context)
+    if not _production_execution_record_present(context):
+        raise BootstrapError("production_execution_record_missing")
+    record = json.loads(path.read_text(encoding="utf-8"))
+    if record.get("state") != "APPLYING":
+        raise BootstrapError("production_execution_state_invalid")
+    record["state"] = "SUCCEEDED"
+    record["result_sha256"] = hashlib.sha256(
+        json.dumps(
+            result,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    descriptor = os.open(
+        temporary,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+        0o600,
+    )
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            json.dump(record, stream, sort_keys=True, separators=(",", ":"))
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(temporary, 0o600)
+        os.replace(temporary, path)
+        directory_fd = os.open(
+            PRODUCTION_EXECUTION_LEDGER_ROOT,
+            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+        )
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
 def _validate_authorization_ledger_root() -> None:
     root = AUTHORIZATION_LEDGER_ROOT
     if root.is_symlink():
@@ -1801,6 +2091,8 @@ def execute_claim(
     if os.geteuid() != 0:
         raise BootstrapError("root_required")
     manifest = _load_manifest(payload_root)
+    if _manifest_mode(manifest) != "legacy":
+        raise BootstrapError("legacy_authorization_forbidden_for_production_payload")
     if _authorization_record_present():
         raise BootstrapError("authorization_already_consumed")
     _claim_authorization(payload_root, manifest)
@@ -1825,6 +2117,8 @@ def execute_apply(payload_root: Path, authorization_id: str, runner: Runner | No
     if os.geteuid() != 0:
         raise BootstrapError("root_required")
     manifest = _load_manifest(payload_root)
+    if _manifest_mode(manifest) != "legacy":
+        raise BootstrapError("legacy_authorization_forbidden_for_production_payload")
     record_present = _authorization_record_present()
     preclaimed = False
     if record_present:
@@ -1909,6 +2203,90 @@ def execute_apply(payload_root: Path, authorization_id: str, runner: Runner | No
     }
 
 
+def execute_production_apply(
+    payload_root: Path,
+    production_context_path: Path,
+    runner: Runner | None = None,
+) -> dict[str, object]:
+    if os.geteuid() != 0:
+        raise BootstrapError("root_required")
+    manifest = _load_manifest(payload_root)
+    if _manifest_mode(manifest) != "production":
+        raise BootstrapError("production_payload_schema_required")
+    context = _load_production_phase_context(production_context_path)
+    if context["binding"]["source_head"] != manifest["source_head"]:
+        raise BootstrapError("production_context_source_head_mismatch")
+    if _production_execution_record_present(context):
+        raise BootstrapError("production_execution_already_consumed")
+    active = runner or Runner()
+    adapters = LiveFreshInstallerAdapters(payload_root, manifest, active)
+    contract = _load_contract(payload_root)
+    candidate = Path("/var/tmp") / f"n3w-fresh-bootstrap-{secrets.token_hex(8)}"
+    claimed = False
+
+    def claim_once() -> None:
+        nonlocal claimed
+        _claim_production_execution(payload_root, manifest, context)
+        claimed = True
+        print(
+            json.dumps(
+                {
+                    "schema": SCHEMA,
+                    "event": "production_phase_execution_claimed",
+                    "production_run_id": context["run_id"],
+                    "production_phase": PRODUCTION_PHASE,
+                    "phase_claim_sha256": context["claim_sha256"],
+                    "authorization_consumed": True,
+                    "replay_allowed": False,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+            flush=True,
+        )
+
+    try:
+        report = contract.run_fresh_public_staging(
+            adapters,
+            candidate,
+            before_mutation=claim_once,
+        )
+    except Exception as error:
+        if claimed:
+            try:
+                setattr(error, "production_claimed", True)
+            except Exception:
+                pass
+        raise
+    if not claimed:
+        raise BootstrapError("production_execution_claim_missing")
+    result = {
+        "schema": SCHEMA,
+        "status": "PASS",
+        "source_head": manifest["source_head"],
+        "production_run_id": context["run_id"],
+        "production_phase": PRODUCTION_PHASE,
+        "phase_claim_sha256": context["claim_sha256"],
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "public_product_staged": report["public_product_staged"],
+        "instance_material_absent": report["instance_material_absent"],
+        "explicit_provisioning_required": report["explicit_provisioning_required"],
+        "production_service_start": False,
+        "activation_authorized": False,
+        "board_access": False,
+    }
+    try:
+        _complete_production_execution(context, result)
+    except Exception as error:
+        try:
+            setattr(error, "production_claimed", True)
+        except Exception:
+            pass
+        raise
+    return result
+
+
 def self_check(payload_root: Path) -> dict[str, object]:
     manifest = _load_manifest(payload_root)
     source = Path(__file__).read_text(encoding="utf-8")
@@ -1943,6 +2321,7 @@ def _parser() -> argparse.ArgumentParser:
         required=True,
     )
     parser.add_argument("--authorization-id")
+    parser.add_argument("--production-phase-context", type=Path)
     return parser
 
 
@@ -1955,13 +2334,23 @@ def main() -> int:
         elif args.phase == "preflight":
             result = execute_preflight(root)
         elif args.phase == "claim":
+            if args.production_phase_context is not None:
+                raise BootstrapError("production_context_claim_not_supported")
             if not args.authorization_id:
                 raise BootstrapError("authorization_id_required")
             result = execute_claim(root, args.authorization_id)
         else:
-            if not args.authorization_id:
-                raise BootstrapError("authorization_id_required")
-            result = execute_apply(root, args.authorization_id)
+            if args.production_phase_context is not None:
+                if args.authorization_id:
+                    raise BootstrapError("authorization_mode_conflict")
+                result = execute_production_apply(
+                    root,
+                    args.production_phase_context,
+                )
+            else:
+                if not args.authorization_id:
+                    raise BootstrapError("authorization_id_required")
+                result = execute_apply(root, args.authorization_id)
         print(json.dumps(result, sort_keys=True, separators=(",", ":")), flush=True)
         return 0 if result.get("status") == "PASS" else 2
     except Exception as error:
@@ -1970,7 +2359,11 @@ def main() -> int:
             durable_claimed = _authorization_record_present()
         except Exception:
             durable_claimed = False
-        claimed = durable_claimed or (root / CLAIM_MARKER_NAME).is_file()
+        claimed = (
+            bool(getattr(error, "production_claimed", False))
+            or durable_claimed
+            or (root / CLAIM_MARKER_NAME).is_file()
+        )
         print(
             json.dumps(
                 {
