@@ -7,10 +7,12 @@
 F5 量产安装流程采用：
 
 ```text
-F5_V1_REMOTE_ACCESS_MODEL=INTERACTIVE_PASSWORD_ONCE_WITH_SSH_CONNECTION_REUSE
+F5_V1_REMOTE_ACCESS_MODEL=INTERACTIVE_PASSWORD_PER_CONNECTION_EPOCH_WITH_SSH_CONNECTION_REUSE
 SSH_CONTROL_CONNECTION=true
 HOST_KEY_CHECKING=true
-NORMAL_DEPLOYMENT_PASSWORD_PROMPTS=1
+NORMAL_DEPLOYMENT_PASSWORD_PROMPTS_BEFORE_REBOOT=1
+POST_REBOOT_PASSWORD_PROMPTS=1
+NORMAL_FULL_RUN_PASSWORD_PROMPTS=2
 
 PER_DEVICE_MANAGEMENT_KEY=false
 SSH_KEY_ROTATION=false
@@ -19,7 +21,7 @@ PASSWORD_AUTH_DISABLE=false
 DEDICATED_N3W_ADMIN_ACCOUNT=false
 ```
 
-目标：操作员在新 T1 开始部署时输入一次 SSH 密码，随后整个自动部署流程复用同一 SSH 控制连接，不再重复询问密码。
+目标：每个 SSH connection epoch 只交互输入一次密码并复用同一控制连接。正常 F5 run 包含一次 T1 reboot，因此重启前输入一次，重启后重新认证再输入一次；生产批准仍只有一次。
 
 本设计只进入 F5 量产流程收敛，不改变当前 F3/F4 已冻结的严格执行合同。
 
@@ -47,7 +49,7 @@ Docker / Compose 安装
 关闭 SSH 控制连接
 ```
 
-正常流程中，除第一次密码输入外，不应再出现交互式密码提示。
+正常流程中，同一个 SSH connection epoch 内不应重复提示密码。一次正常 reboot 会终止旧连接，重启后需要第二次交互式认证，但不重新请求生产批准。
 
 ## 3. 明确不做的内容
 
@@ -179,6 +181,60 @@ F5_V1_SSH_CONNECTION_REUSE=DESIGN_ONLY
 
 当前项目冻结的量产 V1 原则是：
 
-> SSH 只解决部署通道；产品密钥只解决产品身份。量产阶段第一次输入一次密码，之后复用 SSH 控制连接自动完成部署，不在当前阶段引入永久 SSH 管理密钥体系。
+> SSH 只解决部署通道；产品密钥只解决产品身份。每个 SSH connection epoch 第一次输入一次密码并复用控制连接；一次正常 reboot 的完整 F5 run 共两次密码输入，不在当前阶段引入永久 SSH 管理密钥体系。
 
 这项收敛优先控制工程复杂度，同时保留 Host Key、安全边界和不可变产物哈希验证。
+
+
+## 11. F5-0 架构合同冻结补充 — 2026-10-17
+
+本节冻结首次主机信任、重启后的重新认证和连接所有权；与前文早期“一次密码覆盖整次 run”的表述
+冲突时，以本节和本文件第 1 节更新后的字段为准。
+
+~~~text
+PRODUCTION_AUTHORIZATION_PROMPTS=1
+PRE_REBOOT_PASSWORD_PROMPTS=1
+POST_REBOOT_PASSWORD_PROMPTS=1
+NORMAL_FULL_RUN_PASSWORD_PROMPTS=2
+PASSWORD_PERSISTED=false
+NEW_SSH_LOGIN_KEY=false
+HOST_KEY_CHECKING=true
+HOST_KEY_MISMATCH=STOP
+UNKNOWN_SSH_ERROR=STOP
+~~~
+
+### 11.1 首次 Host Key 信任
+
+首次网络连接不能用“从同一未验证网络连接看到的 key”证明自己可信。
+
+优先从该 T1 的本地控制台或已有私有资产台账取得 SSH host public-key fingerprint，再与网络连接
+提供的 key 比对。缺少独立可信 fingerprint 时停在信任建立边界，不进入生产批准。
+
+`ssh-keyscan` 只能用于取得候选 key，不能独立建立信任。已知 key mismatch 必须 STOP；不得通过删除
+旧 known_hosts 记录、换 alias 或 accept-new 静默绕过。
+
+### 11.2 ControlMaster 所有权
+
+Mac production orchestrator 是正常生产路径唯一的 SSH master/socket/config owner。所有正常路径的
+ssh/scp 调用必须通过同一个经过测试的 transport adapter 复用连接。
+
+socket 使用本机私有、短路径、随机目录，不放仓库或共享/同步目录。密码由 OpenSSH 直接从终端读取，
+F5 程序不读取、不缓存、不写参数、环境变量、日志或 artifact。
+
+ControlPath 丢失、master 死亡或认证路径不确定时必须 STOP，不能静默开一个普通新连接继续 mutation。
+
+### 11.3 正常 reboot
+
+取得合法 reboot authority 后，原 SSH 控制连接会随 T1 reboot 失效。编排器有界等待 SSH 恢复，
+重新严格核对同一个 host key，然后提示第二次密码并建立新的 master。第二次密码只是重新认证，
+不是第二次生产授权。
+
+非预期断线时停止后继 mutation，先只读核对目标 durable state；UNKNOWN 不能自动重放。
+
+### 11.4 Cleanup
+
+成功、失败和 Ctrl-C 都必须有界关闭本 run 拥有的 master、确认不再有活的受控连接，再删除本 run
+socket/config 临时资料。不得使用广泛 `pkill ssh` 或清理用户其他 SSH 资源。
+
+如果设备验收已 PASS，但无法证明生产会话已经安全关闭，则保留设备通过事实，F5 综合流程结果仍不能
+写成普通 PASS。
