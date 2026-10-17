@@ -510,8 +510,15 @@ def main(
         else:
             release, release_sha256 = load_release(args.release)
             if backend_factory is None:
-                raise ProductionError("exact_release_runtime_backend_required")
-            backend = backend_factory(release, args.release)
+                from n3w_t1_production_runtime import create_backend
+
+                backend = create_backend(
+                    release,
+                    args.release,
+                    private_record_path=args.private_record,
+                )
+            else:
+                backend = backend_factory(release, args.release)
             document = run_production(
                 release,
                 release_sha256=release_sha256,
