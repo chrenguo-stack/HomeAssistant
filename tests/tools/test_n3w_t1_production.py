@@ -213,7 +213,7 @@ def test_prompt_displays_plan_before_reading_confirmation(monkeypatch, capsys):
     assert "START PRODUCTION RUN" in observed["prompt"]
 
 
-def test_private_result_is_written_only_after_public_projection(tmp_path, monkeypatch):
+def test_public_result_is_not_written_if_private_write_fails(tmp_path, monkeypatch):
     tool = load_tool()
     backend = FakeBackend()
     private_path = tmp_path / "private.json"
@@ -227,7 +227,7 @@ def test_private_result_is_written_only_after_public_projection(tmp_path, monkey
         return original(path, document, mode)
 
     monkeypatch.setattr(tool, "_atomic_new_json", fail_private)
-    try:
+    with pytest.raises(tool.ProductionError, match="evidence_write_failed"):
         tool.run_production(
             release(tool),
             release_sha256="d" * 64,
@@ -238,14 +238,37 @@ def test_private_result_is_written_only_after_public_projection(tmp_path, monkey
             now=100,
             run_id="e" * 64,
         )
-    except tool.ProductionError as error:
-        assert str(error) == "evidence_write_failed"
-    else:
-        raise AssertionError("expected evidence_write_failed")
-    assert public_path.is_file()
     assert not private_path.exists()
-    public = json.loads(public_path.read_text())
-    assert len(public["private_result_sha256"]) == 64
+    assert not public_path.exists()
+
+
+def test_public_write_failure_cannot_leave_false_public_pass(tmp_path, monkeypatch):
+    tool = load_tool()
+    backend = FakeBackend()
+    private_path = tmp_path / "private.json"
+    public_path = tmp_path / "public.json"
+    backend.approval_record_path = tool._approval_record_path(private_path)
+    original = tool._atomic_new_json
+
+    def fail_public(path, document, mode=0o600):
+        if path == public_path:
+            raise OSError("injected_public_write_failure")
+        return original(path, document, mode)
+
+    monkeypatch.setattr(tool, "_atomic_new_json", fail_public)
+    with pytest.raises(tool.ProductionError, match="evidence_write_failed"):
+        tool.run_production(
+            release(tool),
+            release_sha256="d" * 64,
+            backend=backend,
+            approval=lambda _summary: True,
+            private_record_path=private_path,
+            public_record_path=public_path,
+            now=100,
+            run_id="e" * 64,
+        )
+    assert private_path.is_file()
+    assert not public_path.exists()
 
 
 def test_successful_result_files_are_created_once_without_in_place_promotion(
