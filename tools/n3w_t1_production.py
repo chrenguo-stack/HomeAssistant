@@ -19,7 +19,9 @@ from n3w_t1_production_contract import (
     ProductionContractError,
     canonical_sha256,
     final_outcome,
+    phase_artifact_sha256,
     public_result,
+    validate_preflight_report,
     validate_release,
 )
 
@@ -36,6 +38,14 @@ class ProductionBackend(Protocol):
         ...
 
     def target_identity(self) -> dict[str, str]:
+        ...
+
+    def preflight(
+        self,
+        *,
+        release: dict[str, Any],
+        identity: dict[str, str],
+    ) -> dict[str, object]:
         ...
 
     def approve_run(self, plan: dict[str, Any]) -> dict[str, object]:
@@ -183,6 +193,7 @@ def build_plan(
     release_sha256: str,
     target_binding_sha256: str,
     ssh_host_key_sha256: str,
+    preflight_sha256: str,
     now: int | None = None,
     max_duration_seconds: int = 4 * 60 * 60,
     run_id: str | None = None,
@@ -201,6 +212,10 @@ def build_plan(
         "source_head": release["source_head"],
         "target_binding_sha256": target_binding_sha256,
         "ssh_host_key_sha256": ssh_host_key_sha256,
+        "preflight_sha256": preflight_sha256,
+        "phase_artifact_sha256": {
+            phase: phase_artifact_sha256(release, phase) for phase in PHASES
+        },
         "plan_digest": "0" * 64,
         "approved_at": current,
         "expires_at": current + max_duration_seconds,
@@ -272,11 +287,19 @@ def run_production(
         host_key = identity.get("ssh_host_key_sha256")
         if not isinstance(target_binding, str) or not isinstance(host_key, str):
             raise ProductionError("target_identity_invalid")
+        preflight = validate_preflight_report(
+            backend.preflight(
+                release=normalized_release,
+                identity=dict(identity),
+            )
+        )
+        preflight_sha256 = canonical_sha256(preflight)
         plan = build_plan(
             normalized_release,
             release_sha256=release_sha256,
             target_binding_sha256=target_binding,
             ssh_host_key_sha256=host_key,
+            preflight_sha256=preflight_sha256,
             now=now,
             run_id=run_id,
         )
@@ -288,6 +311,7 @@ def run_production(
             "state": "APPROVED_PENDING_TARGET_CLAIM",
             "run_id": plan["run_id"],
             "plan": plan,
+            "preflight": preflight,
             "release_sha256": release_sha256,
             "board_access": False,
         }
