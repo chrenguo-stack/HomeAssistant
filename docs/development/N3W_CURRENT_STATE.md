@@ -1,3 +1,39 @@
+## 2026-10-17 — F5 V1 source work-package preparation CLOSED_PASS
+
+~~~text
+TASK=N3W_T1_F5_PRODUCTION_PROCESS_V1_SOURCE_WORK_PACKAGE_PREPARATION_20261017_01
+RESULT=CLOSED_PASS_READY_FOR_SOURCE_IMPLEMENTATION
+
+BASE_MAIN=9c81b889d97ed896b80d27af15069d16af0e0bdb
+BASE_TREE=ffd168f596a98762e003797ce862e996b11e7671
+MAIN_DRIFT=NONE
+SOURCE_BRANCH=feat/n3w-t1-f5-production-process-v1-source-20261017
+SOURCE_BRANCH_BASE=9c81b889d97ed896b80d27af15069d16af0e0bdb
+SOURCE_BRANCH_CREATED=true
+
+F5_SOURCE_SCOPE=F5_1_THROUGH_F5_6_ONE_COHERENT_SOURCE_WORK_PACKAGE
+F5_SOURCE_IMPLEMENTATION_STARTED=false
+PRODUCT_SOURCE_MUTATION=false
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_F5_PRODUCTION_PROCESS_V1_SOURCE_WORK_PACKAGE_IMPLEMENTATION_20261017_01
+AUTO_EXECUTE_NEXT_GATE=false
+STOP=true
+~~~
+
+The F5-0 architecture contract is already in main and the post-merge alignment is final by the terminating closure
+rule. Fresh rebind found no main drift. A dedicated source branch is now prepared from exact main; the file-level
+source/test/workflow scope and default no-change surfaces are frozen before any product-source edit.
+
+Authority:
+`docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_SOURCE_WORK_PACKAGE_PREPARATION_20261017.md`.
+
+Machine-readable scope:
+`docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_SOURCE_WORK_PACKAGE_MANIFEST_20261017.json`.
+
 ## 2026-10-17 — F5 V1 architecture contract merged; post-merge state alignment prepared
 
 ~~~text

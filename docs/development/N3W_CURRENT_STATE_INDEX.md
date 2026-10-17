@@ -1,3 +1,15 @@
+## 2026-10-17 — F5 V1 source work-package preparation CLOSED_PASS
+
+- Fresh main remains `9c81b889d97ed896b80d27af15069d16af0e0bdb`; no drift was observed.
+- Dedicated source branch: `feat/n3w-t1-f5-production-process-v1-source-20261017`, rooted at exact main.
+- F5-1 through F5-6 are frozen as one coherent source work package and one future source PR.
+- Four new logical modules, four focused tests and one dedicated F5 source-CI workflow are reserved.
+- Existing F3/F2/provision/F4 adapters, tests and packaging workflows are bounded by an exact base-blob allowlist.
+- `device_firstboot.py`, `fresh_installer.py`, the F4 reboot verifier and certificate runtime guard remain byte-identical by default.
+- Product source implementation has not started; no T1-B access, T1 mutation, board access or merge occurred.
+- Next gate: `N3W_T1_F5_PRODUCTION_PROCESS_V1_SOURCE_WORK_PACKAGE_IMPLEMENTATION_20261017_01`.
+- Authority: `docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_SOURCE_WORK_PACKAGE_PREPARATION_20261017.md`.
+
 ## 2026-10-17 — F5 V1 architecture contract merged; post-merge alignment prepared
 
 - PR #610 is CLOSED/MERGED.
