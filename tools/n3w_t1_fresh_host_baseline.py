@@ -172,8 +172,7 @@ def _check(runner: Runner) -> dict[str, object]:
 
 
 def execute_install(runner: Runner | None = None) -> dict[str, object]:
-    if os.geteuid() != 0:
-        raise FreshHostBaselineError("root_required")
+    _require_root()
     release = _os_release()
     _validate_target_host(release)
     active = runner or Runner()
