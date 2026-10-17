@@ -35,12 +35,18 @@ class FakeRunner:
     def __init__(self):
         self.calls = []
         self.master_available = True
+        self.exit_fails = False
 
     def run(self, argv, *, timeout, interactive=False, check=True):
         command = tuple(argv)
         self.calls.append((command, interactive))
         returncode = 0
-        if "-O" in command and "check" in command and not self.master_available:
+        if "-O" in command and "exit" in command:
+            if self.exit_fails:
+                returncode = 255
+            else:
+                self.master_available = False
+        elif "-O" in command and "check" in command and not self.master_available:
             returncode = 255
         result = subprocess.CompletedProcess(command, returncode, "", "")
         if check and returncode:
@@ -86,6 +92,9 @@ def test_children_reuse_master_and_disable_fallback(tmp_path):
             assert "PasswordAuthentication=no" in command
             assert "KbdInteractiveAuthentication=no" in command
             assert "PubkeyAuthentication=no" in command
+            assert "ProxyCommand=/usr/bin/false" in command
+            assert "-F" in command
+            assert "/dev/null" in command
     transport.close_epoch()
 
 
@@ -127,3 +136,36 @@ def test_one_reboot_is_two_authentication_epochs(tmp_path):
     assert second["epoch"] == 2
     assert len([1 for _command, interactive in runner.calls if interactive]) == 2
     transport.close_epoch()
+
+
+def test_cleanup_fails_if_master_exit_cannot_be_proven(tmp_path):
+    tool = load_tool()
+    path, digest = known_hosts(tmp_path)
+    runner = FakeRunner()
+    transport = tool.SSHTransport(
+        target="root@t1.local",
+        known_hosts=path,
+        expected_host_key_sha256=digest,
+        runner=runner,
+        work_root=tmp_path,
+    )
+    transport.start_epoch()
+    runner.exit_fails = True
+    with pytest.raises(tool.SSHTransportError, match="ssh_cleanup_failed"):
+        transport.close_epoch()
+
+
+def test_expected_disconnect_requires_master_to_be_gone(tmp_path):
+    tool = load_tool()
+    path, digest = known_hosts(tmp_path)
+    runner = FakeRunner()
+    transport = tool.SSHTransport(
+        target="root@t1.local",
+        known_hosts=path,
+        expected_host_key_sha256=digest,
+        runner=runner,
+        work_root=tmp_path,
+    )
+    transport.start_epoch()
+    with pytest.raises(tool.SSHTransportError, match="ssh_cleanup_failed"):
+        transport.close_epoch(expected_disconnect=True)

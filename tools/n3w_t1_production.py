@@ -24,6 +24,9 @@ from n3w_t1_production_contract import (
 )
 
 
+APPROVAL_RECORD_SCHEMA = "gh.n3w-t1-production-approval-record/1"
+
+
 class ProductionError(RuntimeError):
     pass
 
@@ -93,6 +96,55 @@ def _atomic_new_json(path: Path, document: dict[str, Any], mode: int = 0o600) ->
         os.fsync(directory_fd)
     finally:
         os.close(directory_fd)
+
+
+def _atomic_replace_json(
+    path: Path,
+    document: dict[str, Any],
+    mode: int = 0o600,
+) -> None:
+    if path.is_symlink() or not path.is_file():
+        raise ProductionError("record_replace_target_invalid")
+    metadata = path.stat()
+    if (
+        metadata.st_uid != os.geteuid()
+        or stat.S_IMODE(metadata.st_mode) != mode
+        or metadata.st_nlink != 1
+    ):
+        raise ProductionError("record_replace_target_metadata_invalid")
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    if temporary.exists() or temporary.is_symlink():
+        raise ProductionError("record_replace_temporary_exists")
+    payload = (
+        json.dumps(document, sort_keys=True, separators=(",", ":")) + "\n"
+    ).encode("utf-8")
+    descriptor = os.open(
+        temporary,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+        mode,
+    )
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(temporary, mode)
+        os.replace(temporary, path)
+        directory_fd = os.open(
+            path.parent,
+            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+        )
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
+def _approval_record_path(private_record_path: Path) -> Path:
+    return private_record_path.with_name(f"{private_record_path.name}.approval.json")
 
 
 def _read_private_record(path: Path) -> dict[str, Any]:
@@ -192,16 +244,24 @@ def run_production(
     run_id: str | None = None,
 ) -> dict[str, Any]:
     normalized_release = validate_release(release)
+    approval_record_path = _approval_record_path(private_record_path)
+    for output_path in (
+        approval_record_path,
+        private_record_path,
+        public_record_path,
+    ):
+        if output_path.exists() or output_path.is_symlink():
+            raise ProductionError("record_already_exists")
     connected = False
     post_reboot_connected = False
     device_acceptance = False
     session_closed = False
-    evidence_complete = False
     override_check_ids: list[str] = []
     terminal_phase: str | None = None
     plan: dict[str, Any] | None = None
     phase_reports: dict[str, dict[str, Any]] = {}
     failure_code: str | None = None
+    approval_record_sha256: str | None = None
     try:
         connection = backend.connect_pre_reboot()
         if connection.get("status") != "PASS":
@@ -222,6 +282,17 @@ def run_production(
         )
         if approval(approval_summary(plan)) is not True:
             raise ProductionError("production_approval_declined")
+        approval_record = {
+            "schema": APPROVAL_RECORD_SCHEMA,
+            "status": "PASS",
+            "state": "APPROVED_PENDING_TARGET_CLAIM",
+            "run_id": plan["run_id"],
+            "plan": plan,
+            "release_sha256": release_sha256,
+            "board_access": False,
+        }
+        _atomic_new_json(approval_record_path, approval_record, 0o600)
+        approval_record_sha256 = _sha256_file(approval_record_path)
         approved = backend.approve_run(plan)
         if approved.get("status") != "PASS":
             raise ProductionError("production_approval_not_persisted")
@@ -269,16 +340,10 @@ def run_production(
     if plan is None:
         raise ProductionError(failure_code or "plan_not_created")
 
-    preliminary_outcome = final_outcome(
-        device_acceptance=device_acceptance,
-        operator_session_closed=session_closed,
-        evidence_complete=True,
-        override_check_ids=override_check_ids,
-    )
     private = {
         "schema": RESULT_SCHEMA,
-        "status": "PASS" if preliminary_outcome != "FAIL" and failure_code is None else "FAIL",
-        "final_outcome": preliminary_outcome if failure_code is None else "FAIL",
+        "status": "FAIL",
+        "final_outcome": "FAIL",
         "release_id": normalized_release["release_id"],
         "release_sha256": release_sha256,
         "source_head": normalized_release["source_head"],
@@ -287,7 +352,7 @@ def run_production(
         "ssh_host_key_sha256": plan["ssh_host_key_sha256"],
         "device_acceptance": device_acceptance,
         "operator_session_closed": session_closed,
-        "evidence_complete": True,
+        "evidence_complete": False,
         "override_used": bool(override_check_ids),
         "override_check_ids": override_check_ids,
         "terminal_phase": terminal_phase,
@@ -297,18 +362,35 @@ def run_production(
         "connection_epoch_count": 2 if post_reboot_connected else (1 if connected else 0),
         "phase_reports": phase_reports,
         "plan": plan,
+        "approval_record_sha256": approval_record_sha256,
     }
     try:
         _atomic_new_json(private_record_path, private, 0o600)
-        public = public_result(private)
-        _atomic_new_json(public_record_path, public, 0o600)
-        evidence_complete = True
-    except Exception:
-        evidence_complete = False
-
-    if not evidence_complete:
-        raise ProductionError("evidence_write_failed")
-    return private
+        _atomic_new_json(public_record_path, public_result(private), 0o600)
+        completed = dict(private)
+        completed["evidence_complete"] = True
+        completed["final_outcome"] = (
+            "FAIL"
+            if failure_code is not None
+            else final_outcome(
+                device_acceptance=device_acceptance,
+                operator_session_closed=session_closed,
+                evidence_complete=True,
+                override_check_ids=override_check_ids,
+            )
+        )
+        completed["status"] = (
+            "PASS" if completed["final_outcome"] != "FAIL" else "FAIL"
+        )
+        _atomic_replace_json(private_record_path, completed, 0o600)
+        _atomic_replace_json(
+            public_record_path,
+            public_result(completed),
+            0o600,
+        )
+    except Exception as error:
+        raise ProductionError("evidence_write_failed") from error
+    return completed
 
 
 def inspect_record(path: Path) -> dict[str, Any]:
@@ -338,6 +420,13 @@ def verify_record(path: Path) -> dict[str, Any]:
         "public_result": public,
         "board_access": False,
     }
+
+
+def prompt_for_approval(summary: str) -> bool:
+    print(summary, flush=True)
+    return input("Type START PRODUCTION RUN to approve: ").strip() == (
+        "START PRODUCTION RUN"
+    )
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -370,15 +459,11 @@ def main(
             if backend_factory is None:
                 raise ProductionError("exact_release_runtime_backend_required")
             backend = backend_factory(release, args.release)
-            expected = input("Type START PRODUCTION RUN to approve: ").strip()
             document = run_production(
                 release,
                 release_sha256=release_sha256,
                 backend=backend,
-                approval=lambda summary: (
-                    print(summary, flush=True) is None
-                    and expected == "START PRODUCTION RUN"
-                ),
+                approval=prompt_for_approval,
                 private_record_path=args.private_record,
                 public_record_path=args.public_record,
             )

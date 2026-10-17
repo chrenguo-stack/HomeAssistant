@@ -115,6 +115,8 @@ class SSHTransport:
 
     def _base_options(self) -> tuple[str, ...]:
         return (
+            "-F",
+            "/dev/null",
             "-o",
             "StrictHostKeyChecking=yes",
             "-o",
@@ -230,6 +232,8 @@ class SSHTransport:
             "KbdInteractiveAuthentication=no",
             "-o",
             "PreferredAuthentications=none",
+            "-o",
+            "ProxyCommand=/usr/bin/false",
         )
 
     def run_remote(
@@ -295,26 +299,44 @@ class SSHTransport:
         if self._directory is None:
             return {"status": "PASS", "session_closed": True, "epoch": self._epoch}
         cleanup_error: Exception | None = None
-        if self._active and not expected_disconnect:
+        if self._active:
             try:
-                self.runner.run(
+                if not expected_disconnect:
+                    exited = self.runner.run(
+                        (
+                            "ssh",
+                            "-S",
+                            str(self.control_path),
+                            "-O",
+                            "exit",
+                            self.target,
+                        ),
+                        timeout=20,
+                        check=False,
+                    )
+                    if exited.returncode != 0:
+                        raise SSHTransportError("ssh_master_exit_failed")
+                checked = self.runner.run(
                     (
                         "ssh",
                         "-S",
                         str(self.control_path),
                         "-O",
-                        "exit",
+                        "check",
                         self.target,
                     ),
                     timeout=20,
                     check=False,
                 )
+                if checked.returncode == 0:
+                    raise SSHTransportError("ssh_master_still_active")
             except Exception as error:
                 cleanup_error = error
-        try:
-            self._cleanup_local()
-        except Exception as error:
-            cleanup_error = cleanup_error or error
+        if cleanup_error is None:
+            try:
+                self._cleanup_local()
+            except Exception as error:
+                cleanup_error = error
         if cleanup_error is not None:
             raise SSHTransportError(
                 f"ssh_cleanup_failed:{type(cleanup_error).__name__}"

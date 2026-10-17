@@ -187,6 +187,8 @@ def validate_release(document: object) -> dict[str, Any]:
     if not all(isinstance(value, str) and value for value in packages.values()):
         raise ProductionContractError("release_package_version_invalid")
     policy = validate_check_policy(document.get("check_policy"))
+    if policy["allow_overrides"]:
+        raise ProductionContractError("release_override_policy_not_empty")
     if document.get("result_schema") != RESULT_SCHEMA:
         raise ProductionContractError("release_result_schema_invalid")
     normalized = {
@@ -276,7 +278,14 @@ def evaluate_check(
     policy: dict[str, Any],
     operator_approved: bool = False,
 ) -> dict[str, object]:
-    severity = CHECK_CATALOG.get(check_id, "HARD_STOP")
+    if check_id not in CHECK_CATALOG:
+        return {
+            "check_id": check_id,
+            "severity": "HARD_STOP",
+            "decision": "STOP",
+            "override_used": False,
+        }
+    severity = CHECK_CATALOG[check_id]
     normalized = validate_check_policy(policy)
     if status == "PASS":
         return {
@@ -350,11 +359,19 @@ def public_result(private_result: object) -> dict[str, Any]:
         raise ProductionContractError("public_result_required_field_missing")
     if _forbidden(public):
         raise ProductionContractError("public_result_forbidden_key")
+    override_ids = public["override_check_ids"]
+    if (
+        not isinstance(override_ids, list)
+        or not all(isinstance(item, str) for item in override_ids)
+        or len(override_ids) != len(set(override_ids))
+        or any(CHECK_CATALOG.get(item) != "OVERRIDABLE" for item in override_ids)
+    ):
+        raise ProductionContractError("result_override_check_ids_invalid")
     expected = final_outcome(
         device_acceptance=public["device_acceptance"] is True,
         operator_session_closed=public["operator_session_closed"] is True,
         evidence_complete=public["evidence_complete"] is True,
-        override_check_ids=list(public["override_check_ids"]),
+        override_check_ids=override_ids,
     )
     if public["final_outcome"] != expected:
         raise ProductionContractError("result_outcome_invalid")

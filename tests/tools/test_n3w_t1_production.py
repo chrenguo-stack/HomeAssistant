@@ -63,6 +63,7 @@ class FakeBackend:
         self.epochs = 0
         self.reboots = 0
         self.phases = []
+        self.approval_record_path = None
 
     def connect_pre_reboot(self):
         self.epochs += 1
@@ -75,6 +76,11 @@ class FakeBackend:
         }
 
     def approve_run(self, plan):
+        if self.approval_record_path is not None:
+            assert self.approval_record_path.is_file()
+            approval = json.loads(self.approval_record_path.read_text())
+            assert approval["state"] == "APPROVED_PENDING_TARGET_CLAIM"
+            assert approval["plan"] == plan
         self.approvals += 1
         return {"status": "PASS"}
 
@@ -106,12 +112,14 @@ class FakeBackend:
 
 
 def run(tmp_path, tool, backend, approval=lambda _summary: True):
+    private_path = tmp_path / "private.json"
+    backend.approval_record_path = tool._approval_record_path(private_path)
     return tool.run_production(
         release(tool),
         release_sha256="d" * 64,
         backend=backend,
         approval=approval,
-        private_record_path=tmp_path / "private.json",
+        private_record_path=private_path,
         public_record_path=tmp_path / "public.json",
         now=100,
         run_id="e" * 64,
@@ -164,3 +172,55 @@ def test_cli_has_no_repair_or_shell_surface():
     assert 'add_parser("run")' in source
     assert 'add_parser("inspect")' in source
     assert 'add_parser("verify")' in source
+
+
+def test_approval_record_is_durable_before_target_approval(tmp_path):
+    tool = load_tool()
+    backend = FakeBackend()
+    result = run(tmp_path, tool, backend)
+    approval_path = tool._approval_record_path(tmp_path / "private.json")
+    approval = json.loads(approval_path.read_text())
+    assert result["approval_record_sha256"] == tool._sha256_file(approval_path)
+    assert approval["state"] == "APPROVED_PENDING_TARGET_CLAIM"
+    assert backend.approvals == 1
+
+
+def test_prompt_displays_plan_before_reading_confirmation(monkeypatch, capsys):
+    tool = load_tool()
+    observed = {}
+
+    def fake_input(prompt):
+        observed["output_before_input"] = capsys.readouterr().out
+        observed["prompt"] = prompt
+        return "START PRODUCTION RUN"
+
+    monkeypatch.setattr("builtins.input", fake_input)
+    assert tool.prompt_for_approval("PLAN SUMMARY") is True
+    assert "PLAN SUMMARY" in observed["output_before_input"]
+    assert "START PRODUCTION RUN" in observed["prompt"]
+
+
+def test_public_evidence_remains_conservative_if_final_promotion_fails(
+    monkeypatch,
+    tmp_path,
+):
+    tool = load_tool()
+    backend = FakeBackend()
+    original = tool._atomic_replace_json
+    public_path = tmp_path / "public.json"
+
+    def fail_public_promotion(path, document, mode=0o600):
+        if path == public_path and document.get("evidence_complete") is True:
+            raise OSError("injected_public_promotion_failure")
+        return original(path, document, mode)
+
+    monkeypatch.setattr(tool, "_atomic_replace_json", fail_public_promotion)
+    try:
+        run(tmp_path, tool, backend)
+    except tool.ProductionError as error:
+        assert str(error) == "evidence_write_failed"
+    else:
+        raise AssertionError("expected evidence_write_failed")
+    public = json.loads(public_path.read_text())
+    assert public["evidence_complete"] is False
+    assert public["final_outcome"] == "FAIL"
