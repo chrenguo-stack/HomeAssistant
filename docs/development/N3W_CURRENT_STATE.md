@@ -1,3 +1,33 @@
+## 2026-10-18 — F5 runtime-entrypoint / HOST_BASELINE source repair CLOSED_PASS
+
+~~~text
+TASK=N3W_T1_F5_PRODUCTION_PROCESS_V1_RUNTIME_ENTRYPOINT_AND_HOST_BASELINE_SOURCE_REPAIR_20261017_01
+RESULT=CLOSED_PASS
+
+PR=612
+SOURCE_HEAD=1d56d785c017b5e847b0734268863ac78ca2d1dd
+CI_RESULT=PASS:20/20
+
+B1_NORMAL_RUNTIME_BACKEND=CLOSED_PASS
+B2_HOST_BASELINE_PHASE_AND_APPROVED_VERSION_BINDING=CLOSED_PASS
+B3_UNIFIED_F2_F3_SSH_ORCHESTRATION=CLOSED_PASS
+B4_ACTUAL_PACKAGED_ENTRYPOINT_CI=CLOSED_PASS
+F2_STALE_BLOB_BINDING=CLOSED_PASS
+
+F5_7_EXACT_PRODUCTION_RELEASE_STATUS=READY_TO_START
+NEXT_ONE_GATE=N3W_T1_F5_PRODUCTION_PROCESS_V1_EXACT_PRODUCTION_RELEASE_BUILD_AND_BINDING_20261018_01
+
+T1_ACCESS=false
+T1_MUTATION=false
+LIVE_REBOOT=false
+BOARD_ACCESS=false
+MERGE=false
+~~~
+
+The whole-source runtime-entrypoint repair is now closed. Normal production has a concrete runtime backend, HOST_BASELINE installs only release-approved exact Docker/Compose versions after a durable one-shot claim, F2/F3 production traffic is bound to the managed SSH transport, and actual runtime/entrypoint coverage is green. The only post-review defect was the stale F2 source-blob authority binding; it is repaired at the accepted source head. All 20 associated CI workflows are PASS.
+
+Authority: `docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_RUNTIME_ENTRYPOINT_AND_HOST_BASELINE_SOURCE_REPAIR_CLOSURE_20261018.md`.
+
 ## 2026-10-17 — F5 runtime-entrypoint / HOST_BASELINE scope delta APPROVED
 
 ~~~text
