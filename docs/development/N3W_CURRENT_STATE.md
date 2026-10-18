@@ -1,3 +1,36 @@
+## 2026-10-18 — F5-7 exact production release build/binding STARTED
+
+~~~text
+TASK=N3W_T1_F5_PRODUCTION_PROCESS_V1_EXACT_PRODUCTION_RELEASE_BUILD_AND_BINDING_20261018_01
+STATE=IMPLEMENTATION_STARTED
+
+PR=613
+PR_STATE=OPEN_DRAFT
+STACKED_BASE_PR=612
+BUILD_BRANCH=build/n3w-t1-f5-exact-production-release-v1-20261018
+
+PRODUCT_SOURCE_HEAD=1d56d785c017b5e847b0734268863ac78ca2d1dd
+PRODUCT_SOURCE_TREE=57332afe4f49882548a093b79bec97ce4653eac1
+PRODUCT_SOURCE_CI=PASS:20/20
+
+EXACT_RELEASE_BUILT=false
+DURABLE_RELEASE_ARCHIVE_CLOSED=false
+
+T1_ACCESS=false
+T1_MUTATION=false
+LIVE_REBOOT=false
+BOARD_ACCESS=false
+MERGE=false
+
+CURRENT_STOP_POINT=WAIT_F5_EXACT_RELEASE_CANDIDATE_CI
+~~~
+
+F5-7 is now implemented as a stacked build/release gate rather than changing the already accepted F5-1 through F5-6 product-source identity. PR #613 adds the exact release builder, focused tests, and a build workflow that binds the accepted source/tree to exact F3/F4/reboot artifacts and the previously observed Ubuntu/Docker/Compose host policy.
+
+The build remains non-live. A passing GitHub Actions build/post-upload verification will establish an exact candidate, but F5-7 will remain open until the same release bytes are preserved in a controlled recoverable archive beyond the temporary Actions artifact.
+
+Authority: `docs/development/N3W_T1_F5_EXACT_PRODUCTION_RELEASE_BUILD_AND_BINDING_PREPARATION_20261018.md`.
+
 ## 2026-10-18 — F5 runtime-entrypoint / HOST_BASELINE source repair CLOSED_PASS
 
 ~~~text
