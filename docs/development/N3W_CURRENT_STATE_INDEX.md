@@ -1,3 +1,16 @@
+## 2026-10-18 — F5 runtime-entrypoint / HOST_BASELINE source repair CLOSED_PASS
+
+- PR #612 remains Draft/open and unmerged.
+- Accepted source head: `1d56d785c017b5e847b0734268863ac78ca2d1dd`.
+- Whole-source blockers B1-B4 are CLOSED_PASS.
+- The stale F2 source-authority blob binding is fixed without changing product behavior.
+- All 20 associated CI workflows are PASS; no failure or pending run remains.
+- F5-1 through F5-6 source status is CLOSED_PASS.
+- F5-7 exact production release build/binding is now READY_TO_START.
+- Next gate: `N3W_T1_F5_PRODUCTION_PROCESS_V1_EXACT_PRODUCTION_RELEASE_BUILD_AND_BINDING_20261018_01`.
+- No T1 access, T1 mutation, live reboot, board access or merge occurred.
+- Authority: `docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V1_RUNTIME_ENTRYPOINT_AND_HOST_BASELINE_SOURCE_REPAIR_CLOSURE_20261018.md`.
+
 ## 2026-10-17 — F5 runtime-entrypoint / HOST_BASELINE scope delta APPROVED
 
 - Approved new source path: `tools/n3w_t1_production_runtime.py`.
