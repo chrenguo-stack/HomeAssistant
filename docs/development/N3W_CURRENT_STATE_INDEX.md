@@ -1,3 +1,16 @@
+## 2026-10-18 — F5-7 exact production release build/binding STARTED
+
+- PR #613 is Draft/open and stacked on PR #612.
+- Accepted product-source authority remains `1d56d785c017b5e847b0734268863ac78ca2d1dd`, tree `57332afe4f49882548a093b79bec97ce4653eac1`, with 20/20 source CI PASS.
+- F5-7 uses a separate build branch so release tooling does not redefine the accepted product-source head.
+- Exact F3/F4/reboot input artifact IDs and ZIP digests are frozen in the F5-7 preparation authority.
+- Host policy is frozen to Ubuntu 26.04 resolute / aarch64, Ubuntu APT, `docker.io=29.1.3-0ubuntu4.1`, and `docker-compose-v2=2.40.3+ds1-0ubuntu1`.
+- The focused workflow builds, uploads, re-downloads and verifies the exact release candidate.
+- F5-7 is not CLOSED_PASS until the durable recoverable archive requirement is also closed; the temporary Actions artifact alone is insufficient.
+- Current stop: wait for the exact release candidate CI.
+- No T1 access, T1 mutation, live reboot, board access or merge is authorized.
+- Authority: `docs/development/N3W_T1_F5_EXACT_PRODUCTION_RELEASE_BUILD_AND_BINDING_PREPARATION_20261018.md`.
+
 ## 2026-10-18 — F5 runtime-entrypoint / HOST_BASELINE source repair CLOSED_PASS
 
 - PR #612 remains Draft/open and unmerged.
