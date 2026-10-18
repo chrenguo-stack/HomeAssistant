@@ -43,10 +43,7 @@ MAC_REQUIRED_FILES = frozenset(
             "tools/execution_packages/n3w/f2/"
             "t1_fresh_readonly_preflight/executor.py"
         ),
-        (
-            "tools/execution_packages/n3w/f2/"
-            "t1_fresh_readonly_identity/executor.py"
-        ),
+        "tools/n3w_t1_os_identity_readonly_probe.py",
     }
 )
 
