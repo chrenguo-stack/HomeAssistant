@@ -1,3 +1,52 @@
+## 2026-10-19 — F5 V2 PR #622 merged; post-merge state alignment prepared
+
+~~~text
+TASK=N3W_T1_F5_V2_PR622_POSTMERGE_STATE_ALIGNMENT_20261019_01
+RESULT=DOCS_ONLY_ALIGNMENT_PAYLOAD_PREPARED
+
+SOURCE_MAIN=5bb415cbd282768cf6bebea252b0673e2d1d9304
+
+PR622_STATE=CLOSED_MERGED
+PR622_HEAD=0c50e6abff4617bb3e0755aae2d269a89356c7c4
+PR622_MERGE_COMMIT=5bb415cbd282768cf6bebea252b0673e2d1d9304
+PR622_HEAD_TO_MAIN_CONTENT_DELTA=NONE
+
+F5_V2_ARCHITECTURE_IN_MAIN=true
+F5_V2_SOURCE_DESIGN_IN_MAIN=true
+F5_V2_SOURCE_DESIGN_REVIEW=CLOSED_PASS
+F5_V1_IMPLEMENTATION_LINE=ARCHIVED_CLOSED_SUPERSEDED
+F5_V2_PRODUCT_SOURCE_IMPLEMENTATION_STARTED=false
+
+F5_V2_REPOSITORY_ALIGNMENT_CONDITION=THIS_ALIGNMENT_PAYLOAD_REACHABLE_FROM_MAIN
+F5_V2_REPOSITORY_ALIGNMENT_FINAL=false
+
+ALIGNMENT_SCOPE=DOCS_ONLY
+PRODUCT_SOURCE_MUTATION=false
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+CURRENT_STAGE=F5_V2_POSTMERGE_STATE_ALIGNMENT
+CURRENT_STOP_POINT=ALIGNMENT_PAYLOAD_READY_FOR_PR_CI_AND_SEPARATE_MERGE_DECISION
+
+NEXT_AFTER_ALIGNMENT_MERGE=N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_WORK_PACKAGE_PREPARATION_20261019_01
+AUTO_MERGE=false
+AUTO_EXECUTE_SOURCE_IMPLEMENTATION=false
+~~~
+
+PR #622 has merged the reviewed F5 V2 architecture and source design into main. This payload only aligns the durable
+repository state ledgers with that completed merge.
+
+The active V2 production route remains Standard Fresh Armbian -> exact release -> one approval -> deployment -> one
+controlled reboot -> independent post-reboot acceptance. Failure before durable ACCEPTED requires bounded forensic
+evidence before reflash; a durable-ACCEPTED T1 is not reflashed merely because later Mac cleanup/archive work fails.
+
+Repository alignment becomes final when this exact docs-only alignment payload is reachable from main.
+
+Authority:
+`docs/development/N3W_T1_F5_V2_PR622_POSTMERGE_STATE_ALIGNMENT_20261019.md`.
+
 ## 2026-10-19 — F5 V2 source design review CLOSED_PASS
 
 ~~~text
