@@ -157,15 +157,41 @@ REPLAY_RUN=false
 
 ### 5.2 run STARTED 之后任意失败
 
-一律：
+V2 冻结如下硬顺序：
 
-1. 停止正常生产流程；
-2. Mac 保存失败/UNKNOWN 证据；
-3. 不做 target-local repair；
-4. 不 replay 同一个 run；
-5. 如需要再次生产该 T1，重装官方 Armbian；
-6. 重新通过 fresh qualification；
-7. 建立全新的 run。
+~~~text
+FAIL
+-> FREEZE_EVIDENCE
+-> FORENSIC_SNAPSHOT_COMPLETE
+-> SESSION_CLOSE
+-> TARGET_MARKED_REFLASH_REQUIRED
+-> REFLASH_ALLOWED
+~~~
+
+具体规则：
+
+1. 立即停止正常生产流程和所有后继 mutation；
+2. 先冻结 Mac 本地 run/event/error 状态，禁止后续步骤覆盖原始失败事实；
+3. 在仍然可用的当前 SSH epoch 内，只读采集 forensic snapshot；
+4. 生成固定格式的 failure-summary、evidence manifest 和 bundle SHA-256；
+5. 完成 managed SSH session cleanup/close，并证明没有遗留本 run 的连接资源；
+6. 仅在上述步骤完成后，在 Mac 生产台账中把该 target/run 标记为 REFLASH_REQUIRED；
+7. 此时才允许重新安装官方 Armbian；
+8. 同一个 run 永不 replay；重装后的目标必须重新通过 fresh qualification，并建立全新的 run。
+
+~~~text
+FAILURE_FORENSIC_SNAPSHOT_REQUIRED=true
+REFLASH_BEFORE_FORENSIC_SNAPSHOT=false
+TARGET_LOCAL_REPAIR_BEFORE_REFLASH=false
+REPLAY_RUN=false
+~~~
+
+FORENSIC_SNAPSHOT_COMPLETE 表示取证流程已经完成并形成不可歧义的 manifest，而不是假定每个远端 probe 都成功。
+如果 T1 已断线或某项只读 probe 无法执行，必须把该项记录为 UNAVAILABLE/失败原因并进入 manifest；不得伪造 PASS，
+也不得因为目标不可达而永久阻塞后续重装。
+
+TARGET_MARKED_REFLASH_REQUIRED 是 Mac 侧生产台账/结果状态，不要求在即将被重装的 T1 上再写一个额外 repair marker。
+T1 上原有 STARTED marker 保持原样作为失败现场的一部分，直到重装擦除。
 
 ### 5.3 外部持久状态
 
@@ -287,7 +313,32 @@ BOARD_ACCESS=false
 
 只有 PASS 才把 target run marker 原子更新为 ACCEPTED。
 
-## 8. V2 不做的事情
+## 8. Failure forensic snapshot
+
+每次 run STARTED 之后的失败都必须产生最小、稳定、可追查的只读取证包。至少记录：
+
+- run_id、release_id、release_sha256、source_head；
+- target_binding_sha256、ssh_host_key_sha256；
+- failed_stage、last_success_stage、error_code；
+- mutation_started、reboot_executed、post_reboot_acceptance_started；
+- pre/post boot identity（若可取得）；
+- production marker 状态及 hash；
+- Docker containers/images 的只读摘要与关键 restart count；
+- 关键 systemd unit 状态；
+- 关键监听端口/进程摘要；
+- 与失败阶段直接相关的有限日志尾部；
+- 关键产品文件/manifest/hash 的只读绑定；
+- 每个无法取得的 probe 的显式 UNAVAILABLE 原因；
+- evidence manifest SHA-256 与整个 bundle SHA-256；
+- session close 结果；
+- final target disposition = REFLASH_REQUIRED。
+
+详细原件只保存在生产 Mac 私有 evidence root。GitHub/public result 只保存允许公开的 hash、布尔值、阶段、错误码和关系结果，
+不得上传密码、私钥、MQTT 明文凭据、原始私有地址或 unrestricted stdout/stderr。
+
+该 forensic snapshot 只用于定位源码/环境/运行问题，不承担恢复、修复或继续执行职责。
+
+## 9. V2 不做的事情
 
 正常量产明确不做：
 
@@ -302,7 +353,7 @@ BOARD_ACCESS=false
 - 无验收直接标记 ready；
 - ESP32 板卡验收。
 
-## 9. 对现有 F3/F4 的处理
+## 10. 对现有 F3/F4 的处理
 
 已有 F3、Provisioning、F4 的业务能力和历史实机证据不因 V2 失效。
 
@@ -317,7 +368,7 @@ NORMAL_PATH_TARGET_REPAIR=false
 
 V2 source design 应优先复用其业务函数与验收逻辑，删除为旧 phase-recovery 状态机服务的耦合，而不是重写 Broker、Manager、HA 业务逻辑。
 
-## 10. 验收和开发边界
+## 11. 验收和开发边界
 
 V2 源码在进入真实 T1 之前，必须完成：
 
@@ -327,12 +378,13 @@ V2 源码在进入真实 T1 之前，必须完成：
 4. HOST_BASELINE -> F3 -> Provision -> F4 的打包调用链测试；
 5. reboot 前后模拟；
 6. post-reboot acceptance 行为测试；
-7. public/private evidence 扫描；
-8. isolated Linux 端到端测试。
+7. failure forensic snapshot 与“先取证后重装”顺序测试；
+8. public/private evidence 扫描；
+9. isolated Linux 端到端测试。
 
 最后使用重新安装的 fresh T1-B 做一次真实完整 V2 验收。
 
-## 11. 当前 T1-B
+## 12. 当前 T1-B
 
 当前 T1-B 已经经历 V1 历史生产尝试与 HOST_BASELINE，因此不再作为 V2 的 Standard Fresh Armbian 基线。
 
@@ -345,7 +397,7 @@ REUSE_CURRENT_T1B_STATE=false
 
 该要求不是“修复当前 inventory UNKNOWN”，而是 V2 新鲜基线合同的直接结果。
 
-## 12. 关闭条件
+## 13. 关闭条件
 
 F5 V2 关闭必须同时满足：
 
@@ -361,7 +413,7 @@ T1_PRODUCTION_READY=true
 REPOSITORY_CONVERGENCE=PASS
 ~~~
 
-## 13. 下一步
+## 14. 下一步
 
 本合同之后进入 V2 source design。不得继续修补 V1 inventory UNKNOWN 正常路径。
 
