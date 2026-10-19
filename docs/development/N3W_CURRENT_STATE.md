@@ -1,3 +1,21 @@
+## 2026-10-19 — KF-123 postexecution read-only verification ready
+
+~~~text
+TASK=N3W_T1_F5_KF123_UNKNOWN_RUN_ADJUDICATION_POSTEXECUTION_READONLY_VERIFY_20261019_01
+STATE=READY_FOR_REAL_T1_READONLY_VERIFY
+LIVE_RESULT=PASS_PENDING_POSTEXECUTION_READONLY_VERIFY
+T1_MUTATION=false
+PRODUCT_SERVICE_START=false
+LIVE_REBOOT=false
+BOARD_ACCESS=false
+MERGE=false
+STOP_AFTER_VERIFY=true
+~~~
+
+The next action is the exact-artifact real-T1 read-only `verify` path only. It must independently prove the final FAILED classifications, ADJUDICATED recovery ledger, zero F3 execution count and absent product material.
+
+Authority: `docs/development/N3W_T1_F5_KF123_UNKNOWN_RUN_ADJUDICATION_POSTEXECUTION_READONLY_VERIFY_PREEXECUTION_20261019.md`.
+
 ## 2026-10-19 — KF-123 UNKNOWN-run live adjudication PASS; postexecution verify pending
 
 ~~~text
