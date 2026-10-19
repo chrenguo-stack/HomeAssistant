@@ -1,3 +1,17 @@
+## 2026-10-19 — F5 V2 source design review CLOSED_PASS
+
+- Review against current main and accepted F2/F3/Provision/F4 source is complete.
+- Fresh qualification now distinguishes observed nonstandard target from unavailable evidence.
+- exact release is validated before target qualification.
+- HOST_BASELINE must install release-bound exact Docker/Compose package versions, never silent latest candidates.
+- F3 immutable payload no longer treats its historical fixed authorization string as V2 production authority; V2 run context stays outside the immutable payload.
+- Existing F4 transaction/no-replay/rollback guards are retained and driven automatically from one human approval.
+- V2 post-reboot target-local acceptance reuses the existing accepted F4 reboot verifier.
+- forensic-before-reflash applies only before durable ACCEPTED; a later Mac cleanup failure does not force reflash of an accepted device.
+- Design blocker count: 0.
+- Product source implementation has not started.
+- Next gate: `N3W_T1_F5_V2_PR622_MERGE_DECISION_20261019_01`.
+
 ## 2026-10-19 — F5 V2 failure evidence before reflash
 
 - Any failed/UNKNOWN STARTED run must follow: `FAIL -> FREEZE_EVIDENCE -> FORENSIC_SNAPSHOT_COMPLETE -> SESSION_CLOSE -> TARGET_MARKED_REFLASH_REQUIRED -> REFLASH_ALLOWED`.
