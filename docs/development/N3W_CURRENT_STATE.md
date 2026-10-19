@@ -1,3 +1,37 @@
+## 2026-10-19 — F5 V2 failure-forensic-before-reflash rule frozen
+
+~~~text
+TASK=N3W_T1_F5_V2_FAILURE_FORENSIC_BEFORE_REFLASH_DESIGN_ALIGNMENT_20261019_01
+RESULT=DESIGN_RULE_FROZEN_ON_CANDIDATE
+
+F5_V2_FAILURE_SEQUENCE=FAIL->FREEZE_EVIDENCE->FORENSIC_SNAPSHOT_COMPLETE->SESSION_CLOSE->TARGET_MARKED_REFLASH_REQUIRED->REFLASH_ALLOWED
+FAILURE_FORENSIC_SNAPSHOT_REQUIRED=true
+REFLASH_BEFORE_FORENSIC_SNAPSHOT=false
+TARGET_LOCAL_REPAIR_BEFORE_REFLASH=false
+TARGET_REFLASH_DISPOSITION_OWNER=MAC_PRODUCTION_LEDGER
+UNAVAILABLE_PROBES_MUST_BE_EXPLICIT=true
+FORENSIC_SNAPSHOT_IS_READ_ONLY=true
+
+PRODUCT_SOURCE_IMPLEMENTATION=false
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+CURRENT_STAGE=F5_V2_SOURCE_DESIGN
+NEXT_ONE_GATE=N3W_T1_F5_PRODUCTION_PROCESS_V2_SOURCE_DESIGN_REVIEW_20261019_01
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+After any STARTED production run fails or becomes UNKNOWN, V2 must preserve evidence before allowing Armbian reflash.
+The snapshot may contain explicit UNAVAILABLE probes when the target is unreachable; completion means the forensic
+procedure and manifest are complete, not that every remote probe succeeded. Reflash disposition is recorded on the Mac
+after managed-session closure; no target-local repair marker is added.
+
+Authority updates:
+`docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V2_SIMPLIFIED_ARCHITECTURE_CONTRACT_20261019.md` and
+`docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V2_SOURCE_DESIGN_20261019.md`.
+
 ## 2026-10-19 — F5 V2 simplified production route frozen; V1 implementation line superseded
 
 ~~~text
