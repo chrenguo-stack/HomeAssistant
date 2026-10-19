@@ -129,6 +129,7 @@ def test_context_requires_exact_applying_claim(monkeypatch, tmp_path):
         root=ledger,
     )
     context = tool.phase_context(plan["run_id"], "HOST_BASELINE", root=ledger)
+    assert context["status"] == "PASS"
     assert context["claim_sha256"] == applying["claim_sha256"]
     assert tool.validate_phase_context(
         context,
