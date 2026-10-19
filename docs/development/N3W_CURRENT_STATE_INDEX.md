@@ -1,3 +1,17 @@
+## 2026-10-19 — F5 V2 source implementation work package
+
+- Source implementation branch created from aligned main `4223f23d2579241f6568a1ba3fbbccf26b3bc3c1`.
+- One implementation branch / one Draft PR; no new stacked implementation PR chain.
+- R1 adds V2 contract, SSH transport, fresh qualification, minimal marker and failure-forensics foundations.
+- R2 adapts exact-package HOST_BASELINE and F3 external run-context, then wires the V2 orchestrator.
+- Provision/F4 source remains unchanged initially; existing one-shot/no-replay/rollback guards are reused unless a focused test proves a real interface gap.
+- R3 adds post-reboot acceptance wrapper, external probes and V2 release-builder/CI integration.
+- Archived V1 SSH transport and release-builder may be used only as selective implementation references; V1 top-level production authority/recovery paths remain forbidden.
+- No product source has been written in this preparation gate.
+- No T1 or board access occurred.
+- Authority: `docs/development/N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_WORK_PACKAGE_PREPARATION_20261019.md`.
+- Next gate: `N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R1_FOUNDATIONS_20261019_01`.
+
 ## 2026-10-19 — F5 V2 PR #622 post-merge alignment prepared
 
 - PR #622 is CLOSED/MERGED.
