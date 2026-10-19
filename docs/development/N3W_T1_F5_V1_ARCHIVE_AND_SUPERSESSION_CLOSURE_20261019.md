@@ -53,7 +53,7 @@ F5 V1 successfully建立了 exact release、Mac durable archive、一次生产�
 
 ## 3. Superseded open PR stack
 
-以下 Draft PR 均属于 V1 implementation line，并应 Close as superseded：
+以下 Draft PR 均属于 V1 implementation line，现已全部 Close as superseded：
 
 ~~~text
 #612 F5 V1 production process source
@@ -66,6 +66,22 @@ F5 V1 successfully建立了 exact release、Mac durable archive、一次生产�
 #619 KF-123 source review handoff
 #620 KF-123 UNKNOWN-run controlled adjudication
 #621 F5-7 exact production release rebuild after KF-123
+~~~
+
+执行结果：
+
+~~~text
+PR612_STATE=CLOSED_UNMERGED
+PR613_STATE=CLOSED_UNMERGED
+PR614_STATE=CLOSED_UNMERGED
+PR615_STATE=CLOSED_UNMERGED
+PR616_STATE=CLOSED_UNMERGED
+PR617_STATE=CLOSED_UNMERGED
+PR618_STATE=CLOSED_UNMERGED
+PR619_STATE=CLOSED_UNMERGED
+PR620_STATE=CLOSED_UNMERGED
+PR621_STATE=CLOSED_UNMERGED
+SUPERSEDING_PR=622
 ~~~
 
 关闭 PR 不删除 branch、commit、CI、artifact metadata 或 durable Mac archive。
