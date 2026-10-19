@@ -516,13 +516,9 @@ def inspect_unknown_run(
     }
 
 
-def _ensure_recovery_root(root: Path) -> None:
-    if root.exists() or root.is_symlink():
-        if root.is_symlink() or not root.is_dir():
-            raise UnknownRunAdjudicationError("recovery_root_invalid")
-    else:
-        root.mkdir(parents=True, mode=0o700)
-        os.chmod(root, 0o700)
+def _validate_recovery_root(root: Path) -> None:
+    if root.is_symlink() or not root.is_dir():
+        raise UnknownRunAdjudicationError("recovery_root_invalid")
     metadata = root.stat()
     if (
         metadata.st_uid != os.geteuid()
@@ -531,7 +527,15 @@ def _ensure_recovery_root(root: Path) -> None:
         raise UnknownRunAdjudicationError("recovery_root_metadata_invalid")
 
 
+def _ensure_recovery_root(root: Path) -> None:
+    if not root.exists() and not root.is_symlink():
+        root.mkdir(parents=True, mode=0o700)
+        os.chmod(root, 0o700)
+    _validate_recovery_root(root)
+
+
 def _read_recovery(path: Path) -> dict[str, Any]:
+    _validate_recovery_root(path.parent)
     if path.is_symlink() or not path.is_file():
         raise UnknownRunAdjudicationError("recovery_record_invalid")
     metadata = path.stat()
@@ -542,8 +546,16 @@ def _read_recovery(path: Path) -> dict[str, Any]:
     ):
         raise UnknownRunAdjudicationError("recovery_record_metadata_invalid")
     try:
-        document = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        document = json.loads(
+            path.read_text(encoding="utf-8"),
+            object_pairs_hook=authority._strict_object,
+        )
+    except (
+        OSError,
+        UnicodeError,
+        json.JSONDecodeError,
+        authority.ProductionAuthorityError,
+    ) as error:
         raise UnknownRunAdjudicationError("recovery_record_invalid") from error
     required = {
         "schema",
@@ -738,6 +750,7 @@ def _set_recovery_state(
     recovery_root: Path,
     state: str,
 ) -> dict[str, Any]:
+    _validate_recovery_root(recovery_root)
     updated = dict(record)
     updated["state"] = state
     updated["updated_at"] = int(time.time())
@@ -969,17 +982,38 @@ def adjudicate_unknown_run(
                 raise UnknownRunAdjudicationError(
                     "phase_record_sha256_drift"
                 )
-            run = authority._load_run(ledger_root, RUN_ID)
-            phase = authority._load_phase(ledger_root, RUN_ID, PHASE)
-            recovery = _claim_recovery(
-                recovery_root=recovery_root,
-                authorization_id=authorization_id,
-                run=run,
-                phase=phase,
-                expected_run_sha256=expected_run_sha256,
-                expected_phase_sha256=expected_phase_sha256,
-            )
-            recovery_durable = True
+            with authority._exclusive(ledger_root, RUN_ID):
+                run = authority._load_run(ledger_root, RUN_ID)
+                phase = authority._load_phase(ledger_root, RUN_ID, PHASE)
+                if (
+                    authority._sha256_file(
+                        authority._run_path(ledger_root, RUN_ID)
+                    )
+                    != expected_run_sha256
+                ):
+                    raise UnknownRunAdjudicationError(
+                        "run_record_sha256_drift"
+                    )
+                if (
+                    authority._sha256_file(
+                        authority._phase_path(
+                            ledger_root, RUN_ID, PHASE
+                        )
+                    )
+                    != expected_phase_sha256
+                ):
+                    raise UnknownRunAdjudicationError(
+                        "phase_record_sha256_drift"
+                    )
+                recovery = _claim_recovery(
+                    recovery_root=recovery_root,
+                    authorization_id=authorization_id,
+                    run=run,
+                    phase=phase,
+                    expected_run_sha256=expected_run_sha256,
+                    expected_phase_sha256=expected_phase_sha256,
+                )
+                recovery_durable = True
 
         if recovery["state"] == "ADJUDICATED":
             run = authority._load_run(ledger_root, RUN_ID)
