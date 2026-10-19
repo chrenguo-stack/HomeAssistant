@@ -1,3 +1,55 @@
+## 2026-10-19 — F5-9 phase-context live failure source repair / replacement release built
+
+~~~text
+CURRENT_STAGE=N3W_T1_F5_PHASE_CONTEXT_LIVE_FAILURE_RECOVERY_PREPARATION
+CURRENT_STOP_POINT=REPLACEMENT_RELEASE_DURABLE_MAC_ARCHIVE_AND_FAILED_RUN_RECOVERY_PREPARATION
+
+FAILED_RUN_ID=56e7cacb162fb2e2e56ff7e112f1a2177b64a68c4a1f1c0fdea66520e051602e
+FAILED_RUN_STATE=IN_PROGRESS
+FAILED_RUN_LAST_CLAIMED_PHASE=HOST_BASELINE
+FAILED_RUN_LAST_COMPLETED_PHASE=null
+FAILED_RUN_TERMINAL_STATE=null
+HOST_BASELINE_PHASE_STATE=APPLYING
+HOST_BASELINE_EXECUTION_LEDGER=ABSENT
+FAILED_RUN_REPLAY_ALLOWED=false
+F5_9_FIRST_LIVE_AUTHORIZATION=CONSUMED
+
+SOURCE_REPAIR_HEAD=9048dd7c6b48c0620471919c0cf96c96bdab71f1
+SOURCE_REPAIR_TREE=7b567c7140fd403049a6f7c2fa51887be08e8c8d
+SOURCE_REPAIR_CI=PASS_20_OF_20
+
+REPLACEMENT_BUILDER_HEAD=b2622cb7588d0224e1345abe84bd7aec307a2aae
+REPLACEMENT_RELEASE_ID=31c8a8cd2d8424f93aaa7b4d0b78cfe2b73f1b035f4bdbce08a181ac56619420
+REPLACEMENT_RELEASE_SHA256=1bbcb81bd84ec899e4c1d37fffef99defbbcc40509c49ce41048f6a6d92039ad
+REPLACEMENT_FILE_INDEX_SHA256=be36b3cd3f5a20099f870c55dcb78586e2e507fddc47bf5f589d85fab8091c83
+REPLACEMENT_ARTIFACT_ID=12162160866
+REPLACEMENT_ARTIFACT_ZIP_SHA256=1938ad3e4d7b87622a21968961b3fea4472907c4b31cc8db8c80acfd0fb149e8
+REPLACEMENT_EXACT_RELEASE_CI=PASS
+
+REPLACEMENT_DURABLE_ARCHIVE=PENDING
+FAILED_RUN_CONTROLLED_TERMINALIZATION=PENDING_DESIGN_AND_AUTHORIZATION
+NEW_F5_9_AUTHORIZATION=NOT_GRANTED
+
+T1_ACCESS=false
+T1_MUTATION=false
+LIVE_REBOOT=false
+BOARD_ACCESS=false
+MERGE=false
+~~~
+
+The first F5-9 run exposed a source-level CLI contract defect after the target durable production
+ledger moved `HOST_BASELINE` to `APPLYING`. Read-only evidence proved the host-baseline business
+execution ledger is absent, so the F5 product/host mutation path was not entered. The failed run
+remains consumed and non-replayable; its target ledger must not be deleted or manually edited.
+
+PR #612 repaired the defect with a two-line effective delta and exact-head CI passed 20/20.
+PR #613 then rebuilt the exact release from the repaired source; post-upload binding passed.
+Before any further T1 mutation, the replacement release must complete durable Mac archive
+acceptance and the stale failed run requires a separately bounded recovery/terminalization path.
+
+Authority:
+`docs/development/N3W_T1_F5_PHASE_CONTEXT_LIVE_FAILURE_SOURCE_REPAIR_AND_RELEASE_PREPARATION_20261019.md`.
+
 ## 2026-10-19 — F5-8 T1-B read-only preflight CLOSED_PASS
 
 ~~~text
