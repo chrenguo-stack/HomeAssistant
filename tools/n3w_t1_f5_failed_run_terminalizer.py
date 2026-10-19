@@ -244,7 +244,13 @@ def _claim_or_load_recovery(
         "board_access": False,
     }
     authority._write_new(path, record)
-    return _read_recovery(path)
+    try:
+        return _read_recovery(path)
+    except FailedRunTerminalizationError as error:
+        raise FailedRunTerminalizationError(
+            str(error),
+            mutation_state="UNKNOWN",
+        ) from error
 
 
 def _set_recovery_state(
@@ -398,6 +404,14 @@ def terminalize_failed_run(
         action = "ALREADY_TERMINAL"
     else:
         if recovery["state"] == "CLAIMED":
+            _run, _phase, observed_claim_sha256 = _exact_active_prestate(
+                ledger_root=ledger_root,
+                baseline_root=baseline_root,
+            )
+            if observed_claim_sha256 != expected_claim_sha256:
+                raise FailedRunTerminalizationError(
+                    "claimed_recovery_prestate_drift"
+                )
             recovery = _set_recovery_state(
                 recovery,
                 recovery_root=recovery_root,
