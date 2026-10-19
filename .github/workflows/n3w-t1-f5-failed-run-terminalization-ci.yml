@@ -1,0 +1,133 @@
+name: N3W T1 F5 failed-run terminalization CI
+
+on:
+  pull_request:
+    paths:
+      - "tools/n3w_t1_f5_failed_run_terminalizer.py"
+      - "tools/n3w_t1_production_authority.py"
+      - "tools/n3w_t1_production_contract.py"
+      - "tests/tools/test_n3w_t1_f5_failed_run_terminalizer.py"
+      - ".github/workflows/n3w-t1-f5-failed-run-terminalization-ci.yml"
+  push:
+    branches:
+      - "fix/n3w-t1-f5-failed-run-terminalization-v1-20261019"
+
+permissions:
+  contents: read
+
+jobs:
+  focused:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Focused tests
+        run: |
+          set -euo pipefail
+          python -m pip install "pytest>=8,<9"
+          python -m py_compile             tools/n3w_t1_f5_failed_run_terminalizer.py             tools/n3w_t1_production_authority.py             tools/n3w_t1_production_contract.py
+          python -m pytest -q tests/tools/test_n3w_t1_f5_failed_run_terminalizer.py
+      - name: Static recovery boundary
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          source = Path("tools/n3w_t1_f5_failed_run_terminalizer.py").read_text()
+          assert 'PHASE = "HOST_BASELINE"' in source
+          assert 'state="FAILED"' in source
+          assert '"f5_production_authority_ledger_only"' in source
+          assert "systemctl reboot" not in source
+          assert "apt-get" not in source
+          assert "docker" not in source
+          assert "F3_DEPLOY" not in source
+          assert "PROVISION" not in source
+          PY
+          printf 'T1_ACCESS=false\n'
+          printf 'T1_MUTATION=false\n'
+          printf 'LIVE_REBOOT=false\n'
+          printf 'BOARD_ACCESS=false\n'
+      - name: Build exact recovery package
+        env:
+          PACKAGE_SOURCE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/package"
+          mkdir -p "$root"
+          cp tools/n3w_t1_f5_failed_run_terminalizer.py "$root/"
+          cp tools/n3w_t1_production_authority.py "$root/"
+          cp tools/n3w_t1_production_contract.py "$root/"
+          python - "$root" "$PACKAGE_SOURCE_HEAD" <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import sys
+
+          root = pathlib.Path(sys.argv[1])
+          source_head = sys.argv[2]
+          records = []
+          for path in sorted(root.iterdir()):
+              if not path.is_file():
+                  continue
+              raw = path.read_bytes()
+              records.append(
+                  {
+                      "path": path.name,
+                      "sha256": hashlib.sha256(raw).hexdigest(),
+                      "size": len(raw),
+                  }
+              )
+          manifest = {
+              "schema": "gh.n3w-t1-f5-failed-run-terminalization-package/1",
+              "source_head": source_head,
+              "failed_run_id": "56e7cacb162fb2e2e56ff7e112f1a2177b64a68c4a1f1c0fdea66520e051602e",
+              "phase": "HOST_BASELINE",
+              "files": records,
+              "t1_access": False,
+              "t1_mutation": False,
+              "live_reboot": False,
+              "board_access": False,
+          }
+          (root / "manifest.json").write_text(
+              json.dumps(manifest, sort_keys=True, separators=(",", ":")) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          python - "$root" <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import sys
+
+          root = pathlib.Path(sys.argv[1])
+          manifest = json.loads((root / "manifest.json").read_text())
+          for record in manifest["files"]:
+              path = root / record["path"]
+              raw = path.read_bytes()
+              assert len(raw) == record["size"]
+              assert hashlib.sha256(raw).hexdigest() == record["sha256"]
+          print("RECOVERY_PACKAGE_LOCAL_VERIFY=PASS")
+          PY
+      - name: Upload exact recovery package
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: n3w-t1-f5-failed-run-terminalizer-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/package/**
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+      - name: Report exact recovery artifact
+        env:
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          printf 'RECOVERY_ARTIFACT_ID=%s\n' "$ARTIFACT_ID"
+          printf 'RECOVERY_ARTIFACT_DIGEST=%s\n' "$ARTIFACT_DIGEST"
+          printf 'T1_ACCESS=false\n'
+          printf 'T1_MUTATION=false\n'
+          printf 'LIVE_REBOOT=false\n'
+          printf 'BOARD_ACCESS=false\n'
