@@ -757,6 +757,52 @@ def test_phase_split_state_rejects_preserved_run_drift(
         )
 
 
+def test_resume_rejects_recovery_root_metadata_drift(
+    monkeypatch,
+    tmp_path,
+):
+    authority, tool, ledger, execution, recovery, identity = create_incident(
+        monkeypatch,
+        tmp_path,
+    )
+    preflight = inspect(tool, ledger, execution, recovery, identity)
+    original_replace = authority._replace
+    run_path = authority._run_path(ledger, tool.RUN_ID)
+    interrupted = {"done": False}
+
+    def stop_on_run(path, document):
+        if path == run_path and not interrupted["done"]:
+            interrupted["done"] = True
+            raise OSError("simulated-run-write-interruption")
+        return original_replace(path, document)
+
+    monkeypatch.setattr(authority, "_replace", stop_on_run)
+    with pytest.raises(tool.UnknownRunAdjudicationError):
+        adjudicate(
+            tool,
+            ledger,
+            execution,
+            recovery,
+            identity,
+            preflight,
+        )
+
+    monkeypatch.setattr(authority, "_replace", original_replace)
+    recovery.chmod(0o755)
+    with pytest.raises(
+        tool.UnknownRunAdjudicationError,
+        match="recovery_root_metadata_invalid",
+    ):
+        adjudicate(
+            tool,
+            ledger,
+            execution,
+            recovery,
+            identity,
+            preflight,
+        )
+
+
 def test_different_authorization_cannot_resume(monkeypatch, tmp_path):
     authority, tool, ledger, execution, recovery, identity = create_incident(
         monkeypatch,
@@ -895,6 +941,115 @@ def test_adjudicated_state_rejects_preserved_phase_drift(
             identity,
             preflight,
         )
+
+
+def test_verify_rejects_recovery_root_symlink(
+    monkeypatch,
+    tmp_path,
+):
+    authority, tool, ledger, execution, recovery, identity = create_incident(
+        monkeypatch,
+        tmp_path,
+    )
+    preflight = inspect(tool, ledger, execution, recovery, identity)
+    adjudicate(
+        tool,
+        ledger,
+        execution,
+        recovery,
+        identity,
+        preflight,
+    )
+    real_recovery = tmp_path / "recovery-real"
+    recovery.rename(real_recovery)
+    recovery.symlink_to(real_recovery, target_is_directory=True)
+
+    with pytest.raises(
+        tool.UnknownRunAdjudicationError,
+        match="recovery_root_invalid",
+    ):
+        tool.verify_adjudicated_run(
+            ledger_root=ledger,
+            execution_root=execution,
+            recovery_root=recovery,
+            identity=identity,
+            runtime_state=runtime_clean(),
+        )
+
+
+def test_verify_rejects_duplicate_key_recovery_record(
+    monkeypatch,
+    tmp_path,
+):
+    _authority, tool, ledger, execution, recovery, identity = create_incident(
+        monkeypatch,
+        tmp_path,
+    )
+    preflight = inspect(tool, ledger, execution, recovery, identity)
+    adjudicate(
+        tool,
+        ledger,
+        execution,
+        recovery,
+        identity,
+        preflight,
+    )
+    path = tool._recovery_path(recovery)
+    document = json.loads(path.read_text(encoding="utf-8"))
+    raw = json.dumps(document, sort_keys=True, separators=(",", ":"))
+    raw = raw[:-1] + ',"authorization_id":"' + AUTHORIZATION_ID + '"}\n'
+    path.write_text(raw, encoding="utf-8")
+    path.chmod(0o600)
+
+    with pytest.raises(
+        tool.UnknownRunAdjudicationError,
+        match="recovery_record_invalid",
+    ):
+        tool.verify_adjudicated_run(
+            ledger_root=ledger,
+            execution_root=execution,
+            recovery_root=recovery,
+            identity=identity,
+            runtime_state=runtime_clean(),
+        )
+
+
+def test_claim_rechecks_hash_after_inspect_before_recovery_write(
+    monkeypatch,
+    tmp_path,
+):
+    authority, tool, ledger, execution, recovery, identity = create_incident(
+        monkeypatch,
+        tmp_path,
+    )
+    preflight = inspect(tool, ledger, execution, recovery, identity)
+    original_inspect = tool.inspect_unknown_run
+    run_path = authority._run_path(ledger, tool.RUN_ID)
+
+    def drifting_inspect(**kwargs):
+        report = original_inspect(**kwargs)
+        run = authority._load_run(ledger, tool.RUN_ID)
+        run["updated_at"] += 1
+        authority._replace(run_path, run)
+        return report
+
+    monkeypatch.setattr(tool, "inspect_unknown_run", drifting_inspect)
+    with pytest.raises(
+        tool.UnknownRunAdjudicationError,
+        match="run_record_sha256_drift",
+    ):
+        tool.adjudicate_unknown_run(
+            expected_run_sha256=preflight["run_record_sha256"],
+            expected_phase_sha256=preflight["phase_record_sha256"],
+            authorization_id=AUTHORIZATION_ID,
+            confirmation=tool.CONFIRMATION,
+            ledger_root=ledger,
+            execution_root=execution,
+            recovery_root=recovery,
+            identity=identity,
+            runtime_state=runtime_clean(),
+        )
+    assert not recovery.exists()
 
 
 def test_repeated_adjudication_is_idempotent(monkeypatch, tmp_path):
