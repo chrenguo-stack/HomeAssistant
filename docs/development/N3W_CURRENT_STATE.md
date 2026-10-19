@@ -1,3 +1,41 @@
+## 2026-10-19 — KF-123 UNKNOWN-run recovery source repair R3 CI PASS; R4 review pending
+
+~~~text
+TASK=N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_SOURCE_REPAIR_R3_20261019_01
+RESULT=SOURCE_REPAIR_CI_PASS_REVIEW_PENDING
+
+REPAIR_BASE=7d4b3c118d4d57a729555b925cbd86eefb0b8dd0
+REPAIR_SOURCE_HEAD=4ab28033a6153cbe047849c8655d6a0ce06b667a
+REPAIR_SOURCE_TREE=dfa57d24f98c6db2cbd719073c894e8898d7fd3e
+SOURCE_DELTA_EXACT_2_FILES=true
+
+R3_C1_RECOVERY_ROOT_TRUST_REVALIDATION=REPAIRED_PENDING_REVIEW
+R3_C2_RECOVERY_RECORD_DUPLICATE_KEY_REJECTION=REPAIRED_PENDING_REVIEW
+INSPECT_TO_CLAIM_HASH_RECHECK=HARDENED_PENDING_REVIEW
+
+FOCUSED_TESTS=PASS_29
+PR620_SOURCE_HEAD_CI=PASS_12_OF_12
+ADJUDICATION_ARTIFACT_ID=12181787912
+ADJUDICATION_ARTIFACT_DIGEST=e79645082567b71a63046c4857a91a2f8c13982e492a4fccd43a5d317b519725
+
+TARGET_READONLY_PREAUTH_READY=false
+LIVE_ADJUDICATION_READY=false
+
+T1_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+NEW_PRODUCTION_AUTHORIZATION=false
+
+NEXT_ONE_GATE=N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_SOURCE_REVIEW_R4_20261019_01
+AUTO_EXECUTE_NEXT_GATE=false
+STOP=true
+~~~
+
+C1 now revalidates the existing recovery root on every recovery-record read and state transition, while read-only verify never creates a missing root. C2 now rejects duplicate-key recovery JSON through the strict authority parser. The inspect-to-claim window is also hardened by rechecking the exact frozen run/phase hashes under the run lock immediately before recovery-ledger creation. The repair passes 29 focused tests and exact source-head CI 12/12, but remains blocked from T1 use until independent R4 source review.
+
+Authority: `docs/development/N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_SOURCE_REPAIR_R3_20261019.md`.
+
 ## 2026-10-19 — KF-123 UNKNOWN-run recovery source review R3 FAIL_CLOSED
 
 ~~~text
