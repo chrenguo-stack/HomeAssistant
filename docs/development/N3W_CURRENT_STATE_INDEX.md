@@ -1,3 +1,13 @@
+## 2026-10-19 — F5-9 phase-context live failure repaired; replacement release built
+
+- First F5-9 run `56e7cacb...` consumed authorization and stopped with target `HOST_BASELINE=APPLYING`.
+- Read-only target evidence: host-baseline production execution ledger is `ABSENT`; no F5 host-baseline business mutation, F3 deploy, provisioning, product service start, or reboot was reached.
+- Confirmed source defect: successful `phase_context()` omitted `status=PASS`, causing the target CLI to return code 2.
+- Repair source: `9048dd7c6b48c0620471919c0cf96c96bdab71f1`, tree `7b567c7140fd403049a6f7c2fa51887be08e8c8d`; exact-head source CI PASS 20/20.
+- Replacement exact release: `31c8a8cd2d8424f93aaa7b4d0b78cfe2b73f1b035f4bdbce08a181ac56619420`, artifact `12162160866`, ZIP SHA-256 `1938ad3e4d7b87622a21968961b3fea4472907c4b31cc8db8c80acfd0fb149e8`; exact release CI/post-upload binding PASS.
+- Current boundaries: replacement durable Mac archive pending; failed run remains non-replayable and requires controlled terminalization design plus separate live authorization; new F5-9 authorization is not granted.
+- Authority: `docs/development/N3W_T1_F5_PHASE_CONTEXT_LIVE_FAILURE_SOURCE_REPAIR_AND_RELEASE_PREPARATION_20261019.md`.
+
 ## 2026-10-19 — F5-8 T1-B read-only preflight CLOSED_PASS
 
 - Fresh T1-B passed the exact repaired-release F5-8 read-only preflight.
