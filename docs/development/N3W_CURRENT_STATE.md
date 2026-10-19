@@ -1,3 +1,45 @@
+## 2026-10-19 — KF-123 UNKNOWN-run live adjudication PASS; postexecution verify pending
+
+~~~text
+TASK=N3W_T1_F5_KF123_UNKNOWN_RUN_ADJUDICATION_LIVE_20261019_01
+RESULT=PASS_PENDING_POSTEXECUTION_READONLY_VERIFY
+
+AUTHORIZATION_GRANTED=true
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+REPLAY_ALLOWED=false
+
+ACTION=CLASSIFIED
+RUN_STATE=TERMINAL
+RUN_TERMINAL_STATE=FAIL
+RUN_FAILURE_CLASS=FAILED
+PHASE=F3_DEPLOY
+PHASE_STATE=FAILED
+RECOVERY_STATE=ADJUDICATED
+FAILURE_CODE=production_f3_claimed_or_unknown:production_f3_execution_not_proven
+
+F3_PRODUCTION_EXECUTION_RECORD_COUNT=0
+PRODUCT_MATERIAL_ABSENT=true
+REMOTE_F3_STAGING_COUNT=0
+DOCKER_ACTIVE=true
+
+T1_ACCESS=true
+T1_MUTATION=true
+PRODUCT_SERVICE_START=false
+LIVE_REBOOT=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_F5_KF123_UNKNOWN_RUN_ADJUDICATION_POSTEXECUTION_READONLY_VERIFY_20261019_01
+AUTO_EXECUTE_NEXT_GATE=false
+POSTEXECUTION_READONLY_VERIFY_REQUIRED=true
+STOP=true
+~~~
+
+The one-shot live adjudication completed successfully. The historical run remains TERMINAL/FAIL and non-replayable; only F3 UNKNOWN -> FAILED and run failure_class UNKNOWN -> FAILED were applied. The recovery ledger is ADJUDICATED. Final UNKNOWN-blocker closure still requires a separate fresh read-only postexecution verification.
+
+Authority: `docs/development/N3W_T1_F5_KF123_UNKNOWN_RUN_ADJUDICATION_LIVE_CLOSURE_20261019.md`.
+
 ## 2026-10-19 — KF-123 UNKNOWN-run live adjudication explicitly authorized; waiting for execution result
 
 ~~~text
