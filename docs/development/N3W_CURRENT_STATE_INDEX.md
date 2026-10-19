@@ -1,3 +1,15 @@
+## 2026-10-19 — KF-123 UNKNOWN-run recovery source repair R3 CI PASS
+
+- R3 repair source head: `4ab28033a6153cbe047849c8655d6a0ce06b667a`, tree `dfa57d24f98c6db2cbd719073c894e8898d7fd3e`.
+- Repair delta from the R3 failed-review head is exactly two files: adjudicator source and focused tests.
+- C1 repaired: every existing recovery-root read/state transition revalidates non-symlink/root-owned/0700; read-only verify never creates a missing root.
+- C2 repaired: recovery JSON now rejects duplicate keys through the production-authority strict object parser.
+- Inspect-to-claim hardening completed: run/phase complete SHA-256 values are rechecked under the run lock immediately before recovery-ledger creation.
+- Focused tests PASS 29; exact source-head workflows PASS 12/12.
+- Exact adjudication artifact: ID `12181787912`, digest `e79645082567b71a63046c4857a91a2f8c13982e492a4fccd43a5d317b519725`.
+- No T1 access or live mutation occurred; R4 source review is required.
+- Next one gate: `N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_SOURCE_REVIEW_R4_20261019_01`.
+
 ## 2026-10-19 — KF-123 UNKNOWN-run recovery source review R3 FAIL_CLOSED
 
 - R2 B1/B2/B3 are CLOSED by source head `2054d870758705c833acee24e9e734856fb43460`.
