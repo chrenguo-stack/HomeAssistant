@@ -1,3 +1,13 @@
+## 2026-10-19 — KF-123 target forensic CLOSED_PASS
+
+- F5-9 run `3e37993537f9...` is durably `TERMINAL/FAIL`, failure class `UNKNOWN`, consumed/no-replay.
+- `HOST_BASELINE=SUCCEEDED` with two business-execution records; Docker is active.
+- `F3_DEPLOY=UNKNOWN` at the outer production authority, but the F3 production-execution ledger has zero records.
+- Product paths, images, containers, volumes, product networks, product units and F3 staging directories are all absent.
+- Therefore F3 product deployment did not begin; only the approved host baseline was installed.
+- KF-123 source repair is now required. No new production authorization exists.
+- Authority: `docs/development/N3W_T1_F5_9_REPLACEMENT_RUN_F3_PAYLOAD_FILE_SET_FAILURE_FORENSIC_20261019.md`.
+
 ## 2026-10-19 — F5-9 replacement run failed at F3 immutable payload boundary
 
 - F5-9 authorization is consumed and cannot be replayed.
