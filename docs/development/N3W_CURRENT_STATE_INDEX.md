@@ -1,3 +1,14 @@
+## 2026-10-19 — KF-123 UNKNOWN-run controlled recovery design CLOSED_PASS
+
+- Historical run `3e37993537f9...` remains TERMINAL/FAIL + UNKNOWN + no-replay; this design does not alter target state.
+- Chosen recovery is controlled adjudication, not replay: F3 phase UNKNOWN -> FAILED and run failure_class UNKNOWN -> FAILED, while preserving the original F3 failure code and all other run facts.
+- Recovery uses a dedicated durable one-shot adjudication ledger with CLAIMED -> APPLYING -> ADJUDICATED and same-authorization-only split-state resume.
+- Fresh read-only preauthorization is mandatory before any later live mutation and must capture exact run/phase SHA-256 plus re-prove zero F3 business-execution records and absent product material.
+- PR #618 remains the repaired product-source authority. The adjudication helper is a separate engineering recovery artifact, not a new product capability.
+- Previous replacement release remains unusable for a new F5 run because it predates the KF-123 repair.
+- Next one gate: `N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_SOURCE_IMPLEMENTATION_20261019_01`.
+- No T1 access, live mutation, board access, source mutation, new production authorization, or merge occurred.
+
 ## 2026-10-19 — KF-123 source repair final review CLOSED_PASS
 
 - PR #618 exact binding remains base `71dee9e2ede801c75ecb4518642eee06db135e73` -> head `4afd89b56e9925d7330b27f3f734ebcefc09182c`, tree `da864ffb6c44de3efccb93516e5e786f16219cd9`; OPEN/DRAFT, mergeable, unmerged.
