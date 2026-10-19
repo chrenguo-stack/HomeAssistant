@@ -33,8 +33,8 @@ F5 V2 的目标不是“尽量把任意旧 T1 修到可部署”，而是：
 
 ~~~text
 OFFICIAL_ARMBIAN_INSTALLED
--> STANDARD_FRESH_ARMBIAN_QUALIFICATION
 -> EXACT_RELEASE_VALIDATION
+-> STANDARD_FRESH_ARMBIAN_QUALIFICATION
 -> ONE_PRODUCTION_APPROVAL
 -> PRODUCTION_RUN_CLAIM
 -> HOST_BASELINE_INSTALL
@@ -103,16 +103,27 @@ DOCKER_PRODUCT_OBJECTS=NONE
 
 因此正常 F5-8 不再枚举、分类任意 Docker container/image/network/volume，也不再因为“不认识某个对象”补 UNKNOWN 规则。
 
-## 3. Fresh qualification 的结果只有两类
+## 3. Fresh qualification 的结果与处置
+
+exact release 必须先在 Mac 本地验证，因为 release 本身决定允许的 Docker/Compose 版本、容量要求和后续精确绑定。
+之后才连接 T1 做 fresh qualification。
+
+target 已被成功观察后的处置只有两类：
 
 ~~~text
 PASS -> 允许进入量产
-FAIL -> 不修现场；重新安装官方 Armbian 后重新检查
+FAIL_REFLASH_REQUIRED -> 已证明不符合 Standard Fresh Armbian；不修现场，重新安装官方 Armbian
 ~~~
 
-没有第三类“尝试判断这个旧对象是不是可以留着”。
+如果因为 SSH/网络/取证命令等原因根本无法证明 target 状态，则属于：
 
-F5 V2 仍可以输出具体失败原因，方便定位镜像、网络、磁盘或硬件问题，但这些原因不改变生产政策。
+~~~text
+STOP_UNAVAILABLE -> 没有 target mutation；先修复工位/连接问题，可重新执行只读 qualification
+~~~
+
+STOP_UNAVAILABLE 不是第三种 target 状态，也不允许据此进入生产或要求重装。它只表示“证据不足”。
+
+F5 V2 不再尝试判断旧 Docker/历史对象是否“也许可以留着”。
 
 ## 4. 生产运行 authority 简化
 
@@ -145,6 +156,8 @@ REPLAY_RUN=false
 
 不需要在目标上继续建立复杂 phase recovery 状态机。
 
+但“一个人工生产批准”不等于删除所有内部一次性安全守卫。现有 F3/F4 已验证的 transaction、no-replay、atomic claim 等内部保护可以继续保留，由 V2 orchestrator 根据同一个 top-level run 自动派生内部 action/authorization ID。正常操作员不会再次批准，也不会看到 repair 入口。
+
 ## 5. 失败政策
 
 ### 5.1 qualification 前失败
@@ -155,7 +168,7 @@ REPLAY_RUN=false
 - T1 不满足 fresh contract，则重装 Armbian；
 - 不创建产品 run。
 
-### 5.2 run STARTED 之后任意失败
+### 5.2 run STARTED 且尚未 ACCEPTED 时任意失败
 
 V2 冻结如下硬顺序：
 
@@ -193,6 +206,21 @@ FORENSIC_SNAPSHOT_COMPLETE 表示取证流程已经完成并形成不可歧义�
 TARGET_MARKED_REFLASH_REQUIRED 是 Mac 侧生产台账/结果状态，不要求在即将被重装的 T1 上再写一个额外 repair marker。
 T1 上原有 STARTED marker 保持原样作为失败现场的一部分，直到重装擦除。
 
+SESSION_CLOSE 的完成条件允许两种等价结果：managed SSH/ControlMaster 被正常关闭，或已经确认该连接资源不存在。目标掉线本身不能造成“永远不允许重装”的死锁。
+
+### 5.3 durable ACCEPTED 之后的 process-only failure
+
+如果 post-reboot acceptance 已 PASS，并且 target marker 已经原子写成 ACCEPTED，之后仅发生 Mac 侧 session cleanup、public result 生成或本地归档失败，则：
+
+~~~text
+DEVICE_ACCEPTANCE=PASS
+T1_PRODUCTION_READY=true
+OVERALL_PROCESS=FAIL
+REFLASH_REQUIRED=false
+~~~
+
+此时不得为了修复生产工位证据问题而重装一台已经被 durable acceptance 证明合格的 T1。后续只允许只读 inspect/evidence-finalization，不允许重新执行产品 mutation。
+
 ### 5.3 外部持久状态
 
 如果未来引入工厂注册表、云端设备登记、外部 CA/证书签发或其他 T1 重装不能消除的外部状态，
@@ -200,7 +228,19 @@ T1 上原有 STARTED marker 保持原样作为失败现场的一部分，直到�
 
 当前首版 F5 V2 不假设存在这类外部平台。
 
-## 6. Production deployment
+## 6. Release-bound host baseline and production deployment
+
+HOST_BASELINE 的 Docker/Compose 安装版本必须来自当前 exact release contract，而不是“运行当天 APT 的最新 candidate”。
+
+~~~text
+APT_CANDIDATE_MUST_EQUAL_RELEASE_VERSION=true
+PACKAGE_VERSION_DRIFT=STOP_BEFORE_INSTALL
+SILENT_LATEST_UPGRADE=false
+~~~
+
+release 中至少绑定 docker.io、docker-compose-v2 的准确 Ubuntu package version 与 source policy。如 exact version 不可取得，构建新 release；不得在现场自动放宽。
+
+### 6.1 Production deployment
 
 量产主体只做固定顺序：
 
@@ -239,6 +279,8 @@ T1_PRODUCTION_READY=true
 ~~~
 
 验收必须在真实重启之后从一个新的 SSH epoch 执行，并尽量使用外部可观察结果，而不是仅相信部署阶段自己的 success report。
+
+现有已实机验收的 n3w_t1_f4_reboot_verify.py 继续作为 target-local acceptance 核心，不在 V2 重写同一套 Docker/systemd/TLS/Manager/Home Assistant/certificate 检查。V2 只在其外层增加 run-marker/release 绑定、Mac 外部探测和 90 秒稳定观察。
 
 ### 7.1 必验项目
 
