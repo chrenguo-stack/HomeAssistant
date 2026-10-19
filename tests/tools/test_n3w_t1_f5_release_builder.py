@@ -5,6 +5,8 @@ import io
 import json
 import tarfile
 import zipfile
+
+import pytest
 from pathlib import Path
 
 from tools import n3w_t1_f5_release_builder as builder
@@ -35,6 +37,30 @@ def test_mac_files_exist_and_use_real_f2_identity_probe() -> None:
     assert real_identity_probe in builder.MAC_FILES
     assert stale_identity_executor not in builder.MAC_FILES
     assert all((root / relative).is_file() for relative in builder.MAC_FILES)
+
+
+def test_load_module_does_not_create_bytecode(tmp_path: Path) -> None:
+    module_path = tmp_path / "sample_module.py"
+    module_path.write_text("VALUE = 1\n", encoding="utf-8")
+
+    loaded = builder.load_module(module_path, "n3w_f5_no_bytecode_test")
+
+    assert loaded.VALUE == 1
+    assert not (tmp_path / "__pycache__").exists()
+
+
+def test_verify_index_rejects_unindexed_extra_file(tmp_path: Path) -> None:
+    root = tmp_path / "release"
+    root.mkdir()
+    (root / "approved-release.json").write_text("{}\n", encoding="utf-8")
+    builder.write_index(root)
+    (root / "unexpected.pyc").write_bytes(b"unexpected")
+
+    with pytest.raises(
+        builder.ReleaseBuildError,
+        match="release_index_file_set_mismatch",
+    ):
+        builder.verify_index(root)
 
 
 def test_verify_f3_artifact_binds_images_transport_and_source(tmp_path: Path) -> None:

@@ -98,7 +98,12 @@ def load_module(path: Path, name: str):
         raise ReleaseBuildError(f"module_load_failed:{path.name}")
     module = importlib.util.module_from_spec(spec)
     sys.modules[name] = module
-    spec.loader.exec_module(module)
+    previous = sys.dont_write_bytecode
+    sys.dont_write_bytecode = True
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.dont_write_bytecode = previous
     return module
 
 
@@ -324,6 +329,62 @@ def write_index(root: Path):
     return digest
 
 
+def verify_index(root: Path):
+    index_path = root / "release-file-index.json"
+    sidecar_path = root / "release-file-index.sha256"
+    if (
+        index_path.is_symlink()
+        or not index_path.is_file()
+        or sidecar_path.is_symlink()
+        or not sidecar_path.is_file()
+    ):
+        raise ReleaseBuildError("release_index_missing")
+    if sha_file(index_path) != sidecar(sidecar_path.read_bytes()):
+        raise ReleaseBuildError("release_index_sha256_mismatch")
+    document = json.loads(index_path.read_text(encoding="utf-8"))
+    records = document.get("files") if isinstance(document, dict) else None
+    if document.get("schema") != INDEX_SCHEMA or not isinstance(records, list):
+        raise ReleaseBuildError("release_index_invalid")
+    expected = {}
+    for record in records:
+        if (
+            not isinstance(record, dict)
+            or set(record) != {"path", "sha256", "size"}
+            or not isinstance(record.get("path"), str)
+            or not isinstance(record.get("sha256"), str)
+            or not isinstance(record.get("size"), int)
+            or isinstance(record.get("size"), bool)
+        ):
+            raise ReleaseBuildError("release_index_record_invalid")
+        relative = Path(record["path"])
+        if (
+            relative.is_absolute()
+            or not relative.parts
+            or ".." in relative.parts
+            or record["path"] in expected
+        ):
+            raise ReleaseBuildError("release_index_record_invalid")
+        expected[record["path"]] = record
+        item = root / relative
+        if (
+            item.is_symlink()
+            or not item.is_file()
+            or item.stat().st_size != record["size"]
+            or sha_file(item) != record["sha256"]
+        ):
+            raise ReleaseBuildError(
+                f"release_index_file_binding_invalid:{record['path']}"
+            )
+    actual = {
+        item.relative_to(root).as_posix()
+        for item in root.rglob("*")
+        if item.is_file() and item not in {index_path, sidecar_path}
+    }
+    if set(expected) != actual:
+        raise ReleaseBuildError("release_index_file_set_mismatch")
+    return sha_file(index_path)
+
+
 def verify_release(root: Path):
     release_path = root / "approved-release.json"
     contract = load_module(
@@ -373,7 +434,13 @@ def verify_release(root: Path):
     finally:
         sys.path = [item for item in sys.path if item != str(root / "tools")]
     completed = subprocess.run(
-        [sys.executable, str(root / "tools/n3w_t1_production.py"), "run", "--help"],
+        [
+            sys.executable,
+            "-B",
+            str(root / "tools/n3w_t1_production.py"),
+            "run",
+            "--help",
+        ],
         cwd=root,
         capture_output=True,
         text=True,
@@ -386,10 +453,7 @@ def verify_release(root: Path):
     ):
         raise ReleaseBuildError("approved_release_sha256_mismatch")
     if (root / "release-file-index.json").is_file():
-        if sha_file(root / "release-file-index.json") != sidecar(
-            (root / "release-file-index.sha256").read_bytes()
-        ):
-            raise ReleaseBuildError("release_index_sha256_mismatch")
+        verify_index(root)
     return normalized
 
 

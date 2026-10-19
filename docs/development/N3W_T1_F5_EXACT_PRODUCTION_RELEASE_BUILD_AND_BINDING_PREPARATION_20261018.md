@@ -6,7 +6,7 @@ Date: 2026-10-18
 
 ~~~text
 TASK=N3W_T1_F5_PRODUCTION_PROCESS_V1_EXACT_PRODUCTION_RELEASE_BUILD_AND_BINDING_20261018_01
-STATE=REBUILD_PREPARED_AFTER_SOURCE_REPAIR
+STATE=REBUILD_REQUIRED_AFTER_ARCHIVE_FILE_SET_FAILURE
 
 PARENT_PR=612
 PARENT_SOURCE_HEAD=55e499f28d4b1a79da0c5c1fbd21b513f24644e6
@@ -114,6 +114,34 @@ and verifies the exact release again after upload.
 
 This closes byte construction and post-upload binding only if CI passes.
 
+## Real Mac archive acceptance discovered a second F5-7 packaging defect
+
+The first durable-workstation archive attempt used the exact uploaded release artifact and stopped with:
+
+~~~text
+ERROR=release_index_file_set_mismatch
+ARCHIVE_PUBLISHED=false
+T1_ACCESS=false
+~~~
+
+The archive verifier was intentionally stricter than the original builder verification: it required the
+ZIP file set to equal the complete release index. Source review found a builder defect consistent with
+that failure: the builder wrote `release-file-index.json` before running Python-based release verification,
+while module loading and the packaged entrypoint could create `__pycache__/*.pyc` files afterward.
+The original post-upload verifier checked the index sidecar hash but did not enforce index-to-file-set
+equality, so those post-index files could be uploaded without being indexed.
+
+The repair must not relax the archive verifier. Instead it:
+
+1. disables Python bytecode writes during in-process module verification;
+2. runs the packaged entrypoint with `python -B`;
+3. validates every indexed file size/SHA and exact release file-set equality;
+4. adds regressions for bytecode suppression and unindexed-extra rejection;
+5. rebuilds the exact release artifact before retrying workstation archive acceptance.
+
+The previously uploaded artifact `12156115228` is therefore superseded for F5-7 durability acceptance.
+It must not be archived as the approved durable release.
+
 ## Durable archive boundary
 
 A 30-day GitHub Actions artifact is not sufficient by itself for the F5-7 long-term release requirement.
@@ -133,7 +161,7 @@ store. No T1-B access starts before that durability requirement is closed.
 ## Stop rule
 
 ~~~text
-CURRENT_STOP_POINT=WAIT_F5_EXACT_RELEASE_REBUILD_CI
+CURRENT_STOP_POINT=WAIT_F5_EXACT_RELEASE_REBUILD_AFTER_INDEX_REPAIR_CI
 NEXT_IF_CI_PASS=RECORD_EXACT_RELEASE_ID_AND_ARTIFACT_BINDING_THEN_CLOSE_DURABLE_ARCHIVE_GAP
 NEXT_IF_CI_FAIL=FIX_FIRST_DETERMINISTIC_BUILD_OR_BINDING_DEFECT_ONLY
 
