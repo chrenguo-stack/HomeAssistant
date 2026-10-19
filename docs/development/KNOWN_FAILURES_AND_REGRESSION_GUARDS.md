@@ -2,7 +2,7 @@
 
 ~~~text
 KF=KF-123
-STATUS=SOURCE_REPAIR_CLOSED_PASS_UNKNOWN_RUN_RECOVERY_ARTIFACT_BOUND_READONLY_PREAUTH_READY
+STATUS=SOURCE_REPAIR_CLOSED_PASS_UNKNOWN_RUN_ADJUDICATION_LIVE_PASS_POSTVERIFY_PENDING
 
 FAILING_SOURCE_HEAD=9048dd7c6b48c0620471919c0cf96c96bdab71f1
 FAILED_RUN_ID=3e37993537f9317dfb8070fd53fa20384de86cbd7c2a234857b55602c1280799
@@ -93,7 +93,10 @@ Independent postexecution read-only verification remains mandatory after any fut
 Current gate:
 `N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_ARTIFACT_AND_READONLY_PREAUTH_20261019_01`.
 
-Current stop point: waiting for the real-T1 read-only preauthorization output.
+The real-T1 read-only preauthorization passed, and the separately authorized one-shot live adjudication then completed successfully. The historical run remains TERMINAL/FAIL and non-replayable; F3_DEPLOY is now FAILED, top-level failure_class is now FAILED, the original failure code is unchanged, and the dedicated recovery ledger is ADJUDICATED. F3 business-execution count and all product-material counts remain zero; no product service start, reboot or board access occurred.
+
+Final closure is still pending the separate fresh postexecution read-only verification gate:
+`N3W_T1_F5_KF123_UNKNOWN_RUN_ADJUDICATION_POSTEXECUTION_READONLY_VERIFY_20261019_01`.
 
 Authority: `docs/development/N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_DESIGN_20261019.md`.
 Authority: PR #620.
