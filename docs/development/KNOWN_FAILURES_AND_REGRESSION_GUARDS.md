@@ -1,3 +1,38 @@
+### 2026-10-19 KF-123 F5 production F3 control context inserted into immutable payload root
+
+~~~text
+KF=KF-123
+STATUS=OPEN_SOURCE_DEFECT_READONLY_TARGET_FORENSIC_PENDING
+
+FAILING_SOURCE_HEAD=9048dd7c6b48c0620471919c0cf96c96bdab71f1
+FAILED_RUN_ID=3e37993537f9317dfb8070fd53fa20384de86cbd7c2a234857b55602c1280799
+F5_AUTHORIZATION=CONSUMED_NO_REPLAY
+HOST_BASELINE=PASS
+F3_REMOTE_REASON=payload_file_set_invalid
+F3_BOOTSTRAP_PRODUCTION_CLAIM=false
+PRODUCT_SERVICE_START=false
+LIVE_REBOOT=false
+BOARD_ACCESS=false
+~~~
+
+Root cause: the F5 production adapter extracts the immutable F3 payload into a remote payload directory and then
+copies `production-phase-context.json` into that same directory. The target production bootstrap starts by
+validating the exact manifest file set for that directory. The production phase context is not payload material and
+is not declared by the manifest, so the bootstrap correctly fails closed with `payload_file_set_invalid` before
+loading/claiming the production F3 execution context.
+
+Guard direction:
+- keep mutable production phase context outside the immutable payload root;
+- do not weaken the payload inventory to accept arbitrary control-plane files;
+- add a regression proving production context staging cannot change the payload-root file set;
+- preserve/reap payload and context together according to the same preclaim/claimed forensic rules;
+- consumed F5 production runs are never replayed;
+- build a new exact source-bound F3 artifact and F5 release after repair.
+
+Fresh T1 read-only adjudication remains required before final target-state claims.
+
+Authority: `docs/development/N3W_T1_F5_9_REPLACEMENT_RUN_F3_PAYLOAD_FILE_SET_FAILURE_FORENSIC_20261019.md`.
+
 ### 2026-10-19 KF-122 F5 production phase-context CLI status defect
 
 ~~~text
