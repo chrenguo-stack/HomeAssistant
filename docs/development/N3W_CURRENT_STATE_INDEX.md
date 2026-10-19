@@ -1,3 +1,15 @@
+## 2026-10-19 — KF-122 failed-run recovery CLOSED_PASS
+
+- Separate postexecution read-only verification PASS.
+- Historical F5 run `56e7cacb...` is durably `TERMINAL/FAIL`, failure class `FAILED`, and non-replayable.
+- Its only production phase record is `HOST_BASELINE=FAILED`; no production phase completed.
+- Recovery record is durably `TERMINALIZED`; authorization `N3W_T1_F5_FAILED_RUN_TERMINALIZATION_LIVE_20261019_01` is consumed/no-replay.
+- Exact original phase-claim SHA-256 remains `737fcda8367319399157a05ec8a0b27fc9059ff5a90622f5ffb39452b2001c80`.
+- Host-baseline business-execution claim/completion remain absent.
+- KF-122 recovery route is closed; no reflash is required for this incident.
+- New F5-9 production authorization remains NOT_GRANTED.
+- Authority: `docs/development/N3W_T1_F5_FAILED_RUN_TERMINALIZATION_POSTEXECUTION_READONLY_CLOSURE_20261019.md`.
+
 ## 2026-10-19 — F5 failed-run live terminalization PASS
 
 - Recovery authorization `N3W_T1_F5_FAILED_RUN_TERMINALIZATION_LIVE_20261019_01` is consumed and non-replayable.
