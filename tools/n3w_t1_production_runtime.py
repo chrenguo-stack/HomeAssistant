@@ -62,6 +62,8 @@ MAC_MANIFEST_RELATIVE = Path("artifacts/mac/manifest.json")
 TARGET_MANIFEST_RELATIVE = Path("artifacts/target/manifest.json")
 TARGET_FILES_RELATIVE = Path("artifacts/target/files")
 
+F2_READONLY_CONFIRMATION = "READONLY FRESH T1 PREFLIGHT: YES"
+
 F4_MANIFEST_NAME = "f4-package-manifest.json"
 REBOOT_MANIFEST_NAME = "reboot-successor-manifest.json"
 
@@ -516,7 +518,7 @@ class ProductionRuntimeBackend:
                 "--evidence-root",
                 str(evidence),
                 "--confirm",
-                "READONLY N3W T1 FRESH PREFLIGHT: YES",
+                F2_READONLY_CONFIRMATION,
                 "--production-release",
                 str(self.release_path),
                 "--production-f3-artifact",
