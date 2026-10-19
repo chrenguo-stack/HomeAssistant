@@ -2,7 +2,7 @@
 
 ~~~text
 KF=KF-123
-STATUS=SOURCE_REPAIR_CLOSED_PASS_TARGET_UNKNOWN_RUN_RECOVERY_PENDING
+STATUS=SOURCE_REPAIR_CLOSED_PASS_UNKNOWN_RUN_RECOVERY_DESIGN_CLOSED_PASS_SOURCE_IMPLEMENTATION_PENDING
 
 FAILING_SOURCE_HEAD=9048dd7c6b48c0620471919c0cf96c96bdab71f1
 FAILED_RUN_ID=3e37993537f9317dfb8070fd53fa20384de86cbd7c2a234857b55602c1280799
@@ -44,9 +44,17 @@ file-set validation unchanged, cleans payload/context roots together before clai
 preserves staging after an observed production claim. The F2 change is only an exact staging-host blob rebind.
 No unrelated source blocker was found.
 
-The source defect is closed. A later bounded repository-owned handling of the preserved UNKNOWN run is still
-required before any new production approval. The next route is design-only
-`N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_DESIGN_20261019_01`; it is not auto-executed by this closure.
+The source defect is closed. The preserved UNKNOWN-run recovery design is now also CLOSED_PASS. The chosen route is
+a dedicated controlled adjudication: keep the historical run TERMINAL/FAIL and non-replayable, preserve the original
+F3 failure code, and under a separate one-shot recovery ledger reclassify only F3 UNKNOWN -> FAILED plus top-level
+failure_class UNKNOWN -> FAILED after a fresh read-only preauthorization proves the exact run/phase hashes, zero F3
+business-execution records and absent product material. The recovery helper must support same-authorization-only
+resume from the bounded split states and must not replay F3, start services, reboot or access boards.
+
+Next gate:
+`N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_SOURCE_IMPLEMENTATION_20261019_01`.
+
+Authority: `docs/development/N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_DESIGN_20261019.md`.
 
 Authority: `docs/development/N3W_T1_F5_9_REPLACEMENT_RUN_F3_PAYLOAD_FILE_SET_FAILURE_FORENSIC_20261019.md`.
 
