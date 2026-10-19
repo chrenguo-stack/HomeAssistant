@@ -67,6 +67,18 @@ def test_mac_required_files_exist_and_cover_f2_production_dependencies() -> None
     )
 
 
+def test_runtime_preflight_confirmation_matches_packaged_f2_executor() -> None:
+    tool = load_tool()
+    f2 = _load(
+        ROOT
+        / "tools/execution_packages/n3w/f2/"
+        "t1_fresh_readonly_preflight/executor.py",
+        "n3w_f2_confirmation_contract",
+    )
+
+    assert tool.F2_READONLY_CONFIRMATION == f2.CONFIRMATION
+
+
 def test_file_set_manifest_requires_exact_bound_file_set(
     tmp_path: Path,
 ) -> None:

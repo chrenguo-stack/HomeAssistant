@@ -6,7 +6,7 @@ Date: 2026-10-18
 
 ~~~text
 TASK=N3W_T1_F5_PRODUCTION_PROCESS_V1_EXACT_PRODUCTION_RELEASE_BUILD_AND_BINDING_20261018_01
-STATE=REBUILD_REQUIRED_AFTER_ARCHIVE_FILE_SET_FAILURE
+STATE=REBUILD_REQUIRED_AFTER_F5_8_PREFLIGHT_SOURCE_REPAIR
 
 PARENT_PR=612
 PARENT_SOURCE_HEAD=55e499f28d4b1a79da0c5c1fbd21b513f24644e6
@@ -24,6 +24,42 @@ MERGE=false
 The F5-1 through F5-6 product source remains frozen at the accepted product-source head above.
 F5-7 build tooling is deliberately separated from that product-source identity. The approved release
 must continue to declare the frozen product source, not the later build-tooling branch head.
+
+## F5-8 preexecution source repair requires a new exact release
+
+Before any T1-B SSH connection, the F5-8 preexecution read-through found that the packaged production
+runtime used a confirmation string that did not exactly match the frozen F2 read-only executor
+contract. PR #612 repaired that defect at:
+
+~~~text
+CURRENT_PRODUCT_SOURCE_HEAD=6e228a4b2c7c4ff78918571abb7b583e416615ee
+CURRENT_PRODUCT_SOURCE_TREE=6c07b6f9c3d528b630a96cf16b4efdbaef3ff5e5
+CURRENT_PRODUCT_SOURCE_CI=PASS:20/20
+T1B_READONLY_AUTHORIZATION=GRANTED_NOT_CONSUMED
+T1_ACCESS=false
+~~~
+
+Because `tools/n3w_t1_production_runtime.py` is part of the Mac-orchestrator release file set, the
+previous exact release built from `55e499...` is historical evidence only and is superseded for
+F5-8/F5-9 onward.
+
+The source-bound inputs for the rebuild are:
+
+~~~text
+F3_WORKFLOW_RUN_ID=39186184063
+F3_ARTIFACT_ID=12158751232
+F3_ARTIFACT_SHA256=d0546577e32749c1c3a6afd70785c307b06e99158d020c9af02c95f2dc3e03fd
+
+F4_WORKFLOW_RUN_ID=39186184046
+F4_ARTIFACT_ID=12157144760
+F4_ARTIFACT_SHA256=0c7b216aba8e36acc03cf6323302af893bb32862813d1d5083055963b48a1a9d
+
+REBOOT_ARTIFACT_ID=12157918376
+REBOOT_ARTIFACT_SHA256=1061a81c5331ed33ba86aef0777dd8cce87437b88cfe7bcf1eb2e779cb821e59
+~~~
+
+All three inputs are bound to the repaired product source above. The exact release build and durable
+Mac archive acceptance must complete again before the granted T1-B read-only authorization is consumed.
 
 ## Source repair triggered by first F5-7 build
 
@@ -161,8 +197,8 @@ store. No T1-B access starts before that durability requirement is closed.
 ## Stop rule
 
 ~~~text
-CURRENT_STOP_POINT=WAIT_F5_EXACT_RELEASE_REBUILD_AFTER_INDEX_REPAIR_CI
-NEXT_IF_CI_PASS=RECORD_EXACT_RELEASE_ID_AND_ARTIFACT_BINDING_THEN_CLOSE_DURABLE_ARCHIVE_GAP
+CURRENT_STOP_POINT=WAIT_F5_EXACT_RELEASE_REBUILD_AFTER_F5_8_SOURCE_REPAIR_CI
+NEXT_IF_CI_PASS=RECORD_NEW_EXACT_RELEASE_BINDING_THEN_REPEAT_DURABLE_MAC_ARCHIVE_ACCEPTANCE
 NEXT_IF_CI_FAIL=FIX_FIRST_DETERMINISTIC_BUILD_OR_BINDING_DEFECT_ONLY
 
 T1_ACCESS=false
