@@ -19,13 +19,14 @@ MERGE=false
 
 ## 1. Source architecture
 
-建议正常量产源码收敛为四个清晰责任面：
+建议正常量产源码收敛为五个清晰责任面：
 
 ~~~text
 Mac:
   n3w_t1_production_v2.py
   n3w_t1_fresh_armbian_qualification.py
   n3w_t1_post_reboot_acceptance.py
+  n3w_t1_failure_forensics.py
 
 T1:
   n3w_t1_production_marker.py
@@ -335,7 +336,79 @@ UNKNOWN 只影响证据精度，不改变 target policy：
 - mutation 已开始或无法证明未开始 -> reflash required；
 - 不自动 replay。
 
-## 9. Source migration strategy
+任何 run STARTED 之后的 FAIL/UNKNOWN 必须进入统一 failure-finalization 路径：
+
+~~~text
+FAIL
+-> FREEZE_EVIDENCE
+-> FORENSIC_SNAPSHOT_COMPLETE
+-> SESSION_CLOSE
+-> TARGET_MARKED_REFLASH_REQUIRED
+-> REFLASH_ALLOWED
+~~~
+
+## 9. Failure forensic implementation
+
+新增：
+
+~~~text
+tools/n3w_t1_failure_forensics.py
+~~~
+
+该模块只做只读取证与证据封装，不做恢复、删除、重启、服务启动或任何 target mutation。
+
+### 9.1 freeze first
+
+orchestrator 捕获失败后必须先把当前内存中的 run/release/target/stage/error/last-success 状态原子写入 Mac 私有 evidence root。
+从这一刻起，后续 cleanup 失败也不得覆盖原始失败事实。
+
+### 9.2 bounded read-only snapshot
+
+若当前 managed SSH epoch 仍可用，则在同一个 epoch 内采集：
+
+- production marker 及 hash；
+- boot identity；
+- Docker container/image/restart 摘要；
+- 关键 systemd unit 状态；
+- 关键 listener/process 摘要；
+- 与 failed_stage 直接相关的有限日志尾部；
+- release/product manifest/hash binding。
+
+如果某项因目标断线、命令不可用或权限问题无法读取，记录 UNAVAILABLE + reason。snapshot completion 不要求伪造每个 probe 成功。
+
+### 9.3 evidence manifest
+
+固定生成：
+
+~~~text
+failure-summary.json
+forensic-snapshot.json
+evidence-manifest.json
+~~~
+
+manifest 绑定每个 evidence file 的 size/SHA-256，并计算 bundle SHA-256。
+
+FORENSIC_SNAPSHOT_COMPLETE=true 的含义是：取证程序已经终止并生成完整 manifest，所有成功/失败/UNAVAILABLE 项均已明确记录。
+
+### 9.4 session close before reflash disposition
+
+取证 manifest 完成后，orchestrator 必须关闭或确认 managed SSH epoch 已不存在，并清理本 run 的 ControlMaster/socket/private temp resources。
+
+只有 session cleanup 达到可证明终态后，Mac production ledger 才写：
+
+~~~text
+TARGET_DISPOSITION=REFLASH_REQUIRED
+REFLASH_ALLOWED=true
+~~~
+
+该 disposition 写在 Mac 侧，不要求再修改失败 T1。T1 上 STARTED marker 留作现场证据，随后由 Armbian 重装自然擦除。
+
+### 9.5 public evidence
+
+公开摘要只允许包含 release/source/run hash、阶段、错误码、布尔状态、evidence bundle SHA-256、session close 结果和 REFLASH_REQUIRED。
+原始地址、密码、私钥、MQTT 明文凭据、完整日志和 unrestricted stdout/stderr 只留 Mac 私有 evidence root。
+
+## 10. Source migration strategy
 
 为了降低一次性重写风险，建议三步：
 
@@ -365,7 +438,7 @@ fresh qualification
 
 CI closure 后再构建 exact V2 release。
 
-## 10. Test matrix
+## 11. Test matrix
 
 最低必须覆盖：
 
@@ -389,10 +462,14 @@ CI closure 后再构建 exact V2 release。
 - TLS/auth/HA readiness failure => acceptance FAIL；
 - accept marker only after all checks；
 - public evidence secret scan；
+- failure triggers freeze-before-cleanup ordering；
+- target unreachable still produces COMPLETE manifest with UNAVAILABLE probes；
+- forensic collector performs no mutation；
+- reflash disposition cannot be written before snapshot + session close；
 - Ctrl-C/session cleanup；
 - same exact release on two isolated clean targets。
 
-## 11. Files expected to change
+## 12. Files expected to change
 
 Candidate implementation set:
 
@@ -402,12 +479,14 @@ tools/n3w_t1_fresh_armbian_qualification.py
 tools/n3w_t1_production_marker.py
 tools/n3w_t1_production_v2.py
 tools/n3w_t1_post_reboot_acceptance.py
+tools/n3w_t1_failure_forensics.py
 
 ADD TESTS
 tests/tools/test_n3w_t1_fresh_armbian_qualification.py
 tests/tools/test_n3w_t1_production_marker.py
 tests/tools/test_n3w_t1_production_v2.py
 tests/tools/test_n3w_t1_post_reboot_acceptance.py
+tests/tools/test_n3w_t1_failure_forensics.py
 
 ADAPT
 tools/n3w_t1_fresh_host_baseline.py
@@ -421,7 +500,7 @@ release builder / CI workflows
 
 Do not delete V1 tools in the first source PR.
 
-## 12. Source review questions
+## 13. Source review questions
 
 在写产品代码之前，必须再确认：
 
@@ -432,9 +511,10 @@ Do not delete V1 tools in the first source PR.
 5. F3/F4 中哪些 authorization glue 可以删除而不改业务语义；
 6. post-reboot acceptance 是否完全覆盖“可投入使用”；
 7. 90 秒观察窗口是否足够；
-8. target reflash 后 Mac production ledger 如何标记历史 run closed，不阻止新 OS identity 的新 run。
+8. target reflash 后 Mac production ledger 如何标记历史 run closed，不阻止新 OS identity 的新 run；
+9. forensic snapshot 的最小证据集合、UNAVAILABLE 语义和 session-close completion contract 是否足够支持源码缺陷追查。
 
-## 13. Current boundary
+## 14. Current boundary
 
 ~~~text
 SOURCE_DESIGN=FROZEN_CANDIDATE
