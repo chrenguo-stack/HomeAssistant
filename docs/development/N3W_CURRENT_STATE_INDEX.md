@@ -1,3 +1,11 @@
+## 2026-10-19 — F5 replacement exact release durable Mac archive CLOSED_PASS
+
+- Replacement release `31c8a8cd...` / artifact `12162160866` passed `MISS_POPULATED` and network-free `VERIFY_ONLY` on the production Mac.
+- Durable archive ZIP SHA-256: `1938ad3e4d7b87622a21968961b3fea4472907c4b31cc8db8c80acfd0fb149e8`.
+- The historical failed F5-9 run remains consumed, non-replayable and `HOST_BASELINE=APPLYING`; it has not been modified.
+- Next work: repository-only controlled-terminalization source/exact-artifact preparation; target mutation still needs a fresh explicit live authorization.
+- Authority: `docs/development/N3W_T1_F5_PHASE_CONTEXT_REPAIR_REPLACEMENT_RELEASE_DURABLE_ARCHIVE_ACCEPTANCE_CLOSURE_20261019.md`.
+
 ## 2026-10-19 — F5-9 phase-context live failure repaired; replacement release built
 
 - First F5-9 run `56e7cacb...` consumed authorization and stopped with target `HOST_BASELINE=APPLYING`.
