@@ -1336,6 +1336,224 @@ def test_production_context_binds_f3_phase_artifact(
     assert tool._load_production_context_for_f3(path, release) == context
 
 
+def test_production_context_is_outside_payload_root_and_cleaned_together(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    release = {
+        "source_head": "a" * 40,
+        "environment": {"packages": {}},
+    }
+    context = {
+        "run_id": "1" * 64,
+    }
+    artifact = tmp_path / "runtime-payload.tar.gz"
+    artifact.write_bytes(b"payload")
+
+    monkeypatch.setattr(
+        tool,
+        "_managed_transport_required",
+        lambda _t1: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_load_production_release",
+        lambda _path: release,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_load_production_context_for_f3",
+        lambda _path, _release: context,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_prepare_production_artifact",
+        lambda *_args, **_kwargs: (
+            artifact,
+            {},
+            {},
+        ),
+    )
+    monkeypatch.setattr(
+        tool,
+        "_production_baseline_ready",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_remote_storage_report",
+        lambda _t1: {
+            "staging_free_bytes": 10,
+            "docker_free_bytes": 10,
+            "image_store_free_bytes": 10,
+        },
+    )
+
+    class Plan:
+        capacity_pass = True
+
+    monkeypatch.setattr(
+        tool,
+        "_plan_transport",
+        lambda *_args, **_kwargs: Plan(),
+    )
+    monkeypatch.setattr(
+        tool,
+        "_read_sidecar",
+        lambda _path: "2" * 64,
+    )
+
+    remote_roots = iter(
+        (
+            "/var/tmp/n3w-f5-f3.payload",
+            "/var/tmp/n3w-f5-f3-context.control",
+        )
+    )
+    monkeypatch.setattr(
+        tool,
+        "_remote_mktemp",
+        lambda *_args, **_kwargs: next(remote_roots),
+    )
+    monkeypatch.setattr(
+        tool,
+        "_remote_prepare_payload",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_remote_free_bytes",
+        lambda _t1: tool.MIN_POST_PEAK_FREE_BYTES,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_transfer_requested_image",
+        lambda *_args, **_kwargs: None,
+    )
+
+    calls = []
+
+    class Completed:
+        returncode = 0
+
+    def fake_run(argv, **_kwargs):
+        calls.append(tuple(argv))
+        return Completed()
+
+    monkeypatch.setattr(tool, "_run", fake_run)
+
+    process_calls = []
+
+    class FakeProcess:
+        stdout = iter(
+            [
+                json.dumps(
+                    {
+                        "event": "production_phase_execution_claimed",
+                        "production_run_id": context["run_id"],
+                        "production_phase": "F3_DEPLOY",
+                        "authorization_consumed": True,
+                        "replay_allowed": False,
+                    }
+                )
+                + "\n",
+                *[
+                    json.dumps(
+                        {
+                            "event": event,
+                            "label": label,
+                            **(
+                                {"staged_tar_deleted": True}
+                                if event == "image_loaded"
+                                else {}
+                            ),
+                        }
+                    )
+                    + "\n"
+                    for label in ("homeassistant", "manager", "broker")
+                    for event in ("image_requested", "image_loaded")
+                ],
+                json.dumps(
+                    {
+                        "status": "PASS",
+                        "production_run_id": context["run_id"],
+                        "production_phase": "F3_DEPLOY",
+                        "authorization_consumed": True,
+                        "replay_allowed": False,
+                        "public_product_staged": True,
+                        "production_service_start": False,
+                        "board_access": False,
+                    }
+                )
+                + "\n",
+            ]
+        )
+
+        def wait(self):
+            return 0
+
+    def fake_popen(argv, **_kwargs):
+        process_calls.append(tuple(argv))
+        return FakeProcess()
+
+    monkeypatch.setattr(tool.subprocess, "Popen", fake_popen)
+
+    phase_context = tmp_path / "phase-context.json"
+    phase_context.write_text("{}\n", encoding="utf-8")
+
+    result = tool.execute_production(
+        t1="root@example",
+        production_release=tmp_path / "release.json",
+        production_f3_artifact=tmp_path / "artifact.zip",
+        production_phase_context=phase_context,
+    )
+
+    assert result["status"] == "PASS"
+    assert result["remote_payload_removed"] is True
+
+    scp_calls = [
+        call
+        for call in calls
+        if call[:1] == ("scp",)
+    ]
+    assert scp_calls == [
+        (
+            "scp",
+            str(phase_context),
+            (
+                "root@example:"
+                "/var/tmp/n3w-f5-f3-context.control/"
+                "production-phase-context.json"
+            ),
+        )
+    ]
+    assert all(
+        "/var/tmp/n3w-f5-f3.payload/production-phase-context.json"
+        not in " ".join(call)
+        for call in calls
+    )
+
+    assert len(process_calls) == 1
+    process_command = " ".join(process_calls[0])
+    assert "--payload-root" in process_command
+    assert "/var/tmp/n3w-f5-f3.payload" in process_command
+    assert (
+        "/var/tmp/n3w-f5-f3-context.control/"
+        "production-phase-context.json"
+        in process_command
+    )
+
+    cleanup_commands = [
+        " ".join(call)
+        for call in calls
+        if call[:2] == ("ssh", "-n")
+        and "rm -rf" in " ".join(call)
+    ]
+    assert len(cleanup_commands) == 1
+    assert "/var/tmp/n3w-f5-f3.payload" in cleanup_commands[0]
+    assert "/var/tmp/n3w-f5-f3-context.control" in cleanup_commands[0]
+
+
 def test_production_baseline_requires_exact_release_versions(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
