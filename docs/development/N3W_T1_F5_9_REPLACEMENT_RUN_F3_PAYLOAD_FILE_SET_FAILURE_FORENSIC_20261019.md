@@ -107,3 +107,20 @@ T1_MUTATION=false
 SOURCE_MUTATION=false
 NEW_PRODUCTION_AUTHORIZATION=false
 ~~~
+
+## Read-only forensic attempt 1 operator-script correction
+
+~~~text
+READONLY_FORENSIC_ATTEMPT_1=LOCAL_PRE_SSH_STOP
+T1_ACCESS=false
+T1_MUTATION=false
+CAUSE=operator forensic script used wrong exact-release ZIP member path for n3w_t1_production_authority.py
+WRONG_PATH=tools/n3w_t1_production_authority.py
+CORRECT_PATH=artifacts/target/files/n3w_t1_production_authority.py
+PRODUCT_STATE_EFFECT=NONE
+NEXT_GATE_UNCHANGED=N3W_T1_F5_9_F3_PAYLOAD_FILE_SET_FAILURE_READONLY_FORENSIC_20261019_01
+~~~
+
+The exact release builder stores Mac-side contract/orchestrator files under `tools/`, while target authority files are
+stored under `artifacts/target/files/`. The first forensic command stopped locally while reading the ZIP and never
+opened SSH. This is an operator forensic-command packaging-path mistake, not a new product/runtime failure.
