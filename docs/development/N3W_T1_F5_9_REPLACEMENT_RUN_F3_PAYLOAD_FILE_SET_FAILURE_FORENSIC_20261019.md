@@ -124,3 +124,58 @@ NEXT_GATE_UNCHANGED=N3W_T1_F5_9_F3_PAYLOAD_FILE_SET_FAILURE_READONLY_FORENSIC_20
 The exact release builder stores Mac-side contract/orchestrator files under `tools/`, while target authority files are
 stored under `artifacts/target/files/`. The first forensic command stopped locally while reading the ZIP and never
 opened SSH. This is an operator forensic-command packaging-path mistake, not a new product/runtime failure.
+
+## Fresh target read-only forensic closure
+
+~~~text
+READONLY_FORENSIC=PASS
+EXPECTED_FAILURE_BOUNDARY_CONFIRMED=true
+
+RUN_STATE=TERMINAL
+TERMINAL_STATE=FAIL
+FAILURE_CLASS=UNKNOWN
+AUTHORIZATION_CONSUMED=true
+REPLAY_ALLOWED=false
+LAST_COMPLETED_PHASE=HOST_BASELINE
+LAST_CLAIMED_PHASE=F3_DEPLOY
+
+HOST_BASELINE_STATE=SUCCEEDED
+HOST_BASELINE_RESULT_SHA256=a9ce1c749617193f2da6b66374c7a287868085b87e8eca246da34ff149470806
+HOST_BASELINE_EXECUTION_RECORD_COUNT=2
+
+F3_PHASE_STATE=UNKNOWN
+F3_FAILURE_CODE=production_f3_claimed_or_unknown:production_f3_execution_not_proven
+F3_RESULT_SHA256=null
+F3_PRODUCTION_EXECUTION_RECORD_COUNT=0
+
+PRODUCT_PATH_COUNT=0
+CONTAINER_COUNT=0
+IMAGE_COUNT=0
+VOLUME_COUNT=0
+PRODUCT_NETWORK_COUNT=0
+PRODUCT_UNIT_LOADED_COUNT=0
+REMOTE_F3_STAGING_COUNT=0
+DOCKER_ACTIVE=true
+
+T1_ACCESS=true
+T1_MUTATION=false
+PRODUCT_SERVICE_START=false
+LIVE_REBOOT=false
+BOARD_ACCESS=false
+
+TARGET_FORENSIC=CLOSED_PASS
+KF_123=SOURCE_REPAIR_REQUIRED
+~~~
+
+The fresh independent SSH session confirms the conservative boundary exactly. The F5 production authority did
+consume the new run and complete `HOST_BASELINE`. The outer `F3_DEPLOY` phase is durably `UNKNOWN`, so the run is
+`TERMINAL/FAIL` with failure class `UNKNOWN` and cannot be used as authority for another production run.
+
+At the business-executor level, however, the F3 production execution ledger contains zero records. There are also
+zero product paths, containers, images, volumes, product networks, product units and preserved F3 staging
+directories. Therefore the F3 product deployment did not begin. The only live mutation from this F5-9 attempt was
+the approved HOST_BASELINE installation, which left Docker active.
+
+The target forensic route is now closed. Source repair is required before any new exact F3/F5 release can be built.
+The current UNKNOWN run must remain preserved and non-replayable; a later bounded repository-owned reclassification
+or terminalization procedure will be required before another production approval can be accepted for this target.
