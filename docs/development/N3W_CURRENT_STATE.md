@@ -1,3 +1,29 @@
+## 2026-10-19 — KF-123 UNKNOWN-run live adjudication explicitly authorized; waiting for execution result
+
+~~~text
+TASK=N3W_T1_F5_KF123_UNKNOWN_RUN_ADJUDICATION_LIVE_20261019_01
+STATE=AUTHORIZED_READY_FOR_USER_EXECUTION
+
+AUTHORIZATION_GRANTED=true
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+REPLAY_ALLOWED=false
+
+EXPECTED_RUN_RECORD_SHA256=40856f7dc3f0b45c42ec85728070cd6570138e1ca97a2a5c545d8765281ae26f
+EXPECTED_F3_PHASE_RECORD_SHA256=53a1cdccaf154ccbc98a8d717c0c0421fb750560c2e8d90fd3b429523797fa48
+EXPECTED_TARGET_BINDING_SHA256=280c06d1753dc676ca7c11b1967ae603a432bb3c996abb305a449c85cf5ca3b3
+
+LIVE_EXECUTION_RESULT=PENDING
+POSTEXECUTION_READONLY_VERIFY_REQUIRED=true
+AUTO_EXECUTE_POSTVERIFY=false
+MERGE=false
+STOP_AFTER_LIVE_RESULT=true
+~~~
+
+The user explicitly authorized the one-shot live adjudication gate. The exact live command remains bound to the fresh read-only preauthorization hashes above and to artifact 12181787912. No result has been claimed yet.
+
+Authority: `docs/development/N3W_T1_F5_KF123_UNKNOWN_RUN_ADJUDICATION_LIVE_PREEXECUTION_20261019.md`.
+
 ## 2026-10-19 — KF-123 UNKNOWN-run recovery real-T1 read-only preauth CLOSED_PASS
 
 ~~~text
