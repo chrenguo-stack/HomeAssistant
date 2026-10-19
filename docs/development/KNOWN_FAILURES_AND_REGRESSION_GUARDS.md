@@ -2,7 +2,7 @@
 
 ~~~text
 KF=KF-122
-STATUS=LIVE_RECOVERY_PASS_POSTEXEC_READONLY_PENDING
+STATUS=CLOSED_PASS_RECOVERY_TERMINAL_VERIFIED
 
 FAILING_SOURCE_HEAD=6e228a4b2c7c4ff78918571abb7b583e416615ee
 FAILURE_CODE=remote_command_failed:2
@@ -28,6 +28,11 @@ RECOVERY_ROOT_ABSENT=true
 RECOVERY_AUTHORIZATION=N3W_T1_F5_FAILED_RUN_TERMINALIZATION_LIVE_20261019_01
 RECOVERY_AUTHORIZATION_CONSUMED=true
 RECOVERY_AUTHORIZATION_REPLAY_ALLOWED=false
+POSTEXEC_READONLY_VERIFY=PASS
+FAILED_RUN_FINAL_STATE=TERMINAL_FAIL
+FAILED_RUN_FAILURE_CLASS=FAILED
+ONLY_PRODUCTION_PHASE_RECORD=HOST_BASELINE_FAILED
+KF_122_RECOVERY=CLOSED_PASS
 ~~~
 
 Root cause: the successful F5 target-authority `phase_context()` document omitted
@@ -51,11 +56,11 @@ so this incident did not reach the F5 APT/Docker baseline mutation, F3 deploymen
 start, or reboot path. Only the F5 durable production authority/run ledger was mutated before the defect stopped
 execution.
 
-Status: LIVE_RECOVERY_PASS_POSTEXEC_READONLY_PENDING. The replacement release remains durably archived and the
-controlled terminalization completed under a fresh one-shot authorization. The historical failed run is now
-`TERMINAL/FAIL`, `HOST_BASELINE=FAILED`, the recovery authorization is consumed/no-replay, and host-baseline
-business execution remains absent. One independent fresh read-only postexecution verification remains before any
-new F5-9 production authorization is considered.
+Status: CLOSED_PASS_RECOVERY_TERMINAL_VERIFIED. The controlled terminalization completed under a fresh one-shot
+authorization and a separate later SSH session independently verified the durable poststate. The historical failed
+run is `TERMINAL/FAIL`, `HOST_BASELINE=FAILED`, the recovery authorization is consumed/no-replay, and host-baseline
+business execution remains absent. KF-122 requires no further target recovery work. Any later production execution
+must be a new F5-9 run under a separate fresh production authorization.
 
 Authority: `docs/development/N3W_T1_F5_FAILED_RUN_TERMINALIZATION_ARTIFACT_AND_READONLY_PREAUTH_CLOSURE_20261019.md`.
 
