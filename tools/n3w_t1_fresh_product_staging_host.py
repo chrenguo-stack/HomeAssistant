@@ -1447,6 +1447,7 @@ def execute_production(
     )
     work = Path(tempfile.mkdtemp(prefix="n3w-f5-f3-production."))
     remote_dir: str | None = None
+    remote_context_dir: str | None = None
     production_claim_seen = False
     process_started = False
     try:
@@ -1483,7 +1484,13 @@ def execute_production(
                 work / "payload-manifest.sha256"
             ),
         )
-        remote_context = f"{remote_dir}/production-phase-context.json"
+        remote_context_dir = _remote_mktemp(
+            t1,
+            "n3w-f5-f3-context",
+        )
+        remote_context = (
+            f"{remote_context_dir}/production-phase-context.json"
+        )
         _run(
             (
                 "scp",
@@ -1626,7 +1633,15 @@ def execute_production(
                 "ssh",
                 "-n",
                 t1,
-                _remote_command(("rm", "-rf", "--", remote_dir)),
+                _remote_command(
+                    (
+                        "rm",
+                        "-rf",
+                        "--",
+                        remote_dir,
+                        remote_context_dir,
+                    )
+                ),
             ),
             timeout=120,
             check=False,
@@ -1636,6 +1651,7 @@ def execute_production(
                 "production_f3_cleanup_unproven"
             )
         remote_dir = None
+        remote_context_dir = None
         return {
             **final_report,
             "remote_payload_removed": True,
@@ -1648,7 +1664,12 @@ def execute_production(
             ) from error
         raise
     finally:
-        if remote_dir is not None and not production_claim_seen:
+        cleanup_paths = tuple(
+            path
+            for path in (remote_dir, remote_context_dir)
+            if path is not None
+        )
+        if cleanup_paths and not production_claim_seen:
             try:
                 _run(
                     (
@@ -1656,7 +1677,12 @@ def execute_production(
                         "-n",
                         t1,
                         _remote_command(
-                            ("rm", "-rf", "--", remote_dir)
+                            (
+                                "rm",
+                                "-rf",
+                                "--",
+                                *cleanup_paths,
+                            )
                         ),
                     ),
                     timeout=120,
