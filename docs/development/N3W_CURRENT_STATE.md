@@ -1,3 +1,38 @@
+## 2026-10-19 — F5 failed-run terminalization source/artifact CLOSED_PASS; read-only preauth ready
+
+~~~text
+PR615_EXECUTABLE_HEAD=ebd76d1c6178ff0c0e392047769aeb562670f48b
+PR615_EXECUTABLE_TREE=90e01232a77442c2b2856d49aa3b235cbdb9f96d
+PR615_CI=PASS_12_OF_12
+FOCUSED_TESTS=PASS_9
+
+RECOVERY_ARTIFACT_RUN_ID=39202619732
+RECOVERY_ARTIFACT_JOB_ID=117898622419
+RECOVERY_ARTIFACT_ID=12164835562
+RECOVERY_ARTIFACT_ZIP_SHA256=a5d47bdc4ae1912e20414fd1d5d0ebf840166ec195496c0f821d9bb5cb9e2b4b
+RECOVERY_PACKAGE_LOCAL_VERIFY=PASS
+
+FAILED_RUN_ID=56e7cacb162fb2e2e56ff7e112f1a2177b64a68c4a1f1c0fdea66520e051602e
+FAILED_RUN_TARGET_STATE=IN_PROGRESS
+FAILED_RUN_PHASE=HOST_BASELINE
+FAILED_RUN_PHASE_STATE=APPLYING
+FAILED_RUN_REPLAY_ALLOWED=false
+
+READONLY_PREAUTH=READY_NOT_EXECUTED
+PROPOSED_RECOVERY_AUTHORIZATION=N3W_T1_F5_FAILED_RUN_TERMINALIZATION_LIVE_20261019_01
+RECOVERY_AUTHORIZATION_GRANTED=false
+
+T1_ACCESS=false
+T1_MUTATION=false
+LIVE_REBOOT=false
+BOARD_ACCESS=false
+MERGE=false
+~~~
+
+The executable recovery source is frozen at PR #615 head `ebd76d1c...` and all 12 exact-head workflows passed. The exact recovery artifact is bound. The next step is a fresh T1-B read-only preauthorization that runs the packaged inspector in memory and captures the current phase-claim SHA-256. It must not create a recovery ledger or mutate T1-B. A later live terminalization remains a separate explicit authorization boundary.
+
+Authority: `docs/development/N3W_T1_F5_FAILED_RUN_TERMINALIZATION_ARTIFACT_AND_READONLY_PREAUTH_PREEXECUTION_20261019.md`.
+
 ## 2026-10-19 — F5 replacement exact release durable Mac archive CLOSED_PASS
 
 ~~~text
