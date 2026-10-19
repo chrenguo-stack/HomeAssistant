@@ -1,3 +1,17 @@
+## 2026-10-20 — F5 V2 R1 foundations source candidate
+
+- R1 foundations are implemented on PR #624; exact-head CI is still pending.
+- Added V2 contract, reviewed SSH transport, Standard Fresh Armbian qualification, minimal STARTED->ACCEPTED marker, and read-only failure forensics.
+- Fresh qualification has exactly three outcomes: `PASS`, `FAIL_REFLASH_REQUIRED`, `STOP_UNAVAILABLE`.
+- Marker command surface is only `inspect/start/accept`; no resume/repair/clear/reset/force/reopen path exists.
+- Failure evidence ordering foundation is freeze -> snapshot -> manifest; reflash disposition helper requires completed forensics plus proven session close.
+- Archived V1 SSH transport source/test blobs were selectively reused; V1 production authority/runtime recovery state machine was not restored.
+- HOST_BASELINE/F3/Provision/F4 business primitive adaptation has not started.
+- No T1 access, T1 mutation or board access occurred.
+- Dedicated source CI: `N3W T1 F5 V2 source CI / r1-foundations`.
+- Authority: `docs/development/N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R1_FOUNDATIONS_PROGRESS_20261020.md`.
+- Next gate: `N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R1_EXACT_HEAD_CI_COMPLETION_CHECK_20261020_01`.
+
 ## 2026-10-19 — F5 V2 source implementation work package
 
 - Source implementation branch created from aligned main `4223f23d2579241f6568a1ba3fbbccf26b3bc3c1`.
