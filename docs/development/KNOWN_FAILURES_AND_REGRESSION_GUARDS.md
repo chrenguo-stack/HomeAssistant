@@ -1,3 +1,51 @@
+### 2026-10-19 KF-122 F5 production phase-context CLI status defect
+
+~~~text
+KF=KF-122
+STATUS=SOURCE_REPAIRED_EXACT_RELEASE_REBUILT_LIVE_RECOVERY_PENDING
+
+FAILING_SOURCE_HEAD=6e228a4b2c7c4ff78918571abb7b583e416615ee
+FAILURE_CODE=remote_command_failed:2
+FAILED_RUN_STATE=IN_PROGRESS
+FAILED_RUN_LAST_CLAIMED_PHASE=HOST_BASELINE
+HOST_BASELINE_PHASE_STATE=APPLYING
+HOST_BASELINE_EXECUTION_LEDGER=ABSENT
+FAILED_RUN_REPLAY_ALLOWED=false
+
+REPAIR_SOURCE_HEAD=9048dd7c6b48c0620471919c0cf96c96bdab71f1
+REPAIR_SOURCE_TREE=7b567c7140fd403049a6f7c2fa51887be08e8c8d
+REPAIR_CI=PASS_20_OF_20
+REPLACEMENT_RELEASE_ID=31c8a8cd2d8424f93aaa7b4d0b78cfe2b73f1b035f4bdbce08a181ac56619420
+REPLACEMENT_ARTIFACT_ID=12162160866
+REPLACEMENT_EXACT_RELEASE_CI=PASS
+~~~
+
+Root cause: the successful F5 target-authority `phase_context()` document omitted
+`status=PASS`. The authority CLI returns exit code 0 only for documents carrying
+`status=PASS`, so the valid context was emitted with exit code 2 after the phase had already
+entered durable `APPLYING`.
+
+Guard:
+- every successful production-authority CLI document consumed through the runtime JSON wrapper must carry
+  `status=PASS`;
+- the focused authority test must assert `phase_context()["status"] == "PASS"`;
+- never replay or delete the consumed failed run;
+- if the target is `HOST_BASELINE=APPLYING`, prove the host-baseline execution ledger is absent before
+  any terminalization;
+- terminalization of the historical failed run requires a bounded repository-owned procedure and a fresh
+  explicit live authorization;
+- do not use the superseded release bound to `6e228a4b...` for another production run.
+
+The target-side read-only forensic evidence proves the F5 host-baseline business execution ledger is absent,
+so this incident did not reach the F5 APT/Docker baseline mutation, F3 deployment, provisioning, product service
+start, or reboot path. Only the F5 durable production authority/run ledger was mutated before the defect stopped
+execution.
+
+Status: SOURCE_REPAIRED_EXACT_RELEASE_REBUILT; durable replacement-release archive and controlled failed-run
+terminalization remain open before a fresh F5-9 authorization.
+
+Authority: `docs/development/N3W_T1_F5_PHASE_CONTEXT_LIVE_FAILURE_SOURCE_REPAIR_AND_RELEASE_PREPARATION_20261019.md`.
+
 ### 2026-10-17 F4 repository integration post-merge alignment
 
 ~~~text
