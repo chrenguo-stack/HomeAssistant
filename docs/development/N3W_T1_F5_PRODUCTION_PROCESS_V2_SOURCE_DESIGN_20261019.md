@@ -67,7 +67,7 @@ tools/n3w_t1_fresh_armbian_qualification.py
 
 ~~~json
 {
-  "status": "PASS|FAIL",
+  "status": "PASS|FAIL|STOP",
   "checks": {
     "HOST.OS_ARCH": "PASS|FAIL",
     "HOST.ARMBIAN_IDENTITY": "PASS|FAIL",
@@ -85,7 +85,13 @@ tools/n3w_t1_fresh_armbian_qualification.py
 }
 ~~~
 
-不输出 UNKNOWN ownership 分类；读取失败就是对应 check FAIL。
+不输出 UNKNOWN ownership 分类。
+
+- `PASS`：全部关键事实已证明满足 Standard Fresh Armbian；
+- `FAIL`：已经证明 target 不符合 fresh contract，输出 `reflash_required=true`；
+- `STOP`：SSH/网络/只读命令等原因导致证据不足，输出 `reflash_required=false`，允许修复工位/连接后重新执行只读 qualification。
+
+release 必须先在 Mac 本地验证，再把 release 中冻结的 OS/package/capacity 条件传入 qualification。
 
 ## 3. Minimal production marker
 
@@ -190,29 +196,54 @@ tools/n3w_t1_production_v2.py
 
 V2 入口前 fresh qualification 已要求 Docker absent，因此 HOST_BASELINE 不需要处理任意历史 Docker 状态。
 
-成功后必须验证：
+HOST_BASELINE 的安装输入必须来自 exact release，而不是现场动态选择最新 APT candidate。
 
-- exact docker.io version；
-- exact docker-compose-v2 version；
-- Docker active；
-- storage contract。
+建议接口：
+
+~~~text
+n3w_t1_fresh_host_baseline.py
+  --phase install
+  --approved-release <path>
+~~~
+
+执行规则：
+
+- 从 release 读取 docker.io / docker-compose-v2 的 exact package version 和 source policy；
+- apt-cache candidate 必须与 release version 完全一致；
+- 不一致或 exact version 不可取得时，在 apt-get install 前 STOP；
+- apt-get install 使用明确的 package=version；
+- 安装后再次验证 dpkg version、Docker server version、Compose version、Docker active 和 storage contract。
 
 ### F3
 
 保留 exact payload/image/staging/atomic transfer 能力。
 
-V2 应把“V1 phase-context authorization”替换为一个简单的 V2 run-context binding：
+当前 main 的 F3 payload 把固定 AUTHORIZATION_ID 写入 immutable payload manifest；该字符串不能继续作为 V2 的生产授权。
+
+V2 必须把“immutable package identity”和“本次 run authority”分离：
 
 ~~~text
-run_id
-release_id
-source_head
-target_binding_sha256
-production_marker_sha256
-stage=F3
+IMMUTABLE F3 PAYLOAD:
+  source_head
+  payload/image/file hashes
+  transport/capacity contract
+  NO dynamic run authorization
+
+EXTERNAL V2 RUN CONTEXT:
+  run_id
+  release_id
+  release_sha256
+  source_head
+  target_binding_sha256
+  production_marker_sha256
+  action=F3_DEPLOY
 ~~~
 
-业务部署逻辑不重写。
+run context 必须放在 immutable payload root 之外，并由 F3 apply 在第一次产品 mutation 前验证当前 V2 STARTED marker。
+固定历史 AUTHORIZATION_ID 可以删除或降级为非安全语义的 action label，不能单独使 apply 合法。
+
+为了防止同一 STARTED run 内误调用两次 F3，允许保留一个很小的 one-shot F3 action claim。
+它只证明 F3 action 已领取，不提供 recovery/resume 状态机；失败后整机按 V2 policy 进入 forensic + reflash。业务部署逻辑不重写。
 
 ### Provision
 
@@ -230,9 +261,23 @@ stage=F3
 - persistence；
 - certificate audit/timer；
 - reboot actuation；
-- post-reboot verification。
+- post-reboot verification；
+- 现有 transaction / atomic claim / no-replay / rollback guard。
 
-删除/旁路仅为 V1 per-phase authority 服务的 parent claim/recovery glue；不改变已经验证过的 Broker/Manager/HA 行为。
+V2 首版不要为了“只有一次人工批准”去删除这些已实机验证的内部安全守卫。
+
+正确模型是：
+
+~~~text
+ONE HUMAN PRODUCTION APPROVAL
+-> V2 orchestrator
+-> deterministic internal action IDs derived from run_id + action
+-> existing F4 one-shot guards
+~~~
+
+操作员不再逐项批准，但 target 仍保留内部一次性防重放。所有 repair-* 命令继续从 normal path 隔离。
+
+只有确实属于未合并 V1 top-level per-phase authority 的 wrapper 才不进入 V2；不要把 main 中已经关闭验收的 F4 transaction guard 当成 V1 冗余删除。
 
 ## 6. Post-reboot acceptance implementation
 
@@ -243,6 +288,8 @@ tools/n3w_t1_post_reboot_acceptance.py
 ~~~
 
 它与部署函数分离，避免“自己部署、自己宣布成功”。
+
+实现上优先包装现有 n3w_t1_f4_reboot_verify.py，而不是复制已有 target-local 验收逻辑。现有 verifier 已覆盖真实 reboot、F4 transaction、systemd persistence、exact runtime images、TLS、Manager、Home Assistant MQTT、负向认证、certificate lifecycle 等关键合同。
 
 输入：
 
@@ -261,14 +308,14 @@ T1_PRODUCTION_READY=true|false
 
 ### 6.1 target-local read-only checks
 
-- new boot identity；
-- systemd unit enabled/active；
-- Docker exact images/containers；
-- restart count；
-- mounted persistent data；
-- certificate identity；
-- timer/service state；
-- release marker/source binding。
+第一层直接调用/复用现有 F4 reboot verifier。
+
+V2 额外只补：
+
+- V2 STARTED marker 与 run/release/target binding；
+- approved release/source head 与 installed product release 的一致性；
+- V2 acceptance 所需但现有 F4 verifier 尚未输出的公开摘要；
+- marker 必须在所有验收 PASS 后才允许切换 ACCEPTED。
 
 ### 6.2 Mac external checks
 
@@ -336,7 +383,7 @@ UNKNOWN 只影响证据精度，不改变 target policy：
 - mutation 已开始或无法证明未开始 -> reflash required；
 - 不自动 replay。
 
-任何 run STARTED 之后的 FAIL/UNKNOWN 必须进入统一 failure-finalization 路径：
+任何 run STARTED 且尚未 durable ACCEPTED 的 FAIL/UNKNOWN 必须进入统一 failure-finalization 路径：
 
 ~~~text
 FAIL
@@ -346,6 +393,8 @@ FAIL
 -> TARGET_MARKED_REFLASH_REQUIRED
 -> REFLASH_ALLOWED
 ~~~
+
+如果 target 已经 durable ACCEPTED，而之后只发生 Mac session cleanup/public-result/archive 失败，则保留 DEVICE_ACCEPTANCE=PASS、T1_PRODUCTION_READY=true，overall process 记 FAIL，但不得标记 REFLASH_REQUIRED。
 
 ## 9. Failure forensic implementation
 
@@ -401,6 +450,8 @@ TARGET_DISPOSITION=REFLASH_REQUIRED
 REFLASH_ALLOWED=true
 ~~~
 
+session cleanup 的可证明终态包括：正常关闭，或确认本 run 的 ControlMaster/socket 已经不存在。目标本身失联不能造成永久禁止重装。
+
 该 disposition 写在 Mac 侧，不要求再修改失败 T1。T1 上 STARTED marker 留作现场证据，随后由 Armbian 重装自然擦除。
 
 ### 9.5 public evidence
@@ -419,7 +470,11 @@ REFLASH_ALLOWED=true
 
 ### R2 — adapt business primitive boundaries
 
-让 HOST_BASELINE/F3/Provision/F4 接受 V2 run-context，并证明业务行为与旧 accepted implementation 等价。
+- HOST_BASELINE 接受 release-bound exact package versions；
+- F3 接受 payload 外部 V2 run-context + STARTED marker binding；
+- Provision 保持单次显式 start/verify；
+- F4 保留现有 transaction/no-replay/rollback guards，由 one human approval 自动派生内部 action IDs；
+- 证明业务行为与旧 accepted implementation 等价。
 
 ### R3 — isolated end-to-end
 
@@ -446,14 +501,14 @@ CI closure 后再构建 exact V2 release。
 - wrong OS/arch FAIL；
 - firstboot 未完成 FAIL；
 - sudo/network/DNS/NTP/storage FAIL；
-- Docker already installed FAIL；
+- Docker already installed -> FAIL/reflash_required；
 - 任意 product residue FAIL；
 - marker duplicate start FAIL；
 - marker crash-before/after-fsync；
 - same run replay FAIL；
 - different release/target binding FAIL；
 - HOST_BASELINE failure => no later phase；
-- F3/Provision/F4 failure => no later phase；
+- F3/Provision/F4 failure => no later phase + forensic-before-reflash；
 - SSH unexpected loss after marker => fail/no replay；
 - reboot command not proven => acceptance FAIL；
 - boot ID unchanged => acceptance FAIL；
@@ -467,6 +522,11 @@ CI closure 后再构建 exact V2 release。
 - forensic collector performs no mutation；
 - reflash disposition cannot be written before snapshot + session close；
 - Ctrl-C/session cleanup；
+- cleanup failure after durable ACCEPTED preserves device acceptance and does not require reflash；
+- exact APT version unavailable stops before package mutation；
+- F3 run-context stored outside immutable payload root；
+- F3 static/historical authorization string alone cannot authorize apply；
+- one human approval deterministically drives distinct internal F4 action IDs；
 - same exact release on two isolated clean targets。
 
 ## 12. Files expected to change
@@ -508,11 +568,13 @@ Do not delete V1 tools in the first source PR.
 2. Docker absent 是否符合真实 fresh image；
 3. product residue allowlist 是否足够小且确定；
 4. marker 是否必须在 HOST_BASELINE 前写入；
-5. F3/F4 中哪些 authorization glue 可以删除而不改业务语义；
-6. post-reboot acceptance 是否完全覆盖“可投入使用”；
-7. 90 秒观察窗口是否足够；
-8. target reflash 后 Mac production ledger 如何标记历史 run closed，不阻止新 OS identity 的新 run；
-9. forensic snapshot 的最小证据集合、UNAVAILABLE 语义和 session-close completion contract 是否足够支持源码缺陷追查。
+5. F3 static authorization 如何降级为非 authority，并由 payload 外 V2 run-context/marker 取代；
+6. F4 已有内部 transaction/no-replay guard 哪些必须原样保留；
+7. post-reboot acceptance 如何最大化复用现有 F4 reboot verifier；
+8. 90 秒观察窗口是否足够；
+9. target reflash 后 Mac production ledger 如何标记历史 run closed，不阻止新 OS identity 的新 run；
+10. forensic snapshot 的最小证据集合、UNAVAILABLE 语义和 session-close completion contract 是否足够支持源码缺陷追查；
+11. durable ACCEPTED 后仅 Mac cleanup 失败时，如何完成 evidence finalization 而不误要求 reflash。
 
 ## 14. Current boundary
 
