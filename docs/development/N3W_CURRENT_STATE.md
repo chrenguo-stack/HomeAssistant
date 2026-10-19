@@ -1,3 +1,29 @@
+## 2026-10-19 — F5-9 replacement production run explicitly authorized
+
+~~~text
+TASK=N3W_T1_F5_9_T1B_EXPLICIT_LIVE_AUTHORIZATION_REPLACEMENT_RUN_20261019_01
+AUTHORIZATION_GRANTED=true
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+
+PRODUCT_SOURCE_HEAD=9048dd7c6b48c0620471919c0cf96c96bdab71f1
+RELEASE_ID=31c8a8cd2d8424f93aaa7b4d0b78cfe2b73f1b035f4bdbce08a181ac56619420
+ARTIFACT_ID=12162160866
+ARTIFACT_ZIP_SHA256=1938ad3e4d7b87622a21968961b3fea4472907c4b31cc8db8c80acfd0fb149e8
+
+KF_122=RECOVERY_CLOSED_PASS
+HISTORICAL_FAILED_RUN=TERMINAL_FAIL_NO_REPLAY
+
+NEW_RUN_REQUIRED=true
+ONE_REBOOT_BUDGET=true
+BOARD_ACCESS=false
+MERGE=false
+~~~
+
+The user explicitly authorized one new T1-B F5-9 production run using the repaired exact source and replacement release. The normal orchestrator still performs fresh identity/preflight checks and its in-process `START PRODUCTION RUN` confirmation before the target run is durably claimed. Any failure after target claim is no-replay pending read-only adjudication.
+
+Authority: `docs/development/N3W_T1_F5_9_REPLACEMENT_RUN_LIVE_AUTHORIZATION_PREEXECUTION_20261019.md`.
+
 ## 2026-10-19 — KF-122 failed-run recovery CLOSED_PASS
 
 ~~~text
