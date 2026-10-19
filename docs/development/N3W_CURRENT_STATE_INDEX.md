@@ -1,3 +1,13 @@
+## 2026-10-19 — KF-123 source repair final review CLOSED_PASS
+
+- PR #618 exact binding remains base `71dee9e2ede801c75ecb4518642eee06db135e73` -> head `4afd89b56e9925d7330b27f3f734ebcefc09182c`, tree `da864ffb6c44de3efccb93516e5e786f16219cd9`; OPEN/DRAFT, mergeable, unmerged.
+- Exact PR tree CI remains PASS 15/15. The synthetic PR merge tree is identical to the exact head tree.
+- PR #617 -> #618 delta is exactly three files: staging host, its focused test, and F2 exact source-blob authority rebind.
+- Final review PASS: phase context is outside the immutable F3 payload root; exact payload validation is unchanged; success/preclaim cleanup semantics and postclaim preservation remain correct; F2 change is hash rebinding only.
+- KF-122 remains RECOVERY_CLOSED_PASS. KF-123 target forensic remains CLOSED_PASS.
+- Historical run `3e37993537f9...` remains TERMINAL/FAIL + UNKNOWN + no-replay; HOST_BASELINE succeeded and F3 business execution record count remains 0.
+- Next route: `N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_DESIGN_20261019_01` (design only, not auto-executed). No T1 access, live mutation, board access, source mutation, new production authorization, or merge occurred.
+
 ## 2026-10-19 — KF-123 source repair CI CLOSED_PASS; final review pending
 
 - PR #618 exact head: `4afd89b56e9925d7330b27f3f734ebcefc09182c`, tree `da864ffb6c44de3efccb93516e5e786f16219cd9`.
