@@ -57,7 +57,6 @@ jobs:
           python -m py_compile \
             tools/n3w_t1_production_v2_contract.py \
             tools/n3w_t1_ssh_transport.py \
-            tools/n3w_t1_fresh_armiban_qualification.py \
             tools/n3w_t1_fresh_armbian_qualification.py \
             tools/n3w_t1_production_marker.py \
             tools/n3w_t1_failure_forensics.py
@@ -68,7 +67,6 @@ jobs:
           python -m pytest -q \
             tests/tools/test_n3w_t1_production_v2_contract.py \
             tests/tools/test_n3w_t1_ssh_transport.py \
-            tests/tools/test_n3w_t1_fresh_armiban_qualification.py \
             tests/tools/test_n3w_t1_fresh_armbian_qualification.py \
             tests/tools/test_n3w_t1_production_marker.py \
             tests/tools/test_n3w_t1_failure_forensics.py
@@ -76,8 +74,6 @@ jobs:
       - name: Enforce R1 boundary
         run: |
           set -euo pipefail
-          test ! -e tools/n3w_t1_fresh_armiban_qualification.py
-          test ! -e tests/tools/test_n3w_t1_fresh_armiban_qualification.py
           python - <<'PY'
           from pathlib import Path
           forbidden = (
