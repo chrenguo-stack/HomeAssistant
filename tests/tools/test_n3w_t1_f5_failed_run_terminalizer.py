@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[2]
 CONTRACT = ROOT / "tools/n3w_t1_production_contract.py"
 AUTHORITY = ROOT / "tools/n3w_t1_production_authority.py"
 TOOL = ROOT / "tools/n3w_t1_f5_failed_run_terminalizer.py"
+AUTHORIZATION_ID = "N3W_T1_F5_FAILED_RUN_TERMINALIZATION_LIVE_20261019_01"
 
 
 def load_modules():
@@ -79,6 +80,7 @@ def create_failed_prestate(monkeypatch, tmp_path):
     monkeypatch.setattr(authority, "_require_root", lambda: None)
     ledger = tmp_path / "production-ledger"
     baseline = tmp_path / "baseline-ledger"
+    recovery = tmp_path / "recovery-ledger"
     plan = make_plan(contract, tool)
     authority.approve_run(
         plan,
@@ -106,13 +108,24 @@ def create_failed_prestate(monkeypatch, tmp_path):
         claimed["claim_sha256"],
         root=ledger,
     )
-    return authority, tool, ledger, baseline, applying["claim_sha256"]
+    return authority, tool, ledger, baseline, recovery, applying["claim_sha256"]
+
+
+def terminalize(tool, ledger, baseline, recovery, expected):
+    return tool.terminalize_failed_run(
+        expected_claim_sha256=expected,
+        confirmation=tool.CONFIRMATION,
+        authorization_id=AUTHORIZATION_ID,
+        ledger_root=ledger,
+        baseline_root=baseline,
+        recovery_root=recovery,
+        identity=exact_identity(tool),
+    )
 
 
 def test_inspect_accepts_exact_applying_prestate(monkeypatch, tmp_path):
-    _authority, tool, ledger, baseline, expected = create_failed_prestate(
-        monkeypatch,
-        tmp_path,
+    _authority, tool, ledger, baseline, _recovery, expected = (
+        create_failed_prestate(monkeypatch, tmp_path)
     )
     report = tool.inspect_failed_run(
         ledger_root=ledger,
@@ -123,13 +136,13 @@ def test_inspect_accepts_exact_applying_prestate(monkeypatch, tmp_path):
     assert report["state"] == "ELIGIBLE_FOR_TERMINALIZATION"
     assert report["phase_claim_sha256"] == expected
     assert report["mutation_performed"] is False
+    assert report["mutation_state"] == "NONE"
     assert report["replay_allowed"] is False
 
 
 def test_inspect_rejects_business_execution_claim(monkeypatch, tmp_path):
-    _authority, tool, ledger, baseline, expected = create_failed_prestate(
-        monkeypatch,
-        tmp_path,
+    _authority, tool, ledger, baseline, _recovery, expected = (
+        create_failed_prestate(monkeypatch, tmp_path)
     )
     claim, _complete = tool._baseline_paths(expected, baseline)
     claim.parent.mkdir(parents=True)
@@ -145,33 +158,38 @@ def test_inspect_rejects_business_execution_claim(monkeypatch, tmp_path):
         )
 
 
-def test_terminalize_closes_only_failed_run_ledger(monkeypatch, tmp_path):
-    authority, tool, ledger, baseline, expected = create_failed_prestate(
-        monkeypatch,
-        tmp_path,
+def test_terminalize_closes_only_authority_and_recovery_ledgers(
+    monkeypatch,
+    tmp_path,
+):
+    authority, tool, ledger, baseline, recovery, expected = (
+        create_failed_prestate(monkeypatch, tmp_path)
     )
-    report = tool.terminalize_failed_run(
-        expected_claim_sha256=expected,
-        confirmation=tool.CONFIRMATION,
-        ledger_root=ledger,
-        baseline_root=baseline,
-        identity=exact_identity(tool),
-    )
+    report = terminalize(tool, ledger, baseline, recovery, expected)
     assert report["status"] == "PASS"
     assert report["state"] == "FAILED_RUN_TERMINALIZED"
-    assert report["mutation_scope"] == "f5_production_authority_ledger_only"
+    assert (
+        report["mutation_scope"]
+        == "f5_production_authority_and_recovery_ledger_only"
+    )
+    assert report["recovery_state"] == "TERMINALIZED"
     assert report["product_service_start"] is False
     assert report["reboot_executed"] is False
     inspected = authority.inspect_run(tool.RUN_ID, root=ledger)
     assert inspected["state"] == "TERMINAL"
     assert inspected["terminal_state"] == "FAIL"
     assert inspected["replay_allowed"] is False
+    recovery_record = tool._read_recovery(tool._recovery_path(recovery))
+    assert recovery_record["state"] == "TERMINALIZED"
+    assert recovery_record["authorization_id"] == AUTHORIZATION_ID
 
 
-def test_terminalize_rejects_wrong_claim(monkeypatch, tmp_path):
-    _authority, tool, ledger, baseline, _expected = create_failed_prestate(
-        monkeypatch,
-        tmp_path,
+def test_terminalize_rejects_wrong_claim_before_recovery_claim(
+    monkeypatch,
+    tmp_path,
+):
+    _authority, tool, ledger, baseline, recovery, _expected = (
+        create_failed_prestate(monkeypatch, tmp_path)
     )
     with pytest.raises(
         tool.FailedRunTerminalizationError,
@@ -180,16 +198,18 @@ def test_terminalize_rejects_wrong_claim(monkeypatch, tmp_path):
         tool.terminalize_failed_run(
             expected_claim_sha256="f" * 64,
             confirmation=tool.CONFIRMATION,
+            authorization_id=AUTHORIZATION_ID,
             ledger_root=ledger,
             baseline_root=baseline,
+            recovery_root=recovery,
             identity=exact_identity(tool),
         )
+    assert not recovery.exists()
 
 
 def test_terminalize_requires_exact_confirmation(monkeypatch, tmp_path):
-    _authority, tool, ledger, baseline, expected = create_failed_prestate(
-        monkeypatch,
-        tmp_path,
+    _authority, tool, ledger, baseline, recovery, expected = (
+        create_failed_prestate(monkeypatch, tmp_path)
     )
     with pytest.raises(
         tool.FailedRunTerminalizationError,
@@ -198,24 +218,74 @@ def test_terminalize_requires_exact_confirmation(monkeypatch, tmp_path):
         tool.terminalize_failed_run(
             expected_claim_sha256=expected,
             confirmation="YES",
+            authorization_id=AUTHORIZATION_ID,
             ledger_root=ledger,
             baseline_root=baseline,
+            recovery_root=recovery,
+            identity=exact_identity(tool),
+        )
+    assert not recovery.exists()
+
+
+def test_partial_phase_failure_resumes_same_authorization(monkeypatch, tmp_path):
+    authority, tool, ledger, baseline, recovery, expected = (
+        create_failed_prestate(monkeypatch, tmp_path)
+    )
+    record = tool._claim_or_load_recovery(
+        recovery_root=recovery,
+        authorization_id=AUTHORIZATION_ID,
+        expected_claim_sha256=expected,
+    )
+    record = tool._set_recovery_state(
+        record,
+        recovery_root=recovery,
+        state="APPLYING",
+    )
+    assert record["state"] == "APPLYING"
+
+    with authority._exclusive(ledger, tool.RUN_ID):
+        phase_path = authority._phase_path(ledger, tool.RUN_ID, tool.PHASE)
+        phase = authority._load_phase(ledger, tool.RUN_ID, tool.PHASE)
+        phase["state"] = "FAILED"
+        phase["failure_code"] = tool.FAILURE_CODE
+        authority._replace(phase_path, phase)
+
+    run = authority._load_run(ledger, tool.RUN_ID)
+    assert run["state"] == "IN_PROGRESS"
+
+    report = terminalize(tool, ledger, baseline, recovery, expected)
+    assert report["status"] == "PASS"
+    assert report["target_run_state"] == "TERMINAL"
+    assert report["recovery_state"] == "TERMINALIZED"
+
+
+def test_recovery_authorization_cannot_be_rebound(monkeypatch, tmp_path):
+    _authority, tool, ledger, baseline, recovery, expected = (
+        create_failed_prestate(monkeypatch, tmp_path)
+    )
+    terminalize(tool, ledger, baseline, recovery, expected)
+    with pytest.raises(
+        tool.FailedRunTerminalizationError,
+        match="recovery_authorization_binding_mismatch",
+    ):
+        tool.terminalize_failed_run(
+            expected_claim_sha256=expected,
+            confirmation=tool.CONFIRMATION,
+            authorization_id=(
+                "N3W_T1_F5_FAILED_RUN_TERMINALIZATION_LIVE_20261019_02"
+            ),
+            ledger_root=ledger,
+            baseline_root=baseline,
+            recovery_root=recovery,
             identity=exact_identity(tool),
         )
 
 
 def test_terminalized_run_cannot_be_replayed(monkeypatch, tmp_path):
-    authority, tool, ledger, baseline, expected = create_failed_prestate(
-        monkeypatch,
-        tmp_path,
+    authority, tool, ledger, baseline, recovery, expected = (
+        create_failed_prestate(monkeypatch, tmp_path)
     )
-    tool.terminalize_failed_run(
-        expected_claim_sha256=expected,
-        confirmation=tool.CONFIRMATION,
-        ledger_root=ledger,
-        baseline_root=baseline,
-        identity=exact_identity(tool),
-    )
+    terminalize(tool, ledger, baseline, recovery, expected)
     with pytest.raises(authority.ProductionAuthorityError):
         authority.claim_phase(
             tool.RUN_ID,
