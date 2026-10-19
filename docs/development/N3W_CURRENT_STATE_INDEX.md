@@ -1,3 +1,13 @@
+## 2026-10-19 — F5 V2 failure evidence before reflash
+
+- Any failed/UNKNOWN STARTED run must follow: `FAIL -> FREEZE_EVIDENCE -> FORENSIC_SNAPSHOT_COMPLETE -> SESSION_CLOSE -> TARGET_MARKED_REFLASH_REQUIRED -> REFLASH_ALLOWED`.
+- Forensic collection is read-only and never repairs the T1.
+- If T1 is unreachable, probes are recorded as `UNAVAILABLE`; the manifest can still complete without fabricating PASS.
+- `REFLASH_REQUIRED` is written to the Mac production ledger only after evidence freeze and managed SSH-session closure.
+- No Armbian reflash is allowed by the production workflow before this sequence completes.
+- V2 source design now includes a dedicated `n3w_t1_failure_forensics.py` surface and regression tests for this ordering.
+- No product source implementation, T1 access, board access or merge occurred.
+
 ## 2026-10-19 — F5 V2 simplified production route
 
 - Normal F5 production now accepts only Standard Fresh Armbian.
