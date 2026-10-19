@@ -406,31 +406,36 @@ def terminalize_failed_run(
     _identity(identity)
 
     recovery_path = _recovery_path(recovery_root)
-    if recovery_path.exists() or recovery_path.is_symlink():
-        recovery = _read_recovery(recovery_path)
-        if (
-            recovery.get("authorization_id") != authorization_id
-            or recovery.get("original_phase_claim_sha256")
-            != expected_claim_sha256
-        ):
-            raise FailedRunTerminalizationError(
-                "recovery_authorization_binding_mismatch"
+    recovery_present = recovery_path.exists() or recovery_path.is_symlink()
+    recovery_durable = False
+    try:
+        if recovery_present:
+            recovery = _read_recovery(recovery_path)
+            recovery_durable = True
+            if (
+                recovery.get("authorization_id") != authorization_id
+                or recovery.get("original_phase_claim_sha256")
+                != expected_claim_sha256
+            ):
+                raise FailedRunTerminalizationError(
+                    "recovery_authorization_binding_mismatch"
+                )
+        else:
+            preflight = inspect_failed_run(
+                ledger_root=ledger_root,
+                baseline_root=baseline_root,
+                identity=identity,
             )
-    else:
-        preflight = inspect_failed_run(
-            ledger_root=ledger_root,
-            baseline_root=baseline_root,
-            identity=identity,
-        )
-        if preflight["phase_claim_sha256"] != expected_claim_sha256:
-            raise FailedRunTerminalizationError("phase_claim_sha256_drift")
-        recovery = _claim_or_load_recovery(
-            recovery_root=recovery_root,
-            authorization_id=authorization_id,
-            expected_claim_sha256=expected_claim_sha256,
-        )
+            if preflight["phase_claim_sha256"] != expected_claim_sha256:
+                raise FailedRunTerminalizationError("phase_claim_sha256_drift")
+            recovery = _claim_or_load_recovery(
+                recovery_root=recovery_root,
+                authorization_id=authorization_id,
+                expected_claim_sha256=expected_claim_sha256,
+            )
+            recovery_durable = True
 
-    if recovery["state"] == "TERMINALIZED":
+        if recovery["state"] == "TERMINALIZED":
         run = authority._load_run(ledger_root, RUN_ID)
         phase = authority._load_phase(ledger_root, RUN_ID, PHASE)
         if not (_run_terminal_exact(run) and _phase_failed_exact(phase)):
@@ -486,32 +491,42 @@ def terminalize_failed_run(
             mutation_state="UNKNOWN",
         )
 
-    return {
-        "schema": SCHEMA,
-        "status": "PASS",
-        "state": "FAILED_RUN_TERMINALIZED",
-        "action": action,
-        "run_id": RUN_ID,
-        "phase": PHASE,
-        "phase_state": "FAILED",
-        "failure_code": FAILURE_CODE,
-        "target_run_state": "TERMINAL",
-        "target_terminal_state": "FAIL",
-        "recovery_state": "TERMINALIZED",
-        "recovery_authorization_id": authorization_id,
-        "authorization_consumed": True,
-        "replay_allowed": False,
-        "mutation_performed": (
-            action != "ALREADY_TERMINAL" or recovery_transitioned
-        ),
-        "mutation_state": "TERMINAL",
-        "mutation_scope": "f5_production_authority_and_recovery_ledger_only",
-        "host_baseline_business_execution_claim_absent": True,
-        "host_baseline_business_execution_complete_absent": True,
-        "product_service_start": False,
-        "reboot_executed": False,
-        "board_access": False,
-    }
+        return {
+            "schema": SCHEMA,
+            "status": "PASS",
+            "state": "FAILED_RUN_TERMINALIZED",
+            "action": action,
+            "run_id": RUN_ID,
+            "phase": PHASE,
+            "phase_state": "FAILED",
+            "failure_code": FAILURE_CODE,
+            "target_run_state": "TERMINAL",
+            "target_terminal_state": "FAIL",
+            "recovery_state": "TERMINALIZED",
+            "recovery_authorization_id": authorization_id,
+            "authorization_consumed": True,
+            "replay_allowed": False,
+            "mutation_performed": (
+                action != "ALREADY_TERMINAL" or recovery_transitioned
+            ),
+            "mutation_state": "TERMINAL",
+            "mutation_scope": "f5_production_authority_and_recovery_ledger_only",
+            "host_baseline_business_execution_claim_absent": True,
+            "host_baseline_business_execution_complete_absent": True,
+            "product_service_start": False,
+            "reboot_executed": False,
+            "board_access": False,
+        }
+    except FailedRunTerminalizationError as error:
+        if (
+            error.mutation_state == "NONE"
+            and (recovery_present or recovery_durable)
+        ):
+            raise FailedRunTerminalizationError(
+                str(error),
+                mutation_state="RECOVERY_PRESENT",
+            ) from error
+        raise
 
 
 def _parser() -> argparse.ArgumentParser:
