@@ -1,3 +1,13 @@
+## 2026-10-19 — KF-123 UNKNOWN-run recovery source review R2 FAIL_CLOSED
+
+- R1 A1/A2/A3 are CLOSED by the repair at `abda3c9f2ceb614b8b316ffdb32b5c86cd82678e`.
+- R2 B1: execution-record filenames are not rebound to their record contents.
+- R2 B2: resume states do not yet prove exact preservation of every historical field outside the allowed classification and update-time changes.
+- R2 B3: required negative regressions for nonterminal/PASS and FAILED-without-recovery are missing.
+- Target read-only preauthorization and live adjudication remain blocked.
+- No T1 access or live mutation occurred.
+- Next one gate: `N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_SOURCE_REPAIR_R2_20261019_01`.
+
 ## 2026-10-19 — KF-123 UNKNOWN-run recovery source repair CI PASS
 
 - Source repair head: `abda3c9f2ceb614b8b316ffdb32b5c86cd82678e`, tree `530bfd96231553771b101f3d7044e34cc51cc66d`.
