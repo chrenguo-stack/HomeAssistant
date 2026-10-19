@@ -1,3 +1,45 @@
+## 2026-10-19 — F5 V2 source design review CLOSED_PASS
+
+- Review against current main and accepted F2/F3/Provision/F4 source is complete.
+- Fresh qualification now distinguishes observed nonstandard target from unavailable evidence.
+- exact release is validated before target qualification.
+- HOST_BASELINE must install release-bound exact Docker/Compose package versions, never silent latest candidates.
+- F3 immutable payload no longer treats its historical fixed authorization string as V2 production authority; V2 run context stays outside the immutable payload.
+- Existing F4 transaction/no-replay/rollback guards are retained and driven automatically from one human approval.
+- V2 post-reboot target-local acceptance reuses the existing accepted F4 reboot verifier.
+- forensic-before-reflash applies only before durable ACCEPTED; a later Mac cleanup failure does not force reflash of an accepted device.
+- Design blocker count: 0.
+- Product source implementation has not started.
+- Next gate: `N3W_T1_F5_V2_PR622_MERGE_DECISION_20261019_01`.
+
+## 2026-10-19 — F5 V2 failure evidence before reflash
+
+- Any failed/UNKNOWN STARTED run must follow: `FAIL -> FREEZE_EVIDENCE -> FORENSIC_SNAPSHOT_COMPLETE -> SESSION_CLOSE -> TARGET_MARKED_REFLASH_REQUIRED -> REFLASH_ALLOWED`.
+- Forensic collection is read-only and never repairs the T1.
+- If T1 is unreachable, probes are recorded as `UNAVAILABLE`; the manifest can still complete without fabricating PASS.
+- `REFLASH_REQUIRED` is written to the Mac production ledger only after evidence freeze and managed SSH-session closure.
+- No Armbian reflash is allowed by the production workflow before this sequence completes.
+- V2 source design now includes a dedicated `n3w_t1_failure_forensics.py` surface and regression tests for this ordering.
+- No product source implementation, T1 access, board access or merge occurred.
+
+## 2026-10-19 — F5 V2 simplified production route
+
+- Normal F5 production now accepts only Standard Fresh Armbian.
+- Nonstandard or previously mutated targets are not repaired in-place; reflash Armbian and restart.
+- The normal path removes V1 Docker-object ownership classification and UNKNOWN-driven repair/reentry.
+- Production authority is reduced to one durable target run marker: STARTED -> ACCEPTED.
+- One production approval covers host baseline, deployment, provisioning, activation/persistence and one reboot.
+- Any failure/UNKNOWN after mutation means no replay on that target; a future run requires a fresh Armbian install.
+- Final PASS requires an independent post-reboot acceptance, not merely a successful deploy command.
+- Acceptance covers target identity, exact release, real reboot, Docker/systemd runtime, TLS/MQTT, Manager, Home Assistant, persistence/certificate state and a bounded stability observation.
+- Current T1-B is not a V2 fresh baseline and must be reflashed before V2 live acceptance.
+- V1 PR stack #612-#621 is historical/superseded and has been closed unmerged without deleting branches, commits, CI or durable release evidence.
+- V2 architecture: `docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V2_SIMPLIFIED_ARCHITECTURE_CONTRACT_20261019.md`.
+- V1 archive: `docs/development/N3W_T1_F5_V1_ARCHIVE_AND_SUPERSESSION_CLOSURE_20261019.md`.
+- V2 source design: `docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V2_SOURCE_DESIGN_20261019.md`.
+- Product source implementation, T1 access, board access and merge have not started.
+- Next gate: `N3W_T1_F5_PRODUCTION_PROCESS_V2_SOURCE_DESIGN_REVIEW_20261019_01`.
+
 ## 2026-10-17 — F5 V1 architecture contract merged; post-merge alignment prepared
 
 - PR #610 is CLOSED/MERGED.
