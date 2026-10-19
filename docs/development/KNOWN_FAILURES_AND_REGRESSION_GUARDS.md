@@ -2,7 +2,7 @@
 
 ~~~text
 KF=KF-123
-STATUS=SOURCE_REPAIR_CLOSED_PASS_UNKNOWN_RUN_RECOVERY_SOURCE_REVIEW_FAIL_CLOSED_REPAIR_PENDING
+STATUS=SOURCE_REPAIR_CLOSED_PASS_UNKNOWN_RUN_RECOVERY_SOURCE_REPAIR_CI_PASS_R2_REVIEW_PENDING
 
 FAILING_SOURCE_HEAD=9048dd7c6b48c0620471919c0cf96c96bdab71f1
 FAILED_RUN_ID=3e37993537f9317dfb8070fd53fa20384de86cbd7c2a234857b55602c1280799
@@ -61,14 +61,16 @@ PASS 12/12. The exact adjudication package is artifact ID `12171819731` with dig
 The helper keeps the existing UNKNOWN-run approval guard intact, adds no F3 replay path and no new production-run
 path, and has no live authority in this gate.
 
-Independent source review is FAIL_CLOSED with three blockers: A1 the F3 business-execution ledger zero proof can
-ignore schema-invalid but syntactically valid JSON objects and does not fully validate ledger metadata; A2 the
-historical HOST_BASELINE/F3 phase bindings are not fully rebound to the plan artifact hashes and predecessor chain;
-A3 same-target later-run detection uses integer-second `created_at >` and leaves same-second ordering ambiguous.
-Target read-only preauthorization and live adjudication remain blocked.
+Independent source review found three blockers. The subsequent source repair at
+`abda3c9f2ceb614b8b316ffdb32b5c86cd82678e` addresses all three pending R2 review: A1 now validates execution-ledger
+root/file metadata, exact schema/fields and duplicate-key-free JSON before accepting zero; A2 re-proves HOST_BASELINE
+and F3 artifact bindings plus the exact HOST_BASELINE predecessor record SHA-256; A3 treats same-second same-target
+run ordering as ambiguous and stops. Focused tests PASS 19 and source-head CI PASS 12/12.
+
+Target read-only preauthorization and live adjudication remain blocked until the R2 source review closes.
 
 Next gate:
-`N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_SOURCE_REPAIR_20261019_01`.
+`N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_SOURCE_REVIEW_R2_20261019_01`.
 
 Authority: `docs/development/N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_DESIGN_20261019.md`.
 Authority: PR #620.

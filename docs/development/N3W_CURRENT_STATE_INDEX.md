@@ -1,3 +1,15 @@
+## 2026-10-19 — KF-123 UNKNOWN-run recovery source repair CI PASS
+
+- Source repair head: `abda3c9f2ceb614b8b316ffdb32b5c86cd82678e`, tree `530bfd96231553771b101f3d7044e34cc51cc66d`.
+- Repair delta from failed review head is exactly two files: adjudicator source and focused tests.
+- A1 repaired: execution-ledger evidence is schema/metadata/duplicate-key validated before a zero count is accepted.
+- A2 repaired: HOST_BASELINE/F3 artifact bindings and the F3 predecessor phase-record SHA-256 are re-proved.
+- A3 repaired: same-second same-target run ordering now fails closed.
+- Focused tests PASS 19; exact source-head workflows PASS 12/12.
+- Exact adjudication artifact: ID `12172839778`, digest `3d8691be96f6db449c79802cbd600ba4dc74beddae4b9f1808a8614c923d1ffc`.
+- No T1 access or live mutation occurred; R2 source review is required.
+- Next one gate: `N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_SOURCE_REVIEW_R2_20261019_01`.
+
 ## 2026-10-19 — KF-123 UNKNOWN-run recovery source review FAIL_CLOSED
 
 - PR #620 source implementation CI remains PASS 12/12, but independent source review found three fail-closed blockers.
