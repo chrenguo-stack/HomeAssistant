@@ -1,3 +1,13 @@
+## 2026-10-19 — KF-123 UNKNOWN-run recovery source review R4 CLOSED_PASS
+
+- Exact recovery source remains `4ab28033a6153cbe047849c8655d6a0ce06b667a`, tree `dfa57d24f98c6db2cbd719073c894e8898d7fd3e`; later PR commits are docs-only.
+- R3 C1 CLOSED: recovery-root trust is revalidated before every recovery-record read/state transition.
+- R3 C2 CLOSED: recovery JSON rejects duplicate keys.
+- Inspect-to-claim hardening CLOSED: exact run/phase hashes are rechecked under the run lock before recovery-ledger creation.
+- Full focused re-review found no remaining source blocker; 29 focused tests and both source/review-head workflow sets are 12/12 PASS.
+- Target read-only preauthorization is ready; live adjudication remains unauthorized.
+- Next one gate: `N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_ARTIFACT_AND_READONLY_PREAUTH_20261019_01`.
+
 ## 2026-10-19 — KF-123 UNKNOWN-run recovery source repair R3 CI PASS
 
 - R3 repair source head: `4ab28033a6153cbe047849c8655d6a0ce06b667a`, tree `dfa57d24f98c6db2cbd719073c894e8898d7fd3e`.

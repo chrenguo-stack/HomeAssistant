@@ -2,7 +2,7 @@
 
 ~~~text
 KF=KF-123
-STATUS=SOURCE_REPAIR_CLOSED_PASS_UNKNOWN_RUN_RECOVERY_SOURCE_REPAIR_R3_CI_PASS_R4_REVIEW_PENDING
+STATUS=SOURCE_REPAIR_CLOSED_PASS_UNKNOWN_RUN_RECOVERY_SOURCE_REVIEW_R4_CLOSED_PASS_READONLY_PREAUTH_READY
 
 FAILING_SOURCE_HEAD=9048dd7c6b48c0620471919c0cf96c96bdab71f1
 FAILED_RUN_ID=3e37993537f9317dfb8070fd53fa20384de86cbd7c2a234857b55602c1280799
@@ -74,17 +74,19 @@ invariant digests and rechecks them across APPLYING/ADJUDICATED resume states wh
 their full preauthorization hashes; and explicit negative regressions now cover nonterminal, PASS and
 FAILED-without-recovery states. Focused tests PASS 25 and exact source-head CI PASS 12/12.
 
-R3 source review closed R2 B1/B2/B3 and identified C1/C2. The R3 repair at
-`4ab28033a6153cbe047849c8655d6a0ce06b667a` addresses both blockers pending independent R4 review:
-existing recovery-root trust is revalidated as non-symlink/root-owned/0700 before every recovery-record read and
-state transition, and recovery JSON now rejects duplicate keys through the production-authority strict object parser.
-The inspect-to-claim hardening is also completed by rechecking the exact run/phase hashes under the run lock
-immediately before recovery-ledger creation. Focused tests PASS 29 and exact source-head CI PASS 12/12.
+R4 independent source review CLOSED_PASS at exact recovery source head
+`4ab28033a6153cbe047849c8655d6a0ce06b667a`, tree
+`dfa57d24f98c6db2cbd719073c894e8898d7fd3e`. C1/C2 and the inspect-to-claim hardening are closed: the recovery root
+is revalidated before reads/state transitions, duplicate-key recovery JSON is rejected, and exact run/phase hashes
+are rechecked under the run lock immediately before recovery-ledger creation. The full bounded mutation contract was
+re-reviewed with no additional source blocker. Focused tests PASS 29; source and review-head workflows are 12/12 PASS.
 
-Target read-only preauthorization and live adjudication remain blocked until the R4 source review closes.
+Target read-only preauthorization is now ready, but live adjudication remains unauthorized and still requires a
+fresh exact-artifact-bound read-only preauthorization plus a later separate explicit one-shot live authorization.
+Independent postexecution read-only verification remains mandatory after any future live adjudication.
 
 Next gate:
-`N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_SOURCE_REVIEW_R4_20261019_01`.
+`N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_ARTIFACT_AND_READONLY_PREAUTH_20261019_01`.
 
 Authority: `docs/development/N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_DESIGN_20261019.md`.
 Authority: PR #620.
