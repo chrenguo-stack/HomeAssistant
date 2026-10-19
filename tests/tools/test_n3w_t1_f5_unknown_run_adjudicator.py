@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -59,6 +60,40 @@ def runtime_clean():
         "remote_f3_staging_count": 0,
         "docker_active": True,
     }
+
+
+def write_execution_record(
+    execution: Path,
+    tool,
+    *,
+    run_id: str | None = None,
+    schema: str | None = None,
+) -> Path:
+    execution.mkdir(mode=0o700, exist_ok=True)
+    execution.chmod(0o700)
+    record = {
+        "schema": schema or tool.PRODUCTION_EXECUTION_SCHEMA,
+        "run_id": run_id or tool.RUN_ID,
+        "phase": tool.PHASE,
+        "phase_claim_sha256": "a" * 64,
+        "plan_sha256": "b" * 64,
+        "source_head": tool.SOURCE_HEAD,
+        "payload_manifest_sha256": "c" * 64,
+        "release_id": tool.RELEASE_ID,
+        "phase_artifact_sha256": "d" * 64,
+        "target_binding_sha256": "e" * 64,
+        "state": "APPLYING",
+        "result_sha256": None,
+        "authorization_consumed": True,
+        "replay_allowed": False,
+    }
+    path = execution / ("f" * 64 + ".json")
+    path.write_text(
+        json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    path.chmod(0o600)
+    return path
 
 
 def make_plan(contract, tool):
@@ -233,18 +268,69 @@ def test_inspect_rejects_business_execution_record(
         monkeypatch,
         tmp_path,
     )
-    execution.mkdir(mode=0o700)
-    (execution / "record.json").write_text(
-        (
-            '{"run_id":"'
-            + tool.RUN_ID
-            + '","phase":"F3_DEPLOY"}\n'
-        ),
-        encoding="utf-8",
-    )
+    write_execution_record(execution, tool)
     with pytest.raises(
         tool.UnknownRunAdjudicationError,
         match="f3_business_execution_present",
+    ):
+        inspect(tool, ledger, execution, recovery, identity)
+
+
+
+def test_inspect_rejects_schema_invalid_execution_record(
+    monkeypatch,
+    tmp_path,
+):
+    _authority, tool, ledger, execution, recovery, identity = create_incident(
+        monkeypatch,
+        tmp_path,
+    )
+    write_execution_record(
+        execution,
+        tool,
+        schema="gh.n3w-t1-fresh-production-execution/bad",
+    )
+    with pytest.raises(
+        tool.UnknownRunAdjudicationError,
+        match="f3_execution_ledger_invalid",
+    ):
+        inspect(tool, ledger, execution, recovery, identity)
+
+
+def test_inspect_rejects_duplicate_key_execution_record(
+    monkeypatch,
+    tmp_path,
+):
+    _authority, tool, ledger, execution, recovery, identity = create_incident(
+        monkeypatch,
+        tmp_path,
+    )
+    path = write_execution_record(execution, tool)
+    document = json.loads(path.read_text(encoding="utf-8"))
+    raw = json.dumps(document, sort_keys=True, separators=(",", ":"))
+    raw = raw[:-1] + ',"run_id":"' + tool.RUN_ID + '"}\n'
+    path.write_text(raw, encoding="utf-8")
+    path.chmod(0o600)
+    with pytest.raises(
+        tool.UnknownRunAdjudicationError,
+        match="f3_execution_ledger_invalid",
+    ):
+        inspect(tool, ledger, execution, recovery, identity)
+
+
+def test_inspect_rejects_execution_ledger_metadata_drift(
+    monkeypatch,
+    tmp_path,
+):
+    _authority, tool, ledger, execution, recovery, identity = create_incident(
+        monkeypatch,
+        tmp_path,
+    )
+    write_execution_record(execution, tool)
+    execution.chmod(0o755)
+    with pytest.raises(
+        tool.UnknownRunAdjudicationError,
+        match="f3_execution_ledger_invalid",
     ):
         inspect(tool, ledger, execution, recovery, identity)
 
@@ -281,6 +367,97 @@ def test_inspect_rejects_changed_failure_code(monkeypatch, tmp_path):
     with pytest.raises(
         tool.UnknownRunAdjudicationError,
         match="unknown_run_prestate_mismatch",
+    ):
+        inspect(tool, ledger, execution, recovery, identity)
+
+
+
+def test_inspect_rejects_host_artifact_binding_drift(
+    monkeypatch,
+    tmp_path,
+):
+    authority, tool, ledger, execution, recovery, identity = create_incident(
+        monkeypatch,
+        tmp_path,
+    )
+    path = authority._phase_path(ledger, tool.RUN_ID, "HOST_BASELINE")
+    phase = authority._load_phase(ledger, tool.RUN_ID, "HOST_BASELINE")
+    phase["binding"]["artifact_sha256"] = "9" * 64
+    phase["binding_sha256"] = authority.canonical_sha256(phase["binding"])
+    authority._replace(path, phase)
+    with pytest.raises(
+        tool.UnknownRunAdjudicationError,
+        match="unknown_run_prestate_mismatch",
+    ):
+        inspect(tool, ledger, execution, recovery, identity)
+
+
+def test_inspect_rejects_f3_artifact_binding_drift(
+    monkeypatch,
+    tmp_path,
+):
+    authority, tool, ledger, execution, recovery, identity = create_incident(
+        monkeypatch,
+        tmp_path,
+    )
+    path = authority._phase_path(ledger, tool.RUN_ID, tool.PHASE)
+    phase = authority._load_phase(ledger, tool.RUN_ID, tool.PHASE)
+    phase["binding"]["artifact_sha256"] = "8" * 64
+    phase["binding_sha256"] = authority.canonical_sha256(phase["binding"])
+    authority._replace(path, phase)
+    with pytest.raises(
+        tool.UnknownRunAdjudicationError,
+        match="unknown_run_prestate_mismatch",
+    ):
+        inspect(tool, ledger, execution, recovery, identity)
+
+
+def test_inspect_rejects_f3_predecessor_binding_drift(
+    monkeypatch,
+    tmp_path,
+):
+    authority, tool, ledger, execution, recovery, identity = create_incident(
+        monkeypatch,
+        tmp_path,
+    )
+    path = authority._phase_path(ledger, tool.RUN_ID, tool.PHASE)
+    phase = authority._load_phase(ledger, tool.RUN_ID, tool.PHASE)
+    phase["binding"]["predecessor_sha256"] = "7" * 64
+    phase["binding_sha256"] = authority.canonical_sha256(phase["binding"])
+    authority._replace(path, phase)
+    with pytest.raises(
+        tool.UnknownRunAdjudicationError,
+        match="unknown_run_prestate_mismatch",
+    ):
+        inspect(tool, ledger, execution, recovery, identity)
+
+
+def test_inspect_rejects_same_second_later_target_run(
+    monkeypatch,
+    tmp_path,
+):
+    authority, tool, ledger, execution, recovery, identity = create_incident(
+        monkeypatch,
+        tmp_path,
+    )
+    incident = authority._load_run(ledger, tool.RUN_ID)
+    other_id = "6" * 64
+    other_plan = dict(incident["plan"])
+    other_plan["run_id"] = other_id
+    other_plan["plan_digest"] = "0" * 64
+    other_plan["plan_digest"] = authority.canonical_sha256(other_plan)
+    other = dict(incident)
+    other["run_id"] = other_id
+    other["plan"] = other_plan
+    other["plan_sha256"] = authority.canonical_sha256(other_plan)
+    other_dir = authority._run_dir(ledger, other_id)
+    other_dir.mkdir(mode=0o700)
+    other_dir.chmod(0o700)
+    authority._write_new(authority._run_path(ledger, other_id), other)
+
+    with pytest.raises(
+        tool.UnknownRunAdjudicationError,
+        match="later_target_run_present",
     ):
         inspect(tool, ledger, execution, recovery, identity)
 
