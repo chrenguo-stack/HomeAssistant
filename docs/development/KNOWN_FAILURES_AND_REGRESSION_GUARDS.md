@@ -2,7 +2,7 @@
 
 ~~~text
 KF=KF-123
-STATUS=SOURCE_REPAIR_CLOSED_PASS_UNKNOWN_RUN_RECOVERY_SOURCE_REVIEW_R4_CLOSED_PASS_READONLY_PREAUTH_READY
+STATUS=SOURCE_REPAIR_CLOSED_PASS_UNKNOWN_RUN_RECOVERY_ARTIFACT_BOUND_READONLY_PREAUTH_READY
 
 FAILING_SOURCE_HEAD=9048dd7c6b48c0620471919c0cf96c96bdab71f1
 FAILED_RUN_ID=3e37993537f9317dfb8070fd53fa20384de86cbd7c2a234857b55602c1280799
@@ -81,12 +81,19 @@ is revalidated before reads/state transitions, duplicate-key recovery JSON is re
 are rechecked under the run lock immediately before recovery-ledger creation. The full bounded mutation contract was
 re-reviewed with no additional source blocker. Focused tests PASS 29; source and review-head workflows are 12/12 PASS.
 
-Target read-only preauthorization is now ready, but live adjudication remains unauthorized and still requires a
-fresh exact-artifact-bound read-only preauthorization plus a later separate explicit one-shot live authorization.
+The exact R4-reviewed recovery artifact is now independently bound: artifact `12181787912`, ZIP SHA-256
+`e79645082567b71a63046c4857a91a2f8c13982e492a4fccd43a5d317b519725`, manifest SHA-256
+`63b947e94d885aff6a64c1214a1470a16cded76dd7ef0fb982ec410e1aafb035`, with all three packaged source hashes
+verified. Real T1-B read-only preauthorization is prepared but not yet executed.
+
+Live adjudication remains unauthorized. A fresh exact-artifact-bound read-only PASS must first capture the current
+run-record SHA-256, F3 phase-record SHA-256 and target binding while proving the recovery root remains absent.
 Independent postexecution read-only verification remains mandatory after any future live adjudication.
 
-Next gate:
+Current gate:
 `N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_ARTIFACT_AND_READONLY_PREAUTH_20261019_01`.
+
+Current stop point: waiting for the real-T1 read-only preauthorization output.
 
 Authority: `docs/development/N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_DESIGN_20261019.md`.
 Authority: PR #620.

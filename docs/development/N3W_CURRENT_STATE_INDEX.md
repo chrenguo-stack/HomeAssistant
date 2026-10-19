@@ -1,3 +1,12 @@
+## 2026-10-19 — KF-123 UNKNOWN-run recovery artifact bound / read-only preauth ready
+
+- R4 source review is CLOSED_PASS; exact source remains `4ab28033a6153cbe047849c8655d6a0ce06b667a`.
+- Artifact `12181787912` independently matches ZIP SHA-256 `e7964508...`; manifest and all three packaged source files are exactly bound.
+- Real T1-B read-only preauthorization is prepared but not yet executed.
+- The probe streams exact code into memory and does not create a recovery ledger or modify production state.
+- Live adjudication remains unauthorized.
+- Current stop point: waiting for the fresh real-T1 read-only preauthorization output.
+
 ## 2026-10-19 — KF-123 UNKNOWN-run recovery source review R4 CLOSED_PASS
 
 - Exact recovery source remains `4ab28033a6153cbe047849c8655d6a0ce06b667a`, tree `dfa57d24f98c6db2cbd719073c894e8898d7fd3e`; later PR commits are docs-only.
