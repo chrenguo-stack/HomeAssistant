@@ -259,6 +259,27 @@ def test_partial_phase_failure_resumes_same_authorization(monkeypatch, tmp_path)
     assert report["recovery_state"] == "TERMINALIZED"
 
 
+def test_existing_recovery_error_reports_recovery_present(
+    monkeypatch,
+    tmp_path,
+):
+    _authority, tool, ledger, baseline, recovery, expected = (
+        create_failed_prestate(monkeypatch, tmp_path)
+    )
+    tool._claim_or_load_recovery(
+        recovery_root=recovery,
+        authorization_id=AUTHORIZATION_ID,
+        expected_claim_sha256=expected,
+    )
+    claim, _complete = tool._baseline_paths(expected, baseline)
+    claim.parent.mkdir(parents=True)
+    claim.write_text("{}\n", encoding="utf-8")
+    with pytest.raises(tool.FailedRunTerminalizationError) as caught:
+        terminalize(tool, ledger, baseline, recovery, expected)
+    assert str(caught.value) == "host_baseline_business_execution_present"
+    assert caught.value.mutation_state == "RECOVERY_PRESENT"
+
+
 def test_recovery_authorization_cannot_be_rebound(monkeypatch, tmp_path):
     _authority, tool, ledger, baseline, recovery, expected = (
         create_failed_prestate(monkeypatch, tmp_path)
