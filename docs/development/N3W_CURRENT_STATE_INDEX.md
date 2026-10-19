@@ -1,3 +1,15 @@
+## 2026-10-19 — KF-123 UNKNOWN-run recovery source repair R2 CI PASS
+
+- R2 repair source head: `2054d870758705c833acee24e9e734856fb43460`, tree `ac1f53ec0940ee9d9ea9d18497a1543cb6ef02a7`.
+- Repair delta from the R2 failed-review head is exactly two files: adjudicator source and focused tests.
+- B1 repaired: every execution-record filename is recomputed from `run_id + phase + phase_claim_sha256` and must match exactly.
+- B2 repaired: run/phase preserved-field invariant digests are frozen in the recovery ledger and rechecked across APPLYING/ADJUDICATED resume states; UNKNOWN records also remain bound to their full frozen preauthorization SHA-256.
+- B3 repaired: explicit negative regressions now cover nonterminal, PASS, and FAILED-without-recovery states.
+- Focused tests PASS 25; exact source-head workflows PASS 12/12.
+- Exact adjudication artifact: ID `12180511596`, digest `8ce92913fe9eb588a9ce42f72a603d5df71965ad75f13021ee77671d94dca8bb`.
+- No T1 access or live mutation occurred; R3 source review is required.
+- Next one gate: `N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_SOURCE_REVIEW_R3_20261019_01`.
+
 ## 2026-10-19 — KF-123 UNKNOWN-run recovery source review R2 FAIL_CLOSED
 
 - R1 A1/A2/A3 are CLOSED by the repair at `abda3c9f2ceb614b8b316ffdb32b5c86cd82678e`.
