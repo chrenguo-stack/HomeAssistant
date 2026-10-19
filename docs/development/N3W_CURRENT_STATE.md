@@ -1,3 +1,54 @@
+## 2026-10-19 — KF-123 source repair final review CLOSED_PASS; UNKNOWN-run recovery design next
+
+~~~text
+TASK=N3W_T1_F5_KF123_SOURCE_REPAIR_FINAL_REVIEW_20261019_01
+RESULT=PASS
+
+MAIN=9c81b889d97ed896b80d27af15069d16af0e0bdb
+PR618_BASE=71dee9e2ede801c75ecb4518642eee06db135e73
+PR618_HEAD=4afd89b56e9925d7330b27f3f734ebcefc09182c
+PR618_TREE=da864ffb6c44de3efccb93516e5e786f16219cd9
+PR618_STATE=OPEN_DRAFT
+PR618_MERGEABLE=true
+PR618_MERGED=false
+PR618_CI=PASS_15_OF_15
+
+SOURCE_DELTA_EXACT_3_FILES=true
+CONTEXT_OUTSIDE_PAYLOAD_ROOT=true
+IMMUTABLE_PAYLOAD_VALIDATION_UNCHANGED=true
+SUCCESS_CLEANUP_BOTH_ROOTS=true
+PRECLAIM_CLEANUP_BOTH_ROOTS=true
+POSTCLAIM_FORENSIC_PRESERVATION=true
+FOCUSED_REGRESSION_TEST_ADEQUATE=true
+F2_EXACT_BLOB_REBIND_ONLY=true
+UNRELATED_SOURCE_BLOCKER=false
+
+KF_122=RECOVERY_CLOSED_PASS
+KF_123_TARGET_FORENSIC=CLOSED_PASS
+KF_123_SOURCE_REPAIR_FINAL_REVIEW=CLOSED_PASS
+
+FAILED_RUN_STATE=TERMINAL_FAIL
+FAILED_RUN_FAILURE_CLASS=UNKNOWN
+FAILED_RUN_REPLAY_ALLOWED=false
+HOST_BASELINE=SUCCEEDED
+F3_BUSINESS_EXECUTION_RECORD_COUNT=0
+
+LIVE_RUNTIME_MUTATION=false
+T1_ACCESS=false
+BOARD_ACCESS=false
+SOURCE_MUTATION=false
+MERGE=false
+NEW_PRODUCTION_AUTHORIZATION=false
+
+NEXT_ROUTE=N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_DESIGN_20261019_01
+AUTO_EXECUTE_NEXT_ROUTE=false
+STOP=true
+~~~
+
+Independent exact-source review confirms the KF-123 repair addresses the proven root cause without weakening the immutable F3 payload file-set check. The production phase context is staged under its own sibling remote directory, the bootstrap receives that external context path explicitly, normal-success cleanup removes both remote roots, preclaim cleanup covers whichever roots were allocated, and an observed production claim suppresses host-side staging cleanup so postclaim evidence is preserved. The focused staging-host suite ran in the exact PR tree and passed; the new regression directly proves payload/context separation plus joint success cleanup. No T1, board, live runtime, source repair, production authorization, or merge action was performed by this review.
+
+The preserved historical run remains TERMINAL/FAIL with failure class UNKNOWN and no replay. It is not handled by this gate. The next stage is design-only controlled recovery for that UNKNOWN run and must not be auto-executed.
+
 ## 2026-10-19 — KF-123 source repair exact-head CI CLOSED_PASS; final source review next
 
 ~~~text
