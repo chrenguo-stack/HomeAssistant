@@ -23,6 +23,7 @@ RELEASE_SHA256 = "1bbcb81bd84ec899e4c1d37fffef99defbbcc40509c49ce41048f6a6d92039
 HOST_BASELINE_RESULT_SHA256 = "a9ce1c749617193f2da6b66374c7a287868085b87e8eca246da34ff149470806"
 F3_FAILURE_CODE = "production_f3_claimed_or_unknown:production_f3_execution_not_proven"
 ADJUDICATION_REASON = "KF123_FORENSIC_PROVED_F3_PRECLAIM_FAILURE"
+PRODUCTION_EXECUTION_SCHEMA = "gh.n3w-t1-fresh-production-execution/1"
 PRODUCTION_EXECUTION_ROOT = Path("/var/lib/n3w-fresh-bootstrap-production-executions")
 RECOVERY_ROOT = Path("/var/lib/n3w-t1-f5-unknown-run-adjudications")
 CONFIRMATION = "ADJUDICATE KF123 UNKNOWN F3 RUN: YES"
@@ -221,33 +222,49 @@ def _host_baseline_exact(
 ) -> bool:
     host = authority._load_phase(ledger_root, RUN_ID, "HOST_BASELINE")
     plan = run["plan"]
+    binding = host.get("binding", {})
     return bool(
         host.get("state") == "SUCCEEDED"
         and host.get("result_sha256") == HOST_BASELINE_RESULT_SHA256
         and host.get("failure_code") is None
         and host.get("authorization_consumed") is True
         and host.get("replay_allowed") is False
-        and host.get("binding", {}).get("source_head") == SOURCE_HEAD
-        and host.get("binding", {}).get("release_id") == RELEASE_ID
-        and host.get("binding", {}).get("target_binding_sha256")
+        and binding.get("source_head") == SOURCE_HEAD
+        and binding.get("release_id") == RELEASE_ID
+        and binding.get("artifact_sha256")
+        == plan["phase_artifact_sha256"]["HOST_BASELINE"]
+        and binding.get("predecessor_sha256") is None
+        and binding.get("target_binding_sha256")
         == plan.get("target_binding_sha256")
+    )
+
+
+def _f3_predecessor_sha256(ledger_root: Path) -> str:
+    return authority._sha256_file(
+        authority._phase_path(ledger_root, RUN_ID, "HOST_BASELINE")
     )
 
 
 def _phase_unknown_exact(
     phase: dict[str, Any],
     run: dict[str, Any],
+    ledger_root: Path,
 ) -> bool:
     plan = run["plan"]
+    binding = phase.get("binding", {})
     return bool(
         phase.get("state") == "UNKNOWN"
         and phase.get("failure_code") == F3_FAILURE_CODE
         and phase.get("result_sha256") is None
         and phase.get("authorization_consumed") is True
         and phase.get("replay_allowed") is False
-        and phase.get("binding", {}).get("source_head") == SOURCE_HEAD
-        and phase.get("binding", {}).get("release_id") == RELEASE_ID
-        and phase.get("binding", {}).get("target_binding_sha256")
+        and binding.get("source_head") == SOURCE_HEAD
+        and binding.get("release_id") == RELEASE_ID
+        and binding.get("artifact_sha256")
+        == plan["phase_artifact_sha256"][PHASE]
+        and binding.get("predecessor_sha256")
+        == _f3_predecessor_sha256(ledger_root)
+        and binding.get("target_binding_sha256")
         == plan.get("target_binding_sha256")
     )
 
@@ -255,17 +272,23 @@ def _phase_unknown_exact(
 def _phase_failed_exact(
     phase: dict[str, Any],
     run: dict[str, Any],
+    ledger_root: Path,
 ) -> bool:
     plan = run["plan"]
+    binding = phase.get("binding", {})
     return bool(
         phase.get("state") == "FAILED"
         and phase.get("failure_code") == F3_FAILURE_CODE
         and phase.get("result_sha256") is None
         and phase.get("authorization_consumed") is True
         and phase.get("replay_allowed") is False
-        and phase.get("binding", {}).get("source_head") == SOURCE_HEAD
-        and phase.get("binding", {}).get("release_id") == RELEASE_ID
-        and phase.get("binding", {}).get("target_binding_sha256")
+        and binding.get("source_head") == SOURCE_HEAD
+        and binding.get("release_id") == RELEASE_ID
+        and binding.get("artifact_sha256")
+        == plan["phase_artifact_sha256"][PHASE]
+        and binding.get("predecessor_sha256")
+        == _f3_predecessor_sha256(ledger_root)
+        and binding.get("target_binding_sha256")
         == plan.get("target_binding_sha256")
     )
 
@@ -275,21 +298,102 @@ def _execution_record_count(root: Path) -> int:
         raise UnknownRunAdjudicationError("f3_execution_ledger_invalid")
     if not root.exists():
         return 0
-    if not root.is_dir():
+    metadata = root.stat()
+    if (
+        not root.is_dir()
+        or metadata.st_uid != os.geteuid()
+        or stat.S_IMODE(metadata.st_mode) != 0o700
+    ):
         raise UnknownRunAdjudicationError("f3_execution_ledger_invalid")
+    required = {
+        "schema",
+        "run_id",
+        "phase",
+        "phase_claim_sha256",
+        "plan_sha256",
+        "source_head",
+        "payload_manifest_sha256",
+        "release_id",
+        "phase_artifact_sha256",
+        "target_binding_sha256",
+        "state",
+        "result_sha256",
+        "authorization_consumed",
+        "replay_allowed",
+    }
     count = 0
     for path in root.iterdir():
-        if path.is_symlink() or not path.is_file():
+        if (
+            re.fullmatch(r"[0-9a-f]{64}\.json", path.name) is None
+            or path.is_symlink()
+            or not path.is_file()
+        ):
+            raise UnknownRunAdjudicationError("f3_execution_ledger_invalid")
+        item_metadata = path.stat()
+        if (
+            item_metadata.st_uid != os.geteuid()
+            or stat.S_IMODE(item_metadata.st_mode) != 0o600
+            or item_metadata.st_nlink != 1
+        ):
             raise UnknownRunAdjudicationError("f3_execution_ledger_invalid")
         try:
-            document = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError, json.JSONDecodeError) as error:
+            document = json.loads(
+                path.read_text(encoding="utf-8"),
+                object_pairs_hook=authority._strict_object,
+            )
+        except (
+            OSError,
+            UnicodeError,
+            json.JSONDecodeError,
+            authority.ProductionAuthorityError,
+        ) as error:
             raise UnknownRunAdjudicationError(
                 "f3_execution_ledger_invalid"
             ) from error
-        if not isinstance(document, dict):
-            raise UnknownRunAdjudicationError("f3_execution_ledger_invalid")
-        if document.get("run_id") == RUN_ID and document.get("phase") == PHASE:
+        hash_fields = (
+            "run_id",
+            "phase_claim_sha256",
+            "plan_sha256",
+            "payload_manifest_sha256",
+            "release_id",
+            "phase_artifact_sha256",
+            "target_binding_sha256",
+        )
+        if (
+            not isinstance(document, dict)
+            or set(document) != required
+            or document.get("schema") != PRODUCTION_EXECUTION_SCHEMA
+            or document.get("phase") != PHASE
+            or re.fullmatch(
+                r"[0-9a-f]{40}",
+                str(document.get("source_head")),
+            )
+            is None
+            or any(
+                re.fullmatch(r"[0-9a-f]{64}", str(document.get(field)))
+                is None
+                for field in hash_fields
+            )
+            or document.get("authorization_consumed") is not True
+            or document.get("replay_allowed") is not False
+            or document.get("state") not in {"APPLYING", "SUCCEEDED"}
+            or (
+                document.get("state") == "APPLYING"
+                and document.get("result_sha256") is not None
+            )
+            or (
+                document.get("state") == "SUCCEEDED"
+                and re.fullmatch(
+                    r"[0-9a-f]{64}",
+                    str(document.get("result_sha256")),
+                )
+                is None
+            )
+        ):
+            raise UnknownRunAdjudicationError(
+                "f3_execution_ledger_invalid"
+            )
+        if document["run_id"] == RUN_ID:
             count += 1
     return count
 
@@ -308,7 +412,7 @@ def _later_target_run_absent(
         other = authority._load_run(ledger_root, entry.name)
         if (
             other.get("plan", {}).get("target_binding_sha256") == target
-            and other.get("created_at", 0) > incident_created
+            and other.get("created_at", 0) >= incident_created
         ):
             raise UnknownRunAdjudicationError("later_target_run_present")
 
@@ -337,7 +441,7 @@ def _exact_unknown_prestate(
         not _exact_run_binding(run)
         or run.get("failure_class") != "UNKNOWN"
         or not _host_baseline_exact(ledger_root, run)
-        or not _phase_unknown_exact(phase, run)
+        or not _phase_unknown_exact(phase, run, ledger_root)
     ):
         raise UnknownRunAdjudicationError("unknown_run_prestate_mismatch")
     _identity(run, identity)
@@ -640,7 +744,7 @@ def _apply_or_resume(
 
         if (
             run.get("failure_class") == "UNKNOWN"
-            and _phase_unknown_exact(phase, run)
+            and _phase_unknown_exact(phase, run, ledger_root)
         ):
             if authority._sha256_file(run_path) != expected_run_sha256:
                 raise UnknownRunAdjudicationError("run_record_sha256_drift")
@@ -659,7 +763,7 @@ def _apply_or_resume(
                     "phase_adjudication_persistence_unknown",
                     mutation_state="UNKNOWN",
                 ) from error
-            if not _phase_failed_exact(phase, run):
+            if not _phase_failed_exact(phase, run, ledger_root):
                 raise UnknownRunAdjudicationError(
                     "phase_adjudication_persistence_mismatch",
                     mutation_state="UNKNOWN",
@@ -667,12 +771,12 @@ def _apply_or_resume(
             mutation_state = "PHASE_FAILED"
         elif (
             run.get("failure_class") == "UNKNOWN"
-            and _phase_failed_exact(phase, run)
+            and _phase_failed_exact(phase, run, ledger_root)
         ):
             mutation_state = "PHASE_FAILED"
         elif (
             run.get("failure_class") == "FAILED"
-            and _phase_failed_exact(phase, run)
+            and _phase_failed_exact(phase, run, ledger_root)
         ):
             return "ALREADY_CLASSIFIED"
         else:
@@ -784,7 +888,7 @@ def adjudicate_unknown_run(
             if not (
                 _final_run_exact(run)
                 and _host_baseline_exact(ledger_root, run)
-                and _phase_failed_exact(phase, run)
+                and _phase_failed_exact(phase, run, ledger_root)
             ):
                 raise UnknownRunAdjudicationError(
                     "adjudicated_poststate_drift"
@@ -807,7 +911,7 @@ def adjudicate_unknown_run(
                     )
                     != expected_phase_sha256
                     or run.get("failure_class") != "UNKNOWN"
-                    or not _phase_unknown_exact(phase, run)
+                    or not _phase_unknown_exact(phase, run, ledger_root)
                 ):
                     raise UnknownRunAdjudicationError(
                         "claimed_recovery_prestate_drift"
@@ -842,7 +946,7 @@ def adjudicate_unknown_run(
         if not (
             _final_run_exact(run)
             and _host_baseline_exact(ledger_root, run)
-            and _phase_failed_exact(phase, run)
+            and _phase_failed_exact(phase, run, ledger_root)
         ):
             raise UnknownRunAdjudicationError(
                 "adjudication_poststate_invalid",
@@ -929,7 +1033,7 @@ def verify_adjudicated_run(
     if not (
         _final_run_exact(run)
         and _host_baseline_exact(ledger_root, run)
-        and _phase_failed_exact(phase, run)
+        and _phase_failed_exact(phase, run, ledger_root)
         and recovery.get("state") == "ADJUDICATED"
     ):
         raise UnknownRunAdjudicationError(
