@@ -1,0 +1,41 @@
+name: N3W T1 F5 durable release archive source CI
+
+on:
+  pull_request:
+    paths:
+      - "tools/n3w_t1_f5_release_archive.py"
+      - "tests/tools/test_n3w_t1_f5_release_archive.py"
+      - ".github/workflows/n3w-t1-f5-durable-release-archive-ci.yml"
+      - "docs/development/N3W_T1_F5_DURABLE_RELEASE_ARCHIVE_PREPARATION_20261019.md"
+  push:
+    branches: [main]
+    paths:
+      - "tools/n3w_t1_f5_release_archive.py"
+      - "tests/tools/test_n3w_t1_f5_release_archive.py"
+      - ".github/workflows/n3w-t1-f5-durable-release-archive-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  focused:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run focused tests
+        run: |
+          set -euo pipefail
+          python -m pip install "pytest>=8,<9"
+          python -m pytest -q tests/tools/test_n3w_t1_f5_release_archive.py
+          python -m py_compile tools/n3w_t1_f5_release_archive.py
+      - name: Assert no live boundary
+        run: |
+          set -euo pipefail
+          printf 'T1_ACCESS=false\n'
+          printf 'T1_MUTATION=false\n'
+          printf 'LIVE_REBOOT=false\n'
+          printf 'BOARD_ACCESS=false\n'

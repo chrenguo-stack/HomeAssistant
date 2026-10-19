@@ -1,3 +1,39 @@
+## 2026-10-19 — F5-8 T1-B read-only preflight CLOSED_PASS
+
+- Fresh T1-B passed the exact repaired-release F5-8 read-only preflight.
+- All 12 production preflight checks passed: capacity reserve/transport, Docker contract, first boot, identity, network/time, OS/architecture, privilege, product absence, SSH trust, storage authority and exact release binding.
+- T1-B read-only authorization is CONSUMED.
+- SSH host-key SHA-256: `2e6cae2b43ba5d7d0818fa53b4175a6bf58442077b32caf44b0bf886e6e4a901`.
+- Target binding SHA-256: `280c06d1753dc676ca7c11b1967ae603a432bb3c996abb305a449c85cf5ca3b3`.
+- The managed SSH session closed successfully; no T1 mutation, live reboot, board access or merge occurred.
+- F5-9 is READY but requires a separate explicit live authorization; it is not yet granted.
+- Authority: `docs/development/N3W_T1_F5_T1B_READONLY_PREFLIGHT_EXECUTION_CLOSURE_20261019.md`.
+
+## 2026-10-19 — F5-8 repaired release durable Mac archive CLOSED_PASS
+
+- Current product source: `6e228a4b2c7c4ff78918571abb7b583e416615ee`, tree `6c07b6f9c3d528b630a96cf16b4efdbaef3ff5e5`.
+- Current builder head: `51c7eaf3d285c4b604b0261021ce9ceac061a445`.
+- Current release ID: `b89c9e227e53fcac2ef2717d7b11cd6b64536ce27c9b6b16c2429980049c8a69`.
+- Artifact `12158903271`, ZIP SHA-256 `5732093e9d94bff99b22ed935a54a187a224d29a5ec77e964dfec5cfe2487013`.
+- Real Mac archive: `MISS_POPULATED / PASS`.
+- Independent local verification: `VERIFY_ONLY / PASS` with `gh` and `curl` hard-disabled.
+- Current repaired release durability is CLOSED_PASS; previous release remains historical evidence only.
+- F5-8 is READY and the previously granted T1-B read-only authorization remains GRANTED_NOT_CONSUMED.
+- No T1 access, T1 mutation, live reboot, board access or merge occurred.
+- Authority: `docs/development/N3W_T1_F5_REPAIRED_RELEASE_DURABLE_MAC_ARCHIVE_ACCEPTANCE_CLOSURE_20261019.md`.
+
+## 2026-10-19 — F5-8 repaired release built; current durable archive pending
+
+- PR #612 repaired the F5-8 preflight confirmation mismatch at `6e228a4b2c7c4ff78918571abb7b583e416615ee`; source CI is PASS 20/20.
+- PR #613 rebuilt the exact release at `51c7eaf3d285c4b604b0261021ce9ceac061a445`; exact-release CI is PASS 12/12.
+- Current release ID: `b89c9e227e53fcac2ef2717d7b11cd6b64536ce27c9b6b16c2429980049c8a69`.
+- Current artifact: `12158903271`, ZIP SHA-256 `5732093e9d94bff99b22ed935a54a187a224d29a5ec77e964dfec5cfe2487013`.
+- Previous release durable archive closure remains valid historical evidence but is superseded for F5-8/F5-9 execution.
+- Current release durable Mac archive acceptance is still required: first `MISS_POPULATED`, then network-disabled `VERIFY_ONLY`.
+- T1-B read-only authorization is granted but not consumed; T1 access remains false.
+- No T1 mutation, live reboot, board access or merge occurred.
+- Current stop: wait for repaired-release real Mac archive acceptance.
+
 ## 2026-10-18 — F5-7 exact production release build/binding STARTED
 
 - PR #613 is Draft/open and stacked on PR #612.
