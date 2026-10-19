@@ -2,7 +2,7 @@
 
 ~~~text
 KF=KF-122
-STATUS=SOURCE_REPAIRED_EXACT_RELEASE_REBUILT_READONLY_PREAUTH_PASS_LIVE_RECOVERY_PENDING
+STATUS=LIVE_RECOVERY_PASS_POSTEXEC_READONLY_PENDING
 
 FAILING_SOURCE_HEAD=6e228a4b2c7c4ff78918571abb7b583e416615ee
 FAILURE_CODE=remote_command_failed:2
@@ -25,7 +25,9 @@ RECOVERY_ARTIFACT_ZIP_SHA256=a5d47bdc4ae1912e20414fd1d5d0ebf840166ec195496c0f821
 READONLY_PREAUTH=PASS
 PHASE_CLAIM_SHA256=737fcda8367319399157a05ec8a0b27fc9059ff5a90622f5ffb39452b2001c80
 RECOVERY_ROOT_ABSENT=true
-RECOVERY_AUTHORIZATION_GRANTED=false
+RECOVERY_AUTHORIZATION=N3W_T1_F5_FAILED_RUN_TERMINALIZATION_LIVE_20261019_01
+RECOVERY_AUTHORIZATION_CONSUMED=true
+RECOVERY_AUTHORIZATION_REPLAY_ALLOWED=false
 ~~~
 
 Root cause: the successful F5 target-authority `phase_context()` document omitted
@@ -49,10 +51,11 @@ so this incident did not reach the F5 APT/Docker baseline mutation, F3 deploymen
 start, or reboot path. Only the F5 durable production authority/run ledger was mutated before the defect stopped
 execution.
 
-Status: SOURCE_REPAIRED_EXACT_RELEASE_REBUILT_READONLY_PREAUTH_PASS; the replacement release is durably archived,
-the controlled terminalization source/artifact are exact-bound, and fresh real-T1 read-only preauthorization passed.
-The historical run is still unchanged and active; live terminalization remains pending a separate explicit one-shot
-authorization before any fresh F5-9 production authorization.
+Status: LIVE_RECOVERY_PASS_POSTEXEC_READONLY_PENDING. The replacement release remains durably archived and the
+controlled terminalization completed under a fresh one-shot authorization. The historical failed run is now
+`TERMINAL/FAIL`, `HOST_BASELINE=FAILED`, the recovery authorization is consumed/no-replay, and host-baseline
+business execution remains absent. One independent fresh read-only postexecution verification remains before any
+new F5-9 production authorization is considered.
 
 Authority: `docs/development/N3W_T1_F5_FAILED_RUN_TERMINALIZATION_ARTIFACT_AND_READONLY_PREAUTH_CLOSURE_20261019.md`.
 
