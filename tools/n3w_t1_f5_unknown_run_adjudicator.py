@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -393,6 +394,23 @@ def _execution_record_count(root: Path) -> int:
             raise UnknownRunAdjudicationError(
                 "f3_execution_ledger_invalid"
             )
+        expected_name = (
+            hashlib.sha256(
+                (
+                    document["run_id"]
+                    + "\n"
+                    + document["phase"]
+                    + "\n"
+                    + document["phase_claim_sha256"]
+                    + "\n"
+                ).encode("utf-8")
+            ).hexdigest()
+            + ".json"
+        )
+        if path.name != expected_name:
+            raise UnknownRunAdjudicationError(
+                "f3_execution_record_filename_binding_invalid"
+            )
         if document["run_id"] == RUN_ID:
             count += 1
     return count
@@ -537,6 +555,8 @@ def _read_recovery(path: Path) -> dict[str, Any]:
         "state",
         "original_run_record_sha256",
         "original_phase_record_sha256",
+        "original_run_invariant_sha256",
+        "original_phase_invariant_sha256",
         "target_binding_sha256",
         "ssh_host_key_sha256",
         "source_head",
@@ -576,6 +596,14 @@ def _read_recovery(path: Path) -> dict[str, Any]:
         ) is None
         or re.fullmatch(
             r"[0-9a-f]{64}",
+            str(document.get("original_run_invariant_sha256")),
+        ) is None
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(document.get("original_phase_invariant_sha256")),
+        ) is None
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
             str(document.get("target_binding_sha256")),
         ) is None
         or re.fullmatch(
@@ -591,11 +619,64 @@ def _read_recovery(path: Path) -> dict[str, Any]:
     return document
 
 
+def _run_invariant_sha256(run: dict[str, Any]) -> str:
+    preserved = dict(run)
+    preserved.pop("failure_class", None)
+    preserved.pop("updated_at", None)
+    return authority.canonical_sha256(preserved)
+
+
+def _phase_invariant_sha256(phase: dict[str, Any]) -> str:
+    preserved = dict(phase)
+    preserved.pop("state", None)
+    preserved.pop("updated_at", None)
+    return authority.canonical_sha256(preserved)
+
+
+def _assert_preserved_historical_fields(
+    *,
+    recovery: dict[str, Any],
+    run: dict[str, Any],
+    phase: dict[str, Any],
+    ledger_root: Path,
+) -> None:
+    if (
+        _run_invariant_sha256(run)
+        != recovery["original_run_invariant_sha256"]
+        or _phase_invariant_sha256(phase)
+        != recovery["original_phase_invariant_sha256"]
+    ):
+        raise UnknownRunAdjudicationError(
+            "historical_record_invariant_drift"
+        )
+    if (
+        run.get("failure_class") == "UNKNOWN"
+        and authority._sha256_file(
+            authority._run_path(ledger_root, RUN_ID)
+        )
+        != recovery["original_run_record_sha256"]
+    ):
+        raise UnknownRunAdjudicationError(
+            "historical_run_preclassification_drift"
+        )
+    if (
+        phase.get("state") == "UNKNOWN"
+        and authority._sha256_file(
+            authority._phase_path(ledger_root, RUN_ID, PHASE)
+        )
+        != recovery["original_phase_record_sha256"]
+    ):
+        raise UnknownRunAdjudicationError(
+            "historical_phase_preclassification_drift"
+        )
+
+
 def _claim_recovery(
     *,
     recovery_root: Path,
     authorization_id: str,
     run: dict[str, Any],
+    phase: dict[str, Any],
     expected_run_sha256: str,
     expected_phase_sha256: str,
 ) -> dict[str, Any]:
@@ -616,6 +697,8 @@ def _claim_recovery(
         "state": "CLAIMED",
         "original_run_record_sha256": expected_run_sha256,
         "original_phase_record_sha256": expected_phase_sha256,
+        "original_run_invariant_sha256": _run_invariant_sha256(run),
+        "original_phase_invariant_sha256": _phase_invariant_sha256(phase),
         "target_binding_sha256": run["plan"]["target_binding_sha256"],
         "ssh_host_key_sha256": run["plan"]["ssh_host_key_sha256"],
         "source_head": SOURCE_HEAD,
@@ -724,6 +807,7 @@ def _apply_or_resume(
     runtime_state: dict[str, Any] | None,
     expected_run_sha256: str,
     expected_phase_sha256: str,
+    recovery: dict[str, Any],
 ) -> str:
     with authority._exclusive(ledger_root, RUN_ID):
         run = authority._load_run(ledger_root, RUN_ID)
@@ -734,6 +818,12 @@ def _apply_or_resume(
             raise UnknownRunAdjudicationError(
                 "adjudication_run_binding_drift"
             )
+        _assert_preserved_historical_fields(
+            recovery=recovery,
+            run=run,
+            phase=phase,
+            ledger_root=ledger_root,
+        )
         _runtime_and_business_clean(
             execution_root=execution_root,
             runtime_state=runtime_state,
@@ -768,6 +858,12 @@ def _apply_or_resume(
                     "phase_adjudication_persistence_mismatch",
                     mutation_state="UNKNOWN",
                 )
+            _assert_preserved_historical_fields(
+                recovery=recovery,
+                run=run,
+                phase=phase,
+                ledger_root=ledger_root,
+            )
             mutation_state = "PHASE_FAILED"
         elif (
             run.get("failure_class") == "UNKNOWN"
@@ -802,6 +898,12 @@ def _apply_or_resume(
                     "run_adjudication_persistence_mismatch",
                     mutation_state="UNKNOWN",
                 )
+            _assert_preserved_historical_fields(
+                recovery=recovery,
+                run=run,
+                phase=phase,
+                ledger_root=ledger_root,
+            )
             return "CLASSIFIED"
         if _final_run_exact(run):
             return "ALREADY_CLASSIFIED"
@@ -868,10 +970,12 @@ def adjudicate_unknown_run(
                     "phase_record_sha256_drift"
                 )
             run = authority._load_run(ledger_root, RUN_ID)
+            phase = authority._load_phase(ledger_root, RUN_ID, PHASE)
             recovery = _claim_recovery(
                 recovery_root=recovery_root,
                 authorization_id=authorization_id,
                 run=run,
+                phase=phase,
                 expected_run_sha256=expected_run_sha256,
                 expected_phase_sha256=expected_phase_sha256,
             )
@@ -881,6 +985,12 @@ def adjudicate_unknown_run(
             run = authority._load_run(ledger_root, RUN_ID)
             phase = authority._load_phase(ledger_root, RUN_ID, PHASE)
             _identity(run, identity)
+            _assert_preserved_historical_fields(
+                recovery=recovery,
+                run=run,
+                phase=phase,
+                ledger_root=ledger_root,
+            )
             _runtime_and_business_clean(
                 execution_root=execution_root,
                 runtime_state=runtime_state,
@@ -935,10 +1045,17 @@ def adjudicate_unknown_run(
                 runtime_state=runtime_state,
                 expected_run_sha256=expected_run_sha256,
                 expected_phase_sha256=expected_phase_sha256,
+                recovery=recovery,
             )
 
         run = authority._load_run(ledger_root, RUN_ID)
         phase = authority._load_phase(ledger_root, RUN_ID, PHASE)
+        _assert_preserved_historical_fields(
+            recovery=recovery,
+            run=run,
+            phase=phase,
+            ledger_root=ledger_root,
+        )
         _runtime_and_business_clean(
             execution_root=execution_root,
             runtime_state=runtime_state,
@@ -1026,6 +1143,12 @@ def verify_adjudicated_run(
     phase = authority._load_phase(ledger_root, RUN_ID, PHASE)
     _identity(run, identity)
     recovery = _read_recovery(_recovery_path(recovery_root))
+    _assert_preserved_historical_fields(
+        recovery=recovery,
+        run=run,
+        phase=phase,
+        ledger_root=ledger_root,
+    )
     observed = _runtime_and_business_clean(
         execution_root=execution_root,
         runtime_state=runtime_state,
