@@ -1,3 +1,12 @@
+## 2026-10-19 — KF-123 UNKNOWN-run recovery source review FAIL_CLOSED
+
+- PR #620 source implementation CI remains PASS 12/12, but independent source review found three fail-closed blockers.
+- A1: F3 business-execution ledger zero proof can ignore schema-invalid but syntactically valid JSON records.
+- A2: HOST_BASELINE/F3 exact phase binding does not fully re-prove plan artifact hashes and predecessor-chain SHA-256.
+- A3: later same-target run detection uses integer-second `created_at >` and does not reject ambiguous same-second ordering.
+- No T1 access or live mutation occurred; target read-only preauthorization is not ready.
+- Next one gate: `N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_SOURCE_REPAIR_20261019_01`.
+
 ## 2026-10-19 — KF-123 UNKNOWN-run recovery source implementation CI PASS
 
 - PR #620 source implementation head is `a4f5bfa9ea0cd75511f8a562c14a6b99f0640d9a`, tree `629a6fb39ba3e9645bb11713481b57c29d15738c`.

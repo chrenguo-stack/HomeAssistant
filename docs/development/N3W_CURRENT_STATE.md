@@ -1,3 +1,39 @@
+## 2026-10-19 — KF-123 UNKNOWN-run recovery source review FAIL_CLOSED
+
+~~~text
+TASK=N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_SOURCE_REVIEW_20261019_01
+RESULT=FAIL_CLOSED_BLOCKERS_FOUND
+
+SOURCE_IMPLEMENTATION_HEAD=a4f5bfa9ea0cd75511f8a562c14a6b99f0640d9a
+SOURCE_IMPLEMENTATION_TREE=629a6fb39ba3e9645bb11713481b57c29d15738c
+PR620_REVIEW_HEAD=6dd2076af9f555aec5e7b054050915faaf6dad36
+PR620_REVIEW_TREE=f58dda31eeabc68e285a52377e7a738462595f30
+PR620_CI=PASS_12_OF_12
+FOCUSED_TESTS=PASS_12
+
+A1_F3_EXECUTION_LEDGER_ZERO_PROOF=BLOCKER
+A2_PHASE_CHAIN_BINDING_EXACTNESS=BLOCKER
+A3_LATER_RUN_ORDERING=BLOCKER
+
+TARGET_READONLY_PREAUTH_READY=false
+LIVE_ADJUDICATION_READY=false
+
+T1_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+SOURCE_MUTATION=false
+MERGE=false
+NEW_PRODUCTION_AUTHORIZATION=false
+
+NEXT_ONE_GATE=N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_SOURCE_REPAIR_20261019_01
+AUTO_EXECUTE_NEXT_GATE=false
+STOP=true
+~~~
+
+Independent review accepts the one-shot recovery ledger, split-state resume, no-replay boundary, runtime absence guard and exact package CI, but does not accept the current source for target use. The F3 business-execution ledger zero proof can ignore schema-invalid JSON objects; the historical HOST_BASELINE/F3 phase bindings are not fully rebound to plan artifact/predecessor values; and later-run exclusion has a same-second ordering gap. These three issues must be repaired before any T1 read-only preauthorization.
+
+Authority: `docs/development/N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_SOURCE_REVIEW_20261019.md`.
+
 ## 2026-10-19 — KF-123 UNKNOWN-run recovery source implementation CI PASS; source review pending
 
 ~~~text

@@ -2,7 +2,7 @@
 
 ~~~text
 KF=KF-123
-STATUS=SOURCE_REPAIR_CLOSED_PASS_UNKNOWN_RUN_RECOVERY_SOURCE_IMPLEMENTATION_CI_PASS_REVIEW_PENDING
+STATUS=SOURCE_REPAIR_CLOSED_PASS_UNKNOWN_RUN_RECOVERY_SOURCE_REVIEW_FAIL_CLOSED_REPAIR_PENDING
 
 FAILING_SOURCE_HEAD=9048dd7c6b48c0620471919c0cf96c96bdab71f1
 FAILED_RUN_ID=3e37993537f9317dfb8070fd53fa20384de86cbd7c2a234857b55602c1280799
@@ -61,8 +61,14 @@ PASS 12/12. The exact adjudication package is artifact ID `12171819731` with dig
 The helper keeps the existing UNKNOWN-run approval guard intact, adds no F3 replay path and no new production-run
 path, and has no live authority in this gate.
 
+Independent source review is FAIL_CLOSED with three blockers: A1 the F3 business-execution ledger zero proof can
+ignore schema-invalid but syntactically valid JSON objects and does not fully validate ledger metadata; A2 the
+historical HOST_BASELINE/F3 phase bindings are not fully rebound to the plan artifact hashes and predecessor chain;
+A3 same-target later-run detection uses integer-second `created_at >` and leaves same-second ordering ambiguous.
+Target read-only preauthorization and live adjudication remain blocked.
+
 Next gate:
-`N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_SOURCE_REVIEW_20261019_01`.
+`N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_SOURCE_REPAIR_20261019_01`.
 
 Authority: `docs/development/N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_DESIGN_20261019.md`.
 Authority: PR #620.
