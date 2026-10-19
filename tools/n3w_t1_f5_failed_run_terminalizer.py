@@ -179,6 +179,10 @@ def _read_recovery(path: Path) -> dict[str, Any]:
         "state",
         "original_phase_claim_sha256",
         "target_binding_sha256",
+        "ssh_host_key_sha256",
+        "source_head",
+        "release_id",
+        "release_sha256",
         "created_at",
         "updated_at",
         "board_access",
@@ -193,6 +197,10 @@ def _read_recovery(path: Path) -> dict[str, Any]:
         or document.get("replay_allowed") is not False
         or document.get("state") not in {"CLAIMED", "APPLYING", "TERMINALIZED"}
         or document.get("target_binding_sha256") != TARGET_BINDING_SHA256
+        or document.get("ssh_host_key_sha256") != SSH_HOST_KEY_SHA256
+        or document.get("source_head") != SOURCE_HEAD
+        or document.get("release_id") != RELEASE_ID
+        or document.get("release_sha256") != RELEASE_SHA256
         or document.get("board_access") is not False
         or not isinstance(document.get("created_at"), int)
         or not isinstance(document.get("updated_at"), int)
@@ -239,6 +247,10 @@ def _claim_or_load_recovery(
         "state": "CLAIMED",
         "original_phase_claim_sha256": expected_claim_sha256,
         "target_binding_sha256": TARGET_BINDING_SHA256,
+        "ssh_host_key_sha256": SSH_HOST_KEY_SHA256,
+        "source_head": SOURCE_HEAD,
+        "release_id": RELEASE_ID,
+        "release_sha256": RELEASE_SHA256,
         "created_at": now,
         "updated_at": now,
         "board_access": False,
@@ -286,15 +298,28 @@ def _phase_failed_exact(phase: dict[str, Any]) -> bool:
     )
 
 
-def _run_terminal_exact(run: dict[str, Any]) -> bool:
+def _run_binding_exact(run: dict[str, Any]) -> bool:
+    plan = run.get("plan")
     return (
-        run.get("state") == "TERMINAL"
-        and run.get("terminal_state") == "FAIL"
-        and run.get("failure_class") == "FAILED"
+        isinstance(plan, dict)
+        and plan.get("source_head") == SOURCE_HEAD
+        and plan.get("release_id") == RELEASE_ID
+        and plan.get("release_sha256") == RELEASE_SHA256
+        and plan.get("target_binding_sha256") == TARGET_BINDING_SHA256
+        and plan.get("ssh_host_key_sha256") == SSH_HOST_KEY_SHA256
         and run.get("authorization_consumed") is True
         and run.get("replay_allowed") is False
         and run.get("last_claimed_phase") == PHASE
         and run.get("last_completed_phase") is None
+    )
+
+
+def _run_terminal_exact(run: dict[str, Any]) -> bool:
+    return (
+        _run_binding_exact(run)
+        and run.get("state") == "TERMINAL"
+        and run.get("terminal_state") == "FAIL"
+        and run.get("failure_class") == "FAILED"
     )
 
 
@@ -309,7 +334,13 @@ def _apply_or_resume_terminalization(
         phase = authority._load_phase(ledger_root, RUN_ID, PHASE)
         path = authority._phase_path(ledger_root, RUN_ID, PHASE)
 
-        if run.get("state") == "IN_PROGRESS" and phase.get("state") == "APPLYING":
+        if (
+            _run_binding_exact(run)
+            and run.get("state") == "IN_PROGRESS"
+            and run.get("terminal_state") is None
+            and run.get("failure_class") is None
+            and phase.get("state") == "APPLYING"
+        ):
             if authority._sha256_file(path) != expected_claim_sha256:
                 raise FailedRunTerminalizationError("phase_claim_sha256_drift")
             _business_execution_absent(expected_claim_sha256, baseline_root)
@@ -325,7 +356,13 @@ def _apply_or_resume_terminalization(
                     mutation_state="UNKNOWN",
                 )
             mutation_state = "PHASE_FAILED"
-        elif run.get("state") == "IN_PROGRESS" and _phase_failed_exact(phase):
+        elif (
+            _run_binding_exact(run)
+            and run.get("state") == "IN_PROGRESS"
+            and run.get("terminal_state") is None
+            and run.get("failure_class") is None
+            and _phase_failed_exact(phase)
+        ):
             _business_execution_absent(expected_claim_sha256, baseline_root)
             mutation_state = "PHASE_FAILED"
         elif _run_terminal_exact(run) and _phase_failed_exact(phase):
@@ -435,12 +472,14 @@ def terminalize_failed_run(
         )
 
     recovery = _read_recovery(recovery_path)
+    recovery_transitioned = False
     if recovery["state"] != "TERMINALIZED":
         recovery = _set_recovery_state(
             recovery,
             recovery_root=recovery_root,
             state="TERMINALIZED",
         )
+        recovery_transitioned = True
     if recovery["state"] != "TERMINALIZED":
         raise FailedRunTerminalizationError(
             "recovery_terminal_state_invalid",
@@ -462,7 +501,9 @@ def terminalize_failed_run(
         "recovery_authorization_id": authorization_id,
         "authorization_consumed": True,
         "replay_allowed": False,
-        "mutation_performed": action != "ALREADY_TERMINAL",
+        "mutation_performed": (
+            action != "ALREADY_TERMINAL" or recovery_transitioned
+        ),
         "mutation_state": "TERMINAL",
         "mutation_scope": "f5_production_authority_and_recovery_ledger_only",
         "host_baseline_business_execution_claim_absent": True,
