@@ -1,3 +1,12 @@
+## 2026-10-19 — F5 failed-run terminalization exact artifact bound; read-only preauth ready
+
+- PR #615 executable source is frozen at `ebd76d1c6178ff0c0e392047769aeb562670f48b`, tree `90e01232a77442c2b2856d49aa3b235cbdb9f96d`; exact-head CI PASS 12/12 and focused recovery tests PASS 9.
+- Exact recovery artifact: run `39202619732`, job `117898622419`, artifact `12164835562`, ZIP SHA-256 `a5d47bdc4ae1912e20414fd1d5d0ebf840166ec195496c0f821d9bb5cb9e2b4b`.
+- The historical F5-9 run remains unchanged, consumed, non-replayable and `HOST_BASELINE=APPLYING`.
+- Next gate is fresh T1-B read-only preauthorization only. It must obtain the exact phase-claim SHA-256 and re-prove host-baseline business execution records are absent.
+- Proposed later live recovery authorization `N3W_T1_F5_FAILED_RUN_TERMINALIZATION_LIVE_20261019_01` remains NOT_GRANTED.
+- Authority: `docs/development/N3W_T1_F5_FAILED_RUN_TERMINALIZATION_ARTIFACT_AND_READONLY_PREAUTH_PREEXECUTION_20261019.md`.
+
 ## 2026-10-19 — F5 replacement exact release durable Mac archive CLOSED_PASS
 
 - Replacement release `31c8a8cd...` / artifact `12162160866` passed `MISS_POPULATED` and network-free `VERIFY_ONLY` on the production Mac.
