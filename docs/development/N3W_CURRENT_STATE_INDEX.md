@@ -9,7 +9,7 @@
 - Final PASS requires an independent post-reboot acceptance, not merely a successful deploy command.
 - Acceptance covers target identity, exact release, real reboot, Docker/systemd runtime, TLS/MQTT, Manager, Home Assistant, persistence/certificate state and a bounded stability observation.
 - Current T1-B is not a V2 fresh baseline and must be reflashed before V2 live acceptance.
-- V1 PR stack #612-#621 is historical/superseded and is being closed without deleting branches, commits, CI or durable release evidence.
+- V1 PR stack #612-#621 is historical/superseded and has been closed unmerged without deleting branches, commits, CI or durable release evidence.
 - V2 architecture: `docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V2_SIMPLIFIED_ARCHITECTURE_CONTRACT_20261019.md`.
 - V1 archive: `docs/development/N3W_T1_F5_V1_ARCHIVE_AND_SUPERSESSION_CLOSURE_20261019.md`.
 - V2 source design: `docs/development/N3W_T1_F5_PRODUCTION_PROCESS_V2_SOURCE_DESIGN_20261019.md`.
