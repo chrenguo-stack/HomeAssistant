@@ -2,7 +2,7 @@
 
 ~~~text
 KF=KF-123
-STATUS=OPEN_SOURCE_DEFECT_READONLY_TARGET_FORENSIC_PENDING
+STATUS=TARGET_FORENSIC_CLOSED_PASS_SOURCE_REPAIR_REQUIRED
 
 FAILING_SOURCE_HEAD=9048dd7c6b48c0620471919c0cf96c96bdab71f1
 FAILED_RUN_ID=3e37993537f9317dfb8070fd53fa20384de86cbd7c2a234857b55602c1280799
@@ -29,7 +29,10 @@ Guard direction:
 - consumed F5 production runs are never replayed;
 - build a new exact source-bound F3 artifact and F5 release after repair.
 
-Fresh T1 read-only adjudication remains required before final target-state claims.
+Fresh T1 read-only adjudication CLOSED_PASS. The failed run is `TERMINAL/FAIL` with failure class `UNKNOWN`;
+`HOST_BASELINE=SUCCEEDED`; `F3_DEPLOY=UNKNOWN`; F3 production-execution record count is zero; and product
+paths/images/containers/volumes/networks/units are all absent. The next gate is source repair. A later bounded
+repository-owned handling of the preserved UNKNOWN run is still required before any new production approval.
 
 Authority: `docs/development/N3W_T1_F5_9_REPLACEMENT_RUN_F3_PAYLOAD_FILE_SET_FAILURE_FORENSIC_20261019.md`.
 
