@@ -590,6 +590,7 @@ def phase_context(
         raise ProductionAuthorityError("phase_context_prestate_invalid")
     return {
         "schema": CONTEXT_SCHEMA,
+        "status": "PASS",
         "run_id": run_id,
         "phase": phase,
         "claim_sha256": _sha256_file(path),
