@@ -97,3 +97,36 @@ REPLAY=false
 
 After terminalization PASS, a separate fresh F5-9 authorization is still required before the replacement release
 can start a new production run.
+
+
+## Independent source review repair
+
+The first implementation passed its focused tests, but independent review found two blockers before any live use:
+
+1. the underlying two-record fail transition could be interrupted after the phase record became `FAILED` but before the run record became `TERMINAL/FAIL`; the first terminalizer had no legitimate continuation from that partial state;
+2. an exception after a target write could be reported as `mutation_performed=false`, which would understate an ambiguous target mutation.
+
+The repaired design adds a dedicated root-owned recovery ledger:
+
+~~~text
+RECOVERY_ROOT=/var/lib/n3w-t1-f5-failed-run-terminalizations
+RECOVERY_STATE=CLAIMED -> APPLYING -> TERMINALIZED
+AUTHORIZATION_CONSUMED=true
+REPLAY_ALLOWED=false
+~~~
+
+A future live call must provide a fresh exact recovery authorization ID. The tool durably claims that ID, persists and reads back `APPLYING` before touching the historical production run, and allows continuation only under the same recovery authorization and original phase-claim SHA-256.
+
+If interruption occurs after `phase-HOST_BASELINE.json` becomes the exact incident-specific `FAILED` record but before `run.json` reaches `TERMINAL/FAIL`, the same consumed recovery authorization may resume only the unfinished ledger finalization. It may not rerun the original F5 production phase or create a second authorization.
+
+The CLI now reports a conservative `mutation_state`. Errors after an authorization/recovery write are never represented as a proven no-mutation outcome.
+
+Additional regression coverage includes:
+- exact read-only eligible prestate;
+- rejection when any host-baseline business-execution record exists;
+- wrong phase-claim hash rejection before recovery claim;
+- exact confirmation requirement;
+- durable recovery authorization binding;
+- resume from the bounded phase-failed/run-active split state;
+- rejection of a different recovery authorization;
+- terminalized production run remains non-replayable.
