@@ -1,0 +1,69 @@
+# N3W T1 F5-7 Exact Production Release Build and Binding — Closure
+
+Date: 2026-10-19
+
+## Closure
+
+~~~text
+TASK=N3W_T1_F5_7_EXACT_PRODUCTION_RELEASE_BUILD_AND_BINDING_20261019_01
+RESULT=BUILD_BINDING_CLOSED_PASS_DURABLE_ARCHIVE_PENDING
+
+FROZEN_PRODUCT_SOURCE_HEAD=4afd89b56e9925d7330b27f3f734ebcefc09182c
+FROZEN_PRODUCT_SOURCE_TREE=da864ffb6c44de3efccb93516e5e786f16219cd9
+BUILDER_HEAD=f30e5f74199bebcf1f189ee90b81ce5d19dc3df1
+
+F3_WORKFLOW_RUN_ID=39213902773
+F3_ARTIFACT_ID=12169550382
+F3_ARTIFACT_ZIP_SHA256=6c227fc9b1d45a289791439a8374825a8bd6d62178ea2123d3b292cd5b36fe9c
+
+F4_ARTIFACT_ID=12189955550
+F4_ARTIFACT_ZIP_SHA256=e1f2e154a45d19b5bd5e3582ff82aebd407975b89015d3be150f667da6a37fe0
+F4_CONTROL_MANIFEST_SHA256=638408b17e056abc1165766a1694df8de96041680c325b27da6bbe8a62bce74d
+
+REBOOT_ARTIFACT_ID=12190045434
+REBOOT_ARTIFACT_ZIP_SHA256=dd6f57a37bf50e2d30a4f688dd48f36ff33ee5bd4e00a4c616be4ba611eff15b
+REBOOT_CONTROL_MANIFEST_SHA256=c87327b2fdb4cabd37a701a67862eadefdd16495ad7d4825043feec1ca5ab1d2
+
+EXACT_RELEASE_WORKFLOW_RUN_ID=39259401930
+EXACT_RELEASE_ARTIFACT_ID=12190255517
+EXACT_RELEASE_ARTIFACT_NAME=n3w-t1-f5-approved-release-4afd89b56e9925d7330b27f3f734ebcefc09182c
+EXACT_RELEASE_ARTIFACT_ZIP_SHA256=c5928031d6813f91508eadd7bf79aca63e1fbe9c67e840f0a8277e8a09675f9f
+EXACT_RELEASE_ARTIFACT_SIZE_BYTES=2536416888
+EXACT_RELEASE_ARTIFACT_EXPIRES_AT=2026-11-18T13:22:23Z
+
+RELEASE_ID=c8a7e432722121b808a0d31ffbc3d049a64aa5b4f270a7be6f07b90891eecf69
+RELEASE_SHA256=47f4f41cf1453642b889578bd7de906236b56ae34b9d7bbbc81412c78a48efbb
+FILE_INDEX_SHA256=21a419ac843a3ef4c00fa2054435df403d0c5c16911bdf0f2e9dde3afb4b8ae9
+
+EXACT_RELEASE_CI=PASS
+POST_UPLOAD_REDOWNLOAD=PASS
+POST_UPLOAD_BINDING=PASS
+
+T1_ACCESS=false
+T1_MUTATION=false
+LIVE_REBOOT=false
+BOARD_ACCESS=false
+MERGE=false
+~~~
+
+The exact production release was rebuilt from the repaired PR #618 product source.
+The F3 input is the source-bound production payload from workflow run 39213902773.
+F4 and reboot control packages were rebuilt from the same frozen source inside the
+exact-release workflow, uploaded as exact intermediate artifacts, downloaded again,
+and digest-verified before release assembly.
+
+The resulting release was locally verified, uploaded, downloaded again, and verified
+against the packaged release contract. No mixed-source F4/reboot input from the older
+9048dd7... release was used.
+
+This closes exact construction and post-upload binding. It does not close the durable
+archive requirement and does not authorize any T1 production execution.
+
+## Next gate
+
+~~~text
+NEXT_ONE_GATE=N3W_T1_F5_7_DURABLE_MAC_ARCHIVE_ACCEPTANCE_20261019_01
+AUTO_EXECUTE_NEXT_GATE=false
+NEW_F5_9_PRODUCTION_AUTHORIZATION=false
+STOP=true
+~~~
