@@ -1,3 +1,13 @@
+## 2026-10-19 — F5 failed-run terminalization read-only preauth CLOSED_PASS
+
+- Exact recovery artifact `12164835562` remains bound to executable head `ebd76d1c6178ff0c0e392047769aeb562670f48b`.
+- Fresh real-T1 read-only preauthorization passed with no mutation and no recovery ledger creation.
+- Historical run remains `IN_PROGRESS` / `HOST_BASELINE=APPLYING`, consumed and non-replayable.
+- Exact current phase-claim SHA-256: `737fcda8367319399157a05ec8a0b27fc9059ff5a90622f5ffb39452b2001c80`.
+- Host-baseline business-execution claim and completion records remain absent.
+- Next one gate: `N3W_T1_F5_FAILED_RUN_TERMINALIZATION_LIVE_20261019_01`; authorization remains NOT_GRANTED and must be explicit.
+- Authority: `docs/development/N3W_T1_F5_FAILED_RUN_TERMINALIZATION_ARTIFACT_AND_READONLY_PREAUTH_CLOSURE_20261019.md`.
+
 ## 2026-10-19 — F5 failed-run terminalization exact artifact bound; read-only preauth ready
 
 - PR #615 executable source is frozen at `ebd76d1c6178ff0c0e392047769aeb562670f48b`, tree `90e01232a77442c2b2856d49aa3b235cbdb9f96d`; exact-head CI PASS 12/12 and focused recovery tests PASS 9.
