@@ -1,3 +1,12 @@
+## 2026-10-19 — KF-123 source repair CI CLOSED_PASS; final review pending
+
+- PR #618 exact head: `4afd89b56e9925d7330b27f3f734ebcefc09182c`, tree `da864ffb6c44de3efccb93516e5e786f16219cd9`.
+- PR #618 is OPEN/DRAFT, mergeable, unmerged; exact-head CI PASS 15/15.
+- Repair keeps `production-phase-context.json` outside the immutable F3 payload root; focused regression and F2 exact-blob rebind are present.
+- Target forensic remains CLOSED_PASS: historical run is TERMINAL/FAIL + UNKNOWN + no-replay; HOST_BASELINE succeeded; F3 business execution record count is zero.
+- Next one gate is repository-only final source review. No T1 access, source mutation, new production authorization or merge.
+- Handoff: `docs/development/N3W_T1_F5_KF123_SOURCE_REPAIR_FINAL_REVIEW_NEW_CHAT_HANDOFF_V1.0_20261019.md`.
+
 ## 2026-10-19 — KF-123 target forensic CLOSED_PASS
 
 - F5-9 run `3e37993537f9...` is durably `TERMINAL/FAIL`, failure class `UNKNOWN`, consumed/no-replay.
