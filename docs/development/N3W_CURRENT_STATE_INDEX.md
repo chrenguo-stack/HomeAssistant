@@ -1,3 +1,12 @@
+## 2026-10-19 — F5-9 replacement run failed at F3 immutable payload boundary
+
+- F5-9 authorization is consumed and cannot be replayed.
+- New run `3e37993537f9...`; HOST_BASELINE passed and the approved Docker baseline was installed.
+- F3 target bootstrap stopped with `payload_file_set_invalid` before its production execution claim; no product service started and no reboot occurred.
+- Exact source root cause is confirmed: the production adapter copied `production-phase-context.json` into the immutable payload directory, and the bootstrap correctly rejected that undeclared control file.
+- KF-123 is open. The next step is fresh T1 read-only forensic only; no retry or new production authorization.
+- Authority: `docs/development/N3W_T1_F5_9_REPLACEMENT_RUN_F3_PAYLOAD_FILE_SET_FAILURE_FORENSIC_20261019.md`.
+
 ## 2026-10-19 — KF-122 failed-run recovery CLOSED_PASS
 
 - Separate postexecution read-only verification PASS.
