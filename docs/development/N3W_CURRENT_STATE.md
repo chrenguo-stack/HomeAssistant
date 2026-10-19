@@ -1,3 +1,39 @@
+## 2026-10-19 — F5 failed-run terminalization read-only preauth CLOSED_PASS
+
+~~~text
+PR615_EXECUTABLE_HEAD=ebd76d1c6178ff0c0e392047769aeb562670f48b
+RECOVERY_ARTIFACT_ID=12164835562
+RECOVERY_ARTIFACT_ZIP_SHA256=a5d47bdc4ae1912e20414fd1d5d0ebf840166ec195496c0f821d9bb5cb9e2b4b
+
+READONLY_PREAUTH=PASS
+READONLY_PREAUTH_MUTATION=false
+RECOVERY_ROOT_ABSENT=true
+
+FAILED_RUN_ID=56e7cacb162fb2e2e56ff7e112f1a2177b64a68c4a1f1c0fdea66520e051602e
+FAILED_RUN_STATE=IN_PROGRESS
+FAILED_RUN_PHASE=HOST_BASELINE
+FAILED_RUN_PHASE_STATE=APPLYING
+PHASE_CLAIM_SHA256=737fcda8367319399157a05ec8a0b27fc9059ff5a90622f5ffb39452b2001c80
+HOST_BASELINE_BUSINESS_EXECUTION_CLAIM_ABSENT=true
+HOST_BASELINE_BUSINESS_EXECUTION_COMPLETE_ABSENT=true
+FAILED_RUN_AUTHORIZATION_CONSUMED=true
+FAILED_RUN_REPLAY_ALLOWED=false
+
+NEXT_ONE_GATE=N3W_T1_F5_FAILED_RUN_TERMINALIZATION_LIVE_20261019_01
+RECOVERY_AUTHORIZATION_GRANTED=false
+AUTO_EXECUTE_NEXT_GATE=false
+
+T1_ACCESS=true
+T1_MUTATION=false
+LIVE_REBOOT=false
+BOARD_ACCESS=false
+MERGE=false
+~~~
+
+Fresh T1-B read-only evidence re-proved that the historical run is still exactly `HOST_BASELINE=APPLYING`, that its current phase-claim SHA-256 is `737fcda8...`, and that no host-baseline business execution claim or completion record exists. The recovery root also remained absent. The next gate is a separate one-shot live recovery authorization decision; no terminalization has run.
+
+Authority: `docs/development/N3W_T1_F5_FAILED_RUN_TERMINALIZATION_ARTIFACT_AND_READONLY_PREAUTH_CLOSURE_20261019.md`.
+
 ## 2026-10-19 — F5 failed-run terminalization source/artifact CLOSED_PASS; read-only preauth ready
 
 ~~~text
