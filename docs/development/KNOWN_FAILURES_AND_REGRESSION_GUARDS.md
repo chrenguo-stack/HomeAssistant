@@ -2,7 +2,7 @@
 
 ~~~text
 KF=KF-123
-STATUS=SOURCE_REPAIR_CI_CLOSED_PASS_FINAL_REVIEW_PENDING
+STATUS=SOURCE_REPAIR_CLOSED_PASS_TARGET_UNKNOWN_RUN_RECOVERY_PENDING
 
 FAILING_SOURCE_HEAD=9048dd7c6b48c0620471919c0cf96c96bdab71f1
 FAILED_RUN_ID=3e37993537f9317dfb8070fd53fa20384de86cbd7c2a234857b55602c1280799
@@ -13,7 +13,7 @@ F3_BOOTSTRAP_PRODUCTION_CLAIM=false
 PR618_HEAD=4afd89b56e9925d7330b27f3f734ebcefc09182c
 PR618_TREE=da864ffb6c44de3efccb93516e5e786f16219cd9
 PR618_CI=PASS_15_OF_15
-PR618_FINAL_SOURCE_REVIEW=PENDING
+PR618_FINAL_SOURCE_REVIEW=CLOSED_PASS
 PRODUCT_SERVICE_START=false
 LIVE_REBOOT=false
 BOARD_ACCESS=false
@@ -35,8 +35,18 @@ Guard direction:
 
 Fresh T1 read-only adjudication CLOSED_PASS. The failed run is `TERMINAL/FAIL` with failure class `UNKNOWN`;
 `HOST_BASELINE=SUCCEEDED`; `F3_DEPLOY=UNKNOWN`; F3 production-execution record count is zero; and product
-paths/images/containers/volumes/networks/units are all absent. The next gate is source repair. A later bounded
-repository-owned handling of the preserved UNKNOWN run is still required before any new production approval.
+paths/images/containers/volumes/networks/units are all absent.
+
+PR #618 final source review CLOSED_PASS at exact head `4afd89b56e9925d7330b27f3f734ebcefc09182c`, tree
+`da864ffb6c44de3efccb93516e5e786f16219cd9`, with CI PASS 15/15. The reviewed delta keeps
+`production-phase-context.json` in a separate sibling remote directory, leaves the bootstrap exact payload
+file-set validation unchanged, cleans payload/context roots together before claim and on normal success, and
+preserves staging after an observed production claim. The F2 change is only an exact staging-host blob rebind.
+No unrelated source blocker was found.
+
+The source defect is closed. A later bounded repository-owned handling of the preserved UNKNOWN run is still
+required before any new production approval. The next route is design-only
+`N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_DESIGN_20261019_01`; it is not auto-executed by this closure.
 
 Authority: `docs/development/N3W_T1_F5_9_REPLACEMENT_RUN_F3_PAYLOAD_FILE_SET_FAILURE_FORENSIC_20261019.md`.
 
