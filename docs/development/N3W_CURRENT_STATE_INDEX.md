@@ -1,3 +1,22 @@
+## 2026-10-19 — F5 V2 PR #622 post-merge alignment prepared
+
+- PR #622 is CLOSED/MERGED.
+- Merged head: `0c50e6abff4617bb3e0755aae2d269a89356c7c4`.
+- Merge commit / main at alignment start: `5bb415cbd282768cf6bebea252b0673e2d1d9304`.
+- Exact-head CI before merge: 11/11 PASS.
+- PR-head-to-new-main content delta: none.
+- F5 V2 architecture, source design, and source-design review are now reachable from main.
+- F5 V1 PR stack #612-#621 remains archived/closed/unmerged; historical branches, CI, release metadata and durable archive are preserved.
+- V2 normal production accepts only Standard Fresh Armbian; nonstandard or failed pre-accepted targets are reflashed instead of repaired in place.
+- Failure before durable ACCEPTED requires `FREEZE_EVIDENCE -> FORENSIC_SNAPSHOT_COMPLETE -> SESSION_CLOSE -> REFLASH_REQUIRED`.
+- Final PASS still requires independent post-reboot acceptance; durable ACCEPTED is not invalidated by later Mac cleanup/archive failure.
+- Product source implementation has not started.
+- T1 access, T1 mutation and board access did not occur in this alignment gate.
+- This payload is docs-only. Repository alignment becomes final when the exact alignment payload is reachable from main.
+- Authority: `docs/development/N3W_T1_F5_V2_PR622_POSTMERGE_STATE_ALIGNMENT_20261019.md`.
+- After alignment merge, next work package: `N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_WORK_PACKAGE_PREPARATION_20261019_01`.
+- Merge of this alignment payload remains a separate explicit decision.
+
 ## 2026-10-19 — F5 V2 source design review CLOSED_PASS
 
 - Review against current main and accepted F2/F3/Provision/F4 source is complete.
