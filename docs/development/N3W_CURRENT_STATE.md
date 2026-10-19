@@ -1,3 +1,39 @@
+## 2026-10-19 — F5-9 replacement run FAIL at F3 payload boundary
+
+~~~text
+TASK=N3W_T1_F5_9_T1B_EXPLICIT_LIVE_AUTHORIZATION_REPLACEMENT_RUN_20261019_01
+RESULT=FAIL
+
+AUTHORIZATION=CONSUMED_NO_REPLAY
+RUN_ID=3e37993537f9317dfb8070fd53fa20384de86cbd7c2a234857b55602c1280799
+RUN_ID_SHA256=9fd9cf8ea51f48f0cb44d0d20bf3eda89f805a54d57d117f31f5f5f3530399aa
+PLAN_DIGEST=eaebb731adf6a7ce12af876fb72420f8967a7985689551afa7c8f93a5cf9b0ce
+PREFLIGHT_SHA256=583fc5ded12d998c1e30bdc75074cdd183cbd28a2d067c04798043207d2e6622
+
+HOST_BASELINE=PASS
+DOCKER_BASELINE_INSTALLED=true
+REMOTE_BOOTSTRAP_STATUS=STOP
+REMOTE_BOOTSTRAP_REASON=payload_file_set_invalid
+REMOTE_BOOTSTRAP_PRODUCTION_CLAIM=false
+PRODUCT_SERVICE_START=false
+LIVE_REBOOT=false
+BOARD_ACCESS=false
+
+SOURCE_ROOT_CAUSE=CONFIRMED
+ROOT_CAUSE=production-phase-context.json staged inside immutable F3 payload root before bootstrap file-set validation
+KF_123=OPEN_SOURCE_DEFECT_READONLY_TARGET_FORENSIC_PENDING
+
+NEXT_ONE_GATE=N3W_T1_F5_9_F3_PAYLOAD_FILE_SET_FAILURE_READONLY_FORENSIC_20261019_01
+T1_MUTATION=false
+SOURCE_MUTATION=false
+NEW_PRODUCTION_AUTHORIZATION=NOT_GRANTED
+MERGE=false
+~~~
+
+The new F5-9 authorization is consumed and must not be reused. HOST_BASELINE completed and installed the approved Docker/Compose baseline. F3 then stopped because the production adapter copied `production-phase-context.json` into the immutable payload root; the target bootstrap correctly rejected the extra file before its production execution claim. Fresh target read-only adjudication is required before source repair/release rebuild proceeds.
+
+Authority: `docs/development/N3W_T1_F5_9_REPLACEMENT_RUN_F3_PAYLOAD_FILE_SET_FAILURE_FORENSIC_20261019.md`.
+
 ## 2026-10-19 — F5-9 replacement production run explicitly authorized
 
 ~~~text
