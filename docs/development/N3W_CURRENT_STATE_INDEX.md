@@ -1,3 +1,13 @@
+## 2026-10-19 — KF-123 UNKNOWN-run recovery source review R3 FAIL_CLOSED
+
+- R2 B1/B2/B3 are CLOSED by source head `2054d870758705c833acee24e9e734856fb43460`.
+- R3 C1: an existing recovery root is not revalidated as non-symlink, root-owned 0700 before resume/verify.
+- R3 C2: the authorization-bearing recovery JSON parser does not reject duplicate keys.
+- The inspect-to-claim reload/hash window is a non-blocking hardening item; later CLAIMED validation still stops before APPLYING on drift.
+- Target read-only preauthorization and live adjudication remain blocked.
+- No T1 access or live mutation occurred.
+- Next one gate: `N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_SOURCE_REPAIR_R3_20261019_01`.
+
 ## 2026-10-19 — KF-123 UNKNOWN-run recovery source repair R2 CI PASS
 
 - R2 repair source head: `2054d870758705c833acee24e9e734856fb43460`, tree `ac1f53ec0940ee9d9ea9d18497a1543cb6ef02a7`.

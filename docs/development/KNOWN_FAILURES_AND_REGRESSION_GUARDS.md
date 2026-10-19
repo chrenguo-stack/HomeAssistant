@@ -2,7 +2,7 @@
 
 ~~~text
 KF=KF-123
-STATUS=SOURCE_REPAIR_CLOSED_PASS_UNKNOWN_RUN_RECOVERY_SOURCE_REPAIR_R2_CI_PASS_R3_REVIEW_PENDING
+STATUS=SOURCE_REPAIR_CLOSED_PASS_UNKNOWN_RUN_RECOVERY_SOURCE_REVIEW_R3_FAIL_CLOSED_REPAIR_PENDING
 
 FAILING_SOURCE_HEAD=9048dd7c6b48c0620471919c0cf96c96bdab71f1
 FAILED_RUN_ID=3e37993537f9317dfb8070fd53fa20384de86cbd7c2a234857b55602c1280799
@@ -74,10 +74,15 @@ invariant digests and rechecks them across APPLYING/ADJUDICATED resume states wh
 their full preauthorization hashes; and explicit negative regressions now cover nonterminal, PASS and
 FAILED-without-recovery states. Focused tests PASS 25 and exact source-head CI PASS 12/12.
 
-Target read-only preauthorization and live adjudication remain blocked until the R3 source review closes.
+R3 source review closes R2 B1/B2/B3 but remains FAIL_CLOSED on two recovery-ledger integrity issues:
+existing recovery-root trust is not revalidated before resume/verify, and recovery JSON does not reject duplicate keys.
+The inspect-to-claim reload/hash window is recorded as a non-blocking hardening item because the later CLAIMED check
+still stops before APPLYING on drift.
+
+Target read-only preauthorization and live adjudication remain blocked until the R3 repair and follow-up review close.
 
 Next gate:
-`N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_SOURCE_REVIEW_R3_20261019_01`.
+`N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_SOURCE_REPAIR_R3_20261019_01`.
 
 Authority: `docs/development/N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_DESIGN_20261019.md`.
 Authority: PR #620.
