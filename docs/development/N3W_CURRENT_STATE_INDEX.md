@@ -1,3 +1,13 @@
+## 2026-10-19 — KF-123 UNKNOWN-run live adjudication PASS
+
+- One-shot authorization `N3W_T1_F5_KF123_UNKNOWN_RUN_ADJUDICATION_LIVE_20261019_01` was consumed and is non-replayable.
+- Historical run remains `TERMINAL/FAIL`; `failure_class=FAILED`.
+- `F3_DEPLOY=FAILED`; original failure code is unchanged.
+- Recovery ledger reached `ADJUDICATED`.
+- F3 execution count remains zero; product material remains absent; Docker remains active.
+- No product service start, reboot or board access occurred.
+- Final closure still requires `N3W_T1_F5_KF123_UNKNOWN_RUN_ADJUDICATION_POSTEXECUTION_READONLY_VERIFY_20261019_01`.
+
 ## 2026-10-19 — KF-123 read-only preauth CLOSED_PASS
 
 - Real-T1 exact-artifact inspector returned PASS and ELIGIBLE_FOR_ADJUDICATION.
