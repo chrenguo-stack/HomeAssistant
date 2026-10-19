@@ -2,7 +2,7 @@
 
 ~~~text
 KF=KF-123
-STATUS=SOURCE_REPAIR_CLOSED_PASS_UNKNOWN_RUN_RECOVERY_SOURCE_REPAIR_CI_PASS_R2_REVIEW_PENDING
+STATUS=SOURCE_REPAIR_CLOSED_PASS_UNKNOWN_RUN_RECOVERY_SOURCE_REVIEW_R2_FAIL_CLOSED_REPAIR_PENDING
 
 FAILING_SOURCE_HEAD=9048dd7c6b48c0620471919c0cf96c96bdab71f1
 FAILED_RUN_ID=3e37993537f9317dfb8070fd53fa20384de86cbd7c2a234857b55602c1280799
@@ -67,10 +67,15 @@ root/file metadata, exact schema/fields and duplicate-key-free JSON before accep
 and F3 artifact bindings plus the exact HOST_BASELINE predecessor record SHA-256; A3 treats same-second same-target
 run ordering as ambiguous and stops. Focused tests PASS 19 and source-head CI PASS 12/12.
 
-Target read-only preauthorization and live adjudication remain blocked until the R2 source review closes.
+R2 source review closes the earlier A1/A2/A3 blockers, but remains FAIL_CLOSED on three narrower issues:
+execution-record filename/content binding is not yet proven; split-state resume does not yet prove exact preservation
+of every non-authorized historical field; and the required negative regressions for nonterminal/PASS and
+FAILED-without-recovery are missing.
+
+Target read-only preauthorization and live adjudication remain blocked until the R2 repair and follow-up review close.
 
 Next gate:
-`N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_SOURCE_REVIEW_R2_20261019_01`.
+`N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_SOURCE_REPAIR_R2_20261019_01`.
 
 Authority: `docs/development/N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_DESIGN_20261019.md`.
 Authority: PR #620.
