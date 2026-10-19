@@ -24,6 +24,19 @@ def _runtime_archive(manifest: dict) -> bytes:
     return output.getvalue()
 
 
+def test_mac_files_exist_and_use_real_f2_identity_probe() -> None:
+    root = Path(__file__).resolve().parents[2]
+    real_identity_probe = "tools/n3w_t1_os_identity_readonly_probe.py"
+    stale_identity_executor = (
+        "tools/execution_packages/n3w/f2/"
+        "t1_fresh_readonly_identity/executor.py"
+    )
+
+    assert real_identity_probe in builder.MAC_FILES
+    assert stale_identity_executor not in builder.MAC_FILES
+    assert all((root / relative).is_file() for relative in builder.MAC_FILES)
+
+
 def test_verify_f3_artifact_binds_images_transport_and_source(tmp_path: Path) -> None:
     source_head = "a" * 40
     image_bytes = {

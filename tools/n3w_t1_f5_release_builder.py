@@ -27,7 +27,7 @@ MAC_FILES = (
     "tools/n3w_t1_fresh_product_staging_host.py",
     "tools/n3w_t1_minimal_baseline_readonly_inventory.py",
     "tools/execution_packages/n3w/f2/t1_fresh_readonly_preflight/executor.py",
-    "tools/execution_packages/n3w/f2/t1_fresh_readonly_identity/executor.py",
+    "tools/n3w_t1_os_identity_readonly_probe.py",
 )
 
 TARGET_FILES = (

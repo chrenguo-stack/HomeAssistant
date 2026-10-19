@@ -40,6 +40,33 @@ def load_tool():
     )
 
 
+def test_mac_required_files_exist_and_cover_f2_production_dependencies() -> None:
+    tool = load_tool()
+    f2_relative = (
+        "tools/execution_packages/n3w/f2/"
+        "t1_fresh_readonly_preflight/executor.py"
+    )
+    f2 = _load(
+        ROOT / f2_relative,
+        "n3w_f2_packaging_dependency_contract",
+    )
+    required = {
+        f2_relative,
+        f2.IDENTITY_RELATIVE,
+        f2.INVENTORY_RELATIVE,
+        f2.STAGING_RELATIVE,
+        "tools/n3w_t1_production_contract.py",
+    }
+
+    assert required.issubset(tool.MAC_REQUIRED_FILES)
+    assert all((ROOT / relative).is_file() for relative in tool.MAC_REQUIRED_FILES)
+    assert (
+        "tools/execution_packages/n3w/f2/"
+        "t1_fresh_readonly_identity/executor.py"
+        not in tool.MAC_REQUIRED_FILES
+    )
+
+
 def test_file_set_manifest_requires_exact_bound_file_set(
     tmp_path: Path,
 ) -> None:

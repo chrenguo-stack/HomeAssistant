@@ -6,11 +6,11 @@ Date: 2026-10-18
 
 ~~~text
 TASK=N3W_T1_F5_PRODUCTION_PROCESS_V1_EXACT_PRODUCTION_RELEASE_BUILD_AND_BINDING_20261018_01
-STATE=IMPLEMENTATION_STARTED
+STATE=REBUILD_PREPARED_AFTER_SOURCE_REPAIR
 
 PARENT_PR=612
-PARENT_SOURCE_HEAD=1d56d785c017b5e847b0734268863ac78ca2d1dd
-PARENT_SOURCE_TREE=57332afe4f49882548a093b79bec97ce4653eac1
+PARENT_SOURCE_HEAD=55e499f28d4b1a79da0c5c1fbd21b513f24644e6
+PARENT_SOURCE_TREE=4212298609fbb80557984fdc350cb6d336c41f53
 PARENT_SOURCE_CI=PASS:20/20
 
 BUILD_BRANCH=build/n3w-t1-f5-exact-production-release-v1-20261018
@@ -25,23 +25,42 @@ The F5-1 through F5-6 product source remains frozen at the accepted product-sour
 F5-7 build tooling is deliberately separated from that product-source identity. The approved release
 must continue to declare the frozen product source, not the later build-tooling branch head.
 
+## Source repair triggered by first F5-7 build
+
+The first exact-release build attempt on PR #613 stopped before upload with
+`source_file_invalid:tools/execution_packages/n3w/f2/t1_fresh_readonly_identity/executor.py`.
+That path does not exist in the product source. The production F2 executor actually streams
+`tools/n3w_t1_os_identity_readonly_probe.py`.
+
+PR #612 repaired the packaged Mac file set and added a regression test. The repaired product source is:
+
+~~~text
+REPAIRED_SOURCE_HEAD=55e499f28d4b1a79da0c5c1fbd21b513f24644e6
+REPAIRED_SOURCE_TREE=4212298609fbb80557984fdc350cb6d336c41f53
+REPAIRED_SOURCE_CI=PASS:20/20
+FIRST_F5_7_BUILD_RELEASE_CREATED=false
+~~~
+
+F5-7 therefore restarts from source-bound artifacts produced by this repaired head. The previous
+`1d56d...` artifacts are superseded for F5-7 and must not be mixed with the repaired source.
+
 ## Exact input authorities
 
 ~~~text
-F3_WORKFLOW_RUN_ID=39137060229
-F3_ARTIFACT_ID=12140392202
-F3_ARTIFACT_SHA256=e8008b5af08fd83519fab228d5b0033d1368a5016afdb942fa148551501ebe22
+F3_WORKFLOW_RUN_ID=39145347331
+F3_ARTIFACT_ID=12143496615
+F3_ARTIFACT_SHA256=5aff87f7f878fec0af23f21b3e953f7a59daa4413b261392de1cbdf1ea154e04
 
-F4_WORKFLOW_RUN_ID=39137060200
-F4_ARTIFACT_ID=12140431448
-F4_ARTIFACT_SHA256=4f76c01541472cc53af94621c569b56e452ee6948eb23fe9a30833e31f9bf575
+F4_WORKFLOW_RUN_ID=39145347300
+F4_ARTIFACT_ID=12143346463
+F4_ARTIFACT_SHA256=fa10e771a4caa4a242a9c133d161b6a421bf1c61db55befbbf6aa1104e7f8462
 
-REBOOT_ARTIFACT_ID=12139946919
-REBOOT_ARTIFACT_SHA256=f5be51d296e0b7c630d33edbe2380149de3ad83d47dbbefda492256375d66d1d
+REBOOT_ARTIFACT_ID=12143007656
+REBOOT_ARTIFACT_SHA256=f20fb07c4cab6696fa442589943a539bfca3a4ea6f868c9660d7dff0a94b06a6
 ~~~
 
 All three inputs are source-bound to
-`1d56d785c017b5e847b0734268863ac78ca2d1dd`.
+`55e499f28d4b1a79da0c5c1fbd21b513f24644e6`.
 
 The F3 production artifact is the reusable production form with no historical live authorization
 embedded. The F4 and reboot inputs are the exact control artifacts produced from the same source head.
@@ -114,7 +133,7 @@ store. No T1-B access starts before that durability requirement is closed.
 ## Stop rule
 
 ~~~text
-CURRENT_STOP_POINT=WAIT_F5_EXACT_RELEASE_CANDIDATE_CI
+CURRENT_STOP_POINT=WAIT_F5_EXACT_RELEASE_REBUILD_CI
 NEXT_IF_CI_PASS=RECORD_EXACT_RELEASE_ID_AND_ARTIFACT_BINDING_THEN_CLOSE_DURABLE_ARCHIVE_GAP
 NEXT_IF_CI_FAIL=FIX_FIRST_DETERMINISTIC_BUILD_OR_BINDING_DEFECT_ONLY
 
