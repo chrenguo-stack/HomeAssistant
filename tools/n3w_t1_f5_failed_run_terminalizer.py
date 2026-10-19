@@ -436,60 +436,60 @@ def terminalize_failed_run(
             recovery_durable = True
 
         if recovery["state"] == "TERMINALIZED":
-        run = authority._load_run(ledger_root, RUN_ID)
-        phase = authority._load_phase(ledger_root, RUN_ID, PHASE)
-        if not (_run_terminal_exact(run) and _phase_failed_exact(phase)):
-            raise FailedRunTerminalizationError(
-                "terminalized_recovery_poststate_drift"
-            )
-        _business_execution_absent(expected_claim_sha256, baseline_root)
-        action = "ALREADY_TERMINAL"
-    else:
-        if recovery["state"] == "CLAIMED":
-            _run, _phase, observed_claim_sha256 = _exact_active_prestate(
+            run = authority._load_run(ledger_root, RUN_ID)
+            phase = authority._load_phase(ledger_root, RUN_ID, PHASE)
+            if not (_run_terminal_exact(run) and _phase_failed_exact(phase)):
+                raise FailedRunTerminalizationError(
+                    "terminalized_recovery_poststate_drift"
+                )
+            _business_execution_absent(expected_claim_sha256, baseline_root)
+            action = "ALREADY_TERMINAL"
+        else:
+            if recovery["state"] == "CLAIMED":
+                _run, _phase, observed_claim_sha256 = _exact_active_prestate(
+                    ledger_root=ledger_root,
+                    baseline_root=baseline_root,
+                )
+                if observed_claim_sha256 != expected_claim_sha256:
+                    raise FailedRunTerminalizationError(
+                        "claimed_recovery_prestate_drift"
+                    )
+                recovery = _set_recovery_state(
+                    recovery,
+                    recovery_root=recovery_root,
+                    state="APPLYING",
+                )
+            if recovery["state"] != "APPLYING":
+                raise FailedRunTerminalizationError("recovery_state_invalid")
+            action = _apply_or_resume_terminalization(
+                expected_claim_sha256=expected_claim_sha256,
                 ledger_root=ledger_root,
                 baseline_root=baseline_root,
             )
-            if observed_claim_sha256 != expected_claim_sha256:
-                raise FailedRunTerminalizationError(
-                    "claimed_recovery_prestate_drift"
-                )
+
+        run = authority._load_run(ledger_root, RUN_ID)
+        phase = authority._load_phase(ledger_root, RUN_ID, PHASE)
+        _business_execution_absent(expected_claim_sha256, baseline_root)
+        if not (_run_terminal_exact(run) and _phase_failed_exact(phase)):
+            raise FailedRunTerminalizationError(
+                "failed_run_terminalization_poststate_invalid",
+                mutation_state="UNKNOWN",
+            )
+
+        recovery = _read_recovery(recovery_path)
+        recovery_transitioned = False
+        if recovery["state"] != "TERMINALIZED":
             recovery = _set_recovery_state(
                 recovery,
                 recovery_root=recovery_root,
-                state="APPLYING",
+                state="TERMINALIZED",
             )
-        if recovery["state"] != "APPLYING":
-            raise FailedRunTerminalizationError("recovery_state_invalid")
-        action = _apply_or_resume_terminalization(
-            expected_claim_sha256=expected_claim_sha256,
-            ledger_root=ledger_root,
-            baseline_root=baseline_root,
-        )
-
-    run = authority._load_run(ledger_root, RUN_ID)
-    phase = authority._load_phase(ledger_root, RUN_ID, PHASE)
-    _business_execution_absent(expected_claim_sha256, baseline_root)
-    if not (_run_terminal_exact(run) and _phase_failed_exact(phase)):
-        raise FailedRunTerminalizationError(
-            "failed_run_terminalization_poststate_invalid",
-            mutation_state="UNKNOWN",
-        )
-
-    recovery = _read_recovery(recovery_path)
-    recovery_transitioned = False
-    if recovery["state"] != "TERMINALIZED":
-        recovery = _set_recovery_state(
-            recovery,
-            recovery_root=recovery_root,
-            state="TERMINALIZED",
-        )
-        recovery_transitioned = True
-    if recovery["state"] != "TERMINALIZED":
-        raise FailedRunTerminalizationError(
-            "recovery_terminal_state_invalid",
-            mutation_state="UNKNOWN",
-        )
+            recovery_transitioned = True
+        if recovery["state"] != "TERMINALIZED":
+            raise FailedRunTerminalizationError(
+                "recovery_terminal_state_invalid",
+                mutation_state="UNKNOWN",
+            )
 
         return {
             "schema": SCHEMA,
@@ -527,7 +527,6 @@ def terminalize_failed_run(
                 mutation_state="RECOVERY_PRESENT",
             ) from error
         raise
-
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
