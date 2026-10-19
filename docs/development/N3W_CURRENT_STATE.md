@@ -1,3 +1,33 @@
+## 2026-10-19 — F5 replacement exact release durable Mac archive CLOSED_PASS
+
+~~~text
+REPLACEMENT_SOURCE_HEAD=9048dd7c6b48c0620471919c0cf96c96bdab71f1
+REPLACEMENT_RELEASE_ID=31c8a8cd2d8424f93aaa7b4d0b78cfe2b73f1b035f4bdbce08a181ac56619420
+REPLACEMENT_RELEASE_SHA256=1bbcb81bd84ec899e4c1d37fffef99defbbcc40509c49ce41048f6a6d92039ad
+REPLACEMENT_ARTIFACT_ID=12162160866
+REPLACEMENT_ARTIFACT_ZIP_SHA256=1938ad3e4d7b87622a21968961b3fea4472907c4b31cc8db8c80acfd0fb149e8
+
+FIRST_ARCHIVE=MISS_POPULATED
+FIRST_ARCHIVE_STATUS=PASS
+SECOND_VERIFY=VERIFY_ONLY
+SECOND_VERIFY_STATUS=PASS
+SECOND_VERIFY_GITHUB_ACCESS=false
+REPLACEMENT_DURABLE_ARCHIVE=CLOSED_PASS
+
+FAILED_RUN_CONTROLLED_TERMINALIZATION=PENDING_SOURCE_AND_EXACT_ARTIFACT
+NEW_F5_9_AUTHORIZATION=NOT_GRANTED
+
+T1_ACCESS=false
+T1_MUTATION=false
+LIVE_REBOOT=false
+BOARD_ACCESS=false
+MERGE=false
+~~~
+
+The replacement F5 release is now durably preserved on the production Mac and independently verified without GitHub access. The next work is repository-only preparation of a bounded recovery/terminalization path for the consumed historical F5-9 run. No new production run is authorized.
+
+Authority: `docs/development/N3W_T1_F5_PHASE_CONTEXT_REPAIR_REPLACEMENT_RELEASE_DURABLE_ARCHIVE_ACCEPTANCE_CLOSURE_20261019.md`.
+
 ## 2026-10-19 — F5-9 phase-context live failure source repair / replacement release built
 
 ~~~text
