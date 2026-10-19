@@ -1,3 +1,13 @@
+## 2026-10-19 — KF-123 UNKNOWN-run recovery source implementation CI PASS
+
+- PR #620 source implementation head is `a4f5bfa9ea0cd75511f8a562c14a6b99f0640d9a`, tree `629a6fb39ba3e9645bb11713481b57c29d15738c`.
+- Delta from the design/docs base is exactly three files: adjudicator source, focused tests, and dedicated CI/package workflow.
+- Focused regression suite: 12/12 PASS. PR exact-head workflows: 12/12 PASS.
+- Exact adjudication artifact: ID `12171819731`, digest `57a7adf8befea0faf021ff696bcedbd40be483d2d414fe380e0b0152005103bc`.
+- The source keeps the normal UNKNOWN-run approval guard, adds no F3 replay path, and adds no new production-run path.
+- Next one gate: `N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_SOURCE_REVIEW_20261019_01`.
+- No T1 access, live runtime mutation, board access, merge, or new production authorization occurred.
+
 ## 2026-10-19 — KF-123 UNKNOWN-run controlled recovery design CLOSED_PASS
 
 - Historical run `3e37993537f9...` remains TERMINAL/FAIL + UNKNOWN + no-replay; this design does not alter target state.

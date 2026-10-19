@@ -2,7 +2,7 @@
 
 ~~~text
 KF=KF-123
-STATUS=SOURCE_REPAIR_CLOSED_PASS_UNKNOWN_RUN_RECOVERY_DESIGN_CLOSED_PASS_SOURCE_IMPLEMENTATION_PENDING
+STATUS=SOURCE_REPAIR_CLOSED_PASS_UNKNOWN_RUN_RECOVERY_SOURCE_IMPLEMENTATION_CI_PASS_REVIEW_PENDING
 
 FAILING_SOURCE_HEAD=9048dd7c6b48c0620471919c0cf96c96bdab71f1
 FAILED_RUN_ID=3e37993537f9317dfb8070fd53fa20384de86cbd7c2a234857b55602c1280799
@@ -51,10 +51,21 @@ failure_class UNKNOWN -> FAILED after a fresh read-only preauthorization proves 
 business-execution records and absent product material. The recovery helper must support same-authorization-only
 resume from the bounded split states and must not replay F3, start services, reboot or access boards.
 
+Source implementation is now present on PR #620 at exact source head
+`a4f5bfa9ea0cd75511f8a562c14a6b99f0640d9a`, tree
+`629a6fb39ba3e9645bb11713481b57c29d15738c`. The implementation delta is exactly the dedicated adjudicator,
+its focused regression test, and its CI/package workflow. Focused tests PASS 12/12; the exact-head PR workflows
+PASS 12/12. The exact adjudication package is artifact ID `12171819731` with digest
+`57a7adf8befea0faf021ff696bcedbd40be483d2d414fe380e0b0152005103bc`.
+
+The helper keeps the existing UNKNOWN-run approval guard intact, adds no F3 replay path and no new production-run
+path, and has no live authority in this gate.
+
 Next gate:
-`N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_SOURCE_IMPLEMENTATION_20261019_01`.
+`N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_SOURCE_REVIEW_20261019_01`.
 
 Authority: `docs/development/N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_DESIGN_20261019.md`.
+Authority: PR #620.
 
 Authority: `docs/development/N3W_T1_F5_9_REPLACEMENT_RUN_F3_PAYLOAD_FILE_SET_FAILURE_FORENSIC_20261019.md`.
 

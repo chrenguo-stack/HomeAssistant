@@ -1,3 +1,47 @@
+## 2026-10-19 — KF-123 UNKNOWN-run recovery source implementation CI PASS; source review pending
+
+~~~text
+TASK=N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_SOURCE_IMPLEMENTATION_20261019_01
+RESULT=SOURCE_IMPLEMENTATION_CI_PASS_REVIEW_PENDING
+
+PR620_BASE=223e79b4dfb4f1f17501fcf244352e468d17dd27
+SOURCE_IMPLEMENTATION_HEAD=a4f5bfa9ea0cd75511f8a562c14a6b99f0640d9a
+SOURCE_IMPLEMENTATION_TREE=629a6fb39ba3e9645bb11713481b57c29d15738c
+SOURCE_DELTA_EXACT_3_FILES=true
+
+ADJUDICATOR_SOURCE=tools/n3w_t1_f5_unknown_run_adjudicator.py
+ADJUDICATOR_TEST=tests/tools/test_n3w_t1_f5_unknown_run_adjudicator.py
+ADJUDICATOR_CI=.github/workflows/n3w-t1-f5-kf123-unknown-run-adjudication-ci.yml
+
+FOCUSED_TESTS=PASS_12
+PR620_CI=PASS_12_OF_12
+ADJUDICATION_ARTIFACT_ID=12171819731
+ADJUDICATION_ARTIFACT_DIGEST=57a7adf8befea0faf021ff696bcedbd40be483d2d414fe380e0b0152005103bc
+
+UNKNOWN_RUN_APPROVAL_GUARD_WEAKENED=false
+F3_REPLAY_PATH_ADDED=false
+NEW_PRODUCTION_RUN_PATH_ADDED=false
+DEDICATED_RECOVERY_LEDGER=true
+RECOVERY_STATE_MODEL=CLAIMED_TO_APPLYING_TO_ADJUDICATED
+SAME_AUTHORIZATION_ONLY_RESUME=true
+READONLY_INSPECTOR=true
+READONLY_POSTVERIFY=true
+
+T1_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+NEW_PRODUCTION_AUTHORIZATION=false
+
+NEXT_ONE_GATE=N3W_T1_F5_KF123_UNKNOWN_RUN_CONTROLLED_RECOVERY_SOURCE_REVIEW_20261019_01
+AUTO_EXECUTE_NEXT_GATE=false
+STOP=true
+~~~
+
+The dedicated adjudicator is now implemented and packaged. CI proves the source compiles, all 12 focused regression tests pass, the static mutation boundary passes, and an exact recovery package is produced. The implementation still has no authority to touch T1-B. Independent source review is required before any fresh target read-only preauthorization is considered.
+
+Authority: PR #620.
+
 ## 2026-10-19 — KF-123 UNKNOWN-run controlled recovery design CLOSED_PASS
 
 ~~~text
