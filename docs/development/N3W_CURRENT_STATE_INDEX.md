@@ -1,6 +1,7 @@
 ## 2026-10-20 — F5 V2 PR #626 merged; post-merge alignment prepared
 
 - PR #626 is CLOSED/MERGED.
+- Alignment Draft PR: #627.
 - New main: `f9736b4bc78341f3a14ebacf1e38450c0443db2f`; merge parents are old main `4a1d58d...` and reviewed PR head `a6ed1e75...`.
 - PR-head tree equals merge tree `4c47d95d...`; PR-head-to-new-main content delta is NONE.
 - Pre-merge exact-head workflows were 19/19 PASS.
