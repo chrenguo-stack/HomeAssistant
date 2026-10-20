@@ -754,8 +754,12 @@ def test_cli_exposes_preflight_and_apply_with_explicit_authorization() -> None:
     assert 'choices=("preflight", "apply")' in source
     assert 'parser.add_argument("--authorization-id")' in source
     assert 'parser.add_argument("--run-context", type=Path)' in source
-    assert 'parser.add_argument("--artifact-id", type=int, required=True)' in source
-    assert 'parser.add_argument("--artifact-zip-sha256", required=True)' in source
+    assert 'parser.add_argument("--artifact-id", type=int)' in source
+    assert 'parser.add_argument("--artifact-zip-sha256")' in source
+    assert 'parser.add_argument("--release-f3-payload", type=Path)' in source
+    assert 'parser.add_argument("--release-f3-images", type=Path)' in source
+    assert "artifact_source_selection_invalid" in source
+    assert "github_artifact_identity_required" in source
     assert '"--artifact-cache-root"' in source
     assert "DEFAULT_ARTIFACT_CACHE_ROOT" in source
     assert tool.DEFAULT_ARTIFACT_CACHE_ROOT == "~/Documents/N3W/exact-artifacts"
@@ -764,6 +768,92 @@ def test_cli_exposes_preflight_and_apply_with_explicit_authorization() -> None:
     assert "timeout=7200" in source
     assert "authorization_id_mismatch" in source
     assert '"docker_mutation": False' in source
+
+
+def _write_release_tar(path: Path, files: dict[str, bytes]) -> None:
+    with tarfile.open(path, "w") as bundle:
+        for name, payload in sorted(files.items()):
+            info = tarfile.TarInfo(name)
+            info.size = len(payload)
+            bundle.addfile(info, io.BytesIO(payload))
+
+
+def test_release_local_f3_materialization_reconstructs_exact_outer_set(
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    source_head = "d" * 40
+    payload_tar = tmp_path / "f3-payload.tar"
+    image_tar = tmp_path / "f3-images.tar"
+    _write_release_tar(
+        payload_tar,
+        {
+            name: name.encode("utf-8")
+            for name in tool.RELEASE_F3_PAYLOAD_FILES
+        },
+    )
+    image_files = {
+        name: name.encode("utf-8")
+        for name in tool.IMAGE_ARTIFACT_FILES.values()
+    }
+    image_files["image-set.json"] = (
+        json.dumps(
+            {
+                "schema": "gh.n3w-t1-f5-v2-image-set/1",
+                "source_head": source_head,
+                "files": [],
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        + "\n"
+    ).encode("utf-8")
+    _write_release_tar(image_tar, image_files)
+    work = tmp_path / "work"
+    work.mkdir()
+
+    observed = tool._materialize_release_artifacts(
+        work,
+        f3_payload=payload_tar,
+        f3_images=image_tar,
+    )
+
+    assert observed == source_head
+    assert {path.name for path in work.iterdir()} == set(
+        tool.ARTIFACT_OUTER_FILES
+    )
+    assert not (work / "image-set.json").exists()
+
+
+def test_release_local_f3_materialization_rejects_unexpected_member(
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    payload_tar = tmp_path / "f3-payload.tar"
+    _write_release_tar(
+        payload_tar,
+        {
+            **{
+                name: name.encode("utf-8")
+                for name in tool.RELEASE_F3_PAYLOAD_FILES
+            },
+            "unexpected": b"x",
+        },
+    )
+    image_tar = tmp_path / "f3-images.tar"
+    _write_release_tar(image_tar, {})
+    work = tmp_path / "work"
+    work.mkdir()
+
+    with pytest.raises(
+        tool.FreshHostTransportError,
+        match="release_artifact_member_unexpected",
+    ):
+        tool._materialize_release_artifacts(
+            work,
+            f3_payload=payload_tar,
+            f3_images=image_tar,
+        )
 
 
 def _write_payload_archive(path: Path, *, link: bool) -> str:
