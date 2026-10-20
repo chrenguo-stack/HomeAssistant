@@ -184,6 +184,15 @@ def test_legacy_authorization_residue_requires_reflash():
     assert result["checks"]["HOST.PRODUCT_ABSENT"] == "FAIL"
 
 
+def test_production_authority_root_without_marker_is_residue():
+    observed = observation()
+    observed["product_paths"]["/var/lib/n3w-production"] = True
+    observed["product_paths"]["/var/lib/n3w-production/run.json"] = False
+    result = qualification.evaluate(observed, release_document(), ssh_trust=True)
+    assert result["status"] == "FAIL_REFLASH_REQUIRED"
+    assert result["checks"]["HOST.PRODUCT_ABSENT"] == "FAIL"
+
+
 def test_product_unit_or_listener_residue_requires_reflash():
     observed = observation()
     observed["product_units_present"] = ["n3wfc4-services-activation.service"]
@@ -203,6 +212,7 @@ def test_fresh_residue_contract_covers_historical_authority_and_provisioning_roo
         "/var/lib/n3w-fresh-bootstrap-authorizations",
         "/var/lib/n3w-t1-provisioning",
         "/var/tmp/n3w-t1-provisioning-candidate",
+        "/var/lib/n3w-production",
     }
     assert expected.issubset(set(qualification.PRODUCT_PATHS))
     assert set(qualification.PRODUCT_UNITS) == {
