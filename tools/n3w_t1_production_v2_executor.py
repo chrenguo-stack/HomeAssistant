@@ -1,0 +1,1164 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import hashlib
+import http.client
+import json
+import os
+import secrets
+import shutil
+import socket
+import ssl
+import stat
+import subprocess
+import sys
+import tarfile
+import tempfile
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Callable
+
+from n3w_t1_f5_v2_release_builder import verify_release_directory
+from n3w_t1_failure_forensics import (
+    build_manifest,
+    collect_snapshot,
+    freeze_failure,
+    reflash_disposition,
+)
+from n3w_t1_fresh_armbian_qualification import collect as collect_qualification
+from n3w_t1_post_reboot_acceptance import run_acceptance
+from n3w_t1_production_v2 import R3Orchestrator
+from n3w_t1_production_v2_contract import canonical_json_bytes, validate_release
+from n3w_t1_ssh_transport import SSHTransport
+
+SCHEMA = "gh.n3w-t1-production-v2-live-executor/1"
+APPROVAL_PREFIX = "APPROVE N3W T1 F5 V2 PRODUCTION"
+MARKER_PATH = "/var/lib/n3w-production/run.json"
+F4_TRANSACTION_PATH = "/var/lib/n3w-t1-provisioning/F4_ACTIVATION_TRANSACTION.json"
+REBOOT_CLAIM_PATH = "/var/lib/n3w-t1-provisioning/F4_REBOOT_AUTHORIZATION.json"
+PROVISION_CLI = "/usr/local/sbin/n3w-t1-provision"
+F4_CLI = "/usr/local/sbin/n3w-t1-f4-activation"
+REBOOT_AUTHORITY_CLI = "/usr/local/sbin/n3w-t1-f4-reboot-authority"
+REBOOT_VERIFY_CLI = "/usr/local/sbin/n3w-t1-f4-reboot-verify"
+COMPOSE_FILE = "/etc/n3wfc4/docker-compose.yml"
+BROKER_TLS_PORT = 8883
+HOMEASSISTANT_PORT = 8123
+TLS_SERVER_NAME = "armbian"
+SSH_WAIT_SECONDS = 180
+REBOOT_DISCONNECT_SECONDS = 45
+SERVICE_NAMES = ("broker", "manager", "homeassistant")
+F4_COMMANDS = {
+    "F4_ACTIVATE": ("activate", "--confirm", "START F4 ACTIVATION: YES"),
+    "F4_ACCEPT": ("accept-runtime",),
+    "F4_PERSISTENCE": ("enable-persistence",),
+    "F4_CERT_AUDIT": ("certificate-audit",),
+    "F4_CERT_TIMER": ("enable-certificate-timer",),
+}
+
+
+class ProductionExecutorError(RuntimeError):
+    pass
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _target_host(target: str) -> str:
+    value = target.rsplit("@", 1)[-1]
+    if not value or ":" in value:
+        raise ProductionExecutorError("target_host_invalid")
+    return value
+
+
+def target_binding_sha256(expected_host_key_sha256: str) -> str:
+    if (
+        len(expected_host_key_sha256) != 64
+        or any(c not in "0123456789abcdef" for c in expected_host_key_sha256)
+    ):
+        raise ProductionExecutorError("host_key_sha256_invalid")
+    return hashlib.sha256(
+        ("ssh-ed25519:" + expected_host_key_sha256).encode("ascii")
+    ).hexdigest()
+
+
+def _private_directory(path: Path) -> Path:
+    path = path.expanduser().resolve()
+    path.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(path, 0o700)
+    metadata = path.stat()
+    if metadata.st_uid != os.geteuid() or stat.S_IMODE(metadata.st_mode) != 0o700:
+        raise ProductionExecutorError("private_directory_invalid")
+    return path
+
+
+def _atomic_private_json(path: Path, document: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    payload = canonical_json_bytes(document)
+    descriptor, raw = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    temp = Path(raw)
+    try:
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temp, path)
+        os.chmod(path, 0o600)
+    finally:
+        temp.unlink(missing_ok=True)
+
+
+def _tar_member_bytes(path: Path, member_name: str) -> bytes:
+    if path.is_symlink() or not path.is_file():
+        raise ProductionExecutorError("release_artifact_invalid")
+    try:
+        with tarfile.open(path, "r:*") as bundle:
+            matches = [
+                member
+                for member in bundle.getmembers()
+                if member.isfile() and member.name.lstrip("./") == member_name
+            ]
+            if len(matches) != 1:
+                raise ProductionExecutorError(
+                    f"release_tar_member_invalid:{member_name}"
+                )
+            stream = bundle.extractfile(matches[0])
+            if stream is None:
+                raise ProductionExecutorError(
+                    f"release_tar_member_unreadable:{member_name}"
+                )
+            return stream.read()
+    except tarfile.TarError as error:
+        raise ProductionExecutorError("release_tar_invalid") from error
+
+
+def _tar_member_sha256(path: Path, member_name: str) -> str:
+    return hashlib.sha256(_tar_member_bytes(path, member_name)).hexdigest()
+
+
+def _tar_member_text(path: Path, member_name: str) -> str:
+    try:
+        return _tar_member_bytes(path, member_name).decode("utf-8").strip()
+    except UnicodeError as error:
+        raise ProductionExecutorError(
+            f"release_tar_member_text_invalid:{member_name}"
+        ) from error
+
+
+def _json_output(completed: subprocess.CompletedProcess[str], stage: str) -> dict[str, Any]:
+    if completed.returncode != 0:
+        raise ProductionExecutorError(f"{stage}_command_failed")
+    lines = [line.strip() for line in completed.stdout.splitlines() if line.strip()]
+    if not lines:
+        raise ProductionExecutorError(f"{stage}_output_missing")
+    try:
+        value = json.loads(lines[-1])
+    except json.JSONDecodeError as error:
+        raise ProductionExecutorError(f"{stage}_output_invalid") from error
+    if not isinstance(value, dict):
+        raise ProductionExecutorError(f"{stage}_output_invalid")
+    return value
+
+
+def _mqtt_varint(value: int) -> bytes:
+    output = bytearray()
+    while True:
+        digit = value % 128
+        value //= 128
+        if value:
+            digit |= 0x80
+        output.append(digit)
+        if not value:
+            return bytes(output)
+
+
+def _mqtt_field(value: str) -> bytes:
+    payload = value.encode("utf-8")
+    if len(payload) > 65535:
+        raise ProductionExecutorError("mqtt_field_too_long")
+    return len(payload).to_bytes(2, "big") + payload
+
+
+def _recv_exact(stream: ssl.SSLSocket, count: int) -> bytes:
+    data = bytearray()
+    while len(data) < count:
+        block = stream.recv(count - len(data))
+        if not block:
+            raise ProductionExecutorError("mqtt_connection_closed")
+        data.extend(block)
+    return bytes(data)
+
+
+def _recv_varint(stream: ssl.SSLSocket) -> int:
+    multiplier = 1
+    value = 0
+    for _ in range(4):
+        byte = _recv_exact(stream, 1)[0]
+        value += (byte & 0x7F) * multiplier
+        if not byte & 0x80:
+            return value
+        multiplier *= 128
+    raise ProductionExecutorError("mqtt_remaining_length_invalid")
+
+
+def _mqtt_authenticate(
+    host: str,
+    *,
+    ca_pem: str,
+    username: str,
+    password: str,
+    client_id: str,
+) -> bool:
+    context = ssl.create_default_context()
+    context.check_hostname = True
+    context.verify_mode = ssl.CERT_REQUIRED
+    context.load_verify_locations(cadata=ca_pem)
+    raw = socket.create_connection((host, BROKER_TLS_PORT), timeout=8)
+    with context.wrap_socket(raw, server_hostname=TLS_SERVER_NAME) as stream:
+        stream.settimeout(8)
+        flags = 0x02 | 0x80 | 0x40
+        variable = (
+            b"\x00\x04MQTT"
+            + b"\x05"
+            + bytes((flags,))
+            + b"\x00\x0a"
+            + b"\x00"
+        )
+        payload = (
+            _mqtt_field(client_id)
+            + _mqtt_field(username)
+            + _mqtt_field(password)
+        )
+        packet = b"\x10" + _mqtt_varint(len(variable) + len(payload)) + variable + payload
+        stream.sendall(packet)
+        if _recv_exact(stream, 1) != b"\x20":
+            raise ProductionExecutorError("mqtt_connack_invalid")
+        remaining = _recv_varint(stream)
+        body = _recv_exact(stream, remaining)
+        if len(body) < 2:
+            raise ProductionExecutorError("mqtt_connack_short")
+        accepted = body[1] == 0
+        if accepted:
+            stream.sendall(b"\xe0\x00")
+        return accepted
+
+
+class LiveProductionAdapter:
+    def __init__(
+        self,
+        *,
+        release_root: Path,
+        target: str,
+        known_hosts: Path,
+        expected_host_key_sha256: str,
+        run_id: str,
+        evidence_root: Path,
+        work_root: Path,
+    ) -> None:
+        self.release_root = release_root.resolve()
+        verified = verify_release_directory(self.release_root)
+        if verified.get("status") != "PASS":
+            raise ProductionExecutorError("release_verification_failed")
+        try:
+            release = json.loads(
+                (self.release_root / "release.json").read_text(encoding="utf-8")
+            )
+        except (OSError, UnicodeError, json.JSONDecodeError) as error:
+            raise ProductionExecutorError("release_json_invalid") from error
+        self.release = validate_release(release)
+        self.target = target
+        self.host = _target_host(target)
+        self.expected_host_key_sha256 = expected_host_key_sha256
+        self.run_id = run_id
+        self.evidence_root = _private_directory(evidence_root)
+        self.work_root = _private_directory(work_root)
+        self.transport = SSHTransport(
+            target=target,
+            known_hosts=known_hosts,
+            expected_host_key_sha256=expected_host_key_sha256,
+            work_root=self.work_root,
+        )
+        self.remote_root: str | None = None
+        self.reboot_actuated = False
+        self.failure_session_closed = False
+        self._ca_pem: str | None = None
+        self._service_material: dict[str, tuple[dict[str, Any], str]] = {}
+        self.f4_manifest_sha256 = _tar_member_sha256(
+            self._artifact("f4_control"),
+            "f4-package/f4-package-manifest.json",
+        )
+        self.reboot_manifest_sha256 = _tar_member_sha256(
+            self._artifact("reboot_control"),
+            "reboot-successor-control/reboot-successor-manifest.json",
+        )
+
+    def _artifact(self, name: str) -> Path:
+        path = self.release_root / "artifacts" / name
+        if path.is_symlink() or not path.is_file():
+            raise ProductionExecutorError(f"release_artifact_missing:{name}")
+        binding = self.release["artifacts"].get(name)
+        if (
+            not isinstance(binding, dict)
+            or binding.get("size_bytes") != path.stat().st_size
+            or binding.get("sha256") != _sha256(path)
+        ):
+            raise ProductionExecutorError(f"release_artifact_binding_invalid:{name}")
+        return path
+
+    def _remote(self, argv: tuple[str, ...], *, timeout: float = 300, check: bool = True):
+        return self.transport.run_remote(argv, timeout=timeout, check=check)
+
+    def _remote_json(self, argv: tuple[str, ...], stage: str, *, timeout: float = 300):
+        return _json_output(
+            self._remote(argv, timeout=timeout, check=False),
+            stage,
+        )
+
+    def _remote_secret_text(self, path: str) -> str:
+        completed = self._remote(("sudo", "-n", "cat", path), timeout=30, check=False)
+        if completed.returncode != 0:
+            raise ProductionExecutorError("remote_secret_read_failed")
+        return completed.stdout.rstrip("\r\n")
+
+    def _remote_json_file(self, path: str) -> dict[str, Any]:
+        raw = self._remote_secret_text(path)
+        try:
+            value = json.loads(raw)
+        except json.JSONDecodeError as error:
+            raise ProductionExecutorError("remote_json_invalid") from error
+        if not isinstance(value, dict):
+            raise ProductionExecutorError("remote_json_invalid")
+        return value
+
+    def _open_remote_root(self) -> None:
+        if self.remote_root is not None:
+            raise ProductionExecutorError("remote_workspace_already_open")
+        completed = self._remote(
+            ("mktemp", "-d", "/var/tmp/n3w-f5-v2-executor.XXXXXX"),
+            timeout=30,
+            check=False,
+        )
+        if completed.returncode != 0:
+            raise ProductionExecutorError("remote_workspace_create_failed")
+        value = completed.stdout.strip()
+        if not value.startswith("/var/tmp/n3w-f5-v2-executor."):
+            raise ProductionExecutorError("remote_workspace_invalid")
+        self.remote_root = value
+        self._upload_tool("n3w_t1_production_v2_contract.py")
+        self._upload_tool("n3w_t1_production_marker.py")
+        self._upload_tool("n3w_t1_fresh_host_baseline.py")
+
+    def _cleanup_remote_root(self) -> None:
+        root = self.remote_root
+        if root is None:
+            return
+        completed = self._remote(("rm", "-rf", root), timeout=30, check=False)
+        if completed.returncode != 0:
+            raise ProductionExecutorError("remote_workspace_cleanup_failed")
+        self.remote_root = None
+
+    def _upload_tool(self, name: str) -> str:
+        if self.remote_root is None:
+            raise ProductionExecutorError("remote_workspace_not_open")
+        local = Path(__file__).resolve().parent / name
+        remote = f"{self.remote_root}/{name}"
+        self.transport.scp_to(local, remote, timeout=180)
+        return remote
+
+    def _marker_command(self, command: str, binding: dict[str, str], *extra: str):
+        if self.remote_root is None:
+            raise ProductionExecutorError("remote_workspace_not_open")
+        marker = f"{self.remote_root}/n3w_t1_production_marker.py"
+        argv = [
+            "sudo",
+            "-n",
+            "env",
+            f"PYTHONPATH={self.remote_root}",
+            "python3",
+            "-B",
+            marker,
+            command,
+        ]
+        for key in (
+            "run_id",
+            "release_id",
+            "release_sha256",
+            "source_head",
+            "target_binding_sha256",
+            "ssh_host_key_sha256",
+            "plan_sha256",
+        ):
+            argv.extend(("--" + key.replace("_", "-"), binding[key]))
+        argv.extend(extra)
+        return tuple(argv)
+
+    def _stage_release_tar(self, name: str, expected_root: str) -> str:
+        if self.remote_root is None:
+            raise ProductionExecutorError("remote_workspace_not_open")
+        local = self._artifact(name)
+        remote_tar = f"{self.remote_root}/{name}.tar"
+        self.transport.scp_to(local, remote_tar, timeout=1800)
+        completed = self._remote(
+            ("tar", "-xf", remote_tar, "-C", self.remote_root),
+            timeout=300,
+            check=False,
+        )
+        if completed.returncode != 0:
+            raise ProductionExecutorError(f"remote_package_extract_failed:{name}")
+        root = f"{self.remote_root}/{expected_root}"
+        probe = self._remote(("test", "-d", root), timeout=20, check=False)
+        if probe.returncode != 0:
+            raise ProductionExecutorError(f"remote_package_root_missing:{name}")
+        return root
+
+    def verify_release(self, release: dict[str, Any]) -> dict[str, Any]:
+        if validate_release(release) != self.release:
+            raise ProductionExecutorError("release_document_mismatch")
+        report = verify_release_directory(self.release_root)
+        return {"status": "PASS", **report}
+
+    def start_ssh_epoch(self) -> dict[str, Any]:
+        epoch = self.transport.start_epoch()
+        if epoch.get("host_key_sha256") != self.expected_host_key_sha256:
+            raise ProductionExecutorError("ssh_host_key_drift")
+        self._open_remote_root()
+        return dict(epoch)
+
+    def qualify(self, release: dict[str, Any]) -> dict[str, Any]:
+        result = collect_qualification(self.transport, release)
+        if result.get("status") != "PASS":
+            raise ProductionExecutorError(
+                "fresh_qualification_not_pass:" + str(result.get("status"))
+            )
+        return result
+
+    def start_marker(self, binding: dict[str, str]) -> dict[str, Any]:
+        result = self._remote_json(
+            self._marker_command(
+                "start",
+                binding,
+                "--created-at",
+                _utc_now(),
+            ),
+            "marker_start",
+        )
+        if result.get("state") != "STARTED":
+            raise ProductionExecutorError("marker_start_not_confirmed")
+        return result
+
+    def marker_sha256(self) -> str:
+        completed = self._remote(
+            ("sudo", "-n", "sha256sum", MARKER_PATH),
+            timeout=30,
+            check=False,
+        )
+        if completed.returncode != 0:
+            raise ProductionExecutorError("marker_sha256_failed")
+        value = completed.stdout.split()[0] if completed.stdout.split() else ""
+        if len(value) != 64 or any(c not in "0123456789abcdef" for c in value):
+            raise ProductionExecutorError("marker_sha256_invalid")
+        return value
+
+    def host_baseline(self, packages: dict[str, str]) -> dict[str, Any]:
+        if self.remote_root is None:
+            raise ProductionExecutorError("remote_workspace_not_open")
+        tool = f"{self.remote_root}/n3w_t1_fresh_host_baseline.py"
+        result = self._remote_json(
+            (
+                "sudo",
+                "-n",
+                "python3",
+                "-B",
+                tool,
+                "--phase",
+                "install",
+                "--docker-io-package-version",
+                packages["docker.io"],
+                "--docker-compose-v2-package-version",
+                packages["docker-compose-v2"],
+            ),
+            "host_baseline",
+            timeout=1800,
+        )
+        if result.get("status") != "PASS":
+            raise ProductionExecutorError("host_baseline_not_pass")
+        return result
+
+    def f3_deploy(self, run_context: dict[str, str]) -> dict[str, Any]:
+        context = self.work_root / f"run-context-{self.run_id}.json"
+        _atomic_private_json(context, run_context)
+        payload = self._artifact("f3_payload")
+        images = self._artifact("f3_image")
+        archive_sha = _tar_member_text(payload, "runtime-payload.sha256").split()[0]
+        manifest_sha = _tar_member_text(payload, "payload-manifest.sha256").split()[0]
+        command = (
+            sys.executable,
+            str(Path(__file__).resolve().parent / "n3w_t1_fresh_product_staging_host.py"),
+            "--t1",
+            self.target,
+            "--phase",
+            "apply",
+            "--release-f3-payload",
+            str(payload),
+            "--release-f3-images",
+            str(images),
+            "--archive-sha256",
+            archive_sha,
+            "--manifest-sha256",
+            manifest_sha,
+            "--run-context",
+            str(context),
+        )
+        completed = subprocess.run(
+            command,
+            check=False,
+            text=True,
+            capture_output=True,
+            timeout=7200,
+            env=self.transport.managed_environment(),
+        )
+        result = _json_output(completed, "f3_deploy")
+        if result.get("status") != "PASS":
+            raise ProductionExecutorError("f3_deploy_not_pass")
+        return result
+
+    def provision(self) -> dict[str, Any]:
+        started = self._remote_json(
+            (
+                "sudo",
+                "-n",
+                PROVISION_CLI,
+                "start",
+                "--confirm",
+                "START DEVICE PROVISIONING: YES",
+            ),
+            "provision_start",
+            timeout=1800,
+        )
+        if started.get("status") != "PASS":
+            raise ProductionExecutorError("provision_start_not_pass")
+        verified = self._remote_json(
+            ("sudo", "-n", PROVISION_CLI, "verify"),
+            "provision_verify",
+            timeout=600,
+        )
+        if verified.get("status") != "PASS":
+            raise ProductionExecutorError("provision_verify_not_pass")
+        return {
+            "status": "PASS",
+            "start_state": started.get("state"),
+            "verify_state": verified.get("state"),
+            "production_service_start": False,
+            "board_access": False,
+        }
+
+    def f4_action(self, action: str, authorization_id: str) -> dict[str, Any]:
+        if action == "F4_PREPARE":
+            package_root = self._stage_release_tar("f4_control", "f4-package")
+            script = f"{package_root}/tools/n3w_t1_f4_activation_host.py"
+            result = self._remote_json(
+                (
+                    "sudo",
+                    "-n",
+                    "python3",
+                    "-B",
+                    script,
+                    "prepare",
+                    "--confirm",
+                    "PREPARE F4 ACTIVATION: YES",
+                    "--authorization-id",
+                    authorization_id,
+                    "--package-root",
+                    package_root,
+                    "--package-manifest-sha256",
+                    self.f4_manifest_sha256,
+                    "--package-source-head",
+                    self.release["source_head"],
+                ),
+                "f4_prepare",
+                timeout=1200,
+            )
+        else:
+            command = F4_COMMANDS.get(action)
+            if command is None:
+                raise ProductionExecutorError(f"f4_action_invalid:{action}")
+            argv = ["sudo", "-n", F4_CLI, *command, "--authorization-id", authorization_id]
+            result = self._remote_json(tuple(argv), action.casefold(), timeout=1200)
+        if result.get("status") != "PASS":
+            raise ProductionExecutorError(f"{action.casefold()}_not_pass")
+        return result
+
+    def controlled_reboot(
+        self,
+        install_authorization_id: str,
+        reboot_authorization_id: str,
+    ) -> dict[str, Any]:
+        package_root = self._stage_release_tar(
+            "reboot_control",
+            "reboot-successor-control",
+        )
+        script = f"{package_root}/tools/n3w_t1_f4_reboot_authority.py"
+        transaction_sha = self._remote_secret_text(
+            F4_TRANSACTION_PATH,
+        )
+        transaction_sha = hashlib.sha256(
+            (transaction_sha + "\n").encode("utf-8")
+        ).hexdigest()
+        common = (
+            "--source-head",
+            self.release["source_head"],
+            "--manifest-sha256",
+            self.reboot_manifest_sha256,
+            "--expected-transaction-sha256",
+            transaction_sha,
+        )
+        claim_install = self._remote_json(
+            (
+                "sudo",
+                "-n",
+                "python3",
+                "-B",
+                script,
+                "claim-install",
+                "--package-root",
+                package_root,
+                "--authorization-id",
+                install_authorization_id,
+                *common,
+            ),
+            "reboot_control_claim_install",
+        )
+        if claim_install.get("status") != "PASS":
+            raise ProductionExecutorError("reboot_control_claim_install_not_pass")
+        installed = self._remote_json(
+            (
+                "sudo",
+                "-n",
+                "python3",
+                "-B",
+                script,
+                "install-control",
+                "--package-root",
+                package_root,
+                *common,
+            ),
+            "reboot_control_install",
+        )
+        if installed.get("status") != "PASS":
+            raise ProductionExecutorError("reboot_control_install_not_pass")
+        verified = self._remote_json(
+            (
+                "sudo",
+                "-n",
+                REBOOT_AUTHORITY_CLI,
+                "verify-install",
+                *common,
+            ),
+            "reboot_control_verify",
+        )
+        if verified.get("status") != "PASS":
+            raise ProductionExecutorError("reboot_control_verify_not_pass")
+        claim = self._remote_json(
+            (
+                "sudo",
+                "-n",
+                REBOOT_AUTHORITY_CLI,
+                "claim-reboot",
+                "--authorization-id",
+                reboot_authorization_id,
+                *common,
+            ),
+            "reboot_claim",
+        )
+        if (
+            claim.get("status") != "PASS"
+            or claim.get("state") != "REBOOT_PENDING"
+            or claim.get("host_reboot_actuation_required") is not True
+        ):
+            raise ProductionExecutorError("reboot_claim_not_pass")
+        verification = self._remote_json(
+            (
+                "sudo",
+                "-n",
+                REBOOT_AUTHORITY_CLI,
+                "verify-reboot-claim",
+                *common,
+            ),
+            "reboot_claim_verify",
+        )
+        if verification.get("status") != "PASS":
+            raise ProductionExecutorError("reboot_claim_verify_not_pass")
+        self._cleanup_remote_root()
+        control_path = str(self.transport.control_path)
+        self.reboot_actuated = True
+        actuation = self._remote(
+            ("sudo", "-n", "systemctl", "reboot"),
+            timeout=30,
+            check=False,
+        )
+        if actuation.returncode not in {0, 255}:
+            raise ProductionExecutorError("reboot_actuation_failed")
+        deadline = time.monotonic() + REBOOT_DISCONNECT_SECONDS
+        while time.monotonic() < deadline:
+            checked = self.transport.runner.run(
+                ("ssh", "-S", control_path, "-O", "check", self.target),
+                timeout=10,
+                check=False,
+            )
+            if checked.returncode != 0:
+                return {
+                    "status": "PASS",
+                    "state": "REBOOT_PENDING",
+                    "reboot_authorization_claimed": True,
+                    "reboot_authorization_consumed": True,
+                    "host_reboot_actuation_required": True,
+                    "board_access": False,
+                }
+            time.sleep(1)
+        raise ProductionExecutorError("reboot_disconnect_not_observed")
+
+    def close_pre_reboot_epoch(self) -> dict[str, Any]:
+        if self.remote_root is not None:
+            self._cleanup_remote_root()
+        result = self.transport.close_epoch(
+            expected_disconnect=self.reboot_actuated,
+        )
+        self.failure_session_closed = result.get("session_closed") is True
+        return dict(result)
+
+    def wait_for_ssh(self) -> dict[str, Any]:
+        deadline = time.monotonic() + SSH_WAIT_SECONDS
+        while time.monotonic() < deadline:
+            try:
+                with socket.create_connection((self.host, 22), timeout=3):
+                    return {
+                        "status": "PASS",
+                        "ssh_available": True,
+                        "wait_seconds_max": SSH_WAIT_SECONDS,
+                    }
+            except OSError:
+                time.sleep(2)
+        raise ProductionExecutorError("post_reboot_ssh_timeout")
+
+    def start_post_reboot_epoch(self) -> dict[str, Any]:
+        epoch = self.transport.start_post_reboot_epoch()
+        if epoch.get("host_key_sha256") != self.expected_host_key_sha256:
+            raise ProductionExecutorError("post_reboot_host_key_drift")
+        self.reboot_actuated = False
+        self._open_remote_root()
+        return dict(epoch)
+
+    def read_started_marker(self) -> dict[str, Any]:
+        return self._remote_json_file(MARKER_PATH)
+
+    def target_local_reboot_verify(self) -> dict[str, Any]:
+        result = self._remote_json(
+            ("sudo", "-n", REBOOT_VERIFY_CLI),
+            "target_local_reboot_verify",
+            timeout=600,
+        )
+        if result.get("status") != "PASS":
+            raise ProductionExecutorError("target_local_reboot_verify_not_pass")
+        return result
+
+    def _ca(self) -> str:
+        if self._ca_pem is None:
+            self._ca_pem = self._remote_secret_text(
+                "/var/lib/greenhouse-manager/identity/system-ca.pem"
+            )
+        return self._ca_pem
+
+    def _material(self, service: str) -> tuple[dict[str, Any], str]:
+        if service not in {"manager", "homeassistant"}:
+            raise ProductionExecutorError("service_material_invalid")
+        if service not in self._service_material:
+            identity = self._remote_json_file(
+                f"/opt/greenhouse-secrets/mqtt/{service}/identity.json"
+            )
+            password = self._remote_secret_text(
+                f"/opt/greenhouse-secrets/mqtt/{service}/password"
+            )
+            if (
+                not isinstance(identity.get("username"), str)
+                or not identity.get("username")
+                or not isinstance(identity.get("client_id"), str)
+                or not identity.get("client_id")
+                or not password
+            ):
+                raise ProductionExecutorError("service_material_invalid")
+            self._service_material[service] = (identity, password)
+        return self._service_material[service]
+
+    def _tls_probe(self) -> None:
+        context = ssl.create_default_context()
+        context.check_hostname = True
+        context.verify_mode = ssl.CERT_REQUIRED
+        context.load_verify_locations(cadata=self._ca())
+        raw = socket.create_connection((self.host, BROKER_TLS_PORT), timeout=8)
+        with context.wrap_socket(raw, server_hostname=TLS_SERVER_NAME) as stream:
+            if not stream.getpeercert():
+                raise ProductionExecutorError("tls_peer_certificate_missing")
+
+    def external_probe(self, name: str) -> dict[str, Any]:
+        if name == "TCP_8883":
+            with socket.create_connection((self.host, BROKER_TLS_PORT), timeout=8):
+                pass
+        elif name in {"TLS_CA", "TLS_HOSTNAME_SNI"}:
+            self._tls_probe()
+        elif name in {"MANAGER_MQTT_AUTH", "HOMEASSISTANT_MQTT_AUTH"}:
+            service = "manager" if name.startswith("MANAGER") else "homeassistant"
+            identity, password = self._material(service)
+            accepted = _mqtt_authenticate(
+                self.host,
+                ca_pem=self._ca(),
+                username=str(identity["username"]),
+                password=password,
+                client_id=str(identity["client_id"]),
+            )
+            if not accepted:
+                raise ProductionExecutorError(f"mqtt_auth_failed:{service}")
+            time.sleep(2)
+        elif name == "INVALID_CREDENTIAL_REJECTED":
+            identity, password = self._material("manager")
+            accepted = _mqtt_authenticate(
+                self.host,
+                ca_pem=self._ca(),
+                username=str(identity["username"]),
+                password=password + "-invalid",
+                client_id=str(identity["client_id"]) + "-invalid",
+            )
+            if accepted:
+                raise ProductionExecutorError("invalid_credential_accepted")
+        elif name == "HOMEASSISTANT_HTTP_READY":
+            connection = http.client.HTTPConnection(
+                self.host,
+                HOMEASSISTANT_PORT,
+                timeout=8,
+            )
+            try:
+                connection.request("GET", "/")
+                response = connection.getresponse()
+                response.read(1024)
+                if response.status not in {200, 401}:
+                    raise ProductionExecutorError(
+                        "homeassistant_http_not_ready"
+                    )
+            finally:
+                connection.close()
+        else:
+            raise ProductionExecutorError(f"external_probe_unknown:{name}")
+        return {"status": "PASS", "accepted": True, "probe": name}
+
+    def _restart_snapshot(self) -> dict[str, tuple[str, int]]:
+        result: dict[str, tuple[str, int]] = {}
+        for service in SERVICE_NAMES:
+            completed = self._remote(
+                (
+                    "sudo",
+                    "-n",
+                    "docker",
+                    "ps",
+                    "--filter",
+                    "label=com.docker.compose.project=n3wfc4",
+                    "--filter",
+                    f"label=com.docker.compose.service={service}",
+                    "--format",
+                    "{{.ID}}",
+                ),
+                timeout=30,
+                check=False,
+            )
+            ids = [line.strip() for line in completed.stdout.splitlines() if line.strip()]
+            if completed.returncode != 0 or len(ids) != 1:
+                raise ProductionExecutorError(
+                    f"restart_snapshot_container_invalid:{service}"
+                )
+            inspected = self._remote(
+                (
+                    "sudo",
+                    "-n",
+                    "docker",
+                    "inspect",
+                    "--format",
+                    "{{.RestartCount}}",
+                    ids[0],
+                ),
+                timeout=30,
+                check=False,
+            )
+            value = inspected.stdout.strip()
+            if inspected.returncode != 0 or not value.isdigit():
+                raise ProductionExecutorError(
+                    f"restart_snapshot_count_invalid:{service}"
+                )
+            result[service] = (ids[0], int(value))
+        return result
+
+    def observe_critical_restarts(self, seconds: int) -> dict[str, Any]:
+        before = self._restart_snapshot()
+        time.sleep(seconds)
+        after = self._restart_snapshot()
+        deltas: dict[str, int] = {}
+        for service in SERVICE_NAMES:
+            if before[service][0] != after[service][0]:
+                raise ProductionExecutorError(
+                    f"critical_container_replaced:{service}"
+                )
+            deltas[service] = after[service][1] - before[service][1]
+        return {
+            "status": "PASS",
+            "observation_seconds": seconds,
+            "restart_deltas": deltas,
+        }
+
+    def post_reboot_acceptance(
+        self,
+        release: dict[str, Any],
+        binding: dict[str, str],
+    ) -> dict[str, Any]:
+        return run_acceptance(self, release, binding)
+
+    def accept_marker(
+        self,
+        binding: dict[str, str],
+        acceptance_sha256: str,
+    ) -> dict[str, Any]:
+        result = self._remote_json(
+            self._marker_command(
+                "accept",
+                binding,
+                "--acceptance-sha256",
+                acceptance_sha256,
+                "--accepted-at",
+                _utc_now(),
+            ),
+            "marker_accept",
+        )
+        if (
+            result.get("state") != "ACCEPTED"
+            or result.get("T1_PRODUCTION_READY") is not True
+        ):
+            raise ProductionExecutorError("marker_accept_not_confirmed")
+        return result
+
+    def close_post_reboot_epoch(self) -> dict[str, Any]:
+        if self.remote_root is not None:
+            self._cleanup_remote_root()
+        result = self.transport.close_epoch()
+        self.failure_session_closed = result.get("session_closed") is True
+        return dict(result)
+
+    def freeze_failure(self, failure: dict[str, Any]) -> dict[str, Any]:
+        frozen = freeze_failure(self.evidence_root, failure)
+        return {"status": "PASS", "failure_frozen": True, "failure": frozen}
+
+    def collect_failure_forensics(self) -> dict[str, Any]:
+        probes: dict[str, Callable[[], Any]] = {
+            "production_marker": lambda: self._remote_json_file(MARKER_PATH),
+            "f4_transaction": lambda: self._remote_json_file(F4_TRANSACTION_PATH),
+            "reboot_claim": lambda: self._remote_json_file(REBOOT_CLAIM_PATH),
+            "system_state": lambda: {
+                "systemd": self._remote(
+                    ("systemctl", "is-system-running"),
+                    timeout=20,
+                    check=False,
+                ).stdout.strip()
+            },
+        }
+        snapshot = collect_snapshot(self.evidence_root, probes)
+        manifest = build_manifest(self.evidence_root)
+        return {
+            "status": "PASS",
+            "evidence_complete": snapshot.get("status") == "COMPLETE",
+            "bundle_sha256": manifest["bundle_sha256"],
+            "unavailable_count": manifest["unavailable_count"],
+        }
+
+    def failure_session_close(self) -> dict[str, Any]:
+        try:
+            if self.remote_root is not None and not self.reboot_actuated:
+                self._cleanup_remote_root()
+            result = self.transport.close_epoch(
+                expected_disconnect=self.reboot_actuated,
+            )
+        except Exception as error:
+            return {
+                "status": "FAIL",
+                "session_closed": False,
+                "error_code": type(error).__name__,
+            }
+        self.remote_root = None
+        self.failure_session_closed = result.get("session_closed") is True
+        return dict(result)
+
+    def record_reflash_disposition(self) -> dict[str, Any]:
+        disposition = reflash_disposition(
+            self.evidence_root,
+            {"session_closed": self.failure_session_closed},
+        )
+        return {
+            "status": "PASS",
+            "reflash_required": disposition.get("REFLASH_ALLOWED") is True,
+            "bundle_sha256": disposition["bundle_sha256"],
+        }
+
+
+def approval_callback(run_id: str, evidence_root: Path):
+    expected = f"{APPROVAL_PREFIX} {run_id}"
+
+    def approve(plan: dict[str, Any]) -> bool:
+        _atomic_private_json(evidence_root / "production-plan.json", plan)
+        summary = {
+            "schema": SCHEMA,
+            "run_id": plan["run_id"],
+            "release_id": plan["release_id"],
+            "release_sha256": plan["release_sha256"],
+            "source_head": plan["source_head"],
+            "target_binding_sha256": plan["target_binding_sha256"],
+            "ssh_host_key_sha256": plan["ssh_host_key_sha256"],
+            "actions": plan["actions"],
+            "approval_required": expected,
+        }
+        print(
+            "PRODUCTION_APPROVAL_SUMMARY="
+            + json.dumps(summary, sort_keys=True, separators=(",", ":")),
+            flush=True,
+        )
+        entered = input("PRODUCTION_APPROVAL> ")
+        return entered == expected
+
+    return approve
+
+
+def parser() -> argparse.ArgumentParser:
+    value = argparse.ArgumentParser()
+    value.add_argument("--release-root", type=Path, required=True)
+    value.add_argument("--target", required=True)
+    value.add_argument("--known-hosts", type=Path, required=True)
+    value.add_argument("--expected-host-key-sha256", required=True)
+    value.add_argument("--run-id")
+    value.add_argument("--evidence-root", type=Path)
+    return value
+
+
+def main() -> int:
+    args = parser().parse_args()
+    run_id = args.run_id or secrets.token_hex(32)
+    if (
+        len(run_id) != 64
+        or any(c not in "0123456789abcdef" for c in run_id)
+    ):
+        print(
+            json.dumps(
+                {"schema": SCHEMA, "status": "STOP", "error_code": "run_id_invalid"},
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+            file=sys.stderr,
+        )
+        return 2
+    evidence_root = args.evidence_root
+    if evidence_root is None:
+        evidence_root = (
+            Path.home()
+            / "Documents"
+            / "N3W"
+            / "production-runs"
+            / run_id
+        )
+    try:
+        evidence_root = _private_directory(evidence_root)
+        work_root = Path(tempfile.mkdtemp(prefix="n3w-f5-v2-live."))
+        os.chmod(work_root, 0o700)
+        adapter = LiveProductionAdapter(
+            release_root=args.release_root,
+            target=args.target,
+            known_hosts=args.known_hosts,
+            expected_host_key_sha256=args.expected_host_key_sha256,
+            run_id=run_id,
+            evidence_root=evidence_root,
+            work_root=work_root,
+        )
+        binding = target_binding_sha256(args.expected_host_key_sha256)
+        print(f"RUN_ID={run_id}", flush=True)
+        print(f"TARGET_BINDING_SHA256={binding}", flush=True)
+        result = R3Orchestrator(adapter).execute(
+            adapter.release,
+            run_id=run_id,
+            target_binding_sha256=binding,
+            approved=False,
+            approval_callback=approval_callback(run_id, evidence_root),
+        )
+        _atomic_private_json(evidence_root / "result-private.json", result)
+        public = {
+            key: result[key]
+            for key in (
+                "schema",
+                "status",
+                "release_id",
+                "release_sha256",
+                "source_head",
+                "run_id_sha256",
+                "target_binding_sha256",
+                "marker_state",
+                "error_class",
+                "device_acceptance",
+                "T1_PRODUCTION_READY",
+                "operator_session_closed",
+                "evidence_complete",
+                "reflash_required",
+                "terminal_stage",
+                "private_result_sha256",
+            )
+            if key in result
+        }
+        _atomic_private_json(evidence_root / "result-public.json", public)
+        print(
+            "PRODUCTION_RESULT="
+            + json.dumps(public, sort_keys=True, separators=(",", ":")),
+            flush=True,
+        )
+        return 0 if (
+            result.get("status") == "PASS"
+            and result.get("T1_PRODUCTION_READY") is True
+        ) else 2
+    except (
+        OSError,
+        RuntimeError,
+        ValueError,
+        subprocess.SubprocessError,
+    ) as error:
+        document = {
+            "schema": SCHEMA,
+            "status": "STOP",
+            "error_code": str(error)[:300] or type(error).__name__,
+            "run_id": run_id,
+            "board_access": False,
+        }
+        try:
+            _atomic_private_json(evidence_root / "executor-stop.json", document)
+        except Exception:
+            pass
+        print(
+            json.dumps(document, sort_keys=True, separators=(",", ":")),
+            file=sys.stderr,
+        )
+        return 2
+    finally:
+        if "work_root" in locals():
+            shutil.rmtree(work_root, ignore_errors=True)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
