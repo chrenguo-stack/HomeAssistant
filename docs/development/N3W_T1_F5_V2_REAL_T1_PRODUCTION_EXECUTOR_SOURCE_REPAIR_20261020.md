@@ -1,0 +1,165 @@
+# N3W T1 F5 V2 real-T1 production executor source repair — 2026-10-20
+
+## 0. Gate
+
+```text
+TASK=N3W_T1_F5_V2_REAL_T1_PRODUCTION_EXECUTOR_SOURCE_REPAIR_20261020_01
+BASE_MAIN=1a0689f2c1c6566a397f065ff546ad26ef02046d
+SOURCE_BRANCH=fix/n3w-t1-f5-v2-real-production-executor-20261020
+SOURCE_PAYLOAD_HEAD_BEFORE_PROGRESS_DOC=8e2a5ae9168a6c323e8508d0af075a85ee718fdd
+
+REPOSITORY_MUTATION=true
+T1_ACCESS=false
+T1_MUTATION=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+```
+
+This repair was entered only after the exact-main release had been built and locally verified and a freshly reflashed T1-B had passed all ten read-only Standard Fresh Armbian qualification checks.
+
+No target mutation is authorized by this source-repair gate.
+
+## 1. Blocker being repaired
+
+The existing V2 source had the R2/R3 orchestration state machine and unit-test adapters, but no concrete real-T1 adapter or production CLI.
+
+The review also found two interfaces that a real executor could not safely bridge without bounded source changes:
+
+1. F4 live primitives require distinct successor authorization IDs for prepare, activate, runtime acceptance, persistence, certificate audit, certificate timer, reboot-control installation and reboot.
+2. F3 host staging only accepted historical GitHub Actions artifact identity, while the production authority is the frozen exact release. The exact release already contains the hash-bound F3 payload and image artifacts and must be sufficient for execution.
+
+## 2. Bounded implementation
+
+### 2.1 Concrete production executor
+
+Added:
+
+```text
+tools/n3w_t1_production_v2_executor.py
+tests/tools/test_n3w_t1_production_v2_executor.py
+```
+
+The executor wires the already-versioned primitives into the frozen V2 order:
+
+```text
+exact release verify
+-> managed SSH epoch #1
+-> fresh qualification
+-> one interactive top-level production approval
+-> V2 marker STARTED
+-> release-bound HOST_BASELINE
+-> exact-release F3
+-> Provision
+-> F4 prepare
+-> F4 activate
+-> F4 runtime acceptance
+-> F4 persistence
+-> F4 certificate audit
+-> F4 certificate timer
+-> reboot-successor control install
+-> one-shot reboot claim
+-> controlled reboot
+-> SSH epoch #2
+-> target-local reboot verifier
+-> Mac-side external acceptance probes
+-> 90-second critical restart observation
+-> V2 marker ACCEPTED
+-> session close
+-> final result
+```
+
+The production approval is deliberately inside the orchestrated execution path after release/SSH/qualification/plan construction and before marker creation or product mutation.
+
+There is no non-interactive `--approved` CLI bypass.
+
+### 2.2 Exact-release F3 source
+
+`tools/n3w_t1_fresh_product_staging_host.py` now supports a second, mutually exclusive input mode:
+
+```text
+--release-f3-payload
+--release-f3-images
+```
+
+The release-local mode reconstructs the already-frozen F3 outer file set from the release artifacts, rejects unsafe/unexpected tar members, binds the image-set source head to the payload source head, then reuses the existing F3 verification and apply path.
+
+The existing GitHub artifact mode remains available for its historical workflows.
+
+### 2.3 F4/reboot authority alignment
+
+`tools/n3w_t1_production_v2.py` now derives distinct deterministic internal IDs for:
+
+```text
+F4_PREPARE
+F4_ACTIVATE
+F4_ACCEPT
+F4_PERSISTENCE
+F4_CERT_AUDIT
+F4_CERT_TIMER
+REBOOT_CONTROL_INSTALL
+REBOOT_CONTROL
+```
+
+No Provision or F4 business primitive was rewritten.
+
+### 2.4 Release packaging
+
+`tools/n3w_t1_f5_v2_release_inputs_builder.py` now includes the concrete executor and its release verifier in `v2_mac_tools`.
+
+A source-repaired production run therefore requires a newly built exact-main release after merge. The previously built release remains valid evidence for the pre-repair source but is not production authority for this repaired source.
+
+## 3. Failure and safety boundaries
+
+The executor reuses the existing fail-closed R3 behavior:
+
+```text
+pre-marker failure -> no target production mutation authority
+post-STARTED failure -> freeze failure -> read-only forensics
+                     -> close operator session
+                     -> REFLASH_REQUIRED
+post-reboot acceptance failure -> same forensic/reflash ordering
+durable ACCEPTED + later cleanup failure -> preserve T1_PRODUCTION_READY
+```
+
+No mutation retry, normal-path repair command, management SSH key installation or board operation was added.
+
+The external MQTT authentication probes intentionally occur before the frozen 90-second no-critical-restart observation. They use the exact provisioned service identities required by the R3 acceptance contract; the observation window begins only after those probes complete.
+
+## 4. Focused source/CI coverage
+
+The repair adds or extends tests for:
+
+- approval placement and rejection of dual approval authority;
+- distinct F4/reboot internal authorization boundaries;
+- exact target transaction byte hashing;
+- exact-release F3 materialization and unsafe-member rejection;
+- concrete executor CLI without approval bypass;
+- required R3 external probe surface;
+- release-input packaging of the executor;
+- source CI compilation and focused test inclusion.
+
+## 5. Current state
+
+```text
+SOURCE_REPAIR_IMPLEMENTED_CANDIDATE=true
+SOURCE_REVIEW_PENDING=true
+EXACT_HEAD_CI_PENDING=true
+DRAFT_PR_PENDING=true
+
+T1_ACCESS=false
+T1_MUTATION=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+```
+
+The already reflashed T1-B remains untouched after its successful read-only qualification.
+
+## 6. Next gate
+
+```text
+NEXT_ONE_GATE=N3W_T1_F5_V2_REAL_T1_PRODUCTION_EXECUTOR_SOURCE_REPAIR_CI_REVIEW_20261020_01
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+The next gate must review the exact PR head, focused CI and changed-file boundary. It must not merge or execute the real T1 production run.
