@@ -1297,7 +1297,8 @@ def test_prebaseline_capacity_is_checked_before_authorization_claim() -> None:
     prebaseline_index = source.index(
         '"remote_capacity_insufficient_prebaseline"'
     )
-    claim_index = source.index("_remote_claim_authorization(")
+    main_index = source.index("def main() -> int:")
+    claim_index = source.index("_remote_claim_authorization(", main_index)
 
     assert baseline_index < prebaseline_index < claim_index
     assert '"capacity_admission": "PREBASELINE_ROOT_PASS"' in source
