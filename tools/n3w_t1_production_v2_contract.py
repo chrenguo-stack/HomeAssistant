@@ -341,6 +341,20 @@ def validate_result(document: Any) -> dict[str, Any]:
     ):
         _bool(value[name], name)
     _text(value["terminal_stage"], "terminal_stage")
-    if value["T1_PRODUCTION_READY"] and value["device_acceptance"] != "PASS":
-        raise ProductionV2ContractError("result_ready_without_acceptance")
+
+    acceptance_pass = value["device_acceptance"] == "PASS"
+    if value["T1_PRODUCTION_READY"] is not acceptance_pass:
+        raise ProductionV2ContractError("result_acceptance_ready_mismatch")
+    if acceptance_pass and value["reflash_required"]:
+        raise ProductionV2ContractError("result_accepted_device_reflash_forbidden")
+
+    if value["status"] == "PASS":
+        if not acceptance_pass:
+            raise ProductionV2ContractError("result_pass_without_device_acceptance")
+        if value["operator_session_closed"] is not True:
+            raise ProductionV2ContractError("result_pass_without_session_close")
+        if value["evidence_complete"] is not True:
+            raise ProductionV2ContractError("result_pass_without_evidence")
+        if value["reflash_required"] is not False:
+            raise ProductionV2ContractError("result_pass_with_reflash")
     return value
