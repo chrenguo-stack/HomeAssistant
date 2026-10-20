@@ -357,14 +357,17 @@ PASS requires:
 
 V2 error policy 不需要穷举所有错误文本。
 
-错误只映射到四类：
+错误映射到五类：
 
 ~~~text
 PRE_MUTATION_FAIL
 MUTATION_FAIL_REFLASH_REQUIRED
 POST_REBOOT_ACCEPTANCE_FAIL_REFLASH_REQUIRED
+POST_REBOOT_EVIDENCE_INSUFFICIENT_REFLASH_REQUIRED
 PROCESS_CLEANUP_FAIL
 ~~~
+
+其中 post-reboot 必须区分“已观察到明确反证”和“现有只读证据不足以证明状态”。前者使用 `POST_REBOOT_ACCEPTANCE_FAIL_REFLASH_REQUIRED`；后者使用 `POST_REBOOT_EVIDENCE_INSUFFICIENT_REFLASH_REQUIRED`，并记录 `device_acceptance=NOT_REACHED`，不得声称产品已证明 FAIL。两者在 STARTED 且尚未 durable ACCEPTED 时都保持 fail-closed，要求 reflash，且不得自动 replay。
 
 UNKNOWN 只影响证据精度，不改变 target policy：
 
