@@ -5,6 +5,8 @@ on:
     paths:
       - ".github/workflows/n3w-t1-f5-v2-source-ci.yml"
       - ".github/workflows/n3w-t1-f5-v2-exact-production-release-ci.yml"
+      - ".github/workflows/n3w-t1-f5-v2-release-inputs-ci.yml"
+      - ".github/workflows/n3w-t1-fresh-bootstrap-deployable-payload-ci.yml"
       - "tools/n3w_t1_production_v2_contract.py"
       - "tools/n3w_t1_ssh_transport.py"
       - "tools/n3w_t1_fresh_armbian_qualification.py"
@@ -12,6 +14,7 @@ on:
       - "tools/n3w_t1_failure_forensics.py"
       - "tools/n3w_t1_production_v2.py"
       - "tools/n3w_t1_f5_v2_release_builder.py"
+      - "tools/n3w_t1_f5_v2_release_inputs_builder.py"
       - "tools/n3w_t1_post_reboot_acceptance.py"
       - "tools/n3w_t1_fresh_host_baseline.py"
       - "tools/n3w_t1_fresh_product_bootstrap.py"
@@ -23,18 +26,23 @@ on:
       - "tests/tools/test_n3w_t1_failure_forensics.py"
       - "tests/tools/test_n3w_t1_production_v2.py"
       - "tests/tools/test_n3w_t1_f5_v2_release_builder.py"
+      - "tests/tools/test_n3w_t1_f5_v2_release_inputs_builder.py"
       - "tests/tools/test_n3w_t1_post_reboot_acceptance.py"
       - "tests/tools/test_n3w_t1_fresh_host_baseline.py"
       - "tests/tools/test_n3w_t1_fresh_product_bootstrap.py"
       - "tests/tools/test_n3w_t1_fresh_product_staging_host.py"
+      - "infra/n3w-t1/production/f5-v2-release-profile.json"
   push:
     branches:
       - main
     paths:
       - ".github/workflows/n3w-t1-f5-v2-source-ci.yml"
       - ".github/workflows/n3w-t1-f5-v2-exact-production-release-ci.yml"
+      - ".github/workflows/n3w-t1-f5-v2-release-inputs-ci.yml"
+      - ".github/workflows/n3w-t1-fresh-bootstrap-deployable-payload-ci.yml"
       - "tools/n3w_t1_production_v2_contract.py"
       - "tools/n3w_t1_f5_v2_release_builder.py"
+      - "tools/n3w_t1_f5_v2_release_inputs_builder.py"
       - "tools/n3w_t1_post_reboot_acceptance.py"
       - "tools/n3w_t1_ssh_transport.py"
       - "tools/n3w_t1_fresh_armbian_qualification.py"
@@ -51,10 +59,12 @@ on:
       - "tests/tools/test_n3w_t1_failure_forensics.py"
       - "tests/tools/test_n3w_t1_production_v2.py"
       - "tests/tools/test_n3w_t1_f5_v2_release_builder.py"
+      - "tests/tools/test_n3w_t1_f5_v2_release_inputs_builder.py"
       - "tests/tools/test_n3w_t1_post_reboot_acceptance.py"
       - "tests/tools/test_n3w_t1_fresh_host_baseline.py"
       - "tests/tools/test_n3w_t1_fresh_product_bootstrap.py"
       - "tests/tools/test_n3w_t1_fresh_product_staging_host.py"
+      - "infra/n3w-t1/production/f5-v2-release-profile.json"
 
 permissions:
   contents: read
@@ -191,7 +201,8 @@ jobs:
           python -m py_compile \
             tools/n3w_t1_production_v2.py \
             tools/n3w_t1_post_reboot_acceptance.py \
-            tools/n3w_t1_f5_v2_release_builder.py
+            tools/n3w_t1_f5_v2_release_builder.py \
+            tools/n3w_t1_f5_v2_release_inputs_builder.py
 
       - name: Run R3 focused tests
         run: |
@@ -200,6 +211,7 @@ jobs:
             tests/tools/test_n3w_t1_production_v2.py \
             tests/tools/test_n3w_t1_post_reboot_acceptance.py \
             tests/tools/test_n3w_t1_f5_v2_release_builder.py \
+            tests/tools/test_n3w_t1_f5_v2_release_inputs_builder.py \
             tests/tools/test_n3w_t1_production_marker.py \
             tests/tools/test_n3w_t1_production_v2_contract.py
 
@@ -217,6 +229,15 @@ jobs:
           )
           exact_ci = Path(
               ".github/workflows/n3w-t1-f5-v2-exact-production-release-ci.yml"
+          ).read_text(encoding="utf-8")
+          producer_ci = Path(
+              ".github/workflows/n3w-t1-f5-v2-release-inputs-ci.yml"
+          ).read_text(encoding="utf-8")
+          f3_ci = Path(
+              ".github/workflows/n3w-t1-fresh-bootstrap-deployable-payload-ci.yml"
+          ).read_text(encoding="utf-8")
+          release_profile = Path(
+              "infra/n3w-t1/production/f5-v2-release-profile.json"
           ).read_text(encoding="utf-8")
 
           required = (
@@ -251,6 +272,31 @@ jobs:
           assert "release_inputs_source_head_mismatch" in release_builder
           assert "release_inputs_source_tree_mismatch" in release_builder
           assert "release_inputs_artifact_set_invalid" in release_builder
+          assert ".github/workflows/n3w-t1-f5-v2-release-inputs-ci.yml" in exact_ci
+          assert "workflow_dispatch" in producer_ci
+          assert "pull_request:" not in producer_ci
+          assert "\n  push:" not in producer_ci
+          assert ".github/workflows/n3w-t1-fresh-bootstrap-deployable-payload-ci.yml" in producer_ci
+          assert ".github/workflows/n3w-t1-f4-exact-control-package.yml" in producer_ci
+          assert "n3w-t1-f5-v2-release-inputs-" in producer_ci
+          assert "github.sha" in producer_ci
+          assert "--production-authority" in producer_ci
+          assert "workflow_dispatch:" in f3_ci
+          assert '"schema": "gh.n3w-t1-production-v2-release-profile/1"' in release_profile
+          release_inputs_builder = Path(
+              "tools/n3w_t1_f5_v2_release_inputs_builder.py"
+          ).read_text(encoding="utf-8")
+          for token in (
+              "production_source_not_exact_merged_main",
+              "f3_image_sha256_mismatch",
+              "f3_payload",
+              "f3_image",
+              "f4_control",
+              "reboot_control",
+              "v2_mac_tools",
+              "transport_contract",
+          ):
+              assert token in release_inputs_builder
 
           print("F5_V2_R3_BOUNDARY=PASS")
           print("OBSERVATION_WINDOW_SECONDS=90")

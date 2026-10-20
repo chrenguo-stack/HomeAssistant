@@ -21,9 +21,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
-      GH_TOKEN: \${{ github.token }}
-      INPUTS_RUN_ID: \${{ inputs.inputs_run_id }}
-      INPUTS_ARTIFACT_NAME: \${{ inputs.inputs_artifact_name }}
+      GH_TOKEN: ${{ github.token }}
+      INPUTS_RUN_ID: ${{ inputs.inputs_run_id }}
+      INPUTS_ARTIFACT_NAME: ${{ inputs.inputs_artifact_name }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -49,16 +49,14 @@ jobs:
           test "$INPUTS_ARTIFACT_NAME" = "$EXPECTED_ARTIFACT_NAME"
 
           RUN_JSON="$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$INPUTS_RUN_ID")"
+          test "$(jq -r '.path' <<<"$RUN_JSON")" = ".github/workflows/n3w-t1-f5-v2-release-inputs-ci.yml"
           test "$(jq -r '.head_sha' <<<"$RUN_JSON")" = "$GITHUB_SHA"
           test "$(jq -r '.head_branch' <<<"$RUN_JSON")" = "main"
           test "$(jq -r '.status' <<<"$RUN_JSON")" = "completed"
           test "$(jq -r '.conclusion' <<<"$RUN_JSON")" = "success"
-          case "$(jq -r '.event' <<<"$RUN_JSON")" in
-            push|workflow_dispatch) ;;
-            *) exit 1 ;;
-          esac
+          test "$(jq -r '.event' <<<"$RUN_JSON")" = "workflow_dispatch"
 
-          ARTIFACTS_JSON="$(gh api --paginate "/repos/$GITHUB_REPOSITORY/actions/runs/$INPUTS_RUN_ID/artifacts")"
+          ARTIFACTS_JSON="$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$INPUTS_RUN_ID/artifacts?per_page=100")"
           MATCH_COUNT="$(
             jq --arg name "$EXPECTED_ARTIFACT_NAME"               '[.artifacts[] | select(.name == $name and .expired == false)] | length'               <<<"$ARTIFACTS_JSON"
           )"
@@ -99,9 +97,9 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: n3w-t1-f5-v2-exact-production-release-\${{ github.sha }}
+          name: n3w-t1-f5-v2-exact-production-release-${{ github.sha }}
           path: |
-            \${{ runner.temp }}/n3w-t1-f5-v2-release.tar.gz
-            \${{ runner.temp }}/n3w-t1-f5-v2-release.tar.gz.sha256
+            ${{ runner.temp }}/n3w-t1-f5-v2-release.tar.gz
+            ${{ runner.temp }}/n3w-t1-f5-v2-release.tar.gz.sha256
           if-no-files-found: error
           retention-days: 30

@@ -1,3 +1,18 @@
+## 2026-10-20 — F5 V2 exact release-inputs producer source repair implemented
+
+- Previous blocker: exact production release required an exact-main release-inputs artifact, but no production producer existed.
+- Source repair branch: `fix/n3w-t1-f5-v2-exact-release-inputs-producer-20261020`.
+- Draft PR: #626.
+- Adds versioned V2 release profile, exact release-inputs builder and focused tests.
+- Adds manual-only exact release-inputs producer workflow bound to exact-main F3 and F4/reboot artifacts.
+- F3 deployable-payload workflow gains manual dispatch so the required exact-main artifact can be rebuilt after merge.
+- Exact production release workflow now accepts release inputs only from the dedicated producer workflow at the same current main SHA.
+- No F3/F4 production artifact, release-inputs artifact or exact production release has been built in this source-repair gate.
+- No T1, board or live runtime access/mutation occurred.
+- Authority: `docs/development/N3W_T1_F5_V2_EXACT_RELEASE_INPUTS_PRODUCER_SOURCE_REPAIR_20261020.md`.
+- Current status: source implemented, PR/CI pending.
+- Next gate: `N3W_T1_F5_V2_EXACT_RELEASE_INPUTS_PRODUCER_SOURCE_REPAIR_CI_REVIEW_20261020_01`.
+
 ## 2026-10-20 — F5 V2 PR #624 merged; post-merge alignment prepared
 
 - Alignment Draft PR: #625.
