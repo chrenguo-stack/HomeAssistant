@@ -46,6 +46,7 @@ PRODUCT_PATHS = (
     "/etc/systemd/system/n3wfc4-broker-certificate-lifecycle.service",
     "/etc/systemd/system/n3wfc4-broker-certificate-lifecycle.timer",
     "/etc/systemd/system/n3wfc4-provision-resume.service",
+    "/var/lib/n3w-production",
     "/var/lib/n3w-production/run.json",
 )
 
