@@ -224,7 +224,10 @@ def control_fixture(
     archive = root / tar_name
     with tarfile.open(archive, "w") as bundle:
         bundle.add(manifest_path, arcname=f"{prefix}/{manifest_name}")
-    write_sidecar(root / sidecar_name, archive)
+    (root / sidecar_name).write_text(
+        f"{sha256(archive)}  out/{tar_name}\n",
+        encoding="ascii",
+    )
     report = {
         "status": "PASS",
         "source_head": HEAD,
