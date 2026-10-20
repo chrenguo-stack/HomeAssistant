@@ -530,3 +530,37 @@ def test_r3_pre_mutation_session_close_failure_does_not_claim_closed():
     assert result["operator_session_closed"] is False
     assert result["reflash_required"] is False
     assert result["terminal_stage"] == "PRE_MUTATION_SESSION_CLOSE"
+
+
+
+def test_r3_insufficient_evidence_stops_without_claiming_product_failure():
+    adapter = Adapter()
+
+    def insufficient(_release, _binding):
+        adapter.calls.append("post_reboot_acceptance")
+        raise r2.EvidenceInsufficientError(
+            "runtime_snapshot_evidence_insufficient"
+        )
+
+    adapter.post_reboot_acceptance = insufficient
+    result = r2.R3Orchestrator(adapter).execute(
+        release_document(),
+        run_id="1" * 64,
+        target_binding_sha256="5" * 64,
+        approved=True,
+    )
+    assert result["status"] == "FAIL"
+    assert result["marker_state"] == "STARTED"
+    assert result["error_class"] == (
+        "POST_REBOOT_EVIDENCE_INSUFFICIENT_REFLASH_REQUIRED"
+    )
+    assert result["device_acceptance"] == "NOT_REACHED"
+    assert result["T1_PRODUCTION_READY"] is False
+    assert result["reflash_required"] is True
+    assert "accept_marker" not in adapter.calls
+    assert adapter.calls[-4:] == [
+        "freeze_failure",
+        "collect_failure_forensics",
+        "failure_session_close",
+        "record_reflash_disposition",
+    ]
