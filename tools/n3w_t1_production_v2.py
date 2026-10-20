@@ -12,6 +12,7 @@ from n3w_t1_production_v2_contract import (
     canonical_sha256,
     validate_plan,
     validate_release,
+    validate_result,
     validate_run_context,
 )
 
@@ -276,6 +277,7 @@ class R2Orchestrator:
                 "state": R2_TERMINAL_STATE,
                 "plan_sha256": canonical_sha256(plan),
                 "run_context": context,
+                "marker_binding": binding,
                 "internal_action_ids": action_ids,
                 "automatic_retry": False,
                 "post_reboot_acceptance_complete": False,
@@ -313,6 +315,284 @@ def self_check() -> dict[str, object]:
         "automatic_retry": False,
         "board_access": False,
     }
+
+
+
+
+R3_SCHEMA = "gh.n3w-t1-production-v2-r3/1"
+
+
+class R3Adapter(R2Adapter, Protocol):
+    def wait_for_ssh(self) -> dict[str, Any]: ...
+    def start_post_reboot_epoch(self) -> dict[str, Any]: ...
+    def post_reboot_acceptance(
+        self,
+        release: dict[str, Any],
+        binding: dict[str, str],
+    ) -> dict[str, Any]: ...
+    def accept_marker(
+        self,
+        binding: dict[str, str],
+        acceptance_sha256: str,
+    ) -> dict[str, Any]: ...
+    def close_post_reboot_epoch(self) -> dict[str, Any]: ...
+
+
+def _run_id_sha256(run_id: str) -> str:
+    return hashlib.sha256(run_id.encode("ascii")).hexdigest()
+
+
+def _private_result_sha256(value: dict[str, Any]) -> str:
+    return canonical_sha256(value)
+
+
+def _final_result(
+    release: dict[str, Any],
+    *,
+    run_id: str,
+    target_binding_sha256: str,
+    status: str,
+    marker_state: str,
+    error_class: str,
+    device_acceptance: str,
+    production_ready: bool,
+    operator_session_closed: bool,
+    evidence_complete: bool,
+    reflash_required: bool,
+    terminal_stage: str,
+    evidence_seed: dict[str, Any],
+) -> dict[str, Any]:
+    document = {
+        "schema": "gh.n3w-t1-production-v2-result/1",
+        "status": status,
+        "release_id": release["release_id"],
+        "release_sha256": canonical_sha256(release),
+        "source_head": release["source_head"],
+        "run_id_sha256": _run_id_sha256(run_id),
+        "target_binding_sha256": target_binding_sha256,
+        "marker_state": marker_state,
+        "error_class": error_class,
+        "device_acceptance": device_acceptance,
+        "T1_PRODUCTION_READY": production_ready,
+        "operator_session_closed": operator_session_closed,
+        "evidence_complete": evidence_complete,
+        "reflash_required": reflash_required,
+        "terminal_stage": terminal_stage,
+        "private_result_sha256": _private_result_sha256(evidence_seed),
+    }
+    return validate_result(document)
+
+
+class R3Orchestrator:
+    def __init__(self, adapter: R3Adapter):
+        self.adapter = adapter
+
+    def _finalize_post_reboot_failure(
+        self,
+        release: dict[str, Any],
+        *,
+        run_id: str,
+        target_binding_sha256: str,
+        stage: str,
+        error: Exception,
+    ) -> dict[str, Any]:
+        failure = {
+            "status": "FAIL",
+            "failed_stage": stage,
+            "error_type": type(error).__name__,
+            "error_class": "POST_REBOOT_ACCEPTANCE_FAIL_REFLASH_REQUIRED",
+            "automatic_retry": False,
+        }
+        _pass(self.adapter.freeze_failure(failure), "failure_freeze")
+        forensic = _pass(
+            self.adapter.collect_failure_forensics(),
+            "failure_forensics",
+        )
+        if forensic.get("evidence_complete") is not True:
+            raise ProductionV2R2Error("failure_forensics_incomplete")
+        session = _pass(
+            self.adapter.failure_session_close(),
+            "failure_session_close",
+        )
+        if session.get("session_closed") is not True:
+            raise ProductionV2R2Error("failure_session_not_closed")
+        disposition = _pass(
+            self.adapter.record_reflash_disposition(),
+            "reflash_disposition",
+        )
+        if disposition.get("reflash_required") is not True:
+            raise ProductionV2R2Error("reflash_disposition_invalid")
+        return _final_result(
+            release,
+            run_id=run_id,
+            target_binding_sha256=target_binding_sha256,
+            status="FAIL",
+            marker_state="STARTED",
+            error_class="POST_REBOOT_ACCEPTANCE_FAIL_REFLASH_REQUIRED",
+            device_acceptance="FAIL",
+            production_ready=False,
+            operator_session_closed=True,
+            evidence_complete=True,
+            reflash_required=True,
+            terminal_stage=stage,
+            evidence_seed={
+                "failure": failure,
+                "forensic": forensic,
+                "session": session,
+                "disposition": disposition,
+            },
+        )
+
+    def execute(
+        self,
+        release_document: Any,
+        *,
+        run_id: str,
+        target_binding_sha256: str,
+        approved: bool,
+    ) -> dict[str, Any]:
+        release = validate_release(deepcopy(release_document))
+        try:
+            pre = R2Orchestrator(self.adapter).execute(
+                release,
+                run_id=run_id,
+                target_binding_sha256=target_binding_sha256,
+                approved=approved,
+            )
+        except Exception as error:
+            return _final_result(
+                release,
+                run_id=run_id,
+                target_binding_sha256=target_binding_sha256,
+                status="FAIL",
+                marker_state="ABSENT",
+                error_class="PRE_MUTATION_FAIL",
+                device_acceptance="NOT_REACHED",
+                production_ready=False,
+                operator_session_closed=True,
+                evidence_complete=True,
+                reflash_required=False,
+                terminal_stage="PRE_MUTATION",
+                evidence_seed={
+                    "error_type": type(error).__name__,
+                    "error": str(error)[:200],
+                },
+            )
+
+        if pre.get("status") != "PASS":
+            return _final_result(
+                release,
+                run_id=run_id,
+                target_binding_sha256=target_binding_sha256,
+                status="FAIL",
+                marker_state="STARTED",
+                error_class="MUTATION_FAIL_REFLASH_REQUIRED",
+                device_acceptance="NOT_REACHED",
+                production_ready=False,
+                operator_session_closed=pre.get("operator_session_closed") is True,
+                evidence_complete=pre.get("evidence_complete") is True,
+                reflash_required=pre.get("reflash_required") is True,
+                terminal_stage=str(pre.get("failed_stage", "PRE_REBOOT")),
+                evidence_seed={"r2_failure": pre},
+            )
+
+        binding = pre.get("marker_binding")
+        if not isinstance(binding, dict):
+            raise ProductionV2R2Error("r2_marker_binding_missing")
+        stage = "WAIT_FOR_SSH"
+        accepted = False
+        acceptance: dict[str, Any] | None = None
+        try:
+            _pass(self.adapter.wait_for_ssh(), "wait_for_ssh")
+            stage = "SSH_EPOCH_2"
+            epoch = _pass(
+                self.adapter.start_post_reboot_epoch(),
+                "post_reboot_ssh_epoch",
+            )
+            if epoch.get("host_key_sha256") != binding["ssh_host_key_sha256"]:
+                raise ProductionV2R2Error("post_reboot_ssh_host_key_mismatch")
+
+            stage = "POST_REBOOT_ACCEPTANCE"
+            acceptance = _pass(
+                self.adapter.post_reboot_acceptance(release, binding),
+                "post_reboot_acceptance",
+            )
+            acceptance_sha = acceptance.get("acceptance_sha256")
+            if (
+                not isinstance(acceptance_sha, str)
+                or re.fullmatch(r"[0-9a-f]{64}", acceptance_sha) is None
+            ):
+                raise ProductionV2R2Error("acceptance_sha256_invalid")
+
+            stage = "MARKER_ACCEPTED"
+            marker = self.adapter.accept_marker(binding, acceptance_sha)
+            if (
+                not isinstance(marker, dict)
+                or marker.get("state") != "ACCEPTED"
+                or marker.get("acceptance_sha256") != acceptance_sha
+                or marker.get("T1_PRODUCTION_READY") is not True
+            ):
+                raise ProductionV2R2Error("marker_accept_not_confirmed")
+            accepted = True
+
+            stage = "SSH_EPOCH_2_CLOSE"
+            close = _pass(
+                self.adapter.close_post_reboot_epoch(),
+                "post_reboot_ssh_epoch_close",
+            )
+            if close.get("session_closed") is not True:
+                raise ProductionV2R2Error("post_reboot_ssh_epoch_not_closed")
+
+            return _final_result(
+                release,
+                run_id=run_id,
+                target_binding_sha256=target_binding_sha256,
+                status="PASS",
+                marker_state="ACCEPTED",
+                error_class="NONE",
+                device_acceptance="PASS",
+                production_ready=True,
+                operator_session_closed=True,
+                evidence_complete=True,
+                reflash_required=False,
+                terminal_stage="COMPLETE",
+                evidence_seed={
+                    "acceptance_sha256": acceptance_sha,
+                    "plan_sha256": binding["plan_sha256"],
+                    "session_closed": True,
+                },
+            )
+        except Exception as error:
+            if accepted:
+                return _final_result(
+                    release,
+                    run_id=run_id,
+                    target_binding_sha256=target_binding_sha256,
+                    status="FAIL",
+                    marker_state="ACCEPTED",
+                    error_class="PROCESS_CLEANUP_FAIL",
+                    device_acceptance="PASS",
+                    production_ready=True,
+                    operator_session_closed=False,
+                    evidence_complete=False,
+                    reflash_required=False,
+                    terminal_stage="PROCESS_CLEANUP_FAIL",
+                    evidence_seed={
+                        "acceptance_sha256": (
+                            acceptance.get("acceptance_sha256")
+                            if isinstance(acceptance, dict)
+                            else None
+                        ),
+                        "error_type": type(error).__name__,
+                    },
+                )
+            return self._finalize_post_reboot_failure(
+                release,
+                run_id=run_id,
+                target_binding_sha256=target_binding_sha256,
+                stage=stage,
+                error=error,
+            )
 
 
 if __name__ == "__main__":

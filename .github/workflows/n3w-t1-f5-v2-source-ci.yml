@@ -4,12 +4,15 @@ on:
   pull_request:
     paths:
       - ".github/workflows/n3w-t1-f5-v2-source-ci.yml"
+      - ".github/workflows/n3w-t1-f5-v2-exact-production-release-ci.yml"
       - "tools/n3w_t1_production_v2_contract.py"
       - "tools/n3w_t1_ssh_transport.py"
       - "tools/n3w_t1_fresh_armbian_qualification.py"
       - "tools/n3w_t1_production_marker.py"
       - "tools/n3w_t1_failure_forensics.py"
       - "tools/n3w_t1_production_v2.py"
+      - "tools/n3w_t1_f5_v2_release_builder.py"
+      - "tools/n3w_t1_post_reboot_acceptance.py"
       - "tools/n3w_t1_fresh_host_baseline.py"
       - "tools/n3w_t1_fresh_product_bootstrap.py"
       - "tools/n3w_t1_fresh_product_staging_host.py"
@@ -19,6 +22,8 @@ on:
       - "tests/tools/test_n3w_t1_production_marker.py"
       - "tests/tools/test_n3w_t1_failure_forensics.py"
       - "tests/tools/test_n3w_t1_production_v2.py"
+      - "tests/tools/test_n3w_t1_f5_v2_release_builder.py"
+      - "tests/tools/test_n3w_t1_post_reboot_acceptance.py"
       - "tests/tools/test_n3w_t1_fresh_host_baseline.py"
       - "tests/tools/test_n3w_t1_fresh_product_bootstrap.py"
       - "tests/tools/test_n3w_t1_fresh_product_staging_host.py"
@@ -154,6 +159,85 @@ jobs:
           assert "R2_TERMINAL_STATE = \"REBOOT_PENDING\"" in source
           assert "repair-" not in source.split("def self_check(", 1)[0]
           print("F5_V2_R2_BOUNDARY=PASS")
+          print("T1_ACCESS=false")
+          print("T1_MUTATION=false")
+          print("BOARD_ACCESS=false")
+          PY
+
+
+  r3-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependency
+        run: python -m pip install "pytest>=8,<9"
+
+      - name: Compile R3 source
+        run: |
+          set -euo pipefail
+          python -m py_compile \
+            tools/n3w_t1_production_v2.py \
+            tools/n3w_t1_post_reboot_acceptance.py \
+            tools/n3w_t1_f5_v2_release_builder.py
+
+      - name: Run R3 focused tests
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/tools/test_n3w_t1_production_v2.py \
+            tests/tools/test_n3w_t1_post_reboot_acceptance.py \
+            tests/tools/test_n3w_t1_f5_v2_release_builder.py \
+            tests/tools/test_n3w_t1_production_marker.py \
+            tests/tools/test_n3w_t1_production_v2_contract.py
+
+      - name: Enforce R3 boundary
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          acceptance = Path("tools/n3w_t1_post_reboot_acceptance.py").read_text(
+              encoding="utf-8"
+          )
+          production = Path("tools/n3w_t1_production_v2.py").read_text(
+              encoding="utf-8"
+          )
+          exact_ci = Path(
+              ".github/workflows/n3w-t1-f5-v2-exact-production-release-ci.yml"
+          ).read_text(encoding="utf-8")
+
+          required = (
+              "TCP_8883",
+              "TLS_CA",
+              "TLS_HOSTNAME_SNI",
+              "MANAGER_MQTT_AUTH",
+              "HOMEASSISTANT_MQTT_AUTH",
+              "INVALID_CREDENTIAL_REJECTED",
+              "HOMEASSISTANT_HTTP_READY",
+          )
+          for token in required:
+              assert token in acceptance
+          assert 'OBSERVATION_SECONDS = 90' in acceptance
+          assert "R3Orchestrator" in production
+          assert "POST_REBOOT_ACCEPTANCE_FAIL_REFLASH_REQUIRED" in production
+          assert "PROCESS_CLEANUP_FAIL" in production
+          assert "repair-" not in production.split("def self_check(", 1)[0]
+          assert "workflow_dispatch:" in exact_ci
+          assert "pull_request:" not in exact_ci
+          assert 'refs/heads/main' in exact_ci
+          assert "--production-authority" in exact_ci
+
+          print("F5_V2_R3_BOUNDARY=PASS")
+          print("OBSERVATION_WINDOW_SECONDS=90")
+          print("PR_RELEASE_PRODUCTION_AUTHORITY=false")
           print("T1_ACCESS=false")
           print("T1_MUTATION=false")
           print("BOARD_ACCESS=false")

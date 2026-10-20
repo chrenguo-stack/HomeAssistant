@@ -140,6 +140,37 @@ class Adapter:
             {"reflash_required": True},
         )
 
+    def wait_for_ssh(self):
+        return self._pass("wait_for_ssh")
+
+    def start_post_reboot_epoch(self):
+        return self._pass(
+            "start_post_reboot_epoch",
+            {"host_key_sha256": "6" * 64},
+        )
+
+    def post_reboot_acceptance(self, _release, _binding):
+        return self._pass(
+            "post_reboot_acceptance",
+            {"acceptance_sha256": "9" * 64},
+        )
+
+    def accept_marker(self, _binding, acceptance_sha256):
+        self.calls.append("accept_marker")
+        if "accept_marker" in self.fail_at:
+            return {"state": "FAIL"}
+        return {
+            "state": "ACCEPTED",
+            "acceptance_sha256": acceptance_sha256,
+            "T1_PRODUCTION_READY": True,
+        }
+
+    def close_post_reboot_epoch(self):
+        return self._pass(
+            "close_post_reboot_epoch",
+            {"session_closed": True},
+        )
+
 
 def test_r2_orchestrator_preserves_frozen_pre_reboot_order_and_stops_at_reboot():
     adapter = Adapter()
@@ -273,3 +304,102 @@ def test_r2_started_failure_refuses_reflash_before_session_close():
             approved=True,
         )
     assert "record_reflash_disposition" not in adapter.calls
+
+
+
+def test_r3_completes_post_reboot_acceptance_before_marker_accept_and_close():
+    adapter = Adapter()
+    result = r2.R3Orchestrator(adapter).execute(
+        release_document(),
+        run_id="1" * 64,
+        target_binding_sha256="5" * 64,
+        approved=True,
+    )
+    assert result["status"] == "PASS"
+    assert result["marker_state"] == "ACCEPTED"
+    assert result["device_acceptance"] == "PASS"
+    assert result["T1_PRODUCTION_READY"] is True
+    assert result["reflash_required"] is False
+    assert adapter.calls[-5:] == [
+        "wait_for_ssh",
+        "start_post_reboot_epoch",
+        "post_reboot_acceptance",
+        "accept_marker",
+        "close_post_reboot_epoch",
+    ]
+
+
+def test_r3_post_reboot_failure_finalizes_forensics_before_reflash():
+    adapter = Adapter(fail_at="post_reboot_acceptance")
+    result = r2.R3Orchestrator(adapter).execute(
+        release_document(),
+        run_id="1" * 64,
+        target_binding_sha256="5" * 64,
+        approved=True,
+    )
+    assert result["status"] == "FAIL"
+    assert result["marker_state"] == "STARTED"
+    assert result["error_class"] == "POST_REBOOT_ACCEPTANCE_FAIL_REFLASH_REQUIRED"
+    assert result["reflash_required"] is True
+    assert adapter.calls[-4:] == [
+        "freeze_failure",
+        "collect_failure_forensics",
+        "failure_session_close",
+        "record_reflash_disposition",
+    ]
+
+
+def test_r3_marker_accept_is_last_target_acceptance_mutation():
+    adapter = Adapter()
+    result = r2.R3Orchestrator(adapter).execute(
+        release_document(),
+        run_id="1" * 64,
+        target_binding_sha256="5" * 64,
+        approved=True,
+    )
+    assert result["status"] == "PASS"
+    assert adapter.calls.index("post_reboot_acceptance") < adapter.calls.index(
+        "accept_marker"
+    )
+    assert adapter.calls.index("accept_marker") < adapter.calls.index(
+        "close_post_reboot_epoch"
+    )
+
+
+def test_r3_cleanup_failure_after_durable_accept_preserves_device_acceptance():
+    adapter = Adapter(fail_at="close_post_reboot_epoch")
+    result = r2.R3Orchestrator(adapter).execute(
+        release_document(),
+        run_id="1" * 64,
+        target_binding_sha256="5" * 64,
+        approved=True,
+    )
+    assert result["status"] == "FAIL"
+    assert result["marker_state"] == "ACCEPTED"
+    assert result["error_class"] == "PROCESS_CLEANUP_FAIL"
+    assert result["device_acceptance"] == "PASS"
+    assert result["T1_PRODUCTION_READY"] is True
+    assert result["reflash_required"] is False
+    assert "record_reflash_disposition" not in adapter.calls
+
+
+def test_r3_rejects_post_reboot_host_key_drift_before_acceptance():
+    adapter = Adapter()
+    original = adapter.start_post_reboot_epoch
+
+    def changed():
+        result = original()
+        result["host_key_sha256"] = "0" * 64
+        return result
+
+    adapter.start_post_reboot_epoch = changed
+    result = r2.R3Orchestrator(adapter).execute(
+        release_document(),
+        run_id="1" * 64,
+        target_binding_sha256="5" * 64,
+        approved=True,
+    )
+    assert result["status"] == "FAIL"
+    assert result["marker_state"] == "STARTED"
+    assert result["reflash_required"] is True
+    assert "post_reboot_acceptance" not in adapter.calls
