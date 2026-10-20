@@ -268,4 +268,14 @@ def test_remote_probe_promotes_firstboot_read_failure_to_unavailable():
     script = qualification.REMOTE_PROBE_SCRIPT
     assert 'unavailable.append("firstboot_systemd")' in script
     assert 'firstboot["active"] is None' in script
-    assert 'firstboot[key] is None or firstboot[key+"_rc"]!=0' in script
+    assert 'firstboot[key+"_rc"]!=0' in script
+    assert 'firstboot[key] is None or firstboot[key+"_rc"]!=0' not in script
+
+
+def test_firstboot_successful_probe_with_missing_state_is_observed_mismatch():
+    observed = observation()
+    observed["armbian_firstrun"]["result"] = None
+    result = qualification.evaluate(observed, release_document(), ssh_trust=True)
+    assert result["status"] == "FAIL_REFLASH_REQUIRED"
+    assert result["reflash_required"] is True
+    assert result["checks"]["HOST.FIRSTBOOT"] == "FAIL"
