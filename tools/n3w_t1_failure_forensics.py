@@ -21,19 +21,29 @@ class FailureForensicsError(RuntimeError):
 
 
 def _ensure_root(root: Path) -> Path:
-    root = root.resolve()
-    if root.exists() or root.is_symlink():
-        if root.is_symlink() or not root.is_dir():
+    root = Path(os.path.abspath(os.fspath(root)))
+    if root.is_symlink():
+        raise FailureForensicsError("evidence_root_symlink_forbidden")
+    if root.exists():
+        if not root.is_dir():
             raise FailureForensicsError("evidence_root_invalid")
+        metadata = root.stat()
+        if metadata.st_uid != os.geteuid():
+            raise FailureForensicsError("evidence_root_owner_invalid")
+        if stat.S_IMODE(metadata.st_mode) != 0o700:
+            raise FailureForensicsError("evidence_root_mode_invalid")
     else:
         parent = root.parent
         if parent.is_symlink() or not parent.is_dir():
             raise FailureForensicsError("evidence_parent_invalid")
         root.mkdir(mode=0o700)
+        os.chmod(root, 0o700, follow_symlinks=False)
         _fsync_directory(parent)
-    os.chmod(root, 0o700)
-    if stat.S_IMODE(root.stat().st_mode) != 0o700:
-        raise FailureForensicsError("evidence_root_mode_invalid")
+        metadata = root.stat()
+        if metadata.st_uid != os.geteuid():
+            raise FailureForensicsError("evidence_root_owner_invalid")
+        if stat.S_IMODE(metadata.st_mode) != 0o700:
+            raise FailureForensicsError("evidence_root_mode_invalid")
     return root
 
 
