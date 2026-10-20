@@ -156,3 +156,69 @@ def test_canonical_hash_is_order_independent():
     a = {"a": 1, "b": {"x": True, "y": False}}
     b = {"b": {"y": False, "x": True}, "a": 1}
     assert contract.canonical_sha256(a) == contract.canonical_sha256(b)
+
+
+def result_document():
+    return {
+        "schema": contract.RESULT_SCHEMA,
+        "status": "PASS",
+        "release_id": "1" * 64,
+        "release_sha256": "2" * 64,
+        "source_head": "3" * 40,
+        "run_id_sha256": "4" * 64,
+        "target_binding_sha256": "5" * 64,
+        "device_acceptance": "PASS",
+        "T1_PRODUCTION_READY": True,
+        "operator_session_closed": True,
+        "evidence_complete": True,
+        "reflash_required": False,
+        "terminal_stage": "COMPLETE",
+        "private_result_sha256": "6" * 64,
+    }
+
+
+def test_result_pass_requires_accepted_ready_closed_and_evidence_complete():
+    value = result_document()
+    assert contract.validate_result(value) == value
+
+    for key, replacement, error in (
+        ("device_acceptance", "NOT_REACHED", "result_acceptance_ready_mismatch"),
+        ("T1_PRODUCTION_READY", False, "result_acceptance_ready_mismatch"),
+        ("operator_session_closed", False, "result_pass_without_session_close"),
+        ("evidence_complete", False, "result_pass_without_evidence"),
+        ("reflash_required", True, "result_accepted_device_reflash_forbidden"),
+    ):
+        candidate = copy.deepcopy(value)
+        candidate[key] = replacement
+        with pytest.raises(contract.ProductionV2ContractError, match=error):
+            contract.validate_result(candidate)
+
+
+def test_result_allows_accepted_device_with_later_mac_cleanup_failure():
+    value = result_document()
+    value.update(
+        {
+            "status": "FAIL",
+            "operator_session_closed": False,
+            "evidence_complete": False,
+            "reflash_required": False,
+            "terminal_stage": "PROCESS_CLEANUP_FAIL",
+        }
+    )
+    assert contract.validate_result(value) == value
+
+
+def test_result_rejects_reflash_for_durable_accepted_device():
+    value = result_document()
+    value.update(
+        {
+            "status": "FAIL",
+            "reflash_required": True,
+            "terminal_stage": "PROCESS_CLEANUP_FAIL",
+        }
+    )
+    with pytest.raises(
+        contract.ProductionV2ContractError,
+        match="result_accepted_device_reflash_forbidden",
+    ):
+        contract.validate_result(value)
