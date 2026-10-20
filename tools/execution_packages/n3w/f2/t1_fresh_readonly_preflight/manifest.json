@@ -17,13 +17,16 @@
       "ARCH": "arm64",
       "IMAGE_TYPE": "rebuild"
     },
-    "architecture_family": ["arm64", "aarch64"]
+    "architecture_family": [
+      "arm64",
+      "aarch64"
+    ]
   },
   "source_binding": {
     "os_identity_probe_blob_sha": "26a2f47c9c83fef5637f551ea75ba6b5d5ba3866",
     "minimal_inventory_blob_sha": "073bbc936cef3648411a95023a59d6b7e04d4a32",
-    "fresh_product_staging_host_blob_sha": "7e1a82a8b67375a9c88558b6f3c4e0cc45b46f2e",
-    "fresh_host_baseline_blob_sha": "d6f72a7a595f7ba5b8d9d2e5dc06188dbfa973b2"
+    "fresh_product_staging_host_blob_sha": "1196f185069db3000d4e96059be8908ba29e23f0",
+    "fresh_host_baseline_blob_sha": "ae7d114bd54825114f462b4f7034ed6009f80f6f"
   },
   "execution_authority": {
     "exact_source_head_required": true,

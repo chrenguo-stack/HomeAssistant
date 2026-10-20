@@ -16,6 +16,10 @@ EXECUTOR = (
     ROOT
     / "tools/execution_packages/n3w/f2/t1_fresh_readonly_preflight/executor.py"
 )
+MANIFEST = (
+    ROOT
+    / "tools/execution_packages/n3w/f2/t1_fresh_readonly_preflight/manifest.json"
+)
 
 
 def load():
@@ -185,6 +189,33 @@ def test_source_authority_binds_current_head_and_main_ancestor():
     result = module.validate_source(head, base)
     assert result["head"] == head
     assert result["artifact_head"] == base
+
+
+def test_execution_package_source_bindings_match_current_git_blobs():
+    module = load()
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    bindings = manifest["source_binding"]
+    manifest_expected = {
+        module.IDENTITY_RELATIVE: bindings["os_identity_probe_blob_sha"],
+        module.INVENTORY_RELATIVE: bindings["minimal_inventory_blob_sha"],
+        module.STAGING_RELATIVE: bindings["fresh_product_staging_host_blob_sha"],
+        module.BASELINE_RELATIVE: bindings["fresh_host_baseline_blob_sha"],
+    }
+
+    assert manifest_expected == module.EXPECTED_BLOBS
+
+    head = subprocess.check_output(
+        ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
+        text=True,
+    ).strip()
+    current = {
+        relative: subprocess.check_output(
+            ["git", "-C", str(ROOT), "rev-parse", f"{head}:{relative}"],
+            text=True,
+        ).strip()
+        for relative in module.EXPECTED_BLOBS
+    }
+    assert current == module.EXPECTED_BLOBS
 
 
 @pytest.mark.parametrize(
