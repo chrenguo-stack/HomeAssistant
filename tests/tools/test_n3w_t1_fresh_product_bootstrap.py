@@ -873,7 +873,6 @@ def test_v2_run_context_must_be_outside_payload_and_bind_started_marker(
     marker_root.mkdir(mode=0o700)
     marker_path = marker_root / "run.json"
     monkeypatch.setattr(tool, "V2_MARKER_PATH", marker_path)
-    monkeypatch.setattr(tool.os, "geteuid", lambda: __import__("os").geteuid())
 
     run_context = {
         "schema": tool.V2_RUN_CONTEXT_SCHEMA,

@@ -1297,9 +1297,7 @@ def test_prebaseline_capacity_is_checked_before_authorization_claim() -> None:
     prebaseline_index = source.index(
         '"remote_capacity_insufficient_prebaseline"'
     )
-    claim_index = source.index(
-        "_remote_claim_authorization(args.t1, remote_dir, authorization)"
-    )
+    claim_index = source.index("_remote_claim_authorization(")
 
     assert baseline_index < prebaseline_index < claim_index
     assert '"capacity_admission": "PREBASELINE_ROOT_PASS"' in source
@@ -1309,27 +1307,30 @@ def test_prebaseline_capacity_is_checked_before_authorization_claim() -> None:
 def test_v2_apply_requires_external_run_context() -> None:
     tool = load_tool()
     parser = tool._parser()
-    with pytest.raises(SystemExit):
-        parser.parse_args(
-            [
-                "--t1",
-                "root@example",
-                "--phase",
-                "apply",
-                "--run-id",
-                "1",
-                "--artifact-name",
-                "artifact",
-                "--artifact-id",
-                "1",
-                "--artifact-zip-sha256",
-                "1" * 64,
-                "--archive-sha256",
-                "2" * 64,
-                "--manifest-sha256",
-                "3" * 64,
-            ]
-        )
+    args = parser.parse_args(
+        [
+            "--t1",
+            "root@example",
+            "--phase",
+            "apply",
+            "--run-id",
+            "1",
+            "--artifact-name",
+            "artifact",
+            "--artifact-id",
+            "1",
+            "--artifact-zip-sha256",
+            "1" * 64,
+            "--archive-sha256",
+            "2" * 64,
+            "--manifest-sha256",
+            "3" * 64,
+        ]
+    )
+    assert args.run_context is None
+    source = TOOL.read_text(encoding="utf-8")
+    assert "if args.run_context is None:" in source
+    assert '"v2_run_context_required"' in source
 
 
 def test_v2_run_context_source_binding_is_fail_closed(tmp_path: Path) -> None:

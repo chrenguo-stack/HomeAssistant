@@ -70,6 +70,10 @@ def test_install_pins_resolved_ubuntu_package_versions(
                 "docker_active": True,
                 "docker_version": "28.2.2",
                 "compose_version": "2.38.2",
+                "package_versions": {
+                    "docker.io": "28.2.2-0ubuntu1",
+                    "docker-compose-v2": "2.38.2-0ubuntu1",
+                },
                 "production_service_start": False,
                 "board_access": False,
             },
