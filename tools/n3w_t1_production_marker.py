@@ -40,17 +40,29 @@ def _fsync_directory(path: Path) -> None:
         os.close(descriptor)
 
 
+def _authority_root_metadata(path: Path) -> os.stat_result:
+    if path.is_symlink() or not path.is_dir():
+        raise ProductionMarkerError("marker_parent_invalid")
+    metadata = path.stat()
+    if metadata.st_uid != os.geteuid():
+        raise ProductionMarkerError("marker_parent_owner_invalid")
+    if stat.S_IMODE(metadata.st_mode) != 0o700:
+        raise ProductionMarkerError("marker_parent_mode_invalid")
+    return metadata
+
+
 def _ensure_parent(path: Path) -> None:
     parent = path.parent
     if parent.exists() or parent.is_symlink():
-        if parent.is_symlink() or not parent.is_dir():
-            raise ProductionMarkerError("marker_parent_invalid")
+        _authority_root_metadata(parent)
         return
     grandparent = parent.parent
     if not grandparent.is_dir() or grandparent.is_symlink():
         raise ProductionMarkerError("marker_parent_base_invalid")
     parent.mkdir(mode=0o700)
+    os.chmod(parent, 0o700, follow_symlinks=False)
     _fsync_directory(grandparent)
+    _authority_root_metadata(parent)
 
 
 def _marker_metadata(path: Path) -> os.stat_result:
