@@ -167,16 +167,32 @@ def test_broker_auth_evidence_requires_current_exact_identity_and_catches_reconn
     identity = {"client_id": "test-service", "username": "test-user"}
     connected = "123: New client connected from 192.0.2.1:4000 as test-service (p5, c1, k60, u'test-user')."
     before = tool._broker_auth_evidence(connected, identity)
-    for suffix in ("Client test-service disconnected.", "Client test-service closed its connection.",
-                   "Client test-service already connected, closing old connection.",
-                   connected.replace("test-user", "other")):
-        with pytest.raises(tool.VerifyError, match="unproven"):
+    for suffix in (
+        "Client test-service disconnected.",
+        "Client test-service closed its connection.",
+        "Client test-service already connected, closing old connection.",
+        connected.replace("test-user", "other"),
+    ):
+        with pytest.raises(
+            tool.VerifyError,
+            match="broker_authenticated_connection_state_invalid",
+        ) as captured:
             tool._broker_auth_evidence(connected + "\n" + suffix, identity)
-    after = tool._broker_auth_evidence(connected + "\nClient test-service disconnected.\n" + connected, identity)
+        assert not isinstance(captured.value, tool.EvidenceInsufficientError)
+    after = tool._broker_auth_evidence(
+        connected + "\nClient test-service disconnected.\n" + connected,
+        identity,
+    )
     assert before != after
-    with pytest.raises(tool.VerifyError, match="unproven"):
+    with pytest.raises(
+        tool.EvidenceInsufficientError,
+        match="evidence_missing",
+    ):
         tool._broker_auth_evidence("", identity)
-    with pytest.raises(tool.VerifyError, match="coverage"):
+    with pytest.raises(
+        tool.EvidenceInsufficientError,
+        match="coverage",
+    ):
         tool._broker_auth_evidence("x\n" * tool.LOG_LIMIT + connected, identity)
 
 
@@ -288,3 +304,86 @@ def test_snapshot_entrypoint_collects_bound_public_evidence(monkeypatch, capsys)
     public = json.dumps(report)
     assert "user-manager" not in public and "192.0.2" not in public
     assert "password" not in public
+
+
+
+def test_snapshot_run_classifies_unavailable_readonly_evidence(monkeypatch):
+    tool = load_tool()
+
+    def failed_run(_argv, timeout=8):
+        assert timeout == 8
+        raise tool.VerifyError(
+            "command_failed:docker:1:permission denied"
+        )
+
+    monkeypatch.setattr(tool, "_run", failed_run)
+    with pytest.raises(
+        tool.EvidenceInsufficientError,
+        match="evidence_unavailable",
+    ):
+        tool._snapshot_run(("docker", "logs", "broker"))
+
+
+def test_snapshot_run_preserves_nonunique_socket_reason(monkeypatch):
+    tool = load_tool()
+
+    def failed_run(_argv, timeout=8):
+        assert timeout == 8
+        raise tool.VerifyError(
+            "command_failed:docker:1:AssertionError: "
+            "mqtt_owned_socket_not_unique"
+        )
+
+    monkeypatch.setattr(tool, "_run", failed_run)
+    with pytest.raises(
+        tool.EvidenceInsufficientError,
+        match="mqtt_owned_socket_not_unique",
+    ):
+        tool._snapshot_run(("docker", "exec", "manager"))
+
+
+def test_snapshot_cli_emits_structured_evidence_insufficient(monkeypatch, capsys):
+    import json
+
+    tool = load_tool()
+    monkeypatch.setattr(
+        tool.sys,
+        "argv",
+        ["n3w-t1-f4-reboot-verify", "--snapshot"],
+    )
+
+    def insufficient():
+        raise tool.EvidenceInsufficientError(
+            "broker_authenticated_connection_evidence_missing"
+        )
+
+    monkeypatch.setattr(tool, "runtime_snapshot", insufficient)
+    assert tool.main() == 2
+    report = json.loads(capsys.readouterr().err)
+    assert report["status"] == "FAIL"
+    assert report["failure_class"] == "EVIDENCE_INSUFFICIENT"
+    assert report["error_code"] == (
+        "broker_authenticated_connection_evidence_missing"
+    )
+
+
+def test_snapshot_cli_keeps_explicit_runtime_failure_distinct(monkeypatch, capsys):
+    import json
+
+    tool = load_tool()
+    monkeypatch.setattr(
+        tool.sys,
+        "argv",
+        ["n3w-t1-f4-reboot-verify", "--snapshot"],
+    )
+
+    def failed():
+        raise tool.VerifyError(
+            "broker_authenticated_connection_state_invalid"
+        )
+
+    monkeypatch.setattr(tool, "runtime_snapshot", failed)
+    assert tool.main() == 2
+    report = json.loads(capsys.readouterr().err)
+    assert report["status"] == "FAIL"
+    assert report["failure_class"] == "VERIFY_FAILED"
