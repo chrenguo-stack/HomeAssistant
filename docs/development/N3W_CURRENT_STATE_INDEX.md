@@ -1,3 +1,16 @@
+## 2026-10-20 — F5 V2 PR #624 merge-ready decision
+
+- Fresh rebind: main remains `4223f23d2579241f6568a1ba3fbbccf26b3bc3c1`; PR #624 remains open/draft/mergeable, 76 ahead and 0 behind.
+- Final exact source remains `5233b08743f40a021844e4ce7f464f444de86ae1` / tree `dfab4b7ffc455a3b1c26956744fa1197bbd55006`.
+- Current pre-decision head `ecd34d71da0618567ee200b290445aa82f2fa2d3` is one docs-only closure commit above the exact source.
+- Exact source workflows: 17/17 PASS; R1/R2/R3 and whole-source closure remain CLOSED_PASS.
+- Whole-source blocker count 0; unresolved review threads 0; change-requesting reviews 0.
+- Full PR changes 43 files and stays within the approved V2 source implementation plus the already-closed bounded F2 binding alignment and project docs.
+- PR #624 is technically merge-ready.
+- This gate does not authorize or execute merge; no exact production release or T1/live action occurred.
+- Authority: `docs/development/N3W_T1_F5_V2_PR624_MERGE_DECISION_20261020.md`.
+- Next gate: `N3W_T1_F5_V2_PR624_MERGE_EXECUTION_20261020_01`; explicit authorization required.
+
 ## 2026-10-20 — F5 V2 source implementation CLOSED_PASS
 
 - Final exact R3/source head: `5233b08743f40a021844e4ce7f464f444de86ae1`; base main remains `4223f23d2579241f6568a1ba3fbbccf26b3bc3c1`; behind main 0.
