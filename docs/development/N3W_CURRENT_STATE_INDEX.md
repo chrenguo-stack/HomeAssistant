@@ -2,6 +2,7 @@
 
 - Previous blocker: exact production release required an exact-main release-inputs artifact, but no production producer existed.
 - Source repair branch: `fix/n3w-t1-f5-v2-exact-release-inputs-producer-20261020`.
+- Draft PR: #626.
 - Adds versioned V2 release profile, exact release-inputs builder and focused tests.
 - Adds manual-only exact release-inputs producer workflow bound to exact-main F3 and F4/reboot artifacts.
 - F3 deployable-payload workflow gains manual dispatch so the required exact-main artifact can be rebuilt after merge.
