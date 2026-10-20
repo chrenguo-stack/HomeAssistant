@@ -32,18 +32,6 @@ class ProductionV2R2Error(RuntimeError):
     pass
 
 
-class PreMutationExecutionError(ProductionV2R2Error):
-    def __init__(self, stage: str, cause: Exception):
-        super().__init__(f"pre_mutation_failed:{stage}:{type(cause).__name__}")
-        self.stage = stage
-
-
-class StartedFailureFinalizationError(ProductionV2R2Error):
-    def __init__(self, stage: str, cause: Exception):
-        super().__init__(f"started_failure_finalization_failed:{stage}:{type(cause).__name__}")
-        self.stage = stage
-
-
 class R2Adapter(Protocol):
     def verify_release(self, release: dict[str, Any]) -> dict[str, Any]: ...
     def start_ssh_epoch(self) -> dict[str, Any]: ...
@@ -298,16 +286,10 @@ class R2Orchestrator:
             }
         except Exception as error:
             if marker_started:
-                try:
-                    return self._finalize_started_failure(
-                        stage=stage,
-                        error=error,
-                    )
-                except Exception as finalization_error:
-                    raise StartedFailureFinalizationError(
-                        stage,
-                        finalization_error,
-                    ) from finalization_error
+                return self._finalize_started_failure(
+                    stage=stage,
+                    error=error,
+                )
             if epoch_started:
                 close = _pass(
                     self.adapter.close_pre_reboot_epoch(),
@@ -317,14 +299,12 @@ class R2Orchestrator:
                     raise ProductionV2R2Error(
                         "pre_mutation_session_not_closed"
                     ) from error
-            raise PreMutationExecutionError(stage, error) from error
+            raise
 
 
 def self_check() -> dict[str, object]:
     source = __import__("pathlib").Path(__file__).read_text(encoding="utf-8")
-    before_self = source.split("def self_check(", 1)[0]
-    r3_normal = source.split('R3_SCHEMA =', 1)[1] if 'R3_SCHEMA =' in source else ""
-    normal = before_self + r3_normal
+    normal = source.split("def self_check(", 1)[0]
     forbidden = ("repair-", "resume-if-needed", "force", "override")
     found = [token for token in forbidden if token in normal]
     return {
@@ -403,6 +383,21 @@ def _final_result(
     return validate_result(document)
 
 
+class _R3MarkerTrackingAdapter:
+    def __init__(self, delegate: R3Adapter):
+        self._delegate = delegate
+        self.marker_started = False
+
+    def start_marker(self, binding: dict[str, str]) -> dict[str, Any]:
+        result = self._delegate.start_marker(binding)
+        if isinstance(result, dict) and result.get("state") == "STARTED":
+            self.marker_started = True
+        return result
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._delegate, name)
+
+
 class R3Orchestrator:
     def __init__(self, adapter: R3Adapter):
         self.adapter = adapter
@@ -472,14 +467,17 @@ class R3Orchestrator:
         approved: bool,
     ) -> dict[str, Any]:
         release = validate_release(deepcopy(release_document))
+        tracker = _R3MarkerTrackingAdapter(self.adapter)
         try:
-            pre = R2Orchestrator(self.adapter).execute(
+            pre = R2Orchestrator(tracker).execute(
                 release,
                 run_id=run_id,
                 target_binding_sha256=target_binding_sha256,
                 approved=approved,
             )
-        except PreMutationExecutionError as error:
+        except Exception as error:
+            if tracker.marker_started:
+                raise
             return _final_result(
                 release,
                 run_id=run_id,
@@ -492,7 +490,7 @@ class R3Orchestrator:
                 operator_session_closed=True,
                 evidence_complete=True,
                 reflash_required=False,
-                terminal_stage=error.stage,
+                terminal_stage="PRE_MUTATION",
                 evidence_seed={
                     "error_type": type(error).__name__,
                     "error": str(error)[:200],

@@ -409,8 +409,8 @@ def test_r3_rejects_post_reboot_host_key_drift_before_acceptance():
 def test_r3_does_not_misclassify_started_failure_finalization_error_as_pre_mutation():
     adapter = Adapter(fail_at={"f3_deploy", "collect_failure_forensics"})
     with pytest.raises(
-        r2.StartedFailureFinalizationError,
-        match="started_failure_finalization_failed:F3_DEPLOY",
+        r2.ProductionV2R2Error,
+        match="failure_forensics_not_pass",
     ):
         r2.R3Orchestrator(adapter).execute(
             release_document(),
