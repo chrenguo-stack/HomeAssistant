@@ -1,3 +1,16 @@
+## 2026-10-20 — F5 V2 R2 dependent CI alignment decision
+
+- All 17 current PR workflows completed: 16 PASS, 1 FAIL, 0 pending.
+- Both previously pending payload workflows are now PASS.
+- The only failing workflow is F2 read-only preflight source CI; 70 tests pass and one exact-source binding test fails.
+- Exact inventory found stale staging/baseline bindings in both the F2 executor and its package manifest.
+- Identity and inventory bindings remain exact.
+- The F2 manifest's staging binding was already inconsistent with the executor before R2; the next repair will reconcile both to the current exact source.
+- Minimum approved repair scope is three files: F2 executor, F2 manifest, F2 executor test.
+- No F2 behavior change, no R2 source repair, no R3 entry, no T1/board access and no merge.
+- Authority: `docs/development/N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R2_DEPENDENT_CI_ALIGNMENT_DECISION_20261020.md`.
+- Next gate: `N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R2_DEPENDENT_CI_ALIGNMENT_REPAIR_20261020_01`.
+
 ## 2026-10-20 — F5 V2 R2 source candidate / dependent alignment stop
 
 - Exact R2 source candidate: `2defed8b39bcbdf03d7e90c266be6862e12aa27a`; behind main 0.
