@@ -21,6 +21,7 @@ RUN_ID_RE = SHA256_RE
 REQUIRED_RELEASE_ARTIFACTS = frozenset(
     {
         "f3_payload",
+        "f3_image",
         "f4_control",
         "reboot_control",
         "v2_mac_tools",
@@ -49,6 +50,17 @@ V2_ACTIONS = (
     "PERSIST_CERT",
     "REBOOT_CONTROL",
     "POST_REBOOT_ACCEPTANCE",
+)
+
+RESULT_MARKER_STATES = frozenset({"ABSENT", "STARTED", "ACCEPTED"})
+RESULT_ERROR_CLASSES = frozenset(
+    {
+        "NONE",
+        "PRE_MUTATION_FAIL",
+        "MUTATION_FAIL_REFLASH_REQUIRED",
+        "POST_REBOOT_ACCEPTANCE_FAIL_REFLASH_REQUIRED",
+        "PROCESS_CLEANUP_FAIL",
+    }
 )
 
 
@@ -308,6 +320,8 @@ def validate_result(document: Any) -> dict[str, Any]:
             "source_head",
             "run_id_sha256",
             "target_binding_sha256",
+            "marker_state",
+            "error_class",
             "device_acceptance",
             "T1_PRODUCTION_READY",
             "operator_session_closed",
@@ -331,6 +345,10 @@ def validate_result(document: Any) -> dict[str, Any]:
     ):
         _sha(value[name], name)
     _sha(value["source_head"], "source_head", git=True)
+    if value["marker_state"] not in RESULT_MARKER_STATES:
+        raise ProductionV2ContractError("result_marker_state_invalid")
+    if value["error_class"] not in RESULT_ERROR_CLASSES:
+        raise ProductionV2ContractError("result_error_class_invalid")
     if value["device_acceptance"] not in {"PASS", "FAIL", "NOT_REACHED"}:
         raise ProductionV2ContractError("device_acceptance_invalid")
     for name in (
@@ -342,13 +360,53 @@ def validate_result(document: Any) -> dict[str, Any]:
         _bool(value[name], name)
     _text(value["terminal_stage"], "terminal_stage")
 
+    marker_state = value["marker_state"]
+    error_class = value["error_class"]
     acceptance_pass = value["device_acceptance"] == "PASS"
+
     if value["T1_PRODUCTION_READY"] is not acceptance_pass:
         raise ProductionV2ContractError("result_acceptance_ready_mismatch")
     if acceptance_pass and value["reflash_required"]:
         raise ProductionV2ContractError("result_accepted_device_reflash_forbidden")
 
+    if marker_state == "ACCEPTED":
+        if not acceptance_pass:
+            raise ProductionV2ContractError("result_accepted_marker_without_device_acceptance")
+        if value["reflash_required"] is not False:
+            raise ProductionV2ContractError("result_accepted_marker_with_reflash")
+    else:
+        if acceptance_pass:
+            raise ProductionV2ContractError("result_device_acceptance_without_accepted_marker")
+        if value["T1_PRODUCTION_READY"] is not False:
+            raise ProductionV2ContractError("result_ready_without_accepted_marker")
+
+    if marker_state == "STARTED":
+        if value["status"] != "FAIL":
+            raise ProductionV2ContractError("result_started_marker_requires_failure")
+        if value["reflash_required"] is not True:
+            raise ProductionV2ContractError("result_started_failure_requires_reflash")
+        if error_class not in {
+            "MUTATION_FAIL_REFLASH_REQUIRED",
+            "POST_REBOOT_ACCEPTANCE_FAIL_REFLASH_REQUIRED",
+            "PROCESS_CLEANUP_FAIL",
+        }:
+            raise ProductionV2ContractError("result_started_error_class_invalid")
+
+    if marker_state == "ABSENT":
+        if value["status"] != "FAIL":
+            raise ProductionV2ContractError("result_absent_marker_requires_failure")
+        if error_class != "PRE_MUTATION_FAIL":
+            raise ProductionV2ContractError("result_absent_marker_error_class_invalid")
+
+    if marker_state == "ACCEPTED" and value["status"] == "FAIL":
+        if error_class != "PROCESS_CLEANUP_FAIL":
+            raise ProductionV2ContractError("result_accepted_failure_error_class_invalid")
+
     if value["status"] == "PASS":
+        if marker_state != "ACCEPTED":
+            raise ProductionV2ContractError("result_pass_without_accepted_marker")
+        if error_class != "NONE":
+            raise ProductionV2ContractError("result_pass_error_class_invalid")
         if not acceptance_pass:
             raise ProductionV2ContractError("result_pass_without_device_acceptance")
         if value["operator_session_closed"] is not True:
@@ -357,4 +415,6 @@ def validate_result(document: Any) -> dict[str, Any]:
             raise ProductionV2ContractError("result_pass_without_evidence")
         if value["reflash_required"] is not False:
             raise ProductionV2ContractError("result_pass_with_reflash")
+    elif error_class == "NONE":
+        raise ProductionV2ContractError("result_failure_without_error_class")
     return value
