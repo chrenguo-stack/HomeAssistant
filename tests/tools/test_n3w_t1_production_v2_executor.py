@@ -466,3 +466,50 @@ def test_observation_samples_and_stops_immediately_on_failure(monkeypatch):
     result = adapter.observe_runtime(90, {"stable": True})
     assert len(result["samples"]) == 46
     assert result["samples"][-1]["elapsed_seconds"] == 90
+
+
+
+def test_runtime_snapshot_structured_insufficient_evidence_is_preserved():
+    tool = load_tool()
+    completed = subprocess.CompletedProcess(
+        [],
+        2,
+        "",
+        json.dumps(
+            {
+                "status": "FAIL",
+                "failure_class": "EVIDENCE_INSUFFICIENT",
+                "error_code": (
+                    "broker_authenticated_connection_evidence_missing"
+                ),
+            }
+        ),
+    )
+    with pytest.raises(
+        tool.EvidenceInsufficientError,
+        match="runtime_snapshot_evidence_insufficient",
+    ):
+        tool._json_output(completed, "runtime_snapshot")
+
+
+def test_runtime_snapshot_explicit_failure_is_not_downgraded():
+    tool = load_tool()
+    completed = subprocess.CompletedProcess(
+        [],
+        2,
+        "",
+        json.dumps(
+            {
+                "status": "FAIL",
+                "failure_class": "VERIFY_FAILED",
+                "error_code": (
+                    "broker_authenticated_connection_state_invalid"
+                ),
+            }
+        ),
+    )
+    with pytest.raises(
+        tool.ProductionExecutorError,
+        match="runtime_snapshot_command_failed",
+    ):
+        tool._json_output(completed, "runtime_snapshot")
