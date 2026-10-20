@@ -1,3 +1,15 @@
+## 2026-10-20 — F5 V2 R1 final contract repair
+
+- Final R1 contract review found two foundation-level blockers; both now have source/test repair candidates on PR #624.
+- Approved release now requires a distinct `f3_image` artifact SHA/size binding in addition to F3 payload and transport binding.
+- Final result schema now carries `marker_state` and `error_class` so STARTED-but-not-ACCEPTED failures must be `reflash_required=true`.
+- `marker_state=ABSENT` remains able to represent either reflash or non-reflash pre-mutation outcomes, including qualification FAIL versus evidence/connection STOP.
+- Durable `ACCEPTED` still preserves device acceptance and forbids reflash if only later Mac/process cleanup fails.
+- R2/HOST_BASELINE/F3/orchestrator work has not started.
+- No T1 access, T1 mutation or board access occurred.
+- Authority: `docs/development/N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R1_FINAL_CONTRACT_REPAIR_PROGRESS_20261020.md`.
+- Next gate: `N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R1_FINAL_CONTRACT_REPAIR_EXACT_HEAD_CI_COMPLETION_CHECK_20261020_01`.
+
 ## 2026-10-20 — F5 V2 R1 closure repair
 
 - R1 focused closure review found three narrow fail-closed gaps; all three now have source/test repair candidates on PR #624.
