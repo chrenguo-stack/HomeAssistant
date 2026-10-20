@@ -1,3 +1,18 @@
+## 2026-10-20 — F5 V2 PR #624 merged; post-merge alignment prepared
+
+- Alignment Draft PR: #625.
+- PR #624 is CLOSED/MERGED.
+- New main: `deb01884364ac6a00754ac9676332e1e5c6c0786`; merge parents are old main `4223f23d...` and reviewed PR head `dff60643...`.
+- PR-head tree equals merge tree `13dd6e5e...`; PR-head-to-new-main content delta is NONE.
+- Pre-merge exact-head workflows were 17/17 PASS.
+- R1/R2/R3 and whole-source implementation remain CLOSED_PASS and are now reachable from main.
+- Exact V2 production release has not been built yet.
+- This gate is docs-only; no T1, board, live runtime or production service mutation occurred.
+- Authority: `docs/development/N3W_T1_F5_V2_PR624_POSTMERGE_STATE_ALIGNMENT_20261020.md`.
+- Alignment is final only after this exact payload becomes reachable from main.
+- After alignment merge, next gate: `N3W_T1_F5_V2_EXACT_PRODUCTION_RELEASE_BUILD_PREPARATION_20261020_01`.
+- Alignment merge remains a separate explicit decision.
+
 ## 2026-10-20 — F5 V2 PR #624 merge-ready decision
 
 - Fresh rebind: main remains `4223f23d2579241f6568a1ba3fbbccf26b3bc3c1`; PR #624 remains open/draft/mergeable, 76 ahead and 0 behind.
