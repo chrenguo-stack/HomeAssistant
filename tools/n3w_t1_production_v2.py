@@ -38,6 +38,10 @@ class ProductionV2R2Error(RuntimeError):
     pass
 
 
+class EvidenceInsufficientError(ProductionV2R2Error):
+    pass
+
+
 class R2Adapter(Protocol):
     def verify_release(self, release: dict[str, Any]) -> dict[str, Any]: ...
     def start_ssh_epoch(self) -> dict[str, Any]: ...
@@ -444,11 +448,17 @@ class R3Orchestrator:
         stage: str,
         error: Exception,
     ) -> dict[str, Any]:
+        insufficient = isinstance(error, EvidenceInsufficientError)
+        error_class = (
+            "POST_REBOOT_EVIDENCE_INSUFFICIENT_REFLASH_REQUIRED"
+            if insufficient
+            else "POST_REBOOT_ACCEPTANCE_FAIL_REFLASH_REQUIRED"
+        )
         failure = {
             "status": "FAIL",
             "failed_stage": stage,
             "error_type": type(error).__name__,
-            "error_class": "POST_REBOOT_ACCEPTANCE_FAIL_REFLASH_REQUIRED",
+            "error_class": error_class,
             "automatic_retry": False,
         }
         _pass(self.adapter.freeze_failure(failure), "failure_freeze")
@@ -476,8 +486,8 @@ class R3Orchestrator:
             target_binding_sha256=target_binding_sha256,
             status="FAIL",
             marker_state="STARTED",
-            error_class="POST_REBOOT_ACCEPTANCE_FAIL_REFLASH_REQUIRED",
-            device_acceptance="FAIL",
+            error_class=error_class,
+            device_acceptance="NOT_REACHED" if insufficient else "FAIL",
             production_ready=False,
             operator_session_closed=True,
             evidence_complete=True,
