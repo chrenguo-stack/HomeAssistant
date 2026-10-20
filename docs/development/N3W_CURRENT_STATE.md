@@ -1,3 +1,66 @@
+## 2026-10-20 — PR #628 evidence-classification R2 source/CI closure
+
+~~~text
+TASK=N3W_T1_F5_V2_EVIDENCE_CLASSIFICATION_SOURCE_AND_CI_CLOSURE_REVIEW_20261020_01
+RESULT=CLOSED_PASS
+
+BASE_MAIN=1a0689f2c1c6566a397f065ff546ad26ef02046d
+PRE_R2_SOURCE_HEAD=4146ad694b709a1b7b20ca594df5bea3bfebcdcf
+REVIEWED_R2_EXACT_SOURCE_HEAD=d3d9a653f41af9379ad0643fe13fd21f04a9af42
+
+R2_DELTA_FILES=8
+R2_DELTA_BEHIND=0
+PR628_STATE=OPEN_DRAFT
+PR628_MERGEABLE=true
+UNRESOLVED_REVIEW_THREADS=0
+CHANGE_REQUESTING_REVIEWS=0
+
+POST_REBOOT_EVIDENCE_INSUFFICIENT_CLASSIFICATION=PASS
+EXPLICIT_RUNTIME_FAILURE_REMAINS_FAILURE=PASS
+MQTT_SOCKET_OWNERSHIP_AMBIGUITY_PROPAGATION=PASS
+MAC_EXECUTOR_STRUCTURED_FAILURE_PROPAGATION=PASS
+FINAL_RESULT_DEVICE_ACCEPTANCE_NOT_REACHED_FOR_INSUFFICIENT_EVIDENCE=PASS
+FAIL_CLOSED_REFLASH_POLICY_PRESERVED=PASS
+
+EXACT_HEAD_CI_TOTAL=17
+EXACT_HEAD_CI_PASS=17
+EXACT_HEAD_CI_FAIL=0
+EXACT_HEAD_CI_PENDING=0
+
+F5_R1_TESTS=65_PASS_1_SKIP
+F5_R2_TESTS=101_PASS
+F5_R3_TESTS=131_PASS
+ISOLATED_MOSQUITTO=3_PASS
+F4_SOURCE=144_PASS
+F4_EXACT_CONTROL_PACKAGE=PASS
+PRODUCTION_STACK_STAGING_PAYLOAD=PASS
+FRESH_BOOTSTRAP_DEPLOYABLE_PAYLOAD=PASS
+PUBLIC_REPOSITORY_SAFETY=PASS
+
+F4_CONTROL_ARTIFACT_ID=12277918804
+STAGING_PAYLOAD_ARTIFACT_ID=12280055155
+STAGING_PAYLOAD_ARTIFACT_DIGEST=sha256:2692e59d1130821c56d8d8cd2222acacada30fd7c14a5b2889fc816221e873e7
+STAGING_PAYLOAD_ARCHIVE_SHA256=355448c4eb7dd2fee818037545479264c0966312af5fac5d81d6462363240469
+STAGING_MANIFEST_SOURCE_HEAD=d3d9a653f41af9379ad0643fe13fd21f04a9af42
+RUN_EXACT_ARTIFACT_BINDING=PASS
+
+SOURCE_BLOCKER=CLOSED
+T1_NONDISRUPTIVE_LIVE_ACCEPTANCE=NOT_EXECUTED
+KF_122=OPEN
+MERGE=false
+PRODUCTION_RELEASE_BUILD=false
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+
+NEXT_ONE_GATE=N3W_T1_F5_V2_R2_CLOSURE_DOCS_CI_REVIEW_20261020_01
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+R2 closes the source blocker found during independent review. Target-side runtime snapshot now distinguishes unavailable/ambiguous evidence from explicit runtime contradiction before the result crosses SSH. Missing/truncated Broker evidence, ambiguous owned-socket evidence and read-only snapshot collection unavailability fail closed as evidence insufficient; explicit disconnect/session replacement/wrong-identity state remains a verification failure. The Mac executor preserves the structured target classification, and the R3 final result records insufficient evidence as `device_acceptance=NOT_REACHED` rather than claiming a proven product failure. Because mutation has already started, the existing reflash-required policy remains unchanged.
+
+The reviewed source is exactly `d3d9a653f41af9379ad0643fe13fd21f04a9af42`. All 17 workflows for that source completed successfully. Exact F4 control and production-staging artifacts are bound to that same source head. This closure is source/CI-only: it does not claim real-T1 non-disruptive acceptance, does not close KF-122, and does not authorize merge or production execution.
+
 ## 2026-10-20 — PR #628 重启后非扰动验收修复
 
 - 本门：`N3W_T1_F5_V2_NONDISRUPTIVE_POST_REBOOT_ACCEPTANCE_CONTRACT_AND_SOURCE_REPAIR_20261020_01`。
