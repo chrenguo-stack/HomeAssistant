@@ -27,6 +27,9 @@ PRODUCT_PATHS = (
     "/var/lib/n3wfc4-homeassistant",
     "/var/lib/n3wfc4-broker",
     "/var/lib/n3wfc4-certificate-lifecycle",
+    "/var/lib/n3w-fresh-bootstrap-authorizations",
+    "/var/lib/n3w-t1-provisioning",
+    "/var/tmp/n3w-t1-provisioning-candidate",
     "/opt/greenhouse-secrets",
     "/opt/HomeAssistant",
     "/etc/n3wfc4",
@@ -52,6 +55,17 @@ ENGINE_PATHS = (
     "/var/run/docker.sock",
 )
 
+PRODUCT_UNITS = (
+    "n3wfc4-broker-ingress-guard.service",
+    "n3wfc4-provision-resume.service",
+    "n3wfc4-broker-activation.service",
+    "n3wfc4-services-activation.service",
+    "n3wfc4-broker-certificate-lifecycle.service",
+    "n3wfc4-broker-certificate-lifecycle.timer",
+)
+
+PRODUCT_TARGET_PORTS = frozenset({1883, 8883, 18883, 8123, 47110, 47111, 47112})
+
 REMOTE_PROBE_SCRIPT = r'''
 import json,os,shutil,socket,subprocess
 from pathlib import Path
@@ -60,6 +74,8 @@ OS_KEYS=("ID","VERSION_ID","VERSION_CODENAME","PRETTY_NAME")
 ARMBIAN_KEYS=("BOARD","BOARD_NAME","VERSION","BRANCH","ARCH","IMAGE_TYPE")
 PRODUCT_PATHS=%r
 ENGINE_PATHS=%r
+PRODUCT_UNITS=%r
+PRODUCT_TARGET_PORTS=%r
 
 
 def run(argv):
@@ -112,6 +128,35 @@ def installed(name):
     if item["rc"]==1:
         return False
     return None
+
+
+def product_unit_summary():
+    loaded=run(["systemctl","list-units","--all","--no-legend","--plain"])
+    files=run(["systemctl","list-unit-files","--no-legend","--plain"])
+    if loaded["rc"]!=0 or files["rc"]!=0:
+        return None
+    names=set()
+    for raw in (loaded["out"]+"\n"+files["out"]).splitlines():
+        parts=raw.split()
+        if parts:
+            names.add(parts[0])
+    return sorted(name for name in PRODUCT_UNITS if name in names)
+
+
+def product_listener_summary():
+    item=run(["ss","-H","-lntu"])
+    if item["rc"]!=0:
+        return None
+    ports=set()
+    for token in item["out"].split():
+        if ":" not in token:
+            continue
+        tail=token.rsplit(":",1)[1]
+        if tail.isdigit():
+            value=int(tail)
+            if value in PRODUCT_TARGET_PORTS:
+                ports.add(value)
+    return sorted(ports)
 
 
 def source_summary():
@@ -167,6 +212,10 @@ except OSError:
     unavailable.append("storage")
 source=source_summary()
 if source["unreadable_count"]: unavailable.append("apt_source")
+product_units=product_unit_summary()
+if product_units is None: unavailable.append("product_units")
+product_listeners=product_listener_summary()
+if product_listeners is None: unavailable.append("product_listeners")
 docker_installed=installed("docker.io")
 compose_installed=installed("docker-compose-v2")
 if docker_installed is None: unavailable.append("docker_package")
@@ -195,6 +244,8 @@ report={
     "docker_command_present":shutil.which("docker") is not None,
     "engine_paths":{path:(Path(path).exists() or Path(path).is_symlink()) for path in ENGINE_PATHS},
     "product_paths":{path:(Path(path).exists() or Path(path).is_symlink()) for path in PRODUCT_PATHS},
+    "product_units_present":product_units,
+    "product_listeners_present":product_listeners,
     "fresh_staging_count":staging_count,
     "sudo_noninteractive":True,
     "unavailable":sorted(set(unavailable)),
@@ -204,7 +255,7 @@ report={
     "board_access":False,
 }
 print(json.dumps(report,sort_keys=True,separators=(",",":")))
-''' % (PRODUCT_PATHS, ENGINE_PATHS)
+''' % (PRODUCT_PATHS, ENGINE_PATHS, PRODUCT_UNITS, PRODUCT_TARGET_PORTS)
 
 
 class FreshQualificationError(RuntimeError):
@@ -255,6 +306,20 @@ def evaluate(observation: Any, release_document: Any, *, ssh_trust: bool) -> dic
         return stop_unavailable("observation_unavailable_invalid")
     if unavailable:
         return stop_unavailable("probe_unavailable:" + ",".join(sorted(str(item) for item in unavailable)))
+    if ssh_trust is not True:
+        return stop_unavailable("ssh_trust_unproven")
+    if observation.get("sudo_noninteractive") is not True:
+        return stop_unavailable("sudo_noninteractive_unavailable")
+    if (observation.get("ssh") or {}).get("active") != "active":
+        return stop_unavailable("ssh_service_not_ready")
+    if (observation.get("networkmanager") or {}).get("active") != "active":
+        return stop_unavailable("networkmanager_not_ready")
+    if observation.get("default_route_present") is not True:
+        return stop_unavailable("default_route_unavailable")
+    if observation.get("dns_resolution_present") is not True:
+        return stop_unavailable("dns_resolution_unavailable")
+    if str(observation.get("ntp_synchronized", "")).casefold() != "yes":
+        return stop_unavailable("ntp_not_synchronized")
 
     checks: dict[str, str] = {}
     reasons: list[str] = []
@@ -290,19 +355,9 @@ def evaluate(observation: Any, release_document: Any, *, ssh_trust: bool) -> dic
         reasons,
         "firstboot_incomplete",
     )
-    _check(ssh_trust is True, "HOST.SSH_TRUST", checks, reasons, "ssh_trust_unproven")
-    _check(observation.get("sudo_noninteractive") is True, "HOST.PRIVILEGE", checks, reasons, "sudo_noninteractive_unavailable")
-    _check(
-        (observation.get("ssh") or {}).get("active") == "active"
-        and (observation.get("networkmanager") or {}).get("active") == "active"
-        and observation.get("default_route_present") is True
-        and observation.get("dns_resolution_present") is True
-        and str(observation.get("ntp_synchronized", "")).casefold() == "yes",
-        "HOST.NETWORK_TIME",
-        checks,
-        reasons,
-        "network_time_not_ready",
-    )
+    _check(True, "HOST.SSH_TRUST", checks, reasons, "ssh_trust_unproven")
+    _check(True, "HOST.PRIVILEGE", checks, reasons, "sudo_noninteractive_unavailable")
+    _check(True, "HOST.NETWORK_TIME", checks, reasons, "network_time_not_ready")
     minimum_free = release["capacity"]["minimum_post_peak_free_bytes"]
     _check(
         isinstance(observation.get("root_free_bytes"), int)
@@ -338,6 +393,8 @@ def evaluate(observation: Any, release_document: Any, *, ssh_trust: bool) -> dic
     )
     _check(
         not any((observation.get("product_paths") or {}).values())
+        and not (observation.get("product_units_present") or [])
+        and not (observation.get("product_listeners_present") or [])
         and observation.get("fresh_staging_count") == 0,
         "HOST.PRODUCT_ABSENT",
         checks,
