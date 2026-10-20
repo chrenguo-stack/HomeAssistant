@@ -129,6 +129,42 @@ def test_existing_authority_root_rejects_wrong_owner_binding(tmp_path, monkeypat
         )
 
 
+
+
+def test_read_and_hash_revalidate_authority_root_after_started(tmp_path):
+    authority = tmp_path / "n3w-production"
+    authority.mkdir(mode=0o700)
+    path = authority / "run.json"
+    marker.start_marker(path, binding(), created_at="2026-10-20T00:00:00Z")
+    authority.chmod(0o755)
+
+    with pytest.raises(marker.ProductionMarkerError, match="marker_parent_mode_invalid"):
+        marker.read_marker(path)
+    with pytest.raises(marker.ProductionMarkerError, match="marker_parent_mode_invalid"):
+        marker.marker_sha256(path)
+    with pytest.raises(marker.ProductionMarkerError, match="marker_parent_mode_invalid"):
+        marker.inspect_marker(path)
+
+
+def test_accept_revalidates_authority_root_after_started(tmp_path):
+    authority = tmp_path / "n3w-production"
+    authority.mkdir(mode=0o700)
+    path = authority / "run.json"
+    values = binding()
+    marker.start_marker(path, values, created_at="2026-10-20T00:00:00Z")
+    before = path.read_bytes()
+    authority.chmod(0o755)
+
+    with pytest.raises(marker.ProductionMarkerError, match="marker_parent_mode_invalid"):
+        marker.accept_marker(
+            path,
+            values,
+            acceptance_sha256="8" * 64,
+            accepted_at="2026-10-20T00:05:00Z",
+        )
+    assert path.read_bytes() == before
+
+
 def test_marker_rejects_symlink(tmp_path):
     real = tmp_path / "real.json"
     real.write_text("{}", encoding="utf-8")
