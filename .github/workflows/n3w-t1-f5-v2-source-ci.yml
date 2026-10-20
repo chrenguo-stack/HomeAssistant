@@ -278,7 +278,8 @@ jobs:
           assert "\n  push:" not in producer_ci
           assert ".github/workflows/n3w-t1-fresh-bootstrap-deployable-payload-ci.yml" in producer_ci
           assert ".github/workflows/n3w-t1-f4-exact-control-package.yml" in producer_ci
-          assert "n3w-t1-f5-v2-release-inputs-${{ github.sha }}" in producer_ci
+          assert "n3w-t1-f5-v2-release-inputs-" in producer_ci
+          assert "github.sha" in producer_ci
           assert "--production-authority" in producer_ci
           assert "workflow_dispatch:" in f3_ci
           assert '"schema": "gh.n3w-t1-production-v2-release-profile/1"' in release_profile
