@@ -1,5 +1,7 @@
 # F5 V2 重启后非扰动验收合同与源码修复 — 2026-10-20
 
+> **2026-10-20 R2 closure supplement:** independent source review found that unavailable/ambiguous runtime evidence was still collapsing into a proven product failure. R2 repaired the full target-verifier -> SSH -> Mac executor -> final-result classification chain. Exact reviewed source `d3d9a653f41af9379ad0643fe13fd21f04a9af42` is 17/17 CI PASS. Evidence insufficiency now yields `POST_REBOOT_EVIDENCE_INSUFFICIENT_REFLASH_REQUIRED` with `device_acceptance=NOT_REACHED`; explicit runtime contradiction remains `POST_REBOOT_ACCEPTANCE_FAIL_REFLASH_REQUIRED`. The mutation-started reflash-required policy is unchanged. Real-T1 acceptance remains unexecuted and KF-122 remains open.
+
 ## 本门状态与范围
 
 ```text
