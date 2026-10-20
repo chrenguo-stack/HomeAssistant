@@ -77,6 +77,7 @@ def _marker_metadata(path: Path) -> os.stat_result:
 
 
 def read_marker(path: Path = DEFAULT_MARKER_PATH) -> dict[str, Any]:
+    _authority_root_metadata(path.parent)
     _marker_metadata(path)
     try:
         document = json.loads(path.read_text(encoding="utf-8"))
@@ -89,6 +90,7 @@ def read_marker(path: Path = DEFAULT_MARKER_PATH) -> dict[str, Any]:
 
 
 def marker_sha256(path: Path = DEFAULT_MARKER_PATH) -> str:
+    _authority_root_metadata(path.parent)
     _marker_metadata(path)
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -154,9 +156,11 @@ def _atomic_create(path: Path, payload: bytes) -> None:
 
 
 def _atomic_replace(path: Path, payload: bytes) -> None:
+    _authority_root_metadata(path.parent)
     _marker_metadata(path)
     temp = _write_temp(path.parent, payload)
     try:
+        _authority_root_metadata(path.parent)
         os.replace(temp, path)
         os.chmod(path, 0o600, follow_symlinks=False)
         _fsync_directory(path.parent)
