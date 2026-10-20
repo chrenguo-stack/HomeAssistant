@@ -81,6 +81,16 @@ def test_release_rejects_latest_package_ambiguity():
         contract.validate_release(value)
 
 
+def test_release_requires_distinct_f3_image_binding():
+    value = release_document()
+    del value["artifacts"]["f3_image"]
+    with pytest.raises(
+        contract.ProductionV2ContractError,
+        match="release_artifacts_missing",
+    ):
+        contract.validate_release(value)
+
+
 def test_release_rejects_sensitive_public_field():
     value = release_document()
     value["public_evidence_fields"].append("mqtt_password")
@@ -167,6 +177,8 @@ def result_document():
         "source_head": "3" * 40,
         "run_id_sha256": "4" * 64,
         "target_binding_sha256": "5" * 64,
+        "marker_state": "ACCEPTED",
+        "error_class": "NONE",
         "device_acceptance": "PASS",
         "T1_PRODUCTION_READY": True,
         "operator_session_closed": True,
@@ -182,6 +194,8 @@ def test_result_pass_requires_accepted_ready_closed_and_evidence_complete():
     assert contract.validate_result(value) == value
 
     for key, replacement, error in (
+        ("marker_state", "STARTED", "result_device_acceptance_without_accepted_marker"),
+        ("error_class", "PROCESS_CLEANUP_FAIL", "result_pass_error_class_invalid"),
         ("device_acceptance", "NOT_REACHED", "result_acceptance_ready_mismatch"),
         ("T1_PRODUCTION_READY", False, "result_acceptance_ready_mismatch"),
         ("operator_session_closed", False, "result_pass_without_session_close"),
@@ -199,6 +213,7 @@ def test_result_allows_accepted_device_with_later_mac_cleanup_failure():
     value.update(
         {
             "status": "FAIL",
+            "error_class": "PROCESS_CLEANUP_FAIL",
             "operator_session_closed": False,
             "evidence_complete": False,
             "reflash_required": False,
@@ -220,5 +235,109 @@ def test_result_rejects_reflash_for_durable_accepted_device():
     with pytest.raises(
         contract.ProductionV2ContractError,
         match="result_accepted_device_reflash_forbidden",
+    ):
+        contract.validate_result(value)
+
+
+def test_result_started_failure_requires_reflash():
+    value = result_document()
+    value.update(
+        {
+            "status": "FAIL",
+            "marker_state": "STARTED",
+            "error_class": "MUTATION_FAIL_REFLASH_REQUIRED",
+            "device_acceptance": "NOT_REACHED",
+            "T1_PRODUCTION_READY": False,
+            "operator_session_closed": True,
+            "evidence_complete": True,
+            "reflash_required": True,
+            "terminal_stage": "F3_DEPLOY",
+        }
+    )
+    assert contract.validate_result(value) == value
+
+    value["reflash_required"] = False
+    with pytest.raises(
+        contract.ProductionV2ContractError,
+        match="result_started_failure_requires_reflash",
+    ):
+        contract.validate_result(value)
+
+
+def test_result_post_reboot_acceptance_failure_requires_reflash():
+    value = result_document()
+    value.update(
+        {
+            "status": "FAIL",
+            "marker_state": "STARTED",
+            "error_class": "POST_REBOOT_ACCEPTANCE_FAIL_REFLASH_REQUIRED",
+            "device_acceptance": "FAIL",
+            "T1_PRODUCTION_READY": False,
+            "operator_session_closed": True,
+            "evidence_complete": True,
+            "reflash_required": True,
+            "terminal_stage": "POST_REBOOT_ACCEPTANCE",
+        }
+    )
+    assert contract.validate_result(value) == value
+
+
+def test_result_pre_mutation_failure_can_be_non_reflash():
+    value = result_document()
+    value.update(
+        {
+            "status": "FAIL",
+            "marker_state": "ABSENT",
+            "error_class": "PRE_MUTATION_FAIL",
+            "device_acceptance": "NOT_REACHED",
+            "T1_PRODUCTION_READY": False,
+            "operator_session_closed": True,
+            "evidence_complete": True,
+            "reflash_required": False,
+            "terminal_stage": "QUALIFICATION",
+        }
+    )
+    assert contract.validate_result(value) == value
+
+    value["reflash_required"] = True
+    assert contract.validate_result(value) == value
+
+
+def test_result_absent_marker_cannot_claim_mutation_failure_class():
+    value = result_document()
+    value.update(
+        {
+            "status": "FAIL",
+            "marker_state": "ABSENT",
+            "error_class": "MUTATION_FAIL_REFLASH_REQUIRED",
+            "device_acceptance": "NOT_REACHED",
+            "T1_PRODUCTION_READY": False,
+            "reflash_required": True,
+            "terminal_stage": "QUALIFICATION",
+        }
+    )
+    with pytest.raises(
+        contract.ProductionV2ContractError,
+        match="result_absent_marker_error_class_invalid",
+    ):
+        contract.validate_result(value)
+
+
+def test_result_started_marker_cannot_claim_pre_mutation_failure():
+    value = result_document()
+    value.update(
+        {
+            "status": "FAIL",
+            "marker_state": "STARTED",
+            "error_class": "PRE_MUTATION_FAIL",
+            "device_acceptance": "NOT_REACHED",
+            "T1_PRODUCTION_READY": False,
+            "reflash_required": True,
+            "terminal_stage": "HOST_BASELINE",
+        }
+    )
+    with pytest.raises(
+        contract.ProductionV2ContractError,
+        match="result_started_error_class_invalid",
     ):
         contract.validate_result(value)
