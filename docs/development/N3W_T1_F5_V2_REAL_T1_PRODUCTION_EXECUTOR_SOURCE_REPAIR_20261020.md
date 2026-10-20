@@ -211,7 +211,56 @@ Focused tests now fail if the remote workspace is opened during SSH establishmen
 
 No T1 was accessed while making this repair.
 
-## 7. Current state
+## 7. R2 CI review blocker and R3 repair
+
+The R2 exact-head review at:
+
+```text
+REVIEW_HEAD=0ccd6db9d207f9d100b0ab9613f3d66327f29df6
+CI=15/15_SUCCESS
+```
+
+confirmed the pre-approval write blocker was closed, but found the same class of violation at the second SSH epoch.
+
+The concrete adapter still opened the remote workspace inside `start_post_reboot_epoch()`, so the real order was:
+
+```text
+real reboot
+-> SSH epoch #2
+-> target /var/tmp creation + SCP
+-> post-reboot acceptance
+```
+
+That violates the frozen separation between deployment and independent read-only post-reboot acceptance.
+
+R3 repairs only that boundary:
+
+```text
+start_post_reboot_epoch()
+-> establish SSH epoch #2
+-> verify trusted host key
+-> zero remote workspace creation
+-> zero SCP
+
+post_reboot_acceptance()
+-> STARTED marker read
+-> target-local reboot verifier
+-> Mac external probes
+-> 90-second restart observation
+-> zero executor workspace creation
+
+all acceptance checks PASS
+-> accept_marker()
+-> first post-reboot path allowed to create the temporary workspace
+-> upload marker tool
+-> durable ACCEPTED transition
+```
+
+Focused regression tests now fail if the workspace is opened during SSH epoch #2 or during post-reboot acceptance, and prove that the ACCEPTED marker path is the first post-reboot adapter path that opens it.
+
+No T1 was accessed while making this repair.
+
+## 8. Current state
 
 ```text
 SOURCE_REPAIR_IMPLEMENTED_CANDIDATE=true
@@ -227,10 +276,10 @@ BOARD_ACCESS=false
 
 The already reflashed T1-B remains untouched after its successful read-only qualification.
 
-## 8. Next gate
+## 9. Next gate
 
 ```text
-NEXT_ONE_GATE=N3W_T1_F5_V2_REAL_T1_PRODUCTION_EXECUTOR_SOURCE_REPAIR_R2_CI_REVIEW_20261020_01
+NEXT_ONE_GATE=N3W_T1_F5_V2_REAL_T1_PRODUCTION_EXECUTOR_SOURCE_REPAIR_R3_CI_REVIEW_20261020_01
 AUTO_EXECUTE_NEXT_GATE=false
 ```
 
