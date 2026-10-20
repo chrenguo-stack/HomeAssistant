@@ -165,7 +165,7 @@ def test_control_binding_rejects_tampered_installed_file(
 def test_broker_auth_evidence_requires_current_exact_identity_and_catches_reconnect():
     tool = load_tool()
     identity = {"client_id": "test-service", "username": "test-user"}
-    connected = "123: New client connected from 172.18.0.1:4000 as test-service (p5, c1, k60, u'test-user')."
+    connected = "123: New client connected from 192.0.2.1:4000 as test-service (p5, c1, k60, u'test-user')."
     before = tool._broker_auth_evidence(connected, identity)
     for suffix in ("Client test-service disconnected.", "Client test-service closed its connection.",
                    "Client test-service already connected, closing old connection.",
@@ -263,7 +263,7 @@ def test_snapshot_entrypoint_collects_bound_public_evidence(monkeypatch, capsys)
     def run(argv):
         calls.append(argv)
         if argv[1] == "logs":
-            return "\n".join(f"123: New client connected from 172.18.0.1:4000 as {name} (p5, c1, k60, u'user-{name}')."
+            return "\n".join(f"123: New client connected from 192.0.2.1:4000 as {name} (p5, c1, k60, u'user-{name}')."
                              for name in ("manager", "homeassistant"))
         assert argv[:2] == ("docker", "exec")
         return json.dumps({"owned_socket_sha256": "1" * 64})
@@ -286,5 +286,5 @@ def test_snapshot_entrypoint_collects_bound_public_evidence(monkeypatch, capsys)
     assert report["runtime_service_auth"]["homeassistant"]["endpoint_port"] == 1883
     assert len(calls) == 3
     public = json.dumps(report)
-    assert "user-manager" not in public and "172.18" not in public
+    assert "user-manager" not in public and "192.0.2" not in public
     assert "password" not in public

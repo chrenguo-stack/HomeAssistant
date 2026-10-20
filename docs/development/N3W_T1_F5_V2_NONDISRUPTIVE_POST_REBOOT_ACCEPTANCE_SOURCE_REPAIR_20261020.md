@@ -88,3 +88,10 @@ VALUABLE_LOCAL_ONLY_RESULT_COUNT=0
 UNARCHIVED_CRITICAL_RESULT_COUNT=0
 NEXT_ONE_GATE=N3W_T1_F5_V2_NONDISRUPTIVE_POST_REBOOT_ACCEPTANCE_SOURCE_AND_CI_REVIEW_20261020_01
 ```
+
+## 首轮远端反馈与夹具修订
+
+- 首次源码归档 commit `d82a428b364143b1aaaf585e16a0f6b190a5e759`，tree `b3c9949b4663d10b1fccf4ffe165e73532491f82`，与本地候选树完全一致。命令行推送缺少凭据，使用已连接 GitHub API 原子更新分支；不复制或搜索认证秘密。
+- F5 source CI [39437492081](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/39437492081)：R1/R2/R3 PASS；隔离 MQTT 的新路径测试 PASS，两个旧路径断开测试因预期过窄 FAIL。实际收到合法的 `e0 01 8e`（Session Taken Over），测试此前只认带显式零属性长度的长一字节形式。夹具改为按 MQTT 包长度读取，并接受这两种合法 0x8e 表示；产品负向 CONNACK 校验没有放宽。
+- Public safety [39437491606](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/39437491606)：假日志中的私网示例地址命中规则；改为文档专用地址，未修改扫描规则/例外清单。该地址是测试合成值，不是目标信息。
+- 此次修订只有两个测试文件和本记录；无产品源码变动。新提交 CI 待复核。上述失败不冒充实机或产品失败。

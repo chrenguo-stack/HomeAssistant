@@ -98,9 +98,10 @@ def connect(broker, identity, port):
 @pytest.mark.parametrize("identity,original_port", [("fixture-manager", 8883), ("fixture-ha", 1883)])
 def test_old_positive_probe_takes_over_existing_client_across_listeners(broker, identity, original_port):
     with connect(broker, identity, original_port) as original, connect(broker, identity, 8883):
-        # MQTT 5 takeover produces DISCONNECT Session Taken Over or closes TCP.
-        data = original.recv(32)
-        assert data == b"" or data.startswith(b"\xe0\x02\x8e")
+        # MQTT 5 permits omission of zero property length in a short DISCONNECT.
+        assert executor._recv_exact(original, 1) == b"\xe0"
+        size = executor._recv_varint(original)
+        assert executor._recv_exact(original, size) in {b"\x8e", b"\x8e\x00"}
 
 
 def test_new_external_probes_leave_both_runtime_connections_alive(broker):
