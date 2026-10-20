@@ -341,3 +341,23 @@ def test_result_started_marker_cannot_claim_pre_mutation_failure():
         match="result_started_error_class_invalid",
     ):
         contract.validate_result(value)
+
+
+def test_result_absent_marker_cannot_claim_device_acceptance():
+    value = result_document()
+    value.update(
+        {
+            "status": "FAIL",
+            "marker_state": "ABSENT",
+            "error_class": "PRE_MUTATION_FAIL",
+            "device_acceptance": "FAIL",
+            "T1_PRODUCTION_READY": False,
+            "reflash_required": True,
+            "terminal_stage": "QUALIFICATION",
+        }
+    )
+    with pytest.raises(
+        contract.ProductionV2ContractError,
+        match="result_absent_marker_device_acceptance_invalid",
+    ):
+        contract.validate_result(value)
