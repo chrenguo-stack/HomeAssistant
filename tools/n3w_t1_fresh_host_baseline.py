@@ -161,14 +161,25 @@ def _check(runner: Runner) -> dict[str, object]:
     }
 
 
-def execute_install(runner: Runner | None = None) -> dict[str, object]:
+def execute_install(
+    expected_versions: dict[str, str],
+    runner: Runner | None = None,
+) -> dict[str, object]:
     if os.geteuid() != 0:
         raise FreshHostBaselineError("root_required")
+    if set(expected_versions) != set(PACKAGES) or any(
+        not isinstance(expected_versions[package], str)
+        or not expected_versions[package].strip()
+        for package in PACKAGES
+    ):
+        raise FreshHostBaselineError("approved_package_versions_invalid")
     release = _os_release()
     _validate_target_host(release)
     active = runner or Runner()
     before = _check(active)
     if before["status"] == "PASS":
+        if before.get("package_versions") != expected_versions:
+            raise FreshHostBaselineError("installed_package_version_mismatch")
         return {
             **before,
             "installed": False,
@@ -176,17 +187,22 @@ def execute_install(runner: Runner | None = None) -> dict[str, object]:
             "package_versions": before.get("package_versions", {}),
         }
     active.run(("apt-get", "update"), timeout=900.0)
-    versions = {
+    candidates = {
         package: _candidate(active.run(("apt-cache", "policy", package)), package)
         for package in PACKAGES
     }
+    for package in PACKAGES:
+        if candidates[package] != expected_versions[package]:
+            raise FreshHostBaselineError(
+                f"package_candidate_version_mismatch:{package}"
+            )
     environment = {**os.environ, "DEBIAN_FRONTEND": "noninteractive"}
     active.run(
         (
             "apt-get",
             "install",
             "-y",
-            *(f"{package}={versions[package]}" for package in PACKAGES),
+            *(f"{package}={expected_versions[package]}" for package in PACKAGES),
         ),
         timeout=1800.0,
         env=environment,
@@ -196,11 +212,13 @@ def execute_install(runner: Runner | None = None) -> dict[str, object]:
     report = _check(active)
     if report["status"] != "PASS":
         raise FreshHostBaselineError("postinstall_baseline_not_ready")
+    if report.get("package_versions") != expected_versions:
+        raise FreshHostBaselineError("postinstall_package_version_mismatch")
     return {
         **report,
         "installed": True,
         "package_source": "ubuntu_apt",
-        "package_versions": versions,
+        "package_versions": expected_versions,
     }
 
 
@@ -227,6 +245,8 @@ def self_check() -> dict[str, object]:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--phase", choices=("self-check", "check", "install"), required=True)
+    parser.add_argument("--docker-io-package-version")
+    parser.add_argument("--docker-compose-v2-package-version")
     return parser
 
 
@@ -238,7 +258,14 @@ def main() -> int:
         elif args.phase == "check":
             result = _check(Runner())
         else:
-            result = execute_install()
+            if not args.docker_io_package_version or not args.docker_compose_v2_package_version:
+                raise FreshHostBaselineError("approved_package_versions_required")
+            result = execute_install(
+                {
+                    "docker.io": args.docker_io_package_version,
+                    "docker-compose-v2": args.docker_compose_v2_package_version,
+                }
+            )
         print(json.dumps(result, sort_keys=True, separators=(",", ":")))
         return 0 if result.get("status") in {"PASS", "MISSING"} else 2
     except (FreshHostBaselineError, OSError, subprocess.TimeoutExpired) as error:

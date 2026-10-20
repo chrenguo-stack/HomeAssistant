@@ -1,0 +1,107 @@
+name: N3W T1 F5 V2 exact production release CI
+
+on:
+  workflow_dispatch:
+    inputs:
+      inputs_run_id:
+        description: "Actions run containing the reviewed V2 release-inputs artifact"
+        required: true
+        type: string
+      inputs_artifact_name:
+        description: "Artifact containing release-inputs.json and its bound component files"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  exact-production-release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: \${{ github.token }}
+      INPUTS_RUN_ID: \${{ inputs.inputs_run_id }}
+      INPUTS_ARTIFACT_NAME: \${{ inputs.inputs_artifact_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Enforce merged-main production authority
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main"
+          git fetch --no-tags origin main
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify exact-head release input provenance
+        run: |
+          set -euo pipefail
+          EXPECTED_ARTIFACT_NAME="n3w-t1-f5-v2-release-inputs-$GITHUB_SHA"
+          test "$INPUTS_ARTIFACT_NAME" = "$EXPECTED_ARTIFACT_NAME"
+
+          RUN_JSON="$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$INPUTS_RUN_ID")"
+          test "$(jq -r '.head_sha' <<<"$RUN_JSON")" = "$GITHUB_SHA"
+          test "$(jq -r '.head_branch' <<<"$RUN_JSON")" = "main"
+          test "$(jq -r '.status' <<<"$RUN_JSON")" = "completed"
+          test "$(jq -r '.conclusion' <<<"$RUN_JSON")" = "success"
+          case "$(jq -r '.event' <<<"$RUN_JSON")" in
+            push|workflow_dispatch) ;;
+            *) exit 1 ;;
+          esac
+
+          ARTIFACTS_JSON="$(gh api --paginate "/repos/$GITHUB_REPOSITORY/actions/runs/$INPUTS_RUN_ID/artifacts")"
+          MATCH_COUNT="$(
+            jq --arg name "$EXPECTED_ARTIFACT_NAME"               '[.artifacts[] | select(.name == $name and .expired == false)] | length'               <<<"$ARTIFACTS_JSON"
+          )"
+          test "$MATCH_COUNT" = "1"
+
+      - name: Download reviewed exact release inputs
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/release-inputs"
+          gh run download "$INPUTS_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name "$INPUTS_ARTIFACT_NAME" \
+            --dir "$RUNNER_TEMP/release-inputs"
+          test -f "$RUNNER_TEMP/release-inputs/release-inputs.json"
+
+      - name: Build exact merged-main V2 release
+        run: |
+          set -euo pipefail
+          SOURCE_TREE="$(git rev-parse 'HEAD^{tree}')"
+          python tools/n3w_t1_f5_v2_release_builder.py build \
+            --repository . \
+            --inputs-json "$RUNNER_TEMP/release-inputs/release-inputs.json" \
+            --destination "$RUNNER_TEMP/n3w-t1-f5-v2-release" \
+            --source-head "$GITHUB_SHA" \
+            --source-tree "$SOURCE_TREE" \
+            --production-authority
+          python tools/n3w_t1_f5_v2_release_builder.py verify \
+            --destination "$RUNNER_TEMP/n3w-t1-f5-v2-release"
+
+      - name: Freeze release bundle
+        run: |
+          set -euo pipefail
+          tar -C "$RUNNER_TEMP" \
+            -czf "$RUNNER_TEMP/n3w-t1-f5-v2-release.tar.gz" \
+            n3w-t1-f5-v2-release
+          sha256sum "$RUNNER_TEMP/n3w-t1-f5-v2-release.tar.gz" \
+            > "$RUNNER_TEMP/n3w-t1-f5-v2-release.tar.gz.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: n3w-t1-f5-v2-exact-production-release-\${{ github.sha }}
+          path: |
+            \${{ runner.temp }}/n3w-t1-f5-v2-release.tar.gz
+            \${{ runner.temp }}/n3w-t1-f5-v2-release.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 30

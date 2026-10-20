@@ -1,3 +1,187 @@
+## 2026-10-20 — F5 V2 PR #624 merge-ready decision
+
+- Fresh rebind: main remains `4223f23d2579241f6568a1ba3fbbccf26b3bc3c1`; PR #624 remains open/draft/mergeable, 76 ahead and 0 behind.
+- Final exact source remains `5233b08743f40a021844e4ce7f464f444de86ae1` / tree `dfab4b7ffc455a3b1c26956744fa1197bbd55006`.
+- Current pre-decision head `ecd34d71da0618567ee200b290445aa82f2fa2d3` is one docs-only closure commit above the exact source.
+- Exact source workflows: 17/17 PASS; R1/R2/R3 and whole-source closure remain CLOSED_PASS.
+- Whole-source blocker count 0; unresolved review threads 0; change-requesting reviews 0.
+- Full PR changes 43 files and stays within the approved V2 source implementation plus the already-closed bounded F2 binding alignment and project docs.
+- PR #624 is technically merge-ready.
+- This gate does not authorize or execute merge; no exact production release or T1/live action occurred.
+- Authority: `docs/development/N3W_T1_F5_V2_PR624_MERGE_DECISION_20261020.md`.
+- Next gate: `N3W_T1_F5_V2_PR624_MERGE_EXECUTION_20261020_01`; explicit authorization required.
+
+## 2026-10-20 — F5 V2 source implementation CLOSED_PASS
+
+- Final exact R3/source head: `5233b08743f40a021844e4ce7f464f444de86ae1`; base main remains `4223f23d2579241f6568a1ba3fbbccf26b3bc3c1`; behind main 0.
+- Exact-head workflows: 17/17 PASS.
+- F5 V2 source CI: R1 PASS, R2 PASS with 96 focused tests, R3 PASS with 64 focused tests, 90-second observation boundary PASS.
+- R3 focused closure blockers were repaired: conservative STARTED/session boundaries and exact-main release-input provenance/artifact-set binding.
+- Whole-source review: 0 blockers; 0 unresolved review threads; 0 change-requesting reviews.
+- R3 delta stays inside the frozen file boundary; Provision/F4 conditional source, firmware, ESP32, radio and pairing business logic are unchanged.
+- `R1_CLOSED_PASS=true`, `R2_CLOSED_PASS=true`, `R3_CLOSED_PASS=true`, `F5_V2_SOURCE_IMPLEMENTATION_CLOSED_PASS=true`.
+- PR release production authority remains false; exact production release is post-merge only and has not been built.
+- No T1/board/live mutation and no merge occurred.
+- Authority: `docs/development/N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R3_POST_REBOOT_ACCEPTANCE_AND_RELEASE_INTEGRATION_CLOSURE_20261020.md`.
+- Next gate: `N3W_T1_F5_V2_PR624_MERGE_DECISION_20261020_01`; separate authorization required.
+
+## 2026-10-20 — F5 V2 R3 entry approved
+
+- Fresh rebind: PR #624 remains open/draft/mergeable; main remains `4223f23d...`; branch has no source drift after R2 closure.
+- R2 remains CLOSED_PASS at exact source `29cf8fee...`.
+- Existing F4 reboot verifier is read-only and already checks real boot change plus target-local runtime/TLS/business persistence; default R3 policy is reuse, not modification.
+- Existing V2 marker already supports exact-bound terminal ACCEPTED with acceptance hash and production-ready state.
+- Existing V2 contract already includes POST_REBOOT_ACCEPTANCE, final-result semantics and V2 release schema.
+- R3 required additions: post-reboot acceptance module/test, V2 release builder/test, exact-production-release workflow.
+- R3 required adaptations: V2 orchestrator/test and V2 source CI.
+- Exact production release remains post-merge only; PR artifacts are not production authority.
+- `R3_ENTRY_GRANTED=true`; `R3_STARTED=false`; no T1/board access and no merge.
+- Authority: `docs/development/N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R3_ENTRY_DECISION_20261020.md`.
+- Next gate: `N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R3_POST_REBOOT_ACCEPTANCE_AND_RELEASE_INTEGRATION_20261020_01`.
+
+## 2026-10-20 — F5 V2 R2 CLOSED_PASS
+
+- Final exact R2 source head: `29cf8fee111f3bf9e525e396a0a8f270349ede7f`; behind main 0.
+- F2 dependent exact-source alignment is closed: executor, manifest and current git blobs now agree.
+- Exact-head workflows: 17/17 PASS.
+- F2 read-only preflight source CI: 72 tests PASS.
+- F5 V2 source CI: R1 foundations PASS, R2 source PASS, 86 focused tests PASS, R2 boundary PASS.
+- Fresh bootstrap deployable payload CI: 104 tests PASS.
+- Production stack staging payload CI: 60 tests PASS.
+- Focused exact-head review: 0 blockers; 0 unresolved review threads; 0 change-requesting reviews.
+- R2 business source was not changed by the dependent-binding repair; Provision/F4 conditional files and R3 source remain untouched.
+- `R2_CLOSED_PASS=true`; `READY_FOR_R3_ENTRY_DECISION=true`; `R3_STARTED=false`.
+- No T1/board access and no merge.
+- Authority: `docs/development/N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R2_DEPENDENT_CI_ALIGNMENT_REPAIR_CLOSURE_20261020.md`.
+- Next gate: `N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R3_ENTRY_DECISION_20261020_01`.
+
+## 2026-10-20 — F5 V2 R2 dependent CI alignment decision
+
+- All 17 current PR workflows completed: 16 PASS, 1 FAIL, 0 pending.
+- Both previously pending payload workflows are now PASS.
+- The only failing workflow is F2 read-only preflight source CI; 70 tests pass and one exact-source binding test fails.
+- Exact inventory found stale staging/baseline bindings in both the F2 executor and its package manifest.
+- Identity and inventory bindings remain exact.
+- The F2 manifest's staging binding was already inconsistent with the executor before R2; the next repair will reconcile both to the current exact source.
+- Minimum approved repair scope is three files: F2 executor, F2 manifest, F2 executor test.
+- No F2 behavior change, no R2 source repair, no R3 entry, no T1/board access and no merge.
+- Authority: `docs/development/N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R2_DEPENDENT_CI_ALIGNMENT_DECISION_20261020.md`.
+- Next gate: `N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R2_DEPENDENT_CI_ALIGNMENT_REPAIR_20261020_01`.
+
+## 2026-10-20 — F5 V2 R2 source candidate / dependent alignment stop
+
+- Exact R2 source candidate: `2defed8b39bcbdf03d7e90c266be6862e12aa27a`; behind main 0.
+- HOST_BASELINE now uses exact release-bound Docker/Compose versions and stops before install on APT candidate drift.
+- F3 V2 apply now requires external run context + current STARTED marker; the static historical authorization string alone is insufficient.
+- Added R2 orchestrator through `REBOOT_PENDING`, with one approval, deterministic internal F4 IDs, no auto retry, and fail-closed forensic/session-close ordering before reflash disposition.
+- Dedicated V2 source CI PASS: R1 foundations PASS, R2 source PASS, 86 focused tests PASS.
+- Fresh install host-only CI PASS.
+- F2 read-only preflight CI FAIL is classified as stale exact-source blob binding: its execution package still pins pre-R2 staging/baseline blobs.
+- F2 execution-package authority files are outside the current frozen R2 source file boundary, so no automatic alignment mutation was made.
+- Two long payload workflows were still running at the stop point; read their final state before freezing a downstream-alignment repair set.
+- No Provision/F4 conditional source modification, no R3 source, no T1/board access, no merge.
+- Authority: `docs/development/N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R2_BUSINESS_PRIMITIVE_ADAPTATION_AND_ORCHESTRATION_PROGRESS_20261020.md`.
+- Next gate: `N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R2_DEPENDENT_CI_ALIGNMENT_DECISION_20261020_01`.
+
+## 2026-10-20 — F5 V2 R2 entry approved
+
+- R1 remains CLOSED_PASS at exact reviewed source `169239395088e5d01dc3ccb7b8386a8ae1c2994e`.
+- Current branch before the decision was docs-only beyond that reviewed source; main remained `4223f23d2579241f6568a1ba3fbbccf26b3bc3c1` with behind-main 0.
+- PR #624 remained Draft, mergeable, and all 12 workflows succeeded.
+- R2 entry prerequisites PASS; blocker count 0; `R2_ENTRY_GRANTED=true`.
+- R2 has not started yet.
+- Frozen R2 targets: release-bound exact HOST_BASELINE package installation, F3 external V2 run-context + current STARTED marker authority, and the V2 orchestrator.
+- Provision/F4 stay conditional-only; R3 acceptance/release integration remains out of scope.
+- No T1/board access, production service start or merge.
+- Authority: `docs/development/N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R2_ENTRY_DECISION_20261020.md`.
+- Next gate: `N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R2_BUSINESS_PRIMITIVE_ADAPTATION_AND_ORCHESTRATION_20261020_01`.
+
+## 2026-10-20 — F5 V2 R1 CLOSED_PASS after final blocker repair
+
+- Exact reviewed source: `169239395088e5d01dc3ccb7b8386a8ae1c2994e`; base main `4223f23d2579241f6568a1ba3fbbccf26b3bc3c1`; behind main 0.
+- All 12 PR workflows succeeded; dedicated `N3W T1 F5 V2 source CI / r1-foundations` succeeded.
+- Final-result ordering blocker is closed: STARTED requires complete forensic evidence + closed operator session before reflash disposition and cannot use `PROCESS_CLEANUP_FAIL`.
+- Qualification blocker is closed: firstboot/systemd read unavailability -> `STOP_UNAVAILABLE`; successfully observed firstboot mismatch -> `FAIL_REFLASH_REQUIRED`.
+- Focused closure review found zero remaining R1 blockers.
+- `R1_CLOSED_PASS=true`; `READY_FOR_R2_ENTRY_DECISION=true`; R2 has not started.
+- No T1 access/mutation, board access or merge occurred.
+- Authority: `docs/development/N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R1_FINAL_CLOSURE_BLOCKER_REPAIR_CLOSURE_20261020.md`.
+- Next gate: `N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R2_ENTRY_DECISION_20261020_01`; separate authorization required.
+
+## 2026-10-20 — F5 V2 R1 final closure review / R2 entry decision
+
+- Exact reviewed source: `e86f95d71b2293a933e9ad38acc0cd42beb8e4b7`; R1 CI 12/12 workflows SUCCESS; behind main 0 at review.
+- R1 is **not yet CLOSED_PASS** and R2 entry is **not eligible**.
+- Remaining blocker A: STARTED final results can still claim reflash disposition before `evidence_complete=true` and `operator_session_closed=true`; STARTED also still accepts `PROCESS_CLEANUP_FAIL`.
+- Remaining blocker B: firstboot/systemctl read-command failure is not explicitly promoted to `unavailable`, so evidence unavailability can still become `FAIL_REFLASH_REQUIRED`.
+- No R2/HOST_BASELINE/F3/orchestrator implementation, no T1/board access, no merge.
+- Authority: `docs/development/N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R1_FINAL_CLOSURE_REVIEW_R2_ENTRY_DECISION_20261020.md`.
+- Next gate: `N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R1_FINAL_CLOSURE_BLOCKER_REPAIR_20261020_01`.
+
+## 2026-10-20 — F5 V2 R1 final contract repair
+
+- Final R1 contract review found two foundation-level blockers; both now have source/test repair candidates on PR #624.
+- Approved release now requires a distinct `f3_image` artifact SHA/size binding in addition to F3 payload and transport binding.
+- Final result schema now carries `marker_state` and `error_class` so STARTED-but-not-ACCEPTED failures must be `reflash_required=true`.
+- `marker_state=ABSENT` remains able to represent either reflash or non-reflash pre-mutation outcomes, including qualification FAIL versus evidence/connection STOP.
+- Durable `ACCEPTED` still preserves device acceptance and forbids reflash if only later Mac/process cleanup fails.
+- R2/HOST_BASELINE/F3/orchestrator work has not started.
+- No T1 access, T1 mutation or board access occurred.
+- Authority: `docs/development/N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R1_FINAL_CONTRACT_REPAIR_PROGRESS_20261020.md`.
+- Next gate: `N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R1_FINAL_CONTRACT_REPAIR_EXACT_HEAD_CI_COMPLETION_CHECK_20261020_01`.
+
+## 2026-10-20 — F5 V2 R1 closure repair
+
+- R1 focused closure review found three narrow fail-closed gaps; all three now have source/test repair candidates on PR #624.
+- Fresh qualification now treats the `/var/lib/n3w-production` authority directory itself as product residue, even if `run.json` was never published.
+- Marker read/hash/inspect/accept paths now revalidate authority-root owner/mode after STARTED, not only at start.
+- Forensic evidence-root symlinks are rejected before resolution; existing evidence roots with unsafe mode fail closed without silent chmod.
+- R2/HOST_BASELINE/F3/orchestrator work has not started.
+- No T1 access, T1 mutation or board access occurred.
+- Authority: `docs/development/N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R1_CLOSURE_REPAIR_PROGRESS_20261020.md`.
+- Next gate: `N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R1_CLOSURE_REPAIR_EXACT_HEAD_CI_COMPLETION_CHECK_20261020_01`.
+
+## 2026-10-20 — F5 V2 R1 focused repair
+
+- R1 focused source review found five blockers; all five now have source/test repair candidates on PR #624.
+- Final result contract now fails closed on PASS/accepted/reflash combinations and preserves the accepted-device cleanup exception.
+- Qualification now treats SSH trust/network/read-only evidence insufficiency as `STOP_UNAVAILABLE`, never as reflash authority.
+- Fresh residue coverage now includes historical authorization/provisioning roots plus exact product systemd unit/listener probes.
+- Failure freeze preserves the real target mutation state; reflash disposition now requires verified evidence-root manifest plus session close.
+- Production marker authority root must be owner-bound, mode 0700, non-symlink before marker mutation.
+- R2/HOST_BASELINE/F3/orchestrator work has not started.
+- No T1 access, T1 mutation or board access occurred.
+- Authority: `docs/development/N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R1_FOCUSED_REPAIR_PROGRESS_20261020.md`.
+- Next gate: `N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R1_REPAIR_EXACT_HEAD_CI_COMPLETION_CHECK_20261020_01`.
+
+## 2026-10-20 — F5 V2 R1 foundations source candidate
+
+- R1 foundations are implemented on PR #624; exact-head CI is still pending.
+- Added V2 contract, reviewed SSH transport, Standard Fresh Armbian qualification, minimal STARTED->ACCEPTED marker, and read-only failure forensics.
+- Fresh qualification has exactly three outcomes: `PASS`, `FAIL_REFLASH_REQUIRED`, `STOP_UNAVAILABLE`.
+- Marker command surface is only `inspect/start/accept`; no resume/repair/clear/reset/force/reopen path exists.
+- Failure evidence ordering foundation is freeze -> snapshot -> manifest; reflash disposition helper requires completed forensics plus proven session close.
+- Archived V1 SSH transport source/test blobs were selectively reused; V1 production authority/runtime recovery state machine was not restored.
+- HOST_BASELINE/F3/Provision/F4 business primitive adaptation has not started.
+- No T1 access, T1 mutation or board access occurred.
+- Dedicated source CI: `N3W T1 F5 V2 source CI / r1-foundations`.
+- Authority: `docs/development/N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R1_FOUNDATIONS_PROGRESS_20261020.md`.
+- Next gate: `N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R1_EXACT_HEAD_CI_COMPLETION_CHECK_20261020_01`.
+
+## 2026-10-19 — F5 V2 source implementation work package
+
+- Source implementation branch created from aligned main `4223f23d2579241f6568a1ba3fbbccf26b3bc3c1`.
+- One implementation branch / one Draft PR; no new stacked implementation PR chain.
+- R1 adds V2 contract, SSH transport, fresh qualification, minimal marker and failure-forensics foundations.
+- R2 adapts exact-package HOST_BASELINE and F3 external run-context, then wires the V2 orchestrator.
+- Provision/F4 source remains unchanged initially; existing one-shot/no-replay/rollback guards are reused unless a focused test proves a real interface gap.
+- R3 adds post-reboot acceptance wrapper, external probes and V2 release-builder/CI integration.
+- Archived V1 SSH transport and release-builder may be used only as selective implementation references; V1 top-level production authority/recovery paths remain forbidden.
+- No product source has been written in this preparation gate.
+- No T1 or board access occurred.
+- Authority: `docs/development/N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_WORK_PACKAGE_PREPARATION_20261019.md`.
+- Next gate: `N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R1_FOUNDATIONS_20261019_01`.
+
 ## 2026-10-19 — F5 V2 PR #622 post-merge alignment prepared
 
 - PR #622 is CLOSED/MERGED.

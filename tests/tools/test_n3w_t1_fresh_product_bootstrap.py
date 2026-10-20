@@ -853,3 +853,101 @@ def test_transport_v2_requests_one_image_only_after_authorization() -> None:
     assert "image_capacity_insufficient" in source
     assert "staged_tar_deleted" in source
     assert 'run_fresh_public_staging(' in source
+
+
+def test_static_authorization_alone_cannot_authorize_v2_apply(tmp_path: Path) -> None:
+    tool = load_tool()
+    with pytest.raises(tool.BootstrapError, match="v2_run_context_required"):
+        tool.execute_apply(tmp_path, tool.AUTHORIZATION_ID)
+
+
+def test_v2_run_context_must_be_outside_payload_and_bind_started_marker(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    payload = tmp_path / "payload"
+    payload.mkdir(mode=0o700)
+    context_path = tmp_path / "run-context.json"
+    marker_root = tmp_path / "marker-root"
+    marker_root.mkdir(mode=0o700)
+    marker_path = marker_root / "run.json"
+    monkeypatch.setattr(tool, "V2_MARKER_PATH", marker_path)
+
+    run_context = {
+        "schema": tool.V2_RUN_CONTEXT_SCHEMA,
+        "run_id": "1" * 64,
+        "release_id": "2" * 64,
+        "release_sha256": "3" * 64,
+        "source_head": "4" * 40,
+        "target_binding_sha256": "5" * 64,
+        "production_marker_sha256": "0" * 64,
+        "action": "F3_DEPLOY",
+    }
+    marker = {
+        "schema": tool.V2_RUN_MARKER_SCHEMA,
+        "run_id": run_context["run_id"],
+        "release_id": run_context["release_id"],
+        "release_sha256": run_context["release_sha256"],
+        "source_head": run_context["source_head"],
+        "target_binding_sha256": run_context["target_binding_sha256"],
+        "ssh_host_key_sha256": "6" * 64,
+        "plan_sha256": "7" * 64,
+        "state": "STARTED",
+        "replay_allowed": False,
+        "created_at": "2026-10-20T00:00:00Z",
+    }
+    marker_path.write_text(json.dumps(marker, sort_keys=True) + "\n", encoding="utf-8")
+    marker_path.chmod(0o600)
+    run_context["production_marker_sha256"] = tool._sha256_file(marker_path)
+    context_path.write_text(
+        json.dumps(run_context, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    context_path.chmod(0o600)
+
+    loaded = tool._load_v2_run_context(
+        context_path,
+        payload,
+        {"source_head": run_context["source_head"]},
+    )
+    assert loaded["action"] == "F3_DEPLOY"
+    assert tool._validate_v2_started_marker(loaded)["state"] == "STARTED"
+
+    inside = payload / "run-context.json"
+    inside.write_text(context_path.read_text(encoding="utf-8"), encoding="utf-8")
+    inside.chmod(0o600)
+    with pytest.raises(tool.BootstrapError, match="v2_run_context_inside_payload"):
+        tool._load_v2_run_context(
+            inside,
+            payload,
+            {"source_head": run_context["source_head"]},
+        )
+
+
+def test_v2_action_claim_record_binds_run_and_marker(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    ledger = tmp_path / "ledger-v2"
+    monkeypatch.setattr(tool, "AUTHORIZATION_LEDGER_ROOT", ledger)
+    payload = tmp_path / "payload-v2"
+    payload.mkdir()
+    (payload / "payload-manifest.json").write_text(
+        json.dumps({"source_head": "a" * 40}) + "\n",
+        encoding="utf-8",
+    )
+    manifest = {"source_head": "a" * 40}
+    context = {
+        "run_id": "1" * 64,
+        "production_marker_sha256": "2" * 64,
+        "action": "F3_DEPLOY",
+    }
+
+    tool._claim_authorization(payload, manifest, context)
+    assert tool._authorization_record_matches(payload, manifest, context) is True
+
+    changed = dict(context)
+    changed["production_marker_sha256"] = "3" * 64
+    assert tool._authorization_record_matches(payload, manifest, changed) is False

@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import shlex
 import shutil
 import subprocess
@@ -22,6 +23,17 @@ CAPACITY_SCHEMA = "gh.n3w-t1-fresh-capacity/1"
 MIN_POST_PEAK_FREE_BYTES = 5 * 1024 * 1024 * 1024
 IMAGE_LABELS = ("homeassistant", "manager", "broker")
 AUTHORIZATION_LEDGER_ROOT = "/var/lib/n3w-fresh-bootstrap-authorizations"
+V2_RUN_CONTEXT_SCHEMA = "gh.n3w-t1-production-v2-run-context/1"
+V2_RUN_CONTEXT_KEYS = {
+    "schema",
+    "run_id",
+    "release_id",
+    "release_sha256",
+    "source_head",
+    "target_binding_sha256",
+    "production_marker_sha256",
+    "action",
+}
 IMAGE_ARTIFACT_FILES = {
     "homeassistant": "homeassistant-arm64.tar",
     "manager": "greenhouse-manager-arm64.tar",
@@ -1112,6 +1124,90 @@ def _transfer_requested_image(
         raise
 
 
+def _read_v2_run_context(
+    path: Path,
+    manifest: dict[str, Any],
+) -> dict[str, str]:
+    if path.is_symlink() or not path.is_file():
+        raise FreshHostTransportError("v2_run_context_invalid")
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise FreshHostTransportError("v2_run_context_invalid") from error
+    if not isinstance(document, dict) or set(document) != V2_RUN_CONTEXT_KEYS:
+        raise FreshHostTransportError("v2_run_context_contract_invalid")
+    if document.get("schema") != V2_RUN_CONTEXT_SCHEMA:
+        raise FreshHostTransportError("v2_run_context_contract_invalid")
+    for key in (
+        "run_id",
+        "release_id",
+        "release_sha256",
+        "target_binding_sha256",
+        "production_marker_sha256",
+    ):
+        if re.fullmatch(r"[0-9a-f]{64}", str(document.get(key))) is None:
+            raise FreshHostTransportError(f"v2_run_context_{key}_invalid")
+    if re.fullmatch(r"[0-9a-f]{40}", str(document.get("source_head"))) is None:
+        raise FreshHostTransportError("v2_run_context_source_head_invalid")
+    if document.get("action") != "F3_DEPLOY":
+        raise FreshHostTransportError("v2_run_context_action_invalid")
+    if document.get("source_head") != manifest.get("source_head"):
+        raise FreshHostTransportError("v2_run_context_source_mismatch")
+    return {str(key): str(value) for key, value in document.items()}
+
+
+def _remote_prepare_run_context(
+    t1: str,
+    local_path: Path,
+    remote_path: str,
+) -> None:
+    transfer = remote_path + ".transfer"
+    expected_sha = _sha256_file(local_path)
+    _run(("scp", str(local_path), f"{t1}:{transfer}"), timeout=120)
+    script = (
+        "import hashlib,os,sys;"
+        "p=sys.argv[1];d=sys.argv[2];e=sys.argv[3];"
+        "b=open(p,'rb').read();"
+        "assert hashlib.sha256(b).hexdigest()==e;"
+        "assert not os.path.lexists(d);"
+        "os.chmod(p,0o600);os.rename(p,d)"
+    )
+    try:
+        _run(
+            (
+                "ssh",
+                "-n",
+                t1,
+                _remote_command(
+                    (
+                        "python3",
+                        "-c",
+                        script,
+                        transfer,
+                        remote_path,
+                        expected_sha,
+                    )
+                ),
+            ),
+            timeout=60,
+        )
+    except Exception:
+        try:
+            _run(
+                (
+                    "ssh",
+                    "-n",
+                    t1,
+                    _remote_command(("rm", "-f", "--", transfer)),
+                ),
+                timeout=30,
+                check=False,
+            )
+        except Exception:
+            pass
+        raise
+
+
 def _remote_baseline_report(
     t1: str,
     baseline_tool: Path,
@@ -1169,6 +1265,7 @@ def _remote_claim_authorization(
     t1: str,
     remote_dir: str,
     authorization: str,
+    remote_run_context: str,
 ) -> None:
     command = _remote_command(
         (
@@ -1180,6 +1277,8 @@ def _remote_claim_authorization(
             "claim",
             "--authorization-id",
             authorization,
+            "--run-context",
+            remote_run_context,
         )
     )
     completed = _run(("ssh", "-n", t1, command), timeout=120, check=False)
@@ -1274,6 +1373,7 @@ def _parser() -> argparse.ArgumentParser:
         default=DEFAULT_ARTIFACT_CACHE_ROOT,
     )
     parser.add_argument("--authorization-id")
+    parser.add_argument("--run-context", type=Path)
     return parser
 
 
@@ -1281,6 +1381,8 @@ def main() -> int:
     args = _parser().parse_args()
     work = Path(tempfile.mkdtemp(prefix="n3w-fresh-host."))
     authorization: str | None = None
+    run_context: dict[str, str] | None = None
+    remote_run_context: str | None = None
     remote_dir: str | None = None
     remote_apply_started = False
     claim_seen = False
@@ -1352,14 +1454,27 @@ def main() -> int:
 
         manifest_authorization = manifest.get("authorization_id")
         if args.phase == "apply":
+            if args.run_context is None:
+                raise FreshHostTransportError("v2_run_context_required")
             if (
                 not isinstance(manifest_authorization, str)
                 or not manifest_authorization
-                or args.authorization_id != manifest_authorization
+                or (
+                    args.authorization_id is not None
+                    and args.authorization_id != manifest_authorization
+                )
             ):
                 raise FreshHostTransportError("authorization_id_mismatch")
+            run_context = _read_v2_run_context(args.run_context, manifest)
             authorization = manifest_authorization
+            if baseline.get("status") != "PASS":
+                raise FreshHostTransportError(
+                    "host_baseline_release_bound_install_required"
+                )
             remote_dir = _remote_mktemp(args.t1, "n3w-fresh-bootstrap")
+            remote_run_context = (
+                f"/var/tmp/n3w-v2-run-context-{run_context['run_id'][:16]}.json"
+            )
             payload_transfer_started = True
             _remote_prepare_payload(
                 args.t1,
@@ -1369,8 +1484,20 @@ def main() -> int:
                 manifest_sha256=args.manifest_sha256,
             )
             payload_transfer_complete = True
+            assert remote_run_context is not None
+            assert args.run_context is not None
+            _remote_prepare_run_context(
+                args.t1,
+                args.run_context,
+                remote_run_context,
+            )
             try:
-                _remote_claim_authorization(args.t1, remote_dir, authorization)
+                _remote_claim_authorization(
+                    args.t1,
+                    remote_dir,
+                    authorization,
+                    remote_run_context,
+                )
             except (
                 FreshHostTransportError,
                 OSError,
@@ -1394,10 +1521,6 @@ def main() -> int:
                 raise
             claim_seen = True
             remote_apply_started = True
-            if baseline.get("status") != "PASS":
-                baseline = _remote_baseline_report(args.t1, baseline_tool, "install")
-                if baseline.get("status") != "PASS":
-                    raise FreshHostTransportError("host_baseline_install_not_ready")
 
         storage = _remote_storage_report(args.t1)
         plan = _plan_transport(
@@ -1453,6 +1576,8 @@ def main() -> int:
                 "apply",
                 "--authorization-id",
                 authorization,
+                "--run-context",
+                remote_run_context,
             )
         )
         process = subprocess.Popen(
@@ -1566,7 +1691,15 @@ def main() -> int:
                         "ssh",
                         "-n",
                         args.t1,
-                        _remote_command(("rm", "-rf", "--", remote_dir)),
+                        _remote_command(
+                            (
+                                "rm",
+                                "-rf",
+                                "--",
+                                remote_dir,
+                                remote_run_context or "",
+                            )
+                        ),
                     ),
                     timeout=120,
                     check=False,
@@ -1628,7 +1761,15 @@ def main() -> int:
                     "ssh",
                     "-n",
                     args.t1,
-                    _remote_command(("rm", "-rf", "--", remote_dir)),
+                    _remote_command(
+                        (
+                            "rm",
+                            "-rf",
+                            "--",
+                            remote_dir,
+                            remote_run_context or "",
+                        )
+                    ),
                 ),
                 timeout=120,
                 check=False,
