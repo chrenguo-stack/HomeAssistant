@@ -1,3 +1,13 @@
+## 2026-10-20 — F5 V2 R1 final closure review / R2 entry decision
+
+- Exact reviewed source: `e86f95d71b2293a933e9ad38acc0cd42beb8e4b7`; R1 CI 12/12 workflows SUCCESS; behind main 0 at review.
+- R1 is **not yet CLOSED_PASS** and R2 entry is **not eligible**.
+- Remaining blocker A: STARTED final results can still claim reflash disposition before `evidence_complete=true` and `operator_session_closed=true`; STARTED also still accepts `PROCESS_CLEANUP_FAIL`.
+- Remaining blocker B: firstboot/systemctl read-command failure is not explicitly promoted to `unavailable`, so evidence unavailability can still become `FAIL_REFLASH_REQUIRED`.
+- No R2/HOST_BASELINE/F3/orchestrator implementation, no T1/board access, no merge.
+- Authority: `docs/development/N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R1_FINAL_CLOSURE_REVIEW_R2_ENTRY_DECISION_20261020.md`.
+- Next gate: `N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R1_FINAL_CLOSURE_BLOCKER_REPAIR_20261020_01`.
+
 ## 2026-10-20 — F5 V2 R1 final contract repair
 
 - Final R1 contract review found two foundation-level blockers; both now have source/test repair candidates on PR #624.
