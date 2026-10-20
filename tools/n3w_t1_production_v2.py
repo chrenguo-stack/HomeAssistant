@@ -498,6 +498,7 @@ class R3Orchestrator:
         run_id: str,
         target_binding_sha256: str,
         approved: bool,
+        approval_callback: Callable[[dict[str, Any]], bool] | None = None,
     ) -> dict[str, Any]:
         release = validate_release(deepcopy(release_document))
         tracker = _R3MarkerTrackingAdapter(self.adapter)
