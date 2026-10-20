@@ -447,7 +447,6 @@ class LiveProductionAdapter:
         epoch = self.transport.start_epoch()
         if epoch.get("host_key_sha256") != self.expected_host_key_sha256:
             raise ProductionExecutorError("ssh_host_key_drift")
-        self._open_remote_root()
         return dict(epoch)
 
     def qualify(self, release: dict[str, Any]) -> dict[str, Any]:
@@ -459,6 +458,7 @@ class LiveProductionAdapter:
         return result
 
     def start_marker(self, binding: dict[str, str]) -> dict[str, Any]:
+        self._open_remote_root()
         result = self._remote_json(
             self._marker_command(
                 "start",
