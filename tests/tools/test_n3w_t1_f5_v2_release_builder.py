@@ -246,3 +246,25 @@ def test_builder_rejects_symlinked_artifact_input(tmp_path: Path):
             source_head=head,
             source_tree=tree,
         )
+
+
+
+def test_builder_rejects_unreviewed_extra_artifact_name(tmp_path: Path):
+    inputs = write_inputs(tmp_path)
+    document = json.loads(inputs.read_text(encoding="utf-8"))
+    extra = tmp_path / "extra.bin"
+    extra.write_bytes(b"unexpected")
+    document["artifacts"]["unexpected_extra"] = extra.name
+    inputs.write_text(json.dumps(document) + "\n", encoding="utf-8")
+    head, tree = exact_source()
+    with pytest.raises(
+        builder.ReleaseBuildError,
+        match="release_inputs_artifact_set_invalid",
+    ):
+        builder.build_release(
+            ROOT,
+            inputs,
+            tmp_path / "release",
+            source_head=head,
+            source_tree=tree,
+        )

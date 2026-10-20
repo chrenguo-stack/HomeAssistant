@@ -241,11 +241,16 @@ jobs:
           assert "pull_request:" not in exact_ci
           assert 'refs/heads/main' in exact_ci
           assert "--production-authority" in exact_ci
+          assert "EXPECTED_ARTIFACT_NAME=\"n3w-t1-f5-v2-release-inputs-$GITHUB_SHA\"" in exact_ci
+          assert "'.head_sha'" in exact_ci
+          assert "'.conclusion'" in exact_ci
+          assert "MATCH_COUNT" in exact_ci
           release_builder = Path(
               "tools/n3w_t1_f5_v2_release_builder.py"
           ).read_text(encoding="utf-8")
           assert "release_inputs_source_head_mismatch" in release_builder
           assert "release_inputs_source_tree_mismatch" in release_builder
+          assert "release_inputs_artifact_set_invalid" in release_builder
 
           print("F5_V2_R3_BOUNDARY=PASS")
           print("OBSERVATION_WINDOW_SECONDS=90")

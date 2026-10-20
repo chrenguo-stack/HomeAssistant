@@ -98,8 +98,11 @@ def _load_inputs(path: Path) -> dict[str, Any]:
     if GIT_SHA_RE.fullmatch(str(value.get("source_tree", ""))) is None:
         raise ReleaseBuildError("release_inputs_source_tree_invalid")
     artifacts = value.get("artifacts")
-    if not isinstance(artifacts, dict) or not REQUIRED_RELEASE_ARTIFACTS.issubset(artifacts):
-        raise ReleaseBuildError("release_inputs_artifacts_missing")
+    if (
+        not isinstance(artifacts, dict)
+        or set(artifacts) != set(REQUIRED_RELEASE_ARTIFACTS)
+    ):
+        raise ReleaseBuildError("release_inputs_artifact_set_invalid")
     return value
 
 

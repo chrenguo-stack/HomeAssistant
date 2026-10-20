@@ -90,7 +90,7 @@ class Adapter:
 
     def start_marker(self, _binding):
         self.calls.append("start_marker")
-        if self.fail_at == "start_marker":
+        if "start_marker" in self.fail_at:
             return {"state": "FAIL"}
         return {"state": "STARTED"}
 
@@ -433,3 +433,54 @@ def test_r3_pre_mutation_failure_can_emit_absent_marker_result_after_session_clo
     assert result["error_class"] == "PRE_MUTATION_FAIL"
     assert result["operator_session_closed"] is True
     assert result["reflash_required"] is False
+
+
+
+def test_r2_marker_start_unknown_is_treated_as_mutation_and_requires_reflash():
+    adapter = Adapter(fail_at="start_marker")
+    result = r2.R2Orchestrator(adapter).execute(
+        release_document(),
+        run_id="1" * 64,
+        target_binding_sha256="5" * 64,
+        approved=True,
+    )
+    assert result["status"] == "FAIL"
+    assert result["state"] == "REFLASH_REQUIRED"
+    assert result["failed_stage"] == "MARKER_START"
+    assert result["reflash_required"] is True
+    assert adapter.calls[-4:] == [
+        "freeze_failure",
+        "collect_failure_forensics",
+        "failure_session_close",
+        "record_reflash_disposition",
+    ]
+
+
+def test_r3_marker_start_failure_finalization_error_is_not_pre_mutation():
+    adapter = Adapter(fail_at={"start_marker", "collect_failure_forensics"})
+    with pytest.raises(
+        r2.ProductionV2R2Error,
+        match="failure_forensics_not_pass",
+    ):
+        r2.R3Orchestrator(adapter).execute(
+            release_document(),
+            run_id="1" * 64,
+            target_binding_sha256="5" * 64,
+            approved=True,
+        )
+
+
+def test_r3_pre_mutation_session_close_failure_does_not_claim_closed():
+    adapter = Adapter(fail_at={"qualify", "close_pre_reboot_epoch"})
+    result = r2.R3Orchestrator(adapter).execute(
+        release_document(),
+        run_id="1" * 64,
+        target_binding_sha256="5" * 64,
+        approved=True,
+    )
+    assert result["status"] == "FAIL"
+    assert result["marker_state"] == "ABSENT"
+    assert result["error_class"] == "PRE_MUTATION_FAIL"
+    assert result["operator_session_closed"] is False
+    assert result["reflash_required"] is False
+    assert result["terminal_stage"] == "PRE_MUTATION_SESSION_CLOSE"

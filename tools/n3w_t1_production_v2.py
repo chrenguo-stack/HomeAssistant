@@ -213,8 +213,8 @@ class R2Orchestrator:
         try:
             _pass(self.adapter.verify_release(release), "release")
             stage = "SSH_EPOCH"
-            epoch = _pass(self.adapter.start_ssh_epoch(), "ssh_epoch")
             epoch_started = True
+            epoch = _pass(self.adapter.start_ssh_epoch(), "ssh_epoch")
             host_key = epoch.get("host_key_sha256")
             if not isinstance(host_key, str):
                 raise ProductionV2R2Error("ssh_host_key_missing")
@@ -230,10 +230,10 @@ class R2Orchestrator:
                 raise ProductionV2R2Error("production_approval_required")
             stage = "MARKER_START"
             binding = marker_binding(plan)
+            marker_started = True
             marker = self.adapter.start_marker(binding)
             if not isinstance(marker, dict) or marker.get("state") != "STARTED":
                 raise ProductionV2R2Error("marker_start_not_confirmed")
-            marker_started = True
             marker_sha = self.adapter.marker_sha256()
             context = build_f3_run_context(plan, marker_sha)
 
@@ -387,12 +387,25 @@ class _R3MarkerTrackingAdapter:
     def __init__(self, delegate: R3Adapter):
         self._delegate = delegate
         self.marker_started = False
+        self.operator_session_closed = True
+
+    def start_ssh_epoch(self) -> dict[str, Any]:
+        self.operator_session_closed = False
+        return self._delegate.start_ssh_epoch()
+
+    def close_pre_reboot_epoch(self) -> dict[str, Any]:
+        result = self._delegate.close_pre_reboot_epoch()
+        if (
+            isinstance(result, dict)
+            and result.get("status") == "PASS"
+            and result.get("session_closed") is True
+        ):
+            self.operator_session_closed = True
+        return result
 
     def start_marker(self, binding: dict[str, str]) -> dict[str, Any]:
-        result = self._delegate.start_marker(binding)
-        if isinstance(result, dict) and result.get("state") == "STARTED":
-            self.marker_started = True
-        return result
+        self.marker_started = True
+        return self._delegate.start_marker(binding)
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._delegate, name)
@@ -487,10 +500,14 @@ class R3Orchestrator:
                 error_class="PRE_MUTATION_FAIL",
                 device_acceptance="NOT_REACHED",
                 production_ready=False,
-                operator_session_closed=True,
+                operator_session_closed=tracker.operator_session_closed,
                 evidence_complete=True,
                 reflash_required=False,
-                terminal_stage="PRE_MUTATION",
+                terminal_stage=(
+                    "PRE_MUTATION"
+                    if tracker.operator_session_closed
+                    else "PRE_MUTATION_SESSION_CLOSE"
+                ),
                 evidence_seed={
                     "error_type": type(error).__name__,
                     "error": str(error)[:200],

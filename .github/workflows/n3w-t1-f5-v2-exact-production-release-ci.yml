@@ -42,6 +42,28 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Verify exact-head release input provenance
+        run: |
+          set -euo pipefail
+          EXPECTED_ARTIFACT_NAME="n3w-t1-f5-v2-release-inputs-$GITHUB_SHA"
+          test "$INPUTS_ARTIFACT_NAME" = "$EXPECTED_ARTIFACT_NAME"
+
+          RUN_JSON="$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$INPUTS_RUN_ID")"
+          test "$(jq -r '.head_sha' <<<"$RUN_JSON")" = "$GITHUB_SHA"
+          test "$(jq -r '.head_branch' <<<"$RUN_JSON")" = "main"
+          test "$(jq -r '.status' <<<"$RUN_JSON")" = "completed"
+          test "$(jq -r '.conclusion' <<<"$RUN_JSON")" = "success"
+          case "$(jq -r '.event' <<<"$RUN_JSON")" in
+            push|workflow_dispatch) ;;
+            *) exit 1 ;;
+          esac
+
+          ARTIFACTS_JSON="$(gh api --paginate "/repos/$GITHUB_REPOSITORY/actions/runs/$INPUTS_RUN_ID/artifacts")"
+          MATCH_COUNT="$(
+            jq --arg name "$EXPECTED_ARTIFACT_NAME"               '[.artifacts[] | select(.name == $name and .expired == false)] | length'               <<<"$ARTIFACTS_JSON"
+          )"
+          test "$MATCH_COUNT" = "1"
+
       - name: Download reviewed exact release inputs
         run: |
           set -euo pipefail
