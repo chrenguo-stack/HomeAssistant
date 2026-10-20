@@ -161,7 +161,57 @@ STAGING_HOST_BLOB=47718484ecffc2e4e7cab9505a1833cf7f5c8d7a
 
 This dependent alignment is required so the existing F2 regression guard continues to prove the exact current source instead of rejecting an intentionally changed file.
 
-## 6. Current state
+## 6. Independent CI review blocker and R2 repair
+
+The independent exact-head review at:
+
+```text
+REVIEW_HEAD=036ef98946d9d0bf7fc5ff216c6a0f55081ef858
+CI=15/15_SUCCESS
+```
+
+found one real-adapter blocker that CI had not covered.
+
+The concrete adapter opened `/var/tmp/n3w-f5-v2-executor.*` and uploaded three tool files inside `start_ssh_epoch()`. Therefore the real order was:
+
+```text
+SSH epoch
+-> target temp-directory/file writes
+-> read-only qualification
+-> production approval
+```
+
+That contradicted the frozen V2 authority order and made a later qualification report of `read_only=true` / `mutation_performed=false` misleading at the whole-run level.
+
+R2 repairs only that boundary:
+
+```text
+start_ssh_epoch()
+-> establish managed SSH only
+-> verify trusted host key
+-> zero remote workspace creation
+-> zero SCP
+
+qualification()
+-> read-only probes only
+-> zero remote workspace creation
+
+approval denied
+-> close managed SSH
+-> zero target workspace/file mutation
+
+approval PASS
+-> start_marker() becomes the first adapter path allowed to open
+   the remote temporary workspace
+-> marker STARTED is attempted under the conservative STARTED failure boundary
+-> HOST_BASELINE and later product mutation remain after marker start
+```
+
+Focused tests now fail if the remote workspace is opened during SSH establishment or qualification, and verify that the marker-start adapter path is the first one that opens it.
+
+No T1 was accessed while making this repair.
+
+## 7. Current state
 
 ```text
 SOURCE_REPAIR_IMPLEMENTED_CANDIDATE=true
@@ -177,10 +227,10 @@ BOARD_ACCESS=false
 
 The already reflashed T1-B remains untouched after its successful read-only qualification.
 
-## 7. Next gate
+## 8. Next gate
 
 ```text
-NEXT_ONE_GATE=N3W_T1_F5_V2_REAL_T1_PRODUCTION_EXECUTOR_SOURCE_REPAIR_CI_REVIEW_20261020_01
+NEXT_ONE_GATE=N3W_T1_F5_V2_REAL_T1_PRODUCTION_EXECUTOR_SOURCE_REPAIR_R2_CI_REVIEW_20261020_01
 AUTO_EXECUTE_NEXT_GATE=false
 ```
 
