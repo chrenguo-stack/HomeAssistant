@@ -5,7 +5,7 @@ import hashlib
 import json
 import re
 from copy import deepcopy
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 from n3w_t1_production_v2_contract import (
     V2_ACTIONS,
@@ -18,11 +18,17 @@ from n3w_t1_production_v2_contract import (
 
 SCHEMA = "gh.n3w-t1-production-v2-r2/1"
 R2_TERMINAL_STATE = "REBOOT_PENDING"
-F4_INTERNAL_ACTIONS = (
+F4_MUTATION_ACTIONS = (
     "F4_PREPARE",
     "F4_ACTIVATE",
     "F4_ACCEPT",
-    "PERSIST_CERT",
+    "F4_PERSISTENCE",
+    "F4_CERT_AUDIT",
+    "F4_CERT_TIMER",
+)
+F4_INTERNAL_ACTIONS = (
+    *F4_MUTATION_ACTIONS,
+    "REBOOT_CONTROL_INSTALL",
     "REBOOT_CONTROL",
 )
 F4_AUTH_PATTERN = re.compile(r"^N3W_T1_F4_[A-Z0-9_]{8,160}$")
@@ -42,7 +48,11 @@ class R2Adapter(Protocol):
     def f3_deploy(self, run_context: dict[str, str]) -> dict[str, Any]: ...
     def provision(self) -> dict[str, Any]: ...
     def f4_action(self, action: str, authorization_id: str) -> dict[str, Any]: ...
-    def controlled_reboot(self, authorization_id: str) -> dict[str, Any]: ...
+    def controlled_reboot(
+        self,
+        install_authorization_id: str,
+        reboot_authorization_id: str,
+    ) -> dict[str, Any]: ...
     def close_pre_reboot_epoch(self) -> dict[str, Any]: ...
     def freeze_failure(self, failure: dict[str, Any]) -> dict[str, Any]: ...
     def collect_failure_forensics(self) -> dict[str, Any]: ...
@@ -205,6 +215,7 @@ class R2Orchestrator:
         run_id: str,
         target_binding_sha256: str,
         approved: bool,
+        approval_callback: Callable[[dict[str, Any]], bool] | None = None,
     ) -> dict[str, Any]:
         release = validate_release(deepcopy(release_document))
         epoch_started = False
@@ -226,6 +237,12 @@ class R2Orchestrator:
                 target_binding_sha256=target_binding_sha256,
                 ssh_host_key_sha256=host_key,
             )
+            if approval_callback is not None:
+                if approved is True:
+                    raise ProductionV2R2Error(
+                        "production_approval_authority_ambiguous"
+                    )
+                approved = approval_callback(deepcopy(plan)) is True
             if approved is not True:
                 raise ProductionV2R2Error("production_approval_required")
             stage = "MARKER_START"
@@ -251,7 +268,7 @@ class R2Orchestrator:
                 action: derive_internal_action_id(run_id, action)
                 for action in F4_INTERNAL_ACTIONS
             }
-            for action in F4_INTERNAL_ACTIONS[:-1]:
+            for action in F4_MUTATION_ACTIONS:
                 stage = action
                 _pass(
                     self.adapter.f4_action(action, action_ids[action]),
@@ -260,7 +277,10 @@ class R2Orchestrator:
 
             stage = "REBOOT_CONTROL"
             _pass(
-                self.adapter.controlled_reboot(action_ids["REBOOT_CONTROL"]),
+                self.adapter.controlled_reboot(
+                    action_ids["REBOOT_CONTROL_INSTALL"],
+                    action_ids["REBOOT_CONTROL"],
+                ),
                 "reboot_control",
             )
             stage = "SSH_EPOCH_CLOSE"
@@ -487,6 +507,7 @@ class R3Orchestrator:
                 run_id=run_id,
                 target_binding_sha256=target_binding_sha256,
                 approved=approved,
+                approval_callback=approval_callback,
             )
         except Exception as error:
             if tracker.marker_started:
