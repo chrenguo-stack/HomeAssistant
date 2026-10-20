@@ -211,6 +211,7 @@ jobs:
             tests/tools/test_n3w_t1_production_v2.py \
             tests/tools/test_n3w_t1_post_reboot_acceptance.py \
             tests/tools/test_n3w_t1_f5_v2_release_builder.py \
+            tests/tools/test_n3w_t1_f5_v2_release_inputs_builder.py \
             tests/tools/test_n3w_t1_production_marker.py \
             tests/tools/test_n3w_t1_production_v2_contract.py
 
