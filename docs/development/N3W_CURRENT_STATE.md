@@ -1,3 +1,36 @@
+## 2026-10-20 — F5 V2 R2 entry decision CLOSED_PASS
+
+~~~text
+TASK=N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R2_ENTRY_DECISION_20261020_01
+
+R1_REVIEWED_SOURCE_HEAD=169239395088e5d01dc3ccb7b8386a8ae1c2994e
+CURRENT_DOCS_HEAD_BEFORE_DECISION=fa4b03ab95c3f532f0d54cf5aa466d348ba53afb
+SOURCE_PR=624
+SOURCE_BRANCH=feat/n3w-t1-f5-v2-source-implementation-20261019
+SOURCE_BASE_MAIN=4223f23d2579241f6568a1ba3fbbccf26b3bc3c1
+BEHIND_MAIN=0
+
+R1_CLOSED_PASS=true
+R2_ENTRY_PREREQUISITES=PASS
+R2_ENTRY_BLOCKER_COUNT=0
+R2_ENTRY_GRANTED=true
+R2_STARTED=false
+
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+CURRENT_STAGE=F5_V2_SOURCE_IMPLEMENTATION_R2_ENTRY_APPROVED
+NEXT_ONE_GATE=N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R2_BUSINESS_PRIMITIVE_ADAPTATION_AND_ORCHESTRATION_20261020_01
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+Fresh source inspection reconfirmed the intended R2 work: HOST_BASELINE still chooses the live APT candidate, F3 still carries the historical fixed authorization model, Provision/F4 remain conditional-only adaptations, and the V2 orchestrator has not yet been added. These are the frozen R2 implementation targets, not new entry blockers.
+
+Authority:
+`docs/development/N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R2_ENTRY_DECISION_20261020.md`.
+
 ## 2026-10-20 — F5 V2 R1 final closure blocker repair CLOSED_PASS
 
 ~~~text

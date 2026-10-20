@@ -1,3 +1,16 @@
+## 2026-10-20 — F5 V2 R2 entry approved
+
+- R1 remains CLOSED_PASS at exact reviewed source `169239395088e5d01dc3ccb7b8386a8ae1c2994e`.
+- Current branch before the decision was docs-only beyond that reviewed source; main remained `4223f23d2579241f6568a1ba3fbbccf26b3bc3c1` with behind-main 0.
+- PR #624 remained Draft, mergeable, and all 12 workflows succeeded.
+- R2 entry prerequisites PASS; blocker count 0; `R2_ENTRY_GRANTED=true`.
+- R2 has not started yet.
+- Frozen R2 targets: release-bound exact HOST_BASELINE package installation, F3 external V2 run-context + current STARTED marker authority, and the V2 orchestrator.
+- Provision/F4 stay conditional-only; R3 acceptance/release integration remains out of scope.
+- No T1/board access, production service start or merge.
+- Authority: `docs/development/N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R2_ENTRY_DECISION_20261020.md`.
+- Next gate: `N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R2_BUSINESS_PRIMITIVE_ADAPTATION_AND_ORCHESTRATION_20261020_01`.
+
 ## 2026-10-20 — F5 V2 R1 CLOSED_PASS after final blocker repair
 
 - Exact reviewed source: `169239395088e5d01dc3ccb7b8386a8ae1c2994e`; base main `4223f23d2579241f6568a1ba3fbbccf26b3bc3c1`; behind main 0.
