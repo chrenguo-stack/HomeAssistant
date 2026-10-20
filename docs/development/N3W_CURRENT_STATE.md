@@ -1,3 +1,39 @@
+## 2026-10-20 — F5 V2 R1 final closure blocker repair CLOSED_PASS
+
+~~~text
+TASK=N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R1_FINAL_CLOSURE_BLOCKER_REPAIR_20261020_01
+
+PRE_REPAIR_HEAD=fca5762fcf5539b968951b0d4e5ef39833d51013
+REVIEWED_SOURCE_HEAD=169239395088e5d01dc3ccb7b8386a8ae1c2994e
+SOURCE_PR=624
+SOURCE_BRANCH=feat/n3w-t1-f5-v2-source-implementation-20261019
+SOURCE_BASE_MAIN=4223f23d2579241f6568a1ba3fbbccf26b3bc3c1
+BEHIND_MAIN=0
+
+RESULT_FORENSIC_ORDERING_REPAIR=PASS
+QUALIFICATION_READ_FAILURE_REPAIR=PASS
+R1_CI=12_OF_12_WORKFLOWS_SUCCESS
+FINAL_FOCUSED_REVIEW_BLOCKER_COUNT=0
+
+R1_CLOSED_PASS=true
+READY_FOR_R2_ENTRY_DECISION=true
+R2_STARTED=false
+
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+CURRENT_STAGE=F5_V2_SOURCE_IMPLEMENTATION_R1_CLOSED_PASS
+NEXT_ONE_GATE=N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R2_ENTRY_DECISION_20261020_01
+AUTO_EXECUTE_R2=false
+~~~
+
+The two final R1 blockers are closed at the exact source head. STARTED final results now require completed forensic evidence and a terminally closed operator session before reflash disposition, and STARTED no longer accepts PROCESS_CLEANUP_FAIL. Fresh-Armbian qualification now separates firstboot/systemd read unavailability from an observed firstboot state mismatch.
+
+Authority:
+`docs/development/N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R1_FINAL_CLOSURE_BLOCKER_REPAIR_CLOSURE_20261020.md`.
+
 ## 2026-10-20 — F5 V2 R1 final closure review: blockers remain; R2 entry denied
 
 ~~~text

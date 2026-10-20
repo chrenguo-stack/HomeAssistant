@@ -1,3 +1,15 @@
+## 2026-10-20 — F5 V2 R1 CLOSED_PASS after final blocker repair
+
+- Exact reviewed source: `169239395088e5d01dc3ccb7b8386a8ae1c2994e`; base main `4223f23d2579241f6568a1ba3fbbccf26b3bc3c1`; behind main 0.
+- All 12 PR workflows succeeded; dedicated `N3W T1 F5 V2 source CI / r1-foundations` succeeded.
+- Final-result ordering blocker is closed: STARTED requires complete forensic evidence + closed operator session before reflash disposition and cannot use `PROCESS_CLEANUP_FAIL`.
+- Qualification blocker is closed: firstboot/systemd read unavailability -> `STOP_UNAVAILABLE`; successfully observed firstboot mismatch -> `FAIL_REFLASH_REQUIRED`.
+- Focused closure review found zero remaining R1 blockers.
+- `R1_CLOSED_PASS=true`; `READY_FOR_R2_ENTRY_DECISION=true`; R2 has not started.
+- No T1 access/mutation, board access or merge occurred.
+- Authority: `docs/development/N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R1_FINAL_CLOSURE_BLOCKER_REPAIR_CLOSURE_20261020.md`.
+- Next gate: `N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R2_ENTRY_DECISION_20261020_01`; separate authorization required.
+
 ## 2026-10-20 — F5 V2 R1 final closure review / R2 entry decision
 
 - Exact reviewed source: `e86f95d71b2293a933e9ad38acc0cd42beb8e4b7`; R1 CI 12/12 workflows SUCCESS; behind main 0 at review.
