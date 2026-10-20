@@ -169,7 +169,7 @@ def _exact_directory_set(root: Path, expected: frozenset[str], error_code: str) 
         _regular(item, error_code)
 
 
-def _tar_json_member(path: Path, member_name: str, error_code: str) -> dict[str, Any]:
+def _tar_member_bytes(path: Path, member_name: str, error_code: str) -> bytes:
     _regular(path, error_code)
     try:
         with tarfile.open(path, "r:*") as bundle:
@@ -183,8 +183,17 @@ def _tar_json_member(path: Path, member_name: str, error_code: str) -> dict[str,
             stream = bundle.extractfile(matches[0])
             if stream is None:
                 raise ReleaseInputsBuildError(error_code)
-            value = json.loads(stream.read().decode("utf-8"))
-    except (tarfile.TarError, UnicodeError, json.JSONDecodeError) as error:
+            return stream.read()
+    except tarfile.TarError as error:
+        raise ReleaseInputsBuildError(error_code) from error
+
+
+def _tar_json_member(path: Path, member_name: str, error_code: str) -> dict[str, Any]:
+    try:
+        value = json.loads(
+            _tar_member_bytes(path, member_name, error_code).decode("utf-8")
+        )
+    except (UnicodeError, json.JSONDecodeError) as error:
         raise ReleaseInputsBuildError(error_code) from error
     if not isinstance(value, dict):
         raise ReleaseInputsBuildError(error_code)
@@ -220,11 +229,37 @@ def _verify_f3(root: Path, source_head: str) -> tuple[dict[str, Any], dict[str, 
         "f3_capacity_sidecar_invalid",
     ):
         raise ReleaseInputsBuildError("f3_capacity_sha256_mismatch")
-    manifest = _tar_json_member(
+    manifest_bytes = _tar_member_bytes(
         runtime,
         "payload-manifest.json",
         "f3_payload_manifest_invalid",
     )
+    try:
+        manifest = json.loads(manifest_bytes.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError) as error:
+        raise ReleaseInputsBuildError("f3_payload_manifest_invalid") from error
+    if not isinstance(manifest, dict):
+        raise ReleaseInputsBuildError("f3_payload_manifest_invalid")
+    if hashlib.sha256(manifest_bytes).hexdigest() != _sidecar(
+        root / "payload-manifest.sha256",
+        "f3_payload_manifest_sidecar_invalid",
+    ):
+        raise ReleaseInputsBuildError("f3_payload_manifest_sha256_mismatch")
+    executor_bytes = _tar_member_bytes(
+        runtime,
+        "tools/n3w_t1_fresh_product_bootstrap.py",
+        "f3_executor_invalid",
+    )
+    if hashlib.sha256(executor_bytes).hexdigest() != _sidecar(
+        root / "executor.sha256",
+        "f3_executor_sidecar_invalid",
+    ):
+        raise ReleaseInputsBuildError("f3_executor_sha256_mismatch")
+    for name in ("host-wrapper.py", "host-baseline.py"):
+        path = root / name
+        sidecar = root / name.replace(".py", ".sha256")
+        if _sha256(path) != _sidecar(sidecar, f"f3_{name}_sidecar_invalid"):
+            raise ReleaseInputsBuildError(f"f3_{name}_sha256_mismatch")
     capacity = _read_json(capacity_path, "f3_capacity_contract_invalid")
     if manifest.get("source_head") != source_head:
         raise ReleaseInputsBuildError("f3_source_head_mismatch")
