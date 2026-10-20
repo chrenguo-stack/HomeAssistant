@@ -193,21 +193,6 @@ def verify_manifest(root: Path) -> dict[str, Any]:
     if manifest.get("failure_frozen") is not True:
         raise FailureForensicsError("manifest_failure_not_frozen")
 
-    snapshot = _load_private(root / FORENSIC_SNAPSHOT)
-    if (
-        snapshot.get("schema") != FORENSIC_SCHEMA
-        or snapshot.get("status") != "COMPLETE"
-        or snapshot.get("read_only") is not True
-        or snapshot.get("target_mutation") is not False
-    ):
-        raise FailureForensicsError("snapshot_safety_contract_invalid")
-
-    failure = _load_private(root / FAILURE_SUMMARY)
-    if failure.get("failure_frozen") is not True:
-        raise FailureForensicsError("failure_summary_not_frozen")
-    if failure.get("forensic_collector_target_mutation") is not False:
-        raise FailureForensicsError("failure_summary_collector_boundary_invalid")
-
     records = manifest.get("files")
     if not isinstance(records, list) or len(records) != 2:
         raise FailureForensicsError("manifest_files_invalid")
@@ -222,6 +207,21 @@ def verify_manifest(root: Path) -> dict[str, Any]:
             raise FailureForensicsError("manifest_file_binding_invalid")
     if canonical_sha256(records) != manifest.get("bundle_sha256"):
         raise FailureForensicsError("manifest_bundle_binding_invalid")
+
+    snapshot = _load_private(root / FORENSIC_SNAPSHOT)
+    if (
+        snapshot.get("schema") != FORENSIC_SCHEMA
+        or snapshot.get("status") != "COMPLETE"
+        or snapshot.get("read_only") is not True
+        or snapshot.get("target_mutation") is not False
+    ):
+        raise FailureForensicsError("snapshot_safety_contract_invalid")
+
+    failure = _load_private(root / FAILURE_SUMMARY)
+    if failure.get("failure_frozen") is not True:
+        raise FailureForensicsError("failure_summary_not_frozen")
+    if failure.get("forensic_collector_target_mutation") is not False:
+        raise FailureForensicsError("failure_summary_collector_boundary_invalid")
     return manifest
 
 
