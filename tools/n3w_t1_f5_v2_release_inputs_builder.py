@@ -135,10 +135,13 @@ def _read_json(path: Path, error_code: str) -> dict[str, Any]:
 
 def _sidecar(path: Path, error_code: str) -> str:
     _regular(path, error_code)
-    value = path.read_text(encoding="ascii").strip().split()
-    if len(value) != 1 or SHA256_RE.fullmatch(value[0]) is None:
+    lines = path.read_text(encoding="ascii").strip().splitlines()
+    if len(lines) != 1:
         raise ReleaseInputsBuildError(error_code)
-    return value[0]
+    fields = lines[0].split()
+    if not fields or len(fields) > 2 or SHA256_RE.fullmatch(fields[0]) is None:
+        raise ReleaseInputsBuildError(error_code)
+    return fields[0]
 
 
 def _verify_source(
