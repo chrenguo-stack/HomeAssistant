@@ -1,3 +1,17 @@
+## 2026-10-20 — F5 V2 R3 entry approved
+
+- Fresh rebind: PR #624 remains open/draft/mergeable; main remains `4223f23d...`; branch has no source drift after R2 closure.
+- R2 remains CLOSED_PASS at exact source `29cf8fee...`.
+- Existing F4 reboot verifier is read-only and already checks real boot change plus target-local runtime/TLS/business persistence; default R3 policy is reuse, not modification.
+- Existing V2 marker already supports exact-bound terminal ACCEPTED with acceptance hash and production-ready state.
+- Existing V2 contract already includes POST_REBOOT_ACCEPTANCE, final-result semantics and V2 release schema.
+- R3 required additions: post-reboot acceptance module/test, V2 release builder/test, exact-production-release workflow.
+- R3 required adaptations: V2 orchestrator/test and V2 source CI.
+- Exact production release remains post-merge only; PR artifacts are not production authority.
+- `R3_ENTRY_GRANTED=true`; `R3_STARTED=false`; no T1/board access and no merge.
+- Authority: `docs/development/N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R3_ENTRY_DECISION_20261020.md`.
+- Next gate: `N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R3_POST_REBOOT_ACCEPTANCE_AND_RELEASE_INTEGRATION_20261020_01`.
+
 ## 2026-10-20 — F5 V2 R2 CLOSED_PASS
 
 - Final exact R2 source head: `29cf8fee111f3bf9e525e396a0a8f270349ede7f`; behind main 0.
