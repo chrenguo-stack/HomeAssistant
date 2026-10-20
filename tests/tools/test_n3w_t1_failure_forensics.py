@@ -58,6 +58,37 @@ def test_snapshot_cannot_run_before_failure_freeze(tmp_path):
         forensics.collect_snapshot(root, {"boot": lambda: {"boot_id": "x"}})
 
 
+def test_evidence_root_symlink_is_rejected_without_touching_target(tmp_path):
+    target = tmp_path / "target"
+    target.mkdir(mode=0o755)
+    before_mode = target.stat().st_mode
+    root = tmp_path / "evidence"
+    root.symlink_to(target, target_is_directory=True)
+
+    with pytest.raises(
+        forensics.FailureForensicsError,
+        match="evidence_root_symlink_forbidden",
+    ):
+        forensics.freeze_failure(root, failure())
+
+    assert target.stat().st_mode == before_mode
+    assert list(target.iterdir()) == []
+
+
+def test_existing_evidence_root_wrong_mode_fails_closed_without_chmod(tmp_path):
+    root = tmp_path / "evidence"
+    root.mkdir(mode=0o755)
+    root.chmod(0o755)
+
+    with pytest.raises(
+        forensics.FailureForensicsError,
+        match="evidence_root_mode_invalid",
+    ):
+        forensics.freeze_failure(root, failure())
+
+    assert root.stat().st_mode & 0o777 == 0o755
+
+
 def test_unreachable_probe_is_explicit_unavailable_and_manifest_completes(tmp_path):
     root = tmp_path / "evidence"
     forensics.freeze_failure(root, failure())
