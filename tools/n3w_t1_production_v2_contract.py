@@ -383,12 +383,15 @@ def validate_result(document: Any) -> dict[str, Any]:
     if marker_state == "STARTED":
         if value["status"] != "FAIL":
             raise ProductionV2ContractError("result_started_marker_requires_failure")
+        if value["evidence_complete"] is not True:
+            raise ProductionV2ContractError("result_started_failure_without_evidence")
+        if value["operator_session_closed"] is not True:
+            raise ProductionV2ContractError("result_started_failure_without_session_close")
         if value["reflash_required"] is not True:
             raise ProductionV2ContractError("result_started_failure_requires_reflash")
         if error_class not in {
             "MUTATION_FAIL_REFLASH_REQUIRED",
             "POST_REBOOT_ACCEPTANCE_FAIL_REFLASH_REQUIRED",
-            "PROCESS_CLEANUP_FAIL",
         }:
             raise ProductionV2ContractError("result_started_error_class_invalid")
 

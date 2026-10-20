@@ -196,6 +196,11 @@ if armbian_release is None: unavailable.append("armbian_release")
 ssh=service("ssh")
 networkmanager=service("NetworkManager")
 firstboot=service("armbian-firstrun.service")
+if firstboot["active"] is None or any(
+    firstboot[key] is None or firstboot[key+"_rc"]!=0
+    for key in ("load_state","result","exec_main_status","unit_file_state")
+):
+    unavailable.append("firstboot_systemd")
 route=run(["ip","-4","route","show","default"])
 if route["rc"]!=0: unavailable.append("default_route")
 ntp=run(["timedatectl","show","-p","NTPSynchronized","--value"])

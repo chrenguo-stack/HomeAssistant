@@ -361,3 +361,69 @@ def test_result_absent_marker_cannot_claim_device_acceptance():
         match="result_absent_marker_device_acceptance_invalid",
     ):
         contract.validate_result(value)
+
+
+def test_result_started_failure_requires_complete_forensic_evidence():
+    value = result_document()
+    value.update(
+        {
+            "status": "FAIL",
+            "marker_state": "STARTED",
+            "error_class": "MUTATION_FAIL_REFLASH_REQUIRED",
+            "device_acceptance": "NOT_REACHED",
+            "T1_PRODUCTION_READY": False,
+            "operator_session_closed": True,
+            "evidence_complete": False,
+            "reflash_required": True,
+            "terminal_stage": "F3_DEPLOY",
+        }
+    )
+    with pytest.raises(
+        contract.ProductionV2ContractError,
+        match="result_started_failure_without_evidence",
+    ):
+        contract.validate_result(value)
+
+
+def test_result_started_failure_requires_closed_operator_session():
+    value = result_document()
+    value.update(
+        {
+            "status": "FAIL",
+            "marker_state": "STARTED",
+            "error_class": "MUTATION_FAIL_REFLASH_REQUIRED",
+            "device_acceptance": "NOT_REACHED",
+            "T1_PRODUCTION_READY": False,
+            "operator_session_closed": False,
+            "evidence_complete": True,
+            "reflash_required": True,
+            "terminal_stage": "F3_DEPLOY",
+        }
+    )
+    with pytest.raises(
+        contract.ProductionV2ContractError,
+        match="result_started_failure_without_session_close",
+    ):
+        contract.validate_result(value)
+
+
+def test_result_started_marker_rejects_process_cleanup_failure():
+    value = result_document()
+    value.update(
+        {
+            "status": "FAIL",
+            "marker_state": "STARTED",
+            "error_class": "PROCESS_CLEANUP_FAIL",
+            "device_acceptance": "NOT_REACHED",
+            "T1_PRODUCTION_READY": False,
+            "operator_session_closed": True,
+            "evidence_complete": True,
+            "reflash_required": True,
+            "terminal_stage": "PROCESS_CLEANUP_FAIL",
+        }
+    )
+    with pytest.raises(
+        contract.ProductionV2ContractError,
+        match="result_started_error_class_invalid",
+    ):
+        contract.validate_result(value)

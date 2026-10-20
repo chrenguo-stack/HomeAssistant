@@ -243,3 +243,29 @@ def test_remote_probe_contract_contains_no_mutation_commands():
         "write_bytes(",
     ):
         assert forbidden not in lowered
+
+
+def test_firstboot_observed_state_mismatch_requires_reflash():
+    observed = observation()
+    observed["armbian_firstrun"]["result"] = "failed"
+    result = qualification.evaluate(observed, release_document(), ssh_trust=True)
+    assert result["status"] == "FAIL_REFLASH_REQUIRED"
+    assert result["reflash_required"] is True
+    assert result["checks"]["HOST.FIRSTBOOT"] == "FAIL"
+
+
+def test_firstboot_probe_unavailable_stops_without_reflash():
+    observed = observation()
+    observed["unavailable"] = ["firstboot_systemd"]
+    observed["armbian_firstrun"]["result"] = None
+    result = qualification.evaluate(observed, release_document(), ssh_trust=True)
+    assert result["status"] == "STOP_UNAVAILABLE"
+    assert result["reflash_required"] is False
+    assert set(result["checks"].values()) == {"UNAVAILABLE"}
+
+
+def test_remote_probe_promotes_firstboot_read_failure_to_unavailable():
+    script = qualification.REMOTE_PROBE_SCRIPT
+    assert 'unavailable.append("firstboot_systemd")' in script
+    assert 'firstboot["active"] is None' in script
+    assert 'firstboot[key] is None or firstboot[key+"_rc"]!=0' in script
