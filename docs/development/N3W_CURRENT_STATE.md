@@ -1,3 +1,38 @@
+## 2026-10-20 — F5 V2 exact release-inputs producer source repair implemented / CI pending
+
+~~~text
+TASK=N3W_T1_F5_V2_EXACT_RELEASE_INPUTS_PRODUCER_SOURCE_REPAIR_20261020_01
+RESULT=SOURCE_REPAIR_IMPLEMENTED_CI_PENDING
+
+BASE_MAIN=4a1d58d240530b9e2dba249643915caf55948faf
+SOURCE_BRANCH=fix/n3w-t1-f5-v2-exact-release-inputs-producer-20261020
+SOURCE_PR=PENDING_CREATION
+
+PREVIOUS_BLOCKER=EXACT_MAIN_RELEASE_INPUT_ARTIFACT_PRODUCTION_PATH_MISSING
+
+EXACT_RELEASE_INPUTS_PRODUCER_ADDED=true
+EXACT_RELEASE_INPUTS_BUILDER_ADDED=true
+RELEASE_PROFILE_ADDED=true
+F3_MANUAL_DISPATCH_ADDED=true
+EXACT_RELEASE_PRODUCER_PROVENANCE_REQUIRED=true
+
+EXACT_PRODUCTION_RELEASE_BUILD_EXECUTED=false
+T1_ACCESS=false
+T1_MUTATION=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+CURRENT_STAGE=F5_V2_EXACT_RELEASE_INPUTS_PRODUCER_SOURCE_REPAIR
+NEXT_ONE_GATE=N3W_T1_F5_V2_EXACT_RELEASE_INPUTS_PRODUCER_SOURCE_REPAIR_CI_REVIEW_20261020_01
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+The missing exact-main release-input production path is now implemented on a bounded source-repair branch. The repair adds a versioned release profile, an exact release-inputs builder, a manual-only producer workflow, exact upstream provenance checks, post-upload verification, F3 manual dispatch support, and a stricter downstream release-consumer provenance guard. No production artifact was built and no T1/board/live runtime was accessed.
+
+Authority:
+`docs/development/N3W_T1_F5_V2_EXACT_RELEASE_INPUTS_PRODUCER_SOURCE_REPAIR_20261020.md`.
+
 ## 2026-10-20 — F5 V2 PR #624 merged; post-merge state alignment prepared
 
 ~~~text
