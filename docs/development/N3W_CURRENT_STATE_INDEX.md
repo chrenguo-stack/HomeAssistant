@@ -1,3 +1,16 @@
+## 2026-10-20 — F5 V2 R1 focused repair
+
+- R1 focused source review found five blockers; all five now have source/test repair candidates on PR #624.
+- Final result contract now fails closed on PASS/accepted/reflash combinations and preserves the accepted-device cleanup exception.
+- Qualification now treats SSH trust/network/read-only evidence insufficiency as `STOP_UNAVAILABLE`, never as reflash authority.
+- Fresh residue coverage now includes historical authorization/provisioning roots plus exact product systemd unit/listener probes.
+- Failure freeze preserves the real target mutation state; reflash disposition now requires verified evidence-root manifest plus session close.
+- Production marker authority root must be owner-bound, mode 0700, non-symlink before marker mutation.
+- R2/HOST_BASELINE/F3/orchestrator work has not started.
+- No T1 access, T1 mutation or board access occurred.
+- Authority: `docs/development/N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R1_FOCUSED_REPAIR_PROGRESS_20261020.md`.
+- Next gate: `N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R1_REPAIR_EXACT_HEAD_CI_COMPLETION_CHECK_20261020_01`.
+
 ## 2026-10-20 — F5 V2 R1 foundations source candidate
 
 - R1 foundations are implemented on PR #624; exact-head CI is still pending.
