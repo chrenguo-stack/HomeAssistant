@@ -116,6 +116,102 @@ def test_remote_sha256_uses_target_sha256sum_exact_bytes() -> None:
     ]
 
 
+def test_start_ssh_epoch_has_zero_target_workspace_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    adapter = object.__new__(tool.LiveProductionAdapter)
+    host_key = "a" * 64
+    events: list[str] = []
+
+    class Transport:
+        def start_epoch(self):
+            events.append("start_epoch")
+            return {
+                "status": "PASS",
+                "epoch": 1,
+                "host_key_sha256": host_key,
+            }
+
+    adapter.transport = Transport()
+    adapter.expected_host_key_sha256 = host_key
+
+    def forbidden_workspace_open():
+        pytest.fail("remote workspace opened before approval")
+
+    monkeypatch.setattr(adapter, "_open_remote_root", forbidden_workspace_open)
+
+    result = adapter.start_ssh_epoch()
+
+    assert result["status"] == "PASS"
+    assert events == ["start_epoch"]
+
+
+def test_fresh_qualification_has_zero_target_workspace_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    adapter = object.__new__(tool.LiveProductionAdapter)
+    adapter.transport = object()
+
+    def forbidden_workspace_open():
+        pytest.fail("remote workspace opened during qualification")
+
+    monkeypatch.setattr(adapter, "_open_remote_root", forbidden_workspace_open)
+    monkeypatch.setattr(
+        tool,
+        "collect_qualification",
+        lambda transport, release: {
+            "status": "PASS",
+            "read_only": True,
+            "mutation_performed": False,
+        },
+    )
+
+    result = adapter.qualify({"release": "fixture"})
+
+    assert result["status"] == "PASS"
+    assert result["read_only"] is True
+    assert result["mutation_performed"] is False
+
+
+def test_start_marker_is_first_adapter_path_that_opens_remote_workspace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    adapter = object.__new__(tool.LiveProductionAdapter)
+    events: list[str] = []
+    adapter.remote_root = None
+
+    def open_workspace():
+        events.append("open_remote_workspace")
+        adapter.remote_root = "/var/tmp/n3w-f5-v2-executor.fixture"
+
+    def marker_command(command, binding, *extra):
+        events.append("build_marker_command")
+        assert command == "start"
+        return ("marker", "start")
+
+    def remote_json(argv, stage, *, timeout=300):
+        events.append("execute_marker_start")
+        assert argv == ("marker", "start")
+        assert stage == "marker_start"
+        return {"status": "PASS", "state": "STARTED"}
+
+    monkeypatch.setattr(adapter, "_open_remote_root", open_workspace)
+    monkeypatch.setattr(adapter, "_marker_command", marker_command)
+    monkeypatch.setattr(adapter, "_remote_json", remote_json)
+
+    result = adapter.start_marker({"run_id": "fixture"})
+
+    assert result["state"] == "STARTED"
+    assert events == [
+        "open_remote_workspace",
+        "build_marker_command",
+        "execute_marker_start",
+    ]
+
+
 def test_executor_uses_release_bound_f3_and_distinct_f4_authorities() -> None:
     source = TOOL.read_text(encoding="utf-8")
     assert '"--release-f3-payload"' in source
