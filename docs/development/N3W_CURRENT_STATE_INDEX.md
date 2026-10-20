@@ -1,3 +1,14 @@
+## 2026-10-20 — F5 V2 R1 closure repair
+
+- R1 focused closure review found three narrow fail-closed gaps; all three now have source/test repair candidates on PR #624.
+- Fresh qualification now treats the `/var/lib/n3w-production` authority directory itself as product residue, even if `run.json` was never published.
+- Marker read/hash/inspect/accept paths now revalidate authority-root owner/mode after STARTED, not only at start.
+- Forensic evidence-root symlinks are rejected before resolution; existing evidence roots with unsafe mode fail closed without silent chmod.
+- R2/HOST_BASELINE/F3/orchestrator work has not started.
+- No T1 access, T1 mutation or board access occurred.
+- Authority: `docs/development/N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R1_CLOSURE_REPAIR_PROGRESS_20261020.md`.
+- Next gate: `N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R1_CLOSURE_REPAIR_EXACT_HEAD_CI_COMPLETION_CHECK_20261020_01`.
+
 ## 2026-10-20 — F5 V2 R1 focused repair
 
 - R1 focused source review found five blockers; all five now have source/test repair candidates on PR #624.
