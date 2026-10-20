@@ -183,9 +183,10 @@ def f3_fixture(tmp_path: Path) -> Path:
         path.write_text(name + "\n", encoding="utf-8")
         write_sidecar(root / name.replace(".py", ".sha256"), path)
 
-    executor = tmp_path / "executor.py"
-    executor.write_text("print('executor')\n", encoding="utf-8")
-    (root / "executor.sha256").write_text(sha256(executor) + "\n", encoding="ascii")
+    (root / "executor.sha256").write_text(
+        sha256(payload_tool) + "\n",
+        encoding="ascii",
+    )
 
     assert {path.name for path in root.iterdir()} == set(builder.F3_FILES)
     return root
