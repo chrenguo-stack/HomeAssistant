@@ -35,6 +35,7 @@ def failure():
         "last_success_stage": "HOST_BASELINE",
         "error_code": "f3_apply_failed",
         "mutation_started": True,
+        "target_mutation": True,
     }
 
 
@@ -42,6 +43,8 @@ def test_failure_is_frozen_before_snapshot_and_never_overwritten(tmp_path):
     root = tmp_path / "evidence"
     first = forensics.freeze_failure(root, failure())
     assert first["failure_frozen"] is True
+    assert first["target_mutation"] is True
+    assert first["forensic_collector_target_mutation"] is False
     before = (root / forensics.FAILURE_SUMMARY).read_bytes()
     with pytest.raises(forensics.FailureForensicsError, match="evidence_already_exists"):
         forensics.freeze_failure(root, {"error_code": "different"})
@@ -89,10 +92,40 @@ def test_reflash_disposition_requires_manifest_and_session_close(tmp_path):
     forensics.collect_snapshot(root, {"marker": lambda: {"state": "STARTED"}})
     manifest = forensics.build_manifest(root)
     with pytest.raises(forensics.FailureForensicsError, match="reflash_before_session_close_forbidden"):
-        forensics.reflash_disposition(manifest, {"session_closed": False})
-    disposition = forensics.reflash_disposition(manifest, {"session_closed": True})
+        forensics.reflash_disposition(root, {"session_closed": False})
+    disposition = forensics.reflash_disposition(root, {"session_closed": True})
     assert disposition["TARGET_DISPOSITION"] == "REFLASH_REQUIRED"
     assert disposition["REFLASH_ALLOWED"] is True
+
+
+
+
+def test_reflash_disposition_requires_verified_manifest_not_arbitrary_mapping(tmp_path):
+    root = tmp_path / "evidence"
+    forensics.freeze_failure(root, failure())
+    forensics.collect_snapshot(root, {"marker": lambda: {"state": "STARTED"}})
+    manifest = forensics.build_manifest(root)
+    manifest_path = root / forensics.EVIDENCE_MANIFEST
+    forged = dict(manifest)
+    forged["bundle_sha256"] = "0" * 64
+    manifest_path.write_text(json.dumps(forged), encoding="utf-8")
+    manifest_path.chmod(0o600)
+    with pytest.raises(
+        forensics.FailureForensicsError,
+        match="manifest_bundle_binding_invalid",
+    ):
+        forensics.reflash_disposition(root, {"session_closed": True})
+
+
+def test_manifest_records_required_forensic_safety_flags(tmp_path):
+    root = tmp_path / "evidence"
+    forensics.freeze_failure(root, failure())
+    forensics.collect_snapshot(root, {"marker": lambda: {"state": "STARTED"}})
+    manifest = forensics.build_manifest(root)
+    assert manifest["NO_TARGET_MUTATION"] is True
+    assert manifest["UNAVAILABLE_IS_EXPLICIT"] is True
+    assert manifest["ORIGINAL_FAILURE_NOT_OVERWRITTEN"] is True
+    assert manifest["BUNDLE_SHA256_PRESENT"] is True
 
 
 def test_manifest_detects_evidence_tamper(tmp_path):
