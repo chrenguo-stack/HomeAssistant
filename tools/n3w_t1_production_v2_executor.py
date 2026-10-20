@@ -768,7 +768,6 @@ class LiveProductionAdapter:
         if epoch.get("host_key_sha256") != self.expected_host_key_sha256:
             raise ProductionExecutorError("post_reboot_host_key_drift")
         self.reboot_actuated = False
-        self._open_remote_root()
         return dict(epoch)
 
     def read_started_marker(self) -> dict[str, Any]:
@@ -946,6 +945,7 @@ class LiveProductionAdapter:
         binding: dict[str, str],
         acceptance_sha256: str,
     ) -> dict[str, Any]:
+        self._open_remote_root()
         result = self._remote_json(
             self._marker_command(
                 "accept",
