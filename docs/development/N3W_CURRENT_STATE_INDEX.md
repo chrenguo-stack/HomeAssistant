@@ -1,3 +1,17 @@
+## 2026-10-20 — PR #628 evidence-classification R2 CLOSED_PASS
+
+- Reviewed exact source: `d3d9a653f41af9379ad0643fe13fd21f04a9af42`; base main remains `1a0689f2c1c6566a397f065ff546ad26ef02046d`.
+- R2 delta from pre-repair source `4146ad694...`: 8 files, 0 behind.
+- Source blocker closed: evidence unavailable/ambiguous is no longer collapsed into a proven product failure; explicit runtime contradiction remains a failure.
+- Insufficient post-reboot evidence now records `device_acceptance=NOT_REACHED`, `T1_PRODUCTION_READY=false`, `reflash_required=true`; ACCEPTED remains forbidden.
+- Exact-head CI: 17/17 PASS. F5 R1 65 pass/1 skip; R2 101 pass; R3 131 pass; isolated Mosquitto 3 pass; F4 source 144 pass; F4 exact package, staging payload, fresh-bootstrap payload and public safety PASS.
+- Exact artifacts are source-bound: F4 control artifact `12277918804`; staging artifact `12280055155`, manifest source head equals reviewed source and exact binding PASS.
+- PR #628 remains OPEN/DRAFT; no unresolved review threads or change-requesting reviews were present at closure review.
+- Real T1 non-disruptive acceptance remains NOT_EXECUTED; KF-122 remains OPEN.
+- No T1/board/live mutation, production release build or merge occurred.
+- Authority: `docs/development/N3W_T1_F5_V2_NONDISRUPTIVE_POST_REBOOT_ACCEPTANCE_SOURCE_REPAIR_20261020.md`.
+- Next gate: `N3W_T1_F5_V2_R2_CLOSURE_DOCS_CI_REVIEW_20261020_01`; merge remains a later explicit decision.
+
 ## 2026-10-20 — PR #628 重启后非扰动验收修复
 
 - 本门：`N3W_T1_F5_V2_NONDISRUPTIVE_POST_REBOOT_ACCEPTANCE_CONTRACT_AND_SOURCE_REPAIR_20261020_01`。
