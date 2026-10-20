@@ -101,7 +101,7 @@ def freeze_failure(root: Path, failure: Mapping[str, Any]) -> dict[str, Any]:
         raise FailureForensicsError("failure_summary_invalid")
     document = dict(failure)
     document["failure_frozen"] = True
-    document["target_mutation"] = False
+    document["forensic_collector_target_mutation"] = False
     _atomic_private_write(root / FAILURE_SUMMARY, document, refuse_existing=True)
     return document
 
@@ -165,6 +165,8 @@ def build_manifest(root: Path) -> dict[str, Any]:
         "FORENSIC_SNAPSHOT_COMPLETE": True,
         "NO_TARGET_MUTATION": True,
         "UNAVAILABLE_IS_EXPLICIT": True,
+        "ORIGINAL_FAILURE_NOT_OVERWRITTEN": True,
+        "BUNDLE_SHA256_PRESENT": True,
         "failure_frozen": failure.get("failure_frozen") is True,
         "unavailable_count": unavailable_count,
         "files": records,
@@ -180,6 +182,32 @@ def verify_manifest(root: Path) -> dict[str, Any]:
         raise FailureForensicsError("manifest_schema_invalid")
     if manifest.get("FORENSIC_SNAPSHOT_COMPLETE") is not True:
         raise FailureForensicsError("manifest_incomplete")
+    if manifest.get("NO_TARGET_MUTATION") is not True:
+        raise FailureForensicsError("manifest_target_mutation_invalid")
+    if manifest.get("UNAVAILABLE_IS_EXPLICIT") is not True:
+        raise FailureForensicsError("manifest_unavailable_semantics_invalid")
+    if manifest.get("ORIGINAL_FAILURE_NOT_OVERWRITTEN") is not True:
+        raise FailureForensicsError("manifest_failure_freeze_invalid")
+    if manifest.get("BUNDLE_SHA256_PRESENT") is not True:
+        raise FailureForensicsError("manifest_bundle_flag_invalid")
+    if manifest.get("failure_frozen") is not True:
+        raise FailureForensicsError("manifest_failure_not_frozen")
+
+    snapshot = _load_private(root / FORENSIC_SNAPSHOT)
+    if (
+        snapshot.get("schema") != FORENSIC_SCHEMA
+        or snapshot.get("status") != "COMPLETE"
+        or snapshot.get("read_only") is not True
+        or snapshot.get("target_mutation") is not False
+    ):
+        raise FailureForensicsError("snapshot_safety_contract_invalid")
+
+    failure = _load_private(root / FAILURE_SUMMARY)
+    if failure.get("failure_frozen") is not True:
+        raise FailureForensicsError("failure_summary_not_frozen")
+    if failure.get("forensic_collector_target_mutation") is not False:
+        raise FailureForensicsError("failure_summary_collector_boundary_invalid")
+
     records = manifest.get("files")
     if not isinstance(records, list) or len(records) != 2:
         raise FailureForensicsError("manifest_files_invalid")
@@ -197,9 +225,8 @@ def verify_manifest(root: Path) -> dict[str, Any]:
     return manifest
 
 
-def reflash_disposition(manifest: Mapping[str, Any], session_close: Mapping[str, Any]) -> dict[str, Any]:
-    if manifest.get("FORENSIC_SNAPSHOT_COMPLETE") is not True:
-        raise FailureForensicsError("reflash_before_forensics_forbidden")
+def reflash_disposition(root: Path, session_close: Mapping[str, Any]) -> dict[str, Any]:
+    manifest = verify_manifest(root)
     if session_close.get("session_closed") is not True:
         raise FailureForensicsError("reflash_before_session_close_forbidden")
     return {
@@ -207,5 +234,5 @@ def reflash_disposition(manifest: Mapping[str, Any], session_close: Mapping[str,
         "REFLASH_ALLOWED": True,
         "FORENSIC_SNAPSHOT_COMPLETE": True,
         "SESSION_CLOSED": True,
-        "bundle_sha256": manifest.get("bundle_sha256"),
+        "bundle_sha256": manifest["bundle_sha256"],
     }
