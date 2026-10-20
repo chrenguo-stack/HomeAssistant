@@ -212,6 +212,115 @@ def test_start_marker_is_first_adapter_path_that_opens_remote_workspace(
     ]
 
 
+def test_post_reboot_epoch_has_zero_target_workspace_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    adapter = object.__new__(tool.LiveProductionAdapter)
+    host_key = "a" * 64
+    adapter.reboot_actuated = True
+    events: list[str] = []
+
+    class Transport:
+        def start_post_reboot_epoch(self):
+            events.append("start_post_reboot_epoch")
+            return {
+                "status": "PASS",
+                "epoch": 2,
+                "host_key_sha256": host_key,
+            }
+
+    adapter.transport = Transport()
+    adapter.expected_host_key_sha256 = host_key
+
+    def forbidden_workspace_open():
+        pytest.fail("remote workspace opened before post-reboot acceptance")
+
+    monkeypatch.setattr(adapter, "_open_remote_root", forbidden_workspace_open)
+
+    result = adapter.start_post_reboot_epoch()
+
+    assert result["status"] == "PASS"
+    assert adapter.reboot_actuated is False
+    assert events == ["start_post_reboot_epoch"]
+
+
+def test_post_reboot_acceptance_has_zero_target_workspace_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    adapter = object.__new__(tool.LiveProductionAdapter)
+    events: list[str] = []
+
+    def forbidden_workspace_open():
+        pytest.fail("remote workspace opened during post-reboot acceptance")
+
+    def fake_acceptance(current_adapter, release, binding):
+        assert current_adapter is adapter
+        events.append("acceptance")
+        return {
+            "status": "PASS",
+            "acceptance_sha256": "b" * 64,
+        }
+
+    monkeypatch.setattr(adapter, "_open_remote_root", forbidden_workspace_open)
+    monkeypatch.setattr(tool, "run_acceptance", fake_acceptance)
+
+    result = adapter.post_reboot_acceptance(
+        {"release": "fixture"},
+        {"binding": "fixture"},
+    )
+
+    assert result["status"] == "PASS"
+    assert events == ["acceptance"]
+
+
+def test_accept_marker_opens_workspace_only_after_acceptance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    adapter = object.__new__(tool.LiveProductionAdapter)
+    adapter.remote_root = None
+    events: list[str] = []
+
+    def open_workspace():
+        events.append("open_remote_workspace")
+        adapter.remote_root = "/var/tmp/n3w-f5-v2-executor.fixture"
+
+    def marker_command(command, binding, *extra):
+        events.append("build_marker_command")
+        assert command == "accept"
+        assert "--acceptance-sha256" in extra
+        return ("marker", "accept")
+
+    def remote_json(argv, stage, *, timeout=300):
+        events.append("execute_marker_accept")
+        assert argv == ("marker", "accept")
+        assert stage == "marker_accept"
+        return {
+            "status": "PASS",
+            "state": "ACCEPTED",
+            "T1_PRODUCTION_READY": True,
+        }
+
+    monkeypatch.setattr(adapter, "_open_remote_root", open_workspace)
+    monkeypatch.setattr(adapter, "_marker_command", marker_command)
+    monkeypatch.setattr(adapter, "_remote_json", remote_json)
+
+    result = adapter.accept_marker(
+        {"run_id": "fixture"},
+        "b" * 64,
+    )
+
+    assert result["state"] == "ACCEPTED"
+    assert result["T1_PRODUCTION_READY"] is True
+    assert events == [
+        "open_remote_workspace",
+        "build_marker_command",
+        "execute_marker_accept",
+    ]
+
+
 def test_executor_uses_release_bound_f3_and_distinct_f4_authorities() -> None:
     source = TOOL.read_text(encoding="utf-8")
     assert '"--release-f3-payload"' in source
