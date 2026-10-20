@@ -49,6 +49,10 @@ class VerifyError(RuntimeError):
     pass
 
 
+class EvidenceInsufficientError(VerifyError):
+    pass
+
+
 def _sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -444,11 +448,20 @@ print(json.dumps({"owned_socket_sha256": hashlib.sha256(json.dumps(sorted(owned)
 
 
 def _snapshot_run(argv: tuple[str, ...]) -> str:
-    # Do not reflect command stderr/logs into public evidence on failure.
     try:
         return _run(argv, timeout=8)
-    except (VerifyError, subprocess.SubprocessError) as error:
-        raise VerifyError("runtime_snapshot_command_failed") from error
+    except VerifyError as error:
+        if "mqtt_owned_socket_not_unique" in str(error):
+            raise EvidenceInsufficientError(
+                "mqtt_owned_socket_not_unique"
+            ) from error
+        raise EvidenceInsufficientError(
+            "runtime_snapshot_command_evidence_unavailable"
+        ) from error
+    except subprocess.SubprocessError as error:
+        raise EvidenceInsufficientError(
+            "runtime_snapshot_command_evidence_unavailable"
+        ) from error
 
 
 def _broker_auth_evidence(logs: str, identity: dict[str, object]) -> str:
@@ -457,7 +470,7 @@ def _broker_auth_evidence(logs: str, identity: dict[str, object]) -> str:
                for value in (client_id, username)):
         raise VerifyError("runtime_identity_invalid")
     if len(logs.splitlines()) >= LOG_LIMIT:
-        raise VerifyError("broker_log_coverage_insufficient")
+        raise EvidenceInsufficientError("broker_log_coverage_insufficient")
     connected = re.compile(
         r"New client connected from .+ as " + re.escape(client_id)
         + r" \(p5, c[01], k[0-9]+, u'" + re.escape(username) + r"'\)\."
@@ -466,8 +479,12 @@ def _broker_auth_evidence(logs: str, identity: dict[str, object]) -> str:
     any_connection = re.compile(r"New client connected from .+ as " + re.escape(client_id) + r" \(")
     events = [line for line in logs.splitlines()
               if any_connection.search(line) or client_event.search(line)]
-    if not events or connected.search(events[-1]) is None:
-        raise VerifyError("broker_authenticated_connection_unproven")
+    if not events:
+        raise EvidenceInsufficientError(
+            "broker_authenticated_connection_evidence_missing"
+        )
+    if connected.search(events[-1]) is None:
+        raise VerifyError("broker_authenticated_connection_state_invalid")
     return _canonical_sha(events)
 
 
@@ -498,14 +515,14 @@ def _systemd_snapshot(module: ModuleType) -> tuple[str, str]:
     journal = _snapshot_run(tuple(command))
     lines = journal.splitlines()
     if len(lines) >= 1000:
-        raise VerifyError("systemd_error_coverage_insufficient")
+        raise EvidenceInsufficientError("systemd_error_coverage_insufficient")
     # Cursors preserve new errors even when a failed unit has already recovered.
     cursors = []
     for line in lines:
         record = json.loads(line)
         cursor = record.get("__CURSOR")
         if not isinstance(cursor, str) or not cursor:
-            raise VerifyError("systemd_error_cursor_missing")
+            raise EvidenceInsufficientError("systemd_error_cursor_missing")
         cursors.append(cursor)
     return _canonical_sha(stable), _canonical_sha(cursors)
 
@@ -548,7 +565,7 @@ def runtime_snapshot() -> dict[str, object]:
         )))
         fingerprint = socket_report.get("owned_socket_sha256")
         if not isinstance(fingerprint, str) or re.fullmatch(r"[0-9a-f]{64}", fingerprint) is None:
-            raise VerifyError("runtime_socket_evidence_invalid")
+            raise EvidenceInsufficientError("runtime_socket_evidence_invalid")
         auth[service] = {
             "authenticated": True, "endpoint_port": port,
             "identity_sha256": _canonical_sha([identity["username"], identity["client_id"]]),
@@ -595,6 +612,11 @@ def main() -> int:
                 {
                     "schema": REPORT_SCHEMA,
                     "status": "FAIL",
+                    "failure_class": (
+                        "EVIDENCE_INSUFFICIENT"
+                        if isinstance(error, EvidenceInsufficientError)
+                        else "VERIFY_FAILED"
+                    ),
                     "error_code": str(error)[:300],
                     "board_access": False,
                 },
