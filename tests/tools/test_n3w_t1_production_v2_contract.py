@@ -427,3 +427,31 @@ def test_result_started_marker_rejects_process_cleanup_failure():
         match="result_started_error_class_invalid",
     ):
         contract.validate_result(value)
+
+
+
+def test_evidence_insufficient_result_cannot_claim_device_failure():
+    value = result_document()
+    value.update(
+        {
+            "status": "FAIL",
+            "marker_state": "STARTED",
+            "error_class": (
+                "POST_REBOOT_EVIDENCE_INSUFFICIENT_REFLASH_REQUIRED"
+            ),
+            "device_acceptance": "NOT_REACHED",
+            "T1_PRODUCTION_READY": False,
+            "operator_session_closed": True,
+            "evidence_complete": True,
+            "reflash_required": True,
+            "terminal_stage": "POST_REBOOT_ACCEPTANCE",
+        }
+    )
+    assert contract.validate_result(value)["device_acceptance"] == "NOT_REACHED"
+
+    value["device_acceptance"] = "FAIL"
+    with pytest.raises(
+        contract.ProductionV2ContractError,
+        match="evidence_insufficient_misclassified",
+    ):
+        contract.validate_result(value)

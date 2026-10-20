@@ -81,6 +81,8 @@ MAC_TOOL_FILES = (
     "tools/n3w_t1_production_marker.py",
     "tools/n3w_t1_production_v2.py",
     "tools/n3w_t1_production_v2_contract.py",
+    "tools/n3w_t1_production_v2_executor.py",
+    "tools/n3w_t1_f5_v2_release_builder.py",
     "tools/n3w_t1_ssh_transport.py",
 )
 

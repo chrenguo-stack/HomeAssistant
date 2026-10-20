@@ -59,6 +59,7 @@ RESULT_ERROR_CLASSES = frozenset(
         "PRE_MUTATION_FAIL",
         "MUTATION_FAIL_REFLASH_REQUIRED",
         "POST_REBOOT_ACCEPTANCE_FAIL_REFLASH_REQUIRED",
+        "POST_REBOOT_EVIDENCE_INSUFFICIENT_REFLASH_REQUIRED",
         "PROCESS_CLEANUP_FAIL",
     }
 )
@@ -392,8 +393,14 @@ def validate_result(document: Any) -> dict[str, Any]:
         if error_class not in {
             "MUTATION_FAIL_REFLASH_REQUIRED",
             "POST_REBOOT_ACCEPTANCE_FAIL_REFLASH_REQUIRED",
+            "POST_REBOOT_EVIDENCE_INSUFFICIENT_REFLASH_REQUIRED",
         }:
             raise ProductionV2ContractError("result_started_error_class_invalid")
+
+    if error_class == "POST_REBOOT_EVIDENCE_INSUFFICIENT_REFLASH_REQUIRED" and (
+        marker_state != "STARTED" or value["device_acceptance"] != "NOT_REACHED"
+    ):
+        raise ProductionV2ContractError("evidence_insufficient_misclassified")
 
     if marker_state == "ABSENT":
         if value["status"] != "FAIL":

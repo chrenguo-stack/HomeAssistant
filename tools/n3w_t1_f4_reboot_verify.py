@@ -1,7 +1,9 @@
 #!/usr/bin/python3
 from __future__ import annotations
 
+import argparse
 import hashlib
+import http.client
 import importlib.machinery
 import importlib.util
 import json
@@ -44,6 +46,10 @@ CONTROL_TARGETS = {
 
 
 class VerifyError(RuntimeError):
+    pass
+
+
+class EvidenceInsufficientError(VerifyError):
     pass
 
 
@@ -404,9 +410,193 @@ def verify() -> dict[str, object]:
     }
 
 
-def main() -> int:
+SNAPSHOT_SCHEMA = "gh.n3w-t1-runtime-snapshot/1"
+LOG_LIMIT = 10000
+
+# Read /proc inside the service PID/network namespaces. Export hashes, never
+# socket addresses, credentials or broker log text, to the Mac executor.
+SOCKET_SCRIPT = r"""
+import glob, hashlib, ipaddress, json, os, socket, struct, sys
+host, port = sys.argv[1], int(sys.argv[2])
+expected = {item[4][0] for item in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)}
+assert expected and all(ipaddress.ip_address(ip).is_loopback for ip in expected)
+rows = {}
+for path, family in (("/proc/net/tcp", socket.AF_INET), ("/proc/net/tcp6", socket.AF_INET6)):
+    for row in open(path, encoding="ascii").read().splitlines()[1:]:
+        fields = row.split()
+        if fields[3] != "01":
+            continue
+        address, remote_port = fields[2].split(":")
+        packed = b"".join(struct.pack("=I", int(address[i:i+8], 16)) for i in range(0, len(address), 8))
+        ip = socket.inet_ntop(family, packed)
+        if int(remote_port, 16) == port and ip in expected:
+            rows[fields[9]] = fields[1:4]
+owned = set()
+for fd in glob.glob("/proc/[0-9]*/fd/*"):
     try:
-        document = verify()
+        link = os.readlink(fd)
+        inode = link[8:-1] if link.startswith("socket:[") else ""
+        if inode in rows:
+            pid = fd.split("/")[2]
+            start = open("/proc/" + pid + "/stat").read().rsplit(")", 1)[1].split()[19]
+            owned.add((inode, pid, start, *rows[inode]))
+    except (OSError, IndexError):
+        continue
+assert len({r[0] for r in owned}) == 1, "mqtt_owned_socket_not_unique"
+print(json.dumps({"owned_socket_sha256": hashlib.sha256(json.dumps(sorted(owned)).encode()).hexdigest()}))
+"""
+
+
+def _snapshot_run(argv: tuple[str, ...]) -> str:
+    try:
+        return _run(argv, timeout=8)
+    except VerifyError as error:
+        if "mqtt_owned_socket_not_unique" in str(error):
+            raise EvidenceInsufficientError(
+                "mqtt_owned_socket_not_unique"
+            ) from error
+        raise EvidenceInsufficientError(
+            "runtime_snapshot_command_evidence_unavailable"
+        ) from error
+    except subprocess.SubprocessError as error:
+        raise EvidenceInsufficientError(
+            "runtime_snapshot_command_evidence_unavailable"
+        ) from error
+
+
+def _broker_auth_evidence(logs: str, identity: dict[str, object]) -> str:
+    client_id, username = identity.get("client_id"), identity.get("username")
+    if not all(isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_.:-]+", value)
+               for value in (client_id, username)):
+        raise VerifyError("runtime_identity_invalid")
+    if len(logs.splitlines()) >= LOG_LIMIT:
+        raise EvidenceInsufficientError("broker_log_coverage_insufficient")
+    connected = re.compile(
+        r"New client connected from .+ as " + re.escape(client_id)
+        + r" \(p5, c[01], k[0-9]+, u'" + re.escape(username) + r"'\)\."
+    )
+    client_event = re.compile(r"(?:Client |client )" + re.escape(client_id) + r"(?:[ .:]|$)")
+    any_connection = re.compile(r"New client connected from .+ as " + re.escape(client_id) + r" \(")
+    events = [line for line in logs.splitlines()
+              if any_connection.search(line) or client_event.search(line)]
+    if not events:
+        raise EvidenceInsufficientError(
+            "broker_authenticated_connection_evidence_missing"
+        )
+    if connected.search(events[-1]) is None:
+        raise VerifyError("broker_authenticated_connection_state_invalid")
+    return _canonical_sha(events)
+
+
+def _systemd_snapshot(module: ModuleType) -> tuple[str, str]:
+    core = (module.PROVISION_UNIT, module.GUARD_UNIT, module.BROKER_UNIT,
+            module.SERVICES_UNIT, module.CERT_TIMER)
+    stable = {}
+    for unit in (*core, module.CERT_SERVICE):
+        output = _snapshot_run((
+            "systemctl", "show", unit,
+            "--property=ActiveState,Result,ExecMainStatus,NRestarts,ExecMainStartTimestampMonotonic",
+        ))
+        state = dict(line.split("=", 1) for line in output.splitlines() if "=" in line)
+        if (state.get("Result", "success") != "success"
+                or state.get("ExecMainStatus", "0") != "0"):
+            raise VerifyError("critical_systemd_unit_failed")
+        if unit == module.CERT_SERVICE:
+            # A healthy scheduled oneshot may run and return to inactive.
+            if state.get("ActiveState") not in {"active", "activating", "inactive", "deactivating"}:
+                raise VerifyError("certificate_unit_state_invalid")
+        else:
+            if state.get("ActiveState") != "active":
+                raise VerifyError("critical_systemd_unit_not_active")
+            stable[unit] = state
+    command = ["journalctl", "--boot=0", "--no-pager", "--output=json", "--priority=0..3", "--lines=1000"]
+    for unit in (*core, module.CERT_SERVICE):
+        command.extend(("--unit", unit))
+    journal = _snapshot_run(tuple(command))
+    lines = journal.splitlines()
+    if len(lines) >= 1000:
+        raise EvidenceInsufficientError("systemd_error_coverage_insufficient")
+    # Cursors preserve new errors even when a failed unit has already recovered.
+    cursors = []
+    for line in lines:
+        record = json.loads(line)
+        cursor = record.get("__CURSOR")
+        if not isinstance(cursor, str) or not cursor:
+            raise EvidenceInsufficientError("systemd_error_cursor_missing")
+        cursors.append(cursor)
+    return _canonical_sha(stable), _canonical_sha(cursors)
+
+
+def runtime_snapshot() -> dict[str, object]:
+    claim = _json(CLAIM_PATH, 0o600)
+    _installed_control_binding(claim)
+    if _sha256(F4_TRANSACTION) != claim.get("f4_transaction_sha256"):
+        raise VerifyError("snapshot_transaction_binding_changed")
+    module = _load_f4()
+    inspects = {name: module._compose_service_inspect(name) for name in sorted(EXPECTED_SERVICES)}
+    containers = {}
+    for name, item in inspects.items():
+        state = item.get("State", {})
+        if (state.get("Running") is not True or state.get("Paused") is not False
+                or state.get("Restarting") is not False
+                or not item.get("Id") or not state.get("StartedAt")
+                or type(item.get("RestartCount")) is not int):
+            raise VerifyError("snapshot_container_not_running")
+        containers[name] = {
+            "identity_sha256": _canonical_sha([item["Id"], state["StartedAt"]]),
+            "restart_count": item["RestartCount"], "running": True,
+        }
+    broker = inspects["broker"]
+    logs = _snapshot_run(("docker", "logs", "--timestamps", "--since",
+                          broker["State"]["StartedAt"], "--tail", str(LOG_LIMIT), broker["Id"]))
+    auth = {}
+    for service, host, port in (("manager", "armbian", 8883), ("homeassistant", "127.0.0.1", 1883)):
+        owner = 999 if service == "manager" else 0
+        identity = module._private_service_json(
+            Path("/opt/greenhouse-secrets/mqtt") / service / "identity.json", uid=owner, gid=owner,
+        )
+        # Full F4 verification immediately before this baseline proves configuration,
+        # root DynSec inventory and private HA identity binding. These two independent
+        # signals add current authenticated Broker activity and service-owned TCP state.
+        # Broker runs behind Docker NAT/proxy: do not invent an equality of peer tuples.
+        events = _broker_auth_evidence(logs, identity)
+        socket_report = json.loads(_snapshot_run((
+            "docker", "exec", inspects[service]["Id"], "python3", "-c", SOCKET_SCRIPT, host, str(port),
+        )))
+        fingerprint = socket_report.get("owned_socket_sha256")
+        if not isinstance(fingerprint, str) or re.fullmatch(r"[0-9a-f]{64}", fingerprint) is None:
+            raise EvidenceInsufficientError("runtime_socket_evidence_invalid")
+        auth[service] = {
+            "authenticated": True, "endpoint_port": port,
+            "identity_sha256": _canonical_sha([identity["username"], identity["client_id"]]),
+            "broker_events_sha256": events, "owned_socket_sha256": fingerprint,
+        }
+    state_sha, errors_sha = _systemd_snapshot(module)
+    connection = http.client.HTTPConnection("127.0.0.1", 8123, timeout=4)
+    try:
+        connection.request("GET", "/api/")
+        response = connection.getresponse()
+        response.read(1024)
+        if response.status not in {200, 401}:
+            raise VerifyError("runtime_homeassistant_not_ready")
+    finally:
+        connection.close()
+    return {
+        "schema": SNAPSHOT_SCHEMA, "status": "PASS",
+        "boot_id_sha256": _boot_id_sha256(), "source_head": claim["source_head"],
+        "control_manifest_sha256": claim["control_manifest_sha256"],
+        "containers": containers, "runtime_service_auth": auth,
+        "systemd_state_sha256": state_sha, "critical_errors_sha256": errors_sha,
+        "homeassistant_http_ready": True,
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--snapshot", action="store_true")
+    args = parser.parse_args()
+    try:
+        document = runtime_snapshot() if args.snapshot else verify()
     except (
         VerifyError,
         ImportError,
@@ -422,6 +612,11 @@ def main() -> int:
                 {
                     "schema": REPORT_SCHEMA,
                     "status": "FAIL",
+                    "failure_class": (
+                        "EVIDENCE_INSUFFICIENT"
+                        if isinstance(error, EvidenceInsufficientError)
+                        else "VERIFY_FAILED"
+                    ),
                     "error_code": str(error)[:300],
                     "board_access": False,
                 },

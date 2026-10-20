@@ -110,7 +110,11 @@ class Adapter:
     def f4_action(self, action, _authorization_id):
         return self._pass(action)
 
-    def controlled_reboot(self, _authorization_id):
+    def controlled_reboot(
+        self,
+        _install_authorization_id,
+        _reboot_authorization_id,
+    ):
         return self._pass("controlled_reboot")
 
     def close_pre_reboot_epoch(self):
@@ -198,7 +202,9 @@ def test_r2_orchestrator_preserves_frozen_pre_reboot_order_and_stops_at_reboot()
         "F4_PREPARE",
         "F4_ACTIVATE",
         "F4_ACCEPT",
-        "PERSIST_CERT",
+        "F4_PERSISTENCE",
+        "F4_CERT_AUDIT",
+        "F4_CERT_TIMER",
         "controlled_reboot",
         "close_pre_reboot_epoch",
     ]
@@ -245,6 +251,46 @@ def test_r2_requires_one_top_level_approval_before_marker_or_mutation():
         "qualify",
         "close_pre_reboot_epoch",
     ]
+
+
+def test_r2_callback_approval_occurs_after_qualification_before_marker():
+    adapter = Adapter()
+    observed = []
+
+    def approve(plan):
+        observed.append((plan["run_id"], list(adapter.calls)))
+        return True
+
+    result = r2.R2Orchestrator(adapter).execute(
+        release_document(),
+        run_id="1" * 64,
+        target_binding_sha256="5" * 64,
+        approved=False,
+        approval_callback=approve,
+    )
+    assert result["status"] == "PASS"
+    assert observed == [
+        (
+            "1" * 64,
+            ["verify_release", "start_ssh_epoch", "qualify"],
+        )
+    ]
+    assert adapter.calls.index("qualify") < adapter.calls.index("start_marker")
+
+
+def test_r2_rejects_dual_approval_authority():
+    adapter = Adapter()
+    with pytest.raises(
+        r2.ProductionV2R2Error,
+        match="production_approval_authority_ambiguous",
+    ):
+        r2.R2Orchestrator(adapter).execute(
+            release_document(),
+            run_id="1" * 64,
+            target_binding_sha256="5" * 64,
+            approved=True,
+            approval_callback=lambda _plan: True,
+        )
 
 
 def test_internal_f4_action_ids_are_deterministic_distinct_and_compatible():
@@ -484,3 +530,37 @@ def test_r3_pre_mutation_session_close_failure_does_not_claim_closed():
     assert result["operator_session_closed"] is False
     assert result["reflash_required"] is False
     assert result["terminal_stage"] == "PRE_MUTATION_SESSION_CLOSE"
+
+
+
+def test_r3_insufficient_evidence_stops_without_claiming_product_failure():
+    adapter = Adapter()
+
+    def insufficient(_release, _binding):
+        adapter.calls.append("post_reboot_acceptance")
+        raise r2.EvidenceInsufficientError(
+            "runtime_snapshot_evidence_insufficient"
+        )
+
+    adapter.post_reboot_acceptance = insufficient
+    result = r2.R3Orchestrator(adapter).execute(
+        release_document(),
+        run_id="1" * 64,
+        target_binding_sha256="5" * 64,
+        approved=True,
+    )
+    assert result["status"] == "FAIL"
+    assert result["marker_state"] == "STARTED"
+    assert result["error_class"] == (
+        "POST_REBOOT_EVIDENCE_INSUFFICIENT_REFLASH_REQUIRED"
+    )
+    assert result["device_acceptance"] == "NOT_REACHED"
+    assert result["T1_PRODUCTION_READY"] is False
+    assert result["reflash_required"] is True
+    assert "accept_marker" not in adapter.calls
+    assert adapter.calls[-4:] == [
+        "freeze_failure",
+        "collect_failure_forensics",
+        "failure_session_close",
+        "record_reflash_disposition",
+    ]

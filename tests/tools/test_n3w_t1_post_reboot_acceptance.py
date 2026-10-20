@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -95,6 +96,23 @@ def started_marker():
     }
 
 
+def snapshot():
+    return {
+        "schema": acceptance.SNAPSHOT_SCHEMA, "status": "PASS",
+        "boot_id_sha256": "9" * 64, "source_head": "b" * 40,
+        "control_manifest_sha256": "a" * 64,
+        "homeassistant_http_ready": True, "systemd_state_sha256": "a" * 64,
+        "critical_errors_sha256": "b" * 64,
+        "containers": {name: {"identity_sha256": "c" * 64, "restart_count": 0, "running": True}
+                       for name in acceptance.CRITICAL_SERVICES},
+        "runtime_service_auth": {name: {
+            "authenticated": True, "endpoint_port": port,
+            "identity_sha256": "d" * 64, "owned_socket_sha256": "e" * 64,
+            "broker_events_sha256": "f" * 64,
+        } for name, port in (("manager", 8883), ("homeassistant", 1883))},
+    }
+
+
 class Adapter:
     def __init__(self, fail_probe=None, restart_service=None):
         self.fail_probe = fail_probe
@@ -119,18 +137,19 @@ class Adapter:
         return {
             "status": "FAIL" if name == self.fail_probe else "PASS",
             "accepted": name != self.fail_probe,
+            "connack_reason": 0x87,
         }
 
-    def observe_critical_restarts(self, seconds):
+    def runtime_snapshot(self):
+        return snapshot()
+
+    def observe_runtime(self, seconds, baseline):
         self.observation_seconds = seconds
-        return {
-            "status": "PASS",
-            "observation_seconds": seconds,
-            "restart_deltas": {
-                service: 1 if service == self.restart_service else 0
-                for service in acceptance.CRITICAL_SERVICES
-            },
-        }
+        samples = [{"elapsed_seconds": elapsed, "snapshot": snapshot()}
+                   for elapsed in range(0, seconds + 1, 2)]
+        if self.restart_service:
+            samples[5]["snapshot"]["containers"][self.restart_service]["restart_count"] = 1
+        return {"status": "PASS", "observation_seconds": seconds, "samples": samples}
 
 
 def test_acceptance_requires_all_external_probes_and_exact_90_second_observation():
@@ -201,7 +220,7 @@ def test_acceptance_rejects_critical_restart_during_observation():
     adapter = Adapter(restart_service="manager")
     with pytest.raises(
         acceptance.PostRebootAcceptanceError,
-        match="critical_restart_observed:manager",
+        match="runtime_continuity_changed",
     ):
         acceptance.run_acceptance(adapter, release_document(), binding())
 
@@ -215,3 +234,60 @@ def test_acceptance_public_document_has_no_raw_credential_fields():
     lowered = str(result).casefold()
     for token in ("password", "private_key", "credential_value", "raw_target"):
         assert token not in lowered
+
+
+@pytest.mark.parametrize("change", [
+    lambda s: s["runtime_service_auth"]["manager"].update(owned_socket_sha256="0" * 64),
+    lambda s: s["runtime_service_auth"]["homeassistant"].update(broker_events_sha256="0" * 64),
+    lambda s: s["containers"]["broker"].update(identity_sha256="0" * 64),
+    lambda s: s.update(homeassistant_http_ready=False),
+    lambda s: s.update(critical_errors_sha256="0" * 64),
+    lambda s: s.update(systemd_state_sha256="0" * 64),
+    lambda s: s.update(boot_id_sha256="0" * 64),
+])
+def test_transient_failure_cannot_be_hidden_by_final_recovery(change):
+    adapter = Adapter()
+    original = adapter.observe_runtime
+    def observe(seconds, baseline):
+        result = original(seconds, baseline)
+        change(result["samples"][4]["snapshot"])
+        return result
+    adapter.observe_runtime = observe
+    with pytest.raises(acceptance.PostRebootAcceptanceError):
+        acceptance.run_acceptance(adapter, release_document(), binding())
+
+
+@pytest.mark.parametrize("elapsed", [float("nan"), float("inf"), -1, True, 99, 0])
+def test_invalid_sample_timing_is_rejected(elapsed):
+    adapter = Adapter()
+    original = adapter.observe_runtime
+    def observe(seconds, baseline):
+        result = original(seconds, baseline)
+        result["samples"][1]["elapsed_seconds"] = elapsed
+        return result
+    adapter.observe_runtime = observe
+    with pytest.raises(acceptance.PostRebootAcceptanceError, match="coverage"):
+        acceptance.run_acceptance(adapter, release_document(), binding())
+
+
+def test_probe_induced_reconnection_is_rejected_before_observation():
+    adapter = Adapter()
+    adapter.runtime_snapshot = lambda: snapshot() if not adapter.probes else {
+        **snapshot(), "critical_errors_sha256": "0" * 64,
+    }
+    with pytest.raises(acceptance.PostRebootAcceptanceError, match="continuity_changed"):
+        acceptance.run_acceptance(adapter, release_document(), binding())
+    assert adapter.observation_seconds is None
+
+
+def test_new_evidence_hash_binds_run_and_runtime_auth_without_legacy_labels():
+    result = acceptance.run_acceptance(Adapter(), release_document(), binding())
+    assert result["schema"].endswith("/2")
+    assert set(result["runtime_service_auth"]) == {"manager", "homeassistant"}
+    assert "MANAGER_MQTT_AUTH" not in result["external_probes"]
+    assert result["run_id"] == binding()["run_id"]
+    document = deepcopy(result)
+    digest = document.pop("acceptance_sha256")
+    assert contract.canonical_sha256(document) == digest
+    document["runtime_baseline_sha256"] = "0" * 64
+    assert contract.canonical_sha256(document) != digest

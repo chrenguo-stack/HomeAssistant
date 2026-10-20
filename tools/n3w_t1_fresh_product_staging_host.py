@@ -58,6 +58,13 @@ ARTIFACT_OUTER_FILES = frozenset(
     )
 )
 
+RELEASE_F3_PAYLOAD_FILES = frozenset(
+    set(ARTIFACT_OUTER_FILES).difference(IMAGE_ARTIFACT_FILES.values())
+)
+RELEASE_F3_IMAGE_FILES = frozenset(
+    {*IMAGE_ARTIFACT_FILES.values(), "image-set.json"}
+)
+
 
 class FreshHostTransportError(RuntimeError):
     pass
@@ -464,6 +471,82 @@ def _download_artifact(
         artifact_zip_sha256=artifact_zip_sha256,
     )
     return "MISS_POPULATED"
+
+def _extract_release_tar(
+    archive: Path,
+    destination: Path,
+    expected_files: frozenset[str],
+) -> None:
+    if archive.is_symlink() or not archive.is_file():
+        raise FreshHostTransportError("release_artifact_invalid")
+    seen: set[str] = set()
+    try:
+        with tarfile.open(archive, "r:*") as bundle:
+            for member in bundle.getmembers():
+                name = _normalized_member_name(member.name)
+                if (
+                    not name
+                    or Path(name).is_absolute()
+                    or ".." in Path(name).parts
+                    or "/" in name
+                    or "\\" in name
+                    or not member.isfile()
+                    or member.issym()
+                    or member.islnk()
+                    or name in seen
+                ):
+                    raise FreshHostTransportError(
+                        "release_artifact_member_invalid"
+                    )
+                seen.add(name)
+                if name not in expected_files:
+                    raise FreshHostTransportError(
+                        "release_artifact_member_unexpected"
+                    )
+                stream = bundle.extractfile(member)
+                if stream is None:
+                    raise FreshHostTransportError(
+                        "release_artifact_member_unreadable"
+                    )
+                target = destination / name
+                if target.exists() or target.is_symlink():
+                    raise FreshHostTransportError(
+                        "release_artifact_member_collision"
+                    )
+                with target.open("xb") as output:
+                    shutil.copyfileobj(stream, output)
+    except tarfile.TarError as error:
+        raise FreshHostTransportError("release_artifact_tar_invalid") from error
+    if seen != set(expected_files):
+        raise FreshHostTransportError("release_artifact_file_set_invalid")
+
+
+def _materialize_release_artifacts(
+    work: Path,
+    *,
+    f3_payload: Path,
+    f3_images: Path,
+) -> str:
+    _extract_release_tar(f3_payload, work, RELEASE_F3_PAYLOAD_FILES)
+    _extract_release_tar(f3_images, work, RELEASE_F3_IMAGE_FILES)
+    image_set = work / "image-set.json"
+    try:
+        image_document = json.loads(image_set.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise FreshHostTransportError("release_image_set_invalid") from error
+    if (
+        not isinstance(image_document, dict)
+        or image_document.get("schema")
+        != "gh.n3w-t1-f5-v2-image-set/1"
+        or not isinstance(image_document.get("source_head"), str)
+    ):
+        raise FreshHostTransportError("release_image_set_invalid")
+    image_source_head = image_document["source_head"]
+    image_set.unlink()
+    if {path.name for path in work.iterdir()} != set(ARTIFACT_OUTER_FILES):
+        raise FreshHostTransportError("release_materialized_file_set_invalid")
+    return image_source_head
+
 
 def _read_sidecar(path: Path) -> str:
     value = path.read_text(encoding="utf-8").strip()
@@ -1362,10 +1445,12 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--t1", required=True)
     parser.add_argument("--phase", choices=("preflight", "apply"), required=True)
-    parser.add_argument("--run-id", required=True)
-    parser.add_argument("--artifact-name", required=True)
-    parser.add_argument("--artifact-id", type=int, required=True)
-    parser.add_argument("--artifact-zip-sha256", required=True)
+    parser.add_argument("--run-id")
+    parser.add_argument("--artifact-name")
+    parser.add_argument("--artifact-id", type=int)
+    parser.add_argument("--artifact-zip-sha256")
+    parser.add_argument("--release-f3-payload", type=Path)
+    parser.add_argument("--release-f3-images", type=Path)
     parser.add_argument("--archive-sha256", required=True)
     parser.add_argument("--manifest-sha256", required=True)
     parser.add_argument(
@@ -1391,15 +1476,47 @@ def main() -> int:
     artifact_cache_status = "UNKNOWN"
     github_large_artifact_download: bool | None = None
     try:
-        artifact_cache_status = _download_artifact(
-            work,
-            run_id=args.run_id,
-            artifact_name=args.artifact_name,
-            artifact_id=args.artifact_id,
-            artifact_zip_sha256=args.artifact_zip_sha256,
-            cache_root=Path(args.artifact_cache_root),
+        release_image_source_head: str | None = None
+        release_mode = (
+            args.release_f3_payload is not None
+            or args.release_f3_images is not None
         )
-        github_large_artifact_download = artifact_cache_status != "HIT"
+        github_values = (
+            args.run_id,
+            args.artifact_name,
+            args.artifact_id,
+            args.artifact_zip_sha256,
+        )
+        if release_mode:
+            if (
+                args.release_f3_payload is None
+                or args.release_f3_images is None
+                or any(value is not None for value in github_values)
+            ):
+                raise FreshHostTransportError(
+                    "artifact_source_selection_invalid"
+                )
+            release_image_source_head = _materialize_release_artifacts(
+                work,
+                f3_payload=args.release_f3_payload,
+                f3_images=args.release_f3_images,
+            )
+            artifact_cache_status = "RELEASE_BOUND"
+            github_large_artifact_download = False
+        else:
+            if any(value is None for value in github_values):
+                raise FreshHostTransportError(
+                    "github_artifact_identity_required"
+                )
+            artifact_cache_status = _download_artifact(
+                work,
+                run_id=str(args.run_id),
+                artifact_name=str(args.artifact_name),
+                artifact_id=int(args.artifact_id),
+                artifact_zip_sha256=str(args.artifact_zip_sha256),
+                cache_root=Path(args.artifact_cache_root),
+            )
+            github_large_artifact_download = artifact_cache_status != "HIT"
         archive = _verify_outer_artifact(
             work,
             archive_sha256=args.archive_sha256,
@@ -1409,6 +1526,13 @@ def main() -> int:
             archive,
             manifest_sha256=args.manifest_sha256,
         )
+        if (
+            release_image_source_head is not None
+            and release_image_source_head != manifest.get("source_head")
+        ):
+            raise FreshHostTransportError(
+                "release_image_set_source_head_mismatch"
+            )
         capacity = _capacity_contract(work, manifest)
         _verify_image_artifacts(work, manifest, capacity)
         artifact_cache_status = f"{artifact_cache_status}_VERIFIED"

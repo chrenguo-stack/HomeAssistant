@@ -25,7 +25,7 @@
   "source_binding": {
     "os_identity_probe_blob_sha": "26a2f47c9c83fef5637f551ea75ba6b5d5ba3866",
     "minimal_inventory_blob_sha": "073bbc936cef3648411a95023a59d6b7e04d4a32",
-    "fresh_product_staging_host_blob_sha": "1196f185069db3000d4e96059be8908ba29e23f0",
+    "fresh_product_staging_host_blob_sha": "47718484ecffc2e4e7cab9505a1833cf7f5c8d7a",
     "fresh_host_baseline_blob_sha": "ae7d114bd54825114f462b4f7034ed6009f80f6f"
   },
   "execution_authority": {

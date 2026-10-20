@@ -1,3 +1,27 @@
+## 2026-10-20 — PR #628 evidence-classification R2 CLOSED_PASS
+
+- Reviewed exact source: `d3d9a653f41af9379ad0643fe13fd21f04a9af42`; base main remains `1a0689f2c1c6566a397f065ff546ad26ef02046d`.
+- R2 delta from pre-repair source `4146ad694...`: 8 files, 0 behind.
+- Source blocker closed: evidence unavailable/ambiguous is no longer collapsed into a proven product failure; explicit runtime contradiction remains a failure.
+- Insufficient post-reboot evidence now records `device_acceptance=NOT_REACHED`, `T1_PRODUCTION_READY=false`, `reflash_required=true`; ACCEPTED remains forbidden.
+- Exact-head CI: 17/17 PASS. F5 R1 65 pass/1 skip; R2 101 pass; R3 131 pass; isolated Mosquitto 3 pass; F4 source 144 pass; F4 exact package, staging payload, fresh-bootstrap payload and public safety PASS.
+- Exact artifacts are source-bound: F4 control artifact `12277918804`; staging artifact `12280055155`, manifest source head equals reviewed source and exact binding PASS.
+- PR #628 remains OPEN/DRAFT; no unresolved review threads or change-requesting reviews were present at closure review.
+- Real T1 non-disruptive acceptance remains NOT_EXECUTED; KF-122 remains OPEN.
+- No T1/board/live mutation, production release build or merge occurred.
+- Authority: `docs/development/N3W_T1_F5_V2_NONDISRUPTIVE_POST_REBOOT_ACCEPTANCE_SOURCE_REPAIR_20261020.md`.
+- Next gate: `N3W_T1_F5_V2_R2_CLOSURE_DOCS_CI_REVIEW_20261020_01`; merge remains a later explicit decision.
+
+## 2026-10-20 — PR #628 重启后非扰动验收修复
+
+- 本门：`N3W_T1_F5_V2_NONDISRUPTIVE_POST_REBOOT_ACCEPTANCE_CONTRACT_AND_SOURCE_REPAIR_20261020_01`。
+- 基线 main `1a0689f2c1c6566a397f065ff546ad26ef02046d`，PR head `e2f8a612887f227833f41baada28f79d0aeb61c7`；PR #628 保持草稿。
+- 已修正 Broker CA、删除 Mac 生产身份登录/密码导出、增加目标只读认证证据及连续 90 秒采样；验收结果升级 `/2`。
+- 合同、历史 superseding 注记、回归测试和 KF-122 同步；本地两组测试 127 / 129 passed（有重叠）；最终源码/测试 `c338179614e9d7d9fee94a2be5b1be31deab8e98`，远端 15/17 PASS，2 条重型打包仍运行。真实 Mosquitto 隔离回归 3/3 PASS，F5/F4/control package/public safety PASS。本门合同与源码交付完成，完整 CI 尚未关闭。
+- 本门不访问 T1/板卡、不执行生产、不合并；KF-122 OPEN，实机未验收。旧 PASS 不等于本次非扰动合同已通过。
+- 权威记录：`N3W_T1_F5_V2_NONDISRUPTIVE_POST_REBOOT_ACCEPTANCE_SOURCE_REPAIR_20261020.md`。
+- 下一门：`N3W_T1_F5_V2_NONDISRUPTIVE_POST_REBOOT_ACCEPTANCE_SOURCE_AND_CI_REVIEW_20261020_01`，不自动执行生产或合并。
+
 ## 2026-10-20 — F5 V2 PR #626 merged; post-merge alignment prepared
 
 - PR #626 is CLOSED/MERGED.
