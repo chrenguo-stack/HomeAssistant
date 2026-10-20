@@ -3,7 +3,7 @@
 - 本门：`N3W_T1_F5_V2_NONDISRUPTIVE_POST_REBOOT_ACCEPTANCE_CONTRACT_AND_SOURCE_REPAIR_20261020_01`。
 - 基线 main `1a0689f2c1c6566a397f065ff546ad26ef02046d`，PR head `e2f8a612887f227833f41baada28f79d0aeb61c7`；PR #628 保持草稿。
 - 已修正 Broker CA、删除 Mac 生产身份登录/密码导出、增加目标只读认证证据及连续 90 秒采样；验收结果升级 `/2`。
-- 合同、历史 superseding 注记、回归测试和 KF-122 同步；本地两组测试 127 / 129 passed（有重叠），远端 CI 待提交后复核。
+- 合同、历史 superseding 注记、回归测试和 KF-122 同步；本地两组测试 127 / 129 passed（有重叠）；最终源码/测试 `c338179614e9d7d9fee94a2be5b1be31deab8e98`，远端 15/17 PASS，2 条重型打包仍运行。真实 Mosquitto 隔离回归 3/3 PASS，F5/F4/control package/public safety PASS。本门合同与源码交付完成，完整 CI 尚未关闭。
 - 本门不访问 T1/板卡、不执行生产、不合并；KF-122 OPEN，实机未验收。旧 PASS 不等于本次非扰动合同已通过。
 - 权威记录：`N3W_T1_F5_V2_NONDISRUPTIVE_POST_REBOOT_ACCEPTANCE_SOURCE_REPAIR_20261020.md`。
 - 下一门：`N3W_T1_F5_V2_NONDISRUPTIVE_POST_REBOOT_ACCEPTANCE_SOURCE_AND_CI_REVIEW_20261020_01`，不自动执行生产或合并。

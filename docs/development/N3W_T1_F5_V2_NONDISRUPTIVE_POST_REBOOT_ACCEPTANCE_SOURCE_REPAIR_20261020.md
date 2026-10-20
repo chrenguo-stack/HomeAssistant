@@ -8,7 +8,7 @@ BASE_MAIN=1a0689f2c1c6566a397f065ff546ad26ef02046d
 BASE_PR_HEAD=e2f8a612887f227833f41baada28f79d0aeb61c7
 SOURCE_BRANCH=fix/n3w-t1-f5-v2-real-production-executor-20261020
 SOURCE_PR=628
-RESULT=SOURCE_AND_CONTRACT_IMPLEMENTED_LOCAL_TESTS_PASS_CI_PENDING
+RESULT=CONTRACT_AND_SOURCE_REPAIR_COMPLETE_CORE_CI_PASS_FULL_PAYLOAD_CI_PENDING
 REPOSITORY_MUTATION=true
 T1_ACCESS=false
 T1_MUTATION=false
@@ -95,3 +95,39 @@ NEXT_ONE_GATE=N3W_T1_F5_V2_NONDISRUPTIVE_POST_REBOOT_ACCEPTANCE_SOURCE_AND_CI_RE
 - F5 source CI [39437492081](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/39437492081)：R1/R2/R3 PASS；隔离 MQTT 的新路径测试 PASS，两个旧路径断开测试因预期过窄 FAIL。实际收到合法的 `e0 01 8e`（Session Taken Over），测试此前只认带显式零属性长度的长一字节形式。夹具改为按 MQTT 包长度读取，并接受这两种合法 0x8e 表示；产品负向 CONNACK 校验没有放宽。
 - Public safety [39437491606](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/39437491606)：假日志中的私网示例地址命中规则；改为文档专用地址，未修改扫描规则/例外清单。该地址是测试合成值，不是目标信息。
 - 此次修订只有两个测试文件和本记录；无产品源码变动。新提交 CI 待复核。上述失败不冒充实机或产品失败。
+
+## 最终源码绑定与本门交付
+
+```text
+PRODUCT_SOURCE_HEAD=d82a428b364143b1aaaf585e16a0f6b190a5e759
+PRODUCT_SOURCE_TREE=b3c9949b4663d10b1fccf4ffe165e73532491f82
+FINAL_TESTED_HEAD=c338179614e9d7d9fee94a2be5b1be31deab8e98
+FINAL_TESTED_TREE=3a958f27d938a1e94ebc2b39f247fba88b2c2171
+PRODUCT_SOURCE_DELTA_AFTER_FIRST_SOURCE_COMMIT=NONE
+CORE_SOURCE_CI=PASS
+ISOLATED_MOSQUITTO_2_1_2_ARM64=PASS:3/3
+F4_CONTROL_PACKAGE_CI=PASS
+PUBLIC_REPOSITORY_SAFETY=PASS
+ALL_WORKFLOWS_CLOSED=false
+FULL_PAYLOAD_CI=PENDING
+T1_NONDISRUPTIVE_LIVE_ACCEPTANCE=NOT_EXECUTED
+KF_122=OPEN
+MERGE_READY_NOT_CLAIMED=true
+```
+
+截至本次归档，`c3381796` 的 17 条工作流中 15 条 PASS、2 条仍运行、0 条 FAIL：
+
+| 检查 | 结果 | 绑定 |
+| --- | --- | --- |
+| F5 V2 R1/R2/R3 + 隔离 MQTT | PASS；真实 Broker 3/3 passed（3.24 s） | [39437795372](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/39437795372) |
+| F4 activation source | PASS | [39437795573](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/39437795573) |
+| F4 exact control package | PASS | [39437795443](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/39437795443) |
+| Public safety | PASS | [39437795500](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/39437795500) |
+| Production stack staging payload | RUNNING；镜像 materialization | [39437795492](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/39437795492) |
+| Fresh bootstrap deployable payload | RUNNING；ARM64 Manager build | [39437795328](https://github.com/chrenguo-stack/HomeAssistant/actions/runs/39437795328) |
+
+其它 11 条 PASS：Manager、M0、M2 DynSec、M2 private Mosquitto、H3 pairing runtime、C-07 retirement、M2 secret ownership、F2 preflight 以及三类 node-auth lab。lab CI 名称不代表本门接触了真实板卡。
+
+本门合同与源码修复交付完成；完整重型打包检查、独立源码复核及真实 T1 验收不冒充关闭。最后的进度归档提交仅修改本记录、current state/index 与 KF 文档，源码与测试仍精确绑定 `c3381796`。归档提交若触发新一轮 CI，应按新 HEAD 独立查询，不能把上表结果移植为新 HEAD 全绿。
+
+下一门仍为源码与 CI 复核，先核查最终 PR head/main、完整工作流结果与本文边界，不自动合并或进入生产。工作区无私人证据；临时补丁、工具日志、可重现测试中间物的延续价值已归档，`UNARCHIVED_CRITICAL_RESULT_COUNT=0`。
