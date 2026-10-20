@@ -341,6 +341,21 @@ class LiveProductionAdapter:
             raise ProductionExecutorError("remote_json_invalid")
         return value
 
+    def _remote_sha256(self, path: str) -> str:
+        completed = self._remote(
+            ("sudo", "-n", "sha256sum", path),
+            timeout=30,
+            check=False,
+        )
+        fields = completed.stdout.split()
+        value = fields[0] if completed.returncode == 0 and fields else ""
+        if (
+            len(value) != 64
+            or any(c not in "0123456789abcdef" for c in value)
+        ):
+            raise ProductionExecutorError("remote_sha256_failed")
+        return value
+
     def _open_remote_root(self) -> None:
         if self.remote_root is not None:
             raise ProductionExecutorError("remote_workspace_already_open")
@@ -609,12 +624,9 @@ class LiveProductionAdapter:
             "reboot-successor-control",
         )
         script = f"{package_root}/tools/n3w_t1_f4_reboot_authority.py"
-        transaction_sha = self._remote_secret_text(
+        transaction_sha = self._remote_sha256(
             F4_TRANSACTION_PATH,
         )
-        transaction_sha = hashlib.sha256(
-            (transaction_sha + "\n").encode("utf-8")
-        ).hexdigest()
         common = (
             "--source-head",
             self.release["source_head"],
