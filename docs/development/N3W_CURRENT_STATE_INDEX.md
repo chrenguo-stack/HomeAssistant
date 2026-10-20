@@ -1,3 +1,18 @@
+## 2026-10-20 — F5 V2 PR #626 merged; post-merge alignment prepared
+
+- PR #626 is CLOSED/MERGED.
+- New main: `f9736b4bc78341f3a14ebacf1e38450c0443db2f`; merge parents are old main `4a1d58d...` and reviewed PR head `a6ed1e75...`.
+- PR-head tree equals merge tree `4c47d95d...`; PR-head-to-new-main content delta is NONE.
+- Pre-merge exact-head workflows were 19/19 PASS.
+- The exact release-inputs producer, builder, release profile, F3 manual dispatch support and downstream producer provenance binding are now reachable from main.
+- The previous blocker `EXACT_MAIN_RELEASE_INPUT_ARTIFACT_PRODUCTION_PATH_MISSING` is closed at source/repository level.
+- No exact-main F3/F4 production artifact, release-inputs artifact or exact production release has been built yet.
+- This gate is docs-only; no T1, board, live runtime or production service mutation occurred.
+- Authority: `docs/development/N3W_T1_F5_V2_PR626_POSTMERGE_STATE_ALIGNMENT_20261020.md`.
+- Alignment is final only after this exact payload becomes reachable from main.
+- After alignment merge, next gate: `N3W_T1_F5_V2_EXACT_MAIN_RELEASE_INPUTS_PRODUCTION_PREPARATION_20261020_01`.
+- Alignment merge remains a separate explicit decision.
+
 ## 2026-10-20 — F5 V2 exact release-inputs producer source repair implemented
 
 - Previous blocker: exact production release required an exact-main release-inputs artifact, but no production producer existed.
