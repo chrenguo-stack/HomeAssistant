@@ -395,6 +395,8 @@ def validate_result(document: Any) -> dict[str, Any]:
     if marker_state == "ABSENT":
         if value["status"] != "FAIL":
             raise ProductionV2ContractError("result_absent_marker_requires_failure")
+        if value["device_acceptance"] != "NOT_REACHED":
+            raise ProductionV2ContractError("result_absent_marker_device_acceptance_invalid")
         if error_class != "PRE_MUTATION_FAIL":
             raise ProductionV2ContractError("result_absent_marker_error_class_invalid")
 
