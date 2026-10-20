@@ -139,7 +139,29 @@ The repair adds or extends tests for:
 - release-input packaging of the executor;
 - source CI compilation and focused test inclusion.
 
-## 5. Current state
+## 5. First exact-head CI feedback and dependent binding repair
+
+The first draft-PR CI at head `d0eada11a62596838b924e8da17edbab32a7d097` found two concrete issues:
+
+```text
+F5_V2_SOURCE_CI=FAIL
+CAUSE=R3 approval callback was passed to R2 but missing from the R3 execute signature
+
+F2_READONLY_PREFLIGHT_SOURCE_CI=FAIL
+CAUSE=expected blob for tools/n3w_t1_fresh_product_staging_host.py was stale
+```
+
+The R3 callback signature defect was repaired directly.
+
+The F2 failure was only an exact-source binding consequence of the approved staging-host change. The F2 executor behavior and read-only contract were not changed. Its executor and manifest now bind the repaired staging-host blob:
+
+```text
+STAGING_HOST_BLOB=47718484ecffc2e4e7cab9505a1833cf7f5c8d7a
+```
+
+This dependent alignment is required so the existing F2 regression guard continues to prove the exact current source instead of rejecting an intentionally changed file.
+
+## 6. Current state
 
 ```text
 SOURCE_REPAIR_IMPLEMENTED_CANDIDATE=true
@@ -155,7 +177,7 @@ BOARD_ACCESS=false
 
 The already reflashed T1-B remains untouched after its successful read-only qualification.
 
-## 6. Next gate
+## 7. Next gate
 
 ```text
 NEXT_ONE_GATE=N3W_T1_F5_V2_REAL_T1_PRODUCTION_EXECUTOR_SOURCE_REPAIR_CI_REVIEW_20261020_01
