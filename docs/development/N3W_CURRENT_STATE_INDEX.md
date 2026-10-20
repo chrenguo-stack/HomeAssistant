@@ -1,3 +1,18 @@
+## 2026-10-20 — F5 V2 R2 source candidate / dependent alignment stop
+
+- Exact R2 source candidate: `2defed8b39bcbdf03d7e90c266be6862e12aa27a`; behind main 0.
+- HOST_BASELINE now uses exact release-bound Docker/Compose versions and stops before install on APT candidate drift.
+- F3 V2 apply now requires external run context + current STARTED marker; the static historical authorization string alone is insufficient.
+- Added R2 orchestrator through `REBOOT_PENDING`, with one approval, deterministic internal F4 IDs, no auto retry, and fail-closed forensic/session-close ordering before reflash disposition.
+- Dedicated V2 source CI PASS: R1 foundations PASS, R2 source PASS, 86 focused tests PASS.
+- Fresh install host-only CI PASS.
+- F2 read-only preflight CI FAIL is classified as stale exact-source blob binding: its execution package still pins pre-R2 staging/baseline blobs.
+- F2 execution-package authority files are outside the current frozen R2 source file boundary, so no automatic alignment mutation was made.
+- Two long payload workflows were still running at the stop point; read their final state before freezing a downstream-alignment repair set.
+- No Provision/F4 conditional source modification, no R3 source, no T1/board access, no merge.
+- Authority: `docs/development/N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R2_BUSINESS_PRIMITIVE_ADAPTATION_AND_ORCHESTRATION_PROGRESS_20261020.md`.
+- Next gate: `N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R2_DEPENDENT_CI_ALIGNMENT_DECISION_20261020_01`.
+
 ## 2026-10-20 — F5 V2 R2 entry approved
 
 - R1 remains CLOSED_PASS at exact reviewed source `169239395088e5d01dc3ccb7b8386a8ae1c2994e`.
