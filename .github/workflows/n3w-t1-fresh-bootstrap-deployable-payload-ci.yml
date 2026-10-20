@@ -1,6 +1,7 @@
 name: N3W T1 fresh bootstrap deployable payload CI
 
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - ".github/workflows/n3w-t1-fresh-bootstrap-deployable-payload-ci.yml"
