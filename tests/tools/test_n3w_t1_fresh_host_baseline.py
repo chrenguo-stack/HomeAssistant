@@ -78,7 +78,13 @@ def test_install_pins_resolved_ubuntu_package_versions(
     monkeypatch.setattr(baseline, "_check", lambda _runner: next(checks))
     runner = FakeRunner()
 
-    report = baseline.execute_install(runner)
+    report = baseline.execute_install(
+        {
+            "docker.io": "28.2.2-0ubuntu1",
+            "docker-compose-v2": "2.38.2-0ubuntu1",
+        },
+        runner,
+    )
 
     assert report["status"] == "PASS"
     assert report["package_source"] == "ubuntu_apt"
@@ -140,7 +146,13 @@ def test_install_is_idempotent_when_approved_baseline_is_ready(
     monkeypatch.setattr(baseline.shutil, "which", lambda _name: "/usr/bin/docker")
     runner = FakeRunner()
 
-    report = baseline.execute_install(runner)
+    report = baseline.execute_install(
+        {
+            "docker.io": "28.2.2-0ubuntu1",
+            "docker-compose-v2": "2.38.2-0ubuntu1",
+        },
+        runner,
+    )
 
     assert report["status"] == "PASS"
     assert report["installed"] is False
@@ -172,3 +184,75 @@ def test_check_rejects_unapproved_docker_package_source(
 
     assert report["status"] == "MISSING"
     assert report["package_source"] == "ubuntu_apt_required"
+
+
+def test_install_stops_before_apt_install_when_candidate_drifts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(baseline.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(
+        baseline,
+        "_os_release",
+        lambda: {
+            "ID": "ubuntu",
+            "VERSION_ID": "26.04",
+            "VERSION_CODENAME": "resolute",
+        },
+    )
+    monkeypatch.setattr(baseline.platform, "machine", lambda: "aarch64")
+    checks = iter(({"status": "MISSING"},))
+    monkeypatch.setattr(baseline, "_check", lambda _runner: next(checks))
+    runner = FakeRunner()
+
+    with pytest.raises(
+        baseline.FreshHostBaselineError,
+        match="package_candidate_version_mismatch:docker.io",
+    ):
+        baseline.execute_install(
+            {
+                "docker.io": "29.1.3-0ubuntu4.1",
+                "docker-compose-v2": "2.40.3+ds1-0ubuntu1",
+            },
+            runner,
+        )
+
+    assert not any(command[:2] == ("apt-get", "install") for command in runner.commands)
+
+
+def test_install_rejects_ready_but_wrong_installed_versions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(baseline.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(
+        baseline,
+        "_os_release",
+        lambda: {
+            "ID": "ubuntu",
+            "VERSION_ID": "26.04",
+            "VERSION_CODENAME": "resolute",
+        },
+    )
+    monkeypatch.setattr(baseline.platform, "machine", lambda: "aarch64")
+    monkeypatch.setattr(
+        baseline,
+        "_check",
+        lambda _runner: {
+            "status": "PASS",
+            "package_versions": {
+                "docker.io": "28.2.2-0ubuntu1",
+                "docker-compose-v2": "2.38.2-0ubuntu1",
+            },
+        },
+    )
+
+    with pytest.raises(
+        baseline.FreshHostBaselineError,
+        match="installed_package_version_mismatch",
+    ):
+        baseline.execute_install(
+            {
+                "docker.io": "29.1.3-0ubuntu4.1",
+                "docker-compose-v2": "2.40.3+ds1-0ubuntu1",
+            },
+            FakeRunner(),
+        )

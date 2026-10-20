@@ -753,6 +753,7 @@ def test_cli_exposes_preflight_and_apply_with_explicit_authorization() -> None:
 
     assert 'choices=("preflight", "apply")' in source
     assert 'parser.add_argument("--authorization-id")' in source
+    assert 'parser.add_argument("--run-context", type=Path)' in source
     assert 'parser.add_argument("--artifact-id", type=int, required=True)' in source
     assert 'parser.add_argument("--artifact-zip-sha256", required=True)' in source
     assert '"--artifact-cache-root"' in source
@@ -893,6 +894,24 @@ def _run_apply_main(
     archive = work / "runtime-payload.tar.gz"
     archive.write_bytes(b"x")
     authorization = AUTHORIZATION_ID
+    run_context_path = tmp_path / "run-context.json"
+    run_context_path.write_text(
+        json.dumps(
+            {
+                "schema": "gh.n3w-t1-production-v2-run-context/1",
+                "run_id": "1" * 64,
+                "release_id": "2" * 64,
+                "release_sha256": "3" * 64,
+                "source_head": "d" * 40,
+                "target_binding_sha256": "4" * 64,
+                "production_marker_sha256": "5" * 64,
+                "action": "F3_DEPLOY",
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
 
     monkeypatch.setattr(tool.tempfile, "mkdtemp", lambda **_kwargs: str(work))
     monkeypatch.setattr(tool, "_download_artifact", lambda *_args, **_kwargs: None)
@@ -975,6 +994,11 @@ def _run_apply_main(
         "_remote_prepare_payload",
         lambda *_args, **_kwargs: None,
     )
+    monkeypatch.setattr(
+        tool,
+        "_remote_prepare_run_context",
+        lambda *_args, **_kwargs: None,
+    )
 
     class FakeProcess:
         stdout = iter(process_lines)
@@ -1016,6 +1040,8 @@ def _run_apply_main(
             "1" * 64,
             "--authorization-id",
             authorization,
+            "--run-context",
+            str(run_context_path),
         ],
     )
 
@@ -1278,3 +1304,61 @@ def test_prebaseline_capacity_is_checked_before_authorization_claim() -> None:
     assert baseline_index < prebaseline_index < claim_index
     assert '"capacity_admission": "PREBASELINE_ROOT_PASS"' in source
     assert '"transport": prebaseline_plan.to_dict()' in source
+
+
+def test_v2_apply_requires_external_run_context() -> None:
+    tool = load_tool()
+    parser = tool._parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            [
+                "--t1",
+                "root@example",
+                "--phase",
+                "apply",
+                "--run-id",
+                "1",
+                "--artifact-name",
+                "artifact",
+                "--artifact-id",
+                "1",
+                "--artifact-zip-sha256",
+                "1" * 64,
+                "--archive-sha256",
+                "2" * 64,
+                "--manifest-sha256",
+                "3" * 64,
+            ]
+        )
+
+
+def test_v2_run_context_source_binding_is_fail_closed(tmp_path: Path) -> None:
+    tool = load_tool()
+    path = tmp_path / "run-context.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema": tool.V2_RUN_CONTEXT_SCHEMA,
+                "run_id": "1" * 64,
+                "release_id": "2" * 64,
+                "release_sha256": "3" * 64,
+                "source_head": "4" * 40,
+                "target_binding_sha256": "5" * 64,
+                "production_marker_sha256": "6" * 64,
+                "action": "F3_DEPLOY",
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(
+        tool.FreshHostTransportError,
+        match="v2_run_context_source_mismatch",
+    ):
+        tool._read_v2_run_context(path, {"source_head": "7" * 40})
+
+
+def test_v2_staging_does_not_install_host_baseline() -> None:
+    source = TOOL.read_text(encoding="utf-8")
+    apply_section = source.split('if args.phase == "apply":', 1)[1]
+    assert '"host_baseline_release_bound_install_required"' in apply_section
+    assert '_remote_baseline_report(args.t1, baseline_tool, "install")' not in apply_section

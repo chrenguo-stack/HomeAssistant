@@ -21,6 +21,19 @@ AUTHORIZATION_ID = "N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F3_LIVE
 CLAIM_MARKER_NAME = ".authorization-claimed"
 AUTHORIZATION_LEDGER_SCHEMA = "gh.n3w-t1-fresh-authorization-ledger/1"
 AUTHORIZATION_LEDGER_ROOT = Path("/var/lib/n3w-fresh-bootstrap-authorizations")
+V2_RUN_CONTEXT_SCHEMA = "gh.n3w-t1-production-v2-run-context/1"
+V2_RUN_MARKER_SCHEMA = "gh.n3w-t1-production-v2-run/1"
+V2_MARKER_PATH = Path("/var/lib/n3w-production/run.json")
+V2_RUN_CONTEXT_KEYS = {
+    "schema",
+    "run_id",
+    "release_id",
+    "release_sha256",
+    "source_head",
+    "target_binding_sha256",
+    "production_marker_sha256",
+    "action",
+}
 IMAGE_CONFIG_KEYS = (
     "Entrypoint",
     "Cmd",
@@ -1651,6 +1664,84 @@ def execute_preflight(payload_root: Path, runner: Runner | None = None) -> dict[
     }
 
 
+def _load_v2_run_context(
+    path: Path,
+    payload_root: Path,
+    manifest: dict[str, Any],
+) -> dict[str, str]:
+    if path.is_symlink() or not path.is_file():
+        raise BootstrapError("v2_run_context_invalid")
+    metadata = path.stat()
+    if metadata.st_uid != os.geteuid() or metadata.st_mode & 0o777 != 0o600:
+        raise BootstrapError("v2_run_context_metadata_invalid")
+    resolved = path.resolve()
+    payload = payload_root.resolve()
+    if resolved == payload or payload in resolved.parents:
+        raise BootstrapError("v2_run_context_inside_payload")
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise BootstrapError("v2_run_context_invalid") from error
+    if not isinstance(document, dict) or set(document) != V2_RUN_CONTEXT_KEYS:
+        raise BootstrapError("v2_run_context_contract_invalid")
+    if document.get("schema") != V2_RUN_CONTEXT_SCHEMA:
+        raise BootstrapError("v2_run_context_contract_invalid")
+    for key in (
+        "run_id",
+        "release_id",
+        "release_sha256",
+        "target_binding_sha256",
+        "production_marker_sha256",
+    ):
+        if re.fullmatch(r"[0-9a-f]{64}", str(document.get(key))) is None:
+            raise BootstrapError(f"v2_run_context_{key}_invalid")
+    if re.fullmatch(r"[0-9a-f]{40}", str(document.get("source_head"))) is None:
+        raise BootstrapError("v2_run_context_source_head_invalid")
+    if document.get("action") != "F3_DEPLOY":
+        raise BootstrapError("v2_run_context_action_invalid")
+    if document.get("source_head") != manifest.get("source_head"):
+        raise BootstrapError("v2_run_context_source_mismatch")
+    return {str(key): str(value) for key, value in document.items()}
+
+
+def _validate_v2_started_marker(run_context: dict[str, str]) -> dict[str, Any]:
+    path = V2_MARKER_PATH
+    parent = path.parent
+    if parent.is_symlink() or not parent.is_dir():
+        raise BootstrapError("v2_marker_parent_invalid")
+    parent_metadata = parent.stat()
+    if parent_metadata.st_uid != os.geteuid() or parent_metadata.st_mode & 0o777 != 0o700:
+        raise BootstrapError("v2_marker_parent_invalid")
+    if path.is_symlink() or not path.is_file():
+        raise BootstrapError("v2_started_marker_required")
+    metadata = path.stat()
+    if metadata.st_uid != os.geteuid() or metadata.st_mode & 0o777 != 0o600:
+        raise BootstrapError("v2_marker_metadata_invalid")
+    if _sha256_file(path) != run_context["production_marker_sha256"]:
+        raise BootstrapError("v2_marker_sha256_mismatch")
+    try:
+        marker = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise BootstrapError("v2_marker_invalid") from error
+    if (
+        not isinstance(marker, dict)
+        or marker.get("schema") != V2_RUN_MARKER_SCHEMA
+        or marker.get("state") != "STARTED"
+        or marker.get("replay_allowed") is not False
+    ):
+        raise BootstrapError("v2_started_marker_required")
+    for key in (
+        "run_id",
+        "release_id",
+        "release_sha256",
+        "source_head",
+        "target_binding_sha256",
+    ):
+        if marker.get(key) != run_context[key]:
+            raise BootstrapError(f"v2_marker_binding_mismatch:{key}")
+    return marker
+
+
 def _authorization_record_path(
     authorization_id: str = AUTHORIZATION_ID,
 ) -> Path:
@@ -1711,6 +1802,7 @@ def _authorization_record_present(
 def _authorization_record_matches(
     payload_root: Path,
     manifest: dict[str, Any],
+    run_context: dict[str, str] | None = None,
 ) -> bool:
     if not _authorization_record_present():
         return False
@@ -1726,16 +1818,26 @@ def _authorization_record_matches(
         or marker.read_text(encoding="utf-8").strip() != AUTHORIZATION_ID
     ):
         return False
-    return bool(
+    base_matches = bool(
         document.get("source_head") == manifest.get("source_head")
         and document.get("payload_manifest_sha256")
         == _sha256_file(payload_root / "payload-manifest.json")
+    )
+    if not base_matches or run_context is None:
+        return base_matches
+    return bool(
+        document.get("run_id_sha256")
+        == hashlib.sha256(run_context["run_id"].encode("utf-8")).hexdigest()
+        and document.get("production_marker_sha256")
+        == run_context["production_marker_sha256"]
+        and document.get("action") == run_context["action"]
     )
 
 
 def _claim_authorization(
     payload_root: Path,
     manifest: dict[str, Any],
+    run_context: dict[str, str] | None = None,
 ) -> None:
     _validate_authorization_ledger_root()
     AUTHORIZATION_LEDGER_ROOT.mkdir(mode=0o700, exist_ok=True)
@@ -1749,6 +1851,16 @@ def _claim_authorization(
         "source_head": manifest["source_head"],
         "payload_manifest_sha256": manifest_sha,
     }
+    if run_context is not None:
+        record.update(
+            {
+                "run_id_sha256": hashlib.sha256(
+                    run_context["run_id"].encode("utf-8")
+                ).hexdigest(),
+                "production_marker_sha256": run_context["production_marker_sha256"],
+                "action": run_context["action"],
+            }
+        )
     payload = (
         json.dumps(
             record,
@@ -1795,15 +1907,20 @@ def _claim_authorization(
 def execute_claim(
     payload_root: Path,
     authorization_id: str,
+    run_context_path: Path | None = None,
 ) -> dict[str, object]:
     if authorization_id != AUTHORIZATION_ID:
         raise BootstrapError("authorization_id_mismatch")
+    if run_context_path is None:
+        raise BootstrapError("v2_run_context_required")
     if os.geteuid() != 0:
         raise BootstrapError("root_required")
     manifest = _load_manifest(payload_root)
+    run_context = _load_v2_run_context(run_context_path, payload_root, manifest)
+    _validate_v2_started_marker(run_context)
     if _authorization_record_present():
         raise BootstrapError("authorization_already_consumed")
-    _claim_authorization(payload_root, manifest)
+    _claim_authorization(payload_root, manifest, run_context)
     return {
         "schema": SCHEMA,
         "status": "PASS",
@@ -1814,21 +1931,36 @@ def execute_claim(
         "authorization_consumed": True,
         "replay_allowed": False,
         "source_head": manifest["source_head"],
+        "run_id_sha256": hashlib.sha256(
+            run_context["run_id"].encode("utf-8")
+        ).hexdigest(),
+        "production_marker_sha256": run_context["production_marker_sha256"],
+        "action": run_context["action"],
         "production_service_start": False,
         "board_access": False,
     }
 
 
-def execute_apply(payload_root: Path, authorization_id: str, runner: Runner | None = None) -> dict[str, object]:
+def execute_apply(
+    payload_root: Path,
+    authorization_id: str,
+    runner: Runner | None = None,
+    *,
+    run_context_path: Path | None = None,
+) -> dict[str, object]:
     if authorization_id != AUTHORIZATION_ID:
         raise BootstrapError("authorization_id_mismatch")
+    if run_context_path is None:
+        raise BootstrapError("v2_run_context_required")
     if os.geteuid() != 0:
         raise BootstrapError("root_required")
     manifest = _load_manifest(payload_root)
+    run_context = _load_v2_run_context(run_context_path, payload_root, manifest)
+    _validate_v2_started_marker(run_context)
     record_present = _authorization_record_present()
     preclaimed = False
     if record_present:
-        if not _authorization_record_matches(payload_root, manifest):
+        if not _authorization_record_matches(payload_root, manifest, run_context):
             raise BootstrapError("authorization_already_consumed")
         preclaimed = True
     active = runner or Runner()
@@ -1836,7 +1968,8 @@ def execute_apply(payload_root: Path, authorization_id: str, runner: Runner | No
     contract = _load_contract(payload_root)
 
     def claim() -> None:
-        _claim_authorization(payload_root, manifest)
+        _validate_v2_started_marker(run_context)
+        _claim_authorization(payload_root, manifest, run_context)
         print(
             json.dumps(
                 {
@@ -1845,6 +1978,13 @@ def execute_apply(payload_root: Path, authorization_id: str, runner: Runner | No
                     "authorization_id": AUTHORIZATION_ID,
                     "authorization_claimed": True,
                     "authorization_consumed": True,
+                    "run_id_sha256": hashlib.sha256(
+                        run_context["run_id"].encode("utf-8")
+                    ).hexdigest(),
+                    "production_marker_sha256": run_context[
+                        "production_marker_sha256"
+                    ],
+                    "action": run_context["action"],
                 },
                 sort_keys=True,
                 separators=(",", ":"),
@@ -1857,7 +1997,14 @@ def execute_apply(payload_root: Path, authorization_id: str, runner: Runner | No
 
     def claim_once() -> None:
         nonlocal claimed
+        _validate_v2_started_marker(run_context)
         if preclaimed:
+            if not _authorization_record_matches(
+                payload_root,
+                manifest,
+                run_context,
+            ):
+                raise BootstrapError("authorization_record_binding_mismatch")
             claimed = True
             return
         claim()
@@ -1900,11 +2047,15 @@ def execute_apply(payload_root: Path, authorization_id: str, runner: Runner | No
         "authorization_claimed": True,
         "authorization_consumed": True,
         "replay_allowed": False,
+        "run_id_sha256": hashlib.sha256(
+            run_context["run_id"].encode("utf-8")
+        ).hexdigest(),
+        "production_marker_sha256": run_context["production_marker_sha256"],
+        "action": run_context["action"],
         "public_product_staged": report["public_product_staged"],
         "instance_material_absent": report["instance_material_absent"],
         "explicit_provisioning_required": report["explicit_provisioning_required"],
         "production_service_start": False,
-        "activation_authorized": False,
         "board_access": False,
     }
 
@@ -1943,6 +2094,7 @@ def _parser() -> argparse.ArgumentParser:
         required=True,
     )
     parser.add_argument("--authorization-id")
+    parser.add_argument("--run-context", type=Path)
     return parser
 
 
@@ -1957,11 +2109,23 @@ def main() -> int:
         elif args.phase == "claim":
             if not args.authorization_id:
                 raise BootstrapError("authorization_id_required")
-            result = execute_claim(root, args.authorization_id)
+            if args.run_context is None:
+                raise BootstrapError("v2_run_context_required")
+            result = execute_claim(
+                root,
+                args.authorization_id,
+                args.run_context,
+            )
         else:
             if not args.authorization_id:
                 raise BootstrapError("authorization_id_required")
-            result = execute_apply(root, args.authorization_id)
+            if args.run_context is None:
+                raise BootstrapError("v2_run_context_required")
+            result = execute_apply(
+                root,
+                args.authorization_id,
+                run_context_path=args.run_context,
+            )
         print(json.dumps(result, sort_keys=True, separators=(",", ":")), flush=True)
         return 0 if result.get("status") == "PASS" else 2
     except Exception as error:

@@ -1,0 +1,226 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import hashlib
+import json
+import re
+from copy import deepcopy
+from typing import Any, Protocol
+
+from n3w_t1_production_v2_contract import (
+    V2_ACTIONS,
+    canonical_sha256,
+    validate_plan,
+    validate_release,
+    validate_run_context,
+)
+
+SCHEMA = "gh.n3w-t1-production-v2-r2/1"
+R2_TERMINAL_STATE = "REBOOT_PENDING"
+F4_INTERNAL_ACTIONS = (
+    "F4_PREPARE",
+    "F4_ACTIVATE",
+    "F4_ACCEPT",
+    "PERSIST_CERT",
+    "REBOOT_CONTROL",
+)
+F4_AUTH_PATTERN = re.compile(r"^N3W_T1_F4_[A-Z0-9_]{8,160}$")
+
+
+class ProductionV2R2Error(RuntimeError):
+    pass
+
+
+class R2Adapter(Protocol):
+    def verify_release(self, release: dict[str, Any]) -> dict[str, Any]: ...
+    def start_ssh_epoch(self) -> dict[str, Any]: ...
+    def qualify(self, release: dict[str, Any]) -> dict[str, Any]: ...
+    def start_marker(self, binding: dict[str, str]) -> dict[str, Any]: ...
+    def marker_sha256(self) -> str: ...
+    def host_baseline(self, packages: dict[str, str]) -> dict[str, Any]: ...
+    def f3_deploy(self, run_context: dict[str, str]) -> dict[str, Any]: ...
+    def provision(self) -> dict[str, Any]: ...
+    def f4_action(self, action: str, authorization_id: str) -> dict[str, Any]: ...
+    def controlled_reboot(self, authorization_id: str) -> dict[str, Any]: ...
+    def close_pre_reboot_epoch(self) -> dict[str, Any]: ...
+
+
+def _pass(document: Any, stage: str) -> dict[str, Any]:
+    if not isinstance(document, dict) or document.get("status") != "PASS":
+        raise ProductionV2R2Error(f"{stage}_not_pass")
+    return document
+
+
+def derive_internal_action_id(run_id: str, action: str) -> str:
+    if re.fullmatch(r"[0-9a-f]{64}", run_id) is None:
+        raise ProductionV2R2Error("run_id_invalid")
+    if action not in F4_INTERNAL_ACTIONS:
+        raise ProductionV2R2Error("f4_action_invalid")
+    suffix = hashlib.sha256(f"{run_id}:{action}".encode("utf-8")).hexdigest()[:24].upper()
+    value = f"N3W_T1_F4_V2_{action}_{suffix}"
+    if F4_AUTH_PATTERN.fullmatch(value) is None:
+        raise ProductionV2R2Error("derived_authorization_invalid")
+    return value
+
+
+def build_plan(
+    release_document: Any,
+    *,
+    run_id: str,
+    target_binding_sha256: str,
+    ssh_host_key_sha256: str,
+) -> dict[str, Any]:
+    release = validate_release(release_document)
+    plan = {
+        "schema": "gh.n3w-t1-production-v2-plan/1",
+        "run_id": run_id,
+        "release_id": release["release_id"],
+        "release_sha256": canonical_sha256(release),
+        "source_head": release["source_head"],
+        "target_binding_sha256": target_binding_sha256,
+        "ssh_host_key_sha256": ssh_host_key_sha256,
+        "actions": list(V2_ACTIONS),
+    }
+    return validate_plan(plan)
+
+
+def marker_binding(plan: dict[str, Any]) -> dict[str, str]:
+    normalized = validate_plan(plan)
+    return {
+        "run_id": normalized["run_id"],
+        "release_id": normalized["release_id"],
+        "release_sha256": normalized["release_sha256"],
+        "source_head": normalized["source_head"],
+        "target_binding_sha256": normalized["target_binding_sha256"],
+        "ssh_host_key_sha256": normalized["ssh_host_key_sha256"],
+        "plan_sha256": canonical_sha256(normalized),
+    }
+
+
+def build_f3_run_context(
+    plan: dict[str, Any],
+    production_marker_sha256: str,
+) -> dict[str, Any]:
+    normalized = validate_plan(plan)
+    context = {
+        "schema": "gh.n3w-t1-production-v2-run-context/1",
+        "run_id": normalized["run_id"],
+        "release_id": normalized["release_id"],
+        "release_sha256": normalized["release_sha256"],
+        "source_head": normalized["source_head"],
+        "target_binding_sha256": normalized["target_binding_sha256"],
+        "production_marker_sha256": production_marker_sha256,
+        "action": "F3_DEPLOY",
+    }
+    return validate_run_context(context)
+
+
+def host_baseline_install_argv(release_document: Any) -> tuple[str, ...]:
+    release = validate_release(release_document)
+    packages = release["packages"]
+    return (
+        "python3",
+        "tools/n3w_t1_fresh_host_baseline.py",
+        "--phase",
+        "install",
+        "--docker-io-package-version",
+        packages["docker.io"],
+        "--docker-compose-v2-package-version",
+        packages["docker-compose-v2"],
+    )
+
+
+def f3_apply_argv(run_context_path: str) -> tuple[str, ...]:
+    if not run_context_path or run_context_path.strip() != run_context_path:
+        raise ProductionV2R2Error("run_context_path_invalid")
+    return (
+        "python3",
+        "tools/n3w_t1_fresh_product_staging_host.py",
+        "--phase",
+        "apply",
+        "--run-context",
+        run_context_path,
+    )
+
+
+class R2Orchestrator:
+    def __init__(self, adapter: R2Adapter):
+        self.adapter = adapter
+
+    def execute(
+        self,
+        release_document: Any,
+        *,
+        run_id: str,
+        target_binding_sha256: str,
+        approved: bool,
+    ) -> dict[str, Any]:
+        release = validate_release(deepcopy(release_document))
+        _pass(self.adapter.verify_release(release), "release")
+        epoch = _pass(self.adapter.start_ssh_epoch(), "ssh_epoch")
+        host_key = epoch.get("host_key_sha256")
+        if not isinstance(host_key, str):
+            raise ProductionV2R2Error("ssh_host_key_missing")
+        _pass(self.adapter.qualify(release), "qualification")
+        plan = build_plan(
+            release,
+            run_id=run_id,
+            target_binding_sha256=target_binding_sha256,
+            ssh_host_key_sha256=host_key,
+        )
+        if approved is not True:
+            raise ProductionV2R2Error("production_approval_required")
+        binding = marker_binding(plan)
+        marker = self.adapter.start_marker(binding)
+        if not isinstance(marker, dict) or marker.get("state") != "STARTED":
+            raise ProductionV2R2Error("marker_start_not_confirmed")
+        marker_sha = self.adapter.marker_sha256()
+        context = build_f3_run_context(plan, marker_sha)
+        _pass(self.adapter.host_baseline(dict(release["packages"])), "host_baseline")
+        _pass(self.adapter.f3_deploy(context), "f3")
+        _pass(self.adapter.provision(), "provision")
+        action_ids = {
+            action: derive_internal_action_id(run_id, action)
+            for action in F4_INTERNAL_ACTIONS
+        }
+        for action in F4_INTERNAL_ACTIONS[:-1]:
+            _pass(
+                self.adapter.f4_action(action, action_ids[action]),
+                action.casefold(),
+            )
+        _pass(
+            self.adapter.controlled_reboot(action_ids["REBOOT_CONTROL"]),
+            "reboot_control",
+        )
+        _pass(self.adapter.close_pre_reboot_epoch(), "ssh_epoch_close")
+        return {
+            "schema": SCHEMA,
+            "status": "PASS",
+            "state": R2_TERMINAL_STATE,
+            "plan_sha256": canonical_sha256(plan),
+            "run_context": context,
+            "internal_action_ids": action_ids,
+            "automatic_retry": False,
+            "post_reboot_acceptance_complete": False,
+            "production_service_start": True,
+            "board_access": False,
+        }
+
+
+def self_check() -> dict[str, object]:
+    source = __import__("pathlib").Path(__file__).read_text(encoding="utf-8")
+    normal = source.split("def self_check(", 1)[0]
+    forbidden = ("repair-", "resume-if-needed", "force", "override")
+    found = [token for token in forbidden if token in normal]
+    return {
+        "schema": SCHEMA,
+        "status": "PASS" if not found else "STOP",
+        "forbidden_normal_path_tokens": found,
+        "r2_terminal_state": R2_TERMINAL_STATE,
+        "automatic_retry": False,
+        "board_access": False,
+    }
+
+
+if __name__ == "__main__":
+    print(json.dumps(self_check(), sort_keys=True, separators=(",", ":")))
