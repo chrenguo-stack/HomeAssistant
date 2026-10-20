@@ -1761,7 +1761,15 @@ def main() -> int:
                     "ssh",
                     "-n",
                     args.t1,
-                    _remote_command(("rm", "-rf", "--", remote_dir)),
+                    _remote_command(
+                        (
+                            "rm",
+                            "-rf",
+                            "--",
+                            remote_dir,
+                            remote_run_context or "",
+                        )
+                    ),
                 ),
                 timeout=120,
                 check=False,

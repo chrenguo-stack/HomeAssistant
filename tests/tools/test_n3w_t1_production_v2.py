@@ -111,7 +111,31 @@ class Adapter:
         return self._pass("controlled_reboot")
 
     def close_pre_reboot_epoch(self):
-        return self._pass("close_pre_reboot_epoch")
+        return self._pass(
+            "close_pre_reboot_epoch",
+            {"session_closed": True},
+        )
+
+    def freeze_failure(self, _failure):
+        return self._pass("freeze_failure")
+
+    def collect_failure_forensics(self):
+        return self._pass(
+            "collect_failure_forensics",
+            {"evidence_complete": True},
+        )
+
+    def failure_session_close(self):
+        return self._pass(
+            "failure_session_close",
+            {"session_closed": True},
+        )
+
+    def record_reflash_disposition(self):
+        return self._pass(
+            "record_reflash_disposition",
+            {"reflash_required": True},
+        )
 
 
 def test_r2_orchestrator_preserves_frozen_pre_reboot_order_and_stops_at_reboot():
@@ -146,18 +170,30 @@ def test_r2_orchestrator_preserves_frozen_pre_reboot_order_and_stops_at_reboot()
     ]
 
 
-def test_r2_failure_is_fail_fast_without_retry_or_later_mutation():
+def test_r2_failure_is_fail_fast_and_finalizes_before_reflash():
     adapter = Adapter(fail_at="f3_deploy")
-    with pytest.raises(r2.ProductionV2R2Error, match="f3_not_pass"):
-        r2.R2Orchestrator(adapter).execute(
-            release_document(),
-            run_id="1" * 64,
-            target_binding_sha256="5" * 64,
-            approved=True,
-        )
+    result = r2.R2Orchestrator(adapter).execute(
+        release_document(),
+        run_id="1" * 64,
+        target_binding_sha256="5" * 64,
+        approved=True,
+    )
+    assert result["status"] == "FAIL"
+    assert result["state"] == "REFLASH_REQUIRED"
+    assert result["failed_stage"] == "F3_DEPLOY"
+    assert result["evidence_complete"] is True
+    assert result["operator_session_closed"] is True
+    assert result["reflash_required"] is True
+    assert result["automatic_retry"] is False
     assert adapter.calls.count("f3_deploy") == 1
     assert "provision" not in adapter.calls
     assert "F4_PREPARE" not in adapter.calls
+    assert adapter.calls[-4:] == [
+        "freeze_failure",
+        "collect_failure_forensics",
+        "failure_session_close",
+        "record_reflash_disposition",
+    ]
 
 
 def test_r2_requires_one_top_level_approval_before_marker_or_mutation():
@@ -169,7 +205,12 @@ def test_r2_requires_one_top_level_approval_before_marker_or_mutation():
             target_binding_sha256="5" * 64,
             approved=False,
         )
-    assert adapter.calls == ["verify_release", "start_ssh_epoch", "qualify"]
+    assert adapter.calls == [
+        "verify_release",
+        "start_ssh_epoch",
+        "qualify",
+        "close_pre_reboot_epoch",
+    ]
 
 
 def test_internal_f4_action_ids_are_deterministic_distinct_and_compatible():
@@ -204,3 +245,28 @@ def test_r2_self_check_excludes_repair_and_recovery_normal_path():
     report = r2.self_check()
     assert report["status"] == "PASS"
     assert report["forbidden_normal_path_tokens"] == []
+
+
+def test_r2_started_failure_refuses_reflash_before_forensics_complete():
+    adapter = Adapter(fail_at="collect_failure_forensics")
+    with pytest.raises(r2.ProductionV2R2Error, match="failure_forensics_not_pass"):
+        r2.R2Orchestrator(adapter).execute(
+            release_document(),
+            run_id="1" * 64,
+            target_binding_sha256="5" * 64,
+            approved=True,
+        )
+    assert "failure_session_close" not in adapter.calls
+    assert "record_reflash_disposition" not in adapter.calls
+
+
+def test_r2_started_failure_refuses_reflash_before_session_close():
+    adapter = Adapter(fail_at="failure_session_close")
+    with pytest.raises(r2.ProductionV2R2Error, match="failure_session_close_not_pass"):
+        r2.R2Orchestrator(adapter).execute(
+            release_document(),
+            run_id="1" * 64,
+            target_binding_sha256="5" * 64,
+            approved=True,
+        )
+    assert "record_reflash_disposition" not in adapter.calls

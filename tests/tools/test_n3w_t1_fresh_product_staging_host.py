@@ -1367,3 +1367,13 @@ def test_v2_staging_does_not_install_host_baseline() -> None:
     apply_section = source.split('if args.phase == "apply":', 1)[1]
     assert '"host_baseline_release_bound_install_required"' in apply_section
     assert '_remote_baseline_report(args.t1, baseline_tool, "install")' not in apply_section
+
+
+def test_success_cleanup_removes_external_v2_run_context_with_payload() -> None:
+    source = TOOL.read_text(encoding="utf-8")
+    success_section = source.split(
+        'if not (claim_seen and marker_present):',
+        1,
+    )[1].split('except (FreshHostTransportError, OSError, subprocess.TimeoutExpired)', 1)[0]
+    assert "remote_dir" in success_section
+    assert "remote_run_context or" in success_section

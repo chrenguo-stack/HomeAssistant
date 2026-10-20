@@ -43,6 +43,10 @@ class R2Adapter(Protocol):
     def f4_action(self, action: str, authorization_id: str) -> dict[str, Any]: ...
     def controlled_reboot(self, authorization_id: str) -> dict[str, Any]: ...
     def close_pre_reboot_epoch(self) -> dict[str, Any]: ...
+    def freeze_failure(self, failure: dict[str, Any]) -> dict[str, Any]: ...
+    def collect_failure_forensics(self) -> dict[str, Any]: ...
+    def failure_session_close(self) -> dict[str, Any]: ...
+    def record_reflash_disposition(self) -> dict[str, Any]: ...
 
 
 def _pass(document: Any, stage: str) -> dict[str, Any]:
@@ -147,6 +151,52 @@ class R2Orchestrator:
     def __init__(self, adapter: R2Adapter):
         self.adapter = adapter
 
+    def _finalize_started_failure(
+        self,
+        *,
+        stage: str,
+        error: Exception,
+    ) -> dict[str, Any]:
+        failure = {
+            "status": "FAIL",
+            "failed_stage": stage,
+            "error_type": type(error).__name__,
+            "error_class": "MUTATION_FAIL_REFLASH_REQUIRED",
+            "automatic_retry": False,
+        }
+        _pass(self.adapter.freeze_failure(failure), "failure_freeze")
+        forensic = _pass(
+            self.adapter.collect_failure_forensics(),
+            "failure_forensics",
+        )
+        if forensic.get("evidence_complete") is not True:
+            raise ProductionV2R2Error("failure_forensics_incomplete")
+        session = _pass(
+            self.adapter.failure_session_close(),
+            "failure_session_close",
+        )
+        if session.get("session_closed") is not True:
+            raise ProductionV2R2Error("failure_session_not_closed")
+        disposition = _pass(
+            self.adapter.record_reflash_disposition(),
+            "reflash_disposition",
+        )
+        if disposition.get("reflash_required") is not True:
+            raise ProductionV2R2Error("reflash_disposition_invalid")
+        return {
+            "schema": SCHEMA,
+            "status": "FAIL",
+            "state": "REFLASH_REQUIRED",
+            "failed_stage": stage,
+            "error_class": "MUTATION_FAIL_REFLASH_REQUIRED",
+            "evidence_complete": True,
+            "operator_session_closed": True,
+            "reflash_required": True,
+            "automatic_retry": False,
+            "post_reboot_acceptance_complete": False,
+            "board_access": False,
+        }
+
     def execute(
         self,
         release_document: Any,
@@ -156,55 +206,98 @@ class R2Orchestrator:
         approved: bool,
     ) -> dict[str, Any]:
         release = validate_release(deepcopy(release_document))
-        _pass(self.adapter.verify_release(release), "release")
-        epoch = _pass(self.adapter.start_ssh_epoch(), "ssh_epoch")
-        host_key = epoch.get("host_key_sha256")
-        if not isinstance(host_key, str):
-            raise ProductionV2R2Error("ssh_host_key_missing")
-        _pass(self.adapter.qualify(release), "qualification")
-        plan = build_plan(
-            release,
-            run_id=run_id,
-            target_binding_sha256=target_binding_sha256,
-            ssh_host_key_sha256=host_key,
-        )
-        if approved is not True:
-            raise ProductionV2R2Error("production_approval_required")
-        binding = marker_binding(plan)
-        marker = self.adapter.start_marker(binding)
-        if not isinstance(marker, dict) or marker.get("state") != "STARTED":
-            raise ProductionV2R2Error("marker_start_not_confirmed")
-        marker_sha = self.adapter.marker_sha256()
-        context = build_f3_run_context(plan, marker_sha)
-        _pass(self.adapter.host_baseline(dict(release["packages"])), "host_baseline")
-        _pass(self.adapter.f3_deploy(context), "f3")
-        _pass(self.adapter.provision(), "provision")
-        action_ids = {
-            action: derive_internal_action_id(run_id, action)
-            for action in F4_INTERNAL_ACTIONS
-        }
-        for action in F4_INTERNAL_ACTIONS[:-1]:
-            _pass(
-                self.adapter.f4_action(action, action_ids[action]),
-                action.casefold(),
+        epoch_started = False
+        marker_started = False
+        stage = "VERIFY_RELEASE"
+        try:
+            _pass(self.adapter.verify_release(release), "release")
+            stage = "SSH_EPOCH"
+            epoch = _pass(self.adapter.start_ssh_epoch(), "ssh_epoch")
+            epoch_started = True
+            host_key = epoch.get("host_key_sha256")
+            if not isinstance(host_key, str):
+                raise ProductionV2R2Error("ssh_host_key_missing")
+            stage = "QUALIFICATION"
+            _pass(self.adapter.qualify(release), "qualification")
+            plan = build_plan(
+                release,
+                run_id=run_id,
+                target_binding_sha256=target_binding_sha256,
+                ssh_host_key_sha256=host_key,
             )
-        _pass(
-            self.adapter.controlled_reboot(action_ids["REBOOT_CONTROL"]),
-            "reboot_control",
-        )
-        _pass(self.adapter.close_pre_reboot_epoch(), "ssh_epoch_close")
-        return {
-            "schema": SCHEMA,
-            "status": "PASS",
-            "state": R2_TERMINAL_STATE,
-            "plan_sha256": canonical_sha256(plan),
-            "run_context": context,
-            "internal_action_ids": action_ids,
-            "automatic_retry": False,
-            "post_reboot_acceptance_complete": False,
-            "production_service_start": True,
-            "board_access": False,
-        }
+            if approved is not True:
+                raise ProductionV2R2Error("production_approval_required")
+            stage = "MARKER_START"
+            binding = marker_binding(plan)
+            marker = self.adapter.start_marker(binding)
+            if not isinstance(marker, dict) or marker.get("state") != "STARTED":
+                raise ProductionV2R2Error("marker_start_not_confirmed")
+            marker_started = True
+            marker_sha = self.adapter.marker_sha256()
+            context = build_f3_run_context(plan, marker_sha)
+
+            stage = "HOST_BASELINE"
+            _pass(
+                self.adapter.host_baseline(dict(release["packages"])),
+                "host_baseline",
+            )
+            stage = "F3_DEPLOY"
+            _pass(self.adapter.f3_deploy(context), "f3")
+            stage = "PROVISION"
+            _pass(self.adapter.provision(), "provision")
+
+            action_ids = {
+                action: derive_internal_action_id(run_id, action)
+                for action in F4_INTERNAL_ACTIONS
+            }
+            for action in F4_INTERNAL_ACTIONS[:-1]:
+                stage = action
+                _pass(
+                    self.adapter.f4_action(action, action_ids[action]),
+                    action.casefold(),
+                )
+
+            stage = "REBOOT_CONTROL"
+            _pass(
+                self.adapter.controlled_reboot(action_ids["REBOOT_CONTROL"]),
+                "reboot_control",
+            )
+            stage = "SSH_EPOCH_CLOSE"
+            close = _pass(
+                self.adapter.close_pre_reboot_epoch(),
+                "ssh_epoch_close",
+            )
+            if close.get("session_closed") is not True:
+                raise ProductionV2R2Error("ssh_epoch_not_closed")
+            epoch_started = False
+            return {
+                "schema": SCHEMA,
+                "status": "PASS",
+                "state": R2_TERMINAL_STATE,
+                "plan_sha256": canonical_sha256(plan),
+                "run_context": context,
+                "internal_action_ids": action_ids,
+                "automatic_retry": False,
+                "post_reboot_acceptance_complete": False,
+                "production_service_start": True,
+                "board_access": False,
+            }
+        except Exception as error:
+            if marker_started:
+                return self._finalize_started_failure(
+                    stage=stage,
+                    error=error,
+                )
+            if epoch_started:
+                close = _pass(
+                    self.adapter.close_pre_reboot_epoch(),
+                    "pre_mutation_session_close",
+                )
+                if close.get("session_closed") is not True:
+                    raise ProductionV2R2Error(
+                        "pre_mutation_session_not_closed"
+                    ) from error
+            raise
 
 
 def self_check() -> dict[str, object]:
