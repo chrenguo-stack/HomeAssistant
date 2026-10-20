@@ -1,3 +1,19 @@
+## 2026-10-20 — F5 V2 R2 CLOSED_PASS
+
+- Final exact R2 source head: `29cf8fee111f3bf9e525e396a0a8f270349ede7f`; behind main 0.
+- F2 dependent exact-source alignment is closed: executor, manifest and current git blobs now agree.
+- Exact-head workflows: 17/17 PASS.
+- F2 read-only preflight source CI: 72 tests PASS.
+- F5 V2 source CI: R1 foundations PASS, R2 source PASS, 86 focused tests PASS, R2 boundary PASS.
+- Fresh bootstrap deployable payload CI: 104 tests PASS.
+- Production stack staging payload CI: 60 tests PASS.
+- Focused exact-head review: 0 blockers; 0 unresolved review threads; 0 change-requesting reviews.
+- R2 business source was not changed by the dependent-binding repair; Provision/F4 conditional files and R3 source remain untouched.
+- `R2_CLOSED_PASS=true`; `READY_FOR_R3_ENTRY_DECISION=true`; `R3_STARTED=false`.
+- No T1/board access and no merge.
+- Authority: `docs/development/N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R2_DEPENDENT_CI_ALIGNMENT_REPAIR_CLOSURE_20261020.md`.
+- Next gate: `N3W_T1_F5_V2_SOURCE_IMPLEMENTATION_R3_ENTRY_DECISION_20261020_01`.
+
 ## 2026-10-20 — F5 V2 R2 dependent CI alignment decision
 
 - All 17 current PR workflows completed: 16 PASS, 1 FAIL, 0 pending.
