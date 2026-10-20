@@ -39,8 +39,11 @@ def write_inputs(tmp_path: Path) -> Path:
         path = tmp_path / f"{name}.bin"
         path.write_bytes((name + "\n").encode() * index)
         artifacts[name] = path.name
+    head, tree = exact_source()
     document = {
         "schema": builder.INPUT_SCHEMA,
+        "source_head": head,
+        "source_tree": tree,
         "os_contract": {
             "ID": "ubuntu",
             "VERSION_ID": "26.04",
@@ -192,6 +195,49 @@ def test_inputs_cannot_escape_artifact_root(tmp_path: Path):
     with pytest.raises(
         builder.ReleaseBuildError,
         match="artifact_path_escape:f3_payload",
+    ):
+        builder.build_release(
+            ROOT,
+            inputs,
+            tmp_path / "release",
+            source_head=head,
+            source_tree=tree,
+        )
+
+
+
+def test_builder_rejects_release_inputs_from_different_source(tmp_path: Path):
+    inputs = write_inputs(tmp_path)
+    document = json.loads(inputs.read_text(encoding="utf-8"))
+    document["source_head"] = "0" * 40
+    inputs.write_text(json.dumps(document) + "\n", encoding="utf-8")
+    head, tree = exact_source()
+    with pytest.raises(
+        builder.ReleaseBuildError,
+        match="release_inputs_source_head_mismatch",
+    ):
+        builder.build_release(
+            ROOT,
+            inputs,
+            tmp_path / "release",
+            source_head=head,
+            source_tree=tree,
+        )
+
+
+def test_builder_rejects_symlinked_artifact_input(tmp_path: Path):
+    inputs = write_inputs(tmp_path)
+    document = json.loads(inputs.read_text(encoding="utf-8"))
+    real = tmp_path / "real.bin"
+    real.write_bytes(b"real")
+    link = tmp_path / "linked.bin"
+    link.symlink_to(real)
+    document["artifacts"]["f3_payload"] = link.name
+    inputs.write_text(json.dumps(document) + "\n", encoding="utf-8")
+    head, tree = exact_source()
+    with pytest.raises(
+        builder.ReleaseBuildError,
+        match="artifact_source_symlink:f3_payload",
     ):
         builder.build_release(
             ROOT,

@@ -403,3 +403,33 @@ def test_r3_rejects_post_reboot_host_key_drift_before_acceptance():
     assert result["marker_state"] == "STARTED"
     assert result["reflash_required"] is True
     assert "post_reboot_acceptance" not in adapter.calls
+
+
+
+def test_r3_does_not_misclassify_started_failure_finalization_error_as_pre_mutation():
+    adapter = Adapter(fail_at={"f3_deploy", "collect_failure_forensics"})
+    with pytest.raises(
+        r2.StartedFailureFinalizationError,
+        match="started_failure_finalization_failed:F3_DEPLOY",
+    ):
+        r2.R3Orchestrator(adapter).execute(
+            release_document(),
+            run_id="1" * 64,
+            target_binding_sha256="5" * 64,
+            approved=True,
+        )
+
+
+def test_r3_pre_mutation_failure_can_emit_absent_marker_result_after_session_close():
+    adapter = Adapter(fail_at="qualify")
+    result = r2.R3Orchestrator(adapter).execute(
+        release_document(),
+        run_id="1" * 64,
+        target_binding_sha256="5" * 64,
+        approved=True,
+    )
+    assert result["status"] == "FAIL"
+    assert result["marker_state"] == "ABSENT"
+    assert result["error_class"] == "PRE_MUTATION_FAIL"
+    assert result["operator_session_closed"] is True
+    assert result["reflash_required"] is False

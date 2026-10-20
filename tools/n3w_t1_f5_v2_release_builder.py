@@ -81,6 +81,8 @@ def _load_inputs(path: Path) -> dict[str, Any]:
         raise ReleaseBuildError("release_inputs_json_invalid") from error
     if not isinstance(value, dict) or set(value) != {
         "schema",
+        "source_head",
+        "source_tree",
         "os_contract",
         "packages",
         "apt_source_policy",
@@ -91,6 +93,10 @@ def _load_inputs(path: Path) -> dict[str, Any]:
         raise ReleaseBuildError("release_inputs_keys_invalid")
     if value.get("schema") != INPUT_SCHEMA:
         raise ReleaseBuildError("release_inputs_schema_invalid")
+    if GIT_SHA_RE.fullmatch(str(value.get("source_head", ""))) is None:
+        raise ReleaseBuildError("release_inputs_source_head_invalid")
+    if GIT_SHA_RE.fullmatch(str(value.get("source_tree", ""))) is None:
+        raise ReleaseBuildError("release_inputs_source_tree_invalid")
     artifacts = value.get("artifacts")
     if not isinstance(artifacts, dict) or not REQUIRED_RELEASE_ARTIFACTS.issubset(artifacts):
         raise ReleaseBuildError("release_inputs_artifacts_missing")
@@ -105,11 +111,19 @@ def _artifact_source(root: Path, relative: Any, name: str) -> Path:
         or os.path.isabs(relative)
     ):
         raise ReleaseBuildError(f"artifact_path_invalid:{name}")
-    candidate = (root / relative).resolve()
+    unresolved = root / relative
+    if unresolved.is_symlink():
+        raise ReleaseBuildError(f"artifact_source_symlink:{name}")
+    candidate = unresolved.resolve()
     root_resolved = root.resolve()
     if candidate == root_resolved or root_resolved not in candidate.parents:
         raise ReleaseBuildError(f"artifact_path_escape:{name}")
-    if candidate.is_symlink() or not candidate.is_file():
+    current = unresolved
+    while current != root:
+        if current.is_symlink():
+            raise ReleaseBuildError(f"artifact_source_symlink:{name}")
+        current = current.parent
+    if not candidate.is_file():
         raise ReleaseBuildError(f"artifact_source_invalid:{name}")
     return candidate
 
@@ -133,6 +147,10 @@ def build_release(
     if destination.exists() or destination.is_symlink():
         raise ReleaseBuildError("destination_already_exists")
     inputs = _load_inputs(inputs_path)
+    if inputs["source_head"] != source_head:
+        raise ReleaseBuildError("release_inputs_source_head_mismatch")
+    if inputs["source_tree"] != source_tree:
+        raise ReleaseBuildError("release_inputs_source_tree_mismatch")
     input_root = inputs_path.resolve().parent
 
     destination.mkdir(parents=True, mode=0o700)

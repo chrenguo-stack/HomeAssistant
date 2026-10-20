@@ -32,6 +32,18 @@ class ProductionV2R2Error(RuntimeError):
     pass
 
 
+class PreMutationExecutionError(ProductionV2R2Error):
+    def __init__(self, stage: str, cause: Exception):
+        super().__init__(f"pre_mutation_failed:{stage}:{type(cause).__name__}")
+        self.stage = stage
+
+
+class StartedFailureFinalizationError(ProductionV2R2Error):
+    def __init__(self, stage: str, cause: Exception):
+        super().__init__(f"started_failure_finalization_failed:{stage}:{type(cause).__name__}")
+        self.stage = stage
+
+
 class R2Adapter(Protocol):
     def verify_release(self, release: dict[str, Any]) -> dict[str, Any]: ...
     def start_ssh_epoch(self) -> dict[str, Any]: ...
@@ -286,10 +298,16 @@ class R2Orchestrator:
             }
         except Exception as error:
             if marker_started:
-                return self._finalize_started_failure(
-                    stage=stage,
-                    error=error,
-                )
+                try:
+                    return self._finalize_started_failure(
+                        stage=stage,
+                        error=error,
+                    )
+                except Exception as finalization_error:
+                    raise StartedFailureFinalizationError(
+                        stage,
+                        finalization_error,
+                    ) from finalization_error
             if epoch_started:
                 close = _pass(
                     self.adapter.close_pre_reboot_epoch(),
@@ -299,12 +317,14 @@ class R2Orchestrator:
                     raise ProductionV2R2Error(
                         "pre_mutation_session_not_closed"
                     ) from error
-            raise
+            raise PreMutationExecutionError(stage, error) from error
 
 
 def self_check() -> dict[str, object]:
     source = __import__("pathlib").Path(__file__).read_text(encoding="utf-8")
-    normal = source.split("def self_check(", 1)[0]
+    before_self = source.split("def self_check(", 1)[0]
+    r3_normal = source.split('R3_SCHEMA =', 1)[1] if 'R3_SCHEMA =' in source else ""
+    normal = before_self + r3_normal
     forbidden = ("repair-", "resume-if-needed", "force", "override")
     found = [token for token in forbidden if token in normal]
     return {
@@ -459,7 +479,7 @@ class R3Orchestrator:
                 target_binding_sha256=target_binding_sha256,
                 approved=approved,
             )
-        except Exception as error:
+        except PreMutationExecutionError as error:
             return _final_result(
                 release,
                 run_id=run_id,
@@ -472,7 +492,7 @@ class R3Orchestrator:
                 operator_session_closed=True,
                 evidence_complete=True,
                 reflash_required=False,
-                terminal_stage="PRE_MUTATION",
+                terminal_stage=error.stage,
                 evidence_seed={
                     "error_type": type(error).__name__,
                     "error": str(error)[:200],
