@@ -65,14 +65,17 @@ def release_document():
 
 
 class Adapter:
-    def __init__(self, fail_at: str | None = None):
+    def __init__(self, fail_at: str | set[str] | None = None):
         self.calls = []
-        self.fail_at = fail_at
+        if isinstance(fail_at, str):
+            self.fail_at = {fail_at}
+        else:
+            self.fail_at = set(fail_at or ())
         self.marker_digest = "8" * 64
 
     def _pass(self, name, extra=None):
         self.calls.append(name)
-        if self.fail_at == name:
+        if name in self.fail_at:
             return {"status": "FAIL"}
         return {"status": "PASS", **(extra or {})}
 
@@ -248,7 +251,7 @@ def test_r2_self_check_excludes_repair_and_recovery_normal_path():
 
 
 def test_r2_started_failure_refuses_reflash_before_forensics_complete():
-    adapter = Adapter(fail_at="collect_failure_forensics")
+    adapter = Adapter(fail_at={"f3_deploy", "collect_failure_forensics"})
     with pytest.raises(r2.ProductionV2R2Error, match="failure_forensics_not_pass"):
         r2.R2Orchestrator(adapter).execute(
             release_document(),
@@ -261,7 +264,7 @@ def test_r2_started_failure_refuses_reflash_before_forensics_complete():
 
 
 def test_r2_started_failure_refuses_reflash_before_session_close():
-    adapter = Adapter(fail_at="failure_session_close")
+    adapter = Adapter(fail_at={"f3_deploy", "failure_session_close"})
     with pytest.raises(r2.ProductionV2R2Error, match="failure_session_close_not_pass"):
         r2.R2Orchestrator(adapter).execute(
             release_document(),
