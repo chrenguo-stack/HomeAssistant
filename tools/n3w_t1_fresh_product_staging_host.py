@@ -526,7 +526,7 @@ def _materialize_release_artifacts(
     *,
     f3_payload: Path,
     f3_images: Path,
-) -> None:
+) -> str:
     _extract_release_tar(f3_payload, work, RELEASE_F3_PAYLOAD_FILES)
     _extract_release_tar(f3_images, work, RELEASE_F3_IMAGE_FILES)
     image_set = work / "image-set.json"
@@ -541,9 +541,11 @@ def _materialize_release_artifacts(
         or not isinstance(image_document.get("source_head"), str)
     ):
         raise FreshHostTransportError("release_image_set_invalid")
+    image_source_head = image_document["source_head"]
     image_set.unlink()
     if {path.name for path in work.iterdir()} != set(ARTIFACT_OUTER_FILES):
         raise FreshHostTransportError("release_materialized_file_set_invalid")
+    return image_source_head
 
 
 def _read_sidecar(path: Path) -> str:
@@ -1474,6 +1476,7 @@ def main() -> int:
     artifact_cache_status = "UNKNOWN"
     github_large_artifact_download: bool | None = None
     try:
+        release_image_source_head: str | None = None
         release_mode = (
             args.release_f3_payload is not None
             or args.release_f3_images is not None
@@ -1493,7 +1496,7 @@ def main() -> int:
                 raise FreshHostTransportError(
                     "artifact_source_selection_invalid"
                 )
-            _materialize_release_artifacts(
+            release_image_source_head = _materialize_release_artifacts(
                 work,
                 f3_payload=args.release_f3_payload,
                 f3_images=args.release_f3_images,
@@ -1523,6 +1526,13 @@ def main() -> int:
             archive,
             manifest_sha256=args.manifest_sha256,
         )
+        if (
+            release_image_source_head is not None
+            and release_image_source_head != manifest.get("source_head")
+        ):
+            raise FreshHostTransportError(
+                "release_image_set_source_head_mismatch"
+            )
         capacity = _capacity_contract(work, manifest)
         _verify_image_artifacts(work, manifest, capacity)
         artifact_cache_status = f"{artifact_cache_status}_VERIFIED"
