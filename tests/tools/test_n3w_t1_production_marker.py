@@ -101,6 +101,34 @@ def test_accept_is_terminal_and_sets_production_ready(tmp_path):
         )
 
 
+
+
+def test_existing_authority_root_requires_owner_and_0700_mode(tmp_path):
+    authority = tmp_path / "n3w-production"
+    authority.mkdir()
+    authority.chmod(0o755)
+    with pytest.raises(marker.ProductionMarkerError, match="marker_parent_mode_invalid"):
+        marker.start_marker(
+            authority / "run.json",
+            binding(),
+            created_at="2026-10-20T00:00:00Z",
+        )
+
+
+def test_existing_authority_root_rejects_wrong_owner_binding(tmp_path, monkeypatch):
+    authority = tmp_path / "n3w-production"
+    authority.mkdir()
+    authority.chmod(0o700)
+    owner = authority.stat().st_uid
+    monkeypatch.setattr(marker.os, "geteuid", lambda: owner + 1)
+    with pytest.raises(marker.ProductionMarkerError, match="marker_parent_owner_invalid"):
+        marker.start_marker(
+            authority / "run.json",
+            binding(),
+            created_at="2026-10-20T00:00:00Z",
+        )
+
+
 def test_marker_rejects_symlink(tmp_path):
     real = tmp_path / "real.json"
     real.write_text("{}", encoding="utf-8")
