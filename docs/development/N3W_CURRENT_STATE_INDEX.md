@@ -1,3 +1,19 @@
+## 2026-10-21 — PR #628 merged; post-merge alignment prepared
+
+- PR #628 is CLOSED/MERGED.
+- New main: `3252a204f1cb6ecd09818bca9bd50d1a6ced586c`.
+- Reviewed PR head: `291ab6b27f50457314472049768663bc7e744e79`; merge tree equals reviewed head tree `b36d949f9077fe74c92d664170d2937278644218`.
+- Pre-merge exact-head CI: 17/17 PASS; merge used exact expected-head protection.
+- Real-T1 production executor, non-disruptive post-reboot acceptance and evidence-classification R2 are now reachable from main.
+- The source blocker is CLOSED at repository/source/CI level.
+- Previous exact release is not production authority for this repaired main; exact-main F3/F4/reboot artifacts, release inputs and final release must be rebuilt.
+- Local exact-release validation and Standard Fresh Armbian read-only qualification remain required before any real-T1 production authorization.
+- Real T1 production/non-disruptive acceptance remains NOT_EXECUTED; KF-122 remains OPEN.
+- This gate is docs-only; no workflow dispatch, artifact production, T1/board/live mutation or merge occurs here.
+- Authority: `docs/development/N3W_T1_F5_V2_PR628_POSTMERGE_STATE_ALIGNMENT_20261021.md`.
+- After alignment merge, next gate: `N3W_T1_F5_V2_EXACT_MAIN_RELEASE_REBUILD_PREPARATION_20261021_01`.
+- Alignment merge remains a separate explicit decision.
+
 ## 2026-10-20 — PR #628 evidence-classification R2 CLOSED_PASS
 
 - Reviewed exact source: `d3d9a653f41af9379ad0643fe13fd21f04a9af42`; base main remains `1a0689f2c1c6566a397f065ff546ad26ef02046d`.
