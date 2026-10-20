@@ -1,3 +1,11 @@
+### 2026-10-20 KF-122 — F5 V2 重启后验收可能扰动生产 MQTT 连接
+
+| ID | 范围 | 问题 | 根因与修复保护 | 状态 |
+| --- | --- | --- | --- | --- |
+| KF-122 | T1 F5 V2 post-reboot acceptance | Mac 正向探测在 TLS/认证成功后可用同 ClientID 接管生产连接；旧 CA 错配又可能使流程更早失败；首尾 restart count 不能证明稳定 | Broker CA 与 system CA 分离；移除生产密码导出/生产身份登录，保留严格随机非生产负向探测；目标只读认证组合证据、连接/事件指纹、90 秒连续采样及 fail-closed 覆盖检查；acceptance `/2` 分离证据语义。本地 source tests PASS，隔离 Broker CI 待复核，实机未执行 | OPEN |
+
+不宣称已在真实 T1 发生接管，也不把缺日志直接判为产品故障。不能通过改 Clean Start/Session Expiry、换 listener、事后等待或只看容器重启数掩盖问题。修复范围与证据：`N3W_T1_F5_V2_NONDISRUPTIVE_POST_REBOOT_ACCEPTANCE_SOURCE_REPAIR_20261020.md`。只有新精确发布包后续实机验收才可支持关闭 live 部分。
+
 ### 2026-10-17 F4 repository integration post-merge alignment
 
 ~~~text

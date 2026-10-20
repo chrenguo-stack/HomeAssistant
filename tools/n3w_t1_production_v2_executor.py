@@ -28,7 +28,12 @@ from n3w_t1_failure_forensics import (
     reflash_disposition,
 )
 from n3w_t1_fresh_armbian_qualification import collect as collect_qualification
-from n3w_t1_post_reboot_acceptance import run_acceptance
+from n3w_t1_post_reboot_acceptance import (
+    MAX_SAMPLE_GAP_SECONDS,
+    SAMPLE_INTERVAL_SECONDS,
+    require_continuity,
+    run_acceptance,
+)
 from n3w_t1_production_v2 import R3Orchestrator
 from n3w_t1_production_v2_contract import canonical_json_bytes, validate_release
 from n3w_t1_ssh_transport import SSHTransport
@@ -207,20 +212,22 @@ def _recv_varint(stream: ssl.SSLSocket) -> int:
         byte = _recv_exact(stream, 1)[0]
         value += (byte & 0x7F) * multiplier
         if not byte & 0x80:
+            if multiplier > 1 and value < multiplier:
+                raise ProductionExecutorError("mqtt_remaining_length_noncanonical")
             return value
         multiplier *= 128
     raise ProductionExecutorError("mqtt_remaining_length_invalid")
 
 
-def _mqtt_authenticate(
+def _mqtt_rejection_reason(
     host: str,
     *,
     ca_pem: str,
     username: str,
     password: str,
     client_id: str,
-) -> bool:
-    context = ssl.create_default_context()
+) -> int:
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     context.check_hostname = True
     context.verify_mode = ssl.CERT_REQUIRED
     context.load_verify_locations(cadata=ca_pem)
@@ -245,13 +252,14 @@ def _mqtt_authenticate(
         if _recv_exact(stream, 1) != b"\x20":
             raise ProductionExecutorError("mqtt_connack_invalid")
         remaining = _recv_varint(stream)
+        # Mosquitto's authentication refusal is exactly flags/reason/zero properties.
+        # Other responses, including malformed/truncated packets, are not rejection proof.
+        if remaining != 3:
+            raise ProductionExecutorError("mqtt_refusal_connack_length_invalid")
         body = _recv_exact(stream, remaining)
-        if len(body) < 2:
-            raise ProductionExecutorError("mqtt_connack_short")
-        accepted = body[1] == 0
-        if accepted:
-            stream.sendall(b"\xe0\x00")
-        return accepted
+        if body[0] != 0 or body[2] != 0 or body[1] not in {0x86, 0x87}:
+            raise ProductionExecutorError("mqtt_authentication_refusal_not_proven")
+        return body[1]
 
 
 class LiveProductionAdapter:
@@ -293,7 +301,6 @@ class LiveProductionAdapter:
         self.reboot_actuated = False
         self.failure_session_closed = False
         self._ca_pem: str | None = None
-        self._service_material: dict[str, tuple[dict[str, Any], str]] = {}
         self.f4_manifest_sha256 = _tar_member_sha256(
             self._artifact("f4_control"),
             "f4-package/f4-package-manifest.json",
@@ -786,33 +793,12 @@ class LiveProductionAdapter:
     def _ca(self) -> str:
         if self._ca_pem is None:
             self._ca_pem = self._remote_secret_text(
-                "/var/lib/greenhouse-manager/identity/system-ca.pem"
+                "/etc/n3wfc4/tls/ca.pem"
             )
         return self._ca_pem
 
-    def _material(self, service: str) -> tuple[dict[str, Any], str]:
-        if service not in {"manager", "homeassistant"}:
-            raise ProductionExecutorError("service_material_invalid")
-        if service not in self._service_material:
-            identity = self._remote_json_file(
-                f"/opt/greenhouse-secrets/mqtt/{service}/identity.json"
-            )
-            password = self._remote_secret_text(
-                f"/opt/greenhouse-secrets/mqtt/{service}/password"
-            )
-            if (
-                not isinstance(identity.get("username"), str)
-                or not identity.get("username")
-                or not isinstance(identity.get("client_id"), str)
-                or not identity.get("client_id")
-                or not password
-            ):
-                raise ProductionExecutorError("service_material_invalid")
-            self._service_material[service] = (identity, password)
-        return self._service_material[service]
-
     def _tls_probe(self) -> None:
-        context = ssl.create_default_context()
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         context.check_hostname = True
         context.verify_mode = ssl.CERT_REQUIRED
         context.load_verify_locations(cadata=self._ca())
@@ -827,30 +813,20 @@ class LiveProductionAdapter:
                 pass
         elif name in {"TLS_CA", "TLS_HOSTNAME_SNI"}:
             self._tls_probe()
-        elif name in {"MANAGER_MQTT_AUTH", "HOMEASSISTANT_MQTT_AUTH"}:
-            service = "manager" if name.startswith("MANAGER") else "homeassistant"
-            identity, password = self._material(service)
-            accepted = _mqtt_authenticate(
-                self.host,
-                ca_pem=self._ca(),
-                username=str(identity["username"]),
-                password=password,
-                client_id=str(identity["client_id"]),
-            )
-            if not accepted:
-                raise ProductionExecutorError(f"mqtt_auth_failed:{service}")
-            time.sleep(2)
         elif name == "INVALID_CREDENTIAL_REJECTED":
-            identity, password = self._material("manager")
-            accepted = _mqtt_authenticate(
+            # Fresh synthetic values cannot select a production ClientID or password.
+            nonce = secrets.token_hex(32)
+            reason = _mqtt_rejection_reason(
                 self.host,
                 ca_pem=self._ca(),
-                username=str(identity["username"]),
-                password=password + "-invalid",
-                client_id=str(identity["client_id"]) + "-invalid",
+                username="n3w-acceptance-denied-" + nonce,
+                password=secrets.token_hex(32),
+                client_id="n3w-acceptance-denied-" + nonce,
             )
-            if accepted:
-                raise ProductionExecutorError("invalid_credential_accepted")
+            return {
+                "status": "PASS", "accepted": True, "probe": name,
+                "connack_reason": reason,
+            }
         elif name == "HOMEASSISTANT_HTTP_READY":
             connection = http.client.HTTPConnection(
                 self.host,
@@ -858,7 +834,7 @@ class LiveProductionAdapter:
                 timeout=8,
             )
             try:
-                connection.request("GET", "/")
+                connection.request("GET", "/api/")
                 response = connection.getresponse()
                 response.read(1024)
                 if response.status not in {200, 401}:
@@ -871,67 +847,28 @@ class LiveProductionAdapter:
             raise ProductionExecutorError(f"external_probe_unknown:{name}")
         return {"status": "PASS", "accepted": True, "probe": name}
 
-    def _restart_snapshot(self) -> dict[str, tuple[str, int]]:
-        result: dict[str, tuple[str, int]] = {}
-        for service in SERVICE_NAMES:
-            completed = self._remote(
-                (
-                    "sudo",
-                    "-n",
-                    "docker",
-                    "ps",
-                    "--filter",
-                    "label=com.docker.compose.project=n3wfc4",
-                    "--filter",
-                    f"label=com.docker.compose.service={service}",
-                    "--format",
-                    "{{.ID}}",
-                ),
-                timeout=30,
-                check=False,
-            )
-            ids = [line.strip() for line in completed.stdout.splitlines() if line.strip()]
-            if completed.returncode != 0 or len(ids) != 1:
-                raise ProductionExecutorError(
-                    f"restart_snapshot_container_invalid:{service}"
-                )
-            inspected = self._remote(
-                (
-                    "sudo",
-                    "-n",
-                    "docker",
-                    "inspect",
-                    "--format",
-                    "{{.RestartCount}}",
-                    ids[0],
-                ),
-                timeout=30,
-                check=False,
-            )
-            value = inspected.stdout.strip()
-            if inspected.returncode != 0 or not value.isdigit():
-                raise ProductionExecutorError(
-                    f"restart_snapshot_count_invalid:{service}"
-                )
-            result[service] = (ids[0], int(value))
-        return result
+    def runtime_snapshot(self) -> dict[str, Any]:
+        return self._remote_json(
+            ("sudo", "-n", REBOOT_VERIFY_CLI, "--snapshot"),
+            "runtime_snapshot",
+            timeout=MAX_SAMPLE_GAP_SECONDS,
+        )
 
-    def observe_critical_restarts(self, seconds: int) -> dict[str, Any]:
-        before = self._restart_snapshot()
-        time.sleep(seconds)
-        after = self._restart_snapshot()
-        deltas: dict[str, int] = {}
-        for service in SERVICE_NAMES:
-            if before[service][0] != after[service][0]:
-                raise ProductionExecutorError(
-                    f"critical_container_replaced:{service}"
-                )
-            deltas[service] = after[service][1] - before[service][1]
-        return {
-            "status": "PASS",
-            "observation_seconds": seconds,
-            "restart_deltas": deltas,
-        }
+    def observe_runtime(self, seconds: int, baseline: dict[str, Any]) -> dict[str, Any]:
+        started = time.monotonic()
+        samples = []
+        previous = started
+        while True:
+            snapshot = require_continuity(baseline, self.runtime_snapshot())
+            now = time.monotonic()
+            if now - previous > MAX_SAMPLE_GAP_SECONDS:
+                raise ProductionExecutorError("runtime_observation_coverage_gap")
+            samples.append({"elapsed_seconds": now - started, "snapshot": snapshot})
+            previous = now
+            if now - started >= seconds:
+                break
+            time.sleep(min(SAMPLE_INTERVAL_SECONDS, seconds - (now - started)))
+        return {"status": "PASS", "observation_seconds": seconds, "samples": samples}
 
     def post_reboot_acceptance(
         self,

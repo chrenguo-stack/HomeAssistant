@@ -373,12 +373,11 @@ V2 只补：
 TCP_8883
 TLS_CA
 TLS_HOSTNAME_SNI
-MANAGER_MQTT_AUTH
-HOMEASSISTANT_MQTT_AUTH
 INVALID_CREDENTIAL_REJECTED
 HOMEASSISTANT_HTTP_READY
-NO_CRITICAL_RESTART_DURING_OBSERVATION
 ~~~
+
+2026-10-20 修订：上列仅为 Mac 外部探测集合。Manager/HA 自身认证连接由 `runtime_service_auth` 独立证明，不允许 Mac 使用生产身份登录；详见当前架构合同 §7、源码设计 §6.1–6.3。观察要求包含连接连续性、就绪状态和关键错误，不能只看重启计数。结果为 acceptance `/2`，旧字段不复用语义。
 
 ### 5.3 Release builder
 

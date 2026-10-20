@@ -357,12 +357,112 @@ def test_external_acceptance_contract_is_fully_implemented() -> None:
         "TCP_8883",
         "TLS_CA",
         "TLS_HOSTNAME_SNI",
-        "MANAGER_MQTT_AUTH",
-        "HOMEASSISTANT_MQTT_AUTH",
         "INVALID_CREDENTIAL_REJECTED",
         "HOMEASSISTANT_HTTP_READY",
     ):
         assert token in source
-    assert "observe_critical_restarts" in source
-    assert "time.sleep(seconds)" in source
+    assert "observe_runtime" in source
+    assert "_service_material" not in source
+    assert "_mqtt_authenticate" not in source
+    assert "system-ca.pem" not in source
     assert "T1_PRODUCTION_READY" in source
+
+
+@pytest.mark.parametrize("packet", [
+    b"\x20\x03\x00\x00\x00", b"\x20\x03\x00\x89\x00",
+    b"\x20\x03\x01\x87\x00", b"\x20\x03\x00\x87\x01",
+    b"\x20\x02\x00\x87", b"\x20\x03\x00", b"\xe0\x00",
+    b"\x20\x83\x00\x00\x87\x00",
+])
+def test_negative_probe_never_treats_non_auth_refusal_as_pass(monkeypatch, packet):
+    tool = load_tool()
+    stream = mqtt_stream(packet)
+    monkeypatch.setattr(tool.socket, "create_connection", lambda *a, **k: stream)
+    monkeypatch.setattr(tool.ssl, "SSLContext", lambda *a: tls_context(stream))
+    with pytest.raises((tool.ProductionExecutorError, OSError)):
+        tool._mqtt_rejection_reason("test", ca_pem="test", username="denied", password="fake", client_id="unique")
+
+
+def mqtt_stream(packet):
+    from io import BytesIO
+    class Stream(BytesIO):
+        def recv(self, size):
+            return self.read(size)
+        def settimeout(self, value):
+            pass
+        def sendall(self, data):
+            self.sent = data
+    return Stream(packet)
+
+
+def tls_context(stream):
+    class Context:
+        def load_verify_locations(self, **kwargs):
+            pass
+        def wrap_socket(self, raw, **kwargs):
+            assert kwargs["server_hostname"] == "armbian"
+            return stream
+    return Context()
+
+
+@pytest.mark.parametrize("reason", [0x86, 0x87])
+def test_negative_probe_requires_exact_mqtt5_authentication_refusal(monkeypatch, reason):
+    tool = load_tool()
+    stream = mqtt_stream(bytes([0x20, 3, 0, reason, 0]))
+    monkeypatch.setattr(tool.socket, "create_connection", lambda *a, **k: stream)
+    monkeypatch.setattr(tool.ssl, "SSLContext", lambda *a: tls_context(stream))
+    assert tool._mqtt_rejection_reason("test", ca_pem="test", username="denied", password="fake", client_id="unique") == reason
+
+
+def test_external_negative_probe_does_not_read_service_credentials(monkeypatch):
+    tool = load_tool()
+    adapter = object.__new__(tool.LiveProductionAdapter)
+    adapter.host = "isolated.invalid"
+    adapter._ca_pem = None
+    paths, attempts = [], []
+    adapter._remote_secret_text = lambda path: paths.append(path) or "broker-ca"
+    def probe(host, **kwargs):
+        attempts.append(kwargs)
+        assert kwargs["ca_pem"] == "broker-ca"
+        assert kwargs["username"].startswith("n3w-acceptance-denied-")
+        assert kwargs["client_id"].startswith("n3w-acceptance-denied-")
+        return 0x87
+    monkeypatch.setattr(tool, "_mqtt_rejection_reason", probe)
+    for _ in range(2):
+        assert adapter.external_probe("INVALID_CREDENTIAL_REJECTED")["accepted"]
+    assert paths == ["/etc/n3wfc4/tls/ca.pem"]
+    assert attempts[0]["client_id"] != attempts[1]["client_id"]
+    with pytest.raises(tool.ProductionExecutorError, match="unknown"):
+        adapter.external_probe("MANAGER_MQTT_AUTH")
+
+
+def test_runtime_snapshot_uses_only_installed_readonly_entrypoint():
+    tool = load_tool()
+    adapter = object.__new__(tool.LiveProductionAdapter)
+    calls = []
+    adapter._remote_json = lambda *a, **k: calls.append((a, k)) or {"status": "PASS"}
+    assert adapter.runtime_snapshot()["status"] == "PASS"
+    assert calls[0][0][0] == ("sudo", "-n", tool.REBOOT_VERIFY_CLI, "--snapshot")
+    assert calls[0][1]["timeout"] == 15
+
+
+def test_observation_samples_and_stops_immediately_on_failure(monkeypatch):
+    tool = load_tool()
+    adapter = object.__new__(tool.LiveProductionAdapter)
+    clock = [0.0]
+    monkeypatch.setattr(tool.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(tool.time, "sleep", lambda seconds: clock.__setitem__(0, clock[0] + seconds))
+    monkeypatch.setattr(tool, "require_continuity", lambda baseline, value: value if value == baseline else (_ for _ in ()).throw(ValueError("changed")))
+    calls = []
+    def sample():
+        calls.append(clock[0])
+        return {"stable": clock[0] < 4}
+    adapter.runtime_snapshot = sample
+    with pytest.raises(ValueError, match="changed"):
+        adapter.observe_runtime(90, {"stable": True})
+    assert calls == [0, 2, 4]
+    adapter.runtime_snapshot = lambda: {"stable": True}
+    clock[0] = 0
+    result = adapter.observe_runtime(90, {"stable": True})
+    assert len(result["samples"]) == 46
+    assert result["samples"][-1]["elapsed_seconds"] == 90

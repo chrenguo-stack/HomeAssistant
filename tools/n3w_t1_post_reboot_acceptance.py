@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import math
 import re
 from copy import deepcopy
 from typing import Any, Protocol
@@ -11,14 +12,15 @@ from n3w_t1_production_v2_contract import (
     validate_release,
 )
 
-SCHEMA = "gh.n3w-t1-production-v2-post-reboot-acceptance/1"
+SCHEMA = "gh.n3w-t1-production-v2-post-reboot-acceptance/2"
 OBSERVATION_SECONDS = 90
+SAMPLE_INTERVAL_SECONDS = 2
+MAX_SAMPLE_GAP_SECONDS = 15
+SNAPSHOT_SCHEMA = "gh.n3w-t1-runtime-snapshot/1"
 REQUIRED_EXTERNAL_PROBES = (
     "TCP_8883",
     "TLS_CA",
     "TLS_HOSTNAME_SNI",
-    "MANAGER_MQTT_AUTH",
-    "HOMEASSISTANT_MQTT_AUTH",
     "INVALID_CREDENTIAL_REJECTED",
     "HOMEASSISTANT_HTTP_READY",
 )
@@ -43,7 +45,8 @@ class AcceptanceAdapter(Protocol):
     def read_started_marker(self) -> dict[str, Any]: ...
     def target_local_reboot_verify(self) -> dict[str, Any]: ...
     def external_probe(self, name: str) -> dict[str, Any]: ...
-    def observe_critical_restarts(self, seconds: int) -> dict[str, Any]: ...
+    def runtime_snapshot(self) -> dict[str, Any]: ...
+    def observe_runtime(self, seconds: int, baseline: dict[str, Any]) -> dict[str, Any]: ...
 
 
 def _pass(document: Any, name: str) -> dict[str, Any]:
@@ -75,6 +78,57 @@ def _validate_started_binding(
     return marker
 
 
+def _digest(value: Any) -> bool:
+    return isinstance(value, str) and SHA256_RE.fullmatch(value) is not None
+
+
+def validate_snapshot(document: Any) -> dict[str, Any]:
+    snapshot = _pass(document, "runtime_snapshot")
+    if (
+        snapshot.get("schema") != SNAPSHOT_SCHEMA
+        or not _digest(snapshot.get("boot_id_sha256"))
+        or re.fullmatch(r"[0-9a-f]{40}", str(snapshot.get("source_head"))) is None
+        or not _digest(snapshot.get("control_manifest_sha256"))
+        or snapshot.get("homeassistant_http_ready") is not True
+        or not _digest(snapshot.get("systemd_state_sha256"))
+        or not _digest(snapshot.get("critical_errors_sha256"))
+    ):
+        raise PostRebootAcceptanceError("runtime_snapshot_evidence_invalid")
+    containers = snapshot.get("containers")
+    if not isinstance(containers, dict) or set(containers) != set(CRITICAL_SERVICES):
+        raise PostRebootAcceptanceError("runtime_container_set_invalid")
+    for name, record in containers.items():
+        if (
+            not isinstance(record, dict)
+            or not _digest(record.get("identity_sha256"))
+            or type(record.get("restart_count")) is not int
+            or record["restart_count"] < 0
+            or record.get("running") is not True
+        ):
+            raise PostRebootAcceptanceError(f"runtime_container_invalid:{name}")
+    auth = snapshot.get("runtime_service_auth")
+    if not isinstance(auth, dict) or set(auth) != {"manager", "homeassistant"}:
+        raise PostRebootAcceptanceError("runtime_service_auth_set_invalid")
+    for name, record in auth.items():
+        if (
+            not isinstance(record, dict)
+            or record.get("authenticated") is not True
+            or record.get("endpoint_port") != (8883 if name == "manager" else 1883)
+            or any(not _digest(record.get(key)) for key in (
+                "identity_sha256", "owned_socket_sha256", "broker_events_sha256",
+            ))
+        ):
+            raise PostRebootAcceptanceError(f"runtime_service_auth_invalid:{name}")
+    return snapshot
+
+
+def require_continuity(baseline: dict[str, Any], document: Any) -> dict[str, Any]:
+    snapshot = validate_snapshot(document)
+    if snapshot != baseline:
+        raise PostRebootAcceptanceError("runtime_continuity_changed")
+    return snapshot
+
+
 def run_acceptance(
     adapter: AcceptanceAdapter,
     release_document: Any,
@@ -103,32 +157,52 @@ def run_acceptance(
     ):
         raise PostRebootAcceptanceError("real_boot_change_not_proven")
 
+    baseline = validate_snapshot(adapter.runtime_snapshot())
+    if baseline["boot_id_sha256"] != post_boot or baseline["source_head"] != release["source_head"]:
+        raise PostRebootAcceptanceError("runtime_snapshot_binding_mismatch")
     probes: dict[str, bool] = {}
     for name in REQUIRED_EXTERNAL_PROBES:
         report = _pass(adapter.external_probe(name), f"external_probe:{name}")
         if report.get("accepted") is not True:
             raise PostRebootAcceptanceError(f"external_probe_invalid:{name}")
+        if name == "INVALID_CREDENTIAL_REJECTED" and (
+            type(report.get("connack_reason")) is not int
+            or report["connack_reason"] not in {0x86, 0x87}
+        ):
+            raise PostRebootAcceptanceError("authentication_refusal_not_proven")
+        require_continuity(baseline, adapter.runtime_snapshot())
         probes[name] = True
 
     observation = _pass(
-        adapter.observe_critical_restarts(OBSERVATION_SECONDS),
-        "critical_restart_observation",
+        adapter.observe_runtime(OBSERVATION_SECONDS, baseline),
+        "runtime_observation",
     )
     if observation.get("observation_seconds") != OBSERVATION_SECONDS:
         raise PostRebootAcceptanceError("observation_window_invalid")
-    deltas = observation.get("restart_deltas")
-    if not isinstance(deltas, dict) or set(deltas) != set(CRITICAL_SERVICES):
-        raise PostRebootAcceptanceError("critical_restart_set_invalid")
-    for service in CRITICAL_SERVICES:
-        value = deltas.get(service)
-        if isinstance(value, bool) or not isinstance(value, int) or value != 0:
-            raise PostRebootAcceptanceError(
-                f"critical_restart_observed:{service}"
-            )
+    samples = observation.get("samples")
+    if not isinstance(samples, list) or len(samples) < 7:
+        raise PostRebootAcceptanceError("observation_samples_insufficient")
+    previous = 0.0
+    for index, sample in enumerate(samples):
+        if not isinstance(sample, dict):
+            raise PostRebootAcceptanceError("observation_sample_invalid")
+        elapsed = sample.get("elapsed_seconds")
+        if (
+            type(elapsed) not in {int, float} or not math.isfinite(elapsed)
+            or elapsed < 0 or (index > 0 and elapsed <= previous)
+            or elapsed - previous > MAX_SAMPLE_GAP_SECONDS
+        ):
+            raise PostRebootAcceptanceError("observation_coverage_invalid")
+        require_continuity(baseline, sample.get("snapshot"))
+        previous = elapsed
+    if not OBSERVATION_SECONDS <= previous <= OBSERVATION_SECONDS + MAX_SAMPLE_GAP_SECONDS:
+        raise PostRebootAcceptanceError("observation_duration_invalid")
 
     evidence = {
         "schema": SCHEMA,
         "status": "PASS",
+        "run_id": binding["run_id"],
+        "ssh_host_key_sha256": binding["ssh_host_key_sha256"],
         "release_id": release["release_id"],
         "release_sha256": canonical_sha256(release),
         "source_head": release["source_head"],
@@ -139,6 +213,13 @@ def run_acceptance(
         "post_boot_id_sha256": post_boot,
         "target_local_reboot_verify": True,
         "external_probes": probes,
+        "runtime_service_auth": baseline["runtime_service_auth"],
+        "runtime_baseline_sha256": canonical_sha256(baseline),
+        "runtime_observation_sha256": canonical_sha256(observation),
+        "runtime_sample_count": len(samples),
+        "sample_interval_seconds": SAMPLE_INTERVAL_SECONDS,
+        "max_sample_gap_seconds": MAX_SAMPLE_GAP_SECONDS,
+        "runtime_continuity_verified": True,
         "observation_seconds": OBSERVATION_SECONDS,
         "no_critical_restart": True,
         "secret_values_included": False,

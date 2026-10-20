@@ -308,37 +308,25 @@ T1_PRODUCTION_READY=true|false
 
 ### 6.1 target-local read-only checks
 
-第一层直接调用/复用现有 F4 reboot verifier。
+完整 F4 reboot verifier 只执行一次，保留现有系统、身份配置、镜像、证书和业务状态检查。新增同一个已安装 verifier 的 `--snapshot` 只读入口，复用现有 F4 helper，不新建管理账号，不重复执行完整 F4 检查。
 
-V2 额外只补：
+快照验证已安装 control manifest 与 F4 transaction 绑定，输出 boot/source/control 摘要；对 Manager 的 8883 和 HA 的 1883，组合精确用户名/ClientID 的 Broker 成功连接日志与服务 PID/network namespace 内持有的唯一已建立 loopback 连接。连接指纹包含 inode、进程启动标识、两端地址和端口，但仅向 Mac 返回摘要。Docker NAT/proxy 两侧地址不直接比较。缺少认证日志、日志截断、连接归属不唯一均 fail-closed，归类为证据不足。
 
-- V2 STARTED marker 与 run/release/target binding；
-- approved release/source head 与 installed product release 的一致性；
-- V2 acceptance 所需但现有 F4 verifier 尚未输出的公开摘要；
-- marker 必须在所有验收 PASS 后才允许切换 ACCEPTED。
+STARTED marker 的 run/release/target/host-key/plan 绑定保持；所有检查通过后才允许 ACCEPTED。快照不写目标工作目录、不传文件、不导出生产密码、不更改身份或连接。
 
 ### 6.2 Mac external checks
 
-至少：
+固定五项：`TCP_8883`、`TLS_CA`、`TLS_HOSTNAME_SNI`、`INVALID_CREDENTIAL_REJECTED`、`HOMEASSISTANT_HTTP_READY`。
 
-- TCP 8883 reachable；
-- TLS handshake + CA + hostname/SNI；
-- Manager MQTT authenticated connection；
-- Home Assistant MQTT authenticated connection；
-- invalid credential rejection；
-- Home Assistant HTTP readiness。
-
-有条件时复用现有 F4 runtime acceptance，而不是复制逻辑。
+TLS 仅加载 `/etc/n3wfc4/tls/ca.pem`，严格验证 `armbian`。负向认证使用随机非生产用户名、密码、ClientID，只接受合法 MQTT 5 CONNACK 认证拒绝 0x86/0x87；其它失败不能当作认证拒绝。HA 使用 `/api/` 的 200/401 就绪响应。删除 Mac 生产身份正向登录及密码读取；不能通过修改 Clean Start 或 Session Expiry 保留同 ClientID 探测。
 
 ### 6.3 observation
 
-90 秒观察，采样关键 process/container/systemd state。
+完整 F4 验证之后、外部探测之前采集基线。每个外部探测后检查快照连续性，防止探测本身造成的重连被遗漏。外部探测完成后保留一个 90 秒窗口，每次采样完成后最多等待 2 秒；样本完成间隔上限 15 秒，至少 7 个有序、有限时间戳样本，最后一项覆盖 90 秒。超时、缺样、任何中间失败立即停止，不重试洗白。
 
-任何关键 restart/failure：
+快照覆盖容器身份/启动时间/重启计数、MQTT 连接指纹与累计连接事件、HA HTTP 就绪、关键 systemd 单元状态及本次 boot 的高优先级错误游标。核心单元必须 active，证书 oneshot 的正常周期切换允许，其失败不允许。首尾计数相同不足以通过。有限采样不宣称捕获任意短暂 HTTP 波动。
 
-~~~text
-ACCEPTANCE=FAIL
-~~~
+acceptance schema 升为 `/2`，`external_probes` 与 `runtime_service_auth` 分离，并将 baseline/observation 摘要、run/host-key/release/source/boot 绑定纳入 acceptance SHA。STARTED 后失败继续冻结、只读取证、关闭会话、要求重刷；ACCEPTED 后清理失败保留 READY。
 
 ## 7. Result contract
 

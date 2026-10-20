@@ -304,10 +304,10 @@ T1_PRODUCTION_READY=true
 #### Broker / TLS / credentials
 
 - TLS listener 可从 Mac 侧真实建立连接；
-- CA、server certificate、hostname/SNI 合同通过；
-- Manager 可认证连接；
-- Home Assistant 可认证连接；
-- 错误凭据被拒绝；
+- 只信任 Broker CA `/etc/n3wfc4/tls/ca.pem`，固定校验 `armbian` 的 hostname/SNI；不得使用独立的 system CA 或关闭验证；
+- 目标机上的 Manager / Home Assistant 自身已认证连接；以 F4 完整验证、精确身份的 Broker 认证日志、服务进程持有的预期端口连接共同证明；
+- Mac 不得使用生产用户名、密码、ClientID 正向登录，不导出生产密码；
+- 独立随机、非生产身份的错误凭据必须收到有效 MQTT 5 CONNACK 认证拒绝（0x86/0x87）；TLS 失败、超时、忙碌或协议错误不能冒充拒绝；
 - 必需 ACL/Dynamic Security 状态有效。
 
 #### Manager / Home Assistant
@@ -334,7 +334,11 @@ T1_PRODUCTION_READY=true
 - Broker/Manager/HA readiness 抖动；
 - 新的关键错误状态。
 
-首版建议观察窗口为 90 秒。若后续证据表明不足，再以独立变更调整，不默认扩展成长 soak。
+观察窗口固定为外部探测完成后的 90 秒，不另加第二个 90 秒窗口。外部探测开始前建立只读基线，每个探测后检查连接与事件连续性；最终窗口每次采样后最多等待 2 秒，完成样本间隔不得超过 15 秒，覆盖不足即失败。采样包含容器 ID/StartedAt/restart count、服务持有的连接指纹、Broker 身份连接事件摘要、HA `/api/` 就绪状态、关键 systemd 状态及新增高优先级错误。健康的证书 oneshot 周期切换允许，失败不允许。任何失败立即停止且不可由后续恢复冲销。
+
+有限采样不承诺捕获每一个瞬时 HTTP 抖动；MQTT 重连另用连接事件累计摘要捕捉。日志缺失/截断属于证据不足，不能宣布产品故障或验收通过。结果使用 acceptance `/2`，分别记录 `external_probes` 与 `runtime_service_auth`，绑定 run/release/boot/control manifest 和观察摘要；旧 `/1` 结果不能升级解释为本合同已通过。
+
+本节由 2026-10-20 非扰动修复门修订，详见：`N3W_T1_F5_V2_NONDISRUPTIVE_POST_REBOOT_ACCEPTANCE_SOURCE_REPAIR_20261020.md`。
 
 ### 7.2 最终输出
 

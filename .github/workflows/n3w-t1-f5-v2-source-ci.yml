@@ -17,6 +17,9 @@ on:
       - "tools/n3w_t1_f5_v2_release_builder.py"
       - "tools/n3w_t1_f5_v2_release_inputs_builder.py"
       - "tools/n3w_t1_post_reboot_acceptance.py"
+      - "tools/n3w_t1_f4_reboot_verify.py"
+      - "tests/tools/test_n3w_t1_f4_reboot_verify.py"
+      - "tests/tools/test_n3w_t1_mqtt_nondisruptive_integration.py"
       - "tools/n3w_t1_fresh_host_baseline.py"
       - "tools/n3w_t1_fresh_product_bootstrap.py"
       - "tools/n3w_t1_fresh_product_staging_host.py"
@@ -46,6 +49,9 @@ on:
       - "tools/n3w_t1_f5_v2_release_builder.py"
       - "tools/n3w_t1_f5_v2_release_inputs_builder.py"
       - "tools/n3w_t1_post_reboot_acceptance.py"
+      - "tools/n3w_t1_f4_reboot_verify.py"
+      - "tests/tools/test_n3w_t1_f4_reboot_verify.py"
+      - "tests/tools/test_n3w_t1_mqtt_nondisruptive_integration.py"
       - "tools/n3w_t1_ssh_transport.py"
       - "tools/n3w_t1_fresh_armbian_qualification.py"
       - "tools/n3w_t1_production_marker.py"
@@ -216,6 +222,7 @@ jobs:
             tests/tools/test_n3w_t1_production_v2.py \
             tests/tools/test_n3w_t1_production_v2_executor.py \
             tests/tools/test_n3w_t1_post_reboot_acceptance.py \
+            tests/tools/test_n3w_t1_f4_reboot_verify.py \
             tests/tools/test_n3w_t1_f5_v2_release_builder.py \
             tests/tools/test_n3w_t1_f5_v2_release_inputs_builder.py \
             tests/tools/test_n3w_t1_production_marker.py \
@@ -253,8 +260,6 @@ jobs:
               "TCP_8883",
               "TLS_CA",
               "TLS_HOSTNAME_SNI",
-              "MANAGER_MQTT_AUTH",
-              "HOMEASSISTANT_MQTT_AUTH",
               "INVALID_CREDENTIAL_REJECTED",
               "HOMEASSISTANT_HTTP_READY",
           )
@@ -321,3 +326,20 @@ jobs:
           print("T1_MUTATION=false")
           print("BOARD_ACCESS=false")
           PY
+
+  mqtt-nondisruptive-regression:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install isolated regression dependency
+        run: python -m pip install "pytest>=8,<9"
+      - name: Pull exact disposable Mosquitto 2.1.2 image
+        run: docker pull eclipse-mosquitto:2.1.2-alpine@sha256:3184566df484a083411a0e70e92c87a264b8f0648df632f10eb23d54d99f4549
+      - name: Prove takeover regression and non-disruptive replacement on loopback
+        env:
+          N3W_ISOLATED_MQTT_TEST: "1"
+        run: python -m pytest -q tests/tools/test_n3w_t1_mqtt_nondisruptive_integration.py

@@ -1,5 +1,7 @@
 # N3W T1 F5 V2 R3 entry decision — 2026-10-20
 
+> 2026-10-20 后续修订：本文保留历史决策与当时测试事实。生产身份 Mac 正向 MQTT 探测、旧外部探测集合及仅首尾重启计数的验收语义已被 `N3W_T1_F5_V2_NONDISRUPTIVE_POST_REBOOT_ACCEPTANCE_SOURCE_REPAIR_20261020.md` 取代；本文历史 PASS 不代表新的非扰动合同已完成实机验收。
+
 ## 0. Gate
 
 ~~~text
