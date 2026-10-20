@@ -105,6 +105,8 @@ def observation():
         "docker_command_present": False,
         "engine_paths": {path: False for path in qualification.ENGINE_PATHS},
         "product_paths": {path: False for path in qualification.PRODUCT_PATHS},
+        "product_units_present": [],
+        "product_listeners_present": [],
         "fresh_staging_count": 0,
         "sudo_noninteractive": True,
         "unavailable": [],
@@ -157,10 +159,61 @@ def test_probe_unavailable_stops_without_reflash_disposition():
     assert set(result["checks"].values()) == {"UNAVAILABLE"}
 
 
-def test_ssh_trust_unproven_is_observed_failure():
+def test_ssh_trust_unproven_stops_without_reflash_disposition():
     result = qualification.evaluate(observation(), release_document(), ssh_trust=False)
+    assert result["status"] == "STOP_UNAVAILABLE"
+    assert result["reflash_required"] is False
+    assert set(result["checks"].values()) == {"UNAVAILABLE"}
+
+
+
+
+def test_network_readiness_gap_stops_without_reflash_disposition():
+    observed = observation()
+    observed["dns_resolution_present"] = False
+    result = qualification.evaluate(observed, release_document(), ssh_trust=True)
+    assert result["status"] == "STOP_UNAVAILABLE"
+    assert result["reflash_required"] is False
+
+
+def test_legacy_authorization_residue_requires_reflash():
+    observed = observation()
+    observed["product_paths"]["/var/lib/n3w-fresh-bootstrap-authorizations"] = True
+    result = qualification.evaluate(observed, release_document(), ssh_trust=True)
     assert result["status"] == "FAIL_REFLASH_REQUIRED"
-    assert result["checks"]["HOST.SSH_TRUST"] == "FAIL"
+    assert result["checks"]["HOST.PRODUCT_ABSENT"] == "FAIL"
+
+
+def test_product_unit_or_listener_residue_requires_reflash():
+    observed = observation()
+    observed["product_units_present"] = ["n3wfc4-services-activation.service"]
+    result = qualification.evaluate(observed, release_document(), ssh_trust=True)
+    assert result["status"] == "FAIL_REFLASH_REQUIRED"
+    assert result["checks"]["HOST.PRODUCT_ABSENT"] == "FAIL"
+
+    observed = observation()
+    observed["product_listeners_present"] = [8883]
+    result = qualification.evaluate(observed, release_document(), ssh_trust=True)
+    assert result["status"] == "FAIL_REFLASH_REQUIRED"
+    assert result["checks"]["HOST.PRODUCT_ABSENT"] == "FAIL"
+
+
+def test_fresh_residue_contract_covers_historical_authority_and_provisioning_roots():
+    expected = {
+        "/var/lib/n3w-fresh-bootstrap-authorizations",
+        "/var/lib/n3w-t1-provisioning",
+        "/var/tmp/n3w-t1-provisioning-candidate",
+    }
+    assert expected.issubset(set(qualification.PRODUCT_PATHS))
+    assert set(qualification.PRODUCT_UNITS) == {
+        "n3wfc4-broker-ingress-guard.service",
+        "n3wfc4-provision-resume.service",
+        "n3wfc4-broker-activation.service",
+        "n3wfc4-services-activation.service",
+        "n3wfc4-broker-certificate-lifecycle.service",
+        "n3wfc4-broker-certificate-lifecycle.timer",
+    }
+    assert 8883 in qualification.PRODUCT_TARGET_PORTS
 
 
 def test_remote_probe_contract_contains_no_mutation_commands():
