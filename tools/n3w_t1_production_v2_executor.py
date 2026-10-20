@@ -34,7 +34,7 @@ from n3w_t1_post_reboot_acceptance import (
     require_continuity,
     run_acceptance,
 )
-from n3w_t1_production_v2 import R3Orchestrator
+from n3w_t1_production_v2 import EvidenceInsufficientError, R3Orchestrator
 from n3w_t1_production_v2_contract import canonical_json_bytes, validate_release
 from n3w_t1_ssh_transport import SSHTransport
 
@@ -163,6 +163,20 @@ def _tar_member_text(path: Path, member_name: str) -> str:
 
 def _json_output(completed: subprocess.CompletedProcess[str], stage: str) -> dict[str, Any]:
     if completed.returncode != 0:
+        if stage == "runtime_snapshot":
+            for line in reversed((completed.stderr or "").splitlines()):
+                try:
+                    report = json.loads(line)
+                except (json.JSONDecodeError, TypeError):
+                    continue
+                if (
+                    isinstance(report, dict)
+                    and report.get("status") == "FAIL"
+                    and report.get("failure_class") == "EVIDENCE_INSUFFICIENT"
+                ):
+                    raise EvidenceInsufficientError(
+                        "runtime_snapshot_evidence_insufficient"
+                    )
         raise ProductionExecutorError(f"{stage}_command_failed")
     lines = [line.strip() for line in completed.stdout.splitlines() if line.strip()]
     if not lines:
