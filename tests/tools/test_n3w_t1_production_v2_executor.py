@@ -127,6 +127,23 @@ def test_reboot_arm_waits_until_exact_operator_presence(
     assert "REBOOT_ARMING_WAITING=INPUT_NOT_MATCHED" in output
 
 
+def test_reboot_arm_interrupt_becomes_fail_closed_executor_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+
+    def interrupted(_prompt: str) -> str:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("builtins.input", interrupted)
+
+    with pytest.raises(
+        tool.ProductionExecutorError,
+        match="reboot_operator_arming_input_closed",
+    ):
+        tool._wait_for_reboot_arm("d" * 64)
+
+
 def test_reboot_arm_is_before_reboot_control_or_reboot_actuation() -> None:
     source = TOOL.read_text(encoding="utf-8")
     method = source.split("    def controlled_reboot(", 1)[1].split(
