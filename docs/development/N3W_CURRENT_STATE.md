@@ -1,3 +1,40 @@
+## 2026-10-21 — PR #634 merged; operator-presence repair in main
+
+~~~text
+TASK=N3W_T1_F5_V2_PR634_POSTMERGE_STATE_ALIGNMENT_20261021_01
+
+PR634_STATE=CLOSED_MERGED
+PR634_REVIEWED_HEAD=dc39f969e563655c14e2ed05a1b7a6eb97f868a6
+PR634_REVIEWED_TREE=2dc95ef325aec6f2aec9a25b9b36cca7d89c9a2a
+PR634_MERGE_COMMIT=1b881ff052ebdace68a901fe41e96cee3b33e98d
+
+CURRENT_MAIN=1b881ff052ebdace68a901fe41e96cee3b33e98d
+CURRENT_MAIN_TREE=2dc95ef325aec6f2aec9a25b9b36cca7d89c9a2a
+TREE_IDENTITY=PASS
+
+KF_124=SOURCE_REPAIR_MERGED_LIVE_REVALIDATION_PENDING
+KF_122=OPEN
+
+OLD_EXACT_RELEASE_PRODUCTION_AUTHORITY=false
+NEW_EXACT_RELEASE_REBUILD_REQUIRED=true
+
+FAILED_RUN_REPLAY=false
+FAILED_TARGET_REFLASH_REQUIRED=true
+T1_PRODUCTION_READY=false
+
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+REFLASH=false
+NEW_PRODUCTION_RUN=false
+~~~ 
+
+PR #634 is merged with the exact reviewed tree. The operator-presence source repair is now in main: long-running production stages expose sanitized progress; reboot-control staging/install/verify may run unattended; an indefinite run-bound arming point then blocks the one-shot reboot claim and reboot until the operator is present. The failed real-T1 run remains terminal and the target still requires reflash.
+
+Because the merged change alters `v2_mac_tools`, the previous exact release built from `4292481f...` is historical evidence only. The next production authority must be rebuilt from exact main `1b881ff0...`; no old/new artifact mixing is allowed.
+
+Authority: `docs/development/N3W_T1_F5_V2_PR634_POSTMERGE_STATE_ALIGNMENT_20261021.md`.
+
 ## 2026-10-21 — F5 V2 real-T1 run terminal failure and KF-124 source repair
 
 ~~~text
