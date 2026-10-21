@@ -56,6 +56,8 @@ HOMEASSISTANT_PORT = 8123
 TLS_SERVER_NAME = "armbian"
 SSH_WAIT_SECONDS = 180
 REBOOT_DISCONNECT_SECONDS = 45
+REBOOT_TCP_DOWN_POLL_SECONDS = 0.5
+REBOOT_TCP_PROBE_TIMEOUT_SECONDS = 1.0
 READINESS_TIMEOUT_SECONDS = 300
 READINESS_POLL_SECONDS = 2
 READINESS_SCHEMA = "gh.n3w-t1-f4-reboot-readiness/1"
@@ -191,6 +193,14 @@ def _target_host(target: str) -> str:
     if not value or ":" in value:
         raise ProductionExecutorError("target_host_invalid")
     return value
+
+
+def _tcp_port_reachable(host: str, port: int, *, timeout: float) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
 
 
 def target_binding_sha256(expected_host_key_sha256: str) -> str:
@@ -959,24 +969,44 @@ class LiveProductionAdapter:
         )
         if actuation.returncode not in {0, 255}:
             raise ProductionExecutorError("reboot_actuation_failed")
+        disconnect = self._wait_for_old_boot_ssh_down(control_path)
+        _emit_progress("REBOOT_CONTROL", "OLD_BOOT_SSH_DOWN")
+        _emit_progress("REBOOT_CONTROL", "REBOOT_PENDING")
+        return {
+            "status": "PASS",
+            "state": "REBOOT_PENDING",
+            "reboot_authorization_claimed": True,
+            "reboot_authorization_consumed": True,
+            "host_reboot_actuation_required": True,
+            "control_master_disconnected": disconnect["control_master_disconnected"],
+            "ssh_down_observed": disconnect["ssh_down_observed"],
+            "board_access": False,
+        }
+
+    def _wait_for_old_boot_ssh_down(self, control_path: str) -> dict[str, bool]:
         deadline = time.monotonic() + REBOOT_DISCONNECT_SECONDS
+        control_master_disconnected = False
+        ssh_down_observed = False
         while time.monotonic() < deadline:
-            checked = self.transport.runner.run(
-                ("ssh", "-S", control_path, "-O", "check", self.target),
-                timeout=10,
-                check=False,
-            )
-            if checked.returncode != 0:
-                _emit_progress("REBOOT_CONTROL", "REBOOT_PENDING")
+            if not control_master_disconnected:
+                checked = self.transport.runner.run(
+                    ("ssh", "-S", control_path, "-O", "check", self.target),
+                    timeout=10,
+                    check=False,
+                )
+                control_master_disconnected = checked.returncode != 0
+            if not _tcp_port_reachable(
+                self.host,
+                22,
+                timeout=REBOOT_TCP_PROBE_TIMEOUT_SECONDS,
+            ):
+                ssh_down_observed = True
+            if control_master_disconnected and ssh_down_observed:
                 return {
-                    "status": "PASS",
-                    "state": "REBOOT_PENDING",
-                    "reboot_authorization_claimed": True,
-                    "reboot_authorization_consumed": True,
-                    "host_reboot_actuation_required": True,
-                    "board_access": False,
+                    "control_master_disconnected": True,
+                    "ssh_down_observed": True,
                 }
-            time.sleep(1)
+            time.sleep(REBOOT_TCP_DOWN_POLL_SECONDS)
         raise ProductionExecutorError("reboot_disconnect_not_observed")
 
     def close_pre_reboot_epoch(self) -> dict[str, Any]:
