@@ -36,9 +36,9 @@ systemd stopping，且 TCP/22 尚可短暂连接。原 executor 随后把这次 
 post-reboot SSH 恢复，导致 SSH epoch #2 实际仍落在旧 boot 上，并被 target-side
 `reboot_not_observed` 正确拒绝。
 
-当前 source repair 在 `systemctl reboot` 后增加“旧 SSH 真正 down”证明：只有同时观察
-ControlMaster disconnect 和 TCP/22 至少一次不可达，才允许进入 `REBOOT_PENDING`；
-之后才执行既有 TCP/22 up wait 与第二 SSH epoch。target-side boot-id 硬保护、KF-125 的
+当前 source repair 在 `systemctl reboot` 后增加“旧 SSH 真正 down”证明：ControlMaster
+disconnect 与 TCP/22 down 独立观测、顺序无关；只有 ControlMaster 已断且 TCP/22 连续两次
+不可达，才允许进入 `REBOOT_PENDING`；之后才执行既有 TCP/22 up wait 与第二 SSH epoch。target-side boot-id 硬保护、KF-125 的
 300 s/2 s readiness、严格 target verify、5 个外部 probe 和既有 90 秒稳定观察均保持
 不变。没有增加第三 SSH epoch、第二次 production approval 或固定 sleep。
 
