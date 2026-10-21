@@ -1,3 +1,19 @@
+## 2026-10-21 — F5 V2 exact-main release rebuild preparation
+
+- Exact main: `90775b804807b4ff69ca7cea71a220a2e3a5a416`; tree `9919c90a854265cf9fedc795affc8a0a53a9e522`.
+- Rebuild-chain source review PASS; no prerequisite source repair was found.
+- F3 producer: manual-dispatch fresh-bootstrap deployable payload; expected artifact `n3w-t1-fresh-bootstrap-deployable-<exact-main>`.
+- F4 producer: manual-dispatch exact control package; the same run must produce exact F4 control and reboot-control artifacts.
+- Release-input producer requires successful exact-main F3/F4 run IDs and rejects source/main drift.
+- Release-input artifact must contain exactly six V2 artifact classes: F3 payload/images, F4 control, reboot control, V2 Mac tools and transport contract.
+- Final release producer accepts only the exact release-input workflow/run/artifact for the same current main and runs the builder with production-authority checks.
+- Any main drift before chain completion invalidates reuse of prior-chain artifacts; rebind and rebuild from the new main.
+- Local exact-release validation remains a separate post-build gate; Standard Fresh Armbian read-only qualification follows it.
+- Real-T1 production and non-disruptive acceptance remain unexecuted; KF-122 remains OPEN.
+- This preparation gate dispatched no workflow and produced no artifact.
+- Authority: `docs/development/N3W_T1_F5_V2_EXACT_MAIN_RELEASE_REBUILD_PREPARATION_20261021.md`.
+- Next gate: `N3W_T1_F5_V2_EXACT_MAIN_F3_F4_ARTIFACT_REBUILD_EXECUTION_20261021_01`; no automatic execution.
+
 ## 2026-10-21 — PR #628 merged; post-merge alignment prepared
 
 - PR #628 is CLOSED/MERGED.
