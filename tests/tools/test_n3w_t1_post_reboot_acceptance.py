@@ -33,9 +33,8 @@ acceptance = load(
 
 
 def release_document():
-    return {
+    material = {
         "schema": contract.RELEASE_SCHEMA,
-        "release_id": "a" * 64,
         "source_head": "b" * 40,
         "source_tree": "c" * 40,
         "os_contract": {
@@ -71,6 +70,7 @@ def release_document():
         "capacity": {"minimum_post_peak_free_bytes": 5 * 1024**3},
         "public_evidence_fields": ["status", "release_id", "source_head"],
     }
+    return {"release_id": contract.canonical_sha256(material), **material}
 
 
 def binding():
