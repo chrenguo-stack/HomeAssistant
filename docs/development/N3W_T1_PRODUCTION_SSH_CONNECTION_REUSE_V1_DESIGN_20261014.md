@@ -257,7 +257,8 @@ REBOOT_ARMING_IS_PRODUCTION_APPROVAL=false
 REBOOT_ARMING_TIMEOUT=NONE
 WRONG_REBOOT_ARMING_INPUT=KEEP_WAITING
 
-REBOOT_CONTROL_STAGING_BEFORE_ARMING=false
+REBOOT_CONTROL_PREPARE_BEFORE_ARMING=true
+REBOOT_CONTROL_VERIFY_BEFORE_ARMING=true
 REBOOT_CLAIM_BEFORE_ARMING=false
 REBOOT_ACTUATION_BEFORE_ARMING=false
 
@@ -273,9 +274,10 @@ HOST_KEY_CHECKING=true
 production approval
 -> STARTED
 -> HOST_BASELINE / F3 / Provision / F4
+-> reboot-control staging / install / verify
 -> visible WAITING_FOR_OPERATOR
 -> local run-bound reboot arming, no timeout
--> reboot control / claim
+-> one-shot reboot claim / verify
 -> one controlled reboot
 -> explicit SSH_EPOCH_2 PASSWORD_REQUIRED progress
 -> second password
@@ -285,7 +287,7 @@ production approval
 
 reboot arming 使用与 run ID 绑定的 exact literal，但它只证明操作者此刻在场并准备处理 planned reboot 后的第二次 SSH 认证，不授予新的生产范围，因此不会把“一次 production approval”扩张为“两次生产批准”。
 
-管理员在 arming 前可以离开屏幕。executor 到达该点后必须停住等待，不得因为无人输入而在固定倒计时后自动 reboot。输入不匹配也只继续等待，不能因为打字错误直接把已经越过 STARTED 的设备转成 reflash-required。
+管理员在 arming 前可以离开屏幕。executor 先完成 reboot-control 的 staging/install/verify，再到达该点停住等待；因此 arming 后只剩 one-shot reboot claim/verify、清理和 reboot，尽量缩短从确认在场到第二次密码提示的时间。不得因为无人输入而在固定倒计时后自动 reboot。输入不匹配也只继续等待，不能因为打字错误直接把已经越过 STARTED 的设备转成 reflash-required。
 
 生产执行器还必须输出不含秘密的阶段进度，至少覆盖 HOST_BASELINE、F3_DEPLOY、Provision、F4、REBOOT_CONTROL、WAIT_FOR_SSH、SSH_EPOCH_2 password-required 和 POST_REBOOT_ACCEPTANCE。进度输出不是验收 authority，最终 authority 仍由 durable marker、exact binding 和 acceptance evidence 决定。
 
