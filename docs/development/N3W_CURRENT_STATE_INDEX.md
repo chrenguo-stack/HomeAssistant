@@ -1,3 +1,16 @@
+## 2026-10-21 — post-PR638 exact-main release rebuild preparation
+
+- Preparation base main: `998d528f3aafcbef64ad24fe7cff6c4c9c7001f5`; tree `80bc51435e48af19c022fd26282426301cf427fd`.
+- Independent producer/source review PASS; no prerequisite source repair or new blocker found.
+- F3 deployable, F4 + reboot-control, release-inputs, final-release and local `verify-bundle` paths are all present and exact-source bound.
+- Release inputs require exact successful A/B runs from the same current main and exactly six production artifact classes.
+- Current `v2_mac_tools` includes the PR #637 repaired verifier/acceptance/executor bytes.
+- Final downloaded release still requires local `verify-bundle` before it can become production authority.
+- No workflow was dispatched and no artifact, T1, board, reflash or production action occurred.
+- The preparation base SHA is not to be reused automatically after the docs preparation merges; execution must fresh-rebind the post-merge main and build the whole chain from that one SHA.
+- Authority: `docs/development/N3W_T1_F5_V2_POST_PR638_EXACT_MAIN_RELEASE_REBUILD_PREPARATION_20261021.md`.
+- Next gate: `N3W_T1_F5_V2_POST_PR638_EXACT_MAIN_RELEASE_REBUILD_PREPARATION_MERGE_DECISION_20261021_01`.
+
 ## 2026-10-21 — PR #637 merged; post-merge alignment prepared
 
 - PR #637 is CLOSED/MERGED; final PR head `593026795e8b186830b86e8a75d465359c0a1c66` merged as `4ee659211b68138d0780a13a9eea32a347a2e71c`.

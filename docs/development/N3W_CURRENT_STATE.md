@@ -1,3 +1,57 @@
+## 2026-10-21 — post-PR638 exact-main release rebuild preparation
+
+~~~text
+TASK=N3W_T1_F5_V2_POST_PR638_EXACT_MAIN_RELEASE_REBUILD_PREPARATION_20261021_01
+RESULT=PREPARATION_READY
+
+PREPARATION_BASE_MAIN=998d528f3aafcbef64ad24fe7cff6c4c9c7001f5
+PREPARATION_BASE_TREE=80bc51435e48af19c022fd26282426301cf427fd
+
+REBUILD_CHAIN_SOURCE_REVIEW=PASS
+SOURCE_REPAIR_REQUIRED=false
+NEW_BLOCKER_COUNT=0
+
+F3_PRODUCER=READY
+F4_REBOOT_PRODUCER=READY
+RELEASE_INPUTS_PRODUCER=READY
+FINAL_RELEASE_PRODUCER=READY
+LOCAL_VERIFY_BUNDLE=READY
+
+PREPARATION_BASE_IS_ARTIFACT_AUTHORITY=false
+EXECUTION_EXACT_MAIN=FRESH_POST_PREPARATION_MERGE_MAIN
+MIX_SOURCE_HEADS=false
+
+WORKFLOW_DISPATCH=false
+GITHUB_ARTIFACT_PRODUCTION=false
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+REFLASH=false
+PRODUCTION_EXECUTION=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_F5_V2_POST_PR638_EXACT_MAIN_RELEASE_REBUILD_PREPARATION_MERGE_DECISION_20261021_01
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+已重新独立检查当前 F3、F4/reboot、release-inputs、final-release workflow 与两级
+release builder。生产链仍完整，所有 downstream 生产 authority 都要求 exact merged
+main；release-inputs 仍严格校验 A/B 上游 run 的 workflow path、main branch、head SHA、
+success 状态及唯一未过期 artifact。当前 `v2_mac_tools` 会把 PR #637 修复后的
+reboot verifier / post-reboot acceptance / production executor 等 exact bytes 打包进入
+release inputs。
+
+最终 release 下载后仍必须执行 `n3w_t1_f5_v2_release_builder.py verify-bundle`，
+用 GitHub run/artifact metadata、artifact ZIP digest、release tar sidecar、source
+head/tree、六类内部 artifact、F4/reboot 嵌套 manifest 和 Mac tool exact bytes 做本地
+闭环验证。
+
+本 preparation 只基于 main `998d528f3aafcbef64ad24fe7cff6c4c9c7001f5` 检查 producer/source。因为 preparation
+文档一旦 merge 会再次推进 main，后续 artifact execution 不允许把这个 base SHA
+直接当作生产 authority；必须 fresh rebind preparation merge 后的新 main，再从那个
+唯一 SHA 开始 A/B。Authority:
+`docs/development/N3W_T1_F5_V2_POST_PR638_EXACT_MAIN_RELEASE_REBUILD_PREPARATION_20261021.md`。
+
 ## 2026-10-21 — PR #637 merged; post-merge state alignment prepared
 
 ~~~text
