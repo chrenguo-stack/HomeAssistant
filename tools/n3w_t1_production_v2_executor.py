@@ -987,7 +987,6 @@ class LiveProductionAdapter:
     def _wait_for_old_boot_ssh_down(self, control_path: str) -> dict[str, bool]:
         deadline = time.monotonic() + REBOOT_DISCONNECT_SECONDS
         control_master_disconnected = False
-        ssh_down_observed = False
         tcp_down_streak = 0
         while time.monotonic() < deadline:
             if not control_master_disconnected:
@@ -1005,8 +1004,7 @@ class LiveProductionAdapter:
                 tcp_down_streak = 0
             else:
                 tcp_down_streak += 1
-                if tcp_down_streak >= REBOOT_TCP_DOWN_CONFIRMATIONS:
-                    ssh_down_observed = True
+            ssh_down_observed = tcp_down_streak >= REBOOT_TCP_DOWN_CONFIRMATIONS
             if control_master_disconnected and ssh_down_observed:
                 return {
                     "control_master_disconnected": True,
