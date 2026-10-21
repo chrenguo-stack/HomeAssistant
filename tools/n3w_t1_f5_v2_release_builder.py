@@ -461,11 +461,13 @@ def _verify_exact_tar_file_set(
     archive: Path,
     expected_files: set[str],
     error_code: str,
+    *,
+    expected_directories: set[str] | None = None,
 ) -> dict[str, str]:
     regular, directories = _scan_tar(archive, error_code)
     if set(regular) != expected_files:
         raise ReleaseBuildError(f"{error_code}_file_set")
-    if directories != _expected_parent_directories(expected_files):
+    if directories != (expected_directories or set()):
         raise ReleaseBuildError(f"{error_code}_directory_set")
     return regular
 
