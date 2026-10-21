@@ -35,6 +35,51 @@ def test_deployable_workflow_prevents_post_manifest_bytecode_contamination() -> 
     assert "FRESH_CROSS_STORE_IMAGE_BINDING=PASS" in workflow
 
 
+@pytest.mark.parametrize(
+    "relative",
+    (
+        ".github/workflows/n3w-t1-fresh-bootstrap-deployable-payload-ci.yml",
+        ".github/workflows/n3w-t1-fresh-install-exact-arm64-ci.yml",
+    ),
+)
+def test_broker_materialization_uses_ordered_exact_digest_fallback(
+    relative: str,
+) -> None:
+    workflow = (ROOT / relative).read_text(encoding="utf-8")
+    primary = (
+        "BROKER_SOURCE_IMAGE: "
+        "m.daocloud.io/docker.io/library/eclipse-mosquitto:2.1.2-alpine"
+    )
+    fallback = (
+        "BROKER_FALLBACK_IMAGE: "
+        "docker.io/library/eclipse-mosquitto:2.1.2-alpine"
+    )
+    primary_pull = (
+        'if docker pull --platform linux/arm64 '
+        '"$BROKER_SOURCE_IMAGE@$BROKER_ARM64_DIGEST"; then'
+    )
+    fallback_pull = (
+        'docker pull --platform linux/arm64 '
+        '"$BROKER_FALLBACK_IMAGE@$BROKER_ARM64_DIGEST"'
+    )
+    exact_tag = (
+        'docker tag "$BROKER_MATERIALIZED_IMAGE" '
+        "local/n3w-mosquitto:2.1.2-3184566d"
+    )
+
+    assert primary in workflow
+    assert fallback in workflow
+    assert workflow.index(primary_pull) < workflow.index(fallback_pull)
+    assert workflow.index(fallback_pull) < workflow.index(exact_tag)
+    assert "BROKER_MATERIALIZATION_SOURCE=daocloud" in workflow
+    assert "BROKER_MATERIALIZATION_SOURCE=docker_hub" in workflow
+    assert (
+        "BROKER_EXPECTED_IMAGE_ID: "
+        "sha256:4c199d7c9d377d018313a2199f6839978f6fd2219c405ad664d0a830c14b9c7b"
+        in workflow
+    )
+
+
 def test_future_authorization_is_fresh_bootstrap_specific() -> None:
     tool = load_tool()
     assert tool.AUTHORIZATION_ID == (
