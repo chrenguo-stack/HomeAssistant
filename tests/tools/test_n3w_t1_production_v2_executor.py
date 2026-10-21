@@ -95,6 +95,67 @@ def test_wrong_operator_approval_is_rejected(
     assert tool.approval_callback(run_id, tmp_path)(plan(run_id)) is False
 
 
+def test_reboot_arm_waits_until_exact_operator_presence(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    tool = load_tool()
+    run_id = "c" * 64
+    expected = f"{tool.REBOOT_ARM_PREFIX} {run_id}"
+    responses = iter(("NOT READY", expected))
+    prompts: list[str] = []
+
+    def fake_input(prompt: str) -> str:
+        prompts.append(prompt)
+        return next(responses)
+
+    monkeypatch.setattr("builtins.input", fake_input)
+
+    result = tool._wait_for_reboot_arm(run_id)
+
+    assert result == {
+        "status": "PASS",
+        "run_id": run_id,
+        "operator_present": True,
+        "post_reboot_password_expected": True,
+    }
+    assert prompts == ["REBOOT_ARMING> ", "REBOOT_ARMING> "]
+    output = capsys.readouterr().out
+    assert "REBOOT_ARMING_SUMMARY=" in output
+    assert '"input_timeout_seconds":null' in output
+    assert '"post_reboot_password_required":true' in output
+    assert "REBOOT_ARMING_WAITING=INPUT_NOT_MATCHED" in output
+
+
+def test_reboot_arm_is_before_reboot_control_or_reboot_actuation() -> None:
+    source = TOOL.read_text(encoding="utf-8")
+    method = source.split("    def controlled_reboot(", 1)[1].split(
+        "    def close_pre_reboot_epoch(", 1
+    )[0]
+
+    arm = method.index("_wait_for_reboot_arm(self.run_id)")
+    package = method.index('_stage_release_tar(')
+    reboot = method.index('("sudo", "-n", "systemctl", "reboot")')
+
+    assert arm < package < reboot
+
+
+def test_progress_surface_covers_long_and_password_wait_stages() -> None:
+    source = TOOL.read_text(encoding="utf-8")
+    for token in (
+        'PROGRESS_SCHEMA = "gh.n3w-t1-f5-v2-production-progress/1"',
+        '_emit_progress("HOST_BASELINE", "STARTED")',
+        '_emit_progress("F3_DEPLOY", "STARTED")',
+        '_emit_progress("PROVISION", "STARTED")',
+        '_emit_progress("REBOOT_CONTROL", "WAITING_FOR_OPERATOR")',
+        '_emit_progress("REBOOT_CONTROL", "ARMED")',
+        '_emit_progress("WAIT_FOR_SSH", "STARTED")',
+        '_emit_progress("SSH_EPOCH_2", "PASSWORD_REQUIRED")',
+        '_emit_progress("POST_REBOOT_ACCEPTANCE", "STARTED")',
+    ):
+        assert token in source
+
+
 def test_remote_sha256_uses_target_sha256sum_exact_bytes() -> None:
     tool = load_tool()
     adapter = object.__new__(tool.LiveProductionAdapter)
