@@ -609,6 +609,53 @@ def write_valid_local_bundle(
     return artifact_zip, sha256(artifact_zip)
 
 
+def write_github_metadata(
+    tmp_path: Path,
+    *,
+    source_head: str,
+    artifact_sha256: str,
+    artifact_name: str,
+    run_id: int,
+    run_attempt: int,
+    artifact_id: int,
+) -> tuple[Path, Path]:
+    run_path = tmp_path / f"run-{run_id}-{artifact_id}.json"
+    artifact_path = tmp_path / f"artifact-{artifact_id}.json"
+    run_path.write_text(
+        json.dumps(
+            {
+                "id": run_id,
+                "path": (
+                    ".github/workflows/"
+                    "n3w-t1-f5-v2-exact-production-release-ci.yml"
+                ),
+                "head_sha": source_head,
+                "head_branch": "main",
+                "event": "workflow_dispatch",
+                "status": "completed",
+                "conclusion": "success",
+                "run_attempt": run_attempt,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    artifact_path.write_text(
+        json.dumps(
+            {
+                "id": artifact_id,
+                "name": artifact_name,
+                "expired": False,
+                "digest": "sha256:" + artifact_sha256,
+                "workflow_run": {"id": run_id},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return run_path, artifact_path
+
+
 def test_local_bundle_validation_binds_external_and_internal_identity(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -632,11 +679,23 @@ def test_local_bundle_validation_binds_external_and_internal_identity(
         source_tree=source_tree,
     )
     binding_path = tmp_path / "binding.json"
+    artifact_name = builder.FINAL_ARTIFACT_NAME_PREFIX + source_head
+    run_metadata, artifact_metadata = write_github_metadata(
+        tmp_path,
+        source_head=source_head,
+        artifact_sha256=artifact_sha,
+        artifact_name=artifact_name,
+        run_id=456,
+        run_attempt=1,
+        artifact_id=123,
+    )
     report = builder.verify_release_bundle(
         ROOT,
         artifact_zip,
         expected_artifact_sha256=artifact_sha,
-        artifact_name=builder.FINAL_ARTIFACT_NAME_PREFIX + source_head,
+        run_metadata=run_metadata,
+        artifact_metadata=artifact_metadata,
+        artifact_name=artifact_name,
         artifact_id=123,
         run_id=456,
         run_attempt=1,
@@ -674,6 +733,16 @@ def test_local_bundle_validation_rejects_github_artifact_digest_mismatch(
         source_head=source_head,
         source_tree=source_tree,
     )
+    artifact_name = builder.FINAL_ARTIFACT_NAME_PREFIX + source_head
+    run_metadata, artifact_metadata = write_github_metadata(
+        tmp_path,
+        source_head=source_head,
+        artifact_sha256="f" * 64,
+        artifact_name=artifact_name,
+        run_id=2,
+        run_attempt=1,
+        artifact_id=1,
+    )
     with pytest.raises(
         builder.ReleaseBuildError,
         match="local_artifact_zip_sha256_mismatch",
@@ -682,7 +751,9 @@ def test_local_bundle_validation_rejects_github_artifact_digest_mismatch(
             ROOT,
             artifact_zip,
             expected_artifact_sha256="f" * 64,
-            artifact_name=builder.FINAL_ARTIFACT_NAME_PREFIX + source_head,
+            run_metadata=run_metadata,
+            artifact_metadata=artifact_metadata,
+            artifact_name=artifact_name,
             artifact_id=1,
             run_id=2,
             run_attempt=1,
@@ -712,6 +783,16 @@ def test_local_bundle_validation_rejects_mac_tool_source_drift(
         source_tree=source_tree,
         mac_tool_tamper=True,
     )
+    artifact_name = builder.FINAL_ARTIFACT_NAME_PREFIX + source_head
+    run_metadata, artifact_metadata = write_github_metadata(
+        tmp_path,
+        source_head=source_head,
+        artifact_sha256=artifact_sha,
+        artifact_name=artifact_name,
+        run_id=2,
+        run_attempt=1,
+        artifact_id=1,
+    )
     with pytest.raises(
         builder.ReleaseBuildError,
         match="local_mac_tools_source_binding_mismatch",
@@ -720,7 +801,9 @@ def test_local_bundle_validation_rejects_mac_tool_source_drift(
             ROOT,
             artifact_zip,
             expected_artifact_sha256=artifact_sha,
-            artifact_name=builder.FINAL_ARTIFACT_NAME_PREFIX + source_head,
+            run_metadata=run_metadata,
+            artifact_metadata=artifact_metadata,
+            artifact_name=artifact_name,
             artifact_id=1,
             run_id=2,
             run_attempt=1,
@@ -752,6 +835,16 @@ def test_local_bundle_validation_rejects_unexpected_zip_member(
     with zipfile.ZipFile(artifact_zip, "a") as bundle:
         bundle.writestr("../unexpected", b"x")
     artifact_sha = sha256(artifact_zip)
+    artifact_name = builder.FINAL_ARTIFACT_NAME_PREFIX + source_head
+    run_metadata, artifact_metadata = write_github_metadata(
+        tmp_path,
+        source_head=source_head,
+        artifact_sha256=artifact_sha,
+        artifact_name=artifact_name,
+        run_id=2,
+        run_attempt=1,
+        artifact_id=1,
+    )
     with pytest.raises(
         builder.ReleaseBuildError,
         match="local_artifact_zip_file_set_invalid",
@@ -760,7 +853,61 @@ def test_local_bundle_validation_rejects_unexpected_zip_member(
             ROOT,
             artifact_zip,
             expected_artifact_sha256=artifact_sha,
-            artifact_name=builder.FINAL_ARTIFACT_NAME_PREFIX + source_head,
+            run_metadata=run_metadata,
+            artifact_metadata=artifact_metadata,
+            artifact_name=artifact_name,
+            artifact_id=1,
+            run_id=2,
+            run_attempt=1,
+            source_head=source_head,
+            source_tree=source_tree,
+        )
+
+
+def test_local_bundle_validation_rejects_run_metadata_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_head = "a" * 40
+    source_tree = "b" * 40
+    monkeypatch.setattr(
+        builder,
+        "_git",
+        lambda _repository, *args: {
+            ("rev-parse", "HEAD"): source_head,
+            ("rev-parse", "HEAD^{tree}"): source_tree,
+            ("rev-parse", "origin/main"): source_head,
+        }[args],
+    )
+    artifact_zip, artifact_sha = write_valid_local_bundle(
+        tmp_path,
+        source_head=source_head,
+        source_tree=source_tree,
+    )
+    artifact_name = builder.FINAL_ARTIFACT_NAME_PREFIX + source_head
+    run_metadata, artifact_metadata = write_github_metadata(
+        tmp_path,
+        source_head=source_head,
+        artifact_sha256=artifact_sha,
+        artifact_name=artifact_name,
+        run_id=2,
+        run_attempt=1,
+        artifact_id=1,
+    )
+    run_document = json.loads(run_metadata.read_text(encoding="utf-8"))
+    run_document["head_sha"] = "c" * 40
+    run_metadata.write_text(json.dumps(run_document) + "\n", encoding="utf-8")
+    with pytest.raises(
+        builder.ReleaseBuildError,
+        match="local_run_metadata_binding_invalid",
+    ):
+        builder.verify_release_bundle(
+            ROOT,
+            artifact_zip,
+            expected_artifact_sha256=artifact_sha,
+            run_metadata=run_metadata,
+            artifact_metadata=artifact_metadata,
+            artifact_name=artifact_name,
             artifact_id=1,
             run_id=2,
             run_attempt=1,
