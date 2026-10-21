@@ -144,17 +144,19 @@ def test_reboot_arm_interrupt_becomes_fail_closed_executor_error(
         tool._wait_for_reboot_arm("d" * 64)
 
 
-def test_reboot_arm_is_before_reboot_control_or_reboot_actuation() -> None:
+def test_reboot_arm_is_after_control_verify_and_before_reboot_claim() -> None:
     source = TOOL.read_text(encoding="utf-8")
     method = source.split("    def controlled_reboot(", 1)[1].split(
         "    def close_pre_reboot_epoch(", 1
     )[0]
 
-    arm = method.index("_wait_for_reboot_arm(self.run_id)")
     package = method.index('_stage_release_tar(')
+    verified = method.index('"verify-install"')
+    arm = method.index("_wait_for_reboot_arm(self.run_id)")
+    claim = method.index('"claim-reboot"')
     reboot = method.index('("sudo", "-n", "systemctl", "reboot")')
 
-    assert arm < package < reboot
+    assert package < verified < arm < claim < reboot
 
 
 def test_progress_surface_covers_long_and_password_wait_stages() -> None:
