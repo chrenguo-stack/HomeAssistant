@@ -1,3 +1,61 @@
+## 2026-10-21 — F5 V2 post-reboot readiness A7 sanitizer source-repair closure
+
+~~~text
+TASK=N3W_T1_F5_V2_POST_REBOOT_READINESS_ERROR_CODE_SANITIZER_SOURCE_REPAIR_20261021_01
+REVIEW_BASE=0654ab3f5b914acd278ffb7333344d86cf5878d2
+REPAIR_HEAD=a904244a6ab27d728092f90d145f0e9547a9c5a9
+REPAIR_TREE=dd7e1e3a6ee1401bcede7c03bddde10fb4954854
+PR=637
+PR_STATE=OPEN_DRAFT
+
+EXACT_HEAD_CI_TOTAL=14
+EXACT_HEAD_CI_PASS=14
+EXACT_HEAD_CI_FAIL=0
+EXACT_HEAD_CI_PENDING=0
+F4_SOURCE_TESTS=153_PASS
+F5_R1_TESTS=67_PASS_1_SKIP
+F5_R2_TESTS=104_PASS
+F5_R3_TESTS=173_PASS
+MQTT_NONDISRUPTIVE_TESTS=3_PASS
+
+A1=PASS
+A2=PASS
+A3=PASS
+A4=PASS
+A5=PASS
+A6=PASS
+A7=PASS
+A8=PASS
+A9=PASS
+A10=PASS
+
+NEW_BLOCKER_COUNT=0
+SOURCE_REPAIR_REQUIRED=false
+PR637_MERGE_READY=true
+
+KF_122=OPEN
+KF_124=SOURCE_REPAIR_MERGED_LIVE_PATH_REVALIDATED_FULL_RUN_PENDING
+KF_125=SOURCE_REPAIR_REVIEW_CLOSED_PASS_MERGE_PENDING
+
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+REFLASH=false
+PRODUCTION_EXECUTION=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_F5_V2_POST_REBOOT_READINESS_SOURCE_REPAIR_MERGE_DECISION_20261021_01
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+A7 独立复核已关闭。target verifier 现在先对 `command_failed` 去掉 stderr，只保留命令 basename 与退出码；普通 broad exception 不再因为“字符格式合法”而成为可信错误码。target、Mac executor 和 frozen failure 三处都只接受仓库明确规定的错误码/错误码族，未知 token 会被固定 fallback 或拒绝，不能进入冻结失败证据。
+
+本轮同时重新独立复核 A1-A10：readiness 的 WAIT/FAIL 仍严格分离；SSH 成功不能绕过 product readiness；readiness 不做 target mutation、不新增 SSH/password/approval 边界；READY 后仍完整执行 strict target verifier、五个 external probes 与原有 90 秒稳定观察；evidence-insufficient 与 explicit failure 分类保持分离；STARTED 后失败仍为 terminal/reflash-required 且 consumed run 不可 replay；合并后旧 exact release 仍必须废弃并重建完整 release chain。
+
+最终 exact repaired source head `a904244a...` 的 14/14 workflows 全部 PASS。中间 commit `c08d732...` 曾因 Git tree 构造时误丢 `tools/n3w_t1_f4_reboot_verify.py` executable bit 导致 Ruff EXE001；后续仅恢复原 `100755` mode，未改变产品逻辑，最终 head 已全绿。
+
+PR #637 当前技术上 merge-ready，但 merge 是下一独立 gate，本记录不授权 merge、T1/board access、reflash 或 production execution。独立复核 authority 为 PR Conversation comment `6314936221`。
+
 ## 2026-10-21 — F5 V2 post-reboot readiness source implementation candidate
 
 ~~~text

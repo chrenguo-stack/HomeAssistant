@@ -1,3 +1,15 @@
+## 2026-10-21 — F5 V2 post-reboot readiness A7 sanitizer closure
+
+- Exact repaired source head: `a904244a6ab27d728092f90d145f0e9547a9c5a9`; tree `dd7e1e3a6ee1401bcede7c03bddde10fb4954854`; PR #637 remains OPEN/DRAFT.
+- A7 sanitizer blocker is closed: command failures are sanitized before preservation; broad unknown exception messages fall back to fixed codes; executor/frozen evidence reject syntactically-valid but repository-unknown tokens.
+- Independent exact-source A1-A10 review: all PASS; no new false-PASS path found.
+- Final exact-head CI: 14/14 PASS. Focused results include F4 153 passed, F5 R1 67 passed/1 skipped, R2 104 passed, R3 173 passed, MQTT non-disruptive 3 passed.
+- Readiness remains 300 s / 2 s, read-only, inside SSH epoch #2; strict verifier, five external probes and existing 90-second observation are unchanged.
+- Failed real-T1 run remains terminal/no-replay and reflash-required. No T1/board access, reflash, production execution or merge occurred.
+- KF-125 status: `SOURCE_REPAIR_REVIEW_CLOSED_PASS_MERGE_PENDING`.
+- PR #637 is technically merge-ready, but merge requires the next separate decision gate: `N3W_T1_F5_V2_POST_REBOOT_READINESS_SOURCE_REPAIR_MERGE_DECISION_20261021_01`.
+- Independent review authority: PR #637 comment `6314936221`.
+
 ## 2026-10-21 — F5 V2 post-reboot readiness source implementation candidate
 
 - Implementation branch: `fix/n3w-t1-f5-v2-post-reboot-readiness-implementation-20261021`, based on the exact design candidate head `2f937db0be898736bba434c0d80a45bdae5abb0c`.
