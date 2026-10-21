@@ -1,3 +1,15 @@
+## 2026-10-21 — PR #637 merged; post-merge alignment prepared
+
+- PR #637 is CLOSED/MERGED; final PR head `593026795e8b186830b86e8a75d465359c0a1c66` merged as `4ee659211b68138d0780a13a9eea32a347a2e71c`.
+- New main is `4ee659211b68138d0780a13a9eea32a347a2e71c`; merge tree equals final reviewed PR tree `733d7225ced9c0d2a8cae0864e67dba3d27b98fa`.
+- Pre-merge final-head CI was 14/14 PASS; A1-A10 independent source review remained PASS with zero new blockers.
+- KF-125 source repair is now merged; live revalidation remains pending. KF-122 stays OPEN and KF-124 remains merged/live-revalidation-pending.
+- Failed run `15212aa9...` remains terminal/no-replay; failed T1 remains reflash-required and not production-ready.
+- All prior exact releases are historical for the new main. A fresh F3/F4 -> release-inputs -> final exact release -> local validation chain is mandatory.
+- This alignment is docs-only: no workflow dispatch, artifact production, T1/board access, reflash, production execution or merge.
+- Authority: `docs/development/N3W_T1_F5_V2_PR637_POSTMERGE_STATE_ALIGNMENT_20261021.md`.
+- Next gate: `N3W_T1_F5_V2_PR637_POSTMERGE_ALIGNMENT_MERGE_DECISION_20261021_01`; merge remains separate.
+
 ## 2026-10-21 — F5 V2 post-reboot readiness A7 sanitizer closure
 
 - Exact repaired source head: `a904244a6ab27d728092f90d145f0e9547a9c5a9`; tree `dd7e1e3a6ee1401bcede7c03bddde10fb4954854`; PR #637 remains OPEN/DRAFT.
