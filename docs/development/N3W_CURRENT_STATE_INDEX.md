@@ -8,9 +8,9 @@
 - Repair branch: `fix/n3w-t1-f5-v2-reboot-arming-progress-20261021`; base main `4292481f07b6ed89fe3d275be9fa4a51d7b26e6a`.
 - Source repair adds sanitized stage progress; reboot-control staging/install/verify stays unattended, then a no-timeout, run-bound local arming point blocks the one-shot reboot claim and reboot. Wrong arming input continues waiting. Arming is not a second production approval.
 - Post-reboot SSH remains a distinct second password epoch and host-key checking/password non-persistence stay unchanged.
-- Current status: source/tests/docs implemented; CI and independent focused review pending. No T1/board access, no reflash, no new production run, no merge.
+- Current status: exact-head source/tests/docs + focused review CLOSED_PASS; all 12 head workflows PASS; PR #634 merge-ready. No T1/board access, no reflash, no new production run, no merge.
 - Authority: `docs/development/N3W_T1_F5_V2_OPERATOR_PRESENCE_AND_PROGRESS_SOURCE_REPAIR_20261021.md`.
-- Next gate: `N3W_T1_F5_V2_OPERATOR_PRESENCE_AND_PROGRESS_SOURCE_REPAIR_CI_REVIEW_20261021_01`.
+- Next gate: `N3W_T1_F5_V2_OPERATOR_PRESENCE_AND_PROGRESS_PR634_MERGE_EXECUTION_20261021_01`; separate explicit merge authorization required.
 
 ## 2026-10-21 — F5 V2 exact-main release rebuild preparation
 
