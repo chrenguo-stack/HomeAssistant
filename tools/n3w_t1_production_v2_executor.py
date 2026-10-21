@@ -224,7 +224,7 @@ def _wait_for_reboot_arm(run_id: str) -> dict[str, Any]:
     while True:
         try:
             entered = input("REBOOT_ARMING> ")
-        except EOFError as error:
+        except (EOFError, KeyboardInterrupt) as error:
             raise ProductionExecutorError(
                 "reboot_operator_arming_input_closed"
             ) from error
