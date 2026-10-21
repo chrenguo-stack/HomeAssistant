@@ -5,7 +5,8 @@
 - Existing five external probes and the existing 90-second stability observation remain unchanged and run only after readiness PASS.
 - Target verifier errors now use sanitized structured codes; the executor accepts only the final structured failure record and preserves allowlisted code/class in private frozen failure evidence.
 - Added focused tests for readiness WAIT/PASS/FAIL, orchestrator ordering, timeout, no new SSH epoch, and structured error-code handling.
-- KF-125 status: `SOURCE_IMPLEMENTED_CI_PENDING`; exact-head CI and independent review have not yet closed.
+- PR #637 remains OPEN/DRAFT at exact head `6b521d0294917a693d436a718e855d6191ab7451`; exact-head CI is 14/14 PASS, including F4 focused tests (153 passed) and F5 R3 focused tests (172 passed).
+- KF-125 status: `SOURCE_CI_PASS_INDEPENDENT_REVIEW_PENDING`; independent source review remains the next gate.
 - Failed run remains terminal/no-replay; T1 access, target mutation, reflash, production execution and merge remain false.
 - Next gate: `N3W_T1_F5_V2_POST_REBOOT_READINESS_RACE_SOURCE_REPAIR_INDEPENDENT_REVIEW_20261021_01`.
 

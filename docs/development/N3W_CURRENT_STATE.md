@@ -5,6 +5,18 @@ TASK=N3W_T1_F5_V2_POST_REBOOT_READINESS_RACE_SOURCE_REPAIR_IMPLEMENTATION_202610
 DESIGN_AUTHORITY_HEAD=2f937db0be898736bba434c0d80a45bdae5abb0c
 IMPLEMENTATION_BRANCH=fix/n3w-t1-f5-v2-post-reboot-readiness-implementation-20261021
 IMPLEMENTATION_BASE=2f937db0be898736bba434c0d80a45bdae5abb0c
+IMPLEMENTATION_HEAD=6b521d0294917a693d436a718e855d6191ab7451
+IMPLEMENTATION_TREE=a86bc011e5e4436c6d54d7f2875062dbb55a2db1
+IMPLEMENTATION_PR=637
+PR_STATE=OPEN_DRAFT
+EXACT_HEAD_CI_TOTAL=14
+EXACT_HEAD_CI_PASS=14
+EXACT_HEAD_CI_FAIL=0
+EXACT_HEAD_CI_PENDING=0
+F4_SOURCE_TESTS=153_PASS
+F5_R3_TESTS=172_PASS
+SOURCE_IMPLEMENTATION=COMMITTED
+INDEPENDENT_SOURCE_REVIEW=PENDING
 
 TARGET_READINESS_ENTRYPOINT=--readiness
 READINESS_TIMEOUT_SECONDS=300
@@ -46,7 +58,7 @@ Implementation candidate adds a read-only target-side readiness report, a 300-se
 
 The Mac executor now parses only the final structured failure JSON record from repository-owned target verifier/readiness commands, validates the error code against a safe format, and preserves the code and failure class in the private frozen failure-summary. Raw stderr is not copied into that summary.
 
-Implementation source and focused tests are committed on the branch above; CI and independent review are pending. This does not authorize real-T1 access, target mutation, reflash, production execution or merge.
+Implementation source and focused tests are committed on PR #637 at exact head 6b521d0294917a693d436a718e855d6191ab7451, tree a86bc011e5e4436c6d54d7f2875062dbb55a2db1. Exact-head CI completed 14/14 PASS; F4 focused tests reported 153 passed and F5 R3 focused tests reported 172 passed. Independent source review remains pending. This does not authorize real-T1 access, target mutation, reflash, production execution or merge.
 
 Authority: docs/development/N3W_T1_F5_V2_POST_REBOOT_READINESS_RACE_SOURCE_REPAIR_DESIGN_20261021.md.
 
