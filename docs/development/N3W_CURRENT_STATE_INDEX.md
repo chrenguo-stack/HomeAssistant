@@ -1,3 +1,17 @@
+## 2026-10-21 — F5 V2 post-reboot readiness race design frozen
+
+- Real run `15212aa9...` passed the entire pre-reboot production path, operator arming, controlled reboot, SSH recovery and SSH epoch #2, then failed at `POST_REBOOT_ACCEPTANCE`.
+- Frozen forensics are complete/read-only with zero unavailable probes; marker remains STARTED, F4 transaction is `PERSISTENCE_ENABLED`, reboot claim is consumed/`REBOOT_PENDING`.
+- Timing evidence: broker activation became active 4.50 s after SSH; application services 8.63 s after SSH. Broker/Manager/Home Assistant containers started 7.79/12.04/12.05 s after post-reboot acceptance had already started.
+- Later read-only state: systemd running, no failed units, no pending jobs, all three containers running with restart_count=0.
+- Root-cause class: `POST_REBOOT_PRODUCT_READINESS_RACE`, confidence HIGH. The current executor also loses the target verifier's sanitized first error code.
+- Frozen design adds a bounded 300 s / 2 s poll, read-only `POST_REBOOT_READINESS` barrier after SSH epoch #2 and before full acceptance. Transient boot convergence waits; explicit contradiction fails immediately; timeout fails closed.
+- Existing strict target-local verifier, external probes and the existing 90-second continuity observation remain unchanged.
+- KF-125 opened as source-repair required/design frozen. KF-124 arming path is live exercised but full-run closure remains pending. KF-122 remains OPEN.
+- Failed run is terminal/no-replay; no target-local fix-forward. Reflash is deferred until repaired source is reviewed, merged and rebuilt into a new exact release.
+- Authority: `docs/development/N3W_T1_F5_V2_POST_REBOOT_READINESS_RACE_SOURCE_REPAIR_DESIGN_20261021.md`.
+- Next gate: `N3W_T1_F5_V2_POST_REBOOT_READINESS_RACE_SOURCE_REPAIR_IMPLEMENTATION_20261021_01`; no T1/board access or merge in the design gate.
+
 ## 2026-10-21 — PR #634 merged; F5 V2 operator-presence repair in main
 
 - PR #634 is CLOSED/MERGED.

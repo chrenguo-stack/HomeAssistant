@@ -1,3 +1,47 @@
+## 2026-10-21 — F5 V2 post-reboot readiness race source-repair design frozen
+
+~~~text
+TASK=N3W_T1_F5_V2_POST_REBOOT_READINESS_RACE_SOURCE_REPAIR_DESIGN_20261021_01
+BASE_MAIN=0654ab3f5b914acd278ffb7333344d86cf5878d2
+BASE_TREE=a4b31277c53e8497e78bce9ae352f940de1dd553
+
+FAILED_RUN_ID=15212aa98751a5a90677fbfd4f2ab51bf12ad8a5b5744ca050f3b872acdf1acc
+FAILED_STAGE=POST_REBOOT_ACCEPTANCE
+FAILED_RUN_REPLAY=false
+T1_PRODUCTION_READY=false
+REFLASH_REQUIRED=true
+
+ROOT_CAUSE_CLASS=POST_REBOOT_PRODUCT_READINESS_RACE
+ROOT_CAUSE_CONFIDENCE=HIGH
+SOURCE_OBSERVABILITY_GAP=true
+
+POST_REBOOT_READINESS_BARRIER=DESIGN_FROZEN
+READINESS_TIMEOUT_SECONDS=300
+READINESS_POLL_SECONDS=2
+RUNTIME_STABILITY_OBSERVATION_SECONDS=90
+RUNTIME_STABILITY_OBSERVATION_UNCHANGED=true
+
+KF_122=OPEN
+KF_124=SOURCE_REPAIR_MERGED_LIVE_PATH_REVALIDATED_FULL_RUN_PENDING
+KF_125=SOURCE_DESIGN_FROZEN_IMPLEMENTATION_PENDING
+
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+REFLASH=false
+PRODUCT_SOURCE_IMPLEMENTATION=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_F5_V2_POST_REBOOT_READINESS_RACE_SOURCE_REPAIR_IMPLEMENTATION_20261021_01
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+The second real-T1 production attempt passed HOST_BASELINE, F3, provisioning, all F4 pre-reboot work, operator arming, controlled reboot, SSH recovery and SSH epoch #2. It failed only after post-reboot acceptance started. Read-only timing evidence shows broker/application units and all three product containers became healthy 4.5–12.0 seconds after SSH was already available; the later target state was running with no failed units and zero container restarts. This is high-confidence evidence of a missing bounded product-readiness barrier, not a persistent runtime failure.
+
+The frozen repair adds a 300-second / 2-second-poll read-only `POST_REBOOT_READINESS` barrier inside SSH epoch #2, before strict post-reboot acceptance. The existing target-local verifier remains strict and runs exactly once after READY; the five external probes and existing 90-second stability window are unchanged. The same implementation gate must also preserve the repository-defined sanitized target verifier error code in frozen private evidence instead of collapsing it to a generic exception type.
+
+Authority: `docs/development/N3W_T1_F5_V2_POST_REBOOT_READINESS_RACE_SOURCE_REPAIR_DESIGN_20261021.md`.
+
 ## 2026-10-21 — PR #634 merged; operator-presence repair in main
 
 ~~~text
