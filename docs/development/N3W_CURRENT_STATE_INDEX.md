@@ -1,3 +1,17 @@
+## 2026-10-21 — PR #634 merged; F5 V2 operator-presence repair in main
+
+- PR #634 is CLOSED/MERGED.
+- Reviewed head: `dc39f969e563655c14e2ed05a1b7a6eb97f868a6`; reviewed tree `2dc95ef325aec6f2aec9a25b9b36cca7d89c9a2a`.
+- New main: `1b881ff052ebdace68a901fe41e96cee3b33e98d`; main tree equals reviewed head tree, so head-to-main content delta is NONE.
+- Exact-head CI before merge: 12/12 workflows PASS.
+- KF-124 source repair is merged; live revalidation remains pending.
+- Failed production run `c715fdee...` remains terminal/no-replay; failed target remains reflash-required and not production-ready.
+- The previous exact release built from `4292481f...` is now historical because PR #634 changes `v2_mac_tools`.
+- A fresh exact-main F3/F4 -> release-inputs -> final-release chain is mandatory before reflash/qualification/new real-T1 authorization.
+- No T1/board access, reflash or production execution occurs in this docs-only alignment.
+- Authority: `docs/development/N3W_T1_F5_V2_PR634_POSTMERGE_STATE_ALIGNMENT_20261021.md`.
+- Next gate: `N3W_T1_F5_V2_PR634_POSTMERGE_ALIGNMENT_MERGE_DECISION_20261021_01`.
+
 ## 2026-10-21 — F5 V2 operator-presence / progress source repair
 
 - Real-T1 repaired-release production run `c715fdee...` reached STARTED, completed the planned reboot path, then failed at `SSH_EPOCH_2` because the post-reboot root-password prompt was unattended until the 180 s interactive SSH timeout.
