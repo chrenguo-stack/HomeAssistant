@@ -842,6 +842,45 @@ def test_reboot_disconnect_requires_tcp_22_down_after_control_master_disconnect(
     assert clock[0] == tool.REBOOT_TCP_DOWN_POLL_SECONDS
 
 
+def test_tcp_down_probe_begins_only_after_control_master_disconnect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    adapter = object.__new__(tool.LiveProductionAdapter)
+    adapter.host = "t1.invalid"
+    adapter.target = "root@t1.invalid"
+    returncodes = iter((0, 1))
+    events: list[str] = []
+    clock = [0.0]
+
+    class Runner:
+        def run(self, argv, *, timeout, check):
+            events.append("control")
+            return subprocess.CompletedProcess(argv, next(returncodes), "", "")
+
+    class Transport:
+        runner = Runner()
+
+    adapter.transport = Transport()
+    monkeypatch.setattr(tool.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(
+        tool.time,
+        "sleep",
+        lambda seconds: clock.__setitem__(0, clock[0] + seconds),
+    )
+
+    def reachable(*_args, **_kwargs):
+        events.append("tcp")
+        return False
+
+    monkeypatch.setattr(tool, "_tcp_port_reachable", reachable)
+
+    result = adapter._wait_for_old_boot_ssh_down("/tmp/control")
+
+    assert result["ssh_down_observed"] is True
+    assert events == ["control", "control", "tcp"]
+
+
 def test_reboot_disconnect_fails_closed_if_old_ssh_never_goes_down(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
