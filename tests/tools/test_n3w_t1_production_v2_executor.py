@@ -642,3 +642,152 @@ def test_runtime_snapshot_explicit_failure_is_not_downgraded():
         match="runtime_snapshot_command_failed",
     ):
         tool._json_output(completed, "runtime_snapshot")
+
+
+def _readiness_report(tool, status, reason=None):
+    report = {
+        "schema": tool.READINESS_SCHEMA,
+        "status": status,
+        "state": "READY" if status == "PASS" else "WAITING_FOR_BOOT_CONVERGENCE",
+        "source_head": "3" * 40,
+        "control_manifest_sha256": "a" * 64,
+        "boot_id_sha256": "b" * 64,
+        "board_access": False,
+        "target_mutation": False,
+    }
+    if reason is not None:
+        report["wait_reason"] = reason
+    return report
+
+
+def test_post_reboot_readiness_polls_inside_existing_ssh_epoch(monkeypatch):
+    tool = load_tool()
+    adapter = object.__new__(tool.LiveProductionAdapter)
+    adapter.release = {"source_head": "3" * 40}
+    clock = [0.0]
+    reports = iter(
+        (
+            _readiness_report(tool, "WAIT", "systemd_starting"),
+            _readiness_report(tool, "PASS"),
+        )
+    )
+    calls = []
+    progress = []
+    monkeypatch.setattr(tool.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(
+        tool.time,
+        "sleep",
+        lambda seconds: clock.__setitem__(0, clock[0] + seconds),
+    )
+    monkeypatch.setattr(
+        tool,
+        "_emit_progress",
+        lambda stage, status, **fields: progress.append((stage, status, fields)),
+    )
+
+    def remote_json(argv, stage, *, timeout):
+        calls.append((argv, stage, timeout))
+        return next(reports)
+
+    adapter._remote_json = remote_json
+    report = adapter.wait_for_post_reboot_readiness()
+    assert report["status"] == "PASS"
+    assert len(calls) == 2
+    assert all(call[0] == ("sudo", "-n", tool.REBOOT_VERIFY_CLI, "--readiness") for call in calls)
+    assert all(call[1] == "post_reboot_readiness" for call in calls)
+    assert any(item[1] == "WAITING" for item in progress)
+    assert progress[-1][1] == "PASS"
+
+
+def test_post_reboot_readiness_times_out_fail_closed(monkeypatch):
+    tool = load_tool()
+    adapter = object.__new__(tool.LiveProductionAdapter)
+    adapter.release = {"source_head": "3" * 40}
+    monkeypatch.setattr(tool, "READINESS_TIMEOUT_SECONDS", 3)
+    monkeypatch.setattr(tool, "READINESS_POLL_SECONDS", 2)
+    clock = [0.0]
+    monkeypatch.setattr(tool.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(
+        tool.time,
+        "sleep",
+        lambda seconds: clock.__setitem__(0, clock[0] + seconds),
+    )
+    monkeypatch.setattr(tool, "_emit_progress", lambda *_args, **_kwargs: None)
+    calls = []
+    adapter._remote_json = lambda *_args, **_kwargs: calls.append(1) or _readiness_report(
+        tool, "WAIT", "systemd_starting"
+    )
+    with pytest.raises(tool.ProductionExecutorError, match="post_reboot_readiness_timeout"):
+        adapter.wait_for_post_reboot_readiness()
+    assert len(calls) == 2
+
+
+def test_post_reboot_readiness_rejects_invalid_wait_reason(monkeypatch):
+    tool = load_tool()
+    adapter = object.__new__(tool.LiveProductionAdapter)
+    adapter.release = {"source_head": "3" * 40}
+    monkeypatch.setattr(tool, "_emit_progress", lambda *_args, **_kwargs: None)
+    adapter._remote_json = lambda *_args, **_kwargs: _readiness_report(
+        tool, "WAIT", "untrusted_reason"
+    )
+    with pytest.raises(tool.ProductionExecutorError, match="post_reboot_readiness_report_invalid"):
+        adapter.wait_for_post_reboot_readiness()
+
+
+def test_target_verifier_structured_failure_code_is_preserved():
+    tool = load_tool()
+    report = {
+        "schema": tool.TARGET_VERIFY_REPORT_SCHEMA,
+        "status": "FAIL",
+        "failure_class": "VERIFY_FAILED",
+        "error_code": "post_reboot_unit_contract_invalid",
+        "board_access": False,
+    }
+    completed = subprocess.CompletedProcess([], 2, "", json.dumps(report))
+    with pytest.raises(tool.ProductionExecutorError) as captured:
+        tool._json_output(completed, "target_local_reboot_verify")
+    assert captured.value.error_code == "post_reboot_unit_contract_invalid"
+    assert captured.value.target_failure_class == "VERIFY_FAILED"
+
+
+def test_target_verifier_structured_insufficient_evidence_remains_distinct():
+    tool = load_tool()
+    report = {
+        "schema": tool.TARGET_VERIFY_REPORT_SCHEMA,
+        "status": "FAIL",
+        "failure_class": "EVIDENCE_INSUFFICIENT",
+        "error_code": "runtime_snapshot_command_evidence_unavailable",
+        "board_access": False,
+    }
+    completed = subprocess.CompletedProcess([], 2, "", json.dumps(report))
+    with pytest.raises(tool.EvidenceInsufficientError) as captured:
+        tool._json_output(completed, "target_local_reboot_verify")
+    assert captured.value.error_code == "runtime_snapshot_command_evidence_unavailable"
+    assert captured.value.target_failure_class == "EVIDENCE_INSUFFICIENT"
+
+
+def test_target_verifier_does_not_trust_arbitrary_error_code_or_nonfinal_json():
+    tool = load_tool()
+    report = {
+        "schema": tool.TARGET_VERIFY_REPORT_SCHEMA,
+        "status": "FAIL",
+        "failure_class": "VERIFY_FAILED",
+        "error_code": "password leaked",
+        "board_access": False,
+    }
+    completed = subprocess.CompletedProcess([], 2, "", json.dumps(report))
+    with pytest.raises(tool.ProductionExecutorError) as captured:
+        tool._json_output(completed, "target_local_reboot_verify")
+    assert str(captured.value) == "target_local_reboot_verify_error_code_invalid"
+    assert not hasattr(captured.value, "error_code")
+
+    completed = subprocess.CompletedProcess(
+        [],
+        2,
+        "",
+        json.dumps({**report, "error_code": "post_reboot_unit_contract_invalid"}) + "\nnot-json",
+    )
+    with pytest.raises(tool.ProductionExecutorError) as captured:
+        tool._json_output(completed, "target_local_reboot_verify")
+    assert str(captured.value) == "target_local_reboot_verify_command_failed"
+    assert not hasattr(captured.value, "error_code")

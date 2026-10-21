@@ -1,3 +1,14 @@
+## 2026-10-21 — F5 V2 post-reboot readiness source implementation candidate
+
+- Implementation branch: `fix/n3w-t1-f5-v2-post-reboot-readiness-implementation-20261021`, based on the exact design candidate head `2f937db0be898736bba434c0d80a45bdae5abb0c`.
+- Added target-side `--readiness` read-only entrypoint and bounded 300 s / 2 s Mac polling inside SSH epoch #2; readiness PASS does not replace strict verification.
+- Existing five external probes and the existing 90-second stability observation remain unchanged and run only after readiness PASS.
+- Target verifier errors now use sanitized structured codes; the executor accepts only the final structured failure record and preserves allowlisted code/class in private frozen failure evidence.
+- Added focused tests for readiness WAIT/PASS/FAIL, orchestrator ordering, timeout, no new SSH epoch, and structured error-code handling.
+- KF-125 status: `SOURCE_IMPLEMENTED_CI_PENDING`; exact-head CI and independent review have not yet closed.
+- Failed run remains terminal/no-replay; T1 access, target mutation, reflash, production execution and merge remain false.
+- Next gate: `N3W_T1_F5_V2_POST_REBOOT_READINESS_RACE_SOURCE_REPAIR_INDEPENDENT_REVIEW_20261021_01`.
+
 ## 2026-10-21 — F5 V2 post-reboot readiness race design frozen
 
 - Real run `15212aa9...` passed the entire pre-reboot production path, operator arming, controlled reboot, SSH recovery and SSH epoch #2, then failed at `POST_REBOOT_ACCEPTANCE`.

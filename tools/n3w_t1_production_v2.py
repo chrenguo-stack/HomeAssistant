@@ -344,11 +344,15 @@ def self_check() -> dict[str, object]:
 
 
 R3_SCHEMA = "gh.n3w-t1-production-v2-r3/1"
+SAFE_TARGET_ERROR_CODE_RE = re.compile(
+    r"[a-z][a-z0-9_]*(?::[A-Za-z0-9_.-]+(?:,[A-Za-z0-9_.-]+)*){0,3}"
+)
 
 
 class R3Adapter(R2Adapter, Protocol):
     def wait_for_ssh(self) -> dict[str, Any]: ...
     def start_post_reboot_epoch(self) -> dict[str, Any]: ...
+    def wait_for_post_reboot_readiness(self) -> dict[str, Any]: ...
     def post_reboot_acceptance(
         self,
         release: dict[str, Any],
@@ -461,6 +465,12 @@ class R3Orchestrator:
             "error_class": error_class,
             "automatic_retry": False,
         }
+        error_code = getattr(error, "error_code", None)
+        if isinstance(error_code, str) and SAFE_TARGET_ERROR_CODE_RE.fullmatch(error_code):
+            failure["error_code"] = error_code
+        target_failure_class = getattr(error, "target_failure_class", None)
+        if target_failure_class in {"VERIFY_FAILED", "EVIDENCE_INSUFFICIENT"}:
+            failure["target_failure_class"] = target_failure_class
         _pass(self.adapter.freeze_failure(failure), "failure_freeze")
         forensic = _pass(
             self.adapter.collect_failure_forensics(),
@@ -578,6 +588,18 @@ class R3Orchestrator:
             )
             if epoch.get("host_key_sha256") != binding["ssh_host_key_sha256"]:
                 raise ProductionV2R2Error("post_reboot_ssh_host_key_mismatch")
+
+            stage = "POST_REBOOT_READINESS"
+            readiness = _pass(
+                self.adapter.wait_for_post_reboot_readiness(),
+                "post_reboot_readiness",
+            )
+            if (
+                readiness.get("state") != "READY"
+                or readiness.get("board_access") is not False
+                or readiness.get("target_mutation") is not False
+            ):
+                raise ProductionV2R2Error("post_reboot_readiness_invalid")
 
             stage = "POST_REBOOT_ACCEPTANCE"
             acceptance = _pass(

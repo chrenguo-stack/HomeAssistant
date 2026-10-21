@@ -1,3 +1,55 @@
+## 2026-10-21 — F5 V2 post-reboot readiness source implementation candidate
+
+~~~text
+TASK=N3W_T1_F5_V2_POST_REBOOT_READINESS_RACE_SOURCE_REPAIR_IMPLEMENTATION_20261021_01
+DESIGN_AUTHORITY_HEAD=2f937db0be898736bba434c0d80a45bdae5abb0c
+IMPLEMENTATION_BRANCH=fix/n3w-t1-f5-v2-post-reboot-readiness-implementation-20261021
+IMPLEMENTATION_BASE=2f937db0be898736bba434c0d80a45bdae5abb0c
+
+TARGET_READINESS_ENTRYPOINT=--readiness
+READINESS_TIMEOUT_SECONDS=300
+READINESS_POLL_SECONDS=2
+READINESS_MUTATION=false
+NEW_SSH_EPOCH=false
+NEW_PASSWORD_PROMPT=false
+NEW_PRODUCTION_APPROVAL=false
+STRICT_TARGET_VERIFY_PRESERVED=true
+EXTERNAL_PROBES_PRESERVED=true
+RUNTIME_STABILITY_OBSERVATION_SECONDS=90
+RUNTIME_STABILITY_OBSERVATION_CHANGED=false
+STRUCTURED_TARGET_ERROR_CODE_PRESERVATION=IMPLEMENTED_CI_PENDING
+
+KF_122=OPEN
+KF_124=SOURCE_REPAIR_MERGED_LIVE_PATH_REVALIDATED_FULL_RUN_PENDING
+KF_125=SOURCE_IMPLEMENTED_CI_PENDING
+
+FAILED_RUN_ID=15212aa98751a5a90677fbfd4f2ab51bf12ad8a5b5744ca050f3b872acdf1acc
+FAILED_RUN_REPLAY=false
+TARGET_LOCAL_FIX_FORWARD=false
+T1_PRODUCTION_READY=false
+REFLASH_DEFERRED_PENDING_SOURCE_REPAIR=true
+
+PRODUCT_SOURCE_IMPLEMENTATION=true
+WORKFLOW_DISPATCH=false
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+REFLASH=false
+PRODUCTION_EXECUTION=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_F5_V2_POST_REBOOT_READINESS_RACE_SOURCE_REPAIR_INDEPENDENT_REVIEW_20261021_01
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+Implementation candidate adds a read-only target-side readiness report, a 300-second / 2-second polling barrier inside the existing SSH epoch #2, and a separate R3 orchestration stage before the unchanged strict acceptance. Transient boot convergence returns WAIT; explicit required-unit failures, binding drift and unexpected running services fail closed. The existing strict target-local verifier, five external probes, and 90-second continuity observation remain in their original order after readiness PASS.
+
+The Mac executor now parses only the final structured failure JSON record from repository-owned target verifier/readiness commands, validates the error code against a safe format, and preserves the code and failure class in the private frozen failure-summary. Raw stderr is not copied into that summary.
+
+Implementation source and focused tests are committed on the branch above; CI and independent review are pending. This does not authorize real-T1 access, target mutation, reflash, production execution or merge.
+
+Authority: docs/development/N3W_T1_F5_V2_POST_REBOOT_READINESS_RACE_SOURCE_REPAIR_DESIGN_20261021.md.
+
 ## 2026-10-21 — F5 V2 post-reboot readiness race source-repair design frozen
 
 ~~~text
