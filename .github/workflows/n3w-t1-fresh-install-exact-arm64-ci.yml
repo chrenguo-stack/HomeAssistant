@@ -39,6 +39,7 @@ jobs:
       HA_ARM64_DIGEST: sha256:0c73235a9140a9b02e4bf618d06d8c496b12ae70656ecddb0e02ad31ad122be4
       HA_EXPECTED_IMAGE_ID: sha256:b0e1ee82adfb19fa1ff3049034535633b1c4f0df6606721c0e77383854b99879
       BROKER_SOURCE_IMAGE: m.daocloud.io/docker.io/library/eclipse-mosquitto:2.1.2-alpine
+      BROKER_FALLBACK_IMAGE: docker.io/library/eclipse-mosquitto:2.1.2-alpine
       BROKER_ARM64_DIGEST: sha256:3184566df484a083411a0e70e92c87a264b8f0648df632f10eb23d54d99f4549
       BROKER_EXPECTED_IMAGE_ID: sha256:4c199d7c9d377d018313a2199f6839978f6fd2219c405ad664d0a830c14b9c7b
     steps:
@@ -89,9 +90,17 @@ jobs:
           set -euo pipefail
           ART="$RUNNER_TEMP/r6-artifact"
           docker pull --platform linux/arm64 "$HA_SOURCE_IMAGE@$HA_ARM64_DIGEST"
-          docker pull --platform linux/arm64 "$BROKER_SOURCE_IMAGE@$BROKER_ARM64_DIGEST"
+          if docker pull --platform linux/arm64 "$BROKER_SOURCE_IMAGE@$BROKER_ARM64_DIGEST"; then
+            BROKER_MATERIALIZED_IMAGE="$BROKER_SOURCE_IMAGE@$BROKER_ARM64_DIGEST"
+            BROKER_MATERIALIZATION_SOURCE=daocloud
+          else
+            docker pull --platform linux/arm64 "$BROKER_FALLBACK_IMAGE@$BROKER_ARM64_DIGEST"
+            BROKER_MATERIALIZED_IMAGE="$BROKER_FALLBACK_IMAGE@$BROKER_ARM64_DIGEST"
+            BROKER_MATERIALIZATION_SOURCE=docker_hub
+          fi
+          printf 'BROKER_MATERIALIZATION_SOURCE=%s\n' "$BROKER_MATERIALIZATION_SOURCE"
           docker tag "$HA_SOURCE_IMAGE@$HA_ARM64_DIGEST" local/n3w-homeassistant:2026.10.0-0c73235a
-          docker tag "$BROKER_SOURCE_IMAGE@$BROKER_ARM64_DIGEST" local/n3w-mosquitto:2.1.2-3184566d
+          docker tag "$BROKER_MATERIALIZED_IMAGE" local/n3w-mosquitto:2.1.2-3184566d
           test "$(docker image inspect local/n3w-homeassistant:2026.10.0-0c73235a --format '{{.Id}}')" = "$HA_EXPECTED_IMAGE_ID"
           test "$(docker image inspect local/n3w-mosquitto:2.1.2-3184566d --format '{{.Id}}')" = "$BROKER_EXPECTED_IMAGE_ID"
           docker save -o "$ART/homeassistant-arm64.tar" local/n3w-homeassistant:2026.10.0-0c73235a
