@@ -31,7 +31,7 @@ MERGE=false
 
 真实 repaired-release production run 已越过 STARTED 并完成 planned reboot 路径；第二 SSH epoch 的密码提示出现时管理员不在屏幕前，没有输入密码，180 秒后交互式 master 建立超时。失败后的相同 SSHTransport 只读诊断 PASS，因此本轮根因不是 persistent target SSH/password/host-key defect，而是长耗时无人值守流程缺少 reboot 前 operator-presence arming。
 
-当前修复只改 F5 Mac executor、对应测试和过程文档：长耗时阶段增加 sanitized progress；在任何 reboot-control staging/claim/reboot 前停在无超时、run-bound 的本地 arming 点；错误 arming 文本继续等待；arming 不增加第二次 production approval。CI/独立源码复核通过前不重刷、不重新生产。
+当前修复只改 F5 Mac executor、对应测试和过程文档：长耗时阶段增加 sanitized progress；reboot-control staging/install/verify 可无人值守完成，然后在 one-shot reboot claim/reboot 前停在无超时、run-bound 的本地 arming 点；错误 arming 文本继续等待；arming 不增加第二次 production approval。CI/独立源码复核通过前不重刷、不重新生产。
 
 Authority: `docs/development/N3W_T1_F5_V2_OPERATOR_PRESENCE_AND_PROGRESS_SOURCE_REPAIR_20261021.md`.
 
