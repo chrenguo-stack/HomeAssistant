@@ -728,11 +728,66 @@ def _parse_sha_sidecar(path: Path, error_code: str) -> str:
     return fields[0]
 
 
+def _read_metadata_json(path: Path, error_code: str) -> dict[str, Any]:
+    if path.is_symlink() or not path.is_file():
+        raise ReleaseBuildError(error_code)
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise ReleaseBuildError(error_code) from error
+    if not isinstance(value, dict):
+        raise ReleaseBuildError(error_code)
+    return value
+
+
+def _verify_github_metadata(
+    run_metadata: Path,
+    artifact_metadata: Path,
+    *,
+    run_id: int,
+    run_attempt: int,
+    artifact_id: int,
+    artifact_name: str,
+    artifact_zip_sha256: str,
+    source_head: str,
+) -> None:
+    run = _read_metadata_json(run_metadata, "local_run_metadata_invalid")
+    if (
+        run.get("id") != run_id
+        or run.get("path")
+        != ".github/workflows/n3w-t1-f5-v2-exact-production-release-ci.yml"
+        or run.get("head_sha") != source_head
+        or run.get("head_branch") != "main"
+        or run.get("event") != "workflow_dispatch"
+        or run.get("status") != "completed"
+        or run.get("conclusion") != "success"
+        or run.get("run_attempt") != run_attempt
+    ):
+        raise ReleaseBuildError("local_run_metadata_binding_invalid")
+
+    artifact = _read_metadata_json(
+        artifact_metadata,
+        "local_artifact_metadata_invalid",
+    )
+    workflow_run = artifact.get("workflow_run")
+    if (
+        artifact.get("id") != artifact_id
+        or artifact.get("name") != artifact_name
+        or artifact.get("expired") is not False
+        or artifact.get("digest") != f"sha256:{artifact_zip_sha256}"
+        or not isinstance(workflow_run, dict)
+        or workflow_run.get("id") != run_id
+    ):
+        raise ReleaseBuildError("local_artifact_metadata_binding_invalid")
+
+
 def verify_release_bundle(
     repository: Path,
     artifact_zip: Path,
     *,
     expected_artifact_sha256: str,
+    run_metadata: Path,
+    artifact_metadata: Path,
     artifact_name: str,
     artifact_id: int,
     run_id: int,
@@ -761,6 +816,16 @@ def verify_release_bundle(
         or run_attempt <= 0
     ):
         raise ReleaseBuildError("local_artifact_identity_invalid")
+    _verify_github_metadata(
+        run_metadata,
+        artifact_metadata,
+        run_id=run_id,
+        run_attempt=run_attempt,
+        artifact_id=artifact_id,
+        artifact_name=artifact_name,
+        artifact_zip_sha256=expected_artifact_sha256,
+        source_head=source_head,
+    )
     if _sha256(artifact_zip) != expected_artifact_sha256:
         raise ReleaseBuildError("local_artifact_zip_sha256_mismatch")
 
@@ -879,6 +944,8 @@ def parser() -> argparse.ArgumentParser:
     verify_bundle.add_argument("--repository", type=Path, default=Path.cwd())
     verify_bundle.add_argument("--artifact-zip", type=Path, required=True)
     verify_bundle.add_argument("--expected-artifact-sha256", required=True)
+    verify_bundle.add_argument("--run-metadata-json", type=Path, required=True)
+    verify_bundle.add_argument("--artifact-metadata-json", type=Path, required=True)
     verify_bundle.add_argument("--artifact-name", required=True)
     verify_bundle.add_argument("--artifact-id", type=int, required=True)
     verify_bundle.add_argument("--run-id", type=int, required=True)
@@ -908,6 +975,8 @@ def main() -> int:
                 args.repository,
                 args.artifact_zip,
                 expected_artifact_sha256=args.expected_artifact_sha256,
+                run_metadata=args.run_metadata_json,
+                artifact_metadata=args.artifact_metadata_json,
                 artifact_name=args.artifact_name,
                 artifact_id=args.artifact_id,
                 run_id=args.run_id,
