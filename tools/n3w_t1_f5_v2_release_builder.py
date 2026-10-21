@@ -9,10 +9,14 @@ import re
 import shutil
 import subprocess
 import sys
-from pathlib import Path
+import tarfile
+import tempfile
+import zipfile
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from n3w_t1_production_v2_contract import (
+    RELEASE_INPUT_ARTIFACT_PATHS,
     RELEASE_SCHEMA,
     REQUIRED_RELEASE_ARTIFACTS,
     canonical_json_bytes,
@@ -25,6 +29,60 @@ MANIFEST_NAME = "release.json"
 SHA_NAME = "release.sha256"
 ARTIFACT_DIR = "artifacts"
 GIT_SHA_RE = re.compile(r"[0-9a-f]{40}")
+SHA256_RE = re.compile(r"[0-9a-f]{64}")
+FINAL_ARTIFACT_NAME_PREFIX = "n3w-t1-f5-v2-exact-production-release-"
+FINAL_TAR_NAME = "n3w-t1-f5-v2-release.tar.gz"
+FINAL_TAR_SHA_NAME = "n3w-t1-f5-v2-release.tar.gz.sha256"
+FINAL_OUTER_FILES = frozenset({FINAL_TAR_NAME, FINAL_TAR_SHA_NAME})
+RELEASE_ROOT_NAME = "n3w-t1-f5-v2-release"
+LOCAL_BINDING_SCHEMA = "gh.n3w-t1-f5-v2-local-release-binding/1"
+MAC_TOOLS_SCHEMA = "gh.n3w-t1-f5-v2-mac-tools/1"
+F4_PACKAGE_SCHEMA = "gh.n3w-t1-f4-activation-package/1"
+REBOOT_PACKAGE_SCHEMA = "gh.n3w-t1-f4-reboot-successor-control-package/1"
+IMAGE_SET_SCHEMA = "gh.n3w-t1-f5-v2-image-set/1"
+TRANSPORT_SCHEMA = "gh.n3w-t1-f5-v2-transport-contract/1"
+
+F3_PAYLOAD_FILES = frozenset(
+    {
+        "runtime-payload.tar.gz",
+        "runtime-payload.sha256",
+        "payload-manifest.sha256",
+        "capacity-contract.json",
+        "capacity-contract.sha256",
+        "executor.sha256",
+        "host-wrapper.py",
+        "host-wrapper.sha256",
+        "host-baseline.py",
+        "host-baseline.sha256",
+    }
+)
+F3_IMAGE_FILES = frozenset(
+    {
+        "broker-arm64.tar",
+        "greenhouse-manager-arm64.tar",
+        "homeassistant-arm64.tar",
+        "image-set.json",
+    }
+)
+MAC_TOOL_FILES = (
+    "tools/n3w_t1_device_provisioning_host.py",
+    "tools/n3w_t1_f4_activation_host.py",
+    "tools/n3w_t1_f4_certificate_runtime_guard.py",
+    "tools/n3w_t1_f4_reboot_authority.py",
+    "tools/n3w_t1_f4_reboot_verify.py",
+    "tools/n3w_t1_failure_forensics.py",
+    "tools/n3w_t1_fresh_armbian_qualification.py",
+    "tools/n3w_t1_fresh_host_baseline.py",
+    "tools/n3w_t1_fresh_product_bootstrap.py",
+    "tools/n3w_t1_fresh_product_staging_host.py",
+    "tools/n3w_t1_post_reboot_acceptance.py",
+    "tools/n3w_t1_production_marker.py",
+    "tools/n3w_t1_production_v2.py",
+    "tools/n3w_t1_production_v2_contract.py",
+    "tools/n3w_t1_production_v2_executor.py",
+    "tools/n3w_t1_f5_v2_release_builder.py",
+    "tools/n3w_t1_ssh_transport.py",
+)
 
 
 class ReleaseBuildError(RuntimeError):
@@ -103,31 +161,49 @@ def _load_inputs(path: Path) -> dict[str, Any]:
         or set(artifacts) != set(REQUIRED_RELEASE_ARTIFACTS)
     ):
         raise ReleaseBuildError("release_inputs_artifact_set_invalid")
+    for name in sorted(REQUIRED_RELEASE_ARTIFACTS):
+        record = artifacts.get(name)
+        if not isinstance(record, dict) or set(record) != {
+            "path",
+            "sha256",
+            "size_bytes",
+        }:
+            raise ReleaseBuildError(f"release_inputs_artifact_record_invalid:{name}")
+        if record.get("path") != RELEASE_INPUT_ARTIFACT_PATHS[name]:
+            raise ReleaseBuildError(f"release_inputs_artifact_path_invalid:{name}")
+        if SHA256_RE.fullmatch(str(record.get("sha256", ""))) is None:
+            raise ReleaseBuildError(f"release_inputs_artifact_sha256_invalid:{name}")
+        size = record.get("size_bytes")
+        if not isinstance(size, int) or isinstance(size, bool) or size < 0:
+            raise ReleaseBuildError(f"release_inputs_artifact_size_invalid:{name}")
     return value
 
 
-def _artifact_source(root: Path, relative: Any, name: str) -> Path:
-    if (
-        not isinstance(relative, str)
-        or not relative
-        or relative.strip() != relative
-        or os.path.isabs(relative)
-    ):
+def _artifact_source(
+    root: Path,
+    record: dict[str, Any],
+    name: str,
+) -> Path:
+    relative = record["path"]
+    if relative != RELEASE_INPUT_ARTIFACT_PATHS[name]:
         raise ReleaseBuildError(f"artifact_path_invalid:{name}")
     unresolved = root / relative
-    if unresolved.is_symlink():
-        raise ReleaseBuildError(f"artifact_source_symlink:{name}")
-    candidate = unresolved.resolve()
-    root_resolved = root.resolve()
-    if candidate == root_resolved or root_resolved not in candidate.parents:
-        raise ReleaseBuildError(f"artifact_path_escape:{name}")
     current = unresolved
     while current != root:
         if current.is_symlink():
             raise ReleaseBuildError(f"artifact_source_symlink:{name}")
         current = current.parent
+    candidate = unresolved.resolve()
+    root_resolved = root.resolve()
+    if candidate == root_resolved or root_resolved not in candidate.parents:
+        raise ReleaseBuildError(f"artifact_path_escape:{name}")
     if not candidate.is_file():
         raise ReleaseBuildError(f"artifact_source_invalid:{name}")
+    if (
+        candidate.stat().st_size != record["size_bytes"]
+        or _sha256(candidate) != record["sha256"]
+    ):
+        raise ReleaseBuildError(f"artifact_input_binding_mismatch:{name}")
     return candidate
 
 
@@ -154,7 +230,9 @@ def build_release(
         raise ReleaseBuildError("release_inputs_source_head_mismatch")
     if inputs["source_tree"] != source_tree:
         raise ReleaseBuildError("release_inputs_source_tree_mismatch")
-    input_root = inputs_path.resolve().parent
+    input_root = inputs_path.parent
+    if input_root.is_symlink() or not input_root.is_dir():
+        raise ReleaseBuildError("release_inputs_root_invalid")
 
     destination.mkdir(parents=True, mode=0o700)
     artifacts_dir = destination / ARTIFACT_DIR
@@ -164,12 +242,18 @@ def build_release(
         for name in sorted(inputs["artifacts"]):
             if not isinstance(name, str) or not name or "/" in name or "\\" in name:
                 raise ReleaseBuildError("artifact_name_invalid")
-            source = _artifact_source(input_root, inputs["artifacts"][name], name)
+            input_record = inputs["artifacts"][name]
+            source = _artifact_source(input_root, input_record, name)
             target = artifacts_dir / name
             shutil.copyfile(source, target)
+            if (
+                target.stat().st_size != input_record["size_bytes"]
+                or _sha256(target) != input_record["sha256"]
+            ):
+                raise ReleaseBuildError(f"artifact_copy_binding_mismatch:{name}")
             records[name] = {
-                "sha256": _sha256(target),
-                "size_bytes": target.stat().st_size,
+                "sha256": input_record["sha256"],
+                "size_bytes": input_record["size_bytes"],
             }
 
         material = {
@@ -212,6 +296,13 @@ def build_release(
 def verify_release_directory(destination: Path) -> dict[str, Any]:
     if destination.is_symlink() or not destination.is_dir():
         raise ReleaseBuildError("release_directory_invalid")
+    if {item.name for item in destination.iterdir()} != {
+        MANIFEST_NAME,
+        SHA_NAME,
+        ARTIFACT_DIR,
+    }:
+        raise ReleaseBuildError("release_root_set_invalid")
+
     manifest = destination / MANIFEST_NAME
     sidecar = destination / SHA_NAME
     if (
@@ -222,18 +313,27 @@ def verify_release_directory(destination: Path) -> dict[str, Any]:
     ):
         raise ReleaseBuildError("release_manifest_missing")
     try:
-        release = validate_release(json.loads(manifest.read_text(encoding="utf-8")))
+        raw_release = json.loads(manifest.read_text(encoding="utf-8"))
+        release = validate_release(raw_release)
     except Exception as error:
         raise ReleaseBuildError("release_manifest_invalid") from error
-    expected_sha = sidecar.read_text(encoding="ascii").strip()
+    if manifest.read_bytes() != canonical_json_bytes(release):
+        raise ReleaseBuildError("release_manifest_not_canonical")
+
+    lines = sidecar.read_text(encoding="ascii").strip().splitlines()
+    if len(lines) != 1 or SHA256_RE.fullmatch(lines[0]) is None:
+        raise ReleaseBuildError("release_manifest_sidecar_invalid")
+    expected_sha = lines[0]
     if expected_sha != _sha256(manifest):
         raise ReleaseBuildError("release_manifest_sha256_mismatch")
+
     artifacts_dir = destination / ARTIFACT_DIR
     if artifacts_dir.is_symlink() or not artifacts_dir.is_dir():
         raise ReleaseBuildError("release_artifact_directory_invalid")
-    if {path.name for path in artifacts_dir.iterdir()} != set(release["artifacts"]):
+    if {path.name for path in artifacts_dir.iterdir()} != set(REQUIRED_RELEASE_ARTIFACTS):
         raise ReleaseBuildError("release_artifact_set_invalid")
-    for name, record in release["artifacts"].items():
+    for name in sorted(REQUIRED_RELEASE_ARTIFACTS):
+        record = release["artifacts"][name]
         path = artifacts_dir / name
         if path.is_symlink() or not path.is_file():
             raise ReleaseBuildError(f"release_artifact_invalid:{name}")
