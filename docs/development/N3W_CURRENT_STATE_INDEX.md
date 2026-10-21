@@ -6,10 +6,10 @@
 - KF-126 opened: `F5_V2_POST_REBOOT_SSH_BOOT_EPOCH_RACE`, confidence HIGH.
 - Source repair observes old ControlMaster disconnect and TCP/22 down independently; TCP recovery clears any prior down streak, so `REBOOT_PENDING` requires ControlMaster down plus a current two-sample TCP/22-unreachable streak, after which the existing TCP/22-up wait and SSH epoch #2 may begin.
 - Target-side `reboot_not_observed` remains unchanged and fail-closed. KF-125 readiness, strict verifier, five external probes and the existing 90-second observation remain unchanged.
-- Failed run is terminal/no-replay. No T1/board access, reflash, production execution or merge occurs in this source gate.
+- Independent exact-head A1-A10 review is CLOSED_PASS with zero open source blockers; exact-head CI is 12/12 PASS. Failed run remains terminal/no-replay. No T1/board access, reflash, production execution or merge occurs in this source gate.
 - Branch: `fix/n3w-t1-f5-v2-post-reboot-ssh-boot-epoch-race-20261021`.
 - Authority: `docs/development/N3W_T1_F5_V2_POST_REBOOT_SSH_BOOT_EPOCH_RACE_SOURCE_REPAIR_20261021.md`.
-- Next gate: `N3W_T1_F5_V2_POST_REBOOT_SSH_BOOT_EPOCH_RACE_SOURCE_REPAIR_REVIEW_20261021_01`.
+- Next gate: `N3W_T1_F5_V2_POST_REBOOT_SSH_BOOT_EPOCH_RACE_MERGE_DECISION_20261021_01`.
 
 ## 2026-10-21 — post-PR638 exact-main release rebuild preparation
 
