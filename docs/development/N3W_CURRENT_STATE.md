@@ -1,3 +1,40 @@
+## 2026-10-21 — F5 V2 real-T1 run terminal failure and KF-124 source repair
+
+~~~text
+FAILED_RUN_ID=c715fdee2bbd55c4ed7e3d8d0dd2e1cd2d147651e5ba8390ab4e696dc9a43519
+FAILED_RUN_STATUS=FAIL
+FAILED_RUN_MARKER_STATE=STARTED
+FAILED_RUN_TERMINAL_STAGE=SSH_EPOCH_2
+FAILED_RUN_ERROR_CLASS=POST_REBOOT_ACCEPTANCE_FAIL_REFLASH_REQUIRED
+FAILED_RUN_REPLAY=false
+FAILED_TARGET_REFLASH_REQUIRED=true
+T1_PRODUCTION_READY=false
+
+POSTFAIL_SSH_DIAGNOSTIC=PASS
+PERSISTENT_TARGET_SSH_DEFECT=false
+HOST_KEY_DRIFT=false
+PASSWORD_CHANGED_BY_PRODUCTION=false
+
+ROOT_CAUSE=POST_REBOOT_OPERATOR_PASSWORD_PROMPT_UNATTENDED_UNTIL_AUTH_TIMEOUT
+KF_124=SOURCE_REPAIR_CLOSED_PASS_PENDING_MERGE
+
+REPAIR_BRANCH=fix/n3w-t1-f5-v2-reboot-arming-progress-20261021
+REPAIR_BASE_MAIN=4292481f07b6ed89fe3d275be9fa4a51d7b26e6a
+
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+REFLASH=false
+NEW_PRODUCTION_RUN=false
+MERGE=false
+~~~
+
+真实 repaired-release production run 已越过 STARTED 并完成 planned reboot 路径；第二 SSH epoch 的密码提示出现时管理员不在屏幕前，没有输入密码，180 秒后交互式 master 建立超时。失败后的相同 SSHTransport 只读诊断 PASS，因此本轮根因不是 persistent target SSH/password/host-key defect，而是长耗时无人值守流程缺少 reboot 前 operator-presence arming。
+
+当前修复只改 F5 Mac executor、对应测试和过程文档：长耗时阶段增加 sanitized progress；reboot-control staging/install/verify 可无人值守完成，然后在 one-shot reboot claim/reboot 前停在无超时、run-bound 的本地 arming 点；错误 arming 文本继续等待；arming 不增加第二次 production approval。exact-head CI 与独立 focused review 已通过；PR #634 合并前不重刷、不重新生产。
+
+Authority: `docs/development/N3W_T1_F5_V2_OPERATOR_PRESENCE_AND_PROGRESS_SOURCE_REPAIR_20261021.md`.
+
 ## 2026-10-21 — F5 V2 exact-main release rebuild preparation ready
 
 ~~~text

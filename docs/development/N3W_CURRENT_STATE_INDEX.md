@@ -1,3 +1,17 @@
+## 2026-10-21 — F5 V2 operator-presence / progress source repair
+
+- Real-T1 repaired-release production run `c715fdee...` reached STARTED, completed the planned reboot path, then failed at `SSH_EPOCH_2` because the post-reboot root-password prompt was unattended until the 180 s interactive SSH timeout.
+- Final run result is terminal: `POST_REBOOT_ACCEPTANCE_FAIL_REFLASH_REQUIRED`, `T1_PRODUCTION_READY=false`, `reflash_required=true`; same run replay is forbidden.
+- Frozen forensic snapshot was complete/read-only but all four target probes were unavailable with `SSHTransportError` because the post-reboot managed SSH epoch had already failed.
+- A later independent read-only SSHTransport diagnostic using the same host-key/password path PASS, so persistent target SSH failure, host-key drift and production password mutation are not supported.
+- New KF-124: long unattended HOST_BASELINE/F3/F4 work had no reboot-before operator-presence boundary. Missing the later password prompt can therefore turn an otherwise progressing STARTED run into a reflash-required terminal failure.
+- Repair branch: `fix/n3w-t1-f5-v2-reboot-arming-progress-20261021`; base main `4292481f07b6ed89fe3d275be9fa4a51d7b26e6a`.
+- Source repair adds sanitized stage progress; reboot-control staging/install/verify stays unattended, then a no-timeout, run-bound local arming point blocks the one-shot reboot claim and reboot. Wrong arming input continues waiting. Arming is not a second production approval.
+- Post-reboot SSH remains a distinct second password epoch and host-key checking/password non-persistence stay unchanged.
+- Current status: exact-head source/tests/docs + focused review CLOSED_PASS; all 12 head workflows PASS; PR #634 merge-ready. No T1/board access, no reflash, no new production run, no merge.
+- Authority: `docs/development/N3W_T1_F5_V2_OPERATOR_PRESENCE_AND_PROGRESS_SOURCE_REPAIR_20261021.md`.
+- Next gate: `N3W_T1_F5_V2_OPERATOR_PRESENCE_AND_PROGRESS_PR634_MERGE_EXECUTION_20261021_01`; separate explicit merge authorization required.
+
 ## 2026-10-21 — F5 V2 exact-main release rebuild preparation
 
 - Exact main: `90775b804807b4ff69ca7cea71a220a2e3a5a416`; tree `9919c90a854265cf9fedc795affc8a0a53a9e522`.
