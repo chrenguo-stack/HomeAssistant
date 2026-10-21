@@ -127,7 +127,8 @@ board logic
 至少证明：
 
 - reboot arming 没有 timeout；
-- exact arming 前不 staging reboot-control package；
+- reboot-control package staging/install/verify 可在 arming 前完成；
+- exact arming 必须位于一次性 reboot claim 之前；
 - exact arming 前不执行 systemctl reboot；
 - 错误 arming 文本只继续等待；
 - one production approval 仍然只有一次；
@@ -155,7 +156,31 @@ FAILED_RUN_REPLAY=false
 FAILED_TARGET_REFLASH_REQUIRED=true
 T1_PRODUCTION_READY=false
 KF_122=OPEN
-KF_124=SOURCE_REPAIR_IMPLEMENTED_CI_PENDING
+KF_124=SOURCE_REPAIR_CLOSED_PASS_PENDING_MERGE
 ~~~
 
-修复源码、测试和 CI 关闭前，不重刷 T1，也不开始新的 real-T1 production run。
+源码、测试、focused review 与 exact-head CI 已通过；PR #634 合并前仍不重刷 T1，也不开始新的 real-T1 production run。
+
+
+## 8. Source/CI closure
+
+~~~text
+PR=634
+SOURCE_HEAD=2f13e9942bbfad32bf075e8dc6153e8aa08ef549
+SOURCE_TREE=5c141f9e40f4e93e6ea8f49cc06c3ccb3a89148e
+BEHIND_MAIN=0
+
+ALL_HEAD_WORKFLOWS=12/12_PASS
+F5_V2_SOURCE_CI_RUN=39545619969
+R1=PASS:67_passed_1_skipped
+R2=PASS:101_passed
+R3=PASS:155_passed
+MQTT_NONDISRUPTIVE_REGRESSION=PASS:3_passed
+PUBLIC_REPOSITORY_SAFETY=PASS
+
+SOURCE_BLOCKER_COUNT=0
+MERGE_READY=true
+MERGE_EXECUTED=false
+~~~
+
+Focused review confirmed that the arming point is after reboot-control staging/install/verify and before the one-shot reboot claim and reboot actuation. The existing one-production-approval contract, post-reboot password epoch, host-key checking, password non-persistence, STARTED/ACCEPTED semantics and no-replay failure policy remain unchanged.
