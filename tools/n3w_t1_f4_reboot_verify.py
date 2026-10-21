@@ -18,9 +18,93 @@ from types import ModuleType
 CLAIM_SCHEMA = "gh.n3w-t1-f4-reboot-authorization/1"
 REPORT_SCHEMA = "gh.n3w-t1-f4-reboot-acceptance/1"
 READINESS_SCHEMA = "gh.n3w-t1-f4-reboot-readiness/1"
-SAFE_ERROR_CODE_RE = re.compile(
-    r"[a-z][a-z0-9_]*(?::[A-Za-z0-9_.-]+(?:,[A-Za-z0-9_.-]+)*){0,3}"
+REPOSITORY_DEFINED_ERROR_CODES = frozenset(
+    {
+        "boot_id_invalid",
+        "broker_authenticated_connection_evidence_missing",
+        "broker_authenticated_connection_state_invalid",
+        "broker_log_coverage_insufficient",
+        "certificate_identity_changed_across_reboot",
+        "certificate_runtime_guard_dropin_missing",
+        "certificate_runtime_guard_not_pass",
+        "certificate_service_not_quiescent",
+        "certificate_service_post_reboot_invalid",
+        "certificate_unit_state_invalid",
+        "control_binding_claim_invalid",
+        "control_manifest_binding_invalid",
+        "control_manifest_file_path_invalid",
+        "control_manifest_file_record_invalid",
+        "control_manifest_file_set_invalid",
+        "control_manifest_files_invalid",
+        "critical_systemd_unit_failed",
+        "critical_systemd_unit_not_active",
+        "evidence_insufficient",
+        "f4_host_import_invalid",
+        "f4_host_invalid",
+        "f4_transaction_changed_across_reboot",
+        "f4_transaction_post_reboot_invalid",
+        "homeassistant_mqtt_socket_missing",
+        "manager_mqtt_socket_count_invalid",
+        "manager_runtime_identity_invalid",
+        "mqtt_owned_socket_not_unique",
+        "post_reboot_business_state_invalid",
+        "post_reboot_unit_contract_invalid",
+        "readiness_certificate_service_invalid",
+        "readiness_certificate_timer_failed",
+        "readiness_certificate_timer_not_enabled",
+        "readiness_certificate_timer_state_invalid",
+        "readiness_required_unit_failed",
+        "readiness_required_unit_missing",
+        "readiness_required_unit_state_invalid",
+        "readiness_runtime_service_name_invalid",
+        "readiness_systemd_not_operational",
+        "readiness_systemd_state_invalid",
+        "readiness_unit_evidence_invalid",
+        "readiness_unit_load_state_invalid",
+        "readiness_unit_state_invalid",
+        "reboot_claim_invalid",
+        "reboot_not_observed",
+        "runtime_container_name_missing",
+        "runtime_homeassistant_not_ready",
+        "runtime_identity_invalid",
+        "runtime_service_set_invalid",
+        "runtime_snapshot_command_evidence_unavailable",
+        "runtime_socket_evidence_invalid",
+        "snapshot_container_not_running",
+        "snapshot_transaction_binding_changed",
+        "systemd_error_coverage_insufficient",
+        "systemd_error_cursor_missing",
+        "verification_error",
+        "verify_failed",
+    }
 )
+REPOSITORY_DEFINED_ERROR_CODE_PATTERNS = (
+    re.compile(
+        r"record_(?:invalid|metadata_invalid|json_invalid|document_invalid):"
+        r"[A-Za-z0-9_.-]+"
+    ),
+    re.compile(
+        r"(?:unit_not_successful|oneshot_not_successful):[A-Za-z0-9_.@-]+"
+    ),
+    re.compile(
+        r"runtime_service_set_unexpected:"
+        r"[A-Za-z0-9_.-]+(?:,[A-Za-z0-9_.-]+)*"
+    ),
+)
+SANITIZED_COMMAND_FAILURE_RE = re.compile(
+    r"command_failed:[A-Za-z0-9_.-]+:[0-9]+"
+)
+
+
+def _repository_defined_error_code(value: str) -> bool:
+    return (
+        value in REPOSITORY_DEFINED_ERROR_CODES
+        or SANITIZED_COMMAND_FAILURE_RE.fullmatch(value) is not None
+        or any(
+            pattern.fullmatch(value) is not None
+            for pattern in REPOSITORY_DEFINED_ERROR_CODE_PATTERNS
+        )
+    )
 CLAIM_PATH = Path("/var/lib/n3w-t1-provisioning/F4_REBOOT_AUTHORIZATION.json")
 F4_TRANSACTION = Path("/var/lib/n3w-t1-provisioning/F4_ACTIVATION_TRANSACTION.json")
 F4_HOST = Path("/usr/local/sbin/n3w-t1-f4-activation")
@@ -521,17 +605,19 @@ def readiness() -> dict[str, object]:
 
 def _safe_error_code(error: BaseException) -> str:
     value = str(error)
-    if SAFE_ERROR_CODE_RE.fullmatch(value) is not None:
-        return value
     command_failure = re.match(r"^command_failed:(.+?):([0-9]+)(?::.*)?$", value)
     if command_failure is not None:
         command = Path(command_failure.group(1)).name
         code = f"command_failed:{command}:{command_failure.group(2)}"
-        if SAFE_ERROR_CODE_RE.fullmatch(code) is not None:
+        if SANITIZED_COMMAND_FAILURE_RE.fullmatch(code) is not None:
             return code
     if isinstance(error, EvidenceInsufficientError):
+        if _repository_defined_error_code(value):
+            return value
         return "evidence_insufficient"
     if isinstance(error, VerifyError):
+        if _repository_defined_error_code(value):
+            return value
         return "verify_failed"
     return "verification_error"
 

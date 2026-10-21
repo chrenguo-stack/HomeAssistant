@@ -596,3 +596,8 @@ def test_target_verifier_error_codes_are_sanitized():
     assert tool._safe_error_code(
         tool.VerifyError("command_failed:/usr/local/sbin/n3w-t1-f4-activation:2:secret value")
     ) == "command_failed:n3w-t1-f4-activation:2"
+    assert tool._safe_error_code(
+        tool.VerifyError("command_failed:systemctl:1:secrettoken")
+    ) == "command_failed:systemctl:1"
+    assert tool._safe_error_code(RuntimeError("secrettoken")) == "verification_error"
+    assert tool._safe_error_code(tool.VerifyError("secrettoken")) == "verify_failed"

@@ -785,6 +785,17 @@ def test_target_verifier_does_not_trust_arbitrary_error_code_or_nonfinal_json():
         [],
         2,
         "",
+        json.dumps({**report, "error_code": "secrettoken"}),
+    )
+    with pytest.raises(tool.ProductionExecutorError) as captured:
+        tool._json_output(completed, "target_local_reboot_verify")
+    assert str(captured.value) == "target_local_reboot_verify_error_code_invalid"
+    assert not hasattr(captured.value, "error_code")
+
+    completed = subprocess.CompletedProcess(
+        [],
+        2,
+        "",
         json.dumps({**report, "error_code": "post_reboot_unit_contract_invalid"}) + "\nnot-json",
     )
     with pytest.raises(tool.ProductionExecutorError) as captured:

@@ -621,3 +621,25 @@ def test_r3_preserves_sanitized_target_error_code_in_frozen_failure():
     assert adapter.frozen_failure["error_code"] == "post_reboot_unit_contract_invalid"
     assert adapter.frozen_failure["target_failure_class"] == "VERIFY_FAILED"
     assert "error" not in adapter.frozen_failure
+
+
+
+def test_r3_rejects_unknown_syntactically_safe_error_code_from_frozen_failure():
+    adapter = Adapter()
+
+    def fail_readiness():
+        error = r2.ProductionV2R2Error("target_local_reboot_verify_command_failed")
+        error.error_code = "secrettoken"
+        error.target_failure_class = "VERIFY_FAILED"
+        raise error
+
+    adapter.wait_for_post_reboot_readiness = fail_readiness
+    result = r2.R3Orchestrator(adapter).execute(
+        release_document(),
+        run_id="1" * 64,
+        target_binding_sha256="5" * 64,
+        approved=True,
+    )
+    assert result["status"] == "FAIL"
+    assert "error_code" not in adapter.frozen_failure
+    assert adapter.frozen_failure["target_failure_class"] == "VERIFY_FAILED"
