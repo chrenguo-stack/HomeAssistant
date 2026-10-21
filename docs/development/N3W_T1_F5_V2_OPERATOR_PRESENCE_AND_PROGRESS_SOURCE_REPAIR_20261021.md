@@ -42,7 +42,7 @@ ROOT_CAUSE_STATUS=CLOSED_HIGH_CONFIDENCE
 本次修复只处理两个问题：
 
 1. 让主要长耗时生产阶段有机器可读的进度输出；
-2. 在任何 reboot-control package staging、reboot claim 或 reboot actuation 之前，增加无超时的本地 operator arming 等待点。
+2. 让 reboot-control package 的准备/安装/验证可继续无人值守，但在一次性 reboot claim 被消费和真正 reboot actuation 之前，增加无超时的本地 operator arming 等待点。
 
 不改变：
 
@@ -88,7 +88,7 @@ ARM N3W T1 F5 V2 CONTROLLED REBOOT <run_id>
 - 不是第二次 production approval；
 - 没有倒计时；
 - 输入不匹配时继续等待，不把误输入直接转成生产失败；
-- 在 exact arming 完成前不开始 reboot-control material staging、claim 或 reboot；
+- reboot-control material 可以先完成 staging/install/verify；exact arming 必须位于这些准备工作之后、一次性 reboot claim 和 reboot actuation 之前；
 - 明确告诉操作者 planned reboot 后还会要求一次 root SSH 密码。
 
 arming 完成后：
