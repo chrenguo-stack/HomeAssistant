@@ -884,6 +884,46 @@ def test_tcp_down_and_control_disconnect_can_be_observed_in_either_order(
     assert events == ["control", "tcp", "control", "tcp"]
 
 
+def test_historical_tcp_down_does_not_survive_recovery_before_control_disconnect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    adapter = object.__new__(tool.LiveProductionAdapter)
+    adapter.host = "t1.invalid"
+    adapter.target = "root@t1.invalid"
+    returncodes = iter((0, 0, 0, 1, 1, 1))
+    reachability = iter((False, False, True, True, False, False))
+    clock = [0.0]
+
+    class Runner:
+        def run(self, argv, *, timeout, check):
+            return subprocess.CompletedProcess(argv, next(returncodes), "", "")
+
+    class Transport:
+        runner = Runner()
+
+    adapter.transport = Transport()
+    monkeypatch.setattr(tool.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(
+        tool.time,
+        "sleep",
+        lambda seconds: clock.__setitem__(0, clock[0] + seconds),
+    )
+    monkeypatch.setattr(
+        tool,
+        "_tcp_port_reachable",
+        lambda *_args, **_kwargs: next(reachability),
+    )
+
+    result = adapter._wait_for_old_boot_ssh_down("/tmp/control")
+
+    assert result == {
+        "control_master_disconnected": True,
+        "ssh_down_observed": True,
+    }
+    assert clock[0] == tool.REBOOT_TCP_DOWN_POLL_SECONDS * 5
+
+
 def test_reboot_disconnect_fails_closed_if_old_ssh_never_goes_down(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
