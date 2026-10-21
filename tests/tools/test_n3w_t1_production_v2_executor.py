@@ -812,7 +812,7 @@ def test_reboot_disconnect_requires_tcp_22_down_after_control_master_disconnect(
     adapter.host = "t1.invalid"
     adapter.target = "root@t1.invalid"
     runner_calls: list[tuple[str, ...]] = []
-    reachability = iter((True, False))
+    reachability = iter((True, False, False))
     clock = [0.0]
 
     class Runner:
@@ -839,10 +839,10 @@ def test_reboot_disconnect_requires_tcp_22_down_after_control_master_disconnect(
         "ssh_down_observed": True,
     }
     assert len(runner_calls) == 1
-    assert clock[0] == tool.REBOOT_TCP_DOWN_POLL_SECONDS
+    assert clock[0] == tool.REBOOT_TCP_DOWN_POLL_SECONDS * 2
 
 
-def test_tcp_down_probe_begins_only_after_control_master_disconnect(
+def test_tcp_down_and_control_disconnect_can_be_observed_in_either_order(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     tool = load_tool()
@@ -877,8 +877,11 @@ def test_tcp_down_probe_begins_only_after_control_master_disconnect(
 
     result = adapter._wait_for_old_boot_ssh_down("/tmp/control")
 
-    assert result["ssh_down_observed"] is True
-    assert events == ["control", "control", "tcp"]
+    assert result == {
+        "control_master_disconnected": True,
+        "ssh_down_observed": True,
+    }
+    assert events == ["control", "tcp", "control", "tcp"]
 
 
 def test_reboot_disconnect_fails_closed_if_old_ssh_never_goes_down(
