@@ -72,6 +72,7 @@ class Adapter:
         else:
             self.fail_at = set(fail_at or ())
         self.marker_digest = "8" * 64
+        self.frozen_failure = None
 
     def _pass(self, name, extra=None):
         self.calls.append(name)
@@ -123,7 +124,8 @@ class Adapter:
             {"session_closed": True},
         )
 
-    def freeze_failure(self, _failure):
+    def freeze_failure(self, failure):
+        self.frozen_failure = copy.deepcopy(failure)
         return self._pass("freeze_failure")
 
     def collect_failure_forensics(self):
@@ -151,6 +153,16 @@ class Adapter:
         return self._pass(
             "start_post_reboot_epoch",
             {"host_key_sha256": "6" * 64},
+        )
+
+    def wait_for_post_reboot_readiness(self):
+        return self._pass(
+            "wait_for_post_reboot_readiness",
+            {
+                "state": "READY",
+                "board_access": False,
+                "target_mutation": False,
+            },
         )
 
     def post_reboot_acceptance(self, _release, _binding):
@@ -366,9 +378,10 @@ def test_r3_completes_post_reboot_acceptance_before_marker_accept_and_close():
     assert result["device_acceptance"] == "PASS"
     assert result["T1_PRODUCTION_READY"] is True
     assert result["reflash_required"] is False
-    assert adapter.calls[-5:] == [
+    assert adapter.calls[-6:] == [
         "wait_for_ssh",
         "start_post_reboot_epoch",
+        "wait_for_post_reboot_readiness",
         "post_reboot_acceptance",
         "accept_marker",
         "close_post_reboot_epoch",
@@ -564,3 +577,69 @@ def test_r3_insufficient_evidence_stops_without_claiming_product_failure():
         "failure_session_close",
         "record_reflash_disposition",
     ]
+
+
+def test_r3_readiness_failure_is_terminal_before_acceptance():
+    adapter = Adapter(fail_at="wait_for_post_reboot_readiness")
+    result = r2.R3Orchestrator(adapter).execute(
+        release_document(),
+        run_id="1" * 64,
+        target_binding_sha256="5" * 64,
+        approved=True,
+    )
+    assert result["status"] == "FAIL"
+    assert result["terminal_stage"] == "POST_REBOOT_READINESS"
+    assert result["marker_state"] == "STARTED"
+    assert result["reflash_required"] is True
+    assert "post_reboot_acceptance" not in adapter.calls
+    assert "accept_marker" not in adapter.calls
+    assert adapter.calls[-4:] == [
+        "freeze_failure",
+        "collect_failure_forensics",
+        "failure_session_close",
+        "record_reflash_disposition",
+    ]
+
+
+def test_r3_preserves_sanitized_target_error_code_in_frozen_failure():
+    adapter = Adapter()
+
+    def fail_readiness():
+        error = r2.ProductionV2R2Error("target_local_reboot_verify_command_failed")
+        error.error_code = "post_reboot_unit_contract_invalid"
+        error.target_failure_class = "VERIFY_FAILED"
+        raise error
+
+    adapter.wait_for_post_reboot_readiness = fail_readiness
+    result = r2.R3Orchestrator(adapter).execute(
+        release_document(),
+        run_id="1" * 64,
+        target_binding_sha256="5" * 64,
+        approved=True,
+    )
+    assert result["status"] == "FAIL"
+    assert adapter.frozen_failure["error_code"] == "post_reboot_unit_contract_invalid"
+    assert adapter.frozen_failure["target_failure_class"] == "VERIFY_FAILED"
+    assert "error" not in adapter.frozen_failure
+
+
+
+def test_r3_rejects_unknown_syntactically_safe_error_code_from_frozen_failure():
+    adapter = Adapter()
+
+    def fail_readiness():
+        error = r2.ProductionV2R2Error("target_local_reboot_verify_command_failed")
+        error.error_code = "secrettoken"
+        error.target_failure_class = "VERIFY_FAILED"
+        raise error
+
+    adapter.wait_for_post_reboot_readiness = fail_readiness
+    result = r2.R3Orchestrator(adapter).execute(
+        release_document(),
+        run_id="1" * 64,
+        target_binding_sha256="5" * 64,
+        approved=True,
+    )
+    assert result["status"] == "FAIL"
+    assert "error_code" not in adapter.frozen_failure
+    assert adapter.frozen_failure["target_failure_class"] == "VERIFY_FAILED"

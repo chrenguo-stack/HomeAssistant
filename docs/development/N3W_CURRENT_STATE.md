@@ -1,3 +1,169 @@
+## 2026-10-21 — F5 V2 post-reboot readiness A7 sanitizer source-repair closure
+
+~~~text
+TASK=N3W_T1_F5_V2_POST_REBOOT_READINESS_ERROR_CODE_SANITIZER_SOURCE_REPAIR_20261021_01
+REVIEW_BASE=0654ab3f5b914acd278ffb7333344d86cf5878d2
+REPAIR_HEAD=a904244a6ab27d728092f90d145f0e9547a9c5a9
+REPAIR_TREE=dd7e1e3a6ee1401bcede7c03bddde10fb4954854
+PR=637
+PR_STATE=OPEN_DRAFT
+
+EXACT_HEAD_CI_TOTAL=14
+EXACT_HEAD_CI_PASS=14
+EXACT_HEAD_CI_FAIL=0
+EXACT_HEAD_CI_PENDING=0
+F4_SOURCE_TESTS=153_PASS
+F5_R1_TESTS=67_PASS_1_SKIP
+F5_R2_TESTS=104_PASS
+F5_R3_TESTS=173_PASS
+MQTT_NONDISRUPTIVE_TESTS=3_PASS
+
+A1=PASS
+A2=PASS
+A3=PASS
+A4=PASS
+A5=PASS
+A6=PASS
+A7=PASS
+A8=PASS
+A9=PASS
+A10=PASS
+
+NEW_BLOCKER_COUNT=0
+SOURCE_REPAIR_REQUIRED=false
+PR637_MERGE_READY=true
+
+KF_122=OPEN
+KF_124=SOURCE_REPAIR_MERGED_LIVE_PATH_REVALIDATED_FULL_RUN_PENDING
+KF_125=SOURCE_REPAIR_REVIEW_CLOSED_PASS_MERGE_PENDING
+
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+REFLASH=false
+PRODUCTION_EXECUTION=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_F5_V2_POST_REBOOT_READINESS_SOURCE_REPAIR_MERGE_DECISION_20261021_01
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+A7 独立复核已关闭。target verifier 现在先对 `command_failed` 去掉 stderr，只保留命令 basename 与退出码；普通 broad exception 不再因为“字符格式合法”而成为可信错误码。target、Mac executor 和 frozen failure 三处都只接受仓库明确规定的错误码/错误码族，未知 token 会被固定 fallback 或拒绝，不能进入冻结失败证据。
+
+本轮同时重新独立复核 A1-A10：readiness 的 WAIT/FAIL 仍严格分离；SSH 成功不能绕过 product readiness；readiness 不做 target mutation、不新增 SSH/password/approval 边界；READY 后仍完整执行 strict target verifier、五个 external probes 与原有 90 秒稳定观察；evidence-insufficient 与 explicit failure 分类保持分离；STARTED 后失败仍为 terminal/reflash-required 且 consumed run 不可 replay；合并后旧 exact release 仍必须废弃并重建完整 release chain。
+
+最终 exact repaired source head `a904244a...` 的 14/14 workflows 全部 PASS。中间 commit `c08d732...` 曾因 Git tree 构造时误丢 `tools/n3w_t1_f4_reboot_verify.py` executable bit 导致 Ruff EXE001；后续仅恢复原 `100755` mode，未改变产品逻辑，最终 head 已全绿。
+
+PR #637 当前技术上 merge-ready，但 merge 是下一独立 gate，本记录不授权 merge、T1/board access、reflash 或 production execution。独立复核 authority 为 PR Conversation comment `6314936221`。
+
+## 2026-10-21 — F5 V2 post-reboot readiness source implementation candidate
+
+~~~text
+TASK=N3W_T1_F5_V2_POST_REBOOT_READINESS_RACE_SOURCE_REPAIR_IMPLEMENTATION_20261021_01
+DESIGN_AUTHORITY_HEAD=2f937db0be898736bba434c0d80a45bdae5abb0c
+IMPLEMENTATION_BRANCH=fix/n3w-t1-f5-v2-post-reboot-readiness-implementation-20261021
+IMPLEMENTATION_BASE=2f937db0be898736bba434c0d80a45bdae5abb0c
+IMPLEMENTATION_HEAD=6b521d0294917a693d436a718e855d6191ab7451
+IMPLEMENTATION_TREE=a86bc011e5e4436c6d54d7f2875062dbb55a2db1
+IMPLEMENTATION_PR=637
+PR_STATE=OPEN_DRAFT
+EXACT_HEAD_CI_TOTAL=14
+EXACT_HEAD_CI_PASS=14
+EXACT_HEAD_CI_FAIL=0
+EXACT_HEAD_CI_PENDING=0
+F4_SOURCE_TESTS=153_PASS
+F5_R3_TESTS=172_PASS
+SOURCE_IMPLEMENTATION=COMMITTED
+INDEPENDENT_SOURCE_REVIEW=PENDING
+
+TARGET_READINESS_ENTRYPOINT=--readiness
+READINESS_TIMEOUT_SECONDS=300
+READINESS_POLL_SECONDS=2
+READINESS_MUTATION=false
+NEW_SSH_EPOCH=false
+NEW_PASSWORD_PROMPT=false
+NEW_PRODUCTION_APPROVAL=false
+STRICT_TARGET_VERIFY_PRESERVED=true
+EXTERNAL_PROBES_PRESERVED=true
+RUNTIME_STABILITY_OBSERVATION_SECONDS=90
+RUNTIME_STABILITY_OBSERVATION_CHANGED=false
+STRUCTURED_TARGET_ERROR_CODE_PRESERVATION=IMPLEMENTED_CI_PENDING
+
+KF_122=OPEN
+KF_124=SOURCE_REPAIR_MERGED_LIVE_PATH_REVALIDATED_FULL_RUN_PENDING
+KF_125=SOURCE_IMPLEMENTED_CI_PENDING
+
+FAILED_RUN_ID=15212aa98751a5a90677fbfd4f2ab51bf12ad8a5b5744ca050f3b872acdf1acc
+FAILED_RUN_REPLAY=false
+TARGET_LOCAL_FIX_FORWARD=false
+T1_PRODUCTION_READY=false
+REFLASH_DEFERRED_PENDING_SOURCE_REPAIR=true
+
+PRODUCT_SOURCE_IMPLEMENTATION=true
+WORKFLOW_DISPATCH=false
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+REFLASH=false
+PRODUCTION_EXECUTION=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_F5_V2_POST_REBOOT_READINESS_RACE_SOURCE_REPAIR_INDEPENDENT_REVIEW_20261021_01
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+Implementation candidate adds a read-only target-side readiness report, a 300-second / 2-second polling barrier inside the existing SSH epoch #2, and a separate R3 orchestration stage before the unchanged strict acceptance. Transient boot convergence returns WAIT; explicit required-unit failures, binding drift and unexpected running services fail closed. The existing strict target-local verifier, five external probes, and 90-second continuity observation remain in their original order after readiness PASS.
+
+The Mac executor now parses only the final structured failure JSON record from repository-owned target verifier/readiness commands, validates the error code against a safe format, and preserves the code and failure class in the private frozen failure-summary. Raw stderr is not copied into that summary.
+
+Implementation source and focused tests are committed on PR #637 at exact head 6b521d0294917a693d436a718e855d6191ab7451, tree a86bc011e5e4436c6d54d7f2875062dbb55a2db1. Exact-head CI completed 14/14 PASS; F4 focused tests reported 153 passed and F5 R3 focused tests reported 172 passed. Independent source review remains pending. This does not authorize real-T1 access, target mutation, reflash, production execution or merge.
+
+Authority: docs/development/N3W_T1_F5_V2_POST_REBOOT_READINESS_RACE_SOURCE_REPAIR_DESIGN_20261021.md.
+
+## 2026-10-21 — F5 V2 post-reboot readiness race source-repair design frozen
+
+~~~text
+TASK=N3W_T1_F5_V2_POST_REBOOT_READINESS_RACE_SOURCE_REPAIR_DESIGN_20261021_01
+BASE_MAIN=0654ab3f5b914acd278ffb7333344d86cf5878d2
+BASE_TREE=a4b31277c53e8497e78bce9ae352f940de1dd553
+
+FAILED_RUN_ID=15212aa98751a5a90677fbfd4f2ab51bf12ad8a5b5744ca050f3b872acdf1acc
+FAILED_STAGE=POST_REBOOT_ACCEPTANCE
+FAILED_RUN_REPLAY=false
+T1_PRODUCTION_READY=false
+REFLASH_REQUIRED=true
+
+ROOT_CAUSE_CLASS=POST_REBOOT_PRODUCT_READINESS_RACE
+ROOT_CAUSE_CONFIDENCE=HIGH
+SOURCE_OBSERVABILITY_GAP=true
+
+POST_REBOOT_READINESS_BARRIER=DESIGN_FROZEN
+READINESS_TIMEOUT_SECONDS=300
+READINESS_POLL_SECONDS=2
+RUNTIME_STABILITY_OBSERVATION_SECONDS=90
+RUNTIME_STABILITY_OBSERVATION_UNCHANGED=true
+
+KF_122=OPEN
+KF_124=SOURCE_REPAIR_MERGED_LIVE_PATH_REVALIDATED_FULL_RUN_PENDING
+KF_125=SOURCE_DESIGN_FROZEN_IMPLEMENTATION_PENDING
+
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+REFLASH=false
+PRODUCT_SOURCE_IMPLEMENTATION=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_F5_V2_POST_REBOOT_READINESS_RACE_SOURCE_REPAIR_IMPLEMENTATION_20261021_01
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+The second real-T1 production attempt passed HOST_BASELINE, F3, provisioning, all F4 pre-reboot work, operator arming, controlled reboot, SSH recovery and SSH epoch #2. It failed only after post-reboot acceptance started. Read-only timing evidence shows broker/application units and all three product containers became healthy 4.5–12.0 seconds after SSH was already available; the later target state was running with no failed units and zero container restarts. This is high-confidence evidence of a missing bounded product-readiness barrier, not a persistent runtime failure.
+
+The frozen repair adds a 300-second / 2-second-poll read-only `POST_REBOOT_READINESS` barrier inside SSH epoch #2, before strict post-reboot acceptance. The existing target-local verifier remains strict and runs exactly once after READY; the five external probes and existing 90-second stability window are unchanged. The same implementation gate must also preserve the repository-defined sanitized target verifier error code in frozen private evidence instead of collapsing it to a generic exception type.
+
+Authority: `docs/development/N3W_T1_F5_V2_POST_REBOOT_READINESS_RACE_SOURCE_REPAIR_DESIGN_20261021.md`.
+
 ## 2026-10-21 — PR #634 merged; operator-presence repair in main
 
 ~~~text

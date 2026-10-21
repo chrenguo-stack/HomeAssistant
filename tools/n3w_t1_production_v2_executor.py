@@ -6,6 +6,7 @@ import hashlib
 import http.client
 import json
 import os
+import re
 import secrets
 import shutil
 import socket
@@ -55,6 +56,110 @@ HOMEASSISTANT_PORT = 8123
 TLS_SERVER_NAME = "armbian"
 SSH_WAIT_SECONDS = 180
 REBOOT_DISCONNECT_SECONDS = 45
+READINESS_TIMEOUT_SECONDS = 300
+READINESS_POLL_SECONDS = 2
+READINESS_SCHEMA = "gh.n3w-t1-f4-reboot-readiness/1"
+TARGET_VERIFY_REPORT_SCHEMA = "gh.n3w-t1-f4-reboot-acceptance/1"
+REPOSITORY_DEFINED_ERROR_CODES = frozenset(
+    {
+        "boot_id_invalid",
+        "broker_authenticated_connection_evidence_missing",
+        "broker_authenticated_connection_state_invalid",
+        "broker_log_coverage_insufficient",
+        "certificate_identity_changed_across_reboot",
+        "certificate_runtime_guard_dropin_missing",
+        "certificate_runtime_guard_not_pass",
+        "certificate_service_not_quiescent",
+        "certificate_service_post_reboot_invalid",
+        "certificate_unit_state_invalid",
+        "control_binding_claim_invalid",
+        "control_manifest_binding_invalid",
+        "control_manifest_file_path_invalid",
+        "control_manifest_file_record_invalid",
+        "control_manifest_file_set_invalid",
+        "control_manifest_files_invalid",
+        "critical_systemd_unit_failed",
+        "critical_systemd_unit_not_active",
+        "evidence_insufficient",
+        "f4_host_import_invalid",
+        "f4_host_invalid",
+        "f4_transaction_changed_across_reboot",
+        "f4_transaction_post_reboot_invalid",
+        "homeassistant_mqtt_socket_missing",
+        "manager_mqtt_socket_count_invalid",
+        "manager_runtime_identity_invalid",
+        "mqtt_owned_socket_not_unique",
+        "post_reboot_business_state_invalid",
+        "post_reboot_unit_contract_invalid",
+        "readiness_certificate_service_invalid",
+        "readiness_certificate_timer_failed",
+        "readiness_certificate_timer_not_enabled",
+        "readiness_certificate_timer_state_invalid",
+        "readiness_required_unit_failed",
+        "readiness_required_unit_missing",
+        "readiness_required_unit_state_invalid",
+        "readiness_runtime_service_name_invalid",
+        "readiness_systemd_not_operational",
+        "readiness_systemd_state_invalid",
+        "readiness_unit_evidence_invalid",
+        "readiness_unit_load_state_invalid",
+        "readiness_unit_state_invalid",
+        "reboot_claim_invalid",
+        "reboot_not_observed",
+        "runtime_container_name_missing",
+        "runtime_homeassistant_not_ready",
+        "runtime_identity_invalid",
+        "runtime_service_set_invalid",
+        "runtime_snapshot_command_evidence_unavailable",
+        "runtime_socket_evidence_invalid",
+        "snapshot_container_not_running",
+        "snapshot_transaction_binding_changed",
+        "systemd_error_coverage_insufficient",
+        "systemd_error_cursor_missing",
+        "verification_error",
+        "verify_failed",
+    }
+)
+REPOSITORY_DEFINED_ERROR_CODE_PATTERNS = (
+    re.compile(
+        r"record_(?:invalid|metadata_invalid|json_invalid|document_invalid):"
+        r"[A-Za-z0-9_.-]+"
+    ),
+    re.compile(
+        r"(?:unit_not_successful|oneshot_not_successful):[A-Za-z0-9_.@-]+"
+    ),
+    re.compile(
+        r"runtime_service_set_unexpected:"
+        r"[A-Za-z0-9_.-]+(?:,[A-Za-z0-9_.-]+)*"
+    ),
+)
+SANITIZED_COMMAND_FAILURE_RE = re.compile(
+    r"command_failed:[A-Za-z0-9_.-]+:[0-9]+"
+)
+
+
+def _repository_defined_error_code(value: str) -> bool:
+    return (
+        value in REPOSITORY_DEFINED_ERROR_CODES
+        or SANITIZED_COMMAND_FAILURE_RE.fullmatch(value) is not None
+        or any(
+            pattern.fullmatch(value) is not None
+            for pattern in REPOSITORY_DEFINED_ERROR_CODE_PATTERNS
+        )
+    )
+READINESS_WAIT_REASONS = frozenset(
+    {
+        "systemd_starting",
+        "systemd_state_unavailable",
+        "unit_status_unavailable",
+        "required_unit_not_active",
+        "certificate_timer_not_active",
+        "certificate_timer_enablement_unavailable",
+        "certificate_service_in_progress",
+        "runtime_service_probe_unavailable",
+        "runtime_service_set_incomplete",
+    }
+)
 SERVICE_NAMES = ("broker", "manager", "homeassistant")
 F4_COMMANDS = {
     "F4_ACTIVATE": ("activate", "--confirm", "START F4 ACTIVATION: YES"),
@@ -163,8 +268,59 @@ def _tar_member_text(path: Path, member_name: str) -> str:
         ) from error
 
 
+def _target_failure_record(
+    completed: subprocess.CompletedProcess[str],
+) -> dict[str, Any] | None:
+    for output in (completed.stderr, completed.stdout):
+        lines = [line.strip() for line in output.splitlines() if line.strip()]
+        if not lines:
+            continue
+        try:
+            report = json.loads(lines[-1])
+        except json.JSONDecodeError:
+            continue
+        if (
+            isinstance(report, dict)
+            and report.get("schema") == TARGET_VERIFY_REPORT_SCHEMA
+            and report.get("status") == "FAIL"
+        ):
+            return report
+    return None
+
+
+def _raise_target_failure(stage: str, report: dict[str, Any]) -> None:
+    failure_class = report.get("failure_class")
+    if failure_class not in {"VERIFY_FAILED", "EVIDENCE_INSUFFICIENT"}:
+        raise ProductionExecutorError(f"{stage}_failure_class_invalid")
+    error_code = report.get("error_code")
+    valid_code = (
+        isinstance(error_code, str)
+        and _repository_defined_error_code(error_code)
+    )
+    if failure_class == "EVIDENCE_INSUFFICIENT":
+        error = EvidenceInsufficientError(
+            f"{stage}_evidence_insufficient"
+            if valid_code
+            else f"{stage}_error_code_invalid"
+        )
+    else:
+        error = ProductionExecutorError(
+            f"{stage}_command_failed"
+            if valid_code
+            else f"{stage}_error_code_invalid"
+        )
+    error.target_failure_class = failure_class
+    if valid_code:
+        error.error_code = error_code
+    raise error
+
+
 def _json_output(completed: subprocess.CompletedProcess[str], stage: str) -> dict[str, Any]:
     if completed.returncode != 0:
+        if stage in {"target_local_reboot_verify", "post_reboot_readiness"}:
+            report = _target_failure_record(completed)
+            if report is not None:
+                _raise_target_failure(stage, report)
         if stage == "runtime_snapshot":
             for line in reversed((completed.stderr or "").splitlines()):
                 try:
@@ -856,6 +1012,66 @@ class LiveProductionAdapter:
         self.reboot_actuated = False
         _emit_progress("SSH_EPOCH_2", "PASS")
         return dict(epoch)
+
+    def wait_for_post_reboot_readiness(self) -> dict[str, Any]:
+        started = time.monotonic()
+        deadline = started + READINESS_TIMEOUT_SECONDS
+        _emit_progress(
+            "POST_REBOOT_READINESS",
+            "STARTED",
+            timeout_seconds=READINESS_TIMEOUT_SECONDS,
+            poll_interval_seconds=READINESS_POLL_SECONDS,
+        )
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise ProductionExecutorError("post_reboot_readiness_timeout")
+            report = self._remote_json(
+                ("sudo", "-n", REBOOT_VERIFY_CLI, "--readiness"),
+                "post_reboot_readiness",
+                timeout=min(30.0, remaining),
+            )
+            if (
+                report.get("schema") != READINESS_SCHEMA
+                or report.get("source_head") != self.release.get("source_head")
+                or re.fullmatch(r"[0-9a-f]{40}", str(report.get("source_head"))) is None
+                or re.fullmatch(
+                    r"[0-9a-f]{64}", str(report.get("control_manifest_sha256"))
+                ) is None
+                or re.fullmatch(r"[0-9a-f]{64}", str(report.get("boot_id_sha256"))) is None
+                or report.get("board_access") is not False
+                or report.get("target_mutation") is not False
+            ):
+                raise ProductionExecutorError("post_reboot_readiness_report_invalid")
+
+            status = report.get("status")
+            if status == "PASS":
+                if report.get("state") != "READY":
+                    raise ProductionExecutorError("post_reboot_readiness_state_invalid")
+                _emit_progress(
+                    "POST_REBOOT_READINESS",
+                    "PASS",
+                    elapsed_seconds=round(time.monotonic() - started, 1),
+                )
+                return report
+
+            reason = report.get("wait_reason")
+            if (
+                status != "WAIT"
+                or report.get("state") != "WAITING_FOR_BOOT_CONVERGENCE"
+                or reason not in READINESS_WAIT_REASONS
+            ):
+                raise ProductionExecutorError("post_reboot_readiness_report_invalid")
+            _emit_progress(
+                "POST_REBOOT_READINESS",
+                "WAITING",
+                reason=reason,
+                elapsed_seconds=round(time.monotonic() - started, 1),
+            )
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise ProductionExecutorError("post_reboot_readiness_timeout")
+            time.sleep(min(READINESS_POLL_SECONDS, remaining))
 
     def read_started_marker(self) -> dict[str, Any]:
         return self._remote_json_file(MARKER_PATH)

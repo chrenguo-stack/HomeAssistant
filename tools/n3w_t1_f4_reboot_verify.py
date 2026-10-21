@@ -17,6 +17,94 @@ from types import ModuleType
 
 CLAIM_SCHEMA = "gh.n3w-t1-f4-reboot-authorization/1"
 REPORT_SCHEMA = "gh.n3w-t1-f4-reboot-acceptance/1"
+READINESS_SCHEMA = "gh.n3w-t1-f4-reboot-readiness/1"
+REPOSITORY_DEFINED_ERROR_CODES = frozenset(
+    {
+        "boot_id_invalid",
+        "broker_authenticated_connection_evidence_missing",
+        "broker_authenticated_connection_state_invalid",
+        "broker_log_coverage_insufficient",
+        "certificate_identity_changed_across_reboot",
+        "certificate_runtime_guard_dropin_missing",
+        "certificate_runtime_guard_not_pass",
+        "certificate_service_not_quiescent",
+        "certificate_service_post_reboot_invalid",
+        "certificate_unit_state_invalid",
+        "control_binding_claim_invalid",
+        "control_manifest_binding_invalid",
+        "control_manifest_file_path_invalid",
+        "control_manifest_file_record_invalid",
+        "control_manifest_file_set_invalid",
+        "control_manifest_files_invalid",
+        "critical_systemd_unit_failed",
+        "critical_systemd_unit_not_active",
+        "evidence_insufficient",
+        "f4_host_import_invalid",
+        "f4_host_invalid",
+        "f4_transaction_changed_across_reboot",
+        "f4_transaction_post_reboot_invalid",
+        "homeassistant_mqtt_socket_missing",
+        "manager_mqtt_socket_count_invalid",
+        "manager_runtime_identity_invalid",
+        "mqtt_owned_socket_not_unique",
+        "post_reboot_business_state_invalid",
+        "post_reboot_unit_contract_invalid",
+        "readiness_certificate_service_invalid",
+        "readiness_certificate_timer_failed",
+        "readiness_certificate_timer_not_enabled",
+        "readiness_certificate_timer_state_invalid",
+        "readiness_required_unit_failed",
+        "readiness_required_unit_missing",
+        "readiness_required_unit_state_invalid",
+        "readiness_runtime_service_name_invalid",
+        "readiness_systemd_not_operational",
+        "readiness_systemd_state_invalid",
+        "readiness_unit_evidence_invalid",
+        "readiness_unit_load_state_invalid",
+        "readiness_unit_state_invalid",
+        "reboot_claim_invalid",
+        "reboot_not_observed",
+        "runtime_container_name_missing",
+        "runtime_homeassistant_not_ready",
+        "runtime_identity_invalid",
+        "runtime_service_set_invalid",
+        "runtime_snapshot_command_evidence_unavailable",
+        "runtime_socket_evidence_invalid",
+        "snapshot_container_not_running",
+        "snapshot_transaction_binding_changed",
+        "systemd_error_coverage_insufficient",
+        "systemd_error_cursor_missing",
+        "verification_error",
+        "verify_failed",
+    }
+)
+REPOSITORY_DEFINED_ERROR_CODE_PATTERNS = (
+    re.compile(
+        r"record_(?:invalid|metadata_invalid|json_invalid|document_invalid):"
+        r"[A-Za-z0-9_.-]+"
+    ),
+    re.compile(
+        r"(?:unit_not_successful|oneshot_not_successful):[A-Za-z0-9_.@-]+"
+    ),
+    re.compile(
+        r"runtime_service_set_unexpected:"
+        r"[A-Za-z0-9_.-]+(?:,[A-Za-z0-9_.-]+)*"
+    ),
+)
+SANITIZED_COMMAND_FAILURE_RE = re.compile(
+    r"command_failed:[A-Za-z0-9_.-]+:[0-9]+"
+)
+
+
+def _repository_defined_error_code(value: str) -> bool:
+    return (
+        value in REPOSITORY_DEFINED_ERROR_CODES
+        or SANITIZED_COMMAND_FAILURE_RE.fullmatch(value) is not None
+        or any(
+            pattern.fullmatch(value) is not None
+            for pattern in REPOSITORY_DEFINED_ERROR_CODE_PATTERNS
+        )
+    )
 CLAIM_PATH = Path("/var/lib/n3w-t1-provisioning/F4_REBOOT_AUTHORIZATION.json")
 F4_TRANSACTION = Path("/var/lib/n3w-t1-provisioning/F4_ACTIVATION_TRANSACTION.json")
 F4_HOST = Path("/usr/local/sbin/n3w-t1-f4-activation")
@@ -220,6 +308,318 @@ def _inactive_oneshot_success(unit: str) -> None:
     ):
         raise VerifyError(f"oneshot_not_successful:{unit}")
 
+
+
+def _readiness_systemd_state() -> str:
+    try:
+        completed = subprocess.run(
+            ("systemctl", "is-system-running"),
+            check=False,
+            text=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=3,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return "unavailable"
+    state = completed.stdout.strip().casefold()
+    if state in {"starting", "initializing", "running", "degraded", "maintenance", "offline"}:
+        return state
+    return "unavailable" if state in {"", "unknown"} else "invalid"
+
+
+def _readiness_unit_state(unit: str) -> dict[str, str] | None:
+    try:
+        completed = subprocess.run(
+            (
+                "systemctl",
+                "show",
+                unit,
+                "--property=LoadState,ActiveState,Result,ExecMainStatus",
+            ),
+            check=False,
+            text=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=3,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    values = {}
+    for line in completed.stdout.splitlines():
+        key, separator, value = line.partition("=")
+        if separator:
+            values[key] = value
+    if not values:
+        return None
+    if not {"LoadState", "ActiveState", "Result", "ExecMainStatus"}.issubset(values):
+        raise VerifyError("readiness_unit_evidence_invalid")
+    return values
+
+
+def _readiness_timer_enabled(unit: str) -> str | None:
+    try:
+        completed = subprocess.run(
+            ("systemctl", "is-enabled", unit),
+            check=False,
+            text=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=3,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    value = completed.stdout.strip().casefold()
+    return value or None
+
+
+def _readiness_running_services(module: ModuleType) -> frozenset[str] | None:
+    try:
+        completed = subprocess.run(
+            (
+                "docker",
+                "compose",
+                "--project-name",
+                str(module.BROKER_PROJECT),
+                "--env-file",
+                str(module.COMPOSE_ENV),
+                "-f",
+                str(module.COMPOSE_TARGET),
+                "--profile",
+                "application",
+                "ps",
+                "--status",
+                "running",
+                "--services",
+            ),
+            check=False,
+            text=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if completed.returncode != 0:
+        return None
+    services = frozenset(
+        line.strip() for line in completed.stdout.splitlines() if line.strip()
+    )
+    if any(re.fullmatch(r"[a-zA-Z0-9_.-]+", service) is None for service in services):
+        raise VerifyError("readiness_runtime_service_name_invalid")
+    return services
+
+
+def _readiness_report(
+    claim: dict[str, object],
+    boot_id_sha256: str,
+    *,
+    status: str,
+    reason: str | None = None,
+) -> dict[str, object]:
+    document: dict[str, object] = {
+        "schema": READINESS_SCHEMA,
+        "status": status,
+        "state": "READY" if status == "PASS" else "WAITING_FOR_BOOT_CONVERGENCE",
+        "source_head": claim["source_head"],
+        "control_manifest_sha256": claim["control_manifest_sha256"],
+        "boot_id_sha256": boot_id_sha256,
+        "board_access": False,
+        "target_mutation": False,
+    }
+    if reason is not None:
+        document["wait_reason"] = reason
+    return document
+
+
+def readiness() -> dict[str, object]:
+    claim = _json(CLAIM_PATH, 0o600)
+    if (
+        claim.get("schema") != CLAIM_SCHEMA
+        or claim.get("stage") != "REBOOT_PENDING"
+        or claim.get("reboot_authorization_claimed") is not True
+        or claim.get("reboot_authorization_consumed") is not True
+        or claim.get("reboot_authorization_replay_allowed") is not False
+        or claim.get("reboot_acceptance_passed") is not False
+        or claim.get("board_access") is not False
+    ):
+        raise VerifyError("reboot_claim_invalid")
+
+    _installed_control_binding(claim)
+    pre_boot = claim.get("pre_boot_id_sha256")
+    current_boot = _boot_id_sha256()
+    if (
+        not isinstance(pre_boot, str)
+        or re.fullmatch(r"[0-9a-f]{64}", pre_boot) is None
+        or current_boot == pre_boot
+    ):
+        raise VerifyError("reboot_not_observed")
+
+    expected_f4_sha = claim.get("f4_transaction_sha256")
+    if (
+        not isinstance(expected_f4_sha, str)
+        or re.fullmatch(r"[0-9a-f]{64}", expected_f4_sha) is None
+        or _sha256(F4_TRANSACTION) != expected_f4_sha
+    ):
+        raise VerifyError("f4_transaction_changed_across_reboot")
+
+    transaction = _json(F4_TRANSACTION, 0o600)
+    if (
+        transaction.get("stage") != "PERSISTENCE_ENABLED"
+        or transaction.get("runtime_acceptance_passed") is not True
+        or transaction.get("persistence_enabled") is not True
+        or transaction.get("certificate_first_audit_passed") is not True
+        or transaction.get("certificate_timer_enabled") is not True
+        or transaction.get("pre_reboot_ready") is not True
+    ):
+        raise VerifyError("f4_transaction_post_reboot_invalid")
+
+    module = _load_f4()
+    systemd_state = _readiness_systemd_state()
+    if systemd_state == "invalid":
+        raise VerifyError("readiness_systemd_state_invalid")
+    if systemd_state not in {
+        "starting", "initializing", "unavailable", "running", "degraded"
+    }:
+        raise VerifyError("readiness_systemd_not_operational")
+
+    required_units = (
+        module.PROVISION_UNIT,
+        module.GUARD_UNIT,
+        module.BROKER_UNIT,
+        module.SERVICES_UNIT,
+        module.CERT_TIMER,
+        module.CERT_SERVICE,
+    )
+    states: dict[str, dict[str, str]] = {}
+    unit_status_unavailable = False
+    for unit in required_units:
+        state = _readiness_unit_state(unit)
+        if state is None:
+            unit_status_unavailable = True
+            continue
+        states[unit] = state
+        if state.get("LoadState") != "loaded":
+            if state.get("LoadState") == "not-found":
+                raise VerifyError("readiness_required_unit_missing")
+            raise VerifyError("readiness_unit_load_state_invalid")
+        active = state.get("ActiveState")
+        result = state.get("Result")
+        exit_status = state.get("ExecMainStatus")
+        if (
+            active == "failed"
+            or result not in {"", "success"}
+            or exit_status not in {"", "0"}
+        ):
+            raise VerifyError("readiness_required_unit_failed")
+        if active not in {
+            "active", "activating", "reloading", "inactive", "deactivating"
+        }:
+            raise VerifyError("readiness_unit_state_invalid")
+
+    timer_enabled = _readiness_timer_enabled(module.CERT_TIMER)
+    if timer_enabled is not None and timer_enabled != "enabled":
+        raise VerifyError("readiness_certificate_timer_not_enabled")
+
+    running_services = _readiness_running_services(module)
+    if running_services is not None:
+        unexpected = running_services - EXPECTED_SERVICES
+        if unexpected:
+            raise VerifyError(
+                "runtime_service_set_unexpected:" + ",".join(sorted(unexpected))
+            )
+
+    if systemd_state in {"starting", "initializing"}:
+        return _readiness_report(
+            claim, current_boot, status="WAIT", reason="systemd_starting"
+        )
+    if systemd_state == "unavailable":
+        return _readiness_report(
+            claim, current_boot, status="WAIT", reason="systemd_state_unavailable"
+        )
+    if unit_status_unavailable:
+        return _readiness_report(
+            claim, current_boot, status="WAIT", reason="unit_status_unavailable"
+        )
+    if timer_enabled is None:
+        return _readiness_report(
+            claim, current_boot, status="WAIT",
+            reason="certificate_timer_enablement_unavailable",
+        )
+    if running_services is None:
+        return _readiness_report(
+            claim, current_boot, status="WAIT",
+            reason="runtime_service_probe_unavailable",
+        )
+
+    for unit in (
+        module.PROVISION_UNIT,
+        module.GUARD_UNIT,
+        module.BROKER_UNIT,
+        module.SERVICES_UNIT,
+    ):
+        state = states[unit]
+        if state["ActiveState"] != "active":
+            if state["ActiveState"] in {"inactive", "activating", "reloading"}:
+                return _readiness_report(
+                    claim, current_boot, status="WAIT", reason="required_unit_not_active"
+                )
+            raise VerifyError("readiness_required_unit_state_invalid")
+        if state["Result"] != "success" or state["ExecMainStatus"] != "0":
+            raise VerifyError("readiness_required_unit_failed")
+
+    timer = states[module.CERT_TIMER]
+    if timer["ActiveState"] != "active":
+        if timer["ActiveState"] in {"inactive", "activating", "reloading"}:
+            return _readiness_report(
+                claim, current_boot, status="WAIT", reason="certificate_timer_not_active"
+            )
+        raise VerifyError("readiness_certificate_timer_state_invalid")
+    if timer["Result"] not in {"", "success"}:
+        raise VerifyError("readiness_certificate_timer_failed")
+
+    certificate_service = states[module.CERT_SERVICE]
+    certificate_state = certificate_service["ActiveState"]
+    if certificate_state in {"active", "activating", "reloading", "deactivating"}:
+        return _readiness_report(
+            claim, current_boot, status="WAIT",
+            reason="certificate_service_in_progress",
+        )
+    if (
+        certificate_state != "inactive"
+        or certificate_service["Result"] != "success"
+        or certificate_service["ExecMainStatus"] != "0"
+    ):
+        raise VerifyError("readiness_certificate_service_invalid")
+
+    if running_services != EXPECTED_SERVICES:
+        return _readiness_report(
+            claim, current_boot, status="WAIT", reason="runtime_service_set_incomplete"
+        )
+    return _readiness_report(claim, current_boot, status="PASS")
+
+
+def _safe_error_code(error: BaseException) -> str:
+    value = str(error)
+    command_failure = re.match(r"^command_failed:(.+?):([0-9]+)(?::.*)?$", value)
+    if command_failure is not None:
+        command = Path(command_failure.group(1)).name
+        code = f"command_failed:{command}:{command_failure.group(2)}"
+        if SANITIZED_COMMAND_FAILURE_RE.fullmatch(code) is not None:
+            return code
+    if isinstance(error, EvidenceInsufficientError):
+        if _repository_defined_error_code(value):
+            return value
+        return "evidence_insufficient"
+    if isinstance(error, VerifyError):
+        if _repository_defined_error_code(value):
+            return value
+        return "verify_failed"
+    return "verification_error"
 
 def verify() -> dict[str, object]:
     claim = _json(CLAIM_PATH, 0o600)
@@ -593,10 +993,17 @@ def runtime_snapshot() -> dict[str, object]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--snapshot", action="store_true")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--snapshot", action="store_true")
+    mode.add_argument("--readiness", action="store_true")
     args = parser.parse_args()
     try:
-        document = runtime_snapshot() if args.snapshot else verify()
+        if args.snapshot:
+            document = runtime_snapshot()
+        elif args.readiness:
+            document = readiness()
+        else:
+            document = verify()
     except (
         VerifyError,
         ImportError,
@@ -617,7 +1024,7 @@ def main() -> int:
                         if isinstance(error, EvidenceInsufficientError)
                         else "VERIFY_FAILED"
                     ),
-                    "error_code": str(error)[:300],
+                    "error_code": _safe_error_code(error),
                     "board_access": False,
                 },
                 sort_keys=True,

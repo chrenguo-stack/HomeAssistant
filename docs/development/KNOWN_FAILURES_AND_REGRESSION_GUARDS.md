@@ -1,3 +1,11 @@
+### 2026-10-21 KF-125 — F5 V2 重启后 SSH 就绪早于产品就绪导致 false FAIL
+
+| ID | 范围 | 问题 | 根因与修复保护 | 状态 |
+| --- | --- | --- | --- | --- |
+| KF-125 | T1 F5 V2 post-reboot readiness | real-T1 run `15212aa9...` 在 controlled reboot 与 SSH epoch #2 均 PASS 后立即进入最终验收；此时 systemd/产品服务仍在正常启动，严格 verifier 可在现有 90 秒稳定观察开始之前先 fail-fast，导致 STARTED run 被终止为 reflash-required | TCP/22/SSH readiness 不是 product readiness。增加独立、只读、bounded 的 `POST_REBOOT_READINESS`：300 s 上限、2 s poll；正常 starting/activating 只 WAIT，required-unit 明确失败/绑定漂移/异常服务集立即 FAIL；READY 后仍完整执行原 target verifier、外部探测和原有 90 秒连续观察。错误码链路只允许仓库定义或显式脱敏后的错误码，禁止 raw stderr/未知 token 进入 frozen evidence | SOURCE_REPAIR_REVIEW_CLOSED_PASS_MERGE_PENDING |
+
+现场证据：SSH active 后 broker/services activation 分别晚约 4.50 s / 8.63 s；post-reboot acceptance 开始后 broker/manager/Home Assistant 容器分别晚约 7.79 s / 12.04 s / 12.05 s 才启动。稍后只读检查为 systemd running、无 failed unit、无 pending job、三个容器 restart_count 均为 0，因此 persistent runtime failure 无证据支持。失败 run 永不 replay，不做 target-local fix-forward；重刷仍延后到源码修复 merge、新 exact release/local validation 之后。Final repaired source `a904244a6ab27d728092f90d145f0e9547a9c5a9` / tree `dd7e1e3a6ee1401bcede7c03bddde10fb4954854` passed 14/14 workflows; F4 focused tests 153 passed and F5 R3 focused tests 173 passed. Independent A1-A10 review is CLOSED_PASS with zero new blockers; A7 now sanitizes `command_failed` before code preservation and rejects repository-unknown syntactically-safe tokens at target/executor/frozen-evidence boundaries. PR #637 is technically merge-ready but remains OPEN/DRAFT and unmerged. No T1/board access, target mutation, reflash or production execution. Authority: N3W_T1_F5_V2_POST_REBOOT_READINESS_RACE_SOURCE_REPAIR_DESIGN_20261021.md; independent closure evidence: PR #637 comment `6314936221`.
+
 ### 2026-10-21 KF-124 — F5 V2 长耗时生产缺少 reboot 前 operator arming
 
 | ID | 范围 | 问题 | 根因与修复保护 | 状态 |

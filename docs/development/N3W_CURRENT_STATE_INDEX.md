@@ -1,3 +1,41 @@
+## 2026-10-21 — F5 V2 post-reboot readiness A7 sanitizer closure
+
+- Exact repaired source head: `a904244a6ab27d728092f90d145f0e9547a9c5a9`; tree `dd7e1e3a6ee1401bcede7c03bddde10fb4954854`; PR #637 remains OPEN/DRAFT.
+- A7 sanitizer blocker is closed: command failures are sanitized before preservation; broad unknown exception messages fall back to fixed codes; executor/frozen evidence reject syntactically-valid but repository-unknown tokens.
+- Independent exact-source A1-A10 review: all PASS; no new false-PASS path found.
+- Final exact-head CI: 14/14 PASS. Focused results include F4 153 passed, F5 R1 67 passed/1 skipped, R2 104 passed, R3 173 passed, MQTT non-disruptive 3 passed.
+- Readiness remains 300 s / 2 s, read-only, inside SSH epoch #2; strict verifier, five external probes and existing 90-second observation are unchanged.
+- Failed real-T1 run remains terminal/no-replay and reflash-required. No T1/board access, reflash, production execution or merge occurred.
+- KF-125 status: `SOURCE_REPAIR_REVIEW_CLOSED_PASS_MERGE_PENDING`.
+- PR #637 is technically merge-ready, but merge requires the next separate decision gate: `N3W_T1_F5_V2_POST_REBOOT_READINESS_SOURCE_REPAIR_MERGE_DECISION_20261021_01`.
+- Independent review authority: PR #637 comment `6314936221`.
+
+## 2026-10-21 — F5 V2 post-reboot readiness source implementation candidate
+
+- Implementation branch: `fix/n3w-t1-f5-v2-post-reboot-readiness-implementation-20261021`, based on the exact design candidate head `2f937db0be898736bba434c0d80a45bdae5abb0c`.
+- Added target-side `--readiness` read-only entrypoint and bounded 300 s / 2 s Mac polling inside SSH epoch #2; readiness PASS does not replace strict verification.
+- Existing five external probes and the existing 90-second stability observation remain unchanged and run only after readiness PASS.
+- Target verifier errors now use sanitized structured codes; the executor accepts only the final structured failure record and preserves allowlisted code/class in private frozen failure evidence.
+- Added focused tests for readiness WAIT/PASS/FAIL, orchestrator ordering, timeout, no new SSH epoch, and structured error-code handling.
+- PR #637 remains OPEN/DRAFT at exact head `6b521d0294917a693d436a718e855d6191ab7451`; exact-head CI is 14/14 PASS, including F4 focused tests (153 passed) and F5 R3 focused tests (172 passed).
+- KF-125 status: `SOURCE_CI_PASS_INDEPENDENT_REVIEW_PENDING`; independent source review remains the next gate.
+- Failed run remains terminal/no-replay; T1 access, target mutation, reflash, production execution and merge remain false.
+- Next gate: `N3W_T1_F5_V2_POST_REBOOT_READINESS_RACE_SOURCE_REPAIR_INDEPENDENT_REVIEW_20261021_01`.
+
+## 2026-10-21 — F5 V2 post-reboot readiness race design frozen
+
+- Real run `15212aa9...` passed the entire pre-reboot production path, operator arming, controlled reboot, SSH recovery and SSH epoch #2, then failed at `POST_REBOOT_ACCEPTANCE`.
+- Frozen forensics are complete/read-only with zero unavailable probes; marker remains STARTED, F4 transaction is `PERSISTENCE_ENABLED`, reboot claim is consumed/`REBOOT_PENDING`.
+- Timing evidence: broker activation became active 4.50 s after SSH; application services 8.63 s after SSH. Broker/Manager/Home Assistant containers started 7.79/12.04/12.05 s after post-reboot acceptance had already started.
+- Later read-only state: systemd running, no failed units, no pending jobs, all three containers running with restart_count=0.
+- Root-cause class: `POST_REBOOT_PRODUCT_READINESS_RACE`, confidence HIGH. The current executor also loses the target verifier's sanitized first error code.
+- Frozen design adds a bounded 300 s / 2 s poll, read-only `POST_REBOOT_READINESS` barrier after SSH epoch #2 and before full acceptance. Transient boot convergence waits; explicit contradiction fails immediately; timeout fails closed.
+- Existing strict target-local verifier, external probes and the existing 90-second continuity observation remain unchanged.
+- KF-125 opened as source-repair required/design frozen. KF-124 arming path is live exercised but full-run closure remains pending. KF-122 remains OPEN.
+- Failed run is terminal/no-replay; no target-local fix-forward. Reflash is deferred until repaired source is reviewed, merged and rebuilt into a new exact release.
+- Authority: `docs/development/N3W_T1_F5_V2_POST_REBOOT_READINESS_RACE_SOURCE_REPAIR_DESIGN_20261021.md`.
+- Next gate: `N3W_T1_F5_V2_POST_REBOOT_READINESS_RACE_SOURCE_REPAIR_IMPLEMENTATION_20261021_01`; no T1/board access or merge in the design gate.
+
 ## 2026-10-21 — PR #634 merged; F5 V2 operator-presence repair in main
 
 - PR #634 is CLOSED/MERGED.

@@ -387,3 +387,217 @@ def test_snapshot_cli_keeps_explicit_runtime_failure_distinct(monkeypatch, capsy
     report = json.loads(capsys.readouterr().err)
     assert report["status"] == "FAIL"
     assert report["failure_class"] == "VERIFY_FAILED"
+
+
+def _configure_readiness(
+    tool,
+    monkeypatch,
+    *,
+    systemd_state="running",
+    running_services=frozenset({"broker", "manager", "homeassistant"}),
+    unit_overrides=None,
+    timer_enabled="enabled",
+):
+    from types import SimpleNamespace
+
+    claim = {
+        "schema": tool.CLAIM_SCHEMA,
+        "stage": "REBOOT_PENDING",
+        "reboot_authorization_claimed": True,
+        "reboot_authorization_consumed": True,
+        "reboot_authorization_replay_allowed": False,
+        "reboot_acceptance_passed": False,
+        "board_access": False,
+        "pre_boot_id_sha256": "a" * 64,
+        "f4_transaction_sha256": "b" * 64,
+        "source_head": "c" * 40,
+        "control_manifest_sha256": "d" * 64,
+    }
+    transaction = {
+        "stage": "PERSISTENCE_ENABLED",
+        "runtime_acceptance_passed": True,
+        "persistence_enabled": True,
+        "certificate_first_audit_passed": True,
+        "certificate_timer_enabled": True,
+        "pre_reboot_ready": True,
+    }
+    module = SimpleNamespace(
+        PROVISION_UNIT="provision.service",
+        GUARD_UNIT="guard.service",
+        BROKER_UNIT="broker.service",
+        SERVICES_UNIT="services.service",
+        CERT_TIMER="certificate.timer",
+        CERT_SERVICE="certificate.service",
+        BROKER_PROJECT="n3wfc4",
+        COMPOSE_ENV="/etc/n3wfc4/docker-compose.env",
+        COMPOSE_TARGET="/etc/n3wfc4/docker-compose.yml",
+    )
+    monkeypatch.setattr(
+        tool,
+        "_json",
+        lambda path, _mode: claim if path == tool.CLAIM_PATH else transaction,
+    )
+    monkeypatch.setattr(tool, "_installed_control_binding", lambda _claim: None)
+    monkeypatch.setattr(tool, "_boot_id_sha256", lambda: "e" * 64)
+    monkeypatch.setattr(tool, "_sha256", lambda _path: "b" * 64)
+    monkeypatch.setattr(tool, "_load_f4", lambda: module)
+    monkeypatch.setattr(tool, "_readiness_systemd_state", lambda: systemd_state)
+    default = {
+        "LoadState": "loaded",
+        "ActiveState": "active",
+        "Result": "success",
+        "ExecMainStatus": "0",
+    }
+    states = {
+        unit: dict(default)
+        for unit in (
+            module.PROVISION_UNIT,
+            module.GUARD_UNIT,
+            module.BROKER_UNIT,
+            module.SERVICES_UNIT,
+            module.CERT_TIMER,
+        )
+    }
+    states[module.CERT_SERVICE] = {
+        "LoadState": "loaded",
+        "ActiveState": "inactive",
+        "Result": "success",
+        "ExecMainStatus": "0",
+    }
+    states.update(unit_overrides or {})
+    monkeypatch.setattr(tool, "_readiness_unit_state", lambda unit: states.get(unit))
+    monkeypatch.setattr(tool, "_readiness_timer_enabled", lambda _unit: timer_enabled)
+    monkeypatch.setattr(
+        tool,
+        "_readiness_running_services",
+        lambda _module: running_services,
+    )
+    return module, claim, transaction, states
+
+
+def test_readiness_waits_when_systemd_is_still_starting(monkeypatch):
+    tool = load_tool()
+    _configure_readiness(tool, monkeypatch, systemd_state="starting")
+    report = tool.readiness()
+    assert report["schema"] == tool.READINESS_SCHEMA
+    assert report["status"] == "WAIT"
+    assert report["state"] == "WAITING_FOR_BOOT_CONVERGENCE"
+    assert report["wait_reason"] == "systemd_starting"
+    assert report["board_access"] is False
+    assert report["target_mutation"] is False
+
+
+def test_readiness_waits_for_incomplete_runtime_service_set(monkeypatch):
+    tool = load_tool()
+    _configure_readiness(
+        tool,
+        monkeypatch,
+        running_services=frozenset({"broker"}),
+    )
+    report = tool.readiness()
+    assert report["status"] == "WAIT"
+    assert report["wait_reason"] == "runtime_service_set_incomplete"
+
+
+def test_readiness_passes_only_when_required_units_and_runtime_set_are_ready(monkeypatch):
+    tool = load_tool()
+    _configure_readiness(tool, monkeypatch, systemd_state="degraded")
+    report = tool.readiness()
+    assert report["status"] == "PASS"
+    assert report["state"] == "READY"
+    assert report["boot_id_sha256"] == "e" * 64
+    assert report["source_head"] == "c" * 40
+    assert report["board_access"] is False
+    assert report["target_mutation"] is False
+
+
+def test_readiness_fails_immediately_for_failed_required_unit(monkeypatch):
+    tool = load_tool()
+    _configure_readiness(
+        tool,
+        monkeypatch,
+        unit_overrides={
+            "broker.service": {
+                "LoadState": "loaded",
+                "ActiveState": "failed",
+                "Result": "exit-code",
+                "ExecMainStatus": "1",
+            }
+        },
+    )
+    with pytest.raises(tool.VerifyError, match="readiness_required_unit_failed"):
+        tool.readiness()
+
+
+def test_readiness_starting_state_does_not_hide_failed_unit(monkeypatch):
+    tool = load_tool()
+    _configure_readiness(
+        tool,
+        monkeypatch,
+        systemd_state="starting",
+        unit_overrides={
+            "broker.service": {
+                "LoadState": "loaded",
+                "ActiveState": "failed",
+                "Result": "exit-code",
+                "ExecMainStatus": "1",
+            }
+        },
+    )
+    with pytest.raises(tool.VerifyError, match="readiness_required_unit_failed"):
+        tool.readiness()
+
+
+def test_readiness_fails_immediately_for_unexpected_runtime_service(monkeypatch):
+    tool = load_tool()
+    _configure_readiness(
+        tool,
+        monkeypatch,
+        running_services=frozenset({"broker", "manager", "homeassistant", "unexpected"}),
+    )
+    with pytest.raises(tool.VerifyError, match="runtime_service_set_unexpected"):
+        tool.readiness()
+
+
+def test_readiness_fails_when_certificate_timer_is_not_enabled(monkeypatch):
+    tool = load_tool()
+    _configure_readiness(tool, monkeypatch, timer_enabled="disabled")
+    with pytest.raises(tool.VerifyError, match="readiness_certificate_timer_not_enabled"):
+        tool.readiness()
+
+
+def test_readiness_cli_dispatches_without_running_full_verifier(monkeypatch, capsys):
+    import json
+
+    tool = load_tool()
+    report = {
+        "schema": tool.READINESS_SCHEMA,
+        "status": "WAIT",
+        "state": "WAITING_FOR_BOOT_CONVERGENCE",
+        "wait_reason": "systemd_starting",
+        "source_head": "a" * 40,
+        "control_manifest_sha256": "b" * 64,
+        "boot_id_sha256": "c" * 64,
+        "board_access": False,
+        "target_mutation": False,
+    }
+    monkeypatch.setattr(tool.sys, "argv", ["n3w-t1-f4-reboot-verify", "--readiness"])
+    monkeypatch.setattr(tool, "readiness", lambda: report)
+    monkeypatch.setattr(tool, "verify", lambda: pytest.fail("full verify must not run during readiness"))
+    assert tool.main() == 0
+    assert json.loads(capsys.readouterr().out) == report
+
+
+def test_target_verifier_error_codes_are_sanitized():
+    tool = load_tool()
+    assert tool._safe_error_code(tool.VerifyError("post_reboot_unit_contract_invalid")) == (
+        "post_reboot_unit_contract_invalid"
+    )
+    assert tool._safe_error_code(
+        tool.VerifyError("command_failed:/usr/local/sbin/n3w-t1-f4-activation:2:secret value")
+    ) == "command_failed:n3w-t1-f4-activation:2"
+    assert tool._safe_error_code(
+        tool.VerifyError("command_failed:systemctl:1:secrettoken")
+    ) == "command_failed:systemctl:1"
+    assert tool._safe_error_code(RuntimeError("secrettoken")) == "verification_error"
+    assert tool._safe_error_code(tool.VerifyError("secrettoken")) == "verify_failed"
