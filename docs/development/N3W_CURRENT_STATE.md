@@ -1,3 +1,41 @@
+## 2026-10-21 — F5 V2 exact-main release rebuild preparation ready
+
+~~~text
+TASK=N3W_T1_F5_V2_EXACT_MAIN_RELEASE_REBUILD_PREPARATION_20261021_01
+RESULT=PREPARATION_READY
+
+EXACT_MAIN=90775b804807b4ff69ca7cea71a220a2e3a5a416
+EXACT_MAIN_TREE=9919c90a854265cf9fedc795affc8a0a53a9e522
+
+PR628_SOURCE_BLOCKER=CLOSED
+PR629_ALIGNMENT_MERGED=true
+KF_122=OPEN
+
+REBUILD_CHAIN_SOURCE_REVIEW=PASS
+SOURCE_REPAIR_REQUIRED=false
+
+F3_DISPATCH_READY=true
+F4_REBOOT_DISPATCH_READY=true
+RELEASE_INPUTS_DISPATCH_READY_AFTER_F3_F4_PASS=true
+FINAL_RELEASE_DISPATCH_READY_AFTER_INPUTS_PASS=true
+
+WORKFLOW_DISPATCH=false
+GITHUB_ARTIFACT_PRODUCTION=false
+T1_ACCESS=false
+T1_MUTATION=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_F5_V2_EXACT_MAIN_F3_F4_ARTIFACT_REBUILD_EXECUTION_20261021_01
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+The exact-main producer chain was independently rebound to current main. F3 and F4/reboot can be dispatched independently from the same main SHA; release inputs then require both exact upstream run IDs, and the final release requires the exact release-input run and exact artifact name. All downstream producer workflows reject source/main drift. No artifact was built in this preparation gate.
+
+Authority:
+`docs/development/N3W_T1_F5_V2_EXACT_MAIN_RELEASE_REBUILD_PREPARATION_20261021.md`.
+
 ## 2026-10-21 — PR #628 merged; post-merge state alignment prepared
 
 ~~~text
