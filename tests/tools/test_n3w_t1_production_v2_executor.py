@@ -168,6 +168,7 @@ def test_progress_surface_covers_long_and_password_wait_stages() -> None:
         '_emit_progress("PROVISION", "STARTED")',
         '_emit_progress("REBOOT_CONTROL", "WAITING_FOR_OPERATOR")',
         '_emit_progress("REBOOT_CONTROL", "ARMED")',
+        '_emit_progress("REBOOT_CONTROL", "OLD_BOOT_SSH_DOWN")',
         '_emit_progress("WAIT_FOR_SSH", "STARTED")',
         '_emit_progress("SSH_EPOCH_2", "PASSWORD_REQUIRED")',
         '_emit_progress("POST_REBOOT_ACCEPTANCE", "STARTED")',
