@@ -2,7 +2,7 @@
 
 | ID | 范围 | 问题 | 根因与修复保护 | 状态 |
 | --- | --- | --- | --- | --- |
-| KF-126 | T1 F5 V2 reboot / SSH epoch boundary | fresh exact-main real-T1 production 在 planned reboot 后进入 `POST_REBOOT_READINESS`，冻结错误码为 `reboot_not_observed`；取证同时显示 systemd 仍处于 `stopping`。这证明 executor 在旧 boot 尚未彻底退出时，已经把 TCP/22 可连误当成“重启后 SSH 已恢复” | `systemctl reboot` 后不能只等旧 ControlMaster 断开。修复要求在进入 `REBOOT_PENDING` 前同时观察旧 ControlMaster 已断和 TCP/22 至少一次不可达；之后才允许进入 post-reboot TCP/22 up wait、SSH epoch #2、readiness。target-side `reboot_not_observed` 硬保护保持不变；不增加第三 SSH epoch、第二次 production approval 或固定盲等 | SOURCE_REPAIR_IMPLEMENTED_REVIEW_PENDING |
+| KF-126 | T1 F5 V2 reboot / SSH epoch boundary | fresh exact-main real-T1 production 在 planned reboot 后进入 `POST_REBOOT_READINESS`，冻结错误码为 `reboot_not_observed`；取证同时显示 systemd 仍处于 `stopping`。这证明 executor 在旧 boot 尚未彻底退出时，已经把 TCP/22 可连误当成“重启后 SSH 已恢复” | `systemctl reboot` 后不能只等旧 ControlMaster 断开。修复要求在进入 `REBOOT_PENDING` 前同时满足旧 ControlMaster 已断和 TCP/22 连续两次不可达；两类证据允许按任意顺序到达，之后才允许进入 post-reboot TCP/22 up wait、SSH epoch #2、readiness。target-side `reboot_not_observed` 硬保护保持不变；不增加第三 SSH epoch、第二次 production approval 或固定盲等 | SOURCE_REPAIR_IMPLEMENTED_REVIEW_PENDING |
 
 现场失败 run 不公开原始 RUN_ID；公开绑定为 `run_id_sha256=67fc973c09c1d7335197c64291454ff636643e4507dc3e177484b6c8b77a2569`。Final result 为 `terminal_stage=POST_REBOOT_READINESS`、`marker_state=STARTED`、`device_acceptance=FAIL`、`reflash_required=true`；冻结取证 `unavailable_count=0`，四类 probe 全部 OBSERVED，systemd 为 `stopping`。失败 run 永不 replay；T1-B 仍是 `REFLASH_REQUIRED`，但 reflash 延后到 source repair review/merge、新 exact release、本地验证之后。Authority: `docs/development/N3W_T1_F5_V2_POST_REBOOT_SSH_BOOT_EPOCH_RACE_SOURCE_REPAIR_20261021.md`。
 
