@@ -986,7 +986,6 @@ class LiveProductionAdapter:
     def _wait_for_old_boot_ssh_down(self, control_path: str) -> dict[str, bool]:
         deadline = time.monotonic() + REBOOT_DISCONNECT_SECONDS
         control_master_disconnected = False
-        ssh_down_observed = False
         while time.monotonic() < deadline:
             if not control_master_disconnected:
                 checked = self.transport.runner.run(
@@ -995,13 +994,11 @@ class LiveProductionAdapter:
                     check=False,
                 )
                 control_master_disconnected = checked.returncode != 0
-            if not _tcp_port_reachable(
+            if control_master_disconnected and not _tcp_port_reachable(
                 self.host,
                 22,
                 timeout=REBOOT_TCP_PROBE_TIMEOUT_SECONDS,
             ):
-                ssh_down_observed = True
-            if control_master_disconnected and ssh_down_observed:
                 return {
                     "control_master_disconnected": True,
                     "ssh_down_observed": True,
