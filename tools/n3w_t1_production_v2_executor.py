@@ -695,11 +695,7 @@ class LiveProductionAdapter:
         install_authorization_id: str,
         reboot_authorization_id: str,
     ) -> dict[str, Any]:
-        _emit_progress("REBOOT_CONTROL", "WAITING_FOR_OPERATOR")
-        armed = _wait_for_reboot_arm(self.run_id)
-        if armed.get("status") != "PASS":
-            raise ProductionExecutorError("reboot_operator_arming_not_pass")
-        _emit_progress("REBOOT_CONTROL", "ARMED")
+        _emit_progress("REBOOT_CONTROL", "PREPARING")
         package_root = self._stage_release_tar(
             "reboot_control",
             "reboot-successor-control",
@@ -762,6 +758,11 @@ class LiveProductionAdapter:
         )
         if verified.get("status") != "PASS":
             raise ProductionExecutorError("reboot_control_verify_not_pass")
+        _emit_progress("REBOOT_CONTROL", "WAITING_FOR_OPERATOR")
+        armed = _wait_for_reboot_arm(self.run_id)
+        if armed.get("status") != "PASS":
+            raise ProductionExecutorError("reboot_operator_arming_not_pass")
+        _emit_progress("REBOOT_CONTROL", "ARMED")
         claim = self._remote_json(
             (
                 "sudo",
