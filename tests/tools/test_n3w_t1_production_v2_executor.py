@@ -168,6 +168,7 @@ def test_progress_surface_covers_long_and_password_wait_stages() -> None:
         '_emit_progress("PROVISION", "STARTED")',
         '_emit_progress("REBOOT_CONTROL", "WAITING_FOR_OPERATOR")',
         '_emit_progress("REBOOT_CONTROL", "ARMED")',
+        '_emit_progress("REBOOT_CONTROL", "OLD_BOOT_SSH_DOWN")',
         '_emit_progress("WAIT_FOR_SSH", "STARTED")',
         '_emit_progress("SSH_EPOCH_2", "PASSWORD_REQUIRED")',
         '_emit_progress("POST_REBOOT_ACCEPTANCE", "STARTED")',
@@ -802,3 +803,172 @@ def test_target_verifier_does_not_trust_arbitrary_error_code_or_nonfinal_json():
         tool._json_output(completed, "target_local_reboot_verify")
     assert str(captured.value) == "target_local_reboot_verify_command_failed"
     assert not hasattr(captured.value, "error_code")
+
+def test_reboot_disconnect_requires_tcp_22_down_after_control_master_disconnect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    adapter = object.__new__(tool.LiveProductionAdapter)
+    adapter.host = "t1.invalid"
+    adapter.target = "root@t1.invalid"
+    runner_calls: list[tuple[str, ...]] = []
+    reachability = iter((True, False, False))
+    clock = [0.0]
+
+    class Runner:
+        def run(self, argv, *, timeout, check):
+            runner_calls.append(tuple(argv))
+            return subprocess.CompletedProcess(argv, 1, "", "")
+
+    class Transport:
+        runner = Runner()
+
+    adapter.transport = Transport()
+    monkeypatch.setattr(tool.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(
+        tool.time,
+        "sleep",
+        lambda seconds: clock.__setitem__(0, clock[0] + seconds),
+    )
+    monkeypatch.setattr(tool, "_tcp_port_reachable", lambda *_args, **_kwargs: next(reachability))
+
+    result = adapter._wait_for_old_boot_ssh_down("/tmp/control")
+
+    assert result == {
+        "control_master_disconnected": True,
+        "ssh_down_observed": True,
+    }
+    assert len(runner_calls) == 1
+    assert clock[0] == tool.REBOOT_TCP_DOWN_POLL_SECONDS * 2
+
+
+def test_tcp_down_and_control_disconnect_can_be_observed_in_either_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    adapter = object.__new__(tool.LiveProductionAdapter)
+    adapter.host = "t1.invalid"
+    adapter.target = "root@t1.invalid"
+    returncodes = iter((0, 1))
+    events: list[str] = []
+    clock = [0.0]
+
+    class Runner:
+        def run(self, argv, *, timeout, check):
+            events.append("control")
+            return subprocess.CompletedProcess(argv, next(returncodes), "", "")
+
+    class Transport:
+        runner = Runner()
+
+    adapter.transport = Transport()
+    monkeypatch.setattr(tool.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(
+        tool.time,
+        "sleep",
+        lambda seconds: clock.__setitem__(0, clock[0] + seconds),
+    )
+
+    def reachable(*_args, **_kwargs):
+        events.append("tcp")
+        return False
+
+    monkeypatch.setattr(tool, "_tcp_port_reachable", reachable)
+
+    result = adapter._wait_for_old_boot_ssh_down("/tmp/control")
+
+    assert result == {
+        "control_master_disconnected": True,
+        "ssh_down_observed": True,
+    }
+    assert events == ["control", "tcp", "control", "tcp"]
+
+
+def test_historical_tcp_down_does_not_survive_recovery_before_control_disconnect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    adapter = object.__new__(tool.LiveProductionAdapter)
+    adapter.host = "t1.invalid"
+    adapter.target = "root@t1.invalid"
+    returncodes = iter((0, 0, 0, 1, 1, 1))
+    reachability = iter((False, False, True, True, False, False))
+    clock = [0.0]
+
+    class Runner:
+        def run(self, argv, *, timeout, check):
+            return subprocess.CompletedProcess(argv, next(returncodes), "", "")
+
+    class Transport:
+        runner = Runner()
+
+    adapter.transport = Transport()
+    monkeypatch.setattr(tool.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(
+        tool.time,
+        "sleep",
+        lambda seconds: clock.__setitem__(0, clock[0] + seconds),
+    )
+    monkeypatch.setattr(
+        tool,
+        "_tcp_port_reachable",
+        lambda *_args, **_kwargs: next(reachability),
+    )
+
+    result = adapter._wait_for_old_boot_ssh_down("/tmp/control")
+
+    assert result == {
+        "control_master_disconnected": True,
+        "ssh_down_observed": True,
+    }
+    assert clock[0] == tool.REBOOT_TCP_DOWN_POLL_SECONDS * 5
+
+
+def test_reboot_disconnect_fails_closed_if_old_ssh_never_goes_down(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    adapter = object.__new__(tool.LiveProductionAdapter)
+    adapter.host = "t1.invalid"
+    adapter.target = "root@t1.invalid"
+    clock = [0.0]
+
+    class Runner:
+        def run(self, argv, *, timeout, check):
+            return subprocess.CompletedProcess(argv, 1, "", "")
+
+    class Transport:
+        runner = Runner()
+
+    adapter.transport = Transport()
+    monkeypatch.setattr(tool, "REBOOT_DISCONNECT_SECONDS", 1.0)
+    monkeypatch.setattr(tool, "REBOOT_TCP_DOWN_POLL_SECONDS", 0.5)
+    monkeypatch.setattr(tool.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(
+        tool.time,
+        "sleep",
+        lambda seconds: clock.__setitem__(0, clock[0] + seconds),
+    )
+    monkeypatch.setattr(tool, "_tcp_port_reachable", lambda *_args, **_kwargs: True)
+
+    with pytest.raises(
+        tool.ProductionExecutorError,
+        match="reboot_disconnect_not_observed",
+    ):
+        adapter._wait_for_old_boot_ssh_down("/tmp/control")
+
+    assert clock[0] >= 1.0
+
+
+def test_controlled_reboot_requires_old_boot_ssh_down_before_reboot_pending() -> None:
+    source = TOOL.read_text(encoding="utf-8")
+    method = source.split("    def controlled_reboot(", 1)[1].split(
+        "    def _wait_for_old_boot_ssh_down(", 1
+    )[0]
+
+    reboot = method.index('("sudo", "-n", "systemctl", "reboot")')
+    down = method.index("self._wait_for_old_boot_ssh_down(control_path)")
+    pending = method.index('_emit_progress("REBOOT_CONTROL", "REBOOT_PENDING")')
+
+    assert reboot < down < pending
+
