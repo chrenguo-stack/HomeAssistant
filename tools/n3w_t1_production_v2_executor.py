@@ -58,6 +58,7 @@ SSH_WAIT_SECONDS = 180
 REBOOT_DISCONNECT_SECONDS = 45
 REBOOT_TCP_DOWN_POLL_SECONDS = 0.5
 REBOOT_TCP_PROBE_TIMEOUT_SECONDS = 1.0
+REBOOT_TCP_DOWN_CONFIRMATIONS = 2
 READINESS_TIMEOUT_SECONDS = 300
 READINESS_POLL_SECONDS = 2
 READINESS_SCHEMA = "gh.n3w-t1-f4-reboot-readiness/1"
@@ -986,6 +987,8 @@ class LiveProductionAdapter:
     def _wait_for_old_boot_ssh_down(self, control_path: str) -> dict[str, bool]:
         deadline = time.monotonic() + REBOOT_DISCONNECT_SECONDS
         control_master_disconnected = False
+        ssh_down_observed = False
+        tcp_down_streak = 0
         while time.monotonic() < deadline:
             if not control_master_disconnected:
                 checked = self.transport.runner.run(
@@ -994,11 +997,17 @@ class LiveProductionAdapter:
                     check=False,
                 )
                 control_master_disconnected = checked.returncode != 0
-            if control_master_disconnected and not _tcp_port_reachable(
+            if _tcp_port_reachable(
                 self.host,
                 22,
                 timeout=REBOOT_TCP_PROBE_TIMEOUT_SECONDS,
             ):
+                tcp_down_streak = 0
+            else:
+                tcp_down_streak += 1
+                if tcp_down_streak >= REBOOT_TCP_DOWN_CONFIRMATIONS:
+                    ssh_down_observed = True
+            if control_master_disconnected and ssh_down_observed:
                 return {
                     "control_master_disconnected": True,
                     "ssh_down_observed": True,
