@@ -119,7 +119,8 @@ The repaired sequence is:
 systemctl reboot
 -> bounded observation of old ControlMaster disconnect and TCP/22 down
 -> require two consecutive TCP/22-unreachable probes
--> both conditions may arrive in either order
+-> TCP/22 down may begin before or after ControlMaster disconnect
+-> but the consecutive down streak must still be current when ControlMaster disconnect is observed
 -> REBOOT_PENDING
 -> close pre-reboot SSH epoch
 -> WAIT_FOR_SSH
@@ -148,8 +149,10 @@ The repair is intentionally narrow and confined to the Mac live executor.
   `_wait_for_old_boot_ssh_down()`;
 - observes ControlMaster disconnect and TCP/22 down independently so a genuine
   down edge is not lost if their timing order reverses;
-- requires two consecutive TCP/22-unreachable probes plus ControlMaster
-  disconnect before emitting `OLD_BOOT_SSH_DOWN` and `REBOOT_PENDING`;
+- resets the TCP-down streak immediately if TCP/22 becomes reachable again, so
+  historical pre-disconnect outages cannot be reused later;
+- requires a current two-sample TCP/22-down streak plus ControlMaster disconnect
+  before emitting `OLD_BOOT_SSH_DOWN` and `REBOOT_PENDING`;
 - preserves the existing 45-second reboot-disconnect bound;
 - preserves the existing 180-second post-reboot SSH-up bound;
 - does not open another SSH epoch and does not request another password.
@@ -164,7 +167,8 @@ the final guard against an unchanged boot.
 CONTROL_MASTER_DOWN_BUT_TCP_22_STILL_UP=WAIT
 TCP_22_DOWN_STREAK_LT_2=WAIT
 TCP_22_DOWN_CONFIRMED_BUT_CONTROL_MASTER_STILL_UP=WAIT
-CONTROL_MASTER_DOWN_AND_TCP_22_DOWN_CONFIRMED=ALLOW_REBOOT_PENDING
+TCP_22_RECOVERS=RESET_DOWN_STREAK
+CONTROL_MASTER_DOWN_AND_CURRENT_TCP_22_DOWN_CONFIRMED=ALLOW_REBOOT_PENDING
 NO_TCP_22_DOWN_WITHIN_45S=FAIL:reboot_disconnect_not_observed
 POST_REBOOT_TCP_22_NEVER_RETURNS=FAIL:post_reboot_ssh_timeout
 POST_REBOOT_BOOT_ID_UNCHANGED=FAIL:reboot_not_observed
@@ -199,9 +203,10 @@ No fixed blind sleep is introduced.
 The implementation adds focused tests proving:
 
 1. ControlMaster disconnect alone is insufficient while TCP/22 remains up.
-2. TCP/22 down and ControlMaster disconnect may be observed in either order.
+2. TCP/22 down may begin before or after ControlMaster disconnect, but stale
+   historical down evidence is discarded after TCP recovers.
 3. A single transient TCP failure is insufficient; two consecutive down probes
-   are required.
+   are required and the streak must still be current at the disconnect boundary.
 4. If old TCP/22 never goes down within the bound, the executor fails closed.
 5. `OLD_BOOT_SSH_DOWN` is emitted before `REBOOT_PENDING`.
 6. The existing reboot arming remains before reboot actuation.
