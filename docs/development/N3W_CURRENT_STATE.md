@@ -1,3 +1,50 @@
+## 2026-10-21 — F5 V2 post-reboot SSH boot-epoch race source repair started
+
+~~~text
+TASK=N3W_T1_F5_V2_POST_REBOOT_SSH_BOOT_EPOCH_RACE_SOURCE_REPAIR_20261021_01
+BASE_MAIN=f3934f9c41790208d77e20a39b2f6e577394d3f8
+
+REAL_T1_PRODUCTION_RESULT=FAIL
+TERMINAL_STAGE=POST_REBOOT_READINESS
+ERROR_CODE=reboot_not_observed
+SYSTEMD_STATE_AT_FORENSIC=stopping
+FORENSIC_MANIFEST=PASS
+FORENSIC_UNAVAILABLE_COUNT=0
+
+KF_126=F5_V2_POST_REBOOT_SSH_BOOT_EPOCH_RACE
+ROOT_CAUSE_CONFIDENCE=HIGH
+SOURCE_REPAIR_REQUIRED=true
+SOURCE_REPAIR_IMPLEMENTED=true
+
+FAILED_RUN_REPLAY=false
+T1_PRODUCTION_READY=false
+TARGET_DISPOSITION=REFLASH_REQUIRED
+IMMEDIATE_REFLASH=false
+
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+PRODUCTION_EXECUTION=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_F5_V2_POST_REBOOT_SSH_BOOT_EPOCH_RACE_SOURCE_REPAIR_REVIEW_20261021_01
+~~~
+
+本轮 real-T1 证据表明，新加入的 `POST_REBOOT_READINESS` 没有产生 false PASS，
+而是暴露了更早的 reboot/SSH 边界竞态：旧 ControlMaster 已断时，旧 boot 仍可能在
+systemd stopping，且 TCP/22 尚可短暂连接。原 executor 随后把这次 TCP/22 up 直接当成
+post-reboot SSH 恢复，导致 SSH epoch #2 实际仍落在旧 boot 上，并被 target-side
+`reboot_not_observed` 正确拒绝。
+
+当前 source repair 在 `systemctl reboot` 后增加“旧 SSH 真正 down”证明：只有同时观察
+ControlMaster disconnect 和 TCP/22 至少一次不可达，才允许进入 `REBOOT_PENDING`；
+之后才执行既有 TCP/22 up wait 与第二 SSH epoch。target-side boot-id 硬保护、KF-125 的
+300 s/2 s readiness、严格 target verify、5 个外部 probe 和既有 90 秒稳定观察均保持
+不变。没有增加第三 SSH epoch、第二次 production approval 或固定 sleep。
+
+Authority:
+`docs/development/N3W_T1_F5_V2_POST_REBOOT_SSH_BOOT_EPOCH_RACE_SOURCE_REPAIR_20261021.md`。
+
 ## 2026-10-21 — post-PR638 exact-main release rebuild preparation
 
 ~~~text
