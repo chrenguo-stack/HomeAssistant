@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
+import io
 import json
 import subprocess
 import sys
+import tarfile
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -33,12 +37,26 @@ builder = load(
 )
 
 
+def sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
 def write_inputs(tmp_path: Path) -> Path:
     artifacts = {}
     for index, name in enumerate(sorted(contract.REQUIRED_RELEASE_ARTIFACTS), start=1):
-        path = tmp_path / f"{name}.bin"
+        relative = contract.RELEASE_INPUT_ARTIFACT_PATHS[name]
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes((name + "\n").encode() * index)
-        artifacts[name] = path.name
+        artifacts[name] = {
+            "path": relative,
+            "sha256": sha256(path),
+            "size_bytes": path.stat().st_size,
+        }
     head, tree = exact_source()
     document = {
         "schema": builder.INPUT_SCHEMA,
@@ -77,7 +95,10 @@ def write_inputs(tmp_path: Path) -> Path:
         ],
     }
     path = tmp_path / "release-inputs.json"
-    path.write_text(json.dumps(document) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(document, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
     return path
 
 
@@ -189,12 +210,12 @@ def test_production_authority_requires_exact_origin_main(
 def test_inputs_cannot_escape_artifact_root(tmp_path: Path):
     inputs = write_inputs(tmp_path)
     document = json.loads(inputs.read_text(encoding="utf-8"))
-    document["artifacts"]["f3_payload"] = "../outside"
+    document["artifacts"]["f3_payload"]["path"] = "../outside"
     inputs.write_text(json.dumps(document) + "\n", encoding="utf-8")
     head, tree = exact_source()
     with pytest.raises(
         builder.ReleaseBuildError,
-        match="artifact_path_escape:f3_payload",
+        match="release_inputs_artifact_path_invalid:f3_payload",
     ):
         builder.build_release(
             ROOT,
@@ -227,13 +248,11 @@ def test_builder_rejects_release_inputs_from_different_source(tmp_path: Path):
 
 def test_builder_rejects_symlinked_artifact_input(tmp_path: Path):
     inputs = write_inputs(tmp_path)
-    document = json.loads(inputs.read_text(encoding="utf-8"))
-    real = tmp_path / "real.bin"
-    real.write_bytes(b"real")
-    link = tmp_path / "linked.bin"
-    link.symlink_to(real)
-    document["artifacts"]["f3_payload"] = link.name
-    inputs.write_text(json.dumps(document) + "\n", encoding="utf-8")
+    target = tmp_path / contract.RELEASE_INPUT_ARTIFACT_PATHS["f3_payload"]
+    real = tmp_path / "real-f3-payload.bin"
+    real.write_bytes(target.read_bytes())
+    target.unlink()
+    target.symlink_to(real)
     head, tree = exact_source()
     with pytest.raises(
         builder.ReleaseBuildError,
@@ -254,7 +273,11 @@ def test_builder_rejects_unreviewed_extra_artifact_name(tmp_path: Path):
     document = json.loads(inputs.read_text(encoding="utf-8"))
     extra = tmp_path / "extra.bin"
     extra.write_bytes(b"unexpected")
-    document["artifacts"]["unexpected_extra"] = extra.name
+    document["artifacts"]["unexpected_extra"] = {
+        "path": extra.name,
+        "sha256": sha256(extra),
+        "size_bytes": extra.stat().st_size,
+    }
     inputs.write_text(json.dumps(document) + "\n", encoding="utf-8")
     head, tree = exact_source()
     with pytest.raises(
