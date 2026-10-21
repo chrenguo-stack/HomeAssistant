@@ -29,6 +29,15 @@ REQUIRED_RELEASE_ARTIFACTS = frozenset(
     }
 )
 
+RELEASE_INPUT_ARTIFACT_PATHS = {
+    "f3_payload": "artifacts/f3-payload.tar",
+    "f3_image": "artifacts/f3-images.tar",
+    "f4_control": "artifacts/f4-control.tar",
+    "reboot_control": "artifacts/reboot-control.tar",
+    "v2_mac_tools": "artifacts/v2-mac-tools.tar",
+    "transport_contract": "artifacts/transport-contract.json",
+}
+
 FORBIDDEN_PUBLIC_KEY_TOKENS = (
     "password",
     "secret",
@@ -177,8 +186,8 @@ def validate_release(document: Any) -> dict[str, Any]:
         _text(item, f"apt_source_policy_{key}")
 
     artifacts = _mapping(value["artifacts"], "artifacts")
-    if not REQUIRED_RELEASE_ARTIFACTS.issubset(artifacts):
-        raise ProductionV2ContractError("release_artifacts_missing")
+    if set(artifacts) != set(REQUIRED_RELEASE_ARTIFACTS):
+        raise ProductionV2ContractError("release_artifact_set_invalid")
     for name, record_raw in artifacts.items():
         _text(name, "artifact_name")
         record = _mapping(record_raw, f"artifact_{name}")
@@ -201,6 +210,11 @@ def validate_release(document: Any) -> dict[str, Any]:
         lowered = text.casefold()
         if any(token in lowered for token in FORBIDDEN_PUBLIC_KEY_TOKENS):
             raise ProductionV2ContractError("public_evidence_field_sensitive")
+
+    material = deepcopy(value)
+    actual_release_id = material.pop("release_id")
+    if canonical_sha256(material) != actual_release_id:
+        raise ProductionV2ContractError("release_id_mismatch")
     return value
 
 

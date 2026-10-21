@@ -205,25 +205,48 @@ def control_fixture(
         report_name = "reboot-successor-build-report.json"
         prefix = "reboot-successor-control"
         manifest_name = "reboot-successor-manifest.json"
+        schema = builder.REBOOT_PACKAGE_SCHEMA
+        boundary = {
+            "secret_values_included": False,
+            "live_runtime_mutation": False,
+            "reboot_executed": False,
+            "board_access": False,
+        }
     else:
         tar_name = "n3w-t1-f4-control-package.tar"
         sidecar_name = tar_name + ".sha256"
         report_name = "build-report.json"
         prefix = "f4-package"
         manifest_name = "f4-package-manifest.json"
+        schema = builder.F4_PACKAGE_SCHEMA
+        boundary = {
+            "secret_values_included": False,
+            "production_service_start": False,
+            "board_access": False,
+        }
 
-    manifest_path = tmp_path / f"{prefix}-manifest.json"
-    write_json(
-        manifest_path,
-        {
-            "schema": "fixture/1",
-            "source_head": HEAD,
-            "files": [],
-        },
-    )
+    package = tmp_path / f"{prefix}-source"
+    payload = package / "tools/example.py"
+    payload.parent.mkdir(parents=True)
+    payload.write_text("control\n", encoding="utf-8")
+    manifest = {
+        "schema": schema,
+        "source_head": HEAD,
+        "files": [
+            {
+                "path": "tools/example.py",
+                "sha256": sha256(payload),
+                "size": payload.stat().st_size,
+            }
+        ],
+        **boundary,
+    }
+    manifest_path = package / manifest_name
+    write_json(manifest_path, manifest)
+
     archive = root / tar_name
     with tarfile.open(archive, "w") as bundle:
-        bundle.add(manifest_path, arcname=f"{prefix}/{manifest_name}")
+        bundle.add(package, arcname=prefix)
     (root / sidecar_name).write_text(
         f"{sha256(archive)}  out/{tar_name}\n",
         encoding="ascii",
@@ -231,20 +254,98 @@ def control_fixture(
     report = {
         "status": "PASS",
         "source_head": HEAD,
-        "secret_values_included": False,
-        "board_access": False,
+        "file_count": 1,
+        "manifest_sha256": sha256(manifest_path),
+        **boundary,
     }
-    if reboot:
-        report.update(
-            {
-                "live_runtime_mutation": False,
-                "reboot_executed": False,
-            }
-        )
-    else:
-        report["production_service_start"] = False
     write_json(root / report_name, report)
     return root
+
+
+def rewrite_control_archive(
+    root: Path,
+    tmp_path: Path,
+    *,
+    reboot: bool,
+    mode: str,
+) -> None:
+    if reboot:
+        tar_name = "n3w-t1-f4-reboot-successor-control.tar"
+        sidecar_name = tar_name + ".sha256"
+        prefix = "reboot-successor-control"
+        manifest_name = "reboot-successor-manifest.json"
+        report_name = "reboot-successor-build-report.json"
+        schema = builder.REBOOT_PACKAGE_SCHEMA
+        boundary = {
+            "secret_values_included": False,
+            "live_runtime_mutation": False,
+            "reboot_executed": False,
+            "board_access": False,
+        }
+    else:
+        tar_name = "n3w-t1-f4-control-package.tar"
+        sidecar_name = tar_name + ".sha256"
+        prefix = "f4-package"
+        manifest_name = "f4-package-manifest.json"
+        report_name = "build-report.json"
+        schema = builder.F4_PACKAGE_SCHEMA
+        boundary = {
+            "secret_values_included": False,
+            "production_service_start": False,
+            "board_access": False,
+        }
+
+    package = tmp_path / f"{prefix}-{mode}"
+    payload = package / "tools/example.py"
+    payload.parent.mkdir(parents=True)
+    payload.write_text(
+        "tampered\n" if mode == "tamper" else "control\n",
+        encoding="utf-8",
+    )
+    expected_payload = tmp_path / f"{prefix}-{mode}-expected.py"
+    expected_payload.write_text("control\n", encoding="utf-8")
+    manifest = {
+        "schema": schema,
+        "source_head": HEAD,
+        "files": [
+            {
+                "path": "tools/example.py",
+                "sha256": sha256(expected_payload),
+                "size": expected_payload.stat().st_size,
+            }
+        ],
+        **boundary,
+    }
+    manifest_path = package / manifest_name
+    write_json(manifest_path, manifest)
+    report = json.loads((root / report_name).read_text(encoding="utf-8"))
+    report["manifest_sha256"] = sha256(manifest_path)
+    write_json(root / report_name, report)
+
+    if mode == "symlink":
+        payload.unlink()
+        payload.symlink_to(expected_payload)
+
+    archive = root / tar_name
+    with tarfile.open(archive, "w") as bundle:
+        bundle.add(package, arcname=prefix)
+        if mode == "path_escape":
+            info = tarfile.TarInfo("../escape")
+            body = b"escape"
+            info.size = len(body)
+            import io
+
+            bundle.addfile(info, io.BytesIO(body))
+    if mode == "duplicate":
+        with tarfile.open(archive, "a") as bundle:
+            bundle.add(
+                manifest_path,
+                arcname=f"{prefix}/{manifest_name}",
+            )
+    (root / sidecar_name).write_text(
+        f"{sha256(archive)}  out/{tar_name}\n",
+        encoding="ascii",
+    )
 
 
 def exact_git(
@@ -381,6 +482,155 @@ def test_rejects_f4_source_mismatch(
             f3,
             f4,
             reboot,
+            tmp_path / "release-inputs",
+            source_head=HEAD,
+            source_tree=TREE,
+        )
+
+
+def test_release_inputs_freeze_component_bytes_after_build(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = repository_fixture(tmp_path)
+    monkeypatch.setattr(builder, "_git", exact_git)
+    destination = tmp_path / "release-inputs"
+    builder.build_inputs(
+        repository,
+        profile_fixture(tmp_path),
+        f3_fixture(tmp_path),
+        control_fixture(tmp_path, reboot=False),
+        control_fixture(tmp_path, reboot=True),
+        destination,
+        source_head=HEAD,
+        source_tree=TREE,
+    )
+    document_before = (destination / "release-inputs.json").read_bytes()
+    target = destination / contract.RELEASE_INPUT_ARTIFACT_PATHS["f3_payload"]
+    target.write_bytes(target.read_bytes() + b"tamper")
+    assert (destination / "release-inputs.json").read_bytes() == document_before
+    with pytest.raises(
+        builder.ReleaseInputsBuildError,
+        match="release_inputs_artifact_binding_mismatch:f3_payload",
+    ):
+        builder.verify_inputs_directory(destination)
+
+
+def test_release_inputs_reject_extra_physical_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = repository_fixture(tmp_path)
+    monkeypatch.setattr(builder, "_git", exact_git)
+    destination = tmp_path / "release-inputs"
+    builder.build_inputs(
+        repository,
+        profile_fixture(tmp_path),
+        f3_fixture(tmp_path),
+        control_fixture(tmp_path, reboot=False),
+        control_fixture(tmp_path, reboot=True),
+        destination,
+        source_head=HEAD,
+        source_tree=TREE,
+    )
+    (destination / "unexpected").write_text("x", encoding="utf-8")
+    with pytest.raises(
+        builder.ReleaseInputsBuildError,
+        match="release_inputs_root_set_invalid",
+    ):
+        builder.verify_inputs_directory(destination)
+
+
+def test_release_inputs_reject_component_symlink(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = repository_fixture(tmp_path)
+    monkeypatch.setattr(builder, "_git", exact_git)
+    destination = tmp_path / "release-inputs"
+    builder.build_inputs(
+        repository,
+        profile_fixture(tmp_path),
+        f3_fixture(tmp_path),
+        control_fixture(tmp_path, reboot=False),
+        control_fixture(tmp_path, reboot=True),
+        destination,
+        source_head=HEAD,
+        source_tree=TREE,
+    )
+    target = destination / contract.RELEASE_INPUT_ARTIFACT_PATHS["transport_contract"]
+    saved = tmp_path / "saved-transport.json"
+    saved.write_bytes(target.read_bytes())
+    target.unlink()
+    target.symlink_to(saved)
+    with pytest.raises(
+        builder.ReleaseInputsBuildError,
+        match="release_inputs_artifact_symlink:transport_contract",
+    ):
+        builder.verify_inputs_directory(destination)
+
+
+@pytest.mark.parametrize(
+    "mode,pattern",
+    [
+        ("tamper", "f4_control_manifest_file_binding_invalid"),
+        ("symlink", "f4_control_tar_member_invalid"),
+        ("duplicate", "f4_control_tar_member_invalid"),
+        ("path_escape", "f4_control_tar_member_invalid"),
+    ],
+)
+def test_rejects_unsafe_or_unbound_f4_inner_package(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mode: str,
+    pattern: str,
+) -> None:
+    repository = repository_fixture(tmp_path)
+    profile = profile_fixture(tmp_path)
+    f3 = f3_fixture(tmp_path)
+    f4 = control_fixture(tmp_path, reboot=False)
+    reboot = control_fixture(tmp_path, reboot=True)
+    rewrite_control_archive(
+        f4,
+        tmp_path,
+        reboot=False,
+        mode=mode,
+    )
+    monkeypatch.setattr(builder, "_git", exact_git)
+    with pytest.raises(builder.ReleaseInputsBuildError, match=pattern):
+        builder.build_inputs(
+            repository,
+            profile,
+            f3,
+            f4,
+            reboot,
+            tmp_path / "release-inputs",
+            source_head=HEAD,
+            source_tree=TREE,
+        )
+
+
+def test_rejects_control_report_manifest_digest_mismatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = repository_fixture(tmp_path)
+    f4 = control_fixture(tmp_path, reboot=False)
+    report_path = f4 / "build-report.json"
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    report["manifest_sha256"] = "f" * 64
+    write_json(report_path, report)
+    monkeypatch.setattr(builder, "_git", exact_git)
+    with pytest.raises(
+        builder.ReleaseInputsBuildError,
+        match="f4_control_manifest_sha256_mismatch",
+    ):
+        builder.build_inputs(
+            repository,
+            profile_fixture(tmp_path),
+            f3_fixture(tmp_path),
+            f4,
+            control_fixture(tmp_path, reboot=True),
             tmp_path / "release-inputs",
             source_head=HEAD,
             source_tree=TREE,

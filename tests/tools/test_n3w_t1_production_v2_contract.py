@@ -25,9 +25,8 @@ contract = load_tool()
 
 
 def release_document():
-    return {
+    material = {
         "schema": contract.RELEASE_SCHEMA,
-        "release_id": "a" * 64,
         "source_head": "b" * 40,
         "source_tree": "c" * 40,
         "os_contract": {
@@ -67,6 +66,10 @@ def release_document():
             "run_id_sha256",
         ],
     }
+    return {
+        "release_id": contract.canonical_sha256(material),
+        **material,
+    }
 
 
 def test_release_contract_accepts_frozen_v2_environment():
@@ -86,7 +89,33 @@ def test_release_requires_distinct_f3_image_binding():
     del value["artifacts"]["f3_image"]
     with pytest.raises(
         contract.ProductionV2ContractError,
-        match="release_artifacts_missing",
+        match="release_artifact_set_invalid",
+    ):
+        contract.validate_release(value)
+
+
+def test_release_rejects_extra_artifact():
+    value = release_document()
+    value["artifacts"]["unexpected"] = {
+        "sha256": "d" * 64,
+        "size_bytes": 1,
+    }
+    material = copy.deepcopy(value)
+    material.pop("release_id")
+    value["release_id"] = contract.canonical_sha256(material)
+    with pytest.raises(
+        contract.ProductionV2ContractError,
+        match="release_artifact_set_invalid",
+    ):
+        contract.validate_release(value)
+
+
+def test_release_rejects_noncanonical_release_id():
+    value = release_document()
+    value["release_id"] = "f" * 64
+    with pytest.raises(
+        contract.ProductionV2ContractError,
+        match="release_id_mismatch",
     ):
         contract.validate_release(value)
 

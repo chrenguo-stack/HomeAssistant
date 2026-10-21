@@ -10,10 +10,11 @@ import shutil
 import subprocess
 import sys
 import tarfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from n3w_t1_production_v2_contract import (
+    RELEASE_INPUT_ARTIFACT_PATHS,
     REQUIRED_RELEASE_ARTIFACTS,
     RELEASE_SCHEMA,
     canonical_json_bytes,
@@ -26,6 +27,8 @@ PROFILE_SCHEMA = "gh.n3w-t1-production-v2-release-profile/1"
 TRANSPORT_SCHEMA = "gh.n3w-t1-f5-v2-transport-contract/1"
 MAC_TOOLS_SCHEMA = "gh.n3w-t1-f5-v2-mac-tools/1"
 IMAGE_SET_SCHEMA = "gh.n3w-t1-f5-v2-image-set/1"
+F4_PACKAGE_SCHEMA = "gh.n3w-t1-f4-activation-package/1"
+REBOOT_PACKAGE_SCHEMA = "gh.n3w-t1-f4-reboot-successor-control-package/1"
 GIT_SHA_RE = re.compile(r"[0-9a-f]{40}")
 SHA256_RE = re.compile(r"[0-9a-f]{64}")
 
@@ -174,23 +177,50 @@ def _exact_directory_set(root: Path, expected: frozenset[str], error_code: str) 
         _regular(item, error_code)
 
 
+def _normalize_tar_name(value: str, error_code: str) -> str:
+    if not isinstance(value, str) or not value or "\\x00" in value or "\\" in value:
+        raise ReleaseInputsBuildError(error_code)
+    if value.startswith("/"):
+        raise ReleaseInputsBuildError(error_code)
+    normalized = value
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    if normalized in {"", "."}:
+        return ""
+    path = PurePosixPath(normalized)
+    if (
+        any(part in {"", ".", ".."} for part in path.parts)
+        or path.as_posix() != normalized
+    ):
+        raise ReleaseInputsBuildError(error_code)
+    return normalized
+
+
 def _tar_member_bytes(path: Path, member_name: str, error_code: str) -> bytes:
     _regular(path, error_code)
+    matches: list[bytes] = []
     try:
         with tarfile.open(path, "r:*") as bundle:
-            matches = [
-                member
-                for member in bundle.getmembers()
-                if member.isfile() and member.name.lstrip("./") == member_name
-            ]
-            if len(matches) != 1:
-                raise ReleaseInputsBuildError(error_code)
-            stream = bundle.extractfile(matches[0])
-            if stream is None:
-                raise ReleaseInputsBuildError(error_code)
-            return stream.read()
+            for member in bundle.getmembers():
+                normalized = _normalize_tar_name(member.name, error_code)
+                if not normalized:
+                    if member.isdir():
+                        continue
+                    raise ReleaseInputsBuildError(error_code)
+                if member.issym() or member.islnk():
+                    raise ReleaseInputsBuildError(error_code)
+                if not member.isfile() and not member.isdir():
+                    raise ReleaseInputsBuildError(error_code)
+                if member.isfile() and normalized == member_name:
+                    stream = bundle.extractfile(member)
+                    if stream is None:
+                        raise ReleaseInputsBuildError(error_code)
+                    matches.append(stream.read())
     except tarfile.TarError as error:
         raise ReleaseInputsBuildError(error_code) from error
+    if len(matches) != 1:
+        raise ReleaseInputsBuildError(error_code)
+    return matches[0]
 
 
 def _tar_json_member(path: Path, member_name: str, error_code: str) -> dict[str, Any]:
@@ -203,6 +233,51 @@ def _tar_json_member(path: Path, member_name: str, error_code: str) -> dict[str,
     if not isinstance(value, dict):
         raise ReleaseInputsBuildError(error_code)
     return value
+
+
+def _tar_index(
+    path: Path,
+    error_code: str,
+) -> tuple[dict[str, bytes], set[str]]:
+    _regular(path, error_code)
+    regular: dict[str, bytes] = {}
+    directories: set[str] = set()
+    seen: set[str] = set()
+    try:
+        with tarfile.open(path, "r:*") as bundle:
+            for member in bundle.getmembers():
+                normalized = _normalize_tar_name(member.name, error_code)
+                if not normalized:
+                    if member.isdir():
+                        continue
+                    raise ReleaseInputsBuildError(error_code)
+                if normalized in seen:
+                    raise ReleaseInputsBuildError(error_code)
+                seen.add(normalized)
+                if member.issym() or member.islnk():
+                    raise ReleaseInputsBuildError(error_code)
+                if member.isdir():
+                    directories.add(normalized)
+                    continue
+                if not member.isfile():
+                    raise ReleaseInputsBuildError(error_code)
+                stream = bundle.extractfile(member)
+                if stream is None:
+                    raise ReleaseInputsBuildError(error_code)
+                regular[normalized] = stream.read()
+    except tarfile.TarError as error:
+        raise ReleaseInputsBuildError(error_code) from error
+    return regular, directories
+
+
+def _expected_parent_directories(names: set[str]) -> set[str]:
+    directories: set[str] = set()
+    for name in names:
+        parent = PurePosixPath(name).parent
+        while parent.as_posix() != ".":
+            directories.add(parent.as_posix())
+            parent = parent.parent
+    return directories
 
 
 def _load_profile(path: Path) -> dict[str, Any]:
@@ -322,20 +397,136 @@ def _verify_control(
         f"{error_prefix}_sidecar_invalid",
     ):
         raise ReleaseInputsBuildError(f"{error_prefix}_tar_sha256_mismatch")
+
     report = _read_json(root / report_name, f"{error_prefix}_report_invalid")
+    if error_prefix == "f4_control":
+        expected_schema = F4_PACKAGE_SCHEMA
+        report_keys = {
+            "status",
+            "source_head",
+            "file_count",
+            "manifest_sha256",
+            "secret_values_included",
+            "production_service_start",
+            "board_access",
+        }
+        manifest_keys = {
+            "schema",
+            "source_head",
+            "files",
+            "secret_values_included",
+            "production_service_start",
+            "board_access",
+        }
+        boundary = {
+            "secret_values_included": False,
+            "production_service_start": False,
+            "board_access": False,
+        }
+    elif error_prefix == "reboot_control":
+        expected_schema = REBOOT_PACKAGE_SCHEMA
+        report_keys = {
+            "status",
+            "source_head",
+            "manifest_sha256",
+            "file_count",
+            "secret_values_included",
+            "live_runtime_mutation",
+            "reboot_executed",
+            "board_access",
+        }
+        manifest_keys = {
+            "schema",
+            "source_head",
+            "files",
+            "secret_values_included",
+            "live_runtime_mutation",
+            "reboot_executed",
+            "board_access",
+        }
+        boundary = {
+            "secret_values_included": False,
+            "live_runtime_mutation": False,
+            "reboot_executed": False,
+            "board_access": False,
+        }
+    else:
+        raise ReleaseInputsBuildError(f"{error_prefix}_contract_unknown")
+
+    if set(report) != report_keys:
+        raise ReleaseInputsBuildError(f"{error_prefix}_report_keys_invalid")
     if report.get("status") != "PASS" or report.get("source_head") != source_head:
         raise ReleaseInputsBuildError(f"{error_prefix}_report_binding_invalid")
-    if report.get("secret_values_included") is not False:
-        raise ReleaseInputsBuildError(f"{error_prefix}_secret_boundary_invalid")
-    if report.get("board_access") is not False:
-        raise ReleaseInputsBuildError(f"{error_prefix}_board_boundary_invalid")
-    manifest = _tar_json_member(
+    if (
+        not isinstance(report.get("file_count"), int)
+        or isinstance(report.get("file_count"), bool)
+        or report["file_count"] < 0
+    ):
+        raise ReleaseInputsBuildError(f"{error_prefix}_report_file_count_invalid")
+    if SHA256_RE.fullmatch(str(report.get("manifest_sha256", ""))) is None:
+        raise ReleaseInputsBuildError(f"{error_prefix}_report_manifest_sha256_invalid")
+    for key, expected in boundary.items():
+        if report.get(key) is not expected:
+            raise ReleaseInputsBuildError(f"{error_prefix}_report_boundary_invalid")
+
+    regular, directories = _tar_index(
         archive,
-        manifest_member,
-        f"{error_prefix}_manifest_invalid",
+        f"{error_prefix}_tar_member_invalid",
     )
-    if manifest.get("source_head") != source_head:
-        raise ReleaseInputsBuildError(f"{error_prefix}_manifest_source_mismatch")
+    manifest_bytes = regular.get(manifest_member)
+    if manifest_bytes is None:
+        raise ReleaseInputsBuildError(f"{error_prefix}_manifest_missing")
+    if hashlib.sha256(manifest_bytes).hexdigest() != report["manifest_sha256"]:
+        raise ReleaseInputsBuildError(f"{error_prefix}_manifest_sha256_mismatch")
+    try:
+        manifest = json.loads(manifest_bytes.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError) as error:
+        raise ReleaseInputsBuildError(f"{error_prefix}_manifest_invalid") from error
+    if not isinstance(manifest, dict) or set(manifest) != manifest_keys:
+        raise ReleaseInputsBuildError(f"{error_prefix}_manifest_keys_invalid")
+    if (
+        manifest.get("schema") != expected_schema
+        or manifest.get("source_head") != source_head
+    ):
+        raise ReleaseInputsBuildError(f"{error_prefix}_manifest_binding_invalid")
+    for key, expected in boundary.items():
+        if manifest.get(key) is not expected:
+            raise ReleaseInputsBuildError(f"{error_prefix}_manifest_boundary_invalid")
+
+    records = manifest.get("files")
+    if not isinstance(records, list) or len(records) != report["file_count"]:
+        raise ReleaseInputsBuildError(f"{error_prefix}_manifest_files_invalid")
+    prefix = PurePosixPath(manifest_member).parent.as_posix()
+    expected_regular = {manifest_member}
+    seen_paths: set[str] = set()
+    for record in records:
+        if not isinstance(record, dict) or set(record) != {"path", "sha256", "size"}:
+            raise ReleaseInputsBuildError(f"{error_prefix}_manifest_file_record_invalid")
+        relative = _normalize_tar_name(
+            str(record.get("path", "")),
+            f"{error_prefix}_manifest_file_path_invalid",
+        )
+        if not relative or relative in seen_paths:
+            raise ReleaseInputsBuildError(f"{error_prefix}_manifest_file_path_invalid")
+        seen_paths.add(relative)
+        digest = record.get("sha256")
+        size = record.get("size")
+        if SHA256_RE.fullmatch(str(digest or "")) is None:
+            raise ReleaseInputsBuildError(f"{error_prefix}_manifest_file_sha256_invalid")
+        if not isinstance(size, int) or isinstance(size, bool) or size < 0:
+            raise ReleaseInputsBuildError(f"{error_prefix}_manifest_file_size_invalid")
+        member_name = f"{prefix}/{relative}"
+        payload = regular.get(member_name)
+        if payload is None:
+            raise ReleaseInputsBuildError(f"{error_prefix}_manifest_file_missing")
+        if len(payload) != size or hashlib.sha256(payload).hexdigest() != digest:
+            raise ReleaseInputsBuildError(f"{error_prefix}_manifest_file_binding_invalid")
+        expected_regular.add(member_name)
+
+    if set(regular) != expected_regular:
+        raise ReleaseInputsBuildError(f"{error_prefix}_inner_file_set_invalid")
+    if directories != _expected_parent_directories(expected_regular):
+        raise ReleaseInputsBuildError(f"{error_prefix}_inner_member_set_invalid")
 
 
 def _write_tar(
@@ -398,7 +589,7 @@ def _build_material(
     profile: dict[str, Any],
     source_head: str,
     source_tree: str,
-    artifact_paths: dict[str, str],
+    artifact_records: dict[str, dict[str, Any]],
     capacity: dict[str, Any],
 ) -> dict[str, Any]:
     return {
@@ -408,7 +599,7 @@ def _build_material(
         "os_contract": profile["os_contract"],
         "packages": profile["packages"],
         "apt_source_policy": profile["apt_source_policy"],
-        "artifacts": artifact_paths,
+        "artifacts": artifact_records,
         "capacity": {
             "minimum_post_peak_free_bytes": capacity[
                 "minimum_post_peak_free_bytes"
@@ -420,10 +611,19 @@ def _build_material(
 
 def verify_inputs_directory(destination: Path) -> dict[str, Any]:
     _directory(destination, "release_inputs_directory_invalid")
+    if {item.name for item in destination.iterdir()} != {
+        "release-inputs.json",
+        "artifacts",
+    }:
+        raise ReleaseInputsBuildError("release_inputs_root_set_invalid")
+
+    document_path = destination / "release-inputs.json"
     document = _read_json(
-        destination / "release-inputs.json",
+        document_path,
         "release_inputs_json_invalid",
     )
+    if document_path.read_bytes() != canonical_json_bytes(document):
+        raise ReleaseInputsBuildError("release_inputs_json_not_canonical")
     if set(document) != {
         "schema",
         "source_head",
@@ -438,27 +638,68 @@ def verify_inputs_directory(destination: Path) -> dict[str, Any]:
         raise ReleaseInputsBuildError("release_inputs_keys_invalid")
     if document.get("schema") != INPUT_SCHEMA:
         raise ReleaseInputsBuildError("release_inputs_schema_invalid")
+
     artifacts = document.get("artifacts")
     if not isinstance(artifacts, dict) or set(artifacts) != set(REQUIRED_RELEASE_ARTIFACTS):
         raise ReleaseInputsBuildError("release_inputs_artifact_set_invalid")
-    records = {}
-    for name, relative in artifacts.items():
-        if (
-            not isinstance(relative, str)
-            or not relative
-            or os.path.isabs(relative)
-            or Path(relative).parts[0] != "artifacts"
-            or ".." in Path(relative).parts
-        ):
-            raise ReleaseInputsBuildError(f"release_inputs_artifact_path_invalid:{name}")
-        path = (destination / relative).resolve()
-        if destination.resolve() not in path.parents:
-            raise ReleaseInputsBuildError(f"release_inputs_artifact_escape:{name}")
-        _regular(path, f"release_inputs_artifact_missing:{name}")
-        records[name] = {
-            "sha256": _sha256(path),
-            "size_bytes": path.stat().st_size,
+
+    artifact_root = destination / "artifacts"
+    _directory(artifact_root, "release_inputs_artifact_directory_invalid")
+    expected_names = {
+        Path(relative).name for relative in RELEASE_INPUT_ARTIFACT_PATHS.values()
+    }
+    if {item.name for item in artifact_root.iterdir()} != expected_names:
+        raise ReleaseInputsBuildError("release_inputs_physical_artifact_set_invalid")
+
+    release_records: dict[str, dict[str, Any]] = {}
+    for name in sorted(REQUIRED_RELEASE_ARTIFACTS):
+        record = artifacts.get(name)
+        if not isinstance(record, dict) or set(record) != {
+            "path",
+            "sha256",
+            "size_bytes",
+        }:
+            raise ReleaseInputsBuildError(
+                f"release_inputs_artifact_record_invalid:{name}"
+            )
+        relative = record.get("path")
+        expected_relative = RELEASE_INPUT_ARTIFACT_PATHS[name]
+        if relative != expected_relative:
+            raise ReleaseInputsBuildError(
+                f"release_inputs_artifact_path_invalid:{name}"
+            )
+        digest = record.get("sha256")
+        size = record.get("size_bytes")
+        if SHA256_RE.fullmatch(str(digest or "")) is None:
+            raise ReleaseInputsBuildError(
+                f"release_inputs_artifact_sha256_invalid:{name}"
+            )
+        if not isinstance(size, int) or isinstance(size, bool) or size < 0:
+            raise ReleaseInputsBuildError(
+                f"release_inputs_artifact_size_invalid:{name}"
+            )
+
+        unresolved = destination / expected_relative
+        current = unresolved
+        while current != destination:
+            if current.is_symlink():
+                raise ReleaseInputsBuildError(
+                    f"release_inputs_artifact_symlink:{name}"
+                )
+            current = current.parent
+        if not unresolved.is_file():
+            raise ReleaseInputsBuildError(
+                f"release_inputs_artifact_missing:{name}"
+            )
+        if unresolved.stat().st_size != size or _sha256(unresolved) != digest:
+            raise ReleaseInputsBuildError(
+                f"release_inputs_artifact_binding_mismatch:{name}"
+            )
+        release_records[name] = {
+            "sha256": digest,
+            "size_bytes": size,
         }
+
     material = {
         "schema": RELEASE_SCHEMA,
         "source_head": document["source_head"],
@@ -466,7 +707,7 @@ def verify_inputs_directory(destination: Path) -> dict[str, Any]:
         "os_contract": document["os_contract"],
         "packages": document["packages"],
         "apt_source_policy": document["apt_source_policy"],
-        "artifacts": records,
+        "artifacts": release_records,
         "capacity": document["capacity"],
         "public_evidence_fields": document["public_evidence_fields"],
     }
@@ -476,8 +717,9 @@ def verify_inputs_directory(destination: Path) -> dict[str, Any]:
         "status": "PASS",
         "source_head": document["source_head"],
         "source_tree": document["source_tree"],
-        "artifact_count": len(records),
-        "release_input_sha256": _sha256(destination / "release-inputs.json"),
+        "artifact_count": len(release_records),
+        "release_input_sha256": _sha256(document_path),
+        "component_binding_sha256": canonical_sha256(artifacts),
         "secret_values_included": False,
         "t1_access": False,
         "board_access": False,
@@ -578,19 +820,20 @@ def build_inputs(
                 }
             )
         )
-        artifact_paths = {
-            "f3_payload": "artifacts/f3-payload.tar",
-            "f3_image": "artifacts/f3-images.tar",
-            "f4_control": "artifacts/f4-control.tar",
-            "reboot_control": "artifacts/reboot-control.tar",
-            "v2_mac_tools": "artifacts/v2-mac-tools.tar",
-            "transport_contract": "artifacts/transport-contract.json",
-        }
+        artifact_records: dict[str, dict[str, Any]] = {}
+        for name, relative in RELEASE_INPUT_ARTIFACT_PATHS.items():
+            artifact_path = destination / relative
+            _regular(artifact_path, f"release_input_artifact_invalid:{name}")
+            artifact_records[name] = {
+                "path": relative,
+                "sha256": _sha256(artifact_path),
+                "size_bytes": artifact_path.stat().st_size,
+            }
         material = _build_material(
             profile,
             source_head,
             source_tree,
-            artifact_paths,
+            artifact_records,
             capacity,
         )
         (destination / "release-inputs.json").write_bytes(
