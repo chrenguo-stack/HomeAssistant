@@ -116,6 +116,55 @@ def test_remote_sha256_uses_target_sha256sum_exact_bytes() -> None:
     ]
 
 
+def test_live_adapter_keeps_long_local_work_root_out_of_ssh_transport(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    release_root = tmp_path / "release"
+    release_root.mkdir()
+    (release_root / "release.json").write_text("{}", encoding="utf-8")
+    evidence_root = tmp_path / "evidence"
+    work_root = tmp_path / ("macos-default-temp-" + "x" * 120)
+    captured: dict[str, object] = {}
+
+    class Transport:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setattr(
+        tool,
+        "verify_release_directory",
+        lambda _root: {"status": "PASS"},
+    )
+    monkeypatch.setattr(tool, "validate_release", lambda value: value)
+    monkeypatch.setattr(tool, "SSHTransport", Transport)
+    monkeypatch.setattr(tool, "_tar_member_sha256", lambda *_args: "a" * 64)
+    monkeypatch.setattr(
+        tool.LiveProductionAdapter,
+        "_artifact",
+        lambda _self, _name: tmp_path / "unused",
+    )
+
+    adapter = tool.LiveProductionAdapter(
+        release_root=release_root,
+        target="root@192.0.2.1",
+        known_hosts=tmp_path / "known_hosts",
+        expected_host_key_sha256="b" * 64,
+        run_id="c" * 64,
+        evidence_root=evidence_root,
+        work_root=work_root,
+    )
+
+    assert len(str(work_root / "n3w-f5-abcdefgh" / "ctl")) > 90
+    assert adapter.work_root == work_root.resolve()
+    assert captured == {
+        "target": "root@192.0.2.1",
+        "known_hosts": tmp_path / "known_hosts",
+        "expected_host_key_sha256": "b" * 64,
+    }
+
+
 def test_start_ssh_epoch_has_zero_target_workspace_mutation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

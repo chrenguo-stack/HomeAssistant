@@ -309,7 +309,6 @@ class LiveProductionAdapter:
             target=target,
             known_hosts=known_hosts,
             expected_host_key_sha256=expected_host_key_sha256,
-            work_root=self.work_root,
         )
         self.remote_root: str | None = None
         self.reboot_actuated = False
