@@ -2,9 +2,11 @@
 
 | ID | 范围 | 问题 | 根因与修复保护 | 状态 |
 | --- | --- | --- | --- | --- |
-| KF-124 | T1 F5 V2 production operator presence | real-T1 run 在 HOST_BASELINE/F3/F4 长时间无反馈后进入 planned reboot；管理员当时已离开屏幕，重启后的第二 SSH epoch 密码提示无人输入，180 秒后 timeout。run 已越过 STARTED，因此被正确终止为 reflash-required | 长耗时阶段与 post-reboot 人工认证之间缺少明确 operator-presence 边界。修复增加机器可读阶段进度；reboot-control staging/install/verify 可无人值守完成，但在一次性 reboot claim/reboot 前增加无超时、run-bound 的 operator arming；错误 arming 文本继续等待；arming 不是第二次 production approval；planned reboot 后明确输出 SSH_EPOCH_2 PASSWORD_REQUIRED。失败 run 不 replay，failed target 仍须 reflash 后新 run | SOURCE_REPAIR_CLOSED_PASS_PENDING_MERGE |
+| KF-124 | T1 F5 V2 production operator presence | real-T1 run 在 HOST_BASELINE/F3/F4 长时间无反馈后进入 planned reboot；管理员当时已离开屏幕，重启后的第二 SSH epoch 密码提示无人输入，180 秒后 timeout。run 已越过 STARTED，因此被正确终止为 reflash-required | 长耗时阶段与 post-reboot 人工认证之间缺少明确 operator-presence 边界。修复增加机器可读阶段进度；reboot-control staging/install/verify 可无人值守完成，但在一次性 reboot claim/reboot 前增加无超时、run-bound 的 operator arming；错误 arming 文本继续等待；arming 不是第二次 production approval；planned reboot 后明确输出 SSH_EPOCH_2 PASSWORD_REQUIRED。失败 run 不 replay，failed target 仍须 reflash 后新 run | SOURCE_REPAIR_MERGED_LIVE_REVALIDATION_PENDING |
 
 现场失败 run：`c715fdee2bbd55c4ed7e3d8d0dd2e1cd2d147651e5ba8390ab4e696dc9a43519`。失败后使用同一 SSHTransport 的独立只读诊断 PASS，host key 和 root password authentication 均正常，因此不把该 run 归因于 persistent target SSH defect。Authority: `N3W_T1_F5_V2_OPERATOR_PRESENCE_AND_PROGRESS_SOURCE_REPAIR_20261021.md`。
+
+PR #634 merged as `1b881ff052ebdace68a901fe41e96cee3b33e98d`; merge tree equals reviewed head tree `2dc95ef325aec6f2aec9a25b9b36cca7d89c9a2a`. Source guard is now in main. KF-124 stays live-revalidation-pending until a fresh exact-main release completes the repaired arming boundary and post-reboot acceptance on a reflashed T1.
 
 ### 2026-10-20 KF-122 — F5 V2 重启后验收可能扰动生产 MQTT 连接
 
