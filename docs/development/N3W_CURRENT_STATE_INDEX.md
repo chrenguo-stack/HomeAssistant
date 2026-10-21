@@ -4,7 +4,7 @@
 - Frozen failure forensics are complete/read-only with zero unavailable probes; `systemd=stopping` at failure capture.
 - Root cause: old SSH ControlMaster disconnect was accepted as enough reboot progress; TCP/22 could still be reachable from the same old boot, so `WAIT_FOR_SSH` falsely passed before a genuine new boot existed.
 - KF-126 opened: `F5_V2_POST_REBOOT_SSH_BOOT_EPOCH_RACE`, confidence HIGH.
-- Source repair observes old ControlMaster disconnect and TCP/22 down independently; `REBOOT_PENDING` requires ControlMaster down plus two consecutive TCP/22-unreachable probes, after which the existing TCP/22-up wait and SSH epoch #2 may begin.
+- Source repair observes old ControlMaster disconnect and TCP/22 down independently; TCP recovery clears any prior down streak, so `REBOOT_PENDING` requires ControlMaster down plus a current two-sample TCP/22-unreachable streak, after which the existing TCP/22-up wait and SSH epoch #2 may begin.
 - Target-side `reboot_not_observed` remains unchanged and fail-closed. KF-125 readiness, strict verifier, five external probes and the existing 90-second observation remain unchanged.
 - Failed run is terminal/no-replay. No T1/board access, reflash, production execution or merge occurs in this source gate.
 - Branch: `fix/n3w-t1-f5-v2-post-reboot-ssh-boot-epoch-race-20261021`.
