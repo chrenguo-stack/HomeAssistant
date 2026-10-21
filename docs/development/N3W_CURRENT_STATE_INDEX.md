@@ -1,3 +1,16 @@
+## 2026-10-21 — F5 V2 post-reboot SSH boot-epoch race source repair
+
+- Fresh exact-main real-T1 production failed terminally at `POST_REBOOT_READINESS` with sanitized `error_code=reboot_not_observed`; marker remains STARTED and target remains reflash-required.
+- Frozen failure forensics are complete/read-only with zero unavailable probes; `systemd=stopping` at failure capture.
+- Root cause: old SSH ControlMaster disconnect was accepted as enough reboot progress; TCP/22 could still be reachable from the same old boot, so `WAIT_FOR_SSH` falsely passed before a genuine new boot existed.
+- KF-126 opened: `F5_V2_POST_REBOOT_SSH_BOOT_EPOCH_RACE`, confidence HIGH.
+- Source repair requires both old ControlMaster disconnect and at least one observed TCP/22-down state before `REBOOT_PENDING`; only then may the existing TCP/22-up wait and SSH epoch #2 begin.
+- Target-side `reboot_not_observed` remains unchanged and fail-closed. KF-125 readiness, strict verifier, five external probes and the existing 90-second observation remain unchanged.
+- Failed run is terminal/no-replay. No T1/board access, reflash, production execution or merge occurs in this source gate.
+- Branch: `fix/n3w-t1-f5-v2-post-reboot-ssh-boot-epoch-race-20261021`.
+- Authority: `docs/development/N3W_T1_F5_V2_POST_REBOOT_SSH_BOOT_EPOCH_RACE_SOURCE_REPAIR_20261021.md`.
+- Next gate: `N3W_T1_F5_V2_POST_REBOOT_SSH_BOOT_EPOCH_RACE_SOURCE_REPAIR_REVIEW_20261021_01`.
+
 ## 2026-10-21 — post-PR638 exact-main release rebuild preparation
 
 - Preparation base main: `998d528f3aafcbef64ad24fe7cff6c4c9c7001f5`; tree `80bc51435e48af19c022fd26282426301cf427fd`.
