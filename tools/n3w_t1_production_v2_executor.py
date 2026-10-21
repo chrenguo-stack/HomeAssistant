@@ -40,6 +40,8 @@ from n3w_t1_ssh_transport import SSHTransport
 
 SCHEMA = "gh.n3w-t1-production-v2-live-executor/1"
 APPROVAL_PREFIX = "APPROVE N3W T1 F5 V2 PRODUCTION"
+REBOOT_ARM_PREFIX = "ARM N3W T1 F5 V2 CONTROLLED REBOOT"
+PROGRESS_SCHEMA = "gh.n3w-t1-f5-v2-production-progress/1"
 MARKER_PATH = "/var/lib/n3w-production/run.json"
 F4_TRANSACTION_PATH = "/var/lib/n3w-t1-provisioning/F4_ACTIVATION_TRANSACTION.json"
 REBOOT_CLAIM_PATH = "/var/lib/n3w-t1-provisioning/F4_REBOOT_AUTHORIZATION.json"
@@ -188,6 +190,52 @@ def _json_output(completed: subprocess.CompletedProcess[str], stage: str) -> dic
     if not isinstance(value, dict):
         raise ProductionExecutorError(f"{stage}_output_invalid")
     return value
+
+
+def _emit_progress(stage: str, status: str, **fields: object) -> None:
+    document = {
+        "schema": PROGRESS_SCHEMA,
+        "stage": stage,
+        "status": status,
+        "at": _utc_now(),
+        **fields,
+    }
+    print(
+        "PRODUCTION_PROGRESS="
+        + json.dumps(document, sort_keys=True, separators=(",", ":")),
+        flush=True,
+    )
+
+
+def _wait_for_reboot_arm(run_id: str) -> dict[str, Any]:
+    expected = f"{REBOOT_ARM_PREFIX} {run_id}"
+    summary = {
+        "schema": SCHEMA,
+        "run_id": run_id,
+        "required_input": expected,
+        "input_timeout_seconds": None,
+        "post_reboot_password_required": True,
+    }
+    print(
+        "REBOOT_ARMING_SUMMARY="
+        + json.dumps(summary, sort_keys=True, separators=(",", ":")),
+        flush=True,
+    )
+    while True:
+        try:
+            entered = input("REBOOT_ARMING> ")
+        except EOFError as error:
+            raise ProductionExecutorError(
+                "reboot_operator_arming_input_closed"
+            ) from error
+        if entered == expected:
+            return {
+                "status": "PASS",
+                "run_id": run_id,
+                "operator_present": True,
+                "post_reboot_password_expected": True,
+            }
+        print("REBOOT_ARMING_WAITING=INPUT_NOT_MATCHED", flush=True)
 
 
 def _mqtt_varint(value: int) -> bytes:
@@ -506,6 +554,7 @@ class LiveProductionAdapter:
         return value
 
     def host_baseline(self, packages: dict[str, str]) -> dict[str, Any]:
+        _emit_progress("HOST_BASELINE", "STARTED")
         if self.remote_root is None:
             raise ProductionExecutorError("remote_workspace_not_open")
         tool = f"{self.remote_root}/n3w_t1_fresh_host_baseline.py"
@@ -528,9 +577,11 @@ class LiveProductionAdapter:
         )
         if result.get("status") != "PASS":
             raise ProductionExecutorError("host_baseline_not_pass")
+        _emit_progress("HOST_BASELINE", "PASS")
         return result
 
     def f3_deploy(self, run_context: dict[str, str]) -> dict[str, Any]:
+        _emit_progress("F3_DEPLOY", "STARTED")
         context = self.work_root / f"run-context-{self.run_id}.json"
         _atomic_private_json(context, run_context)
         payload = self._artifact("f3_payload")
@@ -566,9 +617,11 @@ class LiveProductionAdapter:
         result = _json_output(completed, "f3_deploy")
         if result.get("status") != "PASS":
             raise ProductionExecutorError("f3_deploy_not_pass")
+        _emit_progress("F3_DEPLOY", "PASS")
         return result
 
     def provision(self) -> dict[str, Any]:
+        _emit_progress("PROVISION", "STARTED")
         started = self._remote_json(
             (
                 "sudo",
@@ -590,6 +643,7 @@ class LiveProductionAdapter:
         )
         if verified.get("status") != "PASS":
             raise ProductionExecutorError("provision_verify_not_pass")
+        _emit_progress("PROVISION", "PASS")
         return {
             "status": "PASS",
             "start_state": started.get("state"),
@@ -599,6 +653,7 @@ class LiveProductionAdapter:
         }
 
     def f4_action(self, action: str, authorization_id: str) -> dict[str, Any]:
+        _emit_progress(action, "STARTED")
         if action == "F4_PREPARE":
             package_root = self._stage_release_tar("f4_control", "f4-package")
             script = f"{package_root}/tools/n3w_t1_f4_activation_host.py"
@@ -632,6 +687,7 @@ class LiveProductionAdapter:
             result = self._remote_json(tuple(argv), action.casefold(), timeout=1200)
         if result.get("status") != "PASS":
             raise ProductionExecutorError(f"{action.casefold()}_not_pass")
+        _emit_progress(action, "PASS")
         return result
 
     def controlled_reboot(
@@ -639,6 +695,11 @@ class LiveProductionAdapter:
         install_authorization_id: str,
         reboot_authorization_id: str,
     ) -> dict[str, Any]:
+        _emit_progress("REBOOT_CONTROL", "WAITING_FOR_OPERATOR")
+        armed = _wait_for_reboot_arm(self.run_id)
+        if armed.get("status") != "PASS":
+            raise ProductionExecutorError("reboot_operator_arming_not_pass")
+        _emit_progress("REBOOT_CONTROL", "ARMED")
         package_root = self._stage_release_tar(
             "reboot_control",
             "reboot-successor-control",
@@ -749,6 +810,7 @@ class LiveProductionAdapter:
                 check=False,
             )
             if checked.returncode != 0:
+                _emit_progress("REBOOT_CONTROL", "REBOOT_PENDING")
                 return {
                     "status": "PASS",
                     "state": "REBOOT_PENDING",
@@ -770,10 +832,12 @@ class LiveProductionAdapter:
         return dict(result)
 
     def wait_for_ssh(self) -> dict[str, Any]:
+        _emit_progress("WAIT_FOR_SSH", "STARTED")
         deadline = time.monotonic() + SSH_WAIT_SECONDS
         while time.monotonic() < deadline:
             try:
                 with socket.create_connection((self.host, 22), timeout=3):
+                    _emit_progress("WAIT_FOR_SSH", "PASS")
                     return {
                         "status": "PASS",
                         "ssh_available": True,
@@ -784,10 +848,12 @@ class LiveProductionAdapter:
         raise ProductionExecutorError("post_reboot_ssh_timeout")
 
     def start_post_reboot_epoch(self) -> dict[str, Any]:
+        _emit_progress("SSH_EPOCH_2", "PASSWORD_REQUIRED")
         epoch = self.transport.start_post_reboot_epoch()
         if epoch.get("host_key_sha256") != self.expected_host_key_sha256:
             raise ProductionExecutorError("post_reboot_host_key_drift")
         self.reboot_actuated = False
+        _emit_progress("SSH_EPOCH_2", "PASS")
         return dict(epoch)
 
     def read_started_marker(self) -> dict[str, Any]:
@@ -888,13 +954,17 @@ class LiveProductionAdapter:
         release: dict[str, Any],
         binding: dict[str, str],
     ) -> dict[str, Any]:
-        return run_acceptance(self, release, binding)
+        _emit_progress("POST_REBOOT_ACCEPTANCE", "STARTED")
+        result = run_acceptance(self, release, binding)
+        _emit_progress("POST_REBOOT_ACCEPTANCE", "PASS")
+        return result
 
     def accept_marker(
         self,
         binding: dict[str, str],
         acceptance_sha256: str,
     ) -> dict[str, Any]:
+        _emit_progress("MARKER_ACCEPTED", "STARTED")
         self._open_remote_root()
         result = self._remote_json(
             self._marker_command(
@@ -912,6 +982,7 @@ class LiveProductionAdapter:
             or result.get("T1_PRODUCTION_READY") is not True
         ):
             raise ProductionExecutorError("marker_accept_not_confirmed")
+        _emit_progress("MARKER_ACCEPTED", "PASS")
         return result
 
     def close_post_reboot_epoch(self) -> dict[str, Any]:
