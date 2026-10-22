@@ -1,3 +1,33 @@
+## 2026-10-22 — T1 Production V2 standalone executable proposal archived/deferred
+
+~~~text
+CURRENT_PRODUCT_MAINLINE=N3W_T1_PRODUCTION_V2
+CURRENT_PRODUCT_MAINLINE_STATUS=CLOSED_PASS
+
+PROPOSAL=T1_PRODUCTION_V2_STANDALONE_EXECUTABLE
+PROPOSAL_STATUS=DEFERRED_ARCHIVED_NO_EXECUTION
+ESTIMATED_ENGINEERING_EFFORT=3_TO_5_DAYS_RECOMMENDED_SCOPE
+
+IMPLEMENTATION_STARTED=false
+SOURCE_MUTATION=false
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+PRODUCTION_EXECUTION=false
+
+NEXT_IF_RESUMED=N3W_T1_PRODUCTION_V2_STANDALONE_EXECUTABLE_ARCHITECTURE_DESIGN
+AUTO_RESUME=false
+~~~
+
+The optional standalone-executable work is archived for future use and is not part
+of the current T1 Production V2 closure criteria. The recommended future shape is
+one operator-facing executable plus a separate immutable exact-release package.
+Packaging must preserve the current production state machine and requires a fresh
+real-T1 executable-to-ACCEPTED validation before it can become production authority.
+
+Authority:
+`docs/development/N3W_T1_PRODUCTION_V2_STANDALONE_EXECUTABLE_DEFERRED_PROPOSAL_20261022.md`.
+
 ## 2026-10-22 — T1-B F5 V2 exact-release real production acceptance CLOSED_PASS
 
 ~~~text
