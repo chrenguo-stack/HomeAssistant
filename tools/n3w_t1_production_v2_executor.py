@@ -36,7 +36,11 @@ from n3w_t1_post_reboot_acceptance import (
     run_acceptance,
 )
 from n3w_t1_production_v2 import EvidenceInsufficientError, R3Orchestrator
-from n3w_t1_production_v2_contract import canonical_json_bytes, validate_release
+from n3w_t1_production_v2_contract import (
+    canonical_json_bytes,
+    canonical_sha256,
+    validate_release,
+)
 from n3w_t1_ssh_transport import SSHTransport
 
 SCHEMA = "gh.n3w-t1-production-v2-live-executor/1"
@@ -694,6 +698,31 @@ class LiveProductionAdapter:
                 "fresh_qualification_not_pass:" + str(result.get("status"))
             )
         return result
+
+    def freeze_pre_mutation_failure(
+        self,
+        failure: dict[str, Any],
+    ) -> dict[str, Any]:
+        if self.remote_root is not None:
+            raise ProductionExecutorError(
+                "pre_mutation_remote_workspace_invalid"
+            )
+        if (
+            failure.get("marker_state") != "ABSENT"
+            or failure.get("target_mutation") is not False
+            or failure.get("reflash_required") is not False
+            or failure.get("automatic_retry") is not False
+        ):
+            raise ProductionExecutorError(
+                "pre_mutation_failure_evidence_invalid"
+            )
+        frozen = freeze_failure(self.evidence_root, failure)
+        return {
+            "status": "PASS",
+            "failure": frozen,
+            "evidence_sha256": canonical_sha256(frozen),
+            "target_mutation": False,
+        }
 
     def start_marker(self, binding: dict[str, str]) -> dict[str, Any]:
         self._open_remote_root()

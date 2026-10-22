@@ -73,6 +73,7 @@ class Adapter:
             self.fail_at = set(fail_at or ())
         self.marker_digest = "8" * 64
         self.frozen_failure = None
+        self.pre_mutation_failure = None
 
     def _pass(self, name, extra=None):
         self.calls.append(name)
@@ -123,6 +124,21 @@ class Adapter:
             "close_pre_reboot_epoch",
             {"session_closed": True},
         )
+
+    def freeze_pre_mutation_failure(self, failure):
+        self.calls.append("freeze_pre_mutation_failure")
+        if "freeze_pre_mutation_failure" in self.fail_at:
+            return {"status": "FAIL"}
+        frozen = copy.deepcopy(failure)
+        frozen["failure_frozen"] = True
+        frozen["forensic_collector_target_mutation"] = False
+        self.pre_mutation_failure = frozen
+        return {
+            "status": "PASS",
+            "failure": frozen,
+            "evidence_sha256": contract.canonical_sha256(frozen),
+            "target_mutation": False,
+        }
 
     def freeze_failure(self, failure):
         self.frozen_failure = copy.deepcopy(failure)
@@ -492,6 +508,16 @@ def test_r3_pre_mutation_failure_can_emit_absent_marker_result_after_session_clo
     assert result["error_class"] == "PRE_MUTATION_FAIL"
     assert result["operator_session_closed"] is True
     assert result["reflash_required"] is False
+    private = adapter.pre_mutation_failure
+    assert private["failed_stage"] == "QUALIFICATION"
+    assert private["error_type"] == "ProductionV2R2Error"
+    assert private["error_code"] == "qualification_not_pass"
+    assert private["error_message"] == "qualification_not_pass"
+    assert private["target_mutation"] is False
+    assert private["automatic_retry"] is False
+    assert result["private_result_sha256"] == contract.canonical_sha256(private)
+    for key in ("failed_stage", "error_code", "error_message", "origin_stage"):
+        assert key not in result
 
 
 
@@ -543,7 +569,26 @@ def test_r3_pre_mutation_session_close_failure_does_not_claim_closed():
     assert result["operator_session_closed"] is False
     assert result["reflash_required"] is False
     assert result["terminal_stage"] == "PRE_MUTATION_SESSION_CLOSE"
+    private = adapter.pre_mutation_failure
+    assert private["failed_stage"] == "PRE_MUTATION_SESSION_CLOSE"
+    assert private["origin_stage"] == "QUALIFICATION"
+    assert private["error_code"] == "pre_mutation_session_close_not_pass"
 
+
+
+def test_r3_pre_mutation_private_message_redacts_non_token_text():
+    wrapped = r2.PreMutationExecutionError(
+        failed_stage="SSH_EPOCH",
+        error=RuntimeError("connection failed for private target value"),
+        operator_session_closed=True,
+    )
+    evidence = r2._pre_mutation_failure_evidence(wrapped)
+    assert evidence["failed_stage"] == "SSH_EPOCH"
+    assert evidence["error_type"] == "RuntimeError"
+    assert evidence["error_code"] == "UNAVAILABLE"
+    assert evidence["error_message"].startswith("REDACTED_SHA256:")
+    assert "private target" not in evidence["error_message"]
+    assert len(evidence["error_message_sha256"]) == 64
 
 
 def test_r3_insufficient_evidence_stops_without_claiming_product_failure():

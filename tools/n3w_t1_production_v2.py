@@ -42,6 +42,25 @@ class EvidenceInsufficientError(ProductionV2R2Error):
     pass
 
 
+class PreMutationExecutionError(ProductionV2R2Error):
+    def __init__(
+        self,
+        *,
+        failed_stage: str,
+        error: Exception,
+        operator_session_closed: bool,
+        origin_stage: str | None = None,
+    ) -> None:
+        super().__init__(str(error) or type(error).__name__)
+        self.failed_stage = failed_stage
+        self.origin_stage = origin_stage
+        self.error_type = type(error).__name__
+        self.error_message = str(error)
+        self.error_code = getattr(error, "error_code", None)
+        self.returncode = getattr(error, "returncode", None)
+        self.operator_session_closed = operator_session_closed
+
+
 class R2Adapter(Protocol):
     def verify_release(self, release: dict[str, Any]) -> dict[str, Any]: ...
     def start_ssh_epoch(self) -> dict[str, Any]: ...
@@ -235,12 +254,14 @@ class R2Orchestrator:
                 raise ProductionV2R2Error("ssh_host_key_missing")
             stage = "QUALIFICATION"
             _pass(self.adapter.qualify(release), "qualification")
+            stage = "PLAN"
             plan = build_plan(
                 release,
                 run_id=run_id,
                 target_binding_sha256=target_binding_sha256,
                 ssh_host_key_sha256=host_key,
             )
+            stage = "PRODUCTION_APPROVAL"
             if approval_callback is not None:
                 if approved is True:
                     raise ProductionV2R2Error(
@@ -315,15 +336,27 @@ class R2Orchestrator:
                     error=error,
                 )
             if epoch_started:
-                close = _pass(
-                    self.adapter.close_pre_reboot_epoch(),
-                    "pre_mutation_session_close",
-                )
-                if close.get("session_closed") is not True:
-                    raise ProductionV2R2Error(
-                        "pre_mutation_session_not_closed"
-                    ) from error
-            raise
+                try:
+                    close = _pass(
+                        self.adapter.close_pre_reboot_epoch(),
+                        "pre_mutation_session_close",
+                    )
+                    if close.get("session_closed") is not True:
+                        raise ProductionV2R2Error(
+                            "pre_mutation_session_not_closed"
+                        )
+                except Exception as close_error:
+                    raise PreMutationExecutionError(
+                        failed_stage="PRE_MUTATION_SESSION_CLOSE",
+                        origin_stage=stage,
+                        error=close_error,
+                        operator_session_closed=False,
+                    ) from close_error
+            raise PreMutationExecutionError(
+                failed_stage=stage,
+                error=error,
+                operator_session_closed=True,
+            ) from error
 
 
 def self_check() -> dict[str, object]:
@@ -433,7 +466,53 @@ def _repository_defined_error_code(value: str) -> bool:
     )
 
 
+PRIVATE_ERROR_TOKEN_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,200}$")
+
+
+def _pre_mutation_failure_evidence(
+    error: PreMutationExecutionError,
+) -> dict[str, Any]:
+    raw_message = error.error_message.strip() or error.error_type
+    message_sha256 = hashlib.sha256(raw_message.encode("utf-8")).hexdigest()
+    safe_message = (
+        raw_message
+        if PRIVATE_ERROR_TOKEN_RE.fullmatch(raw_message) is not None
+        else "REDACTED_SHA256:" + message_sha256
+    )
+    code = error.error_code
+    if not isinstance(code, str) or PRIVATE_ERROR_TOKEN_RE.fullmatch(code) is None:
+        code = (
+            raw_message
+            if PRIVATE_ERROR_TOKEN_RE.fullmatch(raw_message) is not None
+            else "UNAVAILABLE"
+        )
+    document: dict[str, Any] = {
+        "schema": "gh.n3w-t1-production-v2-pre-mutation-failure/1",
+        "status": "FAIL",
+        "failed_stage": error.failed_stage,
+        "error_type": error.error_type,
+        "error_code": code,
+        "error_message": safe_message,
+        "error_message_sha256": message_sha256,
+        "marker_state": "ABSENT",
+        "operator_session_closed": error.operator_session_closed,
+        "target_mutation": False,
+        "reflash_required": False,
+        "automatic_retry": False,
+        "board_access": False,
+    }
+    if error.origin_stage is not None:
+        document["origin_stage"] = error.origin_stage
+    if isinstance(error.returncode, int) and not isinstance(error.returncode, bool):
+        document["returncode"] = error.returncode
+    return document
+
+
 class R3Adapter(R2Adapter, Protocol):
+    def freeze_pre_mutation_failure(
+        self,
+        failure: dict[str, Any],
+    ) -> dict[str, Any]: ...
     def wait_for_ssh(self) -> dict[str, Any]: ...
     def start_post_reboot_epoch(self) -> dict[str, Any]: ...
     def wait_for_post_reboot_readiness(self) -> dict[str, Any]: ...
@@ -614,9 +693,24 @@ class R3Orchestrator:
                 approved=approved,
                 approval_callback=approval_callback,
             )
-        except Exception as error:
+        except PreMutationExecutionError as error:
             if tracker.marker_started:
                 raise
+            private_failure = _pre_mutation_failure_evidence(error)
+            frozen = _pass(
+                self.adapter.freeze_pre_mutation_failure(private_failure),
+                "pre_mutation_failure_freeze",
+            )
+            frozen_failure = frozen.get("failure")
+            evidence_sha256 = frozen.get("evidence_sha256")
+            if (
+                not isinstance(frozen_failure, dict)
+                or not isinstance(evidence_sha256, str)
+                or canonical_sha256(frozen_failure) != evidence_sha256
+            ):
+                raise ProductionV2R2Error(
+                    "pre_mutation_failure_evidence_binding_invalid"
+                )
             return _final_result(
                 release,
                 run_id=run_id,
@@ -626,18 +720,15 @@ class R3Orchestrator:
                 error_class="PRE_MUTATION_FAIL",
                 device_acceptance="NOT_REACHED",
                 production_ready=False,
-                operator_session_closed=tracker.operator_session_closed,
+                operator_session_closed=error.operator_session_closed,
                 evidence_complete=True,
                 reflash_required=False,
                 terminal_stage=(
                     "PRE_MUTATION"
-                    if tracker.operator_session_closed
+                    if error.operator_session_closed
                     else "PRE_MUTATION_SESSION_CLOSE"
                 ),
-                evidence_seed={
-                    "error_type": type(error).__name__,
-                    "error": str(error)[:200],
-                },
+                evidence_seed=frozen_failure,
             )
 
         if pre.get("status") != "PASS":
