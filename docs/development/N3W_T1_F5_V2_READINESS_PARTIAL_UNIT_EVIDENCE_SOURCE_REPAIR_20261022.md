@@ -15,7 +15,7 @@ T1_MUTATION=false
 BOARD_ACCESS=false
 REFLASH=false
 PRODUCTION_EXECUTION=false
-MERGE=false
+PR642_MERGED=true
 ~~~
 
 ## Real-T1 evidence
@@ -121,10 +121,14 @@ PRIOR_SOURCE_REVIEW_RESULT=CLOSED_PASS
 PRIOR_OPEN_SOURCE_BLOCKER_COUNT=0
 PRIOR_EXACT_HEAD_CI=14/14_PASS
 POST_KF128_READINESS_SOURCE_DRIFT=false
-POST_REBIND_EXACT_HEAD_CI_PENDING=true
-MERGE_DECISION=PENDING_EXACT_HEAD_CI
+POST_REBIND_HEAD=693bdfe98f16dbb55796203b30f443d02e2025e5
+POST_REBIND_EXACT_HEAD_CI=14/14_PASS
+MERGE_DECISION=PASS
+PR642_MERGE_COMMIT=116e247af33af3e0e97e1e3696fdc5e59e925249
+PR642_MERGE_TREE=c126faf04028914c0eb5c1d8015651f826c0f5dc
+MERGE_TIME_SOURCE_DRIFT=false
 
-NEXT_ONE_GATE=N3W_T1_KF127_PR642_POST_KF128_EXACT_HEAD_CI_AND_MERGE_20261022_01
+NEXT_ONE_GATE=N3W_T1_POST_KF127_KF128_FRESH_EXACT_MAIN_RELEASE_REBUILD_PREPARATION_20261022_01
 ~~~
 
 
@@ -147,4 +151,25 @@ KF128_SNAPSHOT_SESSION_REPAIR_PRESERVED=true
 
 The previous PR #642 `mergeable=false` state is treated as branch/document
 convergence after main advanced, not as evidence of a new functional conflict.
-A fresh exact-head CI run after this merge/rebind is mandatory before merge.
+The fresh rebound exact-head CI completed 14/14 PASS. PR #642 then merged with an expected-head lock; the merge tree exactly equals the reviewed/rebound head tree, so no merge-time source drift occurred.
+
+
+## Merge closure
+
+~~~text
+POST_REBIND_HEAD=693bdfe98f16dbb55796203b30f443d02e2025e5
+POST_REBIND_SOURCE_REVIEW=CLOSED_PASS
+POST_REBIND_OPEN_SOURCE_BLOCKER_COUNT=0
+POST_REBIND_EXACT_HEAD_CI=14/14_PASS
+PR642_MERGED=true
+PR642_MERGE_COMMIT=116e247af33af3e0e97e1e3696fdc5e59e925249
+PR642_FINAL_HEAD_TREE=c126faf04028914c0eb5c1d8015651f826c0f5dc
+PR642_MERGE_TREE=c126faf04028914c0eb5c1d8015651f826c0f5dc
+MERGE_TIME_SOURCE_DRIFT=false
+KF127_SOURCE_CLOSURE=CLOSED_PASS
+~~~
+
+KF-127 and KF-128 acceptance-tool source repairs are now both in main. This
+invalidates all older exact release/source authorities for any future production
+attempt. A fresh exact-main release rebuild and local exact-release validation
+are required before separately authorized live revalidation.
