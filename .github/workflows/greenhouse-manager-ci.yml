@@ -12,8 +12,11 @@ on:
       - "firmware/esphome_rc/components/greenhouse_n3w_core/**"
       - "firmware/esphome_rc/board_lab/n3w_phase3_simple/**"
       - "firmware/esphome_rc/board_lab/n3w_phase4_physical/**"
+      - "firmware/esphome_rc/board_lab/n3w_auto_safe_fallback_gate_a/**"
       - "tests/n3w_phase3/**"
       - "tests/n3w_phase4/**"
+      - "tests/execution_packages/n3w/auto_safe_fallback/**"
+      - "tools/execution_packages/n3w/auto_safe_fallback/**"
       - ".github/workflows/greenhouse-manager-ci.yml"
 
 permissions:
@@ -42,12 +45,12 @@ jobs:
             exit 0
           fi
           git diff --name-only "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/changed-files.txt"
-          if grep -Eq '^(host/greenhouse-manager/|protocols/mqtt/|protocols/pairing/|firmware/esphome_rc/components/greenhouse_n3w_core/|firmware/esphome_rc/board_lab/n3w_phase3_simple/|firmware/esphome_rc/board_lab/n3w_phase4_physical/|tests/n3w_phase3/|tests/n3w_phase4/|\.github/workflows/greenhouse-manager-ci\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
+          if grep -Eq '^(host/greenhouse-manager/|protocols/mqtt/|protocols/pairing/|firmware/esphome_rc/components/greenhouse_n3w_core/|firmware/esphome_rc/board_lab/n3w_phase3_simple/|firmware/esphome_rc/board_lab/n3w_phase4_physical/|firmware/esphome_rc/board_lab/n3w_auto_safe_fallback_gate_a/|tests/n3w_phase3/|tests/n3w_phase4/|tests/execution_packages/n3w/auto_safe_fallback/|tools/execution_packages/n3w/auto_safe_fallback/|\.github/workflows/greenhouse-manager-ci\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
           fi
-          if grep -Eq '^(firmware/esphome_rc/components/greenhouse_n3w_core/|firmware/esphome_rc/board_lab/n3w_phase3_simple/|firmware/esphome_rc/board_lab/n3w_phase4_physical/|tests/n3w_phase3/|tests/n3w_phase4/|\.github/workflows/greenhouse-manager-ci\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
+          if grep -Eq '^(firmware/esphome_rc/components/greenhouse_n3w_core/|firmware/esphome_rc/board_lab/n3w_phase3_simple/|firmware/esphome_rc/board_lab/n3w_phase4_physical/|firmware/esphome_rc/board_lab/n3w_auto_safe_fallback_gate_a/|tests/n3w_phase3/|tests/n3w_phase4/|\.github/workflows/greenhouse-manager-ci\.yml$)' "$RUNNER_TEMP/changed-files.txt"; then
             echo "phase3=true" >> "$GITHUB_OUTPUT"
           else
             echo "phase3=false" >> "$GITHUB_OUTPUT"
@@ -108,6 +111,34 @@ jobs:
         run: pytest -q tests/n3w_phase4/test_single_radio_ownership_contract.py
       - name: Phase 4 recovery exit and Direct liveness contracts
         run: pytest -q tests/n3w_phase4/test_recovery_exit_behavior.py tests/n3w_phase4/test_direct_recovery_liveness_behavior.py
+      - name: Auto safe fallback Gate A execution package contracts
+        run: pytest -q tests/execution_packages/n3w/auto_safe_fallback/gate_a_readonly_preflight/test_executor.py tests/execution_packages/n3w/auto_safe_fallback/gate_a_private_build/test_gate_a_private_build_executor.py tests/execution_packages/n3w/auto_safe_fallback/gate_a_t1_lab/test_gate_a_t1_lab_executor.py tests/execution_packages/n3w/auto_safe_fallback/gate_a_board_b_write/test_gate_a_board_b_write_executor.py tests/execution_packages/n3w/auto_safe_fallback/gate_a_kf099_rollback/test_gate_a_kf099_rollback_executor.py
+      - name: Auto safe fallback Gate B discovery contracts
+        run: pytest -q tests/n3w_phase4/test_manager_discovery_policy_behavior.py tests/n3w_phase4/test_manager_discovery_source_contract.py
+      - name: Build and run Gate B discovery policy host test
+        shell: bash
+        run: |
+          set -euo pipefail
+          core=firmware/esphome_rc/components/greenhouse_n3w_core
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror \
+            -I"$core" \
+            "$core/n3w_manager_discovery_policy.cpp" \
+            tests/n3w_phase4/n3w_manager_discovery_policy_host_test.cpp \
+            -o /tmp/n3w-manager-discovery-policy-host-test
+          /tmp/n3w-manager-discovery-policy-host-test
+      - name: Auto safe fallback Gate C recovery contracts
+        run: pytest -q tests/n3w_phase4/test_broker_relocation_source_contract.py
+      - name: Build and run Gate C relocation budget host test
+        shell: bash
+        run: |
+          set -euo pipefail
+          core=firmware/esphome_rc/components/greenhouse_n3w_core
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror \
+            -I"$core" \
+            "$core/n3w_broker_relocation_policy.cpp" \
+            tests/n3w_phase4/n3w_broker_relocation_policy_host_test.cpp \
+            -o /tmp/n3w-broker-relocation-policy-host-test
+          /tmp/n3w-broker-relocation-policy-host-test
       - name: Build and run C++ cross-language vectors
         shell: bash
         run: |
@@ -161,5 +192,23 @@ jobs:
         run: |
           set -euo pipefail
           cd firmware/esphome_rc/board_lab/n3w_phase4_physical
+          esphome config generic.yml
+          esphome compile generic.yml
+
+      - name: Compile auto safe fallback Gate A fixture
+        shell: bash
+        env:
+          N3W_GATE_A_LIVE_ALIAS: 192.0.2.20
+          N3W_GATE_A_BLACKHOLE_IP: 192.0.2.21
+          N3W_GATE_A_RESTORE_HOST: 192.0.2.22
+          N3W_GATE_A_BROKER_PORT: "8883"
+          N3W_GATE_A_TLS_SERVER_NAME: gate-a.invalid
+          N3W_GATE_A_CA_PEM_ESCAPED: CI_CA
+          N3W_GATE_A_MQTT_USERNAME: ci_gate_a
+          N3W_GATE_A_MQTT_PASSWORD: ""
+          N3W_GATE_A_MQTT_CLIENT_ID: ci_gate_a
+        run: |
+          set -euo pipefail
+          cd firmware/esphome_rc/board_lab/n3w_auto_safe_fallback_gate_a
           esphome config generic.yml
           esphome compile generic.yml

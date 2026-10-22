@@ -371,3 +371,84 @@ def test_relay_mac_delivery_feedback_is_destination_bound_and_loop_owned() -> No
     loop_end = component.index("bool SimpleProductComponent::send_telemetry_json", loop_start)
     loop = component[loop_start:loop_end]
     assert loop.index("drain_send_completions_();") < loop.index("drain_radio_();")
+
+
+def test_runtime_mqtt_retarget_probe_is_address_only_and_fail_closed() -> None:
+    patch = text(CORE / "n3w_tls_server_name_patch.py.script")
+
+    assert "n3w_runtime_retarget_server" in patch
+    assert "n3w_runtime_request_disconnect" in patch
+    assert "n3w_runtime_request_reconnect" in patch
+    assert "esp_mqtt_client_set_uri" in patch
+    assert "esp_mqtt_client_disconnect" in patch
+    assert "esp_mqtt_client_reconnect" in patch
+
+    retarget_start = patch.index(
+        '"  bool n3w_runtime_retarget_server(const std::string &host, uint16_t port) {\\n"'
+    )
+    retarget_end = patch.index(
+        '"  bool n3w_runtime_request_disconnect() {\\n"',
+        retarget_start,
+    )
+    retarget = patch[retarget_start:retarget_end]
+
+    assert '\\"mqtts://\\"' in retarget
+    assert '\\"mqtt://\\"' in retarget
+    assert "esp_mqtt_client_set_uri" in retarget
+    assert "set_tls_server_name" not in retarget
+    assert "set_ca_certificate" not in retarget
+    assert "set_credentials" not in retarget
+    assert "set_client_id" not in retarget
+    assert "esp_mqtt_client_stop" not in retarget
+    assert "esp_mqtt_client_destroy" not in retarget
+
+    client_start = patch.index(
+        '"  bool n3w_runtime_retarget_server(const std::string &address, uint16_t port) {\\n"'
+    )
+    client_end = patch.index('"#endif\\n"', client_start)
+    client = patch[client_start:client_end]
+
+    assert "this->credentials_.address = address" in client
+    assert "this->credentials_.port = port" in client
+    assert "set_username" not in client
+    assert "set_password" not in client
+    assert "set_client_id" not in client
+
+
+def test_auto_safe_fallback_gate_a_fixture_is_lab_only_and_runtime_ephemeral() -> None:
+    fixture = text(
+        ROOT
+        / "firmware/esphome_rc/board_lab/n3w_auto_safe_fallback_gate_a/generic.yml"
+    )
+
+    for name in (
+        "N3W_GATE_A_LIVE_ALIAS",
+        "N3W_GATE_A_BLACKHOLE_IP",
+        "N3W_GATE_A_RESTORE_HOST",
+        "N3W_GATE_A_BROKER_PORT",
+        "N3W_GATE_A_TLS_SERVER_NAME",
+        "N3W_GATE_A_CA_PEM_ESCAPED",
+        "N3W_GATE_A_MQTT_USERNAME",
+        "N3W_GATE_A_MQTT_PASSWORD",
+        "N3W_GATE_A_MQTT_CLIENT_ID",
+    ):
+        assert f"!env_var {name}" in fixture
+
+    assert "phase4_product_runtime: false" in fixture
+    assert "phase4_lab_diagnostics: false" in fixture
+    assert "runtime_ready()" not in fixture
+    assert "GATE_A_EPHEMERAL_MQTT_CONFIG_APPLIED" in fixture
+    assert "set_broker_address(restore_host)" in fixture
+    assert "set_broker_port(broker_port)" in fixture
+    assert "set_tls_server_name(tls_server_name)" in fixture
+    assert "set_ca_certificate(ca_pem.c_str())" in fixture
+    assert "set_username(mqtt_username)" in fixture
+    assert "set_password(mqtt_password)" in fixture
+    assert "set_client_id(mqtt_client_id)" in fixture
+    assert "n3w_runtime_retarget_server" in fixture
+    assert "n3w_runtime_request_disconnect" in fixture
+    assert "n3w_runtime_request_reconnect" in fixture
+    assert "GATE_A_PHYSICAL_SEQUENCE_PASS" in fixture
+    assert "GATE_A_FAIL" in fixture
+    assert "save(" not in fixture
+    assert "NvsProvisionedBrokerStoreV2" not in fixture

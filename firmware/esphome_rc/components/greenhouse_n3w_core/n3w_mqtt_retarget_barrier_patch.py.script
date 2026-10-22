@@ -1,0 +1,218 @@
+from pathlib import Path
+import hashlib
+import os
+
+Import("env")
+
+EXPECTED_MQTT_BACKEND_ESP32_CPP_BLOB = "499a3307306f7620694ea333ce3bc6ef8ec43f94"
+
+CLIENT_OLD = (
+    "  bool n3w_runtime_request_disconnect() {\n"
+    "    return this->mqtt_backend_.n3w_runtime_request_disconnect();\n"
+    "  }\n"
+    "  bool n3w_runtime_request_reconnect() {\n"
+    "    return this->mqtt_backend_.n3w_runtime_request_reconnect();\n"
+    "  }\n"
+)
+
+CLIENT_NEW = (
+    "  bool n3w_runtime_request_disconnect() {\n"
+    "    return this->mqtt_backend_.n3w_runtime_request_disconnect();\n"
+    "  }\n"
+    "  bool n3w_runtime_request_reconnect() {\n"
+    "    return this->mqtt_backend_.n3w_runtime_request_reconnect();\n"
+    "  }\n"
+    "  void n3w_runtime_fence_old_events() {\n"
+    "    this->mqtt_backend_.n3w_runtime_fence_old_events();\n"
+    "    this->state_ = MQTT_CLIENT_CONNECTING;\n"
+    "    this->connect_begin_ = millis();\n"
+    "    this->disconnect_reason_.reset();\n"
+    "  }\n"
+)
+
+BACKEND_INCLUDE_OLD = (
+    "#include <string>\n"
+    "#include <cstring>\n"
+)
+
+BACKEND_INCLUDE_NEW = (
+    "#include <atomic>\n"
+    "#include <string>\n"
+    "#include <cstring>\n"
+)
+
+BACKEND_EVENT_OLD = (
+    "  esp_mqtt_error_codes_t error_handle{};\n"
+    "\n"
+    "  // Populate from esp_mqtt_event_t\n"
+    "  // Copies pointer-based data to owned storage for safe cross-thread transfer\n"
+    "  void populate(const esp_mqtt_event_t &event) {\n"
+    "    this->event_id = event.event_id;\n"
+)
+
+BACKEND_EVENT_NEW = (
+    "  esp_mqtt_error_codes_t error_handle{};\n"
+    "  uint64_t generation{0};\n"
+    "\n"
+    "  // Populate from esp_mqtt_event_t\n"
+    "  // Copies pointer-based data to owned storage for safe cross-thread transfer\n"
+    "  void populate(const esp_mqtt_event_t &event, uint64_t generation) {\n"
+    "    this->generation = generation;\n"
+    "    this->event_id = event.event_id;\n"
+)
+
+BACKEND_METHOD_OLD = (
+    "  bool n3w_runtime_request_disconnect() {\n"
+    "    if (!this->is_initalized_) return true;\n"
+    "    return esp_mqtt_client_disconnect(this->handler_.get()) == ESP_OK;\n"
+    "  }\n"
+    "  bool n3w_runtime_request_reconnect() {\n"
+    "    if (!this->is_initalized_) return false;\n"
+    "    return esp_mqtt_client_reconnect(this->handler_.get()) == ESP_OK;\n"
+    "  }\n"
+)
+
+BACKEND_METHOD_NEW = (
+    "  bool n3w_runtime_request_disconnect() {\n"
+    "    if (!this->is_initalized_) return true;\n"
+    "    return esp_mqtt_client_disconnect(this->handler_.get()) == ESP_OK;\n"
+    "  }\n"
+    "  bool n3w_runtime_request_reconnect() {\n"
+    "    if (!this->is_initalized_) return false;\n"
+    "    return esp_mqtt_client_reconnect(this->handler_.get()) == ESP_OK;\n"
+    "  }\n"
+    "  void n3w_runtime_fence_old_events() {\n"
+    "    const uint64_t current = this->connection_generation_.load();\n"
+    "    this->minimum_event_generation_.store(current + 1U);\n"
+    "    this->is_connected_ = false;\n"
+    "  }\n"
+)
+
+BACKEND_STORAGE_OLD = (
+    "  bool is_connected_{false};\n"
+    "  bool is_initalized_{false};\n"
+)
+
+BACKEND_STORAGE_NEW = (
+    "  bool is_connected_{false};\n"
+    "  bool is_initalized_{false};\n"
+    "  std::atomic<uint64_t> connection_generation_{0};\n"
+    "  std::atomic<uint64_t> minimum_event_generation_{0};\n"
+)
+
+CPP_LOOP_OLD = (
+    "  Event *event = this->mqtt_event_queue_.pop();\n"
+    "  if (event != nullptr) {\n"
+    "    this->mqtt_event_handler_(*event);\n"
+    "    this->mqtt_event_pool_.release(event);\n"
+    "  }\n"
+)
+
+CPP_LOOP_NEW = (
+    "  Event *event = this->mqtt_event_queue_.pop();\n"
+    "  if (event != nullptr) {\n"
+    "    const uint64_t minimum_generation =\n"
+    "        this->minimum_event_generation_.load();\n"
+    "    if (minimum_generation == 0U ||\n"
+    "        event->generation >= minimum_generation) {\n"
+    "      this->mqtt_event_handler_(*event);\n"
+    "    }\n"
+    "    this->mqtt_event_pool_.release(event);\n"
+    "  }\n"
+)
+
+CPP_POPULATE_OLD = (
+    "    event->populate(*static_cast<esp_mqtt_event_t *>(event_data));\n"
+)
+
+CPP_POPULATE_NEW = (
+    "    uint64_t generation = instance->connection_generation_.load();\n"
+    "    if (event_id == MQTT_EVENT_BEFORE_CONNECT) {\n"
+    "      generation = instance->connection_generation_.fetch_add(1U) + 1U;\n"
+    "    }\n"
+    "    event->populate(*static_cast<esp_mqtt_event_t *>(event_data), generation);\n"
+)
+
+
+def git_blob_sha1(data: bytes) -> str:
+    header = f"blob {len(data)}\0".encode("ascii")
+    return hashlib.sha1(header + data).hexdigest()
+
+
+def patch_postimage(path: Path, replacements) -> str:
+    text = path.read_text(encoding="utf-8")
+    already = all(text.count(new) == 1 for _, new in replacements)
+    if already:
+        return "ALREADY_EXACT"
+    patched = text
+    for old, new in replacements:
+        if patched.count(old) != 1 or new in patched:
+            raise RuntimeError(f"{path.name}: unexpected post-overlay source")
+        patched = patched.replace(old, new, 1)
+    tmp = path.with_name(path.name + ".n3w-retarget-barrier-tmp")
+    tmp.write_text(patched, encoding="utf-8")
+    os.replace(tmp, path)
+    return "APPLIED"
+
+
+def patch_exact_cpp(path: Path) -> str:
+    raw = path.read_bytes()
+    text = raw.decode("utf-8")
+    replacements = (
+        (CPP_LOOP_OLD, CPP_LOOP_NEW),
+        (CPP_POPULATE_OLD, CPP_POPULATE_NEW),
+    )
+    if git_blob_sha1(raw) == EXPECTED_MQTT_BACKEND_ESP32_CPP_BLOB:
+        patched = text
+        for old, new in replacements:
+            if patched.count(old) != 1 or new in patched:
+                raise RuntimeError(f"{path.name}: exact preimage hunk mismatch")
+            patched = patched.replace(old, new, 1)
+        tmp = path.with_name(path.name + ".n3w-retarget-barrier-tmp")
+        tmp.write_text(patched, encoding="utf-8")
+        os.replace(tmp, path)
+        return "APPLIED"
+    candidate = text
+    for old, new in reversed(replacements):
+        if candidate.count(new) != 1:
+            raise RuntimeError(f"{path.name}: unknown upstream source")
+        candidate = candidate.replace(new, old, 1)
+    if git_blob_sha1(candidate.encode("utf-8")) != EXPECTED_MQTT_BACKEND_ESP32_CPP_BLOB:
+        raise RuntimeError(f"{path.name}: patched source does not reverse to exact preimage")
+    return "ALREADY_EXACT"
+
+
+def main() -> None:
+    project_src = Path(env.subst("$PROJECT_SRC_DIR"))
+    mqtt_dir = project_src / "esphome" / "components" / "mqtt"
+    client = mqtt_dir / "mqtt_client.h"
+    backend_h = mqtt_dir / "mqtt_backend_esp32.h"
+    backend_cpp = mqtt_dir / "mqtt_backend_esp32.cpp"
+
+    present = (client.is_file(), backend_h.is_file(), backend_cpp.is_file())
+    if not any(present):
+        print("N3W_MQTT_RETARGET_BARRIER_PATCH=NOT_APPLICABLE reason=mqtt_generated_sources_absent")
+        return
+    if not all(present):
+        raise RuntimeError("N3W MQTT retarget barrier patch target set is partial; refusing build")
+
+    client_state = patch_postimage(client, ((CLIENT_OLD, CLIENT_NEW),))
+    backend_h_state = patch_postimage(
+        backend_h,
+        (
+            (BACKEND_INCLUDE_OLD, BACKEND_INCLUDE_NEW),
+            (BACKEND_EVENT_OLD, BACKEND_EVENT_NEW),
+            (BACKEND_METHOD_OLD, BACKEND_METHOD_NEW),
+            (BACKEND_STORAGE_OLD, BACKEND_STORAGE_NEW),
+        ),
+    )
+    backend_cpp_state = patch_exact_cpp(backend_cpp)
+    print(
+        "N3W_MQTT_RETARGET_BARRIER_PATCH=PASS "
+        f"mqtt_client_h={client_state} "
+        f"mqtt_backend_esp32_h={backend_h_state} "
+        f"mqtt_backend_esp32_cpp={backend_cpp_state}"
+    )
+
+
+main()

@@ -6,9 +6,13 @@
 #include <cstdint>
 #include <deque>
 #include <string>
+#include <vector>
 
 #include "esphome/core/component.h"
 
+#include "n3w_broker_relocation_policy.h"
+#include "n3w_esp32_manager_discovery.h"
+#include "n3w_esp32_manager_discovery_session.h"
 #include "n3w_esp32_pairing_nvs.h"
 #include "n3w_esp32_runtime_nvs.h"
 #include "n3w_espnow_driver.h"
@@ -122,6 +126,8 @@ class SimpleProductComponent : public Component,
   }
   bool publish_direct(const std::string &topic, const std::string &payload) override;
   bool publish_relay(const std::string &topic, const std::string &payload) override;
+  void on_direct_recovery_probe_tick(bool success) override;
+  void on_direct_recovery_commit_result(bool committed) override;
 
   // Clocks/randomness.
   uint64_t now_ms() const override;
@@ -222,6 +228,16 @@ class SimpleProductComponent : public Component,
   void advance_relay_restore_();
   void exit_relay_restore_failure_(uint64_t now_ms);
   bool restore_relay_radio_();
+  void reset_broker_relocation_attempt_();
+  void advance_broker_relocation_();
+  bool start_broker_discovery_();
+  bool finish_broker_discovery_();
+  bool start_next_broker_candidate_();
+  bool retarget_runtime_broker_(const std::string &host, bool reconnect);
+  void rollback_broker_candidate_();
+  bool current_wifi_ipv4_(
+      std::string *local_ipv4,
+      std::string *subnet_mask) const;
   bool enqueue_telemetry_(
       const std::string &telemetry_json,
       const std::string &boot_id,
@@ -300,6 +316,26 @@ class SimpleProductComponent : public Component,
   uint32_t telemetry_invariant_failures_{0};
   uint32_t pending_unicast_timeout_count_{0};
   uint32_t relay_restore_exhausted_count_{0};
+  bool broker_relocation_initialized_{false};
+  bool broker_discovery_attempted_{false};
+  bool broker_discovery_ever_started_{false};
+  bool broker_candidate_active_{false};
+  bool broker_candidate_verified_{false};
+  uint64_t broker_mqtt_failure_started_ms_{0};
+  uint64_t broker_candidate_started_ms_{0};
+  uint64_t broker_candidate_deadline_ms_{0};
+  uint64_t broker_discovery_completed_ms_{0};
+  uint64_t last_broker_discovery_started_ms_{0};
+  std::string stable_runtime_broker_host_{};
+  std::string pending_broker_candidate_host_{};
+  std::string broker_discovery_request_id_{};
+  std::string broker_discovery_nonce_{};
+  std::string broker_discovery_local_ipv4_{};
+  std::string broker_discovery_subnet_mask_{};
+  std::vector<SimpleBrokerRecoveryTarget> broker_relocation_targets_{};
+  std::size_t broker_relocation_target_index_{0};
+  Esp32ManagerDiscoverySession broker_discovery_session_{};
+  Esp32ManagerDiscoveryRandom broker_discovery_random_{};
   MacAddress local_mac_{};
   MacAddress direct_ap_bssid_{};
   bool direct_ap_bssid_valid_{false};
