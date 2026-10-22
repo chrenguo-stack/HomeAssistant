@@ -2,7 +2,7 @@
 
 | ID | 范围 | 问题 | 根因与修复保护 | 状态 |
 | --- | --- | --- | --- | --- |
-| KF-127 | T1 F5 V2 post-reboot readiness | real-T1 run 已跨过 KF-126 reboot boundary，但在 `POST_REBOOT_READINESS` 以 `readiness_unit_evidence_invalid` 终止；冻结取证同时显示 `systemd=starting` | readiness 虽设计了 `systemd=starting -> WAIT`，但旧实现先要求每个 unit 的 `systemctl show` 立即给全四个字段，启动早期 partial evidence 会在 WAIT 分支之前硬失败。修复保留 partial evidence，在 starting/initializing 阶段允许 WAIT；已出现的明确 failed/exit-code 仍立即 FAIL；systemd running/degraded 后 incomplete evidence 仍严格 FAIL | SOURCE_REPAIR_IMPLEMENTED_REVIEW_PENDING |
+| KF-127 | T1 F5 V2 post-reboot readiness | real-T1 run 已跨过 KF-126 reboot boundary，但在 `POST_REBOOT_READINESS` 以 `readiness_unit_evidence_invalid` 终止；冻结取证同时显示 `systemd=starting` | readiness 虽设计了 `systemd=starting -> WAIT`，但旧实现先要求每个 unit 的 `systemctl show` 立即给全四个字段，启动早期 partial evidence 会在 WAIT 分支之前硬失败；同时它把 service-only `ExecMainStatus` 错误强加给 `CERT_TIMER`。修复改为 service/timer 分类型字段合同，并在 starting/initializing 阶段允许正常 partial evidence WAIT；明确 failed/exit-code 仍立即 FAIL；systemd running/degraded 后仍按对应 unit 类型严格校验完整性 | SOURCE_REPAIR_IMPLEMENTED_REVIEW_PENDING |
 
 本次失败 run 保持 terminal/no-replay，T1-B 保持 reflash-required；修复阶段不访问、不修改、不重刷 T1。Authority: `docs/development/N3W_T1_F5_V2_READINESS_PARTIAL_UNIT_EVIDENCE_SOURCE_REPAIR_20261022.md`。
 
