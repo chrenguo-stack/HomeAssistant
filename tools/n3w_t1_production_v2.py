@@ -51,7 +51,7 @@ class PreMutationExecutionError(ProductionV2R2Error):
         operator_session_closed: bool,
         origin_stage: str | None = None,
     ) -> None:
-        super().__init__("pre_mutation_failure")
+        super().__init__(str(error) or type(error).__name__)
         self.failed_stage = failed_stage
         self.origin_stage = origin_stage
         self.error_type = type(error).__name__
