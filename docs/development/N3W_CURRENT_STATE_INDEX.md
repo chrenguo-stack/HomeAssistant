@@ -1,15 +1,17 @@
-## 2026-10-22 — F4/F5 runtime snapshot evidence contract source repair
+## 2026-10-22 — F4/F5 runtime snapshot evidence contract source repair R2
 
-- Full F4 post-reboot verifier on the already-deployed T1-B is PASS; current containers have restart_count 0, critical journal count is 0, and current Manager/Home Assistant MQTT sockets are present. Product runtime failure is not proven.
-- Independent source-matched evidence confirmed a snapshot-tool false FAIL: Manager has a valid exact authenticated connection event followed about 124 microseconds later by another exact-client event; the old last-event rule rejects the snapshot before current socket evidence can be used.
-- A second source defect is in the same evidence domain: `broker_events_sha256` participates in whole-snapshot equality, so harmless Broker history growth can trigger `runtime_continuity_changed` during the 90-second observation.
-- KF-128 separates historical authentication proof from current connection proof. Historical exact identity auth remains required; wrong exact-client username fails closed; absent auth evidence cannot PASS.
-- Current connection is service-owned socket evidence: Manager requires exactly one 8883 socket; Home Assistant requires at least one 1883 socket. Snapshot schema advances to `gh.n3w-t1-runtime-snapshot/2`.
-- 90-second continuity now compares only state that must remain stable; historical authentication digest remains auditable evidence but is excluded from the continuity projection.
-- PR #642/KF-127 remains a separate draft and is not expanded by this repair. Failed production history remains terminal/no-replay and marker state is unchanged.
+- Full F4 post-reboot verifier on the already-deployed T1-B is PASS; product runtime failure remains unproven. Historical production failure remains terminal/no-replay.
+- R1 removed the known arbitrary Broker last-event false FAIL and whole-history continuity hash churn, but independent review of PR #643 head `31e19984149b4227edc075ebd264e4ecdde57b6f` found one false-PASS blocker: an old successful MQTT authentication could be combined with a newer TCP socket after the old session had explicitly disconnected.
+- R2 code head `e94ca47d971593e9f16a64ebd49a79b17e9e1ef2` introduces an explicit Broker lifecycle state. Benign exact-client events are ignored; disconnect/close/duplicate-client old-session close invalidate current authentication until a later exact authenticated CONNECT.
+- Each service now brackets Broker lifecycle evidence with two service-owned socket probes. Socket count and fingerprint must be identical before and after the log read; otherwise evidence is insufficient and the snapshot cannot PASS.
+- Broker log scope is narrowed to the service container's current StartedAt boundary. Wrong exact-client username remains fail-closed; no authenticated/current-session evidence cannot PASS.
+- Manager still requires exactly one 8883 socket; Home Assistant still requires at least one 1883 socket. Snapshot schema remains `gh.n3w-t1-runtime-snapshot/2`.
+- 90-second continuity still compares current runtime state only; benign historical authentication digest growth is excluded, while socket replacement/reconnect remains detectable through the socket fingerprint.
+- PR #642/KF-127 remains separate and unchanged. No T1 access, production retry, marker mutation, board access or merge occurs in R2.
 - Branch: `fix/n3w-t1-f4-runtime-snapshot-evidence-contract-20261022`.
+- R1 review evidence: PR #643 comment `6332619236`.
 - Authority: `docs/development/N3W_T1_F4_RUNTIME_SNAPSHOT_EVIDENCE_CONTRACT_SOURCE_REPAIR_20261022.md`.
-- Next gate: `N3W_T1_F4_RUNTIME_SNAPSHOT_EVIDENCE_CONTRACT_SOURCE_REVIEW_20261022_01`.
+- Next gate: `N3W_T1_F4_RUNTIME_SNAPSHOT_EVIDENCE_CONTRACT_SOURCE_REVIEW_R2_20261022_01`.
 
 ## 2026-10-21 — F5 V2 post-reboot SSH boot-epoch race source repair
 

@@ -5,9 +5,13 @@ Date: 2026-10-22
 ## 0. Gate and safety boundary
 
 ~~~text
-TASK=N3W_T1_F4_RUNTIME_SNAPSHOT_EVIDENCE_CONTRACT_SOURCE_REPAIR_20261022_01
+TASK=N3W_T1_F4_RUNTIME_SNAPSHOT_EVIDENCE_CONTRACT_SOURCE_REPAIR_R2_20261022_01
 BASE_MAIN=84cdc4faeb1f5afd5eb5f5df276ac669f9fdf7e0
 BRANCH=fix/n3w-t1-f4-runtime-snapshot-evidence-contract-20261022
+R1_REVIEW_HEAD=31e19984149b4227edc075ebd264e4ecdde57b6f
+R1_REVIEW_COMMENT=6332619236
+R1_REVIEW_RESULT=FAIL_R2_REQUIRED
+R2_CODE_HEAD=e94ca47d971593e9f16a64ebd49a79b17e9e1ef2
 
 T1_ACCESS=false
 T1_MUTATION=false
@@ -90,12 +94,15 @@ ROOT_CAUSE_CONFIDENCE=HIGH
 
 The repaired contract separates four facts.
 
-1. Historical Broker authentication proof:
+1. Broker current-session authentication proof:
    - an exact ClientID connection with the exact expected username must exist;
    - a same exact ClientID connection with a wrong username fails closed;
-   - no authenticated historical evidence is evidence-insufficient and cannot PASS;
-   - later disconnect, close, duplicate-client or other exact-client log lines do
-     not by themselves describe the current connection.
+   - benign exact-client log lines do not change session authentication state;
+   - an explicit disconnect, close, duplicate-client old-session close or timeout
+     transition after the latest successful CONNECT invalidates current-session
+     authentication proof;
+   - only a later exact successful authenticated CONNECT restores that proof;
+   - no authenticated/current-session evidence is evidence-insufficient and cannot PASS.
 
 2. Current service-owned socket proof:
    - Manager requires exactly one established service-owned socket to 8883;
@@ -116,8 +123,11 @@ The repaired contract separates four facts.
    - Home Assistant HTTP readiness remains true.
 
 No one signal substitutes for another. A valid current socket cannot replace
-missing historical authentication evidence, and historical authentication
-cannot replace a missing current socket.
+missing current-session authentication evidence, and a historical authenticated
+CONNECT cannot replace a stable current socket. R2 additionally brackets the
+Broker lifecycle read with service-owned socket evidence before and after the
+log read; socket count and fingerprint must be identical or the snapshot is
+evidence-insufficient.
 
 ## 5. Snapshot schema /2
 
@@ -175,17 +185,23 @@ growth is excluded from the continuity equality because historical log growth is
 not itself a current runtime state change.
 
 A real reconnect still changes the service-owned socket fingerprint and is
-therefore detected.
+therefore detected. R2 also performs an intra-snapshot socket bracket:
+socket-before -> Broker lifecycle evidence -> socket-after. The two socket
+observations must have identical count and fingerprint before authenticated=true
+can be emitted.
 
 ## 7. Fail-closed behavior
 
 ~~~text
 NO_AUTHENTICATED_HISTORY=EVIDENCE_INSUFFICIENT
+EXPLICIT_TERMINAL_AFTER_LATEST_AUTH=EVIDENCE_INSUFFICIENT
+LATER_EXACT_AUTH_AFTER_TERMINAL=ALLOW_CURRENT_SESSION_PROOF
 EXACT_CLIENT_WRONG_USERNAME=VERIFY_FAILED
 MANAGER_SOCKET_COUNT_0=VERIFY_FAILED
 MANAGER_SOCKET_COUNT_GT_1=VERIFY_FAILED
 HOMEASSISTANT_SOCKET_COUNT_0=VERIFY_FAILED
 INVALID_SOCKET_EVIDENCE=EVIDENCE_INSUFFICIENT
+SOCKET_CHANGED_ACROSS_AUTH_EVIDENCE_READ=EVIDENCE_INSUFFICIENT
 CONTAINER_IDENTITY_CHANGE=VERIFY_FAILED_BY_CONTINUITY
 CONTAINER_RESTART=VERIFY_FAILED_BY_CONTINUITY
 SOCKET_RECONNECT_OR_REPLACEMENT=VERIFY_FAILED_BY_CONTINUITY
@@ -198,20 +214,21 @@ BENIGN_BROKER_HISTORY_GROWTH=ALLOWED
 The source/tests cover the required cases:
 
 1. exact authenticated connect only;
-2. authenticated connect plus later exact-client event;
-3. authenticated history plus valid current owned socket;
-4. historical disconnect/close/duplicate-client lines do not replace current socket evidence;
+2. authenticated connect plus benign later exact-client event;
+3. authenticated CONNECT plus explicit disconnect/close/timeout with no later CONNECT cannot PASS;
+4. authenticated CONNECT plus terminal event plus later exact authenticated CONNECT can PASS;
 5. current required socket missing;
 6. wrong username for exact ClientID;
 7. synthetic ClientID suffix does not contaminate exact identity proof;
-8. duplicate-client/closing-old history does not become current-state authority;
-9. Broker log truncation remains evidence-insufficient;
+8. duplicate-client old-session close invalidates proof until the later exact CONNECT;
+9. Broker log coverage truncation remains evidence-insufficient;
 10. Manager non-unique current socket fails;
 11. Home Assistant missing current socket fails;
 12. container restart/identity change remains a continuity failure;
-13. current socket without authenticated historical proof cannot PASS;
-14. valid auth plus later log plus stable current socket can PASS;
-15. 90-second observation ignores historical authentication digest growth while
+13. current socket without current-session authentication proof cannot PASS;
+14. socket count/fingerprint change across the Broker evidence read cannot PASS;
+15. valid auth plus benign later log plus stable current socket can PASS;
+16. 90-second observation ignores historical authentication digest growth while
     continuing to reject changes to boot/container/socket/systemd/current-health state.
 
 ## 9. PR #642 boundary
@@ -238,13 +255,57 @@ The prior failed production run remains terminal/no-replay.
 ## 11. Current gate
 
 ~~~text
-SOURCE_REPAIR_IMPLEMENTED=true
-SOURCE_REVIEW_PENDING=true
-CI_PENDING=true
+R1_SOURCE_REVIEW_RESULT=FAIL_R2_REQUIRED
+R1_OPEN_SOURCE_BLOCKER_COUNT=1
+R2_SOURCE_REPAIR_IMPLEMENTED=true
+R2_SOURCE_REVIEW_PENDING=true
+R2_CI_PENDING=true
 T1_ACCESS=false
 T1_MUTATION=false
 PRODUCTION_EXECUTION=false
 MERGE=false
 
-NEXT_ONE_GATE=N3W_T1_F4_RUNTIME_SNAPSHOT_EVIDENCE_CONTRACT_SOURCE_REVIEW_20261022_01
+NEXT_ONE_GATE=N3W_T1_F4_RUNTIME_SNAPSHOT_EVIDENCE_CONTRACT_SOURCE_REVIEW_R2_20261022_01
 ~~~
+
+
+## 12. R1 independent review and R2 closure design
+
+R1 exact-head review was performed against
+`31e19984149b4227edc075ebd264e4ecdde57b6f` after 14/14 CI PASS.
+The review did not accept CI as proof of the session-correlation contract.
+
+It found one blocker:
+
+~~~text
+B1=CURRENT_AUTH_SESSION_CORRELATION_FALSE_PASS
+OLD_AUTH_HISTORY_PLUS_NEW_TCP_SOCKET_COULD_PASS=true
+SOURCE_REPAIR_R2_REQUIRED=true
+~~~
+
+The R2 implementation uses explicit lifecycle ordering rather than restoring the
+old arbitrary last-event heuristic:
+
+~~~text
+SOCKET_BEFORE
+-> BROKER_LIFECYCLE_LOGS_SINCE_SERVICE_STARTED_AT
+-> REQUIRE_LATEST_EXPLICIT_LIFECYCLE_STATE_AUTHENTICATED
+-> SOCKET_AFTER
+-> REQUIRE_SOCKET_COUNT_AND_FINGERPRINT_UNCHANGED
+-> EMIT_AUTHENTICATED=true
+~~~
+
+Benign log lines are ignored. Explicit session termination invalidates the
+current-session authentication proof. A later exact authenticated CONNECT
+restores it. The socket bracket prevents a log snapshot from being paired with a
+socket that changed while the authentication evidence was read.
+
+R2 adds repository-defined safe error codes:
+
+~~~text
+broker_current_session_authentication_evidence_missing
+runtime_socket_auth_evidence_unstable
+~~~
+
+The prior failed production run remains terminal/no-replay. No T1 access is
+required to review this source repair.
