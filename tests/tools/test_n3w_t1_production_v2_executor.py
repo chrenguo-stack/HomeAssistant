@@ -305,6 +305,67 @@ def test_fresh_qualification_has_zero_target_workspace_mutation(
     assert result["mutation_performed"] is False
 
 
+def test_pre_mutation_failure_freeze_is_private_local_only(
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    adapter = object.__new__(tool.LiveProductionAdapter)
+    adapter.evidence_root = tmp_path
+    adapter.remote_root = None
+    tmp_path.chmod(0o700)
+    failure = {
+        "schema": "gh.n3w-t1-production-v2-pre-mutation-failure/1",
+        "status": "FAIL",
+        "failed_stage": "SSH_EPOCH",
+        "error_type": "SSHTransportError",
+        "error_code": "ssh_master_unavailable",
+        "error_message": "ssh_master_unavailable",
+        "error_message_sha256": "a" * 64,
+        "marker_state": "ABSENT",
+        "operator_session_closed": True,
+        "target_mutation": False,
+        "reflash_required": False,
+        "automatic_retry": False,
+        "board_access": False,
+    }
+
+    result = adapter.freeze_pre_mutation_failure(failure)
+
+    path = tmp_path / "failure-summary.json"
+    assert path.is_file()
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    frozen = json.loads(path.read_text(encoding="utf-8"))
+    assert frozen["failed_stage"] == "SSH_EPOCH"
+    assert frozen["target_mutation"] is False
+    assert frozen["failure_frozen"] is True
+    assert frozen["forensic_collector_target_mutation"] is False
+    assert result["evidence_sha256"] == tool.canonical_sha256(frozen)
+    assert result["target_mutation"] is False
+
+
+def test_pre_mutation_failure_freeze_rejects_open_remote_workspace(
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    adapter = object.__new__(tool.LiveProductionAdapter)
+    adapter.evidence_root = tmp_path
+    adapter.remote_root = "/var/tmp/n3w-f5-v2-executor.fixture"
+    tmp_path.chmod(0o700)
+
+    with pytest.raises(
+        tool.ProductionExecutorError,
+        match="pre_mutation_remote_workspace_invalid",
+    ):
+        adapter.freeze_pre_mutation_failure(
+            {
+                "marker_state": "ABSENT",
+                "target_mutation": False,
+                "reflash_required": False,
+                "automatic_retry": False,
+            }
+        )
+
+
 def test_start_marker_is_first_adapter_path_that_opens_remote_workspace(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

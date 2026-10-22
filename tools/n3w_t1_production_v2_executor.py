@@ -695,6 +695,31 @@ class LiveProductionAdapter:
             )
         return result
 
+    def freeze_pre_mutation_failure(
+        self,
+        failure: dict[str, Any],
+    ) -> dict[str, Any]:
+        if self.remote_root is not None:
+            raise ProductionExecutorError(
+                "pre_mutation_remote_workspace_invalid"
+            )
+        if (
+            failure.get("marker_state") != "ABSENT"
+            or failure.get("target_mutation") is not False
+            or failure.get("reflash_required") is not False
+            or failure.get("automatic_retry") is not False
+        ):
+            raise ProductionExecutorError(
+                "pre_mutation_failure_evidence_invalid"
+            )
+        frozen = freeze_failure(self.evidence_root, failure)
+        return {
+            "status": "PASS",
+            "failure": frozen,
+            "evidence_sha256": canonical_sha256(frozen),
+            "target_mutation": False,
+        }
+
     def start_marker(self, binding: dict[str, str]) -> dict[str, Any]:
         self._open_remote_root()
         result = self._remote_json(
