@@ -1,3 +1,11 @@
+### 2026-10-22 KF-127 — systemd starting 期间 partial unit evidence 被误判为 verify fail
+
+| ID | 范围 | 问题 | 根因与修复保护 | 状态 |
+| --- | --- | --- | --- | --- |
+| KF-127 | T1 F5 V2 post-reboot readiness | real-T1 run 已跨过 KF-126 reboot boundary，但在 `POST_REBOOT_READINESS` 以 `readiness_unit_evidence_invalid` 终止；冻结取证同时显示 `systemd=starting` | readiness 虽设计了 `systemd=starting -> WAIT`，但旧实现先要求每个 unit 的 `systemctl show` 立即给全四个字段，启动早期 partial evidence 会在 WAIT 分支之前硬失败。修复保留 partial evidence，在 starting/initializing 阶段允许 WAIT；已出现的明确 failed/exit-code 仍立即 FAIL；systemd running/degraded 后 incomplete evidence 仍严格 FAIL | SOURCE_REPAIR_IMPLEMENTED_REVIEW_PENDING |
+
+本次失败 run 保持 terminal/no-replay，T1-B 保持 reflash-required；修复阶段不访问、不修改、不重刷 T1。Authority: `docs/development/N3W_T1_F5_V2_READINESS_PARTIAL_UNIT_EVIDENCE_SOURCE_REPAIR_20261022.md`。
+
 ### 2026-10-21 KF-126 — F5 V2 重启旧 boot 的 SSH 尾部被误判为新 boot 就绪
 
 | ID | 范围 | 问题 | 根因与修复保护 | 状态 |
