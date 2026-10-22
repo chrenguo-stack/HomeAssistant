@@ -117,7 +117,9 @@ import base64,hashlib,pathlib,sys
 pub=pathlib.Path(sys.argv[1]).read_text().strip().split()
 if len(pub)<2 or pub[0]!="ssh-ed25519":
     raise SystemExit("STOP: expected one ED25519 public key")
-blob=base64.b64decode(pub[1],validate=True)\nif len(blob)<32 or blob[:4] != b"\\x00\\x00\\x00\\x0b" or blob[4:15] != b"ssh-ed25519":\n    raise SystemExit("STOP: invalid ED25519 blob")
+blob=base64.b64decode(pub[1],validate=True)
+if len(blob)<32 or blob[:4] != bytes([0,0,0,11]) or blob[4:15] != b"ssh-ed25519":
+    raise SystemExit("STOP: invalid ED25519 blob")
 digest=hashlib.sha256(blob).hexdigest()
 path=pathlib.Path(sys.argv[3])
 if path.exists() or path.is_symlink():
