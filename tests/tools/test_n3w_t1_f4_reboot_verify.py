@@ -162,20 +162,29 @@ def test_control_binding_rejects_tampered_installed_file(
         tool._installed_control_binding(claim)
 
 
-def test_broker_auth_evidence_is_historical_exact_identity_proof():
+def test_broker_auth_evidence_requires_latest_explicit_lifecycle_to_be_authenticated():
     tool = load_tool()
     identity = {"client_id": "test-service", "username": "test-user"}
     connected = "123: New client connected from 192.0.2.1:4000 as test-service (p5, c1, k60, u'test-user')."
     before = tool._broker_auth_evidence(connected, identity)
 
     for suffix in (
-        "Client test-service disconnected.",
-        "Client test-service closed its connection.",
-        "Client test-service already connected, closing old connection.",
         "Client test-service benign event.",
         "Client test-service-f4-invalid disconnected.",
     ):
         assert tool._broker_auth_evidence(connected + "\n" + suffix, identity) == before
+
+    for terminal in (
+        "Client test-service disconnected.",
+        "Client test-service closed its connection.",
+        "Client test-service already connected, closing old connection.",
+        "Client test-service has exceeded timeout, disconnecting.",
+    ):
+        with pytest.raises(
+            tool.EvidenceInsufficientError,
+            match="current_session_authentication_evidence_missing",
+        ):
+            tool._broker_auth_evidence(connected + "\n" + terminal, identity)
 
     after = tool._broker_auth_evidence(
         connected + "\nClient test-service disconnected.\n" + connected,
@@ -288,8 +297,12 @@ def test_snapshot_entrypoint_collects_bound_public_evidence(monkeypatch, capsys)
     def run(argv):
         calls.append(argv)
         if argv[1] == "logs":
-            return "\n".join(f"123: New client connected from 192.0.2.1:4000 as {name} (p5, c1, k60, u'user-{name}')."
-                             for name in ("manager", "homeassistant"))
+            return "\n".join((
+                "123: New client connected from 192.0.2.1:4000 as manager (p5, c1, k60, u'user-manager').",
+                "Client manager benign event.",
+                "123: New client connected from 192.0.2.1:4001 as homeassistant (p5, c1, k60, u'user-homeassistant').",
+                "Client homeassistant benign event.",
+            ))
         assert argv[:2] == ("docker", "exec")
         return json.dumps({"owned_socket_count": 1, "owned_socket_sha256": "1" * 64})
     monkeypatch.setattr(tool, "_snapshot_run", run)
@@ -309,11 +322,98 @@ def test_snapshot_entrypoint_collects_bound_public_evidence(monkeypatch, capsys)
     assert report["source_head"] == claim["source_head"]
     assert report["runtime_service_auth"]["manager"]["endpoint_port"] == 8883
     assert report["runtime_service_auth"]["homeassistant"]["endpoint_port"] == 1883
-    assert len(calls) == 3
+    assert len(calls) == 6
     public = json.dumps(report)
     assert "user-manager" not in public and "192.0.2" not in public
     assert "password" not in public
 
+
+
+def test_runtime_snapshot_rejects_terminal_session_even_with_stable_current_socket(monkeypatch):
+    import json
+    from types import SimpleNamespace
+
+    tool = load_tool()
+    claim = {"source_head": "a" * 40, "control_manifest_sha256": "b" * 64,
+             "f4_transaction_sha256": "c" * 64}
+    monkeypatch.setattr(tool, "_json", lambda *args: claim)
+    monkeypatch.setattr(tool, "_sha256", lambda path: "c" * 64)
+    monkeypatch.setattr(tool, "_installed_control_binding", lambda doc: None)
+    monkeypatch.setattr(tool, "_boot_id_sha256", lambda: "d" * 64)
+
+    def identity(path, *, uid, gid):
+        name = path.parent.name
+        return {"username": "user-" + name, "client_id": name}
+
+    module = SimpleNamespace(
+        _private_service_json=identity,
+        _compose_service_inspect=lambda name: {
+            "Id": name, "RestartCount": 0,
+            "State": {"Running": True, "Paused": False, "Restarting": False,
+                      "StartedAt": "2026-10-20T00:00:00Z"},
+        },
+    )
+    monkeypatch.setattr(tool, "_load_f4", lambda: module)
+    monkeypatch.setattr(tool, "_systemd_snapshot", lambda mod: ("e" * 64, "f" * 64))
+
+    def run(argv):
+        if argv[1] == "logs":
+            return "\n".join((
+                "123: New client connected from 192.0.2.1:4000 as manager (p5, c1, k60, u'user-manager').",
+                "Client manager disconnected.",
+            ))
+        return json.dumps({"owned_socket_count": 1, "owned_socket_sha256": "1" * 64})
+
+    monkeypatch.setattr(tool, "_snapshot_run", run)
+    with pytest.raises(
+        tool.EvidenceInsufficientError,
+        match="current_session_authentication_evidence_missing",
+    ):
+        tool.runtime_snapshot()
+
+
+def test_runtime_snapshot_rejects_socket_change_across_auth_evidence(monkeypatch):
+    import json
+    from types import SimpleNamespace
+
+    tool = load_tool()
+    claim = {"source_head": "a" * 40, "control_manifest_sha256": "b" * 64,
+             "f4_transaction_sha256": "c" * 64}
+    monkeypatch.setattr(tool, "_json", lambda *args: claim)
+    monkeypatch.setattr(tool, "_sha256", lambda path: "c" * 64)
+    monkeypatch.setattr(tool, "_installed_control_binding", lambda doc: None)
+    monkeypatch.setattr(tool, "_boot_id_sha256", lambda: "d" * 64)
+
+    def identity(path, *, uid, gid):
+        name = path.parent.name
+        return {"username": "user-" + name, "client_id": name}
+
+    module = SimpleNamespace(
+        _private_service_json=identity,
+        _compose_service_inspect=lambda name: {
+            "Id": name, "RestartCount": 0,
+            "State": {"Running": True, "Paused": False, "Restarting": False,
+                      "StartedAt": "2026-10-20T00:00:00Z"},
+        },
+    )
+    monkeypatch.setattr(tool, "_load_f4", lambda: module)
+    monkeypatch.setattr(tool, "_systemd_snapshot", lambda mod: ("e" * 64, "f" * 64))
+    socket_hashes = iter(("1" * 64, "2" * 64))
+
+    def run(argv):
+        if argv[1] == "logs":
+            return "123: New client connected from 192.0.2.1:4000 as manager (p5, c1, k60, u'user-manager')."
+        return json.dumps({
+            "owned_socket_count": 1,
+            "owned_socket_sha256": next(socket_hashes),
+        })
+
+    monkeypatch.setattr(tool, "_snapshot_run", run)
+    with pytest.raises(
+        tool.EvidenceInsufficientError,
+        match="runtime_socket_auth_evidence_unstable",
+    ):
+        tool.runtime_snapshot()
 
 
 def test_snapshot_run_classifies_unavailable_readonly_evidence(monkeypatch):

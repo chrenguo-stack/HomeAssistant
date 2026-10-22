@@ -24,6 +24,7 @@ REPOSITORY_DEFINED_ERROR_CODES = frozenset(
         "broker_authenticated_connection_evidence_missing",
         "broker_authenticated_connection_identity_mismatch",
         "broker_authenticated_connection_state_invalid",
+        "broker_current_session_authentication_evidence_missing",
         "broker_log_coverage_insufficient",
         "certificate_identity_changed_across_reboot",
         "certificate_runtime_guard_dropin_missing",
@@ -70,6 +71,7 @@ REPOSITORY_DEFINED_ERROR_CODES = frozenset(
         "runtime_identity_invalid",
         "runtime_service_set_invalid",
         "runtime_snapshot_command_evidence_unavailable",
+        "runtime_socket_auth_evidence_unstable",
         "runtime_socket_evidence_invalid",
         "snapshot_container_not_running",
         "snapshot_transaction_binding_changed",
@@ -879,13 +881,32 @@ def _broker_auth_evidence(logs: str, identity: dict[str, object]) -> str:
     any_connection = re.compile(
         r"New client connected from .+ as " + re.escape(client_id) + r" \("
     )
-    connections = [line for line in lines if any_connection.search(line)]
-    if any(connected.search(line) is None for line in connections):
-        raise VerifyError("broker_authenticated_connection_identity_mismatch")
-    authenticated = [line for line in connections if connected.search(line)]
+    terminal = re.compile(
+        r"(?:Client|client) " + re.escape(client_id)
+        + r"(?: disconnected\b| closed its connection\b"
+        + r"| already connected, closing old connection\b"
+        + r"| has exceeded timeout, disconnecting\b)"
+    )
+    authenticated: list[str] = []
+    current_session_authenticated = False
+    for line in lines:
+        if any_connection.search(line):
+            if connected.search(line) is None:
+                raise VerifyError(
+                    "broker_authenticated_connection_identity_mismatch"
+                )
+            authenticated.append(line)
+            current_session_authenticated = True
+            continue
+        if terminal.search(line):
+            current_session_authenticated = False
     if not authenticated:
         raise EvidenceInsufficientError(
             "broker_authenticated_connection_evidence_missing"
+        )
+    if not current_session_authenticated:
+        raise EvidenceInsufficientError(
+            "broker_current_session_authentication_evidence_missing"
         )
     return _canonical_sha(authenticated)
 
@@ -912,6 +933,19 @@ def _runtime_socket_evidence(
     else:
         raise VerifyError("runtime_service_invalid")
     return count, fingerprint
+
+
+def _service_socket_evidence(
+    inspects: dict[str, dict[str, object]],
+    service: str,
+    host: str,
+    port: int,
+) -> tuple[int, str]:
+    report = json.loads(_snapshot_run((
+        "docker", "exec", str(inspects[service]["Id"]),
+        "python3", "-c", SOCKET_SCRIPT, host, str(port),
+    )))
+    return _runtime_socket_evidence(service, report)
 
 
 def _systemd_snapshot(module: ModuleType) -> tuple[str, str]:
@@ -973,28 +1007,40 @@ def runtime_snapshot() -> dict[str, object]:
             "restart_count": item["RestartCount"], "running": True,
         }
     broker = inspects["broker"]
-    logs = _snapshot_run(("docker", "logs", "--timestamps", "--since",
-                          broker["State"]["StartedAt"], "--tail", str(LOG_LIMIT), broker["Id"]))
     auth = {}
     for service, host, port in (("manager", "armbian", 8883), ("homeassistant", "127.0.0.1", 1883)):
         owner = 999 if service == "manager" else 0
         identity = module._private_service_json(
             Path("/opt/greenhouse-secrets/mqtt") / service / "identity.json", uid=owner, gid=owner,
         )
-        # Full F4 verification immediately before this baseline proves configuration,
-        # root DynSec inventory and private HA identity binding. These two independent
-        # signals add current authenticated Broker activity and service-owned TCP state.
-        # Broker runs behind Docker NAT/proxy: do not invent an equality of peer tuples.
-        socket_report = json.loads(_snapshot_run((
-            "docker", "exec", inspects[service]["Id"], "python3", "-c", SOCKET_SCRIPT, host, str(port),
-        )))
-        socket_count, fingerprint = _runtime_socket_evidence(service, socket_report)
+        before_count, before_fingerprint = _service_socket_evidence(
+            inspects, service, host, port
+        )
+        service_state = inspects[service].get("State")
+        if not isinstance(service_state, dict) or not isinstance(
+            service_state.get("StartedAt"), str
+        ):
+            raise VerifyError("snapshot_container_not_running")
+        logs = _snapshot_run((
+            "docker", "logs", "--timestamps", "--since",
+            service_state["StartedAt"], "--tail", str(LOG_LIMIT), broker["Id"],
+        ))
         authenticated_connection = _broker_auth_evidence(logs, identity)
+        after_count, after_fingerprint = _service_socket_evidence(
+            inspects, service, host, port
+        )
+        if (
+            before_count != after_count
+            or before_fingerprint != after_fingerprint
+        ):
+            raise EvidenceInsufficientError(
+                "runtime_socket_auth_evidence_unstable"
+            )
         auth[service] = {
             "authenticated": True, "endpoint_port": port,
             "identity_sha256": _canonical_sha([identity["username"], identity["client_id"]]),
-            "owned_socket_count": socket_count,
-            "owned_socket_sha256": fingerprint,
+            "owned_socket_count": after_count,
+            "owned_socket_sha256": after_fingerprint,
             "authenticated_connection_sha256": authenticated_connection,
         }
     state_sha, errors_sha = _systemd_snapshot(module)
