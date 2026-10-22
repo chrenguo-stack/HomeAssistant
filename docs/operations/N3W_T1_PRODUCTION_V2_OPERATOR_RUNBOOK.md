@@ -110,14 +110,14 @@ ssh-keygen -lf "$N3W_PRIVATE/t1-ed25519.pub" -E sha256
 使用**实际**目标地址创建 `known_hosts`，不要在本文填入真实 IP；如果目标采用 `root@IP`，文件第一列必须是对应 IP，不是用户名。模板：
 
 ```bash
-read -r -p "T1 target host or IP: " N3W_TARGET_HOST
+printf "T1 target host or IP: "\nread -r N3W_TARGET_HOST
 export N3W_TARGET="root@$N3W_TARGET_HOST"
 python3 - "$N3W_PRIVATE/t1-ed25519.pub" "$N3W_TARGET_HOST" "$N3W_PRIVATE/known_hosts" <<'PY'
 import base64,hashlib,pathlib,sys
 pub=pathlib.Path(sys.argv[1]).read_text().strip().split()
 if len(pub)<2 or pub[0]!="ssh-ed25519":
     raise SystemExit("STOP: expected one ED25519 public key")
-blob=base64.b64decode(pub[1],validate=True)
+blob=base64.b64decode(pub[1],validate=True)\nif len(blob)<32 or blob[:4] != b"\\x00\\x00\\x00\\x0b" or blob[4:15] != b"ssh-ed25519":\n    raise SystemExit("STOP: invalid ED25519 blob")
 digest=hashlib.sha256(blob).hexdigest()
 path=pathlib.Path(sys.argv[3])
 if path.exists() or path.is_symlink():
@@ -146,7 +146,7 @@ PY
 **STOP — 下面这条命令不是只读操作。只有当完整 release 验证已 PASS、设备身份核对完成、工单明确授权这台新 T1 量产，才允许运行。** 运行后将打开 SSH 并先进行只读 qualification；操作员精确批准后会写入 marker，安装 Docker/产品、写配置并重启。
 
 ```bash
-read -r -p "64-character EXPECTED_HOST_KEY_SHA256: " N3W_EXPECTED_HOST_KEY_SHA256
+printf "64-character EXPECTED_HOST_KEY_SHA256: "\nread -r N3W_EXPECTED_HOST_KEY_SHA256
 PYTHONPATH="$N3W_SOURCE_REPO/tools" python3 "$N3W_SOURCE_REPO/tools/n3w_t1_production_v2_executor.py" --release-root "$N3W_RELEASE_ROOT" --target "$N3W_TARGET" --known-hosts "$N3W_PRIVATE/known_hosts" --expected-host-key-sha256 "$N3W_EXPECTED_HOST_KEY_SHA256"
 ```
 
@@ -238,18 +238,11 @@ executor_exit_code=0
 
 ### 成功后的只读核对
 
-**STOP — 以下命令访问真实 T1。需另行授权只读取证；不要影响既有生产运行。** 设备端 marker 可用现有只读 `inspect`，systemd/Docker 用只读命令查看。以下是登录到**已被验证 host key 的 SSH 会话**后在 T1 端执行的命令，不应在 Mac 上误当成本地命令：
+**STOP — 最终结果不是只看日志。** 先在 Mac 当前 run 的私有 evidence 目录中核对 `result-private.json`、`result-public.json`，确认 `status=PASS`、`marker_state=ACCEPTED`、`device_acceptance=PASS`、`T1_PRODUCTION_READY=true`、`operator_session_closed=true`、`evidence_complete=true`、`reflash_required=false`。随后比对 `release_id`、`release_sha256`、`source_head`、`target_binding_sha256`、`run_id_sha256`。
 
-```bash
-sudo -n python3 -B /usr/local/sbin/n3w-t1-production-marker inspect
-systemctl --failed --no-pager
-systemctl is-active n3wfc4-broker-activation.service n3wfc4-services-activation.service
-systemctl is-enabled n3wfc4-broker-certificate-lifecycle.timer
-docker ps --no-trunc
-docker inspect --format '{{.Name}} {{.State.Running}} {{.RestartCount}} {{.State.StartedAt}}' gh-broker gh-manager gh-homeassistant
-```
+需要进行**额外现场只读核对**时，应使用经生产授权、与已安装包字节绑定的 `n3w_t1_f4_reboot_verify.py` 或执行器已产出的 post-reboot acceptance/运行快照证据。严格验收本身已经核验真实重启、systemd 必要单元、Docker 容器、Broker、Manager、Home Assistant、证书、持久化以及 90 秒连续性；不需要为了终验安装新组件、启动新服务或重启已合格设备。
 
-**重要：上面 marker 入口和 Docker 容器名称只是候选，不得在实际 T1 上盲执行。** 当前源代码正式 marker 工具是 `n3w_t1_production_marker.py`，executor 会把它上传到临时 workspace，**没有保证**目标上永久存在 `/usr/local/sbin/n3w-t1-production-marker`；Docker 实际名称也须依据 release 的 compose 而非本例猜测。因此现场若无已确认的受控只读入口，**STOP，使用自动验收留存的 target-local marker/report 与私有结果核对；不得为了“做终验”在 ACCEPTED 的 T1 上安装新脚本或执行 mutation**。Broker/Manager/HA、证书、systemd、持续性、boot 变化和身份一致性，优先依据程序的完整 post-reboot acceptance 报告与原有 readonly verifier 取证，不把上述示例视作额外自动验收权威。
+当前源码不能证明 `n3w_t1_production_marker.py` 在验收后的 T1 上有永久命令入口：执行器只在临时 workspace 上传和调用它。也不能凭经验假设真实 Docker 容器名称。**因此本 Runbook 不提供猜测的 target-local 命令。** 如果证据互相矛盾、缺失，或者要重新读取 durable marker，必须 STOP，走单独授权的只读核对计划，先从 exact release/已安装服务取得工具与路径的直接证据，不得在 ACCEPTED 的 T1 上修补或清除状态。
 
 ## 9. 失败处置：不得 replay
 
