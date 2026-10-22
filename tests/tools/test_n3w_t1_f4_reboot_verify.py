@@ -523,7 +523,44 @@ def test_readiness_waits_for_partial_unit_evidence_while_systemd_is_starting(mon
     assert report["wait_reason"] == "systemd_starting"
 
 
+def test_readiness_accepts_timer_without_service_only_exec_main_status(monkeypatch):
+    tool = load_tool()
+    _configure_readiness(
+        tool,
+        monkeypatch,
+        systemd_state="running",
+        unit_overrides={
+            "certificate.timer": {
+                "LoadState": "loaded",
+                "ActiveState": "active",
+                "Result": "success",
+            }
+        },
+    )
+    report = tool.readiness()
+    assert report["status"] == "PASS"
+    assert report["state"] == "READY"
+
+
 def test_readiness_running_state_rejects_partial_unit_evidence(monkeypatch):
+    tool = load_tool()
+    _configure_readiness(
+        tool,
+        monkeypatch,
+        systemd_state="running",
+        unit_overrides={
+            "broker.service": {
+                "LoadState": "loaded",
+                "ActiveState": "active",
+                "Result": "success",
+            }
+        },
+    )
+    with pytest.raises(tool.VerifyError, match="readiness_unit_evidence_invalid"):
+        tool.readiness()
+
+
+def test_readiness_running_state_still_requires_exec_main_status_for_service(monkeypatch):
     tool = load_tool()
     _configure_readiness(
         tool,
