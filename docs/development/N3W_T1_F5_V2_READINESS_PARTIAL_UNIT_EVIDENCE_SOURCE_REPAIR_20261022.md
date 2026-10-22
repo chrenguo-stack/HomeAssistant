@@ -48,8 +48,16 @@ During early boot, systemd can legitimately expose a partial property set.
 The helper therefore raised `readiness_unit_evidence_invalid` before the
 caller could return the already-designed `WAIT/systemd_starting` result.
 
+A second contract defect was found during source review: the six required units
+include `CERT_TIMER` (`.timer`), but the old helper imposed the service-only
+`ExecMainStatus` property on every unit type. Timer readiness only needs the
+common `LoadState` / `ActiveState` plus timer `Result`; requiring a service main
+process status from a timer creates a deterministic false failure once the new
+boot reaches this code path.
+
 The existing unit test covered `systemd=starting` only with complete mocked
-unit evidence and missed this real boot-convergence case.
+service-shaped evidence for every unit, including the timer, and therefore
+missed both the real boot-convergence case and the unit-type contract mismatch.
 
 ## Repair invariant
 
@@ -59,9 +67,15 @@ During `systemd=starting` or `initializing`:
 - explicit failure evidence already present in a partial record remains fatal;
 - missing fields must never create PASS.
 
+Field completeness is unit-type specific:
+
+- service units require `LoadState`, `ActiveState`, `Result`, `ExecMainStatus`;
+- `CERT_TIMER` requires `LoadState`, `ActiveState`, `Result` and is not required
+  to expose service-only `ExecMainStatus`.
+
 Once systemd is `running` or `degraded`:
 
-- incomplete structured unit evidence remains
+- incomplete evidence relative to the correct unit-type contract remains
   `readiness_unit_evidence_invalid`;
 - the strict final readiness contract is unchanged.
 
@@ -73,7 +87,7 @@ instead of raising before the caller knows the boot-convergence state.
 `readiness()` separately tracks:
 
 - unit command unavailable;
-- unit evidence incomplete;
+- unit evidence incomplete against the correct service/timer field contract;
 - explicit negative evidence.
 
 Explicit negative fields remain fail-closed even if other fields are absent.
@@ -85,10 +99,12 @@ raises `readiness_unit_evidence_invalid`.
 
 Added tests prove:
 
-1. starting + partial normal unit evidence -> WAIT/systemd_starting;
-2. running + the same partial evidence -> hard FAIL;
+1. starting + partial normal service evidence -> WAIT/systemd_starting;
+2. running + incomplete service evidence -> hard FAIL;
 3. starting + partial explicit failed-unit evidence -> hard FAIL;
-4. the low-level helper preserves partial non-empty output.
+4. timer evidence without service-only `ExecMainStatus` can still reach PASS;
+5. service evidence still requires `ExecMainStatus` after convergence;
+6. the low-level helper preserves partial non-empty output.
 
 Existing strict verifier, external probes, 90-second observation and marker
 acceptance are unchanged.
