@@ -1,0 +1,32 @@
+name: N3W production Board B readonly preflight CI
+
+on:
+  pull_request:
+    paths:
+      - "tools/execution_packages/n3w/production/board_b_preflight/**"
+      - "tests/execution_packages/n3w/production/board_b_preflight/**"
+      - ".github/workflows/n3w-production-boardb-preflight-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  focused:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compile executor
+        run: python -m py_compile tools/execution_packages/n3w/production/board_b_preflight/executor.py
+
+      - name: Install focused test dependency
+        run: python -m pip install "pytest==8.4.2"
+
+      - name: Run focused preflight tests
+        run: python -m pytest -q tests/execution_packages/n3w/production/board_b_preflight/test_executor.py
