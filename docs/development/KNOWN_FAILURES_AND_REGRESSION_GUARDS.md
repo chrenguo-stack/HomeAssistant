@@ -1,3 +1,11 @@
+### 2026-10-22 KF-128 — runtime snapshot 把历史 Broker 事件误当当前连接与连续性状态
+
+| ID | 范围 | 问题 | 根因与修复保护 | 状态 |
+| --- | --- | --- | --- | --- |
+| KF-128 | T1 F4/F5 V2 runtime snapshot / post-reboot acceptance | T1-B 已由完整 F4 post-reboot verifier 证明实际部署与当前运行健康，但独立 `--snapshot` 因 Manager 正确认证连接之后约 124 微秒的一条其他 exact-client Broker 事件而返回 `broker_authenticated_connection_state_invalid`；同时 `broker_events_sha256` 被纳入整份 snapshot exact equality，正常历史日志增长也可触发 `runtime_continuity_changed`。R1 独立复核发现“历史认证 + 新 TCP socket”可 false-PASS；R2 独立复核又确认生产锁定 Mosquitto 2.1.2 的真实断线格式为 `Client <id> [addr:port] disconnected...`，而 R2 regex 仍主要匹配旧格式，因此真实终止事件可能未被识别 | R3 直接绑定 Mosquitto 2.1.2 上游 tag `v2.1.2` / commit `99fa50f30e325609394c324c8ff71cfbbe95d8ab` 的真实生命周期格式：`Client <id> [addr:port] disconnected.` 与 `Client <id> [addr:port] disconnected: <reason>` 都会使当前认证证明失效；后续 exact authenticated CONNECT 才恢复。R2 的 socket-before/log/socket-after 稳定夹取、wrong username fail-closed、Manager 恰好 1 条 8883、Home Assistant 至少 1 条 1883、schema /2 与 90 秒 continuity 投影继续保持 | SOURCE_REPAIR_R3_REVIEW_CLOSED_PASS_CI_PENDING |
+
+KF-128 与 KF-127 分离：PR #642 继续只处理 systemd starting 期间 partial unit evidence；本修复从 exact main 独立分支实现，不修改失败 production run、不 replay marker、不访问 T1。R1 review comment `6332619236` 冻结 session-correlation false-PASS；R2 exact head `170dc15b7be0299da046045cbf5fa054d06affa4` 虽 14/14 CI PASS，但独立上游版本复核发现 Mosquitto 2.1.2 真实 disconnect 格式未被 regex 覆盖，因此 R2 不能关闭 blocker。R3 final code head `07159cd750e7817dd7f6df23f47086a69812ebfe` 已按 exact upstream 2.1.2 格式修补；R3 独立源码复核 CLOSED_PASS，open source blocker=0，等待 final exact-head CI。Authority: `docs/development/N3W_T1_F4_RUNTIME_SNAPSHOT_EVIDENCE_CONTRACT_SOURCE_REPAIR_20261022.md`。
+
 ### 2026-10-21 KF-126 — F5 V2 重启旧 boot 的 SSH 尾部被误判为新 boot 就绪
 
 | ID | 范围 | 问题 | 根因与修复保护 | 状态 |

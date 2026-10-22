@@ -67,7 +67,9 @@ REPOSITORY_DEFINED_ERROR_CODES = frozenset(
     {
         "boot_id_invalid",
         "broker_authenticated_connection_evidence_missing",
+        "broker_authenticated_connection_identity_mismatch",
         "broker_authenticated_connection_state_invalid",
+        "broker_current_session_authentication_evidence_missing",
         "broker_log_coverage_insufficient",
         "certificate_identity_changed_across_reboot",
         "certificate_runtime_guard_dropin_missing",
@@ -114,6 +116,7 @@ REPOSITORY_DEFINED_ERROR_CODES = frozenset(
         "runtime_identity_invalid",
         "runtime_service_set_invalid",
         "runtime_snapshot_command_evidence_unavailable",
+        "runtime_socket_auth_evidence_unstable",
         "runtime_socket_evidence_invalid",
         "snapshot_container_not_running",
         "snapshot_transaction_binding_changed",
