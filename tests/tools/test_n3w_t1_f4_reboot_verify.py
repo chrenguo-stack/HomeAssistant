@@ -297,12 +297,14 @@ def test_snapshot_entrypoint_collects_bound_public_evidence(monkeypatch, capsys)
     def run(argv):
         calls.append(argv)
         if argv[1] == "logs":
-            return "\n".join((
-                "123: New client connected from 192.0.2.1:4000 as manager (p5, c1, k60, u'user-manager').",
-                "Client manager benign event.",
-                "123: New client connected from 192.0.2.1:4001 as homeassistant (p5, c1, k60, u'user-homeassistant').",
-                "Client homeassistant benign event.",
-            ))
+            return (
+                "123: New client connected from 192.0.2.1:4000 as manager "
+                "(p5, c1, k60, u'user-manager').\n"
+                "Client manager benign event.\n"
+                "123: New client connected from 192.0.2.1:4001 as homeassistant "
+                "(p5, c1, k60, u'user-homeassistant').\n"
+                "Client homeassistant benign event."
+            )
         assert argv[:2] == ("docker", "exec")
         return json.dumps({"owned_socket_count": 1, "owned_socket_sha256": "1" * 64})
     monkeypatch.setattr(tool, "_snapshot_run", run)
@@ -358,10 +360,11 @@ def test_runtime_snapshot_rejects_terminal_session_even_with_stable_current_sock
 
     def run(argv):
         if argv[1] == "logs":
-            return "\n".join((
-                "123: New client connected from 192.0.2.1:4000 as manager (p5, c1, k60, u'user-manager').",
-                "Client manager disconnected.",
-            ))
+            return (
+                "123: New client connected from 192.0.2.1:4000 as manager "
+                "(p5, c1, k60, u'user-manager').\n"
+                "Client manager disconnected."
+            )
         return json.dumps({"owned_socket_count": 1, "owned_socket_sha256": "1" * 64})
 
     monkeypatch.setattr(tool, "_snapshot_run", run)
