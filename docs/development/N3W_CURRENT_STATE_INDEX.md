@@ -3,8 +3,8 @@
 - Fresh exact-main real-T1 production advanced past the repaired reboot boundary and then failed at `POST_REBOOT_READINESS` with sanitized `error_code=readiness_unit_evidence_invalid`.
 - Frozen forensics are complete/read-only with zero unavailable probes; `systemd=starting`.
 - KF-126 is therefore not the active failure in this run.
-- KF-127 root cause: readiness probes unit evidence before applying its intended `systemd=starting -> WAIT` policy; early-boot partial `systemctl show` output was treated as structurally invalid before boot convergence could be retried.
-- Source repair preserves partial unit evidence during starting/initializing, still fails explicit failed-unit evidence immediately, and keeps incomplete evidence fail-closed after systemd reaches running/degraded.
+- KF-127 root cause has two coupled parts: readiness probes unit evidence before applying its intended `systemd=starting -> WAIT` policy, and the old common schema incorrectly requires service-only `ExecMainStatus` from `CERT_TIMER`.
+- Source repair uses service/timer-specific field contracts, preserves normal partial evidence during starting/initializing, still fails explicit failed-unit evidence immediately, and keeps incomplete evidence fail-closed after systemd reaches running/degraded.
 - Failed run remains terminal/no-replay; target remains reflash-required. No T1/board access, reflash, production execution or merge occurs in this source gate.
 - Branch: `fix/n3w-t1-f5-v2-readiness-partial-unit-evidence-20261022`.
 - Authority: `docs/development/N3W_T1_F5_V2_READINESS_PARTIAL_UNIT_EVIDENCE_SOURCE_REPAIR_20261022.md`.
