@@ -262,8 +262,10 @@ R2_EXACT_HEAD_CI=14/14_PASS
 R2_SOURCE_REVIEW_RESULT=FAIL_R3_REQUIRED
 R2_OPEN_SOURCE_BLOCKER_COUNT=1
 R2_BLOCKER=MOSQUITTO_2_1_2_TERMINAL_LOG_FORMAT_MISMATCH
+R3_CODE_HEAD=07159cd750e7817dd7f6df23f47086a69812ebfe
 R3_SOURCE_REPAIR_IMPLEMENTED=true
-R3_SOURCE_REVIEW_PENDING=true
+R3_SOURCE_REVIEW_RESULT=CLOSED_PASS_PENDING_EXACT_HEAD_CI
+R3_OPEN_SOURCE_BLOCKER_COUNT=0
 R3_CI_PENDING=true
 T1_ACCESS=false
 T1_MUTATION=false
@@ -374,3 +376,41 @@ R3 code head before documentation alignment:
 No runtime/T1 evidence collection is required for this parser closure because
 the production-version log grammar is bound directly to the exact upstream
 Mosquitto 2.1.2 source.
+
+
+## 14. R3 independent source review
+
+R3 independent review was performed after the production-version parser repair
+and the regex escaping follow-up.
+
+~~~text
+R3_REVIEW_HEAD=07159cd750e7817dd7f6df23f47086a69812ebfe
+R3_SOURCE_REVIEW_RESULT=CLOSED_PASS_PENDING_EXACT_HEAD_CI
+R3_OPEN_SOURCE_BLOCKER_COUNT=0
+~~~
+
+The review independently checked:
+
+1. production Broker config enables `connection_messages true`;
+2. production logging includes `log_type notice`, which is the level used by
+   Mosquitto connection lifecycle messages;
+3. upstream Mosquitto `v2.1.2` successful CONNECT grammar matches the exact
+   ClientID + username parser;
+4. upstream `src/loop.c` graceful and reasoned disconnect records use the
+   bracketed-address grammar now matched by R3;
+5. synthetic ClientID suffixes do not match the exact lifecycle identity;
+6. benign exact-client lines do not change authentication state;
+7. every recognized terminal record after the latest authenticated CONNECT
+   invalidates current-session authentication proof;
+8. a later exact authenticated CONNECT restores that proof;
+9. the R2 socket-before/log/socket-after bracket remains required and stable;
+10. wrong exact-client username remains fail-closed and missing current-session
+    proof remains evidence-insufficient;
+11. Manager exact-one 8883 and Home Assistant at-least-one 1883 contracts remain
+    unchanged;
+12. historical authentication digest remains excluded from the 90-second
+    continuity equality while current socket identity remains included.
+
+No new false-PASS path was found within the KF-128 repair scope.
+
+Final source closure is still conditional on the exact-head GitHub CI result.

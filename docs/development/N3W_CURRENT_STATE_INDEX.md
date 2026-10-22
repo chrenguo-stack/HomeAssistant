@@ -4,10 +4,11 @@
 - R2 exact head `170dc15b7be0299da046045cbf5fa054d06affa4` passed 14/14 CI, but independent source review did not accept CI as proof of the lifecycle parser.
 - Production locks Broker to Mosquitto 2.1.2. Exact upstream tag `v2.1.2` resolves to commit `99fa50f30e325609394c324c8ff71cfbbe95d8ab`. In that source, `src/loop.c` emits graceful termination as `Client <id> [addr:port] disconnected.` and failures as `Client <id> [addr:port] disconnected: <reason>.`; reasons include malformed packet, protocol error, connection closed, timeout, session takeover, auth errors and other broker disconnect causes.
 - R2 regex primarily matched older `Client <id> disconnected/closed/... ` forms and therefore could miss the production 2.1.2 terminal record. This left the current-session false-PASS blocker open despite green CI.
-- R3 code head `77bd258fbab5403327921fb388221db4a24943c1` adds exact support for the 2.1.2 bracketed-address disconnect format while preserving legacy compatibility.
+- R3 final code head `07159cd750e7817dd7f6df23f47086a69812ebfe` adds exact support for the 2.1.2 bracketed-address disconnect format while preserving legacy compatibility. A follow-up corrected regex escaping before closure.
 - Tests now use production-version lifecycle fixtures including graceful disconnect, connection closed, timeout, session takeover, malformed packet and generic bad socket read/write reason. A later exact authenticated CONNECT still restores current-session proof.
 - The R2 socket-before -> Broker lifecycle -> socket-after bracket is unchanged; socket count and fingerprint must remain identical.
 - Manager remains exactly one 8883 socket; Home Assistant remains at least one 1883 socket; wrong exact-client username remains fail-closed; no current-session auth remains evidence-insufficient.
+- Independent R3 source review confirms production config `connection_messages true` + `log_type notice`, upstream 2.1.2 CONNECT compatibility, bracketed-address terminal coverage, exact ClientID isolation, current-session invalidation/restoration, and the existing socket evidence bracket. R3 source review is CLOSED_PASS with zero open source blockers, pending final exact-head CI.
 - PR #642/KF-127 remains separate. No T1 access, production retry, marker mutation, board access or merge occurs in R3.
 - Branch: `fix/n3w-t1-f4-runtime-snapshot-evidence-contract-20261022`.
 - Authority: `docs/development/N3W_T1_F4_RUNTIME_SNAPSHOT_EVIDENCE_CONTRACT_SOURCE_REPAIR_20261022.md`.
