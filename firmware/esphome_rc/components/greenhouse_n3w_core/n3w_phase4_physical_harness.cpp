@@ -1,5 +1,7 @@
 #include "n3w_phase4_physical_harness.h"
 
+#ifdef GREENHOUSE_N3W_ENABLE_PHASE4_LAB
+
 namespace esphome::greenhouse_n3w_core {
 
 static_assert(kCompactTelemetryMaxWireBytes <= kEspNowPhysicalDatagramLimit,
@@ -125,3 +127,5 @@ void Phase4PhysicalHarness::on_espnow_send_result(
 }
 
 }  // namespace esphome::greenhouse_n3w_core
+
+#endif  // GREENHOUSE_N3W_ENABLE_PHASE4_LAB

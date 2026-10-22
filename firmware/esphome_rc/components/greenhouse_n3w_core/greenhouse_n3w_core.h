@@ -15,8 +15,10 @@
 #include "n3w_esp32_pairing_nvs.h"
 #include "n3w_esp32_runtime_nvs.h"
 #include "n3w_esp32_simple_nvs.h"
+#ifdef GREENHOUSE_N3W_ENABLE_PHASE4_LAB
 #include "n3w_phase4_physical_harness.h"
 #include "n3w_rtc_breadcrumb.h"
+#endif
 #include "n3w_simple_crypto.h"
 #include "n3w_simple_pairing_client.h"
 #include "n3w_simple_product_component.h"
@@ -37,10 +39,15 @@ class GreenhouseN3wCore : public SimpleProductComponent {
   }
 
   void set_phase4_lab_diagnostics_enabled(bool enabled) {
+#ifdef GREENHOUSE_N3W_ENABLE_PHASE4_LAB
     rtc_breadcrumb_enabled_ = enabled;
     set_lab_diagnostics_enabled(enabled);
+#else
+    (void) enabled;
+#endif
   }
 
+#ifdef GREENHOUSE_N3W_ENABLE_PHASE4_LAB
   Phase4PhysicalHarness *phase4_harness() { return &phase4_harness_; }
 
   int reset_reason_raw() const { return reset_reason_raw_; }
@@ -67,8 +74,10 @@ class GreenhouseN3wCore : public SimpleProductComponent {
   uint32_t previous_rtc_breadcrumb_marker_sequence() const {
     return previous_rtc_breadcrumb_.marker_sequence;
   }
+#endif
 
   void setup() override {
+#ifdef GREENHOUSE_N3W_ENABLE_PHASE4_LAB
     n3w_rtc_breadcrumb_capture(&previous_rtc_breadcrumb_);
 #ifdef USE_ESP32
     reset_reason_raw_ = static_cast<int>(esp_reset_reason());
@@ -81,10 +90,13 @@ class GreenhouseN3wCore : public SimpleProductComponent {
         N3wRtcBreadcrumbStage::BOOT_SETUP,
         static_cast<uint32_t>(reset_reason_raw_),
         0);
+#endif
     fresh_identity_candidate_ = !persisted_runtime_state_present_();
+#ifdef GREENHOUSE_N3W_ENABLE_PHASE4_LAB
     if (phase4_source_harness_enabled_) {
       phase4_source_harness_ready_ = phase4_harness_.prepare_source_only();
     }
+#endif
     SimpleProductComponent::setup();
   }
 
@@ -96,13 +108,16 @@ class GreenhouseN3wCore : public SimpleProductComponent {
       const std::string &telemetry_json,
       const std::string &boot_id,
       uint32_t seq) {
+#ifdef GREENHOUSE_N3W_ENABLE_PHASE4_LAB
     mark_rtc_breadcrumb_(
         N3wRtcBreadcrumbStage::TELEMETRY_BEGIN,
         static_cast<uint32_t>(path_state()),
         seq);
+#endif
     const TelemetrySubmitDisposition disposition =
         SimpleProductComponent::submit_telemetry_json(
             telemetry_json, boot_id, seq);
+#ifdef GREENHOUSE_N3W_ENABLE_PHASE4_LAB
     N3wRtcBreadcrumbStage stage = N3wRtcBreadcrumbStage::TELEMETRY_FAIL;
     if (disposition == TelemetrySubmitDisposition::SUBMITTED) {
       stage = N3wRtcBreadcrumbStage::TELEMETRY_OK;
@@ -113,6 +128,7 @@ class GreenhouseN3wCore : public SimpleProductComponent {
         stage,
         static_cast<uint32_t>(path_state()),
         seq);
+#endif
     return disposition;
   }
 
@@ -131,31 +147,39 @@ class GreenhouseN3wCore : public SimpleProductComponent {
   bool publish_direct(
       const std::string &topic,
       const std::string &payload) override {
+#ifdef GREENHOUSE_N3W_ENABLE_PHASE4_LAB
     mark_rtc_breadcrumb_(
         N3wRtcBreadcrumbStage::DIRECT_PUBLISH_BEGIN,
         static_cast<uint32_t>(path_state()),
         0);
+#endif
     const bool accepted =
         SimpleProductComponent::publish_direct(topic, payload);
+#ifdef GREENHOUSE_N3W_ENABLE_PHASE4_LAB
     mark_rtc_breadcrumb_(
         accepted ? N3wRtcBreadcrumbStage::DIRECT_PUBLISH_OK
                  : N3wRtcBreadcrumbStage::DIRECT_PUBLISH_FAIL,
         static_cast<uint32_t>(path_state()),
         0);
+#endif
     return accepted;
   }
 
   bool set_radio_channel(uint8_t channel) override {
+#ifdef GREENHOUSE_N3W_ENABLE_PHASE4_LAB
     mark_rtc_breadcrumb_(
         N3wRtcBreadcrumbStage::RADIO_CHANNEL_SET_BEGIN,
         static_cast<uint32_t>(channel),
         0);
+#endif
     const bool accepted = SimpleProductComponent::set_radio_channel(channel);
+#ifdef GREENHOUSE_N3W_ENABLE_PHASE4_LAB
     mark_rtc_breadcrumb_(
         accepted ? N3wRtcBreadcrumbStage::RADIO_CHANNEL_SET_OK
                  : N3wRtcBreadcrumbStage::RADIO_CHANNEL_SET_FAIL,
         static_cast<uint32_t>(channel),
         static_cast<uint32_t>(last_channel_error_raw()));
+#endif
     return accepted;
   }
 
@@ -164,22 +188,30 @@ class GreenhouseN3wCore : public SimpleProductComponent {
       const uint8_t *data,
       std::size_t size,
       uint32_t wait_time_ms) override {
+#ifdef GREENHOUSE_N3W_ENABLE_PHASE4_LAB
     mark_rtc_breadcrumb_(
         N3wRtcBreadcrumbStage::CHALLENGE_SUBMIT_BEGIN,
         static_cast<uint32_t>(channel),
         wait_time_ms);
+#endif
     const bool accepted = SimpleProductComponent::broadcast_control_on_channel(
         channel, data, size, wait_time_ms);
+#ifdef GREENHOUSE_N3W_ENABLE_PHASE4_LAB
     mark_rtc_breadcrumb_(
         accepted ? N3wRtcBreadcrumbStage::CHALLENGE_SUBMIT_OK
                  : N3wRtcBreadcrumbStage::CHALLENGE_SUBMIT_FAIL,
         static_cast<uint32_t>(channel),
         static_cast<uint32_t>(last_broadcast_send_error_raw()));
+#endif
     return accepted;
   }
 
   bool phase4_source_harness_ready() const {
+#ifdef GREENHOUSE_N3W_ENABLE_PHASE4_LAB
     return phase4_source_harness_ready_;
+#else
+    return false;
+#endif
   }
 
   // Recovery-only surface for a legacy provisioned identity whose durable boot
@@ -392,6 +424,7 @@ class GreenhouseN3wCore : public SimpleProductComponent {
   }
 
  protected:
+#ifdef GREENHOUSE_N3W_ENABLE_PHASE4_LAB
   void mark_rtc_breadcrumb_(
       N3wRtcBreadcrumbStage stage,
       uint32_t arg0,
@@ -444,6 +477,7 @@ class GreenhouseN3wCore : public SimpleProductComponent {
     return "UNAVAILABLE";
 #endif
   }
+#endif  // GREENHOUSE_N3W_ENABLE_PHASE4_LAB
 
   bool persisted_runtime_state_present_() {
     ProvisionedPeerStateV2 peer;
@@ -508,16 +542,18 @@ class GreenhouseN3wCore : public SimpleProductComponent {
     return true;
   }
 
-  int reset_reason_raw_{0};
-  const char *reset_reason_name_{"UNKNOWN"};
-
   bool phase4_source_harness_enabled_{false};
-  bool phase4_source_harness_ready_{false};
   bool phase4_product_runtime_enabled_{false};
   bool fresh_identity_candidate_{false};
+
+#ifdef GREENHOUSE_N3W_ENABLE_PHASE4_LAB
+  int reset_reason_raw_{0};
+  const char *reset_reason_name_{"UNKNOWN"};
+  bool phase4_source_harness_ready_{false};
   bool rtc_breadcrumb_enabled_{false};
   N3wRtcBreadcrumbSnapshot previous_rtc_breadcrumb_{};
   Phase4PhysicalHarness phase4_harness_{};
+#endif
   NvsBootSessionStore boot_session_store_{};
   BootSessionManager boot_session_manager_{};
   NvsPairingEpochStore recovery_pairing_epoch_store_{};

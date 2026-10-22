@@ -7,6 +7,8 @@
 
 namespace esphome::greenhouse_n3w_core {
 
+#ifdef GREENHOUSE_N3W_ENABLE_PHASE4_LAB
+
 class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
  public:
   static constexpr uint32_t kMagic = 0x4e335744U;
@@ -353,5 +355,41 @@ class N3wLabDiagnostics final : public SimpleProductDiagnosticSink {
 };
 
 static_assert(sizeof(N3wLabDiagnostics::Snapshot) < 512U);
+
+#else
+
+// Production build stub. The Phase-4 diagnostic implementation is not linked
+// unless GREENHOUSE_N3W_ENABLE_PHASE4_LAB is explicitly enabled by a lab target.
+class N3wLabDiagnostics {
+ public:
+  struct LatencySnapshot {};
+
+  void set_enabled(bool) {}
+  bool enabled() const { return false; }
+  void begin_boot_session() {}
+  void bind_boot_session(uint64_t, uint64_t) {}
+  const LatencySnapshot &latency_snapshot() const { return latency_; }
+
+  template<typename... Args> void observe_connectivity(Args &&...) {}
+  template<typename... Args> void observe_runtime(Args &&...) {}
+  template<typename... Args> void emit_summary(Args &&...) {}
+  template<typename... Args> void note_recovery_schedule(Args &&...) {}
+  template<typename... Args> void note_recovery_probe_deferral(Args &&...) {}
+  template<typename... Args> void note_presence_probe(Args &&...) {}
+  template<typename... Args> void note_full_verify_terminal(Args &&...) {}
+  template<typename... Args> void note_full_verify_start(Args &&...) {}
+  template<typename... Args> void note_channel_result(Args &&...) {}
+  template<typename... Args> void note_relay_restore(Args &&...) {}
+  template<typename... Args> void note_rx_dropped(Args &&...) {}
+  template<typename... Args> void on_broadcast_completion(Args &&...) {}
+  template<typename... Args> void on_unicast_completion(Args &&...) {}
+  template<typename... Args> void note_peer_install(Args &&...) {}
+  template<typename... Args> void note_unicast_submit(Args &&...) {}
+
+ private:
+  LatencySnapshot latency_{};
+};
+
+#endif  // GREENHOUSE_N3W_ENABLE_PHASE4_LAB
 
 }  // namespace esphome::greenhouse_n3w_core
