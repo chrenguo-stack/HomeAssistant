@@ -1,17 +1,17 @@
-## 2026-10-22 — F4/F5 runtime snapshot evidence contract source repair R2
+## 2026-10-22 — F4/F5 runtime snapshot evidence contract source repair R3
 
-- Full F4 post-reboot verifier on the already-deployed T1-B is PASS; product runtime failure remains unproven. Historical production failure remains terminal/no-replay.
-- R1 removed the known arbitrary Broker last-event false FAIL and whole-history continuity hash churn, but independent review of PR #643 head `31e19984149b4227edc075ebd264e4ecdde57b6f` found one false-PASS blocker: an old successful MQTT authentication could be combined with a newer TCP socket after the old session had explicitly disconnected.
-- R2 code head `e94ca47d971593e9f16a64ebd49a79b17e9e1ef2` introduces an explicit Broker lifecycle state. Benign exact-client events are ignored; disconnect/close/duplicate-client old-session close invalidate current authentication until a later exact authenticated CONNECT.
-- Each service now brackets Broker lifecycle evidence with two service-owned socket probes. Socket count and fingerprint must be identical before and after the log read; otherwise evidence is insufficient and the snapshot cannot PASS.
-- Broker log scope is narrowed to the service container's current StartedAt boundary. Wrong exact-client username remains fail-closed; no authenticated/current-session evidence cannot PASS.
-- Manager still requires exactly one 8883 socket; Home Assistant still requires at least one 1883 socket. Snapshot schema remains `gh.n3w-t1-runtime-snapshot/2`.
-- 90-second continuity still compares current runtime state only; benign historical authentication digest growth is excluded, while socket replacement/reconnect remains detectable through the socket fingerprint.
-- PR #642/KF-127 remains separate and unchanged. No T1 access, production retry, marker mutation, board access or merge occurs in R2.
+- Full F4 post-reboot verifier on deployed T1-B remains PASS; product runtime failure remains unproven and the historical production failure remains terminal/no-replay.
+- R2 exact head `170dc15b7be0299da046045cbf5fa054d06affa4` passed 14/14 CI, but independent source review did not accept CI as proof of the lifecycle parser.
+- Production locks Broker to Mosquitto 2.1.2. Exact upstream tag `v2.1.2` resolves to commit `99fa50f30e325609394c324c8ff71cfbbe95d8ab`. In that source, `src/loop.c` emits graceful termination as `Client <id> [addr:port] disconnected.` and failures as `Client <id> [addr:port] disconnected: <reason>.`; reasons include malformed packet, protocol error, connection closed, timeout, session takeover, auth errors and other broker disconnect causes.
+- R2 regex primarily matched older `Client <id> disconnected/closed/... ` forms and therefore could miss the production 2.1.2 terminal record. This left the current-session false-PASS blocker open despite green CI.
+- R3 code head `77bd258fbab5403327921fb388221db4a24943c1` adds exact support for the 2.1.2 bracketed-address disconnect format while preserving legacy compatibility.
+- Tests now use production-version lifecycle fixtures including graceful disconnect, connection closed, timeout, session takeover, malformed packet and generic bad socket read/write reason. A later exact authenticated CONNECT still restores current-session proof.
+- The R2 socket-before -> Broker lifecycle -> socket-after bracket is unchanged; socket count and fingerprint must remain identical.
+- Manager remains exactly one 8883 socket; Home Assistant remains at least one 1883 socket; wrong exact-client username remains fail-closed; no current-session auth remains evidence-insufficient.
+- PR #642/KF-127 remains separate. No T1 access, production retry, marker mutation, board access or merge occurs in R3.
 - Branch: `fix/n3w-t1-f4-runtime-snapshot-evidence-contract-20261022`.
-- R1 review evidence: PR #643 comment `6332619236`.
 - Authority: `docs/development/N3W_T1_F4_RUNTIME_SNAPSHOT_EVIDENCE_CONTRACT_SOURCE_REPAIR_20261022.md`.
-- Next gate: `N3W_T1_F4_RUNTIME_SNAPSHOT_EVIDENCE_CONTRACT_SOURCE_REVIEW_R2_20261022_01`.
+- Next gate: `N3W_T1_F4_RUNTIME_SNAPSHOT_EVIDENCE_CONTRACT_SOURCE_REVIEW_R3_20261022_01`.
 
 ## 2026-10-21 — F5 V2 post-reboot SSH boot-epoch race source repair
 

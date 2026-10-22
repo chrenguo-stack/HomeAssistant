@@ -257,15 +257,20 @@ The prior failed production run remains terminal/no-replay.
 ~~~text
 R1_SOURCE_REVIEW_RESULT=FAIL_R2_REQUIRED
 R1_OPEN_SOURCE_BLOCKER_COUNT=1
-R2_SOURCE_REPAIR_IMPLEMENTED=true
-R2_SOURCE_REVIEW_PENDING=true
-R2_CI_PENDING=true
+R2_FINAL_HEAD=170dc15b7be0299da046045cbf5fa054d06affa4
+R2_EXACT_HEAD_CI=14/14_PASS
+R2_SOURCE_REVIEW_RESULT=FAIL_R3_REQUIRED
+R2_OPEN_SOURCE_BLOCKER_COUNT=1
+R2_BLOCKER=MOSQUITTO_2_1_2_TERMINAL_LOG_FORMAT_MISMATCH
+R3_SOURCE_REPAIR_IMPLEMENTED=true
+R3_SOURCE_REVIEW_PENDING=true
+R3_CI_PENDING=true
 T1_ACCESS=false
 T1_MUTATION=false
 PRODUCTION_EXECUTION=false
 MERGE=false
 
-NEXT_ONE_GATE=N3W_T1_F4_RUNTIME_SNAPSHOT_EVIDENCE_CONTRACT_SOURCE_REVIEW_R2_20261022_01
+NEXT_ONE_GATE=N3W_T1_F4_RUNTIME_SNAPSHOT_EVIDENCE_CONTRACT_SOURCE_REVIEW_R3_20261022_01
 ~~~
 
 
@@ -309,3 +314,63 @@ runtime_socket_auth_evidence_unstable
 
 The prior failed production run remains terminal/no-replay. No T1 access is
 required to review this source repair.
+
+
+## 13. R2 independent review and R3 production-version parser repair
+
+R2 exact-head source review used the production Broker version as an external
+source authority instead of assuming older Mosquitto log wording.
+
+Production image binding fixes Mosquitto 2.1.2. The upstream tag and source
+authority are:
+
+~~~text
+MOSQUITTO_UPSTREAM_TAG=v2.1.2
+MOSQUITTO_UPSTREAM_TAG_OBJECT=691eab38b43c16235251bf4a4c83b2b29195ba76
+MOSQUITTO_UPSTREAM_COMMIT=99fa50f30e325609394c324c8ff71cfbbe95d8ab
+CONNECT_SOURCE=src/handle_connect.c
+DISCONNECT_SOURCE=src/loop.c
+~~~
+
+The upstream successful authenticated connection format remains compatible with
+the existing exact CONNECT parser:
+
+~~~text
+New client connected from <addr>:<port> as <client-id> (p5, cX, kY, u'<username>').
+~~~
+
+The production disconnect format is different from the older test fixtures.
+Mosquitto 2.1.2 emits:
+
+~~~text
+Client <client-id> [<addr>:<port>] disconnected.
+Client <client-id> [<addr>:<port>] disconnected: malformed packet.
+Client <client-id> [<addr>:<port>] disconnected: protocol error.
+Client <client-id> [<addr>:<port>] disconnected: connection closed by client.
+Client <client-id> [<addr>:<port>] disconnected: exceeded timeout.
+Client <client-id> [<addr>:<port>] disconnected: session taken over.
+Client <client-id> [<addr>:<port>] disconnected: <other reason>.
+~~~
+
+R2 did not match this bracketed-address form, so an actual production terminal
+record could be ignored and an older authenticated CONNECT could remain the
+state-machine authority. Green CI did not close this because its fixtures used
+older log strings.
+
+R3 keeps the R2 state model and changes only the terminal-record recognizer and
+its focused tests:
+
+~~~text
+PRODUCTION_2_1_2_TERMINAL_RECORD=INVALIDATE_CURRENT_SESSION_AUTH
+LEGACY_TERMINAL_RECORD=INVALIDATE_CURRENT_SESSION_AUTH
+BENIGN_EXACT_CLIENT_EVENT=NO_STATE_CHANGE
+LATER_EXACT_AUTHENTICATED_CONNECT=RESTORE_CURRENT_SESSION_AUTH
+SOCKET_BRACKET_UNCHANGED=true
+~~~
+
+R3 code head before documentation alignment:
+`77bd258fbab5403327921fb388221db4a24943c1`.
+
+No runtime/T1 evidence collection is required for this parser closure because
+the production-version log grammar is bound directly to the exact upstream
+Mosquitto 2.1.2 source.
