@@ -1,3 +1,16 @@
+## 2026-10-22 — T1-B F5 V2 exact-release real production acceptance CLOSED_PASS
+
+- PR #650 private PRE_MUTATION evidence repair is merged in source `4733c09ab7653bacca6e197e63a583f500b45845`.
+- The complete F3 -> F4/reboot -> release-inputs -> final exact-release chain was rebuilt from that exact main and local `verify-bundle` passed.
+- T1-B fresh read-only Standard Fresh Armbian qualification passed all 10 checks; reflash was not required after the earlier marker-ABSENT pre-mutation failure.
+- A new private production run was authorized with public `run_id_sha256=e56b8a1a...`, plan `a11003bf...`, and target binding `5760d559...`.
+- Real production passed HOST_BASELINE, F3, provisioning, F4 prepare/activate/accept/persistence/cert stages, operator reboot arming, old-boot SSH-down proof, SSH epoch #2, post-reboot readiness, strict post-reboot acceptance, and final marker acceptance.
+- Final result: `status=PASS`, `marker_state=ACCEPTED`, `device_acceptance=PASS`, `T1_PRODUCTION_READY=true`, `reflash_required=false`, `terminal_stage=COMPLETE`, executor exit code 0.
+- KF-122, KF-124, KF-125, KF-126, KF-127 and KF-128 live-revalidation obligations are closed by the fresh exact-release full run. This does not claim every synthetic edge branch occurred live.
+- Historical failed runs remain terminal/no-replay.
+- Authority: `docs/development/N3W_T1_B_F5_V2_REAL_PRODUCTION_ACCEPTANCE_CLOSURE_20261022.md`.
+- Next gate: `N3W_T1_B_F5_V2_REAL_PRODUCTION_ACCEPTANCE_ALIGNMENT_MERGE_DECISION_20261022_01`; this alignment does not authorize another T1/board operation.
+
 ## 2026-10-22 — KF-127 / PR #642 post-merge closure
 
 - PR #642 original source repair passed independent A1-A8 review with zero blockers and 14/14 CI.

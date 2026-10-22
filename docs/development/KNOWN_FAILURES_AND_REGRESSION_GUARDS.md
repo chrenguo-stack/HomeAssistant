@@ -1,8 +1,54 @@
+### 2026-10-22 KF-122 / KF-124 / KF-125 / KF-126 / KF-127 / KF-128 — fresh exact-release live revalidation closure
+
+~~~text
+SOURCE_HEAD=4733c09ab7653bacca6e197e63a583f500b45845
+SOURCE_TREE=9ca2927c02e15ae4a0f18c475486e7bbf7206bc9
+
+RUN_ID_RAW_PUBLICATION=false
+RUN_ID_SHA256=e56b8a1a086f9ce5b196a5a97a7faff2d645ccf64b4254dd2c3150a1fe91d761
+PLAN_SHA256=a11003bfb742612ab5a4f1652950c40a5c2d8fc50b445c30a5cd4326ad1afcba
+
+STANDARD_FRESH_ARMBIAN_QUALIFICATION=PASS
+OLD_BOOT_SSH_DOWN=PASS
+SSH_EPOCH_2=PASS
+POST_REBOOT_READINESS=PASS
+POST_REBOOT_ACCEPTANCE=PASS
+MARKER_ACCEPTED=PASS
+
+PRODUCTION_RESULT_STATUS=PASS
+T1_PRODUCTION_READY=true
+REFLASH_REQUIRED=false
+TERMINAL_STAGE=COMPLETE
+
+KF_122=CLOSED_PASS_LIVE_REVALIDATED
+KF_124=CLOSED_PASS_LIVE_REVALIDATED
+KF_125=CLOSED_PASS_LIVE_REVALIDATED
+KF_126=CLOSED_PASS_LIVE_REVALIDATED
+KF_127=CLOSED_PASS_LIVE_REVALIDATED
+KF_128=CLOSED_PASS_LIVE_REVALIDATED
+~~~
+
+本轮使用 PR #650 合入后的 fresh exact-main release，并在重新通过 Standard Fresh
+Armbian 只读资格检查后创建全新 production run。完整真实 T1-B 路径最终
+`marker_state=ACCEPTED`、`device_acceptance=PASS`、`T1_PRODUCTION_READY=true`。
+
+其中 KF-124 的 operator arming、KF-126 的 old-boot SSH-down 边界、KF-125/KF-127 的
+readiness 路径以及 KF-122/KF-128 的严格 post-reboot acceptance/runtime evidence
+路径都进入了本次成功 full run。对 KF-127 等问题，不宣称本次 boot 一定实际触发了
+每一个 synthetic partial-evidence 分支；这些强制边界仍由已复核的 source regression
+tests 覆盖。live-revalidation obligation 的关闭依据是 repaired exact-release full run
+端到端完成，而不是声称所有负向分支都在现场重现。
+
+历史失败 run 保持 terminal/no-replay，不因本次成功而删除或改写历史证据。
+
+Authority:
+`docs/development/N3W_T1_B_F5_V2_REAL_PRODUCTION_ACCEPTANCE_CLOSURE_20261022.md`.
+
 ### 2026-10-22 KF-128 — runtime snapshot 把历史 Broker 事件误当当前连接与连续性状态
 
 | ID | 范围 | 问题 | 根因与修复保护 | 状态 |
 | --- | --- | --- | --- | --- |
-| KF-128 | T1 F4/F5 V2 runtime snapshot / post-reboot acceptance | T1-B 已由完整 F4 post-reboot verifier 证明实际部署与当前运行健康，但独立 `--snapshot` 因 Manager 正确认证连接之后约 124 微秒的一条其他 exact-client Broker 事件而返回 `broker_authenticated_connection_state_invalid`；同时 `broker_events_sha256` 被纳入整份 snapshot exact equality，正常历史日志增长也可触发 `runtime_continuity_changed`。R1 独立复核发现“历史认证 + 新 TCP socket”可 false-PASS；R2 独立复核又确认生产锁定 Mosquitto 2.1.2 的真实断线格式为 `Client <id> [addr:port] disconnected...`，而 R2 regex 仍主要匹配旧格式，因此真实终止事件可能未被识别 | R3 直接绑定 Mosquitto 2.1.2 上游 tag `v2.1.2` / commit `99fa50f30e325609394c324c8ff71cfbbe95d8ab` 的真实生命周期格式：`Client <id> [addr:port] disconnected.` 与 `Client <id> [addr:port] disconnected: <reason>` 都会使当前认证证明失效；后续 exact authenticated CONNECT 才恢复。R2 的 socket-before/log/socket-after 稳定夹取、wrong username fail-closed、Manager 恰好 1 条 8883、Home Assistant 至少 1 条 1883、schema /2 与 90 秒 continuity 投影继续保持 | SOURCE_REPAIR_MERGED_LIVE_REVALIDATION_PENDING |
+| KF-128 | T1 F4/F5 V2 runtime snapshot / post-reboot acceptance | T1-B 已由完整 F4 post-reboot verifier 证明实际部署与当前运行健康，但独立 `--snapshot` 因 Manager 正确认证连接之后约 124 微秒的一条其他 exact-client Broker 事件而返回 `broker_authenticated_connection_state_invalid`；同时 `broker_events_sha256` 被纳入整份 snapshot exact equality，正常历史日志增长也可触发 `runtime_continuity_changed`。R1 独立复核发现“历史认证 + 新 TCP socket”可 false-PASS；R2 独立复核又确认生产锁定 Mosquitto 2.1.2 的真实断线格式为 `Client <id> [addr:port] disconnected...`，而 R2 regex 仍主要匹配旧格式，因此真实终止事件可能未被识别 | R3 直接绑定 Mosquitto 2.1.2 上游 tag `v2.1.2` / commit `99fa50f30e325609394c324c8ff71cfbbe95d8ab` 的真实生命周期格式：`Client <id> [addr:port] disconnected.` 与 `Client <id> [addr:port] disconnected: <reason>` 都会使当前认证证明失效；后续 exact authenticated CONNECT 才恢复。R2 的 socket-before/log/socket-after 稳定夹取、wrong username fail-closed、Manager 恰好 1 条 8883、Home Assistant 至少 1 条 1883、schema /2 与 90 秒 continuity 投影继续保持 | CLOSED_PASS_LIVE_REVALIDATED |
 
 KF-128 与 KF-127 分离开发、独立复核；两条 source repair 现均已合入 main。整个源码闭环不修改失败 production run、不 replay marker、不访问 T1。R1 review comment `6332619236` 冻结 session-correlation false-PASS；R2 exact head `170dc15b7be0299da046045cbf5fa054d06affa4` 虽 14/14 CI PASS，但独立上游版本复核发现 Mosquitto 2.1.2 真实 disconnect 格式未被 regex 覆盖，因此 R2 不能关闭 blocker。R3 final reviewed code head `07159cd750e7817dd7f6df23f47086a69812ebfe` 已按 exact upstream 2.1.2 格式修补；PR #643 final head `97fc2aa956d8664b960eef06a89e4c9e83f2ff33` 14/14 CI PASS，并以 merge commit `979683e29f7fba336e05467d695b21d6b22e027d` 合入 main；merge tree `f9e1a50ab48ce8e75b3407340f21ab90c2878975` 与 final PR tree 完全一致。KF-128 source closure 完成，后续仅待 fresh exact-main release + separately authorized live revalidation。Authority: `docs/development/N3W_T1_F4_RUNTIME_SNAPSHOT_EVIDENCE_CONTRACT_SOURCE_REPAIR_20261022.md`。
 
@@ -10,7 +56,7 @@ KF-128 与 KF-127 分离开发、独立复核；两条 source repair 现均已�
 
 | ID | 范围 | 问题 | 根因与修复保护 | 状态 |
 | --- | --- | --- | --- | --- |
-| KF-127 | T1 F5 V2 post-reboot readiness | real-T1 run 已跨过 KF-126 reboot boundary，但在 `POST_REBOOT_READINESS` 以 `readiness_unit_evidence_invalid` 终止；冻结取证同时显示 `systemd=starting` | readiness 虽设计了 `systemd=starting -> WAIT`，但旧实现先要求每个 unit 的 `systemctl show` 立即给全四个字段，启动早期 partial evidence 会在 WAIT 分支之前硬失败；同时它把 service-only `ExecMainStatus` 错误强加给 `CERT_TIMER`。修复改为 service/timer 分类型字段合同，并在 starting/initializing 阶段允许正常 partial evidence WAIT；明确 failed/exit-code 仍立即 FAIL；systemd running/degraded 后仍按对应 unit 类型严格校验完整性 | SOURCE_REPAIR_MERGED_LIVE_REVALIDATION_PENDING |
+| KF-127 | T1 F5 V2 post-reboot readiness | real-T1 run 已跨过 KF-126 reboot boundary，但在 `POST_REBOOT_READINESS` 以 `readiness_unit_evidence_invalid` 终止；冻结取证同时显示 `systemd=starting` | readiness 虽设计了 `systemd=starting -> WAIT`，但旧实现先要求每个 unit 的 `systemctl show` 立即给全四个字段，启动早期 partial evidence 会在 WAIT 分支之前硬失败；同时它把 service-only `ExecMainStatus` 错误强加给 `CERT_TIMER`。修复改为 service/timer 分类型字段合同，并在 starting/initializing 阶段允许正常 partial evidence WAIT；明确 failed/exit-code 仍立即 FAIL；systemd running/degraded 后仍按对应 unit 类型严格校验完整性 | CLOSED_PASS_LIVE_REVALIDATED |
 
 原 PR #642 head `65864bcdea4083281e0b64c940dfc2e894bf4a2d` 已独立 A1-A8 复核 PASS、14/14 CI PASS。KF-128/PR #643 与 PR #644 状态收口进入 main 后，PR #642 以无 force merge/rebind commit `693bdfe98f16dbb55796203b30f443d02e2025e5` 对齐新 main；fresh source review 仍为 0 blocker，fresh exact-head CI 14/14 PASS。PR #642 随后以 merge commit `116e247af33af3e0e97e1e3696fdc5e59e925249` 合入 main，merge tree `c126faf04028914c0eb5c1d8015651f826c0f5dc` 与 reviewed/rebound head tree 完全一致。KF-127 source closure 完成，失败 run 继续 terminal/no-replay；后续仅待 fresh exact-main release + local validation + separately authorized live revalidation。Authority: `docs/development/N3W_T1_F5_V2_READINESS_PARTIAL_UNIT_EVIDENCE_SOURCE_REPAIR_20261022.md`。
 
@@ -18,7 +64,7 @@ KF-128 与 KF-127 分离开发、独立复核；两条 source repair 现均已�
 
 | ID | 范围 | 问题 | 根因与修复保护 | 状态 |
 | --- | --- | --- | --- | --- |
-| KF-126 | T1 F5 V2 reboot / SSH epoch boundary | fresh exact-main real-T1 production 在 planned reboot 后进入 `POST_REBOOT_READINESS`，冻结错误码为 `reboot_not_observed`；取证同时显示 systemd 仍处于 `stopping`。这证明 executor 在旧 boot 尚未彻底退出时，已经把 TCP/22 可连误当成“重启后 SSH 已恢复” | `systemctl reboot` 后不能只等旧 ControlMaster 断开。修复要求在进入 `REBOOT_PENDING` 前同时满足旧 ControlMaster 已断和 TCP/22 连续两次不可达；TCP down 可先出现，但一旦 TCP 恢复就清零历史 down 证据，只有当前仍成立的 down streak 才能与 ControlMaster disconnect 组合，之后才允许进入 post-reboot TCP/22 up wait、SSH epoch #2、readiness。target-side `reboot_not_observed` 硬保护保持不变；不增加第三 SSH epoch、第二次 production approval 或固定盲等 | SOURCE_REPAIR_REVIEW_CLOSED_PASS_MERGE_PENDING |
+| KF-126 | T1 F5 V2 reboot / SSH epoch boundary | fresh exact-main real-T1 production 在 planned reboot 后进入 `POST_REBOOT_READINESS`，冻结错误码为 `reboot_not_observed`；取证同时显示 systemd 仍处于 `stopping`。这证明 executor 在旧 boot 尚未彻底退出时，已经把 TCP/22 可连误当成“重启后 SSH 已恢复” | `systemctl reboot` 后不能只等旧 ControlMaster 断开。修复要求在进入 `REBOOT_PENDING` 前同时满足旧 ControlMaster 已断和 TCP/22 连续两次不可达；TCP down 可先出现，但一旦 TCP 恢复就清零历史 down 证据，只有当前仍成立的 down streak 才能与 ControlMaster disconnect 组合，之后才允许进入 post-reboot TCP/22 up wait、SSH epoch #2、readiness。target-side `reboot_not_observed` 硬保护保持不变；不增加第三 SSH epoch、第二次 production approval 或固定盲等 | CLOSED_PASS_LIVE_REVALIDATED |
 
 现场失败 run 不公开原始 RUN_ID；公开绑定为 `run_id_sha256=67fc973c09c1d7335197c64291454ff636643e4507dc3e177484b6c8b77a2569`。Final result 为 `terminal_stage=POST_REBOOT_READINESS`、`marker_state=STARTED`、`device_acceptance=FAIL`、`reflash_required=true`；冻结取证 `unavailable_count=0`，四类 probe 全部 OBSERVED，systemd 为 `stopping`。失败 run 永不 replay；T1-B 仍是 `REFLASH_REQUIRED`，但 reflash 延后到 source repair review/merge、新 exact release、本地验证之后。Independent exact-head review closed A1-A10 PASS with zero open source blockers; final exact-head CI is 12/12 PASS, including F5 V2 source CI and public repository safety. PR #641 remains draft/mergeable and unmerged. Authority: `docs/development/N3W_T1_F5_V2_POST_REBOOT_SSH_BOOT_EPOCH_RACE_SOURCE_REPAIR_20261021.md`; review evidence: PR #641 comment `6320440653`。
 
@@ -26,7 +72,7 @@ KF-128 与 KF-127 分离开发、独立复核；两条 source repair 现均已�
 
 | ID | 范围 | 问题 | 根因与修复保护 | 状态 |
 | --- | --- | --- | --- | --- |
-| KF-125 | T1 F5 V2 post-reboot readiness | real-T1 run `15212aa9...` 在 controlled reboot 与 SSH epoch #2 均 PASS 后立即进入最终验收；此时 systemd/产品服务仍在正常启动，严格 verifier 可在现有 90 秒稳定观察开始之前先 fail-fast，导致 STARTED run 被终止为 reflash-required | TCP/22/SSH readiness 不是 product readiness。增加独立、只读、bounded 的 `POST_REBOOT_READINESS`：300 s 上限、2 s poll；正常 starting/activating 只 WAIT，required-unit 明确失败/绑定漂移/异常服务集立即 FAIL；READY 后仍完整执行原 target verifier、外部探测和原有 90 秒连续观察。错误码链路只允许仓库定义或显式脱敏后的错误码，禁止 raw stderr/未知 token 进入 frozen evidence | SOURCE_REPAIR_MERGED_LIVE_REVALIDATION_PENDING |
+| KF-125 | T1 F5 V2 post-reboot readiness | real-T1 run `15212aa9...` 在 controlled reboot 与 SSH epoch #2 均 PASS 后立即进入最终验收；此时 systemd/产品服务仍在正常启动，严格 verifier 可在现有 90 秒稳定观察开始之前先 fail-fast，导致 STARTED run 被终止为 reflash-required | TCP/22/SSH readiness 不是 product readiness。增加独立、只读、bounded 的 `POST_REBOOT_READINESS`：300 s 上限、2 s poll；正常 starting/activating 只 WAIT，required-unit 明确失败/绑定漂移/异常服务集立即 FAIL；READY 后仍完整执行原 target verifier、外部探测和原有 90 秒连续观察。错误码链路只允许仓库定义或显式脱敏后的错误码，禁止 raw stderr/未知 token 进入 frozen evidence | CLOSED_PASS_LIVE_REVALIDATED |
 
 现场证据：SSH active 后 broker/services activation 分别晚约 4.50 s / 8.63 s；post-reboot acceptance 开始后 broker/manager/Home Assistant 容器分别晚约 7.79 s / 12.04 s / 12.05 s 才启动。稍后只读检查为 systemd running、无 failed unit、无 pending job、三个容器 restart_count 均为 0，因此 persistent runtime failure 无证据支持。失败 run 永不 replay，不做 target-local fix-forward；failed T1 仍须在新的 exact release 完成本地验证后再 reflash。Final repaired source `a904244a6ab27d728092f90d145f0e9547a9c5a9` / tree `dd7e1e3a6ee1401bcede7c03bddde10fb4954854` passed independent A1-A10 review with zero new blockers. PR #637 final head `593026795e8b186830b86e8a75d465359c0a1c66` passed 14/14 workflows and merged as `4ee659211b68138d0780a13a9eea32a347a2e71c`; merge tree `733d7225ced9c0d2a8cae0864e67dba3d27b98fa` equals the final PR head tree. A7 sanitizes `command_failed` before code preservation and rejects repository-unknown syntactically-safe tokens at target/executor/frozen-evidence boundaries. Source repair is now in main, but KF-125 remains live-revalidation-pending until a fresh exact-main release completes a separately authorized real-T1 run. No T1/board access, target mutation, reflash or production execution occurred in merge/alignment. Authority: N3W_T1_F5_V2_POST_REBOOT_READINESS_RACE_SOURCE_REPAIR_DESIGN_20261021.md and N3W_T1_F5_V2_PR637_POSTMERGE_STATE_ALIGNMENT_20261021.md; independent closure evidence: PR #637 comments `6314936221` and `6314967249`.
 
@@ -34,7 +80,7 @@ KF-128 与 KF-127 分离开发、独立复核；两条 source repair 现均已�
 
 | ID | 范围 | 问题 | 根因与修复保护 | 状态 |
 | --- | --- | --- | --- | --- |
-| KF-124 | T1 F5 V2 production operator presence | real-T1 run 在 HOST_BASELINE/F3/F4 长时间无反馈后进入 planned reboot；管理员当时已离开屏幕，重启后的第二 SSH epoch 密码提示无人输入，180 秒后 timeout。run 已越过 STARTED，因此被正确终止为 reflash-required | 长耗时阶段与 post-reboot 人工认证之间缺少明确 operator-presence 边界。修复增加机器可读阶段进度；reboot-control staging/install/verify 可无人值守完成，但在一次性 reboot claim/reboot 前增加无超时、run-bound 的 operator arming；错误 arming 文本继续等待；arming 不是第二次 production approval；planned reboot 后明确输出 SSH_EPOCH_2 PASSWORD_REQUIRED。失败 run 不 replay，failed target 仍须 reflash 后新 run | SOURCE_REPAIR_MERGED_LIVE_REVALIDATION_PENDING |
+| KF-124 | T1 F5 V2 production operator presence | real-T1 run 在 HOST_BASELINE/F3/F4 长时间无反馈后进入 planned reboot；管理员当时已离开屏幕，重启后的第二 SSH epoch 密码提示无人输入，180 秒后 timeout。run 已越过 STARTED，因此被正确终止为 reflash-required | 长耗时阶段与 post-reboot 人工认证之间缺少明确 operator-presence 边界。修复增加机器可读阶段进度；reboot-control staging/install/verify 可无人值守完成，但在一次性 reboot claim/reboot 前增加无超时、run-bound 的 operator arming；错误 arming 文本继续等待；arming 不是第二次 production approval；planned reboot 后明确输出 SSH_EPOCH_2 PASSWORD_REQUIRED。失败 run 不 replay，failed target 仍须 reflash 后新 run | CLOSED_PASS_LIVE_REVALIDATED |
 
 现场失败 run：`c715fdee2bbd55c4ed7e3d8d0dd2e1cd2d147651e5ba8390ab4e696dc9a43519`。失败后使用同一 SSHTransport 的独立只读诊断 PASS，host key 和 root password authentication 均正常，因此不把该 run 归因于 persistent target SSH defect。Authority: `N3W_T1_F5_V2_OPERATOR_PRESENCE_AND_PROGRESS_SOURCE_REPAIR_20261021.md`。
 
@@ -44,7 +90,7 @@ PR #634 merged as `1b881ff052ebdace68a901fe41e96cee3b33e98d`; merge tree equals 
 
 | ID | 范围 | 问题 | 根因与修复保护 | 状态 |
 | --- | --- | --- | --- | --- |
-| KF-122 | T1 F5 V2 post-reboot acceptance | Mac 正向探测在 TLS/认证成功后可用同 ClientID 接管生产连接；旧 CA 错配又可能使流程更早失败；首尾 restart count 不能证明稳定 | Broker CA 与 system CA 分离；移除生产密码导出/生产身份登录，保留严格随机非生产负向探测；目标只读认证组合证据、连接/事件指纹、90 秒连续采样及 fail-closed 覆盖检查；acceptance `/2` 分离证据语义。本地 source tests PASS；`c3381796` 隔离 Broker CI 3/3 PASS，F5/F4/control package/public safety PASS；两条重型打包 CI 待完成，实机未执行 | OPEN |
+| KF-122 | T1 F5 V2 post-reboot acceptance | Mac 正向探测在 TLS/认证成功后可用同 ClientID 接管生产连接；旧 CA 错配又可能使流程更早失败；首尾 restart count 不能证明稳定 | Broker CA 与 system CA 分离；移除生产密码导出/生产身份登录，保留严格随机非生产负向探测；目标只读认证组合证据、连接/事件指纹、90 秒连续采样及 fail-closed 覆盖检查；acceptance `/2` 分离证据语义。本地 source tests PASS；`c3381796` 隔离 Broker CI 3/3 PASS，F5/F4/control package/public safety PASS；两条重型打包 CI 待完成，实机未执行 | CLOSED_PASS_LIVE_REVALIDATED |
 
 不宣称已在真实 T1 发生接管，也不把缺日志直接判为产品故障。不能通过改 Clean Start/Session Expiry、换 listener、事后等待或只看容器重启数掩盖问题。修复范围与证据：`N3W_T1_F5_V2_NONDISRUPTIVE_POST_REBOOT_ACCEPTANCE_SOURCE_REPAIR_20261020.md`。只有新精确发布包后续实机验收才可支持关闭 live 部分。
 
