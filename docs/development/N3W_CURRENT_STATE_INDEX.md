@@ -1,3 +1,15 @@
+## 2026-10-22 — F5 V2 readiness partial-unit evidence source repair
+
+- Fresh exact-main real-T1 production advanced past the repaired reboot boundary and then failed at `POST_REBOOT_READINESS` with sanitized `error_code=readiness_unit_evidence_invalid`.
+- Frozen forensics are complete/read-only with zero unavailable probes; `systemd=starting`.
+- KF-126 is therefore not the active failure in this run.
+- KF-127 root cause: readiness probes unit evidence before applying its intended `systemd=starting -> WAIT` policy; early-boot partial `systemctl show` output was treated as structurally invalid before boot convergence could be retried.
+- Source repair preserves partial unit evidence during starting/initializing, still fails explicit failed-unit evidence immediately, and keeps incomplete evidence fail-closed after systemd reaches running/degraded.
+- Failed run remains terminal/no-replay; target remains reflash-required. No T1/board access, reflash, production execution or merge occurs in this source gate.
+- Branch: `fix/n3w-t1-f5-v2-readiness-partial-unit-evidence-20261022`.
+- Authority: `docs/development/N3W_T1_F5_V2_READINESS_PARTIAL_UNIT_EVIDENCE_SOURCE_REPAIR_20261022.md`.
+- Next gate: `N3W_T1_F5_V2_READINESS_PARTIAL_UNIT_EVIDENCE_SOURCE_REVIEW_20261022_01`.
+
 ## 2026-10-21 — F5 V2 post-reboot SSH boot-epoch race source repair
 
 - Fresh exact-main real-T1 production failed terminally at `POST_REBOOT_READINESS` with sanitized `error_code=reboot_not_observed`; marker remains STARTED and target remains reflash-required.
