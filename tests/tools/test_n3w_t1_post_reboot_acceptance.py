@@ -107,8 +107,10 @@ def snapshot():
                        for name in acceptance.CRITICAL_SERVICES},
         "runtime_service_auth": {name: {
             "authenticated": True, "endpoint_port": port,
-            "identity_sha256": "d" * 64, "owned_socket_sha256": "e" * 64,
-            "broker_events_sha256": "f" * 64,
+            "identity_sha256": "d" * 64,
+            "owned_socket_count": 1,
+            "owned_socket_sha256": "e" * 64,
+            "authenticated_connection_sha256": "f" * 64,
         } for name, port in (("manager", 8883), ("homeassistant", 1883))},
     }
 
@@ -238,7 +240,7 @@ def test_acceptance_public_document_has_no_raw_credential_fields():
 
 @pytest.mark.parametrize("change", [
     lambda s: s["runtime_service_auth"]["manager"].update(owned_socket_sha256="0" * 64),
-    lambda s: s["runtime_service_auth"]["homeassistant"].update(broker_events_sha256="0" * 64),
+    lambda s: s["runtime_service_auth"]["manager"].update(owned_socket_count=2),
     lambda s: s["containers"]["broker"].update(identity_sha256="0" * 64),
     lambda s: s.update(homeassistant_http_ready=False),
     lambda s: s.update(critical_errors_sha256="0" * 64),
@@ -255,6 +257,44 @@ def test_transient_failure_cannot_be_hidden_by_final_recovery(change):
     adapter.observe_runtime = observe
     with pytest.raises(acceptance.PostRebootAcceptanceError):
         acceptance.run_acceptance(adapter, release_document(), binding())
+
+
+def test_historical_auth_digest_growth_does_not_break_runtime_continuity():
+    adapter = Adapter()
+    original = adapter.observe_runtime
+
+    def observe(seconds, baseline):
+        result = original(seconds, baseline)
+        for sample in result["samples"][1:]:
+            sample["snapshot"]["runtime_service_auth"]["manager"][
+                "authenticated_connection_sha256"
+            ] = "0" * 64
+        return result
+
+    adapter.observe_runtime = observe
+    result = acceptance.run_acceptance(adapter, release_document(), binding())
+    assert result["status"] == "PASS"
+    assert result["runtime_continuity_verified"] is True
+
+
+@pytest.mark.parametrize(
+    ("service", "count"),
+    (("manager", 0), ("manager", 2), ("homeassistant", 0)),
+)
+def test_snapshot_rejects_missing_or_nonunique_required_current_socket(service, count):
+    value = snapshot()
+    value["runtime_service_auth"][service]["owned_socket_count"] = count
+    with pytest.raises(
+        acceptance.PostRebootAcceptanceError,
+        match=f"runtime_service_auth_invalid:{service}",
+    ):
+        acceptance.validate_snapshot(value)
+
+
+def test_snapshot_allows_multiple_homeassistant_current_sockets():
+    value = snapshot()
+    value["runtime_service_auth"]["homeassistant"]["owned_socket_count"] = 2
+    assert acceptance.validate_snapshot(value)["status"] == "PASS"
 
 
 @pytest.mark.parametrize("elapsed", [float("nan"), float("inf"), -1, True, 99, 0])

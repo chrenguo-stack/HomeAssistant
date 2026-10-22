@@ -16,7 +16,7 @@ SCHEMA = "gh.n3w-t1-production-v2-post-reboot-acceptance/2"
 OBSERVATION_SECONDS = 90
 SAMPLE_INTERVAL_SECONDS = 2
 MAX_SAMPLE_GAP_SECONDS = 15
-SNAPSHOT_SCHEMA = "gh.n3w-t1-runtime-snapshot/1"
+SNAPSHOT_SCHEMA = "gh.n3w-t1-runtime-snapshot/2"
 REQUIRED_EXTERNAL_PROBES = (
     "TCP_8883",
     "TLS_CA",
@@ -110,21 +110,51 @@ def validate_snapshot(document: Any) -> dict[str, Any]:
     if not isinstance(auth, dict) or set(auth) != {"manager", "homeassistant"}:
         raise PostRebootAcceptanceError("runtime_service_auth_set_invalid")
     for name, record in auth.items():
+        count = record.get("owned_socket_count") if isinstance(record, dict) else None
         if (
             not isinstance(record, dict)
             or record.get("authenticated") is not True
             or record.get("endpoint_port") != (8883 if name == "manager" else 1883)
+            or type(count) is not int
+            or (name == "manager" and count != 1)
+            or (name == "homeassistant" and count < 1)
             or any(not _digest(record.get(key)) for key in (
-                "identity_sha256", "owned_socket_sha256", "broker_events_sha256",
+                "identity_sha256",
+                "owned_socket_sha256",
+                "authenticated_connection_sha256",
             ))
         ):
             raise PostRebootAcceptanceError(f"runtime_service_auth_invalid:{name}")
     return snapshot
 
 
+def _continuity_projection(snapshot: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "schema": snapshot["schema"],
+        "boot_id_sha256": snapshot["boot_id_sha256"],
+        "source_head": snapshot["source_head"],
+        "control_manifest_sha256": snapshot["control_manifest_sha256"],
+        "containers": snapshot["containers"],
+        "runtime_service_auth": {
+            name: {
+                "authenticated": record["authenticated"],
+                "endpoint_port": record["endpoint_port"],
+                "identity_sha256": record["identity_sha256"],
+                "owned_socket_count": record["owned_socket_count"],
+                "owned_socket_sha256": record["owned_socket_sha256"],
+            }
+            for name, record in snapshot["runtime_service_auth"].items()
+        },
+        "systemd_state_sha256": snapshot["systemd_state_sha256"],
+        "critical_errors_sha256": snapshot["critical_errors_sha256"],
+        "homeassistant_http_ready": snapshot["homeassistant_http_ready"],
+    }
+
+
 def require_continuity(baseline: dict[str, Any], document: Any) -> dict[str, Any]:
+    baseline_snapshot = validate_snapshot(baseline)
     snapshot = validate_snapshot(document)
-    if snapshot != baseline:
+    if _continuity_projection(snapshot) != _continuity_projection(baseline_snapshot):
         raise PostRebootAcceptanceError("runtime_continuity_changed")
     return snapshot
 

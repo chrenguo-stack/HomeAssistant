@@ -1,14 +1,24 @@
-## 2026-10-22 — F5 V2 readiness partial-unit evidence source repair
+## 2026-10-22 — KF-127 / PR #642 post-KF128 fresh rebind
 
-- Fresh exact-main real-T1 production advanced past the repaired reboot boundary and then failed at `POST_REBOOT_READINESS` with sanitized `error_code=readiness_unit_evidence_invalid`.
-- Frozen forensics are complete/read-only with zero unavailable probes; `systemd=starting`.
-- KF-126 is therefore not the active failure in this run.
-- KF-127 root cause has two coupled parts: readiness probes unit evidence before applying its intended `systemd=starting -> WAIT` policy, and the old common schema incorrectly requires service-only `ExecMainStatus` from `CERT_TIMER`.
-- Source repair uses service/timer-specific field contracts, preserves normal partial evidence during starting/initializing, still fails explicit failed-unit evidence immediately, and keeps incomplete evidence fail-closed after systemd reaches running/degraded.
-- Failed run remains terminal/no-replay; target remains reflash-required. No T1/board access, reflash, production execution or merge occurs in this source gate.
-- Branch: `fix/n3w-t1-f5-v2-readiness-partial-unit-evidence-20261022`.
-- Authority: `docs/development/N3W_T1_F5_V2_READINESS_PARTIAL_UNIT_EVIDENCE_SOURCE_REPAIR_20261022.md`.
-- Next gate: `N3W_T1_F5_V2_READINESS_PARTIAL_UNIT_EVIDENCE_SOURCE_REVIEW_20261022_01`.
+- PR #642 original head `65864bcdea4083281e0b64c940dfc2e894bf4a2d` previously passed independent A1-A8 source review with zero blockers and 14/14 exact-head CI.
+- KF-128 / PR #643 and its PR #644 state alignment are now in main. Fresh source comparison confirms those changes do not modify the KF-127 readiness unit-evidence logic.
+- The prior `mergeable=false` state is a branch-base/document convergence issue, not a newly proven KF-127 functional conflict.
+- Rebind preserves both lines of protection: KF-127 service/timer-specific readiness evidence and KF-128 current MQTT-session/socket continuity evidence.
+- A new exact-head CI run is required after the rebind before PR #642 can merge.
+- Failed production history remains terminal/no-replay; no T1/board access, reflash or production execution occurs in this gate.
+- Next gate: `N3W_T1_KF127_PR642_POST_KF128_EXACT_HEAD_CI_AND_MERGE_20261022_01`.
+
+## 2026-10-22 — KF-128 / PR #643 post-merge closure
+
+- KF-128 source review is CLOSED_PASS with zero open source blockers.
+- PR #643 final head `97fc2aa956d8664b960eef06a89e4c9e83f2ff33` passed 14/14 exact-head CI.
+- PR #643 merged as `979683e29f7fba336e05467d695b21d6b22e027d`; merge tree `f9e1a50ab48ce8e75b3407340f21ab90c2878975` exactly equals the final PR head tree, so no merge-time source drift occurred.
+- main now points to the PR #643 merge commit.
+- The historical failed production run remains terminal/no-replay; no marker mutation, T1 access, board access or production execution occurred in source closure.
+- Because F4/F5 acceptance-tool bytes changed, a fresh exact-main release and local exact-release validation are required before any new real-T1 production attempt.
+- PR #642/KF-127 remains a separate open Draft and is not implicitly solved or merged by PR #643. It requires fresh rebind against post-KF128 main before any release path can be considered complete.
+- Next gate: `N3W_T1_KF127_PR642_POST_KF128_FRESH_REBIND_AND_MERGE_DECISION_20261022_01`.
+
 
 ## 2026-10-21 — F5 V2 post-reboot SSH boot-epoch race source repair
 
