@@ -1,3 +1,16 @@
+## 2026-10-22 — F4/F5 runtime snapshot evidence contract source repair
+
+- Full F4 post-reboot verifier on the already-deployed T1-B is PASS; current containers have restart_count 0, critical journal count is 0, and current Manager/Home Assistant MQTT sockets are present. Product runtime failure is not proven.
+- Independent source-matched evidence confirmed a snapshot-tool false FAIL: Manager has a valid exact authenticated connection event followed about 124 microseconds later by another exact-client event; the old last-event rule rejects the snapshot before current socket evidence can be used.
+- A second source defect is in the same evidence domain: `broker_events_sha256` participates in whole-snapshot equality, so harmless Broker history growth can trigger `runtime_continuity_changed` during the 90-second observation.
+- KF-128 separates historical authentication proof from current connection proof. Historical exact identity auth remains required; wrong exact-client username fails closed; absent auth evidence cannot PASS.
+- Current connection is service-owned socket evidence: Manager requires exactly one 8883 socket; Home Assistant requires at least one 1883 socket. Snapshot schema advances to `gh.n3w-t1-runtime-snapshot/2`.
+- 90-second continuity now compares only state that must remain stable; historical authentication digest remains auditable evidence but is excluded from the continuity projection.
+- PR #642/KF-127 remains a separate draft and is not expanded by this repair. Failed production history remains terminal/no-replay and marker state is unchanged.
+- Branch: `fix/n3w-t1-f4-runtime-snapshot-evidence-contract-20261022`.
+- Authority: `docs/development/N3W_T1_F4_RUNTIME_SNAPSHOT_EVIDENCE_CONTRACT_SOURCE_REPAIR_20261022.md`.
+- Next gate: `N3W_T1_F4_RUNTIME_SNAPSHOT_EVIDENCE_CONTRACT_SOURCE_REVIEW_20261022_01`.
+
 ## 2026-10-21 — F5 V2 post-reboot SSH boot-epoch race source repair
 
 - Fresh exact-main real-T1 production failed terminally at `POST_REBOOT_READINESS` with sanitized `error_code=reboot_not_observed`; marker remains STARTED and target remains reflash-required.

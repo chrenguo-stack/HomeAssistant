@@ -162,33 +162,39 @@ def test_control_binding_rejects_tampered_installed_file(
         tool._installed_control_binding(claim)
 
 
-def test_broker_auth_evidence_requires_current_exact_identity_and_catches_reconnect():
+def test_broker_auth_evidence_is_historical_exact_identity_proof():
     tool = load_tool()
     identity = {"client_id": "test-service", "username": "test-user"}
     connected = "123: New client connected from 192.0.2.1:4000 as test-service (p5, c1, k60, u'test-user')."
     before = tool._broker_auth_evidence(connected, identity)
+
     for suffix in (
         "Client test-service disconnected.",
         "Client test-service closed its connection.",
         "Client test-service already connected, closing old connection.",
-        connected.replace("test-user", "other"),
+        "Client test-service benign event.",
+        "Client test-service-f4-invalid disconnected.",
     ):
-        with pytest.raises(
-            tool.VerifyError,
-            match="broker_authenticated_connection_state_invalid",
-        ) as captured:
-            tool._broker_auth_evidence(connected + "\n" + suffix, identity)
-        assert not isinstance(captured.value, tool.EvidenceInsufficientError)
+        assert tool._broker_auth_evidence(connected + "\n" + suffix, identity) == before
+
     after = tool._broker_auth_evidence(
         connected + "\nClient test-service disconnected.\n" + connected,
         identity,
     )
     assert before != after
+
+    with pytest.raises(
+        tool.VerifyError,
+        match="broker_authenticated_connection_identity_mismatch",
+    ):
+        tool._broker_auth_evidence(connected.replace("test-user", "other"), identity)
+
     with pytest.raises(
         tool.EvidenceInsufficientError,
         match="evidence_missing",
     ):
-        tool._broker_auth_evidence("", identity)
+        tool._broker_auth_evidence("Client test-service disconnected.", identity)
+
     with pytest.raises(
         tool.EvidenceInsufficientError,
         match="coverage",
@@ -212,10 +218,13 @@ def test_socket_script_observes_real_owned_endpoint_without_network_mutation():
                 args = [sys.executable, "-c", tool.SOCKET_SCRIPT, "127.0.0.1", str(port)]
                 first = json.loads(subprocess.check_output(args, text=True))
                 second = json.loads(subprocess.check_output(args, text=True))
-                assert first == second and len(first["owned_socket_sha256"]) == 64
+                assert first == second
+                assert first["owned_socket_count"] == 1
+                assert len(first["owned_socket_sha256"]) == 64
                 client.shutdown(socket.SHUT_RDWR)
-                failed = subprocess.run(args, check=False, capture_output=True)
-                assert failed.returncode != 0
+                after = json.loads(subprocess.check_output(args, text=True))
+                assert after["owned_socket_count"] == 0
+                assert len(after["owned_socket_sha256"]) == 64
 
 
 def test_snapshot_cli_dispatches_without_running_full_f4(monkeypatch, capsys):
@@ -282,7 +291,7 @@ def test_snapshot_entrypoint_collects_bound_public_evidence(monkeypatch, capsys)
             return "\n".join(f"123: New client connected from 192.0.2.1:4000 as {name} (p5, c1, k60, u'user-{name}')."
                              for name in ("manager", "homeassistant"))
         assert argv[:2] == ("docker", "exec")
-        return json.dumps({"owned_socket_sha256": "1" * 64})
+        return json.dumps({"owned_socket_count": 1, "owned_socket_sha256": "1" * 64})
     monkeypatch.setattr(tool, "_snapshot_run", run)
     class HTTP:
         def __init__(self, host, port, timeout):
@@ -324,22 +333,62 @@ def test_snapshot_run_classifies_unavailable_readonly_evidence(monkeypatch):
         tool._snapshot_run(("docker", "logs", "broker"))
 
 
-def test_snapshot_run_preserves_nonunique_socket_reason(monkeypatch):
+def test_runtime_socket_evidence_enforces_service_contract():
     tool = load_tool()
+    digest = "1" * 64
 
-    def failed_run(_argv, timeout=8):
-        assert timeout == 8
-        raise tool.VerifyError(
-            "command_failed:docker:1:AssertionError: "
-            "mqtt_owned_socket_not_unique"
+    assert tool._runtime_socket_evidence(
+        "manager",
+        {"owned_socket_count": 1, "owned_socket_sha256": digest},
+    ) == (1, digest)
+    assert tool._runtime_socket_evidence(
+        "homeassistant",
+        {"owned_socket_count": 2, "owned_socket_sha256": digest},
+    ) == (2, digest)
+
+    for count in (0, 2):
+        with pytest.raises(
+            tool.VerifyError,
+            match="manager_mqtt_socket_count_invalid",
+        ):
+            tool._runtime_socket_evidence(
+                "manager",
+                {"owned_socket_count": count, "owned_socket_sha256": digest},
+            )
+
+    with pytest.raises(
+        tool.VerifyError,
+        match="homeassistant_mqtt_socket_missing",
+    ):
+        tool._runtime_socket_evidence(
+            "homeassistant",
+            {"owned_socket_count": 0, "owned_socket_sha256": digest},
         )
 
-    monkeypatch.setattr(tool, "_run", failed_run)
     with pytest.raises(
         tool.EvidenceInsufficientError,
-        match="mqtt_owned_socket_not_unique",
+        match="runtime_socket_evidence_invalid",
     ):
-        tool._snapshot_run(("docker", "exec", "manager"))
+        tool._runtime_socket_evidence(
+            "manager",
+            {"owned_socket_count": 1, "owned_socket_sha256": "invalid"},
+        )
+
+
+def test_valid_current_socket_does_not_replace_historical_authentication_proof():
+    tool = load_tool()
+    digest = "1" * 64
+    identity = {"client_id": "test-service", "username": "test-user"}
+
+    assert tool._runtime_socket_evidence(
+        "manager",
+        {"owned_socket_count": 1, "owned_socket_sha256": digest},
+    ) == (1, digest)
+    with pytest.raises(
+        tool.EvidenceInsufficientError,
+        match="broker_authenticated_connection_evidence_missing",
+    ):
+        tool._broker_auth_evidence("Client test-service disconnected.", identity)
 
 
 def test_snapshot_cli_emits_structured_evidence_insufficient(monkeypatch, capsys):

@@ -1,3 +1,11 @@
+### 2026-10-22 KF-128 — runtime snapshot 把历史 Broker 事件误当当前连接与连续性状态
+
+| ID | 范围 | 问题 | 根因与修复保护 | 状态 |
+| --- | --- | --- | --- | --- |
+| KF-128 | T1 F4/F5 V2 runtime snapshot / post-reboot acceptance | T1-B 已由完整 F4 post-reboot verifier 证明实际部署与当前运行健康，但独立 `--snapshot` 因 Manager 正确认证连接之后约 124 微秒的一条其他 exact-client Broker 事件而返回 `broker_authenticated_connection_state_invalid`；同时 `broker_events_sha256` 被纳入整份 snapshot exact equality，正常历史日志增长也可触发 `runtime_continuity_changed` | 历史 Broker 日志只证明 exact ClientID + username 曾正确认证，不再由最后一条历史事件推断当前连接；错误 username 的 exact-client connection 仍 fail-closed，无认证历史仍 evidence-insufficient。当前连接改由 service-owned TCP socket 独立证明：Manager 必须恰好 1 条 8883，Home Assistant 至少 1 条 1883。runtime snapshot 升级到 schema /2；90 秒 continuity 显式比较 boot/source/control binding、容器身份与 restart、当前 socket、systemd、critical journal 与 HA readiness，不再把历史认证 digest 的增长当成运行状态变化 | SOURCE_REPAIR_IMPLEMENTED_REVIEW_PENDING |
+
+KF-128 与 KF-127 分离：PR #642 继续只处理 systemd starting 期间 partial unit evidence；本修复从 exact main 独立分支实现，不修改失败 production run、不 replay marker、不访问 T1。Authority: `docs/development/N3W_T1_F4_RUNTIME_SNAPSHOT_EVIDENCE_CONTRACT_SOURCE_REPAIR_20261022.md`。
+
 ### 2026-10-21 KF-126 — F5 V2 重启旧 boot 的 SSH 尾部被误判为新 boot 就绪
 
 | ID | 范围 | 问题 | 根因与修复保护 | 状态 |
