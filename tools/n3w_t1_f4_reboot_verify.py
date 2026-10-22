@@ -496,14 +496,18 @@ def readiness() -> dict[str, object]:
     states: dict[str, dict[str, str]] = {}
     unit_status_unavailable = False
     unit_evidence_incomplete = False
-    required_unit_fields = {"LoadState", "ActiveState", "Result", "ExecMainStatus"}
+    service_unit_fields = {"LoadState", "ActiveState", "Result", "ExecMainStatus"}
+    timer_unit_fields = {"LoadState", "ActiveState", "Result"}
     for unit in required_units:
         state = _readiness_unit_state(unit)
         if state is None:
             unit_status_unavailable = True
             continue
         states[unit] = state
-        if not required_unit_fields.issubset(state):
+        required_fields = (
+            timer_unit_fields if unit == module.CERT_TIMER else service_unit_fields
+        )
+        if not required_fields.issubset(state):
             unit_evidence_incomplete = True
 
         load_state = state.get("LoadState")
