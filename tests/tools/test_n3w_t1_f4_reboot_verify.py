@@ -475,6 +475,23 @@ def _configure_readiness(
     return module, claim, transaction, states
 
 
+def test_readiness_unit_state_preserves_partial_systemctl_show_output(monkeypatch):
+    tool = load_tool()
+
+    class Completed:
+        returncode = 0
+        stdout = "LoadState=loaded\nActiveState=activating\nResult=\n"
+        stderr = ""
+
+    monkeypatch.setattr(tool.subprocess, "run", lambda *_args, **_kwargs: Completed())
+
+    assert tool._readiness_unit_state("broker.service") == {
+        "LoadState": "loaded",
+        "ActiveState": "activating",
+        "Result": "",
+    }
+
+
 def test_readiness_waits_when_systemd_is_still_starting(monkeypatch):
     tool = load_tool()
     _configure_readiness(tool, monkeypatch, systemd_state="starting")
@@ -485,6 +502,61 @@ def test_readiness_waits_when_systemd_is_still_starting(monkeypatch):
     assert report["wait_reason"] == "systemd_starting"
     assert report["board_access"] is False
     assert report["target_mutation"] is False
+
+
+def test_readiness_waits_for_partial_unit_evidence_while_systemd_is_starting(monkeypatch):
+    tool = load_tool()
+    _configure_readiness(
+        tool,
+        monkeypatch,
+        systemd_state="starting",
+        unit_overrides={
+            "broker.service": {
+                "LoadState": "loaded",
+                "ActiveState": "activating",
+                "Result": "",
+            }
+        },
+    )
+    report = tool.readiness()
+    assert report["status"] == "WAIT"
+    assert report["wait_reason"] == "systemd_starting"
+
+
+def test_readiness_running_state_rejects_partial_unit_evidence(monkeypatch):
+    tool = load_tool()
+    _configure_readiness(
+        tool,
+        monkeypatch,
+        systemd_state="running",
+        unit_overrides={
+            "broker.service": {
+                "LoadState": "loaded",
+                "ActiveState": "active",
+                "Result": "success",
+            }
+        },
+    )
+    with pytest.raises(tool.VerifyError, match="readiness_unit_evidence_invalid"):
+        tool.readiness()
+
+
+def test_readiness_starting_partial_evidence_still_exposes_failed_unit(monkeypatch):
+    tool = load_tool()
+    _configure_readiness(
+        tool,
+        monkeypatch,
+        systemd_state="starting",
+        unit_overrides={
+            "broker.service": {
+                "LoadState": "loaded",
+                "ActiveState": "failed",
+                "Result": "exit-code",
+            }
+        },
+    )
+    with pytest.raises(tool.VerifyError, match="readiness_required_unit_failed"):
+        tool.readiness()
 
 
 def test_readiness_waits_for_incomplete_runtime_service_set(monkeypatch):
