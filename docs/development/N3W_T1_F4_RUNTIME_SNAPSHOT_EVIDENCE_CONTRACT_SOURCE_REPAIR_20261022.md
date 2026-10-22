@@ -264,15 +264,19 @@ R2_OPEN_SOURCE_BLOCKER_COUNT=1
 R2_BLOCKER=MOSQUITTO_2_1_2_TERMINAL_LOG_FORMAT_MISMATCH
 R3_CODE_HEAD=07159cd750e7817dd7f6df23f47086a69812ebfe
 R3_SOURCE_REPAIR_IMPLEMENTED=true
-R3_SOURCE_REVIEW_RESULT=CLOSED_PASS_PENDING_EXACT_HEAD_CI
+R3_SOURCE_REVIEW_RESULT=CLOSED_PASS
 R3_OPEN_SOURCE_BLOCKER_COUNT=0
-R3_CI_PENDING=true
+PR643_FINAL_HEAD=97fc2aa956d8664b960eef06a89e4c9e83f2ff33
+PR643_EXACT_HEAD_CI=14/14_PASS
+PR643_MERGED=true
+PR643_MERGE_COMMIT=979683e29f7fba336e05467d695b21d6b22e027d
+PR643_MERGE_TREE=f9e1a50ab48ce8e75b3407340f21ab90c2878975
+MERGE_TIME_SOURCE_DRIFT=false
 T1_ACCESS=false
 T1_MUTATION=false
 PRODUCTION_EXECUTION=false
-MERGE=false
 
-NEXT_ONE_GATE=N3W_T1_F4_RUNTIME_SNAPSHOT_EVIDENCE_CONTRACT_SOURCE_REVIEW_R3_20261022_01
+NEXT_ONE_GATE=N3W_T1_KF127_PR642_POST_KF128_FRESH_REBIND_AND_MERGE_DECISION_20261022_01
 ~~~
 
 
@@ -413,4 +417,24 @@ The review independently checked:
 
 No new false-PASS path was found within the KF-128 repair scope.
 
-Final source closure is still conditional on the exact-head GitHub CI result.
+Final exact-head GitHub CI closed 14/14 PASS. PR #643 then merged with an expected-head lock; the merge tree exactly equals the final PR head tree, so KF-128 source closure is complete. Live revalidation remains separate and requires a fresh exact-main release plus separate authorization.
+
+
+## 15. PR #643 merge closure
+
+~~~text
+PR643_FINAL_HEAD=97fc2aa956d8664b960eef06a89e4c9e83f2ff33
+PR643_EXACT_HEAD_CI=14/14_PASS
+PR643_MERGED=true
+PR643_MERGE_COMMIT=979683e29f7fba336e05467d695b21d6b22e027d
+PR643_FINAL_HEAD_TREE=f9e1a50ab48ce8e75b3407340f21ab90c2878975
+PR643_MERGE_TREE=f9e1a50ab48ce8e75b3407340f21ab90c2878975
+MERGE_TIME_SOURCE_DRIFT=false
+KF128_SOURCE_CLOSURE=CLOSED_PASS
+~~~
+
+The failed production run remains terminal and is not replayed. No T1 mutation,
+board access or production execution occurred during source closure.
+
+PR #642/KF-127 remains a separate open Draft. It must be freshly rebound against
+the post-KF128 main before any new exact release path is treated as complete.
