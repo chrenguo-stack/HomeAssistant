@@ -354,8 +354,6 @@ def _readiness_unit_state(unit: str) -> dict[str, str] | None:
             values[key] = value
     if not values:
         return None
-    if not {"LoadState", "ActiveState", "Result", "ExecMainStatus"}.issubset(values):
-        raise VerifyError("readiness_unit_evidence_invalid")
     return values
 
 
@@ -497,26 +495,33 @@ def readiness() -> dict[str, object]:
     )
     states: dict[str, dict[str, str]] = {}
     unit_status_unavailable = False
+    unit_evidence_incomplete = False
+    required_unit_fields = {"LoadState", "ActiveState", "Result", "ExecMainStatus"}
     for unit in required_units:
         state = _readiness_unit_state(unit)
         if state is None:
             unit_status_unavailable = True
             continue
         states[unit] = state
-        if state.get("LoadState") != "loaded":
-            if state.get("LoadState") == "not-found":
+        if not required_unit_fields.issubset(state):
+            unit_evidence_incomplete = True
+
+        load_state = state.get("LoadState")
+        if load_state is not None and load_state != "loaded":
+            if load_state == "not-found":
                 raise VerifyError("readiness_required_unit_missing")
             raise VerifyError("readiness_unit_load_state_invalid")
+
         active = state.get("ActiveState")
         result = state.get("Result")
         exit_status = state.get("ExecMainStatus")
         if (
             active == "failed"
-            or result not in {"", "success"}
-            or exit_status not in {"", "0"}
+            or (result is not None and result not in {"", "success"})
+            or (exit_status is not None and exit_status not in {"", "0"})
         ):
             raise VerifyError("readiness_required_unit_failed")
-        if active not in {
+        if active is not None and active not in {
             "active", "activating", "reloading", "inactive", "deactivating"
         }:
             raise VerifyError("readiness_unit_state_invalid")
@@ -545,6 +550,8 @@ def readiness() -> dict[str, object]:
         return _readiness_report(
             claim, current_boot, status="WAIT", reason="unit_status_unavailable"
         )
+    if unit_evidence_incomplete:
+        raise VerifyError("readiness_unit_evidence_invalid")
     if timer_enabled is None:
         return _readiness_report(
             claim, current_boot, status="WAIT",
