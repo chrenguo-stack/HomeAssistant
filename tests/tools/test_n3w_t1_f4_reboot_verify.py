@@ -428,7 +428,7 @@ def test_snapshot_cli_keeps_explicit_runtime_failure_distinct(monkeypatch, capsy
 
     def failed():
         raise tool.VerifyError(
-            "broker_authenticated_connection_state_invalid"
+            "broker_authenticated_connection_identity_mismatch"
         )
 
     monkeypatch.setattr(tool, "runtime_snapshot", failed)
@@ -436,6 +436,7 @@ def test_snapshot_cli_keeps_explicit_runtime_failure_distinct(monkeypatch, capsy
     report = json.loads(capsys.readouterr().err)
     assert report["status"] == "FAIL"
     assert report["failure_class"] == "VERIFY_FAILED"
+    assert report["error_code"] == "broker_authenticated_connection_identity_mismatch"
 
 
 def _configure_readiness(

@@ -22,6 +22,7 @@ REPOSITORY_DEFINED_ERROR_CODES = frozenset(
     {
         "boot_id_invalid",
         "broker_authenticated_connection_evidence_missing",
+        "broker_authenticated_connection_identity_mismatch",
         "broker_authenticated_connection_state_invalid",
         "broker_log_coverage_insufficient",
         "certificate_identity_changed_across_reboot",
