@@ -883,9 +883,10 @@ def _broker_auth_evidence(logs: str, identity: dict[str, object]) -> str:
     )
     terminal = re.compile(
         r"(?:Client|client) " + re.escape(client_id)
-        + r"(?: disconnected\b| closed its connection\b"
-        + r"| already connected, closing old connection\b"
-        + r"| has exceeded timeout, disconnecting\b)"
+        + r"(?: \\[[^\\]\\r\\n]+\\] disconnected(?:\\.|:)"
+        + r"| disconnected\\b| closed its connection\\b"
+        + r"| already connected, closing old connection\\b"
+        + r"| has exceeded timeout, disconnecting\\b)"
     )
     authenticated: list[str] = []
     current_session_authenticated = False

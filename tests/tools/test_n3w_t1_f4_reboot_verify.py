@@ -175,6 +175,12 @@ def test_broker_auth_evidence_requires_latest_explicit_lifecycle_to_be_authentic
         assert tool._broker_auth_evidence(connected + "\n" + suffix, identity) == before
 
     for terminal in (
+        "Client test-service [192.0.2.1:4000] disconnected.",
+        "Client test-service [192.0.2.1:4000] disconnected: connection closed by client.",
+        "Client test-service [192.0.2.1:4000] disconnected: exceeded timeout.",
+        "Client test-service [192.0.2.1:4000] disconnected: session taken over.",
+        "Client test-service [192.0.2.1:4000] disconnected: malformed packet.",
+        "Client test-service [192.0.2.1:4000] disconnected: bad socket read/write: protocol error",
         "Client test-service disconnected.",
         "Client test-service closed its connection.",
         "Client test-service already connected, closing old connection.",
@@ -187,7 +193,9 @@ def test_broker_auth_evidence_requires_latest_explicit_lifecycle_to_be_authentic
             tool._broker_auth_evidence(connected + "\n" + terminal, identity)
 
     after = tool._broker_auth_evidence(
-        connected + "\nClient test-service disconnected.\n" + connected,
+        connected
+        + "\nClient test-service [192.0.2.1:4000] disconnected: session taken over.\n"
+        + connected,
         identity,
     )
     assert before != after
@@ -363,7 +371,7 @@ def test_runtime_snapshot_rejects_terminal_session_even_with_stable_current_sock
             return (
                 "123: New client connected from 192.0.2.1:4000 as manager "
                 "(p5, c1, k60, u'user-manager').\n"
-                "Client manager disconnected."
+                "Client manager [192.0.2.1:4000] disconnected: connection closed by client."
             )
         return json.dumps({"owned_socket_count": 1, "owned_socket_sha256": "1" * 64})
 
