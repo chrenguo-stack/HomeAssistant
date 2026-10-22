@@ -542,17 +542,16 @@ def test_readiness_accepts_timer_without_service_only_exec_main_status(monkeypat
     assert report["state"] == "READY"
 
 
-def test_readiness_running_state_rejects_partial_unit_evidence(monkeypatch):
+def test_readiness_running_state_requires_timer_result(monkeypatch):
     tool = load_tool()
     _configure_readiness(
         tool,
         monkeypatch,
         systemd_state="running",
         unit_overrides={
-            "broker.service": {
+            "certificate.timer": {
                 "LoadState": "loaded",
                 "ActiveState": "active",
-                "Result": "success",
             }
         },
     )
