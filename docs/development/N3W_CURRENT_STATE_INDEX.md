@@ -1,3 +1,13 @@
+## 2026-10-22 — KF-127 / PR #642 post-KF128 fresh rebind
+
+- PR #642 original head `65864bcdea4083281e0b64c940dfc2e894bf4a2d` previously passed independent A1-A8 source review with zero blockers and 14/14 exact-head CI.
+- KF-128 / PR #643 and its PR #644 state alignment are now in main. Fresh source comparison confirms those changes do not modify the KF-127 readiness unit-evidence logic.
+- The prior `mergeable=false` state is a branch-base/document convergence issue, not a newly proven KF-127 functional conflict.
+- Rebind preserves both lines of protection: KF-127 service/timer-specific readiness evidence and KF-128 current MQTT-session/socket continuity evidence.
+- A new exact-head CI run is required after the rebind before PR #642 can merge.
+- Failed production history remains terminal/no-replay; no T1/board access, reflash or production execution occurs in this gate.
+- Next gate: `N3W_T1_KF127_PR642_POST_KF128_EXACT_HEAD_CI_AND_MERGE_20261022_01`.
+
 ## 2026-10-22 — KF-128 / PR #643 post-merge closure
 
 - KF-128 source review is CLOSED_PASS with zero open source blockers.
