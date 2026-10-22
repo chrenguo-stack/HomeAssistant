@@ -4,7 +4,7 @@
 
 ## 当前优先入口
 
-### N3-W / ESP-NOW
+### T1 Production V2 操作员入口\n\n- [T1 Production V2 正式操作员手册](operations/N3W_T1_PRODUCTION_V2_OPERATOR_RUNBOOK.md)：标准全新 Armbian 到 ACCEPTED；包含 release 来源、SSH 身份、一次性批准、重启及失败停止规则。\n\n### N3-W / ESP-NOW
 
 当前 N3-W 状态以以下文件为入口：
 
@@ -23,7 +23,7 @@
 | `roadmap/` | 长期技术路线；当前后继基线见 V0.7。 |
 | `architecture/` | 系统和仓库层面的架构说明。 |
 | `decisions/` | 阶段进入、实现边界和专项决策记录。 |
-| `development/` | 当前研发状态入口及大量阶段性开发档案。 |
+| `operations/` | 面向实际操作者的正式生产操作手册，不代替每次设备授权。 |\n| `development/` | 当前研发状态入口及大量阶段性开发档案。 |
 | `acceptance/` | 验收结果、manifest、测试证据和归档。 |
 | `status/` | 阶段状态和历史状态记录。 |
 | `integration/` | 集成阶段记录；其中部分内容属于历史冻结证据。 |
