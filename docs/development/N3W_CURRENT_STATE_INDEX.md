@@ -1,3 +1,14 @@
+## 2026-10-22 — T1 Production V2 standalone executable proposal deferred
+
+- T1 Production V2 remains `CLOSED_PASS`; executable packaging is optional future engineering, not an open blocker.
+- Proposed future form: one operator-facing `n3w-t1-production-v2` executable plus a separate immutable exact-production-release package.
+- Recommended scope estimate: 3-5 effective engineering days; GUI, Apple signing/notarization and auto-update are optional later extensions.
+- Existing V2 orchestration, SSH, qualification, release verification, reboot/readiness/acceptance and evidence contracts should be wrapped rather than redesigned.
+- A packaged executable must pass fresh CI and a new real-T1 full production run to `ACCEPTED` before becoming production authority.
+- Status: `DEFERRED_ARCHIVED_NO_EXECUTION`; no implementation/build/T1/board action is active.
+- Authority: `docs/development/N3W_T1_PRODUCTION_V2_STANDALONE_EXECUTABLE_DEFERRED_PROPOSAL_20261022.md`.
+- Resume only through `N3W_T1_PRODUCTION_V2_STANDALONE_EXECUTABLE_ARCHITECTURE_DESIGN` after fresh rebind.
+
 ## 2026-10-22 — T1-B F5 V2 exact-release real production acceptance CLOSED_PASS
 
 - PR #650 private PRE_MUTATION evidence repair is merged in source `4733c09ab7653bacca6e197e63a583f500b45845`.
