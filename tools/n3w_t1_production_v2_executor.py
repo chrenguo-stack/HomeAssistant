@@ -36,7 +36,11 @@ from n3w_t1_post_reboot_acceptance import (
     run_acceptance,
 )
 from n3w_t1_production_v2 import EvidenceInsufficientError, R3Orchestrator
-from n3w_t1_production_v2_contract import canonical_json_bytes, validate_release
+from n3w_t1_production_v2_contract import (
+    canonical_json_bytes,
+    canonical_sha256,
+    validate_release,
+)
 from n3w_t1_ssh_transport import SSHTransport
 
 SCHEMA = "gh.n3w-t1-production-v2-live-executor/1"
