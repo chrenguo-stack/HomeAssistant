@@ -1,3 +1,22 @@
+## 2026-10-23 — Board D R4 postwrite first-boot runtime acceptance CLOSED_PASS
+
+- Gate: `N3W_BOARD_D_R4_POSTWRITE_FIRST_BOOT_RUNTIME_ACCEPTANCE_20261023_01`.
+- Repository main: `dc596ad50eb2ea80ba55aa3af2413236321f1465`; PR #661 is merged.
+- Exact product source: `ec5f6d68e33db7757d91c807fff708ca81b075dc`; exact artifact run `39901919230`, artifact `12478974186`, GitHub SHA256 `898ef722...`.
+- Frozen Board D public-safe hardware identity matched.
+- Preboot NVS SHA256 `a61948ea...` exactly matched the frozen postwrite value.
+- Exactly one normal R4 application boot was executed; no second application boot/retry occurred.
+- Source-defined status LED reached ON and stayed continuously ON for the complete 90.4-second observation.
+- USB observation: 90 samples, 0 missing, 0 multi-locator, 0 locator changes, 0 presence transitions; `USB_RUNTIME_STABLE=true`.
+- No unexpected reset/sleep or legacy low-battery sleep signature was observed.
+- Postboot NVS SHA256 remained `a61948ea...`; runtime NVS classification is `UNCHANGED`.
+- No Flash write, direct NVS write, pairing, T1 mutation or RF execution occurred.
+- Board D was returned deliberately to ROM after the observation and remains stopped before any product-communication stage.
+- The first observation wrapper had a heredoc/input stdin-ownership defect after boot trigger; it did not cause a second boot and was handled by passive forensics plus a fresh 90-second observation on the same application instance.
+- PR #661 historical postwrite-verifier defect is registered as `KF-129=GUARDED`; write authorization remains consumed/non-replayable and no reflash was performed merely to rerun the verifier.
+- Authority: `docs/development/N3W_BOARD_D_R4_POSTWRITE_FIRST_BOOT_RUNTIME_ACCEPTANCE_CLOSURE_20261023.md`.
+- Next route: separate Board D R4 product pairing/runtime-communication acceptance design; no automatic execution and fresh physical authorization required.
+
 ## 2026-10-23 — Board_D current-main product source convergence R4 CLOSED_PASS
 
 - Final exact product source: `ec5f6d68e33db7757d91c807fff708ca81b075dc`; tree: `16740efa8ad24d423adc0b2de32b99d56e2d23d1`; main remained `5ff09efb...`.
