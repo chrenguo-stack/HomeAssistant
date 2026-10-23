@@ -1,0 +1,553 @@
+# 温室环境监测系统（ESP32-C6）
+# Board_D current-main 产品源码收敛：R2 closure → R3
+# 新会话交接文档 V1.0 — 2026-10-23
+
+```text
+HANDOFF_TEMPLATE_VERSION=1.3
+PROJECT_WORKING_CONTEXT_VERSION=1.1
+PROJECT_WORKING_CONTEXT=docs/development/N3W_PROJECT_WORKING_CONTEXT.md
+NEXT_ONE_GATE_ONLY=true
+TEAM_SHARED_WORKSPACE=GITHUB
+```
+
+> 本文只保存当前阶段增量。长期工作规则统一引用 `N3W_PROJECT_WORKING_CONTEXT.md`。  
+> fresh repository/runtime/live evidence 与本文冲突时，以 fresh 直接证据为准并先停止执行。
+
+---
+
+## 0. 会话切换结论
+
+```text
+CURRENT_STAGE=BOARD_D_CURRENT_MAIN_PRODUCT_SOURCE_CONVERGENCE_R2_CLOSED
+CURRENT_STOP_POINT=R2_PRODUCT_SOURCE_HEAD_87cff4424ddee9e13e47c9326a731725bd25aad1_CLOSED_PASS
+NEXT_ONE_GATE=N3W_BOARD_D_POST_T1_PRODUCTION_CURRENT_MAIN_PRODUCT_SOURCE_CONVERGENCE_SOURCE_REPAIR_R3_20261023_01
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+HANDOFF_READY_FOR_NEW_CHAT=true
+```
+
+R1 与 R2 已完成源码收敛和 CI closure。当前对话较长，切换新会话后应 fresh rebind repository / PR #656，再只进入 R3；不要自动进入 R4、T1、Board_D、刷写或 merge。
+
+---
+
+## 1. 长期上下文引用与本阶段例外
+
+```text
+PROJECT_WORKING_CONTEXT_LOADED=true
+PROJECT_WORKING_CONTEXT_VERSION=1.1
+LONG_TERM_RULES_REPEATED_IN_HANDOFF=false
+
+STAGE_SPECIFIC_OVERRIDE_COUNT=0
+STAGE_OVERRIDES=NONE
+```
+
+---
+
+## 2. Product North Star
+
+```text
+CURRENT_PRODUCT_ROUTE=在 current active greenhouse_n3w_core 上完成 Board_D 生产目标源码收敛，再进入 integrated source/artifact closure 与后续独立物理验收
+FINAL_ACCEPTANCE_TARGET=当前生产源码能够支持正式 N3-W target、首配、遥测、Direct/Relay、多 Relay 选择、全合法信道发现、Broker 自动安全回退，并经 R4 exact artifact closure 后进入 Board_D 物理验收
+DEFERRED_OR_OUT_OF_SCOPE=R3 不做 R4、不访问 T1/Board_D、不刷写、不做物理 RF 验收、不 merge
+```
+
+---
+
+## 3. Frozen Authorities
+
+```text
+REPOSITORY=chrenguo-stack/HomeAssistant
+MAIN=5ff09efb650cc3818d2c6a58d4fb4c489a21d784
+TREE=4606981c0d59a60768cca8fd736a656a8e7e379e
+
+PR_NUMBER=656
+PR_STATE=OPEN_DRAFT
+PR_MERGEABLE=true
+CANDIDATE_REF=fix/n3w-board-d-current-main-product-source-convergence-r1-20261023
+
+R1_CLOSED_HEAD=4eece76b8df7268a751636f5d7887b838f6c9a4b
+R2_PRODUCT_SOURCE_HEAD=87cff4424ddee9e13e47c9326a731725bd25aad1
+R2_PRODUCT_SOURCE_TREE=2e80f8f21a3417f27bde6aec487ef7bcae7ce419
+
+ARTIFACT_ID=NOT_APPLICABLE:R4_NOT_EXECUTED
+ARTIFACT_SHA256=NOT_APPLICABLE:R4_NOT_EXECUTED
+
+DEPLOYED_SOURCE_HEAD=UNKNOWN_FRESH
+DEPLOYED_SOURCE_TREE=UNKNOWN_FRESH
+
+OTHER_REQUIRED_AUTHORITY=PR656 Conversation R2 final closure comment id 6355971805
+```
+
+交接文档本身允许作为 `87cff442...` 之后的 docs-only advance。新会话必须 fresh rebind branch head，并确认从 `R2_PRODUCT_SOURCE_HEAD` 到 handoff head 只有交接文档类变更，才可继续 R3。
+
+---
+
+## 4. Current Live Baseline
+
+R3 是 source-only gate，本 handoff 不把历史 live 状态冒充当前状态。
+
+```text
+MANAGER_STATE=UNKNOWN_FRESH
+MANAGER_RESTART_STATE=UNKNOWN_FRESH
+BROKER_STATE=UNKNOWN_FRESH
+HOMEASSISTANT_STATE=UNKNOWN_FRESH
+
+BOARD_A_POWER_STATE=UNKNOWN_FRESH
+BOARD_A_LOCATION_ROLE=UNKNOWN_FRESH
+BOARD_B_POWER_STATE=UNKNOWN_FRESH
+BOARD_B_LOCATION_ROLE=UNKNOWN_FRESH
+BOARD_D_PHYSICAL_STATE=UNKNOWN_FRESH
+
+APPLICATION_SERIAL_OPEN=false
+FLASH_MUTATION=false
+NVS_MUTATION=false
+T1_RUNTIME_MUTATION=false
+
+LIVE_STATE_REQUIRES_FRESH_READONLY_RECHECK=true
+```
+
+R3 不需要 live 状态；除非后续另一个 Gate 明确授权，否则不要因为这些字段是 `UNKNOWN_FRESH` 而主动访问 T1 或板卡。
+
+---
+
+## 5. Proven Current Facts
+
+```text
+R1_CLOSURE=CLOSED_PASS
+R2_CLOSURE=CLOSED_PASS
+R2_SOURCE_REPAIR_REQUIRED=false
+R2_STATIC_SOURCE_BLOCKER_COUNT=0
+R2_PRODUCT_SOURCE_BLOCKER_COUNT=0
+
+R2_MULTI_RELAY_GATEWAY_SELECTION_V1=true
+R2_RSSI_PLUMBING=true
+R2_EQUIVALENT_RSSI_BAND_DB=3
+R2_STABLE_HASH_DOMAIN=N3W-GWSEL-V1
+R2_LEXICAL_COLLISION_TIEBREAK=true
+R2_HEALTHY_ACTIVE_RELAY_STICKY=true
+R2_DYNAMIC_LOAD_BALANCE=false
+R2_PROACTIVE_RSSI_ROAMING=false
+
+R2_DISCOVERY_HINT_FAST_FULL=true
+R2_FAST_CHANNELS=1,6,11
+R2_FAST_DWELL_MS=250
+R2_FAST_SEARCH_BUDGET_MS=6500
+R2_FULL_SCAN_CURRENT_LEGAL_DOMAIN=true
+R2_FULL_DWELL_MS=2250
+R2_FULL_SCHEDULE_MARGIN_MS=2000
+R2_FULL_HANDSHAKE_MAX_MS=26000
+R2_FULL_TOTAL_MAX_MS=60000
+R2_DISCOVERY_STALE_PLAN_RESTART=true
+```
+
+R2 source provenance：
+
+```text
+HISTORICAL_SEMANTIC_REFERENCE=PR474 closure source d3c158b4376ca0577e4a3a45a18a6c5c6e994e75
+ACTIVE_RADIO_FILES_MATCH_HISTORICAL_CLOSURE=true
+ACTIVE_SIMPLE_PRODUCT_RUNTIME_FILES_MATCH_HISTORICAL_CLOSURE=true
+RETIRED_COMPONENT_DIRECTORY_RESTORED=false
+```
+
+最终 exact-head CI：
+
+```text
+R2_FINAL_WORKFLOW_TOTAL=29
+R2_FINAL_WORKFLOW_SUCCESS=26
+R2_FINAL_WORKFLOW_FAILURE=3
+R2_FINAL_WORKFLOW_UNRESOLVED=0
+
+MULTI_RELAY_DEDICATED_CI=PASS
+FULL_CHANNEL_DEDICATED_CI=PASS
+F1_RC2_FIRMWARE_CI=PASS
+GREENHOUSE_MANAGER_CI=PASS
+PUBLIC_REPOSITORY_SAFETY_CI=PASS
+N3W_BOOT_SESSION_RECOVERY_HELPER_CI=PASS
+N3W_FRAME_BOOT_KEYSTATE_CORE_CI=PASS
+T1_S20_PRODUCTION_IMAGE_BINDING_CI=PASS
+T1_FRESH_INSTALL_EXACT_ARM64_CI=PASS
+```
+
+---
+
+## 6. Current Root Cause / Blockers
+
+```text
+CURRENT_BLOCKER_COUNT=0
+CURRENT_BLOCKER=NONE
+ROOT_CAUSE=NOT_APPLICABLE
+SOURCE_DEFECT_PROVEN=false
+RUNTIME_DEFECT_PROVEN=false
+```
+
+剩余三个红色 workflow 不阻断 R2：
+
+```text
+STAGE2D2_FAILURE_CLASS=LEGACY_AUTHORING_BOUNDARY_FALSE_FAIL
+STAGE2D3_FAILURE_CLASS=LEGACY_AUTHORING_BOUNDARY_FALSE_FAIL
+STAGE2D4_FAILURE_CLASS=LEGACY_AUTHORING_BOUNDARY_FALSE_FAIL
+STAGE2D_FUNCTIONAL_FAULT_MATRICES=PASS
+R2_SOURCE_BLOCKER_FROM_STAGE2D=false
+```
+
+不要在 R3 中为了“把 PR 页面全部刷绿”修改这些历史 Stage2D boundary gate。
+
+---
+
+## 7. Closed / Forbidden Routes
+
+```text
+R1_ROUTE=CLOSED_PASS:不要重开正式 target/首配/遥测桥问题，除非 R3 直接造成回归
+R2_ROUTE=CLOSED_PASS:不要重写 Multi-Relay/full-channel/stale-plan 设计，除非 R3 直接造成回归
+RETIRED_PRODUCT_CORE_ROUTE=CLOSED:不得恢复 greenhouse_n3w_product_core 或 greenhouse_n3w_product_runtime
+STAGE2D_CLEANUP_ROUTE=CLOSED_FOR_R3:三个历史 boundary false-fail 不属于 R3
+R4_ROUTE=CLOSED_UNTIL_R3_PASS
+T1_LIVE_ROUTE=CLOSED_UNTIL_SEPARATE_GATE
+BOARD_D_PHYSICAL_ROUTE=CLOSED_UNTIL_SEPARATE_GATE
+MERGE_ROUTE=CLOSED_UNTIL_R4_CLOSURE_AND_SEPARATE_DECISION
+```
+
+---
+
+## 8. Authorization Ledger
+
+```text
+AUTHORIZATION=N3W_BOARD_D_POST_T1_PRODUCTION_CURRENT_MAIN_PRODUCT_SOURCE_CONVERGENCE_SOURCE_REPAIR_R2_20261023_01
+CLAIMED=true
+CONSUMED=true
+RESULT=CLOSED_PASS
+REPLAY_PERMITTED=false
+SUPERSEDED_BY=NEXT_R3_GATE_IF_GRANTED
+
+PROPOSED_AUTHORIZATION=N3W_BOARD_D_POST_T1_PRODUCTION_CURRENT_MAIN_PRODUCT_SOURCE_CONVERGENCE_SOURCE_REPAIR_R3_20261023_01
+GRANTED=false
+```
+
+新会话不得把 R2 授权当作 R3 授权。
+
+---
+
+## 9. Rollback Authority
+
+R3 是 repository source-only mutation gate。
+
+```text
+ROLLBACK_BASELINE=87cff4424ddee9e13e47c9326a731725bd25aad1
+FRESH_PRECHANGE_SNAPSHOT_REQUIRED=true
+ROLLBACK_AUTHORITY_PATH_OR_ID=Git commit 87cff4424ddee9e13e47c9326a731725bd25aad1
+RESTART_SCOPE_ALLOWED=repository-only
+SECOND_ATTEMPT_ALLOWED=same-gate bounded low-risk source/test repair only
+ROLLBACK_FAILURE_CLASS=ROLLBACK_INCOMPLETE
+```
+
+---
+
+## 10. Next ONE Gate
+
+```text
+NEXT_ONE_GATE=N3W_BOARD_D_POST_T1_PRODUCTION_CURRENT_MAIN_PRODUCT_SOURCE_CONVERGENCE_SOURCE_REPAIR_R3_20261023_01
+```
+
+### Purpose
+
+R3 只关闭设计阶段的 B3：把 **Broker Auto Safe Fallback** 接入当前 active `greenhouse_n3w_core` 的现有 Direct/MQTT recovery 路径。
+
+R3 要证明：
+
+- Wi-Fi 仍可用、MQTT 持续失败时，板端能发现当前 Manager/Broker；
+- Broker 目的地址只在 RAM 中临时切换，不重写持久配置；
+- TLS 身份与现有认证参数不被放宽；
+- 新候选 Broker 失败时能回滚稳定 Broker；
+- 不创建第二套恢复状态机，不破坏 R1/R2。
+
+R3 不能证明：
+
+- live T1 当前状态；
+- Board_D 物理行为；
+- production exact artifact；
+- 最终 merge readiness。
+
+### Frozen R3 semantics
+
+```text
+R3_INTEGRATION_POINT=current MQTT_RECOVERY / DirectRecoveryAttempt path
+SECOND_RECOVERY_STATE_MACHINE=false
+
+TRIGGER_WIFI_GOOD=true
+TRIGGER_MQTT_FAILURE_MIN_MS=10000
+
+MANAGER_BROADCAST_DISCOVERY=true
+BROKER_DESTINATION_RETARGET=RAM_ONLY
+BROKER_NVS_REWRITE=false
+
+PRESERVE_TLS_SERVER_NAME=true
+PRESERVE_CA=true
+PRESERVE_USERNAME_PASSWORD=true
+PRESERVE_CLIENT_ID=true
+
+BOUNDED_RECONNECT_CONFIRM=true
+SUCCESS_PROMOTE_CANDIDATE_FOR_CURRENT_BOOT=true
+FAILURE_ROLLBACK_TO_STABLE_BROKER=true
+
+DISCOVERY_WINDOW_MS=1000
+CANDIDATE_WINDOW_MS=6000
+CLEANUP_WINDOW_MS=2000
+MIN_DISCOVERY_INTERVAL_MS=60000
+```
+
+### Inputs
+
+```text
+INPUT_1=R2_PRODUCT_SOURCE_HEAD 87cff4424ddee9e13e47c9326a731725bd25aad1
+INPUT_2=current active firmware/esphome_rc/components/greenhouse_n3w_core/
+INPUT_3=historical PR #522 Auto Safe Fallback semantics as semantic/test-intent reference only
+INPUT_4=current R1 formal target + telemetry + first-pair surfaces
+INPUT_5=current R2 Multi-Relay/full-channel/stale-plan runtime
+```
+
+Historical PR #522 / retired product-core source is **reference only**. 不允许整目录恢复或直接把旧架构当 current authority。
+
+### Operations
+
+```text
+1. fresh rebind main, PR #656, candidate branch and docs-only handoff advance
+2. confirm no product-source drift after R2_PRODUCT_SOURCE_HEAD
+3. independently inspect current MQTT/direct recovery architecture
+4. inspect historical #522 only for Auto Safe Fallback semantics and tests
+5. implement smallest current-core R3 source delta
+6. add/update source contracts and host behavior tests
+7. run relevant greenhouse-manager / firmware / product-target CI
+8. perform exact-head focused source review for false-PASS paths
+9. stop with R3 closure result; do not enter R4 automatically
+```
+
+### PASS / FAIL / STOP
+
+```text
+PASS_IF=R3 semantics are implemented in current active core, relevant tests and production target compile PASS, no R1/R2 regression or new false-PASS path remains
+FAIL_IF=source behavior violates frozen R3 semantics, persistence/TLS identity is weakened, second recovery state machine is introduced, R1/R2 regresses, or relevant CI/source review exposes a blocker
+STOP_BOUNDARY=R3 closure decision only
+
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+---
+
+## 11. Hard Allowed / Forbidden Scope
+
+```text
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+```
+
+### ALLOWED
+
+```text
+- read repository / PR #656 / CI
+- modify current active greenhouse_n3w_core only as required for R3
+- modify bounded related tests/CI/source contracts
+- use historical PR #522 as semantic/test-intent reference
+- same-gate low-risk source/test repair when directly proven
+- write durable R3 progress/closure documentation to GitHub
+```
+
+### FORBIDDEN
+
+```text
+- restore greenhouse_n3w_product_core
+- restore greenhouse_n3w_product_runtime
+- redesign R2 Multi-Relay/full-channel policy
+- implement R4 exact artifact closure
+- T1 access or mutation
+- Board_A/Board_B/Board_D access
+- serial opening
+- flash or NVS mutation
+- RF physical execution
+- credential/service/DynSec mutation
+- merge PR #656
+- repair unrelated Stage2D historical boundary workflows
+```
+
+---
+
+## 12. Execution Contract
+
+```text
+EXECUTOR=ChatGPT high-level source review + GitHub repository tools
+EXECUTION_METHOD=chat-tool
+DIRECT_CODE_SUPPLIED=true
+DSL_COMPILATION_USED=false
+CI_POLL_MAX=3
+CI_PENDING_DIRECT_LINKS_REQUIRED=true
+CI_ALL_GREEN_CONTINUE_REQUIRED_REVIEW=true
+SAME_GATE_LOW_RISK_REPAIR_CONTINUE=true
+```
+
+同一 R3 Gate 内已明确定位的低风险源码/测试问题可直接修复并继续；不得自动跨到 R4/live/physical/merge。
+
+---
+
+## 13. Expected Closure
+
+```text
+=== N3W_BOARD_D_POST_T1_PRODUCTION_CURRENT_MAIN_PRODUCT_SOURCE_CONVERGENCE_SOURCE_REPAIR_R3_20261023_01 CLOSURE ===
+
+BASE_MAIN=
+R3_BASE_PRODUCT_HEAD=87cff4424ddee9e13e47c9326a731725bd25aad1
+R3_EXACT_HEAD=
+MAIN_DRIFT=
+
+AUTO_SAFE_FALLBACK_IN_CURRENT_CORE=
+SECOND_RECOVERY_STATE_MACHINE=
+RAM_ONLY_BROKER_RETARGET=
+BROKER_NVS_REWRITE=
+TLS_IDENTITY_PRESERVED=
+BOUNDED_ROLLBACK=
+R1_REGRESSION=
+R2_REGRESSION=
+
+RELEVANT_CI=
+NEW_FALSE_PASS_PATH_COUNT=
+R3_SOURCE_BLOCKER_COUNT=
+R3_SOURCE_REPAIR_REQUIRED=
+R3_CLOSURE=
+
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ROUTE=R4_IF_R3_CLOSED_PASS_AND_SEPARATELY_ENTERED
+STOP=true
+
+=== END ===
+```
+
+---
+
+## 14. After PASS / FAIL
+
+```text
+AFTER_PASS_NEXT_STAGE=N3W_BOARD_D_POST_T1_PRODUCTION_CURRENT_MAIN_PRODUCT_SOURCE_CONVERGENCE_R4_INTEGRATED_CLOSURE
+AUTO_EXECUTE_AFTER_PASS=false
+NEW_AUTHORIZATION_REQUIRED=true
+
+AUTO_REPAIR_AFTER_FAIL=false
+AUTO_RETRY_AFTER_FAIL=false
+STOP_AND_REVIEW_AFTER_FAIL=true
+```
+
+同一已授权 R3 Gate 内、明确定位且不改变冻结设计的低风险修补，仍按 working context 的 same-gate continuation 规则处理。
+
+---
+
+## 15. KNOWN_FAILURES Updates
+
+```text
+KNOWN_FAILURES_UPDATE_REQUIRED=false
+EXISTING_KF_GUARD_USED=NONE_NEW_FOR_R2
+NEW_KF_REQUIRED=false
+```
+
+如果 R3 证明新的独立根因，再在 R3 closure 时决定是否建立新 KF；不要提前占号。
+
+---
+
+## 16. New Chat Start Prompt
+
+```text
+阅读《docs/development/N3W_BOARD_D_POST_T1_PRODUCTION_CURRENT_MAIN_PRODUCT_SOURCE_CONVERGENCE_R2_CLOSURE_TO_R3_NEW_CHAT_HANDOFF_V1.0_20261023.md》。
+
+同时读取：
+- docs/development/N3W_PROJECT_WORKING_CONTEXT.md
+- docs/development/N3W_CURRENT_STATE.md
+- docs/development/N3W_CURRENT_STATE_INDEX.md
+- docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md
+- docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md
+
+继续“温室环境监测系统（ESP32-C6）”项目 N3-W。
+
+先 fresh rebind：
+- repository main
+- PR #656
+- candidate branch
+- R2_PRODUCT_SOURCE_HEAD=87cff4424ddee9e13e47c9326a731725bd25aad1
+
+先确认 handoff docs-only advance 后没有新的 product-source drift。
+
+只进入：
+
+NEXT_ONE_GATE=N3W_BOARD_D_POST_T1_PRODUCTION_CURRENT_MAIN_PRODUCT_SOURCE_CONVERGENCE_SOURCE_REPAIR_R3_20261023_01
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+
+不要重放 R2 authorization，不要修 unrelated Stage2D boundary false-fail，不要恢复 retired product-core，不要自动进入 R4/T1/Board/flash/merge。
+```
+
+---
+
+## 17. Final Frozen State
+
+```text
+CURRENT_STAGE=R2_CLOSED_PASS_AWAITING_R3_AUTHORIZATION
+CURRENT_STOP_POINT=R2_PRODUCT_SOURCE_HEAD_87cff4424ddee9e13e47c9326a731725bd25aad1
+CURRENT_BLOCKER=NONE
+LIVE_SYSTEM_STATE=UNKNOWN_FRESH
+NEXT_ONE_GATE=N3W_BOARD_D_POST_T1_PRODUCTION_CURRENT_MAIN_PRODUCT_SOURCE_CONVERGENCE_SOURCE_REPAIR_R3_20261023_01
+
+TEAM_SHARED_WORKSPACE=GITHUB
+IMPORTANT_CHAT_ONLY_ARTIFACT_COUNT=0
+TEAM_SHARE_COMPLETENESS=PASS
+
+PROJECT_WORKING_CONTEXT_VERSION=1.1
+HANDOFF_TEMPLATE_VERSION=1.3
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+```
+
+---
+
+## 18. Handoff Compliance Audit
+
+```text
+=== HANDOFF COMPLIANCE AUDIT ===
+
+HANDOFF_TEMPLATE_VERSION=1.3
+PROJECT_WORKING_CONTEXT_VERSION=1.1
+
+PROJECT_WORKING_CONTEXT_REFERENCED=PASS
+LONG_TERM_RULE_DUPLICATION_MINIMIZED=PASS
+STAGE_SPECIFIC_OVERRIDES_EXPLICIT=PASS
+PRIVATE_CONTEXT_EXCLUDED_FROM_PUBLIC_HANDOFF=PASS
+
+PRODUCT_NORTH_STAR_PRESENT=PASS
+FROZEN_AUTHORITIES_COMPLETE=PASS
+CURRENT_LIVE_BASELINE_COMPLETE=PASS
+PROVEN_FACTS_SEPARATED_FROM_INFERENCE=PASS
+CURRENT_BLOCKERS_EXPLICIT=PASS
+CLOSED_ROUTES_EXPLICIT=PASS
+
+AUTHORIZATION_LEDGER_COMPLETE=PASS
+CONSUMED_AUTH_REPLAY_GUARD=PASS
+ROLLBACK_AUTHORITY_EXPLICIT=PASS
+
+NEXT_ONE_GATE_EXPLICIT=PASS
+NEXT_GATE_SCOPE_BOUNDED=PASS
+ALLOWED_FORBIDDEN_SCOPE_EXPLICIT=PASS
+EXECUTION_CONTRACT_SELF_CONTAINED=PASS
+CI_CONTINUATION_HARD_RULES_PRESENT=PASS
+EXPECTED_CLOSURE_PRESENT=PASS
+AFTER_PASS_DOES_NOT_AUTO_EXECUTE=PASS
+
+KNOWN_FAILURES_UPDATE_CLASSIFIED=PASS
+NEW_CHAT_START_PROMPT_PRESENT=PASS
+TEAM_WORKSPACE_STATUS_PRESENT=PASS
+FINAL_FROZEN_STATE_PRESENT=PASS
+
+HANDOFF_STATE_COMPLETENESS=PASS
+HANDOFF_READY_FOR_NEW_CHAT=true
+
+=== END ===
+```
