@@ -1,3 +1,47 @@
+## 2026-10-23 — Board D R4 first-boot acceptance reopened by LCD warm-reset anomaly
+
+~~~text
+TASK=N3W_BOARD_D_R4_FIRST_BOOT_LCD_WARM_COLD_REASSESSMENT
+PRIOR_GATE=N3W_BOARD_D_R4_POSTWRITE_FIRST_BOOT_RUNTIME_ACCEPTANCE_20261023_01
+
+PRIOR_90S_BASIC_RUNTIME_EVIDENCE=VALID_SCOPED_ONLY
+PRIOR_PRODUCT_LEVEL_CLOSED_PASS=WITHDRAWN
+BOARD_D_FIRST_BOOT_RUNTIME_ACCEPTANCE=REOPENED
+
+OPERATOR_OBSERVED_POSTWRITE_LCD_FREEZE=true
+OPERATOR_OBSERVED_COLD_USB_POWER_CYCLE_RECOVERY=true
+OPERATOR_REPORTS_PRIOR_SOFT_REBOOT_FAILURE=true
+
+KF130=OPEN
+ROOT_CAUSE=TBD
+PRIMARY_HYPOTHESIS=LCD_CONTROLLER_RESET_OR_WARM_INIT_DISCONTINUITY
+REFLASH_REQUIRED=false
+
+EXACT_PRODUCT_SOURCE=ec5f6d68e33db7757d91c807fff708ca81b075dc
+EXACT_DISPLAY_CONFIG_BLOB=0551c13a7c0c751d08723547fc60cdac37a6cd58
+LCD_RESET_GPIO_CONFIGURED=false
+DISPLAY_UPDATE_INTERVAL=1s
+DISPLAY_PAGE_PERIOD=4s
+DISPLAY_PAGE_COUNT=5
+
+NEXT_ONE_GATE=N3W_BOARD_D_R4_WARM_COLD_BOOT_LCD_ACCEPTANCE_20261023_01
+PHYSICAL_AUTHORIZATION_REQUIRED=true
+PHYSICAL_AUTHORIZATION_GRANTED=false
+BOARD_ACCESS=false
+AUTO_REFLASH=false
+AUTO_EXECUTE_NEXT_GATE=false
+STOP=true
+~~~
+
+The earlier 90.4-second evidence remains valid for MCU/application basic runtime, USB presence, status LED and unchanged NVS, but it did not observe the product-critical LCD. The operator then reported that the LCD remained frozen after the firmware-write/warm-reset path and recovered only after a true USB power-cycle cold boot; prior soft-reboot failures had also been observed. Therefore the product-level first-boot acceptance is reopened.
+
+Read-only source/hardware review found a concrete reset-boundary concern. The SMR12864-15A/ST7920 module exposes a dedicated active-low /RST and its datasheet requires reset during power-on. The frozen Board-D GPIO plan and exact R4 ESPHome display config enumerate only LCD CLK/MOSI/CS and no MCU-controlled LCD reset line. This is consistent with, but does not yet prove, a warm-reset state-discontinuity root cause. Actual PCB /RST wiring remains to be verified.
+
+The next gate is a no-reflash-first warm/cold comparison. A true cold power cycle must prove a healthy five-page LCD cycle; then MCU-only/warm-reset paths must prove that the same LCD recovers without external power removal. Any reproduced warm-only LCD freeze is a product acceptance FAIL and should route to source/hardware root-cause repair rather than repeated reflashing.
+
+Authority:
+`docs/development/N3W_BOARD_D_R4_WARM_COLD_BOOT_LCD_ACCEPTANCE_REDESIGN_20261023.md`.
+
 ## 2026-10-23 — Board D R4 postwrite first-boot runtime acceptance CLOSED_PASS
 
 ~~~text
