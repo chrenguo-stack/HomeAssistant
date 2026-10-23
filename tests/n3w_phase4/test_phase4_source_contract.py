@@ -363,7 +363,7 @@ def test_relay_mac_delivery_feedback_is_destination_bound_and_loop_owned() -> No
     assert "runtime_." not in callback
 
     drain_start = component.index("void SimpleProductComponent::drain_send_completions_()")
-    drain_end = component.index("void SimpleProductComponent::drain_radio_()", drain_start)
+    drain_end = component.index("bool SimpleProductComponent::drain_radio_()", drain_start)
     drain = component[drain_start:drain_end]
     assert "runtime_.note_relay_delivery_result(slot.destination, slot.success)" in drain
 
