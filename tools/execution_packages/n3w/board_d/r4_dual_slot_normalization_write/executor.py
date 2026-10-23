@@ -740,14 +740,14 @@ def verify_postwrite_integrity(
     }
     result: dict[str, object] = {}
     for name, (offset, size, expected_sha) in fixed_checks.items():
-        actual_sha = postwrite_read(port, offset, size, root / f"{name}.bin")
+        actual_sha = postwrite_read(offset, size, root / f"{name}.bin")
         if actual_sha != expected_sha:
             raise StopExecution(f"post-write {name} SHA256 mismatch")
         result[f"{name}_sha256"] = actual_sha
         result[f"{name}_match"] = True
 
-    app0_sha = postwrite_read(port, APP0_OFFSET, OTA_SLOT_SIZE, root / "app0-full-slot.bin")
-    app1_sha = postwrite_read(port, APP1_OFFSET, OTA_SLOT_SIZE, root / "app1-full-slot.bin")
+    app0_sha = postwrite_read(APP0_OFFSET, OTA_SLOT_SIZE, root / "app0-full-slot.bin")
+    app1_sha = postwrite_read(APP1_OFFSET, OTA_SLOT_SIZE, root / "app1-full-slot.bin")
     if app0_sha != NORMALIZED_SLOT_SHA256:
         raise StopExecution("post-write app0 full-slot SHA256 mismatch")
     if app1_sha != NORMALIZED_SLOT_SHA256:
@@ -760,8 +760,8 @@ def verify_postwrite_integrity(
     result["app1_tail_erased"] = True
     result["old_application_code_remains"] = False
 
-    phy_init_sha = postwrite_read(port, PHY_INIT_OFFSET, PHY_INIT_SIZE, root / "phy-init.bin")
-    nvs_sha = postwrite_read(port, NVS_OFFSET, NVS_SIZE, root / "nvs.bin")
+    phy_init_sha = postwrite_read(PHY_INIT_OFFSET, PHY_INIT_SIZE, root / "phy-init.bin")
+    nvs_sha = postwrite_read(NVS_OFFSET, NVS_SIZE, root / "nvs.bin")
     if phy_init_sha != prewrite_phy_init_sha256:
         raise StopExecution("protected phy_init region changed during write")
     if nvs_sha != prewrite_nvs_sha256:
