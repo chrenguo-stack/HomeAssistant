@@ -370,4 +370,4 @@ def test_relay_mac_delivery_feedback_is_destination_bound_and_loop_owned() -> No
     loop_start = component.index("void SimpleProductComponent::loop()")
     loop_end = component.index("bool SimpleProductComponent::send_telemetry_json", loop_start)
     loop = component[loop_start:loop_end]
-    assert loop.index("drain_send_completions_();") < loop.index("drain_radio_();")
+    assert loop.index("drain_send_completions_();") < loop.index("if (drain_radio_()) return;")
