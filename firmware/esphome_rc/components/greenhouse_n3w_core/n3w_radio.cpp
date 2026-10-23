@@ -396,32 +396,30 @@ RadioError decode_authenticated_probe_ack(
 RadioError ChannelScanPlan::configure(
     uint8_t last_direct_channel,
     const std::vector<uint8_t> &allowed_channels) {
+  std::vector<uint8_t> ordered;
+  ordered.reserve(allowed_channels.size() + (last_direct_channel != 0 ? 1U : 0U));
+  if (last_direct_channel != 0) {
+    ordered.push_back(last_direct_channel);
+  }
+  ordered.insert(ordered.end(), allowed_channels.begin(), allowed_channels.end());
+  return configure_ordered(ordered);
+}
+
+RadioError ChannelScanPlan::configure_ordered(
+    const std::vector<uint8_t> &channels) {
   channels_.clear();
   index_ = 0;
-  auto append_unique = [this](uint8_t channel) {
-    if (std::find(
-            channels_.begin(), channels_.end(), channel) ==
-        channels_.end()) {
-      channels_.push_back(channel);
-    }
-  };
-  if (last_direct_channel != 0) {
-    if (!valid_radio_channel(last_direct_channel)) {
-      return RadioError::CHANNEL_REJECTED;
-    }
-    append_unique(last_direct_channel);
-  }
-  for (uint8_t channel : allowed_channels) {
+  for (uint8_t channel : channels) {
     if (!valid_radio_channel(channel)) {
       channels_.clear();
       return RadioError::CHANNEL_REJECTED;
     }
-    append_unique(channel);
+    if (std::find(channels_.begin(), channels_.end(), channel) ==
+        channels_.end()) {
+      channels_.push_back(channel);
+    }
   }
-  if (channels_.empty()) {
-    return RadioError::INVALID_ARGUMENT;
-  }
-  return RadioError::NONE;
+  return channels_.empty() ? RadioError::INVALID_ARGUMENT : RadioError::NONE;
 }
 
 uint8_t ChannelScanPlan::current() const {
@@ -437,6 +435,18 @@ uint8_t ChannelScanPlan::advance() {
   }
   index_ = (index_ + 1) % channels_.size();
   return channels_[index_];
+}
+
+uint8_t ChannelScanPlan::advance_bounded() {
+  if (channels_.empty() || index_ + 1U >= channels_.size()) {
+    return 0;
+  }
+  ++index_;
+  return channels_[index_];
+}
+
+bool ChannelScanPlan::at_end() const {
+  return channels_.empty() || index_ + 1U >= channels_.size();
 }
 
 bool LocalPathPolicy::valid() const {
