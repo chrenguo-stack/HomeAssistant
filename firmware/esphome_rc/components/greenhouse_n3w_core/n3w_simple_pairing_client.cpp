@@ -526,7 +526,7 @@ SimplePairingClientError SimplePairingClient::send_hello_(
     root["pairing_id"] = pairing_id_;
     root["hardware_id"] = hardware_id_;
     root["model"] = "greenhouse-wifi-c6";
-    root["fw_version"] = "phase4-simple";
+    root["fw_version"] = firmware_version_;
     root["node_nonce"] = base64url_encode(hello_nonce);
     JsonArray capabilities = root["capabilities"].to<JsonArray>();
     capabilities.add("simple-setup-secret");
