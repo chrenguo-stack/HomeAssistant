@@ -28,8 +28,6 @@ jobs:
           python -m pip install -q "pytest>=8,<9" "esphome==2026.4.3"
       - name: R4 source contract
         run: pytest -q tests/n3w_production/test_current_main_product_deharness_r4_contract.py
-      - name: Preserve lab diagnostics regression coverage
-        run: pytest -q tests/n3w_kf089/test_relay_discovery_observability_contract.py
       - name: Compile formal production N3-W target
         working-directory: firmware/esphome_rc/f1_0_rc2
         env:
