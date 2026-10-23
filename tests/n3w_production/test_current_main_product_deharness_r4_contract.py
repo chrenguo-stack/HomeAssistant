@@ -45,7 +45,9 @@ def test_lab_translation_unit_is_excluded_only_for_production() -> None:
 
 def test_deharness_ci_fails_explicitly_when_forbidden_marker_is_found() -> None:
     workflow = text(WORKFLOW)
-    assert 'if grep -Fq "$marker" /tmp/n3w-symbols.txt' in workflow
+    assert 'for file in /tmp/n3w-symbols.txt "$MAP" /tmp/n3w-app-strings.txt /tmp/n3w-factory-strings.txt; do' in workflow
+    assert 'if grep -Fq "$marker" "$file"; then' in workflow
     assert 'echo "FORBIDDEN_MARKER_PRESENT=$marker"' in workflow
+    assert 'echo "FORBIDDEN_MARKER_FILE=$file"' in workflow
     assert "exit 1" in workflow
     assert '! grep -Fq "$marker"' not in workflow
