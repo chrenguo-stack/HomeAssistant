@@ -1,3 +1,62 @@
+## 2026-10-23 — Board D R4 postwrite first-boot runtime acceptance CLOSED_PASS
+
+~~~text
+TASK=N3W_BOARD_D_R4_POSTWRITE_FIRST_BOOT_RUNTIME_ACCEPTANCE_20261023_01
+STATUS=CLOSED_PASS
+
+MAIN=dc596ad50eb2ea80ba55aa3af2413236321f1465
+MAIN_TREE=c2bc948fada4c28db6bbb4b27e852181a5e90697
+PR661_MERGED=true
+
+PRODUCT_SOURCE=ec5f6d68e33db7757d91c807fff708ca81b075dc
+ARTIFACT_RUN_ID=39901919230
+ARTIFACT_ID=12478974186
+ARTIFACT_SHA256=898ef722cd4af37ae5472583b1874f7724e9444e8837462d36f4e6be7eea092f
+
+BOARD_D_HARDWARE_ID_SHA256=3991b9af9e7604190a8ac8e60b780911a8faed6698cda5421eaf1eb686210df5
+BOARD_D_IDENTITY_MATCH=true
+
+PREBOOT_NVS_SHA256=a61948eaf640aa878d245ef9c95a6529f28a1b2d876618e187419309e89d21a6
+NORMAL_APPLICATION_BOOT_COUNT=1
+R4_APPLICATION_START_DIRECT_EVIDENCE=PASS
+RUNTIME_OBSERVATION_SECONDS=90.4
+USB_RUNTIME_STABLE=true
+STATUS_LED_90S_CONTINUOUS_ON=true
+UNEXPECTED_RESET_OR_SLEEP_OBSERVED=false
+LEGACY_LOW_BATTERY_SLEEP_SIGNATURE_OBSERVED=false
+
+POSTBOOT_NVS_SHA256=a61948eaf640aa878d245ef9c95a6529f28a1b2d876618e187419309e89d21a6
+NVS_CHANGED_DURING_RUNTIME=false
+POSTBOOT_NVS_CLASSIFICATION=UNCHANGED
+
+FLASH_WRITE=false
+DIRECT_NVS_WRITE=false
+PAIRING_EXECUTED=false
+T1_RUNTIME_MUTATION=false
+RF_EXECUTION=false
+SECOND_APPLICATION_BOOT_EXECUTED=false
+
+POST_ACCEPTANCE_MODE=ROM_BOOTLOADER
+BOARD_D_FIRST_BOOT_RUNTIME_ACCEPTANCE=CLOSED_PASS
+
+KF129=GUARDED
+NEXT_ROUTE=SEPARATE_BOARD_D_R4_PRODUCT_PAIRING_OR_RUNTIME_COMMUNICATION_ACCEPTANCE_DESIGN
+AUTO_EXECUTE_NEXT_ROUTE=false
+NEW_AUTHORIZATION_REQUIRED=true
+STOP=true
+~~~
+
+Board D completed exactly one controlled normal R4 application boot. The source-defined status LED reached ON and remained continuously on through a fresh 90.4-second passive observation. USB stayed present and stable for all 90 samples with zero disappearance, locator change, multi-locator sample or presence transition. No unexpected reset/sleep or legacy low-battery sleep signature was observed.
+
+The preboot NVS SHA256 matched the frozen postwrite value and the postboot NVS SHA256 was unchanged. The board was deliberately returned to ROM after observation and was not started a second time. This gate does not claim pairing, telemetry, Direct/Relay, failover or RF acceptance.
+
+The first observation wrapper had a heredoc/input stdin-ownership defect after the one allowed boot had already been triggered. No retry was performed; passive forensics established the boot was consumed, and the 90-second observation was completed on that same running application instance.
+
+PR #661's historical postwrite-verifier failure is rolled up as KF-129=GUARDED. The write authorization remains consumed/non-replayable and Board D was not reflashed to reproduce the historical verifier path.
+
+Authority:
+`docs/development/N3W_BOARD_D_R4_POSTWRITE_FIRST_BOOT_RUNTIME_ACCEPTANCE_CLOSURE_20261023.md`.
+
 ## 2026-10-23 — Board_D current-main product source convergence R4 CLOSED_PASS
 
 ~~~text
