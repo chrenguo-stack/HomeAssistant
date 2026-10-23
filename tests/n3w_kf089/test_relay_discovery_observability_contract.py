@@ -15,7 +15,7 @@ RUNTIME = CORE / "n3w_simple_product_runtime.cpp"
 COMPONENT = CORE / "n3w_simple_product_component.cpp"
 DRIVER = CORE / "n3w_espnow_driver.cpp"
 DIAG_H = CORE / "n3w_lab_diagnostics.h"
-DIAG_CPP = CORE / "n3w_lab_diagnostics.inc"
+DIAG_CPP = CORE / "n3w_lab_diagnostics_impl.h"
 UTILITY = ROOT / "tools/n3w_read_diag_snapshot.py"
 
 
@@ -445,7 +445,7 @@ def test_diagnostic_rejection_counters_are_bounded_and_exactly_once(tmp_path: Pa
     subprocess.run(
         [
             compiler, "-std=c++17", "-O0", "-I", str(CORE), "-I", str(include_root), str(helper),
-            str(CORE / "n3w_lab_diagnostics.inc"), "-o", str(executable),
+            str(CORE / "n3w_lab_diagnostics_impl.h"), "-o", str(executable),
         ],
         check=True,
     )
@@ -577,7 +577,7 @@ def test_diagnostics_behavioral_persistence_and_round_trip(tmp_path: Path):
             "-I",
             str(include_root),
             str(helper),
-            str(CORE / "n3w_lab_diagnostics.inc"),
+            str(CORE / "n3w_lab_diagnostics_impl.h"),
             "-o",
             str(executable),
         ],
