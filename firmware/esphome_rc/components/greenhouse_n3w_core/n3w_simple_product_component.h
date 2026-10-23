@@ -47,6 +47,9 @@ class SimpleProductComponent : public Component,
   SimpleProductComponent();
 
   void set_activation_enabled(bool enabled) { activation_enabled_ = enabled; }
+  void set_pairing_firmware_version(const std::string &value) {
+    pairing_client_.set_firmware_version(value);
+  }
   void set_lab_diagnostics_enabled(bool enabled) {
     diagnostics_.set_enabled(enabled);
     runtime_.set_diagnostic_sink(enabled ? &diagnostics_ : nullptr);
