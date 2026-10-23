@@ -216,7 +216,7 @@ def test_relay_restore_failure_is_rate_limited_and_transactional() -> None:
 
 def test_channel_commit_requires_readback_and_unknown_is_not_faked() -> None:
     driver = text("n3w_espnow_driver.cpp")
-    diagnostics = text("n3w_lab_diagnostics.cpp")
+    diagnostics = text("n3w_diag_support.cpp")
 
     set_start = driver.index("DriverError EspNowDriver::set_channel(uint8_t channel)")
     set_end = driver.index("DriverError EspNowDriver::prepare_broadcast_peer", set_start)
@@ -241,22 +241,25 @@ def test_channel_commit_requires_readback_and_unknown_is_not_faked() -> None:
 
 def test_challenge_uses_fixed_owned_channel_and_pending_accept_window() -> None:
     runtime = text("n3w_simple_product_runtime.cpp")
-    start = runtime.index("SimpleProductError SimpleProductRuntime::handle_discovery_(")
-    end = runtime.index(
-        "SimpleProductError SimpleProductRuntime::handle_challenge_(", start
+    start = runtime.index(
+        "SimpleProductError SimpleProductRuntime::start_challenge_for_candidate_("
     )
+    end = runtime.index("SimpleProductRuntime::RelayCandidate *", start)
     challenge = runtime[start:end]
 
-    channel_fix = challenge.index("port_->set_radio_channel(channel)")
+    channel_fix = challenge.index("port_->set_radio_channel(candidate.channel)")
     normal_send = challenge.index(
         "port_->broadcast_control(encoded.data(), encoded.size())", channel_fix
     )
-    pending = challenge.index("pending_challenge_ = std::move(pending)", normal_send)
+    pending_channel = challenge.index("pending.channel = candidate.channel", normal_send)
+    pending = challenge.index(
+        "pending_challenge_ = std::move(pending)", pending_channel
+    )
 
-    assert channel_fix < normal_send < pending
+    assert channel_fix < normal_send < pending_channel < pending
     assert "broadcast_control_on_channel" not in challenge
     assert "2ULL * policy_.challenge_timeout_ms" in challenge
-    assert "owns and holds this channel" in challenge
+    assert "if (!challenge_sent) return SimpleProductError::RADIO_FAILED;" in challenge
 
 
 def test_direct_failback_commits_only_after_concrete_radio_restore() -> None:
@@ -583,7 +586,7 @@ def test_relay_failback_uses_two_tier_presence_and_full_verify_scheduling() -> N
 
 def test_relay_failback_diagnostics_are_ram_only_and_bounded_in_lab_telemetry() -> None:
     diag_h = text("n3w_lab_diagnostics.h")
-    diag_cpp = text("n3w_lab_diagnostics.cpp")
+    diag_cpp = text("n3w_diag_support.cpp")
     component = text("n3w_simple_product_component.cpp")
     config = (
         ROOT

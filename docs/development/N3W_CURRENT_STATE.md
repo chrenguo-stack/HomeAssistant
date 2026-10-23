@@ -1,3 +1,123 @@
+## 2026-10-23 — Board_D current-main product source convergence R4 CLOSED_PASS
+
+~~~text
+TASK=N3W_BOARD_D_POST_T1_PRODUCTION_CURRENT_MAIN_PRODUCT_SOURCE_CONVERGENCE_R4_INTEGRATED_CLOSURE
+
+BASE_MAIN=5ff09efb650cc3818d2c6a58d4fb4c489a21d784
+R4_EXACT_PRODUCT_SOURCE_HEAD=ec5f6d68e33db7757d91c807fff708ca81b075dc
+R4_EXACT_PRODUCT_SOURCE_TREE=16740efa8ad24d423adc0b2de32b99d56e2d23d1
+MAIN_DRIFT=false
+
+SOURCE_CI=28_PASS_3_KNOWN_STAGE2D_BOUNDARY_FALSE_FAIL
+R4_PRODUCTION_DEHARNESS=PASS
+EXACT_ARTIFACT_BUILD=PASS
+EXACT_ARTIFACT_BINDING=PASS
+
+EXACT_ARTIFACT_RUN_ID=39901919230
+EXACT_ARTIFACT_ID=12478974186
+GITHUB_ARTIFACT_SHA256=898ef722cd4af37ae5472583b1874f7724e9444e8837462d36f4e6be7eea092f
+RELEASE_BUNDLE_SHA256=b55aba9c3fad85da39eab63157c3de7c42f311970bfb61f8b0e9a52ddcba7dd5
+MANIFEST_SHA256=173fcc978284170e0918c94269195191be0fc8a262b758851f16ee0609a638eb
+FIRMWARE_BIN_SHA256=ea50b147b7cb76bf442c0bbc7fe8d54e4abff87fa48926b9160ca903b6fa5c08
+FIRMWARE_FACTORY_BIN_SHA256=c982c5d56f62ddddbba5b4734c1d9f0c36d4ce6996754157b017159ac630e2c6
+
+INITIAL_R4_ARTIFACT_ID=12476817266
+INITIAL_R4_ARTIFACT_VALID=false
+FALSE_PASS_PATH_DETECTED_COUNT=1
+FALSE_PASS_PATH_REPAIRED_COUNT=1
+OPEN_NEW_FALSE_PASS_PATH_COUNT=0
+
+R4_BLOCKER_COUNT=0
+R4_CLOSURE=CLOSED_PASS
+
+PR656_STATE=OPEN_DRAFT
+PR656_TECHNICAL_MERGE_READINESS=PASS
+PR656_MERGE_AUTHORIZED=false
+BOARD_D_PHYSICAL_GATE_AUTHORIZED=false
+
+T1_ACCESS=false
+BOARD_ACCESS=false
+FLASH_MUTATION=false
+NVS_MUTATION=false
+RF_EXECUTION=false
+MERGE=false
+
+NEXT_ROUTE=SEPARATE_GATE_DECISION_REQUIRED
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+R4 closes the integrated source/exact-production-artifact stage on final product
+source `ec5f6d68...`. The first R4 artifact is permanently rejected because
+independent inspection exposed a Bash `! grep` false-PASS and real lab code in
+the production image. The repaired V2 flow uses fail-closed marker checks, and the
+final source passes production compile, de-harness, R3, Multi-Relay, full-channel,
+Recovery, Frame-core and Manager regressions.
+
+Artifact `12478974186` was independently downloaded and rebound: outer GitHub
+digest, inner sidecar, exact 8-member deterministic ZIP, manifest, all member
+hashes and direct production-binary forbidden-marker scans passed.
+
+The bundled `flash_args` still references build-tree paths that do not exist in
+the flat release bundle, so a later Board_D write gate must use a reviewed write
+procedure rather than executing it blindly.
+
+PR #656 remains draft and unmerged. Merge and Board_D physical access both require
+a separate gate/decision.
+
+Authority:
+`docs/development/N3W_BOARD_D_POST_T1_PRODUCTION_CURRENT_MAIN_PRODUCT_SOURCE_CONVERGENCE_R4_INTEGRATED_CLOSURE_20261023.md`.
+
+## 2026-10-23 — Board_D current-main product source convergence R3 CLOSED_PASS
+
+~~~text
+TASK=N3W_BOARD_D_POST_T1_PRODUCTION_CURRENT_MAIN_PRODUCT_SOURCE_CONVERGENCE_SOURCE_REPAIR_R3_20261023_01
+
+BASE_MAIN=5ff09efb650cc3818d2c6a58d4fb4c489a21d784
+R3_EXACT_PRODUCT_SOURCE_HEAD=9a2024212566d831d94b167833d5485307119d78
+MAIN_DRIFT=false
+
+AUTO_SAFE_FALLBACK_IN_CURRENT_CORE=true
+SECOND_RECOVERY_STATE_MACHINE=false
+RAM_ONLY_BROKER_RETARGET=true
+BROKER_NVS_REWRITE=false
+TLS_IDENTITY_PRESERVED=true
+BOUNDED_ROLLBACK=true
+BROKER_ROLLBACK_FAILURE_SAFE_REBOOT=true
+
+EXACT_HEAD_CI=27_PASS_3_KNOWN_LEGACY_BOUNDARY_FALSE_FAIL
+RELEVANT_CI=PASS
+OPEN_NEW_FALSE_PASS_PATH_COUNT=0
+R3_SOURCE_BLOCKER_COUNT=0
+R3_CLOSURE=CLOSED_PASS
+
+PR656_MERGE_READY=false
+R4_ENTERED=false
+T1_ACCESS=false
+BOARD_ACCESS=false
+FLASH_MUTATION=false
+NVS_MUTATION=false
+LIVE_RUNTIME_MUTATION=false
+MERGE=false
+
+NEXT_ROUTE=R4_IF_R3_CLOSED_PASS_AND_SEPARATELY_ENTERED
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+R3 closes Broker Auto Safe Fallback convergence in the active
+`greenhouse_n3w_core`. Runtime Broker relocation is RAM-only and preserves the
+durable Broker TLS identity and MQTT credentials. Candidate failure rolls back to
+the durable Broker; the final independent review additionally closed a
+CI-uncovered rollback-failure false-PASS edge by making failed restoration request
+the existing safe reboot, so startup reloads the durable Broker from NVS.
+
+Exact-head relevant CI is PASS. The only three repository-wide red workflows are
+the already-known Stage2D2/3/4 legacy boundary false-fails and are outside this
+gate. R1/R2 behavior shows no observed regression. R3 performed no T1/board/live
+mutation and did not merge PR #656.
+
+Authority:
+`docs/development/N3W_BOARD_D_POST_T1_PRODUCTION_CURRENT_MAIN_PRODUCT_SOURCE_CONVERGENCE_R3_CLOSURE_20261023.md`.
+
 ## 2026-10-22 — T1 Production V2 standalone executable proposal archived/deferred
 
 ~~~text

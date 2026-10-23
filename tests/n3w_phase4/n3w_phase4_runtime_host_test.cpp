@@ -58,6 +58,11 @@ struct FakePort final : SimpleProductPort {
     }
     return true;
   }
+  bool current_legal_channels(std::vector<uint8_t> *channels) override {
+    if (channels == nullptr) return false;
+    *channels = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+    return true;
+  }
   bool broadcast_control(const uint8_t *data, std::size_t size) override {
     broadcasts.emplace_back(data, data + size);
     return broadcast_success;
@@ -329,12 +334,18 @@ int main() {
   assert(relay.tick() == SimpleProductError::NONE);
   assert(!relay_port.broadcasts.empty());
   const auto discovery = relay_port.broadcasts.back();
-  assert(child.on_radio_receive(relay_mac, discovery.data(), discovery.size(), 6) ==
+  const std::size_t challenge_count_before = child_port.broadcasts.size();
+  assert(child.on_radio_receive(relay_mac, discovery.data(), discovery.size(), 6, -60) ==
          SimpleProductError::NONE);
-  assert(!child_port.broadcasts.empty());
+  assert(child.gateway_selection_busy());
+  assert(!child.challenge_pending());
+  child_clock.value += 6500;
+  assert(child.tick() == SimpleProductError::NONE);
+  assert(child.challenge_pending());
+  assert(child_port.broadcasts.size() == challenge_count_before + 1);
 
   const auto challenge = child_port.broadcasts.back();
-  assert(relay.on_radio_receive(child_mac, challenge.data(), challenge.size(), 6) ==
+  assert(relay.on_radio_receive(child_mac, challenge.data(), challenge.size(), 6, -60) ==
          SimpleProductError::NONE);
   assert(relay.relay_child_count() == 1);
   assert(!relay_port.broadcasts.empty());
@@ -345,16 +356,34 @@ int main() {
   // can be fixed on the authenticated Relay channel.
   const std::size_t installed_before_accept = child_port.installed.size();
   child_port.channel_success = false;
-  assert(child.on_radio_receive(relay_mac, accept.data(), accept.size(), 6) ==
+  assert(child.on_radio_receive(relay_mac, accept.data(), accept.size(), 6, -60) ==
          SimpleProductError::RADIO_FAILED);
   assert(child.path_state() == LocalPathState::DISCOVERY);
   assert(!child.active_relay().has_value());
   assert(child_port.installed.size() == installed_before_accept);
 
+  assert(!child.gateway_selection_busy());
   child_port.channel_success = true;
+  assert(child.restart_discovery_after_radio_fault() == SimpleProductError::NONE);
+  relay_clock.value = 4000;
+  assert(relay.tick() == SimpleProductError::NONE);
+  const auto recovery_discovery = relay_port.broadcasts.back();
+  const std::size_t recovery_challenge_count = child_port.broadcasts.size();
+  assert(child.on_radio_receive(
+             relay_mac, recovery_discovery.data(), recovery_discovery.size(), 6, -60) ==
+         SimpleProductError::NONE);
+  child_clock.value += 6500;
+  assert(child.tick() == SimpleProductError::NONE);
+  assert(child_port.broadcasts.size() == recovery_challenge_count + 1);
+  const auto recovery_challenge = child_port.broadcasts.back();
+  assert(relay.on_radio_receive(
+             child_mac, recovery_challenge.data(), recovery_challenge.size(), 6, -60) ==
+         SimpleProductError::NONE);
+  const auto recovery_accept = relay_port.broadcasts.back();
   const std::size_t channel_sets_before_accept =
       child_port.channel_set_attempts.size();
-  assert(child.on_radio_receive(relay_mac, accept.data(), accept.size(), 6) ==
+  assert(child.on_radio_receive(
+             relay_mac, recovery_accept.data(), recovery_accept.size(), 6, -60) ==
          SimpleProductError::NONE);
   assert(child.path_state() == LocalPathState::RELAY_ACTIVE);
   assert(child.active_relay().has_value());
@@ -403,7 +432,7 @@ int main() {
   assert(child.path_state() == LocalPathState::RELAY_ACTIVE);
   assert(child_port.encrypted.size() == 1);
   const auto &encoded = child_port.encrypted.back().second;
-  assert(relay.on_radio_receive(child_mac, encoded.data(), encoded.size(), 6) ==
+  assert(relay.on_radio_receive(child_mac, encoded.data(), encoded.size(), 6, -60) ==
          SimpleProductError::NONE);
   assert(relay_port.relay.size() == 1);
   assert(relay_port.relay.back().first ==
@@ -416,18 +445,18 @@ int main() {
   assert(relay_sink.compact_forward_success == 1);
 
   const MacAddress unknown_mac{0x02, 0x00, 0x00, 0x00, 0x00, 0x09};
-  assert(relay.on_radio_receive(unknown_mac, encoded.data(), encoded.size(), 6) ==
+  assert(relay.on_radio_receive(unknown_mac, encoded.data(), encoded.size(), 6, -60) ==
          SimpleProductError::PACKET_REJECTED);
   assert(relay_sink.compact_child_binding_failure == 1);
 
   std::vector<uint8_t> malformed = encoded;
   malformed[3] ^= 0x01;
-  assert(relay.on_radio_receive(child_mac, malformed.data(), malformed.size(), 6) ==
+  assert(relay.on_radio_receive(child_mac, malformed.data(), malformed.size(), 6, -60) ==
          SimpleProductError::PACKET_REJECTED);
   assert(relay_sink.compact_decode_failure == 1);
 
   relay_port.relay_success = false;
-  assert(relay.on_radio_receive(child_mac, encoded.data(), encoded.size(), 6) ==
+  assert(relay.on_radio_receive(child_mac, encoded.data(), encoded.size(), 6, -60) ==
          SimpleProductError::MQTT_FAILED);
   assert(relay_sink.compact_forward_attempts == 2);
   assert(relay_sink.compact_forward_failure == 1);
@@ -463,16 +492,20 @@ int main() {
 
   // Reacquire the Relay and prove two consecutive actual MAC failures drive
   // the existing relay_failures_to_discovery hysteresis.
-  relay_clock.value = 4000;
+  relay_clock.value = 6000;
   assert(relay.tick() == SimpleProductError::NONE);
   const auto discovery2 = relay_port.broadcasts.back();
-  assert(child.on_radio_receive(relay_mac, discovery2.data(), discovery2.size(), 6) ==
+  const std::size_t challenge2_count_before = child_port.broadcasts.size();
+  assert(child.on_radio_receive(relay_mac, discovery2.data(), discovery2.size(), 6, -60) ==
          SimpleProductError::NONE);
+  child_clock.value += 6500;
+  assert(child.tick() == SimpleProductError::NONE);
+  assert(child_port.broadcasts.size() == challenge2_count_before + 1);
   const auto challenge2 = child_port.broadcasts.back();
-  assert(relay.on_radio_receive(child_mac, challenge2.data(), challenge2.size(), 6) ==
+  assert(relay.on_radio_receive(child_mac, challenge2.data(), challenge2.size(), 6, -60) ==
          SimpleProductError::NONE);
   const auto accept2 = relay_port.broadcasts.back();
-  assert(child.on_radio_receive(relay_mac, accept2.data(), accept2.size(), 6) ==
+  assert(child.on_radio_receive(relay_mac, accept2.data(), accept2.size(), 6, -60) ==
          SimpleProductError::NONE);
   assert(child.path_state() == LocalPathState::RELAY_ACTIVE);
 
@@ -499,16 +532,20 @@ int main() {
   }
   assert(child.path_state() == LocalPathState::DISCOVERY);
 
-  relay_clock.value = 6000;
+  relay_clock.value = 8000;
   assert(relay.tick() == SimpleProductError::NONE);
   const auto discovery3 = relay_port.broadcasts.back();
-  assert(child.on_radio_receive(relay_mac, discovery3.data(), discovery3.size(), 6) ==
+  const std::size_t challenge3_count_before = child_port.broadcasts.size();
+  assert(child.on_radio_receive(relay_mac, discovery3.data(), discovery3.size(), 6, -60) ==
          SimpleProductError::NONE);
+  child_clock.value += 6500;
+  assert(child.tick() == SimpleProductError::NONE);
+  assert(child_port.broadcasts.size() == challenge3_count_before + 1);
   const auto challenge3 = child_port.broadcasts.back();
-  assert(relay.on_radio_receive(child_mac, challenge3.data(), challenge3.size(), 6) ==
+  assert(relay.on_radio_receive(child_mac, challenge3.data(), challenge3.size(), 6, -60) ==
          SimpleProductError::NONE);
   const auto accept3 = relay_port.broadcasts.back();
-  assert(child.on_radio_receive(relay_mac, accept3.data(), accept3.size(), 6) ==
+  assert(child.on_radio_receive(relay_mac, accept3.data(), accept3.size(), 6, -60) ==
          SimpleProductError::NONE);
   assert(child.path_state() == LocalPathState::RELAY_ACTIVE);
   assert(child.active_relay().has_value());

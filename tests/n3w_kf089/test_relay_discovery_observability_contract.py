@@ -15,7 +15,7 @@ RUNTIME = CORE / "n3w_simple_product_runtime.cpp"
 COMPONENT = CORE / "n3w_simple_product_component.cpp"
 DRIVER = CORE / "n3w_espnow_driver.cpp"
 DIAG_H = CORE / "n3w_lab_diagnostics.h"
-DIAG_CPP = CORE / "n3w_lab_diagnostics.cpp"
+DIAG_CPP = CORE / "n3w_diag_support.cpp"
 UTILITY = ROOT / "tools/n3w_read_diag_snapshot.py"
 
 
@@ -243,6 +243,11 @@ def test_discovery_rejection_runtime_and_counter_invariants(tmp_path: Path):
               uint8_t channel{0};
               std::vector<std::vector<uint8_t>> broadcasts;
               bool set_radio_channel(uint8_t value) override { channel = value; return valid_radio_channel(value); }
+              bool current_legal_channels(std::vector<uint8_t> *channels) override {
+                if (channels == nullptr) return false;
+                *channels = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+                return true;
+              }
               bool broadcast_control(const uint8_t *data, std::size_t size) override {
                 broadcasts.emplace_back(data, data + size); return true;
               }
@@ -296,7 +301,7 @@ def test_discovery_rejection_runtime_and_counter_invariants(tmp_path: Path):
             void assert_reason(SimpleProductRuntime &runtime, Sink &sink, const MacAddress &source,
                                const std::vector<uint8_t> &packet, uint8_t rx, DiscoveryRejectReason reason) {
               const SimpleProductError result = runtime.on_radio_receive(
-                  source, packet.data(), packet.size(), rx);
+                  source, packet.data(), packet.size(), rx, -60);
               assert(result == SimpleProductError::PACKET_REJECTED ||
                      result == SimpleProductError::STATE_REJECTED);
               assert(!sink.reasons.empty());
@@ -315,9 +320,13 @@ def test_discovery_rejection_runtime_and_counter_invariants(tmp_path: Path):
               SimpleProductRuntime runtime(&port, &clock, &random);
               runtime.set_diagnostic_sink(&sink);
               assert(runtime.start(local_state, local, 0, SimpleProductStartMode::DISCOVERY) == SimpleProductError::NONE);
-              assert(runtime.on_radio_receive(relay, valid.data(), valid.size(), 6) == SimpleProductError::NONE);
+              assert(runtime.on_radio_receive(relay, valid.data(), valid.size(), 6, -60) == SimpleProductError::NONE);
               assert(sink.accepted == 1 && sink.rejected == 0 && sink.reasons.empty());
-              assert(runtime.on_radio_receive(relay, valid.data(), valid.size(), 6) == SimpleProductError::STATE_REJECTED);
+              assert(!runtime.challenge_pending());
+              clock.value += 6500;
+              assert(runtime.tick() == SimpleProductError::NONE);
+              assert(runtime.challenge_pending());
+              assert(runtime.on_radio_receive(relay, valid.data(), valid.size(), 6, -60) == SimpleProductError::STATE_REJECTED);
               assert(sink.reasons.back() == DiscoveryRejectReason::PENDING_CHALLENGE);
 
               Clock trust_clock; Random trust_random; Port trust_port; Sink trust_sink;
@@ -436,7 +445,7 @@ def test_diagnostic_rejection_counters_are_bounded_and_exactly_once(tmp_path: Pa
     subprocess.run(
         [
             compiler, "-std=c++17", "-O0", "-I", str(CORE), "-I", str(include_root), str(helper),
-            str(CORE / "n3w_lab_diagnostics.cpp"), "-o", str(executable),
+            str(CORE / "n3w_diag_support.cpp"), "-o", str(executable),
         ],
         check=True,
     )
@@ -568,7 +577,7 @@ def test_diagnostics_behavioral_persistence_and_round_trip(tmp_path: Path):
             "-I",
             str(include_root),
             str(helper),
-            str(CORE / "n3w_lab_diagnostics.cpp"),
+            str(CORE / "n3w_diag_support.cpp"),
             "-o",
             str(executable),
         ],

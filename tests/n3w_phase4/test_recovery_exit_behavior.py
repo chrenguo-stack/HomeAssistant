@@ -104,7 +104,7 @@ def test_component_uses_bounded_recovery_exits() -> None:
         "void SimpleProductComponent::request_safe_reboot_"
     )
     reboot_end = component.index(
-        "void SimpleProductComponent::drain_radio_", reboot_start
+        "bool SimpleProductComponent::drain_radio_", reboot_start
     )
     reboot_body = component[reboot_start:reboot_end]
     assert "App.safe_reboot()" in reboot_body

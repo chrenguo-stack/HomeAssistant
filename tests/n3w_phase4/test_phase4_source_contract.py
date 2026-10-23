@@ -171,7 +171,7 @@ def test_phase4_lab_target_exposes_private_pairing_pop_and_synthetic_telemetry()
 
 def test_source_harness_binds_real_adapters_without_executing_them() -> None:
     header = text(CORE / "n3w_phase4_physical_harness.h")
-    source = text(CORE / "n3w_phase4_physical_harness.cpp")
+    source = text(CORE / "n3w_phase4_support.cpp")
     component = text(CORE / "greenhouse_n3w_core.h")
 
     for symbol in (
@@ -363,11 +363,11 @@ def test_relay_mac_delivery_feedback_is_destination_bound_and_loop_owned() -> No
     assert "runtime_." not in callback
 
     drain_start = component.index("void SimpleProductComponent::drain_send_completions_()")
-    drain_end = component.index("void SimpleProductComponent::drain_radio_()", drain_start)
+    drain_end = component.index("bool SimpleProductComponent::drain_radio_()", drain_start)
     drain = component[drain_start:drain_end]
     assert "runtime_.note_relay_delivery_result(slot.destination, slot.success)" in drain
 
     loop_start = component.index("void SimpleProductComponent::loop()")
     loop_end = component.index("bool SimpleProductComponent::send_telemetry_json", loop_start)
     loop = component[loop_start:loop_end]
-    assert loop.index("drain_send_completions_();") < loop.index("drain_radio_();")
+    assert loop.index("drain_send_completions_();") < loop.index("if (drain_radio_()) return;")

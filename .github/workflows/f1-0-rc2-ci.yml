@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "firmware/esphome_rc/f1_0_rc2/**"
+      - "firmware/esphome_rc/components/greenhouse_n3w_core/**"
       - "firmware/esphome_rc/15_1_2_rs485_modbus_echo_filter/**"
       - ".github/workflows/f1-0-rc2-ci.yml"
   push:
@@ -11,6 +12,7 @@ on:
       - "feature/f1-0-rc2-*"
     paths:
       - "firmware/esphome_rc/f1_0_rc2/**"
+      - "firmware/esphome_rc/components/greenhouse_n3w_core/**"
       - "firmware/esphome_rc/15_1_2_rs485_modbus_echo_filter/**"
       - ".github/workflows/f1-0-rc2-ci.yml"
 
@@ -39,4 +41,16 @@ jobs:
 
       - name: Compile firmware
         working-directory: firmware/esphome_rc/f1_0_rc2
+        run: bash tools/rc2.sh compile
+
+      - name: Validate N3-W product configuration
+        working-directory: firmware/esphome_rc/f1_0_rc2
+        env:
+          RC2_CONFIG: f1_0_rc2_n3w_target.yml
+        run: bash tools/rc2.sh config
+
+      - name: Compile N3-W product firmware
+        working-directory: firmware/esphome_rc/f1_0_rc2
+        env:
+          RC2_CONFIG: f1_0_rc2_n3w_target.yml
         run: bash tools/rc2.sh compile

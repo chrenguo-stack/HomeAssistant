@@ -158,7 +158,7 @@ void SimpleProductComponent::loop() {
       radio_ownership_ == RadioOwnership::RELAY_RESTORE;
   if (!recovery_exclusive) {
     drain_send_completions_();
-    drain_radio_();
+    if (drain_radio_()) return;
   }
   if (!pairing_client_.provisioned()) {
     advance_pairing_();
@@ -194,7 +194,13 @@ void SimpleProductComponent::loop() {
     return;
   }
   runtime_.set_relay_capable(mqtt_connected());
-  (void) runtime_.tick();
+  const bool selection_busy_before_tick =
+      runtime_.gateway_selection_busy();
+  const SimpleProductError tick_result = runtime_.tick();
+  if (consume_gateway_selection_runtime_result_(
+          tick_result, selection_busy_before_tick)) {
+    return;
+  }
   diagnostics_.observe_runtime(
       static_cast<uint8_t>(runtime_.path_state()),
       runtime_.working_channel(),
@@ -205,6 +211,7 @@ void SimpleProductComponent::loop() {
   diagnostics_.emit_summary(now_ms());
   (void) flush_telemetry_queue_(TelemetryPathAccounting::TRANSPORT_ONLY);
   advance_recovery_();
+  advance_direct_mqtt_broker_relocation_();
 }
 
 TelemetrySubmitDisposition SimpleProductComponent::submit_telemetry_json(
@@ -239,8 +246,12 @@ TelemetrySubmitDisposition SimpleProductComponent::submit_telemetry_json(
           runtime_.path_state(), mqtt_connected());
   if (admission_plan.record_direct_unavailable) {
     const SimpleProductError state_result = runtime_.note_direct_result(false);
-    if (state_result != SimpleProductError::NONE &&
-        state_result != SimpleProductError::RADIO_FAILED) {
+    if (state_result == SimpleProductError::RADIO_FAILED) {
+      (void) consume_gateway_selection_runtime_result_(state_result, false);
+      if (safe_reboot_requested_) {
+        return TelemetrySubmitDisposition::REJECTED;
+      }
+    } else if (state_result != SimpleProductError::NONE) {
       ++telemetry_invariant_failures_;
       request_safe_reboot_("telemetry Direct admission path-state failure");
       return TelemetrySubmitDisposition::REJECTED;
@@ -551,7 +562,7 @@ void SimpleProductComponent::advance_recovery_() {
       recovery_schedule_.defer_presence(now, 0);
     }
 
-    if (runtime_.challenge_pending()) return;
+    if (runtime_.gateway_selection_busy()) return;
 
     if (runtime_.path_state() != LocalPathState::RELAY_ACTIVE &&
         recovery_schedule_.full_verify_backoff_ms() >
@@ -841,7 +852,7 @@ bool SimpleProductComponent::begin_direct_probe_(
     DirectFullVerifyTrigger trigger) {
   if (radio_ownership_ != RadioOwnership::RELAY_ESPNOW ||
       runtime_.path_state() == LocalPathState::DIRECT ||
-      runtime_.challenge_pending() ||
+      runtime_.gateway_selection_busy() ||
       radio_.pending_unicast_sends() != 0U) return false;
 #ifdef USE_WIFI
   if (wifi::global_wifi_component == nullptr) return false;
@@ -1159,6 +1170,10 @@ void SimpleProductComponent::advance_relay_restore_() {
     return;
   }
   clear_tx_completion_ring_();
+  if (relay_restore_cause_ ==
+      RelayRestoreCause::GATEWAY_SELECTION_LOCAL_FAULT) {
+    clear_rx_ring_();
+  }
 
   if (restore_relay_radio_()) {
     const RelayRestoreCause completed_cause = relay_restore_cause_;
@@ -1279,8 +1294,12 @@ TelemetrySubmitDisposition SimpleProductComponent::flush_telemetry_queue_(
         static_cast<unsigned>(telemetry_queue_.size()),
         static_cast<unsigned>(state_result));
     next_telemetry_flush_ms_ = now + kTelemetryHoldPollMs;
-    if (state_result != SimpleProductError::NONE &&
-        state_result != SimpleProductError::RADIO_FAILED) {
+    if (state_result == SimpleProductError::RADIO_FAILED) {
+      (void) consume_gateway_selection_runtime_result_(state_result, false);
+      if (safe_reboot_requested_) {
+        return TelemetrySubmitDisposition::REJECTED;
+      }
+    } else if (state_result != SimpleProductError::NONE) {
       ++telemetry_invariant_failures_;
       request_safe_reboot_("telemetry Direct hold path-state failure");
       return TelemetrySubmitDisposition::REJECTED;
@@ -1321,6 +1340,9 @@ TelemetrySubmitDisposition SimpleProductComponent::flush_telemetry_queue_(
       runtime_.send_telemetry(
           item.telemetry_json, item.boot_id, item.seq, accounting);
   ++item.submit_count;
+  if (result == SimpleProductError::RADIO_FAILED) {
+    (void) consume_gateway_selection_runtime_result_(result, false);
+  }
 
   if (result == SimpleProductError::NONE) {
     if (path_before == LocalPathState::RELAY_ACTIVE) {
@@ -1413,7 +1435,16 @@ bool SimpleProductComponent::restore_relay_radio_() {
         static_cast<unsigned>(error));
     return false;
   }
-  if (runtime_.rebind_radio_state() != SimpleProductError::NONE) {
+  const bool restart_discovery = discovery_restore_requires_restart(
+      runtime_.path_state(),
+      runtime_.discovery_restart_required(),
+      relay_restore_cause_ ==
+          RelayRestoreCause::GATEWAY_SELECTION_LOCAL_FAULT);
+  const SimpleProductError runtime_restore =
+      restart_discovery
+          ? runtime_.restart_discovery_after_radio_fault()
+          : runtime_.rebind_radio_state();
+  if (runtime_restore != SimpleProductError::NONE) {
     radio_.shutdown();
     return false;
   }
@@ -1481,6 +1512,13 @@ void SimpleProductComponent::drain_send_completions_() {
     // transport attempt. Do not convert MAC failure into application resend.
     telemetry_queue_.pop_front();
     next_telemetry_flush_ms_ = now_ms() + kTelemetryFlushSpacingMs;
+
+    if (state_result == SimpleProductError::RADIO_FAILED) {
+      if (consume_gateway_selection_runtime_result_(
+              state_result, false)) {
+        break;
+      }
+    }
 
     // A RADIO_FAILED result can be produced while Relay failure accounting
     // moves the path into Discovery and its first channel setup also fails.
@@ -1581,19 +1619,86 @@ void SimpleProductComponent::request_safe_reboot_(const char *reason) {
   App.safe_reboot();
 }
 
-void SimpleProductComponent::drain_radio_() {
-  if (!runtime_ready_) return;
+bool SimpleProductComponent::drain_radio_() {
+  if (!runtime_ready_) return false;
   while (true) {
     const uint8_t read = rx_read_.load(std::memory_order_relaxed);
     const uint8_t write = rx_write_.load(std::memory_order_acquire);
     if (read == write) break;
     const RxSlot &slot = rx_ring_[read];
-    (void) runtime_.on_radio_receive(
-        slot.source, slot.data.data(), slot.size, slot.channel);
+    const bool selection_busy_before =
+        runtime_.gateway_selection_busy();
+    const SimpleProductError result = runtime_.on_radio_receive(
+        slot.source,
+        slot.data.data(),
+        slot.size,
+        slot.channel,
+        slot.rssi_dbm);
     rx_read_.store(
         static_cast<uint8_t>((read + 1U) % kRxRingSlots),
         std::memory_order_release);
+    if (consume_gateway_selection_runtime_result_(
+            result, selection_busy_before)) {
+      return true;
+    }
   }
+  return false;
+}
+
+void SimpleProductComponent::clear_rx_ring_() {
+  rx_read_.store(
+      rx_write_.load(std::memory_order_acquire),
+      std::memory_order_release);
+}
+
+bool SimpleProductComponent::consume_gateway_selection_runtime_result_(
+    SimpleProductError result,
+    bool selection_busy_before) {
+  const bool selection_busy_after =
+      runtime_.gateway_selection_busy();
+  const bool selection_fault =
+      gateway_selection_local_fault_requires_restore(
+          result,
+          selection_busy_before,
+          selection_busy_after);
+  const bool discovery_radio_fault =
+      result == SimpleProductError::RADIO_FAILED &&
+      runtime_.path_state() == LocalPathState::DISCOVERY &&
+      !runtime_.discovery_radio_ready();
+  if (!selection_fault && !discovery_radio_fault) {
+    return false;
+  }
+
+  if ((radio_ownership_ != RadioOwnership::RELAY_ESPNOW &&
+       radio_ownership_ != RadioOwnership::DIRECT_WIFI) ||
+      runtime_.path_state() != LocalPathState::DISCOVERY) {
+    ESP_LOGE(
+        TAG,
+        "N3-W Discovery local fault escaped expected ownership/state result=%u ownership=%u path=%u",
+        static_cast<unsigned>(result),
+        static_cast<unsigned>(radio_ownership_),
+        static_cast<unsigned>(runtime_.path_state()));
+    request_safe_reboot_(
+        "Discovery local fault escaped expected ownership");
+    return true;
+  }
+
+  ESP_LOGE(
+      TAG,
+      "N3-W Discovery local fault entering bounded Relay restore result=%u stage=%u",
+      static_cast<unsigned>(result),
+      static_cast<unsigned>(runtime_.discovery_scan_stage()));
+
+  if (!radio_.shutdown()) {
+    request_safe_reboot_(
+        "ESP-NOW teardown unconfirmed after Discovery local fault");
+    return true;
+  }
+  clear_rx_ring_();
+  begin_relay_restore_(
+      RelayRestoreCause::GATEWAY_SELECTION_LOCAL_FAULT,
+      0);
+  return true;
 }
 
 void SimpleProductComponent::on_espnow_receive(
@@ -1622,6 +1727,7 @@ void SimpleProductComponent::on_espnow_receive_with_metadata(
   RxSlot &slot = rx_ring_[write];
   slot.source = source;
   slot.size = static_cast<uint16_t>(size);
+  slot.rssi_dbm = metadata.rssi_dbm;
   slot.channel = metadata.channel;
   std::copy_n(data, size, slot.data.begin());
   rx_write_.store(next, std::memory_order_release);
@@ -1653,6 +1759,71 @@ void SimpleProductComponent::on_espnow_send_result(
   tx_completion_write_.store(next, std::memory_order_release);
 }
 
+bool SimpleProductComponent::read_current_legal_channels_(
+    std::vector<uint8_t> *channels) {
+  if (channels == nullptr) return false;
+  channels->clear();
+
+  wifi_country_t country{};
+  const esp_err_t result = esp_wifi_get_country(&country);
+  if (result != ESP_OK || country.schan == 0 || country.nchan == 0) {
+    return false;
+  }
+
+  const uint16_t first = country.schan;
+  const uint16_t count = country.nchan;
+  const uint16_t last = first + count - 1U;
+  if (first < 1U || first > 14U || last > 14U) {
+    return false;
+  }
+
+  channels->reserve(count);
+  for (uint16_t channel = first; channel <= last; ++channel) {
+    if (!valid_radio_channel(static_cast<uint8_t>(channel))) {
+      channels->clear();
+      return false;
+    }
+    channels->push_back(static_cast<uint8_t>(channel));
+  }
+  return !channels->empty();
+}
+
+bool SimpleProductComponent::current_legal_channels(
+    std::vector<uint8_t> *channels) {
+  if (channels == nullptr) return false;
+  if ((radio_ownership_ != RadioOwnership::RELAY_ESPNOW &&
+       radio_ownership_ != RadioOwnership::RELAY_RESTORE) ||
+      !radio_.initialized()) {
+    if (!claim_relay_radio_()) {
+      channels->clear();
+      return false;
+    }
+  }
+
+  if (!read_current_legal_channels_(channels)) {
+    channels->clear();
+    ESP_LOGW(TAG, "N3-W unable to read current regulatory channel domain");
+    return false;
+  }
+
+  ESP_LOGI(
+      TAG,
+      "N3-W regulatory channel domain first=%u last=%u count=%u",
+      static_cast<unsigned>(channels->front()),
+      static_cast<unsigned>(channels->back()),
+      static_cast<unsigned>(channels->size()));
+  return true;
+}
+
+bool SimpleProductComponent::current_country_allows_channel_(uint8_t channel) {
+  std::vector<uint8_t> channels;
+  if (!read_current_legal_channels_(&channels)) {
+    return false;
+  }
+  return std::find(channels.begin(), channels.end(), channel) !=
+         channels.end();
+}
+
 bool SimpleProductComponent::set_radio_channel(uint8_t channel) {
   if (!valid_radio_channel(channel)) {
     last_channel_observed_ = 0;
@@ -1661,11 +1832,6 @@ bool SimpleProductComponent::set_radio_channel(uint8_t channel) {
     return false;
   }
 
-  // While STA is associated, ESP-NOW must share the channel already owned by
-  // Wi-Fi. Treat an idempotent request for that channel as success without
-  // calling esp_wifi_set_channel(); reject any attempt to move an associated
-  // STA to a different channel. N3-W may call the official channel setter only
-  // after claim_relay_radio_() has stopped ESPHome's reconnect state machine.
   if (radio_ownership_ == RadioOwnership::DIRECT_PROBE &&
       !wifi_connected()) {
     last_channel_observed_ = 0;
@@ -1674,11 +1840,6 @@ bool SimpleProductComponent::set_radio_channel(uint8_t channel) {
     return false;
   }
 
-  // A Direct publish can fail while the STA is still associated (for example,
-  // when only the broker path is unavailable). Once the runtime has entered
-  // Discovery, do not let that association retain channel ownership: stop the
-  // reconnect state machine and hand the radio to standalone ESP-NOW before
-  // the first scan/channel operation.
   if (radio_ownership_ == RadioOwnership::DIRECT_WIFI &&
       runtime_.path_state() != LocalPathState::DIRECT &&
       !claim_relay_radio_()) {
@@ -1713,6 +1874,17 @@ bool SimpleProductComponent::set_radio_channel(uint8_t channel) {
     return false;
   }
 
+  if (!current_country_allows_channel_(channel)) {
+    last_channel_observed_ = 0;
+    last_channel_error_raw_ = -4;
+    diagnostics_.note_channel_result(channel, false, 0, -4, now_ms());
+    ESP_LOGW(
+        TAG,
+        "N3-W rejected channel outside current regulatory domain channel=%u",
+        static_cast<unsigned>(channel));
+    return false;
+  }
+
   const DriverError set_result = radio_.set_channel(channel);
   const bool success =
       set_result == DriverError::NONE &&
@@ -1725,6 +1897,14 @@ bool SimpleProductComponent::set_radio_channel(uint8_t channel) {
       radio_.last_channel_observed(),
       radio_.last_channel_error_raw(),
       now_ms());
+  if (success && runtime_.path_state() == LocalPathState::DISCOVERY) {
+    ESP_LOGI(
+        TAG,
+        "N3-W Discovery channel=%u stage=%u legal_count=%u",
+        static_cast<unsigned>(channel),
+        static_cast<unsigned>(runtime_.discovery_scan_stage()),
+        static_cast<unsigned>(runtime_.legal_channel_count()));
+  }
   return success;
 }
 

@@ -1,3 +1,4 @@
+#ifndef GH_N3W_PRODUCTION_DEHARNESS
 #include "n3w_lab_diagnostics.h"
 
 #include "esphome/core/log.h"
@@ -538,3 +539,4 @@ void N3wLabDiagnostics::on_compact_forward_submit(bool success, uint64_t now_ms)
 }
 
 }  // namespace esphome::greenhouse_n3w_core
+#endif

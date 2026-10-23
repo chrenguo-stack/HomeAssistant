@@ -8,6 +8,7 @@
 #include "n3w_esp32_pairing_nvs.h"
 #include "n3w_esp32_runtime_nvs.h"
 #include "n3w_esp32_simple_nvs.h"
+#include "n3w_manager_discovery.h"
 #include "n3w_radio.h"
 #include "n3w_simple_crypto.h"
 
@@ -25,16 +26,6 @@ enum class SimplePairingClientError : uint8_t {
   TRANSACTION_RENEWED,
   ACK_PENDING,
   ALREADY_PROVISIONED,
-};
-
-struct SimpleManagerCandidateV2 {
-  std::string manager_id;
-  std::string system_id;
-  std::string host;
-  uint16_t port{0};
-  std::string pairing_path;
-
-  bool valid() const;
 };
 
 class SimplePairingClientNetwork {
@@ -77,8 +68,13 @@ class SimplePairingClient {
   SimplePairingClientError run_once(uint64_t now_ms);
   SimplePairingClientError resume_pending_ack();
 
+  void set_firmware_version(const std::string &value) {
+    if (!value.empty() && value.size() <= 64) firmware_version_ = value;
+  }
+
   bool provisioned() const { return provisioned_; }
   bool setup_secret_ready() const { return setup_secret_ready_; }
+  bool pairing_handoff_ready() const { return pairing_handoff_ready_; }
   const std::string &hardware_id() const { return hardware_id_; }
   const std::string &pairing_id() const { return pairing_id_; }
   std::string setup_secret_base64url() const;
@@ -111,8 +107,10 @@ class SimplePairingClient {
   SetupSecret setup_secret_{};
   std::string hardware_id_{};
   std::string pairing_id_{};
+  std::string firmware_version_{"phase4-simple"};
   bool initialized_{false};
   bool setup_secret_ready_{false};
+  bool pairing_handoff_ready_{false};
   bool provisioned_{false};
 };
 

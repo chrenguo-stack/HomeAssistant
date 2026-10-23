@@ -1,3 +1,4 @@
+#ifndef GH_N3W_PRODUCTION_DEHARNESS
 #include "n3w_phase4_physical_harness.h"
 
 namespace esphome::greenhouse_n3w_core {
@@ -125,3 +126,4 @@ void Phase4PhysicalHarness::on_espnow_send_result(
 }
 
 }  // namespace esphome::greenhouse_n3w_core
+#endif
