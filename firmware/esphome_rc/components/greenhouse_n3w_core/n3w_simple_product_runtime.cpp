@@ -290,6 +290,7 @@ SimpleProductError SimpleProductRuntime::note_direct_result(bool success) {
 
 SimpleProductError SimpleProductRuntime::note_direct_recovery_probe(bool success) {
   if (!started_) return SimpleProductError::NOT_READY;
+  if (port_ != nullptr) port_->on_direct_recovery_probe_tick(success);
 
   // Direct is committed only after the concrete radio has already recovered.
   // If radio recovery fails, keep the logical path in Relay/Discovery and
@@ -312,19 +313,26 @@ DirectRecoveryCommitResult SimpleProductRuntime::commit_direct_recovery_before(
   DirectRecoveryCommitResult result;
   result.completed_at_ms = clock_ != nullptr ? clock_->now_ms() : 0;
 
+  const auto finish = [&](bool committed) {
+    if (port_ != nullptr) port_->on_direct_recovery_commit_result(committed);
+  };
+
   if (!started_ || clock_ == nullptr || port_ == nullptr) {
     result.error = SimpleProductError::NOT_READY;
+    finish(result.committed);
     return result;
   }
 
   if (!path_.direct_recovery_would_commit_on_success()) {
     result.error = SimpleProductError::STATE_REJECTED;
+    finish(result.committed);
     return result;
   }
 
   if (result.completed_at_ms >= absolute_deadline_ms) {
     (void) path_.note_direct_recovery_probe(false);
     result.error = SimpleProductError::STATE_REJECTED;
+    finish(result.committed);
     return result;
   }
 
@@ -332,6 +340,7 @@ DirectRecoveryCommitResult SimpleProductRuntime::commit_direct_recovery_before(
     (void) path_.note_direct_recovery_probe(false);
     result.completed_at_ms = clock_->now_ms();
     result.error = SimpleProductError::RADIO_FAILED;
+    finish(result.committed);
     return result;
   }
 
@@ -339,6 +348,7 @@ DirectRecoveryCommitResult SimpleProductRuntime::commit_direct_recovery_before(
   if (result.completed_at_ms >= absolute_deadline_ms) {
     (void) path_.note_direct_recovery_probe(false);
     result.error = SimpleProductError::STATE_REJECTED;
+    finish(result.committed);
     return result;
   }
 
@@ -347,6 +357,7 @@ DirectRecoveryCommitResult SimpleProductRuntime::commit_direct_recovery_before(
       path_.state() != LocalPathState::DIRECT) {
     (void) path_.note_direct_recovery_probe(false);
     result.error = SimpleProductError::STATE_REJECTED;
+    finish(result.committed);
     return result;
   }
 
@@ -364,6 +375,7 @@ DirectRecoveryCommitResult SimpleProductRuntime::commit_direct_recovery_before(
   }
   next_advertisement_ms_ = result.completed_at_ms;
   result.committed = true;
+  finish(result.committed);
   return result;
 }
 

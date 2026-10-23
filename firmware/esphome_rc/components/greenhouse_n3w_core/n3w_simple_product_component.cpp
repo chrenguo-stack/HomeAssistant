@@ -211,6 +211,7 @@ void SimpleProductComponent::loop() {
   diagnostics_.emit_summary(now_ms());
   (void) flush_telemetry_queue_(TelemetryPathAccounting::TRANSPORT_ONLY);
   advance_recovery_();
+  advance_direct_mqtt_broker_relocation_();
 }
 
 TelemetrySubmitDisposition SimpleProductComponent::submit_telemetry_json(
