@@ -1,3 +1,45 @@
+## 2026-10-24 — Board D exact-R4 post-flash LCD reproduction NOT REPRODUCED
+
+~~~text
+TASK=N3W_BOARD_D_R4_POSTFLASH_RESET_LCD_REPRODUCTION_ACCEPTANCE_20261024_01
+RESULT=CLOSED_PASS_NOT_REPRODUCED
+
+EXACT_R4_WRITE=PASS
+BOARD_D_IDENTITY_MATCH=true
+APP0_FULL_SLOT=PASS
+APP1_FULL_SLOT=PASS
+OLD_APPLICATION_CODE_REMAINS=false
+PHY_INIT_UNCHANGED=true
+NVS_UNCHANGED=true
+
+PREWRITE_NVS_SHA256=8384704e3fe6c6fe1a02ecea14faea0b609d8ca0508dba165aee31fca2672bb1
+POSTWRITE_NVS_SHA256=8384704e3fe6c6fe1a02ecea14faea0b609d8ca0508dba165aee31fca2672bb1
+
+USB_POWER_REMOVED=false
+POSTFLASH_EN_RESET_COUNT=1
+OBSERVATION_SECONDS=35
+USB_MISSING_SAMPLES=1
+USB_PRESENCE_TRANSITIONS=2
+
+LCD_FIRST_READABLE_SECONDS_APPROX=1
+LCD_5_PAGE_CYCLE_OBSERVED=true
+LCD_FREEZE_OR_CORRUPTION_OBSERVED=false
+
+KF130_POSTFLASH_EXACT_R4_REPRODUCED=false
+KF130=OPEN
+SOFTWARE_ESP_RESTART_PATH=UNRESOLVED
+ROOT_CAUSE=TBD
+~~~
+
+The controlled exact-R4 reproduction did not reproduce the historical LCD freeze. After a fully verified exact-R4 dual-slot write, USB power remained applied and exactly one EN/RESET was performed. The LCD was readable in about one second, completed the full five-page cycle, and showed no freeze or corruption.
+
+One USB locator sample was absent during the 35-second observation and the locator returned, producing two presence transitions. Because the LCD/application-visible behavior remained normal, this is retained as a USB enumeration/transient observation rather than classified as a product failure.
+
+KF-130 remains OPEN because the original freeze remains unexplained and software `esp_restart()` is still unvalidated.
+
+Authority:
+`docs/development/N3W_BOARD_D_R4_POSTFLASH_RESET_LCD_REPRODUCTION_ACCEPTANCE_20261024.md`.
+
 ## 2026-10-23 — Board D R4 warm/cold LCD matrix PASS; post-flash/software-restart path remains OPEN
 
 ~~~text
