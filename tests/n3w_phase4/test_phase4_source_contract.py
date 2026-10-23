@@ -171,7 +171,7 @@ def test_phase4_lab_target_exposes_private_pairing_pop_and_synthetic_telemetry()
 
 def test_source_harness_binds_real_adapters_without_executing_them() -> None:
     header = text(CORE / "n3w_phase4_physical_harness.h")
-    source = text(CORE / "n3w_phase4_physical_harness.cpp")
+    source = text(CORE / "n3w_phase4_physical_harness.inc")
     component = text(CORE / "greenhouse_n3w_core.h")
 
     for symbol in (

@@ -216,7 +216,7 @@ def test_relay_restore_failure_is_rate_limited_and_transactional() -> None:
 
 def test_channel_commit_requires_readback_and_unknown_is_not_faked() -> None:
     driver = text("n3w_espnow_driver.cpp")
-    diagnostics = text("n3w_lab_diagnostics.cpp")
+    diagnostics = text("n3w_lab_diagnostics.inc")
 
     set_start = driver.index("DriverError EspNowDriver::set_channel(uint8_t channel)")
     set_end = driver.index("DriverError EspNowDriver::prepare_broadcast_peer", set_start)
@@ -586,7 +586,7 @@ def test_relay_failback_uses_two_tier_presence_and_full_verify_scheduling() -> N
 
 def test_relay_failback_diagnostics_are_ram_only_and_bounded_in_lab_telemetry() -> None:
     diag_h = text("n3w_lab_diagnostics.h")
-    diag_cpp = text("n3w_lab_diagnostics.cpp")
+    diag_cpp = text("n3w_lab_diagnostics.inc")
     component = text("n3w_simple_product_component.cpp")
     config = (
         ROOT

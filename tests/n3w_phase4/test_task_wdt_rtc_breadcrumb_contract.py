@@ -16,7 +16,7 @@ def text(path: Path) -> str:
 
 def test_rtc_breadcrumb_is_restart_retained_and_flash_free() -> None:
     header = text(CORE / "n3w_rtc_breadcrumb.h")
-    source = text(CORE / "n3w_rtc_breadcrumb.cpp")
+    source = text(CORE / "n3w_rtc_breadcrumb.inc")
 
     assert "RTC_NOINIT_ATTR" in source
     assert "0x4E335742U" in source

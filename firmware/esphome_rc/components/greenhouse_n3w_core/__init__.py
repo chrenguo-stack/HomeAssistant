@@ -61,12 +61,19 @@ async def to_code(config: dict) -> None:
     include_builtin_idf_component("esp_http_client")
     include_builtin_idf_component("mbedtls")
     cg.add_build_flag('-DMBEDTLS_CONFIG_FILE=\\"mbedtls/esp_config.h\\"')
-    if config[CONF_PRODUCT_RUNTIME] and not config[CONF_PHASE4_LAB_DIAGNOSTICS]:
+    production_deharness = (
+        config[CONF_PRODUCT_RUNTIME]
+        and not config[CONF_PHASE4_SOURCE_HARNESS]
+        and not config[CONF_PHASE4_PRODUCT_RUNTIME]
+        and not config[CONF_PHASE4_LAB_DIAGNOSTICS]
+    )
+    if production_deharness:
         cg.add_build_flag("-DGH_N3W_PRODUCTION_DEHARNESS=1")
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     cg.add(var.set_product_runtime_enabled(config[CONF_PRODUCT_RUNTIME]))
     cg.add(var.set_pairing_firmware_version(config[CONF_FIRMWARE_VERSION]))
-    cg.add(var.set_phase4_source_harness_enabled(config[CONF_PHASE4_SOURCE_HARNESS]))
-    cg.add(var.set_phase4_product_runtime_enabled(config[CONF_PHASE4_PRODUCT_RUNTIME]))
-    cg.add(var.set_phase4_lab_diagnostics_enabled(config[CONF_PHASE4_LAB_DIAGNOSTICS]))
+    if not production_deharness:
+        cg.add(var.set_phase4_source_harness_enabled(config[CONF_PHASE4_SOURCE_HARNESS]))
+        cg.add(var.set_phase4_product_runtime_enabled(config[CONF_PHASE4_PRODUCT_RUNTIME]))
+        cg.add(var.set_phase4_lab_diagnostics_enabled(config[CONF_PHASE4_LAB_DIAGNOSTICS]))

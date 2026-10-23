@@ -13,7 +13,12 @@ def text(path: Path) -> str:
 
 def test_product_runtime_enables_compile_time_deharness() -> None:
     init = text(CORE / "__init__.py")
-    assert "config[CONF_PRODUCT_RUNTIME] and not config[CONF_PHASE4_LAB_DIAGNOSTICS]" in init
+    assert "production_deharness = (" in init
+    assert "config[CONF_PRODUCT_RUNTIME]" in init
+    assert "and not config[CONF_PHASE4_SOURCE_HARNESS]" in init
+    assert "and not config[CONF_PHASE4_PRODUCT_RUNTIME]" in init
+    assert "and not config[CONF_PHASE4_LAB_DIAGNOSTICS]" in init
+    assert "if not production_deharness:" in init
     assert 'cg.add_build_flag("-DGH_N3W_PRODUCTION_DEHARNESS=1")' in init
 
     target = text(TARGET)
@@ -36,11 +41,28 @@ def test_production_component_uses_noop_diagnostics_stub() -> None:
     assert "N3W_DIAG_DISCOVERY" not in stub
 
 
-def test_lab_translation_unit_is_excluded_only_for_production() -> None:
-    diagnostics = text(CORE / "n3w_lab_diagnostics.cpp")
-    assert diagnostics.startswith("#ifndef GH_N3W_PRODUCTION_DEHARNESS\n")
-    assert diagnostics.rstrip().endswith("#endif")
+def test_lab_translation_units_are_not_auto_compiled_in_production() -> None:
+    assert not (CORE / "n3w_lab_diagnostics.cpp").exists()
+    assert not (CORE / "n3w_phase4_physical_harness.cpp").exists()
+    assert not (CORE / "n3w_rtc_breadcrumb.cpp").exists()
+
+    diagnostics = text(CORE / "n3w_lab_diagnostics.inc")
+    phase4 = text(CORE / "n3w_phase4_physical_harness.inc")
+    rtc = text(CORE / "n3w_rtc_breadcrumb.inc")
+    diag_support = text(CORE / "n3w_diag_support.cpp")
+    phase4_support = text(CORE / "n3w_phase4_support.cpp")
+    core_header = text(CORE / "greenhouse_n3w_core.h")
+
     assert 'static const char *const TAG = "gh_n3w_diag";' in diagnostics
+    assert "Phase4PhysicalHarness::prepare_source_only" in phase4
+    assert "RTC_NOINIT_ATTR" in rtc
+    assert '#include "n3w_lab_diagnostics.inc"' in diag_support
+    assert '#include "n3w_phase4_physical_harness.inc"' in phase4_support
+    assert '#include "n3w_rtc_breadcrumb.inc"' in phase4_support
+    assert "#ifndef GH_N3W_PRODUCTION_DEHARNESS" in diag_support
+    assert "#ifndef GH_N3W_PRODUCTION_DEHARNESS" in phase4_support
+    assert '#include "n3w_phase4_physical_harness.h"' in core_header
+    assert '#include "n3w_rtc_breadcrumb.h"' in core_header
 
 
 def test_deharness_ci_fails_explicitly_when_forbidden_marker_is_found() -> None:
