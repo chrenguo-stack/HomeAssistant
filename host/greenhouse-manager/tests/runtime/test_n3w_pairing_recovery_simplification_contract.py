@@ -437,6 +437,7 @@ def test_pairing_handoff_ready_requires_accepted_hello() -> None:
     hello_end = client.index("SimplePairingClient::pair_with_", hello_start)
     hello = client[hello_start:hello_end]
 
+    reset_ready = hello.index("pairing_handoff_ready_ = false;")
     wait_branch = hello.index("action == HelloNextAction::WAIT")
     wait_return = hello.index(
         "return SimplePairingClientError::NOT_READY;",
@@ -445,7 +446,7 @@ def test_pairing_handoff_ready_requires_accepted_hello() -> None:
     renew_branch = hello.index("action == HelloNextAction::RENEW")
     ready = hello.index("pairing_handoff_ready_ = true;")
 
-    assert wait_branch < wait_return < renew_branch < ready
+    assert reset_ready < wait_branch < wait_return < renew_branch < ready
     assert "pairing_handoff_ready_ = true;" not in hello[
         wait_branch:renew_branch
     ]
