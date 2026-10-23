@@ -77,6 +77,10 @@ class SimplePairingClient {
   SimplePairingClientError run_once(uint64_t now_ms);
   SimplePairingClientError resume_pending_ack();
 
+  void set_firmware_version(const std::string &value) {
+    if (!value.empty() && value.size() <= 64) firmware_version_ = value;
+  }
+
   bool provisioned() const { return provisioned_; }
   bool setup_secret_ready() const { return setup_secret_ready_; }
   bool pairing_handoff_ready() const { return pairing_handoff_ready_; }
@@ -112,6 +116,7 @@ class SimplePairingClient {
   SetupSecret setup_secret_{};
   std::string hardware_id_{};
   std::string pairing_id_{};
+  std::string firmware_version_{"phase4-simple"};
   bool initialized_{false};
   bool setup_secret_ready_{false};
   bool pairing_handoff_ready_{false};
