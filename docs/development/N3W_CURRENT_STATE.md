@@ -1,3 +1,54 @@
+## 2026-10-23 — Board_D current-main product source convergence R3 CLOSED_PASS
+
+~~~text
+TASK=N3W_BOARD_D_POST_T1_PRODUCTION_CURRENT_MAIN_PRODUCT_SOURCE_CONVERGENCE_SOURCE_REPAIR_R3_20261023_01
+
+BASE_MAIN=5ff09efb650cc3818d2c6a58d4fb4c489a21d784
+R3_EXACT_PRODUCT_SOURCE_HEAD=9a2024212566d831d94b167833d5485307119d78
+MAIN_DRIFT=false
+
+AUTO_SAFE_FALLBACK_IN_CURRENT_CORE=true
+SECOND_RECOVERY_STATE_MACHINE=false
+RAM_ONLY_BROKER_RETARGET=true
+BROKER_NVS_REWRITE=false
+TLS_IDENTITY_PRESERVED=true
+BOUNDED_ROLLBACK=true
+BROKER_ROLLBACK_FAILURE_SAFE_REBOOT=true
+
+EXACT_HEAD_CI=27_PASS_3_KNOWN_LEGACY_BOUNDARY_FALSE_FAIL
+RELEVANT_CI=PASS
+OPEN_NEW_FALSE_PASS_PATH_COUNT=0
+R3_SOURCE_BLOCKER_COUNT=0
+R3_CLOSURE=CLOSED_PASS
+
+PR656_MERGE_READY=false
+R4_ENTERED=false
+T1_ACCESS=false
+BOARD_ACCESS=false
+FLASH_MUTATION=false
+NVS_MUTATION=false
+LIVE_RUNTIME_MUTATION=false
+MERGE=false
+
+NEXT_ROUTE=R4_IF_R3_CLOSED_PASS_AND_SEPARATELY_ENTERED
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+R3 closes Broker Auto Safe Fallback convergence in the active
+`greenhouse_n3w_core`. Runtime Broker relocation is RAM-only and preserves the
+durable Broker TLS identity and MQTT credentials. Candidate failure rolls back to
+the durable Broker; the final independent review additionally closed a
+CI-uncovered rollback-failure false-PASS edge by making failed restoration request
+the existing safe reboot, so startup reloads the durable Broker from NVS.
+
+Exact-head relevant CI is PASS. The only three repository-wide red workflows are
+the already-known Stage2D2/3/4 legacy boundary false-fails and are outside this
+gate. R1/R2 behavior shows no observed regression. R3 performed no T1/board/live
+mutation and did not merge PR #656.
+
+Authority:
+`docs/development/N3W_BOARD_D_POST_T1_PRODUCTION_CURRENT_MAIN_PRODUCT_SOURCE_CONVERGENCE_R3_CLOSURE_20261023.md`.
+
 ## 2026-10-22 — T1 Production V2 standalone executable proposal archived/deferred
 
 ~~~text

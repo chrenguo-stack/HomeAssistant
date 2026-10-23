@@ -1,3 +1,17 @@
+## 2026-10-23 — Board_D current-main product source convergence R3 CLOSED_PASS
+
+- R3 exact product source authority: `9a2024212566d831d94b167833d5485307119d78`; base main remains `5ff09efb650cc3818d2c6a58d4fb4c489a21d784` with no drift.
+- Broker Auto Safe Fallback is now integrated into active `greenhouse_n3w_core`; retired product-core/runtime directories were not restored.
+- Broker candidate retarget is RAM-only; durable Broker NVS is unchanged and TLS server name, CA, MQTT credentials and client ID are preserved.
+- Candidate failure performs bounded rollback to the durable Broker. Final independent review found one rollback-failure false-PASS edge and repaired it fail-closed using the existing safe reboot path.
+- Existing Direct/Relay recovery remains the single product recovery state machine; R2 Multi-Relay and full-channel discovery regressions are PASS.
+- Exact-head CI: 30 total, 27 PASS, 3 known Stage2D2/3/4 legacy boundary false-fails, 0 pending; all R3-relevant workflows PASS.
+- Open R3 source blocker count: 0. Open new false-PASS path count: 0. R3 status: `CLOSED_PASS`.
+- PR #656 is still not merge-ready because R4 integrated source/exact-production-artifact closure has not been separately entered or completed.
+- No T1/Board access, flash, NVS mutation, RF execution, live runtime mutation, or merge occurred.
+- Authority: `docs/development/N3W_BOARD_D_POST_T1_PRODUCTION_CURRENT_MAIN_PRODUCT_SOURCE_CONVERGENCE_R3_CLOSURE_20261023.md`.
+- Next route: R4 only after a separate gate entry; no automatic execution.
+
 ## 2026-10-22 — T1 Production V2 standalone executable proposal deferred
 
 - T1 Production V2 remains `CLOSED_PASS`; executable packaging is optional future engineering, not an open blocker.
