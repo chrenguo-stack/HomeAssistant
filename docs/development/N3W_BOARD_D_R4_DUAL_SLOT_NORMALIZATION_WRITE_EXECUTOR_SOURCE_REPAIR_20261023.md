@@ -18,7 +18,7 @@ MERGE=false
 
 SOURCE_REPAIR_IMPLEMENTED=true
 FOCUSED_TEST_COUNT=20
-CI_STATE=PENDING
+CI_STATE=12_OF_12_SUCCESS
 ```
 
 This gate repairs PR #660 against the dual-slot padded normalization design. It
@@ -263,5 +263,45 @@ AUTO_EXECUTE_LIVE_WRITE=false
 MERGE=false
 ```
 
-Exact-head CI and independent source review are still required before this source
-repair can close.
+Exact-head implementation evidence:
+
+```text
+IMPLEMENTATION_HEAD=45859f78c24daaa822658479a8ad95b051867dde
+IMPLEMENTATION_PARENT_DESIGN_HEAD=d72fb5cadbc03ab6eb327794bf7d72290842a3d0
+
+DEDICATED_CI_RUN=39924615411
+DEDICATED_CI_RESULT=PASS
+PY_COMPILE=PASS
+FOCUSED_TESTS=20_OF_20_PASS
+
+PUBLIC_REPOSITORY_SAFETY_RUN=39924615524
+PUBLIC_REPOSITORY_SAFETY=PASS
+
+PR_WORKFLOW_TOTAL=12
+PR_WORKFLOW_SUCCESS=12
+PR_WORKFLOW_FAILURE=0
+
+EXACT_SOURCE_REVIEW=PASS
+NEW_SOURCE_BLOCKER_COUNT=0
+B1_STALE_APPLICATION_FALSE_PASS=CLOSED
+```
+
+Independent source review verified that the superseded app0-only route and old
+confirmation label are absent, complete app0/app1 slot readbacks are required,
+protected ranges remain outside the write command, and the postwrite Board D ROM
+identity is freshly checked.
+
+```text
+SOURCE_REPAIR_RESULT=CLOSED_PASS
+SOURCE_REPAIR_REQUIRED=false
+BOARD_ACCESS=false
+FLASH_WRITE=false
+NVS_WRITE=false
+WRITE_AUTHORIZATION_GRANTED=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_BOARD_D_R4_DUAL_SLOT_NORMALIZATION_WRITE_EXECUTOR_SOURCE_CLOSURE_REVIEW_20261023_01
+```
+
+The next gate is read-only source closure review. No merge or live Board D write
+is authorized by this document.
