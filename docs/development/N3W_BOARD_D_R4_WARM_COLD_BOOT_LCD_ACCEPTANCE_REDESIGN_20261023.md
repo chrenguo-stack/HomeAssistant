@@ -149,3 +149,66 @@ DIRECT_RELAY_RF_ACCEPTANCE=false
 PHYSICAL_BOARD_ACCESS_REQUIRES_NEW_AUTHORIZATION=true
 AUTO_EXECUTE=false
 ~~~
+
+
+## 2026-10-23 execution result
+
+~~~text
+EXECUTION_GATE=N3W_BOARD_D_R4_WARM_COLD_BOOT_LCD_ACCEPTANCE_20261023_01
+AUTHORIZATION_CONSUMED=true
+AUTHORIZATION_REPLAY_PERMITTED=false
+
+COLD_BOOT_1=PASS
+WARM_EN_RESET_1=PASS
+COLD_BOOT_2=PASS
+WARM_EN_RESET_2=PASS
+COLD_BOOT_3=PASS
+WARM_EN_RESET_3=PASS
+
+COLD_BOOT_PASS_COUNT=3
+PHYSICAL_EN_WARM_RESET_PASS_COUNT=3
+LCD_FREEZE_COUNT=0
+LCD_CORRUPTION_COUNT=0
+LCD_FULL_5_PAGE_CYCLE_EACH_RUN=true
+
+SOFTWARE_RESTART_EXECUTED=false
+SOFTWARE_RESTART_RESULT=NOT_EXECUTED
+BOARD_D_NETWORK_STATE=UNPROVISIONED
+LCD_PAGE5_STATE=配置节点网络
+ESPHOME_MDNS_DISCOVERY_COUNT=0
+NATIVE_API_EXACT_TARGET_MATCH_COUNT=0
+
+FLASH_WRITE=false
+DIRECT_NVS_WRITE=false
+PAIRING=false
+T1_RUNTIME_MUTATION=false
+RF_EXECUTION=false
+
+SCOPED_WARM_COLD_MATRIX=CLOSED_PASS
+KF130=OPEN
+BOARD_D_FIRST_BOOT_RUNTIME_ACCEPTANCE=REOPENED
+~~~
+
+### Interpretation
+
+The focused warm/cold matrix passed completely. Three true power-off cold boots and three physical EN warm resets all restored the LCD in about one second and completed the five-page cycle with no freeze or corruption. USB presence remained stable in every observation.
+
+Therefore, the simple failure model “ESP32 warm reset while LCD stays powered always leaves the ST7920 stuck” is not supported by this run.
+
+The original post-flash freeze remains valid operator evidence and is not erased by this matrix. It occurred on a different lifecycle boundary and still requires explanation.
+
+### Software restart disposition
+
+A software-restart validation was prepared through ESPHome Native API but deliberately not executed. The host ESPHome runtime contains `aioesphomeapi`, but Board D is unprovisioned: LCD page 5 displays “配置节点网络”, no `_esphomelib._tcp` mDNS service was discovered, and no exact Native API target could be bound.
+
+Because pairing/network configuration is outside this gate, the test did not modify Board D merely to obtain a restart transport. Software restart is therefore `NOT_EXECUTED`, not PASS and not FAIL.
+
+### Next boundary
+
+KF-130 remains OPEN. A later gate must independently address at least one of:
+
+1. exact post-flash reset-path reproduction/acceptance under a fresh write authorization;
+2. software `esp_restart()` after a legitimate provisioning/network stage;
+3. actual PCB LCD `/RST` net and reset timing verification.
+
+No automatic reflash or additional board action is authorized by this result.
