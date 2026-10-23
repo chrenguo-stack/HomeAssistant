@@ -1,3 +1,11 @@
+### 2026-10-23 KF-130 — Board D LCD freezes after write/warm reset but recovers after cold power cycle
+
+| ID | 范围 | 问题 | 根因与修复保护 | 状态 |
+| --- | --- | --- | --- | --- |
+| KF-130 | Board D R4 / ST7920 LCD boot and reset lifecycle | Operator observed that after the exact R4 firmware-write/reset path the LCD remained frozen, while unplugging/replugging USB for a true cold power cycle restored normal display; prior soft-reboot failure has also been observed. The earlier 90.4 s acceptance watched status LED and USB but did not make LCD progression a required oracle, so its product-level CLOSED_PASS was too narrow | Root cause is TBD. Strong current hypothesis: warm MCU reset does not place the external LCD controller into the same reset state as a power cycle, or the software initialization sequence is not warm-reset-safe. SMR12864-15A exposes active-low /RST and requires reset on power-on; current frozen Board-D GPIO plan and exact R4 display config enumerate only CLK/MOSI/CS and no MCU-controlled LCD reset. First guard is a no-reflash warm/cold comparison with visible five-page LCD progression as a mandatory oracle. Reproduced warm-only freeze is a product FAIL and routes to source/hardware repair; repeated reflashing is not an acceptance workaround | OPEN |
+
+Authority: `docs/development/N3W_BOARD_D_R4_WARM_COLD_BOOT_LCD_ACCEPTANCE_REDESIGN_20261023.md`.
+
 ### 2026-10-23 KF-129 — Board D R4 postwrite verifier loader/readback evidence discontinuity
 
 | ID | 范围 | 问题 | 根因与修复保护 | 状态 |
