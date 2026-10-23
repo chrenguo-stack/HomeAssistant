@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -39,9 +40,25 @@ TelemetryAdmissionPlan plan_business_telemetry_admission(
     LocalPathState path_state,
     bool direct_mqtt_available);
 
+bool gateway_selection_local_fault_requires_restore(
+    SimpleProductError result,
+    bool selection_busy_before,
+    bool selection_busy_after);
+
+bool discovery_restore_requires_restart(
+    LocalPathState path_state,
+    bool discovery_restart_required,
+    bool gateway_selection_local_fault);
+
 enum class SimpleProductStartMode : uint8_t {
   DIRECT = 0,
   DISCOVERY,
+};
+
+enum class DiscoveryScanStage : uint8_t {
+  HINT = 0,
+  FAST,
+  FULL,
 };
 
 enum class DiscoveryRejectReason : uint8_t {
@@ -52,6 +69,10 @@ enum class DiscoveryRejectReason : uint8_t {
   TRUST_GENERATION_MISMATCH = 4,
   SELF_RELAY = 5,
   CHANNEL_MISMATCH = 6,
+  IDENTITY_CONFLICT = 7,
+  RSSI_INVALID = 8,
+  SELECTION_FROZEN = 9,
+  CANDIDATE_CAPACITY = 10,
 };
 
 struct DirectRecoveryCommitResult {
@@ -64,8 +85,16 @@ struct SimpleProductPolicy {
   LocalPathPolicy path{};
   std::vector<uint8_t> allowed_channels{1, 6, 11};
   uint32_t scan_dwell_ms{250};
+  uint32_t fast_search_budget_ms{6500};
+  uint32_t full_scan_dwell_ms{2250};
+  uint32_t full_scan_schedule_margin_ms{2000};
+  uint32_t full_handshake_max_ms{26000};
+  uint32_t full_scan_total_max_ms{60000};
   uint32_t challenge_timeout_ms{1500};
   uint32_t relay_advertisement_interval_ms{2000};
+  uint32_t candidate_window_ms{6500};
+  uint32_t gateway_selection_transaction_max_ms{30000};
+  std::size_t max_gateway_candidates{8};
   std::size_t max_relay_children{8};
 
   bool valid() const;
@@ -87,6 +116,7 @@ class SimpleProductPort {
  public:
   virtual ~SimpleProductPort() = default;
   virtual bool set_radio_channel(uint8_t channel) = 0;
+  virtual bool current_legal_channels(std::vector<uint8_t> *channels) = 0;
   virtual bool broadcast_control(const uint8_t *data, std::size_t size) = 0;
   virtual bool broadcast_control_on_channel(
       uint8_t channel,
@@ -220,6 +250,7 @@ class SimpleProductRuntime {
   // probe temporarily handed the single radio back to ESPHome Wi-Fi.
   SimpleProductError rebind_radio_state();
   SimpleProductError reset_to_discovery_after_radio_fault();
+  SimpleProductError restart_discovery_after_radio_fault();
   bool update_direct_channel_hint(uint8_t channel);
   SimpleProductError send_telemetry(
       const std::string &telemetry_json,
@@ -232,7 +263,8 @@ class SimpleProductRuntime {
       const MacAddress &source,
       const uint8_t *data,
       std::size_t size,
-      uint8_t channel);
+      uint8_t channel,
+      int16_t rssi_dbm);
 
   void set_relay_capable(bool value) { relay_capable_ = value; }
   void set_diagnostic_sink(SimpleProductDiagnosticSink *sink) {
@@ -246,6 +278,20 @@ class SimpleProductRuntime {
     return active_relay_;
   }
   bool challenge_pending() const { return pending_challenge_.has_value(); }
+  bool gateway_selection_busy() const {
+    return full_scan_in_progress_ ||
+           gateway_selection_epoch_.has_value() ||
+           pending_challenge_.has_value();
+  }
+  bool discovery_radio_ready() const { return discovery_radio_ready_; }
+  bool discovery_restart_required() const {
+    return discovery_restart_required_;
+  }
+  DiscoveryScanStage discovery_scan_stage() const {
+    return discovery_scan_stage_;
+  }
+  uint8_t cached_gateway_channel() const { return cached_gateway_channel_; }
+  std::size_t legal_channel_count() const { return legal_channels_.size(); }
   std::size_t relay_child_count() const { return relay_children_.size(); }
   const ProvisionedPeerStateV2 &provisioned_state() const { return state_; }
 
@@ -260,13 +306,59 @@ class SimpleProductRuntime {
     uint64_t expires_at_ms{0};
   };
 
+  struct RelayCandidate {
+    std::string relay_node_id;
+    MacAddress mac{};
+    uint8_t channel{0};
+    int64_t rssi_sum{0};
+    uint32_t rssi_sample_count{0};
+    uint64_t first_seen_ms{0};
+    uint64_t last_seen_ms{0};
+    bool attempted{false};
+  };
+
+  struct GatewaySelectionEpoch {
+    std::vector<RelayCandidate> candidates{};
+    uint64_t deadline_ms{0};
+    uint64_t transaction_deadline_ms{0};
+    bool frozen{false};
+    bool full_scan_collection{false};
+  };
+
   SimpleProductError begin_discovery_();
+  SimpleProductError refresh_legal_channels_();
+  SimpleProductError start_fast_scan_(uint64_t now_ms, bool preserve_selection);
+  SimpleProductError start_full_scan_(uint64_t now_ms, bool preserve_selection);
+  SimpleProductError finish_full_scan_(uint64_t now_ms);
+  SimpleProductError set_scan_channel_(
+      uint8_t channel,
+      uint32_t dwell_ms,
+      uint64_t now_ms);
+  bool legal_channel_(uint8_t channel) const;
+  bool fast_channel_(uint8_t channel) const;
   SimpleProductError leave_relay_for_discovery_();
   SimpleProductError restore_direct_();
   SimpleProductError handle_discovery_(
       const MacAddress &source,
       const SimpleRelayDiscovery &packet,
-      uint8_t channel);
+      uint8_t channel,
+      int16_t rssi_dbm);
+  void clear_gateway_selection_();
+  SimpleProductError add_or_update_gateway_candidate_(
+      const MacAddress &source,
+      const SimpleRelayDiscovery &packet,
+      uint8_t channel,
+      int16_t rssi_dbm,
+      uint64_t now_ms);
+  SimpleProductError attempt_next_gateway_candidate_();
+  SimpleProductError start_challenge_for_candidate_(
+      const RelayCandidate &candidate);
+  SimpleProductError select_next_gateway_candidate_(
+      std::size_t *candidate_index) const;
+  RelayCandidate *find_gateway_candidate_by_node_(
+      const std::string &relay_node_id);
+  RelayCandidate *find_gateway_candidate_by_mac_(const MacAddress &mac);
+  static bool valid_discovery_rssi_(int16_t rssi_dbm);
   SimpleProductError handle_challenge_(
       const MacAddress &source,
       const SimplePeerChallenge &packet,
@@ -298,11 +390,22 @@ class SimpleProductRuntime {
   PeerEndpointV2 local_endpoint_{};
   HandshakeNonce local_boot_nonce_{};
   uint8_t direct_channel_{0};
+  uint8_t cached_gateway_channel_{0};
+  DiscoveryScanStage discovery_scan_stage_{DiscoveryScanStage::HINT};
+  std::vector<uint8_t> legal_channels_{};
   uint64_t next_scan_switch_ms_{0};
+  uint64_t fast_search_deadline_ms_{0};
+  uint64_t full_scan_started_ms_{0};
+  uint64_t full_scan_hard_deadline_ms_{0};
+  uint64_t full_scan_total_deadline_ms_{0};
   uint64_t next_advertisement_ms_{0};
+  bool full_scan_in_progress_{false};
+  bool discovery_radio_ready_{false};
+  bool discovery_restart_required_{false};
   bool started_{false};
   bool relay_capable_{true};
   std::optional<PendingChallenge> pending_challenge_{};
+  std::optional<GatewaySelectionEpoch> gateway_selection_epoch_{};
   std::optional<SimpleProductRelayPeer> active_relay_{};
   std::vector<SimpleProductRelayPeer> relay_children_{};
   SimpleProductDiagnosticSink *diagnostic_sink_{nullptr};
