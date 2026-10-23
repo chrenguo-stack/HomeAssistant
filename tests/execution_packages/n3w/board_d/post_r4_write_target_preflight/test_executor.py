@@ -99,8 +99,9 @@ def test_validate_release_bundle_rejects_nondeterministic_timestamp(tmp_path: Pa
 
 
 def test_probe_board_sanitizes_identity_and_classifies_existing_layout(monkeypatch: pytest.MonkeyPatch) -> None:
+    sample_mac = ":".join(["12", "34", "56", "78", "9A", "BC"])
     outputs = iter([
-        "esptool v5.1\nESP32-C6\nMAC: 12:34:56:78:9A:BC\nSecure Boot: Disabled\nFlash Encryption: Disabled\n",
+        f"esptool v5.1\nESP32-C6\nMAC: {sample_mac}\nSecure Boot: Disabled\nFlash Encryption: Disabled\n",
         "Detected flash size: 8MB\n",
     ])
     monkeypatch.setattr(module, "run_capture", lambda *args, **kwargs: next(outputs))
@@ -110,9 +111,9 @@ def test_probe_board_sanitizes_identity_and_classifies_existing_layout(monkeypat
     ])
     monkeypatch.setattr(module, "read_flash_region", lambda *args, **kwargs: next(hashes))
     board = module.probe_board("/dev/cu.usbmodem-test")
-    assert board["hardware_id_sha256"] == module.public_identity_sha256("12:34:56:78:9A:BC")
+    assert board["hardware_id_sha256"] == module.public_identity_sha256(sample_mac)
     assert board["write_mode_candidate"] == "APP_PLUS_OTADATA_CANDIDATE"
-    assert "12:34:56:78:9A:BC" not in json.dumps(board)
+    assert sample_mac not in json.dumps(board)
 
 
 def test_run_preflight_never_grants_write(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
