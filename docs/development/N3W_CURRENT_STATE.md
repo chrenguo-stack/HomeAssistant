@@ -1,3 +1,62 @@
+## 2026-10-23 — Board D R4 warm/cold LCD matrix PASS; post-flash/software-restart path remains OPEN
+
+~~~text
+TASK=N3W_BOARD_D_R4_WARM_COLD_BOOT_LCD_ACCEPTANCE_20261023_01
+AUTHORIZATION_GRANTED=true
+AUTHORIZATION_CONSUMED=true
+AUTHORIZATION_REPLAY_PERMITTED=false
+
+COLD_BOOT_PASS_COUNT=3
+COLD_BOOT_TOTAL=3
+PHYSICAL_EN_WARM_RESET_PASS_COUNT=3
+PHYSICAL_EN_WARM_RESET_TOTAL=3
+
+LCD_READABLE_EACH_RUN=true
+LCD_FIRST_READABLE_SECONDS_APPROX=1
+LCD_FULL_5_PAGE_CYCLE_EACH_RUN=true
+LCD_FREEZE_COUNT=0
+LCD_CORRUPTION_COUNT=0
+
+USB_OBSERVATION_SECONDS_PER_RUN_APPROX=35
+USB_MISSING_SAMPLES_TOTAL=0
+USB_PRESENCE_TRANSITIONS_TOTAL=0
+
+SOFTWARE_RESTART_EXECUTED=false
+SOFTWARE_RESTART_RESULT=NOT_EXECUTED
+SOFTWARE_RESTART_BLOCKED_REASON=BOARD_D_UNPROVISIONED_NO_NATIVE_API_NETWORK_PATH
+LCD_PAGE5_STATE=配置节点网络
+ESPHOME_MDNS_DISCOVERY_COUNT=0
+
+FLASH_WRITE=false
+DIRECT_NVS_WRITE=false
+PAIRING_EXECUTED=false
+T1_RUNTIME_MUTATION=false
+RF_EXECUTION=false
+
+KF130=OPEN
+ROOT_CAUSE=TBD
+WARM_RESET_GENERAL_FAILURE_HYPOTHESIS=NOT_REPRODUCED
+POST_FLASH_RESET_PATH=UNRESOLVED
+SOFTWARE_ESP_RESTART_PATH=UNRESOLVED
+
+BOARD_D_FIRST_BOOT_RUNTIME_ACCEPTANCE=REOPENED
+CURRENT_GATE_RESULT=CLOSED_PASS_SCOPED_WARM_COLD_MATRIX
+AUTO_EXECUTE_NEXT_GATE=false
+NEW_AUTHORIZATION_REQUIRED=true
+STOP=true
+~~~
+
+The no-reflash warm/cold comparison completed successfully. Three true cold boots and three physical EN warm resets all restored a readable LCD in about one second, completed the full five-page cycle, and showed no freeze or corruption. USB remained present throughout all six ~35-second observations.
+
+This directly weakens the simple hypothesis that any MCU warm reset necessarily leaves the ST7920 LCD in a bad state. It does not explain the original post-flash LCD freeze, and it does not validate software `esp_restart()`.
+
+A read-only Native API attempt was intentionally stopped before any restart because Board D is unprovisioned: LCD page 5 shows “配置节点网络”, mDNS found no ESPHome service, and no exact Board D Native API target could be bound. Pairing/configuration was out of scope, so software restart is recorded as NOT_EXECUTED rather than approximated with a hardware reset.
+
+KF-130 remains OPEN. The next useful route is a separately authorized exact post-flash reset-path reproduction/acceptance design, or a separately scoped software-restart test after a legitimate network/provisioning stage. Reflash is not authorized by this closure.
+
+Authority:
+`docs/development/N3W_BOARD_D_R4_WARM_COLD_BOOT_LCD_ACCEPTANCE_REDESIGN_20261023.md`.
+
 ## 2026-10-23 — Board D R4 first-boot acceptance reopened by LCD warm-reset anomaly
 
 ~~~text
