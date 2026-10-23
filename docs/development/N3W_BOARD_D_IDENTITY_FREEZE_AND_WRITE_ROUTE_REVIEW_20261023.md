@@ -13,11 +13,18 @@ FLASH_WRITE=false
 NVS_WRITE=false
 PERSISTENT_MUTATION=false
 WRITE_AUTHORIZATION_GRANTED=false
+
+ROUTE_REVIEW_REPAIR_STATUS=SUPERSEDED_BY_DUAL_SLOT_REPAIR_DESIGN
+ACTIVE_REPAIR_DESIGN=docs/development/N3W_BOARD_D_R4_DUAL_SLOT_NORMALIZATION_WRITE_ROUTE_REPAIR_DESIGN_20261023.md
 ```
 
 This review starts only after the separately authorized Board D live read-only
-preflight closed PASS. It freezes the public-safe Board D identity and selects the
-narrowest later write route. It does not authorize or execute a flash write.
+preflight closed PASS. It freezes the public-safe Board D identity and originally
+selected a minimal later write route. Exact-head review of the downstream executor
+then proved that the app0-only route could leave stale historical application
+bytes in the app0 tail and app1. The active write-route decision is therefore
+superseded by the dual-slot repair design referenced above. This document does not
+authorize or execute a flash write.
 
 ## 1. Frozen Board D identity
 
@@ -113,71 +120,74 @@ However, a factory-image write is broader than necessary for the observed Board 
 state: it would also rewrite the already-correct partition-table sector and erase
 the gap that contains the `phy_init` partition.
 
-## 6. Selected write route
+## 6. Selected write route — repaired
 
-The review therefore selects the narrower explicit-offset route:
+The original route
+`NORMALIZED_OFFSETS_BOOTLOADER_OTADATA_APPLICATION` is superseded.
+
+The active source authority is:
+
+`docs/development/N3W_BOARD_D_R4_DUAL_SLOT_NORMALIZATION_WRITE_ROUTE_REPAIR_DESIGN_20261023.md`
+
+The repaired route is:
 
 ```text
-SELECTED_WRITE_ROUTE=NORMALIZED_OFFSETS_BOOTLOADER_OTADATA_APPLICATION
+SELECTED_WRITE_ROUTE=DUAL_SLOT_PADDED_NORMALIZATION_BOOTLOADER_OTADATA
 
-WRITE_0=0x000000:bootloader.bin
-WRITE_1=0x009000:ota_data_initial.bin
-WRITE_2=0x010000:firmware.bin
+WRITE_BOOTLOADER=0x000000:bootloader.bin
+WRITE_OTADATA=0x009000:ota_data_initial.bin
+WRITE_APP0=0x010000:normalized_slot.bin
+WRITE_APP1=0x3D0000:normalized_slot.bin
+
+NORMALIZED_SLOT_SIZE=0x3C0000
+NORMALIZED_SLOT_SHA256=539a7b7fb14d44a4336526ff64ec4ee8b45737dc74c0e95eac15b5e06c84a195
 
 PARTITION_TABLE_WRITE=false
 PHY_INIT_WRITE=false
+NVS_WRITE=false
 FACTORY_IMAGE_DIRECT_WRITE=false
 RAW_FLASH_ARGS_DIRECT_EXECUTION=false
-NVS_WRITE=false
 FULL_FLASH_ERASE=false
+ERASE_REGION_COMMAND_REQUIRED=false
 ```
 
-Rationale:
+The temporary `normalized_slot.bin` is derived deterministically from the exact
+R4 `firmware.bin` plus 0xFF padding to the complete 0x3C0000 OTA-slot size.
+Writing the complete slot to app0 and app1 removes historical application bytes
+from both slot tails while ending app1 exactly at the NVS boundary.
 
-1. the bootloader is proven different and must be normalized;
-2. the application must be replaced by the exact R4 product image;
-3. OTA-data must be reset to the exact release initial state;
-4. the partition table is already exact, so rewriting it adds risk without adding
-   product value;
-5. the route preserves `phy_init` and NVS;
-6. the raw `flash_args` file remains unsuitable for direct execution because its
-   paths are build-tree-relative even though its offsets are useful as build
-   evidence.
+## 7. Required write executor safety contract — repaired
 
-The later executor must bind the release flash settings to the exact R4 build
-contract:
-
-```text
-FLASH_MODE=dio
-FLASH_FREQ=80m
-FLASH_SIZE=8MB
-```
-
-## 7. Required write executor safety contract
-
-The later write executor must be repository-owned and tested before any live write.
+The later executor must be repository-owned and tested before any live write.
 At minimum it must:
 
 1. freshly validate the exact R4 release bundle and every member hash;
-2. require esptool major version 5;
-3. freshly re-observe ESP32-C6 / 8 MB / Secure Boot off / Flash Encryption off;
-4. freshly derive the hardware-ID hash and require exact equality with the frozen
-   Board D hash;
-5. freshly verify that the partition table still equals the R4 table;
-6. require a new explicit one-shot Board D write authorization;
-7. claim/consume that authorization only after every read-only precondition has
-   passed;
-8. issue one bounded write command containing only the three selected offsets;
-9. never run erase-flash and never write NVS;
-10. immediately read back bootloader, partition table, OTA-data and application
-    and require exact SHA256 equality with the R4 release;
-11. record the exact post-write hashes in durable evidence;
-12. stop after post-write integrity proof; pairing/telemetry/RF acceptance remain
-    separate gates.
+2. derive the complete normalized-slot image and require SHA256
+   `539a7b7fb14d44a4336526ff64ec4ee8b45737dc74c0e95eac15b5e06c84a195`;
+3. require esptool major version 5;
+4. freshly re-observe ESP32-C6 / 8 MB / Secure Boot off / Flash Encryption off;
+5. freshly require the frozen Board D hardware-ID SHA256;
+6. freshly verify the exact R4 partition table;
+7. capture full prewrite `phy_init` and NVS SHA256 values;
+8. prove 0x1000-sector erase boundaries do not overlap partition table,
+   `phy_init` or NVS;
+9. require a new explicit one-shot Board D write authorization;
+10. claim/consume authorization only after every read-only precondition passes;
+11. use one bounded repository-generated write command for bootloader, OTA-data,
+    app0 full slot and app1 full slot;
+12. keep partition table, `phy_init`, NVS, factory image and raw `flash_args`
+    outside the write scope;
+13. read back both complete 0x3C0000 application slots and require the normalized
+    slot SHA256 on each;
+14. require exact bootloader, partition-table and OTA-data readback hashes;
+15. require `phy_init` and NVS postwrite hashes to equal their fresh prewrite
+    hashes;
+16. freshly re-check the Board D hardware identity after write;
+17. stop after post-write integrity proof.
 
-The executor must not rely only on esptool's ordinary successful return code as
-the project's integrity proof; explicit repository-level readback hashes are
-required.
+Only complete-slot readback permits
+`OLD_APPLICATION_CODE_REMAINS=false`. Pairing, telemetry and RF acceptance
+remain later gates.
 
 ## 8. Manual reset / low-battery handling
 
@@ -212,15 +222,16 @@ policy cannot interfere with integrity verification.
 
 ```text
 IDENTITY_FREEZE=PASS
-WRITE_ROUTE_REVIEW=PASS
-SELECTED_WRITE_ROUTE=NORMALIZED_OFFSETS_BOOTLOADER_OTADATA_APPLICATION
+ORIGINAL_WRITE_ROUTE=SUPERSEDED
+WRITE_ROUTE_REPAIR_DESIGN=PASS
+SELECTED_WRITE_ROUTE=DUAL_SLOT_PADDED_NORMALIZATION_BOOTLOADER_OTADATA
 
 BOARD_ACCESS=false
 FLASH_WRITE=false
 NVS_WRITE=false
 WRITE_AUTHORIZATION_GRANTED=false
 
-CURRENT_GATE_RESULT=CLOSED_PASS_SOURCE_REVIEW
+CURRENT_GATE_RESULT=CLOSED_PASS_REPAIRED_DESIGN
 ```
 
 No live write is authorized by this review.
@@ -228,11 +239,10 @@ No live write is authorized by this review.
 ## 10. Next one gate
 
 ```text
-NEXT_ONE_GATE=N3W_BOARD_D_R4_NORMALIZED_OFFSETS_WRITE_EXECUTOR_PREPARATION_20261023_01
+NEXT_ONE_GATE=N3W_BOARD_D_R4_DUAL_SLOT_NORMALIZATION_WRITE_EXECUTOR_SOURCE_REPAIR_20261023_01
 ```
 
-That next gate is source-only. It should implement and test the repository-owned
-one-shot write executor against the frozen identity and route above.
+That next gate is source-only and may repair PR #660 against the dual-slot design.
 
 ```text
 BOARD_ACCESS_DEFAULT=false
