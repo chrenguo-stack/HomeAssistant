@@ -16,13 +16,23 @@
 #include "n3w_esp32_pairing_nvs.h"
 #include "n3w_esp32_runtime_nvs.h"
 #include "n3w_espnow_driver.h"
+#ifdef GH_N3W_PRODUCTION_DEHARNESS
+#include "n3w_product_diagnostics_stub.h"
+#else
 #include "n3w_lab_diagnostics.h"
+#endif
 #include "n3w_direct_recovery_policy.h"
 #include "n3w_recovery_exit_policy.h"
 #include "n3w_simple_pairing_client.h"
 #include "n3w_simple_product_runtime.h"
 
 namespace esphome::greenhouse_n3w_core {
+
+#ifdef GH_N3W_PRODUCTION_DEHARNESS
+using ActiveN3wDiagnostics = N3wProductDiagnosticsStub;
+#else
+using ActiveN3wDiagnostics = N3wLabDiagnostics;
+#endif
 
 enum class TelemetrySubmitDisposition : uint8_t {
   REJECTED = 0,
@@ -55,8 +65,14 @@ class SimpleProductComponent : public Component,
     pairing_client_.set_firmware_version(value);
   }
   void set_lab_diagnostics_enabled(bool enabled) {
+#ifdef GH_N3W_PRODUCTION_DEHARNESS
+    (void) enabled;
+    diagnostics_.set_enabled(false);
+    runtime_.set_diagnostic_sink(nullptr);
+#else
     diagnostics_.set_enabled(enabled);
     runtime_.set_diagnostic_sink(enabled ? &diagnostics_ : nullptr);
+#endif
   }
   void setup() override;
   void loop() override;
@@ -77,7 +93,7 @@ class SimpleProductComponent : public Component,
   }
   bool runtime_ready() const { return runtime_ready_; }
   LocalPathState path_state() const { return runtime_.path_state(); }
-  const N3wLabDiagnostics::LatencySnapshot &latency_diagnostics() const {
+  const ActiveN3wDiagnostics::LatencySnapshot &latency_diagnostics() const {
     return diagnostics_.latency_snapshot();
   }
   const std::string &hardware_id() const { return pairing_client_.hardware_id(); }
@@ -384,7 +400,7 @@ class SimpleProductComponent : public Component,
   RadioOwnership radio_ownership_{RadioOwnership::DIRECT_WIFI};
   uint8_t last_channel_observed_{0};
   int32_t last_channel_error_raw_{0};
-  N3wLabDiagnostics diagnostics_{};
+  ActiveN3wDiagnostics diagnostics_{};
   SimpleProductRuntime runtime_;
   NvsSetupSecretStore setup_secret_store_{};
   NvsProvisionedPeerStoreV2 peer_store_{};

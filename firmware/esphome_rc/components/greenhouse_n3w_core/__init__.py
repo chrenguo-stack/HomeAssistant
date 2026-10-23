@@ -61,6 +61,8 @@ async def to_code(config: dict) -> None:
     include_builtin_idf_component("esp_http_client")
     include_builtin_idf_component("mbedtls")
     cg.add_build_flag('-DMBEDTLS_CONFIG_FILE=\\"mbedtls/esp_config.h\\"')
+    if config[CONF_PRODUCT_RUNTIME] and not config[CONF_PHASE4_LAB_DIAGNOSTICS]:
+        cg.add_build_flag("-DGH_N3W_PRODUCTION_DEHARNESS=1")
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     cg.add(var.set_product_runtime_enabled(config[CONF_PRODUCT_RUNTIME]))
