@@ -22,22 +22,22 @@ static SimpleManagerCandidateV2 candidate(
 
 int main() {
   const SimpleDiscoveryFilterContext context{
-      "system-a", "192.168.10.20", "255.255.255.0"};
-  assert(simple_discovery_candidate_allowed(candidate("system-a", "192.168.10.30", 30), "192.168.10.30", context));
-  assert(!simple_discovery_candidate_allowed(candidate("system-b", "192.168.10.30", 30), "192.168.10.30", context));
-  assert(!simple_discovery_candidate_allowed(candidate("system-a", "192.168.10.20", 30), "192.168.10.20", context));
-  assert(!simple_discovery_candidate_allowed(candidate("system-a", "192.168.10.30", 30), "192.168.10.31", context));
-  assert(!simple_discovery_candidate_allowed(candidate("system-a", "192.168.11.30", 30), "192.168.11.30", context));
-  assert(!simple_discovery_candidate_allowed(candidate("system-a", "192.168.10.30", 0), "192.168.10.30", context));
-  assert(!simple_discovery_candidate_allowed(candidate("system-a", "192.168.10.30", 121), "192.168.10.30", context));
-  assert(!simple_discovery_candidate_allowed(candidate("system-a", "192.168.10.255", 30), "192.168.10.255", context));
+      "system-a", "192.0.2.20", "255.255.255.0"};
+  assert(simple_discovery_candidate_allowed(candidate("system-a", "192.0.2.30", 30), "192.0.2.30", context));
+  assert(!simple_discovery_candidate_allowed(candidate("system-b", "192.0.2.30", 30), "192.0.2.30", context));
+  assert(!simple_discovery_candidate_allowed(candidate("system-a", "192.0.2.20", 30), "192.0.2.20", context));
+  assert(!simple_discovery_candidate_allowed(candidate("system-a", "192.0.2.30", 30), "192.0.2.31", context));
+  assert(!simple_discovery_candidate_allowed(candidate("system-a", "198.51.100.30", 30), "198.51.100.30", context));
+  assert(!simple_discovery_candidate_allowed(candidate("system-a", "192.0.2.30", 0), "192.0.2.30", context));
+  assert(!simple_discovery_candidate_allowed(candidate("system-a", "192.0.2.30", 121), "192.0.2.30", context));
+  assert(!simple_discovery_candidate_allowed(candidate("system-a", "192.0.2.255", 30), "192.0.2.255", context));
   const std::vector<SimpleManagerCandidateV2> candidates{
-      candidate("system-a", "192.168.10.30", 30),
-      candidate("system-a", "192.168.10.30", 30),
-      candidate("system-a", "192.168.10.31", 30),
+      candidate("system-a", "192.0.2.30", 30),
+      candidate("system-a", "192.0.2.30", 30),
+      candidate("system-a", "192.0.2.31", 30),
   };
   const std::vector<std::string> sources{
-      "192.168.10.30", "192.168.10.30", "192.168.10.31"};
+      "192.0.2.30", "192.0.2.30", "192.0.2.31"};
   const auto filtered = filter_simple_discovery_candidates(candidates, sources, context);
   assert(filtered.size() == 2U);
   const auto targets = make_simple_broker_recovery_targets(filtered, 8883);
