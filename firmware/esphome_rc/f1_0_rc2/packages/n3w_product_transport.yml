@@ -10,6 +10,7 @@ mqtt:
 greenhouse_n3w_core:
   id: n3w_product_core
   product_runtime: true
+  firmware_version: "${project_version}"
 
 interval:
   - interval: 1s
