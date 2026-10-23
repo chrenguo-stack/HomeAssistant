@@ -519,6 +519,7 @@ SimplePairingClientError SimplePairingClient::discover_(SimpleManagerCandidateV2
 
 SimplePairingClientError SimplePairingClient::send_hello_(
     const SimpleManagerCandidateV2 &candidate) {
+  pairing_handoff_ready_ = false;
   std::array<uint8_t, 32> hello_nonce{};
   if (!fill_(hello_nonce.data(), hello_nonce.size())) return SimplePairingClientError::IO_FAILED;
   const std::string request = json::build_json([&](JsonObject root) {
