@@ -90,7 +90,8 @@ class GreenhouseN3wCore : public SimpleProductComponent {
   }
   uint32_t previous_rtc_breadcrumb_marker_sequence() const {
     return previous_rtc_breadcrumb_.marker_sequence;
-  }#endif
+  }
+#endif
 
 
   void setup() override {
@@ -132,6 +133,7 @@ class GreenhouseN3wCore : public SimpleProductComponent {
     const TelemetrySubmitDisposition disposition =
         SimpleProductComponent::submit_telemetry_json(
             telemetry_json, boot_id, seq);
+#ifndef GH_N3W_PRODUCTION_DEHARNESS
     N3wRtcBreadcrumbStage stage = N3wRtcBreadcrumbStage::TELEMETRY_FAIL;
     if (disposition == TelemetrySubmitDisposition::SUBMITTED) {
       stage = N3wRtcBreadcrumbStage::TELEMETRY_OK;
@@ -142,6 +144,7 @@ class GreenhouseN3wCore : public SimpleProductComponent {
         stage,
         static_cast<uint32_t>(path_state()),
         seq);
+#endif
     return disposition;
   }
 
