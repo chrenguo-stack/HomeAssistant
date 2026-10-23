@@ -147,6 +147,10 @@ void SimpleProductComponent::rollback_broker_candidate_() {
         TAG,
         "N3-W Broker candidate rolled back restored=%s",
         restored ? "true" : "false");
+    if (!restored) {
+      request_safe_reboot_(
+          "Broker candidate rollback could not restore durable Broker target");
+    }
   }
   broker_candidate_active_ = false;
   broker_candidate_verified_ = false;

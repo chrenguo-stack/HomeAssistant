@@ -119,6 +119,15 @@ def test_candidate_failure_rolls_back_and_success_is_boot_local() -> None:
     assert "peer_store_" not in direct
 
 
+    rollback_body = block(
+        relocation,
+        "void SimpleProductComponent::rollback_broker_candidate_()",
+        "bool SimpleProductComponent::start_broker_discovery_()",
+    )
+    assert "if (!restored)" in rollback_body
+    assert "request_safe_reboot_(" in rollback_body
+
+
 def test_discovery_and_candidate_windows_are_bounded() -> None:
     policy = text("n3w_broker_relocation_policy.h")
     session = text("n3w_esp32_manager_discovery_session.cpp")
