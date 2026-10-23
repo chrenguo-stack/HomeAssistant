@@ -58,6 +58,11 @@ struct FakePort final : SimpleProductPort {
     }
     return true;
   }
+  bool current_legal_channels(std::vector<uint8_t> *channels) override {
+    if (channels == nullptr) return false;
+    *channels = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+    return true;
+  }
   bool broadcast_control(const uint8_t *data, std::size_t size) override {
     broadcasts.emplace_back(data, data + size);
     return broadcast_success;
