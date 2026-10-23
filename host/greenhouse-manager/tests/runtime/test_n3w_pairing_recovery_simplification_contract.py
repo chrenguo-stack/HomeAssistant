@@ -428,3 +428,40 @@ def test_aggregate_repair_authority_and_ipc_stream_guards() -> None:
         "schema=response_schema"
         in ipc
     )
+
+
+def test_pairing_handoff_ready_requires_accepted_hello() -> None:
+    client = source(FIRMWARE / "n3w_simple_pairing_client.cpp")
+
+    hello_start = client.index("SimplePairingClient::send_hello_")
+    hello_end = client.index("SimplePairingClient::pair_with_", hello_start)
+    hello = client[hello_start:hello_end]
+
+    wait_branch = hello.index("action == HelloNextAction::WAIT")
+    wait_return = hello.index(
+        "return SimplePairingClientError::NOT_READY;",
+        wait_branch,
+    )
+    renew_branch = hello.index("action == HelloNextAction::RENEW")
+    ready = hello.index("pairing_handoff_ready_ = true;")
+
+    assert wait_branch < wait_return < renew_branch < ready
+    assert "pairing_handoff_ready_ = true;" not in hello[
+        wait_branch:renew_branch
+    ]
+
+    renew_start = client.index("SimplePairingClient::renew_pairing_intent_")
+    renew_end = client.index(
+        "SimplePairingClient::run_once",
+        renew_start,
+    )
+    renew = client[renew_start:renew_end]
+    assert "pairing_handoff_ready_ = false;" in renew
+
+    ack_start = client.index("SimplePairingClient::acknowledge_")
+    ack_end = client.index(
+        "bool SimplePairingClient::fill_",
+        ack_start,
+    )
+    acknowledge = client[ack_start:ack_end]
+    assert "pairing_handoff_ready_ = false;" in acknowledge
