@@ -1,3 +1,21 @@
+## 2026-10-23 — Board D R4 warm/cold LCD matrix 3/3 + 3/3 PASS; KF-130 remains OPEN
+
+- Gate: `N3W_BOARD_D_R4_WARM_COLD_BOOT_LCD_ACCEPTANCE_20261023_01`.
+- Authorization was consumed and is non-replayable.
+- True cold boot: 3/3 PASS.
+- Physical EN warm reset with LCD power maintained: 3/3 PASS.
+- All six runs: LCD readable in about 1 s, full five-page cycle observed, zero freeze/corruption.
+- All six ~35 s USB observations remained present; zero missing samples and zero presence transitions.
+- The general “any warm reset breaks LCD” hypothesis was not reproduced.
+- Board D is still unprovisioned; LCD page 5 says “配置节点网络”.
+- ESPHome mDNS discovery returned no service; Native API exact-target match was 0.
+- Software `esp_restart()` was NOT_EXECUTED because no non-mutating Native API path existed without configuring/pairing the board.
+- No Flash write, direct NVS write, pairing, T1 mutation or RF execution occurred.
+- KF-130 remains OPEN because the original post-flash LCD freeze and historical software-reboot failure remain unexplained.
+- Product-level first-boot acceptance remains REOPENED; this gate closes only the scoped warm/cold matrix.
+- Next route requires a new authorization; no automatic reflash or further board action.
+- Authority: `docs/development/N3W_BOARD_D_R4_WARM_COLD_BOOT_LCD_ACCEPTANCE_REDESIGN_20261023.md`.
+
 ## 2026-10-23 — Board D R4 first-boot acceptance REOPENED: LCD warm-reset anomaly
 
 - The previous 90.4-second gate evidence remains valid only as scoped MCU/basic-runtime evidence; the product-level `CLOSED_PASS` is withdrawn.
