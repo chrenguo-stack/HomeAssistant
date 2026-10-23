@@ -1,3 +1,5 @@
+> **2026-10-23 post-closure supersession:** The measurements in this document remain valid as scoped MCU/basic-runtime evidence, but the product-level `BOARD_D_FIRST_BOOT_RUNTIME_ACCEPTANCE=CLOSED_PASS` is withdrawn. After closure, the operator reported that the LCD had remained frozen after the firmware-write/warm-reset path and recovered only after a true USB power-cycle cold boot, with prior soft-reboot failure also observed. LCD is a required product-baseline function and was not part of this gate's direct runtime oracle. Current status is `BOARD_D_FIRST_BOOT_RUNTIME_ACCEPTANCE=REOPENED`; see `N3W_BOARD_D_R4_WARM_COLD_BOOT_LCD_ACCEPTANCE_REDESIGN_20261023.md` and KF-130. No historical measurement below is deleted or rewritten.
+
 # N3W Board D R4 postwrite first-boot runtime acceptance closure — 2026-10-23
 
 ## Result
