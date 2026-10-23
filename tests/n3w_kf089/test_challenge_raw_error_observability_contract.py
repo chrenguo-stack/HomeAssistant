@@ -9,7 +9,7 @@ RUNTIME_H = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_simpl
 RUNTIME_CPP = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_simple_product_runtime.cpp"
 COMPONENT_H = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_simple_product_component.h"
 DIAG_H = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_lab_diagnostics.h"
-DIAG_CPP = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_lab_diagnostics_impl.h"
+DIAG_CPP = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_diag_support.cpp"
 GENERIC = ROOT / "firmware/esphome_rc/board_lab/n3w_phase4_physical/generic.yml"
 RADIO_H = ROOT / "firmware/esphome_rc/components/greenhouse_n3w_core/n3w_radio.h"
 

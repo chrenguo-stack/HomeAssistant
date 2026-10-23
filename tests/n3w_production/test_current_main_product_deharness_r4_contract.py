@@ -46,21 +46,23 @@ def test_lab_translation_units_are_not_auto_compiled_in_production() -> None:
     assert not (CORE / "n3w_phase4_physical_harness.cpp").exists()
     assert not (CORE / "n3w_rtc_breadcrumb.cpp").exists()
 
-    diagnostics = text(CORE / "n3w_lab_diagnostics_impl.h")
-    phase4 = text(CORE / "n3w_phase4_physical_harness_impl.h")
-    rtc = text(CORE / "n3w_rtc_breadcrumb_impl.h")
-    diag_support = text(CORE / "n3w_diag_support.cpp")
-    phase4_support = text(CORE / "n3w_phase4_support.cpp")
+    diagnostics = text(CORE / "n3w_diag_support.cpp")
+    phase4 = text(CORE / "n3w_phase4_support.cpp")
+    rtc = text(CORE / "n3w_rtc_support.cpp")
     core_header = text(CORE / "greenhouse_n3w_core.h")
 
+    assert not (CORE / "n3w_lab_diagnostics_impl.h").exists()
+    assert not (CORE / "n3w_phase4_physical_harness_impl.h").exists()
+    assert not (CORE / "n3w_rtc_breadcrumb_impl.h").exists()
     assert 'static const char *const TAG = "gh_n3w_diag";' in diagnostics
     assert "Phase4PhysicalHarness::prepare_source_only" in phase4
     assert "RTC_NOINIT_ATTR" in rtc
-    assert '#include "n3w_lab_diagnostics_impl.h"' in diag_support
-    assert '#include "n3w_phase4_physical_harness_impl.h"' in phase4_support
-    assert '#include "n3w_rtc_breadcrumb_impl.h"' in phase4_support
-    assert "#ifndef GH_N3W_PRODUCTION_DEHARNESS" in diag_support
-    assert "#ifndef GH_N3W_PRODUCTION_DEHARNESS" in phase4_support
+    assert diagnostics.startswith("#ifndef GH_N3W_PRODUCTION_DEHARNESS\n")
+    assert phase4.startswith("#ifndef GH_N3W_PRODUCTION_DEHARNESS\n")
+    assert rtc.startswith("#ifndef GH_N3W_PRODUCTION_DEHARNESS\n")
+    assert diagnostics.rstrip().endswith("#endif")
+    assert phase4.rstrip().endswith("#endif")
+    assert rtc.rstrip().endswith("#endif")
     assert '#include "n3w_phase4_physical_harness.h"' in core_header
     assert '#include "n3w_rtc_breadcrumb.h"' in core_header
 

@@ -1,3 +1,4 @@
+#ifndef GH_N3W_PRODUCTION_DEHARNESS
 #include "n3w_rtc_breadcrumb.h"
 
 #ifdef USE_ESP32
@@ -126,3 +127,4 @@ const char *n3w_rtc_breadcrumb_stage_name(uint32_t stage) {
 }
 
 }  // namespace esphome::greenhouse_n3w_core
+#endif
