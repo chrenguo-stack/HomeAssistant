@@ -413,6 +413,17 @@ def test_current_n3w_product_target_uses_only_active_core() -> None:
     assert "greenhouse_n3w_core:" in transport
     assert "product_runtime: true" in transport
     assert "phase4_product_runtime" not in transport
+    assert 'firmware_version: "${project_version}"' in transport
+    client = (
+        REPO_ROOT
+        / "firmware"
+        / "esphome_rc"
+        / "components"
+        / "greenhouse_n3w_core"
+        / "n3w_simple_pairing_client.cpp"
+    ).read_text(encoding="utf-8")
+    assert 'root["fw_version"] = firmware_version_;' in client
+    assert 'root["fw_version"] = "phase4-simple";' not in client
 
 
 def test_product_pairing_qr_is_manager_handoff_gated() -> None:
