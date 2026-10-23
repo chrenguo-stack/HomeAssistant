@@ -1,3 +1,17 @@
+## 2026-10-23 — Board D R4 first-boot acceptance REOPENED: LCD warm-reset anomaly
+
+- The previous 90.4-second gate evidence remains valid only as scoped MCU/basic-runtime evidence; the product-level `CLOSED_PASS` is withdrawn.
+- Operator observation after the gate: LCD remained frozen after the firmware-write/warm-reset path and recovered after a true USB power-cycle cold boot; prior soft-reboot failure has also been observed.
+- LCD is a product-baseline function, so status-LED/USB stability alone is not sufficient first-boot acceptance.
+- Exact R4 display config blob `0551c13a...`: ST7920 uses GPIO2 CLK, GPIO3 MOSI, GPIO16 CS, 1 s refresh; display pages advance every 4 s across five pages.
+- Read-only hardware/source review found no MCU-controlled LCD /RST in the frozen GPIO plan or exact display config. SMR12864-15A has a dedicated active-low /RST and requires reset during power-on. This is a strong hypothesis, not yet a proven PCB root cause.
+- New known failure: `KF-130=OPEN`.
+- Reflash is not the first diagnostic step.
+- Next gate: `N3W_BOARD_D_R4_WARM_COLD_BOOT_LCD_ACCEPTANCE_20261023_01`.
+- The next gate must compare true cold power-on with MCU-only/warm reset and use visible LCD page progression as a mandatory oracle.
+- Fresh physical authorization is required before Board D access/reset/power cycling; no automatic execution.
+- Authority: `docs/development/N3W_BOARD_D_R4_WARM_COLD_BOOT_LCD_ACCEPTANCE_REDESIGN_20261023.md`.
+
 ## 2026-10-23 — Board D R4 postwrite first-boot runtime acceptance CLOSED_PASS
 
 - Gate: `N3W_BOARD_D_R4_POSTWRITE_FIRST_BOOT_RUNTIME_ACCEPTANCE_20261023_01`.
