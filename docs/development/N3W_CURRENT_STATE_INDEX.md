@@ -1,3 +1,21 @@
+## 2026-10-23 — Board_D current-main product source convergence R4 CLOSED_PASS
+
+- Final exact product source: `ec5f6d68e33db7757d91c807fff708ca81b075dc`; tree: `16740efa8ad24d423adc0b2de32b99d56e2d23d1`; main remained `5ff09efb...`.
+- Final source CI: 31 total, 28 PASS, 3 known Stage2D2/3/4 historical boundary false-fails, 0 unfinished, 0 new valid failures.
+- R4 production de-harness, R3 convergence, Multi-Relay, full-channel, F1.0-RC2, boot-session recovery, frame-core, greenhouse-manager and Public Safety all PASS.
+- The initial R4 artifact `12476817266` is permanently rejected: independent inspection found real lab-diagnostic markers and exposed a Bash `! grep` / `set -e` false-PASS.
+- Final build uses whole-file production guards in neutral support translation units and explicit fail-closed `if grep ...; then exit 1` marker checks.
+- V2 build-only branch is exactly one workflow commit above the exact product source.
+- Final artifact run `39901919230`, artifact `12478974186`, GitHub digest `898ef722...`, release bundle SHA256 `b55aba9c...`, manifest SHA256 `173fcc97...`.
+- Independent artifact verification passed outer digest, inner sidecar, exact 8-member deterministic ZIP, manifest/member hashes and direct `firmware.bin` / `firmware.factory.bin` forbidden-marker scans.
+- Exact firmware SHA256: app/OTA `ea50b147...`; factory `c982c5d5...`; bootloader `ae9656d4...`; partitions `6664b08a...`; OTA data `7d2c7ac4...`.
+- The flat bundle's `flash_args` still uses build-tree-relative paths; later Board_D write must use a separately reviewed procedure and must not blindly execute that file.
+- R4 blocker count 0; open new false-PASS path count 0; R4 status `CLOSED_PASS`.
+- PR #656 remains open draft. Technical source/artifact merge readiness is PASS, but merge authorization is false. Board_D physical gate authorization is also false.
+- No T1/Board access, flash, NVS mutation, RF execution or merge occurred.
+- Authority: `docs/development/N3W_BOARD_D_POST_T1_PRODUCTION_CURRENT_MAIN_PRODUCT_SOURCE_CONVERGENCE_R4_INTEGRATED_CLOSURE_20261023.md`.
+- Next route: separate gate/decision required; no automatic merge or Board_D physical execution.
+
 ## 2026-10-23 — Board_D current-main product source convergence R3 CLOSED_PASS
 
 - R3 exact product source authority: `9a2024212566d831d94b167833d5485307119d78`; base main remains `5ff09efb650cc3818d2c6a58d4fb4c489a21d784` with no drift.
