@@ -1,3 +1,17 @@
+## 2026-10-24 — Board D exact-R4 post-flash + EN reset PASS; KF-130 not reproduced
+
+- Gate: `N3W_BOARD_D_R4_POSTFLASH_RESET_LCD_REPRODUCTION_ACCEPTANCE_20261024_01`.
+- Exact R4 dual-slot write and complete postwrite verification PASS.
+- Board D identity, bootloader, partition table, OTA data, app0/app1, phy_init and NVS continuity all PASS.
+- Fresh prewrite/postwrite NVS SHA256: `8384704e...`; historical `a61948ea...` drift occurred before this gate and was not caused by the read-only preflight or this write.
+- USB power stayed applied; exactly one EN/RESET was performed after the verified write.
+- LCD readable in about 1 s; full five-page cycle observed; zero freeze/corruption.
+- Exact-R4 post-flash LCD freeze was NOT REPRODUCED.
+- USB locator was absent for one sample and returned; retained as a transient/re-enumeration observation because product-visible behavior stayed normal.
+- KF-130 remains OPEN: original historical freeze remains unexplained and software `esp_restart()` remains unvalidated.
+- Next operational route: write the already validated DEV-only low-battery-bypass artifact for bench development; that image is not production evidence.
+- Authority: `docs/development/N3W_BOARD_D_R4_POSTFLASH_RESET_LCD_REPRODUCTION_ACCEPTANCE_20261024.md`.
+
 ## 2026-10-23 — Board D R4 warm/cold LCD matrix 3/3 + 3/3 PASS; KF-130 remains OPEN
 
 - Gate: `N3W_BOARD_D_R4_WARM_COLD_BOOT_LCD_ACCEPTANCE_20261023_01`.
