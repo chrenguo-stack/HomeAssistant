@@ -65,6 +65,9 @@ class SimpleProductComponent : public Component,
       uint32_t seq);
 
   bool provisioned() const { return pairing_client_.provisioned(); }
+  bool pairing_handoff_ready() const {
+    return pairing_client_.pairing_handoff_ready();
+  }
   bool runtime_ready() const { return runtime_ready_; }
   LocalPathState path_state() const { return runtime_.path_state(); }
   const N3wLabDiagnostics::LatencySnapshot &latency_diagnostics() const {

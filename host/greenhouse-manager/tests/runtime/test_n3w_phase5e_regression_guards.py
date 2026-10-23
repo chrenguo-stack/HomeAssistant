@@ -387,3 +387,65 @@ def test_final_product_pairing_wiring_never_restores_retired_authority() -> None
         "X25519",
     ):
         assert retired not in source
+
+
+def test_normal_rc2_remains_free_of_active_n3w_product_transport() -> None:
+    rc2 = (
+        REPO_ROOT / "firmware" / "esphome_rc" / "f1_0_rc2" / "f1_0_rc2.yml"
+    ).read_text(encoding="utf-8")
+    assert "greenhouse_n3w_core" not in rc2
+    assert "n3w_product_transport" not in rc2
+    assert "n3w_product_telemetry" not in rc2
+
+
+def test_current_n3w_product_target_uses_only_active_core() -> None:
+    root = REPO_ROOT / "firmware" / "esphome_rc" / "f1_0_rc2"
+    target = (root / "f1_0_rc2_n3w_target.yml").read_text(encoding="utf-8")
+    transport = (root / "packages" / "n3w_product_transport.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "f1_0_rc2.yml" in target
+    assert "n3w_product_transport.yml" in target
+    assert "n3w_product_telemetry.yml" in target
+    assert "greenhouse_n3w_core" in target
+    assert "greenhouse_n3w_product_core" not in target
+    assert "greenhouse_n3w_product_runtime" not in target
+    assert "greenhouse_n3w_core:" in transport
+    assert "product_runtime: true" in transport
+    assert "phase4_product_runtime" not in transport
+
+
+def test_product_pairing_qr_is_manager_handoff_gated() -> None:
+    firmware = (
+        REPO_ROOT
+        / "firmware"
+        / "esphome_rc"
+        / "components"
+        / "greenhouse_n3w_core"
+    )
+    client_h = (firmware / "n3w_simple_pairing_client.h").read_text(
+        encoding="utf-8"
+    )
+    client_cpp = (firmware / "n3w_simple_pairing_client.cpp").read_text(
+        encoding="utf-8"
+    )
+    component_h = (firmware / "n3w_simple_product_component.h").read_text(
+        encoding="utf-8"
+    )
+    transport = (
+        REPO_ROOT
+        / "firmware"
+        / "esphome_rc"
+        / "f1_0_rc2"
+        / "packages"
+        / "n3w_product_transport.yml"
+    ).read_text(encoding="utf-8")
+    assert "pairing_handoff_ready() const" in client_h
+    assert "pairing_handoff_ready_ = true;" in client_cpp
+    assert "pairing_handoff_ready_ = false;" in client_cpp
+    assert "pairing_handoff_ready()" in component_h
+    assert "pairing_handoff_ready()" in transport
+    assert "pairing_qr_payload()" in transport
+    assert transport.index("pairing_handoff_ready()") < transport.index(
+        "pairing_qr_payload()"
+    )

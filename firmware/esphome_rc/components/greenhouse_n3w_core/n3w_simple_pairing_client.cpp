@@ -362,6 +362,7 @@ SimplePairingClient::SimplePairingClient(
       ack_store_(ack_store) {}
 
 SimplePairingClientError SimplePairingClient::initialize(const MacAddress &local_mac) {
+  pairing_handoff_ready_ = false;
   if (initialized_ || network_ == nullptr || random_ == nullptr || setup_secret_store_ == nullptr ||
       peer_store_ == nullptr || broker_store_ == nullptr || ack_store_ == nullptr ||
       !valid_unicast_mac(local_mac)) {
@@ -430,6 +431,7 @@ SimplePairingClientError SimplePairingClient::prepare_bootstrap_() {
 }
 
 SimplePairingClientError SimplePairingClient::renew_pairing_intent_() {
+  pairing_handoff_ready_ = false;
   // A transaction ID is random state, not a distributed generation counter.
   // Keep the old durable intent unless a distinct replacement is generated
   // and successfully committed to NVS.
@@ -558,6 +560,7 @@ SimplePairingClientError SimplePairingClient::send_hello_(
                : renewed;
   }
 
+  pairing_handoff_ready_ = true;
   return SimplePairingClientError::NONE;
 }
 
@@ -718,6 +721,7 @@ SimplePairingClientError SimplePairingClient::acknowledge_(const PendingPairingA
   }
   setup_secret_.fill(0);
   setup_secret_ready_ = false;
+  pairing_handoff_ready_ = false;
   provisioned_ = true;
   return SimplePairingClientError::NONE;
 }

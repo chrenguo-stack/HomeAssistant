@@ -31,9 +31,16 @@ class GreenhouseN3wCore : public SimpleProductComponent {
     phase4_source_harness_enabled_ = enabled;
   }
 
+  void set_product_runtime_enabled(bool enabled) {
+    product_runtime_enabled_ = enabled;
+    set_activation_enabled(
+        product_runtime_enabled_ || phase4_product_runtime_enabled_);
+  }
+
   void set_phase4_product_runtime_enabled(bool enabled) {
     phase4_product_runtime_enabled_ = enabled;
-    set_activation_enabled(enabled);
+    set_activation_enabled(
+        product_runtime_enabled_ || phase4_product_runtime_enabled_);
   }
 
   void set_phase4_lab_diagnostics_enabled(bool enabled) {
@@ -195,8 +202,9 @@ class GreenhouseN3wCore : public SimpleProductComponent {
   bool provision_boot_session_repair_recovery(
       uint64_t floor,
       uint32_t pairing_epoch) {
-    if (floor == 0 || pairing_epoch < 2 || phase4_product_runtime_enabled_ ||
-        phase4_source_harness_enabled_ || runtime_ready() ||
+    if (floor == 0 || pairing_epoch < 2 || product_runtime_enabled_ ||
+        phase4_product_runtime_enabled_ || phase4_source_harness_enabled_ ||
+        runtime_ready() ||
         boot_session_manager_.ready()) {
       ESP_LOGE(
           "n3w_boot_recovery",
@@ -511,6 +519,7 @@ class GreenhouseN3wCore : public SimpleProductComponent {
   int reset_reason_raw_{0};
   const char *reset_reason_name_{"UNKNOWN"};
 
+  bool product_runtime_enabled_{false};
   bool phase4_source_harness_enabled_{false};
   bool phase4_source_harness_ready_{false};
   bool phase4_product_runtime_enabled_{false};
