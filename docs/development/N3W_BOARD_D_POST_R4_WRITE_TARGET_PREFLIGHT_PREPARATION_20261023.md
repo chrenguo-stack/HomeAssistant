@@ -114,3 +114,55 @@ After the operator confirms that the observed target is physically Board D, the 
     NEW_WRITE_AUTHORIZATION_REQUIRED=true
     BOARD_D_IDENTITY_FREEZE_REQUIRED=true
     STOP_AFTER_LIVE_PREFLIGHT=true
+
+
+## Source/preparation closure
+
+```text
+PREPARATION_EXECUTABLE_SOURCE_HEAD=6e4499155ee6b2c6d93d32697eb12ca627e7ab6d
+PREPARATION_EXECUTOR_BLOB=ef4299c6aaffd3ca0a76a59ed250fa5bf2cf8444
+PREPARATION_TEST_BLOB=eebf34baf032aab870f74b2305d4b37e6d91ffa0
+PREPARATION_WORKFLOW_BLOB=97d4fc7bc982008e08527dd733dcdb49d607ce14
+
+SOURCE_REVIEW_NO_WRITE_SUBCOMMAND=PASS
+SOURCE_REVIEW_NO_WRITE_FLASH=PASS
+SOURCE_REVIEW_NO_ERASE_FLASH=PASS
+SOURCE_REVIEW_READ_ONLY_ROM_OPERATIONS=PASS
+SOURCE_REVIEW_RAW_MAC_NOT_PERSISTED=PASS
+SOURCE_REVIEW_IDENTITY_HASH_ONLY=PASS
+SOURCE_REVIEW_ARTIFACT_BINDING=PASS
+SOURCE_REVIEW_FAIL_CLOSED_CI=PASS
+
+FINAL_HEAD_CI_TOTAL=12
+FINAL_HEAD_CI_SUCCESS=12
+FINAL_HEAD_CI_FAILURE=0
+FINAL_HEAD_CI_UNFINISHED=0
+
+PUBLIC_REPOSITORY_SAFETY=PASS
+BOARD_D_PREFLIGHT_DEDICATED_CI=PASS
+NEW_SOURCE_BLOCKER_COUNT=0
+PREPARATION_SOURCE_CLOSURE=CLOSED_PASS
+
+BOARD_ACCESS=false
+SERIAL_OPEN=false
+FLASH_WRITE=false
+NVS_WRITE=false
+PERSISTENT_MUTATION=false
+RF_EXECUTION=false
+T1_ACCESS=false
+
+NEXT_ROUTE=PR657_MERGE_THEN_SEPARATE_BOARD_D_LIVE_READONLY_PREFLIGHT_AUTHORIZATION
+AUTO_EXECUTE_LIVE_PREFLIGHT=false
+```
+
+The executable source authority remains `6e449915...`. Any later commit that only
+advances this closure document does not redefine the executor authority.
+
+The preparation gate is source-complete. It is safe to merge as a repository-owned
+read-only preflight package. Merge does not authorize Board D access.
+
+The first real Board D preflight remains a separate physical gate because the
+target has no frozen Board D hardware identity yet. That live gate may observe the
+ROM identity and read Flash regions, but it must stop after producing the preflight
+evidence and operator identity confirmation. A later write gate requires a new
+one-shot write authorization.
