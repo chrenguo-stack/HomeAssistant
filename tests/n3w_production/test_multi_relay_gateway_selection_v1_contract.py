@@ -176,7 +176,7 @@ def test_option_b_single_attempt_queue_contract_is_preserved() -> None:
 def test_product_target_still_compiles_the_independent_product_core() -> None:
     target = text(TARGET)
     assert "f1_0_rc2_n3w_target" not in target.lower() or "packages:" in target
-    assert "greenhouse_n3w_product_core" in target
+    assert "greenhouse_n3w_core" in target
     assert "n3w_product_transport.yml" in target
     assert "n3w_product_telemetry.yml" in target
 
