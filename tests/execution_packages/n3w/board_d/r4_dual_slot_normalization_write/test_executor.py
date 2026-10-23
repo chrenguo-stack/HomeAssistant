@@ -66,6 +66,9 @@ def sample_preflight(port: str = "/dev/cu.usbmodem-test") -> dict[str, object]:
 
 
 def test_frozen_identity_route_and_offsets() -> None:
+    assert module.SCHEMA_PREFLIGHT.endswith("/2")
+    assert module.SCHEMA_WRITE.endswith("/2")
+    assert module.ROM_FLASH_SIZE == "8MB"
     assert module.EXPECTED_HARDWARE_ID_SHA256 == "3991b9af9e7604190a8ac8e60b780911a8faed6698cda5421eaf1eb686210df5"
     assert module.SELECTED_WRITE_ROUTE == "DUAL_SLOT_PADDED_NORMALIZATION_BOOTLOADER_OTADATA"
     assert module.BOOTLOADER_OFFSET == 0x0
@@ -138,7 +141,7 @@ def test_build_write_command_is_exactly_dual_slot_and_uses_keep() -> None:
     before_index = command.index("--before")
     after_index = command.index("--after")
     assert command[before_index + 1] == "no-reset"
-    assert command[after_index + 1] == "no-reset"
+    assert command[after_index + 1] == "no-reset-stub"
     assert "--flash-mode keep" in joined
     assert "--flash-freq keep" in joined
     assert "--flash-size keep" in joined
@@ -151,6 +154,62 @@ def test_build_write_command_is_exactly_dual_slot_and_uses_keep() -> None:
     assert "0x790000" not in command
     assert "firmware.factory.bin" not in joined
     assert "flash_args" not in joined
+
+def test_read_flash_region_rom_mode_binds_8mb_and_disables_stub(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    destination = tmp_path / "rom.bin"
+    seen: list[str] = []
+
+    def fake_run_capture(args, *, port=None):
+        seen.extend(args)
+        destination.write_bytes(b"x" * 16)
+        return ""
+
+    monkeypatch.setattr(module, "run_capture", fake_run_capture)
+    module.read_flash_region(
+        "/dev/cu.usbmodem-test",
+        0x790000,
+        16,
+        destination,
+    )
+    assert "--no-stub" in seen
+    before_index = seen.index("--before")
+    after_index = seen.index("--after")
+    read_index = seen.index("read-flash")
+    assert seen[before_index + 1] == "no-reset"
+    assert seen[after_index + 1] == "no-reset"
+    assert seen[read_index + 1:read_index + 3] == ["--flash-size", "8MB"]
+
+
+def test_read_flash_region_stub_mode_preserves_running_stub(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    destination = tmp_path / "stub.bin"
+    seen: list[str] = []
+
+    def fake_run_capture(args, *, port=None):
+        seen.extend(args)
+        destination.write_bytes(b"x" * 16)
+        return ""
+
+    monkeypatch.setattr(module, "run_capture", fake_run_capture)
+    module.read_flash_region(
+        "/dev/cu.usbmodem-test",
+        0,
+        16,
+        destination,
+        use_stub=True,
+    )
+    assert "--no-stub" not in seen
+    assert "--flash-size" not in seen
+    before_index = seen.index("--before")
+    after_index = seen.index("--after")
+    assert seen[before_index + 1] == "no-reset-no-sync"
+    assert seen[after_index + 1] == "no-reset-stub"
+
 
 
 def test_source_has_no_erase_flash_or_erase_region_command() -> None:
@@ -243,20 +302,35 @@ def test_load_preflight_rejects_stale_evidence(tmp_path: Path, monkeypatch: pyte
 def test_claim_preflight_is_one_shot(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     path = tmp_path / "preflight.json"
     path.write_text(json.dumps(sample_preflight()), encoding="utf-8")
+    fresh_board = sample_board()
     monkeypatch.setattr(module, "load_preflight", lambda *args, **kwargs: sample_preflight())
     monkeypatch.setattr(
         module,
         "utc_now",
         lambda: dt.datetime(2026, 10, 23, 8, 26, tzinfo=dt.timezone.utc),
     )
-    claimed, payload = module.claim_preflight(path, "/dev/cu.usbmodem-test")
+    claimed, payload = module.claim_preflight(
+        path,
+        "/dev/cu.usbmodem-test",
+        fresh_board,
+    )
     assert not path.exists()
     assert claimed.exists()
     assert payload["authorization_claimed"] is True
     assert payload["authorization_consumed"] is True
     assert payload["replay_permitted"] is False
+    assert payload["fresh_prewrite"]["board"] == fresh_board
+    assert payload["execution_state"]["fresh_prewrite_persisted"] is True
+    assert payload["execution_state"]["write_flash_returned_success"] is False
+    on_disk = json.loads(claimed.read_text(encoding="utf-8"))
+    assert on_disk["fresh_prewrite"]["board"]["nvs_sha256"] == fresh_board["nvs_sha256"]
+    assert on_disk["fresh_prewrite"]["board"]["phy_init_sha256"] == fresh_board["phy_init_sha256"]
     with pytest.raises(module.StopExecution):
-        module.claim_preflight(path, "/dev/cu.usbmodem-test")
+        module.claim_preflight(
+            path,
+            "/dev/cu.usbmodem-test",
+            fresh_board,
+        )
 
 
 def test_verify_postwrite_integrity_requires_two_full_slots_and_protected_continuity(
@@ -272,7 +346,13 @@ def test_verify_postwrite_integrity_requires_two_full_slots_and_protected_contin
         "a" * 64,
         "b" * 64,
     ]
-    monkeypatch.setattr(module, "read_flash_region", lambda *args, **kwargs: expected.pop(0))
+    read_modes: list[bool] = []
+
+    def fake_read(*args, **kwargs):
+        read_modes.append(kwargs.get("use_stub") is True)
+        return expected.pop(0)
+
+    monkeypatch.setattr(module, "read_flash_region", fake_read)
     result = module.verify_postwrite_integrity(
         "/dev/cu.usbmodem-test",
         tmp_path,
@@ -286,6 +366,7 @@ def test_verify_postwrite_integrity_requires_two_full_slots_and_protected_contin
     assert result["old_application_code_remains"] is False
     assert result["phy_init_unchanged"] is True
     assert result["nvs_unchanged"] is True
+    assert read_modes == [True] * 7
 
 
 def test_verify_postwrite_integrity_rejects_app1_mismatch(
@@ -388,7 +469,24 @@ def test_run_write_claims_before_single_write_then_full_readback(
         events.append("claim")
         claimed = tmp_path / "claimed-preflight.json"
         claimed.write_text("claimed", encoding="utf-8")
-        return claimed, sample_preflight()
+        payload = sample_preflight()
+        payload["fresh_prewrite"] = {"captured_at": "now", "board": board}
+        payload["execution_state"] = {
+            "fresh_prewrite_persisted": True,
+            "write_flash_returned_success": False,
+            "postwrite_integrity_pass": False,
+            "postwrite_identity_pass": False,
+        }
+        return claimed, payload
+
+    def fake_persist(claimed, payload, **updates):
+        payload["execution_state"].update(updates)
+        if updates.get("write_flash_returned_success") is True:
+            events.append("persist-write")
+        elif updates.get("postwrite_integrity_pass") is True:
+            events.append("persist-readback")
+        elif updates.get("postwrite_identity_pass") is True:
+            events.append("persist-identity")
 
     def fake_run_capture(*args, **kwargs):
         events.append("write")
@@ -417,10 +515,12 @@ def test_run_write_claims_before_single_write_then_full_readback(
         }
 
     def fake_postwrite_identity(*args, **kwargs):
+        assert kwargs["before"] == "default-reset"
         events.append("identity")
         return module.EXPECTED_HARDWARE_ID_SHA256
 
     monkeypatch.setattr(module, "claim_preflight", fake_claim)
+    monkeypatch.setattr(module, "persist_claimed_execution_state", fake_persist)
     monkeypatch.setattr(module, "run_capture", fake_run_capture)
     monkeypatch.setattr(module, "verify_postwrite_integrity", fake_postwrite)
     monkeypatch.setattr(module, "observe_board_identity_security", fake_postwrite_identity)
@@ -438,10 +538,22 @@ def test_run_write_claims_before_single_write_then_full_readback(
         output=str(output),
     )
     assert module.run_write(args) == 0
-    assert events == ["claim", "write", "readback", "identity"]
+    assert events == [
+        "claim",
+        "write",
+        "persist-write",
+        "readback",
+        "persist-readback",
+        "identity",
+        "persist-identity",
+    ]
     payload = json.loads(output.read_text(encoding="utf-8"))
     assert payload["status"] == "PASS"
     assert payload["authorization"]["consumed"] is True
+    assert payload["fresh_prewrite"]["board"] == board
+    assert payload["execution_state"]["write_flash_returned_success"] is True
+    assert payload["execution_state"]["postwrite_integrity_pass"] is True
+    assert payload["execution_state"]["postwrite_identity_pass"] is True
     assert payload["write_scope"]["selected_write_route"] == module.SELECTED_WRITE_ROUTE
     assert payload["write_scope"]["app0_offset"] == "0x10000"
     assert payload["write_scope"]["app1_offset"] == "0x3d0000"
@@ -452,6 +564,80 @@ def test_run_write_claims_before_single_write_then_full_readback(
     assert payload["write_scope"]["erase_region_command_used"] is False
     assert payload["postwrite"]["old_application_code_remains"] is False
     assert payload["postwrite"]["hardware_id_match"] is True
+
+
+def test_run_write_persists_write_success_before_readback_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = tmp_path / "write.json"
+    preflight = tmp_path / "preflight.json"
+    preflight.write_text("{}", encoding="utf-8")
+    release = tmp_path / "release.zip"
+    release.write_bytes(b"x")
+    files = {
+        "bootloader.bin": tmp_path / "bootloader.bin",
+        "firmware.bin": tmp_path / "firmware.bin",
+        "ota_data_initial.bin": tmp_path / "ota_data_initial.bin",
+    }
+    for path in files.values():
+        path.write_bytes(b"x")
+    normalized = tmp_path / "normalized_slot.bin"
+    normalized.write_bytes(b"x")
+    board = sample_board()
+    persisted: list[dict[str, object]] = []
+
+    monkeypatch.setattr(module, "load_preflight", lambda *args, **kwargs: sample_preflight())
+    monkeypatch.setattr(module, "validate_release_bundle", lambda *args, **kwargs: files)
+    monkeypatch.setattr(module, "derive_normalized_slot", lambda *args, **kwargs: normalized)
+    monkeypatch.setattr(module, "verify_esptool_version", lambda: "5.3.1")
+    monkeypatch.setattr(module, "verify_image", lambda *args, **kwargs: None)
+    monkeypatch.setattr(module, "probe_board", lambda *args, **kwargs: board)
+
+    def fake_claim(*args, **kwargs):
+        claimed = tmp_path / "claimed-preflight.json"
+        claimed.write_text("claimed", encoding="utf-8")
+        payload = sample_preflight()
+        payload["fresh_prewrite"] = {"captured_at": "now", "board": board}
+        payload["execution_state"] = {
+            "fresh_prewrite_persisted": True,
+            "write_flash_returned_success": False,
+            "postwrite_integrity_pass": False,
+            "postwrite_identity_pass": False,
+        }
+        return claimed, payload
+
+    def fake_persist(claimed, payload, **updates):
+        payload["execution_state"].update(updates)
+        persisted.append(dict(payload["execution_state"]))
+
+    monkeypatch.setattr(module, "claim_preflight", fake_claim)
+    monkeypatch.setattr(module, "persist_claimed_execution_state", fake_persist)
+    monkeypatch.setattr(module, "run_capture", lambda *args, **kwargs: "")
+    monkeypatch.setattr(
+        module,
+        "verify_postwrite_integrity",
+        lambda *args, **kwargs: (_ for _ in ()).throw(module.StopExecution("readback failed")),
+    )
+    monkeypatch.setattr(
+        module,
+        "utc_now",
+        lambda: dt.datetime(2026, 10, 23, 8, 30, tzinfo=dt.timezone.utc),
+    )
+
+    args = argparse.Namespace(
+        confirm=module.WRITE_CONFIRMATION,
+        preflight=str(preflight),
+        port="/dev/cu.usbmodem-test",
+        release_bundle=str(release),
+        output=str(output),
+    )
+    with pytest.raises(module.StopExecution, match="readback failed"):
+        module.run_write(args)
+    assert persisted
+    assert persisted[0]["write_flash_returned_success"] is True
+    assert persisted[0]["postwrite_integrity_pass"] is False
+    assert not output.exists()
 
 
 def test_run_write_rejects_wrong_confirmation_before_any_action(

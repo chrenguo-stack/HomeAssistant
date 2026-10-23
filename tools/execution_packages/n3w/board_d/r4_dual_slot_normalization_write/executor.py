@@ -13,8 +13,8 @@ import zipfile
 from pathlib import Path
 from typing import Iterable
 
-SCHEMA_PREFLIGHT = "n3w.board-d.r4-dual-slot-normalization-write-preflight/1"
-SCHEMA_WRITE = "n3w.board-d.r4-dual-slot-normalization-write/1"
+SCHEMA_PREFLIGHT = "n3w.board-d.r4-dual-slot-normalization-write-preflight/2"
+SCHEMA_WRITE = "n3w.board-d.r4-dual-slot-normalization-write/2"
 
 PRODUCT_SOURCE = "ec5f6d68e33db7757d91c807fff708ca81b075dc"
 PRODUCT_TREE = "16740efa8ad24d423adc0b2de32b99d56e2d23d1"
@@ -38,6 +38,7 @@ PHY_INIT_SIZE = 0x1000
 NVS_SIZE = 0x70000
 OTA_SLOT_SIZE = 0x3C0000
 FLASH_SECTOR_SIZE = 0x1000
+ROM_FLASH_SIZE = "8MB"
 SELECTED_WRITE_ROUTE = "DUAL_SLOT_PADDED_NORMALIZATION_BOOTLOADER_OTADATA"
 NORMALIZED_SLOT_SHA256 = "539a7b7fb14d44a4336526ff64ec4ee8b45737dc74c0e95eac15b5e06c84a195"
 NORMALIZATION_TAIL_SHA256 = "50b46211550f22ac7f9bcb795c7a784f2a14f96de618032f600e722f0418b12e"
@@ -310,24 +311,41 @@ def read_flash_region(
     size: int,
     destination: Path,
     *,
-    before: str = "no-reset",
-    after: str = "no-reset",
+    use_stub: bool = False,
 ) -> str:
-    command = esptool_base() + [
-        "--chip",
-        "esp32c6",
-        "--port",
-        port,
-        "--before",
-        before,
-        "--after",
-        after,
-        "--no-stub",
-        "read-flash",
-        hex(offset),
-        hex(size),
-        str(destination),
-    ]
+    if use_stub:
+        command = esptool_base() + [
+            "--chip",
+            "esp32c6",
+            "--port",
+            port,
+            "--before",
+            "no-reset-no-sync",
+            "--after",
+            "no-reset-stub",
+            "read-flash",
+            hex(offset),
+            hex(size),
+            str(destination),
+        ]
+    else:
+        command = esptool_base() + [
+            "--chip",
+            "esp32c6",
+            "--port",
+            port,
+            "--before",
+            "no-reset",
+            "--after",
+            "no-reset",
+            "--no-stub",
+            "read-flash",
+            "--flash-size",
+            ROM_FLASH_SIZE,
+            hex(offset),
+            hex(size),
+            str(destination),
+        ]
     run_capture(command, port=port)
     if not destination.is_file() or destination.stat().st_size != size:
         raise StopExecution("flash readback size mismatch")
@@ -574,8 +592,30 @@ def load_preflight(path: Path, port: str) -> dict[str, object]:
     return payload
 
 
-def claim_preflight(path: Path, port: str) -> tuple[Path, dict[str, object]]:
+def _validate_fresh_prewrite_board(fresh_board: dict[str, object], port: str) -> None:
+    if fresh_board.get("hardware_id_sha256") != EXPECTED_HARDWARE_ID_SHA256:
+        raise StopExecution("fresh prewrite target identity mismatch")
+    if fresh_board.get("port_sha256") != sha256_bytes(port.encode("utf-8")):
+        raise StopExecution("fresh prewrite serial port binding mismatch")
+    if fresh_board.get("chip") != "ESP32-C6" or fresh_board.get("flash_size") != ROM_FLASH_SIZE:
+        raise StopExecution("fresh prewrite silicon/flash binding mismatch")
+    if fresh_board.get("secure_boot") is not False or fresh_board.get("flash_encryption") is not False:
+        raise StopExecution("fresh prewrite security state mismatch")
+    if fresh_board.get("partition_table_sha256") != MEMBER_BINDINGS["partitions.bin"][1]:
+        raise StopExecution("fresh prewrite partition table binding mismatch")
+    for key in ("phy_init_sha256", "nvs_sha256"):
+        value = fresh_board.get(key)
+        if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{64}", value) is None:
+            raise StopExecution(f"fresh prewrite {key} binding is invalid")
+
+
+def claim_preflight(
+    path: Path,
+    port: str,
+    fresh_board: dict[str, object],
+) -> tuple[Path, dict[str, object]]:
     payload = load_preflight(path, port)
+    _validate_fresh_prewrite_board(fresh_board, port)
     if path.is_symlink() or not path.is_file():
         raise StopExecution("preflight closure path is unsafe")
     claimed = path.with_name("claimed-" + path.name)
@@ -595,12 +635,38 @@ def claim_preflight(path: Path, port: str) -> tuple[Path, dict[str, object]]:
         raise StopExecution("preflight authorization claim verification failed")
     if claimed.stat().st_ino != source_inode:
         raise StopExecution("preflight authorization claim inode mismatch")
+    claimed_at = utc_now().isoformat()
     payload["authorization_claimed"] = True
     payload["authorization_consumed"] = True
     payload["replay_permitted"] = False
-    payload["consumed_at"] = utc_now().isoformat()
+    payload["consumed_at"] = claimed_at
+    payload["fresh_prewrite"] = {
+        "captured_at": claimed_at,
+        "board": fresh_board,
+    }
+    payload["execution_state"] = {
+        "fresh_prewrite_persisted": True,
+        "write_flash_returned_success": False,
+        "postwrite_integrity_pass": False,
+        "postwrite_identity_pass": False,
+    }
     write_json(claimed, payload)
     return claimed, payload
+
+
+def persist_claimed_execution_state(
+    claimed: Path,
+    payload: dict[str, object],
+    **updates: object,
+) -> None:
+    if claimed.is_symlink() or not claimed.is_file():
+        raise StopExecution("claimed authorization evidence is missing or unsafe")
+    state = payload.get("execution_state")
+    if not isinstance(state, dict):
+        raise StopExecution("claimed authorization execution state is missing")
+    state.update(updates)
+    payload["execution_state_updated_at"] = utc_now().isoformat()
+    write_json(claimed, payload)
 
 
 def build_write_command(
@@ -618,7 +684,7 @@ def build_write_command(
         "--before",
         "no-reset",
         "--after",
-        "no-reset",
+        "no-reset-stub",
         "write-flash",
         "--flash-mode",
         "keep",
@@ -645,6 +711,16 @@ def verify_postwrite_integrity(
     prewrite_nvs_sha256: str,
 ) -> dict[str, object]:
     root.mkdir(parents=True, exist_ok=True)
+
+    def postwrite_read(offset: int, size: int, destination: Path) -> str:
+        return read_flash_region(
+            port,
+            offset,
+            size,
+            destination,
+            use_stub=True,
+        )
+
     fixed_checks = {
         "bootloader": (
             BOOTLOADER_OFFSET,
@@ -664,14 +740,14 @@ def verify_postwrite_integrity(
     }
     result: dict[str, object] = {}
     for name, (offset, size, expected_sha) in fixed_checks.items():
-        actual_sha = read_flash_region(port, offset, size, root / f"{name}.bin")
+        actual_sha = postwrite_read(offset, size, root / f"{name}.bin")
         if actual_sha != expected_sha:
             raise StopExecution(f"post-write {name} SHA256 mismatch")
         result[f"{name}_sha256"] = actual_sha
         result[f"{name}_match"] = True
 
-    app0_sha = read_flash_region(port, APP0_OFFSET, OTA_SLOT_SIZE, root / "app0-full-slot.bin")
-    app1_sha = read_flash_region(port, APP1_OFFSET, OTA_SLOT_SIZE, root / "app1-full-slot.bin")
+    app0_sha = postwrite_read(APP0_OFFSET, OTA_SLOT_SIZE, root / "app0-full-slot.bin")
+    app1_sha = postwrite_read(APP1_OFFSET, OTA_SLOT_SIZE, root / "app1-full-slot.bin")
     if app0_sha != NORMALIZED_SLOT_SHA256:
         raise StopExecution("post-write app0 full-slot SHA256 mismatch")
     if app1_sha != NORMALIZED_SLOT_SHA256:
@@ -684,8 +760,8 @@ def verify_postwrite_integrity(
     result["app1_tail_erased"] = True
     result["old_application_code_remains"] = False
 
-    phy_init_sha = read_flash_region(port, PHY_INIT_OFFSET, PHY_INIT_SIZE, root / "phy-init.bin")
-    nvs_sha = read_flash_region(port, NVS_OFFSET, NVS_SIZE, root / "nvs.bin")
+    phy_init_sha = postwrite_read(PHY_INIT_OFFSET, PHY_INIT_SIZE, root / "phy-init.bin")
+    nvs_sha = postwrite_read(NVS_OFFSET, NVS_SIZE, root / "nvs.bin")
     if phy_init_sha != prewrite_phy_init_sha256:
         raise StopExecution("protected phy_init region changed during write")
     if nvs_sha != prewrite_nvs_sha256:
@@ -713,18 +789,41 @@ def run_write(args: argparse.Namespace) -> int:
         esptool_version = verify_esptool_version()
         verify_image(files["firmware.bin"])
         fresh_board = probe_board(args.port)
-        claimed_preflight, _ = claim_preflight(preflight_path, args.port)
+        claimed_preflight, claimed_payload = claim_preflight(
+            preflight_path,
+            args.port,
+            fresh_board,
+        )
         command = build_write_command(args.port, files, normalized_slot)
         run_capture(command, port=args.port)
+        persist_claimed_execution_state(
+            claimed_preflight,
+            claimed_payload,
+            write_flash_returned_success=True,
+            write_flash_completed_at=utc_now().isoformat(),
+        )
         postwrite = verify_postwrite_integrity(
             args.port,
             root / "readback",
             prewrite_phy_init_sha256=str(fresh_board["phy_init_sha256"]),
             prewrite_nvs_sha256=str(fresh_board["nvs_sha256"]),
         )
-        postwrite_identity = observe_board_identity_security(args.port, before="no-reset")
+        claimed_payload["postwrite"] = postwrite
+        persist_claimed_execution_state(
+            claimed_preflight,
+            claimed_payload,
+            postwrite_integrity_pass=True,
+            postwrite_integrity_completed_at=utc_now().isoformat(),
+        )
+        postwrite_identity = observe_board_identity_security(args.port, before="default-reset")
         postwrite["hardware_id_sha256"] = postwrite_identity
         postwrite["hardware_id_match"] = postwrite_identity == EXPECTED_HARDWARE_ID_SHA256
+        persist_claimed_execution_state(
+            claimed_preflight,
+            claimed_payload,
+            postwrite_identity_pass=True,
+            postwrite_identity_completed_at=utc_now().isoformat(),
+        )
 
     payload: dict[str, object] = {
         "schema": SCHEMA_WRITE,
@@ -732,6 +831,8 @@ def run_write(args: argparse.Namespace) -> int:
         "created_at": utc_now().isoformat(),
         "esptool_version": esptool_version,
         "board": fresh_board,
+        "fresh_prewrite": claimed_payload["fresh_prewrite"],
+        "execution_state": claimed_payload["execution_state"],
         "artifact": artifact_binding_payload(),
         "normalized_slot": normalized_slot_binding_payload(),
         "erase_ranges": {name: [hex(start), hex(end)] for name, (start, end) in erase_ranges.items()},

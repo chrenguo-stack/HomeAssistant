@@ -7,12 +7,14 @@ on:
       - "tests/execution_packages/n3w/board_d/r4_dual_slot_normalization_write/**"
       - ".github/workflows/n3w-board-d-r4-dual-slot-normalization-write-executor-ci.yml"
       - "docs/development/N3W_BOARD_D_R4_DUAL_SLOT_NORMALIZATION_WRITE_EXECUTOR_SOURCE_REPAIR_20261023.md"
+      - "docs/development/N3W_BOARD_D_R4_DUAL_SLOT_NORMALIZATION_POSTWRITE_VERIFIER_SOURCE_REPAIR_20261023.md"
   push:
     paths:
       - "tools/execution_packages/n3w/board_d/r4_dual_slot_normalization_write/**"
       - "tests/execution_packages/n3w/board_d/r4_dual_slot_normalization_write/**"
       - ".github/workflows/n3w-board-d-r4-dual-slot-normalization-write-executor-ci.yml"
       - "docs/development/N3W_BOARD_D_R4_DUAL_SLOT_NORMALIZATION_WRITE_EXECUTOR_SOURCE_REPAIR_20261023.md"
+      - "docs/development/N3W_BOARD_D_R4_DUAL_SLOT_NORMALIZATION_POSTWRITE_VERIFIER_SOURCE_REPAIR_20261023.md"
 
 permissions:
   contents: read
