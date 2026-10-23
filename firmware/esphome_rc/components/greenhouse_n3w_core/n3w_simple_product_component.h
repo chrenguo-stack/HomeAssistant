@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <deque>
 #include <string>
+#include <vector>
 
 #include "esphome/core/component.h"
 
@@ -99,6 +100,7 @@ class SimpleProductComponent : public Component,
 
   // SimpleProductPort.
   bool set_radio_channel(uint8_t channel) override;
+  bool current_legal_channels(std::vector<uint8_t> *channels) override;
   bool broadcast_control(const uint8_t *data, std::size_t size) override;
   bool broadcast_control_on_channel(
       uint8_t channel,
@@ -155,6 +157,7 @@ class SimpleProductComponent : public Component,
   struct RxSlot {
     MacAddress source{};
     uint16_t size{0};
+    int16_t rssi_dbm{-127};
     uint8_t channel{0};
     std::array<uint8_t, kEspNowPhysicalDatagramLimit> data{};
   };
@@ -182,6 +185,7 @@ class SimpleProductComponent : public Component,
     NONE = 0,
     PRESENCE_SCAN,
     FULL_DIRECT_VERIFY,
+    GATEWAY_SELECTION_LOCAL_FAULT,
   };
 
   enum class PendingTelemetryState : uint8_t {
@@ -206,7 +210,11 @@ class SimpleProductComponent : public Component,
   bool start_runtime_if_ready_();
   bool derive_pmk_(LinkKey *pmk) const;
   void drain_send_completions_();
-  void drain_radio_();
+  bool drain_radio_();
+  void clear_rx_ring_();
+  bool consume_gateway_selection_runtime_result_(
+      SimpleProductError result,
+      bool selection_busy_before);
   bool check_pending_unicast_timeout_();
   void handle_pending_unicast_timeout_(uint64_t now_ms);
   void clear_tx_completion_ring_();
@@ -228,6 +236,8 @@ class SimpleProductComponent : public Component,
   void advance_relay_restore_();
   void exit_relay_restore_failure_(uint64_t now_ms);
   bool restore_relay_radio_();
+  bool read_current_legal_channels_(std::vector<uint8_t> *channels);
+  bool current_country_allows_channel_(uint8_t channel);
   bool enqueue_telemetry_(
       const std::string &telemetry_json,
       const std::string &boot_id,
