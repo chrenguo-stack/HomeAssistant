@@ -1020,6 +1020,8 @@ def _arm_watchdog(transaction: dict[str, Any]) -> dict[str, Any]:
                 f"--on-active={remaining}s",
                 "--timer-property=AccuracySec=1s",
                 "--property=Type=exec",
+                "--property=Restart=on-failure",
+                "--property=RestartSec=10s",
                 PYTHON_EXECUTABLE,
                 str(WATCHDOG_TOOL_PATH),
                 "expire",
@@ -1075,10 +1077,47 @@ def _cancel_watchdog(transaction: dict[str, Any]) -> str:
     return command_error_type
 
 
+def _start_watchdog_recovery_now(
+    transaction: dict[str, Any],
+) -> str:
+    unit = transaction.get("watchdog_unit")
+    if (
+        not isinstance(unit, str)
+        or re.fullmatch(
+            rf"{re.escape(WATCHDOG_UNIT_PREFIX)}[0-9a-f]{{16}}",
+            unit,
+        )
+        is None
+    ):
+        raise OnboardingError("watchdog_recovery_unit_invalid")
+
+    command_error_type = ""
+    try:
+        _run(
+            (
+                "systemctl",
+                "start",
+                f"{unit}.service",
+            ),
+            timeout=20,
+        )
+    except OPERATION_ERRORS as error:
+        command_error_type = type(error).__name__
+
+    if not _systemctl_is_active(f"{unit}.service"):
+        raise OnboardingError(
+            "watchdog_recovery_service_not_active:"
+            f"{command_error_type or 'no_command_error'}"
+        )
+    return command_error_type
+
+
 def _watchdog_terminal_status(status: object) -> bool:
     return status in {
         "STOPPED_WATCHDOG_ARM_FAILED",
         "STOPPED_OPEN_FAILED",
+        "OPEN_RESTORE_PENDING",
+        "TIMEOUT_RESTORE_PENDING",
         "STOPPED_TIMEOUT_RESTORE_FAILED",
         "FACTORY_RESTORED",
         "CLOSED_PASS",
@@ -1087,6 +1126,7 @@ def _watchdog_terminal_status(status: object) -> bool:
         "CLOSED_FAIL_WATCHDOG_LOST",
         "CLOSED_TIMEOUT",
         "CLOSED_TIMEOUT_PREOPEN",
+        "CLOSED_RECOVERY_AFTER_OPEN_FAILURE",
     }
 
 
@@ -1284,6 +1324,7 @@ def _transaction() -> dict[str, Any]:
         "CLOSED_FAIL_WATCHDOG_LOST",
         "CLOSED_TIMEOUT",
         "CLOSED_TIMEOUT_PREOPEN",
+        "CLOSED_RECOVERY_AFTER_OPEN_FAILURE",
     }
     if status not in allowed_statuses:
         raise OnboardingError("onboarding_transaction_status_invalid")
@@ -1344,7 +1385,6 @@ def _transaction() -> dict[str, Any]:
         not isinstance(command_count, int)
         or isinstance(command_count, bool)
         or command_count < 0
-        or command_count > 2
     ):
         raise OnboardingError("onboarding_transaction_command_count_invalid")
 
@@ -1570,6 +1610,45 @@ def open_window(
                 rollback_error = type(rollback).__name__
         else:
             _remove_override()
+
+        if rollback_status == "FAIL":
+            pending = _advance_transaction(
+                status="OPEN_RESTORE_PENDING",
+                manager_recreate_command_count=2,
+                rollback_status=rollback_status,
+                rollback_error_type=rollback_error,
+                rollback_command_error_type=rollback_command_error,
+                failure_type=type(error).__name__,
+                watchdog_recovery_required=True,
+            )
+            recovery_start_error = ""
+            try:
+                recovery_start_error = _start_watchdog_recovery_now(
+                    pending
+                )
+            except OPERATION_ERRORS as recovery_error:
+                _advance_transaction(
+                    status="OPEN_RESTORE_PENDING",
+                    watchdog_recovery_start_failure_type=type(
+                        recovery_error
+                    ).__name__,
+                    watchdog_recovery_required=True,
+                )
+                raise OnboardingError(
+                    "open_failed:"
+                    f"{type(error).__name__}:rollback_FAIL:"
+                    "watchdog_recovery_start_failed"
+                ) from recovery_error
+            _advance_transaction(
+                status="OPEN_RESTORE_PENDING",
+                watchdog_recovery_start_error_type=recovery_start_error,
+                watchdog_recovery_required=True,
+            )
+            raise OnboardingError(
+                f"open_failed:{type(error).__name__}:"
+                "rollback_FAIL:watchdog_recovery_active"
+            ) from error
+
         stopped = _advance_transaction(
             status="STOPPED_OPEN_FAILED",
             manager_recreate_command_count=2 if manager_mutation_started else 0,
@@ -1734,12 +1813,24 @@ def expire_window(
             "already_terminal": True,
             "raw_locator_in_output": False,
         }
-    if status not in {"CLAIMED", "WATCHDOG_ARMED", "OPEN"}:
+    if status not in {
+        "CLAIMED",
+        "WATCHDOG_ARMED",
+        "OPEN",
+        "OPEN_RESTORE_PENDING",
+        "TIMEOUT_RESTORE_PENDING",
+    }:
         raise OnboardingError("watchdog_transaction_state_invalid")
 
     expires_at = int(transaction["expires_at_unix"])
     remaining = expires_at - int(time.time())
-    if remaining > 0:
+    if (
+        status not in {
+            "OPEN_RESTORE_PENDING",
+            "TIMEOUT_RESTORE_PENDING",
+        }
+        and remaining > 0
+    ):
         time.sleep(remaining)
 
     transaction = _transaction()
@@ -1799,10 +1890,11 @@ def expire_window(
         except OPERATION_ERRORS as error:
             try:
                 _advance_transaction(
-                    status="STOPPED_TIMEOUT_RESTORE_FAILED",
+                    status="TIMEOUT_RESTORE_PENDING",
                     timeout_failure_type=type(error).__name__,
                     timeout_at_unix=int(time.time()),
                     manager_recreate_command_count=command_count + 1,
+                    watchdog_recovery_required=True,
                 )
             except OPERATION_ERRORS:
                 pass
@@ -1810,11 +1902,15 @@ def expire_window(
 
     post_counts = _db_counts()
     post_security_counts = _security_state_counts()
-    terminal = (
-        "CLOSED_TIMEOUT"
-        if manager_restore_required
-        else "CLOSED_TIMEOUT_PREOPEN"
-    )
+    previous_status = status
+    if previous_status == "OPEN_RESTORE_PENDING":
+        terminal = "CLOSED_RECOVERY_AFTER_OPEN_FAILURE"
+    else:
+        terminal = (
+            "CLOSED_TIMEOUT"
+            if manager_restore_required
+            else "CLOSED_TIMEOUT_PREOPEN"
+        )
     _advance_transaction(
         status=terminal,
         timeout_at_unix=int(time.time()),
