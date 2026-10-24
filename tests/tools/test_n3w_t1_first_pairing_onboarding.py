@@ -153,6 +153,7 @@ def test_command_surface_and_factory_defaults_are_fail_closed() -> None:
 
 def test_external_tls_probe_uses_explicit_production_context(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     tool = load_tool()
     events: list[object] = []
@@ -183,6 +184,13 @@ def test_external_tls_probe_uses_explicit_production_context(
             events.append(("sni", server_hostname))
             return FakeWrapped()
 
+    ca_cert = tmp_path / "ca.pem"
+    server_cert = tmp_path / "server.pem"
+    ca_cert.write_text("CA", encoding="ascii")
+    server_cert.write_text("PEM", encoding="ascii")
+    tool.CA_CERT = ca_cert
+    tool.SERVER_CERT = server_cert
+
     monkeypatch.setattr(tool, "_require_file", lambda _path: None)
     monkeypatch.setattr(tool.ssl, "SSLContext", FakeContext)
     monkeypatch.setattr(
@@ -205,12 +213,6 @@ def test_external_tls_probe_uses_explicit_production_context(
         "PEM_cert_to_DER_cert",
         lambda _pem: b"peer-der",
     )
-    monkeypatch.setattr(
-        tool.SERVER_CERT,
-        "read_text",
-        lambda **_kwargs: "PEM",
-    )
-
     tool._probe_external_broker_tls(TEST_BROKER_IP)
 
     assert events[0] == ("context", tool.ssl.PROTOCOL_TLS_CLIENT)
