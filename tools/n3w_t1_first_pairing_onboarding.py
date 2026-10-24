@@ -1133,10 +1133,7 @@ def _arm_watchdog(
                     "--on-active="
                     f"{remaining + WATCHDOG_GRACE_SECONDS}s"
                 ),
-                (
-                    "--timer-property="
-                    "AccuracySec=1s"
-                ),
+                "--timer-property=AccuracySec=1s",
                 "--property=Type=exec",
                 PYTHON_EXECUTABLE,
                 str(

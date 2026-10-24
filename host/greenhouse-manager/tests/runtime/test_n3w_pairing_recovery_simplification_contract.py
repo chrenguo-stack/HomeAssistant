@@ -46,11 +46,13 @@ def test_pairing_attempt_metadata_is_not_in_crypto_transcript() -> None:
 def test_product_uses_manager_owned_local_ipc_not_filesystem_inbox() -> None:
     product = source(RUNTIME / "n3w_simplified_product_runtime.py")
     wiring = source(RUNTIME / "n3w_manager_runtime_wiring.py")
+    dynamic = source(RUNTIME / "n3w_dynamic_pairing_window.py")
 
     assert "ManagerOwnedPairingSocket" in product
     assert "PrivateSetupSecretInbox(" not in product
     assert ".setup_secret_inbox.start()" not in wiring
-    assert "pairing_socket.start()" in wiring
+    assert "pairing_socket.start()" in dynamic
+    assert "pairing-control.sock" in dynamic
 
 
 def test_legacy_pairing_epoch_helpers_are_quarantined_from_product_runtime() -> None:

@@ -5,6 +5,7 @@ import ipaddress
 import json
 import os
 import socket
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -364,6 +365,74 @@ def test_dynamic_window_allows_only_one_open_and_manual_close(
         == "manual"
     )
     assert compositions[0].closed == 1
+
+
+def test_concurrent_open_allows_exactly_one_window(
+    tmp_path: Path,
+) -> None:
+    root = _private_root(tmp_path)
+    controller, _ = _fake_controller(
+        root
+    )
+    barrier = threading.Barrier(3)
+    accepted: list[str] = []
+    rejected: list[str] = []
+
+    def attempt(peer_ip: str) -> None:
+        barrier.wait()
+        try:
+            controller.open_window(
+                peer_ip=peer_ip,
+                window_seconds=180,
+            )
+            accepted.append(peer_ip)
+        except DynamicPairingWindowError as error:
+            rejected.append(str(error))
+
+    threads = [
+        threading.Thread(
+            target=attempt,
+            args=(peer,),
+        )
+        for peer in (
+            TEST_PEER_IP,
+            TEST_PEER_2_IP,
+        )
+    ]
+    for thread in threads:
+        thread.start()
+    barrier.wait()
+    for thread in threads:
+        thread.join(2)
+
+    try:
+        assert len(accepted) == 1
+        assert rejected == [
+            "pairing_window_already_active"
+        ]
+    finally:
+        controller.close_window()
+
+
+def test_dynamic_controller_does_not_construct_normal_mqtt_service() -> None:
+    source_path = (
+        Path(__file__)
+        .parents[2]
+        / "src"
+        / "greenhouse_manager"
+        / "runtime"
+        / "n3w_dynamic_pairing_window.py"
+    )
+    source = source_path.read_text(
+        encoding="utf-8"
+    )
+
+    assert "ManagerMqttService" not in source
+    assert (
+        "N3wSimplifiedManagerMqttService"
+        not in source
+    )
+    assert "build_manager_mqtt_service" not in source
 
 
 def test_dynamic_window_deadline_closes_without_external_watchdog(
