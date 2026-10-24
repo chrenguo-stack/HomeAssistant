@@ -151,6 +151,102 @@ def test_command_surface_and_factory_defaults_are_fail_closed() -> None:
     assert "docker compose down" not in source
 
 
+def test_external_tls_probe_uses_explicit_production_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    events: list[object] = []
+
+    class FakeSocket:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+    class FakeWrapped(FakeSocket):
+        def getpeercert(self, *, binary_form=False):
+            assert binary_form is True
+            return b"peer-der"
+
+    class FakeContext:
+        def __init__(self, protocol):
+            events.append(("context", protocol))
+            self.check_hostname = False
+            self.verify_mode = None
+
+        def load_verify_locations(self, *, cafile):
+            events.append(("ca", cafile))
+
+        def wrap_socket(self, raw, *, server_hostname):
+            assert isinstance(raw, FakeSocket)
+            events.append(("sni", server_hostname))
+            return FakeWrapped()
+
+    monkeypatch.setattr(tool, "_require_file", lambda _path: None)
+    monkeypatch.setattr(tool.ssl, "SSLContext", FakeContext)
+    monkeypatch.setattr(
+        tool.ssl,
+        "create_default_context",
+        lambda **_kwargs: pytest.fail(
+            "version-dependent create_default_context must not be used"
+        ),
+    )
+    monkeypatch.setattr(
+        tool.socket,
+        "create_connection",
+        lambda address, timeout: (
+            events.append(("connect", address, timeout))
+            or FakeSocket()
+        ),
+    )
+    monkeypatch.setattr(
+        tool.ssl,
+        "PEM_cert_to_DER_cert",
+        lambda _pem: b"peer-der",
+    )
+    monkeypatch.setattr(
+        tool.SERVER_CERT,
+        "read_text",
+        lambda **_kwargs: "PEM",
+    )
+
+    tool._probe_external_broker_tls(TEST_BROKER_IP)
+
+    assert events[0] == ("context", tool.ssl.PROTOCOL_TLS_CLIENT)
+    assert ("ca", str(tool.CA_CERT)) in events
+    assert ("sni", tool.BROKER_TLS_SERVER_NAME) in events
+    assert (
+        "connect",
+        (TEST_BROKER_IP, tool.BROKER_TLS_PORT),
+        5,
+    ) in events
+
+
+def test_manager_tls_probe_uses_explicit_production_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    calls: list[tuple[str, ...]] = []
+
+    monkeypatch.setattr(
+        tool,
+        "_run",
+        lambda argv, **_kwargs: calls.append(tuple(argv)) or "",
+    )
+
+    tool._probe_manager_broker_tls("manager-id")
+
+    assert len(calls) == 1
+    argv = calls[0]
+    script = argv[-1]
+    assert "ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)" in script
+    assert "ctx.check_hostname=True" in script
+    assert "ctx.verify_mode=ssl.CERT_REQUIRED" in script
+    assert "ctx.load_verify_locations" in script
+    assert "ssl.create_default_context" not in script
+
+
 def test_factory_compose_requires_disabled_pairing_and_placeholder(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
