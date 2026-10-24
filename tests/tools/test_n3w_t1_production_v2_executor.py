@@ -761,6 +761,14 @@ def test_post_reboot_readiness_polls_inside_existing_ssh_epoch(monkeypatch):
     assert progress[-1][1] == "PASS"
 
 
+def test_post_reboot_readiness_allows_mqtt_convergence_wait_reasons():
+    tool = load_tool()
+    assert {
+        "manager_mqtt_socket_not_ready",
+        "homeassistant_mqtt_socket_not_ready",
+    }.issubset(tool.READINESS_WAIT_REASONS)
+
+
 def test_post_reboot_readiness_times_out_fail_closed(monkeypatch):
     tool = load_tool()
     adapter = object.__new__(tool.LiveProductionAdapter)
@@ -794,6 +802,22 @@ def test_post_reboot_readiness_rejects_invalid_wait_reason(monkeypatch):
     )
     with pytest.raises(tool.ProductionExecutorError, match="post_reboot_readiness_report_invalid"):
         adapter.wait_for_post_reboot_readiness()
+
+
+def test_readiness_structured_container_name_failure_code_is_preserved():
+    tool = load_tool()
+    report = {
+        "schema": tool.TARGET_VERIFY_REPORT_SCHEMA,
+        "status": "FAIL",
+        "failure_class": "VERIFY_FAILED",
+        "error_code": "readiness_runtime_container_name_invalid",
+        "board_access": False,
+    }
+    completed = subprocess.CompletedProcess([], 2, "", json.dumps(report))
+    with pytest.raises(tool.ProductionExecutorError) as captured:
+        tool._json_output(completed, "post_reboot_readiness")
+    assert captured.value.error_code == "readiness_runtime_container_name_invalid"
+    assert captured.value.target_failure_class == "VERIFY_FAILED"
 
 
 def test_target_verifier_structured_failure_code_is_preserved():

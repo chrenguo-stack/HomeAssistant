@@ -8174,3 +8174,75 @@ Current boundary:
 
 STOP before exact production artifact deployment, T1 recovery, Board D pairing or merge.
 
+
+
+## 2026-10-24 — KF-130 post-reboot Home Assistant MQTT readiness race
+
+```text
+TASK=N3W_T1_F5_V2_POST_REBOOT_HA_MQTT_READINESS_RACE_SOURCE_REPAIR_20261024_01
+SOURCE_BASE=b31d86a66d7c4fc10370606b610aab3203a91d94
+KF_130=SOURCE_REPAIR_CLOSED_PASS_PENDING_MERGE
+FAILED_RUN_REPLAY=false
+FAILED_T1_REFLASH_REQUIRED=true
+T1_PRODUCTION_READY=false
+BOARD_ACCESS=false
+PAIRING_ACCEPTANCE_BLOCKED=true
+```
+
+The fresh-Armbian exact-release F5 V2 run passed deployment, F4, controlled reboot,
+SSH epoch 2 and POST_REBOOT_READINESS, then failed strict POST_REBOOT_ACCEPTANCE with
+`homeassistant_mqtt_socket_missing`. Frozen failure forensics were complete.
+
+Two later read-only snapshots, 15 seconds apart, both PASS with stable boot/container
+identities, restart_count=0, Home Assistant HTTP ready, authenticated current Broker
+evidence, Manager 8883 socket count=1 and Home Assistant 1883 socket count=1. This proves
+the failed run observed a transient post-reboot MQTT convergence boundary rather than a
+persistent product runtime failure.
+
+KF-125 remains CLOSED_PASS_LIVE_REVALIDATED. KF-130 is a successor gap: existing
+readiness can PASS when services are running but before HA MQTT is connected.
+
+Frozen repair direction: extend the existing read-only readiness barrier with MQTT socket
+convergence while preserving strict verifier, external probes, 90-second observation,
+single production approval, single reboot arming, two SSH epochs and failed-run no-replay.
+
+Authority:
+`docs/development/N3W_T1_F5_V2_POST_REBOOT_HA_MQTT_READINESS_RACE_SOURCE_REPAIR_20261024.md`.
+
+
+## 2026-10-24 — KF-130 exact source/test closure
+
+```text
+TASK=N3W_T1_F5_V2_POST_REBOOT_HA_MQTT_READINESS_RACE_SOURCE_REPAIR_CLOSURE_20261024_01
+SOURCE_TEST_AUTHORITY=d63cba066201df355bf9ceb0fbb330c00dfee24d
+SOURCE_TEST_TREE=58feb07d69aea49003f5549c5a184367f6423709
+PR=665
+PR_DRAFT=true
+CI=14/14_SUCCESS
+F4_FOCUSED_TESTS=167_PASS
+F5_V2_R3_FOCUSED_TESTS=202_PASS
+NEW_SOURCE_BLOCKER_COUNT=0
+SOURCE_REPAIR=CLOSED_PASS
+MERGE=false
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+FAILED_RUN_REPLAY=false
+FAILED_T1_REFLASH_REQUIRED=true
+T1_PRODUCTION_READY=false
+```
+
+Final exact-head source review confirms that the readiness change only delays entry into
+strict acceptance until the existing Manager/Home Assistant MQTT socket conditions have
+converged. It does not weaken the strict target verifier, runtime authenticated-session
+evidence, external probes, the 90-second continuity observation, marker finalization,
+production approval, reboot arming or SSH epoch boundaries.
+
+The target-side and Mac-side sanitized error-code allowlists are aligned for
+`readiness_runtime_container_name_invalid`. The verifier executable mode is restored to
+`100755`. No unresolved review threads or source drift were present at source/test
+authority.
+
+The failed live run remains terminal and cannot be replayed or retroactively accepted.
+A future live production attempt requires merge, a completely new exact-release chain,
+local validation, T1 reflash/fresh qualification and a new run ID.

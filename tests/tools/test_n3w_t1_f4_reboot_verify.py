@@ -558,6 +558,8 @@ def _configure_readiness(
     running_services=frozenset({"broker", "manager", "homeassistant"}),
     unit_overrides=None,
     timer_enabled="enabled",
+    manager_socket_count=1,
+    homeassistant_socket_count=1,
 ):
     from types import SimpleNamespace
 
@@ -593,6 +595,16 @@ def _configure_readiness(
         COMPOSE_ENV="/etc/n3wfc4/docker-compose.env",
         COMPOSE_TARGET="/etc/n3wfc4/docker-compose.yml",
     )
+    module._compose_service_inspect = lambda service: {"Name": f"/{service}"}
+
+    def socket_count(container, port):
+        if container == "manager" and port == 8883:
+            return manager_socket_count
+        if container == "homeassistant" and port == 1883:
+            return homeassistant_socket_count
+        raise AssertionError((container, port))
+
+    module._container_established_socket_count = socket_count
     monkeypatch.setattr(
         tool,
         "_json",
@@ -766,6 +778,44 @@ def test_readiness_waits_for_incomplete_runtime_service_set(monkeypatch):
     report = tool.readiness()
     assert report["status"] == "WAIT"
     assert report["wait_reason"] == "runtime_service_set_incomplete"
+
+
+def test_readiness_waits_for_manager_mqtt_socket_convergence(monkeypatch):
+    tool = load_tool()
+    _configure_readiness(tool, monkeypatch, manager_socket_count=0)
+    report = tool.readiness()
+    assert report["status"] == "WAIT"
+    assert report["wait_reason"] == "manager_mqtt_socket_not_ready"
+
+
+def test_readiness_waits_for_homeassistant_mqtt_socket_convergence(monkeypatch):
+    tool = load_tool()
+    _configure_readiness(tool, monkeypatch, homeassistant_socket_count=0)
+    report = tool.readiness()
+    assert report["status"] == "WAIT"
+    assert report["wait_reason"] == "homeassistant_mqtt_socket_not_ready"
+
+
+def test_readiness_rejects_invalid_runtime_container_name(monkeypatch):
+    tool = load_tool()
+    module, *_ = _configure_readiness(tool, monkeypatch)
+    module._compose_service_inspect = lambda _service: {"Name": None}
+    with pytest.raises(tool.VerifyError, match="readiness_runtime_container_name_invalid"):
+        tool.readiness()
+
+
+def test_readiness_rejects_multiple_manager_mqtt_sockets(monkeypatch):
+    tool = load_tool()
+    _configure_readiness(tool, monkeypatch, manager_socket_count=2)
+    with pytest.raises(tool.VerifyError, match="manager_mqtt_socket_count_invalid"):
+        tool.readiness()
+
+
+def test_readiness_allows_multiple_homeassistant_mqtt_sockets(monkeypatch):
+    tool = load_tool()
+    _configure_readiness(tool, monkeypatch, homeassistant_socket_count=2)
+    report = tool.readiness()
+    assert report["status"] == "PASS"
 
 
 def test_readiness_passes_only_when_required_units_and_runtime_set_are_ready(monkeypatch):
