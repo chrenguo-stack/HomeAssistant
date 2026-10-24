@@ -1,0 +1,73 @@
+name: N3W T1 first-pairing onboarding CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/n3w-t1-first-pairing-onboarding-ci.yml"
+      - "tools/n3w_t1_first_pairing_onboarding.py"
+      - "tests/tools/test_n3w_t1_first_pairing_onboarding.py"
+      - "infra/n3w-t1/production/docker-compose.yml"
+      - "tools/n3w_t1_clean_product_deployment_gate.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_simplified_discovery.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/ops/n3w_pairing_cli.py"
+      - "docs/development/N3W_T1_FIRST_PAIRING_ONBOARDING_*.md"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/n3w-t1-first-pairing-onboarding-ci.yml"
+      - "tools/n3w_t1_first_pairing_onboarding.py"
+      - "tests/tools/test_n3w_t1_first_pairing_onboarding.py"
+      - "infra/n3w-t1/production/docker-compose.yml"
+      - "tools/n3w_t1_clean_product_deployment_gate.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_simplified_discovery.py"
+      - "host/greenhouse-manager/src/greenhouse_manager/ops/n3w_pairing_cli.py"
+      - "docs/development/N3W_T1_FIRST_PAIRING_ONBOARDING_*.md"
+
+permissions:
+  contents: read
+
+jobs:
+  onboarding-source-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install test dependencies
+        run: python -m pip install pytest ruff
+
+      - name: Compile
+        run: python -m py_compile tools/n3w_t1_first_pairing_onboarding.py
+
+      - name: Ruff
+        run: |
+          ruff check             tools/n3w_t1_first_pairing_onboarding.py             tests/tools/test_n3w_t1_first_pairing_onboarding.py
+
+      - name: Focused tests
+        run: pytest -q tests/tools/test_n3w_t1_first_pairing_onboarding.py
+
+      - name: Factory default remains pairing disabled
+        run: |
+          grep -Fq 'GH_N3W_PRODUCT_PAIRING_ENABLED: "false"' infra/n3w-t1/production/docker-compose.yml
+          grep -Fq 'GH_N3W_NODE_BROKER_HOST: gate-f-unbound.invalid' infra/n3w-t1/production/docker-compose.yml
+          grep -Fq 'GH_N3W_PAIRING_ADVERTISED_HOST: auto' infra/n3w-t1/production/docker-compose.yml
+          grep -Fq 'GH_N3W_NODE_BROKER_TLS_SERVER_NAME: armbian' infra/n3w-t1/production/docker-compose.yml
+
+      - name: Onboarding mutation remains manager only
+        run: |
+          grep -Fq -- '--force-recreate' tools/n3w_t1_first_pairing_onboarding.py
+          grep -Fq -- '--no-deps' tools/n3w_t1_first_pairing_onboarding.py
+          ! grep -Fq 'docker system prune' tools/n3w_t1_first_pairing_onboarding.py
+          ! grep -Fq 'docker compose down' tools/n3w_t1_first_pairing_onboarding.py
+
+      - name: Existing product pairing surfaces remain bound
+        run: |
+          grep -Fq 'resolve_route_selected_ipv4' host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_simplified_discovery.py
+          grep -Fq 'greenhouse-manager-pairing' host/greenhouse-manager/pyproject.toml
+          grep -Fq 'import_setup_secret_over_socket' host/greenhouse-manager/src/greenhouse_manager/ops/n3w_pairing_cli.py
