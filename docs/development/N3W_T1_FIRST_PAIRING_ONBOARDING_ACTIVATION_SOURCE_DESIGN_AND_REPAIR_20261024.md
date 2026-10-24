@@ -148,7 +148,9 @@ BROKER_CONTAINER_UNCHANGED=true
 HOMEASSISTANT_CONTAINER_UNCHANGED=true
 ```
 
-If post-recreate verification fails, the tool performs one safety rollback to the base Compose Manager configuration and verifies the pairing listeners are closed. This is a rollback of the authorized transition, not a retry of pairing.
+If Manager recreation has started and post-recreate verification fails, the tool performs one safety rollback to the base Compose Manager configuration and verifies the pairing listeners are closed. This is a rollback of the authorized transition, not a retry of pairing.
+
+A Compose timeout or lost return value is not interpreted as proof that recreation did not occur. Both open-failure rollback and normal close treat final observed state as authority: the tool attempts the factory Manager recreation, removes the runtime override, then requires the final pairing-disabled listeners/TLS/non-target-container invariants. A command error may therefore be recorded while a separately observed safe factory state still closes the transition.
 
 ## 6. Setup Secret boundary
 
@@ -255,7 +257,9 @@ New focused tests cover:
 - durable claim occurs before Manager recreation;
 - public result does not reveal the live Broker locator;
 - failed open performs factory Manager rollback;
-- successful close requires first-registration evidence;
+- successful close requires approved registration plus committed MQTT credential and N3-W application-key evidence;
+- credential generation/key epoch mismatch and incomplete credential state fail closed;
+- Compose-return ambiguity is resolved only by final observed factory state;
 - successful close returns to the factory pairing-disabled state;
 - authorization naming is explicit and bounded.
 
@@ -277,4 +281,16 @@ PAIRING_EXECUTION=false
 MERGE=false
 
 NEXT=EXACT_HEAD_SOURCE_REVIEW_AND_CI
+```
+
+## 12. Exact-head review findings repaired before live use
+
+The source-only review found and repaired two blockers before any T1/Board execution:
+
+1. an intermediate helper edit accidentally inserted the exact-success count check recursively inside `_security_state_counts()`; this was detected by exact-head source inspection and moved into `_first_pair_success_evidence()`;
+2. the first Manager recreation implementation used successful command return as the oracle for whether rollback was needed. A timeout could have meant the recreate happened but the return was lost. The repaired path marks mutation as started before invoking Compose and always uses observed factory state as the safety oracle.
+
+```text
+LIVE_T1_IMPACT_FROM_REVIEW_FINDINGS=false
+BOARD_IMPACT_FROM_REVIEW_FINDINGS=false
 ```
