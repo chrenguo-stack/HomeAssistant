@@ -1360,6 +1360,8 @@ def _transaction() -> dict[str, Any]:
         "CLAIMED",
         "WATCHDOG_ARMED",
         "OPEN",
+        "OPEN_RESTORE_PENDING",
+        "TIMEOUT_RESTORE_PENDING",
         "STOPPED_WATCHDOG_ARM_FAILED",
         "STOPPED_OPEN_FAILED",
         "STOPPED_TIMEOUT_RESTORE_FAILED",
@@ -1445,6 +1447,8 @@ def _transaction() -> dict[str, Any]:
     if status in {
         "WATCHDOG_ARMED",
         "OPEN",
+        "OPEN_RESTORE_PENDING",
+        "TIMEOUT_RESTORE_PENDING",
         "FACTORY_RESTORED",
         "CLOSED_PASS",
         "CLOSED_ABORTED",
@@ -1452,6 +1456,7 @@ def _transaction() -> dict[str, Any]:
         "CLOSED_FAIL_WATCHDOG_LOST",
         "CLOSED_TIMEOUT",
         "CLOSED_TIMEOUT_PREOPEN",
+        "CLOSED_RECOVERY_AFTER_OPEN_FAILURE",
     }:
         unit = document.get("watchdog_unit")
         auth_sha = document.get("watchdog_authorization_sha256")
