@@ -1,102 +1,103 @@
 from __future__ import annotations
 
-import hashlib
 import importlib.util
-import ipaddress
 import json
-import sqlite3
-import sys
+import os
 import time
 from pathlib import Path
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-TOOL = ROOT / "tools/n3w_t1_first_pairing_onboarding.py"
-TEST_PEER_IP = str(ipaddress.IPv4Address(0x0AFFFF32))
-TEST_BROKER_IP = str(ipaddress.IPv4Address(0x0AFFFF7E))
-TEST_OTHER_BROKER_IP = str(ipaddress.IPv4Address(0x0AFFFF7F))
+TOOL = (
+    ROOT
+    / "tools"
+    / "n3w_t1_first_pairing_onboarding.py"
+)
+
+TEST_PEER_IP = "192.168.50.40"
+TEST_BROKER_IP = "192.168.50.1"
 
 
 def load_tool():
-    name = "n3w_t1_first_pairing_onboarding"
-    spec = importlib.util.spec_from_file_location(name, TOOL)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
+    spec = importlib.util.spec_from_file_location(
+        "n3w_t1_first_pairing_onboarding",
+        TOOL,
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(
+        spec
+    )
     spec.loader.exec_module(module)
     return module
 
 
-def factory_compose(tool, *, pairing: str = "false", broker_host: str | None = None):
-    return {
-        "services": {
-            "broker": {},
-            "manager": {
-                "network_mode": "host",
-                "profiles": ["application"],
-                "environment": {
-                    "GH_N3W_RUNTIME_ENABLED": "true",
-                    "GH_N3W_PRODUCT_PAIRING_ENABLED": pairing,
-                    "GH_N3W_PAIRING_ADVERTISED_HOST": "auto",
-                    "GH_N3W_NODE_BROKER_HOST": (
-                        broker_host
-                        if broker_host is not None
-                        else tool.FACTORY_BROKER_PLACEHOLDER
-                    ),
-                    "GH_N3W_NODE_BROKER_PORT": "8883",
-                    "GH_N3W_NODE_BROKER_TLS_SERVER_NAME": "armbian",
-                },
-            },
-            "homeassistant": {},
-        }
-    }
+def _private_root(
+    tmp_path: Path,
+) -> Path:
+    root = tmp_path / "provisioning"
+    root.mkdir(mode=0o700)
+    os.chmod(root, 0o700)
+    return root
 
 
-def snapshot(
+def _runtime_snapshot(
     *,
-    manager_id: str = "manager-a",
-    broker_id: str = "broker-a",
-    ha_id: str = "ha-a",
-    pairing: str = "false",
-    broker_host: str = "gate-f-unbound.invalid",
+    manager_id: str = "b" * 64,
+    manager_restart: int = 0,
+    broker_id: str = "a" * 64,
+    broker_restart: int = 0,
+    ha_id: str = "c" * 64,
+    ha_restart: int = 0,
 ):
     return {
         "broker": {
             "id": broker_id,
-            "id_sha256": "b" * 64,
-            "restart_count": 0,
-            "network_mode": "n3wfc4-private",
+            "id_sha256": "1" * 64,
+            "restart_count": broker_restart,
+            "network_mode": "bridge",
             "env": {},
         },
         "manager": {
             "id": manager_id,
-            "id_sha256": "m" * 64,
-            "restart_count": 0,
+            "id_sha256": "2" * 64,
+            "restart_count": manager_restart,
             "network_mode": "host",
             "env": {
                 "GH_N3W_RUNTIME_ENABLED": "true",
-                "GH_N3W_PRODUCT_PAIRING_ENABLED": pairing,
+                "GH_N3W_PRODUCT_PAIRING_ENABLED": "false",
                 "GH_N3W_PAIRING_ADVERTISED_HOST": "auto",
-                "GH_N3W_NODE_BROKER_HOST": broker_host,
-                "GH_N3W_NODE_BROKER_TLS_SERVER_NAME": "armbian",
+                "GH_N3W_NODE_BROKER_HOST": (
+                    "gate-f-unbound.invalid"
+                ),
+                "GH_N3W_NODE_BROKER_TLS_SERVER_NAME": (
+                    "armbian"
+                ),
             },
         },
         "homeassistant": {
             "id": ha_id,
-            "id_sha256": "h" * 64,
-            "restart_count": 0,
-            "network_mode": "host",
+            "id_sha256": "3" * 64,
+            "restart_count": ha_restart,
+            "network_mode": "bridge",
             "env": {},
         },
     }
 
 
-def _allow_root() -> None:
-    return None
+def _factory():
+    return {
+        "schema": "gh.n3w.t1-factory-accepted/1",
+        "status": "PASS",
+        "factory_accepted": True,
+        "release_id": "release-test",
+        "host_instance_id": "host-test",
+        "system_id": "greenhouse",
+    }
 
 
-def zero_counts():
+def _zero_counts():
     return {
         "registrations": 0,
         "pairing_sessions": 0,
@@ -105,1573 +106,1238 @@ def zero_counts():
     }
 
 
-def paired_counts():
+def _zero_security_counts():
+    return {
+        "credential_records": 0,
+        "application_key_records": 0,
+        "application_key_files": 0,
+        "peer_trust_records": 0,
+    }
+
+
+def _paired_counts():
     return {
         "registrations": 1,
         "pairing_sessions": 1,
-        "registration_events": 2,
+        "registration_events": 1,
         "node_id_leases": 1,
     }
 
 
-def zero_security_counts():
+def _paired_security_counts():
     return {
-        "credential_assignments": 0,
-        "peer_trust_records": 0,
-        "application_key_active_nodes": 0,
-        "application_key_epochs": 0,
-    }
-
-
-def paired_security_counts():
-    return {
-        "credential_assignments": 1,
+        "credential_records": 1,
+        "application_key_records": 1,
+        "application_key_files": 1,
         "peer_trust_records": 1,
-        "application_key_active_nodes": 1,
-        "application_key_epochs": 1,
     }
 
 
-def test_command_surface_and_factory_defaults_are_fail_closed() -> None:
-    tool = load_tool()
-    source = TOOL.read_text(encoding="utf-8")
-
-    assert source.startswith("from __future__ import annotations\n")
-    assert tool.OPEN_CONFIRMATION == "OPEN FIRST PAIRING WINDOW: YES"
-    assert tool.CLOSE_CONFIRMATION == "CLOSE FIRST PAIRING WINDOW: YES"
-    assert tool.FACTORY_BROKER_PLACEHOLDER == "gate-f-unbound.invalid"
-    assert 'subparsers.add_parser("inspect")' in source
-    assert 'subparsers.add_parser("open")' in source
-    assert 'subparsers.add_parser("close")' in source
-    assert 'subparsers.add_parser("expire")' in source
-    assert "--force-recreate" in source
-    assert "--no-deps" in source
-    assert '"manager"' in source
-    assert "docker system prune" not in source
-    assert "docker compose down" not in source
-
-
-def test_external_tls_probe_uses_explicit_production_context(
-    monkeypatch: pytest.MonkeyPatch,
+def _configure_transaction_paths(
+    tool,
     tmp_path: Path,
-) -> None:
-    tool = load_tool()
-    events: list[object] = []
+) -> Path:
+    root = _private_root(tmp_path)
+    tool.PROVISIONING_ROOT = root
+    tool.TRANSACTION_PATH = (
+        root
+        / "FIRST_PAIRING_ONBOARDING.json"
+    )
+    tool.RUNTIME_ROOT = (
+        tmp_path
+        / "runtime"
+    )
+    tool.WATCHDOG_TOOL_PATH = (
+        tool.RUNTIME_ROOT
+        / "onboarding-watchdog.py"
+    )
+    return root
 
-    class FakeSocket:
-        def __enter__(self):
-            return self
 
-        def __exit__(self, *_args):
-            return False
-
-    class FakeWrapped(FakeSocket):
-        def getpeercert(self, *, binary_form=False):
-            assert binary_form is True
-            return b"peer-der"
-
-    class FakeContext:
-        def __init__(self, protocol):
-            events.append(("context", protocol))
-            self.check_hostname = False
-            self.verify_mode = None
-
-        def load_verify_locations(self, *, cafile):
-            events.append(("ca", cafile))
-
-        def wrap_socket(self, raw, *, server_hostname):
-            assert isinstance(raw, FakeSocket)
-            events.append(("sni", server_hostname))
-            return FakeWrapped()
-
-    ca_cert = tmp_path / "ca.pem"
-    server_cert = tmp_path / "server.pem"
-    ca_cert.write_text("CA", encoding="ascii")
-    server_cert.write_text("PEM", encoding="ascii")
-    tool.CA_CERT = ca_cert
-    tool.SERVER_CERT = server_cert
-
-    monkeypatch.setattr(tool, "_require_file", lambda _path: None)
-    monkeypatch.setattr(tool.ssl, "SSLContext", FakeContext)
-    monkeypatch.setattr(
-        tool.ssl,
-        "create_default_context",
-        lambda **_kwargs: pytest.fail(
-            "version-dependent create_default_context must not be used"
+def _claim(
+    tool,
+    *,
+    window_seconds: int = 300,
+):
+    baseline = _runtime_snapshot()
+    return tool._claim_transaction(
+        authorization_id=(
+            "N3W_T1_FIRST_PAIRING_TEST_01"
         ),
-    )
-    monkeypatch.setattr(
-        tool.socket,
-        "create_connection",
-        lambda address, timeout: (
-            events.append(("connect", address, timeout))
-            or FakeSocket()
-        ),
-    )
-    monkeypatch.setattr(
-        tool.ssl,
-        "PEM_cert_to_DER_cert",
-        lambda _pem: b"peer-der",
-    )
-    tool._probe_external_broker_tls(TEST_BROKER_IP)
-
-    assert events[0] == ("context", tool.ssl.PROTOCOL_TLS_CLIENT)
-    assert ("ca", str(tool.CA_CERT)) in events
-    assert ("sni", tool.BROKER_TLS_SERVER_NAME) in events
-    assert (
-        "connect",
-        (TEST_BROKER_IP, tool.BROKER_TLS_PORT),
-        5,
-    ) in events
-
-
-def test_manager_tls_probe_uses_explicit_production_context(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    tool = load_tool()
-    calls: list[tuple[str, ...]] = []
-
-    monkeypatch.setattr(
-        tool,
-        "_run",
-        lambda argv, **_kwargs: calls.append(tuple(argv)) or "",
-    )
-
-    tool._probe_manager_broker_tls("manager-id")
-
-    assert len(calls) == 1
-    argv = calls[0]
-    script = argv[-1]
-    assert "ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)" in script
-    assert "ctx.check_hostname=True" in script
-    assert "ctx.verify_mode=ssl.CERT_REQUIRED" in script
-    assert "ctx.load_verify_locations" in script
-    assert "ssl.create_default_context" not in script
-
-
-def test_factory_compose_requires_disabled_pairing_and_placeholder(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    tool = load_tool()
-
-    monkeypatch.setattr(tool, "_render_compose", lambda **_kwargs: factory_compose(tool))
-    tool._validate_factory_compose()
-
-    monkeypatch.setattr(
-        tool,
-        "_render_compose",
-        lambda **_kwargs: factory_compose(tool, pairing="true"),
-    )
-    with pytest.raises(tool.OnboardingError, match="GH_N3W_PRODUCT_PAIRING_ENABLED"):
-        tool._validate_factory_compose()
-
-    monkeypatch.setattr(
-        tool,
-        "_render_compose",
-        lambda **_kwargs: factory_compose(tool, broker_host=TEST_BROKER_IP),
-    )
-    with pytest.raises(tool.OnboardingError, match="GH_N3W_NODE_BROKER_HOST"):
-        tool._validate_factory_compose()
-
-
-def test_override_compose_changes_only_pairing_locator_contract(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    tool = load_tool()
-    host = TEST_BROKER_IP
-    monkeypatch.setattr(
-        tool,
-        "_render_compose",
-        lambda **_kwargs: factory_compose(
-            tool,
-            pairing="true",
-            broker_host=host,
-        ),
-    )
-
-    tool._validate_override_compose(host)
-
-    with pytest.raises(tool.OnboardingError, match="onboarding_broker_host_mismatch"):
-        tool._validate_override_compose(TEST_OTHER_BROKER_IP)
-
-
-def test_manager_recreate_is_scoped_to_manager_only(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    tool = load_tool()
-    calls: list[tuple[str, ...]] = []
-
-    monkeypatch.setattr(
-        tool,
-        "_run",
-        lambda argv, **_kwargs: calls.append(tuple(argv)) or "",
-    )
-
-    tool._recreate_manager(override=True)
-    tool._recreate_manager(override=False)
-
-    assert len(calls) == 2
-    for argv in calls:
-        assert argv[-5:] == (
-            "up",
-            "-d",
-            "--no-deps",
-            "--force-recreate",
-            "manager",
-        )
-        assert "broker" not in argv[-5:]
-        assert "homeassistant" not in argv[-5:]
-    assert str(tool.OVERRIDE_PATH) in calls[0]
-    assert str(tool.OVERRIDE_PATH) not in calls[1]
-
-
-def test_route_selected_broker_uses_exact_manager_runtime_logic(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    tool = load_tool()
-    calls: list[tuple[str, ...]] = []
-
-    def fake_run(argv, **_kwargs):
-        calls.append(tuple(argv))
-        return json.dumps({"local": True, "selected": TEST_BROKER_IP})
-
-    monkeypatch.setattr(tool, "_run", fake_run)
-
-    result = tool._resolve_route_selected_broker(
-        "manager-id",
-        TEST_PEER_IP,
-    )
-
-    assert result == TEST_BROKER_IP
-    assert calls[0][:3] == ("docker", "exec", "manager-id")
-    assert "resolve_route_selected_ipv4" in calls[0][5]
-
-
-def test_route_selected_broker_rejects_nonlocal_peer(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    tool = load_tool()
-
-    monkeypatch.setattr(
-        tool,
-        "_run",
-        lambda *_args, **_kwargs: json.dumps(
-            {"local": False, "selected": ""}
-        ),
-    )
-
-    with pytest.raises(tool.OnboardingError, match="peer_not_local"):
-        tool._resolve_route_selected_broker(
-            "manager-id",
-            TEST_PEER_IP,
-        )
-
-
-def _build_empty_application_key_db(path: Path) -> None:
-    with sqlite3.connect(path) as connection:
-        connection.executescript(
-            """
-            CREATE TABLE n3w_relay_meta (
-                schema_version INTEGER NOT NULL
-            );
-            INSERT INTO n3w_relay_meta VALUES (2);
-            CREATE TABLE n3w_relay_nodes (
-                node_id TEXT,
-                active INTEGER
-            );
-            CREATE TABLE n3w_relay_key_epochs (
-                node_id TEXT,
-                key_epoch INTEGER,
-                key_file TEXT,
-                enabled INTEGER,
-                state TEXT,
-                key_sha256 TEXT
-            );
-            """
-        )
-
-
-def test_security_counts_accept_absent_pairing_only_databases(
-    tmp_path: Path,
-) -> None:
-    tool = load_tool()
-    tool.CREDENTIAL_DB = tmp_path / "credential-lifecycle.sqlite3"
-    tool.PEER_TRUST_DB = tmp_path / "system-peer-trust.sqlite3"
-    tool.APPLICATION_KEY_DB = tmp_path / "relay-authorization.sqlite3"
-    _build_empty_application_key_db(tool.APPLICATION_KEY_DB)
-
-    counts = tool._security_state_counts()
-
-    assert counts == zero_security_counts()
-
-
-def test_security_counts_reject_existing_peer_trust_record(
-    tmp_path: Path,
-) -> None:
-    tool = load_tool()
-    tool.CREDENTIAL_DB = tmp_path / "credential-lifecycle.sqlite3"
-    tool.PEER_TRUST_DB = tmp_path / "system-peer-trust.sqlite3"
-    tool.APPLICATION_KEY_DB = tmp_path / "relay-authorization.sqlite3"
-    _build_empty_application_key_db(tool.APPLICATION_KEY_DB)
-
-    with sqlite3.connect(tool.PEER_TRUST_DB) as connection:
-        connection.execute(
-            """
-            CREATE TABLE n3w_system_peer_trust (
-                system_id TEXT PRIMARY KEY,
-                generation INTEGER NOT NULL,
-                key_material BLOB NOT NULL,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            )
-            """
-        )
-        connection.execute(
-            """
-            INSERT INTO n3w_system_peer_trust
-            VALUES (?, 1, ?, ?, ?)
-            """,
-            (
-                "greenhouse",
-                bytes(range(32)),
-                "2026-10-24T00:00:00.000Z",
-                "2026-10-24T00:00:00.000Z",
-            ),
-        )
-
-    counts = tool._security_state_counts()
-
-    assert counts["peer_trust_records"] == 1
-    with pytest.raises(
-        tool.OnboardingError,
-        match="first_pair_security_state_not_clean",
-    ):
-        tool._require_clean_first_pair_state(zero_counts(), counts)
-
-
-def test_optional_pairing_database_symlink_fails_closed(
-    tmp_path: Path,
-) -> None:
-    tool = load_tool()
-    target = tmp_path / "target.sqlite3"
-    target.write_bytes(b"")
-    link = tmp_path / "credential-lifecycle.sqlite3"
-    link.symlink_to(target)
-
-    with pytest.raises(
-        tool.OnboardingError,
-        match="optional_database_symlink",
-    ):
-        tool._optional_private_db_count(
-            link,
-            table="credential_assignments",
-        )
-
-
-def test_first_pair_state_requires_all_registration_tables_empty() -> None:
-    tool = load_tool()
-
-    tool._require_clean_first_pair_state(
-        zero_counts(),
-        zero_security_counts(),
-    )
-
-    current = zero_counts()
-    current["pairing_sessions"] = 1
-    with pytest.raises(tool.OnboardingError, match="first_pair_state_not_clean"):
-        tool._require_clean_first_pair_state(
-            current,
-            zero_security_counts(),
-        )
-
-    security = zero_security_counts()
-    security["credential_assignments"] = 1
-    with pytest.raises(
-        tool.OnboardingError,
-        match="first_pair_security_state_not_clean",
-    ):
-        tool._require_clean_first_pair_state(
-            zero_counts(),
-            security,
-        )
-
-
-def test_open_claims_before_manager_recreate_and_never_outputs_locator(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    tool = load_tool()
-    monkeypatch.setattr(tool, "_require_root", _allow_root)
-    baseline = snapshot()
-    after = snapshot(
-        manager_id="manager-b",
-        pairing="true",
+        factory=_factory(),
+        peer_ip=TEST_PEER_IP,
         broker_host=TEST_BROKER_IP,
+        baseline=baseline,
+        window_seconds=window_seconds,
     )
-    runtime_values = iter((baseline, after))
-    events: list[str] = []
 
-    monkeypatch.setattr(tool, "_require_file", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(tool, "_validate_factory_compose", dict)
+
+def _open_transaction(
+    tool,
+    *,
+    window_seconds: int = 300,
+):
+    document = _claim(
+        tool,
+        window_seconds=window_seconds,
+    )
+    opened_at = int(time.time())
+    return tool._advance_transaction(
+        status="OPEN",
+        opened_at_unix=opened_at,
+        expires_at_unix=(
+            opened_at
+            + window_seconds
+        ),
+        watchdog_unit=(
+            tool._watchdog_unit_name(
+                document[
+                    "authorization_id"
+                ]
+            )
+        ),
+        watchdog_armed=True,
+        watchdog_authorization_sha256=(
+            tool._sha256_text(
+                document[
+                    "authorization_id"
+                ]
+            )
+        ),
+        watchdog_tool_sha256=(
+            document["tool_sha256"]
+        ),
+    )
+
+
+def test_source_removes_manager_recreate_normal_path() -> None:
+    source = TOOL.read_text(
+        encoding="utf-8"
+    )
+
+    assert "--force-recreate" not in source
+    assert "manager-pairing.override" not in source
+    assert "_recreate_manager" not in source
+    assert "_restore_factory_manager" not in source
+    assert (
+        "greenhouse-manager-pairing"
+        in source
+    )
+    assert "window-open" in source
+    assert "window-close" in source
+
+
+def test_command_surface_and_factory_defaults_are_fail_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    monkeypatch.setattr(
+        tool,
+        "_require_root",
+        lambda: None,
+    )
+    parser = tool._parser()
+
+    open_args = parser.parse_args(
+        [
+            "open",
+            "--authorization-id",
+            (
+                "N3W_T1_FIRST_PAIRING_TEST_01"
+            ),
+            "--peer-ip",
+            TEST_PEER_IP,
+            "--confirm",
+            tool.OPEN_CONFIRMATION,
+        ]
+    )
+    assert open_args.window_seconds == 300
+
+    with pytest.raises(
+        tool.OnboardingError,
+        match="window_seconds_invalid",
+    ):
+        tool.open_window(
+            authorization_id=(
+                "N3W_T1_FIRST_PAIRING_TEST_01"
+            ),
+            peer_ip=TEST_PEER_IP,
+            confirmation=(
+                tool.OPEN_CONFIRMATION
+            ),
+            window_seconds=179,
+        )
+
+
+def test_claim_persists_hashes_not_raw_locators(
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    _configure_transaction_paths(
+        tool,
+        tmp_path,
+    )
+
+    document = _claim(tool)
+    persisted = json.loads(
+        tool.TRANSACTION_PATH.read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert document["schema"].endswith(
+        "/2"
+    )
+    assert (
+        persisted["peer_ip_sha256"]
+        == tool._sha256_text(
+            TEST_PEER_IP
+        )
+    )
+    assert (
+        persisted["broker_host_sha256"]
+        == tool._sha256_text(
+            TEST_BROKER_IP
+        )
+    )
+    assert "peer_ip" not in persisted
+    assert "broker_host" not in persisted
+    assert TEST_PEER_IP not in json.dumps(
+        persisted
+    )
+    assert TEST_BROKER_IP not in json.dumps(
+        persisted
+    )
+    assert tool._transaction() == persisted
+
+
+def test_transaction_parser_rejects_raw_locator_in_v2(
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    _configure_transaction_paths(
+        tool,
+        tmp_path,
+    )
+    document = _claim(tool)
+    document["broker_host"] = (
+        TEST_BROKER_IP
+    )
+    tool._write_private_json(
+        tool.TRANSACTION_PATH,
+        document,
+    )
+
+    with pytest.raises(
+        tool.OnboardingError,
+        match=(
+            "onboarding_transaction_raw_locator_forbidden"
+        ),
+    ):
+        tool._transaction()
+
+
+def test_legacy_consumed_transaction_is_read_only_and_non_replayable(
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    _configure_transaction_paths(
+        tool,
+        tmp_path,
+    )
+    legacy = {
+        "schema": (
+            tool.LEGACY_TRANSACTION_SCHEMA
+        ),
+        "status": "OPEN_RESTORE_PENDING",
+        "authorization_id": (
+            "N3W_T1_FIRST_PAIRING_OLD_01"
+        ),
+        "authorization_claimed": True,
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "broker_host": TEST_BROKER_IP,
+    }
+    tool._write_private_json(
+        tool.TRANSACTION_PATH,
+        legacy,
+    )
+
+    observed = tool._transaction()
+
+    assert observed["status"] == (
+        "OPEN_RESTORE_PENDING"
+    )
+
+    with pytest.raises(
+        tool.OnboardingError,
+        match=(
+            "onboarding_transaction_already_exists"
+        ),
+    ):
+        _claim(tool)
+
+    with pytest.raises(
+        tool.OnboardingError,
+        match=(
+            "legacy_transaction_requires_separate_recovery"
+        ),
+    ):
+        tool.expire_window(
+            authorization_sha256=(
+                tool._sha256_text(
+                    legacy[
+                        "authorization_id"
+                    ]
+                )
+            )
+        )
+
+
+def test_window_control_uses_local_manager_cli_and_never_returns_locator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    commands: list[
+        tuple[str, ...]
+    ] = []
+
+    def run(argv, **kwargs):
+        commands.append(tuple(argv))
+        return json.dumps(
+            {
+                "schema": (
+                    "gh.n3w."
+                    "pairing-window-control-result/1"
+                ),
+                "accepted": True,
+                "code": "opened",
+                "pairing_window_state": "OPEN",
+                "window_seconds": 300,
+                "expires_in_seconds": 299,
+                "broker_host_sha256": (
+                    "d" * 64
+                ),
+                "close_reason": "open",
+                "failure_type": None,
+                "raw_locator_in_output": False,
+            }
+        )
+
+    monkeypatch.setattr(
+        tool,
+        "_run",
+        run,
+    )
+
+    result = tool._window_control(
+        "b" * 64,
+        "open",
+        peer_ip=TEST_PEER_IP,
+        window_seconds=300,
+    )
+
+    assert result["accepted"] is True
+    assert commands == [
+        (
+            "docker",
+            "exec",
+            "b" * 64,
+            "greenhouse-manager-pairing",
+            "window-open",
+            "--peer-ip",
+            TEST_PEER_IP,
+            "--window-seconds",
+            "300",
+        )
+    ]
+    assert TEST_BROKER_IP not in json.dumps(
+        result
+    )
+
+
+def test_open_uses_dynamic_window_and_preserves_all_container_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    _configure_transaction_paths(
+        tool,
+        tmp_path,
+    )
+    baseline = _runtime_snapshot()
+    calls: list[str] = []
+
+    monkeypatch.setattr(
+        tool,
+        "_require_root",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_require_file",
+        lambda path, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_validate_factory_compose",
+        lambda: {},
+    )
     monkeypatch.setattr(
         tool,
         "_validate_factory_marker",
-        lambda: {
-            "release_id": "r",
-            "host_instance_id": "h",
-            "system_id": "s",
-        },
+        _factory,
     )
-    monkeypatch.setattr(tool, "_runtime_snapshot", lambda: next(runtime_values))
-    monkeypatch.setattr(tool, "_validate_factory_runtime", lambda _value: None)
-    monkeypatch.setattr(tool, "_db_counts", zero_counts)
-    monkeypatch.setattr(tool, "_security_state_counts", zero_security_counts)
-    monkeypatch.setattr(tool, "_listener_count", lambda *_args: 0)
+    monkeypatch.setattr(
+        tool,
+        "_runtime_snapshot",
+        lambda: baseline,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_validate_factory_runtime",
+        lambda snapshot: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_validate_factory_runtime_configuration",
+        lambda snapshot: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_validate_runtime_continuity",
+        lambda before, after: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_db_counts",
+        _zero_counts,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_security_state_counts",
+        _zero_security_counts,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_require_clean_first_pair_state",
+        lambda counts, security: None,
+    )
     monkeypatch.setattr(
         tool,
         "_resolve_route_selected_broker",
-        lambda *_args: TEST_BROKER_IP,
+        lambda manager, peer: (
+            TEST_BROKER_IP
+        ),
     )
-    monkeypatch.setattr(tool, "_probe_external_broker_tls", lambda _host: None)
+    monkeypatch.setattr(
+        tool,
+        "_probe_external_broker_tls",
+        lambda host: None,
+    )
 
-    def claim(**_kwargs):
-        events.append("claim")
+    def control(
+        manager,
+        command,
+        **kwargs,
+    ):
+        calls.append(command)
         return {
-            "broker_host_sha256": tool._sha256_text(TEST_BROKER_IP)
+            "accepted": True,
+            "code": (
+                "opened"
+                if command == "open"
+                else "status"
+            ),
+            "pairing_window_state": "OPEN",
+            "broker_host_sha256": (
+                tool._sha256_text(
+                    TEST_BROKER_IP
+                )
+            ),
+            "raw_locator_in_output": False,
         }
 
-    monkeypatch.setattr(tool, "_claim_transaction", claim)
+    monkeypatch.setattr(
+        tool,
+        "_window_control",
+        control,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_wait_dynamic_open",
+        lambda manager, expected: {},
+    )
+
+    def arm(transaction):
+        return tool._advance_transaction(
+            watchdog_unit=(
+                tool._watchdog_unit_name(
+                    transaction[
+                        "authorization_id"
+                    ]
+                )
+            ),
+            watchdog_armed=True,
+            watchdog_authorization_sha256=(
+                tool._sha256_text(
+                    transaction[
+                        "authorization_id"
+                    ]
+                )
+            ),
+            watchdog_tool_sha256=(
+                transaction[
+                    "tool_sha256"
+                ]
+            ),
+        )
+
     monkeypatch.setattr(
         tool,
         "_arm_watchdog",
-        lambda transaction: (
-            events.append("watchdog")
-            or {
-                **transaction,
-                "watchdog_unit": (
-                    tool.WATCHDOG_UNIT_PREFIX + "a" * 16
-                ),
-            }
-        ),
-    )
-    monkeypatch.setattr(tool, "_watchdog_is_active", lambda _tx: True)
-    monkeypatch.setattr(
-        tool,
-        "_write_override",
-        lambda _host: events.append("override"),
-    )
-    monkeypatch.setattr(tool, "_validate_override_compose", lambda _host: {})
-    monkeypatch.setattr(
-        tool,
-        "_recreate_manager",
-        lambda **kwargs: events.append(
-            f"recreate:{kwargs['override']}"
-        ),
+        arm,
     )
     monkeypatch.setattr(
         tool,
-        "_wait_onboarding_ready",
-        lambda _host: after["manager"],
-    )
-    monkeypatch.setattr(
-        tool,
-        "_validate_non_manager_continuity",
-        lambda *_args: None,
-    )
-    monkeypatch.setattr(
-        tool,
-        "_advance_transaction",
-        lambda **fields: {
-            **fields,
-            "broker_host_sha256": tool._sha256_text(
-                TEST_BROKER_IP
-            ),
-        },
+        "_watchdog_is_active",
+        lambda transaction: True,
     )
 
     report = tool.open_window(
-        authorization_id="N3W_T1_FIRST_PAIRING_TEST_01",
+        authorization_id=(
+            "N3W_T1_FIRST_PAIRING_TEST_01"
+        ),
         peer_ip=TEST_PEER_IP,
         confirmation=tool.OPEN_CONFIRMATION,
-        window_seconds=180,
+        window_seconds=300,
     )
 
-    assert events.index("claim") < events.index("watchdog")
-    assert events.index("watchdog") < events.index("recreate:True")
     assert report["status"] == "PASS"
-    assert report["raw_locator_in_output"] is False
-    assert TEST_BROKER_IP not in json.dumps(report)
+    assert report["manager_recreated"] is False
+    assert (
+        report["manager_container_unchanged"]
+        is True
+    )
+    assert calls == ["open"]
+    transaction = tool._transaction()
+    assert transaction["status"] == "OPEN"
+    assert (
+        transaction[
+            "broker_host_sha256"
+        ]
+        == tool._sha256_text(
+            TEST_BROKER_IP
+        )
+    )
+    assert "broker_host" not in transaction
+    assert "peer_ip" not in transaction
 
 
-def test_open_failure_after_recreate_restores_factory_manager(
+def test_open_failure_closes_dynamic_exposure_without_manager_recreate(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     tool = load_tool()
-    monkeypatch.setattr(tool, "_require_root", _allow_root)
-    baseline = snapshot()
-    restored = snapshot(manager_id="manager-c")
-    runtime_values = iter((baseline, restored))
-    recreate: list[bool] = []
-    advanced: list[dict[str, object]] = []
+    _configure_transaction_paths(
+        tool,
+        tmp_path,
+    )
+    baseline = _runtime_snapshot()
+    commands: list[str] = []
 
-    monkeypatch.setattr(tool, "_require_file", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(tool, "_validate_factory_compose", dict)
+    monkeypatch.setattr(
+        tool,
+        "_require_root",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_require_file",
+        lambda path, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_validate_factory_compose",
+        lambda: {},
+    )
     monkeypatch.setattr(
         tool,
         "_validate_factory_marker",
-        lambda: {
-            "release_id": "r",
-            "host_instance_id": "h",
-            "system_id": "s",
-        },
+        _factory,
     )
-    monkeypatch.setattr(tool, "_runtime_snapshot", lambda: next(runtime_values))
-    monkeypatch.setattr(tool, "_validate_factory_runtime", lambda _value: None)
-    monkeypatch.setattr(tool, "_db_counts", zero_counts)
-    monkeypatch.setattr(tool, "_security_state_counts", zero_security_counts)
-    monkeypatch.setattr(tool, "_listener_count", lambda *_args: 0)
+    monkeypatch.setattr(
+        tool,
+        "_runtime_snapshot",
+        lambda: baseline,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_validate_factory_runtime",
+        lambda snapshot: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_validate_runtime_continuity",
+        lambda before, after: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_db_counts",
+        _zero_counts,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_security_state_counts",
+        _zero_security_counts,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_require_clean_first_pair_state",
+        lambda counts, security: None,
+    )
     monkeypatch.setattr(
         tool,
         "_resolve_route_selected_broker",
-        lambda *_args: TEST_BROKER_IP,
-    )
-    monkeypatch.setattr(tool, "_probe_external_broker_tls", lambda _host: None)
-    monkeypatch.setattr(
-        tool,
-        "_claim_transaction",
-        lambda **_kwargs: {"authorization_id": "N3W_T1_FIRST_PAIRING_TEST_02"},
-    )
-    monkeypatch.setattr(
-        tool,
-        "_arm_watchdog",
-        lambda transaction: {
-            **transaction,
-            "watchdog_unit": tool.WATCHDOG_UNIT_PREFIX + "b" * 16,
-        },
-    )
-    monkeypatch.setattr(tool, "_watchdog_is_active", lambda _tx: True)
-    monkeypatch.setattr(tool, "_cancel_watchdog", lambda _tx: "")
-    monkeypatch.setattr(tool, "_write_override", lambda _host: None)
-    monkeypatch.setattr(tool, "_validate_override_compose", lambda _host: {})
-    monkeypatch.setattr(
-        tool,
-        "_recreate_manager",
-        lambda **kwargs: recreate.append(kwargs["override"]),
-    )
-    monkeypatch.setattr(
-        tool,
-        "_wait_onboarding_ready",
-        lambda _host: (_ for _ in ()).throw(
-            tool.OnboardingError("not-ready")
+        lambda manager, peer: (
+            TEST_BROKER_IP
         ),
     )
-    monkeypatch.setattr(tool, "_remove_override", lambda: None)
     monkeypatch.setattr(
         tool,
-        "_wait_factory_ready",
-        lambda: restored["manager"],
+        "_probe_external_broker_tls",
+        lambda host: None,
+    )
+
+    def control(
+        manager,
+        command,
+        **kwargs,
+    ):
+        commands.append(command)
+        if command == "open":
+            return {
+                "accepted": True,
+                "code": "opened",
+                "pairing_window_state": "OPEN",
+                "broker_host_sha256": (
+                    tool._sha256_text(
+                        TEST_BROKER_IP
+                    )
+                ),
+                "raw_locator_in_output": False,
+            }
+        return {
+            "accepted": True,
+            "code": "closed",
+            "pairing_window_state": "CLOSED",
+            "broker_host_sha256": None,
+            "raw_locator_in_output": False,
+        }
+
+    monkeypatch.setattr(
+        tool,
+        "_window_control",
+        control,
     )
     monkeypatch.setattr(
         tool,
-        "_validate_non_manager_continuity",
-        lambda *_args: None,
+        "_wait_dynamic_open",
+        lambda manager, expected: (
+            (_ for _ in ()).throw(
+                tool.OnboardingError(
+                    "health_failed"
+                )
+            )
+        ),
     )
     monkeypatch.setattr(
         tool,
-        "_advance_transaction",
-        lambda **fields: advanced.append(fields) or fields,
+        "_wait_dynamic_closed",
+        lambda manager: {},
     )
 
     with pytest.raises(
         tool.OnboardingError,
-        match="open_failed:OnboardingError:rollback_PASS",
+        match="dynamic_close_PASS",
     ):
         tool.open_window(
-            authorization_id="N3W_T1_FIRST_PAIRING_TEST_02",
+            authorization_id=(
+                "N3W_T1_FIRST_PAIRING_TEST_01"
+            ),
             peer_ip=TEST_PEER_IP,
-            confirmation=tool.OPEN_CONFIRMATION,
-            window_seconds=180,
+            confirmation=(
+                tool.OPEN_CONFIRMATION
+            ),
+            window_seconds=300,
         )
 
-    assert recreate == [True, False]
-    assert advanced[-1]["status"] == "STOPPED_OPEN_FAILED"
-    assert advanced[-1]["rollback_status"] == "PASS"
+    transaction = tool._transaction()
+    assert (
+        transaction["status"]
+        == "STOPPED_OPEN_FAILED"
+    )
+    assert (
+        transaction[
+            "pairing_exposure_closed"
+        ]
+        is True
+    )
+    assert commands == [
+        "open",
+        "close",
+    ]
 
 
-def test_open_restore_failure_keeps_watchdog_recovery_active(
+def test_close_success_uses_durable_pairing_evidence_and_no_restart(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     tool = load_tool()
-    monkeypatch.setattr(tool, "_require_root", _allow_root)
-    baseline = snapshot()
-    runtime_values = iter((baseline,))
-    advanced: list[dict[str, object]] = []
-    recovery_started: list[bool] = []
-    watchdog_cancelled: list[bool] = []
+    _configure_transaction_paths(
+        tool,
+        tmp_path,
+    )
+    transaction = _open_transaction(
+        tool
+    )
+    baseline = _runtime_snapshot()
+    evidence = {
+        "database_counts": (
+            _paired_counts()
+        ),
+        "security_counts": (
+            _paired_security_counts()
+        ),
+        "hardware_id_sha256": "1" * 64,
+        "pairing_id_sha256": "2" * 64,
+        "node_id_sha256": "3" * 64,
+        "credential_generation": 1,
+        "application_key_epoch": 1,
+        "peer_trust_generation": 1,
+        "peer_trust_system_id_sha256": (
+            "4" * 64
+        ),
+    }
 
-    monkeypatch.setattr(tool, "_require_file", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(tool, "_validate_factory_compose", dict)
     monkeypatch.setattr(
         tool,
-        "_validate_factory_marker",
-        lambda: {
-            "release_id": "r",
-            "host_instance_id": "h",
-            "system_id": "s",
-        },
-    )
-    monkeypatch.setattr(tool, "_runtime_snapshot", lambda: next(runtime_values))
-    monkeypatch.setattr(tool, "_validate_factory_runtime", lambda _value: None)
-    monkeypatch.setattr(tool, "_db_counts", zero_counts)
-    monkeypatch.setattr(tool, "_security_state_counts", zero_security_counts)
-    monkeypatch.setattr(tool, "_listener_count", lambda *_args: 0)
-    monkeypatch.setattr(
-        tool,
-        "_resolve_route_selected_broker",
-        lambda *_args: TEST_BROKER_IP,
-    )
-    monkeypatch.setattr(tool, "_probe_external_broker_tls", lambda _host: None)
-    monkeypatch.setattr(
-        tool,
-        "_claim_transaction",
-        lambda **_kwargs: {
-            "authorization_id": "N3W_T1_FIRST_PAIRING_TEST_02B",
-        },
+        "_require_root",
+        lambda: None,
     )
     monkeypatch.setattr(
         tool,
-        "_arm_watchdog",
-        lambda transaction: {
-            **transaction,
-            "watchdog_unit": tool.WATCHDOG_UNIT_PREFIX + "c" * 16,
-        },
+        "_runtime_snapshot",
+        lambda: baseline,
     )
-    monkeypatch.setattr(tool, "_write_override", lambda _host: None)
-    monkeypatch.setattr(tool, "_validate_override_compose", lambda _host: {})
-    monkeypatch.setattr(tool, "_recreate_manager", lambda **_kwargs: None)
     monkeypatch.setattr(
         tool,
-        "_wait_onboarding_ready",
-        lambda _host: (_ for _ in ()).throw(
-            tool.OnboardingError("not-ready")
+        "_validate_runtime_continuity",
+        lambda before, after: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_validate_factory_runtime_configuration",
+        lambda snapshot: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_validate_factory_runtime",
+        lambda snapshot: None,
+    )
+
+    states = iter(
+        [
+            {
+                "accepted": True,
+                "code": "status",
+                "pairing_window_state": "OPEN",
+                "broker_host_sha256": (
+                    transaction[
+                        "broker_host_sha256"
+                    ]
+                ),
+                "raw_locator_in_output": False,
+            },
+            {
+                "accepted": True,
+                "code": "closed",
+                "pairing_window_state": "CLOSED",
+                "broker_host_sha256": None,
+                "raw_locator_in_output": False,
+            },
+        ]
+    )
+    monkeypatch.setattr(
+        tool,
+        "_window_control",
+        lambda manager, command, **kwargs: (
+            next(states)
         ),
     )
     monkeypatch.setattr(
         tool,
-        "_restore_factory_manager",
-        lambda _baseline: (_ for _ in ()).throw(
-            tool.OnboardingError("restore-failed")
-        ),
+        "_wait_dynamic_closed",
+        lambda manager: {},
     )
     monkeypatch.setattr(
         tool,
-        "_start_watchdog_recovery_now",
-        lambda _tx: recovery_started.append(True) or "",
+        "_watchdog_is_active",
+        lambda transaction: True,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_first_pair_success_evidence",
+        lambda system_id: evidence,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_db_counts",
+        _paired_counts,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_security_state_counts",
+        _paired_security_counts,
     )
     monkeypatch.setattr(
         tool,
         "_cancel_watchdog",
-        lambda _tx: watchdog_cancelled.append(True) or "",
-    )
-    monkeypatch.setattr(
-        tool,
-        "_advance_transaction",
-        lambda **fields: advanced.append(fields) or {
-            **fields,
-            "watchdog_unit": tool.WATCHDOG_UNIT_PREFIX + "c" * 16,
-        },
-    )
-
-    with pytest.raises(
-        tool.OnboardingError,
-        match="rollback_FAIL:watchdog_recovery_active",
-    ):
-        tool.open_window(
-            authorization_id="N3W_T1_FIRST_PAIRING_TEST_02B",
-            peer_ip=TEST_PEER_IP,
-            confirmation=tool.OPEN_CONFIRMATION,
-            window_seconds=180,
-        )
-
-    assert recovery_started == [True]
-    assert watchdog_cancelled == []
-    assert any(
-        item.get("status") == "OPEN_RESTORE_PENDING"
-        for item in advanced
-    )
-    assert tool._watchdog_terminal_status("OPEN_RESTORE_PENDING") is False
-
-
-def test_close_success_requires_pairing_evidence_and_restores_factory(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    tool = load_tool()
-    monkeypatch.setattr(tool, "_require_root", _allow_root)
-    before = snapshot(
-        manager_id="manager-open",
-        pairing="true",
-        broker_host=TEST_BROKER_IP,
-    )
-    after = snapshot(manager_id="manager-closed")
-    runtime_values = iter((before, after))
-    counts = paired_counts()
-    recreated: list[bool] = []
-    advanced: list[dict[str, object]] = []
-
-    transaction = {
-        "schema": tool.TRANSACTION_SCHEMA,
-        "status": "OPEN",
-        "authorization_id": "N3W_T1_FIRST_PAIRING_TEST_03",
-        "authorization_claimed": True,
-        "authorization_consumed": True,
-        "replay_allowed": False,
-        "broker_host": TEST_BROKER_IP,
-        "expires_at_unix": int(time.time()) + 120,
-        "manager_recreate_command_count": 1,
-        "system_id": "greenhouse",
-        "baseline_container_ids": {
-            "broker": "broker-a",
-            "manager": "manager-a",
-            "homeassistant": "ha-a",
-        },
-    }
-
-    monkeypatch.setattr(tool, "_transaction", lambda: transaction)
-    monkeypatch.setattr(tool, "_watchdog_is_active", lambda _tx: True)
-    monkeypatch.setattr(tool, "_cancel_watchdog", lambda _tx: "")
-    monkeypatch.setattr(tool, "_runtime_snapshot", lambda: next(runtime_values))
-    monkeypatch.setattr(tool, "_db_counts", lambda: dict(counts))
-    monkeypatch.setattr(
-        tool,
-        "_security_state_counts",
-        lambda: paired_security_counts(),
-    )
-    monkeypatch.setattr(
-        tool,
-        "_first_pair_success_evidence",
-        lambda _system_id: {
-            "database_counts": dict(counts),
-            "security_counts": paired_security_counts(),
-            "hardware_id_sha256": "a" * 64,
-            "pairing_id_sha256": "b" * 64,
-            "node_id_sha256": "c" * 64,
-            "credential_generation": 1,
-            "application_key_epoch": 1,
-        },
-    )
-    monkeypatch.setattr(
-        tool,
-        "_recreate_manager",
-        lambda **kwargs: recreated.append(kwargs["override"]),
-    )
-    monkeypatch.setattr(tool, "_remove_override", lambda: None)
-    monkeypatch.setattr(
-        tool,
-        "_wait_factory_ready",
-        lambda: after["manager"],
-    )
-    monkeypatch.setattr(
-        tool,
-        "_validate_non_manager_continuity",
-        lambda *_args: None,
-    )
-    monkeypatch.setattr(
-        tool,
-        "_advance_transaction",
-        lambda **fields: advanced.append(fields) or fields,
+        lambda transaction: "",
     )
 
     report = tool.close_window(
-        authorization_id="N3W_T1_FIRST_PAIRING_TEST_03",
+        authorization_id=(
+            transaction[
+                "authorization_id"
+            ]
+        ),
         confirmation=tool.CLOSE_CONFIRMATION,
         outcome="success",
-    )
-
-    assert recreated == [False]
-    assert report["status"] == "PASS"
-    assert report["pairing_window_state"] == "CLOSED_PASS"
-    assert report["factory_pairing_disabled"] is True
-    assert report["factory_broker_placeholder_restored"] is True
-    assert advanced[-1]["status"] == "CLOSED_PASS"
-
-
-def test_close_success_rejects_missing_registration_evidence(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    tool = load_tool()
-    monkeypatch.setattr(tool, "_require_root", _allow_root)
-    before = snapshot(
-        manager_id="manager-open",
-        pairing="true",
-        broker_host=TEST_BROKER_IP,
-    )
-    transaction = {
-        "schema": tool.TRANSACTION_SCHEMA,
-        "status": "OPEN",
-        "authorization_id": "N3W_T1_FIRST_PAIRING_TEST_04",
-        "authorization_claimed": True,
-        "authorization_consumed": True,
-        "replay_allowed": False,
-        "broker_host": TEST_BROKER_IP,
-        "expires_at_unix": int(time.time()) + 120,
-        "manager_recreate_command_count": 1,
-        "system_id": "greenhouse",
-        "baseline_container_ids": {
-            "broker": "broker-a",
-            "manager": "manager-a",
-            "homeassistant": "ha-a",
-        },
-    }
-
-    monkeypatch.setattr(tool, "_transaction", lambda: transaction)
-    monkeypatch.setattr(tool, "_runtime_snapshot", lambda: before)
-    monkeypatch.setattr(
-        tool,
-        "_first_pair_success_evidence",
-        lambda _system_id: (_ for _ in ()).throw(
-            tool.OnboardingError("first_pair_success_state_not_observed")
-        ),
-    )
-
-    with pytest.raises(
-        tool.OnboardingError,
-        match="first_pair_success_state_not_observed",
-    ):
-        tool.close_window(
-            authorization_id="N3W_T1_FIRST_PAIRING_TEST_04",
-            confirmation=tool.CLOSE_CONFIRMATION,
-            outcome="success",
-        )
-
-
-def _build_success_state(tool, tmp_path: Path, *, generation: int = 1) -> None:
-    manager_db = tmp_path / "manager-state.sqlite3"
-    credentials_db = tmp_path / "credential-lifecycle.sqlite3"
-    key_db = tmp_path / "relay-authorization.sqlite3"
-    peer_db = tmp_path / "system-peer-trust.sqlite3"
-    key_dir = tmp_path / "relay-keys"
-    key_dir.mkdir(mode=0o700)
-    key_file = key_dir / "node-key.bin"
-    material = bytes(range(32))
-    key_file.write_bytes(material)
-    key_file.chmod(0o600)
-
-    with sqlite3.connect(manager_db) as connection:
-        connection.executescript(
-            """
-            CREATE TABLE registrations (
-                hardware_id TEXT,
-                current_pairing_id TEXT,
-                node_id TEXT
-            );
-            CREATE TABLE pairing_sessions (
-                pairing_id TEXT,
-                state TEXT
-            );
-            CREATE TABLE registration_events (
-                event_id INTEGER
-            );
-            CREATE TABLE node_id_leases (
-                node_id TEXT,
-                hardware_id TEXT,
-                state TEXT
-            );
-            INSERT INTO registrations VALUES (
-                'ghw-c6-aabbccddeeff',
-                'pairing-1',
-                'node_abc'
-            );
-            INSERT INTO pairing_sessions VALUES (
-                'pairing-1',
-                'approved'
-            );
-            INSERT INTO registration_events VALUES (1);
-            INSERT INTO registration_events VALUES (2);
-            INSERT INTO node_id_leases VALUES (
-                'node_abc',
-                'ghw-c6-aabbccddeeff',
-                'active'
-            );
-            """
-        )
-
-    with sqlite3.connect(credentials_db) as connection:
-        connection.execute(
-            """
-            CREATE TABLE credential_assignments (
-                hardware_id TEXT,
-                pairing_id TEXT,
-                node_id TEXT,
-                active_generation INTEGER,
-                pending_generation INTEGER,
-                state TEXT,
-                revoked_at TEXT
-            )
-            """
-        )
-        connection.execute(
-            """
-            INSERT INTO credential_assignments
-            VALUES (?, ?, ?, ?, NULL, 'active', NULL)
-            """,
-            (
-                "ghw-c6-aabbccddeeff",
-                "pairing-1",
-                "node_abc",
-                generation,
-            ),
-        )
-
-    digest = hashlib.sha256(material).hexdigest()
-    with sqlite3.connect(key_db) as connection:
-        connection.executescript(
-            """
-            CREATE TABLE n3w_relay_meta (
-                schema_version INTEGER NOT NULL
-            );
-            INSERT INTO n3w_relay_meta VALUES (2);
-            CREATE TABLE n3w_relay_nodes (
-                node_id TEXT,
-                active INTEGER
-            );
-            INSERT INTO n3w_relay_nodes VALUES (
-                'node_abc',
-                1
-            );
-            CREATE TABLE n3w_relay_key_epochs (
-                node_id TEXT,
-                key_epoch INTEGER,
-                key_file TEXT,
-                enabled INTEGER,
-                state TEXT,
-                key_sha256 TEXT
-            );
-            """
-        )
-        connection.execute(
-            """
-            INSERT INTO n3w_relay_key_epochs
-            VALUES (?, ?, ?, 1, 'ACTIVE', ?)
-            """,
-            (
-                "node_abc",
-                generation,
-                key_file.name,
-                digest,
-            ),
-        )
-
-    with sqlite3.connect(peer_db) as connection:
-        connection.execute(
-            """
-            CREATE TABLE n3w_system_peer_trust (
-                system_id TEXT PRIMARY KEY,
-                generation INTEGER NOT NULL,
-                key_material BLOB NOT NULL,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            )
-            """
-        )
-        connection.execute(
-            """
-            INSERT INTO n3w_system_peer_trust
-            VALUES (?, 1, ?, ?, ?)
-            """,
-            (
-                "greenhouse",
-                bytes(range(32, 64)),
-                "2026-10-24T00:00:00.000Z",
-                "2026-10-24T00:00:00.000Z",
-            ),
-        )
-
-    tool.MANAGER_DB = manager_db
-    tool.CREDENTIAL_DB = credentials_db
-    tool.APPLICATION_KEY_DB = key_db
-    tool.APPLICATION_KEY_DIR = key_dir
-    tool.PEER_TRUST_DB = peer_db
-
-
-def test_first_pair_success_evidence_binds_acknowledged_credentials(
-    tmp_path: Path,
-) -> None:
-    tool = load_tool()
-    _build_success_state(tool, tmp_path)
-
-    evidence = tool._first_pair_success_evidence("greenhouse")
-
-    assert evidence["database_counts"] == paired_counts()
-    assert evidence["security_counts"] == paired_security_counts()
-    assert evidence["credential_generation"] == 1
-    assert evidence["application_key_epoch"] == 1
-    assert evidence["peer_trust_generation"] == 1
-    assert evidence["peer_trust_system_id_sha256"] == tool._sha256_text(
-        "greenhouse"
-    )
-    assert evidence["hardware_id_sha256"] == tool._sha256_text(
-        "ghw-c6-aabbccddeeff"
-    )
-    assert evidence["pairing_id_sha256"] == tool._sha256_text("pairing-1")
-    assert evidence["node_id_sha256"] == tool._sha256_text("node_abc")
-
-
-def test_first_pair_success_evidence_rejects_noninitial_generation(
-    tmp_path: Path,
-) -> None:
-    tool = load_tool()
-    _build_success_state(tool, tmp_path, generation=2)
-
-    with pytest.raises(
-        tool.OnboardingError,
-        match="first_pair_credential_binding_invalid",
-    ):
-        tool._first_pair_success_evidence("greenhouse")
-
-
-def test_factory_restore_uses_observed_state_after_compose_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    tool = load_tool()
-    baseline = snapshot()
-    restored = snapshot(manager_id="manager-restored")
-    removed: list[bool] = []
-
-    monkeypatch.setattr(
-        tool,
-        "_recreate_manager",
-        lambda **_kwargs: (_ for _ in ()).throw(
-            tool.OnboardingError("compose-timeout")
-        ),
-    )
-    monkeypatch.setattr(
-        tool,
-        "_remove_override",
-        lambda: removed.append(True),
-    )
-    monkeypatch.setattr(
-        tool,
-        "_wait_factory_ready",
-        lambda: restored["manager"],
-    )
-    monkeypatch.setattr(tool, "_runtime_snapshot", lambda: restored)
-    monkeypatch.setattr(
-        tool,
-        "_validate_non_manager_continuity",
-        lambda *_args: None,
-    )
-
-    manager, command_error = tool._restore_factory_manager(baseline)
-
-    assert removed == [True]
-    assert manager["id"] == "manager-restored"
-    assert command_error == "OnboardingError"
-
-
-def test_exclusive_lock_does_not_create_a_lock_file(
-    tmp_path: Path,
-) -> None:
-    tool = load_tool()
-    tmp_path.chmod(0o700)
-    tool.PROVISIONING_ROOT = tmp_path
-
-    before = list(tmp_path.iterdir())
-    with tool._exclusive_lock():
-        during = list(tmp_path.iterdir())
-    after = list(tmp_path.iterdir())
-
-    assert before == []
-    assert during == []
-    assert after == []
-
-
-def test_main_inspect_does_not_take_mutating_lock(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    tool = load_tool()
-    monkeypatch.setattr(tool, "_require_root", _allow_root)
-
-    monkeypatch.setattr(
-        tool,
-        "inspect",
-        lambda: {
-            "schema": tool.SCHEMA,
-            "status": "PASS",
-            "operation": "inspect",
-        },
-    )
-
-    def forbidden_lock():
-        raise AssertionError("inspect must not enter exclusive lock")
-
-    monkeypatch.setattr(tool, "_exclusive_lock", forbidden_lock)
-
-    assert tool.main(["inspect"]) == 0
-
-
-def test_root_authority_is_required(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    tool = load_tool()
-    monkeypatch.setattr(tool.os, "geteuid", lambda: 1000)
-
-    with pytest.raises(tool.OnboardingError, match="root_required"):
-        tool._require_root()
-
-
-def _valid_transaction(tool, path: Path) -> dict[str, object]:
-    claimed_at = 1_000
-    document: dict[str, object] = {
-        "schema": tool.TRANSACTION_SCHEMA,
-        "status": "OPEN",
-        "authorization_id": "N3W_T1_FIRST_PAIRING_TEST_TRANSACTION_01",
-        "authorization_claimed": True,
-        "authorization_consumed": True,
-        "replay_allowed": False,
-        "release_id": "release-test",
-        "host_instance_id": "host-test",
-        "system_id": "greenhouse",
-        "peer_ip": TEST_PEER_IP,
-        "broker_host": TEST_BROKER_IP,
-        "broker_host_sha256": tool._sha256_text(TEST_BROKER_IP),
-        "window_seconds": 180,
-        "claimed_at_unix": claimed_at,
-        "expires_at_unix": claimed_at + 180,
-        "baseline_container_ids": {
-            "broker": "a" * 64,
-            "manager": "b" * 64,
-            "homeassistant": "c" * 64,
-        },
-        "manager_recreate_command_count": 1,
-        "tool_sha256": tool._sha256_file(TOOL),
-        "watchdog_unit": tool._watchdog_unit_name(
-            "N3W_T1_FIRST_PAIRING_TEST_TRANSACTION_01"
-        ),
-        "watchdog_armed": True,
-        "watchdog_authorization_sha256": tool._sha256_text(
-            "N3W_T1_FIRST_PAIRING_TEST_TRANSACTION_01"
-        ),
-        "watchdog_tool_sha256": tool._sha256_file(TOOL),
-    }
-    path.write_text(
-        json.dumps(document, sort_keys=True),
-        encoding="utf-8",
-    )
-    path.chmod(0o600)
-    return document
-
-
-def test_transaction_authority_validates_private_binding(
-    tmp_path: Path,
-) -> None:
-    tool = load_tool()
-    transaction_path = tmp_path / "transaction.json"
-    expected = _valid_transaction(tool, transaction_path)
-    tool.TRANSACTION_PATH = transaction_path
-
-    observed = tool._transaction()
-
-    assert observed == expected
-
-
-@pytest.mark.parametrize(
-    "status",
-    ("OPEN_RESTORE_PENDING", "TIMEOUT_RESTORE_PENDING"),
-)
-def test_transaction_authority_accepts_recovery_pending_statuses(
-    tmp_path: Path,
-    status: str,
-) -> None:
-    tool = load_tool()
-    transaction_path = tmp_path / "transaction.json"
-    document = _valid_transaction(tool, transaction_path)
-    document["status"] = status
-    document["manager_recreate_command_count"] = 2
-    transaction_path.write_text(
-        json.dumps(document, sort_keys=True),
-        encoding="utf-8",
-    )
-    transaction_path.chmod(0o600)
-    tool.TRANSACTION_PATH = transaction_path
-
-    observed = tool._transaction()
-
-    assert observed["status"] == status
-    assert observed["watchdog_unit"] == document["watchdog_unit"]
-
-
-@pytest.mark.parametrize(
-    "status",
-    (
-        "OPEN_RESTORE_PENDING",
-        "TIMEOUT_RESTORE_PENDING",
-        "CLOSED_RECOVERY_AFTER_OPEN_FAILURE",
-    ),
-)
-def test_transaction_recovery_states_require_watchdog_binding(
-    tmp_path: Path,
-    status: str,
-) -> None:
-    tool = load_tool()
-    transaction_path = tmp_path / "transaction.json"
-    document = _valid_transaction(tool, transaction_path)
-    document["status"] = status
-    document["manager_recreate_command_count"] = 2
-    document.pop("watchdog_unit")
-    transaction_path.write_text(
-        json.dumps(document, sort_keys=True),
-        encoding="utf-8",
-    )
-    transaction_path.chmod(0o600)
-    tool.TRANSACTION_PATH = transaction_path
-
-    with pytest.raises(
-        tool.OnboardingError,
-        match="onboarding_transaction_watchdog_binding_invalid",
-    ):
-        tool._transaction()
-
-
-def test_transaction_authority_rejects_locator_hash_drift(
-    tmp_path: Path,
-) -> None:
-    tool = load_tool()
-    transaction_path = tmp_path / "transaction.json"
-    document = _valid_transaction(tool, transaction_path)
-    document["broker_host_sha256"] = "0" * 64
-    transaction_path.write_text(
-        json.dumps(document, sort_keys=True),
-        encoding="utf-8",
-    )
-    transaction_path.chmod(0o600)
-    tool.TRANSACTION_PATH = transaction_path
-
-    with pytest.raises(
-        tool.OnboardingError,
-        match="onboarding_transaction_locator_hash_invalid",
-    ):
-        tool._transaction()
-
-
-def test_watchdog_arm_hides_private_runtime_values(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    tool = load_tool()
-    authorization_id = "N3W_T1_FIRST_PAIRING_WATCHDOG_TEST_01"
-    tool_sha = tool._sha256_file(TOOL)
-    transaction = {
-        "authorization_id": authorization_id,
-        "expires_at_unix": int(time.time()) + 300,
-        "tool_sha256": tool_sha,
-    }
-    commands: list[tuple[str, ...]] = []
-    advanced: list[dict[str, object]] = []
-
-    monkeypatch.setattr(tool, "_prepare_runtime_root", lambda _tx: None)
-    monkeypatch.setattr(
-        tool,
-        "_run",
-        lambda argv, **_kwargs: commands.append(tuple(argv)) or "",
-    )
-    monkeypatch.setattr(tool, "_systemctl_is_active", lambda _unit: True)
-    monkeypatch.setattr(tool, "_sha256_file", lambda _path: tool_sha)
-    monkeypatch.setattr(
-        tool,
-        "_advance_transaction",
-        lambda **fields: advanced.append(fields) or {
-            **transaction,
-            **fields,
-        },
-    )
-
-    result = tool._arm_watchdog(transaction)
-
-    assert result["status"] == "WATCHDOG_ARMED"
-    assert advanced[-1]["watchdog_armed"] is True
-    argv = commands[0]
-    rendered = " ".join(argv)
-    assert argv[0] == "systemd-run"
-    assert any(value.startswith("--on-active=") for value in argv)
-    assert "--timer-property=AccuracySec=1s" in argv
-    assert "--property=Type=exec" in argv
-    assert "--property=Restart=on-failure" in argv
-    assert "--property=RestartSec=10s" in argv
-    assert authorization_id not in rendered
-    assert TEST_PEER_IP not in rendered
-    assert TEST_BROKER_IP not in rendered
-    assert tool._sha256_text(authorization_id) in rendered
-
-
-def test_expire_open_window_restores_factory_without_success(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    tool = load_tool()
-    monkeypatch.setattr(tool, "_require_root", _allow_root)
-    authorization_id = "N3W_T1_FIRST_PAIRING_WATCHDOG_TEST_02"
-    transaction = {
-        "status": "OPEN",
-        "authorization_id": authorization_id,
-        "expires_at_unix": int(time.time()) - 1,
-        "manager_recreate_command_count": 1,
-        "baseline_container_ids": {
-            "broker": "broker-a",
-            "manager": "manager-a",
-            "homeassistant": "ha-a",
-        },
-    }
-    baseline = snapshot()
-    open_manager = snapshot(
-        manager_id="manager-open",
-        pairing="true",
-        broker_host=TEST_BROKER_IP,
-    )["manager"]
-    advanced: list[dict[str, object]] = []
-
-    monkeypatch.setattr(tool, "_transaction", lambda: transaction)
-    monkeypatch.setattr(
-        tool,
-        "_container_snapshot",
-        lambda service: (
-            baseline["broker"]
-            if service == "broker"
-            else baseline["homeassistant"]
-            if service == "homeassistant"
-            else open_manager
-        ),
-    )
-    monkeypatch.setattr(tool, "_listener_count", lambda *_args: 1)
-    monkeypatch.setattr(
-        tool,
-        "_restore_factory_manager",
-        lambda _baseline: (
-            snapshot(manager_id="manager-closed")["manager"],
-            "",
-        ),
-    )
-    monkeypatch.setattr(tool, "_db_counts", paired_counts)
-    monkeypatch.setattr(
-        tool,
-        "_security_state_counts",
-        paired_security_counts,
-    )
-    monkeypatch.setattr(
-        tool,
-        "_advance_transaction",
-        lambda **fields: advanced.append(fields) or fields,
-    )
-
-    report = tool.expire_window(
-        authorization_sha256=tool._sha256_text(authorization_id),
-    )
-
-    assert report["status"] == "PASS"
-    assert report["pairing_window_state"] == "CLOSED_TIMEOUT"
-    assert report["factory_pairing_disabled"] is True
-    assert advanced[-1]["status"] == "CLOSED_TIMEOUT"
-    assert "CLOSED_PASS" not in json.dumps(report)
-
-
-def test_expire_restore_failure_remains_retryable(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    tool = load_tool()
-    monkeypatch.setattr(tool, "_require_root", _allow_root)
-    authorization_id = "N3W_T1_FIRST_PAIRING_WATCHDOG_TEST_02B"
-    transaction = {
-        "status": "OPEN",
-        "authorization_id": authorization_id,
-        "expires_at_unix": int(time.time()) - 1,
-        "manager_recreate_command_count": 1,
-        "baseline_container_ids": {
-            "broker": "broker-a",
-            "manager": "manager-a",
-            "homeassistant": "ha-a",
-        },
-    }
-    baseline = snapshot()
-    open_manager = snapshot(
-        manager_id="manager-open",
-        pairing="true",
-        broker_host=TEST_BROKER_IP,
-    )["manager"]
-    advanced: list[dict[str, object]] = []
-
-    monkeypatch.setattr(tool, "_transaction", lambda: transaction)
-    monkeypatch.setattr(
-        tool,
-        "_container_snapshot",
-        lambda service: (
-            baseline["broker"]
-            if service == "broker"
-            else baseline["homeassistant"]
-            if service == "homeassistant"
-            else open_manager
-        ),
-    )
-    monkeypatch.setattr(tool, "_listener_count", lambda *_args: 1)
-    monkeypatch.setattr(
-        tool,
-        "_restore_factory_manager",
-        lambda _baseline: (_ for _ in ()).throw(
-            tool.OnboardingError("restore-failed")
-        ),
-    )
-    monkeypatch.setattr(
-        tool,
-        "_advance_transaction",
-        lambda **fields: advanced.append(fields) or fields,
-    )
-
-    with pytest.raises(tool.OnboardingError, match="restore-failed"):
-        tool.expire_window(
-            authorization_sha256=tool._sha256_text(authorization_id),
-        )
-
-    assert advanced[-1]["status"] == "TIMEOUT_RESTORE_PENDING"
-    assert advanced[-1]["watchdog_recovery_required"] is True
-    assert (
-        tool._watchdog_terminal_status("TIMEOUT_RESTORE_PENDING")
-        is False
-    )
-
-
-def test_expire_pending_open_failure_can_recover_factory(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    tool = load_tool()
-    monkeypatch.setattr(tool, "_require_root", _allow_root)
-    authorization_id = "N3W_T1_FIRST_PAIRING_WATCHDOG_TEST_02C"
-    transaction = {
-        "status": "OPEN_RESTORE_PENDING",
-        "authorization_id": authorization_id,
-        "expires_at_unix": int(time.time()) + 300,
-        "manager_recreate_command_count": 2,
-        "baseline_container_ids": {
-            "broker": "broker-a",
-            "manager": "manager-a",
-            "homeassistant": "ha-a",
-        },
-    }
-    baseline = snapshot()
-    open_manager = snapshot(
-        manager_id="manager-open",
-        pairing="true",
-        broker_host=TEST_BROKER_IP,
-    )["manager"]
-    advanced: list[dict[str, object]] = []
-
-    monkeypatch.setattr(tool, "_transaction", lambda: transaction)
-    monkeypatch.setattr(
-        tool.time,
-        "sleep",
-        lambda _seconds: pytest.fail(
-            "recovery-pending watchdog must not wait for deadline"
-        ),
-    )
-    monkeypatch.setattr(
-        tool,
-        "_container_snapshot",
-        lambda service: (
-            baseline["broker"]
-            if service == "broker"
-            else baseline["homeassistant"]
-            if service == "homeassistant"
-            else open_manager
-        ),
-    )
-    monkeypatch.setattr(tool, "_listener_count", lambda *_args: 1)
-    monkeypatch.setattr(
-        tool,
-        "_restore_factory_manager",
-        lambda _baseline: (
-            snapshot(manager_id="manager-restored")["manager"],
-            "",
-        ),
-    )
-    monkeypatch.setattr(tool, "_db_counts", zero_counts)
-    monkeypatch.setattr(
-        tool,
-        "_security_state_counts",
-        zero_security_counts,
-    )
-    monkeypatch.setattr(
-        tool,
-        "_advance_transaction",
-        lambda **fields: advanced.append(fields) or fields,
-    )
-
-    report = tool.expire_window(
-        authorization_sha256=tool._sha256_text(authorization_id),
     )
 
     assert report["status"] == "PASS"
     assert (
         report["pairing_window_state"]
-        == "CLOSED_RECOVERY_AFTER_OPEN_FAILURE"
+        == "CLOSED_PASS"
     )
-    assert "CLOSED_PASS" not in json.dumps(report)
+    assert report["manager_recreated"] is False
     assert (
-        advanced[-1]["status"]
-        == "CLOSED_RECOVERY_AFTER_OPEN_FAILURE"
+        report["success_evidence"]
+        == evidence
+    )
+    assert (
+        tool._transaction()["status"]
+        == "CLOSED_PASS"
     )
 
 
-def test_expire_terminal_state_is_noop(
+def test_abort_close_does_not_require_pairing_success_evidence(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     tool = load_tool()
-    monkeypatch.setattr(tool, "_require_root", _allow_root)
-    authorization_id = "N3W_T1_FIRST_PAIRING_WATCHDOG_TEST_03"
-    transaction = {
-        "status": "CLOSED_PASS",
-        "authorization_id": authorization_id,
-    }
-    monkeypatch.setattr(tool, "_transaction", lambda: transaction)
+    _configure_transaction_paths(
+        tool,
+        tmp_path,
+    )
+    transaction = _open_transaction(
+        tool
+    )
+    baseline = _runtime_snapshot()
+
     monkeypatch.setattr(
         tool,
-        "_restore_factory_manager",
-        lambda _baseline: pytest.fail("terminal expiry must not mutate"),
+        "_require_root",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_runtime_snapshot",
+        lambda: baseline,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_validate_runtime_continuity",
+        lambda before, after: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_validate_factory_runtime_configuration",
+        lambda snapshot: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_validate_factory_runtime",
+        lambda snapshot: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_window_control",
+        lambda manager, command, **kwargs: {
+            "accepted": True,
+            "code": command,
+            "pairing_window_state": (
+                "OPEN"
+                if command == "status"
+                else "CLOSED"
+            ),
+            "broker_host_sha256": (
+                transaction[
+                    "broker_host_sha256"
+                ]
+                if command == "status"
+                else None
+            ),
+            "raw_locator_in_output": False,
+        },
+    )
+    monkeypatch.setattr(
+        tool,
+        "_wait_dynamic_closed",
+        lambda manager: {},
+    )
+    monkeypatch.setattr(
+        tool,
+        "_watchdog_is_active",
+        lambda transaction: True,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_first_pair_success_evidence",
+        lambda system_id: (
+            pytest.fail(
+                "abort must not require success evidence"
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        tool,
+        "_db_counts",
+        _zero_counts,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_security_state_counts",
+        _zero_security_counts,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_cancel_watchdog",
+        lambda transaction: "",
     )
 
-    report = tool.expire_window(
-        authorization_sha256=tool._sha256_text(authorization_id),
+    report = tool.close_window(
+        authorization_id=(
+            transaction[
+                "authorization_id"
+            ]
+        ),
+        confirmation=tool.CLOSE_CONFIRMATION,
+        outcome="abort",
     )
 
     assert report["status"] == "PASS"
-    assert report["already_terminal"] is True
-    assert report["mutation"] is False
+    assert (
+        report["pairing_window_state"]
+        == "CLOSED_ABORTED"
+    )
 
 
-def test_watchdog_runtime_copy_is_private_and_exact(
+def test_manager_timeout_is_primary_and_watchdog_only_reconciles(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     tool = load_tool()
-    tool.RUNTIME_ROOT = tmp_path / "runtime"
-    tool.OVERRIDE_PATH = tool.RUNTIME_ROOT / "manager-pairing.override.yml"
-    tool.WATCHDOG_TOOL_PATH = tool.RUNTIME_ROOT / "onboarding-watchdog.py"
-    transaction = {
-        "tool_sha256": tool._sha256_file(TOOL),
-    }
+    _configure_transaction_paths(
+        tool,
+        tmp_path,
+    )
+    transaction = _open_transaction(
+        tool,
+        window_seconds=180,
+    )
+    baseline = _runtime_snapshot()
+    monkeypatch.setattr(
+        tool.time,
+        "time",
+        lambda: (
+            transaction[
+                "expires_at_unix"
+            ]
+            + 1
+        ),
+    )
 
-    tool._prepare_runtime_root(transaction)
+    monkeypatch.setattr(
+        tool,
+        "_require_root",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_runtime_snapshot",
+        lambda: baseline,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_validate_runtime_continuity",
+        lambda before, after: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_validate_factory_runtime_configuration",
+        lambda snapshot: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_validate_factory_runtime",
+        lambda snapshot: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_window_control",
+        lambda manager, command, **kwargs: {
+            "accepted": True,
+            "code": "status",
+            "pairing_window_state": "CLOSED",
+            "broker_host_sha256": None,
+            "raw_locator_in_output": False,
+        },
+    )
+    monkeypatch.setattr(
+        tool,
+        "_wait_dynamic_closed",
+        lambda manager: {},
+    )
+    monkeypatch.setattr(
+        tool,
+        "_listener_count",
+        lambda protocol, port: 0,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_db_counts",
+        _zero_counts,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_security_state_counts",
+        _zero_security_counts,
+    )
 
-    assert tool.RUNTIME_ROOT.stat().st_mode & 0o777 == 0o700
-    assert tool.WATCHDOG_TOOL_PATH.stat().st_mode & 0o777 == 0o600
-    assert tool._sha256_file(tool.WATCHDOG_TOOL_PATH) == tool._sha256_file(TOOL)
+    report = tool.expire_window(
+        authorization_sha256=(
+            tool._sha256_text(
+                transaction[
+                    "authorization_id"
+                ]
+            )
+        )
+    )
+
+    assert report["status"] == "PASS"
+    assert (
+        report["pairing_window_state"]
+        == "CLOSED_TIMEOUT"
+    )
+    assert report["manager_recreated"] is False
+
+
+def test_timeout_control_failure_never_restarts_manager(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    _configure_transaction_paths(
+        tool,
+        tmp_path,
+    )
+    transaction = _open_transaction(
+        tool,
+        window_seconds=180,
+    )
+    baseline = _runtime_snapshot()
+    monkeypatch.setattr(
+        tool.time,
+        "time",
+        lambda: (
+            transaction[
+                "expires_at_unix"
+            ]
+            + 1
+        ),
+    )
+
+    monkeypatch.setattr(
+        tool,
+        "_require_root",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_runtime_snapshot",
+        lambda: baseline,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_validate_runtime_continuity",
+        lambda before, after: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_validate_factory_runtime_configuration",
+        lambda snapshot: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_window_control",
+        lambda manager, command, **kwargs: (
+            (_ for _ in ()).throw(
+                tool.OnboardingError(
+                    "control_unavailable"
+                )
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        tool,
+        "_listener_count",
+        lambda protocol, port: 0,
+    )
+
+    report = tool.expire_window(
+        authorization_sha256=(
+            tool._sha256_text(
+                transaction[
+                    "authorization_id"
+                ]
+            )
+        )
+    )
+
+    assert report["status"] == "FAIL"
+    assert (
+        report["pairing_window_state"]
+        == "CLOSED_TIMEOUT_CONTROL_UNAVAILABLE"
+    )
+    assert report["manager_recreated"] is False
+
+
+def test_watchdog_runs_after_manager_deadline_without_retry_loop(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    _configure_transaction_paths(
+        tool,
+        tmp_path,
+    )
+    transaction = _open_transaction(
+        tool
+    )
+    commands: list[
+        tuple[str, ...]
+    ] = []
+    fake_sha = "e" * 64
+
+    monkeypatch.setattr(
+        tool,
+        "_prepare_runtime_root",
+        lambda transaction: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_sha256_file",
+        lambda path: fake_sha,
+    )
+    transaction = tool._advance_transaction(
+        tool_sha256=fake_sha,
+        watchdog_tool_sha256=fake_sha,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_run",
+        lambda argv, **kwargs: (
+            commands.append(
+                tuple(argv)
+            )
+            or ""
+        ),
+    )
+    monkeypatch.setattr(
+        tool,
+        "_systemctl_is_active",
+        lambda unit: True,
+    )
+
+    observed = tool._arm_watchdog(
+        transaction
+    )
+
+    assert observed["watchdog_armed"] is True
+    rendered = " ".join(
+        commands[0]
+    )
+    assert "--property=Type=exec" in rendered
+    assert "Restart=on-failure" not in rendered
+    assert "RestartSec=" not in rendered
+    on_active = [
+        value
+        for value
+        in commands[0]
+        if value.startswith(
+            "--on-active="
+        )
+    ]
+    assert len(on_active) == 1
+    seconds = int(
+        on_active[0]
+        .split("=", 1)[1]
+        .rstrip("s")
+    )
+    assert seconds > 300
+
+
+def test_runtime_continuity_includes_manager() -> None:
+    tool = load_tool()
+    before = _runtime_snapshot()
+    after = _runtime_snapshot(
+        manager_id="d" * 64,
+    )
 
     with pytest.raises(
         tool.OnboardingError,
-        match="onboarding_runtime_root_not_fresh",
+        match=(
+            "manager_container_identity_changed"
+        ),
     ):
-        tool._prepare_runtime_root(transaction)
+        tool._validate_runtime_continuity(
+            before,
+            after,
+        )
 
 
 def test_authorization_is_one_shot_and_strictly_named() -> None:
     tool = load_tool()
 
     assert (
-        tool._authorization_id("N3W_T1_FIRST_PAIRING_BOARD_D_20261024_01")
-        == "N3W_T1_FIRST_PAIRING_BOARD_D_20261024_01"
+        tool._authorization_id(
+            (
+                "N3W_T1_FIRST_PAIRING_"
+                "BOARD_D_20261024_02"
+            )
+        )
+        == (
+            "N3W_T1_FIRST_PAIRING_"
+            "BOARD_D_20261024_02"
+        )
     )
 
-    with pytest.raises(tool.OnboardingError, match="authorization_id_invalid"):
-        tool._authorization_id("anything")
+    with pytest.raises(
+        tool.OnboardingError,
+        match="authorization_id_invalid",
+    ):
+        tool._authorization_id(
+            "anything"
+        )
