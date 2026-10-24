@@ -104,6 +104,22 @@ def paired_counts():
     }
 
 
+def zero_security_counts():
+    return {
+        "credential_assignments": 0,
+        "application_key_active_nodes": 0,
+        "application_key_epochs": 0,
+    }
+
+
+def paired_security_counts():
+    return {
+        "credential_assignments": 1,
+        "application_key_active_nodes": 1,
+        "application_key_epochs": 1,
+    }
+
+
 def test_command_surface_and_factory_defaults_are_fail_closed() -> None:
     tool = load_tool()
     source = TOOL.read_text(encoding="utf-8")
@@ -243,12 +259,29 @@ def test_route_selected_broker_rejects_nonlocal_peer(
 def test_first_pair_state_requires_all_registration_tables_empty() -> None:
     tool = load_tool()
 
-    tool._require_clean_first_pair_state(zero_counts())
+    tool._require_clean_first_pair_state(
+        zero_counts(),
+        zero_security_counts(),
+    )
 
     current = zero_counts()
     current["pairing_sessions"] = 1
     with pytest.raises(tool.OnboardingError, match="first_pair_state_not_clean"):
-        tool._require_clean_first_pair_state(current)
+        tool._require_clean_first_pair_state(
+            current,
+            zero_security_counts(),
+        )
+
+    security = zero_security_counts()
+    security["credential_assignments"] = 1
+    with pytest.raises(
+        tool.OnboardingError,
+        match="first_pair_security_state_not_clean",
+    ):
+        tool._require_clean_first_pair_state(
+            zero_counts(),
+            security,
+        )
 
 
 def test_open_claims_before_manager_recreate_and_never_outputs_locator(
@@ -278,6 +311,7 @@ def test_open_claims_before_manager_recreate_and_never_outputs_locator(
     monkeypatch.setattr(tool, "_runtime_snapshot", lambda: next(runtime_values))
     monkeypatch.setattr(tool, "_validate_factory_runtime", lambda _value: None)
     monkeypatch.setattr(tool, "_db_counts", zero_counts)
+    monkeypatch.setattr(tool, "_security_state_counts", zero_security_counts)
     monkeypatch.setattr(tool, "_listener_count", lambda *_args: 0)
     monkeypatch.setattr(
         tool,
@@ -364,6 +398,7 @@ def test_open_failure_after_recreate_restores_factory_manager(
     monkeypatch.setattr(tool, "_runtime_snapshot", lambda: next(runtime_values))
     monkeypatch.setattr(tool, "_validate_factory_runtime", lambda _value: None)
     monkeypatch.setattr(tool, "_db_counts", zero_counts)
+    monkeypatch.setattr(tool, "_security_state_counts", zero_security_counts)
     monkeypatch.setattr(tool, "_listener_count", lambda *_args: 0)
     monkeypatch.setattr(
         tool,
@@ -460,6 +495,24 @@ def test_close_success_requires_pairing_evidence_and_restores_factory(
     monkeypatch.setattr(tool, "_db_counts", lambda: dict(counts))
     monkeypatch.setattr(
         tool,
+        "_security_state_counts",
+        lambda: paired_security_counts(),
+    )
+    monkeypatch.setattr(
+        tool,
+        "_first_pair_success_evidence",
+        lambda: {
+            "database_counts": dict(counts),
+            "security_counts": paired_security_counts(),
+            "hardware_id_sha256": "a" * 64,
+            "pairing_id_sha256": "b" * 64,
+            "node_id_sha256": "c" * 64,
+            "credential_generation": 1,
+            "application_key_epoch": 1,
+        },
+    )
+    monkeypatch.setattr(
+        tool,
         "_recreate_manager",
         lambda **kwargs: recreated.append(kwargs["override"]),
     )
@@ -522,7 +575,13 @@ def test_close_success_rejects_missing_registration_evidence(
 
     monkeypatch.setattr(tool, "_transaction", lambda: transaction)
     monkeypatch.setattr(tool, "_runtime_snapshot", lambda: before)
-    monkeypatch.setattr(tool, "_db_counts", zero_counts)
+    monkeypatch.setattr(
+        tool,
+        "_first_pair_success_evidence",
+        lambda: (_ for _ in ()).throw(
+            tool.OnboardingError("first_pair_success_state_not_observed")
+        ),
+    )
 
     with pytest.raises(
         tool.OnboardingError,
