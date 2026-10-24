@@ -152,3 +152,37 @@ SOURCE_REPAIR
 
 Board D and dynamic first-pair acceptance remain blocked until the new F5 V2 run reaches
 MARKER_ACCEPTED / T1_PRODUCTION_READY=true.
+
+
+## 7. Source implementation and closure
+
+```text
+SOURCE_TEST_AUTHORITY=d63cba066201df355bf9ceb0fbb330c00dfee24d
+SOURCE_TEST_TREE=58feb07d69aea49003f5549c5a184367f6423709
+PR=665
+CI=14/14_SUCCESS
+F4_FOCUSED_TESTS=167_PASS
+F5_V2_R3_FOCUSED_TESTS=202_PASS
+NEW_SOURCE_BLOCKER_COUNT=0
+SOURCE_REPAIR=CLOSED_PASS
+MERGE=false
+```
+
+Independent final review confirmed:
+
+- Manager MQTT 0 remains WAIT, exactly 1 permits continuation, and >1 fails closed.
+- Home Assistant MQTT 0 remains WAIT and >=1 matches the unchanged strict verifier.
+- readiness socket checks are read-only and reuse the existing container-local socket authority.
+- malformed runtime container names fail closed with a sanitized repository-defined code.
+- target-side and Mac-side error-code allowlists remain aligned.
+- strict target-local reboot verification remains unchanged and still executes after readiness.
+- external probes, authenticated runtime evidence and the existing 90-second observation remain unchanged.
+- no third SSH epoch, additional approval, Board access or target mutation was introduced.
+- failed-run no-replay and reflash-required semantics remain unchanged.
+
+The first implementation head had a tooling-only executable-mode regression; it was
+repaired before closure. The final source/test authority retains
+`tools/n3w_t1_f4_reboot_verify.py` mode `100755`.
+
+KF-130 remains live-revalidation-pending after merge/rebuild; source closure alone does
+not make the current failed T1 production-ready.
