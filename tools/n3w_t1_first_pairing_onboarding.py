@@ -31,13 +31,13 @@ CA_CERT = Path("/etc/n3wfc4/tls/ca.pem")
 PROVISIONING_ROOT = Path("/var/lib/n3w-t1-provisioning")
 FACTORY_ACCEPTED_PATH = PROVISIONING_ROOT / "FACTORY_ACCEPTED.json"
 TRANSACTION_PATH = PROVISIONING_ROOT / "FIRST_PAIRING_ONBOARDING.json"
-LOCK_PATH = PROVISIONING_ROOT / ".first-pairing-onboarding.lock"
 RUNTIME_ROOT = Path("/run/n3w-first-pairing-onboarding")
 OVERRIDE_PATH = RUNTIME_ROOT / "manager-pairing.override.yml"
 MANAGER_DB = Path("/var/lib/greenhouse-manager/manager/manager-state.sqlite3")
 CREDENTIAL_DB = Path("/var/lib/greenhouse-manager/n3w/credential-lifecycle.sqlite3")
 APPLICATION_KEY_DB = Path("/var/lib/greenhouse-manager/n3w/relay-authorization.sqlite3")
 APPLICATION_KEY_DIR = Path("/var/lib/greenhouse-manager/n3w/relay-keys")
+PEER_TRUST_DB = Path("/var/lib/greenhouse-manager/n3w/system-peer-trust.sqlite3")
 
 PAIRING_UDP_PORT = 47111
 PAIRING_HTTP_PORT = 47112
@@ -107,9 +107,15 @@ def _read_json(path: Path) -> dict[str, Any]:
     return value
 
 
+def _require_private_directory(path: Path) -> None:
+    if path.is_symlink() or not path.is_dir():
+        raise OnboardingError(f"private_directory_invalid:{path.name}")
+    if stat.S_IMODE(path.stat().st_mode) & 0o077:
+        raise OnboardingError(f"private_directory_permissions_invalid:{path.name}")
+
+
 def _write_private_json(path: Path, document: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    os.chmod(path.parent, 0o700)
+    _require_private_directory(path.parent)
     payload = (
         json.dumps(
             document,
@@ -143,18 +149,27 @@ def _write_private_json(path: Path, document: dict[str, Any]) -> None:
 
 @contextmanager
 def _exclusive_lock():
-    PROVISIONING_ROOT.mkdir(parents=True, exist_ok=True)
-    fd = os.open(LOCK_PATH, os.O_RDWR | os.O_CREAT, 0o600)
+    _require_private_directory(PROVISIONING_ROOT)
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
     try:
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError as error:
-        os.close(fd)
-        raise OnboardingError("onboarding_lock_busy") from error
+        fd = os.open(PROVISIONING_ROOT, flags)
+    except OSError as error:
+        raise OnboardingError("onboarding_lock_root_unavailable") from error
     try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise OnboardingError("onboarding_lock_busy") from error
         yield
     finally:
-        fcntl.flock(fd, fcntl.LOCK_UN)
-        os.close(fd)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
 
 
 def _require_file(path: Path, *, mode: int | None = None) -> None:
@@ -473,7 +488,7 @@ def _require_clean_first_pair_state(
         raise OnboardingError("first_pair_security_state_not_clean")
 
 
-def _first_pair_success_evidence() -> dict[str, Any]:
+def _first_pair_success_evidence(expected_system_id: str) -> dict[str, Any]:
     counts = _db_counts()
     if not (
         counts["registrations"] == 1
@@ -616,6 +631,37 @@ def _first_pair_success_evidence() -> dict[str, Any]:
     ):
         raise OnboardingError("first_pair_application_key_material_invalid")
 
+    if not isinstance(expected_system_id, str) or not expected_system_id:
+        raise OnboardingError("first_pair_system_id_invalid")
+    peer_trust = _read_only_connection(PEER_TRUST_DB)
+    try:
+        table = peer_trust.execute(
+            "SELECT 1 FROM sqlite_master "
+            "WHERE type='table' AND name='n3w_system_peer_trust'"
+        ).fetchone()
+        if table is None:
+            raise OnboardingError("peer_trust_table_missing")
+        peer_rows = peer_trust.execute(
+            """
+            SELECT system_id, generation, key_material
+            FROM n3w_system_peer_trust
+            """
+        ).fetchall()
+    finally:
+        peer_trust.close()
+    if len(peer_rows) != 1:
+        raise OnboardingError("first_pair_peer_trust_binding_ambiguous")
+    peer = peer_rows[0]
+    peer_key = peer["key_material"]
+    if (
+        peer["system_id"] != expected_system_id
+        or peer["generation"] != 1
+        or not isinstance(peer_key, bytes)
+        or len(peer_key) != 32
+        or not any(peer_key)
+    ):
+        raise OnboardingError("first_pair_peer_trust_binding_invalid")
+
     return {
         "database_counts": counts,
         "security_counts": security_counts,
@@ -624,6 +670,8 @@ def _first_pair_success_evidence() -> dict[str, Any]:
         "node_id_sha256": _sha256_text(registration["node_id"]),
         "credential_generation": credential["active_generation"],
         "application_key_epoch": key["key_epoch"],
+        "peer_trust_generation": peer["generation"],
+        "peer_trust_system_id_sha256": _sha256_text(peer["system_id"]),
     }
 
 
@@ -1191,7 +1239,12 @@ def close_window(
         raise OnboardingError("close_outcome_invalid")
     success_evidence: dict[str, Any] | None = None
     if outcome == "success":
-        success_evidence = _first_pair_success_evidence()
+        expected_system_id = transaction.get("system_id")
+        if not isinstance(expected_system_id, str) or not expected_system_id:
+            raise OnboardingError("onboarding_transaction_system_id_invalid")
+        success_evidence = _first_pair_success_evidence(
+            expected_system_id
+        )
         counts = dict(success_evidence["database_counts"])
         security_counts = dict(success_evidence["security_counts"])
     else:
@@ -1284,22 +1337,23 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
-        with _exclusive_lock():
-            if args.command == "inspect":
-                report = inspect()
-            elif args.command == "open":
-                report = open_window(
-                    authorization_id=args.authorization_id,
-                    peer_ip=args.peer_ip,
-                    confirmation=args.confirm,
-                    window_seconds=args.window_seconds,
-                )
-            else:
-                report = close_window(
-                    authorization_id=args.authorization_id,
-                    confirmation=args.confirm,
-                    outcome=args.outcome,
-                )
+        if args.command == "inspect":
+            report = inspect()
+        else:
+            with _exclusive_lock():
+                if args.command == "open":
+                    report = open_window(
+                        authorization_id=args.authorization_id,
+                        peer_ip=args.peer_ip,
+                        confirmation=args.confirm,
+                        window_seconds=args.window_seconds,
+                    )
+                else:
+                    report = close_window(
+                        authorization_id=args.authorization_id,
+                        confirmation=args.confirm,
+                        outcome=args.outcome,
+                    )
     except (
         OnboardingError,
         OSError,
