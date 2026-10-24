@@ -1273,6 +1273,64 @@ def test_transaction_authority_validates_private_binding(
     assert observed == expected
 
 
+@pytest.mark.parametrize(
+    "status",
+    ("OPEN_RESTORE_PENDING", "TIMEOUT_RESTORE_PENDING"),
+)
+def test_transaction_authority_accepts_recovery_pending_statuses(
+    tmp_path: Path,
+    status: str,
+) -> None:
+    tool = load_tool()
+    transaction_path = tmp_path / "transaction.json"
+    document = _valid_transaction(tool, transaction_path)
+    document["status"] = status
+    document["manager_recreate_command_count"] = 2
+    transaction_path.write_text(
+        json.dumps(document, sort_keys=True),
+        encoding="utf-8",
+    )
+    transaction_path.chmod(0o600)
+    tool.TRANSACTION_PATH = transaction_path
+
+    observed = tool._transaction()
+
+    assert observed["status"] == status
+    assert observed["watchdog_unit"] == document["watchdog_unit"]
+
+
+@pytest.mark.parametrize(
+    "status",
+    (
+        "OPEN_RESTORE_PENDING",
+        "TIMEOUT_RESTORE_PENDING",
+        "CLOSED_RECOVERY_AFTER_OPEN_FAILURE",
+    ),
+)
+def test_transaction_recovery_states_require_watchdog_binding(
+    tmp_path: Path,
+    status: str,
+) -> None:
+    tool = load_tool()
+    transaction_path = tmp_path / "transaction.json"
+    document = _valid_transaction(tool, transaction_path)
+    document["status"] = status
+    document["manager_recreate_command_count"] = 2
+    document.pop("watchdog_unit")
+    transaction_path.write_text(
+        json.dumps(document, sort_keys=True),
+        encoding="utf-8",
+    )
+    transaction_path.chmod(0o600)
+    tool.TRANSACTION_PATH = transaction_path
+
+    with pytest.raises(
+        tool.OnboardingError,
+        match="onboarding_transaction_watchdog_binding_invalid",
+    ):
+        tool._transaction()
+
+
 def test_transaction_authority_rejects_locator_hash_drift(
     tmp_path: Path,
 ) -> None:
