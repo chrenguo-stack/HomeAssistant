@@ -404,14 +404,6 @@ def _read_only_connection(path: Path) -> sqlite3.Connection:
 
 
 def _security_state_counts() -> dict[str, int]:
-    security_counts = _security_state_counts()
-    if security_counts != {
-        "credential_assignments": 1,
-        "application_key_active_nodes": 1,
-        "application_key_epochs": 1,
-    }:
-        raise OnboardingError("first_pair_security_state_not_exact")
-
     credentials = _read_only_connection(CREDENTIAL_DB)
     try:
         table = credentials.execute(
@@ -509,6 +501,14 @@ def _first_pair_success_evidence() -> dict[str, Any]:
         or registration["lease_state"] != "active"
     ):
         raise OnboardingError("first_pair_registration_binding_invalid")
+
+    security_counts = _security_state_counts()
+    if security_counts != {
+        "credential_assignments": 1,
+        "application_key_active_nodes": 1,
+        "application_key_epochs": 1,
+    }:
+        raise OnboardingError("first_pair_security_state_not_exact")
 
     credentials = _read_only_connection(CREDENTIAL_DB)
     try:
