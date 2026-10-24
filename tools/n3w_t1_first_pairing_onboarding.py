@@ -411,6 +411,11 @@ def _validate_factory_runtime(snapshot: dict[str, dict[str, Any]]) -> None:
         raise OnboardingError("manager_runtime_factory_broker_invalid")
     if env.get("GH_N3W_NODE_BROKER_TLS_SERVER_NAME") != BROKER_TLS_SERVER_NAME:
         raise OnboardingError("manager_runtime_tls_server_name_invalid")
+    if _listener_count("udp", PAIRING_UDP_PORT) != 0:
+        raise OnboardingError("factory_pairing_udp_listener_present")
+    if _listener_count("tcp", PAIRING_HTTP_PORT) != 0:
+        raise OnboardingError("factory_pairing_tcp_listener_present")
+    _probe_manager_broker_tls(manager["id"])
 
 
 def _validate_factory_marker() -> dict[str, Any]:
@@ -1414,6 +1419,12 @@ def inspect() -> dict[str, Any]:
         "security_counts": _security_state_counts(),
         "transaction_present": transaction is not None,
         "mutation": False,
+        "factory_pairing_udp_listener_count": (
+            _listener_count("udp", PAIRING_UDP_PORT)
+        ),
+        "factory_pairing_http_listener_count": (
+            _listener_count("tcp", PAIRING_HTTP_PORT)
+        ),
     }
     report.update(_public_runtime(runtime))
     if transaction is None:
