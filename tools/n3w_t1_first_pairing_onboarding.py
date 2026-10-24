@@ -389,9 +389,213 @@ def _db_counts() -> dict[str, int]:
         connection.close()
 
 
-def _require_clean_first_pair_state(counts: dict[str, int]) -> None:
+def _read_only_connection(path: Path) -> sqlite3.Connection:
+    _require_file(path)
+    try:
+        connection = sqlite3.connect(
+            f"file:{path}?mode=ro",
+            uri=True,
+        )
+    except sqlite3.Error as error:
+        raise OnboardingError(f"database_open_failed:{path.name}") from error
+    connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA query_only=ON")
+    return connection
+
+
+def _security_state_counts() -> dict[str, int]:
+    credentials = _read_only_connection(CREDENTIAL_DB)
+    try:
+        table = credentials.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='credential_assignments'"
+        ).fetchone()
+        if table is None:
+            raise OnboardingError("credential_assignments_table_missing")
+        credential_assignments = int(
+            credentials.execute(
+                "SELECT COUNT(*) FROM credential_assignments"
+            ).fetchone()[0]
+        )
+    finally:
+        credentials.close()
+
+    keys = _read_only_connection(APPLICATION_KEY_DB)
+    try:
+        required = {"n3w_relay_meta", "n3w_relay_nodes", "n3w_relay_key_epochs"}
+        names = {
+            str(row["name"])
+            for row in keys.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+        if not required <= names:
+            raise OnboardingError("application_key_schema_invalid")
+        active_nodes = int(
+            keys.execute(
+                "SELECT COUNT(*) FROM n3w_relay_nodes WHERE active = 1"
+            ).fetchone()[0]
+        )
+        key_epochs = int(
+            keys.execute(
+                "SELECT COUNT(*) FROM n3w_relay_key_epochs"
+            ).fetchone()[0]
+        )
+    finally:
+        keys.close()
+
+    return {
+        "credential_assignments": credential_assignments,
+        "application_key_active_nodes": active_nodes,
+        "application_key_epochs": key_epochs,
+    }
+
+
+def _require_clean_first_pair_state(
+    counts: dict[str, int],
+    security_counts: dict[str, int],
+) -> None:
     if any(counts.get(table) != 0 for table in EXPECTED_TABLES):
         raise OnboardingError("first_pair_state_not_clean")
+    if any(value != 0 for value in security_counts.values()):
+        raise OnboardingError("first_pair_security_state_not_clean")
+
+
+def _first_pair_success_evidence() -> dict[str, Any]:
+    counts = _db_counts()
+    if not (
+        counts["registrations"] == 1
+        and counts["node_id_leases"] == 1
+        and counts["pairing_sessions"] >= 1
+        and counts["registration_events"] >= 1
+    ):
+        raise OnboardingError("first_pair_success_state_not_observed")
+
+    manager = _read_only_connection(MANAGER_DB)
+    try:
+        rows = manager.execute(
+            """
+            SELECT
+                r.hardware_id,
+                r.current_pairing_id AS pairing_id,
+                r.node_id,
+                s.state AS pairing_state,
+                l.state AS lease_state
+            FROM registrations AS r
+            JOIN pairing_sessions AS s
+              ON s.pairing_id = r.current_pairing_id
+            JOIN node_id_leases AS l
+              ON l.node_id = r.node_id
+             AND l.hardware_id = r.hardware_id
+            """
+        ).fetchall()
+    finally:
+        manager.close()
+    if len(rows) != 1:
+        raise OnboardingError("first_pair_registration_binding_ambiguous")
+    registration = rows[0]
+    if (
+        not isinstance(registration["hardware_id"], str)
+        or not isinstance(registration["pairing_id"], str)
+        or not isinstance(registration["node_id"], str)
+        or registration["pairing_state"] != "approved"
+        or registration["lease_state"] != "active"
+    ):
+        raise OnboardingError("first_pair_registration_binding_invalid")
+
+    credentials = _read_only_connection(CREDENTIAL_DB)
+    try:
+        rows = credentials.execute(
+            """
+            SELECT
+                hardware_id,
+                pairing_id,
+                node_id,
+                active_generation,
+                pending_generation,
+                state,
+                revoked_at
+            FROM credential_assignments
+            WHERE state != 'revoked'
+            """
+        ).fetchall()
+    finally:
+        credentials.close()
+    if len(rows) != 1:
+        raise OnboardingError("first_pair_credential_binding_ambiguous")
+    credential = rows[0]
+    if (
+        credential["hardware_id"] != registration["hardware_id"]
+        or credential["pairing_id"] != registration["pairing_id"]
+        or credential["node_id"] != registration["node_id"]
+        or credential["state"] != "active"
+        or credential["pending_generation"] is not None
+        or credential["revoked_at"] is not None
+        or not isinstance(credential["active_generation"], int)
+        or credential["active_generation"] < 1
+    ):
+        raise OnboardingError("first_pair_credential_binding_invalid")
+
+    keys = _read_only_connection(APPLICATION_KEY_DB)
+    try:
+        versions = keys.execute(
+            "SELECT schema_version FROM n3w_relay_meta"
+        ).fetchall()
+        if len(versions) != 1 or versions[0]["schema_version"] != 2:
+            raise OnboardingError("application_key_schema_version_invalid")
+        node_rows = keys.execute(
+            "SELECT node_id, active FROM n3w_relay_nodes WHERE active = 1"
+        ).fetchall()
+        key_rows = keys.execute(
+            """
+            SELECT
+                node_id,
+                key_epoch,
+                key_file,
+                enabled,
+                state,
+                key_sha256
+            FROM n3w_relay_key_epochs
+            WHERE enabled = 1
+              AND state IN ('ACTIVE', 'GRACE')
+            """
+        ).fetchall()
+    finally:
+        keys.close()
+    if len(node_rows) != 1 or len(key_rows) != 1:
+        raise OnboardingError("first_pair_application_key_binding_ambiguous")
+    node = node_rows[0]
+    key = key_rows[0]
+    if (
+        node["node_id"] != registration["node_id"]
+        or key["node_id"] != registration["node_id"]
+        or key["state"] != "ACTIVE"
+        or key["key_epoch"] != credential["active_generation"]
+        or not isinstance(key["key_file"], str)
+        or "/" in key["key_file"]
+        or key["key_file"] in {"", ".", ".."}
+        or not isinstance(key["key_sha256"], str)
+        or len(key["key_sha256"]) != 64
+    ):
+        raise OnboardingError("first_pair_application_key_binding_invalid")
+
+    key_path = APPLICATION_KEY_DIR / key["key_file"]
+    _require_file(key_path)
+    material = key_path.read_bytes()
+    if (
+        len(material) != 32
+        or hashlib.sha256(material).hexdigest() != key["key_sha256"]
+    ):
+        raise OnboardingError("first_pair_application_key_material_invalid")
+
+    return {
+        "database_counts": counts,
+        "security_counts": _security_state_counts(),
+        "hardware_id_sha256": _sha256_text(registration["hardware_id"]),
+        "pairing_id_sha256": _sha256_text(registration["pairing_id"]),
+        "node_id_sha256": _sha256_text(registration["node_id"]),
+        "credential_generation": credential["active_generation"],
+        "application_key_epoch": key["key_epoch"],
+    }
 
 
 def _resolve_route_selected_broker(
@@ -762,6 +966,7 @@ def inspect() -> dict[str, Any]:
         "factory_accepted": True,
         "factory_release_sha256": _sha256_text(str(factory["release_id"])),
         "database_counts": counts,
+        "security_counts": _security_state_counts(),
         "transaction_present": transaction is not None,
         "mutation": False,
     }
@@ -809,7 +1014,8 @@ def open_window(
     baseline = _runtime_snapshot()
     _validate_factory_runtime(baseline)
     counts = _db_counts()
-    _require_clean_first_pair_state(counts)
+    security_counts = _security_state_counts()
+    _require_clean_first_pair_state(counts, security_counts)
     if _listener_count("udp", PAIRING_UDP_PORT) != 0:
         raise OnboardingError("preopen_pairing_udp_listener_present")
     if _listener_count("tcp", PAIRING_HTTP_PORT) != 0:
@@ -929,17 +1135,16 @@ def close_window(
         raise OnboardingError("pairing_not_enabled_before_close")
     if manager["env"].get("GH_N3W_NODE_BROKER_HOST") != transaction.get("broker_host"):
         raise OnboardingError("broker_host_drift_before_close")
-    counts = _db_counts()
-    success_counts = (
-        counts["registrations"] == 1
-        and counts["node_id_leases"] == 1
-        and counts["pairing_sessions"] >= 1
-        and counts["registration_events"] >= 1
-    )
-    if outcome == "success" and not success_counts:
-        raise OnboardingError("first_pair_success_state_not_observed")
     if outcome not in {"success", "abort"}:
         raise OnboardingError("close_outcome_invalid")
+    success_evidence: dict[str, Any] | None = None
+    if outcome == "success":
+        success_evidence = _first_pair_success_evidence()
+        counts = dict(success_evidence["database_counts"])
+        security_counts = dict(success_evidence["security_counts"])
+    else:
+        counts = _db_counts()
+        security_counts = _security_state_counts()
     expired = int(time.time()) > int(transaction.get("expires_at_unix", 0))
     _recreate_manager(override=False)
     _remove_override()
@@ -949,8 +1154,11 @@ def close_window(
     if closed_manager["id"] == before["manager"]["id"]:
         raise OnboardingError("close_manager_not_recreated")
     post_counts = _db_counts()
+    post_security_counts = _security_state_counts()
     if post_counts != counts:
         raise OnboardingError("manager_database_counts_changed_during_close")
+    if post_security_counts != security_counts:
+        raise OnboardingError("security_state_counts_changed_during_close")
     terminal = "CLOSED_ABORTED"
     result_status = "PASS"
     if outcome == "success":
@@ -965,6 +1173,8 @@ def close_window(
         closed_manager_id=closed_manager["id"],
         closed_manager_id_sha256=closed_manager["id_sha256"],
         final_database_counts=post_counts,
+        final_security_counts=post_security_counts,
+        success_evidence=success_evidence,
         broker_continuity=True,
         homeassistant_continuity=True,
         factory_pairing_disabled=True,
@@ -980,6 +1190,8 @@ def close_window(
         "close_outcome": outcome,
         "window_expired": expired,
         "database_counts": post_counts,
+        "security_counts": post_security_counts,
+        "success_evidence": success_evidence,
         "manager_recreated": True,
         "broker_container_unchanged": True,
         "homeassistant_container_unchanged": True,
