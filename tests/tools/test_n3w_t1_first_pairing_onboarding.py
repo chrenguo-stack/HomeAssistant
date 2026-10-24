@@ -232,8 +232,8 @@ def test_source_removes_manager_recreate_normal_path() -> None:
         "greenhouse-manager-pairing"
         in source
     )
-    assert "window-open" in source
-    assert "window-close" in source
+    assert 'f"window-{command}"' in source
+    assert '"greenhouse-manager-pairing"' in source
 
 
 def test_command_surface_and_factory_defaults_are_fail_closed(
@@ -348,8 +348,14 @@ def test_transaction_parser_rejects_raw_locator_in_v2(
 
 def test_legacy_consumed_transaction_is_read_only_and_non_replayable(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     tool = load_tool()
+    monkeypatch.setattr(
+        tool,
+        "_require_root",
+        lambda: None,
+    )
     _configure_transaction_paths(
         tool,
         tmp_path,

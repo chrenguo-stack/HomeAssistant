@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import contextlib
 import hashlib
 import ipaddress
 import json
@@ -263,10 +262,6 @@ class DynamicPairingWindowController:
             raise DynamicPairingWindowError(
                 "durable_product_pairing_must_be_disabled"
             )
-        if settings.n3w_pairing_advertised_host != "auto":
-            raise DynamicPairingWindowError(
-                "dynamic_pairing_requires_auto_advertised_host"
-            )
         self.settings = settings
         self._route_resolver = route_resolver
         self._composition_factory = composition_factory
@@ -403,6 +398,13 @@ class DynamicPairingWindowController:
             raise DynamicPairingWindowError(
                 "pairing_window_seconds_invalid"
             )
+        if (
+            self.settings.n3w_pairing_advertised_host
+            != "auto"
+        ):
+            raise DynamicPairingWindowError(
+                "dynamic_pairing_requires_auto_advertised_host"
+            )
         broker_host = self._broker_for_peer(
             peer_ip
         )
@@ -502,8 +504,14 @@ class DynamicPairingWindowController:
             except Exception as error:
                 cleanup_ok = True
                 if worker is not None:
-                    with contextlib.suppress(Exception):
+                    try:
                         worker.stop()
+                    except Exception:
+                        if composition is not None:
+                            try:
+                                composition.close()
+                            except Exception:
+                                cleanup_ok = False
                 elif composition is not None:
                     try:
                         composition.close()
