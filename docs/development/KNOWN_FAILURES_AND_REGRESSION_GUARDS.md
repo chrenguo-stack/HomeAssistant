@@ -1,3 +1,19 @@
+### 2026-10-23 KF-130 — Board D post-flash LCD freeze / software-restart anomaly
+
+| ID | 范围 | 问题 | 根因与修复保护 | 状态 |
+| --- | --- | --- | --- | --- |
+| KF-130 | Board D R4 / ST7920 LCD boot, flash-reset and software-restart lifecycle | Operator historically observed LCD freeze after an exact-R4 firmware-write/reset path, with recovery after true USB power cycle; prior soft-reboot failure was also reported. Subsequent focused evidence passed 3/3 cold boots, 3/3 physical EN warm resets, and on 2026-10-24 a controlled exact-R4 dual-slot write followed by one powered EN/RESET also passed with LCD readable in ~1 s and a full five-page cycle | Root cause remains TBD. A generic EN/warm-reset failure is not supported by the current matrix, and the controlled exact-R4 post-flash path did not reproduce the historical freeze. This narrows but does not erase the original observation. Software `esp_restart()` remains independently unvalidated because Board D is unprovisioned and Native API could not be used without out-of-scope configuration. Actual LCD /RST wiring/timing also remains unverified. Guard: LCD progression stays mandatory; software restart must not inherit PASS from EN reset; do not repeatedly reflash to manufacture a PASS | OPEN |
+
+Authority: `docs/development/N3W_BOARD_D_R4_WARM_COLD_BOOT_LCD_ACCEPTANCE_REDESIGN_20261023.md` and `docs/development/N3W_BOARD_D_R4_POSTFLASH_RESET_LCD_REPRODUCTION_ACCEPTANCE_20261024.md`.
+
+### 2026-10-23 KF-129 — Board D R4 postwrite verifier loader/readback evidence discontinuity
+
+| ID | 范围 | 问题 | 根因与修复保护 | 状态 |
+| --- | --- | --- | --- | --- |
+| KF-129 | Board D R4 dual-slot normalization / postwrite verifier | Board D R4 dual-slot write itself returned success, but the old postwrite verifier failed on its first bootloader readback; the historical run could not preserve a trustworthy fresh prewrite NVS baseline across the failure boundary, so the already-written board could not be safely classified by replaying the consumed write authorization | Root cause was verifier evidence plumbing rather than a proven product-flash defect: loader-state discontinuity, ROM read-flash without an explicit 8 MB binding, and non-durable fresh-prewrite evidence. PR #661 schema v2 keeps the postwrite readback in controlled stub continuity, uses explicit 8 MB ROM read semantics where ROM is required, and persists the fresh execution journal/baseline before mutation. Source/focused regression and CI passed; PR #661 merged as `dc596ad50eb2ea80ba55aa3af2413236321f1465`. The consumed write authorization remains non-replayable and the board must not be reflashed merely to repair/re-run the verifier. Subsequent separately authorized first-boot acceptance proved frozen Board D identity, unchanged preboot/postboot NVS, exactly one normal R4 boot and 90.4 s stable basic runtime, but this is not claimed as a replay of the historical verifier run | GUARDED |
+
+Authority: `docs/development/N3W_BOARD_D_R4_DUAL_SLOT_NORMALIZATION_POSTWRITE_VERIFIER_SOURCE_REPAIR_20261023.md` and `docs/development/N3W_BOARD_D_R4_POSTWRITE_FIRST_BOOT_RUNTIME_ACCEPTANCE_CLOSURE_20261023.md`.
+
 ### 2026-10-22 KF-122 / KF-124 / KF-125 / KF-126 / KF-127 / KF-128 — fresh exact-release live revalidation closure
 
 ~~~text

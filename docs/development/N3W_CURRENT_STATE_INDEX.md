@@ -1,3 +1,81 @@
+## 2026-10-24 — Board D DEV low-battery bypass installed and 480 s runtime PASS
+
+- DEV source: `a15daad779adde74cdead4702f017553118321f8`; only firmware-tree delta from exact R4 is the target substitution `battery_low_threshold: "-1.00"`.
+- DEV artifact run `40039280572`, artifact `12538399121`; artifact and member binding independently validated.
+- Board D physical write PASS: OTA data + app0 + app1 only; bootloader, partition table, phy_init and NVS were not write targets and postwrite continuity passed.
+- Both application slots match DEV normalized-slot SHA256 `c50e71ad...`.
+- 480-second runtime acceptance PASS: LCD five-page cycle continued, no freeze/corruption, status LED ON at 390 s and 480 s, no low-battery protection entry or recovery restart observed.
+- USB had 2 missing samples / 2 presence transitions; retained as transient/re-enumeration evidence because product-visible behavior stayed normal.
+- Board D currently runs the DEV low-battery-bypass application, not production exact R4.
+- Last proven postwrite NVS SHA256 was `58e8bf9e...`; current NVS after 480 s runtime is `UNKNOWN_FRESH` until freshly snapshotted.
+- PR #663 remains OPEN DRAFT / DO NOT MERGE / DEVELOPMENT_ONLY / PRODUCTION_ELIGIBLE=false.
+- Next product route: first network provisioning/pairing acceptance, with a fresh read-only prechange NVS snapshot and new explicit authorization before any persistent configuration mutation.
+
+## 2026-10-24 — Board D exact-R4 post-flash + EN reset PASS; KF-130 not reproduced
+
+- Gate: `N3W_BOARD_D_R4_POSTFLASH_RESET_LCD_REPRODUCTION_ACCEPTANCE_20261024_01`.
+- Exact R4 dual-slot write and complete postwrite verification PASS.
+- Board D identity, bootloader, partition table, OTA data, app0/app1, phy_init and NVS continuity all PASS.
+- Fresh prewrite/postwrite NVS SHA256: `8384704e...`; historical `a61948ea...` drift occurred before this gate and was not caused by the read-only preflight or this write.
+- USB power stayed applied; exactly one EN/RESET was performed after the verified write.
+- LCD readable in about 1 s; full five-page cycle observed; zero freeze/corruption.
+- Exact-R4 post-flash LCD freeze was NOT REPRODUCED.
+- USB locator was absent for one sample and returned; retained as a transient/re-enumeration observation because product-visible behavior stayed normal.
+- KF-130 remains OPEN: original historical freeze remains unexplained and software `esp_restart()` remains unvalidated.
+- Next operational route: write the already validated DEV-only low-battery-bypass artifact for bench development; that image is not production evidence.
+- Authority: `docs/development/N3W_BOARD_D_R4_POSTFLASH_RESET_LCD_REPRODUCTION_ACCEPTANCE_20261024.md`.
+
+## 2026-10-23 — Board D R4 warm/cold LCD matrix 3/3 + 3/3 PASS; KF-130 remains OPEN
+
+- Gate: `N3W_BOARD_D_R4_WARM_COLD_BOOT_LCD_ACCEPTANCE_20261023_01`.
+- Authorization was consumed and is non-replayable.
+- True cold boot: 3/3 PASS.
+- Physical EN warm reset with LCD power maintained: 3/3 PASS.
+- All six runs: LCD readable in about 1 s, full five-page cycle observed, zero freeze/corruption.
+- All six ~35 s USB observations remained present; zero missing samples and zero presence transitions.
+- The general “any warm reset breaks LCD” hypothesis was not reproduced.
+- Board D is still unprovisioned; LCD page 5 says “配置节点网络”.
+- ESPHome mDNS discovery returned no service; Native API exact-target match was 0.
+- Software `esp_restart()` was NOT_EXECUTED because no non-mutating Native API path existed without configuring/pairing the board.
+- No Flash write, direct NVS write, pairing, T1 mutation or RF execution occurred.
+- KF-130 remains OPEN because the original post-flash LCD freeze and historical software-reboot failure remain unexplained.
+- Product-level first-boot acceptance remains REOPENED; this gate closes only the scoped warm/cold matrix.
+- Next route requires a new authorization; no automatic reflash or further board action.
+- Authority: `docs/development/N3W_BOARD_D_R4_WARM_COLD_BOOT_LCD_ACCEPTANCE_REDESIGN_20261023.md`.
+
+## 2026-10-23 — Board D R4 first-boot acceptance REOPENED: LCD warm-reset anomaly
+
+- The previous 90.4-second gate evidence remains valid only as scoped MCU/basic-runtime evidence; the product-level `CLOSED_PASS` is withdrawn.
+- Operator observation after the gate: LCD remained frozen after the firmware-write/warm-reset path and recovered after a true USB power-cycle cold boot; prior soft-reboot failure has also been observed.
+- LCD is a product-baseline function, so status-LED/USB stability alone is not sufficient first-boot acceptance.
+- Exact R4 display config blob `0551c13a...`: ST7920 uses GPIO2 CLK, GPIO3 MOSI, GPIO16 CS, 1 s refresh; display pages advance every 4 s across five pages.
+- Read-only hardware/source review found no MCU-controlled LCD /RST in the frozen GPIO plan or exact display config. SMR12864-15A has a dedicated active-low /RST and requires reset during power-on. This is a strong hypothesis, not yet a proven PCB root cause.
+- New known failure: `KF-130=OPEN`.
+- Reflash is not the first diagnostic step.
+- Next gate: `N3W_BOARD_D_R4_WARM_COLD_BOOT_LCD_ACCEPTANCE_20261023_01`.
+- The next gate must compare true cold power-on with MCU-only/warm reset and use visible LCD page progression as a mandatory oracle.
+- Fresh physical authorization is required before Board D access/reset/power cycling; no automatic execution.
+- Authority: `docs/development/N3W_BOARD_D_R4_WARM_COLD_BOOT_LCD_ACCEPTANCE_REDESIGN_20261023.md`.
+
+## 2026-10-23 — Board D R4 postwrite first-boot runtime acceptance CLOSED_PASS
+
+- Gate: `N3W_BOARD_D_R4_POSTWRITE_FIRST_BOOT_RUNTIME_ACCEPTANCE_20261023_01`.
+- Repository main: `dc596ad50eb2ea80ba55aa3af2413236321f1465`; PR #661 is merged.
+- Exact product source: `ec5f6d68e33db7757d91c807fff708ca81b075dc`; exact artifact run `39901919230`, artifact `12478974186`, GitHub SHA256 `898ef722...`.
+- Frozen Board D public-safe hardware identity matched.
+- Preboot NVS SHA256 `a61948ea...` exactly matched the frozen postwrite value.
+- Exactly one normal R4 application boot was executed; no second application boot/retry occurred.
+- Source-defined status LED reached ON and stayed continuously ON for the complete 90.4-second observation.
+- USB observation: 90 samples, 0 missing, 0 multi-locator, 0 locator changes, 0 presence transitions; `USB_RUNTIME_STABLE=true`.
+- No unexpected reset/sleep or legacy low-battery sleep signature was observed.
+- Postboot NVS SHA256 remained `a61948ea...`; runtime NVS classification is `UNCHANGED`.
+- No Flash write, direct NVS write, pairing, T1 mutation or RF execution occurred.
+- Board D was returned deliberately to ROM after the observation and remains stopped before any product-communication stage.
+- The first observation wrapper had a heredoc/input stdin-ownership defect after boot trigger; it did not cause a second boot and was handled by passive forensics plus a fresh 90-second observation on the same application instance.
+- PR #661 historical postwrite-verifier defect is registered as `KF-129=GUARDED`; write authorization remains consumed/non-replayable and no reflash was performed merely to rerun the verifier.
+- Authority: `docs/development/N3W_BOARD_D_R4_POSTWRITE_FIRST_BOOT_RUNTIME_ACCEPTANCE_CLOSURE_20261023.md`.
+- Next route: separate Board D R4 product pairing/runtime-communication acceptance design; no automatic execution and fresh physical authorization required.
+
 ## 2026-10-23 — Board_D current-main product source convergence R4 CLOSED_PASS
 
 - Final exact product source: `ec5f6d68e33db7757d91c807fff708ca81b075dc`; tree: `16740efa8ad24d423adc0b2de32b99d56e2d23d1`; main remained `5ff09efb...`.
