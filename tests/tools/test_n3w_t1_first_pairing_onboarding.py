@@ -134,13 +134,14 @@ def test_command_surface_and_factory_defaults_are_fail_closed() -> None:
     tool = load_tool()
     source = TOOL.read_text(encoding="utf-8")
 
-    assert source.startswith("#!/usr/bin/python3\n")
+    assert source.startswith("from __future__ import annotations\n")
     assert tool.OPEN_CONFIRMATION == "OPEN FIRST PAIRING WINDOW: YES"
     assert tool.CLOSE_CONFIRMATION == "CLOSE FIRST PAIRING WINDOW: YES"
     assert tool.FACTORY_BROKER_PLACEHOLDER == "gate-f-unbound.invalid"
     assert 'subparsers.add_parser("inspect")' in source
     assert 'subparsers.add_parser("open")' in source
     assert 'subparsers.add_parser("close")' in source
+    assert 'subparsers.add_parser("expire")' in source
     assert "--force-recreate" in source
     assert "--no-deps" in source
     assert '"manager"' in source
