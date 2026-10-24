@@ -1116,8 +1116,6 @@ def _watchdog_terminal_status(status: object) -> bool:
     return status in {
         "STOPPED_WATCHDOG_ARM_FAILED",
         "STOPPED_OPEN_FAILED",
-        "OPEN_RESTORE_PENDING",
-        "TIMEOUT_RESTORE_PENDING",
         "STOPPED_TIMEOUT_RESTORE_FAILED",
         "FACTORY_RESTORED",
         "CLOSED_PASS",
