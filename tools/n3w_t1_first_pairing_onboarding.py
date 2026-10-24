@@ -476,21 +476,46 @@ def _read_only_connection(path: Path) -> sqlite3.Connection:
     return connection
 
 
-def _security_state_counts() -> dict[str, int]:
-    credentials = _read_only_connection(CREDENTIAL_DB)
+def _optional_private_db_count(
+    path: Path,
+    *,
+    table: str,
+) -> int:
+    if path.is_symlink():
+        raise OnboardingError(f"optional_database_symlink:{path.name}")
+    if not path.exists():
+        return 0
+    if not path.is_file():
+        raise OnboardingError(f"optional_database_invalid:{path.name}")
+
+    connection = _read_only_connection(path)
     try:
-        table = credentials.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='credential_assignments'"
+        exists = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+            (table,),
         ).fetchone()
-        if table is None:
-            raise OnboardingError("credential_assignments_table_missing")
-        credential_assignments = int(
-            credentials.execute(
-                "SELECT COUNT(*) FROM credential_assignments"
+        if exists is None:
+            raise OnboardingError(
+                f"optional_database_table_missing:{path.name}:{table}"
+            )
+        return int(
+            connection.execute(
+                f"SELECT COUNT(*) FROM {table}"
             ).fetchone()[0]
         )
     finally:
-        credentials.close()
+        connection.close()
+
+
+def _security_state_counts() -> dict[str, int]:
+    credential_assignments = _optional_private_db_count(
+        CREDENTIAL_DB,
+        table="credential_assignments",
+    )
+    peer_trust_records = _optional_private_db_count(
+        PEER_TRUST_DB,
+        table="n3w_system_peer_trust",
+    )
 
     keys = _read_only_connection(APPLICATION_KEY_DB)
     try:
@@ -518,6 +543,7 @@ def _security_state_counts() -> dict[str, int]:
 
     return {
         "credential_assignments": credential_assignments,
+        "peer_trust_records": peer_trust_records,
         "application_key_active_nodes": active_nodes,
         "application_key_epochs": key_epochs,
     }
@@ -578,6 +604,7 @@ def _first_pair_success_evidence(expected_system_id: str) -> dict[str, Any]:
     security_counts = _security_state_counts()
     if security_counts != {
         "credential_assignments": 1,
+        "peer_trust_records": 1,
         "application_key_active_nodes": 1,
         "application_key_epochs": 1,
     }:
