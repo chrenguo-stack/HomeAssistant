@@ -817,6 +817,31 @@ def _recreate_manager(*, override: bool) -> None:
     )
 
 
+def _restore_factory_manager(
+    non_manager_baseline: dict[str, dict[str, Any]],
+) -> tuple[dict[str, Any], str]:
+    command_error_type = ""
+    try:
+        _recreate_manager(override=False)
+    except Exception as error:
+        command_error_type = type(error).__name__
+    _remove_override()
+    try:
+        manager = _wait_factory_ready()
+        after = _runtime_snapshot()
+        _validate_non_manager_continuity(
+            non_manager_baseline,
+            after,
+        )
+    except Exception as error:
+        raise OnboardingError(
+            "factory_restore_unproven:"
+            f"command_{command_error_type or 'none'}:"
+            f"verify_{type(error).__name__}"
+        ) from error
+    return manager, command_error_type
+
+
 def _wait_onboarding_ready(
     expected_host: str,
     *,
@@ -1049,12 +1074,12 @@ def open_window(
         baseline=baseline,
         window_seconds=window_seconds,
     )
-    manager_recreated = False
+    manager_mutation_started = False
     try:
         _write_override(broker_host)
         _validate_override_compose(broker_host)
+        manager_mutation_started = True
         _recreate_manager(override=True)
-        manager_recreated = True
         opened_manager = _wait_onboarding_ready(broker_host)
         after = _runtime_snapshot()
         _validate_non_manager_continuity(baseline, after)
@@ -1098,15 +1123,12 @@ def open_window(
     except Exception as error:
         rollback_status = "NOT_REQUIRED"
         rollback_error = ""
-        if manager_recreated:
+        rollback_command_error = ""
+        if manager_mutation_started:
             try:
-                _recreate_manager(override=False)
-                _remove_override()
-                restored_manager = _wait_factory_ready()
-                restored = _runtime_snapshot()
-                _validate_non_manager_continuity(baseline, restored)
-                if restored_manager["id"] == baseline["manager"]["id"]:
-                    raise OnboardingError("rollback_manager_not_recreated")
+                _restored_manager, rollback_command_error = (
+                    _restore_factory_manager(baseline)
+                )
                 rollback_status = "PASS"
             except Exception as rollback:
                 rollback_status = "FAIL"
@@ -1115,9 +1137,10 @@ def open_window(
             _remove_override()
         _advance_transaction(
             status="STOPPED_OPEN_FAILED",
-            manager_recreate_count=1 if manager_recreated else 0,
+            manager_recreate_count=1 if manager_mutation_started else 0,
             rollback_status=rollback_status,
             rollback_error_type=rollback_error,
+            rollback_command_error_type=rollback_command_error,
             failure_type=type(error).__name__,
         )
         raise OnboardingError(
@@ -1162,13 +1185,7 @@ def close_window(
         counts = _db_counts()
         security_counts = _security_state_counts()
     expired = int(time.time()) > int(transaction.get("expires_at_unix", 0))
-    _recreate_manager(override=False)
-    _remove_override()
-    closed_manager = _wait_factory_ready()
-    after = _runtime_snapshot()
-    _validate_non_manager_continuity(before, after)
-    if closed_manager["id"] == before["manager"]["id"]:
-        raise OnboardingError("close_manager_not_recreated")
+    closed_manager, close_command_error = _restore_factory_manager(before)
     post_counts = _db_counts()
     post_security_counts = _security_state_counts()
     if post_counts != counts:
@@ -1188,6 +1205,7 @@ def close_window(
         manager_recreate_count=int(transaction.get("manager_recreate_count", 1)) + 1,
         closed_manager_id=closed_manager["id"],
         closed_manager_id_sha256=closed_manager["id_sha256"],
+        close_command_error_type=close_command_error,
         final_database_counts=post_counts,
         final_security_counts=post_security_counts,
         success_evidence=success_evidence,
@@ -1208,7 +1226,8 @@ def close_window(
         "database_counts": post_counts,
         "security_counts": post_security_counts,
         "success_evidence": success_evidence,
-        "manager_recreated": True,
+        "manager_factory_state_observed": True,
+        "compose_command_error_type": close_command_error,
         "broker_container_unchanged": True,
         "homeassistant_container_unchanged": True,
         "factory_pairing_disabled": True,
