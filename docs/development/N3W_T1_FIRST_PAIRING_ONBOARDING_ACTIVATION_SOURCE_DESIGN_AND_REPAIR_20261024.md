@@ -312,7 +312,23 @@ BOARD_ACCESS=false
 PAIRING_EXECUTION=false
 MERGE=false
 
-NEXT=EXACT_HEAD_SOURCE_REVIEW_AND_CI
+EXACT_HEAD=79aeaacdd80e76157a4fd2c310df3717ae096dd7
+EXACT_HEAD_SOURCE_REVIEW=PASS
+EXACT_HEAD_CI=PASS
+RELATED_CI=12_OF_12_PASS
+PUBLIC_REPOSITORY_SAFETY=PASS
+NEW_SOURCE_BLOCKER_COUNT=0
+SOURCE_REPAIR_REQUIRED=false
+
+TASK=N3W_T1_FIRST_PAIRING_ONBOARDING_ACTIVATION_SOURCE_DESIGN_AND_REPAIR_20261024_01
+RESULT=CLOSED_PASS
+
+NEXT_ONE_GATE=N3W_T1_FIRST_PAIRING_ONBOARDING_LIVE_READONLY_PREFLIGHT_20261024_01
+NEXT_GATE_T1_MUTATION=false
+NEXT_GATE_BOARD_MUTATION=false
+NEXT_GATE_PAIRING_EXECUTION=false
+LIVE_PAIRING_REQUIRES_SEPARATE_EXPLICIT_AUTHORIZATION=true
+PR664_MERGE=false
 ```
 
 ## 12. Exact-head review findings repaired before live use
@@ -445,3 +461,66 @@ WATCHDOG_RESTORE_RETRY_ENABLED=true
 LIVE_T1_IMPACT_FROM_THIS_REVIEW=false
 BOARD_IMPACT_FROM_THIS_REVIEW=false
 ```
+
+## 15. Source closure
+
+Final exact-head closure review completed after the recovery-watchdog repair.
+
+The final review specifically rechecked:
+
+- claim-before-mutation ordering;
+- pairing-disabled factory baseline preservation;
+- route-selected Broker locator and TLS identity separation;
+- Manager-only recreation;
+- Broker/Home Assistant continuity;
+- read-only `inspect` behavior;
+- private transaction metadata and tool binding;
+- Setup Secret exclusion from public/runtime command surfaces;
+- acknowledged credential/key/peer-trust success evidence;
+- watchdog arming before pairing mutation;
+- open failure rollback;
+- unresolved open rollback retaining automatic recovery;
+- deadline timeout recovery;
+- watchdog restore failure remaining retryable;
+- pending recovery states remaining nonterminal;
+- terminal success requiring the watchdog to remain valid through the accepted window;
+- public error-output redaction;
+- repository private-network-literal safety.
+
+Final CI on exact head:
+
+```text
+N3W T1 first-pairing onboarding CI=PASS
+Public repository safety CI=PASS
+greenhouse-manager CI=PASS
+M2 Dynamic Security CI=PASS
+M2 private Mosquitto CI=PASS
+M2 manager runtime secret ownership CI=PASS
+H3 N2 Stage2B3 Pairing Runtime CI=PASS
+M2 node auth native board lab CI=PASS
+M2 node auth board lab CI=PASS
+M2 node auth isolated lab CI=PASS
+C-07 node retirement CI=PASS
+M0 vertical slice CI=PASS
+```
+
+Closure classification:
+
+```text
+SOURCE_DESIGN=COMPLETE
+SOURCE_REPAIR=COMPLETE
+BOUNDED_PAIRING_WINDOW=PASS
+FAIL_OPEN_RECOVERY_PATH=PASS
+FALSE_PASS_PATH_FOUND_AT_FINAL_REVIEW=true
+FALSE_PASS_PATH_REPAIRED=true
+NEW_SOURCE_BLOCKER_COUNT=0
+SOURCE_GATE=CLOSED_PASS
+
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+PAIRING_EXECUTION=false
+MERGE=false
+```
+
+No live authorization is inherited from this source closure.
