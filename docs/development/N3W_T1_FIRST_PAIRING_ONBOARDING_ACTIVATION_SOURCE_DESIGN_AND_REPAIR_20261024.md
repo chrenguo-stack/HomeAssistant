@@ -367,3 +367,81 @@ PAIRING_WINDOW_LEDGER_ONLY=false
 PAIRING_WINDOW_RUNTIME_BOUNDED=true
 RAW_COMMAND_ERROR_TEXT_PUBLIC=false
 ```
+
+## 14. Recovery watchdog fail-open closure
+
+Final exact-head failure review found a blocker in the first bounded-window implementation.
+
+The unsafe sequence was:
+
+```text
+Manager onboarding mutation started
+→ post-open validation failed
+→ immediate factory restore failed
+→ transaction marked STOPPED_OPEN_FAILED
+→ watchdog cancelled
+```
+
+That could remove the last automatic recovery mechanism while the pairing listeners were still potentially exposed.
+
+A second related gap existed at timeout: the first watchdog service was one-shot. If its factory restore failed, no automatic retry was guaranteed.
+
+The repair changes the recovery state machine to:
+
+```text
+OPEN validation failure
+→ immediate factory restore attempt
+
+restore PASS
+→ STOPPED_OPEN_FAILED
+→ watchdog may be cancelled
+→ factory-safe state already proven
+
+restore FAIL
+→ OPEN_RESTORE_PENDING
+→ watchdog is NOT cancelled
+→ watchdog service is started immediately
+→ pending state is nonterminal
+→ recovery service retries on failure
+→ observed factory-safe state
+→ CLOSED_RECOVERY_AFTER_OPEN_FAILURE
+```
+
+At deadline:
+
+```text
+watchdog restore FAIL
+→ TIMEOUT_RESTORE_PENDING
+→ service exits nonzero
+→ systemd Restart=on-failure
+→ RestartSec=10s
+→ retry factory restore
+→ only observed factory-safe state becomes terminal
+```
+
+The transient watchdog service now carries:
+
+```text
+Type=exec
+Restart=on-failure
+RestartSec=10s
+```
+
+`OPEN_RESTORE_PENDING` and `TIMEOUT_RESTORE_PENDING` are explicitly nonterminal. Neither can become a pairing PASS.
+
+The source tests now require:
+
+- watchdog arming to include the restart policy;
+- immediate open rollback failure to retain/start watchdog recovery;
+- no watchdog cancellation on unresolved factory restore;
+- timeout restore failure to enter a retryable pending state;
+- pending recovery to run immediately rather than wait for the original deadline;
+- successful recovery after an open failure to terminate as `CLOSED_RECOVERY_AFTER_OPEN_FAILURE`, never `CLOSED_PASS`.
+
+```text
+FAIL_OPEN_RECOVERY_PATH_CLOSED=true
+PENDING_RECOVERY_IS_TERMINAL=false
+WATCHDOG_RESTORE_RETRY_ENABLED=true
+LIVE_T1_IMPACT_FROM_THIS_REVIEW=false
+BOARD_IMPACT_FROM_THIS_REVIEW=false
+```
