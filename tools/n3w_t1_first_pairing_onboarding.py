@@ -29,6 +29,7 @@ COMPOSE_PROJECT = "n3wfc4"
 COMPOSE_TARGET = Path("/etc/n3wfc4/docker-compose.yml")
 COMPOSE_ENV = Path("/etc/n3wfc4/docker-compose.env")
 CA_CERT = Path("/etc/n3wfc4/tls/ca.pem")
+SERVER_CERT = Path("/etc/n3wfc4/tls/server.pem")
 PROVISIONING_ROOT = Path("/var/lib/n3w-t1-provisioning")
 FACTORY_ACCEPTED_PATH = PROVISIONING_ROOT / "FACTORY_ACCEPTED.json"
 TRANSACTION_PATH = PROVISIONING_ROOT / "FIRST_PAIRING_ONBOARDING.json"
@@ -820,7 +821,11 @@ def _resolve_route_selected_broker(
 
 def _probe_external_broker_tls(host: str) -> None:
     _require_file(CA_CERT)
-    context = ssl.create_default_context(cafile=str(CA_CERT))
+    _require_file(SERVER_CERT)
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    context.check_hostname = True
+    context.verify_mode = ssl.CERT_REQUIRED
+    context.load_verify_locations(cafile=str(CA_CERT))
     try:
         with socket.create_connection(
             (host, BROKER_TLS_PORT),
@@ -828,16 +833,32 @@ def _probe_external_broker_tls(host: str) -> None:
         ) as raw, context.wrap_socket(
             raw,
             server_hostname=BROKER_TLS_SERVER_NAME,
-        ):
-            pass
+        ) as wrapped:
+            peer = wrapped.getpeercert(binary_form=True)
     except (OSError, ssl.SSLError) as error:
         raise OnboardingError("external_broker_tls_probe_failed") from error
+
+    if not peer:
+        raise OnboardingError("external_broker_tls_peer_missing")
+
+    try:
+        local_der = ssl.PEM_cert_to_DER_cert(
+            SERVER_CERT.read_text(encoding="ascii")
+        )
+    except (OSError, UnicodeError, ValueError) as error:
+        raise OnboardingError("external_broker_server_certificate_invalid") from error
+
+    if hashlib.sha256(peer).hexdigest() != hashlib.sha256(local_der).hexdigest():
+        raise OnboardingError("external_broker_tls_certificate_mismatch")
 
 
 def _probe_manager_broker_tls(manager_id: str) -> None:
     script = (
         "import socket,ssl;"
-        "ctx=ssl.create_default_context(cafile='/run/n3w/tls/ca.pem');"
+        "ctx=ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT);"
+        "ctx.check_hostname=True;"
+        "ctx.verify_mode=ssl.CERT_REQUIRED;"
+        "ctx.load_verify_locations(cafile='/run/n3w/tls/ca.pem');"
         "raw=socket.create_connection(('armbian',8883),5);"
         "tls=ctx.wrap_socket(raw,server_hostname='armbian');"
         "tls.close()"
