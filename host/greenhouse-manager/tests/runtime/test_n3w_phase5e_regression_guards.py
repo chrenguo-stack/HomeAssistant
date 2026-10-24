@@ -39,6 +39,7 @@ CURRENT_RUNTIME_FILES = {
     "n3w_canonical_ingress.py",
     "n3w_compact_relay.py",
     "n3w_credential_contract.py",
+    "n3w_dynamic_pairing_window.py",
     "n3w_long_lived_peer_trust.py",
     "n3w_manager_runtime_wiring.py",
     "n3w_multi_ingress_router.py",

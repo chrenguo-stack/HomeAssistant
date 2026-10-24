@@ -2,12 +2,17 @@ from __future__ import annotations
 
 import os
 import stat
-import threading
 from pathlib import Path
 
 from .c06b2_runtime_wiring import run_manager_service as run_c06b2_manager_service
 from .config import Settings
 from .mqtt_service import ManagerMqttService
+from .n3w_dynamic_pairing_window import (
+    DynamicPairingWindowController,
+    DynamicPairingWindowControlServer,
+    N3wSimplifiedProductPairingWorker,
+    dynamic_pairing_control_socket_path,
+)
 from .n3w_node_application_keys import SqliteNodeApplicationKeyProvider
 from .n3w_simplified_isolated_mqtt_service import N3wSimplifiedIsolatedMqttService
 from .n3w_simplified_product_runtime import (
@@ -83,102 +88,6 @@ class N3wSimplifiedManagerMqttService(N3wSimplifiedIsolatedMqttService):
             self._owned_replay.close()
 
 
-class N3wSimplifiedProductPairingWorker:
-    """Own product pairing expiry and private Setup-Secret inbox lifecycle."""
-
-    def __init__(
-        self,
-        composition: SimplifiedProductPairingComposition,
-    ) -> None:
-        self.composition = composition
-        self._stop = threading.Event()
-        self._thread: threading.Thread | None = None
-        self._failure: Exception | None = None
-
-    @property
-    def is_alive(self) -> bool:
-        return bool(
-            self._thread
-            and self._thread.is_alive()
-        )
-
-    def start(self) -> None:
-        if self.is_alive:
-            return
-
-        self._stop.clear()
-        self._failure = None
-
-        try:
-            self.composition.pairing_runtime.start()
-            self.composition.pairing_socket.start()
-        except Exception:
-            self.composition.close()
-            raise
-
-        self._thread = threading.Thread(
-            target=self._run,
-            name="n3w-product-pairing-maintenance",
-            daemon=True,
-        )
-        self._thread.start()
-
-    def _run(self) -> None:
-        interval = (
-            self.composition
-            .pairing_runtime
-            .settings
-            .expiry_poll_s
-        )
-
-        while not self._stop.wait(interval):
-            try:
-                self.composition.pairing_runtime.expire()
-
-                if (
-                    not self.composition
-                    .pairing_socket
-                    .is_alive
-                ):
-                    raise RuntimeError(
-                        "setup secret inbox stopped"
-                    )
-            except Exception as error:
-                self._failure = error
-                self._stop.set()
-                return
-
-    def stop(
-        self,
-        timeout_s: float = 5.0,
-    ) -> None:
-        self._stop.set()
-
-        thread = self._thread
-
-        if (
-            thread is not None
-            and thread.is_alive()
-        ):
-            thread.join(timeout_s)
-
-        if (
-            thread is not None
-            and thread.is_alive()
-        ):
-            raise N3wSimplifiedManagerRuntimeError(
-                "n3w_product_pairing_worker_stop_timeout"
-            )
-
-        try:
-            self.composition.close()
-        finally:
-            if self._failure is not None:
-                raise N3wSimplifiedManagerRuntimeError(
-                    "n3w_product_pairing_worker_failed"
-                ) from self._failure
-
-
 class N3wSimplifiedProductManagerMqttService(
     N3wSimplifiedManagerMqttService
 ):
@@ -216,6 +125,50 @@ class N3wSimplifiedProductManagerMqttService(
             self._product_pairing_worker.stop()
 
 
+class N3wDynamicPairingManagerMqttService(
+    N3wSimplifiedManagerMqttService
+):
+    """Own normal N3-W MQTT plus the local dynamic pairing-window authority."""
+
+    def __init__(
+        self,
+        settings: Settings,
+        *,
+        registration: RegistrationRegistry,
+        replay: ReplayRegistry,
+        keys: SqliteNodeApplicationKeyProvider,
+    ) -> None:
+        self._dynamic_pairing = (
+            DynamicPairingWindowController(
+                settings
+            )
+        )
+        self._pairing_control = (
+            DynamicPairingWindowControlServer(
+                self._dynamic_pairing,
+                dynamic_pairing_control_socket_path(
+                    settings
+                ),
+            )
+        )
+        super().__init__(
+            settings,
+            registration=registration,
+            replay=replay,
+            keys=keys,
+        )
+
+    def run(self) -> None:
+        self._pairing_control.start()
+        try:
+            super().run()
+        finally:
+            try:
+                self._pairing_control.stop()
+            finally:
+                self._dynamic_pairing.stop()
+
+
 def build_n3w_simplified_manager_service(
     settings: Settings,
 ) -> N3wSimplifiedManagerMqttService:
@@ -251,7 +204,7 @@ def build_n3w_simplified_manager_service(
             settings.n3w_relay_key_dir,
         )
         keys.audit()
-        return N3wSimplifiedManagerMqttService(
+        return N3wDynamicPairingManagerMqttService(
             settings,
             registration=registration,
             replay=replay,

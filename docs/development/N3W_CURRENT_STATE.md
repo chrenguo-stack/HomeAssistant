@@ -8104,3 +8104,73 @@ The next gate is repository-only final review of PR #437 merge readiness. It mus
 ## Public/private evidence boundary
 
 Public GitHub may store source, tests, artifact hashes, sanitized timing/acceptance results, and architecture decisions. Do not commit raw credentials, setup secrets, private keys, raw NVS, private host addresses, raw Manager/Broker logs, or raw board identity material.
+
+
+## 2026-10-24 — PR #664 live failure root cause and dynamic first-pair design freeze
+
+The first live onboarding `open` attempt consumed its one-shot authorization and is permanently non-replayable. Board D was not paired.
+
+Live evidence proved that the old PR #664 design was incompatible with the production T1 supervision contract. The onboarding tool attempted an out-of-band Manager-only Compose recreate. The deployed `n3wfc4-services-activation.service` owns Manager and Home Assistant in one foreground `docker compose ... --abort-on-container-exit manager homeassistant` lifecycle. When the old Manager stopped, the supervising Compose process logged `Aborting on container exit...` and actively stopped Home Assistant. Docker/kernel evidence did not support an OOM/self-crash classification.
+
+The immediate recovery-state parser defect that rejected `OPEN_RESTORE_PENDING` / `TIMEOUT_RESTORE_PENDING` was repaired on PR #664 source head `85706d7507b8ce90b3447c18ab62d9c0a37afcce`; related CI was 12/12 PASS.
+
+Current public-safe live classification after the failed attempt:
+
+- Manager is running with factory pairing disabled and factory Broker placeholder restored.
+- UDP 47111 and TCP 47112 are closed.
+- Broker remained running with restart count 0 in the captured evidence.
+- Home Assistant is stopped after the Compose-supervision abort path; it did not self-crash from OOM.
+- the old staged watchdog timer is inactive and its service was observed in an auto-restart loop against the old parser;
+- the failed transaction/evidence must be preserved;
+- the consumed authorization must never be replayed;
+- no second pairing attempt is authorized.
+
+The replacement architecture is frozen in:
+
+`docs/development/N3W_MANAGER_DYNAMIC_FIRST_PAIRING_WINDOW_SOURCE_DESIGN_AND_ACCEPTANCE_PLAN_20261024.md`
+
+Frozen direction:
+
+- do not split the production Manager/Home Assistant systemd lifecycle in this task;
+- do not restart Manager or Home Assistant in the normal first-pair path;
+- add a Manager-owned local-only dynamic pairing-window controller;
+- keep durable production pairing disabled;
+- create/destroy the existing pairing composition in-process for a bounded 180–600 second window;
+- Manager self-timeout is the primary exposure-closure authority;
+- host watchdog becomes a second-layer transaction/reconciliation guard;
+- only an explicitly authorized emergency recovery gate may use stronger service restart if pairing exposure cannot be proven closed.
+
+The next gate is source-only:
+
+`N3W_MANAGER_DYNAMIC_FIRST_PAIRING_WINDOW_SOURCE_REPAIR_20261024_01`
+
+No T1 access, live runtime mutation, Board access, firmware/OTA/NVS action, production deployment, merge, or automatic successor entry is authorized by this state update.
+
+## 2026-10-24 — Dynamic first-pairing window source repair CLOSED_PASS
+
+`N3W_MANAGER_DYNAMIC_FIRST_PAIRING_WINDOW_SOURCE_REPAIR_20261024_01` is closed PASS at exact source/test head:
+
+`aeae6eee6577e61a8b84c0b63b6a57e4863657bf`
+
+Independent exact-head review found no new design-level blocker. The final review-driven changes were test-only and added direct proof for partial-start cleanup, real UDP/TCP/Unix resource disappearance after the Manager-owned deadline, and normal Manager/MQTT continuity across pairing-window close.
+
+GitHub CI for the exact source/test head completed 17/17 workflow runs successfully with 0 failures and 0 running.
+
+The durable source-closure record is:
+
+`docs/development/N3W_MANAGER_DYNAMIC_FIRST_PAIRING_WINDOW_SOURCE_REPAIR_CLOSURE_20261024.md`
+
+KF-129 remains OPEN because exact-image and real T1/live acceptance are still outstanding. The source repair does not authorize or claim production deployment, T1 recovery, Board D pairing or merge.
+
+Current boundary:
+
+- SOURCE_REPAIR_GATE=CLOSED_PASS
+- SOURCE_TEST_HEAD=`aeae6eee6577e61a8b84c0b63b6a57e4863657bf`
+- KF_129=OPEN
+- T1_ACCESS=false
+- BOARD_ACCESS=false
+- PRODUCTION_DEPLOYMENT=false
+- MERGE=false
+
+STOP before exact production artifact deployment, T1 recovery, Board D pairing or merge.
+
