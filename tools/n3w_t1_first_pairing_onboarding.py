@@ -34,6 +34,9 @@ FACTORY_ACCEPTED_PATH = PROVISIONING_ROOT / "FACTORY_ACCEPTED.json"
 TRANSACTION_PATH = PROVISIONING_ROOT / "FIRST_PAIRING_ONBOARDING.json"
 RUNTIME_ROOT = Path("/run/n3w-first-pairing-onboarding")
 OVERRIDE_PATH = RUNTIME_ROOT / "manager-pairing.override.yml"
+WATCHDOG_TOOL_PATH = RUNTIME_ROOT / "onboarding-watchdog.py"
+WATCHDOG_UNIT_PREFIX = "n3w-first-pairing-watchdog-"
+PYTHON_EXECUTABLE = "/usr/bin/python3"
 MANAGER_DB = Path("/var/lib/greenhouse-manager/manager/manager-state.sqlite3")
 CREDENTIAL_DB = Path("/var/lib/greenhouse-manager/n3w/credential-lifecycle.sqlite3")
 APPLICATION_KEY_DB = Path("/var/lib/greenhouse-manager/n3w/relay-authorization.sqlite3")
@@ -180,7 +183,7 @@ def _write_private_json(path: Path, document: dict[str, Any]) -> None:
 
 
 @contextmanager
-def _exclusive_lock():
+def _exclusive_lock(*, blocking: bool = False):
     _require_private_directory(PROVISIONING_ROOT)
     flags = (
         os.O_RDONLY
@@ -193,7 +196,10 @@ def _exclusive_lock():
         raise OnboardingError("onboarding_lock_root_unavailable") from error
     try:
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            flags = fcntl.LOCK_EX
+            if not blocking:
+                flags |= fcntl.LOCK_NB
+            fcntl.flock(fd, flags)
         except BlockingIOError as error:
             raise OnboardingError("onboarding_lock_busy") from error
         yield
@@ -859,9 +865,58 @@ def _pairing_socket_ready(manager_id: str) -> None:
     )
 
 
+def _prepare_runtime_root(transaction: dict[str, Any]) -> None:
+    if RUNTIME_ROOT.exists() or RUNTIME_ROOT.is_symlink():
+        raise OnboardingError("onboarding_runtime_root_not_fresh")
+    RUNTIME_ROOT.mkdir(mode=0o700)
+    _require_private_directory(RUNTIME_ROOT)
+
+    source = Path(__file__).resolve()
+    source_sha = _sha256_file(source)
+    if transaction.get("tool_sha256") != source_sha:
+        raise OnboardingError("onboarding_tool_binding_drift")
+
+    payload = source.read_bytes()
+    flags = (
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    try:
+        fd = os.open(WATCHDOG_TOOL_PATH, flags, 0o600)
+    except OSError as error:
+        raise OnboardingError("watchdog_tool_copy_create_failed") from error
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "wb", closefd=True) as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+    finally:
+        if WATCHDOG_TOOL_PATH.exists():
+            metadata = WATCHDOG_TOOL_PATH.stat()
+            if (
+                metadata.st_uid != os.geteuid()
+                or metadata.st_gid != os.getegid()
+                or stat.S_IMODE(metadata.st_mode) != 0o600
+                or metadata.st_nlink != 1
+                or _sha256_file(WATCHDOG_TOOL_PATH) != source_sha
+            ):
+                raise OnboardingError("watchdog_tool_copy_binding_invalid")
+
+    dir_fd = os.open(
+        RUNTIME_ROOT,
+        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+    )
+    try:
+        os.fsync(dir_fd)
+    finally:
+        os.close(dir_fd)
+
+
 def _write_override(broker_host: str) -> None:
-    RUNTIME_ROOT.mkdir(parents=True, exist_ok=True, mode=0o700)
-    os.chmod(RUNTIME_ROOT, 0o700)
+    _require_private_directory(RUNTIME_ROOT)
     content = (
         "services:\n"
         "  manager:\n"
@@ -905,6 +960,128 @@ def _remove_override() -> None:
             os.close(dir_fd)
 
 
+def _watchdog_unit_name(authorization_id: str) -> str:
+    return (
+        WATCHDOG_UNIT_PREFIX
+        + _sha256_text(authorization_id)[:16]
+    )
+
+
+def _systemctl_is_active(unit: str) -> bool:
+    output = _run(
+        ("systemctl", "is-active", unit),
+        timeout=20,
+        allowed=frozenset({0, 3, 4}),
+    )
+    return output.strip() == "active"
+
+
+def _watchdog_is_active(transaction: dict[str, Any]) -> bool:
+    unit = transaction.get("watchdog_unit")
+    if not isinstance(unit, str) or not unit.startswith(WATCHDOG_UNIT_PREFIX):
+        return False
+    return _systemctl_is_active(f"{unit}.timer")
+
+
+def _arm_watchdog(transaction: dict[str, Any]) -> dict[str, Any]:
+    authorization_id = transaction.get("authorization_id")
+    expires_at = transaction.get("expires_at_unix")
+    if (
+        not isinstance(authorization_id, str)
+        or not isinstance(expires_at, int)
+        or isinstance(expires_at, bool)
+    ):
+        raise OnboardingError("watchdog_transaction_binding_invalid")
+
+    authorization_sha = _sha256_text(authorization_id)
+    unit = _watchdog_unit_name(authorization_id)
+    remaining = expires_at - int(time.time())
+    if remaining < 1:
+        raise OnboardingError("watchdog_deadline_elapsed")
+
+    _prepare_runtime_root(transaction)
+
+    command_error_type = ""
+    try:
+        _run(
+            (
+                "systemd-run",
+                "--quiet",
+                "--collect",
+                f"--unit={unit}",
+                f"--on-active={remaining}s",
+                "--timer-property=AccuracySec=1s",
+                "--property=Type=exec",
+                PYTHON_EXECUTABLE,
+                str(WATCHDOG_TOOL_PATH),
+                "expire",
+                "--authorization-sha256",
+                authorization_sha,
+            ),
+            timeout=20,
+        )
+    except OPERATION_ERRORS as error:
+        command_error_type = type(error).__name__
+
+    if not _systemctl_is_active(f"{unit}.timer"):
+        raise OnboardingError(
+            "watchdog_not_active:"
+            f"{command_error_type or 'no_command_error'}"
+        )
+
+    return _advance_transaction(
+        status="WATCHDOG_ARMED",
+        watchdog_unit=unit,
+        watchdog_armed=True,
+        watchdog_authorization_sha256=authorization_sha,
+        watchdog_tool_sha256=_sha256_file(WATCHDOG_TOOL_PATH),
+        watchdog_command_error_type=command_error_type,
+        watchdog_armed_at_unix=int(time.time()),
+    )
+
+
+def _cancel_watchdog(transaction: dict[str, Any]) -> str:
+    unit = transaction.get("watchdog_unit")
+    if not isinstance(unit, str) or not unit.startswith(WATCHDOG_UNIT_PREFIX):
+        return "NOT_PRESENT"
+
+    command_error_type = ""
+    try:
+        _run(
+            (
+                "systemctl",
+                "stop",
+                f"{unit}.timer",
+                f"{unit}.service",
+            ),
+            timeout=20,
+            allowed=frozenset({0, 5}),
+        )
+    except OPERATION_ERRORS as error:
+        command_error_type = type(error).__name__
+
+    if _systemctl_is_active(f"{unit}.timer"):
+        raise OnboardingError("watchdog_timer_still_active")
+    if _systemctl_is_active(f"{unit}.service"):
+        raise OnboardingError("watchdog_service_still_active")
+    return command_error_type
+
+
+def _watchdog_terminal_status(status: object) -> bool:
+    return status in {
+        "STOPPED_WATCHDOG_ARM_FAILED",
+        "STOPPED_OPEN_FAILED",
+        "STOPPED_TIMEOUT_RESTORE_FAILED",
+        "FACTORY_RESTORED",
+        "CLOSED_PASS",
+        "CLOSED_ABORTED",
+        "CLOSED_FAIL_WINDOW_EXPIRED",
+        "CLOSED_FAIL_WATCHDOG_LOST",
+        "CLOSED_TIMEOUT",
+        "CLOSED_TIMEOUT_PREOPEN",
+    }
+
+
 def _recreate_manager(*, override: bool) -> None:
     _run(
         _compose_argv(
@@ -915,7 +1092,7 @@ def _recreate_manager(*, override: bool) -> None:
             "manager",
             override=override,
         ),
-        timeout=120,
+        timeout=60,
     )
 
 
@@ -1087,11 +1264,18 @@ def _transaction() -> dict[str, Any]:
     status = document.get("status")
     allowed_statuses = {
         "CLAIMED",
+        "WATCHDOG_ARMED",
         "OPEN",
+        "STOPPED_WATCHDOG_ARM_FAILED",
         "STOPPED_OPEN_FAILED",
+        "STOPPED_TIMEOUT_RESTORE_FAILED",
+        "FACTORY_RESTORED",
         "CLOSED_PASS",
         "CLOSED_ABORTED",
         "CLOSED_FAIL_WINDOW_EXPIRED",
+        "CLOSED_FAIL_WATCHDOG_LOST",
+        "CLOSED_TIMEOUT",
+        "CLOSED_TIMEOUT_PREOPEN",
     }
     if status not in allowed_statuses:
         raise OnboardingError("onboarding_transaction_status_invalid")
@@ -1160,8 +1344,35 @@ def _transaction() -> dict[str, Any]:
     if (
         not isinstance(tool_sha, str)
         or re.fullmatch(r"[0-9a-f]{64}", tool_sha) is None
+        or _sha256_file(Path(__file__).resolve()) != tool_sha
     ):
         raise OnboardingError("onboarding_transaction_tool_binding_invalid")
+
+    if status in {
+        "WATCHDOG_ARMED",
+        "OPEN",
+        "FACTORY_RESTORED",
+        "CLOSED_PASS",
+        "CLOSED_ABORTED",
+        "CLOSED_FAIL_WINDOW_EXPIRED",
+        "CLOSED_FAIL_WATCHDOG_LOST",
+        "CLOSED_TIMEOUT",
+    }:
+        unit = document.get("watchdog_unit")
+        auth_sha = document.get("watchdog_authorization_sha256")
+        watchdog_tool_sha = document.get("watchdog_tool_sha256")
+        if (
+            not isinstance(unit, str)
+            or re.fullmatch(
+                rf"{re.escape(WATCHDOG_UNIT_PREFIX)}[0-9a-f]{{16}}",
+                unit,
+            )
+            is None
+            or unit != _watchdog_unit_name(authorization_id)
+            or auth_sha != _sha256_text(authorization_id)
+            or watchdog_tool_sha != tool_sha
+        ):
+            raise OnboardingError("onboarding_transaction_watchdog_binding_invalid")
 
     return document
 
@@ -1234,7 +1445,7 @@ def open_window(
     _require_root()
     if confirmation != OPEN_CONFIRMATION:
         raise OnboardingError("open_confirmation_invalid")
-    if not 60 <= window_seconds <= 600:
+    if not 180 <= window_seconds <= 600:
         raise OnboardingError("window_seconds_invalid")
     authorization_id = _authorization_id(authorization_id)
     _require_file(COMPOSE_TARGET)
@@ -1264,6 +1475,20 @@ def open_window(
         baseline=baseline,
         window_seconds=window_seconds,
     )
+    try:
+        transaction = _arm_watchdog(transaction)
+    except OPERATION_ERRORS as error:
+        try:
+            _advance_transaction(
+                status="STOPPED_WATCHDOG_ARM_FAILED",
+                watchdog_arm_failure_type=type(error).__name__,
+            )
+        except OPERATION_ERRORS:
+            pass
+        raise OnboardingError(
+            f"watchdog_arm_failed:{type(error).__name__}"
+        ) from error
+
     manager_mutation_started = False
     try:
         _write_override(broker_host)
@@ -1278,6 +1503,7 @@ def open_window(
         transaction = _advance_transaction(
             status="OPEN",
             manager_recreate_command_count=1,
+            watchdog_confirmed_active=_watchdog_is_active(transaction),
             opened_manager_id=opened_manager["id"],
             opened_manager_id_sha256=opened_manager["id_sha256"],
             opened_at_unix=int(time.time()),
@@ -1299,6 +1525,7 @@ def open_window(
             "pairing_window_state": "OPEN",
             "broker_host_sha256": transaction["broker_host_sha256"],
             "window_seconds": window_seconds,
+            "watchdog_active": _watchdog_is_active(transaction),
             "manager_recreated": True,
             "broker_container_unchanged": True,
             "homeassistant_container_unchanged": True,
@@ -1325,7 +1552,7 @@ def open_window(
                 rollback_error = type(rollback).__name__
         else:
             _remove_override()
-        _advance_transaction(
+        stopped = _advance_transaction(
             status="STOPPED_OPEN_FAILED",
             manager_recreate_command_count=2 if manager_mutation_started else 0,
             rollback_status=rollback_status,
@@ -1333,6 +1560,10 @@ def open_window(
             rollback_command_error_type=rollback_command_error,
             failure_type=type(error).__name__,
         )
+        try:
+            _cancel_watchdog(stopped)
+        except OPERATION_ERRORS:
+            pass
         raise OnboardingError(
             f"open_failed:{type(error).__name__}:rollback_{rollback_status}"
         ) from error
@@ -1367,6 +1598,7 @@ def close_window(
         raise OnboardingError("broker_host_drift_before_close")
     if outcome not in {"success", "abort"}:
         raise OnboardingError("close_outcome_invalid")
+    watchdog_active_before_close = _watchdog_is_active(transaction)
     success_evidence: dict[str, Any] | None = None
     if outcome == "success":
         expected_system_id = transaction.get("system_id")
@@ -1388,11 +1620,27 @@ def close_window(
         raise OnboardingError("manager_database_counts_changed_during_close")
     if post_security_counts != security_counts:
         raise OnboardingError("security_state_counts_changed_during_close")
+
+    restored = _advance_transaction(
+        status="FACTORY_RESTORED",
+        factory_restored_at_unix=int(time.time()),
+        manager_recreate_command_count=restored["manager_recreate_command_count"],
+        watchdog_active_before_close=watchdog_active_before_close,
+        watchdog_cancel_error_type=watchdog_cancel_error,
+    )
+    watchdog_cancel_error = _cancel_watchdog(restored)
+
     terminal = "CLOSED_ABORTED"
     result_status = "PASS"
     if outcome == "success":
-        terminal = "CLOSED_PASS" if not expired else "CLOSED_FAIL_WINDOW_EXPIRED"
-        result_status = "PASS" if not expired else "FAIL"
+        if expired:
+            terminal = "CLOSED_FAIL_WINDOW_EXPIRED"
+            result_status = "FAIL"
+        elif not watchdog_active_before_close:
+            terminal = "CLOSED_FAIL_WATCHDOG_LOST"
+            result_status = "FAIL"
+        else:
+            terminal = "CLOSED_PASS"
     _advance_transaction(
         status=terminal,
         closed_at_unix=int(time.time()),
@@ -1421,6 +1669,8 @@ def close_window(
         "pairing_window_state": terminal,
         "close_outcome": outcome,
         "window_expired": expired,
+        "watchdog_active_before_close": watchdog_active_before_close,
+        "watchdog_cancel_error_type": watchdog_cancel_error,
         "database_counts": post_counts,
         "security_counts": post_security_counts,
         "success_evidence": success_evidence,
@@ -1428,6 +1678,139 @@ def close_window(
         "compose_command_error_type": close_command_error,
         "broker_container_unchanged": True,
         "homeassistant_container_unchanged": True,
+        "factory_pairing_disabled": True,
+        "factory_broker_placeholder_restored": True,
+        "pairing_udp_listener_count": 0,
+        "pairing_http_listener_count": 0,
+        "raw_locator_in_output": False,
+    }
+
+
+def expire_window(
+    *,
+    authorization_sha256: str,
+) -> dict[str, Any]:
+    _require_root()
+    if re.fullmatch(r"[0-9a-f]{64}", authorization_sha256) is None:
+        raise OnboardingError("watchdog_authorization_hash_invalid")
+
+    transaction = _transaction()
+    authorization_id = transaction.get("authorization_id")
+    if (
+        not isinstance(authorization_id, str)
+        or _sha256_text(authorization_id) != authorization_sha256
+    ):
+        raise OnboardingError("watchdog_authorization_binding_mismatch")
+
+    status = transaction.get("status")
+    if _watchdog_terminal_status(status):
+        return {
+            "schema": SCHEMA,
+            "status": "PASS",
+            "operation": "expire",
+            "pairing_window_state": status,
+            "mutation": False,
+            "already_terminal": True,
+            "raw_locator_in_output": False,
+        }
+    if status not in {"CLAIMED", "WATCHDOG_ARMED", "OPEN"}:
+        raise OnboardingError("watchdog_transaction_state_invalid")
+
+    expires_at = int(transaction["expires_at_unix"])
+    remaining = expires_at - int(time.time())
+    if remaining > 0:
+        time.sleep(remaining)
+
+    transaction = _transaction()
+    status = transaction.get("status")
+    if _watchdog_terminal_status(status):
+        return {
+            "schema": SCHEMA,
+            "status": "PASS",
+            "operation": "expire",
+            "pairing_window_state": status,
+            "mutation": False,
+            "already_terminal": True,
+            "raw_locator_in_output": False,
+        }
+
+    baseline_ids = transaction.get("baseline_container_ids")
+    if not isinstance(baseline_ids, dict):
+        raise OnboardingError("watchdog_baseline_binding_missing")
+
+    non_manager_before = {
+        "broker": _container_snapshot("broker"),
+        "homeassistant": _container_snapshot("homeassistant"),
+    }
+    for service in ("broker", "homeassistant"):
+        if non_manager_before[service]["id"] != baseline_ids.get(service):
+            raise OnboardingError(
+                f"watchdog_{service}_container_drift"
+            )
+
+    manager_restore_required = True
+    try:
+        manager = _container_snapshot("manager")
+        env = manager["env"]
+        factory_runtime = (
+            env.get("GH_N3W_PRODUCT_PAIRING_ENABLED") == "false"
+            and env.get("GH_N3W_NODE_BROKER_HOST")
+            == FACTORY_BROKER_PLACEHOLDER
+            and _listener_count("udp", PAIRING_UDP_PORT) == 0
+            and _listener_count("tcp", PAIRING_HTTP_PORT) == 0
+        )
+        if factory_runtime:
+            _probe_manager_broker_tls(manager["id"])
+            manager_restore_required = False
+    except OPERATION_ERRORS:
+        manager_restore_required = True
+
+    command_error = ""
+    command_count = int(
+        transaction.get("manager_recreate_command_count", 0)
+    )
+    if manager_restore_required:
+        try:
+            _closed_manager, command_error = _restore_factory_manager(
+                non_manager_before
+            )
+            command_count += 1
+        except OPERATION_ERRORS as error:
+            try:
+                _advance_transaction(
+                    status="STOPPED_TIMEOUT_RESTORE_FAILED",
+                    timeout_failure_type=type(error).__name__,
+                    timeout_at_unix=int(time.time()),
+                    manager_recreate_command_count=command_count + 1,
+                )
+            except OPERATION_ERRORS:
+                pass
+            raise
+
+    post_counts = _db_counts()
+    post_security_counts = _security_state_counts()
+    terminal = (
+        "CLOSED_TIMEOUT"
+        if manager_restore_required
+        else "CLOSED_TIMEOUT_PREOPEN"
+    )
+    _advance_transaction(
+        status=terminal,
+        timeout_at_unix=int(time.time()),
+        manager_recreate_command_count=command_count,
+        timeout_restore_command_error_type=command_error,
+        final_database_counts=post_counts,
+        final_security_counts=post_security_counts,
+        factory_pairing_disabled=True,
+        factory_broker_placeholder_restored=True,
+    )
+    return {
+        "schema": SCHEMA,
+        "status": "PASS",
+        "operation": "expire",
+        "pairing_window_state": terminal,
+        "authorization_consumed": True,
+        "replay_allowed": False,
         "factory_pairing_disabled": True,
         "factory_broker_placeholder_restored": True,
         "pairing_udp_listener_count": 0,
@@ -1451,7 +1834,13 @@ def _parser() -> argparse.ArgumentParser:
     open_command.add_argument(
         "--window-seconds",
         type=int,
-        default=180,
+        default=300,
+    )
+
+    expire_command = subparsers.add_parser("expire")
+    expire_command.add_argument(
+        "--authorization-sha256",
+        required=True,
     )
 
     close_command = subparsers.add_parser("close")
@@ -1471,6 +1860,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "inspect":
             report = inspect()
+        elif args.command == "expire":
+            with _exclusive_lock(blocking=True):
+                report = expire_window(
+                    authorization_sha256=args.authorization_sha256,
+                )
         else:
             with _exclusive_lock():
                 if args.command == "open":
