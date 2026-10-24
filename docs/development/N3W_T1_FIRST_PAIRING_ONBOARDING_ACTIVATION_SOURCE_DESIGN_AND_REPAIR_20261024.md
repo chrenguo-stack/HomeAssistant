@@ -111,11 +111,27 @@ TLS_SERVER_NAME=armbian
 
 No IP literal becomes a TLS identity.
 
-The transaction is durably claimed before Manager recreation. Once claimed:
+The transaction is durably claimed before any pairing exposure. Once claimed:
 
 ```text
 authorization_consumed=true
 replay_allowed=false
+```
+
+Before the runtime override is written or Manager recreation begins, the exact running tool bytes are copied into a root-owned mode-0600 current-boot namespace under `/run`, and a transient systemd timer is armed.
+
+The watchdog uses `systemd-run --on-active=` to create a current-boot timer + service. The command line contains only the authorization SHA-256, never the authorization ID, Board/T1 locator, pairing ID or Setup Secret. The transient service uses `Type=exec`, and the tool verifies the timer is actually active before pairing can be opened.
+
+```text
+WINDOW_AUTO_CLOSE=true
+WATCHDOG_PERSISTENT_UNIT=false
+WATCHDOG_CURRENT_BOOT_ONLY=true
+WATCHDOG_ARMED_BEFORE_PAIRING_MUTATION=true
+WATCHDOG_RAW_LOCATOR_ARGUMENT=false
+WATCHDOG_SETUP_SECRET_ARGUMENT=false
+OPEN_WINDOW_DEFAULT_SECONDS=300
+OPEN_WINDOW_MIN_SECONDS=180
+OPEN_WINDOW_MAX_SECONDS=600
 ```
 
 A private mode-0600 runtime override changes only:
@@ -150,7 +166,9 @@ BROKER_CONTAINER_UNCHANGED=true
 HOMEASSISTANT_CONTAINER_UNCHANGED=true
 ```
 
-If Manager recreation has started and post-recreate verification fails, the tool performs one safety rollback to the base Compose Manager configuration and verifies the pairing listeners are closed. This is a rollback of the authorized transition, not a retry of pairing.
+If Manager recreation has started and post-recreate verification fails, the tool performs one safety rollback to the base Compose Manager configuration and verifies the pairing listeners are closed. This is a rollback of the authorized transition, not a retry of pairing. The watchdog is then cancelled only after the factory-safe state is observed.
+
+If the controlling SSH/operator path disappears, the transient watchdog reaches the durable transaction deadline and performs the same factory restore. A timeout can end only as `CLOSED_TIMEOUT` or `CLOSED_TIMEOUT_PREOPEN`; it can never manufacture `CLOSED_PASS`.
 
 A Compose timeout or lost return value is not interpreted as proof that recreation did not occur. Both open-failure rollback and normal close treat final observed state as authority: the tool attempts the factory Manager recreation, removes the runtime override, then requires the final pairing-disabled listeners/TLS/non-target-container invariants. A command error may therefore be recorded while a separately observed safe factory state still closes the transition.
 
@@ -198,7 +216,7 @@ REGISTRATION_EVENTS>=1
 
 This is necessary but not sufficient for final Board runtime acceptance. MQTT/Manager/HA telemetry remains a later live acceptance step.
 
-Closure recreates only Manager from the original base Compose without the override, removes the private runtime override, and requires:
+Closure first requires the watchdog still to be present for a successful in-window acceptance. It then recreates only Manager from the original base Compose without the override, removes the private runtime override, records `FACTORY_RESTORED`, and only then cancels the transient watchdog. It requires:
 
 ```text
 PAIRING_ENABLED=false
@@ -215,6 +233,8 @@ A successful transaction after the configured window deadline is classified fail
 
 `abort` exists only to close a claimed/open window safely. It does not convert an incomplete pair into success.
 
+If the watchdog has disappeared unexpectedly, a successful pairing result is classified `CLOSED_FAIL_WATCHDOG_LOST` after the factory-safe Manager state is restored. If the deadline has already elapsed, it is classified `CLOSED_FAIL_WINDOW_EXPIRED`. Neither can become PASS.
+
 ## 8. Persistence and privacy
 
 Private transaction:
@@ -223,15 +243,19 @@ Private transaction:
 /var/lib/n3w-t1-provisioning/FIRST_PAIRING_ONBOARDING.json
 ```
 
-Private runtime override:
+Private current-boot runtime namespace:
 
 ```text
-/run/n3w-first-pairing-onboarding/manager-pairing.override.yml
+/run/n3w-first-pairing-onboarding/
+  manager-pairing.override.yml
+  onboarding-watchdog.py
 ```
+
+The watchdog copy is byte-bound to the claimed tool SHA-256 and is mode-0600. The transient systemd unit name is derived from an authorization hash. No persistent unit file is installed.
 
 The transaction may contain the live peer and Broker locator because it is private target state. Public command output contains only the Broker locator SHA-256.
 
-The runtime override is not persistent across reboot. A reboot therefore does not silently reopen pairing. The installed base Compose remains pairing-disabled.
+The runtime override, watchdog tool copy and transient timer are not persistent across reboot. A reboot therefore does not silently reopen pairing. The installed base Compose remains pairing-disabled.
 
 ## 9. No-replay and failure semantics
 
@@ -259,11 +283,15 @@ New focused tests cover:
 - durable claim occurs before Manager recreation;
 - public result does not reveal the live Broker locator;
 - failed open performs factory Manager rollback;
-- successful close requires approved registration plus committed MQTT credential and N3-W application-key evidence;
+- successful close requires approved registration plus committed MQTT credential, N3-W application-key and system peer-trust evidence;
 - credential generation/key epoch mismatch and incomplete credential state fail closed;
 - system peer-trust identity/generation/key-material validity is required;
 - read-only inspect is regression-protected against persistent lock-file creation;
 - Compose-return ambiguity is resolved only by final observed factory state;
+- watchdog arming precedes any pairing mutation and exposes only authorization hash;
+- watchdog timeout restores factory state and can never produce pairing PASS;
+- terminal watchdog invocation is read-only/no-op;
+- current-boot watchdog copy is exact-byte-bound and private;
 - successful close returns to the factory pairing-disabled state;
 - authorization naming is explicit and bounded.
 
@@ -311,3 +339,31 @@ LOCK_FILE_CREATED=false
 ```
 
 The transaction writer also validates the already-existing private parent instead of chmod/mkdir-normalizing it as a side effect.
+
+## 13. Bounded-window source review
+
+A later exact-head review found that a ledger deadline alone did not make the pairing exposure bounded: if the operator SSH path vanished after Manager recreation, UDP/47111 and TCP/47112 could remain open indefinitely.
+
+The source repair now makes the deadline operational rather than documentary:
+
+```text
+CLAIM
+→ exact private watchdog copy under /run
+→ transient systemd timer observed active
+→ runtime override
+→ Manager-only recreate
+→ pairing OPEN
+→ manual success/abort close OR watchdog timeout
+→ factory Manager restored
+→ pairing listeners closed
+```
+
+The systemd contract was checked against the upstream systemd-run documentation: timer options create a transient timer/service pair, `--on-active=` is a monotonic timer, and `Type=exec` is available for stricter command-start semantics.
+
+Public command-failure diagnostics are also redacted: raw stderr/stdout is not emitted. The tool reports command/return-code plus SHA-256 of the diagnostic text.
+
+```text
+PAIRING_WINDOW_LEDGER_ONLY=false
+PAIRING_WINDOW_RUNTIME_BOUNDED=true
+RAW_COMMAND_ERROR_TEXT_PUBLIC=false
+```
