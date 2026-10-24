@@ -89,8 +89,11 @@ def _run(
     )
     if completed.returncode not in allowed:
         reason = completed.stderr.strip() or completed.stdout.strip()
+        reason_sha256 = _sha256_text(reason) if reason else "none"
         raise OnboardingError(
-            f"command_failed:{argv[0]}:{completed.returncode}:{reason[:300]}"
+            "command_failed:"
+            f"{argv[0]}:{completed.returncode}:"
+            f"detail_sha256={reason_sha256}"
         )
     return completed.stdout
 
