@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
+import sqlite3
 import sys
 import time
 from pathlib import Path
@@ -592,6 +594,199 @@ def test_close_success_rejects_missing_registration_evidence(
             confirmation=tool.CLOSE_CONFIRMATION,
             outcome="success",
         )
+
+
+def _build_success_state(tool, tmp_path: Path, *, generation: int = 1) -> None:
+    manager_db = tmp_path / "manager-state.sqlite3"
+    credentials_db = tmp_path / "credential-lifecycle.sqlite3"
+    key_db = tmp_path / "relay-authorization.sqlite3"
+    key_dir = tmp_path / "relay-keys"
+    key_dir.mkdir(mode=0o700)
+    key_file = key_dir / "node-key.bin"
+    material = bytes(range(32))
+    key_file.write_bytes(material)
+    key_file.chmod(0o600)
+
+    with sqlite3.connect(manager_db) as connection:
+        connection.executescript(
+            """
+            CREATE TABLE registrations (
+                hardware_id TEXT,
+                current_pairing_id TEXT,
+                node_id TEXT
+            );
+            CREATE TABLE pairing_sessions (
+                pairing_id TEXT,
+                state TEXT
+            );
+            CREATE TABLE registration_events (
+                event_id INTEGER
+            );
+            CREATE TABLE node_id_leases (
+                node_id TEXT,
+                hardware_id TEXT,
+                state TEXT
+            );
+            INSERT INTO registrations VALUES (
+                'ghw-c6-aabbccddeeff',
+                'pairing-1',
+                'node_abc'
+            );
+            INSERT INTO pairing_sessions VALUES (
+                'pairing-1',
+                'approved'
+            );
+            INSERT INTO registration_events VALUES (1);
+            INSERT INTO registration_events VALUES (2);
+            INSERT INTO node_id_leases VALUES (
+                'node_abc',
+                'ghw-c6-aabbccddeeff',
+                'active'
+            );
+            """
+        )
+
+    with sqlite3.connect(credentials_db) as connection:
+        connection.execute(
+            """
+            CREATE TABLE credential_assignments (
+                hardware_id TEXT,
+                pairing_id TEXT,
+                node_id TEXT,
+                active_generation INTEGER,
+                pending_generation INTEGER,
+                state TEXT,
+                revoked_at TEXT
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO credential_assignments
+            VALUES (?, ?, ?, ?, NULL, 'active', NULL)
+            """,
+            (
+                "ghw-c6-aabbccddeeff",
+                "pairing-1",
+                "node_abc",
+                generation,
+            ),
+        )
+
+    digest = hashlib.sha256(material).hexdigest()
+    with sqlite3.connect(key_db) as connection:
+        connection.executescript(
+            """
+            CREATE TABLE n3w_relay_meta (
+                schema_version INTEGER NOT NULL
+            );
+            INSERT INTO n3w_relay_meta VALUES (2);
+            CREATE TABLE n3w_relay_nodes (
+                node_id TEXT,
+                active INTEGER
+            );
+            INSERT INTO n3w_relay_nodes VALUES (
+                'node_abc',
+                1
+            );
+            CREATE TABLE n3w_relay_key_epochs (
+                node_id TEXT,
+                key_epoch INTEGER,
+                key_file TEXT,
+                enabled INTEGER,
+                state TEXT,
+                key_sha256 TEXT
+            );
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO n3w_relay_key_epochs
+            VALUES (?, ?, ?, 1, 'ACTIVE', ?)
+            """,
+            (
+                "node_abc",
+                generation,
+                key_file.name,
+                digest,
+            ),
+        )
+
+    tool.MANAGER_DB = manager_db
+    tool.CREDENTIAL_DB = credentials_db
+    tool.APPLICATION_KEY_DB = key_db
+    tool.APPLICATION_KEY_DIR = key_dir
+
+
+def test_first_pair_success_evidence_binds_acknowledged_credentials(
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    _build_success_state(tool, tmp_path)
+
+    evidence = tool._first_pair_success_evidence()
+
+    assert evidence["database_counts"] == paired_counts()
+    assert evidence["security_counts"] == paired_security_counts()
+    assert evidence["credential_generation"] == 1
+    assert evidence["application_key_epoch"] == 1
+    assert evidence["hardware_id_sha256"] == tool._sha256_text(
+        "ghw-c6-aabbccddeeff"
+    )
+    assert evidence["pairing_id_sha256"] == tool._sha256_text("pairing-1")
+    assert evidence["node_id_sha256"] == tool._sha256_text("node_abc")
+
+
+def test_first_pair_success_evidence_rejects_noninitial_generation(
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    _build_success_state(tool, tmp_path, generation=2)
+
+    with pytest.raises(
+        tool.OnboardingError,
+        match="first_pair_credential_binding_invalid",
+    ):
+        tool._first_pair_success_evidence()
+
+
+def test_factory_restore_uses_observed_state_after_compose_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    baseline = snapshot()
+    restored = snapshot(manager_id="manager-restored")
+    removed: list[bool] = []
+
+    monkeypatch.setattr(
+        tool,
+        "_recreate_manager",
+        lambda **_kwargs: (_ for _ in ()).throw(
+            tool.OnboardingError("compose-timeout")
+        ),
+    )
+    monkeypatch.setattr(
+        tool,
+        "_remove_override",
+        lambda: removed.append(True),
+    )
+    monkeypatch.setattr(
+        tool,
+        "_wait_factory_ready",
+        lambda: restored["manager"],
+    )
+    monkeypatch.setattr(tool, "_runtime_snapshot", lambda: restored)
+    monkeypatch.setattr(
+        tool,
+        "_validate_non_manager_continuity",
+        lambda *_args: None,
+    )
+
+    manager, command_error = tool._restore_factory_manager(baseline)
+
+    assert removed == [True]
+    assert manager["id"] == "manager-restored"
+    assert command_error == "OnboardingError"
 
 
 def test_authorization_is_one_shot_and_strictly_named() -> None:
