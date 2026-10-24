@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import ipaddress
 import json
 import sqlite3
 import sys
@@ -12,6 +13,9 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = ROOT / "tools/n3w_t1_first_pairing_onboarding.py"
+TEST_PEER_IP = str(ipaddress.IPv4Address(0x0AFFFF32))
+TEST_BROKER_IP = str(ipaddress.IPv4Address(0x0AFFFF7E))
+TEST_OTHER_BROKER_IP = str(ipaddress.IPv4Address(0x0AFFFF7F))
 
 
 def load_tool():
@@ -159,7 +163,7 @@ def test_factory_compose_requires_disabled_pairing_and_placeholder(
     monkeypatch.setattr(
         tool,
         "_render_compose",
-        lambda **_kwargs: factory_compose(tool, broker_host="192.168.1.10"),
+        lambda **_kwargs: factory_compose(tool, broker_host=TEST_BROKER_IP),
     )
     with pytest.raises(tool.OnboardingError, match="GH_N3W_NODE_BROKER_HOST"):
         tool._validate_factory_compose()
@@ -169,7 +173,7 @@ def test_override_compose_changes_only_pairing_locator_contract(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     tool = load_tool()
-    host = "192.168.1.10"
+    host = TEST_BROKER_IP
     monkeypatch.setattr(
         tool,
         "_render_compose",
@@ -183,7 +187,7 @@ def test_override_compose_changes_only_pairing_locator_contract(
     tool._validate_override_compose(host)
 
     with pytest.raises(tool.OnboardingError, match="onboarding_broker_host_mismatch"):
-        tool._validate_override_compose("192.168.1.11")
+        tool._validate_override_compose(TEST_OTHER_BROKER_IP)
 
 
 def test_manager_recreate_is_scoped_to_manager_only(
@@ -224,16 +228,16 @@ def test_route_selected_broker_uses_exact_manager_runtime_logic(
 
     def fake_run(argv, **_kwargs):
         calls.append(tuple(argv))
-        return json.dumps({"local": True, "selected": "192.168.68.126"})
+        return json.dumps({"local": True, "selected": TEST_BROKER_IP})
 
     monkeypatch.setattr(tool, "_run", fake_run)
 
     result = tool._resolve_route_selected_broker(
         "manager-id",
-        "192.168.68.50",
+        TEST_PEER_IP,
     )
 
-    assert result == "192.168.68.126"
+    assert result == TEST_BROKER_IP
     assert calls[0][:3] == ("docker", "exec", "manager-id")
     assert "resolve_route_selected_ipv4" in calls[0][5]
 
@@ -254,7 +258,7 @@ def test_route_selected_broker_rejects_nonlocal_peer(
     with pytest.raises(tool.OnboardingError, match="peer_not_local"):
         tool._resolve_route_selected_broker(
             "manager-id",
-            "192.168.68.50",
+            TEST_PEER_IP,
         )
 
 
@@ -294,7 +298,7 @@ def test_open_claims_before_manager_recreate_and_never_outputs_locator(
     after = snapshot(
         manager_id="manager-b",
         pairing="true",
-        broker_host="192.168.68.126",
+        broker_host=TEST_BROKER_IP,
     )
     runtime_values = iter((baseline, after))
     events: list[str] = []
@@ -318,14 +322,14 @@ def test_open_claims_before_manager_recreate_and_never_outputs_locator(
     monkeypatch.setattr(
         tool,
         "_resolve_route_selected_broker",
-        lambda *_args: "192.168.68.126",
+        lambda *_args: TEST_BROKER_IP,
     )
     monkeypatch.setattr(tool, "_probe_external_broker_tls", lambda _host: None)
 
     def claim(**_kwargs):
         events.append("claim")
         return {
-            "broker_host_sha256": tool._sha256_text("192.168.68.126")
+            "broker_host_sha256": tool._sha256_text(TEST_BROKER_IP)
         }
 
     monkeypatch.setattr(tool, "_claim_transaction", claim)
@@ -358,14 +362,14 @@ def test_open_claims_before_manager_recreate_and_never_outputs_locator(
         lambda **fields: {
             **fields,
             "broker_host_sha256": tool._sha256_text(
-                "192.168.68.126"
+                TEST_BROKER_IP
             ),
         },
     )
 
     report = tool.open_window(
         authorization_id="N3W_T1_FIRST_PAIRING_TEST_01",
-        peer_ip="192.168.68.50",
+        peer_ip=TEST_PEER_IP,
         confirmation=tool.OPEN_CONFIRMATION,
         window_seconds=180,
     )
@@ -373,7 +377,7 @@ def test_open_claims_before_manager_recreate_and_never_outputs_locator(
     assert events.index("claim") < events.index("recreate:True")
     assert report["status"] == "PASS"
     assert report["raw_locator_in_output"] is False
-    assert "192.168.68.126" not in json.dumps(report)
+    assert TEST_BROKER_IP not in json.dumps(report)
 
 
 def test_open_failure_after_recreate_restores_factory_manager(
@@ -405,7 +409,7 @@ def test_open_failure_after_recreate_restores_factory_manager(
     monkeypatch.setattr(
         tool,
         "_resolve_route_selected_broker",
-        lambda *_args: "192.168.68.126",
+        lambda *_args: TEST_BROKER_IP,
     )
     monkeypatch.setattr(tool, "_probe_external_broker_tls", lambda _host: None)
     monkeypatch.setattr(
@@ -450,7 +454,7 @@ def test_open_failure_after_recreate_restores_factory_manager(
     ):
         tool.open_window(
             authorization_id="N3W_T1_FIRST_PAIRING_TEST_02",
-            peer_ip="192.168.68.50",
+            peer_ip=TEST_PEER_IP,
             confirmation=tool.OPEN_CONFIRMATION,
             window_seconds=180,
         )
@@ -467,7 +471,7 @@ def test_close_success_requires_pairing_evidence_and_restores_factory(
     before = snapshot(
         manager_id="manager-open",
         pairing="true",
-        broker_host="192.168.68.126",
+        broker_host=TEST_BROKER_IP,
     )
     after = snapshot(manager_id="manager-closed")
     runtime_values = iter((before, after))
@@ -482,7 +486,7 @@ def test_close_success_requires_pairing_evidence_and_restores_factory(
         "authorization_claimed": True,
         "authorization_consumed": True,
         "replay_allowed": False,
-        "broker_host": "192.168.68.126",
+        "broker_host": TEST_BROKER_IP,
         "expires_at_unix": int(time.time()) + 120,
         "manager_recreate_count": 1,
         "baseline_container_ids": {
@@ -556,7 +560,7 @@ def test_close_success_rejects_missing_registration_evidence(
     before = snapshot(
         manager_id="manager-open",
         pairing="true",
-        broker_host="192.168.68.126",
+        broker_host=TEST_BROKER_IP,
     )
     transaction = {
         "schema": tool.TRANSACTION_SCHEMA,
@@ -565,7 +569,7 @@ def test_close_success_rejects_missing_registration_evidence(
         "authorization_claimed": True,
         "authorization_consumed": True,
         "replay_allowed": False,
-        "broker_host": "192.168.68.126",
+        "broker_host": TEST_BROKER_IP,
         "expires_at_unix": int(time.time()) + 120,
         "manager_recreate_count": 1,
         "baseline_container_ids": {
