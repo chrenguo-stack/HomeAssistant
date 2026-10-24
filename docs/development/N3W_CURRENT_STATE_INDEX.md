@@ -1,3 +1,13 @@
+## 2026-10-24 — KF-130 PR #665 merged; exact-main release rebuild handoff ready
+
+- PR #665 final head `ddf2b3826c4bff8aa8992d0f2884018ce4cfac6a` passed 14/14 workflows and merged as `f8b16f70867324b57ea65aef2a3b579fcb00917a`; merge tree `07cc4ba0acc1b64189d4da92d94bf668c405a43d`.
+- Exact source/test authority remains `d63cba066201df355bf9ceb0fbb330c00dfee24d`, tree `58feb07d69aea49003f5549c5a184367f6423709`; F4 focused tests 167 PASS and F5 V2 R3 focused tests 202 PASS.
+- KF-130 source repair is merged; live revalidation remains pending. Historical failed run remains terminal/no-replay and old exact release is forbidden for reuse.
+- The next authority must be a fresh full F3 -> F4/reboot -> F5 release-inputs -> final exact production release chain from current main, followed by Mac local verify-bundle.
+- No T1/Board access, reflash, production execution or pairing is authorized in the next release-rebuild gate.
+- Formal handoff: `docs/development/N3W_T1_KF130_POSTMERGE_EXACT_RELEASE_REBUILD_NEW_CHAT_HANDOFF_V1.0_20261024.md`.
+- Next gate: `N3W_T1_KF130_POSTMERGE_EXACT_MAIN_RELEASE_REBUILD_20261024_01`.
+
 ## 2026-10-23 — Board_D current-main product source convergence R4 CLOSED_PASS
 
 - Final exact product source: `ec5f6d68e33db7757d91c807fff708ca81b075dc`; tree: `16740efa8ad24d423adc0b2de32b99d56e2d23d1`; main remained `5ff09efb...`.
