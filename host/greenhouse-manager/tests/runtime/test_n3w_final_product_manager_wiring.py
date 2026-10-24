@@ -241,6 +241,31 @@ def test_product_pairing_rejects_durable_ip_advertised_host(
         settings.validate()
 
 
+def test_pairing_disabled_selector_uses_dynamic_manager(
+    monkeypatch,
+) -> None:
+    sentinel = object()
+
+    monkeypatch.setattr(
+        wiring,
+        "build_n3w_simplified_manager_service",
+        lambda settings: sentinel,
+    )
+
+    settings = Settings(
+        system_id="lab",
+        n3w_runtime_enabled=True,
+        n3w_product_pairing_enabled=False,
+    )
+
+    assert (
+        wiring.build_manager_mqtt_service(
+            settings
+        )
+        is sentinel
+    )
+
+
 def test_product_selector_uses_product_manager(
     monkeypatch,
 ) -> None:
