@@ -107,11 +107,21 @@ def _read_json(path: Path) -> dict[str, Any]:
     return value
 
 
+def _require_root() -> None:
+    if os.geteuid() != 0:
+        raise OnboardingError("root_required")
+
+
 def _require_private_directory(path: Path) -> None:
     if path.is_symlink() or not path.is_dir():
         raise OnboardingError(f"private_directory_invalid:{path.name}")
-    if stat.S_IMODE(path.stat().st_mode) & 0o077:
-        raise OnboardingError(f"private_directory_permissions_invalid:{path.name}")
+    metadata = path.stat()
+    if (
+        metadata.st_uid != os.geteuid()
+        or metadata.st_gid != os.getegid()
+        or stat.S_IMODE(metadata.st_mode) != 0o700
+    ):
+        raise OnboardingError(f"private_directory_metadata_invalid:{path.name}")
 
 
 def _write_private_json(path: Path, document: dict[str, Any]) -> None:
@@ -1052,6 +1062,7 @@ def _public_runtime(snapshot: dict[str, dict[str, Any]]) -> dict[str, Any]:
 
 
 def inspect() -> dict[str, Any]:
+    _require_root()
     _require_file(COMPOSE_TARGET)
     _require_file(COMPOSE_ENV)
     _validate_factory_compose()
@@ -1103,6 +1114,7 @@ def open_window(
     confirmation: str,
     window_seconds: int,
 ) -> dict[str, Any]:
+    _require_root()
     if confirmation != OPEN_CONFIRMATION:
         raise OnboardingError("open_confirmation_invalid")
     if not 60 <= window_seconds <= 600:
@@ -1215,6 +1227,7 @@ def close_window(
     confirmation: str,
     outcome: str,
 ) -> dict[str, Any]:
+    _require_root()
     if confirmation != CLOSE_CONFIRMATION:
         raise OnboardingError("close_confirmation_invalid")
     authorization_id = _authorization_id(authorization_id)
