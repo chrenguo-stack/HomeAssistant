@@ -3422,3 +3422,17 @@ PR437_MERGE=false
 ```
 
 The next gate is repository-only PR #437 merge-readiness review. It must verify the exact PR head, CI, mergeability, and documentation alignment while preserving the unresolved six-sequence Direct -> Relay transition loss. It must not merge PR #437 without separate explicit authorization.
+
+
+## 2026-10-24 — Dynamic first-pairing window design freeze
+
+- PR #664 remains OPEN/DRAFT and is the implementation PR.
+- Pre-freeze executable source base: `85706d7507b8ce90b3447c18ab62d9c0a37afcce`.
+- The failed live onboarding authorization is consumed and non-replayable; Board D was not paired.
+- Root cause is proven: out-of-band Manager recreate conflicts with the deployed combined Manager/Home Assistant foreground Compose supervision using `--abort-on-container-exit`; Home Assistant was actively stopped by that supervision path.
+- The separate recovery-pending transaction-parser defect is repaired at the pre-freeze source base and related CI was 12/12 PASS.
+- Frozen replacement: Manager-owned in-process dynamic pairing window; no normal Manager/HA/Broker restart and no durable Compose/env pairing mutation.
+- Frozen design authority: `docs/development/N3W_MANAGER_DYNAMIC_FIRST_PAIRING_WINDOW_SOURCE_DESIGN_AND_ACCEPTANCE_PLAN_20261024.md`.
+- New regression item: KF-129.
+- Next gate: `N3W_MANAGER_DYNAMIC_FIRST_PAIRING_WINDOW_SOURCE_REPAIR_20261024_01`.
+- Next gate is source-only. Live T1 recovery, Manager image deployment and Board D first-pair acceptance remain separate later gates with new explicit authorization.
