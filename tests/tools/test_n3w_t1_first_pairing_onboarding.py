@@ -489,6 +489,7 @@ def test_close_success_requires_pairing_evidence_and_restores_factory(
         "broker_host": TEST_BROKER_IP,
         "expires_at_unix": int(time.time()) + 120,
         "manager_recreate_count": 1,
+        "system_id": "greenhouse",
         "baseline_container_ids": {
             "broker": "broker-a",
             "manager": "manager-a",
@@ -507,7 +508,7 @@ def test_close_success_requires_pairing_evidence_and_restores_factory(
     monkeypatch.setattr(
         tool,
         "_first_pair_success_evidence",
-        lambda: {
+        lambda _system_id: {
             "database_counts": dict(counts),
             "security_counts": paired_security_counts(),
             "hardware_id_sha256": "a" * 64,
@@ -572,6 +573,7 @@ def test_close_success_rejects_missing_registration_evidence(
         "broker_host": TEST_BROKER_IP,
         "expires_at_unix": int(time.time()) + 120,
         "manager_recreate_count": 1,
+        "system_id": "greenhouse",
         "baseline_container_ids": {
             "broker": "broker-a",
             "manager": "manager-a",
@@ -584,7 +586,7 @@ def test_close_success_rejects_missing_registration_evidence(
     monkeypatch.setattr(
         tool,
         "_first_pair_success_evidence",
-        lambda: (_ for _ in ()).throw(
+        lambda _system_id: (_ for _ in ()).throw(
             tool.OnboardingError("first_pair_success_state_not_observed")
         ),
     )
@@ -604,6 +606,7 @@ def _build_success_state(tool, tmp_path: Path, *, generation: int = 1) -> None:
     manager_db = tmp_path / "manager-state.sqlite3"
     credentials_db = tmp_path / "credential-lifecycle.sqlite3"
     key_db = tmp_path / "relay-authorization.sqlite3"
+    peer_db = tmp_path / "system-peer-trust.sqlite3"
     key_dir = tmp_path / "relay-keys"
     key_dir.mkdir(mode=0o700)
     key_file = key_dir / "node-key.bin"
@@ -716,10 +719,36 @@ def _build_success_state(tool, tmp_path: Path, *, generation: int = 1) -> None:
             ),
         )
 
+    with sqlite3.connect(peer_db) as connection:
+        connection.execute(
+            """
+            CREATE TABLE n3w_system_peer_trust (
+                system_id TEXT PRIMARY KEY,
+                generation INTEGER NOT NULL,
+                key_material BLOB NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO n3w_system_peer_trust
+            VALUES (?, 1, ?, ?, ?)
+            """,
+            (
+                "greenhouse",
+                bytes(range(32, 64)),
+                "2026-10-24T00:00:00.000Z",
+                "2026-10-24T00:00:00.000Z",
+            ),
+        )
+
     tool.MANAGER_DB = manager_db
     tool.CREDENTIAL_DB = credentials_db
     tool.APPLICATION_KEY_DB = key_db
     tool.APPLICATION_KEY_DIR = key_dir
+    tool.PEER_TRUST_DB = peer_db
 
 
 def test_first_pair_success_evidence_binds_acknowledged_credentials(
@@ -728,12 +757,16 @@ def test_first_pair_success_evidence_binds_acknowledged_credentials(
     tool = load_tool()
     _build_success_state(tool, tmp_path)
 
-    evidence = tool._first_pair_success_evidence()
+    evidence = tool._first_pair_success_evidence("greenhouse")
 
     assert evidence["database_counts"] == paired_counts()
     assert evidence["security_counts"] == paired_security_counts()
     assert evidence["credential_generation"] == 1
     assert evidence["application_key_epoch"] == 1
+    assert evidence["peer_trust_generation"] == 1
+    assert evidence["peer_trust_system_id_sha256"] == tool._sha256_text(
+        "greenhouse"
+    )
     assert evidence["hardware_id_sha256"] == tool._sha256_text(
         "ghw-c6-aabbccddeeff"
     )
@@ -751,7 +784,7 @@ def test_first_pair_success_evidence_rejects_noninitial_generation(
         tool.OnboardingError,
         match="first_pair_credential_binding_invalid",
     ):
-        tool._first_pair_success_evidence()
+        tool._first_pair_success_evidence("greenhouse")
 
 
 def test_factory_restore_uses_observed_state_after_compose_error(
@@ -791,6 +824,46 @@ def test_factory_restore_uses_observed_state_after_compose_error(
     assert removed == [True]
     assert manager["id"] == "manager-restored"
     assert command_error == "OnboardingError"
+
+
+def test_exclusive_lock_does_not_create_a_lock_file(
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    tmp_path.chmod(0o700)
+    tool.PROVISIONING_ROOT = tmp_path
+
+    before = list(tmp_path.iterdir())
+    with tool._exclusive_lock():
+        during = list(tmp_path.iterdir())
+    after = list(tmp_path.iterdir())
+
+    assert before == []
+    assert during == []
+    assert after == []
+
+
+def test_main_inspect_does_not_take_mutating_lock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+
+    monkeypatch.setattr(
+        tool,
+        "inspect",
+        lambda: {
+            "schema": tool.SCHEMA,
+            "status": "PASS",
+            "operation": "inspect",
+        },
+    )
+
+    def forbidden_lock():
+        raise AssertionError("inspect must not enter exclusive lock")
+
+    monkeypatch.setattr(tool, "_exclusive_lock", forbidden_lock)
+
+    assert tool.main(["inspect"]) == 0
 
 
 def test_authorization_is_one_shot_and_strictly_named() -> None:
