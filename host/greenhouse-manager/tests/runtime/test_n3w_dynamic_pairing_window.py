@@ -741,6 +741,149 @@ def test_real_pairing_resources_open_and_disappear_on_close(
     assert not control_path.exists()
 
 
+
+def test_partial_worker_start_failure_closes_constructed_resources(
+    tmp_path: Path,
+) -> None:
+    root = _private_root(tmp_path)
+    compositions: list[FakeComposition] = []
+
+    def factory(settings: Settings, config):
+        composition = FakeComposition()
+
+        def fail_start() -> None:
+            composition.pairing_socket.started += 1
+            raise RuntimeError("pairing socket start failed")
+
+        composition.pairing_socket.start = fail_start
+        compositions.append(composition)
+        return composition
+
+    controller = DynamicPairingWindowController(
+        _settings(root),
+        route_resolver=lambda peer: TEST_BROKER_IP,
+        composition_factory=factory,
+    )
+
+    with pytest.raises(
+        DynamicPairingWindowError,
+        match="pairing_window_open_failed",
+    ):
+        controller.open_window(
+            peer_ip=TEST_PEER_IP,
+            window_seconds=180,
+        )
+
+    assert controller.status()["pairing_window_state"] == "CLOSED"
+    assert controller.status()["broker_host_sha256"] is None
+    assert len(compositions) == 1
+    assert compositions[0].pairing_runtime.started == 1
+    assert compositions[0].pairing_runtime.closed == 1
+    assert compositions[0].pairing_socket.stopped == 1
+    assert compositions[0].closed == 1
+
+
+def test_real_pairing_resources_disappear_after_manager_deadline(
+    tmp_path: Path,
+) -> None:
+    root = _private_root(tmp_path)
+    http_port = _free_port(
+        socket.SOCK_STREAM
+    )
+    udp_port = _free_port(
+        socket.SOCK_DGRAM
+    )
+    settings = _settings(
+        root,
+        http_port=http_port,
+        udp_port=udp_port,
+    )
+    controller = DynamicPairingWindowController(
+        settings,
+        route_resolver=lambda peer: TEST_BROKER_IP,
+        composition_factory=_real_composition_factory,
+        min_window_seconds=1,
+        max_window_seconds=1,
+    )
+    control_path = root / "pairing-control.sock"
+    server = DynamicPairingWindowControlServer(
+        controller,
+        control_path,
+    )
+    server.start()
+
+    try:
+        opened = open_dynamic_pairing_window_over_socket(
+            control_path,
+            peer_ip=TEST_PEER_IP,
+            window_seconds=1,
+        )
+        assert opened["accepted"] is True
+
+        with urllib.request.urlopen(
+            (
+                "http://127.0.0.1:"
+                f"{http_port}/healthz"
+            ),
+            timeout=2,
+        ) as response:
+            assert response.status == 200
+
+        assert (root / "pairing.sock").is_socket()
+
+        deadline = time.monotonic() + 4
+        while (
+            controller.status()[
+                "pairing_window_state"
+            ]
+            != "CLOSED"
+            and time.monotonic() < deadline
+        ):
+            time.sleep(0.02)
+
+        status = controller.status()
+        assert (
+            status["pairing_window_state"]
+            == "CLOSED"
+        )
+        assert status["close_reason"] == "deadline"
+        assert not (root / "pairing.sock").exists()
+        assert control_path.is_socket()
+
+        with pytest.raises(
+            (
+                urllib.error.URLError,
+                ConnectionError,
+                TimeoutError,
+            )
+        ):
+            urllib.request.urlopen(
+                (
+                    "http://127.0.0.1:"
+                    f"{http_port}/healthz"
+                ),
+                timeout=0.5,
+            )
+
+        with socket.socket(
+            socket.AF_INET,
+            socket.SOCK_DGRAM,
+        ) as client:
+            client.settimeout(0.5)
+            client.sendto(
+                _discovery_query(),
+                ("127.0.0.1", udp_port),
+            )
+            with pytest.raises(
+                socket.timeout
+            ):
+                client.recvfrom(4096)
+    finally:
+        server.stop()
+        controller.stop()
+
+    assert not control_path.exists()
+
 def test_closed_controller_does_not_reopen_after_new_instance(
     tmp_path: Path,
 ) -> None:
