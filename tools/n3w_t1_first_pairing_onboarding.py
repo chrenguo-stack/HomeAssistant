@@ -1310,7 +1310,7 @@ def _transaction() -> dict[str, Any]:
     if (
         not isinstance(window_seconds, int)
         or isinstance(window_seconds, bool)
-        or not 60 <= window_seconds <= 600
+        or not 180 <= window_seconds <= 600
         or not isinstance(claimed_at, int)
         or isinstance(claimed_at, bool)
         or not isinstance(expires_at, int)
@@ -1357,6 +1357,7 @@ def _transaction() -> dict[str, Any]:
         "CLOSED_FAIL_WINDOW_EXPIRED",
         "CLOSED_FAIL_WATCHDOG_LOST",
         "CLOSED_TIMEOUT",
+        "CLOSED_TIMEOUT_PREOPEN",
     }:
         unit = document.get("watchdog_unit")
         auth_sha = document.get("watchdog_authorization_sha256")
@@ -1500,10 +1501,13 @@ def open_window(
         _validate_non_manager_continuity(baseline, after)
         if opened_manager["id"] == baseline["manager"]["id"]:
             raise OnboardingError("manager_not_recreated")
+        watchdog_active = _watchdog_is_active(transaction)
+        if not watchdog_active:
+            raise OnboardingError("watchdog_lost_before_open_acceptance")
         transaction = _advance_transaction(
             status="OPEN",
             manager_recreate_command_count=1,
-            watchdog_confirmed_active=_watchdog_is_active(transaction),
+            watchdog_confirmed_active=True,
             opened_manager_id=opened_manager["id"],
             opened_manager_id_sha256=opened_manager["id_sha256"],
             opened_at_unix=int(time.time()),
@@ -1525,7 +1529,7 @@ def open_window(
             "pairing_window_state": "OPEN",
             "broker_host_sha256": transaction["broker_host_sha256"],
             "window_seconds": window_seconds,
-            "watchdog_active": _watchdog_is_active(transaction),
+            "watchdog_active": True,
             "manager_recreated": True,
             "broker_container_unchanged": True,
             "homeassistant_container_unchanged": True,
@@ -1624,9 +1628,20 @@ def close_window(
     restored = _advance_transaction(
         status="FACTORY_RESTORED",
         factory_restored_at_unix=int(time.time()),
-        manager_recreate_command_count=restored["manager_recreate_command_count"],
+        manager_recreate_command_count=(
+            int(transaction.get("manager_recreate_command_count", 1)) + 1
+        ),
+        closed_manager_id=closed_manager["id"],
+        closed_manager_id_sha256=closed_manager["id_sha256"],
+        close_command_error_type=close_command_error,
+        final_database_counts=post_counts,
+        final_security_counts=post_security_counts,
+        success_evidence=success_evidence,
+        broker_continuity=True,
+        homeassistant_continuity=True,
+        factory_pairing_disabled=True,
+        factory_broker_placeholder_restored=True,
         watchdog_active_before_close=watchdog_active_before_close,
-        watchdog_cancel_error_type=watchdog_cancel_error,
     )
     watchdog_cancel_error = _cancel_watchdog(restored)
 
@@ -1646,19 +1661,11 @@ def close_window(
         closed_at_unix=int(time.time()),
         close_outcome=outcome,
         window_expired=expired,
-        manager_recreate_command_count=(
-            int(transaction.get("manager_recreate_command_count", 1)) + 1
-        ),
-        closed_manager_id=closed_manager["id"],
-        closed_manager_id_sha256=closed_manager["id_sha256"],
-        close_command_error_type=close_command_error,
-        final_database_counts=post_counts,
-        final_security_counts=post_security_counts,
-        success_evidence=success_evidence,
-        broker_continuity=True,
-        homeassistant_continuity=True,
-        factory_pairing_disabled=True,
-        factory_broker_placeholder_restored=True,
+        manager_recreate_command_count=restored[
+            "manager_recreate_command_count"
+        ],
+        watchdog_active_before_close=watchdog_active_before_close,
+        watchdog_cancel_error_type=watchdog_cancel_error,
     )
     return {
         "schema": SCHEMA,
