@@ -304,7 +304,7 @@ def test_open_claims_before_manager_recreate_and_never_outputs_locator(
     events: list[str] = []
 
     monkeypatch.setattr(tool, "_require_file", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(tool, "_validate_factory_compose", lambda: {})
+    monkeypatch.setattr(tool, "_validate_factory_compose", dict)
     monkeypatch.setattr(
         tool,
         "_validate_factory_marker",
@@ -391,7 +391,7 @@ def test_open_failure_after_recreate_restores_factory_manager(
     advanced: list[dict[str, object]] = []
 
     monkeypatch.setattr(tool, "_require_file", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(tool, "_validate_factory_compose", lambda: {})
+    monkeypatch.setattr(tool, "_validate_factory_compose", dict)
     monkeypatch.setattr(
         tool,
         "_validate_factory_marker",
