@@ -58,6 +58,7 @@ REPOSITORY_DEFINED_ERROR_CODES = frozenset(
         "readiness_required_unit_failed",
         "readiness_required_unit_missing",
         "readiness_required_unit_state_invalid",
+        "readiness_runtime_container_name_invalid",
         "readiness_runtime_service_name_invalid",
         "readiness_systemd_not_operational",
         "readiness_systemd_state_invalid",
@@ -415,6 +416,36 @@ def _readiness_running_services(module: ModuleType) -> frozenset[str] | None:
     return services
 
 
+def _readiness_runtime_mqtt_state(module: ModuleType) -> str | None:
+    inspects = {
+        service: module._compose_service_inspect(service)
+        for service in ("manager", "homeassistant")
+    }
+    names: dict[str, str] = {}
+    for service, inspect in inspects.items():
+        name = str(inspect.get("Name", "")).lstrip("/")
+        if not name:
+            raise VerifyError("readiness_runtime_container_name_invalid")
+        names[service] = name
+
+    manager_count = module._container_established_socket_count(
+        names["manager"],
+        8883,
+    )
+    if manager_count == 0:
+        return "manager_mqtt_socket_not_ready"
+    if manager_count != 1:
+        raise VerifyError("manager_mqtt_socket_count_invalid")
+
+    homeassistant_count = module._container_established_socket_count(
+        names["homeassistant"],
+        1883,
+    )
+    if homeassistant_count == 0:
+        return "homeassistant_mqtt_socket_not_ready"
+    return None
+
+
 def _readiness_report(
     claim: dict[str, object],
     boot_id_sha256: str,
@@ -613,6 +644,15 @@ def readiness() -> dict[str, object]:
     if running_services != EXPECTED_SERVICES:
         return _readiness_report(
             claim, current_boot, status="WAIT", reason="runtime_service_set_incomplete"
+        )
+
+    mqtt_wait_reason = _readiness_runtime_mqtt_state(module)
+    if mqtt_wait_reason is not None:
+        return _readiness_report(
+            claim,
+            current_boot,
+            status="WAIT",
+            reason=mqtt_wait_reason,
         )
     return _readiness_report(claim, current_boot, status="PASS")
 

@@ -8174,3 +8174,37 @@ Current boundary:
 
 STOP before exact production artifact deployment, T1 recovery, Board D pairing or merge.
 
+
+
+## 2026-10-24 — KF-130 post-reboot Home Assistant MQTT readiness race
+
+```text
+TASK=N3W_T1_F5_V2_POST_REBOOT_HA_MQTT_READINESS_RACE_SOURCE_REPAIR_20261024_01
+SOURCE_BASE=b31d86a66d7c4fc10370606b610aab3203a91d94
+KF_130=OPEN_SOURCE_REPAIR_IN_PROGRESS
+FAILED_RUN_REPLAY=false
+FAILED_T1_REFLASH_REQUIRED=true
+T1_PRODUCTION_READY=false
+BOARD_ACCESS=false
+PAIRING_ACCEPTANCE_BLOCKED=true
+```
+
+The fresh-Armbian exact-release F5 V2 run passed deployment, F4, controlled reboot,
+SSH epoch 2 and POST_REBOOT_READINESS, then failed strict POST_REBOOT_ACCEPTANCE with
+`homeassistant_mqtt_socket_missing`. Frozen failure forensics were complete.
+
+Two later read-only snapshots, 15 seconds apart, both PASS with stable boot/container
+identities, restart_count=0, Home Assistant HTTP ready, authenticated current Broker
+evidence, Manager 8883 socket count=1 and Home Assistant 1883 socket count=1. This proves
+the failed run observed a transient post-reboot MQTT convergence boundary rather than a
+persistent product runtime failure.
+
+KF-125 remains CLOSED_PASS_LIVE_REVALIDATED. KF-130 is a successor gap: existing
+readiness can PASS when services are running but before HA MQTT is connected.
+
+Frozen repair direction: extend the existing read-only readiness barrier with MQTT socket
+convergence while preserving strict verifier, external probes, 90-second observation,
+single production approval, single reboot arming, two SSH epochs and failed-run no-replay.
+
+Authority:
+`docs/development/N3W_T1_F5_V2_POST_REBOOT_HA_MQTT_READINESS_RACE_SOURCE_REPAIR_20261024.md`.

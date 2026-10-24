@@ -168,6 +168,8 @@ READINESS_WAIT_REASONS = frozenset(
         "certificate_service_in_progress",
         "runtime_service_probe_unavailable",
         "runtime_service_set_incomplete",
+        "manager_mqtt_socket_not_ready",
+        "homeassistant_mqtt_socket_not_ready",
     }
 )
 SERVICE_NAMES = ("broker", "manager", "homeassistant")

@@ -761,6 +761,14 @@ def test_post_reboot_readiness_polls_inside_existing_ssh_epoch(monkeypatch):
     assert progress[-1][1] == "PASS"
 
 
+def test_post_reboot_readiness_allows_mqtt_convergence_wait_reasons():
+    tool = load_tool()
+    assert {
+        "manager_mqtt_socket_not_ready",
+        "homeassistant_mqtt_socket_not_ready",
+    }.issubset(tool.READINESS_WAIT_REASONS)
+
+
 def test_post_reboot_readiness_times_out_fail_closed(monkeypatch):
     tool = load_tool()
     adapter = object.__new__(tool.LiveProductionAdapter)
