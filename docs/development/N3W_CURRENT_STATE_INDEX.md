@@ -1,3 +1,16 @@
+## 2026-10-24 — Board D DEV low-battery bypass installed and 480 s runtime PASS
+
+- DEV source: `a15daad779adde74cdead4702f017553118321f8`; only firmware-tree delta from exact R4 is the target substitution `battery_low_threshold: "-1.00"`.
+- DEV artifact run `40039280572`, artifact `12538399121`; artifact and member binding independently validated.
+- Board D physical write PASS: OTA data + app0 + app1 only; bootloader, partition table, phy_init and NVS were not write targets and postwrite continuity passed.
+- Both application slots match DEV normalized-slot SHA256 `c50e71ad...`.
+- 480-second runtime acceptance PASS: LCD five-page cycle continued, no freeze/corruption, status LED ON at 390 s and 480 s, no low-battery protection entry or recovery restart observed.
+- USB had 2 missing samples / 2 presence transitions; retained as transient/re-enumeration evidence because product-visible behavior stayed normal.
+- Board D currently runs the DEV low-battery-bypass application, not production exact R4.
+- Last proven postwrite NVS SHA256 was `58e8bf9e...`; current NVS after 480 s runtime is `UNKNOWN_FRESH` until freshly snapshotted.
+- PR #663 remains OPEN DRAFT / DO NOT MERGE / DEVELOPMENT_ONLY / PRODUCTION_ELIGIBLE=false.
+- Next product route: first network provisioning/pairing acceptance, with a fresh read-only prechange NVS snapshot and new explicit authorization before any persistent configuration mutation.
+
 ## 2026-10-24 — Board D exact-R4 post-flash + EN reset PASS; KF-130 not reproduced
 
 - Gate: `N3W_BOARD_D_R4_POSTFLASH_RESET_LCD_REPRODUCTION_ACCEPTANCE_20261024_01`.
