@@ -524,3 +524,77 @@ MERGE=false
 ```
 
 No live authorization is inherited from this source closure.
+
+## 16. Live read-only preflight feedback: absent pairing-only security stores
+
+The first live read-only onboarding preflight reached the accepted factory marker, then stopped while attempting to open one of the pairing-only security databases in read-only SQLite mode.
+
+Initial classification:
+
+```text
+CHECKER_FALSE_STOP=true
+PRODUCT_FAILURE_PROVEN=false
+T1_MUTATION=false
+BOARD_D_MUTATION=false
+PAIRING_EXECUTION=false
+```
+
+Source review confirmed the deeper lifecycle contract:
+
+- the production Manager selector uses the normal simplified N3-W service while `GH_N3W_PRODUCT_PAIRING_ENABLED=false`;
+- the product pairing composition is built only after pairing is enabled;
+- `credential-lifecycle.sqlite3` and `system-peer-trust.sqlite3` are created by the product pairing composition through its private-database initialization path;
+- therefore those two databases may legitimately be absent in the factory pairing-disabled clean baseline;
+- `relay-authorization.sqlite3` remains required because the normal N3-W runtime already consumes the application-key provider.
+
+This exposed a source blocker in the first onboarding tool implementation: `_security_state_counts()` treated the two pairing-only databases as mandatory pre-existing files. The result would have been a safe pre-mutation false stop on a valid clean T1.
+
+The repair now defines:
+
+```text
+PAIRING_DISABLED_CLEAN_BASELINE:
+
+credential-lifecycle.sqlite3 absent
+    => credential_assignments=0
+
+system-peer-trust.sqlite3 absent
+    => peer_trust_records=0
+
+relay-authorization.sqlite3 absent
+    => FAIL
+
+existing optional DB symlink/non-file
+    => FAIL
+
+existing optional DB without expected table
+    => FAIL
+
+existing credential or peer-trust rows
+    => FIRST_PAIR_SECURITY_STATE_NOT_CLEAN
+```
+
+Post-pair success remains strict:
+
+```text
+credential_assignments=1
+peer_trust_records=1
+application_key_active_nodes=1
+application_key_epochs=1
+```
+
+Regression coverage now includes:
+
+- valid clean baseline with both pairing-only databases absent;
+- stale peer-trust state blocking first-pair clean eligibility;
+- optional pairing DB symlink failing closed.
+
+This finding re-opened the source gate after the earlier closure. A new exact-head CI and closure review are required before any further live preflight.
+
+```text
+PREVIOUS_SOURCE_CLOSURE_SUPERSEDED=true
+NEW_SOURCE_BLOCKER_FOUND_BY_LIVE_READONLY_PREFLIGHT=true
+SOURCE_BLOCKER_CLASS=VALID_ABSENT_PAIRING_ONLY_DATABASES_REJECTED
+SOURCE_REPAIR_IMPLEMENTED=true
+T1_MUTATION=false
+BOARD_D_MUTATION=false
+```
