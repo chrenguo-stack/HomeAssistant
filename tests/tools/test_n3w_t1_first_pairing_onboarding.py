@@ -117,6 +117,7 @@ def paired_counts():
 def zero_security_counts():
     return {
         "credential_assignments": 0,
+        "peer_trust_records": 0,
         "application_key_active_nodes": 0,
         "application_key_epochs": 0,
     }
@@ -125,6 +126,7 @@ def zero_security_counts():
 def paired_security_counts():
     return {
         "credential_assignments": 1,
+        "peer_trust_records": 1,
         "application_key_active_nodes": 1,
         "application_key_epochs": 1,
     }
@@ -264,6 +266,107 @@ def test_route_selected_broker_rejects_nonlocal_peer(
         tool._resolve_route_selected_broker(
             "manager-id",
             TEST_PEER_IP,
+        )
+
+
+def _build_empty_application_key_db(path: Path) -> None:
+    with sqlite3.connect(path) as connection:
+        connection.executescript(
+            """
+            CREATE TABLE n3w_relay_meta (
+                schema_version INTEGER NOT NULL
+            );
+            INSERT INTO n3w_relay_meta VALUES (2);
+            CREATE TABLE n3w_relay_nodes (
+                node_id TEXT,
+                active INTEGER
+            );
+            CREATE TABLE n3w_relay_key_epochs (
+                node_id TEXT,
+                key_epoch INTEGER,
+                key_file TEXT,
+                enabled INTEGER,
+                state TEXT,
+                key_sha256 TEXT
+            );
+            """
+        )
+
+
+def test_security_counts_accept_absent_pairing_only_databases(
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    tool.CREDENTIAL_DB = tmp_path / "credential-lifecycle.sqlite3"
+    tool.PEER_TRUST_DB = tmp_path / "system-peer-trust.sqlite3"
+    tool.APPLICATION_KEY_DB = tmp_path / "relay-authorization.sqlite3"
+    _build_empty_application_key_db(tool.APPLICATION_KEY_DB)
+
+    counts = tool._security_state_counts()
+
+    assert counts == zero_security_counts()
+
+
+def test_security_counts_reject_existing_peer_trust_record(
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    tool.CREDENTIAL_DB = tmp_path / "credential-lifecycle.sqlite3"
+    tool.PEER_TRUST_DB = tmp_path / "system-peer-trust.sqlite3"
+    tool.APPLICATION_KEY_DB = tmp_path / "relay-authorization.sqlite3"
+    _build_empty_application_key_db(tool.APPLICATION_KEY_DB)
+
+    with sqlite3.connect(tool.PEER_TRUST_DB) as connection:
+        connection.execute(
+            """
+            CREATE TABLE n3w_system_peer_trust (
+                system_id TEXT PRIMARY KEY,
+                generation INTEGER NOT NULL,
+                key_material BLOB NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO n3w_system_peer_trust
+            VALUES (?, 1, ?, ?, ?)
+            """,
+            (
+                "greenhouse",
+                bytes(range(32)),
+                "2026-10-24T00:00:00.000Z",
+                "2026-10-24T00:00:00.000Z",
+            ),
+        )
+
+    counts = tool._security_state_counts()
+
+    assert counts["peer_trust_records"] == 1
+    with pytest.raises(
+        tool.OnboardingError,
+        match="first_pair_security_state_not_clean",
+    ):
+        tool._require_clean_first_pair_state(zero_counts(), counts)
+
+
+def test_optional_pairing_database_symlink_fails_closed(
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    target = tmp_path / "target.sqlite3"
+    target.write_bytes(b"")
+    link = tmp_path / "credential-lifecycle.sqlite3"
+    link.symlink_to(target)
+
+    with pytest.raises(
+        tool.OnboardingError,
+        match="optional_database_symlink",
+    ):
+        tool._optional_private_db_count(
+            link,
+            table="credential_assignments",
         )
 
 
