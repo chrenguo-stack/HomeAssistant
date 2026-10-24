@@ -8,8 +8,8 @@ from .c06b2_runtime_wiring import run_manager_service as run_c06b2_manager_servi
 from .config import Settings
 from .mqtt_service import ManagerMqttService
 from .n3w_dynamic_pairing_window import (
-    DynamicPairingWindowControlServer,
     DynamicPairingWindowController,
+    DynamicPairingWindowControlServer,
     N3wSimplifiedProductPairingWorker,
     dynamic_pairing_control_socket_path,
 )

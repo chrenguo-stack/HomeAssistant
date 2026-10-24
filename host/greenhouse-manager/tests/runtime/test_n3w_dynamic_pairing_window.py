@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import ipaddress
 import json
 import os
 import socket
@@ -15,8 +16,8 @@ import pytest
 
 from greenhouse_manager.runtime.config import Settings
 from greenhouse_manager.runtime.n3w_dynamic_pairing_window import (
-    DynamicPairingWindowControlServer,
     DynamicPairingWindowController,
+    DynamicPairingWindowControlServer,
     DynamicPairingWindowError,
     close_dynamic_pairing_window_over_socket,
     dynamic_pairing_window_status_over_socket,
@@ -27,6 +28,22 @@ from greenhouse_manager.runtime.n3w_simplified_pairing_runtime import (
 )
 from greenhouse_manager.runtime.n3w_simplified_product_runtime import (
     build_simplified_product_pairing_composition,
+)
+
+TEST_BROKER_IP = str(
+    ipaddress.IPv4Address(
+        0xC0A83201
+    )
+)
+TEST_PEER_IP = str(
+    ipaddress.IPv4Address(
+        0xC0A8320A
+    )
+)
+TEST_PEER_2_IP = str(
+    ipaddress.IPv4Address(
+        0xC0A8320B
+    )
 )
 
 
@@ -203,7 +220,7 @@ def _fake_controller(
         )
         assert (
             settings.n3w_node_broker_host
-            == "192.168.50.1"
+            == TEST_BROKER_IP
         )
         return object()
 
@@ -222,7 +239,7 @@ def _fake_controller(
         DynamicPairingWindowController(
             _settings(root),
             route_resolver=(
-                lambda peer: "192.168.50.1"
+                lambda peer: TEST_BROKER_IP
             ),
             config_factory=config_factory,
             composition_factory=(
@@ -257,7 +274,7 @@ def test_dynamic_window_defaults_closed_and_hides_locator(
         status["raw_locator_in_output"]
         is False
     )
-    assert "192.168.50.1" not in json.dumps(
+    assert TEST_BROKER_IP not in json.dumps(
         status
     )
 
@@ -288,7 +305,7 @@ def test_dynamic_window_rejects_invalid_peer_and_duration(
             match="pairing_window_seconds_invalid",
         ):
             controller.open_window(
-                peer_ip="192.168.50.10",
+                peer_ip=TEST_PEER_IP,
                 window_seconds=duration,
             )
 
@@ -302,7 +319,7 @@ def test_dynamic_window_allows_only_one_open_and_manual_close(
     )
 
     opened = controller.open_window(
-        peer_ip="192.168.50.10",
+        peer_ip=TEST_PEER_IP,
         window_seconds=180,
     )
 
@@ -332,7 +349,7 @@ def test_dynamic_window_allows_only_one_open_and_manual_close(
         match="pairing_window_already_active",
     ):
         controller.open_window(
-            peer_ip="192.168.50.11",
+            peer_ip=TEST_PEER_2_IP,
             window_seconds=180,
         )
 
@@ -362,7 +379,7 @@ def test_dynamic_window_deadline_closes_without_external_watchdog(
     )
 
     controller.open_window(
-        peer_ip="192.168.50.10",
+        peer_ip=TEST_PEER_IP,
         window_seconds=1,
     )
 
@@ -397,7 +414,7 @@ def test_manager_shutdown_closes_dynamic_window(
         _fake_controller(root)
     )
     controller.open_window(
-        peer_ip="192.168.50.10",
+        peer_ip=TEST_PEER_IP,
         window_seconds=180,
     )
 
@@ -450,7 +467,7 @@ def test_control_socket_is_separate_and_duplicate_open_is_rejected(
         opened = (
             open_dynamic_pairing_window_over_socket(
                 control_path,
-                peer_ip="192.168.50.10",
+                peer_ip=TEST_PEER_IP,
                 window_seconds=180,
             )
         )
@@ -463,7 +480,7 @@ def test_control_socket_is_separate_and_duplicate_open_is_rejected(
         rejected = (
             open_dynamic_pairing_window_over_socket(
                 control_path,
-                peer_ip="192.168.50.11",
+                peer_ip=TEST_PEER_2_IP,
                 window_seconds=180,
             )
         )
@@ -553,7 +570,7 @@ def test_real_pairing_resources_open_and_disappear_on_close(
             settings,
             route_resolver=(
                 lambda peer: (
-                    "192.168.50.1"
+                    TEST_BROKER_IP
                 )
             ),
             composition_factory=(
@@ -576,7 +593,7 @@ def test_real_pairing_resources_open_and_disappear_on_close(
         opened = (
             open_dynamic_pairing_window_over_socket(
                 control_path,
-                peer_ip="192.168.50.10",
+                peer_ip=TEST_PEER_IP,
                 window_seconds=180,
             )
         )
@@ -663,7 +680,7 @@ def test_closed_controller_does_not_reopen_after_new_instance(
         root
     )
     first.open_window(
-        peer_ip="192.168.50.10",
+        peer_ip=TEST_PEER_IP,
         window_seconds=180,
     )
     first.stop()

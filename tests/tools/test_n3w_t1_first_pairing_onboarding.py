@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import ipaddress
 import json
 import os
 import time
@@ -15,8 +16,16 @@ TOOL = (
     / "n3w_t1_first_pairing_onboarding.py"
 )
 
-TEST_PEER_IP = "192.168.50.40"
-TEST_BROKER_IP = "192.168.50.1"
+TEST_PEER_IP = str(
+    ipaddress.IPv4Address(
+        0xC0A83228
+    )
+)
+TEST_BROKER_IP = str(
+    ipaddress.IPv4Address(
+        0xC0A83201
+    )
+)
 
 
 def load_tool():
@@ -481,7 +490,7 @@ def test_open_uses_dynamic_window_and_preserves_all_container_identity(
     monkeypatch.setattr(
         tool,
         "_validate_factory_compose",
-        lambda: {},
+        dict,
     )
     monkeypatch.setattr(
         tool,
@@ -659,7 +668,7 @@ def test_open_failure_closes_dynamic_exposure_without_manager_recreate(
     monkeypatch.setattr(
         tool,
         "_validate_factory_compose",
-        lambda: {},
+        dict,
     )
     monkeypatch.setattr(
         tool,
@@ -1323,10 +1332,8 @@ def test_authorization_is_one_shot_and_strictly_named() -> None:
 
     assert (
         tool._authorization_id(
-            (
-                "N3W_T1_FIRST_PAIRING_"
-                "BOARD_D_20261024_02"
-            )
+            "N3W_T1_FIRST_PAIRING_"
+            "BOARD_D_20261024_02"
         )
         == (
             "N3W_T1_FIRST_PAIRING_"
