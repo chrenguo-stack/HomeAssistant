@@ -3436,3 +3436,16 @@ The next gate is repository-only PR #437 merge-readiness review. It must verify 
 - New regression item: KF-129.
 - Next gate: `N3W_MANAGER_DYNAMIC_FIRST_PAIRING_WINDOW_SOURCE_REPAIR_20261024_01`.
 - Next gate is source-only. Live T1 recovery, Manager image deployment and Board D first-pair acceptance remain separate later gates with new explicit authorization.
+
+## 2026-10-24 — Dynamic first-pairing window source repair CLOSED_PASS
+
+- Gate: `N3W_MANAGER_DYNAMIC_FIRST_PAIRING_WINDOW_SOURCE_REPAIR_20261024_01`.
+- Exact source/test closure head: `aeae6eee6577e61a8b84c0b63b6a57e4863657bf`.
+- Independent exact-head review: PASS; no new design-level blocker.
+- Final review-driven changes were test-only: partial-start cleanup, real timeout resource closure, and Manager/MQTT continuity across pairing-window close.
+- Exact source/test head CI: 17/17 workflow runs SUCCESS; 0 failure; 0 running.
+- Closure record: `docs/development/N3W_MANAGER_DYNAMIC_FIRST_PAIRING_WINDOW_SOURCE_REPAIR_CLOSURE_20261024.md`.
+- KF-129 remains OPEN pending exact-image and real T1/live acceptance.
+- No T1 access, Board access, production deployment or merge is part of this source closure.
+- Boundary: source repair CLOSED_PASS; stop before exact production artifact deployment, T1 recovery, Board D pairing or merge.
+
