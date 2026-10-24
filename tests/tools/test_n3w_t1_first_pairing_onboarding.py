@@ -496,6 +496,110 @@ def test_open_failure_after_recreate_restores_factory_manager(
     assert advanced[-1]["rollback_status"] == "PASS"
 
 
+def test_open_restore_failure_keeps_watchdog_recovery_active(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    monkeypatch.setattr(tool, "_require_root", _allow_root)
+    baseline = snapshot()
+    runtime_values = iter((baseline,))
+    advanced: list[dict[str, object]] = []
+    recovery_started: list[bool] = []
+    watchdog_cancelled: list[bool] = []
+
+    monkeypatch.setattr(tool, "_require_file", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(tool, "_validate_factory_compose", dict)
+    monkeypatch.setattr(
+        tool,
+        "_validate_factory_marker",
+        lambda: {
+            "release_id": "r",
+            "host_instance_id": "h",
+            "system_id": "s",
+        },
+    )
+    monkeypatch.setattr(tool, "_runtime_snapshot", lambda: next(runtime_values))
+    monkeypatch.setattr(tool, "_validate_factory_runtime", lambda _value: None)
+    monkeypatch.setattr(tool, "_db_counts", zero_counts)
+    monkeypatch.setattr(tool, "_security_state_counts", zero_security_counts)
+    monkeypatch.setattr(tool, "_listener_count", lambda *_args: 0)
+    monkeypatch.setattr(
+        tool,
+        "_resolve_route_selected_broker",
+        lambda *_args: TEST_BROKER_IP,
+    )
+    monkeypatch.setattr(tool, "_probe_external_broker_tls", lambda _host: None)
+    monkeypatch.setattr(
+        tool,
+        "_claim_transaction",
+        lambda **_kwargs: {
+            "authorization_id": "N3W_T1_FIRST_PAIRING_TEST_02B",
+        },
+    )
+    monkeypatch.setattr(
+        tool,
+        "_arm_watchdog",
+        lambda transaction: {
+            **transaction,
+            "watchdog_unit": tool.WATCHDOG_UNIT_PREFIX + "c" * 16,
+        },
+    )
+    monkeypatch.setattr(tool, "_write_override", lambda _host: None)
+    monkeypatch.setattr(tool, "_validate_override_compose", lambda _host: {})
+    monkeypatch.setattr(tool, "_recreate_manager", lambda **_kwargs: None)
+    monkeypatch.setattr(
+        tool,
+        "_wait_onboarding_ready",
+        lambda _host: (_ for _ in ()).throw(
+            tool.OnboardingError("not-ready")
+        ),
+    )
+    monkeypatch.setattr(
+        tool,
+        "_restore_factory_manager",
+        lambda _baseline: (_ for _ in ()).throw(
+            tool.OnboardingError("restore-failed")
+        ),
+    )
+    monkeypatch.setattr(
+        tool,
+        "_start_watchdog_recovery_now",
+        lambda _tx: recovery_started.append(True) or "",
+    )
+    monkeypatch.setattr(
+        tool,
+        "_cancel_watchdog",
+        lambda _tx: watchdog_cancelled.append(True) or "",
+    )
+    monkeypatch.setattr(
+        tool,
+        "_advance_transaction",
+        lambda **fields: advanced.append(fields) or {
+            **fields,
+            "watchdog_unit": tool.WATCHDOG_UNIT_PREFIX + "c" * 16,
+        },
+    )
+
+    with pytest.raises(
+        tool.OnboardingError,
+        match="rollback_FAIL:watchdog_recovery_active",
+    ):
+        tool.open_window(
+            authorization_id="N3W_T1_FIRST_PAIRING_TEST_02B",
+            peer_ip=TEST_PEER_IP,
+            confirmation=tool.OPEN_CONFIRMATION,
+            window_seconds=180,
+        )
+
+    assert recovery_started == [True]
+    assert watchdog_cancelled == []
+    assert any(
+        item.get("status") == "OPEN_RESTORE_PENDING"
+        for item in advanced
+    )
+    assert tool._watchdog_terminal_status("OPEN_RESTORE_PENDING") is False
+
+
 def test_close_success_requires_pairing_evidence_and_restores_factory(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1030,6 +1134,8 @@ def test_watchdog_arm_hides_private_runtime_values(
     assert any(value.startswith("--on-active=") for value in argv)
     assert "--timer-property=AccuracySec=1s" in argv
     assert "--property=Type=exec" in argv
+    assert "--property=Restart=on-failure" in argv
+    assert "--property=RestartSec=10s" in argv
     assert authorization_id not in rendered
     assert TEST_PEER_IP not in rendered
     assert TEST_BROKER_IP not in rendered
@@ -1103,6 +1209,151 @@ def test_expire_open_window_restores_factory_without_success(
     assert report["factory_pairing_disabled"] is True
     assert advanced[-1]["status"] == "CLOSED_TIMEOUT"
     assert "CLOSED_PASS" not in json.dumps(report)
+
+
+def test_expire_restore_failure_remains_retryable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    monkeypatch.setattr(tool, "_require_root", _allow_root)
+    authorization_id = "N3W_T1_FIRST_PAIRING_WATCHDOG_TEST_02B"
+    transaction = {
+        "status": "OPEN",
+        "authorization_id": authorization_id,
+        "expires_at_unix": int(time.time()) - 1,
+        "manager_recreate_command_count": 1,
+        "baseline_container_ids": {
+            "broker": "broker-a",
+            "manager": "manager-a",
+            "homeassistant": "ha-a",
+        },
+    }
+    baseline = snapshot()
+    open_manager = snapshot(
+        manager_id="manager-open",
+        pairing="true",
+        broker_host=TEST_BROKER_IP,
+    )["manager"]
+    advanced: list[dict[str, object]] = []
+
+    monkeypatch.setattr(tool, "_transaction", lambda: transaction)
+    monkeypatch.setattr(
+        tool,
+        "_container_snapshot",
+        lambda service: (
+            baseline["broker"]
+            if service == "broker"
+            else baseline["homeassistant"]
+            if service == "homeassistant"
+            else open_manager
+        ),
+    )
+    monkeypatch.setattr(tool, "_listener_count", lambda *_args: 1)
+    monkeypatch.setattr(
+        tool,
+        "_restore_factory_manager",
+        lambda _baseline: (_ for _ in ()).throw(
+            tool.OnboardingError("restore-failed")
+        ),
+    )
+    monkeypatch.setattr(
+        tool,
+        "_advance_transaction",
+        lambda **fields: advanced.append(fields) or fields,
+    )
+
+    with pytest.raises(tool.OnboardingError, match="restore-failed"):
+        tool.expire_window(
+            authorization_sha256=tool._sha256_text(authorization_id),
+        )
+
+    assert advanced[-1]["status"] == "TIMEOUT_RESTORE_PENDING"
+    assert advanced[-1]["watchdog_recovery_required"] is True
+    assert (
+        tool._watchdog_terminal_status("TIMEOUT_RESTORE_PENDING")
+        is False
+    )
+
+
+def test_expire_pending_open_failure_can_recover_factory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    monkeypatch.setattr(tool, "_require_root", _allow_root)
+    authorization_id = "N3W_T1_FIRST_PAIRING_WATCHDOG_TEST_02C"
+    transaction = {
+        "status": "OPEN_RESTORE_PENDING",
+        "authorization_id": authorization_id,
+        "expires_at_unix": int(time.time()) + 300,
+        "manager_recreate_command_count": 2,
+        "baseline_container_ids": {
+            "broker": "broker-a",
+            "manager": "manager-a",
+            "homeassistant": "ha-a",
+        },
+    }
+    baseline = snapshot()
+    open_manager = snapshot(
+        manager_id="manager-open",
+        pairing="true",
+        broker_host=TEST_BROKER_IP,
+    )["manager"]
+    advanced: list[dict[str, object]] = []
+
+    monkeypatch.setattr(tool, "_transaction", lambda: transaction)
+    monkeypatch.setattr(
+        tool.time,
+        "sleep",
+        lambda _seconds: pytest.fail(
+            "recovery-pending watchdog must not wait for deadline"
+        ),
+    )
+    monkeypatch.setattr(
+        tool,
+        "_container_snapshot",
+        lambda service: (
+            baseline["broker"]
+            if service == "broker"
+            else baseline["homeassistant"]
+            if service == "homeassistant"
+            else open_manager
+        ),
+    )
+    monkeypatch.setattr(tool, "_listener_count", lambda *_args: 1)
+    monkeypatch.setattr(
+        tool,
+        "_restore_factory_manager",
+        lambda _baseline: (
+            snapshot(manager_id="manager-restored")["manager"],
+            "",
+        ),
+    )
+    monkeypatch.setattr(tool, "_db_counts", zero_counts)
+    monkeypatch.setattr(
+        tool,
+        "_security_state_counts",
+        zero_security_counts,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_advance_transaction",
+        lambda **fields: advanced.append(fields) or fields,
+    )
+
+    report = tool.expire_window(
+        authorization_sha256=tool._sha256_text(authorization_id),
+    )
+
+    assert report["status"] == "PASS"
+    assert (
+        report["pairing_window_state"]
+        == "CLOSED_RECOVERY_AFTER_OPEN_FAILURE"
+    )
+    assert "CLOSED_PASS" not in json.dumps(report)
+    assert (
+        advanced[-1]["status"]
+        == "CLOSED_RECOVERY_AFTER_OPEN_FAILURE"
+    )
 
 
 def test_expire_terminal_state_is_noop(
