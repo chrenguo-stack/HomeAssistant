@@ -67,6 +67,8 @@ The tool is intentionally separate from F4 production activation. Factory produc
 - the four first-registration tables can be read from the Manager state database;
 - if an onboarding transaction exists, only public-safe hashes/state are emitted.
 
+`inspect` does not create a lock file, staging file, transaction record or runtime override. It does not enter the exclusive mutation lock. Open/close concurrency is protected by a transient kernel `flock` on the already-existing private provisioning directory itself, so lock acquisition creates no persistent filesystem object.
+
 No raw peer address or Broker locator is printed.
 
 ## 5. Open contract
@@ -259,6 +261,8 @@ New focused tests cover:
 - failed open performs factory Manager rollback;
 - successful close requires approved registration plus committed MQTT credential and N3-W application-key evidence;
 - credential generation/key epoch mismatch and incomplete credential state fail closed;
+- system peer-trust identity/generation/key-material validity is required;
+- read-only inspect is regression-protected against persistent lock-file creation;
 - Compose-return ambiguity is resolved only by final observed factory state;
 - successful close returns to the factory pairing-disabled state;
 - authorization naming is explicit and bounded.
@@ -294,3 +298,16 @@ The source-only review found and repaired two blockers before any T1/Board execu
 LIVE_T1_IMPACT_FROM_REVIEW_FINDINGS=false
 BOARD_IMPACT_FROM_REVIEW_FINDINGS=false
 ```
+
+### Read-only preflight correction
+
+Exact-head review found that the first implementation wrapped every command, including `inspect`, in a lock helper that created a persistent lock file. Although it did not alter product state, that violated the stated read-only contract. The repaired implementation:
+
+```text
+INSPECT_PERSISTENT_MUTATION=false
+INSPECT_EXCLUSIVE_MUTATION_LOCK=false
+OPEN_CLOSE_LOCK=FLOCK_EXISTING_PRIVATE_DIRECTORY
+LOCK_FILE_CREATED=false
+```
+
+The transaction writer also validates the already-existing private parent instead of chmod/mkdir-normalizing it as a side effect.
