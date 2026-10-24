@@ -736,3 +736,54 @@ STRICT_X509_AKI_HARDENING=FOLLOWUP
 T1_MUTATION=false
 BOARD_D_MUTATION=false
 ```
+
+## 19. Source re-closure after Python 3.14 TLS checker mismatch
+
+The TLS probe repair is closed on exact head:
+
+```text
+EXACT_HEAD=820afb0f449e38e7937cda635a144b07b4df55d4
+RELATED_CI=12_OF_12_PASS
+N3W_T1_FIRST_PAIRING_ONBOARDING_CI=PASS
+PUBLIC_REPOSITORY_SAFETY_CI=PASS
+GREENHOUSE_MANAGER_CI=PASS
+M2_DYNAMIC_SECURITY_CI=PASS
+M2_PRIVATE_MOSQUITTO_CI=PASS
+M2_MANAGER_RUNTIME_SECRET_OWNERSHIP_CI=PASS
+H3_N2_STAGE2B3_PAIRING_RUNTIME_CI=PASS
+M2_NODE_AUTH_NATIVE_BOARD_LAB_CI=PASS
+M2_NODE_AUTH_BOARD_LAB_CI=PASS
+M2_NODE_AUTH_ISOLATED_LAB_CI=PASS
+C07_NODE_RETIREMENT_CI=PASS
+M0_VERTICAL_SLICE_CI=PASS
+```
+
+Final onboarding TLS authority now matches the established production probe contract:
+
+```text
+SSLContext(PROTOCOL_TLS_CLIENT)
+check_hostname=true
+verify_mode=CERT_REQUIRED
+private CA required
+server_hostname=armbian
+live peer certificate required
+live peer certificate SHA256 == installed server.pem SHA256
+```
+
+Manager-namespace TLS verification uses the same explicit client context rather than a Python-version-dependent default context.
+
+The live Python 3.14 strict-default failure is therefore classified as a checker mismatch, not as proof of current Broker runtime failure.
+
+```text
+SOURCE_GATE=CLOSED_PASS
+NEW_SOURCE_BLOCKER_COUNT=0
+SOURCE_REPAIR_REQUIRED=false
+LIVE_READONLY_PREFLIGHT_CAN_RESUME=true
+
+STRICT_X509_AKI_HARDENING=FOLLOWUP_NONBLOCKING
+T1_MUTATION=false
+BOARD_D_MUTATION=false
+PAIRING_EXECUTION=false
+LIVE_AUTHORIZATION_CONSUMED=false
+MERGE=false
+```
