@@ -6,6 +6,7 @@ import hashlib
 import ipaddress
 import json
 import os
+import re
 import socket
 import sqlite3
 import ssl
@@ -95,6 +96,14 @@ def _sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
 def _read_json(path: Path) -> dict[str, Any]:
     if path.is_symlink() or not path.is_file():
         raise OnboardingError(f"record_unavailable:{path.name}")
@@ -105,6 +114,19 @@ def _read_json(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise OnboardingError(f"record_invalid:{path.name}")
     return value
+
+
+def _read_private_json(path: Path) -> dict[str, Any]:
+    _require_file(path)
+    metadata = path.stat()
+    if (
+        metadata.st_uid != os.geteuid()
+        or metadata.st_gid != os.getegid()
+        or stat.S_IMODE(metadata.st_mode) != 0o600
+        or metadata.st_nlink != 1
+    ):
+        raise OnboardingError(f"private_record_metadata_invalid:{path.name}")
+    return _read_json(path)
 
 
 def _require_root() -> None:
@@ -383,8 +405,7 @@ def _validate_factory_runtime(snapshot: dict[str, dict[str, Any]]) -> None:
 
 
 def _validate_factory_marker() -> dict[str, Any]:
-    _require_file(FACTORY_ACCEPTED_PATH)
-    document = _read_json(FACTORY_ACCEPTED_PATH)
+    document = _read_private_json(FACTORY_ACCEPTED_PATH)
     if (
         document.get("schema") != "gh.n3w.t1-factory-accepted/1"
         or document.get("status") != "PASS"
@@ -685,6 +706,15 @@ def _first_pair_success_evidence(expected_system_id: str) -> dict[str, Any]:
     }
 
 
+def _is_rfc1918_ipv4(address: ipaddress.IPv4Address) -> bool:
+    value = int(address)
+    return (
+        value & 0xFF000000 == 0x0A000000
+        or value & 0xFFF00000 == 0xAC100000
+        or value & 0xFFFF0000 == 0xC0A80000
+    )
+
+
 def _resolve_route_selected_broker(
     manager_id: str,
     peer_ip: str,
@@ -693,7 +723,14 @@ def _resolve_route_selected_broker(
         peer = ipaddress.ip_address(peer_ip)
     except ValueError as error:
         raise OnboardingError("peer_ip_invalid") from error
-    if peer.version != 4 or peer.is_unspecified or peer.is_multicast or peer.is_loopback:
+    if (
+        peer.version != 4
+        or peer.is_unspecified
+        or peer.is_multicast
+        or peer.is_loopback
+        or peer.is_link_local
+        or not _is_rfc1918_ipv4(peer)
+    ):
         raise OnboardingError("peer_ip_invalid")
     script = (
         "import json,sys;"
@@ -728,19 +765,13 @@ def _resolve_route_selected_broker(
         selected = ipaddress.ip_address(selected_raw)
     except ValueError as error:
         raise OnboardingError("route_selected_ipv4_invalid") from error
-    selected_value = int(selected)
-    is_rfc1918 = (
-        selected_value & 0xFF000000 == 0x0A000000
-        or selected_value & 0xFFF00000 == 0xAC100000
-        or selected_value & 0xFFFF0000 == 0xC0A80000
-    )
     if (
         selected.version != 4
         or selected.is_unspecified
         or selected.is_multicast
         or selected.is_loopback
         or selected.is_link_local
-        or not is_rfc1918
+        or not _is_rfc1918_ipv4(selected)
     ):
         raise OnboardingError("route_selected_ipv4_not_private_lan")
     return str(selected)
@@ -1021,14 +1052,15 @@ def _claim_transaction(
             service: baseline[service]["id"]
             for service in sorted(EXPECTED_SERVICES)
         },
-        "manager_recreate_count": 0,
+        "manager_recreate_command_count": 0,
+        "tool_sha256": _sha256_file(Path(__file__).resolve()),
     }
     _write_private_json(TRANSACTION_PATH, document)
     return document
 
 
 def _advance_transaction(**fields: Any) -> dict[str, Any]:
-    document = _read_json(TRANSACTION_PATH)
+    document = _read_private_json(TRANSACTION_PATH)
     document.update(fields)
     document["authorization_claimed"] = True
     document["authorization_consumed"] = True
@@ -1038,7 +1070,7 @@ def _advance_transaction(**fields: Any) -> dict[str, Any]:
 
 
 def _transaction() -> dict[str, Any]:
-    document = _read_json(TRANSACTION_PATH)
+    document = _read_private_json(TRANSACTION_PATH)
     if (
         document.get("schema") != TRANSACTION_SCHEMA
         or document.get("authorization_claimed") is not True
@@ -1046,6 +1078,91 @@ def _transaction() -> dict[str, Any]:
         or document.get("replay_allowed") is not False
     ):
         raise OnboardingError("onboarding_transaction_invalid")
+
+    authorization_id = document.get("authorization_id")
+    if not isinstance(authorization_id, str):
+        raise OnboardingError("onboarding_transaction_authorization_invalid")
+    _authorization_id(authorization_id)
+
+    status = document.get("status")
+    allowed_statuses = {
+        "CLAIMED",
+        "OPEN",
+        "STOPPED_OPEN_FAILED",
+        "CLOSED_PASS",
+        "CLOSED_ABORTED",
+        "CLOSED_FAIL_WINDOW_EXPIRED",
+    }
+    if status not in allowed_statuses:
+        raise OnboardingError("onboarding_transaction_status_invalid")
+
+    for key in ("release_id", "host_instance_id", "system_id"):
+        if not isinstance(document.get(key), str) or not document[key]:
+            raise OnboardingError(f"onboarding_transaction_binding_invalid:{key}")
+
+    peer_raw = document.get("peer_ip")
+    broker_raw = document.get("broker_host")
+    if not isinstance(peer_raw, str) or not isinstance(broker_raw, str):
+        raise OnboardingError("onboarding_transaction_locator_invalid")
+    try:
+        peer = ipaddress.ip_address(peer_raw)
+        broker = ipaddress.ip_address(broker_raw)
+    except ValueError as error:
+        raise OnboardingError("onboarding_transaction_locator_invalid") from error
+    if (
+        not isinstance(peer, ipaddress.IPv4Address)
+        or not isinstance(broker, ipaddress.IPv4Address)
+        or not _is_rfc1918_ipv4(peer)
+        or not _is_rfc1918_ipv4(broker)
+    ):
+        raise OnboardingError("onboarding_transaction_locator_invalid")
+
+    if document.get("broker_host_sha256") != _sha256_text(broker_raw):
+        raise OnboardingError("onboarding_transaction_locator_hash_invalid")
+
+    window_seconds = document.get("window_seconds")
+    claimed_at = document.get("claimed_at_unix")
+    expires_at = document.get("expires_at_unix")
+    if (
+        not isinstance(window_seconds, int)
+        or isinstance(window_seconds, bool)
+        or not 60 <= window_seconds <= 600
+        or not isinstance(claimed_at, int)
+        or isinstance(claimed_at, bool)
+        or not isinstance(expires_at, int)
+        or isinstance(expires_at, bool)
+        or expires_at != claimed_at + window_seconds
+    ):
+        raise OnboardingError("onboarding_transaction_deadline_invalid")
+
+    baseline = document.get("baseline_container_ids")
+    if (
+        not isinstance(baseline, dict)
+        or set(baseline) != EXPECTED_SERVICES
+        or any(
+            not isinstance(value, str)
+            or re.fullmatch(r"[0-9a-f]{64}", value) is None
+            for value in baseline.values()
+        )
+    ):
+        raise OnboardingError("onboarding_transaction_container_binding_invalid")
+
+    command_count = document.get("manager_recreate_command_count")
+    if (
+        not isinstance(command_count, int)
+        or isinstance(command_count, bool)
+        or command_count < 0
+        or command_count > 2
+    ):
+        raise OnboardingError("onboarding_transaction_command_count_invalid")
+
+    tool_sha = document.get("tool_sha256")
+    if (
+        not isinstance(tool_sha, str)
+        or re.fullmatch(r"[0-9a-f]{64}", tool_sha) is None
+    ):
+        raise OnboardingError("onboarding_transaction_tool_binding_invalid")
+
     return document
 
 
@@ -1160,7 +1277,7 @@ def open_window(
             raise OnboardingError("manager_not_recreated")
         transaction = _advance_transaction(
             status="OPEN",
-            manager_recreate_count=1,
+            manager_recreate_command_count=1,
             opened_manager_id=opened_manager["id"],
             opened_manager_id_sha256=opened_manager["id_sha256"],
             opened_at_unix=int(time.time()),
@@ -1210,7 +1327,7 @@ def open_window(
             _remove_override()
         _advance_transaction(
             status="STOPPED_OPEN_FAILED",
-            manager_recreate_count=1 if manager_mutation_started else 0,
+            manager_recreate_command_count=2 if manager_mutation_started else 0,
             rollback_status=rollback_status,
             rollback_error_type=rollback_error,
             rollback_command_error_type=rollback_command_error,
@@ -1281,7 +1398,9 @@ def close_window(
         closed_at_unix=int(time.time()),
         close_outcome=outcome,
         window_expired=expired,
-        manager_recreate_count=int(transaction.get("manager_recreate_count", 1)) + 1,
+        manager_recreate_command_count=(
+            int(transaction.get("manager_recreate_command_count", 1)) + 1
+        ),
         closed_manager_id=closed_manager["id"],
         closed_manager_id_sha256=closed_manager["id_sha256"],
         close_command_error_type=close_command_error,
