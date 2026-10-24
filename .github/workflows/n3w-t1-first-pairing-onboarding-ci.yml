@@ -66,6 +66,16 @@ jobs:
           ! grep -Fq 'docker system prune' tools/n3w_t1_first_pairing_onboarding.py
           ! grep -Fq 'docker compose down' tools/n3w_t1_first_pairing_onboarding.py
 
+      - name: Bounded watchdog contract
+        run: |
+          grep -Fq '"systemd-run"' tools/n3w_t1_first_pairing_onboarding.py
+          grep -Fq 'f"--on-active={remaining}s"' tools/n3w_t1_first_pairing_onboarding.py
+          grep -Fq '"--timer-property=AccuracySec=1s"' tools/n3w_t1_first_pairing_onboarding.py
+          grep -Fq '"--property=Type=exec"' tools/n3w_t1_first_pairing_onboarding.py
+          grep -Fq 'CLOSED_TIMEOUT' tools/n3w_t1_first_pairing_onboarding.py
+          grep -Fq 'detail_sha256=' tools/n3w_t1_first_pairing_onboarding.py
+          ! grep -Fq 'reason[:300]' tools/n3w_t1_first_pairing_onboarding.py
+
       - name: Existing product pairing surfaces remain bound
         run: |
           grep -Fq 'resolve_route_selected_ipv4' host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_simplified_discovery.py
