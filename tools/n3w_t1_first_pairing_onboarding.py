@@ -12,7 +12,6 @@ import sqlite3
 import ssl
 import stat
 import subprocess
-import sys
 import tempfile
 import time
 import urllib.request
@@ -37,6 +36,9 @@ LOCK_PATH = PROVISIONING_ROOT / ".first-pairing-onboarding.lock"
 RUNTIME_ROOT = Path("/run/n3w-first-pairing-onboarding")
 OVERRIDE_PATH = RUNTIME_ROOT / "manager-pairing.override.yml"
 MANAGER_DB = Path("/var/lib/greenhouse-manager/manager/manager-state.sqlite3")
+CREDENTIAL_DB = Path("/var/lib/greenhouse-manager/n3w/credential-lifecycle.sqlite3")
+APPLICATION_KEY_DB = Path("/var/lib/greenhouse-manager/n3w/relay-authorization.sqlite3")
+APPLICATION_KEY_DIR = Path("/var/lib/greenhouse-manager/n3w/relay-keys")
 
 PAIRING_UDP_PORT = 47111
 PAIRING_HTTP_PORT = 47112
@@ -54,6 +56,18 @@ EXPECTED_TABLES = (
 
 class OnboardingError(RuntimeError):
     pass
+
+
+OPERATION_ERRORS = (
+    OnboardingError,
+    OSError,
+    RuntimeError,
+    sqlite3.Error,
+    ssl.SSLError,
+    subprocess.SubprocessError,
+    TypeError,
+    ValueError,
+)
 
 
 def _run(
@@ -657,10 +671,11 @@ def _resolve_route_selected_broker(
         selected = ipaddress.ip_address(selected_raw)
     except ValueError as error:
         raise OnboardingError("route_selected_ipv4_invalid") from error
-    rfc1918 = (
-        ipaddress.ip_network("10.0.0.0/8"),
-        ipaddress.ip_network("172.16.0.0/12"),
-        ipaddress.ip_network("192.168.0.0/16"),
+    selected_value = int(selected)
+    is_rfc1918 = (
+        selected_value & 0xFF000000 == 0x0A000000
+        or selected_value & 0xFFF00000 == 0xAC100000
+        or selected_value & 0xFFFF0000 == 0xC0A80000
     )
     if (
         selected.version != 4
@@ -668,7 +683,7 @@ def _resolve_route_selected_broker(
         or selected.is_multicast
         or selected.is_loopback
         or selected.is_link_local
-        or not any(selected in network for network in rfc1918)
+        or not is_rfc1918
     ):
         raise OnboardingError("route_selected_ipv4_not_private_lan")
     return str(selected)
@@ -681,12 +696,11 @@ def _probe_external_broker_tls(host: str) -> None:
         with socket.create_connection(
             (host, BROKER_TLS_PORT),
             timeout=5,
-        ) as raw:
-            with context.wrap_socket(
-                raw,
-                server_hostname=BROKER_TLS_SERVER_NAME,
-            ):
-                pass
+        ) as raw, context.wrap_socket(
+            raw,
+            server_hostname=BROKER_TLS_SERVER_NAME,
+        ):
+            pass
     except (OSError, ssl.SSLError) as error:
         raise OnboardingError("external_broker_tls_probe_failed") from error
 
@@ -823,7 +837,7 @@ def _restore_factory_manager(
     command_error_type = ""
     try:
         _recreate_manager(override=False)
-    except Exception as error:
+    except OPERATION_ERRORS as error:
         command_error_type = type(error).__name__
     _remove_override()
     try:
@@ -833,7 +847,7 @@ def _restore_factory_manager(
             non_manager_baseline,
             after,
         )
-    except Exception as error:
+    except OPERATION_ERRORS as error:
         raise OnboardingError(
             "factory_restore_unproven:"
             f"command_{command_error_type or 'none'}:"
@@ -1120,7 +1134,7 @@ def open_window(
             "external_broker_tls": "PASS",
             "raw_locator_in_output": False,
         }
-    except Exception as error:
+    except OPERATION_ERRORS as error:
         rollback_status = "NOT_REQUIRED"
         rollback_error = ""
         rollback_command_error = ""
@@ -1130,7 +1144,7 @@ def open_window(
                     _restore_factory_manager(baseline)
                 )
                 rollback_status = "PASS"
-            except Exception as rollback:
+            except OPERATION_ERRORS as rollback:
                 rollback_status = "FAIL"
                 rollback_error = type(rollback).__name__
         else:
