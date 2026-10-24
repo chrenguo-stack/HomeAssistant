@@ -796,6 +796,14 @@ def test_readiness_waits_for_homeassistant_mqtt_socket_convergence(monkeypatch):
     assert report["wait_reason"] == "homeassistant_mqtt_socket_not_ready"
 
 
+def test_readiness_rejects_invalid_runtime_container_name(monkeypatch):
+    tool = load_tool()
+    module, *_ = _configure_readiness(tool, monkeypatch)
+    module._compose_service_inspect = lambda _service: {"Name": None}
+    with pytest.raises(tool.VerifyError, match="readiness_runtime_container_name_invalid"):
+        tool.readiness()
+
+
 def test_readiness_rejects_multiple_manager_mqtt_sockets(monkeypatch):
     tool = load_tool()
     _configure_readiness(tool, monkeypatch, manager_socket_count=2)

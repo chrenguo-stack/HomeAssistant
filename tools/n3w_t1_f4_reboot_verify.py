@@ -423,7 +423,10 @@ def _readiness_runtime_mqtt_state(module: ModuleType) -> str | None:
     }
     names: dict[str, str] = {}
     for service, inspect in inspects.items():
-        name = str(inspect.get("Name", "")).lstrip("/")
+        raw_name = inspect.get("Name")
+        if not isinstance(raw_name, str):
+            raise VerifyError("readiness_runtime_container_name_invalid")
+        name = raw_name.lstrip("/")
         if not name:
             raise VerifyError("readiness_runtime_container_name_invalid")
         names[service] = name
