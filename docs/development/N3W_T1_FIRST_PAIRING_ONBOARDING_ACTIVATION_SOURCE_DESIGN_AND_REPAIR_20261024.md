@@ -664,3 +664,75 @@ PAIRING_EXECUTION=false
 LIVE_AUTHORIZATION_CONSUMED=false
 MERGE=false
 ```
+
+## 18. Live read-only preflight feedback: Python 3.14 strict X.509 default
+
+The resumed live read-only preflight passed the complete factory/clean-state, route-selection and systemd-watchdog checks, but the host-side TLS probe failed with:
+
+```text
+ssl.SSLCertVerificationError:
+certificate verify failed: Missing Authority Key Identifier
+```
+
+Observed target state at the stop remained healthy:
+
+```text
+MANAGER_RUNNING=true
+BROKER_RUNNING=true
+HOMEASSISTANT_RUNNING=true
+RESTART_COUNT=0/0/0
+PAIRING_ENABLED=false
+UDP_47111=0
+TCP_47112=0
+TCP_8883=1
+REGISTRATION_AND_PAIRING_COUNTS=0
+PAIRING_ONLY_SECURITY_STORES=ABSENT_AND_ZERO
+APPLICATION_KEY_STATE=ZERO
+BOARD_D_SOURCE_IS_LOCAL=true
+ROUTE_SELECTED_IPV4_PRIVATE=PASS
+WATCHDOG_UNIT_COUNT=0
+T1_MUTATION=false
+BOARD_D_MUTATION=false
+PAIRING_EXECUTION=false
+```
+
+Independent source review found a checker/source mismatch rather than proof of a Broker runtime failure.
+
+Existing production TLS authorities, including the F4 activation runtime probe and Broker certificate lifecycle probes, explicitly construct:
+
+```text
+ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+check_hostname=true
+verify_mode=ssl.CERT_REQUIRED
+load_verify_locations(CA)
+```
+
+The first onboarding tool instead used `ssl.create_default_context()` for its host-side external Broker probe. On the current T1 host Python 3.14 runtime, that default context applies stricter X.509 verification behavior and rejects the currently accepted chain because an Authority Key Identifier extension is absent.
+
+The repair aligns onboarding with the already-established production TLS authority:
+
+- explicit `PROTOCOL_TLS_CLIENT`;
+- `CERT_REQUIRED`;
+- hostname verification remains enabled;
+- the configured private CA remains mandatory;
+- SNI/server identity remains `armbian`;
+- the live peer DER certificate must additionally hash-match the installed `server.pem`;
+- the Manager-namespace Broker probe also uses the explicit context rather than version-dependent `create_default_context()`.
+
+This repair does not disable CA verification or hostname verification and does not accept arbitrary certificates.
+
+Regression coverage now rejects reintroduction of `create_default_context()` into either onboarding TLS probe and asserts the explicit production context contract.
+
+Separate hardening note:
+
+The live result proves the currently deployed certificate chain is not compatible with the stricter Python 3.14 default X.509 policy because of the missing Authority Key Identifier. That is not required to classify the current Broker/runtime as failed because the frozen production TLS authority and runtime clients use the established explicit verification contract. It should nevertheless remain a follow-up certificate-profile hardening item rather than being silently treated as fully strict-X.509-compatible.
+
+```text
+CHECKER_FALSE_STOP=true
+BROKER_RUNTIME_FAILURE_PROVEN=false
+ONBOARDING_TLS_SOURCE_MISMATCH_FOUND=true
+SOURCE_REPAIR_IMPLEMENTED=true
+STRICT_X509_AKI_HARDENING=FOLLOWUP
+T1_MUTATION=false
+BOARD_D_MUTATION=false
+```
