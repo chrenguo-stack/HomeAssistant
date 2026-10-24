@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import threading
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -289,6 +290,77 @@ def test_product_selector_uses_product_manager(
         )
         is sentinel
     )
+
+
+def test_dynamic_pairing_close_does_not_stop_normal_manager_runtime(
+    monkeypatch,
+) -> None:
+    parent_entered = threading.Event()
+    release_parent = threading.Event()
+
+    class FakeControl:
+        def __init__(self) -> None:
+            self.started = 0
+            self.stopped = 0
+
+        def start(self) -> None:
+            self.started += 1
+
+        def stop(self) -> None:
+            self.stopped += 1
+
+    class FakeDynamic:
+        def __init__(self) -> None:
+            self.closed = 0
+            self.stopped = 0
+
+        def close_window(self) -> None:
+            self.closed += 1
+
+        def stop(self) -> None:
+            self.stopped += 1
+
+    def parent_run(self) -> None:
+        parent_entered.set()
+        assert release_parent.wait(2)
+
+    monkeypatch.setattr(
+        wiring.N3wSimplifiedManagerMqttService,
+        "run",
+        parent_run,
+    )
+
+    service = object.__new__(
+        wiring.N3wDynamicPairingManagerMqttService
+    )
+    control = FakeControl()
+    dynamic = FakeDynamic()
+    service._pairing_control = control
+    service._dynamic_pairing = dynamic
+
+    thread = threading.Thread(
+        target=service.run,
+        daemon=True,
+    )
+    thread.start()
+
+    assert parent_entered.wait(2)
+    assert thread.is_alive()
+    assert control.started == 1
+
+    dynamic.close_window()
+
+    assert dynamic.closed == 1
+    assert thread.is_alive()
+    assert control.stopped == 0
+    assert dynamic.stopped == 0
+
+    release_parent.set()
+    thread.join(2)
+
+    assert thread.is_alive() is False
+    assert control.stopped == 1
+    assert dynamic.stopped == 1
 
 
 class FakeRuntime:
