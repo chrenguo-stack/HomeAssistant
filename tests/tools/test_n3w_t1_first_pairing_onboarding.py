@@ -92,6 +92,10 @@ def snapshot(
     }
 
 
+def _allow_root() -> None:
+    return None
+
+
 def zero_counts():
     return {
         "registrations": 0,
@@ -294,6 +298,7 @@ def test_open_claims_before_manager_recreate_and_never_outputs_locator(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     tool = load_tool()
+    monkeypatch.setattr(tool, "_require_root", _allow_root)
     baseline = snapshot()
     after = snapshot(
         manager_id="manager-b",
@@ -384,6 +389,7 @@ def test_open_failure_after_recreate_restores_factory_manager(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     tool = load_tool()
+    monkeypatch.setattr(tool, "_require_root", _allow_root)
     baseline = snapshot()
     restored = snapshot(manager_id="manager-c")
     runtime_values = iter((baseline, restored))
@@ -468,6 +474,7 @@ def test_close_success_requires_pairing_evidence_and_restores_factory(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     tool = load_tool()
+    monkeypatch.setattr(tool, "_require_root", _allow_root)
     before = snapshot(
         manager_id="manager-open",
         pairing="true",
@@ -558,6 +565,7 @@ def test_close_success_rejects_missing_registration_evidence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     tool = load_tool()
+    monkeypatch.setattr(tool, "_require_root", _allow_root)
     before = snapshot(
         manager_id="manager-open",
         pairing="true",
@@ -847,6 +855,7 @@ def test_main_inspect_does_not_take_mutating_lock(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     tool = load_tool()
+    monkeypatch.setattr(tool, "_require_root", _allow_root)
 
     monkeypatch.setattr(
         tool,
@@ -864,6 +873,16 @@ def test_main_inspect_does_not_take_mutating_lock(
     monkeypatch.setattr(tool, "_exclusive_lock", forbidden_lock)
 
     assert tool.main(["inspect"]) == 0
+
+
+def test_root_authority_is_required(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    monkeypatch.setattr(tool.os, "geteuid", lambda: 1000)
+
+    with pytest.raises(tool.OnboardingError, match="root_required"):
+        tool._require_root()
 
 
 def test_authorization_is_one_shot_and_strictly_named() -> None:
