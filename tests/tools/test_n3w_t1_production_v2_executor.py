@@ -804,6 +804,22 @@ def test_post_reboot_readiness_rejects_invalid_wait_reason(monkeypatch):
         adapter.wait_for_post_reboot_readiness()
 
 
+def test_readiness_structured_container_name_failure_code_is_preserved():
+    tool = load_tool()
+    report = {
+        "schema": tool.TARGET_VERIFY_REPORT_SCHEMA,
+        "status": "FAIL",
+        "failure_class": "VERIFY_FAILED",
+        "error_code": "readiness_runtime_container_name_invalid",
+        "board_access": False,
+    }
+    completed = subprocess.CompletedProcess([], 2, "", json.dumps(report))
+    with pytest.raises(tool.ProductionExecutorError) as captured:
+        tool._json_output(completed, "post_reboot_readiness")
+    assert captured.value.error_code == "readiness_runtime_container_name_invalid"
+    assert captured.value.target_failure_class == "VERIFY_FAILED"
+
+
 def test_target_verifier_structured_failure_code_is_preserved():
     tool = load_tool()
     report = {

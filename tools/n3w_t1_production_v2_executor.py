@@ -107,6 +107,7 @@ REPOSITORY_DEFINED_ERROR_CODES = frozenset(
         "readiness_required_unit_failed",
         "readiness_required_unit_missing",
         "readiness_required_unit_state_invalid",
+        "readiness_runtime_container_name_invalid",
         "readiness_runtime_service_name_invalid",
         "readiness_systemd_not_operational",
         "readiness_systemd_state_invalid",
