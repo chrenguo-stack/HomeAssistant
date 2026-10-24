@@ -404,6 +404,14 @@ def _read_only_connection(path: Path) -> sqlite3.Connection:
 
 
 def _security_state_counts() -> dict[str, int]:
+    security_counts = _security_state_counts()
+    if security_counts != {
+        "credential_assignments": 1,
+        "application_key_active_nodes": 1,
+        "application_key_epochs": 1,
+    }:
+        raise OnboardingError("first_pair_security_state_not_exact")
+
     credentials = _read_only_connection(CREDENTIAL_DB)
     try:
         table = credentials.execute(
@@ -531,7 +539,7 @@ def _first_pair_success_evidence() -> dict[str, Any]:
         or credential["pending_generation"] is not None
         or credential["revoked_at"] is not None
         or not isinstance(credential["active_generation"], int)
-        or credential["active_generation"] < 1
+        or credential["active_generation"] != 1
     ):
         raise OnboardingError("first_pair_credential_binding_invalid")
 
@@ -578,8 +586,16 @@ def _first_pair_success_evidence() -> dict[str, Any]:
     ):
         raise OnboardingError("first_pair_application_key_binding_invalid")
 
+    if (
+        APPLICATION_KEY_DIR.is_symlink()
+        or not APPLICATION_KEY_DIR.is_dir()
+        or stat.S_IMODE(APPLICATION_KEY_DIR.stat().st_mode) & 0o077
+    ):
+        raise OnboardingError("application_key_directory_invalid")
     key_path = APPLICATION_KEY_DIR / key["key_file"]
     _require_file(key_path)
+    if stat.S_IMODE(key_path.stat().st_mode) & 0o077:
+        raise OnboardingError("application_key_file_permissions_invalid")
     material = key_path.read_bytes()
     if (
         len(material) != 32
@@ -589,7 +605,7 @@ def _first_pair_success_evidence() -> dict[str, Any]:
 
     return {
         "database_counts": counts,
-        "security_counts": _security_state_counts(),
+        "security_counts": security_counts,
         "hardware_id_sha256": _sha256_text(registration["hardware_id"]),
         "pairing_id_sha256": _sha256_text(registration["pairing_id"]),
         "node_id_sha256": _sha256_text(registration["node_id"]),
