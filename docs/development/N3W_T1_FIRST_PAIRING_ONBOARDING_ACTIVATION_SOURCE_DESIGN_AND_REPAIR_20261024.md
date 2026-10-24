@@ -598,3 +598,69 @@ SOURCE_REPAIR_IMPLEMENTED=true
 T1_MUTATION=false
 BOARD_D_MUTATION=false
 ```
+
+## 17. Source re-closure after live read-only feedback
+
+The source repair for valid absent pairing-only security stores is now closed on exact head:
+
+```text
+EXACT_HEAD=1a6839f47c8d3c638683a16bfc8f30c100a4f1f5
+N3W_T1_FIRST_PAIRING_ONBOARDING_CI=PASS
+PUBLIC_REPOSITORY_SAFETY_CI=PASS
+GREENHOUSE_MANAGER_CI=PASS
+M2_DYNAMIC_SECURITY_CI=PASS
+M2_PRIVATE_MOSQUITTO_CI=PASS
+M2_MANAGER_RUNTIME_SECRET_OWNERSHIP_CI=PASS
+H3_N2_STAGE2B3_PAIRING_RUNTIME_CI=PASS
+M2_NODE_AUTH_NATIVE_BOARD_LAB_CI=PASS
+M2_NODE_AUTH_BOARD_LAB_CI=PASS
+M2_NODE_AUTH_ISOLATED_LAB_CI=PASS
+C07_NODE_RETIREMENT_CI=PASS
+M0_VERTICAL_SLICE_CI=PASS
+RELATED_CI=12_OF_12_PASS
+```
+
+Final source classification for the factory clean baseline:
+
+```text
+credential-lifecycle.sqlite3:
+  absent => clean zero state
+  present + expected schema + zero rows => clean zero state
+  present with rows => not clean
+  symlink/non-file/wrong schema => FAIL
+
+system-peer-trust.sqlite3:
+  absent => clean zero state
+  present + expected schema + zero rows => clean zero state
+  present with rows => not clean
+  symlink/non-file/wrong schema => FAIL
+
+relay-authorization.sqlite3:
+  must exist
+  expected schema required
+  active node/key rows must be zero for first-pair clean state
+```
+
+Post-pair acceptance remains exact and requires all three credential domains to exist and bind to the same first-registration identity:
+
+```text
+credential_assignments=1
+peer_trust_records=1
+application_key_active_nodes=1
+application_key_epochs=1
+```
+
+The first live read-only preflight did not consume any live authorization and caused no target mutation.
+
+```text
+SOURCE_GATE=CLOSED_PASS
+NEW_SOURCE_BLOCKER_COUNT=0
+SOURCE_REPAIR_REQUIRED=false
+LIVE_READONLY_PREFLIGHT_CAN_RESUME=true
+
+T1_MUTATION=false
+BOARD_D_MUTATION=false
+PAIRING_EXECUTION=false
+LIVE_AUTHORIZATION_CONSUMED=false
+MERGE=false
+```
