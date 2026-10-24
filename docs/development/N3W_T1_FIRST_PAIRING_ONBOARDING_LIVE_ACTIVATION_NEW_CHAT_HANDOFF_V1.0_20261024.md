@@ -134,12 +134,12 @@ PR=664
 PR_STATE=OPEN_DRAFT
 PR_BASE=main
 PR_BASE_SHA=dc596ad50eb2ea80ba55aa3af2413236321f1465
-PR_CURRENT_HEAD=0f82941a73a73730631d8b8da22ce43d7d756708
+PR_SOURCE_CLOSURE_HEAD=0f82941a73a73730631d8b8da22ce43d7d756708
 PR_MERGEABLE=true
 MERGE_AUTHORIZED=false
 ```
 
-PR #664 current HEAD is the formal branch authority at handoff time.
+PR #664 source closure authority is frozen at `0f82941a73a73730631d8b8da22ce43d7d756708`. The branch HEAD advances by docs-only handoff commits; the new chat must fresh rebind the actual current HEAD and prove no executable-source drift.
 
 ### 3.2 Onboarding source authority
 
@@ -497,7 +497,7 @@ and prove first-pair credential commitment plus factory pairing-disabled restora
 Frozen inputs:
 
 ```text
-PR664_CURRENT_HEAD=0f82941a73a73730631d8b8da22ce43d7d756708
+PR664_SOURCE_CLOSURE_HEAD=0f82941a73a73730631d8b8da22ce43d7d756708
 ONBOARDING_TOOL_GIT_BLOB=b1c41f81ef2493420e74010c8d788c797ad1cc6d
 BOARD_D_HARDWARE_ID_SHA256=3991b9af9e7604190a8ac8e60b780911a8faed6698cda5421eaf1eb686210df5
 BROKER_TLS_SERVER_NAME=armbian
@@ -800,7 +800,7 @@ docs/development/N3W_T1_FIRST_PAIRING_ONBOARDING_LIVE_ACTIVATION_NEW_CHAT_HANDOF
 - live onboarding readonly preflight 已 CLOSED_PASS；
 - TLS delta 已 PASS；
 - pairing-only credential/peer-trust DB 在 pairing-disabled clean baseline 可合法不存在；
-- PR #664 current handoff head 为 0f82941a73a73730631d8b8da22ce43d7d756708，必须 fresh rebind 后再使用；
+- PR #664 source closure head 为 0f82941a73a73730631d8b8da22ce43d7d756708；handoff docs-only 提交会继续推进分支 HEAD，必须 fresh rebind 并证明无 executable-source drift 后再使用；
 - 当前 T1 pairing=false，47111/47112 closed，Broker/Manager/HA restart_count=0；
 - Board D 当前为 DEV low-battery-bypass image，不是 production exact R4；
 - Board D first Wi-Fi provisioning 和 software restart/LCD acceptance 均已 PASS；
@@ -823,7 +823,7 @@ HANDOFF_DATE=2026-10-24
 
 MAIN=dc596ad50eb2ea80ba55aa3af2413236321f1465
 PR664=OPEN_DRAFT
-PR664_CURRENT_HEAD=0f82941a73a73730631d8b8da22ce43d7d756708
+PR664_SOURCE_CLOSURE_HEAD=0f82941a73a73730631d8b8da22ce43d7d756708
 PR664_CI=12_OF_12_PASS
 PR664_MERGE=false
 
