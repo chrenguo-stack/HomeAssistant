@@ -495,7 +495,7 @@ def test_close_success_requires_pairing_evidence_and_restores_factory(
         "replay_allowed": False,
         "broker_host": TEST_BROKER_IP,
         "expires_at_unix": int(time.time()) + 120,
-        "manager_recreate_count": 1,
+        "manager_recreate_command_count": 1,
         "system_id": "greenhouse",
         "baseline_container_ids": {
             "broker": "broker-a",
@@ -580,7 +580,7 @@ def test_close_success_rejects_missing_registration_evidence(
         "replay_allowed": False,
         "broker_host": TEST_BROKER_IP,
         "expires_at_unix": int(time.time()) + 120,
-        "manager_recreate_count": 1,
+        "manager_recreate_command_count": 1,
         "system_id": "greenhouse",
         "baseline_container_ids": {
             "broker": "broker-a",
@@ -883,6 +883,74 @@ def test_root_authority_is_required(
 
     with pytest.raises(tool.OnboardingError, match="root_required"):
         tool._require_root()
+
+
+def _valid_transaction(tool, path: Path) -> dict[str, object]:
+    claimed_at = 1_000
+    document: dict[str, object] = {
+        "schema": tool.TRANSACTION_SCHEMA,
+        "status": "OPEN",
+        "authorization_id": "N3W_T1_FIRST_PAIRING_TEST_TRANSACTION_01",
+        "authorization_claimed": True,
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "release_id": "release-test",
+        "host_instance_id": "host-test",
+        "system_id": "greenhouse",
+        "peer_ip": TEST_PEER_IP,
+        "broker_host": TEST_BROKER_IP,
+        "broker_host_sha256": tool._sha256_text(TEST_BROKER_IP),
+        "window_seconds": 180,
+        "claimed_at_unix": claimed_at,
+        "expires_at_unix": claimed_at + 180,
+        "baseline_container_ids": {
+            "broker": "a" * 64,
+            "manager": "b" * 64,
+            "homeassistant": "c" * 64,
+        },
+        "manager_recreate_command_count": 1,
+        "tool_sha256": "d" * 64,
+    }
+    path.write_text(
+        json.dumps(document, sort_keys=True),
+        encoding="utf-8",
+    )
+    path.chmod(0o600)
+    return document
+
+
+def test_transaction_authority_validates_private_binding(
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    transaction_path = tmp_path / "transaction.json"
+    expected = _valid_transaction(tool, transaction_path)
+    tool.TRANSACTION_PATH = transaction_path
+
+    observed = tool._transaction()
+
+    assert observed == expected
+
+
+def test_transaction_authority_rejects_locator_hash_drift(
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    transaction_path = tmp_path / "transaction.json"
+    document = _valid_transaction(tool, transaction_path)
+    document["broker_host_sha256"] = "0" * 64
+    transaction_path.write_text(
+        json.dumps(document, sort_keys=True),
+        encoding="utf-8",
+    )
+    transaction_path.chmod(0o600)
+    tool.TRANSACTION_PATH = transaction_path
+
+    with pytest.raises(
+        tool.OnboardingError,
+        match="onboarding_transaction_locator_hash_invalid",
+    ):
+        tool._transaction()
 
 
 def test_authorization_is_one_shot_and_strictly_named() -> None:
