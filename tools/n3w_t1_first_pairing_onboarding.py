@@ -3706,23 +3706,8 @@ def inspect() -> dict[str, Any]:
     return report
 
 
-def recover_successor(
-    *,
-    authorization_id: str,
-    confirmation: str,
-) -> dict[str, Any]:
+def _successor_recovery_preflight() -> dict[str, Any]:
     _require_root()
-    if (
-        confirmation
-        != SUCCESSOR_RECOVERY_CONFIRMATION
-    ):
-        raise OnboardingError(
-            "successor_recovery_confirmation_invalid"
-        )
-    authorization_id = _authorization_id(
-        authorization_id
-    )
-
     _require_file(
         COMPOSE_TARGET
     )
@@ -3760,6 +3745,17 @@ def recover_successor(
         raise OnboardingError(
             "successor_recovery_host_binding_changed"
         )
+    if (
+        predecessor[
+            "release_id"
+        ]
+        == factory[
+            "release_id"
+        ]
+    ):
+        raise OnboardingError(
+            "successor_recovery_repaired_release_not_advanced"
+        )
 
     unit = predecessor.get(
         "watchdog_unit"
@@ -3786,6 +3782,9 @@ def recover_successor(
     manager_id = baseline[
         "manager"
     ]["id"]
+    _require_successor_recovery_capability(
+        manager_id
+    )
 
     control = _window_control(
         manager_id,
@@ -3804,6 +3803,7 @@ def recover_successor(
         manager_id
     )
 
+    counts = _db_counts()
     security_counts = (
         _security_state_counts()
     )
@@ -3820,6 +3820,147 @@ def recover_successor(
         _successor_recovery_candidate()
     )
 
+    return {
+        "factory": factory,
+        "predecessor": predecessor,
+        "predecessor_sha256": (
+            predecessor_sha256
+        ),
+        "baseline": baseline,
+        "manager_id": manager_id,
+        "counts": counts,
+        "security_counts": (
+            security_counts
+        ),
+        "candidate": candidate,
+    }
+
+
+def inspect_successor_recovery() -> dict[str, Any]:
+    preflight = (
+        _successor_recovery_preflight()
+    )
+    factory = preflight[
+        "factory"
+    ]
+    predecessor = preflight[
+        "predecessor"
+    ]
+    baseline = preflight[
+        "baseline"
+    ]
+    candidate = preflight[
+        "candidate"
+    ]
+
+    report = {
+        "schema": SCHEMA,
+        "status": "PASS",
+        "operation": (
+            "successor-inspect"
+        ),
+        "successor_recovery_eligible": True,
+        "mutation": False,
+        "authorization_consumed": False,
+        "predecessor_transaction_sha256": (
+            preflight[
+                "predecessor_sha256"
+            ]
+        ),
+        "predecessor_release_sha256": (
+            _sha256_text(
+                str(
+                    predecessor[
+                        "release_id"
+                    ]
+                )
+            )
+        ),
+        "recovery_release_sha256": (
+            _sha256_text(
+                str(
+                    factory[
+                        "release_id"
+                    ]
+                )
+            )
+        ),
+        "hardware_id_sha256": (
+            candidate[
+                "hardware_id_sha256"
+            ]
+        ),
+        "pairing_id_sha256": (
+            candidate[
+                "pairing_id_sha256"
+            ]
+        ),
+        "database_counts": (
+            preflight[
+                "counts"
+            ]
+        ),
+        "security_counts": (
+            preflight[
+                "security_counts"
+            ]
+        ),
+        "pairing_window_state": (
+            "CLOSED"
+        ),
+        "pairing_udp_listener_count": 0,
+        "pairing_http_listener_count": 0,
+        "raw_locator_in_output": False,
+    }
+    report.update(
+        _public_runtime(
+            baseline
+        )
+    )
+    return report
+
+
+def recover_successor(
+    *,
+    authorization_id: str,
+    confirmation: str,
+) -> dict[str, Any]:
+    _require_root()
+    if (
+        confirmation
+        != SUCCESSOR_RECOVERY_CONFIRMATION
+    ):
+        raise OnboardingError(
+            "successor_recovery_confirmation_invalid"
+        )
+    authorization_id = _authorization_id(
+        authorization_id
+    )
+
+    preflight = (
+        _successor_recovery_preflight()
+    )
+    factory = preflight[
+        "factory"
+    ]
+    predecessor = preflight[
+        "predecessor"
+    ]
+    predecessor_sha256 = (
+        preflight[
+            "predecessor_sha256"
+        ]
+    )
+    baseline = preflight[
+        "baseline"
+    ]
+    manager_id = preflight[
+        "manager_id"
+    ]
+    candidate = preflight[
+        "candidate"
+    ]
+
     recovery = (
         _claim_successor_recovery(
             authorization_id=(
@@ -3833,6 +3974,9 @@ def recover_successor(
             baseline=baseline,
             candidate=candidate,
         )
+    )
+    _ensure_private_directory(
+        TRANSACTION_ARCHIVE_ROOT
     )
 
     try:
