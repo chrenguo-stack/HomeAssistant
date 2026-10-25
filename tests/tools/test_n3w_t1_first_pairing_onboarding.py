@@ -117,10 +117,10 @@ def _zero_counts():
 
 def _zero_security_counts():
     return {
-        "credential_records": 0,
-        "application_key_records": 0,
-        "application_key_files": 0,
+        "credential_assignments": 0,
         "peer_trust_records": 0,
+        "application_key_active_nodes": 0,
+        "application_key_epochs": 0,
     }
 
 
@@ -135,10 +135,10 @@ def _paired_counts():
 
 def _paired_security_counts():
     return {
-        "credential_records": 1,
-        "application_key_records": 1,
-        "application_key_files": 1,
+        "credential_assignments": 1,
         "peer_trust_records": 1,
+        "application_key_active_nodes": 1,
+        "application_key_epochs": 1,
     }
 
 
