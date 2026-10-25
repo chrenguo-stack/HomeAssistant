@@ -1633,6 +1633,11 @@ def _configure_successor_recovery_runtime(
     )
     monkeypatch.setattr(
         tool,
+        "_require_successor_recovery_capability",
+        lambda manager: None,
+    )
+    monkeypatch.setattr(
+        tool,
         "_window_control",
         lambda manager, command, **kwargs: {
             "accepted": True,
@@ -1879,10 +1884,10 @@ def test_successor_recovery_unproven_manager_result_keeps_predecessor(
         tool.TRANSACTION_PATH.read_bytes()
         == predecessor_bytes
     )
-    assert not (
-        tool.TRANSACTION_ARCHIVE_ROOT
-        .exists()
-    )
+    assert tool.TRANSACTION_ARCHIVE_ROOT.is_dir()
+    assert list(
+        tool.TRANSACTION_ARCHIVE_ROOT.iterdir()
+    ) == []
 
 
 def test_successor_recovery_postcheck_failure_does_not_archive(
@@ -1974,10 +1979,10 @@ def test_successor_recovery_postcheck_failure_does_not_archive(
         tool.TRANSACTION_PATH.read_bytes()
         == predecessor_bytes
     )
-    assert not (
-        tool.TRANSACTION_ARCHIVE_ROOT
-        .exists()
-    )
+    assert tool.TRANSACTION_ARCHIVE_ROOT.is_dir()
+    assert list(
+        tool.TRANSACTION_ARCHIVE_ROOT.iterdir()
+    ) == []
 
 
 def test_successor_admission_requires_closed_pass_recovery(
@@ -2067,3 +2072,154 @@ def test_successor_admission_requires_closed_pass_recovery(
 
     assert called["value"] is True
     assert root.is_dir()
+
+
+
+def test_successor_inspect_is_read_only_and_uses_same_preflight(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    _configure_transaction_paths(
+        tool,
+        tmp_path,
+    )
+    predecessor = _expired_predecessor(
+        tool
+    )
+    predecessor_bytes = (
+        tool.TRANSACTION_PATH.read_bytes()
+    )
+    (
+        repaired_factory,
+        _,
+        candidate,
+        recovered_counts,
+    ) = _configure_successor_recovery_runtime(
+        tool,
+        monkeypatch,
+    )
+
+    report = (
+        tool.inspect_successor_recovery()
+    )
+
+    assert report["status"] == "PASS"
+    assert report["mutation"] is False
+    assert (
+        report["authorization_consumed"]
+        is False
+    )
+    assert (
+        report[
+            "successor_recovery_eligible"
+        ]
+        is True
+    )
+    assert (
+        report[
+            "predecessor_release_sha256"
+        ]
+        == tool._sha256_text(
+            predecessor[
+                "release_id"
+            ]
+        )
+    )
+    assert (
+        report[
+            "recovery_release_sha256"
+        ]
+        == tool._sha256_text(
+            repaired_factory[
+                "release_id"
+            ]
+        )
+    )
+    assert (
+        report[
+            "hardware_id_sha256"
+        ]
+        == candidate[
+            "hardware_id_sha256"
+        ]
+    )
+    assert (
+        report[
+            "database_counts"
+        ]
+        == recovered_counts
+    )
+    assert not (
+        tool.SUCCESSOR_RECOVERY_PATH
+        .exists()
+    )
+    assert (
+        tool.TRANSACTION_PATH.read_bytes()
+        == predecessor_bytes
+    )
+
+
+def test_successor_preflight_requires_repaired_release_advance(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    _configure_transaction_paths(
+        tool,
+        tmp_path,
+    )
+    _expired_predecessor(
+        tool,
+        predecessor_release_id=(
+            _factory()[
+                "release_id"
+            ]
+        ),
+    )
+
+    monkeypatch.setattr(
+        tool,
+        "_require_root",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_require_file",
+        lambda path, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_validate_factory_compose",
+        dict,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_validate_factory_marker",
+        _factory,
+    )
+
+    with pytest.raises(
+        tool.OnboardingError,
+        match=(
+            "successor_recovery_repaired_release_not_advanced"
+        ),
+    ):
+        tool._successor_recovery_preflight()
+
+    assert not (
+        tool.SUCCESSOR_RECOVERY_PATH
+        .exists()
+    )
+
+
+def test_successor_inspect_command_surface() -> None:
+    tool = load_tool()
+    args = tool._parser().parse_args(
+        [
+            "successor-inspect",
+        ]
+    )
+    assert args.command == (
+        "successor-inspect"
+    )
