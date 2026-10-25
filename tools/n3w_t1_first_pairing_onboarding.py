@@ -5166,28 +5166,35 @@ def main(
         subprocess.SubprocessError,
         ValueError,
     ) as error:
+        if args.command in {
+            "inspect",
+            "successor-inspect",
+        }:
+            claim_present = False
+        elif (
+            args.command
+            == "successor-recover"
+        ):
+            claim_present = (
+                SUCCESSOR_RECOVERY_PATH
+                .exists()
+            )
+        else:
+            claim_present = (
+                TRANSACTION_PATH.exists()
+            )
         report = {
             "schema": SCHEMA,
             "status": "STOP",
             "error": str(error),
             "mutation_state": (
                 "UNKNOWN_IF_POSTCLAIM"
-                if (
-                    TRANSACTION_PATH
-                    .exists()
-                    or SUCCESSOR_RECOVERY_PATH
-                    .exists()
-                )
+                if claim_present
                 else "NONE"
             ),
             "authorization_reusable": (
                 False
-                if (
-                    TRANSACTION_PATH
-                    .exists()
-                    or SUCCESSOR_RECOVERY_PATH
-                    .exists()
-                )
+                if claim_present
                 else None
             ),
             "raw_locator_in_output": False,
