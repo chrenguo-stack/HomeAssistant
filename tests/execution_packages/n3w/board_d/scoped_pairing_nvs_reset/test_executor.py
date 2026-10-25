@@ -266,3 +266,30 @@ def test_claim_directory_is_fsynced_before_return(
 
     assert run_root.is_dir()
     assert synced == [root]
+
+
+def test_preflight_stops_after_authorization_is_claimed(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    fixed_state = tmp_path / "fixed-state"
+    fixed_state.mkdir(mode=0o700)
+    monkeypatch.setattr(module, "authorization_state_root", lambda: fixed_state)
+
+    run_root = module.require_authorization_unclaimed_readonly()
+    module.claim_authorization(run_root)
+
+    with pytest.raises(module.StopExecution, match="authorization already claimed"):
+        module.require_authorization_unclaimed_readonly()
+
+
+def test_run_preflight_checks_authorization_state_before_reporting_pass() -> None:
+    source = MODULE_PATH.read_text(encoding="utf-8")
+    start = source.index("def run_preflight")
+    end = source.index("def run_execute", start)
+    body = source[start:end]
+
+    claim_guard = body.index("require_authorization_unclaimed_readonly()")
+    pass_print = body.index('print("SCOPED_NVS_RESET_PREEXECUTION=PASS")')
+
+    assert claim_guard < pass_print
