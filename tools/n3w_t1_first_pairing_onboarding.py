@@ -2173,6 +2173,520 @@ def _transaction() -> dict[str, Any]:
     return document
 
 
+def _predecessor_transaction() -> tuple[
+    dict[str, Any],
+    str,
+]:
+    payload = _read_private_bytes(
+        TRANSACTION_PATH
+    )
+    predecessor_sha256 = hashlib.sha256(
+        payload
+    ).hexdigest()
+    document = _read_private_json(
+        TRANSACTION_PATH
+    )
+
+    if (
+        document.get("schema")
+        != TRANSACTION_SCHEMA
+        or document.get(
+            "authorization_claimed"
+        )
+        is not True
+        or document.get(
+            "authorization_consumed"
+        )
+        is not True
+        or document.get(
+            "replay_allowed"
+        )
+        is not False
+        or document.get("status")
+        != "OPEN"
+    ):
+        raise OnboardingError(
+            "successor_predecessor_transaction_invalid"
+        )
+
+    if (
+        "peer_ip" in document
+        or "broker_host" in document
+    ):
+        raise OnboardingError(
+            "successor_predecessor_raw_locator_forbidden"
+        )
+
+    authorization_id = document.get(
+        "authorization_id"
+    )
+    if not isinstance(
+        authorization_id,
+        str,
+    ):
+        raise OnboardingError(
+            "successor_predecessor_authorization_invalid"
+        )
+    _authorization_id(
+        authorization_id
+    )
+
+    for key in (
+        "release_id",
+        "host_instance_id",
+        "system_id",
+    ):
+        if (
+            not isinstance(
+                document.get(key),
+                str,
+            )
+            or not document[key]
+        ):
+            raise OnboardingError(
+                "successor_predecessor_binding_invalid"
+            )
+
+    for key in (
+        "peer_ip_sha256",
+        "broker_host_sha256",
+        "tool_sha256",
+    ):
+        value = document.get(key)
+        if (
+            not isinstance(value, str)
+            or re.fullmatch(
+                r"[0-9a-f]{64}",
+                value,
+            )
+            is None
+        ):
+            raise OnboardingError(
+                "successor_predecessor_hash_invalid"
+            )
+
+    window_seconds = document.get(
+        "window_seconds"
+    )
+    claimed_at = document.get(
+        "claimed_at_unix"
+    )
+    opened_at = document.get(
+        "opened_at_unix"
+    )
+    expires_at = document.get(
+        "expires_at_unix"
+    )
+    if (
+        not isinstance(
+            window_seconds,
+            int,
+        )
+        or isinstance(
+            window_seconds,
+            bool,
+        )
+        or not 180
+        <= window_seconds
+        <= 600
+        or not isinstance(
+            claimed_at,
+            int,
+        )
+        or isinstance(
+            claimed_at,
+            bool,
+        )
+        or not isinstance(
+            opened_at,
+            int,
+        )
+        or isinstance(
+            opened_at,
+            bool,
+        )
+        or opened_at < claimed_at
+        or not isinstance(
+            expires_at,
+            int,
+        )
+        or isinstance(
+            expires_at,
+            bool,
+        )
+        or expires_at
+        != opened_at
+        + window_seconds
+        or int(time.time())
+        <= expires_at
+    ):
+        raise OnboardingError(
+            "successor_predecessor_deadline_invalid"
+        )
+
+    baseline = document.get(
+        "baseline_container_ids"
+    )
+    restarts = document.get(
+        "baseline_restart_counts"
+    )
+    if (
+        not isinstance(
+            baseline,
+            dict,
+        )
+        or set(baseline)
+        != EXPECTED_SERVICES
+        or any(
+            not _is_container_id(
+                value
+            )
+            for value
+            in baseline.values()
+        )
+        or not isinstance(
+            restarts,
+            dict,
+        )
+        or set(restarts)
+        != EXPECTED_SERVICES
+        or any(
+            not isinstance(
+                value,
+                int,
+            )
+            or isinstance(
+                value,
+                bool,
+            )
+            or value < 0
+            for value
+            in restarts.values()
+        )
+    ):
+        raise OnboardingError(
+            "successor_predecessor_container_binding_invalid"
+        )
+
+    if document.get(
+        "watchdog_armed"
+    ) is True:
+        unit = document.get(
+            "watchdog_unit"
+        )
+        auth_sha = document.get(
+            "watchdog_authorization_sha256"
+        )
+        watchdog_tool_sha = document.get(
+            "watchdog_tool_sha256"
+        )
+        if (
+            not isinstance(
+                unit,
+                str,
+            )
+            or unit
+            != _watchdog_unit_name(
+                authorization_id
+            )
+            or auth_sha
+            != _sha256_text(
+                authorization_id
+            )
+            or watchdog_tool_sha
+            != document[
+                "tool_sha256"
+            ]
+        ):
+            raise OnboardingError(
+                "successor_predecessor_watchdog_binding_invalid"
+            )
+
+    return (
+        document,
+        predecessor_sha256,
+    )
+
+
+def _claim_successor_recovery(
+    *,
+    authorization_id: str,
+    predecessor: dict[str, Any],
+    predecessor_sha256: str,
+    candidate: dict[str, Any],
+) -> dict[str, Any]:
+    if (
+        SUCCESSOR_RECOVERY_PATH.exists()
+        or SUCCESSOR_RECOVERY_PATH.is_symlink()
+    ):
+        raise OnboardingError(
+            "successor_recovery_record_already_exists"
+        )
+    document = {
+        "schema": SUCCESSOR_RECOVERY_SCHEMA,
+        "status": "CLAIMED",
+        "authorization_id": (
+            authorization_id
+        ),
+        "authorization_claimed": True,
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "release_id": predecessor[
+            "release_id"
+        ],
+        "host_instance_id": predecessor[
+            "host_instance_id"
+        ],
+        "system_id": predecessor[
+            "system_id"
+        ],
+        "predecessor_transaction_sha256": (
+            predecessor_sha256
+        ),
+        "predecessor_authorization_sha256": (
+            _sha256_text(
+                str(
+                    predecessor[
+                        "authorization_id"
+                    ]
+                )
+            )
+        ),
+        "predecessor_tool_sha256": (
+            predecessor[
+                "tool_sha256"
+            ]
+        ),
+        "hardware_id_sha256": (
+            candidate[
+                "hardware_id_sha256"
+            ]
+        ),
+        "pairing_id_sha256": (
+            candidate[
+                "pairing_id_sha256"
+            ]
+        ),
+        "baseline_container_ids": dict(
+            predecessor[
+                "baseline_container_ids"
+            ]
+        ),
+        "baseline_restart_counts": dict(
+            predecessor[
+                "baseline_restart_counts"
+            ]
+        ),
+        "claimed_at_unix": int(
+            time.time()
+        ),
+        "tool_sha256": _sha256_file(
+            Path(__file__).resolve()
+        ),
+    }
+    _write_private_json(
+        SUCCESSOR_RECOVERY_PATH,
+        document,
+    )
+    return document
+
+
+def _advance_successor_recovery(
+    **fields: Any,
+) -> dict[str, Any]:
+    document = _read_private_json(
+        SUCCESSOR_RECOVERY_PATH
+    )
+    document.update(fields)
+    document[
+        "authorization_claimed"
+    ] = True
+    document[
+        "authorization_consumed"
+    ] = True
+    document[
+        "replay_allowed"
+    ] = False
+    _write_private_json(
+        SUCCESSOR_RECOVERY_PATH,
+        document,
+    )
+    return document
+
+
+def _successor_recovery_record() -> dict[str, Any]:
+    document = _read_private_json(
+        SUCCESSOR_RECOVERY_PATH
+    )
+    if (
+        document.get("schema")
+        != SUCCESSOR_RECOVERY_SCHEMA
+        or document.get(
+            "authorization_claimed"
+        )
+        is not True
+        or document.get(
+            "authorization_consumed"
+        )
+        is not True
+        or document.get(
+            "replay_allowed"
+        )
+        is not False
+        or document.get(
+            "status"
+        )
+        not in {
+            "CLAIMED",
+            "STOPPED_RECOVERY_FAILED",
+            "STOPPED_POSTCHECK_FAILED",
+            "STOPPED_ARCHIVE_FAILED",
+            "CLOSED_PASS",
+        }
+    ):
+        raise OnboardingError(
+            "successor_recovery_record_invalid"
+        )
+
+    authorization_id = document.get(
+        "authorization_id"
+    )
+    if not isinstance(
+        authorization_id,
+        str,
+    ):
+        raise OnboardingError(
+            "successor_recovery_authorization_invalid"
+        )
+    _authorization_id(
+        authorization_id
+    )
+
+    for key in (
+        "release_id",
+        "host_instance_id",
+        "system_id",
+    ):
+        if (
+            not isinstance(
+                document.get(key),
+                str,
+            )
+            or not document[key]
+        ):
+            raise OnboardingError(
+                "successor_recovery_binding_invalid"
+            )
+
+    for key in (
+        "predecessor_transaction_sha256",
+        "predecessor_authorization_sha256",
+        "predecessor_tool_sha256",
+        "hardware_id_sha256",
+        "pairing_id_sha256",
+        "tool_sha256",
+    ):
+        value = document.get(key)
+        if (
+            not isinstance(value, str)
+            or re.fullmatch(
+                r"[0-9a-f]{64}",
+                value,
+            )
+            is None
+        ):
+            raise OnboardingError(
+                "successor_recovery_hash_invalid"
+            )
+
+    if document[
+        "tool_sha256"
+    ] != _sha256_file(
+        Path(__file__).resolve()
+    ):
+        raise OnboardingError(
+            "successor_recovery_tool_binding_invalid"
+        )
+
+    ids = document.get(
+        "baseline_container_ids"
+    )
+    restarts = document.get(
+        "baseline_restart_counts"
+    )
+    if (
+        not isinstance(ids, dict)
+        or set(ids)
+        != EXPECTED_SERVICES
+        or any(
+            not _is_container_id(
+                value
+            )
+            for value
+            in ids.values()
+        )
+        or not isinstance(
+            restarts,
+            dict,
+        )
+        or set(restarts)
+        != EXPECTED_SERVICES
+        or any(
+            not isinstance(
+                value,
+                int,
+            )
+            or isinstance(
+                value,
+                bool,
+            )
+            or value < 0
+            for value
+            in restarts.values()
+        )
+    ):
+        raise OnboardingError(
+            "successor_recovery_container_binding_invalid"
+        )
+
+    if (
+        document.get("status")
+        == "CLOSED_PASS"
+    ):
+        archive_path = (
+            TRANSACTION_ARCHIVE_ROOT
+            / (
+                "FIRST_PAIRING_ONBOARDING."
+                + document[
+                    "predecessor_transaction_sha256"
+                ]
+                + ".json"
+            )
+        )
+        if (
+            hashlib.sha256(
+                _read_private_bytes(
+                    archive_path
+                )
+            ).hexdigest()
+            != document[
+                "predecessor_transaction_sha256"
+            ]
+        ):
+            raise OnboardingError(
+                "successor_recovery_archive_invalid"
+            )
+        if (
+            TRANSACTION_PATH.exists()
+            or TRANSACTION_PATH.is_symlink()
+        ):
+            raise OnboardingError(
+                "successor_recovery_predecessor_not_archived"
+            )
+
+    return document
+
+
 def _baseline_from_transaction(
     transaction: dict[str, Any],
 ) -> dict[str, dict[str, Any]]:
