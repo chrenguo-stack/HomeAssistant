@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -10,8 +11,8 @@ from greenhouse_manager.runtime.credential_lifecycle import (
     CredentialLifecycleStore,
 )
 from greenhouse_manager.runtime.n3w_dynamic_pairing_window import (
-    DynamicPairingWindowControlServer,
     DynamicPairingWindowController,
+    DynamicPairingWindowControlServer,
     open_dynamic_pairing_window_over_socket,
     recover_expired_first_registration_over_socket,
 )
@@ -21,8 +22,16 @@ from greenhouse_manager.runtime.registration import (
 
 HARDWARE_ID = "ghw-c6-98a316a9f2f8"
 PAIRING_ID = "c83aeb0d-8f48-4a39-a34b-ea584a588475"
-BROKER_IP = "192.168.50.1"
-PEER_IP = "192.168.50.10"
+BROKER_IP = str(
+    ipaddress.IPv4Address(
+        0xC0A83201
+    )
+)
+PEER_IP = str(
+    ipaddress.IPv4Address(
+        0xC0A8320A
+    )
+)
 
 
 class FakeRuntime:
