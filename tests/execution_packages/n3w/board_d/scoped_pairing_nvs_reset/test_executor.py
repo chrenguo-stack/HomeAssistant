@@ -24,8 +24,8 @@ def test_frozen_board_d_scope() -> None:
 
 def test_executor_forbids_broad_flash_mutation() -> None:
     source = MODULE_PATH.read_text(encoding="utf-8")
-    assert '"erase-flash"' not in source
-    assert '"write-flash"' not in source
+    assert "erase-flash" not in source
+    assert "write-flash" not in source
     assert "FULL_FLASH_ERASE=false" in source
     assert "APPLICATION_FLASH_REWRITE=false" in source
     assert '"--evidence-root"' not in source
@@ -293,3 +293,12 @@ def test_run_preflight_checks_authorization_state_before_reporting_pass() -> Non
     pass_print = body.index('print("SCOPED_NVS_RESET_PREEXECUTION=PASS")')
 
     assert claim_guard < pass_print
+
+
+def test_terminal_result_is_fsynced_before_pass_output() -> None:
+    source = MODULE_PATH.read_text(encoding="utf-8")
+    result_write = source.index("write_private_json(result_path, result)")
+    result_sync = source.index("fsync_directory(run_root)", result_write)
+    pass_output = source.index('print("SCOPED_NVS_ERASE=PASS")')
+
+    assert result_write < result_sync < pass_output
