@@ -35,13 +35,14 @@ def test_executor_forbids_broad_flash_mutation() -> None:
 def test_claim_precedes_exact_scoped_erase() -> None:
     source = MODULE_PATH.read_text(encoding="utf-8")
     claim = source.index("write_private_json(claim_path, claim)")
+    durable_claim = source.index("fsync_directory(run_root)", claim)
     erase = source.index("erase_nvs_noreset(args.port)")
     erased_readback = source.index(
         "noreset_read(args.port, NVS_OFFSET, NVS_SIZE, erased, before_no_reset=True)"
     )
     oracle = source.index('raise StopExecution("preboot erased NVS oracle failed")')
     closed = source.index('"status": "CLOSED_PASS_PREBOOT"')
-    assert claim < erase < erased_readback < oracle < closed
+    assert claim < durable_claim < erase < erased_readback < oracle < closed
 
 
 def test_erase_command_uses_exact_range_and_no_reset(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -248,3 +249,20 @@ def test_authorization_state_root_ignores_HOME_environment(
 
     assert observed == real_home / module.AUTHORIZATION_STATE_RELATIVE
     assert not str(observed).startswith(str(fake_home))
+
+
+def test_claim_directory_is_fsynced_before_return(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "state"
+    root.mkdir(mode=0o700)
+    run_root = module.authorization_run_root(root)
+    synced: list[Path] = []
+
+    monkeypatch.setattr(module, "fsync_directory", lambda path: synced.append(path))
+
+    module.claim_authorization(run_root)
+
+    assert run_root.is_dir()
+    assert synced == [root]
