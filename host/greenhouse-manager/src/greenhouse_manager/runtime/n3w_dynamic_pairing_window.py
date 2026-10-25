@@ -1258,40 +1258,39 @@ def recover_expired_first_registration_over_socket(
             ),
         },
     )
-    if result.get("accepted") is True:
-        if (
-            result.get("code")
-            != "expired_first_recovery_complete"
-            or result.get(
-                "hardware_id_sha256"
-            )
-            != hardware_id_sha256
-            or result.get(
-                "pairing_id_sha256"
-            )
-            != pairing_id_sha256
-            or result.get(
-                "current_registration_released"
-            )
-            is not True
-            or result.get(
-                "replay_tombstone_preserved"
-            )
-            is not True
-            or result.get(
-                "credential_history_absent"
-            )
-            is not True
-            or result.get(
-                "manager_recreated"
-            )
-            is not False
-            or result.get(
-                "raw_identity_in_output"
-            )
-            is not False
-        ):
-            raise DynamicPairingWindowError(
-                "pairing_recovery_response_invalid"
-            )
+    if result.get("accepted") is True and (
+        result.get("code")
+        != "expired_first_recovery_complete"
+        or result.get(
+            "hardware_id_sha256"
+        )
+        != hardware_id_sha256
+        or result.get(
+            "pairing_id_sha256"
+        )
+        != pairing_id_sha256
+        or result.get(
+            "current_registration_released"
+        )
+        is not True
+        or result.get(
+            "replay_tombstone_preserved"
+        )
+        is not True
+        or result.get(
+            "credential_history_absent"
+        )
+        is not True
+        or result.get(
+            "manager_recreated"
+        )
+        is not False
+        or result.get(
+            "raw_identity_in_output"
+        )
+        is not False
+    ):
+        raise DynamicPairingWindowError(
+            "pairing_recovery_response_invalid"
+        )
     return result
