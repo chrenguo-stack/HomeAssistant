@@ -2877,6 +2877,8 @@ def _claim_successor_recovery(
     authorization_id: str,
     predecessor: dict[str, Any],
     predecessor_sha256: str,
+    factory: dict[str, Any],
+    baseline: dict[str, dict[str, Any]],
     candidate: dict[str, Any],
 ) -> dict[str, Any]:
     if (
@@ -2895,13 +2897,20 @@ def _claim_successor_recovery(
         "authorization_claimed": True,
         "authorization_consumed": True,
         "replay_allowed": False,
-        "release_id": predecessor[
-            "release_id"
-        ],
-        "host_instance_id": predecessor[
+        "predecessor_release_id": (
+            predecessor[
+                "release_id"
+            ]
+        ),
+        "recovery_release_id": (
+            factory[
+                "release_id"
+            ]
+        ),
+        "host_instance_id": factory[
             "host_instance_id"
         ],
-        "system_id": predecessor[
+        "system_id": factory[
             "system_id"
         ],
         "predecessor_transaction_sha256": (
@@ -2931,16 +2940,36 @@ def _claim_successor_recovery(
                 "pairing_id_sha256"
             ]
         ),
-        "baseline_container_ids": dict(
+        "predecessor_baseline_container_ids": dict(
             predecessor[
                 "baseline_container_ids"
             ]
         ),
-        "baseline_restart_counts": dict(
+        "predecessor_baseline_restart_counts": dict(
             predecessor[
                 "baseline_restart_counts"
             ]
         ),
+        "baseline_container_ids": {
+            service: baseline[
+                service
+            ]["id"]
+            for service
+            in sorted(
+                EXPECTED_SERVICES
+            )
+        },
+        "baseline_restart_counts": {
+            service: baseline[
+                service
+            ][
+                "restart_count"
+            ]
+            for service
+            in sorted(
+                EXPECTED_SERVICES
+            )
+        },
         "claimed_at_unix": int(
             time.time()
         ),
@@ -3027,7 +3056,8 @@ def _successor_recovery_record() -> dict[str, Any]:
     )
 
     for key in (
-        "release_id",
+        "predecessor_release_id",
+        "recovery_release_id",
         "host_instance_id",
         "system_id",
     ):
