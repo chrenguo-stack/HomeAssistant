@@ -367,6 +367,7 @@ def run_execute(args: argparse.Namespace) -> int:
             "t1_mutation": False,
         }
         write_private_json(result_path, result)
+        fsync_directory(run_root)
     except Exception as error:
         failure = {
             "schema": SCHEMA,
@@ -381,6 +382,7 @@ def run_execute(args: argparse.Namespace) -> int:
         }
         if not result_path.exists():
             write_private_json(result_path, failure)
+            fsync_directory(run_root)
         raise
 
     print("SCOPED_NVS_ERASE=PASS")
