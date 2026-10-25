@@ -28,6 +28,8 @@ def test_executor_forbids_broad_flash_mutation() -> None:
     assert '"write-flash"' not in source
     assert "FULL_FLASH_ERASE=false" in source
     assert "APPLICATION_FLASH_REWRITE=false" in source
+    assert '"--evidence-root"' not in source
+    assert "AUTHORIZATION_STATE_RELATIVE" in source
 
 
 def test_claim_precedes_exact_scoped_erase() -> None:
@@ -140,3 +142,88 @@ def test_preflight_rejects_reused_or_mismatched_board_identity(
 
     with pytest.raises(module.StopExecution, match="Board D identity"):
         module.require_preflight(preflight, "/dev/cu.usbmodem14101")
+
+
+def test_authorization_claim_is_not_bypassable_by_alternate_work_directory(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    fixed_state = tmp_path / "fixed-state"
+    monkeypatch.setattr(module, "authorization_state_root", lambda: fixed_state)
+
+    root = module.prepare_authorization_state_root()
+    first = module.require_authorization_unclaimed(root)
+    module.claim_authorization(first)
+
+    unrelated_work = tmp_path / "alternate-work"
+    unrelated_work.mkdir()
+    assert unrelated_work != root
+
+    with pytest.raises(module.StopExecution, match="authorization already claimed"):
+        module.require_authorization_unclaimed(
+            module.prepare_authorization_state_root()
+        )
+
+
+def test_cli_does_not_accept_caller_selected_evidence_root() -> None:
+    parser = module.build_parser()
+    actions = parser._subparsers._group_actions[0].choices["execute"]._actions
+    destinations = {action.dest for action in actions}
+    assert "evidence_root" not in destinations
+    assert "authorization_id" in destinations
+    assert "confirm" in destinations
+
+
+def test_preflight_requires_exact_artifact_and_no_replay(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    port = "/dev/cu.usbmodem14101"
+    preflight = tmp_path / "preflight.json"
+    artifact = module.base.artifact_binding_payload()
+    payload = {
+        "schema": module.PREFLIGHT_SCHEMA,
+        "status": "PASS",
+        "created_at": "2026-10-25T15:06:08+00:00",
+        "persistent_mutation": False,
+        "flash_write": False,
+        "nvs_write": False,
+        "write_command_present": False,
+        "write_authorization_granted": False,
+        "replay_permitted": False,
+        "artifact": artifact,
+        "board": {
+            "hardware_id_sha256": module.EXPECTED_HARDWARE_ID_SHA256,
+            "bootloader_sha256": module.EXPECTED_BOOTLOADER_SHA256,
+            "partition_table_sha256": module.EXPECTED_PARTITION_TABLE_SHA256,
+            "bootloader_matches_release": True,
+            "partition_table_matches_release": True,
+            "port_sha256": module.hashlib.sha256(port.encode()).hexdigest(),
+        },
+    }
+    preflight.write_text(module.json.dumps(payload), encoding="utf-8")
+    monkeypatch.setattr(
+        module,
+        "utc_now",
+        lambda: module.dt.datetime(
+            2026,
+            10,
+            25,
+            15,
+            7,
+            tzinfo=module.dt.timezone.utc,
+        ),
+    )
+    assert module.require_preflight(preflight, port)["artifact"] == artifact
+
+    payload["replay_permitted"] = True
+    preflight.write_text(module.json.dumps(payload), encoding="utf-8")
+    with pytest.raises(module.StopExecution, match="replay boundary"):
+        module.require_preflight(preflight, port)
+
+    payload["replay_permitted"] = False
+    payload["artifact"] = dict(artifact)
+    payload["artifact"]["artifact_id"] = -1
+    preflight.write_text(module.json.dumps(payload), encoding="utf-8")
+    with pytest.raises(module.StopExecution, match="artifact binding"):
+        module.require_preflight(preflight, port)
