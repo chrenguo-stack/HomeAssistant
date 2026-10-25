@@ -364,6 +364,102 @@ def test_records_expiry_event(registry: RegistrationRegistry) -> None:
     assert registry.list_events()[0].event == "expired"
 
 
+def test_recover_expired_first_registration_is_atomic(
+    registry: RegistrationRegistry,
+    tmp_path: Path,
+) -> None:
+    registry.observe_hello(
+        valid_hello(),
+        now=NOW,
+    )
+
+    with CredentialLifecycleStore(
+        tmp_path / "credential-lifecycle.sqlite3"
+    ) as credentials:
+        with pytest.raises(
+            RegistrationConflict,
+            match="has not expired",
+        ):
+            registry.recover_expired_first_registration(
+                HARDWARE_ID,
+                PAIRING_ID,
+                credential_history=credentials,
+                now=NOW + timedelta(seconds=119),
+            )
+
+        assert (
+            registry.get(HARDWARE_ID).state
+            is RegistrationState.PENDING
+        )
+
+        recovered = (
+            registry.recover_expired_first_registration(
+                HARDWARE_ID,
+                PAIRING_ID,
+                credential_history=credentials,
+                now=NOW + timedelta(seconds=121),
+            )
+        )
+
+    assert (
+        recovered.state
+        is RegistrationState.EXPIRED
+    )
+    with pytest.raises(KeyError):
+        registry.get(HARDWARE_ID)
+    events = registry.list_events(
+        hardware_id=HARDWARE_ID
+    )
+    assert [
+        event.event
+        for event in events
+    ][:2] == [
+        "expired_first_registration_abandoned",
+        "expired",
+    ]
+
+
+def test_recovery_credential_conflict_does_not_expire_pending(
+    registry: RegistrationRegistry,
+    tmp_path: Path,
+) -> None:
+    registry.observe_hello(
+        valid_hello(),
+        now=NOW,
+    )
+
+    with CredentialLifecycleStore(
+        tmp_path / "credential-lifecycle.sqlite3"
+    ) as credentials:
+        credentials.activate(
+            hardware_id=HARDWARE_ID,
+            node_id=NODE_ID,
+            generation=1,
+            pairing_id=PAIRING_ID,
+            now=NOW,
+        )
+
+        with pytest.raises(
+            RegistrationConflict,
+            match="credential assignment history",
+        ):
+            registry.recover_expired_first_registration(
+                HARDWARE_ID,
+                PAIRING_ID,
+                credential_history=credentials,
+                now=NOW + timedelta(seconds=121),
+            )
+
+    current = registry.get(HARDWARE_ID)
+    assert current.state is RegistrationState.PENDING
+    assert [
+        event.event
+        for event in registry.list_events(
+            hardware_id=HARDWARE_ID
+        )
+    ] == ["hello_created"]
+
+
 def test_retirement_is_durable_auditable_and_releases_current_node_id(
     registry: RegistrationRegistry,
 ) -> None:
