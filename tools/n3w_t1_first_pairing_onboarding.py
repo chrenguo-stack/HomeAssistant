@@ -104,6 +104,17 @@ def _sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def _is_container_id(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and re.fullmatch(
+            r"(?:[0-9a-f]{12}|[0-9a-f]{64})",
+            value,
+        )
+        is not None
+    )
+
+
 def _sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -330,12 +341,8 @@ def _service_id(service: str) -> str:
     if len(values) != 1:
         raise OnboardingError(f"{service}_container_count_{len(values)}")
     container_id = values[0]
-    if (
-        re.fullmatch(
-            r"(?:[0-9a-f]{12}|[0-9a-f]{64})",
-            container_id,
-        )
-        is None
+    if not _is_container_id(
+        container_id
     ):
         raise OnboardingError(
             f"{service}_container_id_invalid"
@@ -1959,15 +1966,9 @@ def _transaction() -> dict[str, Any]:
         or set(baseline)
         != EXPECTED_SERVICES
         or any(
-            not isinstance(
-                value,
-                str,
+            not _is_container_id(
+                value
             )
-            or re.fullmatch(
-                r"(?:[0-9a-f]{12}|[0-9a-f]{64})",
-                value,
-            )
-            is None
             for value
             in baseline.values()
         )
