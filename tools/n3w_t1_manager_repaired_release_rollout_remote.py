@@ -1132,6 +1132,19 @@ def _compose_state(
 ) -> dict[str, Any]:
     _require_regular(COMPOSE_ENV)
     _require_regular(EXPECTED_COMPOSE)
+    metadata = COMPOSE_ENV.stat()
+    if (
+        metadata.st_uid != 0
+        or metadata.st_gid != 0
+        or stat.S_IMODE(
+            metadata.st_mode
+        )
+        != 0o600
+        or metadata.st_nlink != 1
+    ):
+        raise RolloutError(
+            "compose_env_metadata_invalid"
+        )
     env_bytes = COMPOSE_ENV.read_bytes()
     manager_image, excluding = (
         _parse_env(env_bytes)
@@ -2044,12 +2057,13 @@ def commit() -> dict[str, Any]:
             pairing_exposure_closed=True,
             recovery_capability_present=True,
         )
-        if ENV_BACKUP.exists():
-            ENV_BACKUP.unlink()
-        shutil.rmtree(
-            stage,
-            ignore_errors=True,
-        )
+        cleanup_complete = True
+        try:
+            if ENV_BACKUP.exists():
+                ENV_BACKUP.unlink()
+            shutil.rmtree(stage)
+        except OSError:
+            cleanup_complete = False
         return {
             "schema": SCHEMA,
             "status": "PASS",
@@ -2069,6 +2083,8 @@ def commit() -> dict[str, Any]:
                 "CLOSED",
             "recovery_capability_present":
                 True,
+            "cleanup_complete":
+                cleanup_complete,
             "raw_locator_in_output": False,
             "board_access": False,
         }
@@ -2142,6 +2158,36 @@ def commit() -> dict[str, Any]:
         raise
 
 
+def transaction_status() -> dict[str, Any]:
+    _require_root()
+    if not TRANSACTION.exists():
+        return {
+            "schema": SCHEMA,
+            "status": "PASS",
+            "operation": "status",
+            "transaction_present": False,
+            "transaction_state": "ABSENT",
+            "authorization_consumed": False,
+            "replay_allowed": None,
+            "raw_locator_in_output": False,
+            "board_access": False,
+        }
+    value = _transaction()
+    return {
+        "schema": SCHEMA,
+        "status": "PASS",
+        "operation": "status",
+        "transaction_present": True,
+        "transaction_state": str(
+            value.get("status", "UNKNOWN")
+        ),
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "raw_locator_in_output": False,
+        "board_access": False,
+    }
+
+
 def abort(reason_sha256: str) -> dict[str, Any]:
     _require_root()
     _validate_sha(
@@ -2174,6 +2220,7 @@ def abort(reason_sha256: str) -> dict[str, Any]:
         "schema": SCHEMA,
         "status": "STOP",
         "operation": "abort",
+        "transaction_state": "STOPPED_TRANSFER_FAILED",
         "authorization_consumed": True,
         "replay_allowed": False,
         "raw_locator_in_output": False,
@@ -2242,6 +2289,7 @@ def parser() -> argparse.ArgumentParser:
     )
 
     commands.add_parser("commit")
+    commands.add_parser("status")
     abort_command = commands.add_parser(
         "abort"
     )
@@ -2263,6 +2311,8 @@ def main() -> int:
             report = claim(args)
         elif args.command == "commit":
             report = commit()
+        elif args.command == "status":
+            report = transaction_status()
         else:
             report = abort(
                 args.reason_sha256
