@@ -1932,6 +1932,131 @@ def _window_control(
     return document
 
 
+def _recover_expired_first_control(
+    manager_id: str,
+    *,
+    hardware_id_sha256: str,
+    pairing_id_sha256: str,
+) -> dict[str, Any]:
+    for value in (
+        hardware_id_sha256,
+        pairing_id_sha256,
+    ):
+        if (
+            re.fullmatch(
+                r"[0-9a-f]{64}",
+                value,
+            )
+            is None
+        ):
+            raise OnboardingError(
+                "successor_recovery_control_hash_invalid"
+            )
+
+    raw = _run(
+        (
+            "docker",
+            "exec",
+            manager_id,
+            "greenhouse-manager-pairing",
+            "recover-expired-first",
+            "--hardware-id-sha256",
+            hardware_id_sha256,
+            "--pairing-id-sha256",
+            pairing_id_sha256,
+        ),
+        timeout=20,
+        allowed=frozenset(
+            {
+                0,
+                2,
+            }
+        ),
+    )
+    try:
+        document = json.loads(
+            raw
+        )
+    except json.JSONDecodeError as error:
+        raise OnboardingError(
+            "successor_recovery_control_response_invalid"
+        ) from error
+
+    if (
+        not isinstance(
+            document,
+            dict,
+        )
+        or not isinstance(
+            document.get(
+                "accepted"
+            ),
+            bool,
+        )
+        or not isinstance(
+            document.get(
+                "code"
+            ),
+            str,
+        )
+        or document.get(
+            "pairing_window_state"
+        )
+        != "CLOSED"
+        or document.get(
+            "raw_locator_in_output"
+        )
+        is not False
+    ):
+        raise OnboardingError(
+            "successor_recovery_control_response_invalid"
+        )
+
+    if document.get(
+        "accepted"
+    ) is True:
+        if (
+            document.get(
+                "code"
+            )
+            != (
+                "expired_first_recovery_complete"
+            )
+            or document.get(
+                "hardware_id_sha256"
+            )
+            != hardware_id_sha256
+            or document.get(
+                "pairing_id_sha256"
+            )
+            != pairing_id_sha256
+            or document.get(
+                "current_registration_released"
+            )
+            is not True
+            or document.get(
+                "replay_tombstone_preserved"
+            )
+            is not True
+            or document.get(
+                "credential_history_absent"
+            )
+            is not True
+            or document.get(
+                "manager_recreated"
+            )
+            is not False
+            or document.get(
+                "raw_identity_in_output"
+            )
+            is not False
+        ):
+            raise OnboardingError(
+                "successor_recovery_control_binding_invalid"
+            )
+    return document
+
+
 def _require_control_accepted(
     result: dict[str, Any],
 ) -> None:
