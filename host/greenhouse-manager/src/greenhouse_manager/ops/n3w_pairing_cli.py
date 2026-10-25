@@ -11,6 +11,7 @@ from greenhouse_manager.runtime.n3w_dynamic_pairing_window import (
     close_dynamic_pairing_window_over_socket,
     dynamic_pairing_window_status_over_socket,
     open_dynamic_pairing_window_over_socket,
+    recover_expired_first_registration_over_socket,
 )
 from greenhouse_manager.runtime.n3w_pairing_local_ipc import (
     authorize_credential_recovery_over_socket,
@@ -152,6 +153,26 @@ def parser() -> argparse.ArgumentParser:
         default=_default_control_socket_path(),
     )
 
+    expired_first_recovery = commands.add_parser(
+        "recover-expired-first",
+        help=(
+            "release one expired never-approved "
+            "first-registration pointer"
+        ),
+    )
+    expired_first_recovery.add_argument(
+        "--control-socket",
+        default=_default_control_socket_path(),
+    )
+    expired_first_recovery.add_argument(
+        "--hardware-id-sha256",
+        required=True,
+    )
+    expired_first_recovery.add_argument(
+        "--pairing-id-sha256",
+        required=True,
+    )
+
     return root
 
 
@@ -196,6 +217,18 @@ def main(
         result = (
             close_dynamic_pairing_window_over_socket(
                 args.control_socket
+            )
+        )
+    elif args.command == "recover-expired-first":
+        result = (
+            recover_expired_first_registration_over_socket(
+                args.control_socket,
+                hardware_id_sha256=(
+                    args.hardware_id_sha256
+                ),
+                pairing_id_sha256=(
+                    args.pairing_id_sha256
+                ),
             )
         )
     else:
