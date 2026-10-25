@@ -199,6 +199,14 @@ def authorization_run_root(root: Path) -> Path:
     return root / ("authorization-" + token)
 
 
+def fsync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
 def require_authorization_unclaimed(root: Path) -> Path:
     run_root = authorization_run_root(root)
     if run_root.exists() or run_root.is_symlink():
@@ -216,6 +224,7 @@ def claim_authorization(run_root: Path) -> None:
     metadata = run_root.stat()
     if metadata.st_uid != os.getuid() or stat.S_IMODE(metadata.st_mode) != 0o700:
         raise StopExecution("authorization claim directory ownership or mode invalid")
+    fsync_directory(run_root.parent)
 
 
 def run_preflight(args: argparse.Namespace) -> int:
@@ -263,6 +272,7 @@ def run_execute(args: argparse.Namespace) -> int:
         backup = run_root / "nvs-before.bin"
         os.replace(backup_staging, backup)
         backup.chmod(0o600)
+        fsync_directory(run_root)
 
     erased = run_root / "nvs-erased-preboot.bin"
     bootloader = run_root / "bootloader-post.bin"
@@ -288,6 +298,7 @@ def run_execute(args: argparse.Namespace) -> int:
         "nvs_backup_non_ff_bytes": backup_non_ff,
     }
     write_private_json(claim_path, claim)
+    fsync_directory(run_root)
 
     try:
         erase_nvs_noreset(args.port)
