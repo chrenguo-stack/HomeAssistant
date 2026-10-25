@@ -3268,10 +3268,97 @@ def _successor_recovery_record() -> dict[str, Any]:
             "successor_recovery_container_binding_invalid"
         )
 
+    predecessor_ids = document.get(
+        "predecessor_baseline_container_ids"
+    )
+    predecessor_restarts = document.get(
+        "predecessor_baseline_restart_counts"
+    )
+    if (
+        not isinstance(
+            predecessor_ids,
+            dict,
+        )
+        or set(
+            predecessor_ids
+        )
+        != EXPECTED_SERVICES
+        or any(
+            not _is_container_id(
+                value
+            )
+            for value
+            in predecessor_ids.values()
+        )
+        or not isinstance(
+            predecessor_restarts,
+            dict,
+        )
+        or set(
+            predecessor_restarts
+        )
+        != EXPECTED_SERVICES
+        or any(
+            not isinstance(
+                value,
+                int,
+            )
+            or isinstance(
+                value,
+                bool,
+            )
+            or value < 0
+            for value
+            in predecessor_restarts.values()
+        )
+    ):
+        raise OnboardingError(
+            "successor_recovery_predecessor_container_binding_invalid"
+        )
+
     if (
         document.get("status")
         == "CLOSED_PASS"
     ):
+        if (
+            document.get(
+                "manager_recovery_accepted"
+            )
+            is not True
+            or document.get(
+                "postcheck_passed"
+            )
+            is not True
+            or document.get(
+                "predecessor_archived"
+            )
+            is not True
+            or document.get(
+                "predecessor_archive_sha256"
+            )
+            != document[
+                "predecessor_transaction_sha256"
+            ]
+            or document.get(
+                "pairing_exposure_closed"
+            )
+            is not True
+            or document.get(
+                "manager_container_unchanged"
+            )
+            is not True
+            or document.get(
+                "broker_continuity"
+            )
+            is not True
+            or document.get(
+                "homeassistant_continuity"
+            )
+            is not True
+        ):
+            raise OnboardingError(
+                "successor_recovery_closure_invalid"
+            )
         archive_path = (
             TRANSACTION_ARCHIVE_ROOT
             / (
