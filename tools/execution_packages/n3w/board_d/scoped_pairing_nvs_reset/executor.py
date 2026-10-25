@@ -182,15 +182,24 @@ def authorization_state_root() -> Path:
     return home / AUTHORIZATION_STATE_RELATIVE
 
 
-def prepare_authorization_state_root() -> Path:
-    root = authorization_state_root()
+def validate_authorization_state_root(root: Path) -> None:
     if root.is_symlink():
         raise StopExecution("authorization state root symlink forbidden")
-    root.mkdir(parents=True, exist_ok=True, mode=0o700)
-    root.chmod(0o700)
+    if not root.exists():
+        return
+    if not root.is_dir():
+        raise StopExecution("authorization state root is not a directory")
     metadata = root.stat()
     if metadata.st_uid != os.getuid() or stat.S_IMODE(metadata.st_mode) != 0o700:
         raise StopExecution("authorization state root ownership or mode invalid")
+
+
+def prepare_authorization_state_root() -> Path:
+    root = authorization_state_root()
+    validate_authorization_state_root(root)
+    root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    root.chmod(0o700)
+    validate_authorization_state_root(root)
     return root
 
 
@@ -214,6 +223,12 @@ def require_authorization_unclaimed(root: Path) -> Path:
     return run_root
 
 
+def require_authorization_unclaimed_readonly() -> Path:
+    root = authorization_state_root()
+    validate_authorization_state_root(root)
+    return require_authorization_unclaimed(root)
+
+
 def claim_authorization(run_root: Path) -> None:
     try:
         run_root.mkdir(mode=0o700)
@@ -228,6 +243,7 @@ def claim_authorization(run_root: Path) -> None:
 
 
 def run_preflight(args: argparse.Namespace) -> int:
+    require_authorization_unclaimed_readonly()
     require_preflight(Path(args.preflight_json), args.port)
     board = fresh_board_preclaim(args.port, Path(args.release_bundle))
     print("SCOPED_NVS_RESET_PREEXECUTION=PASS")
