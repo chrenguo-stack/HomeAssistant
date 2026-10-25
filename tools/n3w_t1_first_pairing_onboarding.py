@@ -3549,22 +3549,22 @@ def inspect() -> dict[str, Any]:
         dict[str, Any]
         | None
     ) = None
-    if (
-        TRANSACTION_PATH.exists()
-        and not (
-            TRANSACTION_PATH.is_symlink()
+    if TRANSACTION_PATH.is_symlink():
+        raise OnboardingError(
+            "onboarding_transaction_symlink_forbidden"
         )
-    ):
+    if TRANSACTION_PATH.exists():
         transaction = _transaction()
 
     successor_recovery: (
         dict[str, Any]
         | None
     ) = None
-    if (
-        SUCCESSOR_RECOVERY_PATH.exists()
-        and not SUCCESSOR_RECOVERY_PATH.is_symlink()
-    ):
+    if SUCCESSOR_RECOVERY_PATH.is_symlink():
+        raise OnboardingError(
+            "successor_recovery_symlink_forbidden"
+        )
+    if SUCCESSOR_RECOVERY_PATH.exists():
         successor_recovery = (
             _successor_recovery_record()
         )
@@ -5005,6 +5005,9 @@ def _parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "inspect"
     )
+    subparsers.add_parser(
+        "successor-inspect"
+    )
 
     open_command = (
         subparsers.add_parser(
@@ -5088,6 +5091,13 @@ def main(
     try:
         if args.command == "inspect":
             report = inspect()
+        elif (
+            args.command
+            == "successor-inspect"
+        ):
+            report = (
+                inspect_successor_recovery()
+            )
         elif args.command == "expire":
             with _exclusive_lock(
                 blocking=True
