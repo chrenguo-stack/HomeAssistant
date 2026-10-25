@@ -29,6 +29,7 @@ ERASED_SHA256 = hashlib.sha256(b"\xff" * NVS_SIZE).hexdigest()
 AUTHORIZATION_ID = "N3W_T1_BOARD_D_SCOPED_PAIRING_NVS_RESET_20261025_01"
 CONFIRMATION = "ERASE BOARD D SCOPED PAIRING NVS: YES"
 PREFLIGHT_MAX_AGE_SECONDS = 900
+AUTHORIZATION_STATE_RELATIVE = Path(".local/state/n3w/board-d-scoped-pairing-nvs-reset")
 
 
 class StopExecution(RuntimeError):
@@ -85,6 +86,10 @@ def require_preflight(path: Path, port: str) -> dict[str, object]:
     for key in ("persistent_mutation", "flash_write", "nvs_write", "write_command_present", "write_authorization_granted"):
         if value.get(key) is not False:
             raise StopExecution("preflight mutation boundary invalid")
+    if value.get("replay_permitted") is not False:
+        raise StopExecution("preflight replay boundary invalid")
+    if value.get("artifact") != base.artifact_binding_payload():
+        raise StopExecution("preflight artifact binding drifted")
     created = value.get("created_at")
     if not isinstance(created, str):
         raise StopExecution("preflight timestamp missing")
@@ -168,6 +173,46 @@ def non_ff_count(path: Path) -> int:
     return total
 
 
+def authorization_state_root() -> Path:
+    return Path.home() / AUTHORIZATION_STATE_RELATIVE
+
+
+def prepare_authorization_state_root() -> Path:
+    root = authorization_state_root()
+    if root.is_symlink():
+        raise StopExecution("authorization state root symlink forbidden")
+    root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    root.chmod(0o700)
+    metadata = root.stat()
+    if metadata.st_uid != os.getuid() or stat.S_IMODE(metadata.st_mode) != 0o700:
+        raise StopExecution("authorization state root ownership or mode invalid")
+    return root
+
+
+def authorization_run_root(root: Path) -> Path:
+    token = hashlib.sha256(AUTHORIZATION_ID.encode()).hexdigest()
+    return root / ("authorization-" + token)
+
+
+def require_authorization_unclaimed(root: Path) -> Path:
+    run_root = authorization_run_root(root)
+    if run_root.exists() or run_root.is_symlink():
+        raise StopExecution("authorization already claimed")
+    return run_root
+
+
+def claim_authorization(run_root: Path) -> None:
+    try:
+        run_root.mkdir(mode=0o700)
+    except FileExistsError as error:
+        raise StopExecution("authorization already claimed") from error
+    if run_root.is_symlink() or not run_root.is_dir():
+        raise StopExecution("authorization claim directory invalid")
+    metadata = run_root.stat()
+    if metadata.st_uid != os.getuid() or stat.S_IMODE(metadata.st_mode) != 0o700:
+        raise StopExecution("authorization claim directory ownership or mode invalid")
+
+
 def run_preflight(args: argparse.Namespace) -> int:
     require_preflight(Path(args.preflight_json), args.port)
     board = fresh_board_preclaim(args.port, Path(args.release_bundle))
@@ -188,33 +233,37 @@ def run_execute(args: argparse.Namespace) -> int:
     if args.confirm != CONFIRMATION:
         raise StopExecution("confirmation invalid")
 
+    state_root = prepare_authorization_state_root()
+    run_root = require_authorization_unclaimed(state_root)
+
     preflight = require_preflight(Path(args.preflight_json), args.port)
     board = fresh_board_preclaim(args.port, Path(args.release_bundle))
 
-    evidence_root = Path(args.evidence_root).expanduser().resolve()
-    if evidence_root.is_symlink():
-        raise StopExecution("evidence root symlink forbidden")
-    evidence_root.mkdir(parents=True, exist_ok=True, mode=0o700)
-    evidence_root.chmod(0o700)
-    metadata = evidence_root.stat()
-    if stat.S_IMODE(metadata.st_mode) != 0o700:
-        raise StopExecution("evidence root mode invalid")
+    with tempfile.TemporaryDirectory(
+        prefix="n3w-board-d-scoped-nvs-backup-",
+        dir=state_root,
+    ) as backup_dir:
+        backup_staging = Path(backup_dir) / "nvs-before.bin"
+        backup_sha = noreset_read(
+            args.port,
+            NVS_OFFSET,
+            NVS_SIZE,
+            backup_staging,
+            before_no_reset=False,
+        )
+        backup_staging.chmod(0o600)
+        backup_non_ff = non_ff_count(backup_staging)
 
-    run_root = evidence_root / ("board-d-scoped-nvs-" + hashlib.sha256(args.authorization_id.encode()).hexdigest()[:16])
-    if run_root.exists() or run_root.is_symlink():
-        raise StopExecution("authorization already claimed")
-    run_root.mkdir(mode=0o700)
+        claim_authorization(run_root)
+        backup = run_root / "nvs-before.bin"
+        os.replace(backup_staging, backup)
+        backup.chmod(0o600)
 
-    backup = run_root / "nvs-before.bin"
     erased = run_root / "nvs-erased-preboot.bin"
     bootloader = run_root / "bootloader-post.bin"
     partition = run_root / "partition-table-post.bin"
     claim_path = run_root / "claim.json"
     result_path = run_root / "result.json"
-
-    backup_sha = noreset_read(args.port, NVS_OFFSET, NVS_SIZE, backup, before_no_reset=False)
-    backup.chmod(0o600)
-    backup_non_ff = non_ff_count(backup)
 
     claim = {
         "schema": CLAIM_SCHEMA,
@@ -336,7 +385,6 @@ def build_parser() -> argparse.ArgumentParser:
     execute.add_argument("--preflight-json", required=True)
     execute.add_argument("--authorization-id", required=True)
     execute.add_argument("--confirm", required=True)
-    execute.add_argument("--evidence-root", required=True)
     execute.set_defaults(func=run_execute)
     return parser
 
