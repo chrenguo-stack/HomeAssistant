@@ -5,6 +5,7 @@ import datetime as dt
 import hashlib
 import json
 import os
+import pwd
 import stat
 import sys
 import tempfile
@@ -174,7 +175,11 @@ def non_ff_count(path: Path) -> int:
 
 
 def authorization_state_root() -> Path:
-    return Path.home() / AUTHORIZATION_STATE_RELATIVE
+    account = pwd.getpwuid(os.getuid())
+    home = Path(account.pw_dir)
+    if not home.is_absolute():
+        raise StopExecution("authorization account home is not absolute")
+    return home / AUTHORIZATION_STATE_RELATIVE
 
 
 def prepare_authorization_state_root() -> Path:
