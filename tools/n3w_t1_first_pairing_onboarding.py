@@ -3444,6 +3444,82 @@ def _successor_recovery_record() -> dict[str, Any]:
             raise OnboardingError(
                 "successor_recovery_closure_invalid"
             )
+        final_counts = document.get(
+            "final_database_counts"
+        )
+        final_security = document.get(
+            "final_security_counts"
+        )
+        if (
+            not isinstance(
+                final_counts,
+                dict,
+            )
+            or set(
+                final_counts
+            )
+            != set(
+                EXPECTED_TABLES
+            )
+            or any(
+                not isinstance(
+                    value,
+                    int,
+                )
+                or isinstance(
+                    value,
+                    bool,
+                )
+                or value < 0
+                for value
+                in final_counts.values()
+            )
+            or final_counts[
+                "registrations"
+            ]
+            != 0
+            or final_counts[
+                "node_id_leases"
+            ]
+            != 0
+            or final_counts[
+                "pairing_sessions"
+            ]
+            < 1
+            or final_counts[
+                "registration_events"
+            ]
+            < 1
+            or not isinstance(
+                final_security,
+                dict,
+            )
+            or set(
+                final_security
+            )
+            != {
+                "credential_assignments",
+                "peer_trust_records",
+                "application_key_active_nodes",
+                "application_key_epochs",
+            }
+            or any(
+                not isinstance(
+                    value,
+                    int,
+                )
+                or isinstance(
+                    value,
+                    bool,
+                )
+                or value != 0
+                for value
+                in final_security.values()
+            )
+        ):
+            raise OnboardingError(
+                "successor_recovery_closure_counts_invalid"
+            )
         archive_path = (
             TRANSACTION_ARCHIVE_ROOT
             / (
