@@ -44,6 +44,8 @@ The successor recovery is split from the later pairing attempt.
 
 A new one-shot recovery authorization is required.
 
+Before any recovery authorization is consumed, the operator runs the read-only `successor-inspect` gate. The inspection and mutation paths share the same preflight implementation so eligibility cannot drift between them.
+
 Before claim, the executor must prove:
 
 - source/tool binding is exact;
@@ -55,7 +57,8 @@ Before claim, the executor must prove:
 - Manager-owned pairing window is CLOSED;
 - UDP/47111 and TCP/47112 are closed;
 - pairing.sock is absent;
-- current accepted release is exact and contains the reviewed recovery primitive;
+- current accepted release is exact, differs from the predecessor release, and contains the reviewed recovery primitive;
+- the running Manager CLI proves the `recover-expired-first` command and hash-only arguments are present before claim;
 - predecessor host_instance_id and system_id still match the current accepted factory identity;
 - the predecessor release ID is preserved as historical evidence but is not required to equal the repaired release ID;
 - a new post-rollout Broker/Manager/Home Assistant runtime baseline is captured before recovery claim;
@@ -161,6 +164,8 @@ Tests must cover:
 - a repaired release may differ from the predecessor release while host_instance_id/system_id remain continuous;
 - running Manager stays alive from recovery claim through recovery closure;
 - Broker/Manager/Home Assistant identities and restart counts remain unchanged from the post-rollout recovery baseline;
+- `successor-inspect` performs the complete eligibility check without creating a recovery record or changing the predecessor transaction;
+- same-release recovery is rejected before claim;
 - onboarding successor recovery claims before mutation;
 - predecessor transaction remains non-replayable;
 - predecessor transaction archive is byte-identical;
