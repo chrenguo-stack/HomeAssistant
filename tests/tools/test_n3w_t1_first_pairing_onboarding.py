@@ -250,9 +250,14 @@ def _expired_predecessor(
     opened_at = int(
         time.time()
     ) - 600
+    claimed_at = (
+        opened_at
+        - 1
+    )
     old_tool_sha = "f" * 64
     return tool._advance_transaction(
         status="OPEN",
+        claimed_at_unix=claimed_at,
         opened_at_unix=opened_at,
         expires_at_unix=(
             opened_at
