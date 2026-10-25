@@ -364,6 +364,48 @@ def test_records_expiry_event(registry: RegistrationRegistry) -> None:
     assert registry.list_events()[0].event == "expired"
 
 
+def test_expire_current_if_due_is_exact_and_idempotent(
+    registry: RegistrationRegistry,
+) -> None:
+    registry.observe_hello(
+        valid_hello(),
+        now=NOW,
+    )
+
+    with pytest.raises(
+        RegistrationConflict,
+        match="has not expired",
+    ):
+        registry.expire_current_if_due(
+            HARDWARE_ID,
+            PAIRING_ID,
+            now=NOW + timedelta(seconds=119),
+        )
+
+    expired = registry.expire_current_if_due(
+        HARDWARE_ID,
+        PAIRING_ID,
+        now=NOW + timedelta(seconds=121),
+    )
+
+    assert expired.state is RegistrationState.EXPIRED
+    assert expired.reason == "expired"
+
+    repeated = registry.expire_current_if_due(
+        HARDWARE_ID,
+        PAIRING_ID,
+        now=NOW + timedelta(seconds=122),
+    )
+
+    assert repeated.state is RegistrationState.EXPIRED
+    assert [
+        event.event
+        for event in registry.list_events(
+            hardware_id=HARDWARE_ID
+        )
+    ].count("expired") == 1
+
+
 def test_retirement_is_durable_auditable_and_releases_current_node_id(
     registry: RegistrationRegistry,
 ) -> None:
