@@ -278,6 +278,19 @@ def test_command_surface_and_factory_defaults_are_fail_closed(
         )
 
 
+def test_container_id_validation_accepts_only_docker_short_or_full_ids() -> None:
+    tool = load_tool()
+
+    assert tool._is_container_id("a" * 12)
+    assert tool._is_container_id("b" * 64)
+    assert not tool._is_container_id("a" * 11)
+    assert not tool._is_container_id("a" * 13)
+    assert not tool._is_container_id("a" * 63)
+    assert not tool._is_container_id("a" * 65)
+    assert not tool._is_container_id("G" * 12)
+    assert not tool._is_container_id(None)
+
+
 def test_claim_persists_hashes_not_raw_locators(
     tmp_path: Path,
 ) -> None:
