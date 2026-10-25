@@ -140,7 +140,8 @@ class N3wDynamicPairingManagerMqttService(
     ) -> None:
         self._dynamic_pairing = (
             DynamicPairingWindowController(
-                settings
+                settings,
+                registration=registration,
             )
         )
         self._pairing_control = (
