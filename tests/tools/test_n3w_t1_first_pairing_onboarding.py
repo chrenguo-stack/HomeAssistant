@@ -152,6 +152,14 @@ def _configure_transaction_paths(
         root
         / "FIRST_PAIRING_ONBOARDING.json"
     )
+    tool.SUCCESSOR_RECOVERY_PATH = (
+        root
+        / "FIRST_PAIRING_SUCCESSOR_RECOVERY.json"
+    )
+    tool.TRANSACTION_ARCHIVE_ROOT = (
+        root
+        / "first-pairing-onboarding-archive"
+    )
     tool.RUNTIME_ROOT = (
         tmp_path
         / "runtime"
