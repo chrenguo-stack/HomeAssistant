@@ -2385,3 +2385,69 @@ def test_successor_archive_collision_stops_before_manager_recovery(
     )
     assert manager_called["value"] is False
     assert tool.TRANSACTION_PATH.is_file()
+
+
+
+def test_recovery_history_can_be_read_without_becoming_current_tool_authority(
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    _configure_transaction_paths(
+        tool,
+        tmp_path,
+    )
+    predecessor = _expired_predecessor(
+        tool
+    )
+    repaired_factory = {
+        **_factory(),
+        "release_id": "release-repaired",
+    }
+    baseline = _runtime_snapshot(
+        broker_id="d" * 12,
+        manager_id="e" * 12,
+        ha_id="f" * 12,
+    )
+    candidate = {
+        "hardware_id_sha256": "1" * 64,
+        "pairing_id_sha256": "2" * 64,
+    }
+    predecessor_sha = (
+        tool._sha256_file(
+            tool.TRANSACTION_PATH
+        )
+    )
+    record = tool._claim_successor_recovery(
+        authorization_id=(
+            "N3W_T1_FIRST_PAIRING_"
+            "SUCCESSOR_HISTORY_01"
+        ),
+        predecessor=predecessor,
+        predecessor_sha256=predecessor_sha,
+        factory=repaired_factory,
+        baseline=baseline,
+        candidate=candidate,
+    )
+    record["tool_sha256"] = "e" * 64
+    tool._write_private_json(
+        tool.SUCCESSOR_RECOVERY_PATH,
+        record,
+    )
+
+    with pytest.raises(
+        tool.OnboardingError,
+        match=(
+            "successor_recovery_tool_binding_invalid"
+        ),
+    ):
+        tool._successor_recovery_record()
+
+    historical = (
+        tool._successor_recovery_record(
+            require_current_tool=False
+        )
+    )
+    assert (
+        historical["tool_sha256"]
+        == "e" * 64
+    )
