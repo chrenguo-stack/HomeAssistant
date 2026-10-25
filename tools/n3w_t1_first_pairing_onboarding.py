@@ -1165,7 +1165,7 @@ def _require_first_pair_admission(
         recovery.get("status")
         != "CLOSED_PASS"
         or recovery[
-            "release_id"
+            "recovery_release_id"
         ]
         != factory[
             "release_id"
