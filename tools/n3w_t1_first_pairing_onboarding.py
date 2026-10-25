@@ -152,6 +152,26 @@ def _read_private_json(path: Path) -> dict[str, Any]:
     return _read_json(path)
 
 
+def _read_private_bytes(path: Path) -> bytes:
+    _require_file(path)
+    metadata = path.stat()
+    if (
+        metadata.st_uid != os.geteuid()
+        or metadata.st_gid != os.getegid()
+        or stat.S_IMODE(metadata.st_mode) != 0o600
+        or metadata.st_nlink != 1
+    ):
+        raise OnboardingError(
+            f"private_record_metadata_invalid:{path.name}"
+        )
+    try:
+        return path.read_bytes()
+    except OSError as error:
+        raise OnboardingError(
+            f"private_record_read_failed:{path.name}"
+        ) from error
+
+
 def _require_root() -> None:
     if os.geteuid() != 0:
         raise OnboardingError("root_required")
@@ -167,6 +187,90 @@ def _require_private_directory(path: Path) -> None:
         or stat.S_IMODE(metadata.st_mode) != 0o700
     ):
         raise OnboardingError(f"private_directory_metadata_invalid:{path.name}")
+
+
+def _ensure_private_directory(path: Path) -> None:
+    if not path.exists():
+        try:
+            path.mkdir(mode=0o700)
+        except OSError as error:
+            raise OnboardingError(
+                f"private_directory_create_failed:{path.name}"
+            ) from error
+    _require_private_directory(path)
+
+
+def _archive_predecessor_transaction(
+    expected_sha256: str,
+) -> Path:
+    payload = _read_private_bytes(
+        TRANSACTION_PATH
+    )
+    actual_sha256 = hashlib.sha256(
+        payload
+    ).hexdigest()
+    if actual_sha256 != expected_sha256:
+        raise OnboardingError(
+            "predecessor_transaction_sha256_changed"
+        )
+
+    _ensure_private_directory(
+        TRANSACTION_ARCHIVE_ROOT
+    )
+    archive_path = (
+        TRANSACTION_ARCHIVE_ROOT
+        / (
+            "FIRST_PAIRING_ONBOARDING."
+            f"{expected_sha256}.json"
+        )
+    )
+    if (
+        archive_path.exists()
+        or archive_path.is_symlink()
+    ):
+        raise OnboardingError(
+            "predecessor_transaction_archive_exists"
+        )
+
+    try:
+        os.replace(
+            TRANSACTION_PATH,
+            archive_path,
+        )
+        for directory in (
+            TRANSACTION_ARCHIVE_ROOT,
+            PROVISIONING_ROOT,
+        ):
+            fd = os.open(
+                directory,
+                os.O_RDONLY
+                | getattr(
+                    os,
+                    "O_DIRECTORY",
+                    0,
+                ),
+            )
+            try:
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+    except OSError as error:
+        raise OnboardingError(
+            "predecessor_transaction_archive_failed"
+        ) from error
+
+    if (
+        hashlib.sha256(
+            _read_private_bytes(
+                archive_path
+            )
+        ).hexdigest()
+        != expected_sha256
+    ):
+        raise OnboardingError(
+            "predecessor_transaction_archive_hash_mismatch"
+        )
+    return archive_path
 
 
 def _write_private_json(path: Path, document: dict[str, Any]) -> None:
