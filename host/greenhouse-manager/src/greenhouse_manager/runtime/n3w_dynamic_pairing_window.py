@@ -4,6 +4,7 @@ import hashlib
 import ipaddress
 import json
 import os
+import re
 import socket
 import stat
 import threading
@@ -14,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from .config import Settings
+from .credential_lifecycle import CredentialLifecycleStore
 from .n3w_simplified_discovery import resolve_route_selected_ipv4
 from .n3w_simplified_product_runtime import (
     SimplifiedProductPairingComposition,
@@ -21,6 +23,7 @@ from .n3w_simplified_product_runtime import (
     build_simplified_product_pairing_composition,
 )
 from .pairing_discovery import is_local_source
+from .registration import RegistrationRegistry
 
 CONTROL_SCHEMA = "gh.n3w.pairing-window-control/1"
 CONTROL_RESPONSE_SCHEMA = "gh.n3w.pairing-window-control-result/1"
@@ -229,6 +232,7 @@ class DynamicPairingWindowController:
         self,
         settings: Settings,
         *,
+        registration: RegistrationRegistry | None = None,
         route_resolver: Callable[
             [str],
             str,
@@ -263,6 +267,7 @@ class DynamicPairingWindowController:
                 "durable_product_pairing_must_be_disabled"
             )
         self.settings = settings
+        self._registration = registration
         self._route_resolver = route_resolver
         self._composition_factory = composition_factory
         self._config_factory = config_factory
@@ -335,6 +340,131 @@ class DynamicPairingWindowController:
     def status(self) -> dict[str, object]:
         with self._lock:
             return self._status_locked()
+
+    def recover_expired_first_registration(
+        self,
+        *,
+        hardware_id_sha256: str,
+        pairing_id_sha256: str,
+    ) -> dict[str, object]:
+        for value in (
+            hardware_id_sha256,
+            pairing_id_sha256,
+        ):
+            if (
+                not isinstance(value, str)
+                or re.fullmatch(
+                    r"[0-9a-f]{64}",
+                    value,
+                )
+                is None
+            ):
+                raise DynamicPairingWindowError(
+                    "pairing_recovery_hash_invalid"
+                )
+
+        with self._operation_lock:
+            with self._lock:
+                if self._state != "CLOSED":
+                    raise DynamicPairingWindowError(
+                        "pairing_recovery_requires_closed_window"
+                    )
+
+            registration = self._registration
+            if registration is None:
+                raise DynamicPairingWindowError(
+                    "pairing_recovery_registry_unavailable"
+                )
+
+            matches = [
+                record
+                for record
+                in registration.list_current()
+                if (
+                    _sha256_text(
+                        record.hardware_id
+                    )
+                    == hardware_id_sha256
+                    and _sha256_text(
+                        record.pairing_id
+                    )
+                    == pairing_id_sha256
+                )
+            ]
+            if len(matches) != 1:
+                raise DynamicPairingWindowError(
+                    "pairing_recovery_identity_not_unique"
+                )
+
+            record = matches[0]
+            try:
+                expired = (
+                    registration
+                    .expire_current_if_due(
+                        record.hardware_id,
+                        record.pairing_id,
+                    )
+                )
+                credential_history = (
+                    CredentialLifecycleStore(
+                        self.settings
+                        .n3w_credential_lifecycle_db_path,
+                        read_only=True,
+                    )
+                )
+                try:
+                    abandoned = (
+                        registration
+                        .abandon_expired_first_registration(
+                            expired.hardware_id,
+                            expired.pairing_id,
+                            credential_history=(
+                                credential_history
+                            ),
+                        )
+                    )
+                finally:
+                    credential_history.close()
+            except Exception as error:
+                raise DynamicPairingWindowError(
+                    "pairing_recovery_rejected"
+                ) from error
+
+            if (
+                _sha256_text(
+                    abandoned.hardware_id
+                )
+                != hardware_id_sha256
+                or _sha256_text(
+                    abandoned.pairing_id
+                )
+                != pairing_id_sha256
+                or any(
+                    _sha256_text(
+                        current.hardware_id
+                    )
+                    == hardware_id_sha256
+                    for current
+                    in registration.list_current()
+                )
+            ):
+                raise DynamicPairingWindowError(
+                    "pairing_recovery_postcondition_invalid"
+                )
+
+            return {
+                "hardware_id_sha256": (
+                    hardware_id_sha256
+                ),
+                "pairing_id_sha256": (
+                    pairing_id_sha256
+                ),
+                "current_registration_released": True,
+                "replay_tombstone_preserved": True,
+                "credential_history_absent": True,
+                "manager_recreated": False,
+                "raw_identity_in_output": False,
+            }
 
     def _worker_failed(
         self,
@@ -678,6 +808,7 @@ def _response(
     *,
     accepted: bool,
     code: str,
+    extra: dict[str, object] | None = None,
 ) -> bytes:
     document = {
         "schema": CONTROL_RESPONSE_SCHEMA,
@@ -685,6 +816,8 @@ def _response(
         "code": code,
         **controller.status(),
     }
+    if extra is not None:
+        document.update(extra)
     return (
         json.dumps(
             document,
@@ -914,6 +1047,39 @@ class DynamicPairingWindowControlServer:
                     accepted=True,
                     code="closed",
                 )
+            if operation == "recover-expired-first":
+                if set(document) != {
+                    "schema",
+                    "operation",
+                    "hardware_id_sha256",
+                    "pairing_id_sha256",
+                }:
+                    raise DynamicPairingWindowError(
+                        "pairing_control_request_invalid"
+                    )
+                result = (
+                    self.controller
+                    .recover_expired_first_registration(
+                        hardware_id_sha256=str(
+                            document[
+                                "hardware_id_sha256"
+                            ]
+                        ),
+                        pairing_id_sha256=str(
+                            document[
+                                "pairing_id_sha256"
+                            ]
+                        ),
+                    )
+                )
+                return _response(
+                    self.controller,
+                    accepted=True,
+                    code=(
+                        "expired_first_recovery_complete"
+                    ),
+                    extra=result,
+                )
             raise DynamicPairingWindowError(
                 "pairing_control_operation_invalid"
             )
@@ -1071,3 +1237,61 @@ def close_dynamic_pairing_window_over_socket(
             "operation": "close",
         },
     )
+
+
+def recover_expired_first_registration_over_socket(
+    path: str | Path,
+    *,
+    hardware_id_sha256: str,
+    pairing_id_sha256: str,
+) -> dict[str, object]:
+    result = _request_over_control_socket(
+        path,
+        {
+            "schema": CONTROL_SCHEMA,
+            "operation": "recover-expired-first",
+            "hardware_id_sha256": (
+                hardware_id_sha256
+            ),
+            "pairing_id_sha256": (
+                pairing_id_sha256
+            ),
+        },
+    )
+    if result.get("accepted") is True:
+        if (
+            result.get("code")
+            != "expired_first_recovery_complete"
+            or result.get(
+                "hardware_id_sha256"
+            )
+            != hardware_id_sha256
+            or result.get(
+                "pairing_id_sha256"
+            )
+            != pairing_id_sha256
+            or result.get(
+                "current_registration_released"
+            )
+            is not True
+            or result.get(
+                "replay_tombstone_preserved"
+            )
+            is not True
+            or result.get(
+                "credential_history_absent"
+            )
+            is not True
+            or result.get(
+                "manager_recreated"
+            )
+            is not False
+            or result.get(
+                "raw_identity_in_output"
+            )
+            is not False
+        ):
+            raise DynamicPairingWindowError(
+                "pairing_recovery_response_invalid"
+            )
+    return result
