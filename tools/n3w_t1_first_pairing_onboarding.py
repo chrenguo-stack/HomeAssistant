@@ -3530,6 +3530,18 @@ def inspect() -> dict[str, Any]:
     ):
         transaction = _transaction()
 
+    successor_recovery: (
+        dict[str, Any]
+        | None
+    ) = None
+    if (
+        SUCCESSOR_RECOVERY_PATH.exists()
+        and not SUCCESSOR_RECOVERY_PATH.is_symlink()
+    ):
+        successor_recovery = (
+            _successor_recovery_record()
+        )
+
     if transaction is None:
         if (
             control.get(
@@ -3593,6 +3605,18 @@ def inspect() -> dict[str, Any]:
         ),
         "transaction_present": (
             transaction is not None
+        ),
+        "successor_recovery_present": (
+            successor_recovery
+            is not None
+        ),
+        "successor_recovery_state": (
+            successor_recovery.get(
+                "status"
+            )
+            if successor_recovery
+            is not None
+            else None
         ),
         "legacy_transaction": (
             transaction is not None
