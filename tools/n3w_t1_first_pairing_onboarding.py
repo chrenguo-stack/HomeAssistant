@@ -1148,6 +1148,8 @@ def _require_first_pair_admission(
     counts: dict[str, int],
     security_counts: dict[str, int],
     factory: dict[str, Any],
+    *,
+    authorization_id: str,
 ) -> None:
     recovery_present = (
         SUCCESSOR_RECOVERY_PATH.exists()
@@ -1185,6 +1187,21 @@ def _require_first_pair_admission(
     ):
         raise OnboardingError(
             "successor_recovery_not_admissible"
+        )
+    if (
+        authorization_id
+        == recovery[
+            "authorization_id"
+        ]
+        or _sha256_text(
+            authorization_id
+        )
+        == recovery[
+            "predecessor_authorization_sha256"
+        ]
+    ):
+        raise OnboardingError(
+            "successor_first_pair_authorization_reused"
         )
     _require_successor_recovered_state(
         counts,
@@ -3940,6 +3957,23 @@ def recover_successor(
     preflight = (
         _successor_recovery_preflight()
     )
+    if (
+        _sha256_text(
+            authorization_id
+        )
+        == _sha256_text(
+            str(
+                preflight[
+                    "predecessor"
+                ][
+                    "authorization_id"
+                ]
+            )
+        )
+    ):
+        raise OnboardingError(
+            "successor_recovery_authorization_reused"
+        )
     factory = preflight[
         "factory"
     ]
@@ -4298,6 +4332,9 @@ def open_window(
         counts,
         security_counts,
         factory,
+        authorization_id=(
+            authorization_id
+        ),
     )
     broker_host = (
         _resolve_route_selected_broker(
