@@ -42,7 +42,7 @@ The successor recovery is split from the later pairing attempt.
 
 ### Gate A — successor recovery
 
-A new one-shot recovery authorization is required.
+A new one-shot recovery authorization is required. Its authorization ID must differ from the consumed predecessor first-pair authorization. A later Gate B first-pair authorization must differ from both earlier authorization IDs.
 
 Before any recovery authorization is consumed, the operator runs the read-only `successor-inspect` gate. The inspection and mutation paths share the same preflight implementation so eligibility cannot drift between them.
 
@@ -166,6 +166,8 @@ Tests must cover:
 - Broker/Manager/Home Assistant identities and restart counts remain unchanged from the post-rollout recovery baseline;
 - `successor-inspect` performs the complete eligibility check without creating a recovery record or changing the predecessor transaction;
 - same-release recovery is rejected before claim;
+- predecessor authorization ID cannot be reused as the successor-recovery authorization;
+- successor-recovery authorization ID and predecessor authorization ID cannot be reused for the later Gate B first-pair open;
 - onboarding successor recovery claims before mutation;
 - predecessor transaction remains non-replayable;
 - predecessor transaction archive is byte-identical;
