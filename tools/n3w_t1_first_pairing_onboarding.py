@@ -3538,9 +3538,10 @@ def open_window(
     security_counts = (
         _security_state_counts()
     )
-    _require_clean_first_pair_state(
+    _require_first_pair_admission(
         counts,
         security_counts,
+        factory,
     )
     broker_host = (
         _resolve_route_selected_broker(
