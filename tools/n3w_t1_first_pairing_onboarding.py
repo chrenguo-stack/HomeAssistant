@@ -200,9 +200,19 @@ def _ensure_private_directory(path: Path) -> None:
     _require_private_directory(path)
 
 
-def _archive_predecessor_transaction(
+def _prepare_predecessor_archive(
     expected_sha256: str,
 ) -> Path:
+    if (
+        re.fullmatch(
+            r"[0-9a-f]{64}",
+            expected_sha256,
+        )
+        is None
+    ):
+        raise OnboardingError(
+            "predecessor_transaction_archive_hash_invalid"
+        )
     payload = _read_private_bytes(
         TRANSACTION_PATH
     )
@@ -231,6 +241,17 @@ def _archive_predecessor_transaction(
         raise OnboardingError(
             "predecessor_transaction_archive_exists"
         )
+    return archive_path
+
+
+def _archive_predecessor_transaction(
+    expected_sha256: str,
+) -> Path:
+    archive_path = (
+        _prepare_predecessor_archive(
+            expected_sha256
+        )
+    )
 
     try:
         os.replace(
@@ -3220,6 +3241,7 @@ def _successor_recovery_record() -> dict[str, Any]:
         )
         not in {
             "CLAIMED",
+            "STOPPED_ARCHIVE_PREP_FAILED",
             "STOPPED_RECOVERY_UNPROVEN",
             "STOPPED_POSTCHECK_FAILED",
             "STOPPED_ARCHIVE_FAILED",
@@ -4029,9 +4051,24 @@ def recover_successor(
             candidate=candidate,
         )
     )
-    _ensure_private_directory(
-        TRANSACTION_ARCHIVE_ROOT
-    )
+    try:
+        _prepare_predecessor_archive(
+            predecessor_sha256
+        )
+    except OPERATION_ERRORS as error:
+        _advance_successor_recovery(
+            status=(
+                "STOPPED_ARCHIVE_PREP_FAILED"
+            ),
+            failure_type=(
+                type(error).__name__
+            ),
+            recovery_result_proven=False,
+            predecessor_archived=False,
+        )
+        raise OnboardingError(
+            "successor_recovery_archive_preflight_failed"
+        ) from error
 
     try:
         result = (
