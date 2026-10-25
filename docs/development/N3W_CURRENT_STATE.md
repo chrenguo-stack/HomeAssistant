@@ -8181,7 +8181,7 @@ STOP before exact production artifact deployment, T1 recovery, Board D pairing o
 ```text
 TASK=N3W_T1_F5_V2_POST_REBOOT_HA_MQTT_READINESS_RACE_SOURCE_REPAIR_20261024_01
 SOURCE_BASE=b31d86a66d7c4fc10370606b610aab3203a91d94
-KF_130=SOURCE_REPAIR_CLOSED_PASS_PENDING_MERGE
+KF_130=SOURCE_REPAIR_MERGED_LIVE_REVALIDATION_PENDING
 FAILED_RUN_REPLAY=false
 FAILED_T1_REFLASH_REQUIRED=true
 T1_PRODUCTION_READY=false
@@ -8246,3 +8246,45 @@ authority.
 The failed live run remains terminal and cannot be replayed or retroactively accepted.
 A future live production attempt requires merge, a completely new exact-release chain,
 local validation, T1 reflash/fresh qualification and a new run ID.
+
+
+## 2026-10-24 — KF-130 PR #665 post-merge closure and next exact-release route
+
+```text
+TASK=N3W_T1_KF130_POSTMERGE_ALIGNMENT_20261024_01
+PR=665
+PR_FINAL_HEAD=ddf2b3826c4bff8aa8992d0f2884018ce4cfac6a
+SOURCE_TEST_AUTHORITY=d63cba066201df355bf9ceb0fbb330c00dfee24d
+SOURCE_TEST_TREE=58feb07d69aea49003f5549c5a184367f6423709
+MERGED_MAIN=f8b16f70867324b57ea65aef2a3b579fcb00917a
+MERGED_MAIN_TREE=07cc4ba0acc1b64189d4da92d94bf668c405a43d
+PR665_MERGED=true
+KF_130=SOURCE_REPAIR_MERGED_LIVE_REVALIDATION_PENDING
+OLD_FAILED_RUN_REPLAY=false
+OLD_FAILED_RELEASE_REUSE=false
+T1_PRODUCTION_READY=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+```
+
+PR #665 merged cleanly after final exact-head CI and source review. The source repair only
+extends the existing post-reboot readiness barrier to wait for Manager/Home Assistant
+MQTT socket convergence; strict target verification, external probes, current authenticated
+runtime evidence, the 90-second continuity observation, operator approval/reboot arming,
+and failed-run no-replay semantics remain unchanged.
+
+The previously failed T1 production run remains terminal with marker STARTED and
+reflash_required=true. Later read-only snapshots proved that Broker/Manager/Home Assistant
+runtime converged without restart or target repair, so persistent product runtime failure
+was not supported; nevertheless that historical run can never become production authority.
+
+Because PR #665 changed F4/F5 acceptance-tool bytes, every prior exact-production release
+is historical only. The next production authority must be built from fresh current main,
+with a complete F3 -> F4/reboot -> release-inputs -> final exact-release -> Mac local
+verify-bundle chain. No T1 or Board action is allowed before that chain closes PASS.
+
+Next gate:
+
+```text
+NEXT_ONE_GATE=N3W_T1_KF130_POSTMERGE_EXACT_MAIN_RELEASE_REBUILD_20261024_01
+```
