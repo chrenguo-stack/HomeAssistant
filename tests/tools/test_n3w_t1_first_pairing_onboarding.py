@@ -53,11 +53,11 @@ def _private_root(
 
 def _runtime_snapshot(
     *,
-    manager_id: str = "b" * 64,
+    manager_id: str = "b" * 12,
     manager_restart: int = 0,
-    broker_id: str = "a" * 64,
+    broker_id: str = "a" * 12,
     broker_restart: int = 0,
-    ha_id: str = "c" * 64,
+    ha_id: str = "c" * 12,
     ha_restart: int = 0,
 ):
     return {
@@ -317,6 +317,12 @@ def test_claim_persists_hashes_not_raw_locators(
     assert TEST_BROKER_IP not in json.dumps(
         persisted
     )
+    assert {
+        len(value)
+        for value in persisted[
+            "baseline_container_ids"
+        ].values()
+    } == {12}
     assert tool._transaction() == persisted
 
 
