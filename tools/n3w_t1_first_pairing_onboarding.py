@@ -329,7 +329,18 @@ def _service_id(service: str) -> str:
     values = [line.strip() for line in raw.splitlines() if line.strip()]
     if len(values) != 1:
         raise OnboardingError(f"{service}_container_count_{len(values)}")
-    return values[0]
+    container_id = values[0]
+    if (
+        re.fullmatch(
+            r"(?:[0-9a-f]{12}|[0-9a-f]{64})",
+            container_id,
+        )
+        is None
+    ):
+        raise OnboardingError(
+            f"{service}_container_id_invalid"
+        )
+    return container_id
 
 
 def _inspect_container(container_id: str) -> dict[str, Any]:
@@ -1953,7 +1964,7 @@ def _transaction() -> dict[str, Any]:
                 str,
             )
             or re.fullmatch(
-                r"[0-9a-f]{64}",
+                r"(?:[0-9a-f]{12}|[0-9a-f]{64})",
                 value,
             )
             is None
@@ -2471,6 +2482,7 @@ def open_window(
             ),
         )
     )
+    transaction = _transaction()
     manager_id = baseline[
         "manager"
     ]["id"]
