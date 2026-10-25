@@ -882,6 +882,54 @@ class RegistrationRegistry:
                 )
             return cursor.rowcount
 
+    def expire_current_if_due(
+        self,
+        hardware_id: str,
+        pairing_id: str,
+        *,
+        now: datetime | None = None,
+    ) -> RegistrationRecord:
+        observed_at = _utc(
+            now or datetime.now(UTC)
+        )
+        with self._lock, self._connection:
+            record = self._require_current(
+                hardware_id,
+                pairing_id,
+            )
+            if (
+                record.state
+                is RegistrationState.EXPIRED
+            ):
+                return record
+            if (
+                record.state
+                is not RegistrationState.PENDING
+            ):
+                raise RegistrationConflict(
+                    "current first registration is not pending or expired"
+                )
+            if observed_at <= record.expires_at:
+                raise RegistrationConflict(
+                    "current first registration has not expired"
+                )
+            self._set_session_state(
+                pairing_id,
+                RegistrationState.EXPIRED,
+                "expired",
+            )
+            self._record_event(
+                hardware_id,
+                pairing_id,
+                "expired",
+                "expired",
+                observed_at,
+            )
+            return self._require_current(
+                hardware_id,
+                pairing_id,
+            )
+
     def abandon_expired_first_registration(
         self,
         hardware_id: str,
