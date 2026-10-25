@@ -398,13 +398,6 @@ class DynamicPairingWindowController:
 
             record = matches[0]
             try:
-                expired = (
-                    registration
-                    .expire_current_if_due(
-                        record.hardware_id,
-                        record.pairing_id,
-                    )
-                )
                 credential_history = (
                     CredentialLifecycleStore(
                         self.settings
@@ -415,9 +408,9 @@ class DynamicPairingWindowController:
                 try:
                     abandoned = (
                         registration
-                        .abandon_expired_first_registration(
-                            expired.hardware_id,
-                            expired.pairing_id,
+                        .recover_expired_first_registration(
+                            record.hardware_id,
+                            record.pairing_id,
                             credential_history=(
                                 credential_history
                             ),
