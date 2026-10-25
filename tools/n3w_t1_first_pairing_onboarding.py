@@ -2099,46 +2099,45 @@ def _recover_expired_first_control(
 
     if document.get(
         "accepted"
-    ) is True:
-        if (
-            document.get(
-                "code"
-            )
-            != (
-                "expired_first_recovery_complete"
-            )
-            or document.get(
-                "hardware_id_sha256"
-            )
-            != hardware_id_sha256
-            or document.get(
-                "pairing_id_sha256"
-            )
-            != pairing_id_sha256
-            or document.get(
-                "current_registration_released"
-            )
-            is not True
-            or document.get(
-                "replay_tombstone_preserved"
-            )
-            is not True
-            or document.get(
-                "credential_history_absent"
-            )
-            is not True
-            or document.get(
-                "manager_recreated"
-            )
-            is not False
-            or document.get(
-                "raw_identity_in_output"
-            )
-            is not False
-        ):
-            raise OnboardingError(
-                "successor_recovery_control_binding_invalid"
-            )
+    ) is True and (
+        document.get(
+            "code"
+        )
+        != (
+            "expired_first_recovery_complete"
+        )
+        or document.get(
+            "hardware_id_sha256"
+        )
+        != hardware_id_sha256
+        or document.get(
+            "pairing_id_sha256"
+        )
+        != pairing_id_sha256
+        or document.get(
+            "current_registration_released"
+        )
+        is not True
+        or document.get(
+            "replay_tombstone_preserved"
+        )
+        is not True
+        or document.get(
+            "credential_history_absent"
+        )
+        is not True
+        or document.get(
+            "manager_recreated"
+        )
+        is not False
+        or document.get(
+            "raw_identity_in_output"
+        )
+        is not False
+    ):
+        raise OnboardingError(
+            "successor_recovery_control_binding_invalid"
+        )
     return document
 
 
