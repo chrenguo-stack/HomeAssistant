@@ -26,8 +26,8 @@ jobs:
         run: |
           set -euo pipefail
           FILE=tools/execution_packages/n3w/board_d/scoped_pairing_nvs_reset/executor.py
-          if grep -Fq '"erase-flash"' "$FILE"; then exit 1; fi
-          if grep -Fq '"write-flash"' "$FILE"; then exit 1; fi
+          if grep -Fq 'erase-flash' "$FILE"; then exit 1; fi
+          if grep -Fq 'write-flash' "$FILE"; then exit 1; fi
           grep -Fq 'NVS_OFFSET = 0x790000' "$FILE"
           grep -Fq 'NVS_SIZE = 0x70000' "$FILE"
           grep -Fq '"--after",' "$FILE"
