@@ -3788,6 +3788,12 @@ def inspect() -> dict[str, Any]:
             is not None
             else None
         ),
+        "successor_recovery_authorization_reusable": (
+            False
+            if successor_recovery
+            is not None
+            else None
+        ),
         "legacy_transaction": (
             transaction is not None
             and transaction.get(
