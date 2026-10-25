@@ -3216,7 +3216,10 @@ def _advance_successor_recovery(
     return document
 
 
-def _successor_recovery_record() -> dict[str, Any]:
+def _successor_recovery_record(
+    *,
+    require_current_tool: bool = True,
+) -> dict[str, Any]:
     document = _read_private_json(
         SUCCESSOR_RECOVERY_PATH
     )
@@ -3303,10 +3306,14 @@ def _successor_recovery_record() -> dict[str, Any]:
                 "successor_recovery_hash_invalid"
             )
 
-    if document[
-        "tool_sha256"
-    ] != _sha256_file(
-        Path(__file__).resolve()
+    if (
+        require_current_tool
+        and document[
+            "tool_sha256"
+        ]
+        != _sha256_file(
+            Path(__file__).resolve()
+        )
     ):
         raise OnboardingError(
             "successor_recovery_tool_binding_invalid"
@@ -3700,7 +3707,9 @@ def inspect() -> dict[str, Any]:
         )
     if SUCCESSOR_RECOVERY_PATH.exists():
         successor_recovery = (
-            _successor_recovery_record()
+            _successor_recovery_record(
+                require_current_tool=False
+            )
         )
 
     if transaction is None:
