@@ -227,3 +227,24 @@ def test_preflight_requires_exact_artifact_and_no_replay(
     preflight.write_text(module.json.dumps(payload), encoding="utf-8")
     with pytest.raises(module.StopExecution, match="artifact binding"):
         module.require_preflight(preflight, port)
+
+
+def test_authorization_state_root_ignores_HOME_environment(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    real_home = tmp_path / "account-home"
+    fake_home = tmp_path / "env-home"
+    real_home.mkdir()
+    fake_home.mkdir()
+
+    class Account:
+        pw_dir = str(real_home)
+
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setattr(module.pwd, "getpwuid", lambda uid: Account())
+
+    observed = module.authorization_state_root()
+
+    assert observed == real_home / module.AUTHORIZATION_STATE_RELATIVE
+    assert not str(observed).startswith(str(fake_home))
