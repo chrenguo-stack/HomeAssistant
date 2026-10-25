@@ -729,6 +729,470 @@ def _require_clean_first_pair_state(
         raise OnboardingError("first_pair_security_state_not_clean")
 
 
+def _successor_recovery_candidate() -> dict[str, Any]:
+    manager = _read_only_connection(
+        MANAGER_DB
+    )
+    try:
+        current = manager.execute(
+            """
+            SELECT
+                r.hardware_id,
+                r.current_pairing_id AS pairing_id,
+                r.node_id,
+                r.logical_location_id,
+                s.state,
+                s.reason,
+                CASE
+                    WHEN julianday(s.expires_at)
+                         < julianday('now')
+                    THEN 1
+                    ELSE 0
+                END AS expired_by_clock
+            FROM registrations AS r
+            JOIN pairing_sessions AS s
+              ON s.pairing_id =
+                 r.current_pairing_id
+            """
+        ).fetchall()
+        if len(current) != 1:
+            raise OnboardingError(
+                "successor_recovery_current_registration_ambiguous"
+            )
+        row = current[0]
+        if (
+            not isinstance(
+                row["hardware_id"],
+                str,
+            )
+            or not isinstance(
+                row["pairing_id"],
+                str,
+            )
+            or row["node_id"]
+            is not None
+            or row[
+                "logical_location_id"
+            ]
+            is not None
+        ):
+            raise OnboardingError(
+                "successor_recovery_current_identity_invalid"
+            )
+
+        state = row["state"]
+        if state == "pending":
+            if int(
+                row[
+                    "expired_by_clock"
+                ]
+            ) != 1:
+                raise OnboardingError(
+                    "successor_recovery_current_not_expired"
+                )
+        elif (
+            state != "expired"
+            or row["reason"]
+            != "expired"
+        ):
+            raise OnboardingError(
+                "successor_recovery_current_state_invalid"
+            )
+
+        session = manager.execute(
+            """
+            SELECT
+                COUNT(*) AS total,
+                COUNT(
+                    DISTINCT hardware_id
+                ) AS hardware_count,
+                SUM(
+                    CASE
+                        WHEN state = 'approved'
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS approved_count,
+                SUM(
+                    CASE
+                        WHEN state = 'pending'
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS pending_count
+            FROM pairing_sessions
+            """
+        ).fetchone()
+        if (
+            session is None
+            or int(
+                session["total"]
+            )
+            < 1
+            or int(
+                session[
+                    "hardware_count"
+                ]
+            )
+            != 1
+            or int(
+                session[
+                    "approved_count"
+                ]
+                or 0
+            )
+            != 0
+            or int(
+                session[
+                    "pending_count"
+                ]
+                or 0
+            )
+            != (
+                1
+                if state
+                == "pending"
+                else 0
+            )
+        ):
+            raise OnboardingError(
+                "successor_recovery_session_history_invalid"
+            )
+
+        same_hardware = manager.execute(
+            """
+            SELECT COUNT(*)
+            FROM pairing_sessions
+            WHERE hardware_id != ?
+            """,
+            (
+                row[
+                    "hardware_id"
+                ],
+            ),
+        ).fetchone()[0]
+        if int(same_hardware) != 0:
+            raise OnboardingError(
+                "successor_recovery_hardware_history_ambiguous"
+            )
+
+        assigned_events = manager.execute(
+            """
+            SELECT COUNT(*)
+            FROM registration_events
+            WHERE node_id IS NOT NULL
+               OR logical_location_id
+                  IS NOT NULL
+            """
+        ).fetchone()[0]
+        node_history = manager.execute(
+            """
+            SELECT COUNT(*)
+            FROM registration_node_history
+            """
+        ).fetchone()[0]
+        retirement = manager.execute(
+            """
+            SELECT COUNT(*)
+            FROM retirement_outbox
+            """
+        ).fetchone()[0]
+        leases = manager.execute(
+            """
+            SELECT COUNT(*)
+            FROM node_id_leases
+            """
+        ).fetchone()[0]
+        if any(
+            int(value) != 0
+            for value
+            in (
+                assigned_events,
+                node_history,
+                retirement,
+                leases,
+            )
+        ):
+            raise OnboardingError(
+                "successor_recovery_prior_identity_state_present"
+            )
+    finally:
+        manager.close()
+
+    return {
+        "hardware_id_sha256": (
+            _sha256_text(
+                str(
+                    row[
+                        "hardware_id"
+                    ]
+                )
+            )
+        ),
+        "pairing_id_sha256": (
+            _sha256_text(
+                str(
+                    row[
+                        "pairing_id"
+                    ]
+                )
+            )
+        ),
+        "current_state": state,
+        "current_expired_by_clock": True,
+    }
+
+
+def _require_successor_recovered_state(
+    counts: dict[str, int],
+    security_counts: dict[str, int],
+    recovery: dict[str, Any],
+) -> None:
+    if (
+        counts.get(
+            "registrations"
+        )
+        != 0
+        or counts.get(
+            "node_id_leases"
+        )
+        != 0
+        or int(
+            counts.get(
+                "pairing_sessions",
+                0,
+            )
+        )
+        < 1
+        or int(
+            counts.get(
+                "registration_events",
+                0,
+            )
+        )
+        < 1
+    ):
+        raise OnboardingError(
+            "successor_recovered_database_state_invalid"
+        )
+    if any(
+        value != 0
+        for value
+        in security_counts.values()
+    ):
+        raise OnboardingError(
+            "successor_recovered_security_state_invalid"
+        )
+
+    manager = _read_only_connection(
+        MANAGER_DB
+    )
+    try:
+        invalid_sessions = manager.execute(
+            """
+            SELECT COUNT(*)
+            FROM pairing_sessions
+            WHERE state NOT IN (
+                'expired',
+                'rejected'
+            )
+            """
+        ).fetchone()[0]
+        hardware_count = manager.execute(
+            """
+            SELECT COUNT(
+                DISTINCT hardware_id
+            )
+            FROM pairing_sessions
+            """
+        ).fetchone()[0]
+        assigned_events = manager.execute(
+            """
+            SELECT COUNT(*)
+            FROM registration_events
+            WHERE node_id IS NOT NULL
+               OR logical_location_id
+                  IS NOT NULL
+            """
+        ).fetchone()[0]
+        if (
+            int(
+                invalid_sessions
+            )
+            != 0
+            or int(
+                hardware_count
+            )
+            != 1
+            or int(
+                assigned_events
+            )
+            != 0
+        ):
+            raise OnboardingError(
+                "successor_recovered_tombstone_state_invalid"
+            )
+
+        matching_sessions = [
+            row
+            for row
+            in manager.execute(
+                """
+                SELECT
+                    hardware_id,
+                    pairing_id,
+                    state,
+                    reason
+                FROM pairing_sessions
+                """
+            ).fetchall()
+            if (
+                _sha256_text(
+                    str(
+                        row[
+                            "hardware_id"
+                        ]
+                    )
+                )
+                == recovery[
+                    "hardware_id_sha256"
+                ]
+                and _sha256_text(
+                    str(
+                        row[
+                            "pairing_id"
+                        ]
+                    )
+                )
+                == recovery[
+                    "pairing_id_sha256"
+                ]
+            )
+        ]
+        if (
+            len(
+                matching_sessions
+            )
+            != 1
+            or matching_sessions[
+                0
+            ]["state"]
+            != "expired"
+            or matching_sessions[
+                0
+            ]["reason"]
+            != "expired"
+        ):
+            raise OnboardingError(
+                "successor_recovered_predecessor_tombstone_missing"
+            )
+
+        matching_events = [
+            row
+            for row
+            in manager.execute(
+                """
+                SELECT
+                    hardware_id,
+                    pairing_id,
+                    event,
+                    reason
+                FROM registration_events
+                WHERE event =
+                    'expired_first_registration_abandoned'
+                """
+            ).fetchall()
+            if (
+                _sha256_text(
+                    str(
+                        row[
+                            "hardware_id"
+                        ]
+                    )
+                )
+                == recovery[
+                    "hardware_id_sha256"
+                ]
+                and _sha256_text(
+                    str(
+                        row[
+                            "pairing_id"
+                        ]
+                    )
+                )
+                == recovery[
+                    "pairing_id_sha256"
+                ]
+            )
+        ]
+        if (
+            len(
+                matching_events
+            )
+            != 1
+            or matching_events[
+                0
+            ]["reason"]
+            != (
+                "expired_first_pairing_recovery"
+            )
+        ):
+            raise OnboardingError(
+                "successor_recovered_audit_event_missing"
+            )
+    finally:
+        manager.close()
+
+
+def _require_first_pair_admission(
+    counts: dict[str, int],
+    security_counts: dict[str, int],
+    factory: dict[str, Any],
+) -> None:
+    recovery_present = (
+        SUCCESSOR_RECOVERY_PATH.exists()
+        or SUCCESSOR_RECOVERY_PATH.is_symlink()
+    )
+    if not recovery_present:
+        _require_clean_first_pair_state(
+            counts,
+            security_counts,
+        )
+        return
+
+    recovery = _successor_recovery_record()
+    if (
+        recovery.get("status")
+        != "CLOSED_PASS"
+        or recovery[
+            "release_id"
+        ]
+        != factory[
+            "release_id"
+        ]
+        or recovery[
+            "host_instance_id"
+        ]
+        != factory[
+            "host_instance_id"
+        ]
+        or recovery[
+            "system_id"
+        ]
+        != factory[
+            "system_id"
+        ]
+    ):
+        raise OnboardingError(
+            "successor_recovery_not_admissible"
+        )
+    _require_successor_recovered_state(
+        counts,
+        security_counts,
+        recovery,
+    )
+
+
 def _first_pair_success_evidence(expected_system_id: str) -> dict[str, Any]:
     counts = _db_counts()
     if not (
