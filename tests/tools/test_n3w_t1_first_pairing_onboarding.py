@@ -227,6 +227,59 @@ def _open_transaction(
     )
 
 
+def _expired_predecessor(
+    tool,
+    *,
+    predecessor_release_id: str = "release-old",
+):
+    predecessor_factory = {
+        **_factory(),
+        "release_id": predecessor_release_id,
+    }
+    document = tool._claim_transaction(
+        authorization_id=(
+            "N3W_T1_FIRST_PAIRING_"
+            "BOARD_D_PREDECESSOR_01"
+        ),
+        factory=predecessor_factory,
+        peer_ip=TEST_PEER_IP,
+        broker_host=TEST_BROKER_IP,
+        baseline=_runtime_snapshot(),
+        window_seconds=300,
+    )
+    opened_at = int(
+        time.time()
+    ) - 600
+    old_tool_sha = "f" * 64
+    return tool._advance_transaction(
+        status="OPEN",
+        opened_at_unix=opened_at,
+        expires_at_unix=(
+            opened_at
+            + 300
+        ),
+        watchdog_unit=(
+            tool._watchdog_unit_name(
+                document[
+                    "authorization_id"
+                ]
+            )
+        ),
+        watchdog_armed=True,
+        watchdog_authorization_sha256=(
+            tool._sha256_text(
+                document[
+                    "authorization_id"
+                ]
+            )
+        ),
+        tool_sha256=old_tool_sha,
+        watchdog_tool_sha256=(
+            old_tool_sha
+        ),
+    )
+
+
 def test_source_removes_manager_recreate_normal_path() -> None:
     source = TOOL.read_text(
         encoding="utf-8"
