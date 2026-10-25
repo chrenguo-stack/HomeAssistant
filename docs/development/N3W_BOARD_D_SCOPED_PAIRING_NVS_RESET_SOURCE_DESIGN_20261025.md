@@ -97,11 +97,12 @@ N3W_T1_BOARD_D_SCOPED_PAIRING_NVS_RESET_20261025_01
 ```
 
 The executor must durably claim that authorization before the first erase command.
+The replay authority uses a fixed caller-independent local state namespace under the current user's Home directory; the execution CLI does not accept an alternate evidence/claim root. Changing temporary work directories therefore cannot create a second claim for the same authorization.
 Once claimed, it is permanently consumed and may not be replayed even if later checks fail.
 
 ## Execution sequence
 
-1. Re-run all Board D identity and release preconditions.
+1. Re-run all Board D identity and release preconditions, including exact preflight artifact binding and `replay_permitted=false`.
 2. Read the entire NVS range `0x790000/0x70000` to a private mode-0600 backup.
 3. Freeze backup SHA-256, size and non-FF byte count.
 4. Create a private one-shot claim record.
@@ -146,5 +147,5 @@ BOARD_D_SCOPED_NVS_RESET_READONLY_PREFLIGHT=PASS
 SCOPED_NVS_RANGE=0x790000+0x70000
 LIVE_BOARD_MUTATION_AUTHORIZED=false
 NVS_ERASE_EXECUTED=false
-SOURCE_DESIGN=FROZEN_FOR_IMPLEMENTATION
+SOURCE_DESIGN=R1_REPLAY_BLOCKER_REPAIRED_PENDING_R2_REVIEW
 ```
