@@ -106,26 +106,30 @@ def test_preflight_rejects_reused_or_mismatched_board_identity(
     tmp_path: Path,
 ) -> None:
     preflight = tmp_path / "preflight.json"
+    payload = {
+        "schema": module.PREFLIGHT_SCHEMA,
+        "status": "PASS",
+        "created_at": "2026-10-25T15:06:08+00:00",
+        "persistent_mutation": False,
+        "flash_write": False,
+        "nvs_write": False,
+        "write_command_present": False,
+        "write_authorization_granted": False,
+        "replay_permitted": False,
+        "artifact": module.base.artifact_binding_payload(),
+        "board": {
+            "hardware_id_sha256": "0" * 64,
+            "bootloader_sha256": module.EXPECTED_BOOTLOADER_SHA256,
+            "partition_table_sha256": module.EXPECTED_PARTITION_TABLE_SHA256,
+            "bootloader_matches_release": True,
+            "partition_table_matches_release": True,
+            "port_sha256": module.hashlib.sha256(
+                b"/dev/cu.usbmodem14101"
+            ).hexdigest(),
+        },
+    }
     preflight.write_text(
-        """{
-  "schema": "n3w.board-d.post-r4-write-target-preflight/1",
-  "status": "PASS",
-  "created_at": "2026-10-25T15:06:08+00:00",
-  "persistent_mutation": false,
-  "flash_write": false,
-  "nvs_write": false,
-  "write_command_present": false,
-  "write_authorization_granted": false,
-  "board": {
-    "hardware_id_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-    "bootloader_sha256": "ae9656d4a6fca0f1149d443b8ced537efe3b68af8fe600ef9ad9b8c9c7b2ca46",
-    "partition_table_sha256": "6664b08a14a9cdc170e322823db29fbe485d87db9c4ec42759d9372028953dca",
-    "bootloader_matches_release": true,
-    "partition_table_matches_release": true,
-    "port_sha256": "3dbd58fb2a751780ce45dab2216fc0ffbcb9e70e8ff0a6fe00c85bd0055420b5"
-  }
-}
-""",
+        module.json.dumps(payload),
         encoding="utf-8",
     )
     monkeypatch.setattr(
