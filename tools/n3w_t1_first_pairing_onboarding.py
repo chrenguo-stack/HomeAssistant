@@ -1932,6 +1932,33 @@ def _window_control(
     return document
 
 
+def _require_successor_recovery_capability(
+    manager_id: str,
+) -> None:
+    output = _run(
+        (
+            "docker",
+            "exec",
+            manager_id,
+            "greenhouse-manager-pairing",
+            "recover-expired-first",
+            "--help",
+        ),
+        timeout=20,
+    )
+    if (
+        "recover-expired-first"
+        not in output
+        or "--hardware-id-sha256"
+        not in output
+        or "--pairing-id-sha256"
+        not in output
+    ):
+        raise OnboardingError(
+            "successor_recovery_capability_unproven"
+        )
+
+
 def _recover_expired_first_control(
     manager_id: str,
     *,
