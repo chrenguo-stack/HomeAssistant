@@ -882,53 +882,147 @@ class RegistrationRegistry:
                 )
             return cursor.rowcount
 
-    def expire_current_if_due(
+    def recover_expired_first_registration(
         self,
         hardware_id: str,
         pairing_id: str,
         *,
+        credential_history: CredentialHistoryReader,
+        reason: str = "expired_first_pairing_recovery",
         now: datetime | None = None,
     ) -> RegistrationRecord:
+        normalized_reason = reason.strip()
+        if not normalized_reason:
+            raise ValueError(
+                "recovery reason must not be empty"
+            )
         observed_at = _utc(
             now or datetime.now(UTC)
         )
+
         with self._lock, self._connection:
             record = self._require_current(
                 hardware_id,
                 pairing_id,
             )
+            current = self._current_row(
+                hardware_id
+            )
+            if current is None:
+                raise RegistrationConflict(
+                    "current registration is missing"
+                )
             if (
+                record.state
+                is RegistrationState.PENDING
+            ):
+                if observed_at <= record.expires_at:
+                    raise RegistrationConflict(
+                        "current first registration has not expired"
+                    )
+            elif (
                 record.state
                 is RegistrationState.EXPIRED
             ):
-                return record
+                if record.reason != "expired":
+                    raise RegistrationConflict(
+                        "first registration expiry reason is not recoverable"
+                    )
+            else:
+                raise RegistrationConflict(
+                    "only a due or expired first registration can be recovered"
+                )
             if (
-                record.state
-                is not RegistrationState.PENDING
+                record.node_id is not None
+                or record.logical_location_id
+                is not None
             ):
                 raise RegistrationConflict(
-                    "current first registration is not pending or expired"
+                    "registration has approved identity state"
                 )
-            if observed_at <= record.expires_at:
+            if credential_history.list_for_hardware(
+                hardware_id
+            ):
                 raise RegistrationConflict(
-                    "current first registration has not expired"
+                    "registration has credential assignment history"
                 )
-            self._set_session_state(
-                pairing_id,
-                RegistrationState.EXPIRED,
-                "expired",
+
+            prior_identity_state = (
+                self._connection.execute(
+                    """
+                    SELECT 1
+                    WHERE EXISTS (
+                        SELECT 1 FROM node_id_leases
+                        WHERE hardware_id = ?
+                    ) OR EXISTS (
+                        SELECT 1 FROM registration_node_history
+                        WHERE hardware_id = ?
+                    ) OR EXISTS (
+                        SELECT 1 FROM retirement_outbox
+                        WHERE hardware_id = ?
+                    ) OR EXISTS (
+                        SELECT 1 FROM registration_events
+                        WHERE hardware_id = ?
+                          AND node_id IS NOT NULL
+                    )
+                    """,
+                    (
+                        hardware_id,
+                        hardware_id,
+                        hardware_id,
+                        hardware_id,
+                    ),
+                ).fetchone()
             )
+            if prior_identity_state is not None:
+                raise RegistrationConflict(
+                    "registration has prior node assignment history"
+                )
+
+            if (
+                record.state
+                is RegistrationState.PENDING
+            ):
+                self._set_session_state(
+                    pairing_id,
+                    RegistrationState.EXPIRED,
+                    "expired",
+                )
+                self._record_event(
+                    hardware_id,
+                    pairing_id,
+                    "expired",
+                    "expired",
+                    observed_at,
+                )
+                record = self._require_current(
+                    hardware_id,
+                    pairing_id,
+                )
+
             self._record_event(
                 hardware_id,
                 pairing_id,
-                "expired",
-                "expired",
+                "expired_first_registration_abandoned",
+                normalized_reason,
                 observed_at,
             )
-            return self._require_current(
-                hardware_id,
-                pairing_id,
+            cursor = self._connection.execute(
+                """
+                DELETE FROM registrations
+                WHERE hardware_id = ?
+                  AND current_pairing_id = ?
+                """,
+                (
+                    hardware_id,
+                    pairing_id,
+                ),
             )
+            if cursor.rowcount != 1:
+                raise RegistrationConflict(
+                    "expired first registration release could not be proven"
+                )
+            return record
 
     def abandon_expired_first_registration(
         self,
