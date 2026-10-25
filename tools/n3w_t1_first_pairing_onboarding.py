@@ -3156,7 +3156,7 @@ def _successor_recovery_record() -> dict[str, Any]:
         )
         not in {
             "CLAIMED",
-            "STOPPED_RECOVERY_FAILED",
+            "STOPPED_RECOVERY_UNPROVEN",
             "STOPPED_POSTCHECK_FAILED",
             "STOPPED_ARCHIVE_FAILED",
             "CLOSED_PASS",
@@ -3566,6 +3566,325 @@ def inspect() -> dict[str, Any]:
                 )
             )
     return report
+
+
+def recover_successor(
+    *,
+    authorization_id: str,
+    confirmation: str,
+) -> dict[str, Any]:
+    _require_root()
+    if (
+        confirmation
+        != SUCCESSOR_RECOVERY_CONFIRMATION
+    ):
+        raise OnboardingError(
+            "successor_recovery_confirmation_invalid"
+        )
+    authorization_id = _authorization_id(
+        authorization_id
+    )
+
+    _require_file(
+        COMPOSE_TARGET
+    )
+    _require_file(
+        COMPOSE_ENV
+    )
+    _validate_factory_compose()
+    factory = _validate_factory_marker()
+
+    if (
+        SUCCESSOR_RECOVERY_PATH.exists()
+        or SUCCESSOR_RECOVERY_PATH.is_symlink()
+    ):
+        raise OnboardingError(
+            "successor_recovery_record_already_exists"
+        )
+
+    predecessor, predecessor_sha256 = (
+        _predecessor_transaction()
+    )
+    if (
+        predecessor[
+            "host_instance_id"
+        ]
+        != factory[
+            "host_instance_id"
+        ]
+        or predecessor[
+            "system_id"
+        ]
+        != factory[
+            "system_id"
+        ]
+    ):
+        raise OnboardingError(
+            "successor_recovery_host_binding_changed"
+        )
+
+    unit = predecessor.get(
+        "watchdog_unit"
+    )
+    if isinstance(
+        unit,
+        str,
+    ) and (
+        _systemctl_is_active(
+            f"{unit}.timer"
+        )
+        or _systemctl_is_active(
+            f"{unit}.service"
+        )
+    ):
+        raise OnboardingError(
+            "successor_predecessor_watchdog_still_active"
+        )
+
+    baseline = _runtime_snapshot()
+    _validate_factory_runtime(
+        baseline
+    )
+    manager_id = baseline[
+        "manager"
+    ]["id"]
+
+    control = _window_control(
+        manager_id,
+        "status",
+    )
+    _require_control_accepted(
+        control
+    )
+    if control.get(
+        "pairing_window_state"
+    ) != "CLOSED":
+        raise OnboardingError(
+            "successor_recovery_requires_closed_window"
+        )
+    _pairing_socket_absent(
+        manager_id
+    )
+
+    security_counts = (
+        _security_state_counts()
+    )
+    if any(
+        value != 0
+        for value
+        in security_counts.values()
+    ):
+        raise OnboardingError(
+            "successor_recovery_security_state_not_clean"
+        )
+
+    candidate = (
+        _successor_recovery_candidate()
+    )
+
+    recovery = (
+        _claim_successor_recovery(
+            authorization_id=(
+                authorization_id
+            ),
+            predecessor=predecessor,
+            predecessor_sha256=(
+                predecessor_sha256
+            ),
+            factory=factory,
+            baseline=baseline,
+            candidate=candidate,
+        )
+    )
+
+    try:
+        result = (
+            _recover_expired_first_control(
+                manager_id,
+                hardware_id_sha256=(
+                    recovery[
+                        "hardware_id_sha256"
+                    ]
+                ),
+                pairing_id_sha256=(
+                    recovery[
+                        "pairing_id_sha256"
+                    ]
+                ),
+            )
+        )
+        _require_control_accepted(
+            result
+        )
+    except OPERATION_ERRORS as error:
+        _advance_successor_recovery(
+            status=(
+                "STOPPED_RECOVERY_UNPROVEN"
+            ),
+            failure_type=(
+                type(error).__name__
+            ),
+            recovery_result_proven=False,
+        )
+        raise OnboardingError(
+            "successor_recovery_manager_result_unproven"
+        ) from error
+
+    try:
+        after = _runtime_snapshot()
+        _validate_runtime_continuity(
+            baseline,
+            after,
+        )
+        _validate_factory_runtime(
+            after
+        )
+        closed = _window_control(
+            manager_id,
+            "status",
+        )
+        _require_control_accepted(
+            closed
+        )
+        if closed.get(
+            "pairing_window_state"
+        ) != "CLOSED":
+            raise OnboardingError(
+                "successor_recovery_window_not_closed"
+            )
+        _pairing_socket_absent(
+            manager_id
+        )
+
+        post_counts = _db_counts()
+        post_security = (
+            _security_state_counts()
+        )
+        _require_successor_recovered_state(
+            post_counts,
+            post_security,
+            recovery,
+        )
+    except OPERATION_ERRORS as error:
+        _advance_successor_recovery(
+            status=(
+                "STOPPED_POSTCHECK_FAILED"
+            ),
+            failure_type=(
+                type(error).__name__
+            ),
+            manager_recovery_accepted=True,
+            postcheck_passed=False,
+        )
+        raise OnboardingError(
+            "successor_recovery_postcheck_failed"
+        ) from error
+
+    try:
+        archive_path = (
+            _archive_predecessor_transaction(
+                predecessor_sha256
+            )
+        )
+    except OPERATION_ERRORS as error:
+        _advance_successor_recovery(
+            status=(
+                "STOPPED_ARCHIVE_FAILED"
+            ),
+            failure_type=(
+                type(error).__name__
+            ),
+            manager_recovery_accepted=True,
+            postcheck_passed=True,
+            predecessor_archived=False,
+        )
+        raise OnboardingError(
+            "successor_recovery_archive_failed"
+        ) from error
+
+    final = _advance_successor_recovery(
+        status="CLOSED_PASS",
+        closed_at_unix=int(
+            time.time()
+        ),
+        manager_recovery_accepted=True,
+        postcheck_passed=True,
+        predecessor_archived=True,
+        predecessor_archive_sha256=(
+            _sha256_file(
+                archive_path
+            )
+        ),
+        final_database_counts=(
+            post_counts
+        ),
+        final_security_counts=(
+            post_security
+        ),
+        manager_container_unchanged=True,
+        broker_continuity=True,
+        homeassistant_continuity=True,
+        pairing_exposure_closed=True,
+    )
+    _successor_recovery_record()
+
+    return {
+        "schema": SCHEMA,
+        "status": "PASS",
+        "operation": (
+            "successor-recover"
+        ),
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "predecessor_archived": True,
+        "predecessor_transaction_sha256": (
+            final[
+                "predecessor_transaction_sha256"
+            ]
+        ),
+        "predecessor_release_sha256": (
+            _sha256_text(
+                str(
+                    final[
+                        "predecessor_release_id"
+                    ]
+                )
+            )
+        ),
+        "recovery_release_sha256": (
+            _sha256_text(
+                str(
+                    final[
+                        "recovery_release_id"
+                    ]
+                )
+            )
+        ),
+        "hardware_id_sha256": (
+            final[
+                "hardware_id_sha256"
+            ]
+        ),
+        "pairing_id_sha256": (
+            final[
+                "pairing_id_sha256"
+            ]
+        ),
+        "database_counts": (
+            post_counts
+        ),
+        "security_counts": (
+            post_security
+        ),
+        "pairing_window_state": (
+            "CLOSED"
+        ),
+        "manager_recreated": False,
+        "manager_container_unchanged": True,
+        "broker_container_unchanged": True,
+        "homeassistant_container_unchanged": True,
+        "raw_locator_in_output": False,
+    }
 
 
 def _close_after_failed_open(
