@@ -23,8 +23,10 @@ from typing import Any
 SCHEMA = "gh.n3w-t1-first-pairing-onboarding/1"
 TRANSACTION_SCHEMA = "gh.n3w-t1-first-pairing-onboarding-transaction/2"
 LEGACY_TRANSACTION_SCHEMA = "gh.n3w-t1-first-pairing-onboarding-transaction/1"
+SUCCESSOR_RECOVERY_SCHEMA = "gh.n3w-t1-first-pairing-successor-recovery/1"
 OPEN_CONFIRMATION = "OPEN FIRST PAIRING WINDOW: YES"
 CLOSE_CONFIRMATION = "CLOSE FIRST PAIRING WINDOW: YES"
+SUCCESSOR_RECOVERY_CONFIRMATION = "RECOVER EXPIRED FIRST PAIRING: YES"
 
 COMPOSE_PROJECT = "n3wfc4"
 COMPOSE_TARGET = Path("/etc/n3wfc4/docker-compose.yml")
@@ -34,6 +36,8 @@ SERVER_CERT = Path("/etc/n3wfc4/tls/server.pem")
 PROVISIONING_ROOT = Path("/var/lib/n3w-t1-provisioning")
 FACTORY_ACCEPTED_PATH = PROVISIONING_ROOT / "FACTORY_ACCEPTED.json"
 TRANSACTION_PATH = PROVISIONING_ROOT / "FIRST_PAIRING_ONBOARDING.json"
+SUCCESSOR_RECOVERY_PATH = PROVISIONING_ROOT / "FIRST_PAIRING_SUCCESSOR_RECOVERY.json"
+TRANSACTION_ARCHIVE_ROOT = PROVISIONING_ROOT / "first-pairing-onboarding-archive"
 RUNTIME_ROOT = Path("/run/n3w-first-pairing-onboarding")
 WATCHDOG_TOOL_PATH = RUNTIME_ROOT / "onboarding-watchdog.py"
 WATCHDOG_UNIT_PREFIX = "n3w-first-pairing-watchdog-"
