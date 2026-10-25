@@ -132,6 +132,8 @@ evidence of erase failure.
 
 This gate does not prove successful pairing.
 
+After any authorization claim, the read-only preflight must STOP and may never again report `NVS_ERASE_EXECUTED=false` for that authorization.
+
 After PASS:
 - old Board D pairing intent is gone;
 - application may generate a new Setup Secret and fresh random pairing ID;
