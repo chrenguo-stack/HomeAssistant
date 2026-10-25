@@ -89,6 +89,25 @@ is durably claimed before the first target mutation and is never reusable.
 The existing consumed first-pair authorization, successor-recovery authorization, or any
 later Gate-B first-pair authorization must not be accepted as the rollout authorization.
 
+## 4.1 Dual exact authority
+
+The product release and the rollout host tool are separate authorities.
+
+The already locally verified product release remains frozen at
+`03dab2bd04e7e8cb71faa1bd13a027ace8cecdf6`. Adding or reviewing the host-side rollout
+tool does not alter the product bytes and does not require an otherwise-identical F3/F4/F5
+rebuild.
+
+The rollout tool is reviewed and bound independently by its own exact source SHA, in the
+same model used by the first-pair onboarding host tool.
+
+At execution time the rollout tool must bind both:
+- its own exact reviewed tool SHA/source;
+- the frozen locally verified product release identity
+  (artifact/run/digest/release_id/release_sha256/source_head/source_tree).
+
+It must not reinterpret a later repository main as the product release source.
+
 ## 5. Host-side authority
 
 The host wrapper must reuse `n3w_t1_ssh_transport.py` and exact known-host binding.
