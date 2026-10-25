@@ -1015,6 +1015,18 @@ def _require_successor_recovered_state(
                   IS NOT NULL
             """
         ).fetchone()[0]
+        node_history = manager.execute(
+            """
+            SELECT COUNT(*)
+            FROM registration_node_history
+            """
+        ).fetchone()[0]
+        retirement = manager.execute(
+            """
+            SELECT COUNT(*)
+            FROM retirement_outbox
+            """
+        ).fetchone()[0]
         if (
             int(
                 invalid_sessions
@@ -1026,6 +1038,14 @@ def _require_successor_recovered_state(
             != 1
             or int(
                 assigned_events
+            )
+            != 0
+            or int(
+                node_history
+            )
+            != 0
+            or int(
+                retirement
             )
             != 0
         ):
