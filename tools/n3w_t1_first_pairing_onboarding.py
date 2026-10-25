@@ -4747,6 +4747,20 @@ def _parser() -> argparse.ArgumentParser:
         default=300,
     )
 
+    successor_recovery_command = (
+        subparsers.add_parser(
+            "successor-recover"
+        )
+    )
+    successor_recovery_command.add_argument(
+        "--authorization-id",
+        required=True,
+    )
+    successor_recovery_command.add_argument(
+        "--confirm",
+        required=True,
+    )
+
     expire_command = (
         subparsers.add_parser(
             "expire"
@@ -4825,6 +4839,20 @@ def main(
                             ),
                         )
                     )
+                elif (
+                    args.command
+                    == "successor-recover"
+                ):
+                    report = (
+                        recover_successor(
+                            authorization_id=(
+                                args.authorization_id
+                            ),
+                            confirmation=(
+                                args.confirm
+                            ),
+                        )
+                    )
                 else:
                     report = (
                         close_window(
@@ -4855,6 +4883,8 @@ def main(
                 if (
                     TRANSACTION_PATH
                     .exists()
+                    or SUCCESSOR_RECOVERY_PATH
+                    .exists()
                 )
                 else "NONE"
             ),
@@ -4862,6 +4892,8 @@ def main(
                 False
                 if (
                     TRANSACTION_PATH
+                    .exists()
+                    or SUCCESSOR_RECOVERY_PATH
                     .exists()
                 )
                 else None
