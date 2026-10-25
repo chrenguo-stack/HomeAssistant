@@ -23,8 +23,10 @@ from typing import Any
 SCHEMA = "gh.n3w-t1-first-pairing-onboarding/1"
 TRANSACTION_SCHEMA = "gh.n3w-t1-first-pairing-onboarding-transaction/2"
 LEGACY_TRANSACTION_SCHEMA = "gh.n3w-t1-first-pairing-onboarding-transaction/1"
+SUCCESSOR_RECOVERY_SCHEMA = "gh.n3w-t1-first-pairing-successor-recovery/1"
 OPEN_CONFIRMATION = "OPEN FIRST PAIRING WINDOW: YES"
 CLOSE_CONFIRMATION = "CLOSE FIRST PAIRING WINDOW: YES"
+SUCCESSOR_RECOVERY_CONFIRMATION = "RECOVER EXPIRED FIRST PAIRING: YES"
 
 COMPOSE_PROJECT = "n3wfc4"
 COMPOSE_TARGET = Path("/etc/n3wfc4/docker-compose.yml")
@@ -34,6 +36,8 @@ SERVER_CERT = Path("/etc/n3wfc4/tls/server.pem")
 PROVISIONING_ROOT = Path("/var/lib/n3w-t1-provisioning")
 FACTORY_ACCEPTED_PATH = PROVISIONING_ROOT / "FACTORY_ACCEPTED.json"
 TRANSACTION_PATH = PROVISIONING_ROOT / "FIRST_PAIRING_ONBOARDING.json"
+SUCCESSOR_RECOVERY_PATH = PROVISIONING_ROOT / "FIRST_PAIRING_SUCCESSOR_RECOVERY.json"
+TRANSACTION_ARCHIVE_ROOT = PROVISIONING_ROOT / "first-pairing-onboarding-archive"
 RUNTIME_ROOT = Path("/run/n3w-first-pairing-onboarding")
 WATCHDOG_TOOL_PATH = RUNTIME_ROOT / "onboarding-watchdog.py"
 WATCHDOG_UNIT_PREFIX = "n3w-first-pairing-watchdog-"
@@ -148,6 +152,26 @@ def _read_private_json(path: Path) -> dict[str, Any]:
     return _read_json(path)
 
 
+def _read_private_bytes(path: Path) -> bytes:
+    _require_file(path)
+    metadata = path.stat()
+    if (
+        metadata.st_uid != os.geteuid()
+        or metadata.st_gid != os.getegid()
+        or stat.S_IMODE(metadata.st_mode) != 0o600
+        or metadata.st_nlink != 1
+    ):
+        raise OnboardingError(
+            f"private_record_metadata_invalid:{path.name}"
+        )
+    try:
+        return path.read_bytes()
+    except OSError as error:
+        raise OnboardingError(
+            f"private_record_read_failed:{path.name}"
+        ) from error
+
+
 def _require_root() -> None:
     if os.geteuid() != 0:
         raise OnboardingError("root_required")
@@ -163,6 +187,111 @@ def _require_private_directory(path: Path) -> None:
         or stat.S_IMODE(metadata.st_mode) != 0o700
     ):
         raise OnboardingError(f"private_directory_metadata_invalid:{path.name}")
+
+
+def _ensure_private_directory(path: Path) -> None:
+    if not path.exists():
+        try:
+            path.mkdir(mode=0o700)
+        except OSError as error:
+            raise OnboardingError(
+                f"private_directory_create_failed:{path.name}"
+            ) from error
+    _require_private_directory(path)
+
+
+def _prepare_predecessor_archive(
+    expected_sha256: str,
+) -> Path:
+    if (
+        re.fullmatch(
+            r"[0-9a-f]{64}",
+            expected_sha256,
+        )
+        is None
+    ):
+        raise OnboardingError(
+            "predecessor_transaction_archive_hash_invalid"
+        )
+    payload = _read_private_bytes(
+        TRANSACTION_PATH
+    )
+    actual_sha256 = hashlib.sha256(
+        payload
+    ).hexdigest()
+    if actual_sha256 != expected_sha256:
+        raise OnboardingError(
+            "predecessor_transaction_sha256_changed"
+        )
+
+    _ensure_private_directory(
+        TRANSACTION_ARCHIVE_ROOT
+    )
+    archive_path = (
+        TRANSACTION_ARCHIVE_ROOT
+        / (
+            "FIRST_PAIRING_ONBOARDING."
+            f"{expected_sha256}.json"
+        )
+    )
+    if (
+        archive_path.exists()
+        or archive_path.is_symlink()
+    ):
+        raise OnboardingError(
+            "predecessor_transaction_archive_exists"
+        )
+    return archive_path
+
+
+def _archive_predecessor_transaction(
+    expected_sha256: str,
+) -> Path:
+    archive_path = (
+        _prepare_predecessor_archive(
+            expected_sha256
+        )
+    )
+
+    try:
+        os.replace(
+            TRANSACTION_PATH,
+            archive_path,
+        )
+        for directory in (
+            TRANSACTION_ARCHIVE_ROOT,
+            PROVISIONING_ROOT,
+        ):
+            fd = os.open(
+                directory,
+                os.O_RDONLY
+                | getattr(
+                    os,
+                    "O_DIRECTORY",
+                    0,
+                ),
+            )
+            try:
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+    except OSError as error:
+        raise OnboardingError(
+            "predecessor_transaction_archive_failed"
+        ) from error
+
+    if (
+        hashlib.sha256(
+            _read_private_bytes(
+                archive_path
+            )
+        ).hexdigest()
+        != expected_sha256
+    ):
+        raise OnboardingError(
+            "predecessor_transaction_archive_hash_mismatch"
+        )
+    return archive_path
 
 
 def _write_private_json(path: Path, document: dict[str, Any]) -> None:
@@ -619,6 +748,507 @@ def _require_clean_first_pair_state(
         raise OnboardingError("first_pair_state_not_clean")
     if any(value != 0 for value in security_counts.values()):
         raise OnboardingError("first_pair_security_state_not_clean")
+
+
+def _successor_recovery_candidate() -> dict[str, Any]:
+    manager = _read_only_connection(
+        MANAGER_DB
+    )
+    try:
+        current = manager.execute(
+            """
+            SELECT
+                r.hardware_id,
+                r.current_pairing_id AS pairing_id,
+                r.node_id,
+                r.logical_location_id,
+                s.state,
+                s.reason,
+                CASE
+                    WHEN julianday(s.expires_at)
+                         < julianday('now')
+                    THEN 1
+                    ELSE 0
+                END AS expired_by_clock
+            FROM registrations AS r
+            JOIN pairing_sessions AS s
+              ON s.pairing_id =
+                 r.current_pairing_id
+            """
+        ).fetchall()
+        if len(current) != 1:
+            raise OnboardingError(
+                "successor_recovery_current_registration_ambiguous"
+            )
+        row = current[0]
+        if (
+            not isinstance(
+                row["hardware_id"],
+                str,
+            )
+            or not isinstance(
+                row["pairing_id"],
+                str,
+            )
+            or row["node_id"]
+            is not None
+            or row[
+                "logical_location_id"
+            ]
+            is not None
+        ):
+            raise OnboardingError(
+                "successor_recovery_current_identity_invalid"
+            )
+
+        state = row["state"]
+        if state == "pending":
+            if int(
+                row[
+                    "expired_by_clock"
+                ]
+            ) != 1:
+                raise OnboardingError(
+                    "successor_recovery_current_not_expired"
+                )
+        elif (
+            state != "expired"
+            or row["reason"]
+            != "expired"
+        ):
+            raise OnboardingError(
+                "successor_recovery_current_state_invalid"
+            )
+
+        session = manager.execute(
+            """
+            SELECT
+                COUNT(*) AS total,
+                COUNT(
+                    DISTINCT hardware_id
+                ) AS hardware_count,
+                SUM(
+                    CASE
+                        WHEN state = 'approved'
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS approved_count,
+                SUM(
+                    CASE
+                        WHEN state = 'pending'
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS pending_count
+            FROM pairing_sessions
+            """
+        ).fetchone()
+        if (
+            session is None
+            or int(
+                session["total"]
+            )
+            < 1
+            or int(
+                session[
+                    "hardware_count"
+                ]
+            )
+            != 1
+            or int(
+                session[
+                    "approved_count"
+                ]
+                or 0
+            )
+            != 0
+            or int(
+                session[
+                    "pending_count"
+                ]
+                or 0
+            )
+            != (
+                1
+                if state
+                == "pending"
+                else 0
+            )
+        ):
+            raise OnboardingError(
+                "successor_recovery_session_history_invalid"
+            )
+
+        same_hardware = manager.execute(
+            """
+            SELECT COUNT(*)
+            FROM pairing_sessions
+            WHERE hardware_id != ?
+            """,
+            (
+                row[
+                    "hardware_id"
+                ],
+            ),
+        ).fetchone()[0]
+        if int(same_hardware) != 0:
+            raise OnboardingError(
+                "successor_recovery_hardware_history_ambiguous"
+            )
+
+        assigned_events = manager.execute(
+            """
+            SELECT COUNT(*)
+            FROM registration_events
+            WHERE node_id IS NOT NULL
+               OR logical_location_id
+                  IS NOT NULL
+            """
+        ).fetchone()[0]
+        node_history = manager.execute(
+            """
+            SELECT COUNT(*)
+            FROM registration_node_history
+            """
+        ).fetchone()[0]
+        retirement = manager.execute(
+            """
+            SELECT COUNT(*)
+            FROM retirement_outbox
+            """
+        ).fetchone()[0]
+        leases = manager.execute(
+            """
+            SELECT COUNT(*)
+            FROM node_id_leases
+            """
+        ).fetchone()[0]
+        if any(
+            int(value) != 0
+            for value
+            in (
+                assigned_events,
+                node_history,
+                retirement,
+                leases,
+            )
+        ):
+            raise OnboardingError(
+                "successor_recovery_prior_identity_state_present"
+            )
+    finally:
+        manager.close()
+
+    return {
+        "hardware_id_sha256": (
+            _sha256_text(
+                str(
+                    row[
+                        "hardware_id"
+                    ]
+                )
+            )
+        ),
+        "pairing_id_sha256": (
+            _sha256_text(
+                str(
+                    row[
+                        "pairing_id"
+                    ]
+                )
+            )
+        ),
+        "current_state": state,
+        "current_expired_by_clock": True,
+    }
+
+
+def _require_successor_recovered_state(
+    counts: dict[str, int],
+    security_counts: dict[str, int],
+    recovery: dict[str, Any],
+) -> None:
+    if (
+        counts.get(
+            "registrations"
+        )
+        != 0
+        or counts.get(
+            "node_id_leases"
+        )
+        != 0
+        or int(
+            counts.get(
+                "pairing_sessions",
+                0,
+            )
+        )
+        < 1
+        or int(
+            counts.get(
+                "registration_events",
+                0,
+            )
+        )
+        < 1
+    ):
+        raise OnboardingError(
+            "successor_recovered_database_state_invalid"
+        )
+    if any(
+        value != 0
+        for value
+        in security_counts.values()
+    ):
+        raise OnboardingError(
+            "successor_recovered_security_state_invalid"
+        )
+
+    manager = _read_only_connection(
+        MANAGER_DB
+    )
+    try:
+        invalid_sessions = manager.execute(
+            """
+            SELECT COUNT(*)
+            FROM pairing_sessions
+            WHERE state NOT IN (
+                'expired',
+                'rejected'
+            )
+            """
+        ).fetchone()[0]
+        hardware_count = manager.execute(
+            """
+            SELECT COUNT(
+                DISTINCT hardware_id
+            )
+            FROM pairing_sessions
+            """
+        ).fetchone()[0]
+        assigned_events = manager.execute(
+            """
+            SELECT COUNT(*)
+            FROM registration_events
+            WHERE node_id IS NOT NULL
+               OR logical_location_id
+                  IS NOT NULL
+            """
+        ).fetchone()[0]
+        node_history = manager.execute(
+            """
+            SELECT COUNT(*)
+            FROM registration_node_history
+            """
+        ).fetchone()[0]
+        retirement = manager.execute(
+            """
+            SELECT COUNT(*)
+            FROM retirement_outbox
+            """
+        ).fetchone()[0]
+        if (
+            int(
+                invalid_sessions
+            )
+            != 0
+            or int(
+                hardware_count
+            )
+            != 1
+            or int(
+                assigned_events
+            )
+            != 0
+            or int(
+                node_history
+            )
+            != 0
+            or int(
+                retirement
+            )
+            != 0
+        ):
+            raise OnboardingError(
+                "successor_recovered_tombstone_state_invalid"
+            )
+
+        matching_sessions = [
+            row
+            for row
+            in manager.execute(
+                """
+                SELECT
+                    hardware_id,
+                    pairing_id,
+                    state,
+                    reason
+                FROM pairing_sessions
+                """
+            ).fetchall()
+            if (
+                _sha256_text(
+                    str(
+                        row[
+                            "hardware_id"
+                        ]
+                    )
+                )
+                == recovery[
+                    "hardware_id_sha256"
+                ]
+                and _sha256_text(
+                    str(
+                        row[
+                            "pairing_id"
+                        ]
+                    )
+                )
+                == recovery[
+                    "pairing_id_sha256"
+                ]
+            )
+        ]
+        if (
+            len(
+                matching_sessions
+            )
+            != 1
+            or matching_sessions[
+                0
+            ]["state"]
+            != "expired"
+            or matching_sessions[
+                0
+            ]["reason"]
+            != "expired"
+        ):
+            raise OnboardingError(
+                "successor_recovered_predecessor_tombstone_missing"
+            )
+
+        matching_events = [
+            row
+            for row
+            in manager.execute(
+                """
+                SELECT
+                    hardware_id,
+                    pairing_id,
+                    event,
+                    reason
+                FROM registration_events
+                WHERE event =
+                    'expired_first_registration_abandoned'
+                """
+            ).fetchall()
+            if (
+                _sha256_text(
+                    str(
+                        row[
+                            "hardware_id"
+                        ]
+                    )
+                )
+                == recovery[
+                    "hardware_id_sha256"
+                ]
+                and _sha256_text(
+                    str(
+                        row[
+                            "pairing_id"
+                        ]
+                    )
+                )
+                == recovery[
+                    "pairing_id_sha256"
+                ]
+            )
+        ]
+        if (
+            len(
+                matching_events
+            )
+            != 1
+            or matching_events[
+                0
+            ]["reason"]
+            != (
+                "expired_first_pairing_recovery"
+            )
+        ):
+            raise OnboardingError(
+                "successor_recovered_audit_event_missing"
+            )
+    finally:
+        manager.close()
+
+
+def _require_first_pair_admission(
+    counts: dict[str, int],
+    security_counts: dict[str, int],
+    factory: dict[str, Any],
+    *,
+    authorization_id: str,
+) -> None:
+    recovery_present = (
+        SUCCESSOR_RECOVERY_PATH.exists()
+        or SUCCESSOR_RECOVERY_PATH.is_symlink()
+    )
+    if not recovery_present:
+        _require_clean_first_pair_state(
+            counts,
+            security_counts,
+        )
+        return
+
+    recovery = _successor_recovery_record()
+    if (
+        recovery.get("status")
+        != "CLOSED_PASS"
+        or recovery[
+            "recovery_release_id"
+        ]
+        != factory[
+            "release_id"
+        ]
+        or recovery[
+            "host_instance_id"
+        ]
+        != factory[
+            "host_instance_id"
+        ]
+        or recovery[
+            "system_id"
+        ]
+        != factory[
+            "system_id"
+        ]
+    ):
+        raise OnboardingError(
+            "successor_recovery_not_admissible"
+        )
+    if (
+        authorization_id
+        == recovery[
+            "authorization_id"
+        ]
+        or _sha256_text(
+            authorization_id
+        )
+        == recovery[
+            "predecessor_authorization_sha256"
+        ]
+    ):
+        raise OnboardingError(
+            "successor_first_pair_authorization_reused"
+        )
+    _require_successor_recovered_state(
+        counts,
+        security_counts,
+        recovery,
+    )
 
 
 def _first_pair_success_evidence(expected_system_id: str) -> dict[str, Any]:
@@ -1360,6 +1990,157 @@ def _window_control(
     return document
 
 
+def _require_successor_recovery_capability(
+    manager_id: str,
+) -> None:
+    output = _run(
+        (
+            "docker",
+            "exec",
+            manager_id,
+            "greenhouse-manager-pairing",
+            "recover-expired-first",
+            "--help",
+        ),
+        timeout=20,
+    )
+    if (
+        "recover-expired-first"
+        not in output
+        or "--hardware-id-sha256"
+        not in output
+        or "--pairing-id-sha256"
+        not in output
+    ):
+        raise OnboardingError(
+            "successor_recovery_capability_unproven"
+        )
+
+
+def _recover_expired_first_control(
+    manager_id: str,
+    *,
+    hardware_id_sha256: str,
+    pairing_id_sha256: str,
+) -> dict[str, Any]:
+    for value in (
+        hardware_id_sha256,
+        pairing_id_sha256,
+    ):
+        if (
+            re.fullmatch(
+                r"[0-9a-f]{64}",
+                value,
+            )
+            is None
+        ):
+            raise OnboardingError(
+                "successor_recovery_control_hash_invalid"
+            )
+
+    raw = _run(
+        (
+            "docker",
+            "exec",
+            manager_id,
+            "greenhouse-manager-pairing",
+            "recover-expired-first",
+            "--hardware-id-sha256",
+            hardware_id_sha256,
+            "--pairing-id-sha256",
+            pairing_id_sha256,
+        ),
+        timeout=20,
+        allowed=frozenset(
+            {
+                0,
+                2,
+            }
+        ),
+    )
+    try:
+        document = json.loads(
+            raw
+        )
+    except json.JSONDecodeError as error:
+        raise OnboardingError(
+            "successor_recovery_control_response_invalid"
+        ) from error
+
+    if (
+        not isinstance(
+            document,
+            dict,
+        )
+        or not isinstance(
+            document.get(
+                "accepted"
+            ),
+            bool,
+        )
+        or not isinstance(
+            document.get(
+                "code"
+            ),
+            str,
+        )
+        or document.get(
+            "pairing_window_state"
+        )
+        != "CLOSED"
+        or document.get(
+            "raw_locator_in_output"
+        )
+        is not False
+    ):
+        raise OnboardingError(
+            "successor_recovery_control_response_invalid"
+        )
+
+    if document.get(
+        "accepted"
+    ) is True and (
+        document.get(
+            "code"
+        )
+        != (
+            "expired_first_recovery_complete"
+        )
+        or document.get(
+            "hardware_id_sha256"
+        )
+        != hardware_id_sha256
+        or document.get(
+            "pairing_id_sha256"
+        )
+        != pairing_id_sha256
+        or document.get(
+            "current_registration_released"
+        )
+        is not True
+        or document.get(
+            "replay_tombstone_preserved"
+        )
+        is not True
+        or document.get(
+            "credential_history_absent"
+        )
+        is not True
+        or document.get(
+            "manager_recreated"
+        )
+        is not False
+        or document.get(
+            "raw_identity_in_output"
+        )
+        is not False
+    ):
+        raise OnboardingError(
+            "successor_recovery_control_binding_invalid"
+        )
+    return document
+
+
 def _require_control_accepted(
     result: dict[str, Any],
 ) -> None:
@@ -2065,6 +2846,721 @@ def _transaction() -> dict[str, Any]:
     return document
 
 
+def _predecessor_transaction() -> tuple[
+    dict[str, Any],
+    str,
+]:
+    payload = _read_private_bytes(
+        TRANSACTION_PATH
+    )
+    predecessor_sha256 = hashlib.sha256(
+        payload
+    ).hexdigest()
+    document = _read_private_json(
+        TRANSACTION_PATH
+    )
+
+    if (
+        document.get("schema")
+        != TRANSACTION_SCHEMA
+        or document.get(
+            "authorization_claimed"
+        )
+        is not True
+        or document.get(
+            "authorization_consumed"
+        )
+        is not True
+        or document.get(
+            "replay_allowed"
+        )
+        is not False
+        or document.get("status")
+        != "OPEN"
+    ):
+        raise OnboardingError(
+            "successor_predecessor_transaction_invalid"
+        )
+
+    if (
+        "peer_ip" in document
+        or "broker_host" in document
+    ):
+        raise OnboardingError(
+            "successor_predecessor_raw_locator_forbidden"
+        )
+
+    authorization_id = document.get(
+        "authorization_id"
+    )
+    if not isinstance(
+        authorization_id,
+        str,
+    ):
+        raise OnboardingError(
+            "successor_predecessor_authorization_invalid"
+        )
+    _authorization_id(
+        authorization_id
+    )
+
+    for key in (
+        "release_id",
+        "host_instance_id",
+        "system_id",
+    ):
+        if (
+            not isinstance(
+                document.get(key),
+                str,
+            )
+            or not document[key]
+        ):
+            raise OnboardingError(
+                "successor_predecessor_binding_invalid"
+            )
+
+    for key in (
+        "peer_ip_sha256",
+        "broker_host_sha256",
+        "tool_sha256",
+    ):
+        value = document.get(key)
+        if (
+            not isinstance(value, str)
+            or re.fullmatch(
+                r"[0-9a-f]{64}",
+                value,
+            )
+            is None
+        ):
+            raise OnboardingError(
+                "successor_predecessor_hash_invalid"
+            )
+
+    window_seconds = document.get(
+        "window_seconds"
+    )
+    claimed_at = document.get(
+        "claimed_at_unix"
+    )
+    opened_at = document.get(
+        "opened_at_unix"
+    )
+    expires_at = document.get(
+        "expires_at_unix"
+    )
+    if (
+        not isinstance(
+            window_seconds,
+            int,
+        )
+        or isinstance(
+            window_seconds,
+            bool,
+        )
+        or not 180
+        <= window_seconds
+        <= 600
+        or not isinstance(
+            claimed_at,
+            int,
+        )
+        or isinstance(
+            claimed_at,
+            bool,
+        )
+        or not isinstance(
+            opened_at,
+            int,
+        )
+        or isinstance(
+            opened_at,
+            bool,
+        )
+        or opened_at < claimed_at
+        or not isinstance(
+            expires_at,
+            int,
+        )
+        or isinstance(
+            expires_at,
+            bool,
+        )
+        or expires_at
+        != opened_at
+        + window_seconds
+        or int(time.time())
+        <= expires_at
+    ):
+        raise OnboardingError(
+            "successor_predecessor_deadline_invalid"
+        )
+
+    baseline = document.get(
+        "baseline_container_ids"
+    )
+    restarts = document.get(
+        "baseline_restart_counts"
+    )
+    if (
+        not isinstance(
+            baseline,
+            dict,
+        )
+        or set(baseline)
+        != EXPECTED_SERVICES
+        or any(
+            not _is_container_id(
+                value
+            )
+            for value
+            in baseline.values()
+        )
+        or not isinstance(
+            restarts,
+            dict,
+        )
+        or set(restarts)
+        != EXPECTED_SERVICES
+        or any(
+            not isinstance(
+                value,
+                int,
+            )
+            or isinstance(
+                value,
+                bool,
+            )
+            or value < 0
+            for value
+            in restarts.values()
+        )
+    ):
+        raise OnboardingError(
+            "successor_predecessor_container_binding_invalid"
+        )
+
+    if document.get(
+        "watchdog_armed"
+    ) is True:
+        unit = document.get(
+            "watchdog_unit"
+        )
+        auth_sha = document.get(
+            "watchdog_authorization_sha256"
+        )
+        watchdog_tool_sha = document.get(
+            "watchdog_tool_sha256"
+        )
+        if (
+            not isinstance(
+                unit,
+                str,
+            )
+            or unit
+            != _watchdog_unit_name(
+                authorization_id
+            )
+            or auth_sha
+            != _sha256_text(
+                authorization_id
+            )
+            or watchdog_tool_sha
+            != document[
+                "tool_sha256"
+            ]
+        ):
+            raise OnboardingError(
+                "successor_predecessor_watchdog_binding_invalid"
+            )
+
+    return (
+        document,
+        predecessor_sha256,
+    )
+
+
+def _claim_successor_recovery(
+    *,
+    authorization_id: str,
+    predecessor: dict[str, Any],
+    predecessor_sha256: str,
+    factory: dict[str, Any],
+    baseline: dict[str, dict[str, Any]],
+    candidate: dict[str, Any],
+) -> dict[str, Any]:
+    if (
+        SUCCESSOR_RECOVERY_PATH.exists()
+        or SUCCESSOR_RECOVERY_PATH.is_symlink()
+    ):
+        raise OnboardingError(
+            "successor_recovery_record_already_exists"
+        )
+    document = {
+        "schema": SUCCESSOR_RECOVERY_SCHEMA,
+        "status": "CLAIMED",
+        "authorization_id": (
+            authorization_id
+        ),
+        "authorization_claimed": True,
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "predecessor_release_id": (
+            predecessor[
+                "release_id"
+            ]
+        ),
+        "recovery_release_id": (
+            factory[
+                "release_id"
+            ]
+        ),
+        "host_instance_id": factory[
+            "host_instance_id"
+        ],
+        "system_id": factory[
+            "system_id"
+        ],
+        "predecessor_transaction_sha256": (
+            predecessor_sha256
+        ),
+        "predecessor_authorization_sha256": (
+            _sha256_text(
+                str(
+                    predecessor[
+                        "authorization_id"
+                    ]
+                )
+            )
+        ),
+        "predecessor_tool_sha256": (
+            predecessor[
+                "tool_sha256"
+            ]
+        ),
+        "hardware_id_sha256": (
+            candidate[
+                "hardware_id_sha256"
+            ]
+        ),
+        "pairing_id_sha256": (
+            candidate[
+                "pairing_id_sha256"
+            ]
+        ),
+        "predecessor_baseline_container_ids": dict(
+            predecessor[
+                "baseline_container_ids"
+            ]
+        ),
+        "predecessor_baseline_restart_counts": dict(
+            predecessor[
+                "baseline_restart_counts"
+            ]
+        ),
+        "baseline_container_ids": {
+            service: baseline[
+                service
+            ]["id"]
+            for service
+            in sorted(
+                EXPECTED_SERVICES
+            )
+        },
+        "baseline_restart_counts": {
+            service: baseline[
+                service
+            ][
+                "restart_count"
+            ]
+            for service
+            in sorted(
+                EXPECTED_SERVICES
+            )
+        },
+        "claimed_at_unix": int(
+            time.time()
+        ),
+        "tool_sha256": _sha256_file(
+            Path(__file__).resolve()
+        ),
+    }
+    _write_private_json(
+        SUCCESSOR_RECOVERY_PATH,
+        document,
+    )
+    return document
+
+
+def _advance_successor_recovery(
+    **fields: Any,
+) -> dict[str, Any]:
+    document = _read_private_json(
+        SUCCESSOR_RECOVERY_PATH
+    )
+    document.update(fields)
+    document[
+        "authorization_claimed"
+    ] = True
+    document[
+        "authorization_consumed"
+    ] = True
+    document[
+        "replay_allowed"
+    ] = False
+    _write_private_json(
+        SUCCESSOR_RECOVERY_PATH,
+        document,
+    )
+    return document
+
+
+def _successor_recovery_record(
+    *,
+    require_current_tool: bool = True,
+) -> dict[str, Any]:
+    document = _read_private_json(
+        SUCCESSOR_RECOVERY_PATH
+    )
+    if (
+        document.get("schema")
+        != SUCCESSOR_RECOVERY_SCHEMA
+        or document.get(
+            "authorization_claimed"
+        )
+        is not True
+        or document.get(
+            "authorization_consumed"
+        )
+        is not True
+        or document.get(
+            "replay_allowed"
+        )
+        is not False
+        or document.get(
+            "status"
+        )
+        not in {
+            "CLAIMED",
+            "STOPPED_ARCHIVE_PREP_FAILED",
+            "STOPPED_RECOVERY_UNPROVEN",
+            "STOPPED_POSTCHECK_FAILED",
+            "STOPPED_ARCHIVE_FAILED",
+            "CLOSED_PASS",
+        }
+    ):
+        raise OnboardingError(
+            "successor_recovery_record_invalid"
+        )
+
+    authorization_id = document.get(
+        "authorization_id"
+    )
+    if not isinstance(
+        authorization_id,
+        str,
+    ):
+        raise OnboardingError(
+            "successor_recovery_authorization_invalid"
+        )
+    _authorization_id(
+        authorization_id
+    )
+
+    for key in (
+        "predecessor_release_id",
+        "recovery_release_id",
+        "host_instance_id",
+        "system_id",
+    ):
+        if (
+            not isinstance(
+                document.get(key),
+                str,
+            )
+            or not document[key]
+        ):
+            raise OnboardingError(
+                "successor_recovery_binding_invalid"
+            )
+
+    for key in (
+        "predecessor_transaction_sha256",
+        "predecessor_authorization_sha256",
+        "predecessor_tool_sha256",
+        "hardware_id_sha256",
+        "pairing_id_sha256",
+        "tool_sha256",
+    ):
+        value = document.get(key)
+        if (
+            not isinstance(value, str)
+            or re.fullmatch(
+                r"[0-9a-f]{64}",
+                value,
+            )
+            is None
+        ):
+            raise OnboardingError(
+                "successor_recovery_hash_invalid"
+            )
+
+    if (
+        require_current_tool
+        and document[
+            "tool_sha256"
+        ]
+        != _sha256_file(
+            Path(__file__).resolve()
+        )
+    ):
+        raise OnboardingError(
+            "successor_recovery_tool_binding_invalid"
+        )
+
+    ids = document.get(
+        "baseline_container_ids"
+    )
+    restarts = document.get(
+        "baseline_restart_counts"
+    )
+    if (
+        not isinstance(ids, dict)
+        or set(ids)
+        != EXPECTED_SERVICES
+        or any(
+            not _is_container_id(
+                value
+            )
+            for value
+            in ids.values()
+        )
+        or not isinstance(
+            restarts,
+            dict,
+        )
+        or set(restarts)
+        != EXPECTED_SERVICES
+        or any(
+            not isinstance(
+                value,
+                int,
+            )
+            or isinstance(
+                value,
+                bool,
+            )
+            or value < 0
+            for value
+            in restarts.values()
+        )
+    ):
+        raise OnboardingError(
+            "successor_recovery_container_binding_invalid"
+        )
+
+    predecessor_ids = document.get(
+        "predecessor_baseline_container_ids"
+    )
+    predecessor_restarts = document.get(
+        "predecessor_baseline_restart_counts"
+    )
+    if (
+        not isinstance(
+            predecessor_ids,
+            dict,
+        )
+        or set(
+            predecessor_ids
+        )
+        != EXPECTED_SERVICES
+        or any(
+            not _is_container_id(
+                value
+            )
+            for value
+            in predecessor_ids.values()
+        )
+        or not isinstance(
+            predecessor_restarts,
+            dict,
+        )
+        or set(
+            predecessor_restarts
+        )
+        != EXPECTED_SERVICES
+        or any(
+            not isinstance(
+                value,
+                int,
+            )
+            or isinstance(
+                value,
+                bool,
+            )
+            or value < 0
+            for value
+            in predecessor_restarts.values()
+        )
+    ):
+        raise OnboardingError(
+            "successor_recovery_predecessor_container_binding_invalid"
+        )
+
+    if (
+        document.get("status")
+        == "CLOSED_PASS"
+    ):
+        if (
+            document.get(
+                "manager_recovery_accepted"
+            )
+            is not True
+            or document.get(
+                "postcheck_passed"
+            )
+            is not True
+            or document.get(
+                "predecessor_archived"
+            )
+            is not True
+            or document.get(
+                "predecessor_archive_sha256"
+            )
+            != document[
+                "predecessor_transaction_sha256"
+            ]
+            or document.get(
+                "pairing_exposure_closed"
+            )
+            is not True
+            or document.get(
+                "manager_container_unchanged"
+            )
+            is not True
+            or document.get(
+                "broker_continuity"
+            )
+            is not True
+            or document.get(
+                "homeassistant_continuity"
+            )
+            is not True
+        ):
+            raise OnboardingError(
+                "successor_recovery_closure_invalid"
+            )
+        final_counts = document.get(
+            "final_database_counts"
+        )
+        final_security = document.get(
+            "final_security_counts"
+        )
+        if (
+            not isinstance(
+                final_counts,
+                dict,
+            )
+            or set(
+                final_counts
+            )
+            != set(
+                EXPECTED_TABLES
+            )
+            or any(
+                not isinstance(
+                    value,
+                    int,
+                )
+                or isinstance(
+                    value,
+                    bool,
+                )
+                or value < 0
+                for value
+                in final_counts.values()
+            )
+            or final_counts[
+                "registrations"
+            ]
+            != 0
+            or final_counts[
+                "node_id_leases"
+            ]
+            != 0
+            or final_counts[
+                "pairing_sessions"
+            ]
+            < 1
+            or final_counts[
+                "registration_events"
+            ]
+            < 1
+            or not isinstance(
+                final_security,
+                dict,
+            )
+            or set(
+                final_security
+            )
+            != {
+                "credential_assignments",
+                "peer_trust_records",
+                "application_key_active_nodes",
+                "application_key_epochs",
+            }
+            or any(
+                not isinstance(
+                    value,
+                    int,
+                )
+                or isinstance(
+                    value,
+                    bool,
+                )
+                or value != 0
+                for value
+                in final_security.values()
+            )
+        ):
+            raise OnboardingError(
+                "successor_recovery_closure_counts_invalid"
+            )
+        archive_path = (
+            TRANSACTION_ARCHIVE_ROOT
+            / (
+                "FIRST_PAIRING_ONBOARDING."
+                + document[
+                    "predecessor_transaction_sha256"
+                ]
+                + ".json"
+            )
+        )
+        if (
+            hashlib.sha256(
+                _read_private_bytes(
+                    archive_path
+                )
+            ).hexdigest()
+            != document[
+                "predecessor_transaction_sha256"
+            ]
+        ):
+            raise OnboardingError(
+                "successor_recovery_archive_invalid"
+            )
+        if (
+            TRANSACTION_PATH.exists()
+            or TRANSACTION_PATH.is_symlink()
+        ):
+            raise OnboardingError(
+                "successor_recovery_predecessor_not_archived"
+            )
+
+    return document
+
+
 def _baseline_from_transaction(
     transaction: dict[str, Any],
 ) -> dict[str, dict[str, Any]]:
@@ -2194,13 +3690,27 @@ def inspect() -> dict[str, Any]:
         dict[str, Any]
         | None
     ) = None
-    if (
-        TRANSACTION_PATH.exists()
-        and not (
-            TRANSACTION_PATH.is_symlink()
+    if TRANSACTION_PATH.is_symlink():
+        raise OnboardingError(
+            "onboarding_transaction_symlink_forbidden"
         )
-    ):
+    if TRANSACTION_PATH.exists():
         transaction = _transaction()
+
+    successor_recovery: (
+        dict[str, Any]
+        | None
+    ) = None
+    if SUCCESSOR_RECOVERY_PATH.is_symlink():
+        raise OnboardingError(
+            "successor_recovery_symlink_forbidden"
+        )
+    if SUCCESSOR_RECOVERY_PATH.exists():
+        successor_recovery = (
+            _successor_recovery_record(
+                require_current_tool=False
+            )
+        )
 
     if transaction is None:
         if (
@@ -2266,6 +3776,24 @@ def inspect() -> dict[str, Any]:
         "transaction_present": (
             transaction is not None
         ),
+        "successor_recovery_present": (
+            successor_recovery
+            is not None
+        ),
+        "successor_recovery_state": (
+            successor_recovery.get(
+                "status"
+            )
+            if successor_recovery
+            is not None
+            else None
+        ),
+        "successor_recovery_authorization_reusable": (
+            False
+            if successor_recovery
+            is not None
+            else None
+        ),
         "legacy_transaction": (
             transaction is not None
             and transaction.get(
@@ -2325,6 +3853,501 @@ def inspect() -> dict[str, Any]:
                 )
             )
     return report
+
+
+def _successor_recovery_preflight() -> dict[str, Any]:
+    _require_root()
+    _require_file(
+        COMPOSE_TARGET
+    )
+    _require_file(
+        COMPOSE_ENV
+    )
+    _validate_factory_compose()
+    factory = _validate_factory_marker()
+
+    if (
+        SUCCESSOR_RECOVERY_PATH.exists()
+        or SUCCESSOR_RECOVERY_PATH.is_symlink()
+    ):
+        raise OnboardingError(
+            "successor_recovery_record_already_exists"
+        )
+
+    predecessor, predecessor_sha256 = (
+        _predecessor_transaction()
+    )
+    if (
+        predecessor[
+            "host_instance_id"
+        ]
+        != factory[
+            "host_instance_id"
+        ]
+        or predecessor[
+            "system_id"
+        ]
+        != factory[
+            "system_id"
+        ]
+    ):
+        raise OnboardingError(
+            "successor_recovery_host_binding_changed"
+        )
+    if (
+        predecessor[
+            "release_id"
+        ]
+        == factory[
+            "release_id"
+        ]
+    ):
+        raise OnboardingError(
+            "successor_recovery_repaired_release_not_advanced"
+        )
+
+    unit = predecessor.get(
+        "watchdog_unit"
+    )
+    if isinstance(
+        unit,
+        str,
+    ) and (
+        _systemctl_is_active(
+            f"{unit}.timer"
+        )
+        or _systemctl_is_active(
+            f"{unit}.service"
+        )
+    ):
+        raise OnboardingError(
+            "successor_predecessor_watchdog_still_active"
+        )
+
+    baseline = _runtime_snapshot()
+    _validate_factory_runtime(
+        baseline
+    )
+    manager_id = baseline[
+        "manager"
+    ]["id"]
+    _require_successor_recovery_capability(
+        manager_id
+    )
+
+    control = _window_control(
+        manager_id,
+        "status",
+    )
+    _require_control_accepted(
+        control
+    )
+    if control.get(
+        "pairing_window_state"
+    ) != "CLOSED":
+        raise OnboardingError(
+            "successor_recovery_requires_closed_window"
+        )
+    _pairing_socket_absent(
+        manager_id
+    )
+
+    counts = _db_counts()
+    security_counts = (
+        _security_state_counts()
+    )
+    if any(
+        value != 0
+        for value
+        in security_counts.values()
+    ):
+        raise OnboardingError(
+            "successor_recovery_security_state_not_clean"
+        )
+
+    candidate = (
+        _successor_recovery_candidate()
+    )
+
+    return {
+        "factory": factory,
+        "predecessor": predecessor,
+        "predecessor_sha256": (
+            predecessor_sha256
+        ),
+        "baseline": baseline,
+        "manager_id": manager_id,
+        "counts": counts,
+        "security_counts": (
+            security_counts
+        ),
+        "candidate": candidate,
+    }
+
+
+def inspect_successor_recovery() -> dict[str, Any]:
+    preflight = (
+        _successor_recovery_preflight()
+    )
+    factory = preflight[
+        "factory"
+    ]
+    predecessor = preflight[
+        "predecessor"
+    ]
+    baseline = preflight[
+        "baseline"
+    ]
+    candidate = preflight[
+        "candidate"
+    ]
+
+    report = {
+        "schema": SCHEMA,
+        "status": "PASS",
+        "operation": (
+            "successor-inspect"
+        ),
+        "successor_recovery_eligible": True,
+        "mutation": False,
+        "authorization_consumed": False,
+        "predecessor_transaction_sha256": (
+            preflight[
+                "predecessor_sha256"
+            ]
+        ),
+        "predecessor_release_sha256": (
+            _sha256_text(
+                str(
+                    predecessor[
+                        "release_id"
+                    ]
+                )
+            )
+        ),
+        "recovery_release_sha256": (
+            _sha256_text(
+                str(
+                    factory[
+                        "release_id"
+                    ]
+                )
+            )
+        ),
+        "hardware_id_sha256": (
+            candidate[
+                "hardware_id_sha256"
+            ]
+        ),
+        "pairing_id_sha256": (
+            candidate[
+                "pairing_id_sha256"
+            ]
+        ),
+        "database_counts": (
+            preflight[
+                "counts"
+            ]
+        ),
+        "security_counts": (
+            preflight[
+                "security_counts"
+            ]
+        ),
+        "pairing_window_state": (
+            "CLOSED"
+        ),
+        "pairing_udp_listener_count": 0,
+        "pairing_http_listener_count": 0,
+        "raw_locator_in_output": False,
+    }
+    report.update(
+        _public_runtime(
+            baseline
+        )
+    )
+    return report
+
+
+def recover_successor(
+    *,
+    authorization_id: str,
+    confirmation: str,
+) -> dict[str, Any]:
+    _require_root()
+    if (
+        confirmation
+        != SUCCESSOR_RECOVERY_CONFIRMATION
+    ):
+        raise OnboardingError(
+            "successor_recovery_confirmation_invalid"
+        )
+    authorization_id = _authorization_id(
+        authorization_id
+    )
+
+    preflight = (
+        _successor_recovery_preflight()
+    )
+    if (
+        _sha256_text(
+            authorization_id
+        )
+        == _sha256_text(
+            str(
+                preflight[
+                    "predecessor"
+                ][
+                    "authorization_id"
+                ]
+            )
+        )
+    ):
+        raise OnboardingError(
+            "successor_recovery_authorization_reused"
+        )
+    factory = preflight[
+        "factory"
+    ]
+    predecessor = preflight[
+        "predecessor"
+    ]
+    predecessor_sha256 = (
+        preflight[
+            "predecessor_sha256"
+        ]
+    )
+    baseline = preflight[
+        "baseline"
+    ]
+    manager_id = preflight[
+        "manager_id"
+    ]
+    candidate = preflight[
+        "candidate"
+    ]
+
+    recovery = (
+        _claim_successor_recovery(
+            authorization_id=(
+                authorization_id
+            ),
+            predecessor=predecessor,
+            predecessor_sha256=(
+                predecessor_sha256
+            ),
+            factory=factory,
+            baseline=baseline,
+            candidate=candidate,
+        )
+    )
+    try:
+        _prepare_predecessor_archive(
+            predecessor_sha256
+        )
+    except OPERATION_ERRORS as error:
+        _advance_successor_recovery(
+            status=(
+                "STOPPED_ARCHIVE_PREP_FAILED"
+            ),
+            failure_type=(
+                type(error).__name__
+            ),
+            recovery_result_proven=False,
+            predecessor_archived=False,
+        )
+        raise OnboardingError(
+            "successor_recovery_archive_preflight_failed"
+        ) from error
+
+    try:
+        result = (
+            _recover_expired_first_control(
+                manager_id,
+                hardware_id_sha256=(
+                    recovery[
+                        "hardware_id_sha256"
+                    ]
+                ),
+                pairing_id_sha256=(
+                    recovery[
+                        "pairing_id_sha256"
+                    ]
+                ),
+            )
+        )
+        _require_control_accepted(
+            result
+        )
+    except OPERATION_ERRORS as error:
+        _advance_successor_recovery(
+            status=(
+                "STOPPED_RECOVERY_UNPROVEN"
+            ),
+            failure_type=(
+                type(error).__name__
+            ),
+            recovery_result_proven=False,
+        )
+        raise OnboardingError(
+            "successor_recovery_manager_result_unproven"
+        ) from error
+
+    try:
+        after = _runtime_snapshot()
+        _validate_runtime_continuity(
+            baseline,
+            after,
+        )
+        _validate_factory_runtime(
+            after
+        )
+        closed = _window_control(
+            manager_id,
+            "status",
+        )
+        _require_control_accepted(
+            closed
+        )
+        if closed.get(
+            "pairing_window_state"
+        ) != "CLOSED":
+            raise OnboardingError(
+                "successor_recovery_window_not_closed"
+            )
+        _pairing_socket_absent(
+            manager_id
+        )
+
+        post_counts = _db_counts()
+        post_security = (
+            _security_state_counts()
+        )
+        _require_successor_recovered_state(
+            post_counts,
+            post_security,
+            recovery,
+        )
+    except OPERATION_ERRORS as error:
+        _advance_successor_recovery(
+            status=(
+                "STOPPED_POSTCHECK_FAILED"
+            ),
+            failure_type=(
+                type(error).__name__
+            ),
+            manager_recovery_accepted=True,
+            postcheck_passed=False,
+        )
+        raise OnboardingError(
+            "successor_recovery_postcheck_failed"
+        ) from error
+
+    try:
+        archive_path = (
+            _archive_predecessor_transaction(
+                predecessor_sha256
+            )
+        )
+    except OPERATION_ERRORS as error:
+        _advance_successor_recovery(
+            status=(
+                "STOPPED_ARCHIVE_FAILED"
+            ),
+            failure_type=(
+                type(error).__name__
+            ),
+            manager_recovery_accepted=True,
+            postcheck_passed=True,
+            predecessor_archived=False,
+        )
+        raise OnboardingError(
+            "successor_recovery_archive_failed"
+        ) from error
+
+    final = _advance_successor_recovery(
+        status="CLOSED_PASS",
+        closed_at_unix=int(
+            time.time()
+        ),
+        manager_recovery_accepted=True,
+        postcheck_passed=True,
+        predecessor_archived=True,
+        predecessor_archive_sha256=(
+            _sha256_file(
+                archive_path
+            )
+        ),
+        final_database_counts=(
+            post_counts
+        ),
+        final_security_counts=(
+            post_security
+        ),
+        manager_container_unchanged=True,
+        broker_continuity=True,
+        homeassistant_continuity=True,
+        pairing_exposure_closed=True,
+    )
+    _successor_recovery_record()
+
+    return {
+        "schema": SCHEMA,
+        "status": "PASS",
+        "operation": (
+            "successor-recover"
+        ),
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "predecessor_archived": True,
+        "predecessor_transaction_sha256": (
+            final[
+                "predecessor_transaction_sha256"
+            ]
+        ),
+        "predecessor_release_sha256": (
+            _sha256_text(
+                str(
+                    final[
+                        "predecessor_release_id"
+                    ]
+                )
+            )
+        ),
+        "recovery_release_sha256": (
+            _sha256_text(
+                str(
+                    final[
+                        "recovery_release_id"
+                    ]
+                )
+            )
+        ),
+        "hardware_id_sha256": (
+            final[
+                "hardware_id_sha256"
+            ]
+        ),
+        "pairing_id_sha256": (
+            final[
+                "pairing_id_sha256"
+            ]
+        ),
+        "database_counts": (
+            post_counts
+        ),
+        "security_counts": (
+            post_security
+        ),
+        "pairing_window_state": (
+            "CLOSED"
+        ),
+        "manager_recreated": False,
+        "manager_container_unchanged": True,
+        "broker_container_unchanged": True,
+        "homeassistant_container_unchanged": True,
+        "raw_locator_in_output": False,
+    }
 
 
 def _close_after_failed_open(
@@ -2452,9 +4475,13 @@ def open_window(
     security_counts = (
         _security_state_counts()
     )
-    _require_clean_first_pair_state(
+    _require_first_pair_admission(
         counts,
         security_counts,
+        factory,
+        authorization_id=(
+            authorization_id
+        ),
     )
     broker_host = (
         _resolve_route_selected_broker(
@@ -3162,6 +5189,9 @@ def _parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "inspect"
     )
+    subparsers.add_parser(
+        "successor-inspect"
+    )
 
     open_command = (
         subparsers.add_parser(
@@ -3184,6 +5214,20 @@ def _parser() -> argparse.ArgumentParser:
         "--window-seconds",
         type=int,
         default=300,
+    )
+
+    successor_recovery_command = (
+        subparsers.add_parser(
+            "successor-recover"
+        )
+    )
+    successor_recovery_command.add_argument(
+        "--authorization-id",
+        required=True,
+    )
+    successor_recovery_command.add_argument(
+        "--confirm",
+        required=True,
     )
 
     expire_command = (
@@ -3231,6 +5275,13 @@ def main(
     try:
         if args.command == "inspect":
             report = inspect()
+        elif (
+            args.command
+            == "successor-inspect"
+        ):
+            report = (
+                inspect_successor_recovery()
+            )
         elif args.command == "expire":
             with _exclusive_lock(
                 blocking=True
@@ -3264,6 +5315,20 @@ def main(
                             ),
                         )
                     )
+                elif (
+                    args.command
+                    == "successor-recover"
+                ):
+                    report = (
+                        recover_successor(
+                            authorization_id=(
+                                args.authorization_id
+                            ),
+                            confirmation=(
+                                args.confirm
+                            ),
+                        )
+                    )
                 else:
                     report = (
                         close_window(
@@ -3285,24 +5350,35 @@ def main(
         subprocess.SubprocessError,
         ValueError,
     ) as error:
+        if args.command in {
+            "inspect",
+            "successor-inspect",
+        }:
+            claim_present = False
+        elif (
+            args.command
+            == "successor-recover"
+        ):
+            claim_present = (
+                SUCCESSOR_RECOVERY_PATH
+                .exists()
+            )
+        else:
+            claim_present = (
+                TRANSACTION_PATH.exists()
+            )
         report = {
             "schema": SCHEMA,
             "status": "STOP",
             "error": str(error),
             "mutation_state": (
                 "UNKNOWN_IF_POSTCLAIM"
-                if (
-                    TRANSACTION_PATH
-                    .exists()
-                )
+                if claim_present
                 else "NONE"
             ),
             "authorization_reusable": (
                 False
-                if (
-                    TRANSACTION_PATH
-                    .exists()
-                )
+                if claim_present
                 else None
             ),
             "raw_locator_in_output": False,

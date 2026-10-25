@@ -20,7 +20,9 @@ Current live facts are:
 - the current fifth session is still stored as pending but is already expired by clock;
 - no node_id lease exists.
 
-The recovery goal is to make a later fresh first-pair authorization possible without deleting replay history, clearing Board NVS, flashing firmware, or restarting Broker/Manager/Home Assistant.
+The recovery goal is to make a later fresh first-pair authorization possible without deleting replay history, clearing Board NVS, or flashing firmware. The recovery operation itself must not restart Broker/Manager/Home Assistant.
+
+The production Manager is delivered as an immutable image and has no source bind mount or hot-reload path. Therefore the Manager-side recovery primitive introduced after the failed attempt must first be delivered by a separately authorized exact-release rollout. That rollout may replace/restart the Manager container. The successor-recovery transaction begins only after that rollout has completed and a new runtime baseline has been captured.
 
 ## 2. Existing product authority
 
@@ -40,7 +42,9 @@ The successor recovery is split from the later pairing attempt.
 
 ### Gate A — successor recovery
 
-A new one-shot recovery authorization is required.
+A new one-shot recovery authorization is required. Its authorization ID must differ from the consumed predecessor first-pair authorization. A later Gate B first-pair authorization must differ from both earlier authorization IDs.
+
+Before any recovery authorization is consumed, the operator runs the read-only `successor-inspect` gate. The inspection and mutation paths share the same preflight implementation so eligibility cannot drift between them.
 
 Before claim, the executor must prove:
 
@@ -53,7 +57,11 @@ Before claim, the executor must prove:
 - Manager-owned pairing window is CLOSED;
 - UDP/47111 and TCP/47112 are closed;
 - pairing.sock is absent;
-- Broker/Manager/Home Assistant identities and restart counts still match the predecessor baseline;
+- current accepted release is exact, differs from the predecessor release, and contains the reviewed recovery primitive;
+- the running Manager CLI proves the `recover-expired-first` command and hash-only arguments are present before claim;
+- predecessor host_instance_id and system_id still match the current accepted factory identity;
+- the predecessor release ID is preserved as historical evidence but is not required to equal the repaired release ID;
+- a new post-rollout Broker/Manager/Home Assistant runtime baseline is captured before recovery claim;
 - exactly one current registration exists;
 - current registration has no node_id or logical location;
 - the current pairing session belongs to that registration;
@@ -66,7 +74,7 @@ Before claim, the executor must prove:
 - application-key epochs=0;
 - peer-trust records=0.
 
-After durable claim of the new recovery authorization, Manager performs the recovery in-process through the existing local pairing-control socket.
+After durable claim of the new recovery authorization, Manager performs the recovery in-process through the existing local pairing-control socket. From this claim point onward, the new post-rollout Broker/Manager/Home Assistant baseline is frozen and must remain unchanged through recovery closure.
 
 The Manager operation must:
 
@@ -84,7 +92,7 @@ After Manager recovery succeeds, the T1 onboarding executor must prove:
 - the exact predecessor pairing session remains state=expired reason=expired;
 - `expired_first_registration_abandoned / expired_first_pairing_recovery` is present;
 - all four security-state counts remain zero;
-- Broker/Manager/Home Assistant identities and restart counts are unchanged;
+- Broker/Manager/Home Assistant identities and restart counts are unchanged relative to the post-rollout recovery baseline;
 - pairing window remains CLOSED;
 - 47111/47112 remain closed;
 - pairing.sock remains absent.
@@ -153,8 +161,13 @@ Tests must cover:
 - credential history or prior node assignment blocks recovery;
 - recovery control request is accepted only while window=CLOSED;
 - recovery control request uses SHA256 identity binding and never returns raw IDs;
-- running Manager stays alive through recovery;
-- Broker/Manager/Home Assistant restart semantics are unchanged;
+- a repaired release may differ from the predecessor release while host_instance_id/system_id remain continuous;
+- running Manager stays alive from recovery claim through recovery closure;
+- Broker/Manager/Home Assistant identities and restart counts remain unchanged from the post-rollout recovery baseline;
+- `successor-inspect` performs the complete eligibility check without creating a recovery record or changing the predecessor transaction;
+- same-release recovery is rejected before claim;
+- predecessor authorization ID cannot be reused as the successor-recovery authorization;
+- successor-recovery authorization ID and predecessor authorization ID cannot be reused for the later Gate B first-pair open;
 - onboarding successor recovery claims before mutation;
 - predecessor transaction remains non-replayable;
 - predecessor transaction archive is byte-identical;
