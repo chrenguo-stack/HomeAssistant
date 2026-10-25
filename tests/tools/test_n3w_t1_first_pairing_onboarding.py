@@ -2307,3 +2307,81 @@ def test_successor_recovery_rejects_predecessor_authorization_reuse(
         tool.SUCCESSOR_RECOVERY_PATH
         .exists()
     )
+
+
+
+def test_successor_archive_collision_stops_before_manager_recovery(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    _configure_transaction_paths(
+        tool,
+        tmp_path,
+    )
+    _expired_predecessor(tool)
+    predecessor_sha = (
+        tool._sha256_file(
+            tool.TRANSACTION_PATH
+        )
+    )
+    _configure_successor_recovery_runtime(
+        tool,
+        monkeypatch,
+    )
+
+    tool.TRANSACTION_ARCHIVE_ROOT.mkdir(
+        mode=0o700,
+    )
+    archive = (
+        tool.TRANSACTION_ARCHIVE_ROOT
+        / (
+            "FIRST_PAIRING_ONBOARDING."
+            + predecessor_sha
+            + ".json"
+        )
+    )
+    archive.write_bytes(b"occupied")
+    os.chmod(archive, 0o600)
+
+    manager_called = {
+        "value": False,
+    }
+
+    def recover_control(*args, **kwargs):
+        manager_called["value"] = True
+        pytest.fail(
+            "manager recovery must not run after archive preflight failure"
+        )
+
+    monkeypatch.setattr(
+        tool,
+        "_recover_expired_first_control",
+        recover_control,
+    )
+
+    with pytest.raises(
+        tool.OnboardingError,
+        match=(
+            "successor_recovery_archive_preflight_failed"
+        ),
+    ):
+        tool.recover_successor(
+            authorization_id=(
+                "N3W_T1_FIRST_PAIRING_"
+                "SUCCESSOR_TEST_04"
+            ),
+            confirmation=(
+                tool.SUCCESSOR_RECOVERY_CONFIRMATION
+            ),
+        )
+
+    recovery = (
+        tool._successor_recovery_record()
+    )
+    assert (
+        recovery["status"]
+        == "STOPPED_ARCHIVE_PREP_FAILED"
+    )
+    assert manager_called["value"] is False
+    assert tool.TRANSACTION_PATH.is_file()
