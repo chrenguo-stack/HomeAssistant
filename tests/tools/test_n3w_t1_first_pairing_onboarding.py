@@ -2004,8 +2004,28 @@ def test_successor_admission_requires_closed_pass_recovery(
         "registration_events": 7,
         "node_id_leases": 0,
     }
+    recovery_authorization = (
+        "N3W_T1_FIRST_PAIRING_"
+        "SUCCESSOR_RECOVERY_01"
+    )
+    predecessor_authorization = (
+        "N3W_T1_FIRST_PAIRING_"
+        "PREDECESSOR_01"
+    )
+    next_authorization = (
+        "N3W_T1_FIRST_PAIRING_"
+        "BOARD_D_RETRY_01"
+    )
     base_record = {
         "status": "CLAIMED",
+        "authorization_id": (
+            recovery_authorization
+        ),
+        "predecessor_authorization_sha256": (
+            tool._sha256_text(
+                predecessor_authorization
+            )
+        ),
         "recovery_release_id": (
             _factory()[
                 "release_id"
@@ -2041,6 +2061,9 @@ def test_successor_admission_requires_closed_pass_recovery(
             recovered_counts,
             _zero_security_counts(),
             _factory(),
+            authorization_id=(
+                next_authorization
+            ),
         )
 
     called = {
@@ -2068,9 +2091,29 @@ def test_successor_admission_requires_closed_pass_recovery(
         recovered_counts,
         _zero_security_counts(),
         _factory(),
+        authorization_id=(
+            next_authorization
+        ),
     )
 
     assert called["value"] is True
+
+    for reused in (
+        recovery_authorization,
+        predecessor_authorization,
+    ):
+        with pytest.raises(
+            tool.OnboardingError,
+            match=(
+                "successor_first_pair_authorization_reused"
+            ),
+        ):
+            tool._require_first_pair_admission(
+                recovered_counts,
+                _zero_security_counts(),
+                _factory(),
+                authorization_id=reused,
+            )
     assert root.is_dir()
 
 
@@ -2222,4 +2265,45 @@ def test_successor_inspect_command_surface() -> None:
     )
     assert args.command == (
         "successor-inspect"
+    )
+
+
+
+def test_successor_recovery_rejects_predecessor_authorization_reuse(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    _configure_transaction_paths(
+        tool,
+        tmp_path,
+    )
+    predecessor = _expired_predecessor(
+        tool
+    )
+    _configure_successor_recovery_runtime(
+        tool,
+        monkeypatch,
+    )
+
+    with pytest.raises(
+        tool.OnboardingError,
+        match=(
+            "successor_recovery_authorization_reused"
+        ),
+    ):
+        tool.recover_successor(
+            authorization_id=(
+                predecessor[
+                    "authorization_id"
+                ]
+            ),
+            confirmation=(
+                tool.SUCCESSOR_RECOVERY_CONFIRMATION
+            ),
+        )
+
+    assert not (
+        tool.SUCCESSOR_RECOVERY_PATH
+        .exists()
     )
