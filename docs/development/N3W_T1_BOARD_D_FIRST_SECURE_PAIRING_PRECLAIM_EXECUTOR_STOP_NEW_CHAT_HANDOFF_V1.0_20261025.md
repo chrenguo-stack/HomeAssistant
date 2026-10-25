@@ -6,15 +6,14 @@
 HANDOFF_TEMPLATE_VERSION=1.3
 PROJECT_WORKING_CONTEXT_VERSION=1.1
 PROJECT_WORKING_CONTEXT=docs/development/N3W_PROJECT_WORKING_CONTEXT.md
-HANDOFF_STANDARD_VERSION=1.0
-HANDOFF_STANDARD_AUTHORITY=4300890dff0ce63d5a547df21426e287d084d9ee
 NEXT_ONE_GATE_ONLY=true
 TEAM_SHARED_WORKSPACE=GITHUB
 ```
 
-> 本文按当前 `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` V1.3 编写，并以
-> `4300890dff0ce63d5a547df21426e287d084d9ee` 中的
-> `docs/development/NEW_CHAT_HANDOFF_STANDARD.md` 作为 exact handoff standard authority。
+> 本文按当前 `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` V1.3 编写，
+> 长期执行规则来自 current-main `docs/development/N3W_PROJECT_WORKING_CONTEXT.md` V1.1。
+> 历史 commit `4300890dff0ce63d5a547df21426e287d084d9ee` 中的 DSL handoff standard
+> 不作为本阶段 current execution authority。
 > fresh repository/runtime/live evidence 与本文冲突时，以 fresh 直接证据为准并先 STOP。
 
 ---
@@ -24,7 +23,7 @@ TEAM_SHARED_WORKSPACE=GITHUB
 ```text
 CURRENT_STAGE=N3W_T1_BOARD_D_FIRST_SECURE_PAIRING_LIVE_ACCEPTANCE
 CURRENT_STOP_POINT=PRECLAIM_EXECUTOR_HELPER_PERMISSION_DENIED_FALSE_STOP
-NEXT_ONE_GATE=N3W_T1_BOARD_D_FIRST_SECURE_PAIRING_DIRECT_DSL_LIVE_ACCEPTANCE_20261025_01
+NEXT_ONE_GATE=N3W_T1_BOARD_D_FIRST_SECURE_PAIRING_LIVE_ACCEPTANCE_20261025_01
 
 LIVE_MUTATION_DEFAULT=false
 BOARD_ACCESS_DEFAULT=false
@@ -38,8 +37,9 @@ fresh `inspect` 继续证明 pairing window 为 CLOSED、transaction absent、fi
 最新停止点不是产品失败，而是 staged test helper
 `/run/n3w-board-d-first-pair-20261025/continuity-probe.sh`
 在直接执行时返回 `Permission denied`。不要在新会话继续堆叠 wrapper/monitor/dry-run。
-下一会话直接按 DSL 机械编译最小 SSH/Docker/Python 命令，使用 current-main onboarding Python tool
-完成唯一一次真实 Board D 首配。
+下一会话由高阶模型直接编排最小、分阶段的 Mac Terminal / SSH / Docker / Python 命令，
+使用 current-main onboarding Python tool 完成唯一一次真实 Board D 首配。
+不再引入 DSL 编译层，也不再制造新的 wrapper/monitor executor。
 
 ---
 
@@ -54,7 +54,7 @@ STAGE_SPECIFIC_OVERRIDE_COUNT=5
 STAGE_OVERRIDES=
 1. N3W_T1_FIRST_PAIRING_BOARD_D_20261025_01 已明确 GRANTED，且当前未 claim/consume；
 2. 下一 gate 不需要再次申请同一 authorization，但必须 fresh 证明仍未 claim；
-3. PREWRITTEN_EXECUTOR_REQUIRED=false，不得再 staging/执行 continuity-*.sh wrapper；
+3. DSL_COMPILATION_USED=false；采用高阶模型直接编排 + Mac Terminal 操作，不得再 staging/执行 continuity-*.sh wrapper；
 4. Board D 网络访问仅限本 gate 的正常 discovery/QR/first-pair traffic；
 5. open 一旦 PASS，authorization 立即 consumed，任何失败都禁止重跑 open。
 ```
@@ -126,9 +126,13 @@ DYNAMIC_PAIRING_SOURCE_TEST_AUTHORITY=d63cba066201df355bf9ceb0fbb330c00dfee24d
 ### 3.2 Handoff/process authority
 
 ```text
-HANDOFF_STANDARD_AUTHORITY=4300890dff0ce63d5a547df21426e287d084d9ee
 HANDOFF_TEMPLATE_BLOB=b9ef40acdaa8fae37feb5ffe5662afd0e89462a0
+HANDOFF_TEMPLATE_VERSION=1.3
 PROJECT_WORKING_CONTEXT_BLOB=23c227528c2a388bebe886145aa36bb9a199807b
+PROJECT_WORKING_CONTEXT_VERSION=1.1
+
+HISTORICAL_DSL_STANDARD_COMMIT=4300890dff0ce63d5a547df21426e287d084d9ee
+HISTORICAL_DSL_STANDARD_IS_CURRENT_AUTHORITY=false
 ```
 
 ### 3.3 Onboarding tool
@@ -329,8 +333,9 @@ BOARD_D_DEFECT_PROVEN=false
 
 ```text
 TEST_PRODUCT_NOT_TEST_FRAMEWORK=true
-PREWRITTEN_EXECUTOR_REQUIRED=false
-NEXT_GATE_USE_DIRECT_DSL=true
+EXECUTION_MODE=HIGH_LEVEL_MODEL_DIRECT_ORCHESTRATION_WITH_MAC_TERMINAL_OPERATOR
+DIRECT_CODE_SUPPLIED=true
+DSL_COMPILATION_USED=false
 ```
 
 ---
@@ -454,7 +459,7 @@ AUTO_RETRY=false
 ## 10. Next ONE Gate
 
 ```text
-NEXT_ONE_GATE=N3W_T1_BOARD_D_FIRST_SECURE_PAIRING_DIRECT_DSL_LIVE_ACCEPTANCE_20261025_01
+NEXT_ONE_GATE=N3W_T1_BOARD_D_FIRST_SECURE_PAIRING_LIVE_ACCEPTANCE_20261025_01
 ```
 
 ### Purpose
@@ -665,14 +670,10 @@ private local terminal handoff state only.
 ## 12. Execution Contract
 
 ```text
-EXECUTOR=HIGH_LEVEL_MODEL_PLUS_CODEX_LOW_ORDER_EXECUTION
+EXECUTOR=HIGH_LEVEL_MODEL_DIRECT_ORCHESTRATION_WITH_MAC_TERMINAL_OPERATOR
 EXECUTION_METHOD=mac-terminal
-DIRECT_CODE_SUPPLIED=false
-DSL_COMPILATION_USED=true
-
-DSL_EXECUTION_MODEL=true
-PREWRITTEN_EXECUTOR_REQUIRED=false
-DSL_COMPILATION_AUTHORIZED=true
+DIRECT_CODE_SUPPLIED=true
+DSL_COMPILATION_USED=false
 
 CI_POLL_MAX=3
 CI_PENDING_DIRECT_LINKS_REQUIRED=true
@@ -680,19 +681,18 @@ CI_ALL_GREEN_CONTINUE_REQUIRED_REVIEW=true
 SAME_GATE_LOW_RISK_REPAIR_CONTINUE=false
 ```
 
-New chat execution semantics:
+Execution rules:
 
 ```text
-ROLE=LOW_ORDER_EXECUTOR_FOR_EXACT_GATE
-
-Mechanically compile the section-10 DSL into the minimum necessary commands.
-Use already-installed Git/Docker/SSH/Python/shell tools.
-Do not create a new executor file or background monitoring framework.
-Do not diagnose the historical staged-shell Permission denied unless direct product execution requires it.
+1. 高阶模型直接给出当前步骤所需的最小 Mac Terminal 命令。
+2. 只有前一步结果决定后一步是否安全时才分段执行。
+3. current-main tools/n3w_t1_first_pairing_onboarding.py 是 pairing open/inspect/close 的 exact tool authority。
+4. 不新增 versioned executor，不新增 staged shell wrapper，不新增 background monitor。
+5. 简单只读解析可直接使用内联 Python -c / stdin，不把它升级为新的执行框架。
 
 BEFORE_CLAIM:
   any mismatch => STOP;
-  no mutation;
+  no pairing mutation;
   authorization remains available.
 
 AFTER_CLAIM:
@@ -714,15 +714,14 @@ HARD_STOP:
   do not enter next product stage.
 ```
 
-Do not reintroduce a large high-level-generated shell executor as a prerequisite.
-The current project standard explicitly permits DSL-to-command compilation.
+本 gate 不使用 DSL compilation。
 
 ---
 
 ## 13. Expected Closure
 
 ```text
-=== N3W_T1_BOARD_D_FIRST_SECURE_PAIRING_DIRECT_DSL_LIVE_ACCEPTANCE CLOSURE ===
+=== N3W_T1_BOARD_D_FIRST_SECURE_PAIRING_LIVE_ACCEPTANCE CLOSURE ===
 
 EXECUTION_ID=
 AUTHORIZATION=N3W_T1_FIRST_PAIRING_BOARD_D_20261025_01
@@ -855,9 +854,8 @@ docs/development/N3W_T1_BOARD_D_FIRST_SECURE_PAIRING_PRECLAIM_EXECUTOR_STOP_NEW_
 - expected HANDOFF_TEMPLATE_VERSION=1.3
 - expected blob=b9ef40acdaa8fae37feb5ffe5662afd0e89462a0
 
-读取 exact handoff standard authority：
-4300890dff0ce63d5a547df21426e287d084d9ee
-- docs/development/NEW_CHAT_HANDOFF_STANDARD.md
+不要把历史 commit 4300890dff0ce63d5a547df21426e287d084d9ee 中的 DSL handoff standard
+重新当作 current execution authority。
 
 并 fresh rebind：
 - repository main
@@ -872,7 +870,7 @@ docs/development/N3W_T1_BOARD_D_FIRST_SECURE_PAIRING_PRECLAIM_EXECUTOR_STOP_NEW_
 
 每次回复先写：
 主线任务：N3W_T1_DYNAMIC_FIRST_PAIRING_CLEAN_ARMBIAN_REINSTALL_AND_EXACT_RELEASE_ACCEPTANCE
-当前任务：N3W_T1_BOARD_D_FIRST_SECURE_PAIRING_DIRECT_DSL_LIVE_ACCEPTANCE_20261025_01
+当前任务：N3W_T1_BOARD_D_FIRST_SECURE_PAIRING_LIVE_ACCEPTANCE_20261025_01
 
 必须先承认：
 - main authority=f8b16f70867324b57ea65aef2a3b579fcb00917a；
@@ -887,12 +885,15 @@ docs/development/N3W_T1_BOARD_D_FIRST_SECURE_PAIRING_PRECLAIM_EXECUTOR_STOP_NEW_
 - 过去所有正式 open 尝试都在 open 前停止，因此当前 authorization 仍可进行第一次 claim；
 - 最新停止是 staged continuity-probe.sh Permission denied，属于 preclaim executor/tooling failure，不是 product failure；
 - 不再修/执行 staged shell wrapper，不再增加 monitor dry-run；
-- PREWRITTEN_EXECUTOR_REQUIRED=false，直接按 handoff DSL 机械编译最小 Mac Terminal/SSH/Docker/Python 命令；
+- 当前执行方式是 HIGH_LEVEL_MODEL_DIRECT_ORCHESTRATION_WITH_MAC_TERMINAL_OPERATOR；
+- DIRECT_CODE_SUPPLIED=true；
+- DSL_COMPILATION_USED=false；
+- 由高阶模型按步骤直接给出最小 Mac Terminal/SSH/Docker/Python 命令；
 - open 一旦 PASS，本 authorization 永久 consumed，禁止第二次 open；
 - Setup Secret 只能在私有 Terminal 经 stdin 导入，禁止进入 chat/GitHub。
 
 NEXT_ONE_GATE=
-N3W_T1_BOARD_D_FIRST_SECURE_PAIRING_DIRECT_DSL_LIVE_ACCEPTANCE_20261025_01
+N3W_T1_BOARD_D_FIRST_SECURE_PAIRING_LIVE_ACCEPTANCE_20261025_01
 
 LIVE_MUTATION_DEFAULT=false
 BOARD_ACCESS_DEFAULT=false
@@ -934,7 +935,7 @@ AUTHORIZATION_CONSUMED=false
 FIRST_CLAIM_AVAILABLE=true
 SECOND_ATTEMPT_AFTER_CLAIM=false
 
-NEXT_ONE_GATE=N3W_T1_BOARD_D_FIRST_SECURE_PAIRING_DIRECT_DSL_LIVE_ACCEPTANCE_20261025_01
+NEXT_ONE_GATE=N3W_T1_BOARD_D_FIRST_SECURE_PAIRING_LIVE_ACCEPTANCE_20261025_01
 
 TEAM_SHARED_WORKSPACE=GITHUB
 ISSUE670=OPEN
@@ -944,7 +945,6 @@ BOARD_ACCESS_DEFAULT=false
 
 HANDOFF_TEMPLATE_VERSION=1.3
 PROJECT_WORKING_CONTEXT_VERSION=1.1
-HANDOFF_STANDARD_VERSION=1.0
 ```
 
 ---
@@ -956,16 +956,11 @@ HANDOFF_STANDARD_VERSION=1.0
 
 HANDOFF_TEMPLATE_VERSION=1.3
 PROJECT_WORKING_CONTEXT_VERSION=1.1
-HANDOFF_STANDARD_VERSION=1.0
 
 PROJECT_WORKING_CONTEXT_REFERENCED=PASS
 LONG_TERM_RULE_DUPLICATION_MINIMIZED=PASS
 STAGE_SPECIFIC_OVERRIDES_EXPLICIT=PASS
 PRIVATE_CONTEXT_EXCLUDED_FROM_PUBLIC_HANDOFF=PASS
-
-EXECUTION_MODEL_EXPLICIT=PASS
-HIGH_LEVEL_CODEX_ROLE_BOUNDARY=PASS
-DSL_EXECUTION_SEMANTICS_EXPLICIT=PASS
 
 PRODUCT_NORTH_STAR_PRESENT=PASS
 FROZEN_AUTHORITIES_COMPLETE=PASS
@@ -982,6 +977,7 @@ NEXT_ONE_GATE_EXPLICIT=PASS
 NEXT_GATE_SCOPE_BOUNDED=PASS
 ALLOWED_FORBIDDEN_SCOPE_EXPLICIT=PASS
 EXECUTION_CONTRACT_SELF_CONTAINED=PASS
+CI_CONTINUATION_HARD_RULES_PRESENT=PASS
 EXPECTED_CLOSURE_PRESENT=PASS
 AFTER_PASS_DOES_NOT_AUTO_EXECUTE=PASS
 
@@ -991,7 +987,6 @@ TEAM_WORKSPACE_STATUS_PRESENT=PASS
 FINAL_FROZEN_STATE_PRESENT=PASS
 
 HANDOFF_STATE_COMPLETENESS=PASS
-HANDOFF_EXECUTION_SEMANTICS_COMPLETENESS=PASS
 HANDOFF_READY_FOR_NEW_CHAT=true
 
 === END ===
