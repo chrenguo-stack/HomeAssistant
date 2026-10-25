@@ -97,7 +97,7 @@ N3W_T1_BOARD_D_SCOPED_PAIRING_NVS_RESET_20261025_01
 ```
 
 The executor must durably claim that authorization before the first erase command.
-The replay authority uses a fixed caller-independent local state namespace under the current user's Home directory; the execution CLI does not accept an alternate evidence/claim root. Changing temporary work directories therefore cannot create a second claim for the same authorization.
+The replay authority uses a fixed caller-independent local state namespace under the current UID's system-account Home directory; it is resolved from the OS account database rather than the `HOME` environment variable. The execution CLI does not accept an alternate evidence/claim root. Changing temporary work directories or overriding `HOME` therefore cannot create a second claim for the same authorization.
 Once claimed, it is permanently consumed and may not be replayed even if later checks fail.
 
 ## Execution sequence
