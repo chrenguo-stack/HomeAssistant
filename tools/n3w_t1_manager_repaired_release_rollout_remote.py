@@ -73,6 +73,16 @@ def _canonical_sha(value: Any) -> str:
     ).hexdigest()
 
 
+def _normalized_sha(value: Any) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+
+
 def _sha_text(value: str) -> str:
     return hashlib.sha256(
         value.encode("utf-8")
@@ -1631,7 +1641,7 @@ def _verify_loaded_image(
     if (
         not isinstance(layers, list)
         or not layers
-        or _canonical_sha(layers)
+        or _normalized_sha(layers)
         != transaction[
             "rootfs_layers_sha256"
         ]
@@ -1639,7 +1649,7 @@ def _verify_loaded_image(
         raise RolloutError(
             "loaded_manager_rootfs_invalid"
         )
-    config_hash = _canonical_sha(
+    config_hash = _normalized_sha(
         _config_contract(
             document.get("Config")
         )
@@ -1946,9 +1956,19 @@ def commit() -> dict[str, Any]:
             old_env,
             transaction["new_image"],
         )
+        transaction = _advance(
+            transaction,
+            status="CUTOVER_STARTED",
+            env_switched=False,
+        )
         _write_private_bytes(
             COMPOSE_ENV,
             new_env,
+        )
+        transaction = _advance(
+            transaction,
+            status="CUTOVER_STARTED",
+            env_switched=True,
         )
         rendered = _render_compose()
         image, normalized = (
@@ -1966,11 +1986,6 @@ def commit() -> dict[str, Any]:
                 "rollout_compose_delta_invalid"
             )
 
-        transaction = _advance(
-            transaction,
-            status="CUTOVER_STARTED",
-            env_switched=True,
-        )
         _run(
             _compose_command(
                 "up",
