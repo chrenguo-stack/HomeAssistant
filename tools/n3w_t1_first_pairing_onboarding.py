@@ -104,6 +104,17 @@ def _sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def _is_container_id(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and re.fullmatch(
+            r"(?:[0-9a-f]{12}|[0-9a-f]{64})",
+            value,
+        )
+        is not None
+    )
+
+
 def _sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -329,7 +340,14 @@ def _service_id(service: str) -> str:
     values = [line.strip() for line in raw.splitlines() if line.strip()]
     if len(values) != 1:
         raise OnboardingError(f"{service}_container_count_{len(values)}")
-    return values[0]
+    container_id = values[0]
+    if not _is_container_id(
+        container_id
+    ):
+        raise OnboardingError(
+            f"{service}_container_id_invalid"
+        )
+    return container_id
 
 
 def _inspect_container(container_id: str) -> dict[str, Any]:
@@ -1948,15 +1966,9 @@ def _transaction() -> dict[str, Any]:
         or set(baseline)
         != EXPECTED_SERVICES
         or any(
-            not isinstance(
-                value,
-                str,
+            not _is_container_id(
+                value
             )
-            or re.fullmatch(
-                r"[0-9a-f]{64}",
-                value,
-            )
-            is None
             for value
             in baseline.values()
         )
@@ -2471,6 +2483,7 @@ def open_window(
             ),
         )
     )
+    transaction = _transaction()
     manager_id = baseline[
         "manager"
     ]["id"]
