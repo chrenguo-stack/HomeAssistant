@@ -1434,3 +1434,636 @@ def test_authorization_is_one_shot_and_strictly_named() -> None:
         tool._authorization_id(
             "anything"
         )
+
+
+
+def test_successor_recovery_command_surface() -> None:
+    tool = load_tool()
+    args = tool._parser().parse_args(
+        [
+            "successor-recover",
+            "--authorization-id",
+            (
+                "N3W_T1_FIRST_PAIRING_"
+                "SUCCESSOR_TEST_01"
+            ),
+            "--confirm",
+            tool.SUCCESSOR_RECOVERY_CONFIRMATION,
+        ]
+    )
+
+    assert args.command == "successor-recover"
+    assert (
+        args.confirm
+        == tool.SUCCESSOR_RECOVERY_CONFIRMATION
+    )
+
+
+def test_predecessor_parser_accepts_old_tool_binding_only_as_history(
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    _configure_transaction_paths(
+        tool,
+        tmp_path,
+    )
+    predecessor = _expired_predecessor(
+        tool
+    )
+
+    with pytest.raises(
+        tool.OnboardingError,
+        match=(
+            "onboarding_transaction_tool_binding_invalid"
+        ),
+    ):
+        tool._transaction()
+
+    observed, predecessor_sha = (
+        tool._predecessor_transaction()
+    )
+
+    assert observed == predecessor
+    assert predecessor_sha == (
+        tool._sha256_file(
+            tool.TRANSACTION_PATH
+        )
+    )
+    assert (
+        observed[
+            "authorization_consumed"
+        ]
+        is True
+    )
+    assert observed["replay_allowed"] is False
+
+
+def test_successor_recovery_control_uses_hashes_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    commands: list[
+        tuple[str, ...]
+    ] = []
+    hardware_sha = "1" * 64
+    pairing_sha = "2" * 64
+
+    def run(argv, **kwargs):
+        commands.append(tuple(argv))
+        return json.dumps(
+            {
+                "accepted": True,
+                "code": (
+                    "expired_first_recovery_complete"
+                ),
+                "pairing_window_state": "CLOSED",
+                "raw_locator_in_output": False,
+                "hardware_id_sha256": (
+                    hardware_sha
+                ),
+                "pairing_id_sha256": (
+                    pairing_sha
+                ),
+                "current_registration_released": True,
+                "replay_tombstone_preserved": True,
+                "credential_history_absent": True,
+                "manager_recreated": False,
+                "raw_identity_in_output": False,
+            }
+        )
+
+    monkeypatch.setattr(
+        tool,
+        "_run",
+        run,
+    )
+
+    result = (
+        tool._recover_expired_first_control(
+            "d" * 12,
+            hardware_id_sha256=(
+                hardware_sha
+            ),
+            pairing_id_sha256=(
+                pairing_sha
+            ),
+        )
+    )
+
+    assert result["accepted"] is True
+    assert commands == [
+        (
+            "docker",
+            "exec",
+            "d" * 12,
+            "greenhouse-manager-pairing",
+            "recover-expired-first",
+            "--hardware-id-sha256",
+            hardware_sha,
+            "--pairing-id-sha256",
+            pairing_sha,
+        )
+    ]
+
+
+def _configure_successor_recovery_runtime(
+    tool,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    repaired_factory = {
+        **_factory(),
+        "release_id": "release-repaired",
+    }
+    repaired_runtime = _runtime_snapshot(
+        broker_id="d" * 12,
+        manager_id="e" * 12,
+        ha_id="f" * 12,
+    )
+    candidate = {
+        "hardware_id_sha256": (
+            "1" * 64
+        ),
+        "pairing_id_sha256": (
+            "2" * 64
+        ),
+        "current_state": "pending",
+        "current_expired_by_clock": True,
+    }
+    recovered_counts = {
+        "registrations": 0,
+        "pairing_sessions": 5,
+        "registration_events": 7,
+        "node_id_leases": 0,
+    }
+
+    monkeypatch.setattr(
+        tool,
+        "_require_root",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_require_file",
+        lambda path, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_validate_factory_compose",
+        dict,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_validate_factory_marker",
+        lambda: repaired_factory,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_systemctl_is_active",
+        lambda unit: False,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_runtime_snapshot",
+        lambda: repaired_runtime,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_validate_factory_runtime",
+        lambda snapshot: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_window_control",
+        lambda manager, command, **kwargs: {
+            "accepted": True,
+            "code": "status",
+            "pairing_window_state": "CLOSED",
+            "broker_host_sha256": None,
+            "raw_locator_in_output": False,
+        },
+    )
+    monkeypatch.setattr(
+        tool,
+        "_pairing_socket_absent",
+        lambda manager: None,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_security_state_counts",
+        _zero_security_counts,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_successor_recovery_candidate",
+        lambda: candidate,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_db_counts",
+        lambda: recovered_counts,
+    )
+    return (
+        repaired_factory,
+        repaired_runtime,
+        candidate,
+        recovered_counts,
+    )
+
+
+def test_successor_recovery_allows_repaired_release_and_archives_exact_predecessor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    _configure_transaction_paths(
+        tool,
+        tmp_path,
+    )
+    predecessor = _expired_predecessor(
+        tool
+    )
+    predecessor_bytes = (
+        tool.TRANSACTION_PATH.read_bytes()
+    )
+    (
+        repaired_factory,
+        repaired_runtime,
+        candidate,
+        recovered_counts,
+    ) = _configure_successor_recovery_runtime(
+        tool,
+        monkeypatch,
+    )
+
+    def recover_control(
+        manager,
+        *,
+        hardware_id_sha256,
+        pairing_id_sha256,
+    ):
+        assert (
+            tool.SUCCESSOR_RECOVERY_PATH
+            .is_file()
+        )
+        assert manager == (
+            repaired_runtime[
+                "manager"
+            ]["id"]
+        )
+        assert (
+            hardware_id_sha256
+            == candidate[
+                "hardware_id_sha256"
+            ]
+        )
+        assert (
+            pairing_id_sha256
+            == candidate[
+                "pairing_id_sha256"
+            ]
+        )
+        return {
+            "accepted": True,
+            "code": (
+                "expired_first_recovery_complete"
+            ),
+            "pairing_window_state": "CLOSED",
+            "raw_locator_in_output": False,
+            "hardware_id_sha256": (
+                hardware_id_sha256
+            ),
+            "pairing_id_sha256": (
+                pairing_id_sha256
+            ),
+            "current_registration_released": True,
+            "replay_tombstone_preserved": True,
+            "credential_history_absent": True,
+            "manager_recreated": False,
+            "raw_identity_in_output": False,
+        }
+
+    monkeypatch.setattr(
+        tool,
+        "_recover_expired_first_control",
+        recover_control,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_require_successor_recovered_state",
+        lambda counts, security, recovery: None,
+    )
+
+    report = tool.recover_successor(
+        authorization_id=(
+            "N3W_T1_FIRST_PAIRING_"
+            "SUCCESSOR_TEST_01"
+        ),
+        confirmation=(
+            tool.SUCCESSOR_RECOVERY_CONFIRMATION
+        ),
+    )
+
+    recovery = (
+        tool._successor_recovery_record()
+    )
+    archive = (
+        tool.TRANSACTION_ARCHIVE_ROOT
+        / (
+            "FIRST_PAIRING_ONBOARDING."
+            + recovery[
+                "predecessor_transaction_sha256"
+            ]
+            + ".json"
+        )
+    )
+
+    assert report["status"] == "PASS"
+    assert not tool.TRANSACTION_PATH.exists()
+    assert archive.read_bytes() == (
+        predecessor_bytes
+    )
+    assert recovery["status"] == "CLOSED_PASS"
+    assert (
+        recovery[
+            "predecessor_release_id"
+        ]
+        == predecessor[
+            "release_id"
+        ]
+    )
+    assert (
+        recovery[
+            "recovery_release_id"
+        ]
+        == repaired_factory[
+            "release_id"
+        ]
+    )
+    assert (
+        recovery[
+            "predecessor_baseline_container_ids"
+        ]
+        == predecessor[
+            "baseline_container_ids"
+        ]
+    )
+    assert (
+        recovery[
+            "baseline_container_ids"
+        ]["manager"]
+        == repaired_runtime[
+            "manager"
+        ]["id"]
+    )
+    assert (
+        recovery[
+            "final_database_counts"
+        ]
+        == recovered_counts
+    )
+
+
+def test_successor_recovery_unproven_manager_result_keeps_predecessor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    _configure_transaction_paths(
+        tool,
+        tmp_path,
+    )
+    _expired_predecessor(tool)
+    predecessor_bytes = (
+        tool.TRANSACTION_PATH.read_bytes()
+    )
+    _configure_successor_recovery_runtime(
+        tool,
+        monkeypatch,
+    )
+    monkeypatch.setattr(
+        tool,
+        "_recover_expired_first_control",
+        lambda *args, **kwargs: (
+            (_ for _ in ()).throw(
+                tool.OnboardingError(
+                    "control_lost"
+                )
+            )
+        ),
+    )
+
+    with pytest.raises(
+        tool.OnboardingError,
+        match=(
+            "successor_recovery_manager_result_unproven"
+        ),
+    ):
+        tool.recover_successor(
+            authorization_id=(
+                "N3W_T1_FIRST_PAIRING_"
+                "SUCCESSOR_TEST_02"
+            ),
+            confirmation=(
+                tool.SUCCESSOR_RECOVERY_CONFIRMATION
+            ),
+        )
+
+    recovery = (
+        tool._successor_recovery_record()
+    )
+    assert (
+        recovery["status"]
+        == "STOPPED_RECOVERY_UNPROVEN"
+    )
+    assert (
+        tool.TRANSACTION_PATH.read_bytes()
+        == predecessor_bytes
+    )
+    assert not (
+        tool.TRANSACTION_ARCHIVE_ROOT
+        .exists()
+    )
+
+
+def test_successor_recovery_postcheck_failure_does_not_archive(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    _configure_transaction_paths(
+        tool,
+        tmp_path,
+    )
+    _expired_predecessor(tool)
+    predecessor_bytes = (
+        tool.TRANSACTION_PATH.read_bytes()
+    )
+    (
+        _,
+        _,
+        candidate,
+        _,
+    ) = _configure_successor_recovery_runtime(
+        tool,
+        monkeypatch,
+    )
+
+    monkeypatch.setattr(
+        tool,
+        "_recover_expired_first_control",
+        lambda manager, **kwargs: {
+            "accepted": True,
+            "code": (
+                "expired_first_recovery_complete"
+            ),
+            "pairing_window_state": "CLOSED",
+            "raw_locator_in_output": False,
+            "hardware_id_sha256": (
+                candidate[
+                    "hardware_id_sha256"
+                ]
+            ),
+            "pairing_id_sha256": (
+                candidate[
+                    "pairing_id_sha256"
+                ]
+            ),
+            "current_registration_released": True,
+            "replay_tombstone_preserved": True,
+            "credential_history_absent": True,
+            "manager_recreated": False,
+            "raw_identity_in_output": False,
+        },
+    )
+    monkeypatch.setattr(
+        tool,
+        "_require_successor_recovered_state",
+        lambda counts, security, recovery: (
+            (_ for _ in ()).throw(
+                tool.OnboardingError(
+                    "postcheck_invalid"
+                )
+            )
+        ),
+    )
+
+    with pytest.raises(
+        tool.OnboardingError,
+        match=(
+            "successor_recovery_postcheck_failed"
+        ),
+    ):
+        tool.recover_successor(
+            authorization_id=(
+                "N3W_T1_FIRST_PAIRING_"
+                "SUCCESSOR_TEST_03"
+            ),
+            confirmation=(
+                tool.SUCCESSOR_RECOVERY_CONFIRMATION
+            ),
+        )
+
+    recovery = (
+        tool._successor_recovery_record()
+    )
+    assert (
+        recovery["status"]
+        == "STOPPED_POSTCHECK_FAILED"
+    )
+    assert (
+        tool.TRANSACTION_PATH.read_bytes()
+        == predecessor_bytes
+    )
+    assert not (
+        tool.TRANSACTION_ARCHIVE_ROOT
+        .exists()
+    )
+
+
+def test_successor_admission_requires_closed_pass_recovery(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    root = _configure_transaction_paths(
+        tool,
+        tmp_path,
+    )
+    tool.SUCCESSOR_RECOVERY_PATH.write_text(
+        "{}",
+        encoding="utf-8",
+    )
+    recovered_counts = {
+        "registrations": 0,
+        "pairing_sessions": 5,
+        "registration_events": 7,
+        "node_id_leases": 0,
+    }
+    base_record = {
+        "status": "CLAIMED",
+        "recovery_release_id": (
+            _factory()[
+                "release_id"
+            ]
+        ),
+        "host_instance_id": (
+            _factory()[
+                "host_instance_id"
+            ]
+        ),
+        "system_id": (
+            _factory()[
+                "system_id"
+            ]
+        ),
+    }
+    state = {
+        "record": base_record,
+    }
+    monkeypatch.setattr(
+        tool,
+        "_successor_recovery_record",
+        lambda: state["record"],
+    )
+
+    with pytest.raises(
+        tool.OnboardingError,
+        match=(
+            "successor_recovery_not_admissible"
+        ),
+    ):
+        tool._require_first_pair_admission(
+            recovered_counts,
+            _zero_security_counts(),
+            _factory(),
+        )
+
+    called = {
+        "value": False,
+    }
+
+    def require_recovered(
+        counts,
+        security,
+        recovery,
+    ):
+        called["value"] = True
+
+    monkeypatch.setattr(
+        tool,
+        "_require_successor_recovered_state",
+        require_recovered,
+    )
+    state["record"] = {
+        **base_record,
+        "status": "CLOSED_PASS",
+    }
+
+    tool._require_first_pair_admission(
+        recovered_counts,
+        _zero_security_counts(),
+        _factory(),
+    )
+
+    assert called["value"] is True
+    assert root.is_dir()
