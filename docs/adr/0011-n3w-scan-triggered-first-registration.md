@@ -141,7 +141,26 @@ The decision contract is:
 
 47110 must reject a source outside the current trusted product subnet. 47111 must not answer it. mDNS registration advertisement must be scoped to `eth0` rather than every host interface.
 
-The trusted-subnet decision is re-read from current NetworkManager state and therefore follows DHCP/subnet changes without freezing a historical customer address. If the authority is unavailable or ambiguous, 47110/47111 remain non-authorizing/fail-closed even if their sockets exist.
+The host-side NetworkManager authority is reused without widening the greenhouse-manager container privileges. The host ingress-guard/NetworkManager integration atomically publishes a non-secret runtime state file under a dedicated host runtime directory. The Manager mounts that **directory** read-only and re-reads the state for product registration decisions; it does not require D-Bus, `nmcli`, `NET_ADMIN` or another host-control capability inside the container.
+
+The publication contract is versioned and contains only:
+- schema/version;
+- interface name (`eth0`);
+- `available=true|false`;
+- the current trusted IPv4 subnet when available;
+- a reason/status code;
+- publication time/generation metadata.
+
+It contains no credential, Setup Secret, node identity or pairing identity. Public logs/evidence must not print the raw customer subnet.
+
+On every host guard execution, including NetworkManager dispatcher events:
+- a valid unique subnet is atomically published as `available=true`;
+- disconnected, invalid, zero-subnet or ambiguous state is atomically published as `available=false`;
+- the previous valid subnet must not be left behind as authority after a fail-closed transition.
+
+The Manager treats missing, malformed, unavailable or schema-invalid state as **no trusted product LAN**. The runtime directory bind-mount is used rather than a single-file bind so host-side atomic replacement cannot leave the container pinned to a predecessor inode.
+
+The trusted-subnet decision therefore follows DHCP/subnet changes without freezing a historical customer address. If the authority is unavailable or ambiguous, 47110/47111 remain non-authorizing/fail-closed even if their sockets exist.
 
 For an already active 47112 transaction, each request still requires both the original exact `source_ip` match and membership of that source in the **current** trusted product subnet. A subnet/link change does not mint a new transaction or refresh the deadline; an unreachable or no-longer-trusted transaction remains bounded by its original deadline unless Manager process-boundary invalidation occurs.
 
