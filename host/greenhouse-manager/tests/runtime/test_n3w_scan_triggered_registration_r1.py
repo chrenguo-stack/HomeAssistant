@@ -282,3 +282,16 @@ def test_r1_source_keeps_registration_runtime_isolated_from_manager_app() -> Non
         ).__file__,
         encoding="utf-8",
     ).read()
+
+
+def test_bootstrap_skeleton_requires_canonical_uuid_text() -> None:
+    document = _confirm()
+    document["pairing_id"] = document["pairing_id"].upper()
+    with pytest.raises(RegistrationBootstrapRejected, match="identity_invalid"):
+        evaluate_confirm_skeleton(
+            document,
+            source_ip="192.0.2.20",
+            expected_manager_id="manager_lab_01",
+            expected_system_id="system_lab_01",
+            state_loader=_state,
+        )
