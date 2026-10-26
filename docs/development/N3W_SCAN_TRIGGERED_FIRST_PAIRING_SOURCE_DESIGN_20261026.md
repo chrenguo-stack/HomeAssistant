@@ -166,7 +166,13 @@ host/greenhouse-manager/src/greenhouse_manager/runtime/
   n3w_registration_discovery.py
   n3w_registration_bootstrap.py
   n3w_first_registration_intent.py
+  n3w_first_registration_ledger.py
+  n3w_trusted_product_lan.py
 ```
+
+`n3w_trusted_product_lan.py` owns the product first-registration network-admission decision. It must implement the same NetworkManager/`eth0` unique-IPv4-subnet contract already proven by the KF-097 ingress guard, but production runtime must not import the `tools/` script as an application dependency. Shared fixtures/contract tests must keep both decisions equivalent.
+
+`n3w_first_registration_ledger.py` owns the non-secret durable attempt/tombstone lifecycle needed to make restart-before-`/hello` non-replayable.
 
 Modify:
 
@@ -211,11 +217,52 @@ Security meaning:
 - they cannot issue credentials;
 - they cannot create NODE_ID or activate credential/key/trust state by themselves;
 - 47112 is the only privileged pairing protocol surface;
-- the T1 authorization boundary is the trusted LAN: any client accepted as a local/trusted-LAN source is authorized to initiate first registration through 47110;
+- the T1 authorization boundary is **NetworkManager current `eth0` unique IPv4 subnet**, not generic private-address classification;
+- a source is product-authorized only when its IPv4 belongs to that exact current subnet;
+- loopback, link-local, IPv6, Docker/VPN/other private subnets and generic RFC1918 ranges are not product-authorized merely because they are locally reachable;
 - QR possession, node scan token and browser confirmation are normal-product UX controls, not T1-side authorization credentials;
-- in the normal phone flow, user confirmation causes the node to submit 47110; however a trusted-LAN client is also intentionally permitted to submit an equivalent valid bootstrap request directly.
+- in the normal phone flow, user confirmation causes the node to submit 47110; however a client already inside the trusted product subnet is intentionally permitted to submit an equivalent valid bootstrap request directly.
+
+There is no product fallback to current broad `pairing_discovery.is_local_source()` semantics.
 
 ## 4. T1 passive discovery protocol
+
+### 4.1 Trusted product LAN admission
+
+Freeze one admission source of truth:
+
+```text
+TRUSTED_PRODUCT_LAN_INTERFACE=eth0
+TRUSTED_PRODUCT_LAN_AUTHORITY=NetworkManager current eth0 IPv4 state
+TRUSTED_PRODUCT_LAN_CARDINALITY=exactly one distinct IPv4 subnet
+GENERIC_RFC1918_FALLBACK=false
+IPV6_FIRST_REGISTRATION_AUTHORIZED=false
+LOOPBACK_FIRST_REGISTRATION_AUTHORIZED=false
+LINK_LOCAL_FIRST_REGISTRATION_AUTHORIZED=false
+```
+
+The runtime decision mirrors the already proven KF-097 guard contract:
+1. `eth0` must be NetworkManager-connected;
+2. read current `IP4.ADDRESS` from NetworkManager;
+3. every nonempty value must parse as IPv4 interface state;
+4. reject unspecified, loopback, multicast, link-local and `/0`;
+5. all valid addresses must collapse to exactly one IPv4 network;
+6. zero or multiple distinct networks => fail closed;
+7. a request source is authorized only if its IPv4 belongs to that exact network.
+
+47111 behavior:
+- answer UDP discovery only when the datagram source passes this admission;
+- scope mDNS registration advertisement to `eth0`;
+- do not advertise/respond on Docker, VPN, loopback or other host interfaces;
+- if trusted-subnet authority is unavailable/ambiguous, emit no product discovery response.
+
+47110 uses the same admission decision. No second independent “local network” definition is allowed.
+
+The decision is refreshed from current NetworkManager state; customer LAN CIDR is not frozen into Compose/env/source. A DHCP/subnet change therefore changes the trusted product subnet without manual configuration.
+
+For an active first-registration transaction, 47112 keeps its exact original `source_ip` binding and also rechecks that source against the current trusted product subnet on every request. A subnet change never refreshes the transaction or its deadline.
+
+### 4.2 Candidate protocol
 
 Introduce a dedicated candidate schema rather than advertising a closed pairing endpoint.
 
@@ -306,10 +353,11 @@ Exact request:
 
 The HTTP layer:
 - requires TLS;
-- accepts only local/trusted-LAN source addresses;
-- treats trusted-LAN source membership as sufficient authorization to initiate first registration;
+- accepts only source IPv4 inside the current NetworkManager-derived `eth0` trusted product subnet;
+- rejects loopback, link-local, IPv6, Docker/VPN/other subnets and all generic private-address fallback;
+- treats trusted-product-subnet membership as sufficient authorization to initiate first registration;
 - does not require proof of QR possession, scan token possession or browser confirmation;
-- intentionally permits a trusted-LAN client to submit its own syntactically valid hardware ID, pairing ID and Setup Secret;
+- intentionally permits a trusted-product-LAN client to submit its own syntactically valid hardware ID, pairing ID and Setup Secret;
 - uses exact field sets;
 - rejects oversized input;
 - is rate limited;
@@ -317,7 +365,7 @@ The HTTP layer:
 - never echoes Setup Secret;
 - does not persist Setup Secret.
 
-This is an explicit threat-model decision, not an accidental bypass. A malicious or compromised client already inside the trusted LAN may initiate an enrollment attempt and, if it follows the bound 47110 -> 47112 flow from the same accepted source, may complete that enrollment. Product security therefore relies on the trusted-LAN boundary for initiation authorization. The node QR remains the normal-user entry point but is not a Manager authorization token.
+This is an explicit threat-model decision, not an accidental bypass. A malicious or compromised client already inside the trusted product subnet may initiate an enrollment attempt and, if it follows the bound 47110 -> 47112 flow from the same accepted source, may complete that enrollment. Product security therefore relies on the exact current `eth0` subnet boundary for initiation authorization. The node QR remains the normal-user entry point but is not a Manager authorization token.
 
 Response on acceptance:
 
@@ -325,6 +373,7 @@ Response on acceptance:
 {
   "schema": "gh.registration.confirm-result/1",
   "accepted": true,
+  "status": "accepted",
   "manager_id": "<manager>",
   "system_id": "<system>",
   "pairing_host": "<route-selected local host>",
@@ -336,18 +385,142 @@ Response on acceptance:
 
 The response contains no credentials or secret.
 
-Conflict responses classify at least:
+A terminal replay/expiry response uses the ADR-0008 terminal vocabulary so the node can enter the same durable pairing-ID renewal path:
+
+```json
+{
+  "schema": "gh.registration.confirm-result/1",
+  "accepted": false,
+  "status": "rejected",
+  "reason": "replay_detected",
+  "transaction_disposition": "terminal"
+}
+```
+
+For an attempt whose canonical deadline already expired, `reason=expired` may be returned instead. Both terminal reasons require the same durable fresh-pairing-ID renewal primitive used by existing terminal `/hello` handling before 47110 is retried.
+
+Non-terminal conflict responses classify at least:
 
 ```text
 registration_busy
 identity_invalid
 manager_mismatch
 system_mismatch
+trusted_product_lan_unavailable
+source_not_trusted_product_lan
 bootstrap_tls_mismatch (node-local classification)
 bootstrap_unavailable
 ```
 
-## 6. FirstRegistrationIntent
+## 6. Durable first-registration attempt ledger
+
+Add one persistent table owned by `n3w_first_registration_ledger.py`:
+
+```text
+first_registration_attempts
+
+pairing_id TEXT PRIMARY KEY
+hardware_id_sha256 TEXT NOT NULL
+opened_at TEXT NOT NULL
+expires_at TEXT NOT NULL
+state TEXT NOT NULL
+terminal_at TEXT
+terminal_reason TEXT
+```
+
+Allowed states:
+
+```text
+ACTIVE
+COMMITTED
+EXPIRED
+RESTART_INVALIDATED
+```
+
+The table deliberately does **not** contain:
+- Setup Secret;
+- raw hardware ID;
+- scan token;
+- source IP;
+- credential material;
+- TLS private material.
+
+`pairing_id` is the exact durable replay key. `hardware_id_sha256` is only a non-secret binding/audit value and is never used as a replacement for the exact runtime hardware-ID check on 47112.
+
+### 6.1 Transaction-start ordering
+
+47110 acceptance order is frozen:
+
+```text
+strict request validation
+-> trusted product LAN admission
+-> existing-terminal-pairing-id check
+-> one-active-transaction check
+-> prepare non-active mutable RAM intent
+-> deadline = now + 1800
+-> durable INSERT ACTIVE attempt
+-> activate RAM intent with the same deadline
+-> open exact identity/source-bound 47112
+-> return accepted=true
+```
+
+The `ACTIVE` database commit is the **transaction-start authority**.
+
+If failure occurs before that commit, the Manager must not return `accepted=true`; no transaction exists and the node may retry the same pairing ID.
+
+If the durable commit succeeds but 47112 cannot yet be exposed, the row remains `ACTIVE` with the original deadline. The same-process exact duplicate request may retry completion of the same transaction; it must not create a second row or a new deadline. If the RAM intent is no longer available, the service fails closed and does not reconstruct a new intent with a refreshed deadline.
+
+### 6.2 Replay decision
+
+Before accepting a new 47110 transaction:
+- no ledger row for pairing ID -> may proceed if all other checks pass;
+- `ACTIVE` row + exact current-process RAM intent/source/identity -> idempotent same transaction only;
+- terminal row -> reject terminal;
+- `ACTIVE` row with no matching current RAM intent -> fail closed; never reinterpret as fresh.
+
+Terminal mapping:
+
+```text
+EXPIRED             -> expired + terminal
+COMMITTED           -> replay_detected + terminal
+RESTART_INVALIDATED -> replay_detected + terminal
+```
+
+Terminal rows are replay tombstones and are not garbage-collected while the product registration database remains authoritative.
+
+### 6.3 Startup invalidation
+
+Before any product 47110/47111/47112 service becomes active after Manager startup:
+
+```text
+for every ACTIVE first_registration_attempt:
+  if now >= expires_at:
+    state = EXPIRED
+    terminal_reason = expired
+  else:
+    state = RESTART_INVALIDATED
+    terminal_reason = manager_restart
+  terminal_at = now
+commit
+```
+
+Only after that atomic sweep succeeds may product registration listeners be considered ready.
+
+This closes the exact restart-before-`/hello` hole: the old pairing ID remains terminal even though no `RegistrationRegistry.pairing_sessions` row ever existed.
+
+### 6.4 Terminal updates
+
+On final ACK -> Manager COMMIT:
+- mark ledger row `COMMITTED`;
+- then/atomically with exposure closure, clear intent and close 47112.
+
+On canonical deadline:
+- mark row `EXPIRED`;
+- clear intent and close 47112.
+
+The ledger terminal update must never persist Setup Secret.
+
+## 7. FirstRegistrationIntent
 
 New RAM-only Manager object:
 
@@ -367,28 +540,30 @@ FirstRegistrationIntent(
 
 Properties:
 - exactly one active first-registration intent in V1;
-- duplicate exact confirmation from the same source may be idempotent;
+- duplicate exact confirmation from the same source may be idempotent only when it matches the current `ACTIVE` ledger row and current RAM intent;
 - conflicting second identity gets busy/conflict;
+- the intent deadline must equal the durable ledger deadline exactly;
 - Manager restart destroys the intent and fail-closes 47112;
+- startup atomically terminalizes predecessor `ACTIVE` ledger rows before listeners become ready;
 - the old transaction must not resume after Manager restart;
-- the old pairing ID becomes terminal/replay-tombstoned under ADR-0008;
+- the old pairing ID becomes terminal/replay-tombstoned under ADR-0008 even when restart happened before `/hello`;
 - the next registration attempt must use a new pairing ID and, after fresh confirmation, a new full 1800-second transaction;
 - retained mutable secret buffers are explicitly zeroized on success, deadline expiry and Manager/process-boundary invalidation;
 - unavoidable transient high-level runtime/parser copies must be bounded in lifetime and must never be logged or persisted; the design does not claim provable erasure of every immutable process-memory copy;
 - no raw identity/secret in logs;
 - public diagnostics use SHA-256 identities only.
 
-The intent is the authority for opening 47112.
+The RAM intent is the current-process authority for opening 47112. The durable ledger is the cross-restart replay/terminal authority. Neither can substitute for the other.
 
-## 7. Dynamic pairing window redesign
+## 8. Dynamic pairing window redesign
 
 Split current responsibilities.
 
-### 7.1 Registration discovery remains outside the window
+### 8.1 Registration discovery remains outside the window
 
 47111 is not started/stopped by `DynamicPairingWindowController`.
 
-### 7.2 47112 becomes identity-bound
+### 8.2 47112 becomes identity-bound
 
 Replace the product-path concept:
 
@@ -414,7 +589,7 @@ Before `RegistrationRegistry.observe_hello()`, the pairing HTTP endpoint checks 
 
 Mismatch must fail before durable registration mutation.
 
-## 8. Setup Secret bridge into existing coordinator
+## 9. Setup Secret bridge into existing coordinator
 
 Current `SimplifiedPairingCoordinator.import_setup_secret()` requires a PENDING registration.
 
@@ -445,7 +620,7 @@ This preserves ADR-0007/0008 security flow while removing manual UDS secret impo
 
 The existing Manager-owned UDS and `greenhouse-manager-pairing import` remain engineering/ops interfaces, not normal first-registration UX.
 
-## 9. Canonical 1800-second deadline
+## 10. Canonical 1800-second deadline
 
 Create one product constant:
 
@@ -459,7 +634,7 @@ At bootstrap confirmation:
 deadline = now + 1800 s
 ```
 
-The same absolute deadline is supplied to all first-registration layers.
+The same absolute deadline is supplied to all first-registration layers, including the durable attempt ledger.
 
 Transaction isolation is explicit:
 
@@ -513,7 +688,7 @@ Ordinary repair:
 - remains <=120 s;
 - is not widened by this design.
 
-## 10. Privileged-window close semantics
+## 11. Privileged-window close semantics
 
 Current engineering onboarding closes the window externally.
 
@@ -542,9 +717,9 @@ After successful COMMIT or deadline expiry:
 - intent is cleared;
 - success/timeout state may remain available to the node/browser for a short non-secret observation period.
 
-## 11. Node registration portal
+## 12. Node registration portal
 
-### 11.1 Server lifetime
+### 12.1 Server lifetime
 
 Custom narrow HTTP server on node port 47113.
 
@@ -562,7 +737,7 @@ Stop when:
 
 Do not enable generic ESPHome `web_server`.
 
-### 11.2 QR
+### 12.2 QR
 
 Generate a RAM-only 128-bit scan token.
 
@@ -587,7 +762,7 @@ The scan token:
 - is not pairing correctness authority;
 - only authorizes local portal actions for the currently displayed QR.
 
-### 11.3 HTTP routes
+### 12.3 HTTP routes
 
 ```text
 GET  /register
@@ -979,24 +1154,51 @@ Prove:
 - exact certificate fingerprint required;
 - fingerprint mismatch sends no Setup Secret;
 - secret absent from logs/results;
-- bootstrap endpoint local-only/rate-limited;
 - source IP captured by T1;
 - no operator peer_ip needed.
 
-### E. Identity-bound window and trusted-LAN authorization
+### E. Trusted product LAN admission
+
+Prove with shared contract vectors against the KF-097 decision semantics:
+- only NetworkManager current `eth0` unique IPv4 subnet is trusted;
+- zero/ambiguous subnet fails closed;
+- generic RFC1918 address outside the exact subnet is rejected;
+- loopback rejected for product first registration;
+- link-local rejected;
+- IPv6 rejected in V1;
+- Docker/VPN/other interface source rejected even when privately addressed;
+- 47111 emits no response outside the trusted subnet;
+- mDNS registration advertisement is scoped to `eth0`;
+- DHCP/subnet change recomputes authority without static customer CIDR;
+- 47110 and 47111 share the same decision helper/contract.
+
+### F. Durable attempt ledger / restart-before-hello
 
 Prove:
-- non-local/non-trusted source is rejected by 47110;
-- a trusted-LAN client may initiate 47110 without QR possession or scan-token proof;
+- 47110 cannot return `accepted=true` before durable `ACTIVE` insert commits;
+- ledger contains pairing ID + hardware hash + timestamps/state only and no Setup Secret/source IP/scan token;
+- restart after 47110 acceptance but before `/hello` converts old `ACTIVE` row to terminal;
+- same old pairing ID receives terminal `replay_detected` or `expired`, never a fresh deadline;
+- bootstrap terminal result invokes the existing durable ADR-0008 pairing-ID renewal primitive;
+- fresh pairing ID is durably committed before the next 47110 attempt;
+- same-process exact duplicate preserves the original deadline;
+- `ACTIVE` ledger row without matching RAM intent fails closed and cannot be reconstructed with a fresh deadline;
+- terminal rows remain replay tombstones.
+
+### G. Identity-bound window
+
+Prove:
+- a trusted-product-LAN client may initiate 47110 without QR possession or scan-token proof;
 - the normal phone flow still uses node QR + browser confirmation;
 - wrong hardware rejected before DB write once an intent is active;
 - wrong pairing ID rejected before DB write;
 - wrong source IP rejected before DB write;
+- source IP must still belong to current trusted product subnet on each 47112 request;
 - exact duplicate is safe/idempotent;
 - second competing node receives busy;
 - 47112 is closed while idle and closes on Manager COMMIT or canonical deadline expiry.
 
-### F. Deadline and restart
+### H. Deadline and restart
 
 Accelerated-clock tests prove one shared deadline.
 
@@ -1017,7 +1219,7 @@ Prove:
 
 Repair TTL remains <=120.
 
-### G. Pairing security
+### I. Pairing security
 
 Reuse current vectors/tests to prove:
 - Setup Secret proof remains HMAC;
@@ -1026,11 +1228,11 @@ Reuse current vectors/tests to prove:
 - final delivery digest ACK remains commit authority;
 - replay tombstones remain.
 
-### H. LCD
+### J. LCD
 
 Golden/source tests cover every state/error string and ensure all glyphs exist.
 
-### I. End-to-end simulated browser
+### K. End-to-end simulated browser
 
 A phone-like HTTP client:
 1. opens node page;
@@ -1041,7 +1243,7 @@ A phone-like HTTP client:
 6. proves Manager COMMIT;
 7. proves browser never handles Setup Secret.
 
-### J. Physical acceptance
+### L. Physical acceptance
 
 Physical Board/T1 acceptance is a later separately authorized gate.
 
@@ -1056,15 +1258,16 @@ Mandatory normal flow:
 Recommended staged source implementation:
 
 ```text
-R1  T1 passive discovery + bootstrap service + tests
-R2  identity-bound 47112 window + unified 1800 s deadline
-R3  node local registration portal + QR
-R4  scan-triggered discovery + multi-T1 selection
-R5  node->T1 TLS bootstrap + SimplePairingClient refactor
-R6  LCD state/error integration
-R7  full simulated end-to-end + regression / safety
-R8  exact artifact build and independent source review
-R9  separately authorized physical acceptance
+R1  trusted-product-LAN authority + passive discovery/bootstrap skeleton
+R2  durable first-registration attempt ledger + restart tombstone tests
+R3  identity-bound 47112 window + unified 1800 s deadline
+R4  node local registration portal + QR
+R5  scan-triggered discovery + multi-T1 selection
+R6  node->T1 TLS bootstrap + terminal-bootstrap renewal + SimplePairingClient refactor
+R7  LCD state/error integration
+R8  full simulated end-to-end + regression / safety
+R9  exact artifact build and independent source review
+R10 separately authorized physical acceptance
 ```
 
 Do not combine physical mutation with R1-R8.
@@ -1094,9 +1297,21 @@ QR_VISIBLE_AFTER_WIFI_WHILE_UNREGISTERED=true
 SCAN_TRIGGERS_DISCOVERY=true
 CONFIRM_TRIGGERS_NORMAL_PRODUCT_TRANSACTION=true
 
-T1_FIRST_REGISTRATION_AUTHORITY=TRUSTED_LAN_SOURCE
+T1_FIRST_REGISTRATION_AUTHORITY=NETWORKMANAGER_ETH0_UNIQUE_IPV4_SUBNET
+TRUSTED_PRODUCT_LAN_INTERFACE=eth0
+TRUSTED_PRODUCT_LAN_ZERO_OR_AMBIGUOUS=FAIL_CLOSED
+GENERIC_RFC1918_OR_IS_LOCAL_SOURCE_FALLBACK=false
+IPV6_FIRST_REGISTRATION_AUTHORIZED=false
+LOOPBACK_FIRST_REGISTRATION_AUTHORIZED=false
 QR_POSSESSION_REQUIRED_FOR_T1_AUTHORIZATION=false
 TRUSTED_LAN_DIRECT_47110_INITIATION_ALLOWED=true
+
+DURABLE_FIRST_REGISTRATION_ATTEMPT_LEDGER=true
+ATTEMPT_LEDGER_SETUP_SECRET_PERSISTENCE=false
+ACTIVE_ATTEMPT_COMMITTED_BEFORE_ACCEPTED_RESPONSE=true
+STARTUP_TERMINALIZES_PREDECESSOR_ACTIVE_ATTEMPTS=true
+RESTART_PRE_HELLO_PAIRING_ID_TOMBSTONED=true
+TERMINAL_BOOTSTRAP_RESULT_USES_ADR0008_RENEWAL=true
 
 T1_47110_BOOTSTRAP_ALWAYS_ON=true
 T1_47111_DISCOVERY_ALWAYS_ON=true
@@ -1131,17 +1346,21 @@ MERGE=false
 Proposed next gate:
 
 ```text
-N3W_SCAN_TRIGGERED_FIRST_PAIRING_SOURCE_DESIGN_REPAIR_FOCUSED_CLOSURE_REVIEW_20261026_01
+N3W_SCAN_TRIGGERED_FIRST_PAIRING_SOURCE_DESIGN_REPAIR_R2_FOCUSED_CLOSURE_REVIEW_20261026_01
 ```
 
 The focused closure review must independently verify:
-- trusted-LAN source membership is intentionally sufficient to authorize 47110 first-registration initiation;
-- QR possession/scan token/browser confirmation are UX controls, not T1 authorization credentials;
+- product trusted-LAN admission is exactly NetworkManager current `eth0` unique IPv4 subnet and cannot fall back to broad `is_local_source()`;
+- zero/ambiguous subnet, loopback, link-local, IPv6, Docker/VPN/other private networks are fail-closed for product first registration;
+- QR possession/scan token/browser confirmation remain UX controls, not T1 authorization credentials;
 - the normal node flow still performs pre-body TLS fingerprint matching before emitting Setup Secret bytes;
-- identity/source binding occurs before DB mutation on 47112;
+- 47110 durable `ACTIVE` attempt commit happens before `accepted=true`;
+- the ledger stores no Setup Secret and closes restart-before-`/hello` replay;
+- terminal bootstrap `expired/replay_detected` drives the same ADR-0008 durable pairing-ID renewal primitive;
+- identity/source/current-subnet binding occurs before DB mutation on 47112;
 - Manager COMMIT and canonical deadline expiry are the only normal-uptime privileged-window close conditions;
 - pre-deadline failure does not refresh or replace the transaction;
 - Manager restart is fail-closed, old pairing ID is terminal, and the next attempt uses a new pairing ID plus a fresh full 1800-second deadline;
 - Setup Secret retained-buffer zeroization wording is implementable and does not make impossible claims about every immutable runtime copy;
 - any current regression gate that still assumes idle UDP47111=0 is retargeted during implementation;
-- no new false-PASS path was introduced by the repair.
+- no new false-PASS path was introduced by the R2 repair.
