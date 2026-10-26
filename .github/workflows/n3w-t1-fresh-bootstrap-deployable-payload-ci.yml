@@ -112,6 +112,7 @@ jobs:
           docker load -i "$WORK/payload/artifact/greenhouse-manager-arm64.tar"
           MANAGER_IMAGE_ID="$(docker image inspect "$MANAGER_IMAGE" --format '{{.Id}}')"
           test "$(docker image inspect "$MANAGER_IMAGE" --format '{{.Architecture}}/{{.Os}}')" = "arm64/linux"
+          docker run --rm --platform linux/arm64 --entrypoint python "$MANAGER_IMAGE" -c 'import zeroconf; from greenhouse_manager.runtime.n3w_registration_discovery import RegistrationMdnsAdvertiser; print("REGISTRATION_MDNS_PRODUCTION_IMPORT=PASS")'
           echo "MANAGER_IMAGE_ID=$MANAGER_IMAGE_ID" >> "$GITHUB_ENV"
 
       - name: Materialize exact external ARM64 images
