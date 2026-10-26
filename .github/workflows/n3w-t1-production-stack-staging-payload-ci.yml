@@ -1,7 +1,9 @@
 name: N3W T1 production stack staging payload CI
 
 on:
+  workflow_dispatch:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, labeled, unlabeled, edited]
     paths:
       - ".github/workflows/n3w-t1-production-stack-staging-payload-ci.yml"
       - "tools/n3w_t1_production_stack_staging.py"
@@ -50,6 +52,11 @@ permissions:
 
 jobs:
   payload:
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.draft == false ||
+      contains(github.event.pull_request.labels.*.name, 'ci-ready') ||
+      contains(github.event.pull_request.body, 'CI_READY=true')
     runs-on: ubuntu-24.04
     env:
       PYTHONDONTWRITEBYTECODE: "1"
