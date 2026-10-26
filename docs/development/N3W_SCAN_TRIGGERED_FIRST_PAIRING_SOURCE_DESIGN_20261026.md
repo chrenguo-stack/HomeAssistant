@@ -170,7 +170,7 @@ host/greenhouse-manager/src/greenhouse_manager/runtime/
   n3w_trusted_product_lan.py
 ```
 
-`n3w_trusted_product_lan.py` owns the product first-registration network-admission decision. It must implement the same NetworkManager/`eth0` unique-IPv4-subnet contract already proven by the KF-097 ingress guard, but production runtime must not import the `tools/` script as an application dependency. Shared fixtures/contract tests must keep both decisions equivalent.
+`n3w_trusted_product_lan.py` owns the Manager-side product first-registration admission parser/checker. It does **not** query NetworkManager directly from the container. The host-side NetworkManager/KF-097 authority atomically publishes a versioned trusted-product-LAN state file; the Manager mounts the parent runtime directory read-only and re-reads that file for registration decisions. The Manager image does not gain D-Bus, `nmcli`, `NET_ADMIN` or another host-control capability. Shared fixtures/contract tests must keep the host decision and Manager parser semantics equivalent.
 
 `n3w_first_registration_ledger.py` owns the non-secret durable attempt/tombstone lifecycle needed to make restart-before-`/hello` non-replayable.
 
@@ -241,7 +241,7 @@ LOOPBACK_FIRST_REGISTRATION_AUTHORIZED=false
 LINK_LOCAL_FIRST_REGISTRATION_AUTHORIZED=false
 ```
 
-The runtime decision mirrors the already proven KF-097 guard contract:
+The host decision mirrors the already proven KF-097 guard contract:
 1. `eth0` must be NetworkManager-connected;
 2. read current `IP4.ADDRESS` from NetworkManager;
 3. every nonempty value must parse as IPv4 interface state;
@@ -249,6 +249,45 @@ The runtime decision mirrors the already proven KF-097 guard contract:
 5. all valid addresses must collapse to exactly one IPv4 network;
 6. zero or multiple distinct networks => fail closed;
 7. a request source is authorized only if its IPv4 belongs to that exact network.
+
+Authority transport is frozen as a host-published runtime file rather than in-container NetworkManager access:
+
+```text
+HOST_TRUSTED_LAN_RUNTIME_DIR=/run/n3wfc4-trusted-lan
+HOST_TRUSTED_LAN_STATE_FILE=/run/n3wfc4-trusted-lan/state.json
+MANAGER_TRUSTED_LAN_MOUNT=/run/n3w/trusted-product-lan
+MANAGER_TRUSTED_LAN_STATE_FILE=/run/n3w/trusted-product-lan/state.json
+MOUNT_MODE=directory bind, read-only
+```
+
+The host publisher writes by temp-file + fsync/close + atomic replace inside the directory. A directory bind is required; a single-file bind is forbidden because atomic replacement could otherwise leave the container pinned to a predecessor inode.
+
+State schema is narrow and non-secret:
+
+```json
+{
+  "schema": "gh.trusted-product-lan/1",
+  "interface": "eth0",
+  "available": true,
+  "subnet": "<current IPv4 CIDR>",
+  "reason": "unique_ipv4_subnet",
+  "published_at": "<UTC timestamp>",
+  "generation": "<opaque host-local generation>"
+}
+```
+
+When NetworkManager state is disconnected, invalid, absent or ambiguous, the host atomically publishes `available=false` with no usable subnet. It must not leave a predecessor valid subnet as current authority.
+
+The Manager treats missing, malformed, wrong-schema, wrong-interface or `available=false` state as no trusted product LAN. Raw customer subnet is never written to public logs/evidence.
+
+Host firewall defense-in-depth uses the same decision for product registration ingress:
+- TCP/47110 allowed only from `eth0 + current trusted subnet`;
+- UDP/47111 allowed only from `eth0 + current trusted subnet`;
+- TCP/47112, when a listener exists, is also limited to `eth0 + current trusted subnet`;
+- no loopback exception exists for these product registration ports;
+- zero/ambiguous/unavailable trusted subnet => DROP for these product registration ports.
+
+This host guard does not replace application-layer source/identity checks; it prevents off-interface/off-subnet traffic from reaching the product listeners.
 
 47111 behavior:
 - answer UDP discovery only when the datagram source passes this admission;
@@ -258,7 +297,7 @@ The runtime decision mirrors the already proven KF-097 guard contract:
 
 47110 uses the same admission decision. No second independent “local network” definition is allowed.
 
-The decision is refreshed from current NetworkManager state; customer LAN CIDR is not frozen into Compose/env/source. A DHCP/subnet change therefore changes the trusted product subnet without manual configuration.
+The host publisher is refreshed at product activation and on relevant NetworkManager dispatcher events; customer LAN CIDR is not frozen into Compose/env/source. A DHCP/subnet change therefore changes the trusted product subnet without manual configuration. The Manager re-reads the mounted state rather than caching a predecessor subnet across requests.
 
 For an active first-registration transaction, 47112 keeps its exact original `source_ip` binding and also rechecks that source against the current trusted product subnet on every request. A subnet change never refreshes the transaction or its deadline.
 
@@ -790,7 +829,7 @@ The static page:
 
 The first successful `start` request is the actual scan trigger.
 
-## 12. Node discovery session
+## 13. Node discovery session
 
 Add RAM-only state:
 
@@ -822,7 +861,7 @@ Recommended discovery budget:
 
 This discovery budget is not the 30-minute pairing transaction TTL.
 
-## 13. Phone page
+## 14. Phone page
 
 Exactly one healthy candidate:
 
@@ -848,7 +887,7 @@ After confirmation:
 - it polls node-local status only;
 - it never calls T1 directly.
 
-## 14. Node confirmation -> T1 bootstrap
+## 15. Node confirmation -> T1 bootstrap
 
 `POST /api/v1/register/confirm` validates:
 - scan session still current;
@@ -866,7 +905,7 @@ Then:
 
 The phone never receives Setup Secret.
 
-## 15. Refactor `SimplePairingClient`
+## 16. Refactor `SimplePairingClient`
 
 Current `run_once()` couples discovery + hello + full pairing.
 
@@ -892,7 +931,7 @@ Do not make `pairing_handoff_ready` a display authority.
 
 It may be deleted or retained only as an internal protocol-state diagnostic.
 
-## 16. LCD source changes
+## 17. LCD source changes
 
 Current:
 
@@ -961,7 +1000,7 @@ Recoverable error:
 
 No “正在查找主机” idle state remains.
 
-## 17. Error mapping
+## 18. Error mapping
 
 Internal errors stay detailed.
 
@@ -993,7 +1032,7 @@ OR LOCAL_QR_SESSION_STALE           -> E07
 
 A user error code is not the engineering root-cause code.
 
-## 18. QR renewal behavior
+## 19. QR renewal behavior
 
 Pre-transaction discovery/bootstrap failure:
 - do not consume pairing ID;
@@ -1022,7 +1061,7 @@ A `replay_detected` response for an already terminal old pairing ID follows the 
 
 No whole-NVS reset.
 
-## 19. Browser / network edge cases
+## 20. Browser / network edge cases
 
 ### Phone cannot reach node
 
@@ -1052,7 +1091,7 @@ Active browser session may fail; user rescans.
 
 No fixed IP configuration is required.
 
-## 20. Existing engineering onboarding
+## 21. Existing engineering onboarding
 
 `tools/n3w_t1_first_pairing_onboarding.py` remains temporarily as an engineering/diagnostic tool.
 
@@ -1079,7 +1118,7 @@ phone scan
 
 No secret enters chat, GitHub or terminal output.
 
-## 21. Source files expected to change in implementation
+## 22. Source files expected to change in implementation
 
 ### Node
 
@@ -1108,20 +1147,32 @@ host/greenhouse-manager/src/greenhouse_manager/runtime/
   n3w_simplified_pairing.py
   n3w_simplified_pairing_endpoint.py
   n3w_simplified_pairing_runtime.py
-  <new registration discovery/bootstrap/intent modules>
+  n3w_registration_discovery.py
+  n3w_registration_bootstrap.py
+  n3w_first_registration_intent.py
+  n3w_first_registration_ledger.py
+  n3w_trusted_product_lan.py
 ```
 
-### Firstboot / deployment
+### Host / firstboot / deployment
 
-Expected follow-up review:
+Expected source scope includes:
+- host-side trusted-product-LAN publisher/guard using the existing KF-097 NetworkManager decision contract;
+- shared pure trusted-subnet decision helper or exact cross-contract fixtures so Broker and registration guards cannot drift;
+- NetworkManager dispatcher integration that republishes valid or fail-closed state on relevant `eth0` events;
+- creation/ownership of `/run/n3wfc4-trusted-lan`;
+- read-only **directory** bind into Manager at `/run/n3w/trusted-product-lan`;
+- registration-port INPUT guard for 47110/tcp, 47111/udp and 47112/tcp using the exact same trusted subnet;
 - dedicated registration-bootstrap TLS certificate/key generation;
 - secret mount ownership/permissions;
 - listener/firewall/port inventory;
 - exact-release seal coverage.
 
+Likely files include `tools/n3w_broker_ingress_guard.py` or a factored shared host-network authority module, NetworkManager dispatcher/systemd assets, and both production compose variants. Exact implementation paths are fixed during R1 source work, but the security contract above is not optional.
+
 These are source changes but not live T1 mutation until a separately authorized deployment gate.
 
-## 22. Test plan
+## 23. Test plan
 
 ### A. Node idle
 
@@ -1161,16 +1212,21 @@ Prove:
 
 Prove with shared contract vectors against the KF-097 decision semantics:
 - only NetworkManager current `eth0` unique IPv4 subnet is trusted;
-- zero/ambiguous subnet fails closed;
+- host publisher emits versioned state by atomic replacement and emits `available=false` for zero/ambiguous/disconnected/invalid state;
+- Manager has only a read-only directory mount and no NetworkManager/D-Bus/control capability;
+- Manager rejects missing/malformed/wrong-schema/wrong-interface/unavailable state;
+- Manager re-reads state and does not cache predecessor subnet across requests;
 - generic RFC1918 address outside the exact subnet is rejected;
 - loopback rejected for product first registration;
 - link-local rejected;
 - IPv6 rejected in V1;
 - Docker/VPN/other interface source rejected even when privately addressed;
+- host INPUT guard rejects non-trusted sources for 47110/47111/47112;
 - 47111 emits no response outside the trusted subnet;
 - mDNS registration advertisement is scoped to `eth0`;
-- DHCP/subnet change recomputes authority without static customer CIDR;
-- 47110 and 47111 share the same decision helper/contract.
+- DHCP/subnet change republishes authority without static customer CIDR;
+- 47110/47111/47112 application checks and host guard consume the same authority contract;
+- raw customer CIDR does not enter public evidence.
 
 ### F. Durable attempt ledger / restart-before-hello
 
@@ -1253,7 +1309,7 @@ Mandatory normal flow:
 - LCD feedback;
 - no terminal secret paste.
 
-## 23. Implementation order
+## 24. Implementation order
 
 Recommended staged source implementation:
 
@@ -1272,7 +1328,7 @@ R10 separately authorized physical acceptance
 
 Do not combine physical mutation with R1-R8.
 
-## 24. Explicit non-goals
+## 25. Explicit non-goals
 
 ```text
 DEDICATED_MOBILE_APP=false
@@ -1287,7 +1343,7 @@ BOARD_FLASH_IN_THIS_GATE=false
 T1_LIVE_DEPLOYMENT_IN_THIS_GATE=false
 ```
 
-## 25. Design closure
+## 26. Design closure
 
 ```text
 SOURCE_DESIGN_RESULT=CLOSED_REPAIRED_READY_FOR_FOCUSED_CLOSURE_REVIEW
@@ -1299,6 +1355,11 @@ CONFIRM_TRIGGERS_NORMAL_PRODUCT_TRANSACTION=true
 
 T1_FIRST_REGISTRATION_AUTHORITY=NETWORKMANAGER_ETH0_UNIQUE_IPV4_SUBNET
 TRUSTED_PRODUCT_LAN_INTERFACE=eth0
+TRUSTED_LAN_AUTHORITY_TRANSPORT=HOST_ATOMIC_STATE_FILE_DIRECTORY_BIND
+HOST_TRUSTED_LAN_RUNTIME_DIR=/run/n3wfc4-trusted-lan
+MANAGER_TRUSTED_LAN_STATE_FILE=/run/n3w/trusted-product-lan/state.json
+MANAGER_NETWORKMANAGER_CONTROL_ACCESS=false
+REGISTRATION_INGRESS_HOST_GUARD=true
 TRUSTED_PRODUCT_LAN_ZERO_OR_AMBIGUOUS=FAIL_CLOSED
 GENERIC_RFC1918_OR_IS_LOCAL_SOURCE_FALLBACK=false
 IPV6_FIRST_REGISTRATION_AUTHORIZED=false
@@ -1351,6 +1412,8 @@ N3W_SCAN_TRIGGERED_FIRST_PAIRING_SOURCE_DESIGN_REPAIR_R2_FOCUSED_CLOSURE_REVIEW_
 
 The focused closure review must independently verify:
 - product trusted-LAN admission is exactly NetworkManager current `eth0` unique IPv4 subnet and cannot fall back to broad `is_local_source()`;
+- the host publishes that authority atomically into a dedicated runtime directory, Manager reads it through a read-only directory bind, and no extra NetworkManager/D-Bus/control privilege is added to the container;
+- fail-closed host publication and registration-port ingress rules cannot leave a predecessor valid subnet authoritative after normal NetworkManager state transitions;
 - zero/ambiguous subnet, loopback, link-local, IPv6, Docker/VPN/other private networks are fail-closed for product first registration;
 - QR possession/scan token/browser confirmation remain UX controls, not T1 authorization credentials;
 - the normal node flow still performs pre-body TLS fingerprint matching before emitting Setup Secret bytes;
