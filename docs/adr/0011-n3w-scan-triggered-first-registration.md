@@ -229,6 +229,7 @@ node_id                     nullable; internal recovery binding only
 dynsec_prestate_absent      nullable boolean
 application_key_prestate_absent nullable boolean
 application_key_epoch       nullable integer
+delivery_digest_sha256      nullable 64-hex
 terminal_at                 nullable
 terminal_reason             nullable
 ```
@@ -311,7 +312,7 @@ The startup reconciler therefore uses the exact old pairing ID to locate and cro
 
 For DynSec cleanup ownership, the transaction must first prove the exact deterministic target client/role absent and durably record `dynsec_prestate_absent=true` before provisioning them. For the initial application key, the new NODE_ID must likewise have no predecessor key state before staging and that prestate is durably recorded.
 
-Those prestate facts are **necessary but not sufficient** destructive-cleanup authority. After the complete stage operation returns successfully, and before the encrypted bundle is returned to the node, Manager must durably advance the ledger to `phase=BUNDLE_STAGED`, bind the exact `node_id`, and record the exact initial `application_key_epoch`.
+Those prestate facts are **necessary but not sufficient** destructive-cleanup authority. After the complete stage operation returns successfully, and before the encrypted bundle is returned to the node, Manager must durably advance the ledger to `phase=BUNDLE_STAGED`, bind the exact `node_id`, record the exact initial `application_key_epoch`, and store `delivery_digest_sha256` for the exact encrypted bundle. The delivery digest is not credential material and must not be emitted in public diagnostics.
 
 Automatic DynSec/application-key cleanup after restart requires both the corresponding durable prestate-absent proof **and** a durable `BUNDLE_STAGED` or later phase proving the stage operation completed successfully. If the process dies in the narrow cross-system gap after an external object may have been created but before `BUNDLE_STAGED` is durably recorded, ownership is ambiguous. The reconciler keeps registration fail-closed and must not automatically delete that object. This preserves KF-060: create-attempt/target-presence is not ownership proof.
 
@@ -326,6 +327,45 @@ A later 47110 request that reuses a terminal ledger pairing ID is rejected with 
 For this successor bootstrap flow, that terminal bootstrap result invokes the **same durable pairing-ID renewal primitive** used by ADR-0008 terminal `/hello` handling. The node must durably persist a fresh random pairing ID before retrying 47110. Only after the new ID is active, old-attempt cleanup is complete, and a fresh confirmation succeeds may T1 create a **new transaction** with a new full `now + 1800s` deadline.
 
 No remaining time, intent, Setup Secret copy or deadline from the old transaction is inherited. Manager restart is therefore a process-boundary invalidation, not a third normal runtime close condition.
+
+## Pending-ACK recovery across Manager restart
+
+The node durably persists the credential bundle **before** sending the final delivery-digest ACK. Until Manager confirms durable COMMIT, those node-side peer/Broker values are provisional and must not be treated as provisioned runtime state.
+
+A Manager restart destroys the RAM pairing session, so retrying the old `/sessions/<session_id>/ack` alone cannot close the transaction. The always-on TLS bootstrap service therefore exposes a narrow, low-privilege pending-ACK status operation. The node presents at least:
+
+```text
+hardware_id
+pairing_id
+delivery_digest
+manager_id
+system_id
+```
+
+T1 hashes the presented delivery digest and binds it to the ledger `delivery_digest_sha256`. The operation is subject to the same trusted-product-LAN admission and bootstrap TLS fingerprint rules as the rest of 47110.
+
+The only authoritative outcomes are:
+- **COMMITTED**: exact hardware hash + pairing ID + delivery digest match a ledger transaction whose durable cross-store commit oracle passes. The node may finalize local registration, erase Setup Secret/pairing intent/pending-ACK metadata, and keep the persisted credential bundle.
+- **TERMINAL_NOT_COMMITTED**: the exact old transaction is EXPIRED or RESTART_INVALIDATED and is not durably committed. The node must treat its persisted peer/Broker bundle as provisional, clean it locally, durably generate a fresh ADR-0008 pairing ID, and return to the registration QR. A later transaction still requires a fresh user confirmation and gets a new full 1800 seconds.
+- **WAIT/UNKNOWN**: Manager is still reconciling, exact binding is missing/ambiguous, or the status cannot be proven. The node keeps the pending-ACK record and provisional bundle, does not mark itself provisioned, does not renew the pairing ID, and retries only this status path with bounded backoff.
+
+Node-side terminal cleanup is itself crash-safe. The pending-ACK NVS record gains a durable recovery state. On a proven TERMINAL_NOT_COMMITTED result the node first marks that record `TERMINAL_CLEANUP`, then performs idempotent cleanup/renewal, and erases the marker only after all steps succeed. Reboot during cleanup resumes from the marker rather than interpreting partial local stores as provisioned or corrupt.
+
+Required terminal-cleanup ordering:
+
+```text
+persist pending_ack.state = TERMINAL_CLEANUP
+-> durably renew pairing_id
+-> erase provisional Broker state
+-> erase provisional peer state
+-> erase old pending-ACK record
+-> show fresh registration QR
+```
+
+The Setup Secret remains the device-owned one-time bootstrap secret across an unsuccessful transaction retry and is erased only after a proven COMMITTED result. A terminal old pairing ID is never reused.
+
+A node with unresolved pending ACK is not an idle unregistered node. It may perform bounded status recovery automatically. If the stored T1 address is no longer reachable, it may perform bounded discovery solely to relocate the same `manager_id + system_id + bootstrap certificate fingerprint`; this exception does not re-enable ordinary idle background discovery.
+
 
 ## System peer trust is outside the registration transaction
 
@@ -468,6 +508,8 @@ Before product live acceptance, source and tests must prove:
 11. restart after `/hello` but before final durable commit either proves the exact transaction committed or rolls back only transaction-owned NODE_ID/DynSec/application-key side effects;
 12. DynSec/application-key cleanup requires both durable prestate-absent proof and a durable BUNDLE_STAGED-or-later completion marker; target presence alone never proves ownership;
 13. a crash between possible external creation and durable BUNDLE_STAGED leaves product first registration fail-closed rather than guessing or deleting;
+14. restart after node bundle persistence cannot strand firmware in old-session ACK_PENDING: 47110 status recovery distinguishes exact COMMITTED from terminal-not-committed using pairing ID + delivery digest binding;
+15. terminal-not-committed causes crash-safe local provisional-bundle cleanup plus durable fresh pairing-ID renewal; WAIT/UNKNOWN never marks provisioned or renews;
 14. SYSTEM_PEER_KEY is initialized/validated as T1 baseline before registration readiness and is only read by node registration;
 15. a terminal bootstrap response drives the ADR-0008 durable fresh-pairing-ID renewal path before any retry;
 16. no hidden 120/600-second timeout truncates the 1800-second transaction;
@@ -504,6 +546,10 @@ APPLICATION_KEY_CLEANUP_REQUIRES_DURABLE_PRESTATE_OWNERSHIP=true
 AMBIGUOUS_RECONCILIATION_FAILS_REGISTRATION_CLOSED=true
 SYSTEM_PEER_TRUST_INITIALIZED_BEFORE_REGISTRATION_READY=true
 SYSTEM_PEER_TRUST_MUTATED_BY_REGISTRATION=false
+PENDING_ACK_STATUS_RECOVERY_ON_47110=true
+PENDING_ACK_STATUS_BINDS_DELIVERY_DIGEST=true
+TERMINAL_PENDING_ACK_LOCAL_CLEANUP_CRASH_SAFE=true
+PENDING_ACK_UNKNOWN_NEVER_MARKS_PROVISIONED=true
 TERMINAL_BOOTSTRAP_RESULT_USES_ADR0008_RENEWAL=true
 NORMAL_PRIVILEGED_WINDOW_CLOSE_CONDITIONS=MANAGER_COMMIT_OR_DEADLINE
 SUCCESS_CLOSES_PRIVILEGED_WINDOW_IMMEDIATELY=true
