@@ -361,11 +361,8 @@ class FirstRegistrationReconciler:
                     raise FirstRegistrationReconciliationError(
                         "terminal cleanup application-key conflict"
                     )
-                if (
-                    snapshot.requested_exists
-                    and snapshot.requested_state != "REVOKED"
-                ):
-                    self.application_keys.revoke_key(
+                if snapshot.requested_exists:
+                    self.application_keys.cleanup_reconciled_key(
                         node_id=attempt.node_id,
                         key_epoch=attempt.application_key_epoch,
                     )
