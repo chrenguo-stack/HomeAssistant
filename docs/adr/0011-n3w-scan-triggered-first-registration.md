@@ -223,11 +223,16 @@ hardware_id_sha256          SHA-256 of canonical hardware_id
 opened_at
 expires_at
 state                       ACTIVE | COMMITTED | EXPIRED | RESTART_INVALIDATED
+phase                       BOOTSTRAP_ACCEPTED | HELLO_OBSERVED | BUNDLE_STAGED | COMMITTING | TERMINAL
+cleanup_state               NONE | REQUIRED | COMPLETE | FAILED
+node_id                     nullable; internal recovery binding only
+dynsec_prestate_absent      nullable boolean
+application_key_prestate_absent nullable boolean
 terminal_at                 nullable
 terminal_reason             nullable
 ```
 
-The raw Setup Secret, scan token and source IP are not stored in this ledger.
+The raw Setup Secret, scan token, source IP, MQTT password, application-key material and SYSTEM_PEER_KEY are not stored in this ledger. `node_id` is internal recovery metadata and must not be emitted in public diagnostics.
 
 Transaction-start authority is the durable `ACTIVE` ledger commit, not receipt of the HTTP request body. The ordering is:
 
@@ -286,19 +291,44 @@ Implementations must avoid logging or persisting the secret and must keep unavoi
 
 Pre-deadline browser cancellation, protocol error or pairing failure does not itself destroy the intent or close 47112. The transaction remains bound to the same identity/source and absolute deadline and may retry within that deadline.
 
-Manager restart is fail-closed: it destroys the in-memory intent and closes 47112. Before 47110/47111/47112 become product-active on startup, Manager atomically terminalizes every durable `ACTIVE` attempt left by the predecessor process:
-- if its deadline already passed, state becomes `EXPIRED`;
-- otherwise state becomes `RESTART_INVALIDATED`.
+Manager restart is fail-closed: it destroys the in-memory intent and closes 47112.
 
-The old transaction is terminal and must never be resumed. Its pairing ID remains a durable replay tombstone even when restart happened **before the first /hello** and therefore before `RegistrationRegistry` had created a pairing-session row.
+Before 47110/47111/47112 become product-ready on startup, Manager reconciles every durable attempt that is not already cleanly terminal. The first durable startup action for an unfinished attempt is to make its old pairing ID terminal:
+- if its deadline already passed, state becomes `EXPIRED`;
+- otherwise state becomes `RESTART_INVALIDATED`;
+- `cleanup_state` becomes `REQUIRED`.
+
+The old transaction must never be resumed. Its pairing ID remains a durable replay tombstone even when restart happened **before the first /hello** and therefore before `RegistrationRegistry` had created a pairing-session row.
+
+Restart invalidation also owns all **uncommitted persistent side effects** created after `/hello`. Existing source can persist an automatic NODE_ID/lease, Broker Dynamic Security client/role and a STAGED or temporarily ACTIVE application-key epoch before the final receipt has fully committed the transaction. Losing the RAM session must not strand those objects and must not make the next fresh pairing ID look like an existing-identity repair.
+
+The startup reconciler therefore uses the exact old pairing ID to locate and cross-check the registration row, validates the canonical hardware-ID SHA-256 against the ledger, and then applies one of three outcomes:
+
+1. **Durable commit proven.** If the exact pairing ID already owns MQTT credential generation 1 in ACTIVE state, the same node has the expected ACTIVE application key, the exact Broker identity exists, and registration/node binding is consistent, the final receipt commit is considered durably complete even if the process died before the ledger could be marked COMMITTED. The ledger is promoted to `COMMITTED`; no rollback occurs.
+2. **Commit not reached.** If exact ACTIVE MQTT generation 1 does not exist and ownership of any pre-commit side effects is proven, the reconciler removes only transaction-owned Broker identity, revokes transaction-owned staged/temporarily-active application key material, rolls back the automatic NODE_ID approval/lease, terminalizes the old registration session, and then records `cleanup_state=COMPLETE`.
+3. **Ambiguous or unsafe state.** Any cross-store mismatch, unprovable ownership, partial state that cannot be safely classified, or cleanup failure records `cleanup_state=FAILED` and keeps all product first-registration listeners fail-closed. It must not guess, delete an unowned DynSec object, or permit a new registration transaction.
+
+For DynSec cleanup ownership, the transaction must first prove the exact deterministic target client/role absent and durably record `dynsec_prestate_absent=true` before provisioning them. For the initial application key, the new NODE_ID must likewise have no predecessor key state before staging and that prestate is durably recorded. These prestate proofs plus the never-reused NODE_ID lease provide restart-safe ownership; an object without such proof is never destructively cleaned automatically.
+
+The same reconciliation machinery is used on canonical deadline expiry. The privileged listener closes at the deadline immediately; a failed cleanup cannot reopen it and instead leaves registration unavailable until cleanup succeeds or a separate recovery path is authorized.
 
 A later 47110 request that reuses a terminal ledger pairing ID is rejected with the same ADR-0008 terminal semantics:
 - expired attempt -> `status=rejected`, `reason=expired`, `transaction_disposition=terminal`;
 - committed/restart-invalidated/replayed attempt -> `status=rejected`, `reason=replay_detected`, `transaction_disposition=terminal`.
 
-For this successor bootstrap flow, that terminal bootstrap result invokes the **same durable pairing-ID renewal primitive** used by ADR-0008 terminal `/hello` handling. The node must durably persist a fresh random pairing ID before retrying 47110. Only after the new ID is active and a fresh confirmation succeeds may T1 create a **new transaction** with a new full `now + 1800s` deadline.
+For this successor bootstrap flow, that terminal bootstrap result invokes the **same durable pairing-ID renewal primitive** used by ADR-0008 terminal `/hello` handling. The node must durably persist a fresh random pairing ID before retrying 47110. Only after the new ID is active, old-attempt cleanup is complete, and a fresh confirmation succeeds may T1 create a **new transaction** with a new full `now + 1800s` deadline.
 
 No remaining time, intent, Setup Secret copy or deadline from the old transaction is inherited. Manager restart is therefore a process-boundary invalidation, not a third normal runtime close condition.
+
+## System peer trust is outside the registration transaction
+
+`SYSTEM_PEER_KEY` remains a long-lived **T1/system-level** authority under ADR-0007/0008. To keep first-registration rollback exact, product initialization creates or validates the system peer-trust record **before** the registration services become ready. A first-registration transaction only reads the existing system peer trust; it must not call a create-or-rotate path.
+
+Therefore:
+- node registration never rotates SYSTEM_PEER_KEY;
+- an aborted/expired/restart-invalidated node transaction has no transaction-owned peer-trust object to clean up;
+- bundle issuance uses the already-existing peer-trust generation;
+- missing/corrupt system peer trust fails registration readiness closed rather than creating it inside an active node transaction.
 
 ## One canonical deadline
 
@@ -314,6 +344,8 @@ The same deadline bounds:
 - the pending registration record created by the accepted hello;
 - the simplified pairing session;
 - the in-memory Setup Secret intent.
+
+Final receipt handling and expiry are serialized. A final delivery receipt accepted at or before the deadline may durably enter `COMMITTING`; once that transition is claimed, expiry cannot race it. If no such commit claim exists by the deadline, the transaction expires and enters the cleanup path above. User-visible success still requires the exact durable cross-store commit oracle to pass.
 
 Existing 120-second repair authorization remains separate and is not widened.
 
@@ -426,16 +458,20 @@ Before product live acceptance, source and tests must prove:
 8. a trusted-product-LAN client can initiate 47110 without QR possession;
 9. durable attempt `ACTIVE` state is committed before `accepted=true` and contains no Setup Secret;
 10. restart before `/hello` still makes the old pairing ID terminal/replay-detected;
-11. a terminal bootstrap response drives the ADR-0008 durable fresh-pairing-ID renewal path before any retry;
-12. no hidden 120/600-second timeout truncates the 1800-second transaction;
-13. wrong identity/source traffic cannot mutate registration state while the window is open;
-14. successful Manager COMMIT closes 47112 immediately;
-15. canonical deadline expiry closes 47112 and leaves no active credential/key/trust state;
-16. a pre-deadline browser/protocol/pairing failure does not prematurely close the privileged window or mint a fresh transaction;
-17. Manager restart closes fail-closed, tombstones the old pairing ID, and a later attempt uses a new pairing ID plus a fresh full 1800-second deadline;
-18. LCD error mappings work without backend/CLI interaction;
-19. multiple T1 candidates require user selection;
-20. normal physical acceptance uses phone scan + browser confirm, not secret copy/paste.
+11. restart after `/hello` but before final durable commit either proves the exact transaction committed or rolls back only transaction-owned NODE_ID/DynSec/application-key side effects;
+12. DynSec/application-key prestate ownership is durably proven before destructive cleanup can ever be authorized;
+13. ambiguous cross-store restart state leaves product first registration fail-closed rather than guessing;
+14. SYSTEM_PEER_KEY is initialized/validated as T1 baseline before registration readiness and is only read by node registration;
+15. a terminal bootstrap response drives the ADR-0008 durable fresh-pairing-ID renewal path before any retry;
+16. no hidden 120/600-second timeout truncates the 1800-second transaction;
+17. wrong identity/source traffic cannot mutate registration state while the window is open;
+18. successful Manager COMMIT closes 47112 immediately;
+19. canonical deadline expiry closes 47112 and reconciles uncommitted transaction-owned credential/key state;
+20. a pre-deadline browser/protocol/pairing failure does not prematurely close the privileged window or mint a fresh transaction;
+21. Manager restart closes fail-closed, tombstones the old pairing ID, and a later attempt uses a new pairing ID plus a fresh full 1800-second deadline only after cleanup is complete;
+22. LCD error mappings work without backend/CLI interaction;
+23. multiple T1 candidates require user selection;
+24. normal physical acceptance uses phone scan + browser confirm, not secret copy/paste.
 
 
 ## Transaction isolation
@@ -455,6 +491,12 @@ DURABLE_FIRST_REGISTRATION_ATTEMPT_LEDGER=true
 SETUP_SECRET_PERSISTED_IN_ATTEMPT_LEDGER=false
 ACTIVE_ATTEMPT_COMMITTED_BEFORE_ACCEPTED_RESPONSE=true
 RESTART_PRE_HELLO_PAIRING_ID_TOMBSTONED=true
+RESTART_POST_HELLO_UNCOMMITTED_SIDE_EFFECT_RECONCILIATION=true
+DYNSEC_DESTRUCTIVE_CLEANUP_REQUIRES_DURABLE_PRESTATE_OWNERSHIP=true
+APPLICATION_KEY_CLEANUP_REQUIRES_DURABLE_PRESTATE_OWNERSHIP=true
+AMBIGUOUS_RECONCILIATION_FAILS_REGISTRATION_CLOSED=true
+SYSTEM_PEER_TRUST_INITIALIZED_BEFORE_REGISTRATION_READY=true
+SYSTEM_PEER_TRUST_MUTATED_BY_REGISTRATION=false
 TERMINAL_BOOTSTRAP_RESULT_USES_ADR0008_RENEWAL=true
 NORMAL_PRIVILEGED_WINDOW_CLOSE_CONDITIONS=MANAGER_COMMIT_OR_DEADLINE
 SUCCESS_CLOSES_PRIVILEGED_WINDOW_IMMEDIATELY=true
