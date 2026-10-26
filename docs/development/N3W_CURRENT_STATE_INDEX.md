@@ -1,3 +1,14 @@
+## 2026-10-26 — Handoff template V1.3 is sole current authority
+
+- `HANDOFF_TEMPLATE_AUTHORITY_CORRECTION_20261026=true`.
+- Sole valid template: `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` V1.3.
+- Current V1.3 blob: `6ecb74451c4bb35f57c8003ee15fbdf65f7dad15`.
+- V1.0/V1.1/V1.2 and historical template copies are invalid for new handoff generation; they remain historical evidence only.
+- Historical handoff-standard commits may still provide process-standard authority but may not reactivate their bundled old template.
+- The incorrectly generated R2A→R2B handoff at commit `f0c651bc...` is superseded.
+- Corrected V1.3 handoff commit: `032cd7bb57eb39c0bdc68e075d32e1003a5e34f9`; blob `56bdf8083491b5d699834ad027829d66abaaeab8`.
+- Handoff path remains `docs/development/N3W_SCAN_TRIGGERED_FIRST_PAIRING_R2A_SOURCE_CLOSURE_TO_R2B_CROSS_STORE_RECONCILIATION_SOURCE_DESIGN_AND_PREFLIGHT_NEW_CHAT_HANDOFF_V1.0_20261026.md`.
+
 ## 2026-10-26 — Scan-triggered first registration R2A durable ledger CLOSED_PASS
 
 - Current main: `507dbd49495c558b1344f7d713938b733b3bad18`.
