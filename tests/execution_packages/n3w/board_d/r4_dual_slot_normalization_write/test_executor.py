@@ -69,7 +69,7 @@ def test_frozen_identity_route_and_offsets() -> None:
     assert module.SCHEMA_PREFLIGHT.endswith("/2")
     assert module.SCHEMA_WRITE.endswith("/2")
     assert module.ROM_FLASH_SIZE == "8MB"
-    assert module.EXPECTED_HARDWARE_ID_SHA256 == "3991b9af9e7604190a8ac8e60b780911a8faed6698cda5421eaf1eb686210df5"
+    assert module.EXPECTED_HARDWARE_ID_SHA256 == "3a76b39f066e09de0a285b81319eec20f29c8fd4136b61dc5a86ace01c1e1d55"
     assert module.SELECTED_WRITE_ROUTE == "DUAL_SLOT_PADDED_NORMALIZATION_BOOTLOADER_OTADATA"
     assert module.BOOTLOADER_OFFSET == 0x0
     assert module.PARTITION_TABLE_OFFSET == 0x8000
@@ -413,9 +413,10 @@ def test_verify_postwrite_integrity_rejects_nvs_change(
         )
 
 
-def test_postwrite_identity_observation_uses_loader_and_frozen_hash(monkeypatch: pytest.MonkeyPatch) -> None:
-    sample_mac = ":".join(("02", "00", "00", "00", "00", "01"))
-    expected_hash = module.public_identity_sha256(sample_mac)
+def test_postwrite_identity_observation_selects_base_mac(monkeypatch: pytest.MonkeyPatch) -> None:
+    eui64 = "02:00:00:AA:BB:00:00:01"
+    base_mac = "02:00:00:00:00:01"
+    expected_hash = module.public_identity_sha256(base_mac)
     monkeypatch.setattr(module, "EXPECTED_HARDWARE_ID_SHA256", expected_hash)
     seen: list[str] = []
 
@@ -423,7 +424,9 @@ def test_postwrite_identity_observation_uses_loader_and_frozen_hash(monkeypatch:
         seen.extend(args)
         return (
             "ESP32-C6\n"
-            f"MAC: {sample_mac}\n"
+            f"MAC:                 {eui64}\n"
+            f"BASE MAC:            {base_mac}\n"
+            "MAC_EXT:             aa:bb\n"
             "Secure Boot: Disabled\n"
             "Flash Encryption: Disabled\n"
         )
@@ -431,10 +434,24 @@ def test_postwrite_identity_observation_uses_loader_and_frozen_hash(monkeypatch:
     monkeypatch.setattr(module, "run_capture", fake_run_capture)
     observed = module.observe_board_identity_security("/dev/cu.usbmodem-test", before="no-reset")
     assert observed == expected_hash
+    assert observed != module.public_identity_sha256("02:00:00:AA:BB:00")
     before_index = seen.index("--before")
     after_index = seen.index("--after")
     assert seen[before_index + 1] == "no-reset"
     assert seen[after_index + 1] == "no-reset"
+
+
+def test_write_identity_parser_rejects_missing_or_ambiguous_base_mac() -> None:
+    with pytest.raises(module.StopExecution, match="exactly one ESP32-C6 BASE MAC"):
+        module.base_mac_from_esptool_output(
+            "ESP32-C6\nMAC: 02:00:00:AA:BB:00:00:01\n"
+        )
+
+    with pytest.raises(module.StopExecution, match="exactly one ESP32-C6 BASE MAC"):
+        module.base_mac_from_esptool_output(
+            "BASE MAC: 02:00:00:00:00:01\n"
+            "BASE MAC: 02:00:00:00:00:02\n"
+        )
 
 
 def test_run_write_claims_before_single_write_then_full_readback(
