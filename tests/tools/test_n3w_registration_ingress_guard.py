@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.machinery
 import importlib.util
 import io
 import ipaddress
@@ -16,7 +17,8 @@ INFRA = ROOT / "infra/n3w-t1"
 
 
 def _load(name: str, path: Path):
-    spec = importlib.util.spec_from_file_location(name, path)
+    loader = importlib.machinery.SourceFileLoader(name, str(path))
+    spec = importlib.util.spec_from_loader(name, loader)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[name] = module
