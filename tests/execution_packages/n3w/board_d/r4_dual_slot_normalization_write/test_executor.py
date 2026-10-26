@@ -66,8 +66,8 @@ def sample_preflight(port: str = "/dev/cu.usbmodem-test") -> dict[str, object]:
 
 
 def test_frozen_identity_route_and_offsets() -> None:
-    assert module.SCHEMA_PREFLIGHT.endswith("/2")
-    assert module.SCHEMA_WRITE.endswith("/2")
+    assert module.SCHEMA_PREFLIGHT.endswith("/3")
+    assert module.SCHEMA_WRITE.endswith("/3")
     assert module.ROM_FLASH_SIZE == "8MB"
     assert module.EXPECTED_HARDWARE_ID_SHA256 == "3a76b39f066e09de0a285b81319eec20f29c8fd4136b61dc5a86ace01c1e1d55"
     assert module.SELECTED_WRITE_ROUTE == "DUAL_SLOT_PADDED_NORMALIZATION_BOOTLOADER_OTADATA"
@@ -217,6 +217,20 @@ def test_source_has_no_erase_flash_or_erase_region_command() -> None:
     assert '"erase-flash"' not in source
     assert '"erase-region"' not in source
     assert "NORMALIZED_OFFSETS_BOOTLOADER_OTADATA_APPLICATION" not in source
+
+
+def test_load_preflight_rejects_legacy_identity_schema(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    payload = sample_preflight()
+    payload["schema"] = "n3w.board-d.r4-dual-slot-normalization-write-preflight/2"
+    path = tmp_path / "preflight.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setattr(
+        module,
+        "utc_now",
+        lambda: dt.datetime(2026, 10, 23, 8, 25, tzinfo=dt.timezone.utc),
+    )
+    with pytest.raises(module.StopExecution, match="preflight schema mismatch"):
+        module.load_preflight(path, "/dev/cu.usbmodem-test")
 
 
 def test_load_preflight_accepts_fresh_exact_binding(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
