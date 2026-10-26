@@ -492,7 +492,12 @@ class FirstRegistrationLedger:
             FirstRegistrationCleanupState.FAILED,
         }:
             raise ValueError("terminal cleanup state is invalid")
-        if terminal_reason not in {"expired", "replay_detected"}:
+        expected_reason = (
+            "expired"
+            if state is FirstRegistrationAttemptState.EXPIRED
+            else "replay_detected"
+        )
+        if terminal_reason != expected_reason:
             raise ValueError("terminal_reason is invalid")
         with self._write():
             self._require_active(pairing_id)
@@ -529,10 +534,7 @@ class FirstRegistrationLedger:
                 )
             if current.cleanup_state is FirstRegistrationCleanupState.COMPLETE:
                 return current
-            if current.cleanup_state not in {
-                FirstRegistrationCleanupState.REQUIRED,
-                FirstRegistrationCleanupState.FAILED,
-            }:
+            if current.cleanup_state is not FirstRegistrationCleanupState.REQUIRED:
                 raise FirstRegistrationLedgerConflict(
                     "first registration cleanup transition invalid"
                 )
@@ -583,10 +585,7 @@ class FirstRegistrationLedger:
         pairing_id: str,
     ) -> FirstRegistrationAttempt:
         current = self._require_active(pairing_id)
-        if current.phase not in {
-            FirstRegistrationPhase.HELLO_OBSERVED,
-            FirstRegistrationPhase.BOOTSTRAP_ACCEPTED,
-        }:
+        if current.phase is not FirstRegistrationPhase.HELLO_OBSERVED:
             raise FirstRegistrationLedgerConflict(
                 "first registration ownership proof phase invalid"
             )
