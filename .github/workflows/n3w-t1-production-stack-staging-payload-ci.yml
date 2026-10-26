@@ -58,6 +58,7 @@ jobs:
       contains(github.event.pull_request.labels.*.name, 'ci-ready') ||
       contains(github.event.pull_request.body, 'CI_READY=true')
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     env:
       PYTHONDONTWRITEBYTECODE: "1"
       SOURCE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
