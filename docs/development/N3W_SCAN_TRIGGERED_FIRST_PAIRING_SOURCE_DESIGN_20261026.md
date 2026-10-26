@@ -634,6 +634,7 @@ Application key:
 
 DynSec:
   exact deterministic generation-1 client/role exists
+  client-role assignment and role ACL structure match the deterministic plan
 ```
 
 If all are true, a crash after underlying credential commit but before the ledger update is recovered by promoting the ledger to `COMMITTED`. This is the only crash-recovery path that preserves the old transaction as success.
@@ -832,7 +833,7 @@ A/B/C registration example:
 - if A encounters a pre-deadline browser/protocol/pairing error, Transaction-A remains the same identity/source-bound transaction and keeps the same absolute deadline;
 - B then requires a new confirmation and starts Transaction-B with a full new 1800-second deadline only after A commits or A reaches its deadline;
 - while A remains active, B receives `registration_busy` and retains its current pre-transaction QR/pairing identity;
-- if Manager restarts while A is active, A is fail-closed and terminal, A's old pairing ID is not resumed, and the next attempt uses a new pairing ID plus a fresh `now + 1800s` deadline.
+- if Manager restarts while A is active, A is fail-closed; after the predecessor attempt is either proven COMMITTED or its exact owned side effects are reconciled to cleanup COMPLETE, A's old pairing ID is not resumed and a later fresh attempt uses a new pairing ID plus a fresh `now + 1800s` deadline.
 
 Manager restart never carries forward the old deadline, remaining time, intent or Setup Secret.
 
@@ -1291,6 +1292,13 @@ host/greenhouse-manager/src/greenhouse_manager/runtime/
   n3w_simplified_pairing.py
   n3w_simplified_pairing_endpoint.py
   n3w_simplified_pairing_runtime.py
+  n3w_simplified_provisioning.py
+  n3w_simplified_credentials.py
+  n3w_node_identity_provisioner.py
+  n3w_node_application_keys.py
+  n3w_peer_trust_store.py
+  credential_lifecycle.py
+  dynsec_api.py
   n3w_registration_discovery.py
   n3w_registration_bootstrap.py
   n3w_first_registration_intent.py
@@ -1560,6 +1568,7 @@ MANAGER_RESTART_FAIL_CLOSED=true
 MANAGER_RESTART_OLD_PAIRING_ID_TERMINAL=true
 MANAGER_RESTART_REQUIRES_NEW_PAIRING_ID=true
 MANAGER_RESTART_NEW_TRANSACTION_GETS_FRESH_1800S=true
+NEW_TRANSACTION_REQUIRES_PREDECESSOR_COMMITTED_OR_CLEANUP_COMPLETE=true
 UNUSED_TTL_CARRIED_FORWARD=false
 NEXT_NODE_REQUIRES_NEW_CONFIRMATION=true
 NEXT_NODE_GETS_FRESH_1800S_DEADLINE=true
@@ -1597,7 +1606,7 @@ The focused closure review must independently verify:
 - identity/source/current-subnet binding occurs before DB mutation on 47112;
 - Manager COMMIT and canonical deadline expiry are the only normal-uptime privileged-window close conditions;
 - pre-deadline failure does not refresh or replace the transaction;
-- Manager restart is fail-closed, old pairing ID is terminal, and the next attempt uses a new pairing ID plus a fresh full 1800-second deadline;
+- Manager restart is fail-closed; old pairing ID is terminal, and a next fresh 1800-second transaction is admitted only after the predecessor is proven COMMITTED or exact cleanup is COMPLETE;
 - Setup Secret retained-buffer zeroization wording is implementable and does not make impossible claims about every immutable runtime copy;
 - any current regression gate that still assumes idle UDP47111=0 is retargeted during implementation;
 - no new false-PASS path was introduced by the R2 repair.
