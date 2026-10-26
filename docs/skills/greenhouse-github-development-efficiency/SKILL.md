@@ -368,6 +368,17 @@ PR 应同时包含完成该闭环所需的：
 - `ready_for_review` 后触发 full；
 - 不在 Draft 的每个探索提交上运行完整 ESPHome/Docker 矩阵。
 
+N3W 重型 CI 的长期激活约定：
+
+- Draft PR 默认不执行 ARM64/QEMU、大型 Docker Artifact 或 production payload 重型 job；
+- Fast Source Gate 通过并准备做 exact closure 时，可在 PR 正文加入精确标记 `CI_READY=true`；
+- 已存在 `ci-ready` 标签时，可用该标签作为等价激活信号；
+- Ready for review 自动视为 full gate；
+- `workflow_dispatch` 可用于显式执行选定 ref 的 full gate；
+- push 到 `main` 仍按 workflow 自身 path filter 执行，不受 Draft 门控影响；
+- full gate 激活后如果继续产生源码 commit，新 head 必须重新生成适用的 exact closure 证据；
+- 候选失效时应移除 `CI_READY=true` 或 `ci-ready`，避免后续探索提交继续消耗重型 CI。
+
 ## 3. 提交历史以可审计为准，不追求数量
 
 推荐提交粒度：
