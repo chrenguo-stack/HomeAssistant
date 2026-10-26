@@ -1241,19 +1241,22 @@ class RegistrationRegistry:
                         raise RegistrationConflict(
                             "first-registration retired lease is not proven"
                         )
-                    open_history = self._connection.execute(
+                    histories = self._connection.execute(
                         """
-                        SELECT 1
+                        SELECT released_at, retirement_event_id
                         FROM registration_node_history
                         WHERE hardware_id = ?
                           AND node_id = ?
-                          AND released_at IS NULL
                         """,
                         (hardware_id, node_id),
-                    ).fetchone()
-                    if open_history is not None:
+                    ).fetchall()
+                    if (
+                        len(histories) != 1
+                        or histories[0]["released_at"] is None
+                        or histories[0]["retirement_event_id"] is None
+                    ):
                         raise RegistrationConflict(
-                            "first-registration assignment history is still open"
+                            "first-registration closed assignment history is not proven"
                         )
                 return
 
