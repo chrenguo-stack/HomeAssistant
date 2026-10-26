@@ -8,11 +8,11 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass, replace
 from typing import Any, Protocol
 
+from .n3w_simplified_discovery import resolve_route_selected_ipv4
 from .n3w_trusted_product_lan import (
     TrustedProductLanState,
     load_trusted_product_lan,
 )
-from .n3w_simplified_discovery import resolve_route_selected_ipv4
 from .pairing_discovery import (
     DiscoveryQuery,
     DiscoveryRateLimited,
