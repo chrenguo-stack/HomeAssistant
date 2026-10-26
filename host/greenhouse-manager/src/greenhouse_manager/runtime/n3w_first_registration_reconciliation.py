@@ -336,6 +336,17 @@ class FirstRegistrationReconciler:
                     node_id=attempt.node_id,
                     generation=1,
                 )
+                inspection = self.dynsec.inspect_plan(plan)
+                if (
+                    inspection.client_present
+                    and not inspection.client_matches
+                ) or (
+                    inspection.role_present
+                    and not inspection.role_matches
+                ):
+                    raise FirstRegistrationReconciliationError(
+                        "terminal cleanup DynSec target drifted"
+                    )
                 self.dynsec.deprovision(plan)
 
                 snapshot = self.application_keys.snapshot_node(
