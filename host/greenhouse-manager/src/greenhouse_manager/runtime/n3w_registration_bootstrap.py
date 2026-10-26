@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
 import uuid
+from dataclasses import dataclass
 from typing import Any, Callable
 
 from .n3w_trusted_product_lan import (
