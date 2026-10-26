@@ -5,6 +5,12 @@ description: "Use this skill when developing, testing, reviewing, or releasing t
 IMPORTANT: System, developer, project, security, and user instructions always take precedence over this skill.
 ---
 
+# CI Policy Revision
+
+`N3W_CI_POLICY_REVISION=N3W_CI_POLICY_V1_20261026`
+
+CI 执行策略的机器权威为 `docs/development/N3W_CI_POLICY_MANIFEST_V1.json`；本技能解释其工程意图，不得静默弱化 manifest/checker 的约束。
+
 # Primary Goal
 
 在不削弱生产安全、回滚能力、凭据隔离和实机验收的前提下，提高温室环境监测系统的开发吞吐量，并将普通开发反馈稳定控制在可接受时间内。
