@@ -43,9 +43,9 @@ def _state(subnet: str = "192.0.2.0/24") -> TrustedProductLanState:
     )
 
 
-def _query() -> bytes:
+def _query(*, padded: bool = True) -> bytes:
     nonce = base64.urlsafe_b64encode(bytes(range(32))).rstrip(b"=").decode("ascii")
-    return json.dumps(
+    payload = json.dumps(
         {
             "schema": "gh.discovery.query/1",
             "request_id": str(uuid.uuid4()),
@@ -55,6 +55,10 @@ def _query() -> bytes:
         },
         separators=(",", ":"),
     ).encode("utf-8")
+    if not padded:
+        return payload
+    assert len(payload) < 1400
+    return payload + (b" " * (1400 - len(payload)))
 
 
 def _candidate(_source: str) -> RegistrationCandidate:
@@ -142,15 +146,16 @@ def test_unavailable_state_is_fail_closed_without_subnet() -> None:
 
 def test_registration_discovery_uses_exact_trusted_subnet_not_rfc1918() -> None:
     limiter = SlidingWindowRateLimiter(limit=4, window_s=60)
-    response = json.loads(
-        build_registration_udp_response(
-            _query(),
-            source_ip="192.0.2.20",
-            candidate_for=_candidate,
-            state_loader=_state,
-            rate_limiter=limiter,
-        ).decode("utf-8")
+    request = _query()
+    response_bytes = build_registration_udp_response(
+        request,
+        source_ip="192.0.2.20",
+        candidate_for=_candidate,
+        state_loader=_state,
+        rate_limiter=limiter,
     )
+    assert len(response_bytes) <= len(request)
+    response = json.loads(response_bytes.decode("utf-8"))
     assert response["schema"] == "gh.registration.discovery-result/1"
     assert response["candidate"]["bootstrap_port"] == 47110
     assert response["candidate"]["bootstrap_path"] == "/v1/registration/confirm"
@@ -421,3 +426,24 @@ def test_mdns_authority_lifecycle_withdraws_on_malformed_authority() -> None:
     assert controller.refresh() is False
     assert created[0].closed is True
     assert controller.authority_key is None
+
+
+def test_registration_discovery_rejects_amplifying_unpadded_query() -> None:
+    limiter = SlidingWindowRateLimiter(limit=4, window_s=60)
+    request = _query(padded=False)
+    with pytest.raises(
+        DiscoveryRejected,
+        match="registration discovery amplification forbidden",
+    ):
+        build_registration_udp_response(
+            request,
+            source_ip="192.0.2.20",
+            candidate_for=_candidate,
+            state_loader=_state,
+            rate_limiter=limiter,
+        )
+
+
+def test_registration_discovery_query_padding_stays_under_datagram_bound() -> None:
+    request = _query()
+    assert len(request) == 1400
