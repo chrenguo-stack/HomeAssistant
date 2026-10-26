@@ -1,0 +1,1057 @@
+# N3-W scan-triggered first registration source design — 2026-10-26
+
+## 0. Task / boundary
+
+```text
+TASK=N3W_SCAN_TRIGGERED_FIRST_PAIRING_SOURCE_DESIGN_20261026_01
+BASE_MAIN=507dbd49495c558b1344f7d713938b733b3bad18
+ARCHITECTURE_AUTHORITY=docs/adr/0011-n3w-scan-triggered-first-registration.md
+
+MODE=SOURCE_DESIGN_ONLY
+PRODUCT_SOURCE_MUTATION=false
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+BOARD_MUTATION=false
+PAIRING_EXECUTION=false
+MERGE=false
+```
+
+This design translates ADR-0011 into exact components, source seams, protocol boundaries, tests and implementation order.
+
+It does not declare implementation complete.
+
+## 1. Current-source findings
+
+### 1.1 Node already creates pairing material before Manager discovery
+
+Current:
+
+`firmware/esphome_rc/components/greenhouse_n3w_core/n3w_simple_pairing_client.cpp`
+
+`prepare_bootstrap_()`:
+- loads/creates Setup Secret;
+- loads or creates a durable random pairing ID.
+
+Therefore the node already possesses enough local material to prepare a registration QR before T1 exists.
+
+### 1.2 Idle node currently performs automatic discovery
+
+Current:
+
+`SimpleProductComponent::loop()`
+
+calls `advance_pairing_()` whenever the product is unprovisioned.
+
+`advance_pairing_()` eventually calls:
+
+```text
+SimplePairingClient::run_once()
+-> discover_()
+-> send_hello_()
+-> pair_with_()
+```
+
+This is incompatible with ADR-0011 because discovery must be user-scan-triggered.
+
+### 1.3 QR display is incorrectly gated by Manager hello
+
+Current:
+
+`firmware/esphome_rc/f1_0_rc2/packages/n3w_product_transport.yml`
+
+requires:
+
+```text
+Wi-Fi connected
+AND !provisioned
+AND pairing_handoff_ready()
+```
+
+before it renders the pairing QR.
+
+`pairing_handoff_ready_` is only set after Manager `/hello` returns PROCEED.
+
+This gate must stop controlling QR visibility.
+
+### 1.4 T1 discovery and privileged pairing are currently coupled
+
+Current simplified pairing runtime assembles:
+- UDP 47111 discovery;
+- HTTP 47112 pairing;
+- one shared worker lifecycle.
+
+The dynamic pairing controller starts them together.
+
+Therefore a factory pairing-disabled T1 currently has neither active pairing HTTP nor simplified UDP discovery.
+
+ADR-0011 requires these to be split.
+
+### 1.5 Current T1 open path requires operator-supplied peer_ip
+
+`DynamicPairingWindowController.open_window(peer_ip=...)` uses the supplied IP to select the broker-side local address.
+
+This is suitable for controlled engineering onboarding but not the product user path.
+
+The product path must derive the node source IP from the node's accepted registration-bootstrap TLS request.
+
+### 1.6 Current timers conflict with the 30-minute product transaction
+
+Current independent limits include:
+- dynamic window default 300 s;
+- dynamic window max 600 s;
+- registration pending TTL default 120 s;
+- simplified pairing session TTL default 120 s and max 600 s;
+- ordinary repair intent capped at 120 s.
+
+Only ordinary repair should remain at 120 s.
+
+The first-registration path must use one 1800-second canonical deadline.
+
+## 2. Target component split
+
+### 2.1 Node
+
+Add narrow first-registration components under:
+
+`firmware/esphome_rc/components/greenhouse_n3w_core/`
+
+Recommended files:
+
+```text
+n3w_registration_portal.h/.cpp
+n3w_registration_discovery.h/.cpp
+n3w_registration_state.h/.cpp
+n3w_registration_bootstrap_client.h/.cpp
+```
+
+Keep current:
+- `n3w_simple_pairing_client.*` for the actual authenticated pairing protocol;
+- `n3w_simple_product_component.*` as the top-level product orchestrator.
+
+Responsibilities:
+
+```text
+RegistrationPortal
+  phone-local HTTP page/API only
+
+RegistrationDiscovery
+  scan-triggered T1 mDNS/UDP candidate collection only
+
+RegistrationBootstrapClient
+  TLS-pinned user-confirm request to T1 47110
+  no pairing protocol
+
+SimplePairingClient
+  /hello -> /begin -> proof -> credentials -> ACK
+
+SimpleProductComponent
+  state orchestration only
+```
+
+### 2.2 T1
+
+Add a permanently available, low-privilege registration bootstrap layer separate from dynamic pairing.
+
+Recommended runtime modules:
+
+```text
+host/greenhouse-manager/src/greenhouse_manager/runtime/
+  n3w_registration_discovery.py
+  n3w_registration_bootstrap.py
+  n3w_first_registration_intent.py
+```
+
+Modify:
+
+```text
+n3w_dynamic_pairing_window.py
+n3w_simplified_pairing_runtime.py
+n3w_simplified_pairing_endpoint.py
+n3w_simplified_pairing.py
+registration.py
+config.py
+app.py
+```
+
+The always-on Manager process owns:
+- low-privilege discovery;
+- low-privilege TLS bootstrap;
+- dynamic privileged pairing window controller.
+
+## 3. Ports and exposure
+
+Freeze product semantics:
+
+```text
+47110/tcp = registration bootstrap TLS
+47111/udp = registration discovery fallback
+47112/tcp = privileged pairing HTTP
+```
+
+Idle factory/normal T1:
+
+```text
+TCP47110=LISTEN
+UDP47111=LISTEN
+TCP47112=CLOSED
+```
+
+This intentionally replaces the earlier acceptance assumption that 47111 must be closed whenever pairing is disabled.
+
+Security meaning:
+
+- 47110/47111 are not pairing exposure;
+- they cannot issue credentials;
+- they cannot create NODE_ID or activate credential/key/trust state by themselves;
+- 47112 is the only privileged pairing protocol surface and remains closed until explicit user confirmation reaches T1 through the node.
+
+## 4. T1 passive discovery protocol
+
+Introduce a dedicated candidate schema rather than advertising a closed pairing endpoint.
+
+Example:
+
+```json
+{
+  "schema": "gh.registration.candidate/1",
+  "manager_id": "manager-...",
+  "system_id": "system-...",
+  "system_id_hint": "1a2b3c4d",
+  "host": "192.0.2.10",
+  "bootstrap_scheme": "https",
+  "bootstrap_port": 47110,
+  "bootstrap_path": "/v1/registration/confirm",
+  "bootstrap_tls_sha256": "<64 lowercase hex>",
+  "protocol": "gh.n3w.first-registration/1",
+  "ttl_s": 30,
+  "busy": false
+}
+```
+
+Notes:
+- the example address is documentation-only;
+- real host uses route-selected local IPv4;
+- discovery returns no Setup Secret, pairing ID, credential, CA private material or privileged 47112 path;
+- `system_id_hint` supports a human label such as `温室主机 1A2B`;
+- `busy` may be shown as “主机忙” but must not disclose another node identity.
+
+mDNS:
+- advertise the registration bootstrap service, not the dynamic pairing endpoint.
+
+UDP:
+- continue nonce/request-ID correlation;
+- local-source check;
+- strict schema;
+- rate limit;
+- no amplification-sized response.
+
+## 5. T1 bootstrap TLS
+
+### 5.1 Certificate
+
+Product initialization creates a dedicated T1 registration-bootstrap TLS certificate/key.
+
+Requirements:
+- generated per T1/system;
+- private key never sent to nodes;
+- mounted read-only into greenhouse-manager;
+- active leaf certificate SHA-256 fingerprint is available to the discovery service;
+- replacement/rotation changes the advertised fingerprint.
+
+The node does not need to understand system CA before first registration.
+
+It uses user-confirmed TOFU:
+1. scan-triggered discovery obtains candidate + certificate fingerprint;
+2. phone shows simple T1 identity;
+3. user confirms;
+4. node connects to the selected candidate over TLS;
+5. node requires the observed certificate fingerprint to exactly equal the selected candidate;
+6. only then may the node send Setup Secret.
+
+No fingerprint is shown to the user.
+
+### 5.2 Bootstrap endpoint
+
+```text
+POST /v1/registration/confirm
+```
+
+Exact request:
+
+```json
+{
+  "schema": "gh.registration.confirm/1",
+  "manager_id": "<selected manager>",
+  "system_id": "<selected system>",
+  "hardware_id": "<node hardware id>",
+  "pairing_id": "<current random pairing id>",
+  "setup_secret": "<43-char base64url secret>"
+}
+```
+
+The HTTP layer:
+- requires TLS;
+- accepts only local source addresses;
+- uses exact field sets;
+- rejects oversized input;
+- is rate limited;
+- never logs request body;
+- never echoes Setup Secret;
+- does not persist Setup Secret.
+
+Response on acceptance:
+
+```json
+{
+  "schema": "gh.registration.confirm-result/1",
+  "accepted": true,
+  "manager_id": "<manager>",
+  "system_id": "<system>",
+  "pairing_host": "<route-selected local host>",
+  "pairing_port": 47112,
+  "pairing_path": "/v2/pairing",
+  "expires_in_seconds": 1800
+}
+```
+
+The response contains no credentials or secret.
+
+Conflict responses classify at least:
+
+```text
+registration_busy
+identity_invalid
+manager_mismatch
+system_mismatch
+bootstrap_tls_mismatch (node-local classification)
+bootstrap_unavailable
+```
+
+## 6. FirstRegistrationIntent
+
+New RAM-only Manager object:
+
+```python
+FirstRegistrationIntent(
+    hardware_id,
+    pairing_id,
+    setup_secret,
+    source_ip,
+    manager_id,
+    system_id,
+    opened_at,
+    expires_at,
+    consumed,
+)
+```
+
+Properties:
+- exactly one active first-registration intent in V1;
+- duplicate exact confirmation from the same source may be idempotent;
+- conflicting second identity gets busy/conflict;
+- Manager restart destroys the intent;
+- secret is mutable memory and explicitly zeroized;
+- no raw identity/secret in logs;
+- public diagnostics use SHA-256 identities only.
+
+The intent is the authority for opening 47112.
+
+## 7. Dynamic pairing window redesign
+
+Split current responsibilities.
+
+### 7.1 Registration discovery remains outside the window
+
+47111 is not started/stopped by `DynamicPairingWindowController`.
+
+### 7.2 47112 becomes identity-bound
+
+Replace the product-path concept:
+
+```text
+open_window(peer_ip, seconds)
+```
+
+with an internal operation conceptually equivalent to:
+
+```text
+open_first_registration(intent)
+```
+
+The engineering CLI may retain `open_window(peer_ip,...)` as a separate engineering path until explicitly retired.
+
+The product window has:
+- expected hardware ID;
+- expected pairing ID;
+- expected source IP;
+- exact 1800-second deadline.
+
+Before `RegistrationRegistry.observe_hello()`, the pairing HTTP endpoint checks all three.
+
+Mismatch must fail before durable registration mutation.
+
+## 8. Setup Secret bridge into existing coordinator
+
+Current `SimplifiedPairingCoordinator.import_setup_secret()` requires a PENDING registration.
+
+Do not weaken that invariant.
+
+New sequence:
+
+```text
+bootstrap confirm
+-> store secret only in FirstRegistrationIntent
+-> open exact 47112 window
+
+node /hello
+-> validate source/hardware/pairing against intent
+-> RegistrationRegistry.observe_hello(... exact shared deadline ...)
+-> if hello accepted:
+     coordinator.import_setup_secret(...)
+-> return hello PROCEED
+
+node /begin
+-> existing Setup Secret proof
+-> existing HKDF bootstrap
+-> existing encrypted credential delivery
+-> existing ACK/COMMIT
+```
+
+This preserves ADR-0007/0008 security flow while removing manual UDS secret import from the normal user path.
+
+The existing Manager-owned UDS and `greenhouse-manager-pairing import` remain engineering/ops interfaces, not normal first-registration UX.
+
+## 9. Canonical 1800-second deadline
+
+Create one product constant:
+
+```text
+FIRST_REGISTRATION_TTL_SECONDS=1800
+```
+
+At bootstrap confirmation:
+
+```text
+deadline = now + 1800 s
+```
+
+The same absolute deadline is supplied to all first-registration layers.
+
+Required source changes:
+
+### `n3w_dynamic_pairing_window.py`
+
+- product maximum becomes at least 1800;
+- product first-registration window receives absolute deadline or exactly 1800 s;
+- repair/recovery timing remains separately bounded.
+
+### `registration.py`
+
+Extend `observe_hello()` with an optional authorized expiry/deadline override used only by the identity-bound first-registration path.
+
+Default callers retain current `pending_ttl_s` behavior.
+
+The new path must not mutate the global pending TTL.
+
+### `n3w_simplified_pairing.py`
+
+Permit product first-registration session lifetime up to 1800 s.
+
+`begin()` continues:
+
+```text
+expires_at = min(session deadline, registration expires_at)
+```
+
+but both values now derive from the same first-registration deadline.
+
+Ordinary repair:
+- remains <=120 s;
+- is not widened by this design.
+
+## 10. Automatic close
+
+Current engineering onboarding closes the window externally.
+
+Product flow must close itself.
+
+Add transaction-terminal callback/observer from pairing endpoint/runtime to the first-registration controller.
+
+Close 47112 immediately on:
+- final ACK -> Manager COMMIT;
+- explicit node abort;
+- terminal failure that cannot continue;
+- deadline expiry;
+- worker/runtime failure with proven exposure closure.
+
+After close:
+- 47110/47111 remain available;
+- 47112 has zero listener;
+- intent secret is zeroized;
+- intent is cleared;
+- success state may remain available to the node/browser for a short non-secret observation period.
+
+## 11. Node registration portal
+
+### 11.1 Server lifetime
+
+Custom narrow HTTP server on node port 47113.
+
+Start only when:
+
+```text
+Wi-Fi connected
+AND node unregistered
+```
+
+Stop when:
+- Wi-Fi disconnects;
+- registration commits;
+- product enters unrecoverable local error.
+
+Do not enable generic ESPHome `web_server`.
+
+### 11.2 QR
+
+Generate a RAM-only 128-bit scan token.
+
+QR URL:
+
+```text
+http://<current STA IPv4>:47113/register#t=<base64url scan token>
+```
+
+Rules:
+- no Setup Secret;
+- no pairing ID;
+- no hardware ID;
+- no broker/T1 locator;
+- no long-lived credential.
+
+On IPv4 change, regenerate the QR URL.
+
+The scan token:
+- is RAM-only;
+- may rotate on boot;
+- is not pairing correctness authority;
+- only authorizes local portal actions for the currently displayed QR.
+
+### 11.3 HTTP routes
+
+```text
+GET  /register
+POST /api/v1/register/start
+POST /api/v1/register/status
+POST /api/v1/register/confirm
+POST /api/v1/register/retry
+```
+
+All dynamic API requests require:
+- current scan token or derived scan-session token;
+- same current unregistered state;
+- local source;
+- bounded body;
+- rate limit.
+
+The static page:
+- contains inline HTML/CSS/JS only;
+- no external network resources;
+- no analytics;
+- no cookies;
+- no localStorage;
+- no Setup Secret;
+- `Cache-Control: no-store`.
+
+The first successful `start` request is the actual scan trigger.
+
+## 12. Node discovery session
+
+Add RAM-only state:
+
+```text
+IDLE
+DISCOVERING
+CANDIDATES_READY
+WAIT_CONFIRM
+BOOTSTRAP
+PAIRING
+SUCCESS
+ERROR
+```
+
+No discovery code runs in `IDLE`.
+
+On `/start`:
+- create/attach scan session;
+- perform one bounded discovery sequence;
+- collect up to a small fixed maximum of candidates;
+- dedupe by manager/system/endpoint;
+- do not auto-select multiple candidates.
+
+Recommended discovery budget:
+- mDNS first;
+- UDP fallback;
+- total active search bounded to approximately 5–10 seconds;
+- no repeated discovery loop after the scan session becomes idle/error.
+
+This discovery budget is not the 30-minute pairing transaction TTL.
+
+## 13. Phone page
+
+Exactly one healthy candidate:
+
+```text
+联机注册
+
+节点：<friendly node suffix>
+主机：温室主机 <system hint>
+
+[确认联机注册]
+```
+
+Multiple candidates:
+- show simple candidate buttons;
+- no IP, port, fingerprint, MQTT or certificate details.
+
+No candidate:
+- minimal text may say `未找到主机，请查看设备屏幕`;
+- LCD E01 remains primary.
+
+After confirmation:
+- browser page says `正在联机注册，请查看设备屏幕`;
+- it polls node-local status only;
+- it never calls T1 directly.
+
+## 14. Node confirmation -> T1 bootstrap
+
+`POST /api/v1/register/confirm` validates:
+- scan session still current;
+- pairing ID has not changed;
+- selected candidate still valid;
+- node remains unregistered.
+
+Then:
+1. set LCD state REGISTERING/BOOTSTRAP;
+2. connect node -> T1 47110 via TLS;
+3. pin certificate fingerprint from the selected candidate;
+4. send `gh.registration.confirm/1`;
+5. on acceptance, receive 47112 locator/deadline;
+6. invoke existing `SimplePairingClient` against that exact endpoint.
+
+The phone never receives Setup Secret.
+
+## 15. Refactor `SimplePairingClient`
+
+Current `run_once()` couples discovery + hello + full pairing.
+
+Refactor into explicit phases while preserving protocol logic:
+
+```text
+prepare_bootstrap()
+pair_with_candidate(candidate, transaction_deadline)
+resume_pending_ack()
+```
+
+The scan-triggered registration orchestrator owns discovery.
+
+Remove/stop using automatic `run_once() -> discover_()` from normal unregistered loop.
+
+`pair_with_candidate()`:
+- sends hello;
+- honors ADR-0008 WAIT / RENEW semantics;
+- proceeds through begin/establish/credentials/ack;
+- reports terminal result to registration state.
+
+Do not make `pairing_handoff_ready` a display authority.
+
+It may be deleted or retained only as an internal protocol-state diagnostic.
+
+## 16. LCD source changes
+
+Current:
+
+`firmware/esphome_rc/f1_0_rc2/packages/display.yml`
+
+and:
+
+`n3w_product_transport.yml`
+
+must change so:
+
+### Idle unregistered
+
+```text
+联机注册
+<QR>
+扫码注册
+```
+
+Exact final 128×64 wording/layout may be tuned after render tests.
+
+### During discovery
+
+```text
+联机注册
+正在搜索
+```
+
+### Waiting for phone choice/confirmation
+
+```text
+等待确认
+请看手机
+```
+
+### Registering
+
+```text
+联机注册中
+请稍候
+```
+
+### Success
+
+```text
+注册成功
+```
+
+### Errors
+
+```text
+E01 未找到主机
+E02 主机不可用
+E03 主机忙
+E04 网络中断
+E05 注册超时
+E06 注册失败
+E07 二维码失效
+```
+
+Error text may occupy two lines if required by font/layout.
+
+Recoverable error:
+- display for a short bounded time;
+- return automatically to the registration QR.
+
+No “正在查找主机” idle state remains.
+
+## 17. Error mapping
+
+Internal errors stay detailed.
+
+User LCD mapping:
+
+```text
+DISCOVERY_EMPTY                     -> E01
+DISCOVERY_TIMEOUT                   -> E01
+
+BOOTSTRAP_CONNECT_FAILED            -> E02
+BOOTSTRAP_TLS_PIN_MISMATCH          -> E02
+BOOTSTRAP_SERVICE_UNHEALTHY         -> E02
+
+T1_REGISTRATION_BUSY                -> E03
+
+WIFI_LOST_DURING_ACTIVE_TRANSACTION -> E04
+PAIRING_HTTP_UNREACHABLE            -> E04
+
+TRANSACTION_DEADLINE                -> E05
+
+PROTOCOL_REJECTED_NON_RENEWABLE     -> E06
+CREDENTIAL_STAGE_FAILED             -> E06
+FINAL_COMMIT_FAILED                 -> E06
+
+TERMINAL_EXPIRED
+TERMINAL_REPLAY_DETECTED
+OR LOCAL_QR_SESSION_STALE           -> E07
+```
+
+A user error code is not the engineering root-cause code.
+
+## 18. QR renewal behavior
+
+Pre-transaction discovery/bootstrap failure:
+- do not consume pairing ID;
+- keep current QR/pairing transaction.
+
+Terminal pairing failure or Manager terminal `expired/replay_detected`:
+- preserve old pairing ID as replay tombstone;
+- use existing ADR-0008 renewal path;
+- generate a fresh pairing ID durably;
+- QR updates;
+- LCD may briefly show E07 before returning to the new registration QR.
+
+No whole-NVS reset.
+
+## 19. Browser / network edge cases
+
+### Phone cannot reach node
+
+If the phone never reaches the node-local page, the node cannot know a scan occurred.
+
+The browser's connection failure is unavoidable first feedback.
+
+No LCD error is synthesized without a node-observed event.
+
+### Phone closes browser after confirm
+
+Registration continues because the confirmed transaction is node/T1-owned.
+
+LCD remains authoritative.
+
+### Phone closes browser before confirm
+
+No first-registration transaction exists.
+
+Scan session expires and node returns to idle QR without changing pairing ID.
+
+### Node Wi-Fi changes IPv4
+
+Idle QR regenerates.
+
+Active browser session may fail; user rescans.
+
+No fixed IP configuration is required.
+
+## 20. Existing engineering onboarding
+
+`tools/n3w_t1_first_pairing_onboarding.py` remains temporarily as an engineering/diagnostic tool.
+
+It must no longer be used as proof of final product UX.
+
+Specifically:
+
+```text
+scan raw GHN3W2
+-> copy string
+-> paste into Terminal
+```
+
+is prohibited for final product acceptance.
+
+A later acceptance executor should instead inspect public-safe Manager/DB/listener evidence while the physical operator performs:
+
+```text
+phone scan
+-> browser candidate
+-> confirm
+-> LCD success/error
+```
+
+No secret enters chat, GitHub or terminal output.
+
+## 21. Source files expected to change in implementation
+
+### Node
+
+```text
+firmware/esphome_rc/components/greenhouse_n3w_core/
+  n3w_simple_product_component.h
+  n3w_simple_product_component.cpp
+  n3w_simple_pairing_client.h
+  n3w_simple_pairing_client.cpp
+  <new registration portal/discovery/bootstrap/state files>
+
+firmware/esphome_rc/f1_0_rc2/packages/
+  n3w_product_transport.yml
+  display.yml
+  core.yml (only if registration server integration requires it)
+```
+
+### T1 / Manager
+
+```text
+host/greenhouse-manager/src/greenhouse_manager/runtime/
+  app.py
+  config.py
+  registration.py
+  n3w_dynamic_pairing_window.py
+  n3w_simplified_pairing.py
+  n3w_simplified_pairing_endpoint.py
+  n3w_simplified_pairing_runtime.py
+  <new registration discovery/bootstrap/intent modules>
+```
+
+### Firstboot / deployment
+
+Expected follow-up review:
+- dedicated registration-bootstrap TLS certificate/key generation;
+- secret mount ownership/permissions;
+- listener/firewall/port inventory;
+- exact-release seal coverage.
+
+These are source changes but not live T1 mutation until a separately authorized deployment gate.
+
+## 22. Test plan
+
+### A. Node idle
+
+Prove:
+- Wi-Fi connected + unregistered shows registration QR;
+- no T1 discovery call occurs for at least an accelerated long idle interval;
+- raw Setup Secret not in QR URL;
+- raw pairing/hardware IDs not in QR URL;
+- no generic ESPHome web server enabled.
+
+### B. Scan trigger
+
+Prove:
+- GET page alone does not start transaction;
+- valid start with current scan token starts exactly one discovery session;
+- repeated start is idempotent;
+- invalid/stale token does nothing.
+
+### C. Discovery
+
+Prove:
+- zero candidates -> E01 -> same QR;
+- one candidate -> WAIT_CONFIRM;
+- multiple candidates -> no automatic selection;
+- retry requires a new user/browser action.
+
+### D. Bootstrap TLS
+
+Prove:
+- exact certificate fingerprint required;
+- fingerprint mismatch sends no Setup Secret;
+- secret absent from logs/results;
+- bootstrap endpoint local-only/rate-limited;
+- source IP captured by T1;
+- no operator peer_ip needed.
+
+### E. Identity-bound window
+
+Prove:
+- wrong hardware rejected before DB write;
+- wrong pairing ID rejected before DB write;
+- wrong source IP rejected before DB write;
+- exact duplicate is safe/idempotent;
+- second competing node receives busy;
+- 47112 closed before confirmation and after terminal completion.
+
+### F. Deadline
+
+Accelerated-clock tests prove one shared deadline.
+
+Production constants prove:
+
+```text
+FIRST_REGISTRATION_TTL_SECONDS=1800
+```
+
+No first-registration 120/600-second hidden limit remains.
+
+Repair TTL remains <=120.
+
+### G. Pairing security
+
+Reuse current vectors/tests to prove:
+- Setup Secret proof remains HMAC;
+- HKDF bootstrap remains;
+- encrypted credential bundle remains;
+- final delivery digest ACK remains commit authority;
+- replay tombstones remain.
+
+### H. LCD
+
+Golden/source tests cover every state/error string and ensure all glyphs exist.
+
+### I. End-to-end simulated browser
+
+A phone-like HTTP client:
+1. opens node page;
+2. starts scan session;
+3. receives one/multiple T1 candidates;
+4. confirms;
+5. proves T1 47112 transition closed -> open -> closed;
+6. proves Manager COMMIT;
+7. proves browser never handles Setup Secret.
+
+### J. Physical acceptance
+
+Physical Board/T1 acceptance is a later separately authorized gate.
+
+Mandatory normal flow:
+- phone camera scan;
+- browser confirmation;
+- LCD feedback;
+- no terminal secret paste.
+
+## 23. Implementation order
+
+Recommended staged source implementation:
+
+```text
+R1  T1 passive discovery + bootstrap service + tests
+R2  identity-bound 47112 window + unified 1800 s deadline
+R3  node local registration portal + QR
+R4  scan-triggered discovery + multi-T1 selection
+R5  node->T1 TLS bootstrap + SimplePairingClient refactor
+R6  LCD state/error integration
+R7  full simulated end-to-end + regression / safety
+R8  exact artifact build and independent source review
+R9  separately authorized physical acceptance
+```
+
+Do not combine physical mutation with R1-R8.
+
+## 24. Explicit non-goals
+
+```text
+DEDICATED_MOBILE_APP=false
+HA_BACKEND_USER_FLOW=false
+MANUAL_IP_INPUT=false
+MANUAL_SECRET_COPY=false
+IDLE_NODE_DISCOVERY=false
+AUTO_SELECT_MULTIPLE_T1=false
+NEW_RETIREMENT_DEVELOPMENT=false
+WHOLE_NVS_RESET=false
+BOARD_FLASH_IN_THIS_GATE=false
+T1_LIVE_DEPLOYMENT_IN_THIS_GATE=false
+```
+
+## 25. Design closure
+
+```text
+SOURCE_DESIGN_RESULT=CLOSED_READY_FOR_INDEPENDENT_REVIEW
+
+UI_TERM=联机注册
+QR_VISIBLE_AFTER_WIFI_WHILE_UNREGISTERED=true
+SCAN_TRIGGERS_DISCOVERY=true
+CONFIRM_TRIGGERS_TRANSACTION=true
+
+T1_47110_BOOTSTRAP_ALWAYS_ON=true
+T1_47111_DISCOVERY_ALWAYS_ON=true
+T1_47112_PAIRING_IDLE_CLOSED=true
+
+SETUP_SECRET_PHONE_EXPOSURE=false
+SETUP_SECRET_MANUAL_COPY=false
+SETUP_SECRET_NODE_TO_T1_TLS=true
+
+FIRST_REGISTRATION_TTL_SECONDS=1800
+REPAIR_TTL_UNCHANGED=true
+
+LCD_PRIMARY_FEEDBACK=true
+NODE_RETIREMENT_NEW_DEVELOPMENT=DEFERRED
+
+SOURCE_MUTATION=false
+LIVE_MUTATION=false
+MERGE=false
+```
+
+Proposed next gate:
+
+```text
+N3W_SCAN_TRIGGERED_FIRST_PAIRING_SOURCE_DESIGN_INDEPENDENT_REVIEW_20261026_01
+```
+
+The independent review should challenge:
+- the user-confirmed TOFU TLS boundary;
+- always-on 47110/47111 attack surface;
+- Setup Secret zeroization;
+- identity/source binding before DB mutation;
+- 1800-second deadline propagation;
+- browser scan-token abuse/CSRF;
+- multi-T1 ambiguity;
+- whether any current regression gate still assumes idle UDP47111=0;
+- exact source scope and false-PASS tests.
