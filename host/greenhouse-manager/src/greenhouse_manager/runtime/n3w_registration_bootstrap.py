@@ -40,7 +40,6 @@ class BootstrapSkeletonResult:
             "accepted": False,
             "status": self.status,
             "reason": self.reason,
-            "transaction_started": self.transaction_started,
         }
 
 
@@ -228,7 +227,6 @@ class _RegistrationBootstrapHandler(BaseHTTPRequestHandler):
                     "accepted": False,
                     "status": "rejected",
                     "reason": "path_not_found",
-                    "transaction_started": False,
                 },
             )
             return
@@ -249,7 +247,6 @@ class _RegistrationBootstrapHandler(BaseHTTPRequestHandler):
                     "accepted": False,
                     "status": "rejected",
                     "reason": str(error),
-                    "transaction_started": False,
                 },
             )
             return
@@ -270,7 +267,6 @@ class _RegistrationBootstrapHandler(BaseHTTPRequestHandler):
                     "accepted": False,
                     "status": "rejected",
                     "reason": "request_invalid",
-                    "transaction_started": False,
                 },
             )
             return
@@ -291,7 +287,6 @@ class _RegistrationBootstrapHandler(BaseHTTPRequestHandler):
                     "accepted": False,
                     "status": "rejected",
                     "reason": "request_invalid",
-                    "transaction_started": False,
                 },
             )
             return
@@ -309,7 +304,6 @@ class _RegistrationBootstrapHandler(BaseHTTPRequestHandler):
                     "accepted": False,
                     "status": "rejected",
                     "reason": reason,
-                    "transaction_started": False,
                 },
             )
             return
