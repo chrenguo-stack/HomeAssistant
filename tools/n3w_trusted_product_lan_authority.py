@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import tempfile
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Sequence, TextIO
@@ -103,17 +104,15 @@ def main(
     mode.add_argument("--apply", action="store_true")
     mode.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
-    output = stdout
-    error = stderr
+    output = stdout or sys.stdout
+    error = stderr or sys.stderr
     decision = broker_guard.read_network_decision()
     document = build_state_document(decision)
     try:
         if args.apply:
             atomic_publish(document)
     except AuthorityPublishError as exc:
-        target = error
-        if target is not None:
-            target.write(json.dumps({
+        error.write(json.dumps({
                 "schema": SCHEMA,
                 "status": "ERROR",
                 "reason": str(exc),
