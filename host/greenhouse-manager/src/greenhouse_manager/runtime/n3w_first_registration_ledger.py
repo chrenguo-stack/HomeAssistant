@@ -693,18 +693,23 @@ class FirstRegistrationLedger:
                     or terminal_reason not in {"expired", "replay_detected"}
                 ):
                     raise ValueError("terminal attempt fields are invalid")
-            if phase in {
-                FirstRegistrationPhase.BUNDLE_STAGED,
-                FirstRegistrationPhase.COMMITTING,
-            } or state is FirstRegistrationAttemptState.COMMITTED:
-                if (
+            if (
+                (
+                    phase in {
+                        FirstRegistrationPhase.BUNDLE_STAGED,
+                        FirstRegistrationPhase.COMMITTING,
+                    }
+                    or state is FirstRegistrationAttemptState.COMMITTED
+                )
+                and (
                     node_id is None
                     or dynsec_prestate != 1
                     or application_prestate != 1
                     or application_key_epoch is None
                     or delivery_hash is None
-                ):
-                    raise ValueError("staged attempt ownership fields are invalid")
+                )
+            ):
+                raise ValueError("staged attempt ownership fields are invalid")
             return FirstRegistrationAttempt(
                 pairing_id=pairing_id,
                 hardware_id_sha256=hardware_hash,
