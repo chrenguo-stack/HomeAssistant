@@ -12,7 +12,7 @@ import zipfile
 from pathlib import Path
 from typing import Iterable
 
-SCHEMA_PREFLIGHT = "n3w.board-d.post-r4-write-target-preflight/1"
+SCHEMA_PREFLIGHT = "n3w.board-d.post-r4-write-target-preflight/2"
 MERGED_MAIN = "e24b5af4a271867c613dd52012bc83a6d40b06a5"
 PRODUCT_SOURCE = "ec5f6d68e33db7757d91c807fff708ca81b075dc"
 PRODUCT_TREE = "16740efa8ad24d423adc0b2de32b99d56e2d23d1"
@@ -113,7 +113,7 @@ def sha256_file(path: Path) -> str:
 def hardware_id_from_mac(raw_mac: str) -> str:
     compact = raw_mac.replace(":", "").lower()
     if not re.fullmatch(r"[0-9a-f]{12}", compact):
-        raise StopExecution("invalid ROM MAC format")
+        raise StopExecution("invalid base MAC format")
     return "ghw-c6-" + compact
 
 
