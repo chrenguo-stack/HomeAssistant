@@ -1,7 +1,7 @@
 [Unit]
 Description=N3W T1 F4 Manager and Home Assistant activation
-Requires=docker.service n3wfc4-broker-activation.service
-After=docker.service n3wfc4-broker-activation.service
+Requires=docker.service n3wfc4-broker-activation.service n3wfc4-registration-ingress-guard.service
+After=docker.service n3wfc4-broker-activation.service n3wfc4-registration-ingress-guard.service
 PartOf=docker.service
 
 [Service]
