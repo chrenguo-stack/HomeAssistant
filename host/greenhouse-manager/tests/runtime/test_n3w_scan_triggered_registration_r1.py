@@ -265,23 +265,19 @@ def test_registration_mdns_definition_is_exact_interface_scoped() -> None:
 
 def test_r1_source_keeps_registration_runtime_isolated_from_manager_app() -> None:
     from greenhouse_manager.runtime import app as manager_app
+    from greenhouse_manager.runtime import n3w_registration_bootstrap as bootstrap
     from greenhouse_manager.runtime import n3w_registration_runtime as registration_runtime
 
     app_source = manager_app.__file__
+    bootstrap_source = bootstrap.__file__
     runtime_source = registration_runtime.__file__
     assert app_source is not None
+    assert bootstrap_source is not None
     assert runtime_source is not None
-    assert "n3w_registration_runtime" not in open(
-        app_source,
-        encoding="utf-8",
-    ).read()
-    assert "first_registration_transaction_not_implemented" in open(
-        __import__(
-            "greenhouse_manager.runtime.n3w_registration_bootstrap",
-            fromlist=["__file__"],
-        ).__file__,
-        encoding="utf-8",
-    ).read()
+    with open(app_source, encoding="utf-8") as handle:
+        assert "n3w_registration_runtime" not in handle.read()
+    with open(bootstrap_source, encoding="utf-8") as handle:
+        assert "first_registration_transaction_not_implemented" in handle.read()
 
 
 def test_bootstrap_skeleton_requires_canonical_uuid_text() -> None:
