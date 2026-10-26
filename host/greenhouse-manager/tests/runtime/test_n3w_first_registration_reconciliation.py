@@ -17,8 +17,8 @@ from greenhouse_manager.runtime.n3w_first_registration_ledger import (
 )
 from greenhouse_manager.runtime.n3w_first_registration_reconciliation import (
     FirstRegistrationCommitClassification,
-    FirstRegistrationReconciliationError,
     FirstRegistrationReconciler,
+    FirstRegistrationReconciliationError,
 )
 from greenhouse_manager.runtime.n3w_node_application_keys import SqliteNodeApplicationKeyAdmin
 from greenhouse_manager.runtime.registration import RegistrationRegistry, RegistrationState
