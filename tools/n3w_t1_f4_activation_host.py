@@ -161,6 +161,18 @@ INSTALL_MAP = {
         Path("/usr/local/sbin/n3w-broker-certificate-lifecycle"),
         0o755,
     ),
+    "tools/n3w_registration_ingress_guard.py": (
+        Path("/usr/local/sbin/n3w-registration-ingress-guard"),
+        0o755,
+    ),
+    "tools/n3w_trusted_product_lan_authority.py": (
+        Path("/usr/local/sbin/n3w-trusted-product-lan-authority"),
+        0o755,
+    ),
+    "infra/n3w-t1/systemd/n3wfc4-registration-ingress-guard.service": (
+        Path("/etc/systemd/system/n3wfc4-registration-ingress-guard.service"),
+        0o644,
+    ),
     "infra/n3w-t1/f4/n3wfc4-broker-activation.service": (
         Path("/etc/systemd/system/n3wfc4-broker-activation.service"),
         0o644,
