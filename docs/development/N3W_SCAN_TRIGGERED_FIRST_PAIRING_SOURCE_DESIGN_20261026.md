@@ -210,7 +210,10 @@ Security meaning:
 - 47110/47111 are not pairing exposure;
 - they cannot issue credentials;
 - they cannot create NODE_ID or activate credential/key/trust state by themselves;
-- 47112 is the only privileged pairing protocol surface and remains closed until explicit user confirmation reaches T1 through the node.
+- 47112 is the only privileged pairing protocol surface;
+- the T1 authorization boundary is the trusted LAN: any client accepted as a local/trusted-LAN source is authorized to initiate first registration through 47110;
+- QR possession, node scan token and browser confirmation are normal-product UX controls, not T1-side authorization credentials;
+- in the normal phone flow, user confirmation causes the node to submit 47110; however a trusted-LAN client is also intentionally permitted to submit an equivalent valid bootstrap request directly.
 
 ## 4. T1 passive discovery protocol
 
@@ -303,13 +306,18 @@ Exact request:
 
 The HTTP layer:
 - requires TLS;
-- accepts only local source addresses;
+- accepts only local/trusted-LAN source addresses;
+- treats trusted-LAN source membership as sufficient authorization to initiate first registration;
+- does not require proof of QR possession, scan token possession or browser confirmation;
+- intentionally permits a trusted-LAN client to submit its own syntactically valid hardware ID, pairing ID and Setup Secret;
 - uses exact field sets;
 - rejects oversized input;
 - is rate limited;
 - never logs request body;
 - never echoes Setup Secret;
 - does not persist Setup Secret.
+
+This is an explicit threat-model decision, not an accidental bypass. A malicious or compromised client already inside the trusted LAN may initiate an enrollment attempt and, if it follows the bound 47110 -> 47112 flow from the same accepted source, may complete that enrollment. Product security therefore relies on the trusted-LAN boundary for initiation authorization. The node QR remains the normal-user entry point but is not a Manager authorization token.
 
 Response on acceptance:
 
@@ -361,8 +369,12 @@ Properties:
 - exactly one active first-registration intent in V1;
 - duplicate exact confirmation from the same source may be idempotent;
 - conflicting second identity gets busy/conflict;
-- Manager restart destroys the intent;
-- secret is mutable memory and explicitly zeroized;
+- Manager restart destroys the intent and fail-closes 47112;
+- the old transaction must not resume after Manager restart;
+- the old pairing ID becomes terminal/replay-tombstoned under ADR-0008;
+- the next registration attempt must use a new pairing ID and, after fresh confirmation, a new full 1800-second transaction;
+- retained mutable secret buffers are explicitly zeroized on success, deadline expiry and Manager/process-boundary invalidation;
+- unavoidable transient high-level runtime/parser copies must be bounded in lifetime and must never be logged or persisted; the design does not claim provable erasure of every immutable process-memory copy;
 - no raw identity/secret in logs;
 - public diagnostics use SHA-256 identities only.
 
@@ -462,8 +474,12 @@ NEXT_NODE_GETS_FRESH_1800S_DEADLINE=true
 A/B/C registration example:
 - A confirmation creates only Transaction-A;
 - if A commits at 80 s, Transaction-A and 47112 close immediately and its unused time is discarded;
-- B then requires a new confirmation and starts Transaction-B with a full new 1800-second deadline;
-- while A remains active, B receives `registration_busy` and retains its current pre-transaction QR/pairing identity.
+- if A encounters a pre-deadline browser/protocol/pairing error, Transaction-A remains the same identity/source-bound transaction and keeps the same absolute deadline;
+- B then requires a new confirmation and starts Transaction-B with a full new 1800-second deadline only after A commits or A reaches its deadline;
+- while A remains active, B receives `registration_busy` and retains its current pre-transaction QR/pairing identity;
+- if Manager restarts while A is active, A is fail-closed and terminal, A's old pairing ID is not resumed, and the next attempt uses a new pairing ID plus a fresh `now + 1800s` deadline.
+
+Manager restart never carries forward the old deadline, remaining time, intent or Setup Secret.
 
 Required source changes:
 
@@ -497,27 +513,34 @@ Ordinary repair:
 - remains <=120 s;
 - is not widened by this design.
 
-## 10. Automatic close
+## 10. Privileged-window close semantics
 
 Current engineering onboarding closes the window externally.
 
-Product flow must close itself.
+The product first-registration controller owns the 47112 lifetime.
 
-Add transaction-terminal callback/observer from pairing endpoint/runtime to the first-registration controller.
-
-Close 47112 immediately on:
+During normal Manager uptime there are exactly two semantic close conditions:
 - final ACK -> Manager COMMIT;
-- explicit node abort;
-- terminal failure that cannot continue;
-- deadline expiry;
-- worker/runtime failure with proven exposure closure.
+- canonical 1800-second deadline expiry.
 
-After close:
+Pre-deadline browser cancellation, explicit user cancellation, protocol error, pairing failure or retryable worker error does not by itself close 47112, clear the transaction, renew the pairing ID or mint a fresh 1800-second budget. The same exact identity/source-bound transaction remains active until Manager COMMIT or its original absolute deadline.
+
+Manager restart, process loss, or an equivalent runtime failure that destroys the in-memory intent is handled separately as **fail-closed process-boundary invalidation**:
+- 47112 is closed;
+- the old transaction is terminal and cannot be resumed;
+- the old pairing ID becomes a replay tombstone;
+- the next attempt generates a new pairing ID;
+- a fresh confirmation creates a new transaction with a full new 1800-second deadline;
+- no old remaining time or deadline is inherited.
+
+This restart/fault rule is not a third normal transaction close condition; it is the consequence of losing the RAM-only authority required to keep the privileged window valid.
+
+After successful COMMIT or deadline expiry:
 - 47110/47111 remain available;
 - 47112 has zero listener;
-- intent secret is zeroized;
+- retained mutable intent/coordinator Setup Secret buffers are zeroized;
 - intent is cleared;
-- success state may remain available to the node/browser for a short non-secret observation period.
+- success/timeout state may remain available to the node/browser for a short non-secret observation period.
 
 ## 11. Node registration portal
 
@@ -799,14 +822,28 @@ A user error code is not the engineering root-cause code.
 
 Pre-transaction discovery/bootstrap failure:
 - do not consume pairing ID;
-- keep current QR/pairing transaction.
+- keep current QR/pairing identity.
 
-Terminal pairing failure or Manager terminal `expired/replay_detected`:
-- preserve old pairing ID as replay tombstone;
+Pre-deadline pairing/protocol failure inside an active transaction:
+- does not close 47112;
+- does not consume or renew the pairing ID;
+- does not create a new transaction or refresh the 1800-second deadline;
+- may retry only inside the same identity/source-bound transaction before the original deadline.
+
+Canonical deadline expiry:
+- preserve the expired pairing ID as a replay tombstone;
 - use existing ADR-0008 renewal path;
 - generate a fresh pairing ID durably;
 - QR updates;
-- LCD may briefly show E07 before returning to the new registration QR.
+- a later fresh confirmation receives a new full 1800-second deadline.
+
+Manager restart/process-boundary invalidation:
+- also makes the old pairing ID terminal/replay-tombstoned because the RAM-only intent authority is gone;
+- never resumes the old transaction;
+- requires a new pairing ID before the next registration transaction;
+- the next confirmed transaction receives a fresh full 1800 seconds.
+
+A `replay_detected` response for an already terminal old pairing ID follows the same ADR-0008 renewal path and must not reopen the old transaction.
 
 No whole-NVS reset.
 
@@ -946,17 +983,20 @@ Prove:
 - source IP captured by T1;
 - no operator peer_ip needed.
 
-### E. Identity-bound window
+### E. Identity-bound window and trusted-LAN authorization
 
 Prove:
-- wrong hardware rejected before DB write;
+- non-local/non-trusted source is rejected by 47110;
+- a trusted-LAN client may initiate 47110 without QR possession or scan-token proof;
+- the normal phone flow still uses node QR + browser confirmation;
+- wrong hardware rejected before DB write once an intent is active;
 - wrong pairing ID rejected before DB write;
 - wrong source IP rejected before DB write;
 - exact duplicate is safe/idempotent;
 - second competing node receives busy;
-- 47112 closed before confirmation and after terminal completion.
+- 47112 is closed while idle and closes on Manager COMMIT or canonical deadline expiry.
 
-### F. Deadline
+### F. Deadline and restart
 
 Accelerated-clock tests prove one shared deadline.
 
@@ -966,7 +1006,14 @@ Production constants prove:
 FIRST_REGISTRATION_TTL_SECONDS=1800
 ```
 
-No first-registration 120/600-second hidden limit remains.
+Prove:
+- pre-deadline browser/protocol/pairing failure does not close 47112 or refresh the deadline;
+- success closes immediately;
+- expiry closes at the exact shared deadline;
+- Manager restart fail-closes the old transaction;
+- old pairing ID cannot resume after Manager restart;
+- next attempt uses a new pairing ID and a fresh full 1800-second deadline;
+- no first-registration 120/600-second hidden limit remains.
 
 Repair TTL remains <=120.
 
@@ -1040,12 +1087,16 @@ T1_LIVE_DEPLOYMENT_IN_THIS_GATE=false
 ## 25. Design closure
 
 ```text
-SOURCE_DESIGN_RESULT=CLOSED_READY_FOR_INDEPENDENT_REVIEW
+SOURCE_DESIGN_RESULT=CLOSED_REPAIRED_READY_FOR_FOCUSED_CLOSURE_REVIEW
 
 UI_TERM=联机注册
 QR_VISIBLE_AFTER_WIFI_WHILE_UNREGISTERED=true
 SCAN_TRIGGERS_DISCOVERY=true
-CONFIRM_TRIGGERS_TRANSACTION=true
+CONFIRM_TRIGGERS_NORMAL_PRODUCT_TRANSACTION=true
+
+T1_FIRST_REGISTRATION_AUTHORITY=TRUSTED_LAN_SOURCE
+QR_POSSESSION_REQUIRED_FOR_T1_AUTHORIZATION=false
+TRUSTED_LAN_DIRECT_47110_INITIATION_ALLOWED=true
 
 T1_47110_BOOTSTRAP_ALWAYS_ON=true
 T1_47111_DISCOVERY_ALWAYS_ON=true
@@ -1058,6 +1109,12 @@ SETUP_SECRET_NODE_TO_T1_TLS=true
 FIRST_REGISTRATION_TTL_SECONDS=1800
 FIRST_REGISTRATION_TTL_SCOPE=PER_TRANSACTION
 MAX_CONCURRENT_FIRST_REGISTRATIONS_V1=1
+NORMAL_PRIVILEGED_WINDOW_CLOSE_CONDITIONS=MANAGER_COMMIT_OR_DEADLINE
+PREDEADLINE_ERROR_CLOSES_PRIVILEGED_WINDOW=false
+MANAGER_RESTART_FAIL_CLOSED=true
+MANAGER_RESTART_OLD_PAIRING_ID_TERMINAL=true
+MANAGER_RESTART_REQUIRES_NEW_PAIRING_ID=true
+MANAGER_RESTART_NEW_TRANSACTION_GETS_FRESH_1800S=true
 UNUSED_TTL_CARRIED_FORWARD=false
 NEXT_NODE_REQUIRES_NEW_CONFIRMATION=true
 NEXT_NODE_GETS_FRESH_1800S_DEADLINE=true
@@ -1074,16 +1131,17 @@ MERGE=false
 Proposed next gate:
 
 ```text
-N3W_SCAN_TRIGGERED_FIRST_PAIRING_SOURCE_DESIGN_INDEPENDENT_REVIEW_20261026_01
+N3W_SCAN_TRIGGERED_FIRST_PAIRING_SOURCE_DESIGN_REPAIR_FOCUSED_CLOSURE_REVIEW_20261026_01
 ```
 
-The independent review should challenge:
-- the user-confirmed TOFU TLS boundary;
-- always-on 47110/47111 attack surface;
-- Setup Secret zeroization;
-- identity/source binding before DB mutation;
-- 1800-second deadline propagation;
-- browser scan-token abuse/CSRF;
-- multi-T1 ambiguity;
-- whether any current regression gate still assumes idle UDP47111=0;
-- exact source scope and false-PASS tests.
+The focused closure review must independently verify:
+- trusted-LAN source membership is intentionally sufficient to authorize 47110 first-registration initiation;
+- QR possession/scan token/browser confirmation are UX controls, not T1 authorization credentials;
+- the normal node flow still performs pre-body TLS fingerprint matching before emitting Setup Secret bytes;
+- identity/source binding occurs before DB mutation on 47112;
+- Manager COMMIT and canonical deadline expiry are the only normal-uptime privileged-window close conditions;
+- pre-deadline failure does not refresh or replace the transaction;
+- Manager restart is fail-closed, old pairing ID is terminal, and the next attempt uses a new pairing ID plus a fresh full 1800-second deadline;
+- Setup Secret retained-buffer zeroization wording is implementable and does not make impossible claims about every immutable runtime copy;
+- any current regression gate that still assumes idle UDP47111=0 is retargeted during implementation;
+- no new false-PASS path was introduced by the repair.
