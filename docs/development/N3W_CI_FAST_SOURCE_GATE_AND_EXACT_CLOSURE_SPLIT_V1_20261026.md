@@ -4,6 +4,7 @@ Date: 2026-10-26
 
 ```text
 TASK=N3W_CI_FAST_SOURCE_GATE_AND_EXACT_CLOSURE_SPLIT_V1
+N3W_CI_POLICY_REVISION=N3W_CI_POLICY_V1_20261026
 BASE_HEAD=507dbd49495c558b1344f7d713938b733b3bad18
 BRANCH=ci/n3w-fast-source-gate-exact-closure-split-v1-20261026
 PRODUCT_SOURCE_MUTATION=false
@@ -33,7 +34,7 @@ This repair implements the project process rule that Fast, Build, Evidence and C
 
 Draft PR updates continue to run the normal lightweight/applicable source checks, including Manager lint/tests, public repository safety and focused source contracts.
 
-A Draft PR does not run the four heavy closure jobs in this repair unless an explicit full-gate signal is present.
+A Draft PR does not run the five heavy closure jobs in this repair unless an explicit full-gate signal is present.
 
 ### Exact closure gate activation
 
@@ -60,10 +61,11 @@ This V1 gates these expensive workflows:
 
 - `N3W T1 fresh bootstrap deployable payload CI`
 - `N3W T1 fresh install exact ARM64 CI`
+- `N3W T1 production Manager state binding CI`
 - `N3W T1 production stack staging payload CI`
 - `N3W T1 S20 production image binding CI`
 
-The first three are existing heavy artifact/QEMU workflows identified by the earlier CI convergence work. S20 production image binding is included because recent runs show repeated ARM64 image work.
+These workflows perform QEMU/ARM64, frozen-image, staging-payload or large-artifact work. Production Manager state binding was added after the repository-wide scan found its QEMU/frozen ARM64 path.
 
 ## 4. Exact ARM64 cheap-failure preflight
 
@@ -105,7 +107,7 @@ Therefore current `host/greenhouse-manager/**` changes cannot alter that Manager
 
 ## 6. Cancellation
 
-All four heavy workflows use PR-scoped `concurrency` with `cancel-in-progress`.
+All five heavy workflows use PR-scoped `concurrency` with `cancel-in-progress`.
 
 A newer head or gate-state transition cancels an obsolete run of the same heavy workflow for the same PR. Main runs are not cancelled by this PR policy.
 
@@ -144,7 +146,7 @@ A source change after full-gate activation remains eligible for the heavy workfl
 
 `tests/tools/test_n3w_ci_fast_source_gate_exact_closure.py` statically verifies:
 
-- the four heavy workflows keep the explicit gate contract;
+- the five heavy workflows keep the explicit gate contract;
 - manual and main execution remain available;
 - PR concurrency cancellation remains present;
 - exact ARM64 keeps its fast preflight and post-upload binding proof;
