@@ -759,3 +759,57 @@ def test_guard_contract_rejects_foreign_chain_jump() -> None:
         match="registration_guard_foreign_reference",
     ):
         tool._guard_contract(runner)
+
+
+@pytest.mark.parametrize("goto_operator", ("-g", "--goto"))
+def test_guard_contract_rejects_extra_input_goto(
+    goto_operator: str,
+) -> None:
+    tool = load_tool()
+    runner = _registration_guard_runner(tool)
+    original = runner.run
+
+    def extra_input_goto(command, **kwargs):
+        result = original(command, **kwargs)
+        if command == ("iptables-save", "-t", "filter"):
+            return result.replace(
+                "COMMIT\n",
+                f"-A INPUT {goto_operator} "
+                "N3WFC4-REGISTRATION-INGRESS\nCOMMIT\n",
+            )
+        return result
+
+    runner.run = extra_input_goto
+    with pytest.raises(
+        tool.StagingError,
+        match="registration_guard_foreign_reference",
+    ):
+        tool._guard_contract(runner)
+
+
+@pytest.mark.parametrize("goto_operator", ("-g", "--goto"))
+def test_guard_contract_rejects_foreign_chain_goto(
+    goto_operator: str,
+) -> None:
+    tool = load_tool()
+    runner = _registration_guard_runner(tool)
+    original = runner.run
+
+    def foreign_chain_goto(command, **kwargs):
+        result = original(command, **kwargs)
+        if command == ("iptables-save", "-t", "filter"):
+            return result.replace(
+                "COMMIT\n",
+                ":FOREIGN - [0:0]\n"
+                f"-A FOREIGN {goto_operator} "
+                "N3WFC4-REGISTRATION-INGRESS\n"
+                "COMMIT\n",
+            )
+        return result
+
+    runner.run = foreign_chain_goto
+    with pytest.raises(
+        tool.StagingError,
+        match="registration_guard_foreign_reference",
+    ):
+        tool._guard_contract(runner)
