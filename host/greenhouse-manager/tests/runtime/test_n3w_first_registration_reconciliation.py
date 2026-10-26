@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -451,6 +452,76 @@ def test_required_cleanup_rejects_drifted_dynsec_target_without_deleting(
 
     assert harness.transport.client is not None
     assert harness.transport.role is not None
+    failed = ledger.get(PAIRING_ID)
+    assert failed.cleanup_state is FirstRegistrationCleanupState.FAILED
+
+
+def test_required_reentry_finishes_revoked_key_file_cleanup(
+    harness: Harness,
+) -> None:
+    harness.open_attempt()
+    harness.observe_and_approve()
+    epoch = harness.stage_bundle()
+    ledger = harness.registration.first_registration_ledger()
+    terminal = ledger.terminalize_not_committed(
+        PAIRING_ID,
+        state=FirstRegistrationAttemptState.RESTART_INVALIDATED,
+        cleanup_state=FirstRegistrationCleanupState.REQUIRED,
+        terminal_at=NOW + timedelta(seconds=20),
+        terminal_reason="replay_detected",
+    )
+
+    with sqlite3.connect(harness.keys.database) as connection:
+        connection.execute(
+            """
+            UPDATE n3w_relay_key_epochs
+            SET state='REVOKED',enabled=0
+            WHERE node_id=? AND key_epoch=?
+            """,
+            (NODE_ID, epoch),
+        )
+
+    assert list(harness.keys.key_dir.glob("*.key"))
+
+    result = harness.reconciler.reconcile_attempt(
+        terminal,
+        now=NOW + timedelta(seconds=30),
+    )
+
+    assert result.cleanup_state is FirstRegistrationCleanupState.COMPLETE
+    assert list(harness.keys.key_dir.glob("*.key")) == []
+
+
+def test_registration_cleanup_missing_history_fails_atomically(
+    harness: Harness,
+) -> None:
+    harness.open_attempt()
+    harness.observe_and_approve()
+    ledger = harness.registration.first_registration_ledger()
+
+    harness.registration._connection.execute(
+        """
+        DELETE FROM registration_node_history
+        WHERE hardware_id=? AND node_id=?
+        """,
+        (HARDWARE_ID, NODE_ID),
+    )
+    harness.registration._connection.commit()
+
+    with pytest.raises(
+        FirstRegistrationReconciliationError,
+        match="first-registration cleanup failed",
+    ):
+        harness.reconciler.reconcile_attempt(
+            ledger.get(PAIRING_ID),
+            now=NOW + timedelta(seconds=20),
+        )
+
+    current = harness.registration.get(HARDWARE_ID)
+    assert current.pairing_id == PAIRING_ID
+    assert current.state is RegistrationState.APPROVED
+    assert current.node_id == NODE_ID
+    assert harness.registration.node_id_lease_state(NODE_ID).value == "active"
     failed = ledger.get(PAIRING_ID)
     assert failed.cleanup_state is FirstRegistrationCleanupState.FAILED
 
