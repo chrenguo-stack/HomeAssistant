@@ -1191,6 +1191,39 @@ class SqliteNodeApplicationKeyAdmin:
             key_epoch=key_epoch,
         )
 
+    def cleanup_reconciled_key(
+        self,
+        *,
+        node_id: str,
+        key_epoch: int,
+    ) -> dict[str, object]:
+        if not isinstance(node_id, str) or _ID.fullmatch(node_id) is None:
+            raise NodeApplicationKeyStoreUnavailable("node_id_invalid")
+        key_epoch = self._require_epoch(key_epoch)
+
+        with self._lock:
+            row = self._key_row(node_id, key_epoch)
+
+            if row["state"] != "REVOKED":
+                with self._transaction() as connection:
+                    connection.execute(
+                        """
+                        UPDATE n3w_relay_key_epochs
+                        SET state='REVOKED',enabled=0
+                        WHERE node_id=? AND key_epoch=?
+                        """,
+                        (node_id, key_epoch),
+                    )
+                self._fsync_database()
+
+            self._unlink_key(row["key_file"])
+
+        return self._result(
+            "cleanup_reconciled_key",
+            node_id=node_id,
+            key_epoch=key_epoch,
+        )
+
     def rollback_rotation(
         self,
         *,
