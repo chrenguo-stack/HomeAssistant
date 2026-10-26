@@ -590,6 +590,26 @@ def _registration_guard_runner(tool, *, registration_active: str = "active"):
                 return "-A DOCKER-USER -j N3WFC4-BROKER-INGRESS\n"
             if command == ("iptables", "-S", "N3WFC4-BROKER-INGRESS"):
                 return "-A N3WFC4-BROKER-INGRESS -j DROP\n"
+            if command == ("iptables-save", "-t", "filter"):
+                return (
+                    "*filter\n"
+                    ":INPUT ACCEPT [0:0]\n"
+                    ":DOCKER-USER - [0:0]\n"
+                    ":N3WFC4-BROKER-INGRESS - [0:0]\n"
+                    ":N3WFC4-REGISTRATION-INGRESS - [0:0]\n"
+                    + broker_anchor
+                    + "\n"
+                    + "\n".join(registration_anchors)
+                    + "\n"
+                    "-A DOCKER-USER -j N3WFC4-BROKER-INGRESS\n"
+                    "-A N3WFC4-BROKER-INGRESS -j DROP\n"
+                    "-A N3WFC4-REGISTRATION-INGRESS -i eth0 "
+                    "-s 192.0.2.0/24 -m comment --comment "
+                    "n3wfc4-registration-ingress-v1 -j RETURN\n"
+                    "-A N3WFC4-REGISTRATION-INGRESS -m comment --comment "
+                    "n3wfc4-registration-ingress-v1 -j DROP\n"
+                    "COMMIT\n"
+                )
             if command == ("iptables", "-S", tool.REGISTRATION_CHAIN):
                 return (
                     "-A N3WFC4-REGISTRATION-INGRESS -i eth0 "
@@ -693,3 +713,49 @@ def test_guard_contract_accepts_quoted_registration_comment_tokens() -> None:
     runner.run = quoted
     report = tool._guard_contract(runner)
     assert report["registration"]["exact"] is True
+
+
+def test_guard_contract_rejects_extra_uncommented_input_jump() -> None:
+    tool = load_tool()
+    runner = _registration_guard_runner(tool)
+    original = runner.run
+
+    def extra_input_jump(command, **kwargs):
+        result = original(command, **kwargs)
+        if command == ("iptables-save", "-t", "filter"):
+            return result.replace(
+                "COMMIT\n",
+                "-A INPUT -j N3WFC4-REGISTRATION-INGRESS\nCOMMIT\n",
+            )
+        return result
+
+    runner.run = extra_input_jump
+    with pytest.raises(
+        tool.StagingError,
+        match="registration_guard_foreign_reference",
+    ):
+        tool._guard_contract(runner)
+
+
+def test_guard_contract_rejects_foreign_chain_jump() -> None:
+    tool = load_tool()
+    runner = _registration_guard_runner(tool)
+    original = runner.run
+
+    def foreign_chain_jump(command, **kwargs):
+        result = original(command, **kwargs)
+        if command == ("iptables-save", "-t", "filter"):
+            return result.replace(
+                "COMMIT\n",
+                ":FOREIGN - [0:0]\n"
+                "-A FOREIGN -j N3WFC4-REGISTRATION-INGRESS\n"
+                "COMMIT\n",
+            )
+        return result
+
+    runner.run = foreign_chain_jump
+    with pytest.raises(
+        tool.StagingError,
+        match="registration_guard_foreign_reference",
+    ):
+        tool._guard_contract(runner)
