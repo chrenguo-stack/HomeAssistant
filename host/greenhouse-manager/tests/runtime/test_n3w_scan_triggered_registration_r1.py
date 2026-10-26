@@ -28,6 +28,7 @@ from greenhouse_manager.runtime.n3w_trusted_product_lan import (
     parse_trusted_product_lan_document,
 )
 from greenhouse_manager.runtime.pairing_discovery import (
+    DiscoveryRateLimited,
     DiscoveryRejected,
     SlidingWindowRateLimiter,
 )
@@ -447,3 +448,40 @@ def test_registration_discovery_rejects_amplifying_unpadded_query() -> None:
 def test_registration_discovery_query_padding_stays_under_datagram_bound() -> None:
     request = _query()
     assert len(request) == 1400
+
+
+def test_registration_discovery_rejects_request_over_datagram_bound() -> None:
+    limiter = SlidingWindowRateLimiter(limit=4, window_s=60)
+    request = _query() + b" "
+    assert len(request) == 1401
+    with pytest.raises(
+        DiscoveryRejected,
+        match="discovery datagram size is invalid",
+    ):
+        build_registration_udp_response(
+            request,
+            source_ip="192.0.2.20",
+            candidate_for=_candidate,
+            state_loader=_state,
+            rate_limiter=limiter,
+        )
+
+
+def test_registration_discovery_preserves_rate_limit_on_registration_path() -> None:
+    limiter = SlidingWindowRateLimiter(limit=1, window_s=60)
+    request = _query()
+    build_registration_udp_response(
+        request,
+        source_ip="192.0.2.20",
+        candidate_for=_candidate,
+        state_loader=_state,
+        rate_limiter=limiter,
+    )
+    with pytest.raises(DiscoveryRateLimited):
+        build_registration_udp_response(
+            request,
+            source_ip="192.0.2.20",
+            candidate_for=_candidate,
+            state_loader=_state,
+            rate_limiter=limiter,
+        )
