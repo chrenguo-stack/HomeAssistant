@@ -18,7 +18,6 @@ from .pairing_discovery import (
     DiscoveryRateLimited,
     DiscoveryRejected,
     MdnsServiceDefinition,
-    SERVICE_TYPE,
     SlidingWindowRateLimiter,
     decode_json_datagram,
     encode_json_datagram,
@@ -27,6 +26,7 @@ from .pairing_discovery import (
 REGISTRATION_PROTOCOL = "gh.n3w.first-registration/1"
 CANDIDATE_SCHEMA = "gh.registration.candidate/1"
 RESPONSE_SCHEMA = "gh.registration.discovery-result/1"
+REGISTRATION_SERVICE_TYPE = "_greenhouse-reg._tcp.local."
 _SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
@@ -195,8 +195,8 @@ def build_registration_mdns_definition(
     if not instance_name or any(character.isspace() for character in instance_name):
         raise ValueError("mDNS instance name invalid")
     return MdnsServiceDefinition(
-        service_type=SERVICE_TYPE,
-        name=f"{instance_name}.{SERVICE_TYPE}",
+        service_type=REGISTRATION_SERVICE_TYPE,
+        name=f"{instance_name}.{REGISTRATION_SERVICE_TYPE}",
         server=f"{explicit_candidate.host}.",
         port=explicit_candidate.bootstrap_port,
         addresses=(parsed.packed,),
