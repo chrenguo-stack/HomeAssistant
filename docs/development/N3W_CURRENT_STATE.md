@@ -1,3 +1,81 @@
+## 2026-10-26 — Scan-triggered first registration R2A durable ledger CLOSED_PASS
+
+~~~text
+TASK=N3W_SCAN_TRIGGERED_FIRST_PAIRING_SOURCE_IMPLEMENTATION_R2A_FINAL_CLOSURE_REVIEW_20261026_02
+
+MAIN=507dbd49495c558b1344f7d713938b733b3bad18
+
+PR679_DESIGN_HEAD=81dbf9de789232df7dadf21f4bd37bb5c9fc67d5
+PR679_STATE=OPEN_DRAFT
+PR679_MERGED=false
+
+PR680_R1_HEAD=e74913056f6c1d54e553e5b1037f7de3ef3172c8
+PR680_R1_CI=25/25_PASS
+PR680_R1_READY=YES
+PR680_MERGED=false
+
+PR681_R2A_HEAD=7c7cdf8bd37ba23201995002c7bcb91fe017bd1e
+PR681_R2A_CI=19/19_PASS
+PR681_STATE=OPEN_DRAFT
+PR681_MERGEABLE=true
+PR681_MERGED=false
+
+R2A_LEDGER_CORE=PASS
+R2A_SAME_DB_TRANSACTION_BOUNDARY=PASS
+R2A_SECRET_FREE_SCHEMA=PASS
+R2A_REPLAY_AND_SINGLE_ACTIVE=PASS
+R2A_OWNERSHIP_STAGING=PASS
+R2A_COMMIT_PHASE_BOUNDARY=PASS
+R2A_TERMINAL_MAPPING=PASS
+R2A_CORRUPTION_FAIL_CLOSED=PASS
+R2A_CLEAN_STATE_AUTHORITY=PASS
+
+NEW_BLOCKER_COUNT=0
+SOURCE_REPAIR_REQUIRED=NO
+R2A_READY=YES
+R2B_ENTRY_READY=YES
+
+R2B_SOURCE_MUTATION=false
+R2C_SOURCE_MUTATION=false
+R3_SOURCE_MUTATION=false
+
+T1_ACCESS=false
+BOARD_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+WORKFLOW_DISPATCH=false
+MERGE=false
+MERGE_AUTHORIZED=false
+
+GATE_RESULT=PASS_STOP
+NEXT_ONE_GATE=N3W_SCAN_TRIGGERED_FIRST_PAIRING_SOURCE_IMPLEMENTATION_R2B_CROSS_STORE_RECONCILIATION_SOURCE_DESIGN_AND_PREFLIGHT_20261026_01
+~~~
+
+R2A establishes the durable `first_registration_attempts` ledger inside the same
+`RegistrationRegistry` SQLite database and transaction authority. It preserves a
+secret-free recovery schema, permanent pairing-id replay tombstones, at most one
+ACTIVE transaction, unresolved-cleanup admission blocking, HELLO-before-prestate
+ownership staging, BUNDLE_STAGED ownership proof, and COMMITTING-before-COMMITTED.
+
+The final review also closed the last reader-side corruption false-PASS:
+`EXPIRED` now requires `terminal_reason=expired`, while
+`RESTART_INVALIDATED` requires `terminal_reason=replay_detected`. The inverse
+corrupt mappings are covered by direct reader regressions. Exact-head
+greenhouse-manager CI reported 1430 passed / 1 skipped; repository PR-head CI is
+19/19 PASS.
+
+R2A does not implement cross-store commit classification, restart/deadline
+reconciliation, destructive cleanup, or SYSTEM_PEER_KEY lifecycle changes. Those
+remain R2B/R2C work. PR #681 is therefore not merge-ready as a complete R2 PR.
+
+The R2B read-only seam preflight is already frozen in PR #681 discussion:
+RegistrationRegistry and CredentialLifecycle require exact pairing-id lookup;
+application-key requires a secret-free per-node/epoch snapshot; DynSec requires an
+exact deterministic-plan inspector that proves client-id, role assignment and ACL
+structure. The reconciler must emit only COMMITTED / DEFINITELY_NOT_COMMITTED /
+UNKNOWN, with UNKNOWN fail-closed.
+
+KNOWN_FAILURES_UPDATE=NOT_REQUIRED_NO_NEW_PROJECT_FAILURE
+
 ## 2026-10-23 — Board_D current-main product source convergence R4 CLOSED_PASS
 
 ~~~text
