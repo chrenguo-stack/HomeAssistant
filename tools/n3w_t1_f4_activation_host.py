@@ -122,6 +122,7 @@ F4_LOCK_PATH = PROVISIONING_ROOT / ".f4-activation.lock"
 BROKER_UNIT = "n3wfc4-broker-activation.service"
 SERVICES_UNIT = "n3wfc4-services-activation.service"
 GUARD_UNIT = "n3wfc4-broker-ingress-guard.service"
+REGISTRATION_GUARD_UNIT = "n3wfc4-registration-ingress-guard.service"
 PROVISION_UNIT = "n3wfc4-provision-resume.service"
 CERT_SERVICE = "n3wfc4-broker-certificate-lifecycle.service"
 CERT_TIMER = "n3wfc4-broker-certificate-lifecycle.timer"
@@ -160,18 +161,6 @@ INSTALL_MAP = {
     "tools/n3w_broker_certificate_lifecycle.py": (
         Path("/usr/local/sbin/n3w-broker-certificate-lifecycle"),
         0o755,
-    ),
-    "tools/n3w_registration_ingress_guard.py": (
-        Path("/usr/local/sbin/n3w-registration-ingress-guard"),
-        0o755,
-    ),
-    "tools/n3w_trusted_product_lan_authority.py": (
-        Path("/usr/local/sbin/n3w-trusted-product-lan-authority"),
-        0o755,
-    ),
-    "infra/n3w-t1/systemd/n3wfc4-registration-ingress-guard.service": (
-        Path("/etc/systemd/system/n3wfc4-registration-ingress-guard.service"),
-        0o644,
     ),
     "infra/n3w-t1/f4/n3wfc4-broker-activation.service": (
         Path("/etc/systemd/system/n3wfc4-broker-activation.service"),
@@ -523,8 +512,16 @@ def _stopped_instance_audit(
 
 def _preactivation_unit_boundary() -> dict[str, object]:
     guard_enabled = _systemctl("is-enabled", GUARD_UNIT)
+    registration_guard_enabled = _systemctl(
+        "is-enabled",
+        REGISTRATION_GUARD_UNIT,
+    )
     provision_enabled = _systemctl("is-enabled", PROVISION_UNIT)
-    if guard_enabled != "enabled" or provision_enabled != "enabled":
+    if (
+        guard_enabled != "enabled"
+        or registration_guard_enabled != "enabled"
+        or provision_enabled != "enabled"
+    ):
         raise F4Error("staged_unit_enablement_invalid")
     states: dict[str, str] = {}
     for unit in (BROKER_UNIT, SERVICES_UNIT, CERT_TIMER):
@@ -538,6 +535,7 @@ def _preactivation_unit_boundary() -> dict[str, object]:
         states[f"{unit}:enabled"] = enabled
     return {
         "guard_enabled": True,
+        "registration_guard_enabled": True,
         "provision_resume_enabled": True,
         "activation_units_stopped": True,
         "activation_units_disabled": True,
