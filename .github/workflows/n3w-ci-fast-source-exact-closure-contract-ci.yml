@@ -1,0 +1,57 @@
+name: N3W CI fast source and exact closure contract
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/n3w-ci-fast-source-exact-closure-contract-ci.yml"
+      - ".github/workflows/n3w-t1-fresh-bootstrap-deployable-payload-ci.yml"
+      - ".github/workflows/n3w-t1-fresh-install-exact-arm64-ci.yml"
+      - ".github/workflows/n3w-t1-production-manager-state-binding-ci.yml"
+      - ".github/workflows/n3w-t1-production-stack-staging-payload-ci.yml"
+      - ".github/workflows/n3w-t1-s20-production-image-binding-ci.yml"
+      - "tests/tools/test_n3w_ci_fast_source_gate_exact_closure.py"
+      - "docs/development/N3W_CI_FAST_SOURCE_GATE_AND_EXACT_CLOSURE_SPLIT_V1_20261026.md"
+      - "docs/development/N3W_CI_POLICY_MANIFEST_V1.json"
+      - "docs/development/N3W_CI_POLICY_AS_CODE_AND_DRIFT_GUARD_V1_20261026.md"
+      - "docs/skills/greenhouse-github-development-efficiency/SKILL.md"
+      - "tools/n3w_ci_policy_check.py"
+      - "tests/tools/test_n3w_ci_policy_check.py"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/n3w-ci-fast-source-exact-closure-contract-ci.yml"
+      - ".github/workflows/n3w-t1-fresh-bootstrap-deployable-payload-ci.yml"
+      - ".github/workflows/n3w-t1-fresh-install-exact-arm64-ci.yml"
+      - ".github/workflows/n3w-t1-production-manager-state-binding-ci.yml"
+      - ".github/workflows/n3w-t1-production-stack-staging-payload-ci.yml"
+      - ".github/workflows/n3w-t1-s20-production-image-binding-ci.yml"
+      - "tests/tools/test_n3w_ci_fast_source_gate_exact_closure.py"
+      - "docs/development/N3W_CI_FAST_SOURCE_GATE_AND_EXACT_CLOSURE_SPLIT_V1_20261026.md"
+      - "docs/development/N3W_CI_POLICY_MANIFEST_V1.json"
+      - "docs/development/N3W_CI_POLICY_AS_CODE_AND_DRIFT_GUARD_V1_20261026.md"
+      - "docs/skills/greenhouse-github-development-efficiency/SKILL.md"
+      - "tools/n3w_ci_policy_check.py"
+      - "tests/tools/test_n3w_ci_policy_check.py"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify CI split contract
+        run: python tests/tools/test_n3w_ci_fast_source_gate_exact_closure.py
+      - name: Verify repository CI policy alignment
+        run: python tools/n3w_ci_policy_check.py
+      - name: Test CI policy checker
+        env:
+          PYTHONPATH: .
+        run: python tests/tools/test_n3w_ci_policy_check.py

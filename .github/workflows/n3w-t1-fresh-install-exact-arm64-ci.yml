@@ -1,26 +1,36 @@
 name: N3W T1 fresh install exact ARM64 CI
 
 on:
+  workflow_dispatch:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, labeled, unlabeled, edited]
     paths:
       - ".github/workflows/n3w-t1-fresh-install-exact-arm64-ci.yml"
-      - "host/greenhouse-manager/**"
+      - "host/greenhouse-manager/Dockerfile"
+      - "host/greenhouse-manager/pyproject.toml"
+      - "host/greenhouse-manager/README.md"
+      - "host/greenhouse-manager/src/**"
       - "infra/n3w-t1/production/**"
       - "infra/n3w-t1/broker/mosquitto.conf"
       - "infra/n3w-t1/homeassistant/**"
       - "tools/n3w_t1_clean_product_deployment_gate.py"
       - "tests/tools/test_n3w_t1_clean_product_deployment_gate.py"
+      - "tests/tools/test_n3w_ha_mqtt_bootstrap_isolated_runtime.py"
   push:
     branches:
       - main
     paths:
       - ".github/workflows/n3w-t1-fresh-install-exact-arm64-ci.yml"
-      - "host/greenhouse-manager/**"
+      - "host/greenhouse-manager/Dockerfile"
+      - "host/greenhouse-manager/pyproject.toml"
+      - "host/greenhouse-manager/README.md"
+      - "host/greenhouse-manager/src/**"
       - "infra/n3w-t1/production/**"
       - "infra/n3w-t1/broker/mosquitto.conf"
       - "infra/n3w-t1/homeassistant/**"
       - "tools/n3w_t1_clean_product_deployment_gate.py"
       - "tests/tools/test_n3w_t1_clean_product_deployment_gate.py"
+      - "tests/tools/test_n3w_ha_mqtt_bootstrap_isolated_runtime.py"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -31,6 +41,11 @@ permissions:
 
 jobs:
   exact-three-image:
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.draft == false ||
+      contains(github.event.pull_request.labels.*.name, 'ci-ready') ||
+      contains(github.event.pull_request.body, 'CI_READY=true')
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
@@ -53,6 +68,20 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$SOURCE_HEAD"
           printf 'SOURCE_HEAD=%s\n' "$SOURCE_HEAD"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: host/greenhouse-manager/pyproject.toml
+
+      - name: Fast source preflight before ARM64 closure
+        working-directory: host/greenhouse-manager
+        run: |
+          set -euo pipefail
+          python -m pip install -e '.[dev]'
+          ruff check .
+          pytest -q
 
       - uses: docker/setup-qemu-action@v3
         with:
