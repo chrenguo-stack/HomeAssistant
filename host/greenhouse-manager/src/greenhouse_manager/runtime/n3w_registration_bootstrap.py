@@ -5,17 +5,18 @@ import json
 import re
 import ssl
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
-from .pairing_discovery import SlidingWindowRateLimiter
 from .n3w_trusted_product_lan import (
     TrustedProductLanState,
     load_trusted_product_lan,
 )
+from .pairing_discovery import SlidingWindowRateLimiter
 
 CONFIRM_SCHEMA = "gh.registration.confirm/1"
 _SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
