@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import sys
@@ -11,7 +12,25 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Sequence, TextIO
 
-import n3w_broker_ingress_guard as broker_guard
+def _load_broker_guard():
+    try:
+        import n3w_broker_ingress_guard as module
+        return module
+    except ModuleNotFoundError:
+        path = Path(__file__).with_name("n3w-broker-ingress-guard")
+        spec = importlib.util.spec_from_file_location(
+            "n3w_broker_ingress_guard",
+            path,
+        )
+        if spec is None or spec.loader is None:
+            raise
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["n3w_broker_ingress_guard"] = module
+        spec.loader.exec_module(module)
+        return module
+
+
+broker_guard = _load_broker_guard()
 
 SCHEMA = "gh.trusted-product-lan/1"
 INTERFACE = broker_guard.INTERFACE
@@ -103,13 +122,21 @@ def main(
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--apply", action="store_true")
     mode.add_argument("--dry-run", action="store_true")
+    mode.add_argument("--invalidate", action="store_true")
     args = parser.parse_args(argv)
     output = stdout or sys.stdout
     error = stderr or sys.stderr
-    decision = broker_guard.read_network_decision()
+    if args.invalidate:
+        decision = broker_guard.NetworkDecision(
+            None,
+            0,
+            "registration_guard_reconciling",
+        )
+    else:
+        decision = broker_guard.read_network_decision()
     document = build_state_document(decision)
     try:
-        if args.apply:
+        if args.apply or args.invalidate:
             atomic_publish(document)
     except AuthorityPublishError as exc:
         error.write(json.dumps({
