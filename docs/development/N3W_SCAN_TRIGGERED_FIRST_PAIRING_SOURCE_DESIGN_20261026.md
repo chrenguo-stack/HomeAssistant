@@ -510,7 +510,7 @@ If the original T1 address is no longer reachable, pending-ACK recovery may perf
 
 ## 6. Durable first-registration attempt ledger
 
-Add one persistent table owned by `n3w_first_registration_ledger.py`:
+Add one persistent table owned by `n3w_first_registration_ledger.py` **inside the same RegistrationRegistry SQLite database/file that owns `registrations` and `pairing_sessions`**. A separate sidecar ledger database is forbidden. Ledger + RegistrationRegistry transitions that require atomicity use the same SQLite connection/transaction boundary; DynSec, application-key and credential stores remain external and are covered by reconciliation.
 
 ```text
 first_registration_attempts
@@ -650,7 +650,7 @@ The NODE_ID lease remains never-reused and is an additional binding, not a subst
 
 ### 6.5 Final receipt / durable commit oracle
 
-The final delivery-digest receipt remains the semantic commit authorization from ADR-0008. Receipt handling is serialized against expiry.
+The final delivery-digest receipt remains the semantic commit authorization from ADR-0008. Receipt handling is serialized against expiry. A transaction may be recovered as committed after a crash only if the ledger proves it had durably entered `phase=COMMITTING` from a valid final receipt; matching cross-store state without that receipt claim cannot invent success.
 
 Before starting cross-store commit, durably set:
 
@@ -669,7 +669,7 @@ then
 CredentialLifecycle(hardware_id, pairing_id, node_id, generation=1) -> ACTIVE
 ```
 
-The ledger is marked `COMMITTED` only after the exact cross-store commit oracle passes:
+The ledger is marked `COMMITTED` only after `phase=COMMITTING` is already durable and the exact cross-store commit oracle passes:
 
 ```text
 RegistrationRegistry:
@@ -695,7 +695,7 @@ DynSec:
   client-role assignment and role ACL structure match the deterministic plan
 ```
 
-If all are true, a crash after underlying credential commit but before the ledger update is recovered by promoting the ledger to `COMMITTED`. This is the only crash-recovery path that preserves the old transaction as success.
+If all are true **and the durable phase is COMMITTING**, a crash after underlying credential commit but before the ledger update is recovered by promoting the ledger to `COMMITTED`. This is the only crash-recovery path that preserves the old transaction as success. Cross-store state that happens to look consistent without a durable COMMITTING receipt claim is ambiguous and does not qualify.
 
 If exact ACTIVE MQTT generation 1 is absent, the transaction did not reach the durable commit oracle even if a DynSec identity or STAGED/temporarily-ACTIVE application key exists.
 
@@ -905,6 +905,7 @@ node /begin
 -> durable COMMITTING claim
 -> exact cross-store commit oracle
 -> ledger COMMITTED
+-> only then return committed-success HTTP response
 ```
 
 This preserves ADR-0007/0008 security flow while removing manual UDS secret import from the normal user path.
@@ -925,7 +926,7 @@ At bootstrap confirmation:
 deadline = now + 1800 s
 ```
 
-The same absolute deadline is supplied to all first-registration layers, including the durable attempt ledger. Final ACK/COMMIT admission and expiry are serialized: an ACK observed by Manager at or before the deadline may durably claim `COMMITTING`; otherwise expiry owns the transaction. User-visible success requires the durable commit oracle, not merely receipt parsing.
+The same absolute deadline is supplied to all first-registration layers, including the durable attempt ledger. Final ACK/COMMIT admission and expiry are serialized: an ACK observed by Manager at or before the deadline may durably claim `COMMITTING`; otherwise expiry owns the transaction. User-visible success requires the durable commit oracle, not merely receipt parsing. The 47112 ACK endpoint returns committed success only after the oracle passes and the ledger `COMMITTED` update is durable; a lost response after that point is recovered through `/v1/registration/status`.
 
 Transaction isolation is explicit:
 
@@ -1185,7 +1186,7 @@ The scan-triggered registration orchestrator owns ordinary discovery. Remove/sto
 
 `resume_pending_ack()`:
 - first tries the saved old ACK endpoint;
-- a proven committed ACK response finalizes success;
+- only a 47112 ACK response that explicitly represents durable ledger `COMMITTED` finalizes success;
 - failure/unreachable/non-success does not discard state;
 - falls through to `recover_pending_ack_status()` on 47110.
 
@@ -1523,7 +1524,7 @@ Prove:
 - crash after possible external creation but before BUNDLE_STAGED is treated as ambiguous and fail-closed, not auto-deleted;
 - restart after proven BUNDLE_STAGED removes exact transaction-owned DynSec identity and exact STAGED application-key epoch;
 - crash after application key ACTIVE but before MQTT credential ACTIVE rolls back uncommitted key/identity/approval;
-- crash after exact MQTT generation-1 activation but before ledger COMMITTED is promoted to COMMITTED only when the full cross-store commit oracle passes;
+- crash after exact MQTT generation-1 activation but before ledger COMMITTED is promoted to COMMITTED only when durable phase=COMMITTING and the full cross-store commit oracle passes;
 - ACTIVE MQTT credential plus contradictory registration/key/DynSec binding causes fail-closed reconciliation, never guessed rollback/success;
 - cleanup failure blocks subsequent first registration while 47112 remains closed;
 - same old pairing ID receives terminal `replay_detected` or `expired`, never a fresh deadline;
@@ -1574,7 +1575,7 @@ FIRST_REGISTRATION_TTL_SECONDS=1800
 Prove:
 - pre-deadline browser/protocol/pairing failure does not close 47112 or refresh the deadline;
 - final ACK admission and expiry cannot race;
-- user-visible success requires the exact durable commit oracle;
+- user-visible success requires durable COMMITTING receipt authority, exact cross-store commit oracle PASS, and durable ledger COMMITTED; 47112 ACK success cannot be returned earlier;
 - success closes after durable Manager COMMIT;
 - expiry closes 47112 at the exact shared deadline even if cleanup later fails;
 - deadline cleanup uses the same exact-owned reconciliation as restart;
@@ -1687,6 +1688,9 @@ RESTART_POST_HELLO_UNCOMMITTED_SIDE_EFFECT_RECONCILIATION=true
 DYNSEC_DESTRUCTIVE_CLEANUP_REQUIRES_DURABLE_PRESTATE_AND_STAGE_COMPLETION=true
 APPLICATION_KEY_CLEANUP_REQUIRES_DURABLE_PRESTATE_AND_STAGE_COMPLETION=true
 TARGET_PRESENCE_ALONE_PROVES_OWNERSHIP=false
+LEDGER_SAME_SQLITE_DATABASE_AS_REGISTRATION=true
+COMMIT_RECOVERY_REQUIRES_DURABLE_COMMITTING_PHASE=true
+ACK_SUCCESS_REQUIRES_DURABLE_LEDGER_COMMITTED=true
 EXACT_CROSS_STORE_COMMIT_ORACLE=true
 AMBIGUOUS_RECONCILIATION_FAILS_REGISTRATION_CLOSED=true
 SYSTEM_PEER_TRUST_INITIALIZED_BEFORE_REGISTRATION_READY=true
@@ -1746,6 +1750,8 @@ The focused closure review must independently verify:
 - the ledger stores no Setup Secret/credential/key material and closes restart-before-`/hello` replay;
 - restart/deadline reconciliation covers PENDING registration, automatic NODE_ID lease, DynSec identity, staged/temporarily-active application key and exact MQTT generation-1 commit state;
 - destructive DynSec/key cleanup requires both durable prestate-absent proof and durable BUNDLE_STAGED-or-later completion proof; target presence alone cannot authorize deletion;
+- the ledger shares the RegistrationRegistry SQLite database for atomic local transitions; no sidecar ledger database is allowed;
+- commit recovery requires a prior durable COMMITTING receipt claim, and 47112 cannot return committed success before exact oracle PASS + durable ledger COMMITTED;
 - the exact cross-store commit oracle distinguishes commit-complete/ledger-lag from stranded pre-commit state;
 - ambiguous or failed reconciliation keeps first registration unavailable while 47112 stays closed;
 - SYSTEM_PEER_KEY is a pre-registration T1 baseline and first-registration code cannot create/rotate it;
