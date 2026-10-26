@@ -1,24 +1,33 @@
 name: N3W T1 S20 production image binding CI
 
 on:
+  workflow_dispatch:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, labeled, unlabeled, edited]
     paths:
       - ".github/workflows/n3w-t1-s20-production-image-binding-ci.yml"
-      - "host/greenhouse-manager/**"
       - "infra/n3w-t1/production/**"
   push:
     branches:
       - main
     paths:
       - ".github/workflows/n3w-t1-s20-production-image-binding-ci.yml"
-      - "host/greenhouse-manager/**"
       - "infra/n3w-t1/production/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 jobs:
   bind-images:
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.draft == false ||
+      contains(github.event.pull_request.labels.*.name, 'ci-ready') ||
+      contains(github.event.pull_request.body, 'CI_READY=true')
     runs-on: ubuntu-24.04
     env:
       MANAGER_SOURCE_SHA: 511db028780988a7c07cb9342c8be507380bae0f
