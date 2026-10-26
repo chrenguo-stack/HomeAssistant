@@ -44,7 +44,7 @@ If no T1 is found, no first-registration transaction is created and the node ret
 
 If one or more T1 candidates are found, the phone page shows only simple human-facing match information. The user explicitly chooses/accepts a candidate and presses **确认联机注册**.
 
-Only that confirmation starts the privileged first-registration transaction.
+In the normal product UI path, that confirmation asks the node to start the privileged first-registration transaction.
 
 ```text
 SCAN
@@ -54,7 +54,9 @@ SCAN
 -> START FIRST-REGISTRATION TRANSACTION
 ```
 
-The first-registration transaction maximum lifetime is 1800 seconds. This is a maximum bound, not a required open duration. Success, explicit abort, terminal failure or expiry closes privileged pairing exposure immediately.
+The T1 authorization boundary is intentionally broader than the QR/browser UX boundary: any client already on the trusted LAN is authorized to initiate first registration through 47110. QR possession, the scan token and browser confirmation are not cryptographic T1 authorization credentials. A trusted-LAN client may therefore invoke the bootstrap endpoint directly; that capability is an explicit accepted property of the product threat model.
+
+The first-registration transaction maximum lifetime is 1800 seconds. During normal Manager uptime, privileged pairing exposure has exactly two semantic close conditions: successful Manager COMMIT or expiry of the canonical transaction deadline. Browser exit, explicit user cancellation, protocol error, pairing failure or other pre-deadline error does not by itself close 47112 or renew the pairing identity. Manager/process restart is a separate fail-closed process-boundary invalidation defined below, not a third normal transaction close condition.
 
 The 1800-second bound is **per node transaction**, not a global T1 pairing mode. V1 permits only one active first-registration transaction at a time.
 
@@ -64,7 +66,7 @@ Example:
 - node B then requires a new scan/confirmation and receives a fresh `B_confirm + 1800s` deadline;
 - no time budget is inherited or shared across A/B/C.
 
-If B requests confirmation while A is still active, T1 returns a busy result; B does not consume/renew its pairing ID and may retry after A reaches a terminal state.
+If B requests confirmation while A is still active, T1 returns a busy result; B does not consume/renew its pairing ID and may retry after A either commits successfully or reaches its deadline. A Manager restart invalidates A separately under the restart rule below.
 
 ## User surfaces
 
@@ -151,9 +153,11 @@ The 47110 bootstrap transport must provide confidentiality. Source design freeze
 - Setup Secret is posted only after the TLS peer fingerprint matches;
 - the secret is never logged, echoed or persisted by the bootstrap HTTP layer.
 
-This is user-confirmed TOFU for the local T1 candidate. It protects against passive LAN observation and accidental endpoint mismatch without adding certificate or key prompts to the user.
+In the normal phone flow this is user-confirmed TOFU for the local T1 candidate. It protects against passive LAN observation and accidental endpoint mismatch without adding certificate or key prompts to the user.
 
-The local-network active-spoofing residual risk is accepted as a product trade-off under the current “user-controlled LAN + physical QR + explicit confirmation” threat model. It must remain documented.
+The first-registration authorization model is explicitly **trusted-LAN authorization**: any client whose source is accepted as local/trusted LAN is allowed to initiate a new first-registration bootstrap. The QR and scan token protect the normal node-local user workflow but are not T1 authorization credentials. Consequently, a malicious or compromised client already inside the trusted LAN can intentionally initiate an enrollment attempt; that is an accepted consequence of the chosen trust boundary, not a protocol bypass.
+
+The local-network active-spoofing residual risk is also accepted under this trusted-LAN model. Discovery-bound certificate pinning remains required so the normal node flow does not send Setup Secret bytes before the selected endpoint's advertised leaf fingerprint is matched.
 
 ## Identity-bound dynamic pairing window
 
@@ -193,14 +197,18 @@ When the bound node sends the accepted `/hello`:
 3. only then is the Setup Secret imported into the existing simplified pairing coordinator;
 4. `/begin` and the existing HMAC/HKDF encrypted bundle path continue.
 
-The Setup Secret is zeroized on:
-- success;
-- explicit abort;
-- terminal pairing failure;
+The retained mutable Manager-side Setup Secret buffers are zeroized on:
+- successful Manager COMMIT;
 - transaction expiry;
-- Manager restart.
+- Manager restart or equivalent process-boundary loss of the in-memory intent.
 
-Manager restart invalidates the in-memory intent and closes 47112. It must not silently reopen the transaction.
+Implementations must avoid logging or persisting the secret and must keep unavoidable transient parser/library copies bounded in lifetime. The zeroization requirement applies to mutable buffers owned by the first-registration intent/coordinator; it does not claim that a high-level runtime can prove erasure of every temporary immutable process-memory copy.
+
+Pre-deadline browser cancellation, protocol error or pairing failure does not itself destroy the intent or close 47112. The transaction remains bound to the same identity/source and absolute deadline and may retry within that deadline.
+
+Manager restart is fail-closed: it destroys the in-memory intent and closes 47112. The old transaction is terminal and must never be resumed. Its old pairing ID is retained as a replay tombstone under ADR-0008. On the next registration attempt the node generates a **new pairing ID**; after a fresh confirmation, T1 creates a **new transaction** with a new full `now + 1800s` deadline. No remaining time, intent, Setup Secret copy or deadline from the old transaction is inherited.
+
+Manager restart is therefore a process-boundary invalidation, not a third normal runtime close condition.
 
 ## One canonical deadline
 
@@ -251,7 +259,9 @@ Multiple T1 candidates are not an error; LCD shows a short “请在手机选择
 
 Recoverable pre-transaction failure returns to the same registration QR.
 
-A terminal pairing transaction retains its old pairing ID as a replay tombstone. The device then follows ADR-0008 renewal semantics and displays a new QR for the new pairing ID.
+A transaction that reaches its 1800-second deadline retains the old pairing ID as a replay tombstone. Manager restart applies the same old-ID terminal rule because the in-memory authority is lost. In either case the device follows ADR-0008 renewal semantics, generates a new pairing ID and displays a new QR before a later fresh transaction.
+
+A pre-deadline pairing/protocol failure does not by itself consume or renew the pairing ID; it remains inside the existing transaction until success or deadline.
 
 LCD may use short Chinese text plus the E-code because of the 128×64 display constraint.
 
@@ -319,14 +329,17 @@ Before product live acceptance, source and tests must prove:
 2. registration QR remains available with no T1 present;
 3. no Setup Secret appears in QR URL, browser page, logs or public evidence;
 4. T1 discovery stays available while 47112 is closed;
-5. confirmation opens one exact identity/source-bound 47112 transaction;
-6. no hidden 120/600-second timeout truncates the 1800-second transaction;
-7. wrong node traffic cannot create a registration while the window is open;
-8. successful Manager COMMIT closes 47112 immediately;
-9. failure/timeout leaves no active credential/key/trust state;
-10. LCD error mappings work without backend/CLI interaction;
-11. multiple T1 candidates require user selection;
-12. normal physical acceptance uses phone scan + browser confirm, not secret copy/paste.
+5. the normal phone flow uses confirmation to open one exact identity/source-bound 47112 transaction;
+6. a trusted-LAN client can initiate 47110 without QR possession, while a non-local source is rejected;
+7. no hidden 120/600-second timeout truncates the 1800-second transaction;
+8. wrong identity/source traffic cannot mutate registration state while the window is open;
+9. successful Manager COMMIT closes 47112 immediately;
+10. canonical deadline expiry closes 47112 and leaves no active credential/key/trust state;
+11. a pre-deadline browser/protocol/pairing failure does not prematurely close the privileged window or mint a fresh transaction;
+12. Manager restart closes fail-closed, tombstones the old pairing ID, and a later attempt uses a new pairing ID plus a fresh full 1800-second deadline;
+13. LCD error mappings work without backend/CLI interaction;
+14. multiple T1 candidates require user selection;
+15. normal physical acceptance uses phone scan + browser confirm, not secret copy/paste.
 
 
 ## Transaction isolation
@@ -336,7 +349,15 @@ FIRST_REGISTRATION_TTL_SCOPE=PER_TRANSACTION
 FIRST_REGISTRATION_TTL_SECONDS=1800
 MAX_CONCURRENT_FIRST_REGISTRATIONS_V1=1
 
+T1_FIRST_REGISTRATION_AUTHORITY=TRUSTED_LAN_SOURCE
+QR_POSSESSION_REQUIRED_FOR_T1_AUTHORIZATION=false
+NORMAL_PRIVILEGED_WINDOW_CLOSE_CONDITIONS=MANAGER_COMMIT_OR_DEADLINE
 SUCCESS_CLOSES_PRIVILEGED_WINDOW_IMMEDIATELY=true
+PREDEADLINE_ERROR_CLOSES_PRIVILEGED_WINDOW=false
+MANAGER_RESTART_FAIL_CLOSED=true
+MANAGER_RESTART_OLD_PAIRING_ID_TERMINAL=true
+MANAGER_RESTART_REQUIRES_NEW_PAIRING_ID=true
+MANAGER_RESTART_NEW_TRANSACTION_GETS_FRESH_1800S=true
 UNUSED_TTL_CARRIED_FORWARD=false
 NEXT_NODE_REQUIRES_NEW_CONFIRMATION=true
 NEXT_NODE_GETS_FRESH_1800S_DEADLINE=true
