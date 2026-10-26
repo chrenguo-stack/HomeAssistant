@@ -8,14 +8,8 @@ from typing import Any
 import pytest
 
 from greenhouse_manager.runtime.credential_lifecycle import CredentialLifecycleStore
-from greenhouse_manager.runtime.dynsec_api import (
-    DynsecError,
-    DynsecProvisioner,
-)
-from greenhouse_manager.runtime.dynsec_plan import (
-    NodeCredentials,
-    build_node_provisioning_plan,
-)
+from greenhouse_manager.runtime.dynsec_api import DynsecError, DynsecProvisioner
+from greenhouse_manager.runtime.dynsec_plan import NodeCredentials, build_node_provisioning_plan
 from greenhouse_manager.runtime.n3w_first_registration_ledger import (
     FirstRegistrationAttemptState,
     FirstRegistrationCleanupState,
@@ -24,13 +18,8 @@ from greenhouse_manager.runtime.n3w_first_registration_reconciliation import (
     FirstRegistrationCommitClassification,
     FirstRegistrationReconciler,
 )
-from greenhouse_manager.runtime.n3w_node_application_keys import (
-    SqliteNodeApplicationKeyAdmin,
-)
-from greenhouse_manager.runtime.registration import (
-    RegistrationRegistry,
-    RegistrationState,
-)
+from greenhouse_manager.runtime.n3w_node_application_keys import SqliteNodeApplicationKeyAdmin
+from greenhouse_manager.runtime.registration import RegistrationRegistry, RegistrationState
 
 
 NOW = datetime(2026, 10, 26, 12, 0, tzinfo=UTC)
