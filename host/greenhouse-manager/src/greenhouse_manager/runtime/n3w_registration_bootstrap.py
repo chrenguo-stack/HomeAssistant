@@ -17,11 +17,11 @@ from .n3w_trusted_product_lan import (
     load_trusted_product_lan,
 )
 from .pairing_discovery import SlidingWindowRateLimiter
+from .pairing_secure_transport import decode_base64url_32
 
 CONFIRM_SCHEMA = "gh.registration.confirm/1"
 _SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 _HARDWARE_ID = re.compile(r"^ghw-[a-z0-9]+-[0-9a-f]{12}$")
-_SETUP_SECRET = re.compile(r"^[A-Za-z0-9_-]{43}$")
 
 
 class RegistrationBootstrapRejected(RuntimeError):
@@ -85,14 +85,17 @@ def validate_confirm_document(document: Any) -> dict[str, str]:
         or _HARDWARE_ID.fullmatch(hardware_id) is None
         or not isinstance(pairing_id, str)
         or not isinstance(setup_secret, str)
-        or _SETUP_SECRET.fullmatch(setup_secret) is None
     ):
         raise RegistrationBootstrapRejected("identity_invalid")
     try:
         parsed_pairing = uuid.UUID(pairing_id)
+        decode_base64url_32(
+            setup_secret,
+            field_name="setup_secret",
+        )
     except ValueError as error:
         raise RegistrationBootstrapRejected("identity_invalid") from error
-    if str(parsed_pairing) != pairing_id.lower():
+    if str(parsed_pairing) != pairing_id:
         raise RegistrationBootstrapRejected("identity_invalid")
     return {
         "manager_id": manager_id,
