@@ -63,6 +63,8 @@ PROVISIONING_PASSWORD_TARGET = (
 HA_PASSWORD_TARGET = "/run/secrets/gh_homeassistant_mqtt_password"
 HA_BOOTSTRAP_TARGET = "/run/n3w/ha-mqtt-bootstrap.json"
 MANAGER_CA_TARGET = "/run/n3w/tls/ca.pem"
+TRUSTED_PRODUCT_LAN_SOURCE = "/run/n3wfc4-trusted-lan"
+TRUSTED_PRODUCT_LAN_TARGET = "/run/n3w/trusted-product-lan"
 
 MANAGER_SECRET_SOURCE = "/opt/greenhouse-secrets/mqtt/manager/password"
 PROVISIONING_SECRET_SOURCE = (
@@ -581,6 +583,12 @@ def validate_compose_document(
         target=MANAGER_CA_TARGET,
         read_only=True,
     )
+    _require_bind(
+        manager,
+        source=TRUSTED_PRODUCT_LAN_SOURCE,
+        target=TRUSTED_PRODUCT_LAN_TARGET,
+        read_only=True,
+    )
 
     if homeassistant.get("image") != EXPECTED_HA_IMAGE:
         raise DeploymentContractError("homeassistant_image_invalid")
@@ -684,6 +692,7 @@ def validate_compose_document(
         "manager_secret_file_count": 2,
         "manager_secret_targets_distinct": True,
         "manager_portable_root_mounted": False,
+        "manager_trusted_product_lan_mount_readonly": True,
         "manager_runtime_state_mounts": [
             MANAGER_STATE_SOURCE,
             MANAGER_N3W_STATE_SOURCE,
