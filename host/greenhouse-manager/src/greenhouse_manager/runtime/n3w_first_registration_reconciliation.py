@@ -548,6 +548,26 @@ class FirstRegistrationReconciler:
                 cleanup_state=completed.cleanup_state,
             )
 
+    def reconcile_deadline(
+        self,
+        pairing_id: str,
+        *,
+        now: datetime | None = None,
+    ) -> FirstRegistrationReconciliationResult:
+        observed_at = _utc(now or datetime.now(UTC))
+        attempt = self.ledger.get(pairing_id)
+        if (
+            attempt.state is FirstRegistrationAttemptState.ACTIVE
+            and observed_at < attempt.expires_at
+        ):
+            raise FirstRegistrationReconciliationError(
+                "first-registration deadline has not elapsed"
+            )
+        return self.reconcile_attempt(
+            attempt,
+            now=observed_at,
+        )
+
     def reconcile_startup(
         self,
         *,
