@@ -153,6 +153,10 @@ def rendered_compose(
                         "/etc/n3wfc4/tls/ca.pem",
                         "/run/n3w/tls/ca.pem",
                     ),
+                    _bind(
+                        "/run/n3wfc4-trusted-lan",
+                        "/run/n3w/trusted-product-lan",
+                    ),
                 ],
             },
             "homeassistant": {
@@ -269,6 +273,7 @@ def test_accepts_clean_product_contract() -> None:
     assert report["manager_runtime_uid_gid"] == "999:999"
     assert report["manager_secret_file_count"] == 2
     assert report["manager_portable_root_mounted"] is False
+    assert report["manager_trusted_product_lan_mount_readonly"] is True
     assert report["manager_runtime_state_mounts"] == [
         "/var/lib/greenhouse-manager/manager",
         "/var/lib/greenhouse-manager/n3w",
@@ -671,3 +676,29 @@ def test_rejects_fresh_lock_source_image_mismatch() -> None:
         match="manager_image_lock_invalid",
     ):
         tool.validate_image_lock_document(lock)
+
+
+def test_rejects_missing_or_writable_trusted_product_lan_mount() -> None:
+    tool = load_tool()
+    document = rendered_compose()
+    manager = document["services"]["manager"]
+    manager["volumes"] = [
+        mount
+        for mount in manager["volumes"]
+        if mount["target"] != "/run/n3w/trusted-product-lan"
+    ]
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="bind_mount_target_count_invalid",
+    ):
+        tool.validate_compose_document(document)
+
+    document = rendered_compose()
+    for mount in document["services"]["manager"]["volumes"]:
+        if mount["target"] == "/run/n3w/trusted-product-lan":
+            mount["read_only"] = False
+    with pytest.raises(
+        tool.DeploymentContractError,
+        match="bind_mount_contract_invalid",
+    ):
+        tool.validate_compose_document(document)
