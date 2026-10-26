@@ -449,6 +449,22 @@ deadline = now + 1800 s
 
 The same absolute deadline is supplied to all first-registration layers.
 
+Transaction isolation is explicit:
+
+```text
+FIRST_REGISTRATION_TTL_SCOPE=PER_TRANSACTION
+MAX_CONCURRENT_FIRST_REGISTRATIONS_V1=1
+UNUSED_TTL_CARRIED_FORWARD=false
+NEXT_NODE_REQUIRES_NEW_CONFIRMATION=true
+NEXT_NODE_GETS_FRESH_1800S_DEADLINE=true
+```
+
+A/B/C registration example:
+- A confirmation creates only Transaction-A;
+- if A commits at 80 s, Transaction-A and 47112 close immediately and its unused time is discarded;
+- B then requires a new confirmation and starts Transaction-B with a full new 1800-second deadline;
+- while A remains active, B receives `registration_busy` and retains its current pre-transaction QR/pairing identity.
+
 Required source changes:
 
 ### `n3w_dynamic_pairing_window.py`
@@ -1040,6 +1056,11 @@ SETUP_SECRET_MANUAL_COPY=false
 SETUP_SECRET_NODE_TO_T1_TLS=true
 
 FIRST_REGISTRATION_TTL_SECONDS=1800
+FIRST_REGISTRATION_TTL_SCOPE=PER_TRANSACTION
+MAX_CONCURRENT_FIRST_REGISTRATIONS_V1=1
+UNUSED_TTL_CARRIED_FORWARD=false
+NEXT_NODE_REQUIRES_NEW_CONFIRMATION=true
+NEXT_NODE_GETS_FRESH_1800S_DEADLINE=true
 REPAIR_TTL_UNCHANGED=true
 
 LCD_PRIMARY_FEEDBACK=true
