@@ -19,13 +19,13 @@ from greenhouse_manager.runtime.n3w_registration_discovery import (
     build_registration_mdns_definition,
     build_registration_udp_response,
 )
+from greenhouse_manager.runtime.n3w_registration_runtime import (
+    RegistrationMdnsAuthorityController,
+)
 from greenhouse_manager.runtime.n3w_trusted_product_lan import (
     TrustedProductLanError,
     TrustedProductLanState,
     parse_trusted_product_lan_document,
-)
-from greenhouse_manager.runtime.n3w_registration_runtime import (
-    RegistrationMdnsAuthorityController,
 )
 from greenhouse_manager.runtime.pairing_discovery import (
     DiscoveryRejected,
