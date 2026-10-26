@@ -4,6 +4,7 @@ import re
 import sqlite3
 import threading
 import uuid
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -151,7 +152,7 @@ class FirstRegistrationLedger:
             raise ValueError("attempt timestamps must be timezone-aware")
         if expires <= opened:
             raise ValueError("attempt deadline must be after opened_at")
-        with self._lock, self._connection:
+        with self._write():
             try:
                 self._connection.execute(
                     """
@@ -213,7 +214,7 @@ class FirstRegistrationLedger:
             return tuple(self._attempt(row) for row in rows)
 
     def mark_hello_observed(self, pairing_id: str) -> FirstRegistrationAttempt:
-        with self._lock, self._connection:
+        with self._write():
             current = self._require_active(pairing_id)
             if current.phase is FirstRegistrationPhase.HELLO_OBSERVED:
                 return current
@@ -239,7 +240,7 @@ class FirstRegistrationLedger:
         absent: bool,
     ) -> FirstRegistrationAttempt:
         self._require_node_id(node_id)
-        with self._lock, self._connection:
+        with self._write():
             current = self._require_mutable_staging(pairing_id)
             if current.node_id is not None and current.node_id != node_id:
                 raise FirstRegistrationLedgerConflict(
@@ -270,7 +271,7 @@ class FirstRegistrationLedger:
         absent: bool,
     ) -> FirstRegistrationAttempt:
         self._require_node_id(node_id)
-        with self._lock, self._connection:
+        with self._write():
             current = self._require_mutable_staging(pairing_id)
             if current.node_id is not None and current.node_id != node_id:
                 raise FirstRegistrationLedgerConflict(
@@ -312,7 +313,7 @@ class FirstRegistrationLedger:
             delivery_digest_sha256,
             label="delivery_digest_sha256",
         )
-        with self._lock, self._connection:
+        with self._write():
             current = self._require_active(pairing_id)
             if current.phase is FirstRegistrationPhase.BUNDLE_STAGED:
                 if (
@@ -354,7 +355,7 @@ class FirstRegistrationLedger:
             return self.get(pairing_id)
 
     def claim_committing(self, pairing_id: str) -> FirstRegistrationAttempt:
-        with self._lock, self._connection:
+        with self._write():
             current = self._require_active(pairing_id)
             if current.phase is FirstRegistrationPhase.COMMITTING:
                 return current
@@ -378,7 +379,7 @@ class FirstRegistrationLedger:
         *,
         terminal_at: datetime,
     ) -> FirstRegistrationAttempt:
-        with self._lock, self._connection:
+        with self._write():
             current = self._require_active(pairing_id)
             if current.phase is not FirstRegistrationPhase.COMMITTING:
                 raise FirstRegistrationLedgerConflict(
@@ -425,7 +426,7 @@ class FirstRegistrationLedger:
             raise ValueError("terminal cleanup state is invalid")
         if terminal_reason not in {"expired", "replay_detected"}:
             raise ValueError("terminal_reason is invalid")
-        with self._lock, self._connection:
+        with self._write():
             self._require_active(pairing_id)
             self._connection.execute(
                 """
@@ -449,7 +450,7 @@ class FirstRegistrationLedger:
             return self.get(pairing_id)
 
     def mark_cleanup_complete(self, pairing_id: str) -> FirstRegistrationAttempt:
-        with self._lock, self._connection:
+        with self._write():
             current = self.get(pairing_id)
             if current.state not in {
                 FirstRegistrationAttemptState.EXPIRED,
@@ -478,7 +479,7 @@ class FirstRegistrationLedger:
             return self.get(pairing_id)
 
     def mark_cleanup_failed(self, pairing_id: str) -> FirstRegistrationAttempt:
-        with self._lock, self._connection:
+        with self._write():
             current = self.get(pairing_id)
             if current.state not in {
                 FirstRegistrationAttemptState.EXPIRED,
@@ -522,6 +523,15 @@ class FirstRegistrationLedger:
                 "first registration ownership proof phase invalid"
             )
         return current
+
+    @contextmanager
+    def _write(self):
+        with self._lock:
+            if self._connection.in_transaction:
+                yield
+                return
+            with self._connection:
+                yield
 
     def _row(self, pairing_id: str) -> sqlite3.Row | None:
         return self._connection.execute(
