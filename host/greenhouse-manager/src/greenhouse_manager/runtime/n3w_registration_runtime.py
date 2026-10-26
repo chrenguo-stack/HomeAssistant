@@ -21,12 +21,15 @@ from .n3w_registration_discovery import (
 )
 from .n3w_trusted_product_lan import (
     DEFAULT_STATE_PATH,
+    TrustedProductLanError,
     TrustedProductLanState,
     load_trusted_product_lan,
     resolve_interface_ipv4,
 )
+from .pairing_discovery import DiscoveryRejected
 
 _SAFE_BIND_HOST = re.compile(r"^(?:0\.0\.0\.0)$")
+MDNS_AUTHORITY_POLL_SECONDS = 1.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,12 +62,106 @@ class RegistrationNetworkSettings:
                 raise ValueError("registration runtime path must be absolute")
 
 
+def _instance_name(system_id: str) -> str:
+    suffix = hashlib.sha256(system_id.encode("utf-8")).hexdigest()[:12]
+    return f"n3w-registration-{suffix}"
+
+
+class RegistrationMdnsAuthorityController:
+    def __init__(
+        self,
+        *,
+        candidate: RegistrationCandidate,
+        system_id: str,
+        state_loader: Callable[[], TrustedProductLanState],
+        interface_ipv4_resolver: Callable[[], str],
+        advertiser_factory: Callable[..., RegistrationMdnsAdvertiser],
+    ) -> None:
+        self.candidate = candidate
+        self.system_id = system_id
+        self.state_loader = state_loader
+        self.interface_ipv4_resolver = interface_ipv4_resolver
+        self.advertiser_factory = advertiser_factory
+        self._lock = threading.RLock()
+        self._advertiser: RegistrationMdnsAdvertiser | None = None
+        self._authority_key: tuple[str, str] | None = None
+
+    @property
+    def authority_key(self) -> tuple[str, str] | None:
+        with self._lock:
+            return self._authority_key
+
+    def refresh(self) -> bool:
+        with self._lock:
+            try:
+                observed = self.state_loader()
+            except (TrustedProductLanError, OSError, ValueError):
+                self._close_locked()
+                return False
+            if not observed.available or observed.subnet is None:
+                self._close_locked()
+                return False
+
+            try:
+                interface_ip = self.interface_ipv4_resolver()
+                confirmed = self.state_loader()
+            except (TrustedProductLanError, OSError, ValueError):
+                self._close_locked()
+                return False
+            if (
+                not confirmed.available
+                or confirmed.subnet is None
+                or confirmed.generation != observed.generation
+                or not confirmed.authorizes(interface_ip)
+            ):
+                self._close_locked()
+                return False
+
+            key = (confirmed.generation, interface_ip)
+            if self._advertiser is not None and self._authority_key == key:
+                return True
+
+            self._close_locked()
+            try:
+                definition = build_registration_mdns_definition(
+                    self.candidate,
+                    instance_name=_instance_name(self.system_id),
+                    interface_ip=interface_ip,
+                    state_loader=lambda: confirmed,
+                )
+            except (DiscoveryRejected, ValueError):
+                return False
+
+            advertiser = self.advertiser_factory(
+                definition,
+                interface_ip=interface_ip,
+            )
+            try:
+                advertiser.start()
+            except Exception:
+                advertiser.close()
+                raise
+            self._advertiser = advertiser
+            self._authority_key = key
+            return True
+
+    def close(self) -> None:
+        with self._lock:
+            self._close_locked()
+
+    def _close_locked(self) -> None:
+        if self._advertiser is not None:
+            self._advertiser.close()
+        self._advertiser = None
+        self._authority_key = None
+
+
 @dataclass(slots=True)
 class RegistrationRuntimeComponents:
     bootstrap_app: RegistrationBootstrapApp
     bootstrap_server: RegistrationBootstrapHTTPServer
     discovery_server: RegistrationDiscoveryUDPServer
-    advertiser: RegistrationMdnsAdvertiser
+    mdns_controller: RegistrationMdnsAuthorityController
 
 
 class RegistrationNetworkRuntime:
@@ -81,6 +178,8 @@ class RegistrationNetworkRuntime:
         self._closed = False
         self._bootstrap_thread: threading.Thread | None = None
         self._discovery_thread: threading.Thread | None = None
+        self._mdns_thread: threading.Thread | None = None
+        self._mdns_stop = threading.Event()
 
     def start(self) -> None:
         with self._lock:
@@ -101,20 +200,42 @@ class RegistrationNetworkRuntime:
             try:
                 self._bootstrap_thread.start()
                 self._discovery_thread.start()
-                self.components.advertiser.start()
+                self.components.mdns_controller.refresh()
+                self._mdns_stop.clear()
+                self._mdns_thread = threading.Thread(
+                    target=self._mdns_loop,
+                    name="greenhouse-registration-mdns-authority",
+                    daemon=True,
+                )
+                self._mdns_thread.start()
             except Exception:
-                self._stop_locked()
+                self.components.mdns_controller.close()
+                self._stop_servers_locked()
                 raise
             self._started = True
 
     def close(self) -> None:
+        mdns_thread = None
         with self._lock:
             if self._closed:
                 return
-            self._stop_locked()
             self._closed = True
+            self._mdns_stop.set()
+            mdns_thread = self._mdns_thread
+            self.components.mdns_controller.close()
+            self._stop_servers_locked()
+            self._started = False
+        if mdns_thread is not None:
+            mdns_thread.join(timeout=5)
 
-    def _stop_locked(self) -> None:
+    def _mdns_loop(self) -> None:
+        while not self._mdns_stop.wait(MDNS_AUTHORITY_POLL_SECONDS):
+            try:
+                self.components.mdns_controller.refresh()
+            except Exception:
+                self.components.mdns_controller.close()
+
+    def _stop_servers_locked(self) -> None:
         for server, thread in (
             (self.components.bootstrap_server, self._bootstrap_thread),
             (self.components.discovery_server, self._discovery_thread),
@@ -124,13 +245,6 @@ class RegistrationNetworkRuntime:
             server.server_close()
             if thread is not None:
                 thread.join(timeout=5)
-        self.components.advertiser.close()
-        self._started = False
-
-
-def _instance_name(system_id: str) -> str:
-    suffix = hashlib.sha256(system_id.encode("utf-8")).hexdigest()[:12]
-    return f"n3w-registration-{suffix}"
 
 
 def assemble_registration_network_runtime(
@@ -171,7 +285,6 @@ def assemble_registration_network_runtime(
 
     bootstrap_server = None
     discovery_server = None
-    advertiser = None
     try:
         bootstrap_server = make_registration_bootstrap_tls_server(
             (settings.bind_host, settings.bootstrap_port),
@@ -184,16 +297,12 @@ def assemble_registration_network_runtime(
             candidate=base_candidate,
             state_loader=load_state,
         )
-        advertised_ip = interface_ipv4()
-        definition = build_registration_mdns_definition(
-            base_candidate,
-            instance_name=_instance_name(settings.system_id),
-            interface_ip=advertised_ip,
+        mdns_controller = RegistrationMdnsAuthorityController(
+            candidate=base_candidate,
+            system_id=settings.system_id,
             state_loader=load_state,
-        )
-        advertiser = advertiser_factory(
-            definition,
-            interface_ip=advertised_ip,
+            interface_ipv4_resolver=interface_ipv4,
+            advertiser_factory=advertiser_factory,
         )
         return RegistrationNetworkRuntime(
             settings,
@@ -201,12 +310,10 @@ def assemble_registration_network_runtime(
                 bootstrap_app=bootstrap_app,
                 bootstrap_server=bootstrap_server,
                 discovery_server=discovery_server,
-                advertiser=advertiser,
+                mdns_controller=mdns_controller,
             ),
         )
     except Exception:
-        if advertiser is not None:
-            advertiser.close()
         for server in (discovery_server, bootstrap_server):
             if server is not None:
                 server.server_close()
