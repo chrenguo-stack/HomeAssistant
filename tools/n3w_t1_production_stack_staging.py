@@ -93,6 +93,7 @@ OPT_ROOT = Path("/opt/HomeAssistant")
 EXPECTED_MANAGER_TABLES = frozenset(
     {
         "credential_assignments",
+        "first_registration_attempts",
         "h0h1_legacy_adoption_provenance",
         "node_id_leases",
         "pairing_sessions",
@@ -104,6 +105,7 @@ EXPECTED_MANAGER_TABLES = frozenset(
 )
 BUSINESS_TABLES = (
     "credential_assignments",
+    "first_registration_attempts",
     "node_id_leases",
     "pairing_sessions",
     "registration_events",
