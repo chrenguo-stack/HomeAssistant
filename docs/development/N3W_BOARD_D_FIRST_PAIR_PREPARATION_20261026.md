@@ -413,3 +413,51 @@ FIRST_PAIR_ATTEMPT_COUNT=0
 ```
 
 This corrected authorization preserves the already frozen one-attempt scope. It becomes consumed only if the onboarding transaction is successfully claimed.
+
+
+## 15. Mac heredoc / SSH stdin consumption pre-claim diagnosis
+
+A second corrected-ID invocation again stopped before onboarding open. Read-only diagnosis proved:
+
+```text
+SSH_MASTER_START_RC=0
+CONTROL_SOCKET=present
+MASTER_CHECK_RC=0
+REMOTE_REUSE=PASS
+REMOTE_UID=0
+REMOTE_HOSTNAME=armbian
+```
+
+The diagnostic script then ended before its next local echo. Root cause is local command orchestration:
+
+- the live/diagnostic scripts are supplied to a local `bash <<'BASH'` heredoc;
+- ordinary `ssh` commands without `-n` inherit that heredoc as stdin;
+- SSH forwards/consumes remaining heredoc bytes as remote-command stdin;
+- the local shell therefore loses the remaining script and reaches EOF.
+
+This explains both pre-claim early exits. It is not an SSH multiplex failure and not a T1/Board product failure.
+
+Repair rule:
+
+```text
+NONINTERACTIVE_SSH_WITHOUT_REMOTE_STDIN => ssh -n ...
+SSH_MASTER_BACKGROUND => ssh -n -M ... -fN
+INTENTIONAL_REMOTE_STDIN => do not use -n
+```
+
+Intentional stdin paths are limited to:
+
+1. exact onboarding source piped to remote `python3 -B -`;
+2. Setup Secret piped to remote `docker exec -i ... --setup-secret-stdin`;
+3. exact success-evidence probe Python supplied on remote stdin.
+
+No onboarding transaction was claimed in either failed invocation.
+
+```text
+AUTHORIZATION=N3W_T1_FIRST_PAIRING_BOARD_D_LIVE_ACCEPTANCE_20261026_01
+GRANTED=true
+CLAIMED=false
+CONSUMED=false
+FIRST_PAIR_ATTEMPT_COUNT=0
+PAIRING_WINDOW_OPENED=false
+```
