@@ -1,0 +1,20 @@
+[Unit]
+Description=N3W FC4 first-registration ingress and trusted LAN authority
+Requires=n3wfc4-broker-ingress-guard.service
+After=NetworkManager.service n3wfc4-broker-ingress-guard.service
+Before=n3wfc4-services-activation.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+ExecStartPre=/usr/local/sbin/n3w-trusted-product-lan-authority --invalidate
+ExecStart=/usr/local/sbin/n3w-registration-ingress-guard --apply
+ExecStartPost=/usr/local/sbin/n3w-trusted-product-lan-authority --apply
+ExecReload=/usr/local/sbin/n3w-trusted-product-lan-authority --invalidate
+ExecReload=/usr/local/sbin/n3w-registration-ingress-guard --apply
+ExecReload=/usr/local/sbin/n3w-trusted-product-lan-authority --apply
+RemainAfterExit=yes
+TimeoutStartSec=20
+
+[Install]
+WantedBy=docker.service
