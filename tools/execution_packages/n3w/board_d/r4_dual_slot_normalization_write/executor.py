@@ -114,7 +114,7 @@ EXPECTED_MANIFEST = {
     "FLASH_ARGS_SHA256": "5dc4c4f6d568812713266e2604197cf4b68f87f49f8c6e9f7d28c84390faf713",
 }
 
-MAC_RE = re.compile(r"\bMAC:\s*([0-9a-fA-F]{2}(?::[0-9a-fA-F]{2}){5})\b")
+BASE_MAC_RE = re.compile(r"(?m)^[ \t]*BASE MAC:[ \t]*([0-9a-fA-F]{2}(?::[0-9a-fA-F]{2}){5})[ \t]*$")
 ESPTOOL_VERSION_RE = re.compile(r"\besptool(?:\.py)?\s+v?(\d+)\.(\d+)\.(\d+)\b", re.I)
 FLASH_8MB_RE = re.compile(r"Detected flash size:\s*8\s*MB\b", re.I)
 SECURE_BOOT_DISABLED_RE = re.compile(r"Secure Boot:\s*Disabled\b", re.I)
