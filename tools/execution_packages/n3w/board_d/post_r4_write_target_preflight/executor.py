@@ -121,6 +121,13 @@ def public_identity_sha256(raw_mac: str) -> str:
     return sha256_bytes(hardware_id_from_mac(raw_mac).encode("utf-8"))
 
 
+def base_mac_from_esptool_output(output: str) -> str:
+    matches = BASE_MAC_RE.findall(output)
+    if len(matches) != 1:
+        raise StopExecution("exactly one ESP32-C6 BASE MAC was not observed")
+    return matches[0]
+
+
 def parse_manifest(text: str) -> dict[str, str]:
     result: dict[str, str] = {}
     for raw in text.splitlines():
@@ -237,9 +244,7 @@ def probe_board(port: str) -> dict[str, object]:
     )
     if "ESP32-C6" not in security.upper():
         raise StopExecution("connected target is not reported as ESP32-C6")
-    mac_match = MAC_RE.search(security)
-    if mac_match is None:
-        raise StopExecution("ROM MAC was not observed")
+    base_mac = base_mac_from_esptool_output(security)
     if SECURE_BOOT_DISABLED_RE.search(security) is None:
         raise StopExecution("Secure Boot is not proven disabled")
     if FLASH_ENCRYPTION_DISABLED_RE.search(security) is None:
@@ -270,7 +275,7 @@ def probe_board(port: str) -> dict[str, object]:
     bootloader_matches = bootloader_sha == MEMBER_BINDINGS["bootloader.bin"][1]
     partition_table_matches = partition_sha == MEMBER_BINDINGS["partitions.bin"][1]
     return {
-        "hardware_id_sha256": public_identity_sha256(mac_match.group(1)),
+        "hardware_id_sha256": public_identity_sha256(base_mac),
         "port_sha256": sha256_bytes(port.encode("utf-8")),
         "chip": "ESP32-C6",
         "flash_size": "8MB",
