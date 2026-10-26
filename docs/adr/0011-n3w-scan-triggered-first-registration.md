@@ -215,6 +215,8 @@ A successful 47110 confirmation does not create credentials by itself.
 
 Before 47110 can report `accepted=true`, T1 also creates a minimal durable **first-registration attempt ledger**. The ledger contains no Setup Secret and is the replay/restart authority for the pre-`/hello` interval.
 
+The ledger is stored in the **same RegistrationRegistry SQLite database** as `registrations` and `pairing_sessions`, not in a sidecar database. Ledger changes that must be atomic with RegistrationRegistry state use one SQLite transaction/connection boundary. External DynSec/application-key/credential stores remain cross-store and are handled by the reconciliation contract below.
+
 Minimum durable fields:
 
 ```text
@@ -306,7 +308,7 @@ Restart invalidation also owns all **uncommitted persistent side effects** creat
 
 The startup reconciler therefore uses the exact old pairing ID to locate and cross-check the registration row, validates the canonical hardware-ID SHA-256 against the ledger, and then applies one of three outcomes:
 
-1. **Durable commit proven.** If the exact pairing ID already owns MQTT credential generation 1 in ACTIVE state, the same node has the expected ACTIVE application key, the exact Broker identity exists, and registration/node binding is consistent, the final receipt commit is considered durably complete even if the process died before the ledger could be marked COMMITTED. The ledger is promoted to `COMMITTED`; no rollback occurs.
+1. **Durable commit proven.** Only an attempt that durably reached `phase=COMMITTING` after a valid final receipt is eligible for commit recovery. If that phase is proven and the exact pairing ID already owns MQTT credential generation 1 in ACTIVE state, the same node has the expected ACTIVE application key, the exact Broker identity exists, and registration/node binding is consistent, the final receipt commit is considered durably complete even if the process died before the ledger could be marked COMMITTED. The ledger is promoted to `COMMITTED`; no rollback occurs. Store consistency without the prior COMMITTING receipt claim is not sufficient to invent success.
 2. **Commit not reached.** If exact ACTIVE MQTT generation 1 does not exist, automatic destructive cleanup is allowed only when the two-part ownership proof below is complete. The reconciler then removes only transaction-owned Broker identity, revokes the exact transaction-owned staged/temporarily-active application-key epoch, rolls back the automatic NODE_ID approval/lease, terminalizes the old registration session, and records `cleanup_state=COMPLETE`.
 3. **Ambiguous or unsafe state.** Any cross-store mismatch, unprovable ownership, partial state that cannot be safely classified, or cleanup failure records `cleanup_state=FAILED` and keeps all product first-registration listeners fail-closed. It must not guess, delete an unowned DynSec object, or permit a new registration transaction.
 
@@ -393,6 +395,8 @@ The same deadline bounds:
 - the in-memory Setup Secret intent.
 
 Final receipt handling and expiry are serialized. A final delivery receipt accepted at or before the deadline may durably enter `COMMITTING`; once that transition is claimed, expiry cannot race it. If no such commit claim exists by the deadline, the transaction expires and enters the cleanup path above. User-visible success still requires the exact durable cross-store commit oracle to pass.
+
+The 47112 final-ACK HTTP endpoint must not return its committed-success response until the cross-store commit oracle passes **and** the ledger is durably `COMMITTED`. A response loss after that point is recovered through the 47110 pending-ACK status operation. Therefore an HTTP 200/committed ACK response is itself safe for the node to treat as Manager COMMIT; no earlier success response is permitted.
 
 Existing 120-second repair authorization remains separate and is not widened.
 
