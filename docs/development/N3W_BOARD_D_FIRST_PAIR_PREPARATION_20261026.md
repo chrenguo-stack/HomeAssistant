@@ -300,8 +300,11 @@ T1_INSPECT_MUTATION=false
 NEW_PRODUCT_SOURCE_REPAIR_REQUIRED=false
 PRIVATE_QR_BINDING=DEFERRED_UNTIL_ACCEPTED_HELLO_BY_PRODUCT_CONTRACT
 LIVE_COMMAND_CHAIN_PREARMED=true
-LIVE_AUTHORIZATION_GRANTED=false
-NEXT_STOP=EXPLICIT_N3W_T1_BOARD_D_FIRST_PAIR_LIVE_ACCEPTANCE_20261026_01_AUTHORIZATION
+LIVE_AUTHORIZATION_GRANTED=true
+LIVE_AUTHORIZATION=N3W_T1_BOARD_D_FIRST_PAIR_LIVE_ACCEPTANCE_20261026_01
+LIVE_AUTHORIZATION_CLAIMED=false
+LIVE_AUTHORIZATION_CONSUMED=false
+NEXT_STOP=ONE_SHOT_LIVE_EXECUTION
 ```
 
 The pre-armed live chain is frozen as:
@@ -322,3 +325,16 @@ fresh binding/SSH master
 
 No automatic second first-pair attempt is permitted.
 
+
+
+## 12. Live authorization granted
+
+```text
+AUTHORIZATION=N3W_T1_BOARD_D_FIRST_PAIR_LIVE_ACCEPTANCE_20261026_01
+GRANTED=true
+CLAIMED=false
+CONSUMED=false
+SECOND_ATTEMPT_ALLOWED=false
+```
+
+The authorization becomes consumed only when the onboarding transaction is claimed/opened. Pre-open SSH/control/capability checks remain non-claiming. Any post-open failure must fail closed and must not auto-retry.
