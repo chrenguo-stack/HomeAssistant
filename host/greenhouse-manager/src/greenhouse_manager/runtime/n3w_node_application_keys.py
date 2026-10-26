@@ -269,6 +269,7 @@ class SqliteNodeApplicationKeyAdmin:
         key_dir: str | Path,
         *,
         node_state: Callable[[str], object | None],
+        recover_on_open: bool = True,
     ) -> None:
         self.database = Path(database).expanduser()
         self.key_dir = Path(key_dir).expanduser()
@@ -289,7 +290,8 @@ class SqliteNodeApplicationKeyAdmin:
             self._connection.execute("PRAGMA busy_timeout = 5000")
             self._initialize_schema()
             self._require_integrity()
-            self.recover()
+            if recover_on_open:
+                self.recover()
         except Exception:
             connection = getattr(self, "_connection", None)
             if connection is not None:
