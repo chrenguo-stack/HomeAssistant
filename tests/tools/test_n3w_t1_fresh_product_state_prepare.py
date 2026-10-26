@@ -50,7 +50,7 @@ def test_create_and_audit_fresh_product_state(tmp_path: Path) -> None:
     assert created["fresh_product_state"] is True
     assert created["legacy_state_imported"] is False
     assert created["legacy_provenance_present"] is False
-    assert created["manager_table_count"] == 7
+    assert created["manager_table_count"] == 8
     assert created["manager_business_row_count"] == 0
     assert created["replay_node_count"] == 0
     assert created["replay_tuple_count"] == 0
