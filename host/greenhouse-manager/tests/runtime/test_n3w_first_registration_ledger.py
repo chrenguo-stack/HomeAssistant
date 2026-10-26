@@ -566,3 +566,37 @@ def test_database_rejects_terminal_reason_state_mismatch(tmp_path) -> None:
             )
     finally:
         registry.close()
+
+
+@pytest.mark.parametrize(
+    ("state", "wrong_reason"),
+    (
+        ("EXPIRED", "replay_detected"),
+        ("RESTART_INVALIDATED", "expired"),
+    ),
+)
+def test_reader_rejects_terminal_reason_state_mismatch(
+    state,
+    wrong_reason,
+) -> None:
+    row = {
+        "pairing_id": PAIRING_ID,
+        "hardware_id_sha256": HARDWARE_SHA256,
+        "opened_at": NOW.isoformat(),
+        "expires_at": (NOW + timedelta(seconds=1800)).isoformat(),
+        "state": state,
+        "phase": "TERMINAL",
+        "cleanup_state": "REQUIRED",
+        "node_id": None,
+        "dynsec_prestate_absent": None,
+        "application_key_prestate_absent": None,
+        "application_key_epoch": None,
+        "delivery_digest_sha256": None,
+        "terminal_at": (NOW + timedelta(seconds=10)).isoformat(),
+        "terminal_reason": wrong_reason,
+    }
+    with pytest.raises(
+        FirstRegistrationLedgerConflict,
+        match="ledger record is corrupt",
+    ):
+        FirstRegistrationLedger._attempt(row)
