@@ -451,6 +451,63 @@ bootstrap_tls_mismatch (node-local classification)
 bootstrap_unavailable
 ```
 
+### 5.3 Pending-ACK status endpoint
+
+Manager restart destroys the RAM `/sessions/<session_id>` object, while the node may already have durably stored the delivered peer/Broker bundle and a pending final ACK. 47110 therefore exposes a second low-privilege operation:
+
+```text
+POST /v1/registration/status
+```
+
+Exact request:
+
+```json
+{
+  "schema": "gh.registration.status/1",
+  "manager_id": "<selected manager>",
+  "system_id": "<selected system>",
+  "hardware_id": "<node hardware id>",
+  "pairing_id": "<old pairing id>",
+  "delivery_digest": "<base64url 32-byte delivery digest>"
+}
+```
+
+The status operation:
+- uses the same 47110 TLS service and trusted-product-LAN admission;
+- contains no Setup Secret and never reopens 47112;
+- hashes the presented digest and requires equality with ledger `delivery_digest_sha256`;
+- permits a changed current source IP as long as it remains inside the current trusted product subnet, because this path is recovery/status rather than continuation of the old source-bound 47112 transaction;
+- never returns credential material, raw Setup Secret or another node identity.
+
+Authoritative results:
+
+```text
+COMMITTED
+  exact hardware hash + pairing_id + delivery digest match
+  AND exact durable cross-store commit oracle PASS
+
+TERMINAL_NOT_COMMITTED
+  exact binding matches
+  AND ledger state is EXPIRED or RESTART_INVALIDATED
+  AND durable commit oracle is not PASS
+
+WAIT
+  transaction/reconciliation is still in progress
+
+UNKNOWN
+  exact binding or durable classification cannot be proven
+```
+
+Wire semantics:
+- COMMITTED -> `status=committed`, `transaction_disposition=committed`;
+- TERMINAL_NOT_COMMITTED -> `status=rejected`, `reason=expired|replay_detected`, `transaction_disposition=terminal`;
+- WAIT -> `status=pending`, `transaction_disposition=wait`;
+- UNKNOWN -> `status=unknown`, `transaction_disposition=wait`.
+
+`UNKNOWN` is deliberately non-terminal: the node must not erase provisional credentials, renew pairing ID, or mark itself provisioned from an unproven result.
+
+If the original T1 address is no longer reachable, pending-ACK recovery may perform bounded discovery solely to relocate the same `manager_id + system_id + bootstrap_tls_sha256`. This is active transaction recovery and does not re-enable idle background discovery.
+
 ## 6. Durable first-registration attempt ledger
 
 Add one persistent table owned by `n3w_first_registration_ledger.py`:
@@ -469,6 +526,7 @@ node_id TEXT
 dynsec_prestate_absent INTEGER
 application_key_prestate_absent INTEGER
 application_key_epoch INTEGER
+delivery_digest_sha256 TEXT
 terminal_at TEXT
 terminal_reason TEXT
 ```
@@ -501,7 +559,7 @@ COMPLETE
 FAILED
 ```
 
-The table deliberately does **not** contain Setup Secret, raw hardware ID, scan token, source IP, MQTT password, application-key material, SYSTEM_PEER_KEY or TLS private material. `node_id`, `application_key_epoch` and the prestate booleans are internal recovery metadata only and are never emitted in public diagnostics.
+The table deliberately does **not** contain Setup Secret, raw hardware ID, scan token, source IP, MQTT password, application-key material, SYSTEM_PEER_KEY or TLS private material. `node_id`, `application_key_epoch`, `delivery_digest_sha256` and the prestate booleans are internal recovery metadata only and are never emitted in public diagnostics.
 
 `pairing_id` is the exact durable replay key. `hardware_id_sha256` is only a non-secret binding/audit value and never replaces the exact runtime hardware-ID check on 47112.
 
@@ -580,7 +638,7 @@ Before initial application-key staging:
 2. durably set `application_key_prestate_absent=true`;
 3. only then may the first STAGED key be created.
 
-These prestate facts are necessary but not sufficient destructive-cleanup authority. After the complete first-registration stage operation returns successfully, and before the encrypted bundle is returned to the node, Manager must durably write `phase=BUNDLE_STAGED`, the exact `node_id`, and the exact initial `application_key_epoch`.
+These prestate facts are necessary but not sufficient destructive-cleanup authority. After the complete first-registration stage operation returns successfully, and before the encrypted bundle is returned to the node, Manager must durably write `phase=BUNDLE_STAGED`, the exact `node_id`, the exact initial `application_key_epoch`, and `delivery_digest_sha256 = SHA256(delivery_digest_bytes)`.
 
 Automatic DynSec/application-key cleanup requires both:
 - the corresponding durable prestate-absent proof; and
@@ -695,6 +753,58 @@ Current `SimplifiedCredentialBundleIssuer.issue()` may call `SystemPeerTrustStor
 This keeps ADR-0007/0008 peer-trust stability while removing a first-registration crash side effect from the transaction.
 
 The ledger and reconciliation paths never persist Setup Secret or credential/key material.
+
+### 6.8 Node-side pending-ACK recovery contract
+
+The firmware currently persists peer/Broker state and `PendingPairingAckV2` before final ACK. R2 replaces this with a versioned pending-ACK record that is self-contained for recovery and includes at least:
+
+```text
+state = ACK_PENDING | TERMINAL_CLEANUP
+pairing_id
+manager_id
+system_id
+bootstrap_host
+bootstrap_port = 47110
+bootstrap_tls_sha256
+session_id
+delivery_digest
+```
+
+`ACK_PENDING` means the local peer/Broker stores are provisional. They must not be used as normal provisioned runtime state.
+
+`resume_pending_ack()` behavior becomes:
+
+```text
+try old session ACK when the saved 47112 endpoint is reachable
+-> if ACK returns committed success: finalize local success
+-> otherwise query 47110 /v1/registration/status with exact saved identity/digest
+
+status COMMITTED
+-> keep peer/Broker bundle
+-> erase Setup Secret
+-> erase old pairing intent
+-> erase pending-ACK record last
+-> mark local provisioned
+
+status TERMINAL_NOT_COMMITTED
+-> persist pending_ack.state = TERMINAL_CLEANUP
+-> if current pairing intent still equals old pairing_id: durably generate/save fresh ADR-0008 pairing_id
+-> erase provisional Broker state
+-> erase provisional peer state
+-> erase pending-ACK record last
+-> keep Setup Secret
+-> return to registration QR; a fresh user confirmation is required
+
+status WAIT or UNKNOWN / transport unavailable
+-> keep ACK_PENDING and all provisional local state
+-> do not mark provisioned
+-> do not renew pairing_id
+-> bounded retry/status recovery only
+```
+
+`TERMINAL_CLEANUP` is reboot-resumable and idempotent. On boot, its marker takes precedence over the ordinary `credentials_present` fast path. If the pairing-intent store already contains a different pairing ID, renewal is considered already durably completed; otherwise renewal is performed once. The marker is erased only after provisional peer/Broker cleanup is complete.
+
+This prevents a restart from creating the split-brain state “Manager rolled back old transaction, node treats pre-ACK bundle as provisioned”.
 
 ## 7. FirstRegistrationIntent
 
@@ -1052,7 +1162,7 @@ The phone never receives Setup Secret.
 
 ## 16. Refactor `SimplePairingClient`
 
-Current `run_once()` couples discovery + hello + full pairing.
+Current `run_once()` couples discovery + hello + full pairing, and current `resume_pending_ack()` can only retry the old RAM-session ACK endpoint. That is insufficient after Manager restart.
 
 Refactor into explicit phases while preserving protocol logic:
 
@@ -1060,21 +1170,37 @@ Refactor into explicit phases while preserving protocol logic:
 prepare_bootstrap()
 pair_with_candidate(candidate, transaction_deadline)
 resume_pending_ack()
+recover_pending_ack_status()
+resume_terminal_cleanup()
 ```
 
-The scan-triggered registration orchestrator owns discovery.
-
-Remove/stop using automatic `run_once() -> discover_()` from normal unregistered loop.
+The scan-triggered registration orchestrator owns ordinary discovery. Remove/stop using automatic `run_once() -> discover_()` from the normal idle unregistered loop.
 
 `pair_with_candidate()`:
 - sends hello;
 - honors ADR-0008 WAIT / RENEW semantics;
 - proceeds through begin/establish/credentials/ack;
-- reports terminal result to registration state.
+- persists the expanded pending-ACK recovery record before ACK;
+- reports transaction state to the registration orchestrator.
 
-Do not make `pairing_handoff_ready` a display authority.
+`resume_pending_ack()`:
+- first tries the saved old ACK endpoint;
+- a proven committed ACK response finalizes success;
+- failure/unreachable/non-success does not discard state;
+- falls through to `recover_pending_ack_status()` on 47110.
 
-It may be deleted or retained only as an internal protocol-state diagnostic.
+`recover_pending_ack_status()`:
+- uses the stored bootstrap identity/fingerprint, or bounded exact-candidate relocation if host changed;
+- sends hardware ID + old pairing ID + delivery digest only after TLS pinning;
+- COMMITTED finalizes local success;
+- TERMINAL_NOT_COMMITTED enters durable TERMINAL_CLEANUP;
+- WAIT/UNKNOWN retains ACK_PENDING without renewal or success.
+
+`resume_terminal_cleanup()` is idempotent across reboot and performs fresh pairing-ID persistence plus provisional peer/Broker cleanup before deleting the recovery marker.
+
+A node in ACK_PENDING/TERMINAL_CLEANUP is not the normal idle-unregistered state; bounded status recovery is allowed without violating the no-idle-background-discovery rule.
+
+Do not make `pairing_handoff_ready` a display authority. It may be deleted or retained only as an internal protocol-state diagnostic.
 
 ## 17. LCD source changes
 
@@ -1273,6 +1399,8 @@ firmware/esphome_rc/components/greenhouse_n3w_core/
   n3w_simple_product_component.cpp
   n3w_simple_pairing_client.h
   n3w_simple_pairing_client.cpp
+  n3w_esp32_pairing_nvs.h
+  n3w_esp32_pairing_nvs.cpp
   <new registration portal/discovery/bootstrap/state files>
 
 firmware/esphome_rc/f1_0_rc2/packages/
@@ -1405,6 +1533,20 @@ Prove:
 - predecessor ACTIVE/COMMITTING state is reconciled, not reconstructed with a fresh deadline;
 - terminal rows remain replay tombstones;
 - SYSTEM_PEER_KEY is initialized/validated before registration readiness and first-registration bundle issuance cannot create/rotate it.
+
+### F2. Pending-ACK restart recovery
+
+Prove:
+- bundle persistence creates ACK_PENDING and does not make normal runtime provisioned before Manager success;
+- Manager restart before durable commit makes old session ACK fail but 47110 status returns exact terminal result after reconciliation;
+- TERMINAL_NOT_COMMITTED first persists TERMINAL_CLEANUP, then renews pairing ID and removes provisional peer/Broker stores;
+- reboot after each individual terminal-cleanup step resumes safely and never reaches false provisioned state;
+- committed-underlying-state + ledger-lag returns COMMITTED and preserves the persisted node bundle;
+- WAIT/UNKNOWN/transport failure retains ACK_PENDING, never renews pairing ID and never marks provisioned;
+- status hardware/pairing/delivery-digest mismatch never returns COMMITTED or terminal destructive authority;
+- T1 address change may relocate only the exact manager/system/bootstrap fingerprint during pending-ACK recovery;
+- after terminal cleanup, a new transaction still requires a fresh phone confirmation and gets a fresh full 1800 seconds.
+
 
 ### G. Identity-bound window
 
@@ -1549,6 +1691,11 @@ EXACT_CROSS_STORE_COMMIT_ORACLE=true
 AMBIGUOUS_RECONCILIATION_FAILS_REGISTRATION_CLOSED=true
 SYSTEM_PEER_TRUST_INITIALIZED_BEFORE_REGISTRATION_READY=true
 SYSTEM_PEER_TRUST_MUTATED_BY_REGISTRATION=false
+PENDING_ACK_STATUS_RECOVERY_ON_47110=true
+PENDING_ACK_STATUS_BINDS_DELIVERY_DIGEST=true
+PENDING_ACK_LOCAL_BUNDLE_PROVISIONAL_UNTIL_COMMITTED=true
+TERMINAL_PENDING_ACK_LOCAL_CLEANUP_CRASH_SAFE=true
+PENDING_ACK_UNKNOWN_NEVER_MARKS_PROVISIONED=true
 TERMINAL_BOOTSTRAP_RESULT_USES_ADR0008_RENEWAL=true
 
 T1_47110_BOOTSTRAP_ALWAYS_ON=true
@@ -1602,7 +1749,9 @@ The focused closure review must independently verify:
 - the exact cross-store commit oracle distinguishes commit-complete/ledger-lag from stranded pre-commit state;
 - ambiguous or failed reconciliation keeps first registration unavailable while 47112 stays closed;
 - SYSTEM_PEER_KEY is a pre-registration T1 baseline and first-registration code cannot create/rotate it;
-- terminal bootstrap `expired/replay_detected` drives the same ADR-0008 durable pairing-ID renewal primitive;
+- pending-ACK recovery on 47110 binds hardware/pairing/delivery digest and distinguishes durable COMMITTED from terminal-not-committed without relying on lost RAM session ID;
+- terminal-not-committed performs crash-safe firmware cleanup of provisional peer/Broker state before returning to fresh user-confirmed registration; WAIT/UNKNOWN cannot cause local success or renewal;
+- terminal bootstrap/status `expired/replay_detected` drives the same ADR-0008 durable pairing-ID renewal primitive;
 - identity/source/current-subnet binding occurs before DB mutation on 47112;
 - Manager COMMIT and canonical deadline expiry are the only normal-uptime privileged-window close conditions;
 - pre-deadline failure does not refresh or replace the transaction;
