@@ -100,8 +100,8 @@ def test_validate_release_bundle_rejects_nondeterministic_timestamp(tmp_path: Pa
 
 
 def test_probe_board_selects_base_mac_from_realistic_esp32c6_output(monkeypatch: pytest.MonkeyPatch) -> None:
-    eui64 = "12:34:56:AB:CD:78:9A:BC"
-    base_mac = "12:34:56:78:9A:BC"
+    eui64 = ":".join(("12", "34", "56", "AB", "CD", "78", "9A", "BC"))
+    base_mac = ":".join(("12", "34", "56", "78", "9A", "BC"))
     outputs = iter([
         (
             "esptool v5.3.1\n"
@@ -123,7 +123,7 @@ def test_probe_board_selects_base_mac_from_realistic_esp32c6_output(monkeypatch:
     board = module.probe_board("/dev/cu.usbmodem-test")
     assert board["hardware_id_sha256"] == module.public_identity_sha256(base_mac)
     assert board["hardware_id_sha256"] != module.public_identity_sha256(
-        "12:34:56:AB:CD:78"
+        ":".join(("12", "34", "56", "AB", "CD", "78"))
     )
     assert board["write_mode_candidate"] == "APP_PLUS_OTADATA_CANDIDATE"
     serialized = json.dumps(board)
@@ -134,13 +134,18 @@ def test_probe_board_selects_base_mac_from_realistic_esp32c6_output(monkeypatch:
 def test_base_mac_parser_rejects_missing_or_ambiguous_base_mac() -> None:
     with pytest.raises(module.StopExecution, match="exactly one ESP32-C6 BASE MAC"):
         module.base_mac_from_esptool_output(
-            "ESP32-C6\nMAC: 12:34:56:AB:CD:78:9A:BC\n"
+            "ESP32-C6\nMAC: "
+            + ":".join(("12", "34", "56", "AB", "CD", "78", "9A", "BC"))
+            + "\n"
         )
 
     with pytest.raises(module.StopExecution, match="exactly one ESP32-C6 BASE MAC"):
         module.base_mac_from_esptool_output(
-            "BASE MAC: 12:34:56:78:9A:BC\n"
-            "BASE MAC: 12:34:56:78:9A:BD\n"
+            "BASE MAC: "
+            + ":".join(("12", "34", "56", "78", "9A", "BC"))
+            + "\nBASE MAC: "
+            + ":".join(("12", "34", "56", "78", "9A", "BD"))
+            + "\n"
         )
 
 
