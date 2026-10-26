@@ -110,7 +110,6 @@ def test_active_pairing_id_is_non_replayable(tmp_path) -> None:
         registry.close()
 
 
-
 def test_new_attempt_waits_for_predecessor_terminal_cleanup(tmp_path) -> None:
     registry, ledger = _ledger(tmp_path)
     second_pairing_id = str(
@@ -195,6 +194,7 @@ def test_database_enforces_one_active_attempt(tmp_path) -> None:
             )
     finally:
         registry.close()
+
 
 def test_bundle_stage_requires_durable_two_part_ownership_proof(tmp_path) -> None:
     registry, ledger = _ledger(tmp_path)
@@ -364,3 +364,116 @@ def test_ledger_rejects_noncanonical_identity_binding(
             )
     finally:
         registry.close()
+
+
+def test_database_rejects_contradictory_state_phase_cleanup_combinations(
+    tmp_path,
+) -> None:
+    registry, _ledger_instance = _ledger(tmp_path)
+    try:
+        with pytest.raises(sqlite3.IntegrityError):
+            registry._connection.execute(
+                """
+                INSERT INTO first_registration_attempts (
+                    pairing_id,
+                    hardware_id_sha256,
+                    opened_at,
+                    expires_at,
+                    state,
+                    phase,
+                    cleanup_state,
+                    terminal_at
+                ) VALUES (?, ?, ?, ?, 'COMMITTED', 'BOOTSTRAP_ACCEPTED', 'COMPLETE', ?)
+                """,
+                (
+                    PAIRING_ID,
+                    HARDWARE_SHA256,
+                    NOW.isoformat(),
+                    (NOW + timedelta(seconds=1800)).isoformat(),
+                    (NOW + timedelta(seconds=10)).isoformat(),
+                ),
+            )
+
+        with pytest.raises(sqlite3.IntegrityError):
+            registry._connection.execute(
+                """
+                INSERT INTO first_registration_attempts (
+                    pairing_id,
+                    hardware_id_sha256,
+                    opened_at,
+                    expires_at,
+                    state,
+                    phase,
+                    cleanup_state,
+                    node_id,
+                    application_key_epoch,
+                    delivery_digest_sha256
+                ) VALUES (?, ?, ?, ?, 'ACTIVE', 'BUNDLE_STAGED', 'NONE', ?, 1, ?)
+                """,
+                (
+                    PAIRING_ID,
+                    HARDWARE_SHA256,
+                    NOW.isoformat(),
+                    (NOW + timedelta(seconds=1800)).isoformat(),
+                    "node-0001",
+                    DELIVERY_SHA256,
+                ),
+            )
+    finally:
+        registry.close()
+
+
+def test_reader_rejects_corrupt_cross_field_state() -> None:
+    row = {
+        "pairing_id": PAIRING_ID,
+        "hardware_id_sha256": HARDWARE_SHA256,
+        "opened_at": NOW.isoformat(),
+        "expires_at": (NOW + timedelta(seconds=1800)).isoformat(),
+        "state": "COMMITTED",
+        "phase": "BOOTSTRAP_ACCEPTED",
+        "cleanup_state": "COMPLETE",
+        "node_id": None,
+        "dynsec_prestate_absent": None,
+        "application_key_prestate_absent": None,
+        "application_key_epoch": None,
+        "delivery_digest_sha256": None,
+        "terminal_at": (NOW + timedelta(seconds=10)).isoformat(),
+        "terminal_reason": None,
+    }
+    with pytest.raises(
+        FirstRegistrationLedgerConflict,
+        match="ledger record is corrupt",
+    ):
+        from greenhouse_manager.runtime.n3w_first_registration_ledger import (
+            FirstRegistrationLedger,
+        )
+
+        FirstRegistrationLedger._attempt(row)
+
+
+def test_reader_rejects_invalid_deadline() -> None:
+    row = {
+        "pairing_id": PAIRING_ID,
+        "hardware_id_sha256": HARDWARE_SHA256,
+        "opened_at": NOW.isoformat(),
+        "expires_at": NOW.isoformat(),
+        "state": "ACTIVE",
+        "phase": "BOOTSTRAP_ACCEPTED",
+        "cleanup_state": "NONE",
+        "node_id": None,
+        "dynsec_prestate_absent": None,
+        "application_key_prestate_absent": None,
+        "application_key_epoch": None,
+        "delivery_digest_sha256": None,
+        "terminal_at": None,
+        "terminal_reason": None,
+    }
+    with pytest.raises(
+        FirstRegistrationLedgerConflict,
+        match="ledger record is corrupt",
+    ):
+        from greenhouse_manager.runtime.n3w_first_registration_ledger import (
+            FirstRegistrationLedger,
+        )
+
+        FirstRegistrationLedger._attempt(row)
