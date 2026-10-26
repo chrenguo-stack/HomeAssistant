@@ -395,3 +395,21 @@ BOARD_MUTATION=false
 CORRECTED_AUTHORIZATION_GRANTED=false
 SECOND_ATTEMPT_COUNT=0
 ```
+
+
+## 14. Corrected live authorization granted
+
+```text
+AUTHORIZATION=N3W_T1_FIRST_PAIRING_BOARD_D_LIVE_ACCEPTANCE_20261026_01
+GRANTED=true
+CLAIMED=false
+CONSUMED=false
+SECOND_ATTEMPT_ALLOWED=false
+
+PREVIOUS_INVALID_ID=N3W_T1_BOARD_D_FIRST_PAIR_LIVE_ACCEPTANCE_20261026_01
+PREVIOUS_INVALID_ID_CLAIMED=false
+PREVIOUS_INVALID_ID_CONSUMED=false
+FIRST_PAIR_ATTEMPT_COUNT=0
+```
+
+This corrected authorization preserves the already frozen one-attempt scope. It becomes consumed only if the onboarding transaction is successfully claimed.
