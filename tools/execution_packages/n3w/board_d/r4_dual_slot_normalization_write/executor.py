@@ -25,7 +25,7 @@ GITHUB_ARTIFACT_SHA256 = "898ef722cd4af37ae5472583b1874f7724e9444e8837462d36f4e6
 RELEASE_BUNDLE_NAME = "n3w-board-d-r4-f1rc2-ec5f6d68-exact-source.zip"
 RELEASE_BUNDLE_SHA256 = "b55aba9c3fad85da39eab63157c3de7c42f311970bfb61f8b0e9a52ddcba7dd5"
 MANIFEST_SHA256 = "173fcc978284170e0918c94269195191be0fc8a262b758851f16ee0609a638eb"
-EXPECTED_HARDWARE_ID_SHA256 = "3991b9af9e7604190a8ac8e60b780911a8faed6698cda5421eaf1eb686210df5"
+EXPECTED_HARDWARE_ID_SHA256 = "3a76b39f066e09de0a285b81319eec20f29c8fd4136b61dc5a86ace01c1e1d55"
 
 BOOTLOADER_OFFSET = 0x0
 PARTITION_TABLE_OFFSET = 0x8000
@@ -146,6 +146,13 @@ def hardware_id_from_mac(raw_mac: str) -> str:
 
 def public_identity_sha256(raw_mac: str) -> str:
     return sha256_bytes(hardware_id_from_mac(raw_mac).encode("utf-8"))
+
+
+def base_mac_from_esptool_output(output: str) -> str:
+    matches = BASE_MAC_RE.findall(output)
+    if len(matches) != 1:
+        raise StopExecution("exactly one ESP32-C6 BASE MAC was not observed")
+    return matches[0]
 
 
 def parse_manifest(text: str) -> dict[str, str]:
@@ -373,10 +380,8 @@ def observe_board_identity_security(port: str, *, before: str) -> str:
     )
     if "ESP32-C6" not in security.upper():
         raise StopExecution("connected target is not reported as ESP32-C6")
-    mac_match = MAC_RE.search(security)
-    if mac_match is None:
-        raise StopExecution("ROM MAC was not observed")
-    identity_hash = public_identity_sha256(mac_match.group(1))
+    base_mac = base_mac_from_esptool_output(security)
+    identity_hash = public_identity_sha256(base_mac)
     if identity_hash != EXPECTED_HARDWARE_ID_SHA256:
         raise StopExecution("connected target does not match frozen Board D identity")
     if SECURE_BOOT_DISABLED_RE.search(security) is None:
