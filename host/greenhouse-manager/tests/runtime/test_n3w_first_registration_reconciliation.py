@@ -535,6 +535,16 @@ def test_registration_cleanup_missing_history_fails_atomically(
     harness.open_attempt()
     harness.observe_and_approve()
     ledger = harness.registration.first_registration_ledger()
+    ledger.record_dynsec_prestate(
+        PAIRING_ID,
+        node_id=NODE_ID,
+        absent=True,
+    )
+    ledger.record_application_key_prestate(
+        PAIRING_ID,
+        node_id=NODE_ID,
+        absent=True,
+    )
 
     harness.registration._connection.execute(
         """
