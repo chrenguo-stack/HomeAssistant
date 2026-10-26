@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import fcntl
 import ipaddress
 import json
+import socket
+import struct
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -130,3 +133,30 @@ def source_is_trusted_product_lan(
         return load_trusted_product_lan(path).authorizes(source_ip)
     except TrustedProductLanError:
         return False
+
+
+def resolve_interface_ipv4(
+    interface: str = INTERFACE,
+    *,
+    state_path: str | Path = DEFAULT_STATE_PATH,
+) -> str:
+    if interface != INTERFACE:
+        raise TrustedProductLanError("trusted_product_lan_interface_invalid")
+    encoded = interface.encode("ascii")
+    if not encoded or len(encoded) > 15:
+        raise TrustedProductLanError("trusted_product_lan_interface_invalid")
+    request = struct.pack("256s", encoded[:15])
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            result = fcntl.ioctl(probe.fileno(), 0x8915, request)
+        address = socket.inet_ntoa(result[20:24])
+    except OSError as error:
+        raise TrustedProductLanError(
+            "trusted_product_lan_interface_address_unavailable"
+        ) from error
+    state = load_trusted_product_lan(state_path)
+    if not state.authorizes(address):
+        raise TrustedProductLanError(
+            "trusted_product_lan_interface_address_not_authorized"
+        )
+    return address
