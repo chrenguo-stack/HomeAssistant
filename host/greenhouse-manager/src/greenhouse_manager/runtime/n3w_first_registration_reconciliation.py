@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import threading
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -405,12 +406,10 @@ class FirstRegistrationReconciler:
             TypeError,
             ValueError,
         ) as error:
-            try:
+            with suppress(FirstRegistrationLedgerConflict):
                 self.ledger.mark_cleanup_failed(
                     attempt.pairing_id
                 )
-            except FirstRegistrationLedgerConflict:
-                pass
             raise FirstRegistrationReconciliationError(
                 "first-registration cleanup failed"
             ) from error
