@@ -8,6 +8,7 @@ import stat
 import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, suppress
+from dataclasses import dataclass
 from pathlib import Path
 
 from .n3w_relay_ingress import RelayIngressRejected
@@ -20,6 +21,17 @@ _RUNTIME_KEY_STATES = {"ACTIVE", "GRACE"}
 
 class NodeApplicationKeyStoreUnavailable(RuntimeError):
     """Raised when the transitional per-node application-key store is unusable."""
+
+
+@dataclass(frozen=True, slots=True)
+class NodeApplicationKeySnapshot:
+    node_id: str
+    requested_epoch: int | None
+    requested_exists: bool
+    requested_state: str | None
+    requested_enabled: bool | None
+    requested_material_binding_valid: bool | None
+    epochs: tuple[tuple[int, str, bool], ...]
 
 
 def _require_private_path(path: Path, *, directory: bool, code: str) -> None:
@@ -779,6 +791,93 @@ class SqliteNodeApplicationKeyAdmin:
             os.fsync(fd)
         finally:
             os.close(fd)
+
+    def snapshot_node(
+        self,
+        *,
+        node_id: str,
+        key_epoch: int | None = None,
+    ) -> NodeApplicationKeySnapshot:
+        if not isinstance(node_id, str) or _ID.fullmatch(node_id) is None:
+            raise NodeApplicationKeyStoreUnavailable("node_id_invalid")
+        if key_epoch is not None:
+            key_epoch = self._require_epoch(key_epoch)
+
+        with self._lock:
+            self._require_open()
+            self._require_integrity()
+
+            pending = self._connection.execute(
+                """
+                SELECT 1
+                FROM n3w_node_key_operations
+                WHERE node_id = ?
+                  AND status NOT IN ('DONE','RECOVERED')
+                LIMIT 1
+                """,
+                (node_id,),
+            ).fetchone()
+            if pending is not None:
+                raise NodeApplicationKeyStoreUnavailable(
+                    "node_key_operation_incomplete"
+                )
+
+            rows = self._connection.execute(
+                """
+                SELECT key_epoch, key_file, enabled, state, key_sha256
+                FROM n3w_relay_key_epochs
+                WHERE node_id = ?
+                ORDER BY key_epoch
+                """,
+                (node_id,),
+            ).fetchall()
+
+            epochs: list[tuple[int, str, bool]] = []
+            requested = None
+            for row in rows:
+                state = row["state"]
+                enabled = row["enabled"]
+                if (
+                    state not in self._KEY_STATES
+                    or enabled != int(state in _RUNTIME_KEY_STATES)
+                ):
+                    raise NodeApplicationKeyStoreUnavailable(
+                        "node_key_store_corrupt"
+                    )
+
+                epoch = int(row["key_epoch"])
+                epochs.append((epoch, state, bool(enabled)))
+
+                material_binding_valid: bool | None = None
+                if state != "REVOKED":
+                    self._read_admin_key(
+                        row["key_file"],
+                        expected_sha256=row["key_sha256"],
+                    )
+                    material_binding_valid = True
+
+                if key_epoch is not None and epoch == key_epoch:
+                    requested = (
+                        state,
+                        bool(enabled),
+                        material_binding_valid,
+                    )
+
+            return NodeApplicationKeySnapshot(
+                node_id=node_id,
+                requested_epoch=key_epoch,
+                requested_exists=requested is not None,
+                requested_state=(
+                    None if requested is None else requested[0]
+                ),
+                requested_enabled=(
+                    None if requested is None else requested[1]
+                ),
+                requested_material_binding_valid=(
+                    None if requested is None else requested[2]
+                ),
+                epochs=tuple(epochs),
+            )
 
     def stage_key(
         self,
