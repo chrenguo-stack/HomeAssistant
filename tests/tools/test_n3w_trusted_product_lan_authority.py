@@ -4,6 +4,7 @@ import importlib.util
 import io
 import ipaddress
 import json
+import shutil
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -120,3 +121,22 @@ def test_apply_unavailable_is_successful_fail_closed_publication(monkeypatch, tm
     assert observed["available"] is False
     result = json.loads(output.getvalue())
     assert result["status"] == "FAIL_CLOSED"
+
+
+def test_installed_extensionless_broker_guard_loader(tmp_path: Path) -> None:
+    installed_broker = tmp_path / "n3w-broker-ingress-guard"
+    installed_authority = tmp_path / "n3w-trusted-product-lan-authority"
+    shutil.copy2(
+        TOOLS / "n3w_broker_ingress_guard.py",
+        installed_broker,
+    )
+    shutil.copy2(
+        TOOLS / "n3w_trusted_product_lan_authority.py",
+        installed_authority,
+    )
+    sys.modules.pop("n3w_broker_ingress_guard", None)
+    module = _load(
+        "installed_trusted_product_lan_authority",
+        installed_authority,
+    )
+    assert module.broker_guard.INTERFACE == "eth0"
