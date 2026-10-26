@@ -5,7 +5,8 @@ import queue
 import secrets
 import threading
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 try:
@@ -32,6 +33,23 @@ class DynsecError(RuntimeError):
 
 class DynsecOutcomeUncertain(DynsecError):
     """The Broker may have applied a command whose response was not proven."""
+
+
+@dataclass(frozen=True, slots=True)
+class DynsecPlanInspection:
+    client_present: bool
+    role_present: bool
+    client_matches: bool
+    role_matches: bool
+
+    @property
+    def exact_match(self) -> bool:
+        return (
+            self.client_present
+            and self.role_present
+            and self.client_matches
+            and self.role_matches
+        )
 
 
 class DynsecRollbackError(DynsecError):
@@ -310,6 +328,133 @@ class DynsecProvisioner:
             aliases=("rolename", "name"),
         )
         return plan.username in clients, plan.role_name in roles
+
+    @staticmethod
+    def _detail(
+        response: Mapping[str, Any],
+        *,
+        nested_key: str,
+    ) -> Mapping[str, Any]:
+        data = response.get("data")
+        if not isinstance(data, Mapping):
+            raise DynsecError("Dynamic Security detail payload is missing")
+        nested = data.get(nested_key)
+        if nested is None:
+            return data
+        if not isinstance(nested, Mapping):
+            raise DynsecError("Dynamic Security detail payload is invalid")
+        return nested
+
+    @staticmethod
+    def _role_bindings(value: object) -> tuple[tuple[str, int], ...]:
+        if not isinstance(value, list):
+            raise DynsecError("Dynamic Security client roles are invalid")
+        bindings: list[tuple[str, int]] = []
+        for item in value:
+            if not isinstance(item, Mapping):
+                raise DynsecError("Dynamic Security client role is invalid")
+            name = item.get("rolename")
+            priority = item.get("priority")
+            if (
+                not isinstance(name, str)
+                or not isinstance(priority, int)
+                or isinstance(priority, bool)
+            ):
+                raise DynsecError("Dynamic Security client role is invalid")
+            bindings.append((name, priority))
+        if len(bindings) != len(set(bindings)):
+            raise DynsecError("Dynamic Security client roles contain duplicates")
+        return tuple(sorted(bindings))
+
+    @staticmethod
+    def _acl_bindings(value: object) -> tuple[tuple[str, str, bool, int], ...]:
+        if not isinstance(value, list):
+            raise DynsecError("Dynamic Security role ACLs are invalid")
+        bindings: list[tuple[str, str, bool, int]] = []
+        for item in value:
+            if not isinstance(item, Mapping):
+                raise DynsecError("Dynamic Security role ACL is invalid")
+            acl_type = item.get("acltype")
+            topic = item.get("topic")
+            allow = item.get("allow")
+            priority = item.get("priority")
+            if (
+                not isinstance(acl_type, str)
+                or not isinstance(topic, str)
+                or not isinstance(allow, bool)
+                or not isinstance(priority, int)
+                or isinstance(priority, bool)
+            ):
+                raise DynsecError("Dynamic Security role ACL is invalid")
+            bindings.append((acl_type, topic, allow, priority))
+        if len(bindings) != len(set(bindings)):
+            raise DynsecError("Dynamic Security role ACLs contain duplicates")
+        return tuple(sorted(bindings))
+
+    def inspect_plan(
+        self,
+        plan: NodeProvisioningPlan,
+    ) -> DynsecPlanInspection:
+        client_present, role_present = self._target_presence(plan)
+
+        client_matches = False
+        if client_present:
+            response = self.transport.execute(
+                (
+                    {
+                        "command": "getClient",
+                        "username": plan.username,
+                    },
+                )
+            )[0]
+            client = self._detail(
+                response,
+                nested_key="client",
+            )
+            client_matches = (
+                client.get("username") == plan.username
+                and client.get("clientid") == plan.client_id
+                and self._role_bindings(client.get("roles"))
+                == ((plan.role_name, 100),)
+            )
+
+        role_matches = False
+        if role_present:
+            response = self.transport.execute(
+                (
+                    {
+                        "command": "getRole",
+                        "rolename": plan.role_name,
+                    },
+                )
+            )[0]
+            role = self._detail(
+                response,
+                nested_key="role",
+            )
+            expected_acls = tuple(
+                sorted(
+                    (
+                        acl.acl_type,
+                        acl.topic,
+                        acl.allow,
+                        acl.priority,
+                    )
+                    for acl in plan.acls
+                )
+            )
+            role_matches = (
+                role.get("rolename") == plan.role_name
+                and self._acl_bindings(role.get("acls"))
+                == expected_acls
+            )
+
+        return DynsecPlanInspection(
+            client_present=client_present,
+            role_present=role_present,
+            client_matches=client_matches,
+            role_matches=role_matches,
+        )
 
     def deprovision(self, plan: IdentityPlan) -> None:
         client_response = self.transport.execute(({"command": "listClients"},))[0]
