@@ -123,6 +123,10 @@ def initialize_first_registration_ledger(connection: sqlite3.Connection) -> None
 
         CREATE INDEX IF NOT EXISTS first_registration_attempts_reconciliation
             ON first_registration_attempts(state, cleanup_state, expires_at);
+
+        CREATE UNIQUE INDEX IF NOT EXISTS first_registration_attempts_one_active
+            ON first_registration_attempts((1))
+            WHERE state = 'ACTIVE';
         """
     )
 
@@ -153,6 +157,26 @@ class FirstRegistrationLedger:
         if expires <= opened:
             raise ValueError("attempt deadline must be after opened_at")
         with self._write():
+            if self._row(pairing_id) is not None:
+                raise FirstRegistrationLedgerConflict(
+                    "first registration pairing_id already exists"
+                )
+            unresolved = self._connection.execute(
+                """
+                SELECT pairing_id
+                FROM first_registration_attempts
+                WHERE state = 'ACTIVE'
+                   OR (
+                        state IN ('EXPIRED', 'RESTART_INVALIDATED')
+                        AND cleanup_state != 'COMPLETE'
+                   )
+                LIMIT 1
+                """
+            ).fetchone()
+            if unresolved is not None:
+                raise FirstRegistrationLedgerConflict(
+                    "first registration predecessor is unresolved"
+                )
             try:
                 self._connection.execute(
                     """
