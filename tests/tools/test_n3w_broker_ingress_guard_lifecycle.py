@@ -158,18 +158,27 @@ def test_dispatcher_does_not_accept_event_subnet_as_authority() -> None:
 def test_systemd_persistence_installer_enables_all_units_without_starting_them() -> None:
     script = read(PERSISTENCE_INSTALLER)
 
-    enable = '/usr/bin/systemctl enable "$GUARD" "$ACTIVATION" "$SERVICES" "$CERT_TIMER"'
+    enable = (
+        '/usr/bin/systemctl enable "$GUARD" "$REGISTRATION_GUARD" '
+        '"$ACTIVATION" "$SERVICES" "$CERT_TIMER"'
+    )
     guard_check = '/usr/bin/systemctl is-enabled "$GUARD"'
+    registration_guard_check = (
+        '/usr/bin/systemctl is-enabled "$REGISTRATION_GUARD"'
+    )
     activation_check = '/usr/bin/systemctl is-enabled "$ACTIVATION"'
     services_check = '/usr/bin/systemctl is-enabled "$SERVICES"'
 
     assert enable in script
     assert guard_check in script
+    assert registration_guard_check in script
     assert activation_check in script
     assert script.index(enable) < script.index(guard_check)
+    assert script.index(enable) < script.index(registration_guard_check)
     assert script.index(enable) < script.index(activation_check)
     assert script.index(enable) < script.index(services_check)
     assert '"$guard_state" = "enabled"' in script
+    assert '"$registration_guard_state" = "enabled"' in script
     assert '"$activation_state" = "enabled"' in script
     assert '"$services_state" = "enabled"' in script
     assert "SERVICES_ACTIVATION_ENABLED=%s" in script
@@ -183,9 +192,16 @@ def test_systemd_persistence_installer_enables_all_units_without_starting_them()
 def test_fresh_staged_installer_keeps_production_activation_disabled() -> None:
     script = read(FRESH_STAGED_INSTALLER)
 
-    assert '/usr/bin/systemctl enable "$GUARD" "$PROVISION"' in script
-    assert '/usr/bin/systemctl disable "$ACTIVATION" "$SERVICES" "$CERT_TIMER"' not in script
+    assert (
+        '/usr/bin/systemctl enable "$GUARD" "$REGISTRATION_GUARD" "$PROVISION"'
+        in script
+    )
+    assert (
+        '/usr/bin/systemctl disable "$ACTIVATION" "$SERVICES" "$CERT_TIMER"'
+        not in script
+    )
     assert '"$guard_state" = "enabled"' in script
+    assert '"$registration_guard_state" = "enabled"' in script
     assert '"$provision_state" = "enabled"' in script
     assert '"$activation_state" != "enabled"' in script
     assert '"$services_state" != "enabled"' in script
