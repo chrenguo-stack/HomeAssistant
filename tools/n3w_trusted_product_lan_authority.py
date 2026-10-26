@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.machinery
 import importlib.util
 import json
 import os
@@ -18,9 +19,13 @@ def _load_broker_guard():
         return module
     except ModuleNotFoundError:
         path = Path(__file__).with_name("n3w-broker-ingress-guard")
-        spec = importlib.util.spec_from_file_location(
+        loader = importlib.machinery.SourceFileLoader(
             "n3w_broker_ingress_guard",
-            path,
+            str(path),
+        )
+        spec = importlib.util.spec_from_loader(
+            "n3w_broker_ingress_guard",
+            loader,
         )
         if spec is None or spec.loader is None:
             raise
