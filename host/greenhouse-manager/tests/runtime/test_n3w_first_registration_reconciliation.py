@@ -573,6 +573,51 @@ def test_registration_cleanup_missing_history_fails_atomically(
     assert failed.cleanup_state is FirstRegistrationCleanupState.FAILED
 
 
+def test_startup_reconciles_active_attempt_as_restart_invalidated(
+    harness: Harness,
+) -> None:
+    harness.open_attempt()
+
+    results = harness.reconciler.reconcile_startup(
+        now=NOW + timedelta(seconds=10),
+    )
+
+    assert len(results) == 1
+    result = results[0]
+    assert (
+        result.classification
+        is FirstRegistrationCommitClassification.DEFINITELY_NOT_COMMITTED
+    )
+    assert result.state is FirstRegistrationAttemptState.RESTART_INVALIDATED
+    assert result.cleanup_state is FirstRegistrationCleanupState.COMPLETE
+    terminal = harness.registration.first_registration_ledger().get(
+        PAIRING_ID
+    )
+    assert terminal.terminal_reason == "replay_detected"
+
+
+def test_startup_raises_for_terminal_failed_attempt(
+    harness: Harness,
+) -> None:
+    harness.open_attempt()
+    ledger = harness.registration.first_registration_ledger()
+    ledger.terminalize_not_committed(
+        PAIRING_ID,
+        state=FirstRegistrationAttemptState.RESTART_INVALIDATED,
+        cleanup_state=FirstRegistrationCleanupState.FAILED,
+        terminal_at=NOW + timedelta(seconds=10),
+        terminal_reason="replay_detected",
+    )
+
+    with pytest.raises(
+        FirstRegistrationReconciliationError,
+        match="first-registration startup reconciliation failed closed",
+    ):
+        harness.reconciler.reconcile_startup(
+            now=NOW + timedelta(seconds=20),
+        )
+
+
 def test_dynsec_plan_inspector_rejects_client_binding_drift(
     harness: Harness,
 ) -> None:
