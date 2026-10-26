@@ -712,6 +712,36 @@ DynSec:
   client-role assignment and role ACL structure match the deterministic plan
 ```
 
+R2B read-only oracle seams are frozen before implementation:
+
+1. **RegistrationRegistry exact pairing snapshot**
+   - add an internal/read-only lookup keyed by exact `pairing_id`; do not recover this state by scanning `list_current()` or guessing from hardware ID;
+   - the snapshot must expose the exact pairing session, raw hardware ID for internal hash verification, whether this pairing is the current registration pointer, node ID, registration state, and the node-lease owner/state;
+   - COMMITTED requires the pairing to be current, hardware hash and node ID to match the ledger, registration state `APPROVED`, and the exact node lease to be `ACTIVE` **for the same hardware ID**;
+   - missing rows are explicit absence; read/schema inconsistency is not absence and propagates UNKNOWN;
+   - raw hardware ID stays internal to reconciliation and is not emitted in public diagnostics.
+
+2. **CredentialLifecycle exact pairing snapshot**
+   - add a secret-free lookup keyed by exact `pairing_id`, returning assignment identity, hardware ID, node ID, state, active generation and pending generation;
+   - because the current schema does not make `pairing_id` unique, zero matches means absent, exactly one means inspectable, and more than one is contradictory/UNKNOWN rather than “pick latest”;
+   - COMMITTED requires exactly one matching ACTIVE assignment with ledger node ID, generation 1 and no pending generation;
+   - an ACTIVE assignment for the same hardware/node under a different pairing ID, or a malformed/ambiguous exact-pairing result, is contradictory evidence and cannot satisfy DEFINITELY_NOT_COMMITTED.
+
+3. **Application-key exact node/epoch snapshot**
+   - add a secret-free snapshot keyed by exact `node_id + key_epoch`; it may verify the key file internally but must never return key bytes;
+   - the snapshot must report exact epoch existence/state/enabled status, verify the referenced key file and stored SHA-256 binding when material is expected to exist, and report all ACTIVE/GRACE epochs for the same node so conflicts cannot be hidden;
+   - COMMITTED requires the recorded epoch to be exactly ACTIVE/enabled, key-file binding valid, and no conflicting ACTIVE/GRACE epoch;
+   - missing/corrupt/unreadable key metadata or file material is UNKNOWN, not a successful COMMITTED oracle.
+
+4. **DynSec deterministic exact-plan inspector**
+   - name presence from `listClients`/`listRoles` alone is insufficient;
+   - successful inventories establish readable presence/absence. If expected names are present, inspect them with exact `getClient` and `getRole` reads;
+   - compare username, client ID, exact role assignment/priority, and the role ACL set against `build_node_provisioning_plan(system_id, node_id, generation=1)`; missing, extra or changed ACL/role structure is a mismatch;
+   - password material is neither readable nor required by this oracle;
+   - transport/read/shape errors propagate UNKNOWN. A generic `getClient`/`getRole` error must not be silently treated as “absent”.
+
+All four oracles are observation-only. They must not repair, provision, revoke, rotate, delete or normalize state while classification is in progress.
+
 If all are true **and the durable phase is COMMITTING**, a crash after underlying credential commit but before the ledger update is recovered by promoting the ledger to `COMMITTED`. This is the only crash-recovery path that preserves the old transaction as success. Cross-store state that happens to look consistent without a durable COMMITTING receipt claim is ambiguous and does not qualify.
 
 Commit recovery uses a three-valued classification:
@@ -1763,6 +1793,11 @@ PRECLASSIFICATION_GUARD_MAY_NOT_DESTROY_COMMIT_ORACLE_EVIDENCE=true
 RECONCILIATION_LISTENERS_READY_ONLY_AFTER_CLASSIFICATION=true
 ACK_SUCCESS_REQUIRES_DURABLE_LEDGER_COMMITTED=true
 EXACT_CROSS_STORE_COMMIT_ORACLE=true
+REGISTRATION_PAIRING_ORACLE=EXACT_PAIRING_PLUS_CURRENT_POINTER_PLUS_LEASE_OWNER
+CREDENTIAL_PAIRING_ORACLE=EXACT_PAIRING_ZERO_ONE_OR_CONTRADICTORY
+APPLICATION_KEY_ORACLE=SECRET_FREE_EXACT_NODE_EPOCH_PLUS_KEY_BINDING_AND_RUNTIME_CONFLICTS
+DYNSEC_ORACLE=EXACT_GETCLIENT_GETROLE_PLAN_STRUCTURE
+CLASSIFICATION_ORACLES_ARE_READ_ONLY=true
 RECONCILIATION_CLASSIFICATION=COMMITTED_OR_DEFINITELY_NOT_COMMITTED_OR_UNKNOWN
 AUTOMATIC_DESTRUCTIVE_CLEANUP_REQUIRES_DEFINITELY_NOT_COMMITTED=true
 UNKNOWN_RECONCILIATION_FAILS_REGISTRATION_CLOSED=true
@@ -1822,7 +1857,7 @@ The focused closure review must independently verify:
 - 47110 durable `ACTIVE` attempt commit happens before `accepted=true`;
 - the ledger stores no Setup Secret/credential/key material and closes restart-before-`/hello` replay;
 - restart/deadline reconciliation covers PENDING registration, automatic NODE_ID lease, DynSec identity, staged/temporarily-active application key and exact MQTT generation-1 commit state;
-- destructive DynSec/key cleanup requires both durable prestate-absent proof and durable BUNDLE_STAGED-or-later completion proof; target presence alone cannot authorize deletion;
+- destructive DynSec/key cleanup requires both durable prestate-absent proof and durable stage-completion proof that survives terminalization; target presence alone cannot authorize deletion;
 - the ledger shares the RegistrationRegistry SQLite database for atomic local transitions; no sidecar ledger database is allowed;
 - commit recovery requires a prior durable COMMITTING receipt claim, and 47112 cannot return committed success before exact oracle PASS + durable ledger COMMITTED;
 - the exact cross-store commit oracle distinguishes commit-complete/ledger-lag from stranded pre-commit state;
