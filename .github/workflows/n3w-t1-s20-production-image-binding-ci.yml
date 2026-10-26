@@ -29,6 +29,7 @@ jobs:
       contains(github.event.pull_request.labels.*.name, 'ci-ready') ||
       contains(github.event.pull_request.body, 'CI_READY=true')
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     env:
       MANAGER_SOURCE_SHA: 511db028780988a7c07cb9342c8be507380bae0f
       MANAGER_IMAGE_TAG: local/greenhouse-manager:s20-511db028
