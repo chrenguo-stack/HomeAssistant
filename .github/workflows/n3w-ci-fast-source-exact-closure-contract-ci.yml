@@ -9,6 +9,7 @@ on:
       - ".github/workflows/n3w-t1-production-manager-state-binding-ci.yml"
       - ".github/workflows/n3w-t1-production-stack-staging-payload-ci.yml"
       - ".github/workflows/n3w-t1-s20-production-image-binding-ci.yml"
+      - ".github/workflows/n3w-t1-s20-real-service-handoff-ci.yml"
       - "tests/tools/test_n3w_ci_fast_source_gate_exact_closure.py"
       - "docs/development/N3W_CI_FAST_SOURCE_GATE_AND_EXACT_CLOSURE_SPLIT_V1_20261026.md"
       - "docs/development/N3W_CI_POLICY_MANIFEST_V1.json"
@@ -16,6 +17,8 @@ on:
       - "docs/skills/greenhouse-github-development-efficiency/SKILL.md"
       - "tools/n3w_ci_policy_check.py"
       - "tests/tools/test_n3w_ci_policy_check.py"
+      - "tests/tools/test_n3w_t1_s20_real_service_handoff_ci_contract.py"
+      - "docs/development/N3W_T1_S20_CI_UPSTREAM_IMAGE_IDENTITY_REPAIR_20261027.md"
   push:
     branches:
       - main
@@ -26,6 +29,7 @@ on:
       - ".github/workflows/n3w-t1-production-manager-state-binding-ci.yml"
       - ".github/workflows/n3w-t1-production-stack-staging-payload-ci.yml"
       - ".github/workflows/n3w-t1-s20-production-image-binding-ci.yml"
+      - ".github/workflows/n3w-t1-s20-real-service-handoff-ci.yml"
       - "tests/tools/test_n3w_ci_fast_source_gate_exact_closure.py"
       - "docs/development/N3W_CI_FAST_SOURCE_GATE_AND_EXACT_CLOSURE_SPLIT_V1_20261026.md"
       - "docs/development/N3W_CI_POLICY_MANIFEST_V1.json"
@@ -33,6 +37,8 @@ on:
       - "docs/skills/greenhouse-github-development-efficiency/SKILL.md"
       - "tools/n3w_ci_policy_check.py"
       - "tests/tools/test_n3w_ci_policy_check.py"
+      - "tests/tools/test_n3w_t1_s20_real_service_handoff_ci_contract.py"
+      - "docs/development/N3W_T1_S20_CI_UPSTREAM_IMAGE_IDENTITY_REPAIR_20261027.md"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -55,3 +61,5 @@ jobs:
         env:
           PYTHONPATH: .
         run: python tests/tools/test_n3w_ci_policy_check.py
+      - name: Verify S20 CI image identity contract
+        run: python tests/tools/test_n3w_t1_s20_real_service_handoff_ci_contract.py
