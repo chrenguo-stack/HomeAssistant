@@ -23,7 +23,6 @@ from greenhouse_manager.runtime.n3w_first_registration_reconciliation import (
 from greenhouse_manager.runtime.n3w_node_application_keys import SqliteNodeApplicationKeyAdmin
 from greenhouse_manager.runtime.registration import RegistrationRegistry, RegistrationState
 
-
 NOW = datetime(2026, 10, 26, 12, 0, tzinfo=UTC)
 HARDWARE_ID = "ghw-c6-98a316a9f2f8"
 PAIRING_ID = "c83aeb0d-8f48-4a39-a34b-ea584a588475"
