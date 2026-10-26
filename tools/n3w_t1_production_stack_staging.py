@@ -64,7 +64,7 @@ HA_TAR_NAME = "homeassistant-arm64.tar"
 BROKER_TAR_NAME = "broker-arm64.tar"
 MIN_ROOT_AVAILABLE_BYTES = 5 * 1024 * 1024 * 1024
 
-PORTS_TCP = (1883, 8883, 18883, 8123, 47112)
+PORTS_TCP = (1883, 8883, 18883, 8123, 47110, 47112)
 PORTS_UDP = (47111,)
 NETWORKS = ("n3wfc4-private", "n3wfc4-services")
 ACTIVATION_UNITS = (
@@ -72,6 +72,9 @@ ACTIVATION_UNITS = (
     "n3wfc4-services-activation.service",
 )
 DISPATCHER = Path("/etc/NetworkManager/dispatcher.d/90-n3wfc4-broker-ingress-guard")
+REGISTRATION_GUARD_UNIT = "n3wfc4-registration-ingress-guard.service"
+REGISTRATION_CHAIN = "N3WFC4-REGISTRATION-INGRESS"
+REGISTRATION_COMMENT = "n3wfc4-registration-ingress-v1"
 
 MANAGER_ROOT = Path("/var/lib/greenhouse-manager")
 MANAGER_DIR = MANAGER_ROOT / "manager"
@@ -305,7 +308,63 @@ def _listener_counts(runner: Runner) -> dict[str, int]:
     return result
 
 
-def _guard_contract(runner: Runner) -> dict[str, bool]:
+def _registration_guard_contract(
+    runner: Runner,
+    input_appends: list[str],
+) -> dict[str, bool]:
+    active = runner.run(
+        ("systemctl", "is-active", REGISTRATION_GUARD_UNIT)
+    ).strip()
+    enabled = runner.run(
+        ("systemctl", "is-enabled", REGISTRATION_GUARD_UNIT)
+    ).strip()
+    if active != "active" or enabled != "enabled":
+        raise StagingError("registration_guard_state_drift")
+
+    expected_anchors = (
+        "-A INPUT -p tcp -m tcp --dport 47110 "
+        "-m comment --comment n3wfc4-registration-ingress-v1 "
+        "-j N3WFC4-REGISTRATION-INGRESS",
+        "-A INPUT -p udp -m udp --dport 47111 "
+        "-m comment --comment n3wfc4-registration-ingress-v1 "
+        "-j N3WFC4-REGISTRATION-INGRESS",
+        "-A INPUT -p tcp -m tcp --dport 47112 "
+        "-m comment --comment n3wfc4-registration-ingress-v1 "
+        "-j N3WFC4-REGISTRATION-INGRESS",
+    )
+    if tuple(input_appends[1:4]) != expected_anchors:
+        raise StagingError("registration_guard_input_anchor_drift")
+    if (
+        sum(REGISTRATION_COMMENT in line for line in input_appends)
+        != len(expected_anchors)
+    ):
+        raise StagingError("registration_guard_input_anchor_count_drift")
+
+    rules = runner.run(("iptables", "-S", REGISTRATION_CHAIN)).splitlines()
+    appends = [
+        line
+        for line in rules
+        if line.startswith(f"-A {REGISTRATION_CHAIN} ")
+    ]
+    if len(appends) not in {1, 2}:
+        raise StagingError("registration_guard_rule_count_drift")
+    if appends[-1] != f"-A {REGISTRATION_CHAIN} -m comment --comment {REGISTRATION_COMMENT} -j DROP":
+        raise StagingError("registration_guard_terminal_drop_drift")
+    if len(appends) == 2:
+        allow_pattern = re.compile(
+            rf"^-A {REGISTRATION_CHAIN} -i eth0 -s "
+            r"(?P<subnet>(?:\d{1,3}\.){3}\d{1,3}/\d{1,2}) "
+            rf"-m comment --comment {REGISTRATION_COMMENT} -j RETURN$"
+        )
+        match = allow_pattern.fullmatch(appends[0])
+        if match is None:
+            raise StagingError("registration_guard_allow_rule_drift")
+        if match.group("subnet").startswith("127."):
+            raise StagingError("registration_guard_loopback_forbidden")
+    return {"active": True, "enabled": True, "exact": True}
+
+
+def _guard_contract(runner: Runner) -> dict[str, Any]:
     active = runner.run(
         ("systemctl", "is-active", "n3wfc4-broker-ingress-guard.service")
     ).strip()
@@ -334,7 +393,13 @@ def _guard_contract(runner: Runner) -> dict[str, bool]:
         raise StagingError("guard_docker_anchor_count_drift")
     if not ingress_appends or not ingress_appends[-1].endswith("-j DROP"):
         raise StagingError("guard_terminal_drop_drift")
-    return {"active": True, "enabled": True, "exact": True}
+    registration = _registration_guard_contract(runner, input_appends)
+    return {
+        "active": True,
+        "enabled": True,
+        "exact": True,
+        "registration": registration,
+    }
 
 
 def _manager_database_report() -> dict[str, Any]:
