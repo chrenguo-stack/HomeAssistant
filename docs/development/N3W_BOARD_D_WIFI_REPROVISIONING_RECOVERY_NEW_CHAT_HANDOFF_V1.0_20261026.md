@@ -734,3 +734,59 @@ HANDOFF_READY_FOR_NEW_CHAT=true
 
 === END ===
 ```
+
+
+---
+
+## 19. Executed Wi-Fi Recovery Closure — 2026-10-26
+
+```text
+=== N3W_T1_BOARD_D_WIFI_REPROVISIONING_RECOVERY CLOSURE ===
+
+EXECUTION_ID=N3W_T1_BOARD_D_WIFI_REPROVISIONING_RECOVERY_20261026_01
+AUTHORIZATION=N3W_T1_BOARD_D_WIFI_REPROVISIONING_RECOVERY_20261026_01
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+
+MAIN=507dbd49495c558b1344f7d713938b733b3bad18
+BOARD_D_IDENTITY_BOUND=true
+PRECHANGE_FALLBACK_AP=PASS
+PRECHANGE_LCD=PASS
+PRECHANGE_T1_PAIRING_CLOSED=true
+PRECHANGE_T1_FIRST_PAIR_CLEAN=true
+
+WIFI_PROVISIONING_STARTED=true
+WIFI_PROVISIONING_RESULT=PASS
+BOARD_D_STA_RECONNECTED=true
+BOARD_D_MDNS_DISCOVERY=PASS:gh-912224
+BOARD_D_NATIVE_API_LIVENESS=PASS:TCP_6053
+BOARD_D_LCD_HEALTHY=true
+FALLBACK_AP_POSTSTATE=GONE
+
+POST_T1_PAIRING_CLOSED=true
+POST_T1_FIRST_PAIR_CLEAN=true
+
+FLASH_WRITE=false
+NVS_ERASE=false
+RAW_NVS_RESTORE=false
+T1_RUNTIME_MUTATION=false
+PAIRING_EXECUTION=false
+SETUP_SECRET_TRANSFER=false
+
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=true
+
+WIFI_REPROVISIONING_GATE_RESULT=CLOSED_PASS
+NEXT_ROUTE=N3W_T1_BOARD_D_FIRST_PAIR_PREPARATION_AND_NEW_AUTHORIZATION
+STOP=true
+
+=== END ===
+```
+
+Closure notes:
+
+- The single authorized captive-portal Wi-Fi reprovisioning attempt was executed once and is non-replayable.
+- Fresh mDNS discovery resolved `gh-912224._esphomelib._tcp.local.` to `gh-912224.local.:6053`; TCP reachability to the discovered ESPHome Native API endpoint passed.
+- Final T1 onboarding inspect remained PASS with pairing window CLOSED, UDP/HTTP pairing listeners 0, all first-pair/security counts 0, no transaction/successor recovery, Broker/Manager/Home Assistant running with restart_count 0, and `mutation=false`.
+- This closure does not authorize or execute pairing-window activation, Setup Secret transfer, first pair, MQTT/HA acceptance, Direct/Relay acceptance, or RF acceptance.
+- Per the frozen handoff, the next stage is preparation plus a new authorization for first pair; it must not auto-start from this closure.
