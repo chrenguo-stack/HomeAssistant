@@ -4,6 +4,7 @@ import importlib.util
 import io
 import ipaddress
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -222,3 +223,24 @@ def test_registration_guard_rejects_duplicate_rule_false_pass() -> None:
         match="registration_anchor_order_invalid",
     ):
         registration._validate_prestate(inventory)
+
+
+def test_installed_registration_guard_loads_extensionless_broker_guard(
+    tmp_path: Path,
+) -> None:
+    installed_broker = tmp_path / "n3w-broker-ingress-guard"
+    installed_guard = tmp_path / "n3w-registration-ingress-guard"
+    shutil.copy2(
+        TOOLS / "n3w_broker_ingress_guard.py",
+        installed_broker,
+    )
+    shutil.copy2(
+        TOOLS / "n3w_registration_ingress_guard.py",
+        installed_guard,
+    )
+    sys.modules.pop("n3w_broker_ingress_guard", None)
+    module = _load(
+        "installed_registration_ingress_guard",
+        installed_guard,
+    )
+    assert module.broker_guard.INTERFACE == "eth0"
