@@ -652,3 +652,44 @@ def test_guard_contract_rejects_registration_anchor_order_drift() -> None:
         match="registration_guard_input_anchor_drift",
     ):
         tool._guard_contract(runner)
+
+
+def test_guard_contract_rejects_invalid_registration_allow_subnet() -> None:
+    tool = load_tool()
+    runner = _registration_guard_runner(tool)
+    original = runner.run
+
+    def invalid_subnet(command, **kwargs):
+        result = original(command, **kwargs)
+        if command == ("iptables", "-S", tool.REGISTRATION_CHAIN):
+            return result.replace("192.0.2.0/24", "999.999.999.999/99")
+        return result
+
+    runner.run = invalid_subnet
+    with pytest.raises(
+        tool.StagingError,
+        match="registration_guard_allow_rule_drift",
+    ):
+        tool._guard_contract(runner)
+
+
+def test_guard_contract_accepts_quoted_registration_comment_tokens() -> None:
+    tool = load_tool()
+    runner = _registration_guard_runner(tool)
+    original = runner.run
+
+    def quoted(command, **kwargs):
+        result = original(command, **kwargs)
+        if command in {
+            ("iptables", "-S", "INPUT"),
+            ("iptables", "-S", tool.REGISTRATION_CHAIN),
+        }:
+            return result.replace(
+                "n3wfc4-registration-ingress-v1",
+                '"n3wfc4-registration-ingress-v1"',
+            )
+        return result
+
+    runner.run = quoted
+    report = tool._guard_contract(runner)
+    assert report["registration"]["exact"] is True
