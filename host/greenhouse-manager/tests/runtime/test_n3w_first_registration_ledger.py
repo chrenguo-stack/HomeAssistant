@@ -10,6 +10,7 @@ import pytest
 from greenhouse_manager.runtime.n3w_first_registration_ledger import (
     FirstRegistrationAttemptState,
     FirstRegistrationCleanupState,
+    FirstRegistrationLedger,
     FirstRegistrationLedgerConflict,
     FirstRegistrationPhase,
 )
@@ -316,9 +317,12 @@ def test_restart_invalidated_attempt_stays_reconcilable_until_cleanup_complete(
         assert failed.cleanup_state is FirstRegistrationCleanupState.FAILED
         assert ledger.list_reconcilable() == (failed,)
 
-        complete = ledger.mark_cleanup_complete(PAIRING_ID)
-        assert complete.cleanup_state is FirstRegistrationCleanupState.COMPLETE
-        assert ledger.list_reconcilable() == ()
+        with pytest.raises(
+            FirstRegistrationLedgerConflict,
+            match="cleanup transition invalid",
+        ):
+            ledger.mark_cleanup_complete(PAIRING_ID)
+        assert ledger.list_reconcilable() == (failed,)
     finally:
         registry.close()
 
@@ -444,10 +448,6 @@ def test_reader_rejects_corrupt_cross_field_state() -> None:
         FirstRegistrationLedgerConflict,
         match="ledger record is corrupt",
     ):
-        from greenhouse_manager.runtime.n3w_first_registration_ledger import (
-            FirstRegistrationLedger,
-        )
-
         FirstRegistrationLedger._attempt(row)
 
 
@@ -472,8 +472,97 @@ def test_reader_rejects_invalid_deadline() -> None:
         FirstRegistrationLedgerConflict,
         match="ledger record is corrupt",
     ):
-        from greenhouse_manager.runtime.n3w_first_registration_ledger import (
-            FirstRegistrationLedger,
-        )
-
         FirstRegistrationLedger._attempt(row)
+
+
+def test_ownership_prestate_requires_hello_observed(tmp_path) -> None:
+    registry, ledger = _ledger(tmp_path)
+    try:
+        ledger.create_active(
+            pairing_id=PAIRING_ID,
+            hardware_id_sha256=HARDWARE_SHA256,
+            opened_at=NOW,
+            expires_at=NOW + timedelta(seconds=1800),
+        )
+        with pytest.raises(
+            FirstRegistrationLedgerConflict,
+            match="ownership proof phase invalid",
+        ):
+            ledger.record_dynsec_prestate(
+                PAIRING_ID,
+                node_id="node-0001",
+                absent=True,
+            )
+        with pytest.raises(
+            FirstRegistrationLedgerConflict,
+            match="ownership proof phase invalid",
+        ):
+            ledger.record_application_key_prestate(
+                PAIRING_ID,
+                node_id="node-0001",
+                absent=True,
+            )
+    finally:
+        registry.close()
+
+
+@pytest.mark.parametrize(
+    ("state", "wrong_reason"),
+    (
+        (FirstRegistrationAttemptState.EXPIRED, "replay_detected"),
+        (FirstRegistrationAttemptState.RESTART_INVALIDATED, "expired"),
+    ),
+)
+def test_terminal_state_requires_exact_reason(
+    tmp_path,
+    state,
+    wrong_reason,
+) -> None:
+    registry, ledger = _ledger(tmp_path)
+    try:
+        ledger.create_active(
+            pairing_id=PAIRING_ID,
+            hardware_id_sha256=HARDWARE_SHA256,
+            opened_at=NOW,
+            expires_at=NOW + timedelta(seconds=1800),
+        )
+        with pytest.raises(ValueError, match="terminal_reason is invalid"):
+            ledger.terminalize_not_committed(
+                PAIRING_ID,
+                state=state,
+                cleanup_state=FirstRegistrationCleanupState.REQUIRED,
+                terminal_at=NOW + timedelta(seconds=10),
+                terminal_reason=wrong_reason,
+            )
+    finally:
+        registry.close()
+
+
+def test_database_rejects_terminal_reason_state_mismatch(tmp_path) -> None:
+    registry, _ledger_instance = _ledger(tmp_path)
+    try:
+        with pytest.raises(sqlite3.IntegrityError):
+            registry._connection.execute(
+                """
+                INSERT INTO first_registration_attempts (
+                    pairing_id,
+                    hardware_id_sha256,
+                    opened_at,
+                    expires_at,
+                    state,
+                    phase,
+                    cleanup_state,
+                    terminal_at,
+                    terminal_reason
+                ) VALUES (?, ?, ?, ?, 'EXPIRED', 'TERMINAL', 'REQUIRED', ?, 'replay_detected')
+                """,
+                (
+                    PAIRING_ID,
+                    HARDWARE_SHA256,
+                    NOW.isoformat(),
+                    (NOW + timedelta(seconds=1800)).isoformat(),
+                    (NOW + timedelta(seconds=10)).isoformat(),
+                ),
+            )
+    finally:
+        registry.close()
