@@ -10,6 +10,7 @@ WORKFLOWS = ROOT / ".github" / "workflows"
 HEAVY = {
     "n3w-t1-fresh-bootstrap-deployable-payload-ci.yml": "deployable-payload:",
     "n3w-t1-fresh-install-exact-arm64-ci.yml": "exact-three-image:",
+    "n3w-t1-production-manager-state-binding-ci.yml": "contract:",
     "n3w-t1-production-stack-staging-payload-ci.yml": "payload:",
     "n3w-t1-s20-production-image-binding-ci.yml": "bind-images:",
 }
@@ -41,6 +42,7 @@ class CiFastSourceExactClosureContractTest(unittest.TestCase):
                 self.assertIn("pull_request:", text)
                 self.assertIn("push:", text)
                 self.assertIn("main", text)
+                self.assertIn("timeout-minutes:", text)
                 for snippet in GATE_SNIPPETS:
                     self.assertIn(snippet, text)
 
