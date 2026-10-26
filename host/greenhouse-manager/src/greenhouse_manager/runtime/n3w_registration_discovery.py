@@ -74,13 +74,12 @@ def build_registration_udp_response(
     source_ip: str,
     candidate_for: Callable[[str], RegistrationCandidate],
     state_loader: Callable[[], TrustedProductLanState] = load_trusted_product_lan,
-    rate_limiter: SlidingWindowRateLimiter | None = None,
+    rate_limiter: SlidingWindowRateLimiter,
 ) -> bytes:
     state = state_loader()
     if not state.authorizes(source_ip):
         raise DiscoveryRejected("source_not_trusted_product_lan")
-    limiter = rate_limiter or SlidingWindowRateLimiter(limit=12, window_s=60)
-    if not limiter.allow(source_ip):
+    if not rate_limiter.allow(source_ip):
         raise DiscoveryRateLimited("registration discovery rate limited")
     query = DiscoveryQuery.from_document(decode_json_datagram(payload))
     if REGISTRATION_PROTOCOL not in query.protocols:
