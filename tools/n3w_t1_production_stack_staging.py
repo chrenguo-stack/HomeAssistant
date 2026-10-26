@@ -353,6 +353,25 @@ def _registration_guard_contract(
     ):
         raise StagingError("registration_guard_input_anchor_count_drift")
 
+    filter_table = runner.run(("iptables-save", "-t", "filter")).splitlines()
+    registration_refs: list[tuple[str, ...]] = []
+    for line in filter_table:
+        if not line.startswith("-A "):
+            continue
+        try:
+            tokens = tuple(shlex.split(line))
+        except ValueError as error:
+            raise StagingError("registration_guard_reference_parse_drift") from error
+        for index, token in enumerate(tokens[:-1]):
+            if (
+                token in {"-j", "--jump"}
+                and tokens[index + 1] == REGISTRATION_CHAIN
+            ):
+                registration_refs.append(tokens)
+                break
+    if tuple(registration_refs) != expected_anchor_tokens:
+        raise StagingError("registration_guard_foreign_reference")
+
     rules = runner.run(("iptables", "-S", REGISTRATION_CHAIN)).splitlines()
     appends = [
         line
