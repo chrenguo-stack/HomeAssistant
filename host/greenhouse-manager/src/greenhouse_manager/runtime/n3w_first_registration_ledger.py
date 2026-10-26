@@ -681,6 +681,18 @@ class FirstRegistrationLedger:
                     or terminal_reason is not None
                 ):
                     raise ValueError("committed attempt fields are invalid")
+            elif state is FirstRegistrationAttemptState.EXPIRED:
+                if (
+                    phase is not FirstRegistrationPhase.TERMINAL
+                    or cleanup_state not in {
+                        FirstRegistrationCleanupState.REQUIRED,
+                        FirstRegistrationCleanupState.COMPLETE,
+                        FirstRegistrationCleanupState.FAILED,
+                    }
+                    or terminal_at is None
+                    or terminal_reason != "expired"
+                ):
+                    raise ValueError("expired attempt fields are invalid")
             else:
                 if (
                     phase is not FirstRegistrationPhase.TERMINAL
@@ -690,9 +702,9 @@ class FirstRegistrationLedger:
                         FirstRegistrationCleanupState.FAILED,
                     }
                     or terminal_at is None
-                    or terminal_reason not in {"expired", "replay_detected"}
+                    or terminal_reason != "replay_detected"
                 ):
-                    raise ValueError("terminal attempt fields are invalid")
+                    raise ValueError("restart-invalidated attempt fields are invalid")
             if (
                 (
                     phase in {
