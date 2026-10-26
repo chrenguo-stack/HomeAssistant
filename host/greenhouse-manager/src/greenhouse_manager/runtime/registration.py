@@ -15,6 +15,11 @@ from typing import Any, Protocol
 
 from jsonschema import Draft202012Validator, FormatChecker
 
+from .n3w_first_registration_ledger import (
+    FirstRegistrationLedger,
+    initialize_first_registration_ledger,
+)
+
 HARDWARE_ID_PATTERN = re.compile(r"^ghw-[a-z0-9]+-[0-9a-f]{12}$")
 NODE_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{3,64}$")
 LOGICAL_LOCATION_ID_PATTERN = NODE_ID_PATTERN
@@ -265,6 +270,7 @@ class RegistrationRegistry:
                     ON retirement_outbox(runtime_cleanup_complete, retirement_id);
                 """
             )
+            initialize_first_registration_ledger(self._connection)
             self._migrate_node_id_leases_v07()
             self._ensure_column("registrations", "logical_location_id", "TEXT")
             self._ensure_column("registrations", "retired_at", "TEXT")
@@ -369,6 +375,9 @@ class RegistrationRegistry:
                         row["first_seen_at"],
                     ),
                 )
+
+    def first_registration_ledger(self) -> FirstRegistrationLedger:
+        return FirstRegistrationLedger(self._connection, self._lock)
 
     def close(self) -> None:
         with self._lock:
