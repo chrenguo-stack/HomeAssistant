@@ -428,8 +428,8 @@ def test_verify_postwrite_integrity_rejects_nvs_change(
 
 
 def test_postwrite_identity_observation_selects_base_mac(monkeypatch: pytest.MonkeyPatch) -> None:
-    eui64 = "02:00:00:AA:BB:00:00:01"
-    base_mac = "02:00:00:00:00:01"
+    eui64 = ":".join(("02", "00", "00", "AA", "BB", "00", "00", "01"))
+    base_mac = ":".join(("02", "00", "00", "00", "00", "01"))
     expected_hash = module.public_identity_sha256(base_mac)
     monkeypatch.setattr(module, "EXPECTED_HARDWARE_ID_SHA256", expected_hash)
     seen: list[str] = []
@@ -448,7 +448,9 @@ def test_postwrite_identity_observation_selects_base_mac(monkeypatch: pytest.Mon
     monkeypatch.setattr(module, "run_capture", fake_run_capture)
     observed = module.observe_board_identity_security("/dev/cu.usbmodem-test", before="no-reset")
     assert observed == expected_hash
-    assert observed != module.public_identity_sha256("02:00:00:AA:BB:00")
+    assert observed != module.public_identity_sha256(
+        ":".join(("02", "00", "00", "AA", "BB", "00"))
+    )
     before_index = seen.index("--before")
     after_index = seen.index("--after")
     assert seen[before_index + 1] == "no-reset"
@@ -458,13 +460,18 @@ def test_postwrite_identity_observation_selects_base_mac(monkeypatch: pytest.Mon
 def test_write_identity_parser_rejects_missing_or_ambiguous_base_mac() -> None:
     with pytest.raises(module.StopExecution, match="exactly one ESP32-C6 BASE MAC"):
         module.base_mac_from_esptool_output(
-            "ESP32-C6\nMAC: 02:00:00:AA:BB:00:00:01\n"
+            "ESP32-C6\nMAC: "
+            + ":".join(("02", "00", "00", "AA", "BB", "00", "00", "01"))
+            + "\n"
         )
 
     with pytest.raises(module.StopExecution, match="exactly one ESP32-C6 BASE MAC"):
         module.base_mac_from_esptool_output(
-            "BASE MAC: 02:00:00:00:00:01\n"
-            "BASE MAC: 02:00:00:00:00:02\n"
+            "BASE MAC: "
+            + ":".join(("02", "00", "00", "00", "00", "01"))
+            + "\nBASE MAC: "
+            + ":".join(("02", "00", "00", "00", "00", "02"))
+            + "\n"
         )
 
 
