@@ -287,6 +287,21 @@ def _validate_prestate(inventory: FirewallInventory) -> None:
         raise RegistrationIngressGuardError(
             "registration_anchors_not_exact_2_3_4"
         )
+    if inventory.registration_anchor_positions == (2, 3, 4):
+        expected = tuple(
+            _anchor_rule(protocol, port)
+            for protocol, port in PORT_RULES
+        )
+        actual = inventory.input_rules[1:4]
+        if len(actual) != len(expected):
+            raise RegistrationIngressGuardError(
+                "registration_anchor_order_invalid"
+            )
+        for observed, wanted in zip(actual, expected, strict=True):
+            if not broker_guard._rule_matches(observed, wanted):
+                raise RegistrationIngressGuardError(
+                    "registration_anchor_order_invalid"
+                )
 
 
 def validate_applied_state(
