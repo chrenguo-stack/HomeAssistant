@@ -13,8 +13,8 @@ import zipfile
 from pathlib import Path
 from typing import Iterable
 
-SCHEMA_PREFLIGHT = "n3w.board-d.r4-dual-slot-normalization-write-preflight/2"
-SCHEMA_WRITE = "n3w.board-d.r4-dual-slot-normalization-write/2"
+SCHEMA_PREFLIGHT = "n3w.board-d.r4-dual-slot-normalization-write-preflight/3"
+SCHEMA_WRITE = "n3w.board-d.r4-dual-slot-normalization-write/3"
 
 PRODUCT_SOURCE = "ec5f6d68e33db7757d91c807fff708ca81b075dc"
 PRODUCT_TREE = "16740efa8ad24d423adc0b2de32b99d56e2d23d1"
@@ -25,7 +25,7 @@ GITHUB_ARTIFACT_SHA256 = "898ef722cd4af37ae5472583b1874f7724e9444e8837462d36f4e6
 RELEASE_BUNDLE_NAME = "n3w-board-d-r4-f1rc2-ec5f6d68-exact-source.zip"
 RELEASE_BUNDLE_SHA256 = "b55aba9c3fad85da39eab63157c3de7c42f311970bfb61f8b0e9a52ddcba7dd5"
 MANIFEST_SHA256 = "173fcc978284170e0918c94269195191be0fc8a262b758851f16ee0609a638eb"
-EXPECTED_HARDWARE_ID_SHA256 = "3991b9af9e7604190a8ac8e60b780911a8faed6698cda5421eaf1eb686210df5"
+EXPECTED_HARDWARE_ID_SHA256 = "3a76b39f066e09de0a285b81319eec20f29c8fd4136b61dc5a86ace01c1e1d55"
 
 BOOTLOADER_OFFSET = 0x0
 PARTITION_TABLE_OFFSET = 0x8000
@@ -114,7 +114,7 @@ EXPECTED_MANIFEST = {
     "FLASH_ARGS_SHA256": "5dc4c4f6d568812713266e2604197cf4b68f87f49f8c6e9f7d28c84390faf713",
 }
 
-MAC_RE = re.compile(r"\bMAC:\s*([0-9a-fA-F]{2}(?::[0-9a-fA-F]{2}){5})\b")
+BASE_MAC_RE = re.compile(r"(?m)^[ \t]*BASE MAC:[ \t]*([0-9a-fA-F]{2}(?::[0-9a-fA-F]{2}){5})[ \t]*$")
 ESPTOOL_VERSION_RE = re.compile(r"\besptool(?:\.py)?\s+v?(\d+)\.(\d+)\.(\d+)\b", re.I)
 FLASH_8MB_RE = re.compile(r"Detected flash size:\s*8\s*MB\b", re.I)
 SECURE_BOOT_DISABLED_RE = re.compile(r"Secure Boot:\s*Disabled\b", re.I)
@@ -140,12 +140,19 @@ def sha256_file(path: Path) -> str:
 def hardware_id_from_mac(raw_mac: str) -> str:
     compact = raw_mac.replace(":", "").lower()
     if not re.fullmatch(r"[0-9a-f]{12}", compact):
-        raise StopExecution("invalid ROM MAC format")
+        raise StopExecution("invalid base MAC format")
     return "ghw-c6-" + compact
 
 
 def public_identity_sha256(raw_mac: str) -> str:
     return sha256_bytes(hardware_id_from_mac(raw_mac).encode("utf-8"))
+
+
+def base_mac_from_esptool_output(output: str) -> str:
+    matches = BASE_MAC_RE.findall(output)
+    if len(matches) != 1:
+        raise StopExecution("exactly one ESP32-C6 BASE MAC was not observed")
+    return matches[0]
 
 
 def parse_manifest(text: str) -> dict[str, str]:
@@ -373,10 +380,8 @@ def observe_board_identity_security(port: str, *, before: str) -> str:
     )
     if "ESP32-C6" not in security.upper():
         raise StopExecution("connected target is not reported as ESP32-C6")
-    mac_match = MAC_RE.search(security)
-    if mac_match is None:
-        raise StopExecution("ROM MAC was not observed")
-    identity_hash = public_identity_sha256(mac_match.group(1))
+    base_mac = base_mac_from_esptool_output(security)
+    identity_hash = public_identity_sha256(base_mac)
     if identity_hash != EXPECTED_HARDWARE_ID_SHA256:
         raise StopExecution("connected target does not match frozen Board D identity")
     if SECURE_BOOT_DISABLED_RE.search(security) is None:
