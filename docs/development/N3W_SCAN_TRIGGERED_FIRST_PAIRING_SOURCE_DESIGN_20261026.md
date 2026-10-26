@@ -489,13 +489,15 @@ COMMITTED
 TERMINAL_NOT_COMMITTED
   exact binding matches
   AND ledger state is EXPIRED or RESTART_INVALIDATED
-  AND durable commit oracle is not PASS
+  AND durable reconciliation classification == DEFINITELY_NOT_COMMITTED
 
 WAIT
   transaction/reconciliation is still in progress
 
 UNKNOWN
-  exact binding or durable classification cannot be proven
+  exact binding cannot be proven
+  OR any required store/inventory is unreadable
+  OR durable classification is contradictory/ambiguous
 ```
 
 Wire semantics:
@@ -697,28 +699,52 @@ DynSec:
 
 If all are true **and the durable phase is COMMITTING**, a crash after underlying credential commit but before the ledger update is recovered by promoting the ledger to `COMMITTED`. This is the only crash-recovery path that preserves the old transaction as success. Cross-store state that happens to look consistent without a durable COMMITTING receipt claim is ambiguous and does not qualify.
 
-If exact ACTIVE MQTT generation 1 is absent, the transaction did not reach the durable commit oracle even if a DynSec identity or STAGED/temporarily-ACTIVE application key exists.
+Commit recovery uses a three-valued classification:
 
-If MQTT generation 1 is ACTIVE but another commit-oracle binding is missing or contradictory, classification is ambiguous/corrupt: do not roll back blindly and do not accept another first-registration transaction.
+```text
+COMMITTED
+  durable phase == COMMITTING
+  AND every exact cross-store commit-oracle predicate is readable and PASS
+
+DEFINITELY_NOT_COMMITTED
+  every required store/inventory is readable and internally consistent
+  AND exact ACTIVE MQTT credential generation 1 for this pairing_id is absent
+  AND there is no contradictory committed-state evidence
+
+UNKNOWN
+  any required read/inventory fails
+  OR evidence is contradictory
+  OR ownership/classification cannot be proven exactly
+```
+
+Only DEFINITELY_NOT_COMMITTED may enter automatic destructive cleanup. UNKNOWN never means failure-to-commit; it means Manager cannot safely decide yet.
 
 ### 6.6 Startup and deadline reconciliation
 
 On Manager startup, before product registration listeners become ready, process every non-clean terminal or `ACTIVE`/`COMMITTING` attempt under one reconciliation lock.
 
-For an unfinished attempt:
+For an unfinished attempt, first durably prevent the old pairing ID from resuming, then classify cross-store commit state:
 
 ```text
-if exact durable commit oracle PASS:
+old pairing id -> non-resumable under restart/deadline boundary
+classification = COMMITTED | DEFINITELY_NOT_COMMITTED | UNKNOWN
+
+if classification == COMMITTED:
     state = COMMITTED
     phase = TERMINAL
     cleanup_state = COMPLETE
-else:
+elif classification == DEFINITELY_NOT_COMMITTED:
     state = EXPIRED if now >= expires_at else RESTART_INVALIDATED
     phase = TERMINAL
     cleanup_state = REQUIRED
+else:
+    state = EXPIRED if now >= expires_at else RESTART_INVALIDATED
+    cleanup_state = FAILED
+    no destructive cleanup
+    registration readiness = fail closed
 ```
 
-The terminal pairing-ID transition is durable before destructive cleanup starts.
+The old pairing ID is non-resumable before any destructive cleanup starts. UNKNOWN is not converted into DEFINITELY_NOT_COMMITTED merely because the commit oracle did not PASS.
 
 If commit is not proven, exact cleanup is:
 1. recover raw hardware ID only through the pairing-session row keyed by this pairing ID and verify its SHA-256 equals the ledger binding;
@@ -1525,7 +1551,8 @@ Prove:
 - restart after proven BUNDLE_STAGED removes exact transaction-owned DynSec identity and exact STAGED application-key epoch;
 - crash after application key ACTIVE but before MQTT credential ACTIVE rolls back uncommitted key/identity/approval;
 - crash after exact MQTT generation-1 activation but before ledger COMMITTED is promoted to COMMITTED only when durable phase=COMMITTING and the full cross-store commit oracle passes;
-- ACTIVE MQTT credential plus contradictory registration/key/DynSec binding causes fail-closed reconciliation, never guessed rollback/success;
+- unreadable stores or contradictory registration/key/DynSec evidence classify UNKNOWN and cause fail-closed reconciliation, never guessed rollback/success;
+- automatic cleanup is reachable only from DEFINITELY_NOT_COMMITTED, never merely from “commit oracle did not PASS”;
 - cleanup failure blocks subsequent first registration while 47112 remains closed;
 - same old pairing ID receives terminal `replay_detected` or `expired`, never a fresh deadline;
 - bootstrap terminal result invokes existing durable ADR-0008 pairing-ID renewal;
@@ -1692,7 +1719,9 @@ LEDGER_SAME_SQLITE_DATABASE_AS_REGISTRATION=true
 COMMIT_RECOVERY_REQUIRES_DURABLE_COMMITTING_PHASE=true
 ACK_SUCCESS_REQUIRES_DURABLE_LEDGER_COMMITTED=true
 EXACT_CROSS_STORE_COMMIT_ORACLE=true
-AMBIGUOUS_RECONCILIATION_FAILS_REGISTRATION_CLOSED=true
+RECONCILIATION_CLASSIFICATION=COMMITTED_OR_DEFINITELY_NOT_COMMITTED_OR_UNKNOWN
+AUTOMATIC_DESTRUCTIVE_CLEANUP_REQUIRES_DEFINITELY_NOT_COMMITTED=true
+UNKNOWN_RECONCILIATION_FAILS_REGISTRATION_CLOSED=true
 SYSTEM_PEER_TRUST_INITIALIZED_BEFORE_REGISTRATION_READY=true
 SYSTEM_PEER_TRUST_MUTATED_BY_REGISTRATION=false
 PENDING_ACK_STATUS_RECOVERY_ON_47110=true
@@ -1753,7 +1782,7 @@ The focused closure review must independently verify:
 - the ledger shares the RegistrationRegistry SQLite database for atomic local transitions; no sidecar ledger database is allowed;
 - commit recovery requires a prior durable COMMITTING receipt claim, and 47112 cannot return committed success before exact oracle PASS + durable ledger COMMITTED;
 - the exact cross-store commit oracle distinguishes commit-complete/ledger-lag from stranded pre-commit state;
-- ambiguous or failed reconciliation keeps first registration unavailable while 47112 stays closed;
+- reconciliation is explicitly three-valued; only DEFINITELY_NOT_COMMITTED permits automatic cleanup, while UNKNOWN/failed reconciliation keeps first registration unavailable and 47112 closed;
 - SYSTEM_PEER_KEY is a pre-registration T1 baseline and first-registration code cannot create/rotate it;
 - pending-ACK recovery on 47110 binds hardware/pairing/delivery digest and distinguishes durable COMMITTED from terminal-not-committed without relying on lost RAM session ID;
 - terminal-not-committed performs crash-safe firmware cleanup of provisional peer/Broker state before returning to fresh user-confirmed registration; WAIT/UNKNOWN cannot cause local success or renewal;
