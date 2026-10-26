@@ -151,8 +151,18 @@ def main(
                 "raw_customer_subnet_in_public_output": False,
             }, sort_keys=True) + "\n")
         return 3
-    if output is not None:
-        output.write(json.dumps(_public_result(document, applied=args.apply), sort_keys=True) + "\n")
+    output.write(
+        json.dumps(
+            _public_result(
+                document,
+                applied=args.apply or args.invalidate,
+            ),
+            sort_keys=True,
+        )
+        + "\n"
+    )
+    if args.apply or args.invalidate:
+        return 0
     return 0 if decision.trusted_subnet is not None else 2
 
 
