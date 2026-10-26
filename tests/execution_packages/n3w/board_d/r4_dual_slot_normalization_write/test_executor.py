@@ -229,7 +229,7 @@ def test_load_preflight_rejects_legacy_identity_schema(tmp_path: Path, monkeypat
         "utc_now",
         lambda: dt.datetime(2026, 10, 23, 8, 25, tzinfo=dt.timezone.utc),
     )
-    with pytest.raises(module.StopExecution, match="preflight schema mismatch"):
+    with pytest.raises(module.StopExecution, match="preflight closure is not PASS"):
         module.load_preflight(path, "/dev/cu.usbmodem-test")
 
 
