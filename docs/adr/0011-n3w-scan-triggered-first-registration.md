@@ -110,9 +110,40 @@ Target T1 listener semantics:
 47112/tcp = privileged pairing HTTP, closed while idle
 ```
 
-mDNS discovery may advertise the 47110 registration bootstrap service.
+mDNS discovery may advertise the 47110 registration bootstrap service, but product advertisement and UDP discovery are scoped to the product LAN interface defined below.
 
-An idle T1 is discoverable, but cannot accept pairing protocol traffic on 47112.
+An idle T1 is discoverable from the trusted product LAN, but cannot accept pairing protocol traffic on 47112.
+
+## Trusted product LAN authority
+
+For V1, **trusted LAN** has one exact meaning. It is not “any RFC1918/private address”.
+
+The product authority is the same customer-LAN authority already used by the T1 ingress design:
+
+```text
+TRUSTED_PRODUCT_LAN_INTERFACE=eth0
+TRUSTED_PRODUCT_LAN_AUTHORITY=NetworkManager current eth0 IPv4 state
+TRUSTED_PRODUCT_LAN_REQUIREMENT=exactly one current valid IPv4 subnet
+IPV6_FIRST_REGISTRATION_AUTHORIZED=false
+LOOPBACK_FIRST_REGISTRATION_AUTHORIZED=false
+LINK_LOCAL_FIRST_REGISTRATION_AUTHORIZED=false
+GENERIC_RFC1918_FALLBACK=false
+```
+
+The decision contract is:
+- `eth0` must be connected;
+- NetworkManager must report at least one IPv4 address and all reported IPv4 addresses must resolve to exactly one subnet;
+- unspecified, loopback, multicast, link-local and `/0` states are invalid;
+- if zero or multiple distinct IPv4 subnets are present, first-registration admission fails closed;
+- only a source IPv4 contained in that one current subnet is trusted for product first registration;
+- Docker bridge, VPN, loopback, link-local, other RFC1918/private networks and IPv6 are not trusted merely because they are locally reachable;
+- there is no manual customer CIDR in the product configuration and no fallback to the predecessor broad `is_local_source()` address-class test.
+
+47110 must reject a source outside the current trusted product subnet. 47111 must not answer it. mDNS registration advertisement must be scoped to `eth0` rather than every host interface.
+
+The trusted-subnet decision is re-read from current NetworkManager state and therefore follows DHCP/subnet changes without freezing a historical customer address. If the authority is unavailable or ambiguous, 47110/47111 remain non-authorizing/fail-closed even if their sockets exist.
+
+For an already active 47112 transaction, each request still requires both the original exact `source_ip` match and membership of that source in the **current** trusted product subnet. A subnet/link change does not mint a new transaction or refresh the deadline; an unreachable or no-longer-trusted transaction remains bounded by its original deadline unless Manager process-boundary invalidation occurs.
 
 ## Node-local registration portal
 
@@ -155,13 +186,43 @@ The 47110 bootstrap transport must provide confidentiality. Source design freeze
 
 In the normal phone flow this is user-confirmed TOFU for the local T1 candidate. It protects against passive LAN observation and accidental endpoint mismatch without adding certificate or key prompts to the user.
 
-The first-registration authorization model is explicitly **trusted-LAN authorization**: any client whose source is accepted as local/trusted LAN is allowed to initiate a new first-registration bootstrap. The QR and scan token protect the normal node-local user workflow but are not T1 authorization credentials. Consequently, a malicious or compromised client already inside the trusted LAN can intentionally initiate an enrollment attempt; that is an accepted consequence of the chosen trust boundary, not a protocol bypass.
+The first-registration authorization model is explicitly **trusted-LAN authorization**: any client whose source IPv4 is inside the exact current trusted product subnet above is allowed to initiate a new first-registration bootstrap. The QR and scan token protect the normal node-local user workflow but are not T1 authorization credentials. Consequently, a malicious or compromised client already inside that subnet can intentionally initiate an enrollment attempt; that is an accepted consequence of the chosen trust boundary, not a protocol bypass.
 
 The local-network active-spoofing residual risk is also accepted under this trusted-LAN model. Discovery-bound certificate pinning remains required so the normal node flow does not send Setup Secret bytes before the selected endpoint's advertised leaf fingerprint is matched.
 
 ## Identity-bound dynamic pairing window
 
 A successful 47110 confirmation does not create credentials by itself.
+
+Before 47110 can report `accepted=true`, T1 also creates a minimal durable **first-registration attempt ledger**. The ledger contains no Setup Secret and is the replay/restart authority for the pre-`/hello` interval.
+
+Minimum durable fields:
+
+```text
+pairing_id                  primary replay key
+hardware_id_sha256          SHA-256 of canonical hardware_id
+opened_at
+expires_at
+state                       ACTIVE | COMMITTED | EXPIRED | RESTART_INVALIDATED
+terminal_at                 nullable
+terminal_reason             nullable
+```
+
+The raw Setup Secret, scan token and source IP are not stored in this ledger.
+
+Transaction-start authority is the durable `ACTIVE` ledger commit, not receipt of the HTTP request body. The ordering is:
+
+```text
+validate request + trusted product subnet
+-> check replay / one-active-transaction constraints
+-> prepare non-active RAM intent
+-> durably insert ACTIVE attempt with the one canonical deadline
+-> activate RAM intent
+-> open exact 47112 exposure
+-> only then return accepted=true
+```
+
+If the process dies before the durable `ACTIVE` commit, no transaction was accepted and the same pairing ID may retry. If the process dies at or after that commit, startup invalidation below makes the pairing ID terminal even if `/hello` was never reached.
 
 T1 creates one RAM-only first-registration intent containing at least:
 
@@ -206,9 +267,19 @@ Implementations must avoid logging or persisting the secret and must keep unavoi
 
 Pre-deadline browser cancellation, protocol error or pairing failure does not itself destroy the intent or close 47112. The transaction remains bound to the same identity/source and absolute deadline and may retry within that deadline.
 
-Manager restart is fail-closed: it destroys the in-memory intent and closes 47112. The old transaction is terminal and must never be resumed. Its old pairing ID is retained as a replay tombstone under ADR-0008. On the next registration attempt the node generates a **new pairing ID**; after a fresh confirmation, T1 creates a **new transaction** with a new full `now + 1800s` deadline. No remaining time, intent, Setup Secret copy or deadline from the old transaction is inherited.
+Manager restart is fail-closed: it destroys the in-memory intent and closes 47112. Before 47110/47111/47112 become product-active on startup, Manager atomically terminalizes every durable `ACTIVE` attempt left by the predecessor process:
+- if its deadline already passed, state becomes `EXPIRED`;
+- otherwise state becomes `RESTART_INVALIDATED`.
 
-Manager restart is therefore a process-boundary invalidation, not a third normal runtime close condition.
+The old transaction is terminal and must never be resumed. Its pairing ID remains a durable replay tombstone even when restart happened **before the first /hello** and therefore before `RegistrationRegistry` had created a pairing-session row.
+
+A later 47110 request that reuses a terminal ledger pairing ID is rejected with the same ADR-0008 terminal semantics:
+- expired attempt -> `status=rejected`, `reason=expired`, `transaction_disposition=terminal`;
+- committed/restart-invalidated/replayed attempt -> `status=rejected`, `reason=replay_detected`, `transaction_disposition=terminal`.
+
+For this successor bootstrap flow, that terminal bootstrap result invokes the **same durable pairing-ID renewal primitive** used by ADR-0008 terminal `/hello` handling. The node must durably persist a fresh random pairing ID before retrying 47110. Only after the new ID is active and a fresh confirmation succeeds may T1 create a **new transaction** with a new full `now + 1800s` deadline.
+
+No remaining time, intent, Setup Secret copy or deadline from the old transaction is inherited. Manager restart is therefore a process-boundary invalidation, not a third normal runtime close condition.
 
 ## One canonical deadline
 
@@ -219,6 +290,7 @@ FIRST_REGISTRATION_TTL_SECONDS=1800
 ```
 
 The same deadline bounds:
+- the durable first-registration attempt ledger row;
 - the dynamic 47112 pairing exposure;
 - the pending registration record created by the accepted hello;
 - the simplified pairing session;
@@ -330,16 +402,21 @@ Before product live acceptance, source and tests must prove:
 3. no Setup Secret appears in QR URL, browser page, logs or public evidence;
 4. T1 discovery stays available while 47112 is closed;
 5. the normal phone flow uses confirmation to open one exact identity/source-bound 47112 transaction;
-6. a trusted-LAN client can initiate 47110 without QR possession, while a non-local source is rejected;
-7. no hidden 120/600-second timeout truncates the 1800-second transaction;
-8. wrong identity/source traffic cannot mutate registration state while the window is open;
-9. successful Manager COMMIT closes 47112 immediately;
-10. canonical deadline expiry closes 47112 and leaves no active credential/key/trust state;
-11. a pre-deadline browser/protocol/pairing failure does not prematurely close the privileged window or mint a fresh transaction;
-12. Manager restart closes fail-closed, tombstones the old pairing ID, and a later attempt uses a new pairing ID plus a fresh full 1800-second deadline;
-13. LCD error mappings work without backend/CLI interaction;
-14. multiple T1 candidates require user selection;
-15. normal physical acceptance uses phone scan + browser confirm, not secret copy/paste.
+6. trusted-LAN authority equals NetworkManager current `eth0` unique IPv4 subnet, with no broad RFC1918/`is_local_source()` fallback;
+7. 47110 rejects and 47111 does not answer sources outside that exact subnet; loopback, link-local, VPN/Docker/other private subnets and IPv6 are not product-authorized by default;
+8. a trusted-product-LAN client can initiate 47110 without QR possession;
+9. durable attempt `ACTIVE` state is committed before `accepted=true` and contains no Setup Secret;
+10. restart before `/hello` still makes the old pairing ID terminal/replay-detected;
+11. a terminal bootstrap response drives the ADR-0008 durable fresh-pairing-ID renewal path before any retry;
+12. no hidden 120/600-second timeout truncates the 1800-second transaction;
+13. wrong identity/source traffic cannot mutate registration state while the window is open;
+14. successful Manager COMMIT closes 47112 immediately;
+15. canonical deadline expiry closes 47112 and leaves no active credential/key/trust state;
+16. a pre-deadline browser/protocol/pairing failure does not prematurely close the privileged window or mint a fresh transaction;
+17. Manager restart closes fail-closed, tombstones the old pairing ID, and a later attempt uses a new pairing ID plus a fresh full 1800-second deadline;
+18. LCD error mappings work without backend/CLI interaction;
+19. multiple T1 candidates require user selection;
+20. normal physical acceptance uses phone scan + browser confirm, not secret copy/paste.
 
 
 ## Transaction isolation
@@ -349,8 +426,17 @@ FIRST_REGISTRATION_TTL_SCOPE=PER_TRANSACTION
 FIRST_REGISTRATION_TTL_SECONDS=1800
 MAX_CONCURRENT_FIRST_REGISTRATIONS_V1=1
 
-T1_FIRST_REGISTRATION_AUTHORITY=TRUSTED_LAN_SOURCE
+T1_FIRST_REGISTRATION_AUTHORITY=NETWORKMANAGER_ETH0_UNIQUE_IPV4_SUBNET
+TRUSTED_PRODUCT_LAN_INTERFACE=eth0
+GENERIC_RFC1918_OR_IS_LOCAL_SOURCE_FALLBACK=false
+IPV6_FIRST_REGISTRATION_AUTHORIZED=false
+LOOPBACK_FIRST_REGISTRATION_AUTHORIZED=false
 QR_POSSESSION_REQUIRED_FOR_T1_AUTHORIZATION=false
+DURABLE_FIRST_REGISTRATION_ATTEMPT_LEDGER=true
+SETUP_SECRET_PERSISTED_IN_ATTEMPT_LEDGER=false
+ACTIVE_ATTEMPT_COMMITTED_BEFORE_ACCEPTED_RESPONSE=true
+RESTART_PRE_HELLO_PAIRING_ID_TOMBSTONED=true
+TERMINAL_BOOTSTRAP_RESULT_USES_ADR0008_RENEWAL=true
 NORMAL_PRIVILEGED_WINDOW_CLOSE_CONDITIONS=MANAGER_COMMIT_OR_DEADLINE
 SUCCESS_CLOSES_PRIVILEGED_WINDOW_IMMEDIATELY=true
 PREDEADLINE_ERROR_CLOSES_PRIVILEGED_WINDOW=false
