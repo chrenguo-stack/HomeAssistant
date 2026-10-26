@@ -461,3 +461,48 @@ CONSUMED=false
 FIRST_PAIR_ATTEMPT_COUNT=0
 PAIRING_WINDOW_OPENED=false
 ```
+
+
+## 16. stdin execution cannot own watchdog self-staging
+
+A later corrected-ID invocation reached the onboarding `open` command but stopped before transaction claim with:
+
+```text
+error=[Errno 2] No such file or directory: '/root/<stdin>'
+mutation_state=NONE
+authorization_reusable=null
+OPEN_RC=2
+```
+
+Root cause is exact and source-local:
+
+- `_claim_transaction()` binds `tool_sha256` from `Path(__file__).resolve()`;
+- `_prepare_runtime_root()` later copies the current tool file itself into the watchdog runtime;
+- executing the source as `python3 -B -` makes `__file__ == "<stdin>"`;
+- the tool therefore resolves its own path as `/root/<stdin>`, which is not a file.
+
+The failure happens while preparing the claim document's tool binding, before `_write_private_json(TRANSACTION_PATH, ...)`. Therefore no transaction is created and no authorization is consumed.
+
+Executor correction:
+
+```text
+EXACT_REVIEWED_TOOL
+-> private real file on T1
+-> mode 0600
+-> SHA256 exact-source verification
+-> run inspect from that real path
+-> later run open/close from the same real file path
+```
+
+Piping the onboarding tool to remote `python3 -B -` is valid for read-only inspect only when self-staging is not entered, but it is forbidden for `open`.
+
+```text
+AUTHORIZATION=N3W_T1_FIRST_PAIRING_BOARD_D_LIVE_ACCEPTANCE_20261026_01
+GRANTED=true
+CLAIMED=false
+CONSUMED=false
+FIRST_PAIR_ATTEMPT_COUNT=0
+PAIRING_WINDOW_OPENED=false
+PRODUCT_FAILURE=false
+EXECUTOR_FIX_REQUIRED=true
+```
