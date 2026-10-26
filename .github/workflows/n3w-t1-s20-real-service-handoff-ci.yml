@@ -24,6 +24,10 @@ on:
       - "host/greenhouse-manager/tests/runtime/test_dynsec_api.py"
       - ".github/workflows/n3w-t1-s20-real-service-handoff-ci.yml"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 
@@ -64,13 +68,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          IMAGE='m.daocloud.io/docker.io/library/eclipse-mosquitto:2.1.2-alpine'
-          INDEX='sha256:38c0da4f2ef84284d47b3b3eeea1cb3bdeabe81ee10caf0cd5c5ff61ee3ea408'
+          IMAGE='docker.io/library/eclipse-mosquitto:2.1.2-alpine@sha256:38c0da4f2ef84284d47b3b3eeea1cb3bdeabe81ee10caf0cd5c5ff61ee3ea408'
           NAME='n3w-s20-volume-ci'
           WORK="$RUNNER_TEMP/n3w-s20-volume-ci"
           mkdir -p "$WORK/data"
           docker pull "$IMAGE"
-          docker image inspect "$IMAGE" --format '{{json .RepoDigests}}' | grep -F "@$INDEX"
           docker volume ls -q | LC_ALL=C sort > "$WORK/before.txt"
           docker run -d --rm --name "$NAME" --network none --tmpfs /mosquitto/log -v "$WORK/data:/mosquitto/data" "$IMAGE" sh -c 'sleep 30'
           mounts="$(docker inspect "$NAME" --format '{{range .Mounts}}{{println .Type .Destination}}{{end}}')"
@@ -103,15 +105,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          IMAGE='m.daocloud.io/docker.io/library/eclipse-mosquitto:2.1.2-alpine'
-          INDEX='sha256:38c0da4f2ef84284d47b3b3eeea1cb3bdeabe81ee10caf0cd5c5ff61ee3ea408'
+          IMAGE='docker.io/library/eclipse-mosquitto:2.1.2-alpine@sha256:38c0da4f2ef84284d47b3b3eeea1cb3bdeabe81ee10caf0cd5c5ff61ee3ea408'
           NAME='n3w-s20-r5-tls-ci'
           WORK="$RUNNER_TEMP/n3w-s20-r5-tls-ci"
           ADMIN='ci-only-admin-password'
           mkdir -p "$WORK/config" "$WORK/data" "$WORK/tls" "$WORK/run"
 
           docker pull "$IMAGE"
-          docker image inspect "$IMAGE" --format '{{json .RepoDigests}}' | grep -F "@$INDEX"
 
           openssl req -x509 -newkey rsa:2048 -nodes             -keyout "$WORK/tls/ca.key"             -out "$WORK/tls/ca.pem"             -days 1             -subj '/CN=N3W-S20-R5-CI-CA'
 
