@@ -153,7 +153,7 @@ SOURCE_FILES: dict[str, tuple[str, int, str]] = {
     "infra/n3w-t1/systemd/n3wfc4-services-activation.service": (
         "/opt/HomeAssistant/infra/n3w-t1/systemd/n3wfc4-services-activation.service",
         0o644,
-        "fdca7cbddbfe4c0ba53d2d3eab6f4e1daebf2e94302ee7a659932c7a0a766ef4",
+        "bb751c5c15b0826708fb8a15c8bf6d347f7c75d48abb58964a7eb9f82f09b68e",
     ),
     "tools/n3w_t1_broker_authenticated_readiness.py": (
         "/opt/HomeAssistant/tools/n3w_t1_broker_authenticated_readiness.py",
