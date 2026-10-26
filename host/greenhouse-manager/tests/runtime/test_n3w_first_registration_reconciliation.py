@@ -17,6 +17,7 @@ from greenhouse_manager.runtime.n3w_first_registration_ledger import (
 from greenhouse_manager.runtime.n3w_first_registration_reconciliation import (
     FirstRegistrationCommitClassification,
     FirstRegistrationReconciler,
+    FirstRegistrationReconciliationError,
 )
 from greenhouse_manager.runtime.n3w_node_application_keys import SqliteNodeApplicationKeyAdmin
 from greenhouse_manager.runtime.registration import RegistrationRegistry, RegistrationState
@@ -419,6 +420,39 @@ def test_required_reentry_resumes_cleanup_without_reclassification(
     assert result.cleanup_state is FirstRegistrationCleanupState.COMPLETE
     assert "getClient" not in harness.transport.calls[len(before):]
     assert "getRole" not in harness.transport.calls[len(before):]
+
+
+def test_required_cleanup_rejects_drifted_dynsec_target_without_deleting(
+    harness: Harness,
+) -> None:
+    harness.open_attempt()
+    harness.observe_and_approve()
+    harness.stage_bundle()
+    ledger = harness.registration.first_registration_ledger()
+    terminal = ledger.terminalize_not_committed(
+        PAIRING_ID,
+        state=FirstRegistrationAttemptState.RESTART_INVALIDATED,
+        cleanup_state=FirstRegistrationCleanupState.REQUIRED,
+        terminal_at=NOW + timedelta(seconds=20),
+        terminal_reason="replay_detected",
+    )
+
+    assert harness.transport.client is not None
+    harness.transport.client["clientid"] = "externally-drifted"
+
+    with pytest.raises(
+        FirstRegistrationReconciliationError,
+        match="first-registration cleanup failed",
+    ):
+        harness.reconciler.reconcile_attempt(
+            terminal,
+            now=NOW + timedelta(seconds=30),
+        )
+
+    assert harness.transport.client is not None
+    assert harness.transport.role is not None
+    failed = ledger.get(PAIRING_ID)
+    assert failed.cleanup_state is FirstRegistrationCleanupState.FAILED
 
 
 def test_dynsec_plan_inspector_rejects_client_binding_drift(
