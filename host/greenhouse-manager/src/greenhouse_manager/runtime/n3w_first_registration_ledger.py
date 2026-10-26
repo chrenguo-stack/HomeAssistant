@@ -585,6 +585,13 @@ class FirstRegistrationLedger:
                 )
             dynsec_prestate = row["dynsec_prestate_absent"]
             application_prestate = row["application_key_prestate_absent"]
+            if dynsec_prestate not in {None, 0, 1}:
+                raise ValueError("dynsec prestate is invalid")
+            if application_prestate not in {None, 0, 1}:
+                raise ValueError("application-key prestate is invalid")
+            node_id = row["node_id"]
+            if node_id is not None:
+                FirstRegistrationLedger._require_node_id(node_id)
             return FirstRegistrationAttempt(
                 pairing_id=row["pairing_id"],
                 hardware_id_sha256=hardware_hash,
@@ -595,7 +602,7 @@ class FirstRegistrationLedger:
                 cleanup_state=FirstRegistrationCleanupState(
                     row["cleanup_state"]
                 ),
-                node_id=row["node_id"],
+                node_id=node_id,
                 dynsec_prestate_absent=(
                     None
                     if dynsec_prestate is None
