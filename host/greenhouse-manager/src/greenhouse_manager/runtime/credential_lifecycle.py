@@ -427,6 +427,21 @@ class CredentialLifecycleStore:
             ).fetchall()
             return tuple(self._row_to_record(row) for row in rows)
 
+    def list_for_pairing_id(
+        self,
+        pairing_id: str,
+    ) -> tuple[CredentialLifecycle, ...]:
+        with self._lock:
+            rows = self._connection.execute(
+                """
+                SELECT * FROM credential_assignments
+                WHERE pairing_id = ?
+                ORDER BY assignment_id
+                """,
+                (pairing_id,),
+            ).fetchall()
+            return tuple(self._row_to_record(row) for row in rows)
+
     def _require_current(self, hardware_id: str) -> CredentialLifecycle:
         row = self._current_row(hardware_id)
         if row is None:
