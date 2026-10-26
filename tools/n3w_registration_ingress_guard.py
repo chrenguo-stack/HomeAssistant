@@ -250,7 +250,7 @@ def parse_firewall_inventory(payload: str) -> FirewallInventory:
         except ValueError:
             continue
         for index, token in enumerate(tokens[:-1]):
-            if token in {"-j", "--jump"} and tokens[index + 1] == CUSTOM_CHAIN:
+            if token in {"-j", "--jump", "-g", "--goto"} and tokens[index + 1] == CUSTOM_CHAIN:
                 if not any(
                     broker_guard._rule_matches(line, expected)
                     for expected in expected_anchors
