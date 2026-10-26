@@ -1,3 +1,11 @@
+### 2026-10-26 KF-131 — Board D full product NVS erase 同时清除了持久化 Wi-Fi 配置
+
+| ID | 范围 | 现场现象 | 根因 | 修复 / 回归保护 | 状态 |
+|---|---|---|---|---|---|
+| KF-131 | N3-W Board D scoped pairing-state reset / Wi-Fi recovery | Board D 完成 scoped full-NVS reset 后，应用冷启动、LCD、USB 均正常且 fallback AP 可见，但原 STA Wi-Fi / Native API 路径消失 | 实际 reset 擦除了整个 product NVS 区间 `0x790000+0x70000`。该 NVS 同时保存 pairing 状态与 ESPHome 持久化 Wi-Fi 状态，因此“清 pairing NVS 会保留 Wi-Fi”的假设不成立 | whole-product-NVS erase 后不得宣称 Wi-Fi 连续性；必须先验证 fallback AP，并通过新的、独立授权的 Wi-Fi reprovisioning gate 恢复 STA。pre-reset 私有 NVS backup 仅作 forensic evidence，禁止恢复；后续 pairing-only reset 设计必须精确到 pairing key/namespace，或显式接受 Wi-Fi 丢失并走单独恢复门 | OPEN_GUARDED |
+
+Authority: `docs/development/N3W_BOARD_D_WIFI_REPROVISIONING_RECOVERY_NEW_CHAT_HANDOFF_V1.0_20261026.md`（PR #676）。当前 recovery gate 不授权 pairing window、Setup Secret、first pair、Flash/NVS erase、raw NVS restore 或 T1 runtime mutation。
+
 ### 2026-10-24 KF-130 — post-reboot readiness 未等待 Home Assistant MQTT 会话导致 false FAIL
 
 | ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
