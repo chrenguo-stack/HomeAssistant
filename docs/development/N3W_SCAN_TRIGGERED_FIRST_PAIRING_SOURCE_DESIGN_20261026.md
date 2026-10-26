@@ -768,7 +768,15 @@ Only DEFINITELY_NOT_COMMITTED may enter automatic destructive cleanup. UNKNOWN n
 
 On Manager startup, before product registration listeners become ready, process every non-clean terminal or `ACTIVE`/`COMMITTING` attempt under one reconciliation lock.
 
-For an unfinished attempt, first make the old pairing ID non-resumable **without destroying any commit-oracle evidence**, then classify cross-store commit state.
+Re-entry semantics are stateful:
+- `ACTIVE` attempts, including durable `phase=COMMITTING`, are classified from preserved pre-terminal evidence;
+- terminal `cleanup_state=REQUIRED` is the durable receipt that the exact classifier already returned `DEFINITELY_NOT_COMMITTED`; do **not** re-run commit classification after partial cleanup has started, resume the exact-owned idempotent cleanup directly;
+- terminal `cleanup_state=FAILED` remains fail-closed and must not be automatically promoted to REQUIRED or COMMITTED; a separately reviewed recovery path is required;
+- terminal `cleanup_state=COMPLETE` and `COMMITTED` need no cleanup.
+
+Only the reconciliation coordinator may create a terminal `cleanup_state=REQUIRED` transition, and only immediately from an exact `DEFINITELY_NOT_COMMITTED` classification. This makes REQUIRED the persistent classification authority needed across a second crash.
+
+For an unfinished ACTIVE attempt, first make the old pairing ID non-resumable **without destroying any commit-oracle evidence**, then classify cross-store commit state.
 
 Before classification:
 - startup keeps 47110/47111 product registration readiness closed and 47112 is absent;
@@ -818,7 +826,7 @@ The reconciliation-specific RegistrationRegistry terminal mapping is exact:
 
 Because the first-registration ledger, pairing session, registration pointer, assignment history and NODE_ID lease share the RegistrationRegistry SQLite connection/lock, the local RegistrationRegistry cleanup transition must be one atomic transaction: preserve the old session tombstone, retire the never-reusable NODE_ID lease if one was allocated, close the open assignment history if present, clear the abandoned current registration identity/pointer as required, and leave the exact terminal reason. Do not compose this from externally visible partial local mutations.
 
-External cleanup remains restartable/idempotent. A terminal attempt with `cleanup_state=REQUIRED` re-enters the same exact-owned sequence after a crash. If a transaction-owned DynSec object or key epoch was already removed/revoked by an earlier partial cleanup, exact absence/revoked state may count as that cleanup step already complete **only because the durable ownership proof exists**; absence alone never creates ownership. `cleanup_state=COMPLETE` is written only after every required external step, the atomic RegistrationRegistry transition, and the final no-ACTIVE-credential check succeed.
+External cleanup remains restartable/idempotent. A terminal attempt with `cleanup_state=REQUIRED` re-enters the same exact-owned sequence after a crash **without reclassification**. If a transaction-owned DynSec object or key epoch was already removed/revoked by an earlier partial cleanup, exact absence/revoked state may count as that cleanup step already complete **only because both the durable REQUIRED classification receipt and durable ownership proof exist**; absence alone never creates ownership. `cleanup_state=COMPLETE` is written only after every required external step, the atomic RegistrationRegistry transition, and the final no-ACTIVE-credential check succeed.
 
 Restart before `/hello` has no pairing-session row, so steps 1-5 have nothing to clean; the ledger tombstone alone is sufficient.
 
@@ -1624,6 +1632,9 @@ Prove:
 - unreadable stores or contradictory registration/key/DynSec evidence classify UNKNOWN and cause fail-closed reconciliation, never guessed rollback/success;
 - pre-classification restart/deadline guards make the old pairing non-resumable without rewriting COMMITTING/APPROVED or other commit-oracle evidence;
 - a second crash during pre-classification reconciliation re-runs classification from the same durable evidence before listeners become ready;
+- terminal REQUIRED is written only from DEFINITELY_NOT_COMMITTED and survives as the durable classification receipt across later restarts;
+- a second crash after destructive cleanup has started resumes REQUIRED cleanup without re-running commit classification against already-mutated stores;
+- terminal FAILED never auto-promotes to REQUIRED/COMMITTED;
 - crash after each external cleanup step resumes the same exact-owned cleanup idempotently and cannot widen deletion scope;
 - RegistrationRegistry local rollback/terminalization is atomic under the shared SQLite transaction and cannot expose a half-retired NODE_ID/session state;
 - automatic cleanup is reachable only from DEFINITELY_NOT_COMMITTED, never merely from “commit oracle did not PASS”;
@@ -1794,6 +1805,9 @@ PARTIAL_TERMINAL_STAGED_TUPLE=UNKNOWN_FAIL_CLOSED
 RECONCILIATION_REGISTRATION_ROLLBACK_MAY_NOT_RETURN_PAIRING_TO_PENDING=true
 REGISTRATION_LOCAL_RECONCILIATION_ATOMIC_SAME_SQLITE_TRANSACTION=true
 EXTERNAL_CLEANUP_RESTARTABLE_IDEMPOTENT=true
+TERMINAL_REQUIRED_IS_DURABLE_DEFINITELY_NOT_COMMITTED_RECEIPT=true
+TERMINAL_REQUIRED_REENTRY_RECLASSIFIES=false
+TERMINAL_FAILED_AUTO_PROMOTION=false
 TARGET_PRESENCE_ALONE_PROVES_OWNERSHIP=false
 LEDGER_SAME_SQLITE_DATABASE_AS_REGISTRATION=true
 COMMIT_RECOVERY_REQUIRES_DURABLE_COMMITTING_PHASE=true
