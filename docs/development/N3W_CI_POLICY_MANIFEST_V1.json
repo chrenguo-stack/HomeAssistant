@@ -445,9 +445,7 @@
     "n3w-t1-s20-real-service-handoff-ci.yml": {
       "class": "FAST",
       "draft_policy": "run",
-      "exceptions": {
-        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion."
-      }
+      "exceptions": {}
     },
     "project-roadmap-v07-c07-identity-ci.yml": {
       "class": "FAST",
