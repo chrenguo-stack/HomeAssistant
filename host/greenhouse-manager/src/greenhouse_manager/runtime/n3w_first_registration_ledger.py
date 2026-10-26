@@ -135,12 +135,18 @@ def initialize_first_registration_ledger(connection: sqlite3.Connection) -> None
                     AND terminal_reason IS NULL
                 )
                 OR (
-                    state IN ('EXPIRED', 'RESTART_INVALIDATED')
+                    state = 'EXPIRED'
                     AND phase = 'TERMINAL'
                     AND cleanup_state IN ('REQUIRED', 'COMPLETE', 'FAILED')
                     AND terminal_at IS NOT NULL
-                    AND terminal_reason IS NOT NULL
-                    AND terminal_reason IN ('expired', 'replay_detected')
+                    AND terminal_reason = 'expired'
+                )
+                OR (
+                    state = 'RESTART_INVALIDATED'
+                    AND phase = 'TERMINAL'
+                    AND cleanup_state IN ('REQUIRED', 'COMPLETE', 'FAILED')
+                    AND terminal_at IS NOT NULL
+                    AND terminal_reason = 'replay_detected'
                 )
             ),
             CHECK (
