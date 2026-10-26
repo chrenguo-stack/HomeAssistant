@@ -246,3 +246,55 @@ def test_installed_registration_guard_loads_extensionless_broker_guard(
         installed_guard,
     )
     assert module.broker_guard.INTERFACE == "eth0"
+
+
+@pytest.mark.parametrize("goto_operator", ("-g", "--goto"))
+def test_registration_guard_rejects_extra_input_goto(
+    goto_operator: str,
+) -> None:
+    broker, registration = load_modules()
+    subnet = ipaddress.ip_network("192.0.2.0/24")
+    payload = _payload(
+        broker,
+        registration,
+        subnet=subnet,
+        anchors=True,
+    ).replace(
+        "COMMIT\n",
+        f"-A INPUT {goto_operator} "
+        f"{registration.CUSTOM_CHAIN}\nCOMMIT\n",
+    )
+    inventory = registration.parse_firewall_inventory(payload)
+    assert inventory.foreign_custom_chain_refs
+    with pytest.raises(
+        registration.RegistrationIngressGuardError,
+        match="registration_chain_foreign_reference",
+    ):
+        registration._validate_prestate(inventory)
+
+
+@pytest.mark.parametrize("goto_operator", ("-g", "--goto"))
+def test_registration_guard_rejects_foreign_chain_goto(
+    goto_operator: str,
+) -> None:
+    broker, registration = load_modules()
+    subnet = ipaddress.ip_network("192.0.2.0/24")
+    payload = _payload(
+        broker,
+        registration,
+        subnet=subnet,
+        anchors=True,
+    ).replace(
+        "COMMIT\n",
+        ":FOREIGN - [0:0]\n"
+        f"-A FOREIGN {goto_operator} "
+        f"{registration.CUSTOM_CHAIN}\n"
+        "COMMIT\n",
+    )
+    inventory = registration.parse_firewall_inventory(payload)
+    assert inventory.foreign_custom_chain_refs
+    with pytest.raises(
+        registration.RegistrationIngressGuardError,
+        match="registration_chain_foreign_reference",
+    ):
+        registration._validate_prestate(inventory)
