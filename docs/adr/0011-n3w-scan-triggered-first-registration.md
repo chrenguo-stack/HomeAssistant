@@ -56,6 +56,16 @@ SCAN
 
 The first-registration transaction maximum lifetime is 1800 seconds. This is a maximum bound, not a required open duration. Success, explicit abort, terminal failure or expiry closes privileged pairing exposure immediately.
 
+The 1800-second bound is **per node transaction**, not a global T1 pairing mode. V1 permits only one active first-registration transaction at a time.
+
+Example:
+- node A is confirmed and receives its own deadline `A_confirm + 1800s`;
+- if A commits after 80 seconds, A's remaining ~1720 seconds are discarded immediately and privileged pairing exposure closes;
+- node B then requires a new scan/confirmation and receives a fresh `B_confirm + 1800s` deadline;
+- no time budget is inherited or shared across A/B/C.
+
+If B requests confirmation while A is still active, T1 returns a busy result; B does not consume/renew its pairing ID and may retry after A reaches a terminal state.
+
 ## User surfaces
 
 Normal-user surfaces are limited to:
@@ -317,3 +327,19 @@ Before product live acceptance, source and tests must prove:
 10. LCD error mappings work without backend/CLI interaction;
 11. multiple T1 candidates require user selection;
 12. normal physical acceptance uses phone scan + browser confirm, not secret copy/paste.
+
+
+## Transaction isolation
+
+```text
+FIRST_REGISTRATION_TTL_SCOPE=PER_TRANSACTION
+FIRST_REGISTRATION_TTL_SECONDS=1800
+MAX_CONCURRENT_FIRST_REGISTRATIONS_V1=1
+
+SUCCESS_CLOSES_PRIVILEGED_WINDOW_IMMEDIATELY=true
+UNUSED_TTL_CARRIED_FORWARD=false
+NEXT_NODE_REQUIRES_NEW_CONFIRMATION=true
+NEXT_NODE_GETS_FRESH_1800S_DEADLINE=true
+```
+
+The always-on low-privilege 47110/47111 services are not part of this timer. Only the identity/source-bound privileged first-registration intent and 47112 exposure are governed by the per-transaction deadline.
