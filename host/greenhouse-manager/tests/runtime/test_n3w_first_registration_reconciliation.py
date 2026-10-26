@@ -7,16 +7,13 @@ from typing import Any
 
 import pytest
 
-from greenhouse_manager.runtime.credential_lifecycle import (
-    CredentialLifecycleStore,
-)
+from greenhouse_manager.runtime.credential_lifecycle import CredentialLifecycleStore
 from greenhouse_manager.runtime.dynsec_api import (
     DynsecError,
     DynsecProvisioner,
 )
 from greenhouse_manager.runtime.dynsec_plan import (
     NodeCredentials,
-    NodeProvisioningPlan,
     build_node_provisioning_plan,
 )
 from greenhouse_manager.runtime.n3w_first_registration_ledger import (
