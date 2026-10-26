@@ -3,8 +3,14 @@
 - Status: accepted for source design
 - Date: 2026-10-26
 - Scope: unregistered N3-W node first registration, scan-triggered Manager discovery, app-less confirmation, bounded pairing exposure, LCD feedback
-- Supersedes: the V0.7 LCD rule that maps `Wi-Fi connected + Manager not found` to an idle “正在查找主机” state
-- Does not supersede: ADR-0007 Setup Secret / simplified bootstrap security, ADR-0008 random pairing transaction and replay-tombstone semantics
+- Supersedes:
+  - the V0.7 LCD rule that maps `Wi-Fi connected + Manager not found` to an idle “正在查找主机” state;
+  - ADR-0007 §3.2 only where it requires the Setup Secret itself to be carried by the user-facing LCD QR;
+  - ADR-0008 “Product Setup Secret interface” only for the normal first-registration product path that previously depended on local UDS/CLI/UI secret import.
+- Retains:
+  - ADR-0007 device-generated one-time Setup Secret, HMAC/HKDF bootstrap and encrypted credential delivery;
+  - ADR-0008 random pairing transaction, terminal renewal and replay-tombstone semantics;
+  - ADR-0008 local UDS as an engineering/ops interface rather than normal-user first-registration UX.
 
 ## Decision
 
