@@ -93,66 +93,81 @@ SETUP_SECRET_IN_GITHUB=FORBIDDEN
 
 KF-043 is satisfied by avoiding the serial capture path entirely in this normal product flow.
 
-## 4. Board D QR availability
+## 4. Board D QR availability — corrected by exact firmware review
 
-The deployed Board D product source enables the first-pair QR only when:
+The initial preparation assumption that the Board D pairing QR could be captured while the T1 pairing window remained CLOSED was incorrect and is superseded by this section.
 
-- Wi-Fi is connected;
-- the node is not yet provisioned;
-- pairing handoff material is ready.
-
-The LCD page-4 product flow shows the pairing QR and the user-facing text “扫码添加节点 / 等待添加”.
-
-The QR payload is generated from the device-held current hardware ID, pairing ID and Setup Secret.
-
-The operator can therefore capture and privately bind the exact QR before opening any T1 pairing window.
-
-This ordering is important:
+Exact deployed Board D firmware behavior proves:
 
 ```text
-PRIVATE_QR_CAPTURE
--> HASH BINDING
--> LIVE AUTHORIZATION
--> OPEN PAIRING WINDOW
--> EXACT PENDING OBSERVATION
--> TTL MARGIN GATE
--> UDS SETUP SECRET IMPORT
--> FIRST PAIR
+discover_manager()
+-> POST /hello
+-> accepted hello with HelloNextAction::PROCEED
+-> pairing_handoff_ready_=true
+-> LCD pairing QR becomes eligible
 ```
 
-It prevents the 120-second pending TTL from being consumed while the operator is still preparing the private handoff.
+At the beginning of every hello attempt, `pairing_handoff_ready_` is reset to false. A closed T1 pairing window therefore leaves Board D on the product LCD state:
 
-## 5. KF-044 adaptation to current product architecture
+```text
+正在查找主机
+```
 
-KF-044's safety intent remains valid: do not spend the fixed pending TTL on preparation or authorization work.
+The observed live state exactly matches that source contract.
 
-The historical filesystem delivery chain is not current product authority.
+Therefore the QR cannot be pre-captured before the first live window. No Board fault is inferred.
 
-For this gate, the equivalent current-product protection is:
+## 5. KF-044 adaptation to the actual current product sequence
 
-1. capture the LCD QR privately before opening the window;
-2. pre-stage all commands and exact source bindings before live authorization;
-3. after open, wait only for the exact Board D pending registration;
-4. run the existing delivery gate in `pretransfer` mode only;
-5. require a large remaining-TTL margin;
-6. immediately import the Setup Secret over Manager-owned UDS stdin;
-7. never stage or atomically rename a Setup Secret file on T1.
+KF-044's safety intent remains valid: do not spend the fixed pending TTL on avoidable preparation or authorization work.
 
-Frozen timing policy:
+The current product creates/observes the first pending registration during the accepted hello path that also unlocks the LCD QR. Therefore the safe sequence is:
+
+```text
+ALL NON-SECRET PREPARATION COMPLETE
+-> LIVE AUTHORIZATION GRANTED
+-> OPEN ONE 300s DYNAMIC PAIRING WINDOW
+-> BOARD D DISCOVERY + ACCEPTED HELLO
+-> PENDING TTL STARTS
+-> LCD QR APPEARS
+-> OPERATOR SCANS QR IMMEDIATELY
+-> LOCAL HIDDEN-INPUT QR VALIDATION
+-> EXACT PENDING PRETRANSFER TTL GATE
+-> IMMEDIATE UDS SETUP SECRET IMPORT VIA STDIN
+-> FIRST PAIR COMPLETES
+-> EXACT SUCCESS EVIDENCE
+-> CLOSE SUCCESS
+```
+
+The historical filesystem delivery chain is not current product authority. The filesystem inbox remains LAB_ONLY.
+
+For this gate:
+
+- no serial capture;
+- no Setup Secret file is transferred to T1;
+- no `predelivery` filesystem gate is used;
+- the existing read-only `pretransfer` gate is reused to bind exact hardware ID, pairing-ID SHA-256, pending state and TTL;
+- the Setup Secret is immediately imported via Manager-owned `pairing.sock` using stdin.
+
+Because the operator must scan the LCD QR after the pending window has already started, the original preparation value of 100 seconds remaining is too aggressive for the normal product UI path and is superseded.
+
+Frozen timing policy for this Board D acceptance:
 
 ```text
 PAIRING_WINDOW_SECONDS=300
 PENDING_TTL_EXPECTED_SECONDS=120
-MIN_PENDING_TTL_REMAINING_SECONDS=100
+MIN_PENDING_TTL_REMAINING_SECONDS=60
 ```
 
-If the exact pending session cannot be observed with at least 100 seconds remaining, the attempt must fail closed and the onboarding window must be aborted. No second automatic attempt is permitted.
+A 60-second remaining margin is the minimum admission floor. This preserves a full minute for the UDS import and protocol completion while allowing the required human QR scan. The existing gate still fails closed below the floor.
 
-The `predelivery` filesystem gate is not used because the product delivery is UDS, not filesystem inbox.
+All commands, SSH authentication paths, source bindings and abort/close paths must be prepared before the window is opened. The only human action permitted after pending begins is the immediate QR scan/copy into the already prepared hidden-input path.
 
-## 6. Pre-authorization private QR binding
+## 6. Live private QR binding
 
-Before requesting the new live authorization, the operator must privately capture the current Board D LCD QR without sending the payload to ChatGPT or GitHub.
+Because exact firmware requires an accepted hello before the QR becomes available, private QR binding occurs only after the new live authorization has been explicitly granted and the single dynamic pairing window has opened.
+
+Before that authorization is requested, the hidden-input local QR validator and the complete fail-closed live command chain must already be prepared. Once the LCD QR appears, the operator scans it and pastes the payload locally without sending it to ChatGPT or GitHub.
 
 The local private result must prove only public-safe metadata:
 
@@ -258,7 +273,8 @@ PRODUCT_PATH_REVIEW=PASS
 KF043_ADAPTATION=PASS:NO_SERIAL_NORMAL_PRODUCT_PATH
 KF044_ADAPTATION=PASS:PRECAPTURE_PLUS_PRETRANSFER_TTL_GATE
 NEW_PRODUCT_SOURCE_REPAIR_REQUIRED=false
-PRIVATE_QR_BINDING=PENDING_OPERATOR_LOCAL_CAPTURE
+PRIVATE_QR_BINDING=DEFERRED_UNTIL_ACCEPTED_HELLO_BY_PRODUCT_CONTRACT
+LCD_PREAUTH_STATE=正在查找主机:EXPECTED_WITH_WINDOW_CLOSED
 LIVE_AUTHORIZATION_GRANTED=false
-NEXT_STOP=PRIVATE_QR_BINDING_AND_FRESH_PREAUTH_READONLY_PREFLIGHT
+NEXT_STOP=FRESH_PREAUTH_READONLY_PREFLIGHT_AND_PREARMED_LIVE_COMMAND_CHAIN
 ```
