@@ -110,6 +110,92 @@ def test_active_pairing_id_is_non_replayable(tmp_path) -> None:
         registry.close()
 
 
+
+def test_new_attempt_waits_for_predecessor_terminal_cleanup(tmp_path) -> None:
+    registry, ledger = _ledger(tmp_path)
+    second_pairing_id = str(
+        uuid.UUID("22345678-1234-4234-8234-123456789abc")
+    )
+    try:
+        ledger.create_active(
+            pairing_id=PAIRING_ID,
+            hardware_id_sha256=HARDWARE_SHA256,
+            opened_at=NOW,
+            expires_at=NOW + timedelta(seconds=1800),
+        )
+        with pytest.raises(
+            FirstRegistrationLedgerConflict,
+            match="predecessor is unresolved",
+        ):
+            ledger.create_active(
+                pairing_id=second_pairing_id,
+                hardware_id_sha256="e" * 64,
+                opened_at=NOW + timedelta(seconds=1),
+                expires_at=NOW + timedelta(seconds=1801),
+            )
+
+        ledger.terminalize_not_committed(
+            PAIRING_ID,
+            state=FirstRegistrationAttemptState.RESTART_INVALIDATED,
+            cleanup_state=FirstRegistrationCleanupState.REQUIRED,
+            terminal_at=NOW + timedelta(seconds=2),
+            terminal_reason="replay_detected",
+        )
+        with pytest.raises(
+            FirstRegistrationLedgerConflict,
+            match="predecessor is unresolved",
+        ):
+            ledger.create_active(
+                pairing_id=second_pairing_id,
+                hardware_id_sha256="e" * 64,
+                opened_at=NOW + timedelta(seconds=3),
+                expires_at=NOW + timedelta(seconds=1803),
+            )
+
+        ledger.mark_cleanup_complete(PAIRING_ID)
+        second = ledger.create_active(
+            pairing_id=second_pairing_id,
+            hardware_id_sha256="e" * 64,
+            opened_at=NOW + timedelta(seconds=4),
+            expires_at=NOW + timedelta(seconds=1804),
+        )
+        assert second.state is FirstRegistrationAttemptState.ACTIVE
+    finally:
+        registry.close()
+
+
+def test_database_enforces_one_active_attempt(tmp_path) -> None:
+    registry, ledger = _ledger(tmp_path)
+    try:
+        ledger.create_active(
+            pairing_id=PAIRING_ID,
+            hardware_id_sha256=HARDWARE_SHA256,
+            opened_at=NOW,
+            expires_at=NOW + timedelta(seconds=1800),
+        )
+        with pytest.raises(sqlite3.IntegrityError):
+            registry._connection.execute(
+                """
+                INSERT INTO first_registration_attempts (
+                    pairing_id,
+                    hardware_id_sha256,
+                    opened_at,
+                    expires_at,
+                    state,
+                    phase,
+                    cleanup_state
+                ) VALUES (?, ?, ?, ?, 'ACTIVE', 'BOOTSTRAP_ACCEPTED', 'NONE')
+                """,
+                (
+                    "32345678-1234-4234-8234-123456789abc",
+                    "f" * 64,
+                    NOW.isoformat(),
+                    (NOW + timedelta(seconds=1800)).isoformat(),
+                ),
+            )
+    finally:
+        registry.close()
+
 def test_bundle_stage_requires_durable_two_part_ownership_proof(tmp_path) -> None:
     registry, ledger = _ledger(tmp_path)
     try:
