@@ -5,8 +5,8 @@ import argparse
 import hashlib
 import json
 import os
-import tempfile
 import sys
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Sequence, TextIO
