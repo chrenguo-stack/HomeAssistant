@@ -338,3 +338,60 @@ SECOND_ATTEMPT_ALLOWED=false
 ```
 
 The authorization becomes consumed only when the onboarding transaction is claimed/opened. Pre-open SSH/control/capability checks remain non-claiming. Any post-open failure must fail closed and must not auto-retry.
+
+
+## 13. First live invocation pre-claim STOP — authorization ID grammar
+
+The first attempted live invocation did not claim an onboarding transaction and did not open a pairing window.
+
+Observed public-safe result:
+
+```text
+EXACT_MAIN_OBJECT=PASS
+EXACT_ONBOARDING_TOOL=PASS
+TARGET_BINDING=PASS
+T1_HOST_KEY=PASS
+SSH_MASTER_CONNECT=PASS
+MANAGER_CONTAINER_BINDING=PASS
+LIVE_CHAIN_CAPABILITY_PREFLIGHT=PASS
+
+OPEN_RESULT=STOP
+ERROR=authorization_id_invalid
+MUTATION_STATE=NONE
+AUTHORIZATION_REUSABLE=null
+OPEN_RC=2
+```
+
+Source review proves `tools/n3w_t1_first_pairing_onboarding.py::_authorization_id()` requires:
+
+```text
+authorization_id.startswith("N3W_T1_FIRST_PAIRING_")
+length <= 200
+only alphanumeric / underscore / hyphen
+```
+
+The previously proposed ID:
+
+```text
+N3W_T1_BOARD_D_FIRST_PAIR_LIVE_ACCEPTANCE_20261026_01
+```
+
+does not satisfy the required prefix and is therefore retired as an invalid execution identifier. It was never claimed or consumed by the product.
+
+Corrected prospective live authorization ID:
+
+```text
+N3W_T1_FIRST_PAIRING_BOARD_D_LIVE_ACCEPTANCE_20261026_01
+```
+
+This is a new exact authorization identifier for the same previously frozen one-attempt scope. It is NOT granted merely by this correction.
+
+```text
+PREVIOUS_INVALID_AUTHORIZATION_ID_CLAIMED=false
+PREVIOUS_INVALID_AUTHORIZATION_ID_CONSUMED=false
+PAIRING_WINDOW_OPENED=false
+T1_MUTATION=false
+BOARD_MUTATION=false
+CORRECTED_AUTHORIZATION_GRANTED=false
+SECOND_ATTEMPT_COUNT=0
+```
