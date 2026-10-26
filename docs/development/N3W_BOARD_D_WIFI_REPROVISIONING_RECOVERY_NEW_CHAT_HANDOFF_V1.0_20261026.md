@@ -369,7 +369,7 @@ WIFI_CREDENTIAL_SOURCE=PRIVATE_OPERATOR_INPUT_NOT_GITHUB
 1. fresh rebind repository main and this handoff; confirm no relevant product-source drift invalidates the current deployed Board D/T1 facts.
 2. fresh read-only T1 onboarding inspect; require pairing window CLOSED, listeners 0, transaction absent, all first-pair/security counts 0.
 3. fresh physical/read-only Board D check; require LCD normal and the expected fallback AP visible. Do not open serial.
-4. archive/update the KF-130 known-failure guard if not already present; docs-only, no live mutation.
+4. archive/update the KF-131 known-failure guard if not already present; docs-only, no live mutation.
 5. present exact proposed Wi-Fi recovery authorization and wait for explicit user approval.
 6. after approval, user connects to the already-observed Board D fallback AP and uses the normal ESPHome captive portal to provide the private site Wi-Fi SSID/password. Never paste Wi-Fi password into chat or GitHub.
 7. allow the normal product flow to save Wi-Fi state and reconnect. Do not erase NVS and do not restore the old backup.
@@ -439,7 +439,7 @@ BOARD_ACCESS_DEFAULT=false
 - repository read-only rebind
 - T1 read-only inspect
 - Board D visual/fallback-AP presence check
-- docs-only KF-130 alignment
+- docs-only KF-131 alignment
 ```
 
 ### FORBIDDEN
@@ -571,7 +571,7 @@ KNOWN_FAILURES_UPDATE_REQUIRED=true
 EXISTING_KF_GUARD_USED=KF-042,KF-043,KF-044,KF-046,KF-129
 NEW_KF_REQUIRED=true
 
-KF_ID=KF-130
+KF_ID=KF-131
 SYMPTOM=Board D scoped pairing-state reset completed correctly, but after application start prior STA network/native API disappeared; cold boot showed normal LCD/application plus fallback AP.
 ROOT_CAUSE=The reviewed reset erased the entire product NVS partition 0x790000+0x70000. The design treated that range as pairing-reset scope, but the same NVS also contained ESPHome persisted Wi-Fi state. Full-NVS erase therefore removed Wi-Fi configuration together with pairing state.
 FIX_OR_GUARD=Never claim Wi-Fi continuity after whole-product-NVS erase unless proven on the exact image. After full NVS erase, expect/verify fallback AP and run a separate newly-authorized Wi-Fi reprovisioning gate. Pre-reset private NVS backup is forensic-only and must not be restored because it would reintroduce stale pairing/Setup Secret state. Future pairing-only reset design should erase only exact pairing keys/namespaces or otherwise explicitly account for Wi-Fi loss.
