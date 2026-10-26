@@ -506,3 +506,86 @@ PAIRING_WINDOW_OPENED=false
 PRODUCT_FAILURE=false
 EXECUTOR_FIX_REQUIRED=true
 ```
+
+
+## 18. First live attempt closure and identity-authority blocker
+
+The first actual Board D first-pair live attempt is terminal and non-replayable.
+
+```text
+AUTHORIZATION=N3W_T1_FIRST_PAIRING_BOARD_D_LIVE_ACCEPTANCE_20261026_01
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+REPLAY_ALLOWED=false
+
+LIVE_RESULT=CLOSED_ABORTED
+FAIL_CLOSED=PASS
+FAILURE_CLASS=OPERATOR_QR_INPUT_TIMEOUT
+SETUP_SECRET_IMPORTED=false
+
+PAIRING_WINDOW_FINAL=CLOSED
+PAIRING_UDP_LISTENER_FINAL=0
+PAIRING_HTTP_LISTENER_FINAL=0
+
+REGISTRATIONS=1
+PAIRING_SESSIONS=1
+REGISTRATION_EVENTS=1
+NODE_ID_LEASES=0
+
+CREDENTIAL_ASSIGNMENTS=0
+PEER_TRUST_RECORDS=0
+APPLICATION_KEY_ACTIVE_NODES=0
+APPLICATION_KEY_EPOCHS=0
+```
+
+The QR was displayed and scanned locally before timeout. Public-safe cross-binding proves the scanned QR is the exact live T1 pairing identity:
+
+```text
+RUNTIME_PAIRING_HARDWARE_SHA256=3a76b39f066e09de0a285b81319eec20f29c8fd4136b61dc5a86ace01c1e1d55
+PAIRING_ID_SHA256=9931c366d483abd3af6e1e3d903b82645542346dbd258975acd788998f0404dc
+
+QR_VS_T1_CURRENT_HARDWARE_MATCH=true
+QR_VS_T1_CURRENT_PAIRING_MATCH=true
+QR_VS_T1_SESSION_HARDWARE_MATCH=true
+QR_VS_T1_SESSION_PAIRING_MATCH=true
+
+ARP_RUNTIME_HARDWARE_SHA256=3a76b39f066e09de0a285b81319eec20f29c8fd4136b61dc5a86ace01c1e1d55
+ARP_VS_QR_RUNTIME_IDENTITY_MATCH=true
+```
+
+However the previously frozen physical Board D identity does not match:
+
+```text
+FROZEN_PHYSICAL_BOARD_D_SHA256=3991b9af9e7604190a8ac8e60b780911a8faed6698cda5421eaf1eb686210df5
+FROZEN_BOARD_D_VS_QR_HARDWARE_MATCH=false
+FROZEN_BOARD_D_VS_T1_HARDWARE_MATCH=false
+ARP_VS_FROZEN_PHYSICAL_IDENTITY_MATCH=false
+```
+
+Current source contract:
+- the physical Board D write/preflight executors hash `ghw-c6-<ROM MAC>` from esptool security output;
+- the firmware pairing client hashes/uses `ghw-c6-<esp_read_mac(..., ESP_MAC_WIFI_STA)>`;
+- repository search found no product calls to `esp_base_mac_addr_set`, `esp_iface_mac_addr_set`, `esp_wifi_set_mac`, and no custom-base-MAC configuration.
+
+Therefore the live runtime identity chain is internally consistent, while the old physical identity authority is the sole conflicting binding.
+
+```text
+IDENTITY_AUTHORITY_BLOCKER=OPEN
+QR_SCAN_ERROR=false
+T1_PAIRING_IDENTITY_ERROR=false
+NETWORK_RUNTIME_IDENTITY_ERROR=false
+OLD_PHYSICAL_IDENTITY_AUTHORITY_REVIEW_REQUIRED=true
+
+SECOND_FIRST_PAIR_ATTEMPT_AUTHORIZED=false
+SAME_RELEASE_RECOVERY_AUTHORIZED=false
+OLD_QR_REUSE_ALLOWED=false
+OLD_SETUP_SECRET_REUSE_ALLOWED=false
+```
+
+Next source-only gate:
+
+```text
+N3W_BOARD_D_PHYSICAL_VS_RUNTIME_IDENTITY_AUTHORITY_SOURCE_REVIEW_20261026_01
+```
+
+It must resolve the exact provenance of the frozen `3991...` binding before any retry/recovery design is advanced.
