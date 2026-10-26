@@ -738,10 +738,21 @@ Only DEFINITELY_NOT_COMMITTED may enter automatic destructive cleanup. UNKNOWN n
 
 On Manager startup, before product registration listeners become ready, process every non-clean terminal or `ACTIVE`/`COMMITTING` attempt under one reconciliation lock.
 
-For an unfinished attempt, first durably prevent the old pairing ID from resuming, then classify cross-store commit state:
+For an unfinished attempt, first make the old pairing ID non-resumable **without destroying any commit-oracle evidence**, then classify cross-store commit state.
+
+Before classification:
+- startup keeps 47110/47111 product registration readiness closed and 47112 is absent;
+- an existing ACTIVE ledger row without the exact current-process RAM intent is already non-resumable under the replay rule in 6.2;
+- deadline reconciliation closes 47112 at the original `expires_at` and never grants a fresh deadline;
+- the reconciliation lock prevents a concurrent final ACK/expiry decision;
+- **do not** change ledger `phase=COMMITTING`, RegistrationRegistry `APPROVED` state, NODE_ID lease state, credential state, application-key state, or DynSec state before classification, because those are classifier inputs.
+
+If the process crashes again during this pre-classification window, the same durable ACTIVE/COMMITTING row is processed again before listeners become ready. No extra terminal marker is required merely to make the old pairing ID non-resumable.
+
+Then classify the preserved pre-terminal evidence:
 
 ```text
-old pairing id -> non-resumable under restart/deadline boundary
+old pairing id -> non-resumable by readiness/deadline/replay guards
 classification = COMMITTED | DEFINITELY_NOT_COMMITTED | UNKNOWN
 
 if classification == COMMITTED:
@@ -754,12 +765,13 @@ elif classification == DEFINITELY_NOT_COMMITTED:
     cleanup_state = REQUIRED
 else:
     state = EXPIRED if now >= expires_at else RESTART_INVALIDATED
+    phase = TERMINAL
     cleanup_state = FAILED
     no destructive cleanup
     registration readiness = fail closed
 ```
 
-The old pairing ID is non-resumable before any destructive cleanup starts. UNKNOWN is not converted into DEFINITELY_NOT_COMMITTED merely because the commit oracle did not PASS.
+Only after classification may terminal ledger/RegistrationRegistry mutation occur. The old pairing ID is non-resumable before any destructive cleanup starts, but COMMITTING/APPROVED evidence is never erased before the classifier consumes it. UNKNOWN is not converted into DEFINITELY_NOT_COMMITTED merely because the commit oracle did not PASS.
 
 If commit is not proven, exact cleanup is:
 1. recover raw hardware ID only through the pairing-session row keyed by this pairing ID and verify its SHA-256 equals the ledger binding;
@@ -1576,6 +1588,8 @@ Prove:
 - crash after application key ACTIVE but before MQTT credential ACTIVE rolls back uncommitted key/identity/approval;
 - crash after exact MQTT generation-1 activation but before ledger COMMITTED is promoted to COMMITTED only when durable phase=COMMITTING and the full cross-store commit oracle passes;
 - unreadable stores or contradictory registration/key/DynSec evidence classify UNKNOWN and cause fail-closed reconciliation, never guessed rollback/success;
+- pre-classification restart/deadline guards make the old pairing non-resumable without rewriting COMMITTING/APPROVED or other commit-oracle evidence;
+- a second crash during pre-classification reconciliation re-runs classification from the same durable evidence before listeners become ready;
 - automatic cleanup is reachable only from DEFINITELY_NOT_COMMITTED, never merely from “commit oracle did not PASS”;
 - cleanup failure blocks subsequent first registration while 47112 remains closed;
 - same old pairing ID receives terminal `replay_detected` or `expired`, never a fresh deadline;
@@ -1745,6 +1759,8 @@ RECONCILIATION_REGISTRATION_ROLLBACK_MAY_NOT_RETURN_PAIRING_TO_PENDING=true
 TARGET_PRESENCE_ALONE_PROVES_OWNERSHIP=false
 LEDGER_SAME_SQLITE_DATABASE_AS_REGISTRATION=true
 COMMIT_RECOVERY_REQUIRES_DURABLE_COMMITTING_PHASE=true
+PRECLASSIFICATION_GUARD_MAY_NOT_DESTROY_COMMIT_ORACLE_EVIDENCE=true
+RECONCILIATION_LISTENERS_READY_ONLY_AFTER_CLASSIFICATION=true
 ACK_SUCCESS_REQUIRES_DURABLE_LEDGER_COMMITTED=true
 EXACT_CROSS_STORE_COMMIT_ORACLE=true
 RECONCILIATION_CLASSIFICATION=COMMITTED_OR_DEFINITELY_NOT_COMMITTED_OR_UNKNOWN
