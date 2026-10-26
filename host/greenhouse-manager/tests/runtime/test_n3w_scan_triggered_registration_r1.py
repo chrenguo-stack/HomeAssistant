@@ -79,7 +79,7 @@ def test_trusted_product_lan_accepts_only_exact_ipv4_subnet() -> None:
     state = _state()
     assert state.authorizes("192.0.2.1") is True
     assert state.authorizes("192.0.2.254") is True
-    assert state.authorizes("10.0.0.2") is False
+    assert state.authorizes("198.51.100.2") is False
     assert state.authorizes("127.0.0.1") is False
     assert state.authorizes("fe80::1") is False
 
@@ -158,7 +158,7 @@ def test_registration_discovery_uses_exact_trusted_subnet_not_rfc1918() -> None:
     with pytest.raises(DiscoveryRejected, match="source_not_trusted_product_lan"):
         build_registration_udp_response(
             _query(),
-            source_ip="10.0.0.20",
+            source_ip="198.51.100.20",
             candidate_for=_candidate,
             state_loader=_state,
             rate_limiter=limiter,
@@ -184,7 +184,7 @@ def test_bootstrap_skeleton_is_trusted_subnet_gated_and_never_starts_transaction
     ):
         evaluate_confirm_skeleton(
             _confirm(),
-            source_ip="10.0.0.20",
+            source_ip="198.51.100.20",
             expected_manager_id="manager_lab_01",
             expected_system_id="system_lab_01",
             state_loader=_state,
@@ -219,7 +219,7 @@ def test_registration_udp_auto_host_must_remain_inside_trusted_subnet() -> None:
     )
     try:
         assert server.candidate_for("192.0.2.20").host == "192.0.2.10"
-        server.advertised_host_resolver = lambda _source: "10.0.0.10"
+        server.advertised_host_resolver = lambda _source: "198.51.100.10"
         with pytest.raises(
             DiscoveryRejected,
             match="outside trusted product LAN",
@@ -258,7 +258,7 @@ def test_registration_mdns_definition_is_exact_interface_scoped() -> None:
         build_registration_mdns_definition(
             candidate,
             instance_name="n3w-registration-test",
-            interface_ip="10.0.0.10",
+            interface_ip="198.51.100.10",
             state_loader=_state,
         )
 
