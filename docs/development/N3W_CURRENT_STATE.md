@@ -1,3 +1,33 @@
+## 2026-10-26 — Handoff template authority correction
+
+~~~text
+HANDOFF_TEMPLATE_AUTHORITY_CORRECTION_20261026=true
+
+SOLE_VALID_HANDOFF_TEMPLATE_PATH=docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md
+SOLE_VALID_HANDOFF_TEMPLATE_VERSION=1.3
+SOLE_VALID_HANDOFF_TEMPLATE_BLOB=6ecb74451c4bb35f57c8003ee15fbdf65f7dad15
+
+OLDER_HANDOFF_TEMPLATE_VERSIONS=INVALID_FOR_NEW_HANDOFF_GENERATION
+HISTORICAL_TEMPLATE_COPIES=HISTORICAL_EVIDENCE_ONLY
+HISTORICAL_HANDOFF_STANDARD_DOES_NOT_AUTHORIZE_OLD_TEMPLATE=true
+
+INCORRECT_R2A_TO_R2B_HANDOFF_COMMIT=f0c651bc64ffeaa768b9e6baab7f0f636ba08c3d
+INCORRECT_HANDOFF_DISPOSITION=SUPERSEDED_INVALID_TEMPLATE_GENERATION
+CORRECTED_HANDOFF_COMMIT=032cd7bb57eb39c0bdc68e075d32e1003a5e34f9
+CORRECTED_HANDOFF_TEMPLATE_VERSION=1.3
+CORRECTED_HANDOFF_BLOB=56bdf8083491b5d699834ad027829d66abaaeab8
+
+KNOWN_FAILURES_UPDATE_REQUIRED=false
+~~~
+
+The repository currently contains one active handoff template file under
+`docs/development/templates/`, and it is V1.3. Older template versions survive only
+in Git history or historical documents; they are now explicitly invalid for generating
+new formal handoffs.
+
+The R2A→R2B handoff at the same path was regenerated with V1.3. The earlier
+`f0c651bc...` version used a historical template and is superseded evidence only.
+
 ## 2026-10-26 — Scan-triggered first registration R2A durable ledger CLOSED_PASS
 
 ~~~text
