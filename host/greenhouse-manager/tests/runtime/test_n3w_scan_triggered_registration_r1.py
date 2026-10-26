@@ -13,6 +13,7 @@ from greenhouse_manager.runtime.n3w_registration_bootstrap import (
 )
 from greenhouse_manager.runtime.n3w_registration_discovery import (
     REGISTRATION_PROTOCOL,
+    REGISTRATION_SERVICE_TYPE,
     RegistrationCandidate,
     RegistrationDiscoveryUDPServer,
     build_registration_mdns_definition,
@@ -243,6 +244,8 @@ def test_registration_mdns_definition_is_exact_interface_scoped() -> None:
         state_loader=_state,
     )
     assert definition.port == 47110
+    assert definition.service_type == REGISTRATION_SERVICE_TYPE
+    assert REGISTRATION_SERVICE_TYPE != "_greenhouse._tcp.local."
     assert definition.addresses == (bytes((192, 0, 2, 10)),)
     assert definition.server == "192.0.2.10."
     assert definition.properties["protocol"] == REGISTRATION_PROTOCOL
