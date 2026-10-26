@@ -1271,6 +1271,8 @@ print(json.dumps({"status": "PASS"}))
         if (
             "N3WFC4-BROKER-INGRESS" in firewall
             or "n3wfc4-broker-ingress-v1" in firewall
+            or "N3WFC4-REGISTRATION-INGRESS" in firewall
+            or "n3wfc4-registration-ingress-v1" in firewall
         ):
             raise BootstrapError("postcheck_firewall_started")
 
