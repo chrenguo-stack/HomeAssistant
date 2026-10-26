@@ -118,7 +118,50 @@ def initialize_first_registration_ledger(connection: sqlite3.Connection) -> None
             ),
             delivery_digest_sha256 TEXT,
             terminal_at TEXT,
-            terminal_reason TEXT
+            terminal_reason TEXT,
+            CHECK (
+                (
+                    state = 'ACTIVE'
+                    AND phase != 'TERMINAL'
+                    AND cleanup_state = 'NONE'
+                    AND terminal_at IS NULL
+                    AND terminal_reason IS NULL
+                )
+                OR (
+                    state = 'COMMITTED'
+                    AND phase = 'TERMINAL'
+                    AND cleanup_state = 'COMPLETE'
+                    AND terminal_at IS NOT NULL
+                    AND terminal_reason IS NULL
+                )
+                OR (
+                    state IN ('EXPIRED', 'RESTART_INVALIDATED')
+                    AND phase = 'TERMINAL'
+                    AND cleanup_state IN ('REQUIRED', 'COMPLETE', 'FAILED')
+                    AND terminal_at IS NOT NULL
+                    AND terminal_reason IN ('expired', 'replay_detected')
+                )
+            ),
+            CHECK (
+                phase NOT IN ('BUNDLE_STAGED', 'COMMITTING')
+                OR (
+                    node_id IS NOT NULL
+                    AND dynsec_prestate_absent = 1
+                    AND application_key_prestate_absent = 1
+                    AND application_key_epoch IS NOT NULL
+                    AND delivery_digest_sha256 IS NOT NULL
+                )
+            ),
+            CHECK (
+                state != 'COMMITTED'
+                OR (
+                    node_id IS NOT NULL
+                    AND dynsec_prestate_absent = 1
+                    AND application_key_prestate_absent = 1
+                    AND application_key_epoch IS NOT NULL
+                    AND delivery_digest_sha256 IS NOT NULL
+                )
+            )
         );
 
         CREATE INDEX IF NOT EXISTS first_registration_attempts_reconciliation
@@ -592,16 +635,65 @@ class FirstRegistrationLedger:
             node_id = row["node_id"]
             if node_id is not None:
                 FirstRegistrationLedger._require_node_id(node_id)
+            state = FirstRegistrationAttemptState(row["state"])
+            phase = FirstRegistrationPhase(row["phase"])
+            cleanup_state = FirstRegistrationCleanupState(
+                row["cleanup_state"]
+            )
+            terminal_at = (
+                None
+                if row["terminal_at"] is None
+                else _parse_timestamp(row["terminal_at"])
+            )
+            terminal_reason = row["terminal_reason"]
+            if state is FirstRegistrationAttemptState.ACTIVE:
+                if (
+                    phase is FirstRegistrationPhase.TERMINAL
+                    or cleanup_state is not FirstRegistrationCleanupState.NONE
+                    or terminal_at is not None
+                    or terminal_reason is not None
+                ):
+                    raise ValueError("active attempt terminal fields are invalid")
+            elif state is FirstRegistrationAttemptState.COMMITTED:
+                if (
+                    phase is not FirstRegistrationPhase.TERMINAL
+                    or cleanup_state is not FirstRegistrationCleanupState.COMPLETE
+                    or terminal_at is None
+                    or terminal_reason is not None
+                ):
+                    raise ValueError("committed attempt fields are invalid")
+            else:
+                if (
+                    phase is not FirstRegistrationPhase.TERMINAL
+                    or cleanup_state not in {
+                        FirstRegistrationCleanupState.REQUIRED,
+                        FirstRegistrationCleanupState.COMPLETE,
+                        FirstRegistrationCleanupState.FAILED,
+                    }
+                    or terminal_at is None
+                    or terminal_reason not in {"expired", "replay_detected"}
+                ):
+                    raise ValueError("terminal attempt fields are invalid")
+            if phase in {
+                FirstRegistrationPhase.BUNDLE_STAGED,
+                FirstRegistrationPhase.COMMITTING,
+            } or state is FirstRegistrationAttemptState.COMMITTED:
+                if (
+                    node_id is None
+                    or dynsec_prestate != 1
+                    or application_prestate != 1
+                    or row["application_key_epoch"] is None
+                    or delivery_hash is None
+                ):
+                    raise ValueError("staged attempt ownership fields are invalid")
             return FirstRegistrationAttempt(
                 pairing_id=row["pairing_id"],
                 hardware_id_sha256=hardware_hash,
                 opened_at=_parse_timestamp(row["opened_at"]),
                 expires_at=_parse_timestamp(row["expires_at"]),
-                state=FirstRegistrationAttemptState(row["state"]),
-                phase=FirstRegistrationPhase(row["phase"]),
-                cleanup_state=FirstRegistrationCleanupState(
-                    row["cleanup_state"]
-                ),
+                state=state,
+                phase=phase,
+                cleanup_state=cleanup_state,
                 node_id=node_id,
                 dynsec_prestate_absent=(
                     None
@@ -615,12 +707,8 @@ class FirstRegistrationLedger:
                 ),
                 application_key_epoch=row["application_key_epoch"],
                 delivery_digest_sha256=delivery_hash,
-                terminal_at=(
-                    None
-                    if row["terminal_at"] is None
-                    else _parse_timestamp(row["terminal_at"])
-                ),
-                terminal_reason=row["terminal_reason"],
+                terminal_at=terminal_at,
+                terminal_reason=terminal_reason,
             )
         except (KeyError, TypeError, ValueError) as error:
             raise FirstRegistrationLedgerConflict(
