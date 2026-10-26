@@ -19,6 +19,12 @@ MERGE=false
 
 This design translates ADR-0011 into exact components, source seams, protocol boundaries, tests and implementation order.
 
+Authority note:
+- ADR-0011 intentionally replaces the old product requirement that the Setup Secret itself be encoded in the user-facing QR;
+- ADR-0011 also replaces the UDS/CLI secret-import path as the normal first-registration product entry;
+- ADR-0007 HMAC/HKDF bootstrap security and ADR-0008 random pairing/replay semantics remain authoritative;
+- the UDS remains available for engineering/ops use.
+
 It does not declare implementation complete.
 
 ## 1. Current-source findings
