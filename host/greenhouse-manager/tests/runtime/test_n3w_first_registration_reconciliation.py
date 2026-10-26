@@ -272,6 +272,44 @@ def test_restart_before_hello_terminalizes_ledger_only(
     assert harness.registration.get_by_pairing_id(PAIRING_ID) is None
 
 
+def test_deadline_entrypoint_rejects_early_call(
+    harness: Harness,
+) -> None:
+    harness.open_attempt()
+
+    with pytest.raises(
+        FirstRegistrationReconciliationError,
+        match="deadline has not elapsed",
+    ):
+        harness.reconciler.reconcile_deadline(
+            PAIRING_ID,
+            now=NOW + timedelta(seconds=100),
+        )
+
+    attempt = harness.registration.first_registration_ledger().get(
+        PAIRING_ID
+    )
+    assert attempt.state is FirstRegistrationAttemptState.ACTIVE
+
+
+def test_deadline_entrypoint_expires_unstarted_attempt(
+    harness: Harness,
+) -> None:
+    harness.open_attempt()
+
+    result = harness.reconciler.reconcile_deadline(
+        PAIRING_ID,
+        now=NOW + timedelta(seconds=1800),
+    )
+
+    assert (
+        result.classification
+        is FirstRegistrationCommitClassification.DEFINITELY_NOT_COMMITTED
+    )
+    assert result.state is FirstRegistrationAttemptState.EXPIRED
+    assert result.cleanup_state is FirstRegistrationCleanupState.COMPLETE
+
+
 def test_committing_exact_cross_store_state_recovers_committed(
     harness: Harness,
 ) -> None:
