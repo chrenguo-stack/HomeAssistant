@@ -35,6 +35,10 @@ on:
       - main
     paths:
       - "tools/n3w_broker_ingress_guard.py"
+      - "tools/n3w_trusted_product_lan_authority.py"
+      - "tests/tools/test_n3w_trusted_product_lan_authority.py"
+      - "tools/n3w_registration_ingress_guard.py"
+      - "tests/tools/test_n3w_registration_ingress_guard.py"
       - "tests/tools/test_n3w_broker_ingress_guard.py"
       - "tests/tools/test_n3w_broker_ingress_guard_lifecycle.py"
       - "tools/n3w_mosquitto_21_deprecation_repair.py"
