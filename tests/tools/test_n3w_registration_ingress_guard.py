@@ -195,3 +195,30 @@ def test_manager_mounts_trusted_lan_directory_read_only(compose_name: str) -> No
     assert "target: /run/n3w/trusted-product-lan" in compose
     block = compose.split("source: /run/n3wfc4-trusted-lan", 1)[1]
     assert "read_only: true" in block.split("- type: bind", 1)[0]
+
+
+def test_registration_guard_rejects_duplicate_rule_false_pass() -> None:
+    broker, registration = load_modules()
+    subnet = ipaddress.ip_network("192.0.2.0/24")
+    first = registration._anchor_rule("tcp", 47110)
+    lines = [
+        "*filter",
+        ":INPUT ACCEPT [0:0]",
+        ":DOCKER-USER - [0:0]",
+        f":{broker.CUSTOM_CHAIN} - [0:0]",
+        f":{registration.CUSTOM_CHAIN} - [0:0]",
+        broker._input_anchor_rule(),
+        first,
+        first,
+        first,
+        registration._allow_rule(subnet),
+        registration._drop_rule(),
+        "COMMIT",
+        "",
+    ]
+    inventory = registration.parse_firewall_inventory("\n".join(lines))
+    with pytest.raises(
+        registration.RegistrationIngressGuardError,
+        match="registration_anchor_order_invalid",
+    ):
+        registration._validate_prestate(inventory)
