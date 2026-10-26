@@ -14,6 +14,8 @@ from greenhouse_manager.runtime.n3w_registration_bootstrap import (
 from greenhouse_manager.runtime.n3w_registration_discovery import (
     REGISTRATION_PROTOCOL,
     RegistrationCandidate,
+    RegistrationDiscoveryUDPServer,
+    build_registration_mdns_definition,
     build_registration_udp_response,
 )
 from greenhouse_manager.runtime.n3w_trusted_product_lan import (
@@ -199,3 +201,81 @@ def test_bootstrap_skeleton_rejects_bad_setup_secret_shape() -> None:
             expected_system_id="system_lab_01",
             state_loader=_state,
         )
+
+
+def test_registration_udp_auto_host_must_remain_inside_trusted_subnet() -> None:
+    server = RegistrationDiscoveryUDPServer(
+        ("127.0.0.1", 0),
+        candidate=RegistrationCandidate(
+            manager_id="manager_lab_01",
+            system_id="system_lab_01",
+            system_id_hint="LAB01",
+            host="auto",
+            bootstrap_tls_sha256="a" * 64,
+        ),
+        state_loader=_state,
+        advertised_host_resolver=lambda _source: "192.0.2.10",
+    )
+    try:
+        assert server.candidate_for("192.0.2.20").host == "192.0.2.10"
+        server.advertised_host_resolver = lambda _source: "10.0.0.10"
+        with pytest.raises(
+            DiscoveryRejected,
+            match="outside trusted product LAN",
+        ):
+            server.candidate_for("192.0.2.20")
+    finally:
+        server.server_close()
+
+
+def test_registration_mdns_definition_is_exact_interface_scoped() -> None:
+    candidate = RegistrationCandidate(
+        manager_id="manager_lab_01",
+        system_id="system_lab_01",
+        system_id_hint="LAB01",
+        host="auto",
+        bootstrap_tls_sha256="b" * 64,
+    )
+    definition = build_registration_mdns_definition(
+        candidate,
+        instance_name="n3w-registration-test",
+        interface_ip="192.0.2.10",
+        state_loader=_state,
+    )
+    assert definition.port == 47110
+    assert definition.addresses == (bytes((192, 0, 2, 10)),)
+    assert definition.server == "192.0.2.10."
+    assert definition.properties["protocol"] == REGISTRATION_PROTOCOL
+    assert definition.properties["bootstrap_tls_sha256"] == "b" * 64
+
+    with pytest.raises(
+        DiscoveryRejected,
+        match="outside trusted product LAN",
+    ):
+        build_registration_mdns_definition(
+            candidate,
+            instance_name="n3w-registration-test",
+            interface_ip="10.0.0.10",
+            state_loader=_state,
+        )
+
+
+def test_r1_source_keeps_registration_runtime_isolated_from_manager_app() -> None:
+    from greenhouse_manager.runtime import app as manager_app
+    from greenhouse_manager.runtime import n3w_registration_runtime as registration_runtime
+
+    app_source = manager_app.__file__
+    runtime_source = registration_runtime.__file__
+    assert app_source is not None
+    assert runtime_source is not None
+    assert "n3w_registration_runtime" not in open(
+        app_source,
+        encoding="utf-8",
+    ).read()
+    assert "first_registration_transaction_not_implemented" in open(
+        __import__(
+            "greenhouse_manager.runtime.n3w_registration_bootstrap",
+            fromlist=["__file__"],
+        ).__file__,
+        encoding="utf-8",
+    ).read()
