@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import ipaddress
 import json
 import os
 import re
+import shlex
 import shutil
 import sqlite3
 import stat
@@ -332,7 +334,18 @@ def _registration_guard_contract(
         "-m comment --comment n3wfc4-registration-ingress-v1 "
         "-j N3WFC4-REGISTRATION-INGRESS",
     )
-    if tuple(input_appends[1:4]) != expected_anchors:
+    try:
+        observed_anchor_tokens = tuple(
+            tuple(shlex.split(line))
+            for line in input_appends[1:4]
+        )
+        expected_anchor_tokens = tuple(
+            tuple(shlex.split(line))
+            for line in expected_anchors
+        )
+    except ValueError as error:
+        raise StagingError("registration_guard_input_anchor_drift") from error
+    if observed_anchor_tokens != expected_anchor_tokens:
         raise StagingError("registration_guard_input_anchor_drift")
     if (
         sum(REGISTRATION_COMMENT in line for line in input_appends)
@@ -348,19 +361,51 @@ def _registration_guard_contract(
     ]
     if len(appends) not in {1, 2}:
         raise StagingError("registration_guard_rule_count_drift")
-    if appends[-1] != f"-A {REGISTRATION_CHAIN} -m comment --comment {REGISTRATION_COMMENT} -j DROP":
+    terminal_rule = (
+        f"-A {REGISTRATION_CHAIN} -m comment --comment "
+        f"{REGISTRATION_COMMENT} -j DROP"
+    )
+    try:
+        terminal_matches = (
+            shlex.split(appends[-1]) == shlex.split(terminal_rule)
+        )
+    except ValueError as error:
+        raise StagingError("registration_guard_terminal_drop_drift") from error
+    if not terminal_matches:
         raise StagingError("registration_guard_terminal_drop_drift")
     if len(appends) == 2:
-        allow_pattern = re.compile(
-            rf"^-A {REGISTRATION_CHAIN} -i eth0 -s "
-            r"(?P<subnet>(?:\d{1,3}\.){3}\d{1,3}/\d{1,2}) "
-            rf"-m comment --comment {REGISTRATION_COMMENT} -j RETURN$"
-        )
-        match = allow_pattern.fullmatch(appends[0])
-        if match is None:
+        try:
+            tokens = shlex.split(appends[0])
+        except ValueError as error:
+            raise StagingError("registration_guard_allow_rule_drift") from error
+        if (
+            len(tokens) != 12
+            or tokens[:6]
+            != ["-A", REGISTRATION_CHAIN, "-i", "eth0", "-s", tokens[5]]
+            or tokens[6:]
+            != [
+                "-m",
+                "comment",
+                "--comment",
+                REGISTRATION_COMMENT,
+                "-j",
+                "RETURN",
+            ]
+        ):
             raise StagingError("registration_guard_allow_rule_drift")
-        if match.group("subnet").startswith("127."):
-            raise StagingError("registration_guard_loopback_forbidden")
+        try:
+            subnet = ipaddress.ip_network(tokens[5], strict=True)
+        except ValueError as error:
+            raise StagingError("registration_guard_allow_rule_drift") from error
+        if (
+            not isinstance(subnet, ipaddress.IPv4Network)
+            or subnet.prefixlen == 0
+            or subnet.is_loopback
+            or subnet.is_link_local
+            or subnet.is_multicast
+            or subnet.is_unspecified
+        ):
+            raise StagingError("registration_guard_allow_subnet_invalid")
     return {"active": True, "enabled": True, "exact": True}
 
 
