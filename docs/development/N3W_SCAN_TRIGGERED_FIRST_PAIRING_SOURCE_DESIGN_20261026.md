@@ -816,6 +816,10 @@ The reconciliation-specific RegistrationRegistry terminal mapping is exact:
 - process-boundary restart invalidation before durable commit -> pairing session terminal/rejected with reason `replay_detected`;
 - neither path may return the old pairing session to `PENDING`.
 
+Because the first-registration ledger, pairing session, registration pointer, assignment history and NODE_ID lease share the RegistrationRegistry SQLite connection/lock, the local RegistrationRegistry cleanup transition must be one atomic transaction: preserve the old session tombstone, retire the never-reusable NODE_ID lease if one was allocated, close the open assignment history if present, clear the abandoned current registration identity/pointer as required, and leave the exact terminal reason. Do not compose this from externally visible partial local mutations.
+
+External cleanup remains restartable/idempotent. A terminal attempt with `cleanup_state=REQUIRED` re-enters the same exact-owned sequence after a crash. If a transaction-owned DynSec object or key epoch was already removed/revoked by an earlier partial cleanup, exact absence/revoked state may count as that cleanup step already complete **only because the durable ownership proof exists**; absence alone never creates ownership. `cleanup_state=COMPLETE` is written only after every required external step, the atomic RegistrationRegistry transition, and the final no-ACTIVE-credential check succeed.
+
 Restart before `/hello` has no pairing-session row, so steps 1-5 have nothing to clean; the ledger tombstone alone is sufficient.
 
 If ownership proof is absent, a store is inconsistent, cross-store classification is ambiguous, or any cleanup operation fails:
@@ -1608,7 +1612,7 @@ Prove:
 - DynSec target absence is durably proven before first provision, but absence alone does not authorize later deletion;
 - application-key prestate absence is durably proven before first stage;
 - successful stage completion is durably recorded as `BUNDLE_STAGED` with exact node ID and application-key epoch before the encrypted bundle is returned;
-- automatic destructive cleanup requires both prestate-absent proof and BUNDLE_STAGED-or-later proof;
+- automatic destructive cleanup requires both prestate-absent proof and durable stage-completion proof;
 - crash after possible external creation but before BUNDLE_STAGED is treated as ambiguous and fail-closed, not auto-deleted;
 - restart after proven BUNDLE_STAGED removes exact transaction-owned DynSec identity and exact STAGED application-key epoch;
 - terminalization after BUNDLE_STAGED preserves the complete staged ownership tuple across close/reopen, so a second restart during cleanup does not lose destructive-cleanup authority;
@@ -1620,6 +1624,8 @@ Prove:
 - unreadable stores or contradictory registration/key/DynSec evidence classify UNKNOWN and cause fail-closed reconciliation, never guessed rollback/success;
 - pre-classification restart/deadline guards make the old pairing non-resumable without rewriting COMMITTING/APPROVED or other commit-oracle evidence;
 - a second crash during pre-classification reconciliation re-runs classification from the same durable evidence before listeners become ready;
+- crash after each external cleanup step resumes the same exact-owned cleanup idempotently and cannot widen deletion scope;
+- RegistrationRegistry local rollback/terminalization is atomic under the shared SQLite transaction and cannot expose a half-retired NODE_ID/session state;
 - automatic cleanup is reachable only from DEFINITELY_NOT_COMMITTED, never merely from “commit oracle did not PASS”;
 - cleanup failure blocks subsequent first registration while 47112 remains closed;
 - same old pairing ID receives terminal `replay_detected` or `expired`, never a fresh deadline;
@@ -1786,6 +1792,8 @@ TERMINALIZATION_PRESERVES_STAGE_COMPLETION_PROOF=true
 TERMINAL_STAGE_COMPLETION_PROOF=COMPLETE_PERSISTED_STAGED_OWNERSHIP_TUPLE
 PARTIAL_TERMINAL_STAGED_TUPLE=UNKNOWN_FAIL_CLOSED
 RECONCILIATION_REGISTRATION_ROLLBACK_MAY_NOT_RETURN_PAIRING_TO_PENDING=true
+REGISTRATION_LOCAL_RECONCILIATION_ATOMIC_SAME_SQLITE_TRANSACTION=true
+EXTERNAL_CLEANUP_RESTARTABLE_IDEMPOTENT=true
 TARGET_PRESENCE_ALONE_PROVES_OWNERSHIP=false
 LEDGER_SAME_SQLITE_DATABASE_AS_REGISTRATION=true
 COMMIT_RECOVERY_REQUIRES_DURABLE_COMMITTING_PHASE=true
