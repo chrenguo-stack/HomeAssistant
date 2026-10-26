@@ -271,11 +271,16 @@ It uses user-confirmed TOFU:
 1. scan-triggered discovery obtains candidate + certificate fingerprint;
 2. phone shows simple T1 identity;
 3. user confirms;
-4. node connects to the selected candidate over TLS;
-5. node requires the observed certificate fingerprint to exactly equal the selected candidate;
-6. only then may the node send Setup Secret.
+4. node performs the TLS handshake to the selected candidate;
+5. the leaf certificate DER SHA-256 is checked against the selected candidate before any HTTP request body containing Setup Secret is transmitted;
+6. only after an exact match may the node send Setup Secret.
 
 No fingerprint is shown to the user.
+
+Implementation rule:
+- `skip_cert_common_name_check`, disabled CA verification, or a post-request certificate check is not certificate pinning;
+- if `esp_http_client` cannot enforce the exact leaf fingerprint before body transmission, the bootstrap client must use an `esp_tls` / mbedTLS handshake path with an explicit verification callback and only construct/send the HTTP request after pin success;
+- pin mismatch must close the socket and map to E02 without emitting Setup Secret bytes.
 
 ### 5.2 Bootstrap endpoint
 
