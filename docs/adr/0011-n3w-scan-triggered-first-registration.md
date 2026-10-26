@@ -228,6 +228,7 @@ cleanup_state               NONE | REQUIRED | COMPLETE | FAILED
 node_id                     nullable; internal recovery binding only
 dynsec_prestate_absent      nullable boolean
 application_key_prestate_absent nullable boolean
+application_key_epoch       nullable integer
 terminal_at                 nullable
 terminal_reason             nullable
 ```
@@ -305,10 +306,16 @@ Restart invalidation also owns all **uncommitted persistent side effects** creat
 The startup reconciler therefore uses the exact old pairing ID to locate and cross-check the registration row, validates the canonical hardware-ID SHA-256 against the ledger, and then applies one of three outcomes:
 
 1. **Durable commit proven.** If the exact pairing ID already owns MQTT credential generation 1 in ACTIVE state, the same node has the expected ACTIVE application key, the exact Broker identity exists, and registration/node binding is consistent, the final receipt commit is considered durably complete even if the process died before the ledger could be marked COMMITTED. The ledger is promoted to `COMMITTED`; no rollback occurs.
-2. **Commit not reached.** If exact ACTIVE MQTT generation 1 does not exist and ownership of any pre-commit side effects is proven, the reconciler removes only transaction-owned Broker identity, revokes transaction-owned staged/temporarily-active application key material, rolls back the automatic NODE_ID approval/lease, terminalizes the old registration session, and then records `cleanup_state=COMPLETE`.
+2. **Commit not reached.** If exact ACTIVE MQTT generation 1 does not exist, automatic destructive cleanup is allowed only when the two-part ownership proof below is complete. The reconciler then removes only transaction-owned Broker identity, revokes the exact transaction-owned staged/temporarily-active application-key epoch, rolls back the automatic NODE_ID approval/lease, terminalizes the old registration session, and records `cleanup_state=COMPLETE`.
 3. **Ambiguous or unsafe state.** Any cross-store mismatch, unprovable ownership, partial state that cannot be safely classified, or cleanup failure records `cleanup_state=FAILED` and keeps all product first-registration listeners fail-closed. It must not guess, delete an unowned DynSec object, or permit a new registration transaction.
 
-For DynSec cleanup ownership, the transaction must first prove the exact deterministic target client/role absent and durably record `dynsec_prestate_absent=true` before provisioning them. For the initial application key, the new NODE_ID must likewise have no predecessor key state before staging and that prestate is durably recorded. These prestate proofs plus the never-reused NODE_ID lease provide restart-safe ownership; an object without such proof is never destructively cleaned automatically.
+For DynSec cleanup ownership, the transaction must first prove the exact deterministic target client/role absent and durably record `dynsec_prestate_absent=true` before provisioning them. For the initial application key, the new NODE_ID must likewise have no predecessor key state before staging and that prestate is durably recorded.
+
+Those prestate facts are **necessary but not sufficient** destructive-cleanup authority. After the complete stage operation returns successfully, and before the encrypted bundle is returned to the node, Manager must durably advance the ledger to `phase=BUNDLE_STAGED`, bind the exact `node_id`, and record the exact initial `application_key_epoch`.
+
+Automatic DynSec/application-key cleanup after restart requires both the corresponding durable prestate-absent proof **and** a durable `BUNDLE_STAGED` or later phase proving the stage operation completed successfully. If the process dies in the narrow cross-system gap after an external object may have been created but before `BUNDLE_STAGED` is durably recorded, ownership is ambiguous. The reconciler keeps registration fail-closed and must not automatically delete that object. This preserves KF-060: create-attempt/target-presence is not ownership proof.
+
+The never-reused NODE_ID is an additional binding, not a substitute for this two-part ownership proof.
 
 The same reconciliation machinery is used on canonical deadline expiry. The privileged listener closes at the deadline immediately; a failed cleanup cannot reopen it and instead leaves registration unavailable until cleanup succeeds or a separate recovery path is authorized.
 
@@ -459,8 +466,8 @@ Before product live acceptance, source and tests must prove:
 9. durable attempt `ACTIVE` state is committed before `accepted=true` and contains no Setup Secret;
 10. restart before `/hello` still makes the old pairing ID terminal/replay-detected;
 11. restart after `/hello` but before final durable commit either proves the exact transaction committed or rolls back only transaction-owned NODE_ID/DynSec/application-key side effects;
-12. DynSec/application-key prestate ownership is durably proven before destructive cleanup can ever be authorized;
-13. ambiguous cross-store restart state leaves product first registration fail-closed rather than guessing;
+12. DynSec/application-key cleanup requires both durable prestate-absent proof and a durable BUNDLE_STAGED-or-later completion marker; target presence alone never proves ownership;
+13. a crash between possible external creation and durable BUNDLE_STAGED leaves product first registration fail-closed rather than guessing or deleting;
 14. SYSTEM_PEER_KEY is initialized/validated as T1 baseline before registration readiness and is only read by node registration;
 15. a terminal bootstrap response drives the ADR-0008 durable fresh-pairing-ID renewal path before any retry;
 16. no hidden 120/600-second timeout truncates the 1800-second transaction;
