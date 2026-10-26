@@ -468,6 +468,7 @@ cleanup_state TEXT NOT NULL
 node_id TEXT
 dynsec_prestate_absent INTEGER
 application_key_prestate_absent INTEGER
+application_key_epoch INTEGER
 terminal_at TEXT
 terminal_reason TEXT
 ```
@@ -500,7 +501,7 @@ COMPLETE
 FAILED
 ```
 
-The table deliberately does **not** contain Setup Secret, raw hardware ID, scan token, source IP, MQTT password, application-key material, SYSTEM_PEER_KEY or TLS private material. `node_id` and the prestate booleans are internal recovery metadata only and are never emitted in public diagnostics.
+The table deliberately does **not** contain Setup Secret, raw hardware ID, scan token, source IP, MQTT password, application-key material, SYSTEM_PEER_KEY or TLS private material. `node_id`, `application_key_epoch` and the prestate booleans are internal recovery metadata only and are never emitted in public diagnostics.
 
 `pairing_id` is the exact durable replay key. `hardware_id_sha256` is only a non-secret binding/audit value and never replaces the exact runtime hardware-ID check on 47112.
 
@@ -579,7 +580,15 @@ Before initial application-key staging:
 2. durably set `application_key_prestate_absent=true`;
 3. only then may the first STAGED key be created.
 
-These are ownership proofs, not progress hints. If target absence cannot be proven, recovery never gains permission to delete that target. The NODE_ID lease remains never-reused.
+These prestate facts are necessary but not sufficient destructive-cleanup authority. After the complete first-registration stage operation returns successfully, and before the encrypted bundle is returned to the node, Manager must durably write `phase=BUNDLE_STAGED`, the exact `node_id`, and the exact initial `application_key_epoch`.
+
+Automatic DynSec/application-key cleanup requires both:
+- the corresponding durable prestate-absent proof; and
+- durable `phase=BUNDLE_STAGED` or later, proving the stage operation completed successfully.
+
+If the process dies after an external object may have been created but before `BUNDLE_STAGED` is durably recorded, ownership is ambiguous. Recovery remains fail-closed and must not delete that target automatically. Target presence or an attempted create is not ownership proof; this explicitly preserves KF-060.
+
+The NODE_ID lease remains never-reused and is an additional binding, not a substitute for the two-part ownership proof.
 
 ### 6.5 Final receipt / durable commit oracle
 
@@ -620,7 +629,7 @@ CredentialLifecycle:
   pending_generation == null
 
 Application key:
-  exact ledger.node_id has the expected ACTIVE initial epoch
+  exact ledger.node_id has ACTIVE epoch == ledger.application_key_epoch
   no conflicting ACTIVE/GRACE state
 
 DynSec:
@@ -654,8 +663,8 @@ The terminal pairing-ID transition is durable before destructive cleanup starts.
 
 If commit is not proven, exact cleanup is:
 1. recover raw hardware ID only through the pairing-session row keyed by this pairing ID and verify its SHA-256 equals the ledger binding;
-2. if `dynsec_prestate_absent=true`, rebuild the deterministic generation-1 plan from configured system ID + ledger node ID and remove only that exact client/role if present;
-3. if `application_key_prestate_absent=true`, revoke/remove only first-registration application-key state owned by this exact transient NODE_ID, including STAGED or ACTIVE material that has no exact committed MQTT generation-1 oracle;
+2. only if `dynsec_prestate_absent=true` and durable phase proves `BUNDLE_STAGED` or later, rebuild the deterministic generation-1 plan from configured system ID + ledger node ID and remove only that exact client/role if present;
+3. only if `application_key_prestate_absent=true`, durable phase proves `BUNDLE_STAGED` or later, and the exact recorded `application_key_epoch` matches, revoke/remove that transaction-owned key epoch, including STAGED or temporarily ACTIVE material that has no exact committed MQTT generation-1 oracle;
 4. rollback the exact automatic approval/lease and terminalize the old pairing-session row;
 5. prove there is no ACTIVE credential assignment for the old pairing ID;
 6. set `cleanup_state=COMPLETE`.
@@ -1371,9 +1380,12 @@ Prove:
 - restart after 47110 acceptance but before `/hello` makes the old ID terminal without inventing a registration row;
 - restart after `/hello` PENDING terminalizes the exact old registration;
 - restart after automatic NODE_ID approval rolls back the exact approval/lease before a fresh transaction;
-- DynSec target absence is durably proven before first provision, and recovery never deletes a target without that ownership proof;
+- DynSec target absence is durably proven before first provision, but absence alone does not authorize later deletion;
 - application-key prestate absence is durably proven before first stage;
-- restart after BUNDLE_STAGED removes exact transaction-owned DynSec identity and STAGED application key;
+- successful stage completion is durably recorded as `BUNDLE_STAGED` with exact node ID and application-key epoch before the encrypted bundle is returned;
+- automatic destructive cleanup requires both prestate-absent proof and BUNDLE_STAGED-or-later proof;
+- crash after possible external creation but before BUNDLE_STAGED is treated as ambiguous and fail-closed, not auto-deleted;
+- restart after proven BUNDLE_STAGED removes exact transaction-owned DynSec identity and exact STAGED application-key epoch;
 - crash after application key ACTIVE but before MQTT credential ACTIVE rolls back uncommitted key/identity/approval;
 - crash after exact MQTT generation-1 activation but before ledger COMMITTED is promoted to COMMITTED only when the full cross-store commit oracle passes;
 - ACTIVE MQTT credential plus contradictory registration/key/DynSec binding causes fail-closed reconciliation, never guessed rollback/success;
@@ -1522,8 +1534,9 @@ ACTIVE_ATTEMPT_COMMITTED_BEFORE_ACCEPTED_RESPONSE=true
 STARTUP_RECONCILES_PREDECESSOR_ATTEMPTS=true
 RESTART_PRE_HELLO_PAIRING_ID_TOMBSTONED=true
 RESTART_POST_HELLO_UNCOMMITTED_SIDE_EFFECT_RECONCILIATION=true
-DYNSEC_DESTRUCTIVE_CLEANUP_REQUIRES_DURABLE_PRESTATE_OWNERSHIP=true
-APPLICATION_KEY_CLEANUP_REQUIRES_DURABLE_PRESTATE_OWNERSHIP=true
+DYNSEC_DESTRUCTIVE_CLEANUP_REQUIRES_DURABLE_PRESTATE_AND_STAGE_COMPLETION=true
+APPLICATION_KEY_CLEANUP_REQUIRES_DURABLE_PRESTATE_AND_STAGE_COMPLETION=true
+TARGET_PRESENCE_ALONE_PROVES_OWNERSHIP=false
 EXACT_CROSS_STORE_COMMIT_ORACLE=true
 AMBIGUOUS_RECONCILIATION_FAILS_REGISTRATION_CLOSED=true
 SYSTEM_PEER_TRUST_INITIALIZED_BEFORE_REGISTRATION_READY=true
@@ -1576,7 +1589,7 @@ The focused closure review must independently verify:
 - 47110 durable `ACTIVE` attempt commit happens before `accepted=true`;
 - the ledger stores no Setup Secret/credential/key material and closes restart-before-`/hello` replay;
 - restart/deadline reconciliation covers PENDING registration, automatic NODE_ID lease, DynSec identity, staged/temporarily-active application key and exact MQTT generation-1 commit state;
-- destructive DynSec/key cleanup has durable exact ownership proof and cannot delete predecessor/unowned objects;
+- destructive DynSec/key cleanup requires both durable prestate-absent proof and durable BUNDLE_STAGED-or-later completion proof; target presence alone cannot authorize deletion;
 - the exact cross-store commit oracle distinguishes commit-complete/ledger-lag from stranded pre-commit state;
 - ambiguous or failed reconciliation keeps first registration unavailable while 47112 stays closed;
 - SYSTEM_PEER_KEY is a pre-registration T1 baseline and first-registration code cannot create/rotate it;
