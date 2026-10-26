@@ -43,7 +43,14 @@ def _has_pull_request(text: str) -> bool:
 
 
 def _has_main_push(text: str) -> bool:
-    return "push:" in text and re.search(r"(?m)^\s*-\s*main\s*$", text) is not None
+    if "push:" not in text:
+        return False
+    if re.search(r"(?m)^\s*-\s*main\s*$", text) is not None:
+        return True
+    return re.search(
+        r"(?m)^\s*branches:\s*\[[^\]]*\bmain\b[^\]]*\]\s*$",
+        text,
+    ) is not None
 
 
 def _has_cancel(text: str) -> bool:
