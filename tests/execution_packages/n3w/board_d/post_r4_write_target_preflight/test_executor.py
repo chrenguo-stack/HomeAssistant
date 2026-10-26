@@ -17,6 +17,7 @@ spec.loader.exec_module(module)
 
 
 def test_frozen_authority_constants() -> None:
+    assert module.SCHEMA_PREFLIGHT == "n3w.board-d.post-r4-write-target-preflight/2"
     assert module.MERGED_MAIN == "e24b5af4a271867c613dd52012bc83a6d40b06a5"
     assert module.PRODUCT_SOURCE == "ec5f6d68e33db7757d91c807fff708ca81b075dc"
     assert module.PRODUCT_TREE == "16740efa8ad24d423adc0b2de32b99d56e2d23d1"
