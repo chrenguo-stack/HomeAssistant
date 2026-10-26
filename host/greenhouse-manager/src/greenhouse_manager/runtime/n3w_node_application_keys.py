@@ -277,18 +277,31 @@ class SqliteNodeApplicationKeyAdmin:
         self._lock = threading.RLock()
         self._closed = False
 
-        self._prepare_paths()
+        if recover_on_open:
+            self._prepare_paths()
+            database_target = str(self.database)
+            database_uri = False
+        else:
+            self._require_existing_reconciliation_paths()
+            database_target = (
+                f"{self.database.resolve().as_uri()}?mode=rw"
+            )
+            database_uri = True
 
         try:
             self._connection = sqlite3.connect(
-                str(self.database),
+                database_target,
+                uri=database_uri,
                 isolation_level=None,
                 check_same_thread=False,
                 timeout=5.0,
             )
             self._connection.row_factory = sqlite3.Row
             self._connection.execute("PRAGMA busy_timeout = 5000")
-            self._initialize_schema()
+            if recover_on_open:
+                self._initialize_schema()
+            else:
+                self._validate_existing_reconciliation_schema()
             self._require_integrity()
             if recover_on_open:
                 self.recover()
@@ -322,6 +335,22 @@ class SqliteNodeApplicationKeyAdmin:
             )
         ):
             raise NodeApplicationKeyStoreUnavailable(code)
+
+    def _require_existing_reconciliation_paths(self) -> None:
+        if not self.database.is_absolute() or not self.key_dir.is_absolute():
+            raise NodeApplicationKeyStoreUnavailable(
+                "node_key_store_path_invalid"
+            )
+        _require_private_path(
+            self.database,
+            directory=False,
+            code="node_key_store_permissions_invalid",
+        )
+        _require_private_path(
+            self.key_dir,
+            directory=True,
+            code="node_key_directory_permissions_invalid",
+        )
 
     def _prepare_paths(self) -> None:
         if not self.database.is_absolute() or not self.key_dir.is_absolute():
@@ -375,6 +404,69 @@ class SqliteNodeApplicationKeyAdmin:
             raise
         else:
             self._connection.execute("COMMIT")
+
+    def _validate_existing_reconciliation_schema(self) -> None:
+        names = {
+            row["name"]
+            for row in self._connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+        required = {
+            "n3w_relay_meta",
+            "n3w_relay_nodes",
+            "n3w_relay_key_epochs",
+            "n3w_node_key_operations",
+        }
+        if not required <= names:
+            raise NodeApplicationKeyStoreUnavailable(
+                "node_key_store_schema_mismatch"
+            )
+
+        versions = self._connection.execute(
+            "SELECT schema_version FROM n3w_relay_meta"
+        ).fetchall()
+        if (
+            len(versions) != 1
+            or versions[0]["schema_version"] != self._SCHEMA_VERSION
+        ):
+            raise NodeApplicationKeyStoreUnavailable(
+                "node_key_store_schema_mismatch"
+            )
+
+        epoch_columns = {
+            row["name"]
+            for row in self._connection.execute(
+                "PRAGMA table_info(n3w_relay_key_epochs)"
+            ).fetchall()
+        }
+        if not {
+            "node_id",
+            "key_epoch",
+            "key_file",
+            "enabled",
+            "state",
+            "key_sha256",
+        } <= epoch_columns:
+            raise NodeApplicationKeyStoreUnavailable(
+                "node_key_store_schema_mismatch"
+            )
+
+        operation_columns = {
+            row["name"]
+            for row in self._connection.execute(
+                "PRAGMA table_info(n3w_node_key_operations)"
+            ).fetchall()
+        }
+        if not {
+            "operation_key",
+            "node_id",
+            "key_epoch",
+            "status",
+        } <= operation_columns:
+            raise NodeApplicationKeyStoreUnavailable(
+                "node_key_store_schema_mismatch"
+            )
 
     def _initialize_schema(self) -> None:
         names = {
