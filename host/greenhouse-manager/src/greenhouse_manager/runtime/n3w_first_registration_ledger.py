@@ -168,6 +168,19 @@ def initialize_first_registration_ledger(connection: sqlite3.Connection) -> None
                     AND application_key_epoch IS NOT NULL
                     AND delivery_digest_sha256 IS NOT NULL
                 )
+            ),
+            CHECK (
+                (
+                    application_key_epoch IS NULL
+                    AND delivery_digest_sha256 IS NULL
+                )
+                OR (
+                    application_key_epoch IS NOT NULL
+                    AND delivery_digest_sha256 IS NOT NULL
+                    AND node_id IS NOT NULL
+                    AND dynsec_prestate_absent IS 1
+                    AND application_key_prestate_absent IS 1
+                )
             )
         );
 
@@ -654,6 +667,18 @@ class FirstRegistrationLedger:
                 or application_key_epoch < 1
             ):
                 raise ValueError("application-key epoch is invalid")
+            staged_tuple_present = (
+                application_key_epoch is not None
+                or delivery_hash is not None
+            )
+            if staged_tuple_present and (
+                application_key_epoch is None
+                or delivery_hash is None
+                or node_id is None
+                or dynsec_prestate != 1
+                or application_prestate != 1
+            ):
+                raise ValueError("staged ownership tuple is incomplete")
             state = FirstRegistrationAttemptState(row["state"])
             phase = FirstRegistrationPhase(row["phase"])
             cleanup_state = FirstRegistrationCleanupState(
