@@ -82,6 +82,10 @@ services:
         source: /var/lib/greenhouse-manager/n3w
         target: /var/lib/greenhouse-manager/n3w
       - type: bind
+        source: /run/n3wfc4-trusted-lan
+        target: /run/n3w/trusted-product-lan
+        read_only: true
+      - type: bind
         source: /opt/greenhouse-secrets/mqtt/manager/password
         target: /run/secrets/gh_manager_mqtt_password
         read_only: true
