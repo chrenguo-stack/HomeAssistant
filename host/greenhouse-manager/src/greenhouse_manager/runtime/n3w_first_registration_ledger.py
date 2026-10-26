@@ -139,6 +139,7 @@ def initialize_first_registration_ledger(connection: sqlite3.Connection) -> None
                     AND phase = 'TERMINAL'
                     AND cleanup_state IN ('REQUIRED', 'COMPLETE', 'FAILED')
                     AND terminal_at IS NOT NULL
+                    AND terminal_reason IS NOT NULL
                     AND terminal_reason IN ('expired', 'replay_detected')
                 )
             ),
@@ -146,8 +147,8 @@ def initialize_first_registration_ledger(connection: sqlite3.Connection) -> None
                 phase NOT IN ('BUNDLE_STAGED', 'COMMITTING')
                 OR (
                     node_id IS NOT NULL
-                    AND dynsec_prestate_absent = 1
-                    AND application_key_prestate_absent = 1
+                    AND dynsec_prestate_absent IS 1
+                    AND application_key_prestate_absent IS 1
                     AND application_key_epoch IS NOT NULL
                     AND delivery_digest_sha256 IS NOT NULL
                 )
@@ -156,8 +157,8 @@ def initialize_first_registration_ledger(connection: sqlite3.Connection) -> None
                 state != 'COMMITTED'
                 OR (
                     node_id IS NOT NULL
-                    AND dynsec_prestate_absent = 1
-                    AND application_key_prestate_absent = 1
+                    AND dynsec_prestate_absent IS 1
+                    AND application_key_prestate_absent IS 1
                     AND application_key_epoch IS NOT NULL
                     AND delivery_digest_sha256 IS NOT NULL
                 )
@@ -618,6 +619,8 @@ class FirstRegistrationLedger:
     @staticmethod
     def _attempt(row: sqlite3.Row) -> FirstRegistrationAttempt:
         try:
+            pairing_id = row["pairing_id"]
+            _require_pairing_id(pairing_id)
             hardware_hash = row["hardware_id_sha256"]
             delivery_hash = row["delivery_digest_sha256"]
             _require_sha256(hardware_hash, label="hardware_id_sha256")
@@ -635,6 +638,17 @@ class FirstRegistrationLedger:
             node_id = row["node_id"]
             if node_id is not None:
                 FirstRegistrationLedger._require_node_id(node_id)
+            opened_at = _parse_timestamp(row["opened_at"])
+            expires_at = _parse_timestamp(row["expires_at"])
+            if expires_at <= opened_at:
+                raise ValueError("attempt deadline is invalid")
+            application_key_epoch = row["application_key_epoch"]
+            if application_key_epoch is not None and (
+                not isinstance(application_key_epoch, int)
+                or isinstance(application_key_epoch, bool)
+                or application_key_epoch < 1
+            ):
+                raise ValueError("application-key epoch is invalid")
             state = FirstRegistrationAttemptState(row["state"])
             phase = FirstRegistrationPhase(row["phase"])
             cleanup_state = FirstRegistrationCleanupState(
@@ -682,15 +696,15 @@ class FirstRegistrationLedger:
                     node_id is None
                     or dynsec_prestate != 1
                     or application_prestate != 1
-                    or row["application_key_epoch"] is None
+                    or application_key_epoch is None
                     or delivery_hash is None
                 ):
                     raise ValueError("staged attempt ownership fields are invalid")
             return FirstRegistrationAttempt(
-                pairing_id=row["pairing_id"],
+                pairing_id=pairing_id,
                 hardware_id_sha256=hardware_hash,
-                opened_at=_parse_timestamp(row["opened_at"]),
-                expires_at=_parse_timestamp(row["expires_at"]),
+                opened_at=opened_at,
+                expires_at=expires_at,
                 state=state,
                 phase=phase,
                 cleanup_state=cleanup_state,
@@ -705,7 +719,7 @@ class FirstRegistrationLedger:
                     if application_prestate is None
                     else bool(application_prestate)
                 ),
-                application_key_epoch=row["application_key_epoch"],
+                application_key_epoch=application_key_epoch,
                 delivery_digest_sha256=delivery_hash,
                 terminal_at=terminal_at,
                 terminal_reason=terminal_reason,
