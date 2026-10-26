@@ -1282,11 +1282,26 @@ class RegistrationRegistry:
             )
 
             if node_id is not None:
-                self._close_assignment_history(
-                    record,
-                    released_at=occurred_at,
-                    retirement_event_id=event_id,
+                history_cursor = self._connection.execute(
+                    """
+                    UPDATE registration_node_history
+                    SET released_at = ?, retirement_event_id = ?
+                    WHERE hardware_id = ?
+                      AND node_id = ?
+                      AND released_at IS NULL
+                    """,
+                    (
+                        _timestamp(occurred_at),
+                        event_id,
+                        hardware_id,
+                        node_id,
+                    ),
                 )
+                if history_cursor.rowcount != 1:
+                    raise RegistrationConflict(
+                        "first-registration assignment history could not be proven"
+                    )
+
                 cursor = self._connection.execute(
                     """
                     UPDATE node_id_leases
