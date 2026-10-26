@@ -364,7 +364,7 @@ def _registration_guard_contract(
             raise StagingError("registration_guard_reference_parse_drift") from error
         for index, token in enumerate(tokens[:-1]):
             if (
-                token in {"-j", "--jump"}
+                token in {"-j", "--jump", "-g", "--goto"}
                 and tokens[index + 1] == REGISTRATION_CHAIN
             ):
                 registration_refs.append(tokens)
