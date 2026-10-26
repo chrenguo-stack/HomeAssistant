@@ -98,8 +98,8 @@ def build_registration_udp_response(
         "candidate": candidate.to_document(),
     }
     encoded = encode_json_datagram(response)
-    if len(encoded) > max(len(payload) * 4, 1024):
-        raise DiscoveryRejected("registration discovery amplification limit")
+    if len(encoded) > len(payload):
+        raise DiscoveryRejected("registration discovery amplification forbidden")
     return encoded
 
 
