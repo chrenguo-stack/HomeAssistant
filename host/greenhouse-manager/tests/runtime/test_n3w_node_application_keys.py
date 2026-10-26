@@ -166,6 +166,37 @@ def test_node_key_admin_creates_grant_free_fresh_store(tmp_path) -> None:
         admin.close()
 
 
+def test_reconciliation_open_does_not_repair_missing_schema(
+    tmp_path,
+) -> None:
+    admin, database, key_dir = build_fresh_admin(tmp_path)
+    admin.close()
+
+    with sqlite3.connect(database) as connection:
+        connection.execute("DROP TABLE n3w_node_key_operations")
+
+    with pytest.raises(
+        NodeApplicationKeyStoreUnavailable,
+        match="node_key_store_schema_mismatch",
+    ):
+        SqliteNodeApplicationKeyAdmin(
+            database,
+            key_dir,
+            node_state=_active_node_state,
+            recover_on_open=False,
+        )
+
+    with sqlite3.connect(database) as connection:
+        names = {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+
+    assert "n3w_node_key_operations" not in names
+
+
 def test_node_key_admin_revoke_removes_key_material(tmp_path) -> None:
     admin, database, key_dir = build_fresh_admin(tmp_path)
 
