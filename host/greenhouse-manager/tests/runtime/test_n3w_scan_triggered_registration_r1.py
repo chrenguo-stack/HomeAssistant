@@ -24,6 +24,9 @@ from greenhouse_manager.runtime.n3w_trusted_product_lan import (
     TrustedProductLanState,
     parse_trusted_product_lan_document,
 )
+from greenhouse_manager.runtime.n3w_registration_runtime import (
+    RegistrationMdnsAuthorityController,
+)
 from greenhouse_manager.runtime.pairing_discovery import (
     DiscoveryRejected,
     SlidingWindowRateLimiter,
@@ -291,3 +294,130 @@ def test_bootstrap_skeleton_requires_canonical_uuid_text() -> None:
             expected_system_id="system_lab_01",
             state_loader=_state,
         )
+
+
+class _FakeRegistrationAdvertiser:
+    def __init__(self, definition, *, interface_ip: str) -> None:
+        self.definition = definition
+        self.interface_ip = interface_ip
+        self.started = False
+        self.closed = False
+
+    def start(self) -> None:
+        self.started = True
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def test_mdns_authority_lifecycle_withdraws_and_rebuilds_on_subnet_change() -> None:
+    current = {
+        "state": _state("192.0.2.0/24"),
+        "ip": "192.0.2.10",
+    }
+    current["state"] = TrustedProductLanState(
+        available=True,
+        subnet=ipaddress.ip_network("192.0.2.0/24"),
+        reason="unique_ipv4_subnet",
+        generation="generation-a",
+        published_at="2026-10-26T07:00:00Z",
+    )
+    created: list[_FakeRegistrationAdvertiser] = []
+
+    def factory(definition, *, interface_ip: str):
+        advertiser = _FakeRegistrationAdvertiser(
+            definition,
+            interface_ip=interface_ip,
+        )
+        created.append(advertiser)
+        return advertiser
+
+    controller = RegistrationMdnsAuthorityController(
+        candidate=RegistrationCandidate(
+            manager_id="manager_lab_01",
+            system_id="system_lab_01",
+            system_id_hint="LAB01",
+            host="auto",
+            bootstrap_tls_sha256="c" * 64,
+        ),
+        system_id="system_lab_01",
+        state_loader=lambda: current["state"],
+        interface_ipv4_resolver=lambda: current["ip"],
+        advertiser_factory=factory,
+    )
+
+    assert controller.refresh() is True
+    assert controller.authority_key == ("generation-a", "192.0.2.10")
+    assert len(created) == 1
+    assert created[0].started is True
+
+    assert controller.refresh() is True
+    assert len(created) == 1
+
+    current["state"] = TrustedProductLanState(
+        available=False,
+        subnet=None,
+        reason="interface_not_connected",
+        generation="generation-b",
+        published_at="2026-10-26T07:01:00Z",
+    )
+    assert controller.refresh() is False
+    assert created[0].closed is True
+    assert controller.authority_key is None
+
+    current["state"] = TrustedProductLanState(
+        available=True,
+        subnet=ipaddress.ip_network("198.51.100.0/24"),
+        reason="unique_ipv4_subnet",
+        generation="generation-c",
+        published_at="2026-10-26T07:02:00Z",
+    )
+    current["ip"] = "198.51.100.10"
+    assert controller.refresh() is True
+    assert controller.authority_key == (
+        "generation-c",
+        "198.51.100.10",
+    )
+    assert len(created) == 2
+    assert created[1].started is True
+    assert created[1].definition.addresses == (
+        bytes((198, 51, 100, 10)),
+    )
+
+
+def test_mdns_authority_lifecycle_withdraws_on_malformed_authority() -> None:
+    state = _state("192.0.2.0/24")
+    created: list[_FakeRegistrationAdvertiser] = []
+    malformed = {"value": False}
+
+    def loader() -> TrustedProductLanState:
+        if malformed["value"]:
+            raise TrustedProductLanError("trusted_product_lan_state_unavailable")
+        return state
+
+    def factory(definition, *, interface_ip: str):
+        advertiser = _FakeRegistrationAdvertiser(
+            definition,
+            interface_ip=interface_ip,
+        )
+        created.append(advertiser)
+        return advertiser
+
+    controller = RegistrationMdnsAuthorityController(
+        candidate=RegistrationCandidate(
+            manager_id="manager_lab_01",
+            system_id="system_lab_01",
+            system_id_hint="LAB01",
+            host="auto",
+            bootstrap_tls_sha256="d" * 64,
+        ),
+        system_id="system_lab_01",
+        state_loader=loader,
+        interface_ipv4_resolver=lambda: "192.0.2.10",
+        advertiser_factory=factory,
+    )
+    assert controller.refresh() is True
+    malformed["value"] = True
+    assert controller.refresh() is False
+    assert created[0].closed is True
+    assert controller.authority_key is None
