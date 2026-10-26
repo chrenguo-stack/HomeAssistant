@@ -3,6 +3,7 @@ name: N3W T1 fresh bootstrap deployable payload CI
 on:
   workflow_dispatch:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, labeled, unlabeled, edited]
     paths:
       - ".github/workflows/n3w-t1-fresh-bootstrap-deployable-payload-ci.yml"
       - "host/greenhouse-manager/**"
@@ -59,6 +60,11 @@ permissions:
 
 jobs:
   deployable-payload:
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.draft == false ||
+      contains(github.event.pull_request.labels.*.name, 'ci-ready') ||
+      contains(github.event.pull_request.body, 'CI_READY=true')
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
