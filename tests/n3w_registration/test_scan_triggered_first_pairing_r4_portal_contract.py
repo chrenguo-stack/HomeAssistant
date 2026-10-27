@@ -145,14 +145,14 @@ def test_r4_portal_rejects_nonlocal_and_stale_scan_actions() -> None:
     assert "kMaxActionBodyBytes = 512" in source
 
 
-def test_r4_does_not_implement_r5_discovery_or_r6_bootstrap() -> None:
+def test_r4_portal_remains_separate_from_r6_bootstrap() -> None:
     portal = text(CORE / "n3w_registration_portal.cpp")
     header = text(CORE / "n3w_registration_portal.h")
 
     scope = portal + "\n" + header
     assert "discover_manager(" not in scope
-    assert "RegistrationDiscovery" not in scope
-    assert "bootstrap_tls_sha256" not in scope
     assert "esp_tls" not in scope
     assert "setup_secret_base64url" not in scope
-    assert "discovery_stage_pending" in portal
+    assert "setup_secret" not in scope.lower()
+    assert "kRegistrationBootstrapPort" not in scope
+    assert "bootstrap_stage_pending" in portal
