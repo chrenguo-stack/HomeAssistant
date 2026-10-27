@@ -382,6 +382,7 @@ bool RegistrationPortal::start_(
   scan_trigger_pending_.store(false, std::memory_order_release);
   last_dynamic_request_ms_.store(0, std::memory_order_release);
   candidate_stale_event_pending_.store(false, std::memory_order_release);
+  candidate_list_expired_event_pending_.store(false, std::memory_order_release);
   clear_discovery_session();
   qr_payload_ =
       "http://" + local_ipv4_ + ":" +
@@ -419,6 +420,7 @@ void RegistrationPortal::stop() {
   scan_trigger_pending_.store(false, std::memory_order_release);
   last_dynamic_request_ms_.store(0, std::memory_order_release);
   candidate_stale_event_pending_.store(false, std::memory_order_release);
+  candidate_list_expired_event_pending_.store(false, std::memory_order_release);
   clear_discovery_session();
 }
 
@@ -634,6 +636,8 @@ esp_err_t RegistrationPortal::handle_status_(httpd_req_t *request) {
           candidates_.end());
       if (candidates_.empty()) {
         discovery_stage_ = RegistrationPortalStage::ERROR_NO_CANDIDATE;
+        candidate_list_expired_event_pending_.store(
+            true, std::memory_order_release);
       }
     }
     stage = discovery_stage_;
