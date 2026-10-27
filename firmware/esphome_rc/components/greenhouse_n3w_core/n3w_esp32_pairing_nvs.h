@@ -52,7 +52,8 @@ class NvsPendingPairingAckStoreV2 {
       : namespace_name_(std::move(namespace_name)), key_name_(std::move(key_name)) {}
 
   // load() recognizes both the legacy version-1 blob and the R6 version-2 blob.
-  // save() writes only the current R6 format.
+  // R6 writes version 2; the legacy writer remains only for the predecessor
+  // non-selected pairing path so source compatibility is not silently broken.
   SimpleNvsStatus load(PendingPairingAckV2 *state);
   SimpleNvsStatus save(const PendingPairingAckV2 &state);
   SimpleNvsStatus erase();
