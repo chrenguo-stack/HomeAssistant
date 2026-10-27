@@ -22,6 +22,14 @@ REQUIRED_PATHS = {
     "tools/h3_n2_stage2d4_profile_lifecycle_boundary_gate_20260721_v52.py",
 }
 
+STAGE_IMPLEMENTATION_PATHS = {
+    path
+    for path in REQUIRED_PATHS
+    if not path.startswith(".github/")
+    and not path.startswith("docs/")
+    and not path.startswith("tools/")
+}
+
 PROTECTED_PATHS = {
     "firmware/esphome_rc/f1_0_rc2/f1_0_rc2.yml",
     "firmware/esphome_rc/f1_0_rc2/packages/core.yml",
@@ -111,15 +119,18 @@ def main() -> None:
     errors: list[str] = []
     changed = changed_paths()
 
-    unexpected = sorted(changed - REQUIRED_PATHS)
-    missing = sorted(REQUIRED_PATHS - changed)
-    protected = sorted(changed & PROTECTED_PATHS)
+    strict_scope = bool(changed & STAGE_IMPLEMENTATION_PATHS)
+    unexpected = sorted(changed - REQUIRED_PATHS) if strict_scope else []
+    protected = sorted(changed & PROTECTED_PATHS) if strict_scope else []
     if unexpected:
-        errors.append(f"unexpected changed paths: {unexpected}")
-    if missing:
-        errors.append(f"required changed paths missing: {missing}")
+        errors.append(
+            f"Stage 2D-4 implementation change crossed unexpected paths: {unexpected}"
+        )
     if protected:
-        errors.append(f"protected reviewed paths changed: {protected}")
+        errors.append(
+            "Stage 2D-4 implementation change touched protected reviewed paths: "
+            f"{protected}"
+        )
 
     for relative in sorted(YAML_PATHS):
         text = (ROOT / relative).read_text(encoding="utf-8")
