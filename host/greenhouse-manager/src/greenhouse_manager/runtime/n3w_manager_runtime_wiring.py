@@ -214,6 +214,9 @@ class N3wDynamicPairingManagerMqttService(
             with contextlib.suppress(Exception):
                 network.close()
 
+        self._dynamic_pairing.set_registration_discovery_external(
+            False
+        )
         self._first_registration_intents.close_active()
 
         key_admin = self._registration_key_admin
@@ -237,6 +240,14 @@ class N3wDynamicPairingManagerMqttService(
         network: RegistrationNetworkRuntime | None = None
 
         try:
+            if (
+                settings.n3w_pairing_manager_id
+                == "manager-disabled"
+            ):
+                raise N3wSimplifiedManagerRuntimeError(
+                    "n3w_registration_manager_id_unavailable"
+                )
+
             certificate = _require_existing_regular_file(
                 Path(
                     settings
@@ -266,6 +277,10 @@ class N3wDynamicPairingManagerMqttService(
                 peer_trust.initialize_baseline(
                     settings.system_id
                 )
+            os.chmod(
+                peer_trust_path,
+                0o600,
+            )
 
             for value in (
                 settings.n3w_provisioning_username,
@@ -327,6 +342,9 @@ class N3wDynamicPairingManagerMqttService(
                 transaction_service=transaction,
             )
             network.start()
+            self._dynamic_pairing.set_registration_discovery_external(
+                True
+            )
 
             self._registration_credential_store = (
                 credential_store
@@ -348,6 +366,9 @@ class N3wDynamicPairingManagerMqttService(
                     credential_store.close()
             self._dynamic_pairing.set_first_registration_close_callback(
                 None
+            )
+            self._dynamic_pairing.set_registration_discovery_external(
+                False
             )
             self._first_registration_intents.close_active()
             self._registration_failure = error

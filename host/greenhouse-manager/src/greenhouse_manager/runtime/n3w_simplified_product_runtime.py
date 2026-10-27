@@ -870,6 +870,7 @@ def build_simplified_product_pairing_composition(
     first_registration_complete_callback: (
         Callable[[str], None] | None
     ) = None,
+    http_only: bool = False,
 ) -> SimplifiedProductPairingComposition:
     settings.validate()
     config.validate()
@@ -1090,12 +1091,21 @@ def build_simplified_product_pairing_composition(
         )
 
         if first_registration_intent is None:
-            pairing_runtime = (
-                pairing_runtime_factory(
-                    network_settings,
-                    coordinator,
+            if http_only:
+                pairing_runtime = (
+                    pairing_runtime_factory(
+                        network_settings,
+                        coordinator,
+                        http_only=True,
+                    )
                 )
-            )
+            else:
+                pairing_runtime = (
+                    pairing_runtime_factory(
+                        network_settings,
+                        coordinator,
+                    )
+                )
         else:
             pairing_runtime = (
                 pairing_runtime_factory(

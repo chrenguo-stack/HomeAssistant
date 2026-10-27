@@ -310,6 +310,7 @@ class DynamicPairingWindowController:
         self._first_registration_close_callback: (
             Callable[[str, str], None] | None
         ) = None
+        self._registration_discovery_external = False
 
     def _broker_for_peer(self, peer_ip: str) -> str:
         peer = _private_ipv4(
@@ -481,6 +482,13 @@ class DynamicPairingWindowController:
                 "raw_identity_in_output": False,
             }
 
+    def set_registration_discovery_external(
+        self,
+        enabled: bool,
+    ) -> None:
+        with self._lock:
+            self._registration_discovery_external = bool(enabled)
+
     def set_first_registration_close_callback(
         self,
         callback: Callable[[str, str], None] | None,
@@ -620,10 +628,17 @@ class DynamicPairingWindowController:
                 config = self._config_factory(
                     dynamic_settings
                 )
-                composition = self._composition_factory(
-                    dynamic_settings,
-                    config,
-                )
+                if self._registration_discovery_external:
+                    composition = self._composition_factory(
+                        dynamic_settings,
+                        config,
+                        http_only=True,
+                    )
+                else:
+                    composition = self._composition_factory(
+                        dynamic_settings,
+                        config,
+                    )
                 worker = self._worker_factory(
                     composition,
                     failure_callback=(

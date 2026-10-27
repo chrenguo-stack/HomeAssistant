@@ -184,6 +184,7 @@ def assemble_simplified_pairing_runtime(
     *,
     first_registration_intent: FirstRegistrationIntent | None = None,
     first_registration_ledger: FirstRegistrationLedger | None = None,
+    http_only: bool = False,
 ) -> SimplifiedPairingRuntime:
     settings.validate()
     endpoint_app = SimplifiedPairingEndpointApp(
@@ -199,7 +200,7 @@ def assemble_simplified_pairing_runtime(
             app=endpoint_app,
         )
         actual_http_port = int(http_server.server_address[1])
-        if first_registration_intent is not None:
+        if first_registration_intent is not None or http_only:
             network = _HttpOnlyPairingNetworkService(
                 http_server
             )
