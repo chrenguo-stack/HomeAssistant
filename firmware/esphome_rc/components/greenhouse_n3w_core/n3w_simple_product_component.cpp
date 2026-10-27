@@ -154,6 +154,15 @@ void SimpleProductComponent::setup() {
 }
 
 void SimpleProductComponent::loop() {
+  const bool portal_allowed =
+      activation_enabled_ && !is_failed() && !safe_reboot_requested_ &&
+      wifi_connected() && !pairing_client_.provisioned() &&
+      !pairing_ack_pending_;
+  registration_portal_allowed_.store(
+      portal_allowed, std::memory_order_release);
+  if (!portal_allowed && registration_portal_.running()) {
+    registration_portal_.stop();
+  }
   if (!activation_enabled_ || is_failed() || safe_reboot_requested_) return;
   const bool recovery_exclusive =
       radio_ownership_ == RadioOwnership::DIRECT_PROBE ||
@@ -520,12 +529,6 @@ bool SimpleProductComponent::start_runtime_if_ready_() {
   return true;
 }
 
-bool SimpleProductComponent::registration_portal_allowed() const {
-  return activation_enabled_ && !is_failed() &&
-         !safe_reboot_requested_ && wifi_connected() &&
-         !pairing_client_.provisioned() && !pairing_ack_pending_;
-}
-
 void SimpleProductComponent::advance_registration_portal_() {
   if (pairing_client_.provisioned()) {
     registration_portal_.stop();
@@ -574,6 +577,8 @@ void SimpleProductComponent::advance_pairing_() {
       result == SimplePairingClientError::ALREADY_PROVISIONED) {
     if (pairing_client_.provisioned()) {
       pairing_ack_pending_ = false;
+      registration_portal_allowed_.store(
+          false, std::memory_order_release);
       registration_portal_.stop();
       ESP_LOGI(
           TAG,

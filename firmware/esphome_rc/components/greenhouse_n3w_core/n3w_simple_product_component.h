@@ -171,7 +171,9 @@ class SimpleProductComponent : public Component,
   bool fill_registration_random(uint8_t *data, std::size_t size) override {
     return fill(data, size);
   }
-  bool registration_portal_allowed() const override;
+  bool registration_portal_allowed() const override {
+    return registration_portal_allowed_.load(std::memory_order_acquire);
+  }
 
   // Simplified bootstrap network.
   bool discover_manager(
@@ -357,6 +359,7 @@ class SimpleProductComponent : public Component,
   bool runtime_start_grace_started_{false};
   bool safe_reboot_requested_{false};
   bool pairing_ack_pending_{false};
+  std::atomic<bool> registration_portal_allowed_{false};
   uint64_t next_pairing_attempt_ms_{0};
   uint64_t next_registration_portal_retry_ms_{0};
   uint64_t next_recovery_probe_ms_{0};

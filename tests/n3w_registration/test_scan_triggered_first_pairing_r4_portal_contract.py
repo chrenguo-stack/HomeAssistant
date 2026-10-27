@@ -126,6 +126,11 @@ def test_r4_portal_rejects_nonlocal_and_stale_scan_actions() -> None:
 
     assert "getpeername(" in source
     assert "state_->registration_portal_allowed()" in source
+    component_h = text(CORE / "n3w_simple_product_component.h")
+    component = text(CORE / "n3w_simple_product_component.cpp")
+    assert "std::atomic<bool> registration_portal_allowed_{false};" in component_h
+    assert "registration_portal_allowed_.load(std::memory_order_acquire)" in component_h
+    assert "registration_portal_allowed_.store(" in component
     assert "(peer.sin_addr.s_addr & mask_addr_) ==" in source
     assert "(local_addr_ & mask_addr_)" in source
     assert "constant_time_equal(token, scan_token_)" in source
