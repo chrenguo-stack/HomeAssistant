@@ -1,0 +1,175 @@
+from __future__ import annotations
+
+import hashlib
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+from typing import Mapping, Protocol
+
+from .n3w_first_registration_intent import (
+    FirstRegistrationIntent,
+    FirstRegistrationIntentStore,
+)
+from .n3w_first_registration_ledger import (
+    FirstRegistrationAttemptState,
+    FirstRegistrationLedgerConflict,
+)
+from .pairing_secure_transport import decode_base64url_32
+from .registration import RegistrationRegistry
+
+FIRST_REGISTRATION_TTL_SECONDS = 1800
+
+
+class FirstRegistrationTransactionRejected(RuntimeError):
+    pass
+
+
+class FirstRegistrationWindow(Protocol):
+    def open_first_registration(
+        self,
+        intent: FirstRegistrationIntent,
+    ) -> dict[str, object]: ...
+
+
+@dataclass(frozen=True, slots=True)
+class FirstRegistrationStartResult:
+    manager_id: str
+    system_id: str
+    pairing_host: str
+    pairing_port: int
+    pairing_path: str
+    expires_at: datetime
+
+    def expires_in_seconds(self, *, now: datetime) -> int:
+        return max(
+            0,
+            int(
+                (
+                    self.expires_at
+                    - now.astimezone(UTC)
+                ).total_seconds()
+            ),
+        )
+
+
+class FirstRegistrationTransactionService:
+    def __init__(
+        self,
+        *,
+        registry: RegistrationRegistry,
+        intents: FirstRegistrationIntentStore,
+        window: FirstRegistrationWindow,
+        manager_id: str,
+        system_id: str,
+        clock=lambda: datetime.now(UTC),
+        ttl_seconds: int = FIRST_REGISTRATION_TTL_SECONDS,
+    ) -> None:
+        if ttl_seconds != FIRST_REGISTRATION_TTL_SECONDS:
+            raise ValueError("first registration TTL must be exactly 1800 seconds")
+        self.registry = registry
+        self.ledger = registry.first_registration_ledger()
+        self.intents = intents
+        self.window = window
+        self.manager_id = manager_id
+        self.system_id = system_id
+        self.clock = clock
+        self.ttl = timedelta(seconds=ttl_seconds)
+
+    def start(
+        self,
+        request: Mapping[str, str],
+        *,
+        source_ip: str,
+    ) -> FirstRegistrationStartResult:
+        if request["manager_id"] != self.manager_id:
+            raise FirstRegistrationTransactionRejected("manager_mismatch")
+        if request["system_id"] != self.system_id:
+            raise FirstRegistrationTransactionRejected("system_mismatch")
+        hardware_id = request["hardware_id"]
+        pairing_id = request["pairing_id"]
+        setup_secret = decode_base64url_32(
+            request["setup_secret"],
+            field_name="setup_secret",
+        )
+        now = self.clock().astimezone(UTC)
+        hardware_hash = hashlib.sha256(
+            hardware_id.encode("utf-8")
+        ).hexdigest()
+
+        try:
+            existing = self.ledger.get(pairing_id)
+        except KeyError:
+            existing = None
+
+        if existing is not None:
+            if existing.state is FirstRegistrationAttemptState.COMMITTED:
+                raise FirstRegistrationTransactionRejected("replay_detected")
+            if existing.state is FirstRegistrationAttemptState.EXPIRED:
+                raise FirstRegistrationTransactionRejected("expired")
+            if existing.state is FirstRegistrationAttemptState.RESTART_INVALIDATED:
+                raise FirstRegistrationTransactionRejected("replay_detected")
+            if existing.hardware_id_sha256 != hardware_hash:
+                raise FirstRegistrationTransactionRejected("replay_detected")
+            intent = self.intents.exact(
+                hardware_id=hardware_id,
+                pairing_id=pairing_id,
+                source_ip=source_ip,
+                manager_id=self.manager_id,
+                system_id=self.system_id,
+            )
+            if (
+                intent is None
+                or intent.expires_at != existing.expires_at
+                or not intent.secret_matches(setup_secret)
+            ):
+                raise FirstRegistrationTransactionRejected("registration_busy")
+            if now > existing.expires_at:
+                raise FirstRegistrationTransactionRejected("registration_busy")
+        else:
+            opened_at = now
+            expires_at = opened_at + self.ttl
+            intent = FirstRegistrationIntent.prepare(
+                hardware_id=hardware_id,
+                pairing_id=pairing_id,
+                source_ip=source_ip,
+                manager_id=self.manager_id,
+                system_id=self.system_id,
+                setup_secret=setup_secret,
+                opened_at=opened_at,
+                expires_at=expires_at,
+            )
+            try:
+                durable = self.ledger.create_active(
+                    pairing_id=pairing_id,
+                    hardware_id_sha256=hardware_hash,
+                    opened_at=opened_at,
+                    expires_at=expires_at,
+                )
+            except FirstRegistrationLedgerConflict as error:
+                raise FirstRegistrationTransactionRejected(
+                    "registration_busy"
+                ) from error
+            if durable.expires_at != expires_at:
+                raise FirstRegistrationTransactionRejected(
+                    "registration_busy"
+                )
+            self.intents.activate(intent)
+
+        try:
+            opened = self.window.open_first_registration(intent)
+        except Exception as error:
+            raise FirstRegistrationTransactionRejected(
+                "bootstrap_unavailable"
+            ) from error
+
+        pairing_host = opened.get("pairing_host")
+        if not isinstance(pairing_host, str) or not pairing_host:
+            raise FirstRegistrationTransactionRejected("bootstrap_unavailable")
+
+        return FirstRegistrationStartResult(
+            manager_id=self.manager_id,
+            system_id=self.system_id,
+            pairing_host=pairing_host,
+            pairing_port=47112,
+            pairing_path="/v2/pairing",
+            expires_at=intent.expires_at,
+        )

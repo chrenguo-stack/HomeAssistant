@@ -6,11 +6,12 @@ import re
 import ssl
 import uuid
 from collections.abc import Callable
+from datetime import UTC, datetime
 from dataclasses import dataclass
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from .n3w_trusted_product_lan import (
     TrustedProductLanState,
@@ -28,13 +29,40 @@ class RegistrationBootstrapRejected(RuntimeError):
     pass
 
 
+class RegistrationTransactionService(Protocol):
+    def start(
+        self,
+        request: dict[str, str],
+        *,
+        source_ip: str,
+    ) -> Any: ...
+
+
 @dataclass(frozen=True, slots=True)
 class BootstrapSkeletonResult:
     status: str
-    reason: str
+    reason: str | None = None
     transaction_started: bool = False
+    manager_id: str | None = None
+    system_id: str | None = None
+    pairing_host: str | None = None
+    pairing_port: int | None = None
+    pairing_path: str | None = None
+    expires_in_seconds: int | None = None
 
     def to_document(self) -> dict[str, Any]:
+        if self.transaction_started:
+            return {
+                "schema": "gh.registration.confirm-result/1",
+                "accepted": True,
+                "status": "accepted",
+                "manager_id": self.manager_id,
+                "system_id": self.system_id,
+                "pairing_host": self.pairing_host,
+                "pairing_port": self.pairing_port,
+                "pairing_path": self.pairing_path,
+                "expires_in_seconds": self.expires_in_seconds,
+            }
         return {
             "schema": "gh.registration.confirm-result/1",
             "accepted": False,
@@ -153,6 +181,8 @@ class RegistrationBootstrapApp:
         system_id: str,
         state_loader: Callable[[], TrustedProductLanState] = load_trusted_product_lan,
         rate_limiter: SlidingWindowRateLimiter | None = None,
+        transaction_service: RegistrationTransactionService | None = None,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.manager_id = manager_id
         self.system_id = system_id
@@ -161,6 +191,8 @@ class RegistrationBootstrapApp:
             limit=12,
             window_s=60,
         )
+        self.transaction_service = transaction_service
+        self.clock = clock
 
     def authorize_source(self, source_ip: str) -> None:
         validate_bootstrap_source(source_ip, state_loader=self.state_loader)
@@ -176,12 +208,44 @@ class RegistrationBootstrapApp:
     ) -> BootstrapSkeletonResult:
         if not source_already_authorized:
             self.authorize_source(source_ip)
-        return evaluate_confirm_skeleton(
-            document,
-            source_ip=source_ip,
-            expected_manager_id=self.manager_id,
-            expected_system_id=self.system_id,
+        validate_bootstrap_source(
+            source_ip,
             state_loader=self.state_loader,
+        )
+        request = validate_confirm_document(document)
+        if request["manager_id"] != self.manager_id:
+            raise RegistrationBootstrapRejected("manager_mismatch")
+        if request["system_id"] != self.system_id:
+            raise RegistrationBootstrapRejected("system_mismatch")
+        service = self.transaction_service
+        if service is None:
+            return BootstrapSkeletonResult(
+                status="unavailable",
+                reason="first_registration_transaction_not_implemented",
+            )
+        try:
+            started = service.start(
+                request,
+                source_ip=source_ip,
+            )
+        except RuntimeError as error:
+            raise RegistrationBootstrapRejected(str(error)) from error
+        observed_at = (
+            self.clock()
+            if self.clock is not None
+            else datetime.now(UTC)
+        )
+        return BootstrapSkeletonResult(
+            status="accepted",
+            transaction_started=True,
+            manager_id=started.manager_id,
+            system_id=started.system_id,
+            pairing_host=started.pairing_host,
+            pairing_port=started.pairing_port,
+            pairing_path=started.pairing_path,
+            expires_in_seconds=started.expires_in_seconds(
+                now=observed_at,
+            ),
         )
 
 
@@ -294,7 +358,15 @@ class _RegistrationBootstrapHandler(BaseHTTPRequestHandler):
             reason = str(error)
             status = (
                 HTTPStatus.CONFLICT
-                if reason in {"manager_mismatch", "system_mismatch"}
+                if reason in {
+                    "manager_mismatch",
+                    "system_mismatch",
+                    "registration_busy",
+                    "replay_detected",
+                    "expired",
+                }
+                else HTTPStatus.SERVICE_UNAVAILABLE
+                if reason == "bootstrap_unavailable"
                 else HTTPStatus.BAD_REQUEST
             )
             self._write_json(
@@ -308,7 +380,12 @@ class _RegistrationBootstrapHandler(BaseHTTPRequestHandler):
             )
             return
 
-        self._write_json(HTTPStatus.SERVICE_UNAVAILABLE, result.to_document())
+        self._write_json(
+            HTTPStatus.OK
+            if result.transaction_started
+            else HTTPStatus.SERVICE_UNAVAILABLE,
+            result.to_document(),
+        )
 
 
 def make_registration_bootstrap_tls_server(

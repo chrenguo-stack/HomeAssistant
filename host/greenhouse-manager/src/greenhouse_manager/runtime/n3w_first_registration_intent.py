@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ipaddress
 import re
+import secrets
 import threading
 import uuid
 from dataclasses import dataclass, field
@@ -106,6 +107,16 @@ class FirstRegistrationIntent:
             and self.system_id == system_id
             and self.active
             and not self.consumed
+        )
+
+    def secret_matches(self, setup_secret: bytes) -> bool:
+        if not isinstance(setup_secret, bytes) or len(setup_secret) != 32:
+            return False
+        if len(self._setup_secret) != 32:
+            return False
+        return secrets.compare_digest(
+            bytes(self._setup_secret),
+            setup_secret,
         )
 
     def setup_secret_bytes(self) -> bytes:
