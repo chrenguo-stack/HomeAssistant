@@ -284,7 +284,7 @@ def test_r5_preserves_r4_pending_ack_recovery_path() -> None:
 
     pairing = function_block(
         component,
-        "void SimpleProductComponent::advance_registration_bootstrap_()",
+        "void SimpleProductComponent::advance_pairing_()",
         "void SimpleProductComponent::advance_recovery_()",
     )
     assert "pairing_client_.resume_pending_ack()" in pairing
