@@ -1,3 +1,61 @@
+## 2026-10-27 — R5 scan-triggered T1 discovery / multi-T1 selection merged; R6 handoff boundary
+
+~~~text
+TASK=N3W_SCAN_TRIGGERED_FIRST_PAIRING_R5_POSTMERGE_TO_R6_HANDOFF_20261027
+
+SOURCE_MAIN=32c4eef68bce48ff7a379381ab0bfad60557ef57
+SOURCE_TREE=303378f5cffef4e4f1f71881b1955baed5b7d220
+
+PR692_R3_STATE=MERGED
+PR692_R3_MERGE_COMMIT=336835454211257f997d86d9c2f3208acbd7c03f
+
+PR693_R4_STATE=MERGED
+PR693_R4_FINAL_HEAD=ac787092f3a063c39d63580f562ac600f07aafae
+PR693_R4_MERGE_COMMIT=1ae096f334b7c0b19800bdec02a2c63d6166ec08
+R4_SOURCE_REVIEW=PASS
+R4_LATEST_HEAD_CI=PASS
+
+PR694_R5_STATE=MERGED
+PR694_R5_FINAL_HEAD=86501708eb17e3f946bb7a2abcd783db5fc3b041
+PR694_R5_MERGE_COMMIT=32c4eef68bce48ff7a379381ab0bfad60557ef57
+PR694_FINAL_CI=16_OF_16_SUCCESS
+R5_SOURCE_REVIEW=PASS
+R5_MAIN_ALIGNMENT=PASS
+R5_NEW_BLOCKER_COUNT=0
+
+R5_SCAN_TRIGGER_ONLY_DISCOVERY=PASS
+R5_MDNS_FIRST_UDP_FALLBACK=PASS
+R5_MULTI_T1_EXPLICIT_SELECTION=PASS
+R5_PAIRING_ID_SESSION_BINDING=PASS
+R5_BROWSER_PRIVACY_BOUNDARY=PASS
+R5_R6_SCOPE_CREEP=NONE
+
+R6_IMPLEMENTED=false
+R6_ENTRY_READY=true
+
+T1_ACCESS=false
+BOARD_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+FLASH_MUTATION=false
+NVS_MUTATION=false
+
+CURRENT_STOP_POINT=R5_MERGED_GITHUB_STATE_SYNC_BEFORE_R6
+NEXT_ONE_GATE=N3W_SCAN_TRIGGERED_FIRST_PAIRING_R6_TLS_BOOTSTRAP_SOURCE_DESIGN_AND_PREFLIGHT_20261027_01
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+PR #694 R5 is merged into main with the exact reviewed head and 16/16 final CI success.
+The normal unregistered product path now waits for a valid node-local scan trigger, performs
+bounded mDNS-first / UDP-fallback T1 discovery, exposes only product-safe candidate labels,
+and requires explicit browser selection. The selected full candidate remains node-local RAM
+state for R6. R5 does not call 47110, perform TLS bootstrap, transmit Setup Secret, or invoke
+the normal pairing transaction.
+
+The next session starts R6 from a fresh read-only rebind. R6 must first freeze the exact
+node-to-T1 TLS/bootstrap and SimplePairingClient refactor boundary before product-source
+implementation. No T1, board, flash, NVS, live-runtime or R6 source mutation is implied by
+this state sync.
+
 ## 2026-10-27 — R3 identity-bound transaction window source design / preflight
 
 ~~~text
