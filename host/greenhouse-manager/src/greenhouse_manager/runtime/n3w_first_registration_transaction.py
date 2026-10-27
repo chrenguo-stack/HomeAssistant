@@ -124,6 +124,53 @@ class FirstRegistrationTransactionService:
                 raise FirstRegistrationTransactionRejected("replay_detected")
             if existing.hardware_id_sha256 != hardware_hash:
                 raise FirstRegistrationTransactionRejected("replay_detected")
+            if (
+                existing.state is FirstRegistrationAttemptState.ACTIVE
+                and now >= existing.expires_at
+            ):
+                current_intent = self.intents.current()
+                if (
+                    current_intent is not None
+                    and current_intent.pairing_id == pairing_id
+                ):
+                    self.intents.close_active()
+                reconciler = self.reconciler
+                if reconciler is None:
+                    raise FirstRegistrationTransactionRejected(
+                        "bootstrap_unavailable"
+                    )
+                try:
+                    result = reconciler.reconcile_deadline(
+                        pairing_id,
+                        now=now,
+                    )
+                    resolved = self.ledger.get(pairing_id)
+                except Exception as error:
+                    raise FirstRegistrationTransactionRejected(
+                        "bootstrap_unavailable"
+                    ) from error
+                if (
+                    result.classification
+                    is FirstRegistrationCommitClassification.UNKNOWN
+                    or resolved.cleanup_state
+                    is FirstRegistrationCleanupState.FAILED
+                ):
+                    raise FirstRegistrationTransactionRejected(
+                        "bootstrap_unavailable"
+                    )
+                if resolved.state is FirstRegistrationAttemptState.COMMITTED:
+                    raise FirstRegistrationTransactionRejected(
+                        "replay_detected"
+                    )
+                if (
+                    resolved.state is FirstRegistrationAttemptState.EXPIRED
+                    and resolved.cleanup_state
+                    is FirstRegistrationCleanupState.COMPLETE
+                ):
+                    raise FirstRegistrationTransactionRejected("expired")
+                raise FirstRegistrationTransactionRejected(
+                    "bootstrap_unavailable"
+                )
             intent = self.intents.exact(
                 hardware_id=hardware_id,
                 pairing_id=pairing_id,
@@ -137,8 +184,10 @@ class FirstRegistrationTransactionService:
                 or not intent.secret_matches(setup_secret)
             ):
                 raise FirstRegistrationTransactionRejected("registration_busy")
-            if now > existing.expires_at:
-                raise FirstRegistrationTransactionRejected("registration_busy")
+            if now >= existing.expires_at:
+                raise FirstRegistrationTransactionRejected(
+                    "bootstrap_unavailable"
+                )
         else:
             opened_at = now
             expires_at = opened_at + self.ttl
@@ -188,7 +237,6 @@ class FirstRegistrationTransactionService:
             pairing_path="/v2/pairing",
             expires_at=intent.expires_at,
         )
-
 
     def status(
         self,

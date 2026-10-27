@@ -9,6 +9,7 @@ import pytest
 
 from greenhouse_manager.runtime.n3w_registration_bootstrap import (
     RegistrationBootstrapRejected,
+    build_registration_rejection_document,
     evaluate_confirm_skeleton,
 )
 from greenhouse_manager.runtime.n3w_registration_discovery import (
@@ -485,3 +486,24 @@ def test_registration_discovery_preserves_rate_limit_on_registration_path() -> N
             state_loader=_state,
             rate_limiter=limiter,
         )
+
+
+def test_terminal_bootstrap_rejections_carry_terminal_disposition() -> None:
+    for reason in ("expired", "replay_detected"):
+        document = build_registration_rejection_document(
+            schema="gh.registration.confirm-result/1",
+            reason=reason,
+        )
+        assert document["transaction_disposition"] == "terminal"
+
+    nonterminal = build_registration_rejection_document(
+        schema="gh.registration.confirm-result/1",
+        reason="registration_busy",
+    )
+    assert "transaction_disposition" not in nonterminal
+
+    status = build_registration_rejection_document(
+        schema="gh.registration.status-result/1",
+        reason="expired",
+    )
+    assert "transaction_disposition" not in status

@@ -25,6 +25,9 @@ STATUS_SCHEMA = "gh.registration.status/1"
 STATUS_RESULT_SCHEMA = "gh.registration.status-result/1"
 _SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 _HARDWARE_ID = re.compile(r"^ghw-[a-z0-9]+-[0-9a-f]{12}$")
+_TERMINAL_CONFIRM_REASONS = frozenset(
+    {"expired", "replay_detected"}
+)
 
 
 class RegistrationBootstrapRejected(RuntimeError):
@@ -216,6 +219,25 @@ def evaluate_confirm_skeleton(
 MAX_CONFIRM_BODY_BYTES = 2048
 CONFIRM_PATH = "/v1/registration/confirm"
 STATUS_PATH = "/v1/registration/status"
+
+
+def build_registration_rejection_document(
+    *,
+    schema: str,
+    reason: str,
+) -> dict[str, Any]:
+    document: dict[str, Any] = {
+        "schema": schema,
+        "accepted": False,
+        "status": "rejected",
+        "reason": reason,
+    }
+    if (
+        schema == "gh.registration.confirm-result/1"
+        and reason in _TERMINAL_CONFIRM_REASONS
+    ):
+        document["transaction_disposition"] = "terminal"
+    return document
 
 
 def bootstrap_certificate_sha256(path: str | Path) -> str:
@@ -411,12 +433,10 @@ class _RegistrationBootstrapHandler(BaseHTTPRequestHandler):
             )
             self._write_json(
                 status,
-                {
-                    "schema": response_schema,
-                    "accepted": False,
-                    "status": "rejected",
-                    "reason": str(error),
-                },
+                build_registration_rejection_document(
+                    schema=response_schema,
+                    reason=str(error),
+                ),
             )
             return
 
@@ -488,12 +508,10 @@ class _RegistrationBootstrapHandler(BaseHTTPRequestHandler):
             )
             self._write_json(
                 status,
-                {
-                    "schema": response_schema,
-                    "accepted": False,
-                    "status": "rejected",
-                    "reason": reason,
-                },
+                build_registration_rejection_document(
+                    schema=response_schema,
+                    reason=reason,
+                ),
             )
             return
 

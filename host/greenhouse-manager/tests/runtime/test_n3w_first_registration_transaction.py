@@ -5,6 +5,13 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from greenhouse_manager.runtime.n3w_first_registration_ledger import (
+    FirstRegistrationAttemptState,
+    FirstRegistrationCleanupState,
+)
+from greenhouse_manager.runtime.n3w_first_registration_reconciliation import (
+    FirstRegistrationCommitClassification,
+)
 from greenhouse_manager.runtime.n3w_first_registration_intent import (
     FirstRegistrationIntentStore,
 )
@@ -197,3 +204,81 @@ def test_status_requires_exact_delivery_binding_and_never_opens_window(tmp_path)
         assert wrong.status == "unknown"
         assert wrong.transaction_disposition == "wait"
         assert window.calls == before_calls
+
+
+class DeadlineReconciler:
+    def __init__(self, registry: RegistrationRegistry) -> None:
+        self.ledger = registry.first_registration_ledger()
+        self.calls = 0
+
+    def reconcile_deadline(self, pairing_id: str, *, now: datetime):
+        from types import SimpleNamespace
+
+        self.calls += 1
+        self.ledger.terminalize_not_committed(
+            pairing_id,
+            state=FirstRegistrationAttemptState.EXPIRED,
+            cleanup_state=FirstRegistrationCleanupState.REQUIRED,
+            terminal_at=now,
+            terminal_reason="expired",
+        )
+        self.ledger.mark_cleanup_complete(pairing_id)
+        return SimpleNamespace(
+            classification=(
+                FirstRegistrationCommitClassification
+                .DEFINITELY_NOT_COMMITTED
+            )
+        )
+
+
+def test_expired_active_retry_reconciles_before_returning_terminal(tmp_path) -> None:
+    with RegistrationRegistry(tmp_path / "registration.sqlite3") as registry:
+        intents = FirstRegistrationIntentStore()
+        window = Window(registry)
+        start = FirstRegistrationTransactionService(
+            registry=registry,
+            intents=intents,
+            window=window,
+            manager_id="manager_lab_01",
+            system_id="greenhouse",
+            clock=lambda: NOW,
+        )
+        window.fail = True
+
+        with pytest.raises(
+            FirstRegistrationTransactionRejected,
+            match="bootstrap_unavailable",
+        ):
+            start.start(
+                request(),
+                source_ip="192.0.2.44",
+            )
+
+        reconciler = DeadlineReconciler(registry)
+        expired = FirstRegistrationTransactionService(
+            registry=registry,
+            intents=intents,
+            window=window,
+            manager_id="manager_lab_01",
+            system_id="greenhouse",
+            clock=lambda: NOW + timedelta(seconds=1800),
+            reconciler=reconciler,
+        )
+
+        with pytest.raises(
+            FirstRegistrationTransactionRejected,
+            match="expired",
+        ):
+            expired.start(
+                request(),
+                source_ip="192.0.2.44",
+            )
+
+        attempt = registry.first_registration_ledger().get(PAIRING_ID)
+        assert reconciler.calls == 1
+        assert attempt.state is FirstRegistrationAttemptState.EXPIRED
+        assert (
+            attempt.cleanup_state
+            is FirstRegistrationCleanupState.COMPLETE
+        )
+        assert intents.current() is None
