@@ -27,6 +27,7 @@ from .n3w_node_identity_provisioner import (
     PahoNodeIdentityProvisioner,
 )
 from .n3w_pairing_local_ipc import ManagerOwnedPairingSocket
+from .n3w_first_registration_intent import FirstRegistrationIntent
 from .n3w_peer_trust_store import SystemPeerTrustStore
 from .n3w_simplified_credentials import (
     SimplifiedCredentialBundleIssuer,
@@ -862,6 +863,7 @@ def build_simplified_product_pairing_composition(
     = PahoNodeIdentityProvisioner,
     pairing_runtime_factory: Callable[..., Any]
     = assemble_simplified_pairing_runtime,
+    first_registration_intent: FirstRegistrationIntent | None = None,
 ) -> SimplifiedProductPairingComposition:
     settings.validate()
     config.validate()
@@ -1052,12 +1054,26 @@ def build_simplified_product_pairing_composition(
             )
         )
 
-        pairing_runtime = (
-            pairing_runtime_factory(
-                network_settings,
-                coordinator,
+        if first_registration_intent is None:
+            pairing_runtime = (
+                pairing_runtime_factory(
+                    network_settings,
+                    coordinator,
+                )
             )
-        )
+        else:
+            pairing_runtime = (
+                pairing_runtime_factory(
+                    network_settings,
+                    coordinator,
+                    first_registration_intent=(
+                        first_registration_intent
+                    ),
+                    first_registration_ledger=(
+                        registry.first_registration_ledger()
+                    ),
+                )
+            )
 
         pairing_socket_path = Path(
             config.pairing_socket_path

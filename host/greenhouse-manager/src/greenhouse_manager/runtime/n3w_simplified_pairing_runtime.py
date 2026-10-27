@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from .n3w_first_registration_intent import FirstRegistrationIntent
+from .n3w_first_registration_ledger import FirstRegistrationLedger
 from .n3w_simplified_discovery import (
     SIMPLE_PAIRING_PROTOCOL,
     SimplifiedManagerCandidate,
@@ -14,6 +16,39 @@ from .n3w_simplified_pairing import SimplifiedPairingCoordinator
 from .n3w_simplified_pairing_endpoint import SimplifiedPairingEndpointApp
 from .pairing_endpoint import make_pairing_http_server
 from .pairing_network_service import PairingNetworkService
+
+
+class _HttpOnlyPairingNetworkService:
+    def __init__(self, http_server: Any) -> None:
+        self.http_server = http_server
+        self.udp_server = None
+        self._thread: threading.Thread | None = None
+        self._started = False
+        self._closed = False
+
+    def start(self) -> None:
+        if self._closed:
+            raise RuntimeError("pairing network service is closed")
+        if self._started:
+            return
+        self._thread = threading.Thread(
+            target=self.http_server.serve_forever,
+            name="greenhouse-pairing-http",
+            daemon=True,
+        )
+        self._thread.start()
+        self._started = True
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        if self._thread is not None and self._thread.is_alive():
+            self.http_server.shutdown()
+        self.http_server.server_close()
+        if self._thread is not None:
+            self._thread.join(timeout=5)
+        self._started = False
+        self._closed = True
 
 
 class _NullAdvertiser:
@@ -56,7 +91,7 @@ class SimplifiedPairingNetworkSettings:
 class SimplifiedPairingRuntimeComponents:
     coordinator: SimplifiedPairingCoordinator
     endpoint_app: SimplifiedPairingEndpointApp
-    network_service: PairingNetworkService
+    network_service: Any
 
 
 class SimplifiedPairingRuntime:
@@ -136,16 +171,26 @@ class SimplifiedPairingRuntime:
 
     @property
     def udp_address(self) -> tuple[str, int]:
-        address = self.components.network_service.udp_server.server_address
+        server = self.components.network_service.udp_server
+        if server is None:
+            raise RuntimeError("simplified pairing UDP is disabled")
+        address = server.server_address
         return str(address[0]), int(address[1])
 
 
 def assemble_simplified_pairing_runtime(
     settings: SimplifiedPairingNetworkSettings,
     coordinator: SimplifiedPairingCoordinator,
+    *,
+    first_registration_intent: FirstRegistrationIntent | None = None,
+    first_registration_ledger: FirstRegistrationLedger | None = None,
 ) -> SimplifiedPairingRuntime:
     settings.validate()
-    endpoint_app = SimplifiedPairingEndpointApp(coordinator)
+    endpoint_app = SimplifiedPairingEndpointApp(
+        coordinator,
+        first_registration_intent=first_registration_intent,
+        first_registration_ledger=first_registration_ledger,
+    )
     http_server: Any = None
     udp_server: Any = None
     try:
@@ -154,6 +199,19 @@ def assemble_simplified_pairing_runtime(
             app=endpoint_app,
         )
         actual_http_port = int(http_server.server_address[1])
+        if first_registration_intent is not None:
+            network = _HttpOnlyPairingNetworkService(
+                http_server
+            )
+            return SimplifiedPairingRuntime(
+                settings,
+                SimplifiedPairingRuntimeComponents(
+                    coordinator=coordinator,
+                    endpoint_app=endpoint_app,
+                    network_service=network,
+                ),
+            )
+
         candidate = SimplifiedManagerCandidate(
             schema="gh.manager.candidate/1",
             manager_id=settings.manager_id,
