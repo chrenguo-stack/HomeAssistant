@@ -99,6 +99,19 @@ class NodeIdLeaseState(StrEnum):
     RETIRED = "retired"
 
 
+@dataclass(frozen=True)
+class RegistrationPairingSnapshot:
+    pairing_id: str
+    hardware_id: str
+    state: RegistrationState
+    reason: str | None
+    current_pairing_id: str | None
+    node_id: str | None
+    lease_hardware_id: str | None
+    lease_state: NodeIdLeaseState | None
+    expires_at: datetime
+
+
 class RetirementState(StrEnum):
     PENDING = "pending"
     COMPLETED = "completed"
@@ -1105,6 +1118,232 @@ class RegistrationRegistry:
             if cursor.rowcount != 1:
                 raise RegistrationConflict("expired first registration release could not be proven")
             return record
+
+    def get_by_pairing_id(
+        self,
+        pairing_id: str,
+    ) -> RegistrationPairingSnapshot | None:
+        with self._lock:
+            session = self._session_row(pairing_id)
+            if session is None:
+                return None
+
+            current = self._connection.execute(
+                """
+                SELECT current_pairing_id, node_id
+                FROM registrations
+                WHERE hardware_id = ?
+                """,
+                (session["hardware_id"],),
+            ).fetchone()
+
+            current_pairing_id = (
+                None
+                if current is None
+                else current["current_pairing_id"]
+            )
+            node_id = (
+                current["node_id"]
+                if (
+                    current is not None
+                    and current_pairing_id == pairing_id
+                )
+                else None
+            )
+
+            lease_hardware_id: str | None = None
+            lease_state: NodeIdLeaseState | None = None
+            if node_id is not None:
+                lease = self._connection.execute(
+                    """
+                    SELECT hardware_id, state
+                    FROM node_id_leases
+                    WHERE node_id = ?
+                    """,
+                    (node_id,),
+                ).fetchone()
+                if lease is not None:
+                    lease_hardware_id = lease["hardware_id"]
+                    lease_state = NodeIdLeaseState(lease["state"])
+
+            return RegistrationPairingSnapshot(
+                pairing_id=pairing_id,
+                hardware_id=session["hardware_id"],
+                state=RegistrationState(session["state"]),
+                reason=session["reason"],
+                current_pairing_id=current_pairing_id,
+                node_id=node_id,
+                lease_hardware_id=lease_hardware_id,
+                lease_state=lease_state,
+                expires_at=_parse_timestamp(session["expires_at"]),
+            )
+
+    def reconcile_first_registration_terminal(
+        self,
+        pairing_id: str,
+        *,
+        hardware_id: str,
+        node_id: str | None,
+        terminal_state: RegistrationState,
+        terminal_reason: str,
+        now: datetime | None = None,
+    ) -> None:
+        if terminal_state not in {
+            RegistrationState.EXPIRED,
+            RegistrationState.REJECTED,
+        }:
+            raise ValueError("first-registration terminal state is invalid")
+        expected_reason = (
+            "expired"
+            if terminal_state is RegistrationState.EXPIRED
+            else "replay_detected"
+        )
+        if terminal_reason != expected_reason:
+            raise ValueError("first-registration terminal reason is invalid")
+
+        occurred_at = _utc(now or datetime.now(UTC))
+
+        with self._lock, self._connection:
+            session = self._session_row(pairing_id)
+            if session is None:
+                raise RegistrationConflict(
+                    "first-registration pairing session is missing"
+                )
+            if session["hardware_id"] != hardware_id:
+                raise RegistrationConflict(
+                    "first-registration hardware binding mismatch"
+                )
+
+            current = self._current_row(hardware_id)
+            if current is None:
+                if (
+                    session["state"] != terminal_state
+                    or session["reason"] != terminal_reason
+                ):
+                    raise RegistrationConflict(
+                        "first-registration terminal state is incomplete"
+                    )
+                if node_id is not None:
+                    lease = self._connection.execute(
+                        """
+                        SELECT hardware_id, state
+                        FROM node_id_leases
+                        WHERE node_id = ?
+                        """,
+                        (node_id,),
+                    ).fetchone()
+                    if (
+                        lease is None
+                        or lease["hardware_id"] != hardware_id
+                        or NodeIdLeaseState(lease["state"])
+                        is not NodeIdLeaseState.RETIRED
+                    ):
+                        raise RegistrationConflict(
+                            "first-registration retired lease is not proven"
+                        )
+                    histories = self._connection.execute(
+                        """
+                        SELECT released_at, retirement_event_id
+                        FROM registration_node_history
+                        WHERE hardware_id = ?
+                          AND node_id = ?
+                        """,
+                        (hardware_id, node_id),
+                    ).fetchall()
+                    if (
+                        len(histories) != 1
+                        or histories[0]["released_at"] is None
+                        or histories[0]["retirement_event_id"] is None
+                    ):
+                        raise RegistrationConflict(
+                            "first-registration closed assignment history is not proven"
+                        )
+                return
+
+            if current["current_pairing_id"] != pairing_id:
+                raise RegistrationConflict(
+                    "first-registration pairing is not current"
+                )
+
+            record = self._row_to_record(
+                current,
+                current["node_id"],
+            )
+            if record.node_id != node_id:
+                raise RegistrationConflict(
+                    "first-registration node binding mismatch"
+                )
+
+            event_id = self._record_event(
+                hardware_id,
+                pairing_id,
+                "first_registration_reconciled",
+                terminal_reason,
+                occurred_at,
+                node_id=node_id,
+                logical_location_id=record.logical_location_id,
+            )
+
+            if node_id is not None:
+                history_cursor = self._connection.execute(
+                    """
+                    UPDATE registration_node_history
+                    SET released_at = ?, retirement_event_id = ?
+                    WHERE hardware_id = ?
+                      AND node_id = ?
+                      AND released_at IS NULL
+                    """,
+                    (
+                        _timestamp(occurred_at),
+                        event_id,
+                        hardware_id,
+                        node_id,
+                    ),
+                )
+                if history_cursor.rowcount != 1:
+                    raise RegistrationConflict(
+                        "first-registration assignment history could not be proven"
+                    )
+
+                cursor = self._connection.execute(
+                    """
+                    UPDATE node_id_leases
+                    SET state = ?, retirement_id = NULL, updated_at = ?
+                    WHERE node_id = ?
+                      AND hardware_id = ?
+                      AND state = ?
+                    """,
+                    (
+                        NodeIdLeaseState.RETIRED,
+                        _timestamp(occurred_at),
+                        node_id,
+                        hardware_id,
+                        NodeIdLeaseState.ACTIVE,
+                    ),
+                )
+                if cursor.rowcount != 1:
+                    raise RegistrationConflict(
+                        "first-registration lease retirement could not be proven"
+                    )
+
+            cursor = self._connection.execute(
+                """
+                DELETE FROM registrations
+                WHERE hardware_id = ?
+                  AND current_pairing_id = ?
+                """,
+                (hardware_id, pairing_id),
+            )
+            if cursor.rowcount != 1:
+                raise RegistrationConflict(
+                    "first-registration registration release could not be proven"
+                )
+
+            self._set_session_state(
+                pairing_id,
+                terminal_state,
+                terminal_reason,
+            )
 
     def get(self, hardware_id: str) -> RegistrationRecord:
         with self._lock:

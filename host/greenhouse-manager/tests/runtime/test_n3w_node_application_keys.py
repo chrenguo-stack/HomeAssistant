@@ -166,6 +166,37 @@ def test_node_key_admin_creates_grant_free_fresh_store(tmp_path) -> None:
         admin.close()
 
 
+def test_reconciliation_open_does_not_repair_missing_schema(
+    tmp_path,
+) -> None:
+    admin, database, key_dir = build_fresh_admin(tmp_path)
+    admin.close()
+
+    with sqlite3.connect(database) as connection:
+        connection.execute("DROP TABLE n3w_node_key_operations")
+
+    with pytest.raises(
+        NodeApplicationKeyStoreUnavailable,
+        match="node_key_store_schema_mismatch",
+    ):
+        SqliteNodeApplicationKeyAdmin(
+            database,
+            key_dir,
+            node_state=_active_node_state,
+            recover_on_open=False,
+        )
+
+    with sqlite3.connect(database) as connection:
+        names = {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+
+    assert "n3w_node_key_operations" not in names
+
+
 def test_node_key_admin_revoke_removes_key_material(tmp_path) -> None:
     admin, database, key_dir = build_fresh_admin(tmp_path)
 
@@ -201,6 +232,70 @@ def test_node_key_admin_revoke_removes_key_material(tmp_path) -> None:
             )
     finally:
         admin.close()
+
+
+def test_reconciliation_open_does_not_recover_pending_key_operation(
+    tmp_path,
+) -> None:
+    admin, database, key_dir = build_fresh_admin(tmp_path)
+    try:
+        staged = admin.stage_key(
+            node_id=NODE_ID,
+            key_material=KEY,
+        )
+        epoch = staged["key_epoch"]
+    finally:
+        admin.close()
+
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            """
+            UPDATE n3w_node_key_operations
+            SET status='FILE_PENDING'
+            WHERE node_id=? AND key_epoch=?
+            """,
+            (NODE_ID, epoch),
+        )
+
+    observer = SqliteNodeApplicationKeyAdmin(
+        database,
+        key_dir,
+        node_state=_active_node_state,
+        recover_on_open=False,
+    )
+    try:
+        with pytest.raises(
+            NodeApplicationKeyStoreUnavailable,
+            match="node_key_operation_incomplete",
+        ):
+            observer.snapshot_node(
+                node_id=NODE_ID,
+                key_epoch=epoch,
+            )
+    finally:
+        observer.close()
+
+    with sqlite3.connect(database) as connection:
+        state = connection.execute(
+            """
+            SELECT state
+            FROM n3w_relay_key_epochs
+            WHERE node_id=? AND key_epoch=?
+            """,
+            (NODE_ID, epoch),
+        ).fetchone()[0]
+        status = connection.execute(
+            """
+            SELECT status
+            FROM n3w_node_key_operations
+            WHERE node_id=? AND key_epoch=?
+            """,
+            (NODE_ID, epoch),
+        ).fetchone()[0]
+
+    assert state == "STAGED"
+    assert status == "FILE_PENDING"
+    assert list(key_dir.glob("*.key"))
 
 
 def test_node_key_admin_rotation_rollback_restores_old_key(tmp_path) -> None:

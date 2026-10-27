@@ -8,6 +8,7 @@ import stat
 import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, suppress
+from dataclasses import dataclass
 from pathlib import Path
 
 from .n3w_relay_ingress import RelayIngressRejected
@@ -20,6 +21,17 @@ _RUNTIME_KEY_STATES = {"ACTIVE", "GRACE"}
 
 class NodeApplicationKeyStoreUnavailable(RuntimeError):
     """Raised when the transitional per-node application-key store is unusable."""
+
+
+@dataclass(frozen=True, slots=True)
+class NodeApplicationKeySnapshot:
+    node_id: str
+    requested_epoch: int | None
+    requested_exists: bool
+    requested_state: str | None
+    requested_enabled: bool | None
+    requested_material_binding_valid: bool | None
+    epochs: tuple[tuple[int, str, bool], ...]
 
 
 def _require_private_path(path: Path, *, directory: bool, code: str) -> None:
@@ -257,6 +269,7 @@ class SqliteNodeApplicationKeyAdmin:
         key_dir: str | Path,
         *,
         node_state: Callable[[str], object | None],
+        recover_on_open: bool = True,
     ) -> None:
         self.database = Path(database).expanduser()
         self.key_dir = Path(key_dir).expanduser()
@@ -264,20 +277,34 @@ class SqliteNodeApplicationKeyAdmin:
         self._lock = threading.RLock()
         self._closed = False
 
-        self._prepare_paths()
+        if recover_on_open:
+            self._prepare_paths()
+            database_target = str(self.database)
+            database_uri = False
+        else:
+            self._require_existing_reconciliation_paths()
+            database_target = (
+                f"{self.database.resolve().as_uri()}?mode=rw"
+            )
+            database_uri = True
 
         try:
             self._connection = sqlite3.connect(
-                str(self.database),
+                database_target,
+                uri=database_uri,
                 isolation_level=None,
                 check_same_thread=False,
                 timeout=5.0,
             )
             self._connection.row_factory = sqlite3.Row
             self._connection.execute("PRAGMA busy_timeout = 5000")
-            self._initialize_schema()
+            if recover_on_open:
+                self._initialize_schema()
+            else:
+                self._validate_existing_reconciliation_schema()
             self._require_integrity()
-            self.recover()
+            if recover_on_open:
+                self.recover()
         except Exception:
             connection = getattr(self, "_connection", None)
             if connection is not None:
@@ -308,6 +335,22 @@ class SqliteNodeApplicationKeyAdmin:
             )
         ):
             raise NodeApplicationKeyStoreUnavailable(code)
+
+    def _require_existing_reconciliation_paths(self) -> None:
+        if not self.database.is_absolute() or not self.key_dir.is_absolute():
+            raise NodeApplicationKeyStoreUnavailable(
+                "node_key_store_path_invalid"
+            )
+        _require_private_path(
+            self.database,
+            directory=False,
+            code="node_key_store_permissions_invalid",
+        )
+        _require_private_path(
+            self.key_dir,
+            directory=True,
+            code="node_key_directory_permissions_invalid",
+        )
 
     def _prepare_paths(self) -> None:
         if not self.database.is_absolute() or not self.key_dir.is_absolute():
@@ -361,6 +404,69 @@ class SqliteNodeApplicationKeyAdmin:
             raise
         else:
             self._connection.execute("COMMIT")
+
+    def _validate_existing_reconciliation_schema(self) -> None:
+        names = {
+            row["name"]
+            for row in self._connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+        required = {
+            "n3w_relay_meta",
+            "n3w_relay_nodes",
+            "n3w_relay_key_epochs",
+            "n3w_node_key_operations",
+        }
+        if not required <= names:
+            raise NodeApplicationKeyStoreUnavailable(
+                "node_key_store_schema_mismatch"
+            )
+
+        versions = self._connection.execute(
+            "SELECT schema_version FROM n3w_relay_meta"
+        ).fetchall()
+        if (
+            len(versions) != 1
+            or versions[0]["schema_version"] != self._SCHEMA_VERSION
+        ):
+            raise NodeApplicationKeyStoreUnavailable(
+                "node_key_store_schema_mismatch"
+            )
+
+        epoch_columns = {
+            row["name"]
+            for row in self._connection.execute(
+                "PRAGMA table_info(n3w_relay_key_epochs)"
+            ).fetchall()
+        }
+        if not {
+            "node_id",
+            "key_epoch",
+            "key_file",
+            "enabled",
+            "state",
+            "key_sha256",
+        } <= epoch_columns:
+            raise NodeApplicationKeyStoreUnavailable(
+                "node_key_store_schema_mismatch"
+            )
+
+        operation_columns = {
+            row["name"]
+            for row in self._connection.execute(
+                "PRAGMA table_info(n3w_node_key_operations)"
+            ).fetchall()
+        }
+        if not {
+            "operation_key",
+            "node_id",
+            "key_epoch",
+            "status",
+        } <= operation_columns:
+            raise NodeApplicationKeyStoreUnavailable(
+                "node_key_store_schema_mismatch"
+            )
 
     def _initialize_schema(self) -> None:
         names = {
@@ -780,6 +886,93 @@ class SqliteNodeApplicationKeyAdmin:
         finally:
             os.close(fd)
 
+    def snapshot_node(
+        self,
+        *,
+        node_id: str,
+        key_epoch: int | None = None,
+    ) -> NodeApplicationKeySnapshot:
+        if not isinstance(node_id, str) or _ID.fullmatch(node_id) is None:
+            raise NodeApplicationKeyStoreUnavailable("node_id_invalid")
+        if key_epoch is not None:
+            key_epoch = self._require_epoch(key_epoch)
+
+        with self._lock:
+            self._require_open()
+            self._require_integrity()
+
+            pending = self._connection.execute(
+                """
+                SELECT 1
+                FROM n3w_node_key_operations
+                WHERE node_id = ?
+                  AND status NOT IN ('DONE','RECOVERED')
+                LIMIT 1
+                """,
+                (node_id,),
+            ).fetchone()
+            if pending is not None:
+                raise NodeApplicationKeyStoreUnavailable(
+                    "node_key_operation_incomplete"
+                )
+
+            rows = self._connection.execute(
+                """
+                SELECT key_epoch, key_file, enabled, state, key_sha256
+                FROM n3w_relay_key_epochs
+                WHERE node_id = ?
+                ORDER BY key_epoch
+                """,
+                (node_id,),
+            ).fetchall()
+
+            epochs: list[tuple[int, str, bool]] = []
+            requested = None
+            for row in rows:
+                state = row["state"]
+                enabled = row["enabled"]
+                if (
+                    state not in self._KEY_STATES
+                    or enabled != int(state in _RUNTIME_KEY_STATES)
+                ):
+                    raise NodeApplicationKeyStoreUnavailable(
+                        "node_key_store_corrupt"
+                    )
+
+                epoch = int(row["key_epoch"])
+                epochs.append((epoch, state, bool(enabled)))
+
+                material_binding_valid: bool | None = None
+                if state != "REVOKED":
+                    self._read_admin_key(
+                        row["key_file"],
+                        expected_sha256=row["key_sha256"],
+                    )
+                    material_binding_valid = True
+
+                if key_epoch is not None and epoch == key_epoch:
+                    requested = (
+                        state,
+                        bool(enabled),
+                        material_binding_valid,
+                    )
+
+            return NodeApplicationKeySnapshot(
+                node_id=node_id,
+                requested_epoch=key_epoch,
+                requested_exists=requested is not None,
+                requested_state=(
+                    None if requested is None else requested[0]
+                ),
+                requested_enabled=(
+                    None if requested is None else requested[1]
+                ),
+                requested_material_binding_valid=(
+                    None if requested is None else requested[2]
+                ),
+                epochs=tuple(epochs),
+            )
+
     def stage_key(
         self,
         *,
@@ -994,6 +1187,39 @@ class SqliteNodeApplicationKeyAdmin:
 
         return self._result(
             "revoke_key",
+            node_id=node_id,
+            key_epoch=key_epoch,
+        )
+
+    def cleanup_reconciled_key(
+        self,
+        *,
+        node_id: str,
+        key_epoch: int,
+    ) -> dict[str, object]:
+        if not isinstance(node_id, str) or _ID.fullmatch(node_id) is None:
+            raise NodeApplicationKeyStoreUnavailable("node_id_invalid")
+        key_epoch = self._require_epoch(key_epoch)
+
+        with self._lock:
+            row = self._key_row(node_id, key_epoch)
+
+            if row["state"] != "REVOKED":
+                with self._transaction() as connection:
+                    connection.execute(
+                        """
+                        UPDATE n3w_relay_key_epochs
+                        SET state='REVOKED',enabled=0
+                        WHERE node_id=? AND key_epoch=?
+                        """,
+                        (node_id, key_epoch),
+                    )
+                self._fsync_database()
+
+            self._unlink_key(row["key_file"])
+
+        return self._result(
+            "cleanup_reconciled_key",
             node_id=node_id,
             key_epoch=key_epoch,
         )
