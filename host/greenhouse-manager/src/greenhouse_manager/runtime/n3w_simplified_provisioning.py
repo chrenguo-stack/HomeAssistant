@@ -18,6 +18,10 @@ from .n3w_node_application_keys import (
     SqliteNodeApplicationKeyAdmin,
     SqliteNodeApplicationKeyProvider,
 )
+from .n3w_first_registration_ledger import (
+    FirstRegistrationLedger,
+    FirstRegistrationPhase,
+)
 from .n3w_node_credentials import (
     ManagedProductCredentialIssuer,
     ProductCredentialBundle,
@@ -169,6 +173,7 @@ class SimplifiedProvisioningStager:
         broker_port: int,
         broker_tls_server_name: str,
         ca_pem: str,
+        first_registration_ledger: FirstRegistrationLedger | None = None,
     ) -> None:
         self.identity_provisioner = identity_provisioner
         self.product_issuer = product_issuer
@@ -178,6 +183,7 @@ class SimplifiedProvisioningStager:
         self.broker_port = broker_port
         self.broker_tls_server_name = broker_tls_server_name
         self.ca_pem = ca_pem
+        self.first_registration_ledger = first_registration_ledger
 
     def stage(
         self,
@@ -193,6 +199,69 @@ class SimplifiedProvisioningStager:
             generation=credential_generation,
         )
         credentials = generate_node_credentials(plan)
+        ledger = self.first_registration_ledger
+        if ledger is not None:
+            attempt = ledger.get(pairing_id)
+            if attempt.phase is not FirstRegistrationPhase.HELLO_OBSERVED:
+                raise PairingProvisioningError(
+                    "first-registration hello ownership missing"
+                )
+            inspector = getattr(
+                self.identity_provisioner,
+                "inspect_plan",
+                None,
+            )
+            if not callable(inspector):
+                raise PairingProvisioningError(
+                    "first-registration dynsec inspection unavailable"
+                )
+            dynsec = inspector(plan)
+            dynsec_absent = not (
+                dynsec.client_present
+                or dynsec.role_present
+            )
+            ledger.record_dynsec_prestate(
+                pairing_id,
+                node_id=node_id,
+                absent=dynsec_absent,
+            )
+            if not dynsec_absent:
+                raise PairingProvisioningError(
+                    "first-registration dynsec prestate not absent"
+                )
+
+            if not isinstance(
+                self.product_issuer,
+                ManagedProductCredentialIssuer,
+            ):
+                raise PairingProvisioningError(
+                    "first-registration application-key inspection unavailable"
+                )
+            snapshotter = getattr(
+                self.product_issuer
+                .application_keys
+                .application_keys,
+                "snapshot_node",
+                None,
+            )
+            if not callable(snapshotter):
+                raise PairingProvisioningError(
+                    "first-registration application-key inspection unavailable"
+                )
+            application = snapshotter(
+                node_id=node_id,
+            )
+            application_absent = not application.epochs
+            ledger.record_application_key_prestate(
+                pairing_id,
+                node_id=node_id,
+                absent=application_absent,
+            )
+            if not application_absent:
+                raise PairingProvisioningError(
+                    "first-registration application-key prestate not absent"
+                )
+
         self.identity_provisioner.provision(plan, credentials)
         try:
             material = self.product_issuer.stage(
