@@ -6,6 +6,7 @@
 
 #include "esphome/components/json/json_util.h"
 #include "lwip/inet.h"
+#include "lwip/sockets.h"
 
 namespace esphome::greenhouse_n3w_core {
 namespace {
