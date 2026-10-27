@@ -706,10 +706,9 @@ esp_err_t RegistrationPortal::handle_confirm_(httpd_req_t *request) {
 
   return send_json_(
       request,
-      "409 Conflict",
+      "202 Accepted",
       "{\"schema\":\"gh.registration.portal-result/1\","
-      "\"status\":\"not_ready\","
-      "\"reason\":\"bootstrap_stage_pending\"}");
+      "\"status\":\"accepted\",\"next\":\"bootstrap\"}");
 }
 
 esp_err_t RegistrationPortal::handle_retry_(httpd_req_t *request) {
