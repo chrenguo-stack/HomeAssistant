@@ -880,3 +880,45 @@ def test_legacy_repair_authorized_flag_is_not_product_correctness_authority(
 
     with pytest.raises(KeyError):
         registry.get(HARDWARE_ID)
+
+
+def test_first_registration_authorized_deadline_is_exact_and_non_refreshing(
+    registry: RegistrationRegistry,
+) -> None:
+    deadline = NOW + timedelta(seconds=1800)
+
+    created = registry.observe_hello(
+        valid_hello(),
+        now=NOW,
+        authorized_expires_at=deadline,
+    )
+    duplicate = registry.observe_hello(
+        valid_hello(),
+        now=NOW + timedelta(seconds=1700),
+        authorized_expires_at=deadline,
+    )
+
+    assert created.record.expires_at == deadline
+    assert duplicate.record.expires_at == deadline
+    assert duplicate.status == "duplicate"
+
+    with pytest.raises(
+        RegistrationConflict,
+        match="first_registration_deadline_mismatch",
+    ):
+        registry.observe_hello(
+            valid_hello(),
+            now=NOW + timedelta(seconds=1701),
+            authorized_expires_at=deadline + timedelta(seconds=1),
+        )
+
+
+def test_first_registration_authorized_deadline_does_not_change_default_ttl(
+    registry: RegistrationRegistry,
+) -> None:
+    pairing_id = "3de01176-a1bb-4f5a-b1f8-cdeaf42e54c0"
+    result = registry.observe_hello(
+        valid_hello(pairing_id=pairing_id),
+        now=NOW,
+    )
+    assert result.record.expires_at == NOW + timedelta(seconds=120)

@@ -416,9 +416,22 @@ class RegistrationRegistry:
         payload: Mapping[str, Any],
         *,
         now: datetime | None = None,
+        authorized_expires_at: datetime | None = None,
     ) -> ObserveResult:
         hello = self.validate_hello(payload)
         observed_at = _utc(now or datetime.now(UTC))
+        authorized_deadline = (
+            None
+            if authorized_expires_at is None
+            else _utc(authorized_expires_at)
+        )
+        if (
+            authorized_deadline is not None
+            and authorized_deadline <= observed_at
+        ):
+            raise RegistrationConflict(
+                "first_registration_deadline_expired"
+            )
         pairing_id = hello["pairing_id"]
         hardware_id = hello["hardware_id"]
 
@@ -466,7 +479,15 @@ class RegistrationRegistry:
                         self._row_to_record(replay, current["node_id"]),
                         "replay_detected",
                     )
-                if observed_at > _parse_timestamp(replay["expires_at"]):
+                replay_expires_at = _parse_timestamp(replay["expires_at"])
+                if (
+                    authorized_deadline is not None
+                    and replay_expires_at != authorized_deadline
+                ):
+                    raise RegistrationConflict(
+                        "first_registration_deadline_mismatch"
+                    )
+                if observed_at > replay_expires_at:
                     self._set_session_state(pairing_id, RegistrationState.EXPIRED, "expired")
                     return ObserveResult("rejected", self.get(hardware_id), "expired")
                 self._connection.execute(
@@ -500,7 +521,16 @@ class RegistrationRegistry:
                     )
                 repair_intent = intent
 
-            expires_at = observed_at + self.pending_ttl
+            if authorized_deadline is not None and repair_intent is not None:
+                raise RegistrationConflict(
+                    "first_registration_deadline_not_allowed_for_repair"
+                )
+
+            expires_at = (
+                authorized_deadline
+                if authorized_deadline is not None
+                else observed_at + self.pending_ttl
+            )
             self._connection.execute(
                 """
                 INSERT INTO pairing_sessions (

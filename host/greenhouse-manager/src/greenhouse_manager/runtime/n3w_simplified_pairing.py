@@ -189,6 +189,10 @@ class SimplifiedPairingCoordinator:
             str,
             _CredentialRecoveryIntent,
         ] = {}
+        self._first_registration_deadlines: dict[
+            tuple[str, str],
+            datetime,
+        ] = {}
 
     def import_setup_secret(
         self,
@@ -212,6 +216,35 @@ class SimplifiedPairingCoordinator:
                     "setup_secret_conflicting_import"
                 )
             self._setup[key] = bytearray(setup_secret)
+
+    def authorize_first_registration_deadline(
+        self,
+        hardware_id: str,
+        pairing_id: str,
+        *,
+        expires_at: datetime,
+    ) -> None:
+        if expires_at.tzinfo is None:
+            raise ValueError("first_registration_deadline_invalid")
+        deadline = expires_at.astimezone(UTC)
+        record = self.registry.get(hardware_id)
+        if (
+            record.pairing_id != pairing_id
+            or record.state is not RegistrationState.PENDING
+        ):
+            raise SimplifiedPairingConflict("registration_not_pending")
+        if record.expires_at != deadline:
+            raise SimplifiedPairingConflict(
+                "first_registration_deadline_mismatch"
+            )
+        key = (hardware_id, pairing_id)
+        with self._lock:
+            existing = self._first_registration_deadlines.get(key)
+            if existing is not None and existing != deadline:
+                raise SimplifiedPairingConflict(
+                    "first_registration_deadline_conflict"
+                )
+            self._first_registration_deadlines[key] = deadline
 
     def authorize_repair(
         self,
@@ -301,7 +334,20 @@ class SimplifiedPairingCoordinator:
                 manager_nonce=manager_nonce,
             )
             session_id = str(self.uuid_factory())
-            expires_at = min(observed_at + self.session_ttl, record.expires_at)
+            first_registration_deadline = (
+                self._first_registration_deadlines.get(key)
+            )
+            if first_registration_deadline is not None:
+                if record.expires_at != first_registration_deadline:
+                    raise SimplifiedPairingConflict(
+                        "first_registration_deadline_mismatch"
+                    )
+                expires_at = first_registration_deadline
+            else:
+                expires_at = min(
+                    observed_at + self.session_ttl,
+                    record.expires_at,
+                )
             if expires_at <= observed_at:
                 raise SimplifiedPairingConflict("registration_expired")
             session = _Session(
@@ -557,6 +603,10 @@ class SimplifiedPairingCoordinator:
             session.state = SimplifiedPairingState.CONSUMED
             self._clear_secret(session)
             self._erase_imported_secret(session.hardware_id, session.pairing_id)
+            self._clear_first_registration_deadline(
+                session.hardware_id,
+                session.pairing_id,
+            )
             return self._snapshot(session)
 
     def abort(self, session_id: str) -> SimplifiedPairingSnapshot:
@@ -579,6 +629,10 @@ class SimplifiedPairingCoordinator:
 
             session.state = SimplifiedPairingState.FAILED
             self._clear_secret(session)
+            self._clear_first_registration_deadline(
+                session.hardware_id,
+                session.pairing_id,
+            )
 
             if rollback_error is not None:
                 raise SimplifiedPairingError(
@@ -624,6 +678,10 @@ class SimplifiedPairingCoordinator:
 
                 session.state = SimplifiedPairingState.EXPIRED
                 self._clear_secret(session)
+                self._clear_first_registration_deadline(
+                    session.hardware_id,
+                    session.pairing_id,
+                )
 
                 if rollback_error is not None:
                     raise SimplifiedPairingError(
@@ -694,6 +752,10 @@ class SimplifiedPairingCoordinator:
 
         session.state = SimplifiedPairingState.EXPIRED
         self._clear_secret(session)
+        self._clear_first_registration_deadline(
+            session.hardware_id,
+            session.pairing_id,
+        )
 
         if rollback_error is not None:
             raise SimplifiedPairingError(
@@ -770,6 +832,16 @@ class SimplifiedPairingCoordinator:
         session.issued_credentials = None
         if staged is not None:
             staged.rollback()
+
+    def _clear_first_registration_deadline(
+        self,
+        hardware_id: str,
+        pairing_id: str,
+    ) -> None:
+        self._first_registration_deadlines.pop(
+            (hardware_id, pairing_id),
+            None,
+        )
 
     def _erase_imported_secret(self, hardware_id: str, pairing_id: str) -> None:
         value = self._setup.pop((hardware_id, pairing_id), None)

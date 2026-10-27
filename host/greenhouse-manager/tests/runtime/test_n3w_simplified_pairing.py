@@ -527,3 +527,83 @@ def test_abort_after_credentials_issued_rolls_registration_back(
             stager.last.rolled_back
             is True
         )
+
+
+def test_first_registration_session_uses_authorized_absolute_deadline(
+    tmp_path,
+) -> None:
+    random = RoutedRandom()
+    stager = FakeStager()
+    deadline = NOW + timedelta(seconds=1800)
+
+    with RegistrationRegistry(
+        tmp_path / "registration.sqlite3",
+        pending_ttl_s=120,
+    ) as registry:
+        registry.observe_hello(
+            hello(),
+            now=NOW,
+            authorized_expires_at=deadline,
+        )
+        coordinator = SimplifiedPairingCoordinator(
+            registry,
+            stager,
+            manager_id="manager_lab_01",
+            session_ttl_s=120,
+            random_bytes=random,
+        )
+        coordinator.import_setup_secret(
+            HARDWARE_ID,
+            PAIRING_ID,
+            setup_secret=SETUP_SECRET,
+        )
+        coordinator.authorize_first_registration_deadline(
+            HARDWARE_ID,
+            PAIRING_ID,
+            expires_at=deadline,
+        )
+
+        offer = coordinator.begin(
+            HARDWARE_ID,
+            PAIRING_ID,
+            node_nonce=b64(random.node_nonce),
+            now=NOW + timedelta(seconds=1700),
+        )
+
+        assert offer.expires_at == deadline
+        assert (
+            int(
+                (
+                    offer.expires_at
+                    - (NOW + timedelta(seconds=1700))
+                ).total_seconds()
+            )
+            == 100
+        )
+
+
+def test_first_registration_deadline_binding_rejects_registry_mismatch(
+    tmp_path,
+) -> None:
+    with RegistrationRegistry(
+        tmp_path / "registration.sqlite3",
+        pending_ttl_s=120,
+    ) as registry:
+        registry.observe_hello(
+            hello(),
+            now=NOW,
+        )
+        coordinator = SimplifiedPairingCoordinator(
+            registry,
+            FakeStager(),
+            manager_id="manager_lab_01",
+        )
+        with pytest.raises(
+            SimplifiedPairingConflict,
+            match="first_registration_deadline_mismatch",
+        ):
+            coordinator.authorize_first_registration_deadline(
+                HARDWARE_ID,
+                PAIRING_ID,
+                expires_at=NOW + timedelta(seconds=1800),
+            )
