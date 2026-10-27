@@ -15,6 +15,10 @@ from typing import Any
 
 from .config import Settings
 from .credential_lifecycle import CredentialLifecycleStore
+from .n3w_first_registration_intent import FirstRegistrationIntent
+from .n3w_first_registration_reconciliation import (
+    FirstRegistrationReconciler,
+)
 from .n3w_node_application_keys import (
     SqliteNodeApplicationKeyAdmin,
 )
@@ -27,10 +31,6 @@ from .n3w_node_identity_provisioner import (
     PahoNodeIdentityProvisioner,
 )
 from .n3w_pairing_local_ipc import ManagerOwnedPairingSocket
-from .n3w_first_registration_intent import FirstRegistrationIntent
-from .n3w_first_registration_reconciliation import (
-    FirstRegistrationReconciler,
-)
 from .n3w_peer_trust_store import SystemPeerTrustStore
 from .n3w_simplified_credentials import (
     SimplifiedCredentialBundleIssuer,

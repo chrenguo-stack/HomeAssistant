@@ -9,6 +9,12 @@ from .c06b2_runtime_wiring import run_manager_service as run_c06b2_manager_servi
 from .config import Settings
 from .credential_lifecycle import CredentialLifecycleStore
 from .mqtt_service import ManagerMqttService
+from .n3w_dynamic_pairing_window import (
+    DynamicPairingWindowController,
+    DynamicPairingWindowControlServer,
+    N3wSimplifiedProductPairingWorker,
+    dynamic_pairing_control_socket_path,
+)
 from .n3w_first_registration_intent import (
     FirstRegistrationIntentStore,
 )
@@ -17,12 +23,6 @@ from .n3w_first_registration_reconciliation import (
 )
 from .n3w_first_registration_transaction import (
     FirstRegistrationTransactionService,
-)
-from .n3w_dynamic_pairing_window import (
-    DynamicPairingWindowController,
-    DynamicPairingWindowControlServer,
-    N3wSimplifiedProductPairingWorker,
-    dynamic_pairing_control_socket_path,
 )
 from .n3w_node_application_keys import (
     SqliteNodeApplicationKeyAdmin,

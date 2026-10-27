@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 from cryptography import x509
+from cryptography.hazmat.primitives import serialization
 
 from greenhouse_manager.bootstrap.fresh_broker import (
     FreshBrokerBootstrapError,
@@ -202,15 +203,11 @@ def test_dynsec_document_audit_rejects_precreated_node(
 
 
 def test_registration_bootstrap_tls_is_dedicated_from_broker_leaf(tmp_path) -> None:
-    from cryptography import x509
-    from cryptography.hazmat.primitives import serialization
-
     root = tmp_path / "broker"
-    create_fresh_broker_materials(
+    report = create_fresh_broker_materials(
         root,
         system_id="greenhouse-test",
-        now=NOW,
-        random_bytes=FixedRandom(),
+        now=datetime(2026, 10, 11, tzinfo=UTC),
     )
 
     broker_cert = x509.load_pem_x509_certificate(
@@ -232,7 +229,4 @@ def test_registration_bootstrap_tls_is_dedicated_from_broker_leaf(tmp_path) -> N
 
     assert broker_public != registration_public
     assert registration_cert.subject == registration_cert.issuer
-    assert (
-        verify_fresh_broker_materials(root).secret_values_included
-        is False
-    )
+    assert report.secret_values_included is False

@@ -9,8 +9,8 @@ from pathlib import Path
 
 from .n3w_registration_bootstrap import (
     RegistrationBootstrapApp,
-    RegistrationTransactionService,
     RegistrationBootstrapHTTPServer,
+    RegistrationTransactionService,
     bootstrap_certificate_sha256,
     make_registration_bootstrap_tls_server,
 )

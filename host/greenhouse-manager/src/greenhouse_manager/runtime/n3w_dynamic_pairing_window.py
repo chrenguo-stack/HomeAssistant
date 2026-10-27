@@ -699,12 +699,6 @@ class DynamicPairingWindowController:
                         broker_hash
                     )
                     self._last_close_reason = "open"
-                    self._first_registration_pairing_id = (
-                        intent.pairing_id
-                    )
-                    self._first_registration_pairing_host = (
-                        pairing_host
-                    )
                     self._state = "OPEN"
                     deadline_thread = threading.Thread(
                         target=self._deadline_run,
@@ -904,6 +898,12 @@ class DynamicPairingWindowController:
                     self._window_seconds = remaining
                     self._broker_host_sha256 = broker_hash
                     self._last_close_reason = "open"
+                    self._first_registration_pairing_id = (
+                        intent.pairing_id
+                    )
+                    self._first_registration_pairing_host = (
+                        pairing_host
+                    )
                     self._state = "OPEN"
                     deadline_thread = threading.Thread(
                         target=self._deadline_run,
