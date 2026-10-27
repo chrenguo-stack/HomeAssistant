@@ -1,0 +1,464 @@
+{
+  "schema": "gh.n3w-ci-policy-manifest/1",
+  "policy_revision": "N3W_CI_POLICY_V1_20261026",
+  "authority_documents": [
+    "docs/skills/greenhouse-github-development-efficiency/SKILL.md",
+    "docs/development/N3W_CI_FAST_SOURCE_GATE_AND_EXACT_CLOSURE_SPLIT_V1_20261026.md",
+    "docs/development/N3W_CI_POLICY_AS_CODE_AND_DRIFT_GUARD_V1_20261026.md"
+  ],
+  "valid_classes": [
+    "FAST",
+    "MODEL",
+    "BUILD",
+    "EVIDENCE",
+    "EXACT",
+    "LIVE"
+  ],
+  "valid_draft_policies": [
+    "run",
+    "ci-ready",
+    "legacy-run",
+    "manual-or-push"
+  ],
+  "workflows": {
+    "c06-history-replay-ci.yml": {
+      "class": "MODEL",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion.",
+        "missing_timeout": "Legacy workflow predates the repository-wide explicit timeout requirement; tracked debt, no silent expansion."
+      }
+    },
+    "c06b1-history-projection-ci.yml": {
+      "class": "MODEL",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion.",
+        "missing_timeout": "Legacy workflow predates the repository-wide explicit timeout requirement; tracked debt, no silent expansion."
+      }
+    },
+    "c06b2a-ha-target-ledger-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion.",
+        "missing_timeout": "Legacy workflow predates the repository-wide explicit timeout requirement; tracked debt, no silent expansion."
+      }
+    },
+    "c06b2b-runtime-wiring-ci.yml": {
+      "class": "MODEL",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion.",
+        "missing_timeout": "Legacy workflow predates the repository-wide explicit timeout requirement; tracked debt, no silent expansion."
+      }
+    },
+    "c07-node-retirement-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "f1-0-rc2-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion."
+      }
+    },
+    "greenhouse-manager-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion.",
+        "missing_timeout": "Legacy workflow predates the repository-wide explicit timeout requirement; tracked debt, no silent expansion."
+      }
+    },
+    "h0h1-init-portable-restore-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "h3-n2-stage2b3-pairing-runtime-ci.yml": {
+      "class": "MODEL",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion.",
+        "missing_timeout": "Legacy workflow predates the repository-wide explicit timeout requirement; tracked debt, no silent expansion."
+      }
+    },
+    "h3-n2-stage2c1-node-pairing-core-ci.yml": {
+      "class": "MODEL",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion.",
+        "missing_timeout": "Legacy workflow predates the repository-wide explicit timeout requirement; tracked debt, no silent expansion."
+      }
+    },
+    "h3-n2-stage2c2-node-secure-transport-ci.yml": {
+      "class": "MODEL",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion.",
+        "missing_timeout": "Legacy workflow predates the repository-wide explicit timeout requirement; tracked debt, no silent expansion."
+      }
+    },
+    "h3-n2-stage2c3-async-persistence-ci.yml": {
+      "class": "MODEL",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "h3-n2-stage2d1-crypto-output-safety-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "h3-n2-stage2d1-nvs-persistence-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "h3-n2-stage2d2-candidate-mqtt-validator-ci.yml": {
+      "class": "MODEL",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "h3-n2-stage2d3-activation-transaction-ci.yml": {
+      "class": "MODEL",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "h3-n2-stage2d4-profile-lifecycle-integration-ci.yml": {
+      "class": "MODEL",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "h3-n2-stage2d5-production-adapters-ci.yml": {
+      "class": "MODEL",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "h3-n2-stage2d6-lifecycle-assembly-ci.yml": {
+      "class": "MODEL",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "local-dev-environment-tooling-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "m0-vertical-slice-ci.yml": {
+      "class": "MODEL",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion.",
+        "missing_timeout": "Legacy workflow predates the repository-wide explicit timeout requirement; tracked debt, no silent expansion."
+      }
+    },
+    "m2-dynsec-ci.yml": {
+      "class": "MODEL",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion."
+      }
+    },
+    "m2-esphome-node-auth-adapter-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion.",
+        "missing_timeout": "Legacy workflow predates the repository-wide explicit timeout requirement; tracked debt, no silent expansion."
+      }
+    },
+    "m2-manager-failure-diagnostic-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion.",
+        "missing_timeout": "Legacy workflow predates the repository-wide explicit timeout requirement; tracked debt, no silent expansion."
+      }
+    },
+    "m2-manager-runtime-secret-ownership-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion.",
+        "missing_timeout": "Legacy workflow predates the repository-wide explicit timeout requirement; tracked debt, no silent expansion."
+      }
+    },
+    "m2-node-auth-board-lab-ci.yml": {
+      "class": "MODEL",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion.",
+        "missing_timeout": "Legacy workflow predates the repository-wide explicit timeout requirement; tracked debt, no silent expansion."
+      }
+    },
+    "m2-node-auth-board-lab-native-ci.yml": {
+      "class": "MODEL",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "m2-node-auth-isolated-lab-ci.yml": {
+      "class": "MODEL",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion.",
+        "missing_timeout": "Legacy workflow predates the repository-wide explicit timeout requirement; tracked debt, no silent expansion."
+      }
+    },
+    "m2-private-mosquitto-ci.yml": {
+      "class": "MODEL",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "n1-firmware-ci.yml": {
+      "class": "BUILD",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion."
+      }
+    },
+    "n3w-board-d-post-r4-write-target-preflight-ci.yml": {
+      "class": "BUILD",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion.",
+        "missing_timeout": "Legacy workflow predates the repository-wide explicit timeout requirement; tracked debt, no silent expansion."
+      }
+    },
+    "n3w-board-d-r4-dual-slot-normalization-write-executor-ci.yml": {
+      "class": "BUILD",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion."
+      }
+    },
+    "n3w-board-d-r4-production-deharness-ci.yml": {
+      "class": "BUILD",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion."
+      }
+    },
+    "n3w-board-d-scoped-pairing-nvs-reset-ci.yml": {
+      "class": "BUILD",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion.",
+        "missing_timeout": "Legacy workflow predates the repository-wide explicit timeout requirement; tracked debt, no silent expansion."
+      }
+    },
+    "n3w-boot-session-recovery-helper-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion."
+      }
+    },
+    "n3w-broker-ingress-guard-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_timeout": "Legacy workflow predates the repository-wide explicit timeout requirement; tracked debt, no silent expansion."
+      }
+    },
+    "n3w-ci-fast-source-exact-closure-contract-ci.yml": {
+      "class": "EVIDENCE",
+      "draft_policy": "legacy-run",
+      "exceptions": {
+        "heavy_draft_execution": "Existing evidence workflow still runs on Draft PRs; explicit migration debt under the policy-as-code rollout."
+      }
+    },
+    "n3w-current-main-product-source-convergence-r3-ci.yml": {
+      "class": "BUILD",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion."
+      }
+    },
+    "n3w-esp32c6-frame-boot-keystate-core-ci.yml": {
+      "class": "BUILD",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion."
+      }
+    },
+    "n3w-kf096-pr437-boardb-write-executor-ci.yml": {
+      "class": "BUILD",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion.",
+        "missing_timeout": "Legacy workflow predates the repository-wide explicit timeout requirement; tracked debt, no silent expansion."
+      }
+    },
+    "n3w-kf098-t1-live-cutover-executor-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion.",
+        "missing_timeout": "Legacy workflow predates the repository-wide explicit timeout requirement; tracked debt, no silent expansion."
+      }
+    },
+    "n3w-manager-replay-registry-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "n3w-production-multi-relay-gateway-selection-v1-ci.yml": {
+      "class": "BUILD",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion."
+      }
+    },
+    "n3w-production-relay-discovery-full-channel-fallback-v1-ci.yml": {
+      "class": "BUILD",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion."
+      }
+    },
+    "n3w-single-hop-contract-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "n3w-t1-deployment-gate-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_timeout": "Legacy workflow predates the repository-wide explicit timeout requirement; tracked debt, no silent expansion."
+      }
+    },
+    "n3w-t1-explicit-provisioning-source-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion."
+      }
+    },
+    "n3w-t1-f2-readonly-preflight-source-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "n3w-t1-f4-activation-source-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion."
+      }
+    },
+    "n3w-t1-f4-exact-control-package.yml": {
+      "class": "EVIDENCE",
+      "draft_policy": "legacy-run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion.",
+        "heavy_draft_execution": "Existing evidence workflow still runs on Draft PRs; explicit migration debt under the policy-as-code rollout."
+      }
+    },
+    "n3w-t1-f5-v2-exact-production-release-ci.yml": {
+      "class": "EVIDENCE",
+      "draft_policy": "manual-or-push",
+      "exceptions": {}
+    },
+    "n3w-t1-f5-v2-release-inputs-ci.yml": {
+      "class": "EVIDENCE",
+      "draft_policy": "manual-or-push",
+      "exceptions": {}
+    },
+    "n3w-t1-f5-v2-source-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "n3w-t1-first-pairing-onboarding-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion."
+      }
+    },
+    "n3w-t1-fresh-bootstrap-deployable-payload-ci.yml": {
+      "class": "EXACT",
+      "draft_policy": "ci-ready",
+      "exceptions": {}
+    },
+    "n3w-t1-fresh-install-exact-arm64-ci.yml": {
+      "class": "EXACT",
+      "draft_policy": "ci-ready",
+      "exceptions": {}
+    },
+    "n3w-t1-fresh-install-host-only-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion.",
+        "missing_timeout": "Legacy workflow predates the repository-wide explicit timeout requirement; tracked debt, no silent expansion."
+      }
+    },
+    "n3w-t1-golden-master-ci.yml": {
+      "class": "EVIDENCE",
+      "draft_policy": "legacy-run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion.",
+        "heavy_draft_execution": "Existing evidence workflow still runs on Draft PRs; explicit migration debt under the policy-as-code rollout."
+      }
+    },
+    "n3w-t1-ha-bootstrap-isolated-ci.yml": {
+      "class": "MODEL",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "n3w-t1-minimal-baseline-normalization-source-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion.",
+        "missing_timeout": "Legacy workflow predates the repository-wide explicit timeout requirement; tracked debt, no silent expansion."
+      }
+    },
+    "n3w-t1-minimal-baseline-readonly-inventory-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion.",
+        "missing_timeout": "Legacy workflow predates the repository-wide explicit timeout requirement; tracked debt, no silent expansion."
+      }
+    },
+    "n3w-t1-production-manager-state-binding-ci.yml": {
+      "class": "EXACT",
+      "draft_policy": "ci-ready",
+      "exceptions": {}
+    },
+    "n3w-t1-production-stack-staging-payload-ci.yml": {
+      "class": "EXACT",
+      "draft_policy": "ci-ready",
+      "exceptions": {}
+    },
+    "n3w-t1-s20-production-image-binding-ci.yml": {
+      "class": "EXACT",
+      "draft_policy": "ci-ready",
+      "exceptions": {}
+    },
+    "n3w-t1-s20-real-service-handoff-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "project-roadmap-v07-c07-identity-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "public-repository-safety-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion.",
+        "missing_timeout": "Legacy workflow predates the repository-wide explicit timeout requirement; tracked debt, no silent expansion."
+      }
+    }
+  }
+}
