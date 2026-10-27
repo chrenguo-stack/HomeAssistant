@@ -327,6 +327,73 @@ def test_peer_trust_baseline_exists_before_pairing_runtime_factory(
         composition.close()
 
 
+def test_corrupt_peer_trust_blocks_runtime_factory(
+    tmp_path,
+) -> None:
+    root = private_root(tmp_path)
+    database = root / "peer-trust.sqlite3"
+
+    with sqlite3.connect(database) as connection:
+        connection.executescript(
+            """
+            CREATE TABLE n3w_system_peer_trust (
+                system_id TEXT PRIMARY KEY,
+                generation INTEGER NOT NULL CHECK (generation >= 1),
+                key_material BLOB NOT NULL CHECK (length(key_material) = 32),
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO n3w_system_peer_trust (
+                system_id,
+                generation,
+                key_material,
+                created_at,
+                updated_at
+            ) VALUES (?, 1, ?, ?, ?)
+            """,
+            (
+                "lab",
+                bytes(range(32)),
+                "not-a-timestamp",
+                "not-a-timestamp",
+            ),
+        )
+
+    os.chmod(database, 0o600)
+    factory_calls = []
+
+    def runtime_factory(
+        settings,
+        coordinator,
+    ):
+        factory_calls.append(True)
+        return FakePairingRuntime(
+            settings,
+            coordinator,
+        )
+
+    with pytest.raises(
+        Exception,
+        match="metadata is corrupt",
+    ):
+        build_simplified_product_pairing_composition(
+            make_settings(root),
+            make_config(root),
+            identity_provisioner_factory=(
+                FakeIdentityProvisioner
+            ),
+            pairing_runtime_factory=(
+                runtime_factory
+            ),
+        )
+
+    assert factory_calls == []
+
+
 def test_peer_trust_baseline_survives_later_composition_failure(
     tmp_path,
 ) -> None:

@@ -1,5 +1,5 @@
-from datetime import UTC, datetime, timedelta
 import sqlite3
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
