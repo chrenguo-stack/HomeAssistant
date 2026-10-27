@@ -67,7 +67,7 @@ class RegistrationPortal {
   std::string scan_token_{};
   std::string qr_payload_{};
   std::atomic<bool> scan_trigger_pending_{false};
-  std::atomic<int64_t> last_dynamic_request_us_{0};
+  std::atomic<uint32_t> last_dynamic_request_ms_{0};
 };
 
 }  // namespace esphome::greenhouse_n3w_core

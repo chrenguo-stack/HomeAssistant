@@ -560,7 +560,10 @@ void SimpleProductComponent::advance_pairing_() {
   const uint64_t now = now_ms();
   if (now < next_pairing_attempt_ms_) return;
   next_pairing_attempt_ms_ = now + kPairingRetryMs;
-  const SimplePairingClientError result = pairing_client_.run_once(now);
+  const SimplePairingClientError result =
+      pairing_ack_pending_
+          ? pairing_client_.resume_pending_ack()
+          : pairing_client_.run_once(now);
   if (result == SimplePairingClientError::NONE ||
       result == SimplePairingClientError::ALREADY_PROVISIONED) {
     if (pairing_client_.provisioned()) {

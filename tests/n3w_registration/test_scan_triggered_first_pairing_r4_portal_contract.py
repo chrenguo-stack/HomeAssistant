@@ -100,6 +100,8 @@ def test_r4_idle_unregistered_node_no_longer_auto_discovers_manager() -> None:
         "void SimpleProductComponent::advance_recovery_()",
     )
     assert "pairing_client_.run_once(now)" in pairing
+    assert "pairing_client_.resume_pending_ack()" in pairing
+    assert "pairing_ack_pending_" in pairing
 
 
 def test_r4_pending_ack_recovery_is_preserved() -> None:
@@ -113,6 +115,7 @@ def test_r4_pending_ack_recovery_is_preserved() -> None:
         in component
     )
     assert "pairing_ack_pending_ = false;" in component
+    assert "pairing_client_.resume_pending_ack()" in component
     assert "registration_portal_.stop();" in component
 
 

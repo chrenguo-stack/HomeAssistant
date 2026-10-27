@@ -18,7 +18,7 @@ namespace {
 constexpr uint16_t kRegistrationPortalPort = 47113;
 constexpr std::size_t kScanTokenBytes = 16;
 constexpr std::size_t kMaxActionBodyBytes = 512;
-constexpr int64_t kMinDynamicRequestIntervalUs = 100000;
+constexpr uint32_t kMinDynamicRequestIntervalMs = 100;
 
 const char kPortalPage[] = R"HTML(<!doctype html>
 <html lang="zh-CN">
@@ -198,7 +198,7 @@ bool RegistrationPortal::start_(
   local_addr_ = local_addr;
   mask_addr_ = mask_addr;
   scan_trigger_pending_.store(false, std::memory_order_release);
-  last_dynamic_request_us_.store(0, std::memory_order_release);
+  last_dynamic_request_ms_.store(0, std::memory_order_release);
   qr_payload_ =
       "http://" + local_ipv4_ + ":" +
       std::to_string(kRegistrationPortalPort) +
@@ -233,7 +233,7 @@ void RegistrationPortal::stop() {
   }
   qr_payload_.clear();
   scan_trigger_pending_.store(false, std::memory_order_release);
-  last_dynamic_request_us_.store(0, std::memory_order_release);
+  last_dynamic_request_ms_.store(0, std::memory_order_release);
 }
 
 bool RegistrationPortal::request_is_local_(httpd_req_t *request) const {
@@ -257,12 +257,16 @@ bool RegistrationPortal::request_is_local_(httpd_req_t *request) const {
 }
 
 bool RegistrationPortal::request_rate_allowed_() {
-  const int64_t now = esp_timer_get_time();
-  if (now <= 0) return false;
-  const int64_t previous =
-      last_dynamic_request_us_.exchange(now, std::memory_order_acq_rel);
-  return previous == 0 ||
-         now - previous >= kMinDynamicRequestIntervalUs;
+  const int64_t now_us = esp_timer_get_time();
+  if (now_us <= 0) return false;
+  const uint32_t now_ms =
+      static_cast<uint32_t>(now_us / 1000);
+  const uint32_t previous =
+      last_dynamic_request_ms_.exchange(
+          now_ms, std::memory_order_acq_rel);
+  return previous == 0U ||
+         static_cast<uint32_t>(now_ms - previous) >=
+             kMinDynamicRequestIntervalMs;
 }
 
 bool RegistrationPortal::request_token_valid_(httpd_req_t *request) {
