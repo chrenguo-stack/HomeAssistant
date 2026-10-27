@@ -491,14 +491,16 @@ bool RegistrationDiscovery::discover(
       subnet_mask,
       now_ms,
       candidates);
-  collect_udp_(
-      request_json,
-      request_id,
-      nonce_text,
-      local_ipv4,
-      subnet_mask,
-      now_ms,
-      candidates);
+  if (candidates->empty()) {
+    collect_udp_(
+        request_json,
+        request_id,
+        nonce_text,
+        local_ipv4,
+        subnet_mask,
+        now_ms,
+        candidates);
+  }
   return true;
 }
 
