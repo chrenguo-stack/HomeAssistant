@@ -14,6 +14,10 @@ from .n3w_first_registration_ledger import (
     FirstRegistrationAttemptState,
     FirstRegistrationLedger,
 )
+from .n3w_registration_bootstrap import (
+    RegistrationBootstrapRejected,
+    validate_bootstrap_source,
+)
 from .n3w_simplified_pairing import (
     SimplifiedPairingConflict,
     SimplifiedPairingCoordinator,
@@ -98,6 +102,9 @@ class SimplifiedPairingEndpointApp:
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         first_registration_intent: FirstRegistrationIntent | None = None,
         first_registration_ledger: FirstRegistrationLedger | None = None,
+        first_registration_source_authorizer: (
+            Callable[[str], None]
+        ) = validate_bootstrap_source,
     ) -> None:
         self.coordinator = coordinator
         self.registry = coordinator.registry
@@ -108,6 +115,9 @@ class SimplifiedPairingEndpointApp:
         self.clock = clock
         self.first_registration_intent = first_registration_intent
         self.first_registration_ledger = first_registration_ledger
+        self.first_registration_source_authorizer = (
+            first_registration_source_authorizer
+        )
         if (
             (first_registration_intent is None)
             != (first_registration_ledger is None)
@@ -143,6 +153,15 @@ class SimplifiedPairingEndpointApp:
                 raise SimplifiedPairingRejected(
                     "first_registration_source_mismatch"
                 )
+            else:
+                try:
+                    self.first_registration_source_authorizer(
+                        client_ip
+                    )
+                except RegistrationBootstrapRejected as error:
+                    raise SimplifiedPairingRejected(
+                        str(error)
+                    ) from error
             if not self.rate_limiter.allow(client_ip):
                 return self._error(
                     HTTPStatus.TOO_MANY_REQUESTS,

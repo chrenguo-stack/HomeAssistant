@@ -10,6 +10,9 @@ from greenhouse_manager.runtime.n3w_first_registration_intent import (
     FirstRegistrationIntent,
     FirstRegistrationIntentStore,
 )
+from greenhouse_manager.runtime.n3w_registration_bootstrap import (
+    RegistrationBootstrapRejected,
+)
 from greenhouse_manager.runtime.n3w_simplified_pairing import (
     SimplifiedPairingCoordinator,
 )
@@ -47,7 +50,11 @@ class UnusedStager:
         raise AssertionError(f"staging not expected: {kwargs}")
 
 
-def make_app(tmp_path):
+def make_app(
+    tmp_path,
+    *,
+    source_authorizer=lambda _ip: None,
+):
     registry = RegistrationRegistry(tmp_path / "registration.sqlite3")
     deadline = NOW + timedelta(seconds=1800)
     ledger = registry.first_registration_ledger()
@@ -80,6 +87,9 @@ def make_app(tmp_path):
         clock=lambda: NOW,
         first_registration_intent=intent,
         first_registration_ledger=ledger,
+        first_registration_source_authorizer=(
+            source_authorizer
+        ),
     )
     return registry, coordinator, endpoint
 
@@ -137,5 +147,32 @@ def test_exact_hello_uses_shared_deadline_and_imports_secret(tmp_path) -> None:
             now=NOW + timedelta(seconds=1700),
         )
         assert offer.expires_at == NOW + timedelta(seconds=1800)
+    finally:
+        registry.close()
+
+
+def test_current_trusted_product_lan_is_rechecked_before_mutation(tmp_path) -> None:
+    def rejected(_source_ip: str) -> None:
+        raise RegistrationBootstrapRejected(
+            "source_not_trusted_product_lan"
+        )
+
+    registry, _, endpoint = make_app(
+        tmp_path,
+        source_authorizer=rejected,
+    )
+    try:
+        response = post_hello(
+            endpoint,
+            hello(),
+            source="192.0.2.44",
+        )
+
+        assert response.status == HTTPStatus.FORBIDDEN
+        assert registry.list_current() == ()
+        attempt = registry.first_registration_ledger().get(
+            PAIRING_ID
+        )
+        assert attempt.phase.value == "BOOTSTRAP_ACCEPTED"
     finally:
         registry.close()
