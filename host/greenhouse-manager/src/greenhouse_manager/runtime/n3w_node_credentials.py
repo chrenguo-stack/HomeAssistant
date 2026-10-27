@@ -475,6 +475,31 @@ class ManagedProductCredentialIssuer:
                     ) from rollback_error
                 raise
 
+    def commit_preserving_evidence(
+        self,
+        material: ProductCredentialMaterial,
+        *,
+        now: datetime | None = None,
+    ) -> None:
+        with self._lock:
+            application_material = (
+                self._application_material(
+                    material
+                )
+            )
+            self.application_keys.activate_initial(
+                application_material
+            )
+            self.mqtt_credentials.activate_initial(
+                hardware_id=material.hardware_id,
+                pairing_id=material.pairing_id,
+                node_id=material.node_id,
+                credential_generation=(
+                    material.credential_generation
+                ),
+                now=now,
+            )
+
     def rollback(
         self,
         material: ProductCredentialMaterial,

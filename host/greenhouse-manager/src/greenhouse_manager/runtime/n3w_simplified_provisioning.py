@@ -56,17 +56,36 @@ class StagedProvisionedSimplifiedBundle:
     product_issuer: ProductCredentialIssuer
     committed: bool = False
     rolled_back: bool = False
+    preserve_commit_evidence: bool = False
 
     def commit(self, *, now: datetime | None = None) -> None:
         if self.rolled_back:
             raise PairingRollbackError("simplified credential stage already rolled back")
         if self.committed:
             return
-        try:
-            self.product_issuer.commit(self.material, now=now)
-        except Exception:
-            self._rollback_broker_only()
-            raise
+        if self.preserve_commit_evidence:
+            commit_preserving = getattr(
+                self.product_issuer,
+                "commit_preserving_evidence",
+                None,
+            )
+            if not callable(commit_preserving):
+                raise PairingProvisioningError(
+                    "first-registration preserving commit unavailable"
+                )
+            commit_preserving(
+                self.material,
+                now=now,
+            )
+        else:
+            try:
+                self.product_issuer.commit(
+                    self.material,
+                    now=now,
+                )
+            except Exception:
+                self._rollback_broker_only()
+                raise
         self.committed = True
 
     def rollback(self) -> None:
@@ -296,6 +315,9 @@ class SimplifiedProvisioningStager:
                 material=material,
                 identity_provisioner=self.identity_provisioner,
                 product_issuer=self.product_issuer,
+                preserve_commit_evidence=(
+                    ledger is not None
+                ),
             )
         except Exception:
             failures: list[Exception] = []
