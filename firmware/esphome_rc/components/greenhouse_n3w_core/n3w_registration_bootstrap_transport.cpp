@@ -453,6 +453,14 @@ bool Esp32RegistrationBootstrapTransport::post_json(
     result = mbedtls_ssl_setup(&ssl, &config);
   }
   if (result == 0) {
+    // Modern mbedTLS requires a client hostname when VERIFY_REQUIRED is used.
+    // Supplying the selected IPv4 host satisfies that handshake precondition;
+    // the security authority is still the exact selected leaf SHA-256 pin.
+    // Conventional CA/name flags are cleared by verify_pinned_leaf only after
+    // that exact leaf fingerprint has matched.
+    result = mbedtls_ssl_set_hostname(&ssl, host.c_str());
+  }
+  if (result == 0) {
     mbedtls_ssl_set_bio(&ssl, &bio, tls_send, tls_recv, nullptr);
     do {
       result = mbedtls_ssl_handshake(&ssl);
