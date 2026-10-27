@@ -13,7 +13,10 @@
 #include "lwip/inet.h"
 #include "lwip/ip_addr.h"
 #include "lwip/sockets.h"
+
+#ifdef GH_N3W_PRODUCTION_DEHARNESS
 #include "mdns.h"
+#endif
 
 #include "n3w_esp32_manager_discovery.h"
 #include "n3w_manager_discovery.h"
@@ -148,6 +151,7 @@ bool parse_candidate_object(
   return true;
 }
 
+#ifdef GH_N3W_PRODUCTION_DEHARNESS
 const char *txt_value(const mdns_result_t *result, const char *key) {
   if (result == nullptr || key == nullptr) return nullptr;
   for (std::size_t index = 0; index < result->txt_count; ++index) {
@@ -279,6 +283,8 @@ bool candidate_from_mdns(
   return true;
 }
 
+#endif
+
 }  // namespace
 
 bool RegistrationCandidateV1::valid() const {
@@ -368,6 +374,7 @@ void RegistrationDiscovery::collect_mdns_(
     const std::string &subnet_mask,
     uint64_t observed_ms,
     std::vector<RegistrationCandidateV1> *candidates) {
+#ifdef GH_N3W_PRODUCTION_DEHARNESS
   if (candidates == nullptr ||
       candidates->size() >= kRegistrationDiscoveryMaxCandidates) {
     return;
@@ -400,6 +407,12 @@ void RegistrationDiscovery::collect_mdns_(
     }
   }
   mdns_query_results_free(results);
+#else
+  (void) local_ipv4;
+  (void) subnet_mask;
+  (void) observed_ms;
+  (void) candidates;
+#endif
 }
 
 void RegistrationDiscovery::collect_udp_(
