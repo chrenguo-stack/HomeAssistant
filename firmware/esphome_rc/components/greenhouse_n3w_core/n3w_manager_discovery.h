@@ -83,6 +83,15 @@ class SimpleManagerDiscovery {
   SimpleManagerDiscoveryRandom *random_{nullptr};
 };
 
+bool build_discovery_query_for_protocol(
+    const std::string &hardware_id,
+    const std::string &protocol,
+    const std::array<uint8_t, 16> &request_random,
+    const std::array<uint8_t, 32> &nonce_random,
+    std::string *request_id,
+    std::string *nonce_text,
+    std::string *request_json);
+
 bool build_simple_discovery_query(
     const std::string &hardware_id,
     const std::array<uint8_t, 16> &request_random,
