@@ -306,6 +306,44 @@ bool parse_hello_result(
   return false;
 }
 
+bool parse_final_ack_response(
+    const std::string &response,
+    const PendingPairingAckV2 &pending,
+    const std::string &expected_node_id) {
+  if (response.empty() || !pending.valid() || expected_node_id.empty()) {
+    return false;
+  }
+  JsonDocument document = json::parse_json(response);
+  JsonObjectConst root = document.as<JsonObjectConst>();
+  std::string schema;
+  std::string session_id;
+  std::string state;
+  std::string node_id;
+  std::string expires_at;
+  return !root.isNull() && root.size() == 5U &&
+         read_string(root, "schema", &schema) &&
+         schema == "gh.pair.simple-status/1" &&
+         read_string(root, "session_id", &session_id) &&
+         session_id == pending.session_id &&
+         read_string(root, "state", &state) && state == "consumed" &&
+         read_string(root, "node_id", &node_id) &&
+         node_id == expected_node_id &&
+         read_string(root, "expires_at", &expires_at) &&
+         expires_at.size() <= 64U;
+}
+
+RegistrationBootstrapRecoveryBinding recovery_binding_from_pending(
+    const PendingPairingAckV2 &pending) {
+  RegistrationBootstrapRecoveryBinding binding;
+  binding.pairing_id = pending.pairing_id;
+  binding.manager_id = pending.manager_id;
+  binding.system_id = pending.system_id;
+  binding.bootstrap_host = pending.bootstrap_host;
+  binding.bootstrap_port = pending.bootstrap_port;
+  binding.bootstrap_tls_sha256 = pending.bootstrap_tls_sha256;
+  return binding;
+}
+
 }  // namespace
 
 SimplePairingClient::SimplePairingClient(
@@ -353,6 +391,14 @@ SimplePairingClientError SimplePairingClient::load_existing_() {
                                    broker_status == SimpleNvsStatus::OK && peer.valid() &&
                                    broker.valid() && peer.system_id == broker.system_id &&
                                    peer.node_id == broker.node_id;
+  if (ack_status == SimpleNvsStatus::OK && pending.valid() &&
+      pending.state == PendingPairingAckState::TERMINAL_CLEANUP &&
+      pending.recovery_capable()) {
+    // A durable terminal-cleanup marker outranks partially erased provisional
+    // peer/Broker state after a crash.
+    return SimplePairingClientError::ACK_PENDING;
+  }
+
   if (credentials_present) {
     if (ack_status == SimpleNvsStatus::OK && pending.valid()) {
       return SimplePairingClientError::ACK_PENDING;
@@ -439,7 +485,45 @@ SimplePairingClientError SimplePairingClient::run_once(uint64_t now_ms) {
   if (result != SimplePairingClientError::NONE) return result;
   result = send_hello_(candidate);
   if (result != SimplePairingClientError::NONE) return result;
-  return pair_with_(candidate);
+  return pair_with_(candidate, nullptr);
+}
+
+SimplePairingClientError SimplePairingClient::run_selected_candidate(
+    const SimpleManagerCandidateV2 &candidate,
+    const RegistrationBootstrapRecoveryBinding &recovery,
+    uint64_t transaction_deadline_ms,
+    uint64_t now_ms) {
+  if (!initialized_ || provisioned_ || !candidate.valid() ||
+      !recovery.valid() || recovery.pairing_id != pairing_id_ ||
+      recovery.manager_id != candidate.manager_id ||
+      recovery.system_id != candidate.system_id ||
+      transaction_deadline_ms == 0U || now_ms == 0U ||
+      now_ms >= transaction_deadline_ms) {
+    return SimplePairingClientError::NOT_READY;
+  }
+
+  PendingPairingAckV2 pending;
+  const SimpleNvsStatus pending_status = ack_store_->load(&pending);
+  if (pending_status == SimpleNvsStatus::OK) return resume_pending_ack();
+  if (pending_status != SimpleNvsStatus::MISSING) {
+    return SimplePairingClientError::PERSISTENCE_FAILED;
+  }
+  if (!setup_secret_ready_) {
+    const SimplePairingClientError prepared = prepare_bootstrap_();
+    if (prepared != SimplePairingClientError::NONE) return prepared;
+  }
+  if (recovery.pairing_id != pairing_id_) {
+    return SimplePairingClientError::NOT_READY;
+  }
+
+  SimplePairingClientError result = send_hello_(candidate);
+  if (result != SimplePairingClientError::NONE) return result;
+  return pair_with_(candidate, &recovery);
+}
+
+SimplePairingClientError SimplePairingClient::renew_pairing_intent() {
+  if (!initialized_ || provisioned_) return SimplePairingClientError::NOT_READY;
+  return renew_pairing_intent_();
 }
 
 SimplePairingClientError SimplePairingClient::resume_pending_ack() {
@@ -450,7 +534,10 @@ SimplePairingClientError SimplePairingClient::resume_pending_ack() {
   if (status != SimpleNvsStatus::OK || !pending.valid()) {
     return SimplePairingClientError::PERSISTENCE_FAILED;
   }
-  return acknowledge_(pending);
+  if (pending.state == PendingPairingAckState::TERMINAL_CLEANUP) {
+    return complete_terminal_cleanup_(pending);
+  }
+  return acknowledge_(std::move(pending));
 }
 
 SimplePairingClientError SimplePairingClient::discover_(SimpleManagerCandidateV2 *candidate) {
@@ -530,7 +617,8 @@ SimplePairingClientError SimplePairingClient::send_hello_(
 }
 
 SimplePairingClientError SimplePairingClient::pair_with_(
-    const SimpleManagerCandidateV2 &candidate) {
+    const SimpleManagerCandidateV2 &candidate,
+    const RegistrationBootstrapRecoveryBinding *recovery) {
   HandshakeNonce node_nonce{};
   if (!fill_(node_nonce.data(), node_nonce.size())) return SimplePairingClientError::IO_FAILED;
   const std::string begin_request = json::build_json([&](JsonObject root) {
@@ -634,7 +722,7 @@ SimplePairingClientError SimplePairingClient::pair_with_(
   }
   std::fill(plaintext.begin(), plaintext.end(), 0);
   const SimplePairingClientError persisted = persist_bundle_(
-      candidate, session_id, delivery_digest, peer, broker);
+      candidate, recovery, session_id, delivery_digest, peer, broker);
   peer.clear();
   broker.clear();
   if (persisted != SimplePairingClientError::NONE) return persisted;
@@ -643,6 +731,7 @@ SimplePairingClientError SimplePairingClient::pair_with_(
 
 SimplePairingClientError SimplePairingClient::persist_bundle_(
     const SimpleManagerCandidateV2 &candidate,
+    const RegistrationBootstrapRecoveryBinding *recovery,
     const std::string &session_id,
     const std::array<uint8_t, 32> &delivery_digest,
     const ProvisionedPeerStateV2 &peer,
@@ -660,6 +749,25 @@ SimplePairingClientError SimplePairingClient::persist_bundle_(
   pending.pairing_path = candidate.pairing_path;
   pending.session_id = session_id;
   pending.delivery_digest = delivery_digest;
+  if (recovery == nullptr) {
+    pending.format_version = kPendingPairingAckLegacyVersion;
+  } else {
+    if (!recovery->valid() || recovery->pairing_id != pairing_id_ ||
+        recovery->manager_id != candidate.manager_id ||
+        recovery->system_id != candidate.system_id) {
+      (void) broker_store_->erase();
+      (void) peer_store_->erase();
+      return SimplePairingClientError::PERSISTENCE_FAILED;
+    }
+    pending.format_version = kPendingPairingAckCurrentVersion;
+    pending.state = PendingPairingAckState::ACK_PENDING;
+    pending.pairing_id = recovery->pairing_id;
+    pending.manager_id = recovery->manager_id;
+    pending.system_id = recovery->system_id;
+    pending.bootstrap_host = recovery->bootstrap_host;
+    pending.bootstrap_port = recovery->bootstrap_port;
+    pending.bootstrap_tls_sha256 = recovery->bootstrap_tls_sha256;
+  }
   if (ack_store_->save(pending) != SimpleNvsStatus::OK) {
     (void) broker_store_->erase();
     (void) peer_store_->erase();
@@ -668,17 +776,90 @@ SimplePairingClientError SimplePairingClient::persist_bundle_(
   return SimplePairingClientError::NONE;
 }
 
-SimplePairingClientError SimplePairingClient::acknowledge_(const PendingPairingAckV2 &pending) {
+SimplePairingClientError SimplePairingClient::acknowledge_(
+    PendingPairingAckV2 pending) {
+  ProvisionedPeerStateV2 peer;
+  ProvisionedBrokerStateV2 broker;
+  if (peer_store_->load(&peer) != SimpleNvsStatus::OK ||
+      broker_store_->load(&broker) != SimpleNvsStatus::OK ||
+      !peer.valid() || !broker.valid() ||
+      peer.system_id != broker.system_id ||
+      peer.node_id != broker.node_id) {
+    peer.clear();
+    broker.clear();
+    return SimplePairingClientError::PERSISTENCE_FAILED;
+  }
+  const std::string expected_node_id = peer.node_id;
+  peer.clear();
+  broker.clear();
+
+  const std::string digest_text = base64url_encode(pending.delivery_digest);
   const std::string request = json::build_json([&](JsonObject root) {
     root["schema"] = "gh.pair.simple-ack/1";
-    root["delivery_digest"] = base64url_encode(pending.delivery_digest);
+    root["delivery_digest"] = digest_text;
   });
   int status = 0;
   std::string response;
-  const std::string path = pending.pairing_path + "/sessions/" + pending.session_id + "/ack";
-  if (!network_->post_json(pending, path, request, &status, &response) || status != 200) {
+  const std::string path =
+      pending.pairing_path + "/sessions/" + pending.session_id + "/ack";
+  const bool ack_transport =
+      network_->post_json(pending, path, request, &status, &response);
+  if (ack_transport && status == 200 &&
+      parse_final_ack_response(
+          response, pending, expected_node_id)) {
+    return finalize_committed_();
+  }
+
+  // Version-1 records do not contain a trusted 47110 identity. They may retry
+  // the exact old 47112 ACK but must not invent recovery trust.
+  if (!pending.recovery_capable()) {
     return SimplePairingClientError::ACK_PENDING;
   }
+
+  const RegistrationBootstrapRecoveryBinding binding =
+      recovery_binding_from_pending(pending);
+  std::string status_request;
+  if (!build_registration_status_request(
+          binding, hardware_id_, digest_text, &status_request)) {
+    return SimplePairingClientError::PERSISTENCE_FAILED;
+  }
+
+  const std::string old_bootstrap_host = pending.bootstrap_host;
+  status = 0;
+  response.clear();
+  if (!network_->post_registration_status(
+          &pending, status_request, &status, &response)) {
+    return SimplePairingClientError::ACK_PENDING;
+  }
+  if (pending.bootstrap_host != old_bootstrap_host) {
+    if (!pending.recovery_capable() ||
+        ack_store_->save(pending) != SimpleNvsStatus::OK) {
+      return SimplePairingClientError::PERSISTENCE_FAILED;
+    }
+  }
+
+  RegistrationBootstrapStatusResult recovered;
+  if (!parse_registration_status_response(
+          status, response, &recovered)) {
+    return SimplePairingClientError::ACK_PENDING;
+  }
+  if (recovered.action == RegistrationBootstrapStatusAction::COMMITTED) {
+    return finalize_committed_();
+  }
+  if (recovered.action == RegistrationBootstrapStatusAction::WAIT) {
+    return SimplePairingClientError::ACK_PENDING;
+  }
+
+  // Persist the terminal decision before deleting any provisional state. A
+  // power loss after this point resumes only the idempotent cleanup path.
+  pending.state = PendingPairingAckState::TERMINAL_CLEANUP;
+  if (ack_store_->save(pending) != SimpleNvsStatus::OK) {
+    return SimplePairingClientError::PERSISTENCE_FAILED;
+  }
+  return complete_terminal_cleanup_(pending);
+}
+
+SimplePairingClientError SimplePairingClient::finalize_committed_() {
   if (setup_secret_store_->erase() != SimpleNvsStatus::OK ||
       pairing_intent_store_.erase() != SimpleNvsStatus::OK ||
       ack_store_->erase() != SimpleNvsStatus::OK) {
@@ -689,6 +870,41 @@ SimplePairingClientError SimplePairingClient::acknowledge_(const PendingPairingA
   pairing_handoff_ready_ = false;
   provisioned_ = true;
   return SimplePairingClientError::NONE;
+}
+
+SimplePairingClientError SimplePairingClient::complete_terminal_cleanup_(
+    const PendingPairingAckV2 &pending) {
+  if (!pending.recovery_capable() ||
+      pending.state != PendingPairingAckState::TERMINAL_CLEANUP) {
+    return SimplePairingClientError::PERSISTENCE_FAILED;
+  }
+
+  PendingPairingIntent intent;
+  const SimpleNvsStatus intent_status = pairing_intent_store_.load(&intent);
+  if (intent_status == SimpleNvsStatus::OK) {
+    if (!intent.valid()) return SimplePairingClientError::PERSISTENCE_FAILED;
+    pairing_id_ = intent.random_pairing_id;
+    if (pairing_id_ == pending.pairing_id) {
+      const SimplePairingClientError renewed = renew_pairing_intent_();
+      if (renewed != SimplePairingClientError::NONE) return renewed;
+    }
+  } else if (intent_status == SimpleNvsStatus::MISSING) {
+    pairing_id_ = pending.pairing_id;
+    const SimplePairingClientError renewed = renew_pairing_intent_();
+    if (renewed != SimplePairingClientError::NONE) return renewed;
+  } else {
+    return SimplePairingClientError::PERSISTENCE_FAILED;
+  }
+
+  if (broker_store_->erase() != SimpleNvsStatus::OK ||
+      peer_store_->erase() != SimpleNvsStatus::OK ||
+      ack_store_->erase() != SimpleNvsStatus::OK) {
+    return SimplePairingClientError::PERSISTENCE_FAILED;
+  }
+
+  pairing_handoff_ready_ = false;
+  provisioned_ = false;
+  return SimplePairingClientError::TRANSACTION_RENEWED;
 }
 
 bool SimplePairingClient::fill_(uint8_t *data, std::size_t size) {
