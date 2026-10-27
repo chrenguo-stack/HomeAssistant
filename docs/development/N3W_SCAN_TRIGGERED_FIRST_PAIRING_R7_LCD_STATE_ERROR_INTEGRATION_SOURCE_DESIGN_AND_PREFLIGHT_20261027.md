@@ -714,6 +714,53 @@ Do not rely on:
 
 The source contract must bind exact rendered string -> exact configured font -> required glyph set.
 
+## 15.1 LCD SPI hardware-interface requirement
+
+R7 must make the LCD SPI bus selection explicit.
+
+Current R6 source declares:
+
+```yaml
+spi:
+  id: bus_spi
+  clk_pin: GPIO2
+  mosi_pin: GPIO3
+```
+
+With no `interface` key, ESPHome uses its default `any` policy. That policy normally selects an available hardware SPI controller first, but it also permits software fallback when hardware allocation is unavailable.
+
+For the LCD12864/ST7920 product path, silent software-SPI fallback is not acceptable.
+
+R7 implementation must change the bus to:
+
+```yaml
+spi:
+  id: bus_spi
+  clk_pin: GPIO2
+  mosi_pin: GPIO3
+  interface: hardware
+```
+
+Rationale:
+- LCD transfer is a display workload, not a low-rate sensor workload;
+- hardware SPI reduces CPU bit-banging work when compared with software SPI;
+- explicit `hardware` makes the resource contract fail closed instead of silently degrading to software SPI;
+- current ST7920 `data_rate: 1MHz` remains unchanged unless later physical signal-integrity testing justifies a separate change.
+
+Important qualification:
+- this setting does not prove that the previous `interface: any` build was using software SPI;
+- with an available hardware controller, `any` may already resolve to hardware;
+- therefore the source claim is `HARDWARE_SPI_REQUIRED_AND_NO_SOFTWARE_FALLBACK`, not an unproven claim that R7 necessarily reduces CPU use relative to the exact R6 binary.
+
+R7 CI must prove from ESPHome validation/build output or generated configuration that the product LCD bus is accepted as a hardware SPI bus on ESP32-C6. A configuration that falls back to software SPI is a failure.
+
+This SPI selection affects only the transport implementation used to push the framebuffer to ST7920. It does not change:
+- `update_interval`;
+- LCD state semantics;
+- the R7 display latch;
+- the registration transaction;
+- the 1800-second deadline.
+
 ## 16. Display timing is not protocol timing
 
 R7 introduces no transaction deadline.
