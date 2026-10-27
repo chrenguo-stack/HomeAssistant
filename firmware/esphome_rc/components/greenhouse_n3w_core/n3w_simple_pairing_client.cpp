@@ -530,7 +530,21 @@ SimplePairingClientError SimplePairingClient::resume_pending_ack() {
   if (!initialized_) return SimplePairingClientError::NOT_READY;
   PendingPairingAckV2 pending;
   const SimpleNvsStatus status = ack_store_->load(&pending);
-  if (status == SimpleNvsStatus::MISSING) return SimplePairingClientError::NONE;
+  if (status == SimpleNvsStatus::MISSING) {
+    // Recovery may re-enter after a prior cleanup erased the ACK record but
+    // reset happened before the caller observed completion. Re-classify local
+    // durable state instead of blindly dropping pending mode.
+    const SimplePairingClientError existing = load_existing_();
+    if (existing == SimplePairingClientError::ALREADY_PROVISIONED) {
+      return existing;
+    }
+    if (existing != SimplePairingClientError::NONE) return existing;
+    if (!setup_secret_ready_) {
+      const SimplePairingClientError prepared = prepare_bootstrap_();
+      if (prepared != SimplePairingClientError::NONE) return prepared;
+    }
+    return SimplePairingClientError::TRANSACTION_RENEWED;
+  }
   if (status != SimpleNvsStatus::OK || !pending.valid()) {
     return SimplePairingClientError::PERSISTENCE_FAILED;
   }
@@ -904,6 +918,10 @@ SimplePairingClientError SimplePairingClient::complete_terminal_cleanup_(
 
   pairing_handoff_ready_ = false;
   provisioned_ = false;
+  if (!setup_secret_ready_) {
+    const SimplePairingClientError prepared = prepare_bootstrap_();
+    if (prepared != SimplePairingClientError::NONE) return prepared;
+  }
   return SimplePairingClientError::TRANSACTION_RENEWED;
 }
 
