@@ -551,6 +551,10 @@ def test_first_registration_session_uses_authorized_absolute_deadline(
             manager_id="manager_lab_01",
             session_ttl_s=120,
             random_bytes=random,
+            first_registration_ledger=(
+                registry.first_registration_ledger()
+            ),
+            first_registration_reconciler=object(),
         )
         coordinator.import_setup_secret(
             HARDWARE_ID,

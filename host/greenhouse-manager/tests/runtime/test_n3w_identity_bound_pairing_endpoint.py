@@ -81,6 +81,8 @@ def make_app(
         registry,
         UnusedStager(),
         manager_id="manager_lab_01",
+        first_registration_ledger=ledger,
+        first_registration_reconciler=object(),
     )
     endpoint = SimplifiedPairingEndpointApp(
         coordinator,
