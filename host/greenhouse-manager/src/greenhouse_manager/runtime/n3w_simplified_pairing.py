@@ -178,6 +178,9 @@ class SimplifiedPairingCoordinator:
         uuid_factory: Callable[[], uuid.UUID] = uuid.uuid4,
         first_registration_ledger: FirstRegistrationLedger | None = None,
         first_registration_reconciler: FirstRegistrationReconciler | None = None,
+        first_registration_complete_callback: (
+            Callable[[str], None] | None
+        ) = None,
     ) -> None:
         if not manager_id or not manager_id.isascii():
             raise ValueError("manager_id_invalid")
@@ -199,6 +202,9 @@ class SimplifiedPairingCoordinator:
             )
         self.first_registration_ledger = first_registration_ledger
         self.first_registration_reconciler = first_registration_reconciler
+        self.first_registration_complete_callback = (
+            first_registration_complete_callback
+        )
         self._lock = threading.RLock()
         self._setup: dict[tuple[str, str], bytearray] = {}
         self._sessions: dict[str, _Session] = {}
@@ -704,7 +710,16 @@ class SimplifiedPairingCoordinator:
                 session.hardware_id,
                 session.pairing_id,
             )
-            return self._snapshot(session)
+            snapshot = self._snapshot(session)
+            if (
+                session.first_registration
+                and self.first_registration_complete_callback
+                is not None
+            ):
+                self.first_registration_complete_callback(
+                    session.pairing_id
+                )
+            return snapshot
 
     def abort(self, session_id: str) -> SimplifiedPairingSnapshot:
         with self._lock:

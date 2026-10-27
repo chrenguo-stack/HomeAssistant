@@ -346,3 +346,42 @@ class FirstRegistrationTransactionService:
             status="pending",
             transaction_disposition="wait",
         )
+
+
+    def window_closed(
+        self,
+        pairing_id: str,
+        reason: str,
+    ) -> None:
+        current = self.intents.current()
+        if current is not None and current.pairing_id == pairing_id:
+            self.intents.close_active()
+
+        reconciler = self.reconciler
+        if reconciler is None or reason in {
+            "committed",
+            "manager_shutdown",
+        }:
+            return
+
+        try:
+            attempt = self.ledger.get(pairing_id)
+        except KeyError:
+            return
+        if attempt.state is not FirstRegistrationAttemptState.ACTIVE:
+            return
+
+        now = self.clock().astimezone(UTC)
+        try:
+            if reason == "deadline":
+                reconciler.reconcile_deadline(
+                    pairing_id,
+                    now=now,
+                )
+            elif reason == "worker_failure":
+                reconciler.reconcile_attempt(
+                    attempt,
+                    now=now,
+                )
+        except Exception:
+            return

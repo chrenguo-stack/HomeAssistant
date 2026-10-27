@@ -306,6 +306,10 @@ class DynamicPairingWindowController:
         self._broker_host_sha256: str | None = None
         self._last_close_reason = "manager_start"
         self._last_failure_type: str | None = None
+        self._first_registration_pairing_id: str | None = None
+        self._first_registration_close_callback: (
+            Callable[[str, str], None] | None
+        ) = None
 
     def _broker_for_peer(self, peer_ip: str) -> str:
         peer = _private_ipv4(
@@ -477,12 +481,47 @@ class DynamicPairingWindowController:
                 "raw_identity_in_output": False,
             }
 
+    def set_first_registration_close_callback(
+        self,
+        callback: Callable[[str, str], None] | None,
+    ) -> None:
+        with self._lock:
+            self._first_registration_close_callback = callback
+
+    def complete_first_registration(
+        self,
+        pairing_id: str,
+    ) -> None:
+        def close_committed() -> None:
+            try:
+                with self._operation_lock:
+                    with self._lock:
+                        if (
+                            self._state != "OPEN"
+                            or self._first_registration_pairing_id
+                            != pairing_id
+                        ):
+                            return
+                    self._close_locked(
+                        reason="committed",
+                    )
+            except DynamicPairingWindowError:
+                return
+
+        threading.Thread(
+            target=close_committed,
+            name="n3w-first-registration-complete",
+            daemon=True,
+        ).start()
+
     def _worker_failed(
         self,
         generation: int,
         error: Exception,
         exposure_closed: bool,
     ) -> None:
+        callback = None
+        pairing_id = None
         with self._lock:
             if generation != self._generation:
                 return
@@ -492,14 +531,20 @@ class DynamicPairingWindowController:
             self._last_close_reason = "worker_failure"
             self._last_failure_type = type(error).__name__
             if exposure_closed:
+                pairing_id = self._first_registration_pairing_id
+                if pairing_id is not None:
+                    callback = self._first_registration_close_callback
                 self._state = "CLOSED"
                 self._composition = None
                 self._worker = None
                 self._deadline = None
                 self._window_seconds = None
                 self._broker_host_sha256 = None
+                self._first_registration_pairing_id = None
             else:
                 self._state = "CLOSING"
+        if callback is not None and pairing_id is not None:
+            callback(pairing_id, "worker_failure")
 
     def _deadline_run(
         self,
@@ -625,6 +670,9 @@ class DynamicPairingWindowController:
                         broker_hash
                     )
                     self._last_close_reason = "open"
+                    self._first_registration_pairing_id = (
+                        intent.pairing_id
+                    )
                     self._state = "OPEN"
                     deadline_thread = threading.Thread(
                         target=self._deadline_run,
@@ -761,6 +809,9 @@ class DynamicPairingWindowController:
                     dynamic_settings,
                     config,
                     first_registration_intent=intent,
+                    first_registration_complete_callback=(
+                        self.complete_first_registration
+                    ),
                 )
                 worker = self._worker_factory(
                     composition,
@@ -875,6 +926,12 @@ class DynamicPairingWindowController:
             deadline_stop = self._deadline_stop
             deadline_thread = self._deadline_thread
             generation = self._generation
+            pairing_id = self._first_registration_pairing_id
+            callback = (
+                self._first_registration_close_callback
+                if pairing_id is not None
+                else None
+            )
         if deadline_stop is not None:
             deadline_stop.set()
         if worker is None:
@@ -914,9 +971,13 @@ class DynamicPairingWindowController:
                 self._deadline = None
                 self._window_seconds = None
                 self._broker_host_sha256 = None
+                self._first_registration_pairing_id = None
                 self._last_close_reason = reason
                 self._last_failure_type = None
-            return self._status_locked()
+            result = self._status_locked()
+        if callback is not None and pairing_id is not None:
+            callback(pairing_id, reason)
+        return result
 
     def close_window(self) -> dict[str, object]:
         with self._operation_lock:

@@ -867,6 +867,9 @@ def build_simplified_product_pairing_composition(
     pairing_runtime_factory: Callable[..., Any]
     = assemble_simplified_pairing_runtime,
     first_registration_intent: FirstRegistrationIntent | None = None,
+    first_registration_complete_callback: (
+        Callable[[str], None] | None
+    ) = None,
 ) -> SimplifiedProductPairingComposition:
     settings.validate()
     config.validate()
@@ -1056,6 +1059,9 @@ def build_simplified_product_pairing_composition(
                 ),
                 first_registration_reconciler=(
                     first_registration_reconciler
+                ),
+                first_registration_complete_callback=(
+                    first_registration_complete_callback
                 ),
             )
         )
