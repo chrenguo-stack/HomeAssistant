@@ -129,16 +129,21 @@ SimpleManagerDiscoveryError SimpleManagerDiscovery::discover(
              : SimpleManagerDiscoveryError::NONE;
 }
 
-bool build_simple_discovery_query(
+bool build_discovery_query_for_protocol(
     const std::string &hardware_id,
+    const std::string &protocol,
     const std::array<uint8_t, 16> &request_random,
     const std::array<uint8_t, 32> &nonce_random,
     std::string *request_id,
     std::string *nonce_text,
     std::string *request_json) {
   if (request_id == nullptr || nonce_text == nullptr || request_json == nullptr ||
-      !valid_simple_identity_v2(hardware_id) || !any_nonzero(request_random) ||
-      !any_nonzero(nonce_random)) {
+      !valid_simple_identity_v2(hardware_id) || protocol.empty() ||
+      protocol.size() > 64U ||
+      std::any_of(protocol.begin(), protocol.end(), [](char ch) {
+        return ch <= 0x20 || ch >= 0x7f;
+      }) ||
+      !any_nonzero(request_random) || !any_nonzero(nonce_random)) {
     return false;
   }
 
@@ -152,9 +157,26 @@ bool build_simple_discovery_query(
     root["nonce"] = *nonce_text;
     root["hardware_id"] = hardware_id;
     JsonArray protocols = root["protocols"].to<JsonArray>();
-    protocols.add(kSimplePairingProtocol);
+    protocols.add(protocol);
   });
   return !request_json->empty();
+}
+
+bool build_simple_discovery_query(
+    const std::string &hardware_id,
+    const std::array<uint8_t, 16> &request_random,
+    const std::array<uint8_t, 32> &nonce_random,
+    std::string *request_id,
+    std::string *nonce_text,
+    std::string *request_json) {
+  return build_discovery_query_for_protocol(
+      hardware_id,
+      kSimplePairingProtocol,
+      request_random,
+      nonce_random,
+      request_id,
+      nonce_text,
+      request_json);
 }
 
 bool parse_simple_discovery_response(

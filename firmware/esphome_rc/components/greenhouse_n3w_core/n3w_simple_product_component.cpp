@@ -70,6 +70,18 @@ bool wifi_connected() {
 #endif
 }
 
+bool registration_candidate_index(
+    const std::string &candidate_id,
+    std::size_t *index) {
+  if (index == nullptr || candidate_id.size() != 2U ||
+      candidate_id[0] != 'c' ||
+      candidate_id[1] < '0' || candidate_id[1] > '9') {
+    return false;
+  }
+  *index = static_cast<std::size_t>(candidate_id[1] - '0');
+  return true;
+}
+
 }  // namespace
 
 const char *telemetry_submit_disposition_name(
@@ -179,6 +191,7 @@ void SimpleProductComponent::loop() {
       registration_portal_.stop();
     } else {
       advance_registration_portal_();
+      advance_registration_discovery_();
       return;
     }
   }
@@ -561,7 +574,112 @@ void SimpleProductComponent::advance_registration_portal_() {
         "N3-W local registration portal unavailable; retrying");
     return;
   }
+  const std::string &hardware_id = pairing_client_.hardware_id();
+  if (!hardware_id.empty()) {
+    const std::size_t suffix_size = std::min<std::size_t>(6U, hardware_id.size());
+    registration_portal_.set_node_label(
+        std::string("节点 ") +
+        hardware_id.substr(hardware_id.size() - suffix_size));
+  }
   next_registration_portal_retry_ms_ = 0;
+}
+
+void SimpleProductComponent::clear_registration_discovery_() {
+  registration_candidates_.clear();
+  selected_registration_candidate_ = RegistrationCandidateV1{};
+  registration_session_pairing_id_.clear();
+  registration_candidate_selected_ = false;
+}
+
+void SimpleProductComponent::advance_registration_discovery_() {
+  if (!wifi_connected() || pairing_client_.provisioned() ||
+      pairing_ack_pending_ || !registration_portal_.running()) {
+    clear_registration_discovery_();
+    return;
+  }
+
+  if (registration_portal_.discovery_stage() ==
+          RegistrationPortalStage::IDLE &&
+      !registration_portal_.scan_trigger_pending()) {
+    clear_registration_discovery_();
+    return;
+  }
+
+  if (registration_portal_.take_scan_trigger()) {
+    registration_portal_.set_discovery_in_progress();
+    clear_registration_discovery_();
+    registration_session_pairing_id_ = pairing_client_.pairing_id();
+    if (registration_session_pairing_id_.empty()) {
+      registration_portal_.set_no_candidates();
+      return;
+    }
+
+    std::string local_ipv4;
+    std::string subnet_mask;
+    if (!current_wifi_ipv4_(&local_ipv4, &subnet_mask)) {
+      registration_portal_.set_no_candidates();
+      return;
+    }
+
+    std::vector<RegistrationCandidateV1> discovered;
+    const uint64_t started_ms = now_ms();
+    const bool completed = registration_discovery_.discover(
+        pairing_client_.hardware_id(),
+        local_ipv4,
+        subnet_mask,
+        started_ms,
+        &discovered);
+
+    if (!wifi_connected() || !registration_portal_.running()) {
+      clear_registration_discovery_();
+      return;
+    }
+
+    if (!completed || discovered.empty()) {
+      registration_portal_.set_no_candidates();
+      return;
+    }
+
+    registration_candidates_ = std::move(discovered);
+    std::vector<RegistrationPortalCandidateView> views;
+    views.reserve(registration_candidates_.size());
+    for (std::size_t index = 0;
+         index < registration_candidates_.size();
+         ++index) {
+      const RegistrationCandidateV1 &candidate =
+          registration_candidates_[index];
+      RegistrationPortalCandidateView view;
+      view.id = "c" + std::to_string(index);
+      view.label =
+          std::string("温室主机 ") + candidate.system_id_hint +
+          (candidate.busy ? "（忙）" : "");
+      view.expires_at_ms =
+          candidate.observed_ms +
+          static_cast<uint64_t>(candidate.ttl_s) * 1000ULL;
+      views.push_back(std::move(view));
+    }
+    registration_portal_.set_candidates(views);
+  }
+
+  std::string selected_id;
+  if (!registration_portal_.take_selected_candidate_id(&selected_id)) {
+    return;
+  }
+
+  std::size_t selected_index = 0;
+  if (registration_session_pairing_id_.empty() ||
+      registration_session_pairing_id_ != pairing_client_.pairing_id() ||
+      !registration_candidate_index(selected_id, &selected_index) ||
+      selected_index >= registration_candidates_.size() ||
+      registration_candidates_[selected_index].expired(now_ms())) {
+    clear_registration_discovery_();
+    registration_portal_.set_no_candidates();
+    return;
+  }
+
+  selected_registration_candidate_ =
+      registration_candidates_[selected_index];
+  registration_candidate_selected_ = true;
 }
 
 void SimpleProductComponent::advance_pairing_() {

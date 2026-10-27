@@ -23,6 +23,7 @@
 #endif
 #include "n3w_direct_recovery_policy.h"
 #include "n3w_recovery_exit_policy.h"
+#include "n3w_registration_discovery.h"
 #include "n3w_registration_portal.h"
 #include "n3w_simple_pairing_client.h"
 #include "n3w_simple_product_runtime.h"
@@ -265,6 +266,8 @@ class SimpleProductComponent : public Component,
   void clear_tx_completion_ring_();
   void request_safe_reboot_(const char *reason);
   void advance_registration_portal_();
+  void advance_registration_discovery_();
+  void clear_registration_discovery_();
   void advance_pairing_();
   void advance_recovery_();
   bool claim_relay_radio_();
@@ -431,6 +434,11 @@ class SimpleProductComponent : public Component,
   int32_t last_channel_error_raw_{0};
   ActiveN3wDiagnostics diagnostics_{};
   RegistrationPortal registration_portal_;
+  RegistrationDiscovery registration_discovery_{};
+  std::vector<RegistrationCandidateV1> registration_candidates_{};
+  RegistrationCandidateV1 selected_registration_candidate_{};
+  std::string registration_session_pairing_id_{};
+  bool registration_candidate_selected_{false};
   SimpleProductRuntime runtime_;
   NvsSetupSecretStore setup_secret_store_{};
   NvsProvisionedPeerStoreV2 peer_store_{};
