@@ -703,6 +703,7 @@ class SimplifiedProductPairingComposition:
     coordinator: SimplifiedPairingCoordinator
     pairing_runtime: Any
     pairing_socket: ManagerOwnedPairingSocket
+    pairing_socket_required: bool = True
 
     _closed: bool = False
 
@@ -1152,6 +1153,9 @@ def build_simplified_product_pairing_composition(
                     pairing_runtime
                 ),
                 pairing_socket=pairing_socket,
+                pairing_socket_required=(
+                    first_registration_intent is None
+                ),
             )
         )
 

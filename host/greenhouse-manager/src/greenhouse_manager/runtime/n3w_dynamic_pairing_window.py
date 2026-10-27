@@ -168,7 +168,8 @@ class N3wSimplifiedProductPairingWorker:
         self._close_failure = None
         try:
             self.composition.pairing_runtime.start()
-            self.composition.pairing_socket.start()
+            if self.composition.pairing_socket_required:
+                self.composition.pairing_socket.start()
         except Exception:
             self.composition.close()
             raise
@@ -189,7 +190,10 @@ class N3wSimplifiedProductPairingWorker:
         try:
             while not self._stop.wait(interval):
                 self.composition.pairing_runtime.expire()
-                if not self.composition.pairing_socket.is_alive:
+                if (
+                    self.composition.pairing_socket_required
+                    and not self.composition.pairing_socket.is_alive
+                ):
                     raise RuntimeError(
                         "setup secret inbox stopped"
                     )
@@ -307,6 +311,7 @@ class DynamicPairingWindowController:
         self._last_close_reason = "manager_start"
         self._last_failure_type: str | None = None
         self._first_registration_pairing_id: str | None = None
+        self._first_registration_pairing_host: str | None = None
         self._first_registration_close_callback: (
             Callable[[str, str], None] | None
         ) = None
@@ -549,6 +554,7 @@ class DynamicPairingWindowController:
                 self._window_seconds = None
                 self._broker_host_sha256 = None
                 self._first_registration_pairing_id = None
+                self._first_registration_pairing_host = None
             else:
                 self._state = "CLOSING"
         if callback is not None and pairing_id is not None:
@@ -688,6 +694,9 @@ class DynamicPairingWindowController:
                     self._first_registration_pairing_id = (
                         intent.pairing_id
                     )
+                    self._first_registration_pairing_host = (
+                        pairing_host
+                    )
                     self._state = "OPEN"
                     deadline_thread = threading.Thread(
                         target=self._deadline_run,
@@ -799,6 +808,26 @@ class DynamicPairingWindowController:
 
         with self._operation_lock:
             with self._lock:
+                if self._state == "OPEN":
+                    if (
+                        self._first_registration_pairing_id
+                        == intent.pairing_id
+                        and self._first_registration_pairing_host
+                        is not None
+                    ):
+                        return {
+                            **self._status_locked(),
+                            "pairing_host": (
+                                self._first_registration_pairing_host
+                            ),
+                            "window_mode": "first_registration",
+                            "first_registration_identity_sha256": (
+                                identity_hash
+                            ),
+                        }
+                    raise DynamicPairingWindowError(
+                        "pairing_window_already_active"
+                    )
                 if self._state != "CLOSED":
                     raise DynamicPairingWindowError(
                         "pairing_window_already_active"
@@ -987,6 +1016,7 @@ class DynamicPairingWindowController:
                 self._window_seconds = None
                 self._broker_host_sha256 = None
                 self._first_registration_pairing_id = None
+                self._first_registration_pairing_host = None
                 self._last_close_reason = reason
                 self._last_failure_type = None
             result = self._status_locked()
@@ -996,6 +1026,11 @@ class DynamicPairingWindowController:
 
     def close_window(self) -> dict[str, object]:
         with self._operation_lock:
+            with self._lock:
+                if self._first_registration_pairing_id is not None:
+                    raise DynamicPairingWindowError(
+                        "first_registration_window_product_owned"
+                    )
             return self._close_locked(
                 reason="manual",
             )
