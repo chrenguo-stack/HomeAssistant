@@ -1,3 +1,17 @@
+## 2026-10-27 — Scan-triggered first-pairing stack aligned through R1 merge
+
+- Current product/source main after R1 merge: `f7a5c924242c74b5aa9e7f6cb5f0e96a8d54f30f`.
+- PR #679 source design merged as `a36bca33d0eebbd5fa9aa89c42bf4038f298d904`.
+- PR #680 R1 final head `7190ef3b64c9b4e139412dec7df0d56cbabd7118` passed 26/26 final applicable workflows, including all five Exact Closure workflows, and merged as `f7a5c924242c74b5aa9e7f6cb5f0e96a8d54f30f`.
+- PR #684 CI policy split/policy-as-code merged as `be4b422d7fafd9fe47f4cf1b65bafc04454e76b5`.
+- PR #685 S20 CI upstream-image identity repair merged as `6a2ee4c7b644526f9512f595492438b9eb9b18b7`; production ARM64 image-lock authority was unchanged.
+- Validation-only PR #686 proved the PR #685 S20 repair against exact PR #683 source and was closed without merge.
+- PR #683 R2B source closure and effective CI closure are PASS; blocker count 0; `PR683_MERGE_READY=true`, but direct merge remains blocked by parent stack order.
+- PR #681 remains OPEN/DRAFT at `9cd5a299a39db1c196f53d5e0cade5a69ee8135f`, still based on old R1 branch head `e7491305...`.
+- Fresh overlap check for PR #681 found exactly one current-main drift overlap: `.github/workflows/n3w-t1-production-manager-state-binding-ci.yml`.
+- Next gate: `N3W_SCAN_TRIGGERED_FIRST_PAIRING_R2A_POST_R1_MERGE_REBIND_AND_CLOSURE_20261027_01`.
+- No T1/board access, live-runtime mutation, flash or NVS mutation occurred in this alignment.
+
 ## 2026-10-23 — Board_D current-main product source convergence R4 CLOSED_PASS
 
 - Final exact product source: `ec5f6d68e33db7757d91c807fff708ca81b075dc`; tree: `16740efa8ad24d423adc0b2de32b99d56e2d23d1`; main remained `5ff09efb...`.
