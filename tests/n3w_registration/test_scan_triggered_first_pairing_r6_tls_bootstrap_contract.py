@@ -22,6 +22,8 @@ def test_r6_tls_pin_is_proven_before_any_http_request_is_constructed() -> None:
     assert "certificate->raw.len" in source
     assert "constant_time_equal(observed, verify->expected)" in source
     assert "MBEDTLS_SSL_VERIFY_NONE" not in source
+    assert "MBEDTLS_SSL_VERIFY_OPTIONAL" not in source
+    assert "MBEDTLS_SSL_VERIFY_REQUIRED" in source
     assert "mbedtls_ssl_conf_verify(&config, verify_pinned_leaf, &verify)" in source
 
     handshake = source.index("mbedtls_ssl_handshake(&ssl)")
