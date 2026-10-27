@@ -102,10 +102,15 @@ def main() -> None:
 
     strict_scope = bool(changed & STAGE_IMPLEMENTATION_PATHS)
     unexpected = sorted(changed - REQUIRED_PATHS) if strict_scope else []
+    missing = sorted(REQUIRED_PATHS - changed) if strict_scope else []
     protected = sorted(changed & PROTECTED_PATHS) if strict_scope else []
     if unexpected:
         errors.append(
             f"Stage 2D-3 implementation change crossed unexpected paths: {unexpected}"
+        )
+    if missing:
+        errors.append(
+            f"Stage 2D-3 implementation change is missing required paths: {missing}"
         )
     if protected:
         errors.append(
