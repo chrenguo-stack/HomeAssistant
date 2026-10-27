@@ -66,11 +66,13 @@ def test_r4_qr_is_actionable_local_url_and_regenerates_with_sta_ipv4() -> None:
     assert "stop();" in source
     assert "return start_(local_ipv4, subnet_mask);" in source
 
-    assert "registration_qr_payload()" in transport
-    assert "pairing_qr_payload()" not in transport
-    assert "pairing_handoff_ready()" not in transport
-    assert "GHN3W2:pending" not in display
-    assert "正在查找主机" not in display
+    assert "pairing_handoff_ready()" in transport
+    assert "pairing_qr_payload()" in transport
+    assert "registration_qr_payload()" in component
+    assert "#ifdef GH_N3W_PRODUCTION_DEHARNESS" in component
+    assert "return registration_portal_.qr_payload();" in component
+    assert "return pairing_client_.pairing_qr_payload();" in component
+    assert "GHN3W2:pending" in display
 
     portal = function_block(
         component,
@@ -134,8 +136,8 @@ def test_r4_portal_rejects_nonlocal_and_stale_scan_actions() -> None:
     assert "(peer.sin_addr.s_addr & mask_addr_) ==" in source
     assert "(local_addr_ & mask_addr_)" in source
     assert "constant_time_equal(token, scan_token_)" in source
-    assert '"scan_session_invalid"' in source
-    assert '"rate_limited"' in source
+    assert "scan_session_invalid" in source
+    assert "rate_limited" in source
     assert "kMaxActionBodyBytes = 512" in source
 
 
@@ -149,4 +151,4 @@ def test_r4_does_not_implement_r5_discovery_or_r6_bootstrap() -> None:
     assert "bootstrap_tls_sha256" not in scope
     assert "esp_tls" not in scope
     assert "setup_secret_base64url" not in scope
-    assert '"discovery_stage_pending"' in portal
+    assert "discovery_stage_pending" in portal

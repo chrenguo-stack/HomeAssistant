@@ -92,7 +92,19 @@ class SimpleProductComponent : public Component,
 
   bool provisioned() const { return pairing_client_.provisioned(); }
   bool pairing_handoff_ready() const {
+#ifdef GH_N3W_PRODUCTION_DEHARNESS
+    return registration_portal_.running() &&
+           !registration_portal_.qr_payload().empty();
+#else
     return pairing_client_.pairing_handoff_ready();
+#endif
+  }
+  std::string pairing_qr_payload() const {
+#ifdef GH_N3W_PRODUCTION_DEHARNESS
+    return registration_portal_.qr_payload();
+#else
+    return pairing_client_.pairing_qr_payload();
+#endif
   }
   std::string registration_qr_payload() const {
     return registration_portal_.qr_payload();
@@ -111,7 +123,6 @@ class SimpleProductComponent : public Component,
   const std::string &hardware_id() const { return pairing_client_.hardware_id(); }
   const std::string &pairing_id() const { return pairing_client_.pairing_id(); }
   const std::string &node_id() const { return peer_state_.node_id; }
-  std::string pairing_qr_payload() const { return pairing_client_.pairing_qr_payload(); }
 
   // EspNowEventSink. Receive and unicast-send completion work is copied into
   // bounded SPSC rings and processed from loop(), never from the high-priority
