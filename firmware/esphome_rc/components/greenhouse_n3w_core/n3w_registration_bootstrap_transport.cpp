@@ -448,7 +448,7 @@ bool Esp32RegistrationBootstrapTransport::post_json(
   if (result == 0) {
     mbedtls_ssl_conf_rng(
         &config, mbedtls_ctr_drbg_random, &ctr_drbg);
-    mbedtls_ssl_conf_authmode(&config, MBEDTLS_SSL_VERIFY_OPTIONAL);
+    mbedtls_ssl_conf_authmode(&config, MBEDTLS_SSL_VERIFY_REQUIRED);
     mbedtls_ssl_conf_verify(&config, verify_pinned_leaf, &verify);
     result = mbedtls_ssl_setup(&ssl, &config);
   }
