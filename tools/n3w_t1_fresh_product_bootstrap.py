@@ -987,6 +987,30 @@ print(json.dumps({"status": "PASS"}))
         os.chmod(tls / "server.key", 0o600)
         os.chown(tls / "server.key", BROKER_UID, BROKER_GID)
 
+        registration_tls = etc / "registration-tls"
+        registration_tls.mkdir(mode=0o755)
+        shutil.copy2(
+            candidate_root / "broker/tls/registration.pem",
+            registration_tls / "bootstrap.pem",
+        )
+        shutil.copy2(
+            candidate_root / "broker/tls/registration.key",
+            registration_tls / "bootstrap.key",
+        )
+        os.chmod(
+            registration_tls / "bootstrap.pem",
+            0o644,
+        )
+        os.chmod(
+            registration_tls / "bootstrap.key",
+            0o600,
+        )
+        os.chown(
+            registration_tls / "bootstrap.key",
+            MANAGER_UID,
+            MANAGER_GID,
+        )
+
         return {
             "status": "PASS",
             "instance_only": True,
