@@ -77,7 +77,7 @@ def test_r5_candidate_parser_is_exact_and_fail_closed() -> None:
         'scheme != "https"',
         'protocol != kRegistrationDiscoveryProtocol',
         'bootstrap_port == kRegistrationBootstrapPort',
-        'parsed.bootstrap_path == "/v1/registration/confirm"',
+        'bootstrap_path == "/v1/registration/confirm"',
         'ttl_s == kRegistrationCandidateTtlSeconds',
         "lowercase_sha256(bootstrap_tls_sha256)",
         'std::string(root["request_id"] | "") != request_id',
