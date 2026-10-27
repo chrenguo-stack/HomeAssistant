@@ -70,6 +70,10 @@ class RegistrationPortal {
     return candidate_stale_event_pending_.exchange(
         false, std::memory_order_acq_rel);
   }
+  bool take_candidate_list_expired_event() {
+    return candidate_list_expired_event_pending_.exchange(
+        false, std::memory_order_acq_rel);
+  }
 
  private:
   static esp_err_t register_page_handler_(httpd_req_t *request);
@@ -116,6 +120,7 @@ class RegistrationPortal {
   std::atomic<bool> scan_trigger_pending_{false};
   std::atomic<uint32_t> last_dynamic_request_ms_{0};
   std::atomic<bool> candidate_stale_event_pending_{false};
+  std::atomic<bool> candidate_list_expired_event_pending_{false};
 
   mutable std::mutex discovery_mutex_{};
   RegistrationPortalStage discovery_stage_{RegistrationPortalStage::IDLE};
