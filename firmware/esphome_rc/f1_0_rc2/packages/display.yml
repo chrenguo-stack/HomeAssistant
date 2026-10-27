@@ -74,7 +74,12 @@ display:
     rotation: 90
     update_interval: 1s
     lambda: |-
-      const int page = id(display_page);
+      const bool force_registration_page =
+          id(n3w_pairing_display_enabled) &&
+          (!id(n3w_product_provisioned) ||
+           id(n3w_registration_display_state) == 4 ||
+           id(n3w_registration_display_state) == 5);
+      const int page = force_registration_page ? 4 : id(display_page);
 
       // ─── 低电保护画面（最高优先级） ───
       if (id(low_battery_mode)) {
