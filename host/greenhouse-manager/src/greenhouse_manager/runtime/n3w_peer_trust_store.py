@@ -88,6 +88,40 @@ class SystemPeerTrustStore:
     def __exit__(self, *_: object) -> None:
         self.close()
 
+    def initialize_baseline(
+        self,
+        system_id: str,
+        *,
+        now: datetime | None = None,
+    ) -> PeerTrustSnapshot:
+        self._validate_system_id(system_id)
+        observed_at = now or datetime.now(UTC)
+        stamp = _timestamp(observed_at)
+        with self._lock, self._connection:
+            try:
+                row = self._row(system_id)
+                if row is None:
+                    self._connection.execute(
+                        """
+                        INSERT INTO n3w_system_peer_trust (
+                            system_id, generation, key_material, created_at, updated_at
+                        ) VALUES (?, 1, ?, ?, ?)
+                        """,
+                        (system_id, self._new_key(), stamp, stamp),
+                    )
+                    row = self._row(system_id)
+                assert row is not None
+                self._credential(row)
+                snapshot = self._snapshot(row)
+                check = self._connection.execute("PRAGMA quick_check").fetchone()
+                if check is None or check[0] != "ok":
+                    raise PeerTrustStoreConflict("system peer trust store corrupt")
+                return snapshot
+            except sqlite3.Error as error:
+                raise PeerTrustStoreConflict(
+                    "system peer trust store unavailable"
+                ) from error
+
     def get_or_create(
         self,
         system_id: str,

@@ -942,6 +942,10 @@ def build_simplified_product_pairing_composition(
             0o600,
         )
 
+        peer_trust.initialize_baseline(
+            settings.system_id
+        )
+
         identity_provisioner = (
             identity_provisioner_factory(
                 host=settings.mqtt_host,

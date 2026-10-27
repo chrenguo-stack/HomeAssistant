@@ -303,7 +303,7 @@ class _PeerTrust:
     def __init__(self) -> None:
         self.calls = 0
 
-    def get_or_create(self, system_id: str, *, now=None) -> _PeerCredential:
+    def get(self, system_id: str) -> _PeerCredential:
         self.calls += 1
         return _PeerCredential(
             system_id=system_id,

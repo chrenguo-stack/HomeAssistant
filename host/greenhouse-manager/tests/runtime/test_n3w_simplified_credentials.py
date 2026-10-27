@@ -62,6 +62,7 @@ def test_simplified_credentials_do_not_import_legacy_product_pairing() -> None:
     assert "ProductCredentialSource" in source
     assert "n3w_simple_pairing_crypto" in source
     assert "n3w_long_lived_peer_trust" in source
+    assert "get_or_create" not in source
 
 
 def test_v2_bundle_preserves_per_node_credentials_and_adds_peer_trust(tmp_path) -> None:
@@ -69,6 +70,7 @@ def test_v2_bundle_preserves_per_node_credentials_and_adds_peer_trust(tmp_path) 
         tmp_path / "peer.sqlite3",
         random_bytes=lambda _: PEER_KEY,
     ) as store:
+        store.initialize_baseline(SYSTEM_ID, now=NOW)
         bundle = SimplifiedCredentialBundleIssuer(store).issue(base_bundle(), now=NOW)
 
     document = bundle.to_document()
@@ -96,6 +98,7 @@ def test_v2_bundle_encrypts_over_setup_secret_channel(tmp_path) -> None:
         tmp_path / "peer.sqlite3",
         random_bytes=lambda _: PEER_KEY,
     ) as store:
+        store.initialize_baseline(SYSTEM_ID, now=NOW)
         bundle = SimplifiedCredentialBundleIssuer(store).issue(base_bundle(), now=NOW)
         ciphertext = encrypt_for_setup_secret(
             bundle,

@@ -9,6 +9,9 @@ from pathlib import Path
 import pytest
 
 from greenhouse_manager.runtime.config import Settings
+from greenhouse_manager.runtime.n3w_peer_trust_store import (
+    PeerTrustStoreConflict,
+)
 from greenhouse_manager.runtime.n3w_simplified_pairing import (
     SimplifiedPairingConflict,
     SimplifiedPairingCoordinator,
@@ -219,13 +222,29 @@ def test_product_pairing_composition_is_source_only_and_grant_free(
             not in names
         )
 
-        assert (
+        peer_audit = (
             composition
             .peer_trust
-            .audit()[
+            .audit()
+        )
+        assert (
+            peer_audit[
                 "normal_get_rotates"
             ]
             is False
+        )
+        assert (
+            peer_audit[
+                "system_count"
+            ]
+            == 1
+        )
+        assert (
+            composition
+            .peer_trust
+            .snapshot("lab")
+            .generation
+            == 1
         )
 
         assert (
@@ -260,6 +279,199 @@ def test_product_pairing_composition_is_source_only_and_grant_free(
         .closed
         is True
     )
+
+
+def test_peer_trust_baseline_exists_before_pairing_runtime_factory(
+    tmp_path,
+) -> None:
+    root = private_root(tmp_path)
+    observed = []
+
+    def runtime_factory(
+        settings,
+        coordinator,
+    ):
+        with sqlite3.connect(
+            root / "peer-trust.sqlite3"
+        ) as connection:
+            observed.append(
+                connection.execute(
+                    """
+                    SELECT generation,
+                           length(key_material),
+                           key_material != zeroblob(32)
+                    FROM n3w_system_peer_trust
+                    WHERE system_id = ?
+                    """,
+                    ("lab",),
+                ).fetchone()
+            )
+        return FakePairingRuntime(
+            settings,
+            coordinator,
+        )
+
+    composition = (
+        build_simplified_product_pairing_composition(
+            make_settings(root),
+            make_config(root),
+            identity_provisioner_factory=(
+                FakeIdentityProvisioner
+            ),
+            pairing_runtime_factory=(
+                runtime_factory
+            ),
+        )
+    )
+
+    try:
+        assert observed == [(1, 32, 1)]
+    finally:
+        composition.close()
+
+
+def test_corrupt_peer_trust_blocks_runtime_factory(
+    tmp_path,
+) -> None:
+    root = private_root(tmp_path)
+    database = root / "peer-trust.sqlite3"
+
+    with sqlite3.connect(database) as connection:
+        connection.executescript(
+            """
+            CREATE TABLE n3w_system_peer_trust (
+                system_id TEXT PRIMARY KEY,
+                generation INTEGER NOT NULL CHECK (generation >= 1),
+                key_material BLOB NOT NULL CHECK (length(key_material) = 32),
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO n3w_system_peer_trust (
+                system_id,
+                generation,
+                key_material,
+                created_at,
+                updated_at
+            ) VALUES (?, 1, ?, ?, ?)
+            """,
+            (
+                "lab",
+                bytes(range(32)),
+                "not-a-timestamp",
+                "not-a-timestamp",
+            ),
+        )
+
+    os.chmod(database, 0o600)
+    factory_calls = []
+
+    def runtime_factory(
+        settings,
+        coordinator,
+    ):
+        factory_calls.append(True)
+        return FakePairingRuntime(
+            settings,
+            coordinator,
+        )
+
+    with pytest.raises(
+        PeerTrustStoreConflict,
+        match="metadata is corrupt",
+    ):
+        build_simplified_product_pairing_composition(
+            make_settings(root),
+            make_config(root),
+            identity_provisioner_factory=(
+                FakeIdentityProvisioner
+            ),
+            pairing_runtime_factory=(
+                runtime_factory
+            ),
+        )
+
+    assert factory_calls == []
+
+
+def test_peer_trust_baseline_survives_later_composition_failure(
+    tmp_path,
+) -> None:
+    root = private_root(tmp_path)
+
+    def failing_runtime_factory(
+        settings,
+        coordinator,
+    ):
+        raise RuntimeError(
+            "pairing runtime factory failed"
+        )
+
+    with pytest.raises(
+        RuntimeError,
+        match="pairing runtime factory failed",
+    ):
+        build_simplified_product_pairing_composition(
+            make_settings(root),
+            make_config(root),
+            identity_provisioner_factory=(
+                FakeIdentityProvisioner
+            ),
+            pairing_runtime_factory=(
+                failing_runtime_factory
+            ),
+        )
+
+    with sqlite3.connect(
+        root / "peer-trust.sqlite3"
+    ) as connection:
+        before = connection.execute(
+            """
+            SELECT generation,
+                   created_at,
+                   updated_at
+            FROM n3w_system_peer_trust
+            WHERE system_id = ?
+            """,
+            ("lab",),
+        ).fetchone()
+
+    composition = (
+        build_simplified_product_pairing_composition(
+            make_settings(root),
+            make_config(root),
+            identity_provisioner_factory=(
+                FakeIdentityProvisioner
+            ),
+            pairing_runtime_factory=(
+                fake_pairing_runtime_factory
+            ),
+        )
+    )
+
+    try:
+        with sqlite3.connect(
+            root / "peer-trust.sqlite3"
+        ) as connection:
+            after = connection.execute(
+                """
+                SELECT generation,
+                       created_at,
+                       updated_at
+                FROM n3w_system_peer_trust
+                WHERE system_id = ?
+                """,
+                ("lab",),
+            ).fetchone()
+
+        assert before is not None
+        assert after == before
+        assert after[0] == 1
+    finally:
+        composition.close()
 
 
 class CaptureCoordinator:
