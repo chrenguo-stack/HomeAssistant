@@ -20,7 +20,7 @@ def prepared() -> FirstRegistrationIntent:
     return FirstRegistrationIntent.prepare(
         hardware_id=HARDWARE_ID,
         pairing_id=PAIRING_ID,
-        source_ip="192.168.10.44",
+        source_ip="192.0.2.44",
         manager_id="manager_lab_01",
         system_id="greenhouse",
         setup_secret=SECRET,
@@ -57,7 +57,7 @@ def test_intent_store_allows_only_one_active_transaction() -> None:
     second = FirstRegistrationIntent.prepare(
         hardware_id="ghw-c6-00000000000b",
         pairing_id="7e0a9e6d-5b62-4de8-9d90-f1a8dd5774c9",
-        source_ip="192.168.10.45",
+        source_ip="192.0.2.45",
         manager_id="manager_lab_01",
         system_id="greenhouse",
         setup_secret=bytes(reversed(range(32))),
@@ -75,7 +75,7 @@ def test_intent_store_allows_only_one_active_transaction() -> None:
         store.exact(
             hardware_id=HARDWARE_ID,
             pairing_id=PAIRING_ID,
-            source_ip="192.168.10.44",
+            source_ip="192.0.2.44",
             manager_id="manager_lab_01",
             system_id="greenhouse",
         )

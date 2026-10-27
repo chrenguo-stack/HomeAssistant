@@ -966,7 +966,7 @@ def test_product_first_registration_window_uses_absolute_transaction_deadline(
     assert opened["first_registration_identity_sha256"] is not None
     assert opened["raw_locator_in_output"] is False
 
-    controller.close_window()
+    controller.stop()
     assert controller.status()["pairing_window_state"] == "CLOSED"
     assert len(compositions) == 1
 

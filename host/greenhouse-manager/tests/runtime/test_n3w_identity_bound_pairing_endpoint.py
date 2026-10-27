@@ -62,7 +62,7 @@ def make_app(tmp_path):
     intent = FirstRegistrationIntent.prepare(
         hardware_id=HARDWARE_ID,
         pairing_id=PAIRING_ID,
-        source_ip="192.168.10.44",
+        source_ip="192.0.2.44",
         manager_id="manager_lab_01",
         system_id="greenhouse",
         setup_secret=SECRET,
@@ -84,7 +84,7 @@ def make_app(tmp_path):
     return registry, coordinator, endpoint
 
 
-def post_hello(endpoint, document, source="192.168.10.44"):
+def post_hello(endpoint, document, source="192.0.2.44"):
     return endpoint.handle(
         method="POST",
         path="/v2/pairing/hello",
@@ -100,7 +100,7 @@ def test_binding_mismatch_rejects_before_registration_mutation(tmp_path) -> None
         wrong_source = post_hello(
             endpoint,
             hello(),
-            source="192.168.10.45",
+            source="192.0.2.45",
         )
         wrong_hardware = post_hello(
             endpoint,

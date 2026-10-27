@@ -51,7 +51,7 @@ class Window:
         self.deadlines.append(intent.expires_at)
         if self.fail:
             raise RuntimeError("synthetic open failure")
-        return {"pairing_host": "192.168.10.1"}
+        return {"pairing_host": "192.0.2.1"}
 
 
 def service(registry, intents, window):
@@ -71,7 +71,7 @@ def test_durable_active_exists_before_window_and_deadline_is_1800(tmp_path) -> N
         window = Window(registry)
         result = service(registry, intents, window).start(
             request(),
-            source_ip="192.168.10.44",
+            source_ip="192.0.2.44",
         )
         attempt = registry.first_registration_ledger().get(PAIRING_ID)
 
@@ -92,8 +92,8 @@ def test_exact_duplicate_reuses_deadline_and_conflicting_secret_is_busy(tmp_path
         window = Window(registry)
         tx = service(registry, intents, window)
 
-        first = tx.start(request(), source_ip="192.168.10.44")
-        second = tx.start(request(), source_ip="192.168.10.44")
+        first = tx.start(request(), source_ip="192.0.2.44")
+        second = tx.start(request(), source_ip="192.0.2.44")
 
         assert first.expires_at == second.expires_at
         assert window.deadlines == [first.expires_at, first.expires_at]
@@ -106,7 +106,7 @@ def test_exact_duplicate_reuses_deadline_and_conflicting_secret_is_busy(tmp_path
         ):
             tx.start(
                 conflicting,
-                source_ip="192.168.10.44",
+                source_ip="192.0.2.44",
             )
 
 
@@ -123,7 +123,7 @@ def test_window_failure_preserves_active_attempt_for_exact_retry(tmp_path) -> No
         ):
             tx.start(
                 request(),
-                source_ip="192.168.10.44",
+                source_ip="192.0.2.44",
             )
 
         first = registry.first_registration_ledger().get(PAIRING_ID)
@@ -133,7 +133,7 @@ def test_window_failure_preserves_active_attempt_for_exact_retry(tmp_path) -> No
         window.fail = False
         retry = tx.start(
             request(),
-            source_ip="192.168.10.44",
+            source_ip="192.0.2.44",
         )
         assert retry.expires_at == first.expires_at
         assert window.calls == 2
@@ -147,7 +147,7 @@ def test_status_requires_exact_delivery_binding_and_never_opens_window(tmp_path)
         window = Window(registry)
         tx = service(registry, intents, window)
 
-        tx.start(request(), source_ip="192.168.10.44")
+        tx.start(request(), source_ip="192.0.2.44")
         ledger = registry.first_registration_ledger()
         ledger.mark_hello_observed(PAIRING_ID)
         ledger.record_dynsec_prestate(
@@ -179,7 +179,7 @@ def test_status_requires_exact_delivery_binding_and_never_opens_window(tmp_path)
                 "pairing_id": PAIRING_ID,
                 "delivery_digest": _b64(digest),
             },
-            source_ip="192.168.10.99",
+            source_ip="192.0.2.99",
         )
         wrong = tx.status(
             {
@@ -189,7 +189,7 @@ def test_status_requires_exact_delivery_binding_and_never_opens_window(tmp_path)
                 "pairing_id": PAIRING_ID,
                 "delivery_digest": _b64(bytes([0x45]) * 32),
             },
-            source_ip="192.168.10.99",
+            source_ip="192.0.2.99",
         )
 
         assert status.status == "pending"
