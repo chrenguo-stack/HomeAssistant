@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Mapping, Protocol
+from typing import Protocol
 
 from .n3w_first_registration_intent import (
     FirstRegistrationIntent,
