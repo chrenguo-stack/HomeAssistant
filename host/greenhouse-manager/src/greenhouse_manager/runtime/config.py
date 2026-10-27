@@ -125,6 +125,12 @@ class Settings:
     n3w_pairing_advertised_host: str = "greenhouse-manager.local"
     n3w_pairing_http_port: int = 47112
     n3w_pairing_udp_port: int = 47111
+    n3w_registration_certificate_file: str = (
+        "/run/n3w/registration-tls/bootstrap.pem"
+    )
+    n3w_registration_private_key_file: str = (
+        "/run/n3w/registration-tls/bootstrap.key"
+    )
 
     n3w_provisioning_username: str | None = None
     n3w_provisioning_password: str | None = None
@@ -239,6 +245,14 @@ class Settings:
                     "GH_N3W_PAIRING_UDP_PORT",
                     "47111",
                 )
+            ),
+            n3w_registration_certificate_file=os.getenv(
+                "GH_N3W_REGISTRATION_CERTIFICATE_FILE",
+                "/run/n3w/registration-tls/bootstrap.pem",
+            ),
+            n3w_registration_private_key_file=os.getenv(
+                "GH_N3W_REGISTRATION_PRIVATE_KEY_FILE",
+                "/run/n3w/registration-tls/bootstrap.key",
             ),
             n3w_provisioning_username=(
                 os.getenv(

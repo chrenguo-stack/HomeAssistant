@@ -67,6 +67,8 @@ services:
       GH_N3W_PRODUCT_PAIRING_ENABLED: "false"
       GH_N3W_PAIRING_MANAGER_ID: "${GH_N3W_PAIRING_MANAGER_ID:?GH_N3W_PAIRING_MANAGER_ID required}"
       GH_N3W_PAIRING_ADVERTISED_HOST: auto
+      GH_N3W_REGISTRATION_CERTIFICATE_FILE: /run/n3w/registration-tls/bootstrap.pem
+      GH_N3W_REGISTRATION_PRIVATE_KEY_FILE: /run/n3w/registration-tls/bootstrap.key
       GH_N3W_PROVISIONING_USERNAME: "${GH_N3W_PROVISIONING_USERNAME:?GH_N3W_PROVISIONING_USERNAME required}"
       GH_N3W_PROVISIONING_PASSWORD_FILE: /run/secrets/gh_n3w_provisioning_mqtt_password
       GH_N3W_PROVISIONING_CLIENT_ID: "${GH_N3W_PROVISIONING_CLIENT_ID:?GH_N3W_PROVISIONING_CLIENT_ID required}"
@@ -84,6 +86,10 @@ services:
       - type: bind
         source: /run/n3wfc4-trusted-lan
         target: /run/n3w/trusted-product-lan
+        read_only: true
+      - type: bind
+        source: /etc/n3wfc4/registration-tls
+        target: /run/n3w/registration-tls
         read_only: true
       - type: bind
         source: /opt/greenhouse-secrets/mqtt/manager/password
