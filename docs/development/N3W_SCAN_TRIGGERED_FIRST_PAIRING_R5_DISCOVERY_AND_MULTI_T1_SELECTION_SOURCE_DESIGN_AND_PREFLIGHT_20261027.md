@@ -130,8 +130,8 @@ One discovery session:
 
 Frozen R5 source budget:
 - mDNS timeout: 1500 ms;
-- UDP: 3 bounded broadcast attempts with 250 ms receive windows;
-- total blocking work remains below the 5–10 second design ceiling;
+- UDP: reuse the existing bounded multi-response collector for at most 3 broadcast attempts, each with its existing 1-second collection window;
+- combined mDNS + UDP blocking budget remains below the 5–10 second design ceiling;
 - candidate TTL: 30 s.
 
 R5 does not start the 1800-second registration transaction. That begins only after successful R6 bootstrap.
