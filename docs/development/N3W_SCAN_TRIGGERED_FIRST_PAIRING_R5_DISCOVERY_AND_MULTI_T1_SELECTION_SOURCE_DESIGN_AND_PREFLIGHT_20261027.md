@@ -225,7 +225,7 @@ LCD E01 and full R7 wording are not implemented in R5.
 
 Phone/browser never receives:
 - Setup Secret;
-- hardware ID;
+- full hardware ID (only the approved 6-character friendly/redacted suffix may be shown as the node label);
 - pairing ID;
 - candidate host/IP;
 - port;
