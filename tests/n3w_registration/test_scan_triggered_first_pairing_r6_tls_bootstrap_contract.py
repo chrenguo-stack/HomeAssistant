@@ -26,11 +26,13 @@ def test_r6_tls_pin_is_proven_before_any_http_request_is_constructed() -> None:
     assert "MBEDTLS_SSL_VERIFY_REQUIRED" in source
     assert "mbedtls_ssl_conf_verify(&config, verify_pinned_leaf, &verify)" in source
 
+    setup = source.index("mbedtls_ssl_setup(&ssl, &config)")
+    hostname = source.index("mbedtls_ssl_set_hostname(&ssl, host.c_str())")
     handshake = source.index("mbedtls_ssl_handshake(&ssl)")
     pin_gate = source.index("!verify.leaf_seen || !verify.leaf_matched")
     request = source.index('std::string request =\n        "POST "')
     write = source.index("tls_write_all(&ssl, &bio, request)")
-    assert handshake < pin_gate < request < write
+    assert setup < hostname < handshake < pin_gate < request < write
     assert "request_json;" in source[request:write]
     assert "esp_http_client" not in source
 
