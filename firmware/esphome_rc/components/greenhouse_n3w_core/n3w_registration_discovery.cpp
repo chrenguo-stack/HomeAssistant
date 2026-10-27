@@ -10,8 +10,6 @@
 #include <vector>
 
 #include "esphome/components/json/json_util.h"
-#include "esphome/core/hal.h"
-#include "esp_random.h"
 #include "lwip/inet.h"
 #include "lwip/ip_addr.h"
 #include "mdns.h"
@@ -460,8 +458,13 @@ bool RegistrationDiscovery::discover(
 
   std::array<uint8_t, 16> request_random{};
   std::array<uint8_t, 32> nonce_random{};
-  esp_fill_random(request_random.data(), request_random.size());
-  esp_fill_random(nonce_random.data(), nonce_random.size());
+  Esp32ManagerDiscoveryRandom random;
+  if (!random.fill_discovery_random(
+          request_random.data(), request_random.size()) ||
+      !random.fill_discovery_random(
+          nonce_random.data(), nonce_random.size())) {
+    return false;
+  }
 
   std::string request_id;
   std::string nonce_text;
