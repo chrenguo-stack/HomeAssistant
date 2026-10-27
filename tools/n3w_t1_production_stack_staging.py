@@ -118,7 +118,7 @@ SOURCE_FILES: dict[str, tuple[str, int, str]] = {
     "infra/n3w-t1/production/docker-compose.yml": (
         "/opt/HomeAssistant/infra/n3w-t1/production/docker-compose.yml",
         0o644,
-        "d694d7a79e88d3642c800c4757b4354da0e739edec0d42fac2ca5713969be521",
+        "cba9c32b63fb44dea923f29050bda6d059dad5f5dcda397bf6c1da0d80417aae",
     ),
     "infra/n3w-t1/production/image-lock.json": (
         "/opt/HomeAssistant/infra/n3w-t1/production/image-lock.json",
