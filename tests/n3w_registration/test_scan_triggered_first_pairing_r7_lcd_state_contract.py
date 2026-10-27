@@ -179,6 +179,10 @@ def test_r7_lcd_uses_hardware_spi_and_explicit_registration_state() -> None:
     assert "registration_display_state_code()" in transport
     assert "registration_display_error_code()" in transport
 
+    assert "id(display_page) = 4;" in transport
+    assert "!provisioned || registration_display_state == 4" in transport
+    assert "registration_display_state == 5" in transport
+
     page4 = display.split("// ─── PAGE 4：", 1)[1].split("// ─── 底部页码与时间 ───", 1)[0]
     assert "正在查找主机" not in page4
     assert page4.index("registration_state == 4") < page4.index(
