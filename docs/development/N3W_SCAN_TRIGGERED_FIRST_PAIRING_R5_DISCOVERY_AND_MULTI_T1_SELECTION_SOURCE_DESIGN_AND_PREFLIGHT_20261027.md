@@ -122,7 +122,7 @@ No discovery executes in IDLE.
 One discovery session:
 1. query mDNS `_greenhouse-reg._tcp`;
 2. validate/collect candidates;
-3. perform UDP/47111 fallback/augmentation using the same request-id + nonce correlation contract;
+3. only when mDNS yields zero legal candidates, perform UDP/47111 fallback using the same request-id + nonce correlation contract;
 4. stop after the bounded session budget;
 5. dedupe by exact `manager_id + system_id + host + bootstrap_port`;
 6. retain at most 4 healthy candidates;
@@ -244,7 +244,7 @@ Add R5 source/host-simulated tests proving:
 3. repeated start is idempotent;
 4. registration candidate parser rejects wrong schema/protocol/scheme/port/path/fingerprint/ttl;
 5. UDP response requires exact request-id + nonce;
-6. mDNS and UDP candidates dedupe;
+6. duplicate candidates within a discovery transport are deduped by manager/system/endpoint;
 7. at most 4 candidates retained;
 8. zero candidates reaches recoverable no-candidate state;
 9. one candidate still requires browser confirmation;
