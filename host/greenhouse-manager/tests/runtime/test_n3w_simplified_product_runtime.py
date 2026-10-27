@@ -9,6 +9,9 @@ from pathlib import Path
 import pytest
 
 from greenhouse_manager.runtime.config import Settings
+from greenhouse_manager.runtime.n3w_peer_trust_store import (
+    PeerTrustStoreConflict,
+)
 from greenhouse_manager.runtime.n3w_simplified_pairing import (
     SimplifiedPairingConflict,
     SimplifiedPairingCoordinator,
@@ -377,7 +380,7 @@ def test_corrupt_peer_trust_blocks_runtime_factory(
         )
 
     with pytest.raises(
-        Exception,
+        PeerTrustStoreConflict,
         match="metadata is corrupt",
     ):
         build_simplified_product_pairing_composition(
