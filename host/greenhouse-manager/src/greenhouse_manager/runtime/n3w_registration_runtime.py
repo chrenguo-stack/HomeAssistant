@@ -10,6 +10,7 @@ from pathlib import Path
 from .n3w_registration_bootstrap import (
     RegistrationBootstrapApp,
     RegistrationBootstrapHTTPServer,
+    RegistrationTransactionService,
     bootstrap_certificate_sha256,
     make_registration_bootstrap_tls_server,
 )
@@ -255,6 +256,7 @@ def assemble_registration_network_runtime(
     advertiser_factory: Callable[..., RegistrationMdnsAdvertiser] = (
         RegistrationMdnsAdvertiser
     ),
+    transaction_service: RegistrationTransactionService | None = None,
 ) -> RegistrationNetworkRuntime:
     settings.validate()
     state_path = Path(settings.trusted_lan_state_file)
@@ -281,6 +283,7 @@ def assemble_registration_network_runtime(
         manager_id=settings.manager_id,
         system_id=settings.system_id,
         state_loader=load_state,
+        transaction_service=transaction_service,
     )
 
     bootstrap_server = None

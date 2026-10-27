@@ -228,7 +228,10 @@ def test_setup_secret_has_no_lan_admin_import_endpoint() -> None:
         RUNTIME_ROOT / "n3w_simplified_product_runtime.py"
     ).read_text(encoding="utf-8")
 
-    assert "import_setup_secret" not in endpoint
+    assert "gh.pair.setup-secret-import/1" not in endpoint
+    assert "/setup-secret" not in endpoint
+    assert "first_registration_intent" in endpoint
+    assert "setup_secret=intent.setup_secret_bytes()" in endpoint
     assert "ManagerOwnedPairingSocket" in product_runtime
     assert "PrivateSetupSecretInbox(" not in product_runtime
     assert "gh.pair.setup-secret-import/1" in product_runtime

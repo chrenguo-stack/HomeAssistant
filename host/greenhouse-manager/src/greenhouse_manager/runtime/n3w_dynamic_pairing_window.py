@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import ipaddress
 import json
+import math
 import os
 import re
 import socket
@@ -11,11 +12,13 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from .config import Settings
 from .credential_lifecycle import CredentialLifecycleStore
+from .n3w_first_registration_intent import FirstRegistrationIntent
 from .n3w_simplified_discovery import resolve_route_selected_ipv4
 from .n3w_simplified_product_runtime import (
     SimplifiedProductPairingComposition,
@@ -49,6 +52,19 @@ def _is_rfc1918_ipv4(address: ipaddress.IPv4Address) -> bool:
         or value & 0xFFF00000 == 0xAC100000
         or value & 0xFFFF0000 == 0xC0A80000
     )
+
+
+def _ipv4(value: str, *, code: str) -> str:
+    try:
+        address = ipaddress.ip_address(value)
+    except ValueError as error:
+        raise DynamicPairingWindowError(code) from error
+    if (
+        not isinstance(address, ipaddress.IPv4Address)
+        or address.is_unspecified
+    ):
+        raise DynamicPairingWindowError(code)
+    return str(address)
 
 
 def _private_ipv4(value: str, *, code: str) -> str:
@@ -152,7 +168,12 @@ class N3wSimplifiedProductPairingWorker:
         self._close_failure = None
         try:
             self.composition.pairing_runtime.start()
-            self.composition.pairing_socket.start()
+            if getattr(
+                self.composition,
+                "pairing_socket_required",
+                True,
+            ):
+                self.composition.pairing_socket.start()
         except Exception:
             self.composition.close()
             raise
@@ -173,7 +194,14 @@ class N3wSimplifiedProductPairingWorker:
         try:
             while not self._stop.wait(interval):
                 self.composition.pairing_runtime.expire()
-                if not self.composition.pairing_socket.is_alive:
+                if (
+                    getattr(
+                        self.composition,
+                        "pairing_socket_required",
+                        True,
+                    )
+                    and not self.composition.pairing_socket.is_alive
+                ):
                     raise RuntimeError(
                         "setup secret inbox stopped"
                     )
@@ -250,6 +278,7 @@ class DynamicPairingWindowController:
         min_window_seconds: int = MIN_WINDOW_SECONDS,
         max_window_seconds: int = MAX_WINDOW_SECONDS,
         clock: Callable[[], float] = time.monotonic,
+        wall_clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         if (
             min_window_seconds < 1
@@ -275,6 +304,7 @@ class DynamicPairingWindowController:
         self._min_window_seconds = min_window_seconds
         self._max_window_seconds = max_window_seconds
         self._clock = clock
+        self._wall_clock = wall_clock
         self._lock = threading.RLock()
         self._operation_lock = threading.Lock()
         self._state = "CLOSED"
@@ -288,6 +318,12 @@ class DynamicPairingWindowController:
         self._broker_host_sha256: str | None = None
         self._last_close_reason = "manager_start"
         self._last_failure_type: str | None = None
+        self._first_registration_pairing_id: str | None = None
+        self._first_registration_pairing_host: str | None = None
+        self._first_registration_close_callback: (
+            Callable[[str, str], None] | None
+        ) = None
+        self._registration_discovery_external = False
 
     def _broker_for_peer(self, peer_ip: str) -> str:
         peer = _private_ipv4(
@@ -459,12 +495,54 @@ class DynamicPairingWindowController:
                 "raw_identity_in_output": False,
             }
 
+    def set_registration_discovery_external(
+        self,
+        enabled: bool,
+    ) -> None:
+        with self._lock:
+            self._registration_discovery_external = bool(enabled)
+
+    def set_first_registration_close_callback(
+        self,
+        callback: Callable[[str, str], None] | None,
+    ) -> None:
+        with self._lock:
+            self._first_registration_close_callback = callback
+
+    def complete_first_registration(
+        self,
+        pairing_id: str,
+    ) -> None:
+        def close_committed() -> None:
+            try:
+                with self._operation_lock:
+                    with self._lock:
+                        if (
+                            self._state != "OPEN"
+                            or self._first_registration_pairing_id
+                            != pairing_id
+                        ):
+                            return
+                    self._close_locked(
+                        reason="committed",
+                    )
+            except DynamicPairingWindowError:
+                return
+
+        threading.Thread(
+            target=close_committed,
+            name="n3w-first-registration-complete",
+            daemon=True,
+        ).start()
+
     def _worker_failed(
         self,
         generation: int,
         error: Exception,
         exposure_closed: bool,
     ) -> None:
+        callback = None
+        pairing_id = None
         with self._lock:
             if generation != self._generation:
                 return
@@ -474,14 +552,21 @@ class DynamicPairingWindowController:
             self._last_close_reason = "worker_failure"
             self._last_failure_type = type(error).__name__
             if exposure_closed:
+                pairing_id = self._first_registration_pairing_id
+                if pairing_id is not None:
+                    callback = self._first_registration_close_callback
                 self._state = "CLOSED"
                 self._composition = None
                 self._worker = None
                 self._deadline = None
                 self._window_seconds = None
                 self._broker_host_sha256 = None
+                self._first_registration_pairing_id = None
+                self._first_registration_pairing_host = None
             else:
                 self._state = "CLOSING"
+        if callback is not None and pairing_id is not None:
+            callback(pairing_id, "worker_failure")
 
     def _deadline_run(
         self,
@@ -557,10 +642,17 @@ class DynamicPairingWindowController:
                 config = self._config_factory(
                     dynamic_settings
                 )
-                composition = self._composition_factory(
-                    dynamic_settings,
-                    config,
-                )
+                if self._registration_discovery_external:
+                    composition = self._composition_factory(
+                        dynamic_settings,
+                        config,
+                        http_only=True,
+                    )
+                else:
+                    composition = self._composition_factory(
+                        dynamic_settings,
+                        config,
+                    )
                 worker = self._worker_factory(
                     composition,
                     failure_callback=(
@@ -668,6 +760,207 @@ class DynamicPairingWindowController:
                     "pairing_window_open_failed"
                 ) from error
 
+    def open_first_registration(
+        self,
+        intent: FirstRegistrationIntent,
+    ) -> dict[str, object]:
+        if (
+            self.settings.n3w_pairing_advertised_host
+            != "auto"
+        ):
+            raise DynamicPairingWindowError(
+                "dynamic_pairing_requires_auto_advertised_host"
+            )
+        observed_at = self._wall_clock().astimezone(UTC)
+        remaining = math.ceil(
+            (intent.expires_at - observed_at).total_seconds()
+        )
+        if (
+            not intent.active
+            or intent.consumed
+            or remaining <= 0
+        ):
+            raise DynamicPairingWindowError(
+                "first_registration_intent_expired"
+            )
+        peer = _ipv4(
+            intent.source_ip,
+            code="first_registration_source_invalid",
+        )
+        try:
+            selected = self._route_resolver(peer)
+        except Exception as error:
+            raise DynamicPairingWindowError(
+                "pairing_window_route_unavailable"
+            ) from error
+        pairing_host = _ipv4(
+            selected,
+            code="pairing_window_broker_locator_invalid",
+        )
+        broker_hash = _sha256_text(pairing_host)
+        identity_hash = _sha256_text(
+            "|".join(
+                (
+                    intent.hardware_id,
+                    intent.pairing_id,
+                    intent.source_ip,
+                )
+            )
+        )
+
+        with self._operation_lock:
+            with self._lock:
+                if self._state == "OPEN":
+                    if (
+                        self._first_registration_pairing_id
+                        == intent.pairing_id
+                        and self._first_registration_pairing_host
+                        is not None
+                    ):
+                        return {
+                            **self._status_locked(),
+                            "pairing_host": (
+                                self._first_registration_pairing_host
+                            ),
+                            "window_mode": "first_registration",
+                            "first_registration_identity_sha256": (
+                                identity_hash
+                            ),
+                        }
+                    raise DynamicPairingWindowError(
+                        "pairing_window_already_active"
+                    )
+                if self._state != "CLOSED":
+                    raise DynamicPairingWindowError(
+                        "pairing_window_already_active"
+                    )
+                self._generation += 1
+                generation = self._generation
+                self._state = "OPENING"
+                self._last_failure_type = None
+                self._last_close_reason = "opening"
+
+            composition = None
+            worker = None
+            try:
+                dynamic_settings = replace(
+                    self.settings,
+                    n3w_product_pairing_enabled=True,
+                    n3w_node_broker_host=pairing_host,
+                )
+                config = self._config_factory(
+                    dynamic_settings
+                )
+                composition = self._composition_factory(
+                    dynamic_settings,
+                    config,
+                    first_registration_intent=intent,
+                    first_registration_complete_callback=(
+                        self.complete_first_registration
+                    ),
+                )
+                worker = self._worker_factory(
+                    composition,
+                    failure_callback=(
+                        lambda error, closed: (
+                            self._worker_failed(
+                                generation,
+                                error,
+                                closed,
+                            )
+                        )
+                    ),
+                )
+                with self._lock:
+                    if (
+                        generation != self._generation
+                        or self._state != "OPENING"
+                    ):
+                        raise DynamicPairingWindowError(
+                            "pairing_window_open_cancelled"
+                        )
+                    self._composition = composition
+                    self._worker = worker
+                worker.start()
+                with self._lock:
+                    if (
+                        generation != self._generation
+                        or self._state != "OPENING"
+                        or worker.failure is not None
+                        or not worker.is_alive
+                    ):
+                        raise DynamicPairingWindowError(
+                            "pairing_window_worker_unavailable"
+                        )
+                    stop = threading.Event()
+                    self._deadline_stop = stop
+                    self._deadline = self._clock() + remaining
+                    self._window_seconds = remaining
+                    self._broker_host_sha256 = broker_hash
+                    self._last_close_reason = "open"
+                    self._first_registration_pairing_id = (
+                        intent.pairing_id
+                    )
+                    self._first_registration_pairing_host = (
+                        pairing_host
+                    )
+                    self._state = "OPEN"
+                    deadline_thread = threading.Thread(
+                        target=self._deadline_run,
+                        args=(
+                            generation,
+                            stop,
+                            remaining,
+                        ),
+                        name="n3w-first-registration-deadline",
+                        daemon=True,
+                    )
+                    self._deadline_thread = deadline_thread
+                    result = self._status_locked()
+                deadline_thread.start()
+                return {
+                    **result,
+                    "pairing_host": pairing_host,
+                    "window_mode": "first_registration",
+                    "first_registration_identity_sha256": identity_hash,
+                }
+            except Exception as error:
+                cleanup_ok = True
+                if worker is not None:
+                    try:
+                        worker.stop()
+                    except Exception:
+                        if composition is not None:
+                            try:
+                                composition.close()
+                            except Exception:
+                                cleanup_ok = False
+                elif composition is not None:
+                    try:
+                        composition.close()
+                    except Exception:
+                        cleanup_ok = False
+                with self._lock:
+                    if generation == self._generation:
+                        self._last_failure_type = type(error).__name__
+                        self._last_close_reason = "open_failure"
+                        if cleanup_ok:
+                            self._state = "CLOSED"
+                            self._composition = None
+                            self._worker = None
+                            self._deadline_stop = None
+                            self._deadline_thread = None
+                            self._deadline = None
+                            self._window_seconds = None
+                            self._broker_host_sha256 = None
+                        else:
+                            self._state = "CLOSING"
+                if isinstance(error, DynamicPairingWindowError):
+                    raise
+                raise DynamicPairingWindowError(
+                    "first_registration_window_open_failed"
+                ) from error
+
     def _close_locked(
         self,
         *,
@@ -685,6 +978,12 @@ class DynamicPairingWindowController:
             deadline_stop = self._deadline_stop
             deadline_thread = self._deadline_thread
             generation = self._generation
+            pairing_id = self._first_registration_pairing_id
+            callback = (
+                self._first_registration_close_callback
+                if pairing_id is not None
+                else None
+            )
         if deadline_stop is not None:
             deadline_stop.set()
         if worker is None:
@@ -724,12 +1023,22 @@ class DynamicPairingWindowController:
                 self._deadline = None
                 self._window_seconds = None
                 self._broker_host_sha256 = None
+                self._first_registration_pairing_id = None
+                self._first_registration_pairing_host = None
                 self._last_close_reason = reason
                 self._last_failure_type = None
-            return self._status_locked()
+            result = self._status_locked()
+        if callback is not None and pairing_id is not None:
+            callback(pairing_id, reason)
+        return result
 
     def close_window(self) -> dict[str, object]:
         with self._operation_lock:
+            with self._lock:
+                if self._first_registration_pairing_id is not None:
+                    raise DynamicPairingWindowError(
+                        "first_registration_window_product_owned"
+                    )
             return self._close_locked(
                 reason="manual",
             )

@@ -220,6 +220,74 @@ def _generate_tls(
     )
 
 
+def _generate_registration_tls(
+    *,
+    system_id: str,
+    now: datetime,
+) -> tuple[bytes, bytes]:
+    key = ec.generate_private_key(ec.SECP256R1())
+    common_name = (
+        "n3w-registration-"
+        + hashlib.sha256(system_id.encode("utf-8")).hexdigest()[:16]
+    )
+    subject = x509.Name(
+        [
+            x509.NameAttribute(
+                NameOID.ORGANIZATION_NAME,
+                "Greenhouse N3-W",
+            ),
+            x509.NameAttribute(
+                NameOID.COMMON_NAME,
+                common_name,
+            ),
+        ]
+    )
+    certificate = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(subject)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - timedelta(minutes=5))
+        .not_valid_after(now + timedelta(days=SERVER_VALIDITY_DAYS))
+        .add_extension(
+            x509.BasicConstraints(ca=False, path_length=None),
+            critical=True,
+        )
+        .add_extension(
+            x509.KeyUsage(
+                digital_signature=True,
+                content_commitment=False,
+                key_encipherment=False,
+                data_encipherment=False,
+                key_agreement=True,
+                key_cert_sign=False,
+                crl_sign=False,
+                encipher_only=False,
+                decipher_only=False,
+            ),
+            critical=True,
+        )
+        .add_extension(
+            x509.ExtendedKeyUsage(
+                [ExtendedKeyUsageOID.SERVER_AUTH]
+            ),
+            critical=False,
+        )
+        .sign(key, hashes.SHA256())
+    )
+    return (
+        key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        ),
+        certificate.public_bytes(
+            serialization.Encoding.PEM
+        ),
+    )
+
+
 def _load_certificate(path: Path) -> x509.Certificate:
     try:
         return x509.load_pem_x509_certificate(path.read_bytes())
@@ -236,7 +304,14 @@ def _load_private_key(path: Path):
 
 def _verify_tls(root: Path, *, server_name: str) -> dict[str, Any]:
     tls = root / "tls"
-    for name in ("ca.key", "ca.pem", "server.key", "server.pem"):
+    for name in (
+        "ca.key",
+        "ca.pem",
+        "server.key",
+        "server.pem",
+        "registration.key",
+        "registration.pem",
+    ):
         path = tls / name
         if (
             not path.is_file()
@@ -247,8 +322,14 @@ def _verify_tls(root: Path, *, server_name: str) -> dict[str, Any]:
 
     ca = _load_certificate(tls / "ca.pem")
     server = _load_certificate(tls / "server.pem")
+    registration = _load_certificate(
+        tls / "registration.pem"
+    )
     ca_key = _load_private_key(tls / "ca.key")
     server_key = _load_private_key(tls / "server.key")
+    registration_key = _load_private_key(
+        tls / "registration.key"
+    )
 
     if ca.subject != ca.issuer:
         raise FreshBrokerBootstrapError("ca_not_self_issued")
@@ -286,6 +367,62 @@ def _verify_tls(root: Path, *, server_name: str) -> dict[str, Any]:
     if not secrets.compare_digest(server_public, server_key_public):
         raise FreshBrokerBootstrapError("server_key_mismatch")
 
+    registration_public = registration.public_key().public_bytes(
+        serialization.Encoding.DER,
+        serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+    registration_key_public = (
+        registration_key.public_key().public_bytes(
+            serialization.Encoding.DER,
+            serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+    )
+    if not secrets.compare_digest(
+        registration_public,
+        registration_key_public,
+    ):
+        raise FreshBrokerBootstrapError(
+            "registration_key_mismatch"
+        )
+    if secrets.compare_digest(
+        registration_public,
+        server_public,
+    ):
+        raise FreshBrokerBootstrapError(
+            "registration_key_not_dedicated"
+        )
+    if registration.subject != registration.issuer:
+        raise FreshBrokerBootstrapError(
+            "registration_certificate_not_self_issued"
+        )
+    registration.public_key().verify(
+        registration.signature,
+        registration.tbs_certificate_bytes,
+        ec.ECDSA(registration.signature_hash_algorithm),
+    )
+    if (
+        registration.extensions
+        .get_extension_for_class(
+            x509.BasicConstraints
+        )
+        .value.ca
+        is not False
+    ):
+        raise FreshBrokerBootstrapError(
+            "registration_constraints_invalid"
+        )
+    registration_eku = (
+        registration.extensions
+        .get_extension_for_class(
+            x509.ExtendedKeyUsage
+        )
+        .value
+    )
+    if ExtendedKeyUsageOID.SERVER_AUTH not in registration_eku:
+        raise FreshBrokerBootstrapError(
+            "registration_server_auth_missing"
+        )
+
     san = server.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
     dns_names = tuple(san.get_values_for_type(x509.DNSName))
     ip_names = tuple(str(value) for value in san.get_values_for_type(x509.IPAddress))
@@ -298,6 +435,9 @@ def _verify_tls(root: Path, *, server_name: str) -> dict[str, Any]:
     return {
         "ca_sha256": _certificate_fingerprint(ca),
         "server_sha256": _certificate_fingerprint(server),
+        "registration_sha256": _certificate_fingerprint(
+            registration
+        ),
         "san_dns": dns_names,
         "san_ip": ip_names,
     }
@@ -333,11 +473,19 @@ def create_fresh_broker_materials(
             compatibility_dns=compatibility_dns,
             now=observed,
         )
+        registration_key, registration_cert = (
+            _generate_registration_tls(
+                system_id=system_id,
+                now=observed,
+            )
+        )
         for name, payload in (
             ("ca.key", ca_key),
             ("ca.pem", ca_cert),
             ("server.key", server_key),
             ("server.pem", server_cert),
+            ("registration.key", registration_key),
+            ("registration.pem", registration_cert),
         ):
             _write_private(root / "tls" / name, payload)
 
@@ -360,6 +508,9 @@ def create_fresh_broker_materials(
             "san_ip": list(ip_names),
             "ca_sha256": tls_report["ca_sha256"],
             "server_sha256": tls_report["server_sha256"],
+            "registration_sha256": (
+                tls_report["registration_sha256"]
+            ),
             "service_count": 3,
             "service_names": list(SERVICE_NAMES),
             "node_credential_count": 0,
@@ -444,6 +595,8 @@ def verify_fresh_broker_materials(
     if (
         manifest.get("ca_sha256") != tls_report["ca_sha256"]
         or manifest.get("server_sha256") != tls_report["server_sha256"]
+        or manifest.get("registration_sha256")
+        != tls_report["registration_sha256"]
         or manifest.get("san_dns") != list(tls_report["san_dns"])
         or manifest.get("san_ip") != list(tls_report["san_ip"])
     ):

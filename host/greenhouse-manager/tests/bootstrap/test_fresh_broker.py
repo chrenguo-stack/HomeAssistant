@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 from cryptography import x509
+from cryptography.hazmat.primitives import serialization
 
 from greenhouse_manager.bootstrap.fresh_broker import (
     FreshBrokerBootstrapError,
@@ -53,6 +54,8 @@ def test_create_and_verify_fresh_broker_materials(tmp_path: Path) -> None:
         "tls/ca.pem",
         "tls/server.key",
         "tls/server.pem",
+        "tls/registration.key",
+        "tls/registration.pem",
         "private/dynsec-admin-password",
         "manifest.json",
     ):
@@ -197,3 +200,33 @@ def test_dynsec_document_audit_rejects_precreated_node(
             path,
             system_id="greenhouse-test",
         )
+
+
+def test_registration_bootstrap_tls_is_dedicated_from_broker_leaf(tmp_path) -> None:
+    root = tmp_path / "broker"
+    report = create_fresh_broker_materials(
+        root,
+        system_id="greenhouse-test",
+        now=datetime(2026, 10, 11, tzinfo=UTC),
+    )
+
+    broker_cert = x509.load_pem_x509_certificate(
+        (root / "tls/server.pem").read_bytes()
+    )
+    registration_cert = x509.load_pem_x509_certificate(
+        (root / "tls/registration.pem").read_bytes()
+    )
+    broker_public = broker_cert.public_key().public_bytes(
+        serialization.Encoding.DER,
+        serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+    registration_public = (
+        registration_cert.public_key().public_bytes(
+            serialization.Encoding.DER,
+            serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+    )
+
+    assert broker_public != registration_public
+    assert registration_cert.subject == registration_cert.issuer
+    assert report.secret_values_included is False

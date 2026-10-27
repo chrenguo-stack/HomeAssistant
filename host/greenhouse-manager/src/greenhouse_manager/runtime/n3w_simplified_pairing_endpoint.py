@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import uuid
@@ -8,6 +9,15 @@ from datetime import UTC, datetime
 from http import HTTPStatus
 from typing import Any
 
+from .n3w_first_registration_intent import FirstRegistrationIntent
+from .n3w_first_registration_ledger import (
+    FirstRegistrationAttemptState,
+    FirstRegistrationLedger,
+)
+from .n3w_registration_bootstrap import (
+    RegistrationBootstrapRejected,
+    validate_bootstrap_source,
+)
 from .n3w_simplified_pairing import (
     SimplifiedPairingConflict,
     SimplifiedPairingCoordinator,
@@ -90,6 +100,11 @@ class SimplifiedPairingEndpointApp:
         *,
         rate_limiter: FixedWindowRateLimiter | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        first_registration_intent: FirstRegistrationIntent | None = None,
+        first_registration_ledger: FirstRegistrationLedger | None = None,
+        first_registration_source_authorizer: (
+            Callable[[str], None]
+        ) = validate_bootstrap_source,
     ) -> None:
         self.coordinator = coordinator
         self.registry = coordinator.registry
@@ -98,6 +113,18 @@ class SimplifiedPairingEndpointApp:
             window_s=60,
         )
         self.clock = clock
+        self.first_registration_intent = first_registration_intent
+        self.first_registration_ledger = first_registration_ledger
+        self.first_registration_source_authorizer = (
+            first_registration_source_authorizer
+        )
+        if (
+            (first_registration_intent is None)
+            != (first_registration_ledger is None)
+        ):
+            raise ValueError(
+                "first registration endpoint authority incomplete"
+            )
 
     def handle(
         self,
@@ -118,8 +145,23 @@ class SimplifiedPairingEndpointApp:
         except ValueError:
             request_id = str(uuid.uuid4())
         try:
-            if not is_local_source(client_ip):
-                raise SimplifiedPairingRejected("source_not_local")
+            intent = self.first_registration_intent
+            if intent is None:
+                if not is_local_source(client_ip):
+                    raise SimplifiedPairingRejected("source_not_local")
+            elif client_ip != intent.source_ip:
+                raise SimplifiedPairingRejected(
+                    "first_registration_source_mismatch"
+                )
+            else:
+                try:
+                    self.first_registration_source_authorizer(
+                        client_ip
+                    )
+                except RegistrationBootstrapRejected as error:
+                    raise SimplifiedPairingRejected(
+                        str(error)
+                    ) from error
             if not self.rate_limiter.allow(client_ip):
                 return self._error(
                     HTTPStatus.TOO_MANY_REQUESTS,
@@ -138,7 +180,13 @@ class SimplifiedPairingEndpointApp:
                     "method_not_allowed",
                     request_id,
                 )
-            return self._dispatch(method, path, body, request_id)
+            return self._dispatch(
+                method,
+                path,
+                body,
+                request_id,
+                client_ip,
+            )
         except SimplifiedPairingRejected as error:
             return self._error(HTTPStatus.FORBIDDEN, str(error), request_id)
         except SimplifiedPairingConflict as error:
@@ -164,6 +212,7 @@ class SimplifiedPairingEndpointApp:
         path: str,
         body: bytes,
         request_id: str,
+        client_ip: str,
     ) -> PairingHTTPResponse:
         if method == "GET" and path == "/healthz":
             return _response(
@@ -173,7 +222,62 @@ class SimplifiedPairingEndpointApp:
             )
         if method == "POST" and path == "/v2/pairing/hello":
             document = _strict_json(body)
-            result = self.registry.observe_hello(document, now=self.clock())
+            intent = self.first_registration_intent
+            ledger = self.first_registration_ledger
+            now = self.clock()
+            if intent is not None:
+                hardware_id = document.get("hardware_id")
+                pairing_id = document.get("pairing_id")
+                if (
+                    client_ip != intent.source_ip
+                    or hardware_id != intent.hardware_id
+                    or pairing_id != intent.pairing_id
+                    or now > intent.expires_at
+                    or not intent.active
+                    or intent.consumed
+                ):
+                    raise SimplifiedPairingRejected(
+                        "first_registration_binding_mismatch"
+                    )
+                assert ledger is not None
+                durable = ledger.get(intent.pairing_id)
+                if (
+                    durable.state is not FirstRegistrationAttemptState.ACTIVE
+                    or durable.expires_at != intent.expires_at
+                    or durable.hardware_id_sha256
+                    != hashlib.sha256(
+                        intent.hardware_id.encode("utf-8")
+                    ).hexdigest()
+                ):
+                    raise SimplifiedPairingConflict(
+                        "first_registration_authority_mismatch"
+                    )
+                result = self.registry.observe_hello(
+                    document,
+                    now=now,
+                    authorized_expires_at=intent.expires_at,
+                )
+                if result.status not in {"created", "duplicate"}:
+                    raise SimplifiedPairingConflict(
+                        result.reason
+                        or "first_registration_hello_rejected"
+                    )
+                ledger.mark_hello_observed(intent.pairing_id)
+                self.coordinator.import_setup_secret(
+                    intent.hardware_id,
+                    intent.pairing_id,
+                    setup_secret=intent.setup_secret_bytes(),
+                )
+                self.coordinator.authorize_first_registration_deadline(
+                    intent.hardware_id,
+                    intent.pairing_id,
+                    expires_at=intent.expires_at,
+                )
+            else:
+                result = self.registry.observe_hello(
+                    document,
+                    now=now,
+                )
             return _response(
                 HTTPStatus.OK,
                 {

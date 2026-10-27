@@ -12,6 +12,11 @@ from enum import StrEnum
 from typing import Protocol
 
 from .n3w_auto_node_id import AutomaticNodeIdApprover
+from .n3w_first_registration_ledger import FirstRegistrationLedger
+from .n3w_first_registration_reconciliation import (
+    FirstRegistrationCommitClassification,
+    FirstRegistrationReconciler,
+)
 from .n3w_pairing_recovery import rollback_automatic_approval_preserving_node
 from .n3w_simple_pairing_crypto import (
     PairingTranscript,
@@ -149,6 +154,7 @@ class _Session:
     staged: StagedSimplifiedBundle | None = None
     delivery_digest: bytes | None = None
     issued_credentials: SimplifiedEncryptedCredentials | None = None
+    first_registration: bool = False
 
 
 class SimplifiedPairingCoordinator:
@@ -170,6 +176,11 @@ class SimplifiedPairingCoordinator:
         session_ttl_s: int = 120,
         random_bytes: Callable[[int], bytes] = secrets.token_bytes,
         uuid_factory: Callable[[], uuid.UUID] = uuid.uuid4,
+        first_registration_ledger: FirstRegistrationLedger | None = None,
+        first_registration_reconciler: FirstRegistrationReconciler | None = None,
+        first_registration_complete_callback: (
+            Callable[[str], None] | None
+        ) = None,
     ) -> None:
         if not manager_id or not manager_id.isascii():
             raise ValueError("manager_id_invalid")
@@ -182,12 +193,28 @@ class SimplifiedPairingCoordinator:
         self.session_ttl = timedelta(seconds=session_ttl_s)
         self.random_bytes = random_bytes
         self.uuid_factory = uuid_factory
+        if (
+            (first_registration_ledger is None)
+            != (first_registration_reconciler is None)
+        ):
+            raise ValueError(
+                "first registration coordinator authority incomplete"
+            )
+        self.first_registration_ledger = first_registration_ledger
+        self.first_registration_reconciler = first_registration_reconciler
+        self.first_registration_complete_callback = (
+            first_registration_complete_callback
+        )
         self._lock = threading.RLock()
         self._setup: dict[tuple[str, str], bytearray] = {}
         self._sessions: dict[str, _Session] = {}
         self._credential_recovery_intents: dict[
             str,
             _CredentialRecoveryIntent,
+        ] = {}
+        self._first_registration_deadlines: dict[
+            tuple[str, str],
+            datetime,
         ] = {}
 
     def import_setup_secret(
@@ -212,6 +239,35 @@ class SimplifiedPairingCoordinator:
                     "setup_secret_conflicting_import"
                 )
             self._setup[key] = bytearray(setup_secret)
+
+    def authorize_first_registration_deadline(
+        self,
+        hardware_id: str,
+        pairing_id: str,
+        *,
+        expires_at: datetime,
+    ) -> None:
+        if expires_at.tzinfo is None:
+            raise ValueError("first_registration_deadline_invalid")
+        deadline = expires_at.astimezone(UTC)
+        record = self.registry.get(hardware_id)
+        if (
+            record.pairing_id != pairing_id
+            or record.state is not RegistrationState.PENDING
+        ):
+            raise SimplifiedPairingConflict("registration_not_pending")
+        if record.expires_at != deadline:
+            raise SimplifiedPairingConflict(
+                "first_registration_deadline_mismatch"
+            )
+        key = (hardware_id, pairing_id)
+        with self._lock:
+            existing = self._first_registration_deadlines.get(key)
+            if existing is not None and existing != deadline:
+                raise SimplifiedPairingConflict(
+                    "first_registration_deadline_conflict"
+                )
+            self._first_registration_deadlines[key] = deadline
 
     def authorize_repair(
         self,
@@ -301,7 +357,30 @@ class SimplifiedPairingCoordinator:
                 manager_nonce=manager_nonce,
             )
             session_id = str(self.uuid_factory())
-            expires_at = min(observed_at + self.session_ttl, record.expires_at)
+            first_registration_deadline = (
+                self._first_registration_deadlines.get(key)
+            )
+            is_first_registration = (
+                first_registration_deadline is not None
+            )
+            if is_first_registration:
+                if (
+                    self.first_registration_ledger is None
+                    or self.first_registration_reconciler is None
+                ):
+                    raise SimplifiedPairingConflict(
+                        "first_registration_commit_authority_unavailable"
+                    )
+                if record.expires_at != first_registration_deadline:
+                    raise SimplifiedPairingConflict(
+                        "first_registration_deadline_mismatch"
+                    )
+                expires_at = first_registration_deadline
+            else:
+                expires_at = min(
+                    observed_at + self.session_ttl,
+                    record.expires_at,
+                )
             if expires_at <= observed_at:
                 raise SimplifiedPairingConflict("registration_expired")
             session = _Session(
@@ -311,6 +390,7 @@ class SimplifiedPairingCoordinator:
                 transcript=transcript,
                 secret=bytearray(secret),
                 expires_at=expires_at,
+                first_registration=is_first_registration,
             )
             self._sessions[session_id] = session
             manager_proof = build_setup_proof(
@@ -411,6 +491,9 @@ class SimplifiedPairingCoordinator:
                         credential_generation=1,
                     )
             except Exception:
+                if session.first_registration:
+                    self._fail_first_registration_session(session)
+                    raise
                 self._rollback_automatic_approval(
                     session,
                     now=observed_at,
@@ -419,6 +502,11 @@ class SimplifiedPairingCoordinator:
                 raise
 
             if staged.bundle.node_id != approved.node_id:
+                if session.first_registration:
+                    self._fail_first_registration_session(session)
+                    raise SimplifiedPairingError(
+                        "credential_node_binding_mismatch"
+                    )
                 try:
                     staged.rollback()
                 finally:
@@ -466,6 +554,9 @@ class SimplifiedPairingCoordinator:
                     delivery_digest=_b64(digest),
                 )
             except Exception:
+                if session.first_registration:
+                    self._fail_first_registration_session(session)
+                    raise
                 try:
                     staged.rollback()
                 finally:
@@ -475,6 +566,33 @@ class SimplifiedPairingCoordinator:
                         reason="credential_assembly_failed",
                     )
                 raise
+
+            if session.first_registration:
+                ledger = self.first_registration_ledger
+                assert ledger is not None
+                material = getattr(staged, "material", None)
+                key_epoch = getattr(material, "key_epoch", None)
+                if (
+                    not isinstance(key_epoch, int)
+                    or isinstance(key_epoch, bool)
+                    or key_epoch < 1
+                ):
+                    self._fail_first_registration_session(session)
+                    raise SimplifiedPairingError(
+                        "first_registration_key_epoch_unavailable"
+                    )
+                try:
+                    ledger.mark_bundle_staged(
+                        session.pairing_id,
+                        node_id=approved.node_id,
+                        application_key_epoch=key_epoch,
+                        delivery_digest_sha256=hashlib.sha256(
+                            digest
+                        ).hexdigest(),
+                    )
+                except Exception:
+                    self._fail_first_registration_session(session)
+                    raise
 
             session.node_id = approved.node_id
             session.staged = staged
@@ -504,47 +622,78 @@ class SimplifiedPairingCoordinator:
                 supplied, session.delivery_digest
             ):
                 raise SimplifiedPairingRejected("delivery_digest_rejected")
-            try:
-                session.staged.commit(
-                    now=observed_at
+            if session.first_registration:
+                ledger = self.first_registration_ledger
+                reconciler = self.first_registration_reconciler
+                assert ledger is not None
+                assert reconciler is not None
+                ledger.claim_committing(
+                    session.pairing_id
                 )
-            except Exception as commit_error:
-                rollback_error = None
-                approval_error = None
-
                 try:
-                    self._rollback_staged(
-                        session
+                    session.staged.commit(
+                        now=observed_at
                     )
-                except Exception as error:
-                    rollback_error = error
-
-                try:
-                    self._rollback_automatic_approval(
-                        session,
-                        now=observed_at,
-                        reason="credential_commit_failed",
-                    )
-                except Exception as error:
-                    approval_error = error
-
-                session.state = (
-                    SimplifiedPairingState.FAILED
+                except Exception:
+                    self._fail_first_registration_session(session)
+                    raise
+                classification = reconciler.classify(
+                    ledger.get(session.pairing_id)
                 )
-                self._clear_secret(session)
-
                 if (
-                    rollback_error is not None
-                    or approval_error is not None
+                    classification
+                    is not FirstRegistrationCommitClassification.COMMITTED
                 ):
+                    self._fail_first_registration_session(session)
                     raise SimplifiedPairingError(
-                        "credential_commit_rollback_failed"
-                    ) from (
-                        rollback_error
-                        or approval_error
+                        "first_registration_commit_unproven"
                     )
+                ledger.mark_committed(
+                    session.pairing_id,
+                    terminal_at=observed_at,
+                )
+            else:
+                try:
+                    session.staged.commit(
+                        now=observed_at
+                    )
+                except Exception as commit_error:
+                    rollback_error = None
+                    approval_error = None
 
-                raise commit_error
+                    try:
+                        self._rollback_staged(
+                            session
+                        )
+                    except Exception as error:
+                        rollback_error = error
+
+                    try:
+                        self._rollback_automatic_approval(
+                            session,
+                            now=observed_at,
+                            reason="credential_commit_failed",
+                        )
+                    except Exception as error:
+                        approval_error = error
+
+                    session.state = (
+                        SimplifiedPairingState.FAILED
+                    )
+                    self._clear_secret(session)
+
+                    if (
+                        rollback_error is not None
+                        or approval_error is not None
+                    ):
+                        raise SimplifiedPairingError(
+                            "credential_commit_rollback_failed"
+                        ) from (
+                            rollback_error
+                            or approval_error
+                        )
+
+                    raise commit_error
 
             if session.inherited_node_id is not None:
                 self._consume_credential_recovery_intent(
@@ -557,13 +706,34 @@ class SimplifiedPairingCoordinator:
             session.state = SimplifiedPairingState.CONSUMED
             self._clear_secret(session)
             self._erase_imported_secret(session.hardware_id, session.pairing_id)
-            return self._snapshot(session)
+            self._clear_first_registration_deadline(
+                session.hardware_id,
+                session.pairing_id,
+            )
+            snapshot = self._snapshot(session)
+            if (
+                session.first_registration
+                and self.first_registration_complete_callback
+                is not None
+            ):
+                self.first_registration_complete_callback(
+                    session.pairing_id
+                )
+            return snapshot
 
     def abort(self, session_id: str) -> SimplifiedPairingSnapshot:
         with self._lock:
             session = self._require_session(session_id)
             if session.state is SimplifiedPairingState.CONSUMED:
                 raise SimplifiedPairingConflict("consumed_pairing_cannot_abort")
+            if session.first_registration:
+                self._fail_first_registration_session(session)
+                self._clear_first_registration_deadline(
+                    session.hardware_id,
+                    session.pairing_id,
+                )
+                return self._snapshot(session)
+
             rollback_error = None
 
             try:
@@ -579,6 +749,10 @@ class SimplifiedPairingCoordinator:
 
             session.state = SimplifiedPairingState.FAILED
             self._clear_secret(session)
+            self._clear_first_registration_deadline(
+                session.hardware_id,
+                session.pairing_id,
+            )
 
             if rollback_error is not None:
                 raise SimplifiedPairingError(
@@ -609,6 +783,20 @@ class SimplifiedPairingCoordinator:
                     SimplifiedPairingState.EXPIRED,
                 } or observed_at <= session.expires_at:
                     continue
+                if session.first_registration:
+                    session.state = SimplifiedPairingState.EXPIRED
+                    self._clear_secret(session)
+                    self._erase_imported_secret(
+                        session.hardware_id,
+                        session.pairing_id,
+                    )
+                    self._clear_first_registration_deadline(
+                        session.hardware_id,
+                        session.pairing_id,
+                    )
+                    expired += 1
+                    continue
+
                 rollback_error = None
 
                 try:
@@ -624,6 +812,10 @@ class SimplifiedPairingCoordinator:
 
                 session.state = SimplifiedPairingState.EXPIRED
                 self._clear_secret(session)
+                self._clear_first_registration_deadline(
+                    session.hardware_id,
+                    session.pairing_id,
+                )
 
                 if rollback_error is not None:
                     raise SimplifiedPairingError(
@@ -679,6 +871,21 @@ class SimplifiedPairingCoordinator:
             SimplifiedPairingState.EXPIRED,
         }:
             return
+        if session.first_registration:
+            session.state = SimplifiedPairingState.EXPIRED
+            self._clear_secret(session)
+            self._erase_imported_secret(
+                session.hardware_id,
+                session.pairing_id,
+            )
+            self._clear_first_registration_deadline(
+                session.hardware_id,
+                session.pairing_id,
+            )
+            raise SimplifiedPairingConflict(
+                "pairing_session_expired"
+            )
+
         rollback_error = None
 
         try:
@@ -694,6 +901,10 @@ class SimplifiedPairingCoordinator:
 
         session.state = SimplifiedPairingState.EXPIRED
         self._clear_secret(session)
+        self._clear_first_registration_deadline(
+            session.hardware_id,
+            session.pairing_id,
+        )
 
         if rollback_error is not None:
             raise SimplifiedPairingError(
@@ -770,6 +981,27 @@ class SimplifiedPairingCoordinator:
         session.issued_credentials = None
         if staged is not None:
             staged.rollback()
+
+    def _fail_first_registration_session(
+        self,
+        session: _Session,
+    ) -> None:
+        session.state = SimplifiedPairingState.FAILED
+        self._clear_secret(session)
+        self._erase_imported_secret(
+            session.hardware_id,
+            session.pairing_id,
+        )
+
+    def _clear_first_registration_deadline(
+        self,
+        hardware_id: str,
+        pairing_id: str,
+    ) -> None:
+        self._first_registration_deadlines.pop(
+            (hardware_id, pairing_id),
+            None,
+        )
 
     def _erase_imported_secret(self, hardware_id: str, pairing_id: str) -> None:
         value = self._setup.pop((hardware_id, pairing_id), None)

@@ -6,6 +6,7 @@ from typing import Any
 import paho.mqtt.client as mqtt
 
 from .dynsec_api import (
+    DynsecPlanInspection,
     DynsecProvisioner,
     PahoDynsecTransport,
     set_client_password_command,
@@ -113,7 +114,7 @@ class PahoNodeIdentityProvisioner:
 
         return client
 
-    def _run(self, operation: str, *args: object) -> None:
+    def _run(self, operation: str, *args: object) -> Any:
         with self._lock:
             client = self._connected_client()
             try:
@@ -123,6 +124,10 @@ class PahoNodeIdentityProvisioner:
                 )
                 client.on_message = transport.on_message
                 provisioner = DynsecProvisioner(transport)
+
+                if operation == "inspect":
+                    (plan,) = args
+                    return provisioner.inspect_plan(plan)
 
                 if operation == "provision":
                     plan, credentials = args
@@ -150,6 +155,20 @@ class PahoNodeIdentityProvisioner:
             finally:
                 client.disconnect()
                 client.loop_stop()
+
+    def inspect_plan(
+        self,
+        plan: NodeProvisioningPlan,
+    ) -> DynsecPlanInspection:
+        result = self._run(
+            "inspect",
+            plan,
+        )
+        if not isinstance(result, DynsecPlanInspection):
+            raise NodeIdentityProvisioningUnavailable(
+                "provisioning plan inspection failed"
+            )
+        return result
 
     def provision(
         self,

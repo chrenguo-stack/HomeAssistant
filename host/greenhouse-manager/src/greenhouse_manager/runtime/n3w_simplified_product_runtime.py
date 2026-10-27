@@ -15,6 +15,10 @@ from typing import Any
 
 from .config import Settings
 from .credential_lifecycle import CredentialLifecycleStore
+from .n3w_first_registration_intent import FirstRegistrationIntent
+from .n3w_first_registration_reconciliation import (
+    FirstRegistrationReconciler,
+)
 from .n3w_node_application_keys import (
     SqliteNodeApplicationKeyAdmin,
 )
@@ -699,6 +703,7 @@ class SimplifiedProductPairingComposition:
     coordinator: SimplifiedPairingCoordinator
     pairing_runtime: Any
     pairing_socket: ManagerOwnedPairingSocket
+    pairing_socket_required: bool = True
 
     _closed: bool = False
 
@@ -862,6 +867,11 @@ def build_simplified_product_pairing_composition(
     = PahoNodeIdentityProvisioner,
     pairing_runtime_factory: Callable[..., Any]
     = assemble_simplified_pairing_runtime,
+    first_registration_intent: FirstRegistrationIntent | None = None,
+    first_registration_complete_callback: (
+        Callable[[str], None] | None
+    ) = None,
+    http_only: bool = False,
 ) -> SimplifiedProductPairingComposition:
     settings.validate()
     config.validate()
@@ -993,6 +1003,23 @@ def build_simplified_product_pairing_composition(
             )
         )
 
+        first_registration_ledger = (
+            registry.first_registration_ledger()
+            if first_registration_intent is not None
+            else None
+        )
+        first_registration_reconciler = (
+            FirstRegistrationReconciler(
+                registry=registry,
+                credential_store=credential_store,
+                application_keys=key_admin,
+                dynsec=identity_provisioner,
+                system_id=settings.system_id,
+            )
+            if first_registration_intent is not None
+            else None
+        )
+
         stager = SimplifiedProvisioningStager(
             identity_provisioner=(
                 identity_provisioner
@@ -1014,6 +1041,9 @@ def build_simplified_product_pairing_composition(
                 config.node_broker_tls_server_name
             ),
             ca_pem=config.node_ca_pem,
+            first_registration_ledger=(
+                first_registration_ledger
+            ),
         )
 
         coordinator = (
@@ -1025,6 +1055,15 @@ def build_simplified_product_pairing_composition(
                 ),
                 session_ttl_s=(
                     settings.pairing_pending_ttl_s
+                ),
+                first_registration_ledger=(
+                    first_registration_ledger
+                ),
+                first_registration_reconciler=(
+                    first_registration_reconciler
+                ),
+                first_registration_complete_callback=(
+                    first_registration_complete_callback
                 ),
             )
         )
@@ -1052,12 +1091,35 @@ def build_simplified_product_pairing_composition(
             )
         )
 
-        pairing_runtime = (
-            pairing_runtime_factory(
-                network_settings,
-                coordinator,
+        if first_registration_intent is None:
+            if http_only:
+                pairing_runtime = (
+                    pairing_runtime_factory(
+                        network_settings,
+                        coordinator,
+                        http_only=True,
+                    )
+                )
+            else:
+                pairing_runtime = (
+                    pairing_runtime_factory(
+                        network_settings,
+                        coordinator,
+                    )
+                )
+        else:
+            pairing_runtime = (
+                pairing_runtime_factory(
+                    network_settings,
+                    coordinator,
+                    first_registration_intent=(
+                        first_registration_intent
+                    ),
+                    first_registration_ledger=(
+                        registry.first_registration_ledger()
+                    ),
+                )
             )
-        )
 
         pairing_socket_path = Path(
             config.pairing_socket_path
@@ -1091,6 +1153,9 @@ def build_simplified_product_pairing_composition(
                     pairing_runtime
                 ),
                 pairing_socket=pairing_socket,
+                pairing_socket_required=(
+                    first_registration_intent is None
+                ),
             )
         )
 

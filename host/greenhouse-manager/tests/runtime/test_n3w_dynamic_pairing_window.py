@@ -913,3 +913,116 @@ def test_closed_controller_does_not_reopen_after_new_instance(
         ]
         is None
     )
+
+
+def test_product_first_registration_window_uses_absolute_transaction_deadline(
+    tmp_path: Path,
+) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from greenhouse_manager.runtime.n3w_first_registration_intent import (
+        FirstRegistrationIntent,
+        FirstRegistrationIntentStore,
+    )
+
+    root = _private_root(tmp_path)
+    compositions: list[FakeComposition] = []
+    opened_at = datetime(2026, 10, 27, 1, 0, tzinfo=UTC)
+    intent = FirstRegistrationIntent.prepare(
+        hardware_id="ghw-c6-00000000000a",
+        pairing_id="c83aeb0d-8f48-4a39-a34b-ea584a588475",
+        source_ip=TEST_PEER_IP,
+        manager_id="manager_lab_01",
+        system_id="greenhouse",
+        setup_secret=bytes(range(32)),
+        opened_at=opened_at,
+        expires_at=opened_at + timedelta(seconds=1800),
+    )
+    FirstRegistrationIntentStore().activate(intent)
+
+    def factory(settings, config, **kwargs):
+        assert kwargs["first_registration_intent"] is intent
+        composition = FakeComposition()
+        composition.pairing_socket_required = False
+        compositions.append(composition)
+        return composition
+
+    controller = DynamicPairingWindowController(
+        _settings(root),
+        route_resolver=lambda peer: TEST_BROKER_IP,
+        composition_factory=factory,
+        min_window_seconds=180,
+        max_window_seconds=600,
+        clock=lambda: 100.0,
+        wall_clock=lambda: opened_at,
+    )
+
+    opened = controller.open_first_registration(intent)
+
+    assert opened["pairing_window_state"] == "OPEN"
+    assert opened["window_mode"] == "first_registration"
+    assert opened["window_seconds"] == 1800
+    assert opened["pairing_host"] == TEST_BROKER_IP
+    assert opened["first_registration_identity_sha256"] is not None
+    assert opened["raw_locator_in_output"] is False
+
+    controller.stop()
+    assert controller.status()["pairing_window_state"] == "CLOSED"
+    assert len(compositions) == 1
+
+
+def test_product_first_registration_window_duplicate_is_idempotent_and_manual_close_blocked(
+    tmp_path: Path,
+) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from greenhouse_manager.runtime.n3w_first_registration_intent import (
+        FirstRegistrationIntent,
+        FirstRegistrationIntentStore,
+    )
+
+    root = _private_root(tmp_path)
+    compositions: list[FakeComposition] = []
+    opened_at = datetime(2026, 10, 27, 2, 0, tzinfo=UTC)
+    intent = FirstRegistrationIntent.prepare(
+        hardware_id="ghw-c6-00000000000a",
+        pairing_id="c83aeb0d-8f48-4a39-a34b-ea584a588475",
+        source_ip=TEST_PEER_IP,
+        manager_id="manager_lab_01",
+        system_id="greenhouse",
+        setup_secret=bytes(range(32)),
+        opened_at=opened_at,
+        expires_at=opened_at + timedelta(seconds=1800),
+    )
+    FirstRegistrationIntentStore().activate(intent)
+
+    def factory(settings, config, **kwargs):
+        composition = FakeComposition()
+        composition.pairing_socket_required = False
+        compositions.append(composition)
+        return composition
+
+    controller = DynamicPairingWindowController(
+        _settings(root),
+        route_resolver=lambda peer: TEST_BROKER_IP,
+        composition_factory=factory,
+        clock=lambda: 100.0,
+        wall_clock=lambda: opened_at,
+    )
+
+    first = controller.open_first_registration(intent)
+    duplicate = controller.open_first_registration(intent)
+
+    assert first["pairing_host"] == duplicate["pairing_host"]
+    assert first["window_seconds"] == duplicate["window_seconds"]
+    assert len(compositions) == 1
+    assert compositions[0].pairing_socket.started == 0
+
+    with pytest.raises(
+        DynamicPairingWindowError,
+        match="first_registration_window_product_owned",
+    ):
+        controller.close_window()
+
+    controller.stop()
+    assert controller.status()["pairing_window_state"] == "CLOSED"
