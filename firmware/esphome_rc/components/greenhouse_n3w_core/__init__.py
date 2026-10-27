@@ -59,6 +59,8 @@ async def to_code(config: dict) -> None:
     include_builtin_idf_component("esp_netif")
     include_builtin_idf_component("esp_wifi")
     include_builtin_idf_component("esp_http_client")
+    include_builtin_idf_component("esp_http_server")
+    include_builtin_idf_component("esp_timer")
     include_builtin_idf_component("mbedtls")
     cg.add_build_flag('-DMBEDTLS_CONFIG_FILE=\\"mbedtls/esp_config.h\\"')
     production_deharness = (

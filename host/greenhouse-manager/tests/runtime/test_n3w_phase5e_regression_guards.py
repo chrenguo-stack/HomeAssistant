@@ -430,7 +430,7 @@ def test_current_n3w_product_target_uses_only_active_core() -> None:
     assert 'root["fw_version"] = "phase4-simple";' not in client
 
 
-def test_product_pairing_qr_is_manager_handoff_gated() -> None:
+def test_product_registration_qr_is_not_manager_handoff_gated() -> None:
     firmware = (
         REPO_ROOT
         / "firmware"
@@ -455,12 +455,13 @@ def test_product_pairing_qr_is_manager_handoff_gated() -> None:
         / "packages"
         / "n3w_product_transport.yml"
     ).read_text(encoding="utf-8")
+
+    # The legacy simplified pairing handoff remains internal protocol state,
+    # but the product QR is now node-local and visible before Manager hello.
     assert "pairing_handoff_ready() const" in client_h
     assert "pairing_handoff_ready_ = true;" in client_cpp
     assert "pairing_handoff_ready_ = false;" in client_cpp
-    assert "pairing_handoff_ready()" in component_h
-    assert "pairing_handoff_ready()" in transport
-    assert "pairing_qr_payload()" in transport
-    assert transport.index("pairing_handoff_ready()") < transport.index(
-        "pairing_qr_payload()"
-    )
+    assert "registration_qr_payload()" in component_h
+    assert "registration_qr_payload()" in transport
+    assert "pairing_handoff_ready()" not in transport
+    assert "pairing_qr_payload()" not in transport
