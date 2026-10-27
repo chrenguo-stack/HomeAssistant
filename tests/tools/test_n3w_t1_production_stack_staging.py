@@ -323,6 +323,7 @@ def test_staging_manager_database_accepts_h0h1_fingerprint(
             CREATE TABLE node_id_leases (id INTEGER);
             CREATE TABLE retirement_outbox (id INTEGER);
             CREATE TABLE credential_assignments (id INTEGER);
+            CREATE TABLE first_registration_attempts (id INTEGER);
             CREATE TABLE h0h1_legacy_adoption_provenance (
                 schema TEXT NOT NULL,
                 classification_result_sha256 TEXT NOT NULL,
@@ -375,6 +376,7 @@ def test_staging_manager_database_rejects_full_sha_provenance(
             CREATE TABLE node_id_leases (id INTEGER);
             CREATE TABLE retirement_outbox (id INTEGER);
             CREATE TABLE credential_assignments (id INTEGER);
+            CREATE TABLE first_registration_attempts (id INTEGER);
             CREATE TABLE h0h1_legacy_adoption_provenance (
                 schema TEXT NOT NULL,
                 classification_result_sha256 TEXT NOT NULL,

@@ -59,6 +59,7 @@ PROVENANCE_SCHEMA = "gh.h0h1.legacy-adoption-provenance/1"
 SYNTHETIC_SYSTEM_ID = "greenhouse-host-only-legacy"
 ARCHIVE_PHRASE = "host-only synthetic archive phrase 20260802"
 BUSINESS_TABLES = (
+    "first_registration_attempts",
     "registrations",
     "pairing_sessions",
     "registration_events",

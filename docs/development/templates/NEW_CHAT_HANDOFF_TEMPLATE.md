@@ -4,6 +4,10 @@
 
 ```text
 HANDOFF_TEMPLATE_VERSION=1.3
+SOLE_VALID_HANDOFF_TEMPLATE_VERSION=1.3
+OLDER_HANDOFF_TEMPLATE_VERSIONS=INVALID_FOR_NEW_HANDOFF_GENERATION
+HISTORICAL_TEMPLATE_COPIES=HISTORICAL_EVIDENCE_ONLY
+HISTORICAL_HANDOFF_STANDARD_DOES_NOT_AUTHORIZE_OLD_TEMPLATE=true
 PROJECT_WORKING_CONTEXT_VERSION=1.1
 PROJECT_WORKING_CONTEXT=docs/development/N3W_PROJECT_WORKING_CONTEXT.md
 NEXT_ONE_GATE_ONLY=true
@@ -11,7 +15,8 @@ TEAM_SHARED_WORKSPACE=GITHUB
 ```
 
 > 本文只保存“当前阶段增量”。长期工作规则统一引用 `N3W_PROJECT_WORKING_CONTEXT.md`，不要重复抄写。  
-> 如 handoff 指定 exact handoff standard authority，按指定 commit 读取。  
+> **V1.3 是当前唯一有效的新会话交接模板。V1.0/V1.1/V1.2 及任何 historical template copy 仅作历史证据，禁止用于生成新的 formal handoff。**  
+> 如 handoff 指定 exact handoff standard authority，只读取其 standard/process 规则；除非该 authority 本身就是当前 V1.3 blob，否则不得回退使用其中旧 template。  
 > fresh repository/runtime/live evidence 与本文冲突时，以 fresh 直接证据为准并先停止执行。
 
 ---

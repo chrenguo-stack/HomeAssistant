@@ -49,7 +49,19 @@ HISTORICAL_STATE_IS_NOT_CURRENT_STATE=true
 INFERENCE_IS_NOT_PROVEN_FACT=true
 ```
 
-If a handoff names an exact historical handoff-standard authority, read that exact commit. Do not assume current `main` contains the same historical standard file.
+If a handoff names an exact historical handoff-standard authority, read that exact commit for its standard/process rules. Do not assume current `main` contains the same historical standard file.
+
+Formal handoff template authority is separate from historical standard authority:
+
+```text
+SOLE_VALID_HANDOFF_TEMPLATE=docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md
+SOLE_VALID_HANDOFF_TEMPLATE_VERSION=1.3
+OLDER_HANDOFF_TEMPLATE_VERSIONS=INVALID_FOR_NEW_HANDOFF_GENERATION
+HISTORICAL_TEMPLATE_COPIES=HISTORICAL_EVIDENCE_ONLY
+HISTORICAL_STANDARD_MAY_NOT_REACTIVATE_OLD_TEMPLATE=true
+```
+
+A historical commit may remain authoritative for a process standard while its bundled historical handoff template is obsolete. New formal handoffs must use the current V1.3 template unless the repository later explicitly promotes a newer template.
 
 ---
 

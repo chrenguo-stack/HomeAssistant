@@ -21,6 +21,7 @@ SCHEMA = "gh.n3w-t1-fresh-product-state/1"
 EXPECTED_MANAGER_TABLES = frozenset(
     {
         "credential_assignments",
+        "first_registration_attempts",
         "node_id_leases",
         "pairing_sessions",
         "registration_events",

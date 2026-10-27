@@ -81,6 +81,114 @@ ancestor of the rebound head, then run the required source and Exact Closure
 review. No T1, board, firmware, NVS or live-runtime mutation is authorized by
 this state.
 
+## 2026-10-26 — Handoff template authority correction
+
+~~~text
+HANDOFF_TEMPLATE_AUTHORITY_CORRECTION_20261026=true
+
+SOLE_VALID_HANDOFF_TEMPLATE_PATH=docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md
+SOLE_VALID_HANDOFF_TEMPLATE_VERSION=1.3
+SOLE_VALID_HANDOFF_TEMPLATE_BLOB=6ecb74451c4bb35f57c8003ee15fbdf65f7dad15
+
+OLDER_HANDOFF_TEMPLATE_VERSIONS=INVALID_FOR_NEW_HANDOFF_GENERATION
+HISTORICAL_TEMPLATE_COPIES=HISTORICAL_EVIDENCE_ONLY
+HISTORICAL_HANDOFF_STANDARD_DOES_NOT_AUTHORIZE_OLD_TEMPLATE=true
+
+INCORRECT_R2A_TO_R2B_HANDOFF_COMMIT=f0c651bc64ffeaa768b9e6baab7f0f636ba08c3d
+INCORRECT_HANDOFF_DISPOSITION=SUPERSEDED_INVALID_TEMPLATE_GENERATION
+CORRECTED_HANDOFF_COMMIT=032cd7bb57eb39c0bdc68e075d32e1003a5e34f9
+CORRECTED_HANDOFF_TEMPLATE_VERSION=1.3
+CORRECTED_HANDOFF_BLOB=56bdf8083491b5d699834ad027829d66abaaeab8
+
+KNOWN_FAILURES_UPDATE_REQUIRED=false
+~~~
+
+The repository currently contains one active handoff template file under
+`docs/development/templates/`, and it is V1.3. Older template versions survive only
+in Git history or historical documents; they are now explicitly invalid for generating
+new formal handoffs.
+
+The R2A→R2B handoff at the same path was regenerated with V1.3. The earlier
+`f0c651bc...` version used a historical template and is superseded evidence only.
+
+## 2026-10-26 — Scan-triggered first registration R2A durable ledger CLOSED_PASS
+
+~~~text
+TASK=N3W_SCAN_TRIGGERED_FIRST_PAIRING_SOURCE_IMPLEMENTATION_R2A_FINAL_CLOSURE_REVIEW_20261026_02
+
+MAIN=507dbd49495c558b1344f7d713938b733b3bad18
+
+PR679_DESIGN_HEAD=81dbf9de789232df7dadf21f4bd37bb5c9fc67d5
+PR679_STATE=OPEN_DRAFT
+PR679_MERGED=false
+
+PR680_R1_HEAD=e74913056f6c1d54e553e5b1037f7de3ef3172c8
+PR680_R1_CI=25/25_PASS
+PR680_R1_READY=YES
+PR680_MERGED=false
+
+PR681_R2A_HEAD=7c7cdf8bd37ba23201995002c7bcb91fe017bd1e
+PR681_R2A_CI=19/19_PASS
+PR681_STATE=OPEN_DRAFT
+PR681_MERGEABLE=true
+PR681_MERGED=false
+
+R2A_LEDGER_CORE=PASS
+R2A_SAME_DB_TRANSACTION_BOUNDARY=PASS
+R2A_SECRET_FREE_SCHEMA=PASS
+R2A_REPLAY_AND_SINGLE_ACTIVE=PASS
+R2A_OWNERSHIP_STAGING=PASS
+R2A_COMMIT_PHASE_BOUNDARY=PASS
+R2A_TERMINAL_MAPPING=PASS
+R2A_CORRUPTION_FAIL_CLOSED=PASS
+R2A_CLEAN_STATE_AUTHORITY=PASS
+
+NEW_BLOCKER_COUNT=0
+SOURCE_REPAIR_REQUIRED=NO
+R2A_READY=YES
+R2B_ENTRY_READY=YES
+
+R2B_SOURCE_MUTATION=false
+R2C_SOURCE_MUTATION=false
+R3_SOURCE_MUTATION=false
+
+T1_ACCESS=false
+BOARD_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+WORKFLOW_DISPATCH=false
+MERGE=false
+MERGE_AUTHORIZED=false
+
+GATE_RESULT=PASS_STOP
+NEXT_ONE_GATE=N3W_SCAN_TRIGGERED_FIRST_PAIRING_SOURCE_IMPLEMENTATION_R2B_CROSS_STORE_RECONCILIATION_SOURCE_DESIGN_AND_PREFLIGHT_20261026_01
+~~~
+
+R2A establishes the durable `first_registration_attempts` ledger inside the same
+`RegistrationRegistry` SQLite database and transaction authority. It preserves a
+secret-free recovery schema, permanent pairing-id replay tombstones, at most one
+ACTIVE transaction, unresolved-cleanup admission blocking, HELLO-before-prestate
+ownership staging, BUNDLE_STAGED ownership proof, and COMMITTING-before-COMMITTED.
+
+The final review also closed the last reader-side corruption false-PASS:
+`EXPIRED` now requires `terminal_reason=expired`, while
+`RESTART_INVALIDATED` requires `terminal_reason=replay_detected`. The inverse
+corrupt mappings are covered by direct reader regressions. Exact-head
+greenhouse-manager CI reported 1430 passed / 1 skipped; repository PR-head CI is
+19/19 PASS.
+
+R2A does not implement cross-store commit classification, restart/deadline
+reconciliation, destructive cleanup, or SYSTEM_PEER_KEY lifecycle changes. Those
+remain R2B/R2C work. PR #681 is therefore not merge-ready as a complete R2 PR.
+
+The R2B read-only seam preflight is already frozen in PR #681 discussion:
+RegistrationRegistry and CredentialLifecycle require exact pairing-id lookup;
+application-key requires a secret-free per-node/epoch snapshot; DynSec requires an
+exact deterministic-plan inspector that proves client-id, role assignment and ACL
+structure. The reconciler must emit only COMMITTED / DEFINITELY_NOT_COMMITTED /
+UNKNOWN, with UNKNOWN fail-closed.
+
+KNOWN_FAILURES_UPDATE=NOT_REQUIRED_NO_NEW_PROJECT_FAILURE
+
 ## 2026-10-23 — Board_D current-main product source convergence R4 CLOSED_PASS
 
 ~~~text

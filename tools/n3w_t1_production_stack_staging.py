@@ -93,6 +93,7 @@ OPT_ROOT = Path("/opt/HomeAssistant")
 EXPECTED_MANAGER_TABLES = frozenset(
     {
         "credential_assignments",
+        "first_registration_attempts",
         "h0h1_legacy_adoption_provenance",
         "node_id_leases",
         "pairing_sessions",
@@ -104,6 +105,7 @@ EXPECTED_MANAGER_TABLES = frozenset(
 )
 BUSINESS_TABLES = (
     "credential_assignments",
+    "first_registration_attempts",
     "node_id_leases",
     "pairing_sessions",
     "registration_events",
@@ -173,7 +175,7 @@ SOURCE_FILES: dict[str, tuple[str, int, str]] = {
     "tools/n3w_t1_production_manager_state_prepare.py": (
         "/opt/HomeAssistant/tools/n3w_t1_production_manager_state_prepare.py",
         0o755,
-        "a5811e28d93b85d5a11f7220cf4179ab4fd24846c8492aef1580fa7c62acd56f",
+        "91de56e0cceba81dccce41b25ba27388874c3475ae24653c9b526b5a3569f67a",
     ),
 }
 
