@@ -642,11 +642,26 @@ Before initial application-key staging:
 
 These prestate facts are necessary but not sufficient destructive-cleanup authority. After the complete first-registration stage operation returns successfully, and before the encrypted bundle is returned to the node, Manager must durably write `phase=BUNDLE_STAGED`, the exact `node_id`, the exact initial `application_key_epoch`, and `delivery_digest_sha256 = SHA256(delivery_digest_bytes)`.
 
-Automatic DynSec/application-key cleanup requires both:
-- the corresponding durable prestate-absent proof; and
-- durable `phase=BUNDLE_STAGED` or later, proving the stage operation completed successfully.
+R2B freezes one additional historical ownership predicate so terminalization cannot erase the proof that staging completed:
 
-If the process dies after an external object may have been created but before `BUNDLE_STAGED` is durably recorded, ownership is ambiguous. Recovery remains fail-closed and must not delete that target automatically. Target presence or an attempted create is not ownership proof; this explicitly preserves KF-060.
+```text
+STAGE_COMPLETION_PROVEN :=
+  node_id is not null
+  AND dynsec_prestate_absent == true
+  AND application_key_prestate_absent == true
+  AND application_key_epoch is not null
+  AND delivery_digest_sha256 is not null
+```
+
+Only the successful `mark_bundle_staged()` transition may first make the final two fields non-null. It does so only after the complete stage operation has returned successfully. Once this tuple exists, later `COMMITTING` or `TERMINAL` transitions must preserve it unchanged. Therefore, while an attempt is active, `phase=BUNDLE_STAGED|COMMITTING` is the immediate stage-completion proof; after terminalization, the preserved complete tuple is the durable historical proof that the transaction had reached `BUNDLE_STAGED` or later.
+
+The reader/schema contract must reject or fail closed on an impossible partial staged tuple. In particular, `application_key_epoch` and `delivery_digest_sha256` must be either both absent or both present; when present, `node_id` and both prestate-absent flags must also be present/true. A terminal row with no complete staged tuple is valid only as a pre-stage tombstone and has no DynSec/application-key destructive-cleanup authority. A partial or contradictory tuple classifies recovery as `UNKNOWN`, never as owned cleanup.
+
+Automatic DynSec/application-key cleanup therefore requires both:
+- the corresponding durable prestate-absent proof; and
+- durable stage-completion proof: active `BUNDLE_STAGED|COMMITTING`, or the preserved complete staged tuple after terminalization.
+
+If the process dies after an external object may have been created but before stage completion is durably proven, ownership is ambiguous. Recovery remains fail-closed and must not delete that target automatically. Target presence or an attempted create is not ownership proof; this explicitly preserves KF-060.
 
 The NODE_ID lease remains never-reused and is an additional binding, not a substitute for the two-part ownership proof.
 
@@ -697,6 +712,36 @@ DynSec:
   client-role assignment and role ACL structure match the deterministic plan
 ```
 
+R2B read-only oracle seams are frozen before implementation:
+
+1. **RegistrationRegistry exact pairing snapshot**
+   - add an internal/read-only lookup keyed by exact `pairing_id`; do not recover this state by scanning `list_current()` or guessing from hardware ID;
+   - the snapshot must expose the exact pairing session, raw hardware ID for internal hash verification, whether this pairing is the current registration pointer, node ID, registration state, and the node-lease owner/state;
+   - COMMITTED requires the pairing to be current, hardware hash and node ID to match the ledger, registration state `APPROVED`, and the exact node lease to be `ACTIVE` **for the same hardware ID**;
+   - missing rows are explicit absence; read/schema inconsistency is not absence and propagates UNKNOWN;
+   - raw hardware ID stays internal to reconciliation and is not emitted in public diagnostics.
+
+2. **CredentialLifecycle exact pairing snapshot**
+   - add a secret-free lookup keyed by exact `pairing_id`, returning assignment identity, hardware ID, node ID, state, active generation and pending generation;
+   - because the current schema does not make `pairing_id` unique, zero matches means absent, exactly one means inspectable, and more than one is contradictory/UNKNOWN rather than “pick latest”;
+   - COMMITTED requires exactly one matching ACTIVE assignment with ledger node ID, generation 1 and no pending generation;
+   - an ACTIVE assignment for the same hardware/node under a different pairing ID, or a malformed/ambiguous exact-pairing result, is contradictory evidence and cannot satisfy DEFINITELY_NOT_COMMITTED.
+
+3. **Application-key exact node/epoch snapshot**
+   - add a secret-free snapshot keyed by exact `node_id + key_epoch`; it may verify the key file internally but must never return key bytes;
+   - the snapshot must report exact epoch existence/state/enabled status, verify the referenced key file and stored SHA-256 binding when material is expected to exist, and report all ACTIVE/GRACE epochs for the same node so conflicts cannot be hidden;
+   - COMMITTED requires the recorded epoch to be exactly ACTIVE/enabled, key-file binding valid, and no conflicting ACTIVE/GRACE epoch;
+   - missing/corrupt/unreadable key metadata or file material is UNKNOWN, not a successful COMMITTED oracle.
+
+4. **DynSec deterministic exact-plan inspector**
+   - name presence from `listClients`/`listRoles` alone is insufficient;
+   - successful inventories establish readable presence/absence. If expected names are present, inspect them with exact `getClient` and `getRole` reads;
+   - compare username, client ID, exact role assignment/priority, and the role ACL set against `build_node_provisioning_plan(system_id, node_id, generation=1)`; missing, extra or changed ACL/role structure is a mismatch;
+   - password material is neither readable nor required by this oracle;
+   - transport/read/shape errors propagate UNKNOWN. A generic `getClient`/`getRole` error must not be silently treated as “absent”.
+
+All four oracles are observation-only. They must not repair, provision, revoke, rotate, delete or normalize state while classification is in progress.
+
 If all are true **and the durable phase is COMMITTING**, a crash after underlying credential commit but before the ledger update is recovered by promoting the ledger to `COMMITTED`. This is the only crash-recovery path that preserves the old transaction as success. Cross-store state that happens to look consistent without a durable COMMITTING receipt claim is ambiguous and does not qualify.
 
 Commit recovery uses a three-valued classification:
@@ -723,10 +768,29 @@ Only DEFINITELY_NOT_COMMITTED may enter automatic destructive cleanup. UNKNOWN n
 
 On Manager startup, before product registration listeners become ready, process every non-clean terminal or `ACTIVE`/`COMMITTING` attempt under one reconciliation lock.
 
-For an unfinished attempt, first durably prevent the old pairing ID from resuming, then classify cross-store commit state:
+Re-entry semantics are stateful:
+- `ACTIVE` attempts, including durable `phase=COMMITTING`, are classified from preserved pre-terminal evidence;
+- terminal `cleanup_state=REQUIRED` is the durable receipt that the exact classifier already returned `DEFINITELY_NOT_COMMITTED`; do **not** re-run commit classification after partial cleanup has started, resume the exact-owned idempotent cleanup directly;
+- terminal `cleanup_state=FAILED` remains fail-closed and must not be automatically promoted to REQUIRED or COMMITTED; a separately reviewed recovery path is required;
+- terminal `cleanup_state=COMPLETE` and `COMMITTED` need no cleanup.
+
+Only the reconciliation coordinator may create a terminal `cleanup_state=REQUIRED` transition, and only immediately from an exact `DEFINITELY_NOT_COMMITTED` classification. This makes REQUIRED the persistent classification authority needed across a second crash.
+
+For an unfinished ACTIVE attempt, first make the old pairing ID non-resumable **without destroying any commit-oracle evidence**, then classify cross-store commit state.
+
+Before classification:
+- startup keeps 47110/47111 product registration readiness closed and 47112 is absent;
+- an existing ACTIVE ledger row without the exact current-process RAM intent is already non-resumable under the replay rule in 6.2;
+- deadline reconciliation closes 47112 at the original `expires_at` and never grants a fresh deadline;
+- the reconciliation lock prevents a concurrent final ACK/expiry decision;
+- **do not** change ledger `phase=COMMITTING`, RegistrationRegistry `APPROVED` state, NODE_ID lease state, credential state, application-key state, or DynSec state before classification, because those are classifier inputs.
+
+If the process crashes again during this pre-classification window, the same durable ACTIVE/COMMITTING row is processed again before listeners become ready. No extra terminal marker is required merely to make the old pairing ID non-resumable.
+
+Then classify the preserved pre-terminal evidence:
 
 ```text
-old pairing id -> non-resumable under restart/deadline boundary
+old pairing id -> non-resumable by readiness/deadline/replay guards
 classification = COMMITTED | DEFINITELY_NOT_COMMITTED | UNKNOWN
 
 if classification == COMMITTED:
@@ -739,20 +803,30 @@ elif classification == DEFINITELY_NOT_COMMITTED:
     cleanup_state = REQUIRED
 else:
     state = EXPIRED if now >= expires_at else RESTART_INVALIDATED
+    phase = TERMINAL
     cleanup_state = FAILED
     no destructive cleanup
     registration readiness = fail closed
 ```
 
-The old pairing ID is non-resumable before any destructive cleanup starts. UNKNOWN is not converted into DEFINITELY_NOT_COMMITTED merely because the commit oracle did not PASS.
+Only after classification may terminal ledger/RegistrationRegistry mutation occur. The old pairing ID is non-resumable before any destructive cleanup starts, but COMMITTING/APPROVED evidence is never erased before the classifier consumes it. UNKNOWN is not converted into DEFINITELY_NOT_COMMITTED merely because the commit oracle did not PASS.
 
 If commit is not proven, exact cleanup is:
 1. recover raw hardware ID only through the pairing-session row keyed by this pairing ID and verify its SHA-256 equals the ledger binding;
-2. only if `dynsec_prestate_absent=true` and durable phase proves `BUNDLE_STAGED` or later, rebuild the deterministic generation-1 plan from configured system ID + ledger node ID and remove only that exact client/role if present;
-3. only if `application_key_prestate_absent=true`, durable phase proves `BUNDLE_STAGED` or later, and the exact recorded `application_key_epoch` matches, revoke/remove that transaction-owned key epoch, including STAGED or temporarily ACTIVE material that has no exact committed MQTT generation-1 oracle;
-4. rollback the exact automatic approval/lease and terminalize the old pairing-session row;
+2. only if `dynsec_prestate_absent=true` and durable stage-completion proof exists, rebuild the deterministic generation-1 plan from configured system ID + ledger node ID and remove only that exact client/role if present;
+3. only if `application_key_prestate_absent=true`, durable stage-completion proof exists, and the exact recorded `application_key_epoch` matches, revoke/remove that transaction-owned key epoch, including STAGED or temporarily ACTIVE material that has no exact committed MQTT generation-1 oracle;
+4. rollback the exact automatic approval/lease with a reconciliation-specific operation that preserves permanent NODE_ID non-reuse and terminalizes the old pairing-session row; the existing retry-oriented `rollback_automatic_approval()` behavior that returns the session to `PENDING` is not sufficient for restart/deadline reconciliation;
 5. prove there is no ACTIVE credential assignment for the old pairing ID;
 6. set `cleanup_state=COMPLETE`.
+
+The reconciliation-specific RegistrationRegistry terminal mapping is exact:
+- canonical deadline expiry -> pairing session `EXPIRED` with reason `expired`;
+- process-boundary restart invalidation before durable commit -> pairing session terminal/rejected with reason `replay_detected`;
+- neither path may return the old pairing session to `PENDING`.
+
+Because the first-registration ledger, pairing session, registration pointer, assignment history and NODE_ID lease share the RegistrationRegistry SQLite connection/lock, the local RegistrationRegistry cleanup transition must be one atomic transaction: preserve the old session tombstone, retire the never-reusable NODE_ID lease if one was allocated, close the open assignment history if present, clear the abandoned current registration identity/pointer as required, and leave the exact terminal reason. Do not compose this from externally visible partial local mutations.
+
+External cleanup remains restartable/idempotent. A terminal attempt with `cleanup_state=REQUIRED` re-enters the same exact-owned sequence after a crash **without reclassification**. If a transaction-owned DynSec object or key epoch was already removed/revoked by an earlier partial cleanup, exact absence/revoked state may count as that cleanup step already complete **only because both the durable REQUIRED classification receipt and durable ownership proof exist**; absence alone never creates ownership. `cleanup_state=COMPLETE` is written only after every required external step, the atomic RegistrationRegistry transition, and the final no-ACTIVE-credential check succeed.
 
 Restart before `/hello` has no pairing-session row, so steps 1-5 have nothing to clean; the ledger tombstone alone is sufficient.
 
@@ -1546,12 +1620,23 @@ Prove:
 - DynSec target absence is durably proven before first provision, but absence alone does not authorize later deletion;
 - application-key prestate absence is durably proven before first stage;
 - successful stage completion is durably recorded as `BUNDLE_STAGED` with exact node ID and application-key epoch before the encrypted bundle is returned;
-- automatic destructive cleanup requires both prestate-absent proof and BUNDLE_STAGED-or-later proof;
+- automatic destructive cleanup requires both prestate-absent proof and durable stage-completion proof;
 - crash after possible external creation but before BUNDLE_STAGED is treated as ambiguous and fail-closed, not auto-deleted;
 - restart after proven BUNDLE_STAGED removes exact transaction-owned DynSec identity and exact STAGED application-key epoch;
+- terminalization after BUNDLE_STAGED preserves the complete staged ownership tuple across close/reopen, so a second restart during cleanup does not lose destructive-cleanup authority;
+- a terminal pre-stage tombstone has no staged ownership tuple and therefore has no DynSec/application-key destructive-cleanup authority;
+- any partial/contradictory terminal staged tuple is rejected or classified UNKNOWN rather than treated as owned cleanup;
+- restart/deadline registration reconciliation never reopens the predecessor pairing session as PENDING;
 - crash after application key ACTIVE but before MQTT credential ACTIVE rolls back uncommitted key/identity/approval;
 - crash after exact MQTT generation-1 activation but before ledger COMMITTED is promoted to COMMITTED only when durable phase=COMMITTING and the full cross-store commit oracle passes;
 - unreadable stores or contradictory registration/key/DynSec evidence classify UNKNOWN and cause fail-closed reconciliation, never guessed rollback/success;
+- pre-classification restart/deadline guards make the old pairing non-resumable without rewriting COMMITTING/APPROVED or other commit-oracle evidence;
+- a second crash during pre-classification reconciliation re-runs classification from the same durable evidence before listeners become ready;
+- terminal REQUIRED is written only from DEFINITELY_NOT_COMMITTED and survives as the durable classification receipt across later restarts;
+- a second crash after destructive cleanup has started resumes REQUIRED cleanup without re-running commit classification against already-mutated stores;
+- terminal FAILED never auto-promotes to REQUIRED/COMMITTED;
+- crash after each external cleanup step resumes the same exact-owned cleanup idempotently and cannot widen deletion scope;
+- RegistrationRegistry local rollback/terminalization is atomic under the shared SQLite transaction and cannot expose a half-retired NODE_ID/session state;
 - automatic cleanup is reachable only from DEFINITELY_NOT_COMMITTED, never merely from “commit oracle did not PASS”;
 - cleanup failure blocks subsequent first registration while 47112 remains closed;
 - same old pairing ID receives terminal `replay_detected` or `expired`, never a fresh deadline;
@@ -1714,11 +1799,27 @@ RESTART_PRE_HELLO_PAIRING_ID_TOMBSTONED=true
 RESTART_POST_HELLO_UNCOMMITTED_SIDE_EFFECT_RECONCILIATION=true
 DYNSEC_DESTRUCTIVE_CLEANUP_REQUIRES_DURABLE_PRESTATE_AND_STAGE_COMPLETION=true
 APPLICATION_KEY_CLEANUP_REQUIRES_DURABLE_PRESTATE_AND_STAGE_COMPLETION=true
+TERMINALIZATION_PRESERVES_STAGE_COMPLETION_PROOF=true
+TERMINAL_STAGE_COMPLETION_PROOF=COMPLETE_PERSISTED_STAGED_OWNERSHIP_TUPLE
+PARTIAL_TERMINAL_STAGED_TUPLE=UNKNOWN_FAIL_CLOSED
+RECONCILIATION_REGISTRATION_ROLLBACK_MAY_NOT_RETURN_PAIRING_TO_PENDING=true
+REGISTRATION_LOCAL_RECONCILIATION_ATOMIC_SAME_SQLITE_TRANSACTION=true
+EXTERNAL_CLEANUP_RESTARTABLE_IDEMPOTENT=true
+TERMINAL_REQUIRED_IS_DURABLE_DEFINITELY_NOT_COMMITTED_RECEIPT=true
+TERMINAL_REQUIRED_REENTRY_RECLASSIFIES=false
+TERMINAL_FAILED_AUTO_PROMOTION=false
 TARGET_PRESENCE_ALONE_PROVES_OWNERSHIP=false
 LEDGER_SAME_SQLITE_DATABASE_AS_REGISTRATION=true
 COMMIT_RECOVERY_REQUIRES_DURABLE_COMMITTING_PHASE=true
+PRECLASSIFICATION_GUARD_MAY_NOT_DESTROY_COMMIT_ORACLE_EVIDENCE=true
+RECONCILIATION_LISTENERS_READY_ONLY_AFTER_CLASSIFICATION=true
 ACK_SUCCESS_REQUIRES_DURABLE_LEDGER_COMMITTED=true
 EXACT_CROSS_STORE_COMMIT_ORACLE=true
+REGISTRATION_PAIRING_ORACLE=EXACT_PAIRING_PLUS_CURRENT_POINTER_PLUS_LEASE_OWNER
+CREDENTIAL_PAIRING_ORACLE=EXACT_PAIRING_ZERO_ONE_OR_CONTRADICTORY
+APPLICATION_KEY_ORACLE=SECRET_FREE_EXACT_NODE_EPOCH_PLUS_KEY_BINDING_AND_RUNTIME_CONFLICTS
+DYNSEC_ORACLE=EXACT_GETCLIENT_GETROLE_PLAN_STRUCTURE
+CLASSIFICATION_ORACLES_ARE_READ_ONLY=true
 RECONCILIATION_CLASSIFICATION=COMMITTED_OR_DEFINITELY_NOT_COMMITTED_OR_UNKNOWN
 AUTOMATIC_DESTRUCTIVE_CLEANUP_REQUIRES_DEFINITELY_NOT_COMMITTED=true
 UNKNOWN_RECONCILIATION_FAILS_REGISTRATION_CLOSED=true
@@ -1778,7 +1879,7 @@ The focused closure review must independently verify:
 - 47110 durable `ACTIVE` attempt commit happens before `accepted=true`;
 - the ledger stores no Setup Secret/credential/key material and closes restart-before-`/hello` replay;
 - restart/deadline reconciliation covers PENDING registration, automatic NODE_ID lease, DynSec identity, staged/temporarily-active application key and exact MQTT generation-1 commit state;
-- destructive DynSec/key cleanup requires both durable prestate-absent proof and durable BUNDLE_STAGED-or-later completion proof; target presence alone cannot authorize deletion;
+- destructive DynSec/key cleanup requires both durable prestate-absent proof and durable stage-completion proof that survives terminalization; target presence alone cannot authorize deletion;
 - the ledger shares the RegistrationRegistry SQLite database for atomic local transitions; no sidecar ledger database is allowed;
 - commit recovery requires a prior durable COMMITTING receipt claim, and 47112 cannot return committed success before exact oracle PASS + durable ledger COMMITTED;
 - the exact cross-store commit oracle distinguishes commit-complete/ledger-lag from stranded pre-commit state;
