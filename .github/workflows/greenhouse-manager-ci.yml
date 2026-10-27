@@ -113,6 +113,8 @@ jobs:
         run: pytest -q tests/n3w_registration/test_scan_triggered_first_pairing_r4_portal_contract.py
       - name: N3-W scan-triggered first-registration R5 source contracts
         run: pytest -q tests/n3w_registration/test_scan_triggered_first_pairing_r5_discovery_contract.py
+      - name: N3-W scan-triggered first-registration R6 TLS bootstrap contracts
+        run: pytest -q tests/n3w_registration/test_scan_triggered_first_pairing_r6_tls_bootstrap_contract.py
       - name: Build and run C++ cross-language vectors
         shell: bash
         run: |
