@@ -26,6 +26,7 @@
 #include "n3w_registration_bootstrap_client.h"
 #include "n3w_registration_bootstrap_transport.h"
 #include "n3w_registration_discovery.h"
+#include "n3w_registration_display.h"
 #include "n3w_registration_portal.h"
 #include "n3w_simple_pairing_client.h"
 #include "n3w_simple_product_runtime.h"
@@ -106,6 +107,14 @@ class SimpleProductComponent : public Component,
   }
   std::string registration_qr_payload() const {
     return registration_portal_.qr_payload();
+  }
+  RegistrationDisplayState registration_display_state() const;
+  RegistrationDisplayError registration_display_error() const;
+  uint8_t registration_display_state_code() const {
+    return static_cast<uint8_t>(registration_display_state());
+  }
+  uint8_t registration_display_error_code() const {
+    return static_cast<uint8_t>(registration_display_error());
   }
   bool registration_scan_trigger_pending() const {
     return registration_portal_.scan_trigger_pending();
@@ -276,6 +285,9 @@ class SimpleProductComponent : public Component,
   void advance_registration_discovery_();
   void advance_registration_bootstrap_();
   void clear_registration_discovery_();
+  RegistrationDisplayState registration_display_base_state_() const;
+  void show_registration_error_(RegistrationDisplayError error);
+  void show_registration_success_();
   void advance_pairing_();
   void advance_recovery_();
   bool claim_relay_radio_();
@@ -454,12 +466,14 @@ class SimpleProductComponent : public Component,
   RegistrationPortal registration_portal_;
   RegistrationDiscovery registration_discovery_{};
   Esp32RegistrationBootstrapTransport registration_bootstrap_transport_{};
+  RegistrationDisplayController registration_display_controller_{};
   std::vector<RegistrationCandidateV1> registration_candidates_{};
   RegistrationCandidateV1 selected_registration_candidate_{};
   RegistrationBootstrapConfirmResult registration_bootstrap_result_{};
   std::string registration_session_pairing_id_{};
   bool registration_candidate_selected_{false};
   bool registration_bootstrap_accepted_{false};
+  bool registration_wifi_loss_reported_{false};
   SimpleProductRuntime runtime_;
   NvsSetupSecretStore setup_secret_store_{};
   NvsProvisionedPeerStoreV2 peer_store_{};

@@ -115,6 +115,19 @@ jobs:
         run: pytest -q tests/n3w_registration/test_scan_triggered_first_pairing_r5_discovery_contract.py
       - name: N3-W scan-triggered first-registration R6 TLS bootstrap contracts
         run: pytest -q tests/n3w_registration/test_scan_triggered_first_pairing_r6_tls_bootstrap_contract.py
+      - name: N3-W scan-triggered first-registration R7 LCD state contracts
+        run: pytest -q tests/n3w_registration/test_scan_triggered_first_pairing_r7_lcd_state_contract.py
+      - name: Build and run R7 registration display controller
+        shell: bash
+        run: |
+          set -euo pipefail
+          core=firmware/esphome_rc/components/greenhouse_n3w_core
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror \
+            -I"$core" \
+            "$core/n3w_registration_display.cpp" \
+            tests/n3w_registration/n3w_registration_display_host_test.cpp \
+            -o /tmp/n3w-registration-display-host-test
+          /tmp/n3w-registration-display-host-test
       - name: Build and run C++ cross-language vectors
         shell: bash
         run: |

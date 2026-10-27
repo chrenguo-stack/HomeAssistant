@@ -2,6 +2,7 @@ spi:
   id: bus_spi
   clk_pin: GPIO2
   mosi_pin: GPIO3
+  interface: hardware
 
 # 延续 14.8 已验证的 LCD12864 像素字体与界面布局。
 font:
@@ -9,13 +10,13 @@ font:
     id: f10
     size: 10
     bpp: 1
-    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~℃°µ³手机相扫码配置节点如需重网络请快速断电启次今日昨较池即将耗尽及时充添加等待"
+    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~℃°µ³手机相扫码配置节点如需重网络请快速断电启次今日昨较池即将耗尽及时充添加等待联注册正在搜索确认看中稍候成功未找到主不可用忙超失败二维效"
 
   - file: "fonts/fusion-pixel-12px-monospaced-zh_hans.bdf"
     id: f12
     size: 12
     bpp: 1
-    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~℃°µ二氧化碳气温湿度光照土壤盐传感器失联请检查接线项故障配扫码点置网正启重断电三次进入当前址成功在已连络手机相或动蒸压差露绝对累积今日昨如需快速充设备中量低找主"
+    glyphs: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~℃°µ二氧化碳气温湿度光照土壤盐传感器失联请检查接线项故障配扫码点置网正启重断电三次进入当前址成功在已连络手机相或动蒸压差露绝对累积今日昨如需快速充设备中量低找主注册搜索等待确认看稍候未到不可用忙超时败维效"
 
   - file: "fonts/ark-pixel-16px-monospaced-zh_cn.bdf"
     id: f16
@@ -36,6 +37,18 @@ globals:
     type: bool
     restore_value: false
     initial_value: 'false'
+  - id: n3w_registration_qr_ready
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: n3w_registration_display_state
+    type: int
+    restore_value: false
+    initial_value: '0'
+  - id: n3w_registration_display_error
+    type: int
+    restore_value: false
+    initial_value: '0'
 
 qr_code:
   - id: setup_qr
@@ -61,7 +74,12 @@ display:
     rotation: 90
     update_interval: 1s
     lambda: |-
-      const int page = id(display_page);
+      const bool force_registration_page =
+          id(n3w_pairing_display_enabled) &&
+          (!id(n3w_product_provisioned) ||
+           id(n3w_registration_display_state) == 4 ||
+           id(n3w_registration_display_state) == 5);
+      const int page = force_registration_page ? 4 : id(display_page);
 
       // ─── 低电保护画面（最高优先级） ───
       if (id(low_battery_mode)) {
@@ -259,9 +277,50 @@ display:
         it.printf(38, 104, id(f10), "g/m³");
       }
 
-      // ─── PAGE 4：配网 / 首次配对 / 已联网状态 ───
+      // ─── PAGE 4：配网 / 联机注册 / 已联网状态 ───
       if (page == 4) {
-        if (!id(wifi_component).is_connected()) {
+        const int registration_state = id(n3w_registration_display_state);
+        const int registration_error = id(n3w_registration_display_error);
+
+        // SUCCESS / ERROR are bounded R7 presentation latches. They stay
+        // visible briefly even if Wi-Fi/provisioned state changes underneath.
+        if (registration_state == 4) {
+          it.printf(32, 48, id(f12), TextAlign::TOP_CENTER, "注册成功");
+        } else if (registration_state == 5) {
+          const char *error_code = "E06";
+          const char *error_text = "注册失败";
+          switch (registration_error) {
+            case 1:
+              error_code = "E01";
+              error_text = "未找到主机";
+              break;
+            case 2:
+              error_code = "E02";
+              error_text = "主机不可用";
+              break;
+            case 3:
+              error_code = "E03";
+              error_text = "主机忙";
+              break;
+            case 4:
+              error_code = "E04";
+              error_text = "网络中断";
+              break;
+            case 5:
+              error_code = "E05";
+              error_text = "注册超时";
+              break;
+            case 7:
+              error_code = "E07";
+              error_text = "二维码失效";
+              break;
+            case 6:
+            default:
+              break;
+          }
+          it.printf(32, 40, id(f12), TextAlign::TOP_CENTER, "%s", error_code);
+          it.printf(32, 62, id(f10), TextAlign::TOP_CENTER, "%s", error_text);
+        } else if (!id(wifi_component).is_connected()) {
           const int scale = 2;
           const int qr_render = id(setup_qr).get_size() * scale;
           it.qr_code((64 - qr_render) / 2, 14, id(setup_qr), COLOR_ON, scale);
@@ -269,15 +328,25 @@ display:
           it.printf(32, 84, id(f10), TextAlign::TOP_CENTER, "配置节点网络");
           it.printf(32, 100, id(f10), TextAlign::TOP_CENTER, "%s", App.get_name().c_str());
         } else if (id(n3w_pairing_display_enabled) && !id(n3w_product_provisioned)) {
-          if (id(n3w_pairing_display_ready)) {
+          if (registration_state == 1) {
+            it.printf(32, 40, id(f12), TextAlign::TOP_CENTER, "联机注册");
+            it.printf(32, 62, id(f10), TextAlign::TOP_CENTER, "正在搜索");
+          } else if (registration_state == 2) {
+            it.printf(32, 40, id(f12), TextAlign::TOP_CENTER, "等待确认");
+            it.printf(32, 62, id(f10), TextAlign::TOP_CENTER, "请看手机");
+          } else if (registration_state == 3) {
+            it.printf(32, 40, id(f12), TextAlign::TOP_CENTER, "联机注册中");
+            it.printf(32, 62, id(f10), TextAlign::TOP_CENTER, "请稍候");
+          } else if (id(n3w_registration_qr_ready)) {
             const int qr_size = id(pairing_qr).get_size();
             const int scale = qr_size * 2 <= 60 ? 2 : 1;
             const int qr_render = qr_size * scale;
-            it.qr_code((64 - qr_render) / 2, 14, id(pairing_qr), COLOR_ON, scale);
-            it.printf(32, 62, id(f10), TextAlign::TOP_CENTER, "扫码添加节点");
-            it.printf(32, 78, id(f10), TextAlign::TOP_CENTER, "等待添加");
+            it.printf(32, 12, id(f10), TextAlign::TOP_CENTER, "联机注册");
+            it.qr_code((64 - qr_render) / 2, 26, id(pairing_qr), COLOR_ON, scale);
+            it.printf(32, 92, id(f10), TextAlign::TOP_CENTER, "扫码注册");
           } else {
-            it.printf(32, 44, id(f12), TextAlign::TOP_CENTER, "正在查找主机");
+            it.printf(32, 40, id(f12), TextAlign::TOP_CENTER, "联机注册");
+            it.printf(32, 62, id(f10), TextAlign::TOP_CENTER, "请稍候");
           }
         } else {
           static const uint32_t link_icon[14] = {
