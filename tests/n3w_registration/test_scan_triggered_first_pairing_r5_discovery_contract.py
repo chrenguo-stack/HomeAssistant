@@ -38,6 +38,8 @@ def test_r5_reuses_registration_candidate_contract_and_bounded_transports() -> N
     assert "Esp32ManagerDiscoveryNetwork network;" in source
     assert "network.collect_manager_discovery(" in source
     assert "kRegistrationQueryPaddedBytes = 1400" in source
+    assert "if (candidates->empty()) {" in source
+    assert source.index("collect_mdns_(") < source.rindex("collect_udp_(")
 
     assert "build_discovery_query_for_protocol(" in manager_h
     assert "build_discovery_query_for_protocol(" in manager_cpp
