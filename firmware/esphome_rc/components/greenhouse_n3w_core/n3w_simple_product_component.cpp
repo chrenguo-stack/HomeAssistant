@@ -574,6 +574,13 @@ void SimpleProductComponent::advance_registration_portal_() {
         "N3-W local registration portal unavailable; retrying");
     return;
   }
+  const std::string &hardware_id = pairing_client_.hardware_id();
+  if (!hardware_id.empty()) {
+    const std::size_t suffix_size = std::min<std::size_t>(6U, hardware_id.size());
+    registration_portal_.set_node_label(
+        std::string("节点 ") +
+        hardware_id.substr(hardware_id.size() - suffix_size));
+  }
   next_registration_portal_retry_ms_ = 0;
 }
 
