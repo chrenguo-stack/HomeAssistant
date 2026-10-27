@@ -139,3 +139,8 @@ Later work must separately design and authorize:
 - old-profile observation and retirement;
 - reboot and rollback behavior;
 - credential rotation and revocation.
+
+
+## Evergreen CI boundary clarification — 2026-10-27
+
+After the original Stage 2D-2 implementation PR was merged, this workflow remained an evergreen regression gate and is also triggered by broad F1.0-RC2 package changes. The source invariants, fault matrix and dual ESP32-C6 compile checks remain unconditional. Historical changed-path exclusivity is now enforced only when Stage 2D-2 implementation/protocol paths themselves are modified; unrelated product-package regression runs are not reinterpreted as a new Stage 2D-2 implementation PR.
