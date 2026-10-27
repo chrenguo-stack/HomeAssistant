@@ -140,6 +140,7 @@ R5 does not start the 1800-second registration transaction. That begins only aft
 ## 4. Candidate selection
 
 Exactly one candidate:
+- the phone displays a friendly node label derived only from the last 6 hardware-ID characters, matching the existing redacted hardware suffix convention;
 - candidate is displayed on the phone;
 - user confirmation is still required;
 - no automatic 47110 request occurs in R5.
