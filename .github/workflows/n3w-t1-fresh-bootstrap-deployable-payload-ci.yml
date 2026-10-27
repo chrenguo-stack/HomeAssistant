@@ -787,11 +787,31 @@ jobs:
           compression-level: 0
 
       - name: Download uploaded artifact
-        uses: actions/download-artifact@v4
-        with:
-          artifact-ids: ${{ steps.upload.outputs.artifact-id }}
-          path: ${{ runner.temp }}/redownload
-          merge-multiple: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPLOADED_ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+        run: |
+          set -euo pipefail
+          DEST="$RUNNER_TEMP/redownload"
+          ZIP="$RUNNER_TEMP/redownload.zip"
+          PART="$ZIP.part"
+          rm -rf "$DEST" "$ZIP" "$PART"
+          mkdir -p "$DEST"
+          for attempt in {1..12}; do
+            printf 'ARTIFACT_DOWNLOAD_ATTEMPT=%s\n' "$attempt"
+            if gh api "/repos/$GITHUB_REPOSITORY/actions/artifacts/$UPLOADED_ARTIFACT_ID/zip" > "$PART" && unzip -tq "$PART" >/dev/null; then
+              mv "$PART" "$ZIP"
+              unzip -q "$ZIP" -d "$DEST"
+              printf 'ARTIFACT_DOWNLOAD=PASS\n'
+              break
+            fi
+            rm -f "$PART"
+            if [ "$attempt" -eq 12 ]; then
+              printf 'ARTIFACT_DOWNLOAD=FAIL\n' >&2
+              exit 1
+            fi
+            sleep 5
+          done
 
       - name: Verify post-upload binding
         env:
