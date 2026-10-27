@@ -1,3 +1,15 @@
+## 2026-10-27 — Pre-R2C frozen-design alignment
+
+- Current source main after PR #683 merge: `4f21695cf7e17465f91a6a881adf3888dd9cfc61`.
+- PR #681 R2A merged as `13847caa82c79c662f084dd38e6fc28823495954`.
+- PR #683 R2B merged as `4f21695cf7e17465f91a6a881adf3888dd9cfc61`; reviewed tree and merge tree are both `4889ceccfd998af7fe185d5e22353fc71b929592`.
+- Independent current-main review against PR #679 frozen design and PR #682 R2B precision authority: R1 PASS, R2A PASS, R2B PASS.
+- New source blockers: 0. New source false-PASS paths: 0. Product source repair required: false.
+- Accepted PR #682 precision-design blob `92f72d913e5b89281e17be3e4651670b67bd5a9f` is being converged onto current main; the historical stacked PR #682 route must not be merged as-is.
+- Formal review: `docs/development/N3W_SCAN_TRIGGERED_FIRST_PAIRING_PRE_R2C_R1_R2A_R2B_FROZEN_DESIGN_ALIGNMENT_REVIEW_20261027.md`.
+- R2C remains blocked until this docs-only authority convergence is reviewed and merged.
+- No T1/board/live-runtime/R2C source mutation is authorized by this state.
+
 ## 2026-10-27 — Scan-triggered first-pairing stack aligned through R1 merge
 
 - Current product/source main after R1 merge: `f7a5c924242c74b5aa9e7f6cb5f0e96a8d54f30f`.
