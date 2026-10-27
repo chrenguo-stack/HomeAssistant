@@ -92,19 +92,14 @@ class SimpleProductComponent : public Component,
 
   bool provisioned() const { return pairing_client_.provisioned(); }
   bool pairing_handoff_ready() const {
-#ifdef GH_N3W_PRODUCTION_DEHARNESS
-    return registration_portal_.running() &&
-           !registration_portal_.qr_payload().empty();
-#else
     return pairing_client_.pairing_handoff_ready();
-#endif
   }
   std::string pairing_qr_payload() const {
-#ifdef GH_N3W_PRODUCTION_DEHARNESS
-    return registration_portal_.qr_payload();
-#else
     return pairing_client_.pairing_qr_payload();
-#endif
+  }
+  bool registration_display_ready() const {
+    return registration_portal_.running() &&
+           !registration_portal_.qr_payload().empty();
   }
   std::string registration_qr_payload() const {
     return registration_portal_.qr_payload();

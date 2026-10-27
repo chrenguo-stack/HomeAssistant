@@ -16,7 +16,7 @@ R4 implements only the next frozen node-side layer:
 - scan-trigger admission from the phone-local page;
 - removal of idle automatic Manager discovery from a fresh unregistered node;
 - preservation of pending final-ACK recovery;
-- production-only compatibility mapping for the existing display/transport API, so historical package-level Stage2D protection does not need to be weakened.
+- explicit registration display authority (`registration_display_ready()` / `registration_qr_payload()`) independent from legacy pairing protocol diagnostics;
 
 R4 deliberately does **not** implement:
 
@@ -37,7 +37,7 @@ The QR carries no Setup Secret, hardware ID, pairing ID, Manager locator or long
 
 The local page has no external resources, cookies or local storage. Its first valid `/start` request records a bounded in-memory scan trigger for R5 to consume. Until R5 exists, confirm/retry fail closed with `discovery_stage_pending`.
 
-The existing product YAML interface remains unchanged. Under the production de-harness build only, `pairing_handoff_ready()` and `pairing_qr_payload()` are compatibility wrappers for the registration portal. Non-production lab builds keep the legacy engineering pairing handoff/payload behavior.
+The product display path uses `registration_display_ready()` and `registration_qr_payload()` directly. `pairing_handoff_ready()` and `pairing_qr_payload()` remain pairing-protocol diagnostics/accessors and are not display authority, matching the frozen source design.
 
 A fresh unregistered node no longer calls the legacy automatic `discover -> hello -> pair` loop by itself. The only exception retained in R4 is a durable pending final acknowledgement from an already delivered credential bundle; that recovery continues through the existing pairing client.
 

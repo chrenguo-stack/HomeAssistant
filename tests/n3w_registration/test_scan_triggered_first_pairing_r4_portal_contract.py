@@ -67,12 +67,15 @@ def test_r4_qr_is_actionable_local_url_and_regenerates_with_sta_ipv4() -> None:
     assert "stop();" in source
     assert "return start_(local_ipv4, subnet_mask);" in source
 
-    assert "pairing_handoff_ready()" in transport
-    assert "pairing_qr_payload()" in transport
+    assert "registration_display_ready()" in transport
+    assert "registration_qr_payload()" in transport
+    assert "pairing_handoff_ready()" not in transport
+    assert "pairing_qr_payload()" not in transport
+    assert "registration_display_ready()" in component_h
     assert "registration_qr_payload()" in component_h
-    assert "#ifdef GH_N3W_PRODUCTION_DEHARNESS" in component_h
-    assert "return registration_portal_.qr_payload();" in component_h
+    assert "return pairing_client_.pairing_handoff_ready();" in component_h
     assert "return pairing_client_.pairing_qr_payload();" in component_h
+    assert "return registration_portal_.qr_payload();" in component_h
     assert "GHN3W2:pending" in display
 
     portal = function_block(
