@@ -430,7 +430,7 @@ def test_current_n3w_product_target_uses_only_active_core() -> None:
     assert 'root["fw_version"] = "phase4-simple";' not in client
 
 
-def test_product_pairing_qr_is_manager_handoff_gated() -> None:
+def test_product_registration_qr_uses_registration_display_authority() -> None:
     firmware = (
         REPO_ROOT
         / "firmware"
@@ -459,8 +459,13 @@ def test_product_pairing_qr_is_manager_handoff_gated() -> None:
     assert "pairing_handoff_ready_ = true;" in client_cpp
     assert "pairing_handoff_ready_ = false;" in client_cpp
     assert "pairing_handoff_ready()" in component_h
-    assert "pairing_handoff_ready()" in transport
-    assert "pairing_qr_payload()" in transport
-    assert transport.index("pairing_handoff_ready()") < transport.index(
-        "pairing_qr_payload()"
+    assert "return pairing_client_.pairing_handoff_ready();" in component_h
+    assert "registration_display_ready()" in component_h
+    assert "registration_qr_payload()" in component_h
+    assert "pairing_handoff_ready()" not in transport
+    assert "pairing_qr_payload()" not in transport
+    assert "registration_display_ready()" in transport
+    assert "registration_qr_payload()" in transport
+    assert transport.index("registration_display_ready()") < transport.index(
+        "registration_qr_payload()"
     )
