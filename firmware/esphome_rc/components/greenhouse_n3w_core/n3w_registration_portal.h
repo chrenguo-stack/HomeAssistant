@@ -66,6 +66,10 @@ class RegistrationPortal {
   void set_no_candidates();
   void clear_discovery_session();
   bool take_selected_candidate_id(std::string *candidate_id);
+  bool take_candidate_stale_event() {
+    return candidate_stale_event_pending_.exchange(
+        false, std::memory_order_acq_rel);
+  }
 
  private:
   static esp_err_t register_page_handler_(httpd_req_t *request);
@@ -111,6 +115,7 @@ class RegistrationPortal {
   std::string qr_payload_{};
   std::atomic<bool> scan_trigger_pending_{false};
   std::atomic<uint32_t> last_dynamic_request_ms_{0};
+  std::atomic<bool> candidate_stale_event_pending_{false};
 
   mutable std::mutex discovery_mutex_{};
   RegistrationPortalStage discovery_stage_{RegistrationPortalStage::IDLE};
