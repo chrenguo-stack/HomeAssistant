@@ -5,15 +5,15 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from greenhouse_manager.runtime.n3w_first_registration_intent import (
+    FirstRegistrationIntentStore,
+)
 from greenhouse_manager.runtime.n3w_first_registration_ledger import (
     FirstRegistrationAttemptState,
     FirstRegistrationCleanupState,
 )
 from greenhouse_manager.runtime.n3w_first_registration_reconciliation import (
     FirstRegistrationCommitClassification,
-)
-from greenhouse_manager.runtime.n3w_first_registration_intent import (
-    FirstRegistrationIntentStore,
 )
 from greenhouse_manager.runtime.n3w_first_registration_transaction import (
     FIRST_REGISTRATION_TTL_SECONDS,
