@@ -60,6 +60,7 @@ class RegistrationPortal {
 
   RegistrationPortalStage discovery_stage() const;
   void set_discovery_in_progress();
+  void set_node_label(const std::string &node_label);
   void set_candidates(
       const std::vector<RegistrationPortalCandidateView> &candidates);
   void set_no_candidates();
@@ -113,6 +114,7 @@ class RegistrationPortal {
 
   mutable std::mutex discovery_mutex_{};
   RegistrationPortalStage discovery_stage_{RegistrationPortalStage::IDLE};
+  std::string node_label_{};
   std::vector<RegistrationPortalCandidateView> candidates_{};
   std::string selected_candidate_id_{};
 };
