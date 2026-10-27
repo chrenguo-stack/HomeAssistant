@@ -305,7 +305,7 @@ transaction_disposition = terminal
 
 ### 6.4 pre-transaction failure
 
-以下失败发生在 T1 尚未返回 accepted transaction 前：
+以下失败发生在节点尚未**证明**收到 accepted transaction 前：
 
 - TLS connect 失败；
 - pin mismatch；
@@ -314,7 +314,10 @@ transaction_disposition = terminal
 - bootstrap_unavailable；
 - manager/system mismatch；
 - trusted LAN 暂不可用；
-- 浏览器关闭或扫描 session 过期。
+- 浏览器关闭或扫描 session 过期；
+- confirm request 已发出但 accepted response 丢失/截断。
+
+其中“响应丢失”不能被节点解释成“Manager 一定没有创建事务”。Manager 可能已经 durable 接受了该 pairing ID。节点因此必须保留同一 pairing ID；fresh scan/confirm 后，47110 通过现有 exact-duplicate 规则恢复同一事务和原剩余 deadline，或在 Manager 已 restart/terminalize 时得到 terminal 结果再走 ADR-0008 renewal。
 
 这些失败不消费当前 pairing ID，不生成新 ID，不删除 Setup Secret。
 
@@ -353,7 +356,14 @@ R6 不复制这些算法，不增加第二套 session state。
 
 当前节点只检查“HTTP 请求成功且 status==200”，R6 必须收紧。
 
-只有 47112 final-ACK 返回当前 pairing status schema，并明确表示已进入最终 consumed/committed success，才可以执行本地成功清理。
+只有 47112 final-ACK 同时满足下面四个条件，才可以执行本地成功清理：
+
+- HTTP status 为 200；
+- schema 恰好为 `gh.pair.simple-status/1`；
+- `session_id` 与持久化 pending-ACK 的 session 完全一致；
+- `state` 恰好为 `consumed`，且返回 `node_id` 与本地 provisional peer/Broker bundle 的 node ID 一致。
+
+现有 Manager 源码已经证明：first-registration ACK 会先 durable claim `COMMITTING`，提交 staged credential，运行 exact cross-store commit classifier，只有 classifier 返回 COMMITTED 后才 `ledger.mark_committed()`，随后 pairing session 才进入 `CONSUMED` 并返回该 status。因此这里把 `state=consumed` 作为 47112 的 exact committed-success wire condition，不新增第二套“committed”响应协议。
 
 原因是 ADR-0011 已要求：47112 不能在 exact cross-store commit oracle 通过且 ledger durable COMMITTED 之前返回 committed-success。R6 节点不能把任意 200 或无法解析的 200 当成功。
 
