@@ -437,6 +437,7 @@ class SimpleProductComponent : public Component,
   RegistrationDiscovery registration_discovery_{};
   std::vector<RegistrationCandidateV1> registration_candidates_{};
   RegistrationCandidateV1 selected_registration_candidate_{};
+  std::string registration_session_pairing_id_{};
   bool registration_candidate_selected_{false};
   SimpleProductRuntime runtime_;
   NvsSetupSecretStore setup_secret_store_{};
