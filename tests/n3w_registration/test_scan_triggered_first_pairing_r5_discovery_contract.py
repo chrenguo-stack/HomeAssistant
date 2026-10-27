@@ -158,6 +158,8 @@ def test_r5_browser_exposes_only_opaque_candidate_id_and_label() -> None:
     )
     assert 'item["id"] = candidate.id;' in status
     assert 'item["label"] = candidate.label;' in status
+    assert 'root["node_label"] = node_label;' in status
+    assert "node.textContent = body.node_label;" in page
     for forbidden in (
         'item["host"]',
         'item["port"]',
@@ -178,6 +180,13 @@ def test_r5_multiple_candidates_require_explicit_browser_selection() -> None:
         "void SimpleProductComponent::advance_pairing_()",
     )
     assert "registration_portal_.set_candidates(views);" in discovery
+    portal_setup = function_block(
+        component,
+        "void SimpleProductComponent::advance_registration_portal_()",
+        "void SimpleProductComponent::clear_registration_discovery_()",
+    )
+    assert "hardware_id.substr(hardware_id.size() - suffix_size)" in portal_setup
+    assert 'std::string("节点 ")' in portal_setup
     assert "take_selected_candidate_id(&selected_id)" in discovery
     assert (
         "selected_registration_candidate_ =\n"
