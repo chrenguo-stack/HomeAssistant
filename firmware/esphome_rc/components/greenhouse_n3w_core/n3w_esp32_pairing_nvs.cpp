@@ -1,6 +1,7 @@
 #include "n3w_esp32_pairing_nvs.h"
 
 #include <algorithm>
+#include <iterator>
 #include <utility>
 
 #ifdef USE_ESP32
