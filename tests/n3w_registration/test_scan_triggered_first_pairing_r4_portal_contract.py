@@ -56,6 +56,7 @@ def test_r4_registration_portal_is_narrow_and_secret_free() -> None:
 def test_r4_qr_is_actionable_local_url_and_regenerates_with_sta_ipv4() -> None:
     source = text(CORE / "n3w_registration_portal.cpp")
     component = text(CORE / "n3w_simple_product_component.cpp")
+    component_h = text(CORE / "n3w_simple_product_component.h")
     transport = text(TRANSPORT)
     display = text(DISPLAY)
 
@@ -69,9 +70,9 @@ def test_r4_qr_is_actionable_local_url_and_regenerates_with_sta_ipv4() -> None:
     assert "pairing_handoff_ready()" in transport
     assert "pairing_qr_payload()" in transport
     assert "registration_qr_payload()" in component_h
-    assert "#ifdef GH_N3W_PRODUCTION_DEHARNESS" in component
-    assert "return registration_portal_.qr_payload();" in component
-    assert "return pairing_client_.pairing_qr_payload();" in component
+    assert "#ifdef GH_N3W_PRODUCTION_DEHARNESS" in component_h
+    assert "return registration_portal_.qr_payload();" in component_h
+    assert "return pairing_client_.pairing_qr_payload();" in component_h
     assert "GHN3W2:pending" in display
 
     portal = function_block(
