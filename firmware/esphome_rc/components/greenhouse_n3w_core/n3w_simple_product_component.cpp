@@ -99,6 +99,7 @@ SimpleProductComponent::SimpleProductComponent()
           kHealthyRelayDirectRecoveryAbsoluteMs,
           kDirectRecoveryConfirmSuccesses,
       }),
+      registration_portal_(this, this),
       runtime_(this, this, this),
       pairing_client_(
           this,
@@ -123,6 +124,7 @@ void SimpleProductComponent::setup() {
     return;
   }
   const SimplePairingClientError pairing = pairing_client_.initialize(local_mac_);
+  pairing_ack_pending_ = pairing == SimplePairingClientError::ACK_PENDING;
   if (pairing == SimplePairingClientError::ALREADY_PROVISIONED) {
     if (!load_runtime_state_() || !configure_mqtt_()) {
       ESP_LOGE(TAG, "Provisioned N3-W state failed validation");
@@ -152,6 +154,15 @@ void SimpleProductComponent::setup() {
 }
 
 void SimpleProductComponent::loop() {
+  const bool portal_allowed =
+      activation_enabled_ && !is_failed() && !safe_reboot_requested_ &&
+      wifi_connected() && !pairing_client_.provisioned() &&
+      !pairing_ack_pending_;
+  registration_portal_allowed_.store(
+      portal_allowed, std::memory_order_release);
+  if (!portal_allowed && registration_portal_.running()) {
+    registration_portal_.stop();
+  }
   if (!activation_enabled_ || is_failed() || safe_reboot_requested_) return;
   const bool recovery_exclusive =
       radio_ownership_ == RadioOwnership::DIRECT_PROBE ||
@@ -161,9 +172,17 @@ void SimpleProductComponent::loop() {
     if (drain_radio_()) return;
   }
   if (!pairing_client_.provisioned()) {
-    advance_pairing_();
-    if (!pairing_client_.provisioned()) return;
+    if (pairing_ack_pending_) {
+      advance_pairing_();
+      if (!pairing_client_.provisioned()) return;
+      pairing_ack_pending_ = false;
+      registration_portal_.stop();
+    } else {
+      advance_registration_portal_();
+      return;
+    }
   }
+  registration_portal_.stop();
   if (!runtime_state_loaded_ && !load_runtime_state_()) return;
   if (!mqtt_configured_ && !configure_mqtt_()) return;
   if (!runtime_ready_) {
@@ -510,15 +529,57 @@ bool SimpleProductComponent::start_runtime_if_ready_() {
   return true;
 }
 
+void SimpleProductComponent::advance_registration_portal_() {
+  if (pairing_client_.provisioned()) {
+    registration_portal_.stop();
+    next_registration_portal_retry_ms_ = 0;
+    return;
+  }
+  if (!wifi_connected()) {
+    registration_portal_.stop();
+    next_registration_portal_retry_ms_ = 0;
+    return;
+  }
+
+  std::string local_ipv4;
+  std::string subnet_mask;
+  if (!current_wifi_ipv4_(&local_ipv4, &subnet_mask)) {
+    registration_portal_.stop();
+    return;
+  }
+
+  const uint64_t now = now_ms();
+  if (!registration_portal_.running() &&
+      now < next_registration_portal_retry_ms_) {
+    return;
+  }
+  if (!registration_portal_.ensure_running(local_ipv4, subnet_mask)) {
+    next_registration_portal_retry_ms_ =
+        now + kRegistrationPortalRetryMs;
+    ESP_LOGW(
+        TAG,
+        "N3-W local registration portal unavailable; retrying");
+    return;
+  }
+  next_registration_portal_retry_ms_ = 0;
+}
+
 void SimpleProductComponent::advance_pairing_() {
   if (!wifi_connected()) return;
   const uint64_t now = now_ms();
   if (now < next_pairing_attempt_ms_) return;
   next_pairing_attempt_ms_ = now + kPairingRetryMs;
-  const SimplePairingClientError result = pairing_client_.run_once(now);
+  const SimplePairingClientError result =
+      pairing_ack_pending_
+          ? pairing_client_.resume_pending_ack()
+          : pairing_client_.run_once(now);
   if (result == SimplePairingClientError::NONE ||
       result == SimplePairingClientError::ALREADY_PROVISIONED) {
     if (pairing_client_.provisioned()) {
+      pairing_ack_pending_ = false;
+      registration_portal_allowed_.store(
+          false, std::memory_order_release);
+      registration_portal_.stop();
       ESP_LOGI(
           TAG,
           "Simplified pairing committed; loading product runtime state");

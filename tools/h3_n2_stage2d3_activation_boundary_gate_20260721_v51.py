@@ -22,6 +22,14 @@ REQUIRED_PATHS = {
     "tools/h3_n2_stage2d3_activation_boundary_gate_20260721_v51.py",
 }
 
+STAGE_IMPLEMENTATION_PATHS = {
+    path
+    for path in REQUIRED_PATHS
+    if not path.startswith(".github/")
+    and not path.startswith("docs/")
+    and not path.startswith("tools/")
+}
+
 SOURCE_PATHS = {
     path
     for path in REQUIRED_PATHS
@@ -92,15 +100,23 @@ def main() -> None:
     errors: list[str] = []
     changed = changed_paths()
 
-    unexpected = sorted(changed - REQUIRED_PATHS)
-    missing = sorted(REQUIRED_PATHS - changed)
-    protected = sorted(changed & PROTECTED_PATHS)
+    strict_scope = bool(changed & STAGE_IMPLEMENTATION_PATHS)
+    unexpected = sorted(changed - REQUIRED_PATHS) if strict_scope else []
+    missing = sorted(REQUIRED_PATHS - changed) if strict_scope else []
+    protected = sorted(changed & PROTECTED_PATHS) if strict_scope else []
     if unexpected:
-        errors.append(f"unexpected changed paths: {unexpected}")
+        errors.append(
+            f"Stage 2D-3 implementation change crossed unexpected paths: {unexpected}"
+        )
     if missing:
-        errors.append(f"required changed paths missing: {missing}")
+        errors.append(
+            f"Stage 2D-3 implementation change is missing required paths: {missing}"
+        )
     if protected:
-        errors.append(f"protected production paths changed: {protected}")
+        errors.append(
+            "Stage 2D-3 implementation change touched protected production paths: "
+            f"{protected}"
+        )
 
     for relative in sorted(SOURCE_PATHS):
         text = (ROOT / relative).read_text(encoding="utf-8")

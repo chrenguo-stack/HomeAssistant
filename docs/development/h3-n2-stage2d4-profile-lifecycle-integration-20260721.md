@@ -109,3 +109,8 @@ Stage 2D-4 does not perform or claim:
 The next acceptance gate is source review and CI. A later isolated real-device
 package requires separate explicit authorization before any hardware, eFuse,
 physical NVS, or real Broker operation.
+
+
+## Evergreen CI boundary clarification — 2026-10-27
+
+The original source gate validated the Stage 2D-4 implementation-PR scope. The workflow now also runs as an evergreen regression/compile gate when broader product packages change. Its lifecycle invariants, fault matrix and dual ESP32-C6 compile checks remain unconditional. When Stage 2D-4 implementation paths themselves are modified, the historical exact required-file set plus unexpected/protected-file checks remain enforced. Unrelated product work can still receive Stage 2D-4 regression coverage without being misclassified as a Stage 2D-4 source integration PR.

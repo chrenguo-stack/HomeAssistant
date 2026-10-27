@@ -25,12 +25,12 @@ interval:
             return;
           }
 
-          if (provisioned || !id(n3w_product_core).pairing_handoff_ready()) {
+          if (provisioned || !id(n3w_product_core).registration_display_ready()) {
             id(n3w_pairing_display_ready) = false;
             return;
           }
 
-          const std::string payload = id(n3w_product_core).pairing_qr_payload();
+          const std::string payload = id(n3w_product_core).registration_qr_payload();
           if (payload.empty()) {
             id(n3w_pairing_display_ready) = false;
             return;

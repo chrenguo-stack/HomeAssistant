@@ -101,3 +101,8 @@ This stage does not perform or claim:
 The next decision after source and CI acceptance is whether to merge this
 transaction contract before developing a production integration adapter and the
 first isolated real-device acceptance package.
+
+
+## Evergreen CI boundary clarification — 2026-10-27
+
+The original source gate validated the exact Stage 2D-3 implementation-PR file set. After merge, the workflow also serves as an evergreen regression/compile gate for broader product-package changes. Source invariants, the host fault matrix and both ESP32-C6 compile targets remain enforced on every triggered run. When Stage 2D-3 implementation paths themselves change, the historical exact required-file set plus unexpected/protected-path checks remain enforced. Unrelated package changes no longer fail merely because they are outside that historical implementation-PR file set.

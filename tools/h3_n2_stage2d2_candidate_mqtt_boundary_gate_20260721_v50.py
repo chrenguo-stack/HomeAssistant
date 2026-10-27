@@ -62,6 +62,18 @@ ALLOWED_CHANGED_PREFIXES = (
     "f1_0_rc2_h3_candidate_mqtt_validator_board_lab_20260721_v50.yml",
 )
 
+STAGE_IMPLEMENTATION_PREFIXES = (
+    "protocols/pairing/gh-h3-node-candidate-mqtt-validation-v1.md",
+    "firmware/esphome_rc/components/greenhouse_pairing_client/"
+    "pairing_candidate_mqtt_validator.",
+    "firmware/esphome_rc/components/greenhouse_pairing_client/tests/"
+    "pairing_stage2d2_candidate_mqtt_validator_fault_matrix_20260721_v50.cpp",
+    "firmware/esphome_rc/components/greenhouse_candidate_mqtt_lab/",
+    "firmware/esphome_rc/board_lab/h3_candidate_mqtt_validator/",
+    "firmware/esphome_rc/f1_0_rc2/"
+    "f1_0_rc2_h3_candidate_mqtt_validator_board_lab_20260721_v50.yml",
+)
+
 
 def require(condition: bool, message: str, failures: list[str]) -> None:
     if not condition:
@@ -90,6 +102,16 @@ def changed_paths() -> list[str]:
 
 def allowed_changed(path: str) -> bool:
     return any(path == prefix or path.startswith(prefix) for prefix in ALLOWED_CHANGED_PREFIXES)
+
+
+def stage_implementation_changed(paths: list[str]) -> bool:
+    return any(
+        any(
+            path == prefix or path.startswith(prefix)
+            for prefix in STAGE_IMPLEMENTATION_PREFIXES
+        )
+        for path in paths
+    )
 
 
 def main() -> int:
@@ -230,10 +252,16 @@ def main() -> int:
     except RuntimeError as error:
         failures.append(str(error))
         paths = []
-    unexpected = [path for path in paths if not allowed_changed(path)]
+    strict_scope = stage_implementation_changed(paths)
+    unexpected = (
+        [path for path in paths if not allowed_changed(path)]
+        if strict_scope
+        else []
+    )
     require(
         not unexpected,
-        "Stage 2D-2 PR changed protected paths: " + ", ".join(unexpected),
+        "Stage 2D-2 implementation change crossed protected paths: "
+        + ", ".join(unexpected),
         failures,
     )
 
@@ -247,6 +275,7 @@ def main() -> int:
         ),
         "real_broker_literal_present": private_ipv4.search(stage_text) is not None,
         "changed_path_count": len(paths),
+        "strict_scope_enforced": strict_scope,
         "unexpected_paths": unexpected,
         "failures": failures,
     }

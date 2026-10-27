@@ -23,6 +23,7 @@
 #endif
 #include "n3w_direct_recovery_policy.h"
 #include "n3w_recovery_exit_policy.h"
+#include "n3w_registration_portal.h"
 #include "n3w_simple_pairing_client.h"
 #include "n3w_simple_product_runtime.h"
 
@@ -49,7 +50,9 @@ class SimpleProductComponent : public Component,
                                public SimpleProductClock,
                                public SimpleProductRandom,
                                public SimplePairingClientNetwork,
-                               public SimplePairingClientRandom {
+                               public SimplePairingClientRandom,
+                               public RegistrationPortalRandom,
+                               public RegistrationPortalState {
   enum class RadioOwnership : uint8_t {
     DIRECT_WIFI = 0,
     RELAY_ESPNOW,
@@ -91,6 +94,22 @@ class SimpleProductComponent : public Component,
   bool pairing_handoff_ready() const {
     return pairing_client_.pairing_handoff_ready();
   }
+  std::string pairing_qr_payload() const {
+    return pairing_client_.pairing_qr_payload();
+  }
+  bool registration_display_ready() const {
+    return registration_portal_.running() &&
+           !registration_portal_.qr_payload().empty();
+  }
+  std::string registration_qr_payload() const {
+    return registration_portal_.qr_payload();
+  }
+  bool registration_scan_trigger_pending() const {
+    return registration_portal_.scan_trigger_pending();
+  }
+  bool take_registration_scan_trigger() {
+    return registration_portal_.take_scan_trigger();
+  }
   bool runtime_ready() const { return runtime_ready_; }
   LocalPathState path_state() const { return runtime_.path_state(); }
   const ActiveN3wDiagnostics::LatencySnapshot &latency_diagnostics() const {
@@ -99,7 +118,6 @@ class SimpleProductComponent : public Component,
   const std::string &hardware_id() const { return pairing_client_.hardware_id(); }
   const std::string &pairing_id() const { return pairing_client_.pairing_id(); }
   const std::string &node_id() const { return peer_state_.node_id; }
-  std::string pairing_qr_payload() const { return pairing_client_.pairing_qr_payload(); }
 
   // EspNowEventSink. Receive and unicast-send completion work is copied into
   // bounded SPSC rings and processed from loop(), never from the high-priority
@@ -156,6 +174,12 @@ class SimpleProductComponent : public Component,
   uint64_t now_ms() const override;
   bool fill(uint8_t *data, std::size_t size) override;
   bool fill_pairing_random(uint8_t *data, std::size_t size) override;
+  bool fill_registration_random(uint8_t *data, std::size_t size) override {
+    return fill(data, size);
+  }
+  bool registration_portal_allowed() const override {
+    return registration_portal_allowed_.load(std::memory_order_acquire);
+  }
 
   // Simplified bootstrap network.
   bool discover_manager(
@@ -240,6 +264,7 @@ class SimpleProductComponent : public Component,
   void handle_pending_unicast_timeout_(uint64_t now_ms);
   void clear_tx_completion_ring_();
   void request_safe_reboot_(const char *reason);
+  void advance_registration_portal_();
   void advance_pairing_();
   void advance_recovery_();
   bool claim_relay_radio_();
@@ -299,6 +324,7 @@ class SimpleProductComponent : public Component,
   static constexpr std::size_t kRxRingSlots = 4;
   static constexpr std::size_t kTxCompletionRingSlots = 8;
   static constexpr uint32_t kPairingRetryMs = 5000;
+  static constexpr uint32_t kRegistrationPortalRetryMs = 5000;
   static constexpr uint32_t kRecoveryProbeMs = 2000;
   static constexpr uint32_t kRecoveryProbeIntervalMs = 60000;
   static constexpr uint32_t kRecoveryProbeBackoffMaxMs = 480000;
@@ -338,7 +364,10 @@ class SimpleProductComponent : public Component,
   bool radio_attempted_{false};
   bool runtime_start_grace_started_{false};
   bool safe_reboot_requested_{false};
+  bool pairing_ack_pending_{false};
+  std::atomic<bool> registration_portal_allowed_{false};
   uint64_t next_pairing_attempt_ms_{0};
+  uint64_t next_registration_portal_retry_ms_{0};
   uint64_t next_recovery_probe_ms_{0};
   uint64_t next_relay_restore_attempt_ms_{0};
   uint64_t next_telemetry_flush_ms_{0};
@@ -401,6 +430,7 @@ class SimpleProductComponent : public Component,
   uint8_t last_channel_observed_{0};
   int32_t last_channel_error_raw_{0};
   ActiveN3wDiagnostics diagnostics_{};
+  RegistrationPortal registration_portal_;
   SimpleProductRuntime runtime_;
   NvsSetupSecretStore setup_secret_store_{};
   NvsProvisionedPeerStoreV2 peer_store_{};
