@@ -580,6 +580,7 @@ void SimpleProductComponent::advance_registration_portal_() {
 void SimpleProductComponent::clear_registration_discovery_() {
   registration_candidates_.clear();
   selected_registration_candidate_ = RegistrationCandidateV1{};
+  registration_session_pairing_id_.clear();
   registration_candidate_selected_ = false;
 }
 
@@ -600,6 +601,11 @@ void SimpleProductComponent::advance_registration_discovery_() {
   if (registration_portal_.take_scan_trigger()) {
     registration_portal_.set_discovery_in_progress();
     clear_registration_discovery_();
+    registration_session_pairing_id_ = pairing_client_.pairing_id();
+    if (registration_session_pairing_id_.empty()) {
+      registration_portal_.set_no_candidates();
+      return;
+    }
 
     std::string local_ipv4;
     std::string subnet_mask;
@@ -654,7 +660,9 @@ void SimpleProductComponent::advance_registration_discovery_() {
   }
 
   std::size_t selected_index = 0;
-  if (!registration_candidate_index(selected_id, &selected_index) ||
+  if (registration_session_pairing_id_.empty() ||
+      registration_session_pairing_id_ != pairing_client_.pairing_id() ||
+      !registration_candidate_index(selected_id, &selected_index) ||
       selected_index >= registration_candidates_.size() ||
       registration_candidates_[selected_index].expired(now_ms())) {
     clear_registration_discovery_();
