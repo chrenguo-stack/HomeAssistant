@@ -99,7 +99,7 @@ SimpleProductComponent::SimpleProductComponent()
           kHealthyRelayDirectRecoveryAbsoluteMs,
           kDirectRecoveryConfirmSuccesses,
       }),
-      registration_portal_(this),
+      registration_portal_(this, this),
       runtime_(this, this, this),
       pairing_client_(
           this,
@@ -518,6 +518,12 @@ bool SimpleProductComponent::start_runtime_if_ready_() {
       start_mode == SimpleProductStartMode::DIRECT ? "direct" : "discovery",
       static_cast<unsigned>(channel));
   return true;
+}
+
+bool SimpleProductComponent::registration_portal_allowed() const {
+  return activation_enabled_ && !is_failed() &&
+         !safe_reboot_requested_ && wifi_connected() &&
+         !pairing_client_.provisioned() && !pairing_ack_pending_;
 }
 
 void SimpleProductComponent::advance_registration_portal_() {

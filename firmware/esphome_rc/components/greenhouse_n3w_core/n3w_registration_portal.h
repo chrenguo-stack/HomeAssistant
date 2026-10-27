@@ -15,9 +15,17 @@ class RegistrationPortalRandom {
   virtual bool fill_registration_random(uint8_t *data, std::size_t size) = 0;
 };
 
+class RegistrationPortalState {
+ public:
+  virtual ~RegistrationPortalState() = default;
+  virtual bool registration_portal_allowed() const = 0;
+};
+
 class RegistrationPortal {
  public:
-  explicit RegistrationPortal(RegistrationPortalRandom *random);
+  RegistrationPortal(
+      RegistrationPortalRandom *random,
+      RegistrationPortalState *state);
   ~RegistrationPortal();
 
   bool ensure_running(
@@ -59,6 +67,7 @@ class RegistrationPortal {
       const char *body) const;
 
   RegistrationPortalRandom *random_{nullptr};
+  RegistrationPortalState *state_{nullptr};
   httpd_handle_t server_{nullptr};
   std::string local_ipv4_{};
   std::string subnet_mask_{};

@@ -115,8 +115,10 @@ bool parse_ipv4(const std::string &value, uint32_t *address) {
 
 }  // namespace
 
-RegistrationPortal::RegistrationPortal(RegistrationPortalRandom *random)
-    : random_(random) {}
+RegistrationPortal::RegistrationPortal(
+    RegistrationPortalRandom *random,
+    RegistrationPortalState *state)
+    : random_(random), state_(state) {}
 
 RegistrationPortal::~RegistrationPortal() {
   stop();
@@ -237,7 +239,8 @@ void RegistrationPortal::stop() {
 }
 
 bool RegistrationPortal::request_is_local_(httpd_req_t *request) const {
-  if (request == nullptr || local_addr_ == 0U || mask_addr_ == 0U) {
+  if (request == nullptr || local_addr_ == 0U || mask_addr_ == 0U ||
+      state_ == nullptr || !state_->registration_portal_allowed()) {
     return false;
   }
   const int socket_fd = httpd_req_to_sockfd(request);

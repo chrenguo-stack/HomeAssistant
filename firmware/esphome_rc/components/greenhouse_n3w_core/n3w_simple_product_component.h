@@ -51,7 +51,8 @@ class SimpleProductComponent : public Component,
                                public SimpleProductRandom,
                                public SimplePairingClientNetwork,
                                public SimplePairingClientRandom,
-                               public RegistrationPortalRandom {
+                               public RegistrationPortalRandom,
+                               public RegistrationPortalState {
   enum class RadioOwnership : uint8_t {
     DIRECT_WIFI = 0,
     RELAY_ESPNOW,
@@ -170,6 +171,7 @@ class SimpleProductComponent : public Component,
   bool fill_registration_random(uint8_t *data, std::size_t size) override {
     return fill(data, size);
   }
+  bool registration_portal_allowed() const override;
 
   // Simplified bootstrap network.
   bool discover_manager(

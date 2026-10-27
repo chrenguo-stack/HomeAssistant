@@ -47,6 +47,8 @@ def test_r4_registration_portal_is_narrow_and_secret_free() -> None:
         assert secret_marker not in page.lower()
 
     assert "class RegistrationPortalRandom" in header
+    assert "class RegistrationPortalState" in header
+    assert "registration_portal_allowed()" in header
     assert "scan_trigger_pending_" in header
     assert "take_scan_trigger()" in header
 
@@ -123,6 +125,7 @@ def test_r4_portal_rejects_nonlocal_and_stale_scan_actions() -> None:
     source = text(CORE / "n3w_registration_portal.cpp")
 
     assert "getpeername(" in source
+    assert "state_->registration_portal_allowed()" in source
     assert "(peer.sin_addr.s_addr & mask_addr_) ==" in source
     assert "(local_addr_ & mask_addr_)" in source
     assert "constant_time_equal(token, scan_token_)" in source
