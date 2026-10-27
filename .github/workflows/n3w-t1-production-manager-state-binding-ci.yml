@@ -1,7 +1,9 @@
 name: N3W T1 production Manager state binding CI
 
 on:
+  workflow_dispatch:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, labeled, unlabeled, edited]
     paths:
       - ".github/workflows/n3w-t1-production-manager-state-binding-ci.yml"
       - "infra/n3w-t1/production/**"
@@ -38,13 +40,23 @@ on:
       - "host/greenhouse-manager/tests/bootstrap/test_fresh_broker.py"
       - "tests/tools/test_n3w_t1_production_stack_staging.py"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   actions: read
   contents: read
 
 jobs:
   contract:
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.draft == false ||
+      contains(github.event.pull_request.labels.*.name, 'ci-ready') ||
+      contains(github.event.pull_request.body, 'CI_READY=true')
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     env:
       MANAGER_SOURCE_SHA: 511db028780988a7c07cb9342c8be507380bae0f
       MANAGER_IMAGE_TAG: local/greenhouse-manager:s20-511db028

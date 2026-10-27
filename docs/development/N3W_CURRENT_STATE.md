@@ -1,3 +1,86 @@
+## 2026-10-27 — Scan-triggered first-pairing stack aligned through R1 merge
+
+~~~text
+TASK=N3W_SCAN_TRIGGERED_FIRST_PAIRING_STACK_ALIGNMENT_TO_R2A_HANDOFF_20261027
+
+MAIN=f7a5c924242c74b5aa9e7f6cb5f0e96a8d54f30f
+
+PR679_STATE=MERGED
+PR679_HEAD=81dbf9de789232df7dadf21f4bd37bb5c9fc67d5
+PR679_MERGE_COMMIT=a36bca33d0eebbd5fa9aa89c42bf4038f298d904
+
+PR680_STATE=MERGED
+PR680_FINAL_HEAD=7190ef3b64c9b4e139412dec7df0d56cbabd7118
+PR680_MERGE_COMMIT=f7a5c924242c74b5aa9e7f6cb5f0e96a8d54f30f
+PR680_FINAL_FAST_SOURCE_CI=PASS
+PR680_FINAL_EXACT_CLOSURE=PASS
+PR680_FINAL_CI=26_PASS_0_FAIL
+
+PR684_STATE=MERGED
+PR684_MERGE_COMMIT=be4b422d7fafd9fe47f4cf1b65bafc04454e76b5
+CI_POLICY_REVISION=N3W_CI_POLICY_V1_20261026
+
+PR685_STATE=MERGED
+PR685_MERGE_COMMIT=6a2ee4c7b644526f9512f595492438b9eb9b18b7
+S20_CI_IMAGE_IDENTITY_REPAIR=PASS
+
+PR686_STATE=CLOSED_VALIDATION_ONLY
+PR686_MERGED=false
+PR686_VALIDATION=PASS
+
+PR681_STATE=OPEN_DRAFT
+PR681_HEAD=9cd5a299a39db1c196f53d5e0cade5a69ee8135f
+PR681_CURRENT_BASE=feat/n3w-scan-first-pairing-r1-20261026
+PR681_CURRENT_BASE_SHA=e74913056f6c1d54e553e5b1037f7de3ef3172c8
+PR681_CHANGED_FILE_COUNT=16
+PR681_MAIN_DRIFT_OVERLAP_COUNT=1
+PR681_MAIN_DRIFT_OVERLAP=.github/workflows/n3w-t1-production-manager-state-binding-ci.yml
+PR681_REBIND_REQUIRED=true
+
+PR683_STATE=OPEN_DRAFT
+PR683_HEAD=d458e21f5d789fef9c0a03f7c262212a77d50b50
+PR683_R2B_SOURCE_CLOSURE=PASS
+PR683_R2B_SOURCE_BLOCKER_COUNT=0
+PR683_EFFECTIVE_CI_CLOSURE=PASS
+PR683_MERGE_READY=true
+PR683_DIRECT_MERGE_NOW=false
+PR683_DIRECT_MERGE_BLOCKER=PARENT_STACK_ORDER
+
+T1_ACCESS=false
+BOARD_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+FLASH_MUTATION=false
+NVS_MUTATION=false
+
+CURRENT_STOP_POINT=BEFORE_PR681_POST_R1_MERGE_REBIND
+NEXT_ONE_GATE=N3W_SCAN_TRIGGERED_FIRST_PAIRING_R2A_POST_R1_MERGE_REBIND_AND_CLOSURE_20261027_01
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+PR #679 source design and PR #680 R1 implementation are now merged into `main`.
+PR #680 was rebound so current main became a real ancestor of the candidate head;
+its net R1 diff remained exactly 30 files. The final head passed all fast/source
+checks and all five heavy Exact Closure workflows before merge.
+
+PR #684 established the repository CI split/policy-as-code contract. PR #685
+separately repaired S20 real-service CI image identity by separating upstream
+immutable CI identity from production ARM64 image-lock authority. Validation-only
+PR #686 proved that repair against the exact PR #683 R2B source and was closed
+without merge.
+
+PR #683 R2B source closure and effective CI closure are PASS. It remains unmerged
+only because PR #681 must be aligned and closed first.
+
+PR #681 remains an open Draft stacked on the pre-merge R1 branch. Fresh repository
+comparison shows exactly one overlap between current-main drift and the 16-file
+R2A diff:
+`.github/workflows/n3w-t1-production-manager-state-binding-ci.yml`.
+The next session must fresh-rebind PR #681 to current main, preserve both R2A
+workflow changes and the merged CI full-gate policy, make current main an actual
+ancestor of the rebound head, then run the required source and Exact Closure
+review. No T1, board, firmware, NVS or live-runtime mutation is authorized by
+this state.
+
 ## 2026-10-26 — Handoff template authority correction
 
 ~~~text
