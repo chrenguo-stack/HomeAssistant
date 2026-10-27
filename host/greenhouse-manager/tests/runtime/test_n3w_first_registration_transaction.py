@@ -137,3 +137,63 @@ def test_window_failure_preserves_active_attempt_for_exact_retry(tmp_path) -> No
         )
         assert retry.expires_at == first.expires_at
         assert window.calls == 2
+
+
+def test_status_requires_exact_delivery_binding_and_never_opens_window(tmp_path) -> None:
+    import hashlib
+
+    with RegistrationRegistry(tmp_path / "registration.sqlite3") as registry:
+        intents = FirstRegistrationIntentStore()
+        window = Window(registry)
+        tx = service(registry, intents, window)
+
+        tx.start(request(), source_ip="192.168.10.44")
+        ledger = registry.first_registration_ledger()
+        ledger.mark_hello_observed(PAIRING_ID)
+        ledger.record_dynsec_prestate(
+            PAIRING_ID,
+            node_id="node_status_01",
+            absent=True,
+        )
+        ledger.record_application_key_prestate(
+            PAIRING_ID,
+            node_id="node_status_01",
+            absent=True,
+        )
+        digest = bytes([0x44]) * 32
+        ledger.mark_bundle_staged(
+            PAIRING_ID,
+            node_id="node_status_01",
+            application_key_epoch=1,
+            delivery_digest_sha256=hashlib.sha256(
+                digest
+            ).hexdigest(),
+        )
+        before_calls = window.calls
+
+        status = tx.status(
+            {
+                "manager_id": "manager_lab_01",
+                "system_id": "greenhouse",
+                "hardware_id": HARDWARE_ID,
+                "pairing_id": PAIRING_ID,
+                "delivery_digest": _b64(digest),
+            },
+            source_ip="192.168.10.99",
+        )
+        wrong = tx.status(
+            {
+                "manager_id": "manager_lab_01",
+                "system_id": "greenhouse",
+                "hardware_id": HARDWARE_ID,
+                "pairing_id": PAIRING_ID,
+                "delivery_digest": _b64(bytes([0x45]) * 32),
+            },
+            source_ip="192.168.10.99",
+        )
+
+        assert status.status == "pending"
+        assert status.transaction_disposition == "wait"
+        assert wrong.status == "unknown"
+        assert wrong.transaction_disposition == "wait"
+        assert window.calls == before_calls

@@ -6,8 +6,8 @@ import re
 import ssl
 import uuid
 from collections.abc import Callable
-from datetime import UTC, datetime
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -21,6 +21,8 @@ from .pairing_discovery import SlidingWindowRateLimiter
 from .pairing_secure_transport import decode_base64url_32
 
 CONFIRM_SCHEMA = "gh.registration.confirm/1"
+STATUS_SCHEMA = "gh.registration.status/1"
+STATUS_RESULT_SCHEMA = "gh.registration.status-result/1"
 _SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 _HARDWARE_ID = re.compile(r"^ghw-[a-z0-9]+-[0-9a-f]{12}$")
 
@@ -31,6 +33,13 @@ class RegistrationBootstrapRejected(RuntimeError):
 
 class RegistrationTransactionService(Protocol):
     def start(
+        self,
+        request: dict[str, str],
+        *,
+        source_ip: str,
+    ) -> Any: ...
+
+    def status(
         self,
         request: dict[str, str],
         *,
@@ -70,6 +79,15 @@ class BootstrapSkeletonResult:
             "reason": self.reason,
         }
 
+
+_REQUIRED_STATUS_FIELDS = {
+    "schema",
+    "manager_id",
+    "system_id",
+    "hardware_id",
+    "pairing_id",
+    "delivery_digest",
+}
 
 _REQUIRED_FIELDS = {
     "schema",
@@ -133,6 +151,48 @@ def validate_confirm_document(document: Any) -> dict[str, str]:
     }
 
 
+def validate_status_document(document: Any) -> dict[str, str]:
+    if (
+        not isinstance(document, dict)
+        or set(document) != _REQUIRED_STATUS_FIELDS
+        or document.get("schema") != STATUS_SCHEMA
+    ):
+        raise RegistrationBootstrapRejected("identity_invalid")
+    manager_id = document.get("manager_id")
+    system_id = document.get("system_id")
+    hardware_id = document.get("hardware_id")
+    pairing_id = document.get("pairing_id")
+    delivery_digest = document.get("delivery_digest")
+    if (
+        not isinstance(manager_id, str)
+        or _SAFE_ID.fullmatch(manager_id) is None
+        or not isinstance(system_id, str)
+        or _SAFE_ID.fullmatch(system_id) is None
+        or not isinstance(hardware_id, str)
+        or _HARDWARE_ID.fullmatch(hardware_id) is None
+        or not isinstance(pairing_id, str)
+        or not isinstance(delivery_digest, str)
+    ):
+        raise RegistrationBootstrapRejected("identity_invalid")
+    try:
+        parsed_pairing = uuid.UUID(pairing_id)
+        decode_base64url_32(
+            delivery_digest,
+            field_name="delivery_digest",
+        )
+    except ValueError as error:
+        raise RegistrationBootstrapRejected("identity_invalid") from error
+    if str(parsed_pairing) != pairing_id:
+        raise RegistrationBootstrapRejected("identity_invalid")
+    return {
+        "manager_id": manager_id,
+        "system_id": system_id,
+        "hardware_id": hardware_id,
+        "pairing_id": pairing_id,
+        "delivery_digest": delivery_digest,
+    }
+
+
 def evaluate_confirm_skeleton(
     document: Any,
     *,
@@ -155,6 +215,7 @@ def evaluate_confirm_skeleton(
 
 MAX_CONFIRM_BODY_BYTES = 2048
 CONFIRM_PATH = "/v1/registration/confirm"
+STATUS_PATH = "/v1/registration/status"
 
 
 def bootstrap_certificate_sha256(path: str | Path) -> str:
@@ -248,6 +309,41 @@ class RegistrationBootstrapApp:
             ),
         )
 
+    def handle_status(
+        self,
+        document: Any,
+        *,
+        source_ip: str,
+        source_already_authorized: bool = False,
+    ) -> dict[str, Any]:
+        if not source_already_authorized:
+            self.authorize_source(source_ip)
+        request = validate_status_document(document)
+        if request["manager_id"] != self.manager_id:
+            raise RegistrationBootstrapRejected("manager_mismatch")
+        if request["system_id"] != self.system_id:
+            raise RegistrationBootstrapRejected("system_mismatch")
+        service = self.transaction_service
+        if service is None:
+            raise RegistrationBootstrapRejected("bootstrap_unavailable")
+        try:
+            result = service.status(
+                request,
+                source_ip=source_ip,
+            )
+        except RuntimeError as error:
+            raise RegistrationBootstrapRejected(str(error)) from error
+        response: dict[str, Any] = {
+            "schema": STATUS_RESULT_SCHEMA,
+            "status": result.status,
+            "transaction_disposition": (
+                result.transaction_disposition
+            ),
+        }
+        if result.reason is not None:
+            response["reason"] = result.reason
+        return response
+
 
 class RegistrationBootstrapHTTPServer(ThreadingHTTPServer):
     daemon_threads = True
@@ -283,7 +379,10 @@ class _RegistrationBootstrapHandler(BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
     def do_POST(self) -> None:
-        if self.path != CONFIRM_PATH:
+        if self.path not in {
+            CONFIRM_PATH,
+            STATUS_PATH,
+        }:
             self._write_json(
                 HTTPStatus.NOT_FOUND,
                 {
@@ -295,6 +394,12 @@ class _RegistrationBootstrapHandler(BaseHTTPRequestHandler):
             )
             return
 
+        is_status = self.path == STATUS_PATH
+        response_schema = (
+            STATUS_RESULT_SCHEMA
+            if is_status
+            else "gh.registration.confirm-result/1"
+        )
         source_ip = self.client_address[0]
         try:
             self.server.app.authorize_source(source_ip)
@@ -307,7 +412,7 @@ class _RegistrationBootstrapHandler(BaseHTTPRequestHandler):
             self._write_json(
                 status,
                 {
-                    "schema": "gh.registration.confirm-result/1",
+                    "schema": response_schema,
                     "accepted": False,
                     "status": "rejected",
                     "reason": str(error),
@@ -321,13 +426,14 @@ class _RegistrationBootstrapHandler(BaseHTTPRequestHandler):
         except ValueError:
             length = 0
         if (
-            content_type.split(";", 1)[0].strip().lower() != "application/json"
+            content_type.split(";", 1)[0].strip().lower()
+            != "application/json"
             or not 1 <= length <= MAX_CONFIRM_BODY_BYTES
         ):
             self._write_json(
                 HTTPStatus.BAD_REQUEST,
                 {
-                    "schema": "gh.registration.confirm-result/1",
+                    "schema": response_schema,
                     "accepted": False,
                     "status": "rejected",
                     "reason": "request_invalid",
@@ -338,6 +444,17 @@ class _RegistrationBootstrapHandler(BaseHTTPRequestHandler):
         try:
             body = self.rfile.read(length)
             document = json.loads(body.decode("utf-8"))
+            if is_status:
+                status_document = self.server.app.handle_status(
+                    document,
+                    source_ip=source_ip,
+                    source_already_authorized=True,
+                )
+                self._write_json(
+                    HTTPStatus.OK,
+                    status_document,
+                )
+                return
             result = self.server.app.handle_confirm(
                 document,
                 source_ip=source_ip,
@@ -347,7 +464,7 @@ class _RegistrationBootstrapHandler(BaseHTTPRequestHandler):
             self._write_json(
                 HTTPStatus.BAD_REQUEST,
                 {
-                    "schema": "gh.registration.confirm-result/1",
+                    "schema": response_schema,
                     "accepted": False,
                     "status": "rejected",
                     "reason": "request_invalid",
@@ -372,7 +489,7 @@ class _RegistrationBootstrapHandler(BaseHTTPRequestHandler):
             self._write_json(
                 status,
                 {
-                    "schema": "gh.registration.confirm-result/1",
+                    "schema": response_schema,
                     "accepted": False,
                     "status": "rejected",
                     "reason": reason,

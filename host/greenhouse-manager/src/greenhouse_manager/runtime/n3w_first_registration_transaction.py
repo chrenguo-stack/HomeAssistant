@@ -11,7 +11,12 @@ from .n3w_first_registration_intent import (
 )
 from .n3w_first_registration_ledger import (
     FirstRegistrationAttemptState,
+    FirstRegistrationCleanupState,
     FirstRegistrationLedgerConflict,
+)
+from .n3w_first_registration_reconciliation import (
+    FirstRegistrationCommitClassification,
+    FirstRegistrationReconciler,
 )
 from .pairing_secure_transport import decode_base64url_32
 from .registration import RegistrationRegistry
@@ -21,6 +26,13 @@ FIRST_REGISTRATION_TTL_SECONDS = 1800
 
 class FirstRegistrationTransactionRejected(RuntimeError):
     pass
+
+
+@dataclass(frozen=True, slots=True)
+class FirstRegistrationStatusResult:
+    status: str
+    transaction_disposition: str
+    reason: str | None = None
 
 
 class FirstRegistrationWindow(Protocol):
@@ -62,6 +74,7 @@ class FirstRegistrationTransactionService:
         system_id: str,
         clock=lambda: datetime.now(UTC),
         ttl_seconds: int = FIRST_REGISTRATION_TTL_SECONDS,
+        reconciler: FirstRegistrationReconciler | None = None,
     ) -> None:
         if ttl_seconds != FIRST_REGISTRATION_TTL_SECONDS:
             raise ValueError("first registration TTL must be exactly 1800 seconds")
@@ -73,6 +86,7 @@ class FirstRegistrationTransactionService:
         self.system_id = system_id
         self.clock = clock
         self.ttl = timedelta(seconds=ttl_seconds)
+        self.reconciler = reconciler
 
     def start(
         self,
@@ -172,4 +186,163 @@ class FirstRegistrationTransactionService:
             pairing_port=47112,
             pairing_path="/v2/pairing",
             expires_at=intent.expires_at,
+        )
+
+
+    def status(
+        self,
+        request: Mapping[str, str],
+        *,
+        source_ip: str,
+    ) -> FirstRegistrationStatusResult:
+        del source_ip
+        if request["manager_id"] != self.manager_id:
+            raise FirstRegistrationTransactionRejected("manager_mismatch")
+        if request["system_id"] != self.system_id:
+            raise FirstRegistrationTransactionRejected("system_mismatch")
+
+        pairing_id = request["pairing_id"]
+        hardware_id = request["hardware_id"]
+        delivery_digest = decode_base64url_32(
+            request["delivery_digest"],
+            field_name="delivery_digest",
+        )
+        hardware_hash = hashlib.sha256(
+            hardware_id.encode("utf-8")
+        ).hexdigest()
+        delivery_hash = hashlib.sha256(
+            delivery_digest
+        ).hexdigest()
+
+        try:
+            attempt = self.ledger.get(pairing_id)
+        except KeyError:
+            return FirstRegistrationStatusResult(
+                status="unknown",
+                transaction_disposition="wait",
+            )
+
+        if (
+            attempt.hardware_id_sha256 != hardware_hash
+            or attempt.delivery_digest_sha256 != delivery_hash
+        ):
+            return FirstRegistrationStatusResult(
+                status="unknown",
+                transaction_disposition="wait",
+            )
+
+        if attempt.state is FirstRegistrationAttemptState.COMMITTED:
+            return FirstRegistrationStatusResult(
+                status="committed",
+                transaction_disposition="committed",
+            )
+
+        if attempt.state in {
+            FirstRegistrationAttemptState.EXPIRED,
+            FirstRegistrationAttemptState.RESTART_INVALIDATED,
+        }:
+            if (
+                attempt.cleanup_state
+                is FirstRegistrationCleanupState.COMPLETE
+            ):
+                return FirstRegistrationStatusResult(
+                    status="rejected",
+                    reason=attempt.terminal_reason,
+                    transaction_disposition="terminal",
+                )
+            if (
+                attempt.cleanup_state
+                is FirstRegistrationCleanupState.FAILED
+            ):
+                return FirstRegistrationStatusResult(
+                    status="unknown",
+                    transaction_disposition="wait",
+                )
+            return FirstRegistrationStatusResult(
+                status="pending",
+                transaction_disposition="wait",
+            )
+
+        reconciler = self.reconciler
+        now = self.clock().astimezone(UTC)
+        if reconciler is None:
+            return FirstRegistrationStatusResult(
+                status="pending",
+                transaction_disposition="wait",
+            )
+
+        if now >= attempt.expires_at:
+            try:
+                result = reconciler.reconcile_deadline(
+                    pairing_id,
+                    now=now,
+                )
+            except Exception:
+                return FirstRegistrationStatusResult(
+                    status="unknown",
+                    transaction_disposition="wait",
+                )
+            attempt = self.ledger.get(pairing_id)
+            if (
+                result.classification
+                is FirstRegistrationCommitClassification.UNKNOWN
+            ):
+                return FirstRegistrationStatusResult(
+                    status="unknown",
+                    transaction_disposition="wait",
+                )
+            if attempt.state is FirstRegistrationAttemptState.COMMITTED:
+                return FirstRegistrationStatusResult(
+                    status="committed",
+                    transaction_disposition="committed",
+                )
+            if (
+                attempt.state
+                in {
+                    FirstRegistrationAttemptState.EXPIRED,
+                    FirstRegistrationAttemptState.RESTART_INVALIDATED,
+                }
+                and attempt.cleanup_state
+                is FirstRegistrationCleanupState.COMPLETE
+            ):
+                return FirstRegistrationStatusResult(
+                    status="rejected",
+                    reason=attempt.terminal_reason,
+                    transaction_disposition="terminal",
+                )
+            return FirstRegistrationStatusResult(
+                status="pending",
+                transaction_disposition="wait",
+            )
+
+        try:
+            classification = reconciler.classify(attempt)
+        except Exception:
+            return FirstRegistrationStatusResult(
+                status="unknown",
+                transaction_disposition="wait",
+            )
+        if (
+            classification
+            is FirstRegistrationCommitClassification.COMMITTED
+        ):
+            self.ledger.mark_committed(
+                pairing_id,
+                terminal_at=now,
+            )
+            return FirstRegistrationStatusResult(
+                status="committed",
+                transaction_disposition="committed",
+            )
+        if (
+            classification
+            is FirstRegistrationCommitClassification.UNKNOWN
+        ):
+            return FirstRegistrationStatusResult(
+                status="unknown",
+                transaction_disposition="wait",
+            )
+        return FirstRegistrationStatusResult(
+            status="pending",
+            transaction_disposition="wait",
         )
