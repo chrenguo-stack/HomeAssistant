@@ -58,7 +58,8 @@ def test_r6_confirm_contract_is_exact_and_keeps_server_deadline_authoritative() 
         'pairing_path != kRegistrationPairingPath',
         "expires > kRegistrationTransactionMaxSeconds",
         "pairing_host_allowed(pairing_host, local_ipv4, subnet_mask)",
-        "parsed.transaction_deadline_ms = received_ms + delta_ms",
+        "kRegistrationDeadlineSafetyMs = 1000ULL",
+        "parsed.transaction_deadline_ms = received_ms + safe_delta_ms",
     ):
         assert token in source
 
@@ -218,6 +219,8 @@ def test_r6_pending_ack_v2_is_crash_safe_and_v1_remains_readable() -> None:
     assert terminal.index("renew_pairing_intent_()") < terminal.index(
         "broker_store_->erase()"
     )
+    assert "if (!setup_secret_ready_)" in terminal
+    assert "prepare_bootstrap_()" in terminal
     assert terminal.index("broker_store_->erase()") < terminal.index(
         "peer_store_->erase()"
     )
