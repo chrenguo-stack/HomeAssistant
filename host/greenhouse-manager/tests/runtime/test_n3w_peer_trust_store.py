@@ -74,12 +74,11 @@ def test_initialize_baseline_rejects_corrupt_metadata(tmp_path) -> None:
             ("not-a-timestamp", SYSTEM_ID),
         )
 
-    with SystemPeerTrustStore(database) as store:
-        with pytest.raises(
-            PeerTrustStoreConflict,
-            match="metadata is corrupt",
-        ):
-            store.initialize_baseline(SYSTEM_ID)
+    with SystemPeerTrustStore(database) as store, pytest.raises(
+        PeerTrustStoreConflict,
+        match="metadata is corrupt",
+    ):
+        store.initialize_baseline(SYSTEM_ID)
 
 
 def test_get_or_create_is_stable_across_reopen(tmp_path) -> None:
