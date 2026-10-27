@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -55,7 +56,7 @@ class FirstRegistrationStartResult:
     def expires_in_seconds(self, *, now: datetime) -> int:
         return max(
             0,
-            int(
+            math.ceil(
                 (
                     self.expires_at
                     - now.astimezone(UTC)
