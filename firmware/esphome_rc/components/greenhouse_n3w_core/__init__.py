@@ -12,7 +12,7 @@ from esphome.components.esp32 import (
 from esphome.const import CONF_ID
 
 DEPENDENCIES = ["esp32"]
-AUTO_LOAD = ["json"]
+AUTO_LOAD = ["json", "mdns"]
 
 CONF_PRODUCT_RUNTIME = "product_runtime"
 CONF_FIRMWARE_VERSION = "firmware_version"
