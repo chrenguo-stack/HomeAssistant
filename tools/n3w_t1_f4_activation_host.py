@@ -122,6 +122,7 @@ F4_LOCK_PATH = PROVISIONING_ROOT / ".f4-activation.lock"
 BROKER_UNIT = "n3wfc4-broker-activation.service"
 SERVICES_UNIT = "n3wfc4-services-activation.service"
 GUARD_UNIT = "n3wfc4-broker-ingress-guard.service"
+REGISTRATION_GUARD_UNIT = "n3wfc4-registration-ingress-guard.service"
 PROVISION_UNIT = "n3wfc4-provision-resume.service"
 CERT_SERVICE = "n3wfc4-broker-certificate-lifecycle.service"
 CERT_TIMER = "n3wfc4-broker-certificate-lifecycle.timer"
@@ -511,8 +512,16 @@ def _stopped_instance_audit(
 
 def _preactivation_unit_boundary() -> dict[str, object]:
     guard_enabled = _systemctl("is-enabled", GUARD_UNIT)
+    registration_guard_enabled = _systemctl(
+        "is-enabled",
+        REGISTRATION_GUARD_UNIT,
+    )
     provision_enabled = _systemctl("is-enabled", PROVISION_UNIT)
-    if guard_enabled != "enabled" or provision_enabled != "enabled":
+    if (
+        guard_enabled != "enabled"
+        or registration_guard_enabled != "enabled"
+        or provision_enabled != "enabled"
+    ):
         raise F4Error("staged_unit_enablement_invalid")
     states: dict[str, str] = {}
     for unit in (BROKER_UNIT, SERVICES_UNIT, CERT_TIMER):
@@ -526,6 +535,7 @@ def _preactivation_unit_boundary() -> dict[str, object]:
         states[f"{unit}:enabled"] = enabled
     return {
         "guard_enabled": True,
+        "registration_guard_enabled": True,
         "provision_resume_enabled": True,
         "activation_units_stopped": True,
         "activation_units_disabled": True,

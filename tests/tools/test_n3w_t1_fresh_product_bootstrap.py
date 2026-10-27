@@ -675,6 +675,8 @@ def _prepare_public_runtime_payload(payload_root: Path) -> None:
     sbin.mkdir(parents=True)
     for name in (
         "n3w-broker-ingress-guard",
+        "n3w-registration-ingress-guard",
+        "n3w-trusted-product-lan-authority",
         "n3w-t1-provision",
         "n3w-t1-systemd-staged-install",
         "n3w-t1-production-activation-enable",
@@ -685,6 +687,7 @@ def _prepare_public_runtime_payload(payload_root: Path) -> None:
     systemd.mkdir(parents=True)
     for name in (
         "n3wfc4-broker-ingress-guard.service",
+        "n3wfc4-registration-ingress-guard.service",
         "n3wfc4-provision-resume.service",
     ):
         (systemd / name).write_text(name + "\n", encoding="utf-8")
@@ -887,6 +890,9 @@ def test_public_runtime_installs_explicit_provisioning_entrypoint() -> None:
     assert "/etc/systemd/system/n3wfc4-provision-resume.service" in public_files
     assert "/usr/local/sbin/n3w-t1-systemd-staged-install" in public_files
     assert "/usr/local/sbin/n3w-t1-production-activation-enable" in public_files
+    assert "/usr/local/sbin/n3w-registration-ingress-guard" in public_files
+    assert "/usr/local/sbin/n3w-trusted-product-lan-authority" in public_files
+    assert "/etc/systemd/system/n3wfc4-registration-ingress-guard.service" in public_files
 
 
 def test_transport_v2_requests_one_image_only_after_authorization() -> None:

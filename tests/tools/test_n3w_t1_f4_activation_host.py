@@ -232,6 +232,38 @@ def test_eligibility_is_phase_locked(
     )
 
 
+
+def test_preactivation_requires_registration_guard_staged_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool = load_tool()
+    states = {
+        ("is-enabled", tool.GUARD_UNIT): "enabled",
+        ("is-enabled", tool.REGISTRATION_GUARD_UNIT): "enabled",
+        ("is-enabled", tool.PROVISION_UNIT): "enabled",
+        ("is-active", tool.BROKER_UNIT): "inactive",
+        ("is-enabled", tool.BROKER_UNIT): "disabled",
+        ("is-active", tool.SERVICES_UNIT): "inactive",
+        ("is-enabled", tool.SERVICES_UNIT): "disabled",
+        ("is-active", tool.CERT_TIMER): "inactive",
+        ("is-enabled", tool.CERT_TIMER): "disabled",
+    }
+    monkeypatch.setattr(
+        tool,
+        "_systemctl",
+        lambda mode, unit: states[(mode, unit)],
+    )
+
+    report = tool._preactivation_unit_boundary()
+    assert report["registration_guard_enabled"] is True
+
+    states[("is-enabled", tool.REGISTRATION_GUARD_UNIT)] = "disabled"
+    with pytest.raises(
+        tool.F4Error,
+        match="staged_unit_enablement_invalid",
+    ):
+        tool._preactivation_unit_boundary()
+
 def test_prepare_claims_before_factory_acceptance_and_install(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

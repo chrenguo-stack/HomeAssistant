@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import ipaddress
 import json
 import os
 import re
+import shlex
 import shutil
 import sqlite3
 import stat
@@ -64,7 +66,7 @@ HA_TAR_NAME = "homeassistant-arm64.tar"
 BROKER_TAR_NAME = "broker-arm64.tar"
 MIN_ROOT_AVAILABLE_BYTES = 5 * 1024 * 1024 * 1024
 
-PORTS_TCP = (1883, 8883, 18883, 8123, 47112)
+PORTS_TCP = (1883, 8883, 18883, 8123, 47110, 47112)
 PORTS_UDP = (47111,)
 NETWORKS = ("n3wfc4-private", "n3wfc4-services")
 ACTIVATION_UNITS = (
@@ -72,6 +74,9 @@ ACTIVATION_UNITS = (
     "n3wfc4-services-activation.service",
 )
 DISPATCHER = Path("/etc/NetworkManager/dispatcher.d/90-n3wfc4-broker-ingress-guard")
+REGISTRATION_GUARD_UNIT = "n3wfc4-registration-ingress-guard.service"
+REGISTRATION_CHAIN = "N3WFC4-REGISTRATION-INGRESS"
+REGISTRATION_COMMENT = "n3wfc4-registration-ingress-v1"
 
 MANAGER_ROOT = Path("/var/lib/greenhouse-manager")
 MANAGER_DIR = MANAGER_ROOT / "manager"
@@ -111,7 +116,7 @@ SOURCE_FILES: dict[str, tuple[str, int, str]] = {
     "infra/n3w-t1/production/docker-compose.yml": (
         "/opt/HomeAssistant/infra/n3w-t1/production/docker-compose.yml",
         0o644,
-        "5aff1abbe25888d6447a9cdd59a5a1b228d11330817968d73779c4ea62cf75f2",
+        "d694d7a79e88d3642c800c4757b4354da0e739edec0d42fac2ca5713969be521",
     ),
     "infra/n3w-t1/production/image-lock.json": (
         "/opt/HomeAssistant/infra/n3w-t1/production/image-lock.json",
@@ -153,7 +158,7 @@ SOURCE_FILES: dict[str, tuple[str, int, str]] = {
     "infra/n3w-t1/systemd/n3wfc4-services-activation.service": (
         "/opt/HomeAssistant/infra/n3w-t1/systemd/n3wfc4-services-activation.service",
         0o644,
-        "fdca7cbddbfe4c0ba53d2d3eab6f4e1daebf2e94302ee7a659932c7a0a766ef4",
+        "bb751c5c15b0826708fb8a15c8bf6d347f7c75d48abb58964a7eb9f82f09b68e",
     ),
     "tools/n3w_t1_broker_authenticated_readiness.py": (
         "/opt/HomeAssistant/tools/n3w_t1_broker_authenticated_readiness.py",
@@ -163,7 +168,7 @@ SOURCE_FILES: dict[str, tuple[str, int, str]] = {
     "tools/n3w_t1_clean_product_deployment_gate.py": (
         "/opt/HomeAssistant/tools/n3w_t1_clean_product_deployment_gate.py",
         0o755,
-        "3dea4ae3ed1ada27cec967cb918e7c33396af92d1680bae9aef9855fb14dc313",
+        "c423684ff9674b3881411df508dbed9bd287d932be7e88b4ee000b1d3184ca54",
     ),
     "tools/n3w_t1_production_manager_state_prepare.py": (
         "/opt/HomeAssistant/tools/n3w_t1_production_manager_state_prepare.py",
@@ -305,7 +310,125 @@ def _listener_counts(runner: Runner) -> dict[str, int]:
     return result
 
 
-def _guard_contract(runner: Runner) -> dict[str, bool]:
+def _registration_guard_contract(
+    runner: Runner,
+    input_appends: list[str],
+) -> dict[str, bool]:
+    active = runner.run(
+        ("systemctl", "is-active", REGISTRATION_GUARD_UNIT)
+    ).strip()
+    enabled = runner.run(
+        ("systemctl", "is-enabled", REGISTRATION_GUARD_UNIT)
+    ).strip()
+    if active != "active" or enabled != "enabled":
+        raise StagingError("registration_guard_state_drift")
+
+    expected_anchors = (
+        "-A INPUT -p tcp -m tcp --dport 47110 "
+        "-m comment --comment n3wfc4-registration-ingress-v1 "
+        "-j N3WFC4-REGISTRATION-INGRESS",
+        "-A INPUT -p udp -m udp --dport 47111 "
+        "-m comment --comment n3wfc4-registration-ingress-v1 "
+        "-j N3WFC4-REGISTRATION-INGRESS",
+        "-A INPUT -p tcp -m tcp --dport 47112 "
+        "-m comment --comment n3wfc4-registration-ingress-v1 "
+        "-j N3WFC4-REGISTRATION-INGRESS",
+    )
+    try:
+        observed_anchor_tokens = tuple(
+            tuple(shlex.split(line))
+            for line in input_appends[1:4]
+        )
+        expected_anchor_tokens = tuple(
+            tuple(shlex.split(line))
+            for line in expected_anchors
+        )
+    except ValueError as error:
+        raise StagingError("registration_guard_input_anchor_drift") from error
+    if observed_anchor_tokens != expected_anchor_tokens:
+        raise StagingError("registration_guard_input_anchor_drift")
+    if (
+        sum(REGISTRATION_COMMENT in line for line in input_appends)
+        != len(expected_anchors)
+    ):
+        raise StagingError("registration_guard_input_anchor_count_drift")
+
+    filter_table = runner.run(("iptables-save", "-t", "filter")).splitlines()
+    registration_refs: list[tuple[str, ...]] = []
+    for line in filter_table:
+        if not line.startswith("-A "):
+            continue
+        try:
+            tokens = tuple(shlex.split(line))
+        except ValueError as error:
+            raise StagingError("registration_guard_reference_parse_drift") from error
+        for index, token in enumerate(tokens[:-1]):
+            if (
+                token in {"-j", "--jump", "-g", "--goto"}
+                and tokens[index + 1] == REGISTRATION_CHAIN
+            ):
+                registration_refs.append(tokens)
+                break
+    if tuple(registration_refs) != expected_anchor_tokens:
+        raise StagingError("registration_guard_foreign_reference")
+
+    rules = runner.run(("iptables", "-S", REGISTRATION_CHAIN)).splitlines()
+    appends = [
+        line
+        for line in rules
+        if line.startswith(f"-A {REGISTRATION_CHAIN} ")
+    ]
+    if len(appends) not in {1, 2}:
+        raise StagingError("registration_guard_rule_count_drift")
+    terminal_rule = (
+        f"-A {REGISTRATION_CHAIN} -m comment --comment "
+        f"{REGISTRATION_COMMENT} -j DROP"
+    )
+    try:
+        terminal_matches = (
+            shlex.split(appends[-1]) == shlex.split(terminal_rule)
+        )
+    except ValueError as error:
+        raise StagingError("registration_guard_terminal_drop_drift") from error
+    if not terminal_matches:
+        raise StagingError("registration_guard_terminal_drop_drift")
+    if len(appends) == 2:
+        try:
+            tokens = shlex.split(appends[0])
+        except ValueError as error:
+            raise StagingError("registration_guard_allow_rule_drift") from error
+        if (
+            len(tokens) != 12
+            or tokens[:6]
+            != ["-A", REGISTRATION_CHAIN, "-i", "eth0", "-s", tokens[5]]
+            or tokens[6:]
+            != [
+                "-m",
+                "comment",
+                "--comment",
+                REGISTRATION_COMMENT,
+                "-j",
+                "RETURN",
+            ]
+        ):
+            raise StagingError("registration_guard_allow_rule_drift")
+        try:
+            subnet = ipaddress.ip_network(tokens[5], strict=True)
+        except ValueError as error:
+            raise StagingError("registration_guard_allow_rule_drift") from error
+        if (
+            not isinstance(subnet, ipaddress.IPv4Network)
+            or subnet.prefixlen == 0
+            or subnet.is_loopback
+            or subnet.is_link_local
+            or subnet.is_multicast
+            or subnet.is_unspecified
+        ):
+            raise StagingError("registration_guard_allow_subnet_invalid")
+    return {"active": True, "enabled": True, "exact": True}
+
+
+def _guard_contract(runner: Runner) -> dict[str, Any]:
     active = runner.run(
         ("systemctl", "is-active", "n3wfc4-broker-ingress-guard.service")
     ).strip()
@@ -334,7 +457,13 @@ def _guard_contract(runner: Runner) -> dict[str, bool]:
         raise StagingError("guard_docker_anchor_count_drift")
     if not ingress_appends or not ingress_appends[-1].endswith("-j DROP"):
         raise StagingError("guard_terminal_drop_drift")
-    return {"active": True, "enabled": True, "exact": True}
+    registration = _registration_guard_contract(runner, input_appends)
+    return {
+        "active": True,
+        "enabled": True,
+        "exact": True,
+        "registration": registration,
+    }
 
 
 def _manager_database_report() -> dict[str, Any]:

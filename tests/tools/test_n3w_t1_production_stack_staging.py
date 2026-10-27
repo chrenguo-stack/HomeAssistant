@@ -553,3 +553,263 @@ def test_staging_apply_has_no_live_registry_pull() -> None:
     assert '"production_image_load"' in source
     assert "homeassistant-arm64.tar" in source
     assert "broker-arm64.tar" in source
+
+
+def test_listener_inventory_includes_registration_bootstrap_port() -> None:
+    tool = load_tool()
+    assert 47110 in tool.PORTS_TCP
+    assert 47112 in tool.PORTS_TCP
+    assert 47111 in tool.PORTS_UDP
+
+
+def _registration_guard_runner(tool, *, registration_active: str = "active"):
+    broker_anchor = "-A INPUT -j N3WFC4-BROKER-INGRESS"
+    registration_anchors = [
+        "-A INPUT -p tcp -m tcp --dport 47110 "
+        "-m comment --comment n3wfc4-registration-ingress-v1 "
+        "-j N3WFC4-REGISTRATION-INGRESS",
+        "-A INPUT -p udp -m udp --dport 47111 "
+        "-m comment --comment n3wfc4-registration-ingress-v1 "
+        "-j N3WFC4-REGISTRATION-INGRESS",
+        "-A INPUT -p tcp -m tcp --dport 47112 "
+        "-m comment --comment n3wfc4-registration-ingress-v1 "
+        "-j N3WFC4-REGISTRATION-INGRESS",
+    ]
+
+    class FakeRunner:
+        def run(self, command, **_kwargs):
+            if command[:2] == ("systemctl", "is-active"):
+                if command[2] == tool.REGISTRATION_GUARD_UNIT:
+                    return registration_active + "\n"
+                return "active\n"
+            if command[:2] == ("systemctl", "is-enabled"):
+                return "enabled\n"
+            if command == ("iptables", "-S", "INPUT"):
+                return "\n".join([broker_anchor, *registration_anchors]) + "\n"
+            if command == ("iptables", "-S", "DOCKER-USER"):
+                return "-A DOCKER-USER -j N3WFC4-BROKER-INGRESS\n"
+            if command == ("iptables", "-S", "N3WFC4-BROKER-INGRESS"):
+                return "-A N3WFC4-BROKER-INGRESS -j DROP\n"
+            if command == ("iptables-save", "-t", "filter"):
+                return (
+                    "*filter\n"
+                    ":INPUT ACCEPT [0:0]\n"
+                    ":DOCKER-USER - [0:0]\n"
+                    ":N3WFC4-BROKER-INGRESS - [0:0]\n"
+                    ":N3WFC4-REGISTRATION-INGRESS - [0:0]\n"
+                    + broker_anchor
+                    + "\n"
+                    + "\n".join(registration_anchors)
+                    + "\n"
+                    "-A DOCKER-USER -j N3WFC4-BROKER-INGRESS\n"
+                    "-A N3WFC4-BROKER-INGRESS -j DROP\n"
+                    "-A N3WFC4-REGISTRATION-INGRESS -i eth0 "
+                    "-s 192.0.2.0/24 -m comment --comment "
+                    "n3wfc4-registration-ingress-v1 -j RETURN\n"
+                    "-A N3WFC4-REGISTRATION-INGRESS -m comment --comment "
+                    "n3wfc4-registration-ingress-v1 -j DROP\n"
+                    "COMMIT\n"
+                )
+            if command == ("iptables", "-S", tool.REGISTRATION_CHAIN):
+                return (
+                    "-A N3WFC4-REGISTRATION-INGRESS -i eth0 "
+                    "-s 192.0.2.0/24 -m comment --comment "
+                    "n3wfc4-registration-ingress-v1 -j RETURN\n"
+                    "-A N3WFC4-REGISTRATION-INGRESS -m comment --comment "
+                    "n3wfc4-registration-ingress-v1 -j DROP\n"
+                )
+            raise AssertionError(command)
+
+    return FakeRunner()
+
+
+def test_guard_contract_proves_registration_guard_without_exposing_subnet() -> None:
+    tool = load_tool()
+    report = tool._guard_contract(_registration_guard_runner(tool))
+    assert report == {
+        "active": True,
+        "enabled": True,
+        "exact": True,
+        "registration": {
+            "active": True,
+            "enabled": True,
+            "exact": True,
+        },
+    }
+    assert "192.0.2.0/24" not in json.dumps(report)
+
+
+def test_guard_contract_rejects_inactive_registration_guard() -> None:
+    tool = load_tool()
+    with pytest.raises(
+        tool.StagingError,
+        match="registration_guard_state_drift",
+    ):
+        tool._guard_contract(
+            _registration_guard_runner(
+                tool,
+                registration_active="inactive",
+            )
+        )
+
+
+def test_guard_contract_rejects_registration_anchor_order_drift() -> None:
+    tool = load_tool()
+    runner = _registration_guard_runner(tool)
+    original = runner.run
+
+    def drifted(command, **kwargs):
+        result = original(command, **kwargs)
+        if command == ("iptables", "-S", "INPUT"):
+            lines = result.splitlines()
+            lines[1], lines[2] = lines[2], lines[1]
+            return "\n".join(lines) + "\n"
+        return result
+
+    runner.run = drifted
+    with pytest.raises(
+        tool.StagingError,
+        match="registration_guard_input_anchor_drift",
+    ):
+        tool._guard_contract(runner)
+
+
+def test_guard_contract_rejects_invalid_registration_allow_subnet() -> None:
+    tool = load_tool()
+    runner = _registration_guard_runner(tool)
+    original = runner.run
+
+    def invalid_subnet(command, **kwargs):
+        result = original(command, **kwargs)
+        if command == ("iptables", "-S", tool.REGISTRATION_CHAIN):
+            return result.replace("192.0.2.0/24", "999.999.999.999/99")
+        return result
+
+    runner.run = invalid_subnet
+    with pytest.raises(
+        tool.StagingError,
+        match="registration_guard_allow_rule_drift",
+    ):
+        tool._guard_contract(runner)
+
+
+def test_guard_contract_accepts_quoted_registration_comment_tokens() -> None:
+    tool = load_tool()
+    runner = _registration_guard_runner(tool)
+    original = runner.run
+
+    def quoted(command, **kwargs):
+        result = original(command, **kwargs)
+        if command in {
+            ("iptables", "-S", "INPUT"),
+            ("iptables", "-S", tool.REGISTRATION_CHAIN),
+        }:
+            return result.replace(
+                "n3wfc4-registration-ingress-v1",
+                '"n3wfc4-registration-ingress-v1"',
+            )
+        return result
+
+    runner.run = quoted
+    report = tool._guard_contract(runner)
+    assert report["registration"]["exact"] is True
+
+
+def test_guard_contract_rejects_extra_uncommented_input_jump() -> None:
+    tool = load_tool()
+    runner = _registration_guard_runner(tool)
+    original = runner.run
+
+    def extra_input_jump(command, **kwargs):
+        result = original(command, **kwargs)
+        if command == ("iptables-save", "-t", "filter"):
+            return result.replace(
+                "COMMIT\n",
+                "-A INPUT -j N3WFC4-REGISTRATION-INGRESS\nCOMMIT\n",
+            )
+        return result
+
+    runner.run = extra_input_jump
+    with pytest.raises(
+        tool.StagingError,
+        match="registration_guard_foreign_reference",
+    ):
+        tool._guard_contract(runner)
+
+
+def test_guard_contract_rejects_foreign_chain_jump() -> None:
+    tool = load_tool()
+    runner = _registration_guard_runner(tool)
+    original = runner.run
+
+    def foreign_chain_jump(command, **kwargs):
+        result = original(command, **kwargs)
+        if command == ("iptables-save", "-t", "filter"):
+            return result.replace(
+                "COMMIT\n",
+                ":FOREIGN - [0:0]\n"
+                "-A FOREIGN -j N3WFC4-REGISTRATION-INGRESS\n"
+                "COMMIT\n",
+            )
+        return result
+
+    runner.run = foreign_chain_jump
+    with pytest.raises(
+        tool.StagingError,
+        match="registration_guard_foreign_reference",
+    ):
+        tool._guard_contract(runner)
+
+
+@pytest.mark.parametrize("goto_operator", ("-g", "--goto"))
+def test_guard_contract_rejects_extra_input_goto(
+    goto_operator: str,
+) -> None:
+    tool = load_tool()
+    runner = _registration_guard_runner(tool)
+    original = runner.run
+
+    def extra_input_goto(command, **kwargs):
+        result = original(command, **kwargs)
+        if command == ("iptables-save", "-t", "filter"):
+            return result.replace(
+                "COMMIT\n",
+                f"-A INPUT {goto_operator} "
+                "N3WFC4-REGISTRATION-INGRESS\nCOMMIT\n",
+            )
+        return result
+
+    runner.run = extra_input_goto
+    with pytest.raises(
+        tool.StagingError,
+        match="registration_guard_foreign_reference",
+    ):
+        tool._guard_contract(runner)
+
+
+@pytest.mark.parametrize("goto_operator", ("-g", "--goto"))
+def test_guard_contract_rejects_foreign_chain_goto(
+    goto_operator: str,
+) -> None:
+    tool = load_tool()
+    runner = _registration_guard_runner(tool)
+    original = runner.run
+
+    def foreign_chain_goto(command, **kwargs):
+        result = original(command, **kwargs)
+        if command == ("iptables-save", "-t", "filter"):
+            return result.replace(
+                "COMMIT\n",
+                ":FOREIGN - [0:0]\n"
+                f"-A FOREIGN {goto_operator} "
+                "N3WFC4-REGISTRATION-INGRESS\n"
+                "COMMIT\n",
+            )
+        return result
+
+    runner.run = foreign_chain_goto
+    with pytest.raises(
+        tool.StagingError,
+        match="registration_guard_foreign_reference",
+    ):
+        tool._guard_contract(runner)

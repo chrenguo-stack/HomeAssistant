@@ -56,6 +56,7 @@ BROKER_UID = 1883
 BROKER_GID = 1883
 PRODUCT_UNITS = (
     "n3wfc4-broker-ingress-guard.service",
+    "n3wfc4-registration-ingress-guard.service",
     "n3wfc4-provision-resume.service",
     "n3wfc4-broker-activation.service",
     "n3wfc4-services-activation.service",
@@ -73,10 +74,13 @@ FINAL_DIRS = {
 }
 FINAL_FILES = {
     "/usr/local/sbin/n3w-broker-ingress-guard": "stage/n3w-broker-ingress-guard",
+    "/usr/local/sbin/n3w-registration-ingress-guard": "stage/n3w-registration-ingress-guard",
+    "/usr/local/sbin/n3w-trusted-product-lan-authority": "stage/n3w-trusted-product-lan-authority",
     "/usr/local/sbin/n3w-t1-provision": "stage/n3w-t1-provision",
     "/usr/local/sbin/n3w-t1-systemd-staged-install": "stage/n3w-t1-systemd-staged-install",
     "/usr/local/sbin/n3w-t1-production-activation-enable": "stage/n3w-t1-production-activation-enable",
     "/etc/systemd/system/n3wfc4-broker-ingress-guard.service": "stage/n3wfc4-broker-ingress-guard.service",
+    "/etc/systemd/system/n3wfc4-registration-ingress-guard.service": "stage/n3wfc4-registration-ingress-guard.service",
     "/etc/systemd/system/n3wfc4-provision-resume.service": "stage/n3wfc4-provision-resume.service",
 }
 PUBLIC_FINAL_DIRS = {
@@ -1045,6 +1049,28 @@ print(json.dumps({"status": "PASS"}))
         )
         os.chmod(unit, 0o644)
 
+        registration_guard = stage / "n3w-registration-ingress-guard"
+        shutil.copy2(
+            self.payload_root
+            / "runtime-source/usr/local/sbin/n3w-registration-ingress-guard",
+            registration_guard,
+        )
+        os.chmod(registration_guard, 0o755)
+        trusted_lan_authority = stage / "n3w-trusted-product-lan-authority"
+        shutil.copy2(
+            self.payload_root
+            / "runtime-source/usr/local/sbin/n3w-trusted-product-lan-authority",
+            trusted_lan_authority,
+        )
+        os.chmod(trusted_lan_authority, 0o755)
+        registration_unit = stage / "n3wfc4-registration-ingress-guard.service"
+        shutil.copy2(
+            self.payload_root
+            / "runtime-source/etc/systemd/system/n3wfc4-registration-ingress-guard.service",
+            registration_unit,
+        )
+        os.chmod(registration_unit, 0o644)
+
         provision = stage / "n3w-t1-provision"
         shutil.copy2(
             self.payload_root / "runtime-source/usr/local/sbin/n3w-t1-provision",
@@ -1245,6 +1271,8 @@ print(json.dumps({"status": "PASS"}))
         if (
             "N3WFC4-BROKER-INGRESS" in firewall
             or "n3wfc4-broker-ingress-v1" in firewall
+            or "N3WFC4-REGISTRATION-INGRESS" in firewall
+            or "n3wfc4-registration-ingress-v1" in firewall
         ):
             raise BootstrapError("postcheck_firewall_started")
 
@@ -1253,14 +1281,32 @@ print(json.dumps({"status": "PASS"}))
             raise BootstrapError("postcheck_guard_unit_missing")
         if _systemctl(self.runner, "is-active", unit) not in {"inactive", "unknown"}:
             raise BootstrapError("postcheck_guard_active")
+        registration_unit = "n3wfc4-registration-ingress-guard.service"
+        if _unit_load_state(self.runner, registration_unit) != "loaded":
+            raise BootstrapError("postcheck_registration_guard_unit_missing")
+        if _systemctl(
+            self.runner,
+            "is-active",
+            registration_unit,
+        ) not in {"inactive", "unknown"}:
+            raise BootstrapError("postcheck_registration_guard_active")
         guard_enabled = _systemctl(self.runner, "is-enabled", unit)
+        registration_guard_enabled = _systemctl(
+            self.runner,
+            "is-enabled",
+            registration_unit,
+        )
         provision_enabled = _systemctl(
             self.runner,
             "is-enabled",
             "n3wfc4-provision-resume.service",
         )
         if staged_units_enabled:
-            if guard_enabled != "enabled" or provision_enabled != "enabled":
+            if (
+                guard_enabled != "enabled"
+                or registration_guard_enabled != "enabled"
+                or provision_enabled != "enabled"
+            ):
                 raise BootstrapError("postcheck_staged_units_not_enabled")
             for activation_unit in (
                 "n3wfc4-broker-activation.service",
@@ -1272,6 +1318,12 @@ print(json.dumps({"status": "PASS"}))
         else:
             if guard_enabled not in {"disabled", "static", "indirect"}:
                 raise BootstrapError("postcheck_guard_enabled")
+            if registration_guard_enabled not in {
+                "disabled",
+                "static",
+                "indirect",
+            }:
+                raise BootstrapError("postcheck_registration_guard_enabled")
             if provision_enabled not in {"disabled", "static", "indirect", "not-found", ""}:
                 raise BootstrapError("postcheck_provision_resume_enabled")
 
@@ -1558,6 +1610,7 @@ print(json.dumps({
         self._cleanup_candidate_containers(errors)
         for unit in (
             "n3wfc4-broker-ingress-guard.service",
+            "n3wfc4-registration-ingress-guard.service",
             "n3wfc4-provision-resume.service",
         ):
             try:

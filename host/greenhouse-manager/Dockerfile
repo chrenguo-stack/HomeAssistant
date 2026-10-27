@@ -17,7 +17,7 @@ COPY pyproject.toml README.md ./
 COPY src ./src
 
 RUN python -m pip install --upgrade pip \
-    && python -m pip install .
+    && python -m pip install '.[pairing]'
 
 USER greenhouse
 
