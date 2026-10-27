@@ -151,8 +151,8 @@ def test_r6_reuses_existing_pairing_crypto_after_47110() -> None:
     for token in (
         '"gh.pair.simple-begin/1"',
         "derive_bootstrap_key(",
-        "decrypt_credential_bundle(",
-        "parse_credential_bundle(",
+        "decrypt_simple_credential_bundle(",
+        "parse_bundle(",
     ):
         assert token in pair
 
