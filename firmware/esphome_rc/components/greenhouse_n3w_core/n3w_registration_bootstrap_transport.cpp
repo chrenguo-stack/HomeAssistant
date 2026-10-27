@@ -9,6 +9,7 @@
 #include <cstring>
 #include <limits>
 #include <string>
+#include <unistd.h>
 
 #include "esp_timer.h"
 #include "lwip/inet.h"
