@@ -12,6 +12,7 @@
 #include "esphome/components/json/json_util.h"
 #include "lwip/inet.h"
 #include "lwip/ip_addr.h"
+#include "lwip/sockets.h"
 #include "mdns.h"
 
 #include "n3w_esp32_manager_discovery.h"
