@@ -35,10 +35,12 @@ button{display:block;font-size:1.05rem;padding:.7rem 1rem;margin:.6rem 0;max-wid
 </head>
 <body>
 <h1>联机注册</h1>
+<p id="node"></p>
 <p id="status">正在准备联机注册…</p>
 <div id="choices"></div>
 <script>
 (() => {
+  const node = document.getElementById("node");
   const out = document.getElementById("status");
   const choices = document.getElementById("choices");
   const params = new URLSearchParams(location.hash.slice(1));
@@ -108,6 +110,9 @@ button{display:block;font-size:1.05rem;padding:.7rem 1rem;margin:.6rem 0;max-wid
 
   const render = async (body) => {
     clearChoices();
+    if (typeof body.node_label === "string") {
+      node.textContent = body.node_label;
+    }
     if (body.status === "discovering") {
       out.textContent = "正在查找主机";
       return;
@@ -257,6 +262,11 @@ void RegistrationPortal::set_discovery_in_progress() {
   candidates_.clear();
   selected_candidate_id_.clear();
   discovery_stage_ = RegistrationPortalStage::DISCOVERING;
+}
+
+void RegistrationPortal::set_node_label(const std::string &node_label) {
+  std::lock_guard<std::mutex> lock(discovery_mutex_);
+  node_label_ = node_label;
 }
 
 void RegistrationPortal::set_candidates(
@@ -604,6 +614,7 @@ esp_err_t RegistrationPortal::handle_status_(httpd_req_t *request) {
   }
 
   RegistrationPortalStage stage;
+  std::string node_label;
   std::vector<RegistrationPortalCandidateView> candidates;
   const uint64_t now_ms = monotonic_ms_();
   {
@@ -624,12 +635,14 @@ esp_err_t RegistrationPortal::handle_status_(httpd_req_t *request) {
       }
     }
     stage = discovery_stage_;
+    node_label = node_label_;
     candidates = candidates_;
   }
 
   const std::string body = json::build_json([&](JsonObject root) {
     root["schema"] = "gh.registration.portal-status/1";
     root["status"] = stage_name(stage);
+    root["node_label"] = node_label;
     if (stage == RegistrationPortalStage::WAIT_CONFIRM) {
       JsonArray values = root["candidates"].to<JsonArray>();
       for (const RegistrationPortalCandidateView &candidate : candidates) {
