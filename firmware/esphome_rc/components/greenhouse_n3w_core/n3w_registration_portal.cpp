@@ -1,5 +1,6 @@
 #include "n3w_registration_portal.h"
 
+#include <algorithm>
 #include <array>
 #include <cstring>
 #include <string>
