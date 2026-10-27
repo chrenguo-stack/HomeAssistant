@@ -41,6 +41,19 @@ def test_r6_tls_pin_is_proven_before_any_http_request_is_constructed() -> None:
     assert "kMaxResponseBytes = 8192" in source
     assert "kMaxRequestBodyBytes = 2048" in source
 
+    # ESP-IDF's documented bounded-connect pattern is non-blocking connect
+    # followed by select(); do not rely on SO_SNDTIMEO to bound connect().
+    assert "original_flags | O_NONBLOCK" in source
+    assert "::select(" in source
+    assert "SO_ERROR" in source
+    connect_start = source.index("int connected = ::connect(")
+    select_wait = source.index("const int selected = ::select(", connect_start)
+    so_error = source.index("SO_ERROR", select_wait)
+    restore_blocking = source.index(
+        "::fcntl(socket_fd, F_SETFL, original_flags)", so_error
+    )
+    assert connect_start < select_wait < so_error < restore_blocking
+
 
 def test_r6_confirm_contract_is_exact_and_keeps_server_deadline_authoritative() -> None:
     header = text("n3w_registration_bootstrap_client.h")
