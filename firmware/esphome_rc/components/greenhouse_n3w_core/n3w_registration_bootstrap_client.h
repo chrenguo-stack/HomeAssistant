@@ -85,6 +85,11 @@ bool parse_registration_status_response(
     const std::string &response_json,
     RegistrationBootstrapStatusResult *result);
 
+bool registration_bootstrap_host_allowed(
+    const std::string &host,
+    const std::string &local_ipv4,
+    const std::string &subnet_mask);
+
 bool registration_relocation_matches(
     const RegistrationCandidateV1 &candidate,
     const RegistrationBootstrapRecoveryBinding &binding);
