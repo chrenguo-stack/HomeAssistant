@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+import sqlite3
 
 import pytest
 
@@ -20,6 +21,65 @@ class FixedKeys:
     def __call__(self, size: int) -> bytes:
         assert size == 32
         return self.values.pop(0)
+
+
+def test_initialize_baseline_creates_once_and_returns_secret_free_snapshot(
+    tmp_path,
+) -> None:
+    database = tmp_path / "peer-trust-baseline.sqlite3"
+    with SystemPeerTrustStore(
+        database,
+        random_bytes=FixedKeys(FIRST_KEY),
+    ) as store:
+        first = store.initialize_baseline(
+            SYSTEM_ID,
+            now=NOW,
+        )
+        credential = store.get(SYSTEM_ID)
+        again = store.initialize_baseline(
+            SYSTEM_ID,
+            now=NOW + timedelta(seconds=5),
+        )
+        audit = store.audit()
+
+    assert first == again
+    assert first.generation == 1
+    assert first.created_at == NOW
+    assert first.updated_at == NOW
+    assert credential.generation == 1
+    assert credential.key == FIRST_KEY
+    assert FIRST_KEY.hex() not in repr(first)
+    assert audit["system_count"] == 1
+    assert audit["secret_values_included"] is False
+
+
+def test_initialize_baseline_rejects_corrupt_metadata(tmp_path) -> None:
+    database = tmp_path / "peer-trust-corrupt.sqlite3"
+    with SystemPeerTrustStore(
+        database,
+        random_bytes=FixedKeys(FIRST_KEY),
+    ) as store:
+        store.initialize_baseline(
+            SYSTEM_ID,
+            now=NOW,
+        )
+
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            """
+            UPDATE n3w_system_peer_trust
+            SET created_at = ?
+            WHERE system_id = ?
+            """,
+            ("not-a-timestamp", SYSTEM_ID),
+        )
+
+    with SystemPeerTrustStore(database) as store:
+        with pytest.raises(
+            PeerTrustStoreConflict,
+            match="metadata is corrupt",
+        ):
+            store.initialize_baseline(SYSTEM_ID)
 
 
 def test_get_or_create_is_stable_across_reopen(tmp_path) -> None:

@@ -122,8 +122,8 @@ class SimplifiedCredentialBundleIssuer:
         *,
         now=None,
     ) -> SimplifiedProductCredentialBundle:
-        """Compose a normal bundle, initializing peer trust when necessary."""
-        peer = self.peer_trust.get_or_create(base.system_id, now=now)
+        """Compose a normal bundle from already-initialized peer trust."""
+        peer = self.peer_trust.get(base.system_id)
         return SimplifiedProductCredentialBundle.from_existing(base, peer)
 
     def issue_existing(
@@ -131,12 +131,7 @@ class SimplifiedCredentialBundleIssuer:
         base: ProductCredentialSource,
     ) -> SimplifiedProductCredentialBundle:
         """Compose recovery material from already-existing peer trust only."""
-        getter = getattr(self.peer_trust, "get", None)
-        peer = (
-            getter(base.system_id)
-            if callable(getter)
-            else self.peer_trust.get_or_create(base.system_id)
-        )
+        peer = self.peer_trust.get(base.system_id)
         return SimplifiedProductCredentialBundle.from_existing(base, peer)
 
 

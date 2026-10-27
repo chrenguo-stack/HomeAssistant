@@ -43,18 +43,20 @@ def test_recovery_does_not_initialize_missing_peer_trust(tmp_path) -> None:
         assert store.audit()["system_count"] == 0
 
 
-def test_first_registration_may_initialize_peer_trust(tmp_path) -> None:
+def test_first_registration_does_not_initialize_missing_peer_trust(tmp_path) -> None:
     with SystemPeerTrustStore(tmp_path / "peer-trust.sqlite3") as store:
         issuer = SimplifiedCredentialBundleIssuer(store)
-        issued = issuer.issue(_bundle(1), now=NOW)
 
-        assert issued.peer_trust_generation == 1
-        assert store.audit()["system_count"] == 1
+        with pytest.raises(KeyError):
+            issuer.issue(_bundle(1), now=NOW)
+
+        assert store.audit()["system_count"] == 0
 
 
 def test_recovery_reuses_existing_peer_trust_without_rotation(tmp_path) -> None:
     with SystemPeerTrustStore(tmp_path / "peer-trust.sqlite3") as store:
         issuer = SimplifiedCredentialBundleIssuer(store)
+        store.initialize_baseline(SYSTEM_ID, now=NOW)
         first = issuer.issue(_bundle(1), now=NOW)
         before = store.snapshot(SYSTEM_ID)
 
