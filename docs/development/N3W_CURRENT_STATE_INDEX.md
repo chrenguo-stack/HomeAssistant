@@ -1,3 +1,20 @@
+## 2026-10-27 — R5 merged; R6 TLS-bootstrap design/preflight is next
+
+- Executable/source main after R5 merge: `32c4eef68bce48ff7a379381ab0bfad60557ef57`; tree `303378f5cffef4e4f1f71881b1955baed5b7d220`.
+- PR #693 R4 local registration portal is merged as `1ae096f334b7c0b19800bdec02a2c63d6166ec08`; final reviewed head `ac787092f3a063c39d63580f562ac600f07aafae`.
+- PR #694 R5 final reviewed head `86501708eb17e3f946bb7a2abcd783db5fc3b041` passed 16/16 latest-head workflows and merged as `32c4eef68bce48ff7a379381ab0bfad60557ef57`.
+- R5 focused review: PASS; new source blockers 0; main alignment PASS.
+- Product idle unregistered path does not perform registration discovery before a valid QR/browser scan trigger.
+- R5 discovery is mDNS `_greenhouse-reg._tcp` first with bounded UDP/47111 fallback only when mDNS yields zero legal candidates.
+- Up to four candidates are retained/deduped; multiple candidates require explicit user choice and are never ranked/auto-selected.
+- Browser receives only the approved 6-character node suffix, opaque candidate ID and product-safe T1 label; full hardware ID, IP/port, Manager ID, full system ID, TLS fingerprint, Setup Secret and MQTT material remain node-local.
+- Discovery session binds the current pairing ID and selection rechecks it; selected full candidate remains RAM-only for R6.
+- R5 `/confirm` remains fail-closed at `bootstrap_stage_pending`; 47110/TLS/Setup Secret and ordinary pairing transaction are not implemented by R5.
+- R4 pending-final-ACK recovery still precedes ordinary R5 discovery.
+- No T1/board access, flash/NVS mutation or live-runtime mutation occurred in R4/R5 source closure or merge.
+- Next ONE gate: `N3W_SCAN_TRIGGERED_FIRST_PAIRING_R6_TLS_BOOTSTRAP_SOURCE_DESIGN_AND_PREFLIGHT_20261027_01`.
+- R6 starts with source design/preflight only: freeze selected-candidate TLS pinning, `gh.registration.confirm/1`, 47112 locator/deadline handoff, terminal renewal semantics, pending-ACK status recovery, and `SimplePairingClient` phase split. Do not enter R6 implementation before that review.
+
 ## 2026-10-27 — R3 identity-bound transaction window preflight
 
 - Current main after R2C merge: `920a2e5dba24d5d3c9a6aa7aaca3fcafd2876847`.
