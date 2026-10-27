@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <utility>
 
 #include "esphome/components/json/json_util.h"
 #include "lwip/inet.h"
