@@ -25,14 +25,6 @@ interval:
           id(n3w_registration_display_error) =
               id(n3w_product_core).registration_display_error_code();
 
-          // Keep the product setup/registration surface physically visible.
-          // After the bounded SUCCESS latch expires, provisioned nodes return
-          // to the existing five-page cadence automatically.
-          if (!provisioned || registration_display_state == 4 ||
-              registration_display_state == 5) {
-            id(display_page) = 4;
-          }
-
           if (provisioned || !id(wifi_component).is_connected() ||
               !id(n3w_product_core).registration_display_ready()) {
             id(n3w_registration_qr_ready) = false;
