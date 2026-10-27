@@ -473,6 +473,7 @@ class SimpleProductComponent : public Component,
   std::string registration_session_pairing_id_{};
   bool registration_candidate_selected_{false};
   bool registration_bootstrap_accepted_{false};
+  bool registration_wifi_loss_reported_{false};
   SimpleProductRuntime runtime_;
   NvsSetupSecretStore setup_secret_store_{};
   NvsProvisionedPeerStoreV2 peer_store_{};
