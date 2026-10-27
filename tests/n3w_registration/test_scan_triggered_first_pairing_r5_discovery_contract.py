@@ -76,7 +76,7 @@ def test_r5_candidate_parser_is_exact_and_fail_closed() -> None:
         'schema != kRegistrationCandidateSchema',
         'scheme != "https"',
         'protocol != kRegistrationDiscoveryProtocol',
-        'parsed.bootstrap_port == kRegistrationBootstrapPort',
+        'bootstrap_port == kRegistrationBootstrapPort',
         'parsed.bootstrap_path == "/v1/registration/confirm"',
         'ttl_s == kRegistrationCandidateTtlSeconds',
         "lowercase_sha256(bootstrap_tls_sha256)",
@@ -223,7 +223,8 @@ def test_r5_retry_rearms_discovery_without_pairing_identity_mutation() -> None:
         "void SimpleProductComponent::advance_pairing_()",
     )
     assert "renew_pairing" not in combined
-    assert "pairing_id" not in combined
+    assert "set_pairing_id" not in combined
+    assert "registration_session_pairing_id_ = pairing_client_.pairing_id();" in combined
     assert "setup_secret" not in combined.lower()
 
 
