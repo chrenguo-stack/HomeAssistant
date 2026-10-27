@@ -28,6 +28,9 @@ from .n3w_node_identity_provisioner import (
 )
 from .n3w_pairing_local_ipc import ManagerOwnedPairingSocket
 from .n3w_first_registration_intent import FirstRegistrationIntent
+from .n3w_first_registration_reconciliation import (
+    FirstRegistrationReconciler,
+)
 from .n3w_peer_trust_store import SystemPeerTrustStore
 from .n3w_simplified_credentials import (
     SimplifiedCredentialBundleIssuer,
@@ -995,6 +998,23 @@ def build_simplified_product_pairing_composition(
             )
         )
 
+        first_registration_ledger = (
+            registry.first_registration_ledger()
+            if first_registration_intent is not None
+            else None
+        )
+        first_registration_reconciler = (
+            FirstRegistrationReconciler(
+                registry=registry,
+                credential_store=credential_store,
+                application_keys=key_admin,
+                dynsec=identity_provisioner,
+                system_id=settings.system_id,
+            )
+            if first_registration_intent is not None
+            else None
+        )
+
         stager = SimplifiedProvisioningStager(
             identity_provisioner=(
                 identity_provisioner
@@ -1016,6 +1036,9 @@ def build_simplified_product_pairing_composition(
                 config.node_broker_tls_server_name
             ),
             ca_pem=config.node_ca_pem,
+            first_registration_ledger=(
+                first_registration_ledger
+            ),
         )
 
         coordinator = (
@@ -1027,6 +1050,12 @@ def build_simplified_product_pairing_composition(
                 ),
                 session_ttl_s=(
                     settings.pairing_pending_ttl_s
+                ),
+                first_registration_ledger=(
+                    first_registration_ledger
+                ),
+                first_registration_reconciler=(
+                    first_registration_reconciler
                 ),
             )
         )
