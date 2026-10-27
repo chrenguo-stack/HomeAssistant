@@ -143,6 +143,14 @@ bool sha256_record(
              output) == 0;
 }
 
+bool write_check(PersistedPendingAckV1 *record) {
+  return record != nullptr &&
+         sha256_record(
+             record,
+             offsetof(PersistedPendingAckV1, check),
+             record->check);
+}
+
 bool write_check(PersistedPendingAckV2 *record) {
   return record != nullptr &&
          sha256_record(
@@ -224,10 +232,11 @@ SimpleNvsStatus read_record(
              : SimpleNvsStatus::CORRUPT;
 }
 
+template<typename Record>
 SimpleNvsStatus write_record(
     const std::string &namespace_name,
     const std::string &key_name,
-    const PersistedPendingAckV2 &record) {
+    const Record &record) {
   nvs_handle_t handle = 0;
   esp_err_t error =
       nvs_open(namespace_name.c_str(), NVS_READWRITE, &handle);
@@ -350,11 +359,32 @@ SimpleNvsStatus NvsPendingPairingAckStoreV2::load(
 
 SimpleNvsStatus NvsPendingPairingAckStoreV2::save(
     const PendingPairingAckV2 &state) {
-  if (!state.recovery_capable() ||
-      namespace_name_.empty() || key_name_.empty()) {
+  if (!state.valid() || namespace_name_.empty() || key_name_.empty()) {
     return SimpleNvsStatus::INVALID_ARGUMENT;
   }
 
+  // Legacy source paths remain readable/writable for non-product compatibility.
+  // The R6 selected-candidate path always supplies recovery identity and writes
+  // the version-2 branch below.
+  if (state.legacy()) {
+    PersistedPendingAckV1 record{};
+    record.magic = kAckMagic;
+    record.version = kPendingPairingAckLegacyVersion;
+    record.manager_port = state.manager_port;
+    if (!copy_text(state.manager_host, record.manager_host) ||
+        !copy_text(state.pairing_path, record.pairing_path) ||
+        !copy_text(state.session_id, record.session_id)) {
+      return SimpleNvsStatus::INVALID_ARGUMENT;
+    }
+    std::copy(
+        state.delivery_digest.begin(),
+        state.delivery_digest.end(),
+        std::begin(record.delivery_digest));
+    if (!write_check(&record)) return SimpleNvsStatus::IO_ERROR;
+    return write_record(namespace_name_, key_name_, record);
+  }
+
+  if (!state.recovery_capable()) return SimpleNvsStatus::INVALID_ARGUMENT;
   PersistedPendingAckV2 record{};
   record.magic = kAckMagic;
   record.version = kPendingPairingAckCurrentVersion;
