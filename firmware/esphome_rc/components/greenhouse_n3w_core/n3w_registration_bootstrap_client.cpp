@@ -10,6 +10,8 @@
 namespace esphome::greenhouse_n3w_core {
 namespace {
 
+constexpr uint64_t kRegistrationDeadlineSafetyMs = 1000ULL;
+
 bool valid_text(const std::string &value, std::size_t maximum) {
   return !value.empty() && value.size() <= maximum &&
          std::none_of(value.begin(), value.end(), [](char ch) { return ch == '\0'; });
@@ -191,12 +193,19 @@ bool parse_registration_confirm_response(
     return false;
   }
   const uint64_t delta_ms = static_cast<uint64_t>(expires) * 1000ULL;
-  if (received_ms > std::numeric_limits<uint64_t>::max() - delta_ms) {
+  // Manager returns ceil(remaining seconds). Subtract one second locally so
+  // the node never treats rounding slack as additional transaction lifetime.
+  const uint64_t safe_delta_ms =
+      delta_ms > kRegistrationDeadlineSafetyMs
+          ? delta_ms - kRegistrationDeadlineSafetyMs
+          : 0U;
+  if (received_ms >
+      std::numeric_limits<uint64_t>::max() - safe_delta_ms) {
     return false;
   }
 
   parsed.action = RegistrationBootstrapConfirmAction::ACCEPTED;
-  parsed.transaction_deadline_ms = received_ms + delta_ms;
+  parsed.transaction_deadline_ms = received_ms + safe_delta_ms;
   parsed.pairing_target.manager_id = selected.manager_id;
   parsed.pairing_target.system_id = selected.system_id;
   parsed.pairing_target.host = pairing_host;
