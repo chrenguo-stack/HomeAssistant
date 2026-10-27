@@ -10,6 +10,7 @@
 #include "n3w_esp32_simple_nvs.h"
 #include "n3w_manager_discovery.h"
 #include "n3w_radio.h"
+#include "n3w_registration_bootstrap_client.h"
 #include "n3w_simple_crypto.h"
 
 namespace esphome::greenhouse_n3w_core {
@@ -46,6 +47,14 @@ class SimplePairingClientNetwork {
       const std::string &request_json,
       int *status_code,
       std::string *response_json) = 0;
+
+  // R6 47110 recovery. The network layer may update bootstrap_host only after
+  // exact manager/system/fingerprint relocation has been proven.
+  virtual bool post_registration_status(
+      PendingPairingAckV2 *pending,
+      const std::string &request_json,
+      int *status_code,
+      std::string *response_json) = 0;
 };
 
 class SimplePairingClientRandom {
@@ -66,7 +75,13 @@ class SimplePairingClient {
 
   SimplePairingClientError initialize(const MacAddress &local_mac);
   SimplePairingClientError run_once(uint64_t now_ms);
+  SimplePairingClientError run_selected_candidate(
+      const SimpleManagerCandidateV2 &candidate,
+      const RegistrationBootstrapRecoveryBinding &recovery,
+      uint64_t transaction_deadline_ms,
+      uint64_t now_ms);
   SimplePairingClientError resume_pending_ack();
+  SimplePairingClientError renew_pairing_intent();
 
   void set_firmware_version(const std::string &value) {
     if (!value.empty() && value.size() <= 64) firmware_version_ = value;
@@ -86,14 +101,20 @@ class SimplePairingClient {
   SimplePairingClientError renew_pairing_intent_();
   SimplePairingClientError discover_(SimpleManagerCandidateV2 *candidate);
   SimplePairingClientError send_hello_(const SimpleManagerCandidateV2 &candidate);
-  SimplePairingClientError pair_with_(const SimpleManagerCandidateV2 &candidate);
+  SimplePairingClientError pair_with_(
+      const SimpleManagerCandidateV2 &candidate,
+      const RegistrationBootstrapRecoveryBinding *recovery);
   SimplePairingClientError persist_bundle_(
       const SimpleManagerCandidateV2 &candidate,
+      const RegistrationBootstrapRecoveryBinding *recovery,
       const std::string &session_id,
       const std::array<uint8_t, 32> &delivery_digest,
       const ProvisionedPeerStateV2 &peer,
       const ProvisionedBrokerStateV2 &broker);
-  SimplePairingClientError acknowledge_(const PendingPairingAckV2 &pending);
+  SimplePairingClientError acknowledge_(PendingPairingAckV2 pending);
+  SimplePairingClientError finalize_committed_();
+  SimplePairingClientError complete_terminal_cleanup_(
+      const PendingPairingAckV2 &pending);
   bool fill_(uint8_t *data, std::size_t size);
 
   SimplePairingClientNetwork *network_{nullptr};

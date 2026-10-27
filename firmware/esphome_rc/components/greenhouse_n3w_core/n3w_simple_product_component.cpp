@@ -192,6 +192,7 @@ void SimpleProductComponent::loop() {
     } else {
       advance_registration_portal_();
       advance_registration_discovery_();
+      advance_registration_bootstrap_();
       return;
     }
   }
@@ -587,8 +588,11 @@ void SimpleProductComponent::advance_registration_portal_() {
 void SimpleProductComponent::clear_registration_discovery_() {
   registration_candidates_.clear();
   selected_registration_candidate_ = RegistrationCandidateV1{};
+  registration_bootstrap_result_ = RegistrationBootstrapConfirmResult{};
   registration_session_pairing_id_.clear();
   registration_candidate_selected_ = false;
+  registration_bootstrap_accepted_ = false;
+  next_registration_bootstrap_attempt_ms_ = 0;
 }
 
 void SimpleProductComponent::advance_registration_discovery_() {
@@ -682,6 +686,189 @@ void SimpleProductComponent::advance_registration_discovery_() {
   registration_candidate_selected_ = true;
 }
 
+void SimpleProductComponent::advance_registration_bootstrap_() {
+  if (!registration_candidate_selected_ || pairing_ack_pending_ ||
+      pairing_client_.provisioned()) {
+    return;
+  }
+  if (!wifi_connected() || !registration_portal_.running() ||
+      registration_session_pairing_id_.empty() ||
+      registration_session_pairing_id_ != pairing_client_.pairing_id()) {
+    registration_portal_.stop();
+    clear_registration_discovery_();
+    return;
+  }
+
+  const uint64_t now = now_ms();
+  if (now == 0U || now < next_registration_bootstrap_attempt_ms_) return;
+  next_registration_bootstrap_attempt_ms_ = now + kPairingRetryMs;
+
+  if (!registration_bootstrap_accepted_) {
+    if (selected_registration_candidate_.expired(now)) {
+      registration_portal_.stop();
+      clear_registration_discovery_();
+      return;
+    }
+
+    std::string local_ipv4;
+    std::string subnet_mask;
+    if (!current_wifi_ipv4_(&local_ipv4, &subnet_mask)) {
+      registration_portal_.stop();
+      clear_registration_discovery_();
+      return;
+    }
+
+    std::string setup_secret = pairing_client_.setup_secret_base64url();
+    std::string request;
+    if (!build_registration_confirm_request(
+            selected_registration_candidate_,
+            pairing_client_.hardware_id(),
+            registration_session_pairing_id_,
+            setup_secret,
+            &request)) {
+      std::fill(setup_secret.begin(), setup_secret.end(), '\0');
+      registration_portal_.stop();
+      clear_registration_discovery_();
+      return;
+    }
+    std::fill(setup_secret.begin(), setup_secret.end(), '\0');
+
+    int status = 0;
+    std::string response;
+    RegistrationBootstrapTransportError transport_error =
+        RegistrationBootstrapTransportError::NONE;
+    const bool posted = registration_bootstrap_post_(
+        selected_registration_candidate_.host,
+        selected_registration_candidate_.bootstrap_port,
+        selected_registration_candidate_.bootstrap_tls_sha256,
+        selected_registration_candidate_.bootstrap_path,
+        request,
+        &status,
+        &response,
+        &transport_error);
+    std::fill(request.begin(), request.end(), '\0');
+
+    // A lost confirm response is ambiguous: T1 may already have committed the
+    // ACTIVE transaction. Preserve pairing ID + Setup Secret and require a
+    // fresh user scan; an exact duplicate confirm then inherits the original
+    // server deadline.
+    if (!posted) {
+      ESP_LOGW(
+          TAG,
+          "R6 registration bootstrap transport failed code=%u",
+          static_cast<unsigned>(transport_error));
+      registration_portal_.stop();
+      clear_registration_discovery_();
+      return;
+    }
+
+    RegistrationBootstrapConfirmResult confirmed;
+    const bool parsed = parse_registration_confirm_response(
+        status,
+        response,
+        selected_registration_candidate_,
+        registration_session_pairing_id_,
+        local_ipv4,
+        subnet_mask,
+        now_ms(),
+        &confirmed);
+    std::fill(response.begin(), response.end(), '\0');
+    if (!parsed) {
+      ESP_LOGW(TAG, "R6 registration bootstrap response rejected");
+      registration_portal_.stop();
+      clear_registration_discovery_();
+      return;
+    }
+
+    if (confirmed.action == RegistrationBootstrapConfirmAction::TERMINAL) {
+      const SimplePairingClientError renewed =
+          pairing_client_.renew_pairing_intent();
+      ESP_LOGI(
+          TAG,
+          "R6 terminal bootstrap transaction renewed pairing identity code=%u",
+          static_cast<unsigned>(renewed));
+      registration_portal_.stop();
+      clear_registration_discovery_();
+      return;
+    }
+    if (confirmed.action != RegistrationBootstrapConfirmAction::ACCEPTED) {
+      registration_portal_.stop();
+      clear_registration_discovery_();
+      return;
+    }
+
+    registration_bootstrap_result_ = std::move(confirmed);
+    registration_bootstrap_accepted_ = true;
+    next_registration_bootstrap_attempt_ms_ = 0;
+    ESP_LOGI(
+        TAG,
+        "R6 TLS bootstrap accepted manager=%s remaining_deadline_ms=%llu",
+        registration_bootstrap_result_.recovery.manager_id.c_str(),
+        static_cast<unsigned long long>(
+            registration_bootstrap_result_.transaction_deadline_ms));
+    return;
+  }
+
+  if (registration_bootstrap_result_.transaction_deadline_ms == 0U ||
+      now >= registration_bootstrap_result_.transaction_deadline_ms) {
+    // Do not mint a new identity from a local timer. Re-scan with the same
+    // pairing ID so 47110 can authoritatively classify the old transaction.
+    registration_portal_.stop();
+    clear_registration_discovery_();
+    return;
+  }
+
+  const SimplePairingClientError result =
+      pairing_client_.run_selected_candidate(
+          registration_bootstrap_result_.pairing_target,
+          registration_bootstrap_result_.recovery,
+          registration_bootstrap_result_.transaction_deadline_ms,
+          now);
+  if (result == SimplePairingClientError::NONE ||
+      result == SimplePairingClientError::ALREADY_PROVISIONED) {
+    if (pairing_client_.provisioned()) {
+      pairing_ack_pending_ = false;
+      registration_portal_allowed_.store(
+          false, std::memory_order_release);
+      registration_portal_.stop();
+      clear_registration_discovery_();
+      ESP_LOGI(
+          TAG,
+          "R6 first registration committed; loading product runtime state");
+      (void) load_runtime_state_();
+      (void) configure_mqtt_();
+    }
+    return;
+  }
+
+  if (result == SimplePairingClientError::ACK_PENDING) {
+    pairing_ack_pending_ = true;
+    registration_portal_.stop();
+    clear_registration_discovery_();
+    return;
+  }
+  if (result == SimplePairingClientError::TRANSACTION_RENEWED) {
+    registration_portal_.stop();
+    clear_registration_discovery_();
+    return;
+  }
+  if (result == SimplePairingClientError::NOT_READY ||
+      result == SimplePairingClientError::HTTP_FAILED) {
+    ESP_LOGD(
+        TAG,
+        "R6 pairing transaction waiting code=%u",
+        static_cast<unsigned>(result));
+    return;
+  }
+
+  ESP_LOGW(
+      TAG,
+      "R6 pairing transaction failed closed code=%u",
+      static_cast<unsigned>(result));
+  registration_portal_.stop();
+  clear_registration_discovery_();
+}
+
 void SimpleProductComponent::advance_pairing_() {
   if (!wifi_connected()) return;
   const uint64_t now = now_ms();
@@ -704,6 +891,14 @@ void SimpleProductComponent::advance_pairing_() {
       (void) load_runtime_state_();
       (void) configure_mqtt_();
     }
+    return;
+  }
+  if (pairing_ack_pending_ &&
+      result == SimplePairingClientError::TRANSACTION_RENEWED) {
+    pairing_ack_pending_ = false;
+    registration_portal_.stop();
+    clear_registration_discovery_();
+    ESP_LOGI(TAG, "R6 terminal pending transaction cleanup completed");
     return;
   }
   if (result == SimplePairingClientError::NOT_READY ||
@@ -2282,6 +2477,125 @@ bool SimpleProductComponent::post_json(
              request_json,
              status_code,
              response_json);
+}
+
+bool SimpleProductComponent::registration_bootstrap_post_(
+    const std::string &host,
+    uint16_t port,
+    const std::string &tls_sha256,
+    const std::string &path,
+    const std::string &request_json,
+    int *status_code,
+    std::string *response_json,
+    RegistrationBootstrapTransportError *transport_error) {
+  if (status_code == nullptr || response_json == nullptr ||
+      transport_error == nullptr) {
+    return false;
+  }
+  RegistrationBootstrapHttpResponse response;
+  if (!registration_bootstrap_transport_.post_json(
+          host,
+          port,
+          tls_sha256,
+          path,
+          request_json,
+          &response,
+          transport_error)) {
+    return false;
+  }
+  *status_code = response.status_code;
+  *response_json = std::move(response.body);
+  return true;
+}
+
+bool SimpleProductComponent::post_registration_status(
+    PendingPairingAckV2 *pending,
+    const std::string &request_json,
+    int *status_code,
+    std::string *response_json) {
+  if (pending == nullptr || status_code == nullptr ||
+      response_json == nullptr || request_json.empty() ||
+      !pending->recovery_capable()) {
+    return false;
+  }
+
+  std::string local_ipv4;
+  std::string subnet_mask;
+  if (!current_wifi_ipv4_(&local_ipv4, &subnet_mask)) return false;
+
+  RegistrationBootstrapTransportError transport_error =
+      RegistrationBootstrapTransportError::NONE;
+  if (registration_bootstrap_host_allowed(
+          pending->bootstrap_host, local_ipv4, subnet_mask) &&
+      registration_bootstrap_post_(
+          pending->bootstrap_host,
+          pending->bootstrap_port,
+          pending->bootstrap_tls_sha256,
+          kRegistrationStatusPath,
+          request_json,
+          status_code,
+          response_json,
+          &transport_error)) {
+    return true;
+  }
+
+  RegistrationBootstrapRecoveryBinding binding;
+  binding.pairing_id = pending->pairing_id;
+  binding.manager_id = pending->manager_id;
+  binding.system_id = pending->system_id;
+  binding.bootstrap_host = pending->bootstrap_host;
+  binding.bootstrap_port = pending->bootstrap_port;
+  binding.bootstrap_tls_sha256 = pending->bootstrap_tls_sha256;
+  if (!binding.valid()) return false;
+
+  // Recovery discovery is permitted only for an already durable pending ACK.
+  // Never choose a "best" T1: require exactly one current candidate matching
+  // manager_id + system_id + the original TLS leaf fingerprint.
+  std::vector<RegistrationCandidateV1> discovered;
+  const uint64_t observed_ms = now_ms();
+  if (!registration_discovery_.discover(
+          pairing_client_.hardware_id(),
+          local_ipv4,
+          subnet_mask,
+          observed_ms,
+          &discovered)) {
+    return false;
+  }
+
+  const RegistrationCandidateV1 *relocated = nullptr;
+  for (const RegistrationCandidateV1 &candidate : discovered) {
+    if (candidate.expired(now_ms()) ||
+        !registration_relocation_matches(candidate, binding)) {
+      continue;
+    }
+    if (relocated != nullptr) {
+      return false;
+    }
+    relocated = &candidate;
+  }
+  if (relocated == nullptr ||
+      relocated->host == pending->bootstrap_host) {
+    return false;
+  }
+
+  response_json->clear();
+  transport_error = RegistrationBootstrapTransportError::NONE;
+  if (!registration_bootstrap_post_(
+          relocated->host,
+          relocated->bootstrap_port,
+          relocated->bootstrap_tls_sha256,
+          kRegistrationStatusPath,
+          request_json,
+          status_code,
+          response_json,
+          &transport_error)) {
+    return false;
+  }
+
+  pending->bootstrap_host = relocated->host;
+  pending->bootstrap_port = relocated->bootstrap_port;
+  pending->bootstrap_tls_sha256 = relocated->bootstrap_tls_sha256;
+  return pending->recovery_capable();
 }
 
 }  // namespace esphome::greenhouse_n3w_core

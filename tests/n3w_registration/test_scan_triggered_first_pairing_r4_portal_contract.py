@@ -145,7 +145,7 @@ def test_r4_portal_rejects_nonlocal_and_stale_scan_actions() -> None:
     assert "kMaxActionBodyBytes = 512" in source
 
 
-def test_r4_portal_remains_separate_from_r6_bootstrap() -> None:
+def test_r4_portal_remains_transport_free_after_r6_handoff() -> None:
     portal = text(CORE / "n3w_registration_portal.cpp")
     header = text(CORE / "n3w_registration_portal.h")
 
@@ -155,4 +155,5 @@ def test_r4_portal_remains_separate_from_r6_bootstrap() -> None:
     assert "setup_secret_base64url" not in scope
     assert "setup_secret" not in scope.lower()
     assert "kRegistrationBootstrapPort" not in scope
-    assert "bootstrap_stage_pending" in portal
+    assert '"status\\":\\"accepted\\"' in portal
+    assert '"next\\":\\"bootstrap\\"' in portal
