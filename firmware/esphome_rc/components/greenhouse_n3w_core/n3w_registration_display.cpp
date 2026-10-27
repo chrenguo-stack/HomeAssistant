@@ -21,6 +21,7 @@ void RegistrationDisplayController::show_error(
     RegistrationDisplayError error,
     uint64_t now_ms) {
   if (error == RegistrationDisplayError::NONE || now_ms == 0U) return;
+  if (latch_kind_ == LatchKind::SUCCESS && latch_active_(now_ms)) return;
   if (latch_kind_ == LatchKind::ERROR && error_ == error &&
       latch_active_(now_ms)) {
     return;
