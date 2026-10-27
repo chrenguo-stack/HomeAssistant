@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <fcntl.h>
 #include <limits>
 #include <string>
 #include <unistd.h>
@@ -182,15 +183,12 @@ bool connect_ipv4(
   const int socket_fd = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
   if (socket_fd < 0) return false;
 
-  timeval timeout{};
-  timeout.tv_sec = 1;
-  timeout.tv_usec = 0;
-  if (::setsockopt(
-          socket_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout,
-          sizeof(timeout)) != 0 ||
-      ::setsockopt(
-          socket_fd, SOL_SOCKET, SO_SNDTIMEO, &timeout,
-          sizeof(timeout)) != 0) {
+  const int original_flags = ::fcntl(socket_fd, F_GETFL, 0);
+  if (original_flags < 0 ||
+      ::fcntl(
+          socket_fd,
+          F_SETFL,
+          original_flags | O_NONBLOCK) != 0) {
     ::close(socket_fd);
     return false;
   }
@@ -200,18 +198,76 @@ bool connect_ipv4(
   target.sin_port = htons(port);
   target.sin_addr = address;
 
-  // lwIP connect() observes SO_SNDTIMEO. Keep the call bounded and reject
-  // anything that is not the exact selected IPv4 endpoint.
-  const uint64_t started = monotonic_ms();
-  if (started == 0U ||
-      ::connect(
-          socket_fd,
-          reinterpret_cast<const sockaddr *>(&target),
-          sizeof(target)) != 0 ||
-      monotonic_ms() - started > kConnectTimeoutMs) {
+  int connected = ::connect(
+      socket_fd,
+      reinterpret_cast<const sockaddr *>(&target),
+      sizeof(target));
+  if (connected != 0) {
+    if (errno != EINPROGRESS && errno != EWOULDBLOCK) {
+      ::close(socket_fd);
+      return false;
+    }
+
+    fd_set writable{};
+    fd_set exceptional{};
+    FD_ZERO(&writable);
+    FD_ZERO(&exceptional);
+    FD_SET(socket_fd, &writable);
+    FD_SET(socket_fd, &exceptional);
+
+    timeval connect_timeout{};
+    connect_timeout.tv_sec =
+        static_cast<time_t>(kConnectTimeoutMs / 1000U);
+    connect_timeout.tv_usec =
+        static_cast<suseconds_t>(
+            (kConnectTimeoutMs % 1000U) * 1000U);
+    const int selected = ::select(
+        socket_fd + 1,
+        nullptr,
+        &writable,
+        &exceptional,
+        &connect_timeout);
+    if (selected <= 0 || FD_ISSET(socket_fd, &exceptional) ||
+        !FD_ISSET(socket_fd, &writable)) {
+      ::close(socket_fd);
+      return false;
+    }
+
+    int socket_error = 0;
+    socklen_t socket_error_size = sizeof(socket_error);
+    if (::getsockopt(
+            socket_fd,
+            SOL_SOCKET,
+            SO_ERROR,
+            &socket_error,
+            &socket_error_size) != 0 ||
+        socket_error != 0) {
+      ::close(socket_fd);
+      return false;
+    }
+  }
+
+  if (::fcntl(socket_fd, F_SETFL, original_flags) != 0) {
     ::close(socket_fd);
     return false;
   }
+
+  // TLS reads/writes are additionally bounded by monotonic deadlines. A short
+  // socket timeout ensures a blocking lwIP call returns often enough to
+  // re-check those deadlines.
+  timeval io_timeout{};
+  io_timeout.tv_sec = 1;
+  io_timeout.tv_usec = 0;
+  if (::setsockopt(
+          socket_fd, SOL_SOCKET, SO_RCVTIMEO, &io_timeout,
+          sizeof(io_timeout)) != 0 ||
+      ::setsockopt(
+          socket_fd, SOL_SOCKET, SO_SNDTIMEO, &io_timeout,
+          sizeof(io_timeout)) != 0) {
+    ::close(socket_fd);
+    return false;
+  }
+
   *fd = socket_fd;
   return true;
 }
