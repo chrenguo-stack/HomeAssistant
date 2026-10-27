@@ -168,7 +168,11 @@ class N3wSimplifiedProductPairingWorker:
         self._close_failure = None
         try:
             self.composition.pairing_runtime.start()
-            if self.composition.pairing_socket_required:
+            if getattr(
+                self.composition,
+                "pairing_socket_required",
+                True,
+            ):
                 self.composition.pairing_socket.start()
         except Exception:
             self.composition.close()
@@ -191,7 +195,11 @@ class N3wSimplifiedProductPairingWorker:
             while not self._stop.wait(interval):
                 self.composition.pairing_runtime.expire()
                 if (
-                    self.composition.pairing_socket_required
+                    getattr(
+                self.composition,
+                "pairing_socket_required",
+                True,
+            )
                     and not self.composition.pairing_socket.is_alive
                 ):
                     raise RuntimeError(
