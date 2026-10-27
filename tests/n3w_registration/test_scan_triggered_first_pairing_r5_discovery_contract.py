@@ -34,6 +34,10 @@ def test_r5_reuses_registration_candidate_contract_and_bounded_transports() -> N
 
     assert 'mdns_query_ptr(\n      "_greenhouse-reg",\n      "_tcp"' in source
     assert "kRegistrationMdnsTimeoutMs = 1500" in source
+    assert "#ifdef GH_N3W_PRODUCTION_DEHARNESS" in source
+    init_py = text(CORE / "__init__.py")
+    assert 'AUTO_LOAD = ["json"]' in init_py
+    assert '"mdns"' not in init_py.split("AUTO_LOAD =", 1)[1].split("\n", 1)[0]
     assert "kRegistrationUdpAttempts = 3" in source
     assert "Esp32ManagerDiscoveryNetwork network;" in source
     assert "network.collect_manager_discovery(" in source
