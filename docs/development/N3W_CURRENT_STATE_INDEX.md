@@ -1,3 +1,19 @@
+## 2026-10-27 — R3 identity-bound transaction window preflight
+
+- Current main after R2C merge: `920a2e5dba24d5d3c9a6aa7aaca3fcafd2876847`.
+- PR #690 R2C merged with reviewed tree `dbd3469bbc3302a5ae32fec2af9619d73409da1a`.
+- R3 preflight result: PASS; design blockers 0; implementation required and ready.
+- Current 47110 remains skeleton-only; RegistrationNetworkRuntime is not product-wired; current 47112 dynamic window is engineering-only and uses independent 180..600 second timing.
+- R3 target uses one durable ledger + current-process intent authority and one fixed 1800-second deadline.
+- Product 47112 is idle closed and bound to exact hardware ID + pairing ID + accepted 47110 source IP.
+- Live HELLO/BUNDLE_STAGED/COMMITTING/COMMITTED ledger hooks are mandatory before credential-mutating product exposure.
+- Startup runs R2B reconciliation before 47110/47111 readiness; registration failure must not unnecessarily stop normal MQTT/telemetry.
+- T1-side 47110 pending-ACK status recovery is included; node firmware consumption remains later work.
+- Existing engineering `open_window(peer_ip, seconds)` remains separate.
+- Firmware, T1 live deployment, board mutation and physical acceptance remain out of scope.
+- Design authority: `docs/development/N3W_SCAN_TRIGGERED_FIRST_PAIRING_R3_IDENTITY_BOUND_TRANSACTION_WINDOW_SOURCE_DESIGN_AND_PREFLIGHT_20261027.md`.
+- Next source gate: `N3W_SCAN_TRIGGERED_FIRST_PAIRING_R3_IDENTITY_BOUND_TRANSACTION_WINDOW_SOURCE_IMPLEMENTATION_20261027_01`.
+
 ## 2026-10-27 — R2C SYSTEM_PEER_KEY baseline preflight
 
 - Current main after docs authority convergence: `44523f32531ebc76f93c02d484170f1d92eba627`.
