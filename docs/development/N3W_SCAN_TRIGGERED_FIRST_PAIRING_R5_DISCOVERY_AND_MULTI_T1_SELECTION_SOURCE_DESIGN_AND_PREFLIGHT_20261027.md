@@ -55,7 +55,8 @@ Reuse:
 - current STA IPv4/netmask helper;
 - existing `gh.discovery.query/1` request-id + nonce correlation pattern;
 - existing ESP-IDF mDNS query pattern already used by `greenhouse_pairing_client`;
-- existing UDP broadcast socket patterns;
+- existing `Esp32ManagerDiscoveryNetwork` UDP multi-response collector;
+- existing `Esp32ManagerDiscoveryRandom` random adapter;
 - existing product orchestrator `SimpleProductComponent`.
 
 Do not reuse:
@@ -174,6 +175,7 @@ Candidate IDs are node-local opaque session handles. They are not Manager IDs an
 - requires current scan token;
 - accepts exact `candidate_id`;
 - validates the current discovery session;
+- validates the discovery session is still bound to the same current pairing ID;
 - validates candidate has not expired;
 - records selection in RAM;
 - returns R5 source state `bootstrap_stage_pending`;
