@@ -19,26 +19,29 @@ interval:
           id(n3w_pairing_display_enabled) = true;
           const bool provisioned = id(n3w_product_core).provisioned();
           id(n3w_product_provisioned) = provisioned;
+          id(n3w_registration_display_state) =
+              id(n3w_product_core).registration_display_state_code();
+          id(n3w_registration_display_error) =
+              id(n3w_product_core).registration_display_error_code();
 
-          if (!id(wifi_component).is_connected()) {
-            id(n3w_pairing_display_ready) = false;
-            return;
-          }
-
-          if (provisioned || !id(n3w_product_core).registration_display_ready()) {
+          if (provisioned || !id(wifi_component).is_connected() ||
+              !id(n3w_product_core).registration_display_ready()) {
+            id(n3w_registration_qr_ready) = false;
             id(n3w_pairing_display_ready) = false;
             return;
           }
 
           const std::string payload = id(n3w_product_core).registration_qr_payload();
           if (payload.empty()) {
+            id(n3w_registration_qr_ready) = false;
             id(n3w_pairing_display_ready) = false;
             return;
           }
 
-          static std::string last_pairing_payload;
-          if (payload != last_pairing_payload) {
+          static std::string last_registration_payload;
+          if (payload != last_registration_payload) {
             id(pairing_qr).set_value(payload);
-            last_pairing_payload = payload;
+            last_registration_payload = payload;
           }
+          id(n3w_registration_qr_ready) = true;
           id(n3w_pairing_display_ready) = true;
