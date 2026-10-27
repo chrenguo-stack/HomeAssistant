@@ -165,6 +165,12 @@ def test_r5_multiple_candidates_require_explicit_browser_selection() -> None:
     assert "selected_candidate_id_ = candidate_id;" in confirm
     assert "bootstrap_stage_pending" in confirm
 
+    assert "registration_session_pairing_id_ = pairing_client_.pairing_id();" in discovery
+    assert (
+        "registration_session_pairing_id_ != pairing_client_.pairing_id()"
+        in discovery
+    )
+
     assert "RSSI" not in discovery
     assert "rssi" not in discovery
     assert "std::sort(" not in discovery
