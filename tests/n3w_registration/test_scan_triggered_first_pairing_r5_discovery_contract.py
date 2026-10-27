@@ -114,7 +114,7 @@ def test_r5_discovery_is_only_consumed_after_scan_trigger() -> None:
     discovery = function_block(
         component,
         "void SimpleProductComponent::advance_registration_discovery_()",
-        "void SimpleProductComponent::advance_pairing_()",
+        "void SimpleProductComponent::advance_registration_bootstrap_()",
     )
     trigger = "if (registration_portal_.take_scan_trigger())"
     call = "registration_discovery_.discover("
@@ -177,7 +177,7 @@ def test_r5_multiple_candidates_require_explicit_browser_selection() -> None:
     discovery = function_block(
         component,
         "void SimpleProductComponent::advance_registration_discovery_()",
-        "void SimpleProductComponent::advance_pairing_()",
+        "void SimpleProductComponent::advance_registration_bootstrap_()",
     )
     assert "registration_portal_.set_candidates(views);" in discovery
     portal_setup = function_block(
@@ -205,7 +205,8 @@ def test_r5_multiple_candidates_require_explicit_browser_selection() -> None:
     assert "RegistrationPortalStage::WAIT_CONFIRM" in confirm
     assert "candidate.expires_at_ms > now_ms" in confirm
     assert "selected_candidate_id_ = candidate_id;" in confirm
-    assert "bootstrap_stage_pending" in confirm
+    assert '"202 Accepted"' in confirm
+    assert '"next\\":\\"bootstrap\\"' in confirm
 
     assert "registration_session_pairing_id_ = pairing_client_.pairing_id();" in discovery
     assert (
@@ -233,7 +234,7 @@ def test_r5_retry_rearms_discovery_without_pairing_identity_mutation() -> None:
     combined = retry + "\n" + function_block(
         component,
         "void SimpleProductComponent::advance_registration_discovery_()",
-        "void SimpleProductComponent::advance_pairing_()",
+        "void SimpleProductComponent::advance_registration_bootstrap_()",
     )
     assert "renew_pairing" not in combined
     assert "set_pairing_id" not in combined
@@ -241,7 +242,7 @@ def test_r5_retry_rearms_discovery_without_pairing_identity_mutation() -> None:
     assert "setup_secret" not in combined.lower()
 
 
-def test_r5_does_not_implement_r6_tls_bootstrap() -> None:
+def test_r5_discovery_scope_remains_transport_free_after_r6() -> None:
     discovery = text(CORE / "n3w_registration_discovery.cpp")
     discovery_h = text(CORE / "n3w_registration_discovery.h")
     portal = text(CORE / "n3w_registration_portal.cpp")
@@ -260,7 +261,7 @@ def test_r5_does_not_implement_r6_tls_bootstrap() -> None:
     discovery_block = function_block(
         component,
         "void SimpleProductComponent::advance_registration_discovery_()",
-        "void SimpleProductComponent::advance_pairing_()",
+        "void SimpleProductComponent::advance_registration_bootstrap_()",
     )
     assert "http_post_(" not in discovery_block
     assert "post_json(" not in discovery_block
@@ -283,7 +284,7 @@ def test_r5_preserves_r4_pending_ack_recovery_path() -> None:
 
     pairing = function_block(
         component,
-        "void SimpleProductComponent::advance_pairing_()",
+        "void SimpleProductComponent::advance_registration_bootstrap_()",
         "void SimpleProductComponent::advance_recovery_()",
     )
     assert "pairing_client_.resume_pending_ack()" in pairing
