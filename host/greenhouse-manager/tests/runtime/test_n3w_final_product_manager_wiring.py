@@ -337,6 +337,14 @@ def test_dynamic_pairing_close_does_not_stop_normal_manager_runtime(
     dynamic = FakeDynamic()
     service._pairing_control = control
     service._dynamic_pairing = dynamic
+    registration_start_calls = []
+    registration_close_calls = []
+    service._start_registration_if_ready = (
+        lambda: registration_start_calls.append(True) or False
+    )
+    service._close_registration_resources = (
+        lambda: registration_close_calls.append(True)
+    )
 
     thread = threading.Thread(
         target=service.run,
@@ -347,6 +355,7 @@ def test_dynamic_pairing_close_does_not_stop_normal_manager_runtime(
     assert parent_entered.wait(2)
     assert thread.is_alive()
     assert control.started == 1
+    assert registration_start_calls == [True]
 
     dynamic.close_window()
 
@@ -361,6 +370,7 @@ def test_dynamic_pairing_close_does_not_stop_normal_manager_runtime(
     assert thread.is_alive() is False
     assert control.stopped == 1
     assert dynamic.stopped == 1
+    assert registration_close_calls == [True]
 
 
 class FakeRuntime:

@@ -196,10 +196,10 @@ class N3wSimplifiedProductPairingWorker:
                 self.composition.pairing_runtime.expire()
                 if (
                     getattr(
-                self.composition,
-                "pairing_socket_required",
-                True,
-            )
+                        self.composition,
+                        "pairing_socket_required",
+                        True,
+                    )
                     and not self.composition.pairing_socket.is_alive
                 ):
                     raise RuntimeError(
