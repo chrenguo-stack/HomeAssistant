@@ -1,3 +1,17 @@
+## 2026-10-27 — R2C SYSTEM_PEER_KEY baseline preflight
+
+- Current main after docs authority convergence: `44523f32531ebc76f93c02d484170f1d92eba627`.
+- PR #688 is merged; historical PR #682 is closed unmerged as superseded.
+- Pre-R2C R1/R2A/R2B frozen-design alignment remains PASS with zero new source blockers.
+- R2C preflight identifies the expected gap: `SimplifiedCredentialBundleIssuer.issue()` still creates peer trust through `get_or_create()`.
+- Frozen solution: registration-service initialization creates/validates the system baseline before listener readiness; bundle issuance and recovery are existing-only; transaction rollback never mutates peer trust.
+- Factory/clean-product baseline may still have no peer-trust DB before registration-service initialization.
+- Peer-trust readiness failure must block registration readiness, not unrelated Manager MQTT/telemetry.
+- R2C design blockers: 0; implementation required and ready.
+- R3 listener wiring, firmware, T1/board/live mutation remain out of scope.
+- Design authority: `docs/development/N3W_SCAN_TRIGGERED_FIRST_PAIRING_R2C_SYSTEM_PEER_TRUST_BASELINE_SOURCE_DESIGN_AND_PREFLIGHT_20261027.md`.
+- Next gate: `N3W_SCAN_TRIGGERED_FIRST_PAIRING_R2C_SYSTEM_PEER_TRUST_BASELINE_SOURCE_IMPLEMENTATION_20261027_01`.
+
 ## 2026-10-27 — Pre-R2C frozen-design alignment
 
 - Current source main after PR #683 merge: `4f21695cf7e17465f91a6a881adf3888dd9cfc61`.
