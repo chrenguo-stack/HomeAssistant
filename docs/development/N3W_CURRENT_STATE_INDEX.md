@@ -1,3 +1,15 @@
+## 2026-10-28 — R10 T1 candidate upgrade exact artifact frozen
+
+- Package source head: `81546685bbb7d9d6aad9cf574d871277ca4b44b1` (PR #715 remains frozen at this head).
+- Package CI: source-contract / build-candidate / redownload-verify all SUCCESS.
+- Exact artifact: ID `12792592683`, name `n3w-r10-t1-upgrade-81546685bbb7`, digest `sha256:e4f236387c67a2ac88623bb2166201fcc44589dc99504aded4b9df688ad5dc9c`.
+- Manifest SHA-256: `4c9eca65c535cc7c5fd1f48891844f381338719d2d422d0f5464cc8f7a660664`.
+- Manager tar SHA-256: `de0a5de5f0922dafc3485414ad7add1e31ecdd61c1cf8e473e00c5350eb83e1e`; size 61,439,488 bytes.
+- Manager image ID: `sha256:bf5a1f7def35849dec43c232f2caad9e429723b5ce86878a73b3b7a7e5a50169`.
+- No T1 access/mutation occurred; live upgrade remains separately authorized.
+- Authority: `docs/development/N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_T1_CANDIDATE_UPGRADE_ARTIFACT_FREEZE_CLOSURE_20261028.md`.
+- Next gate: `N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_T1_CANDIDATE_LIVE_UPGRADE_PREEXECUTION_AND_AUTHORIZATION_20261028_01`.
+
 ## 2026-10-28 — R10 physical acceptance design/read-only preflight
 
 - Fresh repository/R9 source/workflow/artifact rebind: PASS; no drift invalidating R9 authority.
