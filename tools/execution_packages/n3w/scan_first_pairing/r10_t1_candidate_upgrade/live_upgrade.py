@@ -732,6 +732,12 @@ def verify_prestate(
         raise UpgradeError("registration_unit_predecessor_drift")
     if not registration_firewall_absent():
         raise UpgradeError("registration_firewall_predecessor_drift")
+    if (
+        listener_count("tcp", 47110) != 0
+        or listener_count("udp", 47111) != 0
+        or listener_count("tcp", 47112) != 0
+    ):
+        raise UpgradeError("registration_listener_predecessor_drift")
 
     services = service_state(SERVICES_UNIT)
     broker_service = service_state(BROKER_UNIT)
