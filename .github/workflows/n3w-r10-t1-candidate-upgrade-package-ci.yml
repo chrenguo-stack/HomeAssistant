@@ -71,6 +71,8 @@ jobs:
               raise SystemExit("forbidden_package_surface:" + ",".join(found))
           print("PACKAGE_LIVE_BOUNDARY_POLICY=PASS")
           PY
+          grep -F 'docker run -i --rm --platform linux/arm64 --network none --entrypoint python "$MANAGER_IMAGE" -' .github/workflows/n3w-r10-t1-candidate-upgrade-package-ci.yml
+          echo "CAPABILITY_STDIN_ATTACHMENT_CONTRACT=PASS"
 
   build-candidate:
     needs: source-contract
@@ -183,7 +185,7 @@ jobs:
           test "$OS_NAME" = linux
           test "$USER_NAME" = greenhouse
           test "$ENTRYPOINT" = '["greenhouse-manager"]'
-          docker run --rm --platform linux/arm64 --network none --entrypoint python "$MANAGER_IMAGE" - <<'PY'
+          docker run -i --rm --platform linux/arm64 --network none --entrypoint python "$MANAGER_IMAGE" - <<'PY'
           from greenhouse_manager.runtime.n3w_first_registration_transaction import FIRST_REGISTRATION_TTL_SECONDS, FirstRegistrationTransactionService
           from greenhouse_manager.runtime.n3w_registration_runtime import RegistrationNetworkRuntime
           from greenhouse_manager.runtime.n3w_dynamic_pairing_window import DynamicPairingWindowController
