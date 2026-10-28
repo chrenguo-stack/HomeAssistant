@@ -355,25 +355,24 @@ def validate_package(
     ):
         raise UpgradeError("executor_binding_invalid")
 
-    for group_name in ("live_files", "source_overlay"):
-        group = manifest.get(group_name)
-        if not isinstance(group, dict):
-            raise UpgradeError(f"{group_name}_invalid")
-        for record in group.values():
-            if not isinstance(record, dict):
-                raise UpgradeError(f"{group_name}_record_invalid")
-            path = safe_package_file(
-                root,
-                str(record.get("artifact_path", "")),
+    group = manifest.get("live_files")
+    if not isinstance(group, dict):
+        raise UpgradeError("live_files_invalid")
+    for record in group.values():
+        if not isinstance(record, dict):
+            raise UpgradeError("live_files_record_invalid")
+        path = safe_package_file(
+            root,
+            str(record.get("artifact_path", "")),
+        )
+        if (
+            sha256_file(path) != record.get("sha256")
+            or path.stat().st_size != record.get("size")
+        ):
+            raise UpgradeError(
+                f"package_member_binding_invalid:"
+                f"{record.get('artifact_path')}"
             )
-            if (
-                sha256_file(path) != record.get("sha256")
-                or path.stat().st_size != record.get("size")
-            ):
-                raise UpgradeError(
-                    f"package_member_binding_invalid:"
-                    f"{record.get('artifact_path')}"
-                )
     return manifest
 
 
@@ -744,22 +743,6 @@ def verify_prestate(
             if target.exists() or target.is_symlink():
                 raise UpgradeError(f"new_live_file_preexists:{target}")
 
-    for record in manifest["source_overlay"].values():
-        target = Path(str(record["target"]))
-        predecessor = record.get("predecessor")
-        if predecessor is None:
-            if target.exists() or target.is_symlink():
-                raise UpgradeError(
-                    f"new_source_overlay_preexists:{target}"
-                )
-        else:
-            verify_predecessor_file(
-                {
-                    **record,
-                    "predecessor_present": True,
-                }
-            )
-
     f4_services_eligibility()
     f4_transaction = read_private_json(F4_TRANSACTION)
     installed = f4_transaction.get("installed_files")
@@ -811,10 +794,7 @@ def verify_prestate(
                 if Path(str(record["target"])).is_file()
                 else 0
             )
-            for record in [
-                *manifest["live_files"].values(),
-                *manifest["source_overlay"].values(),
-            ]
+            for record in manifest["live_files"].values()
         )
     )
     rollback_estimate = state_bytes + static_bytes + 16 * 1024 * 1024
@@ -964,14 +944,13 @@ def static_backup(
         COMPOSE_ENV, root, "docker-compose.env.bin"
     )
     index = 0
-    for group_name in ("live_files", "source_overlay"):
-        for name, record in manifest[group_name].items():
-            records[f"{group_name}:{name}"] = backup_file(
-                Path(str(record["target"])),
-                root,
-                f"file-{index:03d}.bin",
-            )
-            index += 1
+    for name, record in manifest["live_files"].items():
+        records[f"live_files:{name}"] = backup_file(
+            Path(str(record["target"])),
+            root,
+            f"file-{index:03d}.bin",
+        )
+        index += 1
     firewall = run(("iptables-save", "-t", "filter"), timeout=20)
     firewall_path = root / "iptables-filter-prestate.txt"
     atomic_write_bytes(
@@ -1145,18 +1124,6 @@ def install_runtime_files(
         if file_binding(Path(str(record["target"])))["sha256"] != record["sha256"]:
             raise UpgradeError(f"live_install_verify_failed:{name}")
 
-    for name, record in manifest["source_overlay"].items():
-        source = safe_package_file(
-            package_root,
-            str(record["artifact_path"]),
-        )
-        copy_bound_file(
-            source,
-            Path(str(record["target"])),
-            mode=int(record["mode"]),
-        )
-        if file_binding(Path(str(record["target"])))["sha256"] != record["sha256"]:
-            raise UpgradeError(f"source_overlay_verify_failed:{name}")
 
 
 def install_registration_tls(tls_root: Path) -> None:
