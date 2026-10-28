@@ -17,6 +17,7 @@
 - Board artifact authority remains R9 artifact ID `12783234959`; exact `firmware.factory.bin` SHA-256 `b734c343b3caf725c3991e6dc408b471a607f0c10cfe641346a78228b65c3bbf`.
 - KF-129 remains OPEN until the real phone-scan + real ESP32-C6 first-registration route closes.
 - Next ONE gate: `N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_PHYSICAL_ACCEPTANCE_EXECUTION_20261028_01`.
+- Formal new-chat handoff: `docs/development/N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_T1_R3_CLOSED_TO_PHYSICAL_ACCEPTANCE_NEW_CHAT_HANDOFF_V1.0_20261028.md`.
 - The next gate begins with fresh read-only T1/board prechecks; board write remains separately authorized and one-shot.
 
 ## 2026-10-27 — R5 merged; R6 TLS-bootstrap design/preflight is next
