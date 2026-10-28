@@ -441,6 +441,26 @@ def rewrite_manager_image(
 
 
 
+def docker_image_ids_for_reference(reference: str) -> list[str]:
+    ids = [
+        line.strip()
+        for line in run(
+            (
+                "docker",
+                "image",
+                "ls",
+                "--no-trunc",
+                "--quiet",
+                "--filter",
+                f"reference={reference}",
+            ),
+            timeout=30,
+        ).splitlines()
+        if line.strip()
+    ]
+    return list(dict.fromkeys(ids))
+
+
 def running_service_count(service: str) -> int:
     output = run(
         (
@@ -769,12 +789,12 @@ def verify_prestate(
     if not all(value["running"] for value in snapshots.values()):
         raise UpgradeError("container_prestate_not_running")
 
-    target_image = run(
-        ("docker", "image", "inspect", TARGET_MANAGER_IMAGE),
-        timeout=30,
-        allowed=frozenset({0, 1}),
+    target_image_ids = docker_image_ids_for_reference(
+        TARGET_MANAGER_IMAGE
     )
-    if target_image.strip():
+    if len(target_image_ids) > 1:
+        raise UpgradeError("target_manager_image_reference_ambiguous")
+    if target_image_ids:
         raise UpgradeError("target_manager_image_preexisting")
 
     _lines, env = parse_env(COMPOSE_ENV)
