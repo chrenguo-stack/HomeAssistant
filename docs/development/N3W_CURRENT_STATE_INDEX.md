@@ -1,3 +1,15 @@
+## 2026-10-28 — T1 OTA upgrade opened as an independent product development stage
+
+- Branch: `product/n3w-t1-ota-upgrade-20261028`.
+- Stage: `N3W_T1_OTA_UPGRADE` / `INDEPENDENT_PRODUCT_DEVELOPMENT_STAGE`.
+- This stage is independent from R10 scan-triggered first-pairing physical acceptance and does not block it.
+- Normal OTA target is the N3-W production software stack, not Armbian/kernel/bootloader.
+- Existing ~2.5 GiB fresh-install payload is explicitly rejected as the routine OTA transport.
+- Initial architecture direction: signed manifest first, changed components only, content-addressed OCI layer reuse, resumable verified download, transactional apply/rollback, user-authorized installation.
+- Hardware assessment: application/container-level OTA is feasible on current T1; atomic full-OS OTA is not proven because current /boot and root share the same eMMC and no A/B rootfs contract exists.
+- Authority: `docs/development/N3W_T1_OTA_UPGRADE_PRODUCT_STAGE_20261028.md`.
+- Next OTA gate: `N3W_T1_OTA_UPGRADE_OTA0_REQUIREMENTS_AND_CURRENT_RUNTIME_READONLY_REBIND`.
+
 ## 2026-10-27 — R5 merged; R6 TLS-bootstrap design/preflight is next
 
 - Executable/source main after R5 merge: `32c4eef68bce48ff7a379381ab0bfad60557ef57`; tree `303378f5cffef4e4f1f71881b1955baed5b7d220`.
