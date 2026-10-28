@@ -371,7 +371,7 @@ def test_claim_occurs_before_first_mutating_stage(
     )
     monkeypatch.setattr(
         executor,
-        "strict_postcheck",
+        "wait_strict_postcheck",
         lambda _p, _m: {
             "manager": {"image_id": "target"},
         },
@@ -533,3 +533,55 @@ def test_live_executor_self_binding_matches_packaged_executor(
         match="running_executor_binding_invalid",
     ):
         executor.validate_package(output, manifest_sha)
+
+
+def test_postupgrade_readiness_waits_for_transient_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = {"count": 0}
+    timeline = iter([0.0, 0.5, 1.0, 1.5])
+
+    def fake_monotonic() -> float:
+        return next(timeline)
+
+    def fake_postcheck(_prestate, _manifest):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise executor.UpgradeError(
+                "registration_listener_postcheck_failed"
+            )
+        return {"status": "ready"}
+
+    monkeypatch.setattr(executor.time, "monotonic", fake_monotonic)
+    monkeypatch.setattr(executor.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(executor, "strict_postcheck", fake_postcheck)
+    result = executor.wait_strict_postcheck(
+        {},
+        {},
+        timeout_seconds=10,
+        poll_seconds=1,
+    )
+    assert result == {"status": "ready"}
+    assert calls["count"] == 2
+
+
+def test_postupgrade_readiness_does_not_wait_on_broker_contradiction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        executor,
+        "strict_postcheck",
+        lambda _p, _m: (_ for _ in ()).throw(
+            executor.UpgradeError("broker_continuity_failed")
+        ),
+    )
+    with pytest.raises(
+        executor.UpgradeError,
+        match="broker_continuity_failed",
+    ):
+        executor.wait_strict_postcheck(
+            {},
+            {},
+            timeout_seconds=10,
+            poll_seconds=1,
+        )
