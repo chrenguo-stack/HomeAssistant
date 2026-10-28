@@ -143,6 +143,22 @@ def test_r8_keeps_r6_tls_contract_as_a_required_predecessor() -> None:
     assert r6_step < r8_step
 
 
+def test_manager_durable_attempt_precedes_window_open_and_accept_response() -> None:
+    source = read(MANAGER / "n3w_first_registration_transaction.py")
+    start = function_block(
+        source,
+        "    def start(",
+        "    def status(",
+    )
+
+    create = start.index("self.ledger.create_active(")
+    activate = start.index("self.intents.activate(intent)")
+    open_window = start.index("self.window.open_first_registration(intent)")
+    accepted = start.index("return FirstRegistrationStartResult(")
+
+    assert create < activate < open_window < accepted
+
+
 def test_manager_status_recovery_cannot_open_or_refresh_47112() -> None:
     source = read(MANAGER / "n3w_first_registration_transaction.py")
     status = function_block(
