@@ -252,6 +252,7 @@ jobs:
             --output "$WORK/package" \
             --predecessor-source-root "$WORK/predecessor" \
             --target-source-root "$WORK/target" \
+            --package-source-root "$GITHUB_WORKSPACE" \
             --predecessor-source "$PREDECESSOR_SOURCE" \
             --target-source "$TARGET_SOURCE" \
             --package-head "$PACKAGE_HEAD" \
@@ -327,6 +328,9 @@ jobs:
           assert m["policy"]["broker_image_included"] is False
           assert m["registration_tls"]["included_in_artifact"] is False
           assert m["manager"]["future_rebuild_byte_identity_claimed"] is False
+          dispatcher=m["live_files"]["dispatcher"]
+          assert dispatcher["target_source_authority"] == "package_head"
+          assert dispatcher["target_source_commit"] == m["package_head"]
           print("REDOWNLOAD_PACKAGE_BINDING=PASS")
           PY
       - name: Report artifact authority
