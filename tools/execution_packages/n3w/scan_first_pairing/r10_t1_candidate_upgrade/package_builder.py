@@ -63,6 +63,7 @@ LIVE_FILES = {
         "mode": 0o755,
         "f4_bound": True,
         "predecessor_present": True,
+        "target_authority": "package_head",
     },
     "registration_unit": {
         "predecessor_source": None,
@@ -239,11 +240,21 @@ def _materialize_group(
     output: Path,
     predecessor_root: Path,
     target_root: Path,
+    package_root: Path,
+    package_head: str,
     records: dict[str, dict[str, Any]],
 ) -> dict[str, dict[str, Any]]:
     result: dict[str, dict[str, Any]] = {}
     for name, spec in records.items():
-        target_source = _regular(target_root, str(spec["target_source"]))
+        target_authority = str(spec.get("target_authority", "target_source"))
+        source_root = (
+            package_root
+            if target_authority == "package_head"
+            else target_root
+        )
+        if target_authority not in {"target_source", "package_head"}:
+            raise PackageError("target_authority_invalid")
+        target_source = _regular(source_root, str(spec["target_source"]))
         artifact_rel = str(spec["artifact"])
         artifact_path = output / artifact_rel
         copied = _copy_exact(target_source, artifact_path, int(spec["mode"]))
@@ -254,6 +265,12 @@ def _materialize_group(
             spec.get("predecessor_source"),
         )
         copied["target_source"] = str(spec["target_source"])
+        copied["target_source_authority"] = target_authority
+        copied["target_source_commit"] = (
+            package_head
+            if target_authority == "package_head"
+            else TARGET_SOURCE
+        )
         if "f4_bound" in spec:
             copied["f4_bound"] = bool(spec["f4_bound"])
             copied["predecessor_present"] = bool(
@@ -267,6 +284,7 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
     output = Path(args.output).resolve()
     predecessor = Path(args.predecessor_source_root).resolve()
     target = Path(args.target_source_root).resolve()
+    package_source = Path(args.package_source_root).resolve()
     manager_tar = Path(args.manager_tar).resolve()
     executor = Path(args.executor).resolve()
     distributions = Path(args.python_distributions).resolve()
@@ -276,6 +294,7 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
     for root, label in (
         (predecessor, "predecessor"),
         (target, "target"),
+        (package_source, "package"),
     ):
         if root.is_symlink() or not root.is_dir():
             raise PackageError(f"{label}_root_invalid")
@@ -346,6 +365,8 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
         output=output,
         predecessor_root=predecessor,
         target_root=target,
+        package_root=package_source,
+        package_head=args.package_head,
         records=LIVE_FILES,
     )
     runtime_bytes = sum(
@@ -524,8 +545,23 @@ def verify(root: Path) -> dict[str, Any]:
     ):
         raise PackageError("executor_binding_invalid")
 
-    for record in manifest["live_files"].values():
+    for name, record in manifest["live_files"].items():
         path = root / str(record["artifact_path"])
+        expected_authority = (
+            "package_head" if name == "dispatcher" else "target_source"
+        )
+        expected_commit = (
+            str(manifest["package_head"])
+            if expected_authority == "package_head"
+            else TARGET_SOURCE
+        )
+        if (
+            record.get("target_source_authority") != expected_authority
+            or record.get("target_source_commit") != expected_commit
+        ):
+            raise PackageError(
+                f"runtime_source_authority_invalid:{record['artifact_path']}"
+            )
         if (
             sha256_file(path) != record["sha256"]
             or path.stat().st_size != record["size"]
@@ -543,6 +579,7 @@ def parser() -> argparse.ArgumentParser:
     build_parser.add_argument("--output", required=True)
     build_parser.add_argument("--predecessor-source-root", required=True)
     build_parser.add_argument("--target-source-root", required=True)
+    build_parser.add_argument("--package-source-root", required=True)
     build_parser.add_argument("--predecessor-source", required=True)
     build_parser.add_argument("--target-source", required=True)
     build_parser.add_argument("--package-head", required=True)
