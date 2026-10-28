@@ -1710,6 +1710,21 @@ def rollback(
         cleanup_registration_firewall()
     except Exception as error:
         errors.append("firewall:" + type(error).__name__)
+
+    try:
+        require_application_quiescent()
+    except Exception as error:
+        errors.append("application_quiesce:" + type(error).__name__)
+        advance_upgrade(
+            "ROLLBACK_FAILED",
+            rollback_completed=False,
+            rollback_error_count=len(errors),
+            rollback_error_classes=errors,
+        )
+        raise UpgradeError(
+            "rollback_unproven:application_not_quiescent"
+        ) from error
+
     try:
         staged_tls = workspace / "registration-tls"
         if staged_tls.exists():
