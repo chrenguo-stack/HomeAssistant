@@ -100,7 +100,14 @@ button{display:block;font-size:1.05rem;padding:.7rem 1rem;margin:.6rem 0;max-wid
       out.textContent = "正在查找主机";
       try {
         const result = await post("/api/v1/register/start");
-        if (!result.response.ok) throw new Error("start rejected");
+        if (!result.response.ok) {
+          if (result.body.reason === "registration_in_progress") {
+            out.textContent = "正在读取当前注册状态";
+            pollSoon();
+            return;
+          }
+          throw new Error("start rejected");
+        }
         pollSoon();
       } catch (_) {
         out.textContent = "操作失败，请重新扫码";
@@ -132,9 +139,18 @@ button{display:block;font-size:1.05rem;padding:.7rem 1rem;margin:.6rem 0;max-wid
         candidate_id: candidate.id
       });
       if (!result.response.ok) {
-        out.textContent = result.body.reason === "candidate_stale"
-          ? "E07 主机信息已失效"
-          : "操作失败，请重新寻找主机";
+        if (result.body.reason === "candidate_stale") {
+          out.textContent = "E07 主机信息已失效";
+          stopped = true;
+          showRetryButton();
+          return;
+        }
+        if (result.body.reason === "selection_not_ready") {
+          out.textContent = "正在读取当前注册状态";
+          pollSoon(150);
+          return;
+        }
+        out.textContent = "操作失败，请重新寻找主机";
         stopped = true;
         showRetryButton();
         return;
@@ -153,6 +169,18 @@ button{display:block;font-size:1.05rem;padding:.7rem 1rem;margin:.6rem 0;max-wid
     try {
       const result = await post("/api/v1/register/begin");
       if (!result.response.ok) {
+        if (result.body.reason === "registration_in_progress" ||
+            result.body.reason === "selection_not_ready") {
+          out.textContent = "正在读取当前注册状态";
+          pollSoon();
+          return;
+        }
+        if (result.body.reason === "candidate_stale") {
+          out.textContent = "E07 主机信息已失效";
+          stopped = true;
+          showRetryButton();
+          return;
+        }
         out.textContent = "操作失败，请重新寻找主机";
         stopped = true;
         showRetryButton();
