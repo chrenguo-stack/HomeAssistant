@@ -302,6 +302,28 @@ STOP
 
 A rollback that cannot prove the old runtime healthy is terminal and requires manual/high-level recovery. No automatic second upgrade attempt is allowed.
 
+## 9A. Candidate-build reproducibility boundary
+
+The exact target Dockerfile begins from `python:3.11-slim` and installs `.[pairing]` from version ranges such as `cryptography>=44,<50`.
+
+The focused artifact workflow therefore:
+
+1. resolves the current linux/arm64 manifest digest for `python:3.11-slim`;
+2. creates a build-only Dockerfile whose first line pins that exact platform manifest digest;
+3. builds only the exact e299 Manager source;
+4. captures the resulting Manager image ID and image size;
+5. captures the complete installed Python distribution name/version inventory;
+6. binds the Manager tar SHA/size;
+7. independently redownloads and verifies the package.
+
+```text
+HISTORICAL_E299_MANAGER_BYTE_CONTINUITY_CLAIMED=false
+FUTURE_REBUILD_BYTE_IDENTITY_CLAIMED=false
+ACTUAL_CANDIDATE_ARTIFACT_IDENTITY_FROZEN=true
+```
+
+The installed distribution inventory is audit evidence, not a dependency lock for future rebuilds.
+
 ## 10. Capacity contract
 
 The old fixed fresh-install 5 GiB staging reserve is not reused as a product runtime minimum.
@@ -326,6 +348,8 @@ free_after_package_staging
 ```
 
 `UPGRADE_EMERGENCY_RESERVE_BYTES` is an upgrade-transaction safety reserve only, not a permanent product runtime free-space requirement. This gate initially freezes it at 2 GiB; later OTA work may replace it with a measured product policy.
+
+The first admission check occurs before Docker load and therefore includes the full candidate image size plus rollback estimate plus reserve. After the image has already been loaded and the quiescent rollback archive has already been created, the second capacity check must not count the image size a second time; it requires only the emergency reserve plus the remaining small runtime-bundle write budget.
 
 ## 11. Artifact security
 
