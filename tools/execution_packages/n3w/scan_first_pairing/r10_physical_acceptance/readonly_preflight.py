@@ -81,6 +81,8 @@ PHY_SIZE = 0x1000
 SLOT_SIZE = 0x3C0000
 NVS_SIZE = 0x70000
 FACTORY_SIZE = EXPECTED_MEMBERS["firmware.factory.bin"][0]
+FLASH_SECTOR_SIZE = 0x1000
+FACTORY_ERASE_SPAN = ((FACTORY_SIZE + FLASH_SECTOR_SIZE - 1) // FLASH_SECTOR_SIZE) * FLASH_SECTOR_SIZE
 APP_SIZE = EXPECTED_MEMBERS["firmware.bin"][0]
 FLASH_SIZE_TEXT = "8MB"
 PREFLIGHT_CONFIRMATION = "R10 READONLY PREFLIGHT: YES"
@@ -679,15 +681,17 @@ def board_probe(port: str, files: dict[str, Path], root: Path) -> dict[str, Any]
     if partition_sha != EXPECTED_MEMBERS["partitions.bin"][1]:
         raise StopExecution("current_partition_table_not_r9_compatible")
 
-    factory_backup = root / "factory-covered-range-prewrite.bin"
+    factory_backup = root / "factory-erase-span-prewrite.bin"
     app1_backup = root / "app1-full-slot-prewrite.bin"
     nvs_backup = root / "nvs-prewrite.bin"
 
-    factory_sha = read_stub_start(port, 0, FACTORY_SIZE, factory_backup)
+    factory_erase_span_sha = read_stub_start(port, 0, FACTORY_ERASE_SPAN, factory_backup)
     app1_sha = read_stub_continue(port, APP1_OFFSET, SLOT_SIZE, app1_backup)
     nvs_sha = read_stub_continue(port, NVS_OFFSET, NVS_SIZE, nvs_backup)
 
-    factory_data = factory_backup.read_bytes()
+    factory_erase_span_data = factory_backup.read_bytes()
+    factory_data = factory_erase_span_data[:FACTORY_SIZE]
+    factory_sha = sha256_bytes(factory_data)
     app1_data = app1_backup.read_bytes()
     expected_app = files["firmware.bin"].read_bytes()
     expected_factory = files["firmware.factory.bin"].read_bytes()
@@ -705,6 +709,8 @@ def board_probe(port: str, files: dict[str, Path], root: Path) -> dict[str, Any]
         **security,
         "partition_table_sha256": partition_sha,
         "factory_covered_range_sha256": factory_sha,
+        "factory_erase_span_size": FACTORY_ERASE_SPAN,
+        "factory_erase_span_sha256": factory_erase_span_sha,
         "app1_full_slot_sha256": app1_sha,
         "nvs_sha256": nvs_sha,
         "phy_sha256": sha256_bytes(phy),
