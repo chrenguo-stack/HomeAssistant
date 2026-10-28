@@ -720,7 +720,7 @@ void SimpleProductComponent::advance_registration_discovery_() {
     registration_session_pairing_id_ = pairing_client_.pairing_id();
     if (registration_session_pairing_id_.empty()) {
       show_registration_error_(RegistrationDisplayError::E06_REGISTRATION_FAILED);
-      registration_portal_.set_no_candidates();
+      clear_registration_discovery_();
       return;
     }
 
@@ -728,7 +728,7 @@ void SimpleProductComponent::advance_registration_discovery_() {
     std::string subnet_mask;
     if (!current_wifi_ipv4_(&local_ipv4, &subnet_mask)) {
       show_registration_error_(RegistrationDisplayError::E04_NETWORK_INTERRUPTED);
-      registration_portal_.set_no_candidates();
+      clear_registration_discovery_();
       return;
     }
 
@@ -748,7 +748,7 @@ void SimpleProductComponent::advance_registration_discovery_() {
 
     if (!completed) {
       show_registration_error_(RegistrationDisplayError::E06_REGISTRATION_FAILED);
-      registration_portal_.set_no_candidates();
+      clear_registration_discovery_();
       return;
     }
     if (discovered.empty()) {
@@ -791,7 +791,6 @@ void SimpleProductComponent::advance_registration_discovery_() {
       registration_candidates_[selected_index].expired(now_ms())) {
     show_registration_error_(RegistrationDisplayError::E07_QR_INVALID);
     clear_registration_discovery_();
-    registration_portal_.set_no_candidates();
     return;
   }
 
@@ -805,10 +804,14 @@ void SimpleProductComponent::advance_registration_bootstrap_() {
       pairing_client_.provisioned()) {
     return;
   }
-  if (!wifi_connected() || !registration_portal_.running() ||
-      registration_session_pairing_id_.empty() ||
-      registration_session_pairing_id_ != pairing_client_.pairing_id()) {
+  if (!wifi_connected() || !registration_portal_.running()) {
     registration_portal_.stop();
+    clear_registration_discovery_();
+    return;
+  }
+  if (registration_session_pairing_id_.empty() ||
+      registration_session_pairing_id_ != pairing_client_.pairing_id()) {
+    show_registration_error_(RegistrationDisplayError::E06_REGISTRATION_FAILED);
     clear_registration_discovery_();
     return;
   }
