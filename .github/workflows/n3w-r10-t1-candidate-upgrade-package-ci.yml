@@ -112,6 +112,33 @@ jobs:
           test "$(git -C "$RUNNER_TEMP/r10-upgrade/target" rev-parse HEAD)" = "$TARGET_SOURCE"
           test "$(git -C "$RUNNER_TEMP/r10-upgrade/target" hash-object host/greenhouse-manager/Dockerfile)" = "$TARGET_DOCKERFILE_BLOB"
 
+      - name: Prove Broker and Home Assistant compose continuity
+        run: |
+          set -euo pipefail
+          WORK="$RUNNER_TEMP/r10-upgrade"
+          export GH_MANAGER_IMAGE=dummy-manager
+          export GH_SYSTEM_ID=ghs_dummy
+          export GH_MQTT_USERNAME=dummy
+          export GH_MQTT_CLIENT_ID=dummy
+          export GH_N3W_PAIRING_MANAGER_ID=ghm_dummy
+          export GH_N3W_PROVISIONING_USERNAME=dummy
+          export GH_N3W_PROVISIONING_CLIENT_ID=dummy
+          docker compose -f "$WORK/predecessor/infra/n3w-t1/production/docker-compose.fresh.yml" --profile "*" config --format json > "$WORK/compose-old.json"
+          docker compose -f "$WORK/target/infra/n3w-t1/production/docker-compose.fresh.yml" --profile "*" config --format json > "$WORK/compose-target.json"
+          python - "$WORK/compose-old.json" "$WORK/compose-target.json" <<'PY'
+          import json,sys
+          old=json.load(open(sys.argv[1],encoding="utf-8"))
+          new=json.load(open(sys.argv[2],encoding="utf-8"))
+          for service in ("broker","homeassistant"):
+              if old["services"].get(service) != new["services"].get(service):
+                  raise SystemExit(f"non_target_service_compose_drift:{service}")
+          if old.get("networks") != new.get("networks"):
+              raise SystemExit("compose_network_drift")
+          if old["services"].get("manager") == new["services"].get("manager"):
+              raise SystemExit("manager_compose_expected_delta_missing")
+          print("NON_TARGET_COMPOSE_CONTINUITY=PASS")
+          PY
+
       - name: Resolve exact linux arm64 base manifest
         id: base
         run: |
