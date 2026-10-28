@@ -1,3 +1,69 @@
+## 2026-10-28 — R10 T1 candidate R3 live upgrade CLOSED_PASS; board physical acceptance restored
+
+~~~text
+TASK=N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_T1_CANDIDATE_UPGRADE_R3_CLOSURE_20261028
+
+REPOSITORY_MAIN=2fbd0e9c2d3bf8a513ac318034e249511ffb6a2e
+REPOSITORY_MAIN_TREE=3064ab74ac96bbce44a0bf880ab53c7afc5bc134
+
+PR720_STATE=OPEN_DRAFT
+PR720_HEAD=4fd8212fc010b084d886f81ca09bb92696f0bbaf
+PR721_STATE=OPEN_DRAFT
+PR721_HEAD=47a334feac5fde699b004d0a0853a1af786fd271
+
+R3_ARTIFACT_ID=12802190308
+R3_ARTIFACT_NAME=n3w-r10-t1-upgrade-4fd8212fc010
+R3_ARTIFACT_DIGEST=sha256:cd49b7a2df1df3b9740faa51d1f59dff98e7375a49e0f922a5dc49905ac030af
+R3_MANIFEST_SHA256=68eb56dfc0a60ace97c6647d745322ba08121c33627b7d07b7929c13d55573aa
+R3_MANAGER_TAR_SHA256=5d580f1536c8817dfe97cdba4c3a3e5474dfc3a007a4880344da06a04d4b56fd
+R3_EXECUTOR_SHA256=0fffa320e9c1bbe98e2e037d7ca8149a5fa1be989989e3d19d30088e5c42fbeb
+
+R3_LIVE_AUTHORIZATION=N3W_R10_T1_CANDIDATE_UPGRADE_R3_20261028_01
+R3_LIVE_AUTHORIZATION_CONSUMED=true
+R3_LIVE_AUTHORIZATION_REPLAY_PERMITTED=false
+
+R3_T1_CANDIDATE_UPGRADE=CLOSED_PASS
+R3_POST_LIVE_FORENSIC=PASS
+BOARD_ACCESS=false
+BOARD_MUTATION=false
+
+CURRENT_MANAGER_IMAGE=local/greenhouse-manager:fresh-e299c937a7b8
+CURRENT_MANAGER_RUNTIME_ID=sha256:9675821a1445b6711549cbee424299dea7f0b35795018954d3cb3b61da7af7f4
+CURRENT_REGISTRATION_COUNT=1
+FIRST_REGISTRATION_TABLE_PRESENT=true
+UNRESOLVED_FIRST_REGISTRATION=0
+PAIRING_WINDOW=CLOSED
+REGISTRATION_GUARD=active/enabled/loaded
+TCP_47110_LISTENERS=1
+UDP_47111_LISTENERS=1
+TCP_47112_LISTENERS=0
+BROKER_CONTINUITY=PASS
+HOMEASSISTANT_IMAGE_UNCHANGED=true
+
+R10_TRANSACTION_SHA256=a6f667da61060d8abb7b8b38a5d90950b9bf7027d5f4e9f3c971071f7f4f5f05
+R2_HISTORY_TRANSACTION_SHA256=7e54ef457d7aebcdd616d9d5234b077126f533f2e74bf820ae93a5f3e5746690
+R2_FAILED_RESIDUE_RECONCILIATION=CLOSED_PASS
+
+R9_BOARD_ARTIFACT_ID=12783234959
+R9_FACTORY_IMAGE_SHA256=b734c343b3caf725c3991e6dc408b471a607f0c10cfe641346a78228b65c3bbf
+
+CURRENT_STOP_POINT=R3_T1_UPGRADE_CLOSED_PASS_BEFORE_R10_BOARD_PHYSICAL_ACCEPTANCE
+NEXT_ONE_GATE=N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_PHYSICAL_ACCEPTANCE_EXECUTION_20261028_01
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+The R3 T1 candidate upgrade is now independently closed PASS. The live transaction is PASS/COMMITTED, the target Manager is running, Broker continuity and Home Assistant image continuity were preserved, registration guard/trusted-LAN/TLS are live, 47110/TCP and 47111/UDP are listening, 47112/TCP is idle closed, pairing remains CLOSED, database integrity passed, the first-registration table exists, current registration count remains 1 and unresolved first-registration count is 0.
+
+The final F4 successor review also passed. The original F4 top-level package-source fields are intentionally historical and protected; the R10 successor is bound by the `r10_candidate_upgrade_*` fields plus updated `installed_files`. All six successor live files match the frozen R3 manifest exactly, and the F4 installed-file bindings for Compose, services unit and dispatcher match current live bytes.
+
+The R2 failed upgrade remains historical FAIL evidence and was not rewritten. Its active failed residue was archived by the separate PR #721 reconciliation route, which closed PASS. R1/R2/bad-R3 historical artifacts and consumed authorizations remain forbidden for replay.
+
+KF-129 remains OPEN: the exact capable T1 runtime is now deployed, but the real phone-scan / real ESP32-C6 first-registration acceptance has not yet run.
+
+The board-side authority remains the frozen R9 exact artifact: artifact ID `12783234959`, exact `firmware.factory.bin` SHA-256 `b734c343b3caf725c3991e6dc408b471a607f0c10cfe641346a78228b65c3bbf`. The already-frozen physical design requires exact factory-range backup/readback, NVS unchanged proof, no erase-flash/NVS erase, no flat ZIP flash_args, a genuinely Wi-Fi-connected unregistered target, explicit T1 selection, real TLS/bootstrap, durable Manager COMMIT, commit-bound LCD success, 47112 close and Manager/Broker/Home Assistant continuity.
+
+No board/USB/serial/flash/NVS action occurred during the R3 T1 upgrade route. The next conversation may enter only `N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_PHYSICAL_ACCEPTANCE_EXECUTION_20261028_01`, beginning with fresh read-only T1/board prechecks and requiring a new explicit physical authorization before the first board write.
+
 ## 2026-10-27 — R5 scan-triggered T1 discovery / multi-T1 selection merged; R6 handoff boundary
 
 ~~~text
