@@ -1,3 +1,24 @@
+## 2026-10-28 — R10 T1 candidate R3 CLOSED_PASS; physical first-pairing acceptance is next
+
+- Repository main remains `2fbd0e9c2d3bf8a513ac318034e249511ffb6a2e`; tree `3064ab74ac96bbce44a0bf880ab53c7afc5bc134`.
+- PR #720 remains OPEN/DRAFT at exact reviewed/deployed package head `4fd8212fc010b084d886f81ca09bb92696f0bbaf`.
+- PR #721 remains OPEN/DRAFT at reconciliation head `47a334feac5fde699b004d0a0853a1af786fd271`.
+- Frozen R3 T1 upgrade artifact: ID `12802190308`, digest `sha256:cd49b7a2df1df3b9740faa51d1f59dff98e7375a49e0f922a5dc49905ac030af`, manifest `68eb56dfc0a60ace97c6647d745322ba08121c33627b7d07b7929c13d55573aa`.
+- R3 live authorization `N3W_R10_T1_CANDIDATE_UPGRADE_R3_20261028_01` is consumed/non-replayable.
+- R3 executor returned PASS/COMMITTED; independent post-live verification also PASS.
+- Current Manager is `local/greenhouse-manager:fresh-e299c937a7b8`; runtime image ID/digest observed as `sha256:9675821a1445b6711549cbee424299dea7f0b35795018954d3cb3b61da7af7f4`.
+- Registration guard is active/enabled/loaded; 47110/TCP=1, 47111/UDP=1, 47112/TCP=0; pairing window CLOSED.
+- Database integrity is OK; `first_registration_attempts` is present; current registration count=1; unresolved first-registration=0.
+- Broker continuity PASS; Home Assistant image unchanged.
+- R10 transaction SHA-256: `a6f667da61060d8abb7b8b38a5d90950b9bf7027d5f4e9f3c971071f7f4f5f05`.
+- F4 R10 successor binding PASS; all six successor live files exactly match the frozen R3 manifest; F4 installed-file bindings for Compose/services/dispatcher PASS.
+- R2 failed-residue reconciliation is CLOSED_PASS; archived R2 transaction SHA-256 remains `7e54ef457d7aebcdd616d9d5234b077126f533f2e74bf820ae93a5f3e5746690`.
+- No board/USB/serial/flash/NVS action occurred in the R3 T1 upgrade route.
+- Board artifact authority remains R9 artifact ID `12783234959`; exact `firmware.factory.bin` SHA-256 `b734c343b3caf725c3991e6dc408b471a607f0c10cfe641346a78228b65c3bbf`.
+- KF-129 remains OPEN until the real phone-scan + real ESP32-C6 first-registration route closes.
+- Next ONE gate: `N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_PHYSICAL_ACCEPTANCE_EXECUTION_20261028_01`.
+- The next gate begins with fresh read-only T1/board prechecks; board write remains separately authorized and one-shot.
+
 ## 2026-10-27 — R5 merged; R6 TLS-bootstrap design/preflight is next
 
 - Executable/source main after R5 merge: `32c4eef68bce48ff7a379381ab0bfad60557ef57`; tree `303378f5cffef4e4f1f71881b1955baed5b7d220`.
