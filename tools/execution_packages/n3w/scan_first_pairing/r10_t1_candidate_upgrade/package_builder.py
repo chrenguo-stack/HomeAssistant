@@ -63,15 +63,6 @@ LIVE_FILES = {
         "f4_bound": True,
         "predecessor_present": True,
     },
-    "f4_launcher": {
-        "predecessor_source": "tools/n3w_t1_f4_activation_host.py",
-        "target_source": "tools/n3w_t1_f4_activation_host.py",
-        "artifact": "runtime/live/usr/local/sbin/n3w-t1-f4-activation",
-        "target": "/usr/local/sbin/n3w-t1-f4-activation",
-        "mode": 0o755,
-        "f4_bound": True,
-        "predecessor_present": True,
-    },
     "registration_unit": {
         "predecessor_source": None,
         "target_source": (
@@ -210,17 +201,6 @@ SOURCE_OVERLAY = {
         "target": (
             "/opt/HomeAssistant/infra/n3w-t1/NetworkManager/dispatcher.d/"
             "90-n3wfc4-broker-ingress-guard"
-        ),
-        "mode": 0o755,
-    },
-    "f4_launcher": {
-        "predecessor_source": "tools/n3w_t1_f4_activation_host.py",
-        "target_source": "tools/n3w_t1_f4_activation_host.py",
-        "artifact": (
-            "runtime/source/tools/n3w_t1_f4_activation_host.py"
-        ),
-        "target": (
-            "/opt/HomeAssistant/tools/n3w_t1_f4_activation_host.py"
         ),
         "mode": 0o755,
     },
