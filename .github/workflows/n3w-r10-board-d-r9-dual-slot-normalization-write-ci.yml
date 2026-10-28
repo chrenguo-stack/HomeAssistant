@@ -1,0 +1,33 @@
+name: N3W R10 Board D R9 dual-slot normalization write executor CI
+
+on:
+  pull_request:
+    paths:
+      - "tools/execution_packages/n3w/scan_first_pairing/r10_board_d_r9_dual_slot_normalization_write/**"
+      - "tests/execution_packages/n3w/scan_first_pairing/r10_board_d_r9_dual_slot_normalization_write/**"
+      - ".github/workflows/n3w-r10-board-d-r9-dual-slot-normalization-write-ci.yml"
+      - "docs/development/N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_BOARD_D_R9_DUAL_SLOT_NORMALIZATION_ROUTE_DESIGN_20261028.md"
+      - "docs/development/N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_BOARD_D_R9_DUAL_SLOT_NORMALIZATION_WRITE_EXECUTOR_SOURCE_REPAIR_20261028.md"
+  push:
+    paths:
+      - "tools/execution_packages/n3w/scan_first_pairing/r10_board_d_r9_dual_slot_normalization_write/**"
+      - "tests/execution_packages/n3w/scan_first_pairing/r10_board_d_r9_dual_slot_normalization_write/**"
+      - ".github/workflows/n3w-r10-board-d-r9-dual-slot-normalization-write-ci.yml"
+      - "docs/development/N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_BOARD_D_R9_DUAL_SLOT_NORMALIZATION_ROUTE_DESIGN_20261028.md"
+      - "docs/development/N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_BOARD_D_R9_DUAL_SLOT_NORMALIZATION_WRITE_EXECUTOR_SOURCE_REPAIR_20261028.md"
+
+permissions:
+  contents: read
+
+jobs:
+  focused:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install --disable-pip-version-check "pytest>=8,<9"
+      - run: python -m py_compile tools/execution_packages/n3w/scan_first_pairing/r10_board_d_r9_dual_slot_normalization_write/executor.py
+      - run: pytest -q tests/execution_packages/n3w/scan_first_pairing/r10_board_d_r9_dual_slot_normalization_write/test_executor.py
