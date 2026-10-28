@@ -1,3 +1,15 @@
+## 2026-10-28 — R10 physical acceptance design/read-only preflight
+
+R10 design/repository/artifact preflight is complete on the stacked docs branch. Fresh rebind kept main at `2fbd0e9c2d3bf8a513ac318034e249511ffb6a2e`; PR #705-#710 remain open Draft/unmerged. R9 source `e299c937...`, workflow head `d6c3e094...` and artifact 12783234959 remain exact and available.
+
+A fresh artifact download/review confirmed the exact `firmware.factory.bin` is a merged image from offset 0, size 1,525,680 bytes, SHA-256 `b734c343...`. Its exact partition table places NVS at `0x790000 + 0x070000`, outside the factory-image range. Therefore factory flashing is not a pairing/NVS reset and R10 must not silently erase NVS.
+
+The physical procedure is now frozen: read-only T1 health/idle-window/predecessor checks first; exact-board/security checks; private prewrite factory-range and NVS backups; exact factory write with no application boot before readback; factory-range equality plus NVS-unchanged proof; then one real scan-triggered first-registration run. KF-129 forbids Manager force-recreate/Compose override. Terminal failures do not auto-repair or auto-retry.
+
+No T1/board access, flash, NVS mutation, live mutation or merge occurred. The next gate is `N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_PHYSICAL_ACCEPTANCE_EXECUTION_20261028_01` and still requires new explicit physical authorization.
+
+Authority: `docs/development/N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_PHYSICAL_ACCEPTANCE_DESIGN_AND_READONLY_PREFLIGHT_20261028.md`.
+
 ## 2026-10-28 — Scan-triggered first pairing R9 exact artifact CLOSED_PASS; R10 handoff boundary
 
 ~~~text
