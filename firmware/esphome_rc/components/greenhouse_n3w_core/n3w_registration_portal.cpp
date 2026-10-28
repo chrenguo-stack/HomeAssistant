@@ -100,6 +100,11 @@ button{display:block;font-size:1.05rem;padding:.7rem 1rem;margin:.6rem 0;max-wid
       out.textContent = "正在查找主机";
       try {
         const result = await post("/api/v1/register/start");
+        if (result.response.status === 429) {
+          out.textContent = "请稍候";
+          pollSoon(150);
+          return;
+        }
         if (!result.response.ok) {
           if (result.body.reason === "registration_in_progress") {
             out.textContent = "正在读取当前注册状态";
@@ -123,6 +128,11 @@ button{display:block;font-size:1.05rem;padding:.7rem 1rem;margin:.6rem 0;max-wid
       out.textContent = "正在查找主机";
       try {
         const result = await post("/api/v1/register/retry");
+        if (result.response.status === 429) {
+          out.textContent = "请稍候";
+          pollSoon(150);
+          return;
+        }
         if (!result.response.ok) throw new Error("retry rejected");
         pollSoon();
       } catch (_) {
@@ -138,6 +148,11 @@ button{display:block;font-size:1.05rem;padding:.7rem 1rem;margin:.6rem 0;max-wid
       const result = await post("/api/v1/register/confirm", {
         candidate_id: candidate.id
       });
+      if (result.response.status === 429) {
+        out.textContent = "请稍候";
+        pollSoon(150);
+        return;
+      }
       if (!result.response.ok) {
         if (result.body.reason === "candidate_stale") {
           out.textContent = "E07 主机信息已失效";
@@ -168,6 +183,11 @@ button{display:block;font-size:1.05rem;padding:.7rem 1rem;margin:.6rem 0;max-wid
     out.textContent = "正在开始注册";
     try {
       const result = await post("/api/v1/register/begin");
+      if (result.response.status === 429) {
+        out.textContent = "请稍候";
+        pollSoon(150);
+        return;
+      }
       if (!result.response.ok) {
         if (result.body.reason === "registration_in_progress" ||
             result.body.reason === "selection_not_ready") {
