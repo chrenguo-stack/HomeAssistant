@@ -74,12 +74,7 @@ display:
     rotation: 90
     update_interval: 1s
     lambda: |-
-      const bool force_registration_page =
-          id(n3w_pairing_display_enabled) &&
-          (!id(n3w_product_provisioned) ||
-           id(n3w_registration_display_state) == 4 ||
-           id(n3w_registration_display_state) == 5);
-      const int page = force_registration_page ? 4 : id(display_page);
+      const int page = id(display_page);
 
       // ─── 低电保护画面（最高优先级） ───
       if (id(low_battery_mode)) {
@@ -277,50 +272,9 @@ display:
         it.printf(38, 104, id(f10), "g/m³");
       }
 
-      // ─── PAGE 4：配网 / 联机注册 / 已联网状态 ───
+      // ─── PAGE 4：配网 / 联机注册入口 / 已联机注册 ───
       if (page == 4) {
-        const int registration_state = id(n3w_registration_display_state);
-        const int registration_error = id(n3w_registration_display_error);
-
-        // SUCCESS / ERROR are bounded R7 presentation latches. They stay
-        // visible briefly even if Wi-Fi/provisioned state changes underneath.
-        if (registration_state == 4) {
-          it.printf(32, 48, id(f12), TextAlign::TOP_CENTER, "注册成功");
-        } else if (registration_state == 5) {
-          const char *error_code = "E06";
-          const char *error_text = "注册失败";
-          switch (registration_error) {
-            case 1:
-              error_code = "E01";
-              error_text = "未找到主机";
-              break;
-            case 2:
-              error_code = "E02";
-              error_text = "主机不可用";
-              break;
-            case 3:
-              error_code = "E03";
-              error_text = "主机忙";
-              break;
-            case 4:
-              error_code = "E04";
-              error_text = "网络中断";
-              break;
-            case 5:
-              error_code = "E05";
-              error_text = "注册超时";
-              break;
-            case 7:
-              error_code = "E07";
-              error_text = "二维码失效";
-              break;
-            case 6:
-            default:
-              break;
-          }
-          it.printf(32, 40, id(f12), TextAlign::TOP_CENTER, "%s", error_code);
-          it.printf(32, 62, id(f10), TextAlign::TOP_CENTER, "%s", error_text);
-        } else if (!id(wifi_component).is_connected()) {
+        if (!id(wifi_component).is_connected()) {
           const int scale = 2;
           const int qr_render = id(setup_qr).get_size() * scale;
           it.qr_code((64 - qr_render) / 2, 14, id(setup_qr), COLOR_ON, scale);
@@ -328,16 +282,7 @@ display:
           it.printf(32, 84, id(f10), TextAlign::TOP_CENTER, "配置节点网络");
           it.printf(32, 100, id(f10), TextAlign::TOP_CENTER, "%s", App.get_name().c_str());
         } else if (id(n3w_pairing_display_enabled) && !id(n3w_product_provisioned)) {
-          if (registration_state == 1) {
-            it.printf(32, 40, id(f12), TextAlign::TOP_CENTER, "联机注册");
-            it.printf(32, 62, id(f10), TextAlign::TOP_CENTER, "正在搜索");
-          } else if (registration_state == 2) {
-            it.printf(32, 40, id(f12), TextAlign::TOP_CENTER, "等待确认");
-            it.printf(32, 62, id(f10), TextAlign::TOP_CENTER, "请看手机");
-          } else if (registration_state == 3) {
-            it.printf(32, 40, id(f12), TextAlign::TOP_CENTER, "联机注册中");
-            it.printf(32, 62, id(f10), TextAlign::TOP_CENTER, "请稍候");
-          } else if (id(n3w_registration_qr_ready)) {
+          if (id(n3w_registration_qr_ready)) {
             const int qr_size = id(pairing_qr).get_size();
             const int scale = qr_size * 2 <= 60 ? 2 : 1;
             const int qr_render = qr_size * scale;
@@ -375,10 +320,7 @@ display:
             }
           }
 
-          it.printf(32, 40, id(f12), TextAlign::TOP_CENTER, "已联网");
-          it.printf(32, 64, id(f10), TextAlign::TOP_CENTER, "如需重置网络");
-          it.printf(32, 80, id(f10), TextAlign::TOP_CENTER, "请快速断电");
-          it.printf(32, 96, id(f10), TextAlign::TOP_CENTER, "重启3次");
+          it.printf(32, 48, id(f12), TextAlign::TOP_CENTER, "已联机注册");
         }
       }
 
