@@ -591,3 +591,39 @@ def test_postupgrade_readiness_does_not_wait_on_broker_contradiction(
             timeout_seconds=10,
             poll_seconds=1,
         )
+
+
+def test_successor_live_file_postcheck_binds_all_live_targets(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    live = {}
+    for index, (name, record) in enumerate(builder.LIVE_FILES.items()):
+        path = tmp_path / f"live-{index}"
+        path.write_bytes((name + "\n").encode())
+        os.chmod(path, int(record["mode"]))
+        live[name] = {
+            "target": str(path),
+            "sha256": executor.sha256_file(path),
+            "size": path.stat().st_size,
+            "mode": int(record["mode"]),
+        }
+
+    real_binding = executor.file_binding
+
+    def fake_binding(path: Path) -> dict:
+        result = real_binding(path)
+        result["uid"] = 0
+        result["gid"] = 0
+        return result
+
+    monkeypatch.setattr(executor, "file_binding", fake_binding)
+    executor.verify_successor_live_files({"live_files": live})
+
+    first = next(iter(live.values()))
+    Path(first["target"]).write_bytes(b"drift\n")
+    with pytest.raises(
+        executor.UpgradeError,
+        match="successor_live_file_drift",
+    ):
+        executor.verify_successor_live_files({"live_files": live})
