@@ -163,8 +163,8 @@ def test_t1_fail_closed(mutator, expected: str) -> None:
 
 
 def test_hardware_identity_is_public_hash_only() -> None:
-    raw = "12:34:56:78:9a:bc"
-    expected = module.sha256_bytes(b"ghw-c6-123456789abc")
+    raw = ":".join(("12", "34", "56", "78", "9a", "bc"))
+    expected = module.sha256_bytes(("ghw-c6-" + raw.replace(":", "")).encode())
     assert module.hardware_hash_from_mac(raw) == expected
 
 
