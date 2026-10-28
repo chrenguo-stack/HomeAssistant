@@ -117,27 +117,30 @@ def test_invalid_or_stale_scan_token_cannot_reach_selection() -> None:
     assert token_check < selection
 
 
-def test_r8_does_not_replace_r6_tls_pin_before_secret_contract() -> None:
-    transport = read(CORE / "n3w_registration_bootstrap_transport.cpp")
+def test_r8_keeps_r6_tls_contract_as_a_required_predecessor() -> None:
     r6 = read(
         ROOT
         / "tests"
         / "n3w_registration"
         / "test_scan_triggered_first_pairing_r6_tls_bootstrap_contract.py"
     )
+    workflow = read(ROOT / ".github" / "workflows" / "greenhouse-manager-ci.yml")
 
-    setup = transport.index("mbedtls_ssl_setup(&ssl, &config)")
-    handshake = transport.index("mbedtls_ssl_handshake(&ssl)")
-    pin_gate = transport.index("!verify.leaf_seen || !verify.leaf_matched")
-    request = transport.index('std::string request =\\n        "POST "')
-    write = transport.index("tls_write_all(&ssl, &bio, request)")
-
-    assert setup < handshake < pin_gate < request < write
-    assert "request_json;" in transport[request:write]
     assert (
-        "test_r6_tls_pin_is_proven_before_any_http_request_is_constructed"
+        "def test_r6_tls_pin_is_proven_before_any_http_request_is_constructed"
         in r6
     )
+    assert "mbedtls_ssl_handshake(&ssl)" in r6
+    assert "!verify.leaf_seen || !verify.leaf_matched" in r6
+    assert "tls_write_all(&ssl, &bio, request)" in r6
+
+    r6_step = workflow.index(
+        "N3-W scan-triggered first-registration R6 TLS bootstrap contracts"
+    )
+    r8_step = workflow.index(
+        "N3-W scan-triggered first-registration R8 E2E safety contracts"
+    )
+    assert r6_step < r8_step
 
 
 def test_manager_status_recovery_cannot_open_or_refresh_47112() -> None:
@@ -206,19 +209,26 @@ def test_r8_keeps_exact_1800_second_transaction_constant() -> None:
     )
 
 
-def test_r7_display_success_authority_remains_provisioned_only() -> None:
-    source = read(CORE / "n3w_simple_product_component.cpp")
-    assert "pairing_client_.provisioned()" in source
-    assert "show_registration_success_" in source
+def test_r8_keeps_r7_success_authority_contract_as_a_predecessor() -> None:
+    r7 = read(
+        ROOT
+        / "tests"
+        / "n3w_registration"
+        / "test_scan_triggered_first_pairing_r7_lcd_state_contract.py"
+    )
+    workflow = read(ROOT / ".github" / "workflows" / "greenhouse-manager-ci.yml")
 
-    success_calls = [
-        match.start()
-        for match in re.finditer(
-            r"show_registration_success_\(now_ms\)",
-            source,
-        )
-    ]
-    assert success_calls
-    for position in success_calls:
-        window = source[max(0, position - 1200) : position + 200]
-        assert "pairing_client_.provisioned()" in window
+    assert (
+        "def test_r7_component_is_the_only_display_authority_and_success_is_commit_bound"
+        in r7
+    )
+    assert 'if (pairing_client_.provisioned())' in r7
+    assert "show_registration_success_();" in r7
+
+    r7_step = workflow.index(
+        "N3-W scan-triggered first-registration R7 LCD state contracts"
+    )
+    r8_step = workflow.index(
+        "N3-W scan-triggered first-registration R8 E2E safety contracts"
+    )
+    assert r7_step < r8_step
