@@ -65,7 +65,6 @@ These paths are already covered by the durable F4 `installed_files` authority an
 /etc/n3wfc4/docker-compose.yml
 /etc/systemd/system/n3wfc4-services-activation.service
 /etc/NetworkManager/dispatcher.d/90-n3wfc4-broker-ingress-guard
-/usr/local/sbin/n3w-t1-f4-activation
 ```
 
 Target source authorities:
@@ -80,8 +79,6 @@ services_f4_git_blob=3485b6c2f9341fda2fcbd2c82c83077ad78cf42c
 dispatcher_source=infra/n3w-t1/NetworkManager/dispatcher.d/90-n3wfc4-broker-ingress-guard
 dispatcher_git_blob=3d6f32455fffd6f604f83a6c12e298bc395945e0
 
-f4_launcher_source=tools/n3w_t1_f4_activation_host.py
-f4_launcher_git_blob=08889200fe9663d223016a3cb3e1b4af0a9ffcd2
 ```
 
 ### 4.2 New live material
@@ -109,12 +106,30 @@ infra/n3w-t1/f4/n3wfc4-services-activation.service
 infra/n3w-t1/systemd/n3wfc4-services-activation.service
 infra/n3w-t1/systemd/n3wfc4-registration-ingress-guard.service
 infra/n3w-t1/NetworkManager/dispatcher.d/90-n3wfc4-broker-ingress-guard
-tools/n3w_t1_f4_activation_host.py
 tools/n3w_registration_ingress_guard.py
 tools/n3w_trusted_product_lan_authority.py
 ```
 
 The rest of `/opt/HomeAssistant` is not replaced by this bounded upgrade.
+
+### 4.4 Historical F4 launcher preservation
+
+The in-place R10 host-capability upgrade does **not** replace `/usr/local/sbin/n3w-t1-f4-activation` and does not overlay its source copy.
+
+Reason:
+
+- the already-installed predecessor helper can validate `eligibility --phase services` after the three changed F4-bound files are rebound;
+- the target services unit owns the new registration-guard dependency through systemd;
+- the target dispatcher owns registration-guard reload after network changes;
+- replacing the F4 helper would unnecessarily pull fresh-bootstrap/image-lock/factory-activation dependencies into an otherwise bounded runtime upgrade.
+
+Therefore:
+
+```text
+F4_LAUNCHER_UPGRADE=false
+F4_LAUNCHER_PREDECESSOR_BYTES_PRESERVED=true
+F4_SUCCESSOR_REBIND_CHANGED_EXISTING_PATH_COUNT=3
+```
 
 ## 5. F4 successor binding
 
@@ -173,7 +188,9 @@ r10_candidate_upgrade_committed=false/true
 
 The successor rebind is written only after every F4-bound target file has been installed and independently hash/mode/owner verified.
 
-After rebind, the exact target F4 launcher must pass `eligibility --phase services` before product services are started.
+The historical installed F4 launcher is intentionally preserved byte-for-byte. The target services unit still invokes the same `eligibility --phase services` interface, and the predecessor F4 helper already enforces the durable installed-material contract required for this running system. Registration-guard readiness is owned by the target systemd dependency plus explicit upgrade postchecks, not by rewriting the historical factory-activation controller.
+
+After rebind, the preserved installed F4 launcher must pass `eligibility --phase services` before product services are started.
 
 Any failure after successor rebind restores the exact pre-upgrade F4 transaction bytes before old services are restarted.
 
@@ -253,6 +270,7 @@ FIRST_REGISTRATION_TABLE_PRESENT=true
 UNRESOLVED_FIRST_REGISTRATION=0
 CURRENT_REGISTRATION_COUNT=1
 F4_SERVICES_ELIGIBILITY=PASS
+F4_LAUNCHER_BYTES_UNCHANGED=true
 F4_HISTORICAL_PACKAGE_BINDING_UNCHANGED=true
 F4_SUCCESSOR_INSTALLED_FILES_BOUND=true
 ```
