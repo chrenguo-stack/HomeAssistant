@@ -1,3 +1,16 @@
+## 2026-10-28 — R10 physical acceptance design/read-only preflight
+
+- Fresh repository/R9 source/workflow/artifact rebind: PASS; no drift invalidating R9 authority.
+- Artifact 12783234959 was independently downloaded/rehashed again; outer/inner/member identities remain exact.
+- Exact factory image begins at offset 0 and ends at `0x1747b0`; NVS is `0x790000 + 0x070000`, so factory flashing does not reset pairing/NVS state.
+- R10 requires a Wi-Fi-connected, genuinely unregistered target. Wi-Fi setup or already-provisioned state is a precondition STOP, not an automatic NVS erase.
+- Later T1 preflight must be read-only: production runtime healthy, trusted product LAN healthy, 47112 idle closed, no predecessor transaction, no Manager recreate.
+- Later board write uses only exact reviewed `firmware.factory.bin`, with private prewrite backups and preboot readback; NVS must remain byte-identical through the flash step.
+- One authorized physical run then covers real QR scan, explicit T1 selection, real ESP32-C6 TLS/bootstrap, durable Manager COMMIT, commit-bound LCD success, 47112 close and runtime continuity.
+- Current gate performed no T1/board/live/flash/NVS action and no merge.
+- Next gate: `N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_PHYSICAL_ACCEPTANCE_EXECUTION_20261028_01`, explicit physical authorization required.
+- Authority: `docs/development/N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_PHYSICAL_ACCEPTANCE_DESIGN_AND_READONLY_PREFLIGHT_20261028.md`.
+
 ## 2026-10-28 — R9 exact artifact CLOSED_PASS; R10 physical acceptance moves to new chat
 
 - Repository main remains `2fbd0e9c2d3bf8a513ac318034e249511ffb6a2e`; tree `3064ab74ac96bbce44a0bf880ab53c7afc5bc134`.
