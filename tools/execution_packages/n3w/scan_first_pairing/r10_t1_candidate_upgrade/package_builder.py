@@ -106,130 +106,6 @@ LIVE_FILES = {
     },
 }
 
-SOURCE_OVERLAY = {
-    "canonical_compose": {
-        "predecessor_source": (
-            "infra/n3w-t1/production/docker-compose.fresh.yml"
-        ),
-        "target_source": "infra/n3w-t1/production/docker-compose.fresh.yml",
-        "artifact": (
-            "runtime/source/infra/n3w-t1/production/docker-compose.yml"
-        ),
-        "target": (
-            "/opt/HomeAssistant/infra/n3w-t1/production/docker-compose.yml"
-        ),
-        "mode": 0o644,
-    },
-    "fresh_compose": {
-        "predecessor_source": (
-            "infra/n3w-t1/production/docker-compose.fresh.yml"
-        ),
-        "target_source": "infra/n3w-t1/production/docker-compose.fresh.yml",
-        "artifact": (
-            "runtime/source/infra/n3w-t1/production/"
-            "docker-compose.fresh.yml"
-        ),
-        "target": (
-            "/opt/HomeAssistant/infra/n3w-t1/production/"
-            "docker-compose.fresh.yml"
-        ),
-        "mode": 0o644,
-    },
-    "f4_services_unit": {
-        "predecessor_source": (
-            "infra/n3w-t1/f4/n3wfc4-services-activation.service"
-        ),
-        "target_source": (
-            "infra/n3w-t1/f4/n3wfc4-services-activation.service"
-        ),
-        "artifact": (
-            "runtime/source/infra/n3w-t1/f4/"
-            "n3wfc4-services-activation.service"
-        ),
-        "target": (
-            "/opt/HomeAssistant/infra/n3w-t1/f4/"
-            "n3wfc4-services-activation.service"
-        ),
-        "mode": 0o644,
-    },
-    "generic_services_unit": {
-        "predecessor_source": (
-            "infra/n3w-t1/systemd/n3wfc4-services-activation.service"
-        ),
-        "target_source": (
-            "infra/n3w-t1/systemd/n3wfc4-services-activation.service"
-        ),
-        "artifact": (
-            "runtime/source/infra/n3w-t1/systemd/"
-            "n3wfc4-services-activation.service"
-        ),
-        "target": (
-            "/opt/HomeAssistant/infra/n3w-t1/systemd/"
-            "n3wfc4-services-activation.service"
-        ),
-        "mode": 0o644,
-    },
-    "registration_unit": {
-        "predecessor_source": None,
-        "target_source": (
-            "infra/n3w-t1/systemd/"
-            "n3wfc4-registration-ingress-guard.service"
-        ),
-        "artifact": (
-            "runtime/source/infra/n3w-t1/systemd/"
-            "n3wfc4-registration-ingress-guard.service"
-        ),
-        "target": (
-            "/opt/HomeAssistant/infra/n3w-t1/systemd/"
-            "n3wfc4-registration-ingress-guard.service"
-        ),
-        "mode": 0o644,
-    },
-    "dispatcher": {
-        "predecessor_source": (
-            "infra/n3w-t1/NetworkManager/dispatcher.d/"
-            "90-n3wfc4-broker-ingress-guard"
-        ),
-        "target_source": (
-            "infra/n3w-t1/NetworkManager/dispatcher.d/"
-            "90-n3wfc4-broker-ingress-guard"
-        ),
-        "artifact": (
-            "runtime/source/infra/n3w-t1/NetworkManager/dispatcher.d/"
-            "90-n3wfc4-broker-ingress-guard"
-        ),
-        "target": (
-            "/opt/HomeAssistant/infra/n3w-t1/NetworkManager/dispatcher.d/"
-            "90-n3wfc4-broker-ingress-guard"
-        ),
-        "mode": 0o755,
-    },
-    "registration_guard": {
-        "predecessor_source": None,
-        "target_source": "tools/n3w_registration_ingress_guard.py",
-        "artifact": (
-            "runtime/source/tools/n3w_registration_ingress_guard.py"
-        ),
-        "target": (
-            "/opt/HomeAssistant/tools/n3w_registration_ingress_guard.py"
-        ),
-        "mode": 0o755,
-    },
-    "trusted_lan_authority": {
-        "predecessor_source": None,
-        "target_source": "tools/n3w_trusted_product_lan_authority.py",
-        "artifact": (
-            "runtime/source/tools/"
-            "n3w_trusted_product_lan_authority.py"
-        ),
-        "target": (
-            "/opt/HomeAssistant/tools/"
-            "n3w_trusted_product_lan_authority.py"
-        ),
-        "mode": 0o755,
-    },
-}
-
 
 class PackageError(RuntimeError):
     pass
@@ -404,16 +280,9 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
         target_root=target,
         records=LIVE_FILES,
     )
-    overlay = _materialize_group(
-        output=output,
-        predecessor_root=predecessor,
-        target_root=target,
-        records=SOURCE_OVERLAY,
-    )
-
     runtime_bytes = sum(
         int(record["size"])
-        for record in (*live.values(), *overlay.values())
+        for record in live.values()
     )
     manager_tar_size = artifact_manager.stat().st_size
 
@@ -451,7 +320,6 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
             },
         },
         "live_files": live,
-        "source_overlay": overlay,
         "executor": {
             "artifact_path": artifact_executor.name,
             "sha256": sha256_file(artifact_executor),
@@ -519,12 +387,11 @@ def verify(root: Path) -> dict[str, Any]:
         "upgrade-executor.py",
         "manager-python-distributions.json",
     }
-    for group_name in ("live_files", "source_overlay"):
-        group = manifest.get(group_name)
-        if not isinstance(group, dict):
-            raise PackageError(f"{group_name}_invalid")
-        for record in group.values():
-            expected_files.add(str(record["artifact_path"]))
+    group = manifest.get("live_files")
+    if not isinstance(group, dict):
+        raise PackageError("live_files_invalid")
+    for record in group.values():
+        expected_files.add(str(record["artifact_path"]))
 
     actual_files = {
         path.relative_to(root).as_posix()
@@ -573,16 +440,15 @@ def verify(root: Path) -> dict[str, Any]:
     ):
         raise PackageError("executor_binding_invalid")
 
-    for group_name in ("live_files", "source_overlay"):
-        for record in manifest[group_name].values():
-            path = root / str(record["artifact_path"])
-            if (
-                sha256_file(path) != record["sha256"]
-                or path.stat().st_size != record["size"]
-            ):
-                raise PackageError(
-                    f"runtime_binding_invalid:{record['artifact_path']}"
-                )
+    for record in manifest["live_files"].values():
+        path = root / str(record["artifact_path"])
+        if (
+            sha256_file(path) != record["sha256"]
+            or path.stat().st_size != record["size"]
+        ):
+            raise PackageError(
+                f"runtime_binding_invalid:{record['artifact_path']}"
+            )
     return manifest
 
 
