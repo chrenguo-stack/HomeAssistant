@@ -207,6 +207,99 @@ def test_confirmation_fails_before_any_claim(
     assert not history.exists()
 
 
+def test_archived_backup_mode_is_0600_while_live_mode_remains_original(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    work_root = tmp_path / "work"
+    failed_workspace = work_root / tool.FAILED_WORKSPACE_SUFFIX
+    static = failed_workspace / "static"
+    static.mkdir(parents=True, mode=0o700)
+
+    live = tmp_path / "docker-compose.yml"
+    payload = b"services:\n  manager: {}\n"
+    live.write_bytes(payload)
+    live.chmod(0o644)
+
+    backup = static / "file-000.bin"
+    backup.write_bytes(payload)
+    backup.chmod(0o600)
+
+    index = {
+        "f4_transaction": {
+            "present": True,
+            "backup": "f4-transaction.bin",
+            "binding": {
+                "sha256": tool.EXPECTED_F4_SHA256,
+                "size": 1,
+                "mode": 0o600,
+                "uid": 0,
+                "gid": 0,
+            },
+        },
+        "compose_env": {
+            "present": True,
+            "backup": "docker-compose.env.bin",
+            "binding": {
+                "sha256": tool.sha256_bytes(b"x"),
+                "size": 1,
+                "mode": 0o600,
+                "uid": 0,
+                "gid": 0,
+            },
+        },
+        "firewall_sha256": tool.sha256_bytes(b"fw"),
+        "live_files:compose": {
+            "present": True,
+            "backup": "file-000.bin",
+            "path": str(live),
+            "binding": {
+                "sha256": tool.sha256_bytes(payload),
+                "size": len(payload),
+                "mode": 0o644,
+                "uid": 0,
+                "gid": 0,
+            },
+        },
+    }
+
+    (static / "f4-transaction.bin").write_bytes(b"x")
+    (static / "docker-compose.env.bin").write_bytes(b"x")
+    (static / "iptables-filter-prestate.txt").write_bytes(b"fw")
+    (static / "index.json").write_text(
+        json.dumps(index),
+        encoding="utf-8",
+    )
+    for path in static.iterdir():
+        if path.is_file():
+            path.chmod(0o600)
+
+    monkeypatch.setattr(tool, "WORK_ROOT", work_root)
+    monkeypatch.setattr(tool, "FAILED_WORKSPACE_PATH", failed_workspace)
+    monkeypatch.setattr(
+        tool,
+        "EXPECTED_WORKSPACE_FILES",
+        {
+            "static/docker-compose.env.bin",
+            "static/f4-transaction.bin",
+            "static/file-000.bin",
+            "static/index.json",
+            "static/iptables-filter-prestate.txt",
+        },
+    )
+    monkeypatch.setattr(tool, "EXPECTED_F4_SHA256", tool.sha256_bytes(b"x"))
+    monkeypatch.setattr(tool, "_binding", lambda p: {
+        "sha256": tool.sha256_file(p),
+        "size": p.stat().st_size,
+        "mode": p.stat().st_mode & 0o777,
+        "uid": 0,
+        "gid": 0,
+    })
+
+    result = tool.validate_workspace()
+    assert result["workspace_file_count"] == 5
+
+
 def test_source_has_no_destructive_delete_path() -> None:
     source = TOOL_PATH.read_text(encoding="utf-8")
     assert "meta.st_uid != 0" in source
