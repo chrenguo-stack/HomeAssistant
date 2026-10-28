@@ -1,3 +1,57 @@
+## 2026-10-28 — R10 T1 candidate R2 exact artifact frozen; pre-live handoff boundary
+
+~~~text
+TASK=N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_T1_CANDIDATE_R2_HANDOFF_ALIGNMENT_20261028
+
+MAIN=2fbd0e9c2d3bf8a513ac318034e249511ffb6a2e
+MAIN_TREE=3064ab74ac96bbce44a0bf880ab53c7afc5bc134
+
+PR718_HEAD=4a8c2a62be74ec5c9740d37946e770d9464b6cb3
+PR718_TREE=6d342dea1ee6d8fa5014b60e0879988888dc0227
+PR718_STATE=OPEN_DRAFT_MERGEABLE
+PR718_CURRENT_HEAD_CI=ALL_SUCCESS
+
+KF_131=SOURCE_REPAIR_CLOSED_PASS_R2_ARTIFACT_FROZEN_LIVE_NOT_REEXECUTED
+
+R1_ARTIFACT_ID=12792592683
+R1_ARTIFACT_AUTHORITY=SUPERSEDED_DO_NOT_EXECUTE
+R1_LIVE_RESULT=PRECLAIM_FALSE_STOP
+R1_AUTHORIZATION_CONSUMED=false
+R1_AUTHORIZATION_REPLAY_PERMITTED=false
+
+R2_WORKFLOW_RUN_ID=40641242797
+R2_ARTIFACT_ID=12795906971
+R2_ARTIFACT_NAME=n3w-r10-t1-upgrade-4a8c2a62be74
+R2_ARTIFACT_DIGEST=sha256:d5e40fe0295f8bd6844cd50624139dbc2b31082f4dbcf93052924afa7586c0a3
+R2_MANIFEST_SHA256=1794a8696663dfaf49a1454cfcf7865ba90cbd8444a508750622d315b5fea64a
+R2_MANAGER_TAR_SHA256=2ba09634ceeb0b88e8a01ddf12325a45ea4315a4e1b966e1fe83ed62d2234a71
+R2_MANAGER_IMAGE_ID=sha256:94db48b902c39f1ffa61cd9b5e91e683b18be4eefdd07d4a95a7dbfb5495ceef
+R2_EXECUTOR_SHA256=395421920c54666fd5a404d112a67eec8cc931d24af3bd53e61758238ffd77ff
+R2_REDOWLOAD_VERIFY=PASS
+
+R2_MAC_LOCAL_VERIFY=false
+R2_T1_STAGING=false
+R2_LIVE_AUTHORIZATION_GRANTED=false
+
+R1_T1_STAGING_REMAINS=true
+LIVE_RUNTIME_MUTATION_FROM_R1=false
+BOARD_ACCESS=false
+R10_BOARD_WRITE_AUTHORIZATION_CONSUMED=false
+
+CURRENT_STOP_POINT=R2_EXACT_ARTIFACT_FROZEN_BEFORE_LOCAL_VERIFY_AND_PRELIVE_READONLY_REBIND
+NEXT_ONE_GATE=N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_T1_CANDIDATE_R2_ARTIFACT_LOCAL_VERIFY_AND_PRELIVE_READONLY_REBIND_20261028_01
+~~~
+
+R1 exact package completed Mac verification and T1 private staging, but its first live executor invocation stopped during fresh preclaim with `target_manager_image_preexisting` before any one-shot authorization claim. Immediate read-only Docker evidence proved the exact target tag did not exist. The R1 preclaim check was therefore a false STOP (KF-131), not a product runtime failure.
+
+PR #718 repairs only that existence detector and adds focused absent/present/dedup regression tests. Fresh exact-head rebind shows all current-head CI SUCCESS. Its package workflow completed source-contract, ARM64 build-candidate and independent redownload verify, producing new artifact ID `12795906971`. R2 differs materially from R1 in package head, artifact/manifest/executor and actual Manager/base image identity; therefore the unconsumed R1 live authorization is not replayable on R2.
+
+Current T1 production runtime was not mutated by R1 live execution. The historical R1 staging directory remains as bounded filesystem evidence and must not be deleted in the next gate. R2 has not yet been downloaded/verified on Mac or copied to T1.
+
+The next gate is strictly R2 Mac local artifact verification + fresh T1 read-only pre-live rebind. PASS only makes the system ready to request a new R2 live authorization; it does not stage R2 or execute the upgrade.
+
+Authority: `docs/development/N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_T1_CANDIDATE_R2_PRELIVE_NEW_CHAT_HANDOFF_V1.0_20261028.md`.
+
 ## 2026-10-28 — R10 physical acceptance design/read-only preflight
 
 R10 design/repository/artifact preflight is complete on the stacked docs branch. Fresh rebind kept main at `2fbd0e9c2d3bf8a513ac318034e249511ffb6a2e`; PR #705-#710 remain open Draft/unmerged. R9 source `e299c937...`, workflow head `d6c3e094...` and artifact 12783234959 remain exact and available.
