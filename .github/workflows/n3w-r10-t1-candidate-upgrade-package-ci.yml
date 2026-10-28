@@ -48,16 +48,26 @@ jobs:
         run: |
           python -m pytest -q tests/execution_packages/n3w/scan_first_pairing/r10_t1_candidate_upgrade/test_upgrade_package.py
           python -m pytest -q tests/execution_packages/n3w/scan_first_pairing/r10_t1_candidate_upgrade/test_readonly_preflight.py
-      - name: Enforce no live mutation from CI
+      - name: Enforce package-source live-boundary policy
         run: |
           python - <<'PY'
           from pathlib import Path
-          workflow = Path(".github/workflows/n3w-r10-t1-candidate-upgrade-package-ci.yml").read_text()
-          forbidden = ["ssh root@", "scp ", "systemctl stop n3wfc4", "systemctl start n3wfc4", "docker --host"]
-          found = [item for item in forbidden if item in workflow]
+          paths = [
+              Path("tools/execution_packages/n3w/scan_first_pairing/r10_t1_candidate_upgrade/package_builder.py"),
+              Path("tools/execution_packages/n3w/scan_first_pairing/r10_t1_candidate_upgrade/live_upgrade.py"),
+          ]
+          source = "\n".join(path.read_text(encoding="utf-8") for path in paths)
+          forbidden = [
+              "ssh " + "root@",
+              "scp" + " ",
+              "--force" + "-recreate",
+              "compose." + "override",
+              "docker system " + "prune",
+          ]
+          found = [item for item in forbidden if item in source]
           if found:
-              raise SystemExit("forbidden_live_ci_surface:" + ",".join(found))
-          print("LIVE_CI_MUTATION_SURFACE=ABSENT")
+              raise SystemExit("forbidden_package_surface:" + ",".join(found))
+          print("PACKAGE_LIVE_BOUNDARY_POLICY=PASS")
           PY
 
   build-candidate:
