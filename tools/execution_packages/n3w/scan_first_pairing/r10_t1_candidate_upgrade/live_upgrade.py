@@ -1669,9 +1669,10 @@ def execute_apply(
             raise UpgradeError("broker_changed_during_services_stop")
 
         manager_archive = manager_state_backup(workspace)
-        if shutil.disk_usage("/").free < int(
-            manifest["capacity"]["upgrade_emergency_reserve_bytes"]
-        ) + int(manifest["manager"]["image_size_bytes"]):
+        if shutil.disk_usage("/").free < (
+            int(manifest["capacity"]["upgrade_emergency_reserve_bytes"])
+            + int(manifest["capacity"]["runtime_bundle_size_bytes"])
+        ):
             raise UpgradeError("capacity_after_backup_insufficient")
         advance_upgrade(
             "SERVICES_STOPPED_BACKUP_COMPLETE",
