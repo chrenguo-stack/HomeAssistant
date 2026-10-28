@@ -731,7 +731,9 @@ def test_full_scan_triggered_first_registration_reaches_durable_commit(
     node.open_page()
     assert node.discovery_count == 0
     assert node.bootstrap_count == 0
+    assert harness.registry.first_registration_ledger().list_reconcilable() == ()
     assert harness.controller.status()["pairing_window_state"] == "CLOSED"
+    assert tcp_listener_open(harness.http_port) is False
 
     result = open_first_registration(harness, node)
     attempt = harness.registry.first_registration_ledger().get(PAIRING_ID)
@@ -904,6 +906,9 @@ def test_47112_binding_rejects_before_registration_mutation(
 
     assert status == HTTPStatus.FORBIDDEN
     assert harness.composition.registry.list_current() == ()
+    attempt = harness.registry.first_registration_ledger().get(PAIRING_ID)
+    assert attempt.state is FirstRegistrationAttemptState.ACTIVE
+    assert attempt.phase is FirstRegistrationPhase.BOOTSTRAP_ACCEPTED
     assert harness.controller.status()["pairing_window_state"] == "OPEN"
 
 
@@ -1003,9 +1008,12 @@ def test_second_node_is_busy_without_replacing_first_transaction(
     assert len(harness.compositions) == 1
 
 
-def test_phone_multi_candidate_and_recovery_never_auto_bootstrap() -> None:
+def test_phone_multi_candidate_and_recovery_never_auto_bootstrap(
+    harness: R8Harness,
+) -> None:
     browser = PhoneLikeBrowser()
     node = SimulatedNode(browser)
+    pairing_id_before = node.pairing_id
 
     candidates = (
         RegistrationCandidate(
@@ -1027,17 +1035,34 @@ def test_phone_multi_candidate_and_recovery_never_auto_bootstrap() -> None:
 
     assert node.bootstrap_count == 0
     assert set(node.private_candidates) == {"c0", "c1"}
+    assert harness.registry.first_registration_ledger().list_reconcilable() == ()
+    assert harness.controller.status()["pairing_window_state"] == "CLOSED"
+    assert tcp_listener_open(harness.http_port) is False
+
     assert node.select("stale") is None
     assert node.bootstrap_count == 0
+    assert node.pairing_id == pairing_id_before
+    assert harness.registry.first_registration_ledger().list_reconcilable() == ()
+    assert harness.controller.status()["pairing_window_state"] == "CLOSED"
+    assert tcp_listener_open(harness.http_port) is False
 
     selected = node.select("c1")
     assert selected is candidates[1]
     assert node.bootstrap_count == 0
+    assert node.pairing_id == pairing_id_before
+    assert harness.registry.first_registration_ledger().list_reconcilable() == ()
+    assert harness.controller.status()["pairing_window_state"] == "CLOSED"
+    assert tcp_listener_open(harness.http_port) is False
 
     empty_browser = PhoneLikeBrowser()
     empty = SimulatedNode(empty_browser)
+    empty_pairing_id = empty.pairing_id
     empty.set_candidates(())
     assert empty.private_candidates == {}
     assert empty.bootstrap_count == 0
+    assert empty.pairing_id == empty_pairing_id
+    assert harness.registry.first_registration_ledger().list_reconcilable() == ()
+    assert harness.controller.status()["pairing_window_state"] == "CLOSED"
+    assert tcp_listener_open(harness.http_port) is False
 
     assert_browser_private_values_absent(browser)
