@@ -173,6 +173,7 @@ def test_r5_browser_exposes_only_opaque_candidate_id_and_label() -> None:
 def test_r5_multiple_candidates_require_explicit_browser_selection() -> None:
     component = text(CORE / "n3w_simple_product_component.cpp")
     portal = text(CORE / "n3w_registration_portal.cpp")
+    header = text(CORE / "n3w_registration_portal.h")
 
     discovery = function_block(
         component,
@@ -187,6 +188,36 @@ def test_r5_multiple_candidates_require_explicit_browser_selection() -> None:
     )
     assert "hardware_id.substr(hardware_id.size() - suffix_size)" in portal_setup
     assert 'std::string("节点 ")' in portal_setup
+
+    confirm = function_block(
+        portal,
+        "esp_err_t RegistrationPortal::handle_confirm_",
+        "esp_err_t RegistrationPortal::handle_begin_",
+    )
+    begin = function_block(
+        portal,
+        "esp_err_t RegistrationPortal::handle_begin_",
+        "esp_err_t RegistrationPortal::handle_retry_",
+    )
+
+    assert 'root["candidate_id"]' in portal
+    assert "RegistrationPortalStage::WAIT_CONFIRM" in confirm
+    assert "candidate.expires_at_ms > now_ms" in confirm
+    assert "selected_candidate_id_ = candidate_id;" in confirm
+    assert "RegistrationPortalStage::CANDIDATE_SELECTED" in confirm
+    assert '"next\\":\\"user_confirm\\"' in confirm
+    assert "RegistrationPortalStage::SELECTED_PENDING_BOOTSTRAP" not in confirm
+
+    assert "RegistrationPortalStage::CANDIDATE_SELECTED" in begin
+    assert "RegistrationPortalStage::SELECTED_PENDING_BOOTSTRAP" in begin
+    assert '"next\\":\\"bootstrap\\"' in begin
+
+    assert (
+        "discovery_stage_ !=\n"
+        "          RegistrationPortalStage::SELECTED_PENDING_BOOTSTRAP"
+        in portal
+    )
+    assert "bool take_selected_candidate_id(std::string *candidate_id);" in header
     assert "take_selected_candidate_id(&selected_id)" in discovery
     assert (
         "selected_registration_candidate_ =\n"
@@ -195,18 +226,6 @@ def test_r5_multiple_candidates_require_explicit_browser_selection() -> None:
     assert discovery.index("take_selected_candidate_id(&selected_id)") < discovery.index(
         "selected_registration_candidate_ ="
     )
-
-    confirm = function_block(
-        portal,
-        "esp_err_t RegistrationPortal::handle_confirm_",
-        "esp_err_t RegistrationPortal::handle_retry_",
-    )
-    assert 'root["candidate_id"]' in portal
-    assert "RegistrationPortalStage::WAIT_CONFIRM" in confirm
-    assert "candidate.expires_at_ms > now_ms" in confirm
-    assert "selected_candidate_id_ = candidate_id;" in confirm
-    assert '"202 Accepted"' in confirm
-    assert '"next\\":\\"bootstrap\\"' in confirm
 
     assert "registration_session_pairing_id_ = pairing_client_.pairing_id();" in discovery
     assert (
@@ -217,7 +236,6 @@ def test_r5_multiple_candidates_require_explicit_browser_selection() -> None:
     assert "RSSI" not in discovery
     assert "rssi" not in discovery
     assert "std::sort(" not in discovery
-
 
 def test_r5_retry_rearms_discovery_without_pairing_identity_mutation() -> None:
     portal = text(CORE / "n3w_registration_portal.cpp")
