@@ -208,6 +208,95 @@ T1 checks for update metadata periodically
 
 Automatic background downloading may be allowed later. Automatic installation without user approval should remain a separate policy decision.
 
+
+## 8A. User-facing update entry and execution ownership
+
+The primary customer entry is Home Assistant, but Home Assistant is not the updater.
+
+### Primary entry: Home Assistant N3-W integration
+
+The N3-W integration should expose a standard Home Assistant update entity, for example:
+
+```text
+update.n3w_t1
+```
+
+The N3-W device page should present:
+
+- current N3-W T1 software version;
+- latest available version;
+- update availability;
+- release notes;
+- estimated download size after component/layer diff;
+- whether a reboot or maintenance window is required;
+- download/staging/install/verification/rollback progress;
+- final success/failure state.
+
+Preferred user navigation:
+
+```text
+Home Assistant
+-> Settings
+-> Devices & services
+-> N3-W / greenhouse monitoring system
+-> T1 host
+-> Software update
+```
+
+A dashboard card may surface the same state and a "View update" action.
+
+Do not present N3-W T1 software as if it were a Home Assistant Core/OS update. The update entity belongs to the N3-W integration/device lifecycle.
+
+### Backup entry: T1 local maintenance page
+
+A small local maintenance page must remain available even when Home Assistant is unavailable.
+
+Target shape:
+
+```text
+http(s)://<local-t1-product-name>/update
+```
+
+The exact local name/TLS/access-control mechanism is deferred to OTA design review.
+
+The local page is a recovery/control surface, not a second updater implementation. It calls the same local update-agent API and exposes the same transaction state.
+
+### Execution owner: n3w-update-agent
+
+All update mutation authority belongs to a T1-local update service, tentatively:
+
+```text
+n3w-update-agent
+```
+
+Home Assistant and the local maintenance page are control surfaces only.
+
+```text
+Home Assistant update entity ----\
+                                  -> n3w-update-agent -> update transaction
+T1 local maintenance page -------/
+```
+
+This separation is mandatory because Home Assistant itself may be restarted or updated during a multi-component transaction. An HA process/container must not own the transaction whose success may require HA to disappear temporarily.
+
+The update agent must persist transaction state outside the Home Assistant container and survive/recover across service restart boundaries.
+
+### V1 autonomy policy
+
+```text
+AUTOMATIC_UPDATE_CHECK=true
+BACKGROUND_METADATA_FETCH=true
+BACKGROUND_PAYLOAD_DOWNLOAD=POLICY_OPTION
+AUTOMATIC_INSTALL=false
+USER_INSTALL_APPROVAL_REQUIRED=true
+FAILED_UPDATE_AUTOMATIC_ROLLBACK=true
+HOME_ASSISTANT_REQUIRED_FOR_UPDATE_EXECUTION=false
+LOCAL_MAINTENANCE_ENTRY_REQUIRED=true
+```
+
+No internet/update-service failure may block the normal local greenhouse runtime.
+
+
 ## 9. OS-update boundary
 
 Because /boot and root currently share the same eMMC and no A/B rootfs contract is proven, normal product OTA must not rewrite the active root filesystem image.
