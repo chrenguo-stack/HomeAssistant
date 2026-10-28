@@ -26,6 +26,7 @@ env:
   MANAGER_IMAGE: local/greenhouse-manager:fresh-e299c937a7b8
   BASE_IMAGE_REF: python:3.11-slim
   TARGET_DOCKERFILE_BLOB: 6486ff5fbcc23536676a48f36d67e4e0d364900a
+  PACKAGE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
 
 jobs:
   source-contract:
@@ -35,6 +36,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ env.PACKAGE_HEAD }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -89,6 +91,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ env.PACKAGE_HEAD }}
       - uses: docker/setup-qemu-action@v3
         with:
           platforms: arm64
@@ -198,7 +201,7 @@ jobs:
         run: |
           set -euo pipefail
           WORK="$RUNNER_TEMP/r10-upgrade"
-          python tools/execution_packages/n3w/scan_first_pairing/r10_t1_candidate_upgrade/package_builder.py build             --output "$WORK/package"             --predecessor-source-root "$WORK/predecessor"             --target-source-root "$WORK/target"             --predecessor-source "$PREDECESSOR_SOURCE"             --target-source "$TARGET_SOURCE"             --package-head "$GITHUB_SHA"             --manager-tar "$WORK/greenhouse-manager-arm64.tar"             --manager-image "$MANAGER_IMAGE"             --manager-image-id "${{ steps.image.outputs.manager_image_id }}"             --manager-image-size-bytes "${{ steps.image.outputs.manager_image_size }}"             --base-image-ref "$BASE_IMAGE_REF"             --base-arm64-digest "${{ steps.base.outputs.base_arm64_digest }}"             --base-image-id "${{ steps.base.outputs.base_image_id }}"             --executor tools/execution_packages/n3w/scan_first_pairing/r10_t1_candidate_upgrade/live_upgrade.py
+          python tools/execution_packages/n3w/scan_first_pairing/r10_t1_candidate_upgrade/package_builder.py build             --output "$WORK/package"             --predecessor-source-root "$WORK/predecessor"             --target-source-root "$WORK/target"             --predecessor-source "$PREDECESSOR_SOURCE"             --target-source "$TARGET_SOURCE"             --package-head "$PACKAGE_HEAD"             --manager-tar "$WORK/greenhouse-manager-arm64.tar"             --manager-image "$MANAGER_IMAGE"             --manager-image-id "${{ steps.image.outputs.manager_image_id }}"             --manager-image-size-bytes "${{ steps.image.outputs.manager_image_size }}"             --base-image-ref "$BASE_IMAGE_REF"             --base-arm64-digest "${{ steps.base.outputs.base_arm64_digest }}"             --base-image-id "${{ steps.base.outputs.base_image_id }}"             --executor tools/execution_packages/n3w/scan_first_pairing/r10_t1_candidate_upgrade/live_upgrade.py
           python tools/execution_packages/n3w/scan_first_pairing/r10_t1_candidate_upgrade/package_builder.py verify "$WORK/package"
           test "$(find "$WORK/package" -type f -name '*key*' | wc -l)" -eq 0
 
@@ -209,7 +212,7 @@ jobs:
           WORK="$RUNNER_TEMP/r10-upgrade"
           MANIFEST="$WORK/package/manifest.json"
           MANAGER="$WORK/package/greenhouse-manager-arm64.tar"
-          ARTIFACT_NAME="n3w-r10-t1-upgrade-${GITHUB_SHA:0:12}"
+          ARTIFACT_NAME="n3w-r10-t1-upgrade-${PACKAGE_HEAD:0:12}"
           echo "artifact_name=$ARTIFACT_NAME" >> "$GITHUB_OUTPUT"
           echo "manifest_sha256=$(sha256sum "$MANIFEST" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
           echo "manager_tar_sha256=$(sha256sum "$MANAGER" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
@@ -237,6 +240,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
+          ref: ${{ env.PACKAGE_HEAD }}
       - uses: actions/download-artifact@v4
         with:
           name: ${{ needs.build-candidate.outputs.artifact_name }}
