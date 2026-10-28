@@ -769,12 +769,25 @@ def verify_prestate(
     if not all(value["running"] for value in snapshots.values()):
         raise UpgradeError("container_prestate_not_running")
 
-    target_image = run(
-        ("docker", "image", "inspect", TARGET_MANAGER_IMAGE),
-        timeout=30,
-        allowed=frozenset({0, 1}),
-    )
-    if target_image.strip():
+    target_image_ids = [
+        line.strip()
+        for line in run(
+            (
+                "docker",
+                "image",
+                "ls",
+                "--no-trunc",
+                "--quiet",
+                "--filter",
+                f"reference={TARGET_MANAGER_IMAGE}",
+            ),
+            timeout=30,
+        ).splitlines()
+        if line.strip()
+    ]
+    if len(set(target_image_ids)) > 1:
+        raise UpgradeError("target_manager_image_reference_ambiguous")
+    if target_image_ids:
         raise UpgradeError("target_manager_image_preexisting")
 
     _lines, env = parse_env(COMPOSE_ENV)
