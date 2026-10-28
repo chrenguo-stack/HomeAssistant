@@ -299,6 +299,30 @@ F4_SUCCESSOR_INSTALLED_FILES_BOUND=true
 
 The existing registered node count must remain one. The upgrade is not allowed to delete/recreate that registration.
 
+### 8.1 Bounded readiness
+
+Starting a `Type=simple` services unit proves only that the process was launched; it does not prove Manager database initialization, registration listeners or Home Assistant container convergence are complete.
+
+The executor therefore uses a bounded 180-second / 2-second readiness loop after starting the successor and after restarting the predecessor during rollback.
+
+Transient successor conditions may wait, including:
+
+- Manager/HA container not yet visible/running;
+- 47110/47111 listeners not yet ready;
+- pairing-status command not yet ready;
+- Manager capability import not yet ready;
+- first-registration schema/migration not yet visible.
+
+Explicit contradictions fail immediately and do not consume the full window, including:
+
+- Broker container identity/start/restart drift;
+- Broker DynSec SHA drift;
+- wrong Manager image ID;
+- Home Assistant image ID drift;
+- trusted-LAN/registration-guard contradiction after their explicit activation stage.
+
+Rollback uses the same principle: ordinary old-service startup convergence may wait; Broker/DynSec/F4 transaction contradictions fail immediately.
+
 ## 9. Rollback order
 
 If any post-claim step fails:
