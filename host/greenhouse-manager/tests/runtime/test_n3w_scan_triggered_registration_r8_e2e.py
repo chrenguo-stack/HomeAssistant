@@ -995,8 +995,13 @@ def test_second_node_is_busy_without_replacing_first_transaction(
         )
 
     unchanged = harness.registry.first_registration_ledger().get(PAIRING_ID)
+    reconcilable = harness.registry.first_registration_ledger().list_reconcilable()
     assert unchanged.expires_at == first.expires_at
     assert unchanged.state is FirstRegistrationAttemptState.ACTIVE
+    assert len(reconcilable) == 1
+    assert reconcilable[0].pairing_id == PAIRING_ID
+    with pytest.raises(KeyError):
+        harness.registry.first_registration_ledger().get(PAIRING_ID_B)
     assert harness.controller.status()["pairing_window_state"] == "OPEN"
     assert len(harness.compositions) == 1
 
