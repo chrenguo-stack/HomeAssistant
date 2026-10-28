@@ -53,7 +53,7 @@ def good_t1() -> dict:
         },
         "services_unit": {
             "exists": True,
-            "git_blob_sha1": module.EXPECTED_CURRENT_BLOBS["services_unit"],
+            "git_blob_sha1": module.EXPECTED_CURRENT_BLOBS["installed_services_unit"],
         },
         "dispatcher": {
             "exists": True,
@@ -65,7 +65,7 @@ def good_t1() -> dict:
         },
         "runtime_services_unit": {
             "exists": True,
-            "git_blob_sha1": module.EXPECTED_CURRENT_BLOBS["services_unit"],
+            "git_blob_sha1": module.EXPECTED_CURRENT_BLOBS["installed_services_unit"],
         },
         "runtime_dispatcher": {
             "exists": True,
@@ -252,7 +252,8 @@ def test_fail_closed_on_live_drift(mutator, expected: str) -> None:
 def test_current_runtime_file_blobs_are_frozen() -> None:
     assert module.EXPECTED_CURRENT_BLOBS == {
         "compose": "ce864b1964bdca10c4d16a8a7824b34b358ad119",
-        "services_unit": "b070303a53b16b15aa108d3e9a2e952a7bc02d08",
+        "installed_services_unit": "e25f4553177c009bbe019c5cd8a9ddd3b0c07e46",
+        "runtime_services_unit": "b070303a53b16b15aa108d3e9a2e952a7bc02d08",
         "dispatcher": "f733f5a1cfc936f77d1fabc383ccf262264e33d2",
     }
 
@@ -260,6 +261,12 @@ def test_current_runtime_file_blobs_are_frozen() -> None:
 def test_target_runtime_file_blobs_are_frozen() -> None:
     assert module.EXPECTED_TARGET_BLOBS["compose"] == (
         "c9038251d9ba1b05a472edda14b287470690815a"
+    )
+    assert module.EXPECTED_TARGET_BLOBS["installed_services_unit"] == (
+        "3485b6c2f9341fda2fcbd2c82c83077ad78cf42c"
+    )
+    assert module.EXPECTED_TARGET_BLOBS["runtime_services_unit"] == (
+        "ee7c4151e79368e6daca5d6bd1359a846397fc95"
     )
     assert module.EXPECTED_TARGET_BLOBS["registration_unit"] == (
         "d8f1a3c6d757284c72b8348773d0bc09f6904b35"
@@ -281,3 +288,21 @@ def test_private_evidence_directory_contract(tmp_path: Path) -> None:
     (result / "occupied").write_text("x", encoding="utf-8")
     with pytest.raises(module.StopExecution):
         module.evidence_root(result)
+
+
+def test_installed_f4_and_runtime_generic_services_units_are_distinct() -> None:
+    assert (
+        module.EXPECTED_CURRENT_BLOBS["installed_services_unit"]
+        != module.EXPECTED_CURRENT_BLOBS["runtime_services_unit"]
+    )
+    doc = good_t1()
+    doc["files"]["services_unit"]["git_blob_sha1"] = (
+        module.EXPECTED_CURRENT_BLOBS["runtime_services_unit"]
+    )
+    assert "file:installed_services_unit_drift" in module.accept_t1(doc)
+
+    doc = good_t1()
+    doc["files"]["runtime_services_unit"]["git_blob_sha1"] = (
+        module.EXPECTED_CURRENT_BLOBS["installed_services_unit"]
+    )
+    assert "runtime_source:services_unit_drift" in module.accept_t1(doc)
