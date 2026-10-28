@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import fcntl
 import hashlib
 import json
 import os
@@ -49,6 +50,9 @@ TRUSTED_LAN_RUNTIME = Path("/run/n3wfc4-trusted-lan")
 REGISTRATION_CHAIN = "N3WFC4-REGISTRATION-INGRESS"
 REGISTRATION_COMMENT = "n3wfc4-registration-ingress-v1"
 REGISTRATION_PORTS = (("tcp", 47110), ("udp", 47111), ("tcp", 47112))
+REGISTRATION_LOCK_PATH = Path(
+    "/run/lock/n3wfc4-registration-ingress-guard.lock"
+)
 
 F4_CHANGED_TARGETS = {
     "/etc/n3wfc4/docker-compose.yml",
@@ -97,6 +101,27 @@ def canonical_sha256(value: object) -> str:
             separators=(",", ":"),
         ).encode("utf-8")
     )
+
+
+def manager_runtime_image_ids(manifest: dict[str, Any]) -> frozenset[str]:
+    manager = manifest.get("manager")
+    if not isinstance(manager, dict):
+        raise UpgradeError("manager_manifest_invalid")
+    if manager.get("image_id_portable_authority") is not False:
+        raise UpgradeError("manager_runtime_identity_contract_invalid")
+    values = (
+        manager.get("archive_config_digest"),
+        manager.get("archive_manifest_digest"),
+    )
+    if not all(
+        isinstance(value, str)
+        and value.startswith("sha256:")
+        and len(value) == 71
+        and all(c in "0123456789abcdef" for c in value[7:])
+        for value in values
+    ):
+        raise UpgradeError("manager_runtime_identity_invalid")
+    return frozenset(str(value) for value in values)
 
 
 def run(
@@ -344,6 +369,7 @@ def validate_package(
         or manager.get("historical_byte_continuity_claimed") is not False
     ):
         raise UpgradeError("manager_artifact_binding_invalid")
+    manager_runtime_image_ids(manifest)
 
     executor = manifest.get("executor")
     if not isinstance(executor, dict):
@@ -1067,7 +1093,7 @@ def load_target_manager(
     if (
         not isinstance(value, list)
         or len(value) != 1
-        or value[0].get("Id") != manager["image_id"]
+        or value[0].get("Id") not in manager_runtime_image_ids(manifest)
         or value[0].get("Architecture") != "arm64"
         or value[0].get("Os") != "linux"
     ):
@@ -1479,7 +1505,7 @@ def strict_postcheck(
         raise UpgradeError("broker_continuity_failed")
     if (
         manager["image"] != TARGET_MANAGER_IMAGE
-        or manager["image_id"] != manifest["manager"]["image_id"]
+        or manager["image_id"] not in manager_runtime_image_ids(manifest)
         or not manager["running"]
     ):
         raise UpgradeError("target_manager_not_running")
@@ -1610,40 +1636,43 @@ def wait_predecessor_runtime(
 
 
 def cleanup_registration_firewall() -> None:
-    for protocol, port in REGISTRATION_PORTS:
+    REGISTRATION_LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with REGISTRATION_LOCK_PATH.open("a+", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        for protocol, port in REGISTRATION_PORTS:
+            run(
+                (
+                    "iptables",
+                    "-D",
+                    "INPUT",
+                    "-p",
+                    protocol,
+                    "-m",
+                    protocol,
+                    "--dport",
+                    str(port),
+                    "-m",
+                    "comment",
+                    "--comment",
+                    REGISTRATION_COMMENT,
+                    "-j",
+                    REGISTRATION_CHAIN,
+                ),
+                timeout=20,
+                allowed=frozenset({0, 1}),
+            )
         run(
-            (
-                "iptables",
-                "-D",
-                "INPUT",
-                "-p",
-                protocol,
-                "-m",
-                protocol,
-                "--dport",
-                str(port),
-                "-m",
-                "comment",
-                "--comment",
-                REGISTRATION_COMMENT,
-                "-j",
-                REGISTRATION_CHAIN,
-            ),
+            ("iptables", "-F", REGISTRATION_CHAIN),
             timeout=20,
             allowed=frozenset({0, 1}),
         )
-    run(
-        ("iptables", "-F", REGISTRATION_CHAIN),
-        timeout=20,
-        allowed=frozenset({0, 1}),
-    )
-    run(
-        ("iptables", "-X", REGISTRATION_CHAIN),
-        timeout=20,
-        allowed=frozenset({0, 1}),
-    )
-    if not registration_firewall_absent():
-        raise UpgradeError("registration_firewall_cleanup_failed")
+        run(
+            ("iptables", "-X", REGISTRATION_CHAIN),
+            timeout=20,
+            allowed=frozenset({0, 1}),
+        )
+        if not registration_firewall_absent():
+            raise UpgradeError("registration_firewall_cleanup_failed")
 
 
 def restore_static(
@@ -1980,18 +2009,44 @@ def execute_apply(
             "board_access": False,
             "authorization_consumed": True,
         }
-    except Exception:
+    except Exception as apply_error:
+        if (
+            UPGRADE_TRANSACTION.exists()
+            and not UPGRADE_TRANSACTION.is_symlink()
+        ):
+            try:
+                advance_upgrade(
+                    "ROLLBACK_STARTED",
+                    apply_error_class=type(apply_error).__name__,
+                    apply_error_reason=(
+                        str(apply_error)[:240]
+                        or type(apply_error).__name__
+                    ),
+                )
+            except Exception:
+                pass
         if (
             rollback_required
             and workspace is not None
             and records
         ):
-            rollback(
-                workspace=workspace,
-                records=records,
-                prestate=prestate,
-                manager_archive=manager_archive,
-            )
+            try:
+                rollback(
+                    workspace=workspace,
+                    records=records,
+                    prestate=prestate,
+                    manager_archive=manager_archive,
+                )
+            except Exception as rollback_error:
+                raise UpgradeError(
+                    "apply_failed:"
+                    + (str(apply_error)[:160] or type(apply_error).__name__)
+                    + ";rollback_failed:"
+                    + (
+                        str(rollback_error)[:160]
+                        or type(rollback_error).__name__
+                    )
+                ) from rollback_error
         raise
 
 
