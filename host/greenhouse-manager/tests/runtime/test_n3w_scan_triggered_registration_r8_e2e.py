@@ -462,7 +462,6 @@ class R8Harness:
             self.settings.n3w_relay_authorization_db_path,
             self.settings.n3w_relay_key_dir,
             node_state=self.registry.node_id_lease_state,
-            recover_on_open=False,
         )
         self.reconciler = FirstRegistrationReconciler(
             registry=self.registry,
@@ -714,7 +713,6 @@ def assert_browser_private_values_absent(
             T1_IP,
             TLS_FINGERPRINT,
             "manager_lab_01",
-            "lab",
         )
     )
 
