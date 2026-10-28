@@ -92,3 +92,16 @@ No T1 mutation, board flash read/write, NVS access, or write-authorization consu
 ## Rollback-span safety repair
 
 Before the first board flash read, source review found that the exact R9 factory image is `0x1747b0` bytes while ESP flash erase granularity is `0x1000`. A direct factory write can therefore erase through `0x175000`. The read-only preflight backup contract was strengthened before physical execution so the private rollback backup covers the complete `0x175000` erase span. The exact factory continuity digest remains computed over the original `0x1747b0` bytes only.
+
+
+## Remote T1 probe syntax repair
+
+The second operator attempt passed SSH identity/authentication and then stopped before any T1 state collection because the embedded remote Python probe had a syntax error. Root cause: the remote `db_code = r"""..."""` block contained another triple-double-quoted SQL string, which terminated the nested code string early.
+
+This was a repository executor defect, not a T1 runtime defect.
+
+Repair:
+- replace the nested triple-quoted SQL with ordinary adjacent string literals;
+- add a CI test that compiles the complete `T1_PROBE` string with Python `compile(..., "exec")`.
+
+No T1 mutation, board flash/NVS access, or write-authorization consumption occurred before this stop.
