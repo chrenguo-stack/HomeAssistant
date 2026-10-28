@@ -354,6 +354,14 @@ def validate_package(
         or executor_path.stat().st_size != executor.get("size")
     ):
         raise UpgradeError("executor_binding_invalid")
+    running_executor = Path(__file__).resolve()
+    if (
+        running_executor.is_symlink()
+        or not running_executor.is_file()
+        or sha256_file(running_executor) != executor.get("sha256")
+        or running_executor.stat().st_size != executor.get("size")
+    ):
+        raise UpgradeError("running_executor_binding_invalid")
 
     group = manifest.get("live_files")
     if not isinstance(group, dict):
