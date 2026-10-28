@@ -85,6 +85,7 @@ jobs:
       manager_image_size: ${{ steps.meta.outputs.manager_image_size }}
       base_arm64_digest: ${{ steps.meta.outputs.base_arm64_digest }}
       base_image_id: ${{ steps.meta.outputs.base_image_id }}
+      distributions_sha256: ${{ steps.meta.outputs.distributions_sha256 }}
       upload_artifact_id: ${{ steps.upload.outputs.artifact-id }}
       upload_artifact_digest: ${{ steps.upload.outputs.artifact-digest }}
     steps:
@@ -197,6 +198,21 @@ jobs:
           echo "manager_image_id=$IMAGE_ID" >> "$GITHUB_OUTPUT"
           echo "manager_image_size=$IMAGE_SIZE" >> "$GITHUB_OUTPUT"
 
+      - name: Capture actual installed Python distribution inventory
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/r10-upgrade/manager-python-distributions.json"
+          docker run --rm --platform linux/arm64 --network none --entrypoint python "$MANAGER_IMAGE" -c 'import importlib.metadata as m,json; print(json.dumps([{"name":d.metadata["Name"],"version":d.version} for d in sorted(m.distributions(),key=lambda d:(d.metadata["Name"] or "").lower()) if d.metadata["Name"]],sort_keys=True,separators=(",",":"))) ' > "$OUT"
+          python - "$OUT" <<'PY'
+          import json,sys
+          data=json.load(open(sys.argv[1],encoding="utf-8"))
+          assert isinstance(data,list) and data
+          names=[item["name"].lower() for item in data]
+          assert "greenhouse-manager" in names
+          assert all(set(item)=={"name","version"} and item["name"] and item["version"] for item in data)
+          print("MANAGER_PYTHON_DISTRIBUTION_INVENTORY=PASS")
+          PY
+
       - name: Assemble bounded upgrade package
         run: |
           set -euo pipefail
@@ -221,6 +237,7 @@ jobs:
           echo "manager_image_size=${{ steps.image.outputs.manager_image_size }}" >> "$GITHUB_OUTPUT"
           echo "base_arm64_digest=${{ steps.base.outputs.base_arm64_digest }}" >> "$GITHUB_OUTPUT"
           echo "base_image_id=${{ steps.base.outputs.base_image_id }}" >> "$GITHUB_OUTPUT"
+          echo "distributions_sha256=$(sha256sum "$WORK/package/manager-python-distributions.json" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
 
       - name: Upload exact bounded upgrade package
         id: upload
@@ -263,8 +280,10 @@ jobs:
           assert m["policy"]["homeassistant_image_included"] is False
           assert m["policy"]["broker_image_included"] is False
           assert m["registration_tls"]["included_in_artifact"] is False
+          assert m["manager"]["future_rebuild_byte_identity_claimed"] is False
           print("REDOWNLOAD_PACKAGE_BINDING=PASS")
           PY
       - name: Report artifact authority
         run: |
-          printf '%s\n'             "ARTIFACT_NAME=${{ needs.build-candidate.outputs.artifact_name }}"             "ARTIFACT_ID=${{ needs.build-candidate.outputs.upload_artifact_id }}"             "ARTIFACT_DIGEST=${{ needs.build-candidate.outputs.upload_artifact_digest }}"             "MANIFEST_SHA256=${{ needs.build-candidate.outputs.manifest_sha256 }}"             "MANAGER_TAR_SHA256=${{ needs.build-candidate.outputs.manager_tar_sha256 }}"             "MANAGER_TAR_SIZE=${{ needs.build-candidate.outputs.manager_tar_size }}"             "MANAGER_IMAGE_ID=${{ needs.build-candidate.outputs.manager_image_id }}"             "MANAGER_IMAGE_SIZE=${{ needs.build-candidate.outputs.manager_image_size }}"             "BASE_ARM64_DIGEST=${{ needs.build-candidate.outputs.base_arm64_digest }}"             "BASE_IMAGE_ID=${{ needs.build-candidate.outputs.base_image_id }}"
+          printf '%s\n'             "ARTIFACT_NAME=${{ needs.build-candidate.outputs.artifact_name }}"             "ARTIFACT_ID=${{ needs.build-candidate.outputs.upload_artifact_id }}"             "ARTIFACT_DIGEST=${{ needs.build-candidate.outputs.upload_artifact_digest }}"             "MANIFEST_SHA256=${{ needs.build-candidate.outputs.manifest_sha256 }}"             "MANAGER_TAR_SHA256=${{ needs.build-candidate.outputs.manager_tar_sha256 }}"             "MANAGER_TAR_SIZE=${{ needs.build-candidate.outputs.manager_tar_size }}"             "MANAGER_IMAGE_ID=${{ needs.build-candidate.outputs.manager_image_id }}"             "MANAGER_IMAGE_SIZE=${{ needs.build-candidate.outputs.manager_image_size }}"             "BASE_ARM64_DIGEST=${{ needs.build-candidate.outputs.base_arm64_digest }}"             "BASE_IMAGE_ID=${{ needs.build-candidate.outputs.base_image_id }}" \
+            "DISTRIBUTIONS_SHA256=${{ needs.build-candidate.outputs.distributions_sha256 }}"
