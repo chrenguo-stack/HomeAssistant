@@ -254,8 +254,11 @@ need={"first_registration_attempts","registrations","pairing_sessions","registra
 if not need.issubset(tables):
     raise SystemExit(3)
 by_state={r["state"]:r["n"] for r in con.execute("SELECT state,COUNT(*) n FROM first_registration_attempts GROUP BY state")}
-unresolved=con.execute("""SELECT COUNT(*) FROM first_registration_attempts
-WHERE state='ACTIVE' OR (state IN ('EXPIRED','RESTART_INVALIDATED') AND cleanup_state!='COMPLETE')""").fetchone()[0]
+unresolved=con.execute(
+    "SELECT COUNT(*) FROM first_registration_attempts "
+    "WHERE state='ACTIVE' OR "
+    "(state IN ('EXPIRED','RESTART_INVALIDATED') AND cleanup_state!='COMPLETE')"
+).fetchone()[0]
 current_regs=con.execute("SELECT COUNT(*) FROM registrations WHERE retired_at IS NULL").fetchone()[0]
 print(json.dumps({
  "tables_ok":True,
