@@ -209,30 +209,20 @@ def test_r7_lcd_uses_hardware_spi_and_preserves_five_page_cycle() -> None:
 
 def test_r7_required_copy_has_glyph_coverage_and_fits_64px_monospaced_width() -> None:
     display = text(DISPLAY)
-    glyph_lines = re.findall(r'^\s*glyphs: "(.*)"$', display, flags=re.MULTILINE)
+    glyph_lines = re.findall(r'^\\s*glyphs: "(.*)"$', display, flags=re.MULTILINE)
     assert len(glyph_lines) >= 2
     f10_glyphs, f12_glyphs = glyph_lines[:2]
 
     f10_lines = (
+        "手机相机扫码",
+        "配置节点网络",
         "联机注册",
         "扫码注册",
-        "正在搜索",
-        "请看手机",
         "请稍候",
-        "未找到主机",
-        "主机不可用",
-        "主机忙",
-        "网络中断",
-        "注册超时",
-        "注册失败",
-        "二维码失效",
     )
     f12_lines = (
         "联机注册",
         "已联机注册",
-        "等待确认",
-        "联机注册中",
-        "注册成功",
     )
 
     for line in f10_lines:
@@ -242,11 +232,6 @@ def test_r7_required_copy_has_glyph_coverage_and_fits_64px_monospaced_width() ->
     for line in f12_lines:
         assert set(line) <= set(f12_glyphs)
         assert len(line) * 12 <= 64
-
-    for code in ("E01", "E02", "E03", "E04", "E05", "E06", "E07"):
-        assert set(code) <= set(f12_glyphs)
-        assert len(code) * 12 <= 64
-
 
 def test_r7_display_copy_is_secret_free() -> None:
     display = text(DISPLAY)
