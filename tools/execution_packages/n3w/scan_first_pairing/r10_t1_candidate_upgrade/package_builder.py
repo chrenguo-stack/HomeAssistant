@@ -326,6 +326,7 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
     target = Path(args.target_source_root).resolve()
     manager_tar = Path(args.manager_tar).resolve()
     executor = Path(args.executor).resolve()
+    distributions = Path(args.python_distributions).resolve()
 
     if output.exists() or output.is_symlink():
         raise PackageError("output_must_be_absent")
@@ -339,6 +340,28 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
         raise PackageError("manager_tar_invalid")
     if executor.is_symlink() or not executor.is_file():
         raise PackageError("executor_invalid")
+    if distributions.is_symlink() or not distributions.is_file():
+        raise PackageError("python_distributions_invalid")
+    try:
+        distribution_document = json.loads(
+            distributions.read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise PackageError("python_distributions_json_invalid") from error
+    if (
+        not isinstance(distribution_document, list)
+        or not distribution_document
+        or not all(
+            isinstance(item, dict)
+            and set(item) == {"name", "version"}
+            and isinstance(item["name"], str)
+            and bool(item["name"])
+            and isinstance(item["version"], str)
+            and bool(item["version"])
+            for item in distribution_document
+        )
+    ):
+        raise PackageError("python_distributions_contract_invalid")
     if args.predecessor_source != PREDECESSOR_SOURCE:
         raise PackageError("predecessor_source_invalid")
     if args.target_source != TARGET_SOURCE:
@@ -370,6 +393,10 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
     artifact_executor = output / "upgrade-executor.py"
     shutil.copyfile(executor, artifact_executor)
     os.chmod(artifact_executor, 0o755)
+
+    artifact_distributions = output / "manager-python-distributions.json"
+    shutil.copyfile(distributions, artifact_distributions)
+    os.chmod(artifact_distributions, 0o644)
 
     live = _materialize_group(
         output=output,
@@ -411,9 +438,17 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
             "base_arm64_manifest_digest": args.base_arm64_digest,
             "base_image_id": args.base_image_id,
             "historical_byte_continuity_claimed": False,
+            "future_rebuild_byte_identity_claimed": False,
             "candidate_build_authority": (
                 "exact_target_source_plus_frozen_arm64_base_digest"
+                "_plus_installed_distribution_inventory_plus_output_identity"
             ),
+            "python_distributions": {
+                "artifact_path": artifact_distributions.name,
+                "sha256": sha256_file(artifact_distributions),
+                "size": artifact_distributions.stat().st_size,
+                "count": len(distribution_document),
+            },
         },
         "live_files": live,
         "source_overlay": overlay,
@@ -478,7 +513,12 @@ def verify(root: Path) -> dict[str, Any]:
     ):
         raise PackageError("manifest_contract_invalid")
 
-    expected_files = {"manifest.json", "greenhouse-manager-arm64.tar", "upgrade-executor.py"}
+    expected_files = {
+        "manifest.json",
+        "greenhouse-manager-arm64.tar",
+        "upgrade-executor.py",
+        "manager-python-distributions.json",
+    }
     for group_name in ("live_files", "source_overlay"):
         group = manifest.get(group_name)
         if not isinstance(group, dict):
@@ -501,6 +541,29 @@ def verify(root: Path) -> dict[str, Any]:
         or manager_path.stat().st_size != manager["tar_size_bytes"]
     ):
         raise PackageError("manager_tar_binding_invalid")
+
+    distributions = manager.get("python_distributions")
+    if not isinstance(distributions, dict):
+        raise PackageError("python_distributions_manifest_invalid")
+    distributions_path = root / str(distributions.get("artifact_path", ""))
+    if (
+        distributions_path.is_symlink()
+        or not distributions_path.is_file()
+        or sha256_file(distributions_path) != distributions.get("sha256")
+        or distributions_path.stat().st_size != distributions.get("size")
+    ):
+        raise PackageError("python_distributions_binding_invalid")
+    try:
+        distribution_document = json.loads(
+            distributions_path.read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise PackageError("python_distributions_json_invalid") from error
+    if (
+        not isinstance(distribution_document, list)
+        or len(distribution_document) != distributions.get("count")
+    ):
+        raise PackageError("python_distributions_count_invalid")
 
     executor = manifest["executor"]
     executor_path = root / str(executor["artifact_path"])
@@ -541,6 +604,7 @@ def parser() -> argparse.ArgumentParser:
     build_parser.add_argument("--base-arm64-digest", required=True)
     build_parser.add_argument("--base-image-id", required=True)
     build_parser.add_argument("--executor", required=True)
+    build_parser.add_argument("--python-distributions", required=True)
     verify_parser = sub.add_parser("verify")
     verify_parser.add_argument("package_root")
     return result
