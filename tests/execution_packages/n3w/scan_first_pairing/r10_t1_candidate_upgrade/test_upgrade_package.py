@@ -462,3 +462,16 @@ def test_strict_postcheck_requires_manifest_image_id(
             prestate,
             {"manager": {"image_id": "expected-target-image-id"}},
         )
+
+
+def test_broker_dynsec_is_readonly_continuity_authority() -> None:
+    source = EXECUTOR_PATH.read_text(encoding="utf-8")
+    assert str(executor.BROKER_DYNSEC) == (
+        "/var/lib/n3wfc4-broker/dynamic-security.json"
+    )
+    assert "broker_dynsec_sha256" in source
+    assert "broker_dynsec_changed" in source
+    assert "rollback_broker_dynsec_changed" in source
+    assert "atomic_write_bytes(\n        BROKER_DYNSEC" not in source
+    assert "shutil.copyfile(\n        BROKER_DYNSEC" not in source
+    assert "BROKER_DYNSEC.unlink" not in source
