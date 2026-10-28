@@ -1,0 +1,54 @@
+name: N3W R10 T1 candidate upgrade readonly preflight CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
+    paths:
+      - ".github/workflows/n3w-r10-t1-candidate-upgrade-readonly-preflight-ci.yml"
+      - "tools/execution_packages/n3w/scan_first_pairing/r10_t1_candidate_upgrade/**"
+      - "tests/execution_packages/n3w/scan_first_pairing/r10_t1_candidate_upgrade/**"
+      - "docs/development/N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_T1_CANDIDATE_UPGRADE_DESIGN_AND_READONLY_PREFLIGHT_20261028.md"
+  push:
+    branches:
+      - "plan/n3w-r10-t1-candidate-upgrade-20261028"
+    paths:
+      - ".github/workflows/n3w-r10-t1-candidate-upgrade-readonly-preflight-ci.yml"
+      - "tools/execution_packages/n3w/scan_first_pairing/r10_t1_candidate_upgrade/**"
+      - "tests/execution_packages/n3w/scan_first_pairing/r10_t1_candidate_upgrade/**"
+
+permissions:
+  contents: read
+
+jobs:
+  readonly-preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install focused test dependency
+        run: python -m pip install "pytest>=8,<9"
+
+      - name: Compile executor and remote probe contract
+        run: |
+          python -m py_compile tools/execution_packages/n3w/scan_first_pairing/r10_t1_candidate_upgrade/readonly_preflight.py
+          python - <<'PY'
+          import importlib.util
+          from pathlib import Path
+          path = Path("tools/execution_packages/n3w/scan_first_pairing/r10_t1_candidate_upgrade/readonly_preflight.py")
+          spec = importlib.util.spec_from_file_location("r10_t1_candidate", path)
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          compile(module.T1_PROBE, "<r10-t1-candidate-probe>", "exec")
+          print("REMOTE_PROBE_COMPILE=PASS")
+          PY
+
+      - name: Run focused readonly-preflight tests
+        run: |
+          python -m pytest -q tests/execution_packages/n3w/scan_first_pairing/r10_t1_candidate_upgrade/test_readonly_preflight.py
