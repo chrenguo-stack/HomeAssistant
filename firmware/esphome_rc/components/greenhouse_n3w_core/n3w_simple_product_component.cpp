@@ -823,7 +823,6 @@ void SimpleProductComponent::advance_registration_bootstrap_() {
   if (!registration_bootstrap_accepted_) {
     if (selected_registration_candidate_.expired(now)) {
       show_registration_error_(RegistrationDisplayError::E07_QR_INVALID);
-      registration_portal_.stop();
       clear_registration_discovery_();
       return;
     }
@@ -832,7 +831,6 @@ void SimpleProductComponent::advance_registration_bootstrap_() {
     std::string subnet_mask;
     if (!current_wifi_ipv4_(&local_ipv4, &subnet_mask)) {
       show_registration_error_(RegistrationDisplayError::E04_NETWORK_INTERRUPTED);
-      registration_portal_.stop();
       clear_registration_discovery_();
       return;
     }
@@ -847,7 +845,6 @@ void SimpleProductComponent::advance_registration_bootstrap_() {
             &request)) {
       std::fill(setup_secret.begin(), setup_secret.end(), '\0');
       show_registration_error_(RegistrationDisplayError::E06_REGISTRATION_FAILED);
-      registration_portal_.stop();
       clear_registration_discovery_();
       return;
     }
@@ -899,7 +896,6 @@ void SimpleProductComponent::advance_registration_bootstrap_() {
           break;
       }
       show_registration_error_(display_error);
-      registration_portal_.stop();
       clear_registration_discovery_();
       return;
     }
@@ -918,7 +914,6 @@ void SimpleProductComponent::advance_registration_bootstrap_() {
     if (!parsed) {
       ESP_LOGW(TAG, "R6 registration bootstrap response rejected");
       show_registration_error_(RegistrationDisplayError::E06_REGISTRATION_FAILED);
-      registration_portal_.stop();
       clear_registration_discovery_();
       return;
     }
@@ -934,7 +929,6 @@ void SimpleProductComponent::advance_registration_bootstrap_() {
           renewed == SimplePairingClientError::NONE
               ? RegistrationDisplayError::E07_QR_INVALID
               : RegistrationDisplayError::E06_REGISTRATION_FAILED);
-      registration_portal_.stop();
       clear_registration_discovery_();
       return;
     }
@@ -943,7 +937,6 @@ void SimpleProductComponent::advance_registration_bootstrap_() {
           confirmed.reason == "registration_busy"
               ? RegistrationDisplayError::E03_HOST_BUSY
               : RegistrationDisplayError::E02_HOST_UNAVAILABLE);
-      registration_portal_.stop();
       clear_registration_discovery_();
       return;
     }
@@ -963,9 +956,8 @@ void SimpleProductComponent::advance_registration_bootstrap_() {
   if (registration_bootstrap_result_.transaction_deadline_ms == 0U ||
       now >= registration_bootstrap_result_.transaction_deadline_ms) {
     show_registration_error_(RegistrationDisplayError::E05_REGISTRATION_TIMEOUT);
-    // Do not mint a new identity from a local timer. Re-scan with the same
-    // pairing ID so 47110 can authoritatively classify the old transaction.
-    registration_portal_.stop();
+    // Do not mint a new identity from a local timer. A new explicit phone
+    // retry keeps the same pairing ID so 47110 can classify the old transaction.
     clear_registration_discovery_();
     return;
   }
@@ -981,9 +973,6 @@ void SimpleProductComponent::advance_registration_bootstrap_() {
     if (pairing_client_.provisioned()) {
       show_registration_success_();
       pairing_ack_pending_ = false;
-      registration_portal_allowed_.store(
-          false, std::memory_order_release);
-      registration_portal_.stop();
       clear_registration_discovery_();
       ESP_LOGI(
           TAG,
@@ -996,13 +985,11 @@ void SimpleProductComponent::advance_registration_bootstrap_() {
 
   if (result == SimplePairingClientError::ACK_PENDING) {
     pairing_ack_pending_ = true;
-    registration_portal_.stop();
     clear_registration_discovery_();
     return;
   }
   if (result == SimplePairingClientError::TRANSACTION_RENEWED) {
     show_registration_error_(RegistrationDisplayError::E07_QR_INVALID);
-    registration_portal_.stop();
     clear_registration_discovery_();
     return;
   }
@@ -1027,7 +1014,6 @@ void SimpleProductComponent::advance_registration_bootstrap_() {
       "R6 pairing transaction failed closed code=%u",
       static_cast<unsigned>(result));
   show_registration_error_(RegistrationDisplayError::E06_REGISTRATION_FAILED);
-  registration_portal_.stop();
   clear_registration_discovery_();
 }
 
@@ -1045,9 +1031,6 @@ void SimpleProductComponent::advance_pairing_() {
     if (pairing_client_.provisioned()) {
       show_registration_success_();
       pairing_ack_pending_ = false;
-      registration_portal_allowed_.store(
-          false, std::memory_order_release);
-      registration_portal_.stop();
       ESP_LOGI(
           TAG,
           "Simplified pairing committed; loading product runtime state");
@@ -1060,7 +1043,6 @@ void SimpleProductComponent::advance_pairing_() {
       result == SimplePairingClientError::TRANSACTION_RENEWED) {
     show_registration_error_(RegistrationDisplayError::E07_QR_INVALID);
     pairing_ack_pending_ = false;
-    registration_portal_.stop();
     clear_registration_discovery_();
     ESP_LOGI(TAG, "R6 terminal pending transaction cleanup completed");
     return;
