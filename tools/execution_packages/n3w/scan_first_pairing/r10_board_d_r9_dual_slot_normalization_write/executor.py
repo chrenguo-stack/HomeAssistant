@@ -325,15 +325,34 @@ def require_absent(path: Path) -> None:
         raise StopExecution(f"output already exists: {path}")
 
 
+def _write_all(fd: int, data: bytes) -> None:
+    view = memoryview(data)
+    while view:
+        written = os.write(fd, view)
+        if written <= 0:
+            raise StopExecution("private state write made no progress")
+        view = view[written:]
+
+
+def _fsync_dir(path: Path) -> None:
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    fd = os.open(path, flags)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
 def write_private_json(path: Path, payload: dict[str, object]) -> None:
     require_absent(path)
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
     try:
         data = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
-        os.write(fd, data)
+        _write_all(fd, data)
         os.fsync(fd)
     finally:
         os.close(fd)
+    _fsync_dir(path.parent)
 
 
 def replace_private_json(path: Path, payload: dict[str, object]) -> None:
@@ -344,11 +363,12 @@ def replace_private_json(path: Path, payload: dict[str, object]) -> None:
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
     try:
         data = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
-        os.write(fd, data)
+        _write_all(fd, data)
         os.fsync(fd)
     finally:
         os.close(fd)
     os.replace(tmp, path)
+    _fsync_dir(path.parent)
 
 
 def observe_board_identity_security(port: str, *, before: str) -> str:
@@ -638,9 +658,12 @@ def claim_preflight(path: Path, payload: dict[str, object], fresh: dict[str, obj
     source_inode = path.stat().st_ino
     try:
         os.link(path, claimed, follow_symlinks=False)
+        _fsync_dir(path.parent)
         path.unlink()
+        _fsync_dir(path.parent)
     except OSError as exc:
         claimed.unlink(missing_ok=True)
+        _fsync_dir(path.parent)
         raise StopExecution("preflight authorization claim failed") from exc
     if path.exists() or claimed.is_symlink() or not claimed.is_file() or claimed.stat().st_ino != source_inode:
         raise StopExecution("preflight authorization claim verification failed")
