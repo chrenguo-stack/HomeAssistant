@@ -116,6 +116,14 @@ def test_r10_duplicate_phone_actions_do_not_overwrite_active_state() -> None:
     assert "pollSoon" in html
 
 
+def test_r10_local_rate_limit_is_not_rendered_as_terminal_failure() -> None:
+    html = portal_html()
+
+    assert "result.response.status === 429" in html
+    assert '"请稍候"' in html
+    assert "pollSoon(150)" in html
+
+
 def test_r10_phone_page_has_no_user_cancel_path() -> None:
     html = portal_html()
     portal = text(PORTAL_CPP) + "\n" + text(PORTAL_H)
