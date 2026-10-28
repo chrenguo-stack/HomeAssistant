@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 import stat
+import tarfile
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -62,6 +63,7 @@ LIVE_FILES = {
         "mode": 0o755,
         "f4_bound": True,
         "predecessor_present": True,
+        "target_authority": "package_head",
     },
     "registration_unit": {
         "predecessor_source": None,
@@ -119,6 +121,72 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _manager_archive_identity(path: Path) -> dict[str, str]:
+    try:
+        with tarfile.open(path, "r:*") as archive:
+            docker_stream = archive.extractfile("manifest.json")
+            index_stream = archive.extractfile("index.json")
+            if docker_stream is None or index_stream is None:
+                raise PackageError("manager_archive_identity_missing")
+            docker_manifest = json.loads(
+                docker_stream.read().decode("utf-8")
+            )
+            index = json.loads(index_stream.read().decode("utf-8"))
+            if (
+                not isinstance(docker_manifest, list)
+                or len(docker_manifest) != 1
+                or not isinstance(docker_manifest[0], dict)
+                or not isinstance(index, dict)
+                or not isinstance(index.get("manifests"), list)
+                or len(index["manifests"]) != 1
+                or not isinstance(index["manifests"][0], dict)
+            ):
+                raise PackageError("manager_archive_identity_invalid")
+            config_path = str(docker_manifest[0].get("Config", ""))
+            config_prefix = "blobs/sha256/"
+            if not config_path.startswith(config_prefix):
+                raise PackageError("manager_archive_config_path_invalid")
+            config_hex = config_path[len(config_prefix):]
+            descriptor_digest = str(
+                index["manifests"][0].get("digest", "")
+            )
+            if (
+                len(config_hex) != 64
+                or any(c not in "0123456789abcdef" for c in config_hex)
+                or not descriptor_digest.startswith("sha256:")
+                or len(descriptor_digest) != 71
+            ):
+                raise PackageError("manager_archive_digest_invalid")
+            manifest_hex = descriptor_digest.removeprefix("sha256:")
+            if any(c not in "0123456789abcdef" for c in manifest_hex):
+                raise PackageError("manager_archive_digest_invalid")
+            config_stream = archive.extractfile(config_path)
+            manifest_path = f"blobs/sha256/{manifest_hex}"
+            manifest_stream = archive.extractfile(manifest_path)
+            if config_stream is None or manifest_stream is None:
+                raise PackageError("manager_archive_digest_member_missing")
+            config_bytes = config_stream.read()
+            manifest_bytes = manifest_stream.read()
+            if (
+                hashlib.sha256(config_bytes).hexdigest() != config_hex
+                or hashlib.sha256(manifest_bytes).hexdigest()
+                != manifest_hex
+            ):
+                raise PackageError("manager_archive_digest_binding_invalid")
+            tags = docker_manifest[0].get("RepoTags")
+            if (
+                not isinstance(tags, list)
+                or TARGET_MANAGER_IMAGE not in tags
+            ):
+                raise PackageError("manager_archive_tag_binding_invalid")
+            return {
+                "config_digest": f"sha256:{config_hex}",
+                "manifest_digest": descriptor_digest,
+            }
+    except (OSError, UnicodeError, json.JSONDecodeError, tarfile.TarError) as error:
+        raise PackageError("manager_archive_identity_unreadable") from error
+
+
 def _regular(root: Path, relative: str) -> Path:
     pure = PurePosixPath(relative)
     if (
@@ -172,11 +240,21 @@ def _materialize_group(
     output: Path,
     predecessor_root: Path,
     target_root: Path,
+    package_root: Path,
+    package_head: str,
     records: dict[str, dict[str, Any]],
 ) -> dict[str, dict[str, Any]]:
     result: dict[str, dict[str, Any]] = {}
     for name, spec in records.items():
-        target_source = _regular(target_root, str(spec["target_source"]))
+        target_authority = str(spec.get("target_authority", "target_source"))
+        source_root = (
+            package_root
+            if target_authority == "package_head"
+            else target_root
+        )
+        if target_authority not in {"target_source", "package_head"}:
+            raise PackageError("target_authority_invalid")
+        target_source = _regular(source_root, str(spec["target_source"]))
         artifact_rel = str(spec["artifact"])
         artifact_path = output / artifact_rel
         copied = _copy_exact(target_source, artifact_path, int(spec["mode"]))
@@ -187,6 +265,12 @@ def _materialize_group(
             spec.get("predecessor_source"),
         )
         copied["target_source"] = str(spec["target_source"])
+        copied["target_source_authority"] = target_authority
+        copied["target_source_commit"] = (
+            package_head
+            if target_authority == "package_head"
+            else TARGET_SOURCE
+        )
         if "f4_bound" in spec:
             copied["f4_bound"] = bool(spec["f4_bound"])
             copied["predecessor_present"] = bool(
@@ -200,6 +284,7 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
     output = Path(args.output).resolve()
     predecessor = Path(args.predecessor_source_root).resolve()
     target = Path(args.target_source_root).resolve()
+    package_source = Path(args.package_source_root).resolve()
     manager_tar = Path(args.manager_tar).resolve()
     executor = Path(args.executor).resolve()
     distributions = Path(args.python_distributions).resolve()
@@ -209,6 +294,7 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
     for root, label in (
         (predecessor, "predecessor"),
         (target, "target"),
+        (package_source, "package"),
     ):
         if root.is_symlink() or not root.is_dir():
             raise PackageError(f"{label}_root_invalid")
@@ -265,6 +351,7 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
     artifact_manager = output / "greenhouse-manager-arm64.tar"
     shutil.copyfile(manager_tar, artifact_manager)
     os.chmod(artifact_manager, 0o644)
+    manager_archive_identity = _manager_archive_identity(artifact_manager)
 
     artifact_executor = output / "upgrade-executor.py"
     shutil.copyfile(executor, artifact_executor)
@@ -278,6 +365,8 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
         output=output,
         predecessor_root=predecessor,
         target_root=target,
+        package_root=package_source,
+        package_head=args.package_head,
         records=LIVE_FILES,
     )
     runtime_bytes = sum(
@@ -298,6 +387,13 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
             "tar_sha256": sha256_file(artifact_manager),
             "tar_size_bytes": manager_tar_size,
             "image_id": args.manager_image_id,
+            "image_id_portable_authority": False,
+            "archive_config_digest": (
+                manager_archive_identity["config_digest"]
+            ),
+            "archive_manifest_digest": (
+                manager_archive_identity["manifest_digest"]
+            ),
             "image_size_bytes": args.manager_image_size_bytes,
             "platform": "linux/arm64",
             "source_dockerfile_git_blob": (
@@ -408,6 +504,15 @@ def verify(root: Path) -> dict[str, Any]:
         or manager_path.stat().st_size != manager["tar_size_bytes"]
     ):
         raise PackageError("manager_tar_binding_invalid")
+    manager_archive_identity = _manager_archive_identity(manager_path)
+    if (
+        manager.get("image_id_portable_authority") is not False
+        or manager.get("archive_config_digest")
+        != manager_archive_identity["config_digest"]
+        or manager.get("archive_manifest_digest")
+        != manager_archive_identity["manifest_digest"]
+    ):
+        raise PackageError("manager_archive_identity_binding_invalid")
 
     distributions = manager.get("python_distributions")
     if not isinstance(distributions, dict):
@@ -440,8 +545,23 @@ def verify(root: Path) -> dict[str, Any]:
     ):
         raise PackageError("executor_binding_invalid")
 
-    for record in manifest["live_files"].values():
+    for name, record in manifest["live_files"].items():
         path = root / str(record["artifact_path"])
+        expected_authority = (
+            "package_head" if name == "dispatcher" else "target_source"
+        )
+        expected_commit = (
+            str(manifest["package_head"])
+            if expected_authority == "package_head"
+            else TARGET_SOURCE
+        )
+        if (
+            record.get("target_source_authority") != expected_authority
+            or record.get("target_source_commit") != expected_commit
+        ):
+            raise PackageError(
+                f"runtime_source_authority_invalid:{record['artifact_path']}"
+            )
         if (
             sha256_file(path) != record["sha256"]
             or path.stat().st_size != record["size"]
@@ -459,6 +579,7 @@ def parser() -> argparse.ArgumentParser:
     build_parser.add_argument("--output", required=True)
     build_parser.add_argument("--predecessor-source-root", required=True)
     build_parser.add_argument("--target-source-root", required=True)
+    build_parser.add_argument("--package-source-root", required=True)
     build_parser.add_argument("--predecessor-source", required=True)
     build_parser.add_argument("--target-source", required=True)
     build_parser.add_argument("--package-head", required=True)
