@@ -138,7 +138,7 @@ def test_r5_browser_exposes_only_opaque_candidate_id_and_label() -> None:
 
     assert "candidate.label" in page
     assert "candidate.id" in page
-    assert "candidate_id: candidateId" in page
+    assert "candidate_id: candidate.id" in page
 
     for forbidden in (
         "setup_secret",
