@@ -486,3 +486,50 @@ def test_historical_opt_homeassistant_tree_is_not_a_live_upgrade_target() -> Non
     source = EXECUTOR_PATH.read_text(encoding="utf-8")
     assert "source_overlay" not in source
     assert 'Path("/opt/HomeAssistant")' not in source
+
+
+def test_live_executor_self_binding_matches_packaged_executor(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    old, target = materialize_source_roots(tmp_path)
+    manager_tar = write(tmp_path, "manager.tar", b"manager-image")
+    distributions = write(
+        tmp_path,
+        "distributions.json",
+        b'[{"name":"greenhouse-manager","version":"0.4.99"}]\n',
+    )
+    output = tmp_path / "package"
+    args = type(
+        "Args",
+        (),
+        {
+            "output": str(output),
+            "predecessor_source_root": str(old),
+            "target_source_root": str(target),
+            "predecessor_source": builder.PREDECESSOR_SOURCE,
+            "target_source": builder.TARGET_SOURCE,
+            "package_head": "a" * 40,
+            "manager_tar": str(manager_tar),
+            "manager_image": builder.TARGET_MANAGER_IMAGE,
+            "manager_image_id": "sha256:" + "1" * 64,
+            "manager_image_size_bytes": 123,
+            "base_image_ref": builder.BASE_IMAGE_REF,
+            "base_arm64_digest": "sha256:" + "2" * 64,
+            "base_image_id": "sha256:" + "3" * 64,
+            "executor": str(EXECUTOR_PATH),
+            "python_distributions": str(distributions),
+        },
+    )()
+    builder.build(args)
+    manifest_sha = builder.sha256_file(output / "manifest.json")
+    doc = executor.validate_package(output, manifest_sha)
+    assert doc["executor"]["sha256"] == executor.sha256_file(EXECUTOR_PATH)
+
+    wrong = write(tmp_path, "wrong-executor.py", b"wrong\n")
+    monkeypatch.setattr(executor, "__file__", str(wrong))
+    with pytest.raises(
+        executor.UpgradeError,
+        match="running_executor_binding_invalid",
+    ):
+        executor.validate_package(output, manifest_sha)
