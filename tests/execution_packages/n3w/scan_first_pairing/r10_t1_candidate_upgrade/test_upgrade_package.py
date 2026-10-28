@@ -358,7 +358,7 @@ def test_claim_occurs_before_first_mutating_stage(
     monkeypatch.setattr(
         executor,
         "strict_postcheck",
-        lambda _p: {
+        lambda _p, _m: {
             "manager": {"image_id": "target"},
         },
     )
@@ -392,3 +392,56 @@ def test_authorization_is_one_shot() -> None:
         "N3W_R10_T1_CANDIDATE_UPGRADE_20261028_01"
     )
     assert not executor.valid_authorization_id("N3W_T1_F4_OLD")
+
+
+def test_strict_postcheck_requires_manifest_image_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prestate = {
+        "broker": {
+            "id": "broker-id",
+            "image_id": "broker-image-id",
+            "image": "broker-ref",
+            "started_at": "same",
+            "restart_count": 0,
+        },
+        "homeassistant": {
+            "image": "ha-ref",
+            "image_id": "ha-image-id",
+        },
+    }
+
+    docs = {
+        "broker": {
+            "Id": "broker-id",
+            "Image": "broker-image-id",
+            "RestartCount": 0,
+            "State": {"StartedAt": "same", "Running": True},
+            "Config": {"Image": "broker-ref"},
+        },
+        "manager": {
+            "Id": "manager-id",
+            "Image": "wrong-target-image-id",
+            "RestartCount": 0,
+            "State": {"StartedAt": "new", "Running": True},
+            "Config": {"Image": executor.TARGET_MANAGER_IMAGE},
+        },
+        "homeassistant": {
+            "Id": "ha-id",
+            "Image": "ha-image-id",
+            "RestartCount": 0,
+            "State": {"StartedAt": "new", "Running": True},
+            "Config": {"Image": "ha-ref"},
+        },
+    }
+    monkeypatch.setattr(
+        executor,
+        "service_state",
+        lambda _u: {"active": "active", "enabled": "enabled", "load": "loaded"},
+    )
+    monkeypatch.setattr(executor, "container", lambda service: docs[service])
+    with pytest.raises(executor.UpgradeError, match="target_manager_not_running"):
+        executor.strict_postcheck(
+            prestate,
+            {"manager": {"image_id": "expected-target-image-id"}},
+        )
