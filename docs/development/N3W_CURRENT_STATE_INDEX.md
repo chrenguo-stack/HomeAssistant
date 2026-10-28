@@ -1,3 +1,21 @@
+## 2026-10-28 — R10 T1 candidate R2 pre-live handoff
+
+- PR #718 exact head `4a8c2a62be74ec5c9740d37946e770d9464b6cb3`; tree `6d342dea1ee6d8fa5014b60e0879988888dc0227`; open Draft/mergeable.
+- All PR #718 current-head workflows are SUCCESS.
+- KF-131 closes the R1 `target_manager_image_preexisting` false-STOP source defect. Immediate read-only Docker evidence proved the target tag was actually absent.
+- R1 live executor stopped before claim: authorization not consumed; no service stop, target image load, DB/F4/runtime mutation or board access.
+- R1 artifact ID `12792592683` is superseded and forbidden for execution; R1 T1 staging remains historical bounded-filesystem evidence and must not be preemptively deleted.
+- R2 package workflow run `40641242797`: source-contract/build-candidate/redownload-verify all PASS.
+- R2 artifact ID `12795906971`; name `n3w-r10-t1-upgrade-4a8c2a62be74`; digest `sha256:d5e40fe0295f8bd6844cd50624139dbc2b31082f4dbcf93052924afa7586c0a3`; expiry `2026-11-27T06:02:43Z`.
+- R2 manifest SHA-256 `1794a8696663dfaf49a1454cfcf7865ba90cbd8444a508750622d315b5fea64a`.
+- R2 Manager tar SHA-256 `2ba09634ceeb0b88e8a01ddf12325a45ea4315a4e1b966e1fe83ed62d2234a71`; image ID `sha256:94db48b902c39f1ffa61cd9b5e91e683b18be4eefdd07d4a95a7dbfb5495ceef`.
+- R2 executor SHA-256 `395421920c54666fd5a404d112a67eec8cc931d24af3bd53e61758238ffd77ff`.
+- R2 has not yet completed Mac local verification, has not been staged to T1 and has no live authorization.
+- R1 live authorization was granted but never claimed/consumed; replay on R2 is forbidden because material authority changed.
+- Board-write authorization remains separate and unconsumed.
+- Next ONE gate: `N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_T1_CANDIDATE_R2_ARTIFACT_LOCAL_VERIFY_AND_PRELIVE_READONLY_REBIND_20261028_01`.
+- Formal handoff: `docs/development/N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_T1_CANDIDATE_R2_PRELIVE_NEW_CHAT_HANDOFF_V1.0_20261028.md`.
+
 ## 2026-10-28 — R10 physical acceptance design/read-only preflight
 
 - Fresh repository/R9 source/workflow/artifact rebind: PASS; no drift invalidating R9 authority.

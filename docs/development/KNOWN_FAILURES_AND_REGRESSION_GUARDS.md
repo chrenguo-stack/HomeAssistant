@@ -1,3 +1,25 @@
+### 2026-10-28 KF-132 — R10 / OTA 把 CI Docker runtime image ID 误当作跨主机可移植 artifact identity
+
+| ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
+|---|---|---|---|---|---|
+| KF-132 | R10 T1 candidate live upgrade / future OTA image identity + rollback evidence | R2 exact artifact 在真实 T1 上成功加载 target Manager 后，executor 仍在 `CANDIDATE_STAGED` 之前失败并进入 rollback；transaction 最终为 `STOP_PARTIAL / rollback_unproven`。artifact 内 OCI config digest=`94db48...`、OCI manifest digest=`9b5b3d...`；CI 的 `docker image inspect .Id` 冻结为前者，而 T1 Docker event 对同一 exact target tag 的 Actor.ID 报告后者。rollback 后 predecessor runtime 实际恢复，firewall exact diff 仅剩 `iptables-save` 时间戳与 live INPUT counter 变化，但原始 apply error 被 rollback error 覆盖 | R2 将某一 CI Docker engine/image-store 暴露的 runtime `.Id` 当成跨主机唯一 portable image identity；同时 rollback 在自身失败时没有 durable 保留原始 apply failure。另有 registration firewall cleanup 未与 registration guard 共用 lock，NetworkManager dispatcher 可能在 unit disable 后再次 reload-or-restart，形成 rollback race | OTA/host-upgrade 长期 guard：**artifact identity 与 runtime engine identity 分离**。package 直接从 exact image tar/OCI archive 冻结并校验 config digest + manifest digest；CI runtime `.Id` 仅作本地观测，不作为 portable authority；target runtime ID 只能匹配 exact artifact 派生的允许集合。rollback 必须先 durable 记录 apply_error/failure_phase，再记录 rollback error；firewall cleanup 与 guard 共用 lock；dispatcher 不得 restart disabled registration unit。详见 `docs/development/N3W_OTA_IMAGE_IDENTITY_AND_ROLLBACK_PORTABILITY_GUARD_20261028.md` 与 PR #720 | OPEN_R3_SOURCE_REPAIR_AND_EXACT_ARTIFACT_REVALIDATION |
+
+**OTA 长期红线：**
+
+`ARTIFACT_IDENTITY != RUNTIME_ENGINE_IDENTITY`
+
+`ROLLBACK_ERROR MUST NOT ERASE APPLY_ERROR`
+
+任何后续 T1/容器/主机 OTA 在设计阶段必须先检查 KF-132；不得再次假设 `docker image inspect .Id` 在 CI 与目标设备、不同 Docker 版本或不同 image-store 实现之间保持同一语义。
+
+### 2026-10-28 KF-131 — R10 T1 candidate preclaim 把不存在的目标 Manager 镜像误判为已存在
+
+| ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
+|---|---|---|---|---|---|
+| KF-131 | R10 T1 candidate live upgrade preclaim / Docker target-image existence detection | R1 exact artifact 已完成 Mac verify + T1 staging；首次 live executor 在 fresh preclaim 返回 `target_manager_image_preexisting`，且 `authorization_consumed=false`。随后立即只读执行 `docker image inspect local/greenhouse-manager:fresh-e299c937a7b8`，Docker 明确返回 `No such image` | R1 executor 对 `docker image inspect` 允许 rc=1，但随后只要 stdout 非空就判定目标镜像存在；inspect miss 可留下非空空数组输出，因此“镜像不存在”会被 false-STOP 为“镜像已存在” | R2 改用 exact-reference `docker image ls --no-trunc --quiet --filter reference=<tag>`：空输出=不存在；1 个唯一 ID=存在；多个不同 ID=ambiguous STOP。增加 absent/present/dedup focused tests。R1 artifact / executor 永不重放；R2 必须使用新 artifact + 新授权绑定 | SOURCE_REPAIR_CLOSED_PASS_R2_ARTIFACT_FROZEN_LIVE_NOT_REEXECUTED |
+
+R1 现场 STOP 发生在 one-shot claim 之前，没有创建 R10 upgrade transaction，没有停止服务、加载目标 Manager、修改数据库/F4/runtime，也没有访问板卡。R1 T1 staging 仅为 bounded filesystem staging，当前保留作历史证据。R2 exact source head=`4a8c2a62be74ec5c9740d37946e770d9464b6cb3`，PR #718 current-head CI 全部 SUCCESS；R2 package workflow run `40641242797` 已完成 source-contract/build-candidate/redownload-verify PASS，artifact ID=`12795906971`。R2 尚未 Mac local verify / T1 staging / live authorization。Authority: `docs/development/N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_T1_CANDIDATE_R2_PRELIVE_NEW_CHAT_HANDOFF_V1.0_20261028.md`.
+
 ### 2026-10-24 KF-130 — post-reboot readiness 未等待 Home Assistant MQTT 会话导致 false FAIL
 
 | ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
