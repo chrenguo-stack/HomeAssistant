@@ -86,6 +86,36 @@ def test_r10_candidate_selection_is_not_registration_start() -> None:
     assert "RegistrationPortalStage::SELECTED_PENDING_BOOTSTRAP" in take_selected
 
 
+def test_r10_duplicate_phone_actions_do_not_overwrite_active_state() -> None:
+    portal = text(PORTAL_CPP)
+    html = portal_html()
+
+    confirm = function_block(
+        portal,
+        "esp_err_t RegistrationPortal::handle_confirm_",
+        "esp_err_t RegistrationPortal::handle_begin_",
+    )
+    begin = function_block(
+        portal,
+        "esp_err_t RegistrationPortal::handle_begin_",
+        "esp_err_t RegistrationPortal::handle_retry_",
+    )
+
+    assert "selected_candidate_id_ == candidate_id" in confirm
+    assert '"reason\\":\\"selection_not_ready\\"' in confirm
+    assert "candidate_stale_event_pending_.store" in confirm
+
+    assert "bool already_started = false;" in begin
+    assert "RegistrationPortalStage::SELECTED_PENDING_BOOTSTRAP" in begin
+    assert "already_started = true;" in begin
+    assert '"reason\\":\\"registration_in_progress\\"' in begin
+
+    assert 'result.body.reason === "registration_in_progress"' in html
+    assert 'result.body.reason === "selection_not_ready"' in html
+    assert '"正在读取当前注册状态"' in html
+    assert "pollSoon" in html
+
+
 def test_r10_phone_page_has_no_user_cancel_path() -> None:
     html = portal_html()
     portal = text(PORTAL_CPP) + "\n" + text(PORTAL_H)
