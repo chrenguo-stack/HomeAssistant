@@ -290,3 +290,43 @@ The next gate may add a repository-owned read-only executor and CI only.
 It may access the T1 only read-only after source/CI closure.
 
 It may not stop services, load images, install files, generate registration TLS, modify firewall/systemd/Compose, mutate SQLite, access the board, or consume the existing R10 board write authorization.
+
+
+## 14. Live F4 services-unit false-STOP repair
+
+The first candidate-upgrade read-only preflight stopped only on:
+
+```text
+file:services_unit_drift
+```
+
+Private evidence then proved:
+
+```text
+LIVE_INSTALLED_SERVICES_UNIT_BLOB=e25f4553177c009bbe019c5cd8a9ddd3b0c07e46
+RUNTIME_SOURCE_GENERIC_SERVICES_UNIT_BLOB=b070303a53b16b15aa108d3e9a2e952a7bc02d08
+```
+
+Repository review proved this is the expected production topology for predecessor source `03dab2bd...`:
+
+- `tools/n3w_t1_f4_activation_host.py` installs
+  `infra/n3w-t1/f4/n3wfc4-services-activation.service`
+  to `/etc/systemd/system/n3wfc4-services-activation.service`;
+- that predecessor F4-installed blob is
+  `e25f4553177c009bbe019c5cd8a9ddd3b0c07e46`;
+- the ordinary runtime-source unit remains
+  `infra/n3w-t1/systemd/n3wfc4-services-activation.service`,
+  blob `b070303a53b16b15aa108d3e9a2e952a7bc02d08`.
+
+Therefore the original preflight expectation was wrong; the live T1 did not drift.
+
+The target source `e299c937...` must preserve the same distinction:
+
+```text
+TARGET_INSTALLED_F4_SERVICES_UNIT_BLOB=3485b6c2f9341fda2fcbd2c82c83077ad78cf42c
+TARGET_RUNTIME_GENERIC_SERVICES_UNIT_BLOB=ee7c4151e79368e6daca5d6bd1359a846397fc95
+```
+
+The installed F4 unit retains the F4 eligibility precheck and adds the registration-ingress-guard dependency. The upgrade design must not replace it with the ordinary generic unit.
+
+This repair is executor/test/docs only. No T1 mutation occurred.
