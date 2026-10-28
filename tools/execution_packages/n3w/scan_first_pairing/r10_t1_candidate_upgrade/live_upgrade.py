@@ -36,6 +36,7 @@ BROKER_DYNSEC = Path("/var/lib/n3wfc4-broker/dynamic-security.json")
 
 SERVICES_UNIT = "n3wfc4-services-activation.service"
 BROKER_UNIT = "n3wfc4-broker-activation.service"
+BROKER_GUARD_UNIT = "n3wfc4-broker-ingress-guard.service"
 REGISTRATION_UNIT = "n3wfc4-registration-ingress-guard.service"
 
 COMPOSE_ENV = Path("/etc/n3wfc4/docker-compose.env")
@@ -697,8 +698,14 @@ def verify_prestate(
 
     services = service_state(SERVICES_UNIT)
     broker_service = service_state(BROKER_UNIT)
+    broker_guard = service_state(BROKER_GUARD_UNIT)
     if services["active"] != "active" or broker_service["active"] != "active":
         raise UpgradeError("production_service_prestate_invalid")
+    if (
+        broker_guard["active"] != "active"
+        or broker_guard["load"] != "loaded"
+    ):
+        raise UpgradeError("broker_ingress_guard_prestate_invalid")
 
     broker_doc = container("broker")
     manager_doc = container("manager")
