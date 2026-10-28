@@ -1,3 +1,21 @@
+## 2026-10-28 — R10 T1 candidate production-software upgrade exact artifact frozen
+
+~~~text
+PACKAGE_SOURCE_FREEZE=PASS
+EXACT_ARTIFACT_FREEZE=PASS
+REDOWNLOAD_VERIFY=PASS
+PACKAGE_HEAD=81546685bbb7d9d6aad9cf574d871277ca4b44b1
+ARTIFACT_ID=12792592683
+ARTIFACT_DIGEST=sha256:e4f236387c67a2ac88623bb2166201fcc44589dc99504aded4b9df688ad5dc9c
+MANIFEST_SHA256=4c9eca65c535cc7c5fd1f48891844f381338719d2d422d0f5464cc8f7a660664
+LIVE_T1_UPGRADE=NOT_STARTED
+T1_MUTATION=false
+UPGRADE_AUTHORIZATION_CONSUMED=false
+NEXT_ONE_GATE=N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_T1_CANDIDATE_LIVE_UPGRADE_PREEXECUTION_AND_AUTHORIZATION_20261028_01
+~~~
+
+PR #715 is intentionally frozen at the exact package head. Detailed authority and expiry/rollback rules are recorded in `docs/development/N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_T1_CANDIDATE_UPGRADE_ARTIFACT_FREEZE_CLOSURE_20261028.md`.
+
 ## 2026-10-28 — R10 physical acceptance design/read-only preflight
 
 R10 design/repository/artifact preflight is complete on the stacked docs branch. Fresh rebind kept main at `2fbd0e9c2d3bf8a513ac318034e249511ffb6a2e`; PR #705-#710 remain open Draft/unmerged. R9 source `e299c937...`, workflow head `d6c3e094...` and artifact 12783234959 remain exact and available.
