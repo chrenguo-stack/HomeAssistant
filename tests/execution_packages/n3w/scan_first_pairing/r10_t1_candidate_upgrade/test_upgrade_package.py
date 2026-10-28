@@ -45,7 +45,7 @@ def materialize_source_roots(tmp_path: Path) -> tuple[Path, Path]:
     target = tmp_path / "target"
     old.mkdir()
     target.mkdir()
-    for group in (builder.LIVE_FILES, builder.SOURCE_OVERLAY):
+    for group in (builder.LIVE_FILES,):
         for spec in group.values():
             old_rel = spec.get("predecessor_source")
             target_rel = spec["target_source"]
@@ -76,10 +76,7 @@ def test_package_scope_is_manager_only_and_preserves_f4_launcher() -> None:
     } == {"compose", "services_unit", "dispatcher"}
     all_targets = {
         value["target"]
-        for value in (
-            *builder.LIVE_FILES.values(),
-            *builder.SOURCE_OVERLAY.values(),
-        )
+        for value in builder.LIVE_FILES.values()
     }
     assert "/usr/local/sbin/n3w-t1-f4-activation" not in all_targets
     assert (
@@ -475,3 +472,17 @@ def test_broker_dynsec_is_readonly_continuity_authority() -> None:
     assert "atomic_write_bytes(\n        BROKER_DYNSEC" not in source
     assert "shutil.copyfile(\n        BROKER_DYNSEC" not in source
     assert "BROKER_DYNSEC.unlink" not in source
+
+
+def test_historical_opt_homeassistant_tree_is_not_a_live_upgrade_target() -> None:
+    targets = {
+        str(record["target"])
+        for record in builder.LIVE_FILES.values()
+    }
+    assert all(
+        not target.startswith("/opt/HomeAssistant/")
+        for target in targets
+    )
+    source = EXECUTOR_PATH.read_text(encoding="utf-8")
+    assert "source_overlay" not in source
+    assert 'Path("/opt/HomeAssistant")' not in source
