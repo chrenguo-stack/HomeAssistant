@@ -127,6 +127,11 @@ def test_readonly_t1_probe_forbids_mutating_operations() -> None:
     assert 'greenhouse-manager-pairing", "window-status"' in probe
 
 
+def test_t1_ssh_requires_pretrusted_host_key() -> None:
+    source = MODULE_PATH.read_text(encoding="utf-8")
+    assert '"StrictHostKeyChecking=yes"' in source
+
+
 def test_t1_happy_path_passes() -> None:
     assert module.accept_t1(good_t1()) == []
 
