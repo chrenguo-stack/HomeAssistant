@@ -429,3 +429,62 @@ R10_BOARD_WRITE_AUTHORIZATION_CONSUMED=false
 4. build and independently re-download/verify the exact artifact;
 5. freeze artifact ID/digest/member hashes and exact package head;
 6. stop before T1 mutation.
+
+
+## 12A. Package transport and staging
+
+The frozen package is built in GitHub Actions, but the live T1 must not depend on reaching GitHub directly.
+
+The later live gate uses:
+
+```text
+GitHub exact artifact
+-> Mac download
+-> verify GitHub artifact digest + exact manifest SHA-256
+-> direct-LAN transfer to a dedicated T1 staging directory
+-> T1 local package/member verification
+-> fresh live predecessor/capacity preclaim
+-> explicit one-shot live authorization claim
+```
+
+Package transfer/staging writes T1 storage and is therefore part of the later live-mutation authorization. It is not executed in this package-freeze gate.
+
+No live executor is allowed to fetch mutable source or a mutable image tag from the internet.
+
+## 12B. Historical release and predecessor-image retention
+
+The upgrade intentionally preserves the original per-device production source tree and fresh-release/image-lock history under `/opt/HomeAssistant`.
+
+The predecessor Manager image must also remain present after a successful R10 candidate upgrade. The preserved historical `n3w-t1-provision verify` path still validates the original release image set before F4 services eligibility.
+
+```text
+PREDECESSOR_MANAGER_IMAGE_DELETE_ON_SUCCESS=false
+OLD_RELEASE_HISTORY_REWRITTEN=false
+OPT_HOMEASSISTANT_MUTATION=false
+```
+
+The candidate Manager becomes the running Manager through the existing Compose env image selector, while the original release image remains local as historical lifecycle authority and rollback material.
+
+## 12C. Final live-material and quiescence checks
+
+Successor postcheck re-hashes every live file installed by this upgrade after Manager/Home Assistant have started:
+
+- production Compose;
+- F4 services activation unit;
+- NetworkManager dispatcher;
+- registration ingress guard unit;
+- registration ingress guard executable;
+- trusted-product-LAN authority executable.
+
+Each must match manifest SHA/size/mode and root ownership.
+
+Registration TLS metadata is separately rechecked.
+
+Before quiescent Manager state backup, and before any rollback state restore, the executor requires:
+
+```text
+RUNNING_MANAGER_CONTAINER_COUNT=0
+RUNNING_HOMEASSISTANT_CONTAINER_COUNT=0
+```
+
+If rollback cannot prove this quiescent state, it stops as `ROLLBACK_FAILED` before restoring Manager databases, F4 transaction or predecessor configuration.
