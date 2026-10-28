@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 import stat
+import tarfile
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -117,6 +118,72 @@ def sha256_file(path: Path) -> str:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def _manager_archive_identity(path: Path) -> dict[str, str]:
+    try:
+        with tarfile.open(path, "r:*") as archive:
+            docker_stream = archive.extractfile("manifest.json")
+            index_stream = archive.extractfile("index.json")
+            if docker_stream is None or index_stream is None:
+                raise PackageError("manager_archive_identity_missing")
+            docker_manifest = json.loads(
+                docker_stream.read().decode("utf-8")
+            )
+            index = json.loads(index_stream.read().decode("utf-8"))
+            if (
+                not isinstance(docker_manifest, list)
+                or len(docker_manifest) != 1
+                or not isinstance(docker_manifest[0], dict)
+                or not isinstance(index, dict)
+                or not isinstance(index.get("manifests"), list)
+                or len(index["manifests"]) != 1
+                or not isinstance(index["manifests"][0], dict)
+            ):
+                raise PackageError("manager_archive_identity_invalid")
+            config_path = str(docker_manifest[0].get("Config", ""))
+            config_prefix = "blobs/sha256/"
+            if not config_path.startswith(config_prefix):
+                raise PackageError("manager_archive_config_path_invalid")
+            config_hex = config_path[len(config_prefix):]
+            descriptor_digest = str(
+                index["manifests"][0].get("digest", "")
+            )
+            if (
+                len(config_hex) != 64
+                or any(c not in "0123456789abcdef" for c in config_hex)
+                or not descriptor_digest.startswith("sha256:")
+                or len(descriptor_digest) != 71
+            ):
+                raise PackageError("manager_archive_digest_invalid")
+            manifest_hex = descriptor_digest.removeprefix("sha256:")
+            if any(c not in "0123456789abcdef" for c in manifest_hex):
+                raise PackageError("manager_archive_digest_invalid")
+            config_stream = archive.extractfile(config_path)
+            manifest_path = f"blobs/sha256/{manifest_hex}"
+            manifest_stream = archive.extractfile(manifest_path)
+            if config_stream is None or manifest_stream is None:
+                raise PackageError("manager_archive_digest_member_missing")
+            config_bytes = config_stream.read()
+            manifest_bytes = manifest_stream.read()
+            if (
+                hashlib.sha256(config_bytes).hexdigest() != config_hex
+                or hashlib.sha256(manifest_bytes).hexdigest()
+                != manifest_hex
+            ):
+                raise PackageError("manager_archive_digest_binding_invalid")
+            tags = docker_manifest[0].get("RepoTags")
+            if (
+                not isinstance(tags, list)
+                or TARGET_MANAGER_IMAGE not in tags
+            ):
+                raise PackageError("manager_archive_tag_binding_invalid")
+            return {
+                "config_digest": f"sha256:{config_hex}",
+                "manifest_digest": descriptor_digest,
+            }
+    except (OSError, UnicodeError, json.JSONDecodeError, tarfile.TarError) as error:
+        raise PackageError("manager_archive_identity_unreadable") from error
 
 
 def _regular(root: Path, relative: str) -> Path:
@@ -265,6 +332,7 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
     artifact_manager = output / "greenhouse-manager-arm64.tar"
     shutil.copyfile(manager_tar, artifact_manager)
     os.chmod(artifact_manager, 0o644)
+    manager_archive_identity = _manager_archive_identity(artifact_manager)
 
     artifact_executor = output / "upgrade-executor.py"
     shutil.copyfile(executor, artifact_executor)
@@ -298,6 +366,13 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
             "tar_sha256": sha256_file(artifact_manager),
             "tar_size_bytes": manager_tar_size,
             "image_id": args.manager_image_id,
+            "image_id_portable_authority": False,
+            "archive_config_digest": (
+                manager_archive_identity["config_digest"]
+            ),
+            "archive_manifest_digest": (
+                manager_archive_identity["manifest_digest"]
+            ),
             "image_size_bytes": args.manager_image_size_bytes,
             "platform": "linux/arm64",
             "source_dockerfile_git_blob": (
@@ -408,6 +483,15 @@ def verify(root: Path) -> dict[str, Any]:
         or manager_path.stat().st_size != manager["tar_size_bytes"]
     ):
         raise PackageError("manager_tar_binding_invalid")
+    manager_archive_identity = _manager_archive_identity(manager_path)
+    if (
+        manager.get("image_id_portable_authority") is not False
+        or manager.get("archive_config_digest")
+        != manager_archive_identity["config_digest"]
+        or manager.get("archive_manifest_digest")
+        != manager_archive_identity["manifest_digest"]
+    ):
+        raise PackageError("manager_archive_identity_binding_invalid")
 
     distributions = manager.get("python_distributions")
     if not isinstance(distributions, dict):
