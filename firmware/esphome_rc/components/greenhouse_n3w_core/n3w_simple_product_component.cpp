@@ -994,10 +994,9 @@ void SimpleProductComponent::advance_registration_bootstrap_() {
     return;
   }
   if (result == SimplePairingClientError::HTTP_FAILED) {
-    show_registration_error_(RegistrationDisplayError::E04_NETWORK_INTERRUPTED);
     ESP_LOGD(
         TAG,
-        "R6 pairing transaction waiting code=%u",
+        "R6 pairing transaction waiting after transient HTTP failure code=%u",
         static_cast<unsigned>(result));
     return;
   }
@@ -1059,9 +1058,8 @@ void SimpleProductComponent::advance_pairing_() {
   }
   ESP_LOGW(
       TAG,
-      "Simplified pairing attempt failed code=%u",
+      "Simplified pairing recovery still unresolved code=%u",
       static_cast<unsigned>(result));
-  show_registration_error_(RegistrationDisplayError::E06_REGISTRATION_FAILED);
 }
 
 void SimpleProductComponent::advance_recovery_() {
