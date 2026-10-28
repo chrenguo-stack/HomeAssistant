@@ -224,6 +224,20 @@ Home Assistant data is not rolled back because the HA image/config are unchanged
 
 Broker data/image/config are not mutated.
 
+### Broker DynSec continuity
+
+The live Broker remains running for the entire upgrade. Its durable Dynamic Security authority is:
+
+```text
+/var/lib/n3wfc4-broker/dynamic-security.json
+```
+
+The executor records its pre-upgrade SHA-256 and requires the same SHA-256 after target postcheck and after any rollback.
+
+The upgrade executor never writes, replaces or restores this live DynSec pathname. This is deliberate: the running Broker owns the live bind-mounted file, and replacing the host pathname while it is running can create pathname/inode authority ambiguity.
+
+If DynSec changes unexpectedly, the upgrade or rollback is not allowed to claim PASS; it stops as an unproven state requiring higher-level recovery.
+
 ## 7. Mutation order
 
 The later live executor uses this order:
@@ -258,6 +272,7 @@ PASS requires:
 TARGET_MANAGER_IMAGE_RUNNING=true
 BROKER_IMAGE_UNCHANGED=true
 BROKER_CONTAINER_CONTINUITY=true
+BROKER_DYNSEC_SHA_UNCHANGED=true
 HOMEASSISTANT_IMAGE_UNCHANGED=true
 REGISTRATION_GUARD_ACTIVE=true
 REGISTRATION_GUARD_ENABLED=true
