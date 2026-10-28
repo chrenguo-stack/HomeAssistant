@@ -203,6 +203,22 @@ def atomic_write_bytes(
             temporary.unlink(missing_ok=True)
 
 
+def fsync_file(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def fsync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
 def atomic_write_json(
     path: Path,
     document: dict[str, Any],
@@ -646,6 +662,15 @@ def verify_prestate(
     package_root: Path,
     manifest: dict[str, Any],
 ) -> dict[str, Any]:
+    if PROVISION_ROOT.is_symlink() or not PROVISION_ROOT.is_dir():
+        raise UpgradeError("provision_root_invalid")
+    provision_meta = PROVISION_ROOT.stat()
+    if (
+        provision_meta.st_uid != 0
+        or provision_meta.st_gid != 0
+        or stat.S_IMODE(provision_meta.st_mode) != 0o700
+    ):
+        raise UpgradeError("provision_root_metadata_invalid")
     if (
         UPGRADE_TRANSACTION.exists()
         or UPGRADE_TRANSACTION.is_symlink()
@@ -887,8 +912,15 @@ def backup_file(path: Path, backup_root: Path, key: str) -> dict[str, Any]:
         if path.is_symlink() or not path.is_file():
             raise UpgradeError(f"backup_source_invalid:{path}")
         metadata = path.stat()
-        shutil.copyfile(path, target)
-        os.chmod(target, 0o600)
+        atomic_write_bytes(
+            target,
+            path.read_bytes(),
+            mode=0o600,
+            uid=0,
+            gid=0,
+        )
+        if sha256_file(target) != sha256_file(path):
+            raise UpgradeError(f"backup_copy_verify_failed:{path}")
         return {
             "present": True,
             "path": str(path),
@@ -929,15 +961,25 @@ def static_backup(
             index += 1
     firewall = run(("iptables-save", "-t", "filter"), timeout=20)
     firewall_path = root / "iptables-filter-prestate.txt"
-    firewall_path.write_text(firewall, encoding="utf-8")
-    os.chmod(firewall_path, 0o600)
+    atomic_write_bytes(
+        firewall_path,
+        firewall.encode("utf-8"),
+        mode=0o600,
+        uid=0,
+        gid=0,
+    )
     records["firewall_sha256"] = sha256_file(firewall_path)
     record_path = root / "index.json"
-    record_path.write_text(
-        json.dumps(records, sort_keys=True, indent=2) + "\n",
-        encoding="utf-8",
+    atomic_write_bytes(
+        record_path,
+        (
+            json.dumps(records, sort_keys=True, indent=2) + "\n"
+        ).encode("utf-8"),
+        mode=0o600,
+        uid=0,
+        gid=0,
     )
-    os.chmod(record_path, 0o600)
+    fsync_directory(root)
     return records
 
 
@@ -1143,6 +1185,8 @@ def manager_state_backup(workspace: Path) -> Path:
     os.chmod(target, 0o600)
     if not target.is_file() or target.stat().st_size == 0:
         raise UpgradeError("manager_state_backup_invalid")
+    fsync_file(target)
+    fsync_directory(workspace)
     return target
 
 
@@ -1309,6 +1353,7 @@ print(json.dumps({
 
 def strict_postcheck(
     prestate: dict[str, Any],
+    manifest: dict[str, Any],
 ) -> dict[str, Any]:
     if service_state(SERVICES_UNIT)["active"] != "active":
         raise UpgradeError("services_not_active_postupgrade")
@@ -1333,7 +1378,11 @@ def strict_postcheck(
         or broker["restart_count"] != prestate["broker"]["restart_count"]
     ):
         raise UpgradeError("broker_continuity_failed")
-    if manager["image"] != TARGET_MANAGER_IMAGE or not manager["running"]:
+    if (
+        manager["image"] != TARGET_MANAGER_IMAGE
+        or manager["image_id"] != manifest["manager"]["image_id"]
+        or not manager["running"]
+    ):
         raise UpgradeError("target_manager_not_running")
     if (
         homeassistant["image"] != prestate["homeassistant"]["image"]
@@ -1532,6 +1581,20 @@ def rollback(
             timeout=120,
             allowed=frozenset({0, 1}),
         )
+        leftover = run(
+            (
+                "docker",
+                "image",
+                "inspect",
+                "--format",
+                "{{.Id}}",
+                TARGET_MANAGER_IMAGE,
+            ),
+            timeout=30,
+            allowed=frozenset({0, 1}),
+        ).strip()
+        if leftover:
+            raise UpgradeError("target_image_cleanup_incomplete")
     except Exception as error:
         errors.append("target_image_cleanup:" + type(error).__name__)
     if errors:
@@ -1655,7 +1718,7 @@ def execute_apply(
         )
 
         run(("systemctl", "start", SERVICES_UNIT), timeout=300)
-        post = strict_postcheck(prestate)
+        post = strict_postcheck(prestate, manifest)
 
         commit_f4_successor()
         f4_services_eligibility()
