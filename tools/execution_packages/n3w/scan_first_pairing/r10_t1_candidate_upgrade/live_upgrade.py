@@ -438,6 +438,35 @@ def rewrite_manager_image(
     )
 
 
+
+def running_service_count(service: str) -> int:
+    output = run(
+        (
+            "docker",
+            "ps",
+            "--filter",
+            "label=com.docker.compose.project=n3wfc4",
+            "--filter",
+            f"label=com.docker.compose.service={service}",
+            "-q",
+        ),
+        timeout=30,
+    )
+    return len(
+        [line for line in output.splitlines() if line.strip()]
+    )
+
+
+def require_application_quiescent() -> None:
+    manager_count = running_service_count("manager")
+    homeassistant_count = running_service_count("homeassistant")
+    if manager_count != 0 or homeassistant_count != 0:
+        raise UpgradeError(
+            "application_not_quiescent:"
+            f"manager={manager_count},homeassistant={homeassistant_count}"
+        )
+
+
 def container(service: str, *, running_only: bool = True) -> dict[str, Any]:
     command = [
         "docker",
@@ -1811,6 +1840,7 @@ def execute_apply(
         broker_after = container_public_snapshot(container("broker"))
         if broker_before != broker_after:
             raise UpgradeError("broker_changed_during_services_stop")
+        require_application_quiescent()
 
         manager_archive = manager_state_backup(workspace)
         if shutil.disk_usage("/").free < (
