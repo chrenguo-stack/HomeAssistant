@@ -32,8 +32,15 @@ def failed_transaction(workspace_path: Path) -> dict:
         "current_registration_count": 1,
         "package_head": tool.FAILED_HEAD,
         "package_manifest_sha256": tool.FAILED_MANIFEST_SHA256,
-        "phase": "ROLLBACK_FAILED",
+        "predecessor_source": "03dab2bd04e7e8cb71faa1bd13a027ace8cecdf6",
+        "target_source": "e299c937a7b89bb8a7b9a7432186ba46a416cd44",
         "predecessor_f4_transaction_sha256": tool.EXPECTED_F4_SHA256,
+        "predecessor_f4_installed_files_sha256": (
+            "66f8c89a10363fbf12cbd711f26257dd7cfacdfc178e7f0b4de229ba573f21a5"
+        ),
+        "current_registration_count": 1,
+        "static_backup_complete": True,
+        "phase": "ROLLBACK_FAILED",
         "predecessor_manager_image": tool.PREDECESSOR_MANAGER_IMAGE,
         "replay_allowed": False,
         "rollback_completed": False,
