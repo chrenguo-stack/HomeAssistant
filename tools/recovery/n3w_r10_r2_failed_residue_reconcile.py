@@ -294,7 +294,18 @@ def validate_workspace() -> dict[str, Any]:
             if not isinstance(backup, str) or not isinstance(binding, dict):
                 raise ReconcileError("workspace_live_binding_invalid")
             backup_path = FAILED_WORKSPACE_PATH / "static" / backup
-            if _binding(backup_path) != binding or _binding(target) != binding:
+            backup_binding = _binding(backup_path)
+            if (
+                backup_binding["sha256"] != binding.get("sha256")
+                or backup_binding["size"] != binding.get("size")
+                or backup_binding["mode"] != 0o600
+                or backup_binding["uid"] != 0
+                or backup_binding["gid"] != 0
+            ):
+                raise ReconcileError(
+                    f"workspace_backup_copy_invalid:{target}"
+                )
+            if _binding(target) != binding:
                 raise ReconcileError(
                     f"current_static_not_predecessor_exact:{target}"
                 )
