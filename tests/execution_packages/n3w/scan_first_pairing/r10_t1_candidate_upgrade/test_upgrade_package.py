@@ -92,6 +92,11 @@ def test_builder_creates_exact_small_scope_package(tmp_path: Path) -> None:
     old, target = materialize_source_roots(tmp_path)
     manager_tar = write(tmp_path, "manager.tar", b"manager-image")
     live_executor = write(tmp_path, "executor.py", b"#!/usr/bin/python3\n")
+    distributions = write(
+        tmp_path,
+        "distributions.json",
+        b'[{"name":"greenhouse-manager","version":"0.4.99"}]\n',
+    )
     output = tmp_path / "package"
 
     args = type(
@@ -112,12 +117,15 @@ def test_builder_creates_exact_small_scope_package(tmp_path: Path) -> None:
             "base_arm64_digest": "sha256:" + "2" * 64,
             "base_image_id": "sha256:" + "3" * 64,
             "executor": str(live_executor),
+            "python_distributions": str(distributions),
         },
     )()
     manifest = builder.build(args)
     assert manifest["policy"]["homeassistant_image_included"] is False
     assert manifest["policy"]["broker_image_included"] is False
     assert manifest["manager"]["historical_byte_continuity_claimed"] is False
+    assert manifest["manager"]["future_rebuild_byte_identity_claimed"] is False
+    assert manifest["manager"]["python_distributions"]["count"] == 1
     assert manifest["capacity"]["upgrade_emergency_reserve_bytes"] == 2 * 1024**3
     verified = builder.verify(output)
     assert verified["target_source"] == builder.TARGET_SOURCE
@@ -127,6 +135,11 @@ def test_builder_rejects_extra_member(tmp_path: Path) -> None:
     old, target = materialize_source_roots(tmp_path)
     manager_tar = write(tmp_path, "manager.tar", b"manager-image")
     live_executor = write(tmp_path, "executor.py", b"x")
+    distributions = write(
+        tmp_path,
+        "distributions.json",
+        b'[{"name":"greenhouse-manager","version":"0.4.99"}]\n',
+    )
     output = tmp_path / "package"
     args = type(
         "Args",
@@ -146,6 +159,7 @@ def test_builder_rejects_extra_member(tmp_path: Path) -> None:
             "base_arm64_digest": "sha256:" + "2" * 64,
             "base_image_id": "sha256:" + "3" * 64,
             "executor": str(live_executor),
+            "python_distributions": str(distributions),
         },
     )()
     builder.build(args)
