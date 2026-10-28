@@ -1,3 +1,17 @@
+### 2026-10-28 KF-132 — R10 / OTA 把 CI Docker runtime image ID 误当作跨主机可移植 artifact identity
+
+| ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
+|---|---|---|---|---|---|
+| KF-132 | R10 T1 candidate live upgrade / future OTA image identity + rollback evidence | R2 exact artifact 在真实 T1 上成功加载 target Manager 后，executor 仍在 `CANDIDATE_STAGED` 之前失败并进入 rollback；transaction 最终为 `STOP_PARTIAL / rollback_unproven`。artifact 内 OCI config digest=`94db48...`、OCI manifest digest=`9b5b3d...`；CI 的 `docker image inspect .Id` 冻结为前者，而 T1 Docker event 对同一 exact target tag 的 Actor.ID 报告后者。rollback 后 predecessor runtime 实际恢复，firewall exact diff 仅剩 `iptables-save` 时间戳与 live INPUT counter 变化，但原始 apply error 被 rollback error 覆盖 | R2 将某一 CI Docker engine/image-store 暴露的 runtime `.Id` 当成跨主机唯一 portable image identity；同时 rollback 在自身失败时没有 durable 保留原始 apply failure。另有 registration firewall cleanup 未与 registration guard 共用 lock，NetworkManager dispatcher 可能在 unit disable 后再次 reload-or-restart，形成 rollback race | OTA/host-upgrade 长期 guard：**artifact identity 与 runtime engine identity 分离**。package 直接从 exact image tar/OCI archive 冻结并校验 config digest + manifest digest；CI runtime `.Id` 仅作本地观测，不作为 portable authority；target runtime ID 只能匹配 exact artifact 派生的允许集合。rollback 必须先 durable 记录 apply_error/failure_phase，再记录 rollback error；firewall cleanup 与 guard 共用 lock；dispatcher 不得 restart disabled registration unit。详见 `docs/development/N3W_OTA_IMAGE_IDENTITY_AND_ROLLBACK_PORTABILITY_GUARD_20261028.md` 与 PR #720 | OPEN_R3_SOURCE_REPAIR_AND_EXACT_ARTIFACT_REVALIDATION |
+
+**OTA 长期红线：**
+
+`ARTIFACT_IDENTITY != RUNTIME_ENGINE_IDENTITY`
+
+`ROLLBACK_ERROR MUST NOT ERASE APPLY_ERROR`
+
+任何后续 T1/容器/主机 OTA 在设计阶段必须先检查 KF-132；不得再次假设 `docker image inspect .Id` 在 CI 与目标设备、不同 Docker 版本或不同 image-store 实现之间保持同一语义。
+
 ### 2026-10-28 KF-131 — R10 T1 candidate preclaim 把不存在的目标 Manager 镜像误判为已存在
 
 | ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
