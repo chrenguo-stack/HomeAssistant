@@ -465,6 +465,7 @@ def t1_probe(target: str) -> dict[str, Any]:
     argv = (
         "ssh",
         "-o", "BatchMode=no",
+        "-o", "StrictHostKeyChecking=yes",
         "-o", "NumberOfPasswordPrompts=1",
         "-o", "PreferredAuthentications=publickey,password",
         "-o", "ConnectTimeout=10",
