@@ -123,8 +123,8 @@ jobs:
           export GH_N3W_PAIRING_MANAGER_ID=ghm_dummy
           export GH_N3W_PROVISIONING_USERNAME=dummy
           export GH_N3W_PROVISIONING_CLIENT_ID=dummy
-          docker compose -f "$WORK/predecessor/infra/n3w-t1/production/docker-compose.fresh.yml" --profile "*" config --format json > "$WORK/compose-old.json"
-          docker compose -f "$WORK/target/infra/n3w-t1/production/docker-compose.fresh.yml" --profile "*" config --format json > "$WORK/compose-target.json"
+          docker compose --project-name n3wfc4 -f "$WORK/predecessor/infra/n3w-t1/production/docker-compose.fresh.yml" --profile "*" config --format json > "$WORK/compose-old.json"
+          docker compose --project-name n3wfc4 -f "$WORK/target/infra/n3w-t1/production/docker-compose.fresh.yml" --profile "*" config --format json > "$WORK/compose-target.json"
           python - "$WORK/compose-old.json" "$WORK/compose-target.json" <<'PY'
           import json,sys
           old=json.load(open(sys.argv[1],encoding="utf-8"))
