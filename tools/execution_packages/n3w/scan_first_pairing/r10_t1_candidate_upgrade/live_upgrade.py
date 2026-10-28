@@ -1575,10 +1575,13 @@ def rollback(
     except Exception as error:
         errors.append("firewall:" + type(error).__name__)
     try:
+        staged_tls = workspace / "registration-tls"
+        if staged_tls.exists():
+            shutil.rmtree(staged_tls)
         if TRUSTED_LAN_RUNTIME.exists():
             shutil.rmtree(TRUSTED_LAN_RUNTIME)
     except Exception as error:
-        errors.append("trusted_lan:" + type(error).__name__)
+        errors.append("transient_state:" + type(error).__name__)
     try:
         if manager_archive is not None:
             restore_manager_state(manager_archive)
@@ -1598,6 +1601,13 @@ def rollback(
     except Exception as error:
         errors.append("daemon_reload:" + type(error).__name__)
     try:
+        if (
+            not F4_TRANSACTION.is_file()
+            or F4_TRANSACTION.is_symlink()
+            or sha256_file(F4_TRANSACTION)
+            != prestate["f4_transaction_sha256"]
+        ):
+            raise UpgradeError("rollback_f4_transaction_not_exact")
         run(("systemctl", "start", SERVICES_UNIT), timeout=240)
         verify_predecessor_runtime(prestate)
     except Exception as error:
@@ -1714,6 +1724,8 @@ def execute_apply(
             target=TARGET_MANAGER_IMAGE,
         )
         install_registration_tls(tls_stage)
+        shutil.rmtree(tls_stage)
+        fsync_directory(workspace)
         run(("systemctl", "daemon-reload"), timeout=60)
         run(
             ("systemctl", "enable", REGISTRATION_UNIT),
