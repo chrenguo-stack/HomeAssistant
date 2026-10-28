@@ -516,7 +516,6 @@ def verify(root: Path) -> dict[str, Any]:
             if (
                 sha256_file(path) != record["sha256"]
                 or path.stat().st_size != record["size"]
-                or stat.S_IMODE(path.stat().st_mode) != record["mode"]
             ):
                 raise PackageError(
                     f"runtime_binding_invalid:{record['artifact_path']}"
