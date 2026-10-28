@@ -460,6 +460,16 @@ def test_strict_postcheck_requires_manifest_image_id(
         lambda _u: {"active": "active", "enabled": "enabled", "load": "loaded"},
     )
     monkeypatch.setattr(executor, "container", lambda service: docs[service])
+    monkeypatch.setattr(
+        executor,
+        "verify_successor_live_files",
+        lambda _manifest: None,
+    )
+    monkeypatch.setattr(
+        executor,
+        "verify_registration_tls_material",
+        lambda: None,
+    )
     with pytest.raises(executor.UpgradeError, match="target_manager_not_running"):
         executor.strict_postcheck(
             prestate,
