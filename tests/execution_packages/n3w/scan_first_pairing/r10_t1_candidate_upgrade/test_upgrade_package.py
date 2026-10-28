@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
+import io
 import json
 import os
 import stat
+import tarfile
 from pathlib import Path
 
 import pytest
@@ -18,6 +21,11 @@ EXECUTOR_PATH = (
     ROOT
     / "tools/execution_packages/n3w/scan_first_pairing/"
       "r10_t1_candidate_upgrade/live_upgrade.py"
+)
+DISPATCHER_PATH = (
+    ROOT
+    / "infra/n3w-t1/NetworkManager/dispatcher.d/"
+      "90-n3wfc4-broker-ingress-guard"
 )
 
 
@@ -37,6 +45,71 @@ def write(root: Path, relative: str, payload: bytes = b"x\n") -> Path:
     path = root / relative
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(payload)
+    return path
+
+
+def manager_archive(tmp_path: Path) -> Path:
+    config_bytes = b'{"architecture":"arm64","os":"linux"}\n'
+    config_hex = hashlib.sha256(config_bytes).hexdigest()
+    oci_manifest_bytes = (
+        json.dumps(
+            {
+                "schemaVersion": 2,
+                "config": {
+                    "mediaType": "application/vnd.oci.image.config.v1+json",
+                    "digest": "sha256:" + config_hex,
+                    "size": len(config_bytes),
+                },
+                "layers": [],
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        + "\n"
+    ).encode("utf-8")
+    manifest_hex = hashlib.sha256(oci_manifest_bytes).hexdigest()
+    docker_manifest = (
+        json.dumps(
+            [
+                {
+                    "Config": "blobs/sha256/" + config_hex,
+                    "RepoTags": [builder.TARGET_MANAGER_IMAGE],
+                    "Layers": [],
+                }
+            ],
+            separators=(",", ":"),
+        )
+        + "\n"
+    ).encode("utf-8")
+    index = (
+        json.dumps(
+            {
+                "schemaVersion": 2,
+                "mediaType": "application/vnd.oci.image.index.v1+json",
+                "manifests": [
+                    {
+                        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                        "digest": "sha256:" + manifest_hex,
+                        "size": len(oci_manifest_bytes),
+                    }
+                ],
+            },
+            separators=(",", ":"),
+        )
+        + "\n"
+    ).encode("utf-8")
+
+    path = tmp_path / "manager.tar"
+    with tarfile.open(path, "w") as archive:
+        for name, payload in (
+            ("manifest.json", docker_manifest),
+            ("index.json", index),
+            ("blobs/sha256/" + config_hex, config_bytes),
+            ("blobs/sha256/" + manifest_hex, oci_manifest_bytes),
+        ):
+            info = tarfile.TarInfo(name)
+            info.size = len(payload)
+            archive.addfile(info, io.BytesIO(payload))
     return path
 
 
@@ -87,7 +160,7 @@ def test_package_scope_is_manager_only_and_preserves_f4_launcher() -> None:
 
 def test_builder_creates_exact_small_scope_package(tmp_path: Path) -> None:
     old, target = materialize_source_roots(tmp_path)
-    manager_tar = write(tmp_path, "manager.tar", b"manager-image")
+    manager_tar = manager_archive(tmp_path)
     live_executor = write(tmp_path, "executor.py", b"#!/usr/bin/python3\n")
     distributions = write(
         tmp_path,
@@ -122,6 +195,13 @@ def test_builder_creates_exact_small_scope_package(tmp_path: Path) -> None:
     assert manifest["policy"]["broker_image_included"] is False
     assert manifest["manager"]["historical_byte_continuity_claimed"] is False
     assert manifest["manager"]["future_rebuild_byte_identity_claimed"] is False
+    assert manifest["manager"]["image_id_portable_authority"] is False
+    assert manifest["manager"]["archive_config_digest"].startswith("sha256:")
+    assert manifest["manager"]["archive_manifest_digest"].startswith("sha256:")
+    assert (
+        manifest["manager"]["archive_config_digest"]
+        != manifest["manager"]["archive_manifest_digest"]
+    )
     assert manifest["manager"]["python_distributions"]["count"] == 1
     assert manifest["capacity"]["upgrade_emergency_reserve_bytes"] == 2 * 1024**3
     verified = builder.verify(output)
@@ -130,7 +210,7 @@ def test_builder_creates_exact_small_scope_package(tmp_path: Path) -> None:
 
 def test_builder_rejects_extra_member(tmp_path: Path) -> None:
     old, target = materialize_source_roots(tmp_path)
-    manager_tar = write(tmp_path, "manager.tar", b"manager-image")
+    manager_tar = manager_archive(tmp_path)
     live_executor = write(tmp_path, "executor.py", b"x")
     distributions = write(
         tmp_path,
@@ -407,6 +487,15 @@ def test_executor_has_no_broker_stop_recreate_or_compose_override() -> None:
     assert "docker system prune" not in source
 
 
+def test_dispatcher_does_not_restart_disabled_registration_guard() -> None:
+    source = DISPATCHER_PATH.read_text(encoding="utf-8")
+    assert (
+        "is-enabled n3wfc4-registration-ingress-guard.service"
+        in source
+    )
+    assert "registration_ready=true" in source
+
+
 def test_authorization_is_one_shot() -> None:
     assert executor.valid_authorization_id(
         "N3W_R10_T1_CANDIDATE_UPGRADE_20261028_01"
@@ -414,7 +503,22 @@ def test_authorization_is_one_shot() -> None:
     assert not executor.valid_authorization_id("N3W_T1_F4_OLD")
 
 
-def test_strict_postcheck_requires_manifest_image_id(
+def test_manager_runtime_identity_accepts_archive_config_or_manifest_digest() -> None:
+    config = "sha256:" + "1" * 64
+    manifest_digest = "sha256:" + "2" * 64
+    manifest = {
+        "manager": {
+            "image_id_portable_authority": False,
+            "archive_config_digest": config,
+            "archive_manifest_digest": manifest_digest,
+        }
+    }
+    assert executor.manager_runtime_image_ids(manifest) == frozenset(
+        {config, manifest_digest}
+    )
+
+
+def test_strict_postcheck_requires_archive_runtime_identity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     prestate = {
@@ -473,7 +577,14 @@ def test_strict_postcheck_requires_manifest_image_id(
     with pytest.raises(executor.UpgradeError, match="target_manager_not_running"):
         executor.strict_postcheck(
             prestate,
-            {"manager": {"image_id": "expected-target-image-id"}},
+            {
+                "manager": {
+                    "image_id": "ci-only-image-id",
+                    "image_id_portable_authority": False,
+                    "archive_config_digest": "sha256:" + "1" * 64,
+                    "archive_manifest_digest": "sha256:" + "2" * 64,
+                }
+            },
         )
 
 
@@ -509,7 +620,7 @@ def test_live_executor_self_binding_matches_packaged_executor(
     tmp_path: Path,
 ) -> None:
     old, target = materialize_source_roots(tmp_path)
-    manager_tar = write(tmp_path, "manager.tar", b"manager-image")
+    manager_tar = manager_archive(tmp_path)
     distributions = write(
         tmp_path,
         "distributions.json",
@@ -684,6 +795,61 @@ def test_rollback_never_restores_state_without_quiescence(
 
     assert restored == []
     assert phases == ["ROLLBACK_FAILED"]
+
+
+def test_execute_apply_preserves_original_error_before_rollback(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    recorded: list[tuple[str, dict]] = []
+    transaction = tmp_path / "transaction.json"
+    transaction.write_text("{}\n", encoding="utf-8")
+    monkeypatch.setattr(executor, "UPGRADE_TRANSACTION", transaction)
+    monkeypatch.setattr(executor, "require_root", lambda: None)
+    monkeypatch.setattr(
+        executor,
+        "validate_package",
+        lambda *_a: {"package_head": "a" * 40},
+    )
+    monkeypatch.setattr(executor, "verify_prestate", lambda *_a: {})
+    monkeypatch.setattr(executor, "claim_upgrade", lambda **_k: {})
+    monkeypatch.setattr(executor, "create_workspace", lambda _a: tmp_path)
+    monkeypatch.setattr(
+        executor,
+        "static_backup",
+        lambda *_a: {"x": {}},
+    )
+    monkeypatch.setattr(
+        executor,
+        "advance_upgrade",
+        lambda phase, **fields: recorded.append((phase, fields)) or {},
+    )
+    monkeypatch.setattr(
+        executor,
+        "load_target_manager",
+        lambda *_a: (_ for _ in ()).throw(
+            executor.UpgradeError("target_image_binding_invalid")
+        ),
+    )
+    monkeypatch.setattr(
+        executor,
+        "rollback",
+        lambda **_k: (_ for _ in ()).throw(
+            executor.UpgradeError("rollback_unproven")
+        ),
+    )
+    with pytest.raises(
+        executor.UpgradeError,
+        match="apply_failed:target_image_binding_invalid;rollback_failed:rollback_unproven",
+    ):
+        executor.execute_apply(
+            package_root=tmp_path,
+            expected_manifest_sha256="f" * 64,
+            authorization_id="N3W_R10_T1_CANDIDATE_UPGRADE_TEST",
+            confirmation=executor.CONFIRMATION,
+        )
+    assert recorded[-1][0] == "ROLLBACK_STARTED"
+    assert recorded[-1][1]["apply_error_reason"] == "target_image_binding_invalid"
 
 
 def test_upgrade_predecessor_service_image_authority() -> None:
