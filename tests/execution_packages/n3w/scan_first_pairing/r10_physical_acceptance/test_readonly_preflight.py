@@ -177,9 +177,14 @@ def test_direct_factory_route_requires_clean_phy_and_r9_app1_source_contract() -
     source = MODULE_PATH.read_text(encoding="utf-8")
     assert "direct_factory_route_eligible = phy_all_ff and app1_matches" in source
     assert "current_partition_table_not_r9_compatible" in source
+    assert module.FACTORY_SIZE == 0x1747B0
+    assert module.FACTORY_ERASE_SPAN == 0x175000
+    assert module.FACTORY_ERASE_SPAN % module.FLASH_SECTOR_SIZE == 0
+    assert module.FACTORY_ERASE_SPAN >= module.FACTORY_SIZE
     assert "app1-full-slot-prewrite.bin" in source
     assert "nvs-prewrite.bin" in source
-    assert "factory-covered-range-prewrite.bin" in source
+    assert "factory-erase-span-prewrite.bin" in source
+    assert "factory_erase_span_data[:FACTORY_SIZE]" in source
 
 
 def test_private_evidence_directory_contract(tmp_path: Path) -> None:
