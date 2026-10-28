@@ -213,6 +213,28 @@ def _binding(path: Path) -> dict[str, Any]:
     }
 
 
+def validate_archived_backup_copy(
+    backup_path: Path,
+    target: Path,
+    binding: dict[str, Any],
+) -> None:
+    backup_binding = _binding(backup_path)
+    if (
+        backup_binding["sha256"] != binding.get("sha256")
+        or backup_binding["size"] != binding.get("size")
+        or backup_binding["mode"] != 0o600
+        or backup_binding["uid"] != 0
+        or backup_binding["gid"] != 0
+    ):
+        raise ReconcileError(
+            f"workspace_backup_copy_invalid:{target}"
+        )
+    if _binding(target) != binding:
+        raise ReconcileError(
+            f"current_static_not_predecessor_exact:{target}"
+        )
+
+
 def validate_workspace() -> dict[str, Any]:
     if WORK_ROOT.is_symlink() or not WORK_ROOT.is_dir():
         raise ReconcileError("work_root_invalid")
@@ -294,21 +316,11 @@ def validate_workspace() -> dict[str, Any]:
             if not isinstance(backup, str) or not isinstance(binding, dict):
                 raise ReconcileError("workspace_live_binding_invalid")
             backup_path = FAILED_WORKSPACE_PATH / "static" / backup
-            backup_binding = _binding(backup_path)
-            if (
-                backup_binding["sha256"] != binding.get("sha256")
-                or backup_binding["size"] != binding.get("size")
-                or backup_binding["mode"] != 0o600
-                or backup_binding["uid"] != 0
-                or backup_binding["gid"] != 0
-            ):
-                raise ReconcileError(
-                    f"workspace_backup_copy_invalid:{target}"
-                )
-            if _binding(target) != binding:
-                raise ReconcileError(
-                    f"current_static_not_predecessor_exact:{target}"
-                )
+            validate_archived_backup_copy(
+                backup_path,
+                target,
+                binding,
+            )
         elif target.exists() or target.is_symlink():
             raise ReconcileError(f"new_live_file_residue:{target}")
 
