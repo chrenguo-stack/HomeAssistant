@@ -262,7 +262,7 @@ button{display:block;font-size:1.05rem;padding:.7rem 1rem;margin:.6rem 0;max-wid
 </body>
 </html>)HTML";
 
-std::string base64url_encodestd::string base64url_encode(const uint8_t *data, std::size_t size) {
+std::string base64url_encode(const uint8_t *data, std::size_t size) {
   if (data == nullptr || size == 0) return {};
   std::vector<uint8_t> encoded(((size + 2U) / 3U) * 4U + 1U, 0);
   std::size_t written = 0;
@@ -330,8 +330,6 @@ const char *stage_name(RegistrationPortalStage stage) {
     default:
       return "idle";
   }
-}
-
 }
 
 }  // namespace
