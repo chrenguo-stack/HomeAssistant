@@ -24,6 +24,8 @@ PREDECESSOR_SOURCE = "03dab2bd04e7e8cb71faa1bd13a027ace8cecdf6"
 TARGET_SOURCE = "e299c937a7b89bb8a7b9a7432186ba46a416cd44"
 PREDECESSOR_MANAGER_IMAGE = "local/greenhouse-manager:fresh-03dab2bd04e7"
 TARGET_MANAGER_IMAGE = "local/greenhouse-manager:fresh-e299c937a7b8"
+EXPECTED_BROKER_IMAGE = "local/n3w-mosquitto:2.1.2-3184566d"
+EXPECTED_HOMEASSISTANT_IMAGE = "local/n3w-homeassistant:2026.10.0-0c73235a"
 
 CONFIRMATION = "APPLY R10 T1 CANDIDATE UPGRADE: YES"
 AUTH_PREFIX = "N3W_R10_T1_CANDIDATE_UPGRADE_"
@@ -760,6 +762,10 @@ def verify_prestate(
     }
     if snapshots["manager"]["image"] != PREDECESSOR_MANAGER_IMAGE:
         raise UpgradeError("manager_image_predecessor_drift")
+    if snapshots["broker"]["image"] != EXPECTED_BROKER_IMAGE:
+        raise UpgradeError("broker_image_predecessor_drift")
+    if snapshots["homeassistant"]["image"] != EXPECTED_HOMEASSISTANT_IMAGE:
+        raise UpgradeError("homeassistant_image_predecessor_drift")
     if not all(value["running"] for value in snapshots.values()):
         raise UpgradeError("container_prestate_not_running")
 
