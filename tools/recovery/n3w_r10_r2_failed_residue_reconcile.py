@@ -99,13 +99,18 @@ def run(
     allowed: frozenset[int] = frozenset({0}),
 ) -> str:
     command = tuple(str(item) for item in argv)
-    result = subprocess.run(
-        command,
-        text=True,
-        capture_output=True,
-        check=False,
-        timeout=timeout,
-    )
+    try:
+        result = subprocess.run(
+            command,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=timeout,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise ReconcileError(
+            f"command_execution_failed:{Path(command[0]).name}"
+        ) from error
     if result.returncode not in allowed:
         raise ReconcileError(
             f"command_failed:{Path(command[0]).name}:{result.returncode}:"
@@ -144,17 +149,10 @@ def write_json_exclusive(path: Path, value: dict[str, Any]) -> None:
         json.dumps(value, sort_keys=True, indent=2) + "\n"
     ).encode("utf-8")
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    try:
-        with os.fdopen(fd, "wb", closefd=True) as stream:
-            stream.write(payload)
-            stream.flush()
-            os.fsync(stream.fileno())
-    except Exception:
-        try:
-            path.unlink()
-        except OSError:
-            pass
-        raise
+    with os.fdopen(fd, "wb", closefd=True) as stream:
+        stream.write(payload)
+        stream.flush()
+        os.fsync(stream.fileno())
 
 
 def valid_reconcile_authorization(value: str) -> bool:
@@ -174,6 +172,14 @@ def validate_failed_transaction(document: dict[str, Any]) -> None:
         "replay_allowed": False,
         "package_head": FAILED_HEAD,
         "package_manifest_sha256": FAILED_MANIFEST_SHA256,
+        "predecessor_source": "03dab2bd04e7e8cb71faa1bd13a027ace8cecdf6",
+        "target_source": "e299c937a7b89bb8a7b9a7432186ba46a416cd44",
+        "predecessor_f4_transaction_sha256": EXPECTED_F4_SHA256,
+        "predecessor_f4_installed_files_sha256": (
+            "66f8c89a10363fbf12cbd711f26257dd7cfacdfc178e7f0b4de229ba573f21a5"
+        ),
+        "current_registration_count": 1,
+        "static_backup_complete": True,
         "status": "FAIL",
         "phase": "ROLLBACK_FAILED",
         "committed": False,
@@ -414,6 +420,11 @@ def validate_live_predecessor() -> dict[str, Any]:
     firewall = run(("iptables-save", "-t", "filter"), timeout=20)
     if REGISTRATION_CHAIN in firewall or REGISTRATION_COMMENT in firewall:
         raise ReconcileError("registration_firewall_residue")
+    if (
+        "N3WFC4-BROKER-INGRESS" not in firewall
+        or "n3wfc4-broker-ingress-v1" not in firewall
+    ):
+        raise ReconcileError("broker_firewall_predecessor_invalid")
 
     sockets = run(("ss", "-lntup"), timeout=20)
     if re.search(r":(?:47110|47111|47112)\b", sockets):
@@ -466,6 +477,8 @@ def claim_authorization(
     transaction_sha256: str,
     workspace_inventory_sha256: str,
 ) -> None:
+    if HISTORY_ROOT.is_symlink() or CLAIMS_ROOT.is_symlink():
+        raise ReconcileError("history_root_symlink_forbidden")
     HISTORY_ROOT.mkdir(mode=0o700, exist_ok=True)
     CLAIMS_ROOT.mkdir(mode=0o700, exist_ok=True)
     for path in (HISTORY_ROOT, CLAIMS_ROOT):
@@ -551,6 +564,8 @@ def execute_reconcile(
     fsync_directory(incoming)
 
     os.replace(WORK_ROOT, incoming / "workspace-root")
+    fsync_directory(WORK_ROOT.parent)
+    fsync_directory(incoming)
     fsync_directory(HISTORY_ROOT)
     if WORK_ROOT.exists() or WORK_ROOT.is_symlink():
         raise ReconcileError("active_workspace_archive_failed")
