@@ -1,0 +1,256 @@
+name: N3W R10 T1 candidate upgrade package CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
+    paths:
+      - ".github/workflows/n3w-r10-t1-candidate-upgrade-package-ci.yml"
+      - "tools/execution_packages/n3w/scan_first_pairing/r10_t1_candidate_upgrade/**"
+      - "tests/execution_packages/n3w/scan_first_pairing/r10_t1_candidate_upgrade/**"
+      - "docs/development/N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_T1_CANDIDATE_UPGRADE_PACKAGE_FREEZE_20261028.md"
+  push:
+    branches:
+      - "exec/n3w-r10-t1-candidate-upgrade-package-20261028"
+    paths:
+      - ".github/workflows/n3w-r10-t1-candidate-upgrade-package-ci.yml"
+      - "tools/execution_packages/n3w/scan_first_pairing/r10_t1_candidate_upgrade/**"
+      - "tests/execution_packages/n3w/scan_first_pairing/r10_t1_candidate_upgrade/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PREDECESSOR_SOURCE: 03dab2bd04e7e8cb71faa1bd13a027ace8cecdf6
+  TARGET_SOURCE: e299c937a7b89bb8a7b9a7432186ba46a416cd44
+  MANAGER_IMAGE: local/greenhouse-manager:fresh-e299c937a7b8
+  BASE_IMAGE_REF: python:3.11-slim
+  TARGET_DOCKERFILE_BLOB: 6486ff5fbcc23536676a48f36d67e4e0d364900a
+
+jobs:
+  source-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install focused test dependency
+        run: python -m pip install "pytest>=8,<9"
+      - name: Compile package sources
+        run: |
+          python -m py_compile tools/execution_packages/n3w/scan_first_pairing/r10_t1_candidate_upgrade/package_builder.py
+          python -m py_compile tools/execution_packages/n3w/scan_first_pairing/r10_t1_candidate_upgrade/live_upgrade.py
+      - name: Run focused package tests
+        run: |
+          python -m pytest -q tests/execution_packages/n3w/scan_first_pairing/r10_t1_candidate_upgrade/test_upgrade_package.py
+          python -m pytest -q tests/execution_packages/n3w/scan_first_pairing/r10_t1_candidate_upgrade/test_readonly_preflight.py
+      - name: Enforce no live mutation from CI
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          workflow = Path(".github/workflows/n3w-r10-t1-candidate-upgrade-package-ci.yml").read_text()
+          forbidden = ["ssh root@", "scp ", "systemctl stop n3wfc4", "systemctl start n3wfc4", "docker --host"]
+          found = [item for item in forbidden if item in workflow]
+          if found:
+              raise SystemExit("forbidden_live_ci_surface:" + ",".join(found))
+          print("LIVE_CI_MUTATION_SURFACE=ABSENT")
+          PY
+
+  build-candidate:
+    needs: source-contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      artifact_name: ${{ steps.meta.outputs.artifact_name }}
+      manifest_sha256: ${{ steps.meta.outputs.manifest_sha256 }}
+      manager_tar_sha256: ${{ steps.meta.outputs.manager_tar_sha256 }}
+      manager_tar_size: ${{ steps.meta.outputs.manager_tar_size }}
+      manager_image_id: ${{ steps.meta.outputs.manager_image_id }}
+      manager_image_size: ${{ steps.meta.outputs.manager_image_size }}
+      base_arm64_digest: ${{ steps.meta.outputs.base_arm64_digest }}
+      base_image_id: ${{ steps.meta.outputs.base_image_id }}
+      upload_artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      upload_artifact_digest: ${{ steps.upload.outputs.artifact-digest }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Materialize exact predecessor and target source
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/r10-upgrade"
+          git cat-file -e "$PREDECESSOR_SOURCE^{commit}"
+          git cat-file -e "$TARGET_SOURCE^{commit}"
+          git worktree add --detach "$RUNNER_TEMP/r10-upgrade/predecessor" "$PREDECESSOR_SOURCE"
+          git worktree add --detach "$RUNNER_TEMP/r10-upgrade/target" "$TARGET_SOURCE"
+          test "$(git -C "$RUNNER_TEMP/r10-upgrade/predecessor" rev-parse HEAD)" = "$PREDECESSOR_SOURCE"
+          test "$(git -C "$RUNNER_TEMP/r10-upgrade/target" rev-parse HEAD)" = "$TARGET_SOURCE"
+          test "$(git -C "$RUNNER_TEMP/r10-upgrade/target" hash-object host/greenhouse-manager/Dockerfile)" = "$TARGET_DOCKERFILE_BLOB"
+
+      - name: Resolve exact linux arm64 base manifest
+        id: base
+        run: |
+          set -euo pipefail
+          RAW="$RUNNER_TEMP/r10-upgrade/base-index.json"
+          docker buildx imagetools inspect --raw "$BASE_IMAGE_REF" > "$RAW"
+          BASE_ARM64_DIGEST="$(
+            python - "$RAW" <<'PY'
+          import json,sys
+          data=json.load(open(sys.argv[1],encoding="utf-8"))
+          manifests=data.get("manifests")
+          if not isinstance(manifests,list):
+              raise SystemExit("base_not_multiarch_index")
+          matches=[]
+          for item in manifests:
+              platform=item.get("platform") or {}
+              if platform.get("os")=="linux" and platform.get("architecture")=="arm64":
+                  matches.append(item.get("digest"))
+          matches=[x for x in matches if isinstance(x,str) and x.startswith("sha256:")]
+          if len(matches)!=1:
+              raise SystemExit(f"arm64_manifest_count_invalid:{len(matches)}")
+          print(matches[0])
+          PY
+          )"
+          test -n "$BASE_ARM64_DIGEST"
+          docker pull --platform linux/arm64 "$BASE_IMAGE_REF@$BASE_ARM64_DIGEST"
+          BASE_IMAGE_ID="$(docker image inspect "$BASE_IMAGE_REF@$BASE_ARM64_DIGEST" --format '{{.Id}}')"
+          case "$BASE_IMAGE_ID" in sha256:????????????????????????????????????????????????????????????????) ;; *) exit 1 ;; esac
+          echo "base_arm64_digest=$BASE_ARM64_DIGEST" >> "$GITHUB_OUTPUT"
+          echo "base_image_id=$BASE_IMAGE_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Create candidate-build-only digest-pinned Dockerfile
+        run: |
+          set -euo pipefail
+          TARGET="$RUNNER_TEMP/r10-upgrade/target"
+          PINNED="$RUNNER_TEMP/r10-upgrade/Dockerfile.pinned"
+          python - "$TARGET/host/greenhouse-manager/Dockerfile" "$PINNED" "${{ steps.base.outputs.base_arm64_digest }}" <<'PY'
+          from pathlib import Path
+          import sys
+          source=Path(sys.argv[1]).read_text(encoding="utf-8")
+          target=Path(sys.argv[2])
+          digest=sys.argv[3]
+          lines=source.splitlines()
+          if not lines or lines[0] != "FROM python:3.11-slim AS runtime":
+              raise SystemExit("target_dockerfile_from_contract_drift")
+          lines[0]=f"FROM python:3.11-slim@{digest} AS runtime"
+          target.write_text("\n".join(lines)+"\n",encoding="utf-8")
+          PY
+          grep -F "FROM python:3.11-slim@${{ steps.base.outputs.base_arm64_digest }} AS runtime" "$PINNED"
+
+      - name: Build exact-source manager-only candidate
+        run: |
+          set -euo pipefail
+          WORK="$RUNNER_TEMP/r10-upgrade"
+          TARGET="$WORK/target"
+          docker buildx build --platform linux/arm64 --file "$WORK/Dockerfile.pinned" --tag "$MANAGER_IMAGE" --output "type=docker,dest=$WORK/greenhouse-manager-arm64.tar" "$TARGET/host/greenhouse-manager"
+          test -s "$WORK/greenhouse-manager-arm64.tar"
+          docker load -i "$WORK/greenhouse-manager-arm64.tar"
+
+      - name: Validate candidate image and R10 host capability imports
+        id: image
+        run: |
+          set -euo pipefail
+          IMAGE_ID="$(docker image inspect "$MANAGER_IMAGE" --format '{{.Id}}')"
+          ARCH="$(docker image inspect "$MANAGER_IMAGE" --format '{{.Architecture}}')"
+          OS_NAME="$(docker image inspect "$MANAGER_IMAGE" --format '{{.Os}}')"
+          IMAGE_SIZE="$(docker image inspect "$MANAGER_IMAGE" --format '{{.Size}}')"
+          USER_NAME="$(docker image inspect "$MANAGER_IMAGE" --format '{{.Config.User}}')"
+          ENTRYPOINT="$(docker image inspect "$MANAGER_IMAGE" --format '{{json .Config.Entrypoint}}')"
+          test "$ARCH" = arm64
+          test "$OS_NAME" = linux
+          test "$USER_NAME" = greenhouse
+          test "$ENTRYPOINT" = '["greenhouse-manager"]'
+          docker run --rm --platform linux/arm64 --network none --entrypoint python "$MANAGER_IMAGE" - <<'PY'
+          from greenhouse_manager.runtime.n3w_first_registration_transaction import FIRST_REGISTRATION_TTL_SECONDS, FirstRegistrationTransactionService
+          from greenhouse_manager.runtime.n3w_registration_runtime import RegistrationNetworkRuntime
+          from greenhouse_manager.runtime.n3w_dynamic_pairing_window import DynamicPairingWindowController
+          from greenhouse_manager.bootstrap.fresh_broker import _generate_registration_tls
+          assert FIRST_REGISTRATION_TTL_SECONDS == 1800
+          assert FirstRegistrationTransactionService is not None
+          assert RegistrationNetworkRuntime is not None
+          assert hasattr(DynamicPairingWindowController, "open_first_registration")
+          assert _generate_registration_tls is not None
+          print("R10_MANAGER_CAPABILITY_IMPORT=PASS")
+          PY
+          echo "manager_image_id=$IMAGE_ID" >> "$GITHUB_OUTPUT"
+          echo "manager_image_size=$IMAGE_SIZE" >> "$GITHUB_OUTPUT"
+
+      - name: Assemble bounded upgrade package
+        run: |
+          set -euo pipefail
+          WORK="$RUNNER_TEMP/r10-upgrade"
+          python tools/execution_packages/n3w/scan_first_pairing/r10_t1_candidate_upgrade/package_builder.py build             --output "$WORK/package"             --predecessor-source-root "$WORK/predecessor"             --target-source-root "$WORK/target"             --predecessor-source "$PREDECESSOR_SOURCE"             --target-source "$TARGET_SOURCE"             --package-head "$GITHUB_SHA"             --manager-tar "$WORK/greenhouse-manager-arm64.tar"             --manager-image "$MANAGER_IMAGE"             --manager-image-id "${{ steps.image.outputs.manager_image_id }}"             --manager-image-size-bytes "${{ steps.image.outputs.manager_image_size }}"             --base-image-ref "$BASE_IMAGE_REF"             --base-arm64-digest "${{ steps.base.outputs.base_arm64_digest }}"             --base-image-id "${{ steps.base.outputs.base_image_id }}"             --executor tools/execution_packages/n3w/scan_first_pairing/r10_t1_candidate_upgrade/live_upgrade.py
+          python tools/execution_packages/n3w/scan_first_pairing/r10_t1_candidate_upgrade/package_builder.py verify "$WORK/package"
+          test "$(find "$WORK/package" -type f -name '*key*' | wc -l)" -eq 0
+
+      - name: Emit package binding
+        id: meta
+        run: |
+          set -euo pipefail
+          WORK="$RUNNER_TEMP/r10-upgrade"
+          MANIFEST="$WORK/package/manifest.json"
+          MANAGER="$WORK/package/greenhouse-manager-arm64.tar"
+          ARTIFACT_NAME="n3w-r10-t1-upgrade-${GITHUB_SHA:0:12}"
+          echo "artifact_name=$ARTIFACT_NAME" >> "$GITHUB_OUTPUT"
+          echo "manifest_sha256=$(sha256sum "$MANIFEST" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "manager_tar_sha256=$(sha256sum "$MANAGER" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "manager_tar_size=$(stat -c %s "$MANAGER")" >> "$GITHUB_OUTPUT"
+          echo "manager_image_id=${{ steps.image.outputs.manager_image_id }}" >> "$GITHUB_OUTPUT"
+          echo "manager_image_size=${{ steps.image.outputs.manager_image_size }}" >> "$GITHUB_OUTPUT"
+          echo "base_arm64_digest=${{ steps.base.outputs.base_arm64_digest }}" >> "$GITHUB_OUTPUT"
+          echo "base_image_id=${{ steps.base.outputs.base_image_id }}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload exact bounded upgrade package
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.artifact_name }}
+          path: ${{ runner.temp }}/r10-upgrade/package
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 30
+
+  redownload-verify:
+    needs: build-candidate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build-candidate.outputs.artifact_name }}
+          path: ${{ runner.temp }}/redownload
+      - name: Verify redownloaded package independently
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/redownload"
+          python tools/execution_packages/n3w/scan_first_pairing/r10_t1_candidate_upgrade/package_builder.py verify "$ROOT"
+          test "$(sha256sum "$ROOT/manifest.json" | awk '{print $1}')" = "${{ needs.build-candidate.outputs.manifest_sha256 }}"
+          test "$(sha256sum "$ROOT/greenhouse-manager-arm64.tar" | awk '{print $1}')" = "${{ needs.build-candidate.outputs.manager_tar_sha256 }}"
+          test "$(stat -c %s "$ROOT/greenhouse-manager-arm64.tar")" = "${{ needs.build-candidate.outputs.manager_tar_size }}"
+          python - "$ROOT/manifest.json" <<'PY'
+          import json,sys
+          m=json.load(open(sys.argv[1],encoding="utf-8"))
+          assert m["manager"]["image_id"] == "${{ needs.build-candidate.outputs.manager_image_id }}"
+          assert str(m["manager"]["image_size_bytes"]) == "${{ needs.build-candidate.outputs.manager_image_size }}"
+          assert m["manager"]["base_arm64_manifest_digest"] == "${{ needs.build-candidate.outputs.base_arm64_digest }}"
+          assert m["manager"]["base_image_id"] == "${{ needs.build-candidate.outputs.base_image_id }}"
+          assert m["policy"]["homeassistant_image_included"] is False
+          assert m["policy"]["broker_image_included"] is False
+          assert m["registration_tls"]["included_in_artifact"] is False
+          print("REDOWNLOAD_PACKAGE_BINDING=PASS")
+          PY
+      - name: Report artifact authority
+        run: |
+          printf '%s\n'             "ARTIFACT_NAME=${{ needs.build-candidate.outputs.artifact_name }}"             "ARTIFACT_ID=${{ needs.build-candidate.outputs.upload_artifact_id }}"             "ARTIFACT_DIGEST=${{ needs.build-candidate.outputs.upload_artifact_digest }}"             "MANIFEST_SHA256=${{ needs.build-candidate.outputs.manifest_sha256 }}"             "MANAGER_TAR_SHA256=${{ needs.build-candidate.outputs.manager_tar_sha256 }}"             "MANAGER_TAR_SIZE=${{ needs.build-candidate.outputs.manager_tar_size }}"             "MANAGER_IMAGE_ID=${{ needs.build-candidate.outputs.manager_image_id }}"             "MANAGER_IMAGE_SIZE=${{ needs.build-candidate.outputs.manager_image_size }}"             "BASE_ARM64_DIGEST=${{ needs.build-candidate.outputs.base_arm64_digest }}"             "BASE_IMAGE_ID=${{ needs.build-candidate.outputs.base_image_id }}"
