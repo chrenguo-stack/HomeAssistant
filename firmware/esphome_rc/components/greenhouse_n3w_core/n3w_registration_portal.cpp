@@ -861,6 +861,7 @@ esp_err_t RegistrationPortal::handle_confirm_(httpd_req_t *request) {
 
   const uint64_t now_ms = monotonic_ms_();
   bool accepted = false;
+  bool stale = false;
   {
     std::lock_guard<std::mutex> lock(discovery_mutex_);
     if (discovery_stage_ == RegistrationPortalStage::WAIT_CONFIRM &&
@@ -878,18 +879,30 @@ esp_err_t RegistrationPortal::handle_confirm_(httpd_req_t *request) {
         error_message_.clear();
         discovery_stage_ = RegistrationPortalStage::CANDIDATE_SELECTED;
         accepted = true;
+      } else {
+        stale = true;
       }
+    } else if (
+        discovery_stage_ == RegistrationPortalStage::CANDIDATE_SELECTED &&
+        selected_candidate_id_ == candidate_id) {
+      accepted = true;
     }
   }
 
   if (!accepted) {
-    candidate_stale_event_pending_.store(true, std::memory_order_release);
+    if (stale) {
+      candidate_stale_event_pending_.store(true, std::memory_order_release);
+    }
     return send_json_(
         request,
         "409 Conflict",
-        "{\"schema\":\"gh.registration.portal-result/1\","
-        "\"status\":\"not_ready\","
-        "\"reason\":\"candidate_stale\"}");
+        stale
+            ? "{\"schema\":\"gh.registration.portal-result/1\","
+              "\"status\":\"not_ready\","
+              "\"reason\":\"candidate_stale\"}"
+            : "{\"schema\":\"gh.registration.portal-result/1\","
+              "\"status\":\"not_ready\","
+              "\"reason\":\"selection_not_ready\"}");
   }
 
   return send_json_(
@@ -918,6 +931,8 @@ esp_err_t RegistrationPortal::handle_begin_(httpd_req_t *request) {
 
   const uint64_t now_ms = monotonic_ms_();
   bool accepted = false;
+  bool stale = false;
+  bool already_started = false;
   {
     std::lock_guard<std::mutex> lock(discovery_mutex_);
     if (discovery_stage_ == RegistrationPortalStage::CANDIDATE_SELECTED &&
@@ -933,23 +948,38 @@ esp_err_t RegistrationPortal::handle_begin_(httpd_req_t *request) {
         discovery_stage_ =
             RegistrationPortalStage::SELECTED_PENDING_BOOTSTRAP;
         accepted = true;
+      } else {
+        error_code_ = "E07";
+        error_message_ = "主机信息已失效";
+        discovery_stage_ = RegistrationPortalStage::ERROR;
+        stale = true;
       }
-    }
-    if (!accepted) {
-      error_code_ = "E07";
-      error_message_ = "主机信息已失效";
-      discovery_stage_ = RegistrationPortalStage::ERROR;
+    } else if (
+        discovery_stage_ ==
+            RegistrationPortalStage::SELECTED_PENDING_BOOTSTRAP ||
+        discovery_stage_ == RegistrationPortalStage::SUCCESS) {
+      already_started = true;
     }
   }
 
   if (!accepted) {
-    candidate_stale_event_pending_.store(true, std::memory_order_release);
+    if (stale) {
+      candidate_stale_event_pending_.store(true, std::memory_order_release);
+    }
     return send_json_(
         request,
         "409 Conflict",
-        "{\"schema\":\"gh.registration.portal-result/1\","
-        "\"status\":\"not_ready\","
-        "\"reason\":\"candidate_stale\"}");
+        stale
+            ? "{\"schema\":\"gh.registration.portal-result/1\","
+              "\"status\":\"not_ready\","
+              "\"reason\":\"candidate_stale\"}"
+            : already_started
+                  ? "{\"schema\":\"gh.registration.portal-result/1\","
+                    "\"status\":\"not_ready\","
+                    "\"reason\":\"registration_in_progress\"}"
+                  : "{\"schema\":\"gh.registration.portal-result/1\","
+                    "\"status\":\"not_ready\","
+                    "\"reason\":\"selection_not_ready\"}");
   }
 
   return send_json_(
