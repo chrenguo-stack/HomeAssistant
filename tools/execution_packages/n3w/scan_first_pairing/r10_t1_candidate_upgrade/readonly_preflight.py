@@ -23,12 +23,14 @@ CONFIRMATION = "R10 T1 CANDIDATE READONLY PREFLIGHT: YES"
 
 EXPECTED_CURRENT_BLOBS = {
     "compose": "ce864b1964bdca10c4d16a8a7824b34b358ad119",
-    "services_unit": "b070303a53b16b15aa108d3e9a2e952a7bc02d08",
+    "installed_services_unit": "e25f4553177c009bbe019c5cd8a9ddd3b0c07e46",
+    "runtime_services_unit": "b070303a53b16b15aa108d3e9a2e952a7bc02d08",
     "dispatcher": "f733f5a1cfc936f77d1fabc383ccf262264e33d2",
 }
 EXPECTED_TARGET_BLOBS = {
     "compose": "c9038251d9ba1b05a472edda14b287470690815a",
-    "services_unit": "ee7c4151e79368e6daca5d6bd1359a846397fc95",
+    "installed_services_unit": "3485b6c2f9341fda2fcbd2c82c83077ad78cf42c",
+    "runtime_services_unit": "ee7c4151e79368e6daca5d6bd1359a846397fc95",
     "dispatcher": "3d6f32455fffd6f604f83a6c12e298bc395945e0",
     "registration_unit": "d8f1a3c6d757284c72b8348773d0bc09f6904b35",
     "registration_guard": "ef5077b6bc80c73bc8d3f35cf7a33a198ce918c7",
@@ -608,13 +610,19 @@ def accept_t1(doc: dict[str, Any]) -> list[str]:
 
     if _blob(doc, "live_compose") != EXPECTED_CURRENT_BLOBS["compose"]:
         failures.append("file:live_compose_drift")
-    if _blob(doc, "services_unit") != EXPECTED_CURRENT_BLOBS["services_unit"]:
-        failures.append("file:services_unit_drift")
+    if (
+        _blob(doc, "services_unit")
+        != EXPECTED_CURRENT_BLOBS["installed_services_unit"]
+    ):
+        failures.append("file:installed_services_unit_drift")
     if _blob(doc, "dispatcher") != EXPECTED_CURRENT_BLOBS["dispatcher"]:
         failures.append("file:dispatcher_drift")
     if _blob(doc, "runtime_compose") != EXPECTED_CURRENT_BLOBS["compose"]:
         failures.append("runtime_source:compose_drift")
-    if _blob(doc, "runtime_services_unit") != EXPECTED_CURRENT_BLOBS["services_unit"]:
+    if (
+        _blob(doc, "runtime_services_unit")
+        != EXPECTED_CURRENT_BLOBS["runtime_services_unit"]
+    ):
         failures.append("runtime_source:services_unit_drift")
     if _blob(doc, "runtime_dispatcher") != EXPECTED_CURRENT_BLOBS["dispatcher"]:
         failures.append("runtime_source:dispatcher_drift")
