@@ -699,3 +699,57 @@ def test_upgrade_predecessor_service_image_authority() -> None:
     assert executor.EXPECTED_HOMEASSISTANT_IMAGE == (
         "local/n3w-homeassistant:2026.10.0-0c73235a"
     )
+
+
+def test_target_manager_preexistence_lookup_missing_is_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, ...]] = []
+
+    def fake_run(argv, **_kwargs):
+        calls.append(tuple(argv))
+        return ""
+
+    monkeypatch.setattr(executor, "run", fake_run)
+    assert executor.docker_image_ids_for_reference(
+        executor.TARGET_MANAGER_IMAGE
+    ) == []
+    assert calls == [
+        (
+            "docker",
+            "image",
+            "ls",
+            "--no-trunc",
+            "--quiet",
+            "--filter",
+            f"reference={executor.TARGET_MANAGER_IMAGE}",
+        )
+    ]
+
+
+def test_target_manager_preexistence_lookup_detects_exact_tag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected = "sha256:" + "1" * 64
+    monkeypatch.setattr(
+        executor,
+        "run",
+        lambda _argv, **_kwargs: expected + "\n",
+    )
+    assert executor.docker_image_ids_for_reference(
+        executor.TARGET_MANAGER_IMAGE
+    ) == [expected]
+
+
+def test_target_manager_preexistence_lookup_deduplicates_ids(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected = "sha256:" + "2" * 64
+    monkeypatch.setattr(
+        executor,
+        "run",
+        lambda _argv, **_kwargs: expected + "\n" + expected + "\n",
+    )
+    assert executor.docker_image_ids_for_reference(
+        executor.TARGET_MANAGER_IMAGE
+    ) == [expected]
