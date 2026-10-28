@@ -66,7 +66,6 @@ from greenhouse_manager.runtime.n3w_simplified_pairing import (
     SimplifiedPairingState,
 )
 from greenhouse_manager.runtime.n3w_simplified_product_runtime import (
-    build_simplified_product_config_from_settings,
     build_simplified_product_pairing_composition,
 )
 from greenhouse_manager.runtime.n3w_trusted_product_lan import (
