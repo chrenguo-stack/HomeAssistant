@@ -32,6 +32,7 @@ F4_TRANSACTION = PROVISION_ROOT / "F4_ACTIVATION_TRANSACTION.json"
 UPGRADE_TRANSACTION = PROVISION_ROOT / "R10_CANDIDATE_UPGRADE_TRANSACTION.json"
 UPGRADE_WORK_PARENT = Path("/var/lib/n3w-r10-candidate-upgrade")
 MANAGER_ROOT = Path("/var/lib/greenhouse-manager")
+BROKER_DYNSEC = Path("/var/lib/n3wfc4-broker/dynamic-security.json")
 
 SERVICES_UNIT = "n3wfc4-services-activation.service"
 BROKER_UNIT = "n3wfc4-broker-activation.service"
@@ -779,6 +780,10 @@ def verify_prestate(
                 f"f4_predecessor_binding_drift:{target}"
             )
 
+    if BROKER_DYNSEC.is_symlink() or not BROKER_DYNSEC.is_file():
+        raise UpgradeError("broker_dynsec_invalid")
+    broker_dynsec_sha256 = sha256_file(BROKER_DYNSEC)
+
     db = database_state()
     if (
         db["integrity"] != "ok"
@@ -823,6 +828,7 @@ def verify_prestate(
         "f4_transaction_sha256": sha256_file(F4_TRANSACTION),
         "f4_installed_files_sha256": canonical_sha256(installed),
         "database": db,
+        "broker_dynsec_sha256": broker_dynsec_sha256,
         "manager_root_size_bytes": state_bytes,
         "rollback_estimate_bytes": rollback_estimate,
         "free_bytes": free,
@@ -1393,6 +1399,13 @@ def strict_postcheck(
     if not trusted_lan_ready():
         raise UpgradeError("trusted_lan_not_ready")
     if (
+        BROKER_DYNSEC.is_symlink()
+        or not BROKER_DYNSEC.is_file()
+        or sha256_file(BROKER_DYNSEC)
+        != prestate["broker_dynsec_sha256"]
+    ):
+        raise UpgradeError("broker_dynsec_changed")
+    if (
         listener_count("tcp", 47110) != 1
         or listener_count("udp", 47111) != 1
         or listener_count("tcp", 47112) != 0
@@ -1504,6 +1517,13 @@ def verify_predecessor_runtime(
         or homeassistant["image"] != prestate["homeassistant"]["image"]
     ):
         raise UpgradeError("rollback_runtime_not_predecessor")
+    if (
+        BROKER_DYNSEC.is_symlink()
+        or not BROKER_DYNSEC.is_file()
+        or sha256_file(BROKER_DYNSEC)
+        != prestate["broker_dynsec_sha256"]
+    ):
+        raise UpgradeError("rollback_broker_dynsec_changed")
     db = database_state()
     if (
         db["integrity"] != "ok"
@@ -1733,6 +1753,7 @@ def execute_apply(
             first_registration_table_present=True,
             unresolved_first_registration=0,
             broker_continuity=True,
+            broker_dynsec_unchanged=True,
             homeassistant_image_unchanged=True,
             registration_guard_ready=True,
             trusted_lan_ready=True,
