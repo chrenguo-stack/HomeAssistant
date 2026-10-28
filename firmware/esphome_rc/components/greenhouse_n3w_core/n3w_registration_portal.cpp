@@ -31,12 +31,13 @@ const char kPortalPage[] = R"HTML(<!doctype html>
 body{font-family:sans-serif;margin:2rem;max-width:32rem}
 button{display:block;font-size:1.05rem;padding:.7rem 1rem;margin:.6rem 0;max-width:100%}
 #status{margin-top:1rem}
+.hint{font-size:.95rem;line-height:1.5}
 </style>
 </head>
 <body>
 <h1>联机注册</h1>
 <p id="node"></p>
-<p id="status">正在准备联机注册…</p>
+<p id="status">正在读取设备状态…</p>
 <div id="choices"></div>
 <script>
 (() => {
@@ -71,41 +72,97 @@ button{display:block;font-size:1.05rem;padding:.7rem 1rem;margin:.6rem 0;max-wid
     while (choices.firstChild) choices.removeChild(choices.firstChild);
   };
 
-  const confirmCandidate = async (candidateId) => {
-    clearChoices();
-    out.textContent = "正在联机注册，请查看设备屏幕";
-    try {
-      const result = await post("/api/v1/register/confirm", {
-        candidate_id: candidateId
-      });
-      if (result.body.reason === "candidate_stale") {
-        out.textContent = "主机信息已失效，请重试";
-        stopped = false;
-        await showRetry();
-      }
-    } catch (_) {
-      out.textContent = "操作失败，请重试";
-      stopped = false;
-      await showRetry();
-    }
+  const addHint = (text) => {
+    const hint = document.createElement("p");
+    hint.className = "hint";
+    hint.textContent = text;
+    choices.appendChild(hint);
   };
 
-  const showRetry = async () => {
-    clearChoices();
+  const addButton = (label, handler) => {
     const button = document.createElement("button");
-    button.textContent = "重新查找";
-    button.onclick = async () => {
+    button.textContent = label;
+    button.onclick = handler;
+    choices.appendChild(button);
+    return button;
+  };
+
+  const pollSoon = (delay = 250) => {
+    stopped = false;
+    setTimeout(poll, delay);
+  };
+
+  const showFindButton = () => {
+    clearChoices();
+    addButton("寻找主机", async (event) => {
+      const button = event.currentTarget;
       button.disabled = true;
+      out.textContent = "正在查找主机";
       try {
-        await post("/api/v1/register/retry");
-        out.textContent = "正在查找主机";
-        stopped = false;
-        setTimeout(poll, 250);
+        const result = await post("/api/v1/register/start");
+        if (!result.response.ok) throw new Error("start rejected");
+        pollSoon();
+      } catch (_) {
+        out.textContent = "操作失败，请重新扫码";
+        button.disabled = false;
+      }
+    });
+  };
+
+  const showRetryButton = () => {
+    addButton("重新寻找主机", async (event) => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      out.textContent = "正在查找主机";
+      try {
+        const result = await post("/api/v1/register/retry");
+        if (!result.response.ok) throw new Error("retry rejected");
+        pollSoon();
       } catch (_) {
         button.disabled = false;
       }
-    };
-    choices.appendChild(button);
+    });
+  };
+
+  const selectCandidate = async (candidate) => {
+    clearChoices();
+    out.textContent = "正在选择主机";
+    try {
+      const result = await post("/api/v1/register/confirm", {
+        candidate_id: candidate.id
+      });
+      if (!result.response.ok) {
+        out.textContent = result.body.reason === "candidate_stale"
+          ? "E07 主机信息已失效"
+          : "操作失败，请重新寻找主机";
+        stopped = true;
+        showRetryButton();
+        return;
+      }
+      pollSoon(150);
+    } catch (_) {
+      out.textContent = "操作失败，请重新寻找主机";
+      stopped = true;
+      showRetryButton();
+    }
+  };
+
+  const beginRegistration = async () => {
+    clearChoices();
+    out.textContent = "正在开始注册";
+    try {
+      const result = await post("/api/v1/register/begin");
+      if (!result.response.ok) {
+        out.textContent = "操作失败，请重新寻找主机";
+        stopped = true;
+        showRetryButton();
+        return;
+      }
+      pollSoon();
+    } catch (_) {
+      out.textContent = "连接中断，请重新扫码";
+      stopped = true;
+    }
   };
 
   const render = async (body) => {
@@ -113,33 +170,73 @@ button{display:block;font-size:1.05rem;padding:.7rem 1rem;margin:.6rem 0;max-wid
     if (typeof body.node_label === "string") {
       node.textContent = body.node_label;
     }
+
+    if (body.status === "idle") {
+      out.textContent = "准备就绪";
+      stopped = true;
+      showFindButton();
+      return;
+    }
+
     if (body.status === "discovering") {
       out.textContent = "正在查找主机";
       return;
     }
+
     if (body.status === "wait_confirm") {
-      out.textContent = "请选择要连接的温室主机";
+      out.textContent = "请选择温室主机";
       const list = Array.isArray(body.candidates) ? body.candidates : [];
       list.forEach(candidate => {
-        const button = document.createElement("button");
-        button.textContent = candidate.label;
-        button.onclick = () => confirmCandidate(candidate.id);
-        choices.appendChild(button);
+        addButton(candidate.label, () => selectCandidate(candidate));
       });
       return;
     }
-    if (body.status === "no_candidate") {
-      out.textContent = "未找到主机，请查看设备屏幕";
+
+    if (body.status === "candidate_selected") {
+      const label = typeof body.selected_label === "string"
+        ? body.selected_label
+        : "温室主机";
+      out.textContent = "已选择：" + label;
+      addHint("点击“开始注册”后，注册过程不能主动终止。系统会自动完成，或在失败后返回错误信息。");
+      addButton("开始注册", beginRegistration);
       stopped = true;
-      await showRetry();
       return;
     }
+
     if (body.status === "selected_pending_bootstrap") {
-      out.textContent = "正在联机注册，请查看设备屏幕";
+      out.textContent = "正在注册，请稍候";
+      addHint("注册进行中，无需在设备屏幕上操作。");
+      return;
+    }
+
+    if (body.status === "success") {
+      out.textContent = "联机注册成功";
+      addHint("设备已完成联机注册。");
       stopped = true;
       return;
     }
-    out.textContent = "正在准备联机注册…";
+
+    if (body.status === "no_candidate") {
+      out.textContent = "E01 未找到主机";
+      addHint("请确认温室主机已开机并与设备处于同一网络。");
+      stopped = true;
+      showRetryButton();
+      return;
+    }
+
+    if (body.status === "error") {
+      const code = typeof body.error_code === "string" ? body.error_code : "E06";
+      const message = typeof body.message === "string" ? body.message : "注册失败";
+      out.textContent = code + " " + message;
+      addHint("请根据提示检查后重新寻找主机。");
+      stopped = true;
+      showRetryButton();
+      return;
+    }
+
+    out.textContent = "准备就绪";
+    stopped = true;
+    showFindButton();
   };
 
   const poll = async () => {
@@ -154,25 +251,18 @@ button{display:block;font-size:1.05rem;padding:.7rem 1rem;margin:.6rem 0;max-wid
       await render(result.body);
       if (!stopped) setTimeout(poll, 750);
     } catch (_) {
-      out.textContent = "连接中断，请重新扫码";
+      out.textContent = "二维码已失效，请重新扫码";
       stopped = true;
     }
   };
 
-  post("/api/v1/register/start").then(result => {
-    if (!result.response.ok) throw new Error("start rejected");
-    out.textContent = "正在查找主机";
-    setTimeout(poll, 250);
-  }).catch(() => {
-    out.textContent = "二维码已失效，请重新扫码";
-    stopped = true;
-  });
+  poll();
 })();
 </script>
 </body>
 </html>)HTML";
 
-std::string base64url_encode(const uint8_t *data, std::size_t size) {
+std::string base64url_encodestd::string base64url_encode(const uint8_t *data, std::size_t size) {
   if (data == nullptr || size == 0) return {};
   std::vector<uint8_t> encoded(((size + 2U) / 3U) * 4U + 1U, 0);
   std::size_t written = 0;
@@ -226,14 +316,22 @@ const char *stage_name(RegistrationPortalStage stage) {
       return "discovering";
     case RegistrationPortalStage::WAIT_CONFIRM:
       return "wait_confirm";
-    case RegistrationPortalStage::ERROR_NO_CANDIDATE:
-      return "no_candidate";
+    case RegistrationPortalStage::CANDIDATE_SELECTED:
+      return "candidate_selected";
     case RegistrationPortalStage::SELECTED_PENDING_BOOTSTRAP:
       return "selected_pending_bootstrap";
+    case RegistrationPortalStage::SUCCESS:
+      return "success";
+    case RegistrationPortalStage::ERROR_NO_CANDIDATE:
+      return "no_candidate";
+    case RegistrationPortalStage::ERROR:
+      return "error";
     case RegistrationPortalStage::IDLE:
     default:
       return "idle";
   }
+}
+
 }
 
 }  // namespace
@@ -261,6 +359,8 @@ void RegistrationPortal::set_discovery_in_progress() {
   std::lock_guard<std::mutex> lock(discovery_mutex_);
   candidates_.clear();
   selected_candidate_id_.clear();
+  error_code_.clear();
+  error_message_.clear();
   discovery_stage_ = RegistrationPortalStage::DISCOVERING;
 }
 
@@ -274,6 +374,8 @@ void RegistrationPortal::set_candidates(
   std::lock_guard<std::mutex> lock(discovery_mutex_);
   candidates_ = candidates;
   selected_candidate_id_.clear();
+  error_code_.clear();
+  error_message_.clear();
   discovery_stage_ = candidates_.empty()
                          ? RegistrationPortalStage::ERROR_NO_CANDIDATE
                          : RegistrationPortalStage::WAIT_CONFIRM;
@@ -283,13 +385,37 @@ void RegistrationPortal::set_no_candidates() {
   std::lock_guard<std::mutex> lock(discovery_mutex_);
   candidates_.clear();
   selected_candidate_id_.clear();
+  error_code_ = "E01";
+  error_message_ = "未找到主机";
   discovery_stage_ = RegistrationPortalStage::ERROR_NO_CANDIDATE;
+}
+
+void RegistrationPortal::set_registration_success() {
+  std::lock_guard<std::mutex> lock(discovery_mutex_);
+  candidates_.clear();
+  selected_candidate_id_.clear();
+  error_code_.clear();
+  error_message_.clear();
+  discovery_stage_ = RegistrationPortalStage::SUCCESS;
+}
+
+void RegistrationPortal::set_registration_error(
+    const std::string &error_code,
+    const std::string &message) {
+  std::lock_guard<std::mutex> lock(discovery_mutex_);
+  candidates_.clear();
+  selected_candidate_id_.clear();
+  error_code_ = error_code;
+  error_message_ = message;
+  discovery_stage_ = RegistrationPortalStage::ERROR;
 }
 
 void RegistrationPortal::clear_discovery_session() {
   std::lock_guard<std::mutex> lock(discovery_mutex_);
   candidates_.clear();
   selected_candidate_id_.clear();
+  error_code_.clear();
+  error_message_.clear();
   discovery_stage_ = RegistrationPortalStage::IDLE;
   scan_trigger_pending_.store(false, std::memory_order_release);
 }
@@ -298,7 +424,11 @@ bool RegistrationPortal::take_selected_candidate_id(
     std::string *candidate_id) {
   if (candidate_id == nullptr) return false;
   std::lock_guard<std::mutex> lock(discovery_mutex_);
-  if (selected_candidate_id_.empty()) return false;
+  if (discovery_stage_ !=
+          RegistrationPortalStage::SELECTED_PENDING_BOOTSTRAP ||
+      selected_candidate_id_.empty()) {
+    return false;
+  }
   *candidate_id = selected_candidate_id_;
   selected_candidate_id_.clear();
   return true;
@@ -365,6 +495,10 @@ bool RegistrationPortal::start_(
           "/api/v1/register/confirm",
           HTTP_POST,
           &RegistrationPortal::confirm_handler_) ||
+      !register_uri(
+          "/api/v1/register/begin",
+          HTTP_POST,
+          &RegistrationPortal::begin_handler_) ||
       !register_uri(
           "/api/v1/register/retry",
           HTTP_POST,
@@ -582,15 +716,29 @@ esp_err_t RegistrationPortal::handle_start_(httpd_req_t *request) {
         "\"reason\":\"rate_limited\"}");
   }
 
+  bool accepted = false;
   {
     std::lock_guard<std::mutex> lock(discovery_mutex_);
     if (discovery_stage_ == RegistrationPortalStage::IDLE ||
-        discovery_stage_ == RegistrationPortalStage::ERROR_NO_CANDIDATE) {
+        discovery_stage_ == RegistrationPortalStage::ERROR_NO_CANDIDATE ||
+        discovery_stage_ == RegistrationPortalStage::ERROR) {
       candidates_.clear();
       selected_candidate_id_.clear();
+      error_code_.clear();
+      error_message_.clear();
       discovery_stage_ = RegistrationPortalStage::DISCOVERING;
       scan_trigger_pending_.store(true, std::memory_order_release);
+      accepted = true;
     }
+  }
+
+  if (!accepted) {
+    return send_json_(
+        request,
+        "409 Conflict",
+        "{\"schema\":\"gh.registration.portal-result/1\","
+        "\"status\":\"not_ready\","
+        "\"reason\":\"registration_in_progress\"}");
   }
 
   return send_json_(
@@ -620,6 +768,9 @@ esp_err_t RegistrationPortal::handle_status_(httpd_req_t *request) {
   RegistrationPortalStage stage;
   std::string node_label;
   std::vector<RegistrationPortalCandidateView> candidates;
+  std::string selected_label;
+  std::string error_code;
+  std::string error_message;
   const uint64_t now_ms = monotonic_ms_();
   {
     std::lock_guard<std::mutex> lock(discovery_mutex_);
@@ -635,14 +786,36 @@ esp_err_t RegistrationPortal::handle_status_(httpd_req_t *request) {
               }),
           candidates_.end());
       if (candidates_.empty()) {
+        error_code_ = "E01";
+        error_message_ = "未找到主机";
         discovery_stage_ = RegistrationPortalStage::ERROR_NO_CANDIDATE;
         candidate_list_expired_event_pending_.store(
             true, std::memory_order_release);
+      }
+    } else if (
+        discovery_stage_ == RegistrationPortalStage::CANDIDATE_SELECTED) {
+      const auto found = std::find_if(
+          candidates_.begin(),
+          candidates_.end(),
+          [&](const RegistrationPortalCandidateView &candidate) {
+            return candidate.id == selected_candidate_id_ &&
+                   candidate.expires_at_ms > now_ms;
+          });
+      if (found == candidates_.end()) {
+        error_code_ = "E07";
+        error_message_ = "主机信息已失效";
+        discovery_stage_ = RegistrationPortalStage::ERROR;
+        candidate_stale_event_pending_.store(
+            true, std::memory_order_release);
+      } else {
+        selected_label = found->label;
       }
     }
     stage = discovery_stage_;
     node_label = node_label_;
     candidates = candidates_;
+    error_code = error_code_;
+    error_message = error_message_;
   }
 
   const std::string body = json::build_json([&](JsonObject root) {
@@ -656,6 +829,15 @@ esp_err_t RegistrationPortal::handle_status_(httpd_req_t *request) {
         item["id"] = candidate.id;
         item["label"] = candidate.label;
       }
+    } else if (stage == RegistrationPortalStage::CANDIDATE_SELECTED) {
+      root["selected_label"] = selected_label;
+    } else if (stage == RegistrationPortalStage::ERROR_NO_CANDIDATE) {
+      root["error_code"] = "E01";
+      root["message"] = "未找到主机";
+    } else if (stage == RegistrationPortalStage::ERROR) {
+      root["error_code"] = error_code.empty() ? "E06" : error_code;
+      root["message"] =
+          error_message.empty() ? "注册失败" : error_message;
     }
   });
   return send_json_(request, "200 OK", body);
@@ -694,10 +876,71 @@ esp_err_t RegistrationPortal::handle_confirm_(httpd_req_t *request) {
           });
       if (found != candidates_.end()) {
         selected_candidate_id_ = candidate_id;
+        error_code_.clear();
+        error_message_.clear();
+        discovery_stage_ = RegistrationPortalStage::CANDIDATE_SELECTED;
+        accepted = true;
+      }
+    }
+  }
+
+  if (!accepted) {
+    candidate_stale_event_pending_.store(true, std::memory_order_release);
+    return send_json_(
+        request,
+        "409 Conflict",
+        "{\"schema\":\"gh.registration.portal-result/1\","
+        "\"status\":\"not_ready\","
+        "\"reason\":\"candidate_stale\"}");
+  }
+
+  return send_json_(
+      request,
+      "202 Accepted",
+      "{\"schema\":\"gh.registration.portal-result/1\","
+      "\"status\":\"accepted\",\"next\":\"user_confirm\"}");
+}
+
+esp_err_t RegistrationPortal::handle_begin_(httpd_req_t *request) {
+  if (!request_is_local_(request) ||
+      !read_action_request_(request, false, nullptr)) {
+    return send_json_(
+        request,
+        "403 Forbidden",
+        "{\"schema\":\"gh.registration.portal-error/1\","
+        "\"reason\":\"scan_session_invalid\"}");
+  }
+  if (!request_rate_allowed_()) {
+    return send_json_(
+        request,
+        "429 Too Many Requests",
+        "{\"schema\":\"gh.registration.portal-error/1\","
+        "\"reason\":\"rate_limited\"}");
+  }
+
+  const uint64_t now_ms = monotonic_ms_();
+  bool accepted = false;
+  {
+    std::lock_guard<std::mutex> lock(discovery_mutex_);
+    if (discovery_stage_ == RegistrationPortalStage::CANDIDATE_SELECTED &&
+        now_ms != 0U) {
+      const auto found = std::find_if(
+          candidates_.begin(),
+          candidates_.end(),
+          [&](const RegistrationPortalCandidateView &candidate) {
+            return candidate.id == selected_candidate_id_ &&
+                   candidate.expires_at_ms > now_ms;
+          });
+      if (found != candidates_.end()) {
         discovery_stage_ =
             RegistrationPortalStage::SELECTED_PENDING_BOOTSTRAP;
         accepted = true;
       }
+    }
+    if (!accepted) {
+      error_code_ = "E07";
+      error_message_ = "主机信息已失效";
+      discovery_stage_ = RegistrationPortalStage::ERROR;
     }
   }
 
@@ -735,14 +978,29 @@ esp_err_t RegistrationPortal::handle_retry_(httpd_req_t *request) {
         "\"reason\":\"rate_limited\"}");
   }
 
+  bool accepted = false;
   {
     std::lock_guard<std::mutex> lock(discovery_mutex_);
-    if (discovery_stage_ != RegistrationPortalStage::DISCOVERING) {
+    if (discovery_stage_ == RegistrationPortalStage::IDLE ||
+        discovery_stage_ == RegistrationPortalStage::ERROR_NO_CANDIDATE ||
+        discovery_stage_ == RegistrationPortalStage::ERROR) {
       candidates_.clear();
       selected_candidate_id_.clear();
+      error_code_.clear();
+      error_message_.clear();
       discovery_stage_ = RegistrationPortalStage::DISCOVERING;
       scan_trigger_pending_.store(true, std::memory_order_release);
+      accepted = true;
     }
+  }
+
+  if (!accepted) {
+    return send_json_(
+        request,
+        "409 Conflict",
+        "{\"schema\":\"gh.registration.portal-result/1\","
+        "\"status\":\"not_ready\","
+        "\"reason\":\"registration_in_progress\"}");
   }
 
   return send_json_(
@@ -780,6 +1038,13 @@ esp_err_t RegistrationPortal::confirm_handler_(
   auto *self =
       static_cast<RegistrationPortal *>(request->user_ctx);
   return self == nullptr ? ESP_FAIL : self->handle_confirm_(request);
+}
+
+esp_err_t RegistrationPortal::begin_handler_(
+    httpd_req_t *request) {
+  auto *self =
+      static_cast<RegistrationPortal *>(request->user_ctx);
+  return self == nullptr ? ESP_FAIL : self->handle_begin_(request);
 }
 
 esp_err_t RegistrationPortal::retry_handler_(
