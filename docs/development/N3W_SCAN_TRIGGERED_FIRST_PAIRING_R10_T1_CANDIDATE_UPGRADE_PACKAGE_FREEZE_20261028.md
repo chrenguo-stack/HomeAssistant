@@ -210,12 +210,13 @@ It privately binds/captures:
 - current Broker/Manager/HA container image IDs and start/restart state;
 - exact filter-table evidence required to prove registration-chain predecessor absence.
 
-After Manager/HA are stopped, it captures quiescent copies of:
+After Manager/HA are stopped, it captures one quiescent numeric-owner archive of the complete portable Manager state root:
 
 ```text
-/var/lib/greenhouse-manager/manager
-/var/lib/greenhouse-manager/n3w
+/var/lib/greenhouse-manager
 ```
+
+This intentionally includes manager, N3-W, identity and related Manager-owned state so a failed candidate startup cannot leave a partial database/identity migration outside rollback coverage. Broker data and Home Assistant data are not part of this archive.
 
 The rollback snapshot is private and must never be committed or pasted into chat.
 
@@ -240,8 +241,8 @@ I. install runtime-source overlay and live public files
 J. atomically update GH_MANAGER_IMAGE in existing compose env only
 K. install registration TLS with exact owner/mode
 L. daemon-reload + enable/start registration guard
-M. successor-rebind F4 installed_files
-N. target F4 eligibility --phase services PASS
+M. successor-rebind the three changed F4 installed_files bindings
+N. preserved predecessor F4 eligibility --phase services PASS
 O. start n3wfc4-services-activation.service
 P. strict postcheck
 Q. commit upgrade transaction
