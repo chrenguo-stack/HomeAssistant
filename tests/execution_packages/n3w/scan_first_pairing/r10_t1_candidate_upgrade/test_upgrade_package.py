@@ -637,3 +637,50 @@ def test_successor_live_file_postcheck_binds_all_live_targets(
         match="successor_live_file_drift",
     ):
         executor.verify_successor_live_files({"live_files": live})
+
+
+def test_rollback_never_restores_state_without_quiescence(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    restored: list[str] = []
+    phases: list[str] = []
+
+    monkeypatch.setattr(executor, "run", lambda *_a, **_k: "")
+    monkeypatch.setattr(executor, "cleanup_registration_firewall", lambda: None)
+    monkeypatch.setattr(
+        executor,
+        "require_application_quiescent",
+        lambda: (_ for _ in ()).throw(
+            executor.UpgradeError("application_not_quiescent")
+        ),
+    )
+    monkeypatch.setattr(
+        executor,
+        "restore_manager_state",
+        lambda _archive: restored.append("manager"),
+    )
+    monkeypatch.setattr(
+        executor,
+        "restore_static",
+        lambda *_a: restored.append("static"),
+    )
+    monkeypatch.setattr(
+        executor,
+        "advance_upgrade",
+        lambda phase, **_fields: phases.append(phase),
+    )
+
+    with pytest.raises(
+        executor.UpgradeError,
+        match="rollback_unproven:application_not_quiescent",
+    ):
+        executor.rollback(
+            workspace=tmp_path,
+            records={},
+            prestate={},
+            manager_archive=tmp_path / "manager.tar",
+        )
+
+    assert restored == []
+    assert phases == ["ROLLBACK_FAILED"]
