@@ -211,93 +211,55 @@ def test_archived_backup_mode_is_0600_while_live_mode_remains_original(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    work_root = tmp_path / "work"
-    failed_workspace = work_root / tool.FAILED_WORKSPACE_SUFFIX
-    static = failed_workspace / "static"
-    static.mkdir(parents=True, mode=0o700)
-
-    live = tmp_path / "docker-compose.yml"
     payload = b"services:\n  manager: {}\n"
+    backup = tmp_path / "backup.bin"
+    live = tmp_path / "docker-compose.yml"
+    backup.write_bytes(payload)
     live.write_bytes(payload)
+    backup.chmod(0o600)
     live.chmod(0o644)
 
-    backup = static / "file-000.bin"
-    backup.write_bytes(payload)
+    real_binding = tool._binding
+
+    def normalized_binding(path: Path) -> dict:
+        value = real_binding(path)
+        value["uid"] = 0
+        value["gid"] = 0
+        return value
+
+    monkeypatch.setattr(tool, "_binding", normalized_binding)
+    binding = normalized_binding(live)
+
+    tool.validate_archived_backup_copy(backup, live, binding)
+
+
+def test_archived_backup_content_mismatch_is_rejected(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    backup = tmp_path / "backup.bin"
+    live = tmp_path / "docker-compose.yml"
+    backup.write_bytes(b"old\n")
+    live.write_bytes(b"new\n")
     backup.chmod(0o600)
+    live.chmod(0o644)
 
-    index = {
-        "f4_transaction": {
-            "present": True,
-            "backup": "f4-transaction.bin",
-            "binding": {
-                "sha256": tool.EXPECTED_F4_SHA256,
-                "size": 1,
-                "mode": 0o600,
-                "uid": 0,
-                "gid": 0,
-            },
-        },
-        "compose_env": {
-            "present": True,
-            "backup": "docker-compose.env.bin",
-            "binding": {
-                "sha256": tool.sha256_bytes(b"x"),
-                "size": 1,
-                "mode": 0o600,
-                "uid": 0,
-                "gid": 0,
-            },
-        },
-        "firewall_sha256": tool.sha256_bytes(b"fw"),
-        "live_files:compose": {
-            "present": True,
-            "backup": "file-000.bin",
-            "path": str(live),
-            "binding": {
-                "sha256": tool.sha256_bytes(payload),
-                "size": len(payload),
-                "mode": 0o644,
-                "uid": 0,
-                "gid": 0,
-            },
-        },
-    }
+    real_binding = tool._binding
 
-    (static / "f4-transaction.bin").write_bytes(b"x")
-    (static / "docker-compose.env.bin").write_bytes(b"x")
-    (static / "iptables-filter-prestate.txt").write_bytes(b"fw")
-    (static / "index.json").write_text(
-        json.dumps(index),
-        encoding="utf-8",
-    )
-    for path in static.iterdir():
-        if path.is_file():
-            path.chmod(0o600)
+    def normalized_binding(path: Path) -> dict:
+        value = real_binding(path)
+        value["uid"] = 0
+        value["gid"] = 0
+        return value
 
-    monkeypatch.setattr(tool, "WORK_ROOT", work_root)
-    monkeypatch.setattr(tool, "FAILED_WORKSPACE_PATH", failed_workspace)
-    monkeypatch.setattr(
-        tool,
-        "EXPECTED_WORKSPACE_FILES",
-        {
-            "static/docker-compose.env.bin",
-            "static/f4-transaction.bin",
-            "static/file-000.bin",
-            "static/index.json",
-            "static/iptables-filter-prestate.txt",
-        },
-    )
-    monkeypatch.setattr(tool, "EXPECTED_F4_SHA256", tool.sha256_bytes(b"x"))
-    monkeypatch.setattr(tool, "_binding", lambda p: {
-        "sha256": tool.sha256_file(p),
-        "size": p.stat().st_size,
-        "mode": p.stat().st_mode & 0o777,
-        "uid": 0,
-        "gid": 0,
-    })
+    monkeypatch.setattr(tool, "_binding", normalized_binding)
+    binding = normalized_binding(live)
 
-    result = tool.validate_workspace()
-    assert result["workspace_file_count"] == 5
+    with pytest.raises(
+        tool.ReconcileError,
+        match="workspace_backup_copy_invalid",
+    ):
+        tool.validate_archived_backup_copy(backup, live, binding)
 
 
 def test_source_has_no_destructive_delete_path() -> None:
