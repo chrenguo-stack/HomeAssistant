@@ -137,7 +137,8 @@ SimpleProductComponent::registration_display_base_state_() const {
   if (portal_stage == RegistrationPortalStage::DISCOVERING) {
     return RegistrationDisplayState::DISCOVERING;
   }
-  if (portal_stage == RegistrationPortalStage::WAIT_CONFIRM) {
+  if (portal_stage == RegistrationPortalStage::WAIT_CONFIRM ||
+      portal_stage == RegistrationPortalStage::CANDIDATE_SELECTED) {
     return RegistrationDisplayState::WAIT_CONFIRM;
   }
   return RegistrationDisplayState::IDLE_UNREGISTERED;
@@ -154,11 +155,53 @@ RegistrationDisplayError SimpleProductComponent::registration_display_error() co
 
 void SimpleProductComponent::show_registration_error_(
     RegistrationDisplayError error) {
-  registration_display_controller_.show_error(error, now_ms());
+  const uint64_t now = now_ms();
+  registration_display_controller_.show_error(error, now);
+  if (!registration_portal_.running()) return;
+
+  const char *code = "E06";
+  const char *message = "注册失败";
+  switch (error) {
+    case RegistrationDisplayError::E01_NO_HOST:
+      code = "E01";
+      message = "未找到主机";
+      break;
+    case RegistrationDisplayError::E02_HOST_UNAVAILABLE:
+      code = "E02";
+      message = "主机不可用";
+      break;
+    case RegistrationDisplayError::E03_HOST_BUSY:
+      code = "E03";
+      message = "主机忙";
+      break;
+    case RegistrationDisplayError::E04_NETWORK_INTERRUPTED:
+      code = "E04";
+      message = "网络中断";
+      break;
+    case RegistrationDisplayError::E05_REGISTRATION_TIMEOUT:
+      code = "E05";
+      message = "注册超时";
+      break;
+    case RegistrationDisplayError::E07_QR_INVALID:
+      code = "E07";
+      message = "二维码或主机信息已失效";
+      break;
+    case RegistrationDisplayError::E06_REGISTRATION_FAILED:
+    case RegistrationDisplayError::NONE:
+    default:
+      break;
+  }
+  registration_portal_.set_registration_error(code, message);
 }
 
 void SimpleProductComponent::show_registration_success_() {
-  registration_display_controller_.show_success(now_ms());
+  const uint64_t now = now_ms();
+  registration_display_controller_.show_success(now);
+  if (registration_portal_.running() && now != 0U) {
+    registration_portal_.set_registration_success();
+    registration_portal_success_until_ms_ =
+        now + kRegistrationPortalSuccessGraceMs;
+  }
 }
 
 void SimpleProductComponent::setup() {
@@ -216,14 +259,22 @@ void SimpleProductComponent::loop() {
     registration_wifi_loss_reported_ = true;
   }
 
+  const uint64_t portal_now = now_ms();
+  const bool portal_success_grace =
+      pairing_client_.provisioned() &&
+      registration_portal_.running() &&
+      registration_portal_success_until_ms_ != 0U &&
+      portal_now != 0U &&
+      portal_now < registration_portal_success_until_ms_;
   const bool portal_allowed =
       activation_enabled_ && !is_failed() && !safe_reboot_requested_ &&
-      wifi_connected() && !pairing_client_.provisioned() &&
-      !pairing_ack_pending_;
+      wifi_connected() &&
+      (!pairing_client_.provisioned() || portal_success_grace);
   registration_portal_allowed_.store(
       portal_allowed, std::memory_order_release);
   if (!portal_allowed && registration_portal_.running()) {
     registration_portal_.stop();
+    registration_portal_success_until_ms_ = 0U;
   }
   if (!activation_enabled_ || is_failed() || safe_reboot_requested_) return;
   const bool recovery_exclusive =
@@ -238,7 +289,6 @@ void SimpleProductComponent::loop() {
       advance_pairing_();
       if (!pairing_client_.provisioned()) return;
       pairing_ack_pending_ = false;
-      registration_portal_.stop();
     } else {
       advance_registration_portal_();
       advance_registration_discovery_();
@@ -246,7 +296,6 @@ void SimpleProductComponent::loop() {
       return;
     }
   }
-  registration_portal_.stop();
   if (!runtime_state_loaded_ && !load_runtime_state_()) return;
   if (!mqtt_configured_ && !configure_mqtt_()) return;
   if (!runtime_ready_) {
