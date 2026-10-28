@@ -12,6 +12,7 @@ import sqlite3
 import stat
 import subprocess
 import sys
+import time
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterable
 
@@ -1416,6 +1417,88 @@ def strict_postcheck(
     }
 
 
+
+POSTCHECK_TIMEOUT_SECONDS = 180
+POSTCHECK_POLL_SECONDS = 2
+TRANSIENT_POSTCHECK_REASONS = frozenset(
+    {
+        "services_not_active_postupgrade",
+        "target_manager_not_running",
+        "registration_listener_postcheck_failed",
+        "pairing_window_postcheck_failed",
+        "manager_capability_postcheck_failed",
+        "database_postcheck_failed",
+        "manager_database_read_failed",
+    }
+)
+
+
+def _transient_postcheck_reason(reason: str) -> bool:
+    if reason in TRANSIENT_POSTCHECK_REASONS:
+        return True
+    return reason in {
+        "container_not_unique:manager",
+        "container_not_unique:homeassistant",
+        "container_inspect_invalid:manager",
+        "container_inspect_invalid:homeassistant",
+    }
+
+
+def wait_strict_postcheck(
+    prestate: dict[str, Any],
+    manifest: dict[str, Any],
+    *,
+    timeout_seconds: int = POSTCHECK_TIMEOUT_SECONDS,
+    poll_seconds: int = POSTCHECK_POLL_SECONDS,
+) -> dict[str, Any]:
+    deadline = time.monotonic() + timeout_seconds
+    last_reason = "not_started"
+    while True:
+        try:
+            return strict_postcheck(prestate, manifest)
+        except UpgradeError as error:
+            last_reason = str(error)
+            if not _transient_postcheck_reason(last_reason):
+                raise
+            if time.monotonic() >= deadline:
+                raise UpgradeError(
+                    "postupgrade_readiness_timeout:" + last_reason
+                ) from error
+            time.sleep(poll_seconds)
+
+
+def wait_predecessor_runtime(
+    prestate: dict[str, Any],
+    *,
+    timeout_seconds: int = POSTCHECK_TIMEOUT_SECONDS,
+    poll_seconds: int = POSTCHECK_POLL_SECONDS,
+) -> None:
+    deadline = time.monotonic() + timeout_seconds
+    last_reason = "not_started"
+    transient = {
+        "rollback_services_not_active",
+        "rollback_database_not_predecessor",
+        "manager_database_read_failed",
+        "container_not_unique:manager",
+        "container_not_unique:homeassistant",
+        "container_inspect_invalid:manager",
+        "container_inspect_invalid:homeassistant",
+    }
+    while True:
+        try:
+            verify_predecessor_runtime(prestate)
+            return
+        except UpgradeError as error:
+            last_reason = str(error)
+            if last_reason not in transient:
+                raise
+            if time.monotonic() >= deadline:
+                raise UpgradeError(
+                    "rollback_readiness_timeout:" + last_reason
+                ) from error
+            time.sleep(poll_seconds)
+
+
 def cleanup_registration_firewall() -> None:
     for protocol, port in REGISTRATION_PORTS:
         run(
@@ -1584,7 +1667,7 @@ def rollback(
         ):
             raise UpgradeError("rollback_f4_transaction_not_exact")
         run(("systemctl", "start", SERVICES_UNIT), timeout=240)
-        verify_predecessor_runtime(prestate)
+        wait_predecessor_runtime(prestate)
     except Exception as error:
         errors.append("predecessor_runtime:" + type(error).__name__)
     try:
@@ -1733,7 +1816,7 @@ def execute_apply(
         )
 
         run(("systemctl", "start", SERVICES_UNIT), timeout=300)
-        post = strict_postcheck(prestate, manifest)
+        post = wait_strict_postcheck(prestate, manifest)
 
         commit_f4_successor()
         f4_services_eligibility()
