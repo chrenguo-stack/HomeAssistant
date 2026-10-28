@@ -65,7 +65,7 @@ def good_t1() -> dict:
         },
         "runtime_services_unit": {
             "exists": True,
-            "git_blob_sha1": module.EXPECTED_CURRENT_BLOBS["installed_services_unit"],
+            "git_blob_sha1": module.EXPECTED_CURRENT_BLOBS["runtime_services_unit"],
         },
         "runtime_dispatcher": {
             "exists": True,
