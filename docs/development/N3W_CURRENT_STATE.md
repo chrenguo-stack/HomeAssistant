@@ -1,3 +1,66 @@
+## 2026-10-28 — Scan-triggered first pairing R9 exact artifact CLOSED_PASS; R10 handoff boundary
+
+~~~text
+TASK=N3W_SCAN_TRIGGERED_FIRST_PAIRING_R9_TO_R10_GITHUB_ALIGNMENT_20261028
+
+REPOSITORY=chrenguo-stack/HomeAssistant
+MAIN=2fbd0e9c2d3bf8a513ac318034e249511ffb6a2e
+MAIN_TREE=3064ab74ac96bbce44a0bf880ab53c7afc5bc134
+
+R9_SOURCE_HEAD=e299c937a7b89bb8a7b9a7432186ba46a416cd44
+R9_SOURCE_TREE=e6e8290bdea3d9b09a70c598b4c3a9f5551540a7
+R9_BUILD_WORKFLOW_HEAD=d6c3e09464c7bcb8e30bdcbbc7a1cdc8fbcec303
+R9_CLOSURE_HEAD=7c80028b5ba4fe2e087ff076f3bc7ff7e5ed836d
+
+PR705_STATE=OPEN_DRAFT_UNMERGED
+PR706_STATE=OPEN_DRAFT_UNMERGED
+PR707_STATE=OPEN_DRAFT_UNMERGED
+PR708_STATE=OPEN_DRAFT_UNMERGED
+PR709_STATE=OPEN_DRAFT_UNMERGED
+
+R9_WORKFLOW_RUN_ID=40612774339
+R9_BUILD_JOB_ID=122568077610
+R9_ARTIFACT_ID=12783234959
+R9_ARTIFACT_NAME=n3w-scan-first-pair-r9-e299c937-exact-source
+R9_ARTIFACT_DIGEST=sha256:6b31001da3a4dff44f8c8cf605b885bcafcfd084d35969351938aa4904cc9995
+R9_ARTIFACT_EXPIRES_AT=2026-11-27T01:09:52Z
+
+R9_RELEASE_BUNDLE_SHA256=b30bede249c90d4a50c9d3d779219bf9bf84a91960ec2a67332ef895e6a07dc1
+R9_MANIFEST_SHA256=8db79ea5c7ac3b3c4b97a7852bf39447ff2f14d45880d4c5a0d8e4d5805cdf05
+R9_FIRMWARE_BIN_SHA256=fe11f5a81ce83e97fc0834114486a9cace26624977f9c4e0104c71687f4cc7be
+R9_FIRMWARE_FACTORY_BIN_SHA256=b734c343b3caf725c3991e6dc408b471a607f0c10cfe641346a78228b65c3bbf
+
+R9_EXACT_ARTIFACT_BUILD=PASS
+R9_INDEPENDENT_REVIEW=PASS
+R10_ARTIFACT_ELIGIBLE=true
+R9_NEW_BLOCKER_COUNT=0
+SOURCE_REPAIR_REQUIRED=false
+
+R10_BLIND_FLAT_BUNDLE_FLASH_ARGS_EXECUTION=false
+R10_T1_RUNTIME_BINDING_REQUIRED=true
+
+T1_LIVE_RUNTIME_STATE=UNKNOWN_FRESH
+BOARD_A_STATE=UNKNOWN_FRESH
+BOARD_B_STATE=UNKNOWN_FRESH
+APPLICATION_SERIAL_OPEN=false
+FLASH_MUTATION=false
+NVS_MUTATION=false
+T1_RUNTIME_MUTATION=false
+
+R10_PHYSICAL_AUTHORIZATION_GRANTED=false
+CURRENT_STOP_POINT=R9_CLOSED_PASS_BEFORE_R10_PHYSICAL_ACCEPTANCE
+NEXT_ONE_GATE=N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_PHYSICAL_ACCEPTANCE_DESIGN_AND_READONLY_PREFLIGHT_20261028_01
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+R9 exact artifact production and independent review are closed PASS. The GitHub Actions artifact was independently downloaded outside the build workspace; outer artifact digest, inner release digest/sidecar, exact eight-member deterministic ZIP, source/tree/blob/toolchain manifest binding, every member size/hash, downloaded binary positive controls and forbidden-marker checks all passed.
+
+The reviewed artifact is the only R10 firmware candidate. A same-source rebuild is not automatically interchangeable. The bundled flat `flash_args` references build-tree paths/names and must not be executed directly from the flat release ZIP.
+
+No T1 or board state was freshly inspected during R9. R10 therefore starts in a new conversation with design/read-only preflight only. It must fresh-rebind the artifact and repository, then design and perform only separately authorized read-only T1/board checks before any physical mutation. Live Manager/T1 readiness, trusted-product-LAN state, idle 47112 closure, predecessor-transaction absence, board identity/power state and write procedure are all UNKNOWN_FRESH until that new gate proves them.
+
+No R10 physical authorization has been granted. No board write, serial access, T1 mutation, flash/NVS mutation, merge or physical acceptance occurred during this alignment.
+
 ## 2026-10-27 — R5 scan-triggered T1 discovery / multi-T1 selection merged; R6 handoff boundary
 
 ~~~text
