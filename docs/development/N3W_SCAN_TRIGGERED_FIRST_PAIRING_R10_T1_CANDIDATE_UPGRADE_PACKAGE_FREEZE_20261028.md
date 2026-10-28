@@ -93,24 +93,30 @@ dispatcher_git_blob=3d6f32455fffd6f604f83a6c12e298bc395945e0
 
 The registration TLS key/certificate are device-instance material and are never included in the public artifact. They are generated locally from the exact candidate Manager image and remain T1-private.
 
-### 4.3 Runtime-source overlay
+### 4.3 Historical product source tree preservation
 
-The package also updates the corresponding public source copies under `/opt/HomeAssistant` so live installed material is not detached from the source tree used for later forensics.
-
-Required overlay:
+The live upgrade does **not** modify any path under:
 
 ```text
-infra/n3w-t1/production/docker-compose.yml
-    <- exact bytes of target docker-compose.fresh.yml
-infra/n3w-t1/f4/n3wfc4-services-activation.service
-infra/n3w-t1/systemd/n3wfc4-services-activation.service
-infra/n3w-t1/systemd/n3wfc4-registration-ingress-guard.service
-infra/n3w-t1/NetworkManager/dispatcher.d/90-n3wfc4-broker-ingress-guard
-tools/n3w_registration_ingress_guard.py
-tools/n3w_trusted_product_lan_authority.py
+/opt/HomeAssistant
 ```
 
-The rest of `/opt/HomeAssistant` is not replaced by this bounded upgrade.
+That tree remains the historical per-device production/provisioning release source used by the existing `n3w-t1-provision verify` and F4 lifecycle.
+
+Creating a partial e299 overlay inside that old release would create a hybrid source tree and could make future provisioning/recovery forensics ambiguous.
+
+Target-source authority for this upgrade is instead carried by:
+
+- the exact `TARGET_PRODUCT_SOURCE` in the package manifest;
+- each installed live file's target source path + predecessor/target byte hash;
+- the frozen Manager image ID/tar SHA;
+- the frozen ARM64 base digest and installed Python distribution inventory;
+- the immutable package artifact and upgrade transaction.
+
+```text
+OPT_HOMEASSISTANT_MUTATION=false
+HISTORICAL_PROVISIONING_SOURCE_TREE_PRESERVED=true
+```
 
 ### 4.4 Historical F4 launcher preservation
 
@@ -251,7 +257,7 @@ E. generate dedicated registration TLS into private staging
 F. stop n3wfc4-services-activation.service only
 G. prove Broker continuity
 H. quiescent Manager/N3W state backup
-I. install runtime-source overlay and live public files
+I. install only the bounded live public files; preserve /opt/HomeAssistant byte-for-byte
 J. atomically update GH_MANAGER_IMAGE in existing compose env only
 K. install registration TLS with exact owner/mode
 L. daemon-reload + enable/start registration guard
@@ -303,7 +309,6 @@ stop/disable registration guard
 remove only exact owned registration firewall anchors/chain
 restore Manager/N3W quiescent state snapshot if Manager may have started
 restore compose env
-restore runtime-source overlay
 restore all predecessor live files / remove predecessor-absent files
 restore predecessor registration-TLS absence/state
 restore exact predecessor F4 transaction bytes
