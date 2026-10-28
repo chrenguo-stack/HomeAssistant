@@ -27,8 +27,11 @@ enum class RegistrationPortalStage : uint8_t {
   IDLE = 0,
   DISCOVERING,
   WAIT_CONFIRM,
-  ERROR_NO_CANDIDATE,
+  CANDIDATE_SELECTED,
   SELECTED_PENDING_BOOTSTRAP,
+  SUCCESS,
+  ERROR_NO_CANDIDATE,
+  ERROR,
 };
 
 struct RegistrationPortalCandidateView {
@@ -64,6 +67,10 @@ class RegistrationPortal {
   void set_candidates(
       const std::vector<RegistrationPortalCandidateView> &candidates);
   void set_no_candidates();
+  void set_registration_success();
+  void set_registration_error(
+      const std::string &error_code,
+      const std::string &message);
   void clear_discovery_session();
   bool take_selected_candidate_id(std::string *candidate_id);
   bool take_candidate_stale_event() {
@@ -80,12 +87,14 @@ class RegistrationPortal {
   static esp_err_t start_handler_(httpd_req_t *request);
   static esp_err_t status_handler_(httpd_req_t *request);
   static esp_err_t confirm_handler_(httpd_req_t *request);
+  static esp_err_t begin_handler_(httpd_req_t *request);
   static esp_err_t retry_handler_(httpd_req_t *request);
 
   esp_err_t handle_register_page_(httpd_req_t *request);
   esp_err_t handle_start_(httpd_req_t *request);
   esp_err_t handle_status_(httpd_req_t *request);
   esp_err_t handle_confirm_(httpd_req_t *request);
+  esp_err_t handle_begin_(httpd_req_t *request);
   esp_err_t handle_retry_(httpd_req_t *request);
 
   bool start_(
@@ -127,6 +136,8 @@ class RegistrationPortal {
   std::string node_label_{};
   std::vector<RegistrationPortalCandidateView> candidates_{};
   std::string selected_candidate_id_{};
+  std::string error_code_{};
+  std::string error_message_{};
 };
 
 }  // namespace esphome::greenhouse_n3w_core
