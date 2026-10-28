@@ -317,7 +317,10 @@ def test_claim_occurs_before_first_mutating_stage(
     manifest = {
         "package_head": "a" * 40,
         "manager": {"image_size_bytes": 1},
-        "capacity": {"upgrade_emergency_reserve_bytes": 1},
+        "capacity": {
+            "upgrade_emergency_reserve_bytes": 1,
+            "runtime_bundle_size_bytes": 1,
+        },
     }
     prestate = {
         "system_id": "private",
