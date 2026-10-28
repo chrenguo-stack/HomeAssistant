@@ -1340,12 +1340,61 @@ print(json.dumps({
     return isinstance(value, dict) and all(value.values())
 
 
+
+def verify_successor_live_files(manifest: dict[str, Any]) -> None:
+    live = manifest.get("live_files")
+    if not isinstance(live, dict):
+        raise UpgradeError("successor_live_manifest_invalid")
+    for name, record in live.items():
+        if not isinstance(record, dict):
+            raise UpgradeError("successor_live_manifest_invalid")
+        path = Path(str(record.get("target", "")))
+        if path.is_symlink() or not path.is_file():
+            raise UpgradeError(f"successor_live_file_missing:{name}")
+        binding = file_binding(path)
+        if (
+            binding["sha256"] != record.get("sha256")
+            or binding["size"] != record.get("size")
+            or binding["mode"] != record.get("mode")
+            or binding["uid"] != 0
+            or binding["gid"] != 0
+        ):
+            raise UpgradeError(f"successor_live_file_drift:{name}")
+
+
+def verify_registration_tls_material() -> None:
+    cert = REGISTRATION_TLS_ROOT / "bootstrap.pem"
+    key = REGISTRATION_TLS_ROOT / "bootstrap.key"
+    if (
+        cert.is_symlink()
+        or key.is_symlink()
+        or not cert.is_file()
+        or not key.is_file()
+    ):
+        raise UpgradeError("registration_tls_material_missing")
+    cert_meta = cert.stat()
+    key_meta = key.stat()
+    if (
+        cert_meta.st_uid != 0
+        or cert_meta.st_gid != 0
+        or stat.S_IMODE(cert_meta.st_mode) != 0o644
+        or key_meta.st_uid != 999
+        or key_meta.st_gid != 999
+        or stat.S_IMODE(key_meta.st_mode) != 0o600
+        or cert_meta.st_size <= 0
+        or key_meta.st_size <= 0
+    ):
+        raise UpgradeError("registration_tls_material_metadata_invalid")
+
+
 def strict_postcheck(
     prestate: dict[str, Any],
     manifest: dict[str, Any],
 ) -> dict[str, Any]:
     if service_state(SERVICES_UNIT)["active"] != "active":
         raise UpgradeError("services_not_active_postupgrade")
+    verify_successor_live_files(manifest)
+    verify_registration_tls_material()
     registration = service_state(REGISTRATION_UNIT)
     if (
         registration["active"] != "active"
