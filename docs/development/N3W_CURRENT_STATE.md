@@ -1,3 +1,21 @@
+## 2026-10-28 — T1 OTA upgrade independent product stage opened
+
+~~~text
+STAGE=N3W_T1_OTA_UPGRADE
+STAGE_TYPE=INDEPENDENT_PRODUCT_DEVELOPMENT_STAGE
+BRANCH=product/n3w-t1-ota-upgrade-20261028
+BASE_MAIN=2fbd0e9c2d3bf8a513ac318034e249511ffb6a2e
+R10_INDEPENDENT=true
+NORMAL_OTA_TARGET=N3W_PRODUCTION_SOFTWARE
+ARMBIAN_OS_OTA=OUT_OF_SCOPE_V1
+FRESH_2_5_GIB_PAYLOAD_AS_ROUTINE_OTA=REJECTED
+IMPLEMENTATION_STARTED=false
+LIVE_T1_OTA=false
+NEXT_GATE=N3W_T1_OTA_UPGRADE_OTA0_REQUIREMENTS_AND_CURRENT_RUNTIME_READONLY_REBIND
+~~~
+
+This is a parallel product-development workstream. It does not change the current R10 physical acceptance authorization or execution state. The initial architecture authority is `docs/development/N3W_T1_OTA_UPGRADE_PRODUCT_STAGE_20261028.md`.
+
 ## 2026-10-27 — R5 scan-triggered T1 discovery / multi-T1 selection merged; R6 handoff boundary
 
 ~~~text
