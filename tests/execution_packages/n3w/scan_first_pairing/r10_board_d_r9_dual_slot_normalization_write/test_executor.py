@@ -681,3 +681,40 @@ def test_bootloader_erase_span_hash_is_frozen() -> None:
 def test_previous_direct_factory_confirmation_is_not_reused() -> None:
     assert "DIRECT" not in module.WRITE_CONFIRMATION
     assert module.WRITE_CONFIRMATION == "N3W_R10_BOARD_D_R9_DUAL_SLOT_NORMALIZATION_WRITE_AUTHORIZED"
+
+
+def test_private_json_handles_short_os_writes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    target = tmp_path / "state.json"
+    real_write = module.os.write
+
+    def short_write(fd, data):
+        return real_write(fd, bytes(data[:3]))
+
+    monkeypatch.setattr(module.os, "write", short_write)
+    module.write_private_json(target, {"status": "PASS", "value": "x" * 200})
+    assert json.loads(target.read_text())["status"] == "PASS"
+    assert target.stat().st_size > 200
+
+
+def test_claim_fsyncs_directory_transitions(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    preflight = tmp_path / "preflight.json"
+    preflight.write_text(json.dumps(sample_preflight()))
+    calls = []
+    monkeypatch.setattr(module, "_fsync_dir", lambda path: calls.append(path))
+    monkeypatch.setattr(
+        module,
+        "utc_now",
+        lambda: dt.datetime(2026, 10, 28, 14, 6, tzinfo=dt.timezone.utc),
+    )
+    claimed, payload = module.claim_preflight(preflight, sample_preflight(), {"fresh": True})
+    assert claimed.exists()
+    assert payload["authorization_consumed"] is True
+    assert len(calls) >= 3
+    assert all(path == tmp_path for path in calls)
+
+
+def test_private_state_zero_progress_is_fail_closed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    target = tmp_path / "state.json"
+    monkeypatch.setattr(module.os, "write", lambda fd, data: 0)
+    with pytest.raises(module.StopExecution, match="made no progress"):
+        module.write_private_json(target, {"status": "PASS"})
