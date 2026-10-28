@@ -176,6 +176,7 @@ def test_builder_creates_exact_small_scope_package(tmp_path: Path) -> None:
             "output": str(output),
             "predecessor_source_root": str(old),
             "target_source_root": str(target),
+            "package_source_root": str(target),
             "predecessor_source": builder.PREDECESSOR_SOURCE,
             "target_source": builder.TARGET_SOURCE,
             "package_head": "a" * 40,
@@ -208,6 +209,58 @@ def test_builder_creates_exact_small_scope_package(tmp_path: Path) -> None:
     assert verified["target_source"] == builder.TARGET_SOURCE
 
 
+def test_dispatcher_runtime_bytes_are_bound_to_package_head(
+    tmp_path: Path,
+) -> None:
+    old, target = materialize_source_roots(tmp_path)
+    package_source = tmp_path / "package-source"
+    package_source.mkdir()
+    dispatcher_rel = str(
+        builder.LIVE_FILES["dispatcher"]["target_source"]
+    )
+    dispatcher_bytes = b"package-head-dispatcher\n"
+    write(package_source, dispatcher_rel, dispatcher_bytes)
+
+    manager_tar = manager_archive(tmp_path)
+    live_executor = write(tmp_path, "executor.py", b"#!/usr/bin/python3\n")
+    distributions = write(
+        tmp_path,
+        "distributions.json",
+        b'[{"name":"greenhouse-manager","version":"0.4.99"}]\n',
+    )
+    output = tmp_path / "package"
+
+    args = type(
+        "Args",
+        (),
+        {
+            "output": str(output),
+            "predecessor_source_root": str(old),
+            "target_source_root": str(target),
+            "package_source_root": str(package_source),
+            "predecessor_source": builder.PREDECESSOR_SOURCE,
+            "target_source": builder.TARGET_SOURCE,
+            "package_head": "a" * 40,
+            "manager_tar": str(manager_tar),
+            "manager_image": builder.TARGET_MANAGER_IMAGE,
+            "manager_image_id": "sha256:" + "1" * 64,
+            "manager_image_size_bytes": 123,
+            "base_image_ref": builder.BASE_IMAGE_REF,
+            "base_arm64_digest": "sha256:" + "2" * 64,
+            "base_image_id": "sha256:" + "3" * 64,
+            "executor": str(live_executor),
+            "python_distributions": str(distributions),
+        },
+    )()
+
+    manifest = builder.build(args)
+    dispatcher = manifest["live_files"]["dispatcher"]
+    artifact = output / str(dispatcher["artifact_path"])
+    assert artifact.read_bytes() == dispatcher_bytes
+    assert dispatcher["target_source_authority"] == "package_head"
+    assert dispatcher["target_source_commit"] == "a" * 40
+
+
 def test_builder_rejects_extra_member(tmp_path: Path) -> None:
     old, target = materialize_source_roots(tmp_path)
     manager_tar = manager_archive(tmp_path)
@@ -225,6 +278,7 @@ def test_builder_rejects_extra_member(tmp_path: Path) -> None:
             "output": str(output),
             "predecessor_source_root": str(old),
             "target_source_root": str(target),
+            "package_source_root": str(target),
             "predecessor_source": builder.PREDECESSOR_SOURCE,
             "target_source": builder.TARGET_SOURCE,
             "package_head": "a" * 40,
@@ -634,6 +688,7 @@ def test_live_executor_self_binding_matches_packaged_executor(
             "output": str(output),
             "predecessor_source_root": str(old),
             "target_source_root": str(target),
+            "package_source_root": str(target),
             "predecessor_source": builder.PREDECESSOR_SOURCE,
             "target_source": builder.TARGET_SOURCE,
             "package_head": "a" * 40,
