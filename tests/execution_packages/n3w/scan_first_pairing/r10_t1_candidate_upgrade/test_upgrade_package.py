@@ -684,3 +684,18 @@ def test_rollback_never_restores_state_without_quiescence(
 
     assert restored == []
     assert phases == ["ROLLBACK_FAILED"]
+
+
+def test_upgrade_predecessor_service_image_authority() -> None:
+    assert executor.PREDECESSOR_MANAGER_IMAGE == (
+        "local/greenhouse-manager:fresh-03dab2bd04e7"
+    )
+    assert executor.TARGET_MANAGER_IMAGE == (
+        "local/greenhouse-manager:fresh-e299c937a7b8"
+    )
+    assert executor.EXPECTED_BROKER_IMAGE == (
+        "local/n3w-mosquitto:2.1.2-3184566d"
+    )
+    assert executor.EXPECTED_HOMEASSISTANT_IMAGE == (
+        "local/n3w-homeassistant:2026.10.0-0c73235a"
+    )
