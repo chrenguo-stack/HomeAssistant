@@ -61,7 +61,8 @@ The executor:
 - observes ESP32-C6/8MB/security state;
 - hashes the board identity without publishing the raw ROM MAC;
 - validates the live partition table before wider reads;
-- privately backs up the factory-covered range, full app1 slot and complete NVS;
+- privately backs up the full sector-rounded factory erase span (`0x000000`–`0x175000`), full app1 slot and complete NVS;
+- separately hashes only the exact factory-covered bytes (`0x000000`–`0x1747b0`) so existing artifact continuity checks remain exact;
 - checks the live PHY/app0/app1 disposition;
 - contains no flash-write or erase command;
 - leaves write authorization unconsumed.
@@ -76,3 +77,18 @@ Continue with:
 - archive only public-safe results.
 
 Do not enter flashing until that fresh preflight result is known.
+
+## SSH identity rebind stop
+
+The first operator preflight attempt stopped before T1 state collection because strict SSH host-key checking detected a mismatch. Independent local-T1 verification then proved:
+- `armbian` resolves to the intended T1 LAN endpoint;
+- the T1 local ED25519 host-key fingerprint exactly matches the currently advertised network fingerprint;
+- the older Mac `known_hosts` entry is stale.
+
+This permits a bounded Mac-side `known_hosts` rebind, but does not authorize trust bypass. `StrictHostKeyChecking=yes` remains mandatory.
+
+No T1 mutation, board flash read/write, NVS access, or write-authorization consumption occurred during this stop.
+
+## Rollback-span safety repair
+
+Before the first board flash read, source review found that the exact R9 factory image is `0x1747b0` bytes while ESP flash erase granularity is `0x1000`. A direct factory write can therefore erase through `0x175000`. The read-only preflight backup contract was strengthened before physical execution so the private rollback backup covers the complete `0x175000` erase span. The exact factory continuity digest remains computed over the original `0x1747b0` bytes only.
