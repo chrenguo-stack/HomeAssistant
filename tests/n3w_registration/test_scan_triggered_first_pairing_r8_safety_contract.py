@@ -118,7 +118,7 @@ def test_invalid_or_stale_scan_token_cannot_reach_selection() -> None:
 
 
 def test_r8_does_not_replace_r6_tls_pin_before_secret_contract() -> None:
-    bootstrap = read(CORE / "n3w_registration_bootstrap.cpp")
+    transport = read(CORE / "n3w_registration_bootstrap_transport.cpp")
     r6 = read(
         ROOT
         / "tests"
@@ -126,14 +126,18 @@ def test_r8_does_not_replace_r6_tls_pin_before_secret_contract() -> None:
         / "test_scan_triggered_first_pairing_r6_tls_bootstrap_contract.py"
     )
 
-    assert "PIN_MISMATCH" in bootstrap
-    assert "setup_secret" in bootstrap
-    assert "PIN_MISMATCH" in r6
-    assert "setup_secret" in r6
+    setup = transport.index("mbedtls_ssl_setup(&ssl, &config)")
+    handshake = transport.index("mbedtls_ssl_handshake(&ssl)")
+    pin_gate = transport.index("!verify.leaf_seen || !verify.leaf_matched")
+    request = transport.index('std::string request =\\n        "POST "')
+    write = transport.index("tls_write_all(&ssl, &bio, request)")
 
-    pin = bootstrap.index("PIN_MISMATCH")
-    secret = bootstrap.index("setup_secret", pin)
-    assert pin < secret
+    assert setup < handshake < pin_gate < request < write
+    assert "request_json;" in transport[request:write]
+    assert (
+        "test_r6_tls_pin_is_proven_before_any_http_request_is_constructed"
+        in r6
+    )
 
 
 def test_manager_status_recovery_cannot_open_or_refresh_47112() -> None:
