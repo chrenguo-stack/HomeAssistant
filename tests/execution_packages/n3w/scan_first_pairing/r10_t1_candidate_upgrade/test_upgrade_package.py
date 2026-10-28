@@ -338,7 +338,13 @@ def test_claim_occurs_before_first_mutating_stage(
     monkeypatch.setattr(executor, "static_backup", lambda *_a: (events.append("backup") or {"x": {}}))
     monkeypatch.setattr(executor, "advance_upgrade", lambda *_a, **_k: {})
     monkeypatch.setattr(executor, "load_target_manager", lambda *_a: events.append("docker_load"))
-    monkeypatch.setattr(executor, "generate_registration_tls", lambda *_a: tmp_path)
+    tls_stage = tmp_path / "registration-tls"
+    tls_stage.mkdir()
+    monkeypatch.setattr(
+        executor,
+        "generate_registration_tls",
+        lambda *_a: tls_stage,
+    )
     monkeypatch.setattr(
         executor,
         "container",
