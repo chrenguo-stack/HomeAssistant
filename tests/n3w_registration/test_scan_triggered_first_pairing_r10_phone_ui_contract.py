@@ -154,6 +154,32 @@ def test_r10_success_page_delivery_grace_is_bounded() -> None:
     assert "registration_portal_success_until_ms_ = 0U;" in component
 
 
+def test_r10_transient_pairing_retries_do_not_publish_false_terminal_error() -> None:
+    component = text(COMPONENT_CPP)
+
+    bootstrap = function_block(
+        component,
+        "void SimpleProductComponent::advance_registration_bootstrap_()",
+        "void SimpleProductComponent::advance_pairing_()",
+    )
+    http_wait = function_block(
+        bootstrap,
+        "if (result == SimplePairingClientError::HTTP_FAILED)",
+        "if (result == SimplePairingClientError::NOT_READY)",
+    )
+    assert "show_registration_error_" not in http_wait
+    assert "waiting after transient HTTP failure" in http_wait
+
+    recovery = function_block(
+        component,
+        "void SimpleProductComponent::advance_pairing_()",
+        "void SimpleProductComponent::advance_recovery_()",
+    )
+    unresolved = recovery.rsplit("ESP_LOGW(", 1)[1]
+    assert "recovery still unresolved" in unresolved
+    assert "show_registration_error_" not in unresolved
+
+
 def test_r10_product_ui_source_does_not_embed_bench_low_battery_bypass() -> None:
     target = text(TARGET)
 
