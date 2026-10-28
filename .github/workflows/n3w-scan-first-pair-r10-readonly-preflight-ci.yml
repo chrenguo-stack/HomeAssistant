@@ -1,0 +1,54 @@
+name: N3W scan-triggered first-pair R10 readonly preflight CI
+
+on:
+  pull_request:
+    paths:
+      - "tools/execution_packages/n3w/scan_first_pairing/r10_physical_acceptance/**"
+      - "tests/execution_packages/n3w/scan_first_pairing/r10_physical_acceptance/**"
+      - ".github/workflows/n3w-scan-first-pair-r10-readonly-preflight-ci.yml"
+      - "docs/development/N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_PHYSICAL_ACCEPTANCE_EXECUTION_PROGRESS_20261028.md"
+  push:
+    branches:
+      - "exec/n3w-r10-physical-readonly-preflight-20261028"
+    paths:
+      - "tools/execution_packages/n3w/scan_first_pairing/r10_physical_acceptance/**"
+      - "tests/execution_packages/n3w/scan_first_pairing/r10_physical_acceptance/**"
+      - ".github/workflows/n3w-scan-first-pair-r10-readonly-preflight-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  readonly-preflight-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install focused test dependency
+        run: python -m pip install --disable-pip-version-check -q "pytest>=8,<9"
+
+      - name: Python syntax check
+        run: python -m py_compile tools/execution_packages/n3w/scan_first_pairing/r10_physical_acceptance/readonly_preflight.py
+
+      - name: Focused R10 readonly preflight tests
+        run: pytest -q tests/execution_packages/n3w/scan_first_pairing/r10_physical_acceptance/test_readonly_preflight.py
+
+      - name: Fail closed if mutation commands enter readonly executor
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE=tools/execution_packages/n3w/scan_first_pairing/r10_physical_acceptance/readonly_preflight.py
+          ! grep -Fq '"write-flash"' "$FILE"
+          ! grep -Fq "'write-flash'" "$FILE"
+          ! grep -Fq '"erase-flash"' "$FILE"
+          ! grep -Fq "'erase-flash'" "$FILE"
+          ! grep -Fq '"erase-region"' "$FILE"
+          ! grep -Fq "'erase-region'" "$FILE"
+          grep -Fq '"read-flash"' "$FILE"
+          grep -Fq 'mode=ro&immutable=1' "$FILE"
+          grep -Fq 'WRITE_AUTHORIZATION_CONSUMED=false' "$FILE"
