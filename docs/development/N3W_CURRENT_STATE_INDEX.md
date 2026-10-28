@@ -1,3 +1,25 @@
+## 2026-10-28 — R9 exact artifact CLOSED_PASS; R10 physical acceptance moves to new chat
+
+- Repository main remains `2fbd0e9c2d3bf8a513ac318034e249511ffb6a2e`; tree `3064ab74ac96bbce44a0bf880ab53c7afc5bc134`.
+- R9 exact source authority: `e299c937a7b89bb8a7b9a7432186ba46a416cd44`; tree `e6e8290bdea3d9b09a70c598b4c3a9f5551540a7`.
+- R9 build workflow head: `d6c3e09464c7bcb8e30bdcbbc7a1cdc8fbcec303`; it is exactly one workflow-only commit above the R9 source.
+- Formal artifact run `40612774339`, build job `122568077610`, artifact ID `12783234959`.
+- Artifact name: `n3w-scan-first-pair-r9-e299c937-exact-source`.
+- GitHub artifact digest: `sha256:6b31001da3a4dff44f8c8cf605b885bcafcfd084d35969351938aa4904cc9995`.
+- Artifact expiry: `2026-11-27T01:09:52Z`; R10 must fresh-check expiry before use.
+- Inner release bundle SHA-256: `b30bede249c90d4a50c9d3d779219bf9bf84a91960ec2a67332ef895e6a07dc1`.
+- Manifest SHA-256: `8db79ea5c7ac3b3c4b97a7852bf39447ff2f14d45880d4c5a0d8e4d5805cdf05`.
+- `firmware.bin` SHA-256: `fe11f5a81ce83e97fc0834114486a9cace26624977f9c4e0104c71687f4cc7be`.
+- `firmware.factory.bin` SHA-256: `b734c343b3caf725c3991e6dc408b471a607f0c10cfe641346a78228b65c3bbf`.
+- Independent GitHub artifact download/review PASS: outer/inner digest, sidecar, eight-member deterministic ZIP, manifest/source/blob/toolchain binding, every member hash, registration positive controls and old harness forbidden-marker scans all passed.
+- `R9_EXACT_ARTIFACT_BUILD=PASS`, `R9_INDEPENDENT_REVIEW=PASS`, `R10_ARTIFACT_ELIGIBLE=true`, blocker count 0.
+- Flat-bundle `flash_args` is not executable authority; it references build-tree names/paths not present in the flat ZIP. R10 must use the bound `firmware.factory.bin` or a separately reviewed normalized component map.
+- PR #705, #706, #707, #708 and #709 remain OPEN/DRAFT/unmerged. Merge is not implied by R9 closure.
+- No fresh T1/board state was collected during R9. Manager/T1 runtime readiness, trusted-product-LAN, idle 47112, predecessor transaction state, board identity/power and physical write route are `UNKNOWN_FRESH`.
+- No R10 physical authorization has been granted.
+- Next ONE gate: `N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_PHYSICAL_ACCEPTANCE_DESIGN_AND_READONLY_PREFLIGHT_20261028_01`.
+- R10 must start in a new conversation and remain design/read-only until a later explicit physical authorization.
+
 ## 2026-10-27 — R5 merged; R6 TLS-bootstrap design/preflight is next
 
 - Executable/source main after R5 merge: `32c4eef68bce48ff7a379381ab0bfad60557ef57`; tree `303378f5cffef4e4f1f71881b1955baed5b7d220`.
