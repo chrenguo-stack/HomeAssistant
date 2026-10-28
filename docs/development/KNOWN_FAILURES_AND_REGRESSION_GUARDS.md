@@ -1,3 +1,11 @@
+### 2026-10-28 KF-131 — R10 T1 candidate preclaim 把不存在的目标 Manager 镜像误判为已存在
+
+| ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
+|---|---|---|---|---|---|
+| KF-131 | R10 T1 candidate live upgrade preclaim / Docker target-image existence detection | R1 exact artifact 已完成 Mac verify + T1 staging；首次 live executor 在 fresh preclaim 返回 `target_manager_image_preexisting`，且 `authorization_consumed=false`。随后立即只读执行 `docker image inspect local/greenhouse-manager:fresh-e299c937a7b8`，Docker 明确返回 `No such image` | R1 executor 对 `docker image inspect` 允许 rc=1，但随后只要 stdout 非空就判定目标镜像存在；inspect miss 可留下非空空数组输出，因此“镜像不存在”会被 false-STOP 为“镜像已存在” | R2 改用 exact-reference `docker image ls --no-trunc --quiet --filter reference=<tag>`：空输出=不存在；1 个唯一 ID=存在；多个不同 ID=ambiguous STOP。增加 absent/present/dedup focused tests。R1 artifact / executor 永不重放；R2 必须使用新 artifact + 新授权绑定 | SOURCE_REPAIR_CLOSED_PASS_R2_ARTIFACT_FROZEN_LIVE_NOT_REEXECUTED |
+
+R1 现场 STOP 发生在 one-shot claim 之前，没有创建 R10 upgrade transaction，没有停止服务、加载目标 Manager、修改数据库/F4/runtime，也没有访问板卡。R1 T1 staging 仅为 bounded filesystem staging，当前保留作历史证据。R2 exact source head=`4a8c2a62be74ec5c9740d37946e770d9464b6cb3`，PR #718 current-head CI 全部 SUCCESS；R2 package workflow run `40641242797` 已完成 source-contract/build-candidate/redownload-verify PASS，artifact ID=`12795906971`。R2 尚未 Mac local verify / T1 staging / live authorization。Authority: `docs/development/N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_T1_CANDIDATE_R2_PRELIVE_NEW_CHAT_HANDOFF_V1.0_20261028.md`.
+
 ### 2026-10-24 KF-130 — post-reboot readiness 未等待 Home Assistant MQTT 会话导致 false FAIL
 
 | ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
