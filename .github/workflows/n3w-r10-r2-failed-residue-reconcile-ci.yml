@@ -1,0 +1,42 @@
+name: N3W R10 R2 failed residue reconcile CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
+    paths:
+      - "tools/recovery/n3w_r10_r2_failed_residue_reconcile.py"
+      - "tests/recovery/test_n3w_r10_r2_failed_residue_reconcile.py"
+      - ".github/workflows/n3w-r10-r2-failed-residue-reconcile-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reconcile-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install test dependency
+        run: python -m pip install "pytest>=8,<9"
+      - name: Compile recovery executor
+        run: python -m py_compile tools/recovery/n3w_r10_r2_failed_residue_reconcile.py
+      - name: Run focused reconciliation tests
+        run: python -m pytest -q tests/recovery/test_n3w_r10_r2_failed_residue_reconcile.py
+      - name: Enforce no-delete evidence preservation contract
+        run: |
+          set -euo pipefail
+          SRC=tools/recovery/n3w_r10_r2_failed_residue_reconcile.py
+          ! grep -F 'shutil.rmtree' "$SRC"
+          ! grep -F '.unlink(' "$SRC"
+          ! grep -F 'run(("rm"' "$SRC"
+          grep -F 'os.replace(WORK_ROOT' "$SRC"
+          grep -F 'os.replace(TRANSACTION' "$SRC"
+          grep -F 'authorization_replay_forbidden' "$SRC"
+          echo "R10_RESIDUE_EVIDENCE_PRESERVATION=PASS"
