@@ -118,6 +118,28 @@ def test_execute_reconcile_archives_without_deleting_history(
         },
     )
 
+    def fake_claim(
+        authorization_id: str,
+        *,
+        transaction_sha256: str,
+        workspace_inventory_sha256: str,
+    ) -> None:
+        history.mkdir(mode=0o700, exist_ok=True)
+        claims.mkdir(mode=0o700, exist_ok=True)
+        tool.write_json_exclusive(
+            tool.claim_path(authorization_id),
+            {
+                "schema": tool.SCHEMA,
+                "authorization_id": authorization_id,
+                "authorization_consumed": True,
+                "replay_allowed": False,
+                "transaction_sha256": transaction_sha256,
+                "workspace_inventory_sha256": workspace_inventory_sha256,
+            },
+        )
+
+    monkeypatch.setattr(tool, "claim_authorization", fake_claim)
+
     document = failed_transaction(failed_workspace)
     original = (json.dumps(document, sort_keys=True) + "\n").encode()
     transaction.write_bytes(original)
@@ -187,6 +209,8 @@ def test_confirmation_fails_before_any_claim(
 
 def test_source_has_no_destructive_delete_path() -> None:
     source = TOOL_PATH.read_text(encoding="utf-8")
+    assert "meta.st_uid != 0" in source
+    assert "meta.st_gid != 0" in source
     assert "shutil.rmtree" not in source
     assert ".unlink(" not in source
     assert 'run(("rm"' not in source
