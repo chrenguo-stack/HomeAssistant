@@ -112,19 +112,24 @@ It checks:
 2. `n3wfc4-services-activation.service` active + enabled;
 3. registration ingress guard active;
 4. exactly one running Compose-owned Broker, Manager and Home Assistant;
-5. Manager + Home Assistant remain host-networked;
-6. all three runtime restart counts remain zero;
-7. current Manager image ref is still the last-proven deployed predecessor:
+5. the installed services unit itself contains exactly one `ExecStart=` and one `ExecStop=`, with the production joint-supervision contract:
+   - `--profile application up --no-deps --no-log-prefix --abort-on-container-exit manager homeassistant`;
+   - `stop homeassistant manager`;
+   - no `--force-recreate`;
+6. Manager + Home Assistant remain host-networked;
+7. all three runtime restart counts remain zero;
+8. current Manager image ref is still the last-proven deployed predecessor:
    `local/greenhouse-manager:fresh-ff750b3801a2`;
-8. TCP/8883 count=1;
-9. TCP/47110 count=1;
-10. UDP/47111 count=1;
-11. TCP/47112 count=0;
-12. Manager SQLite is opened with URI `mode=ro` and `PRAGMA query_only=ON`;
-13. `registration_count=1`;
-14. `attempt_count=1`;
-15. `unresolved_count=1`;
-16. the only attempt is:
+   prior evidence did not freeze an immutable Docker image ID for this exact predecessor, so the preflight must capture the current running image ID as fresh rollback authority rather than invent an expected digest;
+9. TCP/8883 count=1;
+10. TCP/47110 count=1;
+11. UDP/47111 count=1;
+12. TCP/47112 count=0;
+13. Manager SQLite is opened with URI `mode=ro` and `PRAGMA query_only=ON`;
+14. `registration_count=1`;
+15. `attempt_count=1`;
+16. `unresolved_count=1`;
+17. the only attempt is:
     - ACTIVE;
     - BOOTSTRAP_ACCEPTED;
     - cleanup NONE;
@@ -132,11 +137,11 @@ It checks:
     - no node_id;
     - no terminal timestamp/reason;
     - no RegistrationRegistry row using the failed attempt pairing ID;
-17. the attempt must exactly match the previously proven public-safe identity:
+18. the attempt must exactly match the previously proven public-safe identity:
     - pairing-ID SHA-256 `9931c366d483abd3af6e1e3d903b82645542346dbd258975acd788998f0404dc`;
     - hardware-ID SHA-256 `3a76b39f066e09de0a285b81319eec20f29c8fd4136b61dc5a86ace01c1e1d55`;
-18. the report emits only those hashes, never the raw pairing ID or raw hardware ID;
-19. the intended successor source head, Manager image reference, Manager image ID, Manager tar SHA-256, artifact ID and artifact digest are frozen constants; CLI values must equal those constants and are not accepted merely because their format is valid.
+19. the report emits only those hashes, never the raw pairing ID or raw hardware ID;
+20. the intended successor source head, Manager image reference, Manager image ID, Manager tar SHA-256, artifact ID and artifact digest are frozen constants; CLI values must equal those constants and are not accepted merely because their format is valid.
 
 The preflight contains no live refresh command.
 
