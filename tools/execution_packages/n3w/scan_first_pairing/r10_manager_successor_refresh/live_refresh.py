@@ -25,6 +25,7 @@ PREDECESSOR_MANAGER_IMAGE = "local/greenhouse-manager:fresh-e299c937a7b8"
 TARGET_MANAGER_IMAGE = "local/greenhouse-manager:fresh-ff750b3801a2"
 EXPECTED_BROKER_IMAGE = "local/n3w-mosquitto:2.1.2-3184566d"
 EXPECTED_HOMEASSISTANT_IMAGE = "local/n3w-homeassistant:2026.10.0-0c73235a"
+PREDECESSOR_CANDIDATE_TTL_SECONDS = 30
 EXPECTED_CANDIDATE_TTL_SECONDS = 60
 
 CONFIRMATION = "APPLY R10 MANAGER SUCCESSOR REFRESH: YES"
@@ -687,6 +688,10 @@ def verify_prestate(manifest: dict[str, Any]) -> dict[str, Any]:
     ):
         raise RefreshError("registration_prestate_invalid")
 
+    candidate_ttl_before = manager_candidate_ttl(str(manager_doc["Id"]))
+    if candidate_ttl_before != PREDECESSOR_CANDIDATE_TTL_SECONDS:
+        raise RefreshError("predecessor_candidate_ttl_not_30")
+
     return {
         "broker": broker,
         "manager": manager,
@@ -694,7 +699,7 @@ def verify_prestate(manifest: dict[str, Any]) -> dict[str, Any]:
         "protected": protected,
         "compose_env": file_binding(COMPOSE_ENV),
         "expected_target_env_sha256": sha256_bytes(expected_target_env),
-        "candidate_ttl_before": manager_candidate_ttl(str(manager_doc["Id"])),
+        "candidate_ttl_before": candidate_ttl_before,
         "target_runtime_image_ids": sorted(runtime_image_ids(manifest)),
     }
 
