@@ -27,8 +27,6 @@ EXPECTED_SERVICES_EXECSTOP = (
     "--env-file ${N3WFC4_COMPOSE_ENV_FILE} "
     "-f ${N3WFC4_COMPOSE_FILE} stop homeassistant manager"
 )
-MANAGER_DB = "/var/lib/greenhouse-manager/manager/manager-state.sqlite3"
-CREDENTIAL_DB = "/var/lib/greenhouse-manager/n3w/credential-lifecycle.sqlite3"
 EXPECTED_CURRENT_MANAGER_IMAGE = "local/greenhouse-manager:fresh-ff750b3801a2"
 EXPECTED_FAILED_PAIRING_ID_SHA256 = (
     "9931c366d483abd3af6e1e3d903b82645542346dbd258975acd788998f0404dc"
@@ -244,12 +242,78 @@ def _listener_count(runner: Runner, protocol: str, port: int) -> int:
     return len([line for line in output.splitlines() if line.strip()])
 
 
+_SETTINGS_PROBE = r'''
+import json
+from pathlib import Path
+
+from greenhouse_manager.runtime.config import Settings
+
+settings = Settings.from_env()
+print(
+    json.dumps(
+        {
+            "pairing_db_path": str(
+                Path(settings.pairing_db_path).expanduser()
+            ),
+            "credential_lifecycle_db_path": str(
+                Path(
+                    settings.n3w_credential_lifecycle_db_path
+                ).expanduser()
+            ),
+        },
+        sort_keys=True,
+    )
+)
+'''
+
+
+def _live_manager_state_paths(
+    runner: Runner,
+    manager_id: str,
+) -> dict[str, str]:
+    output = _require_success(
+        runner.run(
+            (
+                "docker",
+                "exec",
+                manager_id,
+                "python",
+                "-c",
+                _SETTINGS_PROBE,
+            ),
+            timeout=30,
+        ),
+        "manager_live_settings_probe",
+    )
+    try:
+        document = json.loads(output)
+    except json.JSONDecodeError as error:
+        raise PreflightError("manager_live_settings_json_invalid") from error
+    if not isinstance(document, dict):
+        raise PreflightError("manager_live_settings_shape_invalid")
+    pairing_path = document.get("pairing_db_path")
+    credential_path = document.get("credential_lifecycle_db_path")
+    if (
+        not isinstance(pairing_path, str)
+        or not pairing_path.startswith("/")
+        or not isinstance(credential_path, str)
+        or not credential_path.startswith("/")
+    ):
+        raise PreflightError("manager_live_settings_path_invalid")
+    return {
+        "pairing_db_path": pairing_path,
+        "credential_lifecycle_db_path": credential_path,
+    }
+
+
 _LEDGER_PROBE = r'''
 import hashlib
 import json
 import sqlite3
+import sys
 
-path = "/var/lib/greenhouse-manager/manager/manager-state.sqlite3"
+path = sys.argv[1]
+credential_path = sys.argv[2]
 connection = sqlite3.connect("file:" + path + "?mode=ro", uri=True)
 connection.row_factory = sqlite3.Row
 connection.execute("PRAGMA query_only=ON")
@@ -291,7 +355,6 @@ rows = connection.execute(
     """
 ).fetchall()
 
-credential_path = "/var/lib/greenhouse-manager/n3w/credential-lifecycle.sqlite3"
 credentials = sqlite3.connect(
     "file:" + credential_path + "?mode=ro",
     uri=True,
@@ -457,7 +520,13 @@ print(
 '''
 
 
-def _ledger_snapshot(runner: Runner, manager_id: str) -> dict[str, Any]:
+def _ledger_snapshot(
+    runner: Runner,
+    manager_id: str,
+    *,
+    pairing_db_path: str,
+    credential_lifecycle_db_path: str,
+) -> dict[str, Any]:
     output = _require_success(
         runner.run(
             (
@@ -467,6 +536,8 @@ def _ledger_snapshot(runner: Runner, manager_id: str) -> dict[str, Any]:
                 "python",
                 "-c",
                 _LEDGER_PROBE,
+                pairing_db_path,
+                credential_lifecycle_db_path,
             ),
             timeout=30,
         ),
@@ -588,7 +659,18 @@ def preflight(args: argparse.Namespace, runner: Runner | None = None) -> dict[st
     if listeners["tcp_47112"] != 0:
         raise PreflightError("pairing_47112_must_be_closed")
 
-    ledger = _ledger_snapshot(runner, ids["manager"])
+    live_state_paths = _live_manager_state_paths(
+        runner,
+        ids["manager"],
+    )
+    ledger = _ledger_snapshot(
+        runner,
+        ids["manager"],
+        pairing_db_path=live_state_paths["pairing_db_path"],
+        credential_lifecycle_db_path=(
+            live_state_paths["credential_lifecycle_db_path"]
+        ),
+    )
     registration_inventory_sha256 = ledger.get(
         "registration_inventory_sha256"
     )
@@ -646,6 +728,15 @@ def preflight(args: argparse.Namespace, runner: Runner | None = None) -> dict[st
         "authorization_claimed": False,
         "authorization_consumed": False,
         "current_manager_image_ref": manager["image_ref"],
+        "live_state_authority": {
+            "pairing_db_path_sha256": _sha256_text(
+                live_state_paths["pairing_db_path"]
+            ),
+            "credential_lifecycle_db_path_sha256": _sha256_text(
+                live_state_paths["credential_lifecycle_db_path"]
+            ),
+            "settings_source": "running_manager_Settings.from_env",
+        },
         "services_supervision": supervision,
         "runtime": runtime,
         "listeners": listeners,
