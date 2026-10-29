@@ -208,33 +208,37 @@ def test_pr725_head_must_equal_executor_source_head(
 
 
 def test_prestop_abort_closes_claimed_transaction(
-    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    tx = tmp_path / "tx.json"
-    tx.write_text(
-        json.dumps({
-            "schema": tool.TX_SCHEMA,
-            "status": "CLAIMED",
-            "phase": "AUTHORIZATION_CLAIMED",
-            "authorization_claimed": True,
-            "authorization_consumed": True,
-            "replay_allowed": False,
-            "compose_sha256": "1" * 64,
-        }),
-        encoding="utf-8",
+    stored = {
+        "schema": tool.TX_SCHEMA,
+        "status": "CLAIMED",
+        "phase": "AUTHORIZATION_CLAIMED",
+        "authorization_claimed": True,
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "compose_sha256": "1" * 64,
+    }
+    monkeypatch.setattr(
+        tool,
+        "transaction_lock",
+        lambda: __import__("contextlib").nullcontext(),
     )
-    tx.chmod(0o600)
-    monkeypatch.setattr(tool, "TX_PATH", tx)
-    monkeypatch.setattr(tool, "transaction_lock", lambda: __import__("contextlib").nullcontext())
+    monkeypatch.setattr(tool, "read_tx", lambda: dict(stored))
     monkeypatch.setattr(
         tool,
         "preclaim",
         lambda: {"compose_sha256": "1" * 64},
     )
+
+    def update(doc, phase, **extra):
+        stored.update(doc)
+        stored.update(extra)
+        stored["phase"] = phase
+
+    monkeypatch.setattr(tool, "tx_update", update)
     result = tool.remote_abort_prestop("DOCKER_LOAD_FAILED")
     assert result["transaction_status"] == "FAILED_PRESTOP"
-    stored = json.loads(tx.read_text(encoding="utf-8"))
     assert stored["status"] == "FAILED_PRESTOP"
     assert stored["phase"] == "FAILED_PRESTOP"
     assert stored["authorization_consumed"] is True
@@ -242,24 +246,24 @@ def test_prestop_abort_closes_claimed_transaction(
 
 
 def test_prestop_abort_requires_claimed_phase(
-    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    tx = tmp_path / "tx.json"
-    tx.write_text(
-        json.dumps({
+    monkeypatch.setattr(
+        tool,
+        "transaction_lock",
+        lambda: __import__("contextlib").nullcontext(),
+    )
+    monkeypatch.setattr(
+        tool,
+        "read_tx",
+        lambda: {
             "schema": tool.TX_SCHEMA,
             "status": "PASS",
             "phase": "COMMITTED",
             "authorization_consumed": True,
             "replay_allowed": False,
-        }),
-        encoding="utf-8",
+        },
     )
-    tx.chmod(0o600)
-    monkeypatch.setattr(tool, "TX_PATH", tx)
-    monkeypatch.setattr(tool, "require_private_parent", lambda _path: None)
-    monkeypatch.setattr(tool, "transaction_lock", lambda: __import__("contextlib").nullcontext())
     with pytest.raises(tool.RefreshError, match="prestop_abort_state_invalid"):
         tool.remote_abort_prestop("DOCKER_LOAD_FAILED")
 
