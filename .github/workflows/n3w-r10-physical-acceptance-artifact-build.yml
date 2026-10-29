@@ -242,7 +242,7 @@ jobs:
             "air_temperature_c" \
             "gh.registration.portal-action/1" \
             "gh.registration.confirm/1" \
-            "/api/v1/register/start"
+            "/api/v1/register/start" \
             "/api/v1/register/begin"
           do
             grep -Fq "$marker" "$RUNNER_TEMP/r10-app-strings.txt"
