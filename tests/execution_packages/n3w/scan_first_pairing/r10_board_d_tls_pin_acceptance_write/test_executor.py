@@ -101,7 +101,7 @@ def test_exact_acceptance_artifact_and_identity_are_frozen() -> None:
     assert module.INNER_SHA256 == "4861075a10191b780675bbf72d4bdb75e7076afefec3883bd5417c3a0def112a"
     assert module.MANIFEST_SHA256 == "df09e7a84ec0b381c6c9a7ce656bbabfa6662d81deb660efd05b12e8b2429299"
     assert module.MEMBER_BINDINGS["firmware.bin"] == (
-        1465712,
+        1466720,
         "81617c4c89dd6bc2faa33cda40fc1ba05b5fb7ec4905eff11d5a8a9ab4bf7c6d",
     )
     assert module.EXPECTED_HARDWARE_ID_SHA256 == "3991b9af9e7604190a8ac8e60b780911a8faed6698cda5421eaf1eb686210df5"
@@ -734,7 +734,7 @@ def test_factory_and_bootloader_are_validation_members_not_write_authority() -> 
 
 
 def test_old_write_confirmation_is_not_reused() -> None:
-    assert module.WRITE_CONFIRMATION == "N3W_R10_BOARD_D_PHYSICAL_ACCEPTANCE_WRITE_AUTHORIZED"
+    assert module.WRITE_CONFIRMATION == "N3W_R10_BOARD_D_TLS_PIN_REPAIR_PHYSICAL_ACCEPTANCE_WRITE_AUTHORIZED"
     assert "R9_DUAL_SLOT" not in module.WRITE_CONFIRMATION
     assert "DIRECT" not in module.WRITE_CONFIRMATION
 
