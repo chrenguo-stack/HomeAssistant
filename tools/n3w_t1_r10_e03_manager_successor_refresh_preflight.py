@@ -17,6 +17,7 @@ REGISTRATION_GUARD_UNIT = "n3wfc4-registration-ingress-guard.service"
 MANAGER_DB = "/var/lib/greenhouse-manager/manager/manager-state.sqlite3"
 EXPECTED_CURRENT_MANAGER_IMAGE = "local/greenhouse-manager:fresh-ff750b3801a2"
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_GIT_SHA = re.compile(r"^[0-9a-f]{40}$")
 _IMAGE_ID = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 
@@ -61,6 +62,13 @@ def _sha256_text(value: str) -> str:
 def _require_sha256(value: str, label: str) -> str:
     normalized = value.lower()
     if _SHA256.fullmatch(normalized) is None:
+        raise PreflightError(f"{label}_invalid")
+    return normalized
+
+
+def _require_git_sha(value: str, label: str) -> str:
+    normalized = value.lower()
+    if _GIT_SHA.fullmatch(normalized) is None:
         raise PreflightError(f"{label}_invalid")
     return normalized
 
@@ -395,7 +403,7 @@ def preflight(args: argparse.Namespace, runner: Runner | None = None) -> dict[st
     )
 
     target = {
-        "source_head": _require_sha256(
+        "source_head": _require_git_sha(
             args.target_source_head,
             "target_source_head",
         ),
