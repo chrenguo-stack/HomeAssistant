@@ -53,6 +53,7 @@ TARGET_SOURCE_HEAD = "f8876fd87165df731d792690a8288867c3eeef55"
 TARGET_MANAGER_IMAGE = "local/greenhouse-manager:fresh-f8876fd87165"
 TARGET_MANAGER_ID = "sha256:089153fa4bbc823a1357427083f23ef96933a119c6ae150c143b62d7b40859e4"
 TARGET_MANAGER_TAR_SHA256 = "d129a33ea628d8bdd1361e0b1bf727175515b4a2afc1851e6ac14ec510895fb5"
+TARGET_ARTIFACT_RUN_ID = 40880705472
 TARGET_ARTIFACT_ID = 12900601779
 TARGET_ARTIFACT_DIGEST = "c94568f740b911eee0f4238207249b1e98f84748c17a902938ccc35293e4b183"
 TARGET_ARTIFACT_NAME = (
@@ -1017,22 +1018,59 @@ def remote_status() -> dict[str, Any]:
     }
 
 
-def verify_artifact_metadata() -> None:
+def _gh_json(path: str) -> dict[str, Any]:
     raw = run(
-        (
-            "gh", "api", "--method", "GET",
-            f"repos/chrenguo-stack/HomeAssistant/actions/artifacts/{TARGET_ARTIFACT_ID}",
-        ),
+        ("gh", "api", "--method", "GET", path),
         timeout=60,
     ).stdout
     try:
         doc = json.loads(raw)
     except json.JSONDecodeError as error:
-        raise RefreshError("artifact_metadata_invalid") from error
+        raise RefreshError("github_metadata_invalid") from error
+    if not isinstance(doc, dict):
+        raise RefreshError("github_metadata_shape_invalid")
+    return doc
+
+
+def verify_pr725_head(expected_head: str) -> None:
+    doc = _gh_json("repos/chrenguo-stack/HomeAssistant/pulls/725")
+    head = doc.get("head")
     if (
-        not isinstance(doc, dict)
-        or doc.get("id") != TARGET_ARTIFACT_ID
-        or doc.get("name") != TARGET_ARTIFACT_NAME
+        doc.get("state") != "open"
+        or doc.get("merged_at") is not None
+        or not isinstance(head, dict)
+        or head.get("sha") != expected_head
+    ):
+        raise RefreshError("pr725_github_head_drift")
+
+
+def verify_artifact_metadata() -> None:
+    run_doc = _gh_json(
+        f"repos/chrenguo-stack/HomeAssistant/actions/runs/{TARGET_ARTIFACT_RUN_ID}"
+    )
+    if (
+        run_doc.get("id") != TARGET_ARTIFACT_RUN_ID
+        or run_doc.get("head_sha") != TARGET_SOURCE_HEAD
+        or run_doc.get("status") != "completed"
+        or run_doc.get("conclusion") != "success"
+    ):
+        raise RefreshError("artifact_run_binding_mismatch")
+
+    artifacts_doc = _gh_json(
+        "repos/chrenguo-stack/HomeAssistant/actions/runs/"
+        f"{TARGET_ARTIFACT_RUN_ID}/artifacts?per_page=100"
+    )
+    artifacts = artifacts_doc.get("artifacts")
+    matches = (
+        [item for item in artifacts if isinstance(item, dict) and item.get("id") == TARGET_ARTIFACT_ID]
+        if isinstance(artifacts, list)
+        else []
+    )
+    if len(matches) != 1:
+        raise RefreshError("artifact_cardinality_invalid")
+    doc = matches[0]
+    if (
+        doc.get("name") != TARGET_ARTIFACT_NAME
         or doc.get("digest") != "sha256:" + TARGET_ARTIFACT_DIGEST
         or doc.get("expired") is True
     ):
@@ -1137,6 +1175,7 @@ def host_apply(args: argparse.Namespace) -> dict[str, Any]:
     verify_source_authority(args.executor_source_head, args.executor_blob)
     if args.pr725_head != args.executor_source_head:
         raise RefreshError("pr725_executor_head_mismatch")
+    verify_pr725_head(args.pr725_head)
     verify_artifact_metadata()
     verify_local_artifact(args.manager_tar, args.binding_json)
     from n3w_t1_ssh_transport import SSHTransport
@@ -1259,6 +1298,8 @@ def parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = parser().parse_args(argv)
     try:
+        if args.command.startswith("remote-") and os.geteuid() != 0:
+            raise RefreshError("remote_root_required")
         if args.command == "remote-preclaim":
             result = public_preclaim(preclaim())
         elif args.command == "remote-claim":
