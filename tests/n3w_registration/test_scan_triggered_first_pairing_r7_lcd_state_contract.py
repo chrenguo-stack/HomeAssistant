@@ -209,7 +209,7 @@ def test_r7_lcd_uses_hardware_spi_and_preserves_five_page_cycle() -> None:
 
 def test_r7_required_copy_has_glyph_coverage_and_fits_64px_monospaced_width() -> None:
     display = text(DISPLAY)
-    glyph_lines = re.findall(r'^\s*glyphs: "(.*)"
+    glyph_lines = re.findall(r'^\s*glyphs: "(.*)"$', display, flags=re.MULTILINE)
     assert len(glyph_lines) >= 2
     f10_glyphs, f12_glyphs = glyph_lines[:2]
 
