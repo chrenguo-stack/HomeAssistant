@@ -1,0 +1,603 @@
+name: N3W R10 Board D TLS-pin acceptance artifact CI
+
+on:
+  push:
+    branches:
+      - build/n3w-r10-board-d-tls-pin-acceptance-artifact-20261029
+  pull_request:
+    paths:
+      - ".github/workflows/n3w-r10-board-d-tls-pin-acceptance-artifact-ci.yml"
+      - "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_n3w_target.yml"
+      - "tests/n3w_registration/test_r10_board_d_tls_pin_acceptance_artifact_source.py"
+      - "docs/development/N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_BOARD_D_TLS_PIN_REPAIR_PHYSICAL_ACCEPTANCE_EXACT_ARTIFACT_SOURCE_20261029.md"
+  workflow_dispatch:
+    inputs:
+      produce_exact_artifact:
+        description: "Produce the exact Board D physical-acceptance artifact"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  PRODUCT_SOURCE: ff750b3801a282af1667b5fa63481e2333e301b3
+  PRODUCT_TREE: ee6ee5e362628fa725d57fbdf50c6608e9032b17
+  ACCEPTANCE_SOURCE: f99342f9639fa234d85c509ddf6cf41fef91d691
+  ACCEPTANCE_TREE: 6c53b4ef480f67d984cc9b3c8cfa0886d706dde4
+  PRODUCT_TARGET_CONFIG_BLOB: 176ef5a2839ba8d58b4675c5f5097eba5c662236
+  ACCEPTANCE_TARGET_CONFIG_BLOB: 6b37be9e3f281b8abcdf4443103ccb65f7920cd2
+  TELEMETRY_PACKAGE_BLOB: ce16f2389d146f9b25e95cbb628547e11ce36bd6
+  TRANSPORT_PACKAGE_BLOB: aa8dfa7e6be2ded398b8e90ab74a571e6a1b1ee2
+  DISPLAY_PACKAGE_BLOB: b0528282387734372b40e39e5aecc2cc7f052e84
+  PRODUCT_COMPONENT_BLOB: d91518ae7f08a85fe251afb4e9539e0cdb563df3
+  REGISTRATION_PORTAL_CPP_BLOB: 9e7173b263e72bc56ba8f094ac5800d7c0b17ed6
+  REGISTRATION_PORTAL_H_BLOB: 54c31ed089a91a3f7b3edc603716e90723f42872
+  TLS_BOOTSTRAP_TRANSPORT_BLOB: 5567dfb86ac764d454212d3aa4d93cfb2bc0fc8e
+  REGISTRATION_DISCOVERY_H_BLOB: 0f3a9c55e593509123705b793c77bc5a1d0cdf9e
+  PAIRING_CLIENT_BLOB: d5768aed73c76f2764b8619f877d952b3da7f83e
+  PAIRING_NVS_BLOB: 059380bdccfb12204ccf8cadaff2ea87422ba926
+  R6_TLS_TEST_BLOB: c2a115d8282a38ac67ed13da227afd9b2e1da56f
+  R8_SAFETY_TEST_BLOB: 9dcf48480a4e7c9ae042ac3f513b41f10528f9fc
+  R10_PHONE_UI_TEST_BLOB: 0b532b745af429ffc582573f95e4c007e6b07d2b
+  R8_MANAGER_E2E_TEST_BLOB: 14b284c5114db901722ff068124ed1f4700982f0
+  FONT_FETCH_SCRIPT_BLOB: d752a50acf6131919bf99e29889020e3fc1fb4e0
+  COMPANION_MANAGER_PACKAGE_HEAD: fb9b0112978545d831660c28fd95d5dfeaa784d1
+  COMPANION_MANAGER_ARTIFACT_ID: "12877958163"
+  COMPANION_MANAGER_ARTIFACT_DIGEST: sha256:042a7d467287b8192edacea076c7f47b2037eef7ba3b83a966369ba0ff89d93d
+  COMPANION_MANAGER_MANIFEST_SHA256: d31aa71635853922f816298ec0aa7aad83bb93da759c3732e3fd2b297364d406
+  COMPANION_MANAGER_TAR_SHA256: 26aebbbaa783b66ca374337d701f38692774dbc4df432a93fe712759c9eaff96
+  COMPANION_MANAGER_IMAGE: local/greenhouse-manager:fresh-ff750b3801a2
+  REGISTRATION_CANDIDATE_TTL_SECONDS: "60"
+  REGISTRATION_USER_CONFIRM_MS: "60000"
+  FIRST_COUNTDOWN_DISPLAY_SECONDS: "59"
+  TLS_AUTHORITY: EXACT_LEAF_SHA256_PIN
+
+jobs:
+  source-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Bind product and acceptance source lineage
+        shell: bash
+        run: |
+          set -euo pipefail
+          git cat-file -e "$PRODUCT_SOURCE^{commit}"
+          git cat-file -e "$ACCEPTANCE_SOURCE^{commit}"
+          test "$(git rev-parse "$PRODUCT_SOURCE^{tree}")" = "$PRODUCT_TREE"
+          test "$(git rev-parse "$ACCEPTANCE_SOURCE^{tree}")" = "$ACCEPTANCE_TREE"
+          test "$(git rev-parse "$ACCEPTANCE_SOURCE^")" = "$PRODUCT_SOURCE"
+
+          TARGET="firmware/esphome_rc/f1_0_rc2/f1_0_rc2_n3w_target.yml"
+          test "$(git diff --name-only "$PRODUCT_SOURCE" "$ACCEPTANCE_SOURCE")" = "$TARGET"
+          read -r additions deletions changed_path < <(
+            git diff --numstat "$PRODUCT_SOURCE" "$ACCEPTANCE_SOURCE"
+          )
+          test "$changed_path" = "$TARGET"
+          test "$additions" = "1"
+          test "$deletions" = "0"
+
+          test "$(git rev-parse "$PRODUCT_SOURCE:$TARGET")" = "$PRODUCT_TARGET_CONFIG_BLOB"
+          test "$(git rev-parse "$ACCEPTANCE_SOURCE:$TARGET")" = "$ACCEPTANCE_TARGET_CONFIG_BLOB"
+          ! git show "$PRODUCT_SOURCE:$TARGET" | grep -Fq 'battery_low_threshold: "-1.00"'
+          git show "$ACCEPTANCE_SOURCE:$TARGET" | grep -Fq 'battery_low_threshold: "-1.00"'
+
+          echo "PRODUCT_SOURCE_NO_BYPASS=PASS"
+          echo "ACCEPTANCE_DELTA_ONE_FILE_ONE_LINE=PASS"
+
+      - name: Bind repaired registration source and contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          bind_blob() {
+            local path="$1"
+            local expected="$2"
+            test "$(git rev-parse "$ACCEPTANCE_SOURCE:$path")" = "$expected"
+          }
+
+          bind_blob firmware/esphome_rc/f1_0_rc2/packages/n3w_product_telemetry.yml "$TELEMETRY_PACKAGE_BLOB"
+          bind_blob firmware/esphome_rc/f1_0_rc2/packages/n3w_product_transport.yml "$TRANSPORT_PACKAGE_BLOB"
+          bind_blob firmware/esphome_rc/f1_0_rc2/packages/display.yml "$DISPLAY_PACKAGE_BLOB"
+          bind_blob firmware/esphome_rc/components/greenhouse_n3w_core/n3w_simple_product_component.cpp "$PRODUCT_COMPONENT_BLOB"
+          bind_blob firmware/esphome_rc/components/greenhouse_n3w_core/n3w_registration_portal.cpp "$REGISTRATION_PORTAL_CPP_BLOB"
+          bind_blob firmware/esphome_rc/components/greenhouse_n3w_core/n3w_registration_portal.h "$REGISTRATION_PORTAL_H_BLOB"
+          bind_blob firmware/esphome_rc/components/greenhouse_n3w_core/n3w_registration_bootstrap_transport.cpp "$TLS_BOOTSTRAP_TRANSPORT_BLOB"
+          bind_blob firmware/esphome_rc/components/greenhouse_n3w_core/n3w_registration_discovery.h "$REGISTRATION_DISCOVERY_H_BLOB"
+          bind_blob firmware/esphome_rc/components/greenhouse_n3w_core/n3w_simple_pairing_client.cpp "$PAIRING_CLIENT_BLOB"
+          bind_blob firmware/esphome_rc/components/greenhouse_n3w_core/n3w_esp32_pairing_nvs.cpp "$PAIRING_NVS_BLOB"
+          bind_blob tests/n3w_registration/test_scan_triggered_first_pairing_r6_tls_bootstrap_contract.py "$R6_TLS_TEST_BLOB"
+          bind_blob tests/n3w_registration/test_scan_triggered_first_pairing_r8_safety_contract.py "$R8_SAFETY_TEST_BLOB"
+          bind_blob tests/n3w_registration/test_scan_triggered_first_pairing_r10_phone_ui_contract.py "$R10_PHONE_UI_TEST_BLOB"
+          bind_blob host/greenhouse-manager/tests/runtime/test_n3w_scan_triggered_registration_r8_e2e.py "$R8_MANAGER_E2E_TEST_BLOB"
+          bind_blob firmware/esphome_rc/f1_0_rc2/tools/fetch_fonts.sh "$FONT_FETCH_SCRIPT_BLOB"
+
+          TLS="firmware/esphome_rc/components/greenhouse_n3w_core/n3w_registration_bootstrap_transport.cpp"
+          PORTAL_CPP="firmware/esphome_rc/components/greenhouse_n3w_core/n3w_registration_portal.cpp"
+          PORTAL_H="firmware/esphome_rc/components/greenhouse_n3w_core/n3w_registration_portal.h"
+          DISCOVERY_H="firmware/esphome_rc/components/greenhouse_n3w_core/n3w_registration_discovery.h"
+
+          git show "$ACCEPTANCE_SOURCE:$TLS" | grep -Fq 'mbedtls_ssl_conf_authmode(&config, MBEDTLS_SSL_VERIFY_OPTIONAL);'
+          ! git show "$ACCEPTANCE_SOURCE:$TLS" | grep -Fq 'mbedtls_ssl_conf_authmode(&config, MBEDTLS_SSL_VERIFY_NONE);'
+          ! git show "$ACCEPTANCE_SOURCE:$TLS" | grep -Fq 'mbedtls_ssl_conf_authmode(&config, MBEDTLS_SSL_VERIFY_REQUIRED);'
+          git show "$ACCEPTANCE_SOURCE:$TLS" | grep -Fq 'return MBEDTLS_ERR_X509_FATAL_ERROR;'
+          git show "$ACCEPTANCE_SOURCE:$TLS" | grep -Fq '!verify.leaf_seen || !verify.leaf_matched'
+
+          git show "$ACCEPTANCE_SOURCE:$DISCOVERY_H" | grep -Fq 'kRegistrationCandidateTtlSeconds = 60;'
+          git show "$ACCEPTANCE_SOURCE:$PORTAL_H" | grep -Fq 'kRegistrationUserConfirmMs = 60000ULL;'
+          git show "$ACCEPTANCE_SOURCE:$PORTAL_CPP" | grep -Fq 'found->expires_at_ms = now_ms + kRegistrationUserConfirmMs;'
+          git show "$ACCEPTANCE_SOURCE:$PORTAL_CPP" | grep -Fq '(remaining_ms - 1U) / 1000U'
+          git show "$ACCEPTANCE_SOURCE:$PORTAL_CPP" | grep -Fq '"开始注册（" + remaining + "s）"'
+
+          echo "TLS_PIN_ONLY_AUTHORITY=PASS"
+          echo "REGISTRATION_TTL_60=PASS"
+          echo "USER_CONFIRM_60S_COUNTDOWN_59=PASS"
+
+      - name: Run focused repaired-source contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check -q "pytest>=8,<9"
+          pytest -q tests/n3w_registration/test_scan_triggered_first_pairing_r5_discovery_contract.py
+          pytest -q tests/n3w_registration/test_scan_triggered_first_pairing_r6_tls_bootstrap_contract.py
+          pytest -q tests/n3w_registration/test_scan_triggered_first_pairing_r8_safety_contract.py
+          pytest -q tests/n3w_registration/test_scan_triggered_first_pairing_r10_phone_ui_contract.py -k 'not product_ui_source_does_not_embed_bench_low_battery_bypass'
+          pytest -q tests/n3w_registration/test_r10_board_d_tls_pin_acceptance_artifact_source.py
+          echo "BOARD_ACCEPTANCE_SOURCE_CONTRACTS=PASS"
+
+      - name: Enforce source-stage no-artifact boundary
+        if: github.event_name != 'workflow_dispatch' || inputs.produce_exact_artifact != true
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "EXACT_ARTIFACT_PRODUCTION=false"
+          echo "BOARD_ACCESS=false"
+          echo "BOARD_WRITE=false"
+          echo "T1_ACCESS=false"
+          echo "T1_MUTATION=false"
+
+  build-exact-artifact:
+    if: github.event_name == 'workflow_dispatch' && inputs.produce_exact_artifact == true
+    needs: source-contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      artifact_name: ${{ steps.meta.outputs.artifact_name }}
+      bundle_name: ${{ steps.meta.outputs.bundle_name }}
+      bundle_sha256: ${{ steps.meta.outputs.bundle_sha256 }}
+      manifest_sha256: ${{ steps.meta.outputs.manifest_sha256 }}
+      firmware_sha256: ${{ steps.meta.outputs.firmware_sha256 }}
+      upload_artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      upload_artifact_digest: ${{ steps.upload.outputs.artifact-digest }}
+    steps:
+      - name: Checkout exact repaired physical-acceptance source
+        uses: actions/checkout@v4
+        with:
+          ref: f99342f9639fa234d85c509ddf6cf41fef91d691
+          fetch-depth: 2
+
+      - name: Rebind exact acceptance source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$ACCEPTANCE_SOURCE"
+          test "$(git rev-parse HEAD^{tree})" = "$ACCEPTANCE_TREE"
+          test "$(git rev-parse HEAD^)" = "$PRODUCT_SOURCE"
+          test "$(git rev-parse HEAD:firmware/esphome_rc/f1_0_rc2/f1_0_rc2_n3w_target.yml)" = "$ACCEPTANCE_TARGET_CONFIG_BLOB"
+          grep -Fq 'battery_low_threshold: "-1.00"' firmware/esphome_rc/f1_0_rc2/f1_0_rc2_n3w_target.yml
+          echo "EXACT_ACCEPTANCE_SOURCE_REBOUND=PASS"
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install exact firmware and focused test toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check -q "pytest>=8,<9" "esphome==2026.4.3"
+          python -m pip install --disable-pip-version-check -q -e 'host/greenhouse-manager[dev]'
+          python --version
+          esphome version
+
+      - name: Materialize pinned font inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/firmware/esphome_rc/f1_0_rc2"
+          FONT_DIR="$ROOT/fonts"
+          TMP="$RUNNER_TEMP/r10-fonts"
+          mkdir -p "$FONT_DIR" "$TMP"
+
+          fetch_zip() {
+            local url="$1"
+            local expected="$2"
+            local out="$3"
+            curl --fail --location --retry 3 --connect-timeout 20 --output "$out" "$url"
+            printf '%s  %s\n' "$expected" "$out" | sha256sum -c -
+          }
+
+          FUSION10="$TMP/fusion10.zip"
+          FUSION12="$TMP/fusion12.zip"
+          ARK16="$TMP/ark16.zip"
+
+          fetch_zip "https://github.com/TakWolf/fusion-pixel-font/releases/download/2026.07.01/fusion-pixel-font-10px-monospaced-bdf-v2026.07.01.zip" "0f28b5850fa9b4b0f8dbb7c40f671a3574a97236a848d1e0ecf6ed302ae659c3" "$FUSION10"
+          fetch_zip "https://github.com/TakWolf/fusion-pixel-font/releases/download/2026.07.01/fusion-pixel-font-12px-monospaced-bdf-v2026.07.01.zip" "c461c312720e005f5a49843a965842e8749f196f00f97facf1ad926f330296df" "$FUSION12"
+          fetch_zip "https://github.com/TakWolf/ark-pixel-font/releases/download/2026.07.01/ark-pixel-font-16px-monospaced-bdf-v2026.07.01.zip" "c0b5e3afecf6ebadbb10d36d712d3ff828d58657382004a1fe4eae45db31ec01" "$ARK16"
+
+          extract_font() {
+            local archive="$1"
+            local primary="$2"
+            local fallback="$3"
+            local output="$4"
+            local dir="$TMP/extract-$(basename "$output" .bdf)"
+            rm -rf "$dir"
+            mkdir -p "$dir"
+            unzip -q "$archive" -d "$dir"
+            local source
+            source="$(find "$dir" -type f -iname "$primary" -print -quit)"
+            if [[ -z "$source" ]]; then
+              source="$(find "$dir" -type f -iname "$fallback" -print -quit)"
+            fi
+            test -n "$source"
+            cp "$source" "$FONT_DIR/$output"
+            test -s "$FONT_DIR/$output"
+          }
+
+          extract_font "$FUSION10" "*10px*monospaced*zh_hans*.bdf" "*10px*monospaced*zh_cn*.bdf" "fusion-pixel-10px-monospaced-zh_hans.bdf"
+          extract_font "$FUSION12" "*12px*monospaced*zh_hans*.bdf" "*12px*monospaced*zh_cn*.bdf" "fusion-pixel-12px-monospaced-zh_hans.bdf"
+          extract_font "$ARK16" "*16px*monospaced*zh_cn*.bdf" "*16px*monospaced*zh_hans*.bdf" "ark-pixel-16px-monospaced-zh_cn.bdf"
+
+          {
+            echo "FONT_RELEASE_VERSION=2026.07.01"
+            echo "FUSION_10_ARCHIVE_SHA256=0f28b5850fa9b4b0f8dbb7c40f671a3574a97236a848d1e0ecf6ed302ae659c3"
+            echo "FUSION_12_ARCHIVE_SHA256=c461c312720e005f5a49843a965842e8749f196f00f97facf1ad926f330296df"
+            echo "ARK_16_ARCHIVE_SHA256=c0b5e3afecf6ebadbb10d36d712d3ff828d58657382004a1fe4eae45db31ec01"
+            echo "FUSION_10_BDF_SHA256=$(sha256sum "$FONT_DIR/fusion-pixel-10px-monospaced-zh_hans.bdf" | awk '{print $1}')"
+            echo "FUSION_12_BDF_SHA256=$(sha256sum "$FONT_DIR/fusion-pixel-12px-monospaced-zh_hans.bdf" | awk '{print $1}')"
+            echo "ARK_16_BDF_SHA256=$(sha256sum "$FONT_DIR/ark-pixel-16px-monospaced-zh_cn.bdf" | awk '{print $1}')"
+          } | tee "$RUNNER_TEMP/r10-font-binding.env"
+
+      - name: Run repaired R5-R10 and Manager E2E contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          pytest -q tests/n3w_registration/test_scan_triggered_first_pairing_r5_discovery_contract.py
+          pytest -q tests/n3w_registration/test_scan_triggered_first_pairing_r6_tls_bootstrap_contract.py
+          pytest -q tests/n3w_registration/test_scan_triggered_first_pairing_r7_lcd_state_contract.py
+          pytest -q tests/n3w_registration/test_scan_triggered_first_pairing_r8_safety_contract.py
+          pytest -q tests/n3w_registration/test_scan_triggered_first_pairing_r10_phone_ui_contract.py -k 'not product_ui_source_does_not_embed_bench_low_battery_bypass'
+          (
+            cd host/greenhouse-manager
+            pytest -q tests/runtime/test_n3w_scan_triggered_registration_r8_e2e.py
+          )
+          echo "REPAIRED_R5_R10_CONTRACTS=PASS"
+
+      - name: Validate exact configuration and hardware SPI binding
+        shell: bash
+        working-directory: firmware/esphome_rc/f1_0_rc2
+        env:
+          RC2_CONFIG: f1_0_rc2_n3w_target.yml
+        run: |
+          set -euo pipefail
+          bash tools/rc2.sh config 2>&1 | tee "$RUNNER_TEMP/r10-esphome-config.txt"
+          grep -Fq "interface: hardware" "$RUNNER_TEMP/r10-esphome-config.txt"
+          grep -Fq "interface_index: 0" "$RUNNER_TEMP/r10-esphome-config.txt"
+          echo "HARDWARE_SPI_BUILD_BINDING=PASS"
+
+      - name: Compile exact repaired physical-acceptance target
+        shell: bash
+        working-directory: firmware/esphome_rc/f1_0_rc2
+        env:
+          RC2_CONFIG: f1_0_rc2_n3w_target.yml
+        run: |
+          set -euo pipefail
+          bash tools/rc2.sh compile
+
+      - name: Verify exact ESP-IDF toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION_FILE="$HOME/.platformio/packages/framework-espidf/tools/cmake/version.cmake"
+          test -f "$VERSION_FILE"
+          grep -Eq 'set\(IDF_VERSION_MAJOR[[:space:]]+5\)' "$VERSION_FILE"
+          grep -Eq 'set\(IDF_VERSION_MINOR[[:space:]]+5\)' "$VERSION_FILE"
+          grep -Eq 'set\(IDF_VERSION_PATCH[[:space:]]+4\)' "$VERSION_FILE"
+          echo "ESP_IDF_VERSION=5.5.4"
+
+      - name: Prove binary de-harnessed and registration-capable
+        shell: bash
+        run: |
+          set -euo pipefail
+          ENV_DIR="$GITHUB_WORKSPACE/firmware/esphome_rc/f1_0_rc2/.esphome/build/gh/.pioenvs/gh"
+          APP="$ENV_DIR/firmware.bin"
+          FACTORY="$ENV_DIR/firmware.factory.bin"
+          ELF="$ENV_DIR/firmware.elf"
+          MAP="$ENV_DIR/firmware.map"
+
+          test -f "$APP"
+          test -f "$FACTORY"
+          test -f "$ELF"
+          test -f "$MAP"
+
+          NM="$(find "$HOME/.platformio/packages" -type f -name riscv32-esp-elf-nm -print -quit)"
+          test -n "$NM"
+          test -x "$NM"
+
+          "$NM" -C "$ELF" > "$RUNNER_TEMP/r10-symbols.txt"
+          strings -a "$APP" > "$RUNNER_TEMP/r10-app-strings.txt"
+          strings -a "$FACTORY" > "$RUNNER_TEMP/r10-factory-strings.txt"
+
+          forbidden=(
+            Phase4PhysicalHarness
+            N3wLabDiagnostics
+            N3wRtcBreadcrumb
+            n3w_phase4_physical_harness
+            n3w_lab_diagnostics
+            n3w_rtc_breadcrumb
+            gh_n3w_diag
+            N3W_DIAG_DISCOVERY
+            PHASE4_LAB_TELEMETRY
+            phase4_source_harness
+            phase4_lab_diagnostics
+          )
+          for marker in "${forbidden[@]}"; do
+            ! grep -Fq "$marker" "$RUNNER_TEMP/r10-symbols.txt"
+            ! grep -Fq "$marker" "$MAP"
+            ! grep -Fq "$marker" "$RUNNER_TEMP/r10-app-strings.txt"
+            ! grep -Fq "$marker" "$RUNNER_TEMP/r10-factory-strings.txt"
+          done
+
+          grep -Fq "GreenhouseN3wCore" "$RUNNER_TEMP/r10-symbols.txt"
+          grep -Fq "SimpleProductComponent" "$RUNNER_TEMP/r10-symbols.txt"
+          grep -Fq "RegistrationPortal" "$RUNNER_TEMP/r10-symbols.txt"
+          grep -Fq "Esp32RegistrationBootstrapTransport" "$RUNNER_TEMP/r10-symbols.txt"
+          grep -Fq "RegistrationDisplayController" "$RUNNER_TEMP/r10-symbols.txt"
+
+          for marker in             "gh.telemetry/1"             "air_temperature_c"             "gh.registration.portal-action/1"             "gh.registration.confirm/1"             "/api/v1/register/start"             "/api/v1/register/begin"
+          do
+            grep -Fq "$marker" "$RUNNER_TEMP/r10-app-strings.txt"
+            grep -Fq "$marker" "$RUNNER_TEMP/r10-factory-strings.txt"
+          done
+
+          echo "BINARY_DEHARNESS_PROOF=PASS"
+          echo "REGISTRATION_BINARY_POSITIVE_CONTROLS=PASS"
+
+      - name: Freeze exact repaired release bundle
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/firmware/esphome_rc/f1_0_rc2/.esphome/build/gh"
+          ENV_DIR="$ROOT/.pioenvs/gh"
+          MEMBERS="$GITHUB_WORKSPACE/r10-board-d-repaired-acceptance-members"
+          OUT="$GITHUB_WORKSPACE/r10-board-d-repaired-acceptance-artifact"
+          BUNDLE="n3w-r10-board-d-tls-pin-acceptance-f99342f9.zip"
+          ARTIFACT_NAME="n3w-r10-board-d-tls-pin-acceptance-f99342f9"
+
+          mkdir -p "$MEMBERS" "$OUT"
+
+          files=(
+            firmware.bin
+            firmware.ota.bin
+            firmware.factory.bin
+            bootloader.bin
+            partitions.bin
+            ota_data_initial.bin
+            flash_args
+          )
+          for name in "${files[@]}"; do
+            test -f "$ENV_DIR/$name"
+            cp "$ENV_DIR/$name" "$MEMBERS/$name"
+          done
+
+          {
+            echo "BINDING_SCHEMA=N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_BOARD_D_TLS_PIN_REPAIR_PHYSICAL_ACCEPTANCE_ARTIFACT_V1"
+            echo "PRODUCT_SOURCE_HEAD=$PRODUCT_SOURCE"
+            echo "PRODUCT_SOURCE_TREE=$PRODUCT_TREE"
+            echo "ACCEPTANCE_SOURCE_HEAD=$ACCEPTANCE_SOURCE"
+            echo "ACCEPTANCE_SOURCE_TREE=$ACCEPTANCE_TREE"
+            echo "ACCEPTANCE_DELTA_FILES=1"
+            echo "ACCEPTANCE_DELTA_ADDITIONS=1"
+            echo "ACCEPTANCE_DELTA_DELETIONS=0"
+            echo "PHYSICAL_ACCEPTANCE_ONLY=true"
+            echo "DEVELOPMENT_ONLY=true"
+            echo "PRODUCTION_ELIGIBLE=false"
+            echo "LOW_BATTERY_PROTECTION_BYPASSED=true"
+            echo "TARGET_CONFIG=firmware/esphome_rc/f1_0_rc2/f1_0_rc2_n3w_target.yml"
+            echo "PRODUCT_TARGET_CONFIG_BLOB_SHA=$PRODUCT_TARGET_CONFIG_BLOB"
+            echo "ACCEPTANCE_TARGET_CONFIG_BLOB_SHA=$ACCEPTANCE_TARGET_CONFIG_BLOB"
+            echo "PRODUCT_COMPONENT_BLOB_SHA=$PRODUCT_COMPONENT_BLOB"
+            echo "REGISTRATION_PORTAL_CPP_BLOB_SHA=$REGISTRATION_PORTAL_CPP_BLOB"
+            echo "REGISTRATION_PORTAL_H_BLOB_SHA=$REGISTRATION_PORTAL_H_BLOB"
+            echo "TLS_BOOTSTRAP_TRANSPORT_BLOB_SHA=$TLS_BOOTSTRAP_TRANSPORT_BLOB"
+            echo "REGISTRATION_DISCOVERY_H_BLOB_SHA=$REGISTRATION_DISCOVERY_H_BLOB"
+            echo "R6_TLS_TEST_BLOB_SHA=$R6_TLS_TEST_BLOB"
+            echo "R8_SAFETY_TEST_BLOB_SHA=$R8_SAFETY_TEST_BLOB"
+            echo "R10_PHONE_UI_TEST_BLOB_SHA=$R10_PHONE_UI_TEST_BLOB"
+            echo "TLS_AUTHORITY=$TLS_AUTHORITY"
+            echo "REGISTRATION_CANDIDATE_TTL_SECONDS=$REGISTRATION_CANDIDATE_TTL_SECONDS"
+            echo "REGISTRATION_USER_CONFIRM_MS=$REGISTRATION_USER_CONFIRM_MS"
+            echo "FIRST_COUNTDOWN_DISPLAY_SECONDS=$FIRST_COUNTDOWN_DISPLAY_SECONDS"
+            echo "COMPANION_MANAGER_PACKAGE_HEAD=$COMPANION_MANAGER_PACKAGE_HEAD"
+            echo "COMPANION_MANAGER_ARTIFACT_ID=$COMPANION_MANAGER_ARTIFACT_ID"
+            echo "COMPANION_MANAGER_ARTIFACT_DIGEST=$COMPANION_MANAGER_ARTIFACT_DIGEST"
+            echo "COMPANION_MANAGER_MANIFEST_SHA256=$COMPANION_MANAGER_MANIFEST_SHA256"
+            echo "COMPANION_MANAGER_TAR_SHA256=$COMPANION_MANAGER_TAR_SHA256"
+            echo "COMPANION_MANAGER_IMAGE=$COMPANION_MANAGER_IMAGE"
+            echo "COMPANION_MANAGER_TARGET_SOURCE=$PRODUCT_SOURCE"
+            echo "COMPANION_MANAGER_CANDIDATE_TTL_SECONDS=60"
+            cat "$RUNNER_TEMP/r10-font-binding.env"
+            echo "PYTHON_VERSION=3.11"
+            echo "ESPHOME_VERSION=2026.4.3"
+            echo "ESP_IDF_VERSION=5.5.4"
+            echo "ARTIFACT_TOOLING_HEAD=$GITHUB_SHA"
+            echo "WORKFLOW_RUN_ID=$GITHUB_RUN_ID"
+            echo "R5_CONTRACT=PASS"
+            echo "R6_TLS_CONTRACT=PASS"
+            echo "R7_LCD_CONTRACT=PASS"
+            echo "R8_SAFETY_CONTRACT=PASS"
+            echo "R10_PHONE_UI_CONTRACT=PASS"
+            echo "PRODUCT_SOURCE_NO_BYPASS=PASS"
+            echo "ACCEPTANCE_SOURCE_LOW_BATTERY_BYPASS=PASS"
+            echo "R8_MANAGER_E2E=PASS"
+            echo "BINARY_DEHARNESS_PROOF=PASS"
+            echo "REGISTRATION_BINARY_POSITIVE_CONTROLS=PASS"
+            echo "HARDWARE_SPI_BUILD_BINDING=PASS"
+            echo "BOARD_WRITE_AUTHORIZED=false"
+            echo "T1_MUTATION_AUTHORIZED=false"
+            for name in "${files[@]}"; do
+              key="$(printf '%s' "$name" | tr '[:lower:].' '[:upper:]_')"
+              size="$(stat -c '%s' "$MEMBERS/$name")"
+              digest="$(sha256sum "$MEMBERS/$name" | awk '{print $1}')"
+              echo "${key}_SIZE=${size}"
+              echo "${key}_SHA256=${digest}"
+            done
+          } | tee "$MEMBERS/MANIFEST.txt"
+
+          MANIFEST_SHA256="$(sha256sum "$MEMBERS/MANIFEST.txt" | awk '{print $1}')"
+
+          python - "$MEMBERS" "$OUT/$BUNDLE" <<'PY'
+          import sys
+          import zipfile
+          from pathlib import Path
+
+          source = Path(sys.argv[1])
+          target = Path(sys.argv[2])
+          names = sorted(p.name for p in source.iterdir() if p.is_file())
+          with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_STORED) as archive:
+              for name in names:
+                  info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+                  info.create_system = 3
+                  info.external_attr = 0o100644 << 16
+                  info.compress_type = zipfile.ZIP_STORED
+                  archive.writestr(info, (source / name).read_bytes())
+          PY
+
+          BUNDLE_SHA256="$(sha256sum "$OUT/$BUNDLE" | awk '{print $1}')"
+          printf '%s  %s\n' "$BUNDLE_SHA256" "$BUNDLE" > "$OUT/$BUNDLE.sha256"
+          test "$(find "$MEMBERS" -maxdepth 1 -type f | wc -l)" -eq 8
+
+          FIRMWARE_SHA256="$(sha256sum "$MEMBERS/firmware.bin" | awk '{print $1}')"
+          echo "artifact_name=$ARTIFACT_NAME" >> "$GITHUB_OUTPUT"
+          echo "bundle_name=$BUNDLE" >> "$GITHUB_OUTPUT"
+          echo "bundle_sha256=$BUNDLE_SHA256" >> "$GITHUB_OUTPUT"
+          echo "manifest_sha256=$MANIFEST_SHA256" >> "$GITHUB_OUTPUT"
+          echo "firmware_sha256=$FIRMWARE_SHA256" >> "$GITHUB_OUTPUT"
+
+          echo "R10_RELEASE_BUNDLE=$BUNDLE"
+          echo "R10_RELEASE_BUNDLE_SHA256=$BUNDLE_SHA256"
+          echo "R10_MANIFEST_SHA256=$MANIFEST_SHA256"
+          echo "R10_FIRMWARE_SHA256=$FIRMWARE_SHA256"
+
+      - name: Upload exact repaired Board D artifact
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.artifact_name }}
+          path: r10-board-d-repaired-acceptance-artifact/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+  redownload-verify:
+    if: github.event_name == 'workflow_dispatch' && inputs.produce_exact_artifact == true
+    needs: build-exact-artifact
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build-exact-artifact.outputs.artifact_name }}
+          path: ${{ runner.temp }}/redownload
+
+      - name: Verify redownloaded artifact bytes and manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/redownload"
+          BUNDLE="$ROOT/${{ needs.build-exact-artifact.outputs.bundle_name }}"
+          SIDECAR="$BUNDLE.sha256"
+
+          test -f "$BUNDLE"
+          test -f "$SIDECAR"
+          test "$(sha256sum "$BUNDLE" | awk '{print $1}')" = "${{ needs.build-exact-artifact.outputs.bundle_sha256 }}"
+          test "$(cat "$SIDECAR")" = "${{ needs.build-exact-artifact.outputs.bundle_sha256 }}  ${{ needs.build-exact-artifact.outputs.bundle_name }}"
+
+          python - "$BUNDLE" "${{ needs.build-exact-artifact.outputs.manifest_sha256 }}" "${{ needs.build-exact-artifact.outputs.firmware_sha256 }}" <<'PY'
+          import hashlib
+          import sys
+          import zipfile
+
+          bundle, manifest_sha, firmware_sha = sys.argv[1:]
+          with zipfile.ZipFile(bundle, "r") as archive:
+              names = [item.filename for item in archive.infolist() if not item.is_dir()]
+              expected = {
+                  "MANIFEST.txt",
+                  "bootloader.bin",
+                  "firmware.bin",
+                  "firmware.factory.bin",
+                  "firmware.ota.bin",
+                  "flash_args",
+                  "ota_data_initial.bin",
+                  "partitions.bin",
+              }
+              if set(names) != expected or len(names) != len(expected):
+                  raise SystemExit("release_member_set_invalid")
+              for item in archive.infolist():
+                  if item.is_dir():
+                      continue
+                  if item.date_time != (1980, 1, 1, 0, 0, 0):
+                      raise SystemExit("release_timestamp_invalid")
+                  if item.compress_type != zipfile.ZIP_STORED:
+                      raise SystemExit("release_compression_invalid")
+              manifest = archive.read("MANIFEST.txt")
+              firmware = archive.read("firmware.bin")
+
+          if hashlib.sha256(manifest).hexdigest() != manifest_sha:
+              raise SystemExit("manifest_sha256_mismatch")
+          if hashlib.sha256(firmware).hexdigest() != firmware_sha:
+              raise SystemExit("firmware_sha256_mismatch")
+
+          text = manifest.decode("utf-8")
+          required = {
+              "PRODUCT_SOURCE_HEAD": "ff750b3801a282af1667b5fa63481e2333e301b3",
+              "PRODUCT_SOURCE_TREE": "ee6ee5e362628fa725d57fbdf50c6608e9032b17",
+              "ACCEPTANCE_SOURCE_HEAD": "f99342f9639fa234d85c509ddf6cf41fef91d691",
+              "ACCEPTANCE_SOURCE_TREE": "6c53b4ef480f67d984cc9b3c8cfa0886d706dde4",
+              "PHYSICAL_ACCEPTANCE_ONLY": "true",
+              "PRODUCTION_ELIGIBLE": "false",
+              "LOW_BATTERY_PROTECTION_BYPASSED": "true",
+              "TLS_AUTHORITY": "EXACT_LEAF_SHA256_PIN",
+              "REGISTRATION_CANDIDATE_TTL_SECONDS": "60",
+              "REGISTRATION_USER_CONFIRM_MS": "60000",
+              "FIRST_COUNTDOWN_DISPLAY_SECONDS": "59",
+              "COMPANION_MANAGER_ARTIFACT_ID": "12877958163",
+              "COMPANION_MANAGER_ARTIFACT_DIGEST": "sha256:042a7d467287b8192edacea076c7f47b2037eef7ba3b83a966369ba0ff89d93d",
+              "COMPANION_MANAGER_TARGET_SOURCE": "ff750b3801a282af1667b5fa63481e2333e301b3",
+              "BOARD_WRITE_AUTHORIZED": "false",
+              "T1_MUTATION_AUTHORIZED": "false",
+          }
+          observed = {}
+          for line in text.splitlines():
+              if "=" in line:
+                  key, value = line.split("=", 1)
+                  observed[key] = value
+          for key, expected in required.items():
+              if observed.get(key) != expected:
+                  raise SystemExit(f"manifest_binding_invalid:{key}")
+          print("REDOWNLOAD_MANIFEST_BINDING=PASS")
+          PY
+
+          echo "REDOWNLOAD_VERIFY=PASS"
+          echo "ARTIFACT_ID=${{ needs.build-exact-artifact.outputs.upload_artifact_id }}"
+          echo "ARTIFACT_DIGEST=${{ needs.build-exact-artifact.outputs.upload_artifact_digest }}"
