@@ -123,6 +123,27 @@ def test_normalized_slot_binding_is_exact() -> None:
     assert b["sha256"] == "5901a6ff149ac9da8041057617df989526b41018a44a1647f8175254fda044fc"
 
 
+def test_preflight_requires_the_installed_old_r10_acceptance_slots() -> None:
+    assert module.CURRENT_PREDECESSOR_SLOT_SHA256 == (
+        "9d3b7b9d6b277e06cb6eb7f3155e9c777025b0d5cdb6e40feec47d46435eafbd"
+    )
+    assert module.CURRENT_PREDECESSOR_SLOT_SHA256 != module.NORMALIZED_SLOT_SHA256
+    preflight = sample_preflight()
+    assert preflight["current_predecessor_slot_binding_required"] is True
+
+
+def test_old_artifact_and_old_authorization_are_not_reused() -> None:
+    source = MODULE_PATH.read_text(encoding="utf-8")
+    for forbidden in (
+        "12864962159",
+        "40798244418",
+        "b57a5af10c23344e8e03250857455898eb60640e3e18c62022af9c2b9ab7f6da",
+        "N3W_R10_BOARD_D_PHYSICAL_ACCEPTANCE_WRITE_AUTHORIZED",
+        "6e777334cd8dec12523ec5e2daa6ce2909a4d581531218b0d9cec26803f68079",
+    ):
+        assert forbidden not in source
+
+
 def test_derive_normalized_slot_pads_only_ff(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     app = tmp_path / "firmware.bin"
     app.write_bytes(b"abc")
