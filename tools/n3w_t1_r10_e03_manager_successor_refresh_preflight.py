@@ -16,6 +16,24 @@ SERVICES_UNIT = "n3wfc4-services-activation.service"
 REGISTRATION_GUARD_UNIT = "n3wfc4-registration-ingress-guard.service"
 MANAGER_DB = "/var/lib/greenhouse-manager/manager/manager-state.sqlite3"
 EXPECTED_CURRENT_MANAGER_IMAGE = "local/greenhouse-manager:fresh-ff750b3801a2"
+EXPECTED_FAILED_PAIRING_ID_SHA256 = (
+    "9931c366d483abd3af6e1e3d903b82645542346dbd258975acd788998f0404dc"
+)
+EXPECTED_FAILED_HARDWARE_ID_SHA256 = (
+    "3a76b39f066e09de0a285b81319eec20f29c8fd4136b61dc5a86ace01c1e1d55"
+)
+EXPECTED_TARGET_SOURCE_HEAD = "f8876fd87165df731d792690a8288867c3eeef55"
+EXPECTED_TARGET_MANAGER_IMAGE = "local/greenhouse-manager:fresh-f8876fd87165"
+EXPECTED_TARGET_MANAGER_IMAGE_ID = (
+    "sha256:089153fa4bbc823a1357427083f23ef96933a119c6ae150c143b62d7b40859e4"
+)
+EXPECTED_TARGET_MANAGER_TAR_SHA256 = (
+    "d129a33ea628d8bdd1361e0b1bf727175515b4a2afc1851e6ac14ec510895fb5"
+)
+EXPECTED_TARGET_ARTIFACT_ID = 12900601779
+EXPECTED_TARGET_ARTIFACT_DIGEST_SHA256 = (
+    "c94568f740b911eee0f4238207249b1e98f84748c17a902938ccc35293e4b183"
+)
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _GIT_SHA = re.compile(r"^[0-9a-f]{40}$")
 _IMAGE_ID = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -341,6 +359,10 @@ def _validate_expected_failed_attempt(
         or _SHA256.fullmatch(hardware_hash) is None
     ):
         raise PreflightError("failed_attempt_hash_binding_invalid")
+    if pairing_hash != EXPECTED_FAILED_PAIRING_ID_SHA256:
+        raise PreflightError("failed_attempt_pairing_identity_drift")
+    if hardware_hash != EXPECTED_FAILED_HARDWARE_ID_SHA256:
+        raise PreflightError("failed_attempt_hardware_identity_drift")
     return attempt
 
 
@@ -407,6 +429,7 @@ def preflight(args: argparse.Namespace, runner: Runner | None = None) -> dict[st
             args.target_source_head,
             "target_source_head",
         ),
+        "manager_image": EXPECTED_TARGET_MANAGER_IMAGE,
         "manager_image_id": _require_image_id(
             args.target_manager_image_id,
             "target_manager_image_id",
@@ -421,8 +444,19 @@ def preflight(args: argparse.Namespace, runner: Runner | None = None) -> dict[st
             "artifact_digest_sha256",
         ),
     }
-    if not isinstance(target["artifact_id"], int) or target["artifact_id"] <= 0:
-        raise PreflightError("artifact_id_invalid")
+    if target["source_head"] != EXPECTED_TARGET_SOURCE_HEAD:
+        raise PreflightError("target_source_head_drift")
+    if target["manager_image_id"] != EXPECTED_TARGET_MANAGER_IMAGE_ID:
+        raise PreflightError("target_manager_image_id_drift")
+    if target["manager_tar_sha256"] != EXPECTED_TARGET_MANAGER_TAR_SHA256:
+        raise PreflightError("target_manager_tar_sha256_drift")
+    if target["artifact_id"] != EXPECTED_TARGET_ARTIFACT_ID:
+        raise PreflightError("target_artifact_id_drift")
+    if (
+        target["artifact_digest_sha256"]
+        != EXPECTED_TARGET_ARTIFACT_DIGEST_SHA256
+    ):
+        raise PreflightError("target_artifact_digest_drift")
 
     return {
         "schema": "gh.n3w-r10-e03-manager-successor-refresh-preflight/1",
