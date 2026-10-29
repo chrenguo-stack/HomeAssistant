@@ -50,7 +50,39 @@ def _git_sha(value: str) -> bool:
     )
 
 
-def _manager_archive_identity(path: Path) -> dict[str, str]:
+def _normalized_hash(value: Any) -> str:
+    payload = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _image_config_contract(config: object) -> dict[str, object]:
+    value = config if isinstance(config, dict) else {}
+    result: dict[str, object] = {}
+    sequence_fields = {"Entrypoint", "Cmd", "Env"}
+    string_fields = {"User", "WorkingDir", "StopSignal"}
+    mapping_fields = {
+        "Labels",
+        "Healthcheck",
+        "Volumes",
+        "ExposedPorts",
+    }
+    for key in sorted(sequence_fields | string_fields | mapping_fields):
+        observed = value.get(key)
+        if key in sequence_fields and observed is None:
+            observed = []
+        elif key in string_fields and observed is None:
+            observed = ""
+        elif key in mapping_fields and observed is None:
+            observed = {}
+        result[key] = observed
+    return result
+
+
+def _manager_archive_identity(path: Path) -> dict[str, Any]:
     try:
         with tarfile.open(path, "r:*") as archive:
             docker_stream = archive.extractfile("manifest.json")
@@ -95,6 +127,27 @@ def _manager_archive_identity(path: Path) -> dict[str, str]:
                 or hashlib.sha256(manifest_bytes).hexdigest() != manifest_hex
             ):
                 raise PackageError("manager_archive_digest_binding_invalid")
+            try:
+                config_document = json.loads(config_bytes.decode("utf-8"))
+            except (UnicodeError, json.JSONDecodeError) as error:
+                raise PackageError("manager_archive_config_invalid") from error
+            if not isinstance(config_document, dict):
+                raise PackageError("manager_archive_config_invalid")
+            rootfs = config_document.get("rootfs")
+            diff_ids = rootfs.get("diff_ids") if isinstance(rootfs, dict) else None
+            if (
+                not isinstance(diff_ids, list)
+                or not diff_ids
+                or not all(
+                    isinstance(item, str)
+                    and _sha256_id(item)
+                    for item in diff_ids
+                )
+            ):
+                raise PackageError("manager_archive_rootfs_invalid")
+            config_contract = _image_config_contract(
+                config_document.get("config")
+            )
             tags = docker_manifest[0].get("RepoTags")
             if (
                 not isinstance(tags, list)
@@ -104,6 +157,8 @@ def _manager_archive_identity(path: Path) -> dict[str, str]:
             return {
                 "config_digest": f"sha256:{config_hex}",
                 "manifest_digest": descriptor_digest,
+                "rootfs_layers_sha256": _normalized_hash(diff_ids),
+                "config_contract_sha256": _normalized_hash(config_contract),
             }
     except (OSError, UnicodeError, json.JSONDecodeError, tarfile.TarError) as error:
         raise PackageError("manager_archive_identity_unreadable") from error
@@ -217,6 +272,8 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
             "image_id_portable_authority": False,
             "archive_config_digest": archive_identity["config_digest"],
             "archive_manifest_digest": archive_identity["manifest_digest"],
+            "rootfs_layers_sha256": archive_identity["rootfs_layers_sha256"],
+            "config_contract_sha256": archive_identity["config_contract_sha256"],
             "image_size_bytes": args.manager_image_size_bytes,
             "platform": "linux/arm64",
             "base_image_ref": BASE_IMAGE_REF,
@@ -346,6 +403,10 @@ def verify(root: Path) -> dict[str, Any]:
         != archive_identity["config_digest"]
         or manager_record.get("archive_manifest_digest")
         != archive_identity["manifest_digest"]
+        or manager_record.get("rootfs_layers_sha256")
+        != archive_identity["rootfs_layers_sha256"]
+        or manager_record.get("config_contract_sha256")
+        != archive_identity["config_contract_sha256"]
         or manager_record.get("platform") != "linux/arm64"
     ):
         raise PackageError("manager_archive_identity_binding_invalid")
