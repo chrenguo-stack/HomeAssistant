@@ -256,8 +256,14 @@ def test_executor_does_not_regenerate_tls_or_rewrite_f4_or_compose_file() -> Non
     source = EXECUTOR_PATH.read_text(encoding="utf-8")
     assert "generate_registration_tls" not in source
     assert "install_registration_tls" not in source
-    assert "F4_TRANSACTION" not in source
     assert "write_f4_successor" not in source
+    assert "atomic_write_json(F4_TRANSACTION" not in source
+    assert "atomic_write_bytes(\n            F4_TRANSACTION" not in source
+    assert "atomic_write_json(PREDECESSOR_UPGRADE_TRANSACTION" not in source
+    assert (
+        "atomic_write_bytes(\n            PREDECESSOR_UPGRADE_TRANSACTION"
+        not in source
+    )
     assert "docker compose down" not in source
     assert "--force-recreate" not in source
     assert "atomic_write_bytes(\n            REGISTRATION_CERT" not in source
