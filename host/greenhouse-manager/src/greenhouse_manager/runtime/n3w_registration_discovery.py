@@ -43,7 +43,7 @@ class RegistrationCandidate:
     bootstrap_port: int = 47110
     bootstrap_path: str = "/v1/registration/confirm"
     protocol: str = REGISTRATION_PROTOCOL
-    ttl_s: int = 30
+    ttl_s: int = 60
     schema: str = CANDIDATE_SCHEMA
 
     def __post_init__(self) -> None:
@@ -65,7 +65,7 @@ class RegistrationCandidate:
             raise ValueError("bootstrap_path invalid")
         if self.protocol != REGISTRATION_PROTOCOL:
             raise ValueError("registration protocol invalid")
-        if self.ttl_s != 30:
+        if self.ttl_s != 60:
             raise ValueError("candidate ttl invalid")
         if _SHA256.fullmatch(self.bootstrap_tls_sha256) is None:
             raise ValueError("bootstrap_tls_sha256 invalid")
