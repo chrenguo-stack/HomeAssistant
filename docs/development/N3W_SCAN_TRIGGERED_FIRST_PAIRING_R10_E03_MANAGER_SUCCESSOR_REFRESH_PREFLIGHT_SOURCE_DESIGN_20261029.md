@@ -306,3 +306,34 @@ DEFINITELY_NOT_COMMITTED
 The preflight is therefore repaired to model the actual production classifier instead of requiring the registration row to be absent.
 
 This is a preflight-model repair only. It does not change the product Manager repair, does not mutate T1, and does not authorize the successor refresh.
+
+
+## 10. Live Manager Settings authority repair
+
+Independent review of the classification repair found one remaining false-PASS risk: the readonly probe must not assume default SQLite paths.
+
+Production Manager permits both stores to be overridden by live Settings:
+
+```text
+GH_PAIRING_DB_PATH
+GH_N3W_CREDENTIAL_LIFECYCLE_DB_PATH
+```
+
+The preflight now obtains both paths from the exact running Manager container using:
+
+```text
+Settings.from_env()
+```
+
+Only the two expanded SQLite paths are returned to the preflight process. The report exposes SHA-256 bindings of those paths rather than raw environment contents. The exact paths are then passed to the readonly SQLite probe running inside the same Manager container.
+
+The SQLite safety contract remains:
+
+```text
+mode=ro
+PRAGMA query_only=ON
+```
+
+No environment dump, credential value, database write, container restart, service restart, image load, or compose mutation is introduced.
+
+This closes the KF-086 regression class for this gate: pairing/registration and credential lifecycle authority are resolved from the running Manager Settings instead of guessed defaults.
