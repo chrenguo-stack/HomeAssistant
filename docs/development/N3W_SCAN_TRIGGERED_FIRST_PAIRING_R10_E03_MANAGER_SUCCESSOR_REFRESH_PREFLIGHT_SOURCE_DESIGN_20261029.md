@@ -138,7 +138,13 @@ It checks:
     - expired by clock;
     - no node_id;
     - no terminal timestamp/reason;
-    - no RegistrationRegistry row using the failed attempt pairing ID;
+    - exactly one current RegistrationRegistry row is bound to the failed pairing ID;
+    - the matching pairing session is still pending;
+    - the matching registration has no node_id;
+    - the session hardware SHA-256 equals the ledger hardware SHA-256;
+    - credential_assignments count for the pairing ID is zero;
+    - credential_assignments history count for the hardware ID is zero;
+    - therefore the production FirstRegistrationReconciler classification is DEFINITELY_NOT_COMMITTED;
 19. the attempt must exactly match the previously proven public-safe identity:
     - pairing-ID SHA-256 `9931c366d483abd3af6e1e3d903b82645542346dbd258975acd788998f0404dc`;
     - hardware-ID SHA-256 `3a76b39f066e09de0a285b81319eec20f29c8fd4136b61dc5a86ace01c1e1d55`;
@@ -185,7 +191,13 @@ attempt_state=ACTIVE
 attempt_phase=BOOTSTRAP_ACCEPTED
 attempt_cleanup_state=NONE
 attempt_expired_by_clock=true
-attempt_registration_match_count=0
+attempt_registration_match_count=1
+attempt_session_state=pending
+attempt_current_pairing_matches=true
+attempt_registration_node_id_present=false
+attempt_pairing_credential_count=0
+attempt_hardware_credential_history_count=0
+attempt_commit_classification=DEFINITELY_NOT_COMMITTED
 attempt_pairing_id_sha256=9931c366d483abd3af6e1e3d903b82645542346dbd258975acd788998f0404dc
 attempt_hardware_id_sha256=3a76b39f066e09de0a285b81319eec20f29c8fd4136b61dc5a86ace01c1e1d55
 
@@ -254,3 +266,74 @@ N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_E03_MANAGER_SUCCESSOR_REFRESH_READONLY_T1_P
 ```
 
 The T1 pre-live gate remains read-only only. It still does not authorize the Manager refresh.
+
+
+## 9. 2026-10-29 live readonly correction
+
+Fresh T1 readonly evidence proved the frozen failed attempt identity remained exact, but the original preflight incorrectly required `registration_match_count=0`.
+
+Actual live state:
+
+```text
+attempt_count=1
+unresolved_count=1
+registration_count=1
+state=ACTIVE
+phase=BOOTSTRAP_ACCEPTED
+cleanup_state=NONE
+expired_by_clock=true
+registration_match_count=1
+```
+
+This does not contradict the production reconciler. `FirstRegistrationReconciler._classify()` explicitly permits an existing matching registration snapshot when:
+
+```text
+attempt.node_id is None
+registration.current_pairing_id == attempt.pairing_id
+registration.node_id is None
+registration.state == PENDING
+credentials for pairing_id == 0
+credential history for hardware_id == 0
+hardware hash matches ledger
+```
+
+Under those conditions the production classification is:
+
+```text
+DEFINITELY_NOT_COMMITTED
+```
+
+The preflight is therefore repaired to model the actual production classifier instead of requiring the registration row to be absent.
+
+This is a preflight-model repair only. It does not change the product Manager repair, does not mutate T1, and does not authorize the successor refresh.
+
+
+## 10. Live Manager Settings authority repair
+
+Independent review of the classification repair found one remaining false-PASS risk: the readonly probe must not assume default SQLite paths.
+
+Production Manager permits both stores to be overridden by live Settings:
+
+```text
+GH_PAIRING_DB_PATH
+GH_N3W_CREDENTIAL_LIFECYCLE_DB_PATH
+```
+
+The preflight now obtains both paths from the exact running Manager container using:
+
+```text
+Settings.from_env()
+```
+
+Only the two expanded SQLite paths are returned to the preflight process. The report exposes SHA-256 bindings of those paths rather than raw environment contents. The exact paths are then passed to the readonly SQLite probe running inside the same Manager container.
+
+The SQLite safety contract remains:
+
+```text
+mode=ro
+PRAGMA query_only=ON
+```
+
+No environment dump, credential value, database write, container restart, service restart, image load, or compose mutation is introduced.
+
+This closes the KF-086 regression class for this gate: pairing/registration and credential lifecycle authority are resolved from the running Manager Settings instead of guessed defaults.

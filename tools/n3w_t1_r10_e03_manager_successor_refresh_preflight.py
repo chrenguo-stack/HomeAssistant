@@ -27,7 +27,6 @@ EXPECTED_SERVICES_EXECSTOP = (
     "--env-file ${N3WFC4_COMPOSE_ENV_FILE} "
     "-f ${N3WFC4_COMPOSE_FILE} stop homeassistant manager"
 )
-MANAGER_DB = "/var/lib/greenhouse-manager/manager/manager-state.sqlite3"
 EXPECTED_CURRENT_MANAGER_IMAGE = "local/greenhouse-manager:fresh-ff750b3801a2"
 EXPECTED_FAILED_PAIRING_ID_SHA256 = (
     "9931c366d483abd3af6e1e3d903b82645542346dbd258975acd788998f0404dc"
@@ -243,12 +242,78 @@ def _listener_count(runner: Runner, protocol: str, port: int) -> int:
     return len([line for line in output.splitlines() if line.strip()])
 
 
+_SETTINGS_PROBE = r'''
+import json
+from pathlib import Path
+
+from greenhouse_manager.runtime.config import Settings
+
+settings = Settings.from_env()
+print(
+    json.dumps(
+        {
+            "pairing_db_path": str(
+                Path(settings.pairing_db_path).expanduser()
+            ),
+            "credential_lifecycle_db_path": str(
+                Path(
+                    settings.n3w_credential_lifecycle_db_path
+                ).expanduser()
+            ),
+        },
+        sort_keys=True,
+    )
+)
+'''
+
+
+def _live_manager_state_paths(
+    runner: Runner,
+    manager_id: str,
+) -> dict[str, str]:
+    output = _require_success(
+        runner.run(
+            (
+                "docker",
+                "exec",
+                manager_id,
+                "python",
+                "-c",
+                _SETTINGS_PROBE,
+            ),
+            timeout=30,
+        ),
+        "manager_live_settings_probe",
+    )
+    try:
+        document = json.loads(output)
+    except json.JSONDecodeError as error:
+        raise PreflightError("manager_live_settings_json_invalid") from error
+    if not isinstance(document, dict):
+        raise PreflightError("manager_live_settings_shape_invalid")
+    pairing_path = document.get("pairing_db_path")
+    credential_path = document.get("credential_lifecycle_db_path")
+    if (
+        not isinstance(pairing_path, str)
+        or not pairing_path.startswith("/")
+        or not isinstance(credential_path, str)
+        or not credential_path.startswith("/")
+    ):
+        raise PreflightError("manager_live_settings_path_invalid")
+    return {
+        "pairing_db_path": pairing_path,
+        "credential_lifecycle_db_path": credential_path,
+    }
+
+
 _LEDGER_PROBE = r'''
 import hashlib
 import json
 import sqlite3
+import sys
 
-path = "/var/lib/greenhouse-manager/manager/manager-state.sqlite3"
+path = sys.argv[1]
+credential_path = sys.argv[2]
 connection = sqlite3.connect("file:" + path + "?mode=ro", uri=True)
 connection.row_factory = sqlite3.Row
 connection.execute("PRAGMA query_only=ON")
@@ -259,7 +324,7 @@ tables = {
         "SELECT name FROM sqlite_master WHERE type='table'"
     ).fetchall()
 }
-required = {"first_registration_attempts", "registrations"}
+required = {"first_registration_attempts", "registrations", "pairing_sessions"}
 if not required.issubset(tables):
     raise RuntimeError("required_first_registration_tables_missing")
 
@@ -290,12 +355,85 @@ rows = connection.execute(
     """
 ).fetchall()
 
+credentials = sqlite3.connect(
+    "file:" + credential_path + "?mode=ro",
+    uri=True,
+)
+credentials.row_factory = sqlite3.Row
+credentials.execute("PRAGMA query_only=ON")
+credential_tables = {
+    item[0]
+    for item in credentials.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'"
+    ).fetchall()
+}
+if "credential_assignments" not in credential_tables:
+    raise RuntimeError("credential_assignments_table_missing")
+
 attempts = []
 for row in rows:
+    pairing_id = str(row["pairing_id"])
+    session = connection.execute(
+        """
+        SELECT hardware_id, state, reason
+        FROM pairing_sessions
+        WHERE pairing_id = ?
+        """,
+        (pairing_id,),
+    ).fetchone()
+    if session is None:
+        session_hardware_sha256 = None
+        session_state = None
+        current_pairing_matches = False
+        registration_node_id_present = False
+        pairing_credential_count = 0
+        hardware_credential_history_count = 0
+    else:
+        hardware_id = str(session["hardware_id"])
+        session_hardware_sha256 = hashlib.sha256(
+            hardware_id.encode("utf-8")
+        ).hexdigest()
+        session_state = str(session["state"])
+        registration = connection.execute(
+            """
+            SELECT current_pairing_id, node_id
+            FROM registrations
+            WHERE hardware_id = ?
+            """,
+            (hardware_id,),
+        ).fetchone()
+        current_pairing_matches = bool(
+            registration is not None
+            and registration["current_pairing_id"] == pairing_id
+        )
+        registration_node_id_present = bool(
+            registration is not None and registration["node_id"] is not None
+        )
+        pairing_credential_count = int(
+            credentials.execute(
+                """
+                SELECT COUNT(*)
+                FROM credential_assignments
+                WHERE pairing_id = ?
+                """,
+                (pairing_id,),
+            ).fetchone()[0]
+        )
+        hardware_credential_history_count = int(
+            credentials.execute(
+                """
+                SELECT COUNT(*)
+                FROM credential_assignments
+                WHERE hardware_id = ?
+                """,
+                (hardware_id,),
+            ).fetchone()[0]
+        )
+
     attempts.append(
         {
             "pairing_id_sha256": hashlib.sha256(
-                str(row["pairing_id"]).encode("utf-8")
+                pairing_id.encode("utf-8")
             ).hexdigest(),
             "hardware_id_sha256": str(row["hardware_id_sha256"]),
             "opened_at": str(row["opened_at"]),
@@ -308,8 +446,15 @@ for row in rows:
             "terminal_reason": row["terminal_reason"],
             "expired_by_clock": bool(row["expired_by_clock"]),
             "registration_match_count": int(row["registration_match_count"]),
+            "session_hardware_sha256": session_hardware_sha256,
+            "session_state": session_state,
+            "current_pairing_matches": current_pairing_matches,
+            "registration_node_id_present": registration_node_id_present,
+            "pairing_credential_count": pairing_credential_count,
+            "hardware_credential_history_count": hardware_credential_history_count,
         }
     )
+credentials.close()
 
 unresolved = connection.execute(
     """
@@ -375,7 +520,13 @@ print(
 '''
 
 
-def _ledger_snapshot(runner: Runner, manager_id: str) -> dict[str, Any]:
+def _ledger_snapshot(
+    runner: Runner,
+    manager_id: str,
+    *,
+    pairing_db_path: str,
+    credential_lifecycle_db_path: str,
+) -> dict[str, Any]:
     output = _require_success(
         runner.run(
             (
@@ -385,6 +536,8 @@ def _ledger_snapshot(runner: Runner, manager_id: str) -> dict[str, Any]:
                 "python",
                 "-c",
                 _LEDGER_PROBE,
+                pairing_db_path,
+                credential_lifecycle_db_path,
             ),
             timeout=30,
         ),
@@ -426,9 +579,17 @@ def _validate_expected_failed_attempt(
         or attempt.get("node_id_present") is not False
         or attempt.get("terminal_at_present") is not False
         or attempt.get("terminal_reason") is not None
-        or attempt.get("registration_match_count") != 0
+        or attempt.get("registration_match_count") != 1
     ):
         raise PreflightError("failed_attempt_state_drift")
+    if (
+        attempt.get("session_state") != "pending"
+        or attempt.get("current_pairing_matches") is not True
+        or attempt.get("registration_node_id_present") is not False
+        or attempt.get("pairing_credential_count") != 0
+        or attempt.get("hardware_credential_history_count") != 0
+    ):
+        raise PreflightError("failed_attempt_commit_classification_drift")
     pairing_hash = attempt.get("pairing_id_sha256")
     hardware_hash = attempt.get("hardware_id_sha256")
     if (
@@ -442,6 +603,8 @@ def _validate_expected_failed_attempt(
         raise PreflightError("failed_attempt_pairing_identity_drift")
     if hardware_hash != EXPECTED_FAILED_HARDWARE_ID_SHA256:
         raise PreflightError("failed_attempt_hardware_identity_drift")
+    if attempt.get("session_hardware_sha256") != hardware_hash:
+        raise PreflightError("failed_attempt_session_hardware_drift")
     return attempt
 
 
@@ -496,7 +659,18 @@ def preflight(args: argparse.Namespace, runner: Runner | None = None) -> dict[st
     if listeners["tcp_47112"] != 0:
         raise PreflightError("pairing_47112_must_be_closed")
 
-    ledger = _ledger_snapshot(runner, ids["manager"])
+    live_state_paths = _live_manager_state_paths(
+        runner,
+        ids["manager"],
+    )
+    ledger = _ledger_snapshot(
+        runner,
+        ids["manager"],
+        pairing_db_path=live_state_paths["pairing_db_path"],
+        credential_lifecycle_db_path=(
+            live_state_paths["credential_lifecycle_db_path"]
+        ),
+    )
     registration_inventory_sha256 = ledger.get(
         "registration_inventory_sha256"
     )
@@ -554,6 +728,15 @@ def preflight(args: argparse.Namespace, runner: Runner | None = None) -> dict[st
         "authorization_claimed": False,
         "authorization_consumed": False,
         "current_manager_image_ref": manager["image_ref"],
+        "live_state_authority": {
+            "pairing_db_path_sha256": _sha256_text(
+                live_state_paths["pairing_db_path"]
+            ),
+            "credential_lifecycle_db_path_sha256": _sha256_text(
+                live_state_paths["credential_lifecycle_db_path"]
+            ),
+            "settings_source": "running_manager_Settings.from_env",
+        },
         "services_supervision": supervision,
         "runtime": runtime,
         "listeners": listeners,
@@ -572,6 +755,19 @@ def preflight(args: argparse.Namespace, runner: Runner | None = None) -> dict[st
                 "cleanup_state": attempt["cleanup_state"],
                 "expired_by_clock": attempt["expired_by_clock"],
                 "registration_match_count": attempt["registration_match_count"],
+                "session_hardware_sha256": attempt["session_hardware_sha256"],
+                "session_state": attempt["session_state"],
+                "current_pairing_matches": attempt["current_pairing_matches"],
+                "registration_node_id_present": attempt[
+                    "registration_node_id_present"
+                ],
+                "pairing_credential_count": attempt[
+                    "pairing_credential_count"
+                ],
+                "hardware_credential_history_count": attempt[
+                    "hardware_credential_history_count"
+                ],
+                "commit_classification": "DEFINITELY_NOT_COMMITTED",
             },
         },
         "target": target,
