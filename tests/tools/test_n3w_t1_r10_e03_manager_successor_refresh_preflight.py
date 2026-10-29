@@ -99,7 +99,13 @@ def _ledger(*, expired: bool = True, unresolved: int = 1) -> dict[str, object]:
                 "terminal_at_present": False,
                 "terminal_reason": None,
                 "expired_by_clock": expired,
-                "registration_match_count": 0,
+                "registration_match_count": 1,
+                "session_hardware_sha256": HARDWARE_HASH,
+                "session_state": "pending",
+                "current_pairing_matches": True,
+                "registration_node_id_present": False,
+                "pairing_credential_count": 0,
+                "hardware_credential_history_count": 0,
             }
         ],
     }
@@ -185,6 +191,13 @@ def test_preflight_passes_exact_failed_attempt_and_target_binding() -> None:
     assert report["ledger"]["unresolved_count"] == 1
     assert report["ledger"]["failed_attempt"]["pairing_id_sha256"] == PAIRING_HASH
     assert report["ledger"]["failed_attempt"]["hardware_id_sha256"] == HARDWARE_HASH
+    assert report["ledger"]["failed_attempt"]["registration_match_count"] == 1
+    assert report["ledger"]["failed_attempt"]["session_state"] == "pending"
+    assert report["ledger"]["failed_attempt"]["current_pairing_matches"] is True
+    assert report["ledger"]["failed_attempt"]["registration_node_id_present"] is False
+    assert report["ledger"]["failed_attempt"]["pairing_credential_count"] == 0
+    assert report["ledger"]["failed_attempt"]["hardware_credential_history_count"] == 0
+    assert report["ledger"]["failed_attempt"]["commit_classification"] == "DEFINITELY_NOT_COMMITTED"
     assert report["services_supervision"]["manager_homeassistant_joint_owner"] is True
     assert report["services_supervision"]["manager_only_recreate_forbidden"] is True
     assert report["target"]["source_head"] == SOURCE_HEAD
@@ -258,6 +271,53 @@ def test_preflight_rejects_registration_inventory_hash_missing() -> None:
     with pytest.raises(
         tool.PreflightError,
         match="registration_inventory_hash_invalid",
+    ):
+        tool.preflight(_args(), FakeRunner(ledger=ledger))
+
+
+def test_preflight_rejects_registration_match_absent() -> None:
+    ledger = _ledger()
+    ledger["attempts"][0]["registration_match_count"] = 0
+    with pytest.raises(tool.PreflightError, match="failed_attempt_state_drift"):
+        tool.preflight(_args(), FakeRunner(ledger=ledger))
+
+
+def test_preflight_rejects_nonpending_session() -> None:
+    ledger = _ledger()
+    ledger["attempts"][0]["session_state"] = "approved"
+    with pytest.raises(
+        tool.PreflightError,
+        match="failed_attempt_commit_classification_drift",
+    ):
+        tool.preflight(_args(), FakeRunner(ledger=ledger))
+
+
+def test_preflight_rejects_pairing_credential_history() -> None:
+    ledger = _ledger()
+    ledger["attempts"][0]["pairing_credential_count"] = 1
+    with pytest.raises(
+        tool.PreflightError,
+        match="failed_attempt_commit_classification_drift",
+    ):
+        tool.preflight(_args(), FakeRunner(ledger=ledger))
+
+
+def test_preflight_rejects_hardware_credential_history() -> None:
+    ledger = _ledger()
+    ledger["attempts"][0]["hardware_credential_history_count"] = 1
+    with pytest.raises(
+        tool.PreflightError,
+        match="failed_attempt_commit_classification_drift",
+    ):
+        tool.preflight(_args(), FakeRunner(ledger=ledger))
+
+
+def test_preflight_rejects_session_hardware_drift() -> None:
+    ledger = _ledger()
+    ledger["attempts"][0]["session_hardware_sha256"] = "4" * 64
+    with pytest.raises(
+        tool.PreflightError,
+        match="failed_attempt_session_hardware_drift",
     ):
         tool.preflight(_args(), FakeRunner(ledger=ledger))
 
