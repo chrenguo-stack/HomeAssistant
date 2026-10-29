@@ -26,6 +26,7 @@ from .pairing_secure_transport import decode_base64url_32
 from .registration import RegistrationRegistry
 
 FIRST_REGISTRATION_TTL_SECONDS = 1800
+_PREWINDOW_RECONCILE_RETRY_SECONDS = 5.0
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -170,6 +171,8 @@ class FirstRegistrationTransactionService:
         self,
         pairing_id: str,
         expires_at: datetime,
+        *,
+        delay_seconds: float | None = None,
     ) -> None:
         with self._deadline_lock:
             if (
@@ -180,12 +183,16 @@ class FirstRegistrationTransactionService:
             previous = self._prewindow_deadline_timer
             if previous is not None:
                 previous.cancel()
-            delay = max(
-                0.0,
-                (
-                    expires_at
-                    - self.clock().astimezone(UTC)
-                ).total_seconds(),
+            delay = (
+                max(0.0, delay_seconds)
+                if delay_seconds is not None
+                else max(
+                    0.0,
+                    (
+                        expires_at
+                        - self.clock().astimezone(UTC)
+                    ).total_seconds(),
+                )
             )
             timer = self._deadline_timer_factory(
                 delay,
@@ -196,7 +203,36 @@ class FirstRegistrationTransactionService:
             )
             self._prewindow_pairing_id = pairing_id
             self._prewindow_deadline_timer = timer
-            timer.start()
+            try:
+                timer.start()
+            except Exception:
+                self._prewindow_deadline_timer = None
+                self._prewindow_pairing_id = None
+                raise
+
+    def _restore_deadline_if_active(
+        self,
+        pairing_id: str,
+        *,
+        retry: bool = False,
+    ) -> None:
+        try:
+            attempt = self.ledger.get(pairing_id)
+        except KeyError:
+            self._disarm_prewindow_deadline(pairing_id)
+            return
+        if attempt.state is not FirstRegistrationAttemptState.ACTIVE:
+            self._disarm_prewindow_deadline(pairing_id)
+            return
+        self._arm_prewindow_deadline(
+            pairing_id,
+            attempt.expires_at,
+            delay_seconds=(
+                _PREWINDOW_RECONCILE_RETRY_SECONDS
+                if retry
+                else None
+            ),
+        )
 
     def _disarm_prewindow_deadline(
         self,
@@ -221,7 +257,6 @@ class FirstRegistrationTransactionService:
                 if self._prewindow_pairing_id != pairing_id:
                     return
                 self._prewindow_deadline_timer = None
-                self._prewindow_pairing_id = None
 
             now = self.clock().astimezone(UTC)
             if now < expires_at:
@@ -243,6 +278,10 @@ class FirstRegistrationTransactionService:
                 _LOGGER.error(
                     "First-registration pre-window deadline lacks reconciler"
                 )
+                self._restore_deadline_if_active(
+                    pairing_id,
+                    retry=True,
+                )
                 return
 
             try:
@@ -261,6 +300,16 @@ class FirstRegistrationTransactionService:
                     "failure_type=%s",
                     type(error).__name__,
                 )
+                self._restore_deadline_if_active(
+                    pairing_id,
+                    retry=True,
+                )
+                return
+
+            self._restore_deadline_if_active(
+                pairing_id,
+                retry=True,
+            )
 
     def start(
         self,
@@ -409,7 +458,28 @@ class FirstRegistrationTransactionService:
                 raise self._registration_busy(
                     "durable_deadline_mismatch"
                 )
-            self.intents.activate(intent)
+            try:
+                self._arm_prewindow_deadline(
+                    pairing_id,
+                    intent.expires_at,
+                )
+            except Exception as error:
+                raise FirstRegistrationTransactionRejected(
+                    "bootstrap_unavailable",
+                    detail="prewindow_deadline_start_failed",
+                ) from error
+            try:
+                self.intents.activate(intent)
+            except Exception as error:
+                _LOGGER.error(
+                    "First-registration intent activation unavailable "
+                    "failure_type=%s",
+                    type(error).__name__,
+                )
+                raise FirstRegistrationTransactionRejected(
+                    "bootstrap_unavailable",
+                    detail="intent_activation_unavailable",
+                ) from error
 
         self._arm_prewindow_deadline(
             pairing_id,
@@ -605,7 +675,6 @@ class FirstRegistrationTransactionService:
         pairing_id: str,
         reason: str,
     ) -> None:
-        self._disarm_prewindow_deadline(pairing_id)
         current = self.intents.current()
         if current is not None and current.pairing_id == pairing_id:
             self.intents.close_active()
@@ -615,13 +684,16 @@ class FirstRegistrationTransactionService:
             "committed",
             "manager_shutdown",
         }:
+            self._disarm_prewindow_deadline(pairing_id)
             return
 
         try:
             attempt = self.ledger.get(pairing_id)
         except KeyError:
+            self._disarm_prewindow_deadline(pairing_id)
             return
         if attempt.state is not FirstRegistrationAttemptState.ACTIVE:
+            self._disarm_prewindow_deadline(pairing_id)
             return
 
         now = self.clock().astimezone(UTC)
@@ -636,5 +708,20 @@ class FirstRegistrationTransactionService:
                     attempt,
                     now=now,
                 )
-        except Exception:
+        except Exception as error:
+            _LOGGER.error(
+                "First-registration window-close reconciliation failed "
+                "reason=%s failure_type=%s",
+                reason,
+                type(error).__name__,
+            )
+            self._restore_deadline_if_active(
+                pairing_id,
+                retry=True,
+            )
             return
+
+        self._restore_deadline_if_active(
+            pairing_id,
+            retry=True,
+        )

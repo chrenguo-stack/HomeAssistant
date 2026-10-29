@@ -98,6 +98,11 @@ class MutableClock:
         return self.now
 
 
+class RejectingIntentStore(FirstRegistrationIntentStore):
+    def activate(self, intent):
+        raise RuntimeError("synthetic intent activation failure")
+
+
 def service(registry, intents, window, **kwargs):
     kwargs.setdefault(
         "deadline_timer_factory",
@@ -290,6 +295,29 @@ class DeadlineReconciler:
         )
 
 
+class FlakyDeadlineReconciler(DeadlineReconciler):
+    def __init__(self, registry: RegistrationRegistry) -> None:
+        super().__init__(registry)
+        self.failures_remaining = 1
+
+    def reconcile_deadline(self, pairing_id: str, *, now: datetime):
+        if self.failures_remaining > 0:
+            self.failures_remaining -= 1
+            self.calls += 1
+            raise RuntimeError("synthetic deadline reconcile failure")
+        return super().reconcile_deadline(pairing_id, now=now)
+
+
+class FailingWindowCloseReconciler(DeadlineReconciler):
+    def __init__(self, registry: RegistrationRegistry) -> None:
+        super().__init__(registry)
+        self.attempt_calls = 0
+
+    def reconcile_attempt(self, attempt, *, now: datetime):
+        self.attempt_calls += 1
+        raise RuntimeError("synthetic window-close reconcile failure")
+
+
 class BlockingWindow(Window):
     def __init__(self, registry: RegistrationRegistry) -> None:
         super().__init__(registry)
@@ -377,6 +405,147 @@ def test_successful_window_handoff_cancels_prewindow_deadline(tmp_path) -> None:
         assert timers.timers[0].cancelled is True
         assert (
             timers.timers[0].delay_seconds
+            == FIRST_REGISTRATION_TTL_SECONDS
+        )
+
+
+def test_intent_activation_failure_still_has_deadline_owner(tmp_path) -> None:
+    with RegistrationRegistry(tmp_path / "registration.sqlite3") as registry:
+        intents = RejectingIntentStore()
+        window = Window(registry)
+        timers = ManualDeadlineTimerFactory()
+        clock = MutableClock(NOW)
+        reconciler = DeadlineReconciler(registry)
+        tx = FirstRegistrationTransactionService(
+            registry=registry,
+            intents=intents,
+            window=window,
+            manager_id="manager_lab_01",
+            system_id="greenhouse",
+            clock=clock,
+            reconciler=reconciler,
+            deadline_timer_factory=timers,
+        )
+
+        with pytest.raises(
+            FirstRegistrationTransactionRejected,
+            match="bootstrap_unavailable",
+        ) as rejected:
+            tx.start(
+                request(),
+                source_ip="192.0.2.44",
+            )
+
+        assert rejected.value.detail == "intent_activation_unavailable"
+        active = registry.first_registration_ledger().get(PAIRING_ID)
+        assert active.state is FirstRegistrationAttemptState.ACTIVE
+        assert len(timers.timers) == 1
+        assert timers.timers[0].started is True
+        assert timers.timers[0].cancelled is False
+
+        clock.now = NOW + timedelta(
+            seconds=FIRST_REGISTRATION_TTL_SECONDS
+        )
+        timers.timers[0].fire()
+
+        expired = registry.first_registration_ledger().get(PAIRING_ID)
+        assert expired.state is FirstRegistrationAttemptState.EXPIRED
+        assert (
+            expired.cleanup_state
+            is FirstRegistrationCleanupState.COMPLETE
+        )
+
+
+def test_deadline_reconcile_failure_rearms_bounded_retry(tmp_path) -> None:
+    with RegistrationRegistry(tmp_path / "registration.sqlite3") as registry:
+        intents = FirstRegistrationIntentStore()
+        window = Window(registry)
+        window.fail = True
+        timers = ManualDeadlineTimerFactory()
+        clock = MutableClock(NOW)
+        reconciler = FlakyDeadlineReconciler(registry)
+        tx = FirstRegistrationTransactionService(
+            registry=registry,
+            intents=intents,
+            window=window,
+            manager_id="manager_lab_01",
+            system_id="greenhouse",
+            clock=clock,
+            reconciler=reconciler,
+            deadline_timer_factory=timers,
+        )
+
+        with pytest.raises(
+            FirstRegistrationTransactionRejected,
+            match="bootstrap_unavailable",
+        ):
+            tx.start(
+                request(),
+                source_ip="192.0.2.44",
+            )
+
+        clock.now = NOW + timedelta(
+            seconds=FIRST_REGISTRATION_TTL_SECONDS
+        )
+        timers.timers[0].fire()
+
+        still_active = registry.first_registration_ledger().get(PAIRING_ID)
+        assert still_active.state is FirstRegistrationAttemptState.ACTIVE
+        assert reconciler.calls == 1
+        assert len(timers.timers) == 2
+        assert timers.timers[1].started is True
+        assert timers.timers[1].cancelled is False
+        assert timers.timers[1].delay_seconds == 5.0
+
+        timers.timers[1].fire()
+
+        expired = registry.first_registration_ledger().get(PAIRING_ID)
+        assert reconciler.calls == 2
+        assert expired.state is FirstRegistrationAttemptState.EXPIRED
+        assert (
+            expired.cleanup_state
+            is FirstRegistrationCleanupState.COMPLETE
+        )
+        assert len(timers.timers) == 2
+
+
+def test_window_close_reconcile_failure_restores_deadline_owner(tmp_path) -> None:
+    with RegistrationRegistry(tmp_path / "registration.sqlite3") as registry:
+        intents = FirstRegistrationIntentStore()
+        window = Window(registry)
+        timers = ManualDeadlineTimerFactory()
+        reconciler = FailingWindowCloseReconciler(registry)
+        tx = FirstRegistrationTransactionService(
+            registry=registry,
+            intents=intents,
+            window=window,
+            manager_id="manager_lab_01",
+            system_id="greenhouse",
+            clock=lambda: NOW,
+            reconciler=reconciler,
+            deadline_timer_factory=timers,
+        )
+
+        tx.start(
+            request(),
+            source_ip="192.0.2.44",
+        )
+        assert len(timers.timers) == 1
+        assert timers.timers[0].cancelled is True
+
+        tx.window_closed(
+            PAIRING_ID,
+            "worker_failure",
+        )
+
+        active = registry.first_registration_ledger().get(PAIRING_ID)
+        assert active.state is FirstRegistrationAttemptState.ACTIVE
+        assert reconciler.attempt_calls == 1
+        assert len(timers.timers) == 2
+        assert timers.timers[1].started is True
+        assert timers.timers[1].cancelled is False
+        assert (
+            timers.timers[1].delay_seconds
             == FIRST_REGISTRATION_TTL_SECONDS
         )
 

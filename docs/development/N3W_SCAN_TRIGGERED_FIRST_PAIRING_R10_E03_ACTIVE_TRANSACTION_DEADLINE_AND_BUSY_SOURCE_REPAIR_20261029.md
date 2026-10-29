@@ -132,6 +132,32 @@ Focused transaction tests require:
 - the pre-window deadline terminalizes and cleans an ACTIVE attempt without any follow-up request;
 - a later exact retry reuses the original timer/deadline and hands ownership to the window on success.
 
+## Closure-review R2 hardening
+
+The first CI-successful source revision was not accepted as closure without an independent source reread.
+
+That review found two additional false-PASS paths:
+
+1. the first pre-window timer was armed after RAM intent activation, so an intent-activation exception could leave a durable ACTIVE row without a deadline owner;
+2. the deadline callback and window-close callback cleared deadline ownership before reconciliation was proven; if reconciliation raised while the ledger remained ACTIVE, no later autonomous callback was guaranteed.
+
+R2 closes both paths:
+
+- arm the pre-window deadline immediately after durable ACTIVE creation and before RAM intent activation;
+- map intent-activation failure to bounded `bootstrap_unavailable` while preserving the already-owned absolute deadline;
+- if deadline reconciliation raises and the attempt remains ACTIVE, re-arm a fixed 5-second reconciliation retry without extending `expires_at`;
+- if worker/deadline window-close reconciliation raises and the attempt remains ACTIVE, restore the same fallback deadline owner;
+- after any reconcile return, re-read the durable row and keep a bounded fallback only if it is still ACTIVE;
+- successful or terminal reconciliation removes fallback ownership.
+
+The 5-second retry is not a new registration TTL and does not refresh the durable deadline.
+
+Additional tests cover:
+
+- deadline ownership surviving RAM intent activation failure;
+- a first deadline-reconcile failure followed by bounded retry and successful terminal cleanup;
+- window-close reconcile failure restoring fallback deadline ownership.
+
 ## Physical follow-up
 
 Source/CI PASS is not physical closure.
