@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 TOOL_PATH = (
-    Path(__file__).resolve().parents[1]
+    Path(__file__).resolve().parents[2]
     / "tools"
     / "n3w_t1_r10_e03_manager_successor_refresh_preflight.py"
 )
