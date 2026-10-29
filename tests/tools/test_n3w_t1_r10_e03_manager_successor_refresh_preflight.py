@@ -107,10 +107,23 @@ class FakeRunner:
         tcp_47112: int = 0,
         ledger: dict[str, object] | None = None,
         manager_restart_count: int = 0,
+        services_unit_text: str | None = None,
     ) -> None:
         self.tcp_47112 = tcp_47112
         self.ledger = ledger or _ledger()
         self.manager_restart_count = manager_restart_count
+        self.services_unit_text = services_unit_text or (
+            "[Service]\n"
+            "ExecStart=/usr/bin/docker compose --project-name n3wfc4 "
+            "--env-file /etc/n3wfc4/docker-compose.env "
+            "-f /opt/HomeAssistant/infra/n3w-t1/production/docker-compose.yml "
+            "--profile application up --no-deps --no-log-prefix "
+            "--abort-on-container-exit manager homeassistant\n"
+            "ExecStop=/usr/bin/docker compose --project-name n3wfc4 "
+            "--env-file /etc/n3wfc4/docker-compose.env "
+            "-f /opt/HomeAssistant/infra/n3w-t1/production/docker-compose.yml "
+            "stop homeassistant manager\n"
+        )
         self.calls: list[tuple[str, ...]] = []
 
     def run(self, argv, *, timeout=30):
@@ -121,6 +134,8 @@ class FakeRunner:
             return tool.CommandResult("active\n", "", 0)
         if args[:2] == ("systemctl", "is-enabled"):
             return tool.CommandResult("enabled\n", "", 0)
+        if args == ("systemctl", "cat", tool.SERVICES_UNIT):
+            return tool.CommandResult(self.services_unit_text, "", 0)
 
         if args[:3] == ("docker", "ps", "-q"):
             service_filter = next(
@@ -169,6 +184,8 @@ def test_preflight_passes_exact_failed_attempt_and_target_binding() -> None:
     assert report["ledger"]["unresolved_count"] == 1
     assert report["ledger"]["failed_attempt"]["pairing_id_sha256"] == PAIRING_HASH
     assert report["ledger"]["failed_attempt"]["hardware_id_sha256"] == HARDWARE_HASH
+    assert report["services_supervision"]["manager_homeassistant_joint_owner"] is True
+    assert report["services_supervision"]["manager_only_recreate_forbidden"] is True
     assert report["target"]["source_head"] == SOURCE_HEAD
     assert report["target"]["manager_image"] == tool.EXPECTED_TARGET_MANAGER_IMAGE
     assert report["target"]["manager_image_id"] == MANAGER_IMAGE_ID
@@ -184,6 +201,19 @@ def test_preflight_passes_exact_failed_attempt_and_target_binding() -> None:
     assert "systemctl restart" not in flattened
     assert "docker load" not in flattened
     assert "docker compose" not in flattened
+
+
+def test_preflight_rejects_manager_only_supervision_drift() -> None:
+    unit = (
+        "[Service]\n"
+        "ExecStart=/usr/bin/docker compose up --no-deps manager\n"
+        "ExecStop=/usr/bin/docker compose stop manager\n"
+    )
+    with pytest.raises(
+        tool.PreflightError,
+        match="services_supervision_execstart_drift",
+    ):
+        tool.preflight(_args(), FakeRunner(services_unit_text=unit))
 
 
 def test_preflight_rejects_open_47112() -> None:
