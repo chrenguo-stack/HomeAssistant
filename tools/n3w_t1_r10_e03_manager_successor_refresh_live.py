@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import base64
 import copy
+import fcntl
 import hashlib
 import json
 import os
@@ -14,6 +15,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -637,6 +639,25 @@ def write_tx(doc: dict[str, Any], *, exclusive: bool = False) -> None:
         os.close(dfd)
 
 
+@contextmanager
+def transaction_lock():
+    require_private_parent(TX_PATH)
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    fd = os.open(TX_PATH.parent, flags)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise RefreshError("transaction_busy") from error
+        yield
+    finally:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        except OSError:
+            pass
+        os.close(fd)
+
+
 def read_tx() -> dict[str, Any]:
     if TX_PATH.is_symlink() or not TX_PATH.is_file():
         raise RefreshError("transaction_missing")
@@ -670,6 +691,8 @@ def remote_claim(args: argparse.Namespace) -> dict[str, Any]:
         raise RefreshError("executor_source_binding_invalid")
     if SHA40.fullmatch(args.pr725_head or "") is None:
         raise RefreshError("pr725_head_invalid")
+    if args.pr725_head != args.executor_source_head:
+        raise RefreshError("pr725_executor_head_mismatch")
     value = preclaim()
     doc = {
         "schema": TX_SCHEMA,
@@ -854,7 +877,7 @@ def rollback(doc: dict[str, Any], candidate_sha: str | None, stopped: bool, reas
     return {"rollback": "PASS", "durable": final_class}
 
 
-def remote_apply() -> dict[str, Any]:
+def _remote_apply_locked() -> dict[str, Any]:
     doc = read_tx()
     if doc.get("status") != "CLAIMED" or doc.get("authorization_consumed") is not True or doc.get("replay_allowed") is not False:
         raise RefreshError("transaction_not_claimed")
@@ -934,6 +957,45 @@ def remote_apply() -> dict[str, Any]:
         raise RefreshError(
             f"apply_failed:{reason}:rollback={result['rollback']}:durable={result['durable']}"
         ) from error
+
+
+def remote_apply() -> dict[str, Any]:
+    with transaction_lock():
+        return _remote_apply_locked()
+
+
+def remote_abort_prestop(reason_code: str) -> dict[str, Any]:
+    if not re.fullmatch(r"[A-Z0-9_]{3,80}", reason_code or ""):
+        raise RefreshError("abort_reason_invalid")
+    with transaction_lock():
+        doc = read_tx()
+        if (
+            doc.get("status") != "CLAIMED"
+            or doc.get("phase") != "AUTHORIZATION_CLAIMED"
+            or doc.get("authorization_consumed") is not True
+            or doc.get("replay_allowed") is not False
+        ):
+            raise RefreshError("prestop_abort_state_invalid")
+        current = preclaim()
+        if current["compose_sha256"] != doc.get("compose_sha256"):
+            raise RefreshError("prestop_abort_compose_drift")
+        tx_update(
+            doc,
+            "FAILED_PRESTOP",
+            status="FAILED_PRESTOP",
+            last_error=reason_code,
+        )
+        return {
+            "schema": SCHEMA,
+            "status": "PASS",
+            "operation": "abort-prestop",
+            "transaction_status": "FAILED_PRESTOP",
+            "authorization_claimed": True,
+            "authorization_consumed": True,
+            "replay_allowed": False,
+            "t1_mutation": True,
+            "board_access": False,
+        }
 
 
 def remote_status() -> dict[str, Any]:
@@ -1073,6 +1135,8 @@ def host_apply(args: argparse.Namespace) -> dict[str, Any]:
         raise RefreshError("confirmation_missing")
     authorization_id(args.authorization_id)
     verify_source_authority(args.executor_source_head, args.executor_blob)
+    if args.pr725_head != args.executor_source_head:
+        raise RefreshError("pr725_executor_head_mismatch")
     verify_artifact_metadata()
     verify_local_artifact(args.manager_tar, args.binding_json)
     from n3w_t1_ssh_transport import SSHTransport
@@ -1112,6 +1176,15 @@ def host_apply(args: argparse.Namespace) -> dict[str, Any]:
                 1800,
             )
             if loaded.returncode:
+                try:
+                    stream_self(
+                        transport,
+                        ("remote-abort-prestop", "--reason-code", "DOCKER_LOAD_FAILED"),
+                    )
+                except Exception:
+                    raise AuthorizationUnknownError(
+                        "docker_load_failed_abort_state_unknown"
+                    )
                 raise AuthorizationConsumedError("docker_load_stream_failed")
         applied = stream_self(transport, ("remote-apply",), 360)
         if applied.get("status") != "PASS":
@@ -1169,6 +1242,8 @@ def parser() -> argparse.ArgumentParser:
     for name in ("authorization-id", "confirmation", "executor-source-head", "executor-blob", "pr725-head"):
         claim.add_argument("--" + name, required=True)
     sub.add_parser("remote-apply")
+    abort = sub.add_parser("remote-abort-prestop")
+    abort.add_argument("--reason-code", required=True)
     sub.add_parser("remote-status")
     apply = sub.add_parser("apply")
     apply.add_argument("--t1", required=True)
@@ -1190,6 +1265,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = remote_claim(args)
         elif args.command == "remote-apply":
             result = remote_apply()
+        elif args.command == "remote-abort-prestop":
+            result = remote_abort_prestop(args.reason_code)
         elif args.command == "remote-status":
             result = remote_status()
         elif args.command == "apply":
@@ -1207,7 +1284,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif isinstance(error, AuthorizationUnknownError):
             claimed = consumed = mutation = "UNKNOWN"
             replay = False
-        elif args.command in {"remote-claim", "remote-apply", "remote-status"}:
+        elif args.command in {"remote-claim", "remote-apply", "remote-abort-prestop", "remote-status"}:
             try:
                 tx = read_tx()
                 if tx.get("authorization_consumed") is True:
