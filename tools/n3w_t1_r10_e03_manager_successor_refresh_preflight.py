@@ -14,6 +14,11 @@ PROJECT = "n3wfc4"
 BROKER_UNIT = "n3wfc4-broker-activation.service"
 SERVICES_UNIT = "n3wfc4-services-activation.service"
 REGISTRATION_GUARD_UNIT = "n3wfc4-registration-ingress-guard.service"
+EXPECTED_SERVICES_EXECSTART_FRAGMENT = (
+    "--profile application up --no-deps --no-log-prefix "
+    "--abort-on-container-exit manager homeassistant"
+)
+EXPECTED_SERVICES_EXECSTOP_FRAGMENT = "stop homeassistant manager"
 MANAGER_DB = "/var/lib/greenhouse-manager/manager/manager-state.sqlite3"
 EXPECTED_CURRENT_MANAGER_IMAGE = "local/greenhouse-manager:fresh-ff750b3801a2"
 EXPECTED_FAILED_PAIRING_ID_SHA256 = (
@@ -105,6 +110,38 @@ def _systemctl(runner: Runner, action: str, unit: str) -> str:
     )
 
 
+def _services_supervision_contract(runner: Runner) -> dict[str, Any]:
+    content = _require_success(
+        runner.run(("systemctl", "cat", SERVICES_UNIT)),
+        "services_unit_cat",
+    )
+    execstart = [
+        line.strip()
+        for line in content.splitlines()
+        if line.strip().startswith("ExecStart=")
+    ]
+    execstop = [
+        line.strip()
+        for line in content.splitlines()
+        if line.strip().startswith("ExecStop=")
+    ]
+    if len(execstart) != 1 or len(execstop) != 1:
+        raise PreflightError("services_supervision_command_count_invalid")
+    if EXPECTED_SERVICES_EXECSTART_FRAGMENT not in execstart[0]:
+        raise PreflightError("services_supervision_execstart_drift")
+    if EXPECTED_SERVICES_EXECSTOP_FRAGMENT not in execstop[0]:
+        raise PreflightError("services_supervision_execstop_drift")
+    if "--force-recreate" in content:
+        raise PreflightError("services_supervision_force_recreate_forbidden")
+    return {
+        "unit": SERVICES_UNIT,
+        "execstart_sha256": _sha256_text(execstart[0]),
+        "execstop_sha256": _sha256_text(execstop[0]),
+        "manager_homeassistant_joint_owner": True,
+        "manager_only_recreate_forbidden": True,
+    }
+
+
 def _service_container_id(runner: Runner, service: str) -> str:
     output = _require_success(
         runner.run(
@@ -170,7 +207,7 @@ def _runtime_record(document: dict[str, Any], service: str) -> dict[str, Any]:
         not isinstance(container_id, str)
         or not container_id
         or not isinstance(image_id, str)
-        or not image_id.startswith("sha256:")
+        or _IMAGE_ID.fullmatch(image_id.lower()) is None
         or not isinstance(image_ref, str)
         or not image_ref
         or not isinstance(started_at, str)
@@ -379,6 +416,7 @@ def preflight(args: argparse.Namespace, runner: Runner | None = None) -> dict[st
         raise PreflightError("broker_unit_not_enabled")
     if _systemctl(runner, "is-enabled", SERVICES_UNIT) != "enabled":
         raise PreflightError("services_unit_not_enabled")
+    supervision = _services_supervision_contract(runner)
 
     runtime: dict[str, dict[str, Any]] = {}
     ids: dict[str, str] = {}
@@ -466,6 +504,7 @@ def preflight(args: argparse.Namespace, runner: Runner | None = None) -> dict[st
         "authorization_claimed": False,
         "authorization_consumed": False,
         "current_manager_image_ref": manager["image_ref"],
+        "services_supervision": supervision,
         "runtime": runtime,
         "listeners": listeners,
         "ledger": {
