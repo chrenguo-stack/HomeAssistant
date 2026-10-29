@@ -165,3 +165,41 @@ Source/CI PASS is not physical closure.
 After source review/CI, a new Manager successor artifact and separately authorized T1 refresh are required.
 
 The current failed ACTIVE transaction must not be manually cleaned or replayed under this source-repair gate.
+
+## Final source closure
+
+~~~text
+SOURCE_REPAIR_PR=733
+SOURCE_TESTED_HEAD=0d49c5ff991288ef3dba17650414a81f7d8e34b0
+SOURCE_TESTED_TREE=851bb5f2427f945f3a8f8ffa776a708bffdc4032
+BASE_PRODUCT_HEAD=ff750b3801a282af1667b5fa63481e2333e301b3
+
+FINAL_DIFF_FILE_COUNT=3
+FIRMWARE_FILE_CHANGED=false
+BOARD_REFLASH_REQUIRED=false
+
+GREENHOUSE_MANAGER_CI_RUN=40874759141
+GREENHOUSE_MANAGER_CI=PASS
+FULL_PYTEST=1486_PASSED_1_SKIPPED
+R8_SIMULATED_FIRST_REGISTRATION_E2E=8_PASSED
+PUBLIC_REPOSITORY_SAFETY_CI=PASS
+M2_MANAGER_SECRET_OWNERSHIP_CI=PASS
+M2_DYNAMIC_SECURITY_CI=PASS
+M2_PRIVATE_MOSQUITTO_CI=PASS
+
+REVIEW_FALSE_PASS_PATH_COUNT=2
+REVIEW_FALSE_PASS_REPAIRED_COUNT=2
+NEW_SOURCE_BLOCKER_COUNT=0
+SOURCE_REPAIR_CLOSURE=CLOSED_PASS
+
+BROAD_NONBLOCKING_CI_PENDING_COUNT=2
+MERGE=false
+T1_ACCESS=false
+BOARD_ACCESS=false
+PHYSICAL_RETRY=false
+~~~
+
+The independent closure review did not accept the first green CI head blindly. It found two deadline-owner false-PASS paths, repaired them, and then reran the full Manager suite. The final source preserves the original absolute transaction deadline, avoids a second TTL, does not change the wire protocol, and does not change Board firmware.
+
+At the final CI observation, two wider repository workflows were still running. The M2 board-lab Manager/unit/contract job had already passed and only ESP32 compilation remained; PR #733 changes no firmware source. C-07 retirement was still executing its isolated retirement lifecycle, and its source tree contains no first-registration transaction reference. These are recorded as broad non-blocking pending runs rather than falsely marked complete.
+

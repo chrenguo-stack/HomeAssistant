@@ -1,3 +1,11 @@
+### 2026-10-29 KF-131 — first-registration ACTIVE 记录在 47112 window 建立前失去 deadline owner，导致 E03 自锁
+
+| ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
+|---|---|---|---|---|---|
+| KF-131 | N3-W R10 scan-triggered first registration / 47110 transaction / 47112 identity-bound window | 干净基线为 attempt_count=0、unresolved=0、47112 closed；真实 Board D 点击“开始注册”后手机显示 E03。只读取证发现新增的唯一 attempt 确属 Board D，`state=ACTIVE`、`phase=BOOTSTRAP_ACCEPTED`、`cleanup_state=NONE`，pairing window 仍为 CLOSED / `manager_start`、47112=0；该 row 在 durable `expires_at` 之后仍保持 ACTIVE | durable ACTIVE row 在 `open_first_registration()` 之前创建，而旧 autonomous deadline thread 只有 pairing window 成功 OPEN 后才存在；因此 route/window 建立前失败可留下没有 deadline owner 的 ACTIVE row。HTTP bootstrap server 又是 threaded，旧 transaction service 没有围绕 lookup/create/intent/window 的串行边界。独立 closure review 还发现首版修复在 RAM intent 激活前尚未持有 timer，以及 reconcile exception 可清掉 owner 后不再调度两条 false-PASS 路径 | PR #733：串行化 `FirstRegistrationTransactionService.start()`；durable ACTIVE 创建后、RAM intent 激活前立即持有固定 1800 s pre-window deadline；exact retry 不刷新 deadline；window OPEN 后才交回现有 window deadline；deadline/window-close reconcile 失败时恢复 fallback owner，已到 deadline 后用固定 5 s 重试，未到 deadline 的 worker failure 保留原绝对截止；`registration_busy` wire reason 不变，仅增加不含身份/secret 的内部分类；补并发、intent activation、deadline reconcile retry、window-close fallback 回归测试 | SOURCE_REPAIR_CLOSED_PASS_PR733_INTEGRATION_AND_LIVE_REVALIDATION_PENDING |
+
+Final source authority: PR #733 tested head `0d49c5ff991288ef3dba17650414a81f7d8e34b0`, tree `851bb5f2427f945f3a8f8ffa776a708bffdc4032`. `greenhouse-manager CI` run `40874759141` passed Ruff, full pytest (`1486 passed, 1 skipped`) and R8 simulated first-registration E2E (`8 passed`). Public Safety, Manager secret ownership, Dynamic Security and private Mosquitto CI also passed. The exact instantaneous trigger of the very first E03 response was not proven and is not rewritten as fact; the durable deadline-owner defect is independently proven by the post-expiry ACTIVE row. Authority: `docs/development/N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_E03_ACTIVE_TRANSACTION_DEADLINE_AND_BUSY_SOURCE_REPAIR_20261029.md`.
+
 ### 2026-10-24 KF-130 — post-reboot readiness 未等待 Home Assistant MQTT 会话导致 false FAIL
 
 | ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
