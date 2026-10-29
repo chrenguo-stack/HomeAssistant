@@ -180,6 +180,55 @@ def test_rewrite_rejects_wrong_predecessor() -> None:
         )
 
 
+def test_render_compose_uses_application_profile(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    compose = tmp_path / "docker-compose.yml"
+    compose.write_text("services: {}\n", encoding="utf-8")
+    observed = []
+
+    def fake_run(argv, **_kwargs):
+        observed.append(tuple(argv))
+        payload = {
+            "services": {
+                "broker": {},
+                "manager": {},
+                "homeassistant": {},
+            }
+        }
+        return subprocess.CompletedProcess(
+            argv,
+            0,
+            json.dumps(payload).encode(),
+            b"",
+        )
+
+    monkeypatch.setattr(tool, "run", fake_run)
+    rendered = tool.render_compose(compose)
+
+    assert observed == [(
+        "docker",
+        "compose",
+        "--project-name",
+        tool.PROJECT,
+        "--env-file",
+        str(tool.COMPOSE_ENV),
+        "-f",
+        str(compose),
+        "--profile",
+        "application",
+        "config",
+        "--format",
+        "json",
+    )]
+    assert set(rendered["services"]) == {
+        "broker",
+        "manager",
+        "homeassistant",
+    }
+
+
 def test_render_validation_allows_only_manager_image() -> None:
     before = {
         "services": {
