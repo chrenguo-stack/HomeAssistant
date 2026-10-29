@@ -392,43 +392,85 @@ def test_manager_paths_reject_unmapped_live_path(
         tool.manager_paths("manager")
 
 
+def _github_metadata_run(argv) -> subprocess.CompletedProcess[bytes]:
+    url = argv[-1]
+    if url.endswith(f"/actions/runs/{tool.TARGET_ARTIFACT_RUN_ID}"):
+        payload = {
+            "id": tool.TARGET_ARTIFACT_RUN_ID,
+            "head_sha": tool.TARGET_SOURCE_HEAD,
+            "status": "completed",
+            "conclusion": "success",
+        }
+    elif f"/actions/runs/{tool.TARGET_ARTIFACT_RUN_ID}/artifacts" in url:
+        payload = {
+            "artifacts": [{
+                "id": tool.TARGET_ARTIFACT_ID,
+                "name": tool.TARGET_ARTIFACT_NAME,
+                "digest": "sha256:" + tool.TARGET_ARTIFACT_DIGEST,
+                "expired": False,
+            }]
+        }
+    else:
+        raise AssertionError(url)
+    return subprocess.CompletedProcess([], 0, json.dumps(payload).encode(), b"")
+
+
 def test_artifact_metadata_exact(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    payload = {
-        "id": tool.TARGET_ARTIFACT_ID,
-        "name": tool.TARGET_ARTIFACT_NAME,
-        "digest": "sha256:" + tool.TARGET_ARTIFACT_DIGEST,
-        "expired": False,
-    }
-    monkeypatch.setattr(
-        tool,
-        "run",
-        lambda *_args, **_kwargs: subprocess.CompletedProcess(
-            [], 0, json.dumps(payload).encode(), b""
-        ),
-    )
+    monkeypatch.setattr(tool, "run", lambda argv, **_kwargs: _github_metadata_run(argv))
     tool.verify_artifact_metadata()
 
 
 def test_artifact_metadata_digest_drift_stops(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    def fake(argv, **_kwargs):
+        result = _github_metadata_run(argv)
+        if "/artifacts" in argv[-1]:
+            payload = json.loads(result.stdout)
+            payload["artifacts"][0]["digest"] = "sha256:" + "0" * 64
+            return subprocess.CompletedProcess([], 0, json.dumps(payload).encode(), b"")
+        return result
+
+    monkeypatch.setattr(tool, "run", fake)
+    with pytest.raises(tool.RefreshError, match="artifact_metadata_binding_mismatch"):
+        tool.verify_artifact_metadata()
+
+
+def test_artifact_run_source_drift_stops(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake(argv, **_kwargs):
+        result = _github_metadata_run(argv)
+        if argv[-1].endswith(f"/actions/runs/{tool.TARGET_ARTIFACT_RUN_ID}"):
+            payload = json.loads(result.stdout)
+            payload["head_sha"] = "0" * 40
+            return subprocess.CompletedProcess([], 0, json.dumps(payload).encode(), b"")
+        return result
+
+    monkeypatch.setattr(tool, "run", fake)
+    with pytest.raises(tool.RefreshError, match="artifact_run_binding_mismatch"):
+        tool.verify_artifact_metadata()
+
+
+def test_pr725_github_head_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected = "1" * 40
     payload = {
-        "id": tool.TARGET_ARTIFACT_ID,
-        "name": tool.TARGET_ARTIFACT_NAME,
-        "digest": "sha256:" + "0" * 64,
-        "expired": False,
+        "state": "open",
+        "merged_at": None,
+        "head": {"sha": expected},
     }
     monkeypatch.setattr(
         tool,
-        "run",
-        lambda *_args, **_kwargs: subprocess.CompletedProcess(
-            [], 0, json.dumps(payload).encode(), b""
-        ),
+        "_gh_json",
+        lambda _path: payload,
     )
-    with pytest.raises(tool.RefreshError, match="artifact_metadata_binding_mismatch"):
-        tool.verify_artifact_metadata()
+    tool.verify_pr725_head(expected)
+    with pytest.raises(tool.RefreshError, match="pr725_github_head_drift"):
+        tool.verify_pr725_head("2" * 40)
 
 
 def test_local_binding_requires_exact_successor(
