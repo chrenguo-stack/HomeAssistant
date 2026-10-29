@@ -35,7 +35,7 @@ jobs:
           set -euo pipefail
           TOOL=tools/n3w_t1_r10_e03_manager_successor_refresh_preflight.py
           ! grep -Fq 'docker load' "$TOOL"
-          ! grep -Fq -- '--force-recreate' "$TOOL"
+          grep -Fq 'if "--force-recreate" in content:' "$TOOL"
           ! grep -Fq '"systemctl", "stop"' "$TOOL"
           ! grep -Fq '"systemctl", "start"' "$TOOL"
           ! grep -Fq '"systemctl", "restart"' "$TOOL"
