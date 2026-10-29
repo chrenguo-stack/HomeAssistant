@@ -207,6 +207,40 @@ def test_pr725_head_must_equal_executor_source_head(
         tool.remote_claim(args)
 
 
+def test_prestop_abort_closes_claimed_transaction(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tx = tmp_path / "tx.json"
+    tx.write_text(
+        json.dumps({
+            "schema": tool.TX_SCHEMA,
+            "status": "CLAIMED",
+            "phase": "AUTHORIZATION_CLAIMED",
+            "authorization_claimed": True,
+            "authorization_consumed": True,
+            "replay_allowed": False,
+            "compose_sha256": "1" * 64,
+        }),
+        encoding="utf-8",
+    )
+    tx.chmod(0o600)
+    monkeypatch.setattr(tool, "TX_PATH", tx)
+    monkeypatch.setattr(tool, "transaction_lock", lambda: __import__("contextlib").nullcontext())
+    monkeypatch.setattr(
+        tool,
+        "preclaim",
+        lambda: {"compose_sha256": "1" * 64},
+    )
+    result = tool.remote_abort_prestop("DOCKER_LOAD_FAILED")
+    assert result["transaction_status"] == "FAILED_PRESTOP"
+    stored = json.loads(tx.read_text(encoding="utf-8"))
+    assert stored["status"] == "FAILED_PRESTOP"
+    assert stored["phase"] == "FAILED_PRESTOP"
+    assert stored["authorization_consumed"] is True
+    assert stored["replay_allowed"] is False
+
+
 def test_prestop_abort_requires_claimed_phase(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
