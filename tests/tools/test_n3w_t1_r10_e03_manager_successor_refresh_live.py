@@ -193,6 +193,43 @@ def test_render_validation_rejects_broker_drift() -> None:
         tool.validate_candidate(before, after)
 
 
+def test_pr725_head_must_equal_executor_source_head(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    args = argparse.Namespace(
+        authorization_id="N3W_R10_E03_MANAGER_SUCCESSOR_REFRESH_LIVE_APPLY_20261029_01",
+        confirmation=tool.CONFIRMATION,
+        executor_source_head="1" * 40,
+        executor_blob="2" * 40,
+        pr725_head="3" * 40,
+    )
+    with pytest.raises(tool.RefreshError, match="pr725_executor_head_mismatch"):
+        tool.remote_claim(args)
+
+
+def test_prestop_abort_requires_claimed_phase(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tx = tmp_path / "tx.json"
+    tx.write_text(
+        json.dumps({
+            "schema": tool.TX_SCHEMA,
+            "status": "PASS",
+            "phase": "COMMITTED",
+            "authorization_consumed": True,
+            "replay_allowed": False,
+        }),
+        encoding="utf-8",
+    )
+    tx.chmod(0o600)
+    monkeypatch.setattr(tool, "TX_PATH", tx)
+    monkeypatch.setattr(tool, "require_private_parent", lambda _path: None)
+    monkeypatch.setattr(tool, "transaction_lock", lambda: __import__("contextlib").nullcontext())
+    with pytest.raises(tool.RefreshError, match="prestop_abort_state_invalid"):
+        tool.remote_abort_prestop("DOCKER_LOAD_FAILED")
+
+
 def test_authorization_id_is_gate_scoped() -> None:
     value = "N3W_R10_E03_MANAGER_SUCCESSOR_REFRESH_LIVE_APPLY_20261029_01"
     assert tool.authorization_id(value) == value
@@ -413,6 +450,12 @@ def test_ledger_probe_is_readonly() -> None:
     assert "INSERT " not in source
     assert "UPDATE " not in source
     assert "DELETE " not in source
+
+
+def test_source_contains_nonpersistent_directory_transaction_lock() -> None:
+    source = TOOL_PATH.read_text(encoding="utf-8")
+    assert "fcntl.LOCK_EX | fcntl.LOCK_NB" in source
+    assert "transaction_busy" in source
 
 
 def test_source_forbids_manager_only_recreate() -> None:
