@@ -1,0 +1,47 @@
+name: N3W R10 E03 Manager successor refresh preflight CI
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/n3w-r10-e03-manager-successor-refresh-preflight-ci.yml"
+      - "tools/n3w_t1_r10_e03_manager_successor_refresh_preflight.py"
+      - "tests/tools/test_n3w_t1_r10_e03_manager_successor_refresh_preflight.py"
+      - "docs/development/N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_E03_MANAGER_SUCCESSOR_REFRESH_PREFLIGHT_SOURCE_DESIGN_20261029.md"
+
+permissions:
+  contents: read
+
+jobs:
+  preflight-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run focused tests
+        run: |
+          set -euo pipefail
+          python -m pip install "pytest>=8,<9"
+          python -m pytest -q tests/tools/test_n3w_t1_r10_e03_manager_successor_refresh_preflight.py
+          python -m py_compile tools/n3w_t1_r10_e03_manager_successor_refresh_preflight.py
+
+      - name: Enforce readonly boundary
+        run: |
+          set -euo pipefail
+          TOOL=tools/n3w_t1_r10_e03_manager_successor_refresh_preflight.py
+          ! grep -Fq 'docker load' "$TOOL"
+          ! grep -Fq -- '--force-recreate' "$TOOL"
+          ! grep -Fq '"systemctl", "stop"' "$TOOL"
+          ! grep -Fq '"systemctl", "start"' "$TOOL"
+          ! grep -Fq '"systemctl", "restart"' "$TOOL"
+          ! grep -Fq '"docker", "compose"' "$TOOL"
+          grep -Fq '?mode=ro' "$TOOL"
+          grep -Fq 'PRAGMA query_only=ON' "$TOOL"
+          grep -Fq '"mutation": False' "$TOOL"
+          grep -Fq '"t1_mutation": False' "$TOOL"
+          grep -Fq '"board_access": False' "$TOOL"
