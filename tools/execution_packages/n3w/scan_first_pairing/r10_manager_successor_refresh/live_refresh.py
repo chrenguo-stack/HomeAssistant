@@ -814,6 +814,29 @@ def verify_prestate(manifest: dict[str, Any]) -> dict[str, Any]:
     )
 
     protected = protected_runtime_snapshot()
+
+    f4 = read_json(F4_TRANSACTION)
+    if (
+        f4.get("r10_candidate_upgrade_target_source") != PREDECESSOR_SOURCE
+        or f4.get("r10_candidate_upgrade_authorization_claimed") is not True
+        or f4.get("r10_candidate_upgrade_authorization_consumed") is not True
+        or f4.get("r10_candidate_upgrade_replay_allowed") is not False
+        or f4.get("r10_candidate_upgrade_committed") is not True
+    ):
+        raise RefreshError("f4_predecessor_authority_invalid")
+
+    predecessor_upgrade = read_json(PREDECESSOR_UPGRADE_TRANSACTION)
+    if (
+        predecessor_upgrade.get("target_source") != PREDECESSOR_SOURCE
+        or predecessor_upgrade.get("phase") != "COMMITTED"
+        or predecessor_upgrade.get("status") != "PASS"
+        or predecessor_upgrade.get("authorization_claimed") is not True
+        or predecessor_upgrade.get("authorization_consumed") is not True
+        or predecessor_upgrade.get("replay_allowed") is not False
+        or predecessor_upgrade.get("committed") is not True
+    ):
+        raise RefreshError("candidate_upgrade_predecessor_authority_invalid")
+
     database = protected["database"]
     if (
         database["integrity"] != "ok"
@@ -842,7 +865,12 @@ def verify_prestate(manifest: dict[str, Any]) -> dict[str, Any]:
         "compose_env": file_binding(COMPOSE_ENV),
         "expected_target_env_sha256": sha256_bytes(expected_target_env),
         "candidate_ttl_before": candidate_ttl_before,
-        "target_runtime_image_ids": sorted(runtime_image_ids(manifest)),
+        "predecessor_f4_transaction_sha256": (
+            protected["f4_transaction"]["sha256"]
+        ),
+        "predecessor_candidate_upgrade_transaction_sha256": (
+            protected["predecessor_upgrade_transaction"]["sha256"]
+        ),
     }
 
 
@@ -877,6 +905,12 @@ def claim_refresh(
         "phase": "CLAIMED",
         "status": "CLAIMED",
         "prestate_fingerprint_sha256": canonical_sha256(prestate),
+        "predecessor_f4_transaction_sha256": (
+            prestate["predecessor_f4_transaction_sha256"]
+        ),
+        "predecessor_candidate_upgrade_transaction_sha256": (
+            prestate["predecessor_candidate_upgrade_transaction_sha256"]
+        ),
         "committed": False,
         "rollback_completed": False,
     }
@@ -901,19 +935,33 @@ def advance(phase: str, **fields: Any) -> dict[str, Any]:
     return document
 
 
-def load_target_manager(root: Path, manifest: dict[str, Any]) -> None:
+def load_target_manager(
+    root: Path,
+    manifest: dict[str, Any],
+) -> dict[str, str]:
     manager = manifest["manager"]
     tar_path = root / str(manager["artifact_path"])
     run(("docker", "load", "-i", str(tar_path)), timeout=600)
     ids = docker_image_ids(TARGET_MANAGER_IMAGE)
-    if len(ids) != 1 or ids[0] not in runtime_image_ids(manifest):
-        raise RefreshError("target_image_binding_invalid")
+    if len(ids) != 1:
+        raise RefreshError("target_image_tag_count_invalid")
+    binding = runtime_image_binding(manifest)
+    if ids[0] != binding["runtime_id"]:
+        raise RefreshError("target_image_local_store_binding_invalid")
+    return binding
 
 
 def assert_protected_unchanged(prestate: dict[str, Any]) -> dict[str, Any]:
     current = protected_runtime_snapshot()
     before = prestate["protected"]
-    for key in ("compose_file", "registration_cert", "registration_key", "broker_dynsec"):
+    for key in (
+        "compose_file",
+        "registration_cert",
+        "registration_key",
+        "broker_dynsec",
+        "f4_transaction",
+        "predecessor_upgrade_transaction",
+    ):
         if current[key] != before[key]:
             raise RefreshError(f"protected_runtime_changed:{key}")
     if current["database"] != before["database"]:
@@ -945,9 +993,10 @@ def strict_target_postcheck(
         or not homeassistant["running"]
     ):
         raise RefreshError("homeassistant_continuity_failed")
+    runtime_binding = runtime_image_binding(manifest)
     if (
         manager["image"] != TARGET_MANAGER_IMAGE
-        or manager["image_id"] not in runtime_image_ids(manifest)
+        or manager["image_id"] != runtime_binding["runtime_id"]
         or not manager["running"]
     ):
         raise RefreshError("target_manager_not_running")
@@ -1035,6 +1084,11 @@ def strict_predecessor_postcheck(prestate: dict[str, Any]) -> None:
         or not pairing_window_closed(str(manager_doc["Id"]))
     ):
         raise RefreshError("rollback_registration_not_ready")
+    if (
+        manager_candidate_ttl(str(manager_doc["Id"]))
+        != PREDECESSOR_CANDIDATE_TTL_SECONDS
+    ):
+        raise RefreshError("rollback_candidate_ttl_not_30")
 
 
 def wait_predecessor_postcheck(prestate: dict[str, Any]) -> None:
@@ -1147,8 +1201,18 @@ def execute_apply(
         )
         advance("BACKUP_COMPLETE", env_backup_sha256=sha256_bytes(env_bytes))
 
-        load_target_manager(package_root, manifest)
-        advance("TARGET_IMAGE_LOADED", target_image_loaded=True)
+        target_image_binding = load_target_manager(package_root, manifest)
+        advance(
+            "TARGET_IMAGE_LOADED",
+            target_image_loaded=True,
+            target_runtime_image_id=target_image_binding["runtime_id"],
+            target_rootfs_layers_sha256=(
+                target_image_binding["rootfs_layers_sha256"]
+            ),
+            target_config_contract_sha256=(
+                target_image_binding["config_contract_sha256"]
+            ),
+        )
 
         run(("systemctl", "stop", SERVICES_UNIT), timeout=240)
         broker_after_stop = container_snapshot(container("broker"))
