@@ -884,6 +884,29 @@ def broker_continuity(doc: dict[str, Any]) -> dict[str, Any]:
     return value
 
 
+def running_service_count(service: str) -> int:
+    raw = run(
+        (
+            "docker", "ps", "-q",
+            "--filter", f"label=com.docker.compose.project={PROJECT}",
+            "--filter", f"label=com.docker.compose.service={service}",
+        ),
+        check=False,
+    )
+    if raw.returncode:
+        raise RefreshError(f"{service}_container_lookup_failed")
+    return len([x for x in raw.stdout.decode().splitlines() if x.strip()])
+
+
+def require_application_services_stopped() -> None:
+    if systemctl("is-active", SERVICES_UNIT) != "inactive":
+        raise RefreshError("services_not_inactive")
+    if running_service_count("manager") != 0:
+        raise RefreshError("manager_still_running")
+    if running_service_count("homeassistant") != 0:
+        raise RefreshError("ha_still_running")
+
+
 def wait_services(timeout: int = 120) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -914,7 +937,15 @@ def rollback(doc: dict[str, Any], candidate_sha: str | None, stopped: bool, reas
         tx_update(doc, "ROLLBACK_PASS", status="FAILED_ROLLED_BACK_PRESTOP", last_error=reason)
         return {"rollback": "PASS_PRESTOP", "durable": "ORIGINAL_UNRESOLVED"}
 
-    run(("systemctl", "stop", SERVICES_UNIT), timeout=120, check=False)
+    stopped_result = run(
+        ("systemctl", "stop", SERVICES_UNIT),
+        timeout=120,
+        check=False,
+    )
+    if stopped_result.returncode:
+        raise RefreshError("rollback_services_stop_failed")
+    require_application_services_stopped()
+    broker_continuity(doc)
     restore_compose(doc, candidate_sha)
     durable = rollback_class(ledger_on_host(doc["host_paths"]))
     if durable == "EMERGENCY_STOP":
@@ -925,8 +956,29 @@ def rollback(doc: dict[str, Any], candidate_sha: str | None, stopped: bool, reas
     wait_services()
     broker_continuity(doc)
     manager = runtime("manager")
-    if manager["image_ref"] != OLD_MANAGER_IMAGE or manager["image_id"] != OLD_MANAGER_ID or manager["restart_count"] != 0:
+    if (
+        manager["image_ref"] != OLD_MANAGER_IMAGE
+        or manager["image_id"] != OLD_MANAGER_ID
+        or manager["network_mode"] != "host"
+        or manager["restart_count"] != 0
+    ):
         raise RefreshError("rollback_manager_invalid")
+    ha = runtime("homeassistant")
+    if (
+        ha["image_ref"] != HA_IMAGE
+        or ha["image_id"] != HA_IMAGE_ID
+        or ha["network_mode"] != "host"
+        or ha["restart_count"] != 0
+        or ha_mqtt_hash() != doc["ha_mqtt_sha256"]
+    ):
+        raise RefreshError("rollback_ha_continuity_invalid")
+    if listener_snapshot() != {
+        "tcp_8883": 1,
+        "tcp_47110": 1,
+        "udp_47111": 1,
+        "tcp_47112": 0,
+    }:
+        raise RefreshError("rollback_listener_invalid")
     final, _ = ledger_in_manager(manager["container_id"])
     final_class = rollback_class(final)
     if final_class not in {"ORIGINAL_UNRESOLVED", "REPAIR_COMPLETE"}:
@@ -970,12 +1022,7 @@ def _remote_apply_locked() -> dict[str, Any]:
 
         stopped = True
         run(("systemctl", "stop", SERVICES_UNIT), timeout=120)
-        if systemctl("is-active", SERVICES_UNIT) != "inactive":
-            raise RefreshError("services_not_inactive")
-        if run(("docker", "ps", "-q", "--filter", f"label=com.docker.compose.project={PROJECT}", "--filter", "label=com.docker.compose.service=manager"), check=False).stdout.strip():
-            raise RefreshError("manager_still_running")
-        if run(("docker", "ps", "-q", "--filter", f"label=com.docker.compose.project={PROJECT}", "--filter", "label=com.docker.compose.service=homeassistant"), check=False).stdout.strip():
-            raise RefreshError("ha_still_running")
+        require_application_services_stopped()
         broker_continuity(doc)
         tx_update(doc, "SERVICES_STOPPED")
 
