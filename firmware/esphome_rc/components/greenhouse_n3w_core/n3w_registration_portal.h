@@ -11,6 +11,8 @@
 
 namespace esphome::greenhouse_n3w_core {
 
+inline constexpr uint64_t kRegistrationUserConfirmMs = 60000ULL;
+
 class RegistrationPortalRandom {
  public:
   virtual ~RegistrationPortalRandom() = default;
