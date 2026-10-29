@@ -202,7 +202,7 @@ def compose_argv(path: Path = COMPOSE) -> tuple[str, ...]:
 
 
 def render_compose(path: Path = COMPOSE) -> dict[str, Any]:
-    raw = run((*compose_argv(path), "config", "--format", "json")).stdout
+    raw = run((*compose_argv(path), "--profile", "application", "config", "--format", "json")).stdout
     try:
         value = json.loads(raw)
     except json.JSONDecodeError as error:
