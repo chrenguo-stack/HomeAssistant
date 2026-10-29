@@ -1,3 +1,18 @@
+## 2026-10-29 — R10 E03 ACTIVE deadline / busy source repair CLOSED_PASS
+
+- PR #733 exact tested source head: `0d49c5ff991288ef3dba17650414a81f7d8e34b0`; tree `851bb5f2427f945f3a8f8ffa776a708bffdc4032`; stacked on PR #725 head `ff750b3801a282af1667b5fa63481e2333e301b3`.
+- Physical E2E failed with E03 after a clean pre-baseline. The only new ACTIVE attempt is Board D runtime-identity-bound, phase `BOOTSTRAP_ACCEPTED`, pairing-window CLOSED, 47112 absent, and it remained ACTIVE after its absolute expiry.
+- Confirmed root cause: durable ACTIVE creation preceded the only autonomous deadline owner, which previously existed only after the pairing window became OPEN.
+- Final repair: serialize `start()`; arm pre-window absolute deadline immediately after durable ACTIVE creation and before RAM intent activation; exact retry never refreshes the deadline; successful window OPEN hands deadline ownership back to the existing window; reconciliation failures restore a bounded fallback.
+- Independent closure review found and repaired two additional false-PASS paths: timer ownership after intent activation, and reconcile exception dropping deadline ownership.
+- Final `greenhouse-manager CI` run `40874759141`: PASS; full pytest `1486 passed, 1 skipped`; R8 simulated first-registration E2E `8 passed`; lint PASS.
+- Public repository safety, Manager secret ownership, Dynamic Security, private Mosquitto, H3 Stage2B3, M0, H0/H1, isolated/native node-auth and roadmap CI are PASS.
+- Two broad non-blocking workflows were still running at closure observation: M2 board-lab ESP32 compilation after its Manager/unit/contract job had already passed, and C-07 retirement lifecycle; C-07 sources contain no first-registration transaction reference.
+- PR #733 changes no firmware files; Board D reflash is not required for this Manager-only repair.
+- KF-131 records the failure and regression guard.
+- No T1/Board/live mutation, physical retry or merge occurred in this source gate.
+- Next ONE gate: `N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_E03_SOURCE_REPAIR_TO_PR725_INTEGRATION_REVIEW_AND_MERGE_DECISION_20261029_01`.
+
 ## 2026-10-27 — R5 merged; R6 TLS-bootstrap design/preflight is next
 
 - Executable/source main after R5 merge: `32c4eef68bce48ff7a379381ab0bfad60557ef57`; tree `303378f5cffef4e4f1f71881b1955baed5b7d220`.
