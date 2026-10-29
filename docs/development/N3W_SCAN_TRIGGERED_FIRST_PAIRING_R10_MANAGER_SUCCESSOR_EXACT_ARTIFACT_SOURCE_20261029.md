@@ -49,7 +49,7 @@ The exact successor package contains exactly four files:
 
 It contains no Broker image, Home Assistant image, registration TLS certificate/key, Compose file, MQTT password, Setup Secret, or Board material.
 
-The Manager image archive is bound by package SHA-256, Docker archive config digest, Docker archive manifest digest, linux/arm64 platform, target image tag, exact product source/tree, exact Manager discovery source blob, exact Dockerfile blob, exact Compose blob, pinned arm64 base-image manifest digest, and installed Python distribution inventory.
+The Manager image archive is bound by package SHA-256, Docker archive config digest, Docker archive manifest digest, artifact-owned RootFS.Layers fingerprint, artifact-owned Config contract fingerprint, linux/arm64 platform, target image tag, exact product source/tree, exact Manager discovery source blob, exact Dockerfile blob, exact Compose blob, pinned arm64 base-image manifest digest, and installed Python distribution inventory. The live executor rechecks the distribution-inventory SHA/size/content rather than trusting file presence.
 
 ## Live executor boundary
 
@@ -57,7 +57,7 @@ The packaged executor has a read-only preflight and a future one-shot apply entr
 
 The read-only preflight validates exact package/manifest/executor binding, predecessor Manager image, target Manager image absence, Broker and Home Assistant baselines, application/registration units, GH_MANAGER_IMAGE predecessor binding, database integrity, registration count=1, first-registration attempt count=0, unresolved first registration=0, pairing window CLOSED, 47110=1, 47111=1, 47112=0, and predecessor candidate TTL=30.
 
-The preflight does not claim authorization and does not write target state.
+The preflight does not claim authorization and does not write target state. It also requires the historical F4 activation transaction and the predecessor R10 candidate-upgrade transaction to be committed, consumed/non-replayable predecessor authority for e299c937..., and freezes both ledger file hashes into the new refresh prestate.
 
 A future live apply is not authorized by this source gate. When separately authorized, the executor may claim a new N3W_R10_MANAGER_SUCCESSOR_REFRESH authorization, create a private workspace, load the exact target Manager image, stop the existing Manager+Home Assistant application unit, prove Broker continuity and database quiescence, change only the GH_MANAGER_IMAGE line in /etc/n3wfc4/docker-compose.env, restart the application unit, verify the target runtime, and commit the refresh transaction.
 
@@ -71,6 +71,8 @@ The following are hashed or semantically fingerprinted before refresh and must r
 - registration TLS certificate bytes
 - registration TLS private-key bytes
 - Broker DynSec bytes
+- historical F4 activation transaction bytes
+- predecessor R10 candidate-upgrade transaction bytes
 - Broker container identity/image/start state
 - Home Assistant container identity and image
 - registration database business-state fingerprint
@@ -78,19 +80,19 @@ The following are hashed or semantically fingerprinted before refresh and must r
 - pairing window CLOSED
 - TCP/47112 closed
 
-The target Manager must additionally prove candidate TTL=60.
+The target Manager must additionally prove candidate TTL=60. Image verification follows the existing KF-111 cross-image-store rule: a Docker runtime .Id is local evidence only and is not required to equal the CI/archive .Id representation. The loaded tag must instead reproduce the artifact-owned arm64/linux RootFS.Layers fingerprint and Config contract; the running Manager container is then bound to that locally verified runtime ID.
 
 ## Rollback
 
 If target postcheck fails after the one-shot authorization is claimed, the executor stops the application unit, restores the exact predecessor docker-compose.env bytes, restarts the predecessor application, proves predecessor Manager plus Broker/HA/protected-state continuity, removes the target image tag only after predecessor runtime is healthy, and persists ROLLED_BACK.
 
-A failed or rolled-back authorization remains consumed and is not replayable. The executor does not restore or rewrite registration TLS, DynSec, Compose, F4 authority or Board state.
+A failed or rolled-back authorization remains consumed and is not replayable. The production authorization namespace accepts dated one-shot IDs only; no TEST authorization is accepted by the packaged executor. The executor does not restore or rewrite registration TLS, DynSec, Compose, F4 authority or Board state. Rollback must also prove predecessor candidate TTL=30.
 
 ## CI staging
 
 Workflow: .github/workflows/n3w-r10-manager-successor-refresh-package-ci.yml
 
-Normal branch/PR CI performs Python syntax checks, focused tests, product source/tree/blob binding, proof that the Manager production delta is exactly one file, and proof of TTL 30 -> 60 transition. Normal CI does not produce an exact Manager package.
+Normal branch/PR CI performs Python syntax checks, focused tests, product source/tree/blob binding, proof that the Manager production delta is exactly one file, proof of TTL 30 -> 60 transition, KF-111 cross-store runtime-ID regression coverage, predecessor-ledger binding checks, and live-package inventory-integrity checks. Normal CI does not produce an exact Manager package.
 
 Exact artifact production requires a later explicit workflow_dispatch with produce_exact_artifact=true.
 
