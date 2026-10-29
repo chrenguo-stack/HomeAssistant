@@ -558,6 +558,8 @@ def validate_package(root: Path, expected_manifest_sha256: str) -> dict[str, Any
         or authority.get("predecessor_source") != PREDECESSOR_SOURCE
         or authority.get("target_source") != TARGET_SOURCE
         or authority.get("target_tree") != TARGET_TREE
+        or authority.get("predecessor_candidate_ttl_seconds")
+        != PREDECESSOR_CANDIDATE_TTL_SECONDS
         or authority.get("candidate_ttl_seconds")
         != EXPECTED_CANDIDATE_TTL_SECONDS
         or manifest.get("predecessor_manager_image")
