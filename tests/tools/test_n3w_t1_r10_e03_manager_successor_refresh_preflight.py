@@ -57,7 +57,11 @@ def _inspect(service: str) -> dict[str, object]:
     network_mode = "host" if service in {"manager", "homeassistant"} else "n3wfc4-private"
     return {
         "Id": container_id,
-        "Image": "sha256:" + service[0] * 64,
+        "Image": "sha256:" + {
+            "manager": "a",
+            "broker": "b",
+            "homeassistant": "c",
+        }[service] * 64,
         "RestartCount": 0,
         "State": {
             "Running": True,
@@ -216,6 +220,21 @@ def test_preflight_rejects_manager_only_supervision_drift() -> None:
         tool.preflight(_args(), FakeRunner(services_unit_text=unit))
 
 
+def test_preflight_rejects_force_recreate_in_supervision_unit() -> None:
+    unit = (
+        "[Service]\n"
+        "ExecStart=/usr/bin/docker compose --profile application up --no-deps "
+        "--no-log-prefix --abort-on-container-exit manager homeassistant "
+        "--force-recreate\n"
+        "ExecStop=/usr/bin/docker compose stop homeassistant manager\n"
+    )
+    with pytest.raises(
+        tool.PreflightError,
+        match="services_supervision_force_recreate_forbidden",
+    ):
+        tool.preflight(_args(), FakeRunner(services_unit_text=unit))
+
+
 def test_preflight_rejects_open_47112() -> None:
     with pytest.raises(tool.PreflightError, match="pairing_47112_must_be_closed"):
         tool.preflight(_args(), FakeRunner(tcp_47112=1))
@@ -283,12 +302,12 @@ def test_ledger_probe_is_readonly_and_secret_safe() -> None:
 
 def test_source_has_no_live_refresh_mutation_commands() -> None:
     source = TOOL_PATH.read_text(encoding="utf-8")
-    forbidden = (
+    forbidden_execution = (
         "docker load",
-        "--force-recreate",
         "systemctl\", \"stop",
         "systemctl\", \"start",
         "systemctl\", \"restart",
         "docker\", \"compose",
     )
-    assert all(token not in source for token in forbidden)
+    assert all(token not in source for token in forbidden_execution)
+    assert 'if "--force-recreate" in content:' in source
