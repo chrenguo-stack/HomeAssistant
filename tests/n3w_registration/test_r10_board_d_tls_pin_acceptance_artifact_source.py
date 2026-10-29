@@ -144,8 +144,8 @@ def test_greenhouse_manager_ci_keeps_production_guard_but_scopes_acceptance_over
         "${{ steps.detect.outputs.physical_acceptance_overlay }}"
         in workflow
     )
-    assert 'grep -Fxc '+  battery_low_threshold: "-1.00"'' in workflow
-    assert 'grep -Fxc '  battery_low_threshold: "-1.00"'' in workflow
+    assert "grep -Fxc '+  battery_low_threshold: \"-1.00\"'" in workflow
+    assert "grep -Fxc '  battery_low_threshold: \"-1.00\"'" in workflow
     assert '"$additions" == "1"' in workflow
     assert '"$deletions" == "0"' in workflow
     assert (
