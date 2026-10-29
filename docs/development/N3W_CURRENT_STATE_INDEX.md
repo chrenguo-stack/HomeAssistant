@@ -12,6 +12,7 @@
 - The granted gate permits fresh read-only preflight and, if it passes, one flash write attempt. `AUTO_RETRY=false`; a failed/consumed attempt cannot be replayed automatically.
 - No Board D access, flash/NVS mutation, T1 mutation or merge occurred during handoff preparation.
 - Next ONE gate: `N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_BOARD_D_PHYSICAL_ACCEPTANCE_PREFLIGHT_AND_WRITE_20261029_01`.
+- Formal new-chat handoff: `docs/development/N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_BOARD_D_PHYSICAL_ACCEPTANCE_PREFLIGHT_AND_WRITE_NEW_CHAT_HANDOFF_V1.0_20261029.md` (current sole valid template V1.3).
 - After a successful write, Board D normal application boot plus the real phone first-registration attempt remain a separate successor physical gate and require new authorization.
 
 ## 2026-10-27 — R5 merged; R6 TLS-bootstrap design/preflight is next
