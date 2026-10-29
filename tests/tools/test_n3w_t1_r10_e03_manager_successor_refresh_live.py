@@ -134,6 +134,20 @@ def test_known_rollback_classifications(
     assert tool.rollback_class(value) == expected
 
 
+def test_required_after_registry_cleanup_is_restartable() -> None:
+    value = required_ledger()
+    value["registration_count"] = 0
+    value["registration_inventory_sha256"] = tool.EMPTY_INVENTORY_SHA256
+    value["attempts"][0].update({
+        "session_state": "expired",
+        "session_reason": "expired",
+        "registration_match_count": 0,
+        "current_pairing_matches": False,
+        "registration_node_id_present": False,
+    })
+    assert tool.rollback_class(value) == "RESTARTABLE_REQUIRED"
+
+
 def test_required_with_credential_drift_is_emergency() -> None:
     value = required_ledger()
     value["attempts"][0]["pairing_credential_count"] = 1
@@ -530,6 +544,14 @@ def test_ledger_probe_is_readonly() -> None:
     assert "INSERT " not in source
     assert "UPDATE " not in source
     assert "DELETE " not in source
+
+
+def test_source_requires_exact_predecessor_tag_binding() -> None:
+    source = TOOL_PATH.read_text(encoding="utf-8")
+    assert 'image_id(OLD_MANAGER_IMAGE) != OLD_MANAGER_ID' in source
+    assert "predecessor_tag_drift" in source
+    assert "services_automatic_restart_observed" in source
+    assert "manager_predecessor_container_id" in source
 
 
 def test_source_contains_nonpersistent_directory_transaction_lock() -> None:
