@@ -88,6 +88,15 @@ class AuthorizationUnknownError(RefreshError):
     pass
 
 
+def safe_error_code(error: BaseException) -> str:
+    if isinstance(error, RefreshError):
+        raw = str(error)
+        code = raw.split(":", 1)[0]
+        if re.fullmatch(r"[A-Za-z0-9_]{3,100}", code):
+            return code
+    return type(error).__name__
+
+
 def canonical(value: Any) -> bytes:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
 
@@ -953,7 +962,7 @@ def _remote_apply_locked() -> dict[str, Any]:
             "board_access": False,
         }
     except Exception as error:
-        reason = str(error) if isinstance(error, RefreshError) else type(error).__name__
+        reason = safe_error_code(error)
         result = rollback(doc, candidate_sha, stopped, reason)
         raise RefreshError(
             f"apply_failed:{reason}:rollback={result['rollback']}:durable={result['durable']}"
@@ -1337,7 +1346,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "schema": SCHEMA,
             "status": "STOP",
             "operation": args.command,
-            "reason": str(error) if isinstance(error, RefreshError) else type(error).__name__,
+            "reason": safe_error_code(error),
             "authorization_claimed": claimed,
             "authorization_consumed": consumed,
             "replay_allowed": replay,
