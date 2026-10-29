@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,7 @@ TOOL_PATH = (
 SPEC = importlib.util.spec_from_file_location("r10_e03_preflight", TOOL_PATH)
 assert SPEC is not None and SPEC.loader is not None
 tool = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = tool
 SPEC.loader.exec_module(tool)
 
 SOURCE_HEAD = "f8876fd87165df731d792690a8288867c3eeef55"
