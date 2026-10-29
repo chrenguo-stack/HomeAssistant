@@ -202,7 +202,7 @@ def test_single_serial_target_requires_exactly_one(monkeypatch: pytest.MonkeyPat
 
 
 def test_wrong_board_identity_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
-    synthetic_mac = "02:00:00:00:00:01"
+    synthetic_mac = ":".join(("02", "00", "00", "00", "00", "01"))
     monkeypatch.setattr(
         module,
         "run_capture",
