@@ -2,6 +2,7 @@ substitutions:
   project_version: "F1.0-RC2-N3W-TARGET-0.1"
   n3w_telemetry_interval: 60s
   n3w_cap_hash: "sha256:fed2dec764f4146d"
+  battery_low_threshold: "-1.00"
 
 packages:
   f1_rc2_base: !include f1_0_rc2.yml
