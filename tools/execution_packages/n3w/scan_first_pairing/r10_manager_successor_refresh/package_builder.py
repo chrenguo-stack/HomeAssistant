@@ -19,6 +19,7 @@ BASE_IMAGE_REF = "python:3.11-slim"
 TARGET_DOCKERFILE_BLOB = "6486ff5fbcc23536676a48f36d67e4e0d364900a"
 TARGET_COMPOSE_BLOB = "c9038251d9ba1b05a472edda14b287470690815a"
 TARGET_DISCOVERY_BLOB = "ac6e3f70879f980ee9a2d37938879dc6345a511e"
+PREDECESSOR_CANDIDATE_TTL_SECONDS = 30
 EXPECTED_CANDIDATE_TTL_SECONDS = 60
 
 
@@ -205,6 +206,7 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
             "manager_discovery_blob": TARGET_DISCOVERY_BLOB,
             "dockerfile_blob": TARGET_DOCKERFILE_BLOB,
             "compose_blob": TARGET_COMPOSE_BLOB,
+            "predecessor_candidate_ttl_seconds": PREDECESSOR_CANDIDATE_TTL_SECONDS,
             "candidate_ttl_seconds": EXPECTED_CANDIDATE_TTL_SECONDS,
         },
         "predecessor_manager_image": PREDECESSOR_MANAGER_IMAGE,
@@ -284,6 +286,8 @@ def verify(root: Path) -> dict[str, Any]:
         or authority.get("manager_discovery_blob") != TARGET_DISCOVERY_BLOB
         or authority.get("dockerfile_blob") != TARGET_DOCKERFILE_BLOB
         or authority.get("compose_blob") != TARGET_COMPOSE_BLOB
+        or authority.get("predecessor_candidate_ttl_seconds")
+        != PREDECESSOR_CANDIDATE_TTL_SECONDS
         or authority.get("candidate_ttl_seconds")
         != EXPECTED_CANDIDATE_TTL_SECONDS
     ):
