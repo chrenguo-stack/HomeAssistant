@@ -212,13 +212,32 @@ def render_compose(path: Path = COMPOSE) -> dict[str, Any]:
     return value
 
 
-def service_image(rendered: dict[str, Any], service: str) -> str:
+def service_record(rendered: dict[str, Any], service: str) -> dict[str, Any]:
     services = rendered.get("services")
     record = services.get(service) if isinstance(services, dict) else None
-    image = record.get("image") if isinstance(record, dict) else None
+    if not isinstance(record, dict):
+        raise RefreshError(f"compose_service_missing:{service}")
+    return record
+
+
+def service_image(rendered: dict[str, Any], service: str) -> str:
+    image = service_record(rendered, service).get("image")
     if not isinstance(image, str):
         raise RefreshError(f"compose_image_missing:{service}")
     return image
+
+
+def systemd_nrestarts(unit: str) -> int:
+    raw = run(
+        ("systemctl", "show", unit, "--property", "NRestarts", "--value")
+    ).stdout.decode().strip()
+    try:
+        value = int(raw)
+    except ValueError as error:
+        raise RefreshError("systemd_nrestarts_invalid") from error
+    if value < 0:
+        raise RefreshError("systemd_nrestarts_invalid")
+    return value
 
 
 def container_id(service: str) -> str:
@@ -493,9 +512,8 @@ def rollback_class(doc: dict[str, Any]) -> str:
         pass
     attempts = doc.get("attempts")
     a = attempts[0] if isinstance(attempts, list) and len(attempts) == 1 else None
-    if (
-        doc.get("registration_count") == 1
-        and doc.get("registration_inventory_sha256") == PRE_INVENTORY_SHA256
+    required_common = (
+        doc.get("attempt_count") == 1
         and doc.get("unresolved_count") == 1
         and isinstance(a, dict)
         and a.get("pairing_id_sha256") == PAIRING_SHA256
@@ -506,13 +524,29 @@ def rollback_class(doc: dict[str, Any]) -> str:
         and a.get("node_id_present") is False
         and a.get("terminal_at_present") is True
         and a.get("terminal_reason") == "expired"
+        and a.get("pairing_credential_count") == 0
+        and a.get("hardware_credential_history_count") == 0
+    )
+    required_before_registry_cleanup = (
+        required_common
+        and doc.get("registration_count") == 1
+        and doc.get("registration_inventory_sha256") == PRE_INVENTORY_SHA256
         and a.get("session_state") == "pending"
         and a.get("registration_match_count") == 1
         and a.get("current_pairing_matches") is True
         and a.get("registration_node_id_present") is False
-        and a.get("pairing_credential_count") == 0
-        and a.get("hardware_credential_history_count") == 0
-    ):
+    )
+    required_after_registry_cleanup = (
+        required_common
+        and doc.get("registration_count") == 0
+        and doc.get("registration_inventory_sha256") == EMPTY_INVENTORY_SHA256
+        and a.get("session_state") == "expired"
+        and a.get("session_reason") == "expired"
+        and a.get("registration_match_count") == 0
+        and a.get("current_pairing_matches") is False
+        and a.get("registration_node_id_present") is False
+    )
+    if required_before_registry_cleanup or required_after_registry_cleanup:
         return "RESTARTABLE_REQUIRED"
     return "EMERGENCY_STOP"
 
@@ -549,6 +583,15 @@ def preclaim() -> dict[str, Any]:
         raise RefreshError("compose_manager_image_drift")
     if service_image(rendered, "homeassistant") != HA_IMAGE or service_image(rendered, "broker") != BROKER_IMAGE:
         raise RefreshError("compose_non_manager_image_drift")
+    manager_compose = service_record(rendered, "manager")
+    ha_compose = service_record(rendered, "homeassistant")
+    if (
+        manager_compose.get("network_mode") != "host"
+        or ha_compose.get("network_mode") != "host"
+        or manager_compose.get("pull_policy") != "never"
+        or ha_compose.get("pull_policy") != "never"
+    ):
+        raise RefreshError("compose_runtime_policy_drift")
     runtimes = {x: runtime(x) for x in ("broker", "manager", "homeassistant")}
     manager, ha, broker = runtimes["manager"], runtimes["homeassistant"], runtimes["broker"]
     if (
@@ -565,6 +608,8 @@ def preclaim() -> dict[str, Any]:
         raise RefreshError("broker_runtime_drift")
     if image_id(OLD_MANAGER_ID) != OLD_MANAGER_ID:
         raise RefreshError("predecessor_image_missing")
+    if image_id(OLD_MANAGER_IMAGE) != OLD_MANAGER_ID:
+        raise RefreshError("predecessor_tag_drift")
     target_pre = image_id(TARGET_MANAGER_IMAGE)
     if target_pre not in {None, TARGET_MANAGER_ID}:
         raise RefreshError("target_tag_wrong_image")
@@ -582,6 +627,7 @@ def preclaim() -> dict[str, Any]:
         "ledger": ledger,
         "host_paths": host_paths,
         "ha_mqtt_sha256": ha_mqtt_hash(),
+        "services_nrestarts": systemd_nrestarts(SERVICES_UNIT),
         "target_image_prestate": "ABSENT" if target_pre is None else "PRESENT_AND_EXACT",
     }
 
@@ -730,6 +776,8 @@ def remote_claim(args: argparse.Namespace) -> dict[str, Any]:
         "broker_image_id": value["runtimes"]["broker"]["image_id"],
         "broker_started_at": value["runtimes"]["broker"]["started_at"],
         "broker_restart_count": value["runtimes"]["broker"]["restart_count"],
+        "manager_predecessor_container_id": value["runtimes"]["manager"]["container_id"],
+        "services_nrestarts": value["services_nrestarts"],
         "ha_mqtt_sha256": value["ha_mqtt_sha256"],
         "last_error": None,
         "claimed_at_unix": int(time.time()),
@@ -935,8 +983,16 @@ def _remote_apply_locked() -> dict[str, Any]:
         wait_services()
         tx_update(doc, "SERVICES_STARTED")
         manager, ha, broker = runtime("manager"), runtime("homeassistant"), broker_continuity(doc)
-        if manager["image_ref"] != TARGET_MANAGER_IMAGE or manager["image_id"] != TARGET_MANAGER_ID or manager["network_mode"] != "host" or manager["restart_count"] != 0:
+        if (
+            manager["image_ref"] != TARGET_MANAGER_IMAGE
+            or manager["image_id"] != TARGET_MANAGER_ID
+            or manager["network_mode"] != "host"
+            or manager["restart_count"] != 0
+            or manager["container_id"] == doc["manager_predecessor_container_id"]
+        ):
             raise RefreshError("successor_manager_invalid")
+        if systemd_nrestarts(SERVICES_UNIT) != doc["services_nrestarts"]:
+            raise RefreshError("services_automatic_restart_observed")
         if ha["image_ref"] != HA_IMAGE or ha["image_id"] != HA_IMAGE_ID or ha["network_mode"] != "host" or ha["restart_count"] != 0:
             raise RefreshError("ha_post_runtime_invalid")
         if ha_mqtt_hash() != doc["ha_mqtt_sha256"]:
