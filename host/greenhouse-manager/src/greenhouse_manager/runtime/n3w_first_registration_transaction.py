@@ -717,11 +717,17 @@ class FirstRegistrationTransactionService:
             )
             self._restore_deadline_if_active(
                 pairing_id,
-                retry=True,
+                retry=(
+                    reason == "deadline"
+                    or now >= attempt.expires_at
+                ),
             )
             return
 
         self._restore_deadline_if_active(
             pairing_id,
-            retry=True,
+            retry=(
+                reason == "deadline"
+                or now >= attempt.expires_at
+            ),
         )
