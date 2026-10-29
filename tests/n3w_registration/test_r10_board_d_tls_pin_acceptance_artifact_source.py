@@ -132,3 +132,41 @@ def test_redownload_verifier_rebinds_release_and_companion_manager() -> None:
     assert '"COMPANION_MANAGER_ARTIFACT_ID": "12877958163"' in text
     assert '"REGISTRATION_CANDIDATE_TTL_SECONDS": "60"' in text
     assert '"FIRST_COUNTDOWN_DISPLAY_SECONDS": "59"' in text
+
+
+def test_greenhouse_manager_ci_keeps_production_guard_but_scopes_acceptance_overlay() -> None:
+    workflow = (
+        ROOT / ".github/workflows/greenhouse-manager-ci.yml"
+    ).read_text(encoding="utf-8")
+
+    assert (
+        "physical_acceptance_overlay: "
+        "${{ steps.detect.outputs.physical_acceptance_overlay }}"
+        in workflow
+    )
+    assert 'grep -Fxc '+  battery_low_threshold: "-1.00"'' in workflow
+    assert 'grep -Fxc '  battery_low_threshold: "-1.00"'' in workflow
+    assert '"$additions" == "1"' in workflow
+    assert '"$deletions" == "0"' in workflow
+    assert (
+        "if: needs.scope.outputs.physical_acceptance_overlay != 'true'"
+        in workflow
+    )
+    assert (
+        "if: needs.scope.outputs.physical_acceptance_overlay == 'true'"
+        in workflow
+    )
+    assert (
+        "pytest -q tests/n3w_registration/"
+        "test_scan_triggered_first_pairing_r10_phone_ui_contract.py"
+        in workflow
+    )
+    assert (
+        "-k 'not product_ui_source_does_not_embed_bench_low_battery_bypass'"
+        in workflow
+    )
+    assert (
+        "pytest -q tests/n3w_registration/"
+        "test_r10_board_d_tls_pin_acceptance_artifact_source.py"
+        in workflow
+    )
