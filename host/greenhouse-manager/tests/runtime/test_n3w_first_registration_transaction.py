@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import threading
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -61,7 +62,47 @@ class Window:
         return {"pairing_host": "192.0.2.1"}
 
 
-def service(registry, intents, window):
+class ManualDeadlineTimer:
+    def __init__(self, delay_seconds, callback) -> None:
+        self.delay_seconds = delay_seconds
+        self.callback = callback
+        self.started = False
+        self.cancelled = False
+
+    def start(self) -> None:
+        self.started = True
+
+    def cancel(self) -> None:
+        self.cancelled = True
+
+    def fire(self) -> None:
+        if self.started and not self.cancelled:
+            self.callback()
+
+
+class ManualDeadlineTimerFactory:
+    def __init__(self) -> None:
+        self.timers = []
+
+    def __call__(self, delay_seconds, callback):
+        timer = ManualDeadlineTimer(delay_seconds, callback)
+        self.timers.append(timer)
+        return timer
+
+
+class MutableClock:
+    def __init__(self, now: datetime) -> None:
+        self.now = now
+
+    def __call__(self) -> datetime:
+        return self.now
+
+
+def service(registry, intents, window, **kwargs):
+    kwargs.setdefault(
+        "deadline_timer_factory",
+        ManualDeadlineTimerFactory(),
+    )
     return FirstRegistrationTransactionService(
         registry=registry,
         intents=intents,
@@ -69,6 +110,7 @@ def service(registry, intents, window):
         manager_id="manager_lab_01",
         system_id="greenhouse",
         clock=lambda: NOW,
+        **kwargs,
     )
 
 
@@ -110,11 +152,28 @@ def test_exact_duplicate_reuses_deadline_and_conflicting_secret_is_busy(tmp_path
         with pytest.raises(
             FirstRegistrationTransactionRejected,
             match="registration_busy",
-        ):
+        ) as secret_busy:
             tx.start(
                 conflicting,
                 source_ip="192.0.2.44",
             )
+        assert (
+            secret_busy.value.detail
+            == "active_intent_setup_secret_mismatch"
+        )
+
+        with pytest.raises(
+            FirstRegistrationTransactionRejected,
+            match="registration_busy",
+        ) as source_busy:
+            tx.start(
+                request(),
+                source_ip="192.0.2.45",
+            )
+        assert (
+            source_busy.value.detail
+            == "active_intent_source_ip_mismatch"
+        )
 
 
 def test_window_failure_preserves_active_attempt_for_exact_retry(tmp_path) -> None:
@@ -229,6 +288,188 @@ class DeadlineReconciler:
                 .DEFINITELY_NOT_COMMITTED
             )
         )
+
+
+class BlockingWindow(Window):
+    def __init__(self, registry: RegistrationRegistry) -> None:
+        super().__init__(registry)
+        self.entered = threading.Event()
+        self.release = threading.Event()
+        self._lock = threading.Lock()
+        self.inflight = 0
+        self.max_inflight = 0
+
+    def open_first_registration(self, intent):
+        with self._lock:
+            self.inflight += 1
+            self.max_inflight = max(
+                self.max_inflight,
+                self.inflight,
+            )
+        self.entered.set()
+        assert self.release.wait(2.0)
+        try:
+            return super().open_first_registration(intent)
+        finally:
+            with self._lock:
+                self.inflight -= 1
+
+
+def test_concurrent_exact_confirms_are_serialized(tmp_path) -> None:
+    with RegistrationRegistry(tmp_path / "registration.sqlite3") as registry:
+        intents = FirstRegistrationIntentStore()
+        window = BlockingWindow(registry)
+        tx = service(registry, intents, window)
+        results = []
+        errors = []
+
+        def run_confirm() -> None:
+            try:
+                results.append(
+                    tx.start(
+                        request(),
+                        source_ip="192.0.2.44",
+                    )
+                )
+            except Exception as error:
+                errors.append(error)
+
+        first = threading.Thread(target=run_confirm)
+        second = threading.Thread(target=run_confirm)
+        first.start()
+        assert window.entered.wait(1.0)
+        second.start()
+        window.release.set()
+        first.join(2.0)
+        second.join(2.0)
+
+        assert not first.is_alive()
+        assert not second.is_alive()
+        assert errors == []
+        assert len(results) == 2
+        assert results[0].expires_at == results[1].expires_at
+        assert window.max_inflight == 1
+        assert window.calls == 2
+
+
+def test_successful_window_handoff_cancels_prewindow_deadline(tmp_path) -> None:
+    with RegistrationRegistry(tmp_path / "registration.sqlite3") as registry:
+        intents = FirstRegistrationIntentStore()
+        window = Window(registry)
+        timers = ManualDeadlineTimerFactory()
+        tx = FirstRegistrationTransactionService(
+            registry=registry,
+            intents=intents,
+            window=window,
+            manager_id="manager_lab_01",
+            system_id="greenhouse",
+            clock=lambda: NOW,
+            deadline_timer_factory=timers,
+        )
+
+        tx.start(
+            request(),
+            source_ip="192.0.2.44",
+        )
+
+        assert len(timers.timers) == 1
+        assert timers.timers[0].started is True
+        assert timers.timers[0].cancelled is True
+        assert (
+            timers.timers[0].delay_seconds
+            == FIRST_REGISTRATION_TTL_SECONDS
+        )
+
+
+def test_window_failure_deadline_expires_without_followup_request(tmp_path) -> None:
+    with RegistrationRegistry(tmp_path / "registration.sqlite3") as registry:
+        intents = FirstRegistrationIntentStore()
+        window = Window(registry)
+        window.fail = True
+        timers = ManualDeadlineTimerFactory()
+        clock = MutableClock(NOW)
+        reconciler = DeadlineReconciler(registry)
+        tx = FirstRegistrationTransactionService(
+            registry=registry,
+            intents=intents,
+            window=window,
+            manager_id="manager_lab_01",
+            system_id="greenhouse",
+            clock=clock,
+            reconciler=reconciler,
+            deadline_timer_factory=timers,
+        )
+
+        with pytest.raises(
+            FirstRegistrationTransactionRejected,
+            match="bootstrap_unavailable",
+        ):
+            tx.start(
+                request(),
+                source_ip="192.0.2.44",
+            )
+
+        active = registry.first_registration_ledger().get(PAIRING_ID)
+        assert active.state is FirstRegistrationAttemptState.ACTIVE
+        assert len(timers.timers) == 1
+        assert timers.timers[0].cancelled is False
+
+        clock.now = NOW + timedelta(
+            seconds=FIRST_REGISTRATION_TTL_SECONDS
+        )
+        timers.timers[0].fire()
+
+        expired = registry.first_registration_ledger().get(PAIRING_ID)
+        assert reconciler.calls == 1
+        assert expired.state is FirstRegistrationAttemptState.EXPIRED
+        assert (
+            expired.cleanup_state
+            is FirstRegistrationCleanupState.COMPLETE
+        )
+        assert intents.current() is None
+
+
+def test_exact_retry_after_window_failure_keeps_original_deadline_owner(
+    tmp_path,
+) -> None:
+    with RegistrationRegistry(tmp_path / "registration.sqlite3") as registry:
+        intents = FirstRegistrationIntentStore()
+        window = Window(registry)
+        window.fail = True
+        timers = ManualDeadlineTimerFactory()
+        tx = FirstRegistrationTransactionService(
+            registry=registry,
+            intents=intents,
+            window=window,
+            manager_id="manager_lab_01",
+            system_id="greenhouse",
+            clock=lambda: NOW,
+            deadline_timer_factory=timers,
+        )
+
+        with pytest.raises(
+            FirstRegistrationTransactionRejected,
+            match="bootstrap_unavailable",
+        ):
+            tx.start(
+                request(),
+                source_ip="192.0.2.44",
+            )
+        assert len(timers.timers) == 1
+
+        window.fail = False
+        retry = tx.start(
+            request(),
+            source_ip="192.0.2.44",
+        )
+
+        assert retry.expires_at == (
+            NOW + timedelta(
+                seconds=FIRST_REGISTRATION_TTL_SECONDS
+            )
+        )
+        assert len(timers.timers) == 1
+        assert timers.timers[0].cancelled is True
 
 
 def test_expired_active_retry_reconciles_before_returning_terminal(tmp_path) -> None:
