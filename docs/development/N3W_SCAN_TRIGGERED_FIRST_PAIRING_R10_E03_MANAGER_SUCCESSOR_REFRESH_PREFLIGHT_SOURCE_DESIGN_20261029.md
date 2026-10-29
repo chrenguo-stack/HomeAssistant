@@ -58,6 +58,7 @@ KF-131 is different. The proven failed object is the R10 first-registration ledg
 
 ```text
 registration_count=1
+registration_inventory_sha256=<fresh-public-safe-baseline>
 attempt_count=1
 unresolved=1
 attempt.state=ACTIVE
@@ -112,7 +113,7 @@ It checks:
 2. `n3wfc4-services-activation.service` active + enabled;
 3. registration ingress guard active;
 4. exactly one running Compose-owned Broker, Manager and Home Assistant;
-5. the installed services unit itself contains exactly one `ExecStart=` and one `ExecStop=`, with the production joint-supervision contract:
+5. the installed services unit itself contains exactly one `ExecStart=` and one `ExecStop=`; both lines must exactly equal the repository-frozen production commands (not substring matches), including:
    - `--profile application up --no-deps --no-log-prefix --abort-on-container-exit manager homeassistant`;
    - `stop homeassistant manager`;
    - no `--force-recreate`;
@@ -127,9 +128,10 @@ It checks:
 12. TCP/47112 count=0;
 13. Manager SQLite is opened with URI `mode=ro` and `PRAGMA query_only=ON`;
 14. `registration_count=1`;
-15. `attempt_count=1`;
-16. `unresolved_count=1`;
-17. the only attempt is:
+15. prior evidence did not freeze the identity fields of that existing `registrations` row, so the preflight computes a SHA-256 over its complete ordered DB tuple and exposes only `registration_inventory_sha256`; this fresh hash becomes the post-refresh continuity baseline and must not change;
+16. `attempt_count=1`;
+17. `unresolved_count=1`;
+18. the only attempt is:
     - ACTIVE;
     - BOOTSTRAP_ACCEPTED;
     - cleanup NONE;
@@ -137,11 +139,11 @@ It checks:
     - no node_id;
     - no terminal timestamp/reason;
     - no RegistrationRegistry row using the failed attempt pairing ID;
-18. the attempt must exactly match the previously proven public-safe identity:
+19. the attempt must exactly match the previously proven public-safe identity:
     - pairing-ID SHA-256 `9931c366d483abd3af6e1e3d903b82645542346dbd258975acd788998f0404dc`;
     - hardware-ID SHA-256 `3a76b39f066e09de0a285b81319eec20f29c8fd4136b61dc5a86ace01c1e1d55`;
-19. the report emits only those hashes, never the raw pairing ID or raw hardware ID;
-20. the intended successor source head, Manager image reference, Manager image ID, Manager tar SHA-256, artifact ID and artifact digest are frozen constants; CLI values must equal those constants and are not accepted merely because their format is valid.
+20. the report emits only those hashes, never the raw pairing ID or raw hardware ID;
+21. the intended successor source head, Manager image reference, Manager image ID, Manager tar SHA-256, artifact ID and artifact digest are frozen constants; CLI values must equal those constants and are not accepted merely because their format is valid.
 
 The preflight contains no live refresh command.
 
@@ -215,11 +217,12 @@ A later separately authorized mutation executor must:
 10. prove startup reconciliation converted the exact failed ACTIVE attempt to EXPIRED/TERMINAL with cleanup COMPLETE;
 11. prove unresolved=0;
 12. prove registration_count remains 1;
-13. prove TCP/47112 remains closed after refresh;
-14. rollback the old Manager image binding through the same systemd supervision owner on any failed postcondition;
-15. never manually edit the first-registration ledger;
-16. never open 47112 manually;
-17. never replay a consumed authorization.
+13. prove registration_inventory_sha256 is byte-for-byte identical to the readonly preflight baseline;
+14. prove TCP/47112 remains closed after refresh;
+15. rollback the old Manager image binding through the same systemd supervision owner on any failed postcondition;
+16. never manually edit the first-registration ledger;
+17. never open 47112 manually;
+18. never replay a consumed authorization.
 
 The live executor and live authorization are intentionally not part of this source gate.
 
