@@ -401,6 +401,11 @@ def test_strict_child_ssh_disables_fallback() -> None:
     assert "ProxyCommand=/usr/bin/false" in joined
 
 
+def test_embedded_remote_programs_compile() -> None:
+    compile(tool.SETTINGS_PROBE, "<settings-probe>", "exec")
+    compile(tool.LEDGER_PROBE, "<ledger-probe>", "exec")
+
+
 def test_ledger_probe_is_readonly() -> None:
     source = tool.LEDGER_PROBE.upper()
     assert "?MODE=RO" in source
