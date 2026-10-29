@@ -1,0 +1,672 @@
+# 温室环境监测系统（ESP32-C6）N3-W
+# R10 Board D physical-acceptance preflight + one-shot write
+# 新会话交接文档 V1.0 — 2026-10-29
+
+```text
+HANDOFF_TEMPLATE_VERSION=1.3
+SOLE_VALID_HANDOFF_TEMPLATE_VERSION=1.3
+OLDER_HANDOFF_TEMPLATE_VERSIONS=INVALID_FOR_NEW_HANDOFF_GENERATION
+HISTORICAL_TEMPLATE_COPIES=HISTORICAL_EVIDENCE_ONLY
+HISTORICAL_HANDOFF_STANDARD_DOES_NOT_AUTHORIZE_OLD_TEMPLATE=true
+PROJECT_WORKING_CONTEXT_VERSION=1.1
+PROJECT_WORKING_CONTEXT=docs/development/N3W_PROJECT_WORKING_CONTEXT.md
+NEXT_ONE_GATE_ONLY=true
+TEAM_SHARED_WORKSPACE=GITHUB
+```
+
+> 本文只保存当前 R10 阶段增量。长期规则统一读取
+> `docs/development/N3W_PROJECT_WORKING_CONTEXT.md`。
+> fresh repository / artifact / physical evidence 与本文冲突时，以 fresh 直接证据为准并 STOP。
+> 本 handoff 不把任何历史模板重新提升为当前模板 authority。
+
+---
+
+## 0. 会话切换结论
+
+```text
+CURRENT_STAGE=R10_BOARD_D_PHYSICAL_ACCEPTANCE_PREWRITE
+CURRENT_STOP_POINT=AUTHORIZED_BUT_NOT_EXECUTED_BEFORE_FRESH_BOARD_D_PREFLIGHT
+NEXT_ONE_GATE=N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_BOARD_D_PHYSICAL_ACCEPTANCE_PREFLIGHT_AND_WRITE_20261029_01
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+HANDOFF_READY_FOR_NEW_CHAT=true
+```
+
+本轮已完成 R10 产品源码、验收专用 artifact 和 Board D 写入执行器的源码/CI 闭环。用户已明确授权下一 Gate，但要求把实机执行放到新对话，因此当前对话只做 GitHub 状态对齐和 handoff，不触碰 Board D，也不消费授权。
+
+---
+
+## 1. 长期上下文引用与本阶段例外
+
+```text
+PROJECT_WORKING_CONTEXT_LOADED=true
+PROJECT_WORKING_CONTEXT_VERSION=1.1
+LONG_TERM_RULES_REPEATED_IN_HANDOFF=false
+
+STAGE_SPECIFIC_OVERRIDE_COUNT=4
+STAGE_OVERRIDES=
+1. NEXT_ONE_GATE 已由用户明确授权；新对话 fresh 只读确认通过后，不需要再次申请同一 Gate。
+2. 同一 Gate 内 preflight PASS 后可继续唯一一次 write；这不是跨 Gate。
+3. write authorization 只有在 executor claim_preflight 成功后才算 CLAIMED/CONSUMED。
+4. 无论 write PASS 或 FAIL，均不得自动进入 Board D normal boot / phone pairing successor gate。
+```
+
+---
+
+## 2. Product North Star
+
+```text
+CURRENT_PRODUCT_ROUTE=PHONE_CENTRIC_SCAN_TRIGGERED_FIRST_REGISTRATION_WITH_NORMAL_5_PAGE_LCD_CYCLE
+FINAL_ACCEPTANCE_TARGET=BOARD_D_R10_FIRST_REGISTRATION_END_TO_END_WITH_PHONE_UI_AND_DURABLE_MANAGER_COMMIT
+DEFERRED_OR_OUT_OF_SCOPE=THIS_GATE_ONLY_WRITES_ACCEPTANCE_FIRMWARE; NORMAL_APPLICATION_BOOT_PHONE_PAIRING_T1_MUTATION_AND_PRODUCTION_MERGE_ARE_SEPARATE
+```
+
+R10 产品交互已冻结：
+
+- 扫 QR 只打开节点本地页面，不自动搜索主机、不自动注册；
+- 用户明确点击“寻找主机”后才 discovery；
+- 用户明确选中候选后，再明确点击“开始注册”才进入不可主动取消的注册尝试；
+- 手机负责搜索、进度、成功和错误提示；
+- LCD 始终正常五页轮播，不因 discovery/registration 锁定第 5 页；
+- 未注册且 Wi-Fi 已连接时第 5 页保持注册 QR；
+- durable provisioned 成功后第 5 页显示“已联机注册”；
+- 正式产品源码保留 3.00 V 低电保护；
+- `-1.00 V` 只存在于本轮 physical-acceptance-only artifact。
+
+---
+
+## 3. Frozen Authorities
+
+```text
+REPOSITORY=chrenguo-stack/HomeAssistant
+MAIN=2fbd0e9c2d3bf8a513ac318034e249511ffb6a2e
+TREE=3064ab74ac96bbce44a0bf880ab53c7afc5bc134
+
+CANDIDATE_REF=PR_727/tools/n3w-r10-board-d-physical-acceptance-write-20261029
+CANDIDATE_HEAD=399d25460ac832be9493ae979cf85adc361552ff
+CANDIDATE_TREE=6f9efe4e227cb4d860bf095bdfc492f4168ae4b4
+
+ARTIFACT_ID=12864962159
+ARTIFACT_SHA256=b57a5af10c23344e8e03250857455898eb60640e3e18c62022af9c2b9ab7f6da
+
+DEPLOYED_SOURCE_HEAD=NOT_APPLICABLE:NEXT_GATE_HAS_T1_ACCESS_FALSE_AND_DEPLOYED_T1_STATE_IS_NOT_REQUIRED_FOR_BOARD_WRITE
+DEPLOYED_SOURCE_TREE=NOT_APPLICABLE:SAME_REASON
+
+OTHER_REQUIRED_AUTHORITY=
+PR725_HEAD=44d3320877a0a47c3dd728182fae2f209bffbc0f
+PR725_TREE=2d7106c41d8495c8a90c21eca5aadb6f8b5895f1
+PR726_HEAD=1c7247b64191fc72a3a0f1db0b1be13ceabec0f2
+PR726_TREE=be658d7bd56506242068a6b680b05816eeb2373a
+PRODUCT_SOURCE_HEAD=44d3320877a0a47c3dd728182fae2f209bffbc0f
+ACCEPTANCE_SOURCE_HEAD=faf07839fcef221f9defb296eadcc7c090e12d4e
+ACCEPTANCE_SOURCE_TREE=dc26f11617b721da316e7815b5330b8d8c1f3474
+```
+
+### 3.1 PR #725 — R10 product/UI source
+
+```text
+PR725_STATE=OPEN_DRAFT
+PR725_HEAD=44d3320877a0a47c3dd728182fae2f209bffbc0f
+R10_PHONE_LCD_SOURCE_CLOSURE=PASS
+PR725_FINAL_CI=24_OF_24_SUCCESS
+PRODUCT_LOW_BATTERY_BYPASS_PRESENT=false
+```
+
+### 3.2 PR #726 — acceptance-only source/artifact
+
+```text
+PR726_STATE=OPEN_DRAFT
+PR726_HEAD=1c7247b64191fc72a3a0f1db0b1be13ceabec0f2
+
+ACCEPTANCE_SOURCE_HEAD=faf07839fcef221f9defb296eadcc7c090e12d4e
+ACCEPTANCE_SOURCE_TREE=dc26f11617b721da316e7815b5330b8d8c1f3474
+ACCEPTANCE_DELTA_FILES=1
+ACCEPTANCE_DELTA_ADDITIONS=1
+ACCEPTANCE_DELTA_DELETIONS=0
+ACCEPTANCE_DELTA=battery_low_threshold:"-1.00"
+
+PHYSICAL_ACCEPTANCE_ONLY=true
+DEVELOPMENT_ONLY=true
+PRODUCTION_ELIGIBLE=false
+LOW_BATTERY_PROTECTION_BYPASSED=true
+
+ARTIFACT_RUN_ID=40798244418
+ARTIFACT_ID=12864962159
+ARTIFACT_NAME=n3w-r10-physical-acceptance-faf07839
+ARTIFACT_OUTER_SIZE=4501387
+ARTIFACT_OUTER_SHA256=b57a5af10c23344e8e03250857455898eb60640e3e18c62022af9c2b9ab7f6da
+INNER_BUNDLE_SIZE=4500900
+INNER_BUNDLE_SHA256=91b3e47b16025ec9fdf73500e463ecc0db4121ea0dc9dcc12325e88e7e7c347b
+MANIFEST_SHA256=1aa0da0be83d461d92274fef0f37420032a05d7b3e25803ad236e3bb6883ef44
+RELEASE_MEMBER_COUNT=8
+
+FIRMWARE_BIN_SIZE=1465712
+FIRMWARE_BIN_SHA256=e68dcd2883500b99960b483fd06e5d16ef95557b8faedc928eb81d1b14a98eb2
+NORMALIZED_ACCEPTANCE_SLOT_SIZE=3932160
+NORMALIZED_ACCEPTANCE_SLOT_SHA256=9d3b7b9d6b277e06cb6eb7f3155e9c777025b0d5cdb6e40feec47d46435eafbd
+
+BOOTLOADER_BIN_SHA256=a3818092401a75580eb19a5d54ea01fed651467f54c01550988932d56ce7e9b5
+PARTITIONS_BIN_SHA256=6664b08a14a9cdc170e322823db29fbe485d87db9c4ec42759d9372028953dca
+OTADATA_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
+OTADATA_ALL_FF=true
+```
+
+Artifact 已独立下载检查，不只依赖 CI 状态：GitHub 外层摘要、sidecar、inner bundle、manifest 和 8 个成员均匹配。
+
+### 3.3 PR #727 — Board D physical write executor
+
+```text
+PR727_STATE=OPEN_DRAFT
+PR727_HEAD=399d25460ac832be9493ae979cf85adc361552ff
+PR727_TREE=6f9efe4e227cb4d860bf095bdfc492f4168ae4b4
+
+EXECUTOR=tools/execution_packages/n3w/scan_first_pairing/r10_board_d_physical_acceptance_write/executor.py
+EXECUTOR_FOCUSED_TESTS=34_OF_34_PASS
+PUBLIC_REPOSITORY_SAFETY=PASS
+SOURCE_REPAIR_CLOSED=PASS
+
+EXPECTED_BOARD_D_HARDWARE_ID_SHA256=3991b9af9e7604190a8ac8e60b780911a8faed6698cda5421eaf1eb686210df5
+EXPECTED_CURRENT_R9_SLOT_SHA256=6e777334cd8dec12523ec5e2daa6ce2909a4d581531218b0d9cec26803f68079
+EXPECTED_CURRENT_R9_BOOTLOADER_ERASE_SPAN_SHA256=e88f39529dd195f7f792c4be45d435c0c205c64e5147cf31be125d9344d600ae
+```
+
+---
+
+## 4. Current Live Baseline
+
+交接时没有重新接触 Board D 或 T1，因此没有把旧现场状态冒充 fresh evidence。
+
+```text
+MANAGER_STATE=UNKNOWN_FRESH:NOT_REQUIRED_BY_NEXT_BOARD_ONLY_GATE
+MANAGER_RESTART_STATE=UNKNOWN_FRESH
+BROKER_STATE=UNKNOWN_FRESH
+HOMEASSISTANT_STATE=UNKNOWN_FRESH
+
+BOARD_D_POWER_STATE=UNKNOWN_FRESH
+BOARD_D_USB_STATE=UNKNOWN_FRESH
+BOARD_D_APPLICATION_STATE=UNKNOWN_FRESH
+BOARD_D_EXPECTED_FLASH_BASELINE=R9_DUAL_SLOT_NORMALIZED_REQUIRES_FRESH_PREFLIGHT_RECHECK
+
+APPLICATION_SERIAL_OPEN=false
+FLASH_MUTATION=false
+NVS_MUTATION=false
+T1_RUNTIME_MUTATION=false
+```
+
+下一 Gate 的 Board D fresh preflight 会直接验证身份、flash size、安全状态、bootloader baseline、partition、PHY；write 前还会完整备份 OTA/app0/app1 和受保护区，并要求 app0/app1 仍是 frozen R9 normalized slot。
+
+---
+
+## 5. Proven Current Facts
+
+```text
+R10_PRODUCT_SOURCE_CLOSED_PASS=true
+R10_ACCEPTANCE_ARTIFACT_CLOSED_PASS=true
+R10_WRITE_EXECUTOR_SOURCE_CLOSED_PASS=true
+
+PR725_CI_24_OF_24_PASS=true
+PR727_FOCUSED_TESTS_34_OF_34_PASS=true
+PR727_PUBLIC_REPOSITORY_SAFETY_PASS=true
+
+ARTIFACT_INDEPENDENT_REVIEW=PASS
+PRODUCT_SOURCE_HAS_LOW_BATTERY_BYPASS=false
+ACCEPTANCE_SOURCE_HAS_LOW_BATTERY_BYPASS=true
+
+WRITE_ROUTE_SEGMENT_COUNT=3
+WRITE_OTADATA=true
+WRITE_APP0=true
+WRITE_APP1=true
+WRITE_BOOTLOADER=false
+WRITE_PARTITION_TABLE=false
+WRITE_PHY_INIT=false
+WRITE_NVS=false
+FACTORY_IMAGE_DIRECT_WRITE=false
+FULL_FLASH_ERASE=false
+
+USER_GRANTED_NEXT_PHYSICAL_GATE=true
+NEXT_PHYSICAL_AUTH_CLAIMED=false
+NEXT_PHYSICAL_AUTH_CONSUMED=false
+```
+
+```text
+INFERENCE_BOARD_D_STILL_MATCHES_R9_BASELINE=NOT_ASSUMED; MUST_BE_PROVEN_BY_FRESH_PREFLIGHT
+```
+
+---
+
+## 6. Current Root Cause / Blockers
+
+```text
+CURRENT_BLOCKER_COUNT=0
+CURRENT_BLOCKER=NONE
+ROOT_CAUSE=NOT_APPLICABLE
+PROVEN_BY=SOURCE_CLOSURE_PLUS_EXACT_ARTIFACT_REVIEW_PLUS_EXECUTOR_CI
+SOURCE_DEFECT_PROVEN=false
+RUNTIME_DEFECT_PROVEN=false
+```
+
+本阶段之前的物理尝试被低电保护挡住；已证明这是 production 3.00 V battery policy 与台架验收条件的冲突，不是首次配对产品逻辑故障。本轮使用单独的 non-production `-1.00 V` acceptance source 解决台架阻断，正式产品阈值不变。
+
+---
+
+## 7. Closed / Forbidden Routes
+
+```text
+OLD_R9_PHYSICAL_WRITE_AUTHORIZATION=CLOSED:CONSUMED_AND_NON_REPLAYABLE
+OLD_FIRST_BOOT_PHONE_PAIRING_AUTHORIZATION=CLOSED:CONSUMED_AND_NON_REPLAYABLE
+PR663_OLD_BYPASS_ARTIFACT_ROUTE=CLOSED:DO_NOT_REUSE_HISTORICAL_ARTIFACT
+R9_FACTORY_IMAGE_DIRECT_WRITE=CLOSED:NOT_SELECTED_ROUTE
+R10_ACCEPTANCE_BOOTLOADER_WRITE=CLOSED:BOOTLOADER_IS_PROTECTED_READONLY_BASELINE
+NVS_ERASE_OR_FACTORY_RESET=CLOSED:NOT_REQUIRED_AND_FORBIDDEN
+MANUAL_T1_47112_OPEN=CLOSED:NOT_PART_OF_BOARD_WRITE_GATE
+AUTO_RETRY_AFTER_PHYSICAL_FAILURE=CLOSED:ONE_SHOT_ONLY
+```
+
+---
+
+## 8. Authorization Ledger
+
+```text
+AUTHORIZATION=N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_BOARD_D_PHYSICAL_ACCEPTANCE_PREFLIGHT_AND_WRITE_20261029_01
+GRANTED=true
+CLAIMED=false
+CONSUMED=false
+RESULT=NOT_EXECUTED
+REPLAY_PERMITTED=false
+SUPERSEDED_BY=NONE
+
+AUTHORIZED_READONLY_PREFLIGHT=true
+AUTHORIZED_ONE_FLASH_WRITE_ATTEMPT=true
+AUTHORIZED_AUTO_RETRY=false
+AUTHORIZED_BOOTLOADER_WRITE=false
+AUTHORIZED_PARTITION_WRITE=false
+AUTHORIZED_PHY_WRITE=false
+AUTHORIZED_NVS_WRITE=false
+AUTHORIZED_T1_MUTATION=false
+AUTHORIZED_MERGE=false
+```
+
+用户在 handoff-preparation chat 中明确写出“我同意 `NEXT_ONE_GATE`，但是要放到新对话中继续”。因此该授权可由下一新对话使用，前提是它仍未 claimed/consumed，且 fresh authority 没有漂移。不要重新要求用户授权同一个 Gate，也不要把它扩大到后续 boot/phone pairing。
+
+Executor 内部 write confirmation token：
+
+```text
+N3W_R10_BOARD_D_PHYSICAL_ACCEPTANCE_WRITE_AUTHORIZED
+```
+
+这个 token 只用于 executor 的机械 claim/write 边界；它不扩大用户授权范围。
+
+---
+
+## 9. Rollback Authority
+
+```text
+ROLLBACK_BASELINE=FRESH_PREWRITE_BOARD_D_OTA_APP0_APP1_BACKUPS_PLUS_PROTECTED_BOOTLOADER_PARTITION_PHY_NVS_SNAPSHOTS
+FRESH_PRECHANGE_SNAPSHOT_REQUIRED=true
+ROLLBACK_AUTHORITY_PATH_OR_ID=PR727_EXECUTOR_HEAD_399d25460ac832be9493ae979cf85adc361552ff
+RESTART_SCOPE_ALLOWED=false
+SECOND_ATTEMPT_ALLOWED=false
+ROLLBACK_FAILURE_CLASS=ROLLBACK_INCOMPLETE
+```
+
+Write claim 前必须 fresh 备份并验证：
+
+- OTA data；
+- app0 full slot；
+- app1 full slot；
+- bootloader erase span；
+- partition sector；
+- PHY；
+- NVS。
+
+其中 app0/app1 必须仍匹配 previous R9 normalized slot；bootloader 必须仍匹配 previous R9 baseline。任何不匹配都在 claim/write 前 STOP。
+
+若 claim 后 write/postwrite 失败，executor 只回滚实际触碰的 OTA/app0/app1，随后重新验证所有 touched/protected ranges 和 Board D identity。rollback PASS 也不允许重放同一 physical attempt。
+
+---
+
+## 10. Next ONE Gate
+
+```text
+NEXT_ONE_GATE=N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_BOARD_D_PHYSICAL_ACCEPTANCE_PREFLIGHT_AND_WRITE_20261029_01
+```
+
+### Purpose
+
+这一步只证明三件事：
+
+1. 现场 Board D 仍是冻结的 R9 双槽/bootloader/partition/PHY 基线；
+2. R10 physical-acceptance artifact 能按最小三段写入路线安全替换 app0/app1，并保留 NVS 等受保护区；
+3. 写后 flash readback 精确匹配 R10 acceptance slot，且保护区连续性成立。
+
+这一步**不能**证明：
+
+- R10 正常 application boot；
+- 手机扫码页面；
+- T1 discovery；
+- 真实 registration transaction；
+- durable Manager COMMIT；
+- LCD 最终“已联机注册”。
+
+这些属于 successor physical gate。
+
+### Inputs
+
+```text
+EXECUTOR_HEAD=399d25460ac832be9493ae979cf85adc361552ff
+EXECUTOR_PATH=tools/execution_packages/n3w/scan_first_pairing/r10_board_d_physical_acceptance_write/executor.py
+
+ARTIFACT_ID=12864962159
+ARTIFACT_OUTER_SHA256=b57a5af10c23344e8e03250857455898eb60640e3e18c62022af9c2b9ab7f6da
+
+PREFLIGHT_CONFIRMATION=R10 BOARD D PHYSICAL ACCEPTANCE PREFLIGHT: YES
+WRITE_CONFIRMATION=N3W_R10_BOARD_D_PHYSICAL_ACCEPTANCE_WRITE_AUTHORIZED
+```
+
+### Operations
+
+```text
+1. fresh rebind repository, PR #725/#726/#727 and this handoff; confirm no source/artifact drift.
+2. obtain the exact GitHub artifact ID 12864962159 and verify its outer SHA-256 before Board access.
+3. connect only Board D; discover exactly one selected /dev/cu.usbmodem* target.
+4. run executor preflight only. It may read Board D and write private local evidence files, but must not flash.
+5. require PREFLIGHT PASS: identity, ESP32-C6, 8MB, security disabled, R9 bootloader baseline, exact partition table, all-FF PHY, exact artifact/normalized-slot bindings.
+6. if preflight PASS and the granted authorization is still unclaimed/unconsumed, continue within the same Gate to the one allowed write attempt.
+7. before claim, executor captures and verifies fresh backups; app0/app1 must still equal CURRENT_R9_SLOT_SHA256.
+8. executor claims/consumes the one-shot authorization, writes only OTA data + app0 + app1, then performs full readback.
+9. require bootloader/partition/PHY/NVS unchanged, app0/app1 exact R10 normalized slot, OTA data exact all-FF, Board D identity unchanged.
+10. STOP after PASS or first substantive FAIL. Do not boot the application and do not retry.
+```
+
+### PASS / FAIL / STOP
+
+```text
+PASS_IF=PREFLIGHT_PASS_AND_SINGLE_WRITE_PASS_AND_FULL_POSTWRITE_READBACK_PASS_AND_ALL_PROTECTED_RANGES_UNCHANGED
+FAIL_IF=ANY_AUTHORITY_IDENTITY_ARTIFACT_BASELINE_BACKUP_WRITE_READBACK_OR_ROLLBACK_CONTRACT_MISMATCH
+STOP_BOUNDARY=IMMEDIATELY_AFTER_GATE_PASS_OR_FIRST_SUBSTANTIVE_FAIL; NO_NORMAL_APP_BOOT
+
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+---
+
+## 11. Hard Allowed / Forbidden Scope
+
+```text
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+```
+
+### ALLOWED
+
+```text
+- fresh GitHub / PR / artifact read-only rebind
+- exact artifact download and local hash validation
+- one Board D read-only preflight
+- private local evidence-directory writes required by executor
+- one Board D flash write attempt after preflight PASS
+- write ranges only: OTA data, app0, app1
+- automatic rollback of only touched OTA/app ranges if the claimed attempt fails
+- postwrite readback of touched and protected flash regions
+```
+
+### FORBIDDEN
+
+```text
+- second flash attempt
+- auto retry
+- application boot after write
+- phone scan/pairing
+- serial terminal as passive observer
+- bootloader write
+- partition-table write
+- PHY write
+- NVS write/erase/reset
+- factory-image direct write
+- raw flash_args execution
+- full flash erase / erase-region
+- T1 access or mutation
+- Manager/Broker/HA restart/recreate
+- manual 47112 open
+- merge PR #725/#726/#727 or docs alignment PR
+```
+
+```text
+LIVE_RUNTIME_MUTATION=false
+BOUNDED_EVIDENCE_FILESYSTEM_WRITE=true
+BOUNDED_WRITE_SCOPE=LOCAL_PRIVATE_PREFLIGHT_BACKUP_CLAIM_POSTWRITE_AND_ROLLBACK_EVIDENCE_ONLY
+```
+
+---
+
+## 12. Execution Contract
+
+```text
+EXECUTOR=tools/execution_packages/n3w/scan_first_pairing/r10_board_d_physical_acceptance_write/executor.py@399d25460ac832be9493ae979cf85adc361552ff
+EXECUTION_METHOD=mac-terminal-plus-versioned-python-executor
+DIRECT_CODE_SUPPLIED=false
+DSL_COMPILATION_USED=false
+CI_POLL_MAX=3
+CI_PENDING_DIRECT_LINKS_REQUIRED=true
+CI_ALL_GREEN_CONTINUE_REQUIRED_REVIEW=true
+SAME_GATE_LOW_RISK_REPAIR_CONTINUE=true
+```
+
+新对话先给用户最小、可复制的 Mac Terminal 命令。命令中不要写注释。
+
+执行必须分两段：
+
+```text
+A. PREFLIGHT
+B. WRITE_ONLY_IF_A_PASS
+```
+
+两段属于同一个已授权 Gate；A PASS 后不需要再次向用户申请授权。若 A FAIL，绝不进入 B。
+
+若 B 已 claim，无论后续 PASS/FAIL，授权均视为 consumed，禁止第二次写入。
+
+---
+
+## 13. Expected Closure
+
+```text
+=== N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_BOARD_D_PHYSICAL_ACCEPTANCE_PREFLIGHT_AND_WRITE_20261029_01 CLOSURE ===
+
+EXECUTION_ID=
+AUTHORIZATION=N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_BOARD_D_PHYSICAL_ACCEPTANCE_PREFLIGHT_AND_WRITE_20261029_01
+AUTHORIZATION_CLAIMED=
+AUTHORIZATION_CONSUMED=
+
+ARTIFACT_OUTER_SHA256=
+HARDWARE_ID_SHA256=
+PREFLIGHT_RESULT=
+CURRENT_R9_APP0_BASELINE_MATCH=
+CURRENT_R9_APP1_BASELINE_MATCH=
+CURRENT_R9_BOOTLOADER_BASELINE_MATCH=
+
+WRITE_ATTEMPT_COUNT=
+WRITE_RESULT=
+OTADATA_SHA256=
+APP0_FULL_SLOT_SHA256=
+APP1_FULL_SLOT_SHA256=
+BOOTLOADER_UNCHANGED=
+PARTITION_UNCHANGED=
+PHY_INIT_UNCHANGED=
+NVS_UNCHANGED=
+OLD_APPLICATION_CODE_REMAINS=
+
+ROLLBACK_ATTEMPTED=
+ROLLBACK_RESULT=
+
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=true
+FLASH_MUTATION=
+NVS_MUTATION=false
+T1_MUTATION=false
+
+GATE_RESULT=
+NEXT_ROUTE=SEPARATE_NEW_AUTHORIZATION_FOR_NORMAL_BOOT_AND_PHONE_FIRST_REGISTRATION
+STOP=true
+
+=== END ===
+```
+
+---
+
+## 14. After PASS / FAIL
+
+```text
+AFTER_PASS_NEXT_STAGE=PROPOSED_N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_BOARD_D_FIRST_BOOT_AND_PHONE_PAIRING_PHYSICAL_ACCEPTANCE_R2
+AUTO_EXECUTE_AFTER_PASS=false
+NEW_AUTHORIZATION_REQUIRED=true
+
+AUTO_REPAIR_AFTER_FAIL=false
+AUTO_RETRY_AFTER_FAIL=false
+STOP_AND_REVIEW_AFTER_FAIL=true
+```
+
+PASS 后 Board D 应保持 flasher stub / no-reset 状态；不要为了“看看是否启动”而手动 reset、拔插或打开串口。正常 boot + 手机首次注册必须新开 Gate。
+
+---
+
+## 15. KNOWN_FAILURES Updates
+
+```text
+KNOWN_FAILURES_UPDATE_REQUIRED=false
+EXISTING_KF_GUARD_USED=NONE_NEW
+NEW_KF_REQUIRED=false
+```
+
+说明：
+
+- 前一轮低电阻断已归类为 acceptance test environment 与 production battery policy 的冲突，不是已证明的产品 defect；
+- PR #727 准备期间出现的函数链误删和测试 literal MAC 均为 source-preparation/CI 内部问题，已在进入物理 Gate 前关闭，不需要新增 KF。
+
+---
+
+## 16. New Chat Start Prompt
+
+新对话必须优先读取本 handoff 所在 docs alignment branch/PR，因为 main 当前仍停在旧 R5/R6 current-state 文档。
+
+建议启动文本：
+
+```text
+阅读：
+docs/development/N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_BOARD_D_PHYSICAL_ACCEPTANCE_PREFLIGHT_AND_WRITE_NEW_CHAT_HANDOFF_V1.0_20261029.md
+
+该 handoff 当前位于：
+docs/n3w-r10-board-d-physical-acceptance-handoff-20261029
+
+同时读取：
+- docs/development/N3W_PROJECT_WORKING_CONTEXT.md
+- docs/development/N3W_CURRENT_STATE.md
+- docs/development/N3W_CURRENT_STATE_INDEX.md
+- docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md
+
+并 fresh rebind：
+- repository main
+- PR #725 exact head
+- PR #726 exact head / artifact run 40798244418 / artifact ID 12864962159
+- PR #727 exact head 399d25460ac832be9493ae979cf85adc361552ff
+
+继续“温室环境监测系统（ESP32-C6）”项目 N3-W。
+
+先做当前 gate 所需的最小 fresh 只读确认，然后只进入：
+
+NEXT_ONE_GATE=N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_BOARD_D_PHYSICAL_ACCEPTANCE_PREFLIGHT_AND_WRITE_20261029_01
+
+该 Gate 已由用户明确授权：
+GRANTED=true
+CLAIMED=false
+CONSUMED=false
+
+不要再次申请同一个 Gate；但如果 fresh authority 有任何漂移，立即 STOP。
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+
+本 Gate 允许：
+- Board D read-only preflight；
+- preflight PASS 后唯一一次 OTA/app0/app1 写入；
+- 必要的 touched-range rollback。
+
+禁止：
+- bootloader/partition/PHY/NVS 写入；
+- 第二次写入或自动重试；
+- 正常 application boot；
+- 手机扫码/注册；
+- T1 mutation；
+- merge。
+
+不要重放任何历史 consumed authorization，不要重新进入 closed routes，不要自动跨越下一阶段。
+```
+
+---
+
+## 17. Final Frozen State
+
+```text
+CURRENT_STAGE=R10_BOARD_D_PHYSICAL_ACCEPTANCE_PREWRITE
+CURRENT_STOP_POINT=NEW_CHAT_BEFORE_FRESH_BOARD_D_PREFLIGHT
+CURRENT_BLOCKER=NONE
+LIVE_SYSTEM_STATE=UNKNOWN_FRESH_FOR_BOARD_D_AND_T1; NEXT_GATE_REQUIRES_BOARD_D_FRESH_PREFLIGHT
+NEXT_ONE_GATE=N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_BOARD_D_PHYSICAL_ACCEPTANCE_PREFLIGHT_AND_WRITE_20261029_01
+
+TEAM_SHARED_WORKSPACE=GITHUB
+IMPORTANT_CHAT_ONLY_ARTIFACT_COUNT=0
+TEAM_SHARE_COMPLETENESS=PASS
+
+PROJECT_WORKING_CONTEXT_VERSION=1.1
+HANDOFF_TEMPLATE_VERSION=1.3
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+```
+
+本轮关键源码、artifact authority、执行器、current-state 对齐和 formal handoff 均已进入 GitHub；没有必须依赖聊天记录才能恢复的工程事实。
+
+---
+
+## 18. Handoff Compliance Audit
+
+```text
+=== HANDOFF COMPLIANCE AUDIT ===
+
+HANDOFF_TEMPLATE_VERSION=1.3
+PROJECT_WORKING_CONTEXT_VERSION=1.1
+
+PROJECT_WORKING_CONTEXT_REFERENCED=PASS
+LONG_TERM_RULE_DUPLICATION_MINIMIZED=PASS
+STAGE_SPECIFIC_OVERRIDES_EXPLICIT=PASS
+PRIVATE_CONTEXT_EXCLUDED_FROM_PUBLIC_HANDOFF=PASS
+
+PRODUCT_NORTH_STAR_PRESENT=PASS
+FROZEN_AUTHORITIES_COMPLETE=PASS
+CURRENT_LIVE_BASELINE_COMPLETE=PASS
+PROVEN_FACTS_SEPARATED_FROM_INFERENCE=PASS
+CURRENT_BLOCKERS_EXPLICIT=PASS
+CLOSED_ROUTES_EXPLICIT=PASS
+
+AUTHORIZATION_LEDGER_COMPLETE=PASS
+CONSUMED_AUTH_REPLAY_GUARD=PASS
+ROLLBACK_AUTHORITY_EXPLICIT=PASS
+
+NEXT_ONE_GATE_EXPLICIT=PASS
+NEXT_GATE_SCOPE_BOUNDED=PASS
+ALLOWED_FORBIDDEN_SCOPE_EXPLICIT=PASS
+EXECUTION_CONTRACT_SELF_CONTAINED=PASS
+CI_CONTINUATION_HARD_RULES_PRESENT=PASS
+EXPECTED_CLOSURE_PRESENT=PASS
+AFTER_PASS_DOES_NOT_AUTO_EXECUTE=PASS
+
+KNOWN_FAILURES_UPDATE_CLASSIFIED=PASS
+NEW_CHAT_START_PROMPT_PRESENT=PASS
+TEAM_WORKSPACE_STATUS_PRESENT=PASS
+FINAL_FROZEN_STATE_PRESENT=PASS
+
+HANDOFF_STATE_COMPLETENESS=PASS
+HANDOFF_READY_FOR_NEW_CHAT=true
+
+=== END ===
+```
