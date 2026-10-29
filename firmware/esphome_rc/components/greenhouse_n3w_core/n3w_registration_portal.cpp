@@ -960,6 +960,7 @@ esp_err_t RegistrationPortal::handle_confirm_(httpd_req_t *request) {
           });
       if (found != candidates_.end()) {
         selected_candidate_id_ = candidate_id;
+        found->expires_at_ms = now_ms + kRegistrationUserConfirmMs;
         error_code_.clear();
         error_message_.clear();
         discovery_stage_ = RegistrationPortalStage::CANDIDATE_SELECTED;
