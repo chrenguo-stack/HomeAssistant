@@ -18,6 +18,8 @@ ARTIFACT_DIGEST_SHA256=c94568f740b911eee0f4238207249b1e98f84748c17a902938ccc3529
 MANAGER_IMAGE=local/greenhouse-manager:fresh-f8876fd87165
 MANAGER_IMAGE_ID=sha256:089153fa4bbc823a1357427083f23ef96933a119c6ae150c143b62d7b40859e4
 MANAGER_TAR_SHA256=d129a33ea628d8bdd1361e0b1bf727175515b4a2afc1851e6ac14ec510895fb5
+FAILED_PAIRING_ID_SHA256=9931c366d483abd3af6e1e3d903b82645542346dbd258975acd788998f0404dc
+FAILED_HARDWARE_ID_SHA256=3a76b39f066e09de0a285b81319eec20f29c8fd4136b61dc5a86ace01c1e1d55
 ```
 
 ## 2. Why the historical Manager-only recreate path is forbidden
@@ -130,8 +132,11 @@ It checks:
     - no node_id;
     - no terminal timestamp/reason;
     - no RegistrationRegistry row using the failed attempt pairing ID;
-17. the report emits only the pairing-ID SHA-256 and stored hardware-ID SHA-256, never the raw pairing ID;
-18. the report binds the intended successor source/artifact/image ID/tar SHA.
+17. the attempt must exactly match the previously proven public-safe identity:
+    - pairing-ID SHA-256 `9931c366d483abd3af6e1e3d903b82645542346dbd258975acd788998f0404dc`;
+    - hardware-ID SHA-256 `3a76b39f066e09de0a285b81319eec20f29c8fd4136b61dc5a86ace01c1e1d55`;
+18. the report emits only those hashes, never the raw pairing ID or raw hardware ID;
+19. the intended successor source head, Manager image reference, Manager image ID, Manager tar SHA-256, artifact ID and artifact digest are frozen constants; CLI values must equal those constants and are not accepted merely because their format is valid.
 
 The preflight contains no live refresh command.
 
@@ -174,10 +179,13 @@ attempt_phase=BOOTSTRAP_ACCEPTED
 attempt_cleanup_state=NONE
 attempt_expired_by_clock=true
 attempt_registration_match_count=0
+attempt_pairing_id_sha256=9931c366d483abd3af6e1e3d903b82645542346dbd258975acd788998f0404dc
+attempt_hardware_id_sha256=3a76b39f066e09de0a285b81319eec20f29c8fd4136b61dc5a86ace01c1e1d55
 
 tcp_47112=0
 
 target_source_head=f8876fd87165df731d792690a8288867c3eeef55
+target_manager_image=local/greenhouse-manager:fresh-f8876fd87165
 target_manager_image_id=sha256:089153fa4bbc823a1357427083f23ef96933a119c6ae150c143b62d7b40859e4
 target_manager_tar_sha256=d129a33ea628d8bdd1361e0b1bf727175515b4a2afc1851e6ac14ec510895fb5
 artifact_id=12900601779
@@ -228,7 +236,13 @@ CONSUMED_AUTHORIZATION_REPLAY=false
 Next after source/CI closure:
 
 ```text
+N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_E03_MANAGER_SUCCESSOR_REFRESH_PREFLIGHT_TO_PR725_INTEGRATION_REVIEW_20261029_01
+```
+
+Only after that stacked source is integrated into PR #725 may the project enter:
+
+```text
 N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_E03_MANAGER_SUCCESSOR_REFRESH_READONLY_T1_PRELIVE_20261029_01
 ```
 
-That next gate is read-only only. It still does not authorize the Manager refresh.
+The T1 pre-live gate remains read-only only. It still does not authorize the Manager refresh.
