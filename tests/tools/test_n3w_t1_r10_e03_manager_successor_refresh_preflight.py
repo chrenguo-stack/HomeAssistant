@@ -29,8 +29,8 @@ MANAGER_TAR_SHA256 = (
 ARTIFACT_DIGEST = (
     "c94568f740b911eee0f4238207249b1e98f84748c17a902938ccc35293e4b183"
 )
-PAIRING_HASH = "1" * 64
-HARDWARE_HASH = "2" * 64
+PAIRING_HASH = tool.EXPECTED_FAILED_PAIRING_ID_SHA256
+HARDWARE_HASH = tool.EXPECTED_FAILED_HARDWARE_ID_SHA256
 
 
 def _args() -> argparse.Namespace:
@@ -170,6 +170,7 @@ def test_preflight_passes_exact_failed_attempt_and_target_binding() -> None:
     assert report["ledger"]["failed_attempt"]["pairing_id_sha256"] == PAIRING_HASH
     assert report["ledger"]["failed_attempt"]["hardware_id_sha256"] == HARDWARE_HASH
     assert report["target"]["source_head"] == SOURCE_HEAD
+    assert report["target"]["manager_image"] == tool.EXPECTED_TARGET_MANAGER_IMAGE
     assert report["target"]["manager_image_id"] == MANAGER_IMAGE_ID
     assert report["target"]["manager_tar_sha256"] == MANAGER_TAR_SHA256
     assert report["target"]["artifact_id"] == 12900601779
@@ -203,6 +204,40 @@ def test_preflight_rejects_unresolved_count_drift() -> None:
 def test_preflight_rejects_manager_restart_drift() -> None:
     with pytest.raises(tool.PreflightError, match="manager_restart_count_drift"):
         tool.preflight(_args(), FakeRunner(manager_restart_count=1))
+
+
+def test_preflight_rejects_failed_attempt_pairing_identity_drift() -> None:
+    ledger = _ledger()
+    ledger["attempts"][0]["pairing_id_sha256"] = "1" * 64
+    with pytest.raises(
+        tool.PreflightError,
+        match="failed_attempt_pairing_identity_drift",
+    ):
+        tool.preflight(_args(), FakeRunner(ledger=ledger))
+
+
+def test_preflight_rejects_failed_attempt_hardware_identity_drift() -> None:
+    ledger = _ledger()
+    ledger["attempts"][0]["hardware_id_sha256"] = "2" * 64
+    with pytest.raises(
+        tool.PreflightError,
+        match="failed_attempt_hardware_identity_drift",
+    ):
+        tool.preflight(_args(), FakeRunner(ledger=ledger))
+
+
+def test_preflight_rejects_successor_artifact_binding_drift() -> None:
+    args = _args()
+    args.artifact_id += 1
+    with pytest.raises(tool.PreflightError, match="target_artifact_id_drift"):
+        tool.preflight(args, FakeRunner())
+
+
+def test_preflight_rejects_successor_source_binding_drift() -> None:
+    args = _args()
+    args.target_source_head = "0" * 40
+    with pytest.raises(tool.PreflightError, match="target_source_head_drift"):
+        tool.preflight(args, FakeRunner())
 
 
 def test_ledger_probe_is_readonly_and_secret_safe() -> None:
