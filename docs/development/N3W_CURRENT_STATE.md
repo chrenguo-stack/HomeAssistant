@@ -1,3 +1,54 @@
+## 2026-10-29 — R10 Board D physical acceptance one-shot write PASS; stopped before normal boot
+
+~~~text
+TASK=N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_BOARD_D_PHYSICAL_ACCEPTANCE_PREFLIGHT_AND_WRITE_20261029_01
+
+FRESH_REBIND=PASS
+PR725_HEAD=44d3320877a0a47c3dd728182fae2f209bffbc0f
+PR726_HEAD=1c7247b64191fc72a3a0f1db0b1be13ceabec0f2
+PR727_HEAD=399d25460ac832be9493ae979cf85adc361552ff
+ARTIFACT_RUN_ID=40798244418
+ARTIFACT_ID=12864962159
+ARTIFACT_OUTER_SHA256=b57a5af10c23344e8e03250857455898eb60640e3e18c62022af9c2b9ab7f6da
+
+PREFLIGHT_RESULT=PASS
+BOARD_D_HARDWARE_ID_SHA256=3991b9af9e7604190a8ac8e60b780911a8faed6698cda5421eaf1eb686210df5
+R9_BOOTLOADER_BASELINE_MATCH=true
+
+WRITE_ATTEMPT_COUNT=1
+WRITE_RESULT=PASS
+OTADATA_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
+APP0_FULL_SLOT_SHA256=9d3b7b9d6b277e06cb6eb7f3155e9c777025b0d5cdb6e40feec47d46435eafbd
+APP1_FULL_SLOT_SHA256=9d3b7b9d6b277e06cb6eb7f3155e9c777025b0d5cdb6e40feec47d46435eafbd
+BOOTLOADER_UNCHANGED=true
+PARTITION_UNCHANGED=true
+PHY_INIT_UNCHANGED=true
+NVS_UNCHANGED=true
+OLD_APPLICATION_CODE_REMAINS=false
+ROLLBACK_ATTEMPTED=false
+
+PHYSICAL_AUTHORIZATION_CLAIMED=true
+PHYSICAL_AUTHORIZATION_CONSUMED=true
+REPLAY_PERMITTED=false
+
+FLASH_MUTATION=true
+NVS_MUTATION=false
+T1_MUTATION=false
+NORMAL_APPLICATION_BOOT=false
+PHONE_SCAN_OR_PAIRING=false
+MERGE=false
+
+CURRENT_STOP_POINT=R10_BOARD_D_POSTWRITE_NO_RESET_NO_NORMAL_APPLICATION_BOOT
+NEXT_ROUTE=SEPARATE_NEW_AUTHORIZATION_FOR_NORMAL_BOOT_AND_PHONE_FIRST_REGISTRATION
+AUTO_EXECUTE_NEXT_ROUTE=false
+~~~
+
+Board D physical preflight and the single authorized write both passed. The executor wrote only OTA data + full normalized app0/app1 slots and then proved by readback that bootloader, partition, PHY and NVS were unchanged. The one-shot authorization is consumed and non-replayable.
+
+The board remains deliberately stopped before normal application boot. Do not reset, unplug/replug for application start, open a serial observer, scan the QR, attempt registration, mutate T1, or merge as a continuation of this gate. The next physical route requires separate authorization.
+
+PR #727 Conversation closure comment: id 6485596226.
+
 ## 2026-10-29 — R10 phone-centric source/artifact/write-executor closure; Board D physical gate granted, pending new-chat execution
 
 ~~~text
