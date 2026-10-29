@@ -83,6 +83,7 @@ def _inspect(service: str) -> dict[str, object]:
 def _ledger(*, expired: bool = True, unresolved: int = 1) -> dict[str, object]:
     return {
         "registration_count": 1,
+        "registration_inventory_sha256": "3" * 64,
         "attempt_count": 1,
         "unresolved_count": unresolved,
         "attempts": [
@@ -118,15 +119,10 @@ class FakeRunner:
         self.manager_restart_count = manager_restart_count
         self.services_unit_text = services_unit_text or (
             "[Service]\n"
-            "ExecStart=/usr/bin/docker compose --project-name n3wfc4 "
-            "--env-file /etc/n3wfc4/docker-compose.env "
-            "-f /opt/HomeAssistant/infra/n3w-t1/production/docker-compose.yml "
-            "--profile application up --no-deps --no-log-prefix "
-            "--abort-on-container-exit manager homeassistant\n"
-            "ExecStop=/usr/bin/docker compose --project-name n3wfc4 "
-            "--env-file /etc/n3wfc4/docker-compose.env "
-            "-f /opt/HomeAssistant/infra/n3w-t1/production/docker-compose.yml "
-            "stop homeassistant manager\n"
+            + tool.EXPECTED_SERVICES_EXECSTART
+            + "\n"
+            + tool.EXPECTED_SERVICES_EXECSTOP
+            + "\n"
         )
         self.calls: list[tuple[str, ...]] = []
 
@@ -184,6 +180,7 @@ def test_preflight_passes_exact_failed_attempt_and_target_binding() -> None:
     assert report["t1_mutation"] is False
     assert report["board_access"] is False
     assert report["ledger"]["registration_count"] == 1
+    assert report["ledger"]["registration_inventory_sha256"] == "3" * 64
     assert report["ledger"]["attempt_count"] == 1
     assert report["ledger"]["unresolved_count"] == 1
     assert report["ledger"]["failed_attempt"]["pairing_id_sha256"] == PAIRING_HASH
@@ -223,10 +220,10 @@ def test_preflight_rejects_manager_only_supervision_drift() -> None:
 def test_preflight_rejects_force_recreate_in_supervision_unit() -> None:
     unit = (
         "[Service]\n"
-        "ExecStart=/usr/bin/docker compose --profile application up --no-deps "
-        "--no-log-prefix --abort-on-container-exit manager homeassistant "
-        "--force-recreate\n"
-        "ExecStop=/usr/bin/docker compose stop homeassistant manager\n"
+        + tool.EXPECTED_SERVICES_EXECSTART
+        + " --force-recreate\n"
+        + tool.EXPECTED_SERVICES_EXECSTOP
+        + "\n"
     )
     with pytest.raises(
         tool.PreflightError,
@@ -253,6 +250,16 @@ def test_preflight_rejects_unresolved_count_drift() -> None:
 def test_preflight_rejects_manager_restart_drift() -> None:
     with pytest.raises(tool.PreflightError, match="manager_restart_count_drift"):
         tool.preflight(_args(), FakeRunner(manager_restart_count=1))
+
+
+def test_preflight_rejects_registration_inventory_hash_missing() -> None:
+    ledger = _ledger()
+    ledger["registration_inventory_sha256"] = "invalid"
+    with pytest.raises(
+        tool.PreflightError,
+        match="registration_inventory_hash_invalid",
+    ):
+        tool.preflight(_args(), FakeRunner(ledger=ledger))
 
 
 def test_preflight_rejects_failed_attempt_pairing_identity_drift() -> None:
