@@ -45,7 +45,34 @@ def add_bytes(archive: tarfile.TarFile, name: str, payload: bytes) -> None:
 
 
 def manager_archive(tmp_path: Path) -> Path:
-    config = b'{"architecture":"arm64","os":"linux"}'
+    config_document = {
+        "architecture": "arm64",
+        "os": "linux",
+        "config": {
+            "Entrypoint": ["greenhouse-manager"],
+            "Cmd": [],
+            "User": "greenhouse",
+            "Env": ["PYTHONUNBUFFERED=1"],
+            "WorkingDir": "/app",
+            "Labels": {},
+            "Healthcheck": {},
+            "StopSignal": "",
+            "Volumes": {},
+            "ExposedPorts": {},
+        },
+        "rootfs": {
+            "type": "layers",
+            "diff_ids": [
+                "sha256:" + "a" * 64,
+                "sha256:" + "b" * 64,
+            ],
+        },
+    }
+    config = json.dumps(
+        config_document,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
     config_hex = hashlib.sha256(config).hexdigest()
     oci_manifest = b'{"schemaVersion":2,"config":{"digest":"sha256:' + (
         config_hex.encode()
@@ -180,7 +207,7 @@ def test_executor_is_bound_to_new_one_shot_authorization_namespace() -> None:
     assert executor.AUTHORIZATION_PATTERN.fullmatch(
         "N3W_R10_MANAGER_SUCCESSOR_REFRESH_20261029_01"
     )
-    assert executor.AUTHORIZATION_PATTERN.fullmatch(
+    assert not executor.AUTHORIZATION_PATTERN.fullmatch(
         "N3W_R10_MANAGER_SUCCESSOR_REFRESH_TEST"
     )
     assert not executor.AUTHORIZATION_PATTERN.fullmatch(
@@ -257,6 +284,143 @@ def test_only_manager_image_line_changes_in_compose_env() -> None:
     ]
 
 
+def test_runtime_image_binding_accepts_cross_store_runtime_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    layers = [
+        "sha256:" + "a" * 64,
+        "sha256:" + "b" * 64,
+    ]
+    config = {
+        "Entrypoint": ["greenhouse-manager"],
+        "Cmd": [],
+        "User": "greenhouse",
+        "Env": ["PYTHONUNBUFFERED=1"],
+        "WorkingDir": "/app",
+        "Labels": {},
+        "Healthcheck": {},
+        "StopSignal": "",
+        "Volumes": {},
+        "ExposedPorts": {},
+    }
+    runtime_id = "sha256:" + "c" * 64
+    manifest = {
+        "manager": {
+            "rootfs_layers_sha256": executor.canonical_sha256(layers),
+            "config_contract_sha256": executor.canonical_sha256(
+                executor.image_config_contract(config)
+            ),
+        }
+    }
+
+    def fake_run(_argv, **_kwargs):
+        return json.dumps(
+            [
+                {
+                    "Id": runtime_id,
+                    "Architecture": "arm64",
+                    "Os": "linux",
+                    "RootFS": {"Layers": layers},
+                    "Config": config,
+                }
+            ]
+        )
+
+    monkeypatch.setattr(executor, "run", fake_run)
+    binding = executor.runtime_image_binding(manifest)
+    assert binding["runtime_id"] == runtime_id
+    assert binding["rootfs_layers_sha256"] == manifest["manager"][
+        "rootfs_layers_sha256"
+    ]
+
+
+def test_runtime_image_binding_rejects_rootfs_or_config_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected_layers = ["sha256:" + "a" * 64]
+    observed_layers = ["sha256:" + "b" * 64]
+    expected_config = {
+        "Entrypoint": ["greenhouse-manager"],
+        "User": "greenhouse",
+    }
+    observed_config = {
+        "Entrypoint": ["/bin/sh"],
+        "User": "greenhouse",
+    }
+    manifest = {
+        "manager": {
+            "rootfs_layers_sha256": executor.canonical_sha256(expected_layers),
+            "config_contract_sha256": executor.canonical_sha256(
+                executor.image_config_contract(expected_config)
+            ),
+        }
+    }
+
+    def fake_run(_argv, **_kwargs):
+        return json.dumps(
+            [
+                {
+                    "Id": "sha256:" + "c" * 64,
+                    "Architecture": "arm64",
+                    "Os": "linux",
+                    "RootFS": {"Layers": observed_layers},
+                    "Config": observed_config,
+                }
+            ]
+        )
+
+    monkeypatch.setattr(executor, "run", fake_run)
+    with pytest.raises(
+        executor.RefreshError,
+        match="target_image_rootfs_binding_invalid",
+    ):
+        executor.runtime_image_binding(manifest)
+
+
+def test_live_package_validation_rechecks_distribution_inventory(
+    tmp_path: Path,
+) -> None:
+    output, document = build_package(tmp_path)
+    manifest_sha = hashlib.sha256(
+        (output / "manifest.json").read_bytes()
+    ).hexdigest()
+    inventory = output / "manager-python-distributions.json"
+    inventory.write_text(
+        '[{"name":"tampered","version":"1"}]\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(
+        executor.RefreshError,
+        match="python_distributions_binding_invalid",
+    ):
+        executor.validate_package(output, manifest_sha)
+
+
+def test_predecessor_ledgers_are_bound_and_protected() -> None:
+    source = EXECUTOR_PATH.read_text(encoding="utf-8")
+    prestate = function_block(
+        source,
+        "def verify_prestate(",
+        "def create_workspace(",
+    )
+    claim = function_block(
+        source,
+        "def claim_refresh(",
+        "def advance(",
+    )
+    protected = function_block(
+        source,
+        "def protected_runtime_snapshot(",
+        "def verify_prestate(",
+    )
+    assert "F4_TRANSACTION" in protected
+    assert "PREDECESSOR_UPGRADE_TRANSACTION" in protected
+    assert "r10_candidate_upgrade_committed" in prestate
+    assert "candidate_upgrade_predecessor_authority_invalid" in prestate
+    assert "predecessor_f4_transaction_sha256" in claim
+    assert "predecessor_candidate_upgrade_transaction_sha256" in claim
+
+
 def test_runtime_protection_covers_tls_dynsec_compose_and_registration_db() -> None:
     source = EXECUTOR_PATH.read_text(encoding="utf-8")
     protected = function_block(
@@ -269,6 +433,8 @@ def test_runtime_protection_covers_tls_dynsec_compose_and_registration_db() -> N
         '"registration_cert": file_binding(REGISTRATION_CERT)',
         '"registration_key": file_binding(REGISTRATION_KEY)',
         '"broker_dynsec": file_binding(BROKER_DYNSEC)',
+        '"f4_transaction": file_binding(F4_TRANSACTION)',
+        '"predecessor_upgrade_transaction": file_binding(',
         '"database": database_state()',
     ):
         assert token in protected
@@ -299,6 +465,13 @@ def test_predecessor_must_be_ttl30_and_target_must_be_ttl60() -> None:
     assert "EXPECTED_CANDIDATE_TTL_SECONDS = 60" in source
     assert "predecessor_candidate_ttl_not_30" in prestate
     assert "manager_candidate_ttl_not_60" in post
+
+    rollback = function_block(
+        source,
+        "def strict_predecessor_postcheck(",
+        "def wait_predecessor_postcheck(",
+    )
+    assert "rollback_candidate_ttl_not_30" in rollback
 
 
 def test_broker_and_homeassistant_are_continuity_authorities() -> None:
