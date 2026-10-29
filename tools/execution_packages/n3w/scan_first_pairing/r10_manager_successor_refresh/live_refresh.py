@@ -30,11 +30,15 @@ EXPECTED_CANDIDATE_TTL_SECONDS = 60
 
 CONFIRMATION = "APPLY R10 MANAGER SUCCESSOR REFRESH: YES"
 AUTHORIZATION_PATTERN = re.compile(
-    r"^N3W_R10_MANAGER_SUCCESSOR_REFRESH_(?:TEST|[0-9]{8}_[0-9]{2})$"
+    r"^N3W_R10_MANAGER_SUCCESSOR_REFRESH_[0-9]{8}_[0-9]{2}$"
 )
 
 PROVISION_ROOT = Path("/var/lib/n3w-t1-provisioning")
 TRANSACTION = PROVISION_ROOT / "R10_MANAGER_SUCCESSOR_REFRESH_TRANSACTION.json"
+F4_TRANSACTION = PROVISION_ROOT / "F4_ACTIVATION_TRANSACTION.json"
+PREDECESSOR_UPGRADE_TRANSACTION = (
+    PROVISION_ROOT / "R10_CANDIDATE_UPGRADE_TRANSACTION.json"
+)
 WORK_ROOT = Path("/var/lib/n3w-r10-manager-successor-refresh")
 
 COMPOSE_ENV = Path("/etc/n3wfc4/docker-compose.env")
@@ -75,6 +79,29 @@ def canonical_sha256(value: Any) -> str:
         ensure_ascii=True,
     ).encode("utf-8")
     return sha256_bytes(payload)
+
+
+def image_config_contract(config: object) -> dict[str, object]:
+    value = config if isinstance(config, dict) else {}
+    result: dict[str, object] = {}
+    sequence_fields = {"Entrypoint", "Cmd", "Env"}
+    string_fields = {"User", "WorkingDir", "StopSignal"}
+    mapping_fields = {
+        "Labels",
+        "Healthcheck",
+        "Volumes",
+        "ExposedPorts",
+    }
+    for key in sorted(sequence_fields | string_fields | mapping_fields):
+        observed = value.get(key)
+        if key in sequence_fields and observed is None:
+            observed = []
+        elif key in string_fields and observed is None:
+            observed = ""
+        elif key in mapping_fields and observed is None:
+            observed = {}
+        result[key] = observed
+    return result
 
 
 def run(
@@ -470,7 +497,7 @@ def docker_image_ids(reference: str) -> list[str]:
     )
 
 
-def archive_identity(path: Path) -> dict[str, str]:
+def archive_identity(path: Path) -> dict[str, Any]:
     try:
         with tarfile.open(path, "r:*") as archive:
             docker_stream = archive.extractfile("manifest.json")
@@ -503,12 +530,35 @@ def archive_identity(path: Path) -> dict[str, str]:
             manifest_stream = archive.extractfile(f"blobs/sha256/{manifest_hex}")
             if config_stream is None or manifest_stream is None:
                 raise RefreshError("manager_archive_identity_missing")
+            config_bytes = config_stream.read()
+            manifest_bytes = manifest_stream.read()
             if (
-                hashlib.sha256(config_stream.read()).hexdigest() != config_hex
-                or hashlib.sha256(manifest_stream.read()).hexdigest()
+                hashlib.sha256(config_bytes).hexdigest() != config_hex
+                or hashlib.sha256(manifest_bytes).hexdigest()
                 != manifest_hex
             ):
                 raise RefreshError("manager_archive_identity_binding_invalid")
+            try:
+                config_document = json.loads(config_bytes.decode("utf-8"))
+            except (UnicodeError, json.JSONDecodeError) as error:
+                raise RefreshError("manager_archive_config_invalid") from error
+            if not isinstance(config_document, dict):
+                raise RefreshError("manager_archive_config_invalid")
+            rootfs = config_document.get("rootfs")
+            diff_ids = rootfs.get("diff_ids") if isinstance(rootfs, dict) else None
+            if (
+                not isinstance(diff_ids, list)
+                or not diff_ids
+                or not all(
+                    isinstance(item, str)
+                    and re.fullmatch(r"sha256:[0-9a-f]{64}", item) is not None
+                    for item in diff_ids
+                )
+            ):
+                raise RefreshError("manager_archive_rootfs_invalid")
+            config_contract = image_config_contract(
+                config_document.get("config")
+            )
             tags = docker_manifest[0].get("RepoTags")
             if (
                 not isinstance(tags, list)
@@ -518,6 +568,8 @@ def archive_identity(path: Path) -> dict[str, str]:
             return {
                 "config_digest": f"sha256:{config_hex}",
                 "manifest_digest": descriptor,
+                "rootfs_layers_sha256": canonical_sha256(diff_ids),
+                "config_contract_sha256": canonical_sha256(config_contract),
             }
     except (OSError, UnicodeError, json.JSONDecodeError, tarfile.TarError) as error:
         raise RefreshError("manager_archive_identity_unreadable") from error
