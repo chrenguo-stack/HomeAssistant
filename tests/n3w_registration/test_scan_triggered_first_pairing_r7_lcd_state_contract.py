@@ -283,3 +283,77 @@ def test_r7_display_copy_is_secret_free() -> None:
         "mqtt_password",
     ):
         assert forbidden not in page4.lower()
+, display, flags=re.MULTILINE)
+    assert len(glyph_lines) >= 2
+    f10_glyphs, f12_glyphs = glyph_lines[:2]
+
+    f10_lines = (
+        "手机相机扫码",
+        "配置节点网络",
+        "联机注册",
+        "扫码注册",
+        "请稍候",
+    )
+    f12_lines = (
+        "联机注册",
+        "已联机注册",
+    )
+
+    for line in f10_lines:
+        assert set(line) <= set(f10_glyphs)
+        assert len(line) * 10 <= 64
+
+    for line in f12_lines:
+        assert set(line) <= set(f12_glyphs)
+        assert len(line) * 12 <= 64
+
+def test_r7_display_copy_is_secret_free() -> None:
+    display = text(DISPLAY)
+    page4 = display.split("// ─── PAGE 4：", 1)[1].split("// ─── 底部页码与时间 ───", 1)[0]
+    for forbidden in (
+        "setup_secret",
+        "pairing_id",
+        "hardware_id",
+        "manager_id",
+        "system_id",
+        "bootstrap_tls_sha256",
+        "mqtt_password",
+    ):
+        assert forbidden not in page4.lower()
+, display, flags=re.MULTILINE)
+    assert len(glyph_lines) >= 2
+    f10_glyphs, f12_glyphs = glyph_lines[:2]
+
+    f10_lines = (
+        "手机相机扫码",
+        "配置节点网络",
+        "联机注册",
+        "扫码注册",
+        "请稍候",
+    )
+    f12_lines = (
+        "联机注册",
+        "已联机注册",
+    )
+
+    for line in f10_lines:
+        assert set(line) <= set(f10_glyphs)
+        assert len(line) * 10 <= 64
+
+    for line in f12_lines:
+        assert set(line) <= set(f12_glyphs)
+        assert len(line) * 12 <= 64
+
+def test_r7_display_copy_is_secret_free() -> None:
+    display = text(DISPLAY)
+    page4 = display.split("// ─── PAGE 4：", 1)[1].split("// ─── 底部页码与时间 ───", 1)[0]
+    for forbidden in (
+        "setup_secret",
+        "pairing_id",
+        "hardware_id",
+        "manager_id",
+        "system_id",
+        "bootstrap_tls_sha256",
+        "mqtt_password",
+    ):
+        assert forbidden not in page4.lower()
