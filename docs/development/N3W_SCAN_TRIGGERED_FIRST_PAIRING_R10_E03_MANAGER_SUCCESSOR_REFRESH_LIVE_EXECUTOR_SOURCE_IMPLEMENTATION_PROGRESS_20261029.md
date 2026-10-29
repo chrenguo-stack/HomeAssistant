@@ -223,3 +223,58 @@ PR725_INTEGRATION=false
 LIVE_APPLY_AUTHORIZED=false
 LIVE_APPLY_EXECUTED=false
 ```
+
+
+## 2026-10-29 live preauth profile repair
+
+The first live preauth attempt stopped read-only with:
+
+```text
+status=STOP
+reason=compose_service_missing
+authorization_claimed=false
+authorization_consumed=false
+t1_mutation=false
+```
+
+No rollback was required.
+
+Root cause was executor-only: `render_compose()` rendered the live Compose file without the production `application` profile. The production Manager and Home Assistant services are both profile-scoped:
+
+```text
+profiles:
+  - application
+```
+
+The production systemd services owner already starts them with:
+
+```text
+--profile application
+```
+
+Therefore the live executor must render with the same profile authority:
+
+```text
+docker compose ... --profile application config --format json
+```
+
+Without that profile, the rendered model omits `manager` and `homeassistant`, causing the fail-closed `compose_service_missing` result.
+
+The repair is intentionally limited to Compose rendering semantics. It does not alter:
+
+- product Manager source;
+- T1 state;
+- artifact authority;
+- authorization claim semantics;
+- Docker image load;
+- service stop/start;
+- rollback behavior;
+- E03 durable state.
+
+Regression coverage explicitly asserts the exact `--profile application config --format json` argument sequence and requires the rendered model to contain:
+
+```text
+broker
+manager
+homeassistant
+```
