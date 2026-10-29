@@ -617,6 +617,322 @@ def run_preflight(args: argparse.Namespace) -> int:
     print("WRITE_AUTHORIZATION_CONSUMED=false")
     return 0
 
+def load_preflight(path: Path, port: str) -> dict[str, object]:
+    if path.is_symlink() or not path.is_file():
+        raise StopExecution("preflight closure missing or unsafe")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise StopExecution("preflight closure unreadable") from exc
+    if payload.get("schema") != SCHEMA_PREFLIGHT or payload.get("status") != "PASS":
+        raise StopExecution("preflight closure is not PASS")
+    if payload.get("artifact") != artifact_binding_payload():
+        raise StopExecution("preflight artifact binding drifted")
+    if payload.get("selected_write_route") != SELECTED_WRITE_ROUTE:
+        raise StopExecution("preflight write route mismatch")
+    if payload.get("normalized_slot") != normalized_slot_binding_payload():
+        raise StopExecution("preflight normalized-slot binding mismatch")
+    expected_ranges = {
+        name: [hex(a), hex(b)]
+        for name, (a, b) in validate_write_erase_boundaries().items()
+    }
+    if payload.get("erase_ranges") != expected_ranges:
+        raise StopExecution("preflight erase-range binding mismatch")
+    if payload.get("fresh_prewrite_backup_required") is not True:
+        raise StopExecution("preflight backup contract missing")
+    if payload.get("current_r9_slot_binding_required") is not True:
+        raise StopExecution("preflight R9 slot baseline contract missing")
+    if payload.get("bootloader_write") is not False:
+        raise StopExecution("preflight bootloader write policy invalid")
+    if payload.get("authorization_claimed") is not False or payload.get("authorization_consumed") is not False:
+        raise StopExecution("preflight authorization already claimed/consumed")
+    if payload.get("replay_permitted") is not False:
+        raise StopExecution("preflight replay policy invalid")
+    if payload.get("flash_write") is not False or payload.get("nvs_write") is not False:
+        raise StopExecution("preflight mutation state invalid")
+    board = payload.get("board")
+    if not isinstance(board, dict):
+        raise StopExecution("preflight board binding missing")
+    if board.get("hardware_id_sha256") != EXPECTED_HARDWARE_ID_SHA256:
+        raise StopExecution("preflight target identity mismatch")
+    if board.get("port_sha256") != sha256_bytes(port.encode("utf-8")):
+        raise StopExecution("preflight serial locator changed")
+    if board.get("bootloader_erase_span_sha256") != CURRENT_R9_BOOTLOADER_ERASE_SPAN_SHA256:
+        raise StopExecution("preflight bootloader baseline mismatch")
+    if board.get("partition_table_sha256") != MEMBER_BINDINGS["partitions.bin"][1]:
+        raise StopExecution("preflight partition binding mismatch")
+    if board.get("phy_all_ff") is not True:
+        raise StopExecution("preflight PHY disposition mismatch")
+    raw_time = payload.get("created_at")
+    if not isinstance(raw_time, str):
+        raise StopExecution("preflight timestamp missing")
+    try:
+        created = dt.datetime.fromisoformat(raw_time)
+    except ValueError as exc:
+        raise StopExecution("preflight timestamp invalid") from exc
+    if created.tzinfo is None:
+        raise StopExecution("preflight timestamp must be timezone-aware")
+    age = (utc_now() - created.astimezone(dt.timezone.utc)).total_seconds()
+    if age < -30 or age > PREFLIGHT_MAX_AGE_SECONDS:
+        raise StopExecution("preflight is stale")
+    return payload
+
+
+def claim_preflight(
+    path: Path,
+    payload: dict[str, object],
+    fresh: dict[str, object],
+) -> tuple[Path, dict[str, object]]:
+    if path.is_symlink() or not path.is_file():
+        raise StopExecution("preflight closure path unsafe")
+    claimed = path.with_name("claimed-preflight.json")
+    require_absent(claimed)
+    source_inode = path.stat().st_ino
+    try:
+        os.link(path, claimed, follow_symlinks=False)
+        _fsync_dir(path.parent)
+        path.unlink()
+        _fsync_dir(path.parent)
+    except OSError as exc:
+        claimed.unlink(missing_ok=True)
+        _fsync_dir(path.parent)
+        raise StopExecution("preflight authorization claim failed") from exc
+    if (
+        path.exists()
+        or claimed.is_symlink()
+        or not claimed.is_file()
+        or claimed.stat().st_ino != source_inode
+    ):
+        raise StopExecution("preflight authorization claim verification failed")
+    now = utc_now().isoformat()
+    payload = dict(payload)
+    payload["authorization_claimed"] = True
+    payload["authorization_consumed"] = True
+    payload["replay_permitted"] = False
+    payload["consumed_at"] = now
+    payload["fresh_prewrite"] = fresh
+    payload["execution_state"] = {
+        "write_started": False,
+        "write_flash_returned_success": False,
+        "postwrite_integrity_pass": False,
+        "postwrite_identity_pass": False,
+        "rollback_attempted": False,
+        "rollback_pass": False,
+    }
+    replace_private_json(claimed, payload)
+    return claimed, payload
+
+
+def persist_claimed_state(
+    claimed: Path,
+    payload: dict[str, object],
+    **updates: object,
+) -> None:
+    state = payload.get("execution_state")
+    if not isinstance(state, dict):
+        raise StopExecution("claimed execution state missing")
+    state.update(updates)
+    payload["execution_state_updated_at"] = utc_now().isoformat()
+    replace_private_json(claimed, payload)
+
+
+def build_write_command(
+    port: str,
+    files: dict[str, Path],
+    normalized_slot: Path,
+) -> list[str]:
+    return esptool_base() + [
+        "--chip", "esp32c6", "--port", port, "--baud", "460800",
+        "--before", "no-reset", "--after", "no-reset-stub",
+        "write-flash",
+        "--flash-mode", "keep",
+        "--flash-freq", "keep",
+        "--flash-size", "keep",
+        hex(OTADATA_OFFSET), str(files["ota_data_initial.bin"]),
+        hex(APP0_OFFSET), str(normalized_slot),
+        hex(APP1_OFFSET), str(normalized_slot),
+    ]
+
+
+def build_restore_command(port: str, evidence_root: Path) -> list[str]:
+    return esptool_base() + [
+        "--chip", "esp32c6", "--port", port, "--baud", "460800",
+        "--before", "no-reset-no-sync", "--after", "no-reset-stub",
+        "write-flash",
+        "--flash-mode", "keep",
+        "--flash-freq", "keep",
+        "--flash-size", "keep",
+        hex(OTADATA_OFFSET), str(evidence_root / BACKUP_LAYOUT["otadata"][2]),
+        hex(APP0_OFFSET), str(evidence_root / BACKUP_LAYOUT["app0"][2]),
+        hex(APP1_OFFSET), str(evidence_root / BACKUP_LAYOUT["app1"][2]),
+    ]
+
+
+def _postwrite_read(
+    port: str,
+    offset: int,
+    size: int,
+    destination: Path,
+    *,
+    first: bool,
+) -> str:
+    return (
+        read_stub_start(port, offset, size, destination)
+        if first
+        else read_stub_continue(port, offset, size, destination)
+    )
+
+
+def verify_postwrite_integrity(
+    port: str,
+    root: Path,
+    *,
+    prewrite: dict[str, object],
+) -> dict[str, object]:
+    root.mkdir(parents=True, exist_ok=True)
+    protected = prewrite["protected"]
+    assert isinstance(protected, dict)
+    expected_bootloader = protected["bootloader_erase_span"]["sha256"]
+    expected_partition_sector = protected["partition_sector"]["sha256"]
+    expected_phy = protected["phy_init"]["sha256"]
+    expected_nvs = protected["nvs"]["sha256"]
+
+    checks = [
+        (
+            "bootloader_erase_span",
+            BOOTLOADER_OFFSET,
+            BOOTLOADER_ERASE_SPAN_SIZE,
+            expected_bootloader,
+        ),
+        (
+            "otadata",
+            OTADATA_OFFSET,
+            MEMBER_BINDINGS["ota_data_initial.bin"][0],
+            MEMBER_BINDINGS["ota_data_initial.bin"][1],
+        ),
+        ("app0_full_slot", APP0_OFFSET, OTA_SLOT_SIZE, NORMALIZED_SLOT_SHA256),
+        ("app1_full_slot", APP1_OFFSET, OTA_SLOT_SIZE, NORMALIZED_SLOT_SHA256),
+        (
+            "partition_sector",
+            PARTITION_TABLE_OFFSET,
+            PARTITION_SECTOR_SIZE,
+            expected_partition_sector,
+        ),
+        ("phy_init", PHY_INIT_OFFSET, PHY_INIT_SIZE, expected_phy),
+        ("nvs", NVS_OFFSET, NVS_SIZE, expected_nvs),
+    ]
+    out: dict[str, object] = {}
+    for idx, (name, offset, size, expected) in enumerate(checks):
+        actual = _postwrite_read(
+            port,
+            offset,
+            size,
+            root / f"{name}.bin",
+            first=(idx == 0),
+        )
+        if actual != expected:
+            raise StopExecution(f"post-write {name} SHA256 mismatch")
+        out[name + "_sha256"] = actual
+        out[name + "_match"] = True
+
+    part = (root / "partition_sector.bin").read_bytes()
+    if (
+        sha256_bytes(part[: MEMBER_BINDINGS["partitions.bin"][0]])
+        != MEMBER_BINDINGS["partitions.bin"][1]
+    ):
+        raise StopExecution("post-write partition table exact member mismatch")
+
+    app_size = MEMBER_BINDINGS["firmware.bin"][0]
+    tail = b"\xff" * (OTA_SLOT_SIZE - app_size)
+    for name in ("app0_full_slot", "app1_full_slot"):
+        data = (root / f"{name}.bin").read_bytes()
+        if data[app_size:] != tail:
+            raise StopExecution(f"post-write {name} tail is not all-FF")
+
+    out["app0_tail_erased"] = True
+    out["app1_tail_erased"] = True
+    out["old_application_code_remains"] = False
+    out["bootloader_unchanged"] = True
+    out["partition_unchanged"] = True
+    out["phy_init_unchanged"] = True
+    out["nvs_unchanged"] = True
+    return out
+
+
+def verify_restore(
+    port: str,
+    evidence_root: Path,
+    prewrite: dict[str, object],
+    verify_root: Path,
+) -> None:
+    verify_root.mkdir(parents=True, exist_ok=True)
+    records: list[tuple[str, int, int, str]] = []
+    for name, (offset, size, _) in BACKUP_LAYOUT.items():
+        records.append(
+            (name, offset, size, prewrite["backups"][name]["sha256"])
+        )
+    for name, (offset, size, _) in PROTECTED_LAYOUT.items():
+        records.append(
+            (name, offset, size, prewrite["protected"][name]["sha256"])
+        )
+    for idx, (name, offset, size, expected) in enumerate(records):
+        actual = _postwrite_read(
+            port,
+            offset,
+            size,
+            verify_root / f"{name}.bin",
+            first=(idx == 0),
+        )
+        if actual != expected:
+            raise StopExecution(f"rollback verification mismatch: {name}")
+    identity = observe_board_identity_security(port, before="default-reset")
+    if identity != EXPECTED_HARDWARE_ID_SHA256:
+        raise StopExecution("rollback identity continuity mismatch")
+
+
+def attempt_rollback(
+    port: str,
+    evidence_root: Path,
+    prewrite: dict[str, object],
+    claimed: Path,
+    payload: dict[str, object],
+) -> bool:
+    try:
+        persist_claimed_state(
+            claimed,
+            payload,
+            rollback_attempted=True,
+            rollback_pass=False,
+        )
+        verify_backup_files(evidence_root, prewrite)
+        run_capture(build_restore_command(port, evidence_root), port=port)
+        verify_restore(
+            port,
+            evidence_root,
+            prewrite,
+            evidence_root / "rollback-readback",
+        )
+        persist_claimed_state(
+            claimed,
+            payload,
+            rollback_attempted=True,
+            rollback_pass=True,
+        )
+        return True
+    except Exception as exc:
+        try:
+            persist_claimed_state(
+                claimed,
+                payload,
+                rollback_attempted=True,
+                rollback_pass=False,
+                rollback_error_type=type(exc).__name__,
+            )
+        except Exception:
+            pass
+        return False
+
+
 def run_write(args: argparse.Namespace) -> int:
     if args.confirm != WRITE_CONFIRMATION:
         raise StopExecution("write confirmation token mismatch")
