@@ -136,19 +136,39 @@ def test_r10_phone_page_has_no_user_cancel_path() -> None:
     assert "注册过程不能主动终止" in html
 
 
-def test_r10_begin_button_countdown_tracks_server_candidate_expiry() -> None:
+def test_r10_begin_button_countdown_tracks_full_post_selection_window() -> None:
     portal = text(PORTAL_CPP)
+    header = text(PORTAL_H)
+    component = text(COMPONENT_CPP)
     html = portal_html()
     status = function_block(
         portal,
         "esp_err_t RegistrationPortal::handle_status_",
         "esp_err_t RegistrationPortal::handle_confirm_",
     )
+    confirm = function_block(
+        portal,
+        "esp_err_t RegistrationPortal::handle_confirm_",
+        "esp_err_t RegistrationPortal::handle_begin_",
+    )
     begin = function_block(
         portal,
         "esp_err_t RegistrationPortal::handle_begin_",
         "esp_err_t RegistrationPortal::handle_retry_",
     )
+    discovery = function_block(
+        component,
+        "void SimpleProductComponent::advance_registration_discovery_()",
+        "void SimpleProductComponent::advance_registration_bootstrap_()",
+    )
+    bootstrap = function_block(
+        component,
+        "void SimpleProductComponent::advance_registration_bootstrap_()",
+        "void SimpleProductComponent::advance_pairing_()",
+    )
+
+    assert "kRegistrationUserConfirmMs = 60000ULL" in header
+    assert "found->expires_at_ms = now_ms + kRegistrationUserConfirmMs;" in confirm
 
     assert "uint32_t selected_expires_in_s = 0;" in status
     assert "const uint64_t remaining_ms = found->expires_at_ms - now_ms;" in status
@@ -163,6 +183,9 @@ def test_r10_begin_button_countdown_tracks_server_candidate_expiry() -> None:
     assert "pollSoon(0);" in html
 
     assert "candidate.expires_at_ms > now_ms" in begin
+    assert "registration_candidates_[selected_index].expired(now_ms())" not in discovery
+    assert "selected_registration_candidate_.expired(now)" not in bootstrap
+    assert "irreversible boundary is crossed" in bootstrap
 
 
 def test_r10_phone_page_owns_terminal_feedback() -> None:
