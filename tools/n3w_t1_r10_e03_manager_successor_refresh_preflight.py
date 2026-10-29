@@ -14,11 +14,19 @@ PROJECT = "n3wfc4"
 BROKER_UNIT = "n3wfc4-broker-activation.service"
 SERVICES_UNIT = "n3wfc4-services-activation.service"
 REGISTRATION_GUARD_UNIT = "n3wfc4-registration-ingress-guard.service"
-EXPECTED_SERVICES_EXECSTART_FRAGMENT = (
-    "--profile application up --no-deps --no-log-prefix "
-    "--abort-on-container-exit manager homeassistant"
+EXPECTED_SERVICES_EXECSTART = (
+    "ExecStart=/usr/bin/docker compose "
+    "--project-name ${N3WFC4_COMPOSE_PROJECT_NAME} "
+    "--env-file ${N3WFC4_COMPOSE_ENV_FILE} "
+    "-f ${N3WFC4_COMPOSE_FILE} --profile application up --no-deps "
+    "--no-log-prefix --abort-on-container-exit manager homeassistant"
 )
-EXPECTED_SERVICES_EXECSTOP_FRAGMENT = "stop homeassistant manager"
+EXPECTED_SERVICES_EXECSTOP = (
+    "ExecStop=/usr/bin/docker compose "
+    "--project-name ${N3WFC4_COMPOSE_PROJECT_NAME} "
+    "--env-file ${N3WFC4_COMPOSE_ENV_FILE} "
+    "-f ${N3WFC4_COMPOSE_FILE} stop homeassistant manager"
+)
 MANAGER_DB = "/var/lib/greenhouse-manager/manager/manager-state.sqlite3"
 EXPECTED_CURRENT_MANAGER_IMAGE = "local/greenhouse-manager:fresh-ff750b3801a2"
 EXPECTED_FAILED_PAIRING_ID_SHA256 = (
@@ -127,12 +135,12 @@ def _services_supervision_contract(runner: Runner) -> dict[str, Any]:
     ]
     if len(execstart) != 1 or len(execstop) != 1:
         raise PreflightError("services_supervision_command_count_invalid")
-    if EXPECTED_SERVICES_EXECSTART_FRAGMENT not in execstart[0]:
-        raise PreflightError("services_supervision_execstart_drift")
-    if EXPECTED_SERVICES_EXECSTOP_FRAGMENT not in execstop[0]:
-        raise PreflightError("services_supervision_execstop_drift")
     if "--force-recreate" in content:
         raise PreflightError("services_supervision_force_recreate_forbidden")
+    if execstart[0] != EXPECTED_SERVICES_EXECSTART:
+        raise PreflightError("services_supervision_execstart_drift")
+    if execstop[0] != EXPECTED_SERVICES_EXECSTOP:
+        raise PreflightError("services_supervision_execstop_drift")
     return {
         "unit": SERVICES_UNIT,
         "execstart_sha256": _sha256_text(execstart[0]),
@@ -314,9 +322,42 @@ unresolved = connection.execute(
        )
     """
 ).fetchone()[0]
-registration_count = connection.execute(
-    "SELECT COUNT(*) FROM registrations"
-).fetchone()[0]
+registration_rows = connection.execute(
+    """
+    SELECT
+        hardware_id,
+        current_pairing_id,
+        pairing_epoch,
+        node_id,
+        logical_location_id,
+        repair_authorized,
+        retired_at,
+        retirement_reason
+    FROM registrations
+    ORDER BY hardware_id
+    """
+).fetchall()
+registration_inventory = [
+    [
+        row["hardware_id"],
+        row["current_pairing_id"],
+        row["pairing_epoch"],
+        row["node_id"],
+        row["logical_location_id"],
+        row["repair_authorized"],
+        row["retired_at"],
+        row["retirement_reason"],
+    ]
+    for row in registration_rows
+]
+registration_inventory_sha256 = hashlib.sha256(
+    json.dumps(
+        registration_inventory,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+).hexdigest()
+registration_count = len(registration_rows)
 connection.close()
 
 print(
@@ -325,6 +366,7 @@ print(
             "attempt_count": len(attempts),
             "unresolved_count": int(unresolved),
             "registration_count": int(registration_count),
+            "registration_inventory_sha256": registration_inventory_sha256,
             "attempts": attempts,
         },
         sort_keys=True,
@@ -455,6 +497,14 @@ def preflight(args: argparse.Namespace, runner: Runner | None = None) -> dict[st
         raise PreflightError("pairing_47112_must_be_closed")
 
     ledger = _ledger_snapshot(runner, ids["manager"])
+    registration_inventory_sha256 = ledger.get(
+        "registration_inventory_sha256"
+    )
+    if (
+        not isinstance(registration_inventory_sha256, str)
+        or _SHA256.fullmatch(registration_inventory_sha256) is None
+    ):
+        raise PreflightError("registration_inventory_hash_invalid")
     attempt = _validate_expected_failed_attempt(
         ledger,
         expected_registration_count=args.expected_registration_count,
@@ -509,6 +559,7 @@ def preflight(args: argparse.Namespace, runner: Runner | None = None) -> dict[st
         "listeners": listeners,
         "ledger": {
             "registration_count": ledger["registration_count"],
+            "registration_inventory_sha256": registration_inventory_sha256,
             "attempt_count": ledger["attempt_count"],
             "unresolved_count": ledger["unresolved_count"],
             "failed_attempt": {
