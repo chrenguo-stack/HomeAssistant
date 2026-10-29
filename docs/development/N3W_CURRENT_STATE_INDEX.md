@@ -1,3 +1,14 @@
+## 2026-10-29 — R10 Board D physical acceptance write PASS; successor boot/pairing not authorized
+
+- Fresh repository/PR/artifact rebind passed with PR #725 at `44d3320877a0a47c3dd728182fae2f209bffbc0f`, PR #726 at `1c7247b64191fc72a3a0f1db0b1be13ceabec0f2`, PR #727 at `399d25460ac832be9493ae979cf85adc361552ff`, and artifact run `40798244418` / ID `12864962159` / outer SHA-256 `b57a5af10c23344e8e03250857455898eb60640e3e18c62022af9c2b9ab7f6da`.
+- Board D read-only preflight PASS; hardware identity SHA-256 `3991b9af9e7604190a8ac8e60b780911a8faed6698cda5421eaf1eb686210df5`; frozen R9 bootloader baseline matched.
+- Exactly one authorized write attempt executed and PASS. OTA data SHA-256 is `7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f`; app0/app1 full-slot SHA-256 are both `9d3b7b9d6b277e06cb6eb7f3155e9c777025b0d5cdb6e40feec47d46435eafbd`.
+- Postwrite readback proved bootloader, partition table, PHY and NVS unchanged; old application code does not remain in either normalized OTA slot. Rollback was not needed.
+- The physical authorization is CLAIMED + CONSUMED and non-replayable. No second write or automatic retry is permitted.
+- Current stop point: post-write flasher/no-reset state before normal application boot. No phone scan/pairing, T1 mutation or merge occurred.
+- Next route is a separate normal-boot + phone first-registration physical acceptance gate and requires new authorization; it is not auto-entered.
+- PR #727 Conversation closure comment id: `6485596226`.
+
 ## 2026-10-29 — R10 Board D physical-acceptance gate authorized; new-chat execution pending
 
 - Current repository main remains `2fbd0e9c2d3bf8a513ac318034e249511ffb6a2e` / tree `3064ab74ac96bbce44a0bf880ab53c7afc5bc134`; main current-state docs were still at the 2026-10-27 R5/R6 handoff before this docs-only alignment.
