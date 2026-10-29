@@ -1,3 +1,31 @@
+## 2026-10-29 — R10 Board D physical acceptance write PASS; successor boot/pairing not authorized
+
+- Fresh repository/PR/artifact rebind passed with PR #725 at `44d3320877a0a47c3dd728182fae2f209bffbc0f`, PR #726 at `1c7247b64191fc72a3a0f1db0b1be13ceabec0f2`, PR #727 at `399d25460ac832be9493ae979cf85adc361552ff`, and artifact run `40798244418` / ID `12864962159` / outer SHA-256 `b57a5af10c23344e8e03250857455898eb60640e3e18c62022af9c2b9ab7f6da`.
+- Board D read-only preflight PASS; hardware identity SHA-256 `3991b9af9e7604190a8ac8e60b780911a8faed6698cda5421eaf1eb686210df5`; frozen R9 bootloader baseline matched.
+- Exactly one authorized write attempt executed and PASS. OTA data SHA-256 is `7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f`; app0/app1 full-slot SHA-256 are both `9d3b7b9d6b277e06cb6eb7f3155e9c777025b0d5cdb6e40feec47d46435eafbd`.
+- Postwrite readback proved bootloader, partition table, PHY and NVS unchanged; old application code does not remain in either normalized OTA slot. Rollback was not needed.
+- The physical authorization is CLAIMED + CONSUMED and non-replayable. No second write or automatic retry is permitted.
+- Current stop point: post-write flasher/no-reset state before normal application boot. No phone scan/pairing, T1 mutation or merge occurred.
+- Next route is a separate normal-boot + phone first-registration physical acceptance gate and requires new authorization; it is not auto-entered.
+- PR #727 Conversation closure comment id: `6485596226`.
+
+## 2026-10-29 — R10 Board D physical-acceptance gate authorized; new-chat execution pending
+
+- Current repository main remains `2fbd0e9c2d3bf8a513ac318034e249511ffb6a2e` / tree `3064ab74ac96bbce44a0bf880ab53c7afc5bc134`; main current-state docs were still at the 2026-10-27 R5/R6 handoff before this docs-only alignment.
+- PR #725 remains OPEN DRAFT at exact head `44d3320877a0a47c3dd728182fae2f209bffbc0f`; R10 phone-centric pairing UI/LCD source closure PASS; final applicable CI 24/24 SUCCESS.
+- PR #726 remains OPEN DRAFT at `1c7247b64191fc72a3a0f1db0b1be13ceabec0f2`; exact acceptance source is `faf07839fcef221f9defb296eadcc7c090e12d4e`, differing from product source by exactly one target line: `battery_low_threshold: "-1.00"`. It is physical-acceptance-only and not production eligible.
+- R10 acceptance artifact run `40798244418`, artifact ID `12864962159`, name `n3w-r10-physical-acceptance-faf07839`: outer SHA-256 `b57a5af10c23344e8e03250857455898eb60640e3e18c62022af9c2b9ab7f6da`, inner SHA-256 `91b3e47b16025ec9fdf73500e463ecc0db4121ea0dc9dcc12325e88e7e7c347b`, manifest SHA-256 `1aa0da0be83d461d92274fef0f37420032a05d7b3e25803ad236e3bb6883ef44`. Independent artifact inspection PASS.
+- Acceptance normalized full-slot SHA-256 is `9d3b7b9d6b277e06cb6eb7f3155e9c777025b0d5cdb6e40feec47d46435eafbd`.
+- PR #727 remains OPEN DRAFT at `399d25460ac832be9493ae979cf85adc361552ff`; Board D physical-acceptance write executor source closure PASS, focused tests 34/34 PASS, public-repository safety PASS.
+- Frozen current Board D baseline expected by the executor: app0/app1 both equal previous R9 normalized slot `6e777334cd8dec12523ec5e2daa6ce2909a4d581531218b0d9cec26803f68079`; bootloader erase-span SHA-256 `e88f39529dd195f7f792c4be45d435c0c205c64e5147cf31be125d9344d600ae`.
+- New write route: OTA data at 0x009000, full app0 at 0x010000, same full app1 at 0x3D0000. No bootloader, partition, PHY or NVS write; no factory-image direct write; no full-flash erase.
+- User has explicitly granted `N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_BOARD_D_PHYSICAL_ACCEPTANCE_PREFLIGHT_AND_WRITE_20261029_01`; authorization is GRANTED but not CLAIMED and not CONSUMED. It is reserved for the next chat only.
+- The granted gate permits fresh read-only preflight and, if it passes, one flash write attempt. `AUTO_RETRY=false`; a failed/consumed attempt cannot be replayed automatically.
+- No Board D access, flash/NVS mutation, T1 mutation or merge occurred during handoff preparation.
+- Next ONE gate: `N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_BOARD_D_PHYSICAL_ACCEPTANCE_PREFLIGHT_AND_WRITE_20261029_01`.
+- Formal new-chat handoff: `docs/development/N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_BOARD_D_PHYSICAL_ACCEPTANCE_PREFLIGHT_AND_WRITE_NEW_CHAT_HANDOFF_V1.0_20261029.md` (current sole valid template V1.3).
+- After a successful write, Board D normal application boot plus the real phone first-registration attempt remain a separate successor physical gate and require new authorization.
+
 ## 2026-10-27 — R5 merged; R6 TLS-bootstrap design/preflight is next
 
 - Executable/source main after R5 merge: `32c4eef68bce48ff7a379381ab0bfad60557ef57`; tree `303378f5cffef4e4f1f71881b1955baed5b7d220`.
