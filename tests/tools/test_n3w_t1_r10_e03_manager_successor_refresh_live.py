@@ -546,6 +546,24 @@ def test_ledger_probe_is_readonly() -> None:
     assert "DELETE " not in source
 
 
+def test_rollback_source_stops_services_before_host_db_classification() -> None:
+    source = TOOL_PATH.read_text(encoding="utf-8")
+    rollback = source[source.index("def rollback("):source.index("def _remote_apply_locked(")]
+    assert rollback.index("require_application_services_stopped()") < rollback.index(
+        'ledger_on_host(doc["host_paths"])'
+    )
+    assert "rollback_ha_continuity_invalid" in rollback
+    assert "rollback_listener_invalid" in rollback
+
+
+def test_require_application_services_stopped_rejects_active_unit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(tool, "systemctl", lambda *_args: "active")
+    with pytest.raises(tool.RefreshError, match="services_not_inactive"):
+        tool.require_application_services_stopped()
+
+
 def test_source_requires_exact_predecessor_tag_binding() -> None:
     source = TOOL_PATH.read_text(encoding="utf-8")
     assert 'image_id(OLD_MANAGER_IMAGE) != OLD_MANAGER_ID' in source
