@@ -26,11 +26,11 @@ Read-only T1 state remained:
 T1-side LAN checks proved:
 
 - TCP/47110 listening on `0.0.0.0:47110`
-- trusted-product-LAN guard allowed `192.168.68.0/24`
+- trusted-product-LAN guard allowed the production trusted-product-LAN subnet
 - TLS 1.2 handshake from LAN passed
 - served registration certificate SHA-256 matched the candidate-advertised pin
 - the registration certificate is P-256 ECDSA with SHA-256 signature and serverAuth usage
-- exactly one registration candidate was advertised, at `192.168.68.126:47110`
+- exactly one registration candidate was advertised, at the active T1 LAN address on TCP/47110
 
 The one authorized forensic retry captured this exact ordering:
 
