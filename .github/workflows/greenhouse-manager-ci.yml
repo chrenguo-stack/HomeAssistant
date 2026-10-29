@@ -26,6 +26,7 @@ jobs:
     outputs:
       run: ${{ steps.detect.outputs.run }}
       phase3: ${{ steps.detect.outputs.phase3 }}
+      physical_acceptance_overlay: ${{ steps.detect.outputs.physical_acceptance_overlay }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,6 +41,7 @@ jobs:
           if [[ "$EVENT_NAME" != "pull_request" ]]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
             echo "phase3=true" >> "$GITHUB_OUTPUT"
+            echo "physical_acceptance_overlay=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           git diff --name-only "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/changed-files.txt"
@@ -53,6 +55,38 @@ jobs:
           else
             echo "phase3=false" >> "$GITHUB_OUTPUT"
           fi
+          target="firmware/esphome_rc/f1_0_rc2/f1_0_rc2_n3w_target.yml"
+          acceptance_overlay=false
+          if grep -Fxq "$target" "$RUNNER_TEMP/changed-files.txt"; then
+            read -r additions deletions changed_path < <(
+              git diff --numstat "$BASE_SHA" "$HEAD_SHA" -- "$target"
+            )
+            added_bypass_count="$(
+              git diff --unified=0 "$BASE_SHA" "$HEAD_SHA" -- "$target" |
+                grep '^+' |
+                grep -v '^+++' |
+                grep -Fxc '+  battery_low_threshold: "-1.00"' || true
+            )"
+            base_bypass_count="$(
+              git show "$BASE_SHA:$target" |
+                grep -Fxc '  battery_low_threshold: "-1.00"' || true
+            )"
+            head_bypass_count="$(
+              git show "$HEAD_SHA:$target" |
+                grep -Fxc '  battery_low_threshold: "-1.00"' || true
+            )"
+            if [[
+              "$changed_path" == "$target" &&
+              "$additions" == "1" &&
+              "$deletions" == "0" &&
+              "$added_bypass_count" == "1" &&
+              "$base_bypass_count" == "0" &&
+              "$head_bypass_count" == "1"
+            ]]; then
+              acceptance_overlay=true
+            fi
+          fi
+          echo "physical_acceptance_overlay=$acceptance_overlay" >> "$GITHUB_OUTPUT"
 
   test:
     needs: scope
@@ -122,8 +156,14 @@ jobs:
         run: pytest -q tests/n3w_registration/test_scan_triggered_first_pairing_r7_lcd_state_contract.py
       - name: N3-W scan-triggered first-registration R8 E2E safety contracts
         run: pytest -q tests/n3w_registration/test_scan_triggered_first_pairing_r8_safety_contract.py
-      - name: N3-W scan-triggered first-registration R10 phone UI and LCD contracts
+      - name: N3-W scan-triggered first-registration R10 production phone UI and LCD contracts
+        if: needs.scope.outputs.physical_acceptance_overlay != 'true'
         run: pytest -q tests/n3w_registration/test_scan_triggered_first_pairing_r10_phone_ui_contract.py
+      - name: N3-W R10 physical-acceptance phone UI and LCD contracts
+        if: needs.scope.outputs.physical_acceptance_overlay == 'true'
+        run: |
+          pytest -q tests/n3w_registration/test_scan_triggered_first_pairing_r10_phone_ui_contract.py -k 'not product_ui_source_does_not_embed_bench_low_battery_bypass'
+          pytest -q tests/n3w_registration/test_r10_board_d_tls_pin_acceptance_artifact_source.py
       - name: Build and run R7 registration display controller
         shell: bash
         run: |
