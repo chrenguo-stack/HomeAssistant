@@ -564,6 +564,37 @@ def test_public_preclaim_hashes_container_identity() -> None:
     assert result["commit_classification"] == "DEFINITELY_NOT_COMMITTED"
 
 
+def test_public_stop_sanitizes_internal_command_detail(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        tool,
+        "host_apply",
+        lambda _args: (_ for _ in ()).throw(
+            tool.RefreshError("command_failed:ssh:PRIVATE_DETAIL")
+        ),
+    )
+    code = tool.main([
+        "apply",
+        "--t1", "root@192.0.2.1",
+        "--known-hosts", "/tmp/known",
+        "--host-key-sha256", "1" * 64,
+        "--manager-tar", "/tmp/a",
+        "--binding-json", "/tmp/b",
+        "--authorization-id",
+        "N3W_R10_E03_MANAGER_SUCCESSOR_REFRESH_LIVE_APPLY_20261029_01",
+        "--confirmation", tool.CONFIRMATION,
+        "--executor-source-head", "1" * 40,
+        "--executor-blob", "2" * 40,
+        "--pr725-head", "1" * 40,
+    ])
+    assert code == 2
+    report = json.loads(capsys.readouterr().out)
+    assert report["reason"] == "command_failed"
+    assert "PRIVATE_DETAIL" not in json.dumps(report)
+
+
 def test_stop_output_preserves_unknown_authorization(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
