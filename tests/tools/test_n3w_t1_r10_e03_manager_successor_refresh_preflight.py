@@ -119,10 +119,14 @@ class FakeRunner:
         ledger: dict[str, object] | None = None,
         manager_restart_count: int = 0,
         services_unit_text: str | None = None,
+        settings_pairing_path: str = "/var/lib/greenhouse-manager/manager/manager-state.sqlite3",
+        settings_credential_path: str = "/var/lib/greenhouse-manager/n3w/credential-lifecycle.sqlite3",
     ) -> None:
         self.tcp_47112 = tcp_47112
         self.ledger = ledger or _ledger()
         self.manager_restart_count = manager_restart_count
+        self.settings_pairing_path = settings_pairing_path
+        self.settings_credential_path = settings_credential_path
         self.services_unit_text = services_unit_text or (
             "[Service]\n"
             + tool.EXPECTED_SERVICES_EXECSTART
@@ -170,6 +174,19 @@ class FakeRunner:
             return tool.CommandResult("listener\n" * count, "", 0)
 
         if args[:3] == ("docker", "exec", "manager-container-id"):
+            if len(args) >= 6 and "Settings.from_env" in args[5]:
+                return tool.CommandResult(
+                    json.dumps(
+                        {
+                            "pairing_db_path": self.settings_pairing_path,
+                            "credential_lifecycle_db_path": (
+                                self.settings_credential_path
+                            ),
+                        }
+                    ),
+                    "",
+                    0,
+                )
             return tool.CommandResult(json.dumps(self.ledger), "", 0)
 
         raise AssertionError(f"unexpected command: {args}")
@@ -198,6 +215,13 @@ def test_preflight_passes_exact_failed_attempt_and_target_binding() -> None:
     assert report["ledger"]["failed_attempt"]["pairing_credential_count"] == 0
     assert report["ledger"]["failed_attempt"]["hardware_credential_history_count"] == 0
     assert report["ledger"]["failed_attempt"]["commit_classification"] == "DEFINITELY_NOT_COMMITTED"
+    assert report["live_state_authority"]["settings_source"] == "running_manager_Settings.from_env"
+    assert report["live_state_authority"]["pairing_db_path_sha256"] == tool._sha256_text(
+        "/var/lib/greenhouse-manager/manager/manager-state.sqlite3"
+    )
+    assert report["live_state_authority"]["credential_lifecycle_db_path_sha256"] == tool._sha256_text(
+        "/var/lib/greenhouse-manager/n3w/credential-lifecycle.sqlite3"
+    )
     assert report["services_supervision"]["manager_homeassistant_joint_owner"] is True
     assert report["services_supervision"]["manager_only_recreate_forbidden"] is True
     assert report["target"]["source_head"] == SOURCE_HEAD
@@ -215,6 +239,42 @@ def test_preflight_passes_exact_failed_attempt_and_target_binding() -> None:
     assert "systemctl restart" not in flattened
     assert "docker load" not in flattened
     assert "docker compose" not in flattened
+
+
+def test_preflight_uses_live_manager_settings_paths_for_sqlite_probes() -> None:
+    runner = FakeRunner(
+        settings_pairing_path="/custom/live/registration.sqlite3",
+        settings_credential_path="/custom/live/credential.sqlite3",
+    )
+    report = tool.preflight(_args(), runner)
+
+    ledger_calls = [
+        call
+        for call in runner.calls
+        if call[:3] == ("docker", "exec", "manager-container-id")
+        and len(call) >= 8
+        and call[5] == tool._LEDGER_PROBE
+    ]
+    assert len(ledger_calls) == 1
+    assert ledger_calls[0][-2:] == (
+        "/custom/live/registration.sqlite3",
+        "/custom/live/credential.sqlite3",
+    )
+    assert report["live_state_authority"]["pairing_db_path_sha256"] == tool._sha256_text(
+        "/custom/live/registration.sqlite3"
+    )
+    assert report["live_state_authority"]["credential_lifecycle_db_path_sha256"] == tool._sha256_text(
+        "/custom/live/credential.sqlite3"
+    )
+
+
+def test_preflight_rejects_nonabsolute_live_settings_path() -> None:
+    runner = FakeRunner(settings_pairing_path="relative.sqlite3")
+    with pytest.raises(
+        tool.PreflightError,
+        match="manager_live_settings_path_invalid",
+    ):
+        tool.preflight(_args(), runner)
 
 
 def test_preflight_rejects_manager_only_supervision_drift() -> None:
