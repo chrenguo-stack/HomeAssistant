@@ -610,6 +610,12 @@ def validate_package(root: Path, expected_manifest_sha256: str) -> dict[str, Any
         or authority.get("predecessor_source") != PREDECESSOR_SOURCE
         or authority.get("target_source") != TARGET_SOURCE
         or authority.get("target_tree") != TARGET_TREE
+        or authority.get("manager_discovery_blob")
+        != "ac6e3f70879f980ee9a2d37938879dc6345a511e"
+        or authority.get("dockerfile_blob")
+        != "6486ff5fbcc23536676a48f36d67e4e0d364900a"
+        or authority.get("compose_blob")
+        != "c9038251d9ba1b05a472edda14b287470690815a"
         or authority.get("predecessor_candidate_ttl_seconds")
         != PREDECESSOR_CANDIDATE_TTL_SECONDS
         or authority.get("candidate_ttl_seconds")
@@ -641,9 +647,46 @@ def validate_package(root: Path, expected_manifest_sha256: str) -> dict[str, Any
     if (
         identity["config_digest"] != manager.get("archive_config_digest")
         or identity["manifest_digest"] != manager.get("archive_manifest_digest")
+        or identity["rootfs_layers_sha256"]
+        != manager.get("rootfs_layers_sha256")
+        or identity["config_contract_sha256"]
+        != manager.get("config_contract_sha256")
         or manager.get("platform") != "linux/arm64"
     ):
         raise RefreshError("manager_archive_binding_invalid")
+
+    inventory = manager.get("python_distributions")
+    if not isinstance(inventory, dict):
+        raise RefreshError("python_distributions_manifest_invalid")
+    inventory_path = root / str(inventory.get("artifact_path", ""))
+    if (
+        inventory_path.is_symlink()
+        or not inventory_path.is_file()
+        or sha256_file(inventory_path) != inventory.get("sha256")
+        or inventory_path.stat().st_size != inventory.get("size")
+    ):
+        raise RefreshError("python_distributions_binding_invalid")
+    try:
+        distribution_document = json.loads(
+            inventory_path.read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise RefreshError("python_distributions_json_invalid") from error
+    if (
+        not isinstance(distribution_document, list)
+        or not distribution_document
+        or len(distribution_document) != inventory.get("count")
+        or not all(
+            isinstance(item, dict)
+            and set(item) == {"name", "version"}
+            and isinstance(item["name"], str)
+            and bool(item["name"])
+            and isinstance(item["version"], str)
+            and bool(item["version"])
+            for item in distribution_document
+        )
+    ):
+        raise RefreshError("python_distributions_contract_invalid")
 
     executor = manifest.get("executor")
     if not isinstance(executor, dict):
@@ -660,13 +703,54 @@ def validate_package(root: Path, expected_manifest_sha256: str) -> dict[str, Any
     return manifest
 
 
-def runtime_image_ids(manifest: dict[str, Any]) -> frozenset[str]:
+def runtime_image_binding(manifest: dict[str, Any]) -> dict[str, str]:
+    try:
+        docs = json.loads(
+            run(("docker", "image", "inspect", TARGET_MANAGER_IMAGE), timeout=30)
+        )
+    except json.JSONDecodeError as error:
+        raise RefreshError("target_image_inspect_invalid") from error
+    if (
+        not isinstance(docs, list)
+        or len(docs) != 1
+        or not isinstance(docs[0], dict)
+    ):
+        raise RefreshError("target_image_inspect_invalid")
+    item = docs[0]
+    runtime_id = item.get("Id")
+    if (
+        not isinstance(runtime_id, str)
+        or re.fullmatch(r"sha256:[0-9a-f]{64}", runtime_id) is None
+    ):
+        raise RefreshError("target_image_runtime_id_invalid")
+    if item.get("Architecture") != "arm64" or item.get("Os") != "linux":
+        raise RefreshError("target_image_platform_invalid")
+    rootfs = item.get("RootFS")
+    layers = rootfs.get("Layers") if isinstance(rootfs, dict) else None
+    if (
+        not isinstance(layers, list)
+        or not layers
+        or not all(
+            isinstance(layer, str)
+            and re.fullmatch(r"sha256:[0-9a-f]{64}", layer) is not None
+            for layer in layers
+        )
+    ):
+        raise RefreshError("target_image_rootfs_invalid")
+    rootfs_hash = canonical_sha256(layers)
+    config_hash = canonical_sha256(
+        image_config_contract(item.get("Config"))
+    )
     manager = manifest["manager"]
-    values = {
-        str(manager.get("archive_config_digest", "")),
-        str(manager.get("archive_manifest_digest", "")),
+    if rootfs_hash != manager.get("rootfs_layers_sha256"):
+        raise RefreshError("target_image_rootfs_binding_invalid")
+    if config_hash != manager.get("config_contract_sha256"):
+        raise RefreshError("target_image_config_binding_invalid")
+    return {
+        "runtime_id": runtime_id,
+        "rootfs_layers_sha256": rootfs_hash,
+        "config_contract_sha256": config_hash,
     }
-    return frozenset(value for value in values if value.startswith("sha256:"))
 
 
 def protected_runtime_snapshot() -> dict[str, Any]:
@@ -675,6 +759,10 @@ def protected_runtime_snapshot() -> dict[str, Any]:
         "registration_cert": file_binding(REGISTRATION_CERT),
         "registration_key": file_binding(REGISTRATION_KEY),
         "broker_dynsec": file_binding(BROKER_DYNSEC),
+        "f4_transaction": file_binding(F4_TRANSACTION),
+        "predecessor_upgrade_transaction": file_binding(
+            PREDECESSOR_UPGRADE_TRANSACTION
+        ),
         "database": database_state(),
     }
 
