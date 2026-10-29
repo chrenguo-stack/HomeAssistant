@@ -787,8 +787,7 @@ void SimpleProductComponent::advance_registration_discovery_() {
   if (registration_session_pairing_id_.empty() ||
       registration_session_pairing_id_ != pairing_client_.pairing_id() ||
       !registration_candidate_index(selected_id, &selected_index) ||
-      selected_index >= registration_candidates_.size() ||
-      registration_candidates_[selected_index].expired(now_ms())) {
+      selected_index >= registration_candidates_.size()) {
     show_registration_error_(RegistrationDisplayError::E07_QR_INVALID);
     clear_registration_discovery_();
     return;
@@ -821,12 +820,10 @@ void SimpleProductComponent::advance_registration_bootstrap_() {
   next_registration_bootstrap_attempt_ms_ = now + kPairingRetryMs;
 
   if (!registration_bootstrap_accepted_) {
-    if (selected_registration_candidate_.expired(now)) {
-      show_registration_error_(RegistrationDisplayError::E07_QR_INVALID);
-      clear_registration_discovery_();
-      return;
-    }
-
+    // The portal accepts /begin only while the selected-candidate confirmation
+    // deadline is still valid. Once that irreversible boundary is crossed,
+    // bootstrap must not be invalidated merely because the discovery TTL
+    // expires during the TLS/HTTP transaction.
     std::string local_ipv4;
     std::string subnet_mask;
     if (!current_wifi_ipv4_(&local_ipv4, &subnet_mask)) {

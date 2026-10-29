@@ -30,7 +30,7 @@ def test_r5_reuses_registration_candidate_contract_and_bounded_transports() -> N
     assert '"gh.registration.discovery-result/1"' in header
     assert "kRegistrationDiscoveryMaxCandidates = 4" in header
     assert "kRegistrationBootstrapPort = 47110" in header
-    assert "kRegistrationCandidateTtlSeconds = 30" in header
+    assert "kRegistrationCandidateTtlSeconds = 60" in header
 
     assert 'mdns_query_ptr(\n      "_greenhouse-reg",\n      "_tcp"' in source
     assert "kRegistrationMdnsTimeoutMs = 1500" in source
@@ -63,13 +63,13 @@ def test_r5_node_contract_matches_existing_r1_manager_contract() -> None:
     assert 'bootstrap_scheme: str = "https"' in manager
     assert "bootstrap_port: int = 47110" in manager
     assert 'bootstrap_path: str = "/v1/registration/confirm"' in manager
-    assert "ttl_s: int = 30" in manager
+    assert "ttl_s: int = 60" in manager
 
     assert '"gh.n3w.first-registration/1"' in header
     assert '"gh.registration.candidate/1"' in header
     assert '"gh.registration.discovery-result/1"' in header
     assert "kRegistrationBootstrapPort = 47110" in header
-    assert "kRegistrationCandidateTtlSeconds = 30" in header
+    assert "kRegistrationCandidateTtlSeconds = 60" in header
     assert 'bootstrap_path == "/v1/registration/confirm"' in source
 
 

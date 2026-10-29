@@ -48,6 +48,7 @@ button{display:block;font-size:1.05rem;padding:.7rem 1rem;margin:.6rem 0;max-wid
   const token = params.get("t");
   history.replaceState(null, "", location.pathname);
   let stopped = false;
+  let countdownTimer = null;
 
   if (!token) {
     out.textContent = "二维码已失效，请重新扫码";
@@ -68,7 +69,15 @@ button{display:block;font-size:1.05rem;padding:.7rem 1rem;margin:.6rem 0;max-wid
     return {response, body};
   };
 
+  const clearCountdown = () => {
+    if (countdownTimer !== null) {
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+    }
+  };
+
   const clearChoices = () => {
+    clearCountdown();
     while (choices.firstChild) choices.removeChild(choices.firstChild);
   };
 
@@ -244,9 +253,32 @@ button{display:block;font-size:1.05rem;padding:.7rem 1rem;margin:.6rem 0;max-wid
       const label = typeof body.selected_label === "string"
         ? body.selected_label
         : "温室主机";
+      const expiresIn = Number.isInteger(body.expires_in_s)
+        ? body.expires_in_s
+        : 0;
       out.textContent = "已选择：" + label;
+      if (expiresIn <= 0) {
+        out.textContent = "E07 主机信息已失效";
+        pollSoon(0);
+        return;
+      }
       addHint("点击“开始注册”后，注册过程不能主动终止。系统会自动完成，或在失败后返回错误信息。");
-      addButton("开始注册", beginRegistration);
+      let remaining = expiresIn;
+      const button = addButton(
+        "开始注册（" + remaining + "s）",
+        beginRegistration
+      );
+      countdownTimer = setInterval(() => {
+        remaining -= 1;
+        if (remaining <= 0) {
+          button.disabled = true;
+          button.textContent = "开始注册（0s）";
+          clearCountdown();
+          pollSoon(0);
+          return;
+        }
+        button.textContent = "开始注册（" + remaining + "s）";
+      }, 1000);
       stopped = true;
       return;
     }
@@ -815,6 +847,7 @@ esp_err_t RegistrationPortal::handle_status_(httpd_req_t *request) {
   std::string node_label;
   std::vector<RegistrationPortalCandidateView> candidates;
   std::string selected_label;
+  uint32_t selected_expires_in_s = 0;
   std::string error_code;
   std::string error_message;
   const uint64_t now_ms = monotonic_ms_();
@@ -855,6 +888,9 @@ esp_err_t RegistrationPortal::handle_status_(httpd_req_t *request) {
             true, std::memory_order_release);
       } else {
         selected_label = found->label;
+        const uint64_t remaining_ms = found->expires_at_ms - now_ms;
+        selected_expires_in_s = static_cast<uint32_t>(
+            (remaining_ms - 1U) / 1000U);
       }
     }
     stage = discovery_stage_;
@@ -877,6 +913,7 @@ esp_err_t RegistrationPortal::handle_status_(httpd_req_t *request) {
       }
     } else if (stage == RegistrationPortalStage::CANDIDATE_SELECTED) {
       root["selected_label"] = selected_label;
+      root["expires_in_s"] = selected_expires_in_s;
     } else if (stage == RegistrationPortalStage::ERROR_NO_CANDIDATE) {
       root["error_code"] = "E01";
       root["message"] = "未找到主机";
@@ -923,6 +960,7 @@ esp_err_t RegistrationPortal::handle_confirm_(httpd_req_t *request) {
           });
       if (found != candidates_.end()) {
         selected_candidate_id_ = candidate_id;
+        found->expires_at_ms = now_ms + kRegistrationUserConfirmMs;
         error_code_.clear();
         error_message_.clear();
         discovery_stage_ = RegistrationPortalStage::CANDIDATE_SELECTED;

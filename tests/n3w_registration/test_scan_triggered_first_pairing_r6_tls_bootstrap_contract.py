@@ -22,8 +22,17 @@ def test_r6_tls_pin_is_proven_before_any_http_request_is_constructed() -> None:
     assert "certificate->raw.len" in source
     assert "constant_time_equal(observed, verify->expected)" in source
     assert "MBEDTLS_SSL_VERIFY_NONE" not in source
-    assert "MBEDTLS_SSL_VERIFY_OPTIONAL" not in source
-    assert "MBEDTLS_SSL_VERIFY_REQUIRED" in source
+    assert (
+        "mbedtls_ssl_conf_authmode(&config, MBEDTLS_SSL_VERIFY_OPTIONAL)"
+        in source
+    )
+    assert (
+        "mbedtls_ssl_conf_authmode(&config, MBEDTLS_SSL_VERIFY_REQUIRED)"
+        not in source
+    )
+    assert "mbedtls_ssl_conf_ca_chain" not in source
+    assert "mbedtls_ssl_conf_ca_cb" not in source
+    assert "MBEDTLS_ERR_X509_FATAL_ERROR" in source
     assert "mbedtls_ssl_conf_verify(&config, verify_pinned_leaf, &verify)" in source
 
     setup = source.index("mbedtls_ssl_setup(&ssl, &config)")
@@ -53,6 +62,26 @@ def test_r6_tls_pin_is_proven_before_any_http_request_is_constructed() -> None:
         "::fcntl(socket_fd, F_SETFL, original_flags)", so_error
     )
     assert connect_start < select_wait < so_error < restore_blocking
+
+
+def test_r6_pin_mismatch_remains_fatal_under_optional_ca_verification() -> None:
+    source = text("n3w_registration_bootstrap_transport.cpp")
+    verify = function_block(
+        source,
+        "int verify_pinned_leaf(",
+        "struct SocketBio",
+    )
+
+    assert "verify->leaf_seen = true;" in verify
+    assert "verify->pin_mismatch = true;" in verify
+    assert "return MBEDTLS_ERR_X509_FATAL_ERROR;" in verify
+    assert "*flags = 0U;" in verify
+    assert "verify->leaf_matched = true;" in verify
+
+    handshake = source.index("mbedtls_ssl_handshake(&ssl)")
+    pin_gate = source.index("!verify.leaf_seen || !verify.leaf_matched")
+    request = source.index('std::string request =\n        "POST "')
+    assert handshake < pin_gate < request
 
 
 def test_r6_confirm_contract_is_exact_and_keeps_server_deadline_authoritative() -> None:

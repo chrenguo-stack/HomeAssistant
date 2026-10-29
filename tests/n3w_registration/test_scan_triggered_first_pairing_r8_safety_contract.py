@@ -90,13 +90,14 @@ def test_actual_phone_page_requires_explicit_candidate_click() -> None:
     assert "list.forEach(candidate =>" in html
     assert 'document.createElement("button")' in html
     assert "addButton(candidate.label, () => selectCandidate(candidate))" in html
-    assert 'addButton("开始注册", beginRegistration)' in html
+    assert '"开始注册（" + remaining + "s）"' in html
     assert 'post("/api/v1/register/begin")' in html
 
     wait = html.index('body.status === "wait_confirm"')
     select = html.index("selectCandidate(candidate)", wait)
-    begin = html.index('addButton("开始注册", beginRegistration)', select)
-    assert wait < select < begin
+    begin = html.index('"开始注册（" + remaining + "s）"', select)
+    begin_handler = html.index("beginRegistration", begin)
+    assert wait < select < begin < begin_handler
 
     assert "candidates[0]" not in html
     assert "autoSelect" not in html
