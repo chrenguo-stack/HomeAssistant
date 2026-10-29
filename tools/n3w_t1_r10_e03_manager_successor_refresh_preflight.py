@@ -172,7 +172,7 @@ def _listener_count(runner: Runner, protocol: str, port: int) -> int:
     return len([line for line in output.splitlines() if line.strip()])
 
 
-_LEDGER_PROBE = r"""
+_LEDGER_PROBE = r'''
 import hashlib
 import json
 import sqlite3
@@ -267,7 +267,7 @@ print(
         sort_keys=True,
     )
 )
-"""
+'''
 
 
 def _ledger_snapshot(runner: Runner, manager_id: str) -> dict[str, Any]:
