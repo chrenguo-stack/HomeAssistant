@@ -83,21 +83,19 @@ This is safe with the exact mbedTLS implementation because OPTIONAL only suppres
 
 ## 60-second user confirmation window
 
-The previous registration candidate TTL of 30 seconds was too short for normal phone interaction.
+The previous 30-second candidate lifetime was too short for normal phone interaction.
 
-The R10 repair changes the candidate protocol TTL to 60 seconds on both sides:
+The R10 repair uses two explicit 60-second windows:
 
-- Manager advertisement default/validation: 60 seconds
-- ESP32 candidate parser contract: 60 seconds
+1. discovery candidate lifetime:
+   - Manager advertisement default/validation: 60 seconds
+   - ESP32 candidate parser contract: 60 seconds
+2. post-selection user-confirmation lifetime:
+   - selecting a still-valid candidate starts a fresh 60-second device-side confirmation deadline
+   - the first rendered button value is `开始注册（59s）`
+   - the value then decrements once per second
 
-The selected-candidate status now exposes only a non-sensitive `expires_in_s` value.
-
-The phone UI renders:
-
-- `开始注册（59s）`
-- then decrements once per second
-
-The displayed value is derived from the device-side monotonic expiry deadline rather than an independent phone timer.
+The selected-candidate status exposes only a non-sensitive `expires_in_s` value. The countdown is derived from the device-side monotonic confirmation deadline rather than an independent phone timer.
 
 At 0 seconds:
 
@@ -105,7 +103,9 @@ At 0 seconds:
 - the page re-polls the device;
 - the device-side expiry remains authoritative;
 - stale selection resolves to E07;
-- no bootstrap is allowed after expiry.
+- no bootstrap can begin after expiry.
+
+Once `/api/v1/register/begin` is accepted inside that confirmation window, the irreversible user boundary has been crossed. The subsequent TLS/HTTP bootstrap is not invalidated merely because the earlier discovery-candidate TTL expires while the transaction is already starting.
 
 No T1 locator, TLS pin, manager_id, system_id, Setup Secret, pairing ID, MQTT password, or other secret is exposed to the browser.
 
@@ -119,9 +119,11 @@ Focused contracts are updated to require:
 - `leaf_seen && leaf_matched` is checked before HTTP construction;
 - Manager and ESP32 both freeze candidate TTL at 60 seconds;
 - candidate-selected status publishes `expires_in_s`;
-- the begin button uses the server-bound countdown;
+- selection starts a fresh 60-second server-side confirmation deadline;
+- the begin button starts at the `59s` presentation and uses the server-bound countdown;
 - 0 seconds disables begin and rechecks the device;
-- server-side begin still checks the candidate expiry deadline.
+- server-side begin still checks the selected confirmation deadline;
+- accepted begin is not later cancelled by the discovery TTL.
 
 ## Physical revalidation requirement
 
