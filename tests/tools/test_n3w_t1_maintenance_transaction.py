@@ -49,6 +49,99 @@ def claimed():
     return tx.begin_apply(ready)
 
 
+def ready_claimed_document():
+    return tx.claim_authorization(tx.mark_ready(document()))
+
+
+def test_abort_claimed_ready_before_apply_happy_path() -> None:
+    value = ready_claimed_document()
+    result = tx.abort_claimed_ready_before_apply(
+        value,
+        reason="SOURCE_REPAIR_BEFORE_APPLY",
+    )
+    assert result["state"] == "ABORTED"
+    assert result["authorization_consumed"] is True
+    assert result["replay_allowed"] is False
+    assert result["operation_seq"] == 0
+    assert result["operations"] == []
+    assert result["observed_after"] == {}
+    assert result["last_operation"] == "retired_before_apply"
+    assert result["last_reason"] == "SOURCE_REPAIR_BEFORE_APPLY"
+
+
+@pytest.mark.parametrize(
+    "mutator,error",
+    [
+        (
+            lambda value: tx.begin_apply(value),
+            "abort_before_apply_state_invalid",
+        ),
+        (
+            lambda value: {**value, "authorization_consumed": False},
+            "abort_before_apply_authorization_not_consumed",
+        ),
+    ],
+)
+def test_abort_claimed_ready_before_apply_rejects_ineligible_state(
+    mutator,
+    error: str,
+) -> None:
+    value = mutator(ready_claimed_document())
+    with pytest.raises(tx.MaintenanceTransactionError, match=error):
+        tx.abort_claimed_ready_before_apply(
+            value,
+            reason="SOURCE_REPAIR_BEFORE_APPLY",
+        )
+
+
+def test_abort_claimed_ready_before_apply_rejects_operation_history() -> None:
+    value = tx.begin_apply(ready_claimed_document())
+    value = tx.begin_operation(
+        value,
+        operation_type="service_stop",
+        before_fingerprint="1" * 64,
+        intended_after_fingerprint="2" * 64,
+    )
+    value["state"] = "READY"
+    with pytest.raises(
+        tx.MaintenanceTransactionError,
+        match="abort_before_apply_operation_history_present",
+    ):
+        tx.abort_claimed_ready_before_apply(
+            value,
+            reason="SOURCE_REPAIR_BEFORE_APPLY",
+        )
+
+
+def test_abort_claimed_ready_before_apply_rejects_observed_after() -> None:
+    value = ready_claimed_document()
+    value["observed_after"] = {"compose": "8" * 64}
+    with pytest.raises(
+        tx.MaintenanceTransactionError,
+        match="abort_before_apply_observed_after_present",
+    ):
+        tx.abort_claimed_ready_before_apply(
+            value,
+            reason="SOURCE_REPAIR_BEFORE_APPLY",
+        )
+
+
+def test_abort_claimed_ready_before_apply_rejects_apply_session() -> None:
+    value = tx.record_execution_session(
+        ready_claimed_document(),
+        "execution-session-retirement-test",
+        action="apply",
+    )
+    with pytest.raises(
+        tx.MaintenanceTransactionError,
+        match="abort_before_apply_execution_session_present",
+    ):
+        tx.abort_claimed_ready_before_apply(
+            value,
+            reason="SOURCE_REPAIR_BEFORE_APPLY",
+        )
+
+
 def test_transaction_lifecycle_happy_path() -> None:
     value = document()
     assert value["state"] == "PREPARING"
