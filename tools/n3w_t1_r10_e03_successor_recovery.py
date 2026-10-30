@@ -1681,11 +1681,134 @@ def _load_f4_reboot_verify() -> ModuleType:
     return module
 
 
+def _runtime_identity_sha256(item: dict[str, Any]) -> str:
+    return sha_bytes(
+        canonical([item["container_id"], item["started_at"]])
+    )
+
+
+def _validate_auth_probe(document: Any) -> dict[str, Any]:
+    expected = {
+        "manager_wrong_client_id_rejected",
+        "provisioning_wrong_client_id_rejected",
+        "homeassistant_wrong_client_id_rejected",
+        "anonymous_rejected",
+        "provisioning_exact_credential_auth",
+    }
+    if (
+        not isinstance(document, dict)
+        or set(document) != expected
+        or any(document.get(key) is not True for key in expected)
+    ):
+        raise SuccessorError("broker_auth_probe_contract_invalid")
+    return dict(document)
+
+
+def _application_owner_acceptance(plan: dict[str, Any]) -> dict[str, Any]:
+    semantic = _service_semantic()
+    expected = {
+        "active": "active",
+        "enabled": "enabled",
+        "manager_count": 1,
+        "homeassistant_count": 1,
+    }
+    if semantic != expected:
+        raise SuccessorError("application_owner_acceptance_drift")
+    nrestarts = systemd_nrestarts(SERVICES_UNIT)
+    if nrestarts != plan["services_nrestarts"]:
+        raise SuccessorError("services_automatic_restart_observed")
+    return {**semantic, "nrestarts": nrestarts}
+
+
+def _authenticated_runtime_snapshot() -> dict[str, Any]:
+    module = _load_f4_reboot_verify()
+    try:
+        document = module.runtime_snapshot()
+    except Exception as error:
+        raise SuccessorError(
+            "authenticated_runtime_snapshot_failed"
+        ) from error
+    if (
+        not isinstance(document, dict)
+        or document.get("schema") != RUNTIME_SNAPSHOT_SCHEMA
+        or document.get("status") != "PASS"
+        or document.get("homeassistant_http_ready") is not True
+    ):
+        raise SuccessorError("authenticated_runtime_snapshot_invalid")
+    for key in (
+        "boot_id_sha256",
+        "control_manifest_sha256",
+        "systemd_state_sha256",
+        "critical_errors_sha256",
+    ):
+        value = document.get(key)
+        if not isinstance(value, str) or SHA64.fullmatch(value) is None:
+            raise SuccessorError("authenticated_runtime_snapshot_digest_invalid")
+    source_head = document.get("source_head")
+    if not isinstance(source_head, str) or SHA40.fullmatch(source_head) is None:
+        raise SuccessorError("authenticated_runtime_snapshot_source_invalid")
+
+    containers = document.get("containers")
+    if (
+        not isinstance(containers, dict)
+        or set(containers) != {"broker", "manager", "homeassistant"}
+    ):
+        raise SuccessorError("authenticated_runtime_container_set_invalid")
+    observed_runtimes = {
+        service: runtime(service)
+        for service in ("broker", "manager", "homeassistant")
+    }
+    for service, observed in observed_runtimes.items():
+        record = containers.get(service)
+        if (
+            not isinstance(record, dict)
+            or record.get("running") is not True
+            or record.get("restart_count") != observed["restart_count"]
+            or record.get("identity_sha256")
+            != _runtime_identity_sha256(observed)
+        ):
+            raise SuccessorError(
+                f"authenticated_runtime_container_invalid:{service}"
+            )
+
+    auth = document.get("runtime_service_auth")
+    if not isinstance(auth, dict) or set(auth) != {"manager", "homeassistant"}:
+        raise SuccessorError("authenticated_runtime_auth_set_invalid")
+    for service, port in (("manager", 8883), ("homeassistant", 1883)):
+        record = auth.get(service)
+        count = record.get("owned_socket_count") if isinstance(record, dict) else None
+        if (
+            not isinstance(record, dict)
+            or record.get("authenticated") is not True
+            or record.get("endpoint_port") != port
+            or isinstance(count, bool)
+            or not isinstance(count, int)
+            or (service == "manager" and count != 1)
+            or (service == "homeassistant" and count < 1)
+        ):
+            raise SuccessorError(
+                f"authenticated_runtime_service_invalid:{service}"
+            )
+        for key in (
+            "identity_sha256",
+            "owned_socket_sha256",
+            "authenticated_connection_sha256",
+        ):
+            value = record.get(key)
+            if not isinstance(value, str) or SHA64.fullmatch(value) is None:
+                raise SuccessorError(
+                    f"authenticated_runtime_service_digest_invalid:{service}"
+                )
+    return copy.deepcopy(document)
+
+
 def mqtt_readiness_sample(
     module: ModuleType,
     *,
     identity: portable.PortableImageIdentity,
 ) -> dict[str, Any]:
+    if systemctl("is-enabled", SERVICES_UNIT) != "enabled":
+        raise SuccessorError("services_owner_enablement_drift")
     if systemctl("is-active", SERVICES_UNIT) != "active":
         return {"state": "WAIT", "reason": "services_not_active"}
     try:
@@ -1695,7 +1818,12 @@ def mqtt_readiness_sample(
         return {"state": "WAIT", "reason": "application_containers_not_ready"}
     if manager_runtime["image_ref"] != TARGET_MANAGER_IMAGE:
         raise SuccessorError("manager_target_ref_invalid")
-    _verify_candidate_identity(identity)
+    verdict = _verify_candidate_identity(identity)
+    if (
+        not isinstance(verdict.runtime_image_id, str)
+        or manager_runtime["image_id"] != verdict.runtime_image_id
+    ):
+        raise SuccessorError("manager_running_image_binding_invalid")
     if (
         manager_runtime["network_mode"] != "host"
         or manager_runtime["restart_count"] != 0
