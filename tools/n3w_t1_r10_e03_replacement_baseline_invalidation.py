@@ -681,8 +681,10 @@ class InvalidationStore:
         if current["generation"] != expected_generation:
             raise InvalidationError("invalidation_generation_conflict")
         value = validate_record(document)
-        if value["generation"] <= current["generation"]:
+        if value["generation"] != current["generation"] + 1:
             raise InvalidationError("invalidation_generation_not_advanced")
+        if current["state"] != "CLAIMED" or value["state"] != "COMMITTED":
+            raise InvalidationError("invalidation_state_transition_invalid")
         for key in IMMUTABLE_RECORD_KEYS:
             if value[key] != current[key]:
                 raise InvalidationError(
