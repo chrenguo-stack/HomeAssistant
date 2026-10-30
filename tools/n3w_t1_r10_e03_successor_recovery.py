@@ -986,6 +986,20 @@ def _service_fingerprint() -> str:
     return sha_bytes(canonical(_service_semantic()))
 
 
+def _gate_loaded_state() -> str:
+    loaded = run(
+        (
+            "systemctl",
+            "show",
+            SERVICES_UNIT,
+            "--property",
+            "ExecCondition",
+            "--value",
+        )
+    ).stdout.decode()
+    return "YES" if str(GATE_TARGET) in loaded else "NO"
+
+
 def _gate_state() -> dict[str, str]:
     absent = sha_text("ABSENT")
     return {
@@ -995,6 +1009,7 @@ def _gate_state() -> dict[str, str]:
         "dropin": sha_file(GATE_DROPIN)
         if GATE_DROPIN.exists() and not GATE_DROPIN.is_symlink()
         else absent,
+        "loaded": sha_text(_gate_loaded_state()),
     }
 
 
@@ -1007,6 +1022,7 @@ def _expected_gate_after() -> tuple[str, dict[str, str]]:
     state = {
         "helper": sha_bytes(helper),
         "dropin": sha_bytes(GATE_DROPIN_BYTES),
+        "loaded": sha_text("YES"),
     }
     return sha_bytes(canonical(state)), state
 
