@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 import hashlib
 import io
 import json
@@ -82,8 +83,9 @@ def _runtime(config_doc: dict[str, object], *, runtime_id: str = "sha256:" + "f"
 
 
 def _oci_archive(path: Path, *, duplicate_platform: bool = False) -> dict[str, object]:
-    layer = b"compressed-or-oci-layer"
-    diff = "sha256:" + _sha(b"uncompressed-rootfs")
+    uncompressed_layer = b"uncompressed-rootfs"
+    layer = gzip.compress(uncompressed_layer, mtime=0)
+    diff = "sha256:" + _sha(uncompressed_layer)
     config = {
         "architecture": "arm64",
         "os": "linux",
