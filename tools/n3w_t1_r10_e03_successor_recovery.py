@@ -298,10 +298,15 @@ def global_lock():
     _ensure_private_dir(MAINTENANCE_ROOT)
     flags = os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0)
     fd = os.open(LOCK_PATH, flags, 0o600)
+    acquired = False
     try:
         os.fchmod(fd, 0o600)
         os.fchown(fd, 0, 0)
-        fcntl.flock(fd, fcntl.LOCK_EX)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise SuccessorError("maintenance_lock_busy") from error
+        acquired = True
         if _LOCK_DEPTH != 0:
             raise SuccessorError("maintenance_lock_reentered")
         _LOCK_DEPTH = 1
@@ -309,7 +314,8 @@ def global_lock():
     finally:
         _LOCK_DEPTH = 0
         try:
-            fcntl.flock(fd, fcntl.LOCK_UN)
+            if acquired:
+                fcntl.flock(fd, fcntl.LOCK_UN)
         finally:
             os.close(fd)
 
