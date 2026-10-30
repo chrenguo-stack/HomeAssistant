@@ -1576,3 +1576,73 @@ def test_source_repair_uses_portable_deployment_binding_v2() -> None:
     assert '"compose_env_candidate_sha256"' in source
     assert '"deployment_inputs"' in source
     assert "rewrite_manager_image(" not in source
+
+
+def test_candidate_env_payload_binding_is_checked_before_write(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = _plan()
+    monkeypatch.setattr(
+        successor,
+        "_service_fingerprint",
+        lambda: str(plan["service_stopped_fingerprint"]),
+    )
+    monkeypatch.setattr(
+        successor,
+        "_deployment_reality",
+        lambda _plan: str(plan["deployment_before_fingerprint"]),
+    )
+    monkeypatch.setattr(
+        successor,
+        "sha_file",
+        lambda path: str(plan["compose_sha256"])
+        if path == successor.COMPOSE
+        else pytest.fail("unexpected sha_file path"),
+    )
+    monkeypatch.setattr(
+        successor,
+        "_atomic_replace_exact",
+        lambda *_args, **_kwargs: pytest.fail("must not write"),
+    )
+    with pytest.raises(
+        successor.BlockedError,
+        match="candidate_env_payload_binding_drift",
+    ):
+        successor._publish_candidate_env(plan)
+
+
+def test_rollback_env_payload_binding_is_checked_before_write(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = _plan()
+    monkeypatch.setattr(
+        successor,
+        "_deployment_reality",
+        lambda _plan: str(plan["deployment_candidate_fingerprint"]),
+    )
+    monkeypatch.setattr(
+        successor,
+        "sha_file",
+        lambda path: str(plan["compose_sha256"])
+        if path == successor.COMPOSE
+        else pytest.fail("unexpected sha_file path"),
+    )
+    monkeypatch.setattr(
+        successor,
+        "_atomic_replace_exact",
+        lambda *_args, **_kwargs: pytest.fail("must not write"),
+    )
+    with pytest.raises(
+        successor.BlockedError,
+        match="rollback_env_payload_binding_drift",
+    ):
+        successor._restore_deployment_env(plan)
+
+
+def test_status_uses_deployment_inputs_state_name() -> None:
+    source = (
+        ROOT / "tools" / "n3w_t1_r10_e03_successor_recovery.py"
+    ).read_text(encoding="utf-8")
+    section = source.split("def status(", 1)[1].split("def build_identity(", 1)[0]
+    assert 'last_proven_state=f"DEPLOYMENT_INPUTS_{disposition}"' in section
+    assert 'last_proven_state=f"COMPOSE_{disposition}"' not in section
