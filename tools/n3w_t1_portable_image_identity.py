@@ -232,6 +232,31 @@ class SafeTar:
             raise PortableImageIdentityError("archive_member_size_mismatch")
         return digest.hexdigest(), size
 
+    def diff_id(self, name: str, media_type: str) -> str:
+        member = self._member(name)
+        assert self.tar is not None
+        source = self.tar.extractfile(member)
+        if source is None:
+            raise PortableImageIdentityError("archive_member_read_failed")
+        if media_type in UNCOMPRESSED_LAYER_MEDIA_TYPES:
+            stream = source
+        elif media_type in GZIP_LAYER_MEDIA_TYPES:
+            stream = gzip.GzipFile(fileobj=source, mode="rb")
+        else:
+            raise UnsupportedImageArchive("oci_layer_media_type_unsupported")
+        digest = hashlib.sha256()
+        try:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+        except (OSError, EOFError) as error:
+            raise PortableImageIdentityError(
+                "oci_layer_compression_invalid"
+            ) from error
+        finally:
+            if stream is not source:
+                stream.close()
+        return "sha256:" + digest.hexdigest()
+
 
 def _digest_blob_path(digest: str) -> str:
     match = DIGEST.fullmatch(digest)
