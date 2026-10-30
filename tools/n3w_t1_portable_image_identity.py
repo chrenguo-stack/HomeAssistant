@@ -16,8 +16,6 @@ VERDICT_SCHEMA = "gh.n3w-t1-portable-image-verdict/1"
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 DIGEST = re.compile(r"^sha256:([0-9a-f]{64})$")
 MAX_JSON_BYTES = 16 * 1024 * 1024
-MAX_ARCHIVE_MEMBERS = 100_000
-
 OCI_MANIFEST_MEDIA_TYPES = frozenset({
     "application/vnd.oci.image.manifest.v1+json",
     "application/vnd.docker.distribution.manifest.v2+json",
@@ -723,12 +721,22 @@ def identity_from_dict(value: Any) -> PortableImageIdentity:
         raise PortableImageIdentityError("identity_keys_invalid")
     if value.get("representation") not in {"docker-save", "oci-layout"}:
         raise PortableImageIdentityError("identity_representation_invalid")
-    if not isinstance(value.get("os"), str) or not value["os"]:
+    if (
+        not isinstance(value.get("os"), str)
+        or not value["os"]
+        or value["os"].strip() != value["os"]
+    ):
         raise PortableImageIdentityError("identity_os_invalid")
-    if not isinstance(value.get("architecture"), str) or not value["architecture"]:
+    if (
+        not isinstance(value.get("architecture"), str)
+        or not value["architecture"]
+        or value["architecture"].strip() != value["architecture"]
+    ):
         raise PortableImageIdentityError("identity_architecture_invalid")
     if value.get("variant") is not None and (
-        not isinstance(value["variant"], str) or not value["variant"]
+        not isinstance(value["variant"], str)
+        or not value["variant"]
+        or value["variant"].strip() != value["variant"]
     ):
         raise PortableImageIdentityError("identity_variant_invalid")
     if SHA256.fullmatch(value.get("archive_sha256", "")) is None:
@@ -736,7 +744,7 @@ def identity_from_dict(value: Any) -> PortableImageIdentity:
     if (
         isinstance(value.get("archive_size_bytes"), bool)
         or not isinstance(value.get("archive_size_bytes"), int)
-        or value["archive_size_bytes"] < 0
+        or value["archive_size_bytes"] <= 0
     ):
         raise PortableImageIdentityError("identity_archive_size_invalid")
     if SHA256.fullmatch(value.get("config_semantics_sha256", "")) is None:
@@ -759,8 +767,20 @@ def identity_from_dict(value: Any) -> PortableImageIdentity:
         )
     ):
         raise PortableImageIdentityError("identity_rootfs_invalid")
-    if _sha256_bytes(_canonical_bytes(rootfs)) != value.get("rootfs_diff_ids_sha256"):
+    rootfs_hash = value.get("rootfs_diff_ids_sha256")
+    if not isinstance(rootfs_hash, str) or SHA256.fullmatch(rootfs_hash) is None:
+        raise PortableImageIdentityError("identity_rootfs_hash_invalid")
+    if _sha256_bytes(_canonical_bytes(rootfs)) != rootfs_hash:
         raise PortableImageIdentityError("identity_rootfs_hash_mismatch")
+    if value["representation"] == "docker-save":
+        if value["manifest_digest"] is not None or value["index_digest"] is not None:
+            raise PortableImageIdentityError(
+                "identity_docker_descriptor_digest_invalid"
+            )
+    elif value["manifest_digest"] is None or value["index_digest"] is None:
+        raise PortableImageIdentityError(
+            "identity_oci_descriptor_digest_missing"
+        )
     return PortableImageIdentity(
         schema=SCHEMA,
         representation=str(value["representation"]),
