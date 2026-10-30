@@ -132,7 +132,7 @@ def strict_json(data: bytes, *, name: str) -> Any:
 
 
 def _safe_name(name: str) -> str:
-    if not name or "\\x00" in name:
+    if not name or "\x00" in name:
         raise PortableImageIdentityError("archive_member_name_invalid")
     path = PurePosixPath(name)
     if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
@@ -250,13 +250,29 @@ def _platform(value: dict[str, Any]) -> tuple[str, str, str | None]:
     return os_name, architecture, variant
 
 
+def normalized_config_contract(config: Any) -> dict[str, Any]:
+    raw = config if isinstance(config, dict) else {}
+    sequence_fields = {"Entrypoint", "Cmd", "Env"}
+    string_fields = {"User", "WorkingDir", "StopSignal"}
+    mapping_fields = {"Labels", "Healthcheck", "Volumes", "ExposedPorts"}
+    result: dict[str, Any] = {}
+    for field in CONFIG_FIELDS:
+        observed = raw.get(field)
+        if field in sequence_fields and observed is None:
+            observed = []
+        elif field in string_fields and observed is None:
+            observed = ""
+        elif field in mapping_fields and observed is None:
+            observed = {}
+        result[field] = observed
+    return result
+
+
 def _config_semantics(config_doc: dict[str, Any]) -> dict[str, Any]:
     raw = config_doc.get("config")
-    if raw is None:
-        raw = {}
-    if not isinstance(raw, dict):
+    if raw is not None and not isinstance(raw, dict):
         raise PortableImageIdentityError("image_config_shape_invalid")
-    return {field: raw.get(field) for field in CONFIG_FIELDS}
+    return normalized_config_contract(raw)
 
 
 def _rootfs_diff_ids(config_doc: dict[str, Any]) -> tuple[str, ...]:
@@ -336,6 +352,9 @@ def _parse_docker_save(
         raise PortableImageIdentityError("docker_layers_invalid")
     config_bytes = archive.read(config_name)
     config_sha = _sha256_bytes(config_bytes)
+    expected_config_name = config_sha + ".json"
+    if PurePosixPath(config_name).name != expected_config_name:
+        raise PortableImageIdentityError("docker_config_digest_binding_mismatch")
     config_doc = strict_json(config_bytes, name="image_config")
     if not isinstance(config_doc, dict):
         raise PortableImageIdentityError("image_config_invalid")
@@ -485,7 +504,7 @@ def _runtime_semantics(document: dict[str, Any]) -> tuple[str, str, str | None, 
     config = document.get("Config")
     if not isinstance(config, dict):
         raise PortableImageIdentityError("runtime_config_invalid")
-    semantics = {field: config.get(field) for field in CONFIG_FIELDS}
+    semantics = normalized_config_contract(config)
     rootfs = document.get("RootFS")
     layers = rootfs.get("Layers") if isinstance(rootfs, dict) else None
     if not isinstance(layers, list) or not layers or not all(isinstance(x, str) for x in layers):
