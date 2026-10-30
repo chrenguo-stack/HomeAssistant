@@ -1,3 +1,18 @@
+## 2026-10-30 — E03 claimed transaction retirement source repair implemented / closure pending
+
+- PR #740 exact source head: `9f8339209a19ab5142002eeb72a396cdfd482b46`.
+- Terminal replacement source implementation and independent source review: PASS.
+- Added narrow claimed-READY retirement helper, E03-specific retirement executor, one-shot retirement evidence and same-session crash recovery.
+- Replacement E03 now requires exact paired final ABORTED transaction + COMMITTED retirement evidence; one-sided, drifted or ambiguous evidence fails closed.
+- Replacement claim recomputes preauth under the global lock; runtime mutation rebind and read-only status revalidate supersession.
+- Old authorization stays consumed/non-replayable; repaired executor cannot take over the old executor-bound READY transaction.
+- Focused E03 live source CI, E03 preflight CI, Public repository safety, fast source/exact closure and greenhouse-manager CI are SUCCESS.
+- Broad F5 V2 source CI run `41027728040` remained in progress at the bounded polling stop; no failure was observed.
+- No T1 access, live retirement preflight, retirement authorization claim, transaction mutation, product mutation, board access or merge occurred.
+- Progress authority: `docs/development/N3W_T1_E03_CLAIMED_TRANSACTION_RETIREMENT_SOURCE_REPAIR_PROGRESS_20261030.md`.
+- PR #740 progress comment: `6518664003`.
+- Next ONE gate: `N3W_T1_E03_CLAIMED_TRANSACTION_RETIREMENT_SOURCE_REPAIR_CLOSURE_AFTER_F5_20261030_01`.
+
 ## 2026-10-30 — E03 claimed transaction successor authority design frozen
 
 - Repaired E03 source authority: `19af94566ead0c08a8d3665cc2b538b90f2b500b`.
