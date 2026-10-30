@@ -337,7 +337,11 @@ def test_manager_duplicate_mqtt_socket_is_fatal(
         _compose_service_inspect=lambda service: {"Name": f"/{service}"},
         _container_established_socket_count=lambda name, port: 2 if port == 8883 else 1,
     )
-    monkeypatch.setattr(successor, "systemctl", lambda *_args: "active")
+    monkeypatch.setattr(
+        successor,
+        "systemctl",
+        lambda mode, _unit: "enabled" if mode == "is-enabled" else "active",
+    )
     monkeypatch.setattr(
         successor,
         "_verify_candidate_identity",
