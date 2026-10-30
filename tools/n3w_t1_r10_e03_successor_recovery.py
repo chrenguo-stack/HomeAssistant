@@ -119,11 +119,11 @@ _LOCK_DEPTH = 0
 SCOPE = (
     "activation_gate_install",
     "service_stop",
-    "compose_publish",
+    "deployment_inputs_publish",
     "service_start",
     "runtime_acceptance",
     "rollback_service_stop",
-    "compose_rollback",
+    "deployment_inputs_rollback",
     "rollback_service_start",
 )
 
@@ -226,6 +226,7 @@ def run(
     timeout: float = 30.0,
     allowed: frozenset[int] = frozenset({0}),
     input_bytes: bytes | None = None,
+    env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[bytes]:
     result = subprocess.run(
         tuple(argv),
@@ -235,6 +236,7 @@ def run(
         stderr=subprocess.PIPE,
         timeout=timeout,
         check=False,
+        env=env,
     )
     if result.returncode not in allowed:
         detail = (result.stderr or result.stdout).decode(errors="replace").strip()
@@ -455,11 +457,20 @@ def compose_argv(path: str = "-") -> tuple[str, ...]:
     )
 
 
-def render_compose_payload(payload: bytes) -> dict[str, Any]:
+def render_compose_payload(
+    payload: bytes,
+    *,
+    manager_image_override: str | None = None,
+) -> dict[str, Any]:
+    environment = dict(os.environ)
+    environment.pop("GH_MANAGER_IMAGE", None)
+    if manager_image_override is not None:
+        environment["GH_MANAGER_IMAGE"] = manager_image_override
     raw = run(
         (*compose_argv("-"), "--profile", "application", "config", "--format", "json"),
         input_bytes=payload,
         timeout=45,
+        env=environment,
     ).stdout
     value = _json_bytes(raw, "compose_render_invalid")
     if not isinstance(value, dict):
@@ -475,15 +486,15 @@ def _service_record(rendered: dict[str, Any], service: str) -> dict[str, Any]:
     return record
 
 
-def rewrite_manager_image(original: bytes) -> bytes:
+def validate_manager_image_indirection(original: bytes) -> None:
     try:
-        lines = original.decode("utf-8").splitlines(keepends=True)
+        lines = original.decode("utf-8").splitlines()
     except UnicodeDecodeError as error:
         raise SuccessorError("compose_encoding_invalid") from error
     start: int | None = None
     end = len(lines)
     for index, line in enumerate(lines):
-        if line.rstrip("\r\n") == "  manager:":
+        if line == "  manager:":
             if start is not None:
                 raise SuccessorError("manager_service_duplicate")
             start = index
@@ -491,30 +502,67 @@ def rewrite_manager_image(original: bytes) -> bytes:
         if (
             start is not None
             and index > start
-            and re.fullmatch(r"  [A-Za-z0-9_.-]+:", line.rstrip("\r\n"))
+            and re.fullmatch(r"  [A-Za-z0-9_.-]+:", line)
         ):
             end = index
             break
     if start is None:
         raise SuccessorError("manager_service_missing")
-    matches: list[tuple[int, re.Match[str]]] = []
-    pattern = re.compile(r"^(    image:\s*)(\S+)(\s*)(\r?\n)?$")
-    for index in range(start + 1, end):
-        match = pattern.match(lines[index])
-        if match:
-            matches.append((index, match))
-    if len(matches) != 1:
-        raise SuccessorError("manager_image_count_invalid")
-    index, match = matches[0]
+    expected = '    image: "${GH_MANAGER_IMAGE:?GH_MANAGER_IMAGE required}"'
+    image_lines = [
+        line for line in lines[start + 1 : end]
+        if line.lstrip().startswith("image:")
+    ]
+    if image_lines != [expected]:
+        raise SuccessorError("manager_image_indirection_invalid")
+
+
+def rewrite_manager_image_env(original: bytes) -> bytes:
+    try:
+        text = original.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise SuccessorError("compose_env_encoding_invalid") from error
+    lines = text.splitlines(keepends=True)
+    candidate_indexes = [
+        index
+        for index, line in enumerate(lines)
+        if re.match(r"^\s*(?:export\s+)?GH_MANAGER_IMAGE\s*=", line)
+    ]
+    if len(candidate_indexes) != 1:
+        raise SuccessorError("compose_env_manager_image_count_invalid")
+    index = candidate_indexes[0]
+    match = re.fullmatch(
+        r"(GH_MANAGER_IMAGE=)([^\r\n]*)(\r?\n)?",
+        lines[index],
+    )
+    if match is None:
+        raise SuccessorError("compose_env_manager_image_format_invalid")
     if match.group(2) != OLD_MANAGER_IMAGE:
-        raise SuccessorError("manager_image_predecessor_drift")
+        raise SuccessorError("compose_env_manager_image_predecessor_drift")
     lines[index] = (
         match.group(1)
         + TARGET_MANAGER_IMAGE
-        + match.group(3)
-        + (match.group(4) or "")
+        + (match.group(3) or "")
     )
     return "".join(lines).encode("utf-8")
+
+
+def deployment_inputs_fingerprint(
+    compose_sha256: str,
+    compose_env_sha256: str,
+) -> str:
+    if SHA64.fullmatch(compose_sha256 or "") is None:
+        raise SuccessorError("compose_sha256_invalid")
+    if SHA64.fullmatch(compose_env_sha256 or "") is None:
+        raise SuccessorError("compose_env_sha256_invalid")
+    return sha_bytes(
+        canonical(
+            {
+                "compose_sha256": compose_sha256,
+                "compose_env_sha256": compose_env_sha256,
+            }
+        )
+    )
 
 
 def validate_candidate(before: dict[str, Any], after: dict[str, Any]) -> None:
@@ -1029,14 +1077,18 @@ def _expected_gate_after() -> tuple[str, dict[str, str]]:
 
 def _current_release_id(
     compose_sha256: str,
+    compose_env_sha256: str,
     rendered_sha256: str,
     unit: dict[str, str],
 ) -> str:
     return sha_bytes(
         canonical(
             {
-                "schema": "gh.n3w-r10-e03-current-release-binding/1",
-                "compose_sha256": compose_sha256,
+                "schema": "gh.n3w-r10-e03-current-release-binding/2",
+                "deployment_inputs": {
+                    "compose_sha256": compose_sha256,
+                    "compose_env_sha256": compose_env_sha256,
+                },
                 "compose_render_sha256": rendered_sha256,
                 "manager_image": OLD_MANAGER_IMAGE,
                 "homeassistant_image": HA_IMAGE,
@@ -1054,15 +1106,19 @@ def _current_release_id(
 
 def _target_release_id(
     identity: portable.PortableImageIdentity,
-    candidate_compose_sha256: str,
+    compose_sha256: str,
+    compose_env_sha256: str,
     unit: dict[str, str],
 ) -> str:
     try:
-        return production_contract.portable_deployment_binding_id(
+        return production_contract.portable_deployment_binding_id_v2(
             source_head=TARGET_SOURCE_HEAD,
             artifact_sha256=TARGET_ARTIFACT_SHA256,
             identity=identity,
-            compose_sha256=candidate_compose_sha256,
+            deployment_inputs={
+                "compose_sha256": compose_sha256,
+                "compose_env_sha256": compose_env_sha256,
+            },
             service_unit=unit,
             state_contract={
                 "pre_registration_inventory_sha256": PRE_INVENTORY_SHA256,
@@ -1072,6 +1128,7 @@ def _target_release_id(
         )
     except production_contract.ProductionV2ContractError as error:
         raise SuccessorError("target_release_contract_invalid") from error
+
 
 def preauthorization(
     *,
@@ -1109,6 +1166,9 @@ def preauthorization(
         raise SuccessorError("compose_authority_invalid")
 
     original = COMPOSE.read_bytes()
+    compose_env_original = COMPOSE_ENV.read_bytes()
+    validate_manager_image_indirection(original)
+    compose_env_candidate = rewrite_manager_image_env(compose_env_original)
     before = render_compose_payload(original)
     services = before.get("services")
     if not isinstance(services, dict):
@@ -1120,11 +1180,22 @@ def preauthorization(
     if _service_record(before, "broker").get("image") != BROKER_IMAGE:
         raise SuccessorError("compose_broker_image_drift")
 
-    candidate = rewrite_manager_image(original)
-    after = render_compose_payload(candidate)
+    after = render_compose_payload(
+        original,
+        manager_image_override=TARGET_MANAGER_IMAGE,
+    )
     validate_candidate(before, after)
     compose_sha256 = sha_bytes(original)
-    candidate_sha256 = sha_bytes(candidate)
+    compose_env_before_sha256 = sha_bytes(compose_env_original)
+    compose_env_candidate_sha256 = sha_bytes(compose_env_candidate)
+    deployment_before_fingerprint = deployment_inputs_fingerprint(
+        compose_sha256,
+        compose_env_before_sha256,
+    )
+    deployment_candidate_fingerprint = deployment_inputs_fingerprint(
+        compose_sha256,
+        compose_env_candidate_sha256,
+    )
     if compose_sha256 != predecessor["compose_sha256"]:
         raise SuccessorError("predecessor_compose_binding_drift")
     if sha_bytes(canonical(before)) != predecessor["compose_render_sha256"]:
@@ -1197,9 +1268,17 @@ def preauthorization(
     gate_after, _ = _expected_gate_after()
     rendered_sha256 = sha_bytes(canonical(before))
     current_release_id = _current_release_id(
-        compose_sha256, rendered_sha256, unit
+        compose_sha256,
+        compose_env_before_sha256,
+        rendered_sha256,
+        unit,
     )
-    target_release_id = _target_release_id(identity, candidate_sha256, unit)
+    target_release_id = _target_release_id(
+        identity,
+        compose_sha256,
+        compose_env_candidate_sha256,
+        unit,
+    )
 
     return {
         "schema": PLAN_SCHEMA,
@@ -1220,10 +1299,18 @@ def preauthorization(
         "portable_identity": identity.to_dict(),
         "portable_identity_sha256": _portable_identity_sha256(identity),
         "target_runtime_image_id_observed": verdict.runtime_image_id,
-        "compose_before_sha256": compose_sha256,
-        "compose_candidate_sha256": candidate_sha256,
-        "compose_before_b64": base64.b64encode(original).decode("ascii"),
-        "compose_candidate_b64": base64.b64encode(candidate).decode("ascii"),
+        "compose_sha256": compose_sha256,
+        "compose_render_sha256": rendered_sha256,
+        "compose_env_before_sha256": compose_env_before_sha256,
+        "compose_env_candidate_sha256": compose_env_candidate_sha256,
+        "compose_env_before_b64": base64.b64encode(
+            compose_env_original
+        ).decode("ascii"),
+        "compose_env_candidate_b64": base64.b64encode(
+            compose_env_candidate
+        ).decode("ascii"),
+        "deployment_before_fingerprint": deployment_before_fingerprint,
+        "deployment_candidate_fingerprint": deployment_candidate_fingerprint,
         "service_unit": unit,
         "service_before_fingerprint": sha_bytes(canonical(service_before)),
         "service_stopped_fingerprint": sha_bytes(
@@ -1368,8 +1455,12 @@ def claim(
         document = maintenance.new_transaction(
             binding,
             predecessor_sha256=predecessor_sha256,
-            before={"compose": seed["compose_before_sha256"]},
-            intended_after={"compose": seed["compose_candidate_sha256"]},
+            before={
+                "deployment_inputs": seed["deployment_before_fingerprint"]
+            },
+            intended_after={
+                "deployment_inputs": seed["deployment_candidate_fingerprint"]
+            },
             plan=plan,
         )
         document = maintenance.mark_ready(document)
@@ -1441,13 +1532,15 @@ def _runtime_rebind(
     _verify_candidate_identity(identity)
     unit = verify_service_unit()
     source_release_id = _current_release_id(
-        plan["compose_before_sha256"],
+        plan["compose_sha256"],
+        plan["compose_env_before_sha256"],
         plan["compose_render_sha256"],
         unit,
     )
     target_release_id = _target_release_id(
         identity,
-        plan["compose_candidate_sha256"],
+        plan["compose_sha256"],
+        plan["compose_env_candidate_sha256"],
         unit,
     )
     if (
@@ -1638,49 +1731,80 @@ def _broker_continuity(plan: dict[str, Any]) -> dict[str, Any]:
     return observed
 
 
-def _compose_reality(plan: dict[str, Any]) -> str:
-    if COMPOSE.is_symlink() or not COMPOSE.is_file():
-        raise BlockedError("compose_authority_invalid")
-    return sha_file(COMPOSE)
+def _deployment_reality(plan: dict[str, Any]) -> str:
+    if (
+        COMPOSE.is_symlink()
+        or not COMPOSE.is_file()
+        or COMPOSE_ENV.is_symlink()
+        or not COMPOSE_ENV.is_file()
+    ):
+        raise BlockedError("deployment_inputs_authority_invalid")
+    return deployment_inputs_fingerprint(
+        sha_file(COMPOSE),
+        sha_file(COMPOSE_ENV),
+    )
 
 
-def _publish_candidate(plan: dict[str, Any]) -> None:
+def _publish_candidate_env(plan: dict[str, Any]) -> None:
     if _service_fingerprint() != plan["service_stopped_fingerprint"]:
         raise BlockedError("candidate_owner_not_controlled")
-    current = _compose_reality(plan)
+    current = _deployment_reality(plan)
     state = maintenance.require_compose_publishable(
-        plan["compose_before_sha256"],
-        plan["compose_candidate_sha256"],
+        plan["deployment_before_fingerprint"],
+        plan["deployment_candidate_fingerprint"],
         current,
     )
     if state == "AFTER":
         return
-    payload = base64.b64decode(plan["compose_candidate_b64"], validate=True)
-    _atomic_replace_exact(COMPOSE, payload, plan["compose_before_sha256"])
+    if sha_file(COMPOSE) != plan["compose_sha256"]:
+        raise BlockedError("compose_authority_drift")
+    payload = base64.b64decode(
+        plan["compose_env_candidate_b64"],
+        validate=True,
+    )
+    _atomic_replace_exact(
+        COMPOSE_ENV,
+        payload,
+        plan["compose_env_before_sha256"],
+    )
 
 
-def _completed_compose_publish(document: dict[str, Any], plan: dict[str, Any]) -> bool:
+def _completed_deployment_publish(
+    document: dict[str, Any],
+    plan: dict[str, Any],
+) -> bool:
     return any(
         isinstance(record, dict)
-        and record.get("operation_type") == "compose_publish"
+        and record.get("operation_type") == "deployment_inputs_publish"
         and record.get("status") == "COMPLETE"
-        and record.get("intended_after_fingerprint") == plan["compose_candidate_sha256"]
-        and record.get("observed_after_fingerprint") == plan["compose_candidate_sha256"]
+        and record.get("intended_after_fingerprint")
+        == plan["deployment_candidate_fingerprint"]
+        and record.get("observed_after_fingerprint")
+        == plan["deployment_candidate_fingerprint"]
         for record in document.get("operations", [])
     )
 
 
-def _restore_compose(plan: dict[str, Any]) -> None:
-    current = _compose_reality(plan)
+def _restore_deployment_env(plan: dict[str, Any]) -> None:
+    current = _deployment_reality(plan)
     state = maintenance.require_compose_rollbackable(
-        plan["compose_before_sha256"],
-        plan["compose_candidate_sha256"],
+        plan["deployment_before_fingerprint"],
+        plan["deployment_candidate_fingerprint"],
         current,
     )
     if state == "BEFORE":
         return
-    payload = base64.b64decode(plan["compose_before_b64"], validate=True)
-    _atomic_replace_exact(COMPOSE, payload, plan["compose_candidate_sha256"])
+    if sha_file(COMPOSE) != plan["compose_sha256"]:
+        raise BlockedError("rollback_compose_authority_drift")
+    payload = base64.b64decode(
+        plan["compose_env_before_b64"],
+        validate=True,
+    )
+    _atomic_replace_exact(
+        COMPOSE_ENV,
+        payload,
+        plan["compose_env_candidate_sha256"],
+    )
 
 
 def _load_f4() -> ModuleType:
@@ -2119,26 +2243,26 @@ def apply(transaction_id: str, execution_session_id: str) -> dict[str, Any]:
 
                 binding = _runtime_rebind(
                     document,
-                    action="compose_publish",
+                    action="deployment_inputs_publish",
                     allowed_states={"APPLYING"},
                 )
                 document = _operation(
                     store,
                     document,
                     binding=binding,
-                    action="compose_publish",
-                    operation_type="compose_publish",
-                    before_fingerprint=plan["compose_before_sha256"],
-                    after_fingerprint=plan["compose_candidate_sha256"],
-                    reality=lambda: _compose_reality(plan),
-                    execute=lambda: _publish_candidate(plan),
+                    action="deployment_inputs_publish",
+                    operation_type="deployment_inputs_publish",
+                    before_fingerprint=plan["deployment_before_fingerprint"],
+                    after_fingerprint=plan["deployment_candidate_fingerprint"],
+                    reality=lambda: _deployment_reality(plan),
+                    execute=lambda: _publish_candidate_env(plan),
                     allowed_states={"APPLYING"},
                 )
-                candidate = base64.b64decode(
-                    plan["compose_candidate_b64"],
-                    validate=True,
-                )
-                rendered = render_compose_payload(candidate)
+                if _deployment_reality(plan) != plan[
+                    "deployment_candidate_fingerprint"
+                ]:
+                    raise BlockedError("candidate_deployment_reality_unknown")
+                rendered = render_compose_payload(COMPOSE.read_bytes())
                 if _service_record(rendered, "manager").get("image") != TARGET_MANAGER_IMAGE:
                     raise SuccessorError("candidate_readback_invalid")
                 _verify_candidate_identity(identity)
@@ -2148,7 +2272,11 @@ def apply(transaction_id: str, execution_session_id: str) -> dict[str, Any]:
                     document,
                     "VERIFYING",
                     operation="candidate_published_owner_controlled",
-                    observed_after={"compose": plan["compose_candidate_sha256"]},
+                    observed_after={
+                        "deployment_inputs": plan[
+                            "deployment_candidate_fingerprint"
+                        ]
+                    },
                 )
                 document = _save(store, document, verifying)
 
@@ -2187,7 +2315,11 @@ def apply(transaction_id: str, execution_session_id: str) -> dict[str, Any]:
                 "COMMITTED",
                 operation="runtime_acceptance_pass",
                 reason=None,
-                observed_after={"compose": plan["compose_candidate_sha256"]},
+                observed_after={
+                    "deployment_inputs": plan[
+                        "deployment_candidate_fingerprint"
+                    ]
+                },
             )
             document = _save(store, document, committed)
             return public_result(
@@ -2329,23 +2461,23 @@ def rollback(
         )
         _broker_continuity(plan)
 
-        if not _completed_compose_publish(document, plan):
+        if not _completed_deployment_publish(document, plan):
             raise BlockedError("rollback_candidate_write_unproven")
         binding = _runtime_rebind(
             document,
-            action="compose_rollback",
+            action="deployment_inputs_rollback",
             allowed_states={"ROLLING_BACK"},
         )
         document = _operation(
             store,
             document,
             binding=binding,
-            action="compose_rollback",
-            operation_type="compose_rollback",
-            before_fingerprint=plan["compose_candidate_sha256"],
-            after_fingerprint=plan["compose_before_sha256"],
-            reality=lambda: _compose_reality(plan),
-            execute=lambda: _restore_compose(plan),
+            action="deployment_inputs_rollback",
+            operation_type="deployment_inputs_rollback",
+            before_fingerprint=plan["deployment_candidate_fingerprint"],
+            after_fingerprint=plan["deployment_before_fingerprint"],
+            reality=lambda: _deployment_reality(plan),
+            execute=lambda: _restore_deployment_env(plan),
             allowed_states={"ROLLING_BACK"},
             accept_after_without_intent=True,
         )
@@ -2389,15 +2521,17 @@ def rollback(
         ):
             raise SuccessorError("rollback_homeassistant_not_restored")
         _broker_continuity(plan)
-        if _compose_reality(plan) != plan["compose_before_sha256"]:
-            raise BlockedError("rollback_compose_poststart_drift")
+        if _deployment_reality(plan) != plan["deployment_before_fingerprint"]:
+            raise BlockedError("rollback_deployment_poststart_drift")
 
         rolled = maintenance.transition(
             document,
             "ROLLED_BACK",
             operation="rollback_runtime_restored",
             reason=reason,
-            observed_after={"compose": plan["compose_before_sha256"]},
+            observed_after={
+                "deployment_inputs": plan["deployment_before_fingerprint"]
+            },
         )
         document = _save(store, document, rolled)
         return public_result(
@@ -2485,10 +2619,10 @@ def status(transaction_id: str) -> dict[str, Any]:
         PREDECESSOR_TX,
         document["predecessor_sha256"],
     )
-    compose = _compose_reality(document["plan"])
+    deployment = _deployment_reality(document["plan"])
     disposition = maintenance.recovery_disposition(
         document,
-        {"compose": compose},
+        {"deployment_inputs": deployment},
     )
     return public_result(
         document,
