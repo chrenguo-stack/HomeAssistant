@@ -450,3 +450,20 @@ def test_identity_record_rejects_non_string_diff_id() -> None:
         match="identity_rootfs_invalid",
     ):
         identity.identity_from_dict(value)
+
+
+@pytest.mark.parametrize("invalid_size", [True, -1, "1"])
+def test_expected_archive_size_type_is_strict(
+    tmp_path: Path,
+    invalid_size,
+) -> None:
+    archive = tmp_path / "image.tar"
+    _classic_archive(archive)
+    with pytest.raises(
+        identity.PortableImageIdentityError,
+        match="archive_expected_size_invalid",
+    ):
+        identity.parse_image_archive(
+            archive,
+            expected_archive_size_bytes=invalid_size,
+        )
