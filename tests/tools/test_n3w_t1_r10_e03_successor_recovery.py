@@ -435,6 +435,11 @@ def test_apply_ready_orders_gate_before_stop_before_publish_before_start(
     )
     monkeypatch.setattr(successor, "_save", lambda _store, _before, after: after)
     monkeypatch.setattr(successor, "_broker_continuity", lambda _plan: {})
+    monkeypatch.setattr(
+        successor,
+        "_deployment_reality",
+        lambda plan: str(plan["deployment_candidate_fingerprint"]),
+    )
     monkeypatch.setattr(successor, "render_compose_payload", lambda _payload: {"services": {"manager": {"image": successor.TARGET_MANAGER_IMAGE}}})
     monkeypatch.setattr(successor, "_verify_candidate_identity", lambda _identity: None)
     monkeypatch.setattr(successor, "wait_readiness", lambda **_kwargs: events.append("readiness"))
