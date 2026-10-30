@@ -259,7 +259,7 @@ def _claim(harness, *, retirement_id: str = "retirement-e03-test-0001"):
             "retirement_plan_sha256"
         ],
         retirement_id=retirement_id,
-        authorization_id="retirement-authorization-test-0001",
+        authorization_id="N3W_T1_R10_E03_CLAIMED_TRANSACTION_RETIREMENT_TEST_0001",
         execution_session_id="retirement-session-test-0001",
         confirmation=retirement.CONFIRMATION,
     )
