@@ -263,7 +263,7 @@ def test_rolling_back_allows_start_only_after_proven_compose_restore(
     )
     path.chmod(0o600)
     assert gate._rollback_predecessor_restored(value) is True
-    monkeypatch.setattr(gate, "_current_compose_sha256", lambda: "a" * 64)
+    monkeypatch.setattr(gate, "_current_deployment_fingerprint", lambda: "a" * 64)
     assert gate.evaluate(private_root) == (
         True,
         "MAINTENANCE_ROLLBACK_RESTORED",
@@ -301,7 +301,7 @@ def test_verifying_allows_start_only_when_current_compose_is_candidate(
 ) -> None:
     value = _valid_transaction("VERIFYING")
     _write_real_transaction(private_root, value)
-    monkeypatch.setattr(gate, "_current_compose_sha256", lambda: "b" * 64)
+    monkeypatch.setattr(gate, "_current_deployment_fingerprint", lambda: "b" * 64)
     assert gate.evaluate(private_root) == (True, "MAINTENANCE_VERIFYING")
 
 
@@ -311,7 +311,7 @@ def test_verifying_unknown_current_compose_blocks_boot_owner_start(
 ) -> None:
     value = _valid_transaction("VERIFYING")
     _write_real_transaction(private_root, value)
-    monkeypatch.setattr(gate, "_current_compose_sha256", lambda: "c" * 64)
+    monkeypatch.setattr(gate, "_current_deployment_fingerprint", lambda: "c" * 64)
     assert gate.evaluate(private_root) == (False, "MAINTENANCE_BLOCKING")
 
 
@@ -332,16 +332,18 @@ def test_rollback_restore_record_cannot_override_later_compose_drift(
         observed_after_fingerprint="a" * 64,
     )
     _write_real_transaction(private_root, value)
-    monkeypatch.setattr(gate, "_current_compose_sha256", lambda: "c" * 64)
+    monkeypatch.setattr(gate, "_current_deployment_fingerprint", lambda: "c" * 64)
     assert gate.evaluate(private_root) == (False, "MAINTENANCE_BLOCKING")
 
 
-def test_missing_or_symlink_compose_reality_fails_closed(
+def test_missing_or_symlink_deployment_reality_fails_closed(
     tmp_path: Path,
 ) -> None:
     missing = tmp_path / "missing-compose.yml"
-    with pytest.raises(gate.GateError, match="compose_reality_unavailable"):
-        gate._current_compose_sha256(missing)
+    compose_env = tmp_path / "docker-compose.env"
+    compose_env.write_text("GH_MANAGER_IMAGE=before\n", encoding="utf-8")
+    with pytest.raises(gate.GateError, match="deployment_reality_unavailable"):
+        gate._current_deployment_fingerprint(missing, compose_env)
 
 
 def test_gate_deployment_fingerprint_changes_on_env_change(
