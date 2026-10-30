@@ -639,3 +639,17 @@ def test_identity_document_representation_descriptor_invariants(tmp_path: Path) 
         match="identity_oci_descriptor_digest_missing",
     ):
         identity.identity_from_dict(oci)
+
+
+def test_oci_uncompressed_layer_resource_limit_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    archive = tmp_path / "oci-limit.tar"
+    _oci_archive(archive)
+    monkeypatch.setattr(identity, "MAX_LAYER_UNCOMPRESSED_BYTES", 4)
+    with pytest.raises(
+        identity.PortableImageIdentityError,
+        match="oci_layer_uncompressed_size_limit_exceeded",
+    ):
+        identity.parse_image_archive(archive)
