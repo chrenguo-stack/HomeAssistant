@@ -1,3 +1,43 @@
+## 2026-10-30 — E03 claimed transaction retirement source repair implemented / closure pending
+
+~~~text
+TASK=N3W_T1_E03_CLAIMED_TRANSACTION_RETIREMENT_SOURCE_REPAIR_20261030_01
+PR740_EXACT_HEAD=9f8339209a19ab5142002eeb72a396cdfd482b46
+SOURCE_IMPLEMENTATION=PASS
+INDEPENDENT_SOURCE_REVIEW=PASS
+SOURCE_REPAIR_CLOSED_PASS=false
+CLOSURE_BLOCKER=EXISTING_F5_V2_SOURCE_CI_RESULT_PENDING
+NEW_SOURCE_BLOCKER_COUNT=0
+E03_LIVE_SOURCE_CI=SUCCESS
+E03_PREFLIGHT_CI=SUCCESS
+PUBLIC_REPOSITORY_SAFETY=SUCCESS
+FAST_SOURCE_EXACT=SUCCESS
+GREENHOUSE_MANAGER_CI=SUCCESS
+F5_V2_SOURCE_CI=IN_PROGRESS_AT_POLL_LIMIT
+T1_ACCESS=false
+LIVE_RETIREMENT_PREFLIGHT=false
+RETIREMENT_AUTHORIZATION_CLAIMED=false
+LIVE_TRANSACTION_MUTATION=false
+PRODUCT_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+CURRENT_STOP_POINT=SOURCE_REPAIR_IMPLEMENTED_REVIEW_PASS_WAITING_ONLY_FOR_EXISTING_F5_V2_SOURCE_CI
+NEXT_ONE_GATE=N3W_T1_E03_CLAIMED_TRANSACTION_RETIREMENT_SOURCE_REPAIR_CLOSURE_AFTER_F5_20261030_01
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+The source now implements terminal replacement for the already-claimed E03 transaction:
+a narrowly guarded READY -> ABORTED maintenance-ledger retirement, a dedicated one-shot
+retirement record/executor, crash-safe same-session continuation, and exact paired
+ABORTED-transaction + COMMITTED-retirement supersession evidence for the replacement E03
+transaction. Missing or drifted evidence fails closed. The old authorization remains
+consumed and non-replayable, and the repaired executor cannot take over the old
+executor-bound READY transaction.
+
+No live T1 retirement was performed. Progress authority:
+docs/development/N3W_T1_E03_CLAIMED_TRANSACTION_RETIREMENT_SOURCE_REPAIR_PROGRESS_20261030.md.
+PR #740 progress comment: 6518664003.
+
 ## 2026-10-30 — E03 claimed transaction successor authority design frozen
 
 ~~~text
