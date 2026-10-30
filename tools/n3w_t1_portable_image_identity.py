@@ -251,8 +251,11 @@ class SafeTar:
                 "oci_layer_compression_invalid"
             ) from error
         finally:
-            if stream is not source:
+            try:
                 stream.close()
+            finally:
+                if stream is not source:
+                    source.close()
         return "sha256:" + digest.hexdigest()
 
 
