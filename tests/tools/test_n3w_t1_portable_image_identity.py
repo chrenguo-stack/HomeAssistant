@@ -309,3 +309,57 @@ def test_malformed_docker_inspect_is_unsupported() -> None:
     observed = identity.observe_docker_image("local/manager:test", runner=runner)
     assert observed.status == "UNSUPPORTED"
     assert observed.reason == "docker_inspect_malformed"
+
+
+def test_runtime_known_docker_default_representations_are_normalized(
+    tmp_path: Path,
+) -> None:
+    archive = tmp_path / "image.tar"
+    config, _ = _classic_archive(archive)
+    parsed = identity.parse_image_archive(archive)
+    runtime = _runtime(config)
+    runtime["Config"] = dict(runtime["Config"])
+    runtime["Config"].update({
+        "Entrypoint": runtime["Config"].get("Entrypoint"),
+        "Cmd": [],
+        "Env": runtime["Config"].get("Env"),
+        "User": runtime["Config"].get("User"),
+        "WorkingDir": runtime["Config"].get("WorkingDir"),
+        "Labels": runtime["Config"].get("Labels"),
+        "Healthcheck": {},
+        "StopSignal": "",
+        "Volumes": {},
+        "ExposedPorts": {},
+    })
+    assert identity.verify_runtime_document(parsed, runtime).status == "VERIFIED"
+
+
+def test_classic_config_filename_must_bind_content_digest(tmp_path: Path) -> None:
+    archive = tmp_path / "image.tar"
+    layer = b"layer"
+    diff = "sha256:" + _sha(layer)
+    config = {
+        "architecture": "arm64",
+        "os": "linux",
+        "rootfs": {"type": "layers", "diff_ids": [diff]},
+        "config": {},
+    }
+    config_bytes = json.dumps(config, sort_keys=True, separators=(",", ":")).encode()
+    manifest = [{"Config": "wrong.json", "RepoTags": [], "Layers": ["layer.tar"]}]
+    with tarfile.open(archive, "w") as tar:
+        _tar_add(tar, "wrong.json", config_bytes)
+        _tar_add(tar, "manifest.json", json.dumps(manifest).encode())
+        _tar_add(tar, "layer.tar", layer)
+    with pytest.raises(
+        identity.PortableImageIdentityError,
+        match="docker_config_digest_binding_mismatch",
+    ):
+        identity.parse_image_archive(archive)
+
+
+def test_nul_archive_member_name_is_rejected() -> None:
+    with pytest.raises(
+        identity.PortableImageIdentityError,
+        match="archive_member_name_invalid",
+    ):
+        identity._safe_name("bad\x00name")
