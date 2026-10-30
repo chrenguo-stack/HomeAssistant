@@ -33,6 +33,27 @@ ACTIVE_STATES = frozenset({"PREPARING", "READY", "APPLYING", "VERIFYING", "ROLLI
 TERMINAL_STATES = frozenset({"COMMITTED", "ROLLED_BACK", "BLOCKED", "ABORTED"})
 MUTATION_STATES = frozenset({"APPLYING", "ROLLING_BACK"})
 
+IMMUTABLE_TRANSACTION_KEYS = frozenset(
+    {
+        "schema",
+        "transaction_id",
+        "authorization_id_sha256",
+        "host_binding_sha256",
+        "current_release_id",
+        "target_release_id",
+        "artifact_sha256",
+        "executor_source_head",
+        "executor_blob",
+        "module_set_sha256",
+        "plan_sha256",
+        "scope",
+        "predecessor_sha256",
+        "plan",
+        "before",
+        "intended_after",
+    }
+)
+
 TRANSACTION_KEYS = frozenset(
     {
         "schema",
@@ -631,10 +652,14 @@ class TransactionStore:
             os.fchmod(fd, 0o600)
             if self.enforce_root_metadata:
                 os.fchown(fd, 0, 0)
-            os.write(fd, payload)
-            os.fsync(fd)
+            with os.fdopen(fd, "wb") as stream:
+                fd = -1
+                stream.write(payload)
+                stream.flush()
+                os.fsync(stream.fileno())
         finally:
-            os.close(fd)
+            if fd >= 0:
+                os.close(fd)
         self._fsync_parent()
 
     def save(self, document: dict[str, Any], *, expected_generation: int) -> None:
@@ -647,6 +672,15 @@ class TransactionStore:
             raise MaintenanceTransactionError("transaction_generation_not_advanced")
         if value["transaction_id"] != current["transaction_id"]:
             raise MaintenanceTransactionError("transaction_id_changed")
+        for key in IMMUTABLE_TRANSACTION_KEYS:
+            if value[key] != current[key]:
+                raise MaintenanceTransactionError(
+                    f"transaction_immutable_binding_changed:{key}"
+                )
+        if current["authorization_consumed"] is True and value["authorization_consumed"] is not True:
+            raise MaintenanceTransactionError("authorization_consumed_reverted")
+        if current["state"] != value["state"] and value["state"] not in _ALLOWED[current["state"]]:
+            raise MaintenanceTransactionError("transaction_state_jump_invalid")
         payload = canonical_bytes(value)
         fd, raw = tempfile.mkstemp(prefix=f".{self.path.name}.", dir=self.path.parent)
         tmp = Path(raw)
