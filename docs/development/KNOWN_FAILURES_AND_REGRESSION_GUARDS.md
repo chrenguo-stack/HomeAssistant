@@ -1,3 +1,43 @@
+### 2026-10-30 KF-132 — Docker image-store 表示被误当跨主机 release identity，导致第三次同类 false STOP
+
+| ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
+|---|---|---|---|---|---|
+| KF-132 | T1 production maintenance / exact image identity / R10 E03 successor refresh | exact Manager tar SHA256 已匹配冻结 artifact；tar 内 config digest 为 `089153...`、OCI manifest digest 为 `7751d4...`；T1 Docker 29.1.3 containerd image store 加载后 target tag `.Id=7751d4...`，旧 executor 却要求 `.Id=089153...`，因此 authorization 已消费后以 `target_tag_wrong_image` / `postclaim_failure` STOP。生产 Compose/Manager/HA/Broker 未切换 | build-side Docker `.Id` 被再次当成跨 host/store 唯一 identity。项目在 2026-10-11 staging、2026-10-12 fresh bootstrap 已发生同类误停并形成 cross-store 规则，但正确机制未成为公共 authority，R10 executor 独立复制了旧假设 | 建立主机侧 Portable Image Identity 公共模块；release 内容身份绑定 exact tar/config/manifest/index/ordered RootFS/platform；Docker `.Id` 仅由公共适配层解释为 host-local representation；禁止新 executor 私有实现跨 store validator；真实 classic/containerd matrix 回归 | OPEN_SOURCE_DESIGN_FROZEN |
+
+Authority: `docs/development/N3W_T1_MAINTENANCE_IDENTITY_REVIEW_20261030.md` and `docs/development/N3W_T1_PORTABLE_IMAGE_IDENTITY_AND_E03_SUCCESSOR_RECOVERY_SOURCE_DESIGN_FREEZE_20261030.md`.
+
+### 2026-10-30 KF-133 — maintenance apply 未完整绑定 transaction / authorization / release / executor authority
+
+| ID | 范围 | 问题 | 根因与修复方向 | 状态 |
+|---|---|---|---|---|
+| KF-133 | R10 E03 live executor / successor recovery transaction | 当前 `_remote_apply_locked()` 入口只要求 transaction status=CLAIMED、authorization consumed、replay=false；独立隔离注入错误 phase、authorization/source/executor binding 后仍能到达 image check | durable claim 记录了更多 authority，但 mutation entry 未重新消费这些字段，错误工具、错误 transaction 或错误恢复上下文可能进入写路径。P0 要求每个 mutation entry 校验 exact phase、transaction/authorization、host、source/current/target release、artifact、executor/module、scope、global maintenance lock 与现实 prestate；旧 transaction 不 silent reinterpret，当前 E03 使用 successor transaction | OPEN_SOURCE_DESIGN_FROZEN |
+
+Authority: Astra review B1 and P0 frozen design.
+
+### 2026-10-30 KF-134 — unknown Compose 漂移可能被 prestop rollback 越界覆盖
+
+| ID | 范围 | 问题 | 根因与修复方向 | 状态 |
+|---|---|---|---|---|
+| KF-134 | R10 E03 live executor / Compose transactional write | claim 后、apply 前若 Compose 被外部改变，异常进入 prestop rollback 时 `candidate_sha=None`；旧 `restore_compose()` 可使用未知当前文件自身 SHA 作为 atomic replace expected 值，把未知变更覆盖成旧备份。Astra 已用临时文件隔离复现 | rollback 没有严格 before/after/unknown 三态。P0 冻结：只有 current==before 才可 publish candidate；只有已证明本事务写出 candidate 且 current==candidate 才可 restore before；任何 unknown 必须 BLOCKED/no write，不得以未知 current SHA 临时授权覆盖 | OPEN_SOURCE_DESIGN_FROZEN |
+
+Authority: Astra review B2 and P0 frozen design.
+
+### 2026-10-30 KF-135 — mutation 依赖进程内状态，且 candidate Compose 发布早于 application service owner 停止
+
+| ID | 范围 | 问题 | 根因与修复方向 | 状态 |
+|---|---|---|---|---|
+| KF-135 | T1 app maintenance / crash consistency / systemd ownership | 旧 executor 的 `candidate_sha` / `stopped` 仅在内存；process kill、SSH 断线、daemon restart、T1 断电不保证进入 Python exception。更关键的是旧顺序先替换 production Compose，再停止 `n3wfc4-services-activation.service`，存在 owner 自动/重启提前读取 candidate 的窗口 | 缺少 durable intent、boot-time recovery ordering 与 host-wide maintenance/activation gate。P0 冻结顺序：global maintenance lock → fsync intent → activation gate → stop Manager+HA owner并证明静止 → re-check before → publish candidate → start → VERIFYING；每步按 before/after/unknown 重入，SSH 不承担 transaction 生命周期 | OPEN_SOURCE_DESIGN_FROZEN |
+
+Authority: Astra review B3 and P0 frozen design.
+
+### 2026-10-30 KF-136 — container/listener/config hash 通过不足以证明 Manager/HA MQTT 与业务恢复
+
+| ID | 范围 | 问题 | 根因与修复方向 | 状态 |
+|---|---|---|---|---|
+| KF-136 | app cutover postcheck / MQTT readiness and acceptance | 旧 executor 等 unit active + Manager/HA 容器存在后，检查端口、镜像、网络、restart_count、HA MQTT config hash 与 E03 ledger 即可 COMMIT；配置未变和端口监听不能证明 Manager/HA 已认证、订阅并稳定工作 | readiness 与 acceptance 未分离，既可能瞬时 false STOP，也可能 MQTT 未恢复却 false PASS。P0 冻结：有界 readiness 允许正常 WAIT；strict acceptance 必须验证真实 Manager/HA MQTT 会话或等强认证证据、process/socket ownership、稳定窗口、E03 reconciliation 与业务不变量；无实节点时 telemetry 明确 NOT_APPLICABLE | OPEN_SOURCE_DESIGN_FROZEN |
+
+Authority: Astra review B4 and P0 frozen design.
+
 ### 2026-10-29 KF-131 — first-registration ACTIVE 记录在 47112 window 建立前失去 deadline owner，导致 E03 自锁
 
 | ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
