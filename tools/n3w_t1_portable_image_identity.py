@@ -627,10 +627,26 @@ def identity_from_dict(value: Any) -> PortableImageIdentity:
     }
     if set(value) != expected:
         raise PortableImageIdentityError("identity_keys_invalid")
+    if value.get("representation") not in {"docker-save", "oci-layout"}:
+        raise PortableImageIdentityError("identity_representation_invalid")
+    if not isinstance(value.get("os"), str) or not value["os"]:
+        raise PortableImageIdentityError("identity_os_invalid")
+    if not isinstance(value.get("architecture"), str) or not value["architecture"]:
+        raise PortableImageIdentityError("identity_architecture_invalid")
+    if value.get("variant") is not None and (
+        not isinstance(value["variant"], str) or not value["variant"]
+    ):
+        raise PortableImageIdentityError("identity_variant_invalid")
     if SHA256.fullmatch(value.get("archive_sha256", "")) is None:
         raise PortableImageIdentityError("identity_archive_sha_invalid")
-    if isinstance(value.get("archive_size_bytes"), bool) or not isinstance(value.get("archive_size_bytes"), int):
+    if (
+        isinstance(value.get("archive_size_bytes"), bool)
+        or not isinstance(value.get("archive_size_bytes"), int)
+        or value["archive_size_bytes"] < 0
+    ):
         raise PortableImageIdentityError("identity_archive_size_invalid")
+    if SHA256.fullmatch(value.get("config_semantics_sha256", "")) is None:
+        raise PortableImageIdentityError("identity_config_semantics_sha_invalid")
     if DIGEST.fullmatch(value.get("config_digest", "")) is None:
         raise PortableImageIdentityError("identity_config_digest_invalid")
     for key in ("manifest_digest", "index_digest"):
