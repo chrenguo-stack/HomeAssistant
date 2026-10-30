@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import re
 import stat
 import sys
 from pathlib import Path
@@ -13,6 +15,38 @@ TRANSACTION_ROOT = Path("/var/lib/n3w-t1-maintenance/transactions")
 ACTIVE_BLOCKING_STATES = frozenset({"APPLYING", "ROLLING_BACK"})
 ACTIVE_ALLOWING_STATES = frozenset({"PREPARING", "READY", "VERIFYING"})
 TERMINAL_STATES = frozenset({"COMMITTED", "ROLLED_BACK", "BLOCKED", "ABORTED"})
+SHA40 = re.compile(r"^[0-9a-f]{40}$")
+SHA64 = re.compile(r"^[0-9a-f]{64}$")
+TRANSACTION_KEYS = frozenset(
+    {
+        "schema",
+        "transaction_id",
+        "authorization_id_sha256",
+        "host_binding_sha256",
+        "current_release_id",
+        "target_release_id",
+        "artifact_sha256",
+        "executor_source_head",
+        "executor_blob",
+        "module_set_sha256",
+        "plan_sha256",
+        "scope",
+        "predecessor_sha256",
+        "plan",
+        "state",
+        "authorization_consumed",
+        "replay_allowed",
+        "generation",
+        "operation_seq",
+        "before",
+        "intended_after",
+        "observed_after",
+        "execution_sessions",
+        "operations",
+        "last_operation",
+        "last_reason",
+    }
+)
 
 
 class GateError(RuntimeError):
@@ -44,11 +78,73 @@ def _record(path: Path) -> dict[str, Any]:
         raise GateError("transaction_record_json_invalid") from error
     if not isinstance(value, dict) or value.get("schema") != SCHEMA:
         raise GateError("transaction_record_schema_invalid")
+    if set(value) != TRANSACTION_KEYS:
+        raise GateError("transaction_record_keys_invalid")
     state = value.get("state")
     if state not in ACTIVE_BLOCKING_STATES | ACTIVE_ALLOWING_STATES | TERMINAL_STATES:
         raise GateError("transaction_record_state_invalid")
     if value.get("replay_allowed") is not False:
         raise GateError("transaction_record_replay_invalid")
+    if state in {"READY", "APPLYING", "VERIFYING", "ROLLING_BACK", "ROLLED_BACK", "COMMITTED"}:
+        if value.get("authorization_consumed") is not True:
+            raise GateError("transaction_record_authorization_invalid")
+    for name in (
+        "authorization_id_sha256",
+        "host_binding_sha256",
+        "current_release_id",
+        "target_release_id",
+        "artifact_sha256",
+        "module_set_sha256",
+        "plan_sha256",
+        "predecessor_sha256",
+    ):
+        if not isinstance(value.get(name), str) or SHA64.fullmatch(value[name]) is None:
+            raise GateError("transaction_record_digest_invalid")
+    for name in ("executor_source_head", "executor_blob"):
+        if not isinstance(value.get(name), str) or SHA40.fullmatch(value[name]) is None:
+            raise GateError("transaction_record_executor_invalid")
+    if not isinstance(value.get("generation"), int) or isinstance(value.get("generation"), bool):
+        raise GateError("transaction_record_generation_invalid")
+    if not isinstance(value.get("operation_seq"), int) or isinstance(value.get("operation_seq"), bool):
+        raise GateError("transaction_record_operation_seq_invalid")
+    plan = value.get("plan")
+    if not isinstance(plan, dict) or not plan:
+        raise GateError("transaction_record_plan_invalid")
+    encoded_plan = (
+        json.dumps(plan, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        + "\n"
+    ).encode("utf-8")
+    if hashlib.sha256(encoded_plan).hexdigest() != value["plan_sha256"]:
+        raise GateError("transaction_record_plan_hash_invalid")
+    before = value.get("before")
+    intended = value.get("intended_after")
+    observed = value.get("observed_after")
+    operations = value.get("operations")
+    if (
+        not isinstance(before, dict)
+        or not isinstance(intended, dict)
+        or not isinstance(observed, dict)
+        or not isinstance(operations, list)
+    ):
+        raise GateError("transaction_record_state_maps_invalid")
+    if state == "VERIFYING":
+        compose_after = intended.get("compose")
+        if (
+            not isinstance(compose_after, str)
+            or SHA64.fullmatch(compose_after) is None
+            or observed.get("compose") != compose_after
+        ):
+            raise GateError("verifying_compose_not_proven")
+        completed = any(
+            isinstance(record, dict)
+            and record.get("operation_type") == "compose_publish"
+            and record.get("status") == "COMPLETE"
+            and record.get("intended_after_fingerprint") == compose_after
+            and record.get("observed_after_fingerprint") == compose_after
+            for record in operations
+        )
+        if not completed:
+            raise GateError("verifying_publish_not_proven")
     return value
 
 
