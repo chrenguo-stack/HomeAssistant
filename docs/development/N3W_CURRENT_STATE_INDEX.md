@@ -1,3 +1,15 @@
+## 2026-10-30 — KF-137 source repair implemented; closure waiting only on existing F5 V2 CI
+
+- PR #740 exact source HEAD: 16d568ed577a050e23ee0061203d2a4d09cd19a0.
+- Successor now preserves raw Compose YAML and changes only the exact GH_MANAGER_IMAGE authority in docker-compose.env.
+- Transaction and activation gate bind both YAML and env through one deployment-input fingerprint; unknown state blocks/no-write.
+- Production V2 portable deployment binding /1 remains unchanged; /2 explicitly binds both deployment inputs.
+- Focused E03 source CI run 41011425602: SUCCESS, 245 passed in 0.48s.
+- Fast source/exact closure run 41011425596: SUCCESS.
+- Public repository safety run 41011425519: SUCCESS.
+- F5 V2 source run 41011425662: pending at polling stop; no further polling.
+- No T1/board access, live preauth retry, successor authorization claim or merge occurred.
+- Progress authority: docs/development/N3W_T1_E03_SUCCESSOR_RECOVERY_COMPOSE_ENV_AUTHORITY_SOURCE_REPAIR_PROGRESS_20261030.md.
 ## 2026-10-30 — E03 successor read-only preauth safely STOPPED; KF-137 source repair required
 
 - Local Portable Image Identity PASS; Manager tar size 62681088 bytes; identity SHA256 52c92c74648b657b05f7748014e0df4a0e406ae40e6d8a3201ff10633ea0d588.
