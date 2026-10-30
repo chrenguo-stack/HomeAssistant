@@ -454,7 +454,7 @@ def test_identity_record_rejects_non_string_diff_id() -> None:
         identity.identity_from_dict(value)
 
 
-@pytest.mark.parametrize("invalid_size", [True, -1, "1"])
+@pytest.mark.parametrize("invalid_size", [True, -1, 0, "1"])
 def test_expected_archive_size_type_is_strict(
     tmp_path: Path,
     invalid_size,
