@@ -646,16 +646,11 @@ class InvalidationStore:
     def create(self, document: dict[str, Any]) -> None:
         self._require_parent()
         payload = canonical(validate_record(document))
-        flags = (
-            os.O_WRONLY
-            | os.O_CREAT
-            | os.O_EXCL
-            | getattr(os, "O_NOFOLLOW", 0)
+        fd, raw = tempfile.mkstemp(
+            prefix=f".{self.path.name}.claim.",
+            dir=self.path.parent,
         )
-        try:
-            fd = os.open(self.path, flags, 0o600)
-        except FileExistsError as error:
-            raise InvalidationError("invalidation_record_exists") from error
+        tmp = Path(raw)
         try:
             os.fchmod(fd, 0o600)
             if self.enforce_root_metadata:
@@ -665,10 +660,21 @@ class InvalidationStore:
                 stream.write(payload)
                 stream.flush()
                 os.fsync(stream.fileno())
+            try:
+                os.link(
+                    tmp,
+                    self.path,
+                    follow_symlinks=False,
+                )
+            except FileExistsError as error:
+                raise InvalidationError(
+                    "invalidation_record_exists"
+                ) from error
             self._fsync_parent()
         finally:
             if fd >= 0:
                 os.close(fd)
+            tmp.unlink(missing_ok=True)
 
     def save(self, document: dict[str, Any], *, expected_generation: int) -> None:
         current = self.load()
