@@ -2632,7 +2632,7 @@ def status(transaction_id: str) -> dict[str, Any]:
         document,
         operation="status",
         reason_code="READ_ONLY_STATUS",
-        last_proven_state=f"COMPOSE_{disposition}",
+        last_proven_state=f"DEPLOYMENT_INPUTS_{disposition}",
         mutation_observed=document["operation_seq"] > 0,
         recovery_class=disposition,
     )
