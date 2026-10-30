@@ -672,3 +672,51 @@ def test_portable_deployment_binding_rejects_host_incompatible_platform() -> Non
             service_unit={"execstart_sha256": "7" * 64},
             state_contract={"schema_migration_required": False},
         )
+
+
+def test_portable_deployment_binding_v2_binds_compose_and_env() -> None:
+    identity_doc = portable_identity_document()
+    service_unit = {
+        "execstart_sha256": "7" * 64,
+        "execstop_sha256": "8" * 64,
+    }
+    state = {"schema_migration_required": False}
+    first = contract.portable_deployment_binding_id_v2(
+        source_head="b" * 40,
+        artifact_sha256="c" * 64,
+        identity=identity_doc,
+        deployment_inputs={
+            "compose_sha256": "d" * 64,
+            "compose_env_sha256": "e" * 64,
+        },
+        service_unit=service_unit,
+        state_contract=state,
+    )
+    changed_env = contract.portable_deployment_binding_id_v2(
+        source_head="b" * 40,
+        artifact_sha256="c" * 64,
+        identity=copy.deepcopy(identity_doc),
+        deployment_inputs={
+            "compose_sha256": "d" * 64,
+            "compose_env_sha256": "f" * 64,
+        },
+        service_unit=dict(reversed(list(service_unit.items()))),
+        state_contract=dict(reversed(list(state.items()))),
+    )
+    assert len(first) == 64
+    assert first != changed_env
+
+
+def test_portable_deployment_binding_v2_rejects_incomplete_inputs() -> None:
+    with pytest.raises(
+        contract.ProductionV2ContractError,
+        match="portable_deployment_inputs_keys_invalid",
+    ):
+        contract.portable_deployment_binding_id_v2(
+            source_head="b" * 40,
+            artifact_sha256="c" * 64,
+            identity=portable_identity_document(),
+            deployment_inputs={"compose_sha256": "d" * 64},
+            service_unit={"execstart_sha256": "7" * 64},
+            state_contract={"schema_migration_required": False},
+        )
