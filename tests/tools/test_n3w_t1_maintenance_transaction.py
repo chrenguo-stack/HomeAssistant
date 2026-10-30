@@ -11,6 +11,10 @@ sys.path.insert(0, str(ROOT / "tools"))
 import n3w_t1_maintenance_transaction as tx  # noqa: E402
 
 
+def plan():
+    return {"kind": "unit-test", "compose_policy": "before-after-only"}
+
+
 def binding(**overrides):
     value = {
         "transaction_id": "txn-e03-successor-0001",
@@ -22,6 +26,7 @@ def binding(**overrides):
         "executor_source_head": "6" * 40,
         "executor_blob": "7" * 40,
         "module_set_sha256": "8" * 64,
+        "plan_sha256": tx.sha256_bytes(tx.canonical_bytes(plan())),
         "scope": ("compose_publish", "service_stop", "service_start", "acceptance"),
     }
     value.update(overrides)
@@ -34,6 +39,7 @@ def document():
         predecessor_sha256="7" * 64,
         before={"compose": "8" * 64},
         intended_after={"compose": "9" * 64},
+        plan=plan(),
     )
 
 
@@ -72,6 +78,7 @@ def test_transaction_lifecycle_happy_path() -> None:
         "executor_source_head",
         "executor_blob",
         "module_set_sha256",
+        "plan_sha256",
         "scope",
     ],
 )
@@ -88,6 +95,7 @@ def test_b1_mutation_binding_rejects_any_binding_drift(field: str) -> None:
         "executor_source_head": "f" * 40,
         "executor_blob": "a" * 40,
         "module_set_sha256": "b" * 64,
+        "plan_sha256": "c" * 64,
         "scope": ("compose_publish",),
     }[field]
     kwargs = expected.to_dict()
