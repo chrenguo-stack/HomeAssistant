@@ -66,7 +66,7 @@ def test_active_mutation_states_block(private_root: Path, state: str) -> None:
     assert reason == "MAINTENANCE_BLOCKING"
 
 
-@pytest.mark.parametrize("state", sorted(gate.ACTIVE_ALLOWING_STATES))
+@pytest.mark.parametrize("state", ["PREPARING", "READY", "VERIFYING"])
 def test_non_mutating_active_states_allow_application_start(
     private_root: Path,
     state: str,
@@ -231,3 +231,54 @@ def test_successor_dropin_uses_service_exec_condition() -> None:
 def test_blocked_real_transaction_remains_boot_blocking() -> None:
     value = _valid_transaction("BLOCKED")
     assert gate._validate_record(value)["state"] == "BLOCKED"
+
+
+def test_rolling_back_blocks_before_predecessor_compose_restore(
+    private_root: Path,
+) -> None:
+    _write(private_root, "tx.json", "ROLLING_BACK")
+    assert gate.evaluate(private_root) == (False, "MAINTENANCE_BLOCKING")
+
+
+def test_rolling_back_allows_start_only_after_proven_compose_restore(
+    private_root: Path,
+) -> None:
+    value = _valid_transaction("ROLLING_BACK")
+    intent = tx.begin_operation(
+        value,
+        operation_type="compose_rollback",
+        before_fingerprint="b" * 64,
+        intended_after_fingerprint="a" * 64,
+        allowed_states={"ROLLING_BACK"},
+    )
+    value = tx.finish_operation(
+        intent,
+        observed_after_fingerprint="a" * 64,
+    )
+    path = private_root / "real.json"
+    path.write_text(
+        json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    path.chmod(0o600)
+    assert gate._rollback_predecessor_restored(value) is True
+    assert gate.evaluate(private_root) == (
+        True,
+        "MAINTENANCE_ROLLBACK_RESTORED",
+    )
+
+
+def test_rollback_restore_proof_rejects_wrong_target() -> None:
+    value = _valid_transaction("ROLLING_BACK")
+    intent = tx.begin_operation(
+        value,
+        operation_type="compose_rollback",
+        before_fingerprint="b" * 64,
+        intended_after_fingerprint="c" * 64,
+        allowed_states={"ROLLING_BACK"},
+    )
+    value = tx.finish_operation(
+        intent,
+        observed_after_fingerprint="c" * 64,
+    )
+    assert gate._rollback_predecessor_restored(value) is False
