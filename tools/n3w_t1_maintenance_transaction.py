@@ -650,11 +650,14 @@ class TransactionStore:
         value = validate_transaction(document)
         payload = canonical_bytes(value)
         flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+        fd = -1
+        created = False
         try:
-            fd = os.open(self.path, flags, 0o600)
-        except FileExistsError as error:
-            raise MaintenanceTransactionError("transaction_exists") from error
-        try:
+            try:
+                fd = os.open(self.path, flags, 0o600)
+            except FileExistsError as error:
+                raise MaintenanceTransactionError("transaction_exists") from error
+            created = True
             os.fchmod(fd, 0o600)
             if self.enforce_root_metadata:
                 os.fchown(fd, 0, 0)
@@ -663,10 +666,23 @@ class TransactionStore:
                 stream.write(payload)
                 stream.flush()
                 os.fsync(stream.fileno())
+            self._fsync_parent()
+        except Exception as error:
+            if fd >= 0:
+                os.close(fd)
+                fd = -1
+            if created:
+                try:
+                    self.path.unlink(missing_ok=True)
+                    self._fsync_parent()
+                except OSError as cleanup_error:
+                    raise MaintenanceTransactionError(
+                        "transaction_create_cleanup_failed"
+                    ) from cleanup_error
+            raise
         finally:
             if fd >= 0:
                 os.close(fd)
-        self._fsync_parent()
 
     def save(self, document: dict[str, Any], *, expected_generation: int) -> None:
         self._require_parent()
