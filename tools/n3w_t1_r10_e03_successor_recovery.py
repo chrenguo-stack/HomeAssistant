@@ -1966,7 +1966,7 @@ def _current_f4_authority(
         drift_reason="current_f4_helper_source_drift",
     )
     module = _load_f4()
-    if getattr(module, "F4_TRANSACTION", None) != F4_TRANSACTION:
+    if getattr(module, "TRANSACTION_PATH", None) != F4_TRANSACTION:
         raise SuccessorError("current_f4_transaction_path_drift")
 
     observed_sha256 = sha_file(F4_TRANSACTION)
