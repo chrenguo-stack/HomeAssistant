@@ -55,10 +55,12 @@ class MaintenanceBinding:
     transaction_id: str
     authorization_id_sha256: str
     host_binding_sha256: str
-    release_id: str
+    current_release_id: str
+    target_release_id: str
     artifact_sha256: str
     executor_source_head: str
     executor_blob: str
+    module_set_sha256: str
     scope: tuple[str, ...]
 
     def to_dict(self) -> dict[str, Any]:
@@ -109,10 +111,12 @@ def validate_binding(binding: MaintenanceBinding) -> MaintenanceBinding:
         raise MaintenanceTransactionError("transaction_id_invalid")
     _sha(binding.authorization_id_sha256, "authorization_id_sha256")
     _sha(binding.host_binding_sha256, "host_binding_sha256")
-    _sha(binding.release_id, "release_id")
+    _sha(binding.current_release_id, "current_release_id")
+    _sha(binding.target_release_id, "target_release_id")
     _sha(binding.artifact_sha256, "artifact_sha256")
     _sha(binding.executor_source_head, "executor_source_head", git=True)
     _sha(binding.executor_blob, "executor_blob", git=True)
+    _sha(binding.module_set_sha256, "module_set_sha256")
     if not binding.scope or len(set(binding.scope)) != len(binding.scope):
         raise MaintenanceTransactionError("scope_invalid")
     for action in binding.scope:
@@ -163,10 +167,12 @@ def validate_transaction(document: Any) -> dict[str, Any]:
         "transaction_id",
         "authorization_id_sha256",
         "host_binding_sha256",
-        "release_id",
+        "current_release_id",
+        "target_release_id",
         "artifact_sha256",
         "executor_source_head",
         "executor_blob",
+        "module_set_sha256",
         "scope",
         "predecessor_sha256",
         "state",
@@ -189,10 +195,12 @@ def validate_transaction(document: Any) -> dict[str, Any]:
         transaction_id=document["transaction_id"],
         authorization_id_sha256=document["authorization_id_sha256"],
         host_binding_sha256=document["host_binding_sha256"],
-        release_id=document["release_id"],
+        current_release_id=document["current_release_id"],
+        target_release_id=document["target_release_id"],
         artifact_sha256=document["artifact_sha256"],
         executor_source_head=document["executor_source_head"],
         executor_blob=document["executor_blob"],
+        module_set_sha256=document["module_set_sha256"],
         scope=tuple(document["scope"]) if isinstance(document["scope"], list) else (),
     )
     validate_binding(binding)
@@ -274,10 +282,12 @@ def binding_from_transaction(document: dict[str, Any]) -> MaintenanceBinding:
         transaction_id=value["transaction_id"],
         authorization_id_sha256=value["authorization_id_sha256"],
         host_binding_sha256=value["host_binding_sha256"],
-        release_id=value["release_id"],
+        current_release_id=value["current_release_id"],
+        target_release_id=value["target_release_id"],
         artifact_sha256=value["artifact_sha256"],
         executor_source_head=value["executor_source_head"],
         executor_blob=value["executor_blob"],
+        module_set_sha256=value["module_set_sha256"],
         scope=tuple(value["scope"]),
     )
 
