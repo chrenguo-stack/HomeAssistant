@@ -621,7 +621,7 @@ def test_supersession_rejects_retired_transaction_byte_drift(
     harness["target_path"].write_bytes(payload + b" ")
     with pytest.raises(
         retirement.RetirementError,
-        match="retirement_supersession_ambiguous",
+        match="retirement_supersession_binding_mismatch",
     ):
         retirement.assert_supersession(
             expected,
@@ -629,6 +629,58 @@ def test_supersession_rejects_retired_transaction_byte_drift(
             current_release_id=str(old["current_release_id"]),
             target_release_id=str(old["target_release_id"]),
             artifact_sha256=str(old["artifact_sha256"]),
+        )
+
+
+def test_supersession_rejects_missing_retired_transaction_evidence(
+    harness,
+) -> None:
+    _claim(harness)
+    retirement.retire(
+        retirement_id="retirement-e03-test-0001",
+        target_transaction_id=str(
+            harness["document"]["transaction_id"]
+        ),
+        execution_session_id="retirement-session-test-0001",
+    )
+    harness["target_path"].unlink()
+    with pytest.raises(
+        retirement.RetirementError,
+        match="retirement_supersession_evidence_incomplete",
+    ):
+        retirement.committed_supersession(
+            predecessor_sha256="b" * 64,
+            current_release_id="8" * 64,
+            target_release_id="9" * 64,
+            artifact_sha256="a" * 64,
+        )
+
+
+def test_supersession_rejects_missing_retirement_record_evidence(
+    harness,
+) -> None:
+    _claim(harness)
+    retirement.retire(
+        retirement_id="retirement-e03-test-0001",
+        target_transaction_id=str(
+            harness["document"]["transaction_id"]
+        ),
+        execution_session_id="retirement-session-test-0001",
+    )
+    evidence = (
+        harness["retirement_root"]
+        / "retirement-e03-test-0001.json"
+    )
+    evidence.unlink()
+    with pytest.raises(
+        retirement.RetirementError,
+        match="retirement_supersession_evidence_incomplete",
+    ):
+        retirement.committed_supersession(
+            predecessor_sha256="b" * 64,
+            current_release_id="8" * 64,
+            target_release_id="9" * 64,
+            artifact_sha256="a" * 64,
         )
 
 
