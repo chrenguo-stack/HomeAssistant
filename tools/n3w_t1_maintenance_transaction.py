@@ -329,7 +329,6 @@ def transition(
         value["observed_after"] = deepcopy(observed_after)
     value["state"] = target_state
     value["generation"] += 1
-    value["operation_seq"] += 1
     value["last_operation"] = operation
     value["last_reason"] = reason
     return value
@@ -348,7 +347,6 @@ def claim_authorization(document: dict[str, Any]) -> dict[str, Any]:
     value["authorization_consumed"] = True
     value["state"] = "APPLYING"
     value["generation"] += 1
-    value["operation_seq"] += 1
     value["last_operation"] = "authorization_claimed"
     value["last_reason"] = None
     return value
