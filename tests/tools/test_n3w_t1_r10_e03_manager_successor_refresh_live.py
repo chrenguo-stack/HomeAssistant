@@ -270,7 +270,7 @@ def test_pr725_head_must_equal_executor_source_head(
         tool.remote_claim(args)
 
 
-def test_prestop_abort_closes_claimed_transaction(
+def test_prestop_abort_cannot_mutate_consumed_legacy_transaction(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     stored = {
@@ -291,22 +291,55 @@ def test_prestop_abort_closes_claimed_transaction(
     monkeypatch.setattr(
         tool,
         "preclaim",
-        lambda: {"compose_sha256": "1" * 64},
+        lambda: pytest.fail("legacy preclaim must not become mutation resume"),
     )
+    monkeypatch.setattr(
+        tool,
+        "tx_update",
+        lambda *_args, **_kwargs: pytest.fail("legacy transaction must stay immutable"),
+    )
+    with pytest.raises(tool.RefreshError, match="successor_transaction_required"):
+        tool.remote_abort_prestop("DOCKER_LOAD_FAILED")
 
-    def update(doc, phase, **extra):
-        stored.update(doc)
-        stored.update(extra)
-        stored["phase"] = phase
 
-    monkeypatch.setattr(tool, "tx_update", update)
-    result = tool.remote_abort_prestop("DOCKER_LOAD_FAILED")
-    assert result["transaction_status"] == "FAILED_PRESTOP"
-    assert stored["status"] == "FAILED_PRESTOP"
-    assert stored["phase"] == "FAILED_PRESTOP"
-    assert stored["authorization_consumed"] is True
-    assert stored["replay_allowed"] is False
+def test_legacy_claim_with_valid_binding_requires_successor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    args = argparse.Namespace(
+        authorization_id="N3W_R10_E03_MANAGER_SUCCESSOR_REFRESH_LIVE_APPLY_20261029_01",
+        confirmation=tool.CONFIRMATION,
+        executor_source_head="1" * 40,
+        executor_blob="2" * 40,
+        pr725_head="1" * 40,
+    )
+    monkeypatch.setattr(
+        tool,
+        "preclaim",
+        lambda: pytest.fail("legacy claim must stop before live preclaim"),
+    )
+    with pytest.raises(tool.RefreshError, match="successor_transaction_required"):
+        tool.remote_claim(args)
 
+
+def test_legacy_apply_cannot_replay_consumed_authorization(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        tool,
+        "read_tx",
+        lambda: {
+            "status": "CLAIMED",
+            "authorization_consumed": True,
+            "replay_allowed": False,
+        },
+    )
+    monkeypatch.setattr(
+        tool,
+        "image_id",
+        lambda *_args: pytest.fail("legacy .Id oracle must not run"),
+    )
+    with pytest.raises(tool.RefreshError, match="successor_transaction_required"):
+        tool._remote_apply_locked()
 
 def test_prestop_abort_requires_claimed_phase(
     monkeypatch: pytest.MonkeyPatch,
