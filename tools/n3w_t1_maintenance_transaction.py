@@ -428,6 +428,48 @@ def claim_authorization(document: dict[str, Any]) -> dict[str, Any]:
     return value
 
 
+def abort_claimed_ready_before_apply(
+    document: dict[str, Any],
+    *,
+    reason: str,
+) -> dict[str, Any]:
+    value = validate_transaction(document)
+    _text(reason, "abort_reason")
+    if value["state"] != "READY":
+        raise MaintenanceTransactionError("abort_before_apply_state_invalid")
+    if value["authorization_consumed"] is not True:
+        raise MaintenanceTransactionError(
+            "abort_before_apply_authorization_not_consumed"
+        )
+    if value["replay_allowed"] is not False:
+        raise MaintenanceTransactionError(
+            "abort_before_apply_replay_contract_drift"
+        )
+    if value["operation_seq"] != 0 or value["operations"]:
+        raise MaintenanceTransactionError(
+            "abort_before_apply_operation_history_present"
+        )
+    if pending_operation(value) is not None:
+        raise MaintenanceTransactionError(
+            "abort_before_apply_pending_operation"
+        )
+    if value["observed_after"]:
+        raise MaintenanceTransactionError(
+            "abort_before_apply_observed_after_present"
+        )
+    for session in value["execution_sessions"]:
+        if session.get("action") != "claim":
+            raise MaintenanceTransactionError(
+                "abort_before_apply_execution_session_present"
+            )
+    return transition(
+        value,
+        "ABORTED",
+        operation="retired_before_apply",
+        reason=reason,
+    )
+
+
 def begin_apply(document: dict[str, Any]) -> dict[str, Any]:
     value = validate_transaction(document)
     if value["state"] != "READY":
