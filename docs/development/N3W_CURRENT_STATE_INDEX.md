@@ -1,3 +1,14 @@
+## 2026-10-30 — PR #740 P0 source repair implemented; independent source review next
+
+- PR #740 exact tested head: `a4e317d90157a42619eafe00bce9aa001255ff1c`, stacked directly on PR #725 head `614c08a397462850f0167b77c9da45ae69a323ad`.
+- Shared Portable Image Identity, durable Maintenance Transaction, activation gate, E03 successor transaction and unconditional legacy-mutation retirement are implemented on PR #740.
+- Final source review before closure found and repaired an OCI false-PASS: supported OCI layers are decoded and the actual uncompressed layer SHA256 must equal the ordered config `rootfs.diff_ids`; production-v2 portable images are restricted to `linux/arm64`.
+- Latest focused run `40995555096`: `212 passed`; preflight, Public repository safety, F5 V2 source and greenhouse-manager CI are PASS.
+- KF-132 through KF-136 status: `SOURCE_REPAIR_IMPLEMENTED_PR740_INDEPENDENT_REVIEW_PENDING`; they are not yet CLOSED_PASS.
+- Old E03 authorization remains consumed/no-replay and predecessor transaction remains immutable evidence.
+- No T1/board access, live successor preauthorization, live recovery, workflow dispatch or merge occurred.
+- Next ONE gate: `N3W_T1_PORTABLE_IMAGE_IDENTITY_AND_E03_SUCCESSOR_RECOVERY_INDEPENDENT_SOURCE_REVIEW_20261030_01`.
+
 ## 2026-10-30 — Portable Image Identity / E03 successor recovery P0 design frozen
 
 - Current repository main is still `2fbd0e9c2d3bf8a513ac318034e249511ffb6a2e` and does **not** contain current R10/E03 or P0 design work.
