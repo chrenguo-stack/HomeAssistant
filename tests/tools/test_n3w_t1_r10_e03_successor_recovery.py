@@ -20,7 +20,26 @@ def _held_lock(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(successor, "_LOCK_DEPTH", 1)
 
 
+def _f4_authority() -> dict[str, object]:
+    return {
+        "transaction_sha256": "c" * 64,
+        "transaction_schema": "gh.n3w-t1-f4-activation-transaction/1",
+        "stage": "PERSISTENCE_ENABLED",
+        "status": "PASS",
+        "successor_target_source": successor.EXPECTED_F4_R10_SUCCESSOR_SOURCE,
+        "successor_manifest_sha256": (
+            successor.EXPECTED_F4_R10_SUCCESSOR_MANIFEST_SHA256
+        ),
+        "successor_installed_files_sha256": "d" * 64,
+        "historical_package_source_head": "e" * 40,
+        "historical_package_manifest_sha256": "f" * 64,
+        "f4_host_sha256": "1" * 64,
+        "runtime_probe_sha256": "2" * 64,
+    }
+
+
 def _plan() -> dict[str, object]:
+    f4_authority = _f4_authority()
     return {
         "kind": "successor-test",
         "compose_sha256": "0" * 64,
@@ -44,6 +63,10 @@ def _plan() -> dict[str, object]:
         "manager_predecessor_container_id": "old-manager",
         "services_nrestarts": 0,
         "ha_mqtt_sha256": "8" * 64,
+        "current_f4_authority": f4_authority,
+        "current_f4_authority_sha256": successor.sha_bytes(
+            successor.canonical(f4_authority)
+        ),
         "broker_baseline": {
             "container_id": "broker",
             "image_id": "sha256:" + "9" * 64,
@@ -1005,7 +1028,165 @@ def test_post_ledger_requires_hardware_session_and_expiry_proof() -> None:
         successor.validate_post_ledger(changed)
 
 
+
+def _current_f4_document() -> dict[str, object]:
+    installed_files = {
+        "/etc/n3wfc4/docker-compose.yml": {
+            "sha256": "1" * 64,
+            "size": 123,
+        }
+    }
+    return {
+        "schema": "gh.n3w-t1-f4-activation-transaction/1",
+        "status": "PASS",
+        "stage": "PERSISTENCE_ENABLED",
+        "authorization_claimed": True,
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "board_access": False,
+        "runtime_started": True,
+        "runtime_acceptance_required": True,
+        "runtime_acceptance_passed": True,
+        "broker_services_persistence_enabled": True,
+        "persistence_enabled": True,
+        "certificate_first_audit_passed": True,
+        "certificate_timer_enabled": True,
+        "pre_reboot_ready": True,
+        "production_service_start": True,
+        "package_source_head": "3" * 40,
+        "package_manifest_sha256": "4" * 64,
+        "certificate_status_sha256": "5" * 64,
+        "homeassistant_mqtt_entry_id_sha256": "6" * 64,
+        "installed_files": installed_files,
+        "r10_candidate_upgrade_authorization_claimed": True,
+        "r10_candidate_upgrade_authorization_consumed": True,
+        "r10_candidate_upgrade_replay_allowed": False,
+        "r10_candidate_upgrade_committed": True,
+        "r10_candidate_upgrade_target_source": (
+            successor.EXPECTED_F4_R10_SUCCESSOR_SOURCE
+        ),
+        "r10_candidate_upgrade_manifest_sha256": (
+            successor.EXPECTED_F4_R10_SUCCESSOR_MANIFEST_SHA256
+        ),
+        "r10_candidate_upgrade_predecessor_installed_files_sha256": "7" * 64,
+        "r10_candidate_upgrade_successor_installed_files_sha256": (
+            successor.sha_bytes(successor.canonical(installed_files))
+        ),
+    }
+
+
+def _bind_current_f4_fixture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    document: dict[str, object],
+) -> Path:
+    transaction = tmp_path / "F4_ACTIVATION_TRANSACTION.json"
+    transaction.write_bytes(successor.canonical(document) + b"\n")
+    f4_host = tmp_path / "n3w-t1-f4-activation"
+    f4_host.write_text("f4-host\n", encoding="utf-8")
+    runtime_probe = tmp_path / "n3w-t1-f4-reboot-verify"
+    runtime_probe.write_text("f4-runtime-probe\n", encoding="utf-8")
+    monkeypatch.setattr(successor, "F4_TRANSACTION", transaction)
+    monkeypatch.setattr(successor, "F4_HOST", f4_host)
+    monkeypatch.setattr(successor, "F4_REBOOT_VERIFY", runtime_probe)
+    module = SimpleNamespace(
+        F4_TRANSACTION=transaction,
+        _read_private_record=lambda _path: dict(document),
+        _activation_eligibility=lambda phase: {
+            "status": "PASS",
+            "transaction_stage": "PERSISTENCE_ENABLED",
+            "eligibility_phase": phase,
+        },
+    )
+    monkeypatch.setattr(successor, "_load_f4", lambda: module)
+    return transaction
+
+
+def test_current_f4_authority_accepts_committed_successor_generation_without_reboot_claim(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    document = _current_f4_document()
+    transaction = _bind_current_f4_fixture(
+        tmp_path,
+        monkeypatch,
+        document,
+    )
+    authority = successor._current_f4_authority()
+    assert authority["transaction_sha256"] == successor.sha_file(transaction)
+    assert authority["successor_target_source"] == (
+        successor.EXPECTED_F4_R10_SUCCESSOR_SOURCE
+    )
+    assert authority["successor_manifest_sha256"] == (
+        successor.EXPECTED_F4_R10_SUCCESSOR_MANIFEST_SHA256
+    )
+
+
+def test_current_f4_authority_rejects_uncommitted_successor_generation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    document = _current_f4_document()
+    document["r10_candidate_upgrade_committed"] = False
+    _bind_current_f4_fixture(tmp_path, monkeypatch, document)
+    with pytest.raises(
+        successor.SuccessorError,
+        match="current_f4_transaction_contract_invalid",
+    ):
+        successor._current_f4_authority()
+
+
+def test_e03_current_runtime_snapshot_does_not_call_historical_reboot_snapshot() -> None:
+    source = (
+        ROOT / "tools" / "n3w_t1_r10_e03_successor_recovery.py"
+    ).read_text(encoding="utf-8")
+    section = source.split(
+        "def _current_runtime_snapshot(", 1
+    )[1].split(
+        "def _authenticated_runtime_snapshot(", 1
+    )[0]
+    assert ".runtime_snapshot()" not in section
+    assert "_assert_current_f4_authority(expected)" in section
+    assert "_broker_auth_evidence(" in section
+    assert "_service_socket_evidence(" in section
+    assert "_systemd_snapshot(" in section
+    assert "_homeassistant_http_readiness()" in section
+
+
+def test_historical_reboot_verifier_keeps_exact_generation_fail_closed() -> None:
+    source = (
+        ROOT / "tools" / "n3w_t1_f4_reboot_verify.py"
+    ).read_text(encoding="utf-8")
+    section = source.split("def runtime_snapshot()", 1)[1].split(
+        "def main()", 1
+    )[0]
+    assert "snapshot_transaction_binding_changed" in section
+    assert (
+        '_sha256(F4_TRANSACTION) != claim.get("f4_transaction_sha256")'
+        in section
+    )
+
+
+def test_preauth_and_runtime_rebind_bind_current_f4_generation() -> None:
+    source = (
+        ROOT / "tools" / "n3w_t1_r10_e03_successor_recovery.py"
+    ).read_text(encoding="utf-8")
+    preauth = source.split("def preauthorization(", 1)[1].split(
+        "def _execution_session_id", 1
+    )[0]
+    assert "current_f4_authority = _current_f4_authority()" in preauth
+    assert '"current_f4_authority": current_f4_authority' in preauth
+    assert '"current_f4_authority_sha256": current_f4_authority_sha256' in preauth
+    rebind = source.split("def _runtime_rebind(", 1)[1].split(
+        "def _save(", 1
+    )[0]
+    assert "_assert_current_f4_authority(current_f4_authority)" in rebind
+
+
 def _strong_snapshot() -> dict[str, object]:
+    plan = _plan()
+    f4 = plan["current_f4_authority"]
+    assert isinstance(f4, dict)
     runtimes = {
         "broker": {
             "container_id": "broker-id",
@@ -1027,8 +1208,12 @@ def _strong_snapshot() -> dict[str, object]:
         "schema": successor.RUNTIME_SNAPSHOT_SCHEMA,
         "status": "PASS",
         "boot_id_sha256": "1" * 64,
-        "source_head": "2" * 40,
-        "control_manifest_sha256": "3" * 64,
+        "f4_transaction_sha256": f4["transaction_sha256"],
+        "f4_authority_sha256": plan["current_f4_authority_sha256"],
+        "f4_successor_target_source": f4["successor_target_source"],
+        "f4_successor_manifest_sha256": f4["successor_manifest_sha256"],
+        "f4_host_sha256": f4["f4_host_sha256"],
+        "runtime_probe_sha256": f4["runtime_probe_sha256"],
         "systemd_state_sha256": "4" * 64,
         "critical_errors_sha256": "5" * 64,
         "homeassistant_http_ready": True,
@@ -1069,9 +1254,13 @@ def _strong_snapshot() -> dict[str, object]:
 def test_authenticated_runtime_snapshot_rebinds_container_and_auth_evidence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    plan = _plan()
     snapshot = _strong_snapshot()
-    module = SimpleNamespace(runtime_snapshot=lambda: snapshot)
-    monkeypatch.setattr(successor, "_load_f4_reboot_verify", lambda: module)
+    monkeypatch.setattr(
+        successor,
+        "_current_runtime_snapshot",
+        lambda _plan: snapshot,
+    )
 
     runtimes = {
         "broker": {
@@ -1091,14 +1280,14 @@ def test_authenticated_runtime_snapshot_rebinds_container_and_auth_evidence(
         },
     }
     monkeypatch.setattr(successor, "runtime", lambda service: runtimes[service])
-    assert successor._authenticated_runtime_snapshot() == snapshot
+    assert successor._authenticated_runtime_snapshot(plan) == snapshot
 
     snapshot["runtime_service_auth"]["manager"]["authenticated"] = False
     with pytest.raises(
         successor.SuccessorError,
         match="authenticated_runtime_service_invalid:manager",
     ):
-        successor._authenticated_runtime_snapshot()
+        successor._authenticated_runtime_snapshot(plan)
 
 
 def test_auth_probe_contract_cannot_claim_live_auth_from_partial_probe() -> None:
@@ -1214,7 +1403,7 @@ def _strict_acceptance_fixture(
     monkeypatch.setattr(
         successor,
         "_authenticated_runtime_snapshot",
-        lambda: next(stream),
+        lambda _plan: next(stream),
     )
     return plan
 
@@ -1486,6 +1675,7 @@ def test_runtime_rebind_recomputes_source_and_target_release_authority() -> None
     assert "target_release_id = _target_release_id(" in section
     assert "source_release_id != binding.current_release_id" in section
     assert "target_release_id != binding.target_release_id" in section
+    assert "_assert_current_f4_authority(current_f4_authority)" in section
 
 
 def _fresh_product_compose() -> bytes:
