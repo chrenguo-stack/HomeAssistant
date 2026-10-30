@@ -1,3 +1,207 @@
+## 2026-10-30 — E03 replacement baseline invalidation design FROZEN
+
+- T1 reboot caused the Broker StartedAt continuity break.
+- Selected route: evidence-bound READY to BLOCKED invalidation for the never-applied replacement transaction.
+- BLOCKED is terminal/non-active and does not enter supersession selection.
+- Preserve the original single ABORTED plus COMMITTED retirement pair, then fresh replacement preauthorization and claim.
+- Design authority: docs/development/N3W_T1_E03_REPLACEMENT_BASELINE_INVALIDATION_TERMINAL_BLOCKED_SOURCE_DESIGN_20261030.md.
+- Next gate: N3W_T1_E03_REPLACEMENT_BASELINE_INVALIDATION_TERMINAL_BLOCKED_SOURCE_REPAIR_20261030_01.
+
+## 2026-10-30 — E03 replacement apply-authorization preflight CLOSED_STOP
+
+- Replacement transaction remains READY generation 4 and byte-identical; no apply or product mutation occurred.
+- Corrected exact-source preflight stopped because Broker `started_at` no longer matches the claim-time frozen baseline.
+- Broker container ID, image ID and restart_count still match; broker unit is active/enabled and TCP/8883 remains listening.
+- Existing retirement executor cannot retire this transaction unchanged because it enforces the same Broker continuity.
+- A second matching ABORTED retirement would make the current supersession selector ambiguous.
+- Recommended next design: narrow pre-apply terminal `BLOCKED` invalidation, preserving the original committed supersession pair before a fresh replacement preauthorization.
+- PR #740 evidence: `6525336589`.
+- Next ONE gate: `N3W_T1_E03_REPLACEMENT_BASELINE_INVALIDATION_TERMINAL_BLOCKED_SOURCE_DESIGN_20261030_01`.
+
+## 2026-10-30 — E03 replacement successor authorization claim CLOSED_PASS
+
+- Replacement transaction is READY, generation 4.
+- Authorization is consumed and non-replayable.
+- No product apply has occurred.
+- PR #740 evidence: `6522335532`.
+- Next gate: `N3W_T1_E03_REPLACEMENT_SUCCESSOR_APPLY_AUTHORIZATION_PREFLIGHT_20261030_01`.
+
+## 2026-10-30 — E03 retirement authorization claim CLOSED_PASS
+
+- Retirement authorization claim passed; record is CLAIMED generation 2.
+- Target transaction remains READY and byte-identical.
+- No product/service/board mutation occurred.
+- PR #740 evidence: `6521761608`.
+- Next gate: `N3W_T1_E03_CLAIMED_TRANSACTION_RETIREMENT_EXECUTION_20261030_01`.
+
+## 2026-10-30 — E03 claimed transaction retirement source repair CLOSED_PASS
+
+- PR #740 exact head: `9f8339209a19ab5142002eeb72a396cdfd482b46`.
+- Previously pending F5 V2 source CI run `41027728040`: SUCCESS.
+- E03 live source CI, E03 preflight CI, Public repository safety, fast source/exact closure and greenhouse-manager CI: SUCCESS.
+- Source implementation and independent source review: PASS.
+- Source repair: CLOSED_PASS.
+- No T1 access, retirement preflight, retirement authorization claim, live transaction mutation, product mutation, board access or merge occurred.
+- Closure authority: `docs/development/N3W_T1_E03_CLAIMED_TRANSACTION_RETIREMENT_SOURCE_REPAIR_CLOSURE_20261030.md`.
+- PR #740 closure comment: `6518740378`.
+- Next ONE gate: `N3W_T1_E03_CLAIMED_TRANSACTION_RETIREMENT_READONLY_PREFLIGHT_20261030_01`.
+
+## 2026-10-30 — E03 claimed transaction retirement source repair implemented / closure pending
+
+- PR #740 exact source head: `9f8339209a19ab5142002eeb72a396cdfd482b46`.
+- Terminal replacement source implementation and independent source review: PASS.
+- Added narrow claimed-READY retirement helper, E03-specific retirement executor, one-shot retirement evidence and same-session crash recovery.
+- Replacement E03 now requires exact paired final ABORTED transaction + COMMITTED retirement evidence; one-sided, drifted or ambiguous evidence fails closed.
+- Replacement claim recomputes preauth under the global lock; runtime mutation rebind and read-only status revalidate supersession.
+- Old authorization stays consumed/non-replayable; repaired executor cannot take over the old executor-bound READY transaction.
+- Focused E03 live source CI, E03 preflight CI, Public repository safety, fast source/exact closure and greenhouse-manager CI are SUCCESS.
+- Broad F5 V2 source CI run `41027728040` remained in progress at the bounded polling stop; no failure was observed.
+- No T1 access, live retirement preflight, retirement authorization claim, transaction mutation, product mutation, board access or merge occurred.
+- Progress authority: `docs/development/N3W_T1_E03_CLAIMED_TRANSACTION_RETIREMENT_SOURCE_REPAIR_PROGRESS_20261030.md`.
+- PR #740 progress comment: `6518664003`.
+- Next ONE gate: `N3W_T1_E03_CLAIMED_TRANSACTION_RETIREMENT_SOURCE_REPAIR_CLOSURE_AFTER_F5_20261030_01`.
+
+## 2026-10-30 — E03 claimed transaction successor authority design frozen
+
+- Repaired E03 source authority: `19af94566ead0c08a8d3665cc2b538b90f2b500b`.
+- Post-claim executor takeover is rejected because executor source/module-set/plan are immutable transaction bindings.
+- Selected route: terminal replacement.
+- Old live transaction remains READY with authorization consumed and replay forbidden; no retirement has been executed.
+- Future retirement requires a separate one-shot maintenance-ledger authorization and exact proof of operation_seq=0, no pending operation, and deployment/service/gate reality all EXACT_BEFORE.
+- Old transaction target terminal state: ABORTED. Immutable transaction bindings remain unchanged.
+- Replacement E03 requires a new transaction ID, new authorization, new preauth plan, repaired executor and immutable supersession evidence.
+- Retirement does not authorize replacement claim; replacement claim does not authorize apply.
+- No T1 access, live transaction mutation, product mutation, board access or merge occurred in this design gate.
+- Design authority: `docs/development/N3W_T1_E03_CLAIMED_TRANSACTION_SUCCESSOR_AUTHORITY_SOURCE_DESIGN_20261030.md`.
+- Next ONE gate: `N3W_T1_E03_CLAIMED_TRANSACTION_RETIREMENT_SOURCE_REPAIR_20261030_01`.
+
+## 2026-10-30 — E03 successor post-claim read-only forensic CLOSED_PASS
+
+- Exact PR #740 source HEAD: `16d568ed577a050e23ee0061203d2a4d09cd19a0`.
+- Read-only status returned PASS / READY / READ_ONLY_STATUS with exit code 0.
+- authorization_consumed=true; replay_allowed=false; mutation_observed=false.
+- last_proven_state=DEPLOYMENT_INPUTS_BEFORE; recovery_class=BEFORE.
+- transaction_id_sha256 remains `0f03cdaa3862c61fb67698be53f555ff717bdc4715573defb999ed13860bc03e`.
+- execution_session_id_sha256 remains `2cb3f548663f29c46eeb59956c0e7341da5a74aee3e0ebabfe2c347de60980a9`.
+- predecessor/artifact/target-release hashes remain continuous with the claim closure.
+- No apply, product mutation or board access occurred.
+- This is status evidence, not a separate live filesystem audit; PASS does not authorize apply.
+- Evidence authority: docs/development/N3W_T1_E03_SUCCESSOR_RECOVERY_POSTCLAIM_READONLY_FORENSIC_CLOSURE_20261030.md.
+- PR #740 closure comment: 6516848599.
+- Next ONE gate: `N3W_T1_E03_SUCCESSOR_RECOVERY_APPLY_AUTHORIZATION_PREFLIGHT_20261030_01`.
+
+## 2026-10-30 — E03 successor transaction claim CLOSED_PASS
+
+- Exact PR #740 source HEAD: 16d568ed577a050e23ee0061203d2a4d09cd19a0.
+- New successor claim returned PASS / READY / SUCCESSOR_AUTHORIZATION_CLAIMED.
+- New authorization consumed=true; replay_allowed=false.
+- transaction_id_sha256: 0f03cdaa3862c61fb67698be53f555ff717bdc4715573defb999ed13860bc03e.
+- execution_session_id_sha256: 2cb3f548663f29c46eeb59956c0e7341da5a74aee3e0ebabfe2c347de60980a9.
+- mutation_observed=false; apply not executed; deployment inputs, services and Docker image state were not changed.
+- Evidence authority: docs/development/N3W_T1_E03_SUCCESSOR_RECOVERY_SUCCESSOR_TRANSACTION_CLAIM_CLOSURE_20261030.md.
+- Next ONE gate: N3W_T1_E03_SUCCESSOR_RECOVERY_POSTCLAIM_READONLY_FORENSIC_20261030_01.
+## 2026-10-30 — E03 successor read-only preauth R2 CLOSED_PASS
+
+- Exact PR #740 source HEAD: 16d568ed577a050e23ee0061203d2a4d09cd19a0.
+- Exact source rebind, local Portable Image Identity and predecessor fresh rebind all PASS.
+- Live preauth: PASS; exit code 0.
+- preauth_plan_sha256: ff1a0e16886c6cc2d860173d8330602f1dc30e8da3a793f19efad3bb97c9bb3c.
+- current_release_id: 4d6925334c4c6d0d741e3a8215954f4b136757f45e2295cbbe50e88996efa744.
+- target_release_id: 939e92d347a4cb925f760d58bafefdc2a41bfabc478f35ee086813d49da0f798.
+- Candidate Portable Image Identity VERIFIED; Compose prestate EXACT_PREDECESSOR; old authorization CONSUMED_NO_REPLAY; no other active transaction.
+- KF-137 live revalidation PASS.
+- Current E03 containerd-store cross-store identity path PASS; general P1 dual-store matrix remains pending.
+- No T1 mutation, successor authorization claim, successor transaction creation, live recovery or merge occurred.
+- Evidence authority: docs/development/N3W_T1_E03_SUCCESSOR_RECOVERY_READONLY_PREAUTH_R2_CLOSURE_20261030.md.
+- Next ONE gate: N3W_T1_E03_SUCCESSOR_RECOVERY_SUCCESSOR_TRANSACTION_CLAIM_20261030_01.
+## 2026-10-30 — KF-137 source repair CLOSED_PASS; next is fresh read-only preauth R2
+
+- PR #740 exact closure HEAD: 16d568ed577a050e23ee0061203d2a4d09cd19a0.
+- KF-137 status: SOURCE_REPAIR_CLOSED_PASS_PR740_LIVE_REVALIDATION_PENDING.
+- Fresh-product Compose YAML remains unchanged; only the exact GH_MANAGER_IMAGE authority in docker-compose.env is switchable.
+- Transaction, apply, status, rollback and activation gate bind YAML + env through one deployment-input fingerprint.
+- Unknown YAML/env state blocks without write; rollback requires exact candidate-write provenance; env payloads are SHA256 rechecked before replace.
+- Focused E03 source CI run 41011425602: SUCCESS, 245 passed in 0.48s.
+- Fast source/exact closure run 41011425596: SUCCESS.
+- Public repository safety run 41011425519: SUCCESS.
+- F5 V2 source run 41011425662: SUCCESS.
+- No T1/board mutation, live preauth retry, successor authorization claim or merge occurred.
+- Closure authority: docs/development/N3W_T1_E03_SUCCESSOR_RECOVERY_COMPOSE_ENV_AUTHORITY_SOURCE_REPAIR_CLOSURE_20261030.md.
+- Next ONE gate: N3W_T1_E03_SUCCESSOR_RECOVERY_READONLY_PREAUTH_R2_20261030_01.
+## 2026-10-30 — KF-137 source repair implemented; closure waiting only on existing F5 V2 CI
+
+- PR #740 exact source HEAD: 16d568ed577a050e23ee0061203d2a4d09cd19a0.
+- Successor now preserves raw Compose YAML and changes only the exact GH_MANAGER_IMAGE authority in docker-compose.env.
+- Transaction and activation gate bind both YAML and env through one deployment-input fingerprint; unknown state blocks/no-write.
+- Production V2 portable deployment binding /1 remains unchanged; /2 explicitly binds both deployment inputs.
+- Focused E03 source CI run 41011425602: SUCCESS, 245 passed in 0.48s.
+- Fast source/exact closure run 41011425596: SUCCESS.
+- Public repository safety run 41011425519: SUCCESS.
+- F5 V2 source run 41011425662: pending at polling stop; no further polling.
+- No T1/board access, live preauth retry, successor authorization claim or merge occurred.
+- Progress authority: docs/development/N3W_T1_E03_SUCCESSOR_RECOVERY_COMPOSE_ENV_AUTHORITY_SOURCE_REPAIR_PROGRESS_20261030.md.
+## 2026-10-30 — E03 successor read-only preauth safely STOPPED; KF-137 source repair required
+
+- Local Portable Image Identity PASS; Manager tar size 62681088 bytes; identity SHA256 52c92c74648b657b05f7748014e0df4a0e406ae40e6d8a3201ff10633ea0d588.
+- Fresh predecessor rebind PASS; predecessor raw SHA256 cb5e542a958886880b98d73742595694b93d3f4f16f83765e0fc3fc69d9a1bc8.
+- Real T1 preauth stopped before claim with manager_image_count_invalid; exit code 3; T1 mutation=false.
+- Read-only Compose probe proved exactly one Manager image entry using ${GH_MANAGER_IMAGE:?GH_MANAGER_IMAGE required}.
+- Root cause: PR #740 rewrites raw Compose YAML, while fresh-product deployment intentionally carries GH_MANAGER_IMAGE in /etc/n3wfc4/docker-compose.env.
+- SOURCE_FALSE_STOP=CONFIRMED; not live configuration drift.
+- KF-137 OPEN. PR #740 prior source closure is historical; current live eligibility is reopened.
+- No successor authorization claim, service stop/start, Compose/env write, Docker load/tag/rmi, board access, live recovery or merge occurred.
+- Evidence authority: docs/development/N3W_T1_E03_SUCCESSOR_RECOVERY_READONLY_PREAUTH_STOP_KF137_20261030.md.
+- Next ONE gate: N3W_T1_E03_SUCCESSOR_RECOVERY_COMPOSE_ENV_AUTHORITY_SOURCE_REPAIR_20261030_01.
+## 2026-10-30 — Historical exact Manager tar-size evidence recovered; successor read-only preauth eligible
+
+- Exact artifact run `40880705472`, artifact ID `12900601779`, source head `f8876fd87165df731d792690a8288867c3eeef55`.
+- Recovered exact `greenhouse-manager-arm64.tar` size: **`62681088` bytes**.
+- Local Manager tar SHA256, local `binding.json` Manager SHA256 and GitHub-frozen Manager tar SHA256 all equal `d129a33ea628d8bdd1361e0b1bf727175515b4a2afc1851e6ac14ec510895fb5`.
+- Local binding source head equals the frozen exact source head.
+- Whole artifact size `2538792820` bytes was not used as the Manager tar size.
+- Evidence recovery: `CLOSED_PASS`; `READONLY_PREAUTH_READY=true`, but preauth has not been executed and live preauth is not authorized.
+- No T1/board access, workflow dispatch, old-authorization replay, live recovery or merge occurred.
+- Evidence authority: `docs/development/N3W_T1_PORTABLE_IMAGE_IDENTITY_E03_SUCCESSOR_EXACT_ARTIFACT_SIZE_EVIDENCE_RECOVERY_READONLY_20261030.md`.
+- Next ONE gate: `N3W_T1_E03_SUCCESSOR_RECOVERY_READONLY_PREAUTH_20261030_01`.
+
+## 2026-10-30 — PR #740 P0 source repair CLOSED_PASS; exact Manager tar-size evidence recovery next
+
+- PR #740 exact reviewed head: `ff2904bcdedbae6651cbfe92104b12ad47d33903`, stacked directly on PR #725 head `614c08a397462850f0167b77c9da45ae69a323ad`.
+- Final focused source CI run `40997797305`: `232 passed`; preflight, Public repository safety, F5 V2 source and greenhouse-manager CI are PASS.
+- Independent source review: PASS. It found 4 additional false-PASS paths and 1 blocking false-STOP path after the initial implementation; all were repaired before the final exact head.
+- KF-132 through KF-136 are now `SOURCE_REPAIR_CLOSED_PASS_PR740_LIVE_REVALIDATION_PENDING`. KF-133 through KF-136 remain source safety blockers, not claims of historical field incidents.
+- Old E03 authorization remains consumed/no-replay; predecessor transaction remains immutable evidence; any recovery uses a separately authorized successor transaction.
+- Historical exact Manager tar SHA authority exists, but its exact byte size was not archived. The successor executor now requires exact `tar_size_bytes`; this missing value must be recovered read-only and must not be inferred from the whole GitHub artifact size.
+- `READONLY_PREAUTH_READY=false`; no T1/board access, live successor preauthorization, live recovery, workflow dispatch or merge occurred in this closure.
+- Closure authority: `docs/development/N3W_T1_PORTABLE_IMAGE_IDENTITY_AND_E03_SUCCESSOR_RECOVERY_SOURCE_REPAIR_CLOSURE_20261030.md`.
+- Next ONE gate: `N3W_T1_PORTABLE_IMAGE_IDENTITY_E03_SUCCESSOR_EXACT_ARTIFACT_SIZE_EVIDENCE_RECOVERY_READONLY_20261030_01`.
+
+## 2026-10-30 — PR #740 P0 source repair implemented; independent source review next
+
+- PR #740 exact tested head: `a4e317d90157a42619eafe00bce9aa001255ff1c`, stacked directly on PR #725 head `614c08a397462850f0167b77c9da45ae69a323ad`.
+- Shared Portable Image Identity, durable Maintenance Transaction, activation gate, E03 successor transaction and unconditional legacy-mutation retirement are implemented on PR #740.
+- Final source review before closure found and repaired an OCI false-PASS: supported OCI layers are decoded and the actual uncompressed layer SHA256 must equal the ordered config `rootfs.diff_ids`; production-v2 portable images are restricted to `linux/arm64`.
+- Latest focused run `40995555096`: `212 passed`; preflight, Public repository safety, F5 V2 source and greenhouse-manager CI are PASS.
+- KF-132 through KF-136 status: `SOURCE_REPAIR_IMPLEMENTED_PR740_INDEPENDENT_REVIEW_PENDING`; they are not yet CLOSED_PASS.
+- Old E03 authorization remains consumed/no-replay and predecessor transaction remains immutable evidence.
+- No T1/board access, live successor preauthorization, live recovery, workflow dispatch or merge occurred.
+- Next ONE gate: `N3W_T1_PORTABLE_IMAGE_IDENTITY_AND_E03_SUCCESSOR_RECOVERY_INDEPENDENT_SOURCE_REVIEW_20261030_01`.
+
+## 2026-10-30 — Portable Image Identity / E03 successor recovery P0 design frozen
+
+- Current repository main is still `2fbd0e9c2d3bf8a513ac318034e249511ffb6a2e` and does **not** contain current R10/E03 or P0 design work.
+- PR #725 remains OPEN/DRAFT at `614c08a397462850f0167b77c9da45ae69a323ad`; it is the current R10/E03 product-source and live-evidence authority.
+- PR #739 is OPEN/DRAFT, stacked directly on PR #725, initial design head `7b230c33ae45544bb953c4d9dd026d6be2f68db4`; it contains only docs/KF design advancement.
+- Independent Astra review confirms at least three field occurrences of the same cross-image-store single-`.Id` false-STOP pattern and requires a shared Portable Image Identity authority rather than another private executor validator.
+- P0 design is frozen for: shared Portable Image Identity, minimal durable Maintenance Transaction, and separately authorized E03 successor recovery.
+- Current E03 predecessor authorization remains consumed/no-replay; predecessor transaction remains immutable evidence. Current recovery choice is a new successor transaction after source repair and a fresh read-only live rebind.
+- KF-132 through KF-136 are registered: cross-store identity, transaction binding, unknown Compose overwrite, crash/service-owner ordering, and insufficient MQTT/business acceptance.
+- ADR-0010 remains authoritative: per-device official Armbian + automated product deployment. Golden Master / Final Seal / clone production remains retired.
+- PR #739 initial design-only exact head CI: 11/11 SUCCESS.
+- No T1/board/live mutation, old-authorization replay, source repair, workflow dispatch, or merge occurred in the design-freeze gate.
+- Next ONE gate: `N3W_T1_PORTABLE_IMAGE_IDENTITY_AND_E03_SUCCESSOR_RECOVERY_SOURCE_REPAIR_20261030_01`.
+- New chat must fresh-rebind main, PR #725 and PR #739 before source mutation; main alone is stale for this stage.
+
 ## 2026-10-29 — R10 E03 ACTIVE deadline / busy source repair CLOSED_PASS
 
 - PR #733 exact tested source head: `0d49c5ff991288ef3dba17650414a81f7d8e34b0`; tree `851bb5f2427f945f3a8f8ffa776a708bffdc4032`; stacked on PR #725 head `ff750b3801a282af1667b5fa63481e2333e301b3`.
