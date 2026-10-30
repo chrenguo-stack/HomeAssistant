@@ -1,3 +1,43 @@
+## 2026-10-30 — E03 successor read-only preauth STOP on KF-137 source false-STOP
+
+~~~text
+TASK=N3W_T1_E03_SUCCESSOR_RECOVERY_READONLY_PREAUTH_20261030_01
+PR725_HEAD=614c08a397462850f0167b77c9da45ae69a323ad
+PR740_HEAD=ff2904bcdedbae6651cbfe92104b12ad47d33903
+PORTABLE_IDENTITY_SHA256=52c92c74648b657b05f7748014e0df4a0e406ae40e6d8a3201ff10633ea0d588
+MANAGER_TAR_SIZE_BYTES=62681088
+PREDECESSOR_FRESH_REBIND=PASS
+PREDECESSOR_SHA256=cb5e542a958886880b98d73742595694b93d3f4f16f83765e0fc3fc69d9a1bc8
+HOST_BINDING_SHA256=550e4fa9e89ae98848d873823ad4c5d352275647be52e4f693b7dd58ae72a8da
+PREAUTH_STATUS=STOP
+PREAUTH_REASON=manager_image_count_invalid
+SOURCE_FALSE_STOP=CONFIRMED
+LIVE_CONFIGURATION_DRIFT=false
+T1_COMPOSE_SHA256=9ea58161d5f8e24233bacbfe1f31edd5f6f6c62c272271823788c0c5b59e8357
+T1_MANAGER_IMAGE_SOURCE=GH_MANAGER_IMAGE_ENV_INDIRECTION
+KF137=OPEN
+PR740_SOURCE_REPAIR_CLOSURE=REOPENED_BY_LIVE_PREAUTH_FALSE_STOP
+READONLY_PREAUTH_READY=false
+READONLY_PREAUTH_EXECUTED=true
+READONLY_PREAUTH_PASS=false
+LIVE_PREAUTH_AUTHORIZED=false
+SUCCESSOR_AUTHORIZATION_CLAIMED=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+LIVE_RECOVERY=false
+MERGE=false
+CURRENT_STOP_POINT=SOURCE_REPAIR_REQUIRED_BEFORE_PREAUTH_RETRY
+NEXT_ONE_GATE=N3W_T1_E03_SUCCESSOR_RECOVERY_COMPOSE_ENV_AUTHORITY_SOURCE_REPAIR_20261030_01
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+The first real successor read-only preauth safely stopped with manager_image_count_invalid. A follow-up read-only probe proved that the production Compose contains exactly one Manager image entry, using the fresh-product GH_MANAGER_IMAGE variable expression.
+
+PR #740 assumes a literal image in raw Compose YAML, while fresh-product bootstrap intentionally stores GH_MANAGER_IMAGE in /etc/n3wfc4/docker-compose.env. This is a confirmed source false-STOP and deployment-authority mismatch, not live configuration drift.
+
+The previous PR #740 source closure remains historical evidence but is no longer the current live-eligibility conclusion. A new source repair is required before any preauth retry. No successor authorization was claimed and no T1 mutation occurred.
+
+Evidence authority: docs/development/N3W_T1_E03_SUCCESSOR_RECOVERY_READONLY_PREAUTH_STOP_KF137_20261030.md.
 ## 2026-10-30 — Historical exact Manager tar-size evidence recovery CLOSED_PASS
 
 ~~~text
