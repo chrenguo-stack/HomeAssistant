@@ -350,6 +350,11 @@ def test_manager_duplicate_mqtt_socket_is_fatal(
         ),
     )
     monkeypatch.setattr(
+        successor.portable,
+        "verify_docker_image",
+        lambda *_args, **_kwargs: SimpleNamespace(status="VERIFIED"),
+    )
+    monkeypatch.setattr(
         successor,
         "runtime",
         lambda service: {
@@ -871,14 +876,13 @@ def test_readiness_rejects_disabled_application_owner(
         successor.mqtt_readiness_sample(object(), identity=object())
 
 
-def test_readiness_requires_running_manager_host_local_image_binding(
+def test_readiness_verifies_running_manager_by_portable_content_identity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     module = SimpleNamespace(
         _compose_service_inspect=lambda service: {"Name": f"/{service}"},
         _container_established_socket_count=lambda _name, _port: 1,
     )
-    monkeypatch.setattr(successor, "systemctl", lambda *_args: "enabled")
     monkeypatch.setattr(
         successor,
         "systemctl",
@@ -890,6 +894,17 @@ def test_readiness_requires_running_manager_host_local_image_binding(
         lambda _identity: SimpleNamespace(
             runtime_image_id="sha256:" + "a" * 64
         ),
+    )
+    observed_refs: list[str] = []
+
+    def verify_running(_identity, reference, **_kwargs):
+        observed_refs.append(reference)
+        return SimpleNamespace(status="MISMATCH")
+
+    monkeypatch.setattr(
+        successor.portable,
+        "verify_docker_image",
+        verify_running,
     )
     monkeypatch.setattr(
         successor,
@@ -913,10 +928,10 @@ def test_readiness_requires_running_manager_host_local_image_binding(
     )
     with pytest.raises(
         successor.SuccessorError,
-        match="manager_running_image_binding_invalid",
+        match="manager_running_portable_identity_mismatch",
     ):
         successor.mqtt_readiness_sample(module, identity=object())
-
+    assert observed_refs == ["sha256:" + "b" * 64]
 
 def test_post_ledger_requires_hardware_session_and_expiry_proof() -> None:
     attempt = {
