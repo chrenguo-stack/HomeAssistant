@@ -1328,61 +1328,67 @@ def claim(
     session_id = _execution_session_id(execution_session_id)
     if SHA64.fullmatch(expected_preauth_plan_sha256 or "") is None:
         raise SuccessorError("preauth_plan_sha256_invalid")
-    authority = runtime_authority()
-    seed = preauthorization(
-        identity=identity,
-        expected_identity_sha256=expected_identity_sha256,
-        predecessor_sha256=predecessor_sha256,
-        expected_host_binding_sha256=expected_host_binding_sha256,
-    )
-    observed_preauth_plan_sha256 = sha_bytes(canonical(seed))
-    if observed_preauth_plan_sha256 != expected_preauth_plan_sha256:
-        raise SuccessorError("preauth_plan_sha256_mismatch")
-    authorization_hash = sha_text(aid)
-    plan = _build_full_plan(
-        seed,
-        transaction_id=transaction_id,
-        authorization_id_sha256=authorization_hash,
-        preauth_plan_sha256=expected_preauth_plan_sha256,
-        authority=authority,
-    )
-    plan_sha256 = maintenance.sha256_bytes(maintenance.canonical_bytes(plan))
-    binding = maintenance.MaintenanceBinding(
-        transaction_id=transaction_id,
-        authorization_id_sha256=authorization_hash,
-        host_binding_sha256=expected_host_binding_sha256,
-        current_release_id=seed["current_release_id"],
-        target_release_id=seed["target_release_id"],
-        artifact_sha256=TARGET_ARTIFACT_SHA256,
-        executor_source_head=authority["source_head"],
-        executor_blob=authority["executor_blob"],
-        module_set_sha256=authority["module_set_sha256"],
-        plan_sha256=plan_sha256,
-        scope=SCOPE,
-    )
-    document = maintenance.new_transaction(
-        binding,
-        predecessor_sha256=predecessor_sha256,
-        before={"compose": seed["compose_before_sha256"]},
-        intended_after={"compose": seed["compose_candidate_sha256"]},
-        plan=plan,
-    )
-    document = maintenance.mark_ready(document)
-    document = maintenance.claim_authorization(document)
-    document = maintenance.record_execution_session(
-        document,
-        session_id,
-        action="claim",
-    )
 
     with global_lock():
+        authority = runtime_authority()
+        seed = preauthorization(
+            identity=identity,
+            expected_identity_sha256=expected_identity_sha256,
+            predecessor_sha256=predecessor_sha256,
+            expected_host_binding_sha256=expected_host_binding_sha256,
+        )
+        observed_preauth_plan_sha256 = sha_bytes(canonical(seed))
+        if observed_preauth_plan_sha256 != expected_preauth_plan_sha256:
+            raise SuccessorError("preauth_plan_sha256_mismatch")
+
+        authorization_hash = sha_text(aid)
+        plan = _build_full_plan(
+            seed,
+            transaction_id=transaction_id,
+            authorization_id_sha256=authorization_hash,
+            preauth_plan_sha256=expected_preauth_plan_sha256,
+            authority=authority,
+        )
+        plan_sha256 = maintenance.sha256_bytes(
+            maintenance.canonical_bytes(plan)
+        )
+        binding = maintenance.MaintenanceBinding(
+            transaction_id=transaction_id,
+            authorization_id_sha256=authorization_hash,
+            host_binding_sha256=expected_host_binding_sha256,
+            current_release_id=seed["current_release_id"],
+            target_release_id=seed["target_release_id"],
+            artifact_sha256=TARGET_ARTIFACT_SHA256,
+            executor_source_head=authority["source_head"],
+            executor_blob=authority["executor_blob"],
+            module_set_sha256=authority["module_set_sha256"],
+            plan_sha256=plan_sha256,
+            scope=SCOPE,
+        )
+        document = maintenance.new_transaction(
+            binding,
+            predecessor_sha256=predecessor_sha256,
+            before={"compose": seed["compose_before_sha256"]},
+            intended_after={"compose": seed["compose_candidate_sha256"]},
+            plan=plan,
+        )
+        document = maintenance.mark_ready(document)
+        document = maintenance.claim_authorization(document)
+        document = maintenance.record_execution_session(
+            document,
+            session_id,
+            action="claim",
+        )
+
         _ensure_private_dir(TRANSACTION_ROOT)
         existing = _active_maintenance_documents()
         maintenance.ensure_no_other_active(
             existing,
             transaction_id=transaction_id,
         )
-        store = maintenance.TransactionStore(_transaction_path(transaction_id))
+        store = maintenance.TransactionStore(
+            _transaction_path(transaction_id)
+        )
         store.create(document)
 
     return public_result(
@@ -1393,7 +1399,6 @@ def claim(
         mutation_observed=False,
         recovery_class="APPLY_REQUIRED",
     )
-
 
 def _binding(document: dict[str, Any]) -> maintenance.MaintenanceBinding:
     return maintenance.binding_from_transaction(document)
