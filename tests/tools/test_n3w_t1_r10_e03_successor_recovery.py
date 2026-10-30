@@ -1236,3 +1236,46 @@ def test_global_maintenance_lock_is_nonblocking_and_fail_closed(
             pytest.fail("busy lock must not enter mutation scope")
     assert successor._LOCK_DEPTH == 0
     assert any(op & successor.fcntl.LOCK_NB for op in calls)
+
+
+def test_successor_target_release_binding_uses_common_production_contract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    identity = _portable_identity()
+    captured = {}
+
+    def common_binding(**kwargs):
+        captured.update(kwargs)
+        return "e" * 64
+
+    monkeypatch.setattr(
+        successor.production_contract,
+        "portable_deployment_binding_id",
+        common_binding,
+    )
+    result = successor._target_release_id(
+        identity,
+        "f" * 64,
+        {
+            "execstart_sha256": "1" * 64,
+            "execstop_sha256": "2" * 64,
+        },
+    )
+    assert result == "e" * 64
+    assert captured["identity"] == identity
+    assert captured["artifact_sha256"] == successor.TARGET_ARTIFACT_SHA256
+
+
+def test_successor_module_authority_includes_production_contract_source() -> None:
+    source = (
+        ROOT / "tools" / "n3w_t1_r10_e03_successor_recovery.py"
+    ).read_text(encoding="utf-8")
+    runtime_section = source.split("def runtime_authority()", 1)[1].split(
+        "def _gate_source_bytes", 1
+    )[0]
+    assert "n3w_t1_production_v2_contract.py" in runtime_section
+    target_section = source.split("def _target_release_id(", 1)[1].split(
+        "def ", 1
+    )[0]
+    assert "production_contract.portable_deployment_binding_id" in target_section
+    assert "gh.n3w-r10-e03-target-release-binding/1" not in target_section
