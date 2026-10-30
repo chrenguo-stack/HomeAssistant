@@ -1,3 +1,15 @@
+## 2026-10-30 — E03 successor read-only preauth safely STOPPED; KF-137 source repair required
+
+- Local Portable Image Identity PASS; Manager tar size 62681088 bytes; identity SHA256 52c92c74648b657b05f7748014e0df4a0e406ae40e6d8a3201ff10633ea0d588.
+- Fresh predecessor rebind PASS; predecessor raw SHA256 cb5e542a958886880b98d73742595694b93d3f4f16f83765e0fc3fc69d9a1bc8.
+- Real T1 preauth stopped before claim with manager_image_count_invalid; exit code 3; T1 mutation=false.
+- Read-only Compose probe proved exactly one Manager image entry using ${GH_MANAGER_IMAGE:?GH_MANAGER_IMAGE required}.
+- Root cause: PR #740 rewrites raw Compose YAML, while fresh-product deployment intentionally carries GH_MANAGER_IMAGE in /etc/n3wfc4/docker-compose.env.
+- SOURCE_FALSE_STOP=CONFIRMED; not live configuration drift.
+- KF-137 OPEN. PR #740 prior source closure is historical; current live eligibility is reopened.
+- No successor authorization claim, service stop/start, Compose/env write, Docker load/tag/rmi, board access, live recovery or merge occurred.
+- Evidence authority: docs/development/N3W_T1_E03_SUCCESSOR_RECOVERY_READONLY_PREAUTH_STOP_KF137_20261030.md.
+- Next ONE gate: N3W_T1_E03_SUCCESSOR_RECOVERY_COMPOSE_ENV_AUTHORITY_SOURCE_REPAIR_20261030_01.
 ## 2026-10-30 — Historical exact Manager tar-size evidence recovered; successor read-only preauth eligible
 
 - Exact artifact run `40880705472`, artifact ID `12900601779`, source head `f8876fd87165df731d792690a8288867c3eeef55`.
