@@ -521,7 +521,7 @@ def verify_runtime_document(
         os_name, architecture, variant, semantics, layers = _runtime_semantics(document)
     except PortableImageIdentityError as error:
         return VerificationVerdict(
-            VERDICT_SCHEMA, "UNSUPPORTED", str(error), runtime_id, identity.config_digest
+            VERDICT_SCHEMA, "UNSUPPORTED_REPRESENTATION", str(error), runtime_id, identity.config_digest
         )
     if (os_name, architecture, variant) != (
         identity.os,
@@ -563,24 +563,24 @@ def observe_docker_image(
             check=False,
         )
     except FileNotFoundError:
-        return DockerObservation("UNAVAILABLE", "docker_cli_unavailable", reference, None)
+        return DockerObservation("DAEMON_UNAVAILABLE", "docker_cli_unavailable", reference, None)
     except subprocess.TimeoutExpired:
-        return DockerObservation("UNAVAILABLE", "docker_timeout", reference, None)
+        return DockerObservation("TIMEOUT", "docker_timeout", reference, None)
     if result.returncode:
         detail = (result.stderr or result.stdout).decode(errors="replace").casefold()
         if "no such image" in detail or "not found" in detail:
-            return DockerObservation("MISMATCH", "image_not_found", reference, None)
+            return DockerObservation("NOT_FOUND", "image_not_found", reference, None)
         if "permission denied" in detail:
-            return DockerObservation("UNAVAILABLE", "docker_permission_denied", reference, None)
+            return DockerObservation("PERMISSION_DENIED", "docker_permission_denied", reference, None)
         if "cannot connect" in detail or "daemon" in detail:
-            return DockerObservation("UNAVAILABLE", "docker_daemon_unavailable", reference, None)
+            return DockerObservation("DAEMON_UNAVAILABLE", "docker_daemon_unavailable", reference, None)
         return DockerObservation("UNAVAILABLE", "docker_inspect_failed", reference, None)
     try:
         value = strict_json(result.stdout, name="docker_inspect")
     except PortableImageIdentityError:
-        return DockerObservation("UNSUPPORTED", "docker_inspect_malformed", reference, None)
+        return DockerObservation("MALFORMED_RESPONSE", "docker_inspect_malformed", reference, None)
     if not isinstance(value, list) or len(value) != 1 or not isinstance(value[0], dict):
-        return DockerObservation("UNSUPPORTED", "docker_inspect_shape_invalid", reference, None)
+        return DockerObservation("MALFORMED_RESPONSE", "docker_inspect_shape_invalid", reference, None)
     return DockerObservation("AVAILABLE", "docker_inspect_ok", reference, value[0])
 
 
@@ -592,17 +592,26 @@ def verify_docker_image(
     timeout: int = 30,
 ) -> VerificationVerdict:
     observation = observe_docker_image(reference, runner=runner, timeout=timeout)
-    if observation.status == "MISMATCH":
+    if observation.status == "NOT_FOUND":
         return VerificationVerdict(
             VERDICT_SCHEMA, "MISMATCH", observation.reason, None, identity.config_digest
         )
-    if observation.status == "UNAVAILABLE":
+    if observation.status in {
+        "DAEMON_UNAVAILABLE",
+        "PERMISSION_DENIED",
+        "TIMEOUT",
+        "UNAVAILABLE",
+    }:
         return VerificationVerdict(
             VERDICT_SCHEMA, "UNAVAILABLE", observation.reason, None, identity.config_digest
         )
     if observation.status != "AVAILABLE" or observation.document is None:
         return VerificationVerdict(
-            VERDICT_SCHEMA, "UNSUPPORTED", observation.reason, None, identity.config_digest
+            VERDICT_SCHEMA,
+            "UNSUPPORTED_REPRESENTATION",
+            observation.reason,
+            None,
+            identity.config_digest,
         )
     return verify_runtime_document(identity, observation.document)
 
