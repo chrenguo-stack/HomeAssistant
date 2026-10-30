@@ -899,6 +899,55 @@ def validate_post_ledger(document: dict[str, Any]) -> None:
         raise SuccessorError("post_ledger_state_invalid")
 
 
+def preauth_ledger_binding(document: dict[str, Any]) -> dict[str, Any]:
+    legacy_cardinality = (
+        document.get("attempt_count") == 1
+        and document.get("registration_count") == 1
+        and document.get("registration_inventory_sha256") == PRE_INVENTORY_SHA256
+        and document.get("unresolved_count") == 1
+    )
+    reconciled_cardinality = (
+        document.get("attempt_count") == 1
+        and document.get("registration_count") == 0
+        and document.get("registration_inventory_sha256") == EMPTY_INVENTORY_SHA256
+        and document.get("unresolved_count") == 0
+    )
+
+    if legacy_cardinality:
+        validate_pre_ledger(document)
+        mode = "LEGACY_ACTIVE"
+    elif reconciled_cardinality:
+        validate_post_ledger(document)
+        mode = "RECONCILED_TERMINAL"
+    else:
+        raise SuccessorError("preauth_ledger_cardinality_drift")
+
+    return {
+        "mode": mode,
+        "ledger_sha256": sha_bytes(canonical(document)),
+        "attempt_count": document["attempt_count"],
+        "registration_count": document["registration_count"],
+        "registration_inventory_sha256": document[
+            "registration_inventory_sha256"
+        ],
+        "unresolved_count": document["unresolved_count"],
+    }
+
+
+def _assert_preauth_ledger_rebind(
+    plan: dict[str, Any],
+    manager_id: str,
+) -> dict[str, Any]:
+    expected = plan.get("preauth_ledger")
+    if not isinstance(expected, dict):
+        raise SuccessorError("preauth_ledger_binding_missing")
+    observed, _paths = ledger_in_manager(manager_id)
+    current = preauth_ledger_binding(observed)
+    if current != expected:
+        raise SuccessorError("preauth_ledger_binding_drift")
+    return current
+
+
 def predecessor_evidence(expected_sha256: str) -> dict[str, Any]:
     if SHA64.fullmatch(expected_sha256 or "") is None:
         raise SuccessorError("predecessor_sha256_invalid")
@@ -1355,7 +1404,7 @@ def preauthorization(
     if listener_snapshot() != EXPECTED_LISTENERS:
         raise SuccessorError("listener_drift")
     ledger, host_paths = ledger_in_manager(manager["container_id"])
-    validate_pre_ledger(ledger)
+    preauth_ledger = preauth_ledger_binding(ledger)
     if ha_mqtt_hash() != predecessor["ha_mqtt_sha256"]:
         raise SuccessorError("ha_mqtt_predecessor_drift")
     if shutil.disk_usage("/").free < MIN_FREE_BYTES:
@@ -1463,6 +1512,7 @@ def preauthorization(
         "manager_predecessor_container_id": manager["container_id"],
         "services_nrestarts": observed_services_nrestarts,
         "ha_mqtt_sha256": predecessor["ha_mqtt_sha256"],
+        "preauth_ledger": preauth_ledger,
         "state_paths": host_paths,
         "rollback_policy": "EXACT_CANDIDATE_TO_EXACT_BEFORE_ONLY",
         "resume_policy": [
@@ -1648,6 +1698,14 @@ def _runtime_rebind(
     )
     predecessor_evidence(document["predecessor_sha256"])
     plan = document["plan"]
+    if action in {"activation_gate_install", "service_stop"}:
+        manager = runtime("manager")
+        if manager["container_id"] != plan["manager_predecessor_container_id"]:
+            raise SuccessorError("manager_predecessor_continuity_drift")
+        _assert_preauth_ledger_rebind(
+            plan,
+            manager["container_id"],
+        )
     retirement.assert_supersession(
         plan.get("supersession"),
         predecessor_sha256=document["predecessor_sha256"],

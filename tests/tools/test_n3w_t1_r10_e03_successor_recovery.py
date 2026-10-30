@@ -436,6 +436,154 @@ def test_post_e03_business_ledger_must_be_fully_closed() -> None:
         )
 
 
+def _legacy_active_ledger() -> dict[str, object]:
+    return {
+        "attempt_count": 1,
+        "registration_count": 1,
+        "registration_inventory_sha256": successor.PRE_INVENTORY_SHA256,
+        "unresolved_count": 1,
+        "attempts": [{
+            "pairing_id_sha256": successor.PAIRING_SHA256,
+            "hardware_id_sha256": successor.HARDWARE_SHA256,
+            "state": "ACTIVE",
+            "phase": "BOOTSTRAP_ACCEPTED",
+            "cleanup_state": "NONE",
+            "node_id_present": False,
+            "terminal_at_present": False,
+            "terminal_reason": None,
+            "expired_by_clock": True,
+            "session_state": "pending",
+            "session_hardware_sha256": successor.HARDWARE_SHA256,
+            "registration_match_count": 1,
+            "current_pairing_matches": True,
+            "registration_node_id_present": False,
+            "pairing_credential_count": 0,
+            "hardware_credential_history_count": 0,
+        }],
+    }
+
+
+def _reconciled_terminal_ledger() -> dict[str, object]:
+    return {
+        "attempt_count": 1,
+        "registration_count": 0,
+        "registration_inventory_sha256": successor.EMPTY_INVENTORY_SHA256,
+        "unresolved_count": 0,
+        "attempts": [{
+            "pairing_id_sha256": successor.PAIRING_SHA256,
+            "hardware_id_sha256": successor.HARDWARE_SHA256,
+            "state": "EXPIRED",
+            "phase": "TERMINAL",
+            "cleanup_state": "COMPLETE",
+            "node_id_present": False,
+            "terminal_at_present": True,
+            "terminal_reason": "expired",
+            "expired_by_clock": True,
+            "session_state": "expired",
+            "session_reason": "expired",
+            "session_hardware_sha256": successor.HARDWARE_SHA256,
+            "registration_match_count": 0,
+            "current_pairing_matches": False,
+            "registration_node_id_present": False,
+            "pairing_credential_count": 0,
+            "hardware_credential_history_count": 0,
+        }],
+    }
+
+
+def test_preauth_ledger_binding_accepts_legacy_active() -> None:
+    ledger = _legacy_active_ledger()
+    result = successor.preauth_ledger_binding(ledger)
+    assert result["mode"] == "LEGACY_ACTIVE"
+    assert result["ledger_sha256"] == successor.sha_bytes(
+        successor.canonical(ledger)
+    )
+    assert result["registration_count"] == 1
+    assert result["unresolved_count"] == 1
+
+
+def test_preauth_ledger_binding_accepts_reconciled_terminal() -> None:
+    ledger = _reconciled_terminal_ledger()
+    result = successor.preauth_ledger_binding(ledger)
+    assert result["mode"] == "RECONCILED_TERMINAL"
+    assert result["ledger_sha256"] == successor.sha_bytes(
+        successor.canonical(ledger)
+    )
+    assert result["registration_count"] == 0
+    assert result["unresolved_count"] == 0
+
+
+def test_preauth_ledger_binding_rejects_unresolved_terminal() -> None:
+    ledger = _reconciled_terminal_ledger()
+    ledger["unresolved_count"] = 1
+    with pytest.raises(
+        successor.SuccessorError,
+        match="preauth_ledger_cardinality_drift",
+    ):
+        successor.preauth_ledger_binding(ledger)
+
+
+def test_preauth_ledger_binding_rejects_terminal_credential_drift() -> None:
+    ledger = _reconciled_terminal_ledger()
+    attempts = ledger["attempts"]
+    assert isinstance(attempts, list)
+    attempts[0]["pairing_credential_count"] = 1
+    with pytest.raises(
+        successor.SuccessorError,
+        match="post_ledger_state_invalid",
+    ):
+        successor.preauth_ledger_binding(ledger)
+
+
+def test_preauth_ledger_rebind_requires_exact_claimed_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ledger = _reconciled_terminal_ledger()
+    expected = successor.preauth_ledger_binding(ledger)
+    plan = {"preauth_ledger": expected}
+    monkeypatch.setattr(
+        successor,
+        "ledger_in_manager",
+        lambda _manager_id: (ledger, {}),
+    )
+    assert successor._assert_preauth_ledger_rebind(
+        plan,
+        "manager-id",
+    ) == expected
+
+    changed = __import__("copy").deepcopy(ledger)
+    changed["attempts"][0]["expired_by_clock"] = False
+    monkeypatch.setattr(
+        successor,
+        "ledger_in_manager",
+        lambda _manager_id: (changed, {}),
+    )
+    with pytest.raises(
+        successor.SuccessorError,
+        match="post_ledger_state_invalid",
+    ):
+        successor._assert_preauth_ledger_rebind(
+            plan,
+            "manager-id",
+        )
+
+
+def test_preauth_and_runtime_bind_ledger_snapshot_before_mutation() -> None:
+    source = (
+        ROOT / "tools" / "n3w_t1_r10_e03_successor_recovery.py"
+    ).read_text(encoding="utf-8")
+    preauth = source.split("def preauthorization(", 1)[1].split(
+        "def _execution_session_id", 1
+    )[0]
+    assert "preauth_ledger = preauth_ledger_binding(ledger)" in preauth
+    assert '"preauth_ledger": preauth_ledger' in preauth
+    rebind = source.split("def _runtime_rebind(", 1)[1].split(
+        "def _save(", 1
+    )[0]
+    assert 'action in {"activation_gate_install", "service_stop"}' in rebind
+    assert "_assert_preauth_ledger_rebind(" in rebind
+
+
 def test_apply_ready_orders_gate_before_stop_before_publish_before_start(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
