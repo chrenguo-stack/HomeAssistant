@@ -166,6 +166,7 @@ def test_second_active_transaction_is_rejected() -> None:
         predecessor_sha256="7" * 64,
         before={"compose": "8" * 64},
         intended_after={"compose": "9" * 64},
+        plan=plan(),
     )
     with pytest.raises(tx.MaintenanceTransactionError, match="other_active_transaction"):
         tx.ensure_no_other_active([first, second], transaction_id=first["transaction_id"])
@@ -190,7 +191,7 @@ def test_transaction_store_is_generation_checked_and_durable(tmp_path: Path) -> 
 
 def test_transaction_store_rejects_id_change(tmp_path: Path) -> None:
     path = tmp_path / "txn.json"
-    store = tx.TransactionStore(path)
+    store = tx.TransactionStore(path, enforce_root_metadata=False)
     value = document()
     store.create(value)
     changed = tx.mark_ready(value)
@@ -261,3 +262,24 @@ def test_operation_sequence_is_independent_from_state_transitions() -> None:
     value = tx.claim_authorization(value)
     assert value["operation_seq"] == 0
     assert value["operations"] == []
+
+
+def test_transition_rejects_pending_operation() -> None:
+    value = tx.begin_operation(
+        claimed(),
+        operation_type="compose_publish",
+        before_fingerprint="8" * 64,
+        intended_after_fingerprint="9" * 64,
+    )
+    with pytest.raises(
+        tx.MaintenanceTransactionError,
+        match="transition_pending_operation",
+    ):
+        tx.transition(value, "VERIFYING", operation="unsafe_phase_advance")
+
+
+def test_plan_tampering_is_rejected() -> None:
+    value = document()
+    value["plan"]["compose_policy"] = "tampered"
+    with pytest.raises(tx.MaintenanceTransactionError, match="plan_binding_mismatch"):
+        tx.validate_transaction(value)
