@@ -316,8 +316,14 @@ def validate_transaction(document: Any) -> dict[str, Any]:
         observed_value = operation_record.get("observed_after_fingerprint")
         if observed_value is not None:
             _sha(observed_value, "operation_observed_after_fingerprint")
-        if operation_record.get("status") not in {"INTENT", "COMPLETE", "FAILED", "BLOCKED"}:
+        status = operation_record.get("status")
+        if status not in {"INTENT", "COMPLETE", "FAILED", "BLOCKED"}:
             raise MaintenanceTransactionError("operation_status_invalid")
+        if status == "INTENT":
+            if observed_value is not None or expected_seq != len(operations):
+                raise MaintenanceTransactionError("operation_intent_position_invalid")
+        elif observed_value is None:
+            raise MaintenanceTransactionError("operation_observation_missing")
         error_code = operation_record.get("last_error_code")
         if error_code is not None:
             _text(error_code, "operation_last_error_code")
