@@ -161,6 +161,7 @@ def new_transaction(
         "before": deepcopy(before),
         "intended_after": deepcopy(intended_after),
         "observed_after": {},
+        "execution_sessions": [],
         "operations": [],
         "last_operation": "created",
         "last_reason": None,
@@ -193,6 +194,7 @@ def validate_transaction(document: Any) -> dict[str, Any]:
         "before",
         "intended_after",
         "observed_after",
+        "execution_sessions",
         "operations",
         "last_operation",
         "last_reason",
@@ -245,6 +247,22 @@ def validate_transaction(document: Any) -> dict[str, Any]:
         for key, value in group.items():
             _text(key, f"{group_name}_key")
             _sha(value, f"{group_name}_{key}")
+    sessions = document.get("execution_sessions")
+    if not isinstance(sessions, list):
+        raise MaintenanceTransactionError("execution_sessions_invalid")
+    seen_sessions: set[str] = set()
+    for session in sessions:
+        if not isinstance(session, dict) or set(session) != {
+            "session_id_sha256",
+            "action",
+        }:
+            raise MaintenanceTransactionError("execution_session_record_invalid")
+        session_hash = _sha(session.get("session_id_sha256"), "execution_session_id_sha256")
+        if session_hash in seen_sessions:
+            raise MaintenanceTransactionError("execution_session_reused")
+        seen_sessions.add(session_hash)
+        _text(session.get("action"), "execution_session_action")
+
     operations = document.get("operations")
     if not isinstance(operations, list):
         raise MaintenanceTransactionError("operations_invalid")
@@ -387,6 +405,33 @@ def begin_apply(document: dict[str, Any]) -> dict[str, Any]:
     if value["authorization_consumed"] is not True or value["replay_allowed"] is not False:
         raise MaintenanceTransactionError("begin_apply_authorization_invalid")
     return transition(value, "APPLYING", operation="apply_begin")
+
+
+def record_execution_session(
+    document: dict[str, Any],
+    execution_session_id: str,
+    *,
+    action: str,
+) -> dict[str, Any]:
+    value = validate_transaction(document)
+    session_id = _text(execution_session_id, "execution_session_id")
+    _text(action, "execution_session_action")
+    session_hash = sha256_bytes(session_id.encode("utf-8"))
+    if any(
+        record.get("session_id_sha256") == session_hash
+        for record in value["execution_sessions"]
+    ):
+        raise MaintenanceTransactionError("execution_session_reused")
+    value["execution_sessions"].append(
+        {
+            "session_id_sha256": session_hash,
+            "action": action,
+        }
+    )
+    value["generation"] += 1
+    value["last_operation"] = "execution_session:" + action
+    value["last_reason"] = None
+    return value
 
 
 def begin_operation(
