@@ -149,6 +149,7 @@ def new_transaction(
         "before": deepcopy(before),
         "intended_after": deepcopy(intended_after),
         "observed_after": {},
+        "operations": [],
         "last_operation": "created",
         "last_reason": None,
     }
@@ -176,6 +177,7 @@ def validate_transaction(document: Any) -> dict[str, Any]:
         "before",
         "intended_after",
         "observed_after",
+        "operations",
         "last_operation",
         "last_reason",
     }
@@ -219,6 +221,46 @@ def validate_transaction(document: Any) -> dict[str, Any]:
         for key, value in group.items():
             _text(key, f"{group_name}_key")
             _sha(value, f"{group_name}_{key}")
+    operations = document.get("operations")
+    if not isinstance(operations, list):
+        raise MaintenanceTransactionError("operations_invalid")
+    expected_seq = 1
+    for operation_record in operations:
+        if not isinstance(operation_record, dict):
+            raise MaintenanceTransactionError("operation_record_invalid")
+        expected_keys = {
+            "operation_seq",
+            "operation_type",
+            "before_fingerprint",
+            "intended_after_fingerprint",
+            "observed_after_fingerprint",
+            "status",
+            "last_error_code",
+        }
+        if set(operation_record) != expected_keys:
+            raise MaintenanceTransactionError("operation_record_keys_invalid")
+        if operation_record.get("operation_seq") != expected_seq:
+            raise MaintenanceTransactionError("operation_sequence_invalid")
+        _text(operation_record.get("operation_type"), "operation_type")
+        _sha(operation_record.get("before_fingerprint"), "operation_before_fingerprint")
+        _sha(
+            operation_record.get("intended_after_fingerprint"),
+            "operation_intended_after_fingerprint",
+        )
+        observed_value = operation_record.get("observed_after_fingerprint")
+        if observed_value is not None:
+            _sha(observed_value, "operation_observed_after_fingerprint")
+        if operation_record.get("status") not in {"INTENT", "COMPLETE", "FAILED", "BLOCKED"}:
+            raise MaintenanceTransactionError("operation_status_invalid")
+        error_code = operation_record.get("last_error_code")
+        if error_code is not None:
+            _text(error_code, "operation_last_error_code")
+        expected_seq += 1
+    if value := document.get("operation_seq"):
+        if value != len(operations):
+            raise MaintenanceTransactionError("operation_seq_mismatch")
+    elif operations:
+        raise MaintenanceTransactionError("operation_seq_mismatch")
     _text(document.get("last_operation"), "last_operation")
     reason = document.get("last_reason")
     if reason is not None:
@@ -312,6 +354,74 @@ def claim_authorization(document: dict[str, Any]) -> dict[str, Any]:
     return value
 
 
+
+def begin_operation(
+    document: dict[str, Any],
+    *,
+    operation_type: str,
+    before_fingerprint: str,
+    intended_after_fingerprint: str,
+) -> dict[str, Any]:
+    value = validate_transaction(document)
+    _text(operation_type, "operation_type")
+    _sha(before_fingerprint, "operation_before_fingerprint")
+    _sha(intended_after_fingerprint, "operation_intended_after_fingerprint")
+    if value["state"] not in MUTATION_STATES:
+        raise MaintenanceTransactionError("operation_state_forbidden")
+    if value["operations"] and value["operations"][-1]["status"] == "INTENT":
+        raise MaintenanceTransactionError("operation_intent_already_pending")
+    sequence = value["operation_seq"] + 1
+    value["operations"].append(
+        {
+            "operation_seq": sequence,
+            "operation_type": operation_type,
+            "before_fingerprint": before_fingerprint,
+            "intended_after_fingerprint": intended_after_fingerprint,
+            "observed_after_fingerprint": None,
+            "status": "INTENT",
+            "last_error_code": None,
+        }
+    )
+    value["operation_seq"] = sequence
+    value["generation"] += 1
+    value["last_operation"] = operation_type + ":intent"
+    value["last_reason"] = None
+    return value
+
+
+def finish_operation(
+    document: dict[str, Any],
+    *,
+    observed_after_fingerprint: str,
+    status: str = "COMPLETE",
+    error_code: str | None = None,
+) -> dict[str, Any]:
+    value = validate_transaction(document)
+    _sha(observed_after_fingerprint, "operation_observed_after_fingerprint")
+    if status not in {"COMPLETE", "FAILED", "BLOCKED"}:
+        raise MaintenanceTransactionError("operation_finish_status_invalid")
+    if not value["operations"] or value["operations"][-1]["status"] != "INTENT":
+        raise MaintenanceTransactionError("operation_intent_missing")
+    if error_code is not None:
+        _text(error_code, "operation_last_error_code")
+    record = value["operations"][-1]
+    record["observed_after_fingerprint"] = observed_after_fingerprint
+    record["status"] = status
+    record["last_error_code"] = error_code
+    value["generation"] += 1
+    value["last_operation"] = record["operation_type"] + ":" + status.casefold()
+    value["last_reason"] = error_code
+    return value
+
+
+def pending_operation(document: dict[str, Any]) -> dict[str, Any] | None:
+    value = validate_transaction(document)
+    if not value["operations"]:
+        return None
+    record = value["operations"][-1]
+    return deepcopy(record) if record["status"] == "INTENT" else None
+
+
 def compose_state(before_sha256: str, after_sha256: str, observed_sha256: str) -> str:
     _sha(before_sha256, "compose_before_sha256")
     _sha(after_sha256, "compose_after_sha256")
@@ -387,18 +497,33 @@ def ensure_no_other_active(
 
 
 class TransactionStore:
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, *, enforce_root_metadata: bool = True):
         self.path = path
+        self.enforce_root_metadata = enforce_root_metadata
 
     def _require_parent(self) -> None:
         parent = self.path.parent
         if parent.is_symlink() or not parent.is_dir():
             raise MaintenanceTransactionError("transaction_parent_invalid")
+        if self.enforce_root_metadata:
+            metadata = parent.stat()
+            if metadata.st_uid != 0 or metadata.st_gid != 0:
+                raise MaintenanceTransactionError("transaction_parent_owner_invalid")
+            if (metadata.st_mode & 0o777) != 0o700:
+                raise MaintenanceTransactionError("transaction_parent_mode_invalid")
+
+    def _verify_file_metadata(self) -> None:
+        if self.path.is_symlink() or not self.path.is_file():
+            raise MaintenanceTransactionError("transaction_missing")
+        metadata = self.path.stat()
+        if (metadata.st_mode & 0o777) != 0o600:
+            raise MaintenanceTransactionError("transaction_mode_invalid")
+        if self.enforce_root_metadata and (metadata.st_uid != 0 or metadata.st_gid != 0):
+            raise MaintenanceTransactionError("transaction_owner_invalid")
 
     def load(self) -> dict[str, Any]:
         self._require_parent()
-        if self.path.is_symlink() or not self.path.is_file():
-            raise MaintenanceTransactionError("transaction_missing")
+        self._verify_file_metadata()
         try:
             value = json.loads(self.path.read_text(encoding="utf-8"))
         except (OSError, UnicodeError, json.JSONDecodeError) as error:
@@ -415,6 +540,9 @@ class TransactionStore:
         except FileExistsError as error:
             raise MaintenanceTransactionError("transaction_exists") from error
         try:
+            os.fchmod(fd, 0o600)
+            if self.enforce_root_metadata:
+                os.fchown(fd, 0, 0)
             os.write(fd, payload)
             os.fsync(fd)
         finally:
@@ -436,6 +564,8 @@ class TransactionStore:
         tmp = Path(raw)
         try:
             os.fchmod(fd, 0o600)
+            if self.enforce_root_metadata:
+                os.fchown(fd, 0, 0)
             with os.fdopen(fd, "wb") as stream:
                 stream.write(payload)
                 stream.flush()
