@@ -12,9 +12,9 @@ from typing import Any
 
 SCHEMA = "gh.n3w-t1-maintenance-transaction/1"
 TRANSACTION_ROOT = Path("/var/lib/n3w-t1-maintenance/transactions")
-ACTIVE_BLOCKING_STATES = frozenset({"APPLYING", "ROLLING_BACK"})
+ACTIVE_BLOCKING_STATES = frozenset({"APPLYING", "ROLLING_BACK", "BLOCKED"})
 ACTIVE_ALLOWING_STATES = frozenset({"PREPARING", "READY", "VERIFYING"})
-TERMINAL_STATES = frozenset({"COMMITTED", "ROLLED_BACK", "BLOCKED", "ABORTED"})
+TERMINAL_STATES = frozenset({"COMMITTED", "ROLLED_BACK", "ABORTED"})
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 SHA64 = re.compile(r"^[0-9a-f]{64}$")
 TRANSACTION_KEYS = frozenset(
@@ -71,7 +71,7 @@ def _validate_record(value: Any) -> dict[str, Any]:
         raise GateError("transaction_record_state_invalid")
     if value.get("replay_allowed") is not False:
         raise GateError("transaction_record_replay_invalid")
-    if state in {"READY", "APPLYING", "VERIFYING", "ROLLING_BACK", "ROLLED_BACK", "COMMITTED"}:
+    if state in {"READY", "APPLYING", "VERIFYING", "ROLLING_BACK", "BLOCKED", "ROLLED_BACK", "COMMITTED"}:
         if value.get("authorization_consumed") is not True:
             raise GateError("transaction_record_authorization_invalid")
     for name in (
@@ -89,9 +89,17 @@ def _validate_record(value: Any) -> dict[str, Any]:
     for name in ("executor_source_head", "executor_blob"):
         if not isinstance(value.get(name), str) or SHA40.fullmatch(value[name]) is None:
             raise GateError("transaction_record_executor_invalid")
-    if not isinstance(value.get("generation"), int) or isinstance(value.get("generation"), bool):
+    if (
+        not isinstance(value.get("generation"), int)
+        or isinstance(value.get("generation"), bool)
+        or value["generation"] < 1
+    ):
         raise GateError("transaction_record_generation_invalid")
-    if not isinstance(value.get("operation_seq"), int) or isinstance(value.get("operation_seq"), bool):
+    if (
+        not isinstance(value.get("operation_seq"), int)
+        or isinstance(value.get("operation_seq"), bool)
+        or value["operation_seq"] < 0
+    ):
         raise GateError("transaction_record_operation_seq_invalid")
     plan = value.get("plan")
     if not isinstance(plan, dict) or not plan:
@@ -106,13 +114,84 @@ def _validate_record(value: Any) -> dict[str, Any]:
     intended = value.get("intended_after")
     observed = value.get("observed_after")
     operations = value.get("operations")
+    sessions = value.get("execution_sessions")
     if (
         not isinstance(before, dict)
+        or not before
         or not isinstance(intended, dict)
+        or set(intended) != set(before)
         or not isinstance(observed, dict)
+        or not set(observed).issubset(before)
+        or not isinstance(sessions, list)
         or not isinstance(operations, list)
     ):
         raise GateError("transaction_record_state_maps_invalid")
+    for group in (before, intended, observed):
+        for key, digest in group.items():
+            if (
+                not isinstance(key, str)
+                or not key
+                or key.strip() != key
+                or not isinstance(digest, str)
+                or SHA64.fullmatch(digest) is None
+            ):
+                raise GateError("transaction_record_state_binding_invalid")
+    seen_sessions: set[str] = set()
+    for session in sessions:
+        if (
+            not isinstance(session, dict)
+            or set(session) != {"session_id_sha256", "action"}
+            or not isinstance(session.get("session_id_sha256"), str)
+            or SHA64.fullmatch(session["session_id_sha256"]) is None
+            or session["session_id_sha256"] in seen_sessions
+            or not isinstance(session.get("action"), str)
+            or not session["action"]
+            or session["action"].strip() != session["action"]
+        ):
+            raise GateError("transaction_record_session_invalid")
+        seen_sessions.add(session["session_id_sha256"])
+    for index, record in enumerate(operations, start=1):
+        if (
+            not isinstance(record, dict)
+            or set(record)
+            != {
+                "operation_seq",
+                "operation_type",
+                "before_fingerprint",
+                "intended_after_fingerprint",
+                "observed_after_fingerprint",
+                "status",
+                "last_error_code",
+            }
+            or record.get("operation_seq") != index
+            or not isinstance(record.get("operation_type"), str)
+            or not record["operation_type"]
+            or record["operation_type"].strip() != record["operation_type"]
+            or not isinstance(record.get("before_fingerprint"), str)
+            or SHA64.fullmatch(record["before_fingerprint"]) is None
+            or not isinstance(record.get("intended_after_fingerprint"), str)
+            or SHA64.fullmatch(record["intended_after_fingerprint"]) is None
+            or record.get("status") not in {"INTENT", "COMPLETE", "FAILED", "BLOCKED"}
+        ):
+            raise GateError("transaction_record_operation_invalid")
+        observed_fingerprint = record.get("observed_after_fingerprint")
+        if record["status"] == "INTENT":
+            if observed_fingerprint is not None or index != len(operations):
+                raise GateError("transaction_record_pending_operation_invalid")
+        elif (
+            not isinstance(observed_fingerprint, str)
+            or SHA64.fullmatch(observed_fingerprint) is None
+        ):
+            raise GateError("transaction_record_operation_observation_invalid")
+        last_error = record.get("last_error_code")
+        if last_error is not None and (
+            not isinstance(last_error, str)
+            or not last_error
+            or last_error.strip() != last_error
+        ):
+            raise GateError("transaction_record_operation_error_invalid")
+    if value["operation_seq"] != len(operations):
+        raise GateError("transaction_record_operation_seq_mismatch")
     if state == "VERIFYING":
         compose_after = intended.get("compose")
         if (
