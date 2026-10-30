@@ -1175,7 +1175,7 @@ def _bind_current_f4_fixture(
         reviewed_helper,
     )
     module = SimpleNamespace(
-        F4_TRANSACTION=transaction,
+        TRANSACTION_PATH=transaction,
         _read_private_record=lambda _path: dict(document),
         _activation_eligibility=lambda phase: {
             "status": "PASS",
@@ -1185,6 +1185,25 @@ def _bind_current_f4_fixture(
     )
     monkeypatch.setattr(successor, "_load_f4", lambda: module)
     return transaction
+
+
+def test_current_f4_authority_uses_exact_historical_host_transaction_path_contract() -> None:
+    source = (
+        ROOT / "tools" / "n3w_t1_r10_e03_successor_recovery.py"
+    ).read_text(encoding="utf-8")
+    section = source.split("def _current_f4_authority(", 1)[1].split(
+        "def _assert_current_f4_authority(", 1
+    )[0]
+    assert 'getattr(module, "TRANSACTION_PATH", None) != F4_TRANSACTION' in section
+    assert 'getattr(module, "F4_TRANSACTION", None)' not in section
+
+    historical = (
+        ROOT / "tools" / "n3w_t1_f4_activation_host.py"
+    ).read_text(encoding="utf-8")
+    assert (
+        'TRANSACTION_PATH = PROVISIONING_ROOT / "F4_ACTIVATION_TRANSACTION.json"'
+        in historical
+    )
 
 
 def test_current_f4_authority_accepts_committed_successor_generation_without_reboot_claim(
