@@ -1,3 +1,70 @@
+## 2026-10-30 — Portable Image Identity / E03 successor recovery P0 design frozen
+
+~~~text
+TASK=N3W_T1_PORTABLE_IMAGE_IDENTITY_AND_E03_SUCCESSOR_RECOVERY_SOURCE_DESIGN_FREEZE_20261030_01
+
+MAIN=2fbd0e9c2d3bf8a513ac318034e249511ffb6a2e
+MAIN_ROLE=R5_DOCS_ALIGNMENT_ONLY_NOT_CURRENT_R10_AUTHORITY
+
+PR725_STATE=OPEN_DRAFT
+PR725_HEAD=614c08a397462850f0167b77c9da45ae69a323ad
+PR725_ROLE=R10_E03_PRODUCT_SOURCE_AND_LIVE_EVIDENCE_AUTHORITY
+
+PR739_STATE=OPEN_DRAFT
+PR739_BASE=PR725_HEAD
+PR739_HEAD=7b230c33ae45544bb953c4d9dd026d6be2f68db4
+PR739_ROLE=DOCS_ONLY_PORTABLE_IDENTITY_AND_SUCCESSOR_RECOVERY_DESIGN
+
+ASTRA_REVIEW=PASS_WITH_CHANGES
+HISTORICAL_RECURRENCE_CONFIRMED=true
+RECURRENCE_PATTERN=AT_LEAST_3_CROSS_STORE_SINGLE_DOT_ID_FALSE_STOPS
+
+PORTABLE_IDENTITY_V1=DESIGN_FROZEN
+MAINTENANCE_TRANSACTION_V1=DESIGN_FROZEN
+E03_SUCCESSOR_RECOVERY_V1=DESIGN_FROZEN
+
+KF132=OPEN_SOURCE_DESIGN_FROZEN
+KF133=OPEN_SOURCE_DESIGN_FROZEN
+KF134=OPEN_SOURCE_DESIGN_FROZEN
+KF135=OPEN_SOURCE_DESIGN_FROZEN
+KF136=OPEN_SOURCE_DESIGN_FROZEN
+
+OLD_E03_AUTHORIZATION=CONSUMED_NO_REPLAY
+OLD_E03_TRANSACTION=IMMUTABLE_PREDECESSOR_EVIDENCE
+E03_RECOVERY_MODEL=SEPARATELY_AUTHORIZED_SUCCESSOR_TRANSACTION
+
+GOLDEN_MASTER_PRODUCTION_ROUTE=RETIRED_BY_ADR0010
+SOURCE_REPAIR_STARTED=false
+T1_ACCESS_THIS_GATE=false
+T1_MUTATION_THIS_GATE=false
+BOARD_ACCESS_THIS_GATE=false
+MERGE=false
+
+PR739_DIFF_FROM_PR725_HEAD_AHEAD=3
+PR739_DIFF_FROM_PR725_HEAD_BEHIND=0
+PR739_CHANGED_FILES_BEFORE_STATE_HANDOFF_ALIGNMENT=3
+PR739_PRODUCT_SOURCE_CHANGES=0
+PR739_WORKFLOW_CHANGES=0
+PR739_INITIAL_EXACT_HEAD_CI=11_OF_11_SUCCESS
+
+CURRENT_STOP_POINT=P0_DESIGN_FROZEN_BEFORE_SOURCE_REPAIR
+NEXT_ONE_GATE=N3W_T1_PORTABLE_IMAGE_IDENTITY_AND_E03_SUCCESSOR_RECOVERY_SOURCE_REPAIR_20261030_01
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+Independent review confirmed that the repeated Docker failure is not a one-off artifact problem: multiple executors independently reintroduced a build-side single-`.Id` assumption after the project had already proven that classic and containerd image stores may expose different artifact-owned runtime identities. The P0 design therefore freezes a shared host-side Portable Image Identity module rather than another R10-only validator.
+
+The same review found four additional maintenance blockers outside the known image-ID issue: incomplete transaction authority binding (KF-133), unknown Compose overwrite risk (KF-134), crash/power-loss and service-owner ordering gaps (KF-135), and insufficient MQTT/business acceptance before commit (KF-136). KF-132 tracks the recurring cross-store identity false STOP itself.
+
+Current E03 recovery will not reinterpret or replay the consumed predecessor authorization. The predecessor transaction and already-loaded candidate remain evidence; after source repair and a new read-only live rebind, recovery requires a separately authorized successor transaction. Golden Master / Final Seal / clone production stays retired under ADR-0010.
+
+Design authorities:
+- `docs/development/N3W_T1_MAINTENANCE_IDENTITY_REVIEW_20261030.md`
+- `docs/development/N3W_T1_PORTABLE_IMAGE_IDENTITY_AND_E03_SUCCESSOR_RECOVERY_SOURCE_DESIGN_FREEZE_20261030.md`
+- PR #739
+
+The next gate is source-and-test implementation only. It does not itself authorize T1 access, live mutation, board access, workflow dispatch, merge, or E03 recovery execution.
+
 ## 2026-10-29 — R10 E03 ACTIVE deadline / busy source repair CLOSED_PASS
 
 ~~~text
