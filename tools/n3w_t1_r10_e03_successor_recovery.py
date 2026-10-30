@@ -1433,7 +1433,7 @@ def _block(
     *,
     reason: str,
 ) -> dict[str, Any]:
-    if document["state"] in {"APPLYING", "VERIFYING", "ROLLING_BACK"}:
+    if document["state"] in {"READY", "APPLYING", "VERIFYING", "ROLLING_BACK"}:
         blocked = maintenance.transition(
             document,
             "BLOCKED",
@@ -1560,6 +1560,12 @@ def _assert_gate_blocking() -> None:
     result = run((str(GATE_TARGET),), allowed=frozenset({0, 1}))
     if result.returncode != 1 or b"MAINTENANCE_BLOCKING" not in result.stderr:
         raise SuccessorError("activation_gate_not_blocking")
+
+
+def _assert_gate_rollback_restored() -> None:
+    result = run((str(GATE_TARGET),), allowed=frozenset({0, 1}))
+    if result.returncode != 0:
+        raise SuccessorError("activation_gate_rollback_restore_not_proven")
 
 
 def _stop_services() -> None:
