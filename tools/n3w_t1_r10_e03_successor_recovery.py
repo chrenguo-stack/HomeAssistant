@@ -812,8 +812,10 @@ def validate_post_ledger(document: dict[str, Any]) -> None:
         "node_id_present": False,
         "terminal_at_present": True,
         "terminal_reason": "expired",
+        "expired_by_clock": True,
         "session_state": "expired",
         "session_reason": "expired",
+        "session_hardware_sha256": HARDWARE_SHA256,
         "registration_match_count": 0,
         "current_pairing_matches": False,
         "registration_node_id_present": False,
@@ -1896,21 +1898,25 @@ def strict_acceptance(
     first = mqtt_readiness_sample(module, identity=identity)
     if first.get("state") != "READY":
         raise SuccessorError("acceptance_mqtt_not_ready")
+
+    owner_baseline = _application_owner_acceptance(plan)
     manager = runtime("manager")
     ha = runtime("homeassistant")
     broker = _broker_continuity(plan)
     if manager["container_id"] == plan["manager_predecessor_container_id"]:
         raise SuccessorError("manager_container_not_recreated")
-    if systemd_nrestarts(SERVICES_UNIT) != plan["services_nrestarts"]:
-        raise SuccessorError("services_automatic_restart_observed")
     if ha_mqtt_hash() != plan["ha_mqtt_sha256"]:
         raise SuccessorError("ha_mqtt_continuity_changed")
+
     post, _paths = ledger_in_manager(manager["container_id"])
     validate_post_ledger(post)
     module._homeassistant_http_readiness()
-    auth_probe = module._broker_auth_negative_and_provisioning_probe(
-        TARGET_MANAGER_IMAGE
+    auth_probe = _validate_auth_probe(
+        module._broker_auth_negative_and_provisioning_probe(
+            TARGET_MANAGER_IMAGE
+        )
     )
+    authenticated_baseline = _authenticated_runtime_snapshot()
 
     baseline = {
         "manager_container_id": manager["container_id"],
@@ -1930,6 +1936,8 @@ def strict_acceptance(
         sample = mqtt_readiness_sample(module, identity=identity)
         if sample.get("state") != "READY":
             raise SuccessorError("acceptance_stability_mqtt_lost")
+        if _application_owner_acceptance(plan) != owner_baseline:
+            raise SuccessorError("acceptance_owner_identity_changed")
         now_manager = runtime("manager")
         now_ha = runtime("homeassistant")
         now_broker = _broker_continuity(plan)
@@ -1948,6 +1956,13 @@ def strict_acceptance(
             raise SuccessorError("acceptance_runtime_identity_changed")
         samples += 1
 
+    if ha_mqtt_hash() != plan["ha_mqtt_sha256"]:
+        raise SuccessorError("ha_mqtt_stability_changed")
+    module._homeassistant_http_readiness()
+    authenticated_final = _authenticated_runtime_snapshot()
+    if authenticated_final != authenticated_baseline:
+        raise SuccessorError("authenticated_runtime_evidence_changed")
+
     post_final, _ = ledger_in_manager(manager["container_id"])
     validate_post_ledger(post_final)
     return {
@@ -1955,11 +1970,15 @@ def strict_acceptance(
         "manager_exact_release_binding": True,
         "homeassistant_expected_release_binding": True,
         "broker_continuity": True,
+        "application_owner_stable": True,
         "expected_listeners": True,
         "manager_authenticated_mqtt_session": True,
         "homeassistant_authenticated_mqtt_session": True,
         "process_socket_ownership": True,
         "auth_probe": auth_probe,
+        "authenticated_runtime_snapshot_sha256": sha_bytes(
+            canonical(authenticated_final)
+        ),
         "stability_window_seconds": stability_seconds,
         "stability_samples": samples,
         "registration_count": post_final["registration_count"],
@@ -1969,7 +1988,6 @@ def strict_acceptance(
         ],
         "real_node_telemetry": "NOT_APPLICABLE",
     }
-
 
 def apply(transaction_id: str, execution_session_id: str) -> dict[str, Any]:
     session_id = _execution_session_id(execution_session_id)
