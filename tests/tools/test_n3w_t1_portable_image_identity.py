@@ -284,9 +284,9 @@ def test_duplicate_json_key_is_rejected(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("stderr", "status", "reason"),
     [
-        (b"Error: No such image", "MISMATCH", "image_not_found"),
-        (b"permission denied", "UNAVAILABLE", "docker_permission_denied"),
-        (b"Cannot connect to the Docker daemon", "UNAVAILABLE", "docker_daemon_unavailable"),
+        (b"Error: No such image", "NOT_FOUND", "image_not_found"),
+        (b"permission denied", "PERMISSION_DENIED", "docker_permission_denied"),
+        (b"Cannot connect to the Docker daemon", "DAEMON_UNAVAILABLE", "docker_daemon_unavailable"),
     ],
 )
 def test_docker_observation_distinguishes_failure_classes(
@@ -307,7 +307,7 @@ def test_malformed_docker_inspect_is_unsupported() -> None:
         return subprocess.CompletedProcess([], 0, b"not-json", b"")
 
     observed = identity.observe_docker_image("local/manager:test", runner=runner)
-    assert observed.status == "UNSUPPORTED"
+    assert observed.status == "MALFORMED_RESPONSE"
     assert observed.reason == "docker_inspect_malformed"
 
 
@@ -363,3 +363,39 @@ def test_nul_archive_member_name_is_rejected() -> None:
         match="archive_member_name_invalid",
     ):
         identity._safe_name("bad\x00name")
+
+
+def test_verifier_maps_observation_failure_classes_without_false_not_found(
+    tmp_path: Path,
+) -> None:
+    archive = tmp_path / "image.tar"
+    config, _ = _classic_archive(archive)
+    parsed = identity.parse_image_archive(archive)
+
+    def missing(*_args, **_kwargs):
+        return subprocess.CompletedProcess([], 1, b"", b"Error: No such image")
+
+    def daemon(*_args, **_kwargs):
+        return subprocess.CompletedProcess(
+            [],
+            1,
+            b"",
+            b"Cannot connect to the Docker daemon",
+        )
+
+    assert identity.verify_docker_image(
+        parsed, "local/manager:test", runner=missing
+    ).status == "MISMATCH"
+    assert identity.verify_docker_image(
+        parsed, "local/manager:test", runner=daemon
+    ).status == "UNAVAILABLE"
+
+
+def test_runtime_malformed_shape_is_unsupported_representation(
+    tmp_path: Path,
+) -> None:
+    archive = tmp_path / "image.tar"
+    _classic_archive(archive)
+    parsed = identity.parse_image_archive(archive)
+    verdict = identity.verify_runtime_document(parsed, {"Id": "sha256:" + "1" * 64})
+    assert verdict.status == "UNSUPPORTED_REPRESENTATION"
