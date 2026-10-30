@@ -111,6 +111,7 @@ MIN_FREE_BYTES = 256 * 1024 * 1024
 READINESS_TIMEOUT_SECONDS = 300.0
 READINESS_POLL_SECONDS = 2.0
 STABILITY_WINDOW_SECONDS = 90.0
+_LOCK_DEPTH = 0
 
 SCOPE = (
     "activation_gate_install",
@@ -291,6 +292,7 @@ def _ensure_private_dir(path: Path) -> None:
 
 @contextmanager
 def global_lock():
+    global _LOCK_DEPTH
     _ensure_private_dir(MAINTENANCE_ROOT)
     flags = os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0)
     fd = os.open(LOCK_PATH, flags, 0o600)
@@ -298,12 +300,21 @@ def global_lock():
         os.fchmod(fd, 0o600)
         os.fchown(fd, 0, 0)
         fcntl.flock(fd, fcntl.LOCK_EX)
+        if _LOCK_DEPTH != 0:
+            raise SuccessorError("maintenance_lock_reentered")
+        _LOCK_DEPTH = 1
         yield
     finally:
+        _LOCK_DEPTH = 0
         try:
             fcntl.flock(fd, fcntl.LOCK_UN)
         finally:
             os.close(fd)
+
+
+def _require_global_lock() -> None:
+    if _LOCK_DEPTH != 1:
+        raise SuccessorError("maintenance_lock_not_held")
 
 
 def runtime_authority() -> dict[str, str]:
@@ -1171,6 +1182,12 @@ def preauthorization(
     }
 
 
+def _execution_session_id(value: str) -> str:
+    if TXID.fullmatch(value or "") is None:
+        raise SuccessorError("execution_session_id_invalid")
+    return value
+
+
 def _authorization_id(value: str) -> str:
     if (
         not value.startswith("N3W_T1_R10_E03_SUCCESSOR_RECOVERY_")
@@ -1209,6 +1226,7 @@ def claim(
     expected_host_binding_sha256: str,
     transaction_id: str,
     authorization_id: str,
+    execution_session_id: str,
     confirmation: str,
 ) -> dict[str, Any]:
     if confirmation != CONFIRMATION:
@@ -1216,6 +1234,7 @@ def claim(
     if TXID.fullmatch(transaction_id or "") is None:
         raise SuccessorError("transaction_id_invalid")
     aid = _authorization_id(authorization_id)
+    session_id = _execution_session_id(execution_session_id)
     authority = runtime_authority()
     seed = preauthorization(
         identity=identity,
@@ -1252,6 +1271,11 @@ def claim(
     )
     document = maintenance.mark_ready(document)
     document = maintenance.claim_authorization(document)
+    document = maintenance.record_execution_session(
+        document,
+        session_id,
+        action="claim",
+    )
 
     with global_lock():
         _ensure_private_dir(TRANSACTION_ROOT)
@@ -1283,7 +1307,9 @@ def _runtime_rebind(
     action: str,
     allowed_states: Iterable[str],
 ) -> maintenance.MaintenanceBinding:
+    _require_global_lock()
     binding = _binding(document)
+    _require_global_lock()
     maintenance.require_mutation_binding(
         document,
         binding,
@@ -1702,10 +1728,18 @@ def strict_acceptance(
     }
 
 
-def apply(transaction_id: str) -> dict[str, Any]:
+def apply(transaction_id: str, execution_session_id: str) -> dict[str, Any]:
+    session_id = _execution_session_id(execution_session_id)
     with global_lock():
         store = maintenance.TransactionStore(_transaction_path(transaction_id))
         document = store.load()
+        if document["state"] in maintenance.ACTIVE_STATES:
+            session_document = maintenance.record_execution_session(
+                document,
+                session_id,
+                action="apply",
+            )
+            document = _save(store, document, session_document)
         plan = document["plan"]
         identity = portable.identity_from_dict(plan["portable_identity"])
         if document["state"] == "COMMITTED":
@@ -1730,6 +1764,7 @@ def apply(transaction_id: str) -> dict[str, Any]:
             return rollback(
                 transaction_id,
                 reason=document.get("last_reason") or "resume_rollback",
+                execution_session_id=None,
                 _store=store,
                 _document=document,
             )
@@ -1883,6 +1918,7 @@ def apply(transaction_id: str) -> dict[str, Any]:
                     return rollback(
                         transaction_id,
                         reason=safe_reason(error),
+                        execution_session_id=None,
                         _store=store,
                         _document=current,
                     )
@@ -1915,6 +1951,7 @@ def rollback(
     transaction_id: str,
     *,
     reason: str,
+    execution_session_id: str | None,
     _store: maintenance.TransactionStore | None = None,
     _document: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -1927,6 +1964,14 @@ def rollback(
     try:
         store = _store or maintenance.TransactionStore(_transaction_path(transaction_id))
         document = _document or store.load()
+        if execution_session_id is not None:
+            session_id = _execution_session_id(execution_session_id)
+            session_document = maintenance.record_execution_session(
+                document,
+                session_id,
+                action="rollback",
+            )
+            document = _save(store, document, session_document)
         plan = document["plan"]
         if document["state"] == "VERIFYING":
             rolling = maintenance.transition(
@@ -2054,6 +2099,11 @@ def public_result(
             else "PASS"
         ),
         "transaction_id_sha256": sha_text(document["transaction_id"]),
+        "execution_session_id_sha256": (
+            document["execution_sessions"][-1]["session_id_sha256"]
+            if document["execution_sessions"]
+            else None
+        ),
         "stage": document["state"],
         "operation": operation,
         "reason_code": reason_code,
@@ -2139,13 +2189,16 @@ def main() -> int:
     claim_parser.add_argument("--host-binding-sha256", required=True)
     claim_parser.add_argument("--transaction-id", required=True)
     claim_parser.add_argument("--authorization-id", required=True)
+    claim_parser.add_argument("--execution-session-id", required=True)
     claim_parser.add_argument("--confirmation", required=True)
 
     apply_parser = sub.add_parser("apply")
     apply_parser.add_argument("--transaction-id", required=True)
+    apply_parser.add_argument("--execution-session-id", required=True)
 
     rollback_parser = sub.add_parser("rollback")
     rollback_parser.add_argument("--transaction-id", required=True)
+    rollback_parser.add_argument("--execution-session-id", required=True)
     rollback_parser.add_argument("--reason", required=True)
 
     status_parser = sub.add_parser("status")
@@ -2187,12 +2240,17 @@ def main() -> int:
                 expected_host_binding_sha256=args.host_binding_sha256,
                 transaction_id=args.transaction_id,
                 authorization_id=args.authorization_id,
+                execution_session_id=args.execution_session_id,
                 confirmation=args.confirmation,
             )
         elif args.operation == "apply":
-            result = apply(args.transaction_id)
+            result = apply(args.transaction_id, args.execution_session_id)
         elif args.operation == "rollback":
-            result = rollback(args.transaction_id, reason=args.reason)
+            result = rollback(
+                args.transaction_id,
+                reason=args.reason,
+                execution_session_id=args.execution_session_id,
+            )
         elif args.operation == "status":
             result = status(args.transaction_id)
         else:
