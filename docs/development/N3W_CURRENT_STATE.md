@@ -1,3 +1,30 @@
+## 2026-10-30 — KF-137 Compose env authority source repair implemented; final F5 CI pending
+
+~~~text
+TASK=N3W_T1_E03_SUCCESSOR_RECOVERY_COMPOSE_ENV_AUTHORITY_SOURCE_REPAIR_20261030_01
+PR740_CURRENT_HEAD=16d568ed577a050e23ee0061203d2a4d09cd19a0
+KF137=OPEN_SOURCE_REPAIR_IMPLEMENTED_CLOSURE_PENDING
+SOURCE_REPAIR_IMPLEMENTATION=PASS
+INDEPENDENT_SOURCE_REVIEW=PASS_WITH_FINAL_F5_CI_PENDING
+FOCUSED_E03_CI=SUCCESS_245_PASSED
+FAST_SOURCE_EXACT_CLOSURE=SUCCESS
+PUBLIC_REPOSITORY_SAFETY=SUCCESS
+F5_V2_SOURCE=PENDING_AT_STOP
+T1_ACCESS_THIS_GATE=false
+T1_MUTATION=false
+LIVE_PREAUTH_RETRY=false
+SUCCESSOR_AUTHORIZATION_CLAIM=false
+MERGE=false
+CURRENT_STOP_POINT=WAITING_FOR_EXISTING_F5_V2_SOURCE_CI_WITHOUT_FURTHER_POLLING
+NEXT_ONE_GATE=SOURCE_REPAIR_CLOSURE_AFTER_F5_RESULT
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+KF-137 repair now preserves the fresh-product GH_MANAGER_IMAGE indirection and makes docker-compose.yml plus docker-compose.env the exact deployment-input authority. Apply/rollback/reboot recovery use one combined fingerprint; unknown input reality blocks without write.
+
+Exact PR #740 source HEAD is 16d568ed577a050e23ee0061203d2a4d09cd19a0. Focused E03 CI passed 245 tests in 0.48s; fast source/exact closure and Public repository safety are also green. F5 V2 source CI was still running when the polling budget was reached, so this repair is not yet recorded CLOSED_PASS.
+
+Progress authority: docs/development/N3W_T1_E03_SUCCESSOR_RECOVERY_COMPOSE_ENV_AUTHORITY_SOURCE_REPAIR_PROGRESS_20261030.md.
 ## 2026-10-30 — E03 successor read-only preauth STOP on KF-137 source false-STOP
 
 ~~~text
