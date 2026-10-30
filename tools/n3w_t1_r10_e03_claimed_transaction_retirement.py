@@ -761,8 +761,17 @@ def _retirement_documents() -> list[dict[str, Any]]:
     return values
 
 
-def _ensure_no_target_retirement(target_transaction_id_sha256: str) -> None:
+def _ensure_no_target_retirement(
+    target_transaction_id_sha256: str,
+    *,
+    exclude_retirement_id: str | None = None,
+) -> None:
     for document in _retirement_documents():
+        if (
+            exclude_retirement_id is not None
+            and document["retirement_id"] == exclude_retirement_id
+        ):
+            continue
         if (
             document["target_transaction_id_sha256"]
             == target_transaction_id_sha256
@@ -796,18 +805,39 @@ def claim(
         observed = sha_bytes(canonical(plan))
         if observed != expected_preauth_plan_sha256:
             raise RetirementError("preauth_plan_sha256_mismatch")
-        _ensure_no_target_retirement(
-            plan["target_transaction_id_sha256"]
-        )
         e03._ensure_private_dir(retirement_root())
-        store = RetirementStore(_retirement_path(retirement_id))
+        path = _retirement_path(retirement_id)
+        store = RetirementStore(path)
         prepared = _record_from_plan(
             plan=plan,
             retirement_id=retirement_id,
             authorization_id_sha256=sha_text(authorization_id),
             execution_session_id_sha256=sha_text(execution_session_id),
         )
-        store.create(prepared)
+        if path.exists() or path.is_symlink():
+            existing = store.load()
+            _ensure_no_target_retirement(
+                plan["target_transaction_id_sha256"],
+                exclude_retirement_id=retirement_id,
+            )
+            if (
+                existing["state"] != "PREPARED"
+                or existing["generation"] != 1
+                or existing["authorization_consumed"] is not False
+                or any(
+                    existing[key] != prepared[key]
+                    for key in IMMUTABLE_RECORD_KEYS
+                )
+            ):
+                raise RetirementError(
+                    "retirement_prepared_resume_binding_drift"
+                )
+            prepared = existing
+        else:
+            _ensure_no_target_retirement(
+                plan["target_transaction_id_sha256"]
+            )
+            store.create(prepared)
         claimed = _transition_record(
             prepared,
             "CLAIMED",
