@@ -1207,3 +1207,32 @@ def test_strict_acceptance_reports_authenticated_contract_only_after_strong_evid
     assert result["process_socket_ownership"] is True
     assert result["application_owner_stable"] is True
     assert result["real_node_telemetry"] == "NOT_APPLICABLE"
+
+
+def test_global_maintenance_lock_is_nonblocking_and_fail_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "maintenance"
+    root.mkdir(mode=0o700)
+    lock_path = root / ".maintenance.lock"
+    monkeypatch.setattr(successor, "MAINTENANCE_ROOT", root)
+    monkeypatch.setattr(successor, "LOCK_PATH", lock_path)
+    monkeypatch.setattr(successor.os, "fchown", lambda *_args: None)
+    calls: list[int] = []
+
+    def fake_flock(_fd: int, operation: int) -> None:
+        calls.append(operation)
+        if operation & successor.fcntl.LOCK_EX:
+            assert operation & successor.fcntl.LOCK_NB
+            raise BlockingIOError()
+
+    monkeypatch.setattr(successor.fcntl, "flock", fake_flock)
+    with pytest.raises(
+        successor.SuccessorError,
+        match="maintenance_lock_busy",
+    ):
+        with successor.global_lock():
+            pytest.fail("busy lock must not enter mutation scope")
+    assert successor._LOCK_DEPTH == 0
+    assert any(op & successor.fcntl.LOCK_NB for op in calls)
