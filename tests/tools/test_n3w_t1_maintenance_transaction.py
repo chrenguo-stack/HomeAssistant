@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import json
 import sys
 from pathlib import Path
@@ -438,3 +439,68 @@ def test_transaction_rejects_completed_operation_without_observation() -> None:
         match="operation_observation_missing",
     ):
         tx.validate_transaction(value)
+
+
+def test_transaction_create_fsync_failure_does_not_leave_claimable_record(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "txn.json"
+    store = tx.TransactionStore(path, enforce_root_metadata=False)
+    original_fsync = tx.os.fsync
+    calls = {"count": 0}
+
+    def failing_fsync(fd: int) -> None:
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise OSError(errno.ENOSPC, "simulated fsync ENOSPC")
+        original_fsync(fd)
+
+    monkeypatch.setattr(tx.os, "fsync", failing_fsync)
+    with pytest.raises(OSError):
+        store.create(document())
+    assert path.exists() is False
+
+
+def test_transaction_save_disk_full_before_replace_preserves_old_record(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "txn.json"
+    store = tx.TransactionStore(path, enforce_root_metadata=False)
+    original = document()
+    store.create(original)
+
+    def no_space(*_args, **_kwargs):
+        raise OSError(errno.ENOSPC, "simulated disk full")
+
+    monkeypatch.setattr(tx.tempfile, "mkstemp", no_space)
+    ready = tx.mark_ready(original)
+    with pytest.raises(OSError):
+        store.save(ready, expected_generation=original["generation"])
+    assert store.load() == original
+
+
+def test_transaction_save_fsync_failure_before_replace_preserves_old_record(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "txn.json"
+    store = tx.TransactionStore(path, enforce_root_metadata=False)
+    original = document()
+    store.create(original)
+    ready = tx.mark_ready(original)
+
+    original_fsync = tx.os.fsync
+    calls = {"count": 0}
+
+    def failing_fsync(fd: int) -> None:
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise OSError(errno.ENOSPC, "simulated temp fsync failure")
+        original_fsync(fd)
+
+    monkeypatch.setattr(tx.os, "fsync", failing_fsync)
+    with pytest.raises(OSError):
+        store.save(ready, expected_generation=original["generation"])
+    assert store.load() == original
