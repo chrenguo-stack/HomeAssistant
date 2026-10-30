@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import gzip
 import hashlib
 import json
 import re
@@ -15,6 +16,26 @@ VERDICT_SCHEMA = "gh.n3w-t1-portable-image-verdict/1"
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 DIGEST = re.compile(r"^sha256:([0-9a-f]{64})$")
 MAX_JSON_BYTES = 16 * 1024 * 1024
+MAX_ARCHIVE_MEMBERS = 100_000
+
+OCI_MANIFEST_MEDIA_TYPES = frozenset({
+    "application/vnd.oci.image.manifest.v1+json",
+    "application/vnd.docker.distribution.manifest.v2+json",
+})
+OCI_CONFIG_MEDIA_TYPES = frozenset({
+    "application/vnd.oci.image.config.v1+json",
+    "application/vnd.docker.container.image.v1+json",
+})
+UNCOMPRESSED_LAYER_MEDIA_TYPES = frozenset({
+    "application/vnd.oci.image.layer.v1.tar",
+    "application/vnd.oci.image.layer.nondistributable.v1.tar",
+})
+GZIP_LAYER_MEDIA_TYPES = frozenset({
+    "application/vnd.oci.image.layer.v1.tar+gzip",
+    "application/vnd.oci.image.layer.nondistributable.v1.tar+gzip",
+    "application/vnd.docker.image.rootfs.diff.tar.gzip",
+    "application/vnd.docker.image.rootfs.foreign.diff.tar.gzip",
+})
 MAX_ARCHIVE_BYTES = 32 * 1024 * 1024 * 1024
 MAX_TAR_MEMBERS = 200_000
 
