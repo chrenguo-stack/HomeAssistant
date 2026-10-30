@@ -234,6 +234,7 @@ def _target_binding_projection(document: dict[str, Any]) -> dict[str, Any]:
     value = maintenance.validate_transaction(document)
     return {
         "authorization_id_sha256": value["authorization_id_sha256"],
+        "host_binding_sha256": value["host_binding_sha256"],
         "executor_source_head": value["executor_source_head"],
         "executor_blob": value["executor_blob"],
         "module_set_sha256": value["module_set_sha256"],
@@ -253,6 +254,29 @@ def _verify_exact_before(
     store = maintenance.TransactionStore(target_path)
     document = _validate_target_ready(store.load())
     plan = document["plan"]
+    if (
+        plan.get("schema") != e03.PLAN_SCHEMA
+        or tuple(document["scope"]) != tuple(e03.SCOPE)
+        or plan.get("predecessor_sha256")
+        != document["predecessor_sha256"]
+        or plan.get("current_release_id")
+        != document["current_release_id"]
+        or plan.get("target_release_id")
+        != document["target_release_id"]
+        or plan.get("artifact_sha256")
+        != document["artifact_sha256"]
+    ):
+        raise RetirementError("target_e03_transaction_contract_invalid")
+    if (
+        e03.host_binding_sha256()
+        != document["host_binding_sha256"]
+    ):
+        raise RetirementError("target_host_binding_drift")
+    maintenance.assert_predecessor_immutable(
+        e03.PREDECESSOR_TX,
+        document["predecessor_sha256"],
+    )
+    e03.predecessor_evidence(document["predecessor_sha256"])
 
     if e03._deployment_reality(plan) != plan["deployment_before_fingerprint"]:
         raise RetirementError("deployment_reality_not_exact_before")
@@ -338,6 +362,9 @@ def _plan_locked(
         ],
         "target_authorization_id_sha256": binding[
             "authorization_id_sha256"
+        ],
+        "target_host_binding_sha256": binding[
+            "host_binding_sha256"
         ],
         "target_executor_source_head": binding["executor_source_head"],
         "target_executor_blob": binding["executor_blob"],
@@ -513,6 +540,27 @@ def validate_record(document: Any) -> dict[str, Any]:
         "plan_sha256"
     ]:
         raise RetirementError("retirement_plan_binding_invalid")
+    if (
+        plan.get("schema") != PLAN_SCHEMA
+        or plan.get("reason") != REASON
+        or plan.get("target_transaction_id_sha256")
+        != document["target_transaction_id_sha256"]
+        or plan.get("target_transaction_sha256")
+        != document["target_transaction_sha256_before"]
+        or plan.get("target_generation")
+        != document["target_generation_before"]
+        or plan.get("target_retirement_invariant_sha256")
+        != document["target_retirement_invariant_sha256"]
+        or plan.get("retirement_executor_source_head")
+        != document["executor_source_head"]
+        or plan.get("retirement_executor_blob")
+        != document["executor_blob"]
+        or plan.get("retirement_module_set_sha256")
+        != document["module_set_sha256"]
+        or plan.get("product_mutation") is not False
+        or plan.get("board_access") is not False
+    ):
+        raise RetirementError("retirement_plan_record_cross_binding_invalid")
     if document.get("state") not in STATES:
         raise RetirementError("retirement_state_invalid")
     if not isinstance(document.get("authorization_consumed"), bool):
@@ -960,6 +1008,7 @@ def retire(
         if record["state"] != "CLAIMED":
             raise RetirementError("retirement_not_claimed")
 
+        poststate_verified = False
         try:
             if target["state"] == "READY":
                 plan = _plan_locked(
@@ -990,6 +1039,7 @@ def retire(
                 raise RetirementError("target_state_not_retirable")
 
             _assert_aborted_poststate(target, record)
+            poststate_verified = True
             after_sha256 = sha_file(
                 _target_path(target_transaction_id)
             )
@@ -1016,7 +1066,10 @@ def retire(
             latest_target = target_store.load()
             if (
                 latest["state"] == "CLAIMED"
-                and latest_target["state"] != "ABORTED"
+                and (
+                    latest_target["state"] != "ABORTED"
+                    or not poststate_verified
+                )
             ):
                 _block_record(
                     record_store,
