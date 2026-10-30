@@ -128,13 +128,13 @@ def _valid_transaction(state: str) -> dict:
         executor_blob="7" * 40,
         module_set_sha256="8" * 64,
         plan_sha256=tx.sha256_bytes(tx.canonical_bytes(plan)),
-        scope=("compose_publish",),
+        scope=("deployment_inputs_publish",),
     )
     value = tx.new_transaction(
         binding,
         predecessor_sha256="9" * 64,
-        before={"compose": "a" * 64},
-        intended_after={"compose": "b" * 64},
+        before={"deployment_inputs": "a" * 64},
+        intended_after={"deployment_inputs": "b" * 64},
         plan=plan,
     )
     if state == "PREPARING":
@@ -155,7 +155,7 @@ def _valid_transaction(state: str) -> dict:
         )
     publish = tx.begin_operation(
         value,
-        operation_type="compose_publish",
+        operation_type="deployment_inputs_publish",
         before_fingerprint="a" * 64,
         intended_after_fingerprint="b" * 64,
         allowed_states={"APPLYING"},
@@ -168,7 +168,7 @@ def _valid_transaction(state: str) -> dict:
         value,
         "VERIFYING",
         operation="candidate_published_owner_controlled",
-        observed_after={"compose": "b" * 64},
+        observed_after={"deployment_inputs": "b" * 64},
     )
     if state == "VERIFYING":
         return value
@@ -185,7 +185,7 @@ def _valid_transaction(state: str) -> dict:
         "ROLLED_BACK",
         operation="rollback_complete",
         reason="test",
-        observed_after={"compose": "a" * 64},
+        observed_after={"deployment_inputs": "a" * 64},
     )
     return value
 
@@ -209,7 +209,7 @@ def test_gate_rejects_verify_state_without_completed_publish() -> None:
         value,
         "VERIFYING",
         operation="unsafe_verify",
-        observed_after={"compose": "b" * 64},
+        observed_after={"deployment_inputs": "b" * 64},
     )
     with pytest.raises(gate.GateError, match="verifying_publish_not_proven"):
         gate._validate_record(value)
@@ -247,7 +247,7 @@ def test_rolling_back_allows_start_only_after_proven_compose_restore(
     value = _valid_transaction("ROLLING_BACK")
     intent = tx.begin_operation(
         value,
-        operation_type="compose_rollback",
+        operation_type="deployment_inputs_rollback",
         before_fingerprint="b" * 64,
         intended_after_fingerprint="a" * 64,
         allowed_states={"ROLLING_BACK"},
@@ -274,7 +274,7 @@ def test_rollback_restore_proof_rejects_wrong_target() -> None:
     value = _valid_transaction("ROLLING_BACK")
     intent = tx.begin_operation(
         value,
-        operation_type="compose_rollback",
+        operation_type="deployment_inputs_rollback",
         before_fingerprint="b" * 64,
         intended_after_fingerprint="c" * 64,
         allowed_states={"ROLLING_BACK"},
@@ -322,7 +322,7 @@ def test_rollback_restore_record_cannot_override_later_compose_drift(
     value = _valid_transaction("ROLLING_BACK")
     intent = tx.begin_operation(
         value,
-        operation_type="compose_rollback",
+        operation_type="deployment_inputs_rollback",
         before_fingerprint="b" * 64,
         intended_after_fingerprint="a" * 64,
         allowed_states={"ROLLING_BACK"},
@@ -342,3 +342,29 @@ def test_missing_or_symlink_compose_reality_fails_closed(
     missing = tmp_path / "missing-compose.yml"
     with pytest.raises(gate.GateError, match="compose_reality_unavailable"):
         gate._current_compose_sha256(missing)
+
+
+def test_gate_deployment_fingerprint_changes_on_env_change(
+    tmp_path: Path,
+) -> None:
+    compose = tmp_path / "docker-compose.yml"
+    compose_env = tmp_path / "docker-compose.env"
+    compose.write_text("services: {}\n", encoding="utf-8")
+    compose_env.write_text("GH_MANAGER_IMAGE=before\n", encoding="utf-8")
+    before = gate._current_deployment_fingerprint(compose, compose_env)
+    compose_env.write_text("GH_MANAGER_IMAGE=after\n", encoding="utf-8")
+    after = gate._current_deployment_fingerprint(compose, compose_env)
+    assert before != after
+
+
+def test_gate_deployment_fingerprint_changes_on_compose_change(
+    tmp_path: Path,
+) -> None:
+    compose = tmp_path / "docker-compose.yml"
+    compose_env = tmp_path / "docker-compose.env"
+    compose.write_text("services: {}\n", encoding="utf-8")
+    compose_env.write_text("GH_MANAGER_IMAGE=before\n", encoding="utf-8")
+    before = gate._current_deployment_fingerprint(compose, compose_env)
+    compose.write_text("services:\n  manager: {}\n", encoding="utf-8")
+    after = gate._current_deployment_fingerprint(compose, compose_env)
+    assert before != after
