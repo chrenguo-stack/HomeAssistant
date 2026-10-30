@@ -1,3 +1,14 @@
+## 2026-10-30 — E03 replacement baseline invalidation design FROZEN
+
+- T1 reboot is confirmed as the cause of the Broker StartedAt continuity break.
+- Replacement transaction remains READY generation 4 and has never executed apply.
+- Selected recovery is a narrow maintenance-only transition from READY to BLOCKED after exact invalidation evidence.
+- BLOCKED is terminal and not active; it is not used as supersession evidence.
+- Preserve the original ABORTED transaction plus COMMITTED retirement evidence as the single supersession authority.
+- Design authority: docs/development/N3W_T1_E03_REPLACEMENT_BASELINE_INVALIDATION_TERMINAL_BLOCKED_SOURCE_DESIGN_20261030.md.
+- PR #740 reboot-cause evidence comment: 6525450847.
+- Next gate: N3W_T1_E03_REPLACEMENT_BASELINE_INVALIDATION_TERMINAL_BLOCKED_SOURCE_REPAIR_20261030_01.
+
 ## 2026-10-30 — E03 replacement apply-authorization preflight CLOSED_STOP — Broker continuity baseline invalidated
 
 - Replacement transaction remains byte-identical: SHA-256 `d818ccb97e2aae093f9a251dc497b75e07c339f6f29aa4cda00a1970ea53f71c`, stage `READY`, generation `4`.
