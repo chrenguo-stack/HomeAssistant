@@ -1438,3 +1438,17 @@ def test_claim_rechecks_preauth_inside_global_maintenance_lock(
         )
     assert state["preauth_called"] is True
     assert state["locked"] is False
+
+
+def test_runtime_rebind_recomputes_source_and_target_release_authority() -> None:
+    source = (
+        ROOT / "tools" / "n3w_t1_r10_e03_successor_recovery.py"
+    ).read_text(encoding="utf-8")
+    section = source.split("def _runtime_rebind(", 1)[1].split(
+        "def _operation(", 1
+    )[0]
+    assert "unit = verify_service_unit()" in section
+    assert "source_release_id = _current_release_id(" in section
+    assert "target_release_id = _target_release_id(" in section
+    assert "source_release_id != binding.current_release_id" in section
+    assert "target_release_id != binding.target_release_id" in section
