@@ -61,6 +61,8 @@ EXPECTED_F4_R10_SUCCESSOR_SOURCE = (
 EXPECTED_F4_R10_SUCCESSOR_MANIFEST_SHA256 = (
     "68eb56dfc0a60ace97c6647d745322ba08121c33627b7d07b7929c13d55573aa"
 )
+EXPECTED_F4_HOST_BLOB = "08889200fe9663d223016a3cb3e1b4af0a9ffcd2"
+EXPECTED_F4_RUNTIME_PROBE_BLOB = "0b61e9ce99f553239f5a28453faf06d5128b49dc"
 RUNTIME_SNAPSHOT_SCHEMA = "gh.n3w-r10-e03-current-runtime-snapshot/1"
 
 EXPECTED_EXECSTART = (
@@ -1979,6 +1981,11 @@ def _current_f4_authority(
         != successor_installed_sha256
     ):
         raise SuccessorError("current_f4_installed_files_binding_invalid")
+    if (
+        git_blob(F4_HOST) != EXPECTED_F4_HOST_BLOB
+        or git_blob(F4_REBOOT_VERIFY) != EXPECTED_F4_RUNTIME_PROBE_BLOB
+    ):
+        raise SuccessorError("current_f4_helper_source_drift")
 
     eligibility = module._activation_eligibility("services")
     if (
@@ -1999,6 +2006,8 @@ def _current_f4_authority(
         "successor_installed_files_sha256": successor_installed_sha256,
         "historical_package_source_head": historical_source,
         "historical_package_manifest_sha256": historical_manifest,
+        "f4_host_blob": EXPECTED_F4_HOST_BLOB,
+        "runtime_probe_blob": EXPECTED_F4_RUNTIME_PROBE_BLOB,
         "f4_host_sha256": sha_file(F4_HOST),
         "runtime_probe_sha256": sha_file(F4_REBOOT_VERIFY),
     }
@@ -2208,6 +2217,8 @@ def _current_runtime_snapshot(
         "f4_successor_manifest_sha256": expected[
             "successor_manifest_sha256"
         ],
+        "f4_host_blob": expected["f4_host_blob"],
+        "runtime_probe_blob": expected["runtime_probe_blob"],
         "f4_host_sha256": expected["f4_host_sha256"],
         "runtime_probe_sha256": expected["runtime_probe_sha256"],
         "containers": containers,
@@ -2258,6 +2269,10 @@ def _authenticated_runtime_snapshot(
         != expected.get("successor_target_source")
         or document.get("f4_successor_manifest_sha256")
         != expected.get("successor_manifest_sha256")
+        or document.get("f4_host_blob")
+        != expected.get("f4_host_blob")
+        or document.get("runtime_probe_blob")
+        != expected.get("runtime_probe_blob")
         or document.get("f4_host_sha256")
         != expected.get("f4_host_sha256")
         or document.get("runtime_probe_sha256")
