@@ -1294,3 +1294,52 @@ def test_successor_module_authority_includes_production_contract_source() -> Non
     )[0]
     assert "production_contract.portable_deployment_binding_id" in target_section
     assert "gh.n3w-r10-e03-target-release-binding/1" not in target_section
+
+
+def test_build_identity_requires_exact_tar_size_authority(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    image_identity = _portable_identity()
+    captured = {}
+
+    def parse(_path, **kwargs):
+        captured.update(kwargs)
+        return image_identity
+
+    monkeypatch.setattr(successor.portable, "parse_image_archive", parse)
+    result = successor.build_identity(
+        Path("/tmp/exact-manager.tar"),
+        expected_archive_size_bytes=image_identity.archive_size_bytes,
+    )
+    assert result["status"] == "PASS"
+    assert result["archive_size_bytes"] == image_identity.archive_size_bytes
+    assert captured["expected_archive_sha256"] == successor.TARGET_MANAGER_TAR_SHA256
+    assert (
+        captured["expected_archive_size_bytes"]
+        == image_identity.archive_size_bytes
+    )
+
+
+@pytest.mark.parametrize("size", [0, -1, True])
+def test_build_identity_rejects_invalid_tar_size_authority(size) -> None:
+    with pytest.raises(
+        successor.SuccessorError,
+        match="artifact_tar_size_authority_invalid",
+    ):
+        successor.build_identity(
+            Path("/tmp/exact-manager.tar"),
+            expected_archive_size_bytes=size,
+        )
+
+
+def test_exact_artifact_producer_freezes_and_rechecks_tar_sizes() -> None:
+    workflow = (
+        ROOT / ".github" / "workflows" / "n3w-t1-fresh-install-exact-arm64-ci.yml"
+    ).read_text(encoding="utf-8")
+    for name in (
+        "greenhouse-manager-arm64.tar",
+        "homeassistant-arm64.tar",
+        "broker-arm64.tar",
+    ):
+        assert f'(root / "{name}").stat().st_size' in workflow
+    assert workflow.count('"tar_size_bytes"') >= 3
