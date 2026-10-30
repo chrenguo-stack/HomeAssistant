@@ -341,26 +341,18 @@ def test_legacy_apply_cannot_replay_consumed_authorization(
     with pytest.raises(tool.RefreshError, match="successor_transaction_required"):
         tool._remote_apply_locked()
 
-def test_prestop_abort_requires_claimed_phase(
+def test_prestop_abort_is_unconditionally_retired_before_transaction_read(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
         tool,
-        "transaction_lock",
-        lambda: __import__("contextlib").nullcontext(),
-    )
-    monkeypatch.setattr(
-        tool,
         "read_tx",
-        lambda: {
-            "schema": tool.TX_SCHEMA,
-            "status": "PASS",
-            "phase": "COMMITTED",
-            "authorization_consumed": True,
-            "replay_allowed": False,
-        },
+        lambda: pytest.fail("retired abort must not inspect legacy transaction"),
     )
-    with pytest.raises(tool.RefreshError, match="prestop_abort_state_invalid"):
+    with pytest.raises(
+        tool.LegacyMutationRetiredError,
+        match="successor_transaction_required",
+    ):
         tool.remote_abort_prestop("DOCKER_LOAD_FAILED")
 
 
@@ -747,3 +739,72 @@ def test_stop_output_preserves_unknown_authorization(
     assert report["authorization_consumed"] == "UNKNOWN"
     assert report["replay_allowed"] is False
     assert report["t1_mutation"] == "UNKNOWN"
+
+
+def test_legacy_remote_apply_public_report_is_no_replay_no_new_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(tool.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(
+        tool,
+        "transaction_lock",
+        lambda: __import__("contextlib").nullcontext(),
+    )
+    monkeypatch.setattr(
+        tool,
+        "read_tx",
+        lambda: {
+            "authorization_consumed": True,
+            "replay_allowed": False,
+        },
+    )
+    code = tool.main(["remote-apply"])
+    assert code == 2
+    report = json.loads(capsys.readouterr().out)
+    assert report["reason"] == "successor_transaction_required"
+    assert report["authorization_claimed"] is True
+    assert report["authorization_consumed"] is True
+    assert report["replay_allowed"] is False
+    assert report["t1_mutation"] is False
+
+
+def test_legacy_remote_claim_without_readable_transaction_never_implies_replay(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(tool.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(
+        tool,
+        "read_tx",
+        lambda: (_ for _ in ()).throw(tool.RefreshError("transaction_missing")),
+    )
+    code = tool.main([
+        "remote-claim",
+        "--authorization-id",
+        "N3W_R10_E03_MANAGER_SUCCESSOR_REFRESH_LIVE_APPLY_20261029_01",
+        "--confirmation",
+        tool.CONFIRMATION,
+        "--executor-source-head",
+        "1" * 40,
+        "--executor-blob",
+        "2" * 40,
+        "--pr725-head",
+        "1" * 40,
+    ])
+    assert code == 2
+    report = json.loads(capsys.readouterr().out)
+    assert report["reason"] == "successor_transaction_required"
+    assert report["authorization_claimed"] == "UNKNOWN"
+    assert report["authorization_consumed"] == "UNKNOWN"
+    assert report["replay_allowed"] is False
+    assert report["t1_mutation"] is False
+
+
+def test_legacy_retirement_guard_is_unconditional_source_contract() -> None:
+    source = Path(tool.__file__).read_text(encoding="utf-8")
+    guard = source.split("def require_successor_transaction()", 1)[1].split(
+        "def safe_error_code", 1
+    )[0]
+    assert "raise LegacyMutationRetiredError" in guard
+    assert "if LEGACY_MUTATION_RETIRED" not in guard
