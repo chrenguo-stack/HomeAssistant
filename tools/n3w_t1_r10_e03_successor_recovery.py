@@ -2466,10 +2466,21 @@ def status(transaction_id: str) -> dict[str, Any]:
     )
 
 
-def build_identity(path: Path) -> dict[str, Any]:
+def build_identity(
+    path: Path,
+    *,
+    expected_archive_size_bytes: int,
+) -> dict[str, Any]:
+    if (
+        isinstance(expected_archive_size_bytes, bool)
+        or not isinstance(expected_archive_size_bytes, int)
+        or expected_archive_size_bytes <= 0
+    ):
+        raise SuccessorError("artifact_tar_size_authority_invalid")
     identity = portable.parse_image_archive(
         path,
         expected_archive_sha256=TARGET_MANAGER_TAR_SHA256,
+        expected_archive_size_bytes=expected_archive_size_bytes,
         expected_tag=TARGET_MANAGER_IMAGE,
         platform_os="linux",
         platform_architecture="arm64",
@@ -2484,6 +2495,7 @@ def build_identity(path: Path) -> dict[str, Any]:
         "portable_identity_b64": _portable_identity_b64(identity),
         "portable_identity_sha256": identity_sha256,
         "archive_sha256": identity.archive_sha256,
+        "archive_size_bytes": identity.archive_size_bytes,
         "config_digest": identity.config_digest,
         "board_access": False,
         "t1_access": False,
@@ -2501,6 +2513,11 @@ def main() -> int:
 
     build = sub.add_parser("build-identity")
     build.add_argument("--manager-tar", required=True)
+    build.add_argument(
+        "--manager-tar-size-bytes",
+        required=True,
+        type=int,
+    )
 
     pre = sub.add_parser("preauth")
     pre.add_argument("--portable-identity-b64", required=True)
@@ -2534,7 +2551,10 @@ def main() -> int:
     args = parser.parse_args()
     try:
         if args.operation == "build-identity":
-            result = build_identity(Path(args.manager_tar))
+            result = build_identity(
+                Path(args.manager_tar),
+                expected_archive_size_bytes=args.manager_tar_size_bytes,
+            )
         elif args.operation == "preauth":
             identity = _portable_identity_from_b64(
                 args.portable_identity_b64,
