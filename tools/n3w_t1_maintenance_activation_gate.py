@@ -61,21 +61,7 @@ def _private_root(path: Path) -> None:
         raise GateError("transaction_root_metadata_invalid")
 
 
-def _record(path: Path) -> dict[str, Any]:
-    if path.is_symlink() or not path.is_file():
-        raise GateError("transaction_record_invalid")
-    meta = path.stat()
-    if (
-        meta.st_uid != 0
-        or meta.st_gid != 0
-        or stat.S_IMODE(meta.st_mode) != 0o600
-        or meta.st_nlink != 1
-    ):
-        raise GateError("transaction_record_metadata_invalid")
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        raise GateError("transaction_record_json_invalid") from error
+def _validate_record(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict) or value.get("schema") != SCHEMA:
         raise GateError("transaction_record_schema_invalid")
     if set(value) != TRANSACTION_KEYS:
@@ -147,6 +133,24 @@ def _record(path: Path) -> dict[str, Any]:
             raise GateError("verifying_publish_not_proven")
     return value
 
+
+
+def _record(path: Path) -> dict[str, Any]:
+    if path.is_symlink() or not path.is_file():
+        raise GateError("transaction_record_invalid")
+    meta = path.stat()
+    if (
+        meta.st_uid != 0
+        or meta.st_gid != 0
+        or stat.S_IMODE(meta.st_mode) != 0o600
+        or meta.st_nlink != 1
+    ):
+        raise GateError("transaction_record_metadata_invalid")
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise GateError("transaction_record_json_invalid") from error
+    return _validate_record(value)
 
 def evaluate(root: Path = TRANSACTION_ROOT) -> tuple[bool, str]:
     if not root.exists():
