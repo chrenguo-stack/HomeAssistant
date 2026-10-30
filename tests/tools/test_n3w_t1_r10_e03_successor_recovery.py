@@ -1801,6 +1801,54 @@ def test_claim_rechecks_preauth_inside_global_maintenance_lock(
     assert state["locked"] is False
 
 
+def test_repaired_executor_cannot_mutate_old_executor_bound_ready_transaction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    document = _document(state="READY")
+    document["executor_source_head"] = "1" * 40
+    document["executor_blob"] = "2" * 40
+    document["module_set_sha256"] = "3" * 64
+    monkeypatch.setattr(successor, "_LOCK_DEPTH", 1)
+    monkeypatch.setattr(
+        successor,
+        "runtime_authority",
+        lambda: {
+            "source_head": "4" * 40,
+            "executor_blob": "5" * 40,
+            "module_set_sha256": "6" * 64,
+        },
+    )
+    with pytest.raises(
+        successor.SuccessorError,
+        match="executor_authority_drift",
+    ):
+        successor._runtime_rebind(
+            document,
+            action="activation_gate_install",
+            allowed_states={"READY"},
+        )
+
+
+def test_replacement_preauth_and_runtime_bind_retirement_supersession() -> None:
+    source = (
+        ROOT / "tools" / "n3w_t1_r10_e03_successor_recovery.py"
+    ).read_text(encoding="utf-8")
+    preauth = source.split("def preauthorization(", 1)[1].split(
+        "def _execution_session_id", 1
+    )[0]
+    assert "retirement.committed_supersession(" in preauth
+    assert '"supersession": supersession' in preauth
+    rebind = source.split("def _runtime_rebind(", 1)[1].split(
+        "def _operation(", 1
+    )[0]
+    assert "retirement.assert_supersession(" in rebind
+    claim = source.split("def claim(", 1)[1].split(
+        "def _binding(", 1
+    )[0]
+    assert "with global_lock():" in claim
+    assert "seed = preauthorization(" in claim
+
+
 def test_runtime_rebind_recomputes_source_and_target_release_authority() -> None:
     source = (
         ROOT / "tools" / "n3w_t1_r10_e03_successor_recovery.py"
