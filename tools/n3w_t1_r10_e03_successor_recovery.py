@@ -52,7 +52,16 @@ GATE_DROPIN = Path(
 )
 F4_HOST = Path("/usr/local/sbin/n3w-t1-f4-activation")
 F4_REBOOT_VERIFY = Path("/usr/local/sbin/n3w-t1-f4-reboot-verify")
-RUNTIME_SNAPSHOT_SCHEMA = "gh.n3w-t1-runtime-snapshot/2"
+F4_TRANSACTION = Path(
+    "/var/lib/n3w-t1-provisioning/F4_ACTIVATION_TRANSACTION.json"
+)
+EXPECTED_F4_R10_SUCCESSOR_SOURCE = (
+    "e299c937a7b89bb8a7b9a7432186ba46a416cd44"
+)
+EXPECTED_F4_R10_SUCCESSOR_MANIFEST_SHA256 = (
+    "68eb56dfc0a60ace97c6647d745322ba08121c33627b7d07b7929c13d55573aa"
+)
+RUNTIME_SNAPSHOT_SCHEMA = "gh.n3w-r10-e03-current-runtime-snapshot/1"
 
 EXPECTED_EXECSTART = (
     "ExecStart=/usr/bin/docker compose "
@@ -1255,6 +1264,11 @@ def preauthorization(
     if any(doc["state"] in maintenance.ACTIVE_STATES for doc in active):
         raise SuccessorError("other_active_transaction")
 
+    current_f4_authority = _current_f4_authority()
+    current_f4_authority_sha256 = sha_bytes(
+        canonical(current_f4_authority)
+    )
+
     service_before = _service_semantic()
     if service_before != {
         "active": "active",
@@ -1290,6 +1304,8 @@ def preauthorization(
         "predecessor_executor_blob": predecessor["executor_blob"],
         "predecessor_disposition": "ABORTED_PRECUTOVER_STAGED_IMAGE_RETAINED",
         "host_binding_sha256": observed_host,
+        "current_f4_authority": current_f4_authority,
+        "current_f4_authority_sha256": current_f4_authority_sha256,
         "current_release_id": current_release_id,
         "target_release_id": target_release_id,
         "target_source_head": TARGET_SOURCE_HEAD,
@@ -1524,6 +1540,19 @@ def _runtime_rebind(
     )
     predecessor_evidence(document["predecessor_sha256"])
     plan = document["plan"]
+    current_f4_authority = plan.get("current_f4_authority")
+    current_f4_authority_sha256 = plan.get(
+        "current_f4_authority_sha256"
+    )
+    if (
+        not isinstance(current_f4_authority, dict)
+        or not isinstance(current_f4_authority_sha256, str)
+        or SHA64.fullmatch(current_f4_authority_sha256) is None
+        or sha_bytes(canonical(current_f4_authority))
+        != current_f4_authority_sha256
+    ):
+        raise SuccessorError("current_f4_transaction_binding_drift")
+    _assert_current_f4_authority(current_f4_authority)
     identity = portable.identity_from_dict(plan["portable_identity"])
     if (
         plan.get("portable_identity_sha256") != _portable_identity_sha256(identity)
@@ -1826,6 +1855,9 @@ def _load_f4() -> ModuleType:
         "_container_established_socket_count",
         "_homeassistant_http_readiness",
         "_broker_auth_negative_and_provisioning_probe",
+        "_activation_eligibility",
+        "_read_private_record",
+        "_private_service_json",
     ):
         if not callable(getattr(module, name, None)):
             raise SuccessorError("f4_authority_contract_missing")
@@ -1845,9 +1877,148 @@ def _load_f4_reboot_verify() -> ModuleType:
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     loader.exec_module(module)
-    if not callable(getattr(module, "runtime_snapshot", None)):
+    for name in (
+        "runtime_snapshot",
+        "_service_socket_evidence",
+        "_broker_auth_evidence",
+        "_systemd_snapshot",
+        "_snapshot_run",
+    ):
+        if not callable(getattr(module, name, None)):
+            raise SuccessorError("f4_reboot_verify_contract_missing")
+    if (
+        getattr(module, "EXPECTED_SERVICES", None)
+        != frozenset({"broker", "manager", "homeassistant"})
+        or type(getattr(module, "LOG_LIMIT", None)) is not int
+        or module.LOG_LIMIT <= 0
+    ):
         raise SuccessorError("f4_reboot_verify_contract_missing")
     return module
+
+
+def _current_f4_authority(
+    *,
+    expected_sha256: str | None = None,
+) -> dict[str, Any]:
+    module = _load_f4()
+    if getattr(module, "F4_TRANSACTION", None) != F4_TRANSACTION:
+        raise SuccessorError("current_f4_transaction_path_drift")
+
+    observed_sha256 = sha_file(F4_TRANSACTION)
+    if expected_sha256 is not None:
+        if SHA64.fullmatch(expected_sha256 or "") is None:
+            raise SuccessorError("current_f4_transaction_sha256_invalid")
+        if observed_sha256 != expected_sha256:
+            raise SuccessorError("current_f4_generation_drift")
+
+    transaction = module._read_private_record(F4_TRANSACTION)
+    required_true = (
+        "authorization_claimed",
+        "authorization_consumed",
+        "runtime_started",
+        "runtime_acceptance_required",
+        "runtime_acceptance_passed",
+        "broker_services_persistence_enabled",
+        "persistence_enabled",
+        "certificate_first_audit_passed",
+        "certificate_timer_enabled",
+        "pre_reboot_ready",
+        "production_service_start",
+        "r10_candidate_upgrade_authorization_claimed",
+        "r10_candidate_upgrade_authorization_consumed",
+        "r10_candidate_upgrade_committed",
+    )
+    if (
+        transaction.get("schema")
+        != "gh.n3w-t1-f4-activation-transaction/1"
+        or transaction.get("status") != "PASS"
+        or transaction.get("stage") != "PERSISTENCE_ENABLED"
+        or transaction.get("replay_allowed") is not False
+        or transaction.get("board_access") is not False
+        or transaction.get("r10_candidate_upgrade_replay_allowed") is not False
+        or any(transaction.get(key) is not True for key in required_true)
+    ):
+        raise SuccessorError("current_f4_transaction_contract_invalid")
+
+    target_source = transaction.get("r10_candidate_upgrade_target_source")
+    manifest_sha256 = transaction.get("r10_candidate_upgrade_manifest_sha256")
+    successor_installed_sha256 = transaction.get(
+        "r10_candidate_upgrade_successor_installed_files_sha256"
+    )
+    predecessor_installed_sha256 = transaction.get(
+        "r10_candidate_upgrade_predecessor_installed_files_sha256"
+    )
+    historical_source = transaction.get("package_source_head")
+    historical_manifest = transaction.get("package_manifest_sha256")
+    certificate_status_sha256 = transaction.get("certificate_status_sha256")
+    homeassistant_mqtt_entry_id_sha256 = transaction.get(
+        "homeassistant_mqtt_entry_id_sha256"
+    )
+    if (
+        target_source != EXPECTED_F4_R10_SUCCESSOR_SOURCE
+        or manifest_sha256 != EXPECTED_F4_R10_SUCCESSOR_MANIFEST_SHA256
+        or not isinstance(successor_installed_sha256, str)
+        or SHA64.fullmatch(successor_installed_sha256) is None
+        or not isinstance(predecessor_installed_sha256, str)
+        or SHA64.fullmatch(predecessor_installed_sha256) is None
+        or not isinstance(historical_source, str)
+        or SHA40.fullmatch(historical_source) is None
+        or not isinstance(historical_manifest, str)
+        or SHA64.fullmatch(historical_manifest) is None
+        or not isinstance(certificate_status_sha256, str)
+        or SHA64.fullmatch(certificate_status_sha256) is None
+        or not isinstance(homeassistant_mqtt_entry_id_sha256, str)
+        or SHA64.fullmatch(homeassistant_mqtt_entry_id_sha256) is None
+    ):
+        raise SuccessorError("current_f4_successor_binding_invalid")
+
+    installed_files = transaction.get("installed_files")
+    if (
+        not isinstance(installed_files, dict)
+        or sha_bytes(canonical(installed_files))
+        != successor_installed_sha256
+    ):
+        raise SuccessorError("current_f4_installed_files_binding_invalid")
+
+    eligibility = module._activation_eligibility("services")
+    if (
+        not isinstance(eligibility, dict)
+        or eligibility.get("status") != "PASS"
+        or eligibility.get("transaction_stage") != "PERSISTENCE_ENABLED"
+        or eligibility.get("eligibility_phase") != "services"
+    ):
+        raise SuccessorError("current_f4_services_eligibility_invalid")
+
+    return {
+        "transaction_sha256": observed_sha256,
+        "transaction_schema": transaction["schema"],
+        "stage": transaction["stage"],
+        "status": transaction["status"],
+        "successor_target_source": target_source,
+        "successor_manifest_sha256": manifest_sha256,
+        "successor_installed_files_sha256": successor_installed_sha256,
+        "historical_package_source_head": historical_source,
+        "historical_package_manifest_sha256": historical_manifest,
+        "f4_host_sha256": sha_file(F4_HOST),
+        "runtime_probe_sha256": sha_file(F4_REBOOT_VERIFY),
+    }
+
+
+def _assert_current_f4_authority(
+    expected: Any,
+) -> dict[str, Any]:
+    if not isinstance(expected, dict):
+        raise SuccessorError("current_f4_authority_binding_invalid")
+    expected_sha256 = expected.get("transaction_sha256")
+    if (
+        not isinstance(expected_sha256, str)
+        or SHA64.fullmatch(expected_sha256) is None
+    ):
+        raise SuccessorError("current_f4_authority_binding_invalid")
+    observed = _current_f4_authority(expected_sha256=expected_sha256)
+    if observed != expected:
+        raise SuccessorError("current_f4_authority_drift")
+    return observed
 
 
 def _runtime_identity_sha256(item: dict[str, Any]) -> str:
@@ -1889,10 +2060,169 @@ def _application_owner_acceptance(plan: dict[str, Any]) -> dict[str, Any]:
     return {**semantic, "nrestarts": nrestarts}
 
 
-def _authenticated_runtime_snapshot() -> dict[str, Any]:
-    module = _load_f4_reboot_verify()
+def _current_runtime_snapshot(
+    plan: dict[str, Any],
+) -> dict[str, Any]:
+    expected = plan.get("current_f4_authority")
+    expected_authority_sha256 = plan.get(
+        "current_f4_authority_sha256"
+    )
+    if (
+        not isinstance(expected, dict)
+        or not isinstance(expected_authority_sha256, str)
+        or SHA64.fullmatch(expected_authority_sha256) is None
+        or sha_bytes(canonical(expected))
+        != expected_authority_sha256
+    ):
+        raise SuccessorError("current_f4_authority_binding_invalid")
+    _assert_current_f4_authority(expected)
+
+    probe = _load_f4_reboot_verify()
+    f4 = _load_f4()
+    inspects = {
+        name: f4._compose_service_inspect(name)
+        for name in sorted(probe.EXPECTED_SERVICES)
+    }
+    containers: dict[str, dict[str, Any]] = {}
+    for name, item in inspects.items():
+        state = item.get("State")
+        restart_count = item.get("RestartCount")
+        if (
+            not isinstance(state, dict)
+            or state.get("Running") is not True
+            or state.get("Paused") is not False
+            or state.get("Restarting") is not False
+            or not isinstance(item.get("Id"), str)
+            or not item["Id"]
+            or not isinstance(state.get("StartedAt"), str)
+            or not state["StartedAt"]
+            or isinstance(restart_count, bool)
+            or not isinstance(restart_count, int)
+        ):
+            raise SuccessorError("current_runtime_container_not_running")
+        containers[name] = {
+            "identity_sha256": sha_bytes(
+                canonical([item["Id"], state["StartedAt"]])
+            ),
+            "restart_count": restart_count,
+            "running": True,
+        }
+
+    broker_id = inspects["broker"].get("Id")
+    if not isinstance(broker_id, str) or not broker_id:
+        raise SuccessorError("current_runtime_broker_identity_invalid")
+
+    auth: dict[str, dict[str, Any]] = {}
+    for service, host, port in (
+        ("manager", "armbian", 8883),
+        ("homeassistant", "127.0.0.1", 1883),
+    ):
+        owner = 999 if service == "manager" else 0
+        identity = f4._private_service_json(
+            Path("/opt/greenhouse-secrets/mqtt")
+            / service
+            / "identity.json",
+            uid=owner,
+            gid=owner,
+        )
+        before_count, before_fingerprint = (
+            probe._service_socket_evidence(
+                inspects,
+                service,
+                host,
+                port,
+            )
+        )
+        service_state = inspects[service].get("State")
+        if (
+            not isinstance(service_state, dict)
+            or not isinstance(service_state.get("StartedAt"), str)
+        ):
+            raise SuccessorError("current_runtime_container_not_running")
+        logs = probe._snapshot_run(
+            (
+                "docker",
+                "logs",
+                "--timestamps",
+                "--since",
+                service_state["StartedAt"],
+                "--tail",
+                str(probe.LOG_LIMIT),
+                broker_id,
+            )
+        )
+        authenticated_connection = probe._broker_auth_evidence(
+            logs,
+            identity,
+        )
+        after_count, after_fingerprint = (
+            probe._service_socket_evidence(
+                inspects,
+                service,
+                host,
+                port,
+            )
+        )
+        if (
+            before_count != after_count
+            or before_fingerprint != after_fingerprint
+        ):
+            raise SuccessorError(
+                "current_runtime_socket_auth_evidence_unstable"
+            )
+        auth[service] = {
+            "authenticated": True,
+            "endpoint_port": port,
+            "identity_sha256": sha_bytes(
+                canonical(
+                    [
+                        identity["username"],
+                        identity["client_id"],
+                    ]
+                )
+            ),
+            "owned_socket_count": after_count,
+            "owned_socket_sha256": after_fingerprint,
+            "authenticated_connection_sha256": (
+                authenticated_connection
+            ),
+        }
+
+    systemd_state_sha256, critical_errors_sha256 = (
+        probe._systemd_snapshot(f4)
+    )
+    f4._homeassistant_http_readiness()
+    _assert_current_f4_authority(expected)
+
+    return {
+        "schema": RUNTIME_SNAPSHOT_SCHEMA,
+        "status": "PASS",
+        "boot_id_sha256": sha_file(
+            Path("/proc/sys/kernel/random/boot_id")
+        ),
+        "f4_transaction_sha256": expected["transaction_sha256"],
+        "f4_authority_sha256": expected_authority_sha256,
+        "f4_successor_target_source": expected[
+            "successor_target_source"
+        ],
+        "f4_successor_manifest_sha256": expected[
+            "successor_manifest_sha256"
+        ],
+        "f4_host_sha256": expected["f4_host_sha256"],
+        "runtime_probe_sha256": expected["runtime_probe_sha256"],
+        "containers": containers,
+        "runtime_service_auth": auth,
+        "systemd_state_sha256": systemd_state_sha256,
+        "critical_errors_sha256": critical_errors_sha256,
+        "homeassistant_http_ready": True,
+    }
+
+
+def _authenticated_runtime_snapshot(
+    plan: dict[str, Any],
+) -> dict[str, Any]:
     try:
-        document = module.runtime_snapshot()
+        document = _current_runtime_snapshot(plan)
     except Exception as error:
         raise SuccessorError(
             "authenticated_runtime_snapshot_failed"
@@ -1906,14 +2236,35 @@ def _authenticated_runtime_snapshot() -> dict[str, Any]:
         raise SuccessorError("authenticated_runtime_snapshot_invalid")
     for key in (
         "boot_id_sha256",
-        "control_manifest_sha256",
+        "f4_transaction_sha256",
+        "f4_authority_sha256",
+        "f4_successor_manifest_sha256",
+        "f4_host_sha256",
+        "runtime_probe_sha256",
         "systemd_state_sha256",
         "critical_errors_sha256",
     ):
         value = document.get(key)
         if not isinstance(value, str) or SHA64.fullmatch(value) is None:
             raise SuccessorError("authenticated_runtime_snapshot_digest_invalid")
-    source_head = document.get("source_head")
+    expected = plan.get("current_f4_authority")
+    if (
+        not isinstance(expected, dict)
+        or document.get("f4_transaction_sha256")
+        != expected.get("transaction_sha256")
+        or document.get("f4_authority_sha256")
+        != plan.get("current_f4_authority_sha256")
+        or document.get("f4_successor_target_source")
+        != expected.get("successor_target_source")
+        or document.get("f4_successor_manifest_sha256")
+        != expected.get("successor_manifest_sha256")
+        or document.get("f4_host_sha256")
+        != expected.get("f4_host_sha256")
+        or document.get("runtime_probe_sha256")
+        != expected.get("runtime_probe_sha256")
+    ):
+        raise SuccessorError("authenticated_runtime_f4_binding_invalid")
+    source_head = document.get("f4_successor_target_source")
     if not isinstance(source_head, str) or SHA40.fullmatch(source_head) is None:
         raise SuccessorError("authenticated_runtime_snapshot_source_invalid")
 
@@ -2087,7 +2438,7 @@ def strict_acceptance(
             TARGET_MANAGER_IMAGE
         )
     )
-    authenticated_baseline = _authenticated_runtime_snapshot()
+    authenticated_baseline = _authenticated_runtime_snapshot(plan)
 
     baseline = {
         "manager_container_id": manager["container_id"],
@@ -2130,7 +2481,7 @@ def strict_acceptance(
     if ha_mqtt_hash() != plan["ha_mqtt_sha256"]:
         raise SuccessorError("ha_mqtt_stability_changed")
     module._homeassistant_http_readiness()
-    authenticated_final = _authenticated_runtime_snapshot()
+    authenticated_final = _authenticated_runtime_snapshot(plan)
     if authenticated_final != authenticated_baseline:
         raise SuccessorError("authenticated_runtime_evidence_changed")
 
@@ -2744,6 +3095,9 @@ def main() -> int:
                 "status": "PASS",
                 "operation": "preauth",
                 "portable_identity_sha256": plan["portable_identity_sha256"],
+                "current_f4_authority_sha256": plan[
+                    "current_f4_authority_sha256"
+                ],
                 "preauth_plan_sha256": preauth_plan_sha256,
                 "predecessor_sha256": plan["predecessor_sha256"],
                 "current_release_id": plan["current_release_id"],
