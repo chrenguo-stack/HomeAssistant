@@ -2595,8 +2595,6 @@ def apply(transaction_id: str, execution_session_id: str) -> dict[str, Any]:
                 action="apply",
             )
             document = _save(store, document, session_document)
-        plan = document["plan"]
-        identity = portable.identity_from_dict(plan["portable_identity"])
         if document["state"] == "ABORTED":
             return public_result(
                 document,
@@ -2606,6 +2604,8 @@ def apply(transaction_id: str, execution_session_id: str) -> dict[str, Any]:
                 mutation_observed=False,
                 recovery_class="ABORTED_NO_REPLAY",
             )
+        plan = document["plan"]
+        identity = portable.identity_from_dict(plan["portable_identity"])
         if document["state"] == "COMMITTED":
             return public_result(
                 document,
