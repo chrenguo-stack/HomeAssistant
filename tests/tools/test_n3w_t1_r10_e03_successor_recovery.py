@@ -338,7 +338,13 @@ def test_manager_duplicate_mqtt_socket_is_fatal(
         _container_established_socket_count=lambda name, port: 2 if port == 8883 else 1,
     )
     monkeypatch.setattr(successor, "systemctl", lambda *_args: "active")
-    monkeypatch.setattr(successor, "_verify_candidate_identity", lambda _identity: None)
+    monkeypatch.setattr(
+        successor,
+        "_verify_candidate_identity",
+        lambda _identity: SimpleNamespace(
+            runtime_image_id="sha256:" + "1" * 64
+        ),
+    )
     monkeypatch.setattr(
         successor,
         "runtime",
@@ -844,3 +850,215 @@ def test_direct_rollback_unknown_reality_persists_blocked(
     assert result["status"] == "STOP"
     assert result["recovery_class"] == "BLOCKED_ROLLBACK_UNPROVEN"
     assert store.load()["state"] == "BLOCKED"
+
+
+def test_readiness_rejects_disabled_application_owner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        successor,
+        "systemctl",
+        lambda mode, _unit: "disabled" if mode == "is-enabled" else "active",
+    )
+    with pytest.raises(
+        successor.SuccessorError,
+        match="services_owner_enablement_drift",
+    ):
+        successor.mqtt_readiness_sample(object(), identity=object())
+
+
+def test_readiness_requires_running_manager_host_local_image_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = SimpleNamespace(
+        _compose_service_inspect=lambda service: {"Name": f"/{service}"},
+        _container_established_socket_count=lambda _name, _port: 1,
+    )
+    monkeypatch.setattr(successor, "systemctl", lambda *_args: "enabled")
+    monkeypatch.setattr(
+        successor,
+        "systemctl",
+        lambda mode, _unit: "enabled" if mode == "is-enabled" else "active",
+    )
+    monkeypatch.setattr(
+        successor,
+        "_verify_candidate_identity",
+        lambda _identity: SimpleNamespace(
+            runtime_image_id="sha256:" + "a" * 64
+        ),
+    )
+    monkeypatch.setattr(
+        successor,
+        "runtime",
+        lambda service: {
+            "container_id": service,
+            "image_id": (
+                "sha256:" + "b" * 64
+                if service == "manager"
+                else successor.HA_IMAGE_ID
+            ),
+            "image_ref": (
+                successor.TARGET_MANAGER_IMAGE
+                if service == "manager"
+                else successor.HA_IMAGE
+            ),
+            "started_at": "start",
+            "restart_count": 0,
+            "network_mode": "host",
+        },
+    )
+    with pytest.raises(
+        successor.SuccessorError,
+        match="manager_running_image_binding_invalid",
+    ):
+        successor.mqtt_readiness_sample(module, identity=object())
+
+
+def test_post_ledger_requires_hardware_session_and_expiry_proof() -> None:
+    attempt = {
+        "pairing_id_sha256": successor.PAIRING_SHA256,
+        "hardware_id_sha256": successor.HARDWARE_SHA256,
+        "state": "EXPIRED",
+        "phase": "TERMINAL",
+        "cleanup_state": "COMPLETE",
+        "node_id_present": False,
+        "terminal_at_present": True,
+        "terminal_reason": "expired",
+        "expired_by_clock": True,
+        "session_state": "expired",
+        "session_reason": "expired",
+        "session_hardware_sha256": successor.HARDWARE_SHA256,
+        "registration_match_count": 0,
+        "current_pairing_matches": False,
+        "registration_node_id_present": False,
+        "pairing_credential_count": 0,
+        "hardware_credential_history_count": 0,
+    }
+    document = {
+        "attempt_count": 1,
+        "registration_count": 0,
+        "registration_inventory_sha256": successor.EMPTY_INVENTORY_SHA256,
+        "unresolved_count": 0,
+        "attempts": [attempt],
+    }
+    successor.validate_post_ledger(document)
+    changed = __import__("copy").deepcopy(document)
+    changed["attempts"][0]["session_hardware_sha256"] = "0" * 64
+    with pytest.raises(successor.SuccessorError, match="post_ledger_state_invalid"):
+        successor.validate_post_ledger(changed)
+    changed = __import__("copy").deepcopy(document)
+    changed["attempts"][0]["expired_by_clock"] = False
+    with pytest.raises(successor.SuccessorError, match="post_ledger_state_invalid"):
+        successor.validate_post_ledger(changed)
+
+
+def _strong_snapshot() -> dict[str, object]:
+    runtimes = {
+        "broker": {
+            "container_id": "broker-id",
+            "started_at": "broker-start",
+            "restart_count": 0,
+        },
+        "manager": {
+            "container_id": "manager-id",
+            "started_at": "manager-start",
+            "restart_count": 0,
+        },
+        "homeassistant": {
+            "container_id": "ha-id",
+            "started_at": "ha-start",
+            "restart_count": 0,
+        },
+    }
+    return {
+        "schema": successor.RUNTIME_SNAPSHOT_SCHEMA,
+        "status": "PASS",
+        "boot_id_sha256": "1" * 64,
+        "source_head": "2" * 40,
+        "control_manifest_sha256": "3" * 64,
+        "systemd_state_sha256": "4" * 64,
+        "critical_errors_sha256": "5" * 64,
+        "homeassistant_http_ready": True,
+        "containers": {
+            name: {
+                "identity_sha256": successor.sha_bytes(
+                    successor.canonical([
+                        item["container_id"],
+                        item["started_at"],
+                    ])
+                ),
+                "restart_count": 0,
+                "running": True,
+            }
+            for name, item in runtimes.items()
+        },
+        "runtime_service_auth": {
+            "manager": {
+                "authenticated": True,
+                "endpoint_port": 8883,
+                "identity_sha256": "6" * 64,
+                "owned_socket_count": 1,
+                "owned_socket_sha256": "7" * 64,
+                "authenticated_connection_sha256": "8" * 64,
+            },
+            "homeassistant": {
+                "authenticated": True,
+                "endpoint_port": 1883,
+                "identity_sha256": "9" * 64,
+                "owned_socket_count": 1,
+                "owned_socket_sha256": "a" * 64,
+                "authenticated_connection_sha256": "b" * 64,
+            },
+        },
+    }
+
+
+def test_authenticated_runtime_snapshot_rebinds_container_and_auth_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    snapshot = _strong_snapshot()
+    module = SimpleNamespace(runtime_snapshot=lambda: snapshot)
+    monkeypatch.setattr(successor, "_load_f4_reboot_verify", lambda: module)
+
+    runtimes = {
+        "broker": {
+            "container_id": "broker-id",
+            "started_at": "broker-start",
+            "restart_count": 0,
+        },
+        "manager": {
+            "container_id": "manager-id",
+            "started_at": "manager-start",
+            "restart_count": 0,
+        },
+        "homeassistant": {
+            "container_id": "ha-id",
+            "started_at": "ha-start",
+            "restart_count": 0,
+        },
+    }
+    monkeypatch.setattr(successor, "runtime", lambda service: runtimes[service])
+    assert successor._authenticated_runtime_snapshot() == snapshot
+
+    snapshot["runtime_service_auth"]["manager"]["authenticated"] = False
+    with pytest.raises(
+        successor.SuccessorError,
+        match="authenticated_runtime_service_invalid:manager",
+    ):
+        successor._authenticated_runtime_snapshot()
+
+
+def test_auth_probe_contract_cannot_claim_live_auth_from_partial_probe() -> None:
+    with pytest.raises(
+        successor.SuccessorError,
+        match="broker_auth_probe_contract_invalid",
+    ):
+        successor._validate_auth_probe(
+            {
+                "manager_wrong_client_id_rejected": True,
+                "provisioning_wrong_client_id_rejected": True,
+                "homeassistant_wrong_client_id_rejected": True,
+                "anonymous_rejected": True,
+                "provisioning_exact_credential_auth": False,
+            }
+        )
