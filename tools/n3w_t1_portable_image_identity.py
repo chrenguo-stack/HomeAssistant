@@ -463,6 +463,8 @@ def _parse_oci(
     if len(selected) != 1:
         raise PortableImageIdentityError("oci_platform_ambiguous")
     descriptor = selected[0]
+    if descriptor.get("mediaType") not in OCI_MANIFEST_MEDIA_TYPES:
+        raise UnsupportedImageArchive("oci_manifest_media_type_unsupported")
     manifest_bytes, _ = _descriptor_blob(
         archive, descriptor, name="manifest", json_blob=True
     )
@@ -471,6 +473,11 @@ def _parse_oci(
     if not isinstance(manifest, dict) or manifest.get("schemaVersion") != 2:
         raise UnsupportedImageArchive("oci_manifest_unsupported")
     config_descriptor = manifest.get("config")
+    if (
+        not isinstance(config_descriptor, dict)
+        or config_descriptor.get("mediaType") not in OCI_CONFIG_MEDIA_TYPES
+    ):
+        raise UnsupportedImageArchive("oci_config_media_type_unsupported")
     config_bytes, _ = _descriptor_blob(
         archive, config_descriptor, name="config", json_blob=True
     )
