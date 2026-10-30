@@ -159,7 +159,7 @@ def test_second_active_transaction_is_rejected() -> None:
 
 def test_transaction_store_is_generation_checked_and_durable(tmp_path: Path) -> None:
     path = tmp_path / "txn.json"
-    store = tx.TransactionStore(path)
+    store = tx.TransactionStore(path, enforce_root_metadata=False)
     value = document()
     store.create(value)
     loaded = store.load()
@@ -198,3 +198,52 @@ def test_transaction_json_contains_no_raw_authorization_id() -> None:
     raw = json.dumps(value, sort_keys=True)
     assert "authorization_id_sha256" in raw
     assert "N3W_" not in raw
+
+
+def test_operation_intent_and_completion_are_durable_records() -> None:
+    value = claimed()
+    intent = tx.begin_operation(
+        value,
+        operation_type="compose_publish",
+        before_fingerprint="8" * 64,
+        intended_after_fingerprint="9" * 64,
+    )
+    pending = tx.pending_operation(intent)
+    assert pending is not None
+    assert pending["status"] == "INTENT"
+    assert pending["operation_seq"] == 1
+
+    complete = tx.finish_operation(
+        intent,
+        observed_after_fingerprint="9" * 64,
+    )
+    assert tx.pending_operation(complete) is None
+    assert complete["operations"][-1]["status"] == "COMPLETE"
+    assert complete["operations"][-1]["observed_after_fingerprint"] == "9" * 64
+
+
+def test_second_operation_cannot_start_while_intent_pending() -> None:
+    value = tx.begin_operation(
+        claimed(),
+        operation_type="service_stop",
+        before_fingerprint="1" * 64,
+        intended_after_fingerprint="2" * 64,
+    )
+    with pytest.raises(
+        tx.MaintenanceTransactionError,
+        match="operation_intent_already_pending",
+    ):
+        tx.begin_operation(
+            value,
+            operation_type="compose_publish",
+            before_fingerprint="8" * 64,
+            intended_after_fingerprint="9" * 64,
+        )
+
+
+def test_operation_sequence_is_independent_from_state_transitions() -> None:
+    value = document()
+    value = tx.mark_ready(value)
+    value = tx.claim_authorization(value)
+    assert value["operation_seq"] == 0
+    assert value["operations"] == []
