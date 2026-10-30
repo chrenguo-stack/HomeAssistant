@@ -860,6 +860,21 @@ def predecessor_evidence(expected_sha256: str) -> dict[str, Any]:
         pattern = SHA40 if key in {"executor_source_head", "executor_blob"} else SHA64
         if not isinstance(raw, str) or pattern.fullmatch(raw) is None:
             raise SuccessorError(f"predecessor_field_invalid:{key}")
+    for key in ("broker_container_id", "manager_predecessor_container_id"):
+        raw = value.get(key)
+        if not isinstance(raw, str) or re.fullmatch(r"[0-9a-f]{64}", raw) is None:
+            raise SuccessorError(f"predecessor_field_invalid:{key}")
+    if (
+        not isinstance(value.get("broker_image_id"), str)
+        or IMAGE_ID.fullmatch(value["broker_image_id"]) is None
+        or not isinstance(value.get("broker_started_at"), str)
+        or not value["broker_started_at"]
+    ):
+        raise SuccessorError("predecessor_broker_binding_invalid")
+    for key in ("broker_restart_count", "services_nrestarts"):
+        raw = value.get(key)
+        if isinstance(raw, bool) or not isinstance(raw, int) or raw < 0:
+            raise SuccessorError(f"predecessor_field_invalid:{key}")
     return value
 
 
@@ -1100,6 +1115,8 @@ def preauthorization(
         or manager["restart_count"] != 0
     ):
         raise SuccessorError("manager_runtime_drift")
+    if manager["container_id"] != predecessor["manager_predecessor_container_id"]:
+        raise SuccessorError("manager_predecessor_continuity_drift")
     if (
         ha["image_ref"] != HA_IMAGE
         or ha["image_id"] != HA_IMAGE_ID
@@ -1113,6 +1130,19 @@ def preauthorization(
         or broker["restart_count"] != 0
     ):
         raise SuccessorError("broker_runtime_drift")
+    if any(
+        broker[key] != predecessor[predecessor_key]
+        for key, predecessor_key in (
+            ("container_id", "broker_container_id"),
+            ("image_id", "broker_image_id"),
+            ("started_at", "broker_started_at"),
+            ("restart_count", "broker_restart_count"),
+        )
+    ):
+        raise SuccessorError("broker_predecessor_continuity_drift")
+    observed_services_nrestarts = systemd_nrestarts(SERVICES_UNIT)
+    if observed_services_nrestarts != predecessor["services_nrestarts"]:
+        raise SuccessorError("services_owner_restart_continuity_drift")
 
     _runtime_image_exists(OLD_MANAGER_ID, OLD_MANAGER_ID)
     _runtime_image_exists(OLD_MANAGER_IMAGE, OLD_MANAGER_ID)
@@ -1195,7 +1225,7 @@ def preauthorization(
         "gate_after_fingerprint": gate_after,
         "broker_baseline": broker,
         "manager_predecessor_container_id": manager["container_id"],
-        "services_nrestarts": systemd_nrestarts(SERVICES_UNIT),
+        "services_nrestarts": observed_services_nrestarts,
         "ha_mqtt_sha256": predecessor["ha_mqtt_sha256"],
         "state_paths": host_paths,
         "rollback_policy": "EXACT_CANDIDATE_TO_EXACT_BEFORE_ONLY",
