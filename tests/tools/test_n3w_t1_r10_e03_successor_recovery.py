@@ -684,3 +684,161 @@ def test_preauth_source_rebinds_old_runtime_continuity() -> None:
     assert "services_owner_restart_continuity_drift" in section
     assert 'predecessor["manager_predecessor_container_id"]' in section
     assert 'predecessor["services_nrestarts"]' in section
+
+
+def _rolling_back_document() -> dict[str, object]:
+    document = _document(state="APPLYING")
+    publish = tx.begin_operation(
+        document,
+        operation_type="compose_publish",
+        before_fingerprint="1" * 64,
+        intended_after_fingerprint="2" * 64,
+        allowed_states={"APPLYING"},
+    )
+    document = tx.finish_operation(
+        publish,
+        observed_after_fingerprint="2" * 64,
+    )
+    document = tx.transition(
+        document,
+        "VERIFYING",
+        operation="candidate_published_owner_controlled",
+        observed_after={"compose": "2" * 64},
+    )
+    return tx.transition(
+        document,
+        "ROLLING_BACK",
+        operation="rollback_begin",
+        reason="test",
+    )
+
+
+def test_ready_failure_can_be_persisted_as_blocked(tmp_path: Path) -> None:
+    document = _document(state="READY")
+    store = _store(tmp_path, document)
+    blocked = successor._block(store, document, reason="gate_install_failed")
+    assert blocked["state"] == "BLOCKED"
+    assert store.load()["state"] == "BLOCKED"
+
+
+def test_rollback_becomes_terminal_only_after_runtime_start_and_validation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    document = _rolling_back_document()
+    store = _store(tmp_path, document)
+    reality = {
+        "service": "5" * 64,
+        "compose": "2" * 64,
+    }
+
+    monkeypatch.setattr(
+        successor,
+        "_runtime_rebind",
+        lambda *_args, **_kwargs: _binding(),
+    )
+    monkeypatch.setattr(
+        successor,
+        "_service_fingerprint",
+        lambda: reality["service"],
+    )
+    monkeypatch.setattr(
+        successor,
+        "_stop_services",
+        lambda: reality.__setitem__("service", "4" * 64),
+    )
+    monkeypatch.setattr(successor, "_broker_continuity", lambda _plan: {})
+    monkeypatch.setattr(
+        successor,
+        "_compose_reality",
+        lambda _plan: reality["compose"],
+    )
+    monkeypatch.setattr(
+        successor,
+        "_restore_compose",
+        lambda _plan: reality.__setitem__("compose", "1" * 64),
+    )
+
+    def gate_restored() -> None:
+        current = store.load()
+        assert current["state"] == "ROLLING_BACK"
+        assert any(
+            item["operation_type"] == "compose_rollback"
+            and item["status"] == "COMPLETE"
+            and item["observed_after_fingerprint"] == "1" * 64
+            for item in current["operations"]
+        )
+
+    monkeypatch.setattr(
+        successor,
+        "_assert_gate_rollback_restored",
+        gate_restored,
+    )
+    monkeypatch.setattr(
+        successor,
+        "_runtime_image_exists",
+        lambda *_args, **_kwargs: None,
+    )
+
+    def start_services() -> None:
+        assert store.load()["state"] == "ROLLING_BACK"
+        reality["service"] = "5" * 64
+
+    monkeypatch.setattr(successor, "_start_services", start_services)
+
+    def runtime(service: str):
+        if service == "manager":
+            return {
+                "image_ref": successor.OLD_MANAGER_IMAGE,
+                "image_id": successor.OLD_MANAGER_ID,
+                "network_mode": "host",
+                "restart_count": 0,
+            }
+        if service == "homeassistant":
+            return {
+                "image_ref": successor.HA_IMAGE,
+                "image_id": successor.HA_IMAGE_ID,
+                "network_mode": "host",
+                "restart_count": 0,
+            }
+        raise AssertionError(service)
+
+    monkeypatch.setattr(successor, "runtime", runtime)
+
+    result = successor.rollback(
+        "txn-e03-successor-test-0001",
+        reason="test",
+        execution_session_id=None,
+        _store=store,
+        _document=document,
+    )
+
+    assert result["status"] == "PASS"
+    assert result["recovery_class"] == "ROLLED_BACK"
+    assert store.load()["state"] == "ROLLED_BACK"
+
+
+def test_direct_rollback_unknown_reality_persists_blocked(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    document = _rolling_back_document()
+    store = _store(tmp_path, document)
+    monkeypatch.setattr(
+        successor,
+        "_runtime_rebind",
+        lambda *_args, **_kwargs: _binding(),
+    )
+    monkeypatch.setattr(successor, "_service_fingerprint", lambda: "9" * 64)
+
+    result = successor.rollback(
+        "txn-e03-successor-test-0001",
+        reason="test",
+        execution_session_id=None,
+        _store=store,
+        _document=document,
+    )
+
+    assert result["status"] == "STOP"
+    assert result["recovery_class"] == "BLOCKED_ROLLBACK_UNPROVEN"
+    assert store.load()["state"] == "BLOCKED"
