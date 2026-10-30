@@ -1,3 +1,17 @@
+## 2026-10-30 — E03 claimed transaction successor authority design frozen
+
+- Repaired E03 source authority: `19af94566ead0c08a8d3665cc2b538b90f2b500b`.
+- Post-claim executor takeover is rejected because executor source/module-set/plan are immutable transaction bindings.
+- Selected route: terminal replacement.
+- Old live transaction remains READY with authorization consumed and replay forbidden; no retirement has been executed.
+- Future retirement requires a separate one-shot maintenance-ledger authorization and exact proof of operation_seq=0, no pending operation, and deployment/service/gate reality all EXACT_BEFORE.
+- Old transaction target terminal state: ABORTED. Immutable transaction bindings remain unchanged.
+- Replacement E03 requires a new transaction ID, new authorization, new preauth plan, repaired executor and immutable supersession evidence.
+- Retirement does not authorize replacement claim; replacement claim does not authorize apply.
+- No T1 access, live transaction mutation, product mutation, board access or merge occurred in this design gate.
+- Design authority: `docs/development/N3W_T1_E03_CLAIMED_TRANSACTION_SUCCESSOR_AUTHORITY_SOURCE_DESIGN_20261030.md`.
+- Next ONE gate: `N3W_T1_E03_CLAIMED_TRANSACTION_RETIREMENT_SOURCE_REPAIR_20261030_01`.
+
 ## 2026-10-30 — E03 successor post-claim read-only forensic CLOSED_PASS
 
 - Exact PR #740 source HEAD: `16d568ed577a050e23ee0061203d2a4d09cd19a0`.
