@@ -1291,12 +1291,13 @@ def test_successor_target_release_binding_uses_common_production_contract(
 
     monkeypatch.setattr(
         successor.production_contract,
-        "portable_deployment_binding_id",
+        "portable_deployment_binding_id_v2",
         common_binding,
     )
     result = successor._target_release_id(
         identity,
         "f" * 64,
+        "a" * 64,
         {
             "execstart_sha256": "1" * 64,
             "execstop_sha256": "2" * 64,
@@ -1305,6 +1306,10 @@ def test_successor_target_release_binding_uses_common_production_contract(
     assert result == "e" * 64
     assert captured["identity"] == identity
     assert captured["artifact_sha256"] == successor.TARGET_ARTIFACT_SHA256
+    assert captured["deployment_inputs"] == {
+        "compose_sha256": "f" * 64,
+        "compose_env_sha256": "a" * 64,
+    }
 
 
 def test_successor_module_authority_includes_production_contract_source() -> None:
@@ -1318,7 +1323,7 @@ def test_successor_module_authority_includes_production_contract_source() -> Non
     target_section = source.split("def _target_release_id(", 1)[1].split(
         "def ", 1
     )[0]
-    assert "production_contract.portable_deployment_binding_id" in target_section
+    assert "production_contract.portable_deployment_binding_id_v2" in target_section
     assert "gh.n3w-r10-e03-target-release-binding/1" not in target_section
 
 
