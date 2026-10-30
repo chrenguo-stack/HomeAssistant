@@ -35,6 +35,7 @@ GZIP_LAYER_MEDIA_TYPES = frozenset({
     "application/vnd.docker.image.rootfs.foreign.diff.tar.gzip",
 })
 MAX_ARCHIVE_BYTES = 32 * 1024 * 1024 * 1024
+MAX_LAYER_UNCOMPRESSED_BYTES = 32 * 1024 * 1024 * 1024
 MAX_TAR_MEMBERS = 200_000
 
 CONFIG_FIELDS = (
@@ -243,8 +244,14 @@ class SafeTar:
         else:
             raise UnsupportedImageArchive("oci_layer_media_type_unsupported")
         digest = hashlib.sha256()
+        size = 0
         try:
             for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                size += len(chunk)
+                if size > MAX_LAYER_UNCOMPRESSED_BYTES:
+                    raise PortableImageIdentityError(
+                        "oci_layer_uncompressed_size_limit_exceeded"
+                    )
                 digest.update(chunk)
         except (OSError, EOFError) as error:
             raise PortableImageIdentityError(
