@@ -1,3 +1,37 @@
+## 2026-10-30 — E03 claimed transaction successor authority design frozen
+
+~~~text
+TASK=N3W_T1_E03_CLAIMED_TRANSACTION_SUCCESSOR_AUTHORITY_SOURCE_DESIGN_20261030_01
+PR740_REPAIRED_SOURCE_HEAD=19af94566ead0c08a8d3665cc2b538b90f2b500b
+POSTCLAIM_EXECUTOR_TAKEOVER=REJECTED
+TERMINAL_REPLACEMENT=SELECTED
+OLD_TRANSACTION_CURRENT_STATE=READY
+OLD_AUTHORIZATION_CONSUMED=true
+OLD_AUTHORIZATION_REPLAY_ALLOWED=false
+OLD_TRANSACTION_TARGET_STATE=ABORTED
+NEW_TRANSACTION_ID_REQUIRED=true
+NEW_AUTHORIZATION_REQUIRED=true
+NEW_PREAUTH_PLAN_REQUIRED=true
+SUPERSESSION_EVIDENCE_REQUIRED=true
+T1_ACCESS_THIS_GATE=false
+LIVE_TRANSACTION_MUTATION=false
+PRODUCT_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+SOURCE_DESIGN=FROZEN
+CURRENT_STOP_POINT=DESIGN_FROZEN_BEFORE_RETIREMENT_SOURCE_REPAIR
+NEXT_ONE_GATE=N3W_T1_E03_CLAIMED_TRANSACTION_RETIREMENT_SOURCE_REPAIR_20261030_01
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+The already-claimed E03 successor transaction must not be taken over by the repaired executor because executor source, module set, plan SHA and plan are immutable transaction bindings.
+
+The frozen route is terminal replacement. A separately authorized maintenance-ledger retirement executor will first prove that the old transaction is still READY, consumed/no-replay, operation_seq=0 with no pending operation and all mutable product surfaces exactly BEFORE. It may then transition only READY -> ABORTED while preserving every immutable binding. A durable retirement record must bind the exact before/after transaction hashes and the one-shot retirement authority.
+
+A replacement E03 transaction is a completely new transaction with a new authorization, new plan and repaired executor. Its plan must immutably bind the final ABORTED old transaction and committed retirement evidence. Retirement does not authorize the replacement claim, and replacement claim does not authorize apply.
+
+Design authority: docs/development/N3W_T1_E03_CLAIMED_TRANSACTION_SUCCESSOR_AUTHORITY_SOURCE_DESIGN_20261030.md.
+
 ## 2026-10-30 — E03 successor post-claim read-only forensic CLOSED_PASS
 
 ~~~text
