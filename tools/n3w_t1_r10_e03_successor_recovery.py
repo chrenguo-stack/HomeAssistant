@@ -1036,9 +1036,14 @@ def _target_release_id(
 def preauthorization(
     *,
     identity: portable.PortableImageIdentity,
+    expected_identity_sha256: str,
     predecessor_sha256: str,
     expected_host_binding_sha256: str,
 ) -> dict[str, Any]:
+    if SHA64.fullmatch(expected_identity_sha256 or "") is None:
+        raise SuccessorError("portable_identity_sha256_invalid")
+    if _portable_identity_sha256(identity) != expected_identity_sha256:
+        raise SuccessorError("portable_identity_sha256_mismatch")
     predecessor = predecessor_evidence(predecessor_sha256)
     observed_host = host_binding_sha256()
     if observed_host != expected_host_binding_sha256:
@@ -1251,6 +1256,7 @@ def _build_full_plan(
 def claim(
     *,
     identity: portable.PortableImageIdentity,
+    expected_identity_sha256: str,
     predecessor_sha256: str,
     expected_host_binding_sha256: str,
     expected_preauth_plan_sha256: str,
@@ -1270,6 +1276,7 @@ def claim(
     authority = runtime_authority()
     seed = preauthorization(
         identity=identity,
+        expected_identity_sha256=expected_identity_sha256,
         predecessor_sha256=predecessor_sha256,
         expected_host_binding_sha256=expected_host_binding_sha256,
     )
@@ -1367,6 +1374,10 @@ def _runtime_rebind(
     predecessor_evidence(document["predecessor_sha256"])
     plan = document["plan"]
     identity = portable.identity_from_dict(plan["portable_identity"])
+    if (
+        plan.get("portable_identity_sha256") != _portable_identity_sha256(identity)
+    ):
+        raise SuccessorError("portable_identity_transaction_binding_drift")
     _verify_candidate_identity(identity)
     if (
         plan["current_release_id"] != binding.current_release_id
@@ -2266,6 +2277,7 @@ def main() -> int:
             )
             plan = preauthorization(
                 identity=identity,
+                expected_identity_sha256=args.portable_identity_sha256,
                 predecessor_sha256=args.predecessor_sha256,
                 expected_host_binding_sha256=args.host_binding_sha256,
             )
@@ -2296,6 +2308,7 @@ def main() -> int:
             )
             result = claim(
                 identity=identity,
+                expected_identity_sha256=args.portable_identity_sha256,
                 predecessor_sha256=args.predecessor_sha256,
                 expected_host_binding_sha256=args.host_binding_sha256,
                 expected_preauth_plan_sha256=args.preauth_plan_sha256,
