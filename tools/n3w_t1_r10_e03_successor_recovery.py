@@ -1842,9 +1842,40 @@ def _restore_deployment_env(plan: dict[str, Any]) -> None:
     )
 
 
+def _reviewed_f4_helper(
+    path: Path,
+    *,
+    expected_blob: str,
+    unavailable_reason: str,
+    drift_reason: str,
+) -> dict[str, str]:
+    if path.is_symlink() or not path.is_file():
+        raise SuccessorError(unavailable_reason)
+    metadata = path.stat()
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_uid != 0
+        or metadata.st_gid != 0
+        or metadata.st_nlink != 1
+        or stat.S_IMODE(metadata.st_mode) != 0o755
+    ):
+        raise SuccessorError(drift_reason)
+    observed_blob = git_blob(path)
+    if observed_blob != expected_blob:
+        raise SuccessorError(drift_reason)
+    return {
+        "blob": observed_blob,
+        "sha256": sha_file(path),
+    }
+
+
 def _load_f4() -> ModuleType:
-    if F4_HOST.is_symlink() or not F4_HOST.is_file():
-        raise SuccessorError("f4_authority_unavailable")
+    _reviewed_f4_helper(
+        F4_HOST,
+        expected_blob=EXPECTED_F4_HOST_BLOB,
+        unavailable_reason="f4_authority_unavailable",
+        drift_reason="current_f4_helper_source_drift",
+    )
     loader = importlib.machinery.SourceFileLoader("n3w_e03_f4_authority", str(F4_HOST))
     spec = importlib.util.spec_from_loader(loader.name, loader)
     if spec is None:
@@ -1867,8 +1898,12 @@ def _load_f4() -> ModuleType:
 
 
 def _load_f4_reboot_verify() -> ModuleType:
-    if F4_REBOOT_VERIFY.is_symlink() or not F4_REBOOT_VERIFY.is_file():
-        raise SuccessorError("f4_reboot_verify_authority_unavailable")
+    _reviewed_f4_helper(
+        F4_REBOOT_VERIFY,
+        expected_blob=EXPECTED_F4_RUNTIME_PROBE_BLOB,
+        unavailable_reason="f4_reboot_verify_authority_unavailable",
+        drift_reason="current_f4_helper_source_drift",
+    )
     loader = importlib.machinery.SourceFileLoader(
         "n3w_e03_f4_reboot_verify_authority",
         str(F4_REBOOT_VERIFY),
@@ -1902,6 +1937,18 @@ def _current_f4_authority(
     *,
     expected_sha256: str | None = None,
 ) -> dict[str, Any]:
+    host_helper = _reviewed_f4_helper(
+        F4_HOST,
+        expected_blob=EXPECTED_F4_HOST_BLOB,
+        unavailable_reason="f4_authority_unavailable",
+        drift_reason="current_f4_helper_source_drift",
+    )
+    runtime_probe = _reviewed_f4_helper(
+        F4_REBOOT_VERIFY,
+        expected_blob=EXPECTED_F4_RUNTIME_PROBE_BLOB,
+        unavailable_reason="f4_reboot_verify_authority_unavailable",
+        drift_reason="current_f4_helper_source_drift",
+    )
     module = _load_f4()
     if getattr(module, "F4_TRANSACTION", None) != F4_TRANSACTION:
         raise SuccessorError("current_f4_transaction_path_drift")
@@ -1981,12 +2028,6 @@ def _current_f4_authority(
         != successor_installed_sha256
     ):
         raise SuccessorError("current_f4_installed_files_binding_invalid")
-    if (
-        git_blob(F4_HOST) != EXPECTED_F4_HOST_BLOB
-        or git_blob(F4_REBOOT_VERIFY) != EXPECTED_F4_RUNTIME_PROBE_BLOB
-    ):
-        raise SuccessorError("current_f4_helper_source_drift")
-
     eligibility = module._activation_eligibility("services")
     if (
         not isinstance(eligibility, dict)
@@ -2006,10 +2047,10 @@ def _current_f4_authority(
         "successor_installed_files_sha256": successor_installed_sha256,
         "historical_package_source_head": historical_source,
         "historical_package_manifest_sha256": historical_manifest,
-        "f4_host_blob": EXPECTED_F4_HOST_BLOB,
-        "runtime_probe_blob": EXPECTED_F4_RUNTIME_PROBE_BLOB,
-        "f4_host_sha256": sha_file(F4_HOST),
-        "runtime_probe_sha256": sha_file(F4_REBOOT_VERIFY),
+        "f4_host_blob": host_helper["blob"],
+        "runtime_probe_blob": runtime_probe["blob"],
+        "f4_host_sha256": host_helper["sha256"],
+        "runtime_probe_sha256": runtime_probe["sha256"],
     }
 
 
