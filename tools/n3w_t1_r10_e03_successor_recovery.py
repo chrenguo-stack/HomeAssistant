@@ -23,6 +23,7 @@ from types import ModuleType
 from typing import Any, Callable, Iterable, Sequence
 
 import n3w_t1_maintenance_transaction as maintenance
+import n3w_t1_r10_e03_claimed_transaction_retirement as retirement
 import n3w_t1_portable_image_identity as portable
 import n3w_t1_production_v2_contract as production_contract
 
@@ -369,6 +370,7 @@ def runtime_authority() -> dict[str, str]:
             base / "n3w_t1_maintenance_transaction.py",
             base / "n3w_t1_maintenance_activation_gate.py",
             base / "n3w_t1_production_v2_contract.py",
+            base / "n3w_t1_r10_e03_claimed_transaction_retirement.py",
             current,
         )
         if any(path.is_symlink() or not path.is_file() for path in paths):
@@ -1295,6 +1297,12 @@ def preauthorization(
         compose_env_candidate_sha256,
         unit,
     )
+    supersession = retirement.committed_supersession(
+        predecessor_sha256=predecessor_sha256,
+        current_release_id=current_release_id,
+        target_release_id=target_release_id,
+        artifact_sha256=TARGET_ARTIFACT_SHA256,
+    )
 
     return {
         "schema": PLAN_SCHEMA,
@@ -1306,6 +1314,7 @@ def preauthorization(
         "predecessor_executor_blob": predecessor["executor_blob"],
         "predecessor_disposition": "ABORTED_PRECUTOVER_STAGED_IMAGE_RETAINED",
         "host_binding_sha256": observed_host,
+        "supersession": supersession,
         "current_f4_authority": current_f4_authority,
         "current_f4_authority_sha256": current_f4_authority_sha256,
         "current_release_id": current_release_id,
@@ -1542,6 +1551,13 @@ def _runtime_rebind(
     )
     predecessor_evidence(document["predecessor_sha256"])
     plan = document["plan"]
+    retirement.assert_supersession(
+        plan.get("supersession"),
+        predecessor_sha256=document["predecessor_sha256"],
+        current_release_id=binding.current_release_id,
+        target_release_id=binding.target_release_id,
+        artifact_sha256=binding.artifact_sha256,
+    )
     current_f4_authority = plan.get("current_f4_authority")
     current_f4_authority_sha256 = plan.get(
         "current_f4_authority_sha256"
@@ -2581,6 +2597,15 @@ def apply(transaction_id: str, execution_session_id: str) -> dict[str, Any]:
             document = _save(store, document, session_document)
         plan = document["plan"]
         identity = portable.identity_from_dict(plan["portable_identity"])
+        if document["state"] == "ABORTED":
+            return public_result(
+                document,
+                operation="apply",
+                reason_code="TRANSACTION_ABORTED",
+                last_proven_state="TERMINAL_REPLACED_BEFORE_APPLY",
+                mutation_observed=False,
+                recovery_class="ABORTED_NO_REPLAY",
+            )
         if document["state"] == "COMMITTED":
             return public_result(
                 document,
