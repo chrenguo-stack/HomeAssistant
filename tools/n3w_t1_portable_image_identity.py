@@ -481,8 +481,15 @@ def parse_image_archive(
             or digest != expected_archive_sha256
         ):
             raise PortableImageIdentityError("archive_sha256_mismatch")
-    if expected_archive_size_bytes is not None and size != expected_archive_size_bytes:
-        raise PortableImageIdentityError("archive_size_mismatch")
+    if expected_archive_size_bytes is not None:
+        if (
+            isinstance(expected_archive_size_bytes, bool)
+            or not isinstance(expected_archive_size_bytes, int)
+            or expected_archive_size_bytes < 0
+        ):
+            raise PortableImageIdentityError("archive_expected_size_invalid")
+        if size != expected_archive_size_bytes:
+            raise PortableImageIdentityError("archive_size_mismatch")
     with SafeTar(path) as archive:
         if "oci-layout" in archive.members or "index.json" in archive.members:
             if "oci-layout" not in archive.members or "index.json" not in archive.members:
