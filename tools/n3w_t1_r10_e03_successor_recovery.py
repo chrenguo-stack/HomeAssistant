@@ -1951,6 +1951,7 @@ def apply(transaction_id: str, execution_session_id: str) -> dict[str, Any]:
                 action="service_start",
                 allowed_states={"VERIFYING"},
             )
+            _runtime_image_exists(HA_IMAGE, HA_IMAGE_ID)
             document = _operation(
                 store,
                 document,
