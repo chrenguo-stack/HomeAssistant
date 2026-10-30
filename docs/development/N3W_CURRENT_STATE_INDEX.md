@@ -1,3 +1,15 @@
+## 2026-10-30 — Historical exact Manager tar-size evidence recovered; successor read-only preauth eligible
+
+- Exact artifact run `40880705472`, artifact ID `12900601779`, source head `f8876fd87165df731d792690a8288867c3eeef55`.
+- Recovered exact `greenhouse-manager-arm64.tar` size: **`62681088` bytes**.
+- Local Manager tar SHA256, local `binding.json` Manager SHA256 and GitHub-frozen Manager tar SHA256 all equal `d129a33ea628d8bdd1361e0b1bf727175515b4a2afc1851e6ac14ec510895fb5`.
+- Local binding source head equals the frozen exact source head.
+- Whole artifact size `2538792820` bytes was not used as the Manager tar size.
+- Evidence recovery: `CLOSED_PASS`; `READONLY_PREAUTH_READY=true`, but preauth has not been executed and live preauth is not authorized.
+- No T1/board access, workflow dispatch, old-authorization replay, live recovery or merge occurred.
+- Evidence authority: `docs/development/N3W_T1_PORTABLE_IMAGE_IDENTITY_E03_SUCCESSOR_EXACT_ARTIFACT_SIZE_EVIDENCE_RECOVERY_READONLY_20261030.md`.
+- Next ONE gate: `N3W_T1_E03_SUCCESSOR_RECOVERY_READONLY_PREAUTH_20261030_01`.
+
 ## 2026-10-30 — PR #740 P0 source repair CLOSED_PASS; exact Manager tar-size evidence recovery next
 
 - PR #740 exact reviewed head: `ff2904bcdedbae6651cbfe92104b12ad47d33903`, stacked directly on PR #725 head `614c08a397462850f0167b77c9da45ae69a323ad`.
