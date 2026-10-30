@@ -10,10 +10,8 @@ from typing import Any
 
 SCHEMA = "gh.n3w-t1-maintenance-transaction/1"
 TRANSACTION_ROOT = Path("/var/lib/n3w-t1-maintenance/transactions")
-ACTIVE_BLOCKING_STATES = frozenset(
-    {"PREPARING", "READY", "APPLYING", "ROLLING_BACK"}
-)
-ACTIVE_ALLOWING_STATES = frozenset({"VERIFYING"})
+ACTIVE_BLOCKING_STATES = frozenset({"APPLYING", "ROLLING_BACK"})
+ACTIVE_ALLOWING_STATES = frozenset({"PREPARING", "READY", "VERIFYING"})
 TERMINAL_STATES = frozenset({"COMMITTED", "ROLLED_BACK", "BLOCKED", "ABORTED"})
 
 
