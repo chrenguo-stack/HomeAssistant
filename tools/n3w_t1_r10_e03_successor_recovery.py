@@ -1762,6 +1762,8 @@ def _publish_candidate_env(plan: dict[str, Any]) -> None:
         plan["compose_env_candidate_b64"],
         validate=True,
     )
+    if sha_bytes(payload) != plan["compose_env_candidate_sha256"]:
+        raise BlockedError("candidate_env_payload_binding_drift")
     _atomic_replace_exact(
         COMPOSE_ENV,
         payload,
@@ -1800,6 +1802,8 @@ def _restore_deployment_env(plan: dict[str, Any]) -> None:
         plan["compose_env_before_b64"],
         validate=True,
     )
+    if sha_bytes(payload) != plan["compose_env_before_sha256"]:
+        raise BlockedError("rollback_env_payload_binding_drift")
     _atomic_replace_exact(
         COMPOSE_ENV,
         payload,
