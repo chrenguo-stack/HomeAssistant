@@ -801,10 +801,104 @@ def test_preauth_source_rebinds_old_runtime_continuity() -> None:
         "def _execution_session_id", 1
     )[0]
     assert "manager_predecessor_continuity_drift" in section
-    assert "broker_predecessor_continuity_drift" in section
+    assert "_broker_predecessor_continuity(" in section
+    assert '"broker_predecessor_continuity": broker_predecessor_continuity' in section
     assert "services_owner_restart_continuity_drift" in section
     assert 'predecessor["manager_predecessor_container_id"]' in section
     assert 'predecessor["services_nrestarts"]' in section
+
+
+def _broker_predecessor_fixture() -> dict[str, object]:
+    return {
+        "broker_container_id": "a" * 64,
+        "broker_image_id": "sha256:" + "b" * 64,
+        "broker_started_at": "2026-10-25T14:40:59.136962496Z",
+        "broker_restart_count": 0,
+    }
+
+
+def _broker_runtime_fixture(
+    *,
+    started_at: str = "2026-10-25T14:40:59.136962496Z",
+) -> dict[str, object]:
+    return {
+        "container_id": "a" * 64,
+        "image_id": "sha256:" + "b" * 64,
+        "started_at": started_at,
+        "restart_count": 0,
+    }
+
+
+def test_broker_predecessor_continuity_accepts_exact_runtime() -> None:
+    result = successor._broker_predecessor_continuity(
+        _broker_predecessor_fixture(),
+        _broker_runtime_fixture(),
+    )
+    assert result["mode"] == "EXACT_PREDECESSOR"
+    assert result["expected_broker_started_at"] == result[
+        "observed_broker_started_at"
+    ]
+
+
+def test_broker_predecessor_continuity_accepts_current_boot_rebase(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        successor,
+        "_boot_evidence",
+        lambda: {
+            "boot_id_sha256": "c" * 64,
+            "boot_time_unix": 1793369010,
+        },
+    )
+    result = successor._broker_predecessor_continuity(
+        _broker_predecessor_fixture(),
+        _broker_runtime_fixture(
+            started_at="2026-10-30T14:04:04.311501262Z",
+        ),
+    )
+    assert result["mode"] == "CURRENT_BOOT_REBASE"
+    assert result["boot_id_sha256"] == "c" * 64
+    assert result["boot_time_unix"] == 1793369010
+    assert result["broker_start_offset_seconds"] == pytest.approx(
+        34.311501264572144
+    )
+
+
+def test_broker_predecessor_continuity_rejects_identity_drift() -> None:
+    observed = _broker_runtime_fixture()
+    observed["container_id"] = "d" * 64
+    with pytest.raises(
+        successor.SuccessorError,
+        match="broker_predecessor_continuity_drift",
+    ):
+        successor._broker_predecessor_continuity(
+            _broker_predecessor_fixture(),
+            observed,
+        )
+
+
+def test_broker_predecessor_continuity_rejects_late_same_boot_restart(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        successor,
+        "_boot_evidence",
+        lambda: {
+            "boot_id_sha256": "c" * 64,
+            "boot_time_unix": 1793369010,
+        },
+    )
+    with pytest.raises(
+        successor.SuccessorError,
+        match="broker_predecessor_reboot_not_boot_activation",
+    ):
+        successor._broker_predecessor_continuity(
+            _broker_predecessor_fixture(),
+            _broker_runtime_fixture(
+                started_at="2026-10-30T14:10:00Z",
+            ),
+        )
 
 
 def _rolling_back_document() -> dict[str, object]:

@@ -18,6 +18,7 @@ import sys
 import tempfile
 import time
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable, Iterable, Sequence
@@ -28,6 +29,7 @@ import n3w_t1_portable_image_identity as portable
 import n3w_t1_production_v2_contract as production_contract
 
 SCHEMA = "gh.n3w-r10-e03-successor-recovery/1"
+BROKER_BOOT_ACTIVATION_MAX_SECONDS = 300.0
 PLAN_SCHEMA = "gh.n3w-r10-e03-successor-recovery-plan/1"
 PREDECESSOR_SCHEMA = "gh.n3w-r10-e03-manager-successor-refresh-transaction/1"
 CONFIRMATION = "N3W_T1_R10_E03_SUCCESSOR_RECOVERY_APPLY"
@@ -1143,6 +1145,106 @@ def _target_release_id(
         raise SuccessorError("target_release_contract_invalid") from error
 
 
+def _parse_docker_started_at(value: Any) -> float:
+    if not isinstance(value, str):
+        raise SuccessorError("broker_started_at_invalid")
+    match = re.fullmatch(
+        r"(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d+))?Z",
+        value,
+    )
+    if match is None:
+        raise SuccessorError("broker_started_at_invalid")
+    base = datetime.strptime(
+        match.group(1),
+        "%Y-%m-%dT%H:%M:%S",
+    ).replace(tzinfo=timezone.utc).timestamp()
+    fraction = match.group(2) or ""
+    return base if not fraction else base + int(fraction) / (10 ** len(fraction))
+
+
+def _boot_evidence() -> dict[str, Any]:
+    boot_id_path = Path("/proc/sys/kernel/random/boot_id")
+    stat_path = Path("/proc/stat")
+    if (
+        boot_id_path.is_symlink()
+        or not boot_id_path.is_file()
+        or stat_path.is_symlink()
+        or not stat_path.is_file()
+    ):
+        raise SuccessorError("boot_authority_invalid")
+    boot_id = boot_id_path.read_text(encoding="utf-8").strip()
+    if not boot_id:
+        raise SuccessorError("boot_id_invalid")
+    btime = None
+    for line in stat_path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("btime "):
+            raw = line.split()
+            if len(raw) != 2:
+                raise SuccessorError("boot_time_invalid")
+            try:
+                btime = int(raw[1])
+            except ValueError as error:
+                raise SuccessorError("boot_time_invalid") from error
+            break
+    if btime is None or btime <= 0:
+        raise SuccessorError("boot_time_invalid")
+    return {
+        "boot_id_sha256": sha_text(boot_id),
+        "boot_time_unix": btime,
+    }
+
+
+def _broker_predecessor_continuity(
+    predecessor: dict[str, Any],
+    observed: dict[str, Any],
+) -> dict[str, Any]:
+    for key, predecessor_key in (
+        ("container_id", "broker_container_id"),
+        ("image_id", "broker_image_id"),
+        ("restart_count", "broker_restart_count"),
+    ):
+        if observed.get(key) != predecessor.get(predecessor_key):
+            raise SuccessorError("broker_predecessor_continuity_drift")
+
+    expected_started_text = predecessor.get("broker_started_at")
+    observed_started_text = observed.get("started_at")
+    if observed_started_text == expected_started_text:
+        return {
+            "mode": "EXACT_PREDECESSOR",
+            "expected_broker_started_at": expected_started_text,
+            "observed_broker_started_at": observed_started_text,
+            "broker_container_id": observed["container_id"],
+            "broker_image_id": observed["image_id"],
+            "broker_restart_count": observed["restart_count"],
+        }
+
+    expected_started = _parse_docker_started_at(expected_started_text)
+    observed_started = _parse_docker_started_at(observed_started_text)
+    boot = _boot_evidence()
+    boot_time = float(boot["boot_time_unix"])
+    if not (expected_started < boot_time <= observed_started):
+        raise SuccessorError("broker_predecessor_reboot_not_current_boot")
+
+    observed_offset = observed_started - boot_time
+    if (
+        observed_offset < 0
+        or observed_offset > BROKER_BOOT_ACTIVATION_MAX_SECONDS
+    ):
+        raise SuccessorError("broker_predecessor_reboot_not_boot_activation")
+
+    return {
+        "mode": "CURRENT_BOOT_REBASE",
+        "expected_broker_started_at": expected_started_text,
+        "observed_broker_started_at": observed_started_text,
+        "broker_container_id": observed["container_id"],
+        "broker_image_id": observed["image_id"],
+        "broker_restart_count": observed["restart_count"],
+        "boot_id_sha256": boot["boot_id_sha256"],
+        "boot_time_unix": boot["boot_time_unix"],
+        "broker_start_offset_seconds": observed_offset,
+    }
+
+
 def preauthorization(
     *,
     identity: portable.PortableImageIdentity,
@@ -1239,16 +1341,10 @@ def preauthorization(
         or broker["restart_count"] != 0
     ):
         raise SuccessorError("broker_runtime_drift")
-    if any(
-        broker[key] != predecessor[predecessor_key]
-        for key, predecessor_key in (
-            ("container_id", "broker_container_id"),
-            ("image_id", "broker_image_id"),
-            ("started_at", "broker_started_at"),
-            ("restart_count", "broker_restart_count"),
-        )
-    ):
-        raise SuccessorError("broker_predecessor_continuity_drift")
+    broker_predecessor_continuity = _broker_predecessor_continuity(
+        predecessor,
+        broker,
+    )
     observed_services_nrestarts = systemd_nrestarts(SERVICES_UNIT)
     if observed_services_nrestarts != predecessor["services_nrestarts"]:
         raise SuccessorError("services_owner_restart_continuity_drift")
@@ -1362,6 +1458,7 @@ def preauthorization(
         ),
         "gate_before_fingerprint": gate_before,
         "gate_after_fingerprint": gate_after,
+        "broker_predecessor_continuity": broker_predecessor_continuity,
         "broker_baseline": broker,
         "manager_predecessor_container_id": manager["container_id"],
         "services_nrestarts": observed_services_nrestarts,
