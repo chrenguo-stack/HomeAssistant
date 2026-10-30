@@ -1,3 +1,15 @@
+## 2026-10-30 — PR #740 P0 source repair CLOSED_PASS; exact Manager tar-size evidence recovery next
+
+- PR #740 exact reviewed head: `ff2904bcdedbae6651cbfe92104b12ad47d33903`, stacked directly on PR #725 head `614c08a397462850f0167b77c9da45ae69a323ad`.
+- Final focused source CI run `40997797305`: `232 passed`; preflight, Public repository safety, F5 V2 source and greenhouse-manager CI are PASS.
+- Independent source review: PASS. It found 4 additional false-PASS paths and 1 blocking false-STOP path after the initial implementation; all were repaired before the final exact head.
+- KF-132 through KF-136 are now `SOURCE_REPAIR_CLOSED_PASS_PR740_LIVE_REVALIDATION_PENDING`. KF-133 through KF-136 remain source safety blockers, not claims of historical field incidents.
+- Old E03 authorization remains consumed/no-replay; predecessor transaction remains immutable evidence; any recovery uses a separately authorized successor transaction.
+- Historical exact Manager tar SHA authority exists, but its exact byte size was not archived. The successor executor now requires exact `tar_size_bytes`; this missing value must be recovered read-only and must not be inferred from the whole GitHub artifact size.
+- `READONLY_PREAUTH_READY=false`; no T1/board access, live successor preauthorization, live recovery, workflow dispatch or merge occurred in this closure.
+- Closure authority: `docs/development/N3W_T1_PORTABLE_IMAGE_IDENTITY_AND_E03_SUCCESSOR_RECOVERY_SOURCE_REPAIR_CLOSURE_20261030.md`.
+- Next ONE gate: `N3W_T1_PORTABLE_IMAGE_IDENTITY_E03_SUCCESSOR_EXACT_ARTIFACT_SIZE_EVIDENCE_RECOVERY_READONLY_20261030_01`.
+
 ## 2026-10-30 — PR #740 P0 source repair implemented; independent source review next
 
 - PR #740 exact tested head: `a4e317d90157a42619eafe00bce9aa001255ff1c`, stacked directly on PR #725 head `614c08a397462850f0167b77c9da45ae69a323ad`.
