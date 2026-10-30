@@ -374,12 +374,19 @@ def claim_authorization(document: dict[str, Any]) -> dict[str, Any]:
     if value["authorization_consumed"] is True:
         raise MaintenanceTransactionError("authorization_already_consumed")
     value["authorization_consumed"] = True
-    value["state"] = "APPLYING"
     value["generation"] += 1
     value["last_operation"] = "authorization_claimed"
     value["last_reason"] = None
     return value
 
+
+def begin_apply(document: dict[str, Any]) -> dict[str, Any]:
+    value = validate_transaction(document)
+    if value["state"] != "READY":
+        raise MaintenanceTransactionError("begin_apply_state_invalid")
+    if value["authorization_consumed"] is not True or value["replay_allowed"] is not False:
+        raise MaintenanceTransactionError("begin_apply_authorization_invalid")
+    return transition(value, "APPLYING", operation="apply_begin")
 
 
 def begin_operation(
