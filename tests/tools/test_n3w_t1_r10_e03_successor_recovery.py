@@ -1103,6 +1103,28 @@ def _bind_current_f4_fixture(
         "EXPECTED_F4_RUNTIME_PROBE_BLOB",
         successor.git_blob(runtime_probe),
     )
+
+    def reviewed_helper(
+        path: Path,
+        *,
+        expected_blob: str,
+        unavailable_reason: str,
+        drift_reason: str,
+    ) -> dict[str, str]:
+        del unavailable_reason
+        observed_blob = successor.git_blob(path)
+        if observed_blob != expected_blob:
+            raise successor.SuccessorError(drift_reason)
+        return {
+            "blob": observed_blob,
+            "sha256": successor.sha_file(path),
+        }
+
+    monkeypatch.setattr(
+        successor,
+        "_reviewed_f4_helper",
+        reviewed_helper,
+    )
     module = SimpleNamespace(
         F4_TRANSACTION=transaction,
         _read_private_record=lambda _path: dict(document),
