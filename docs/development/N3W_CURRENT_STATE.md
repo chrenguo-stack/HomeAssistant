@@ -1,3 +1,15 @@
+## 2026-10-30 — E03 claimed transaction retirement execution CLOSED_PASS
+
+- Source head: `b2f096bda8c5fb85ced3f6145a86d7972d2f4d9b`.
+- Old E03 transaction: `READY generation 4` -> `ABORTED generation 5`.
+- Target transaction SHA-256 after retirement: `cf02987fad30b92b97e02a1ee62e529531425e5b97a8b035dac479d393ca176c`.
+- Retirement record: `CLAIMED generation 2` -> `COMMITTED generation 3`.
+- Retirement evidence SHA-256 after commit: `ab2d96b73396448e3b18d5d1a69e5b6b41650e06a04a99645c528c683c939d03`.
+- Target operation_seq remained 0; operations remained empty; pending operation remained null; observed_after remained empty.
+- Product mutation: false; service stop/start: false; board access: false; rollback required: false.
+- PR #740 evidence comment: `6521901609`.
+- Current stop: old E03 transaction is terminally retired with committed evidence.
+
 ## 2026-10-30 — E03 retirement authorization claim CLOSED_PASS
 
 - Source head: `b2f096bda8c5fb85ced3f6145a86d7972d2f4d9b`.
