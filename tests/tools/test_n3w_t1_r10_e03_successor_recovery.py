@@ -255,29 +255,33 @@ def test_candidate_publish_refuses_uncontrolled_application_owner(
     monkeypatch.setattr(successor, "_service_fingerprint", lambda: "9" * 64)
     monkeypatch.setattr(
         successor,
-        "_compose_reality",
-        lambda _plan: pytest.fail("compose must not even be read for publish"),
+        "_deployment_reality",
+        lambda _plan: pytest.fail("deployment must not be read for publish"),
     )
     with pytest.raises(successor.BlockedError, match="candidate_owner_not_controlled"):
-        successor._publish_candidate(plan)
+        successor._publish_candidate_env(plan)
 
 
 def test_rollback_requires_completed_candidate_write_provenance() -> None:
     document = _document(state="ROLLING_BACK")
-    assert successor._completed_deployment_inputs_publish(document, _plan()) is False
+    assert successor._completed_deployment_publish(document, _plan()) is False
 
 
 def test_completed_candidate_write_provenance_is_detected() -> None:
-    document = _document()
+    plan = _plan()
+    document = _document(plan=plan)
     intent = tx.begin_operation(
         document,
         operation_type="deployment_inputs_publish",
-        before_fingerprint="1" * 64,
-        intended_after_fingerprint="2" * 64,
+        before_fingerprint=str(plan["deployment_before_fingerprint"]),
+        intended_after_fingerprint=str(plan["deployment_candidate_fingerprint"]),
         allowed_states={"APPLYING"},
     )
-    document = tx.finish_operation(intent, observed_after_fingerprint="2" * 64)
-    assert successor._completed_deployment_inputs_publish(document, _plan()) is True
+    document = tx.finish_operation(
+        intent,
+        observed_after_fingerprint=str(plan["deployment_candidate_fingerprint"]),
+    )
+    assert successor._completed_deployment_publish(document, plan) is True
 
 
 class _Clock:
@@ -721,23 +725,26 @@ def test_preauth_source_rebinds_old_runtime_continuity() -> None:
 
 
 def _rolling_back_document() -> dict[str, object]:
-    document = _document(state="APPLYING")
+    plan = _plan()
+    document = _document(state="APPLYING", plan=plan)
     publish = tx.begin_operation(
         document,
         operation_type="deployment_inputs_publish",
-        before_fingerprint="1" * 64,
-        intended_after_fingerprint="2" * 64,
+        before_fingerprint=str(plan["deployment_before_fingerprint"]),
+        intended_after_fingerprint=str(plan["deployment_candidate_fingerprint"]),
         allowed_states={"APPLYING"},
     )
     document = tx.finish_operation(
         publish,
-        observed_after_fingerprint="2" * 64,
+        observed_after_fingerprint=str(plan["deployment_candidate_fingerprint"]),
     )
     document = tx.transition(
         document,
         "VERIFYING",
         operation="candidate_published_owner_controlled",
-        observed_after={"compose": "2" * 64},
+        observed_after={
+            "deployment_inputs": str(plan["deployment_candidate_fingerprint"])
+        },
     )
     return tx.transition(
         document,
@@ -761,9 +768,10 @@ def test_rollback_becomes_terminal_only_after_runtime_start_and_validation(
 ) -> None:
     document = _rolling_back_document()
     store = _store(tmp_path, document)
+    plan = _plan()
     reality = {
         "service": "5" * 64,
-        "compose": "2" * 64,
+        "deployment": str(plan["deployment_candidate_fingerprint"]),
     }
 
     monkeypatch.setattr(
@@ -784,13 +792,13 @@ def test_rollback_becomes_terminal_only_after_runtime_start_and_validation(
     monkeypatch.setattr(successor, "_broker_continuity", lambda _plan: {})
     monkeypatch.setattr(
         successor,
-        "_compose_reality",
-        lambda _plan: reality["compose"],
+        "_deployment_reality",
+        lambda _plan: reality["deployment"],
     )
     monkeypatch.setattr(
         successor,
-        "_restore_compose",
-        lambda _plan: reality.__setitem__("compose", "1" * 64),
+        "_restore_deployment_env",
+        lambda _plan: reality.__setitem__("deployment", str(plan["deployment_before_fingerprint"])),
     )
 
     def gate_restored() -> None:
@@ -799,7 +807,7 @@ def test_rollback_becomes_terminal_only_after_runtime_start_and_validation(
         assert any(
             item["operation_type"] == "deployment_inputs_rollback"
             and item["status"] == "COMPLETE"
-            and item["observed_after_fingerprint"] == "1" * 64
+            and item["observed_after_fingerprint"] == str(plan["deployment_before_fingerprint"])
             for item in current["operations"]
         )
 
