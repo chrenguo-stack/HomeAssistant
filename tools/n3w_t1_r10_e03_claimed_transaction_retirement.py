@@ -964,12 +964,19 @@ def retire(
     *,
     retirement_id: str,
     target_transaction_id: str,
+    execution_session_id: str,
 ) -> dict[str, Any]:
     e03 = _e03()
     with e03.global_lock():
         record_store = RetirementStore(_retirement_path(retirement_id))
         record = record_store.load()
         _assert_retirement_authority(record)
+        session_id = _identifier(
+            execution_session_id,
+            "execution_session_id",
+        )
+        if sha_text(session_id) != record["execution_session_id_sha256"]:
+            raise RetirementError("retirement_execution_session_drift")
         target_id_hash = sha_text(
             _identifier(
                 target_transaction_id,
@@ -1251,6 +1258,7 @@ def main() -> int:
     retire_parser = sub.add_parser("retire")
     retire_parser.add_argument("--retirement-id", required=True)
     retire_parser.add_argument("--target-transaction-id", required=True)
+    retire_parser.add_argument("--execution-session-id", required=True)
 
     status_parser = sub.add_parser("status")
     status_parser.add_argument("--retirement-id", required=True)
@@ -1273,6 +1281,7 @@ def main() -> int:
             result = retire(
                 retirement_id=args.retirement_id,
                 target_transaction_id=args.target_transaction_id,
+                execution_session_id=args.execution_session_id,
             )
         elif args.operation == "status":
             result = status(
