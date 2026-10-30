@@ -1426,6 +1426,12 @@ def _install_gate() -> None:
     if expected not in raw:
         raise SuccessorError("activation_gate_dropin_unproven")
     result = run((str(GATE_TARGET),), allowed=frozenset({0, 1}))
+    if result.returncode != 0:
+        raise SuccessorError("activation_gate_ready_phase_invalid")
+
+
+def _assert_gate_blocking() -> None:
+    result = run((str(GATE_TARGET),), allowed=frozenset({0, 1}))
     if result.returncode != 1 or b"MAINTENANCE_BLOCKING" not in result.stderr:
         raise SuccessorError("activation_gate_not_blocking")
 
@@ -1679,24 +1685,28 @@ def apply(transaction_id: str) -> dict[str, Any]:
         plan = document["plan"]
         identity = portable.identity_from_dict(plan["portable_identity"])
         try:
-            binding = _runtime_rebind(
-                document,
-                action="activation_gate_install",
-                allowed_states={"APPLYING"},
-            )
-            document = _operation(
-                store,
-                document,
-                binding=binding,
-                action="activation_gate_install",
-                operation_type="activation_gate_install",
-                before_fingerprint=plan["gate_before_fingerprint"],
-                after_fingerprint=plan["gate_after_fingerprint"],
-                reality=_gate_fingerprint,
-                execute=_install_gate,
-                allowed_states={"APPLYING"},
-                accept_after_without_intent=True,
-            )
+            if document["state"] == "READY":
+                binding = _runtime_rebind(
+                    document,
+                    action="activation_gate_install",
+                    allowed_states={"READY"},
+                )
+                document = _operation(
+                    store,
+                    document,
+                    binding=binding,
+                    action="activation_gate_install",
+                    operation_type="activation_gate_install",
+                    before_fingerprint=plan["gate_before_fingerprint"],
+                    after_fingerprint=plan["gate_after_fingerprint"],
+                    reality=_gate_fingerprint,
+                    execute=_install_gate,
+                    allowed_states={"READY"},
+                    accept_after_without_intent=True,
+                )
+                applying = maintenance.begin_apply(document)
+                document = _save(store, document, applying)
+                _assert_gate_blocking()
 
             binding = _runtime_rebind(
                 document,
