@@ -15,6 +15,8 @@ VERDICT_SCHEMA = "gh.n3w-t1-portable-image-verdict/1"
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 DIGEST = re.compile(r"^sha256:([0-9a-f]{64})$")
 MAX_JSON_BYTES = 16 * 1024 * 1024
+MAX_ARCHIVE_BYTES = 32 * 1024 * 1024 * 1024
+MAX_TAR_MEMBERS = 200_000
 
 CONFIG_FIELDS = (
     "Entrypoint",
@@ -154,7 +156,11 @@ class SafeTar:
             self.tar = tarfile.open(self.path, mode="r:*")
         except (tarfile.TarError, OSError) as error:
             raise PortableImageIdentityError("archive_open_failed") from error
-        for member in self.tar.getmembers():
+        member_count = 0
+        for member in self.tar:
+            member_count += 1
+            if member_count > MAX_TAR_MEMBERS:
+                raise PortableImageIdentityError("archive_member_limit_exceeded")
             name = _safe_name(member.name)
             if name in self.members:
                 raise PortableImageIdentityError("archive_duplicate_member")
@@ -224,7 +230,7 @@ def _descriptor_blob(
         raise PortableImageIdentityError(f"{name}_descriptor_invalid")
     digest = descriptor.get("digest")
     size = descriptor.get("size")
-    if DIGEST.fullmatch(digest or "") is None:
+    if not isinstance(digest, str) or DIGEST.fullmatch(digest) is None:
         raise PortableImageIdentityError(f"{name}_digest_invalid")
     if isinstance(size, bool) or not isinstance(size, int) or size < 0:
         raise PortableImageIdentityError(f"{name}_size_invalid")
@@ -284,7 +290,7 @@ def _rootfs_diff_ids(config_doc: dict[str, Any]) -> tuple[str, ...]:
         raise PortableImageIdentityError("rootfs_diff_ids_invalid")
     result: list[str] = []
     for value in values:
-        if DIGEST.fullmatch(value or "") is None:
+        if not isinstance(value, str) or DIGEST.fullmatch(value) is None:
             raise PortableImageIdentityError("rootfs_diff_id_invalid")
         result.append(value)
     return tuple(result)
@@ -465,9 +471,15 @@ def parse_image_archive(
     if path.is_symlink() or not path.is_file():
         raise PortableImageIdentityError("archive_invalid")
     size = path.stat().st_size
+    if size > MAX_ARCHIVE_BYTES:
+        raise PortableImageIdentityError("archive_size_limit_exceeded")
     digest = sha256_file(path)
     if expected_archive_sha256 is not None:
-        if SHA256.fullmatch(expected_archive_sha256) is None or digest != expected_archive_sha256:
+        if (
+            not isinstance(expected_archive_sha256, str)
+            or SHA256.fullmatch(expected_archive_sha256) is None
+            or digest != expected_archive_sha256
+        ):
             raise PortableImageIdentityError("archive_sha256_mismatch")
     if expected_archive_size_bytes is not None and size != expected_archive_size_bytes:
         raise PortableImageIdentityError("archive_size_mismatch")
@@ -660,10 +672,19 @@ def identity_from_dict(value: Any) -> PortableImageIdentity:
         raise PortableImageIdentityError("identity_config_digest_invalid")
     for key in ("manifest_digest", "index_digest"):
         digest = value.get(key)
-        if digest is not None and DIGEST.fullmatch(digest) is None:
+        if digest is not None and (
+            not isinstance(digest, str) or DIGEST.fullmatch(digest) is None
+        ):
             raise PortableImageIdentityError(f"identity_{key}_invalid")
     rootfs = value.get("rootfs_diff_ids")
-    if not isinstance(rootfs, list) or not rootfs or not all(DIGEST.fullmatch(x or "") for x in rootfs):
+    if (
+        not isinstance(rootfs, list)
+        or not rootfs
+        or not all(
+            isinstance(item, str) and DIGEST.fullmatch(item) is not None
+            for item in rootfs
+        )
+    ):
         raise PortableImageIdentityError("identity_rootfs_invalid")
     if _sha256_bytes(_canonical_bytes(rootfs)) != value.get("rootfs_diff_ids_sha256"):
         raise PortableImageIdentityError("identity_rootfs_hash_mismatch")
