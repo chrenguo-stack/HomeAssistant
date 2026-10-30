@@ -1149,7 +1149,7 @@ def _parse_docker_started_at(value: Any) -> float:
     if not isinstance(value, str):
         raise SuccessorError("broker_started_at_invalid")
     match = re.fullmatch(
-        r"(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:\\.(\\d+))?Z",
+        r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d+))?Z",
         value,
     )
     if match is None:
