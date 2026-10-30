@@ -1,3 +1,10 @@
+## 2026-10-30 — E03 baseline invalidation source repair CLOSED_PASS
+
+- Closure authority: PR #740 comment `6525870069`.
+- Exact source head: `2b1614bf9caa4551005f04df87f13d420189b499`.
+- Live invalidation has not started.
+- Next ONE gate: `N3W_T1_E03_REPLACEMENT_BASELINE_INVALIDATION_READONLY_PREFLIGHT_20261030_01`.
+
 ## 2026-10-30 — E03 replacement baseline invalidation design FROZEN
 
 - T1 reboot is confirmed as the cause of the Broker StartedAt continuity break.
