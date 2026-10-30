@@ -333,6 +333,13 @@
         "missing_pr_cancel": "PR #740 preflight workflow predates repository-wide PR cancellation wiring; tracked debt without changing execution semantics."
       }
     },
+    "n3w-r10-e03-replacement-baseline-invalidation-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "PR #740 focused invalidation workflow follows the existing E03 source-workflow execution model; cancellation wiring is tracked repository debt."
+      }
+    },
     "n3w-single-hop-contract-ci.yml": {
       "class": "FAST",
       "draft_policy": "run",
