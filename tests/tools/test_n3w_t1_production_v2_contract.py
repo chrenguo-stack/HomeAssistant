@@ -624,3 +624,51 @@ def test_release_v2_rejects_non_product_portable_platform(
         match="portable_image_manager_platform_invalid",
     ):
         contract.validate_release_v2(release)
+
+
+def test_portable_deployment_binding_is_common_canonical_authority() -> None:
+    identity_doc = portable_identity_document()
+    service_unit = {
+        "execstart_sha256": "7" * 64,
+        "execstop_sha256": "8" * 64,
+    }
+    state = {
+        "pre_registration_inventory_sha256": "9" * 64,
+        "post_registration_inventory_sha256": "a" * 64,
+        "schema_migration_required": False,
+    }
+    first = contract.portable_deployment_binding_id(
+        source_head="b" * 40,
+        artifact_sha256="c" * 64,
+        identity=identity_doc,
+        compose_sha256="d" * 64,
+        service_unit=service_unit,
+        state_contract=state,
+    )
+    second = contract.portable_deployment_binding_id(
+        source_head="b" * 40,
+        artifact_sha256="c" * 64,
+        identity=copy.deepcopy(identity_doc),
+        compose_sha256="d" * 64,
+        service_unit=dict(reversed(list(service_unit.items()))),
+        state_contract=dict(reversed(list(state.items()))),
+    )
+    assert first == second
+    assert len(first) == 64
+
+
+def test_portable_deployment_binding_rejects_host_incompatible_platform() -> None:
+    identity_doc = portable_identity_document()
+    identity_doc["architecture"] = "amd64"
+    with pytest.raises(
+        contract.ProductionV2ContractError,
+        match="portable_deployment_platform_invalid",
+    ):
+        contract.portable_deployment_binding_id(
+            source_head="b" * 40,
+            artifact_sha256="c" * 64,
+            identity=identity_doc,
+            compose_sha256="d" * 64,
+            service_unit={"execstart_sha256": "7" * 64},
+            state_contract={"schema_migration_required": False},
+        )
