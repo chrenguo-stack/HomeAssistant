@@ -1481,6 +1481,8 @@ def _compose_reality(plan: dict[str, Any]) -> str:
 
 
 def _publish_candidate(plan: dict[str, Any]) -> None:
+    if _service_fingerprint() != plan["service_stopped_fingerprint"]:
+        raise BlockedError("candidate_owner_not_controlled")
     current = _compose_reality(plan)
     state = maintenance.require_compose_publishable(
         plan["compose_before_sha256"],
@@ -1491,6 +1493,17 @@ def _publish_candidate(plan: dict[str, Any]) -> None:
         return
     payload = base64.b64decode(plan["compose_candidate_b64"], validate=True)
     _atomic_replace_exact(COMPOSE, payload, plan["compose_before_sha256"])
+
+
+def _completed_compose_publish(document: dict[str, Any], plan: dict[str, Any]) -> bool:
+    return any(
+        isinstance(record, dict)
+        and record.get("operation_type") == "compose_publish"
+        and record.get("status") == "COMPLETE"
+        and record.get("intended_after_fingerprint") == plan["compose_candidate_sha256"]
+        and record.get("observed_after_fingerprint") == plan["compose_candidate_sha256"]
+        for record in document.get("operations", [])
+    )
 
 
 def _restore_compose(plan: dict[str, Any]) -> None:
@@ -1954,6 +1967,8 @@ def rollback(
             )
             _broker_continuity(plan)
 
+            if not _completed_compose_publish(document, plan):
+                raise BlockedError("rollback_candidate_write_unproven")
             binding = _runtime_rebind(
                 document,
                 action="compose_rollback",
