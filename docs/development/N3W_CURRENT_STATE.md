@@ -1,3 +1,31 @@
+## 2026-10-30 — KF-137 source repair CLOSED_PASS; live read-only revalidation pending
+
+~~~text
+TASK=N3W_T1_E03_SUCCESSOR_RECOVERY_COMPOSE_ENV_AUTHORITY_SOURCE_REPAIR_20261030_01
+PR740_CLOSURE_HEAD=16d568ed577a050e23ee0061203d2a4d09cd19a0
+KF137=SOURCE_REPAIR_CLOSED_PASS_PR740_LIVE_REVALIDATION_PENDING
+SOURCE_REPAIR_IMPLEMENTATION=PASS
+INDEPENDENT_SOURCE_REVIEW=PASS
+FOCUSED_E03_CI=SUCCESS_245_PASSED_IN_0.48S
+FAST_SOURCE_EXACT_CLOSURE=SUCCESS
+PUBLIC_REPOSITORY_SAFETY=SUCCESS
+F5_V2_SOURCE=SUCCESS
+SOURCE_REPAIR_CLOSED_PASS=true
+T1_ACCESS_THIS_GATE=false
+T1_MUTATION=false
+LIVE_PREAUTH_RETRY=false
+SUCCESSOR_AUTHORIZATION_CLAIM=false
+MERGE=false
+CURRENT_STOP_POINT=SOURCE_REPAIR_CLOSED_BEFORE_LIVE_READONLY_PREAUTH_RETRY
+NEXT_ONE_GATE=N3W_T1_E03_SUCCESSOR_RECOVERY_READONLY_PREAUTH_R2_20261030_01
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+KF-137 is source-closed at PR #740 exact HEAD 16d568ed577a050e23ee0061203d2a4d09cd19a0. The repair preserves the fresh-product GH_MANAGER_IMAGE env indirection and binds docker-compose.yml plus docker-compose.env as the exact deployment-input authority across transaction, apply, rollback, status and boot gate recovery.
+
+Focused E03 CI passed 245 tests in 0.48s. Fast source/exact closure, Public repository safety and F5 V2 source CI are all green. Live preauth has not been retried yet, so the remaining state is live revalidation pending.
+
+Closure authority: docs/development/N3W_T1_E03_SUCCESSOR_RECOVERY_COMPOSE_ENV_AUTHORITY_SOURCE_REPAIR_CLOSURE_20261030.md.
 ## 2026-10-30 — KF-137 Compose env authority source repair implemented; final F5 CI pending
 
 ~~~text
