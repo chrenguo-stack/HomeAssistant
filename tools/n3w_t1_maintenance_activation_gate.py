@@ -12,6 +12,7 @@ from typing import Any
 
 SCHEMA = "gh.n3w-t1-maintenance-transaction/1"
 TRANSACTION_ROOT = Path("/var/lib/n3w-t1-maintenance/transactions")
+PRODUCTION_COMPOSE = Path("/etc/n3wfc4/docker-compose.yml")
 ACTIVE_BLOCKING_STATES = frozenset({"APPLYING", "BLOCKED"})
 ACTIVE_ALLOWING_STATES = frozenset(
     {"PREPARING", "READY", "VERIFYING", "ROLLING_BACK"}
@@ -233,6 +234,21 @@ def _rollback_predecessor_restored(value: dict[str, Any]) -> bool:
     )
 
 
+def _current_compose_sha256(
+    path: Path = PRODUCTION_COMPOSE,
+) -> str:
+    if path.is_symlink() or not path.is_file():
+        raise GateError("compose_reality_unavailable")
+    digest = hashlib.sha256()
+    try:
+        with path.open("rb") as stream:
+            for block in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(block)
+    except OSError as error:
+        raise GateError("compose_reality_unavailable") from error
+    return digest.hexdigest()
+
+
 def _record(path: Path) -> dict[str, Any]:
     if path.is_symlink() or not path.is_file():
         raise GateError("transaction_record_invalid")
@@ -272,9 +288,17 @@ def evaluate(root: Path = TRANSACTION_ROOT) -> tuple[bool, str]:
     if state in ACTIVE_BLOCKING_STATES:
         return False, "MAINTENANCE_BLOCKING"
     if state == "ROLLING_BACK":
-        if _rollback_predecessor_restored(value):
-            return True, "MAINTENANCE_ROLLBACK_RESTORED"
-        return False, "MAINTENANCE_BLOCKING"
+        if not _rollback_predecessor_restored(value):
+            return False, "MAINTENANCE_BLOCKING"
+        before = value.get("before", {}).get("compose")
+        if _current_compose_sha256() != before:
+            return False, "MAINTENANCE_BLOCKING"
+        return True, "MAINTENANCE_ROLLBACK_RESTORED"
+    if state == "VERIFYING":
+        intended = value.get("intended_after", {}).get("compose")
+        if _current_compose_sha256() != intended:
+            return False, "MAINTENANCE_BLOCKING"
+        return True, "MAINTENANCE_VERIFYING"
     if state in ACTIVE_ALLOWING_STATES:
         return True, "MAINTENANCE_VERIFYING"
     raise GateError("active_state_unhandled")
