@@ -592,6 +592,11 @@ def test_claim_rejects_preauth_plan_drift_before_transaction_creation(
         },
     )
     monkeypatch.setattr(successor, "preauthorization", lambda **_kwargs: dict(seed))
+    monkeypatch.setattr(
+        successor,
+        "global_lock",
+        lambda: contextlib.nullcontext(),
+    )
     with pytest.raises(
         successor.SuccessorError,
         match="preauth_plan_sha256_mismatch",
@@ -1376,3 +1381,60 @@ def test_gate_fingerprint_requires_systemd_loaded_execcondition(
         ),
     )
     assert successor._gate_fingerprint() == expected
+
+
+def test_claim_rechecks_preauth_inside_global_maintenance_lock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    identity = _portable_identity()
+    identity_sha = successor._portable_identity_sha256(identity)
+    state = {"locked": False, "preauth_called": False}
+
+    @contextlib.contextmanager
+    def lock():
+        assert state["locked"] is False
+        state["locked"] = True
+        try:
+            yield
+        finally:
+            state["locked"] = False
+
+    seed = {
+        "schema": successor.PLAN_SCHEMA,
+        "portable_identity": identity.to_dict(),
+        "portable_identity_sha256": identity_sha,
+    }
+
+    def preauth(**_kwargs):
+        assert state["locked"] is True
+        state["preauth_called"] = True
+        return dict(seed)
+
+    monkeypatch.setattr(successor, "global_lock", lock)
+    monkeypatch.setattr(successor, "preauthorization", preauth)
+    monkeypatch.setattr(
+        successor,
+        "runtime_authority",
+        lambda: {
+            "source_head": "1" * 40,
+            "executor_blob": "2" * 40,
+            "module_set_sha256": "3" * 64,
+        },
+    )
+    with pytest.raises(
+        successor.SuccessorError,
+        match="preauth_plan_sha256_mismatch",
+    ):
+        successor.claim(
+            identity=identity,
+            expected_identity_sha256=identity_sha,
+            predecessor_sha256="4" * 64,
+            expected_host_binding_sha256="5" * 64,
+            expected_preauth_plan_sha256="6" * 64,
+            transaction_id="txn-e03-successor-lock-rebind-0001",
+            authorization_id="N3W_T1_R10_E03_SUCCESSOR_RECOVERY_TEST_0002",
+            execution_session_id="session-e03-successor-lock-test-0001",
+            confirmation=successor.CONFIRMATION,
+        )
+    assert state["preauth_called"] is True
+    assert state["locked"] is False
