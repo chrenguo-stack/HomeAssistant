@@ -23,6 +23,11 @@ AUTHORITY = {
 
 def _plan() -> dict[str, object]:
     return {
+        "schema": successor.PLAN_SCHEMA,
+        "predecessor_sha256": "b" * 64,
+        "current_release_id": "8" * 64,
+        "target_release_id": "9" * 64,
+        "artifact_sha256": "a" * 64,
         "deployment_before_fingerprint": "1" * 64,
         "deployment_candidate_fingerprint": "2" * 64,
         "service_before_fingerprint": "3" * 64,
@@ -51,7 +56,7 @@ def _binding(plan: dict[str, object]) -> tx.MaintenanceBinding:
         executor_blob="e" * 40,
         module_set_sha256="f" * 64,
         plan_sha256=tx.sha256_bytes(tx.canonical_bytes(plan)),
-        scope=("activation_gate_install", "service_stop"),
+        scope=successor.SCOPE,
     )
 
 
@@ -141,6 +146,21 @@ def harness(
         successor,
         "_active_maintenance_documents",
         lambda: [target_store.load()],
+    )
+    monkeypatch.setattr(
+        successor,
+        "host_binding_sha256",
+        lambda: "7" * 64,
+    )
+    monkeypatch.setattr(
+        tx,
+        "assert_predecessor_immutable",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        successor,
+        "predecessor_evidence",
+        lambda _sha: {"status": "PASS"},
     )
     monkeypatch.setattr(
         successor,
