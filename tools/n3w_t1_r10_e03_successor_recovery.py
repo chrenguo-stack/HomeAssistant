@@ -977,12 +977,14 @@ def _current_release_id(
                 "compose_sha256": compose_sha256,
                 "compose_render_sha256": rendered_sha256,
                 "manager_image": OLD_MANAGER_IMAGE,
-                "manager_image_id": OLD_MANAGER_ID,
                 "homeassistant_image": HA_IMAGE,
-                "homeassistant_image_id": HA_IMAGE_ID,
                 "broker_image": BROKER_IMAGE,
-                "broker_image_id": BROKER_IMAGE_ID,
                 "service_unit": unit,
+                "state_contract": {
+                    "pre_registration_inventory_sha256": PRE_INVENTORY_SHA256,
+                    "post_registration_inventory_sha256": EMPTY_INVENTORY_SHA256,
+                    "schema_migration_required": False,
+                },
             }
         )
     )
@@ -1002,6 +1004,11 @@ def _target_release_id(
                 "portable_identity": identity.to_dict(),
                 "candidate_compose_sha256": candidate_compose_sha256,
                 "service_unit": unit,
+                "state_contract": {
+                    "pre_registration_inventory_sha256": PRE_INVENTORY_SHA256,
+                    "post_registration_inventory_sha256": EMPTY_INVENTORY_SHA256,
+                    "schema_migration_required": False,
+                },
             }
         )
     )
