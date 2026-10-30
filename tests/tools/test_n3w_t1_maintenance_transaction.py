@@ -44,7 +44,8 @@ def document():
 
 
 def claimed():
-    return tx.claim_authorization(tx.mark_ready(document()))
+    ready = tx.claim_authorization(tx.mark_ready(document()))
+    return tx.begin_apply(ready)
 
 
 def test_transaction_lifecycle_happy_path() -> None:
@@ -53,8 +54,10 @@ def test_transaction_lifecycle_happy_path() -> None:
     value = tx.mark_ready(value)
     assert value["state"] == "READY"
     value = tx.claim_authorization(value)
-    assert value["state"] == "APPLYING"
+    assert value["state"] == "READY"
     assert value["authorization_consumed"] is True
+    value = tx.begin_apply(value)
+    assert value["state"] == "APPLYING"
     value = tx.transition(
         value,
         "VERIFYING",
