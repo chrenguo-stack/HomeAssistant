@@ -495,11 +495,24 @@ def _parse_oci(
     layers = manifest.get("layers")
     if not isinstance(layers, list) or not layers:
         raise PortableImageIdentityError("oci_layers_invalid")
-    for layer in layers:
-        _descriptor_blob(archive, layer, name="layer", json_blob=False)
     rootfs = _rootfs_diff_ids(config_doc)
     if len(rootfs) != len(layers):
         raise PortableImageIdentityError("oci_layer_count_mismatch")
+    for index, (layer, expected_diff_id) in enumerate(
+        zip(layers, rootfs),
+        start=1,
+    ):
+        _unused, layer_path = _descriptor_blob(
+            archive,
+            layer,
+            name=f"layer_{index}",
+            json_blob=False,
+        )
+        media_type = layer.get("mediaType") if isinstance(layer, dict) else None
+        if not isinstance(media_type, str):
+            raise PortableImageIdentityError("oci_layer_media_type_invalid")
+        if archive.diff_id(layer_path, media_type) != expected_diff_id:
+            raise PortableImageIdentityError("oci_layer_diff_id_mismatch")
     return _identity(
         representation="oci-layout",
         archive_sha256=archive_sha256,
