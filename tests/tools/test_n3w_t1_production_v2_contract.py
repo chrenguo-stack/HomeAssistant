@@ -600,3 +600,27 @@ def test_release_v2_requires_deployment_and_state_contracts():
     ):
         contract.validate_release_v2(value)
 
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("os", "windows"),
+        ("architecture", "amd64"),
+        ("variant", "v8"),
+    ],
+)
+def test_release_v2_rejects_non_product_portable_platform(
+    field: str,
+    value: str,
+) -> None:
+    release = release_v2_document()
+    release["portable_images"]["manager"]["identity"][field] = value
+    material = copy.deepcopy(release)
+    material.pop("release_id")
+    release["release_id"] = contract.canonical_sha256(material)
+    with pytest.raises(
+        contract.ProductionV2ContractError,
+        match="portable_image_manager_platform_invalid",
+    ):
+        contract.validate_release_v2(release)
