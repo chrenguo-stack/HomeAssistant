@@ -65,8 +65,12 @@ def test_active_mutation_states_block(private_root: Path, state: str) -> None:
     assert reason == "MAINTENANCE_BLOCKING"
 
 
-def test_verifying_allows_application_start(private_root: Path) -> None:
-    _write(private_root, "tx.json", "VERIFYING")
+@pytest.mark.parametrize("state", sorted(gate.ACTIVE_ALLOWING_STATES))
+def test_non_mutating_active_states_allow_application_start(
+    private_root: Path,
+    state: str,
+) -> None:
+    _write(private_root, "tx.json", state)
     assert gate.evaluate(private_root) == (True, "MAINTENANCE_VERIFYING")
 
 
