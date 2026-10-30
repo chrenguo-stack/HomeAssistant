@@ -885,17 +885,34 @@ def _active_maintenance_documents() -> list[dict[str, Any]]:
         return []
     if TRANSACTION_ROOT.is_symlink() or not TRANSACTION_ROOT.is_dir():
         raise SuccessorError("transaction_root_invalid")
+    meta = TRANSACTION_ROOT.stat()
+    if (
+        meta.st_uid != 0
+        or meta.st_gid != 0
+        or stat.S_IMODE(meta.st_mode) != 0o700
+    ):
+        raise SuccessorError("transaction_root_metadata_invalid")
     documents: list[dict[str, Any]] = []
     for path in sorted(TRANSACTION_ROOT.glob("*.json")):
         try:
-            value = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError, json.JSONDecodeError) as error:
+            documents.append(maintenance.TransactionStore(path).load())
+        except maintenance.MaintenanceTransactionError as error:
             raise SuccessorError("maintenance_transaction_unreadable") from error
-        documents.append(maintenance.validate_transaction(value))
     return documents
 
 
-def _portable_identity_from_b64(value: str) -> portable.PortableImageIdentity:
+def _portable_identity_sha256(
+    identity: portable.PortableImageIdentity,
+) -> str:
+    return sha_bytes(canonical(identity.to_dict()))
+
+
+def _portable_identity_from_b64(
+    value: str,
+    expected_sha256: str,
+) -> portable.PortableImageIdentity:
+    if SHA64.fullmatch(expected_sha256 or "") is None:
+        raise SuccessorError("portable_identity_sha256_invalid")
     try:
         raw = base64.b64decode(value, validate=True)
     except (ValueError, TypeError) as error:
@@ -905,6 +922,8 @@ def _portable_identity_from_b64(value: str) -> portable.PortableImageIdentity:
         identity = portable.identity_from_dict(document)
     except portable.PortableImageIdentityError as error:
         raise SuccessorError(f"portable_identity_invalid:{error}") from error
+    if _portable_identity_sha256(identity) != expected_sha256:
+        raise SuccessorError("portable_identity_sha256_mismatch")
     if identity.archive_sha256 != TARGET_MANAGER_TAR_SHA256:
         raise SuccessorError("portable_identity_archive_drift")
     if identity.config_digest != TARGET_CONFIG_DIGEST:
@@ -1139,6 +1158,7 @@ def preauthorization(
         "artifact_run_id": TARGET_ARTIFACT_RUN_ID,
         "artifact_id": TARGET_ARTIFACT_ID,
         "portable_identity": identity.to_dict(),
+        "portable_identity_sha256": _portable_identity_sha256(identity),
         "target_runtime_image_id_observed": verdict.runtime_image_id,
         "compose_before_sha256": compose_sha256,
         "compose_candidate_sha256": candidate_sha256,
@@ -1210,6 +1230,7 @@ def _build_full_plan(
     *,
     transaction_id: str,
     authorization_id_sha256: str,
+    preauth_plan_sha256: str,
     authority: dict[str, str],
 ) -> dict[str, Any]:
     plan = copy.deepcopy(seed)
@@ -1217,6 +1238,7 @@ def _build_full_plan(
         {
             "transaction_id": transaction_id,
             "authorization_id_sha256": authorization_id_sha256,
+            "preauth_plan_sha256": preauth_plan_sha256,
             "executor_source_head": authority["source_head"],
             "executor_blob": authority["executor_blob"],
             "module_set_sha256": authority["module_set_sha256"],
@@ -1231,6 +1253,7 @@ def claim(
     identity: portable.PortableImageIdentity,
     predecessor_sha256: str,
     expected_host_binding_sha256: str,
+    expected_preauth_plan_sha256: str,
     transaction_id: str,
     authorization_id: str,
     execution_session_id: str,
@@ -1242,17 +1265,23 @@ def claim(
         raise SuccessorError("transaction_id_invalid")
     aid = _authorization_id(authorization_id)
     session_id = _execution_session_id(execution_session_id)
+    if SHA64.fullmatch(expected_preauth_plan_sha256 or "") is None:
+        raise SuccessorError("preauth_plan_sha256_invalid")
     authority = runtime_authority()
     seed = preauthorization(
         identity=identity,
         predecessor_sha256=predecessor_sha256,
         expected_host_binding_sha256=expected_host_binding_sha256,
     )
+    observed_preauth_plan_sha256 = sha_bytes(canonical(seed))
+    if observed_preauth_plan_sha256 != expected_preauth_plan_sha256:
+        raise SuccessorError("preauth_plan_sha256_mismatch")
     authorization_hash = sha_text(aid)
     plan = _build_full_plan(
         seed,
         transaction_id=transaction_id,
         authorization_id_sha256=authorization_hash,
+        preauth_plan_sha256=expected_preauth_plan_sha256,
         authority=authority,
     )
     plan_sha256 = maintenance.sha256_bytes(maintenance.canonical_bytes(plan))
@@ -2171,11 +2200,13 @@ def build_identity(path: Path) -> dict[str, Any]:
     )
     if identity.config_digest != TARGET_CONFIG_DIGEST:
         raise SuccessorError("artifact_config_digest_drift")
+    identity_sha256 = _portable_identity_sha256(identity)
     return {
         "schema": SCHEMA,
         "status": "PASS",
         "operation": "build-identity",
         "portable_identity_b64": _portable_identity_b64(identity),
+        "portable_identity_sha256": identity_sha256,
         "archive_sha256": identity.archive_sha256,
         "config_digest": identity.config_digest,
         "board_access": False,
@@ -2197,11 +2228,14 @@ def main() -> int:
 
     pre = sub.add_parser("preauth")
     pre.add_argument("--portable-identity-b64", required=True)
+    pre.add_argument("--portable-identity-sha256", required=True)
     pre.add_argument("--predecessor-sha256", required=True)
     pre.add_argument("--host-binding-sha256", required=True)
 
     claim_parser = sub.add_parser("claim")
     claim_parser.add_argument("--portable-identity-b64", required=True)
+    claim_parser.add_argument("--portable-identity-sha256", required=True)
+    claim_parser.add_argument("--preauth-plan-sha256", required=True)
     claim_parser.add_argument("--predecessor-sha256", required=True)
     claim_parser.add_argument("--host-binding-sha256", required=True)
     claim_parser.add_argument("--transaction-id", required=True)
@@ -2226,16 +2260,22 @@ def main() -> int:
         if args.operation == "build-identity":
             result = build_identity(Path(args.manager_tar))
         elif args.operation == "preauth":
-            identity = _portable_identity_from_b64(args.portable_identity_b64)
+            identity = _portable_identity_from_b64(
+                args.portable_identity_b64,
+                args.portable_identity_sha256,
+            )
             plan = preauthorization(
                 identity=identity,
                 predecessor_sha256=args.predecessor_sha256,
                 expected_host_binding_sha256=args.host_binding_sha256,
             )
+            preauth_plan_sha256 = sha_bytes(canonical(plan))
             result = {
                 "schema": SCHEMA,
                 "status": "PASS",
                 "operation": "preauth",
+                "portable_identity_sha256": plan["portable_identity_sha256"],
+                "preauth_plan_sha256": preauth_plan_sha256,
                 "predecessor_sha256": plan["predecessor_sha256"],
                 "current_release_id": plan["current_release_id"],
                 "target_release_id": plan["target_release_id"],
@@ -2250,11 +2290,15 @@ def main() -> int:
                 "board_access": False,
             }
         elif args.operation == "claim":
-            identity = _portable_identity_from_b64(args.portable_identity_b64)
+            identity = _portable_identity_from_b64(
+                args.portable_identity_b64,
+                args.portable_identity_sha256,
+            )
             result = claim(
                 identity=identity,
                 predecessor_sha256=args.predecessor_sha256,
                 expected_host_binding_sha256=args.host_binding_sha256,
+                expected_preauth_plan_sha256=args.preauth_plan_sha256,
                 transaction_id=args.transaction_id,
                 authorization_id=args.authorization_id,
                 execution_session_id=args.execution_session_id,
