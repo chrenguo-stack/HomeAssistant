@@ -1364,6 +1364,17 @@ def _operation(
     )
     pending = maintenance.pending_operation(document)
     observed = reality()
+    last_record = document["operations"][-1] if document["operations"] else None
+    if (
+        pending is None
+        and isinstance(last_record, dict)
+        and last_record.get("operation_type") == operation_type
+        and last_record.get("status") == "COMPLETE"
+        and last_record.get("intended_after_fingerprint") == after_fingerprint
+        and last_record.get("observed_after_fingerprint") == after_fingerprint
+        and observed == after_fingerprint
+    ):
+        return document
     if pending is not None:
         if pending["operation_type"] != operation_type:
             raise BlockedError("pending_operation_unexpected")
@@ -1684,6 +1695,31 @@ def apply(transaction_id: str) -> dict[str, Any]:
         document = store.load()
         plan = document["plan"]
         identity = portable.identity_from_dict(plan["portable_identity"])
+        if document["state"] == "COMMITTED":
+            return public_result(
+                document,
+                operation="apply",
+                reason_code="ALREADY_COMMITTED",
+                last_proven_state="TARGET_RUNTIME_ACCEPTED",
+                mutation_observed=document["operation_seq"] > 0,
+                recovery_class="COMMITTED",
+            )
+        if document["state"] == "BLOCKED":
+            return public_result(
+                document,
+                operation="apply",
+                reason_code=document.get("last_reason") or "BLOCKED",
+                last_proven_state="BLOCKED",
+                mutation_observed=document["operation_seq"] > 0,
+                recovery_class="BLOCKED_NO_REPLAY",
+            )
+        if document["state"] in {"ROLLING_BACK", "ROLLED_BACK"}:
+            return rollback(
+                transaction_id,
+                reason=document.get("last_reason") or "resume_rollback",
+                _store=store,
+                _document=document,
+            )
         try:
             if document["state"] == "READY":
                 binding = _runtime_rebind(
@@ -1708,60 +1744,64 @@ def apply(transaction_id: str) -> dict[str, Any]:
                 document = _save(store, document, applying)
                 _assert_gate_blocking()
 
-            binding = _runtime_rebind(
-                document,
-                action="service_stop",
-                allowed_states={"APPLYING"},
-            )
-            _broker_continuity(plan)
-            document = _operation(
-                store,
-                document,
-                binding=binding,
-                action="service_stop",
-                operation_type="service_stop",
-                before_fingerprint=plan["service_before_fingerprint"],
-                after_fingerprint=plan["service_stopped_fingerprint"],
-                reality=_service_fingerprint,
-                execute=_stop_services,
-                allowed_states={"APPLYING"},
-            )
-            _broker_continuity(plan)
+            if document["state"] == "APPLYING":
+                binding = _runtime_rebind(
+                    document,
+                    action="service_stop",
+                    allowed_states={"APPLYING"},
+                )
+                _broker_continuity(plan)
+                document = _operation(
+                    store,
+                    document,
+                    binding=binding,
+                    action="service_stop",
+                    operation_type="service_stop",
+                    before_fingerprint=plan["service_before_fingerprint"],
+                    after_fingerprint=plan["service_stopped_fingerprint"],
+                    reality=_service_fingerprint,
+                    execute=_stop_services,
+                    allowed_states={"APPLYING"},
+                )
+                _broker_continuity(plan)
 
-            binding = _runtime_rebind(
-                document,
-                action="compose_publish",
-                allowed_states={"APPLYING"},
-            )
-            document = _operation(
-                store,
-                document,
-                binding=binding,
-                action="compose_publish",
-                operation_type="compose_publish",
-                before_fingerprint=plan["compose_before_sha256"],
-                after_fingerprint=plan["compose_candidate_sha256"],
-                reality=lambda: _compose_reality(plan),
-                execute=lambda: _publish_candidate(plan),
-                allowed_states={"APPLYING"},
-            )
-            candidate = base64.b64decode(
-                plan["compose_candidate_b64"],
-                validate=True,
-            )
-            rendered = render_compose_payload(candidate)
-            if _service_record(rendered, "manager").get("image") != TARGET_MANAGER_IMAGE:
-                raise SuccessorError("candidate_readback_invalid")
-            _verify_candidate_identity(identity)
-            _broker_continuity(plan)
+                binding = _runtime_rebind(
+                    document,
+                    action="compose_publish",
+                    allowed_states={"APPLYING"},
+                )
+                document = _operation(
+                    store,
+                    document,
+                    binding=binding,
+                    action="compose_publish",
+                    operation_type="compose_publish",
+                    before_fingerprint=plan["compose_before_sha256"],
+                    after_fingerprint=plan["compose_candidate_sha256"],
+                    reality=lambda: _compose_reality(plan),
+                    execute=lambda: _publish_candidate(plan),
+                    allowed_states={"APPLYING"},
+                )
+                candidate = base64.b64decode(
+                    plan["compose_candidate_b64"],
+                    validate=True,
+                )
+                rendered = render_compose_payload(candidate)
+                if _service_record(rendered, "manager").get("image") != TARGET_MANAGER_IMAGE:
+                    raise SuccessorError("candidate_readback_invalid")
+                _verify_candidate_identity(identity)
+                _broker_continuity(plan)
 
-            verifying = maintenance.transition(
-                document,
-                "VERIFYING",
-                operation="candidate_published_owner_controlled",
-                observed_after={"compose": plan["compose_candidate_sha256"]},
-            )
-            document = _save(store, document, verifying)
+                verifying = maintenance.transition(
+                    document,
+                    "VERIFYING",
+                    operation="candidate_published_owner_controlled",
+                    observed_after={"compose": plan["compose_candidate_sha256"]},
+                )
+                document = _save(store, document, verifying)
+
+            if document["state"] != "VERIFYING":
+                raise SuccessorError("apply_state_not_resumable")
 
             binding = _runtime_rebind(
                 document,
@@ -1883,63 +1923,64 @@ def rollback(
                 reason=reason,
             )
             document = _save(store, document, rolling)
-        if document["state"] != "ROLLING_BACK":
+        if document["state"] not in {"ROLLING_BACK", "ROLLED_BACK"}:
             raise SuccessorError("rollback_state_invalid")
 
-        binding = _runtime_rebind(
-            document,
-            action="rollback_service_stop",
-            allowed_states={"ROLLING_BACK"},
-        )
-        current_service = _service_fingerprint()
-        if current_service == plan["service_running_fingerprint"]:
-            before_service = plan["service_running_fingerprint"]
-        elif current_service == plan["service_stopped_fingerprint"]:
-            before_service = plan["service_stopped_fingerprint"]
-        else:
-            raise BlockedError("rollback_service_reality_unknown")
-        document = _operation(
-            store,
-            document,
-            binding=binding,
-            action="rollback_service_stop",
-            operation_type="rollback_service_stop",
-            before_fingerprint=before_service,
-            after_fingerprint=plan["service_stopped_fingerprint"],
-            reality=_service_fingerprint,
-            execute=_stop_services,
-            allowed_states={"ROLLING_BACK"},
-            accept_after_without_intent=True,
-        )
-        _broker_continuity(plan)
+        if document["state"] == "ROLLING_BACK":
+            binding = _runtime_rebind(
+                document,
+                action="rollback_service_stop",
+                allowed_states={"ROLLING_BACK"},
+            )
+            current_service = _service_fingerprint()
+            if current_service == plan["service_running_fingerprint"]:
+                before_service = plan["service_running_fingerprint"]
+            elif current_service == plan["service_stopped_fingerprint"]:
+                before_service = plan["service_stopped_fingerprint"]
+            else:
+                raise BlockedError("rollback_service_reality_unknown")
+            document = _operation(
+                store,
+                document,
+                binding=binding,
+                action="rollback_service_stop",
+                operation_type="rollback_service_stop",
+                before_fingerprint=before_service,
+                after_fingerprint=plan["service_stopped_fingerprint"],
+                reality=_service_fingerprint,
+                execute=_stop_services,
+                allowed_states={"ROLLING_BACK"},
+                accept_after_without_intent=True,
+            )
+            _broker_continuity(plan)
 
-        binding = _runtime_rebind(
-            document,
-            action="compose_rollback",
-            allowed_states={"ROLLING_BACK"},
-        )
-        document = _operation(
-            store,
-            document,
-            binding=binding,
-            action="compose_rollback",
-            operation_type="compose_rollback",
-            before_fingerprint=plan["compose_candidate_sha256"],
-            after_fingerprint=plan["compose_before_sha256"],
-            reality=lambda: _compose_reality(plan),
-            execute=lambda: _restore_compose(plan),
-            allowed_states={"ROLLING_BACK"},
-            accept_after_without_intent=True,
-        )
+            binding = _runtime_rebind(
+                document,
+                action="compose_rollback",
+                allowed_states={"ROLLING_BACK"},
+            )
+            document = _operation(
+                store,
+                document,
+                binding=binding,
+                action="compose_rollback",
+                operation_type="compose_rollback",
+                before_fingerprint=plan["compose_candidate_sha256"],
+                after_fingerprint=plan["compose_before_sha256"],
+                reality=lambda: _compose_reality(plan),
+                execute=lambda: _restore_compose(plan),
+                allowed_states={"ROLLING_BACK"},
+                accept_after_without_intent=True,
+            )
 
-        rolled = maintenance.transition(
-            document,
-            "ROLLED_BACK",
-            operation="rollback_compose_restored",
-            reason=reason,
-            observed_after={"compose": plan["compose_before_sha256"]},
-        )
-        document = _save(store, document, rolled)
+            rolled = maintenance.transition(
+                document,
+                "ROLLED_BACK",
+                operation="rollback_compose_restored",
+                reason=reason,
+                observed_after={"compose": plan["compose_before_sha256"]},
+            )
+            document = _save(store, document, rolled)
 
         binding = _binding(document)
         maintenance.require_mutation_binding(
