@@ -65,6 +65,7 @@ def _plan() -> dict[str, object]:
         "manager_predecessor_container_id": "old-manager",
         "services_nrestarts": 0,
         "ha_mqtt_sha256": "8" * 64,
+        "supersession": None,
         "current_f4_authority": f4_authority,
         "current_f4_authority_sha256": successor.sha_bytes(
             successor.canonical(f4_authority)
@@ -495,6 +496,54 @@ def test_apply_ready_orders_gate_before_stop_before_publish_before_start(
         "service_start",
     ]
     assert events[5] == "readiness"
+
+
+def test_apply_aborted_transaction_is_terminal_and_read_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ready = _document(state="READY")
+    aborted = tx.abort_claimed_ready_before_apply(
+        ready,
+        reason="SOURCE_REPAIR_BEFORE_APPLY",
+    )
+
+    class Store:
+        def load(self):
+            return aborted
+
+    monkeypatch.setattr(
+        successor,
+        "global_lock",
+        lambda: contextlib.nullcontext(),
+    )
+    monkeypatch.setattr(
+        successor.maintenance,
+        "TransactionStore",
+        lambda _path: Store(),
+    )
+    monkeypatch.setattr(
+        successor.portable,
+        "identity_from_dict",
+        lambda _value: pytest.fail(
+            "aborted transaction must stop before plan parsing"
+        ),
+    )
+    monkeypatch.setattr(
+        successor,
+        "_runtime_rebind",
+        lambda *_args, **_kwargs: pytest.fail(
+            "aborted transaction must not enter mutation rebind"
+        ),
+    )
+
+    result = successor.apply(
+        "txn-e03-successor-test-0001",
+        "session-aborted-must-not-record-0001",
+    )
+    assert result["stage"] == "ABORTED"
+    assert result["reason_code"] == "TRANSACTION_ABORTED"
+    assert result["mutation_observed"] is False
+    assert result["recovery_class"] == "ABORTED_NO_REPLAY"
 
 
 def test_apply_verify_phase_resumes_without_stopping_or_republishing(
@@ -1606,6 +1655,7 @@ def test_successor_module_authority_includes_production_contract_source() -> Non
         "def _gate_source_bytes", 1
     )[0]
     assert "n3w_t1_production_v2_contract.py" in runtime_section
+    assert "n3w_t1_r10_e03_claimed_transaction_retirement.py" in runtime_section
     target_section = source.split("def _target_release_id(", 1)[1].split(
         "def ", 1
     )[0]
@@ -1764,6 +1814,7 @@ def test_runtime_rebind_recomputes_source_and_target_release_authority() -> None
     assert "source_release_id != binding.current_release_id" in section
     assert "target_release_id != binding.target_release_id" in section
     assert "_assert_current_f4_authority(current_f4_authority)" in section
+    assert "retirement.assert_supersession(" in section
 
 
 def _fresh_product_compose() -> bytes:
