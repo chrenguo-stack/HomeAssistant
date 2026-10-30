@@ -1,3 +1,12 @@
+## 2026-10-30 — E03 replacement baseline invalidation design FROZEN
+
+- T1 reboot caused the Broker StartedAt continuity break.
+- Selected route: evidence-bound READY to BLOCKED invalidation for the never-applied replacement transaction.
+- BLOCKED is terminal/non-active and does not enter supersession selection.
+- Preserve the original single ABORTED plus COMMITTED retirement pair, then fresh replacement preauthorization and claim.
+- Design authority: docs/development/N3W_T1_E03_REPLACEMENT_BASELINE_INVALIDATION_TERMINAL_BLOCKED_SOURCE_DESIGN_20261030.md.
+- Next gate: N3W_T1_E03_REPLACEMENT_BASELINE_INVALIDATION_TERMINAL_BLOCKED_SOURCE_REPAIR_20261030_01.
+
 ## 2026-10-30 — E03 replacement apply-authorization preflight CLOSED_STOP
 
 - Replacement transaction remains READY generation 4 and byte-identical; no apply or product mutation occurred.
