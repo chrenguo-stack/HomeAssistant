@@ -3049,25 +3049,35 @@ def public_result(
 
 
 def status(transaction_id: str) -> dict[str, Any]:
-    store = maintenance.TransactionStore(_transaction_path(transaction_id))
-    document = store.load()
-    maintenance.assert_predecessor_immutable(
-        PREDECESSOR_TX,
-        document["predecessor_sha256"],
-    )
-    deployment = _deployment_reality(document["plan"])
-    disposition = maintenance.recovery_disposition(
-        document,
-        {"deployment_inputs": deployment},
-    )
-    return public_result(
-        document,
-        operation="status",
-        reason_code="READ_ONLY_STATUS",
-        last_proven_state=f"DEPLOYMENT_INPUTS_{disposition}",
-        mutation_observed=document["operation_seq"] > 0,
-        recovery_class=disposition,
-    )
+    with retirement.readonly_global_lock():
+        store = maintenance.TransactionStore(
+            _transaction_path(transaction_id)
+        )
+        document = store.load()
+        maintenance.assert_predecessor_immutable(
+            PREDECESSOR_TX,
+            document["predecessor_sha256"],
+        )
+        retirement.assert_supersession(
+            document["plan"].get("supersession"),
+            predecessor_sha256=document["predecessor_sha256"],
+            current_release_id=document["current_release_id"],
+            target_release_id=document["target_release_id"],
+            artifact_sha256=document["artifact_sha256"],
+        )
+        deployment = _deployment_reality(document["plan"])
+        disposition = maintenance.recovery_disposition(
+            document,
+            {"deployment_inputs": deployment},
+        )
+        return public_result(
+            document,
+            operation="status",
+            reason_code="READ_ONLY_STATUS",
+            last_proven_state=f"DEPLOYMENT_INPUTS_{disposition}",
+            mutation_observed=document["operation_seq"] > 0,
+            recovery_class=disposition,
+        )
 
 
 def build_identity(
