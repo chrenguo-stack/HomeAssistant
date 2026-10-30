@@ -1825,12 +1825,16 @@ def mqtt_readiness_sample(
         return {"state": "WAIT", "reason": "application_containers_not_ready"}
     if manager_runtime["image_ref"] != TARGET_MANAGER_IMAGE:
         raise SuccessorError("manager_target_ref_invalid")
-    verdict = _verify_candidate_identity(identity)
-    if (
-        not isinstance(verdict.runtime_image_id, str)
-        or manager_runtime["image_id"] != verdict.runtime_image_id
-    ):
-        raise SuccessorError("manager_running_image_binding_invalid")
+    _verify_candidate_identity(identity)
+    running_verdict = portable.verify_docker_image(
+        identity,
+        manager_runtime["image_id"],
+    )
+    if running_verdict.status != "VERIFIED":
+        raise SuccessorError(
+            "manager_running_portable_identity_"
+            + running_verdict.status.lower()
+        )
     if (
         manager_runtime["network_mode"] != "host"
         or manager_runtime["restart_count"] != 0
