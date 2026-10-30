@@ -417,10 +417,14 @@ def record_execution_session(
     session_id = _text(execution_session_id, "execution_session_id")
     _text(action, "execution_session_action")
     session_hash = sha256_bytes(session_id.encode("utf-8"))
-    if any(
-        record.get("session_id_sha256") == session_hash
+    existing = [
+        record
         for record in value["execution_sessions"]
-    ):
+        if record.get("session_id_sha256") == session_hash
+    ]
+    if existing:
+        if len(existing) == 1 and existing[0].get("action") == action:
+            return value
         raise MaintenanceTransactionError("execution_session_reused")
     value["execution_sessions"].append(
         {
