@@ -66,7 +66,7 @@ def test_active_mutation_states_block(private_root: Path, state: str) -> None:
     assert reason == "MAINTENANCE_BLOCKING"
 
 
-@pytest.mark.parametrize("state", ["PREPARING", "READY", "VERIFYING"])
+@pytest.mark.parametrize("state", ["PREPARING", "READY"])
 def test_non_mutating_active_states_allow_application_start(
     private_root: Path,
     state: str,
@@ -242,6 +242,7 @@ def test_rolling_back_blocks_before_predecessor_compose_restore(
 
 def test_rolling_back_allows_start_only_after_proven_compose_restore(
     private_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     value = _valid_transaction("ROLLING_BACK")
     intent = tx.begin_operation(
@@ -262,6 +263,7 @@ def test_rolling_back_allows_start_only_after_proven_compose_restore(
     )
     path.chmod(0o600)
     assert gate._rollback_predecessor_restored(value) is True
+    monkeypatch.setattr(gate, "_current_compose_sha256", lambda: "a" * 64)
     assert gate.evaluate(private_root) == (
         True,
         "MAINTENANCE_ROLLBACK_RESTORED",
@@ -282,3 +284,61 @@ def test_rollback_restore_proof_rejects_wrong_target() -> None:
         observed_after_fingerprint="c" * 64,
     )
     assert gate._rollback_predecessor_restored(value) is False
+
+
+def _write_real_transaction(root: Path, value: dict) -> None:
+    path = root / "real.json"
+    path.write_text(
+        json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    path.chmod(0o600)
+
+
+def test_verifying_allows_start_only_when_current_compose_is_candidate(
+    private_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    value = _valid_transaction("VERIFYING")
+    _write_real_transaction(private_root, value)
+    monkeypatch.setattr(gate, "_current_compose_sha256", lambda: "b" * 64)
+    assert gate.evaluate(private_root) == (True, "MAINTENANCE_VERIFYING")
+
+
+def test_verifying_unknown_current_compose_blocks_boot_owner_start(
+    private_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    value = _valid_transaction("VERIFYING")
+    _write_real_transaction(private_root, value)
+    monkeypatch.setattr(gate, "_current_compose_sha256", lambda: "c" * 64)
+    assert gate.evaluate(private_root) == (False, "MAINTENANCE_BLOCKING")
+
+
+def test_rollback_restore_record_cannot_override_later_compose_drift(
+    private_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    value = _valid_transaction("ROLLING_BACK")
+    intent = tx.begin_operation(
+        value,
+        operation_type="compose_rollback",
+        before_fingerprint="b" * 64,
+        intended_after_fingerprint="a" * 64,
+        allowed_states={"ROLLING_BACK"},
+    )
+    value = tx.finish_operation(
+        intent,
+        observed_after_fingerprint="a" * 64,
+    )
+    _write_real_transaction(private_root, value)
+    monkeypatch.setattr(gate, "_current_compose_sha256", lambda: "c" * 64)
+    assert gate.evaluate(private_root) == (False, "MAINTENANCE_BLOCKING")
+
+
+def test_missing_or_symlink_compose_reality_fails_closed(
+    tmp_path: Path,
+) -> None:
+    missing = tmp_path / "missing-compose.yml"
+    with pytest.raises(gate.GateError, match="compose_reality_unavailable"):
+        gate._current_compose_sha256(missing)
