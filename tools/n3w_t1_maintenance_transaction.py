@@ -343,6 +343,8 @@ def transition(
 ) -> dict[str, Any]:
     value = validate_transaction(document)
     current = value["state"]
+    if value["operations"] and value["operations"][-1]["status"] == "INTENT":
+        raise MaintenanceTransactionError("transition_pending_operation")
     if target_state not in _ALLOWED[current]:
         raise MaintenanceTransactionError(f"transition_invalid:{current}:{target_state}")
     _text(operation, "operation")
