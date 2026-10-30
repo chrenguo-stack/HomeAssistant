@@ -50,6 +50,8 @@ GATE_DROPIN = Path(
     "90-n3w-maintenance-gate.conf"
 )
 F4_HOST = Path("/usr/local/sbin/n3w-t1-f4-activation")
+F4_REBOOT_VERIFY = Path("/usr/local/sbin/n3w-t1-f4-reboot-verify")
+RUNTIME_SNAPSHOT_SCHEMA = "gh.n3w-t1-runtime-snapshot/2"
 
 EXPECTED_EXECSTART = (
     "ExecStart=/usr/bin/docker compose "
@@ -1658,6 +1660,24 @@ def _load_f4() -> ModuleType:
     ):
         if not callable(getattr(module, name, None)):
             raise SuccessorError("f4_authority_contract_missing")
+    return module
+
+
+def _load_f4_reboot_verify() -> ModuleType:
+    if F4_REBOOT_VERIFY.is_symlink() or not F4_REBOOT_VERIFY.is_file():
+        raise SuccessorError("f4_reboot_verify_authority_unavailable")
+    loader = importlib.machinery.SourceFileLoader(
+        "n3w_e03_f4_reboot_verify_authority",
+        str(F4_REBOOT_VERIFY),
+    )
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    if spec is None:
+        raise SuccessorError("f4_reboot_verify_authority_import_invalid")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    loader.exec_module(module)
+    if not callable(getattr(module, "runtime_snapshot", None)):
+        raise SuccessorError("f4_reboot_verify_contract_missing")
     return module
 
 
