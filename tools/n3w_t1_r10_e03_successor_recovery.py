@@ -65,7 +65,7 @@ EXPECTED_EXECSTOP = (
     "-f ${N3WFC4_COMPOSE_FILE} stop homeassistant manager"
 )
 GATE_DROPIN_BYTES = (
-    "[Unit]\n"
+    "[Service]\n"
     "ExecCondition=/usr/local/sbin/n3w-t1-maintenance-activation-gate\n"
 ).encode("utf-8")
 
@@ -1469,6 +1469,18 @@ def _install_gate() -> None:
     expected = GATE_DROPIN_BYTES.decode().strip()
     if expected not in raw:
         raise SuccessorError("activation_gate_dropin_unproven")
+    loaded = run(
+        (
+            "systemctl",
+            "show",
+            SERVICES_UNIT,
+            "--property",
+            "ExecCondition",
+            "--value",
+        )
+    ).stdout.decode()
+    if str(GATE_TARGET) not in loaded:
+        raise SuccessorError("activation_gate_not_loaded")
     result = run((str(GATE_TARGET),), allowed=frozenset({0, 1}))
     if result.returncode != 0:
         raise SuccessorError("activation_gate_ready_phase_invalid")
