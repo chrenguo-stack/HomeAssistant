@@ -470,6 +470,90 @@ def test_preflight_rejects_non_before_runtime(
         )
 
 
+@pytest.mark.parametrize(
+    "probe,error",
+    [
+        ("service", "service_reality_not_exact_before"),
+        ("gate", "gate_reality_not_exact_before"),
+    ],
+)
+def test_preflight_rejects_non_before_service_or_gate(
+    harness,
+    monkeypatch: pytest.MonkeyPatch,
+    probe: str,
+    error: str,
+) -> None:
+    if probe == "service":
+        monkeypatch.setattr(
+            successor,
+            "_service_fingerprint",
+            lambda: "f" * 64,
+        )
+    else:
+        monkeypatch.setattr(
+            successor,
+            "_gate_fingerprint",
+            lambda: "f" * 64,
+        )
+    with pytest.raises(retirement.RetirementError, match=error):
+        retirement.preflight(
+            str(harness["document"]["transaction_id"])
+        )
+
+
+def test_claim_rejects_target_generation_or_sha_drift_after_preflight(
+    harness,
+) -> None:
+    target_id = str(harness["document"]["transaction_id"])
+    preflight = retirement.preflight(target_id)
+    current = harness["target_store"].load()
+    changed = dict(current)
+    changed["generation"] += 1
+    changed["last_operation"] = "external-safe-drift"
+    harness["target_store"].save(
+        changed,
+        expected_generation=current["generation"],
+    )
+    with pytest.raises(
+        retirement.RetirementError,
+        match="preauth_plan_sha256_mismatch",
+    ):
+        retirement.claim(
+            target_transaction_id=target_id,
+            expected_preauth_plan_sha256=preflight[
+                "retirement_plan_sha256"
+            ],
+            retirement_id="retirement-e03-test-drift-0001",
+            authorization_id=(
+                "N3W_T1_R10_E03_CLAIMED_TRANSACTION_RETIREMENT_TEST_DRIFT_0001"
+            ),
+            execution_session_id="retirement-session-test-drift-0001",
+            confirmation=retirement.CONFIRMATION,
+        )
+
+
+def test_record_validation_rejects_plan_record_cross_binding_drift(
+    harness,
+) -> None:
+    target_id = str(harness["document"]["transaction_id"])
+    plan = retirement._plan_locked(
+        target_id,
+        authority=dict(AUTHORITY),
+    )
+    record = retirement._record_from_plan(
+        plan=plan,
+        retirement_id="retirement-e03-test-crossbind-0001",
+        authorization_id_sha256="1" * 64,
+        execution_session_id_sha256="2" * 64,
+    )
+    record["target_transaction_sha256_before"] = "3" * 64
+    with pytest.raises(
+        retirement.RetirementError,
+        match="retirement_plan_record_cross_binding_invalid",
+    ):
+        retirement.validate_record(record)
+
+
 def test_committed_supersession_binds_aborted_transaction_and_evidence(
     harness,
 ) -> None:
