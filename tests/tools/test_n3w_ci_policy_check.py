@@ -15,7 +15,7 @@ class N3wCiPolicyCheckTest(unittest.TestCase):
     def test_repository_policy_alignment(self) -> None:
         result = audit(ROOT)
         self.assertEqual(result["errors"], [])
-        self.assertEqual(result["workflow_count"], 67)
+        self.assertEqual(result["workflow_count"], 69)
 
     def test_unregistered_workflow_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
