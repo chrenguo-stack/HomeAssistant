@@ -606,3 +606,81 @@ def test_active_transaction_scan_uses_strict_transaction_store() -> None:
     assert "transaction_root_metadata_invalid" in section
     assert "maintenance.TransactionStore(path).load()" in section
     assert "path.read_text" not in section
+
+
+def _predecessor_document() -> dict[str, object]:
+    return {
+        "schema": successor.PREDECESSOR_SCHEMA,
+        "status": "CLAIMED",
+        "phase": "AUTHORIZATION_CLAIMED",
+        "authorization_claimed": True,
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "target_source_head": successor.TARGET_SOURCE_HEAD,
+        "target_manager_image": successor.TARGET_MANAGER_IMAGE,
+        "target_manager_tar_sha256": successor.TARGET_MANAGER_TAR_SHA256,
+        "artifact_id": successor.TARGET_ARTIFACT_ID,
+        "artifact_digest_sha256": successor.TARGET_ARTIFACT_SHA256,
+        "authorization_id_sha256": "1" * 64,
+        "executor_source_head": "2" * 40,
+        "executor_blob": "3" * 40,
+        "compose_sha256": "4" * 64,
+        "compose_render_sha256": "5" * 64,
+        "ha_mqtt_sha256": "6" * 64,
+        "broker_container_id": "7" * 64,
+        "broker_image_id": "sha256:" + "8" * 64,
+        "broker_started_at": "2026-10-30T00:00:00Z",
+        "broker_restart_count": 0,
+        "manager_predecessor_container_id": "9" * 64,
+        "services_nrestarts": 0,
+    }
+
+
+def test_predecessor_evidence_binds_host_local_continuity_fields(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "predecessor.json"
+    path.write_text(
+        __import__("json").dumps(_predecessor_document(), sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(successor, "PREDECESSOR_TX", path)
+    expected = successor.sha_file(path)
+    value = successor.predecessor_evidence(expected)
+    assert value["broker_container_id"] == "7" * 64
+    assert value["manager_predecessor_container_id"] == "9" * 64
+    assert value["services_nrestarts"] == 0
+
+
+def test_predecessor_evidence_rejects_invalid_runtime_continuity_field(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    document = _predecessor_document()
+    document["broker_container_id"] = "not-a-container-id"
+    path = tmp_path / "predecessor.json"
+    path.write_text(
+        __import__("json").dumps(document, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(successor, "PREDECESSOR_TX", path)
+    with pytest.raises(
+        successor.SuccessorError,
+        match="predecessor_field_invalid:broker_container_id",
+    ):
+        successor.predecessor_evidence(successor.sha_file(path))
+
+
+def test_preauth_source_rebinds_old_runtime_continuity() -> None:
+    source = (
+        ROOT / "tools" / "n3w_t1_r10_e03_successor_recovery.py"
+    ).read_text(encoding="utf-8")
+    section = source.split("def preauthorization(", 1)[1].split(
+        "def _execution_session_id", 1
+    )[0]
+    assert "manager_predecessor_continuity_drift" in section
+    assert "broker_predecessor_continuity_drift" in section
+    assert "services_owner_restart_continuity_drift" in section
+    assert 'predecessor["manager_predecessor_container_id"]' in section
+    assert 'predecessor["services_nrestarts"]' in section
