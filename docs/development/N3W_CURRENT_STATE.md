@@ -1,3 +1,46 @@
+## 2026-10-30 — Historical exact Manager tar-size evidence recovery CLOSED_PASS
+
+~~~text
+TASK=N3W_T1_PORTABLE_IMAGE_IDENTITY_E03_SUCCESSOR_EXACT_ARTIFACT_SIZE_EVIDENCE_RECOVERY_READONLY_20261030_01
+
+PR725_HEAD=614c08a397462850f0167b77c9da45ae69a323ad
+PR740_HEAD=ff2904bcdedbae6651cbfe92104b12ad47d33903
+
+EXACT_ARTIFACT_RUN_ID=40880705472
+EXACT_ARTIFACT_ID=12900601779
+EXACT_SOURCE_HEAD=f8876fd87165df731d792690a8288867c3eeef55
+
+MANAGER_TAR_SIZE_BYTES=62681088
+MANAGER_TAR_SHA256=d129a33ea628d8bdd1361e0b1bf727175515b4a2afc1851e6ac14ec510895fb5
+BINDING_MANAGER_TAR_SHA256=d129a33ea628d8bdd1361e0b1bf727175515b4a2afc1851e6ac14ec510895fb5
+BINDING_SOURCE_HEAD=f8876fd87165df731d792690a8288867c3eeef55
+MANAGER_TAR_SIZE_EVIDENCE=PASS
+
+HISTORICAL_EXACT_MANAGER_TAR_SIZE_AUTHORITY=62681088
+EVIDENCE_RECOVERY=CLOSED_PASS
+READONLY_PREAUTH_READY=true
+READONLY_PREAUTH_EXECUTED=false
+LIVE_PREAUTH_AUTHORIZED=false
+
+T1_ACCESS_THIS_GATE=false
+T1_MUTATION_THIS_GATE=false
+BOARD_ACCESS_THIS_GATE=false
+WORKFLOW_DISPATCH=false
+OLD_AUTHORIZATION_REPLAY=false
+LIVE_RECOVERY=false
+MERGE=false
+
+CURRENT_STOP_POINT=HISTORICAL_EXACT_MANAGER_TAR_SIZE_EVIDENCE_RECOVERED_BEFORE_SUCCESSOR_READONLY_PREAUTH
+NEXT_ONE_GATE=N3W_T1_E03_SUCCESSOR_RECOVERY_READONLY_PREAUTH_20261030_01
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+The previously missing historical Manager tar byte-size authority is now recovered as `62681088` bytes. The read-only local evidence also rehashed the Manager tar and matched both the local `binding.json` and the GitHub-frozen exact artifact SHA256 `d129a33e...`; the binding source head also matched `f8876fd...`.
+
+The whole GitHub artifact size `2538792820` bytes was not used or inferred as the Manager tar size. No T1 or board access occurred. The source-repair closure remains CLOSED_PASS, and the next successor recovery stage is now eligible for a separately authorized read-only preauthorization gate.
+
+Evidence authority: `docs/development/N3W_T1_PORTABLE_IMAGE_IDENTITY_E03_SUCCESSOR_EXACT_ARTIFACT_SIZE_EVIDENCE_RECOVERY_READONLY_20261030.md`.
+
 ## 2026-10-30 — Portable Image Identity / E03 successor recovery P0 source repair CLOSED_PASS
 
 ~~~text
