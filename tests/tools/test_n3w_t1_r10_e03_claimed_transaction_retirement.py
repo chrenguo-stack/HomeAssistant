@@ -357,6 +357,7 @@ def test_retire_transitions_only_ready_to_aborted(harness) -> None:
         target_transaction_id=str(
             harness["document"]["transaction_id"]
         ),
+        execution_session_id="retirement-session-test-0001",
     )
     target = harness["target_store"].load()
     assert result["status"] == "PASS"
@@ -374,6 +375,22 @@ def test_retire_transitions_only_ready_to_aborted(harness) -> None:
     )
 
 
+def test_retire_rejects_different_execution_session(harness) -> None:
+    _claim(harness)
+    with pytest.raises(
+        retirement.RetirementError,
+        match="retirement_execution_session_drift",
+    ):
+        retirement.retire(
+            retirement_id="retirement-e03-test-0001",
+            target_transaction_id=str(
+                harness["document"]["transaction_id"]
+            ),
+            execution_session_id="retirement-session-test-wrong-0002",
+        )
+    assert harness["target_store"].load()["state"] == "READY"
+
+
 def test_claimed_before_abort_is_resumable_by_same_authority(harness) -> None:
     _claim(harness)
     target = harness["target_store"].load()
@@ -381,6 +398,7 @@ def test_claimed_before_abort_is_resumable_by_same_authority(harness) -> None:
     result = retirement.retire(
         retirement_id="retirement-e03-test-0001",
         target_transaction_id=str(target["transaction_id"]),
+        execution_session_id="retirement-session-test-0001",
     )
     assert result["retirement_stage"] == "COMMITTED"
     assert harness["target_store"].load()["state"] == "ABORTED"
@@ -402,6 +420,7 @@ def test_aborted_before_evidence_commit_only_finalizes_evidence(harness) -> None
     result = retirement.retire(
         retirement_id="retirement-e03-test-0001",
         target_transaction_id=str(target["transaction_id"]),
+        execution_session_id="retirement-session-test-0001",
     )
     assert result["retirement_stage"] == "COMMITTED"
     assert retirement.sha_file(harness["target_path"]) == after_sha
@@ -563,6 +582,7 @@ def test_committed_supersession_binds_aborted_transaction_and_evidence(
         target_transaction_id=str(
             harness["document"]["transaction_id"]
         ),
+        execution_session_id="retirement-session-test-0001",
     )
     old = harness["target_store"].load()
     supersession = retirement.committed_supersession(
@@ -586,6 +606,7 @@ def test_supersession_rejects_retired_transaction_byte_drift(
         target_transaction_id=str(
             harness["document"]["transaction_id"]
         ),
+        execution_session_id="retirement-session-test-0001",
     )
     old = harness["target_store"].load()
     expected = retirement.committed_supersession(
