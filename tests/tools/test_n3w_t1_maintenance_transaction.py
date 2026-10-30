@@ -390,3 +390,51 @@ def test_store_rejects_authorization_consumed_revert(tmp_path: Path) -> None:
         match="authorization_consumed_reverted",
     ):
         store.save(changed, expected_generation=value["generation"])
+
+
+def test_transaction_rejects_nonterminal_intent_in_operation_history() -> None:
+    value = claimed()
+    first = tx.begin_operation(
+        value,
+        operation_type="service_stop",
+        before_fingerprint="1" * 64,
+        intended_after_fingerprint="2" * 64,
+    )
+    first["operations"].append(
+        {
+            "operation_seq": 2,
+            "operation_type": "compose_publish",
+            "before_fingerprint": "3" * 64,
+            "intended_after_fingerprint": "4" * 64,
+            "observed_after_fingerprint": "4" * 64,
+            "status": "COMPLETE",
+            "last_error_code": None,
+        }
+    )
+    first["operation_seq"] = 2
+    with pytest.raises(
+        tx.MaintenanceTransactionError,
+        match="operation_intent_position_invalid",
+    ):
+        tx.validate_transaction(first)
+
+
+def test_transaction_rejects_completed_operation_without_observation() -> None:
+    value = claimed()
+    value["operations"] = [
+        {
+            "operation_seq": 1,
+            "operation_type": "compose_publish",
+            "before_fingerprint": "1" * 64,
+            "intended_after_fingerprint": "2" * 64,
+            "observed_after_fingerprint": None,
+            "status": "COMPLETE",
+            "last_error_code": None,
+        }
+    ]
+    value["operation_seq"] = 1
+    with pytest.raises(
+        tx.MaintenanceTransactionError,
+        match="operation_observation_missing",
+    ):
+        tx.validate_transaction(value)
