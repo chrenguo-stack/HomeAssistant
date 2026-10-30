@@ -1,3 +1,18 @@
+## 2026-10-30 — Portable Image Identity / E03 successor recovery P0 design frozen
+
+- Current repository main is still `2fbd0e9c2d3bf8a513ac318034e249511ffb6a2e` and does **not** contain current R10/E03 or P0 design work.
+- PR #725 remains OPEN/DRAFT at `614c08a397462850f0167b77c9da45ae69a323ad`; it is the current R10/E03 product-source and live-evidence authority.
+- PR #739 is OPEN/DRAFT, stacked directly on PR #725, initial design head `7b230c33ae45544bb953c4d9dd026d6be2f68db4`; it contains only docs/KF design advancement.
+- Independent Astra review confirms at least three field occurrences of the same cross-image-store single-`.Id` false-STOP pattern and requires a shared Portable Image Identity authority rather than another private executor validator.
+- P0 design is frozen for: shared Portable Image Identity, minimal durable Maintenance Transaction, and separately authorized E03 successor recovery.
+- Current E03 predecessor authorization remains consumed/no-replay; predecessor transaction remains immutable evidence. Current recovery choice is a new successor transaction after source repair and a fresh read-only live rebind.
+- KF-132 through KF-136 are registered: cross-store identity, transaction binding, unknown Compose overwrite, crash/service-owner ordering, and insufficient MQTT/business acceptance.
+- ADR-0010 remains authoritative: per-device official Armbian + automated product deployment. Golden Master / Final Seal / clone production remains retired.
+- PR #739 initial design-only exact head CI: 11/11 SUCCESS.
+- No T1/board/live mutation, old-authorization replay, source repair, workflow dispatch, or merge occurred in the design-freeze gate.
+- Next ONE gate: `N3W_T1_PORTABLE_IMAGE_IDENTITY_AND_E03_SUCCESSOR_RECOVERY_SOURCE_REPAIR_20261030_01`.
+- New chat must fresh-rebind main, PR #725 and PR #739 before source mutation; main alone is stale for this stage.
+
 ## 2026-10-29 — R10 E03 ACTIVE deadline / busy source repair CLOSED_PASS
 
 - PR #733 exact tested source head: `0d49c5ff991288ef3dba17650414a81f7d8e34b0`; tree `851bb5f2427f945f3a8f8ffa776a708bffdc4032`; stacked on PR #725 head `ff750b3801a282af1667b5fa63481e2333e301b3`.
