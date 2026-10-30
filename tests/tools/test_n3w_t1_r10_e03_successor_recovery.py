@@ -33,6 +33,8 @@ def _f4_authority() -> dict[str, object]:
         "successor_installed_files_sha256": "d" * 64,
         "historical_package_source_head": "e" * 40,
         "historical_package_manifest_sha256": "f" * 64,
+        "f4_host_blob": successor.EXPECTED_F4_HOST_BLOB,
+        "runtime_probe_blob": successor.EXPECTED_F4_RUNTIME_PROBE_BLOB,
         "f4_host_sha256": "1" * 64,
         "runtime_probe_sha256": "2" * 64,
     }
@@ -1089,6 +1091,16 @@ def _bind_current_f4_fixture(
     monkeypatch.setattr(successor, "F4_TRANSACTION", transaction)
     monkeypatch.setattr(successor, "F4_HOST", f4_host)
     monkeypatch.setattr(successor, "F4_REBOOT_VERIFY", runtime_probe)
+    monkeypatch.setattr(
+        successor,
+        "EXPECTED_F4_HOST_BLOB",
+        successor.git_blob(f4_host),
+    )
+    monkeypatch.setattr(
+        successor,
+        "EXPECTED_F4_RUNTIME_PROBE_BLOB",
+        successor.git_blob(runtime_probe),
+    )
     module = SimpleNamespace(
         F4_TRANSACTION=transaction,
         _read_private_record=lambda _path: dict(document),
@@ -1132,6 +1144,20 @@ def test_current_f4_authority_rejects_uncommitted_successor_generation(
     with pytest.raises(
         successor.SuccessorError,
         match="current_f4_transaction_contract_invalid",
+    ):
+        successor._current_f4_authority()
+
+
+def test_current_f4_authority_rejects_unreviewed_helper_bytes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    document = _current_f4_document()
+    _bind_current_f4_fixture(tmp_path, monkeypatch, document)
+    monkeypatch.setattr(successor, "EXPECTED_F4_HOST_BLOB", "0" * 40)
+    with pytest.raises(
+        successor.SuccessorError,
+        match="current_f4_helper_source_drift",
     ):
         successor._current_f4_authority()
 
@@ -1212,6 +1238,8 @@ def _strong_snapshot() -> dict[str, object]:
         "f4_authority_sha256": plan["current_f4_authority_sha256"],
         "f4_successor_target_source": f4["successor_target_source"],
         "f4_successor_manifest_sha256": f4["successor_manifest_sha256"],
+        "f4_host_blob": f4["f4_host_blob"],
+        "runtime_probe_blob": f4["runtime_probe_blob"],
         "f4_host_sha256": f4["f4_host_sha256"],
         "runtime_probe_sha256": f4["runtime_probe_sha256"],
         "systemd_state_sha256": "4" * 64,
