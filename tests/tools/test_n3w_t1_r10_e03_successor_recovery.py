@@ -1086,8 +1086,10 @@ def _bind_current_f4_fixture(
     transaction.write_bytes(successor.canonical(document) + b"\n")
     f4_host = tmp_path / "n3w-t1-f4-activation"
     f4_host.write_text("f4-host\n", encoding="utf-8")
+    f4_host.chmod(0o755)
     runtime_probe = tmp_path / "n3w-t1-f4-reboot-verify"
     runtime_probe.write_text("f4-runtime-probe\n", encoding="utf-8")
+    runtime_probe.chmod(0o755)
     monkeypatch.setattr(successor, "F4_TRANSACTION", transaction)
     monkeypatch.setattr(successor, "F4_HOST", f4_host)
     monkeypatch.setattr(successor, "F4_REBOOT_VERIFY", runtime_probe)
@@ -1160,6 +1162,42 @@ def test_current_f4_authority_rejects_unreviewed_helper_bytes(
         match="current_f4_helper_source_drift",
     ):
         successor._current_f4_authority()
+
+
+def test_reviewed_f4_helper_rejects_wrong_metadata_before_import(
+    tmp_path: Path,
+) -> None:
+    helper = tmp_path / "helper.py"
+    helper.write_text("x = 1\n", encoding="utf-8")
+    helper.chmod(0o644)
+    with pytest.raises(
+        successor.SuccessorError,
+        match="helper_drift",
+    ):
+        successor._reviewed_f4_helper(
+            helper,
+            expected_blob=successor.git_blob(helper),
+            unavailable_reason="helper_missing",
+            drift_reason="helper_drift",
+        )
+
+
+def test_f4_loaders_verify_reviewed_bytes_before_source_loader() -> None:
+    source = (
+        ROOT / "tools" / "n3w_t1_r10_e03_successor_recovery.py"
+    ).read_text(encoding="utf-8")
+    f4 = source.split("def _load_f4()", 1)[1].split(
+        "def _load_f4_reboot_verify()", 1
+    )[0]
+    assert f4.index("_reviewed_f4_helper(") < f4.index(
+        "SourceFileLoader("
+    )
+    probe = source.split("def _load_f4_reboot_verify()", 1)[1].split(
+        "def _current_f4_authority(", 1
+    )[0]
+    assert probe.index("_reviewed_f4_helper(") < probe.index(
+        "SourceFileLoader("
+    )
 
 
 def test_e03_current_runtime_snapshot_does_not_call_historical_reboot_snapshot() -> None:
