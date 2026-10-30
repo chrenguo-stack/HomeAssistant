@@ -1,3 +1,17 @@
+## 2026-10-30 — E03 successor read-only preauth R2 CLOSED_PASS
+
+- Exact PR #740 source HEAD: 16d568ed577a050e23ee0061203d2a4d09cd19a0.
+- Exact source rebind, local Portable Image Identity and predecessor fresh rebind all PASS.
+- Live preauth: PASS; exit code 0.
+- preauth_plan_sha256: ff1a0e16886c6cc2d860173d8330602f1dc30e8da3a793f19efad3bb97c9bb3c.
+- current_release_id: 4d6925334c4c6d0d741e3a8215954f4b136757f45e2295cbbe50e88996efa744.
+- target_release_id: 939e92d347a4cb925f760d58bafefdc2a41bfabc478f35ee086813d49da0f798.
+- Candidate Portable Image Identity VERIFIED; Compose prestate EXACT_PREDECESSOR; old authorization CONSUMED_NO_REPLAY; no other active transaction.
+- KF-137 live revalidation PASS.
+- Current E03 containerd-store cross-store identity path PASS; general P1 dual-store matrix remains pending.
+- No T1 mutation, successor authorization claim, successor transaction creation, live recovery or merge occurred.
+- Evidence authority: docs/development/N3W_T1_E03_SUCCESSOR_RECOVERY_READONLY_PREAUTH_R2_CLOSURE_20261030.md.
+- Next ONE gate: N3W_T1_E03_SUCCESSOR_RECOVERY_SUCCESSOR_TRANSACTION_CLAIM_20261030_01.
 ## 2026-10-30 — KF-137 source repair CLOSED_PASS; next is fresh read-only preauth R2
 
 - PR #740 exact closure HEAD: 16d568ed577a050e23ee0061203d2a4d09cd19a0.
