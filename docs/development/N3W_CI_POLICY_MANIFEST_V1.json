@@ -319,6 +319,20 @@
         "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion."
       }
     },
+    "n3w-r10-e03-manager-successor-refresh-live-source-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "PR #740 source workflow predates repository-wide PR cancellation wiring; tracked debt without changing execution semantics."
+      }
+    },
+    "n3w-r10-e03-manager-successor-refresh-preflight-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "PR #740 preflight workflow predates repository-wide PR cancellation wiring; tracked debt without changing execution semantics."
+      }
+    },
     "n3w-single-hop-contract-ci.yml": {
       "class": "FAST",
       "draft_policy": "run",
