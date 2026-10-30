@@ -399,3 +399,54 @@ def test_runtime_malformed_shape_is_unsupported_representation(
     parsed = identity.parse_image_archive(archive)
     verdict = identity.verify_runtime_document(parsed, {"Id": "sha256:" + "1" * 64})
     assert verdict.status == "UNSUPPORTED_REPRESENTATION"
+
+
+def test_archive_size_limit_is_enforced_before_hashing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    archive = tmp_path / "image.tar"
+    _classic_archive(archive)
+    monkeypatch.setattr(identity, "MAX_ARCHIVE_BYTES", archive.stat().st_size - 1)
+    with pytest.raises(
+        identity.PortableImageIdentityError,
+        match="archive_size_limit_exceeded",
+    ):
+        identity.parse_image_archive(archive)
+
+
+def test_tar_member_limit_is_enforced(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    archive = tmp_path / "image.tar"
+    _classic_archive(archive)
+    monkeypatch.setattr(identity, "MAX_TAR_MEMBERS", 1)
+    with pytest.raises(
+        identity.PortableImageIdentityError,
+        match="archive_member_limit_exceeded",
+    ):
+        identity.parse_image_archive(archive)
+
+
+def test_identity_record_rejects_non_string_diff_id() -> None:
+    value = {
+        "schema": identity.SCHEMA,
+        "representation": "docker-save",
+        "archive_sha256": "1" * 64,
+        "archive_size_bytes": 1,
+        "os": "linux",
+        "architecture": "arm64",
+        "variant": None,
+        "config_digest": "sha256:" + "2" * 64,
+        "manifest_digest": None,
+        "index_digest": None,
+        "config_semantics_sha256": "3" * 64,
+        "rootfs_diff_ids": [123],
+        "rootfs_diff_ids_sha256": "4" * 64,
+    }
+    with pytest.raises(
+        identity.PortableImageIdentityError,
+        match="identity_rootfs_invalid",
+    ):
+        identity.identity_from_dict(value)
