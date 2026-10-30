@@ -23,10 +23,18 @@ def _held_lock(monkeypatch: pytest.MonkeyPatch):
 def _plan() -> dict[str, object]:
     return {
         "kind": "successor-test",
-        "compose_before_sha256": "1" * 64,
-        "compose_candidate_sha256": "2" * 64,
-        "compose_candidate_b64": base64.b64encode(b"candidate-compose").decode("ascii"),
-        "compose_before_b64": base64.b64encode(b"before-compose").decode("ascii"),
+        "compose_sha256": "0" * 64,
+        "compose_render_sha256": "f" * 64,
+        "compose_env_before_sha256": "1" * 64,
+        "compose_env_candidate_sha256": "2" * 64,
+        "compose_env_candidate_b64": base64.b64encode(
+            b"GH_MANAGER_IMAGE=target\n"
+        ).decode("ascii"),
+        "compose_env_before_b64": base64.b64encode(
+            b"GH_MANAGER_IMAGE=before\n"
+        ).decode("ascii"),
+        "deployment_before_fingerprint": "a" * 64,
+        "deployment_candidate_fingerprint": "b" * 64,
         "service_before_fingerprint": "3" * 64,
         "service_stopped_fingerprint": "4" * 64,
         "service_running_fingerprint": "5" * 64,
@@ -71,8 +79,12 @@ def _document(
     document = tx.new_transaction(
         _binding(value),
         predecessor_sha256="3" * 64,
-        before={"compose": str(value["compose_before_sha256"])},
-        intended_after={"compose": str(value["compose_candidate_sha256"])},
+        before={
+            "deployment_inputs": str(value["deployment_before_fingerprint"])
+        },
+        intended_after={
+            "deployment_inputs": str(value["deployment_candidate_fingerprint"])
+        },
         plan=value,
     )
     document = tx.mark_ready(document)
@@ -84,7 +96,7 @@ def _document(
             document,
             "VERIFYING",
             operation="candidate_published_owner_controlled",
-            observed_after={"compose": str(value["compose_candidate_sha256"])},
+            observed_after={"deployment_inputs": str(value["deployment_candidate_fingerprint"])},
         )
     if state in {"ROLLING_BACK", "ROLLED_BACK"}:
         document = tx.transition(
@@ -99,14 +111,14 @@ def _document(
             "ROLLED_BACK",
             operation="rollback_compose_restored",
             reason="test",
-            observed_after={"compose": str(value["compose_before_sha256"])},
+            observed_after={"deployment_inputs": str(value["deployment_before_fingerprint"])},
         )
     if state == "COMMITTED":
         document = tx.transition(
             document,
             "COMMITTED",
             operation="runtime_acceptance_pass",
-            observed_after={"compose": str(value["compose_candidate_sha256"])},
+            observed_after={"deployment_inputs": str(value["deployment_candidate_fingerprint"])},
         )
     if state == "READY":
         return document
@@ -141,8 +153,8 @@ def test_operation_persists_intent_before_execute_and_completion_after(
         store,
         document,
         binding=_binding(),
-        action="compose_publish",
-        operation_type="compose_publish",
+        action="deployment_inputs_publish",
+        operation_type="deployment_inputs_publish",
         before_fingerprint="1" * 64,
         after_fingerprint="2" * 64,
         reality=read_reality,
@@ -160,7 +172,7 @@ def test_operation_reentry_completes_existing_intent_without_second_execute(
     document = _document()
     intent = tx.begin_operation(
         document,
-        operation_type="compose_publish",
+        operation_type="deployment_inputs_publish",
         before_fingerprint="1" * 64,
         intended_after_fingerprint="2" * 64,
         allowed_states={"APPLYING"},
@@ -172,8 +184,8 @@ def test_operation_reentry_completes_existing_intent_without_second_execute(
         store,
         intent,
         binding=_binding(),
-        action="compose_publish",
-        operation_type="compose_publish",
+        action="deployment_inputs_publish",
+        operation_type="deployment_inputs_publish",
         before_fingerprint="1" * 64,
         after_fingerprint="2" * 64,
         reality=lambda: "2" * 64,
@@ -193,8 +205,8 @@ def test_operation_unknown_reality_blocks_without_write(tmp_path: Path) -> None:
             store,
             document,
             binding=_binding(),
-            action="compose_publish",
-            operation_type="compose_publish",
+            action="deployment_inputs_publish",
+            operation_type="deployment_inputs_publish",
             before_fingerprint="1" * 64,
             after_fingerprint="2" * 64,
             reality=lambda: "9" * 64,
@@ -209,7 +221,7 @@ def test_repeated_completed_operation_is_read_only(tmp_path: Path) -> None:
     document = _document()
     intent = tx.begin_operation(
         document,
-        operation_type="compose_publish",
+        operation_type="deployment_inputs_publish",
         before_fingerprint="1" * 64,
         intended_after_fingerprint="2" * 64,
         allowed_states={"APPLYING"},
@@ -224,8 +236,8 @@ def test_repeated_completed_operation_is_read_only(tmp_path: Path) -> None:
         store,
         complete,
         binding=_binding(),
-        action="compose_publish",
-        operation_type="compose_publish",
+        action="deployment_inputs_publish",
+        operation_type="deployment_inputs_publish",
         before_fingerprint="1" * 64,
         after_fingerprint="2" * 64,
         reality=lambda: "2" * 64,
@@ -252,20 +264,20 @@ def test_candidate_publish_refuses_uncontrolled_application_owner(
 
 def test_rollback_requires_completed_candidate_write_provenance() -> None:
     document = _document(state="ROLLING_BACK")
-    assert successor._completed_compose_publish(document, _plan()) is False
+    assert successor._completed_deployment_inputs_publish(document, _plan()) is False
 
 
 def test_completed_candidate_write_provenance_is_detected() -> None:
     document = _document()
     intent = tx.begin_operation(
         document,
-        operation_type="compose_publish",
+        operation_type="deployment_inputs_publish",
         before_fingerprint="1" * 64,
         intended_after_fingerprint="2" * 64,
         allowed_states={"APPLYING"},
     )
     document = tx.finish_operation(intent, observed_after_fingerprint="2" * 64)
-    assert successor._completed_compose_publish(document, _plan()) is True
+    assert successor._completed_deployment_inputs_publish(document, _plan()) is True
 
 
 class _Clock:
@@ -441,7 +453,7 @@ def test_apply_ready_orders_gate_before_stop_before_publish_before_start(
         "activation_gate_install",
         "gate-blocking",
         "service_stop",
-        "compose_publish",
+        "deployment_inputs_publish",
         "service_start",
     ]
     assert events[5] == "readiness"
@@ -712,7 +724,7 @@ def _rolling_back_document() -> dict[str, object]:
     document = _document(state="APPLYING")
     publish = tx.begin_operation(
         document,
-        operation_type="compose_publish",
+        operation_type="deployment_inputs_publish",
         before_fingerprint="1" * 64,
         intended_after_fingerprint="2" * 64,
         allowed_states={"APPLYING"},
@@ -785,7 +797,7 @@ def test_rollback_becomes_terminal_only_after_runtime_start_and_validation(
         current = store.load()
         assert current["state"] == "ROLLING_BACK"
         assert any(
-            item["operation_type"] == "compose_rollback"
+            item["operation_type"] == "deployment_inputs_rollback"
             and item["status"] == "COMPLETE"
             and item["observed_after_fingerprint"] == "1" * 64
             for item in current["operations"]
@@ -1452,3 +1464,93 @@ def test_runtime_rebind_recomputes_source_and_target_release_authority() -> None
     assert "target_release_id = _target_release_id(" in section
     assert "source_release_id != binding.current_release_id" in section
     assert "target_release_id != binding.target_release_id" in section
+
+
+def _fresh_product_compose() -> bytes:
+    return b"""services:
+  broker:
+    image: local/n3w-mosquitto:2.1.2-3184566d
+  manager:
+    image: "${GH_MANAGER_IMAGE:?GH_MANAGER_IMAGE required}"
+    pull_policy: never
+    user: "999:999"
+  homeassistant:
+    image: local/n3w-homeassistant:2026.10.0-0c73235a
+"""
+
+
+def test_kf137_fresh_product_manager_image_indirection_is_supported() -> None:
+    successor.validate_manager_image_indirection(_fresh_product_compose())
+
+
+def test_kf137_manager_image_env_rewrite_changes_only_exact_authority() -> None:
+    before = (
+        b"GH_SYSTEM_ID=gh-test\n"
+        + f"GH_MANAGER_IMAGE={successor.OLD_MANAGER_IMAGE}\n".encode()
+        + b"GH_MQTT_PASSWORD_FILE=/run/secrets/password\n"
+    )
+    after = successor.rewrite_manager_image_env(before)
+    assert after == (
+        b"GH_SYSTEM_ID=gh-test\n"
+        + f"GH_MANAGER_IMAGE={successor.TARGET_MANAGER_IMAGE}\n".encode()
+        + b"GH_MQTT_PASSWORD_FILE=/run/secrets/password\n"
+    )
+
+
+def test_kf137_manager_image_env_rewrite_rejects_duplicate_authority() -> None:
+    before = (
+        f"GH_MANAGER_IMAGE={successor.OLD_MANAGER_IMAGE}\n"
+        f"export GH_MANAGER_IMAGE={successor.OLD_MANAGER_IMAGE}\n"
+    ).encode()
+    with pytest.raises(
+        successor.SuccessorError,
+        match="compose_env_manager_image_count_invalid",
+    ):
+        successor.rewrite_manager_image_env(before)
+
+
+def test_kf137_literal_manager_image_is_not_silently_reinterpreted() -> None:
+    literal = _fresh_product_compose().replace(
+        b'image: "${GH_MANAGER_IMAGE:?GH_MANAGER_IMAGE required}"',
+        f"image: {successor.OLD_MANAGER_IMAGE}".encode(),
+    )
+    with pytest.raises(
+        successor.SuccessorError,
+        match="manager_image_indirection_invalid",
+    ):
+        successor.validate_manager_image_indirection(literal)
+
+
+def test_deployment_reality_binds_compose_and_compose_env(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    compose = tmp_path / "docker-compose.yml"
+    compose_env = tmp_path / "docker-compose.env"
+    compose.write_bytes(_fresh_product_compose())
+    compose_env.write_text(
+        f"GH_MANAGER_IMAGE={successor.OLD_MANAGER_IMAGE}\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(successor, "COMPOSE", compose)
+    monkeypatch.setattr(successor, "COMPOSE_ENV", compose_env)
+    before = successor._deployment_reality({})
+    compose_env.write_text(
+        f"GH_MANAGER_IMAGE={successor.TARGET_MANAGER_IMAGE}\n",
+        encoding="utf-8",
+    )
+    after = successor._deployment_reality({})
+    assert before != after
+    compose.write_bytes(_fresh_product_compose() + b"\n")
+    assert successor._deployment_reality({}) != after
+
+
+def test_source_repair_uses_portable_deployment_binding_v2() -> None:
+    source = (
+        ROOT / "tools" / "n3w_t1_r10_e03_successor_recovery.py"
+    ).read_text(encoding="utf-8")
+    assert "portable_deployment_binding_id_v2(" in source
+    assert '"compose_env_before_sha256"' in source
+    assert '"compose_env_candidate_sha256"' in source
+    assert '"deployment_inputs"' in source
+    assert "rewrite_manager_image(" not in source
