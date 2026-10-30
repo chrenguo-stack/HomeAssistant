@@ -286,3 +286,38 @@ def test_plan_tampering_is_rejected() -> None:
     value["plan"]["compose_policy"] = "tampered"
     with pytest.raises(tx.MaintenanceTransactionError, match="plan_binding_mismatch"):
         tx.validate_transaction(value)
+
+
+def test_execution_session_is_distinct_and_idempotent_per_action() -> None:
+    value = tx.claim_authorization(tx.mark_ready(document()))
+    first = tx.record_execution_session(
+        value,
+        "execution-session-0001",
+        action="apply",
+    )
+    repeated = tx.record_execution_session(
+        first,
+        "execution-session-0001",
+        action="apply",
+    )
+    assert repeated == first
+    assert repeated["authorization_id_sha256"] == value["authorization_id_sha256"]
+    assert repeated["transaction_id"] == value["transaction_id"]
+    assert len(repeated["execution_sessions"]) == 1
+
+
+def test_execution_session_cannot_be_reused_for_different_action() -> None:
+    value = tx.record_execution_session(
+        tx.claim_authorization(tx.mark_ready(document())),
+        "execution-session-0002",
+        action="apply",
+    )
+    with pytest.raises(
+        tx.MaintenanceTransactionError,
+        match="execution_session_reused",
+    ):
+        tx.record_execution_session(
+            value,
+            "execution-session-0002",
+            action="rollback",
+        )
