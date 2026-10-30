@@ -10,6 +10,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
 import n3w_t1_maintenance_activation_gate as gate  # noqa: E402
+import n3w_t1_maintenance_transaction as tx  # noqa: E402
 
 
 def _write(root: Path, name: str, state: str) -> Path:
@@ -112,3 +113,109 @@ def test_malformed_transaction_fails_closed(
 
 def test_absent_transaction_root_allows_start(tmp_path: Path) -> None:
     assert gate.evaluate(tmp_path / "absent") == (True, "NO_TRANSACTION_ROOT")
+
+
+def _valid_transaction(state: str) -> dict:
+    plan = {"kind": "activation-gate-test"}
+    binding = tx.MaintenanceBinding(
+        transaction_id="txn-activation-gate-0001",
+        authorization_id_sha256="1" * 64,
+        host_binding_sha256="2" * 64,
+        current_release_id="3" * 64,
+        target_release_id="4" * 64,
+        artifact_sha256="5" * 64,
+        executor_source_head="6" * 40,
+        executor_blob="7" * 40,
+        module_set_sha256="8" * 64,
+        plan_sha256=tx.sha256_bytes(tx.canonical_bytes(plan)),
+        scope=("compose_publish",),
+    )
+    value = tx.new_transaction(
+        binding,
+        predecessor_sha256="9" * 64,
+        before={"compose": "a" * 64},
+        intended_after={"compose": "b" * 64},
+        plan=plan,
+    )
+    if state == "PREPARING":
+        return value
+    value = tx.mark_ready(value)
+    value = tx.claim_authorization(value)
+    if state == "READY":
+        return value
+    value = tx.begin_apply(value)
+    if state == "APPLYING":
+        return value
+    publish = tx.begin_operation(
+        value,
+        operation_type="compose_publish",
+        before_fingerprint="a" * 64,
+        intended_after_fingerprint="b" * 64,
+        allowed_states={"APPLYING"},
+    )
+    value = tx.finish_operation(
+        publish,
+        observed_after_fingerprint="b" * 64,
+    )
+    value = tx.transition(
+        value,
+        "VERIFYING",
+        operation="candidate_published_owner_controlled",
+        observed_after={"compose": "b" * 64},
+    )
+    if state == "VERIFYING":
+        return value
+    value = tx.transition(
+        value,
+        "ROLLING_BACK",
+        operation="rollback_begin",
+        reason="test",
+    )
+    if state == "ROLLING_BACK":
+        return value
+    value = tx.transition(
+        value,
+        "ROLLED_BACK",
+        operation="rollback_complete",
+        reason="test",
+        observed_after={"compose": "a" * 64},
+    )
+    return value
+
+
+def test_gate_schema_keys_match_transaction_module() -> None:
+    assert gate.TRANSACTION_KEYS == tx.TRANSACTION_KEYS
+
+
+@pytest.mark.parametrize(
+    "state",
+    ["PREPARING", "READY", "APPLYING", "VERIFYING", "ROLLING_BACK", "ROLLED_BACK"],
+)
+def test_gate_validates_real_transaction_records(state: str) -> None:
+    value = _valid_transaction(state)
+    assert gate._validate_record(value)["state"] == state
+
+
+def test_gate_rejects_verify_state_without_completed_publish() -> None:
+    value = _valid_transaction("APPLYING")
+    value = tx.transition(
+        value,
+        "VERIFYING",
+        operation="unsafe_verify",
+        observed_after={"compose": "b" * 64},
+    )
+    with pytest.raises(gate.GateError, match="verifying_publish_not_proven"):
+        gate._validate_record(value)
+
+
+def test_gate_rejects_plan_hash_corruption() -> None:
+    value = _valid_transaction("READY")
+    value["plan"]["kind"] = "tampered"
+    with pytest.raises(gate.GateError, match="transaction_record_plan_hash_invalid"):
+        gate._validate_record(value)
+
+
+def test_successor_dropin_uses_service_exec_condition() -> None:
+    import n3w_t1_r10_e03_successor_recovery as successor
+
+    assert successor.GATE_DROPIN_BYTES.startswith(b"[Service]\nExecCondition=")
