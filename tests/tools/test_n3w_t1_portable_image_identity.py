@@ -469,3 +469,173 @@ def test_expected_archive_size_type_is_strict(
             archive,
             expected_archive_size_bytes=invalid_size,
         )
+
+
+def test_oci_layer_content_must_match_config_diff_id(tmp_path: Path) -> None:
+    archive = tmp_path / "oci-wrong-diff.tar"
+    _oci_archive(archive)
+    with tarfile.open(archive, "r") as source:
+        members = {}
+        for member in source:
+            if member.isfile():
+                stream = source.extractfile(member)
+                assert stream is not None
+                members[member.name] = stream.read()
+    config_name = next(
+        name
+        for name in members
+        if name.startswith("blobs/sha256/")
+        and b'"rootfs"' in members[name]
+    )
+    config = json.loads(members[config_name])
+    config["rootfs"]["diff_ids"] = ["sha256:" + "0" * 64]
+    config_bytes = json.dumps(config, sort_keys=True, separators=(",", ":")).encode()
+    config_digest = "sha256:" + _sha(config_bytes)
+
+    index = json.loads(members["index.json"])
+    manifest_path = "blobs/sha256/" + index["manifests"][0]["digest"].split(":", 1)[1]
+    manifest = json.loads(members[manifest_path])
+    manifest["config"]["digest"] = config_digest
+    manifest["config"]["size"] = len(config_bytes)
+    manifest_bytes = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
+    manifest_digest = "sha256:" + _sha(manifest_bytes)
+    index["manifests"][0]["digest"] = manifest_digest
+    index["manifests"][0]["size"] = len(manifest_bytes)
+
+    layer_descriptor = manifest["layers"][0]
+    layer_path = "blobs/sha256/" + layer_descriptor["digest"].split(":", 1)[1]
+    with tarfile.open(archive, "w") as target:
+        _tar_add(target, "oci-layout", members["oci-layout"])
+        _tar_add(
+            target,
+            "index.json",
+            json.dumps(index, sort_keys=True, separators=(",", ":")).encode(),
+        )
+        _tar_add(target, "blobs/sha256/" + config_digest.split(":", 1)[1], config_bytes)
+        _tar_add(target, "blobs/sha256/" + manifest_digest.split(":", 1)[1], manifest_bytes)
+        _tar_add(target, layer_path, members[layer_path])
+    with pytest.raises(
+        identity.PortableImageIdentityError,
+        match="oci_layer_diff_id_mismatch",
+    ):
+        identity.parse_image_archive(archive)
+
+
+def test_oci_invalid_gzip_layer_fails_closed(tmp_path: Path) -> None:
+    archive = tmp_path / "oci-bad-gzip.tar"
+    config = _oci_archive(archive)
+    bad_layer = b"not-a-gzip-stream"
+    config_bytes = json.dumps(config, sort_keys=True, separators=(",", ":")).encode()
+    config_digest = "sha256:" + _sha(config_bytes)
+    layer_digest = "sha256:" + _sha(bad_layer)
+    manifest = {
+        "schemaVersion": 2,
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "config": {
+            "mediaType": "application/vnd.oci.image.config.v1+json",
+            "digest": config_digest,
+            "size": len(config_bytes),
+        },
+        "layers": [{
+            "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+            "digest": layer_digest,
+            "size": len(bad_layer),
+        }],
+    }
+    manifest_bytes = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
+    manifest_digest = "sha256:" + _sha(manifest_bytes)
+    index = {
+        "schemaVersion": 2,
+        "manifests": [{
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": manifest_digest,
+            "size": len(manifest_bytes),
+            "platform": {"os": "linux", "architecture": "arm64"},
+        }],
+    }
+    with tarfile.open(archive, "w") as tar:
+        _tar_add(tar, "oci-layout", b'{"imageLayoutVersion":"1.0.0"}')
+        _tar_add(tar, "index.json", json.dumps(index, sort_keys=True, separators=(",", ":")).encode())
+        _tar_add(tar, "blobs/sha256/" + config_digest.split(":", 1)[1], config_bytes)
+        _tar_add(tar, "blobs/sha256/" + manifest_digest.split(":", 1)[1], manifest_bytes)
+        _tar_add(tar, "blobs/sha256/" + layer_digest.split(":", 1)[1], bad_layer)
+    with pytest.raises(
+        identity.PortableImageIdentityError,
+        match="oci_layer_compression_invalid",
+    ):
+        identity.parse_image_archive(archive)
+
+
+def test_oci_unsupported_layer_media_type_fails_closed(tmp_path: Path) -> None:
+    archive = tmp_path / "oci-unsupported-layer.tar"
+    uncompressed = b"layer"
+    config = {
+        "architecture": "arm64",
+        "os": "linux",
+        "rootfs": {
+            "type": "layers",
+            "diff_ids": ["sha256:" + _sha(uncompressed)],
+        },
+        "config": {},
+    }
+    config_bytes = json.dumps(config, sort_keys=True, separators=(",", ":")).encode()
+    config_digest = "sha256:" + _sha(config_bytes)
+    layer_digest = "sha256:" + _sha(uncompressed)
+    manifest = {
+        "schemaVersion": 2,
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "config": {
+            "mediaType": "application/vnd.oci.image.config.v1+json",
+            "digest": config_digest,
+            "size": len(config_bytes),
+        },
+        "layers": [{
+            "mediaType": "application/example.unsupported",
+            "digest": layer_digest,
+            "size": len(uncompressed),
+        }],
+    }
+    manifest_bytes = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
+    manifest_digest = "sha256:" + _sha(manifest_bytes)
+    index = {
+        "schemaVersion": 2,
+        "manifests": [{
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": manifest_digest,
+            "size": len(manifest_bytes),
+            "platform": {"os": "linux", "architecture": "arm64"},
+        }],
+    }
+    with tarfile.open(archive, "w") as tar:
+        _tar_add(tar, "oci-layout", b'{"imageLayoutVersion":"1.0.0"}')
+        _tar_add(tar, "index.json", json.dumps(index, sort_keys=True, separators=(",", ":")).encode())
+        _tar_add(tar, "blobs/sha256/" + config_digest.split(":", 1)[1], config_bytes)
+        _tar_add(tar, "blobs/sha256/" + manifest_digest.split(":", 1)[1], manifest_bytes)
+        _tar_add(tar, "blobs/sha256/" + layer_digest.split(":", 1)[1], uncompressed)
+    with pytest.raises(
+        identity.UnsupportedImageArchive,
+        match="oci_layer_media_type_unsupported",
+    ):
+        identity.parse_image_archive(archive)
+
+
+def test_identity_document_representation_descriptor_invariants(tmp_path: Path) -> None:
+    archive = tmp_path / "classic.tar"
+    _classic_archive(archive)
+    classic = identity.parse_image_archive(archive).to_dict()
+    classic["manifest_digest"] = "sha256:" + "1" * 64
+    with pytest.raises(
+        identity.PortableImageIdentityError,
+        match="identity_docker_descriptor_digest_invalid",
+    ):
+        identity.identity_from_dict(classic)
+
+    oci_archive = tmp_path / "oci.tar"
+    _oci_archive(oci_archive)
+    oci = identity.parse_image_archive(oci_archive).to_dict()
+    oci["index_digest"] = None
+    with pytest.raises(
+        identity.PortableImageIdentityError,
+        match="identity_oci_descriptor_digest_missing",
+    ):
+        identity.identity_from_dict(oci)
