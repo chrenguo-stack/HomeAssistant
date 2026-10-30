@@ -1,3 +1,19 @@
+## 2026-10-30 — E03 replacement apply-authorization preflight CLOSED_STOP — Broker continuity baseline invalidated
+
+- Replacement transaction remains byte-identical: SHA-256 `d818ccb97e2aae093f9a251dc497b75e07c339f6f29aa4cda00a1970ea53f71c`, stage `READY`, generation `4`.
+- R1 preflight STOP was a harness authority canonicalization error: the durable claimed transaction binds module-set SHA-256 `c5055d019a26ec9764c22d6e0ee4e9c0f834fdbec3d57d0d22583286aa38730a`; no transaction or product drift was proven by R1.
+- Corrected R2 exact-source preflight then stopped on `broker_continuity_failed`.
+- Broker container ID, image ID and restart_count still match the frozen plan exactly; only `started_at` changed from `2026-10-25T14:40:59.136962496Z` to `2026-10-30T14:04:04.311501262Z`.
+- Broker activation unit is active/enabled, broker/service-owner NRestarts are 0, and TCP/8883 listener count is 1.
+- Classification: the claimed READY transaction's Broker continuity baseline was invalidated before apply. This is not evidence of Manager target apply or product image drift.
+- Existing claimed-transaction retirement cannot be reused unchanged because its preflight calls the same exact Broker continuity check.
+- A second matching ABORTED retirement would make existing `committed_supersession()` ambiguous because it requires exactly one matching ABORTED transaction and one COMMITTED retirement record.
+- Recommended recovery design boundary: terminally invalidate this never-applied READY transaction as `BLOCKED` under a new narrow evidence-backed gate, preserving the original ABORTED + COMMITTED supersession pair for the next fresh preauthorization.
+- Product mutation: false; service stop/start: false; Docker mutation: false; apply executed: false; board access: false; rollback required: false.
+- PR #740 evidence comment: `6525336589`.
+- Next ONE gate: `N3W_T1_E03_REPLACEMENT_BASELINE_INVALIDATION_TERMINAL_BLOCKED_SOURCE_DESIGN_20261030_01`.
+- Auto-execute apply: false.
+
 ## 2026-10-30 — E03 replacement successor authorization claim CLOSED_PASS
 
 - Replacement transaction SHA-256: `d818ccb97e2aae093f9a251dc497b75e07c339f6f29aa4cda00a1970ea53f71c`.
