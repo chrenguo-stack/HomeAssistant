@@ -2023,3 +2023,5 @@ def test_status_uses_deployment_inputs_state_name() -> None:
     section = source.split("def status(", 1)[1].split("def build_identity(", 1)[0]
     assert 'last_proven_state=f"DEPLOYMENT_INPUTS_{disposition}"' in section
     assert 'last_proven_state=f"COMPOSE_{disposition}"' not in section
+    assert "with retirement.readonly_global_lock():" in section
+    assert "retirement.assert_supersession(" in section
