@@ -265,6 +265,52 @@ def _claim(harness, *, retirement_id: str = "retirement-e03-test-0001"):
     )
 
 
+def test_claim_resumes_exact_prepared_record_after_interruption(
+    harness,
+) -> None:
+    target_id = str(harness["document"]["transaction_id"])
+    preflight = retirement.preflight(target_id)
+    plan = retirement._plan_locked(
+        target_id,
+        authority=dict(AUTHORITY),
+    )
+    assert retirement.sha_bytes(retirement.canonical(plan)) == preflight[
+        "retirement_plan_sha256"
+    ]
+
+    harness["retirement_root"].mkdir(parents=True, exist_ok=True)
+    prepared = retirement._record_from_plan(
+        plan=plan,
+        retirement_id="retirement-e03-test-0001",
+        authorization_id_sha256=retirement.sha_text(
+            "N3W_T1_R10_E03_CLAIMED_TRANSACTION_RETIREMENT_TEST_0001"
+        ),
+        execution_session_id_sha256=retirement.sha_text(
+            "retirement-session-test-0001"
+        ),
+    )
+    store = harness["original_retirement_store"](
+        harness["retirement_root"] / "retirement-e03-test-0001.json",
+        enforce_root_metadata=False,
+    )
+    store.create(prepared)
+
+    result = retirement.claim(
+        target_transaction_id=target_id,
+        expected_preauth_plan_sha256=preflight[
+            "retirement_plan_sha256"
+        ],
+        retirement_id="retirement-e03-test-0001",
+        authorization_id=(
+            "N3W_T1_R10_E03_CLAIMED_TRANSACTION_RETIREMENT_TEST_0001"
+        ),
+        execution_session_id="retirement-session-test-0001",
+        confirmation=retirement.CONFIRMATION,
+    )
+    assert result["retirement_stage"] == "CLAIMED"
+    assert result["authorization_consumed"] is True
+
+
 def test_claim_is_one_shot_and_does_not_change_target(harness) -> None:
     before_sha = retirement.sha_file(harness["target_path"])
     result = _claim(harness)
