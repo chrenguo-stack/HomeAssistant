@@ -321,3 +321,72 @@ def test_execution_session_cannot_be_reused_for_different_action() -> None:
             "execution-session-0002",
             action="rollback",
         )
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "authorization_id_sha256",
+        "host_binding_sha256",
+        "current_release_id",
+        "target_release_id",
+        "artifact_sha256",
+        "executor_source_head",
+        "executor_blob",
+        "module_set_sha256",
+        "plan_sha256",
+        "predecessor_sha256",
+    ],
+)
+def test_store_rejects_immutable_authority_drift(
+    tmp_path: Path,
+    field: str,
+) -> None:
+    path = tmp_path / "txn.json"
+    store = tx.TransactionStore(path, enforce_root_metadata=False)
+    original = document()
+    store.create(original)
+    changed = tx.mark_ready(original)
+    changed[field] = (
+        "f" * 40
+        if field in {"executor_source_head", "executor_blob"}
+        else "f" * 64
+    )
+    if field == "plan_sha256":
+        changed["plan"] = {"kind": "changed", "compose_policy": "before-after-only"}
+        changed[field] = tx.sha256_bytes(tx.canonical_bytes(changed["plan"]))
+    with pytest.raises(
+        tx.MaintenanceTransactionError,
+        match="transaction_immutable_binding_changed",
+    ):
+        store.save(changed, expected_generation=original["generation"])
+
+
+def test_store_rejects_direct_state_jump(tmp_path: Path) -> None:
+    path = tmp_path / "txn.json"
+    store = tx.TransactionStore(path, enforce_root_metadata=False)
+    original = document()
+    store.create(original)
+    changed = dict(original)
+    changed["state"] = "COMMITTED"
+    changed["generation"] += 1
+    changed["last_operation"] = "unsafe_direct_commit"
+    with pytest.raises(
+        tx.MaintenanceTransactionError,
+        match="transaction_state_jump_invalid",
+    ):
+        store.save(changed, expected_generation=original["generation"])
+
+
+def test_store_rejects_authorization_consumed_revert(tmp_path: Path) -> None:
+    path = tmp_path / "txn.json"
+    store = tx.TransactionStore(path, enforce_root_metadata=False)
+    value = tx.claim_authorization(tx.mark_ready(document()))
+    store.create(value)
+    changed = tx.begin_apply(value)
+    changed["authorization_consumed"] = False
+    with pytest.raises(
+        tx.MaintenanceTransactionError,
+        match="authorization_consumed_reverted",
+    ):
+        store.save(changed, expected_generation=value["generation"])
