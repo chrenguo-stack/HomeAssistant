@@ -88,6 +88,14 @@ class AuthorizationUnknownError(RefreshError):
     pass
 
 
+LEGACY_MUTATION_RETIRED = True
+
+
+def require_successor_transaction() -> None:
+    if LEGACY_MUTATION_RETIRED:
+        raise RefreshError("successor_transaction_required")
+
+
 def safe_error_code(error: BaseException) -> str:
     if isinstance(error, RefreshError):
         raw = str(error)
@@ -749,6 +757,7 @@ def remote_claim(args: argparse.Namespace) -> dict[str, Any]:
         raise RefreshError("pr725_head_invalid")
     if args.pr725_head != args.executor_source_head:
         raise RefreshError("pr725_executor_head_mismatch")
+    require_successor_transaction()
     value = preclaim()
     doc = {
         "schema": TX_SCHEMA,
@@ -991,6 +1000,7 @@ def _remote_apply_locked() -> dict[str, Any]:
     doc = read_tx()
     if doc.get("status") != "CLAIMED" or doc.get("authorization_consumed") is not True or doc.get("replay_allowed") is not False:
         raise RefreshError("transaction_not_claimed")
+    require_successor_transaction()
     if image_id(TARGET_MANAGER_IMAGE) != TARGET_MANAGER_ID:
         raise RefreshError("target_image_not_exact")
     if image_id(OLD_MANAGER_ID) != OLD_MANAGER_ID:
@@ -1089,6 +1099,7 @@ def remote_abort_prestop(reason_code: str) -> dict[str, Any]:
             or doc.get("replay_allowed") is not False
         ):
             raise RefreshError("prestop_abort_state_invalid")
+        require_successor_transaction()
         current = preclaim()
         if current["compose_sha256"] != doc.get("compose_sha256"):
             raise RefreshError("prestop_abort_compose_drift")
@@ -1290,6 +1301,7 @@ def host_apply(args: argparse.Namespace) -> dict[str, Any]:
     verify_pr725_head(args.pr725_head)
     verify_artifact_metadata()
     verify_local_artifact(args.manager_tar, args.binding_json)
+    require_successor_transaction()
     from n3w_t1_ssh_transport import SSHTransport
 
     transport = SSHTransport(
