@@ -1066,3 +1066,144 @@ def test_auth_probe_contract_cannot_claim_live_auth_from_partial_probe() -> None
                 "provisioning_exact_credential_auth": False,
             }
         )
+
+
+def _closed_post_ledger() -> dict[str, object]:
+    return {
+        "attempt_count": 1,
+        "registration_count": 0,
+        "registration_inventory_sha256": successor.EMPTY_INVENTORY_SHA256,
+        "unresolved_count": 0,
+        "attempts": [{
+            "pairing_id_sha256": successor.PAIRING_SHA256,
+            "hardware_id_sha256": successor.HARDWARE_SHA256,
+            "state": "EXPIRED",
+            "phase": "TERMINAL",
+            "cleanup_state": "COMPLETE",
+            "node_id_present": False,
+            "terminal_at_present": True,
+            "terminal_reason": "expired",
+            "expired_by_clock": True,
+            "session_state": "expired",
+            "session_reason": "expired",
+            "session_hardware_sha256": successor.HARDWARE_SHA256,
+            "registration_match_count": 0,
+            "current_pairing_matches": False,
+            "registration_node_id_present": False,
+            "pairing_credential_count": 0,
+            "hardware_credential_history_count": 0,
+        }],
+    }
+
+
+def _strict_acceptance_fixture(
+    monkeypatch: pytest.MonkeyPatch,
+    snapshots: list[dict[str, object]],
+) -> dict[str, object]:
+    plan = _plan()
+    auth_probe = {
+        "manager_wrong_client_id_rejected": True,
+        "provisioning_wrong_client_id_rejected": True,
+        "homeassistant_wrong_client_id_rejected": True,
+        "anonymous_rejected": True,
+        "provisioning_exact_credential_auth": True,
+    }
+    module = SimpleNamespace(
+        _homeassistant_http_readiness=lambda: {"status": "PASS"},
+        _broker_auth_negative_and_provisioning_probe=lambda _image: dict(auth_probe),
+    )
+    monkeypatch.setattr(successor, "_load_f4", lambda: module)
+    monkeypatch.setattr(
+        successor,
+        "mqtt_readiness_sample",
+        lambda *_args, **_kwargs: {"state": "READY"},
+    )
+    monkeypatch.setattr(
+        successor,
+        "_application_owner_acceptance",
+        lambda _plan: {
+            "active": "active",
+            "enabled": "enabled",
+            "manager_count": 1,
+            "homeassistant_count": 1,
+            "nrestarts": 0,
+        },
+    )
+    runtimes = {
+        "manager": {
+            "container_id": "manager-new",
+            "started_at": "manager-start",
+            "restart_count": 0,
+        },
+        "homeassistant": {
+            "container_id": "ha-id",
+            "started_at": "ha-start",
+            "restart_count": 0,
+        },
+    }
+    monkeypatch.setattr(successor, "runtime", lambda service: runtimes[service])
+    monkeypatch.setattr(
+        successor,
+        "_broker_continuity",
+        lambda _plan: {
+            "container_id": "broker-id",
+            "started_at": "broker-start",
+            "restart_count": 0,
+        },
+    )
+    monkeypatch.setattr(
+        successor,
+        "ha_mqtt_hash",
+        lambda: str(plan["ha_mqtt_sha256"]),
+    )
+    monkeypatch.setattr(
+        successor,
+        "ledger_in_manager",
+        lambda _manager: (_closed_post_ledger(), {}),
+    )
+    stream = iter(snapshots)
+    monkeypatch.setattr(
+        successor,
+        "_authenticated_runtime_snapshot",
+        lambda: next(stream),
+    )
+    return plan
+
+
+def test_strict_acceptance_rejects_authenticated_session_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first = _strong_snapshot()
+    final = __import__("copy").deepcopy(first)
+    final["runtime_service_auth"]["manager"]["owned_socket_sha256"] = "c" * 64
+    plan = _strict_acceptance_fixture(monkeypatch, [first, final])
+    with pytest.raises(
+        successor.SuccessorError,
+        match="authenticated_runtime_evidence_changed",
+    ):
+        successor.strict_acceptance(
+            plan,
+            identity=object(),
+            stability_seconds=0,
+        )
+
+
+def test_strict_acceptance_reports_authenticated_contract_only_after_strong_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    snapshot = _strong_snapshot()
+    plan = _strict_acceptance_fixture(
+        monkeypatch,
+        [snapshot, __import__("copy").deepcopy(snapshot)],
+    )
+    result = successor.strict_acceptance(
+        plan,
+        identity=object(),
+        stability_seconds=0,
+    )
+    assert result["status"] == "PASS"
+    assert result["manager_authenticated_mqtt_session"] is True
+    assert result["homeassistant_authenticated_mqtt_session"] is True
+    assert result["process_socket_ownership"] is True
+    assert result["application_owner_stable"] is True
+    assert result["real_node_telemetry"] == "NOT_APPLICABLE"
