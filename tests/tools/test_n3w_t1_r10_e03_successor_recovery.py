@@ -393,6 +393,7 @@ def test_apply_ready_orders_gate_before_stop_before_publish_before_start(
     monkeypatch.setattr(successor.maintenance, "TransactionStore", lambda _path: Store())
     monkeypatch.setattr(successor.portable, "identity_from_dict", lambda _value: object())
     monkeypatch.setattr(successor, "_runtime_rebind", lambda doc, **_kwargs: _binding())
+    monkeypatch.setattr(successor, "_runtime_image_exists", lambda *_args: None)
     monkeypatch.setattr(successor, "_assert_gate_blocking", lambda: events.append("gate-blocking"))
     monkeypatch.setattr(
         successor,
@@ -445,6 +446,7 @@ def test_apply_verify_phase_resumes_without_stopping_or_republishing(
     monkeypatch.setattr(successor.maintenance, "TransactionStore", lambda _path: Store())
     monkeypatch.setattr(successor.portable, "identity_from_dict", lambda _value: object())
     monkeypatch.setattr(successor, "_runtime_rebind", lambda doc, **_kwargs: _binding())
+    monkeypatch.setattr(successor, "_runtime_image_exists", lambda *_args: None)
     monkeypatch.setattr(
         successor,
         "_operation",
