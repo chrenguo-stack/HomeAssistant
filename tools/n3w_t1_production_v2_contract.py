@@ -279,11 +279,19 @@ def validate_release_v2(document: Any) -> dict[str, Any]:
         )
         _text(record["deployment_ref"], f"portable_image_{name}_deployment_ref")
         try:
-            portable.identity_from_dict(record["identity"])
+            image_identity = portable.identity_from_dict(record["identity"])
         except portable.PortableImageIdentityError as error:
             raise ProductionV2ContractError(
                 f"portable_image_{name}_identity_invalid"
             ) from error
+        if (
+            image_identity.os != "linux"
+            or image_identity.architecture != "arm64"
+            or image_identity.variant is not None
+        ):
+            raise ProductionV2ContractError(
+                f"portable_image_{name}_platform_invalid"
+            )
 
     state_contract = _mapping(value["state_contract"], "state_contract")
     if not state_contract:
