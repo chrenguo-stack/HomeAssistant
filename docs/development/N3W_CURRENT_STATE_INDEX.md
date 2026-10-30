@@ -1,3 +1,14 @@
+## 2026-10-30 — E03 replacement apply-authorization preflight CLOSED_STOP
+
+- Replacement transaction remains READY generation 4 and byte-identical; no apply or product mutation occurred.
+- Corrected exact-source preflight stopped because Broker `started_at` no longer matches the claim-time frozen baseline.
+- Broker container ID, image ID and restart_count still match; broker unit is active/enabled and TCP/8883 remains listening.
+- Existing retirement executor cannot retire this transaction unchanged because it enforces the same Broker continuity.
+- A second matching ABORTED retirement would make the current supersession selector ambiguous.
+- Recommended next design: narrow pre-apply terminal `BLOCKED` invalidation, preserving the original committed supersession pair before a fresh replacement preauthorization.
+- PR #740 evidence: `6525336589`.
+- Next ONE gate: `N3W_T1_E03_REPLACEMENT_BASELINE_INVALIDATION_TERMINAL_BLOCKED_SOURCE_DESIGN_20261030_01`.
+
 ## 2026-10-30 — E03 replacement successor authorization claim CLOSED_PASS
 
 - Replacement transaction is READY, generation 4.
