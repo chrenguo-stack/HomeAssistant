@@ -12,8 +12,10 @@ from typing import Any
 
 SCHEMA = "gh.n3w-t1-maintenance-transaction/1"
 TRANSACTION_ROOT = Path("/var/lib/n3w-t1-maintenance/transactions")
-ACTIVE_BLOCKING_STATES = frozenset({"APPLYING", "ROLLING_BACK", "BLOCKED"})
-ACTIVE_ALLOWING_STATES = frozenset({"PREPARING", "READY", "VERIFYING"})
+ACTIVE_BLOCKING_STATES = frozenset({"APPLYING", "BLOCKED"})
+ACTIVE_ALLOWING_STATES = frozenset(
+    {"PREPARING", "READY", "VERIFYING", "ROLLING_BACK"}
+)
 TERMINAL_STATES = frozenset({"COMMITTED", "ROLLED_BACK", "ABORTED"})
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 SHA64 = re.compile(r"^[0-9a-f]{64}$")
@@ -213,6 +215,23 @@ def _validate_record(value: Any) -> dict[str, Any]:
     return value
 
 
+def _rollback_predecessor_restored(value: dict[str, Any]) -> bool:
+    before = value.get("before")
+    operations = value.get("operations")
+    if not isinstance(before, dict) or not isinstance(operations, list):
+        return False
+    compose_before = before.get("compose")
+    if not isinstance(compose_before, str) or SHA64.fullmatch(compose_before) is None:
+        return False
+    return any(
+        isinstance(record, dict)
+        and record.get("operation_type") == "compose_rollback"
+        and record.get("status") == "COMPLETE"
+        and record.get("intended_after_fingerprint") == compose_before
+        and record.get("observed_after_fingerprint") == compose_before
+        for record in operations
+    )
+
 
 def _record(path: Path) -> dict[str, Any]:
     if path.is_symlink() or not path.is_file():
@@ -235,7 +254,7 @@ def evaluate(root: Path = TRANSACTION_ROOT) -> tuple[bool, str]:
     if not root.exists():
         return True, "NO_TRANSACTION_ROOT"
     _private_root(root)
-    active: list[tuple[str, str]] = []
+    active: list[dict[str, Any]] = []
     for path in sorted(root.glob("*.json")):
         value = _record(path)
         state = str(value["state"])
@@ -243,13 +262,18 @@ def evaluate(root: Path = TRANSACTION_ROOT) -> tuple[bool, str]:
             txid = value.get("transaction_id")
             if not isinstance(txid, str) or not txid:
                 raise GateError("transaction_id_invalid")
-            active.append((txid, state))
+            active.append(value)
     if len(active) > 1:
         raise GateError("multiple_active_transactions")
     if not active:
         return True, "NO_ACTIVE_TRANSACTION"
-    _txid, state = active[0]
+    value = active[0]
+    state = str(value["state"])
     if state in ACTIVE_BLOCKING_STATES:
+        return False, "MAINTENANCE_BLOCKING"
+    if state == "ROLLING_BACK":
+        if _rollback_predecessor_restored(value):
+            return True, "MAINTENANCE_ROLLBACK_RESTORED"
         return False, "MAINTENANCE_BLOCKING"
     if state in ACTIVE_ALLOWING_STATES:
         return True, "MAINTENANCE_VERIFYING"
