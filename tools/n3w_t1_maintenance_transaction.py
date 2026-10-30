@@ -61,6 +61,7 @@ class MaintenanceBinding:
     executor_source_head: str
     executor_blob: str
     module_set_sha256: str
+    plan_sha256: str
     scope: tuple[str, ...]
 
     def to_dict(self) -> dict[str, Any]:
@@ -117,6 +118,7 @@ def validate_binding(binding: MaintenanceBinding) -> MaintenanceBinding:
     _sha(binding.executor_source_head, "executor_source_head", git=True)
     _sha(binding.executor_blob, "executor_blob", git=True)
     _sha(binding.module_set_sha256, "module_set_sha256")
+    _sha(binding.plan_sha256, "plan_sha256")
     if not binding.scope or len(set(binding.scope)) != len(binding.scope):
         raise MaintenanceTransactionError("scope_invalid")
     for action in binding.scope:
@@ -130,6 +132,7 @@ def new_transaction(
     predecessor_sha256: str,
     before: dict[str, str],
     intended_after: dict[str, str],
+    plan: dict[str, Any],
 ) -> dict[str, Any]:
     validate_binding(binding)
     _sha(predecessor_sha256, "predecessor_sha256")
@@ -137,6 +140,10 @@ def new_transaction(
         raise MaintenanceTransactionError("before_invalid")
     if not isinstance(intended_after, dict) or set(before) != set(intended_after):
         raise MaintenanceTransactionError("intended_after_invalid")
+    if not isinstance(plan, dict) or not plan:
+        raise MaintenanceTransactionError("plan_invalid")
+    if sha256_bytes(canonical_bytes(plan)) != binding.plan_sha256:
+        raise MaintenanceTransactionError("plan_binding_mismatch")
     for key, value in before.items():
         _text(key, "state_key")
         _sha(value, f"before_{key}")
@@ -145,6 +152,7 @@ def new_transaction(
         "schema": SCHEMA,
         **binding.to_dict(),
         "predecessor_sha256": predecessor_sha256,
+        "plan": deepcopy(plan),
         "state": "PREPARING",
         "authorization_consumed": False,
         "replay_allowed": False,
@@ -173,8 +181,10 @@ def validate_transaction(document: Any) -> dict[str, Any]:
         "executor_source_head",
         "executor_blob",
         "module_set_sha256",
+        "plan_sha256",
         "scope",
         "predecessor_sha256",
+        "plan",
         "state",
         "authorization_consumed",
         "replay_allowed",
@@ -201,10 +211,16 @@ def validate_transaction(document: Any) -> dict[str, Any]:
         executor_source_head=document["executor_source_head"],
         executor_blob=document["executor_blob"],
         module_set_sha256=document["module_set_sha256"],
+        plan_sha256=document["plan_sha256"],
         scope=tuple(document["scope"]) if isinstance(document["scope"], list) else (),
     )
     validate_binding(binding)
     _sha(document["predecessor_sha256"], "predecessor_sha256")
+    plan = document.get("plan")
+    if not isinstance(plan, dict) or not plan:
+        raise MaintenanceTransactionError("plan_invalid")
+    if sha256_bytes(canonical_bytes(plan)) != document["plan_sha256"]:
+        raise MaintenanceTransactionError("plan_binding_mismatch")
     state = document.get("state")
     if state not in STATES:
         raise MaintenanceTransactionError("transaction_state_invalid")
@@ -288,6 +304,7 @@ def binding_from_transaction(document: dict[str, Any]) -> MaintenanceBinding:
         executor_source_head=value["executor_source_head"],
         executor_blob=value["executor_blob"],
         module_set_sha256=value["module_set_sha256"],
+        plan_sha256=value["plan_sha256"],
         scope=tuple(value["scope"]),
     )
 
