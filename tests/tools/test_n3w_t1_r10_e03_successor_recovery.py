@@ -411,9 +411,13 @@ def test_post_e03_business_ledger_must_be_fully_closed() -> None:
 
 
 def test_apply_ready_orders_gate_before_stop_before_publish_before_start(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     document = _document(state="READY")
+    compose = tmp_path / "docker-compose.yml"
+    compose.write_bytes(_fresh_product_compose())
+    monkeypatch.setattr(successor, "COMPOSE", compose)
     events: list[str] = []
 
     class Store:
