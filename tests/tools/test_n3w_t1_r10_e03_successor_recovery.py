@@ -1233,6 +1233,7 @@ def test_global_maintenance_lock_is_nonblocking_and_fail_closed(
     lock_path = root / ".maintenance.lock"
     monkeypatch.setattr(successor, "MAINTENANCE_ROOT", root)
     monkeypatch.setattr(successor, "LOCK_PATH", lock_path)
+    monkeypatch.setattr(successor, "_ensure_private_dir", lambda _path: None)
     monkeypatch.setattr(successor.os, "fchown", lambda *_args: None)
     calls: list[int] = []
 
