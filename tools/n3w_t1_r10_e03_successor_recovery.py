@@ -1439,10 +1439,23 @@ def _runtime_rebind(
     ):
         raise SuccessorError("portable_identity_transaction_binding_drift")
     _verify_candidate_identity(identity)
+    unit = verify_service_unit()
+    source_release_id = _current_release_id(
+        plan["compose_before_sha256"],
+        plan["compose_render_sha256"],
+        unit,
+    )
+    target_release_id = _target_release_id(
+        identity,
+        plan["compose_candidate_sha256"],
+        unit,
+    )
     if (
         plan["current_release_id"] != binding.current_release_id
         or plan["target_release_id"] != binding.target_release_id
         or plan["artifact_sha256"] != binding.artifact_sha256
+        or source_release_id != binding.current_release_id
+        or target_release_id != binding.target_release_id
     ):
         raise SuccessorError("release_binding_drift")
     return binding
