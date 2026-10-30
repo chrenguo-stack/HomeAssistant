@@ -128,6 +128,17 @@ def _identifier(value: str, name: str) -> str:
     return value
 
 
+def _authorization_id(value: str) -> str:
+    prefix = "N3W_T1_R10_E03_CLAIMED_TRANSACTION_RETIREMENT_"
+    if (
+        not value.startswith(prefix)
+        or len(value) > 200
+        or not value.replace("_", "").replace("-", "").isalnum()
+    ):
+        raise RetirementError("authorization_id_invalid")
+    return value
+
+
 def safe_reason(error: BaseException) -> str:
     raw = str(error).split(":", 1)[0]
     if re.fullmatch(r"[A-Za-z0-9_.-]{3,120}", raw or ""):
@@ -771,7 +782,7 @@ def claim(
     if confirmation != CONFIRMATION:
         raise RetirementError("confirmation_missing")
     _identifier(retirement_id, "retirement_id")
-    _identifier(authorization_id, "authorization_id")
+    authorization_id = _authorization_id(authorization_id)
     _identifier(execution_session_id, "execution_session_id")
     _sha(expected_preauth_plan_sha256, "preauth_plan_sha256")
 
@@ -972,7 +983,11 @@ def retire(
             )
         except Exception as error:
             latest = record_store.load()
-            if latest["state"] == "CLAIMED":
+            latest_target = target_store.load()
+            if (
+                latest["state"] == "CLAIMED"
+                and latest_target["state"] != "ABORTED"
+            ):
                 _block_record(
                     record_store,
                     latest,
@@ -986,24 +1001,25 @@ def status(
     retirement_id: str,
     target_transaction_id: str,
 ) -> dict[str, Any]:
-    record = RetirementStore(_retirement_path(retirement_id)).load()
-    target_hash = sha_text(
-        _identifier(
-            target_transaction_id,
-            "target_transaction_id",
+    with readonly_global_lock():
+        record = RetirementStore(_retirement_path(retirement_id)).load()
+        target_hash = sha_text(
+            _identifier(
+                target_transaction_id,
+                "target_transaction_id",
+            )
         )
-    )
-    if target_hash != record["target_transaction_id_sha256"]:
-        raise RetirementError("target_transaction_id_binding_drift")
-    target = maintenance.TransactionStore(
-        _target_path(target_transaction_id)
-    ).load()
-    return public_result(
-        record,
-        operation="status",
-        reason_code="READ_ONLY_STATUS",
-        target_state=target["state"],
-    )
+        if target_hash != record["target_transaction_id_sha256"]:
+            raise RetirementError("target_transaction_id_binding_drift")
+        target = maintenance.TransactionStore(
+            _target_path(target_transaction_id)
+        ).load()
+        return public_result(
+            record,
+            operation="status",
+            reason_code="READ_ONLY_STATUS",
+            target_state=target["state"],
+        )
 
 
 def committed_supersession(
