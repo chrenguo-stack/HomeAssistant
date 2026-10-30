@@ -146,6 +146,13 @@ def _valid_transaction(state: str) -> dict:
     value = tx.begin_apply(value)
     if state == "APPLYING":
         return value
+    if state == "BLOCKED":
+        return tx.transition(
+            value,
+            "BLOCKED",
+            operation="blocked",
+            reason="unknown_reality",
+        )
     publish = tx.begin_operation(
         value,
         operation_type="compose_publish",
@@ -189,7 +196,7 @@ def test_gate_schema_keys_match_transaction_module() -> None:
 
 @pytest.mark.parametrize(
     "state",
-    ["PREPARING", "READY", "APPLYING", "VERIFYING", "ROLLING_BACK", "ROLLED_BACK"],
+    ["PREPARING", "READY", "APPLYING", "BLOCKED", "VERIFYING", "ROLLING_BACK", "ROLLED_BACK"],
 )
 def test_gate_validates_real_transaction_records(state: str) -> None:
     value = _valid_transaction(state)
@@ -219,3 +226,8 @@ def test_successor_dropin_uses_service_exec_condition() -> None:
     import n3w_t1_r10_e03_successor_recovery as successor
 
     assert successor.GATE_DROPIN_BYTES.startswith(b"[Service]\nExecCondition=")
+
+
+def test_blocked_real_transaction_remains_boot_blocking() -> None:
+    value = _valid_transaction("BLOCKED")
+    assert gate._validate_record(value)["state"] == "BLOCKED"
