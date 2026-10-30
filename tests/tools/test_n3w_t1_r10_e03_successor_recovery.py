@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import contextlib
 import sys
 from pathlib import Path
@@ -19,6 +20,8 @@ def _plan() -> dict[str, object]:
         "kind": "successor-test",
         "compose_before_sha256": "1" * 64,
         "compose_candidate_sha256": "2" * 64,
+        "compose_candidate_b64": base64.b64encode(b"candidate-compose").decode("ascii"),
+        "compose_before_b64": base64.b64encode(b"before-compose").decode("ascii"),
         "service_before_fingerprint": "3" * 64,
         "service_stopped_fingerprint": "4" * 64,
         "service_running_fingerprint": "5" * 64,
