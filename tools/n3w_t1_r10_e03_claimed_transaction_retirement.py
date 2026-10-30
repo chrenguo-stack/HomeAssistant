@@ -540,6 +540,33 @@ def validate_record(document: Any) -> dict[str, Any]:
         "plan_sha256"
     ]:
         raise RetirementError("retirement_plan_binding_invalid")
+    for key in (
+        "target_transaction_id_sha256",
+        "target_transaction_sha256",
+        "target_retirement_invariant_sha256",
+        "target_authorization_id_sha256",
+        "target_host_binding_sha256",
+        "target_module_set_sha256",
+        "target_plan_sha256",
+        "target_predecessor_sha256",
+        "target_current_release_id",
+        "target_release_id",
+        "target_artifact_sha256",
+        "deployment_before_fingerprint",
+        "service_before_fingerprint",
+        "gate_before_fingerprint",
+        "current_f4_authority_sha256",
+        "current_f4_transaction_sha256",
+        "retirement_module_set_sha256",
+    ):
+        _sha(plan.get(key), f"retirement_plan_{key}")
+    for key in (
+        "target_executor_source_head",
+        "target_executor_blob",
+        "retirement_executor_source_head",
+        "retirement_executor_blob",
+    ):
+        _sha(plan.get(key), f"retirement_plan_{key}", git=True)
     if (
         plan.get("schema") != PLAN_SCHEMA
         or plan.get("reason") != REASON
@@ -1120,10 +1147,13 @@ def committed_supersession(
     artifact_sha256: str,
 ) -> dict[str, Any] | None:
     e03 = _e03()
-    matches: list[tuple[dict[str, Any], dict[str, Any], Path]] = []
     aborted_candidates: list[tuple[dict[str, Any], Path]] = []
-
     if e03.TRANSACTION_ROOT.exists():
+        if (
+            e03.TRANSACTION_ROOT.is_symlink()
+            or not e03.TRANSACTION_ROOT.is_dir()
+        ):
+            raise RetirementError("transaction_root_invalid")
         for path in sorted(e03.TRANSACTION_ROOT.glob("*.json")):
             document = maintenance.TransactionStore(path).load()
             if (
@@ -1135,32 +1165,44 @@ def committed_supersession(
             ):
                 aborted_candidates.append((document, path))
 
+    relevant_records = []
     for record in _retirement_documents():
-        if record["state"] != "COMMITTED":
-            continue
-        for document, path in aborted_candidates:
-            if (
-                sha_text(document["transaction_id"])
-                == record["target_transaction_id_sha256"]
-                and sha_file(path)
-                == record["target_transaction_sha256_after"]
-                and document["generation"]
-                == record["target_generation_after"]
-            ):
-                _assert_aborted_poststate(document, record)
-                matches.append(
-                    (
-                        record,
-                        document,
-                        _retirement_path(record["retirement_id"]),
-                    )
-                )
+        plan = record["plan"]
+        if (
+            plan.get("target_predecessor_sha256")
+            == predecessor_sha256
+            and plan.get("target_current_release_id")
+            == current_release_id
+            and plan.get("target_release_id")
+            == target_release_id
+            and plan.get("target_artifact_sha256")
+            == artifact_sha256
+        ):
+            relevant_records.append(record)
 
-    if not aborted_candidates and not matches:
+    if not aborted_candidates and not relevant_records:
         return None
-    if len(aborted_candidates) != 1 or len(matches) != 1:
+    if not aborted_candidates or not relevant_records:
+        raise RetirementError("retirement_supersession_evidence_incomplete")
+    if any(record["state"] != "COMMITTED" for record in relevant_records):
+        raise RetirementError("retirement_supersession_not_committed")
+    if len(aborted_candidates) != 1 or len(relevant_records) != 1:
         raise RetirementError("retirement_supersession_ambiguous")
-    record, document, evidence_path = matches[0]
+
+    document, transaction_path = aborted_candidates[0]
+    record = relevant_records[0]
+    if (
+        sha_text(document["transaction_id"])
+        != record["target_transaction_id_sha256"]
+        or sha_file(transaction_path)
+        != record["target_transaction_sha256_after"]
+        or document["generation"]
+        != record["target_generation_after"]
+    ):
+        raise RetirementError("retirement_supersession_binding_mismatch")
+    _assert_aborted_poststate(document, record)
+    evidence_path = _retirement_path(record["retirement_id"])
+    evidence_sha256 = sha_file(evidence_path)
     return {
         "mode": "TERMINAL_REPLACEMENT",
         "reason": REASON,
@@ -1170,7 +1212,7 @@ def committed_supersession(
         "retired_transaction_sha256": record[
             "target_transaction_sha256_after"
         ],
-        "retirement_evidence_sha256": sha_file(evidence_path),
+        "retirement_evidence_sha256": evidence_sha256,
         "retired_state": "ABORTED",
         "retired_authorization_consumed": True,
         "retired_replay_allowed": False,
