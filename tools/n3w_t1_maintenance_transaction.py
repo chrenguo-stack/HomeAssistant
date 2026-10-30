@@ -386,12 +386,14 @@ def begin_operation(
     operation_type: str,
     before_fingerprint: str,
     intended_after_fingerprint: str,
+    allowed_states: Iterable[str] = MUTATION_STATES,
 ) -> dict[str, Any]:
     value = validate_transaction(document)
     _text(operation_type, "operation_type")
     _sha(before_fingerprint, "operation_before_fingerprint")
     _sha(intended_after_fingerprint, "operation_intended_after_fingerprint")
-    if value["state"] not in MUTATION_STATES:
+    allowed = frozenset(allowed_states)
+    if value["state"] not in allowed:
         raise MaintenanceTransactionError("operation_state_forbidden")
     if value["operations"] and value["operations"][-1]["status"] == "INTENT":
         raise MaintenanceTransactionError("operation_intent_already_pending")
