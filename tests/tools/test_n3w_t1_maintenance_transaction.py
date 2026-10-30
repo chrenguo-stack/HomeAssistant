@@ -142,6 +142,60 @@ def test_abort_claimed_ready_before_apply_rejects_apply_session() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    "state",
+    ["APPLYING", "VERIFYING", "ROLLING_BACK"],
+)
+def test_abort_claimed_ready_before_apply_rejects_started_states(
+    state: str,
+) -> None:
+    value = ready_claimed_document()
+    value = tx.begin_apply(value)
+    if state in {"VERIFYING", "ROLLING_BACK"}:
+        value = tx.transition(
+            value,
+            "VERIFYING",
+            operation="test_verify",
+        )
+    if state == "ROLLING_BACK":
+        value = tx.transition(
+            value,
+            "ROLLING_BACK",
+            operation="test_rollback",
+        )
+    with pytest.raises(
+        tx.MaintenanceTransactionError,
+        match="abort_before_apply_state_invalid",
+    ):
+        tx.abort_claimed_ready_before_apply(
+            value,
+            reason="SOURCE_REPAIR_BEFORE_APPLY",
+        )
+
+
+def test_aborted_transaction_cannot_reenter_apply() -> None:
+    value = tx.abort_claimed_ready_before_apply(
+        ready_claimed_document(),
+        reason="SOURCE_REPAIR_BEFORE_APPLY",
+    )
+    with pytest.raises(
+        tx.MaintenanceTransactionError,
+        match="begin_apply_state_invalid",
+    ):
+        tx.begin_apply(value)
+
+
+def test_aborted_transaction_is_not_an_active_transaction() -> None:
+    aborted = tx.abort_claimed_ready_before_apply(
+        ready_claimed_document(),
+        reason="SOURCE_REPAIR_BEFORE_APPLY",
+    )
+    tx.ensure_no_other_active(
+        [aborted],
+        transaction_id="txn-e03-successor-replacement-0002",
+    )
+
+
 def test_transaction_lifecycle_happy_path() -> None:
     value = document()
     assert value["state"] == "PREPARING"
