@@ -24,6 +24,7 @@ from typing import Any, Callable, Iterable, Sequence
 
 import n3w_t1_maintenance_transaction as maintenance
 import n3w_t1_portable_image_identity as portable
+import n3w_t1_production_v2_contract as production_contract
 
 SCHEMA = "gh.n3w-r10-e03-successor-recovery/1"
 PLAN_SCHEMA = "gh.n3w-r10-e03-successor-recovery-plan/1"
@@ -354,6 +355,7 @@ def runtime_authority() -> dict[str, str]:
             base / "n3w_t1_portable_image_identity.py",
             base / "n3w_t1_maintenance_transaction.py",
             base / "n3w_t1_maintenance_activation_gate.py",
+            base / "n3w_t1_production_v2_contract.py",
             current,
         )
         if any(path.is_symlink() or not path.is_file() for path in paths):
@@ -1039,24 +1041,21 @@ def _target_release_id(
     candidate_compose_sha256: str,
     unit: dict[str, str],
 ) -> str:
-    return sha_bytes(
-        canonical(
-            {
-                "schema": "gh.n3w-r10-e03-target-release-binding/1",
-                "source_head": TARGET_SOURCE_HEAD,
-                "artifact_sha256": TARGET_ARTIFACT_SHA256,
-                "portable_identity": identity.to_dict(),
-                "candidate_compose_sha256": candidate_compose_sha256,
-                "service_unit": unit,
-                "state_contract": {
-                    "pre_registration_inventory_sha256": PRE_INVENTORY_SHA256,
-                    "post_registration_inventory_sha256": EMPTY_INVENTORY_SHA256,
-                    "schema_migration_required": False,
-                },
-            }
+    try:
+        return production_contract.portable_deployment_binding_id(
+            source_head=TARGET_SOURCE_HEAD,
+            artifact_sha256=TARGET_ARTIFACT_SHA256,
+            identity=identity,
+            compose_sha256=candidate_compose_sha256,
+            service_unit=unit,
+            state_contract={
+                "pre_registration_inventory_sha256": PRE_INVENTORY_SHA256,
+                "post_registration_inventory_sha256": EMPTY_INVENTORY_SHA256,
+                "schema_migration_required": False,
+            },
         )
-    )
-
+    except production_contract.ProductionV2ContractError as error:
+        raise SuccessorError("target_release_contract_invalid") from error
 
 def preauthorization(
     *,
