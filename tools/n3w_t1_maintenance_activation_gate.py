@@ -13,6 +13,7 @@ from typing import Any
 SCHEMA = "gh.n3w-t1-maintenance-transaction/1"
 TRANSACTION_ROOT = Path("/var/lib/n3w-t1-maintenance/transactions")
 PRODUCTION_COMPOSE = Path("/etc/n3wfc4/docker-compose.yml")
+PRODUCTION_COMPOSE_ENV = Path("/etc/n3wfc4/docker-compose.env")
 ACTIVE_BLOCKING_STATES = frozenset({"APPLYING", "BLOCKED"})
 ACTIVE_ALLOWING_STATES = frozenset(
     {"PREPARING", "READY", "VERIFYING", "ROLLING_BACK"}
@@ -196,19 +197,19 @@ def _validate_record(value: Any) -> dict[str, Any]:
     if value["operation_seq"] != len(operations):
         raise GateError("transaction_record_operation_seq_mismatch")
     if state == "VERIFYING":
-        compose_after = intended.get("compose")
+        deployment_after = intended.get("deployment_inputs")
         if (
-            not isinstance(compose_after, str)
-            or SHA64.fullmatch(compose_after) is None
-            or observed.get("compose") != compose_after
+            not isinstance(deployment_after, str)
+            or SHA64.fullmatch(deployment_after) is None
+            or observed.get("deployment_inputs") != deployment_after
         ):
-            raise GateError("verifying_compose_not_proven")
+            raise GateError("verifying_deployment_not_proven")
         completed = any(
             isinstance(record, dict)
-            and record.get("operation_type") == "compose_publish"
+            and record.get("operation_type") == "deployment_inputs_publish"
             and record.get("status") == "COMPLETE"
-            and record.get("intended_after_fingerprint") == compose_after
-            and record.get("observed_after_fingerprint") == compose_after
+            and record.get("intended_after_fingerprint") == deployment_after
+            and record.get("observed_after_fingerprint") == deployment_after
             for record in operations
         )
         if not completed:
@@ -221,32 +222,50 @@ def _rollback_predecessor_restored(value: dict[str, Any]) -> bool:
     operations = value.get("operations")
     if not isinstance(before, dict) or not isinstance(operations, list):
         return False
-    compose_before = before.get("compose")
-    if not isinstance(compose_before, str) or SHA64.fullmatch(compose_before) is None:
+    deployment_before = before.get("deployment_inputs")
+    if (
+        not isinstance(deployment_before, str)
+        or SHA64.fullmatch(deployment_before) is None
+    ):
         return False
     return any(
         isinstance(record, dict)
-        and record.get("operation_type") == "compose_rollback"
+        and record.get("operation_type") == "deployment_inputs_rollback"
         and record.get("status") == "COMPLETE"
-        and record.get("intended_after_fingerprint") == compose_before
-        and record.get("observed_after_fingerprint") == compose_before
+        and record.get("intended_after_fingerprint") == deployment_before
+        and record.get("observed_after_fingerprint") == deployment_before
         for record in operations
     )
 
 
-def _current_compose_sha256(
-    path: Path = PRODUCTION_COMPOSE,
-) -> str:
+def _sha256_file(path: Path) -> str:
     if path.is_symlink() or not path.is_file():
-        raise GateError("compose_reality_unavailable")
+        raise GateError("deployment_reality_unavailable")
     digest = hashlib.sha256()
     try:
         with path.open("rb") as stream:
             for block in iter(lambda: stream.read(1024 * 1024), b""):
                 digest.update(block)
     except OSError as error:
-        raise GateError("compose_reality_unavailable") from error
+        raise GateError("deployment_reality_unavailable") from error
     return digest.hexdigest()
+
+
+def _current_deployment_fingerprint(
+    compose: Path = PRODUCTION_COMPOSE,
+    compose_env: Path = PRODUCTION_COMPOSE_ENV,
+) -> str:
+    material = {
+        "compose_sha256": _sha256_file(compose),
+        "compose_env_sha256": _sha256_file(compose_env),
+    }
+    encoded = json.dumps(
+        material,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _record(path: Path) -> dict[str, Any]:
@@ -290,13 +309,13 @@ def evaluate(root: Path = TRANSACTION_ROOT) -> tuple[bool, str]:
     if state == "ROLLING_BACK":
         if not _rollback_predecessor_restored(value):
             return False, "MAINTENANCE_BLOCKING"
-        before = value.get("before", {}).get("compose")
-        if _current_compose_sha256() != before:
+        before = value.get("before", {}).get("deployment_inputs")
+        if _current_deployment_fingerprint() != before:
             return False, "MAINTENANCE_BLOCKING"
         return True, "MAINTENANCE_ROLLBACK_RESTORED"
     if state == "VERIFYING":
-        intended = value.get("intended_after", {}).get("compose")
-        if _current_compose_sha256() != intended:
+        intended = value.get("intended_after", {}).get("deployment_inputs")
+        if _current_deployment_fingerprint() != intended:
             return False, "MAINTENANCE_BLOCKING"
         return True, "MAINTENANCE_VERIFYING"
     if state in ACTIVE_ALLOWING_STATES:
