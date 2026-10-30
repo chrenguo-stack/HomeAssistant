@@ -498,3 +498,111 @@ def test_public_result_marks_real_node_telemetry_not_applicable() -> None:
     )
     assert result["real_node_telemetry"] == "NOT_APPLICABLE"
     assert result["replay_allowed"] is False
+
+
+def _portable_identity() -> successor.portable.PortableImageIdentity:
+    rootfs = ("sha256:" + "a" * 64,)
+    return successor.portable.PortableImageIdentity(
+        schema=successor.portable.SCHEMA,
+        representation="docker-save",
+        archive_sha256=successor.TARGET_MANAGER_TAR_SHA256,
+        archive_size_bytes=123456,
+        os="linux",
+        architecture="arm64",
+        variant=None,
+        config_digest=successor.TARGET_CONFIG_DIGEST,
+        manifest_digest=None,
+        index_digest=None,
+        config_semantics_sha256="b" * 64,
+        rootfs_diff_ids=rootfs,
+        rootfs_diff_ids_sha256=successor.sha_bytes(
+            successor.canonical(list(rootfs))
+        ),
+    )
+
+
+def test_portable_identity_document_digest_is_exact() -> None:
+    identity = _portable_identity()
+    encoded = successor._portable_identity_b64(identity)
+    digest = successor._portable_identity_sha256(identity)
+    assert successor._portable_identity_from_b64(encoded, digest) == identity
+
+
+def test_portable_identity_tamper_rejected_even_with_frozen_tar_and_config() -> None:
+    identity = _portable_identity()
+    frozen_digest = successor._portable_identity_sha256(identity)
+    document = identity.to_dict()
+    document["config_semantics_sha256"] = "c" * 64
+    tampered = base64.b64encode(successor.canonical(document)).decode("ascii")
+    with pytest.raises(
+        successor.SuccessorError,
+        match="portable_identity_sha256_mismatch",
+    ):
+        successor._portable_identity_from_b64(tampered, frozen_digest)
+
+
+def test_preauthorization_api_rejects_identity_digest_mismatch() -> None:
+    identity = _portable_identity()
+    with pytest.raises(
+        successor.SuccessorError,
+        match="portable_identity_sha256_mismatch",
+    ):
+        successor.preauthorization(
+            identity=identity,
+            expected_identity_sha256="0" * 64,
+            predecessor_sha256="1" * 64,
+            expected_host_binding_sha256="2" * 64,
+        )
+
+
+def test_claim_rejects_preauth_plan_drift_before_transaction_creation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    identity = _portable_identity()
+    identity_sha = successor._portable_identity_sha256(identity)
+    seed = {
+        "schema": successor.PLAN_SCHEMA,
+        "portable_identity": identity.to_dict(),
+        "portable_identity_sha256": identity_sha,
+    }
+    monkeypatch.setattr(
+        successor,
+        "runtime_authority",
+        lambda: {
+            "source_head": "1" * 40,
+            "executor_blob": "2" * 40,
+            "module_set_sha256": "3" * 64,
+        },
+    )
+    monkeypatch.setattr(successor, "preauthorization", lambda **_kwargs: dict(seed))
+    with pytest.raises(
+        successor.SuccessorError,
+        match="preauth_plan_sha256_mismatch",
+    ):
+        successor.claim(
+            identity=identity,
+            expected_identity_sha256=identity_sha,
+            predecessor_sha256="4" * 64,
+            expected_host_binding_sha256="5" * 64,
+            expected_preauth_plan_sha256="6" * 64,
+            transaction_id="txn-e03-successor-plan-drift-0001",
+            authorization_id="N3W_T1_R10_E03_SUCCESSOR_RECOVERY_TEST_0001",
+            execution_session_id="session-e03-successor-test-0001",
+            confirmation=successor.CONFIRMATION,
+        )
+
+
+def test_active_transaction_scan_uses_strict_transaction_store() -> None:
+    source = (
+        ROOT
+        / "tools"
+        / "n3w_t1_r10_e03_successor_recovery.py"
+    ).read_text(encoding="utf-8")
+    section = source.split(
+        "def _active_maintenance_documents()", 1
+    )[1].split(
+        "def _portable_identity_sha256", 1
+    )[0]
+    assert "transaction_root_metadata_invalid" in section
+    assert "maintenance.TransactionStore(path).load()" in section
+    assert "path.read_text" not in section
