@@ -15,6 +15,11 @@ import n3w_t1_maintenance_transaction as tx  # noqa: E402
 import n3w_t1_r10_e03_successor_recovery as successor  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def _held_lock(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(successor, "_LOCK_DEPTH", 1)
+
+
 def _plan() -> dict[str, object]:
     return {
         "kind": "successor-test",
@@ -411,7 +416,10 @@ def test_apply_ready_orders_gate_before_stop_before_publish_before_start(
         },
     )
 
-    result = successor.apply("txn-e03-successor-test-0001")
+    result = successor.apply(
+        "txn-e03-successor-test-0001",
+        "session-apply-ready-0001",
+    )
     assert result["stage"] == "COMMITTED"
     assert events[:5] == [
         "activation_gate_install",
@@ -456,7 +464,10 @@ def test_apply_verify_phase_resumes_without_stopping_or_republishing(
         },
     )
 
-    result = successor.apply("txn-e03-successor-test-0001")
+    result = successor.apply(
+        "txn-e03-successor-test-0001",
+        "session-apply-verifying-0001",
+    )
     assert result["stage"] == "COMMITTED"
     assert events == ["service_start", "readiness"]
 
