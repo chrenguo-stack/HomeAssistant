@@ -21,6 +21,8 @@ SCHEMA = "gh.n3w-t1-e03-replacement-baseline-invalidation/1"
 PLAN_SCHEMA = "gh.n3w-t1-e03-replacement-baseline-invalidation-plan/1"
 CONFIRMATION = "N3W_T1_R10_E03_REPLACEMENT_BASELINE_INVALIDATION"
 REASON = "BROKER_STARTED_AT_CHANGED_AFTER_T1_REBOOT"
+BROKER_BOOT_ACTIVATION_MAX_SECONDS = 300.0
+BROKER_START_ALIGNMENT_TOLERANCE_SECONDS = 10.0
 
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 SHA64 = re.compile(r"^[0-9a-f]{64}$")
@@ -270,6 +272,30 @@ def _boot_evidence() -> dict[str, Any]:
     }
 
 
+def _broker_active_enter_monotonic_seconds() -> float:
+    raw = e03.run(
+        (
+            "systemctl",
+            "show",
+            e03.BROKER_UNIT,
+            "--property",
+            "ActiveEnterTimestampMonotonic",
+            "--value",
+        )
+    ).stdout.decode().strip()
+    try:
+        value = int(raw)
+    except ValueError as error:
+        raise InvalidationError(
+            "broker_active_enter_monotonic_invalid"
+        ) from error
+    if value <= 0:
+        raise InvalidationError(
+            "broker_active_enter_monotonic_invalid"
+        )
+    return value / 1_000_000.0
+
+
 def _verify_broker_reboot_invalidation(
     plan: dict[str, Any],
 ) -> dict[str, Any]:
@@ -298,6 +324,8 @@ def _verify_broker_reboot_invalidation(
         raise InvalidationError("broker_unit_disabled")
     if e03.listener_count("tcp", 8883) != 1:
         raise InvalidationError("broker_listener_continuity_failed")
+    if e03.systemd_nrestarts(e03.BROKER_UNIT) != 0:
+        raise InvalidationError("broker_unit_restart_continuity_failed")
 
     boot = _boot_evidence()
     expected_started = _parse_docker_started_at(expected.get("started_at"))
@@ -305,6 +333,16 @@ def _verify_broker_reboot_invalidation(
     boot_time = float(boot["boot_time_unix"])
     if not (expected_started < boot_time <= observed_started):
         raise InvalidationError("broker_started_at_not_current_boot")
+
+    broker_active_offset = _broker_active_enter_monotonic_seconds()
+    observed_offset = observed_started - boot_time
+    if (
+        broker_active_offset > BROKER_BOOT_ACTIVATION_MAX_SECONDS
+        or observed_offset < 0
+        or abs(observed_offset - broker_active_offset)
+        > BROKER_START_ALIGNMENT_TOLERANCE_SECONDS
+    ):
+        raise InvalidationError("broker_start_not_boot_activation")
 
     return {
         "expected_broker_started_at": expected["started_at"],
@@ -314,6 +352,7 @@ def _verify_broker_reboot_invalidation(
         "broker_restart_count": observed["restart_count"],
         "boot_id_sha256": boot["boot_id_sha256"],
         "boot_time_unix": boot["boot_time_unix"],
+        "broker_active_enter_monotonic_seconds": broker_active_offset,
     }
 
 
