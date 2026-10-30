@@ -1343,3 +1343,35 @@ def test_exact_artifact_producer_freezes_and_rechecks_tar_sizes() -> None:
     ):
         assert f'(root / "{name}").stat().st_size' in workflow
     assert workflow.count('"tar_size_bytes"') >= 3
+
+
+def test_gate_fingerprint_requires_systemd_loaded_execcondition(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    helper = tmp_path / "n3w-t1-maintenance-activation-gate"
+    dropin = tmp_path / "90-n3w-maintenance-gate.conf"
+    helper_bytes = b"#!/usr/bin/env python3\n"
+    helper.write_bytes(helper_bytes)
+    dropin.write_bytes(successor.GATE_DROPIN_BYTES)
+    monkeypatch.setattr(successor, "GATE_TARGET", helper)
+    monkeypatch.setattr(successor, "GATE_DROPIN", dropin)
+    monkeypatch.setattr(successor, "_gate_source_bytes", lambda: helper_bytes)
+
+    expected, _state = successor._expected_gate_after()
+
+    monkeypatch.setattr(
+        successor,
+        "run",
+        lambda *_args, **_kwargs: SimpleNamespace(stdout=b""),
+    )
+    assert successor._gate_fingerprint() != expected
+
+    monkeypatch.setattr(
+        successor,
+        "run",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            stdout=(str(helper) + "\n").encode()
+        ),
+    )
+    assert successor._gate_fingerprint() == expected
