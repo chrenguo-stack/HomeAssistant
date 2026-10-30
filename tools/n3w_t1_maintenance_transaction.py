@@ -33,6 +33,37 @@ ACTIVE_STATES = frozenset({"PREPARING", "READY", "APPLYING", "VERIFYING", "ROLLI
 TERMINAL_STATES = frozenset({"COMMITTED", "ROLLED_BACK", "BLOCKED", "ABORTED"})
 MUTATION_STATES = frozenset({"APPLYING", "ROLLING_BACK"})
 
+TRANSACTION_KEYS = frozenset(
+    {
+        "schema",
+        "transaction_id",
+        "authorization_id_sha256",
+        "host_binding_sha256",
+        "current_release_id",
+        "target_release_id",
+        "artifact_sha256",
+        "executor_source_head",
+        "executor_blob",
+        "module_set_sha256",
+        "plan_sha256",
+        "scope",
+        "predecessor_sha256",
+        "plan",
+        "state",
+        "authorization_consumed",
+        "replay_allowed",
+        "generation",
+        "operation_seq",
+        "before",
+        "intended_after",
+        "observed_after",
+        "execution_sessions",
+        "operations",
+        "last_operation",
+        "last_reason",
+    }
+)
+
 _ALLOWED = {
     "PREPARING": {"READY", "BLOCKED", "ABORTED"},
     "READY": {"APPLYING", "BLOCKED", "ABORTED"},
@@ -171,35 +202,7 @@ def new_transaction(
 def validate_transaction(document: Any) -> dict[str, Any]:
     if not isinstance(document, dict):
         raise MaintenanceTransactionError("transaction_not_object")
-    expected = {
-        "schema",
-        "transaction_id",
-        "authorization_id_sha256",
-        "host_binding_sha256",
-        "current_release_id",
-        "target_release_id",
-        "artifact_sha256",
-        "executor_source_head",
-        "executor_blob",
-        "module_set_sha256",
-        "plan_sha256",
-        "scope",
-        "predecessor_sha256",
-        "plan",
-        "state",
-        "authorization_consumed",
-        "replay_allowed",
-        "generation",
-        "operation_seq",
-        "before",
-        "intended_after",
-        "observed_after",
-        "execution_sessions",
-        "operations",
-        "last_operation",
-        "last_reason",
-    }
-    if set(document) != expected:
+    if set(document) != TRANSACTION_KEYS:
         raise MaintenanceTransactionError("transaction_keys_invalid")
     if document.get("schema") != SCHEMA:
         raise MaintenanceTransactionError("transaction_schema_invalid")
