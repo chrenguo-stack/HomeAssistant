@@ -552,7 +552,7 @@ def parse_image_archive(
         if (
             isinstance(expected_archive_size_bytes, bool)
             or not isinstance(expected_archive_size_bytes, int)
-            or expected_archive_size_bytes < 0
+            or expected_archive_size_bytes <= 0
         ):
             raise PortableImageIdentityError("archive_expected_size_invalid")
         if size != expected_archive_size_bytes:
