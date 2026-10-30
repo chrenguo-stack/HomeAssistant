@@ -1309,7 +1309,6 @@ def _runtime_rebind(
 ) -> maintenance.MaintenanceBinding:
     _require_global_lock()
     binding = _binding(document)
-    _require_global_lock()
     maintenance.require_mutation_binding(
         document,
         binding,
@@ -1382,6 +1381,7 @@ def _operation(
     allowed_states: Iterable[str],
     accept_after_without_intent: bool = False,
 ) -> dict[str, Any]:
+    _require_global_lock()
     maintenance.require_mutation_binding(
         document,
         binding,
@@ -1733,7 +1733,7 @@ def apply(transaction_id: str, execution_session_id: str) -> dict[str, Any]:
     with global_lock():
         store = maintenance.TransactionStore(_transaction_path(transaction_id))
         document = store.load()
-        if document["state"] in maintenance.ACTIVE_STATES:
+        if document["state"] in maintenance.ACTIVE_STATES or document["state"] == "ROLLED_BACK":
             session_document = maintenance.record_execution_session(
                 document,
                 session_id,
@@ -2042,10 +2042,8 @@ def rollback(
             )
             document = _save(store, document, rolled)
 
-        binding = _binding(document)
-        maintenance.require_mutation_binding(
+        binding = _runtime_rebind(
             document,
-            binding,
             action="rollback_service_start",
             allowed_states={"ROLLED_BACK"},
         )
