@@ -1,3 +1,14 @@
+## 2026-10-31 — E03 recovery/source convergence integrated into PR #725
+
+- PR #741 merged as `775c47dc3c8d247a7a342ca0d91aa86fec7bea88`; PR #740 then merged as `17dd9e3fcc0bc9c8bdcac05a6748d7b57e5e0be5` into PR #725's branch.
+- PR #725 current source carries the repaired pending-operation handling, bounded pre-apply recovery, baseline-invalidation-aware activation gate, and the later BlockedError pending-INTENT guard.
+- Real T1 recovery transaction is terminal `ABORTED` generation 9; the original `activation_gate_install` operation is `COMPLETE`.
+- Historical pre-apply invalidated transaction remains terminal `BLOCKED`; its baseline-invalidation record remains `COMMITTED`.
+- Live activation-gate helper blob equals PR #725 source blob `8c37974665c2dc1c66a74c7c187f6ca48932d5bf`.
+- Manager, Home Assistant and Broker remained unchanged during recovery/hotfix closure; product successor cutover did not begin.
+- Therefore this closes the E03 recovery/gate-compatibility incident, but does not close KF-131 live revalidation or successor deployment.
+- Next ONE gate: `N3W_T1_E03_PR725_PARENT_SOURCE_REVIEW_AND_MERGE_READINESS_20261031_01`; main merge remains a separate explicit boundary.
+
 ## 2026-10-29 — R10 E03 ACTIVE deadline / busy source repair CLOSED_PASS
 
 - PR #733 exact tested source head: `0d49c5ff991288ef3dba17650414a81f7d8e34b0`; tree `851bb5f2427f945f3a8f8ffa776a708bffdc4032`; stacked on PR #725 head `ff750b3801a282af1667b5fa63481e2333e301b3`.
