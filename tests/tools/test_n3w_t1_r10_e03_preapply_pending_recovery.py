@@ -211,6 +211,41 @@ def test_recover_rejects_wrong_transaction_sha_before_write(
     assert store.load()["state"] == "READY"
 
 
+def test_runtime_preconditions_reject_homeassistant_runtime_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    document = _document()
+    plan = document["plan"]
+
+    monkeypatch.setattr(
+        recovery.successor,
+        "runtime",
+        lambda name: (
+            {
+                "container_id": "old-manager",
+                "image_ref": recovery.successor.OLD_MANAGER_IMAGE,
+                "image_id": recovery.successor.OLD_MANAGER_ID,
+                "network_mode": "host",
+                "restart_count": 0,
+            }
+            if name == "manager"
+            else {
+                "container_id": "ha-drift",
+                "image_ref": "unexpected-ha-image",
+                "image_id": recovery.successor.HA_IMAGE_ID,
+                "network_mode": "host",
+                "restart_count": 0,
+            }
+        ),
+    )
+
+    with pytest.raises(
+        recovery.RecoveryError,
+        match="homeassistant_predecessor_continuity_drift",
+    ):
+        recovery._runtime_preconditions(document)
+
+
 def test_recover_rejects_runtime_drift_before_write(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
