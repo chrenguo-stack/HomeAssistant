@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 import n3w_t1_maintenance_transaction as maintenance
+import n3w_t1_r10_e03_claimed_transaction_retirement as retirement
 import n3w_t1_r10_e03_successor_recovery as e03
 
 SCHEMA = "gh.n3w-t1-e03-blocked-prepublish-predecessor-recovery/1"
@@ -327,7 +328,7 @@ def _plan_locked(
 
 def preflight(transaction_id: str) -> dict[str, Any]:
     authority = runtime_authority()
-    with e03.global_lock():
+    with retirement.readonly_global_lock():
         plan = _plan_locked(transaction_id, authority=authority)
     return {
         "schema": SCHEMA,
@@ -848,7 +849,7 @@ def status(
     recovery_id: str,
     target_transaction_id: str,
 ) -> dict[str, Any]:
-    with e03.global_lock():
+    with retirement.readonly_global_lock():
         record = RecoveryStore(_recovery_path(recovery_id)).load()
         if (
             record["target_transaction_id_sha256"]
