@@ -190,6 +190,187 @@ def _valid_transaction(state: str) -> dict:
     return value
 
 
+def _preapply_invalidated_blocked() -> dict:
+    plan = {"kind": "activation-gate-invalidation-test"}
+    binding = tx.MaintenanceBinding(
+        transaction_id="txn-preapply-invalidated-0001",
+        authorization_id_sha256="1" * 64,
+        host_binding_sha256="2" * 64,
+        current_release_id="3" * 64,
+        target_release_id="4" * 64,
+        artifact_sha256="5" * 64,
+        executor_source_head="6" * 40,
+        executor_blob="7" * 40,
+        module_set_sha256="8" * 64,
+        plan_sha256=tx.sha256_bytes(tx.canonical_bytes(plan)),
+        scope=("deployment_inputs_publish",),
+    )
+    value = tx.new_transaction(
+        binding,
+        predecessor_sha256="9" * 64,
+        before={"deployment_inputs": "a" * 64},
+        intended_after={"deployment_inputs": "b" * 64},
+        plan=plan,
+    )
+    value = tx.mark_ready(value)
+    value = tx.claim_authorization(value)
+    return tx.transition(
+        value,
+        "BLOCKED",
+        operation=gate.INVALIDATION_LAST_OPERATION,
+        reason=gate.INVALIDATION_REASON,
+    )
+
+
+def _write_invalidation_for_blocked(
+    root: Path,
+    transaction_path: Path,
+    value: dict,
+) -> Path:
+    root.mkdir(mode=0o700)
+    target_id_hash = gate._sha256_text(value["transaction_id"])
+    before_generation = value["generation"] - 1
+    plan = {
+        "reason": gate.INVALIDATION_REASON,
+        "target_transaction_id_sha256": target_id_hash,
+        "target_transaction_sha256": "c" * 64,
+        "target_generation": before_generation,
+        "target_invariant_sha256": "d" * 64,
+        "product_mutation": False,
+        "service_stop_start": False,
+        "docker_mutation": False,
+        "board_access": False,
+    }
+    record = {
+        "schema": gate.INVALIDATION_SCHEMA,
+        "state": "COMMITTED",
+        "generation": 2,
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "reason": gate.INVALIDATION_REASON,
+        "last_operation": "target_transaction_blocked",
+        "last_reason": None,
+        "product_mutation": False,
+        "service_stop_start": False,
+        "docker_mutation": False,
+        "board_access": False,
+        "target_transaction_id_sha256": target_id_hash,
+        "target_transaction_sha256_before": "c" * 64,
+        "target_transaction_sha256_after": gate._sha256_file(transaction_path),
+        "target_generation_before": before_generation,
+        "target_generation_after": value["generation"],
+        "target_invariant_sha256": "d" * 64,
+        "plan": plan,
+        "plan_sha256": gate._sha256_bytes(gate._canonical_bytes(plan)),
+    }
+    path = root / "committed.json"
+    path.write_text(
+        json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    path.chmod(0o600)
+    return path
+
+
+def test_committed_preapply_invalidation_allows_historical_blocked_skip(
+    private_root: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    value = _preapply_invalidated_blocked()
+    path = private_root / "invalidated.json"
+    path.write_text(
+        json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    path.chmod(0o600)
+    invalidations = tmp_path / "invalidations"
+    _write_invalidation_for_blocked(invalidations, path, value)
+    original = gate._committed_invalidation_for_blocked
+    monkeypatch.setattr(
+        gate,
+        "_committed_invalidation_for_blocked",
+        lambda transaction_path, document, invalidation_root: original(
+            transaction_path,
+            document,
+            invalidation_root,
+            enforce_root_metadata=False,
+        ),
+    )
+    assert gate.evaluate(private_root, invalidations) == (
+        True,
+        "NO_ACTIVE_TRANSACTION",
+    )
+
+
+def test_preapply_blocked_without_committed_invalidation_remains_blocking(
+    private_root: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    value = _preapply_invalidated_blocked()
+    path = private_root / "invalidated.json"
+    path.write_text(
+        json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    path.chmod(0o600)
+    invalidations = tmp_path / "invalidations"
+    invalidations.mkdir(mode=0o700)
+    original = gate._committed_invalidation_for_blocked
+    monkeypatch.setattr(
+        gate,
+        "_committed_invalidation_for_blocked",
+        lambda transaction_path, document, invalidation_root: original(
+            transaction_path,
+            document,
+            invalidation_root,
+            enforce_root_metadata=False,
+        ),
+    )
+    assert gate.evaluate(private_root, invalidations) == (
+        False,
+        "MAINTENANCE_BLOCKING",
+    )
+
+
+def test_tampered_committed_invalidation_remains_blocking(
+    private_root: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    value = _preapply_invalidated_blocked()
+    path = private_root / "invalidated.json"
+    path.write_text(
+        json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    path.chmod(0o600)
+    invalidations = tmp_path / "invalidations"
+    evidence = _write_invalidation_for_blocked(invalidations, path, value)
+    record = json.loads(evidence.read_text(encoding="utf-8"))
+    record["target_transaction_sha256_after"] = "e" * 64
+    evidence.write_text(
+        json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    original = gate._committed_invalidation_for_blocked
+    monkeypatch.setattr(
+        gate,
+        "_committed_invalidation_for_blocked",
+        lambda transaction_path, document, invalidation_root: original(
+            transaction_path,
+            document,
+            invalidation_root,
+            enforce_root_metadata=False,
+        ),
+    )
+    assert gate.evaluate(private_root, invalidations) == (
+        False,
+        "MAINTENANCE_BLOCKING",
+    )
+
+
 def test_gate_schema_keys_match_transaction_module() -> None:
     assert gate.TRANSACTION_KEYS == tx.TRANSACTION_KEYS
 
