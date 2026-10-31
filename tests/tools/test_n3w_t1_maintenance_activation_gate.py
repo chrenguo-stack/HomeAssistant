@@ -644,3 +644,227 @@ def test_gate_deployment_fingerprint_changes_on_compose_change(
     compose.write_text("services:\n  manager: {}\n", encoding="utf-8")
     after = gate._current_deployment_fingerprint(compose, compose_env)
     assert before != after
+
+
+def _blocked_prepublish_target() -> dict:
+    plan = {
+        "deployment_before_fingerprint": "a" * 64,
+        "deployment_candidate_fingerprint": "b" * 64,
+        "service_before_fingerprint": "c" * 64,
+        "service_stopped_fingerprint": "d" * 64,
+    }
+    binding = tx.MaintenanceBinding(
+        transaction_id="txn-prepublish-recovery-0001",
+        authorization_id_sha256="1" * 64,
+        host_binding_sha256="2" * 64,
+        current_release_id="3" * 64,
+        target_release_id="4" * 64,
+        artifact_sha256="5" * 64,
+        executor_source_head="6" * 40,
+        executor_blob="7" * 40,
+        module_set_sha256="8" * 64,
+        plan_sha256=tx.sha256_bytes(tx.canonical_bytes(plan)),
+        scope=("activation_gate_install", "service_stop"),
+    )
+    value = tx.new_transaction(
+        binding,
+        predecessor_sha256="9" * 64,
+        before={"deployment_inputs": "a" * 64},
+        intended_after={"deployment_inputs": "b" * 64},
+        plan=plan,
+    )
+    value = tx.mark_ready(value)
+    value = tx.claim_authorization(value)
+    gate_intent = tx.begin_operation(
+        value,
+        operation_type="activation_gate_install",
+        before_fingerprint="e" * 64,
+        intended_after_fingerprint="e" * 64,
+        allowed_states={"READY"},
+    )
+    value = tx.finish_operation(
+        gate_intent,
+        observed_after_fingerprint="e" * 64,
+    )
+    value = tx.begin_apply(value)
+    stop_intent = tx.begin_operation(
+        value,
+        operation_type="service_stop",
+        before_fingerprint="c" * 64,
+        intended_after_fingerprint="d" * 64,
+        allowed_states={"APPLYING"},
+    )
+    value = tx.finish_operation(
+        stop_intent,
+        observed_after_fingerprint="f" * 64,
+        status="BLOCKED",
+        error_code="application_owner_not_stopped",
+    )
+    return tx.transition(
+        value,
+        "BLOCKED",
+        operation="blocked",
+        reason="operation_reality_unknown",
+    )
+
+
+def _prepublish_recovery_record(
+    target: dict,
+    target_path: Path,
+    *,
+    state: str = "CLAIMED",
+) -> dict:
+    target_id_hash = gate._sha256_text(target["transaction_id"])
+    target_sha = gate._sha256_file(target_path)
+    plan = {
+        "schema": gate.RECOVERY_PLAN_SCHEMA,
+        "reason": gate.RECOVERY_REASON,
+        "target_transaction_id_sha256": target_id_hash,
+        "target_transaction_sha256": target_sha,
+        "target_generation": target["generation"],
+        "target_operation_seq": target["operation_seq"],
+        "deployment_before_fingerprint": "a" * 64,
+        "recovery_executor_source_head": "1" * 40,
+        "recovery_executor_blob": "2" * 40,
+        "recovery_module_set_sha256": "3" * 64,
+        "gate_source_sha256_after": gate._sha256_file(Path(gate.__file__)),
+        "product_mutation": False,
+        "service_stop_start": True,
+        "docker_mutation": True,
+        "board_access": False,
+    }
+    return {
+        "schema": gate.RECOVERY_SCHEMA,
+        "recovery_id": "recovery-prepublish-0001",
+        "recovery_id_sha256": gate._sha256_text("recovery-prepublish-0001"),
+        "authorization_id_sha256": "4" * 64,
+        "execution_session_id_sha256": "5" * 64,
+        "plan_sha256": gate._sha256_bytes(gate._canonical_bytes(plan)),
+        "plan": plan,
+        "executor_source_head": "1" * 40,
+        "executor_blob": "2" * 40,
+        "module_set_sha256": "3" * 64,
+        "target_transaction_id_sha256": target_id_hash,
+        "target_transaction_sha256": target_sha,
+        "target_generation": target["generation"],
+        "target_operation_seq": target["operation_seq"],
+        "reason": gate.RECOVERY_REASON,
+        "product_mutation": False,
+        "service_stop_start": True,
+        "docker_mutation": True,
+        "board_access": False,
+        "state": state,
+        "authorization_consumed": True,
+        "replay_allowed": False,
+        "generation": 1 if state == "CLAIMED" else 2,
+        "last_operation": {
+            "CLAIMED": "authorization_claimed",
+            "COMMITTED": "predecessor_runtime_restored",
+            "BLOCKED": "recovery_blocked",
+        }[state],
+        "last_reason": "test_blocked" if state == "BLOCKED" else None,
+    }
+
+
+@pytest.mark.parametrize("state", ["CLAIMED", "COMMITTED"])
+def test_exact_prepublish_recovery_allows_gate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    state: str,
+) -> None:
+    root = tmp_path / "transactions"
+    recovery_root = tmp_path / "prepublish-recoveries"
+    invalidation_root = tmp_path / "invalidations"
+    root.mkdir()
+    recovery_root.mkdir()
+    target = _blocked_prepublish_target()
+    target_path = root / "txn-prepublish-recovery-0001.json"
+    target_path.write_bytes(gate._canonical_bytes(target))
+    record = _prepublish_recovery_record(target, target_path, state=state)
+    (recovery_root / "recovery-prepublish-0001.json").write_bytes(
+        gate._canonical_bytes(record)
+    )
+    monkeypatch.setattr(gate, "_private_root", lambda _path: None)
+    monkeypatch.setattr(gate, "_record", lambda _path: target)
+    monkeypatch.setattr(
+        gate,
+        "_current_deployment_fingerprint",
+        lambda: "a" * 64,
+    )
+    monkeypatch.setattr(
+        gate,
+        "_committed_invalidation_for_blocked",
+        lambda *_args, **_kwargs: False,
+    )
+    original_recovery = gate._prepublish_recovery_for_blocked
+    monkeypatch.setattr(
+        gate,
+        "_prepublish_recovery_for_blocked",
+        lambda path, value, recovery, **_kwargs: original_recovery(
+            path,
+            value,
+            recovery,
+            enforce_root_metadata=False,
+        ),
+    )
+    assert gate.evaluate(
+        root,
+        invalidation_root,
+        recovery_root,
+    ) == (True, "NO_ACTIVE_TRANSACTION")
+
+
+def test_blocked_prepublish_recovery_keeps_gate_blocking(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "transactions"
+    recovery_root = tmp_path / "prepublish-recoveries"
+    invalidation_root = tmp_path / "invalidations"
+    root.mkdir()
+    recovery_root.mkdir()
+    target = _blocked_prepublish_target()
+    target_path = root / "txn-prepublish-recovery-0001.json"
+    target_path.write_bytes(gate._canonical_bytes(target))
+    record = _prepublish_recovery_record(
+        target,
+        target_path,
+        state="BLOCKED",
+    )
+    (recovery_root / "recovery-prepublish-0001.json").write_bytes(
+        gate._canonical_bytes(record)
+    )
+    monkeypatch.setattr(gate, "_private_root", lambda _path: None)
+    monkeypatch.setattr(gate, "_record", lambda _path: target)
+    monkeypatch.setattr(
+        gate,
+        "_current_deployment_fingerprint",
+        lambda: "a" * 64,
+    )
+    monkeypatch.setattr(
+        gate,
+        "_committed_invalidation_for_blocked",
+        lambda *_args, **_kwargs: False,
+    )
+    original_recovery = gate._prepublish_recovery_for_blocked
+    monkeypatch.setattr(
+        gate,
+        "_prepublish_recovery_for_blocked",
+        lambda path, value, recovery, **_kwargs: original_recovery(
+            path,
+            value,
+            recovery,
+            enforce_root_metadata=False,
+        ),
+    )
+    assert gate.evaluate(
+        root,
+        invalidation_root,
+        recovery_root,
+    ) == (False, "MAINTENANCE_BLOCKING")
+
+
+def test_prepublish_recovery_target_rejects_candidate_publish_history() -> None:
+    target = _blocked_prepublish_target()
+    target["operations"][1]["operation_type"] = "deployment_inputs_publish"
+    assert gate._blocked_prepublish_recovery_target(target) is False

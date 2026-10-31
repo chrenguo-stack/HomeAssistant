@@ -2423,3 +2423,61 @@ def test_status_uses_deployment_inputs_state_name() -> None:
     assert 'last_proven_state=f"COMPOSE_{disposition}"' not in section
     assert "with retirement.readonly_global_lock():" in section
     assert "retirement.assert_supersession(" in section
+
+
+def test_service_lifecycle_semantic_normalizes_failed_empty_owner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_systemctl(operation: str, unit: str) -> str:
+        assert unit == successor.SERVICES_UNIT
+        if operation == "is-active":
+            return "failed"
+        if operation == "is-enabled":
+            return "enabled"
+        raise AssertionError(f"unexpected systemctl operation: {operation}")
+
+    monkeypatch.setattr(successor, "systemctl", fake_systemctl)
+    monkeypatch.setattr(successor, "_container_ids", lambda _service: [])
+
+    raw = successor._service_semantic()
+    assert raw == {
+        "active": "failed",
+        "enabled": "enabled",
+        "manager_count": 0,
+        "homeassistant_count": 0,
+    }
+    normalized = successor._service_lifecycle_semantic()
+    assert normalized == {
+        "active": "inactive",
+        "enabled": "enabled",
+        "manager_count": 0,
+        "homeassistant_count": 0,
+    }
+    assert successor._service_fingerprint() == successor.sha_bytes(
+        successor.canonical(normalized)
+    )
+
+
+def test_service_lifecycle_semantic_does_not_normalize_failed_partial_owner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_systemctl(operation: str, unit: str) -> str:
+        assert unit == successor.SERVICES_UNIT
+        if operation == "is-active":
+            return "failed"
+        if operation == "is-enabled":
+            return "enabled"
+        raise AssertionError(f"unexpected systemctl operation: {operation}")
+
+    def fake_container_ids(service: str) -> list[str]:
+        return ["manager-still-running"] if service == "manager" else []
+
+    monkeypatch.setattr(successor, "systemctl", fake_systemctl)
+    monkeypatch.setattr(successor, "_container_ids", fake_container_ids)
+
+    assert successor._service_lifecycle_semantic() == {
+        "active": "failed",
+        "enabled": "enabled",
+        "manager_count": 1,
+        "homeassistant_count": 0,
+    }

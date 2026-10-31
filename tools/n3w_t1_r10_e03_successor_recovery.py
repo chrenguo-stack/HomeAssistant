@@ -1104,8 +1104,25 @@ def _service_semantic() -> dict[str, Any]:
     }
 
 
+def _service_lifecycle_semantic() -> dict[str, Any]:
+    semantic = _service_semantic()
+    if semantic == {
+        "active": "failed",
+        "enabled": "enabled",
+        "manager_count": 0,
+        "homeassistant_count": 0,
+    }:
+        return {
+            "active": "inactive",
+            "enabled": "enabled",
+            "manager_count": 0,
+            "homeassistant_count": 0,
+        }
+    return semantic
+
+
 def _service_fingerprint() -> str:
-    return sha_bytes(canonical(_service_semantic()))
+    return sha_bytes(canonical(_service_lifecycle_semantic()))
 
 
 def _gate_loaded_state() -> str:
@@ -1954,7 +1971,7 @@ def _assert_gate_rollback_restored() -> None:
 
 def _stop_services() -> None:
     run(("systemctl", "stop", SERVICES_UNIT), timeout=120)
-    semantic = _service_semantic()
+    semantic = _service_lifecycle_semantic()
     if semantic != {
         "active": "inactive",
         "enabled": "enabled",
