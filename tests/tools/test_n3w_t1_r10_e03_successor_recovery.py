@@ -227,6 +227,48 @@ def test_operation_reconciles_transient_postexecute_probe_failure(
     assert tx.pending_operation(result) is None
 
 
+def test_operation_unchanged_poststate_is_known_failure(
+    tmp_path: Path,
+) -> None:
+    document = _document()
+    store = _store(tmp_path, document)
+    calls = 0
+
+    def reality() -> str:
+        nonlocal calls
+        calls += 1
+        return "1" * 64
+
+    with pytest.raises(
+        successor.SuccessorError,
+        match="operation_poststate_unchanged",
+    ):
+        successor._operation(
+            store,
+            document,
+            binding=_binding(),
+            action="deployment_inputs_publish",
+            operation_type="deployment_inputs_publish",
+            before_fingerprint="1" * 64,
+            after_fingerprint="2" * 64,
+            reality=reality,
+            execute=lambda: None,
+            allowed_states={"APPLYING"},
+        )
+
+    persisted = store.load()
+    assert persisted["operations"][-1]["status"] == "FAILED"
+    assert (
+        persisted["operations"][-1]["observed_after_fingerprint"]
+        == "1" * 64
+    )
+    assert (
+        persisted["operations"][-1]["last_error_code"]
+        == "operation_poststate_unchanged"
+    )
+    assert tx.pending_operation(persisted) is None
+
+
 def test_operation_unknown_poststate_settles_intent_before_blocking(
     tmp_path: Path,
 ) -> None:
