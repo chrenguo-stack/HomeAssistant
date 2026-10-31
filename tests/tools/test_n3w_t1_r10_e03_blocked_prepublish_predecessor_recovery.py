@@ -14,6 +14,9 @@ import n3w_t1_r10_e03_successor_recovery as successor  # noqa: E402
 
 
 def _target() -> dict:
+    current_f4_authority = {
+        "transaction_sha256": "0" * 64,
+    }
     plan = {
         "service_before_fingerprint": "1" * 64,
         "service_stopped_fingerprint": "2" * 64,
@@ -32,6 +35,10 @@ def _target() -> dict:
             "started_at": "2026-10-30T14:04:04.311501262Z",
         },
         "preauth_ledger": {"mode": "RECONCILED_TERMINAL"},
+        "current_f4_authority": current_f4_authority,
+        "current_f4_authority_sha256": successor.sha_bytes(
+            successor.canonical(current_f4_authority)
+        ),
     }
     binding = tx.MaintenanceBinding(
         transaction_id="txn-blocked-prepublish-0001",
@@ -336,3 +343,65 @@ def test_committed_other_recovery_does_not_block_new_target(
     monkeypatch.setattr(recovery, "RecoveryStore", FakeStore)
 
     recovery._assert_no_other_claimed_recovery("e" * 64)
+
+
+def test_plan_locked_rejects_host_binding_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = _target()
+
+    class FakeStore:
+        def __init__(self, _path: Path):
+            pass
+
+        def load(self) -> dict:
+            return target
+
+    monkeypatch.setattr(tx, "TransactionStore", FakeStore)
+    monkeypatch.setattr(
+        successor,
+        "_active_maintenance_documents",
+        lambda: [],
+    )
+    monkeypatch.setattr(
+        successor,
+        "host_binding_sha256",
+        lambda: "f" * 64,
+    )
+
+    with pytest.raises(
+        recovery.RecoveryError,
+        match="host_binding_drift",
+    ):
+        recovery._plan_locked(
+            "txn-blocked-prepublish-0001",
+            authority={
+                "source_head": "a" * 40,
+                "executor_blob": "b" * 40,
+                "module_set_sha256": "c" * 64,
+            },
+        )
+
+
+def test_target_f4_authority_binding_is_exact(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = _target()["plan"]
+    observed = []
+
+    monkeypatch.setattr(
+        successor,
+        "_assert_current_f4_authority",
+        lambda value: observed.append(value) or value,
+    )
+
+    recovery._assert_target_f4_authority(plan)
+    assert observed == [plan["current_f4_authority"]]
+
+    tampered = dict(plan)
+    tampered["current_f4_authority_sha256"] = "f" * 64
+    with pytest.raises(
+        recovery.RecoveryError,
+        match="current_f4_authority_binding_invalid",
+    ):
+        recovery._assert_target_f4_authority(tampered)
