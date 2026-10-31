@@ -1,3 +1,53 @@
+## 2026-10-31 — PR #740/#741 E03 recovery integrated into PR #725; live T1 safe predecessor retained
+
+~~~text
+TASK=N3W_T1_E03_PARENT_PR725_SOURCE_CONVERGENCE_20261031_01
+
+PR725_STATE=OPEN_DRAFT
+PR725_HEAD=17dd9e3fcc0bc9c8bdcac05a6748d7b57e5e0be5
+PR725_BASE=e299c937a7b89bb8a7b9a7432186ba46a416cd44
+PR725_MERGEABLE=true
+
+PR741_MERGED=true
+PR741_MERGE_COMMIT=775c47dc3c8d247a7a342ca0d91aa86fec7bea88
+PR740_MERGED=true
+PR740_MERGE_COMMIT=17dd9e3fcc0bc9c8bdcac05a6748d7b57e5e0be5
+
+LIVE_E03_REPLACEMENT_TRANSACTION_STATE=ABORTED
+LIVE_E03_REPLACEMENT_TRANSACTION_GENERATION=9
+LIVE_E03_ACTIVATION_GATE_OPERATION=COMPLETE
+LIVE_HISTORICAL_INVALIDATED_TRANSACTION_STATE=BLOCKED
+LIVE_BASELINE_INVALIDATION_STATE=COMMITTED
+
+LIVE_MANAGER_IMAGE=local/greenhouse-manager:fresh-ff750b3801a2
+LIVE_HOMEASSISTANT_IMAGE=local/n3w-homeassistant:2026.10.0-0c73235a
+LIVE_BROKER_IMAGE=local/n3w-mosquitto:2.1.2-3184566d
+LIVE_PRODUCT_CUTOVER=false
+
+LIVE_GATE_BLOB=8c37974665c2dc1c66a74c7c187f6ca48932d5bf
+PR725_GATE_BLOB=8c37974665c2dc1c66a74c7c187f6ca48932d5bf
+LIVE_GATE_ALIGNMENT=true
+
+APPLY_RETRIED=false
+RECOVERY_RETRIED=false
+ROLLBACK_INVOKED=false
+BOARD_ACCESS=false
+
+SOURCE_RECOVERY_AND_GATE_COMPATIBILITY=CLOSED_PASS
+PRODUCT_SUCCESSOR_DEPLOYMENT_COMPLETED=false
+KF131_LIVE_REVALIDATION_COMPLETED=false
+
+CURRENT_STOP_POINT=PR725_PARENT_SOURCE_CONVERGENCE_AND_CI_REVIEW
+NEXT_ONE_GATE=N3W_T1_E03_PR725_PARENT_SOURCE_REVIEW_AND_MERGE_READINESS_20261031_01
+AUTO_MAIN_MERGE=false
+~~~
+
+PR #741 repaired pending-operation error preservation and the bounded recovery path, then added fail-closed activation-gate handling for the exact historical pre-apply baseline-invalidated BLOCKED transaction. Independent review found and repaired the remaining BlockedError pending-INTENT masking path before PR #740 closure.
+
+The real T1 recovery transaction is terminal ABORTED and its activation-gate operation is durably COMPLETE. The historical invalidated transaction remains BLOCKED with its matching invalidation record COMMITTED. The repaired activation-gate helper is installed and exactly matches PR #725 source.
+
+This is a recovery/source-convergence closure, not a product successor deployment closure. Manager, Home Assistant and Broker remained unchanged throughout recovery/hotfix execution, and product cutover never began. Therefore KF-131 remains live-revalidation pending until an exact successor deployment and later physical first-registration E2E complete successfully.
+
 ## 2026-10-29 — R10 E03 ACTIVE deadline / busy source repair CLOSED_PASS
 
 ~~~text
