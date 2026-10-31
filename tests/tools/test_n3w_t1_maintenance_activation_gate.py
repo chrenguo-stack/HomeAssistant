@@ -795,10 +795,11 @@ def test_exact_prepublish_recovery_allows_gate(
         "_committed_invalidation_for_blocked",
         lambda *_args, **_kwargs: False,
     )
+    original_recovery = gate._prepublish_recovery_for_blocked
     monkeypatch.setattr(
         gate,
         "_prepublish_recovery_for_blocked",
-        lambda path, value, recovery, **_kwargs: gate._prepublish_recovery_for_blocked(
+        lambda path, value, recovery, **_kwargs: original_recovery(
             path,
             value,
             recovery,
@@ -844,10 +845,11 @@ def test_blocked_prepublish_recovery_keeps_gate_blocking(
         "_committed_invalidation_for_blocked",
         lambda *_args, **_kwargs: False,
     )
+    original_recovery = gate._prepublish_recovery_for_blocked
     monkeypatch.setattr(
         gate,
         "_prepublish_recovery_for_blocked",
-        lambda path, value, recovery, **_kwargs: gate._prepublish_recovery_for_blocked(
+        lambda path, value, recovery, **_kwargs: original_recovery(
             path,
             value,
             recovery,
