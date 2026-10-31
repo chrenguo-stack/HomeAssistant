@@ -793,6 +793,31 @@ def _stability(
     return samples
 
 
+def _classify_recovery_reality(
+    plan: dict[str, Any],
+    target_plan: dict[str, Any],
+) -> tuple[str, dict[str, Any] | None]:
+    current_gate_sha = sha_file(e03.GATE_TARGET)
+    before_gate = plan["gate_source_sha256_before"]
+    after_gate = plan["gate_source_sha256_after"]
+    if current_gate_sha not in {before_gate, after_gate}:
+        raise RecoveryError("gate_source_reality_unknown")
+    if e03._service_fingerprint() == plan["service_stopped_fingerprint"]:
+        return (
+            "STOPPED_BEFORE_GATE"
+            if current_gate_sha == before_gate
+            else "STOPPED_AFTER_GATE",
+            None,
+        )
+    if current_gate_sha != after_gate:
+        raise RecoveryError("recovery_prestate_binding_drift")
+    try:
+        baseline = _runtime_predecessor(target_plan)
+    except Exception as error:
+        raise RecoveryError("recovery_prestate_binding_drift") from error
+    return "RUNNING_AFTER_GATE", baseline
+
+
 def _transition(
     record: dict[str, Any],
     *,
@@ -850,32 +875,14 @@ def recover(
             != plan["deployment_before_fingerprint"]
         ):
             raise RecoveryError("recovery_prestate_binding_drift")
-        current_gate_sha = sha_file(e03.GATE_TARGET)
-        if current_gate_sha not in {
-            plan["gate_source_sha256_before"],
-            plan["gate_source_sha256_after"],
-        }:
-            raise RecoveryError("gate_source_reality_unknown")
-        stopped = (
-            e03._service_fingerprint()
-            == plan["service_stopped_fingerprint"]
+        reality, running_baseline = _classify_recovery_reality(
+            plan,
+            target_plan,
         )
-        running_baseline: dict[str, Any] | None = None
-        if not stopped:
-            if current_gate_sha != plan["gate_source_sha256_after"]:
-                raise RecoveryError("recovery_prestate_binding_drift")
-            try:
-                running_baseline = _runtime_predecessor(target_plan)
-            except Exception as error:
-                raise RecoveryError(
-                    "recovery_prestate_binding_drift"
-                ) from error
         start_attempted = running_baseline is not None
         try:
             e03._broker_continuity(target_plan)
-            if current_gate_sha == plan["gate_source_sha256_before"]:
-                if not stopped:
-                    raise RecoveryError("recovery_prestate_binding_drift")
+            if reality == "STOPPED_BEFORE_GATE":
                 _install_recovery_gate(plan)
             _assert_gate_recovery_allowed()
             if running_baseline is None:
