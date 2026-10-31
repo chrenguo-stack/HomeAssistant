@@ -727,6 +727,7 @@ def _prepublish_recovery_record(
         "recovery_executor_source_head": "1" * 40,
         "recovery_executor_blob": "2" * 40,
         "recovery_module_set_sha256": "3" * 64,
+        "gate_source_sha256_after": gate._sha256_file(Path(gate.__file__)),
         "product_mutation": False,
         "service_stop_start": True,
         "docker_mutation": True,
