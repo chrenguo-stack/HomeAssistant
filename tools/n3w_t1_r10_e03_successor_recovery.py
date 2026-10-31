@@ -2966,7 +2966,19 @@ def apply(transaction_id: str, execution_session_id: str) -> dict[str, Any]:
                 },
             )
         except BlockedError as error:
-            document = _block(store, store.load(), reason=safe_reason(error))
+            current = store.load()
+            if maintenance.pending_operation(current) is not None:
+                result = public_result(
+                    current,
+                    operation="apply",
+                    reason_code=safe_reason(error),
+                    last_proven_state="PENDING_OPERATION_REVIEW_REQUIRED",
+                    mutation_observed=current["operation_seq"] > 0,
+                    recovery_class="PENDING_OPERATION_REVIEW_REQUIRED",
+                )
+                result["status"] = "STOP"
+                return result
+            document = _block(store, current, reason=safe_reason(error))
             return public_result(
                 document,
                 operation="apply",
