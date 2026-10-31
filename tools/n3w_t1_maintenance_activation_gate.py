@@ -12,6 +12,10 @@ from typing import Any
 
 SCHEMA = "gh.n3w-t1-maintenance-transaction/1"
 TRANSACTION_ROOT = Path("/var/lib/n3w-t1-maintenance/transactions")
+INVALIDATION_ROOT = Path("/var/lib/n3w-t1-maintenance/invalidations")
+INVALIDATION_SCHEMA = "gh.n3w-t1-e03-replacement-baseline-invalidation/1"
+INVALIDATION_REASON = "BROKER_STARTED_AT_CHANGED_AFTER_T1_REBOOT"
+INVALIDATION_LAST_OPERATION = "baseline_invalidated_before_apply"
 PRODUCTION_COMPOSE = Path("/etc/n3wfc4/docker-compose.yml")
 PRODUCTION_COMPOSE_ENV = Path("/etc/n3wfc4/docker-compose.env")
 ACTIVE_BLOCKING_STATES = frozenset({"APPLYING", "BLOCKED"})
@@ -285,7 +289,101 @@ def _record(path: Path) -> dict[str, Any]:
         raise GateError("transaction_record_json_invalid") from error
     return _validate_record(value)
 
-def evaluate(root: Path = TRANSACTION_ROOT) -> tuple[bool, str]:
+def _sha256_bytes(value: bytes) -> str:
+    return hashlib.sha256(value).hexdigest()
+
+
+def _sha256_text(value: str) -> str:
+    return _sha256_bytes(value.encode("utf-8"))
+
+
+def _canonical_bytes(value: Any) -> bytes:
+    return (
+        json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        )
+        + "\n"
+    ).encode("utf-8")
+
+
+def _committed_invalidation_for_blocked(
+    transaction_path: Path,
+    value: dict[str, Any],
+    invalidation_root: Path,
+) -> bool:
+    if (
+        value.get("state") != "BLOCKED"
+        or value.get("last_operation") != INVALIDATION_LAST_OPERATION
+        or value.get("last_reason") != INVALIDATION_REASON
+        or value.get("authorization_consumed") is not True
+        or value.get("replay_allowed") is not False
+        or value.get("operation_seq") != 0
+        or value.get("operations") != []
+        or value.get("observed_after") != {}
+    ):
+        return False
+    if (
+        invalidation_root.is_symlink()
+        or not invalidation_root.is_dir()
+    ):
+        return False
+    meta = invalidation_root.stat()
+    if meta.st_uid != 0 or meta.st_gid != 0 or stat.S_IMODE(meta.st_mode) != 0o700:
+        return False
+    target_id_hash = _sha256_text(str(value["transaction_id"]))
+    target_sha = _sha256_file(transaction_path)
+    matches = 0
+    for path in sorted(invalidation_root.glob("*.json")):
+        if path.is_symlink() or not path.is_file():
+            return False
+        meta = path.stat()
+        if meta.st_uid != 0 or meta.st_gid != 0 or stat.S_IMODE(meta.st_mode) != 0o600:
+            return False
+        try:
+            record = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            return False
+        if not isinstance(record, dict):
+            return False
+        if record.get("schema") != INVALIDATION_SCHEMA:
+            continue
+        if record.get("target_transaction_id_sha256") != target_id_hash:
+            continue
+        plan = record.get("plan")
+        if not isinstance(plan, dict):
+            return False
+        if record.get("plan_sha256") != _sha256_bytes(_canonical_bytes(plan)):
+            return False
+        if (
+            record.get("state") != "COMMITTED"
+            or record.get("authorization_consumed") is not True
+            or record.get("replay_allowed") is not False
+            or record.get("reason") != INVALIDATION_REASON
+            or record.get("product_mutation") is not False
+            or record.get("service_stop_start") is not False
+            or record.get("docker_mutation") is not False
+            or record.get("board_access") is not False
+            or record.get("target_transaction_sha256_after") != target_sha
+            or record.get("target_generation_after") != value.get("generation")
+            or plan.get("reason") != INVALIDATION_REASON
+            or plan.get("target_transaction_id_sha256") != target_id_hash
+            or plan.get("product_mutation") is not False
+            or plan.get("service_stop_start") is not False
+            or plan.get("docker_mutation") is not False
+            or plan.get("board_access") is not False
+        ):
+            return False
+        matches += 1
+    return matches == 1
+
+
+def evaluate(
+    root: Path = TRANSACTION_ROOT,
+    invalidation_root: Path = INVALIDATION_ROOT,
+) -> tuple[bool, str]:
     if not root.exists():
         return True, "NO_TRANSACTION_ROOT"
     _private_root(root)
@@ -293,6 +391,12 @@ def evaluate(root: Path = TRANSACTION_ROOT) -> tuple[bool, str]:
     for path in sorted(root.glob("*.json")):
         value = _record(path)
         state = str(value["state"])
+        if state == "BLOCKED" and _committed_invalidation_for_blocked(
+            path,
+            value,
+            invalidation_root,
+        ):
+            continue
         if state in ACTIVE_BLOCKING_STATES | ACTIVE_ALLOWING_STATES:
             txid = value.get("transaction_id")
             if not isinstance(txid, str) or not txid:
