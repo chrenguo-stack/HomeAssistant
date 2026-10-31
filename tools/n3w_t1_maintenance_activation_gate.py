@@ -361,19 +361,33 @@ def _committed_invalidation_for_blocked(
             return False
         if record.get("plan_sha256") != _sha256_bytes(_canonical_bytes(plan)):
             return False
+        before_generation = record.get("target_generation_before")
         if (
             record.get("state") != "COMMITTED"
+            or record.get("generation") != 2
             or record.get("authorization_consumed") is not True
             or record.get("replay_allowed") is not False
             or record.get("reason") != INVALIDATION_REASON
+            or record.get("last_operation") != "target_transaction_blocked"
+            or record.get("last_reason") is not None
             or record.get("product_mutation") is not False
             or record.get("service_stop_start") is not False
             or record.get("docker_mutation") is not False
             or record.get("board_access") is not False
-            or record.get("target_transaction_sha256_after") != target_sha
+            or not isinstance(before_generation, int)
+            or isinstance(before_generation, bool)
+            or record.get("target_generation_after") != before_generation + 1
             or record.get("target_generation_after") != value.get("generation")
+            or record.get("target_transaction_sha256_after") != target_sha
+            or record.get("target_transaction_sha256_before")
+            != plan.get("target_transaction_sha256")
+            or record.get("target_transaction_id_sha256")
+            != plan.get("target_transaction_id_sha256")
+            or record.get("target_invariant_sha256")
+            != plan.get("target_invariant_sha256")
             or plan.get("reason") != INVALIDATION_REASON
             or plan.get("target_transaction_id_sha256") != target_id_hash
+            or plan.get("target_generation") != before_generation
             or plan.get("product_mutation") is not False
             or plan.get("service_stop_start") is not False
             or plan.get("docker_mutation") is not False
