@@ -616,6 +616,8 @@ def _valid_prepublish_recovery_record(
         != record.get("executor_blob")
         or plan.get("recovery_module_set_sha256")
         != record.get("module_set_sha256")
+        or plan.get("gate_source_sha256_after")
+        != _sha256_file(Path(__file__))
     ):
         return False
     state = record.get("state")
