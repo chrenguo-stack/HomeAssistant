@@ -14,6 +14,7 @@ SCHEMA = "gh.n3w-t1-maintenance-transaction/1"
 TRANSACTION_ROOT = Path("/var/lib/n3w-t1-maintenance/transactions")
 INVALIDATION_ROOT = Path("/var/lib/n3w-t1-maintenance/invalidations")
 INVALIDATION_SCHEMA = "gh.n3w-t1-e03-replacement-baseline-invalidation/1"
+INVALIDATION_PLAN_SCHEMA = "gh.n3w-t1-e03-replacement-baseline-invalidation-plan/1"
 INVALIDATION_REASON = "BROKER_STARTED_AT_CHANGED_AFTER_T1_REBOOT"
 INVALIDATION_LAST_OPERATION = "baseline_invalidated_before_apply"
 PRODUCTION_COMPOSE = Path("/etc/n3wfc4/docker-compose.yml")
@@ -25,6 +26,7 @@ ACTIVE_ALLOWING_STATES = frozenset(
 TERMINAL_STATES = frozenset({"COMMITTED", "ROLLED_BACK", "ABORTED"})
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 SHA64 = re.compile(r"^[0-9a-f]{64}$")
+IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{7,199}$")
 TRANSACTION_KEYS = frozenset(
     {
         "schema",
@@ -57,6 +59,38 @@ TRANSACTION_KEYS = frozenset(
 )
 
 
+INVALIDATION_RECORD_KEYS = frozenset(
+    {
+        "schema",
+        "invalidation_id",
+        "invalidation_id_sha256",
+        "authorization_id_sha256",
+        "execution_session_id_sha256",
+        "plan_sha256",
+        "plan",
+        "executor_source_head",
+        "executor_blob",
+        "module_set_sha256",
+        "target_transaction_id_sha256",
+        "target_transaction_sha256_before",
+        "target_generation_before",
+        "target_invariant_sha256",
+        "reason",
+        "product_mutation",
+        "service_stop_start",
+        "docker_mutation",
+        "board_access",
+        "state",
+        "authorization_consumed",
+        "replay_allowed",
+        "generation",
+        "target_transaction_sha256_after",
+        "target_generation_after",
+        "last_operation",
+        "last_reason",
+    }
+)
+
 class GateError(RuntimeError):
     pass
 
@@ -74,6 +108,12 @@ def _validate_record(value: Any) -> dict[str, Any]:
         raise GateError("transaction_record_schema_invalid")
     if set(value) != TRANSACTION_KEYS:
         raise GateError("transaction_record_keys_invalid")
+    transaction_id = value.get("transaction_id")
+    if (
+        not isinstance(transaction_id, str)
+        or IDENTIFIER.fullmatch(transaction_id) is None
+    ):
+        raise GateError("transaction_id_invalid")
     state = value.get("state")
     if state not in ACTIVE_BLOCKING_STATES | ACTIVE_ALLOWING_STATES | TERMINAL_STATES:
         raise GateError("transaction_record_state_invalid")
@@ -309,6 +349,83 @@ def _canonical_bytes(value: Any) -> bytes:
     ).encode("utf-8")
 
 
+def _valid_committed_invalidation_record(record: Any) -> bool:
+    if not isinstance(record, dict) or set(record) != INVALIDATION_RECORD_KEYS:
+        return False
+    if record.get("schema") != INVALIDATION_SCHEMA:
+        return False
+    invalidation_id = record.get("invalidation_id")
+    if (
+        not isinstance(invalidation_id, str)
+        or IDENTIFIER.fullmatch(invalidation_id) is None
+        or record.get("invalidation_id_sha256") != _sha256_text(invalidation_id)
+    ):
+        return False
+    for key in (
+        "authorization_id_sha256",
+        "execution_session_id_sha256",
+        "plan_sha256",
+        "module_set_sha256",
+        "target_transaction_id_sha256",
+        "target_transaction_sha256_before",
+        "target_invariant_sha256",
+        "target_transaction_sha256_after",
+    ):
+        value = record.get(key)
+        if not isinstance(value, str) or SHA64.fullmatch(value) is None:
+            return False
+    for key in ("executor_source_head", "executor_blob"):
+        value = record.get(key)
+        if not isinstance(value, str) or SHA40.fullmatch(value) is None:
+            return False
+    plan = record.get("plan")
+    if (
+        not isinstance(plan, dict)
+        or record.get("plan_sha256") != _sha256_bytes(_canonical_bytes(plan))
+        or plan.get("schema") != INVALIDATION_PLAN_SCHEMA
+        or plan.get("reason") != INVALIDATION_REASON
+        or plan.get("target_transaction_id_sha256")
+        != record.get("target_transaction_id_sha256")
+        or plan.get("target_transaction_sha256")
+        != record.get("target_transaction_sha256_before")
+        or plan.get("target_generation")
+        != record.get("target_generation_before")
+        or plan.get("target_invariant_sha256")
+        != record.get("target_invariant_sha256")
+        or plan.get("invalidation_executor_source_head")
+        != record.get("executor_source_head")
+        or plan.get("invalidation_executor_blob")
+        != record.get("executor_blob")
+        or plan.get("invalidation_module_set_sha256")
+        != record.get("module_set_sha256")
+    ):
+        return False
+    before_generation = record.get("target_generation_before")
+    if (
+        record.get("state") != "COMMITTED"
+        or record.get("generation") != 2
+        or record.get("authorization_consumed") is not True
+        or record.get("replay_allowed") is not False
+        or record.get("reason") != INVALIDATION_REASON
+        or record.get("last_operation") != "target_transaction_blocked"
+        or record.get("last_reason") is not None
+        or not isinstance(before_generation, int)
+        or isinstance(before_generation, bool)
+        or before_generation < 1
+        or record.get("target_generation_after") != before_generation + 1
+    ):
+        return False
+    for key in (
+        "product_mutation",
+        "service_stop_start",
+        "docker_mutation",
+        "board_access",
+    ):
+        if record.get(key) is not False or plan.get(key) is not False:
+            return False
+    return True
+
+
 def _committed_invalidation_for_blocked(
     transaction_path: Path,
     value: dict[str, Any],
@@ -356,42 +473,11 @@ def _committed_invalidation_for_blocked(
             continue
         if record.get("target_transaction_id_sha256") != target_id_hash:
             continue
-        plan = record.get("plan")
-        if not isinstance(plan, dict):
+        if not _valid_committed_invalidation_record(record):
             return False
-        if record.get("plan_sha256") != _sha256_bytes(_canonical_bytes(plan)):
-            return False
-        before_generation = record.get("target_generation_before")
         if (
-            record.get("state") != "COMMITTED"
-            or record.get("generation") != 2
-            or record.get("authorization_consumed") is not True
-            or record.get("replay_allowed") is not False
-            or record.get("reason") != INVALIDATION_REASON
-            or record.get("last_operation") != "target_transaction_blocked"
-            or record.get("last_reason") is not None
-            or record.get("product_mutation") is not False
-            or record.get("service_stop_start") is not False
-            or record.get("docker_mutation") is not False
-            or record.get("board_access") is not False
-            or not isinstance(before_generation, int)
-            or isinstance(before_generation, bool)
-            or record.get("target_generation_after") != before_generation + 1
-            or record.get("target_generation_after") != value.get("generation")
+            record.get("target_generation_after") != value.get("generation")
             or record.get("target_transaction_sha256_after") != target_sha
-            or record.get("target_transaction_sha256_before")
-            != plan.get("target_transaction_sha256")
-            or record.get("target_transaction_id_sha256")
-            != plan.get("target_transaction_id_sha256")
-            or record.get("target_invariant_sha256")
-            != plan.get("target_invariant_sha256")
-            or plan.get("reason") != INVALIDATION_REASON
-            or plan.get("target_transaction_id_sha256") != target_id_hash
-            or plan.get("target_generation") != before_generation
-            or plan.get("product_mutation") is not False
-            or plan.get("service_stop_start") is not False
-            or plan.get("docker_mutation") is not False
-            or plan.get("board_access") is not False
         ):
             return False
         matches += 1
