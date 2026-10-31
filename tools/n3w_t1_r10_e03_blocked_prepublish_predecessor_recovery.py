@@ -265,6 +265,10 @@ def _plan_locked(
     target = _assert_target_shape(
         maintenance.TransactionStore(target_path).load()
     )
+    maintenance.ensure_no_other_active(
+        e03._active_maintenance_documents(),
+        transaction_id=transaction_id,
+    )
     target_plan = target["plan"]
     current_deployment = e03._deployment_reality(target_plan)
     if current_deployment != target_plan["deployment_before_fingerprint"]:
@@ -559,6 +563,18 @@ def _existing_recovery_for_target(target_hash: str) -> bool:
     return False
 
 
+def _assert_no_other_claimed_recovery(target_hash: str) -> None:
+    if not RECOVERY_ROOT.exists():
+        return
+    for path in sorted(RECOVERY_ROOT.glob("*.json")):
+        record = RecoveryStore(path).load()
+        if (
+            record["state"] == "CLAIMED"
+            and record["target_transaction_id_sha256"] != target_hash
+        ):
+            raise RecoveryError("other_claimed_recovery")
+
+
 def claim(
     *,
     target_transaction_id: str,
@@ -580,6 +596,9 @@ def claim(
         if sha_bytes(canonical(plan)) != expected_plan_sha256:
             raise RecoveryError("recovery_plan_sha256_mismatch")
         _ensure_private_root()
+        _assert_no_other_claimed_recovery(
+            plan["target_transaction_id_sha256"]
+        )
         if _existing_recovery_for_target(
             plan["target_transaction_id_sha256"]
         ):
