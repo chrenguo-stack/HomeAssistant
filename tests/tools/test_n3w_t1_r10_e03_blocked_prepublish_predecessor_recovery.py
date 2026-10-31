@@ -405,3 +405,97 @@ def test_target_f4_authority_binding_is_exact(
         match="current_f4_authority_binding_invalid",
     ):
         recovery._assert_target_f4_authority(tampered)
+
+
+@pytest.mark.parametrize(
+    ("gate_key", "expected"),
+    [
+        ("gate_source_sha256_before", "STOPPED_BEFORE_GATE"),
+        ("gate_source_sha256_after", "STOPPED_AFTER_GATE"),
+    ],
+)
+def test_recovery_reality_accepts_stopped_before_or_after_gate(
+    monkeypatch: pytest.MonkeyPatch,
+    gate_key: str,
+    expected: str,
+) -> None:
+    plan = _plan()
+    monkeypatch.setattr(
+        recovery,
+        "sha_file",
+        lambda _path: plan[gate_key],
+    )
+    monkeypatch.setattr(
+        successor,
+        "_service_fingerprint",
+        lambda: plan["service_stopped_fingerprint"],
+    )
+
+    reality, baseline = recovery._classify_recovery_reality(plan, {})
+    assert reality == expected
+    assert baseline is None
+
+
+def test_recovery_reality_accepts_exact_predecessor_running_after_gate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = _plan()
+    baseline = {"manager": {"container_id": "old-manager"}}
+    monkeypatch.setattr(
+        recovery,
+        "sha_file",
+        lambda _path: plan["gate_source_sha256_after"],
+    )
+    monkeypatch.setattr(
+        successor,
+        "_service_fingerprint",
+        lambda: "f" * 64,
+    )
+    monkeypatch.setattr(
+        recovery,
+        "_runtime_predecessor",
+        lambda _plan: baseline,
+    )
+
+    reality, observed = recovery._classify_recovery_reality(plan, {})
+    assert reality == "RUNNING_AFTER_GATE"
+    assert observed == baseline
+
+
+def test_recovery_reality_rejects_running_before_gate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = _plan()
+    monkeypatch.setattr(
+        recovery,
+        "sha_file",
+        lambda _path: plan["gate_source_sha256_before"],
+    )
+    monkeypatch.setattr(
+        successor,
+        "_service_fingerprint",
+        lambda: "f" * 64,
+    )
+
+    with pytest.raises(
+        recovery.RecoveryError,
+        match="recovery_prestate_binding_drift",
+    ):
+        recovery._classify_recovery_reality(plan, {})
+
+
+def test_recovery_reality_rejects_unknown_gate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = _plan()
+    monkeypatch.setattr(
+        recovery,
+        "sha_file",
+        lambda _path: "f" * 64,
+    )
+
+    with pytest.raises(
+        recovery.RecoveryError,
+        match="gate_source_reality_unknown",
+    ):
+        recovery._classify_recovery_reality(plan, {})
