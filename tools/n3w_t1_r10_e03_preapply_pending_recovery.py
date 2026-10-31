@@ -90,8 +90,22 @@ def _assert_gate_nonblocking() -> None:
 def _runtime_preconditions(document: dict[str, Any]) -> dict[str, Any]:
     plan = document["plan"]
     manager = successor.runtime("manager")
-    if manager["container_id"] != plan["manager_predecessor_container_id"]:
+    if (
+        manager["container_id"] != plan["manager_predecessor_container_id"]
+        or manager["image_ref"] != successor.OLD_MANAGER_IMAGE
+        or manager["image_id"] != successor.OLD_MANAGER_ID
+        or manager["network_mode"] != "host"
+        or manager["restart_count"] != 0
+    ):
         raise RecoveryError("manager_predecessor_continuity_drift")
+    homeassistant = successor.runtime("homeassistant")
+    if (
+        homeassistant["image_ref"] != successor.HA_IMAGE
+        or homeassistant["image_id"] != successor.HA_IMAGE_ID
+        or homeassistant["network_mode"] != "host"
+        or homeassistant["restart_count"] != 0
+    ):
+        raise RecoveryError("homeassistant_predecessor_continuity_drift")
     successor._assert_preauth_ledger_rebind(
         plan,
         manager["container_id"],
