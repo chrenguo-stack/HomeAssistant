@@ -227,3 +227,112 @@ def test_blocked_recovery_record_is_terminal_no_replay() -> None:
     assert blocked["authorization_consumed"] is True
     assert blocked["replay_allowed"] is False
     assert blocked["generation"] == 2
+
+
+def test_plan_locked_rejects_other_active_maintenance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = _target()
+    other_plan = {"kind": "other-active"}
+    other_binding = tx.MaintenanceBinding(
+        transaction_id="txn-other-active-0001",
+        authorization_id_sha256="1" * 64,
+        host_binding_sha256="2" * 64,
+        current_release_id="3" * 64,
+        target_release_id="4" * 64,
+        artifact_sha256="5" * 64,
+        executor_source_head="6" * 40,
+        executor_blob="7" * 40,
+        module_set_sha256="8" * 64,
+        plan_sha256=tx.sha256_bytes(tx.canonical_bytes(other_plan)),
+        scope=("service_stop",),
+    )
+    other = tx.new_transaction(
+        other_binding,
+        predecessor_sha256="9" * 64,
+        before={"deployment_inputs": "a" * 64},
+        intended_after={"deployment_inputs": "b" * 64},
+        plan=other_plan,
+    )
+    other = tx.mark_ready(other)
+
+    class FakeStore:
+        def __init__(self, _path: Path):
+            pass
+
+        def load(self) -> dict:
+            return target
+
+    monkeypatch.setattr(tx, "TransactionStore", FakeStore)
+    monkeypatch.setattr(
+        successor,
+        "_active_maintenance_documents",
+        lambda: [other],
+    )
+
+    with pytest.raises(
+        tx.MaintenanceTransactionError,
+        match="other_active_transaction",
+    ):
+        recovery._plan_locked(
+            "txn-blocked-prepublish-0001",
+            authority={
+                "source_head": "a" * 40,
+                "executor_blob": "b" * 40,
+                "module_set_sha256": "c" * 64,
+            },
+        )
+
+
+def test_other_claimed_recovery_is_rejected(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "prepublish-recoveries"
+    root.mkdir()
+    marker = root / "other.json"
+    marker.write_text("{}\n", encoding="utf-8")
+
+    class FakeStore:
+        def __init__(self, path: Path):
+            self.path = path
+
+        def load(self) -> dict:
+            return {
+                "state": "CLAIMED",
+                "target_transaction_id_sha256": "f" * 64,
+            }
+
+    monkeypatch.setattr(recovery, "RECOVERY_ROOT", root)
+    monkeypatch.setattr(recovery, "RecoveryStore", FakeStore)
+
+    with pytest.raises(
+        recovery.RecoveryError,
+        match="other_claimed_recovery",
+    ):
+        recovery._assert_no_other_claimed_recovery("e" * 64)
+
+
+def test_committed_other_recovery_does_not_block_new_target(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "prepublish-recoveries"
+    root.mkdir()
+    marker = root / "other.json"
+    marker.write_text("{}\n", encoding="utf-8")
+
+    class FakeStore:
+        def __init__(self, path: Path):
+            self.path = path
+
+        def load(self) -> dict:
+            return {
+                "state": "COMMITTED",
+                "target_transaction_id_sha256": "f" * 64,
+            }
+
+    monkeypatch.setattr(recovery, "RECOVERY_ROOT", root)
+    monkeypatch.setattr(recovery, "RecoveryStore", FakeStore)
+
+    recovery._assert_no_other_claimed_recovery("e" * 64)
