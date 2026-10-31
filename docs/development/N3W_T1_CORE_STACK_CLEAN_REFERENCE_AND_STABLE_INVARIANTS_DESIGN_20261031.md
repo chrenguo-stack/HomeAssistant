@@ -2,7 +2,7 @@
 
 Date: 2026-10-31
 
-Status: DESIGN_FROZEN_PENDING_INTEGRATION
+Status: DESIGN_FROZEN_INTEGRATED
 
 ## 1. Canonical name
 
@@ -207,14 +207,40 @@ from a reinstalled T1:
 9. repeat selected observations after normal runtime/reboot to prove which fields actually
    remain stable.
 
-## 10. Current stop point
+## 10. Local artifact reuse boundary
+
+The Mac exact-artifact cache mechanism remains a valid optimization, but cache validity is
+always tied to exact artifact identity.
+
+The artifact accepted on 2026-10-15 is historical for the new clean-reference route because
+Manager/product source advanced afterward:
+
+```text
+HISTORICAL_LOCAL_ARTIFACT_ID=11954286988
+HISTORICAL_LOCAL_ARTIFACT_ZIP_SHA256=047a40ed640bc1bfcbc8adb7007da2a4eea1f8abedffbc3cb2e2a4d9f6817928
+HISTORICAL_LOCAL_ARTIFACT_REUSE_ALLOWED=false
+CACHE_MECHANISM_REUSE_ALLOWED=true
+```
+
+The next frozen T1_Core_Stack artifact should be downloaded/built once, verified, stored in
+the durable Mac exact-artifact cache, and reused until that exact artifact identity changes.
+
+Detailed phased route:
+
+```text
+docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_DEVELOPMENT_PLAN_20261101.md
+```
+
+## 11. Current stop point
 
 PR #745 is not automatically integrated by this design decision. The current live T1
 remains a failed-upgrade evidence source until its minimal read-only evidence is archived.
 
 ```text
 PR745_AUTO_MERGE=false
-CURRENT_T1_WIPE_BEFORE_FINAL_EVIDENCE_EXPORT=false
+PREWIPE_PRIVATE_EVIDENCE_ARCHIVED=true
+PREWIPE_PRIVATE_EVIDENCE_SHA256=711359c2b6a3522daac4ce9697a20b9876b71f202b44d6c79f65eda79f67025c
+OLD_T1_RUNTIME_MAY_BE_DISCARDED=true
 LIVE_UPGRADE_RETRY=false
 BOARD_ACCESS=false
 ```
