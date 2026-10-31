@@ -192,6 +192,73 @@ def test_operation_persists_intent_before_execute_and_completion_after(
     assert result["operations"][-1]["observed_after_fingerprint"] == "2" * 64
 
 
+def test_operation_reconciles_transient_postexecute_probe_failure(
+    tmp_path: Path,
+) -> None:
+    document = _document()
+    store = _store(tmp_path, document)
+    calls = 0
+
+    def reality() -> str:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return "1" * 64
+        if calls == 2:
+            raise RuntimeError("transient_gate_probe_failure")
+        return "2" * 64
+
+    result = successor._operation(
+        store,
+        document,
+        binding=_binding(),
+        action="deployment_inputs_publish",
+        operation_type="deployment_inputs_publish",
+        before_fingerprint="1" * 64,
+        after_fingerprint="2" * 64,
+        reality=reality,
+        execute=lambda: None,
+        allowed_states={"APPLYING"},
+    )
+
+    assert calls == 3
+    assert result["operations"][-1]["status"] == "COMPLETE"
+    assert result["operations"][-1]["observed_after_fingerprint"] == "2" * 64
+    assert tx.pending_operation(result) is None
+
+
+def test_operation_unknown_poststate_settles_intent_before_blocking(
+    tmp_path: Path,
+) -> None:
+    document = _document()
+    store = _store(tmp_path, document)
+    calls = 0
+
+    def reality() -> str:
+        nonlocal calls
+        calls += 1
+        return "1" * 64 if calls == 1 else "9" * 64
+
+    with pytest.raises(successor.BlockedError, match="operation_poststate_unproven"):
+        successor._operation(
+            store,
+            document,
+            binding=_binding(),
+            action="deployment_inputs_publish",
+            operation_type="deployment_inputs_publish",
+            before_fingerprint="1" * 64,
+            after_fingerprint="2" * 64,
+            reality=reality,
+            execute=lambda: None,
+            allowed_states={"APPLYING"},
+        )
+
+    persisted = store.load()
+    assert persisted["operations"][-1]["status"] == "BLOCKED"
+    assert persisted["operations"][-1]["observed_after_fingerprint"] == "9" * 64
+    assert tx.pending_operation(persisted) is None
+
+
 def test_operation_reentry_completes_existing_intent_without_second_execute(
     tmp_path: Path,
 ) -> None:
@@ -2060,6 +2127,21 @@ def test_claim_rechecks_preauth_inside_global_maintenance_lock(
         )
     assert state["preauth_called"] is True
     assert state["locked"] is False
+
+
+def test_apply_and_rollback_preserve_pending_operation_for_readonly_recovery() -> None:
+    source = (
+        ROOT / "tools" / "n3w_t1_r10_e03_successor_recovery.py"
+    ).read_text(encoding="utf-8")
+    apply_section = source.split("def apply(", 1)[1].split("def rollback(", 1)[0]
+    rollback_section = source.split("def rollback(", 1)[1].split("def public_result(", 1)[0]
+    marker = "maintenance.pending_operation(current) is not None"
+    assert marker in apply_section
+    assert marker in rollback_section
+    assert 'result["status"] = "STOP"' in apply_section
+    assert 'result["status"] = "STOP"' in rollback_section
+    assert apply_section.index(marker) < apply_section.index("_block(store, current")
+    assert rollback_section.index(marker) < rollback_section.index("_block(")
 
 
 def test_repaired_executor_cannot_mutate_old_executor_bound_ready_transaction(

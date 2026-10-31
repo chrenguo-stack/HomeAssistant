@@ -12,6 +12,11 @@ from typing import Any
 
 SCHEMA = "gh.n3w-t1-maintenance-transaction/1"
 TRANSACTION_ROOT = Path("/var/lib/n3w-t1-maintenance/transactions")
+INVALIDATION_ROOT = Path("/var/lib/n3w-t1-maintenance/invalidations")
+INVALIDATION_SCHEMA = "gh.n3w-t1-e03-replacement-baseline-invalidation/1"
+INVALIDATION_PLAN_SCHEMA = "gh.n3w-t1-e03-replacement-baseline-invalidation-plan/1"
+INVALIDATION_REASON = "BROKER_STARTED_AT_CHANGED_AFTER_T1_REBOOT"
+INVALIDATION_LAST_OPERATION = "baseline_invalidated_before_apply"
 PRODUCTION_COMPOSE = Path("/etc/n3wfc4/docker-compose.yml")
 PRODUCTION_COMPOSE_ENV = Path("/etc/n3wfc4/docker-compose.env")
 ACTIVE_BLOCKING_STATES = frozenset({"APPLYING", "BLOCKED"})
@@ -21,6 +26,7 @@ ACTIVE_ALLOWING_STATES = frozenset(
 TERMINAL_STATES = frozenset({"COMMITTED", "ROLLED_BACK", "ABORTED"})
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 SHA64 = re.compile(r"^[0-9a-f]{64}$")
+IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{7,199}$")
 TRANSACTION_KEYS = frozenset(
     {
         "schema",
@@ -53,6 +59,38 @@ TRANSACTION_KEYS = frozenset(
 )
 
 
+INVALIDATION_RECORD_KEYS = frozenset(
+    {
+        "schema",
+        "invalidation_id",
+        "invalidation_id_sha256",
+        "authorization_id_sha256",
+        "execution_session_id_sha256",
+        "plan_sha256",
+        "plan",
+        "executor_source_head",
+        "executor_blob",
+        "module_set_sha256",
+        "target_transaction_id_sha256",
+        "target_transaction_sha256_before",
+        "target_generation_before",
+        "target_invariant_sha256",
+        "reason",
+        "product_mutation",
+        "service_stop_start",
+        "docker_mutation",
+        "board_access",
+        "state",
+        "authorization_consumed",
+        "replay_allowed",
+        "generation",
+        "target_transaction_sha256_after",
+        "target_generation_after",
+        "last_operation",
+        "last_reason",
+    }
+)
+
 class GateError(RuntimeError):
     pass
 
@@ -70,6 +108,12 @@ def _validate_record(value: Any) -> dict[str, Any]:
         raise GateError("transaction_record_schema_invalid")
     if set(value) != TRANSACTION_KEYS:
         raise GateError("transaction_record_keys_invalid")
+    transaction_id = value.get("transaction_id")
+    if (
+        not isinstance(transaction_id, str)
+        or IDENTIFIER.fullmatch(transaction_id) is None
+    ):
+        raise GateError("transaction_id_invalid")
     state = value.get("state")
     if state not in ACTIVE_BLOCKING_STATES | ACTIVE_ALLOWING_STATES | TERMINAL_STATES:
         raise GateError("transaction_record_state_invalid")
@@ -285,7 +329,165 @@ def _record(path: Path) -> dict[str, Any]:
         raise GateError("transaction_record_json_invalid") from error
     return _validate_record(value)
 
-def evaluate(root: Path = TRANSACTION_ROOT) -> tuple[bool, str]:
+def _sha256_bytes(value: bytes) -> str:
+    return hashlib.sha256(value).hexdigest()
+
+
+def _sha256_text(value: str) -> str:
+    return _sha256_bytes(value.encode("utf-8"))
+
+
+def _canonical_bytes(value: Any) -> bytes:
+    return (
+        json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        )
+        + "\n"
+    ).encode("utf-8")
+
+
+def _valid_committed_invalidation_record(record: Any) -> bool:
+    if not isinstance(record, dict) or set(record) != INVALIDATION_RECORD_KEYS:
+        return False
+    if record.get("schema") != INVALIDATION_SCHEMA:
+        return False
+    invalidation_id = record.get("invalidation_id")
+    if (
+        not isinstance(invalidation_id, str)
+        or IDENTIFIER.fullmatch(invalidation_id) is None
+        or record.get("invalidation_id_sha256") != _sha256_text(invalidation_id)
+    ):
+        return False
+    for key in (
+        "authorization_id_sha256",
+        "execution_session_id_sha256",
+        "plan_sha256",
+        "module_set_sha256",
+        "target_transaction_id_sha256",
+        "target_transaction_sha256_before",
+        "target_invariant_sha256",
+        "target_transaction_sha256_after",
+    ):
+        value = record.get(key)
+        if not isinstance(value, str) or SHA64.fullmatch(value) is None:
+            return False
+    for key in ("executor_source_head", "executor_blob"):
+        value = record.get(key)
+        if not isinstance(value, str) or SHA40.fullmatch(value) is None:
+            return False
+    plan = record.get("plan")
+    if (
+        not isinstance(plan, dict)
+        or record.get("plan_sha256") != _sha256_bytes(_canonical_bytes(plan))
+        or plan.get("schema") != INVALIDATION_PLAN_SCHEMA
+        or plan.get("reason") != INVALIDATION_REASON
+        or plan.get("target_transaction_id_sha256")
+        != record.get("target_transaction_id_sha256")
+        or plan.get("target_transaction_sha256")
+        != record.get("target_transaction_sha256_before")
+        or plan.get("target_generation")
+        != record.get("target_generation_before")
+        or plan.get("target_invariant_sha256")
+        != record.get("target_invariant_sha256")
+        or plan.get("invalidation_executor_source_head")
+        != record.get("executor_source_head")
+        or plan.get("invalidation_executor_blob")
+        != record.get("executor_blob")
+        or plan.get("invalidation_module_set_sha256")
+        != record.get("module_set_sha256")
+    ):
+        return False
+    before_generation = record.get("target_generation_before")
+    if (
+        record.get("state") != "COMMITTED"
+        or record.get("generation") != 2
+        or record.get("authorization_consumed") is not True
+        or record.get("replay_allowed") is not False
+        or record.get("reason") != INVALIDATION_REASON
+        or record.get("last_operation") != "target_transaction_blocked"
+        or record.get("last_reason") is not None
+        or not isinstance(before_generation, int)
+        or isinstance(before_generation, bool)
+        or before_generation < 1
+        or record.get("target_generation_after") != before_generation + 1
+    ):
+        return False
+    for key in (
+        "product_mutation",
+        "service_stop_start",
+        "docker_mutation",
+        "board_access",
+    ):
+        if record.get(key) is not False or plan.get(key) is not False:
+            return False
+    return True
+
+
+def _committed_invalidation_for_blocked(
+    transaction_path: Path,
+    value: dict[str, Any],
+    invalidation_root: Path,
+    *,
+    enforce_root_metadata: bool = True,
+) -> bool:
+    if (
+        value.get("state") != "BLOCKED"
+        or value.get("last_operation") != INVALIDATION_LAST_OPERATION
+        or value.get("last_reason") != INVALIDATION_REASON
+        or value.get("authorization_consumed") is not True
+        or value.get("replay_allowed") is not False
+        or value.get("operation_seq") != 0
+        or value.get("operations") != []
+        or value.get("observed_after") != {}
+    ):
+        return False
+    if (
+        invalidation_root.is_symlink()
+        or not invalidation_root.is_dir()
+    ):
+        return False
+    if enforce_root_metadata:
+        meta = invalidation_root.stat()
+        if meta.st_uid != 0 or meta.st_gid != 0 or stat.S_IMODE(meta.st_mode) != 0o700:
+            return False
+    target_id_hash = _sha256_text(str(value["transaction_id"]))
+    target_sha = _sha256_file(transaction_path)
+    matches = 0
+    for path in sorted(invalidation_root.glob("*.json")):
+        if path.is_symlink() or not path.is_file():
+            return False
+        if enforce_root_metadata:
+            meta = path.stat()
+            if meta.st_uid != 0 or meta.st_gid != 0 or stat.S_IMODE(meta.st_mode) != 0o600:
+                return False
+        try:
+            record = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            return False
+        if not isinstance(record, dict):
+            return False
+        if record.get("schema") != INVALIDATION_SCHEMA:
+            continue
+        if record.get("target_transaction_id_sha256") != target_id_hash:
+            continue
+        if not _valid_committed_invalidation_record(record):
+            return False
+        if (
+            record.get("target_generation_after") != value.get("generation")
+            or record.get("target_transaction_sha256_after") != target_sha
+        ):
+            return False
+        matches += 1
+    return matches == 1
+
+
+def evaluate(
+    root: Path = TRANSACTION_ROOT,
+    invalidation_root: Path = INVALIDATION_ROOT,
+) -> tuple[bool, str]:
     if not root.exists():
         return True, "NO_TRANSACTION_ROOT"
     _private_root(root)
@@ -293,6 +495,12 @@ def evaluate(root: Path = TRANSACTION_ROOT) -> tuple[bool, str]:
     for path in sorted(root.glob("*.json")):
         value = _record(path)
         state = str(value["state"])
+        if state == "BLOCKED" and _committed_invalidation_for_blocked(
+            path,
+            value,
+            invalidation_root,
+        ):
+            continue
         if state in ACTIVE_BLOCKING_STATES | ACTIVE_ALLOWING_STATES:
             txid = value.get("transaction_id")
             if not isinstance(txid, str) or not txid:

@@ -1858,9 +1858,45 @@ def _operation(
         )
         document = _save(store, document, intent)
 
-    execute()
-    observed = reality()
+    try:
+        execute()
+        observed = reality()
+    except Exception as operation_error:
+        try:
+            recovered = reality()
+        except Exception:
+            raise operation_error
+        if recovered == after_fingerprint:
+            finished = maintenance.finish_operation(
+                document,
+                observed_after_fingerprint=recovered,
+            )
+            return _save(store, document, finished)
+        if recovered == before_fingerprint:
+            failed = maintenance.finish_operation(
+                document,
+                observed_after_fingerprint=recovered,
+                status="FAILED",
+                error_code=safe_reason(operation_error),
+            )
+            _save(store, document, failed)
+            raise operation_error
+        blocked = maintenance.finish_operation(
+            document,
+            observed_after_fingerprint=recovered,
+            status="BLOCKED",
+            error_code=safe_reason(operation_error),
+        )
+        _save(store, document, blocked)
+        raise BlockedError("operation_reality_unknown") from operation_error
     if observed != after_fingerprint:
+        blocked = maintenance.finish_operation(
+            document,
+            observed_after_fingerprint=observed,
+            status="BLOCKED",
+            error_code="operation_poststate_unproven",
+        )
+        _save(store, document, blocked)
         raise BlockedError("operation_poststate_unproven")
     finished = maintenance.finish_operation(
         document,
@@ -2941,6 +2977,17 @@ def apply(transaction_id: str, execution_session_id: str) -> dict[str, Any]:
             )
         except Exception as error:
             current = store.load()
+            if maintenance.pending_operation(current) is not None:
+                result = public_result(
+                    current,
+                    operation="apply",
+                    reason_code=safe_reason(error),
+                    last_proven_state="PENDING_OPERATION_REVIEW_REQUIRED",
+                    mutation_observed=current["operation_seq"] > 0,
+                    recovery_class="PENDING_OPERATION_REVIEW_REQUIRED",
+                )
+                result["status"] = "STOP"
+                return result
             if current["state"] == "VERIFYING":
                 try:
                     return rollback(
@@ -3136,6 +3183,17 @@ def rollback(
     except Exception as error:
         if store is not None:
             current = store.load()
+            if maintenance.pending_operation(current) is not None:
+                result = public_result(
+                    current,
+                    operation="rollback",
+                    reason_code=safe_reason(error),
+                    last_proven_state="PENDING_OPERATION_REVIEW_REQUIRED",
+                    mutation_observed=current["operation_seq"] > 0,
+                    recovery_class="PENDING_OPERATION_REVIEW_REQUIRED",
+                )
+                result["status"] = "STOP"
+                return result
             if current["state"] in {
                 "READY",
                 "APPLYING",
