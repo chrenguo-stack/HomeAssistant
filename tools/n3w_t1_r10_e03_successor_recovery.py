@@ -90,19 +90,29 @@ OLD_MANAGER_IMAGE = "local/greenhouse-manager:fresh-ff750b3801a2"
 OLD_MANAGER_ID = (
     "sha256:5b8150e457a1cc5af3e7e576514dfb3fa33e15f4dfe4801640ec604dd962218f"
 )
-TARGET_SOURCE_HEAD = "f8876fd87165df731d792690a8288867c3eeef55"
-TARGET_MANAGER_IMAGE = "local/greenhouse-manager:fresh-f8876fd87165"
-TARGET_MANAGER_TAR_SHA256 = (
+PREDECESSOR_TARGET_SOURCE_HEAD = "f8876fd87165df731d792690a8288867c3eeef55"
+PREDECESSOR_TARGET_MANAGER_IMAGE = "local/greenhouse-manager:fresh-f8876fd87165"
+PREDECESSOR_TARGET_MANAGER_TAR_SHA256 = (
     "d129a33ea628d8bdd1361e0b1bf727175515b4a2afc1851e6ac14ec510895fb5"
 )
-TARGET_CONFIG_DIGEST = (
-    "sha256:089153fa4bbc823a1357427083f23ef96933a119c6ae150c143b62d7b40859e4"
-)
-TARGET_ARTIFACT_SHA256 = (
+PREDECESSOR_TARGET_ARTIFACT_SHA256 = (
     "c94568f740b911eee0f4238207249b1e98f84748c17a902938ccc35293e4b183"
 )
-TARGET_ARTIFACT_ID = 12900601779
-TARGET_ARTIFACT_RUN_ID = 40880705472
+PREDECESSOR_TARGET_ARTIFACT_ID = 12900601779
+
+TARGET_SOURCE_HEAD = "2b595112c7045041ed10e0d599e8ae94c379723d"
+TARGET_MANAGER_IMAGE = "local/greenhouse-manager:fresh-2b595112c704"
+TARGET_MANAGER_TAR_SHA256 = (
+    "95aebea5c1b298accc417197dac08b16c9c5cda7a1e5bca184aeba8f80f8fb7b"
+)
+TARGET_CONFIG_DIGEST = (
+    "sha256:130ca091d97fb10ce7be6254d7031bdebd0dab7f30b8c2e581ebe4863186e3de"
+)
+TARGET_ARTIFACT_SHA256 = (
+    "5d5ac28160d11b7127f6e5f50ce3f19c3af10c6d43dab749e148e4f11e51b335"
+)
+TARGET_ARTIFACT_ID = 13030331672
+TARGET_ARTIFACT_RUN_ID = 41168627817
 
 HA_IMAGE = "local/n3w-homeassistant:2026.10.0-0c73235a"
 HA_IMAGE_ID = (
@@ -963,11 +973,11 @@ def predecessor_evidence(expected_sha256: str) -> dict[str, Any]:
         "authorization_claimed": True,
         "authorization_consumed": True,
         "replay_allowed": False,
-        "target_source_head": TARGET_SOURCE_HEAD,
-        "target_manager_image": TARGET_MANAGER_IMAGE,
-        "target_manager_tar_sha256": TARGET_MANAGER_TAR_SHA256,
-        "artifact_id": TARGET_ARTIFACT_ID,
-        "artifact_digest_sha256": TARGET_ARTIFACT_SHA256,
+        "target_source_head": PREDECESSOR_TARGET_SOURCE_HEAD,
+        "target_manager_image": PREDECESSOR_TARGET_MANAGER_IMAGE,
+        "target_manager_tar_sha256": PREDECESSOR_TARGET_MANAGER_TAR_SHA256,
+        "artifact_id": PREDECESSOR_TARGET_ARTIFACT_ID,
+        "artifact_digest_sha256": PREDECESSOR_TARGET_ARTIFACT_SHA256,
     }
     for key, expected_value in expected.items():
         if value.get(key) != expected_value:
