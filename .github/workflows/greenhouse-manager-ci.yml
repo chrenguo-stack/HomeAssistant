@@ -122,6 +122,8 @@ jobs:
         run: pytest -q tests/n3w_registration/test_scan_triggered_first_pairing_r7_lcd_state_contract.py
       - name: N3-W scan-triggered first-registration R8 E2E safety contracts
         run: pytest -q tests/n3w_registration/test_scan_triggered_first_pairing_r8_safety_contract.py
+      - name: N3-W scan-triggered first-registration R10 phone UI and LCD contracts
+        run: pytest -q tests/n3w_registration/test_scan_triggered_first_pairing_r10_phone_ui_contract.py
       - name: Build and run R7 registration display controller
         shell: bash
         run: |

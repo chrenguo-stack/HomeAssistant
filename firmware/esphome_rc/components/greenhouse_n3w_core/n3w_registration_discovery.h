@@ -15,7 +15,7 @@ inline constexpr char kRegistrationDiscoveryResponseSchema[] =
     "gh.registration.discovery-result/1";
 inline constexpr std::size_t kRegistrationDiscoveryMaxCandidates = 4;
 inline constexpr uint16_t kRegistrationBootstrapPort = 47110;
-inline constexpr uint16_t kRegistrationCandidateTtlSeconds = 30;
+inline constexpr uint16_t kRegistrationCandidateTtlSeconds = 60;
 
 struct RegistrationCandidateV1 {
   std::string manager_id;

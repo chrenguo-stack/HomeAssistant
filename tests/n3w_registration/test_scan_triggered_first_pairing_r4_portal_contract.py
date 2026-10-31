@@ -26,6 +26,7 @@ def test_r4_registration_portal_is_narrow_and_secret_free() -> None:
     assert '"/api/v1/register/start"' in source
     assert '"/api/v1/register/status"' in source
     assert '"/api/v1/register/confirm"' in source
+    assert '"/api/v1/register/begin"' in source
     assert '"/api/v1/register/retry"' in source
     assert "httpd_start" in source
     assert "httpd_stop" in source

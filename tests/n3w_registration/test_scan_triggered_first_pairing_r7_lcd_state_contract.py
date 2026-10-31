@@ -166,35 +166,46 @@ def test_r7_stale_qr_event_requires_a_valid_current_portal_action() -> None:
     assert "candidate_list_expired_event_pending_.store" in portal
 
 
-def test_r7_lcd_uses_hardware_spi_and_explicit_registration_state() -> None:
+def test_r7_lcd_uses_hardware_spi_and_preserves_five_page_cycle() -> None:
     display = text(DISPLAY)
     transport = text(TRANSPORT)
 
     assert "interface: hardware" in display
     assert "data_rate: 1MHz" in display
     assert "update_interval: 1s" in display
-    assert "n3w_registration_display_state" in display
-    assert "n3w_registration_display_error" in display
     assert "n3w_registration_qr_ready" in display
     assert "registration_display_state_code()" in transport
     assert "registration_display_error_code()" in transport
 
     assert "id(display_page) = 4;" not in transport
-    assert "force_registration_page" in display
-    assert "!id(n3w_product_provisioned)" in display
-    assert "id(n3w_registration_display_state) == 4" in display
-    assert "id(n3w_registration_display_state) == 5" in display
-    assert "force_registration_page ? 4 : id(display_page)" in display
+    assert "const int page = id(display_page);" in display
+    assert "force_registration_page" not in display
 
-    page4 = display.split("// ─── PAGE 4：", 1)[1].split("// ─── 底部页码与时间 ───", 1)[0]
-    assert "正在查找主机" not in page4
-    assert page4.index("registration_state == 4") < page4.index(
-        "!id(wifi_component).is_connected()"
-    )
-    assert page4.index("registration_state == 5") < page4.index(
-        "!id(wifi_component).is_connected()"
-    )
+    page4 = display.split("// ─── PAGE 4：", 1)[1].split(
+        "// ─── 底部页码与时间 ───", 1
+    )[0]
+    assert "!id(wifi_component).is_connected()" in page4
+    assert "id(n3w_registration_qr_ready)" in page4
+    assert '"联机注册"' in page4
+    assert '"扫码注册"' in page4
+    assert '"已联机注册"' in page4
 
+    for transient in (
+        "正在搜索",
+        "等待确认",
+        "联机注册中",
+        "注册成功",
+        "E01",
+        "E02",
+        "E03",
+        "E04",
+        "E05",
+        "E06",
+        "E07",
+        "registration_state",
+        "registration_error",
+    ):
+        assert transient not in page4
 
 def test_r7_required_copy_has_glyph_coverage_and_fits_64px_monospaced_width() -> None:
     display = text(DISPLAY)
@@ -203,24 +214,15 @@ def test_r7_required_copy_has_glyph_coverage_and_fits_64px_monospaced_width() ->
     f10_glyphs, f12_glyphs = glyph_lines[:2]
 
     f10_lines = (
+        "手机相机扫码",
+        "配置节点网络",
         "联机注册",
         "扫码注册",
-        "正在搜索",
-        "请看手机",
         "请稍候",
-        "未找到主机",
-        "主机不可用",
-        "主机忙",
-        "网络中断",
-        "注册超时",
-        "注册失败",
-        "二维码失效",
     )
     f12_lines = (
         "联机注册",
-        "等待确认",
-        "联机注册中",
-        "注册成功",
+        "已联机注册",
     )
 
     for line in f10_lines:
@@ -231,14 +233,12 @@ def test_r7_required_copy_has_glyph_coverage_and_fits_64px_monospaced_width() ->
         assert set(line) <= set(f12_glyphs)
         assert len(line) * 12 <= 64
 
-    for code in ("E01", "E02", "E03", "E04", "E05", "E06", "E07"):
-        assert set(code) <= set(f12_glyphs)
-        assert len(code) * 12 <= 64
-
 
 def test_r7_display_copy_is_secret_free() -> None:
     display = text(DISPLAY)
-    page4 = display.split("// ─── PAGE 4：", 1)[1].split("// ─── 底部页码与时间 ───", 1)[0]
+    page4 = display.split("// ─── PAGE 4：", 1)[1].split(
+        "// ─── 底部页码与时间 ───", 1
+    )[0]
     for forbidden in (
         "setup_secret",
         "pairing_id",

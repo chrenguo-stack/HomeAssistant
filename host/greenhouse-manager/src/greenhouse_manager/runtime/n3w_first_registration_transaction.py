@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import math
-from collections.abc import Mapping
+import threading
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
@@ -24,10 +26,16 @@ from .pairing_secure_transport import decode_base64url_32
 from .registration import RegistrationRegistry
 
 FIRST_REGISTRATION_TTL_SECONDS = 1800
+_PREWINDOW_RECONCILE_RETRY_SECONDS = 5.0
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class FirstRegistrationTransactionRejected(RuntimeError):
-    pass
+    def __init__(self, reason: str, *, detail: str | None = None) -> None:
+        super().__init__(reason)
+        self.reason = reason
+        self.detail = detail
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +50,26 @@ class FirstRegistrationWindow(Protocol):
         self,
         intent: FirstRegistrationIntent,
     ) -> dict[str, object]: ...
+
+
+class FirstRegistrationDeadlineTimer(Protocol):
+    def start(self) -> None: ...
+    def cancel(self) -> None: ...
+
+
+DeadlineTimerFactory = Callable[
+    [float, Callable[[], None]],
+    FirstRegistrationDeadlineTimer,
+]
+
+
+def _default_deadline_timer(
+    delay_seconds: float,
+    callback: Callable[[], None],
+) -> FirstRegistrationDeadlineTimer:
+    timer = threading.Timer(delay_seconds, callback)
+    timer.daemon = True
+    return timer
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,6 +105,7 @@ class FirstRegistrationTransactionService:
         clock=lambda: datetime.now(UTC),
         ttl_seconds: int = FIRST_REGISTRATION_TTL_SECONDS,
         reconciler: FirstRegistrationReconciler | None = None,
+        deadline_timer_factory: DeadlineTimerFactory = _default_deadline_timer,
     ) -> None:
         if ttl_seconds != FIRST_REGISTRATION_TTL_SECONDS:
             raise ValueError("first registration TTL must be exactly 1800 seconds")
@@ -89,8 +118,212 @@ class FirstRegistrationTransactionService:
         self.clock = clock
         self.ttl = timedelta(seconds=ttl_seconds)
         self.reconciler = reconciler
+        self._start_lock = threading.RLock()
+        self._deadline_lock = threading.RLock()
+        self._deadline_timer_factory = deadline_timer_factory
+        self._prewindow_deadline_timer: FirstRegistrationDeadlineTimer | None = None
+        self._prewindow_pairing_id: str | None = None
+
+    def _registration_busy(
+        self,
+        detail: str,
+    ) -> FirstRegistrationTransactionRejected:
+        _LOGGER.warning(
+            "First-registration confirm busy detail=%s",
+            detail,
+        )
+        return FirstRegistrationTransactionRejected(
+            "registration_busy",
+            detail=detail,
+        )
+
+    def _busy_binding_detail(
+        self,
+        *,
+        hardware_id: str,
+        pairing_id: str,
+        source_ip: str,
+        setup_secret: bytes,
+        expires_at: datetime,
+    ) -> str:
+        current = self.intents.current()
+        if current is None:
+            return "active_intent_missing"
+        if current.pairing_id != pairing_id:
+            return "active_intent_pairing_conflict"
+        if current.hardware_id != hardware_id:
+            return "active_intent_hardware_mismatch"
+        if current.source_ip != source_ip:
+            return "active_intent_source_ip_mismatch"
+        if current.manager_id != self.manager_id:
+            return "active_intent_manager_mismatch"
+        if current.system_id != self.system_id:
+            return "active_intent_system_mismatch"
+        if current.expires_at != expires_at:
+            return "active_intent_deadline_mismatch"
+        if not current.secret_matches(setup_secret):
+            return "active_intent_setup_secret_mismatch"
+        if not current.active or current.consumed:
+            return "active_intent_closed"
+        return "active_intent_binding_mismatch"
+
+    def _arm_prewindow_deadline(
+        self,
+        pairing_id: str,
+        expires_at: datetime,
+        *,
+        delay_seconds: float | None = None,
+    ) -> None:
+        with self._deadline_lock:
+            if (
+                self._prewindow_pairing_id == pairing_id
+                and self._prewindow_deadline_timer is not None
+            ):
+                return
+            previous = self._prewindow_deadline_timer
+            if previous is not None:
+                previous.cancel()
+            delay = (
+                max(0.0, delay_seconds)
+                if delay_seconds is not None
+                else max(
+                    0.0,
+                    (
+                        expires_at
+                        - self.clock().astimezone(UTC)
+                    ).total_seconds(),
+                )
+            )
+            timer = self._deadline_timer_factory(
+                delay,
+                lambda: self._prewindow_deadline_elapsed(
+                    pairing_id,
+                    expires_at,
+                ),
+            )
+            self._prewindow_pairing_id = pairing_id
+            self._prewindow_deadline_timer = timer
+            try:
+                timer.start()
+            except Exception:
+                self._prewindow_deadline_timer = None
+                self._prewindow_pairing_id = None
+                raise
+
+    def _restore_deadline_if_active(
+        self,
+        pairing_id: str,
+        *,
+        retry: bool = False,
+    ) -> None:
+        try:
+            attempt = self.ledger.get(pairing_id)
+        except KeyError:
+            self._disarm_prewindow_deadline(pairing_id)
+            return
+        if attempt.state is not FirstRegistrationAttemptState.ACTIVE:
+            self._disarm_prewindow_deadline(pairing_id)
+            return
+        self._arm_prewindow_deadline(
+            pairing_id,
+            attempt.expires_at,
+            delay_seconds=(
+                _PREWINDOW_RECONCILE_RETRY_SECONDS
+                if retry
+                else None
+            ),
+        )
+
+    def _disarm_prewindow_deadline(
+        self,
+        pairing_id: str,
+    ) -> None:
+        with self._deadline_lock:
+            if self._prewindow_pairing_id != pairing_id:
+                return
+            timer = self._prewindow_deadline_timer
+            self._prewindow_deadline_timer = None
+            self._prewindow_pairing_id = None
+        if timer is not None:
+            timer.cancel()
+
+    def _prewindow_deadline_elapsed(
+        self,
+        pairing_id: str,
+        expires_at: datetime,
+    ) -> None:
+        with self._start_lock:
+            with self._deadline_lock:
+                if self._prewindow_pairing_id != pairing_id:
+                    return
+                self._prewindow_deadline_timer = None
+
+            now = self.clock().astimezone(UTC)
+            if now < expires_at:
+                self._arm_prewindow_deadline(
+                    pairing_id,
+                    expires_at,
+                )
+                return
+
+            current = self.intents.current()
+            if (
+                current is not None
+                and current.pairing_id == pairing_id
+            ):
+                self.intents.close_active()
+
+            reconciler = self.reconciler
+            if reconciler is None:
+                _LOGGER.error(
+                    "First-registration pre-window deadline lacks reconciler"
+                )
+                self._restore_deadline_if_active(
+                    pairing_id,
+                    retry=True,
+                )
+                return
+
+            try:
+                attempt = self.ledger.get(pairing_id)
+                if (
+                    attempt.state
+                    is FirstRegistrationAttemptState.ACTIVE
+                ):
+                    reconciler.reconcile_deadline(
+                        pairing_id,
+                        now=now,
+                    )
+            except Exception as error:
+                _LOGGER.error(
+                    "First-registration pre-window deadline reconciliation failed "
+                    "failure_type=%s",
+                    type(error).__name__,
+                )
+                self._restore_deadline_if_active(
+                    pairing_id,
+                    retry=True,
+                )
+                return
+
+            self._restore_deadline_if_active(
+                pairing_id,
+                retry=True,
+            )
 
     def start(
+        self,
+        request: Mapping[str, str],
+        *,
+        source_ip: str,
+    ) -> FirstRegistrationStartResult:
+        with self._start_lock:
+            return self._start_locked(
+                request,
+                source_ip=source_ip,
+            )
+
+    def _start_locked(
         self,
         request: Mapping[str, str],
         *,
@@ -184,7 +417,15 @@ class FirstRegistrationTransactionService:
                 or intent.expires_at != existing.expires_at
                 or not intent.secret_matches(setup_secret)
             ):
-                raise FirstRegistrationTransactionRejected("registration_busy")
+                raise self._registration_busy(
+                    self._busy_binding_detail(
+                        hardware_id=hardware_id,
+                        pairing_id=pairing_id,
+                        source_ip=source_ip,
+                        setup_secret=setup_secret,
+                        expires_at=existing.expires_at,
+                    )
+                )
             if now >= existing.expires_at:
                 raise FirstRegistrationTransactionRejected(
                     "bootstrap_unavailable"
@@ -210,22 +451,53 @@ class FirstRegistrationTransactionService:
                     expires_at=expires_at,
                 )
             except FirstRegistrationLedgerConflict as error:
-                raise FirstRegistrationTransactionRejected(
-                    "registration_busy"
+                raise self._registration_busy(
+                    "active_ledger_conflict"
                 ) from error
             if durable.expires_at != expires_at:
-                raise FirstRegistrationTransactionRejected(
-                    "registration_busy"
+                raise self._registration_busy(
+                    "durable_deadline_mismatch"
                 )
-            self.intents.activate(intent)
+            try:
+                self._arm_prewindow_deadline(
+                    pairing_id,
+                    intent.expires_at,
+                )
+            except Exception as error:
+                raise FirstRegistrationTransactionRejected(
+                    "bootstrap_unavailable",
+                    detail="prewindow_deadline_start_failed",
+                ) from error
+            try:
+                self.intents.activate(intent)
+            except Exception as error:
+                _LOGGER.error(
+                    "First-registration intent activation unavailable "
+                    "failure_type=%s",
+                    type(error).__name__,
+                )
+                raise FirstRegistrationTransactionRejected(
+                    "bootstrap_unavailable",
+                    detail="intent_activation_unavailable",
+                ) from error
 
+        self._arm_prewindow_deadline(
+            pairing_id,
+            intent.expires_at,
+        )
         try:
             opened = self.window.open_first_registration(intent)
         except Exception as error:
+            _LOGGER.warning(
+                "First-registration window open unavailable failure_type=%s",
+                type(error).__name__,
+            )
             raise FirstRegistrationTransactionRejected(
-                "bootstrap_unavailable"
+                "bootstrap_unavailable",
+                detail="window_open_unavailable",
             ) from error
 
+        self._disarm_prewindow_deadline(pairing_id)
         pairing_host = opened.get("pairing_host")
         if not isinstance(pairing_host, str) or not pairing_host:
             raise FirstRegistrationTransactionRejected("bootstrap_unavailable")
@@ -412,13 +684,16 @@ class FirstRegistrationTransactionService:
             "committed",
             "manager_shutdown",
         }:
+            self._disarm_prewindow_deadline(pairing_id)
             return
 
         try:
             attempt = self.ledger.get(pairing_id)
         except KeyError:
+            self._disarm_prewindow_deadline(pairing_id)
             return
         if attempt.state is not FirstRegistrationAttemptState.ACTIVE:
+            self._disarm_prewindow_deadline(pairing_id)
             return
 
         now = self.clock().astimezone(UTC)
@@ -433,5 +708,26 @@ class FirstRegistrationTransactionService:
                     attempt,
                     now=now,
                 )
-        except Exception:
+        except Exception as error:
+            _LOGGER.error(
+                "First-registration window-close reconciliation failed "
+                "reason=%s failure_type=%s",
+                reason,
+                type(error).__name__,
+            )
+            self._restore_deadline_if_active(
+                pairing_id,
+                retry=(
+                    reason == "deadline"
+                    or now >= attempt.expires_at
+                ),
+            )
             return
+
+        self._restore_deadline_if_active(
+            pairing_id,
+            retry=(
+                reason == "deadline"
+                or now >= attempt.expires_at
+            ),
+        )

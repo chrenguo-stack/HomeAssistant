@@ -57,13 +57,14 @@ def test_actual_phone_page_is_only_a_safe_scan_selection_surface() -> None:
         "/api/v1/register/start",
         "/api/v1/register/status",
         "/api/v1/register/confirm",
+        "/api/v1/register/begin",
         "/api/v1/register/retry",
     ):
         assert path in html
 
     assert "candidate.id" in html
     assert "candidate.label" in html
-    assert "candidate_id: candidateId" in html
+    assert "candidate_id: candidate.id" in html
 
     forbidden = (
         "setup_secret",
@@ -88,17 +89,21 @@ def test_actual_phone_page_requires_explicit_candidate_click() -> None:
 
     assert "list.forEach(candidate =>" in html
     assert 'document.createElement("button")' in html
-    assert "button.textContent = candidate.label" in html
-    assert "button.onclick = () => confirmCandidate(candidate.id)" in html
+    assert "addButton(candidate.label, () => selectCandidate(candidate))" in html
+    assert '"开始注册（" + remaining + "s）"' in html
+    assert 'post("/api/v1/register/begin")' in html
 
     wait = html.index('body.status === "wait_confirm"')
-    confirm = html.index("confirmCandidate(candidate.id)", wait)
-    assert confirm > wait
+    select = html.index("selectCandidate(candidate)", wait)
+    begin = html.index('"开始注册（" + remaining + "s）"', select)
+    begin_handler = html.index("beginRegistration", begin)
+    assert wait < select < begin < begin_handler
 
     assert "candidates[0]" not in html
     assert "autoSelect" not in html
     assert "auto_select" not in html
-
+    assert "取消注册" not in html
+    assert "/api/v1/register/cancel" not in html
 
 def test_invalid_or_stale_scan_token_cannot_reach_selection() -> None:
     source = read(CORE / "n3w_registration_portal.cpp")
