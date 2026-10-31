@@ -1916,6 +1916,15 @@ def _operation(
         )
         _save(store, document, blocked)
         raise BlockedError("operation_reality_unknown") from operation_error
+    if observed == before_fingerprint:
+        failed = maintenance.finish_operation(
+            document,
+            observed_after_fingerprint=observed,
+            status="FAILED",
+            error_code="operation_poststate_unchanged",
+        )
+        _save(store, document, failed)
+        raise SuccessorError("operation_poststate_unchanged")
     if observed != after_fingerprint:
         blocked = maintenance.finish_operation(
             document,
