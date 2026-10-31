@@ -78,6 +78,15 @@ def _require_affected_authority(document: dict[str, Any]) -> None:
         raise RecoveryError("affected_apply_session_drift")
 
 
+def _assert_gate_nonblocking() -> None:
+    result = successor.run(
+        (str(successor.GATE_TARGET),),
+        allowed=frozenset({0, 1}),
+    )
+    if result.returncode != 0:
+        raise RecoveryError("activation_gate_not_nonblocking")
+
+
 def _runtime_preconditions(document: dict[str, Any]) -> dict[str, Any]:
     plan = document["plan"]
     manager = successor.runtime("manager")
@@ -211,7 +220,7 @@ def recover(
         document = _save(store, document, aborted)
 
         reality = _runtime_preconditions(document)
-        successor._assert_gate_ready_phase()
+        _assert_gate_nonblocking()
         active = [
             item
             for item in _active_documents()
