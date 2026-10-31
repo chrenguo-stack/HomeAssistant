@@ -1,7 +1,7 @@
 # N3W_PROJECT_WORKING_CONTEXT
 
 > Status: durable public project working context  
-> Version: `N3W_PROJECT_WORKING_CONTEXT_VERSION=1.1`  
+> Version: `N3W_PROJECT_WORKING_CONTEXT_VERSION=1.2`  
 > Scope: N3-W development for the greenhouse monitoring system  
 > Repository: `chrenguo-stack/HomeAssistant`
 
@@ -467,7 +467,45 @@ If a valuable artifact cannot be committed, record a public-safe recovery locato
 
 ---
 
-## 14. Maintenance rule
+## 14. T1_Core_Stack naming and product boundary
+
+The canonical name for the T1 production application stack is:
+
+```text
+T1_Core_Stack
+```
+
+It contains exactly:
+
+```text
+greenhouse-manager
+Home Assistant
+Mosquitto Broker
+```
+
+Armbian, Docker/Compose, systemd, provisioning, maintenance transactions, upgrade/recovery
+executors and CI are platform/operations layers around T1_Core_Stack and are not part of the
+stack name.
+
+Upgrade design should use a clean T1_Core_Stack product reference and distinguish stable
+product invariants from normal runtime drift.
+
+```text
+CLEAN_PRODUCT_REFERENCE_NOT_RUNTIME_SNAPSHOT=true
+HARD_GATE_REQUIRES_STABLE_PRODUCT_INVARIANT=true
+NORMAL_RUNTIME_DRIFT_DEFAULTS_TO_SOFT_OR_DIAGNOSTIC=true
+MODULE_UPGRADE_DEFAULT_SCOPE=ONE_T1_CORE_STACK_COMPONENT
+```
+
+Design authority:
+
+```text
+docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_AND_STABLE_INVARIANTS_DESIGN_20261031.md
+```
+
+---
+
+## 15. Maintenance rule
 
 Update this file only when a **stable working convention** changes.
 
@@ -485,7 +523,7 @@ Those belong in current state, progress alignment, known failures, or the curren
 A change to this file should explain the durable process need it addresses and should update the handoff template when the change affects new-chat continuation.
 
 ```text
-N3W_PROJECT_WORKING_CONTEXT_VERSION=1.1
+N3W_PROJECT_WORKING_CONTEXT_VERSION=1.2
 STABLE_CONVENTIONS_ONLY=true
 STAGE_SPECIFIC_VALUES_PROHIBITED=true
 HANDOFF_TEMPLATE_EXPECTED_TO_REFERENCE_THIS_FILE=true
