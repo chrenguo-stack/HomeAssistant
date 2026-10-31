@@ -21,6 +21,18 @@ RECOVERY_ROOT = Path("/var/lib/n3w-t1-maintenance/prepublish-recoveries")
 RECOVERY_SCHEMA = "gh.n3w-t1-e03-blocked-prepublish-predecessor-recovery/1"
 RECOVERY_PLAN_SCHEMA = "gh.n3w-t1-e03-blocked-prepublish-predecessor-recovery-plan/1"
 RECOVERY_REASON = "SERVICE_STOP_OWNER_EXIT_137_BEFORE_CANDIDATE_PUBLISH"
+POSTPUBLISH_RECOVERY_ROOT = Path(
+    "/var/lib/n3w-t1-maintenance/postpublish-recoveries"
+)
+POSTPUBLISH_RECOVERY_SCHEMA = (
+    "gh.n3w-t1-e03-blocked-postpublish-predecessor-recovery/1"
+)
+POSTPUBLISH_RECOVERY_PLAN_SCHEMA = (
+    "gh.n3w-t1-e03-blocked-postpublish-predecessor-recovery-plan/1"
+)
+POSTPUBLISH_RECOVERY_REASON = (
+    "SERVICE_START_GATE_CONFLICT_AFTER_CANDIDATE_PUBLISH"
+)
 PRODUCTION_COMPOSE = Path("/etc/n3wfc4/docker-compose.yml")
 PRODUCTION_COMPOSE_ENV = Path("/etc/n3wfc4/docker-compose.env")
 ACTIVE_BLOCKING_STATES = frozenset({"APPLYING", "BLOCKED"})
@@ -660,11 +672,339 @@ def _valid_prepublish_recovery_record(
     return True
 
 
+def _completed_deployment_publish_edge(
+    value: dict[str, Any],
+) -> tuple[str, str] | None:
+    if (
+        value.get("authorization_consumed") is not True
+        or value.get("replay_allowed") is not False
+        or value.get("state")
+        not in {
+            "APPLYING",
+            "VERIFYING",
+            "ROLLING_BACK",
+            "BLOCKED",
+            "COMMITTED",
+        }
+    ):
+        return None
+    before = value.get("before", {}).get("deployment_inputs")
+    after = value.get("intended_after", {}).get("deployment_inputs")
+    if (
+        not isinstance(before, str)
+        or SHA64.fullmatch(before) is None
+        or not isinstance(after, str)
+        or SHA64.fullmatch(after) is None
+    ):
+        return None
+    matches = [
+        operation
+        for operation in value.get("operations", [])
+        if (
+            isinstance(operation, dict)
+            and operation.get("operation_type")
+            == "deployment_inputs_publish"
+            and operation.get("status") == "COMPLETE"
+            and operation.get("before_fingerprint") == before
+            and operation.get("intended_after_fingerprint") == after
+            and operation.get("observed_after_fingerprint") == after
+        )
+    ]
+    if len(matches) != 1:
+        return None
+    return before, after
+
+
+def _deployment_reachable_from_recovered_before(
+    *,
+    start: str,
+    current: str,
+    target: dict[str, Any],
+    documents: list[dict[str, Any]],
+) -> bool:
+    reachable = {start}
+    target_id = target.get("transaction_id")
+    target_host = target.get("host_binding_sha256")
+    target_predecessor = target.get("predecessor_sha256")
+    for _ in range(len(documents)):
+        changed = False
+        for document in documents:
+            if document.get("transaction_id") == target_id:
+                continue
+            if (
+                document.get("host_binding_sha256") != target_host
+                or document.get("predecessor_sha256") != target_predecessor
+            ):
+                continue
+            edge = _completed_deployment_publish_edge(document)
+            if edge is None or edge[0] not in reachable:
+                continue
+            if edge[1] not in reachable:
+                reachable.add(edge[1])
+                changed = True
+        if not changed:
+            break
+    return current in reachable
+
+
+def _blocked_postpublish_recovery_target(value: dict[str, Any]) -> bool:
+    operations = value.get("operations")
+    plan = value.get("plan")
+    if (
+        value.get("state") != "BLOCKED"
+        or value.get("authorization_consumed") is not True
+        or value.get("replay_allowed") is not False
+        or value.get("last_operation") != "blocked"
+        or value.get("last_reason") != "operation_poststate_unproven"
+        or value.get("operation_seq") != 4
+        or not isinstance(operations, list)
+        or len(operations) != 4
+        or not isinstance(plan, dict)
+    ):
+        return False
+    before = plan.get("deployment_before_fingerprint")
+    candidate = plan.get("deployment_candidate_fingerprint")
+    stopped = plan.get("service_stopped_fingerprint")
+    running = plan.get("service_running_fingerprint")
+    if any(
+        not isinstance(item, str) or SHA64.fullmatch(item) is None
+        for item in (before, candidate, stopped, running)
+    ):
+        return False
+    expected = (
+        (
+            "activation_gate_install",
+            "COMPLETE",
+            None,
+        ),
+        (
+            "service_stop",
+            "COMPLETE",
+            None,
+        ),
+        (
+            "deployment_inputs_publish",
+            "COMPLETE",
+            None,
+        ),
+        (
+            "service_start",
+            "BLOCKED",
+            "operation_poststate_unproven",
+        ),
+    )
+    for operation, (kind, status, error) in zip(operations, expected):
+        if (
+            operation.get("operation_type") != kind
+            or operation.get("status") != status
+            or operation.get("last_error_code") != error
+        ):
+            return False
+    if (
+        operations[1].get("intended_after_fingerprint") != stopped
+        or operations[1].get("observed_after_fingerprint") != stopped
+        or operations[2].get("before_fingerprint") != before
+        or operations[2].get("intended_after_fingerprint") != candidate
+        or operations[2].get("observed_after_fingerprint") != candidate
+        or operations[3].get("before_fingerprint") != stopped
+        or operations[3].get("intended_after_fingerprint") != running
+        or operations[3].get("observed_after_fingerprint") != stopped
+        or value.get("before", {}).get("deployment_inputs") != before
+        or value.get("intended_after", {}).get("deployment_inputs")
+        != candidate
+        or value.get("observed_after", {}).get("deployment_inputs")
+        != candidate
+    ):
+        return False
+    return True
+
+
+def _valid_postpublish_recovery_record(
+    record: Any,
+    *,
+    transaction_path: Path,
+    target: dict[str, Any],
+) -> bool:
+    if not isinstance(record, dict) or set(record) != RECOVERY_RECORD_KEYS:
+        return False
+    if record.get("schema") != POSTPUBLISH_RECOVERY_SCHEMA:
+        return False
+    recovery_id = record.get("recovery_id")
+    if (
+        not isinstance(recovery_id, str)
+        or IDENTIFIER.fullmatch(recovery_id) is None
+        or record.get("recovery_id_sha256") != _sha256_text(recovery_id)
+    ):
+        return False
+    for key in (
+        "authorization_id_sha256",
+        "execution_session_id_sha256",
+        "plan_sha256",
+        "module_set_sha256",
+        "target_transaction_id_sha256",
+        "target_transaction_sha256",
+    ):
+        item = record.get(key)
+        if not isinstance(item, str) or SHA64.fullmatch(item) is None:
+            return False
+    for key in ("executor_source_head", "executor_blob"):
+        item = record.get(key)
+        if not isinstance(item, str) or SHA40.fullmatch(item) is None:
+            return False
+    plan = record.get("plan")
+    if (
+        not isinstance(plan, dict)
+        or record.get("plan_sha256") != _sha256_bytes(_canonical_bytes(plan))
+        or plan.get("schema") != POSTPUBLISH_RECOVERY_PLAN_SCHEMA
+        or plan.get("reason") != POSTPUBLISH_RECOVERY_REASON
+        or plan.get("target_transaction_id_sha256")
+        != record.get("target_transaction_id_sha256")
+        or plan.get("target_transaction_sha256")
+        != record.get("target_transaction_sha256")
+        or plan.get("target_generation") != record.get("target_generation")
+        or plan.get("target_operation_seq")
+        != record.get("target_operation_seq")
+        or plan.get("recovery_executor_source_head")
+        != record.get("executor_source_head")
+        or plan.get("recovery_executor_blob")
+        != record.get("executor_blob")
+        or plan.get("recovery_module_set_sha256")
+        != record.get("module_set_sha256")
+        or plan.get("gate_source_sha256_after")
+        != _sha256_file(Path(__file__))
+    ):
+        return False
+    state = record.get("state")
+    if (
+        record.get("reason") != POSTPUBLISH_RECOVERY_REASON
+        or record.get("authorization_consumed") is not True
+        or record.get("replay_allowed") is not False
+        or state not in {"CLAIMED", "COMMITTED", "BLOCKED"}
+        or record.get("target_generation") != target.get("generation")
+        or record.get("target_operation_seq") != target.get("operation_seq")
+        or record.get("target_transaction_id_sha256")
+        != _sha256_text(str(target.get("transaction_id")))
+        or record.get("target_transaction_sha256")
+        != _sha256_file(transaction_path)
+    ):
+        return False
+    expected_generation = {
+        "CLAIMED": 1,
+        "COMMITTED": 2,
+        "BLOCKED": 2,
+    }[str(state)]
+    expected_last = {
+        "CLAIMED": "authorization_claimed",
+        "COMMITTED": "predecessor_runtime_restored",
+        "BLOCKED": "recovery_blocked",
+    }[str(state)]
+    if (
+        record.get("generation") != expected_generation
+        or record.get("last_operation") != expected_last
+        or (
+            state in {"CLAIMED", "COMMITTED"}
+            and record.get("last_reason") is not None
+        )
+    ):
+        return False
+    for key, expected_value in (
+        ("product_mutation", True),
+        ("service_stop_start", True),
+        ("docker_mutation", True),
+        ("board_access", False),
+    ):
+        if (
+            record.get(key) is not expected_value
+            or plan.get(key) is not expected_value
+        ):
+            return False
+    return True
+
+
+def _postpublish_recovery_for_blocked(
+    transaction_path: Path,
+    value: dict[str, Any],
+    recovery_root: Path,
+    *,
+    documents: list[dict[str, Any]] | None = None,
+    enforce_root_metadata: bool = True,
+) -> str | None:
+    if not _blocked_postpublish_recovery_target(value):
+        return None
+    if recovery_root.is_symlink() or not recovery_root.is_dir():
+        return None
+    if enforce_root_metadata:
+        meta = recovery_root.stat()
+        if (
+            meta.st_uid != 0
+            or meta.st_gid != 0
+            or stat.S_IMODE(meta.st_mode) != 0o700
+        ):
+            return None
+    target_id_hash = _sha256_text(str(value["transaction_id"]))
+    matches: list[dict[str, Any]] = []
+    for path in sorted(recovery_root.glob("*.json")):
+        if path.is_symlink() or not path.is_file():
+            return None
+        if enforce_root_metadata:
+            meta = path.stat()
+            if (
+                meta.st_uid != 0
+                or meta.st_gid != 0
+                or stat.S_IMODE(meta.st_mode) != 0o600
+                or meta.st_nlink != 1
+            ):
+                return None
+        try:
+            record = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            return None
+        if not isinstance(record, dict):
+            return None
+        if record.get("schema") != POSTPUBLISH_RECOVERY_SCHEMA:
+            continue
+        if record.get("target_transaction_id_sha256") != target_id_hash:
+            continue
+        if not _valid_postpublish_recovery_record(
+            record,
+            transaction_path=transaction_path,
+            target=value,
+        ):
+            return None
+        matches.append(record)
+    if len(matches) != 1:
+        return None
+    record = matches[0]
+    if record["state"] not in {"CLAIMED", "COMMITTED"}:
+        return None
+    before = record["plan"].get("deployment_before_fingerprint")
+    current = _current_deployment_fingerprint()
+    if (
+        not isinstance(before, str)
+        or SHA64.fullmatch(before) is None
+    ):
+        return None
+    if current != before:
+        if (
+            record["state"] != "COMMITTED"
+            or documents is None
+            or not _deployment_reachable_from_recovered_before(
+                start=before,
+                current=current,
+                target=value,
+                documents=documents,
+            )
+        ):
+            return None
+    return str(record["state"])
+
+
 def _prepublish_recovery_for_blocked(
     transaction_path: Path,
     value: dict[str, Any],
     recovery_root: Path,
     *,
+    documents: list[dict[str, Any]] | None = None,
     enforce_root_metadata: bool = True,
 ) -> str | None:
     if not _blocked_prepublish_recovery_target(value):
@@ -716,12 +1056,24 @@ def _prepublish_recovery_for_blocked(
     if record["state"] not in {"CLAIMED", "COMMITTED"}:
         return None
     before = record["plan"].get("deployment_before_fingerprint")
+    current = _current_deployment_fingerprint()
     if (
         not isinstance(before, str)
         or SHA64.fullmatch(before) is None
-        or _current_deployment_fingerprint() != before
     ):
         return None
+    if current != before:
+        if (
+            record["state"] != "COMMITTED"
+            or documents is None
+            or not _deployment_reachable_from_recovered_before(
+                start=before,
+                current=current,
+                target=value,
+                documents=documents,
+            )
+        ):
+            return None
     return str(record["state"])
 
 
@@ -729,13 +1081,18 @@ def evaluate(
     root: Path = TRANSACTION_ROOT,
     invalidation_root: Path = INVALIDATION_ROOT,
     recovery_root: Path = RECOVERY_ROOT,
+    postpublish_recovery_root: Path = POSTPUBLISH_RECOVERY_ROOT,
 ) -> tuple[bool, str]:
     if not root.exists():
         return True, "NO_TRANSACTION_ROOT"
     _private_root(root)
+    records = [
+        (path, _record(path))
+        for path in sorted(root.glob("*.json"))
+    ]
+    documents = [value for _, value in records]
     active: list[dict[str, Any]] = []
-    for path in sorted(root.glob("*.json")):
-        value = _record(path)
+    for path, value in records:
         state = str(value["state"])
         if state == "BLOCKED" and _committed_invalidation_for_blocked(
             path,
@@ -744,11 +1101,28 @@ def evaluate(
         ):
             continue
         recovery_state = (
-            _prepublish_recovery_for_blocked(path, value, recovery_root)
+            _prepublish_recovery_for_blocked(
+                path,
+                value,
+                recovery_root,
+                documents=documents,
+            )
             if state == "BLOCKED"
             else None
         )
         if recovery_state in {"CLAIMED", "COMMITTED"}:
+            continue
+        postpublish_recovery_state = (
+            _postpublish_recovery_for_blocked(
+                path,
+                value,
+                postpublish_recovery_root,
+                documents=documents,
+            )
+            if state == "BLOCKED"
+            else None
+        )
+        if postpublish_recovery_state in {"CLAIMED", "COMMITTED"}:
             continue
         if state in ACTIVE_BLOCKING_STATES | ACTIVE_ALLOWING_STATES:
             txid = value.get("transaction_id")
