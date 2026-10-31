@@ -273,18 +273,25 @@ def _assert_historical_recovery() -> None:
     historical_path = _target_path(HISTORICAL_TRANSACTION_ID)
     if sha_file(historical_path) != HISTORICAL_TRANSACTION_SHA256:
         raise RecoveryError("historical_transaction_drift")
-    recovery_path = prepublish.RECOVERY_ROOT / f"{HISTORICAL_RECOVERY_ID}.json"
+    historical = maintenance.TransactionStore(historical_path).load()
+    prepublish._assert_target_shape(historical)
+    recovery_path = (
+        prepublish.RECOVERY_ROOT / f"{HISTORICAL_RECOVERY_ID}.json"
+    )
     if sha_file(recovery_path) != HISTORICAL_RECOVERY_SHA256:
         raise RecoveryError("historical_recovery_drift")
-    status = prepublish.status(
-        recovery_id=HISTORICAL_RECOVERY_ID,
-        target_transaction_id=HISTORICAL_TRANSACTION_ID,
-    )
+    record = prepublish.RecoveryStore(recovery_path).load()
     if (
-        status.get("status") != "PASS"
-        or status.get("recovery_stage") != "COMMITTED"
-        or status.get("authorization_consumed") is not True
-        or status.get("replay_allowed") is not False
+        record.get("state") != "COMMITTED"
+        or record.get("authorization_consumed") is not True
+        or record.get("replay_allowed") is not False
+        or record.get("target_transaction_id_sha256")
+        != sha_text(HISTORICAL_TRANSACTION_ID)
+        or record.get("target_transaction_sha256")
+        != HISTORICAL_TRANSACTION_SHA256
+        or record.get("target_generation") != historical["generation"]
+        or record.get("target_operation_seq")
+        != historical["operation_seq"]
     ):
         raise RecoveryError("historical_recovery_not_committed")
 
