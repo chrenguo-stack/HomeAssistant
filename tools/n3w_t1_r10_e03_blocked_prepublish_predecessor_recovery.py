@@ -244,6 +244,19 @@ def _assert_target_shape(document: dict[str, Any]) -> dict[str, Any]:
     return value
 
 
+def _assert_target_f4_authority(plan: dict[str, Any]) -> None:
+    expected = plan.get("current_f4_authority")
+    expected_sha256 = plan.get("current_f4_authority_sha256")
+    if (
+        not isinstance(expected, dict)
+        or not isinstance(expected_sha256, str)
+        or SHA64.fullmatch(expected_sha256) is None
+        or e03.sha_bytes(e03.canonical(expected)) != expected_sha256
+    ):
+        raise RecoveryError("current_f4_authority_binding_invalid")
+    e03._assert_current_f4_authority(expected)
+
+
 def _gate_blocking() -> None:
     result = e03.run(
         (str(e03.GATE_TARGET),),
@@ -269,7 +282,15 @@ def _plan_locked(
         e03._active_maintenance_documents(),
         transaction_id=transaction_id,
     )
+    if e03.host_binding_sha256() != target["host_binding_sha256"]:
+        raise RecoveryError("host_binding_drift")
+    maintenance.assert_predecessor_immutable(
+        e03.PREDECESSOR_TX,
+        target["predecessor_sha256"],
+    )
+    e03.predecessor_evidence(target["predecessor_sha256"])
     target_plan = target["plan"]
+    _assert_target_f4_authority(target_plan)
     current_deployment = e03._deployment_reality(target_plan)
     if current_deployment != target_plan["deployment_before_fingerprint"]:
         raise RecoveryError("deployment_not_exact_predecessor")
