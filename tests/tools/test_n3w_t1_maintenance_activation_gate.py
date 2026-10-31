@@ -990,7 +990,11 @@ def test_committed_prepublish_recovery_remains_exempt_on_controlled_candidate(
     expected = (
         (True, "NO_ACTIVE_TRANSACTION")
         if state == "COMMITTED"
-        else (True, "MAINTENANCE_VERIFYING")
+        else (
+            (True, "MAINTENANCE_VERIFYING")
+            if state == "VERIFYING"
+            else (False, "MAINTENANCE_BLOCKING")
+        )
     )
     assert gate.evaluate(
         root,
