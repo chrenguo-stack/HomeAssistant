@@ -2136,11 +2136,18 @@ def test_apply_and_rollback_preserve_pending_operation_for_readonly_recovery() -
     apply_section = source.split("def apply(", 1)[1].split("def rollback(", 1)[0]
     rollback_section = source.split("def rollback(", 1)[1].split("def public_result(", 1)[0]
     marker = "maintenance.pending_operation(current) is not None"
-    assert marker in apply_section
+    blocked_handler = apply_section.split("except BlockedError as error:", 1)[1].split(
+        "except Exception as error:", 1
+    )[0]
+    generic_handler = apply_section.split("except Exception as error:", 1)[1]
+    assert marker in blocked_handler
+    assert marker in generic_handler
     assert marker in rollback_section
-    assert 'result["status"] = "STOP"' in apply_section
+    assert 'result["status"] = "STOP"' in blocked_handler
+    assert 'result["status"] = "STOP"' in generic_handler
     assert 'result["status"] = "STOP"' in rollback_section
-    assert apply_section.index(marker) < apply_section.index("_block(store, current")
+    assert blocked_handler.index(marker) < blocked_handler.index("_block(store, current")
+    assert generic_handler.index(marker) < generic_handler.index("_block(store, current")
     assert rollback_section.index(marker) < rollback_section.index("_block(")
 
 
