@@ -952,11 +952,11 @@ def _predecessor_document() -> dict[str, object]:
         "authorization_claimed": True,
         "authorization_consumed": True,
         "replay_allowed": False,
-        "target_source_head": successor.TARGET_SOURCE_HEAD,
-        "target_manager_image": successor.TARGET_MANAGER_IMAGE,
-        "target_manager_tar_sha256": successor.TARGET_MANAGER_TAR_SHA256,
-        "artifact_id": successor.TARGET_ARTIFACT_ID,
-        "artifact_digest_sha256": successor.TARGET_ARTIFACT_SHA256,
+        "target_source_head": successor.PREDECESSOR_TARGET_SOURCE_HEAD,
+        "target_manager_image": successor.PREDECESSOR_TARGET_MANAGER_IMAGE,
+        "target_manager_tar_sha256": successor.PREDECESSOR_TARGET_MANAGER_TAR_SHA256,
+        "artifact_id": successor.PREDECESSOR_TARGET_ARTIFACT_ID,
+        "artifact_digest_sha256": successor.PREDECESSOR_TARGET_ARTIFACT_SHA256,
         "authorization_id_sha256": "1" * 64,
         "executor_source_head": "2" * 40,
         "executor_blob": "3" * 40,
@@ -970,6 +970,54 @@ def _predecessor_document() -> dict[str, object]:
         "manager_predecessor_container_id": "9" * 64,
         "services_nrestarts": 0,
     }
+
+
+def test_successor_target_binding_is_separate_from_consumed_predecessor() -> None:
+    assert successor.PREDECESSOR_TARGET_SOURCE_HEAD == (
+        "f8876fd87165df731d792690a8288867c3eeef55"
+    )
+    assert successor.PREDECESSOR_TARGET_ARTIFACT_ID == 12900601779
+    assert successor.PREDECESSOR_TARGET_ARTIFACT_SHA256 == (
+        "c94568f740b911eee0f4238207249b1e98f84748c17a902938ccc35293e4b183"
+    )
+    assert successor.TARGET_SOURCE_HEAD == (
+        "2b595112c7045041ed10e0d599e8ae94c379723d"
+    )
+    assert successor.TARGET_MANAGER_IMAGE == (
+        "local/greenhouse-manager:fresh-2b595112c704"
+    )
+    assert successor.TARGET_MANAGER_TAR_SHA256 == (
+        "95aebea5c1b298accc417197dac08b16c9c5cda7a1e5bca184aeba8f80f8fb7b"
+    )
+    assert successor.TARGET_CONFIG_DIGEST == (
+        "sha256:130ca091d97fb10ce7be6254d7031bdebd0dab7f30b8c2e581ebe4863186e3de"
+    )
+    assert successor.TARGET_ARTIFACT_SHA256 == (
+        "5d5ac28160d11b7127f6e5f50ce3f19c3af10c6d43dab749e148e4f11e51b335"
+    )
+    assert successor.TARGET_ARTIFACT_ID == 13030331672
+    assert successor.TARGET_ARTIFACT_RUN_ID == 41168627817
+    assert successor.TARGET_SOURCE_HEAD != successor.PREDECESSOR_TARGET_SOURCE_HEAD
+    assert successor.TARGET_ARTIFACT_ID != successor.PREDECESSOR_TARGET_ARTIFACT_ID
+
+
+def test_predecessor_evidence_rejects_new_successor_as_historical_target(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    document = _predecessor_document()
+    document["target_source_head"] = successor.TARGET_SOURCE_HEAD
+    path = tmp_path / "predecessor.json"
+    path.write_text(
+        __import__("json").dumps(document, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(successor, "PREDECESSOR_TX", path)
+    with pytest.raises(
+        successor.SuccessorError,
+        match="predecessor_semantic_drift:target_source_head",
+    ):
+        successor.predecessor_evidence(successor.sha_file(path))
 
 
 def test_predecessor_evidence_binds_host_local_continuity_fields(
