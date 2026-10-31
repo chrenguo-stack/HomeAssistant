@@ -755,6 +755,81 @@ def test_apply_ready_orders_gate_before_stop_before_publish_before_start(
     assert events[5] == "readiness"
 
 
+def test_apply_verifying_known_service_start_failure_enters_rollback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    document = _document(state="VERIFYING")
+    calls: list[tuple[str, str]] = []
+
+    class Store:
+        def load(self):
+            return document
+
+    monkeypatch.setattr(
+        successor,
+        "global_lock",
+        lambda: contextlib.nullcontext(),
+    )
+    monkeypatch.setattr(
+        successor.maintenance,
+        "TransactionStore",
+        lambda _path: Store(),
+    )
+    monkeypatch.setattr(
+        successor.portable,
+        "identity_from_dict",
+        lambda _value: object(),
+    )
+    monkeypatch.setattr(
+        successor,
+        "_runtime_rebind",
+        lambda doc, **_kwargs: _binding(),
+    )
+    monkeypatch.setattr(
+        successor,
+        "_runtime_image_exists",
+        lambda *_args: None,
+    )
+    monkeypatch.setattr(
+        successor,
+        "_save",
+        lambda _store, _before, after: after,
+    )
+
+    def fail_start(*_args, action: str, **_kwargs):
+        assert action == "service_start"
+        raise successor.SuccessorError("operation_poststate_unchanged")
+
+    monkeypatch.setattr(successor, "_operation", fail_start)
+
+    def fake_rollback(
+        transaction_id: str,
+        *,
+        reason: str,
+        execution_session_id,
+        _store,
+        _document,
+    ):
+        calls.append((transaction_id, reason))
+        assert execution_session_id is None
+        assert _document["state"] == "VERIFYING"
+        return {"status": "PASS", "stage": "ROLLED_BACK"}
+
+    monkeypatch.setattr(successor, "rollback", fake_rollback)
+
+    result = successor.apply(
+        "txn-e03-successor-test-0001",
+        "session-apply-known-start-failure-0001",
+    )
+    assert result == {"status": "PASS", "stage": "ROLLED_BACK"}
+    assert calls == [
+        (
+            "txn-e03-successor-test-0001",
+            "operation_poststate_unchanged",
+        )
+    ]
+
+
 def test_apply_aborted_transaction_is_terminal_and_read_only(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
