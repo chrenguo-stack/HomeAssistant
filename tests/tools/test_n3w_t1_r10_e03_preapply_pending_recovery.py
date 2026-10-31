@@ -163,8 +163,8 @@ def test_recover_reconciles_intent_then_aborts_without_cutover(
     store = _store(tmp_path, _document())
     _wire(monkeypatch, store)
     monkeypatch.setattr(
-        recovery.successor,
-        "_assert_gate_ready_phase",
+        recovery,
+        "_assert_gate_nonblocking",
         lambda: None,
     )
     before = _sha(store.path)
