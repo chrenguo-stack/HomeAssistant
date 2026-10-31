@@ -313,6 +313,8 @@ def _committed_invalidation_for_blocked(
     transaction_path: Path,
     value: dict[str, Any],
     invalidation_root: Path,
+    *,
+    enforce_root_metadata: bool = True,
 ) -> bool:
     if (
         value.get("state") != "BLOCKED"
@@ -330,18 +332,20 @@ def _committed_invalidation_for_blocked(
         or not invalidation_root.is_dir()
     ):
         return False
-    meta = invalidation_root.stat()
-    if meta.st_uid != 0 or meta.st_gid != 0 or stat.S_IMODE(meta.st_mode) != 0o700:
-        return False
+    if enforce_root_metadata:
+        meta = invalidation_root.stat()
+        if meta.st_uid != 0 or meta.st_gid != 0 or stat.S_IMODE(meta.st_mode) != 0o700:
+            return False
     target_id_hash = _sha256_text(str(value["transaction_id"]))
     target_sha = _sha256_file(transaction_path)
     matches = 0
     for path in sorted(invalidation_root.glob("*.json")):
         if path.is_symlink() or not path.is_file():
             return False
-        meta = path.stat()
-        if meta.st_uid != 0 or meta.st_gid != 0 or stat.S_IMODE(meta.st_mode) != 0o600:
-            return False
+        if enforce_root_metadata:
+            meta = path.stat()
+            if meta.st_uid != 0 or meta.st_gid != 0 or stat.S_IMODE(meta.st_mode) != 0o600:
+                return False
         try:
             record = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, UnicodeError, json.JSONDecodeError):
