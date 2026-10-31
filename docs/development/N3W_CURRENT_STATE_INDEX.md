@@ -1,3 +1,19 @@
+## 2026-11-01 — T1_Core_Stack clean-reference route is current authority
+
+- Canonical production application stack name is now `T1_Core_Stack` = greenhouse-manager + Home Assistant + Mosquitto Broker.
+- PR #746 merged into PR #705 as `9a046c267d5fa3edbe41e675c2409e2d50caff93`, carrying the clean-reference/stable-invariants design and working-context v1.2 naming boundary.
+- PR #745 remains open/unmerged on architecture hold. Its source repair is incident evidence, not automatic authority for the redesigned upgrade architecture.
+- Old E03 live successor/recovery retry route is paused; no further live retry is authorized.
+- Pre-wipe private maintenance evidence is archived; public-safe digest: `711359c2b6a3522daac4ce9697a20b9876b71f202b44d6c79f65eda79f67025c`. The old T1 runtime may be discarded.
+- Operator is preparing a T1 with official Armbian only. Its fresh runtime state remains `UNKNOWN_FRESH` until the next session performs R0 read-only inspection.
+- Historical Mac artifact cache entry ID `11954286988` / ZIP SHA-256 `047a40ed640bc1bfcbc8adb7007da2a4eea1f8abedffbc3cb2e2a4d9f6817928` is explicitly obsolete for the new clean reference and must not be reused.
+- The Mac exact-artifact-cache mechanism remains selected. The next exact T1_Core_Stack artifact is acquired once, exact-bound, persisted locally and reused until artifact identity changes.
+- T1_Core_Stack three-image offline loading is supported; fully air-gapped installation from a freshly flashed Armbian host is not yet complete because Docker/Compose/host package installation can still depend on APT/network sources.
+- Development plan: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_DEVELOPMENT_PLAN_20261101.md`.
+- Design authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_AND_STABLE_INVARIANTS_DESIGN_20261031.md`.
+- Next ONE gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0_FRESH_ARMBIAN_READONLY_BASELINE_20261101_01`.
+- R0 is read-only: no package installation, Docker installation, product deployment, provisioning, T1_Core_Stack start, board access, old artifact reuse, or old authorization replay.
+
 ## 2026-10-31 — E03 recovery/source convergence integrated into PR #725
 
 - PR #741 merged as `775c47dc3c8d247a7a342ca0d91aa86fec7bea88`; PR #740 then merged as `17dd9e3fcc0bc9c8bdcac05a6748d7b57e5e0be5` into PR #725's branch.
