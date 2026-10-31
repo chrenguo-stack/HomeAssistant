@@ -1,3 +1,79 @@
+## 2026-11-01 — T1_Core_Stack clean-reference route frozen; old E03 live route paused
+
+~~~text
+TASK=N3W_T1_CORE_STACK_CLEAN_REFERENCE_ROUTE_ALIGNMENT_20261101_01
+
+PR705_STATE=OPEN
+PR705_ROUTE=T1_CORE_STACK_CLEAN_REFERENCE
+PR746_MERGED=true
+PR746_MERGE_COMMIT=9a046c267d5fa3edbe41e675c2409e2d50caff93
+PR745_STATE=OPEN_UNMERGED_ARCHITECTURE_HOLD
+PR745_AUTO_MERGE=false
+
+T1_CORE_STACK_CANONICAL_NAME=T1_Core_Stack
+T1_CORE_STACK_COMPONENTS=greenhouse-manager,Home Assistant,Mosquitto Broker
+T1_CORE_STACK_PRODUCT_BASELINE=BASICALLY_COMPLETE
+UPGRADE_CONTROL_ARCHITECTURE=REDESIGN_REQUIRED
+RECOVERY_CONTROL_ARCHITECTURE=REDESIGN_REQUIRED
+
+CLEAN_REFERENCE_NOT_RUNTIME_SNAPSHOT=true
+HARD_GATE_REQUIRES_STABLE_PRODUCT_INVARIANT=true
+NORMAL_RUNTIME_DRIFT_DEFAULTS_TO_SOFT_OR_DIAGNOSTIC=true
+MODULE_UPGRADE_DEFAULT_SCOPE=ONE_T1_CORE_STACK_COMPONENT
+
+PREWIPE_PRIVATE_EVIDENCE_ARCHIVED=true
+PREWIPE_PRIVATE_EVIDENCE_SHA256=711359c2b6a3522daac4ce9697a20b9876b71f202b44d6c79f65eda79f67025c
+OLD_T1_RUNTIME_MAY_BE_DISCARDED=true
+
+HISTORICAL_LOCAL_CACHE_ARTIFACT_ID=11954286988
+HISTORICAL_LOCAL_CACHE_ARTIFACT_ZIP_SHA256=047a40ed640bc1bfcbc8adb7007da2a4eea1f8abedffbc3cb2e2a4d9f6817928
+HISTORICAL_LOCAL_CACHE_REUSE_ALLOWED=false
+MAC_EXACT_ARTIFACT_CACHE_MECHANISM_REUSE_ALLOWED=true
+NEW_T1_CORE_STACK_EXACT_ARTIFACT=NOT_FROZEN
+NEW_LARGE_ARTIFACT_DOWNLOAD_POLICY=DOWNLOAD_ONCE_THEN_CACHE
+
+T1_CORE_STACK_IMAGE_DEPLOYMENT_OFFLINE_CAPABLE=true
+FRESH_ARMBIAN_END_TO_END_AIRGAPPED_INSTALL=false
+
+CURRENT_OPERATOR_PREPARATION=FRESH_ARMBIAN_ONLY_T1
+CURRENT_T1_FRESH_RUNTIME_STATE=UNKNOWN_FRESH
+
+DEVELOPMENT_PLAN=docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_DEVELOPMENT_PLAN_20261101.md
+DESIGN_AUTHORITY=docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_AND_STABLE_INVARIANTS_DESIGN_20261031.md
+
+CURRENT_STOP_POINT=WAITING_FOR_OPERATOR_FRESH_ARMBIAN_PREPARATION_AND_NEW_CHAT_R0_REBIND
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0_FRESH_ARMBIAN_READONLY_BASELINE_20261101_01
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+PR705_UPWARD_MERGE=false
+~~~
+
+The project intentionally pauses the previous E03 successor/recovery continuation. The
+recent failures are retained as incident evidence, but the next upgrade architecture will
+not be derived by adding more historical transaction/recovery exceptions.
+
+The canonical product stack is now `T1_Core_Stack`: greenhouse-manager, Home Assistant
+and Mosquitto Broker. Armbian, Docker/Compose, systemd, provisioning, upgrade/recovery
+executors and CI remain outside that product-stack boundary.
+
+The operator has preserved the old T1 maintenance state in a private archive and supplied
+its SHA-256. The public repository records only the digest, not the private archive/path.
+The old live T1 can therefore be wiped. The operator is preparing a T1 with official
+Armbian only for the next session.
+
+The 2026-10-15 2.5 GB exact-artifact cache is explicitly historical and must not seed the
+new clean reference because Manager/product source advanced afterward. The Mac exact-cache
+mechanism remains valid: after a new exact T1_Core_Stack version is frozen, acquire it once,
+verify exact binding, persist it locally and reuse that exact artifact until product identity
+changes.
+
+The new route is phased: R0 Fresh Armbian read-only baseline -> R0H host runtime -> S0
+freeze current exact T1_Core_Stack -> S1 one-time large artifact acquisition/local cache ->
+R1 clean stack first-running reference -> R2 controlled reboot reference -> R3 bounded
+normal-runtime reference -> A1 stable-invariant classification -> A2 per-module upgrade
+architecture -> later O1 full air-gapped installer.
+
 ## 2026-10-31 — PR #740/#741 E03 recovery integrated into PR #725; live T1 safe predecessor retained
 
 ~~~text
