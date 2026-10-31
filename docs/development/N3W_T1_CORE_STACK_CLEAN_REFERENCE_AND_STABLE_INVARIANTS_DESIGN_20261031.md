@@ -1,0 +1,224 @@
+# T1_Core_Stack clean reference and stable invariants design
+
+Date: 2026-10-31
+
+Status: DESIGN_FROZEN_PENDING_INTEGRATION
+
+## 1. Canonical name
+
+The production application stack on T1 is formally named:
+
+```text
+T1_Core_Stack
+```
+
+It contains exactly three product services:
+
+```text
+T1_Core_Stack
+├── greenhouse-manager
+├── Home Assistant
+└── Mosquitto Broker
+```
+
+The name does not include Armbian, Docker/Compose, systemd, maintenance transactions,
+upgrade executors, recovery tools, CI, SSH transport, or factory/provisioning tooling.
+Those are host/platform/operations layers around the product stack.
+
+## 2. Current maturity conclusion
+
+```text
+BROKER_PRODUCT_MATURITY=HIGH
+HOMEASSISTANT_PRODUCT_MATURITY=HIGH
+MANAGER_PRODUCT_MATURITY=HIGH_BUT_STILL_ACTIVE
+T1_CORE_STACK_PRODUCT_BASELINE=BASICALLY_COMPLETE
+
+UPGRADE_CONTROL_ARCHITECTURE=NOT_CONVERGED
+RECOVERY_CONTROL_ARCHITECTURE=NOT_CONVERGED
+```
+
+The recent E03 failures are classified primarily as upgrade/maintenance control failures,
+not evidence that the normal three-service product stack is fundamentally incomplete.
+
+## 3. Clean reference starting point
+
+Future upgrade architecture is designed from a clean production reference, not from a
+long-running T1 historical snapshot.
+
+```text
+CLEAN_T1_CORE_REFERENCE=
+official Armbian
++ required host runtime
++ freshly deployed T1_Core_Stack
++ explicit provisioning complete
++ three product services accepted
++ one controlled reboot accepted
++ no customer nodes paired yet
++ no accumulated customer runtime history
+```
+
+The clean reference is a product contract, not a byte-for-byte snapshot of one T1.
+
+## 4. Validation philosophy
+
+Every candidate validation point must be classified as one of:
+
+```text
+HARD_STABLE_INVARIANT
+SOFT_RUNTIME_CHECK
+DIAGNOSTIC_ONLY
+REMOVE
+```
+
+A value may be a hard invariant only when:
+
+1. it is expected to remain stable across normal operation on every healthy T1; and
+2. violating it creates a concrete upgrade-safety or product-compatibility risk.
+
+Normal runtime drift must not become an upgrade blocker merely because it differs from a
+historical baseline.
+
+Examples that are normally runtime-variable or diagnostic rather than hard invariants:
+
+- container ID;
+- PID;
+- service start time;
+- historical restart count;
+- exact current MQTT socket count;
+- whole runtime database SHA-256;
+- whole Dynamic Security state SHA-256;
+- log SHA-256;
+- current node/client/entity count.
+
+## 5. Per-module reference model
+
+Each T1_Core_Stack module should be upgraded against its own stable reference.
+
+### 5.1 greenhouse-manager
+
+Candidate hard-reference inputs should be limited to stable properties such as:
+
+- artifact/content identity;
+- software/protocol version;
+- entrypoint and runtime user contract;
+- host-network contract where required;
+- fixed configuration contract;
+- persistent data paths;
+- persistent schema compatibility;
+- secret/TLS mount contract;
+- required Broker and Home Assistant interface compatibility;
+- minimum post-upgrade product-health behavior.
+
+### 5.2 Home Assistant
+
+Candidate hard-reference inputs should be limited to stable properties such as:
+
+- image/manifest identity and supported version;
+- fixed N3-W configuration contract;
+- n3w_mqtt_bootstrap component compatibility;
+- persistent /config location;
+- MQTT integration compatibility;
+- HTTP/service availability after convergence.
+
+### 5.3 Mosquitto Broker
+
+Candidate hard-reference inputs should be limited to stable properties such as:
+
+- image/manifest identity and supported version;
+- fixed broker configuration contract;
+- TLS/listener roles;
+- Dynamic Security schema/role contract;
+- persistence location;
+- compatibility required by Manager, Home Assistant and nodes.
+
+Dynamic client counts, node identities, runtime connection counts and whole DynSec state
+hashes are not product identity.
+
+## 6. Upgrade boundary principle
+
+Default upgrade scope is one module at a time.
+
+```text
+MANAGER_UPGRADE -> Manager only
+HOMEASSISTANT_UPGRADE -> Home Assistant only
+BROKER_UPGRADE -> Broker only
+```
+
+Cross-module coordinated upgrade is used only when an explicit compatibility change
+requires it.
+
+A module upgrade should verify current capability and safe state, not exact equality with a
+historical runtime snapshot.
+
+## 7. Terminal maintenance principle
+
+Historical maintenance records remain audit evidence. They should not permanently
+participate in normal future runtime gating after they are resolved.
+
+A future converged model should prefer terminal outcomes such as:
+
+```text
+COMMITTED
+ROLLED_BACK
+RESOLVED_TO_PREDECESSOR
+BLOCKED_UNRESOLVED
+```
+
+Only unresolved maintenance should block a new upgrade. A historical BLOCKED transaction
+with a successfully committed recovery should not require permanent exemption logic in
+future upgrades.
+
+## 8. Offline deployment status
+
+Current implementation has an important split:
+
+```text
+T1_CORE_STACK_IMAGE_DEPLOYMENT_OFFLINE_CAPABLE=true
+FRESH_ARMBIAN_END_TO_END_AIRGAPPED_INSTALL=false
+```
+
+The repository already supports exact offline loading of the three product images and uses
+local immutable runtime tags with `pull_policy: never`, avoiding live registry pulls during
+product deployment.
+
+However, the current per-device fresh-Armbian route can still install Docker Engine /
+Compose and host packages from configured APT sources. Therefore a newly flashed Armbian
+host is not yet guaranteed to reach a complete T1_Core_Stack deployment with zero network
+dependency.
+
+A future full offline installer must also carry and bind all required host packages and
+dependencies, not only the three product image archives.
+
+## 9. Planned clean-reference evidence collection
+
+Before designing the final simplified upgrade architecture, collect a fresh clean reference
+from a reinstalled T1:
+
+1. install official Armbian;
+2. establish required host runtime;
+3. deploy a clean T1_Core_Stack;
+4. complete explicit provisioning;
+5. verify Broker, Manager and Home Assistant;
+6. perform one controlled reboot and re-verify;
+7. before pairing nodes or accumulating business history, collect module identity,
+   configuration, persistent-path and interface-contract evidence;
+8. classify every observed field into HARD_STABLE_INVARIANT, SOFT_RUNTIME_CHECK,
+   DIAGNOSTIC_ONLY or REMOVE;
+9. repeat selected observations after normal runtime/reboot to prove which fields actually
+   remain stable.
+
+## 10. Current stop point
+
+PR #745 is not automatically integrated by this design decision. The current live T1
+remains a failed-upgrade evidence source until its minimal read-only evidence is archived.
+
+```text
+PR745_AUTO_MERGE=false
+CURRENT_T1_WIPE_BEFORE_FINAL_EVIDENCE_EXPORT=false
+LIVE_UPGRADE_RETRY=false
+BOARD_ACCESS=false
+```
+
+Next architecture work should use the clean T1_Core_Stack reference to redesign module
+upgrade contracts from the stable invariant set instead of extending historical
+transaction/recovery exceptions.
