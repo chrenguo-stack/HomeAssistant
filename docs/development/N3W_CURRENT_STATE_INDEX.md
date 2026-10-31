@@ -1,3 +1,16 @@
+## 2026-10-31 — E03 route realigned to exact successor artifact and fresh T1 readonly preflight
+
+- PR #725 final reviewed source authority: `2b595112c7045041ed10e0d599e8ae94c379723d`; merged into PR #705 branch as `02a6357f0b573a9353f400be3de3920446a95353`.
+- PR #705 is OPEN/READY, mergeable, source-reviewed with zero new blocker, and its Ready-triggered heavy CI passed; further upward merge is deliberately deferred and is not a prerequisite for E03 live revalidation.
+- Exact ARM64 run `41168627817` for source `2b595112...` passed and produced artifact ID `13030331672`, archive digest `sha256:5d5ac28160d11b7127f6e5f50ce3f19c3af10c6d43dab749e148e4f11e51b335`, not expired at alignment time.
+- Binding log exposes Manager image `local/greenhouse-manager:fresh-2b595112c704`, image ID `sha256:130ca091d97fb10ce7be6254d7031bdebd0dab7f30b8c2e581ebe4863186e3de`, Manager tar SHA-256 `95aebea5c1b298accc417197dac08b16c9c5cda7a1e5bca184aeba8f80f8fb7b`, size `62681600` bytes.
+- Existing artifact is a candidate successor artifact authority, not yet automatically accepted for E03 replacement. The next session must independently bind/verify it first and rebuild only if the binding contract is insufficient.
+- Last proven live state remains predecessor Manager `fresh-ff750b3801a2`, product cutover=false, affected replacement transaction ABORTED, activation-gate operation COMPLETE, historical invalidated transaction BLOCKED with COMMITTED invalidation, and live gate blob `8c379746...`.
+- No fresh T1 read occurred during route realignment; live state must be re-established read-only before any new replacement transaction.
+- Old apply, old recovery and old transaction reuse remain forbidden.
+- Next ONE gate: `N3W_T1_E03_EXACT_MANAGER_SUCCESSOR_ARTIFACT_BINDING_AND_FRESH_READONLY_PREFLIGHT_20261031_01`.
+- This next gate may access T1 read-only, but does not authorize T1 mutation, Board access, physical retry, or upward/main merge.
+
 ## 2026-10-31 — E03 recovery/source convergence integrated into PR #725
 
 - PR #741 merged as `775c47dc3c8d247a7a342ca0d91aa86fec7bea88`; PR #740 then merged as `17dd9e3fcc0bc9c8bdcac05a6748d7b57e5e0be5` into PR #725's branch.
