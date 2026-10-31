@@ -140,4 +140,134 @@ This repair/recovery does NOT:
 - source-repair PR: #741
 - PR #741 is stacked directly on PR #740 frozen head.
 
-The current live recovery remains a separate authorization boundary after source/CI review.
+The current live recovery authorization boundary has now been crossed and closed. The actual live execution and subsequent gate-compatibility closure are recorded below.
+
+## 8. Actual live recovery result
+
+The exact recovery preflight passed against:
+
+- transaction state `READY`;
+- generation `6`;
+- operation_seq `1`;
+- pending `activation_gate_install`;
+- gate reality `AFTER`;
+- service/deployment reality `BEFORE`;
+- Broker restart_count `0`.
+
+The recovery mutation then:
+
+1. recorded the dedicated recovery execution session;
+2. reconciled `activation_gate_install` from `INTENT` to `COMPLETE`;
+3. transitioned the transaction to terminal `ABORTED`;
+4. preserved Manager, Home Assistant, Broker and deployment inputs unchanged.
+
+The final transaction evidence is:
+
+- state: `ABORTED`;
+- generation: `9`;
+- transaction SHA-256:
+  `035a42c1d8b60da1e2e70f9030e290870e64ed2ab88a2fabc395c0eae0251a3e`;
+- operation_seq: `1`;
+- last operation: `preapply_pending_recovery_abort`;
+- last reason:
+  `PENDING_ACTIVATION_GATE_RECONCILED_NO_PRODUCT_CUTOVER`;
+- `activation_gate_install` status: `COMPLETE`.
+
+The recovery command returned STOP only during its final gate-nonblocking assertion. The transaction mutation itself had already completed and MUST NOT be replayed.
+
+## 9. Historical BLOCKED gate compatibility defect
+
+Readonly forensic proved the remaining gate block came from the older transaction
+`n3w-t1-e03-replacement-successor-20261030-01`.
+
+That historical transaction is:
+
+- terminal `BLOCKED`;
+- generation `5`;
+- operation_seq `0`;
+- operations empty;
+- observed_after empty;
+- last operation `baseline_invalidated_before_apply`;
+- last reason `BROKER_STARTED_AT_CHANGED_AFTER_T1_REBOOT`;
+- bound to the exact COMMITTED baseline-invalidation evidence;
+- proven to have caused no product apply, service stop/start, Docker mutation or board access.
+
+The maintenance transaction contract classifies `BLOCKED` as terminal/non-active, while the activation gate historically classified every `BLOCKED` transaction as permanently blocking. This contract mismatch caused the recovery final assertion to return
+`MAINTENANCE_BLOCKING`.
+
+The activation gate repair therefore does NOT allow generic BLOCKED transactions.
+It skips a BLOCKED transaction only when all of the following are true:
+
+- exact pre-apply invalidation operation/reason;
+- authorization consumed and replay disabled;
+- operation_seq zero;
+- operations empty;
+- observed_after empty;
+- exactly one matching baseline-invalidation record exists;
+- that invalidation record is structurally valid and COMMITTED;
+- its plan hash and executor/target bindings are valid;
+- target transaction id, post-transaction SHA and generation bind exactly;
+- product/service/Docker/board mutation flags remain false.
+
+Missing, malformed, duplicated, tampered or unrelated invalidation evidence remains fail-closed.
+
+## 10. Live activation-gate hotfix closure
+
+The live helper was changed only after:
+
+- old installed gate blob was proven as
+  `ab6a0905cc257a6a7f62a0589f2fea66f9f1677f`;
+- the repaired candidate was independently executed and returned `0`;
+- all transaction and invalidation evidence remained exact.
+
+The live hotfix result was:
+
+- old gate rc: `1`;
+- candidate gate rc: `0`;
+- installed repaired gate rc: `0`;
+- current recovery transaction remained `ABORTED`;
+- historical invalidated transaction remained `BLOCKED`;
+- invalidation evidence remained `COMMITTED`;
+- Manager unchanged;
+- Home Assistant unchanged;
+- Broker unchanged;
+- service unit remained active;
+- product cutover false;
+- apply/recovery replay false;
+- rollback false;
+- board access false.
+
+The repaired live gate blob at that closure point was
+`4caa7f195afe3f436763006d6a20c0b53fa1b138`.
+
+## 11. Merge-review hardening
+
+Independent merge review found one additional false-PASS risk in the first gate compatibility repair: the gate checked the critical invalidation bindings but did not require the complete authoritative invalidation record key set.
+
+The source was hardened so gate acceptance now mirrors the baseline-invalidation authority for:
+
+- exact record key set;
+- invalidation identifier/hash binding;
+- SHA-40/SHA-256 field shapes;
+- plan schema/hash binding;
+- executor source/blob/module-set binding;
+- generation and poststate binding;
+- no-product-mutation flags.
+
+Regression tests also prove that extra-key and missing-key invalidation records remain blocking.
+
+This hardening does not broaden the live mutation scope. It only makes future gate evaluation more fail-closed.
+
+## 12. Current source-convergence boundary
+
+PR #741 remains stacked directly on PR #740.
+
+Before merge, the remaining requirements are:
+
+1. latest PR #741 CI all SUCCESS;
+2. PR #741 base remains exact PR #740 head;
+3. GitHub mergeability remains true;
+4. no new review blocker;
+5. merge remains a separate explicit decision.
+
+No further T1 recovery/apply/rollback is required for this incident.
