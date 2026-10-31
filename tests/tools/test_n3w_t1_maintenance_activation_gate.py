@@ -868,3 +868,198 @@ def test_prepublish_recovery_target_rejects_candidate_publish_history() -> None:
     target = _blocked_prepublish_target()
     target["operations"][1]["operation_type"] = "deployment_inputs_publish"
     assert gate._blocked_prepublish_recovery_target(target) is False
+
+
+def _published_successor_for_recovered_predecessor(
+    state: str = "VERIFYING",
+) -> dict:
+    plan = {
+        "deployment_before_fingerprint": "a" * 64,
+        "deployment_candidate_fingerprint": "b" * 64,
+    }
+    binding = tx.MaintenanceBinding(
+        transaction_id="txn-successor-after-recovery-0001",
+        authorization_id_sha256="a" * 64,
+        host_binding_sha256="2" * 64,
+        current_release_id="b" * 64,
+        target_release_id="c" * 64,
+        artifact_sha256="d" * 64,
+        executor_source_head="e" * 40,
+        executor_blob="f" * 40,
+        module_set_sha256="0" * 64,
+        plan_sha256=tx.sha256_bytes(tx.canonical_bytes(plan)),
+        scope=("deployment_inputs_publish",),
+    )
+    value = tx.new_transaction(
+        binding,
+        predecessor_sha256="9" * 64,
+        before={"deployment_inputs": "a" * 64},
+        intended_after={"deployment_inputs": "b" * 64},
+        plan=plan,
+    )
+    value = tx.mark_ready(value)
+    value = tx.claim_authorization(value)
+    value = tx.begin_apply(value)
+    intent = tx.begin_operation(
+        value,
+        operation_type="deployment_inputs_publish",
+        before_fingerprint="a" * 64,
+        intended_after_fingerprint="b" * 64,
+        allowed_states={"APPLYING"},
+    )
+    value = tx.finish_operation(
+        intent,
+        observed_after_fingerprint="b" * 64,
+    )
+    if state == "APPLYING":
+        return value
+    value = tx.transition(
+        value,
+        "VERIFYING",
+        operation="candidate_published_owner_controlled",
+        observed_after={"deployment_inputs": "b" * 64},
+    )
+    if state == "VERIFYING":
+        return value
+    if state == "COMMITTED":
+        return tx.transition(
+            value,
+            "COMMITTED",
+            operation="runtime_acceptance_pass",
+            observed_after={"deployment_inputs": "b" * 64},
+        )
+    raise AssertionError(state)
+
+
+@pytest.mark.parametrize("state", ["APPLYING", "VERIFYING", "COMMITTED"])
+def test_committed_prepublish_recovery_remains_exempt_on_controlled_candidate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    state: str,
+) -> None:
+    root = tmp_path / "transactions"
+    recovery_root = tmp_path / "prepublish-recoveries"
+    invalidation_root = tmp_path / "invalidations"
+    postpublish_root = tmp_path / "postpublish-recoveries"
+    root.mkdir()
+    recovery_root.mkdir()
+    target = _blocked_prepublish_target()
+    target_path = root / "txn-prepublish-recovery-0001.json"
+    target_path.write_bytes(gate._canonical_bytes(target))
+    record = _prepublish_recovery_record(
+        target,
+        target_path,
+        state="COMMITTED",
+    )
+    (recovery_root / "recovery-prepublish-0001.json").write_bytes(
+        gate._canonical_bytes(record)
+    )
+    successor = _published_successor_for_recovered_predecessor(state)
+    successor_path = root / "txn-successor-after-recovery-0001.json"
+    successor_path.write_bytes(gate._canonical_bytes(successor))
+
+    monkeypatch.setattr(gate, "_private_root", lambda _path: None)
+    monkeypatch.setattr(
+        gate,
+        "_record",
+        lambda path: target if path == target_path else successor,
+    )
+    monkeypatch.setattr(
+        gate,
+        "_current_deployment_fingerprint",
+        lambda: "b" * 64,
+    )
+    monkeypatch.setattr(
+        gate,
+        "_committed_invalidation_for_blocked",
+        lambda *_args, **_kwargs: False,
+    )
+    original_recovery = gate._prepublish_recovery_for_blocked
+    monkeypatch.setattr(
+        gate,
+        "_prepublish_recovery_for_blocked",
+        lambda path, value, recovery, **kwargs: original_recovery(
+            path,
+            value,
+            recovery,
+            documents=kwargs.get("documents"),
+            enforce_root_metadata=False,
+        ),
+    )
+
+    expected = (
+        (True, "NO_ACTIVE_TRANSACTION")
+        if state == "COMMITTED"
+        else (True, "MAINTENANCE_VERIFYING")
+    )
+    assert gate.evaluate(
+        root,
+        invalidation_root,
+        recovery_root,
+        postpublish_root,
+    ) == expected
+
+
+def test_committed_prepublish_recovery_rejects_unproven_candidate_lineage(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "transactions"
+    recovery_root = tmp_path / "prepublish-recoveries"
+    invalidation_root = tmp_path / "invalidations"
+    postpublish_root = tmp_path / "postpublish-recoveries"
+    root.mkdir()
+    recovery_root.mkdir()
+    target = _blocked_prepublish_target()
+    target_path = root / "txn-prepublish-recovery-0001.json"
+    target_path.write_bytes(gate._canonical_bytes(target))
+    record = _prepublish_recovery_record(
+        target,
+        target_path,
+        state="COMMITTED",
+    )
+    (recovery_root / "recovery-prepublish-0001.json").write_bytes(
+        gate._canonical_bytes(record)
+    )
+    successor = _published_successor_for_recovered_predecessor("VERIFYING")
+    successor["operations"][-1]["status"] = "FAILED"
+    successor["operations"][-1]["last_error_code"] = "test_failure"
+    successor_path = root / "txn-successor-after-recovery-0001.json"
+    successor_path.write_bytes(gate._canonical_bytes(successor))
+
+    monkeypatch.setattr(gate, "_private_root", lambda _path: None)
+    monkeypatch.setattr(
+        gate,
+        "_record",
+        lambda path: target if path == target_path else successor,
+    )
+    monkeypatch.setattr(
+        gate,
+        "_current_deployment_fingerprint",
+        lambda: "b" * 64,
+    )
+    monkeypatch.setattr(
+        gate,
+        "_committed_invalidation_for_blocked",
+        lambda *_args, **_kwargs: False,
+    )
+    original_recovery = gate._prepublish_recovery_for_blocked
+    monkeypatch.setattr(
+        gate,
+        "_prepublish_recovery_for_blocked",
+        lambda path, value, recovery, **kwargs: original_recovery(
+            path,
+            value,
+            recovery,
+            documents=kwargs.get("documents"),
+            enforce_root_metadata=False,
+        ),
+    )
+
+    with pytest.raises(gate.GateError, match="multiple_active_transactions"):
+        gate.evaluate(
+            root,
+            invalidation_root,
+            recovery_root,
+            postpublish_root,
+        )
