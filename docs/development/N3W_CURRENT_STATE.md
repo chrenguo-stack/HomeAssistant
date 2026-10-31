@@ -1,3 +1,63 @@
+## 2026-10-31 — E03 route realigned to exact Manager successor artifact + T1 fresh readonly preflight
+
+~~~text
+TASK=N3W_T1_E03_ROUTE_REALIGNMENT_TO_EXACT_ARTIFACT_AND_FRESH_READONLY_PREFLIGHT_20261031_01
+
+MAIN=2fbd0e9c2d3bf8a513ac318034e249511ffb6a2e
+MAIN_TREE=3064ab74ac96bbce44a0bf880ab53c7afc5bc134
+
+PR725_STATE=MERGED
+PR725_REVIEWED_HEAD=2b595112c7045041ed10e0d599e8ae94c379723d
+PR725_MERGE_COMMIT=02a6357f0b573a9353f400be3de3920446a95353
+
+PR705_STATE=OPEN_READY
+PR705_HEAD=02a6357f0b573a9353f400be3de3920446a95353
+PR705_READY_TRIGGERED_HEAVY_CI=PASS
+PR705_UPWARD_MERGE_REQUIRED_BEFORE_T1=false
+PR705_UPWARD_MERGE_DEFERRED=true
+
+T1_SUCCESSOR_SOURCE_AUTHORITY=2b595112c7045041ed10e0d599e8ae94c379723d
+
+EXACT_ARM64_RUN_ID=41168627817
+EXACT_ARM64_RUN_RESULT=PASS
+EXACT_ARM64_ARTIFACT_ID=13030331672
+EXACT_ARM64_ARTIFACT_NAME=n3w-t1-fresh-exact-arm64-2b595112c7045041ed10e0d599e8ae94c379723d
+EXACT_ARM64_ARTIFACT_DIGEST_SHA256=5d5ac28160d11b7127f6e5f50ce3f19c3af10c6d43dab749e148e4f11e51b335
+EXACT_ARM64_ARTIFACT_EXPIRED=false
+EXACT_ARM64_ARTIFACT_EXPIRES_AT=2026-11-30T04:35:13Z
+
+TARGET_MANAGER_IMAGE=local/greenhouse-manager:fresh-2b595112c704
+TARGET_MANAGER_IMAGE_ID=sha256:130ca091d97fb10ce7be6254d7031bdebd0dab7f30b8c2e581ebe4863186e3de
+TARGET_MANAGER_TAR_SHA256=95aebea5c1b298accc417197dac08b16c9c5cda7a1e5bca184aeba8f80f8fb7b
+TARGET_MANAGER_TAR_SIZE_BYTES=62681600
+
+LAST_PROVEN_LIVE_MANAGER_IMAGE=local/greenhouse-manager:fresh-ff750b3801a2
+LAST_PROVEN_PRODUCT_CUTOVER=false
+LAST_PROVEN_RECOVERY_TRANSACTION_STATE=ABORTED
+LAST_PROVEN_ACTIVATION_GATE_OPERATION=COMPLETE
+LAST_PROVEN_HISTORICAL_INVALIDATED_TRANSACTION_STATE=BLOCKED
+LAST_PROVEN_BASELINE_INVALIDATION_STATE=COMMITTED
+LAST_PROVEN_LIVE_GATE_BLOB=8c37974665c2dc1c66a74c7c187f6ca48932d5bf
+
+OLD_APPLY_RETRY_ALLOWED=false
+OLD_RECOVERY_RETRY_ALLOWED=false
+OLD_TRANSACTION_REUSE_ALLOWED=false
+BOARD_ACCESS=false
+
+CURRENT_ROUTE=VERIFY_EXISTING_EXACT_ARTIFACT_BINDING_THEN_T1_FRESH_READONLY_PREFLIGHT
+CURRENT_STOP_POINT=BEFORE_EXACT_ARTIFACT_SUCCESSOR_BINDING_REVIEW
+NEXT_ONE_GATE=N3W_T1_E03_EXACT_MANAGER_SUCCESSOR_ARTIFACT_BINDING_AND_FRESH_READONLY_PREFLIGHT_20261031_01
+AUTO_T1_MUTATION=false
+AUTO_BOARD_ACCESS=false
+AUTO_UPWARD_MERGE=false
+~~~
+
+The prior repository-convergence route through PR #705 is no longer a prerequisite for KF-131/E03 live revalidation. PR #705 itself is healthy and its Ready-triggered heavy CI passed, but further upward merge is deliberately deferred until the live successor path is revalidated.
+
+PR #725's exact reviewed source head `2b595112...` is the successor source authority for the next live-validation stage. Its Ready-triggered exact ARM64 workflow already produced an unexpired artifact. The build log independently exposes the exact Manager image ID and Manager tar SHA-256, so the next session must first determine whether that existing artifact is sufficient as the E03 successor artifact authority. Rebuild only if the existing artifact cannot satisfy the exact binding/reproducibility contract.
+
+No fresh live T1 read has been performed after this route realignment. The next session must therefore treat live Manager/Broker/Home Assistant and ledger state as UNKNOWN_FRESH until a bounded read-only preflight rebind proves them again. No old apply/recovery authorization or transaction may be replayed.
+
 ## 2026-10-31 — PR #740/#741 E03 recovery integrated into PR #725; live T1 safe predecessor retained
 
 ~~~text
