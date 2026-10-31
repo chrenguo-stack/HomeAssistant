@@ -7,7 +7,16 @@ import re
 from copy import deepcopy
 from typing import Any
 
+import n3w_t1_portable_image_identity as portable
+
 RELEASE_SCHEMA = "gh.n3w-t1-production-v2-release/1"
+RELEASE_SCHEMA_V2 = "gh.n3w-t1-production-v2-release/2"
+PORTABLE_DEPLOYMENT_BINDING_SCHEMA = (
+    "gh.n3w-t1-production-v2-portable-deployment-binding/1"
+)
+PORTABLE_DEPLOYMENT_BINDING_SCHEMA_V2 = (
+    "gh.n3w-t1-production-v2-portable-deployment-binding/2"
+)
 PLAN_SCHEMA = "gh.n3w-t1-production-v2-plan/1"
 RESULT_SCHEMA = "gh.n3w-t1-production-v2-result/1"
 RUN_MARKER_SCHEMA = "gh.n3w-t1-production-v2-run/1"
@@ -87,6 +96,128 @@ def canonical_json_bytes(value: Any) -> bytes:
 
 def canonical_sha256(value: Any) -> str:
     return hashlib.sha256(canonical_json_bytes(value)).hexdigest()
+
+
+def portable_deployment_binding_id(
+    *,
+    source_head: str,
+    artifact_sha256: str,
+    identity: portable.PortableImageIdentity | dict[str, Any],
+    compose_sha256: str,
+    service_unit: dict[str, str],
+    state_contract: dict[str, Any],
+) -> str:
+    _sha(source_head, "portable_deployment_source_head", git=True)
+    _sha(artifact_sha256, "portable_deployment_artifact_sha256")
+    _sha(compose_sha256, "portable_deployment_compose_sha256")
+    identity_value = (
+        identity.to_dict()
+        if isinstance(identity, portable.PortableImageIdentity)
+        else deepcopy(identity)
+    )
+    try:
+        image_identity = portable.identity_from_dict(identity_value)
+    except portable.PortableImageIdentityError as error:
+        raise ProductionV2ContractError(
+            "portable_deployment_identity_invalid"
+        ) from error
+    if (
+        image_identity.os != "linux"
+        or image_identity.architecture != "arm64"
+        or image_identity.variant is not None
+    ):
+        raise ProductionV2ContractError(
+            "portable_deployment_platform_invalid"
+        )
+    unit = deepcopy(_mapping(service_unit, "portable_deployment_service_unit"))
+    if not unit:
+        raise ProductionV2ContractError(
+            "portable_deployment_service_unit_empty"
+        )
+    for key, digest in unit.items():
+        _text(key, "portable_deployment_service_unit_key")
+        _sha(digest, f"portable_deployment_service_unit_{key}")
+    state = deepcopy(_mapping(state_contract, "portable_deployment_state_contract"))
+    if not state:
+        raise ProductionV2ContractError(
+            "portable_deployment_state_contract_empty"
+        )
+    canonical_json_bytes(state)
+    material = {
+        "schema": PORTABLE_DEPLOYMENT_BINDING_SCHEMA,
+        "source_head": source_head,
+        "artifact_sha256": artifact_sha256,
+        "portable_identity": image_identity.to_dict(),
+        "compose_sha256": compose_sha256,
+        "service_unit": unit,
+        "state_contract": state,
+    }
+    return canonical_sha256(material)
+
+
+def portable_deployment_binding_id_v2(
+    *,
+    source_head: str,
+    artifact_sha256: str,
+    identity: portable.PortableImageIdentity | dict[str, Any],
+    deployment_inputs: dict[str, str],
+    service_unit: dict[str, str],
+    state_contract: dict[str, Any],
+) -> str:
+    _sha(source_head, "portable_deployment_source_head", git=True)
+    _sha(artifact_sha256, "portable_deployment_artifact_sha256")
+    inputs = deepcopy(
+        _mapping(deployment_inputs, "portable_deployment_inputs")
+    )
+    if set(inputs) != {"compose_sha256", "compose_env_sha256"}:
+        raise ProductionV2ContractError(
+            "portable_deployment_inputs_keys_invalid"
+        )
+    for key, digest in inputs.items():
+        _sha(digest, f"portable_deployment_input_{key}")
+    identity_value = (
+        identity.to_dict()
+        if isinstance(identity, portable.PortableImageIdentity)
+        else deepcopy(identity)
+    )
+    try:
+        image_identity = portable.identity_from_dict(identity_value)
+    except portable.PortableImageIdentityError as error:
+        raise ProductionV2ContractError(
+            "portable_deployment_identity_invalid"
+        ) from error
+    if (
+        image_identity.os != "linux"
+        or image_identity.architecture != "arm64"
+        or image_identity.variant is not None
+    ):
+        raise ProductionV2ContractError(
+            "portable_deployment_platform_invalid"
+        )
+    unit = deepcopy(_mapping(service_unit, "portable_deployment_service_unit"))
+    if not unit:
+        raise ProductionV2ContractError(
+            "portable_deployment_service_unit_empty"
+        )
+    for key, digest in unit.items():
+        _text(key, "portable_deployment_service_unit_key")
+        _sha(digest, f"portable_deployment_service_unit_{key}")
+    state = deepcopy(_mapping(state_contract, "portable_deployment_state_contract"))
+    if not state:
+        raise ProductionV2ContractError(
+            "portable_deployment_state_contract_empty"
+        )
+    canonical_json_bytes(state)
+    material = {
+        "schema": PORTABLE_DEPLOYMENT_BINDING_SCHEMA_V2,
+        "source_head": source_head,
+        "artifact_sha256": artifact_sha256,
+        "portable_identity": image_identity.to_dict(),
+        "deployment_inputs": inputs,
+        "service_unit": unit,
+        "state_contract": state,
+    }
+    return canonical_sha256(material)
 
 
 def _mapping(value: Any, name: str) -> dict[str, Any]:
@@ -216,6 +347,103 @@ def validate_release(document: Any) -> dict[str, Any]:
     if canonical_sha256(material) != actual_release_id:
         raise ProductionV2ContractError("release_id_mismatch")
     return value
+
+
+def validate_release_v2(document: Any) -> dict[str, Any]:
+    value = deepcopy(_mapping(document, "release_v2"))
+    _exact_keys(
+        value,
+        {
+            "schema",
+            "release_id",
+            "source_head",
+            "source_tree",
+            "os_contract",
+            "packages",
+            "apt_source_policy",
+            "artifacts",
+            "capacity",
+            "public_evidence_fields",
+            "portable_images",
+            "deployment_contract_sha256",
+            "state_contract",
+        },
+        "release_v2",
+    )
+    if value["schema"] != RELEASE_SCHEMA_V2:
+        raise ProductionV2ContractError("release_v2_schema_invalid")
+
+    # Reuse v1 validation for unchanged material without reinterpreting /1.
+    legacy = {
+        key: deepcopy(value[key])
+        for key in (
+            "source_head",
+            "source_tree",
+            "os_contract",
+            "packages",
+            "apt_source_policy",
+            "artifacts",
+            "capacity",
+            "public_evidence_fields",
+        )
+    }
+    legacy["schema"] = RELEASE_SCHEMA
+    legacy["release_id"] = canonical_sha256(legacy)
+    validate_release(legacy)
+
+    _sha(value["release_id"], "release_id")
+    _sha(value["deployment_contract_sha256"], "deployment_contract_sha256")
+
+    images = _mapping(value["portable_images"], "portable_images")
+    if not images:
+        raise ProductionV2ContractError("portable_images_empty")
+    for name, raw in images.items():
+        _text(name, "portable_image_name")
+        record = _mapping(raw, f"portable_image_{name}")
+        _exact_keys(
+            record,
+            {"deployment_ref", "identity"},
+            f"portable_image_{name}",
+        )
+        _text(record["deployment_ref"], f"portable_image_{name}_deployment_ref")
+        try:
+            image_identity = portable.identity_from_dict(record["identity"])
+        except portable.PortableImageIdentityError as error:
+            raise ProductionV2ContractError(
+                f"portable_image_{name}_identity_invalid"
+            ) from error
+        if (
+            image_identity.os != "linux"
+            or image_identity.architecture != "arm64"
+            or image_identity.variant is not None
+        ):
+            raise ProductionV2ContractError(
+                f"portable_image_{name}_platform_invalid"
+            )
+
+    state_contract = _mapping(value["state_contract"], "state_contract")
+    if not state_contract:
+        raise ProductionV2ContractError("state_contract_empty")
+    for component, digest in state_contract.items():
+        _text(component, "state_contract_component")
+        _sha(digest, f"state_contract_{component}")
+
+    # Host-local Docker/container identifiers are deliberately not part of /2.
+    material = deepcopy(value)
+    actual_release_id = material.pop("release_id")
+    if canonical_sha256(material) != actual_release_id:
+        raise ProductionV2ContractError("release_v2_id_mismatch")
+    return value
+
+
+def validate_release_any(document: Any) -> dict[str, Any]:
+    value = _mapping(document, "release")
+    schema = value.get("schema")
+    if schema == RELEASE_SCHEMA:
+        return validate_release(value)
+    if schema == RELEASE_SCHEMA_V2:
+        return validate_release_v2(value)
+    raise ProductionV2ContractError("release_schema_unsupported")
 
 
 def validate_plan(document: Any) -> dict[str, Any]:

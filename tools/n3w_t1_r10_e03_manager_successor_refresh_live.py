@@ -88,6 +88,17 @@ class AuthorizationUnknownError(RefreshError):
     pass
 
 
+class LegacyMutationRetiredError(RefreshError):
+    pass
+
+
+LEGACY_MUTATION_RETIRED = True
+
+
+def require_successor_transaction() -> None:
+    raise LegacyMutationRetiredError("successor_transaction_required")
+
+
 def safe_error_code(error: BaseException) -> str:
     if isinstance(error, RefreshError):
         raw = str(error)
@@ -749,6 +760,7 @@ def remote_claim(args: argparse.Namespace) -> dict[str, Any]:
         raise RefreshError("pr725_head_invalid")
     if args.pr725_head != args.executor_source_head:
         raise RefreshError("pr725_executor_head_mismatch")
+    require_successor_transaction()
     value = preclaim()
     doc = {
         "schema": TX_SCHEMA,
@@ -988,6 +1000,7 @@ def rollback(doc: dict[str, Any], candidate_sha: str | None, stopped: bool, reas
 
 
 def _remote_apply_locked() -> dict[str, Any]:
+    require_successor_transaction()
     doc = read_tx()
     if doc.get("status") != "CLAIMED" or doc.get("authorization_consumed") is not True or doc.get("replay_allowed") is not False:
         raise RefreshError("transaction_not_claimed")
@@ -1080,6 +1093,7 @@ def remote_apply() -> dict[str, Any]:
 def remote_abort_prestop(reason_code: str) -> dict[str, Any]:
     if not re.fullmatch(r"[A-Z0-9_]{3,80}", reason_code or ""):
         raise RefreshError("abort_reason_invalid")
+    require_successor_transaction()
     with transaction_lock():
         doc = read_tx()
         if (
@@ -1290,6 +1304,7 @@ def host_apply(args: argparse.Namespace) -> dict[str, Any]:
     verify_pr725_head(args.pr725_head)
     verify_artifact_metadata()
     verify_local_artifact(args.manager_tar, args.binding_json)
+    require_successor_transaction()
     from n3w_t1_ssh_transport import SSHTransport
 
     transport = SSHTransport(
@@ -1431,11 +1446,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         consumed: bool | str = False
         mutation: bool | str = False
         replay = True
-        if isinstance(error, AuthorizationConsumedError):
-            claimed = consumed = mutation = True
+        if isinstance(error, LegacyMutationRetiredError):
+            claimed = consumed = "UNKNOWN"
+            mutation = False
+            replay = False
+            if args.command.startswith("remote-"):
+                try:
+                    tx = read_tx()
+                    if tx.get("authorization_consumed") is True:
+                        claimed = consumed = True
+                except Exception:
+                    pass
+        elif isinstance(error, AuthorizationConsumedError):
+            claimed = consumed = True
+            mutation = False
             replay = False
         elif isinstance(error, AuthorizationUnknownError):
-            claimed = consumed = mutation = "UNKNOWN"
+            claimed = consumed = "UNKNOWN"
+            mutation = "UNKNOWN"
             replay = False
         elif args.command in {"remote-claim", "remote-apply", "remote-abort-prestop", "remote-status"}:
             try:
