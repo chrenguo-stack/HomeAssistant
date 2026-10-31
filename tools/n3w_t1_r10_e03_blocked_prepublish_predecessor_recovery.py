@@ -269,15 +269,10 @@ def _gate_blocking() -> None:
         raise RecoveryError("maintenance_gate_not_blocking")
 
 
-def _plan_locked(
+def _assert_target_static_bindings(
     transaction_id: str,
-    *,
-    authority: dict[str, str],
+    target: dict[str, Any],
 ) -> dict[str, Any]:
-    target_path = _target_path(transaction_id)
-    target = _assert_target_shape(
-        maintenance.TransactionStore(target_path).load()
-    )
     maintenance.ensure_no_other_active(
         e03._active_maintenance_documents(),
         transaction_id=transaction_id,
@@ -291,6 +286,22 @@ def _plan_locked(
     e03.predecessor_evidence(target["predecessor_sha256"])
     target_plan = target["plan"]
     _assert_target_f4_authority(target_plan)
+    return target_plan
+
+
+def _plan_locked(
+    transaction_id: str,
+    *,
+    authority: dict[str, str],
+) -> dict[str, Any]:
+    target_path = _target_path(transaction_id)
+    target = _assert_target_shape(
+        maintenance.TransactionStore(target_path).load()
+    )
+    target_plan = _assert_target_static_bindings(
+        transaction_id,
+        target,
+    )
     current_deployment = e03._deployment_reality(target_plan)
     if current_deployment != target_plan["deployment_before_fingerprint"]:
         raise RecoveryError("deployment_not_exact_predecessor")
@@ -355,6 +366,9 @@ def preflight(transaction_id: str) -> dict[str, Any]:
     authority = runtime_authority()
     with retirement.readonly_global_lock():
         plan = _plan_locked(transaction_id, authority=authority)
+        _assert_no_other_claimed_recovery(
+            plan["target_transaction_id_sha256"]
+        )
     return {
         "schema": SCHEMA,
         "status": "PASS",
@@ -638,7 +652,7 @@ def claim(
     )
 
 
-def _assert_authority(record: dict[str, Any]) -> None:
+def _assert_authority(record: dict[str, Any]) -> dict[str, str]:
     authority = runtime_authority()
     if (
         authority["source_head"] != record["executor_source_head"]
@@ -646,6 +660,7 @@ def _assert_authority(record: dict[str, Any]) -> None:
         or authority["module_set_sha256"] != record["module_set_sha256"]
     ):
         raise RecoveryError("recovery_executor_authority_drift")
+    return authority
 
 
 def _install_recovery_gate(plan: dict[str, Any]) -> None:
@@ -820,6 +835,10 @@ def recover(
         target = _assert_target_shape(
             maintenance.TransactionStore(target_path).load()
         )
+        target_plan = _assert_target_static_bindings(
+            target_transaction_id,
+            target,
+        )
         plan = record["plan"]
         if (
             sha_text(target_transaction_id)
@@ -827,22 +846,48 @@ def recover(
             or sha_file(target_path) != record["target_transaction_sha256"]
             or target["generation"] != record["target_generation"]
             or target["operation_seq"] != record["target_operation_seq"]
-            or e03._deployment_reality(target["plan"])
+            or e03._deployment_reality(target_plan)
             != plan["deployment_before_fingerprint"]
-            or e03._service_fingerprint()
-            != plan["service_stopped_fingerprint"]
         ):
             raise RecoveryError("recovery_prestate_binding_drift")
+        current_gate_sha = sha_file(e03.GATE_TARGET)
+        if current_gate_sha not in {
+            plan["gate_source_sha256_before"],
+            plan["gate_source_sha256_after"],
+        }:
+            raise RecoveryError("gate_source_reality_unknown")
+        stopped = (
+            e03._service_fingerprint()
+            == plan["service_stopped_fingerprint"]
+        )
+        running_baseline: dict[str, Any] | None = None
+        if not stopped:
+            if current_gate_sha != plan["gate_source_sha256_after"]:
+                raise RecoveryError("recovery_prestate_binding_drift")
+            try:
+                running_baseline = _runtime_predecessor(target_plan)
+            except Exception as error:
+                raise RecoveryError(
+                    "recovery_prestate_binding_drift"
+                ) from error
+        start_attempted = running_baseline is not None
         try:
-            e03._broker_continuity(target["plan"])
-            _install_recovery_gate(plan)
+            e03._broker_continuity(target_plan)
+            if current_gate_sha == plan["gate_source_sha256_before"]:
+                if not stopped:
+                    raise RecoveryError("recovery_prestate_binding_drift")
+                _install_recovery_gate(plan)
             _assert_gate_recovery_allowed()
-            e03.run(
-                ("systemctl", "start", e03.SERVICES_UNIT),
-                timeout=180,
-            )
-            baseline = _wait_predecessor(target["plan"])
-            samples = _stability(target["plan"], baseline)
+            if running_baseline is None:
+                start_attempted = True
+                e03.run(
+                    ("systemctl", "start", e03.SERVICES_UNIT),
+                    timeout=180,
+                )
+                baseline = _wait_predecessor(target_plan)
+            else:
+                baseline = running_baseline
+            samples = _stability(target_plan, baseline)
             committed = _transition(
                 record,
                 state="COMMITTED",
@@ -869,13 +914,31 @@ def recover(
                 },
             )
         except Exception as error:
+            reason = e03.safe_reason(error)
+            if start_attempted:
+                try:
+                    e03._stop_services()
+                    if (
+                        e03._service_fingerprint()
+                        != plan["service_stopped_fingerprint"]
+                    ):
+                        raise RecoveryError(
+                            "recovery_cleanup_stopped_state_unproven"
+                        )
+                except Exception as cleanup_error:
+                    reason = (
+                        "recovery_cleanup_unproven:"
+                        + reason
+                        + ":"
+                        + e03.safe_reason(cleanup_error)
+                    )
             latest = store.load()
             if latest["state"] == "CLAIMED":
                 blocked = _transition(
                     latest,
                     state="BLOCKED",
                     operation="recovery_blocked",
-                    reason=e03.safe_reason(error),
+                    reason=reason,
                 )
                 store.save(
                     blocked,
