@@ -155,9 +155,49 @@ def test_verify_rejects_hash_mismatch(
 
     with pytest.raises(
         cache.HostRuntimeCacheError,
-        match="cache_package_member_integrity_mismatch",
+        match="cache_package_sha256_mismatch:containerd_test_arm64.deb",
     ):
         cache.verify_cache(cache_dir, FakeRunner(cache_dir))
+
+
+def test_verify_archive_is_portable_after_mac_copy(
+    tmp_path: Path,
+    patch_host,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cache_dir, _, acquired = acquire_bundle(tmp_path, patch_host)
+
+    def host_probe_must_not_run(_runner):
+        raise AssertionError("portable archive verification must not probe T1 host")
+
+    def apt_probe_must_not_run():
+        raise AssertionError("portable archive verification must not inspect APT sources")
+
+    monkeypatch.setattr(cache, "_host_contract", host_probe_must_not_run)
+    monkeypatch.setattr(cache, "_validate_apt_source_policy", apt_probe_must_not_run)
+
+    report = cache.verify_archive(cache_dir)
+
+    assert report["status"] == "PASS"
+    assert report["phase"] == "verify-archive"
+    assert report["bundle_id"] == acquired["bundle_id"]
+    assert report["package_count"] == acquired["package_count"]
+    assert report["total_bytes"] == acquired["total_bytes"]
+    assert report["network_download_performed"] is False
+
+
+def test_verify_archive_rejects_extra_package_member(
+    tmp_path: Path,
+    patch_host,
+) -> None:
+    cache_dir, _, _ = acquire_bundle(tmp_path, patch_host)
+    (cache_dir / "packages" / "unexpected_test_arm64.deb").write_bytes(b"unexpected")
+
+    with pytest.raises(
+        cache.HostRuntimeCacheError,
+        match="cache_package_member_set_mismatch",
+    ):
+        cache.verify_archive(cache_dir)
 
 
 def test_verify_rejects_host_contract_drift(
