@@ -589,7 +589,11 @@ def _rollback_runtime() -> dict[str, object]:
         except Exception:
             errors.append("compose_down")
     try:
-        _run(("systemctl", "disable", BROKER_UNIT, SERVICES_UNIT, CERT_TIMER), timeout=60)
+        _run(
+            ("systemctl", "disable", BROKER_UNIT, SERVICES_UNIT, CERT_TIMER),
+            timeout=60,
+            allowed=frozenset({0, 1}),
+        )
     except Exception:
         errors.append("disable")
     try:
