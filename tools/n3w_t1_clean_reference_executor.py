@@ -20,6 +20,60 @@ class CleanReferenceExecutorError(RuntimeError):
     pass
 
 
+STAGED_UNITS = (
+    "n3wfc4-broker-ingress-guard.service",
+    "n3wfc4-registration-ingress-guard.service",
+    "n3wfc4-provision-resume.service",
+)
+
+
+class CleanReferenceAdapterBridge:
+    def __init__(self, adapter: Any) -> None:
+        self._adapter = adapter
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._adapter, name)
+
+    def stopped_postcheck(self, system_id: str) -> Any:
+        report = self._adapter.enable_staged_units()
+        if (
+            report.get("status") != "PASS"
+            or report.get("provision_resume_enabled") is not True
+            or report.get("production_activation_enabled") is not False
+            or report.get("production_service_start") is not False
+        ):
+            raise CleanReferenceExecutorError("staged_units_enable_invalid")
+        return self._adapter.stopped_postcheck(system_id)
+
+    def cleanup(self, candidate_root: Path) -> Any:
+        errors: list[str] = []
+        runner = getattr(self._adapter, "runner", None)
+        if runner is None:
+            errors.append("staged_unit_cleanup_runner_missing")
+        else:
+            for unit in STAGED_UNITS:
+                try:
+                    runner.run(
+                        ("systemctl", "disable", unit),
+                        allowed=frozenset({0, 1}),
+                    )
+                except Exception:
+                    errors.append(f"staged_unit_disable_failed:{unit}")
+        cleanup_error: Exception | None = None
+        cleanup_report: Any = None
+        try:
+            cleanup_report = self._adapter.cleanup(candidate_root)
+        except Exception as error:
+            cleanup_error = error
+        if errors:
+            raise CleanReferenceExecutorError(
+                "staged_unit_cleanup_incomplete"
+            ) from cleanup_error
+        if cleanup_error is not None:
+            raise cleanup_error
+        return cleanup_report
+
+
 def _load_module(path: Path, name: str) -> ModuleType:
     if path.is_symlink() or not path.is_file():
         raise CleanReferenceExecutorError("payload_module_missing")
@@ -97,7 +151,8 @@ def execute_apply(payload_root: Path, confirmation: str) -> dict[str, object]:
         raise CleanReferenceExecutorError("clean_reference_confirmation_mismatch")
     if os.geteuid() != 0:
         raise CleanReferenceExecutorError("root_required")
-    _, contract, manifest, adapter = _load_payload(payload_root)
+    _, contract, manifest, raw_adapter = _load_payload(payload_root)
+    adapter = CleanReferenceAdapterBridge(raw_adapter)
     candidate = Path("/var/tmp") / f"n3w-clean-reference-r1-{secrets.token_hex(8)}"
 
     def authorize() -> None:
