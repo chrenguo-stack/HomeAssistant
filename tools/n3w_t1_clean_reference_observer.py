@@ -350,14 +350,22 @@ def _container(service: str) -> dict[str, Any]:
     if state.get("Running") is not True:
         raise ObservationError(f"service_not_running:{service}")
     mount_contract = sorted(
-        {
-            "type": row.get("Type"),
-            "source": row.get("Source"),
-            "destination": row.get("Destination"),
-            "rw": row.get("RW"),
-        }
-        for row in mounts
-        if isinstance(row, dict)
+        (
+            {
+                "type": row.get("Type"),
+                "source": row.get("Source"),
+                "destination": row.get("Destination"),
+                "rw": row.get("RW"),
+            }
+            for row in mounts
+            if isinstance(row, dict)
+        ),
+        key=lambda row: (
+            str(row.get("destination")),
+            str(row.get("type")),
+            str(row.get("source")),
+            str(row.get("rw")),
+        ),
     )
     stable_contract = {
         "image": config.get("Image"),
