@@ -116,6 +116,17 @@ def _test_private_writer(path: Path, document: dict) -> None:
     )
 
 
+def _relax_runner_root_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_read_json = bridge._read_json
+
+    def relaxed_read_json(path: Path, *, mode: int | None = None) -> dict:
+        return real_read_json(path, mode=None)
+
+    monkeypatch.setattr(bridge, "_read_json", relaxed_read_json)
+
+
 def _preflight() -> dict:
     return {
         "manifest": {
@@ -208,6 +219,7 @@ def test_apply_consumes_one_shot_and_finishes_factory_accepted(
     monkeypatch.setattr(bridge, "FACTORY_ACCEPTED", marker)
     monkeypatch.setattr(bridge, "BRIDGE_ROOT", state_root)
     monkeypatch.setattr(bridge, "BRIDGE_TRANSACTION", transaction)
+    _relax_runner_root_metadata(monkeypatch)
     monkeypatch.setattr(bridge, "_preflight", lambda *_args: _preflight())
     monkeypatch.setattr(
         bridge,
@@ -279,6 +291,7 @@ def test_apply_rolls_marker_back_when_standard_inspect_fails(
     monkeypatch.setattr(bridge, "FACTORY_ACCEPTED", marker)
     monkeypatch.setattr(bridge, "BRIDGE_ROOT", state_root)
     monkeypatch.setattr(bridge, "BRIDGE_TRANSACTION", transaction)
+    _relax_runner_root_metadata(monkeypatch)
     monkeypatch.setattr(bridge, "_preflight", lambda *_args: _preflight())
     monkeypatch.setattr(
         bridge,
@@ -316,6 +329,7 @@ def test_preexisting_bridge_state_blocks_replay(
     state_root = tmp_path / "bridge-state"
     state_root.mkdir()
     monkeypatch.setattr(bridge, "BRIDGE_ROOT", state_root)
+    monkeypatch.setattr(bridge.os, "geteuid", lambda: 0)
     monkeypatch.setattr(
         bridge,
         "_package",
