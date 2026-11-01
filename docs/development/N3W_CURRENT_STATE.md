@@ -1,3 +1,37 @@
+## 2026-11-01 — R1 runtime-only artifact Mac acquisition/local cross-binding gate prepared
+
+~~~text
+TASK=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_RUNTIME_ONLY_ARTIFACT_MAC_ACQUISITION_AND_LOCAL_CROSS_BINDING_20261101_01
+
+RUNTIME_RUN_ID=41286249917
+RUNTIME_ARTIFACT_ID=13075576515
+RUNTIME_ARTIFACT_DIGEST=sha256:7879bca99292829c3da55774968ea3a5a71627cca5f916d684e180898f520c91
+RUNTIME_ARTIFACT_EXPIRED=false
+
+S1_IMAGE_ARTIFACT_ID=13070404405
+S1_IMAGE_ARTIFACT_EXPIRED=false
+
+TARGET=MAC_PRIVATE_DURABLE_CACHE
+T1_ACCESS=false
+T1_MUTATION=false
+DOCKER_MUTATION=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+MERGE=false
+
+CURRENT_STOP_POINT=WAITING_FOR_OPERATOR_MAC_RUNTIME_ARTIFACT_ACQUISITION_AND_LOCAL_CROSS_BINDING
+AUTO_EXECUTE_T1B_PREFLIGHT=false
+~~~
+
+Fresh GitHub metadata confirms both runtime-only artifact 13075576515 and S1 image artifact
+13070404405 remain unexpired and bound to the frozen inputs. The next bounded action is Mac-only:
+download the small runtime artifact into a separate durable cache and cross-bind it against the
+already-verified S1 three-image cache using the exact R1 deployment-tool authority. No T1 locator,
+SSH, Docker mutation, service start or board access is part of this gate.
+
+Preflight authority:
+`docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_RUNTIME_ONLY_ARTIFACT_MAC_ACQUISITION_AND_LOCAL_CROSS_BINDING_PREFLIGHT_20261101.md`.
+
 ## 2026-11-01 — R1 runtime-only exact artifact production and binding CLOSED_PASS
 
 ~~~text
