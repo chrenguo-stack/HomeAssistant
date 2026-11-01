@@ -1,3 +1,17 @@
+## 2026-11-01 — R0H host-runtime design is CLOSED_PASS; bounded T1_B apply is next
+
+- R0H design/preflight result: `PASS`.
+- R0 PASS remains the required input; T1_A remains untouched.
+- Minimum host runtime is Armbian/systemd/SSH/network/time plus Ubuntu `docker.io` and `docker-compose-v2`.
+- Existing `tools/n3w_t1_fresh_host_baseline.py` is reused; no new Docker installer is required.
+- Docker/Compose are outside canonical `T1_Core_Stack` product identity.
+- R0H resolves current Ubuntu resolute/arm64 package candidates, records them, and installs those exact `package=version` values.
+- No third-party Docker repository, `get.docker.com`, snap, unversioned install, `apt upgrade`, or `dist-upgrade` fallback is allowed.
+- R0H postcondition requires Docker active/enabled with 0 containers, 0 images, 0 volumes, only default Docker networks, and zero N3-W product residue/listeners.
+- Design authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_HOST_RUNTIME_ESTABLISHMENT_DESIGN_AND_PREFLIGHT_20261101.md`.
+- Next ONE gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_T1B_HOST_RUNTIME_LIVE_APPLY_20261101_01`.
+- The next gate mutates T1_B host runtime only; T1_Core_Stack deployment/provisioning remains forbidden.
+
 ## 2026-11-01 — T1_B R0 Fresh Armbian baseline is CLOSED_PASS
 
 - Gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0_T1B_FRESH_ARMBIAN_READONLY_BASELINE_20261101_01`.
