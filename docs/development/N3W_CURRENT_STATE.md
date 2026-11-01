@@ -1,3 +1,39 @@
+## 2026-11-01 — R0H cache-only install APT sandbox path repair CLOSED_PASS
+
+~~~text
+TASK=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_T1B_CACHE_ONLY_INSTALL_APT_SANDBOX_PATH_REPAIR_20261101_01
+
+CURRENT_INSTALL_SOURCE_AUTHORITY=2b87ae05f8f0ddca0c57195495432692adcef7c1
+BUNDLE_ID=26bc7f78615a0ed3f1240ddfb2ecded5ef7df1da50e9969a52dffb1010185163
+
+LIVE_FAILURE_ROOT_CAUSE=APT_SANDBOX_CANNOT_TRAVERSE_ROOT_CACHE_PATH
+DEPENDENCY_CLOSURE_COMPLETE=true
+PARTIAL_INSTALL_OCCURRED=false
+BUNDLE_CONTENT_CHANGED=false
+BUNDLE_REDOWNLOAD_REQUIRED=false
+
+SOURCE_REPAIR=PASS
+SOURCE_REVIEW=PASS
+SOURCE_CI=PASS
+SOURCE_CLOSURE=CLOSED_PASS
+
+CURRENT_STOP_POINT=WAITING_FOR_OPERATOR_T1B_CACHE_ONLY_INSTALL_RETRY
+NEXT_STOP_POINT=R0H_POSTINSTALL_ACCEPTANCE_PASS
+
+T1_A_MUTATION=false
+BOARD_ACCESS=false
+T1_CORE_STACK_DEPLOYMENT=false
+~~~
+
+The install source now stages the already verified .deb files under an APT-readable temporary
+directory in /var/tmp, rechecks file size/SHA-256, performs the same --no-download install,
+and removes the temporary staging directory on success or failure.
+
+The bundle itself remains unchanged and must not be reacquired.
+
+Closure authority:
+`docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_T1B_CACHE_ONLY_INSTALL_APT_SANDBOX_PATH_REPAIR_CLOSURE_20261101.md`.
+
 ## 2026-11-01 — R0H T1_B cache-only install and post-install acceptance gate prepared
 
 ~~~text
