@@ -1,3 +1,40 @@
+## 2026-11-01 — R1 T1_B first deployment preexecution prepared
+
+~~~text
+TASK=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_T1B_FIRST_DEPLOYMENT_20261101_01
+TARGET=T1_B
+
+S0_SOURCE_AUTHORITY_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+R1_DEPLOYMENT_TOOL_SOURCE_AUTHORITY=4b0ec26e04a8f10d0d9e746c05b6a5794510d8a1
+READONLY_INVENTORY_AUTHORITY=ca849ed8565504529e2e39c823172ec2070cb5a8
+
+R1_T1B_PREDEPLOYMENT_READONLY_PREFLIGHT=CLOSED_PASS
+
+T1_ACCESS=true
+T1_MUTATION=true
+PAYLOAD_TRANSFER=true
+IMAGE_TRANSFER=true
+DOCKER_IMAGE_LOAD=true
+
+PRODUCTION_SERVICE_START=false
+PRODUCTION_V2_AUTHORITY_USED=false
+ACTIVATION_AUTHORIZED=false
+BOARD_ACCESS=false
+MERGE=false
+
+CURRENT_STOP_POINT=WAITING_FOR_OPERATOR_R1_T1B_FIRST_DEPLOYMENT_EXECUTION
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+The current gate authorizes only the frozen Clean Reference R1 stopped-state apply path. It may
+transfer the exact runtime payload and one exact image tar at a time, load exactly the three S1
+images, create fresh system/state/Broker/DynSec material, commit transaction-owned stopped-state
+runtime, and run the internal stopped postcheck. Production V2 authority and service activation
+remain forbidden.
+
+Preexecution authority:
+`docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_T1B_FIRST_DEPLOYMENT_PREEXECUTION_20261101.md`.
+
 ## 2026-11-01 — R1 T1_B predeployment read-only preflight CLOSED_PASS
 
 ~~~text
