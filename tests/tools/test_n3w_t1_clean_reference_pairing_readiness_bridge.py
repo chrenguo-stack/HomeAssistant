@@ -316,9 +316,35 @@ def test_preexisting_bridge_state_blocks_replay(
     state_root = tmp_path / "bridge-state"
     state_root.mkdir()
     monkeypatch.setattr(bridge, "BRIDGE_ROOT", state_root)
+    monkeypatch.setattr(
+        bridge,
+        "_package",
+        lambda _root: {"control_plane_head": CONTROL_HEAD},
+    )
 
     with pytest.raises(bridge.BridgeError, match="bridge_transaction_already_claimed"):
         bridge._preflight(tmp_path, tmp_path / "r2-reference.json")
+
+
+def test_clean_security_state_is_required() -> None:
+    bridge._require_clean_security_state(
+        {
+            "credential_assignments": 0,
+            "peer_trust_records": 0,
+            "application_key_active_nodes": 0,
+            "application_key_epochs": 0,
+        }
+    )
+
+    with pytest.raises(bridge.BridgeError, match="first_pair_security_state_not_clean"):
+        bridge._require_clean_security_state(
+            {
+                "credential_assignments": 1,
+                "peer_trust_records": 0,
+                "application_key_active_nodes": 0,
+                "application_key_epochs": 0,
+            }
+        )
 
 
 def test_authorization_contract_is_bounded() -> None:
