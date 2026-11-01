@@ -1,3 +1,27 @@
+## 2026-11-01 — R2 controlled start and reboot CLOSED_PASS
+
+- Gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R2_CONTROLLED_START_AND_REBOOT_20261101`.
+- Result: CLOSED_PASS; both R2A and R2B are CLOSED_PASS.
+- Product source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- R2A control authority: `abeb6c31147bcf249361dcec7e9536eaed6106a6`.
+- Final R2B control authority: `e15c64ac8f0f5f482a6c8538072031734002a559`.
+- Final R2B CI run `41313796825`: SUCCESS; 7 tests PASS; R2A byte continuity PASS.
+- Exact R2B artifact `13086354529`, digest `sha256:b604da84720479d9f844aae49986ccc0b70fd469e25625e26ccd95386e432858`.
+- R2B package manifest SHA-256: `87a8339ffd523709758ffda3ea64bd15303ca64dbaa0e28386fb3afc63b16eff`.
+- First R2B live preflight false STOP repaired: provision-resume is correctly enabled/inactive before the first reboot and enabled/active after reboot.
+- R2B one-shot authorization consumed exactly once; replay forbidden.
+- Real reboot proven by boot ID change from `8e649419-3243-4e23-973d-b53f2a626b82` to `dc0f29fd-59f9-4f4c-ae79-206db2b22002`.
+- R2A transaction unchanged across reboot.
+- Broker + Manager + Home Assistant restored; exact running container count 3.
+- Broker authenticated readiness PASS; Home Assistant HTTP readiness PASS with 401 authenticated response.
+- Production units enabled/active after reboot.
+- Certificate timer enabled/active; certificate one-shot service quiescent; certificate identity unchanged.
+- 30-second post-reboot container stability PASS.
+- Final failed systemd unit count 0; R2B transport residue count 0.
+- Board access false; R3 not executed; merge false.
+- Closure: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R2_CONTROLLED_START_AND_REBOOT_CLOSURE_20261101.md`.
+- Next boundary: R3 is a separate gate and must not be auto-entered.
+
 ## 2026-11-01 — R2A first production start CLOSED_PASS
 
 - Gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R2A_PRODUCTION_ACTIVATION_START_20261101_01`.
