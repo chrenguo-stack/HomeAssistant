@@ -1,3 +1,17 @@
+## 2026-11-02 — R3 pairing-readiness bridge preflight STOP_PRECLAIM
+
+- Exact bridge authority: `37e269300d6fadeee7ad85476374813f879cdb23`.
+- CI run `41322028703`: SUCCESS; 17 tests PASS.
+- Artifact `13090105684`, digest `sha256:c43d0bbd144d6d0e6e8ec5770e1b47f69e85d7e9dd7b4b72a5240d0e1055a7e8`.
+- Read-only preflight STOP: `private_root_invalid:/var/lib/n3w-t1-provisioning`.
+- Preclaim state preserved: authorization not claimed/consumed; FACTORY_ACCEPTED not created; pairing window not opened; Board access false.
+- Source defect proven: bridge references `sqlite3` without importing it.
+- Design assumption disproven: missing provisioning root means `UNPROVISIONED` under the frozen device-provisioning contract; Clean Reference did not already have DEVICE_READY authority.
+- Empty provisioning-root creation and fake DEVICE_READY are forbidden.
+- Temporary transport cleanup was trap-driven but final residue count was not reached; fresh read-only recheck required.
+- Next gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_PAIRING_READINESS_BRIDGE_SOURCE_REPAIR_AND_IDENTITY_AUTHORITY_REDESIGN_20261102_01`.
+- Archive: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_PAIRING_READINESS_BRIDGE_PREFLIGHT_FAILURE_20261102.md`.
+
 ## 2026-11-01 — R3 R2 common-reference baseline CLOSED_PASS; pairing-entry gap OPEN
 
 - R2 common-reference SHA-256: `89da2a2b2cc1ce0fa024c3c45e24a71f09ba05e0e0cadbd67dd6387291239747`.
