@@ -1,3 +1,42 @@
+## 2026-11-01 — R0H local Docker/Compose package cache route selected
+
+~~~text
+TASK=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_HOST_RUNTIME_LOCAL_PACKAGE_CACHE_DESIGN_20261101_01
+
+PREVIOUS_R0H_DIRECT_ONLINE_INSTALL=SUPERSEDED_BEFORE_EXECUTION
+PREVIOUS_R0H_LIVE_APPLY_EXECUTED=false
+
+R0H_HOST_PACKAGE_CACHE=REQUIRED
+R0H_CACHE_ROOT=~/Documents/N3W/host-runtime-cache
+FIRST_ACQUISITION_NETWORK_DOWNLOAD_COUNT_TARGET=ONE
+FIRST_INSTALL_FROM_CACHE=true
+REPEAT_INSTALL_FROM_CACHE=true
+SILENT_NETWORK_FALLBACK=false
+
+HOST_PACKAGE_CACHE_IS_T1_CORE_STACK_ARTIFACT=false
+HOST_PACKAGE_CACHE_IS_PRODUCT_IDENTITY=false
+
+SOURCE_REPAIR_REQUIRED=true
+LIVE_R0H_APPLY_BLOCKED_UNTIL_SOURCE_CLOSURE=true
+
+T1_A_MUTATION=false
+T1_B_MUTATION=false
+BOARD_ACCESS=false
+PR745_MERGE=false
+PR705_UPWARD_MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_LOCAL_PACKAGE_CACHE_SOURCE_IMPLEMENTATION_20261101_01
+~~~
+
+The earlier direct online R0H install command is superseded and must not be executed.
+R0H now acquires the exact Docker/Compose package dependency closure once, archives and
+hash-verifies it in the durable Mac host-runtime cache, and requires cache-only installation
+with package download disabled. Future fresh T1 hosts reuse the same exact compatible bundle
+without downloading Docker/Compose package payload again.
+
+Design authority:
+`docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_HOST_RUNTIME_LOCAL_PACKAGE_CACHE_DESIGN_20261101.md`.
+
 ## 2026-11-01 — R0H minimum host runtime design/preflight CLOSED_PASS
 
 ~~~text
