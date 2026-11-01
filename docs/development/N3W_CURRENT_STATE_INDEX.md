@@ -1,3 +1,18 @@
+## 2026-11-01 — R3 R2 common-reference baseline CLOSED_PASS; pairing-entry gap OPEN
+
+- R2 common-reference SHA-256: `89da2a2b2cc1ce0fa024c3c45e24a71f09ba05e0e0cadbd67dd6387291239747`.
+- Exact observer authority: `da9124fe18774cdb5822f9eb3afee40120cfb04f`.
+- CI run `41317600634`: SUCCESS; 8 tests PASS; R2A/R2B byte continuity PASS.
+- Artifact `13087179158`, digest `sha256:473499d10e0487a591e8828312a76036fe438463d3455a8ed74d8eea5f96821b`.
+- Health PASS: system running, failed unit count 0, Broker/Manager/Home Assistant healthy, Manager and HA MQTT sockets present.
+- Collection integrity PASS: boot unchanged, containers unchanged, product mutation not observed, observer transport residue 0.
+- Full R1 common-reference is unavailable because the observer schema did not yet exist; T1_B will not be wiped/redeployed just to recreate it.
+- R3 first-pairing entry blocker: standard onboarding requires `FACTORY_ACCEPTED.json`; Clean Reference R1/R2 did not create it.
+- Old F4 is not safe to replay after R2 because its preactivation audit requires production units stopped/disabled and services not started.
+- Classification: host control-authority gap, not Board failure.
+- R3 remains IN_PROGRESS; workload not executed; Board work remains a separate gate.
+- Closure: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_R2_COMMON_REFERENCE_BASELINE_CLOSURE_20261101.md`.
+
 ## 2026-11-01 — R2 controlled start and reboot CLOSED_PASS
 
 - Gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R2_CONTROLLED_START_AND_REBOOT_20261101`.
