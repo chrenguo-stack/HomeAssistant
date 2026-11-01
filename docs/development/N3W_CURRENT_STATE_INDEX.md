@@ -1,3 +1,16 @@
+## 2026-11-01 — R0H cache-only install R3 APT archive-cache repair is CLOSED_PASS
+
+- Current install source authority: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Existing bundle ID remains `26bc7f78615a0ed3f1240ddfb2ecded5ef7df1da50e9969a52dffb1010185163`.
+- Bundle content is unchanged and does not require reacquisition.
+- R3 stages verified .deb members into a temporary APT archive cache and sets `Dir::Cache::archives` to that directory.
+- Every manifest member is requested as `package=exact_version`.
+- `apt-get --no-download --no-remove` remains mandatory; no apt update, fix-missing or online fallback is added.
+- Exact-head CI all SUCCESS: host-only 41275979166, public safety 41275979204, greenhouse-manager 41275979255, exact ARM64 41275979177.
+- Closure authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_T1B_CACHE_ONLY_INSTALL_R3_APT_ARCHIVE_CACHE_REPAIR_CLOSURE_20261101.md`.
+- Current stop point: waiting for T1_B R3 cache-only install retry.
+- On PASS, R0H post-install acceptance closes and S0 exact T1_Core_Stack source/version freeze becomes next.
+
 ## 2026-11-01 — R0H cache-only install APT sandbox path repair is CLOSED_PASS
 
 - Current install source authority: `2b87ae05f8f0ddca0c57195495432692adcef7c1`.
