@@ -90,7 +90,8 @@ The old failed-upgrade T1 maintenance evidence has been privately archived by th
 PREWIPE_PRIVATE_EVIDENCE_ARCHIVED=true
 PREWIPE_PRIVATE_EVIDENCE_SHA256=711359c2b6a3522daac4ce9697a20b9876b71f202b44d6c79f65eda79f67025c
 PUBLIC_REPOSITORY_CONTAINS_PRIVATE_ARCHIVE=false
-OLD_T1_RUNTIME_MAY_BE_DISCARDED=true
+OLD_T1_RUNTIME_MAY_BE_DISCARDED=false
+T1_A_PRESERVE_FOR_LEGACY_UPGRADE_VALIDATION=true
 ```
 
 Historical failed transaction/recovery conclusions remain in PR #705/#745 and repository
@@ -100,7 +101,8 @@ documents. The clean-reference route must not replay their consumed authorizatio
 
 ### Phase R0 — Fresh Armbian read-only baseline
 
-Operator prepares one T1 with official Armbian only.
+Operator prepares T1_B with official Armbian only. T1_A is preserved unchanged as a
+legacy/failed-upgrade specimen and is not used for R0.
 
 First new-chat gate is read-only and records the clean host before product-runtime
 installation.
@@ -255,6 +257,56 @@ requires it.
 Historical terminal maintenance evidence should not remain a permanent runtime blocker.
 Only unresolved current maintenance may block a new upgrade.
 
+### Phase U0 — Freeze an explicit upgrade baseline A
+
+Only after A1/A2 converges, freeze a real upgrade baseline.
+
+```text
+UPGRADE_TOOL=T1_Core_Updater
+UPGRADE_BASELINE=A
+UPGRADE_TARGET=B
+UPGRADE_REQUIRES_A_NOT_EQUAL_B=true
+```
+
+T1_B is the clean upgrade-validation machine. T1_A remains the legacy/dirty validation
+machine.
+
+### Phase U1 — First clean Manager A -> B validation
+
+Default first upgrade target:
+
+```text
+UPGRADE_TARGET=MANAGER
+HOMEASSISTANT_MUTATION=false
+BROKER_MUTATION=false
+HOST_MUTATION=false
+```
+
+Validate:
+- inspect;
+- plan;
+- Manager stop/replace/start;
+- persistent state compatibility;
+- Manager/Broker/HA product behavior;
+- source-owned rollback B -> A;
+- no unrelated component mutation.
+
+### Phase U2 — Legacy/dirty T1_A validation
+
+Use T1_A only after its live state is freshly inspected.
+
+Primary purpose:
+- verify the updater can classify a real historical failed-upgrade/maintenance state;
+- prove it does not silently reuse old consumed transactions/authorizations;
+- decide whether legacy state is directly migratable or must be resolved by a separate
+  bounded legacy-cleanup path.
+
+The updater is not required to absorb every historical maintenance implementation into its
+normal runtime model.
+
+Historical first-registration E03 may be used as a Manager business-bug upgrade case only if
+fresh T1_A evidence proves that bug state/version is actually present.
+
 ### Phase O1 — Full offline installation
 
 After the clean reference and simplified upgrade architecture converge, finish the
@@ -268,6 +320,9 @@ This is not part of R0/R1/R2 acceptance.
 ```text
 PR705=ACTIVE_PARENT_WORKSPACE
 PR745=OPEN_UNMERGED_ARCHITECTURE_HOLD
+T1_A=KEEP_LEGACY_UPGRADE_AND_FAILURE_SPECIMEN
+T1_B=CLEAN_REFERENCE_AND_CLEAN_UPGRADE_TARGET
+UPGRADE_TOOL=T1_Core_Updater
 PR746=MERGED_INTO_PR705
 PR705_UPWARD_MERGE=false
 ```
