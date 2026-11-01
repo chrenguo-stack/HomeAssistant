@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -122,6 +123,26 @@ def test_runtime_builder_source_contains_no_image_build_or_pull() -> None:
     assert '"docker", "build"' not in executable
     assert '"docker", "pull"' not in executable
     assert '"buildx"' not in executable
+
+
+def test_executor_dynamic_payload_import_does_not_write_bytecode(
+    tmp_path: Path,
+) -> None:
+    module_path = tmp_path / "payload_module.py"
+    module_path.write_text("VALUE = 7\n", encoding="utf-8")
+
+    previous = sys.dont_write_bytecode
+    try:
+        sys.dont_write_bytecode = False
+        loaded = executor._load_module(
+            module_path,
+            "n3w_test_clean_reference_payload_module",
+        )
+    finally:
+        sys.dont_write_bytecode = previous
+
+    assert loaded.VALUE == 7
+    assert not (tmp_path / "__pycache__").exists()
 
 
 def test_executor_requires_explicit_clean_reference_confirmation() -> None:
