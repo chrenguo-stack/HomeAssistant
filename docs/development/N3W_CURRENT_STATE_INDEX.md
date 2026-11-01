@@ -1,3 +1,15 @@
+## 2026-11-01 — R0H T1_B cache-only install and post-install acceptance gate is prepared
+
+- Exact bundle ID: `26bc7f78615a0ed3f1240ddfb2ecded5ef7df1da50e9969a52dffb1010185163`.
+- Installation may use only the verified T1 cache and repository `--phase install`.
+- APT package download/fallback remains forbidden; the tool uses `apt-get --no-download --no-remove`.
+- Docker service enable/start is allowed as host-runtime establishment only.
+- T1_Core_Stack images, containers, product paths, product units and product listeners remain forbidden.
+- Post-install must prove exact Docker/Compose package versions, 0 containers/images/volumes, only bridge/host/none networks, and zero product residue.
+- Preflight authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_T1B_CACHE_ONLY_INSTALL_AND_POSTINSTALL_ACCEPTANCE_PREFLIGHT_20261101.md`.
+- Current stop point: waiting for operator T1_B cache-only install.
+- On PASS, R0H closes and S0 exact T1_Core_Stack source/version freeze becomes next.
+
 ## 2026-11-01 — R0H T1_B download-only host cache acquisition and Mac archive are CLOSED_PASS
 
 - Exact bundle ID: `26bc7f78615a0ed3f1240ddfb2ecded5ef7df1da50e9969a52dffb1010185163`.
