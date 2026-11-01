@@ -1,3 +1,23 @@
+## 2026-11-01 — R2A first production start CLOSED_PASS
+
+- Gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R2A_PRODUCTION_ACTIVATION_START_20261101_01`.
+- Result: CLOSED_PASS.
+- Product source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- R2A control authority: `abeb6c31147bcf249361dcec7e9536eaed6106a6`.
+- CI run `41307906081`: SUCCESS; 12 source tests PASS.
+- Exact artifact `13084461803`, digest `sha256:f6acacb0ed92defe4b46a34c27c12c13fe2f4c27cb85f81b88a6fb4d1d728bc0`.
+- Package manifest SHA-256: `a0bb9977314a7e4a3f9d051004c0bdcfe0410f2780f185d8aa68500d8919a76b`.
+- R1 stopped preflight PASS immediately before mutation.
+- Transaction reached `RUNTIME_STARTED`; one-shot authorization consumed and replay forbidden.
+- Broker + Manager + Home Assistant running; exact running container count 3.
+- Broker authenticated readiness PASS; Broker port binding exact.
+- Home Assistant HTTP readiness PASS with expected authenticated response 401.
+- 30-second container identity stability PASS; restart counts 0.
+- Production units enabled/active; certificate timer enabled but inactive before reboot.
+- Same boot preserved through R2A; reboot was not executed.
+- Closure: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R2A_FIRST_PRODUCTION_START_CLOSURE_20261101.md`.
+- Next: R2B controlled reboot/persistence acceptance; do not replay R2A authorization.
+
 ## 2026-11-01 — R1 T1_B first deployment CLOSED_PASS
 
 - Gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_T1B_FIRST_DEPLOYMENT_20261101_01`.
