@@ -1,3 +1,52 @@
+## 2026-11-01 — R2A first production start CLOSED_PASS
+
+~~~text
+TASK=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R2A_PRODUCTION_ACTIVATION_START_20261101_01
+RESULT=CLOSED_PASS
+
+PRODUCT_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+R2A_CONTROL_HEAD=abeb6c31147bcf249361dcec7e9536eaed6106a6
+
+CI_RUN=41307906081
+CI_RESULT=SUCCESS
+R2A_ARTIFACT_ID=13084461803
+R2A_ARTIFACT_DIGEST=sha256:f6acacb0ed92defe4b46a34c27c12c13fe2f4c27cb85f81b88a6fb4d1d728bc0
+PACKAGE_MANIFEST_SHA256=a0bb9977314a7e4a3f9d051004c0bdcfe0410f2780f185d8aa68500d8919a76b
+
+TRANSACTION_STAGE=RUNTIME_STARTED
+AUTHORIZATION_CONSUMED=true
+AUTHORIZATION_REPLAY_ALLOWED=false
+
+RUNTIME_SERVICES=broker,homeassistant,manager
+RUNNING_CONTAINER_COUNT=3
+CONTAINER_STABILITY_SECONDS=30
+BROKER_AUTHENTICATED_READINESS=true
+HOMEASSISTANT_HTTP_READY=true
+HOMEASSISTANT_HTTP_STATUS=401
+
+PRODUCTION_UNITS_ENABLED=true
+PRODUCTION_UNITS_ACTIVE=true
+CERTIFICATE_TIMER_ENABLED=true
+CERTIFICATE_TIMER_ACTIVE_BEFORE_REBOOT=false
+PRODUCTION_SERVICE_START=true
+PERSISTENCE_ENABLED=true
+PRE_REBOOT_READY=true
+
+R2B_REBOOT_EXECUTED=false
+BOARD_ACCESS=false
+~~~
+
+R2A first production start is closed. Exact package authority, R1 stopped preflight, one-shot
+authorization claim, Broker authenticated readiness, Manager/Home Assistant start, three-container
+inventory and 30-second same-container stability all PASS. The same boot remained active through
+the full R2A window. R2A authorization is consumed and must not be replayed.
+
+Closure:
+`docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R2A_FIRST_PRODUCTION_START_CLOSURE_20261101.md`.
+
+Next gate is R2B controlled reboot/persistence acceptance. It must use the existing enabled
+production units and must not re-run R2A apply.
+
 ## 2026-11-01 — R1 T1_B first deployment CLOSED_PASS
 
 ~~~text
