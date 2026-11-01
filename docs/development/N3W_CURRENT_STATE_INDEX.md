@@ -1,3 +1,14 @@
+## 2026-11-01 — R1 T1_B first deployment hit pre-mutation payload file-set false STOP
+
+- First live apply stopped with `payload_file_set_invalid` before `run_fresh_staging()`.
+- No image request/load event, product-state commit, service start or board access occurred.
+- Root cause: the host wrapper copied the independent executor inside the strict manifest-validated payload tree.
+- Bounded repair stages the executor beside the payload directory and success-cleanup removes both.
+- Repair head: `340f967065460504e52cd364a3bdaa0f24aec59e`.
+- Dedicated CI run `41293344644` is queued; 3-poll limit reached.
+- T1 retry and remote evidence cleanup remain blocked until source CI succeeds.
+- Progress authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_T1B_FIRST_DEPLOYMENT_PAYLOAD_FILE_SET_FALSE_STOP_REPAIR_PROGRESS_20261101.md`.
+
 ## 2026-11-01 — R1 T1_B first deployment is prepared
 
 - T1_B read-only eligibility is CLOSED_PASS and the current gate now authorizes bounded R1 mutation.
