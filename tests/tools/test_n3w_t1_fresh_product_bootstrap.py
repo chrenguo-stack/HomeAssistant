@@ -594,6 +594,14 @@ def test_postcheck_failure_runs_cleanup_and_reports_stage() -> None:
                 "production_service_start": False,
             }
 
+        def enable_staged_units(self):
+            return {
+                "status": "PASS",
+                "provision_resume_enabled": True,
+                "production_activation_enabled": False,
+                "production_service_start": False,
+            }
+
         def stopped_postcheck(self, _system_id):
             raise RuntimeError("manager_root_owner_invalid")
 
