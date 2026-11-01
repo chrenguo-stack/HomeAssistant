@@ -1,3 +1,17 @@
+## 2026-11-01 — R1 local exact-image-cache deployment source repair is CLOSED_PASS
+
+- S0 source authority remains `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- R1 deployment-tool source authority is `4b0ec26e04a8f10d0d9e746c05b6a5794510d8a1`.
+- S1 exact image cache remains the R1 image artifact authority.
+- Independent Manager rebuilds are no longer eligible for Clean Reference R1.
+- New runtime-only builder/host/executor paths contain no application image build/pull path.
+- Clean Reference executor reuses stopped-state `run_fresh_staging()` and does not consume production V2 marker/run-context authority.
+- Frozen T1_Core_Stack component/runtime blobs remain unchanged from S0.
+- Seven required CI runs on the repair head are all SUCCESS.
+- Exact S1 image input artifact 13070404405 and same-source runtime input artifact 13071308834 remain unexpired.
+- Closure authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_LOCAL_EXACT_IMAGE_CACHE_DEPLOYMENT_SOURCE_REPAIR_CLOSURE_20261101.md`.
+- Next ONE gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_RUNTIME_ONLY_EXACT_ARTIFACT_PRODUCTION_AND_BINDING_20261101_01`.
+
 ## 2026-11-01 — R1 local exact-image-cache deployment source repair is CI pending
 
 - S1 remains CLOSED_PASS; its durable Mac three-image cache is authoritative.
