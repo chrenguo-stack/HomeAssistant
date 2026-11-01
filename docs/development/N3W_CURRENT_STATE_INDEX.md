@@ -1,3 +1,14 @@
+## 2026-11-01 — R1 Mac runtime-only acquisition/local cross-binding is CLOSED_PASS
+
+- Runtime-only artifact 13075576515 is durably cached on Mac in the private runtime-cache class.
+- The local runtime cache has exactly 12 runtime/control files and zero image tar files.
+- Repository-owned local verification returned PASS against the existing S1 three-image cache.
+- Exact bindings remain: source `24382caae...`, runtime payload `7c1fbc29...`, payload manifest `b5570c7e...`, S1 binding `3585049d...`.
+- Manager/Home Assistant/Mosquitto image IDs match the S1 authority exactly.
+- T1 access, Docker mutation, product service start and board access were all false.
+- Closure authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_RUNTIME_ONLY_ARTIFACT_MAC_ACQUISITION_AND_LOCAL_CROSS_BINDING_CLOSURE_20261101.md`.
+- Next ONE gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_T1B_PREDEPLOYMENT_READONLY_PREFLIGHT_20261101_01`; not auto-executed.
+
 ## 2026-11-01 — R1 Mac runtime-only acquisition/cross-binding gate is prepared
 
 - Runtime-only artifact remains exact and unexpired: run 41286249917 / artifact 13075576515 / digest `sha256:7879bca9...`.
