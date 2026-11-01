@@ -1,3 +1,16 @@
+## 2026-11-01 — R1 local exact-image-cache deployment source repair is CI pending
+
+- S1 remains CLOSED_PASS; its durable Mac three-image cache is authoritative.
+- A same-source independent Manager rebuild produced a different image ID, so the old fresh deployable artifact is not eligible for Clean Reference R1.
+- R1 invariant is now explicit: verify/cache an exact image once, then deploy that same exact image.
+- Added a runtime-payload rebinder that consumes exact S1 images without Docker build/pull.
+- Added an isolated Clean Reference target executor around the existing stopped-state `run_fresh_staging()` primitive.
+- Added local-cache Mac->T1 transport; it does not use GitHub large-artifact download.
+- Production V2 apply/marker/run-context behavior is unchanged.
+- New CI workflow: `N3W T1 Clean Reference runtime payload CI`, run 41279714935.
+- Current status: SOURCE_REPAIR_IMPLEMENTED / SOURCE_CI=PENDING.
+- R1 live apply remains blocked until source CI/review closure.
+
 ## 2026-11-01 — S1 exact three-image Mac cache is CLOSED_PASS
 
 - S0 source authority remains `24382caae4a1f5d459297f86e8d18f10a848ca64`.
