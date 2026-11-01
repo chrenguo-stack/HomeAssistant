@@ -218,6 +218,64 @@ def test_clean_reference_host_has_no_github_large_artifact_download_path() -> No
     assert '"docker", "pull"' not in source
 
 
+def test_executor_is_staged_outside_payload_tree(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "n3w_t1_clean_reference_staging_host.py"
+    executor_source = tmp_path / "n3w_t1_clean_reference_executor.py"
+    source.write_text("", encoding="utf-8")
+    executor_source.write_text("print('executor')\n", encoding="utf-8")
+
+    calls = []
+
+    class Result:
+        stdout = host._sha256_file(executor_source) + "  remote\n"
+        stderr = ""
+        returncode = 0
+
+    def fake_run(command, **_kwargs):
+        calls.append(tuple(command))
+        return Result()
+
+    monkeypatch.setattr(host, "__file__", str(source))
+    monkeypatch.setattr(host.fresh, "_run", fake_run)
+
+    remote_dir = "/var/tmp/n3w-clean-reference-r1.ABC123"
+    remote = host._transfer_executor("root@t1", remote_dir)
+
+    assert remote == remote_dir + ".executor.py"
+    assert calls[0][0] == "scp"
+    assert calls[0][-1] == "root@t1:" + remote
+    assert not remote.startswith(remote_dir + "/")
+
+
+def test_success_cleanup_removes_payload_tree_and_sibling_executor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = []
+
+    class Result:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def fake_run(command, **_kwargs):
+        calls.append(tuple(command))
+        return Result()
+
+    monkeypatch.setattr(host.fresh, "_run", fake_run)
+
+    remote_dir = "/var/tmp/n3w-clean-reference-r1.ABC123"
+    assert host._cleanup_remote("root@t1", remote_dir) is True
+
+    command = calls[0]
+    assert command[0:3] == ("ssh", "-n", "root@t1")
+    rendered = command[3]
+    assert remote_dir in rendered
+    assert remote_dir + ".executor.py" in rendered
+
+
 def test_production_wrapper_still_requires_v2_run_context() -> None:
     source = Path(host.fresh.__file__).read_text(encoding="utf-8")
     assert 'raise FreshHostTransportError("v2_run_context_required")' in source
