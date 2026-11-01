@@ -1,3 +1,16 @@
+## 2026-11-01 — R0H cache-only install APT sandbox path repair is CLOSED_PASS
+
+- Current install source authority: `2b87ae05f8f0ddca0c57195495432692adcef7c1`.
+- Physical failure root cause: the verified cache lived below `/root` (0700), so APT's sandbox user could not traverse the path to otherwise-readable .deb files.
+- Read-only forensics proved no partial package installation occurred.
+- APT simulation with the same five local .deb files returned success and required exactly those five packages, proving the bundle dependency closure is complete.
+- Existing bundle ID `26bc7f78615a0ed3f1240ddfb2ecded5ef7df1da50e9969a52dffb1010185163` remains valid; no re-download is required.
+- Repaired install stages verified .deb files in an APT-readable temporary directory below `/var/tmp`, rechecks size/SHA-256, retains `--no-download --no-remove`, and cleans staging on success/failure.
+- Exact-head CI is all SUCCESS: host-only 41274081543, public safety 41274081561, greenhouse-manager 41274081563, exact ARM64 41274081692.
+- Closure authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_T1B_CACHE_ONLY_INSTALL_APT_SANDBOX_PATH_REPAIR_CLOSURE_20261101.md`.
+- Current stop point: waiting for T1_B cache-only install retry using the repaired exact source.
+- On PASS, R0H post-install acceptance closes and S0 exact T1_Core_Stack freeze becomes next.
+
 ## 2026-11-01 — R0H T1_B cache-only install and post-install acceptance gate is prepared
 
 - Exact bundle ID: `26bc7f78615a0ed3f1240ddfb2ecded5ef7df1da50e9969a52dffb1010185163`.
