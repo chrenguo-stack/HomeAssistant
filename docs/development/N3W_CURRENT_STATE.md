@@ -1,3 +1,50 @@
+## 2026-11-01 — R0H minimum host runtime design/preflight CLOSED_PASS
+
+~~~text
+TASK=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_HOST_RUNTIME_ESTABLISHMENT_DESIGN_AND_PREFLIGHT_20261101_01
+
+R0_INPUT=PASS
+TARGET=T1_B
+
+HOST_RUNTIME_BOUNDARY=ARMBIAN_PLUS_SYSTEMD_SSH_NETWORK_TIME_PLUS_DOCKER_ENGINE_COMPOSE
+T1_CORE_STACK_DEPLOYMENT=false
+
+HOST_BASELINE_TOOL=tools/n3w_t1_fresh_host_baseline.py
+HOST_BASELINE_TOOL_BLOB=ae7d114bd54825114f462b4f7034ed6009f80f6f
+HOST_BASELINE_TEST_BLOB=efb01bb512e83eec3aa1d75e0a05da1a9a21ec70
+SOURCE_REPAIR_REQUIRED=false
+
+R0H_PACKAGES=docker.io,docker-compose-v2
+R0H_PACKAGE_SOURCE=ubuntu_apt
+R0H_PACKAGE_VERSION_POLICY=EXACT_CANDIDATE_PIN_PER_INSTALL_TRANSACTION
+R0H_PACKAGE_VERSION_IS_PRODUCT_IDENTITY=false
+
+THIRD_PARTY_DOCKER_REPOSITORY=false
+GET_DOCKER_COM=false
+SNAP=false
+APT_UPGRADE=false
+
+T1_A_MUTATION=false
+BOARD_ACCESS=false
+PR745_MERGE=false
+PR705_UPWARD_MERGE=false
+
+R0H_DESIGN_PREFLIGHT=PASS
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_T1B_HOST_RUNTIME_LIVE_APPLY_20261101_01
+~~~
+
+R0H reuses the existing repository-owned fresh-host baseline primitive instead of creating
+a second Docker installer. Docker Engine and Compose are classified as host/runtime
+prerequisites outside T1_Core_Stack product identity. Their exact package versions are pinned
+for the installation transaction and recorded as evidence; they are not automatically
+promoted to permanent T1_Core_Stack hard invariants.
+
+Design authority:
+`docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_HOST_RUNTIME_ESTABLISHMENT_DESIGN_AND_PREFLIGHT_20261101.md`.
+
+The next gate is the bounded T1_B host-runtime mutation only. It must stop before any
+T1_Core_Stack image load, deployment, provisioning or product-service activation.
+
 ## 2026-11-01 — T1_B R0 Fresh Armbian read-only baseline CLOSED_PASS
 
 ~~~text
