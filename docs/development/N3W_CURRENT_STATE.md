@@ -1,3 +1,31 @@
+## 2026-11-01 — R1 T1_B readonly preflight nft false-STOP repair CLOSED_PASS
+
+~~~text
+TASK=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_T1B_PREFLIGHT_NFT_VISIBILITY_FALSE_STOP_SOURCE_REPAIR_20261101_01
+
+READONLY_INVENTORY_REPAIR_HEAD=ca849ed8565504529e2e39c823172ec2070cb5a8
+DEDICATED_CI_RUN_ID=41290538736
+DEDICATED_CI_RESULT=SUCCESS
+
+R1_DEPLOYMENT_TOOL_SOURCE_AUTHORITY=4b0ec26e04a8f10d0d9e746c05b6a5794510d8a1
+R1_DEPLOYMENT_TOOL_AUTHORITY_CHANGED=false
+
+ROOT_CAUSE=OPTIONAL_NFT_CLI_ABSENT_FALSE_STOP
+T1_B_PRODUCT_RESIDUE_FOUND=false
+RESULT=CLOSED_PASS
+
+CURRENT_STOP_POINT=WAITING_FOR_OPERATOR_T1B_READONLY_REVALIDATION
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+The first T1_B readonly preflight proved Docker empty, product paths/units/listeners absent,
+iptables filter/NAT visibility complete, and transport capacity PASS. The only UNKNOWN_STOP was
+the absent optional nft CLI. The bounded observer repair is now CI-successful; it does not change
+the frozen R1 deployment/capacity authority.
+
+Closure authority:
+`docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_T1B_PREFLIGHT_NFT_VISIBILITY_FALSE_STOP_SOURCE_REPAIR_CLOSURE_20261101.md`.
+
 ## 2026-11-01 — R1 T1_B predeployment read-only preflight prepared
 
 ~~~text
