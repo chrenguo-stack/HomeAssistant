@@ -227,6 +227,48 @@ def test_operation_reconciles_transient_postexecute_probe_failure(
     assert tx.pending_operation(result) is None
 
 
+def test_operation_unchanged_poststate_is_known_failure(
+    tmp_path: Path,
+) -> None:
+    document = _document()
+    store = _store(tmp_path, document)
+    calls = 0
+
+    def reality() -> str:
+        nonlocal calls
+        calls += 1
+        return "1" * 64
+
+    with pytest.raises(
+        successor.SuccessorError,
+        match="operation_poststate_unchanged",
+    ):
+        successor._operation(
+            store,
+            document,
+            binding=_binding(),
+            action="deployment_inputs_publish",
+            operation_type="deployment_inputs_publish",
+            before_fingerprint="1" * 64,
+            after_fingerprint="2" * 64,
+            reality=reality,
+            execute=lambda: None,
+            allowed_states={"APPLYING"},
+        )
+
+    persisted = store.load()
+    assert persisted["operations"][-1]["status"] == "FAILED"
+    assert (
+        persisted["operations"][-1]["observed_after_fingerprint"]
+        == "1" * 64
+    )
+    assert (
+        persisted["operations"][-1]["last_error_code"]
+        == "operation_poststate_unchanged"
+    )
+    assert tx.pending_operation(persisted) is None
+
+
 def test_operation_unknown_poststate_settles_intent_before_blocking(
     tmp_path: Path,
 ) -> None:
@@ -711,6 +753,81 @@ def test_apply_ready_orders_gate_before_stop_before_publish_before_start(
         "service_start",
     ]
     assert events[5] == "readiness"
+
+
+def test_apply_verifying_known_service_start_failure_enters_rollback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    document = _document(state="VERIFYING")
+    calls: list[tuple[str, str]] = []
+
+    class Store:
+        def load(self):
+            return document
+
+    monkeypatch.setattr(
+        successor,
+        "global_lock",
+        lambda: contextlib.nullcontext(),
+    )
+    monkeypatch.setattr(
+        successor.maintenance,
+        "TransactionStore",
+        lambda _path: Store(),
+    )
+    monkeypatch.setattr(
+        successor.portable,
+        "identity_from_dict",
+        lambda _value: object(),
+    )
+    monkeypatch.setattr(
+        successor,
+        "_runtime_rebind",
+        lambda doc, **_kwargs: _binding(),
+    )
+    monkeypatch.setattr(
+        successor,
+        "_runtime_image_exists",
+        lambda *_args: None,
+    )
+    monkeypatch.setattr(
+        successor,
+        "_save",
+        lambda _store, _before, after: after,
+    )
+
+    def fail_start(*_args, action: str, **_kwargs):
+        assert action == "service_start"
+        raise successor.SuccessorError("operation_poststate_unchanged")
+
+    monkeypatch.setattr(successor, "_operation", fail_start)
+
+    def fake_rollback(
+        transaction_id: str,
+        *,
+        reason: str,
+        execution_session_id,
+        _store,
+        _document,
+    ):
+        calls.append((transaction_id, reason))
+        assert execution_session_id is None
+        assert _document["state"] == "VERIFYING"
+        return {"status": "PASS", "stage": "ROLLED_BACK"}
+
+    monkeypatch.setattr(successor, "rollback", fake_rollback)
+
+    result = successor.apply(
+        "txn-e03-successor-test-0001",
+        "session-apply-known-start-failure-0001",
+    )
+    assert result == {"status": "PASS", "stage": "ROLLED_BACK"}
+    assert calls == [
+        (
+            "txn-e03-successor-test-0001",
+            "operation_poststate_unchanged",
+        )
+    ]
 
 
 def test_apply_aborted_transaction_is_terminal_and_read_only(
