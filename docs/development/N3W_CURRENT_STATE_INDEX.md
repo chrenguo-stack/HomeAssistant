@@ -1,3 +1,14 @@
+## 2026-11-01 — S1 exact three-image artifact acquisition and Mac cache gate is prepared
+
+- S0 source authority remains `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Existing exact ARM64 artifact ID 13070404405 from run 41275979177 is the preferred S1 source.
+- Artifact is currently unexpired, size 2,538,800,086 bytes, GitHub digest `sha256:99eae7602eb2f8318bb7c0fff29d71fa61471071902b854a90666d4beb931b93`.
+- Rebuild is not required unless artifact identity/availability or local exact verification fails.
+- S1 ends after a durable Mac private cache contains and verifies binding.json plus Manager, Home Assistant and Broker ARM64 tar files.
+- No T1 access, T1 mutation, image load or production service start is included.
+- Preflight authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_S1_EXACT_THREE_IMAGE_ARTIFACT_ACQUISITION_AND_MAC_CACHE_PREFLIGHT_20261101.md`.
+- Current stop point: waiting for operator Mac S1 artifact download and verification.
+
 ## 2026-11-01 — S0 exact T1_Core_Stack source/version freeze is CLOSED_PASS
 
 - S0 source authority: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
