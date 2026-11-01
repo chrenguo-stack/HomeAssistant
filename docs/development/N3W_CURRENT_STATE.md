@@ -1,3 +1,46 @@
+## 2026-11-01 — R1 local exact-image-cache deployment source repair CI pending
+
+~~~text
+TASK=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_LOCAL_EXACT_IMAGE_CACHE_DEPLOYMENT_SOURCE_REPAIR_20261101_01
+
+S1_RESULT=CLOSED_PASS
+R1_LIVE_APPLY_AUTHORIZED=false
+
+S0_SOURCE_AUTHORITY_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+
+S1_MANAGER_IMAGE_ID=sha256:4ca9f21534f3557038a50746bce9ff1343ce708a644f2ae299165369eac118f8
+INDEPENDENT_DEPLOYABLE_MANAGER_IMAGE_ID=sha256:1b97cba4a63a1c6c7f714b15f89b6859dc68cb2d6236f2eb7c52ea6689ecccd3
+MANAGER_IMAGE_ID_MATCH=false
+
+SOURCE_REPAIR_IMPLEMENTED=true
+SOURCE_CI=PENDING
+
+IMAGE_REBUILD_PERFORMED=false
+REGISTRY_PULL_PERFORMED=false
+PRODUCTION_V2_AUTHORITY_USED=false
+PRODUCTION_SERVICE_START=false
+
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+
+NEXT_STOP_POINT=R1_LOCAL_EXACT_IMAGE_CACHE_SOURCE_CI_REVIEW
+~~~
+
+The R1 path is being repaired so that the exact S1 Manager/Home Assistant/Broker images are the
+only image inputs. The existing independently rebuilt fresh deployable artifact is not eligible
+for Clean Reference R1 because its Manager image ID differs from the S1 image authority.
+
+The repair keeps the S0 component source authority unchanged and places the new rebinder/executor/
+transport logic outside T1_Core_Stack identity. Production V2 marker and run-context semantics
+remain unchanged.
+
+Design authority:
+`docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_LOCAL_EXACT_IMAGE_CACHE_DEPLOYMENT_SOURCE_DESIGN_20261101.md`.
+
+Blocker authority:
+`docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_S1_IMAGE_AUTHORITY_AND_DEPLOYABLE_DIVERGENCE_BLOCKER_20261101.md`.
+
 ## 2026-11-01 — S1 exact three-image Mac cache CLOSED_PASS
 
 ~~~text
