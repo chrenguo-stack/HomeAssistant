@@ -6,7 +6,6 @@ import pytest
 
 from tools import n3w_t1_host_runtime_cache as cache
 
-
 DOCKER_VERSION = "29.1.3-0ubuntu4.1"
 COMPOSE_VERSION = "2.40.3+ds1-0ubuntu1"
 
