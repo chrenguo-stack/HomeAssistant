@@ -14,8 +14,9 @@ class FakeRunner:
     def __init__(self, cache_dir: Path | None = None) -> None:
         self.cache_dir = cache_dir
         self.commands: list[tuple[str, ...]] = []
-        self.install_package_paths: list[Path] = []
-        self.install_parent_mode: int | None = None
+        self.install_archive_dir: Path | None = None
+        self.install_requests: list[str] = []
+        self.install_archive_mode: int | None = None
         self.install_file_modes: list[int] = []
 
     def run(self, argv, **_kwargs):
@@ -62,16 +63,17 @@ class FakeRunner:
             }
             return metadata[name][field]
         if command[:3] == ("apt-get", "--no-download", "--no-remove"):
-            self.install_package_paths = [
-                Path(item) for item in command if item.endswith(".deb")
+            archive_option = next(
+                item for item in command if item.startswith("Dir::Cache::archives=")
+            )
+            self.install_archive_dir = Path(archive_option.split("=", 1)[1])
+            self.install_archive_mode = self.install_archive_dir.stat().st_mode & 0o777
+            self.install_file_modes = [
+                path.stat().st_mode & 0o777
+                for path in sorted(self.install_archive_dir.glob("*.deb"))
             ]
-            if self.install_package_paths:
-                self.install_parent_mode = (
-                    self.install_package_paths[0].parent.stat().st_mode & 0o777
-                )
-                self.install_file_modes = [
-                    path.stat().st_mode & 0o777 for path in self.install_package_paths
-                ]
+            install_index = command.index("install")
+            self.install_requests = list(command[install_index + 2 :])
             return ""
         if command == ("systemctl", "enable", "docker"):
             return ""
@@ -288,11 +290,18 @@ def test_install_uses_cache_only_and_never_updates_apt(
     assert len(install_commands) == 1
     command = install_commands[0]
     assert "install" in command
-    assert runner.install_package_paths
-    assert all(path.parent.parent == install_root for path in runner.install_package_paths)
-    assert runner.install_parent_mode == 0o755
+    assert runner.install_archive_dir is not None
+    assert runner.install_archive_dir.parent == install_root
+    assert runner.install_archive_mode == 0o755
     assert runner.install_file_modes == [0o644] * len(runner.install_file_modes)
-    assert list(install_root.glob("n3w-t1-host-runtime-install-*")) == []
+    assert sorted(runner.install_requests) == sorted(
+        (
+            f"containerd=2.1.4-0ubuntu1",
+            f"docker-compose-v2={COMPOSE_VERSION}",
+            f"docker.io={DOCKER_VERSION}",
+        )
+    )
+    assert list(install_root.glob("n3w-t1-host-runtime-archives-*")) == []
     assert not any(
         command[:2] == ("apt-get", "update")
         or command[:2] == ("apt-get", "--download-only")
@@ -321,7 +330,7 @@ def test_install_staging_is_cleaned_when_apt_fails(
     with pytest.raises(cache.HostRuntimeCacheError, match="simulated_apt_failure"):
         cache.install_cache(cache_dir, FailingInstallRunner(cache_dir))
 
-    assert list(install_root.glob("n3w-t1-host-runtime-install-*")) == []
+    assert list(install_root.glob("n3w-t1-host-runtime-archives-*")) == []
 
 
 def test_install_rejects_postinstall_requested_version_drift(
