@@ -407,6 +407,109 @@ def _device_identity() -> dict[str, str]:
     }
 
 
+def _optional_table_count(path: Path, table: str) -> int:
+    if path.is_symlink():
+        raise BridgeError(f"security_database_symlink:{path.name}")
+    if not path.exists():
+        return 0
+    if not path.is_file():
+        raise BridgeError(f"security_database_invalid:{path.name}")
+    connection = sqlite3.connect(
+        f"{path.resolve().as_uri()}?mode=ro",
+        uri=True,
+        timeout=5,
+    )
+    try:
+        connection.execute("PRAGMA query_only=ON")
+        exists = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+            (table,),
+        ).fetchone()
+        if exists is None:
+            raise BridgeError(f"security_table_missing:{path.name}:{table}")
+        return int(
+            connection.execute(
+                f'SELECT COUNT(*) FROM "{table.replace(chr(34), chr(34) * 2)}"'
+            ).fetchone()[0]
+        )
+    finally:
+        connection.close()
+
+
+def _security_state_counts() -> dict[str, int]:
+    credential_db = Path(
+        "/var/lib/greenhouse-manager/n3w/credential-lifecycle.sqlite3"
+    )
+    peer_trust_db = Path(
+        "/var/lib/greenhouse-manager/n3w/system-peer-trust.sqlite3"
+    )
+    application_db = Path(
+        "/var/lib/greenhouse-manager/n3w/relay-authorization.sqlite3"
+    )
+
+    credential_assignments = _optional_table_count(
+        credential_db,
+        "credential_assignments",
+    )
+    peer_trust_records = _optional_table_count(
+        peer_trust_db,
+        "n3w_system_peer_trust",
+    )
+
+    if application_db.is_symlink() or not application_db.is_file():
+        raise BridgeError("application_key_database_invalid")
+    connection = sqlite3.connect(
+        f"{application_db.resolve().as_uri()}?mode=ro",
+        uri=True,
+        timeout=5,
+    )
+    try:
+        connection.execute("PRAGMA query_only=ON")
+        required = {
+            "n3w_relay_meta",
+            "n3w_relay_nodes",
+            "n3w_relay_key_epochs",
+        }
+        names = {
+            str(row[0])
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+        if not required <= names:
+            raise BridgeError("application_key_schema_invalid")
+        active_nodes = int(
+            connection.execute(
+                "SELECT COUNT(*) FROM n3w_relay_nodes WHERE active = 1"
+            ).fetchone()[0]
+        )
+        key_epochs = int(
+            connection.execute(
+                "SELECT COUNT(*) FROM n3w_relay_key_epochs"
+            ).fetchone()[0]
+        )
+    finally:
+        connection.close()
+
+    return {
+        "credential_assignments": credential_assignments,
+        "peer_trust_records": peer_trust_records,
+        "application_key_active_nodes": active_nodes,
+        "application_key_epochs": key_epochs,
+    }
+
+
+def _require_clean_security_state(counts: dict[str, int]) -> None:
+    expected = {
+        "credential_assignments": 0,
+        "peer_trust_records": 0,
+        "application_key_active_nodes": 0,
+        "application_key_epochs": 0,
+    }
+    if counts != expected:
+        raise BridgeError("first_pair_security_state_not_clean")
+
+
 def _pairing_records_absent() -> None:
     _require_private_root(PROVISIONING_ROOT)
     for path in (FACTORY_ACCEPTED, FIRST_PAIRING_TRANSACTION, SUCCESSOR_RECOVERY):
@@ -447,6 +550,7 @@ def _preflight(root: Path, reference_path: Path) -> dict[str, Any]:
     transactions = _r2_transactions()
     baseline = _baseline(reference_path)
     current = _current_reference(root, baseline)
+    _require_clean_security_state(_security_state_counts())
     identity = _device_identity()
     stable_authority = current["stable_contracts"]["authority"]
     if stable_authority.get("r2a_transaction_sha256") != transactions["r2a_transaction_sha256"]:
@@ -749,6 +853,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     except (
         BridgeError,
         OSError,
+        sqlite3.Error,
         subprocess.SubprocessError,
         ValueError,
         TypeError,
