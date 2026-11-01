@@ -145,6 +145,97 @@ def test_executor_dynamic_payload_import_does_not_write_bytecode(
     assert not (tmp_path / "__pycache__").exists()
 
 
+def test_clean_reference_bridge_enables_staged_units_before_postcheck() -> None:
+    calls: list[str] = []
+
+    class Adapter:
+        def enable_staged_units(self):
+            calls.append("enable")
+            return {
+                "status": "PASS",
+                "provision_resume_enabled": True,
+                "production_activation_enabled": False,
+                "production_service_start": False,
+            }
+
+        def stopped_postcheck(self, system_id: str):
+            calls.append(f"postcheck:{system_id}")
+            return {"status": "PASS"}
+
+    bridge = executor.CleanReferenceAdapterBridge(Adapter())
+    report = bridge.stopped_postcheck("system-1")
+
+    assert report == {"status": "PASS"}
+    assert calls == ["enable", "postcheck:system-1"]
+
+
+def test_clean_reference_bridge_cleanup_disables_units_before_delegate(
+    tmp_path: Path,
+) -> None:
+    calls: list[tuple[str, ...] | str] = []
+
+    class Runner:
+        def run(self, argv, **_kwargs):
+            calls.append(tuple(argv))
+            return ""
+
+    class Adapter:
+        runner = Runner()
+
+        def cleanup(self, candidate_root: Path):
+            calls.append(f"cleanup:{candidate_root}")
+            return {
+                "status": "PASS",
+                "transaction_owned_only": True,
+                "production_service_start": False,
+            }
+
+    bridge = executor.CleanReferenceAdapterBridge(Adapter())
+    candidate = tmp_path / "candidate"
+    report = bridge.cleanup(candidate)
+
+    expected = [
+        ("systemctl", "disable", unit)
+        for unit in executor.STAGED_UNITS
+    ]
+    assert calls[:3] == expected
+    assert calls[3] == f"cleanup:{candidate}"
+    assert report["status"] == "PASS"
+
+
+def test_clean_reference_bridge_cleanup_failure_is_not_silenced(
+    tmp_path: Path,
+) -> None:
+    class Runner:
+        def run(self, argv, **_kwargs):
+            if argv[-1] == executor.STAGED_UNITS[1]:
+                raise RuntimeError("disable failed")
+            return ""
+
+    class Adapter:
+        runner = Runner()
+        cleanup_called = False
+
+        def cleanup(self, _candidate_root: Path):
+            self.cleanup_called = True
+            return {
+                "status": "PASS",
+                "transaction_owned_only": True,
+                "production_service_start": False,
+            }
+
+    adapter = Adapter()
+    bridge = executor.CleanReferenceAdapterBridge(adapter)
+
+    with pytest.raises(
+        executor.CleanReferenceExecutorError,
+        match="staged_unit_cleanup_incomplete",
+    ):
+        bridge.cleanup(tmp_path / "candidate")
+
+    assert adapter.cleanup_called is True
+
+
 def test_executor_requires_explicit_clean_reference_confirmation() -> None:
     with pytest.raises(
         executor.CleanReferenceExecutorError,
