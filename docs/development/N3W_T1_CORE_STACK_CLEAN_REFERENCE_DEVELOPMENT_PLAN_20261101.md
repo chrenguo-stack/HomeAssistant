@@ -339,11 +339,12 @@ belongs in the simplified architecture.
 ## 7. Next one gate
 
 ```text
-NEXT_ONE_GATE=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0_FRESH_ARMBIAN_READONLY_BASELINE_20261101_01
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0_T1B_FRESH_ARMBIAN_READONLY_BASELINE_20261101_01
 ```
 
-This gate starts only after the operator reports that the T1 has been wiped/reinstalled
-with official Armbian and no T1_Core_Stack product deployment has occurred.
+This gate starts only after the operator reports that T1_B has been wiped/reinstalled
+with official Armbian and no T1_Core_Stack product deployment has occurred. T1_A remains
+preserved and must not be mutated during this gate.
 
 It is read-only. It must not install Docker, install packages, deploy images, provision the
 product instance, start T1_Core_Stack, access boards, or reuse old artifact/authorization
