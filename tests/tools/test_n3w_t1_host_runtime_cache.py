@@ -14,6 +14,9 @@ class FakeRunner:
     def __init__(self, cache_dir: Path | None = None) -> None:
         self.cache_dir = cache_dir
         self.commands: list[tuple[str, ...]] = []
+        self.install_package_paths: list[Path] = []
+        self.install_parent_mode: int | None = None
+        self.install_file_modes: list[int] = []
 
     def run(self, argv, **_kwargs):
         command = tuple(str(item) for item in argv)
@@ -59,6 +62,16 @@ class FakeRunner:
             }
             return metadata[name][field]
         if command[:3] == ("apt-get", "--no-download", "--no-remove"):
+            self.install_package_paths = [
+                Path(item) for item in command if item.endswith(".deb")
+            ]
+            if self.install_package_paths:
+                self.install_parent_mode = (
+                    self.install_package_paths[0].parent.stat().st_mode & 0o777
+                )
+                self.install_file_modes = [
+                    path.stat().st_mode & 0o777 for path in self.install_package_paths
+                ]
             return ""
         if command == ("systemctl", "enable", "docker"):
             return ""
@@ -241,6 +254,8 @@ def test_install_uses_cache_only_and_never_updates_apt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     cache_dir, _, _ = acquire_bundle(tmp_path, patch_host)
+    install_root = tmp_path / "install-root"
+    monkeypatch.setattr(cache, "INSTALL_STAGING_ROOT", install_root)
     checks = iter(
         (
             {"status": "MISSING"},
@@ -273,16 +288,40 @@ def test_install_uses_cache_only_and_never_updates_apt(
     assert len(install_commands) == 1
     command = install_commands[0]
     assert "install" in command
-    assert all(
-        str(cache_dir / "packages") in item
-        for item in command
-        if item.endswith(".deb")
-    )
+    assert runner.install_package_paths
+    assert all(path.parent.parent == install_root for path in runner.install_package_paths)
+    assert runner.install_parent_mode == 0o755
+    assert runner.install_file_modes == [0o644] * len(runner.install_file_modes)
+    assert list(install_root.glob("n3w-t1-host-runtime-install-*")) == []
     assert not any(
         command[:2] == ("apt-get", "update")
         or command[:2] == ("apt-get", "--download-only")
         for command in runner.commands
     )
+
+
+def test_install_staging_is_cleaned_when_apt_fails(
+    tmp_path: Path,
+    patch_host,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cache_dir, _, _ = acquire_bundle(tmp_path, patch_host)
+    install_root = tmp_path / "install-root"
+    monkeypatch.setattr(cache, "INSTALL_STAGING_ROOT", install_root)
+    monkeypatch.setattr(cache.baseline, "_check", lambda _runner: {"status": "MISSING"})
+
+    class FailingInstallRunner(FakeRunner):
+        def run(self, argv, **kwargs):
+            command = tuple(str(item) for item in argv)
+            if command[:3] == ("apt-get", "--no-download", "--no-remove"):
+                super().run(argv, **kwargs)
+                raise cache.HostRuntimeCacheError("simulated_apt_failure")
+            return super().run(argv, **kwargs)
+
+    with pytest.raises(cache.HostRuntimeCacheError, match="simulated_apt_failure"):
+        cache.install_cache(cache_dir, FailingInstallRunner(cache_dir))
+
+    assert list(install_root.glob("n3w-t1-host-runtime-install-*")) == []
 
 
 def test_install_rejects_postinstall_requested_version_drift(
@@ -291,6 +330,7 @@ def test_install_rejects_postinstall_requested_version_drift(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     cache_dir, _, _ = acquire_bundle(tmp_path, patch_host)
+    monkeypatch.setattr(cache, "INSTALL_STAGING_ROOT", tmp_path / "install-root")
     checks = iter(
         (
             {"status": "MISSING"},
