@@ -1,3 +1,13 @@
+## 2026-11-01 — R1 T1_B first deployment is prepared
+
+- T1_B read-only eligibility is CLOSED_PASS and the current gate now authorizes bounded R1 mutation.
+- Exact authorities remain: source `24382caae...`, deployment tool `4b0ec26e...`, S1 three-image cache and runtime-only cache.
+- Authorized work: exact runtime transfer, one-at-a-time exact image transfer/load, fresh identity/state/Broker/DynSec creation, stopped-state runtime commit and internal stopped postcheck.
+- Forbidden: registry pull, image rebuild, production V2 authority, product service start, board access and merge.
+- Success target: exactly 3 bound images; zero containers/volumes/listeners; zero node credentials; production activation disabled.
+- Preexecution authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_T1B_FIRST_DEPLOYMENT_PREEXECUTION_20261101.md`.
+- Current stop point: operator executes the bounded R1 T1_B first deployment; do not auto-enter R2/R3.
+
 ## 2026-11-01 — R1 T1_B predeployment read-only preflight is CLOSED_PASS
 
 - T1_B remains a clean R0/R0H host: systemd running, zero failed units, NetworkManager/Docker active and enabled.
