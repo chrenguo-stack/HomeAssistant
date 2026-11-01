@@ -1,3 +1,48 @@
+## 2026-11-01 — R1 T1_B first deployment stopped before fresh-installer mutation; bounded source repair pending CI
+
+~~~text
+TASK=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_T1B_FIRST_DEPLOYMENT_20261101_01
+
+FIRST_LIVE_ATTEMPT=STOP
+FAILURE_CODE=payload_file_set_invalid
+FAILURE_STAGE=EXECUTOR_PAYLOAD_LOAD
+
+RUN_FRESH_STAGING_ENTERED=false
+IMAGE_REQUEST_EVENT_OBSERVED=false
+IMAGE_LOAD_EVENT_OBSERVED=false
+PRODUCT_STATE_COMMIT_OBSERVED=false
+
+REMOTE_PAYLOAD_PRESERVED=true
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+
+ROOT_CAUSE=EXECUTOR_COPIED_INSIDE_STRICT_MANIFEST_VALIDATED_PAYLOAD_TREE
+
+SOURCE_REPAIR_COMMIT=22ac64f9c1817a9d27f35638a77fc5a7f259ede3
+SOURCE_REPAIR_HEAD=340f967065460504e52cd364a3bdaa0f24aec59e
+
+DEDICATED_CI_RUN_ID=41293344644
+DEDICATED_CI_STATUS=queued
+CI_POLL_LIMIT_REACHED=true
+
+CURRENT_RESULT=STOP_SOURCE_REPAIR_CI_PENDING
+T1_RETRY=false
+REMOTE_EVIDENCE_CLEANUP=false
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+The failed live attempt stopped in strict payload file-set validation before `run_fresh_staging()`
+was entered. No image-request/load event, product-state commit, production service start or board
+access was observed. The host wrapper had copied the Clean Reference executor into the payload
+root, making the otherwise exact manifest-validated file set fail closed.
+
+A bounded repair now stages the executor as a sibling of the payload root and removes both objects
+only on successful cleanup. Dedicated CI run `41293344644` is pending; the 3-poll limit was
+reached, so no further automatic polling or T1 retry is performed.
+
+Progress authority:
+`docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_T1B_FIRST_DEPLOYMENT_PAYLOAD_FILE_SET_FALSE_STOP_REPAIR_PROGRESS_20261101.md`.
+
 ## 2026-11-01 — R1 T1_B first deployment preexecution prepared
 
 ~~~text
