@@ -1,3 +1,14 @@
+## 2026-11-01 — R0H T1_B download-only cache acquisition is prepared
+
+- Source authority remains `c4984baf274d74d1459175153b62bed9a2b7626e`; the source gate is CLOSED_PASS.
+- Target is T1_B only; T1_A and boards remain out of scope.
+- This gate permits APT metadata refresh and package payload download only.
+- Docker/Compose installation, Docker service start and T1_Core_Stack deployment remain forbidden.
+- Required sequence: fresh preflight -> exact tool transfer -> self-check -> acquire/download-only -> T1 verify -> copy to Mac -> Mac `verify-archive` -> STOP.
+- Preflight authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_T1B_DOWNLOAD_ONLY_CACHE_ACQUISITION_AND_MAC_ARCHIVE_PREFLIGHT_20261101.md`.
+- Current stop point: waiting for operator T1_B download-only cache acquisition.
+- Automatic installation remains disabled.
+
 ## 2026-11-01 — R0H local host package cache source gate is CLOSED_PASS
 
 - Exact source authority: `c4984baf274d74d1459175153b62bed9a2b7626e`.
