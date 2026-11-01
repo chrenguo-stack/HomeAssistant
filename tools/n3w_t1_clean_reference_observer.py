@@ -367,14 +367,17 @@ def _container(service: str) -> dict[str, Any]:
             str(row.get("rw")),
         ),
     )
+    port_bindings = host.get("PortBindings") or {}
     stable_contract = {
         "image": config.get("Image"),
         "user": config.get("User"),
         "network_mode": host.get("NetworkMode"),
         "readonly_rootfs": host.get("ReadonlyRootfs"),
+        "restart_policy": host.get("RestartPolicy"),
         "cap_drop": sorted(host.get("CapDrop") or []),
         "security_opt": sorted(host.get("SecurityOpt") or []),
         "mounts": mount_contract,
+        "port_bindings": port_bindings,
     }
     image = str(config.get("Image") or "")
     if not image:
@@ -574,6 +577,32 @@ def collect(reference_label: str) -> dict[str, Any]:
     if reference_label not in {"R2", "R3"}:
         raise ObservationError("reference_label_invalid")
     authorities = _validate_authorities()
+
+    project_services = frozenset(
+        line.strip()
+        for line in _run(
+            (
+                "docker",
+                "compose",
+                "--project-name",
+                "n3wfc4",
+                "--env-file",
+                str(COMPOSE_ENV),
+                "-f",
+                str(COMPOSE),
+                "--profile",
+                "application",
+                "ps",
+                "--status",
+                "running",
+                "--services",
+            ),
+            timeout=30,
+        ).splitlines()
+        if line.strip()
+    )
+    if project_services != frozenset(EXPECTED_SERVICES):
+        raise ObservationError("runtime_service_set_invalid")
 
     containers = {name: _container(name) for name in EXPECTED_SERVICES}
     broker_id = containers["broker"]["_id"]
