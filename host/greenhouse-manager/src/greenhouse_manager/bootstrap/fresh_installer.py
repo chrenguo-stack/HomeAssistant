@@ -422,20 +422,6 @@ def run_fresh_staging(
         )
         steps.append("commit")
 
-        current_stage = "staged_units"
-        units = adapters.enable_staged_units()
-        _require(
-            units,
-            {
-                "status": "PASS",
-                "provision_resume_enabled": True,
-                "production_activation_enabled": False,
-                "production_service_start": False,
-            },
-            "staged_units",
-        )
-        steps.append("staged_units")
-
         current_stage = "postcheck"
         postcheck = adapters.stopped_postcheck(system_id)
         _require(
