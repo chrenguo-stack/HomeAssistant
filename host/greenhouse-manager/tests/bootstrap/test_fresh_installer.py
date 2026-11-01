@@ -128,6 +128,15 @@ class SourceAdapters:
             "production_service_start": False,
         }
 
+    def enable_staged_units(self):
+        self.calls.append("staged_units")
+        return {
+            "status": "PASS",
+            "provision_resume_enabled": True,
+            "production_activation_enabled": False,
+            "production_service_start": False,
+        }
+
     def stopped_postcheck(self, _system_id: str):
         self.calls.append("postcheck")
         return {
@@ -168,6 +177,7 @@ def test_r3_orchestrates_real_fresh_source_constructors(tmp_path: Path) -> None:
         "dynsec",
         "runtime",
         "commit",
+        "staged_units",
         "postcheck",
     ]
 
@@ -212,6 +222,28 @@ def test_failure_after_mutation_cleans_only_transaction_candidate(
 
     assert not candidate.exists()
     assert adapters.calls[-1] == "cleanup"
+
+
+def test_failure_after_staged_unit_enable_uses_cleanup(
+    tmp_path: Path,
+) -> None:
+    adapters = SourceAdapters()
+
+    def fail_postcheck(_system_id: str):
+        adapters.calls.append("postcheck")
+        raise RuntimeError("injected")
+
+    adapters.stopped_postcheck = fail_postcheck  # type: ignore[method-assign]
+    candidate = tmp_path / "candidate"
+
+    with pytest.raises(FreshInstallerError, match="fresh_install_failed"):
+        run_fresh_staging(adapters, candidate)
+
+    assert adapters.calls[-3:] == [
+        "staged_units",
+        "postcheck",
+        "cleanup",
+    ]
 
 
 def test_cleanup_failure_requires_manual_recovery(tmp_path: Path) -> None:
