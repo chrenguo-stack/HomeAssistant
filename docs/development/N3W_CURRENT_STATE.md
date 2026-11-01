@@ -1,3 +1,35 @@
+## 2026-11-01 — S1 exact three-image artifact acquisition and Mac cache gate prepared
+
+~~~text
+TASK=N3W_T1_CORE_STACK_CLEAN_REFERENCE_S1_EXACT_THREE_IMAGE_ARTIFACT_ACQUISITION_AND_MAC_CACHE_20261101_01
+
+S0_SOURCE_AUTHORITY_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+
+RUN_ID=41275979177
+ARTIFACT_ID=13070404405
+ARTIFACT_NAME=n3w-t1-fresh-exact-arm64-24382caae4a1f5d459297f86e8d18f10a848ca64
+ARTIFACT_SIZE_BYTES=2538800086
+ARTIFACT_DIGEST=sha256:99eae7602eb2f8318bb7c0fff29d71fa61471071902b854a90666d4beb931b93
+ARTIFACT_EXPIRED=false
+
+SOURCE_REBUILD_REQUIRED=false
+TARGET_CACHE=MAC_PRIVATE_DURABLE_CACHE
+
+CURRENT_STOP_POINT=WAITING_FOR_OPERATOR_MAC_S1_ARTIFACT_DOWNLOAD_AND_VERIFY
+
+T1_ACCESS=false
+T1_MUTATION=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+~~~
+
+S1 should reuse the already successful exact ARM64 artifact rather than rebuild it. The operator
+must download it into the private Mac cache and verify the exact four-file member set, source-head
+binding, three component identities, and each tar SHA-256 from binding.json.
+
+Preflight authority:
+`docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_S1_EXACT_THREE_IMAGE_ARTIFACT_ACQUISITION_AND_MAC_CACHE_PREFLIGHT_20261101.md`.
+
 ## 2026-11-01 — S0 exact T1_Core_Stack source/version freeze CLOSED_PASS
 
 ~~~text
