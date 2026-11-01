@@ -1,3 +1,13 @@
+## 2026-11-01 — R1 Mac runtime-only acquisition/cross-binding gate is prepared
+
+- Runtime-only artifact remains exact and unexpired: run 41286249917 / artifact 13075576515 / digest `sha256:7879bca9...`.
+- S1 exact image authority remains unexpired: artifact 13070404405.
+- Target is a separate private Mac runtime cache at `~/Documents/N3W/t1-core-stack-runtime-cache/<source-head>`.
+- Verification must cross-bind the runtime artifact to the existing S1 local cache with exact deployment-tool authority `4b0ec26e...`.
+- T1 access, Docker mutation, service start, board access and merge remain false.
+- Preflight authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_RUNTIME_ONLY_ARTIFACT_MAC_ACQUISITION_AND_LOCAL_CROSS_BINDING_PREFLIGHT_20261101.md`.
+- Current stop point: waiting for operator Mac acquisition and local cross-binding; do not enter T1_B preflight automatically.
+
 ## 2026-11-01 — R1 runtime-only exact artifact production/binding is CLOSED_PASS
 
 - Manual workflow_dispatch run 41286249917 is completed SUCCESS; source-test and build-runtime both actually ran and passed.
