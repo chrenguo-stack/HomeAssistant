@@ -1,3 +1,67 @@
+## 2026-11-01 — R1 T1_B first deployment CLOSED_PASS
+
+~~~text
+TASK=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_T1B_FIRST_DEPLOYMENT_20261101_01
+RESULT=CLOSED_PASS
+
+S0_SOURCE_AUTHORITY_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+CONTROL_PLANE_AUTHORITY=ee0aaf71ddc71bba5f121e25f09a1f0189f5e6e8
+
+RUNTIME_PAYLOAD_SHA256=7c1fbc29bfcb5597f2736a9a6ce39192cd8c6bb317df6db37c9581df7efcdcfd
+PAYLOAD_MANIFEST_SHA256=b5570c7e97965d5afa593721849571d62ab67a67888fb2c2ace6d4d043147fa3
+
+FRESH_PRODUCT_STAGED=true
+NODE_CREDENTIAL_COUNT=0
+
+IMAGE_COUNT=3
+CONTAINER_COUNT=0
+VOLUME_COUNT=0
+PRODUCT_LISTENER_COUNT=0
+DOCKER_NETWORK_NAMES=bridge,host,none
+
+STAGED_UNITS_ENABLED=true
+STAGED_UNITS_ACTIVE=false
+PRODUCTION_ACTIVATION_UNITS_ENABLED=false
+PRODUCTION_ACTIVATION_UNITS_ACTIVE=false
+
+TRANSPORT_RESIDUAL_COUNT=0
+CANDIDATE_RESIDUAL_COUNT=0
+
+PRODUCTION_V2_AUTHORITY_USED=false
+PRODUCTION_SERVICE_START=false
+ACTIVATION_AUTHORIZED=false
+BOARD_ACCESS=false
+
+PORTABLE_RUNTIME_POSTCHECK=PASS
+RUNTIME_ID_PORTABILITY_RULE=SYNTAX_ONLY_NOT_CROSS_STORE_ORACLE
+
+R2_AUTHORIZED=false
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+Final live executor and host reports both PASS. Exact stopped-state product material is staged on
+T1_B with zero node credentials, zero running containers, zero volumes, zero product listeners and
+only the default Docker networks. The three staged systemd units are enabled but inactive; all
+production activation units remain not-found/inactive.
+
+A later ad-hoc postcheck incorrectly compared Docker runtime `.Id` directly to CI build image IDs
+and emitted an image-ID mismatch. Existing Docker 29 cross-store authority proves that comparison
+is not portable. A corrected read-only verifier revalidated all three exact image tags using
+arm64/linux platform, RootFS-layer fingerprint and config-contract fingerprint; all three PASS.
+No cleanup or deployment retry followed the false stop.
+
+Observed T1 runtime IDs differ from CI/build image IDs, as permitted by the frozen cross-store rule:
+Manager `2bfead7d...`, Home Assistant `c261fa53...`, Broker `df265f1e...`.
+
+The final portable verifier printed complete `status=PASS` JSON. The outer zsh wrapper then hit a
+reporting-only error because it referenced bash-only `PIPESTATUS[0]`; this does not invalidate the
+completed read-only semantic PASS and caused no T1 mutation.
+
+Closure authority:
+`docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_T1B_FIRST_DEPLOYMENT_CLOSURE_20261101.md`.
+
+R1 is closed. R2 controlled reboot/start remains a separate, not-yet-authorized gate.
+
 ## 2026-11-01 — R1 T1_B first deployment stopped before fresh-installer mutation; bounded source repair pending CI
 
 ~~~text
