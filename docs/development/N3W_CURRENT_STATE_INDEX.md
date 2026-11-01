@@ -1,3 +1,16 @@
+## 2026-11-01 — R0H local host package cache source gate is CLOSED_PASS
+
+- Exact source authority: `c4984baf274d74d1459175153b62bed9a2b7626e`.
+- `tools/n3w_t1_host_runtime_cache.py` now provides `acquire`, portable `verify-archive`, strict T1 `verify`, cache-only `install` and `self-check`.
+- Portable Mac verification binds manifest digest/bundle ID, exact .deb member set, file sizes and SHA-256 without requiring Linux, Armbian, APT or dpkg probes.
+- T1-side verification additionally checks the exact host contract, APT source policy and .deb package/version/architecture metadata.
+- Cache-only install remains fail-closed and uses `apt-get --no-download --no-remove`; no silent network fallback is present.
+- Final exact-head CI: fresh install host-only SUCCESS (41271295622), greenhouse-manager SUCCESS (41271295734), public repository safety SUCCESS (41271295641), exact ARM64 SUCCESS (41271295780).
+- No T1 or board access occurred during the source gate.
+- Closure authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_LOCAL_PACKAGE_CACHE_SOURCE_CLOSURE_20261101.md`.
+- Next ONE gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_T1B_DOWNLOAD_ONLY_CACHE_ACQUISITION_AND_MAC_ARCHIVE_20261101_01`.
+- Next gate allows APT metadata refresh and package payload download on T1_B only; Docker/Compose installation, Docker service start and T1_Core_Stack deployment remain forbidden.
+
 ## 2026-11-01 — R0H Docker/Compose package payload becomes download-once local cache
 
 - The earlier direct-online R0H live-apply command is superseded before execution.
