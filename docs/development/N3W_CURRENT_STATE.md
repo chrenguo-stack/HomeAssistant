@@ -1,3 +1,51 @@
+## 2026-11-01 — R1 runtime-only exact artifact production and binding CLOSED_PASS
+
+~~~text
+TASK=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_RUNTIME_ONLY_EXACT_ARTIFACT_PRODUCTION_AND_BINDING_20261101_01
+
+WORKFLOW_RUN_ID=41286249917
+WORKFLOW_EVENT=workflow_dispatch
+WORKFLOW_RUN_HEAD_SHA=d377446acda59fd1f3327c5093a0e6f0286b7a5d
+INPUT_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+
+SOURCE_TEST_JOB=SUCCESS
+BUILD_RUNTIME_JOB=SUCCESS
+
+RUNTIME_ONLY_ARTIFACT_ID=13075576515
+RUNTIME_ONLY_ARTIFACT_DIGEST=sha256:7879bca99292829c3da55774968ea3a5a71627cca5f916d684e180898f520c91
+RUNTIME_ONLY_ARTIFACT_SIZE_BYTES=149421
+RUNTIME_ONLY_ARTIFACT_EXPIRED=false
+
+RUNTIME_PAYLOAD_SHA256=7c1fbc29bfcb5597f2736a9a6ce39192cd8c6bb317df6db37c9581df7efcdcfd
+PAYLOAD_MANIFEST_SHA256=b5570c7e97965d5afa593721849571d62ab67a67888fb2c2ace6d4d043147fa3
+CAPACITY_CONTRACT_SHA256=c350580efebf2b4dca6d0498730bd928867e14633cb9cbe68b14047464d67cc5
+S1_BINDING_SHA256=3585049d9743df08975c09bc18a7351fc2775abbba0c01e3821ff22922eac39f
+
+MANAGER_IMAGE_ID=sha256:4ca9f21534f3557038a50746bce9ff1343ce708a644f2ae299165369eac118f8
+IMAGE_REBUILD_PERFORMED=false
+REGISTRY_PULL_PERFORMED=false
+RUNTIME_ARTIFACT_IMAGE_TAR_COUNT=0
+
+T1_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+PRODUCTION_SERVICE_START=false
+
+RUNTIME_ONLY_EXACT_ARTIFACT_PRODUCTION_AND_BINDING=PASS
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_RUNTIME_ONLY_ARTIFACT_MAC_ACQUISITION_AND_LOCAL_CROSS_BINDING_20261101_01
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+The actual manual workflow_dispatch run was identified and independently reviewed. Both jobs
+ran successfully; the runtime-only artifact was downloaded and byte-inspected rather than accepted
+from CI status alone. Its 12-member top-level set contains no image tar. The embedded runtime
+payload has 25 manifest-controlled files and all recomputed sizes/SHA-256 values match. Runtime
+binding preserves the exact S1 Manager/Home Assistant/Mosquitto identities, while image rebuild,
+registry pull, service start, T1 access and board access remain false.
+
+Closure authority:
+`docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_RUNTIME_ONLY_EXACT_ARTIFACT_PRODUCTION_AND_BINDING_CLOSURE_20261101.md`.
+
 ## 2026-11-01 — R1 runtime-only exact artifact production dispatch accepted; manual run discovery pending
 
 ~~~text

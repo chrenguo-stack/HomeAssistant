@@ -1,3 +1,16 @@
+## 2026-11-01 — R1 runtime-only exact artifact production/binding is CLOSED_PASS
+
+- Manual workflow_dispatch run 41286249917 is completed SUCCESS; source-test and build-runtime both actually ran and passed.
+- Run head `d377446a...` differs from R1 deployment-tool authority only by three documentation commits; deployment tooling/component source did not drift.
+- Exact runtime-only artifact: ID 13075576515, size 149,421 bytes, GitHub digest `sha256:7879bca9...`, unexpired.
+- Artifact ZIP was independently downloaded and byte-inspected: exactly 12 runtime/control members, zero `*-arm64.tar` image members.
+- Runtime payload SHA-256 `7c1fbc29...`, payload-manifest SHA-256 `b5570c7e...`, capacity-contract SHA-256 `c350580e...`, S1 binding SHA-256 `3585049d...`.
+- Embedded manifest has 25 controlled files; all recomputed size/SHA-256 checks PASS.
+- Manager/Home Assistant/Mosquitto image IDs and tar hashes exactly match S1 authority; independent Manager rebuild remains ineligible.
+- `image_rebuild_performed=false`, `registry_pull_performed=false`, `production_service_start=false`, T1/board access false.
+- Closure authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_RUNTIME_ONLY_EXACT_ARTIFACT_PRODUCTION_AND_BINDING_CLOSURE_20261101.md`.
+- Next ONE gate is `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_RUNTIME_ONLY_ARTIFACT_MAC_ACQUISITION_AND_LOCAL_CROSS_BINDING_20261101_01`; it is not auto-executed.
+
 ## 2026-11-01 — R1 runtime-only exact artifact production was dispatched; manual run discovery is pending
 
 - R1 local exact-image-cache source repair remains CLOSED_PASS.
