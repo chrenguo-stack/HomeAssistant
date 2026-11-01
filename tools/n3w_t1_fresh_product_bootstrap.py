@@ -1680,6 +1680,18 @@ print(json.dumps({
                 )
             except Exception as error:
                 errors.append(type(error).__name__)
+        for unit in (
+            "n3wfc4-broker-ingress-guard.service",
+            "n3wfc4-registration-ingress-guard.service",
+            "n3wfc4-provision-resume.service",
+        ):
+            try:
+                self.runner.run(
+                    ("systemctl", "disable", unit),
+                    allowed=frozenset({0, 1}),
+                )
+            except (BootstrapError, OSError, subprocess.SubprocessError):
+                errors.append("staged_unit_disable_failed")
         for network in reversed(self.created_networks):
             try:
                 self.runner.run(
