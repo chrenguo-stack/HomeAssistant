@@ -9,6 +9,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -29,6 +30,7 @@ APT_SOURCE_POLICY = {
     "component": "universe",
     "architecture": "arm64",
 }
+INSTALL_STAGING_ROOT = Path("/var/tmp")
 
 
 class HostRuntimeCacheError(RuntimeError):
@@ -445,6 +447,37 @@ def verify_cache(
     }
 
 
+def _stage_install_packages(packages_dir: Path) -> Path:
+    package_paths = sorted(packages_dir.glob("*.deb"))
+    if not package_paths:
+        raise HostRuntimeCacheError("cache_package_files_missing")
+    INSTALL_STAGING_ROOT.mkdir(parents=True, exist_ok=True)
+    staging_dir = Path(
+        tempfile.mkdtemp(
+            prefix="n3w-t1-host-runtime-install-",
+            dir=str(INSTALL_STAGING_ROOT),
+        )
+    )
+    try:
+        staging_dir.chmod(0o755)
+        for source in package_paths:
+            target = staging_dir / source.name
+            shutil.copy2(source, target)
+            target.chmod(0o644)
+            if target.stat().st_size != source.stat().st_size:
+                raise HostRuntimeCacheError(
+                    f"install_staging_size_mismatch:{source.name}"
+                )
+            if _sha256_file(target) != _sha256_file(source):
+                raise HostRuntimeCacheError(
+                    f"install_staging_sha256_mismatch:{source.name}"
+                )
+        return staging_dir
+    except Exception:
+        shutil.rmtree(staging_dir, ignore_errors=True)
+        raise
+
+
 def install_cache(
     cache_dir: Path,
     runner: Runner | None = None,
@@ -472,22 +505,24 @@ def install_cache(
         }
 
     packages_dir = cache_dir.resolve() / "packages"
-    package_paths = [str(path) for path in sorted(packages_dir.glob("*.deb"))]
-    if not package_paths:
-        raise HostRuntimeCacheError("cache_package_files_missing")
+    staging_dir = _stage_install_packages(packages_dir)
     environment = {**os.environ, "DEBIAN_FRONTEND": "noninteractive"}
-    active.run(
-        (
-            "apt-get",
-            "--no-download",
-            "--no-remove",
-            "install",
-            "-y",
-            *package_paths,
-        ),
-        timeout=1800.0,
-        env=environment,
-    )
+    try:
+        package_paths = [str(path) for path in sorted(staging_dir.glob("*.deb"))]
+        active.run(
+            (
+                "apt-get",
+                "--no-download",
+                "--no-remove",
+                "install",
+                "-y",
+                *package_paths,
+            ),
+            timeout=1800.0,
+            env=environment,
+        )
+    finally:
+        shutil.rmtree(staging_dir, ignore_errors=True)
     active.run(("systemctl", "enable", "docker"))
     active.run(("systemctl", "start", "docker"))
 
