@@ -1,3 +1,34 @@
+## 2026-11-01 — R0H cache-only install R3 APT archive-cache repair CLOSED_PASS
+
+~~~text
+TASK=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_T1B_CACHE_ONLY_INSTALL_R3_APT_ARCHIVE_CACHE_REPAIR_20261101_01
+
+CURRENT_INSTALL_SOURCE_AUTHORITY=24382caae4a1f5d459297f86e8d18f10a848ca64
+BUNDLE_ID=26bc7f78615a0ed3f1240ddfb2ecded5ef7df1da50e9969a52dffb1010185163
+
+BUNDLE_CONTENT_CHANGED=false
+BUNDLE_REDOWNLOAD_REQUIRED=false
+
+SOURCE_REPAIR=PASS
+SOURCE_REVIEW=PASS
+SOURCE_CI=PASS
+SOURCE_CLOSURE=CLOSED_PASS
+
+CURRENT_STOP_POINT=WAITING_FOR_OPERATOR_T1B_CACHE_ONLY_INSTALL_R3_RETRY
+NEXT_STOP_POINT=R0H_POSTINSTALL_ACCEPTANCE_PASS
+
+T1_A_MUTATION=false
+BOARD_ACCESS=false
+T1_CORE_STACK_DEPLOYMENT=false
+~~~
+
+R3 installs from a temporary APT archive cache under /var/tmp, requests every manifest member
+as package=exact_version, and retains apt-get --no-download --no-remove. The existing verified
+bundle remains authoritative and is not reacquired.
+
+Closure authority:
+`docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_T1B_CACHE_ONLY_INSTALL_R3_APT_ARCHIVE_CACHE_REPAIR_CLOSURE_20261101.md`.
+
 ## 2026-11-01 — R0H cache-only install APT sandbox path repair CLOSED_PASS
 
 ~~~text
