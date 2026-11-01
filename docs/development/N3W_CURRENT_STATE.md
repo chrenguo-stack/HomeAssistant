@@ -1,3 +1,54 @@
+## 2026-11-01 — R1 runtime-only exact artifact production dispatch accepted; manual run discovery pending
+
+~~~text
+TASK=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_RUNTIME_ONLY_EXACT_ARTIFACT_PRODUCTION_AND_BINDING_20261101_01
+
+S0_SOURCE_AUTHORITY_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+R1_DEPLOYMENT_TOOL_SOURCE_AUTHORITY=4b0ec26e04a8f10d0d9e746c05b6a5794510d8a1
+
+R1_SOURCE_REPAIR_CLOSURE=CLOSED_PASS
+
+MANUAL_WORKFLOW=n3w-t1-clean-reference-runtime-payload-ci.yml
+MANUAL_WORKFLOW_REF=test/n3w-r8-full-simulated-e2e-safety-20261028
+MANUAL_DISPATCH_SUBMISSION=OPERATOR_REPORTED_ACCEPTED_BY_GITHUB
+
+DISPATCH_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+DISPATCH_IMAGE_RUN_ID=41275979177
+DISPATCH_IMAGE_ARTIFACT_ID=13070404405
+DISPATCH_BASE_RUN_ID=41275979325
+DISPATCH_BASE_ARTIFACT_ID=13071308834
+
+MANUAL_WORKFLOW_RUN_ID=UNKNOWN_FRESH
+RUNTIME_ONLY_ARTIFACT_ID=UNKNOWN_FRESH
+RUNTIME_ONLY_ARTIFACT_DIGEST=UNKNOWN_FRESH
+RUNTIME_ONLY_ARTIFACT_PRODUCTION_RESULT=PENDING_FRESH_RUN_DISCOVERY
+
+PR_TRIGGERED_RUNTIME_WORKFLOW_RUN_ID=41285628034
+PR_TRIGGERED_RUNTIME_WORKFLOW_EVENT=pull_request
+PR_TRIGGERED_BUILD_RUNTIME_JOB=SKIPPED
+PR_TRIGGERED_RUN_IS_MANUAL_PRODUCTION_EVIDENCE=false
+
+R1_LIVE_APPLY_AUTHORIZED=false
+T1_ACCESS=false
+T1_MUTATION=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+
+CURRENT_STOP_POINT=MANUAL_DISPATCH_ACCEPTED_WAITING_FOR_WORKFLOW_DISPATCH_RUN_DISCOVERY_AND_ARTIFACT_BINDING
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_RUNTIME_ONLY_EXACT_ARTIFACT_PRODUCTION_AND_BINDING_20261101_01
+~~~
+
+The operator submitted the exact workflow_dispatch request and GitHub reported that the event
+was created. The available GitHub connector currently lists pull-request-triggered runs for a
+commit, so it cannot be used to infer the manual run ID from the PR run list.
+
+The visible PR-triggered run 41285628034 is explicitly not the manual artifact-production run:
+its event is pull_request and its build-runtime job was skipped. It must not be used as proof that
+the runtime-only artifact was produced.
+
+The next session must identify the actual workflow_dispatch run before making any artifact claim.
+No duplicate dispatch is permitted until the current manual run state is known.
+
 ## 2026-11-01 — R1 local exact-image-cache deployment source repair CLOSED_PASS
 
 ~~~text
