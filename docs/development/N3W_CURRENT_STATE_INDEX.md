@@ -1,3 +1,16 @@
+## 2026-11-01 — R0H Docker/Compose package payload becomes download-once local cache
+
+- The earlier direct-online R0H live-apply command is superseded before execution.
+- R0H must acquire the exact Ubuntu `docker.io` + `docker-compose-v2` dependency closure once and save it under `~/Documents/N3W/host-runtime-cache/<bundle-id>/`.
+- The bundle manifest binds Armbian/Ubuntu/architecture/source policy, exact Docker/Compose package versions, and every .deb filename/size/SHA-256.
+- First installation itself must be cache-only with downloads disabled; an incomplete cache fails instead of silently fetching from the network.
+- Later compatible fresh T1 hosts copy and verify the Mac cache, then install cache-only without re-downloading Docker/Compose payloads.
+- This host bundle is not `T1_Core_Stack` product identity and is separate from the product exact-artifact cache.
+- Full fresh-Armbian air-gapped installation remains later O1 work; this change advances only the host Docker/Compose package-cache portion.
+- Existing baseline tool needs bounded source extension; live R0H apply is blocked until that source/test closure.
+- Design authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_HOST_RUNTIME_LOCAL_PACKAGE_CACHE_DESIGN_20261101.md`.
+- Next ONE gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_LOCAL_PACKAGE_CACHE_SOURCE_IMPLEMENTATION_20261101_01`.
+
 ## 2026-11-01 — R0H host-runtime design is CLOSED_PASS; bounded T1_B apply is next
 
 - R0H design/preflight result: `PASS`.
