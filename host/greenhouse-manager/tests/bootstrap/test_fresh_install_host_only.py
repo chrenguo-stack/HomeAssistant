@@ -46,7 +46,6 @@ class HostOnlyFreshInstall:
         self.images = host_root / "docker-images"
         self.final = host_root / "product"
         self.calls: list[str] = []
-        self.staged_units_enabled = False
 
     def preflight(self):
         self.calls.append("preflight")
@@ -193,20 +192,8 @@ class HostOnlyFreshInstall:
             "production_service_start": False,
         }
 
-    def enable_staged_units(self):
-        self.calls.append("staged_units")
-        self.staged_units_enabled = True
-        return {
-            "status": "PASS",
-            "provision_resume_enabled": True,
-            "production_activation_enabled": False,
-            "production_service_start": False,
-        }
-
     def stopped_postcheck(self, system_id: str):
         self.calls.append("postcheck")
-        if not self.staged_units_enabled:
-            raise RuntimeError("staged_units_not_enabled")
         identity = verify_initialization(self.final / "identity")
         if identity.system_id != system_id:
             raise RuntimeError("identity_drift")
@@ -240,7 +227,6 @@ class HostOnlyFreshInstall:
 
     def cleanup(self, candidate_root: Path):
         self.calls.append("cleanup")
-        self.staged_units_enabled = False
         shutil.rmtree(candidate_root, ignore_errors=True)
         shutil.rmtree(self.final, ignore_errors=True)
         shutil.rmtree(self.images, ignore_errors=True)
@@ -268,7 +254,6 @@ def test_full_fresh_install_from_empty_host(
     assert report["activation_authorized"] is False
     assert not candidate.exists()
     assert adapters.final.is_dir()
-    assert adapters.staged_units_enabled is True
 
     services = json.loads(
         (adapters.final / "runtime/services.json").read_text(encoding="utf-8")
