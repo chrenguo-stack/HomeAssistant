@@ -111,13 +111,17 @@ def execute_apply(payload_root: Path, confirmation: str) -> dict[str, object]:
             flush=True,
         )
 
+    cleanup_proven = False
     try:
         report = contract.run_fresh_staging(
             adapter,
             candidate,
             before_mutation=authorize,
         )
+        cleanup_proven = True
     except Exception as error:
+        cleanup_result = getattr(error, "cleanup_result", "UNKNOWN")
+        cleanup_proven = cleanup_result in {"PASS", "NOT_STARTED"}
         print(
             json.dumps(
                 {
@@ -126,7 +130,8 @@ def execute_apply(payload_root: Path, confirmation: str) -> dict[str, object]:
                     "reason": str(error)[:200],
                     "failed_stage": getattr(error, "failed_stage", "unknown"),
                     "failure_code": getattr(error, "failure_code", "unknown"),
-                    "cleanup_result": getattr(error, "cleanup_result", "UNKNOWN"),
+                    "cleanup_result": cleanup_result,
+                    "candidate_preserved": not cleanup_proven,
                     "production_v2_authority_used": False,
                     "production_service_start": False,
                     "activation_authorized": False,
@@ -139,7 +144,7 @@ def execute_apply(payload_root: Path, confirmation: str) -> dict[str, object]:
         )
         raise
     finally:
-        if candidate.exists() and not candidate.is_symlink():
+        if cleanup_proven and candidate.exists() and not candidate.is_symlink():
             shutil.rmtree(candidate, ignore_errors=True)
 
     if (
