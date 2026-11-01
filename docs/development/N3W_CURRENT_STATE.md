@@ -1,3 +1,73 @@
+## 2026-11-01 — R2 controlled start and reboot CLOSED_PASS
+
+~~~text
+TASK=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R2_CONTROLLED_START_AND_REBOOT_20261101
+RESULT=CLOSED_PASS
+
+R2A=CLOSED_PASS
+R2B=CLOSED_PASS
+
+PRODUCT_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+R2A_CONTROL_HEAD=abeb6c31147bcf249361dcec7e9536eaed6106a6
+R2B_CONTROL_HEAD=e15c64ac8f0f5f482a6c8538072031734002a559
+
+R2B_CI_RUN=41313796825
+R2B_CI_RESULT=SUCCESS
+R2B_TEST_COUNT=7
+R2B_ARTIFACT_ID=13086354529
+R2B_ARTIFACT_DIGEST=sha256:b604da84720479d9f844aae49986ccc0b70fd469e25625e26ccd95386e432858
+R2B_PACKAGE_MANIFEST_SHA256=87a8339ffd523709758ffda3ea64bd15303ca64dbaa0e28386fb3afc63b16eff
+
+R2B_PRE_BOOT_ID=8e649419-3243-4e23-973d-b53f2a626b82
+R2B_POST_BOOT_ID=dc0f29fd-59f9-4f4c-ae79-206db2b22002
+REBOOT_OBSERVED=true
+
+TRANSACTION_STAGE=REBOOT_ACCEPTED
+AUTHORIZATION_CONSUMED=true
+AUTHORIZATION_REPLAY_ALLOWED=false
+R2A_TRANSACTION_UNCHANGED=true
+
+RUNTIME_SERVICES=broker,homeassistant,manager
+RUNNING_CONTAINER_COUNT=3
+FAILED_UNIT_COUNT=0
+
+PRODUCTION_UNITS_ENABLED=true
+PRODUCTION_UNITS_ACTIVE=true
+
+CERTIFICATE_TIMER_ENABLED=true
+CERTIFICATE_TIMER_ACTIVE=true
+CERTIFICATE_SERVICE_QUIESCENT=true
+CERTIFICATE_IDENTITY_UNCHANGED=true
+
+BROKER_AUTHENTICATED_READINESS=true
+HOMEASSISTANT_HTTP_READY=true
+HOMEASSISTANT_HTTP_STATUS=401
+
+CONTAINER_STABILITY_SECONDS=30
+TRANSPORT_RESIDUAL_COUNT=0
+
+BOARD_ACCESS=false
+R3_EXECUTED=false
+MERGE=false
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+R2 is now closed. R2A proved the first production start from the accepted R1 stopped Clean
+Reference. R2B then proved one real host reboot by boot-ID change and verified persistence:
+Broker, Manager and Home Assistant restored; production units and certificate timer persisted;
+the Broker certificate identity and R2A transaction remained unchanged; the final postcheck found
+zero failed units and zero R2B transport residue.
+
+The first R2B live preflight emitted a false STOP because it incorrectly required
+`n3wfc4-provision-resume.service` to be active before the first reboot. The accepted pre-reboot
+state is enabled + inactive; after the real reboot it is required and observed enabled + active.
+The repair was R2B-only and is covered by the final 7-test CI authority.
+
+Closure:
+`docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R2_CONTROLLED_START_AND_REBOOT_CLOSURE_20261101.md`.
+
+R3 remains NOT_EXECUTED and is not auto-entered.
+
 ## 2026-11-01 — R2A first production start CLOSED_PASS
 
 ~~~text
