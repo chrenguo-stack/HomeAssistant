@@ -1,3 +1,45 @@
+## 2026-11-01 — R1 T1_B predeployment read-only preflight prepared
+
+~~~text
+TASK=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_T1B_PREDEPLOYMENT_READONLY_PREFLIGHT_20261101_01
+
+TARGET=T1_B
+S0_SOURCE_AUTHORITY_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+R1_DEPLOYMENT_TOOL_SOURCE_AUTHORITY=4b0ec26e04a8f10d0d9e746c05b6a5794510d8a1
+
+R0=CLOSED_PASS
+R0H=CLOSED_PASS
+S0=CLOSED_PASS
+S1=CLOSED_PASS
+R1_RUNTIME_ARTIFACT=CLOSED_PASS
+R1_MAC_CROSS_BINDING=CLOSED_PASS
+
+T1_ACCESS=READ_ONLY
+T1_MUTATION=false
+PAYLOAD_TRANSFER=false
+IMAGE_TRANSFER=false
+DOCKER_MUTATION=false
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+MERGE=false
+
+CURRENT_STOP_POINT=WAITING_FOR_OPERATOR_T1B_READONLY_PREFLIGHT_EXECUTION
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+The gate uses two repository-owned read-only proof layers. The minimal-baseline inventory must
+re-prove that T1_B still has zero containers/images/volumes, only default Docker networks, no
+product path/unit/listener/firewall residue, and no unknown Docker state. The Clean Reference
+staging host preflight then revalidates the exact local runtime/S1 binding plus host-runtime and
+storage/transport capacity. Additional read-only checks preserve the R0/R0H systemd, package and
+service enablement continuity.
+
+No T1_B write, payload transfer, image transfer, Docker load or product-service start is
+authorized.
+
+Preflight authority:
+`docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_T1B_PREDEPLOYMENT_READONLY_PREFLIGHT_20261101.md`.
+
 ## 2026-11-01 — R1 runtime-only artifact Mac acquisition/local cross-binding CLOSED_PASS
 
 ~~~text
