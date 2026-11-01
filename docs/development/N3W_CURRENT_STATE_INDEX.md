@@ -1,3 +1,14 @@
+## 2026-11-01 — R1 T1_B predeployment read-only preflight is prepared
+
+- Target is T1_B; access is read-only and T1 mutation remains false.
+- The gate re-proves both halves required for a real Clean Reference: host still empty/clean, and exact local deployment inputs still admissible.
+- Read-only inventory must show zero containers/images/volumes, only bridge/host/none networks, and zero product paths/units/listeners/firewall residue.
+- Clean Reference preflight must revalidate local runtime/S1 cross-binding, R0H host readiness and transport capacity.
+- Systemd health, NetworkManager/Docker enablement and exact R0H Docker/Compose package continuity are checked separately.
+- No payload/image transfer, Docker load, product staging, service start or board access is authorized.
+- Preflight authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_T1B_PREDEPLOYMENT_READONLY_PREFLIGHT_20261101.md`.
+- Current stop point: operator executes the bounded T1_B read-only preflight; do not auto-enter deployment afterward.
+
 ## 2026-11-01 — R1 Mac runtime-only acquisition/local cross-binding is CLOSED_PASS
 
 - Runtime-only artifact 13075576515 is durably cached on Mac in the private runtime-cache class.
