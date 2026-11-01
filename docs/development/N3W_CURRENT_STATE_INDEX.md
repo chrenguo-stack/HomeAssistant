@@ -1,3 +1,23 @@
+## 2026-11-01 — R1 T1_B first deployment CLOSED_PASS
+
+- Gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_T1B_FIRST_DEPLOYMENT_20261101_01`.
+- Result: CLOSED_PASS.
+- S0 source remains `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Final Clean Reference control-plane authority: `ee0aaf71ddc71bba5f121e25f09a1f0189f5e6e8`.
+- Runtime payload SHA-256: `7c1fbc29bfcb5597f2736a9a6ce39192cd8c6bb317df6db37c9581df7efcdcfd`.
+- Payload manifest SHA-256: `b5570c7e97965d5afa593721849571d62ab67a67888fb2c2ace6d4d043147fa3`.
+- Final live executor/host apply: PASS; fresh product staged; node credential count 0.
+- Stopped state: 3 images, 0 containers, 0 volumes, only bridge/host/none networks, 0 product listeners.
+- Staged units are enabled/inactive; production activation units remain not-found/inactive.
+- All required product paths PASS; forbidden product paths absent; transport/candidate residue counts 0.
+- Cross-Docker portable image identity: Manager/Home Assistant/Broker RootFS and config-contract bindings all PASS.
+- Runtime `.Id` differs from CI/build image ID for all three images and is accepted under the existing Docker 29 cross-store rule; runtime `.Id` equality is not a portable oracle.
+- The ad-hoc exact-runtime-ID STOP is classified FALSE_STOP; no cleanup or replay was performed.
+- Final read-only verifier semantic result is PASS; trailing zsh `PIPESTATUS[0]` error affected only outer return-code reporting.
+- SSH ControlMaster reduced the final live route to one password prompt without changing T1 authorized_keys or persistent Mac SSH config.
+- Closure: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_T1B_FIRST_DEPLOYMENT_CLOSURE_20261101.md`.
+- R2 controlled reboot/start is NOT_AUTHORIZED and is not auto-entered.
+
 ## 2026-11-01 — R1 T1_B first deployment hit pre-mutation payload file-set false STOP
 
 - First live apply stopped with `payload_file_set_invalid` before `run_fresh_staging()`.
