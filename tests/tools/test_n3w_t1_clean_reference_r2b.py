@@ -50,6 +50,13 @@ def test_claim_persists_one_shot_reboot_pending(
     monkeypatch.setattr(r2b, "TRANSACTION", transaction)
     monkeypatch.setattr(r2b.os, "chown", lambda *_args: None)
 
+    real_read_json = r2b._read_json
+
+    def relaxed_read_json(path: Path, *, mode=None):
+        return real_read_json(path, mode=None)
+
+    monkeypatch.setattr(r2b, "_read_json", relaxed_read_json)
+
     monkeypatch.setattr(
         r2b,
         "_package",
