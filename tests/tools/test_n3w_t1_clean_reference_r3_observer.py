@@ -209,7 +209,7 @@ def test_observer_source_is_read_only_and_has_no_board_actuation() -> None:
     for token in forbidden:
         assert token not in source
 
-    assert '"mode=ro"' in source
+    assert "mode=ro" in source
     assert '"read_only": True' in source
     assert '"network_mutation": False' in source
     assert '"board_access": False' in source
