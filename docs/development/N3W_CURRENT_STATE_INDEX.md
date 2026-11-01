@@ -1,3 +1,12 @@
+## 2026-11-01 — R1 T1_B nft visibility false-STOP repair is CLOSED_PASS
+
+- Root cause: absent optional `nft` CLI was incorrectly treated as unknown firewall visibility.
+- Actual T1_B evidence remained clean: zero containers/images/volumes, only default Docker networks, no product path/unit/listener residue, both iptables read views PASS.
+- Read-only inventory repair head: `ca849ed8565504529e2e39c823172ec2070cb5a8`.
+- Dedicated CI run `41290538736`: SUCCESS.
+- Frozen R1 deployment/capacity authority remains `4b0ec26e...`; it was not changed.
+- Next action: operator executes T1_B read-only revalidation. No deployment is authorized.
+
 ## 2026-11-01 — R1 T1_B predeployment read-only preflight is prepared
 
 - Target is T1_B; access is read-only and T1 mutation remains false.
