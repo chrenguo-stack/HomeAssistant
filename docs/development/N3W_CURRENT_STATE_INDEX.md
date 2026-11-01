@@ -1,3 +1,15 @@
+## 2026-11-01 — R0H T1_B download-only host cache acquisition and Mac archive are CLOSED_PASS
+
+- Exact bundle ID: `26bc7f78615a0ed3f1240ddfb2ecded5ef7df1da50e9969a52dffb1010185163`.
+- Bundle contains 5 .deb members totaling 79,391,752 bytes.
+- Exact requested versions: `docker.io=29.1.3-0ubuntu4.1`, `docker-compose-v2=2.40.3+ds1-0ubuntu1`.
+- T1 tool-transfer SHA-256 match, self-check, acquire and strict T1 verify all PASS.
+- Durable Mac `verify-archive` PASS on the copied bundle.
+- Docker/Compose were not installed and Docker was not started.
+- T1_Core_Stack remains undeployed; T1_A and boards remain untouched.
+- Closure authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_T1B_DOWNLOAD_ONLY_CACHE_ACQUISITION_AND_MAC_ARCHIVE_CLOSURE_20261101.md`.
+- Next ONE gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_T1B_CACHE_ONLY_INSTALL_AND_POSTINSTALL_ACCEPTANCE_20261101_01`.
+
 ## 2026-11-01 — R0H T1_B download-only cache acquisition is prepared
 
 - Source authority remains `c4984baf274d74d1459175153b62bed9a2b7626e`; the source gate is CLOSED_PASS.
