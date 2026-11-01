@@ -1,3 +1,18 @@
+## 2026-11-01 — T1_B R0 Fresh Armbian baseline is CLOSED_PASS
+
+- Gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0_T1B_FRESH_ARMBIAN_READONLY_BASELINE_20261101_01`.
+- T1_B runs `Armbian OS 26.05.0 resolute`, `aarch64`, kernel `6.18.33-ophub`, root filesystem on `/dev/mmcblk2p2`.
+- systemd reports `running` with 0 failed units; one default route is present; NetworkManager is active/enabled.
+- NTP evidence: `ntp=yes`, `ntp_enabled=yes`; unavailable `SystemClockSynchronized` is retained as `clock=unknown`.
+- Docker Engine and Compose are absent; `/var/lib/docker` is absent.
+- Product containers/images/volumes/networks, product paths, product units and product listeners are all 0.
+- Expected product ports 1883, 8883, 8123, 47110, 47111 and 47112 have no listeners.
+- `R0_UNEXPECTED_RESIDUALS=NONE`.
+- `T1_A_MUTATION=false`, `T1_B_MUTATION=false`, `BOARD_ACCESS=false`.
+- Result: `R0_T1B_FRESH_ARMBIAN_BASELINE=PASS`.
+- Closure: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0_T1B_FRESH_ARMBIAN_READONLY_BASELINE_CLOSURE_20261101.md`.
+- Stop point: R0 is complete. R0H remains a separate host-runtime mutation gate and is not automatically entered.
+
 ## 2026-11-01 — Dual-T1 roles and T1_Core_Updater are current authority
 
 - `T1_A` is preserved: `T1_A_ROLE=LEGACY_UPGRADE_AND_FAILURE_SPECIMEN`, `T1_A_WIPE=false`.
