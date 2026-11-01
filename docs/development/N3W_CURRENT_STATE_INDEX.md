@@ -1,3 +1,19 @@
+## 2026-11-01 — Dual-T1 roles and T1_Core_Updater are current authority
+
+- `T1_A` is preserved: `T1_A_ROLE=LEGACY_UPGRADE_AND_FAILURE_SPECIMEN`, `T1_A_WIPE=false`.
+- The proven reason to preserve T1_A is its real historical successor-upgrade E03 failure state. Do not assume the separate first-registration E03 business bug is still present without fresh evidence.
+- `T1_B` is the Clean Reference / clean upgrade target. The operator will wipe T1_B and install official Armbian; R0 must fresh-read it before Docker or product mutation.
+- The previous statement `OLD_T1_RUNTIME_MAY_BE_DISCARDED=true` is superseded by this entry.
+- Canonical upgrade tool: `T1_Core_Updater`; CLI: `t1-core-updater`.
+- Clean Reference is not itself an upgrade. Upgrade validation requires explicit baseline A and target B.
+- Default first real product upgrade target is Manager A -> B; Home Assistant, Mosquitto and host platform remain unchanged unless an explicit compatibility boundary requires otherwise.
+- Two historical E03 labels must remain distinct: first-registration E03 = Manager business logic; successor-upgrade E03 = T1 upgrade/maintenance control.
+- PR #745 remains open/unmerged as historical repair/incident evidence pending the simplified updater architecture.
+- Updated development plan: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_DEVELOPMENT_PLAN_20261101.md`.
+- Updated design: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_AND_STABLE_INVARIANTS_DESIGN_20261031.md`.
+- Next ONE gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0_T1B_FRESH_ARMBIAN_READONLY_BASELINE_20261101_01`.
+- R0 is read-only and targets T1_B only. T1_A must not be mutated during T1_B Clean Reference work.
+
 ## 2026-11-01 — T1_Core_Stack clean-reference route is current authority
 
 - Canonical production application stack name is now `T1_Core_Stack` = greenhouse-manager + Home Assistant + Mosquitto Broker.
