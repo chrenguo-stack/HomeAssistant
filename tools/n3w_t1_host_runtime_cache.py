@@ -228,6 +228,96 @@ def _load_manifest(cache_dir: Path) -> tuple[dict[str, Any], str]:
     return document, bundle_id
 
 
+def verify_archive(cache_dir: Path) -> dict[str, Any]:
+    cache_dir = cache_dir.resolve()
+    document, bundle_id = _load_manifest(cache_dir)
+    requested = document.get("requested_packages")
+    if not isinstance(requested, dict) or set(requested) != set(PACKAGES):
+        raise HostRuntimeCacheError("cache_requested_packages_invalid")
+    if any(not isinstance(value, str) or not value for value in requested.values()):
+        raise HostRuntimeCacheError("cache_requested_package_version_invalid")
+    members = document.get("package_members")
+    if not isinstance(members, list) or not members:
+        raise HostRuntimeCacheError("cache_package_members_invalid")
+
+    normalized: list[dict[str, Any]] = []
+    names: set[str] = set()
+    for member in members:
+        if not isinstance(member, dict):
+            raise HostRuntimeCacheError("cache_package_member_invalid")
+        filename = member.get("filename")
+        size_bytes = member.get("size_bytes")
+        sha256 = member.get("sha256")
+        package = member.get("package")
+        version = member.get("version")
+        architecture = member.get("architecture")
+        if (
+            not isinstance(filename, str)
+            or not filename
+            or Path(filename).name != filename
+            or not filename.endswith(".deb")
+        ):
+            raise HostRuntimeCacheError("cache_package_filename_invalid")
+        if filename in names:
+            raise HostRuntimeCacheError("cache_package_filename_duplicate")
+        names.add(filename)
+        if not isinstance(size_bytes, int) or isinstance(size_bytes, bool) or size_bytes < 0:
+            raise HostRuntimeCacheError(f"cache_package_size_invalid:{filename}")
+        if (
+            not isinstance(sha256, str)
+            or len(sha256) != 64
+            or any(character not in "0123456789abcdef" for character in sha256)
+        ):
+            raise HostRuntimeCacheError(f"cache_package_sha256_invalid:{filename}")
+        if not isinstance(package, str) or not package:
+            raise HostRuntimeCacheError(f"cache_package_name_invalid:{filename}")
+        if not isinstance(version, str) or not version:
+            raise HostRuntimeCacheError(f"cache_package_version_invalid:{filename}")
+        if not isinstance(architecture, str) or not architecture:
+            raise HostRuntimeCacheError(f"cache_package_architecture_invalid:{filename}")
+        normalized.append(
+            {
+                "filename": filename,
+                "size_bytes": size_bytes,
+                "sha256": sha256,
+                "package": package,
+                "version": version,
+                "architecture": architecture,
+            }
+        )
+
+    packages_dir = cache_dir / "packages"
+    actual_paths = sorted(packages_dir.glob("*.deb"))
+    actual_names = {path.name for path in actual_paths}
+    if names != actual_names:
+        raise HostRuntimeCacheError("cache_package_member_set_mismatch")
+    for member in normalized:
+        path = packages_dir / str(member["filename"])
+        if path.stat().st_size != member["size_bytes"]:
+            raise HostRuntimeCacheError(
+                f"cache_package_size_mismatch:{member['filename']}"
+            )
+        if _sha256_file(path) != member["sha256"]:
+            raise HostRuntimeCacheError(
+                f"cache_package_sha256_mismatch:{member['filename']}"
+            )
+    _validate_requested_members(normalized, requested)
+    return {
+        "schema": REPORT_SCHEMA,
+        "status": "PASS",
+        "phase": "verify-archive",
+        "bundle_id": bundle_id,
+        "cache_dir": str(cache_dir),
+        "package_count": len(normalized),
+        "total_bytes": sum(int(item["size_bytes"]) for item in normalized),
+        "requested_packages": dict(sorted(requested.items())),
+        "network_download_performed": False,
+        "cache_only_install": False,
+        "production_service_start": False,
+        "board_access": False,
+    }
+
+
 def _assert_fresh_docker_absent(runner: Runner) -> None:
     if shutil.which("docker") is not None:
         raise HostRuntimeCacheError("docker_command_already_present")
@@ -321,6 +411,7 @@ def verify_cache(
 ) -> dict[str, Any]:
     active = runner or Runner()
     cache_dir = cache_dir.resolve()
+    archive = verify_archive(cache_dir)
     document, bundle_id = _load_manifest(cache_dir)
     host = _host_contract(active)
     if document.get("host_contract") != host:
@@ -328,26 +419,9 @@ def verify_cache(
     apt_policy = _validate_apt_source_policy()
     if document.get("apt_source_policy") != apt_policy:
         raise HostRuntimeCacheError("cache_apt_source_policy_mismatch")
-    requested = document.get("requested_packages")
-    if not isinstance(requested, dict) or set(requested) != set(PACKAGES):
-        raise HostRuntimeCacheError("cache_requested_packages_invalid")
-    if any(not isinstance(value, str) or not value for value in requested.values()):
-        raise HostRuntimeCacheError("cache_requested_package_version_invalid")
-    members = document.get("package_members")
-    if not isinstance(members, list) or not members:
-        raise HostRuntimeCacheError("cache_package_members_invalid")
-
+    requested = dict(document["requested_packages"])
+    members = list(document["package_members"])
     packages_dir = cache_dir / "packages"
-    expected_names = {
-        str(member.get("filename"))
-        for member in members
-        if isinstance(member, dict)
-    }
-    actual_paths = sorted(packages_dir.glob("*.deb"))
-    actual_names = {path.name for path in actual_paths}
-    if expected_names != actual_names:
-        raise HostRuntimeCacheError("cache_package_member_set_mismatch")
-
     observed_members = _package_members(packages_dir, active)
     if observed_members != sorted(
         members,
@@ -361,8 +435,8 @@ def verify_cache(
         "phase": "verify",
         "bundle_id": bundle_id,
         "cache_dir": str(cache_dir),
-        "package_count": len(observed_members),
-        "total_bytes": sum(int(item["size_bytes"]) for item in observed_members),
+        "package_count": archive["package_count"],
+        "total_bytes": archive["total_bytes"],
         "requested_packages": dict(sorted(requested.items())),
         "network_download_performed": False,
         "cache_only_install": False,
@@ -476,7 +550,7 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--phase",
-        choices=("self-check", "acquire", "verify", "install"),
+        choices=("self-check", "acquire", "verify-archive", "verify", "install"),
         required=True,
     )
     parser.add_argument("--cache-dir")
@@ -494,6 +568,8 @@ def main() -> int:
             cache_dir = Path(args.cache_dir)
             if args.phase == "acquire":
                 result = acquire_cache(cache_dir)
+            elif args.phase == "verify-archive":
+                result = verify_archive(cache_dir)
             elif args.phase == "verify":
                 result = verify_cache(cache_dir)
             else:
