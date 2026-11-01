@@ -1,3 +1,30 @@
+## 2026-11-01 — R0H T1_B download-only cache acquisition gate prepared
+
+~~~text
+TASK=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_T1B_DOWNLOAD_ONLY_CACHE_ACQUISITION_AND_MAC_ARCHIVE_20261101_01
+
+SOURCE_AUTHORITY_HEAD=c4984baf274d74d1459175153b62bed9a2b7626e
+SOURCE_CLOSURE=CLOSED_PASS
+TARGET=T1_B
+
+APT_METADATA_REFRESH_ALLOWED=true
+PACKAGE_PAYLOAD_DOWNLOAD_ALLOWED=true
+DOCKER_INSTALL_ALLOWED=false
+DOCKER_SERVICE_START_ALLOWED=false
+T1_CORE_STACK_DEPLOYMENT=false
+
+CURRENT_STOP_POINT=WAITING_FOR_OPERATOR_T1B_DOWNLOAD_ONLY_CACHE_ACQUISITION
+NEXT_STOP_POINT=MAC_VERIFY_ARCHIVE_PASS
+AUTO_INSTALL=false
+~~~
+
+Preflight authority:
+`docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_T1B_DOWNLOAD_ONLY_CACHE_ACQUISITION_AND_MAC_ARCHIVE_PREFLIGHT_20261101.md`.
+
+The next operator action may refresh APT metadata and download the exact Docker/Compose
+package closure on T1_B. It must then verify the bundle on T1_B, copy it to the durable Mac
+cache, run portable `verify-archive`, and stop before any package installation.
+
 ## 2026-11-01 — R0H local host package cache source gate CLOSED_PASS
 
 ~~~text
