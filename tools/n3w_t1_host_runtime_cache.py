@@ -444,7 +444,9 @@ def install_cache(
 
 def self_check() -> dict[str, Any]:
     install_source = inspect.getsource(install_cache)
-    full_source = Path(__file__).read_text(encoding="utf-8")
+    executable_source = Path(__file__).read_text(encoding="utf-8").split(
+        "\ndef self_check(", 1
+    )[0]
     violations: list[str] = []
     if "--no-download" not in install_source:
         violations.append("cache_install_missing_no_download")
@@ -458,7 +460,7 @@ def self_check() -> dict[str, Any]:
         "docker compose up",
         "armbian-install",
     ):
-        if forbidden in full_source:
+        if forbidden in executable_source:
             violations.append(f"forbidden_source_token:{forbidden}")
     return {
         "schema": REPORT_SCHEMA,
