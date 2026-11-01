@@ -447,19 +447,37 @@ def verify_cache(
     }
 
 
-def _stage_install_packages(packages_dir: Path) -> Path:
+def _exact_member_requests(members: list[dict[str, Any]]) -> list[str]:
+    versions: dict[str, str] = {}
+    for member in members:
+        package = str(member["package"])
+        version = str(member["version"])
+        previous = versions.get(package)
+        if previous is not None and previous != version:
+            raise HostRuntimeCacheError(
+                f"cache_package_version_conflict:{package}:{previous}:{version}"
+            )
+        versions[package] = version
+    if not versions:
+        raise HostRuntimeCacheError("cache_package_members_invalid")
+    return [f"{package}={versions[package]}" for package in sorted(versions)]
+
+
+def _stage_apt_archives(packages_dir: Path) -> Path:
     package_paths = sorted(packages_dir.glob("*.deb"))
     if not package_paths:
         raise HostRuntimeCacheError("cache_package_files_missing")
     INSTALL_STAGING_ROOT.mkdir(parents=True, exist_ok=True)
     staging_dir = Path(
         tempfile.mkdtemp(
-            prefix="n3w-t1-host-runtime-install-",
+            prefix="n3w-t1-host-runtime-archives-",
             dir=str(INSTALL_STAGING_ROOT),
         )
     )
     try:
         staging_dir.chmod(0o755)
+        partial_dir = staging_dir / "partial"
+        partial_dir.mkdir(mode=0o755)
         for source in package_paths:
             target = staging_dir / source.name
             shutil.copy2(source, target)
@@ -476,7 +494,6 @@ def _stage_install_packages(packages_dir: Path) -> Path:
     except Exception:
         shutil.rmtree(staging_dir, ignore_errors=True)
         raise
-
 
 def install_cache(
     cache_dir: Path,
@@ -505,18 +522,21 @@ def install_cache(
         }
 
     packages_dir = cache_dir.resolve() / "packages"
-    staging_dir = _stage_install_packages(packages_dir)
+    members = list(document["package_members"])
+    exact_requests = _exact_member_requests(members)
+    staging_dir = _stage_apt_archives(packages_dir)
     environment = {**os.environ, "DEBIAN_FRONTEND": "noninteractive"}
     try:
-        package_paths = [str(path) for path in sorted(staging_dir.glob("*.deb"))]
         active.run(
             (
                 "apt-get",
                 "--no-download",
                 "--no-remove",
+                "-o",
+                f"Dir::Cache::archives={staging_dir}",
                 "install",
                 "-y",
-                *package_paths,
+                *exact_requests,
             ),
             timeout=1800.0,
             env=environment,
