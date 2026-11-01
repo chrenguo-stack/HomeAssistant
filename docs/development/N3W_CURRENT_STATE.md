@@ -1,3 +1,55 @@
+## 2026-11-02 — R3 pairing-readiness bridge readonly preflight STOP_PRECLAIM
+
+~~~text
+TASK=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_PAIRING_READINESS_BRIDGE_READONLY_PREFLIGHT_20261102
+RESULT=STOP_PRECLAIM
+
+BRIDGE_CONTROL_HEAD=37e269300d6fadeee7ad85476374813f879cdb23
+BRIDGE_CI_RUN=41322028703
+BRIDGE_CI_RESULT=SUCCESS
+BRIDGE_TEST_COUNT=17
+BRIDGE_ARTIFACT_ID=13090105684
+BRIDGE_ARTIFACT_DIGEST=sha256:c43d0bbd144d6d0e6e8ec5770e1b47f69e85d7e9dd7b4b72a5240d0e1055a7e8
+BRIDGE_PACKAGE_MANIFEST_SHA256=9f965a6efd191aa8166f9044527efbd5fe06ea986a0e0f8832d4a0ff079aeec3
+
+R2_REFERENCE_SHA256=89da2a2b2cc1ce0fa024c3c45e24a71f09ba05e0e0cadbd67dd6387291239747
+
+LIVE_STOP_REASON=private_root_invalid:/var/lib/n3w-t1-provisioning
+SOURCE_DEFECT_SQLITE3_IMPORT=PROVEN
+BRIDGE_ASSUMPTION_DEVICE_READY=INVALID
+CURRENT_DEVICE_PROVISIONING_STATE=UNPROVISIONED_BY_FROZEN_CONTRACT
+
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+FACTORY_ACCEPTED_CREATED=false
+PAIRING_WINDOW_OPENED=false
+BOARD_ACCESS=false
+
+TEMP_TRANSPORT_RESIDUAL_COUNT=UNKNOWN_FRESH
+TEMP_TRANSPORT_REQUIRES_FRESH_READONLY_RECHECK=true
+
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_PAIRING_READINESS_BRIDGE_SOURCE_REPAIR_AND_IDENTITY_AUTHORITY_REDESIGN_20261102_01
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+~~~
+
+The read-only bridge inspect stopped before any claim or product marker creation.
+
+Two independent issues are now proven:
+
+1. exact bridge source calls/catches `sqlite3` but does not import it;
+2. the bridge assumed the Clean Reference already had legacy device-provisioning state
+   `DEVICE_READY`, but the live provisioning root is absent. Under the frozen product contract,
+   absent transaction root means `UNPROVISIONED`; the root is only created by an explicit
+   device-provisioning start.
+
+Do not create an empty provisioning root or fake DEVICE_READY. Do not run old provisioning
+implicitly on the healthy R2 system. The next gate must repair the source and redesign the
+identity authority from actual Clean Reference evidence before any marker creation.
+
+Archive:
+`docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_PAIRING_READINESS_BRIDGE_PREFLIGHT_FAILURE_20261102.md`.
+
 ## 2026-11-01 — R3 R2 common-reference baseline CLOSED_PASS; pairing-entry authority gap OPEN
 
 ~~~text
