@@ -1,7 +1,7 @@
 # N3W_PROJECT_WORKING_CONTEXT
 
 > Status: durable public project working context  
-> Version: `N3W_PROJECT_WORKING_CONTEXT_VERSION=1.2`  
+> Version: `N3W_PROJECT_WORKING_CONTEXT_VERSION=1.3`  
 > Scope: N3-W development for the greenhouse monitoring system  
 > Repository: `chrenguo-stack/HomeAssistant`
 
@@ -505,7 +505,48 @@ docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_AND_STABLE_INVARIANTS_DESIGN_
 
 ---
 
-## 15. Maintenance rule
+## 15. Dual-T1 clean-reference and upgrade-validation roles
+
+The current canonical physical-role split is:
+
+```text
+T1_A_ROLE=LEGACY_UPGRADE_AND_FAILURE_SPECIMEN
+T1_A_WIPE=false
+
+T1_B_ROLE=CLEAN_REFERENCE_AND_CLEAN_UPGRADE_TARGET
+T1_B_WIPE_AND_REINSTALL_ARMBIAN=true
+```
+
+T1_A preserves the real historical E03 successor-upgrade failure state and must not be
+reformatted merely to create a second clean machine. It is used later to validate how the
+new upgrade tooling handles a long-running/dirty/legacy T1. Any additional historical
+Manager business bug present on T1_A must be freshly proven before being used as an
+upgrade test case.
+
+T1_B is the clean-reference machine. R0/R0H/R1/R2/R3 clean-reference work starts on T1_B.
+
+The canonical upgrade tool name is:
+
+```text
+T1_Core_Updater
+CLI=t1-core-updater
+```
+
+T1_Core_Updater owns T1_Core_Stack component inspection/planning/upgrade/rollback/status.
+It does not own Armbian installation, kernel/host-platform update, initial T1 installation,
+or board firmware update.
+
+Clean-reference work and upgrade-validation work are separate phases:
+
+```text
+CLEAN_REFERENCE != UPGRADE
+UPGRADE_REQUIRES_EXPLICIT_BASELINE_A_AND_TARGET_B=true
+DEFAULT_UPGRADE_SCOPE=ONE_T1_CORE_STACK_COMPONENT
+```
+
+---
+
+## 16. Maintenance rule
 
 Update this file only when a **stable working convention** changes.
 
@@ -523,7 +564,7 @@ Those belong in current state, progress alignment, known failures, or the curren
 A change to this file should explain the durable process need it addresses and should update the handoff template when the change affects new-chat continuation.
 
 ```text
-N3W_PROJECT_WORKING_CONTEXT_VERSION=1.2
+N3W_PROJECT_WORKING_CONTEXT_VERSION=1.3
 STABLE_CONVENTIONS_ONLY=true
 STAGE_SPECIFIC_VALUES_PROHIBITED=true
 HANDOFF_TEMPLATE_EXPECTED_TO_REFERENCE_THIS_FILE=true
