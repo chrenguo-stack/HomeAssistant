@@ -34,6 +34,7 @@ RUNTIME_FILES = frozenset(
         "host-baseline.py",
         "host-baseline.sha256",
         "runtime-binding.json",
+        "build-report.json",
     }
 )
 IMAGE_CACHE_FILES = frozenset(
@@ -288,8 +289,8 @@ def _execute_apply(
             archive_sha256=archive_sha,
             manifest_sha256=manifest_sha,
         )
-        executor = _transfer_executor(t1, remote_dir)
         prepared = True
+        executor = _transfer_executor(t1, remote_dir)
         command = fresh._remote_command(
             (
                 "python3",
