@@ -151,13 +151,30 @@ def test_verify_rejects_hash_mismatch(
 ) -> None:
     cache_dir, _, _ = acquire_bundle(tmp_path, patch_host)
     target = cache_dir / "packages" / "containerd_test_arm64.deb"
-    target.write_bytes(target.read_bytes() + b"tampered")
+    original = target.read_bytes()
+    assert len(original) == len(b"tamperedxx")
+    target.write_bytes(b"tamperedxx")
 
     with pytest.raises(
         cache.HostRuntimeCacheError,
         match="cache_package_sha256_mismatch:containerd_test_arm64.deb",
     ):
         cache.verify_cache(cache_dir, FakeRunner(cache_dir))
+
+
+def test_verify_archive_rejects_size_mismatch(
+    tmp_path: Path,
+    patch_host,
+) -> None:
+    cache_dir, _, _ = acquire_bundle(tmp_path, patch_host)
+    target = cache_dir / "packages" / "containerd_test_arm64.deb"
+    target.write_bytes(target.read_bytes() + b"x")
+
+    with pytest.raises(
+        cache.HostRuntimeCacheError,
+        match="cache_package_size_mismatch:containerd_test_arm64.deb",
+    ):
+        cache.verify_archive(cache_dir)
 
 
 def test_verify_archive_is_portable_after_mac_copy(
