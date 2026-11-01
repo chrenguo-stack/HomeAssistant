@@ -1,3 +1,15 @@
+## 2026-11-01 — S0 exact T1_Core_Stack source/version freeze is CLOSED_PASS
+
+- S0 source authority: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- All later workspace changes through R0H closure were verified docs-only relative to this source head.
+- Manager authority is current-source build at the S0 head, not historical S20 `511db028...`.
+- Home Assistant is frozen at 2026.10.0 / ARM64 digest `sha256:0c73235a...`.
+- Mosquitto is frozen at 2.1.2-alpine / ARM64 digest `sha256:3184566d...`.
+- Exact ARM64 CI run 41275979177 is SUCCESS.
+- Existing candidate artifact ID 13070404405 is unexpired, size 2,538,800,086 bytes, GitHub digest `sha256:99eae760...`.
+- Closure authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_S0_EXACT_SOURCE_AND_VERSION_FREEZE_CLOSURE_20261101.md`.
+- Next ONE gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_S1_EXACT_THREE_IMAGE_ARTIFACT_ACQUISITION_AND_MAC_CACHE_20261101_01`.
+
 ## 2026-11-01 — R0H T1_B host runtime establishment is CLOSED_PASS
 
 - Exact local host-runtime bundle ID: `26bc7f78615a0ed3f1240ddfb2ecded5ef7df1da50e9969a52dffb1010185163`.
