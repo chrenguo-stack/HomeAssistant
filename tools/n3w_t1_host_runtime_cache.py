@@ -495,6 +495,7 @@ def _stage_apt_archives(packages_dir: Path) -> Path:
         shutil.rmtree(staging_dir, ignore_errors=True)
         raise
 
+
 def install_cache(
     cache_dir: Path,
     runner: Runner | None = None,
