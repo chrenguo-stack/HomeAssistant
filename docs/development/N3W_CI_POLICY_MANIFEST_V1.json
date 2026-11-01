@@ -345,6 +345,11 @@
       "draft_policy": "run",
       "exceptions": {}
     },
+    "n3w-t1-clean-reference-runtime-payload-ci.yml": {
+      "class": "EXACT",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
     "n3w-t1-deployment-gate-ci.yml": {
       "class": "FAST",
       "draft_policy": "run",
