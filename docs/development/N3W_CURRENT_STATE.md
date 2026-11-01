@@ -1,3 +1,76 @@
+## 2026-11-01 — Dual-T1 role correction; T1_A preserved, T1_B becomes Clean Reference
+
+~~~text
+TASK=N3W_T1_CORE_STACK_DUAL_T1_ROLE_AND_UPDATER_ALIGNMENT_20261101_01
+
+PR705_STATE=OPEN
+PR745_STATE=OPEN_UNMERGED_ARCHITECTURE_HOLD
+PR745_AUTO_MERGE=false
+
+T1_CORE_STACK_CANONICAL_NAME=T1_Core_Stack
+T1_CORE_UPGRADE_TOOL=T1_Core_Updater
+T1_CORE_UPGRADE_TOOL_CLI=t1-core-updater
+
+T1_A_ROLE=LEGACY_UPGRADE_AND_FAILURE_SPECIMEN
+T1_A_WIPE=false
+T1_A_CURRENT_RUNTIME_FRESHLY_RECHECKED=false
+T1_A_KNOWN_VALUE=REAL_HISTORICAL_E03_SUCCESSOR_UPGRADE_FAILURE_SPECIMEN
+T1_A_FIRST_REGISTRATION_E03_PRESENT=UNPROVEN_FRESH
+
+T1_B_ROLE=CLEAN_REFERENCE_AND_CLEAN_UPGRADE_TARGET
+T1_B_WIPE_AND_REINSTALL_ARMBIAN=true
+T1_B_CURRENT_RUNTIME_STATE=UNKNOWN_FRESH_UNTIL_R0
+
+PREWIPE_PRIVATE_EVIDENCE_ARCHIVED=true
+PREWIPE_PRIVATE_EVIDENCE_SHA256=711359c2b6a3522daac4ce9697a20b9876b71f202b44d6c79f65eda79f67025c
+OLD_T1_RUNTIME_MAY_BE_DISCARDED=false
+PRIVATE_ARCHIVE_REMAINS_RECOVERY_EVIDENCE=true
+
+CLEAN_REFERENCE_IS_NOT_UPGRADE=true
+UPGRADE_VALIDATION_REQUIRES_EXPLICIT_A_TO_B=true
+DEFAULT_FIRST_REAL_UPGRADE_TARGET=MANAGER
+DEFAULT_UPGRADE_SCOPE=ONE_T1_CORE_STACK_COMPONENT
+
+HISTORICAL_LOCAL_CACHE_REUSE_ALLOWED=false
+MAC_EXACT_ARTIFACT_CACHE_MECHANISM_REUSE_ALLOWED=true
+NEW_T1_CORE_STACK_EXACT_ARTIFACT=NOT_FROZEN
+
+DEVELOPMENT_PLAN=docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_DEVELOPMENT_PLAN_20261101.md
+DESIGN_AUTHORITY=docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_AND_STABLE_INVARIANTS_DESIGN_20261031.md
+
+CURRENT_STOP_POINT=WAITING_FOR_OPERATOR_T1_B_FRESH_ARMBIAN_PREPARATION_AND_NEW_CHAT_R0_REBIND
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0_T1B_FRESH_ARMBIAN_READONLY_BASELINE_20261101_01
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+T1_A_MUTATION=false
+T1_B_R0_MUTATION=false
+PR705_UPWARD_MERGE=false
+~~~
+
+The prior instruction that the old T1 runtime could be discarded is superseded. The project
+now has two physical T1 roles. T1_A must be preserved because it contains a real historical
+successor-upgrade failure state that is valuable for later legacy/dirty upgrade validation.
+The private archive remains supporting evidence but is no longer a reason to wipe T1_A.
+
+T1_B is the only machine to be wiped/reinstalled with official Armbian for the Clean
+Reference route. Its actual post-install state remains UNKNOWN_FRESH until the next session
+performs the R0 read-only baseline.
+
+Two historical uses of the E03 label must remain distinct:
+- Manager first-registration E03: product/business failure involving stale ACTIVE
+  registration/deadline ownership; source repaired historically.
+- Successor-upgrade E03: upgrade/maintenance-control failures involving service-stop
+  lifecycle classification and later historical-recovery/gate conflict.
+
+Do not assume the first-registration E03 is currently reproducible on T1_A. The proven
+reason to preserve T1_A is its real successor-upgrade failure history.
+
+Clean Reference and Upgrade Validation are now separate phases. Clean T1_Core_Stack is a
+measurement standard. A real upgrade requires explicit baseline A and target B. The
+canonical upgrade tool name is T1_Core_Updater; default first real module upgrade is expected
+to be Manager A -> B with Home Assistant, Broker and host platform unchanged.
+
 ## 2026-11-01 — T1_Core_Stack clean-reference route frozen; old E03 live route paused
 
 ~~~text
