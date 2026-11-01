@@ -247,6 +247,51 @@ def test_fresh_installer_exposes_safe_stage_diagnostics(tmp_path: Path) -> None:
     assert "secret-like" not in str(error)
 
 
+def test_full_cleanup_disables_staged_units_before_removing_paths(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tool = load_tool()
+    calls = []
+
+    class FakeRunner:
+        def run(self, argv, **_kwargs):
+            calls.append(tuple(argv))
+            if tuple(argv[:2]) == ("docker", "ps"):
+                return ""
+            if tuple(argv[:3]) == ("docker", "image", "ls"):
+                return ""
+            if tuple(argv[:3]) == ("docker", "volume", "ls"):
+                return ""
+            if tuple(argv[:3]) == ("docker", "network", "ls"):
+                return "bridge\nhost\nnone\n"
+            if tuple(argv[:2]) == ("ss", "-H"):
+                return ""
+            if tuple(argv[:2]) == ("iptables-save", "-t"):
+                return ""
+            return ""
+
+    adapter = tool.LiveFreshInstallerAdapters(
+        tmp_path,
+        {"images": {}, "transport": {}},
+        FakeRunner(),
+    )
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+
+    monkeypatch.setattr(tool, "_preflight", lambda _runner: {"status": "PASS"})
+
+    report = adapter.cleanup(candidate)
+
+    assert report["status"] == "PASS"
+    expected = {
+        ("systemctl", "disable", "n3wfc4-broker-ingress-guard.service"),
+        ("systemctl", "disable", "n3wfc4-registration-ingress-guard.service"),
+        ("systemctl", "disable", "n3wfc4-provision-resume.service"),
+    }
+    assert expected.issubset(set(calls))
+
+
 def test_image_config_contract_normalizes_docker_null_empty_equivalence() -> None:
     tool = load_tool()
     archive_config = {
