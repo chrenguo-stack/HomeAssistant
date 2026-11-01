@@ -372,8 +372,9 @@ def _pre_reboot_state() -> dict[str, object]:
         raise R2BError("r2b_transaction_state_present")
     if _running_services() != EXPECTED_SERVICES:
         raise R2BError("pre_reboot_runtime_service_set_invalid")
+    if _systemctl("is-active", PROVISION_UNIT) != "inactive":
+        raise R2BError("pre_reboot_provision_resume_state_invalid")
     for unit in (
-        PROVISION_UNIT,
         GUARD_UNIT,
         REGISTRATION_GUARD_UNIT,
         BROKER_UNIT,
