@@ -1,3 +1,15 @@
+## 2026-11-01 — R1 T1_B predeployment read-only preflight is CLOSED_PASS
+
+- T1_B remains a clean R0/R0H host: systemd running, zero failed units, NetworkManager/Docker active and enabled.
+- Exact R0H package/runtime continuity remains: Docker 29.1.3, Compose 2.40.3+ds1-0ubuntu1.
+- Docker state is empty: zero containers/images/volumes and only bridge/host/none networks.
+- Product absence re-proved: zero product paths, systemd units, target listeners and unknown-stop classifications.
+- Repaired nft observer behavior accepted only the absent optional nft CLI while both iptables views remained complete.
+- Transport capacity PASS: remote free 11859628032 bytes vs worst-image requirement 10135822686 bytes and 5368709120-byte post-peak reserve.
+- T1 access remained read-only; no payload/image transfer, Docker mutation, service start or board access occurred.
+- Closure authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_T1B_PREDEPLOYMENT_READONLY_PREFLIGHT_CLOSURE_20261101.md`.
+- Next ONE gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_T1B_FIRST_DEPLOYMENT_20261101_01`; not auto-executed.
+
 ## 2026-11-01 — R1 T1_B nft visibility false-STOP repair is CLOSED_PASS
 
 - Root cause: absent optional `nft` CLI was incorrectly treated as unknown firewall visibility.
