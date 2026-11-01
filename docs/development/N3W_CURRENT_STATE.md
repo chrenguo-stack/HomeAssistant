@@ -1,3 +1,44 @@
+## 2026-11-01 — R0H local host package cache source gate CLOSED_PASS
+
+~~~text
+TASK=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_LOCAL_PACKAGE_CACHE_SOURCE_IMPLEMENTATION_20261101_01
+
+SOURCE_AUTHORITY_HEAD=c4984baf274d74d1459175153b62bed9a2b7626e
+SOURCE_IMPLEMENTATION=PASS
+SOURCE_REVIEW=PASS
+SOURCE_CI=PASS
+SOURCE_CLOSURE=CLOSED_PASS
+
+PORTABLE_MAC_VERIFY_ARCHIVE=true
+T1_STRICT_VERIFY=true
+CACHE_ONLY_INSTALL_GUARD=true
+NETWORK_FALLBACK=false
+
+LIVE_R0H_APPLY_BLOCKED_UNTIL_SOURCE_CLOSURE=false
+
+T1_ACCESS=false
+T1_A_MUTATION=false
+T1_B_MUTATION=false
+BOARD_ACCESS=false
+T1_CORE_STACK_DEPLOYMENT=false
+PR745_MERGE=false
+PR705_UPWARD_MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_T1B_DOWNLOAD_ONLY_CACHE_ACQUISITION_AND_MAC_ARCHIVE_20261101_01
+~~~
+
+The exact source head passed the focused fresh-host cache CI, full Manager CI, public
+repository safety CI and exact ARM64 CI. Portable `verify-archive` now allows the exact
+bundle to be byte-verified on macOS without probing T1/Linux state. The T1-side `verify`
+remains stricter and cache-only installation still requires `apt-get --no-download`.
+
+This closes only the source gate. T1_B has not yet downloaded or installed Docker/Compose.
+The next physical gate is download-only acquisition plus durable Mac archive verification;
+installation remains a later step.
+
+Closure authority:
+`docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_LOCAL_PACKAGE_CACHE_SOURCE_CLOSURE_20261101.md`.
+
 ## 2026-11-01 — R0H local Docker/Compose package cache route selected
 
 ~~~text
