@@ -1,3 +1,16 @@
+## 2026-11-01 — S1 exact three-image Mac cache is CLOSED_PASS
+
+- S0 source authority remains `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- GitHub exact artifact ID 13070404405 / run 41275979177 was verified before local use.
+- Manager tar SHA-256: `4c308f192a30e628ebacad11ed3aa471554fee6c3aa9fd1c25ec647d354a5006`.
+- Home Assistant tar SHA-256: `e52d12779f7562d3f37a265d622fbaf31e758deba5998e40cafb5a33a118b663`.
+- Broker tar SHA-256: `79cf713ba9118cbd54376e7e7bef7e53e9f6638659d9f0a01093d6ac6d2d8300`.
+- Local binding verification and all three local tar SHA-256 checks are PASS.
+- Durable private Mac cache is populated; rebuild and redownload are not required.
+- T1_B remains untouched during S1.
+- Closure authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_S1_EXACT_THREE_IMAGE_ARTIFACT_ACQUISITION_AND_MAC_CACHE_CLOSURE_20261101.md`.
+- Next ONE gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_T1B_FIRST_DEPLOYMENT_20261101_01`.
+
 ## 2026-11-01 — S1 exact three-image artifact acquisition and Mac cache gate is prepared
 
 - S0 source authority remains `24382caae4a1f5d459297f86e8d18f10a848ca64`.
