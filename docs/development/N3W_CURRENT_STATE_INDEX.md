@@ -11,6 +11,7 @@
 - PR #745 remains open/unmerged as historical repair/incident evidence pending the simplified updater architecture.
 - Updated development plan: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_DEVELOPMENT_PLAN_20261101.md`.
 - Updated design: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_AND_STABLE_INVARIANTS_DESIGN_20261031.md`.
+- Current formal handoff: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0_T1B_FRESH_ARMBIAN_NEW_CHAT_HANDOFF_V1.1_20261101.md`.
 - Next ONE gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0_T1B_FRESH_ARMBIAN_READONLY_BASELINE_20261101_01`.
 - R0 is read-only and targets T1_B only. T1_A must not be mutated during T1_B Clean Reference work.
 
