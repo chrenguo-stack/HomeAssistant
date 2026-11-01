@@ -199,7 +199,7 @@ def _transfer_executor(t1: str, remote_dir: str) -> str:
     if source.is_symlink() or not source.is_file():
         raise CleanReferenceHostError("clean_reference_executor_missing")
     expected_sha = _sha256_file(source)
-    remote = f"{remote_dir}/n3w_t1_clean_reference_executor.py"
+    remote = f"{remote_dir}.executor.py"
     fresh._run(("scp", str(source), f"{t1}:{remote}"), timeout=120)
     probe = fresh._run(
         (
@@ -252,7 +252,15 @@ def _cleanup_remote(t1: str, remote_dir: str) -> bool:
                 "ssh",
                 "-n",
                 t1,
-                fresh._remote_command(("rm", "-rf", "--", remote_dir)),
+                fresh._remote_command(
+                    (
+                        "rm",
+                        "-rf",
+                        "--",
+                        remote_dir,
+                        f"{remote_dir}.executor.py",
+                    )
+                ),
             ),
             timeout=120,
             check=False,
