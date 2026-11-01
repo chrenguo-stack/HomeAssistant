@@ -1,3 +1,64 @@
+## 2026-11-01 — R3 R2 common-reference baseline CLOSED_PASS; pairing-entry authority gap OPEN
+
+~~~text
+TASK=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_R2_COMMON_REFERENCE_BASELINE_20261101
+RESULT=CLOSED_PASS
+
+R3_OBSERVER_CONTROL_HEAD=da9124fe18774cdb5822f9eb3afee40120cfb04f
+R3_OBSERVER_CI_RUN=41317600634
+R3_OBSERVER_CI_RESULT=SUCCESS
+R3_OBSERVER_TEST_COUNT=8
+R3_OBSERVER_ARTIFACT_ID=13087179158
+R3_OBSERVER_ARTIFACT_DIGEST=sha256:473499d10e0487a591e8828312a76036fe438463d3455a8ed74d8eea5f96821b
+R3_OBSERVER_PACKAGE_MANIFEST_SHA256=fdd9a634435ffa497569dce55c70c19edca365322a8b4214f586a68d68574b0e
+
+R2_REFERENCE_SHA256=89da2a2b2cc1ce0fa024c3c45e24a71f09ba05e0e0cadbd67dd6387291239747
+R2_REFERENCE_FINAL=PASS
+
+HEALTH_OVERALL_PASS=true
+FAILED_UNIT_COUNT=0
+RUNTIME_SERVICES=broker,homeassistant,manager
+MANAGER_MQTT_SOCKET_COUNT=1
+HOMEASSISTANT_MQTT_SOCKET_COUNT=1
+HOMEASSISTANT_HTTP_STATUS=401
+
+BOOT_UNCHANGED_DURING_COLLECTION=true
+CONTAINERS_UNCHANGED_DURING_COLLECTION=true
+PRODUCT_MUTATION_OBSERVED=false
+TRANSPORT_RESIDUAL_COUNT=0
+
+R1_FULL_COMMON_REFERENCE_GAP=true
+R1_REFERENCE_RECREATION_BY_REDEPLOY=false
+
+STANDARD_FIRST_PAIRING_TOOL_PRESENT=true
+FACTORY_ACCEPTED_MARKER_CREATED_BY_CLEAN_REFERENCE_ROUTE=false
+OLD_F4_REPLAY_SAFE=false
+DIRECT_BOARD_PAIRING_READY=false
+R3_PAIRING_ENTRY_BLOCKER=FACTORY_ACCEPTED_AUTHORITY_GAP
+
+R3=IN_PROGRESS
+R3_WORKLOAD_EXECUTED=false
+R3_BOARD_WORK_REQUIRES_SEPARATE_GATE=true
+A1=NOT_EXECUTED
+MERGE=false
+~~~
+
+The R2 common reference is now frozen and suitable for direct R2-to-R3 comparison. The
+observer proved a healthy post-reboot stack while remaining read-only and leaving no
+transport residue.
+
+A new R3 entry blocker was identified before Board access: the frozen standard first-pairing
+tool requires `FACTORY_ACCEPTED.json`, but the Clean Reference R1/R2 route intentionally did
+not run old F4 and therefore did not create that marker. Old F4 cannot be replayed after R2,
+because its factory audit requires production activation units stopped/disabled and
+`production_service_start=false`.
+
+This is a host control-authority gap, not a Board failure. Do not start Board pairing until
+the R3 workload entry design is explicitly resolved.
+
+Closure:
+`docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_R2_COMMON_REFERENCE_BASELINE_CLOSURE_20261101.md`.
+
 ## 2026-11-01 — R2 controlled start and reboot CLOSED_PASS
 
 ~~~text
