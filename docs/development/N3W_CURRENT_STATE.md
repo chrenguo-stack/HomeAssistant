@@ -1,3 +1,52 @@
+## 2026-11-01 — T1_B R0 Fresh Armbian read-only baseline CLOSED_PASS
+
+~~~text
+TASK=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0_T1B_FRESH_ARMBIAN_READONLY_BASELINE_20261101_01
+
+TARGET=T1_B
+R0_OS_RELEASE=Armbian OS 26.05.0 resolute
+R0_ARCH=aarch64
+R0_KERNEL=6.18.33-ophub
+R0_STORAGE_CLASS=MMC:MMC
+R0_DEFAULT_ROUTE_PRESENT=true
+R0_TIME_SYNC_STATE=ntp=yes,ntp_enabled=yes,clock=unknown
+R0_SYSTEMD_STATE=running
+R0_FAILED_UNIT_COUNT=0
+
+R0_DOCKER_PRESENT=false
+R0_COMPOSE_PRESENT=false
+R0_DOCKER_DATA_DIR_PRESENT=false
+R0_PRODUCT_CONTAINER_COUNT=0
+R0_PRODUCT_IMAGE_COUNT=0
+R0_PRODUCT_VOLUME_COUNT=0
+R0_PRODUCT_NETWORK_COUNT=0
+R0_PRODUCT_PATH_RESIDUAL_COUNT=0
+R0_PRODUCT_UNIT_RESIDUAL_COUNT=0
+R0_PRODUCT_LISTENER_RESIDUAL_COUNT=0
+R0_UNEXPECTED_RESIDUALS=NONE
+
+T1_A_MUTATION=false
+T1_B_MUTATION=false
+BOARD_ACCESS=false
+
+R0_T1B_FRESH_ARMBIAN_BASELINE=PASS
+CURRENT_STOP_POINT=R0_T1B_FRESH_ARMBIAN_BASELINE_CLOSED_PASS
+NEXT_ROUTE=R0H_HOST_RUNTIME_ESTABLISHMENT_DESIGN
+AUTO_EXECUTE_NEXT_GATE=false
+~~~
+
+T1_B fresh-read baseline is clean and suitable for the Clean Reference route. Docker/Compose
+and all inspected T1_Core_Stack residual categories are absent. The R0 observation did not
+mutate T1_B, did not touch T1_A, and did not access boards.
+
+The unavailable `SystemClockSynchronized` property is preserved as `clock=unknown`;
+the available NTP evidence is `ntp=yes` and `ntp_enabled=yes`. This does not block R0.
+
+Closure authority:
+`docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0_T1B_FRESH_ARMBIAN_READONLY_BASELINE_CLOSURE_20261101.md`.
+
+R0H is not authorized by this closure.
+
 ## 2026-11-01 — Dual-T1 role correction; T1_A preserved, T1_B becomes Clean Reference
 
 ~~~text
