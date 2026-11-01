@@ -207,7 +207,79 @@ from a reinstalled T1:
 9. repeat selected observations after normal runtime/reboot to prove which fields actually
    remain stable.
 
-## 10. Local artifact reuse boundary
+## 10. Clean reference versus upgrade validation
+
+A clean T1_Core_Stack is a reference system, not an upgrade target by itself.
+
+```text
+CLEAN_REFERENCE_PURPOSE=MEASURE_STABLE_PRODUCT_INVARIANTS
+UPGRADE_VALIDATION_REQUIRES_VERSION_DELTA=true
+UPGRADE_BASELINE=A
+UPGRADE_TARGET=B
+```
+
+Upgrade validation starts only after the clean-reference work identifies the stable invariant
+set. The default first real product upgrade is expected to be a Manager-only A -> B update
+because Manager remains the most actively developed T1_Core_Stack component.
+
+```text
+MANAGER_A_TO_B:
+  MUTATE=greenhouse-manager
+  HOME_ASSISTANT_MUTATION=false
+  MOSQUITTO_MUTATION=false
+  HOST_PLATFORM_MUTATION=false
+```
+
+A deliberately meaningless version bump should not be created merely to make an upgrade
+test exist when a real Manager successor is expected soon. A mechanism-only synthetic
+successor may be used later only if architecture verification needs it.
+
+### 10.1 Dual-T1 role model
+
+```text
+T1_A_ROLE=LEGACY_UPGRADE_AND_FAILURE_SPECIMEN
+T1_A_WIPE=false
+
+T1_B_ROLE=CLEAN_REFERENCE_AND_CLEAN_UPGRADE_TARGET
+T1_B_WIPE_AND_REINSTALL_ARMBIAN=true
+```
+
+T1_A preserves the real successor-upgrade E03 failure history:
+- historical BLOCKED maintenance/recovery evidence;
+- a second successor retry that reached candidate deployment publish;
+- Manager/Home Assistant stopped at the failure boundary;
+- maintenance gate conflict reported as `multiple_active_transactions`.
+
+The repository also contains a separate historical Manager first-registration E03 business
+bug involving stale ACTIVE registration/deadline ownership. Do not assume that exact business
+bug is still present on T1_A; prove it by fresh read-only evidence before selecting it as a
+T1_A upgrade test case.
+
+T1_B is the clean measurement machine and the first clean-upgrade target.
+
+### 10.2 Canonical upgrade tool
+
+```text
+UPGRADE_TOOL=T1_Core_Updater
+CLI=t1-core-updater
+```
+
+T1_Core_Updater is responsible for:
+- inspect;
+- plan;
+- per-component upgrade;
+- rollback;
+- status.
+
+It is not responsible for:
+- flashing/installing Armbian;
+- host kernel/platform upgrade;
+- initial T1 product installation;
+- board firmware upgrade.
+
+---
+
+## 11. Local artifact reuse boundary
 
 The Mac exact-artifact cache mechanism remains a valid optimization, but cache validity is
 always tied to exact artifact identity.
