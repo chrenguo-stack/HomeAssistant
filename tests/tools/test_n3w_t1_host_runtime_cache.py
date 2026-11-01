@@ -296,7 +296,7 @@ def test_install_uses_cache_only_and_never_updates_apt(
     assert runner.install_file_modes == [0o644] * len(runner.install_file_modes)
     assert sorted(runner.install_requests) == sorted(
         (
-            f"containerd=2.1.4-0ubuntu1",
+            "containerd=2.1.4-0ubuntu1",
             f"docker-compose-v2={COMPOSE_VERSION}",
             f"docker.io={DOCKER_VERSION}",
         )
