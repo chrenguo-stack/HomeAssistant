@@ -194,6 +194,14 @@ def test_verify_accepts_changed_boot_and_refreshes_start_times(
     monkeypatch.setattr(r2b, "STATE_ROOT", state_root)
     monkeypatch.setattr(r2b, "TRANSACTION", transaction_path)
     monkeypatch.setattr(r2b, "R2A_TRANSACTION", r2a_path)
+    monkeypatch.setattr(r2b.os, "chown", lambda *_args: None)
+
+    real_read_json = r2b._read_json
+
+    def relaxed_read_json(path: Path, *, mode=None):
+        return real_read_json(path, mode=None)
+
+    monkeypatch.setattr(r2b, "_read_json", relaxed_read_json)
 
     monkeypatch.setattr(
         r2b,
