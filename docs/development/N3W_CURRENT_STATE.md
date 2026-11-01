@@ -1,3 +1,32 @@
+## 2026-11-01 — R0H T1_B cache-only install and post-install acceptance gate prepared
+
+~~~text
+TASK=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_T1B_CACHE_ONLY_INSTALL_AND_POSTINSTALL_ACCEPTANCE_20261101_01
+
+SOURCE_AUTHORITY_HEAD=c4984baf274d74d1459175153b62bed9a2b7626e
+BUNDLE_ID=26bc7f78615a0ed3f1240ddfb2ecded5ef7df1da50e9969a52dffb1010185163
+TARGET=T1_B
+
+CACHE_ONLY_INSTALL=true
+NETWORK_PACKAGE_FALLBACK=false
+DOCKER_SERVICE_START_ALLOWED=true
+T1_CORE_STACK_DEPLOYMENT=false
+PRODUCT_SERVICE_START=false
+T1_A_MUTATION=false
+BOARD_ACCESS=false
+
+CURRENT_STOP_POINT=WAITING_FOR_OPERATOR_T1B_CACHE_ONLY_INSTALL
+NEXT_STOP_POINT=R0H_POSTINSTALL_ACCEPTANCE_PASS
+AUTO_T1_CORE_STACK_DEPLOYMENT=false
+~~~
+
+Preflight authority:
+`docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_T1B_CACHE_ONLY_INSTALL_AND_POSTINSTALL_ACCEPTANCE_PREFLIGHT_20261101.md`.
+
+The next operator action installs only the already verified exact host-runtime bundle using
+APT with downloads disabled, then verifies Docker is active/enabled while containers,
+images, volumes, product paths/units and product listeners remain absent.
+
 ## 2026-11-01 — R0H T1_B download-only host cache acquisition and Mac archive CLOSED_PASS
 
 ~~~text
