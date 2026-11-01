@@ -292,6 +292,41 @@ def test_rollback_disables_persistence_and_removes_runtime(
     )
 
 
+def test_rollback_disable_accepts_absent_units(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[tuple[str, ...], frozenset[int]]] = []
+
+    def fake_run(argv, **kwargs):
+        allowed = kwargs.get("allowed", frozenset({0}))
+        calls.append((tuple(argv), allowed))
+        if tuple(argv[:3]) == ("docker", "ps", "-aq"):
+            return ""
+        if tuple(argv[:3]) == ("docker", "network", "ls"):
+            return "bridge\nhost\nnone\n"
+        return ""
+
+    monkeypatch.setattr(r2a, "_run", fake_run)
+    monkeypatch.setattr(r2a, "_listeners", lambda: [])
+    monkeypatch.setattr(
+        r2a,
+        "_systemctl",
+        lambda mode, unit: "not-found" if mode == "is-enabled" else "inactive",
+    )
+    monkeypatch.setattr(r2a.COMPOSE_TARGET.__class__, "is_file", lambda self: False)
+
+    report = r2a._rollback_runtime()
+
+    disable_calls = [
+        item
+        for item in calls
+        if item[0][:2] == ("systemctl", "disable")
+    ]
+    assert len(disable_calls) == 1
+    assert disable_calls[0][1] == frozenset({0, 1})
+    assert report["rollback_proven"] is True
+
+
 def test_r2a_source_has_no_reboot_board_or_image_production() -> None:
     source = Path(r2a.__file__).read_text(encoding="utf-8")
     executable = source.split("\ndef _parser(", 1)[0]
