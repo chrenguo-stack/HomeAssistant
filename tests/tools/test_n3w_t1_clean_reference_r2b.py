@@ -117,6 +117,88 @@ def test_claim_persists_one_shot_reboot_pending(
     assert persisted["reboot_acceptance_passed"] is False
 
 
+def test_pre_reboot_accepts_enabled_inactive_provision_resume(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    state_root = tmp_path / "r2b-state"
+    transaction = state_root / "transaction.json"
+
+    monkeypatch.setattr(r2b, "STATE_ROOT", state_root)
+    monkeypatch.setattr(r2b, "TRANSACTION", transaction)
+    monkeypatch.setattr(
+        r2b,
+        "_r2a_transaction",
+        lambda: {
+            "stage": "RUNTIME_STARTED",
+            "runtime_services": [
+                "broker",
+                "homeassistant",
+                "manager",
+            ],
+        },
+    )
+    monkeypatch.setattr(
+        r2b,
+        "_sha256",
+        lambda _path: "b" * 64,
+    )
+    monkeypatch.setattr(
+        r2b,
+        "_running_services",
+        lambda: r2b.EXPECTED_SERVICES,
+    )
+
+    def fake_systemctl(mode: str, unit: str) -> str:
+        if mode == "is-enabled":
+            return "enabled"
+        if mode == "is-active":
+            if unit in {
+                r2b.PROVISION_UNIT,
+                r2b.CERT_TIMER,
+                r2b.CERT_SERVICE,
+            }:
+                return "inactive"
+            return "active"
+        return "unknown"
+
+    monkeypatch.setattr(r2b, "_systemctl", fake_systemctl)
+
+    def fake_run(argv, **_kwargs):
+        if tuple(argv[:3]) == ("docker", "network", "ls"):
+            return "bridge\nhost\nnone\nn3wfc4-private\nn3wfc4-services\n"
+        return ""
+
+    monkeypatch.setattr(r2b, "_run", fake_run)
+    monkeypatch.setattr(r2b, "_broker_readiness", lambda: None)
+    monkeypatch.setattr(r2b, "_ha_readiness", lambda: 401)
+    monkeypatch.setattr(
+        r2b,
+        "_container_snapshot",
+        lambda: {
+            "broker": {"id": "b", "started_at": "b", "restart_count": 0},
+            "manager": {"id": "m", "started_at": "m", "restart_count": 0},
+            "homeassistant": {"id": "h", "started_at": "h", "restart_count": 0},
+        },
+    )
+    monkeypatch.setattr(
+        r2b,
+        "_certificate_snapshot",
+        lambda: {"/cert": "c" * 64},
+    )
+    monkeypatch.setattr(
+        r2b,
+        "_boot_id",
+        lambda: "11111111-1111-1111-1111-111111111111",
+    )
+
+    report = r2b._pre_reboot_state()
+
+    assert report["boot_id"] == "11111111-1111-1111-1111-111111111111"
+    assert report["homeassistant_http_status"] == 401
+    assert len(report["containers"]) == 3
+
+
 def test_verify_rejects_when_boot_did_not_change(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
