@@ -1,3 +1,17 @@
+## 2026-11-01 — R1 runtime-only exact artifact production was dispatched; manual run discovery is pending
+
+- R1 local exact-image-cache source repair remains CLOSED_PASS.
+- Manual workflow: `n3w-t1-clean-reference-runtime-payload-ci.yml`.
+- Manual dispatch ref: `test/n3w-r8-full-simulated-e2e-safety-20261028`.
+- Operator reported GitHub accepted the workflow_dispatch submission.
+- Dispatch binds source head `24382caae4a1f5d459297f86e8d18f10a848ca64`, S1 image run/artifact 41275979177 / 13070404405, and runtime-source run/artifact 41275979325 / 13071308834.
+- Manual workflow run ID and produced runtime-only artifact ID/digest are not yet freshly captured.
+- PR-triggered run 41285628034 is not production evidence: event=pull_request and build-runtime=SKIPPED.
+- Do not dispatch a duplicate until the existing workflow_dispatch run is identified.
+- No T1/board/live-service mutation occurred.
+- Current stop point: identify and verify the manual workflow_dispatch run, then bind its runtime-only artifact.
+- Next ONE gate remains `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_RUNTIME_ONLY_EXACT_ARTIFACT_PRODUCTION_AND_BINDING_20261101_01`.
+
 ## 2026-11-01 — R1 local exact-image-cache deployment source repair is CLOSED_PASS
 
 - S0 source authority remains `24382caae4a1f5d459297f86e8d18f10a848ca64`.
