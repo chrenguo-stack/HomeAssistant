@@ -1,0 +1,152 @@
+{
+  "schema": "gh.n3w-p5-m12-key-rotation-host-only-plan/1",
+  "status": "host_only_contract_ready_live_execution_prohibited",
+  "development_authorization": {
+    "id": "D1-N3W-P5-M12-HOST-ONLY-CONTRACT-TESTS-AND-NO-LIVE-EXECUTION-DEVELOPMENT-20260813-01",
+    "claimed_once": true,
+    "consumed": true,
+    "replay_allowed": false
+  },
+  "base": {
+    "repository": "chrenguo-stack/HomeAssistant",
+    "branch": "main",
+    "commit_sha": "b4f07a5fd836124ae2fbdb2f01e28402481b15e7",
+    "tree_sha": "252d1b0955d55606afec52fb552b43df4e326e7d"
+  },
+  "matrix_contract": {
+    "id": "M12",
+    "name": "key_rotation",
+    "action": "activate epoch2 then Child KEY 2",
+    "expect": "epoch2 accepted; canonical continuous; epoch1 grace semantics observable"
+  },
+  "m11_dependency": {
+    "classification": "PASS",
+    "final_freeze_sha256": "e208d8e1728fbcbbe1c63df17ac446222bbc192cb04630d2abed7071a853e4b7",
+    "grant_enabled": 1,
+    "active_gateway_id": "n3wp5_relay01",
+    "candidate_none": true,
+    "canonical_boot_session_hex": "077d07249ff2a1ac",
+    "replay_highest_session_hex": "077d07249ff2a1ac"
+  },
+  "change_scope": {
+    "allowed": [
+      ".github/workflows/n3w-p5-m12-key-rotation-host-only-ci.yml",
+      "docs/decisions/n3w-p5-m12-key-rotation-host-only-plan.json",
+      "tests/n3w_p5/test_n3w_p5_m12_key_rotation_contract.py"
+    ],
+    "manager_product_runtime_change": false,
+    "compose_change": false,
+    "firmware_change": false,
+    "live_executor_added": false,
+    "secret_material_added": false,
+    "github_mutation_authorized_by_this_document": false
+  },
+  "rotation_contract": {
+    "epoch1_initial_state": "ACTIVE",
+    "epoch2_initial_state": "STAGED",
+    "activation_moves_epoch1_to_grace": true,
+    "activation_moves_epoch2_to_active": true,
+    "same_open_provider_observes_rotation": true,
+    "active_and_grace_epochs_are_runtime_accepted": true,
+    "activation_does_not_mutate_path_or_replay": true,
+    "grace_epoch_frame_advances_canonical": true,
+    "active_epoch2_frame_advances_same_canonical_stream": true,
+    "boot_session_is_unchanged_across_rotation": true,
+    "changing_epoch_cannot_bypass_replay": true,
+    "rejected_epoch_does_not_consume_replay_tuple": true,
+    "child_key_2_selects_epoch_only": true,
+    "child_key_2_does_not_reset_boot_seq_path_or_radio": true,
+    "automatic_rollback_or_epoch1_revoke": false
+  },
+  "host_only_test_contract": {
+    "synthetic_keys_only": true,
+    "real_aes256_gcm_envelopes": true,
+    "sqlite_authorization_provider": true,
+    "shared_replay_registry": true,
+    "production_ingress_router": true,
+    "production_path_lease_coordinator": true,
+    "epoch1_active_frame_accepted": true,
+    "epoch1_grace_frame_accepted": true,
+    "epoch2_active_frame_accepted": true,
+    "canonical_sequence_monotonic": true,
+    "cross_epoch_duplicate_rejected": true,
+    "unknown_and_revoked_epochs_fail_closed": true,
+    "source_wiring_verified": true,
+    "mqtt_connection_required": false,
+    "docker_connection_required": false,
+    "board_connection_required": false
+  },
+  "future_live_preflight": {
+    "authorized_now": false,
+    "exact_main_and_tree_rebound": false,
+    "m11_freeze_hash_verified": false,
+    "production_route_absent": false,
+    "manager_broker_ha_baseline_captured": false,
+    "sqlite_quick_check_ok": false,
+    "registration_node_active_verified": false,
+    "grant_enabled_and_no_pending_operations_verified": false,
+    "epoch1_active_epoch2_staged_and_no_grace_verified": false,
+    "key_file_private_permissions_and_metadata_binding_verified": false,
+    "relay_path_candidate_none_and_boot_session_bound": false,
+    "authorized_command_publisher_binding_verified": false,
+    "prearmed_epoch_metadata_capture_ready": false
+  },
+  "future_live_transaction": {
+    "authorized_now": false,
+    "separate_verbatim_authorization_required": true,
+    "maximum_rotate_invocations": 1,
+    "observe_epoch1_grace_before_child_command": true,
+    "maximum_child_key_2_publishes": 1,
+    "automatic_retry": false,
+    "automatic_rollback": false,
+    "automatic_epoch1_revoke": false,
+    "manager_restart": false,
+    "broker_restart": false,
+    "homeassistant_restart": false,
+    "path_command": false,
+    "child_restart": false,
+    "board_reset_power_cycle_flash_or_erase": false,
+    "m13_entry": false
+  },
+  "future_live_pass_gates": [
+    "exactly_one_rotate_invocation_activates_epoch2",
+    "epoch1_is_grace_and_epoch2_is_active",
+    "pending_operation_count_is_zero",
+    "activation_alone_does_not_change_path_replay_boot_or_canonical",
+    "at_least_one_fresh_epoch1_grace_frame_is_accepted_before_child_command",
+    "exactly_one_child_key_2_publish_is_sent_by_the_authorized_publisher",
+    "fresh_epoch2_frames_are_accepted_under_the_same_boot_session",
+    "canonical_sequence_advances_monotonically_across_the_epoch_boundary",
+    "candidate_remains_none_and_active_gateway_remains_n3wp5_relay01",
+    "manager_broker_homeassistant_identity_started_at_and_restart_counts_are_unchanged",
+    "production_route_remains_absent",
+    "no_board_boot_or_session_change"
+  ],
+  "failure_and_stop_policy": {
+    "any_failed_preflight_blocks_rotation": true,
+    "rotate_failure_or_unparseable_result_stops_before_child_command": true,
+    "missing_epoch1_grace_acceptance_stops_before_child_command": true,
+    "epoch2_rejection_or_canonical_discontinuity_stops": true,
+    "no_second_rotate_or_key_2_publish": true,
+    "no_automatic_rollback_revoke_recover_restage_or_regrant": true,
+    "no_service_restart_recreate_or_fallback": true,
+    "no_path_publish_or_other_child_command": true,
+    "no_board_mutation": true,
+    "no_m13": true
+  },
+  "evidence_contract": {
+    "secret_values_included": false,
+    "logical_sqlite_snapshot_is_primary": true,
+    "database_file_hash_is_supporting_only": true,
+    "pre_and_post_timestamps_required": true,
+    "rotate_and_publish_attempt_counts_required": true,
+    "epoch_boot_seq_metadata_only_capture_required": true,
+    "canonical_and_service_baseline_required": true,
+    "final_classification_must_be_read_only": true
+  },
+  "next_gate": {
+    "m12_live_allowed": false,
+    "m13_allowed": false,
+    "required_authorization": "D1-N3W-P5-M12-HOST-ONLY-CONTRACT-COMMIT-PUSH-DRAFT-PR-AND-CI-20260813-01"
+  }
+}

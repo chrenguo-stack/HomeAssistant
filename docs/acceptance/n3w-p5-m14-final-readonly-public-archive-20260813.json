@@ -1,0 +1,125 @@
+{
+  "schema": "gh.n3w-p5-m14-final-readonly-public-archive/1",
+  "archive_date": "2026-08-13",
+  "visibility": "public_redacted_summary",
+  "repository_binding": {
+    "repository": "chrenguo-stack/HomeAssistant",
+    "main_sha": "9207678a3f351cbc4d9c61153aaa86fb64880fef",
+    "main_tree": "4e63251dfa992d3f6152122a445d022e9315e8d4",
+    "pull_request": 313,
+    "pull_request_state": "MERGED",
+    "pull_request_merged_at": "2026-08-13T07:05:59Z"
+  },
+  "scope": {
+    "workstream": "N3-W",
+    "phase": "P5",
+    "milestone": "M14",
+    "name": "Home Assistant identity continuity",
+    "runtime_or_firmware_change_in_m14": false,
+    "live_validation_mode": "bounded_readonly"
+  },
+  "final_result": {
+    "classification": "M14_PASS_WITH_RECORDED_READONLY_VALIDATION_RECOVERY_DEVIATIONS",
+    "m14_pass": true,
+    "m14_fail": false,
+    "m14_closed": true,
+    "identity_continuity_validated": true,
+    "recovery_deviations_preserved": true
+  },
+  "validated_public_facts": {
+    "bounded_registry_snapshot_count": 2,
+    "bounded_registry_snapshot_interval_seconds": 35,
+    "device_registry_sha256": "f7e0ad649367b55ad4b2b8570612debe3bc857d81fbcc904f293f85f6389bfd7",
+    "entity_registry_sha256": "ebc9aa2946d8d6dd8a25fd5f115eaaa10e61f62dceb1d932de8b210b42b7954b",
+    "registry_hashes_equal_between_valid_snapshots": true,
+    "target_device_count": 1,
+    "target_entity_count": 6,
+    "duplicate_unique_ids": false,
+    "foreign_device_bindings": 0,
+    "device_identifier": "mqtt:gh_n3wp5lab_n3wp5_child01",
+    "device_serial_number": "n3wp5_child01",
+    "entity_unique_ids": [
+      "n3wp5_child01_air_temperature_c",
+      "n3wp5_child01_connectivity",
+      "n3wp5_child01_firmware_version",
+      "n3wp5_child01_low_battery",
+      "n3wp5_child01_node_id",
+      "n3wp5_child01_power_source"
+    ],
+    "device_and_entity_chronology_unchanged": true,
+    "service_identity_and_restart_baseline_stable": true,
+    "relay_path_no_candidate_and_session_stable": true,
+    "natural_accepted_frame_count_in_valid_window": 7,
+    "production_route_isolation_preserved": true,
+    "mqtt_connection_created_by_validation": false,
+    "service_or_device_mutation_created_by_validation": false
+  },
+  "recorded_recovery_history": [
+    {
+      "attempt": "initial",
+      "result": "INCOMPLETE_PRECONDITION_COLLECTOR_FAILURE",
+      "registry_snapshots": 0,
+      "mutation": false
+    },
+    {
+      "attempt": "first_recovery",
+      "result": "INCOMPLETE_PRECONDITION_LOCAL_GIT_OBJECT_UNAVAILABLE",
+      "registry_snapshots": 0,
+      "mutation": false
+    },
+    {
+      "attempt": "second_recovery",
+      "result": "INCOMPLETE_PRECONDITION_PRIVATE_MATERIAL_PATH_UNAVAILABLE",
+      "registry_snapshots": 0,
+      "mutation": false
+    },
+    {
+      "attempt": "third_recovery",
+      "result": "INCOMPLETE_OBSERVATION_WINDOW_EXCEEDED_MAXIMUM",
+      "registry_snapshots": 2,
+      "snapshot_interval_seconds": 70,
+      "mutation": false
+    },
+    {
+      "attempt": "fourth_recovery",
+      "result": "TECHNICAL_VALIDATION_EVIDENCE_SATISFIED",
+      "registry_snapshots": 2,
+      "snapshot_interval_seconds": 35,
+      "mutation": false
+    }
+  ],
+  "source_evidence_sha256": {
+    "m13_final": "214db3f10f1111852ec5f93de9990d0003a44db0fe50e91a9f1153376fb0ebb7",
+    "m14_scope": "3be84224c3e4f34121eb0f45fe93c541b8e08f91a1aa237a2d392c1e04cc3276",
+    "m14_development": "4f78876788f971137e3c4a74990d3d4b590cd49aa29e2151bfcb26db524486d7",
+    "m14_pr_ci": "d610a73d8aaa19318d5998a3c1c5fbf834b00d5b259d45b6a38d816f760dd93e",
+    "m14_pr_merge": "54fb0870bd5a9e5898aec18cb600401c9610e14871a1212f23fc06b502c73010",
+    "m14_preflight": "c2df63931c7fdc9fdd65fce1741ce9456ae09772dc0f67729ab7c0c84b4e402e",
+    "initial_incomplete": "9ebac26377e7ab58c993785c1083f8b451039bb2612feef6e3dd1ea0835bcf91",
+    "first_recovery_incomplete": "6c12254e7cd3fbcafc87819fc391b79ce70b19eb3279ab6e0a67a230e4724659",
+    "second_recovery_incomplete": "cb583f509afa6fd9573c939a5124f703ffffaf67d258b5ae93a4615eb2f18a28",
+    "third_recovery_incomplete": "f9402bbf43f854976cc92b5e1fdb2a40b870b86c5177da42283b657b6dcdb1fb",
+    "fourth_recovery_valid": "f0f7f7dd94c78a4f45488f9631dc668a6c1c4c932a25de2e9e36fd59387f49fb",
+    "m14_final_freeze": "90bd5c435705d138496a617f4faac358e3e503350291497062663a8024f80f24",
+    "m01_successor_closure_anchor": "11ff70405486fd5ffca63bee99aecbd81229b0ecabd71aaebfd764b369595b2a"
+  },
+  "claim_boundaries": {
+    "m13_classification_preserved": "M13_PASS_WITH_RECORDED_EXECUTION_DEVIATION",
+    "m13_live_replay_allowed": false,
+    "explicit_separately_frozen_pre_m01_registry_hash_pair_available": false,
+    "missing_pre_m01_hash_pair_manufactured": false,
+    "m07_transcript_used_as_independent_ha_identity_proof": false,
+    "n3w_overall_completion_claimed": false,
+    "next_stage_inferred": false
+  },
+  "redaction": {
+    "full_private_evidence_included": false,
+    "credentials_or_key_material_included": false,
+    "credential_file_fingerprints_included": false,
+    "private_filesystem_paths_included": false,
+    "host_addresses_or_port_mappings_included": false,
+    "container_or_runtime_instance_identifiers_included": false,
+    "authorization_tokens_or_secret_values_included": false
+  },
+  "custody_note": "This document is a content-addressed public summary. Full operational evidence remains outside the public repository under restricted custody."
+}

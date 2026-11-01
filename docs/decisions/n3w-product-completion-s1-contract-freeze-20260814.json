@@ -1,0 +1,103 @@
+{
+  "schema": "gh.n3w-product-completion-s1-contract-freeze/1",
+  "authorization": "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S1-PRODUCT-CONTRACT-FREEZE-20260814-01",
+  "status": "FROZEN",
+  "repository": "chrenguo-stack/HomeAssistant",
+  "baseline": {
+    "main_sha": "c671c994064658e93321917c1efc75663ad65781",
+    "main_tree": "a5095f306df2eb055843a8f63fad73756d76b644"
+  },
+  "contracts": {
+    "factory_neutrality": {
+      "status": "FROZEN",
+      "generic_factory_firmware": true,
+      "factory_peer_identity_material_allowed": false,
+      "factory_user_site_material_allowed": false,
+      "node_id_before_registration_allowed": false
+    },
+    "registration_membership": {
+      "status": "FROZEN",
+      "manager_is_membership_authority": true,
+      "registration_required": true,
+      "stable_node_id_required": true,
+      "neighbor_list_is_membership_state": false
+    },
+    "discovery_advertisement": {
+      "status": "FROZEN",
+      "advertisement_is_trusted_identity": false,
+      "advertisement_may_contain_secret": false,
+      "disconnected_channel_scan_required": true,
+      "short_lived_candidate_table_required": true
+    },
+    "relay_eligibility": {
+      "status": "FROZEN",
+      "registered": true,
+      "same_system": true,
+      "wifi_up": true,
+      "uplink_available": true,
+      "direct_uplink": true,
+      "relay_capable": true,
+      "low_battery": false,
+      "overloaded": false,
+      "retired": false,
+      "revoked": false,
+      "rssi_is_only_factor": false
+    },
+    "runtime_peer_security": {
+      "status": "FROZEN",
+      "factory_or_prebuild_fixed_lmk": false,
+      "system_wide_shared_lmk": false,
+      "manager_authorization_required": true,
+      "pairwise_runtime_peer_required": true,
+      "relay_receives_child_application_key": false,
+      "new_peer_authorization_fail_closed_when_manager_unreachable": true
+    },
+    "auto_path_state_machine": {
+      "status": "FROZEN",
+      "states": [
+        "DIRECT",
+        "DIRECT_DEGRADED",
+        "DISCOVERY",
+        "RELAY_AUTH",
+        "RELAY_ACTIVE",
+        "REDISCOVERY",
+        "DIRECT_RECOVERY"
+      ],
+      "manual_path_command_required": false,
+      "direct_preferred": true,
+      "recovery_stability_required": true,
+      "path_switch_resets_canonical_sequence": false
+    },
+    "ha_identity_continuity": {
+      "status": "FROZEN",
+      "identity_basis": ["SYSTEM_ID", "NODE_ID"],
+      "relay_or_gateway_in_ha_identity": false,
+      "device_count_for_node": 1,
+      "duplicate_unique_id_allowed": false,
+      "canonical_sequence_rollback_allowed": false
+    },
+    "dynamic_node_addition": {
+      "status": "FROZEN",
+      "new_node_requires_old_node_reflash": false,
+      "new_node_requires_old_node_repair": false,
+      "new_node_requires_old_node_peer_injection": false,
+      "runtime_discovery_and_authorization_required": true
+    }
+  },
+  "acceptance": {
+    "host_only_or_vm_may_be_final_acceptance": false,
+    "physical_t1_required": true,
+    "preferred_t1_target": "spare_non_production_t1",
+    "real_esp32c6_required": true,
+    "real_wifi_espnow_required": true,
+    "real_manager_mqtt_home_assistant_path_required": true,
+    "production_t1_confirmation_requires_separate_authorization": true
+  },
+  "out_of_scope": {
+    "n3l": true,
+    "mesh": true,
+    "multihop": true,
+    "dedicated_sensorless_relay": true,
+    "distributed_leader_election": true
+  }
+}

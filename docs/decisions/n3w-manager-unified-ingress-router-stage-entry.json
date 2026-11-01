@@ -1,0 +1,82 @@
+{
+  "schema": "gh.n3w-manager-unified-ingress-router-stage-entry/1",
+  "status": "authorized_for_non_live_unified_ingress_router_development",
+  "authorization": "D1-N3W-MANAGER-UNIFIED-INGRESS-ROUTER-AND-CANONICAL-HANDOFF-NONLIVE-DEVELOPMENT-20260807-01",
+  "authorized_at": "2026-08-07T14:43:00+08:00",
+  "authorization_basis": "user explicitly confirmed entry into the next N3-W development stage after PR #285 integration; this work package is limited to non-live Manager direct/relay composition and canonical handoff ordering",
+  "base": {
+    "ref": "main",
+    "sha": "5e15bcc6955d58c1766c239a3274f211377d0706"
+  },
+  "predecessors": {
+    "durable_authorization_merge": "5e15bcc6955d58c1766c239a3274f211377d0706",
+    "relay_ingress_path": "host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_relay_ingress.py",
+    "authorization_path": "host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_relay_authorization.py",
+    "replay_registry_path": "host/greenhouse-manager/src/greenhouse_manager/runtime/replay_registry.py",
+    "canonical_processor_path": "host/greenhouse-manager/src/greenhouse_manager/runtime/ingest.py"
+  },
+  "work_package": {
+    "name": "Manager unified direct/relay ingress router and canonical handoff ordering",
+    "goal": "compose direct and authenticated relay telemetry over one persistent replay registry and the existing canonical telemetry processor, proving full validation precedes replay/high-water mutation and canonical state mutation follows replay acceptance, without MQTT subscription or live service activation",
+    "allowed": [
+      "two-phase canonical telemetry prepare and commit API with backward-compatible one-shot process behavior",
+      "two-phase relay authentication/validation prepare and replay commit API with backward-compatible one-shot relay process behavior",
+      "non-live unified direct/relay ingress router",
+      "shared replay-registry identity and system-id fail-closed checks",
+      "direct and relay cross-path duplicate, restart, stale-session, validation-ordering, and replay-unavailable tests",
+      "canonical message equivalence tests for direct and relay paths",
+      "dedicated GitHub CI and Draft PR"
+    ],
+    "forbidden": [
+      "production MQTT relay subscription",
+      "production Manager service entry-point wiring",
+      "canonical MQTT publishing from the new router",
+      "production authorization metadata provisioning or mutation",
+      "real key delivery",
+      "key rotation activation",
+      "real application keys in repository or CI evidence",
+      "production Manager configuration changes",
+      "ESP-NOW firmware or ESPHome product changes",
+      "T1, node, board, Broker, Home Assistant, production Manager database, or credential access",
+      "deploy",
+      "release",
+      "tag",
+      "N3-L"
+    ]
+  },
+  "ordering_contract": [
+    "direct path: canonical prepare/complete validation",
+    "direct path: persistent replay/high-water atomic commit",
+    "direct path: canonical in-memory state commit and message construction",
+    "relay path: topic/envelope authorization, AEAD, inner binding, and relay complete telemetry validation",
+    "relay path: canonical processor prepare/complete validation",
+    "relay path: persistent replay/high-water atomic commit",
+    "relay path: canonical in-memory state commit and message construction"
+  ],
+  "invariants": {
+    "production_mqtt_subscription": false,
+    "production_service_wiring": false,
+    "canonical_publish_executed": false,
+    "authorization_store_runtime_write": false,
+    "key_provisioning_or_rotation": false,
+    "board_or_live_execution": false,
+    "secret_values_in_evidence": false,
+    "one_shared_replay_registry": true,
+    "single_system_identity": true,
+    "existing_direct_process_api_backward_compatible": true,
+    "existing_relay_process_api_backward_compatible": true
+  },
+  "exit_gate": [
+    "TelemetryProcessor prepare performs complete validation without lifecycle or dedup mutation",
+    "TelemetryProcessor commit_prepared performs canonical mutation only after caller-controlled replay acceptance",
+    "N3wRelayIngressCore prepare authenticates and validates plaintext without consuming replay state",
+    "N3wRelayIngressCore process remains backward compatible through prepare plus commit",
+    "unified router rejects split replay registries or system identities",
+    "invalid direct or relay canonical telemetry never consumes replay state",
+    "direct and relay paths produce equivalent canonical messages for equivalent telemetry and received_at",
+    "direct-to-relay and relay-to-direct duplicate detection shares persistent replay state across restart",
+    "higher boot session blocks lower-session traffic across ingress paths",
+    "all exact-head CI completes successfully"
+  ],
+  "next_gate": "Ready/merge remains a separate authorization. Production Manager MQTT relay subscription, service wiring, real authorization/key provisioning, firmware, dual-board isolation tests, deployment, and all live or physical execution remain separate gates."
+}

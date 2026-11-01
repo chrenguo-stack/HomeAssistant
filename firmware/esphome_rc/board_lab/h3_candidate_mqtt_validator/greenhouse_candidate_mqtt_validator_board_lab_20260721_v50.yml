@@ -1,0 +1,70 @@
+esphome:
+  name: gh-cand-mqtt-lab
+  friendly_name: Greenhouse Candidate MQTT Validator Lab
+  min_version: 2026.4.3
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: ESP32C6
+  framework:
+    type: esp-idf
+    advanced:
+      include_builtin_idf_components:
+        - mqtt
+
+logger:
+  level: DEBUG
+
+# The shared pairing client compiles mDNS transport sources. Wi-Fi remains
+# disabled at boot, so this compile target cannot contact a real Broker.
+wifi:
+  ssid: !secret node_pairing_wifi_ssid
+  password: !secret node_pairing_wifi_password
+  enable_on_boot: false
+  reboot_timeout: 0s
+
+mdns:
+
+external_components:
+  - source:
+      type: local
+      path: ../../components
+    components:
+      - greenhouse_pairing_client
+      - greenhouse_candidate_mqtt_lab
+
+# Non-production compile target. No credentials, Broker address, or YAML probe
+# trigger are supplied.
+greenhouse_candidate_mqtt_lab:
+  id: candidate_mqtt_validator_stage2d2
+  probe_timeout: 15s
+
+text_sensor:
+  - platform: template
+    name: Candidate MQTT Phase Stage 2D-2 Lab
+    id: candidate_mqtt_phase_stage2d2
+    internal: true
+    update_interval: 5s
+    lambda: |-
+      return {id(candidate_mqtt_validator_stage2d2).phase_name()};
+  - platform: template
+    name: Candidate MQTT Failure Stage 2D-2 Lab
+    id: candidate_mqtt_failure_stage2d2
+    internal: true
+    update_interval: 5s
+    lambda: |-
+      return {id(candidate_mqtt_validator_stage2d2).failure_name()};
+
+binary_sensor:
+  - platform: template
+    name: Candidate MQTT Active Profile Unchanged Stage 2D-2 Lab
+    id: candidate_mqtt_active_unchanged_stage2d2
+    internal: true
+    lambda: |-
+      return id(candidate_mqtt_validator_stage2d2).active_profile_unchanged();
+  - platform: template
+    name: Candidate MQTT Client Live Stage 2D-2 Lab
+    id: candidate_mqtt_client_live_stage2d2
+    internal: true
+    lambda: |-
+      return id(candidate_mqtt_validator_stage2d2).candidate_client_live();

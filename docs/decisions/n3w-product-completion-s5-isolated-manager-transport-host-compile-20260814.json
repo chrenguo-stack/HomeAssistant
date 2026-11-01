@@ -1,0 +1,186 @@
+{
+  "schema": "gh.n3w-product-completion-s5-isolated-manager-transport-host-compile/1",
+  "date": "2026-08-14",
+  "authorization": "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-ISOLATED-MANAGER-TRANSPORT-HOST-COMPILE-IMPLEMENTATION-20260814-01",
+  "link_fix_authorization": "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-MANAGER-TRANSPORT-USE_MQTT-INCLUDE-ORDER-LINK-FIX-20260814-01",
+  "repository": "chrenguo-stack/HomeAssistant",
+  "pull_request": 322,
+  "branch": "feature/n3w-product-completion-s5-two-board-isolated-20260814-v1",
+  "base_main": "38c3b692d4ebe90d0040c732b6c0313fdfdc1ef6",
+  "starting_head": "8b332b65f6cca11b33e8f3d421920123d446f7e7",
+  "transport_pre_link_fix_head": "be2e35a52d9354b547a38d218165e432afe8c305",
+  "implementation_head": "35ac7ef4c77a4cde4faaf8f530b15a7f392d661d",
+  "status": "HOST_COMPILE_PASS_PRIVATE_COMPOSITION_BLOCKERS_RESOLVED_REBASELINE_REVIEW_REQUIRED",
+  "blockers_addressed": [
+    "S5-PREP-B01",
+    "S5-PREP-B02"
+  ],
+  "blocker_resolution_level": "HOST_COMPILE_VERIFIED_ONLY",
+  "physical_preparation_rebaseline_required": true,
+  "physical_preparation_rebaseline_completed": false,
+  "link_fix": {
+    "original_failed_run": 31807307310,
+    "original_failed_job": 94789356174,
+    "original_failure": "ProductS5EspHomeMqttBus vtable unresolved at ESP32-C6 final link",
+    "root_cause": "USE_MQTT feature define was visible in the component translation unit before the transport header but not in the transport translation unit, so MQTT bus method definitions were preprocessed out",
+    "intermediate_fix_head": "ef6c54fc4b09194e83fd450b1abe2f7b9dcd5631",
+    "intermediate_run": 31814378183,
+    "intermediate_failure": "unconditional esphome/core/defines.h include broke the standalone host compile include tree",
+    "final_fix": "conditionally include esphome/core/defines.h when available before evaluating USE_MQTT",
+    "final_fix_head": "35ac7ef4c77a4cde4faaf8f530b15a7f392d661d"
+  },
+  "scope": {
+    "host_compile_only": true,
+    "concrete_opt_in_relay_manager_transport": true,
+    "existing_s4_peer_authorization_topic_schema": true,
+    "manager_epoch_transport_anchor": true,
+    "endpoint_monotonic_uptime_is_manager_epoch": false,
+    "existing_relay_frame_schema": "gh.relay/1",
+    "existing_telemetry_schema": "gh.telemetry/1",
+    "relay_forward_sink_to_existing_manager_ingress": true,
+    "esp32c6_relay_compile_only": true,
+    "normal_production_manager_startup_changed": false,
+    "public_profiles_enabled": false
+  },
+  "required_invariants": {
+    "s4_manager_is_only_peer_authorization_authority": true,
+    "manager_generates_or_distributes_pair_lmk": false,
+    "each_endpoint_verifies_own_manager_grant": true,
+    "each_endpoint_derives_pair_lmk_locally": true,
+    "relay_advertisement_is_untrusted_hint_only": true,
+    "factory_peer_mac_node_id_gateway_id_or_lmk": false,
+    "new_telemetry_schema": false,
+    "normal_app_selects_isolated_manager_service": false
+  },
+  "acceptance": {
+    "actual_python_s4_request_encoded_by_cpp_exactly": true,
+    "actual_python_s4_response_decoded_by_cpp": true,
+    "authority_time_request_response_fails_closed": true,
+    "relayframe_serializes_to_existing_manager_ingress": true,
+    "esp32c6_mqtt_transport_compile_pass": true,
+    "s5_ab_c_d_regression_required": true,
+    "full_two_board_e2e_status": "PENDING"
+  },
+  "ci_at_implementation_head": {
+    "s5_isolated_manager_transport": {
+      "run": 31814530072,
+      "result": "PASS"
+    },
+    "s5_d_lifecycle_negative": {
+      "run": 31814530016,
+      "result": "PASS"
+    },
+    "s5_c_isolated_manager_telemetry": {
+      "run": 31814530160,
+      "result": "PASS"
+    },
+    "s5_ab_host_compile": {
+      "run": 31814530050,
+      "result": "PASS"
+    },
+    "s5_board_integration": {
+      "run": 31814530037,
+      "result": "PASS"
+    },
+    "s3_disconnected_espnow_runtime": {
+      "run": 31814530162,
+      "result": "PASS"
+    },
+    "greenhouse_manager": {
+      "run": 31814530022,
+      "result": "PASS"
+    },
+    "public_repository_safety": {
+      "run": 31814530167,
+      "result": "PASS"
+    },
+    "s5_physical_preparation_contract_regression": {
+      "run": 31814530156,
+      "result": "PASS"
+    }
+  },
+  "physical_preparation_rebaseline": {
+    "authorization": "REBASELINE_PHYSICAL_PREPARATION_AND_PRIVATE_PACKAGE_MATERIALIZATION_READONLY_BINDING_REVIEW",
+    "starting_archive_head": "236f447b5efb60fabd53117b9f36f2d580384099",
+    "review_mode": "HOST_READONLY_STATIC_REBASELINE_BEFORE_PRIVATE_MATERIALIZATION",
+    "historical_preparation_decision_rewritten": false,
+    "historical_s5_prep_b01_b02_resolution": "RESOLVED_AT_HOST_COMPILE_LEVEL",
+    "private_runtime_successor_authorization": "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-PRIVATE-RUNTIME-COMPOSITION-AND-ISOLATED-MANAGER-LAUNCHER-HOST-COMPILE-IMPLEMENTATION-20260814-01",
+    "private_runtime_checkpoint": "e06c8bc90b08987a17783a1a113ea1aaa81b81c0",
+    "private_runtime_validated_head": "971b4e19877bc0f05b79a299a8102c40ca2c23d8",
+    "private_package_materialization_authorized_if_readiness_passes": false,
+    "private_package_materialization_attempted": false,
+    "private_package_materialized": false,
+    "materialization_stop_reason": "HOST_COMPILE_STRUCTURAL_BLOCKERS_RESOLVED_REBASELINE_AND_READONLY_BINDING_REVIEW_REQUIRED_BEFORE_ANY_REAL_PRIVATE_MATERIALIZATION",
+    "readonly_binding_review_performed": false,
+    "physical_execution_authorization_ready": false,
+    "physical_execution_authorized": false,
+    "structural_findings": [
+      {
+        "id": "S5-REBASE-B01",
+        "classification": "RESOLVED_HOST_COMPILE",
+        "finding": "The public private-package generator was pinned to the pre-transport S5-D implementation head 660acf72b701d9ff8e3a881e97e5d15357286786 and rejected the current transport implementation head.",
+        "required_repair": "Rebind the private-package materializer to the current reviewed S5 transport/runtime implementation lineage without rewriting the historical preparation record.",
+        "resolution": "The generator and its host contract are rebound to reviewed private-runtime checkpoint e06c8bc90b08987a17783a1a113ea1aaa81b81c0; no real package was materialized."
+      },
+      {
+        "id": "S5-REBASE-B02",
+        "classification": "RESOLVED_HOST_COMPILE",
+        "finding": "No concrete private ProductS5SelfCredentialProvider composition existed for Child or Relay, and no concrete private ProductS5RelayHealthProvider was bound for Relay. Public and compile-only YAML profiles remained intentionally inert and did not invoke configure_s5_isolated/configure_private.",
+        "required_repair": "Add a generic secret-free host/compile-reviewed private composition path that can consume only each endpoint's own post-registration material at package build time; it must not add factory peer identity or pair LMK.",
+        "resolution": "greenhouse_n3w_s5_private_runtime now provides own-node-only credential and Relay-health composition, and synthetic ESP32-C6 Child and Relay host/compile targets passed while public/factory profiles remain inert."
+      },
+      {
+        "id": "S5-REBASE-B03",
+        "classification": "RESOLVED_HOST_COMPILE",
+        "finding": "N3wProductIsolatedMqttService existed as an explicit opt-in live-capable service, but the private package had no bound isolated Manager launcher/assembly that instantiated it with the existing S4 PeerAuthorizationMqttAdapter and N3-W runtime state. Normal production app.py intentionally did not select it.",
+        "required_repair": "Provide a host/compile-reviewed isolated-lab-only Manager launcher/assembly while leaving normal production Manager startup unchanged.",
+        "resolution": "The explicit n3w_product_isolated_app/n3w_product_isolated_launcher composition reuses the existing S4 authority and N3-W runtime; normal production app.py remains unchanged and does not select the isolated launcher."
+      },
+      {
+        "id": "S5-REBASE-B04",
+        "classification": "RESOLVED_HOST_COMPILE",
+        "finding": "The historical private package input contract did not bind the isolated Relay Wi-Fi configuration, MQTT broker/client configuration, or the ESP-NOW/AP channel compatibility required by the real Relay-to-Manager path.",
+        "required_repair": "Extend only the private one-shot package contract to bind isolated-lab network/broker/channel inputs; these values must never enter public/factory profiles or public evidence.",
+        "resolution": "The private one-shot package contract now validates isolated Wi-Fi/MQTT fields and requires the bound Wi-Fi channel to equal the ESP-NOW channel; only synthetic compile fixtures are public."
+      }
+    ],
+    "preserved_boundaries": {
+      "public_profiles_inert": true,
+      "normal_production_manager_startup_unchanged": true,
+      "factory_peer_identity_absent": true,
+      "manager_distributes_pair_lmk": false,
+      "existing_gh_relay_1_and_gh_telemetry_1_preserved": true,
+      "board_access": false,
+      "serial_access": false,
+      "usb_jtag_board_access": false,
+      "erase": false,
+      "flash": false,
+      "ota": false,
+      "espnow_rf_execution": false,
+      "wifi_connection": false,
+      "real_mqtt_network_e2e": false,
+      "production_access": false
+    },
+    "next_gate": "REBASELINE_PHYSICAL_PREPARATION_AND_PRIVATE_PACKAGE_MATERIALIZATION_READONLY_BINDING_REVIEW"
+  },
+  "not_authorized": [
+    "erase",
+    "flash",
+    "ota",
+    "serial",
+    "usb_jtag_board_access",
+    "espnow_rf_execution",
+    "wifi_connection",
+    "real_mqtt_network_e2e",
+    "spare_t1_runtime",
+    "production_t1",
+    "production_manager_broker_ha_mutation",
+    "pr_merge",
+    "release",
+    "deployment",
+    "n3l",
+    "physical_package_materialization"
+  ],
+  "next_gate_after_pass": "REBASELINE_PHYSICAL_PREPARATION_AND_PRIVATE_PACKAGE_MATERIALIZATION_READONLY_BINDING_REVIEW"
+}

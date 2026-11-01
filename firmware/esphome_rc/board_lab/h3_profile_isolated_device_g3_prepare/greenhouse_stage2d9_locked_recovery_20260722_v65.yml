@@ -1,0 +1,28 @@
+esphome:
+  name: gh-2d9-recovery-v65
+  friendly_name: Greenhouse Stage 2D-9 Locked Recovery
+  min_version: 2026.4.3
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          ESP_LOGI("gh_stage2d9_recovery", "stage2d9_recovery=locked");
+          ESP_LOGI("gh_stage2d9_recovery", "wifi=false mqtt=false nvs_test_open=false prepare=false activate=false cleanup=false");
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: ESP32C6
+  flash_size: 8MB
+  partitions: stage2d9_g3_partitions_20260722_v65.csv
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_APP_REPRODUCIBLE_BUILD: y
+
+logger:
+  level: INFO
+  hardware_uart: USB_SERIAL_JTAG
+
+# Locked recovery contains no external Stage2D9 component and no Wi-Fi, API,
+# OTA, MQTT, web server, key, candidate, authorization, command or NVS action.
+# It never resumes or retries PREPARE_CANDIDATE.

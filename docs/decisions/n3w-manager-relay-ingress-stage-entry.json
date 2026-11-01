@@ -1,0 +1,75 @@
+{
+  "schema": "gh.n3w-manager-relay-ingress-stage-entry/1",
+  "status": "authorized_for_non_live_manager_relay_ingress_development",
+  "authorization": "D1-N3W-MANAGER-RELAY-INGRESS-AEAD-AUTHORIZATION-AND-CROSSPATH-NONLIVE-DEVELOPMENT-20260807-01",
+  "authorized_at": "2026-08-07T13:06:00+08:00",
+  "base": {
+    "ref": "main",
+    "sha": "b33f1498800daa79bf95e45af3afabcc2097d1a9"
+  },
+  "source_contract": {
+    "path": "protocols/transport/gh-n3w-single-hop-v1.md",
+    "integrated_main_sha": "b33f1498800daa79bf95e45af3afabcc2097d1a9",
+    "preserved_source_pr": 276,
+    "preserved_source_sha": "239ea594c643d4990d449187f8b0cabae619e3d7"
+  },
+  "predecessor": {
+    "manager_replay_registry_merge": "b33f1498800daa79bf95e45af3afabcc2097d1a9",
+    "replay_registry_path": "host/greenhouse-manager/src/greenhouse_manager/runtime/replay_registry.py"
+  },
+  "work_package": {
+    "name": "Manager relay ingress AEAD and cross-path non-live core",
+    "goal": "promote the N3-W host-only relay contract into an importable Manager core while leaving production MQTT wiring, real key stores, firmware, and physical execution disabled",
+    "allowed": [
+      "strict gateway relay topic and gh.relay/1 envelope parser",
+      "4096-byte outer payload and 1..1024-byte ciphertext limits",
+      "single-hop, gateway/node, active-node, key-epoch authorization ports",
+      "deterministic uint64 boot-session plus uint32 seq nonce derivation",
+      "deterministic AAD binding for schema, transport, gateway_id, node_id, hop_count, key_epoch, boot_id, seq",
+      "AES-256-GCM adapter backed by the existing cryptography development dependency",
+      "packaged gh.telemetry/1 schema validation without tightening the global legacy boot_id schema",
+      "persistent replay-registry inspection before AEAD and atomic commit after complete telemetry validation",
+      "non-live direct/relay cross-path duplicate model using the same ReplayRegistry",
+      "focused unit, restart, fault, and cross-path tests",
+      "dedicated GitHub CI and Draft PR"
+    ],
+    "forbidden": [
+      "production MQTT relay subscription",
+      "canonical publish wiring",
+      "real gateway credential or key store integration",
+      "real application keys",
+      "key delivery or rotation activation",
+      "ESP-NOW firmware or ESPHome product changes",
+      "T1, node, board, Broker, Home Assistant, production Manager database, or credential access",
+      "deploy",
+      "release",
+      "tag",
+      "N3-L"
+    ]
+  },
+  "invariants": {
+    "single_hop_only": true,
+    "production_wiring": false,
+    "board_or_live_execution": false,
+    "replay_registry_checked_before_aead": true,
+    "replay_commit_after_complete_telemetry_validation": true,
+    "cross_path_registry_shared": true,
+    "global_telemetry_schema_not_tightened": true,
+    "test_keys_only": true
+  },
+  "exit_gate": [
+    "valid relay frame decrypts and returns the existing direct-ingress handoff topic without publishing",
+    "topic/system/gateway/node bindings fail closed",
+    "inactive node, unauthorized gateway-node pair, and unknown key epoch fail closed",
+    "zero/malformed boot session, seq overflow, nonce mismatch, malformed base64, frame size, and non-single-hop conditions fail closed",
+    "AAD/ciphertext tamper fails AEAD without consuming replay state",
+    "inner node_id/boot_id/seq mismatch and complete telemetry validation failures do not consume replay state",
+    "replay registry unavailable or stale boot session fails closed before canonical handoff",
+    "same relay tuple is duplicate",
+    "direct then relay and relay then direct duplicates share the persistent registry",
+    "replay state survives Manager-core restart",
+    "global gh.telemetry/1 remains compatible with legacy boot_id formats outside the N3-W envelope",
+    "all exact-head CI completes successfully"
+  ],
+  "next_gate": "Production MQTT relay subscription, real authorization/key stores, direct-ingress production replay wiring, Ready/merge, firmware, dual-board isolation tests, and all live or physical execution remain separate authorizations."
+}

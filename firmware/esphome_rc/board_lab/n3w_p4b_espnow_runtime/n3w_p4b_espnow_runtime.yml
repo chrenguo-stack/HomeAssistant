@@ -1,0 +1,30 @@
+esphome:
+  name: gh-n3w-p4b-radio
+  friendly_name: Greenhouse N3-W P4b ESP-NOW Radio Compile Target
+  min_version: 2026.4.3
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: ESP32C6
+  flash_size: 8MB
+  framework:
+    type: esp-idf
+    advanced:
+      include_builtin_idf_components:
+        - nvs_flash
+        - esp_wifi
+
+logger:
+  level: INFO
+  hardware_uart: USB_SERIAL_JTAG
+
+external_components:
+  - source:
+      type: local
+      path: ../../components
+    components:
+      - greenhouse_n3w_core
+
+# Compile/link-only P4b target. The component itself remains inert and does not
+# call esp_now_init(), configure a peer, transmit a frame, or provision any key.
+greenhouse_n3w_core:

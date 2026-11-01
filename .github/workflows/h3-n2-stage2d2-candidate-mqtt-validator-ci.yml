@@ -1,0 +1,214 @@
+name: H3 N2 Stage2D2 Candidate MQTT Validator CI
+
+on:
+  pull_request:
+    paths:
+      - "firmware/esphome_rc/components/greenhouse_pairing_client/pairing_candidate_mqtt_validator.*"
+      - "firmware/esphome_rc/components/greenhouse_pairing_client/tests/pairing_stage2d2_*"
+      - "firmware/esphome_rc/components/greenhouse_candidate_mqtt_lab/**"
+      - "firmware/esphome_rc/board_lab/h3_candidate_mqtt_validator/**"
+      - "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_candidate_mqtt_validator_board_lab_20260721_v50.yml"
+      - "firmware/esphome_rc/f1_0_rc2/packages/**"
+      - "protocols/pairing/gh-h3-node-candidate-mqtt-validation-v1.md"
+      - "docs/development/h3-n2-stage2d2-candidate-mqtt-validator-20260721.md"
+      - "tools/h3_n2_stage2d2_candidate_mqtt_boundary_gate_20260721_v50.py"
+      - ".github/workflows/h3-n2-stage2d2-candidate-mqtt-validator-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "firmware/esphome_rc/components/greenhouse_pairing_client/pairing_candidate_mqtt_validator.*"
+      - "firmware/esphome_rc/components/greenhouse_pairing_client/tests/pairing_stage2d2_*"
+      - "firmware/esphome_rc/components/greenhouse_candidate_mqtt_lab/**"
+      - "firmware/esphome_rc/board_lab/h3_candidate_mqtt_validator/**"
+      - "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_candidate_mqtt_validator_board_lab_20260721_v50.yml"
+      - "firmware/esphome_rc/f1_0_rc2/packages/**"
+      - "protocols/pairing/gh-h3-node-candidate-mqtt-validation-v1.md"
+      - "docs/development/h3-n2-stage2d2-candidate-mqtt-validator-20260721.md"
+      - "tools/h3_n2_stage2d2_candidate_mqtt_boundary_gate_20260721_v50.py"
+      - ".github/workflows/h3-n2-stage2d2-candidate-mqtt-validator-ci.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  host-fault-matrix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          show-progress: false
+      - name: Compile Stage 2D-2 validator fault matrix
+        run: |
+          set -euo pipefail
+          component=firmware/esphome_rc/components/greenhouse_pairing_client
+          g++ -std=gnu++20 -Wall -Wextra -Wpedantic -Werror \
+            -I "$component" \
+            "$component/pairing_mqtt_activation_contract.cpp" \
+            "$component/pairing_candidate_mqtt_validator.cpp" \
+            "$component/tests/pairing_stage2d2_candidate_mqtt_validator_fault_matrix_20260721_v50.cpp" \
+            -o /tmp/stage2d2-candidate-mqtt-fault-matrix-v50
+      - name: Run Stage 2D-2 validator fault matrix
+        run: /tmp/stage2d2-candidate-mqtt-fault-matrix-v50
+      - name: Verify Stage 2D-2 source and production boundaries
+        run: python tools/h3_n2_stage2d2_candidate_mqtt_boundary_gate_20260721_v50.py
+      - name: Upload Stage 2D-2 boundary diagnostic
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage2d2-candidate-mqtt-boundary-v50
+          path: /tmp/stage2d2-candidate-mqtt-boundary-v50.txt
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Cleanup host files
+        if: always()
+        run: |
+          rm -f \
+            /tmp/stage2d2-candidate-mqtt-fault-matrix-v50 \
+            /tmp/stage2d2-candidate-mqtt-boundary-v50.txt
+
+  esp32-c6-compile:
+    needs: host-fault-matrix
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install pinned ESPHome
+        run: python -m pip install -q "esphome==2026.4.3"
+      - name: Create ephemeral disabled Wi-Fi secrets
+        run: |
+          python - <<'PY'
+          import secrets
+          from pathlib import Path
+
+          ssid = "ci-stage2d2-" + secrets.token_hex(4)
+          password = secrets.token_urlsafe(24)
+          target = Path(
+              "firmware/esphome_rc/board_lab/h3_candidate_mqtt_validator/secrets.yaml"
+          )
+          target.write_text(
+              "\n".join((
+                  f'node_pairing_wifi_ssid: "{ssid}"',
+                  f'node_pairing_wifi_password: "{password}"',
+                  "",
+              )),
+              encoding="utf-8",
+          )
+          Path("/tmp/stage2d2-ephemeral-values-v50").write_text(
+              ssid + "\n" + password + "\n",
+              encoding="utf-8",
+          )
+          PY
+      - name: Compile minimal ESP32-C6 candidate MQTT validator target
+        shell: bash
+        run: |
+          set -o pipefail
+          cd firmware/esphome_rc/board_lab/h3_candidate_mqtt_validator
+          esphome config greenhouse_candidate_mqtt_validator_board_lab_20260721_v50.yml 2>&1 | tee /tmp/stage2d2-minimal-config-v50.log
+          esphome compile greenhouse_candidate_mqtt_validator_board_lab_20260721_v50.yml 2>&1 | tee /tmp/stage2d2-minimal-compile-v50.log
+      - name: Compile full RC2 product-board candidate MQTT validator target
+        shell: bash
+        run: |
+          set -o pipefail
+          cd firmware/esphome_rc/f1_0_rc2
+          RC2_CONFIG=f1_0_rc2_h3_candidate_mqtt_validator_board_lab_20260721_v50.yml bash tools/rc2.sh config 2>&1 | tee /tmp/stage2d2-product-config-v50.log
+          RC2_CONFIG=f1_0_rc2_h3_candidate_mqtt_validator_board_lab_20260721_v50.yml bash tools/rc2.sh compile 2>&1 | tee /tmp/stage2d2-product-compile-v50.log
+      - name: Verify compile evidence and secret redaction
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          values = Path("/tmp/stage2d2-ephemeral-values-v50").read_text(
+              encoding="utf-8"
+          ).splitlines()
+          logs = "\n".join(
+              Path(path).read_text(encoding="utf-8", errors="replace")
+              for path in (
+                  "/tmp/stage2d2-minimal-config-v50.log",
+                  "/tmp/stage2d2-minimal-compile-v50.log",
+                  "/tmp/stage2d2-product-config-v50.log",
+                  "/tmp/stage2d2-product-compile-v50.log",
+              )
+          )
+          if any(value and value in logs for value in values):
+              raise SystemExit("ephemeral Stage 2D-2 Wi-Fi value appeared in output")
+          evidence = (
+              "pairing_candidate_mqtt_validator.cpp.o",
+              "greenhouse_candidate_mqtt_lab.cpp.o",
+              "INFO Successfully compiled program.",
+          )
+          missing = [item for item in evidence if logs.count(item) < 2]
+          if missing:
+              raise SystemExit(f"Stage 2D-2 compile evidence missing: {missing}")
+          forbidden = (
+              "ghs_",
+              "BEGIN CERTIFICATE",
+              "mqtt_password",
+              "broker.greenhouse.local",
+          )
+          leaked = [item for item in forbidden if item in logs]
+          if leaked:
+              raise SystemExit(f"Stage 2D-2 credential-like output present: {leaked}")
+          PY
+      - name: Build redacted failure diagnostic
+        if: failure()
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          values_path = Path("/tmp/stage2d2-ephemeral-values-v50")
+          values = (
+              values_path.read_text(encoding="utf-8").splitlines()
+              if values_path.exists()
+              else []
+          )
+          sections = []
+          for source in (
+              "/tmp/stage2d2-minimal-config-v50.log",
+              "/tmp/stage2d2-minimal-compile-v50.log",
+              "/tmp/stage2d2-product-config-v50.log",
+              "/tmp/stage2d2-product-compile-v50.log",
+          ):
+              path = Path(source)
+              if not path.exists():
+                  continue
+              text = path.read_text(encoding="utf-8", errors="replace")
+              for value in values:
+                  if value:
+                      text = text.replace(value, "<REDACTED_EPHEMERAL_VALUE>")
+              sections.append(f"===== {path.name} =====\n{text}")
+          Path("/tmp/stage2d2-redacted-failure-v50.log").write_text(
+              "\n".join(sections) or "No compile log was created.\n",
+              encoding="utf-8",
+          )
+          PY
+      - name: Upload redacted failure diagnostic
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage2d2-redacted-failure-v50
+          path: /tmp/stage2d2-redacted-failure-v50.log
+          if-no-files-found: error
+          retention-days: 7
+      - name: Cleanup Stage 2D-2 files
+        if: always()
+        run: |
+          rm -f \
+            firmware/esphome_rc/board_lab/h3_candidate_mqtt_validator/secrets.yaml \
+            /tmp/stage2d2-ephemeral-values-v50 \
+            /tmp/stage2d2-redacted-failure-v50.log \
+            /tmp/stage2d2-minimal-config-v50.log \
+            /tmp/stage2d2-minimal-compile-v50.log \
+            /tmp/stage2d2-product-config-v50.log \
+            /tmp/stage2d2-product-compile-v50.log

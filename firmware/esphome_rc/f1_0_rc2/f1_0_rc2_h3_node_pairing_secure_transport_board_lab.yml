@@ -1,0 +1,86 @@
+substitutions:
+  device_name: gh-h3-pairing-secure-lab
+  project_version: "F1.0-RC2-H3-PAIRING-SECURE-LAB"
+  soil_read_interval: 20s
+  soil_warmup_time: 15s
+  scd30_update_interval: 11s
+  battery_divider_ratio: "2.0"
+  battery_calibration_factor: "1.000"
+  battery_low_threshold: "3.00"
+  battery_recovery_threshold: "3.50"
+
+esp32:
+  framework:
+    sdkconfig_options:
+      CONFIG_MBEDTLS_PSA_CRYPTO_C: y
+      CONFIG_MBEDTLS_ECP_DP_CURVE25519_ENABLED: y
+      CONFIG_MBEDTLS_CHACHA20_C: y
+      CONFIG_MBEDTLS_POLY1305_C: y
+      CONFIG_MBEDTLS_CHACHAPOLY_C: y
+
+external_components:
+  - source:
+      type: local
+      path: ../15_1_2_rs485_modbus_echo_filter/my_components
+    components:
+      - echo_filtered_modbus
+  - source:
+      type: local
+      path: ../components
+    components:
+      - greenhouse_pairing_client
+
+packages:
+  core: !include packages/core.yml
+  control: !include packages/control.yml
+  buses: !include packages/buses.yml
+  sensors: !include packages/sensors.yml
+  display: !include packages/display.yml
+
+# Dedicated non-production product-PCB compile target. It preserves all RC2
+# local sensors, LCD and RS485 behavior while compiling Stage 2C-2 discovery,
+# bounded HTTP and secure-channel code. No pairing operation is auto-started,
+# credentials remain RAM-only, and formal MQTT settings are untouched.
+greenhouse_pairing_client:
+  id: pairing_client
+  hardware_id: ghw-c6-product-stage2c2-lab
+  pairing_id: aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee
+  pairing_secret: !secret node_pairing_secret
+  max_candidates: 4
+  candidate_ttl_cap: 120s
+  network_enabled: true
+  mdns_enabled: true
+  udp_enabled: true
+  udp_target: 255.255.255.255
+  udp_port: 47111
+  udp_attempts: 3
+  udp_initial_backoff: 250ms
+  mdns_timeout: 1000ms
+  http_timeout: 5000ms
+  response_max_bytes: 16384
+
+esphome:
+  on_boot:
+    - priority: -150
+      then:
+        - lambda: |-
+            id(pairing_client).start_discovery(
+              "11111111-2222-4333-8444-555555555555",
+              "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            );
+
+text_sensor:
+  - platform: template
+    name: "Pairing Secure State Lab"
+    id: pairing_secure_state_lab
+    internal: true
+    update_interval: 5s
+    lambda: |-
+      return {id(pairing_client).state_name()};
+  - platform: template
+    name: "Pairing Network Result Lab"
+    id: pairing_network_result_lab
+    internal: true
+    update_interval: 5s
+    lambda: |-
+      return {id(pairing_client).network_result_name()};

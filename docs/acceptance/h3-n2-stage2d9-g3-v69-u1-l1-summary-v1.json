@@ -1,0 +1,59 @@
+{
+  "schema": "gh.h3.n2.stage2d9-g3-v69-u1-l1-summary/1",
+  "stage": "H3/N2 Stage 2D-9 G3",
+  "artifact_generation": "V69",
+  "status": "passed",
+  "timestamp_utc": "2026-07-23T03:28:26Z",
+  "batch_package_id": "U1_STAGE2D9_G3_V69_ARTIFACT_AND_CUSTODY_VERIFY_V3",
+  "package_sha256": "8dfd73abf0f3dc1d526658ce9987a71b9d3fd0ab291eacbc08a851928d365782",
+  "launcher_sha256": "48b753a40c9644e57a329b8f96bdf3ce5db911f4e5dda87447896301fe3ffac1",
+  "script_sha256": "7b5a5cf443ec5f491a411391be27c6bf4ef383280ef2094ecad923d3475b07d5",
+  "artifact": {
+    "source_commit": "30a15e39164bed4a5b96c50aa5e2e2e6f238c43b",
+    "implementation_source_binding": "f39c3c4c621717a61e0b3cef8b4ec88e59ac13aa",
+    "zip_sha256": "21aa3383a26b66109408576040245dd60c17eb780b65de9847381b73cfb1506b",
+    "manifest_sha256": "6719413fc42b43be8dd939d5a7c9333bb04c6f9d143987a89a50d9c89b95c254",
+    "g3_merged_sha256": "8d99398277ac57680b23791afec67640c5d8e050f474e929cea7724b88b85dbc",
+    "recovery_merged_sha256": "244f33a9087e41ce8ce2d2b021b9f532336a9774b6ce4c118c28eac955135103",
+    "seed_sha256": "0ea36f26c5048f69b223884a13613fbd645b58c2ce42eafc6f9d9cd55bb089af",
+    "partition_sha256": "b3964cbbd811d5fa5866638585fa410b53fc74e70a8f92491f43fce0b7a70268",
+    "unlock_digest_sha256": "66ce4bd205e8c76159ad839e6f1115e990f18eab2e149427b243e9c5bd541e9e",
+    "root_cause_fix": "valid_local_placeholder_host",
+    "candidate_host": "stage2d9.local",
+    "prepare_schema": "GH2D9_PREPARE_V2",
+    "verify_schema": "GH2D9_VERIFY_V2",
+    "clean_build_count": 2,
+    "byte_identical": true,
+    "gate": "LOCKED",
+    "private_execution_material_present": false
+  },
+  "private_custody": {
+    "source_sha256": "cfb8164056945869bf9f9e6e340f9e3280ea6d32e3db723df448e4c8a5f4ee5c",
+    "destination_sha256": "cfb8164056945869bf9f9e6e340f9e3280ea6d32e3db723df448e4c8a5f4ee5c",
+    "installed": true,
+    "preserved": true,
+    "unlock_digest_match": true,
+    "execution_authorized": false,
+    "material_in_git": false,
+    "material_in_artifact": false
+  },
+  "protected_boundaries": {
+    "board_accessed": false,
+    "serial_access_attempted": false,
+    "flash_operation_attempted": false,
+    "efuse_command_attempted": false,
+    "network_operation_attempted": false,
+    "production_environment_modified": false,
+    "authorization_file_generated": false,
+    "execution_package_generated": false,
+    "d2_request_generated": false
+  },
+  "privacy": {
+    "raw_local_path_included": false,
+    "private_log_included": false,
+    "private_board_identifier_included": false,
+    "authorization_json_included": false,
+    "secret_values_included": false
+  },
+  "next_gate": "prepare a new V69 exact D2 review package; no board connection or execution before a separate operator decision"
+}

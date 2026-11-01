@@ -1,0 +1,125 @@
+{
+  "schema": "gh.n3w-p5-phase-exit-blocker-status/1",
+  "status": "N3W_PHASE_EXIT_BLOCKED_M03_PROHIBITED",
+  "date": "2026-08-09",
+  "authorization": "D1-N3W-P5-M02-SUCCESSOR-N3W-PHASE-EXIT-BLOCKER-STATUS-REBASELINE-AND-PR276-SUPERSEDED-CLOSURE-RECOMMENDATION-PREPARATION-R1-EXACT-MAIN-1C4D45F9CF9FE76865BDF58BD57CDBAB96586343-EXACT-PR276-HEAD-239EA594C643D4990D449187F8B0CABAE619E3D7-M03-PROHIBITED-NO-LIVE-NO-PACKAGE-20260809-01",
+  "repository": {
+    "exact_main": "1c4d45f9cf9fe76865bdf58bd57cdbab96586343",
+    "pr297": {
+      "state": "closed",
+      "merged": true,
+      "head": "9c6758b783844e70a2635f370e0466ca96c58944",
+      "merge_commit": "1c4d45f9cf9fe76865bdf58bd57cdbab96586343"
+    },
+    "pr276": {
+      "state": "open",
+      "merged": false,
+      "head": "239ea594c643d4990d449187f8b0cabae619e3d7",
+      "head_is_ancestor_of_main": true,
+      "main_ahead_by": 149,
+      "main_behind_by": 0,
+      "only_open_n3w_pr": true
+    }
+  },
+  "n3w_exit": {
+    "ready": false,
+    "roadmap_condition": "esp_now_single_hop_path_lease_and_switching_without_duplicate_device_or_canonical_rollback",
+    "completed_scope": "p5_m02_direct_to_relay_successor_closure",
+    "next_required_physical_matrix": "M03",
+    "matrix": {
+      "M01": {
+        "status": "not_assessed_by_this_rebaseline"
+      },
+      "M02": {
+        "status": "terminal_pass_successor_closed"
+      },
+      "M03": {
+        "status": "pending_prohibited",
+        "name": "relay_to_direct"
+      },
+      "M04": {
+        "status": "pending"
+      },
+      "M05": {
+        "status": "pending"
+      },
+      "M06": {
+        "status": "pending"
+      },
+      "M07": {
+        "status": "pending"
+      },
+      "M08": {
+        "status": "pending"
+      },
+      "M09": {
+        "status": "pending"
+      },
+      "M10": {
+        "status": "pending"
+      },
+      "M11": {
+        "status": "pending"
+      },
+      "M12": {
+        "status": "pending"
+      },
+      "M13": {
+        "status": "pending"
+      },
+      "M14": {
+        "status": "pending"
+      }
+    }
+  },
+  "m03_boundary": {
+    "authorized": false,
+    "package_generation_authorized": false,
+    "package_generated": false,
+    "claim_authorized": false,
+    "claimed": false,
+    "execution_authorized": false,
+    "executed": false,
+    "path_direct_command_authorized": false,
+    "prohibition_preserved": true
+  },
+  "pr276_recommendation": {
+    "disposition": "close_not_merge_as_superseded",
+    "recommendation_only": true,
+    "status_update_authorized": false,
+    "close_authorized": false,
+    "merge_authorized": false,
+    "branch_delete_authorized": false,
+    "preserve_head_branch": true
+  },
+  "public_boundary": {
+    "secrets_included": false,
+    "board_macs_included": false,
+    "private_evidence_hashes_included": false,
+    "factory_image_hashes_included": false,
+    "private_package_hashes_included": false,
+    "private_terminal_transcripts_included": false,
+    "replayable_authorization_included": false
+  },
+  "operations_performed": {
+    "pr276_mutation": false,
+    "board_access": false,
+    "usb_or_serial_access": false,
+    "flash_erase_or_ota": false,
+    "power_change": false,
+    "mqtt_publish": false,
+    "path_control": false,
+    "live_service_mutation": false,
+    "production_network_access": false,
+    "deployment": false,
+    "release": false,
+    "tag": false
+  },
+  "next_gate": {
+    "status_rebaseline_review_required": true,
+    "pr276_superseded_closure_requires_separate_authorization": true,
+    "m03_requires_prohibition_lift_and_separate_authorization": true,
+    "fresh_readonly_drift_review_required": true,
+    "fresh_physical_state_checkpoint_required_before_any_m03_execution": true
+  }
+}

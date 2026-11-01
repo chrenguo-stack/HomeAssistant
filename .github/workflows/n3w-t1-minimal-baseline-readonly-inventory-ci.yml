@@ -1,0 +1,33 @@
+name: N3W T1 minimal baseline read-only inventory CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/n3w-t1-minimal-baseline-readonly-inventory-ci.yml"
+      - "tools/n3w_t1_minimal_baseline_readonly_inventory.py"
+      - "tests/tools/test_n3w_t1_minimal_baseline_readonly_inventory.py"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/n3w-t1-minimal-baseline-readonly-inventory-ci.yml"
+      - "tools/n3w_t1_minimal_baseline_readonly_inventory.py"
+      - "tests/tools/test_n3w_t1_minimal_baseline_readonly_inventory.py"
+
+permissions:
+  contents: read
+
+jobs:
+  readonly-contract:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run read-only inventory tests
+        run: |
+          set -euo pipefail
+          python -m pip install "pytest>=8,<9"
+          python -m pytest -q tests/tools/test_n3w_t1_minimal_baseline_readonly_inventory.py
+          python tools/n3w_t1_minimal_baseline_readonly_inventory.py --self-check

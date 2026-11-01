@@ -1,0 +1,21 @@
+{
+  "title": "Greenhouse History Projection",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configure greenhouse history projection",
+        "description": "C06-B2A loads only the inactive target ledger core. MQTT and Recorder writes remain disabled.",
+        "data": {
+          "system_id": "System ID"
+        }
+      }
+    },
+    "error": {
+      "invalid_system_id": "System ID must contain 3 to 64 letters, digits, underscores, or hyphens."
+    },
+    "abort": {
+      "single_instance_allowed": "Only one greenhouse history integration entry is allowed.",
+      "already_configured": "This system is already configured."
+    }
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "schema": "gh.h3.n2.stage2d9-g3-v68-artifact-l1-summary/1",
+  "stage": "H3/N2 Stage 2D-9 G3",
+  "artifact_generation": "V68",
+  "status": "frozen_waiting_user_host_u1",
+  "source_commit": "608282bf86fcf8c1d13494437e01f1899d3c494a",
+  "workflow": {
+    "run_id": 29966262910,
+    "status": "passed",
+    "artifact_id": 8548132415,
+    "artifact_name": "stage2d9-g3-immutable-locked-v68"
+  },
+  "artifact": {
+    "zip_sha256": "3a90f2b1369dafbc5fb0fa20255ab9dc978a335b74d415aa2f51054a3e198c3b",
+    "manifest_sha256": "99b7297f3cb2b54d231ecdda4e0543ddad33bb9562d6a7036f2b995a6ac9b80b",
+    "g3_merged_sha256": "094d37b01e9ddce1bba26216ffcbb1bae56a3ecbbf075b3e9e3ec57042214ca4",
+    "recovery_merged_sha256": "54fb10601a0fbf448948d3f7d687281b33e85220c64bcdcabfae896dd3d98a1a",
+    "seed_sha256": "0ea36f26c5048f69b223884a13613fbd645b58c2ce42eafc6f9d9cd55bb089af",
+    "partition_sha256": "b3964cbbd811d5fa5866638585fa410b53fc74e70a8f92491f43fce0b7a70268",
+    "reproducibility_report_sha256": "d0c5c9fe4e543183634ac787ea8252b86ba89cc793a0fcab0e5b5439312a4c92",
+    "source_boundary_report_sha256": "ffacb544202f7d0c6dd2d29a2ae855299dadd1b7433dc2beebdfbb3e40d9117d",
+    "unlock_digest_sha256": "c6cfae354edbd426f9990fb65b4c865e711a0c2b6c1fba1d2e7faf132ebc2208",
+    "clean_build_count": 2,
+    "byte_identical": true,
+    "gate": "LOCKED"
+  },
+  "private_custody": {
+    "required_before_d2": true,
+    "material_present": true,
+    "file_sha256": "a462997381fdd0842b2a7c1ab5697fd45e62ae0789100437c6fb702cfa16cfdc",
+    "unlock_digest_match_verified": true,
+    "material_in_git": false,
+    "material_in_artifact": false,
+    "execution_authorized": false
+  },
+  "u1_package": {
+    "batch_package_id": "U1_STAGE2D9_G3_V68_ARTIFACT_AND_CUSTODY_VERIFY_V2",
+    "package_sha256": "4fc3e589e7bd3174a8a44eed0b3aab90a6bfe030a0b07edffb96adaebc24e14a",
+    "launcher_sha256": "8319f460212fff1f5c7350f6070ff9219867099e793d90ffd7693f491887d54e",
+    "script_sha256": "2091e44001526eb31c01072b0420b33b1b28c05cdaa4db018d27e203633f302c",
+    "binding_sha256": "2ba8b8028b771bcd65d88912cad115c9c2b348e19b401b1fef9848bcc85e6ca2",
+    "isolated_self_test": "passed",
+    "user_host_result": "pending",
+    "authorization_file_present": false,
+    "execution_package_present": false
+  },
+  "protected_boundaries": {
+    "board_accessed": false,
+    "serial_access_attempted": false,
+    "flash_operation_attempted": false,
+    "efuse_command_attempted": false,
+    "network_operation_attempted": false,
+    "production_environment_modified": false,
+    "authorization_issued": false,
+    "execution_authorized": false
+  },
+  "retired_material": {
+    "v67_d2_attempt1_reusable": false,
+    "v67_d2_attempt2_reusable": false,
+    "v67_unlock_material_reusable": false
+  },
+  "next_gate": "user-host U1 must verify the V68 Artifact and install the exact private custody file before any new D2 request"
+}

@@ -1,0 +1,302 @@
+# ═══════════════════════════════════════════════════════════════════════
+# ESP32-C6-WROOM-1 · RS485 土壤传感器 · 回显过滤 + 官方 Modbus Controller
+# 文件：15_1_2_rs485_modbus_echo_filter.yml
+# 基础版本：15_1_1_rs485_modbus_controller.yml
+# 适配 ESPHome：2026.4.3
+#
+# ───────────────────────────── 版本日志 ─────────────────────────────
+# 15.1.2-rs485-modbus-echo-filter · 2026-06-19
+#   1. 保留 ESPHome 官方 modbus_controller 作为寄存器读取、CRC、命令队列、
+#      重试、在线/离线判断及 Home Assistant 实体发布的主体。
+#   2. 新增本地 external component：echo_filtered_modbus。
+#      该组件位于 UART 与官方 Modbus 解析器之间，只过滤 RS485 自动收发
+#      电路产生的 TX 本地回显。
+#   3. 过滤条件不是固定延时，也不是盲目丢弃前 8 字节；仅当 RX 收到的数据
+#      与刚刚实际发送的完整 RTU 帧逐字节完全一致时，才丢弃该帧。
+#   4. 当前仅过滤功能码 0x03。若没有回显、或真实响应直接到达，候选字节会
+#      按原顺序交回官方 Modbus 解析器，不改写响应内容。
+#   5. 查询仍由官方组件生成，目标请求保持：
+#        01 03 00 00 00 03 05 CB
+#   6. 寄存器保持不变：
+#        0x0000 = 土壤湿度，U_WORD × 0.1 %
+#        0x0001 = 土壤温度，S_WORD × 0.1 °C
+#        0x0002 = 土壤 EC，U_WORD，单位 µS/cm
+#   7. GPIO15 始终开启，RS485 土壤传感器持续通电；GPIO21/GPIO17 始终由
+#      ESPHome UART 管理，不再切换高阻或强制绑定 UART_NUM_0/UART_NUM_1。
+#   8. 保留启动 30 秒稳定 + 15 秒预热后的首次读取、每 20 分钟自动读取、
+#      手动读取按钮，以及最多 3 次发送机会。
+#   9. 测试阶段保留 VERY_VERBOSE Modbus 日志；验证稳定后可降为 DEBUG。
+#
+# 15.1.1-rs485-modbus-controller · 2026-06-19
+#   · 首次改用官方 modbus + modbus_controller，但受 TX 本地回显干扰，
+#     实测成功率约 19%～29%。
+#
+# 15.1.0-rs485-only-always-on-fixed · 2026-06-19
+#   · 自定义 UART/CRC/帧扫描方案；传感器持续通电，实机读取正常。
+# ═══════════════════════════════════════════════════════════════════════
+
+external_components:
+  - source:
+      type: local
+      path: my_components
+    components:
+      - echo_filtered_modbus
+
+esphome:
+  name: gh
+  name_add_mac_suffix: true
+  project:
+    name: "DIY.Greenhouse_Zpix_C6"
+    version: "15.1.2-rs485-modbus-echo-filter"
+
+  on_boot:
+    - priority: 800
+      then:
+        - script.execute: watchdog_timer
+
+    - priority: 700
+      then:
+        - switch.turn_on: sensor_pwr_switch
+        - logger.log: "[boot] RS485 soil sensor power ON continuously."
+
+    - priority: -100
+      then:
+        - delay: 30s
+        - logger.log: "[boot] Stabilization done; soil sensor remains powered."
+        - delay: 15s
+        - logger.log: "[boot] Warm-up done; requesting first Modbus update..."
+        - component.update: soil_modbus_controller
+
+esp32:
+  board: esp32-c6-devkitc-1
+  variant: esp32c6
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG: "y"
+      CONFIG_ESP_CONSOLE_SECONDARY_NONE: "y"
+      CONFIG_ESP_MAIN_TASK_STACK_SIZE: "16384"
+
+logger:
+  level: VERY_VERBOSE
+  hardware_uart: USB_CDC
+  logs:
+    modbus: VERY_VERBOSE
+    modbus_controller: DEBUG
+    echo_filtered_modbus: VERY_VERBOSE
+
+api:
+  reboot_timeout: 0s
+
+mdns:
+  disabled: false
+
+ota:
+  - platform: esphome
+
+wifi:
+  fast_connect: false
+  power_save_mode: NONE
+  reboot_timeout: 0s
+  ap:
+
+captive_portal:
+
+globals:
+  - id: soil_query_count
+    type: int
+    restore_value: false
+    initial_value: '0'
+
+  - id: soil_success_count
+    type: int
+    restore_value: false
+    initial_value: '0'
+
+script:
+  - id: watchdog_timer
+    mode: restart
+    then:
+      - delay: 60min
+      - button.press: sys_reboot
+
+button:
+  - platform: restart
+    name: "Reboot"
+    id: sys_reboot
+
+  - platform: template
+    name: "Read Soil Sensor Now"
+    id: soil_read_now
+    on_press:
+      then:
+        - logger.log: "[Manual] Triggering modbus_controller update..."
+        - component.update: soil_modbus_controller
+
+output:
+  - platform: gpio
+    pin: GPIO15
+    id: sensor_pwr_out
+
+switch:
+  - platform: output
+    id: sensor_pwr_switch
+    output: sensor_pwr_out
+    internal: true
+    restore_mode: ALWAYS_ON
+
+uart:
+  id: uart_485
+  tx_pin: GPIO21
+  rx_pin: GPIO17
+  baud_rate: 4800
+  data_bits: 8
+  parity: NONE
+  stop_bits: 1
+  rx_buffer_size: 256
+
+# 本地 external component，接口和官方 modbus 基本一致。
+# echo_timeout 只用于处理“回显只收到一部分后停止”的异常情况；
+# 正常过滤的判据始终是完整 RTU 帧逐字节精确匹配。
+echo_filtered_modbus:
+  id: modbus_485
+  uart_id: uart_485
+  role: client
+  send_wait_time: 500ms
+  turnaround_time: 200ms
+  disable_crc: false
+  echo_timeout: 100ms
+  filter_function_codes:
+    - 0x03
+  log_filtered_echo: true
+
+modbus_controller:
+  - id: soil_modbus_controller
+    modbus_id: modbus_485
+    address: 0x01
+    command_throttle: 200ms
+    update_interval: 20min
+    max_cmd_retries: 2
+    offline_skip_updates: 0
+    allow_duplicate_commands: false
+
+    on_command_sent:
+      then:
+        - lambda: |-
+            id(soil_query_count) += 1;
+            ESP_LOGI("soil_modbus", "Modbus command sent [#%d]", id(soil_query_count));
+
+    on_online:
+      then:
+        - logger.log:
+            level: INFO
+            format: "[soil_modbus] Controller is ONLINE"
+        - binary_sensor.template.publish:
+            id: soil_sensor_online
+            state: ON
+
+    on_offline:
+      then:
+        - logger.log:
+            level: WARN
+            format: "[soil_modbus] Controller is OFFLINE"
+        - binary_sensor.template.publish:
+            id: soil_sensor_online
+            state: OFF
+
+binary_sensor:
+  - platform: template
+    name: "Soil Sensor Online"
+    id: soil_sensor_online
+    device_class: connectivity
+
+sensor:
+  # 三个连续 holding 寄存器由官方 modbus_controller 合并为一条命令：
+  # 01 03 00 00 00 03 05 CB
+  - platform: modbus_controller
+    modbus_controller_id: soil_modbus_controller
+    name: "Soil Moisture"
+    id: soil_humi
+    register_type: holding
+    address: 0x0000
+    value_type: U_WORD
+    unit_of_measurement: "%"
+    accuracy_decimals: 1
+    state_class: measurement
+    device_class: moisture
+    filters:
+      - multiply: 0.1
+      - lambda: |-
+          if (x < 0.0f || x > 100.0f) return NAN;
+          return x;
+    on_value:
+      then:
+        # 每条完整寄存器组只在第一个实体上累计一次成功。
+        - lambda: |-
+            id(soil_success_count) += 1;
+            ESP_LOGI("soil_modbus", "Successful register group [%d/%d]",
+                     id(soil_success_count), id(soil_query_count));
+        - binary_sensor.template.publish:
+            id: soil_sensor_online
+            state: ON
+        - script.execute: watchdog_timer
+        - logger.log:
+            level: INFO
+            format: "[soil_modbus] Soil moisture: %.1f %%"
+            args: [x]
+
+  - platform: modbus_controller
+    modbus_controller_id: soil_modbus_controller
+    name: "Soil Temperature"
+    id: soil_temp
+    register_type: holding
+    address: 0x0001
+    value_type: S_WORD
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    state_class: measurement
+    device_class: temperature
+    filters:
+      - multiply: 0.1
+      - lambda: |-
+          if (x < -20.0f || x > 80.0f) return NAN;
+          return x;
+    on_value:
+      then:
+        - logger.log:
+            level: INFO
+            format: "[soil_modbus] Soil temperature: %.1f °C"
+            args: [x]
+
+  - platform: modbus_controller
+    modbus_controller_id: soil_modbus_controller
+    name: "Soil Conductivity"
+    id: soil_ec
+    register_type: holding
+    address: 0x0002
+    value_type: U_WORD
+    unit_of_measurement: "µS/cm"
+    accuracy_decimals: 0
+    state_class: measurement
+    icon: "mdi:flash"
+    filters:
+      - lambda: |-
+          if (x < 0.0f || x > 10000.0f) return NAN;
+          return x;
+    on_value:
+      then:
+        - logger.log:
+            level: INFO
+            format: "[soil_modbus] Soil conductivity: %.0f µS/cm"
+            args: [x]
+
+  - platform: template
+    name: "Soil Query Success Rate"
+    id: soil_success_rate
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    icon: "mdi:percent"
+    lambda: |-
+      if (id(soil_query_count) == 0) return 0.0f;
+      return 100.0f * id(soil_success_count) / id(soil_query_count);
+    update_interval: 60s

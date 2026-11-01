@@ -1,0 +1,1397 @@
+{
+  "schema": "gh.development-artifact-archive/1",
+  "audit_date": "2026-08-21",
+  "scope": "N3-W FC4 development and live-validation boundaries on 2026-08-20",
+  "authoritative_source": {
+    "main_head": "3bd3f0736eb387dc76d53f472da59056e05a88e3",
+    "main_tree": "b0d6fd40c196ba63f6aedec51a591b51bac68676",
+    "clean_successor_head": "933a1a00ef05c919d3809b96edb1c2dd459e0aca",
+    "pull_request": 327,
+    "ci_success": 26,
+    "ci_skipped": 1,
+    "ci_failure": 0
+  },
+  "p2b3d_runtime_binding": {
+    "terminal": "CLOSED_HEALTHY",
+    "source_archive": {
+      "sha256": "bc08d628f34de09f376e2912114212c500d80ea4061a7f93528ae4c2fdce3b59",
+      "size": 9021440
+    },
+    "manager_image": {
+      "tag_class": "local-fc4-manager-authoritative-main",
+      "image_id": "sha256:871e45beee9862198616e87818f55a357a4c66ad5cbe3449a5948ca1e4ea4086",
+      "architecture": "arm64",
+      "os": "linux",
+      "runtime_uid_gid": "999:999"
+    },
+    "compose": {
+      "active_sha256": "b61afc05f70b9f1fcfb29a28b19ae4c481cae5321f95bfe70db4f52edc23e2ec",
+      "rollback_sha256": "c45fcd46a0a18395fed1e41000ea5db67b4c861936c15f9d6b48f27cfccb0b1b"
+    },
+    "private_evidence": [
+      {
+        "id": "p2b3d-claim",
+        "path_class": "t1-private-evidence/claim",
+        "sha256": "1386369f62181313261487a08534153480feac72882e761b40ca9b1978b9a302",
+        "size": "legacy-not-captured",
+        "mode": "0600",
+        "purpose": "authorization claim and exact runtime rebind",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "p2b3d-health-closure",
+        "path_class": "t1-private-evidence/health-closure",
+        "sha256": "cfa8c1d22dc837965689bf33f103d5e065abdcdc6f483e33e300b247452d3c03",
+        "size": "legacy-not-captured",
+        "mode": "0600",
+        "purpose": "post-rebind service and endpoint health closure",
+        "secret_values_included_in_public_binding": false
+      }
+    ],
+    "health": {
+      "manager_running": true,
+      "manager_restart_count": 0,
+      "manager_network_mode": "host",
+      "pairing_http_schema": "gh.pair.simple-health/1",
+      "pairing_http": "PASS",
+      "broker_tls_from_manager_namespace": "PASS",
+      "mqtt_established_connections": 1,
+      "udp_47111_listener_count": 1,
+      "http_47112_listener_count": 1,
+      "critical_log_count": 0,
+      "kf036_recovery_executed": false,
+      "board_access": false
+    }
+  },
+  "kf036_consumed_failure": {
+    "authorization": "D1-N3W-FC4-F45C-KF036-EXPIRED-FIRST-REGISTRATION-TOMBSTONE-RECOVERY-LIVE-EXECUTION-AND-AUDIT-20260820-01",
+    "status": "CONSUMED_FAILED",
+    "replay_permitted": false,
+    "hardware_mac_tail": "F4:5C",
+    "failure_stage": "recovery_result_capture_oracle",
+    "root_cause": "docker_run_stdin_not_attached",
+    "executor_observation": {
+      "python_program_source": "stdin",
+      "docker_interactive_flag_present": false,
+      "container_exit_code": 0,
+      "result_size": 0,
+      "result_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "explanation": "docker run closed stdin because -i/--interactive was absent; python - read EOF and exited without invoking the recovery CLI"
+    },
+    "fc4_database_binding": {
+      "state_mount_container_path": "/var/lib/greenhouse-manager",
+      "registration_container_path": "/var/lib/greenhouse-manager/manager/registration.sqlite3",
+      "credential_container_path": "/var/lib/greenhouse-manager/n3w/credential-lifecycle.sqlite3",
+      "generic_registration_default_applies": false
+    },
+    "post_failure_state": {
+      "registration_database_mutated": false,
+      "registration_sha256_before": "de612681d5bd7e9584d5b120512b3bd257b6e3e8a8476b47d1f28c1c46132d9c",
+      "registration_sha256_after": "de612681d5bd7e9584d5b120512b3bd257b6e3e8a8476b47d1f28c1c46132d9c",
+      "credential_database_mutated": false,
+      "credential_sha256_before": "7d1be670b5c1edfdf22b5a14f3d2454ee283e64b351a42a3a14fec31424bec29",
+      "credential_sha256_after": "7d1be670b5c1edfdf22b5a14f3d2454ee283e64b351a42a3a14fec31424bec29",
+      "current_expired_registration_present": true,
+      "credential_assignment_count": 0,
+      "manager_running": true,
+      "manager_health": "PASS",
+      "manager_restart_count": 0,
+      "board_access": false,
+      "device_reset": false
+    },
+    "private_evidence": [
+      {
+        "id": "kf036-consumed-failure-claim",
+        "path_class": "t1-private-evidence/claim",
+        "sha256": "8792bcee15084c66f2ab2e57eac67e380222a5215a3bddb23dc62e4df7184ee1",
+        "size": 1103,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf036-registration-before-backup",
+        "path_class": "t1-private-evidence/database-backup",
+        "sha256": "de612681d5bd7e9584d5b120512b3bd257b6e3e8a8476b47d1f28c1c46132d9c",
+        "size": 86016,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf036-credential-before-backup",
+        "path_class": "t1-private-evidence/database-backup",
+        "sha256": "7d1be670b5c1edfdf22b5a14f3d2454ee283e64b351a42a3a14fec31424bec29",
+        "size": 28672,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf036-empty-recovery-result",
+        "path_class": "t1-private-evidence/executor-result",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      }
+    ],
+    "closure_evidence_present": false,
+    "successor_contract": {
+      "new_authorization_required": true,
+      "adopt_unchanged_database_hashes": true,
+      "fresh_private_evidence_namespace_required": true,
+      "manager_stopped_machine_proof_required": true,
+      "live_container_inspection_count_minimum": 2,
+      "docker_stdin_transport": "--interactive",
+      "python_program_source": "stdin",
+      "nonempty_result_required_before_json_parse": true,
+      "registration_container_path": "/var/lib/greenhouse-manager/manager/registration.sqlite3",
+      "credential_container_path": "/var/lib/greenhouse-manager/n3w/credential-lifecycle.sqlite3"
+    }
+  },
+  "kf036_successor_partial_success": {
+    "authorization": "D1-N3W-FC4-F45C-KF036-SUCCESSOR-ADOPT-UNCHANGED-DB-INTERACTIVE-STDIN-TOMBSTONE-RECOVERY-LIVE-EXECUTION-AND-AUDIT-20260821-01",
+    "status": "CONSUMED_PARTIAL_SUCCESS_STOPPED_AT_FALSE_TOMBSTONE_REASON_ORACLE",
+    "replay_permitted": false,
+    "hardware_mac_tail": "F4:5C",
+    "product_recovery_succeeded": true,
+    "executor_oracle_succeeded": false,
+    "failure_stage": "post_recovery_replay_tombstone_reason_oracle",
+    "root_cause": "executor_conflated_immutable_tombstone_reason_with_recovery_event_reason",
+    "executor_observation": {
+      "docker_interactive_flag_present": true,
+      "result_nonempty": true,
+      "result_size": 699,
+      "result_sha256": "b9cd619966ca70cd30b814b5484e6ff6fc7b3e31583fa79ead2571a7b522a0cb",
+      "native_cli_result": "PASS",
+      "incorrect_expected_tombstone_reason": "expired_first_pairing_recovery",
+      "correct_tombstone_reason": "expired",
+      "correct_recovery_event_reason": "expired_first_pairing_recovery"
+    },
+    "database_hashes": {
+      "registration_sha256_before": "de612681d5bd7e9584d5b120512b3bd257b6e3e8a8476b47d1f28c1c46132d9c",
+      "registration_sha256_after": "077d888a83bc3f43310107aa885d5520ae4a51fb04fe80aa0342066ffd3e9fc5",
+      "credential_sha256_before": "7d1be670b5c1edfdf22b5a14f3d2454ee283e64b351a42a3a14fec31424bec29",
+      "credential_sha256_after": "7d1be670b5c1edfdf22b5a14f3d2454ee283e64b351a42a3a14fec31424bec29"
+    },
+    "post_recovery_state": {
+      "current_registration_count": 0,
+      "replay_tombstone": {
+        "state": "expired",
+        "reason": "expired"
+      },
+      "recovery_event": {
+        "event": "expired_first_registration_abandoned",
+        "reason": "expired_first_pairing_recovery"
+      },
+      "node_history_count": 0,
+      "node_lease_count": 0,
+      "credential_assignment_count": 0,
+      "manager_image_id": "sha256:871e45beee9862198616e87818f55a357a4c66ad5cbe3449a5948ca1e4ea4086",
+      "manager_running": true,
+      "manager_restart_count": 0,
+      "manager_network_mode": "host",
+      "udp_47111_listener_count": 1,
+      "http_47112_listener_count": 1,
+      "broker_8883_listener_count": 3,
+      "critical_log_count": 0,
+      "board_access": false,
+      "device_reset": false
+    },
+    "private_evidence": [
+      {
+        "id": "kf036-successor-claim",
+        "path_class": "t1-private-evidence/claim",
+        "sha256": "96246b18013f01a5865a1daf10c4225d148a2856ffe6ee3aa3c64eb65a94ecbf",
+        "size": 1320,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf036-successor-registration-before-backup",
+        "path_class": "t1-private-evidence/database-backup",
+        "sha256": "de612681d5bd7e9584d5b120512b3bd257b6e3e8a8476b47d1f28c1c46132d9c",
+        "size": 86016,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf036-successor-credential-before-backup",
+        "path_class": "t1-private-evidence/database-backup",
+        "sha256": "7d1be670b5c1edfdf22b5a14f3d2454ee283e64b351a42a3a14fec31424bec29",
+        "size": 28672,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf036-successor-recovery-result",
+        "path_class": "t1-private-evidence/executor-result",
+        "sha256": "b9cd619966ca70cd30b814b5484e6ff6fc7b3e31583fa79ead2571a7b522a0cb",
+        "size": 699,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      }
+    ],
+    "closure_evidence_present": false,
+    "continuation_contract": {
+      "new_authorization_required": true,
+      "adopt_mutated_valid_database_state": true,
+      "rerun_recovery_cli": false,
+      "rewrite_pairing_session_tombstone": false,
+      "close_missing_evidence_before_physical_continuation": true
+    }
+  },
+  "kf041_closure": {
+    "authorization": "D1-N3W-FC4-F45C-KF041-SUCCESSOR-ADOPT-VALID-RECOVERY-STATE-AND-CLOSE-EVIDENCE-20260821-01",
+    "status": "CLOSED_VALID_RECOVERY_STATE",
+    "claimed": true,
+    "consumed": true,
+    "replay_permitted": false,
+    "recovery_replayed": false,
+    "adopted_registration_sha256": "077d888a83bc3f43310107aa885d5520ae4a51fb04fe80aa0342066ffd3e9fc5",
+    "adopted_credential_sha256": "7d1be670b5c1edfdf22b5a14f3d2454ee283e64b351a42a3a14fec31424bec29",
+    "registration_database_mutated": false,
+    "credential_database_mutated": false,
+    "container_mutated": false,
+    "board_access": false,
+    "device_reset": false,
+    "flash": false,
+    "private_evidence": [
+      {
+        "id": "kf041-closure-successor-claim",
+        "path_class": "t1-private-evidence/claim",
+        "sha256": "ab5252dd8c058935ec58ba453e95b35ee9af1fa17ca65453537f31cf9738bbec",
+        "size": 496,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf041-valid-recovery-closure",
+        "path_class": "t1-private-evidence/closure",
+        "sha256": "859dfa1ce0fb0183caceec92c46353588e151cf00814d4b9777b9d376db386a9",
+        "size": 1229,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      }
+    ]
+  },
+  "prephysical_archive_recovery_20260821": {
+    "trigger": "KF-039 local sweep found legacy F4:5C artifacts omitted from the first manifest",
+    "pending_physical_authorization_claimed": false,
+    "board_access": false,
+    "serial_access": false,
+    "flash_mutated": false,
+    "private_evidence_root_class": "approved-local-private-evidence/n3w-fc4/prephysical-archive-recovery",
+    "setup_secret_handoff_output_present": false,
+    "secret_values_included_in_public_binding": false,
+    "artifacts": [
+      {
+        "id": "f45c-factory-readback",
+        "classification": "PRIVATE_REQUIRED",
+        "sha256": "4b394cc63fb394dd6b877cc31d5ab532491e804a52a5cf061d3de03f7f3f0820",
+        "size": 1171856,
+        "mode": "0600",
+        "purpose": "preserve raw pre-FC4 F4:5C factory Flash readback without public exposure",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "f45c-setup-secret-capture-executor",
+        "classification": "PRIVATE_REQUIRED",
+        "sha256": "dda03e6d9613429bc88d155fb39c6d8200db276f50e5f889cf6330773e12bf37",
+        "size": 1459,
+        "mode": "0600",
+        "purpose": "preserve the one-time serial Setup Secret handoff capture executor",
+        "secret_values_included_in_public_binding": false
+      }
+    ],
+    "unarchived_critical_result_count": 0
+  },
+  "f45c_post_kf036_physical_partial_success": {
+    "authorization": "D1-N3W-FC4-F45C-POST-KF036-PAIRING-STATE-RESET-AND-FINAL-PRODUCT-E2E-RESUME-20260821-01",
+    "status": "CONSUMED_PARTIAL_SUCCESS_STOPPED_AT_POST_ERASE_ALL_FF_ORACLE",
+    "claimed": true,
+    "consumed": true,
+    "replay_permitted": false,
+    "hardware_id": "ghw-c6-98a316a9f45c",
+    "base_mac_sha256": "de6b31f7d4d166afb8edcce53fe77e8cf3e723676ebac2360a405884dc846108",
+    "base_mac_raw_exposed": false,
+    "chip": "ESP32-C6 QFN40 revision 0.2",
+    "flash_size_bytes": 8388608,
+    "expected_application_sha256": "95e177042fd15cb0e4b4aef762adf37811c736d34579e480f534ffbe5ee14a7a",
+    "nvs_operation": {
+      "offset": "0x790000",
+      "size": "0x70000",
+      "scoped_erase_succeeded": true,
+      "application_flash_rewritten": false,
+      "full_flash_erased": false,
+      "invalid_oracle": "all_ff_after_hard_reset_and_application_first_boot"
+    },
+    "new_pairing_observation": {
+      "pairing_id_sha256": "667e83fbf0e504c6f4b2a97a1ca9bd0706698ba7373e56348c175859be5cfa7a",
+      "different_from_expired_pairing_id": true,
+      "setup_secret_present": true,
+      "setup_secret_encoded_length": 43,
+      "secret_value_exposed": false,
+      "private_handoff_file_present": false
+    },
+    "t1_post_failure_state": {
+      "registration_sha256": "077d888a83bc3f43310107aa885d5520ae4a51fb04fe80aa0342066ffd3e9fc5",
+      "credential_sha256": "7d1be670b5c1edfdf22b5a14f3d2454ee283e64b351a42a3a14fec31424bec29",
+      "current_registration_count": 0,
+      "expired_pairing_session_count": 1,
+      "credential_assignment_count": 0,
+      "manager_running": true,
+      "manager_restart_count": 0
+    },
+    "private_evidence": [
+      {
+        "id": "f45c-post-kf036-physical-claim",
+        "path_class": "approved-local-private-evidence/physical-claim",
+        "sha256": "814890b47ffa77b14b722815be8c35a51b4e52a17a258558ec25b6b25584a9f5",
+        "size": 674,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "f45c-nvs-before-scoped-erase",
+        "path_class": "approved-local-private-evidence/raw-nvs-backup",
+        "sha256": "8099aa90273237987107ac743b9a1ab10f5886d250c3c08f5cac631a08b23eab",
+        "size": 458752,
+        "mode": "0600",
+        "non_ff_bytes": 3532,
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "f45c-nvs-after-erase-and-first-boot",
+        "path_class": "approved-local-private-evidence/raw-nvs-readback",
+        "sha256": "4990361052de3fa233aa3bb97fb260da9f03a63963f0a7997777d85f51e4e94d",
+        "size": 458752,
+        "mode": "0600",
+        "non_ff_bytes": 2421,
+        "secret_values_included_in_public_binding": false
+      }
+    ],
+    "successor_contract": {
+      "new_authorization_required": true,
+      "repeat_nvs_erase": false,
+      "adopt_new_pairing_id_hash": "667e83fbf0e504c6f4b2a97a1ca9bd0706698ba7373e56348c175859be5cfa7a",
+      "capture_private_handoff": true,
+      "operator_wifi_configuration_required": true,
+      "wait_for_new_pending_registration_before_handoff_delivery": true,
+      "manager_inbox_container_path": "/var/lib/greenhouse-manager/n3w/setup-secret-inbox"
+    }
+  },
+  "f45c_kf042_successor_handoff_capture": {
+    "authorization": "D1-N3W-FC4-F45C-KF042-SUCCESSOR-ADOPT-SCOPED-NVS-ERASE-CAPTURE-NEW-HANDOFF-AND-RESUME-E2E-20260821-01",
+    "status": "CONSUMED_PARTIAL_SUCCESS_WAITING_FOR_OPERATOR_WIFI_CONFIGURATION",
+    "claimed": true,
+    "consumed": true,
+    "replay_permitted": false,
+    "adopted_scoped_nvs_erase": true,
+    "repeated_nvs_erase": false,
+    "flash_mutated": false,
+    "t1_mutated": false,
+    "manager_mutated": false,
+    "hardware_id_sha256": "cd90494824273fb6050c29989370690984487f7cdaea89ac4ff8b5eebc4371b0",
+    "pairing_id_sha256": "667e83fbf0e504c6f4b2a97a1ca9bd0706698ba7373e56348c175859be5cfa7a",
+    "setup_secret_encoded_length": 43,
+    "secret_value_exposed": false,
+    "private_evidence": [
+      {
+        "id": "f45c-kf042-successor-claim",
+        "path_class": "approved-local-private-evidence/physical-successor-claim",
+        "sha256": "6528bc277e60f6c6a693183fc99eae0d7ab6e9c587b4dd0403b3da171582db9b",
+        "size": 585,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "f45c-new-setup-secret-handoff",
+        "path_class": "approved-local-private-evidence/setup-secret-handoff",
+        "sha256": "78be9ce98cd3ebffa8dcdf6170279ad88e738e8c4b06f6c97f8ffae2a7773f74",
+        "size": 192,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      }
+    ],
+    "continuation_gate": {
+      "operator_wifi_configuration_required": true,
+      "new_pending_registration_required_before_handoff_delivery": true,
+      "repeat_handoff_capture": false,
+      "repeat_nvs_erase": false
+    }
+  },
+  "f45c_final_product_e2e_closure": {
+    "authorization": "D1-N3W-FC4-F45C-KF042-SUCCESSOR-ADOPT-SCOPED-NVS-ERASE-CAPTURE-NEW-HANDOFF-AND-RESUME-E2E-20260821-01",
+    "status": "PASS_F45C_FINAL_PRODUCT_E2E",
+    "hardware_id": "ghw-c6-98a316a9f45c",
+    "base_mac_sha256": "de6b31f7d4d166afb8edcce53fe77e8cf3e723676ebac2360a405884dc846108",
+    "base_mac_raw_exposed": false,
+    "pairing_id_sha256": "667e83fbf0e504c6f4b2a97a1ca9bd0706698ba7373e56348c175859be5cfa7a",
+    "pairing_epoch": 1,
+    "pairing_session_state": "approved",
+    "node_id": "node_39c9c9c308eac09b5cbb00ac9780f6bc",
+    "credential_assignment_count": 1,
+    "registration_sha256": "3b68dfd0a08f0ab9294f5884e499cbed1052861bbb3e39634acc68d20831d367",
+    "credential_sha256": "25840bf73043640867a75eedc06e782231569b9c22f4c3b80efe591eff3ed50e",
+    "board_runtime": {
+      "serial_telemetry_accepted_true_count": 6,
+      "serial_pairing_qr_payload_count": 0,
+      "pairing_or_state_failure_count": 0,
+      "application_flash_rewritten": false,
+      "repeat_nvs_erase": false
+    },
+    "manager_runtime": {
+      "accepted_telemetry_count": 37,
+      "rejected_telemetry_count": 0,
+      "homeassistant_discovery_publish_count": 2,
+      "restart_count": 0,
+      "critical_log_count": 0
+    },
+    "homeassistant_runtime": {
+      "device_registry_match_count": 1,
+      "entity_registry_match_count": 5,
+      "restart_count": 0,
+      "critical_log_count": 0
+    },
+    "broker_restart_count": 0,
+    "private_evidence": [
+      {
+        "id": "f45c-final-product-e2e-closure",
+        "path_class": "approved-local-private-evidence/final-product-e2e-closure",
+        "sha256": "a6352ab3b36782b333bd846d8213dd784e95be4e3383b3eeec78c3a03770c38f",
+        "size": 1363,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      }
+    ],
+    "secret_value_exposed": false,
+    "scope_closed_for_hardware_only": true,
+    "other_board_authorization_implied": false
+  },
+  "f350_readonly_preclaim_and_kf043_guard": {
+    "authorization": "D1-N3W-FC4-F350-SEQUENTIAL-PAIRING-HANDOFF-WIFI-AND-FINAL-PRODUCT-E2E-20260821-01",
+    "authorization_approved": true,
+    "authorization_claimed": false,
+    "authorization_consumed": false,
+    "usb_device_count": 1,
+    "serial_device": "/dev/cu.usbmodem14101",
+    "usb_serial_sha256": "c25b9bc46cf2c4247c607e6cc9ff7536fb22bac5c4e38fe610ca1f176b2f7ca6",
+    "usb_serial_raw_exposed": false,
+    "usb_vid": "0x303a",
+    "usb_pid": "0x1001",
+    "chip": "ESP32-C6 QFN40",
+    "chip_revision": "0.2",
+    "base_mac_sha256": "c25b9bc46cf2c4247c607e6cc9ff7536fb22bac5c4e38fe610ca1f176b2f7ca6",
+    "base_mac_raw_exposed": false,
+    "flash_size_bytes": 8388608,
+    "secure_boot_enabled": false,
+    "flash_encryption_enabled": false,
+    "application_verify_flash": "PASS",
+    "application_sha256": "95e177042fd15cb0e4b4aef762adf37811c736d34579e480f534ffbe5ee14a7a",
+    "hardware_id": "ghw-c6-98a316a9f350",
+    "hardware_id_sha256": "f1f1e36fe4784a26b936d6a2bc5d239ab531f5683aca91356a5e39f3f566b1eb",
+    "pairing_id_sha256": "7ea23bfae78dcd4d2ae20f66d4b73bd2785a6ceb7afaea5d6b112e1f72052049",
+    "setup_secret_encoded_length": 43,
+    "private_handoff_file_present": false,
+    "secret_value_exposed": false,
+    "flash_mutated": false,
+    "kf043": {
+      "status": "GUARDED",
+      "fault": "one-time F4:5C helper hard-coded serial and output paths",
+      "replacement_entry_point": "greenhouse-manager-n3w-setup-secret-capture",
+      "required_bindings": [
+        "serial_port",
+        "expected_hardware_id",
+        "expected_pairing_id_sha256",
+        "absolute_private_output"
+      ],
+      "private_parent_checked_before_serial_open": true,
+      "exclusive_mode_0600_output": true,
+      "identity_mismatch_fails_before_write": true,
+      "secret_safe_stdout": true,
+      "cli_call_chain_regression_present": true
+    },
+    "next_gate": "push and exact-bind KF-043 before claiming physical authorization"
+  },
+  "f350_bound_handoff_capture": {
+    "authorization": "D1-N3W-FC4-F350-SEQUENTIAL-PAIRING-HANDOFF-WIFI-AND-FINAL-PRODUCT-E2E-20260821-01",
+    "status": "CONSUMED_PARTIAL_SUCCESS_WAITING_FOR_OPERATOR_WIFI_CONFIGURATION",
+    "claimed": true,
+    "consumed": true,
+    "replay_permitted": false,
+    "source_archive_head": "24e077c114ff745ec67e8155abb3501e586801f5",
+    "source_archive_tree": "50543d50b2f2151d55becc7d56f4ec6456745a66",
+    "hardware_id": "ghw-c6-98a316a9f350",
+    "hardware_id_sha256": "f1f1e36fe4784a26b936d6a2bc5d239ab531f5683aca91356a5e39f3f566b1eb",
+    "pairing_id_sha256": "7ea23bfae78dcd4d2ae20f66d4b73bd2785a6ceb7afaea5d6b112e1f72052049",
+    "setup_secret_encoded_length": 43,
+    "secret_value_exposed": false,
+    "flash_mutated": false,
+    "nvs_erased": false,
+    "t1_mutated": false,
+    "private_evidence": [
+      {
+        "id": "f350-sequential-e2e-claim",
+        "path_class": "approved-local-private-evidence/physical-claim",
+        "sha256": "f5e88a9776bc498f00f0e1fa609737f0cbf0a5f87bfec329526f669b53597940",
+        "size": 854,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "f350-handoff-capture-result",
+        "path_class": "approved-local-private-evidence/secret-safe-capture-result",
+        "sha256": "3ebfa2ad3a9a81d562df4b444d3a1f3db67394d81e4184d158048f04852c2003",
+        "size": 338,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "f350-setup-secret-handoff",
+        "path_class": "approved-local-private-evidence/setup-secret-handoff",
+        "sha256": "b5caec070af85d64bc95053a4261d7ee52ecfdd9be85479fb72348429acae374",
+        "size": 192,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      }
+    ],
+    "continuation_gate": {
+      "operator_wifi_configuration_required": true,
+      "exact_pending_pairing_hash_required_before_delivery": true,
+      "repeat_handoff_capture": false,
+      "repeat_nvs_erase": false
+    }
+  },
+  "f350_expired_pending_delivery_stop": {
+    "authorization": "D1-N3W-FC4-F350-SEQUENTIAL-PAIRING-HANDOFF-WIFI-AND-FINAL-PRODUCT-E2E-20260821-01",
+    "status": "CONSUMED_PARTIAL_SUCCESS_STOPPED_AT_EXPIRED_PENDING_DELIVERY_GATE",
+    "claimed": true,
+    "consumed": true,
+    "replay_permitted": false,
+    "hardware_id": "ghw-c6-98a316a9f350",
+    "pairing_id_sha256": "7ea23bfae78dcd4d2ae20f66d4b73bd2785a6ceb7afaea5d6b112e1f72052049",
+    "pairing_epoch": 1,
+    "pairing_session_state": "expired",
+    "pairing_session_reason": "expired",
+    "first_seen_at": "2026-08-21T01:38:22.870Z",
+    "last_seen_at": "2026-08-21T01:40:17.915Z",
+    "expires_at": "2026-08-21T01:40:22.870Z",
+    "pending_ttl_seconds": 120,
+    "exact_pending_observed_before_transfer": true,
+    "exact_pending_at_atomic_delivery": false,
+    "handoff_atomic_delivery": false,
+    "t1_staging_created": true,
+    "t1_staging_removed": true,
+    "t1_final_inbox_file_present": false,
+    "local_private_handoff_preserved": true,
+    "local_private_handoff_sha256": "b5caec070af85d64bc95053a4261d7ee52ecfdd9be85479fb72348429acae374",
+    "registration_sha256": "8d3aa21824aec1a3ead73963ff381a2269440880dbbeb59d1cc18189788756e4",
+    "credential_sha256": "25840bf73043640867a75eedc06e782231569b9c22f4c3b80efe591eff3ed50e",
+    "manager_running": true,
+    "manager_restart_count": 0,
+    "broker_running": true,
+    "broker_restart_count": 0,
+    "homeassistant_running": true,
+    "homeassistant_restart_count": 0,
+    "secret_value_exposed": false,
+    "flash_mutated": false,
+    "nvs_erased": false,
+    "board_reset": false,
+    "private_evidence": [
+      {
+        "id": "f350-expired-before-handoff-delivery-audit",
+        "path_class": "approved-local-private-evidence/postfail-audit",
+        "sha256": "13a154c579546d7c6d025ddb098722615760f24b2beb0944d370f06423280437",
+        "size": 1410,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      }
+    ],
+    "successor_contract": {
+      "new_authorization_required": true,
+      "adopt_expired_tombstone": true,
+      "adopt_existing_private_handoff_hash": "b5caec070af85d64bc95053a4261d7ee52ecfdd9be85479fb72348429acae374",
+      "repeat_current_handoff_delivery": false,
+      "minimum_pending_ttl_margin_gate_required": true,
+      "kf036_recovery_safety_contract_required": true,
+      "new_pairing_identity_required": true
+    }
+  },
+  "kf044_source_ttl_margin_gate": {
+    "authorization": "D1-N3W-FC4-F350-KF044-PENDING-TTL-MARGIN-GATE-SOURCE-IMPLEMENTATION-TEST-AND-GITHUB-PUSH-20260821-01",
+    "authorization_claimed": true,
+    "authorization_consumed": true,
+    "scope": "SOURCE_IMPLEMENTATION_TEST_AND_GITHUB_PUSH",
+    "source_base_head": "ec39d36d29d156b2f855118e461f7784f67528b7",
+    "entry_point": "greenhouse-manager-n3w-setup-secret-delivery-gate",
+    "phases": [
+      "pretransfer",
+      "predelivery"
+    ],
+    "registration_database_read_only": true,
+    "current_registration_binding_required": true,
+    "exact_hardware_binding_required": true,
+    "exact_pairing_hash_binding_required": true,
+    "explicit_minimum_remaining_seconds_required": true,
+    "predelivery_mode_0600_required": true,
+    "predelivery_uid_gid_binding_required": true,
+    "predelivery_handoff_schema_and_identity_binding_required": true,
+    "pairing_id_raw_exposed": false,
+    "setup_secret_exposed": false,
+    "targeted_and_related_test_count": 36,
+    "full_manager_validation": {
+      "passed": 1115,
+      "skipped": 1,
+      "subtests_passed": 5,
+      "failure": 0,
+      "restricted_sandbox_loopback_bind_false_failures": 4,
+      "unrestricted_loopback_rerun": "PASS"
+    },
+    "source_guard_status": "PASS",
+    "live_acceptance_status": "PENDING_NEW_AUTHORIZATION",
+    "t1_access": false,
+    "t1_mutated": false,
+    "board_access": false,
+    "serial_access": false,
+    "flash_mutated": false,
+    "private_handoff_delivered": false
+  },
+  "kf044_live_successor_kf045_consumed_failure": {
+    "authorization": "D1-N3W-FC4-F350-KF044-SUCCESSOR-ADOPT-EXPIRED-TOMBSTONE-RECOVER-NEW-PAIRING-IDENTITY-ARM-LIVE-TTL-GATED-HANDOFF-DELIVERY-AND-RESUME-E2E-20260821-01",
+    "status": "CONSUMED_FAILED_AT_ISOLATED_RECOVERY_REGISTRATION_DB_BINDING",
+    "claimed": true,
+    "consumed": true,
+    "replay_permitted": false,
+    "source_head": "90941587cb3eb6b27599253fe197b0340e4eb414",
+    "source_tree": "d064364bcbb364018ba0abed3c56ee8934cd0b8f",
+    "hardware_id": "ghw-c6-98a316a9f350",
+    "pairing_id_sha256": "7ea23bfae78dcd4d2ae20f66d4b73bd2785a6ceb7afaea5d6b112e1f72052049",
+    "preclaim_board_readonly_access": true,
+    "preclaim_application_verify_flash": "PASS",
+    "manager_stopped_machine_proof": true,
+    "manager_inspect_captured": true,
+    "database_backups_created": true,
+    "failure_reason": "registration_database_binding_mismatch",
+    "registration_db_argument_domain": "manager_container_destination_path",
+    "required_db_argument_domain": "inspect_source_host_path_visible_in_isolated_container",
+    "registration_container_path_argument_correct": true,
+    "credential_container_path_argument_correct": true,
+    "registration_database_mutated": false,
+    "registration_sha256": "8d3aa21824aec1a3ead73963ff381a2269440880dbbeb59d1cc18189788756e4",
+    "credential_database_mutated": false,
+    "credential_sha256": "25840bf73043640867a75eedc06e782231569b9c22f4c3b80efe591eff3ed50e",
+    "current_registration_count": 1,
+    "pairing_session_state": "expired",
+    "pairing_session_reason": "expired",
+    "recovery_event_count": 0,
+    "manager_running": true,
+    "manager_restart_count": 0,
+    "pairing_health_schema": "gh.pair.simple-health/1",
+    "postclaim_board_access": false,
+    "postclaim_serial_access": false,
+    "nvs_erased": false,
+    "flash_mutated": false,
+    "secret_value_exposed": false,
+    "private_evidence": [
+      {
+        "id": "kf045-successor-claim",
+        "path_class": "approved-local-private-evidence/physical-successor-claim",
+        "sha256": "4088b3388752ae9ba91211c3d57082b3fcaeacea020433828b365ed2d144b921",
+        "size": 1209,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf045-manager-stopped-inspect",
+        "path_class": "t1-private-evidence/container-inspect",
+        "sha256": "2f5816a5ff774555d5f66bbc9cfe47b5deacdfaa0a2a2483b2eb242edbdfdf4d",
+        "size": 11506,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf045-registration-before-recovery",
+        "path_class": "t1-private-evidence/database-backup",
+        "sha256": "8d3aa21824aec1a3ead73963ff381a2269440880dbbeb59d1cc18189788756e4",
+        "size": 86016,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf045-credential-before-recovery",
+        "path_class": "t1-private-evidence/database-backup",
+        "sha256": "25840bf73043640867a75eedc06e782231569b9c22f4c3b80efe591eff3ed50e",
+        "size": 28672,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf045-empty-recovery-result",
+        "path_class": "t1-private-evidence/executor-result",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf045-postfail-audit",
+        "path_class": "approved-local-private-evidence/postfail-audit",
+        "sha256": "349f39dc6e6f963b8770ed6a8edb112dee802bf43ad15ce5630a51201943988e",
+        "size": 1412,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      }
+    ],
+    "successor_contract": {
+      "new_authorization_required": true,
+      "adopt_unchanged_database_hashes": true,
+      "adopt_private_evidence": true,
+      "fresh_private_namespace_required": true,
+      "registration_db_argument_uses_host_source_path": true,
+      "credential_db_argument_uses_host_source_path": true,
+      "container_path_arguments_remain_manager_destinations": true,
+      "real_inspect_adapter_regression_required": true,
+      "nonempty_result_required_before_json_parse": true,
+      "board_gate_after_recovery_only": true
+    }
+  },
+  "kf045_source_host_path_recovery_executor": {
+    "authorization": "D1-N3W-FC4-F350-KF045-ISOLATED-RECOVERY-HOST-SOURCE-PATH-ADAPTER-IMPLEMENTATION-TEST-AND-GITHUB-PUSH-20260821-01",
+    "authorization_claimed": true,
+    "authorization_consumed": true,
+    "scope": "SOURCE_IMPLEMENTATION_TEST_AND_GITHUB_PUSH",
+    "source_base_head": "56600ae503cb09e0a2c48d753092ae1b5999df01",
+    "entry_point": "greenhouse-manager-n3w-expired-first-recovery",
+    "host_source_registration_path_required": true,
+    "host_source_credential_path_required": true,
+    "manager_destination_paths_separate": true,
+    "mode_0600_stopped_inspect_required": true,
+    "pre_mutation_database_hashes_required": true,
+    "hardware_and_pairing_hash_binding_required": true,
+    "real_inspect_adapter_integration_regression": true,
+    "destination_domain_mismatch_rejected_before_mutation": true,
+    "mismatch_database_hash_unchanged": true,
+    "empty_result_rejected_before_json_parse": true,
+    "pairing_id_raw_exposed": false,
+    "secret_value_exposed": false,
+    "targeted_registration_credential_test_count": 51,
+    "full_manager_validation": {
+      "passed": 1119,
+      "skipped": 1,
+      "subtests_passed": 5,
+      "failure": 0
+    },
+    "source_guard_status": "PASS",
+    "live_acceptance_status": "PENDING_NEW_AUTHORIZATION",
+    "t1_access": false,
+    "t1_mutated": false,
+    "board_access": false,
+    "serial_access": false,
+    "recovery_executed_live": false
+  },
+  "kf045_live_recovery_closure": {
+    "authorization": "D1-N3W-FC4-F350-KF045-SUCCESSOR-ADOPT-UNCHANGED-DB-AND-EVIDENCE-EXACT-HOST-PATH-RECOVERY-NEW-PAIRING-IDENTITY-TTL-GATED-HANDOFF-AND-RESUME-E2E-20260821-01",
+    "status": "CONSUMED_PARTIAL_SUCCESS_RECOVERY_CLOSED_BOARD_NOT_STARTED",
+    "claimed": true,
+    "consumed": true,
+    "replay_permitted": false,
+    "source_head": "a9b754b2e1b91de11b15a52a28a5ae6b499b6a31",
+    "source_tree": "ed127d78031cfafa7526391fc8717103283bfec5",
+    "source_archive_sha256": "3e25db35f52103410115ee78a7ff9b15258aa8601d420565be005313e2d8d49c",
+    "exact_executor_import_arm64_manager_image": "PASS",
+    "recovery_executor_result": "PASS",
+    "host_source_database_paths_verified": true,
+    "raw_recovery_result_nonempty": true,
+    "current_registration_count": 0,
+    "replay_tombstone_state": "expired",
+    "replay_tombstone_reason": "expired",
+    "recovery_event": "expired_first_registration_abandoned",
+    "recovery_event_reason": "expired_first_pairing_recovery",
+    "registration_sha256_before": "8d3aa21824aec1a3ead73963ff381a2269440880dbbeb59d1cc18189788756e4",
+    "registration_sha256_after": "4a9ce7ae9fc69c981fe2570ab09a4d1d1772398247e59ed08fcdcb5d5177c8c2",
+    "credential_sha256_before": "25840bf73043640867a75eedc06e782231569b9c22f4c3b80efe591eff3ed50e",
+    "credential_sha256_after": "25840bf73043640867a75eedc06e782231569b9c22f4c3b80efe591eff3ed50e",
+    "credential_database_mutated": false,
+    "manager_running": true,
+    "manager_restart_count": 0,
+    "pairing_health_schema": "gh.pair.simple-health/1",
+    "readonly_outer_oracle": "PASS",
+    "recovery_replayed": false,
+    "board_access_after_recovery": false,
+    "nvs_erased": false,
+    "flash_mutated": false,
+    "pairing_id_raw_exposed": false,
+    "secret_value_exposed": false,
+    "private_evidence": [
+      {
+        "id": "kf045-live-successor-claim",
+        "path_class": "approved-local-private-evidence/live-successor-claim",
+        "sha256": "73f1e7416b2615a71d1746ea14a349b94cd715b7e8107c1f1843fec191dd7581",
+        "size": 1156,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf045-exact-source-archive",
+        "path_class": "approved-private-evidence/exact-source-archive",
+        "sha256": "3e25db35f52103410115ee78a7ff9b15258aa8601d420565be005313e2d8d49c",
+        "size": 691419,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf045-live-manager-stopped-inspect",
+        "path_class": "t1-private-evidence/container-inspect",
+        "sha256": "eca1dcea0f4326cc90da2a79b49d7b012c0c52ad17ff377ab836ba6c1cc35165",
+        "size": 11507,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf045-live-registration-before-recovery",
+        "path_class": "t1-private-evidence/database-backup",
+        "sha256": "8d3aa21824aec1a3ead73963ff381a2269440880dbbeb59d1cc18189788756e4",
+        "size": 86016,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf045-live-credential-before-recovery",
+        "path_class": "t1-private-evidence/database-backup",
+        "sha256": "25840bf73043640867a75eedc06e782231569b9c22f4c3b80efe591eff3ed50e",
+        "size": 28672,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf045-live-recovery-result",
+        "path_class": "t1-private-evidence/sanitized-executor-result",
+        "sha256": "78fa7887cf4267fdf5908bb10ef0d1afee499d0e385ab84b787abc2fafa2725f",
+        "size": 903,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf045-live-recovery-error",
+        "path_class": "t1-private-evidence/executor-error",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size": 0,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf045-live-recovery-closure",
+        "path_class": "approved-local-private-evidence/recovery-closure",
+        "sha256": "6f548dd87d5b0fea0a3a38150d44a06ab6cdc3bbb44935224d8a2cdc9202315e",
+        "size": 1462,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      }
+    ],
+    "continuation_gate": {
+      "rerun_recovery": false,
+      "adopt_released_current_registration": true,
+      "board_identity_rebind_required": true,
+      "scoped_nvs_erase_maximum": "0x790000+0x70000",
+      "application_flash_rewrite": false,
+      "capture_new_pairing_handoff": true,
+      "ttl_gated_delivery_required": true
+    }
+  },
+  "f350_scoped_nvs_reset_wifi_gate": {
+    "authorization": "D1-N3W-FC4-F350-KF045-SUCCESSOR-ADOPT-UNCHANGED-DB-AND-EVIDENCE-EXACT-HOST-PATH-RECOVERY-NEW-PAIRING-IDENTITY-TTL-GATED-HANDOFF-AND-RESUME-E2E-20260821-01",
+    "authorization_claimed": true,
+    "authorization_consumed": true,
+    "authorization_replay_permitted": false,
+    "recovery_replayed": false,
+    "usb_serial_sha256": "c25b9bc46cf2c4247c607e6cc9ff7536fb22bac5c4e38fe610ca1f176b2f7ca6",
+    "usb_serial_raw_exposed": false,
+    "base_mac_sha256": "c25b9bc46cf2c4247c607e6cc9ff7536fb22bac5c4e38fe610ca1f176b2f7ca6",
+    "base_mac_raw_exposed": false,
+    "hardware_id": "ghw-c6-98a316a9f350",
+    "application_sha256": "95e177042fd15cb0e4b4aef762adf37811c736d34579e480f534ffbe5ee14a7a",
+    "partition_table_sha256": "6664b08a14a9cdc170e322823db29fbe485d87db9c4ec42759d9372028953dca",
+    "application_flash_verify": "PASS",
+    "scoped_nvs_offset": "0x790000",
+    "scoped_nvs_size": "0x70000",
+    "scoped_nvs_size_bytes": 458752,
+    "backup_non_ff_bytes": 3320,
+    "erased_preboot_non_ff_bytes": 0,
+    "scoped_nvs_erase_preboot_oracle": "PASS",
+    "application_flash_rewrite": false,
+    "full_flash_erase": false,
+    "new_pairing_payload_observed": false,
+    "new_pairing_observation_created": false,
+    "new_private_handoff_created": false,
+    "capture_result_created": false,
+    "old_expired_handoff_delivery_permitted": false,
+    "private_evidence": [
+      {
+        "id": "f350-nvs-before-scoped-erase",
+        "path_class": "approved-local-private-evidence/nvs-backup",
+        "sha256": "7cc908849041ee02cece27c95132aad2a4c1ece33952876717bf09359c814eeb",
+        "size": 458752,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "f350-nvs-erased-preboot-readback",
+        "path_class": "approved-local-private-evidence/nvs-erased-readback",
+        "sha256": "6c28586364462df0ca5704154d2962e6d2a714a2443388b2a97220269188dcac",
+        "size": 458752,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      }
+    ],
+    "terminal": "CONSUMED_PARTIAL_SUCCESS_STOPPED_AT_OPERATOR_WIFI_CONFIGURATION_GATE",
+    "next_gate": "OPERATOR_WIFI_CONFIGURATION_THEN_SECRET_SAFE_CAPTURE_AND_TTL_GATED_DELIVERY",
+    "kf044_status": "OPEN"
+  },
+  "f350_new_pairing_handoff_and_kf046_diagnosis": {
+    "hardware_id": "ghw-c6-98a316a9f350",
+    "hardware_id_sha256": "f1f1e36fe4784a26b936d6a2bc5d239ab531f5683aca91356a5e39f3f566b1eb",
+    "pairing_id_sha256": "480a6813f0342528a5c8ae91f7086e84e8ad1a73105ce0363bd10406da0cf526",
+    "different_from_expired_pairing_id": true,
+    "setup_secret_encoded_length": 43,
+    "setup_secret_exposed": false,
+    "old_expired_handoff_adopted": false,
+    "private_handoff_delivered": false,
+    "setup_ap_ssid": "Greenhouse N3-W Setup",
+    "setup_ap_timeout_seconds": 90,
+    "setup_ap_contains_board_suffix": false,
+    "controlled_tool_transcript_raw_pairing_id_line": true,
+    "raw_pairing_id_written_to_evidence_file": false,
+    "raw_pairing_id_written_to_repository": false,
+    "raw_pairing_id_pushed_to_github": false,
+    "private_evidence": [
+      {
+        "id": "f350-new-pairing-observation",
+        "path_class": "approved-local-private-evidence/sanitized-pairing-observation",
+        "sha256": "bd1539678e48e04a975dd2c9b5b712eecafcd0876901a84b20e47bd0ffb581aa",
+        "size": 247,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "f350-new-setup-secret-handoff",
+        "path_class": "approved-local-private-evidence/setup-secret-handoff",
+        "sha256": "68caeb775c45e8652e706a8b814d9de54a60e5779a440708f089742f02d688f3",
+        "size": 192,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "f350-new-handoff-capture-result",
+        "path_class": "approved-local-private-evidence/sanitized-capture-result",
+        "sha256": "40726f07e4517ab87e1884c633f37bb6e0b839d09c9c6732b09fc3c7e3e39580",
+        "size": 338,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      }
+    ],
+    "kf046_status": "OPEN",
+    "kf044_status": "OPEN",
+    "next_gate": "ARCHIVE_REMOTE_EXACT_THEN_RESET_AND_CONNECT_EXACT_SETUP_SSID"
+  },
+  "f350_kf046_saved_wifi_continuity_correction": {
+    "scoped_pairing_nvs_erase": "PASS",
+    "saved_wifi_credential_continuity": true,
+    "wifi_sta_ssid": "OrayBox-6806",
+    "wifi_sta_connected": true,
+    "fallback_ap_expected": false,
+    "operator_wifi_configuration_required": false,
+    "secret_value_exposed": false,
+    "supersedes_operator_wifi_gate_assumption": true,
+    "fresh_handoff_remains_valid": true,
+    "next_gate": "FORMAL_PRETRANSFER_TTL_GATE",
+    "kf046_status": "OPEN"
+  },
+  "f350_second_kf044_expired_pretransfer_stop": {
+    "pairing_id_sha256": "480a6813f0342528a5c8ae91f7086e84e8ad1a73105ce0363bd10406da0cf526",
+    "exact_current_match_count": 1,
+    "pairing_epoch": 1,
+    "state": "expired",
+    "reason": "expired",
+    "first_seen_at": "2026-08-21T02:44:35.797Z",
+    "last_seen_at": "2026-08-21T02:46:34.254Z",
+    "expires_at": "2026-08-21T02:46:35.797Z",
+    "formal_pretransfer_gate": "FAIL:EXACT_CURRENT_PAIRING_SESSION_NOT_PENDING",
+    "minimum_remaining_seconds": 60,
+    "registration_db_sha256": "3b54e11081a5db0ccd638120b687136a639b4d8ab6adb8f157065e886616591c",
+    "private_handoff_transferred": false,
+    "recovery_replayed": false,
+    "pairing_id_raw_exposed_by_gate": false,
+    "setup_secret_exposed": false,
+    "terminal": "CONSUMED_STOPPED_AT_SECOND_EXPIRED_PRETRANSFER_GATE",
+    "kf044_status": "OPEN",
+    "next_gate": "NEW_SUCCESSOR_ADOPT_TOMBSTONE_PREARM_ATOMIC_TTL_DELIVERY_EXECUTOR"
+  },
+  "kf047_exact_image_entrypoint_consumed_failure": {
+    "authorization": "D1-N3W-FC4-F350-KF044-SUCCESSOR-ADOPT-SECOND-EXPIRED-TOMBSTONE-PREARM-RECOVERY-SCOPED-NVS-NEW-IDENTITY-ATOMIC-TTL-DELIVERY-AND-RESUME-E2E-20260821-01",
+    "authorization_claimed": true,
+    "authorization_consumed": true,
+    "authorization_replay_permitted": false,
+    "failure_stage": "EXACT_IMAGE_ONE_SHOT_ENTRYPOINT_BINDING",
+    "manager_image_id": "sha256:871e45beee9862198616e87818f55a357a4c66ad5cbe3449a5948ca1e4ea4086",
+    "manager_image_tag": "local/greenhouse-manager:fc4-3bd3f073",
+    "inherited_entrypoint": "greenhouse-manager",
+    "required_entrypoint_override": "python",
+    "recovery_executor_rc": 2,
+    "recovery_result_size": 0,
+    "registration_sha256_before": "3b54e11081a5db0ccd638120b687136a639b4d8ab6adb8f157065e886616591c",
+    "registration_sha256_after": "3b54e11081a5db0ccd638120b687136a639b4d8ab6adb8f157065e886616591c",
+    "credential_sha256_before": "25840bf73043640867a75eedc06e782231569b9c22f4c3b80efe591eff3ed50e",
+    "credential_sha256_after": "25840bf73043640867a75eedc06e782231569b9c22f4c3b80efe591eff3ed50e",
+    "database_mutated": false,
+    "second_expired_tombstone_preserved": true,
+    "manager_running": true,
+    "manager_restart_count": 0,
+    "board_access": false,
+    "nvs_erased": false,
+    "private_handoff_transferred": false,
+    "private_evidence": [
+      {
+        "id": "kf047-local-authorization-claim",
+        "path_class": "approved-local-private-evidence/authorization-claim",
+        "sha256": "fe51fb73e25d213509bdd4bdfaac7445b8c746f89ea377e982bf8818ce3f4667",
+        "size": 555,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf047-manager-stopped-inspect",
+        "path_class": "t1-private-evidence/container-inspect",
+        "sha256": "dd40f83d9a64ee37b7353570d9662ed0c4d7c99212aee949ffc0ac19418d750e",
+        "size": 11507,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf047-registration-before-recovery",
+        "path_class": "t1-private-evidence/database-backup",
+        "sha256": "3b54e11081a5db0ccd638120b687136a639b4d8ab6adb8f157065e886616591c",
+        "size": 86016,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf047-credential-before-recovery",
+        "path_class": "t1-private-evidence/database-backup",
+        "sha256": "25840bf73043640867a75eedc06e782231569b9c22f4c3b80efe591eff3ed50e",
+        "size": 28672,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf047-recovery-error",
+        "path_class": "t1-private-evidence/executor-error",
+        "sha256": "e5ef44178cd560cea92247e5ae965955b8db6235fcaef2c41298c8edc9b3df5d",
+        "size": 1022,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf047-postfail-closure",
+        "path_class": "approved-local-private-evidence/postfail-closure",
+        "sha256": "c38073f7159ac989bbd241f9fa94bec586fabd9bb782b538ca3ca968870fc6c6",
+        "size": 834,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      }
+    ],
+    "terminal": "CONSUMED_FAILED_BEFORE_DATABASE_MUTATION",
+    "kf047_status": "OPEN",
+    "next_gate": "SOURCE_REGRESSION_EXPLICIT_ONE_SHOT_ENTRYPOINT_THEN_NEW_LIVE_SUCCESSOR"
+  },
+  "kf047_source_exact_image_one_shot_gate": {
+    "authorization": "D1-N3W-FC4-F350-KF047-EXACT-IMAGE-ONE-SHOT-ENTRYPOINT-GATE-IMPLEMENTATION-TEST-AND-GITHUB-PUSH-20260821-01",
+    "authorization_claimed": true,
+    "authorization_consumed": true,
+    "source_parent_head": "115b402454063dcc884221058c9a1d54b2d45c2b",
+    "formal_entrypoint": "greenhouse-manager-n3w-exact-image-one-shot",
+    "exact_image_id_required": true,
+    "expected_product_entrypoint": "greenhouse-manager",
+    "explicit_one_shot_entrypoint": "python",
+    "preflight_network_none": true,
+    "preflight_read_only": true,
+    "preflight_cap_drop_all": true,
+    "preflight_no_new_privileges": true,
+    "state_root_same_absolute_path": true,
+    "source_mount_read_only": true,
+    "recovery_argv_tuple": true,
+    "recovery_shell_execution": false,
+    "negative_regressions": [
+      "image_id_drift",
+      "missing_product_entrypoint",
+      "wrong_product_entrypoint",
+      "module_preflight_failure",
+      "empty_recovery_output"
+    ],
+    "changed_source_files": [
+      "host/greenhouse-manager/pyproject.toml",
+      "host/greenhouse-manager/src/greenhouse_manager/ops/n3w_exact_image_one_shot.py",
+      "host/greenhouse-manager/tests/ops/test_n3w_exact_image_one_shot.py"
+    ],
+    "targeted_tests": "12 passed",
+    "full_manager_tests": "1127 passed, 1 skipped, 5 subtests passed",
+    "ruff": "PASS",
+    "initial_full_suite_environment_failure": "KF-027_RELATIVE_PYTHONPATH_SUBPROCESS_CWD",
+    "source_changed_for_environment_failure": false,
+    "t1_access": false,
+    "board_access": false,
+    "usb_access": false,
+    "database_mutated": false,
+    "recovery_executed_live": false,
+    "kf047_status": "OPEN_LIVE_ACCEPTANCE_REQUIRED",
+    "next_gate": "NEW_LIVE_SUCCESSOR_ADOPT_UNCHANGED_DB_AND_KF047_EVIDENCE"
+  },
+  "kf048_runtime_uid_mount_authority_consumed_failure": {
+    "authorization": "D1-N3W-FC4-F350-KF047-SUCCESSOR-ADOPT-UNCHANGED-DB-AND-EVIDENCE-EXACT-IMAGE-ONE-SHOT-PREFLIGHT-RECOVERY-PREARM-SCOPED-NVS-NEW-IDENTITY-ATOMIC-TTL-DELIVERY-AND-RESUME-E2E-20260821-01",
+    "authorization_claimed": true,
+    "authorization_consumed": true,
+    "authorization_replay_permitted": false,
+    "source_head": "1a01c650d64d3861869524e9d2879d67efd1ddb9",
+    "source_tree": "67282fbbd414f3ab46a11fe81fd20ab2b0a2e43f",
+    "source_archive_sha256": "a699b778dc95db6a6a97343b47ee128c41037e503e1919b5549e2f669a8c4f42",
+    "source_archive_size": 1711477,
+    "exact_image_preflight": "PASS",
+    "preflight_sha256": "bc489139ca67ada833329395753b7a969a865c72bb8f13e37e022a66c843cd3f",
+    "exact_image_runtime_uid": 999,
+    "exact_image_runtime_gid": 999,
+    "broad_private_root_mode": "0700",
+    "broad_private_root_uid": 0,
+    "broad_private_root_gid": 0,
+    "registration_parent_mode": "0700",
+    "registration_parent_uid": 999,
+    "registration_parent_gid": 999,
+    "credential_parent_mode": "0700",
+    "credential_parent_uid": 999,
+    "credential_parent_gid": 999,
+    "inspect_mode": "0600",
+    "inspect_uid": 0,
+    "inspect_gid": 0,
+    "registration_sha256_before": "3b54e11081a5db0ccd638120b687136a639b4d8ab6adb8f157065e886616591c",
+    "registration_sha256_after": "3b54e11081a5db0ccd638120b687136a639b4d8ab6adb8f157065e886616591c",
+    "credential_sha256_before": "25840bf73043640867a75eedc06e782231569b9c22f4c3b80efe591eff3ed50e",
+    "credential_sha256_after": "25840bf73043640867a75eedc06e782231569b9c22f4c3b80efe591eff3ed50e",
+    "database_mutated": false,
+    "second_expired_tombstone_preserved": true,
+    "outer_failure_result": "FAIL:isolated recovery module execution failed",
+    "inner_sanitized_failure_preserved": false,
+    "outer_recovery_started_claim_accurate": false,
+    "manager_running": true,
+    "manager_restart_count": 0,
+    "board_access": false,
+    "nvs_erased": false,
+    "private_handoff_transferred": false,
+    "private_evidence": [
+      {
+        "id": "kf048-live-authorization-claim",
+        "path_class": "approved-local-private-evidence/authorization-claim",
+        "sha256": "37187c21165a3606a18e200850f5baa2602ce55d74a86cf08e92e7afd4083094",
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf048-exact-source-archive",
+        "path_class": "approved-private-evidence/exact-source-archive",
+        "sha256": "a699b778dc95db6a6a97343b47ee128c41037e503e1919b5549e2f669a8c4f42",
+        "size": 1711477,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf048-exact-image-preflight",
+        "path_class": "t1-private-evidence/exact-image-preflight",
+        "sha256": "bc489139ca67ada833329395753b7a969a865c72bb8f13e37e022a66c843cd3f",
+        "size": 218,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf048-manager-stopped-inspect",
+        "path_class": "t1-private-evidence/container-inspect",
+        "sha256": "c79b5c4041072c40ca0f2ad350975dfed313207076bbcc56e89c190f53b982f1",
+        "size": 11507,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf048-formal-recovery-result",
+        "path_class": "t1-private-evidence/formal-runner-result",
+        "sha256": "75e1117eeb02a14c7c3358d09ca53f9756ed9ccf74fe1877460d0561e4e93b98",
+        "size": 91,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      },
+      {
+        "id": "kf048-postfail-closure",
+        "path_class": "approved-local-private-evidence/postfail-closure",
+        "sha256": "d00ca4c188224cdb7165dd8f37ff650b9746cdd2857a8c3b7ce341f4530b011a",
+        "size": 1085,
+        "mode": "0600",
+        "secret_values_included_in_public_binding": false
+      }
+    ],
+    "terminal": "CONSUMED_FAILED_BEFORE_DATABASE_MUTATION",
+    "kf048_status": "OPEN",
+    "next_gate": "SOURCE_FIX_MINIMAL_RUNTIME_UID_MOUNTS_AND_INNER_ERROR_PROPAGATION"
+  },
+  "private_local_artifacts": [
+    {
+      "id": "legacy-board-readback-01",
+      "sha256": "d3b26835d3a0ef9c23b396e1858b2d6ddf88460a9af013965de4b239ccb4724a",
+      "size": 836400,
+      "captured_at": "2026-08-20T16:23:37+08:00",
+      "classification": "PRIVATE_REQUIRED",
+      "identity_binding": "QUARANTINED_UNBOUND"
+    },
+    {
+      "id": "legacy-board-readback-02",
+      "sha256": "887d4d9dc2913eefde3649fa659e1713041155e05c446cfd2259e307fc8f8c7c",
+      "size": 989904,
+      "captured_at": "2026-08-20T16:24:08+08:00",
+      "classification": "PRIVATE_REQUIRED",
+      "identity_binding": "QUARANTINED_UNBOUND"
+    },
+    {
+      "id": "legacy-board-full-app-readback-01",
+      "sha256": "bb69b1702b977fb715565353f9a7def1c4608c6a121f3923c5ab2d09c61b427b",
+      "size": 1106320,
+      "captured_at": "2026-08-20T16:28:37+08:00",
+      "classification": "PRIVATE_REQUIRED",
+      "identity_binding": "QUARANTINED_UNBOUND"
+    },
+    {
+      "id": "legacy-board-full-app-readback-02",
+      "sha256": "bb69b1702b977fb715565353f9a7def1c4608c6a121f3923c5ab2d09c61b427b",
+      "size": 1106320,
+      "captured_at": "2026-08-20T16:28:43+08:00",
+      "classification": "PRIVATE_REQUIRED",
+      "identity_binding": "QUARANTINED_UNBOUND"
+    },
+    {
+      "id": "legacy-board-final-app-readback-01",
+      "sha256": "95e177042fd15cb0e4b4aef762adf37811c736d34579e480f534ffbe5ee14a7a",
+      "size": 1106320,
+      "captured_at": "2026-08-20T17:21:41+08:00",
+      "classification": "PRIVATE_REQUIRED",
+      "identity_binding": "QUARANTINED_UNBOUND"
+    },
+    {
+      "id": "legacy-board-final-app-readback-02",
+      "sha256": "95e177042fd15cb0e4b4aef762adf37811c736d34579e480f534ffbe5ee14a7a",
+      "size": 1106320,
+      "captured_at": "2026-08-20T17:22:14+08:00",
+      "classification": "PRIVATE_REQUIRED",
+      "identity_binding": "QUARANTINED_UNBOUND"
+    }
+  ],
+  "reproducibility_bindings": [
+    {
+      "id": "arm64-python-base-transport",
+      "sha256": "73bcf72288971535519056a03944cb98e333254ceec387eae54b6be1949c09a5",
+      "size": 45839360,
+      "image_digest": "sha256:c3030eb5af86633f87e538de534dd455ca0cf2b4eceee87069b713f33d2d03f6",
+      "classification": "EPHEMERAL_DISCARDABLE_AFTER_BINDING"
+    },
+    {
+      "id": "fc4-firmware-build-package",
+      "sha256": "b6925ab8f6f4204a551b7a7f140b7360f7f8248209ee2a1998bb725e02b86e03",
+      "size": 2115227,
+      "source_head": "f38a6eb966c4fc11eff4bd3a112f02ba1dbf6a60",
+      "classification": "PRIVATE_REQUIRED",
+      "board_identity_binding": "NOT_ESTABLISHED"
+    },
+    {
+      "id": "host-network-candidate-helper",
+      "sha256": "23c69a17fe2aa0b753a39d88d8432e24f18f84b3c118c1b9c0b0d2c955a56ca5",
+      "size": 1014,
+      "classification": "SUPERSEDED_BY_KF034_KF035_DEPLOYMENT_GATE"
+    },
+    {
+      "id": "resolved-loopback-helper",
+      "sha256": "d3f75b144713f19b5c5fe4941937d02f5387897b5af15a2a78f7efbe1b6575da",
+      "size": 646,
+      "classification": "SUPERSEDED_BY_KF035_DEPLOYMENT_GATE"
+    }
+  ],
+  "live_authorization_history": {
+    "id": "D1-N3W-FC4-F45C-KF036-EXPIRED-FIRST-REGISTRATION-TOMBSTONE-RECOVERY-LIVE-EXECUTION-AND-AUDIT-20260820-01",
+    "approved": true,
+    "claimed": true,
+    "consumed": true,
+    "status": "CONSUMED_FAILED",
+    "replay_permitted": false
+  },
+  "public_raw_evidence_exposed": false,
+  "secret_values_included": false,
+  "public_repository_safety_manual_repair_20260821": {
+    "source_head_before_repair": "2d745893aa4d3cdabf0f532b073882bb1515027f",
+    "manual_gate": "T0-SECURITY-RUFF-AUDIT",
+    "failure_stage": "PUBLIC_REPOSITORY_SAFETY",
+    "finding_type": "mac-address",
+    "finding_count": 14,
+    "affected_public_files": [
+      "docs/development/archive-manifests/n3w-fc4-archive-audit-20260820.json",
+      "docs/development/n3w-fc4-development-artifact-archive-20260820.md",
+      "tests/tools/test_n3w_fc4_archive_manifest.py"
+    ],
+    "repair_policy": "replace public raw board MAC/USB identifiers with SHA-256 of the normalized lowercase identifier; preserve raw evidence only in the established private evidence domain",
+    "raw_private_evidence_mutated": false,
+    "t1_access": false,
+    "board_access": false,
+    "serial_access": false,
+    "flash_or_nvs_mutation": false,
+    "repair_status": "GUARDED_REMOTE_ARCHIVED",
+    "public_repository_safety_retest": "PASS",
+    "fc4_archive_manifest_regression": "PASS_1_TEST",
+    "ruff": "PASS",
+    "final_staged_secret_guard": "PASS_CHECKED_PATHS_4",
+    "commit_status": "COMMITTED_AND_PUSHED_EXACT",
+    "repair_commit_sha": "3f026de62762532f692a5a2ec4632ce5035b2ee7",
+    "repair_commit_tree": "15cc8bfb005edc32d58d7b5c3634205ecb62213b",
+    "repair_remote_branch": "docs/n3w-fc4-development-artifact-archive-20260821",
+    "repair_remote_branch_head_after_push": "3f026de62762532f692a5a2ec4632ce5035b2ee7",
+    "remote_main_after_repair_push": "3bd3f0736eb387dc76d53f472da59056e05a88e3",
+    "repair_remote_exact_binding": "PASS",
+    "remote_main_unchanged_during_repair_push": true,
+    "pr_created_by_repair_push": false,
+    "merge_executed_by_repair_push": false,
+    "post_commit_metadata_policy": "record the already-pushed repair commit and remote binding only; do not self-report commit/push state of this metadata follow-up"
+  },
+  "current_exact_manual_source_validation_20260821": {
+    "branch": "docs/n3w-fc4-development-artifact-archive-20260821",
+    "exact_head": "ea857c0034ff63067bc307f947582351faf0ca60",
+    "exact_tree": "6e3595259e338e2c4be5db9f4c8cdd833f5b490f",
+    "validation_mode": "MANUAL_TERMINAL_SOURCE_ONLY",
+    "targeted_regression": {
+      "status": "PASS",
+      "passed": 40
+    },
+    "manager_full": {
+      "status": "PASS",
+      "passed": 1127,
+      "skipped": 1,
+      "subtests_passed": 5
+    },
+    "n3w_regression": {
+      "status": "PASS",
+      "passed": 30
+    },
+    "public_repository_safety": "PASS",
+    "ruff": "PASS",
+    "git_diff_check": "PASS",
+    "worktree_clean_after_validation": true,
+    "index_clean_after_validation": true,
+    "kf049_status": "GUARDED",
+    "kf048_status": "OPEN_UNCHANGED",
+    "kf048_source_implementation_started": false,
+    "physical_authorization_active": false,
+    "t1_access": false,
+    "board_access": false,
+    "serial_access": false,
+    "physical_mutation": false,
+    "archive_status": "LOCAL_GIT_ARCHIVED_PENDING_REMOTE_PUSH",
+    "post_commit_metadata_policy": "records only the local Git archive state; remote completion is established externally by exact remote-head binding after push, without a recursive self-reporting metadata commit"
+  }
+}

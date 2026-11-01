@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "minor_version": 1,
+  "key": "core.config_entries",
+  "data": {
+    "entries": [
+      {
+        "created_at": "2026-08-07T00:00:00+00:00",
+        "modified_at": "2026-08-07T00:00:00+00:00",
+        "entry_id": "n3wp5lab000000000000000000000001",
+        "version": 1,
+        "minor_version": 1,
+        "domain": "mqtt",
+        "title": "N3-W P5 isolated MQTT",
+        "source": "user",
+        "unique_id": null,
+        "disabled_by": null,
+        "pref_disable_new_entities": false,
+        "pref_disable_polling": false,
+        "data": {
+          "broker": "broker",
+          "port": 1883,
+          "username": "homeassistant",
+          "password": "__HA_MQTT_PASSWORD__"
+        },
+        "options": {"discovery": true},
+        "subentries": []
+      }
+    ]
+  }
+}

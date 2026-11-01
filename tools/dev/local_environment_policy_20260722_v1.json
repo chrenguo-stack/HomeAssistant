@@ -1,0 +1,97 @@
+{
+  "schema": "gh.dev.local-environment-policy/1",
+  "policy_version": "2026.07.22-v1",
+  "repository_full_name": "chrenguo-stack/HomeAssistant",
+  "default_paths": {
+    "repository": "~/HomeAssistant-local-test",
+    "virtual_environment": "~/.venvs/greenhouse-homeassistant-dev",
+    "evidence_directory": "~/HomeAssistant-evidence"
+  },
+  "host": {
+    "supported_systems": [
+      "Darwin"
+    ],
+    "supported_architectures": [
+      "x86_64",
+      "arm64"
+    ],
+    "minimum_free_disk_gib": 15,
+    "recommended_free_disk_gib": 30
+  },
+  "tooling": {
+    "required_commands": [
+      "git",
+      "ssh",
+      "scp",
+      "shasum"
+    ],
+    "optional_commands": [
+      "gh",
+      "docker",
+      "esphome",
+      "pio"
+    ],
+    "python": {
+      "minimum": "3.11.0",
+      "maximum_exclusive": "3.12.0"
+    },
+    "expected_versions": {
+      "esphome": "2026.4.3",
+      "pytest_major": 8,
+      "ruff": "0.15.22"
+    }
+  },
+  "git": {
+    "allowed_origin_urls": [
+      "https://github.com/chrenguo-stack/HomeAssistant.git",
+      "git@github.com:chrenguo-stack/HomeAssistant.git"
+    ],
+    "protected_branches": [
+      "main"
+    ]
+  },
+  "security": {
+    "forbidden_tracked_path_names": [
+      ".env",
+      "secrets.yaml",
+      "credentials.json",
+      "home-assistant_v2.db"
+    ],
+    "forbidden_tracked_suffixes": [
+      ".key",
+      ".p12",
+      ".pfx",
+      ".jks",
+      ".sqlite",
+      ".sqlite3"
+    ],
+    "forbidden_tracked_path_fragments": [
+      "/.storage/",
+      "/.esphome/",
+      "/evidence/"
+    ],
+    "private_key_markers": [
+      "BEGIN PRIVATE KEY",
+      "BEGIN RSA PRIVATE KEY",
+      "BEGIN OPENSSH PRIVATE KEY",
+      "BEGIN EC PRIVATE KEY"
+    ],
+    "sensitive_environment_name_fragments": [
+      "PASSWORD",
+      "TOKEN",
+      "SECRET",
+      "PRIVATE_KEY",
+      "API_KEY",
+      "MQTT_PASSWORD",
+      "WIFI_PASSWORD",
+      "HOME_ASSISTANT_TOKEN",
+      "GH_MQTT_PASSWORD"
+    ]
+  },
+  "execution_boundaries": {
+    "network_checks_default": false,
+    "device_access_default": false,
+    "system_mutation_default": false,
+    "production_service_access_default": false
+  }
+}

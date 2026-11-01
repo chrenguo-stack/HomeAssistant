@@ -1,0 +1,11 @@
+{
+  "schema": "gh.pair.hello/1",
+  "pairing_id": "c83aeb0d-8f48-4a39-a34b-ea584a588475",
+  "pairing_epoch": 3,
+  "hardware_id": "ghw-c6-98a316a9f2f8",
+  "model": "greenhouse-wifi-c6",
+  "fw_version": "F1.0-RC2-N2.0",
+  "node_nonce": "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY",
+  "capabilities": ["mqtt-runtime-credentials", "lcd-pairing-qr"],
+  "sent_at_ms": 120345
+}

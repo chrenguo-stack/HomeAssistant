@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hahub.top/schemas/gh.c06b2-ha-projection-request-1.schema.json",
+  "title": "Greenhouse C06-B2 Home Assistant projection request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "request_id",
+    "system_id",
+    "sent_at",
+    "projection_hash",
+    "projection"
+  ],
+  "properties": {
+    "schema": {"const": "gh.c06b2-ha-projection-request/1"},
+    "request_id": {
+      "type": "string",
+      "minLength": 16,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "system_id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "sent_at": {"type": "string", "format": "date-time"},
+    "projection_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "projection": {"type": "object"}
+  }
+}

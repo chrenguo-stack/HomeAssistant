@@ -1,0 +1,3 @@
+# Stage 2D-8 template only. The rendered ACL contains exactly one test identity.
+user <TEST_USERNAME>
+topic readwrite gh-test/<TEST_RUN_ID>/#

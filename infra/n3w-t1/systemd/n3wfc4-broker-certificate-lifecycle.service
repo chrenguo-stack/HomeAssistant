@@ -1,0 +1,10 @@
+[Unit]
+Description=N3W FC4 Broker certificate lifecycle
+Requires=docker.service n3wfc4-broker-ingress-guard.service
+After=docker.service n3wfc4-broker-ingress-guard.service n3wfc4-broker-activation.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/n3wfc4/broker-certificate-lifecycle.env
+ExecStart=/usr/local/sbin/n3w-broker-certificate-lifecycle auto-renew --server-cert ${N3WFC4_CERT_SERVER_CERT_FILE} --server-key ${N3WFC4_CERT_SERVER_KEY_FILE} --ca-cert ${N3WFC4_CERT_CA_CERT_FILE} --ca-key ${N3WFC4_CERT_CA_KEY_FILE} --system-ca ${N3WFC4_CERT_SYSTEM_CA_FILE} --server-name ${N3WFC4_CERT_SERVER_NAME} --status-file ${N3WFC4_CERT_STATUS_FILE} --allowed-root ${N3WFC4_CERT_ALLOWED_ROOT_FC4} --allowed-root ${N3WFC4_CERT_ALLOWED_ROOT_SYSTEM} --activation-unit n3wfc4-broker-activation.service --probe-host 127.0.0.1 --probe-port 8883
+TimeoutStartSec=180

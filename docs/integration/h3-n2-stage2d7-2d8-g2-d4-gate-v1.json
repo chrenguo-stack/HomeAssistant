@@ -1,0 +1,40 @@
+{
+  "schema": "gh.h3.n2.stage2d7-2d8-g2-d4-gate/2",
+  "status": "prepared_waiting_operator_decision",
+  "pull_request": 173,
+  "target_branch": "main",
+  "draft_pr_required_until_authorized": true,
+  "pr_current_state_required": "open_draft",
+  "pr_mergeable_required": true,
+  "proposed_action": {
+    "mark_ready": true,
+    "merge_method": "squash",
+    "merge_target": "main",
+    "release": false,
+    "delete_frozen_branches": false,
+    "production_operation": false
+  },
+  "prerequisites": {
+    "all_integration_ci_completed_successfully": true,
+    "source_and_evidence_consistency_passed": true,
+    "production_paths_unchanged_passed": true,
+    "public_repository_safety_passed": true,
+    "frozen_artifact_not_rebuilt": true,
+    "physical_execution_gate_closed": true,
+    "private_evidence_excluded": true,
+    "final_record_commit_ci": "pending"
+  },
+  "authorization": {
+    "received": false,
+    "ready_authorized": false,
+    "merge_authorized": false,
+    "release_authorized": false
+  },
+  "stop_conditions": [
+    "any final record commit CI failure",
+    "PR no longer mergeable",
+    "main advances before authorization without successful rebase or merge-base review",
+    "frozen source, artifact, evidence, or production path drift",
+    "operator does not provide the exact D4 authorization text"
+  ]
+}

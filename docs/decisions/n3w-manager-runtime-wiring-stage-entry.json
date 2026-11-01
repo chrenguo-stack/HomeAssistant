@@ -1,0 +1,51 @@
+{
+  "schema": "gh.n3w.manager-runtime-wiring-stage-entry/1",
+  "authorization_gate": "D1-N3W-MANAGER-RUNTIME-WIRING-DEFAULT-OFF-ISOLATED-DEVELOPMENT-20260807-01",
+  "status": "authorized_in_progress",
+  "base_ref": "main",
+  "base_sha": "f0cf33ec165fdf25aa0fadfcb485214395c20974",
+  "preserved_pr": 276,
+  "preserved_pr_head": "239ea594c643d4990d449187f8b0cabae619e3d7",
+  "mode": "PRODUCTION_SHAPED_ISOLATED_DEFAULT_OFF",
+  "purpose": "Wire the existing N3-W Direct/Relay router, persistent replay/path state, and read-only relay authorization into the Manager MQTT service behind an explicit default-off runtime gate and validate it only against temporary isolated infrastructure.",
+  "runtime_contract": {
+    "default_off": true,
+    "relay_subscription": "gh/v1/<system_id>/ingress/gateway/+/+/frame",
+    "single_canonical_publisher": true,
+    "existing_manager_publication_path_reused": true,
+    "direct_and_relay_share_router": true,
+    "persistent_replay_and_path_store_required": true,
+    "existing_registration_store_required": true,
+    "read_only_authorization_provider": true,
+    "relay_rejection_publishes_canonical_diagnostic": false
+  },
+  "isolated_validation": {
+    "temporary_mosquitto": true,
+    "temporary_registration_db": true,
+    "temporary_replay_db": true,
+    "temporary_authorization_db": true,
+    "temporary_application_keys": true,
+    "manager_restart": true,
+    "broker_reconnect": true,
+    "cross_path_duplicate": true,
+    "late_packet": true,
+    "lease_expiry": true,
+    "authorization_revoke": true
+  },
+  "safety_boundary": {
+    "production_mqtt_activation": false,
+    "production_manager_configuration_change": false,
+    "production_authorization_db_access": false,
+    "real_application_key_provisioning": false,
+    "t1_access": false,
+    "production_broker_access": false,
+    "home_assistant_live_access": false,
+    "node_or_board_access": false,
+    "firmware_mutation": false,
+    "flash_or_deploy": false,
+    "release_or_tag": false,
+    "n3l": false,
+    "pr276_mutation": false
+  },
+  "next_gate": "Ready/merge, production enablement or configuration, T1/Broker/Home Assistant access, real provisioning/key delivery, firmware work, board validation, deployment, release, tag, and N3-L remain separately gated."
+}

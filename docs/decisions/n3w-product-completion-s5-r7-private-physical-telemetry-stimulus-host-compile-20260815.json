@@ -1,0 +1,50 @@
+{
+  "schema": "gh.n3w-product-completion-s5-r7-private-telemetry-stimulus-host-compile/1",
+  "authorization": "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-R7-PRIVATE-PHYSICAL-TELEMETRY-STIMULUS-HOST-COMPILE-IMPLEMENTATION-20260815-01",
+  "starting_head": "39816fcbf2d8fa7942a68d22fc738e2defef89cc",
+  "starting_pr": 322,
+  "successor_pr": 323,
+  "scope": {
+    "host_compile_only": true,
+    "private_child_stimulus_only": true,
+    "private_package_materialization": false,
+    "board_access": false,
+    "serial_or_usb_jtag": false,
+    "flash_or_erase": false,
+    "wifi_or_espnow_rf": false,
+    "real_mqtt_network": false,
+    "production_access": false,
+    "n3l": false
+  },
+  "design": {
+    "default_stimulus_enabled": false,
+    "relay_stimulus_allowed": false,
+    "peer_identity_source": "manager_authorized_dynamic_child_gateway_binding_only",
+    "application_telemetry_count": 1,
+    "retry_reuses_existing_child_relay_cache": true,
+    "second_telemetry_schema_added": false,
+    "direct_child_mqtt_added": false,
+    "static_peer_or_gateway_preseed_added": false,
+    "pair_lmk_or_peer_key_added": false,
+    "manager_lmk_generation_added": false,
+    "existing_relay_frame_reused": true,
+    "existing_data_fragment_reused": true,
+    "existing_authenticated_receipt_ack_reused": true,
+    "existing_relay_forward_sink_reused": true,
+    "existing_unified_manager_ingress_reused": true
+  },
+  "security": {
+    "stimulus_application_key_copy_is_private_runtime_only": true,
+    "stimulus_application_key_zeroized_after_frame_build": true,
+    "raw_application_key_logged": false,
+    "raw_pair_lmk_logged": false,
+    "prepared_frame_cannot_be_rehomed_to_new_gateway": true
+  },
+  "acceptance": {
+    "host_cpp_exactly_once_test_required": true,
+    "esp32_c6_private_child_compile_required": true,
+    "esp32_c6_private_relay_compile_required": true,
+    "public_factory_profiles_remain_inert": true,
+    "physical_e2e": "PENDING_NEW_R7_PACKAGE_AND_NEW_PHYSICAL_AUTHORIZATION"
+  }
+}

@@ -1,0 +1,52 @@
+substitutions:
+  device_name: gh-h3-act-lab
+  project_version: "F1.0-RC2-H3-PROFILE-ACTIVATION-LAB"
+  soil_read_interval: 20s
+  soil_warmup_time: 15s
+  scd30_update_interval: 11s
+  battery_divider_ratio: "2.0"
+  battery_calibration_factor: "1.000"
+  battery_low_threshold: "3.00"
+  battery_recovery_threshold: "3.50"
+
+external_components:
+  - source:
+      type: local
+      path: ../15_1_2_rs485_modbus_echo_filter/my_components
+    components:
+      - echo_filtered_modbus
+  - source:
+      type: local
+      path: ../components
+    components:
+      - greenhouse_pairing_client
+      - greenhouse_profile_activation_lab
+
+packages:
+  core: !include packages/core.yml
+  control: !include packages/control.yml
+  buses: !include packages/buses.yml
+  sensors: !include packages/sensors.yml
+  display: !include packages/display.yml
+
+# Dedicated non-production product-PCB compile target. It has no runtime or
+# persistence adapter and cannot change the active MQTT profile.
+greenhouse_profile_activation_lab:
+  id: profile_activation_stage2d3
+
+text_sensor:
+  - platform: template
+    name: "Profile Activation Phase Stage 2D-3 Lab"
+    id: profile_activation_phase_stage2d3
+    internal: true
+    update_interval: 5s
+    lambda: |-
+      return {id(profile_activation_stage2d3).phase_name()};
+
+binary_sensor:
+  - platform: template
+    name: "Profile Activation Reboot Required Stage 2D-3 Lab"
+    id: profile_activation_reboot_stage2d3
+    internal: true
+    lambda: |-
+      return id(profile_activation_stage2d3).reboot_required();

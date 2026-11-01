@@ -1,0 +1,45 @@
+{
+  "schema": "gh.h3.n2.stage2d9-g3-d2-attempt1-authorization-request/2",
+  "stage": "H3/N2 Stage 2D-9 G3",
+  "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V67-20260722-01",
+  "status": "retired_before_authorization",
+  "execution_authorized": false,
+  "authorization_issued": false,
+  "execution_package_generated": false,
+  "board_accessed": false,
+  "serial_access_attempted": false,
+  "flash_operation_attempted": false,
+  "efuse_command_attempted": false,
+  "network_operation_attempted": false,
+  "production_environment_modified": false,
+  "execution_gate": "CLOSED_RETIRED_NO_REPLAY",
+  "one_shot": true,
+  "replay_permitted": false,
+  "retired_at": "2026-07-23",
+  "retirement_reason": "pre-authorization audit found the reviewed runner did not independently require the actual review-package SHA, actual operator-authorization-text SHA, and an exactly two-hour authorization duration",
+  "superseded_by": "D2-H3N2-STAGE2D9-G3-V67-20260723-02",
+  "review_package_sha256": "a3b174e0d9f97d5e8c4c73c4c8f428735becd091deae251ab933cae7c8d964a9",
+  "reviewed_files": {
+    "execution_script_sha256": "6c742fd2bc09eb3222d6a6579d535786ff8258e3af9bba19a6ec7fd5c354ede2",
+    "launcher_sha256": "3007a971652aff2b66bed63cefb1907000c3b08bacdebc4a88cbaef42226cb23",
+    "command_group_sha256": "288019f2bb20e1ae96eef7d4d0cac73d802523d95349a6f0ccaab8f93c3140dd",
+    "stop_conditions_sha256": "c29a35aee05f415fdc9f36d0f1cc0f783e9cc4f14fecf4ca97c9db047000583b"
+  },
+  "private_command_binding": {
+    "private_execution_material_sha256": "deb4e490a87d0ddcee6ebac068788a7205c0360faed62629328e381a29f2eb71",
+    "prepare_command_sha256": "b6c930c1a5190e5e243e1b834673e36b674441145b1ce04cc1891f7287106ffe",
+    "verify_command_sha256": "0e6c9d3061f769749fae23d0ea36aac86f3e1dc9bfa2b580d793e8072afced01",
+    "retired": true,
+    "reuse_permitted": false,
+    "secret_values_in_public_git": false
+  },
+  "privacy": {
+    "private_serial_path_included": false,
+    "private_board_identifier_included": false,
+    "unlock_preimage_included": false,
+    "persistence_key_included": false,
+    "authorization_digest_included": false,
+    "candidate_secret_values_included": false,
+    "raw_private_log_included": false
+  }
+}

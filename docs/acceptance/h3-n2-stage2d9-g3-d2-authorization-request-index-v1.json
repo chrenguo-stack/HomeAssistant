@@ -1,0 +1,80 @@
+{
+  "schema": "gh.h3.n2.stage2d9-g3-d2-authorization-request-index/9",
+  "stage": "H3/N2 Stage 2D-9 G3",
+  "active_request_id": null,
+  "execution_gate": "CLOSED_V69_ACCEPTANCE_PASSED_D4_REQUIRED",
+  "requests": [
+    {
+      "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V67-20260722-01",
+      "status": "retired_before_authorization",
+      "authorization_issued": false,
+      "execution_performed": false,
+      "replay_permitted": false
+    },
+    {
+      "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V67-20260723-02",
+      "status": "operator_authorized_but_issuance_failed_closed_retired",
+      "authorization_issued": false,
+      "execution_performed": false,
+      "replay_permitted": false
+    },
+    {
+      "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V68-20260723-01",
+      "status": "consumed_failed_recovery_verified_retired",
+      "authorization_issued": true,
+      "execution_performed": true,
+      "authorization_consumed": true,
+      "recovery_verified": true,
+      "recovery_seed_restored": true,
+      "final_board_state": "locked_recovery_seed_restored",
+      "private_evidence_archive_sha256": "c2a0686e7a52774531c53a674e889f50c8bdef37ee7ea67903dd24c989059321",
+      "replay_permitted": false
+    },
+    {
+      "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V69-20260723-01",
+      "status": "operator_authorized_but_issuance_failed_closed_retired",
+      "request_record": "docs/acceptance/h3-n2-stage2d9-g3-v69-d2-attempt1-authorization-request-v1.json",
+      "artifact_zip_sha256": "21aa3383a26b66109408576040245dd60c17eb780b65de9847381b73cfb1506b",
+      "review_package_sha256": "5e7b13dc3e804698f216542b17f4d481a9f8a05285c5c3e6a4475ef1e44e379e",
+      "authorization_consumed": false,
+      "execution_performed": false,
+      "destructive_boundary_entered": false,
+      "replay_permitted": false
+    },
+    {
+      "authorization_request_id": "D2-H3N2-STAGE2D9-G3-V69-20260723-02",
+      "status": "consumed_passed_retired",
+      "acceptance_record": "docs/acceptance/h3-n2-stage2d9-g3-v69-d2-attempt2-physical-acceptance-l1-v1.json",
+      "artifact_zip_sha256": "21aa3383a26b66109408576040245dd60c17eb780b65de9847381b73cfb1506b",
+      "review_package_sha256": "b358fcbe8b9e428d7ed5ab061537338928471705e0829022c2c5892a612573b0",
+      "execution_package_sha256": "33eda8fc28bf5d661000bb7dadaa12c9604a598a66e3073dace550fe0b2fc31b",
+      "authorization_binding_sha256": "f43f4339b96226ee9c8932a97dad96238fe5da8a5b5650a0eb98f07a53a65ab5",
+      "authorization_issued": true,
+      "authorization_consumed": true,
+      "execution_performed": true,
+      "physical_acceptance": "passed",
+      "private_evidence_closure": "passed",
+      "final_board_state": "candidate_prepared_active_unchanged",
+      "replay_permitted": false
+    }
+  ],
+  "retired_request_ids": [
+    "D2-H3N2-STAGE2D9-G3-V67-20260722-01",
+    "D2-H3N2-STAGE2D9-G3-V67-20260723-02",
+    "D2-H3N2-STAGE2D9-G3-V68-20260723-01",
+    "D2-H3N2-STAGE2D9-G3-V69-20260723-01",
+    "D2-H3N2-STAGE2D9-G3-V69-20260723-02"
+  ],
+  "stage2d8_authorization_replay_permitted": false,
+  "stage2d9_v67_authorization_replay_permitted": false,
+  "stage2d9_v68_attempt1_replay_permitted": false,
+  "stage2d9_v69_attempt1_replay_permitted": false,
+  "stage2d9_v69_attempt2_replay_permitted": false,
+  "v69_physical_acceptance": "passed",
+  "v69_private_evidence_closure": "passed",
+  "device_reconnect_permitted": false,
+  "new_source_and_artifact_chain_required": false,
+  "new_operator_d2_required_for_any_future_device_action": true,
+  "independent_d4_required": true,
+  "ready_merge_release_authorized": false
+}

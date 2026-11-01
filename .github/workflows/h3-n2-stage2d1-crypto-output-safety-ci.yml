@@ -1,0 +1,73 @@
+name: H3 N2 Stage2D1 Crypto Output Safety CI
+
+on:
+  pull_request:
+    paths:
+      - "firmware/esphome_rc/components/greenhouse_pairing_client/pairing_persistence_crypto.*"
+      - "firmware/esphome_rc/components/greenhouse_pairing_client/tests/pairing_stage2d1_crypto_output_safety_20260721_v49.cpp"
+      - ".github/workflows/h3-n2-stage2d1-crypto-output-safety-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "firmware/esphome_rc/components/greenhouse_pairing_client/pairing_persistence_crypto.*"
+      - "firmware/esphome_rc/components/greenhouse_pairing_client/tests/pairing_stage2d1_crypto_output_safety_20260721_v49.cpp"
+      - ".github/workflows/h3-n2-stage2d1-crypto-output-safety-ci.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  crypto-output-safety:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - name: Compile persistence crypto output safety contract
+        run: |
+          set -euo pipefail
+          component=firmware/esphome_rc/components/greenhouse_pairing_client
+          g++ -std=gnu++20 -Wall -Wextra -Wpedantic -Werror \
+            -I "$component" \
+            "$component/pairing_persistence_crypto.cpp" \
+            "$component/tests/pairing_stage2d1_crypto_output_safety_20260721_v49.cpp" \
+            -lcrypto \
+            -o /tmp/stage2d1-crypto-output-safety-v49
+      - name: Run persistence crypto output safety contract
+        run: /tmp/stage2d1-crypto-output-safety-v49
+      - name: Verify output-clearing source evidence
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          source = Path(
+              "firmware/esphome_rc/components/greenhouse_pairing_client/"
+              "pairing_persistence_crypto.cpp"
+          ).read_text(encoding="utf-8")
+          test = Path(
+              "firmware/esphome_rc/components/greenhouse_pairing_client/tests/"
+              "pairing_stage2d1_crypto_output_safety_20260721_v49.cpp"
+          ).read_text(encoding="utf-8")
+          required_source = (
+              "clear_bytes(envelope);",
+              "clear_metadata(metadata);",
+              "clear_bytes(plaintext);",
+              "clear_key(key);",
+              "clear_key(digest);",
+              "clear_key(subkey);",
+              "clear_bytes(ciphertext);",
+          )
+          missing = [value for value in required_source if value not in source]
+          if missing:
+              raise SystemExit(f"crypto output clearing evidence missing: {missing}")
+          if "stage2d1 persistence crypto output safety passed" not in test:
+              raise SystemExit("crypto output safety terminal evidence missing")
+          PY
+      - name: Cleanup host binary
+        if: always()
+        run: rm -f /tmp/stage2d1-crypto-output-safety-v49

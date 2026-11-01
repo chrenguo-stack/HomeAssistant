@@ -1,0 +1,138 @@
+{
+  "schema": "gh.n3w-p5-m14-identity-continuity-host-only-plan/1",
+  "status": "host_only_contract_ready_live_execution_prohibited",
+  "development_authorization": {
+    "id": "D1-N3W-P5-M14-HOST-ONLY-CONTRACT-TESTS-AND-NO-LIVE-EXECUTION-DEVELOPMENT-20260813-01",
+    "claimed_once": true,
+    "consumed": true,
+    "replay_allowed": false
+  },
+  "base": {
+    "repository": "chrenguo-stack/HomeAssistant",
+    "branch": "main",
+    "commit_sha": "ec2525a7f552dd87702b42624488098c60c2ed05",
+    "tree_sha": "a3084f26d1c45885599f761da4979660c9387e9b"
+  },
+  "matrix_contract": {
+    "id": "M14",
+    "name": "identity_continuity",
+    "action": "compare HA device/entity registries before/after all path switches",
+    "expect": "same NODE_ID maps to one device; no duplicate Discovery"
+  },
+  "m13_dependency": {
+    "classification": "M13_PASS_WITH_RECORDED_EXECUTION_DEVIATION",
+    "final_freeze_sha256": "214db3f10f1111852ec5f93de9990d0003a44db0fe50e91a9f1153376fb0ebb7",
+    "outage_cap_deviation_preserved": true,
+    "live_replay_allowed": false,
+    "active_gateway_id": "n3wp5_relay01",
+    "candidate_none": true,
+    "canonical_boot_session_hex": "077d07249ff2a1ac"
+  },
+  "identity_contract": {
+    "device_discovery_topic": "homeassistant/device/{node_id}/config",
+    "connectivity_discovery_topic": "homeassistant/binary_sensor/{node_id}_connectivity/config",
+    "device_identifier": "gh_{system_id}_{node_id}",
+    "device_serial_number": "{node_id}",
+    "component_unique_id": "{node_id}_{component_key}",
+    "connectivity_unique_id": "{node_id}_connectivity",
+    "canonical_state_topic": "gh/v1/{system_id}/state/{node_id}/telemetry",
+    "availability_topic": "gh/v1/{system_id}/state/{node_id}/availability",
+    "identity_inputs": ["system_id", "node_id", "component_key"],
+    "identity_excludes": [
+      "active_transport",
+      "gateway_id",
+      "ingress_source",
+      "boot_id",
+      "sequence",
+      "key_epoch"
+    ],
+    "unchanged_payload_republish_suppressed": true,
+    "manager_restart_same_identity_republish": true,
+    "payload_shape_change_reuses_existing_identity": true
+  },
+  "historical_registry_binding": {
+    "m01_successor_closure_sha256": "11ff70405486fd5ffca63bee99aecbd81229b0ecabd71aaebfd764b369595b2a",
+    "m01_device_count": 1,
+    "m01_entity_count": 6,
+    "m01_single_device_pass": true,
+    "current_device_count": 1,
+    "current_entity_count": 6,
+    "current_device_identifier": "mqtt:gh_n3wp5lab_n3wp5_child01",
+    "current_device_created_at": "2026-08-08T14:46:46.550352Z",
+    "current_device_modified_at": "2026-08-08T14:46:46.550431Z",
+    "current_entities_modified_after_initial_creation": false,
+    "current_device_registry_sha256": "f7e0ad649367b55ad4b2b8570612debe3bc857d81fbcc904f293f85f6389bfd7",
+    "current_entity_registry_sha256": "ebc9aa2946d8d6dd8a25fd5f115eaaa10e61f62dceb1d932de8b210b42b7954b",
+    "explicit_pre_m01_registry_hash_pair_discovered": false,
+    "claim_boundary": "Persisted registry chronology and the M01 count anchor may support final read-only classification; they do not manufacture a missing separately frozen pre-M01 hash pair."
+  },
+  "change_scope": {
+    "allowed": [
+      ".github/workflows/n3w-p5-m14-identity-continuity-host-only-ci.yml",
+      "docs/decisions/n3w-p5-m14-identity-continuity-host-only-plan.json",
+      "tests/n3w_p5/test_n3w_p5_m14_identity_continuity_contract.py"
+    ],
+    "manager_product_runtime_change": false,
+    "homeassistant_configuration_change": false,
+    "compose_change": false,
+    "firmware_change": false,
+    "live_executor_added": false,
+    "secret_material_added": false,
+    "github_mutation_authorized_by_this_document": false
+  },
+  "host_only_test_contract": {
+    "synthetic_canonical_documents_only": true,
+    "production_homeassistant_discovery_implementation_imported": true,
+    "direct_relay_restart_regrant_epoch2_and_outage_history_modeled": true,
+    "same_topics_device_identifier_and_unique_ids_required": true,
+    "path_gateway_boot_sequence_and_epoch_identity_independence_required": true,
+    "same_manager_lifetime_republish_suppression_required": true,
+    "new_manager_lifetime_same_identity_republish_required": true,
+    "firmware_and_measurement_shape_change_same_identity_required": true,
+    "synthetic_registry_duplicate_detection_fail_closed": true,
+    "mqtt_connection_required": false,
+    "docker_connection_required": false,
+    "homeassistant_connection_required": false,
+    "board_connection_required": false,
+    "network_connection_required": false
+  },
+  "future_readonly_final_gate": {
+    "authorized_now": false,
+    "separate_verbatim_authorization_required": true,
+    "repeat_path_switches": false,
+    "mqtt_publish": false,
+    "service_restart_or_mutation": false,
+    "board_access_or_mutation": false,
+    "capture_two_bounded_readonly_registry_snapshots": true,
+    "verify_one_device_and_duplicate_free_entity_set": true,
+    "verify_registry_created_and_modified_chronology": true,
+    "verify_manager_broker_homeassistant_stability": true,
+    "verify_canonical_path_and_session_stability": true,
+    "verify_production_route_absent": true,
+    "phase_exit_or_cleanup": false
+  },
+  "failure_and_stop_policy": {
+    "second_device_for_same_node_is_m14_fail": true,
+    "duplicate_unique_id_is_m14_fail": true,
+    "entity_bound_to_another_device_is_m14_fail": true,
+    "path_derived_device_or_entity_identity_is_m14_fail": true,
+    "missing_registry_or_ambiguous_snapshot_fails_closed": true,
+    "no_automatic_repair_or_tombstone_publish": true,
+    "no_path_switch_replay": true,
+    "no_service_or_board_mutation": true,
+    "no_phase_exit_or_cleanup": true
+  },
+  "evidence_contract": {
+    "secret_values_included": false,
+    "exact_main_tree_and_m13_freeze_required": true,
+    "discovery_topics_device_identifier_and_unique_ids_required": true,
+    "registry_counts_timestamps_and_hashes_required": true,
+    "missing_pre_m01_hash_pair_must_remain_visible": true,
+    "final_classification_must_be_read_only": true
+  },
+  "next_gate": {
+    "m14_live_allowed": false,
+    "phase_exit_or_cleanup_allowed": false,
+    "required_authorization": "D1-N3W-P5-M14-HOST-ONLY-CONTRACT-COMMIT-PUSH-DRAFT-PR-AND-CI-20260813-01"
+  }
+}

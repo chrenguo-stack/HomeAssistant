@@ -1,0 +1,56 @@
+{
+  "schema": "gh.h3.n2.stage2d8-g2-d2-attempt-l1-summary/1",
+  "stage": "H3/N2 Stage 2D-8 G2",
+  "attempt": 2,
+  "authorization_request_id": "D2-H3N2-STAGE2D8-G2-V64-20260722-02",
+  "timestamp_utc": "2026-07-22T12:26:23Z",
+  "result": "inconclusive",
+  "failure_stage": "authorization",
+  "failure_class": "FileNotFoundError_or_equivalent_authorization_read_failure",
+  "failure_message_redacted": "authorization JSON was not present at the instructed Downloads-root path",
+  "root_cause": "authorized ZIP contained the authorization JSON, but the extracted files were not all relocated to the Downloads root as required by the attempt-2 instructions",
+  "source_sha": "6cf37c29311601f4f83238cc8401c81ea7b9a1f0",
+  "artifact_zip_sha256": "662d9d4d850eea603d5defafb2b3c84a8bc07fae3a4b51229479b2a0a71e8ea9",
+  "execution_package_sha256": "a54e6bdd534ab0b2c4f4fca9e6ccfe1175108b0683c1f21324c80c30ea81f207",
+  "authorization_binding_sha256": "39837533b51eea26e95f5c6205677e4c6460229691e16c9aec1551ab305611ca",
+  "private_evidence_archive_sha256": "fd8e97db174de759a964e276ff7cb1d534fa64a2f6e2d48dd385eb6e57a7fb0a",
+  "observed": {
+    "execution_process_started": true,
+    "authorization_file_opened": false,
+    "authorization_consumed": false,
+    "host_environment_preflight_reached": false,
+    "usb_preflight_reached": false,
+    "flash_id_reached": false,
+    "destructive_boundary_entered": false,
+    "erase_performed": false,
+    "write_performed": false,
+    "verify_flash_performed": false,
+    "preboot_readback_performed": false,
+    "g2_booted": false,
+    "postboot_readback_performed": false,
+    "recovery_performed": false,
+    "recovery_count": 0,
+    "efuse_command_attempted": false,
+    "network_operation_attempted": false,
+    "production_environment_modified": false
+  },
+  "authorization_disposition": {
+    "governance_status": "attempted_inconclusive_retired",
+    "replay_permitted": false,
+    "reason": "the user-level one-shot command was invoked; no ambiguity is carried into a later execution"
+  },
+  "corrective_action": {
+    "new_request_id_required": true,
+    "self_contained_extracted_directory_required": true,
+    "package_relative_launcher_required": true,
+    "individual_file_relocation_prohibited": true
+  },
+  "privacy": {
+    "raw_board_identifier_included": false,
+    "private_serial_path_included": false,
+    "raw_local_path_included": false,
+    "full_private_log_included": false,
+    "authorization_json_included": false,
+    "secret_values_included": false
+  }
+}

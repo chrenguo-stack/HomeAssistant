@@ -1,0 +1,27 @@
+# Stage 2D-8 template only. Do not run without an exact execution manifest.
+# Replace every angle-bracket placeholder in a private staging directory.
+
+per_listener_settings true
+listener <TEST_LISTENER_PORT> <ISOLATED_BIND_ADDRESS>
+protocol mqtt
+
+allow_anonymous false
+password_file <ABSOLUTE_PRIVATE_PASSWORD_FILE>
+acl_file <ABSOLUTE_PRIVATE_ACL_FILE>
+
+cafile <ABSOLUTE_PRIVATE_CA_FILE>
+certfile <ABSOLUTE_PRIVATE_SERVER_CERT_FILE>
+keyfile <ABSOLUTE_PRIVATE_SERVER_KEY_FILE>
+require_certificate false
+use_identity_as_username false
+
+persistence false
+retain_available false
+allow_zero_length_clientid false
+
+connection_messages true
+log_type error
+log_type warning
+log_type notice
+
+# No bridge, plugin, dynamic-security database or production include is allowed.

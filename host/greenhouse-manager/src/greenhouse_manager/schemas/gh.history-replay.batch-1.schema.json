@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hahub.top/schemas/gh.history-replay.batch-1.schema.json",
+  "title": "Greenhouse historical telemetry replay page v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "node_id",
+    "batch_id",
+    "page_index",
+    "page_count",
+    "records"
+  ],
+  "properties": {
+    "schema": {"const": "gh.history-replay.batch/1"},
+    "node_id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "batch_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "page_index": {"type": "integer", "minimum": 0, "maximum": 4095},
+    "page_count": {"type": "integer", "minimum": 1, "maximum": 4096},
+    "records": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "items": {"$ref": "#/$defs/record"}
+    }
+  },
+  "$defs": {
+    "quality": {
+      "enum": ["ok", "warming", "stale", "fault", "not_present"]
+    },
+    "uptime_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 315576000000
+    },
+    "time_anchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sampled_at", "uptime_ms"],
+      "properties": {
+        "sampled_at": {"type": "string", "format": "date-time"},
+        "uptime_ms": {"$ref": "#/$defs/uptime_ms"}
+      }
+    },
+    "record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "boot_id",
+        "seq",
+        "uptime_ms",
+        "sampled_at",
+        "time_quality",
+        "time_anchor",
+        "cap_hash",
+        "measurements",
+        "quality",
+        "power"
+      ],
+      "properties": {
+        "boot_id": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "seq": {"type": "integer", "minimum": 0, "maximum": 4294967295},
+        "uptime_ms": {"$ref": "#/$defs/uptime_ms"},
+        "sampled_at": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        },
+        "time_quality": {
+          "enum": ["trusted", "estimated", "relative_only"]
+        },
+        "time_anchor": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/time_anchor"}
+          ]
+        },
+        "cap_hash": {"type": "string", "minLength": 8, "maxLength": 128},
+        "fw_version": {"type": "string", "maxLength": 64},
+        "measurements": {
+          "type": "object",
+          "additionalProperties": {"type": ["number", "null"]},
+          "properties": {
+            "air_temperature_c": {"type": ["number", "null"]},
+            "air_humidity_pct": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+            "co2_ppm": {"type": ["number", "null"], "minimum": 0},
+            "illuminance_lx": {"type": ["number", "null"], "minimum": 0},
+            "soil_temperature_c": {"type": ["number", "null"]},
+            "soil_moisture_pct": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+            "soil_ec_us_cm": {"type": ["number", "null"], "minimum": 0},
+            "vpd_kpa": {"type": ["number", "null"], "minimum": 0},
+            "dew_point_c": {"type": ["number", "null"]},
+            "absolute_humidity_g_m3": {"type": ["number", "null"], "minimum": 0},
+            "ppfd_umol_m2_s": {"type": ["number", "null"], "minimum": 0},
+            "dli_today_mol_m2_d": {"type": ["number", "null"], "minimum": 0},
+            "dli_yesterday_mol_m2_d": {"type": ["number", "null"], "minimum": 0},
+            "battery_v": {"type": ["number", "null"], "minimum": 0},
+            "battery_pct": {"type": ["number", "null"], "minimum": 0, "maximum": 100}
+          }
+        },
+        "quality": {
+          "type": "object",
+          "additionalProperties": {"$ref": "#/$defs/quality"}
+        },
+        "power": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["source", "low"],
+          "properties": {
+            "source": {"enum": ["main", "battery", "unknown"]},
+            "battery_v": {"type": ["number", "null"], "minimum": 0},
+            "battery_pct": {
+              "type": ["number", "null"],
+              "minimum": 0,
+              "maximum": 100
+            },
+            "low": {"type": "boolean"}
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {"time_quality": {"const": "trusted"}},
+            "required": ["time_quality"]
+          },
+          "then": {
+            "properties": {
+              "sampled_at": {"type": "string", "format": "date-time"},
+              "time_anchor": {"type": "null"}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {"time_quality": {"const": "estimated"}},
+            "required": ["time_quality"]
+          },
+          "then": {
+            "properties": {
+              "sampled_at": {"type": "string", "format": "date-time"},
+              "time_anchor": {"$ref": "#/$defs/time_anchor"}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {"time_quality": {"const": "relative_only"}},
+            "required": ["time_quality"]
+          },
+          "then": {
+            "properties": {
+              "sampled_at": {"type": "null"},
+              "time_anchor": {"type": "null"}
+            }
+          }
+        }
+      ]
+    }
+  }
+}

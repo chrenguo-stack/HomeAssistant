@@ -1,0 +1,360 @@
+# N3-W T1 Production Stack Staging
+# Run #78 exact artifact / three-image payload binding
+# 新会话交接文档 V1.1 — 2026-10-11
+
+> Status: CURRENT FORMAL HANDOFF
+> Supersedes: V1.0
+> Working-context authority: `docs/development/N3W_PROJECT_WORKING_CONTEXT.md`
+> Team-workspace authority: `docs/development/TEAM_COLLABORATION_WORKSPACE_STANDARD.md`
+
+## 0. 会话切换结论
+
+本轮已经完成 KF-107 offline-image source repair，并在 exact product-source
+head 上得到关键 CI 全部 PASS。
+
+按用户要求，本轮在 Run #78 artifact 尚未下载和绑定的位置停止。
+
+```text
+CURRENT_STAGE=KF107_OFFLINE_IMAGE_SOURCE_CI_PASS
+CURRENT_STOP_POINT=RUN78_CI_PASS_ARTIFACT_BINDING_NOT_YET_PERFORMED
+
+NEXT_ONE_GATE=
+N3W_T1_PRODUCTION_STACK_STAGING_RUN78_EXACT_ARTIFACT_THREE_IMAGE_PAYLOAD_BINDING_REVIEW_20261011_01
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+```
+
+下一会话只做 Run #78 exact artifact、三镜像 tar、payload 大小和 SHA256
+绑定复核，不自动进入 T1 preflight。
+
+## 1. 当前执行方式
+
+当前项目不再采用旧的 DSL / low-order Codex execution 模式。
+
+本阶段执行方式：
+
+- 高阶模型负责分析、工程判断、任务编排、源码/文档修改、GitHub 进度对齐和结果复核；
+- 需要可重复执行的目标机或生产操作时，优先使用 repository-versioned executor 或已经冻结并复核的操作包；
+- 用户继续作为物理现场和私有 T1 的最终执行者；
+- 没有 direct access 时，高阶模型提供完整、受限、可验证的 Mac Terminal 操作；
+- 默认先只读检查，再进入 mutation；
+- mutation 必须有独立、明确的授权边界；
+- GitHub 是长期共享进度 authority，对话不是。
+
+```text
+PRIMARY_EXECUTION_PRINCIPLE=ACCURACY_SAFETY_EFFICIENCY_VERIFIABILITY_FIRST
+REPOSITORY_VERSIONED_EXECUTOR=true
+DSL_EXECUTION_MODEL=false
+DSL_COMPILATION_AUTHORIZED=false
+TEST_PRODUCT_NOT_TEST_FRAMEWORK=true
+```
+
+## 2. 当前 GitHub authority
+
+```text
+REPOSITORY=chrenguo-stack/HomeAssistant
+MAIN_AT_HANDOFF=d423211b6196c2f2f0f01dff072c4f877fbe58ee
+
+PR=541
+PR_STATE=OPEN_DRAFT
+PR_MERGED=false
+PR_BRANCH=plan/n3w-t1-full-fresh-install-from-zero-20261010
+
+RUN78_PRODUCT_SOURCE_HEAD=
+cb4131e47727d0cf7421133000c3a421c860a99b
+```
+
+Run #78 product-source head 之后只有 documentation alignment。
+新会话必须 fresh rebind 当前 PR HEAD，并再次确认不存在新的 non-doc drift。
+
+## 3. 当前 CI 结果
+
+```text
+DEPLOYMENT_GATE_RUN_ID=38140472367
+DEPLOYMENT_GATE_RUN_NUMBER=361
+DEPLOYMENT_GATE_CONCLUSION=success
+
+STAGING_PAYLOAD_RUN_ID=38140472427
+STAGING_PAYLOAD_RUN_NUMBER=78
+STAGING_PAYLOAD_CONCLUSION=success
+
+PRODUCTION_IMAGE_BINDING_RUN_ID=38140472442
+PRODUCTION_IMAGE_BINDING_RUN_NUMBER=245
+PRODUCTION_IMAGE_BINDING_CONCLUSION=success
+
+MANAGER_STATE_BINDING_RUN_ID=38140472373
+MANAGER_STATE_BINDING_RUN_NUMBER=101
+MANAGER_STATE_BINDING_CONCLUSION=success
+
+PUBLIC_REPOSITORY_SAFETY_RUN_ID=38140472387
+PUBLIC_REPOSITORY_SAFETY_RUN_NUMBER=4083
+PUBLIC_REPOSITORY_SAFETY_CONCLUSION=success
+```
+
+## 4. Run #78 尚未绑定的内容
+
+以下内容故意留给下一会话：
+
+```text
+RUN78_ARTIFACT_ID=TBD
+RUN78_ARTIFACT_NAME=TBD
+RUN78_ARTIFACT_ZIP_SHA256=TBD
+
+PAYLOAD_ARCHIVE_SIZE_BYTES=TBD
+PAYLOAD_ARCHIVE_SHA256=TBD
+PAYLOAD_MANIFEST_SHA256=TBD
+EXECUTOR_SHA256=TBD
+HOST_WRAPPER_SHA256=TBD
+
+MANAGER_TAR_SIZE_BYTES=TBD
+HOMEASSISTANT_TAR_SIZE_BYTES=TBD
+HOMEASSISTANT_TAR_SHA256=TBD
+BROKER_TAR_SIZE_BYTES=TBD
+BROKER_TAR_SHA256=TBD
+
+PAYLOAD_UNCOMPRESSED_MEMBER_BYTES=TBD
+EXTRACTION_PEAK_ESTIMATE_BYTES=TBD
+```
+
+Frozen Manager tar authority：
+
+```text
+MANAGER_TAR_SHA256=
+2ef0421d483334f6ef81c92beb1b6784174f069a4bde179ba615ce0b70435081
+```
+
+## 5. KF-107 当前结论
+
+历史失败：
+
+```text
+AUTHORIZATION_02=
+N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
+
+RESULT=FAILED_ROLLBACK_PASS
+FAILURE_POINT=HOME_ASSISTANT_REGISTRY_PULL_TIMEOUT_1200S
+ROLLBACK_STATUS=PASS
+ROLLBACK_ERRORS=[]
+PRODUCTION_SERVICE_START=false
+BOARD_ACCESS=false
+REPLAY_PERMITTED=false
+```
+
+当前 source repair：
+
+```text
+CI_PULL_EXACT_UPSTREAM_DIGEST=true
+CI_VERIFY_EXACT_CONFIG_PLATFORM=true
+CI_BIND_DETERMINISTIC_LOCAL_RUNTIME_TAG=true
+CI_SAVE_REMOVE_LOAD_ROUNDTRIP=true
+PRODUCTION_COMPOSE_HA_PULL_POLICY=never
+PRODUCTION_COMPOSE_BROKER_PULL_POLICY=never
+T1_STAGING_LIVE_REGISTRY_PULL=false
+T1_STAGING_LOCAL_DOCKER_LOAD_ONLY=true
+```
+
+当前状态：
+
+```text
+KF107=GUARDED_SOURCE
+ARTIFACT_BINDING_PENDING=true
+FRESH_T1_PREFLIGHT_PENDING=true
+LIVE_REVALIDATION_PENDING=true
+NETWORK_ROOT_CAUSE=TBD
+```
+
+## 6. Authorization ledger
+
+```text
+AUTHORIZATION=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_01
+CLAIMED=true
+CONSUMED=true
+RESULT=FAILED_ROLLBACK_PASS
+REPLAY_PERMITTED=false
+
+AUTHORIZATION=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_02
+CLAIMED=true
+CONSUMED=true
+RESULT=FAILED_ROLLBACK_PASS
+REPLAY_PERMITTED=false
+
+PROPOSED_AUTHORIZATION=N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_20261011_03
+GRANTED=false
+CLAIMED=false
+CONSUMED=false
+```
+
+`..._03` 不能因为 CI PASS、artifact binding PASS 或 preflight PASS 自动获得授权。
+
+## 7. 最近一次 T1 基线
+
+最近一次 `..._02` apply 已完成 rollback PASS，生产服务没有启动。
+
+历史 fresh read-only preflight 曾证明：
+
+```text
+DOCKER_CONTAINER_COUNT=0
+DOCKER_VOLUME_COUNT=45
+DOCKER_VOLUME_SET_SHA256=
+20fc845741d31da34f1d1e563e5057c78ec5dc7c4cfd3a495a5f3a4f2bfd011b
+
+PROJECT_NETWORK_CONTAINER_COUNTS=0/0
+PRODUCTION_LISTENERS=0
+GUARD=ACTIVE_ENABLED_EXACT
+N3W_STATE_ROOT=absent
+PRODUCTION_IMAGES=absent
+PRODUCTION_SERVICES=stopped
+
+MANAGER_DATABASE_QUICK_CHECK=ok
+MANAGER_DATABASE_BUSINESS_ROWS=0
+MANAGER_DATABASE_PROVENANCE_ROWS=1
+MANAGER_DATABASE_SHA256=
+6db7069f2134be3b178d3238da2dfc199463d812dd6be318531611eaddc4c971
+
+HISTORICAL_T1_ROOT_AVAILABLE_BYTES=6420955136
+```
+
+这些值只用于历史比较，不能替代下一阶段 fresh T1 preflight。
+
+## 8. 下一步唯一任务
+
+```text
+NEXT_ONE_GATE=
+N3W_T1_PRODUCTION_STACK_STAGING_RUN78_EXACT_ARTIFACT_THREE_IMAGE_PAYLOAD_BINDING_REVIEW_20261011_01
+```
+
+下一会话必须：
+
+1. fresh rebind main / PR #541 / Run #78；
+2. 证明 Run #78 head 是 `cb4131e47727d0cf7421133000c3a421c860a99b`；
+3. 获取唯一 staging artifact metadata；
+4. 下载到本地临时目录；
+5. 校验 artifact digest、payload sidecars 和实际文件；
+6. 校验 manifest 中 source head、`..._03` authorization、claimed/consumed=false；
+7. 校验 payload 中恰好包含 Manager / Home Assistant / Broker 三份 image tar；
+8. 记录三份 tar 的 size + SHA256；
+9. Manager tar SHA 必须匹配 frozen Manager SHA；
+10. HA/Broker tar SHA 必须与 manifest 和 Run #78 log 一致；
+11. 验证 `EXTERNAL_IMAGE_TAR_ROUNDTRIP=PASS` 与 `PAYLOAD_BUILD=PASS`；
+12. 校验 Compose / image-lock / staging executor 的 offline runtime contract；
+13. 记录 artifact ZIP、compressed payload、uncompressed payload 与 extraction peak estimate；
+14. 与历史 6420955136 bytes free-root 做风险比较；
+15. 输出结果后 STOP。
+
+PASS：
+
+```text
+RUN78_EXACT_ARTIFACT_BINDING=PASS
+THREE_IMAGE_TAR_BINDING=PASS
+PAYLOAD_SIZE_MEASUREMENT=PASS
+READY_FOR_FRESH_T1_READONLY_PREFLIGHT=true
+STOP=true
+```
+
+任何 source/head/artifact/hash/manifest/image/log/offline-contract/disk-budget 不一致：
+
+```text
+RUN78_EXACT_ARTIFACT_BINDING=FAIL_<EXACT_REASON>
+READY_FOR_FRESH_T1_READONLY_PREFLIGHT=false
+AUTO_REPAIR=false
+AUTO_RETRY=false
+STOP=true
+```
+
+## 9. 当前任务允许 / 禁止
+
+允许：
+
+```text
+GitHub read-only rebind
+Run #78 metadata/log/artifact read
+本地临时 artifact 下载
+本地 SHA256 / size / tar / JSON 只读检查
+```
+
+禁止：
+
+```text
+SSH / T1 access
+T1 Docker 操作
+任何 live mutation
+任何 authorization claim
+board / USB / serial / Flash / NVS / RF
+CI rerun
+source modification
+PR #541 merge
+```
+
+## 10. Team workspace
+
+```text
+TEAM_SHARED_WORKSPACE=GITHUB
+IMPORTANT_CHAT_ONLY_ARTIFACT_COUNT=0
+TEAM_SHARE_COMPLETENESS=PASS
+```
+
+## 11. 新会话启动文本
+
+```text
+阅读：
+
+docs/development/N3W_T1_PRODUCTION_STACK_STAGING_RUN78_EXACT_ARTIFACT_BINDING_NEW_CHAT_HANDOFF_V1.1_20261011.md
+
+同时读取：
+- docs/development/N3W_PROJECT_WORKING_CONTEXT.md
+- docs/development/TEAM_COLLABORATION_WORKSPACE_STANDARD.md
+- docs/development/N3W_CURRENT_STATE.md
+- docs/development/N3W_CURRENT_STATE_INDEX.md
+- docs/development/N3W_T1_PRODUCTION_STACK_STAGING_LIVE_APPLY_PROGRESS_20261011.md
+- docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md
+
+继续“温室环境监测系统（ESP32-C6）”项目 N3-W。
+
+每次回复先写：
+主线任务：N3-W 温室环境监测系统产品化与首次配对验收
+支线任务：保留 Armbian，全新部署 T1 温室软件
+当前任务：Run #78 exact artifact / 三镜像 tar / payload 大小与 SHA256 绑定复核
+
+当前执行方式：
+高阶模型负责分析、编排、复核和决策；
+实际受限执行优先使用 repository-versioned executor 或已经冻结的操作包；
+不采用旧 DSL / low-order Codex execution 模式。
+
+当前只进入：
+NEXT_ONE_GATE=
+N3W_T1_PRODUCTION_STACK_STAGING_RUN78_EXACT_ARTIFACT_THREE_IMAGE_PAYLOAD_BINDING_REVIEW_20261011_01
+
+先 fresh rebind GitHub authority，然后完成 host-only/read-only Run #78 artifact review。
+
+禁止 T1/SSH、board、CI rerun、source modification、authorization claim 和 PR merge。
+
+完成结果后 STOP，不自动进入 fresh T1 preflight。
+```
+
+## 12. 最终冻结点
+
+```text
+CURRENT_STAGE=KF107_OFFLINE_IMAGE_SOURCE_CI_PASS
+CURRENT_STOP_POINT=RUN78_EXACT_ARTIFACT_BINDING_NOT_YET_PERFORMED
+
+RUN78_PRODUCT_SOURCE_HEAD=
+cb4131e47727d0cf7421133000c3a421c860a99b
+
+RUN78_ID=38140472427
+RUN78_CONCLUSION=success
+
+AUTH_01=CONSUMED_NO_REPLAY
+AUTH_02=CONSUMED_NO_REPLAY
+AUTH_03=NOT_GRANTED
+
+NEXT_ONE_GATE=
+N3W_T1_PRODUCTION_STACK_STAGING_RUN78_EXACT_ARTIFACT_THREE_IMAGE_PAYLOAD_BINDING_REVIEW_20261011_01
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+
+TEAM_SHARED_WORKSPACE=GITHUB
+IMPORTANT_CHAT_ONLY_ARTIFACT_COUNT=0
+TEAM_SHARE_COMPLETENESS=PASS
+```

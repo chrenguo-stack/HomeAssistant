@@ -1,0 +1,261 @@
+name: H3 N2 Stage2C3 Async Persistence CI
+
+on:
+  pull_request:
+    paths:
+      - "firmware/esphome_rc/components/greenhouse_pairing_client/pairing_async_*"
+      - "firmware/esphome_rc/components/greenhouse_pairing_client/pairing_persistence_*"
+      - "firmware/esphome_rc/components/greenhouse_pairing_client/pairing_mqtt_activation_*"
+      - "firmware/esphome_rc/components/greenhouse_pairing_client/tests/pairing_stage2c3_*"
+      - "firmware/esphome_rc/components/greenhouse_pairing_async_lab/**"
+      - "firmware/esphome_rc/board_lab/h3_node_pairing_async/**"
+      - "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_node_pairing_async_board_lab.yml"
+      - "firmware/esphome_rc/f1_0_rc2/packages/**"
+      - "protocols/pairing/gh-h3-node-async-persistence-contract-v1.md"
+      - "docs/development/h3-n2-stage2c3-async-persistence-contract-20260721.md"
+      - ".github/workflows/h3-n2-stage2c3-async-persistence-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "firmware/esphome_rc/components/greenhouse_pairing_client/pairing_async_*"
+      - "firmware/esphome_rc/components/greenhouse_pairing_client/pairing_persistence_*"
+      - "firmware/esphome_rc/components/greenhouse_pairing_client/pairing_mqtt_activation_*"
+      - "firmware/esphome_rc/components/greenhouse_pairing_client/tests/pairing_stage2c3_*"
+      - "firmware/esphome_rc/components/greenhouse_pairing_async_lab/**"
+      - "firmware/esphome_rc/board_lab/h3_node_pairing_async/**"
+      - "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_node_pairing_async_board_lab.yml"
+      - "protocols/pairing/gh-h3-node-async-persistence-contract-v1.md"
+      - "docs/development/h3-n2-stage2c3-async-persistence-contract-20260721.md"
+      - ".github/workflows/h3-n2-stage2c3-async-persistence-ci.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  contract-fast:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - name: Compile and run Stage 2C-3 host contracts
+        run: |
+          set -euo pipefail
+          component=firmware/esphome_rc/components/greenhouse_pairing_client
+          common=(
+            -std=gnu++20 -Wall -Wextra -Wpedantic -Werror
+            -I "$component"
+            "$component/pairing_async_contract.cpp"
+            "$component/pairing_persistence_contract.cpp"
+            "$component/pairing_mqtt_activation_contract.cpp"
+          )
+          g++ "${common[@]}" \
+            "$component/tests/pairing_stage2c3_contract_test.cpp" \
+            -o /tmp/stage2c3-contract-test
+          g++ "${common[@]}" \
+            "$component/tests/pairing_stage2c3_fault_matrix_20260721_v48.cpp" \
+            -o /tmp/stage2c3-fault-matrix-v48
+          /tmp/stage2c3-contract-test
+          /tmp/stage2c3-fault-matrix-v48
+          g++ -std=gnu++20 -Wall -Wextra -Wpedantic -Werror \
+            -I "$component" \
+            -c "$component/pairing_async_worker.cpp" \
+            -o /tmp/stage2c3-async-worker-host.o
+      - name: Verify Stage 2C-3 source boundaries
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          roots = (
+              Path("firmware/esphome_rc/components/greenhouse_pairing_async_lab"),
+              Path("firmware/esphome_rc/components/greenhouse_pairing_client/pairing_async_contract.h"),
+              Path("firmware/esphome_rc/components/greenhouse_pairing_client/pairing_async_contract.cpp"),
+              Path("firmware/esphome_rc/components/greenhouse_pairing_client/pairing_async_worker.h"),
+              Path("firmware/esphome_rc/components/greenhouse_pairing_client/pairing_async_worker.cpp"),
+              Path("firmware/esphome_rc/components/greenhouse_pairing_client/pairing_persistence_contract.h"),
+              Path("firmware/esphome_rc/components/greenhouse_pairing_client/pairing_persistence_contract.cpp"),
+              Path("firmware/esphome_rc/components/greenhouse_pairing_client/pairing_mqtt_activation_contract.h"),
+              Path("firmware/esphome_rc/components/greenhouse_pairing_client/pairing_mqtt_activation_contract.cpp"),
+              Path("firmware/esphome_rc/components/greenhouse_pairing_client/tests/pairing_stage2c3_fault_matrix_20260721_v48.cpp"),
+          )
+          files = []
+          for root in roots:
+              if root.is_dir():
+                  files.extend(path for path in root.rglob("*") if path.is_file())
+              else:
+                  files.append(root)
+          encoded = "\n".join(
+              path.read_text(encoding="utf-8", errors="replace") for path in files
+          )
+          forbidden = (
+              "nvs_set_",
+              "nvs_commit(",
+              "preferences->save",
+              "set_username(",
+              "set_password(",
+              "greenhouse_mqtt_auth",
+              "docker compose",
+              "/opt/greenhouse-h3-n2-acceptance",
+          )
+          present = [value for value in forbidden if value in encoded]
+          if present:
+              raise SystemExit(f"Stage 2C-3 boundary violation: {present}")
+          required = (
+              "xTaskCreate",
+              "xQueueCreate(1",
+              "xQueueOverwrite",
+              "compare_exchange_strong",
+              "PairingAsyncSnapshot",
+              "CredentialPersistenceContract",
+              "MqttActivationContract",
+              "CONTRACT MODEL ONLY",
+              "Automatic pairing at boot: NO",
+              "Production persistence or MQTT mutation: NO",
+              "stage2c3 fault matrix passed",
+          )
+          missing = [value for value in required if value not in encoded]
+          if missing:
+              raise SystemExit(f"Stage 2C-3 source evidence missing: {missing}")
+
+          for target in (
+              Path("firmware/esphome_rc/board_lab/h3_node_pairing_async/greenhouse_pairing_async_board_lab.yml"),
+              Path("firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_node_pairing_async_board_lab.yml"),
+          ):
+              text = target.read_text(encoding="utf-8")
+              if "on_boot:" in text or ".request_pairing();" not in text:
+                  raise SystemExit(f"Stage 2C-3 lab trigger boundary invalid: {target}")
+          PY
+
+  esp32-c6-compile:
+    needs: contract-fast
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install pinned ESPHome
+        run: python -m pip install -q "esphome==2026.4.3"
+      - name: Create ephemeral Stage 2C-3 secrets
+        run: |
+          python - <<'PY'
+          import secrets
+          from pathlib import Path
+
+          pairing_secret = secrets.token_urlsafe(32)
+          wifi_password = secrets.token_urlsafe(24)
+          Path("firmware/esphome_rc/board_lab/h3_node_pairing_async/secrets.yaml").write_text(
+              "\n".join((
+                  'node_pairing_wifi_ssid: "ci-stage2c3"',
+                  f'node_pairing_wifi_password: "{wifi_password}"',
+                  f'node_pairing_secret: "{pairing_secret}"',
+                  "",
+              )), encoding="utf-8"
+          )
+          Path("firmware/esphome_rc/f1_0_rc2/secrets.yaml").write_text(
+              f'node_pairing_secret: "{pairing_secret}"\n', encoding="utf-8"
+          )
+          Path("/tmp/stage2c3-ephemeral-values").write_text(
+              pairing_secret + "\n" + wifi_password + "\n", encoding="utf-8"
+          )
+          PY
+      - name: Compile minimal ESP32-C6 async target
+        shell: bash
+        run: |
+          set -o pipefail
+          cd firmware/esphome_rc/board_lab/h3_node_pairing_async
+          esphome config greenhouse_pairing_async_board_lab.yml 2>&1 | tee /tmp/stage2c3-minimal-config.log
+          esphome compile greenhouse_pairing_async_board_lab.yml 2>&1 | tee /tmp/stage2c3-minimal-compile.log
+      - name: Compile full RC2 product-board async target
+        shell: bash
+        run: |
+          set -o pipefail
+          cd firmware/esphome_rc/f1_0_rc2
+          RC2_CONFIG=f1_0_rc2_h3_node_pairing_async_board_lab.yml bash tools/rc2.sh config 2>&1 | tee /tmp/stage2c3-product-config.log
+          RC2_CONFIG=f1_0_rc2_h3_node_pairing_async_board_lab.yml bash tools/rc2.sh compile 2>&1 | tee /tmp/stage2c3-product-compile.log
+      - name: Verify compile evidence and secret redaction
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          values = Path("/tmp/stage2c3-ephemeral-values").read_text(encoding="utf-8").splitlines()
+          logs = "\n".join(
+              Path(path).read_text(encoding="utf-8", errors="replace")
+              for path in (
+                  "/tmp/stage2c3-minimal-config.log",
+                  "/tmp/stage2c3-minimal-compile.log",
+                  "/tmp/stage2c3-product-config.log",
+                  "/tmp/stage2c3-product-compile.log",
+              )
+          )
+          if any(value and value in logs for value in values):
+              raise SystemExit("ephemeral Stage 2C-3 value appeared in ESPHome output")
+          evidence = (
+              "greenhouse_pairing_async_lab.cpp.o",
+              "pairing_async_worker.cpp.o",
+              "pairing_async_contract.cpp.o",
+              "pairing_persistence_contract.cpp.o",
+              "pairing_mqtt_activation_contract.cpp.o",
+              "INFO Successfully compiled program.",
+          )
+          missing = [item for item in evidence if logs.count(item) < 2]
+          if missing:
+              raise SystemExit(f"Stage 2C-3 compile evidence missing: {missing}")
+          PY
+      - name: Build redacted failure diagnostic
+        if: failure()
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          values_path = Path("/tmp/stage2c3-ephemeral-values")
+          values = values_path.read_text(encoding="utf-8").splitlines() if values_path.exists() else []
+          sections = []
+          for source in (
+              "/tmp/stage2c3-minimal-config.log",
+              "/tmp/stage2c3-minimal-compile.log",
+              "/tmp/stage2c3-product-config.log",
+              "/tmp/stage2c3-product-compile.log",
+          ):
+              path = Path(source)
+              if not path.exists():
+                  continue
+              text = path.read_text(encoding="utf-8", errors="replace")
+              for value in values:
+                  if value:
+                      text = text.replace(value, "<REDACTED_EPHEMERAL_VALUE>")
+              sections.append(f"===== {path.name} =====\n{text}")
+          Path("/tmp/stage2c3-redacted-failure-v48.log").write_text(
+              "\n".join(sections) or "No compile log was created.\n",
+              encoding="utf-8",
+          )
+          PY
+      - name: Upload redacted failure diagnostic
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage2c3-redacted-failure-v48
+          path: /tmp/stage2c3-redacted-failure-v48.log
+          if-no-files-found: error
+          retention-days: 7
+      - name: Cleanup Stage 2C-3 files
+        if: always()
+        run: |
+          rm -f \
+            firmware/esphome_rc/board_lab/h3_node_pairing_async/secrets.yaml \
+            firmware/esphome_rc/f1_0_rc2/secrets.yaml \
+            /tmp/stage2c3-ephemeral-values \
+            /tmp/stage2c3-redacted-failure-v48.log \
+            /tmp/stage2c3-minimal-config.log \
+            /tmp/stage2c3-minimal-compile.log \
+            /tmp/stage2c3-product-config.log \
+            /tmp/stage2c3-product-compile.log

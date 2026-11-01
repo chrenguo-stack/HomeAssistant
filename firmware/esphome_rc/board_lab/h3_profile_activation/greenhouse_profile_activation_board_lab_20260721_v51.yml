@@ -1,0 +1,52 @@
+esphome:
+  name: gh-profile-act-lab
+  friendly_name: Greenhouse Profile Activation Transaction Lab
+  min_version: 2026.4.3
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: ESP32C6
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+# The shared pairing component compiles network discovery sources. Wi-Fi remains
+# disabled at boot and this target contains no MQTT or persistence adapter.
+wifi:
+  ssid: !secret node_pairing_wifi_ssid
+  password: !secret node_pairing_wifi_password
+  enable_on_boot: false
+  reboot_timeout: 0s
+
+mdns:
+
+external_components:
+  - source:
+      type: local
+      path: ../../components
+    components:
+      - greenhouse_pairing_client
+      - greenhouse_profile_activation_lab
+
+# Compile-only assembly. No action or automation can arm the coordinator.
+greenhouse_profile_activation_lab:
+  id: profile_activation_stage2d3
+
+text_sensor:
+  - platform: template
+    name: Profile Activation Phase Stage 2D-3 Lab
+    id: profile_activation_phase_stage2d3
+    internal: true
+    update_interval: 5s
+    lambda: |-
+      return {id(profile_activation_stage2d3).phase_name()};
+
+binary_sensor:
+  - platform: template
+    name: Profile Activation Reboot Required Stage 2D-3 Lab
+    id: profile_activation_reboot_stage2d3
+    internal: true
+    lambda: |-
+      return id(profile_activation_stage2d3).reboot_required();

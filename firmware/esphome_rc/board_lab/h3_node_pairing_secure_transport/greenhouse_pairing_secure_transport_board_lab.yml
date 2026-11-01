@@ -1,0 +1,85 @@
+esphome:
+  name: gh-pairing-secure-transport-lab
+  friendly_name: Greenhouse Pairing Secure Transport Lab
+  min_version: 2026.4.3
+  on_boot:
+    - priority: -100
+      then:
+        - lambda: |-
+            // Stage 2C-2 compile target only: create an in-memory discovery
+            // context but do not contact any real Manager or Broker.
+            id(pairing_client).start_discovery(
+              "11111111-2222-4333-8444-555555555555",
+              "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            );
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: ESP32C6
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_MBEDTLS_PSA_CRYPTO_C: y
+      CONFIG_MBEDTLS_ECP_DP_CURVE25519_ENABLED: y
+      CONFIG_MBEDTLS_CHACHA20_C: y
+      CONFIG_MBEDTLS_POLY1305_C: y
+      CONFIG_MBEDTLS_CHACHAPOLY_C: y
+
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: !secret node_pairing_wifi_ssid
+  password: !secret node_pairing_wifi_password
+  reboot_timeout: 0s
+
+external_components:
+  - source:
+      type: local
+      path: ../../components
+    components:
+      - greenhouse_pairing_client
+
+greenhouse_pairing_client:
+  id: pairing_client
+  hardware_id: ghw-c6-stage2c2-lab
+  pairing_id: aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee
+  pairing_secret: !secret node_pairing_secret
+  max_candidates: 4
+  candidate_ttl_cap: 120s
+  network_enabled: true
+  mdns_enabled: true
+  udp_enabled: true
+  udp_target: 255.255.255.255
+  udp_port: 47111
+  udp_attempts: 3
+  udp_initial_backoff: 250ms
+  mdns_timeout: 1000ms
+  http_timeout: 5000ms
+  response_max_bytes: 16384
+
+status_led:
+  pin:
+    number: GPIO6
+    inverted: false
+
+text_sensor:
+  - platform: template
+    name: Pairing State
+    id: pairing_state
+    update_interval: 2s
+    lambda: |-
+      return {id(pairing_client).state_name()};
+  - platform: template
+    name: Pairing Network Result
+    id: pairing_network_result
+    update_interval: 2s
+    lambda: |-
+      return {id(pairing_client).network_result_name()};
+
+binary_sensor:
+  - platform: template
+    name: RAM Credentials Present
+    id: ram_credentials_present
+    lambda: |-
+      return id(pairing_client).ram_credentials_present();

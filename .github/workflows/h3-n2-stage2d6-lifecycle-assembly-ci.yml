@@ -1,0 +1,229 @@
+name: H3 N2 Stage2D6 Lifecycle Assembly CI
+
+on:
+  pull_request:
+    paths:
+      - "firmware/esphome_rc/components/greenhouse_profile_lifecycle_controller/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_lifecycle_controller/**"
+      - "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_profile_lifecycle_controller_board_lab_20260721_v54.yml"
+      - "protocols/pairing/gh-h3-node-profile-lifecycle-controller-v1.md"
+      - "docs/development/h3-n2-stage2d6-lifecycle-assembly-20260721.md"
+      - "tools/h3_n2_stage2d6_lifecycle_assembly_boundary_gate_20260721_v54.py"
+      - ".github/workflows/h3-n2-stage2d6-lifecycle-assembly-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "firmware/esphome_rc/components/greenhouse_profile_lifecycle_controller/**"
+      - "firmware/esphome_rc/board_lab/h3_profile_lifecycle_controller/**"
+      - "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_h3_profile_lifecycle_controller_board_lab_20260721_v54.yml"
+      - "protocols/pairing/gh-h3-node-profile-lifecycle-controller-v1.md"
+      - "docs/development/h3-n2-stage2d6-lifecycle-assembly-20260721.md"
+      - "tools/h3_n2_stage2d6_lifecycle_assembly_boundary_gate_20260721_v54.py"
+      - ".github/workflows/h3-n2-stage2d6-lifecycle-assembly-ci.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  host-fault-matrix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          show-progress: false
+      - name: Compile Stage 2D-6 lifecycle assembly fault matrix
+        run: |
+          set -euo pipefail
+          pairing=firmware/esphome_rc/components/greenhouse_pairing_client
+          adapter=firmware/esphome_rc/components/greenhouse_profile_production_adapters
+          controller=firmware/esphome_rc/components/greenhouse_profile_lifecycle_controller
+          g++ -std=gnu++20 -Wall -Wextra -Wpedantic -Werror \
+            -I "$pairing" \
+            -I "$adapter" \
+            -I "$controller" \
+            "$pairing/pairing_client_core.cpp" \
+            "$pairing/pairing_transport_core.cpp" \
+            "$pairing/secure_pairing_channel.cpp" \
+            "$pairing/secure_pairing_channel_encoding.cpp" \
+            "$pairing/secure_pairing_channel_crypto.cpp" \
+            "$pairing/pairing_ram_credentials.cpp" \
+            "$pairing/pairing_persistence_backend.cpp" \
+            "$pairing/pairing_persistence_crypto.cpp" \
+            "$pairing/pairing_credential_codec.cpp" \
+            "$pairing/pairing_persistent_store.cpp" \
+            "$pairing/pairing_mqtt_activation_contract.cpp" \
+            "$pairing/pairing_candidate_mqtt_validator.cpp" \
+            "$pairing/pairing_profile_activation_coordinator.cpp" \
+            "$pairing/pairing_profile_lifecycle_integration.cpp" \
+            "$adapter/profile_production_adapters.cpp" \
+            "$controller/profile_lifecycle_controller.cpp" \
+            "$controller/tests/pairing_stage2d6_lifecycle_assembly_fault_matrix_20260721_v54.cpp" \
+            -lcrypto \
+            -o /tmp/stage2d6-lifecycle-assembly-fault-matrix-v54
+      - name: Run Stage 2D-6 lifecycle assembly fault matrix
+        run: /tmp/stage2d6-lifecycle-assembly-fault-matrix-v54
+      - name: Verify Stage 2D-6 source and execution boundaries
+        run: python tools/h3_n2_stage2d6_lifecycle_assembly_boundary_gate_20260721_v54.py
+      - name: Upload Stage 2D-6 boundary diagnostic
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage2d6-lifecycle-assembly-boundary-v54
+          path: /tmp/stage2d6-lifecycle-assembly-boundary-v54.txt
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Cleanup host files
+        if: always()
+        run: |
+          rm -f \
+            /tmp/stage2d6-lifecycle-assembly-fault-matrix-v54 \
+            /tmp/stage2d6-lifecycle-assembly-boundary-v54.txt
+
+  esp32-c6-compile:
+    needs: host-fault-matrix
+    runs-on: ubuntu-24.04
+    timeout-minutes: 38
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install pinned ESPHome
+        run: python -m pip install -q "esphome==2026.4.3"
+      - name: Create ephemeral disabled Wi-Fi secrets
+        run: |
+          python - <<'PY'
+          import secrets
+          from pathlib import Path
+
+          ssid = "ci-stage2d6-" + secrets.token_hex(4)
+          password = secrets.token_urlsafe(24)
+          target = Path(
+              "firmware/esphome_rc/board_lab/h3_profile_lifecycle_controller/secrets.yaml"
+          )
+          target.write_text(
+              "\n".join((
+                  f'node_pairing_wifi_ssid: "{ssid}"',
+                  f'node_pairing_wifi_password: "{password}"',
+                  "",
+              )),
+              encoding="utf-8",
+          )
+          Path("/tmp/stage2d6-ephemeral-values-v54").write_text(
+              ssid + "\n" + password + "\n",
+              encoding="utf-8",
+          )
+          PY
+      - name: Compile minimal ESP32-C6 lifecycle controller target
+        shell: bash
+        run: |
+          set -o pipefail
+          cd firmware/esphome_rc/board_lab/h3_profile_lifecycle_controller
+          esphome config greenhouse_profile_lifecycle_controller_board_lab_20260721_v54.yml 2>&1 | tee /tmp/stage2d6-minimal-config-v54.log
+          esphome compile greenhouse_profile_lifecycle_controller_board_lab_20260721_v54.yml 2>&1 | tee /tmp/stage2d6-minimal-compile-v54.log
+      - name: Compile full RC2 product-board lifecycle controller target
+        shell: bash
+        run: |
+          set -o pipefail
+          cd firmware/esphome_rc/f1_0_rc2
+          RC2_CONFIG=f1_0_rc2_h3_profile_lifecycle_controller_board_lab_20260721_v54.yml bash tools/rc2.sh config 2>&1 | tee /tmp/stage2d6-product-config-v54.log
+          RC2_CONFIG=f1_0_rc2_h3_profile_lifecycle_controller_board_lab_20260721_v54.yml bash tools/rc2.sh compile 2>&1 | tee /tmp/stage2d6-product-compile-v54.log
+      - name: Verify compile evidence and secret redaction
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          values = Path("/tmp/stage2d6-ephemeral-values-v54").read_text(
+              encoding="utf-8"
+          ).splitlines()
+          logs = "\n".join(
+              Path(path).read_text(encoding="utf-8", errors="replace")
+              for path in (
+                  "/tmp/stage2d6-minimal-config-v54.log",
+                  "/tmp/stage2d6-minimal-compile-v54.log",
+                  "/tmp/stage2d6-product-config-v54.log",
+                  "/tmp/stage2d6-product-compile-v54.log",
+              )
+          )
+          if any(value and value in logs for value in values):
+              raise SystemExit("ephemeral Stage 2D-6 Wi-Fi value appeared in output")
+          evidence = (
+              "profile_lifecycle_controller.cpp.o",
+              "INFO Successfully compiled program.",
+          )
+          missing = [item for item in evidence if logs.count(item) < 2]
+          if missing:
+              raise SystemExit(f"Stage 2D-6 compile evidence missing: {missing}")
+          forbidden = (
+              "BEGIN CERTIFICATE",
+              "broker.greenhouse.local",
+              "192.168.",
+              "ghs_",
+              "pairing_secret",
+              "hmac_key_id",
+              "nvs_namespace",
+          )
+          leaked = [item for item in forbidden if item in logs]
+          if leaked:
+              raise SystemExit(f"Stage 2D-6 credential-like output present: {leaked}")
+          PY
+      - name: Build redacted failure diagnostic
+        if: failure()
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          values_path = Path("/tmp/stage2d6-ephemeral-values-v54")
+          values = (
+              values_path.read_text(encoding="utf-8").splitlines()
+              if values_path.exists()
+              else []
+          )
+          sections = []
+          for source in (
+              "/tmp/stage2d6-minimal-config-v54.log",
+              "/tmp/stage2d6-minimal-compile-v54.log",
+              "/tmp/stage2d6-product-config-v54.log",
+              "/tmp/stage2d6-product-compile-v54.log",
+          ):
+              path = Path(source)
+              if not path.exists():
+                  continue
+              text = path.read_text(encoding="utf-8", errors="replace")
+              for value in values:
+                  if value:
+                      text = text.replace(value, "<REDACTED_EPHEMERAL_VALUE>")
+              sections.append(f"===== {path.name} =====\n{text}")
+          Path("/tmp/stage2d6-redacted-failure-v54.log").write_text(
+              "\n".join(sections) or "No compile log was created.\n",
+              encoding="utf-8",
+          )
+          PY
+      - name: Upload redacted failure diagnostic
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage2d6-redacted-failure-v54
+          path: /tmp/stage2d6-redacted-failure-v54.log
+          if-no-files-found: error
+          retention-days: 7
+      - name: Cleanup Stage 2D-6 files
+        if: always()
+        run: |
+          rm -f \
+            firmware/esphome_rc/board_lab/h3_profile_lifecycle_controller/secrets.yaml \
+            /tmp/stage2d6-ephemeral-values-v54 \
+            /tmp/stage2d6-redacted-failure-v54.log \
+            /tmp/stage2d6-minimal-config-v54.log \
+            /tmp/stage2d6-minimal-compile-v54.log \
+            /tmp/stage2d6-product-config-v54.log \
+            /tmp/stage2d6-product-compile-v54.log

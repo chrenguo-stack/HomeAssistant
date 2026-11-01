@@ -1,0 +1,79 @@
+substitutions:
+  device_name: gh-h3-mqtt-val-lab
+  project_version: "F1.0-RC2-H3-CANDIDATE-MQTT-VALIDATOR-LAB"
+  soil_read_interval: 20s
+  soil_warmup_time: 15s
+  scd30_update_interval: 11s
+  battery_divider_ratio: "2.0"
+  battery_calibration_factor: "1.000"
+  battery_low_threshold: "3.00"
+  battery_recovery_threshold: "3.50"
+
+esp32:
+  framework:
+    advanced:
+      include_builtin_idf_components:
+        - mqtt
+    sdkconfig_options:
+      CONFIG_MBEDTLS_PSA_CRYPTO_C: y
+      CONFIG_MBEDTLS_ECP_DP_CURVE25519_ENABLED: y
+      CONFIG_MBEDTLS_CHACHA20_C: y
+      CONFIG_MBEDTLS_POLY1305_C: y
+      CONFIG_MBEDTLS_CHACHAPOLY_C: y
+
+external_components:
+  - source:
+      type: local
+      path: ../15_1_2_rs485_modbus_echo_filter/my_components
+    components:
+      - echo_filtered_modbus
+  - source:
+      type: local
+      path: ../components
+    components:
+      - greenhouse_pairing_client
+      - greenhouse_candidate_mqtt_lab
+
+packages:
+  core: !include packages/core.yml
+  control: !include packages/control.yml
+  buses: !include packages/buses.yml
+  sensors: !include packages/sensors.yml
+  display: !include packages/display.yml
+
+# Dedicated non-production product-PCB compile target for Stage 2D-2. The
+# wrapper receives no credentials, does not auto-start, and cannot replace the
+# production MQTT profile.
+greenhouse_candidate_mqtt_lab:
+  id: candidate_mqtt_validator_stage2d2
+  probe_timeout: 15s
+
+text_sensor:
+  - platform: template
+    name: "Candidate MQTT Phase Stage 2D-2 Lab"
+    id: candidate_mqtt_phase_stage2d2
+    internal: true
+    update_interval: 5s
+    lambda: |-
+      return {id(candidate_mqtt_validator_stage2d2).phase_name()};
+  - platform: template
+    name: "Candidate MQTT Failure Stage 2D-2 Lab"
+    id: candidate_mqtt_failure_stage2d2
+    internal: true
+    update_interval: 5s
+    lambda: |-
+      return {id(candidate_mqtt_validator_stage2d2).failure_name()};
+
+binary_sensor:
+  - platform: template
+    name: "Candidate MQTT Active Profile Unchanged Stage 2D-2 Lab"
+    id: candidate_mqtt_active_unchanged_stage2d2
+    internal: true
+    lambda: |-
+      return id(candidate_mqtt_validator_stage2d2).active_profile_unchanged();
+  - platform: template
+    name: "Candidate MQTT Client Live Stage 2D-2 Lab"
+    id: candidate_mqtt_client_live_stage2d2
+    internal: true
+    lambda: |-
+      return id(candidate_mqtt_validator_stage2d2).candidate_client_live();

@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hahub.top/schemas/gh.n3w-p5-evidence-1.schema.json",
+  "title": "N3-W P5 two-board isolated E2E evidence v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "status", "authorization_id", "repository", "execution_package_sha256", "roles", "firmware", "toolchain", "secret_fingerprints", "isolated_network", "manager_stack", "matrix", "cleanup", "secret_values_included"],
+  "properties": {
+    "schema": {"const": "gh.n3w-p5-evidence/1"},
+    "status": {"enum": ["PASS", "FAIL"]},
+    "authorization_id": {"type": "string", "minLength": 16},
+    "repository": {
+      "type": "object",
+      "required": ["main_sha", "execution_head_sha", "pr_number"],
+      "properties": {
+        "main_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "execution_head_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "pr_number": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": false
+    },
+    "execution_package_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "roles": {
+      "type": "object",
+      "required": ["child", "relay"],
+      "properties": {
+        "child": {"$ref": "#/$defs/board_role"},
+        "relay": {"$ref": "#/$defs/board_role"}
+      },
+      "additionalProperties": false
+    },
+    "firmware": {
+      "type": "object",
+      "required": ["child", "relay"],
+      "properties": {
+        "child": {"$ref": "#/$defs/firmware_digest"},
+        "relay": {"$ref": "#/$defs/firmware_digest"}
+      },
+      "additionalProperties": false
+    },
+    "toolchain": {
+      "type": "object",
+      "required": ["board", "variant", "flash_size", "framework", "esphome_version", "build_fingerprint_sha256"],
+      "properties": {
+        "board": {"const": "esp32-c6-devkitm-1"},
+        "variant": {"const": "ESP32C6"},
+        "flash_size": {"const": "8MB"},
+        "framework": {"const": "esp-idf"},
+        "esphome_version": {"const": "2026.4.3"},
+        "build_fingerprint_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "secret_fingerprints": {
+      "type": "object",
+      "required": ["pmk_sha256", "lmk_sha256", "application_epoch_1_sha256", "application_epoch_2_sha256", "wifi_psk_sha256", "mqtt_bundle_sha256"],
+      "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+    },
+    "isolated_network": {
+      "type": "object",
+      "required": ["wifi_channel", "network_fingerprint_sha256", "production_routes_present"],
+      "properties": {
+        "wifi_channel": {"type": "integer", "minimum": 1, "maximum": 14},
+        "network_fingerprint_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "production_routes_present": {"const": false}
+      },
+      "additionalProperties": true
+    },
+    "manager_stack": {
+      "type": "object",
+      "required": ["container_image_digests", "db_before_sha256", "db_after_sha256", "ha_registry_before_sha256", "ha_registry_after_sha256"],
+      "additionalProperties": true
+    },
+    "matrix": {
+      "type": "object",
+      "required": ["direct_to_relay", "relay_to_direct", "identity_continuity", "duplicate_reorder_late", "child_restart", "relay_restart", "manager_restart", "lease_replay_persistence", "auth_revoke", "key_rotation", "broker_outage_recovery"],
+      "additionalProperties": {"enum": ["PASS", "FAIL"]}
+    },
+    "cleanup": {
+      "type": "object",
+      "required": ["isolated_stack_stopped", "private_keys_destroyed", "private_credentials_destroyed", "temporary_plaintext_destroyed", "production_unchanged"],
+      "additionalProperties": {"type": "boolean"}
+    },
+    "sanitized_trace_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "sanitized_serial_log_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "secret_values_included": {"const": false}
+  },
+  "$defs": {
+    "board_role": {
+      "type": "object",
+      "required": ["role", "mac", "logical_id"],
+      "properties": {
+        "role": {"enum": ["child", "relay"]},
+        "mac": {"type": "string", "pattern": "^[0-9a-f]{2}(:[0-9a-f]{2}){5}$"},
+        "logical_id": {"type": "string", "minLength": 3, "maxLength": 64}
+      },
+      "additionalProperties": false
+    },
+    "firmware_digest": {
+      "type": "object",
+      "required": ["bin_sha256", "elf_sha256", "map_sha256"],
+      "properties": {
+        "bin_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "elf_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "map_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

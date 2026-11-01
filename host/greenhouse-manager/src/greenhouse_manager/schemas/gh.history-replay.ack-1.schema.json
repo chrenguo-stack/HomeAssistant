@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hahub.top/schemas/gh.history-replay.ack-1.schema.json",
+  "title": "Greenhouse historical telemetry replay acknowledgement v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "node_id",
+    "batch_id",
+    "page_index",
+    "page_count",
+    "status",
+    "committed",
+    "records_total",
+    "inserted_records",
+    "duplicate_records",
+    "next_page_index",
+    "processed_at"
+  ],
+  "properties": {
+    "schema": {"const": "gh.history-replay.ack/1"},
+    "node_id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "batch_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "page_index": {"type": "integer", "minimum": 0, "maximum": 4095},
+    "page_count": {"type": "integer", "minimum": 1, "maximum": 4096},
+    "status": {"enum": ["accepted", "duplicate", "rejected"]},
+    "committed": {"type": "boolean"},
+    "records_total": {"type": "integer", "minimum": 0, "maximum": 256},
+    "inserted_records": {"type": "integer", "minimum": 0, "maximum": 256},
+    "duplicate_records": {"type": "integer", "minimum": 0, "maximum": 256},
+    "next_page_index": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "maximum": 4095
+    },
+    "processed_at": {"type": "string", "format": "date-time"},
+    "reason": {"type": "string", "minLength": 1, "maxLength": 512}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "rejected"}}},
+      "then": {
+        "properties": {"committed": {"const": false}},
+        "required": ["reason"]
+      },
+      "else": {"properties": {"committed": {"const": true}}}
+    }
+  ]
+}

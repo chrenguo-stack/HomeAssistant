@@ -1,0 +1,65 @@
+{
+  "schema": "gh.n3w-t1-f2-fresh-readonly-preflight-execution-package/1",
+  "gate_id": "N3W_T1_PER_DEVICE_FRESH_ARMBIAN_AUTOMATED_DEPLOYMENT_F2_FRESH_T1_READONLY_PREFLIGHT_20261014_01",
+  "base_main": "3e05e82a7d7e871d2966e78e8cb5caff601a0152",
+  "expected_target": {
+    "os_release": {
+      "ID": "ubuntu",
+      "VERSION_ID": "26.04",
+      "VERSION_CODENAME": "resolute",
+      "PRETTY_NAME": "Armbian OS 26.05.0 resolute"
+    },
+    "armbian_release": {
+      "BOARD": "S912-Phicomm-T1",
+      "BOARD_NAME": "Aml.S912",
+      "VERSION": "26.05.0",
+      "BRANCH": "current",
+      "ARCH": "arm64",
+      "IMAGE_TYPE": "rebuild"
+    },
+    "architecture_family": [
+      "arm64",
+      "aarch64"
+    ]
+  },
+  "source_binding": {
+    "os_identity_probe_blob_sha": "26a2f47c9c83fef5637f551ea75ba6b5d5ba3866",
+    "minimal_inventory_blob_sha": "073bbc936cef3648411a95023a59d6b7e04d4a32",
+    "fresh_product_staging_host_blob_sha": "47718484ecffc2e4e7cab9505a1833cf7f5c8d7a",
+    "fresh_host_baseline_blob_sha": "ae7d114bd54825114f462b4f7034ed6009f80f6f"
+  },
+  "execution_authority": {
+    "exact_source_head_required": true,
+    "clean_tracked_worktree_required": true,
+    "exact_artifact_binding_required": true,
+    "artifact_source_must_be_ancestor": true,
+    "confirmation": "READONLY FRESH T1 PREFLIGHT: YES",
+    "t1_access_after_source_ci": true,
+    "t1_mutation": false,
+    "t1_file_write": false,
+    "live_runtime_mutation": false,
+    "systemd_live_mutation": false,
+    "production_service_start": false,
+    "authorization_claim": false,
+    "f3_authorized": false,
+    "board_access": false,
+    "merge": false
+  },
+  "evidence": {
+    "private_local_root_required": true,
+    "private_root_mode": "0700",
+    "private_file_mode": "0600",
+    "raw_target_public_output": false,
+    "secret_values_included": false
+  },
+  "pass_contract": {
+    "exact_target_release": true,
+    "first_boot_readiness": true,
+    "network_dns_time_ready": true,
+    "product_state_absent": true,
+    "transaction_authorization_staging_residue_absent": true,
+    "docker_ready_or_approved_packages_installable": true,
+    "transport_capacity_pass": true,
+    "f3_authorization_granted": false
+  }
+}

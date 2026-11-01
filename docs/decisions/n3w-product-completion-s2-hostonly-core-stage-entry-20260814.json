@@ -1,0 +1,58 @@
+{
+  "schema": "gh.n3w-product-completion-s2-hostonly-core-stage-entry/1",
+  "authorization": "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S2-HOSTONLY-CORE-DEVELOPMENT-20260814-01",
+  "status": "AUTHORIZED_IN_PROGRESS",
+  "repository": "chrenguo-stack/HomeAssistant",
+  "base_ref": "main",
+  "base_sha": "c671c994064658e93321917c1efc75663ad65781",
+  "base_tree": "a5095f306df2eb055843a8f63fad73756d76b644",
+  "dependency": {
+    "s0_scope_discovery": "PASS",
+    "s1_contract_freeze": "FROZEN",
+    "s1_contract_count": 8,
+    "existing_n3w_protocol_reliability_baseline_preserved": true,
+    "pr315_pr316_reopen_required": false
+  },
+  "mode": "HOST_ONLY_CORE_DEVELOPMENT",
+  "implementation_scope": {
+    "wifi_direct_failure_detector": true,
+    "candidate_table": true,
+    "manager_verified_eligibility_filter": true,
+    "candidate_scoring": true,
+    "candidate_hysteresis": true,
+    "automatic_path_state_machine": true,
+    "dynamic_peer_lifecycle_metadata": true,
+    "simulated_dynamic_discovery": true,
+    "runtime_pairwise_crypto": false,
+    "espnow_radio_driver_integration": false,
+    "manager_api_integration": false,
+    "product_firmware_activation": false
+  },
+  "design_boundaries": {
+    "advertisement_is_untrusted": true,
+    "manager_verified_eligibility_required_before_selection": true,
+    "candidate_direct_uplink_required": true,
+    "relay_failover_clears_failed_peer_hysteresis": true,
+    "dynamic_peer_authorization_binds_gateway_mac_channel_and_generation": true,
+    "dynamic_peer_authorization_is_short_lived": true,
+    "dynamic_peer_core_stores_real_lmk": false,
+    "manual_path_commands_used": false,
+    "path_state_owns_canonical_sequence": false
+  },
+  "safety_boundary": {
+    "board_access": false,
+    "usb_serial_access": false,
+    "flash_or_erase": false,
+    "ota": false,
+    "espnow_rf": false,
+    "lora_rf": false,
+    "t1_access": false,
+    "manager_runtime_mutation": false,
+    "mqtt_broker_mutation": false,
+    "home_assistant_mutation": false,
+    "production_mutation": false,
+    "real_peer_key_material": false,
+    "n3l_started": false
+  },
+  "next_stage_after_s2": "S3_DISCONNECTED_ESPNOW_DISCOVERY_RUNTIME"
+}

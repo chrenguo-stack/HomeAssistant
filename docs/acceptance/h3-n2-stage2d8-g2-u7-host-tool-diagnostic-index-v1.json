@@ -1,0 +1,24 @@
+{
+  "schema": "gh.h3.n2.stage2d8-g2-u7-host-tool-diagnostic-index/1",
+  "stage": "H3/N2 Stage 2D-8 G2",
+  "task_id": "U7_STAGE2D8_G2_ESPTOOL_ENVIRONMENT_DIAGNOSTIC",
+  "status": "ready",
+  "script_name": "stage2d8_g2_esptool_environment_diagnostic_20260722_v2.py",
+  "script_sha256": "086460c282470e59a5c1f941cb8a8fdeec082750ded48c1ccc23b4fd0c4a3f21",
+  "risk_class": "A",
+  "board_access_required": false,
+  "serial_access_attempted": false,
+  "flash_operation_attempted": false,
+  "network_operation_attempted": false,
+  "efuse_operation_attempted": false,
+  "production_environment_modified": false,
+  "retired_d2_replay_permitted": false,
+  "expected_return": [
+    "Python executable and version",
+    "esptool distribution and module version",
+    "module version command return code and output",
+    "console version command return code and output",
+    "help command return codes"
+  ],
+  "next_gate": "new D2 only after root-cause closure and corrected execution-chain review"
+}

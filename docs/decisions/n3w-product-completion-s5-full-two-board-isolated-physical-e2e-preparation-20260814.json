@@ -1,0 +1,153 @@
+{
+  "schema": "gh.n3w-product-completion-s5-full-two-board-isolated-physical-e2e-preparation/1",
+  "date": "2026-08-14",
+  "authorization": "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-FULL-TWO-BOARD-ISOLATED-PHYSICAL-E2E-PREPARATION-20260814-01",
+  "repository": "chrenguo-stack/HomeAssistant",
+  "pull_request": 322,
+  "branch": "feature/n3w-product-completion-s5-two-board-isolated-20260814-v1",
+  "base_main": "38c3b692d4ebe90d0040c732b6c0313fdfdc1ef6",
+  "starting_head": "eb2fdc795850fedd4f49ce3fbba8cd03a4548de9",
+  "runtime_implementation_head": "660acf72b701d9ff8e3a881e97e5d15357286786",
+  "public_preparation_checkpoint_before_blocker_archive": "be1144f91fc338ef4a889a81472d4b9c67b8af53",
+  "status": "PUBLIC_PREPARATION_BLOCKED_MANAGER_TRANSPORT_IMPLEMENTATION_REQUIRED",
+  "classification": {
+    "s5_driver_initialization_crash_fix": "PHYSICAL_VERIFIED",
+    "s5_ab_host_compile": "PASS",
+    "s5_c_host_compile": "PASS",
+    "s5_d_lifecycle_negative_host_matrix": "PASS",
+    "s5_physical_preparation_public_contract": "PASS_WITH_IMPLEMENTATION_BLOCKER",
+    "s5_full_two_board_e2e": "PENDING"
+  },
+  "preparation_scope": {
+    "public_package_generator": true,
+    "sanitized_execution_manifest_contract": true,
+    "physical_acceptance_matrix": true,
+    "abort_and_cleanup_contract": true,
+    "host_only_preparation_ci": true,
+    "s5_d_successor_ci_lineage_compatibility_only": true,
+    "private_package_materialization_requires_local_operator": true,
+    "private_package_materialization_ready": false,
+    "physical_execution_authorization_ready": false,
+    "physical_execution_authorized": false
+  },
+  "readiness_audit": {
+    "public_relay_profile_is_inert": true,
+    "board_integration_accepts_external_s5_manager_port": true,
+    "concrete_board_s5_manager_transport_present": false,
+    "isolated_manager_opens_network_transport": false,
+    "concrete_relay_to_isolated_manager_telemetry_transport_present": false,
+    "physical_package_can_currently_execute_required_manager_grant_and_telemetry_path": false
+  },
+  "blocking_findings": [
+    {
+      "id": "S5-PREP-B01",
+      "finding": "The board integration requires an externally supplied ProductS5ManagerPort for Relay S5 authorization, but the frozen implementation contains no concrete board transport that supplies Manager-aligned authority time, publishes the existing S4 peer-authorization request, receives the Manager response, and returns both grants to the coordinator.",
+      "impact": "A private package created now could boot the compiled S5 runtime but could not complete the required physical Manager grant path without adding unbound ad-hoc live code."
+    },
+    {
+      "id": "S5-PREP-B02",
+      "finding": "N3wProductIsolatedManager is deliberately non-live and opens no socket or MQTT client. The frozen Relay telemetry bridge accepts an external RelayForwardSink, but no concrete isolated physical Relay-to-Manager transport is bound in the public S5 board assembly.",
+      "impact": "Child-to-Relay reliable ESP-NOW can be compiled, but the required Relay-to-isolated-Manager physical telemetry hop is not yet a reproducible product path."
+    }
+  ],
+  "required_successor_repair": {
+    "scope": "HOST_COMPILE_ONLY_NO_LIVE_EXECUTION",
+    "requirements": [
+      "add an opt-in isolated Relay Manager transport using the existing S4 authorization topics and request/response schema",
+      "supply Manager-aligned epoch time without treating endpoint monotonic uptime as Unix epoch",
+      "deliver decoded child_grant and relay_grant to the existing ProductS5PeerCoordinator",
+      "add an opt-in RelayForwardSink that forwards the existing gh.relay/1 frame to the existing isolated Manager ingress topic without defining a second telemetry schema",
+      "keep normal production Manager startup and public board profiles unchanged and inert",
+      "compile the exact ESP32-C6 Relay target with the transport present but disabled by default",
+      "prove host-side topic/schema/grant/telemetry compatibility with existing S4 and S5-C authorities",
+      "perform no board, RF, Wi-Fi, MQTT-network, T1, or production execution"
+    ]
+  },
+  "private_inputs_required_at_materialization": {
+    "child_self_credentials": [
+      "system_id",
+      "node_id",
+      "credential_generation",
+      "key_epoch",
+      "application_key_hex",
+      "local_mac"
+    ],
+    "relay_self_credentials": [
+      "system_id",
+      "node_id",
+      "credential_generation",
+      "key_epoch",
+      "application_key_hex",
+      "local_mac"
+    ],
+    "child_firmware_binary": true,
+    "relay_firmware_binary": true,
+    "isolated_manager_state_bundle": true,
+    "fresh_espnow_pmk_generated_only_inside_private_package": true
+  },
+  "forbidden_factory_or_public_material": [
+    "peer_mac",
+    "peer_node_id",
+    "gateway_id",
+    "pair_lmk",
+    "fixed_peer_relationship",
+    "wifi_credentials",
+    "production_endpoint"
+  ],
+  "physical_acceptance_matrix": [
+    "relay_advertisement_is_observed_only_as_untrusted_hint",
+    "manager_rejects_unregistered_cross_system_stale_and_replayed_authorization_requests",
+    "child_and_relay_each_verify_own_manager_grant",
+    "child_and_relay_independently_derive_same_nonzero_pair_specific_16_byte_lmk",
+    "automatic_encrypted_peer_installation",
+    "child_relayframe_reaches_isolated_manager_using_existing_gh_relay_1_and_gh_telemetry_1_contracts",
+    "node_id_boot_id_sequence_dedup_and_home_assistant_device_identity_continuity",
+    "finite_grant_expiry_removes_dynamic_peer",
+    "exact_authorization_id_revoke_removes_dynamic_peer",
+    "duplicate_replay_stale_and_credential_mismatch_fail_closed",
+    "child_restart_clears_transient_peer_and_key_state_then_can_recover",
+    "relay_restart_clears_transient_peer_and_key_state_then_can_recover",
+    "old_gateway_bound_retry_cache_is_not_rehomed_to_a_different_relay",
+    "private_artifacts_are_deleted_after_evidence_freeze",
+    "both_boards_finish_in_rom_bootloader_with_rf_stopped"
+  ],
+  "abort_criteria": [
+    "source_or_firmware_digest_mismatch",
+    "board_binding_mismatch",
+    "private_input_permission_violation",
+    "unexpected_wifi_or_production_route_use",
+    "unexpected_board_reset_or_crash",
+    "manager_authority_clock_unavailable",
+    "grant_or_identity_binding_mismatch",
+    "unexpected_peer_or_lmk_persistence_after_removal",
+    "any_attempt_to_reuse_a_previous_one_shot_package_or_secret"
+  ],
+  "cleanup_contract": [
+    "stop_test_applications_and_espnow_rf",
+    "return_child_and_relay_to_rom_bootloader_no_reset",
+    "delete_private_credentials_copies",
+    "delete_fresh_pmk_and_any_runtime_lmk_material",
+    "delete_private_manager_state_copy",
+    "delete_private_firmware_package_and_raw_serial_logs_after_sanitized_evidence_freeze",
+    "preserve_only_secret_free_public_result_and_digest_bindings"
+  ],
+  "not_authorized": {
+    "erase": true,
+    "flash": true,
+    "ota": true,
+    "serial": true,
+    "usb_jtag_board_access": true,
+    "espnow_rf": true,
+    "wifi_connection": true,
+    "real_mqtt_network_e2e": true,
+    "spare_t1_runtime": true,
+    "production_t1": true,
+    "production_manager_broker_ha_mutation": true,
+    "pr_merge": true,
+    "release": true,
+    "deployment": true,
+    "n3l": true
+  },
+  "ci_compatibility_note": "The S5-D implementation remains frozen at 660acf72b701d9ff8e3a881e97e5d15357286786. The S5-D workflow may change only to recognize this explicitly authorized physical-preparation successor and rerun the frozen S5-D regression matrix; this does not expand runtime or physical scope.",
+  "next_gate": "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-ISOLATED-MANAGER-TRANSPORT-HOST-COMPILE-IMPLEMENTATION-20260814-01"
+}

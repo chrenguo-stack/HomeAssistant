@@ -1,0 +1,320 @@
+name: N3W T1 fresh install exact ARM64 CI
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, labeled, unlabeled, edited]
+    paths:
+      - ".github/workflows/n3w-t1-fresh-install-exact-arm64-ci.yml"
+      - "host/greenhouse-manager/Dockerfile"
+      - "host/greenhouse-manager/pyproject.toml"
+      - "host/greenhouse-manager/README.md"
+      - "host/greenhouse-manager/src/**"
+      - "infra/n3w-t1/production/**"
+      - "infra/n3w-t1/broker/mosquitto.conf"
+      - "infra/n3w-t1/homeassistant/**"
+      - "tools/n3w_t1_clean_product_deployment_gate.py"
+      - "tests/tools/test_n3w_t1_clean_product_deployment_gate.py"
+      - "tests/tools/test_n3w_ha_mqtt_bootstrap_isolated_runtime.py"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/n3w-t1-fresh-install-exact-arm64-ci.yml"
+      - "host/greenhouse-manager/Dockerfile"
+      - "host/greenhouse-manager/pyproject.toml"
+      - "host/greenhouse-manager/README.md"
+      - "host/greenhouse-manager/src/**"
+      - "infra/n3w-t1/production/**"
+      - "infra/n3w-t1/broker/mosquitto.conf"
+      - "infra/n3w-t1/homeassistant/**"
+      - "tools/n3w_t1_clean_product_deployment_gate.py"
+      - "tests/tools/test_n3w_t1_clean_product_deployment_gate.py"
+      - "tests/tools/test_n3w_ha_mqtt_bootstrap_isolated_runtime.py"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  exact-three-image:
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.draft == false ||
+      contains(github.event.pull_request.labels.*.name, 'ci-ready') ||
+      contains(github.event.pull_request.body, 'CI_READY=true')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      SOURCE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      HA_SOURCE_IMAGE: ghcr.io/home-assistant/home-assistant:2026.10.0
+      HA_ARM64_DIGEST: sha256:0c73235a9140a9b02e4bf618d06d8c496b12ae70656ecddb0e02ad31ad122be4
+      HA_EXPECTED_IMAGE_ID: sha256:b0e1ee82adfb19fa1ff3049034535633b1c4f0df6606721c0e77383854b99879
+      BROKER_SOURCE_IMAGE: m.daocloud.io/docker.io/library/eclipse-mosquitto:2.1.2-alpine
+      BROKER_FALLBACK_IMAGE: docker.io/library/eclipse-mosquitto:2.1.2-alpine
+      BROKER_ARM64_DIGEST: sha256:3184566df484a083411a0e70e92c87a264b8f0648df632f10eb23d54d99f4549
+      BROKER_EXPECTED_IMAGE_ID: sha256:4c199d7c9d377d018313a2199f6839978f6fd2219c405ad664d0a830c14b9c7b
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_HEAD }}
+          fetch-depth: 0
+
+      - name: Verify exact checkout
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_HEAD"
+          printf 'SOURCE_HEAD=%s\n' "$SOURCE_HEAD"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: host/greenhouse-manager/pyproject.toml
+
+      - name: Fast source preflight before ARM64 closure
+        working-directory: host/greenhouse-manager
+        run: |
+          set -euo pipefail
+          python -m pip install -e '.[dev]'
+          ruff check .
+          pytest -q
+
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build exact current ARM64 Manager image
+        run: |
+          set -euo pipefail
+          ART="$RUNNER_TEMP/r6-artifact"
+          mkdir -p "$ART"
+          MANAGER_TAG="local/greenhouse-manager:fresh-${SOURCE_HEAD:0:12}"
+          printf 'MANAGER_TAG=%s\n' "$MANAGER_TAG" >> "$GITHUB_ENV"
+          docker buildx build             --platform linux/arm64             --file host/greenhouse-manager/Dockerfile             --tag "$MANAGER_TAG"             --output "type=docker,dest=$ART/greenhouse-manager-arm64.tar"             host/greenhouse-manager
+          docker load -i "$ART/greenhouse-manager-arm64.tar"
+          test "$(docker image inspect "$MANAGER_TAG" --format '{{.Architecture}}/{{.Os}}')" = "arm64/linux"
+          test "$(docker image inspect "$MANAGER_TAG" --format '{{.Config.User}}')" = "greenhouse"
+          test "$(docker image inspect "$MANAGER_TAG" --format '{{json .Config.Entrypoint}}')" = '["greenhouse-manager"]'
+          docker run --rm --platform linux/arm64             --entrypoint python "$MANAGER_TAG" -c             'from greenhouse_manager.bootstrap.fresh_installer import run_fresh_staging; from greenhouse_manager.bootstrap.fresh_product_state import create_fresh_state; from greenhouse_manager.bootstrap.fresh_broker import create_fresh_broker_materials; print("FRESH_HELPERS_IN_EXACT_MANAGER_IMAGE=PASS")'
+
+      - name: Exercise fresh constructors inside exact Manager image
+        run: |
+          set -euo pipefail
+          WORK="$RUNNER_TEMP/r6-bootstrap"
+          mkdir -p "$WORK"
+          docker run --rm --platform linux/arm64 --network none --user 0:0             -v "$WORK:/work"             --entrypoint python "$MANAGER_TAG" -c             'import hashlib; from pathlib import Path; from greenhouse_manager.bootstrap.system_init import initialize_system, INITIALIZATION_CONFIRMATION; from greenhouse_manager.bootstrap.fresh_product_state import create_fresh_state; from greenhouse_manager.bootstrap.fresh_broker import create_fresh_broker_materials; root=Path("/work/candidate"); root.mkdir(mode=0o700); ident=initialize_system(root/"identity", enable=True, confirmation=INITIALIZATION_CONFIRMATION); (root/"manager").mkdir(mode=0o700); (root/"n3w").mkdir(mode=0o700); create_fresh_state(root/"manager", root/"n3w", expected_system_id_sha256=hashlib.sha256(ident.system_id.encode()).hexdigest()); create_fresh_broker_materials(root/"broker", system_id=ident.system_id); print("EXACT_MANAGER_FRESH_CONSTRUCTORS=PASS")'
+          sudo cat "$WORK/candidate/broker/service-credentials/manager/runtime.env" > "$RUNNER_TEMP/r6-runtime.env"
+          ! grep -Eq 'PASSWORD=[^[:space:]]+' "$RUNNER_TEMP/r6-runtime.env"
+          grep -q '^GH_SYSTEM_ID=' "$RUNNER_TEMP/r6-runtime.env"
+          grep -q '^GH_N3W_PAIRING_MANAGER_ID=' "$RUNNER_TEMP/r6-runtime.env"
+
+      - name: Resolve exact external ARM64 images
+        run: |
+          set -euo pipefail
+          ART="$RUNNER_TEMP/r6-artifact"
+          docker pull --platform linux/arm64 "$HA_SOURCE_IMAGE@$HA_ARM64_DIGEST"
+          if docker pull --platform linux/arm64 "$BROKER_SOURCE_IMAGE@$BROKER_ARM64_DIGEST"; then
+            BROKER_MATERIALIZED_IMAGE="$BROKER_SOURCE_IMAGE@$BROKER_ARM64_DIGEST"
+            BROKER_MATERIALIZATION_SOURCE=daocloud
+          else
+            docker pull --platform linux/arm64 "$BROKER_FALLBACK_IMAGE@$BROKER_ARM64_DIGEST"
+            BROKER_MATERIALIZED_IMAGE="$BROKER_FALLBACK_IMAGE@$BROKER_ARM64_DIGEST"
+            BROKER_MATERIALIZATION_SOURCE=docker_hub
+          fi
+          printf 'BROKER_MATERIALIZATION_SOURCE=%s\n' "$BROKER_MATERIALIZATION_SOURCE"
+          docker tag "$HA_SOURCE_IMAGE@$HA_ARM64_DIGEST" local/n3w-homeassistant:2026.10.0-0c73235a
+          docker tag "$BROKER_MATERIALIZED_IMAGE" local/n3w-mosquitto:2.1.2-3184566d
+          test "$(docker image inspect local/n3w-homeassistant:2026.10.0-0c73235a --format '{{.Id}}')" = "$HA_EXPECTED_IMAGE_ID"
+          test "$(docker image inspect local/n3w-mosquitto:2.1.2-3184566d --format '{{.Id}}')" = "$BROKER_EXPECTED_IMAGE_ID"
+          docker save -o "$ART/homeassistant-arm64.tar" local/n3w-homeassistant:2026.10.0-0c73235a
+          docker save -o "$ART/broker-arm64.tar" local/n3w-mosquitto:2.1.2-3184566d
+
+      - name: Validate Broker TLS runtime UID path
+        run: |
+          set -euo pipefail
+          WORK="$RUNNER_TEMP/r6-bootstrap"
+          TLS="$RUNNER_TEMP/r6-broker-runtime-tls"
+          sudo mkdir -p "$TLS"
+          sudo cp "$WORK/candidate/broker/tls/ca.pem" "$TLS/ca.pem"
+          sudo cp "$WORK/candidate/broker/tls/server.pem" "$TLS/server.pem"
+          sudo cp "$WORK/candidate/broker/tls/server.key" "$TLS/server.key"
+          sudo chmod 600 "$TLS/ca.pem" "$TLS/server.pem" "$TLS/server.key"
+          sudo chown -R 1883:1883 "$TLS"
+          sudo chmod 700 "$TLS"
+          docker run --rm --platform linux/arm64 --user 1883:1883 --network none             -v "$TLS:/tls:ro"             --entrypoint sh local/n3w-mosquitto:2.1.2-3184566d             -c 'test -r /tls/ca.pem && test -r /tls/server.pem && test -r /tls/server.key'
+          printf 'BROKER_TLS_RUNTIME_UID_PATH=PASS\n'
+
+      - name: Validate fresh runtime identity and deployment contract
+        run: |
+          set -euo pipefail
+          set -a
+          . "$RUNNER_TEMP/r6-runtime.env"
+          set +a
+          docker compose --profile "*"             -f infra/n3w-t1/production/docker-compose.yml             config --format json > "$RUNNER_TEMP/r6-compose.json"
+          PYTHONPATH=host/greenhouse-manager/src             python tools/n3w_t1_clean_product_deployment_gate.py             --compose-json "$RUNNER_TEMP/r6-compose.json"             --image-lock-json infra/n3w-t1/production/image-lock.json
+          python - "$RUNNER_TEMP/r6-compose.json" "$GH_SYSTEM_ID" <<'PY'
+          import json
+          import sys
+          document = json.load(open(sys.argv[1], encoding="utf-8"))
+          system_id = sys.argv[2]
+          env = document["services"]["manager"]["environment"]
+          assert env["GH_SYSTEM_ID"] == system_id
+          assert env["GH_MQTT_USERNAME"] == f"ghs_{system_id}_manager"
+          assert env["GH_MQTT_CLIENT_ID"] == f"gh-manager-{system_id}"
+          assert env["GH_N3W_PAIRING_MANAGER_ID"] == f"gh-manager-{system_id}"
+          assert env["GH_N3W_PROVISIONING_USERNAME"] == f"ghs_{system_id}_provisioning"
+          assert env["GH_N3W_PROVISIONING_CLIENT_ID"] == f"gh-provisioning-{system_id}"
+          print("FRESH_RUNTIME_IDENTITY_COMPOSE_BINDING=PASS")
+          PY
+
+      - name: Validate exact ARM64 Home Assistant MQTT bootstrap runtime
+        run: |
+          set -euo pipefail
+          docker tag local/n3w-homeassistant:2026.10.0-0c73235a "$HA_SOURCE_IMAGE"
+          docker tag local/n3w-mosquitto:2.1.2-3184566d eclipse-mosquitto:2.1.2-alpine
+          python -m pip install "pytest>=8,<9"
+          python -m pytest -q tests/tools/test_n3w_ha_mqtt_bootstrap_isolated_runtime.py
+          printf 'HA_EXACT_ARM64_CONFIG_FLOW_RUNTIME=PASS\n'
+
+      - name: Build exact three-image binding manifest
+        run: |
+          set -euo pipefail
+          ART="$RUNNER_TEMP/r6-artifact"
+          python - "$ART" "$SOURCE_HEAD" "$MANAGER_TAG" <<'PY'
+          import hashlib
+          import json
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          source_head = sys.argv[2]
+          manager_tag = sys.argv[3]
+
+          def sha(path):
+              digest = hashlib.sha256()
+              with path.open("rb") as stream:
+                  for block in iter(lambda: stream.read(1024 * 1024), b""):
+                      digest.update(block)
+              return digest.hexdigest()
+
+          def image_id(ref):
+              return subprocess.check_output(
+                  ["docker", "image", "inspect", ref, "--format", "{{.Id}}"],
+                  text=True,
+              ).strip()
+
+          manifest = {
+              "schema": "gh.n3w.t1-fresh-exact-arm64-binding/1",
+              "source_head": source_head,
+              "manager": {
+                  "image": manager_tag,
+                  "image_id": image_id(manager_tag),
+                  "tar_sha256": sha(root / "greenhouse-manager-arm64.tar"),
+                  "tar_size_bytes": (root / "greenhouse-manager-arm64.tar").stat().st_size,
+                  "platform": "linux/arm64",
+              },
+              "homeassistant": {
+                  "image": "local/n3w-homeassistant:2026.10.0-0c73235a",
+                  "image_id": image_id("local/n3w-homeassistant:2026.10.0-0c73235a"),
+                  "manifest_digest": "sha256:0c73235a9140a9b02e4bf618d06d8c496b12ae70656ecddb0e02ad31ad122be4",
+                  "tar_sha256": sha(root / "homeassistant-arm64.tar"),
+                  "tar_size_bytes": (root / "homeassistant-arm64.tar").stat().st_size,
+                  "platform": "linux/arm64",
+              },
+              "broker": {
+                  "image": "local/n3w-mosquitto:2.1.2-3184566d",
+                  "image_id": image_id("local/n3w-mosquitto:2.1.2-3184566d"),
+                  "manifest_digest": "sha256:3184566df484a083411a0e70e92c87a264b8f0648df632f10eb23d54d99f4549",
+                  "tar_sha256": sha(root / "broker-arm64.tar"),
+                  "tar_size_bytes": (root / "broker-arm64.tar").stat().st_size,
+                  "platform": "linux/arm64",
+              },
+              "fresh_runtime_identity_binding": True,
+              "node_credential_count": 0,
+              "production_service_start": False,
+              "secret_values_included": False,
+              "t1_access": False,
+              "board_access": False,
+          }
+          (root / "binding.json").write_text(
+              json.dumps(manifest, sort_keys=True, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(manifest, sort_keys=True))
+          PY
+          sudo rm -rf "$RUNNER_TEMP/r6-bootstrap" "$RUNNER_TEMP/r6-broker-runtime-tls"
+
+      - name: Upload exact three-image artifact
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: n3w-t1-fresh-exact-arm64-${{ env.SOURCE_HEAD }}
+          path: ${{ runner.temp }}/r6-artifact/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Download uploaded artifact for exact binding
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ steps.upload.outputs.artifact-id }}
+          path: ${{ runner.temp }}/r6-redownload
+          merge-multiple: true
+
+      - name: Verify uploaded exact binding
+        env:
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          python - "$RUNNER_TEMP/r6-redownload" "$SOURCE_HEAD" "$ARTIFACT_ID" "$ARTIFACT_DIGEST" <<'PY'
+          import hashlib
+          import json
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          source_head = sys.argv[2]
+          artifact_id = sys.argv[3]
+          artifact_digest = sys.argv[4]
+          expected = {
+              "greenhouse-manager-arm64.tar",
+              "homeassistant-arm64.tar",
+              "broker-arm64.tar",
+              "binding.json",
+          }
+          assert {path.name for path in root.iterdir()} == expected
+          binding = json.loads((root / "binding.json").read_text(encoding="utf-8"))
+          assert binding["source_head"] == source_head
+          assert binding["secret_values_included"] is False
+          assert binding["production_service_start"] is False
+          assert binding["t1_access"] is False
+          assert binding["board_access"] is False
+
+          def sha(path):
+              digest = hashlib.sha256()
+              with path.open("rb") as stream:
+                  for block in iter(lambda: stream.read(1024 * 1024), b""):
+                      digest.update(block)
+              return digest.hexdigest()
+
+          assert sha(root / "greenhouse-manager-arm64.tar") == binding["manager"]["tar_sha256"]
+          assert (root / "greenhouse-manager-arm64.tar").stat().st_size == binding["manager"]["tar_size_bytes"]
+          assert sha(root / "homeassistant-arm64.tar") == binding["homeassistant"]["tar_sha256"]
+          assert (root / "homeassistant-arm64.tar").stat().st_size == binding["homeassistant"]["tar_size_bytes"]
+          assert sha(root / "broker-arm64.tar") == binding["broker"]["tar_sha256"]
+          assert (root / "broker-arm64.tar").stat().st_size == binding["broker"]["tar_size_bytes"]
+          print(f"ARTIFACT_ID={artifact_id}")
+          print(f"ARTIFACT_DIGEST={artifact_digest}")
+          print("R6_EXACT_ARM64_POST_UPLOAD_BINDING=PASS")
+          print("T1_ACCESS=false")
+          print("PRODUCTION_SERVICE_START=false")
+          print("BOARD_ACCESS=false")
+          PY

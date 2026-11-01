@@ -1,0 +1,109 @@
+esphome:
+  name: gh-pairing-async-lab
+  friendly_name: Greenhouse Pairing Async Lab
+  min_version: 2026.4.3
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: ESP32C6
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_MBEDTLS_PSA_CRYPTO_C: y
+      CONFIG_MBEDTLS_ECP_DP_CURVE25519_ENABLED: y
+      CONFIG_MBEDTLS_CHACHA20_C: y
+      CONFIG_MBEDTLS_POLY1305_C: y
+      CONFIG_MBEDTLS_CHACHAPOLY_C: y
+
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: !secret node_pairing_wifi_ssid
+  password: !secret node_pairing_wifi_password
+  reboot_timeout: 0s
+
+external_components:
+  - source:
+      type: local
+      path: ../../components
+    components:
+      - greenhouse_pairing_client
+      - greenhouse_pairing_async_lab
+
+greenhouse_pairing_async_lab:
+  id: async_pairing
+  hardware_id: ghw-c6-stage2c3-lab
+  pairing_id: aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee
+  pairing_secret: !secret node_pairing_secret
+  max_candidates: 4
+  candidate_ttl_cap: 120s
+  mdns_enabled: true
+  udp_enabled: true
+  udp_target: 255.255.255.255
+  udp_port: 47111
+  udp_attempts: 3
+  udp_initial_backoff: 250ms
+  mdns_timeout: 1000ms
+  http_timeout: 5000ms
+  response_max_bytes: 16384
+  worker_stack_size: 8192
+  worker_priority: 1
+
+status_led:
+  pin:
+    number: GPIO6
+    inverted: false
+
+button:
+  - platform: template
+    name: Pairing Request Lab
+    id: pairing_request_lab
+    internal: true
+    on_press:
+      - lambda: |-
+          id(async_pairing).request_pairing();
+  - platform: template
+    name: Pairing Cancel Lab
+    id: pairing_cancel_lab
+    internal: true
+    on_press:
+      - lambda: |-
+          id(async_pairing).cancel_pairing();
+
+text_sensor:
+  - platform: template
+    name: Pairing State Lab
+    id: pairing_state_lab
+    internal: true
+    update_interval: 2s
+    lambda: |-
+      return {id(async_pairing).state_name()};
+  - platform: template
+    name: Pairing Async Phase Lab
+    id: pairing_async_phase_lab
+    internal: true
+    update_interval: 2s
+    lambda: |-
+      return {id(async_pairing).async_phase_name()};
+  - platform: template
+    name: Pairing Async Outcome Lab
+    id: pairing_async_outcome_lab
+    internal: true
+    update_interval: 2s
+    lambda: |-
+      return {id(async_pairing).async_outcome_name()};
+
+binary_sensor:
+  - platform: template
+    name: Pairing Worker Active Lab
+    id: pairing_worker_active_lab
+    internal: true
+    lambda: |-
+      return id(async_pairing).async_active();
+  - platform: template
+    name: RAM Credentials Present Lab
+    id: pairing_ram_credentials_lab
+    internal: true
+    lambda: |-
+      return id(async_pairing).ram_credentials_present();

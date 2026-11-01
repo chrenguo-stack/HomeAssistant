@@ -1,0 +1,21 @@
+{
+  "title": "温室历史投影",
+  "config": {
+    "step": {
+      "user": {
+        "title": "配置温室历史投影",
+        "description": "C06-B2A 仅加载未激活的目标账本核心；MQTT 和 Recorder 写入仍保持关闭。",
+        "data": {
+          "system_id": "系统标识"
+        }
+      }
+    },
+    "error": {
+      "invalid_system_id": "系统标识必须由 3 到 64 个字母、数字、下划线或连字符组成。"
+    },
+    "abort": {
+      "single_instance_allowed": "只允许配置一个温室历史投影集成。",
+      "already_configured": "该系统已经完成配置。"
+    }
+  }
+}

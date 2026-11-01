@@ -1,0 +1,83 @@
+{
+  "schema": "gh.n3w-product-completion-s5-ab-host-compile-implementation/1",
+  "stage": "S5_AB_HOST_COMPILE_IMPLEMENTATION",
+  "date": "2026-08-14",
+  "authorization": "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-AB-HOST-COMPILE-IMPLEMENTATION-20260814-01",
+  "authorization_source": "user_explicit_approval",
+  "authorized": true,
+  "status": "AUTHORIZED_IN_PROGRESS",
+  "repository": "chrenguo-stack/HomeAssistant",
+  "pull_request": 322,
+  "branch": "feature/n3w-product-completion-s5-two-board-isolated-20260814-v1",
+  "main_sha": "38c3b692d4ebe90d0040c732b6c0313fdfdc1ef6",
+  "checkpoint_head_sha": "41154e532c4ba00e3c0e4ef86d79b6c8824247fe",
+  "physically_verified_implementation_sha": "ae8dda51998c46bf9ac86dda4ca0219112c378aa",
+  "reference_pr": 321,
+  "reference_pr_head_sha": "d916a25001d87a6f6bafdc8699ccf5b9a92f1039",
+  "reference_review": {
+    "reuse_policy": "selective_file_level_reuse_only_no_merge_no_cherry_pick",
+    "reference_ci_status": "failed_before_test_execution_at_scope_gate",
+    "reference_ci_failure_reason": "scope_allowlist_omitted_n3w_product_manager_wire_h",
+    "reference_code_is_not_treated_as_prevalidated": true
+  },
+  "scope": {
+    "s5_a": [
+      "endpoint_x25519_hkdf_hmac_contract",
+      "manager_grant_verification",
+      "pair_specific_16_byte_lmk_derivation",
+      "actual_manager_peer_authorization_service_host_loop",
+      "cross_language_fixed_vectors_and_negative_cases"
+    ],
+    "s5_b": [
+      "untrusted_relay_advertisement_to_provisional_handshake",
+      "pre_authorization_child_relay_handshake_wire",
+      "single_espnow_callback_mux_without_s3_contract_rewrite",
+      "manager_grant_to_existing_s3_runtime_peer_installation",
+      "finite_authorization_expiry_cleanup"
+    ],
+    "validation": [
+      "host_cpp_warning_clean_tests",
+      "manager_python_tests",
+      "existing_child_relay_esp32c6_compile_only_ci",
+      "public_repository_safety_ci"
+    ]
+  },
+  "required_invariants": {
+    "s4_manager_is_only_authorization_authority": true,
+    "advertisement_is_untrusted_hint_only": true,
+    "manager_generates_or_distributes_lmk": false,
+    "each_endpoint_verifies_its_own_manager_grant": true,
+    "each_endpoint_derives_lmk_independently": true,
+    "derived_lmk_is_pair_specific_nonzero_16_bytes": true,
+    "factory_peer_mac_node_id_gateway_id_or_lmk": false,
+    "second_telemetry_schema_added": false,
+    "existing_relayframe_receiptack_replay_and_canonical_sequence_remain_authoritative": true,
+    "public_board_profiles_remain_inert_by_default": true,
+    "previous_physical_packages_or_keys_reused": false
+  },
+  "explicitly_not_authorized": [
+    "erase",
+    "flash",
+    "ota",
+    "serial_access",
+    "usb_jtag_board_access",
+    "espnow_rf_execution",
+    "wifi_connection",
+    "real_mqtt_or_network_e2e_execution",
+    "production_t1_access",
+    "production_manager_broker_home_assistant_mutation",
+    "pr322_merge",
+    "release",
+    "deployment",
+    "n3l"
+  ],
+  "preimplementation_rebaseline": {
+    "main_matches_expected": true,
+    "pr322_open_draft_clean": true,
+    "pr322_head_matches_checkpoint": true,
+    "pr322_applicable_ci_passed": true,
+    "pr321_reference_head_unchanged": true,
+    "production_access": false,
+    "physical_or_rf_execution": false
+  }
+}

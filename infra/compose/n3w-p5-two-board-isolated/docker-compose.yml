@@ -1,0 +1,145 @@
+services:
+  broker-init:
+    image: eclipse-mosquitto:2.0.22
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        rm -f /mosquitto/data/passwords
+        mosquitto_passwd -b -c /mosquitto/data/passwords manager "$${GH_P5_MANAGER_MQTT_PASSWORD}"
+        mosquitto_passwd -b /mosquitto/data/passwords homeassistant "$${GH_P5_HA_MQTT_PASSWORD}"
+        mosquitto_passwd -b /mosquitto/data/passwords p5child "$${GH_P5_CHILD_MQTT_PASSWORD}"
+        mosquitto_passwd -b /mosquitto/data/passwords p5relay "$${GH_P5_RELAY_MQTT_PASSWORD}"
+        mosquitto_passwd -b /mosquitto/data/passwords tester "$${GH_P5_TESTER_MQTT_PASSWORD}"
+        chown 1883:1883 /mosquitto/data/passwords
+        chmod 600 /mosquitto/data/passwords
+    environment:
+      GH_P5_MANAGER_MQTT_PASSWORD: "${GH_P5_MANAGER_MQTT_PASSWORD:?private physical package required}"
+      GH_P5_HA_MQTT_PASSWORD: "${GH_P5_HA_MQTT_PASSWORD:?private physical package required}"
+      GH_P5_CHILD_MQTT_PASSWORD: "${GH_P5_CHILD_MQTT_PASSWORD:?private physical package required}"
+      GH_P5_RELAY_MQTT_PASSWORD: "${GH_P5_RELAY_MQTT_PASSWORD:?private physical package required}"
+      GH_P5_TESTER_MQTT_PASSWORD: "${GH_P5_TESTER_MQTT_PASSWORD:?private physical package required}"
+    volumes:
+      - broker-data:/mosquitto/data
+
+  broker:
+    image: eclipse-mosquitto:2.0.22
+    ports:
+      - "${GH_P5_BROKER_BIND_HOST:-127.0.0.1}:${GH_P5_BROKER_HOST_PORT:-18883}:1883"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./acl:/mosquitto/config/acl:ro
+      - broker-data:/mosquitto/data
+    depends_on:
+      broker-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_pub -h 127.0.0.1 -u tester -P '$${GH_P5_TESTER_MQTT_PASSWORD}' -t gh/p5/health -m ok -q 1 >/dev/null 2>&1"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    environment:
+      GH_P5_TESTER_MQTT_PASSWORD: "${GH_P5_TESTER_MQTT_PASSWORD:?private physical package required}"
+
+  ha-config-init:
+    image: python:3.11-alpine
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        mkdir -p /config/.storage
+        cp /source/configuration.yaml /config/configuration.yaml
+        python - <<'PY'
+        import os
+        from pathlib import Path
+        source = Path('/source/core.config_entries.template.json')
+        target = Path('/config/.storage/core.config_entries')
+        text = source.read_text(encoding='utf-8').replace(
+            '__HA_MQTT_PASSWORD__', os.environ['GH_P5_HA_MQTT_PASSWORD']
+        )
+        target.write_text(text, encoding='utf-8')
+        PY
+        chmod 700 /config/.storage
+        chmod 600 /config/.storage/core.config_entries
+    environment:
+      GH_P5_HA_MQTT_PASSWORD: "${GH_P5_HA_MQTT_PASSWORD:?private physical package required}"
+    volumes:
+      - ./homeassistant:/source:ro
+      - ha-config:/config
+
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:2026.7.1
+    volumes:
+      - ha-config:/config
+    depends_on:
+      broker:
+        condition: service_healthy
+      ha-config-init:
+        condition: service_completed_successfully
+
+  lab-init:
+    build:
+      context: ../../../host/greenhouse-manager
+    image: n3wp5-manager-local
+    user: "0:0"
+    entrypoint: ["python", "/lab_admin.py", "init"]
+    environment:
+      GH_P5_STATE_ROOT: /state
+      GH_P5_NODE_ID: n3wp5_child01
+      GH_P5_GATEWAY_ID: n3wp5_relay01
+      GH_P5_APP_KEY_EPOCH1_HEX: "${GH_P5_APP_KEY_EPOCH1_HEX:?private physical package required}"
+      GH_P5_APP_KEY_EPOCH2_HEX: "${GH_P5_APP_KEY_EPOCH2_HEX:?private physical package required}"
+    volumes:
+      - ./lab_admin.py:/lab_admin.py:ro
+      - manager-state:/state
+
+  manager:
+    build:
+      context: ../../../host/greenhouse-manager
+    image: n3wp5-manager-local
+    environment:
+      GH_SYSTEM_ID: n3wp5lab
+      GH_MQTT_HOST: broker
+      GH_MQTT_PORT: "1883"
+      GH_MQTT_USERNAME: manager
+      GH_MQTT_PASSWORD: "${GH_P5_MANAGER_MQTT_PASSWORD:?private physical package required}"
+      GH_MQTT_CLIENT_ID: n3wp5-manager
+      GH_MQTT_TLS: "false"
+      GH_HA_DISCOVERY_ENABLED: "true"
+      GH_PAIRING_INTAKE_ENABLED: "false"
+      GH_PAIRING_DB_PATH: /state/registration.sqlite3
+      GH_N3W_RUNTIME_ENABLED: "true"
+      GH_N3W_REPLAY_DB_PATH: /state/n3w/replay.sqlite3
+      GH_N3W_RELAY_AUTHORIZATION_DB_PATH: /state/n3w/relay-authorization.sqlite3
+      GH_N3W_RELAY_KEY_DIR: /state/n3w/relay-keys
+      GH_N3W_PATH_STABILITY_WINDOW_S: "5"
+      GH_N3W_PATH_MINIMUM_DISTINCT_FRAMES: "2"
+      GH_N3W_PATH_LEASE_TTL_S: "30"
+      GH_N3W_PATH_OLD_GRACE_S: "5"
+      GH_LOG_LEVEL: INFO
+    volumes:
+      - manager-state:/state
+    depends_on:
+      broker:
+        condition: service_healthy
+      lab-init:
+        condition: service_completed_successfully
+      homeassistant:
+        condition: service_started
+
+  lab-admin:
+    image: n3wp5-manager-local
+    profiles: ["admin"]
+    entrypoint: ["python", "/lab_admin.py"]
+    environment:
+      GH_P5_STATE_ROOT: /state
+      GH_P5_NODE_ID: n3wp5_child01
+      GH_P5_GATEWAY_ID: n3wp5_relay01
+    volumes:
+      - ./lab_admin.py:/lab_admin.py:ro
+      - manager-state:/state
+
+volumes:
+  broker-data:
+  ha-config:
+  manager-state:

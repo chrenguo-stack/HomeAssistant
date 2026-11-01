@@ -1,0 +1,140 @@
+{
+  "schema": "gh.n3w-p5-m10-authorization-revoke-host-only-plan/1",
+  "status": "host_only_contract_ready_live_execution_prohibited",
+  "development_authorization": {
+    "id": "D1-N3W-P5-M10-HOST-ONLY-CONTRACT-TESTS-AND-NO-LIVE-EXECUTION-DEVELOPMENT-20260813-01",
+    "claimed_once": true,
+    "consumed": true,
+    "replay_allowed": false
+  },
+  "base": {
+    "repository": "chrenguo-stack/HomeAssistant",
+    "branch": "main",
+    "commit_sha": "a0583eb978c7d5630379d9859a52ce66e4b1b654",
+    "tree_sha": "d6bf9e96a666a6d2b45f45fc11262768f2b21922"
+  },
+  "matrix_contract": {
+    "id": "M10",
+    "name": "authorization_revoke",
+    "action": "lab admin revoke-grant",
+    "expect": "Relay ingress fail closed and Relay lease invalidated"
+  },
+  "m09_dependency": {
+    "classification": "PASS",
+    "final_freeze_sha256": "a8284bc08fdef68f12eae8afde2e4ef47ae48a297d7ed33048544f94da8d3be6",
+    "manager_restart_attempt_count": 1,
+    "manager_restart_result": "PASS"
+  },
+  "change_scope": {
+    "allowed": [
+      ".github/workflows/n3w-p5-m10-authorization-revoke-host-only-ci.yml",
+      "docs/decisions/n3w-p5-m10-authorization-revoke-host-only-plan.json",
+      "tests/n3w_p5/test_n3w_p5_m10_authorization_revoke_contract.py"
+    ],
+    "manager_product_runtime_change": false,
+    "compose_change": false,
+    "firmware_change": false,
+    "live_executor_added": false,
+    "github_mutation_authorized_by_this_document": false
+  },
+  "revocation_contract": {
+    "authorization_store_commits_first": true,
+    "authorization_denial_is_observed_without_manager_restart": true,
+    "path_cleanup_is_a_separate_durability_domain": true,
+    "path_cleanup_failure_remains_fail_closed": true,
+    "path_cleanup_failure_status": "AUTH_REVOKED_PATH_PENDING",
+    "grant_blocked_while_recovery_pending": true,
+    "active_relay_gateway_replaced_by": "n3w_revoked_hold",
+    "invalidated_lease_expires_at": "1970-01-01T00:00:00.000Z",
+    "matching_candidate_cleared": true,
+    "canonical_cursor_preserved": true,
+    "replay_state_preserved": true,
+    "command_exit_status_alone_is_not_a_pass_gate": true,
+    "recovery_pending_must_be_false_for_pass": true
+  },
+  "host_only_test_contract": {
+    "same_open_authorization_provider_observes_revoke": true,
+    "relay_key_resolution_fails_with_gateway_node_unauthorized": true,
+    "active_relay_lease_is_invalidated": true,
+    "candidate_is_cleared": true,
+    "canonical_and_replay_state_do_not_regress": true,
+    "replay_tuple_remains_consumed": true,
+    "recovery_pending_is_fail_closed": true,
+    "regrant_is_blocked_while_recovery_pending": true,
+    "lab_admin_wiring_is_verified": true,
+    "mqtt_connection_required": false,
+    "docker_connection_required": false,
+    "board_connection_required": false
+  },
+  "future_live_preflight": {
+    "authorized_now": false,
+    "exact_main_and_tree_rebound": false,
+    "m09_freeze_hash_verified": false,
+    "production_route_absent": false,
+    "manager_broker_ha_baseline_captured": false,
+    "sqlite_quick_check_ok": false,
+    "manager_state_volume_binding_verified": false,
+    "active_path_relay_and_candidate_none_verified": false,
+    "child_boot_and_replay_high_water_bound": false,
+    "authorization_grant_enabled_verified": false,
+    "no_pending_authorization_operation_verified": false
+  },
+  "future_live_transaction": {
+    "authorized_now": false,
+    "separate_verbatim_authorization_required": true,
+    "docker_context": "colima-n3wp5r3",
+    "compose_service": "lab-admin",
+    "admin_operation": "revoke-grant",
+    "maximum_revoke_attempts": 1,
+    "automatic_retry": false,
+    "manager_restart": false,
+    "broker_restart": false,
+    "homeassistant_restart": false,
+    "mqtt_publish": false,
+    "child_command": false,
+    "relay_command": false
+  },
+  "future_live_pass_gates": [
+    "exactly_one_revoke_grant_invocation_returned_a_parseable_secret_free_result",
+    "result_status_is_passed_and_recovery_pending_is_false",
+    "gateway_node_grant_is_disabled",
+    "revoke_operation_status_is_done",
+    "authorization_admin_audit_has_zero_pending_operations",
+    "manager_rejects_fresh_relay_ingress_as_gateway_node_unauthorized_without_restart",
+    "active_relay_lease_is_replaced_by_reserved_sentinel_and_expired",
+    "matching_candidate_is_none",
+    "canonical_boot_session_and_sequence_do_not_regress",
+    "replay_high_water_and_consumed_tuples_do_not_regress",
+    "manager_broker_homeassistant_identity_started_at_and_restart_counts_are_unchanged",
+    "production_route_remains_absent",
+    "no_board_boot_or_session_change"
+  ],
+  "failure_and_stop_policy": {
+    "any_failed_preflight_blocks_revoke": true,
+    "nonzero_admin_result_stops": true,
+    "unparseable_admin_result_stops": true,
+    "recovery_pending_true_stops_and_remains_fail_closed": true,
+    "pending_operation_or_path_invalidation_mismatch_stops": true,
+    "second_revoke_without_new_authorization": false,
+    "automatic_recover_or_grant": false,
+    "service_restart_or_recreate": false,
+    "mqtt_path_restart_or_other_publish": false,
+    "board_reset_power_cycle_flash_or_erase": false,
+    "m11_entry": false
+  },
+  "evidence_contract": {
+    "secret_values_included": false,
+    "logical_sqlite_snapshot_is_primary": true,
+    "database_file_hash_is_supporting_only": true,
+    "pre_and_post_timestamps_required": true,
+    "authorization_attempt_count_required": true,
+    "admin_result_and_recovery_pending_required": true,
+    "service_identity_and_restart_counts_required": true,
+    "final_classification_must_be_read_only": true
+  },
+  "next_gate": {
+    "m10_live_allowed": false,
+    "m11_allowed": false,
+    "required_authorization": "D1-N3W-P5-M10-FINAL-READONLY-PREFLIGHT-AND-EXACTLY-ONE-AUTHORIZATION-REVOKE-PLAN-20260813-01"
+  }
+}

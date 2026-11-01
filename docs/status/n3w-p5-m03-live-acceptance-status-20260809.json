@@ -1,0 +1,103 @@
+{
+  "schema": "gh.n3w-p5-m03-live-acceptance-status/1",
+  "status": "N3W_P5_M03_PASS_M04_PENDING_PROHIBITED",
+  "date": "2026-08-09",
+  "repository": {
+    "baseline_main": "ec45cdf249b34b7982aa68cb668805d351046ed6",
+    "proposed_base_branch": "main",
+    "draft_pr_only": true
+  },
+  "n3w_exit": {
+    "ready": false,
+    "completed_through": "M03",
+    "next_required_matrix": "M04",
+    "remaining_matrix": {
+      "M04": "pending_prohibited",
+      "M05": "pending_prohibited",
+      "M06": "pending_prohibited",
+      "M07": "pending_prohibited",
+      "M08": "pending_prohibited",
+      "M09": "pending_prohibited",
+      "M10": "pending_prohibited",
+      "M11": "pending_prohibited",
+      "M12": "pending_prohibited",
+      "M13": "pending_prohibited",
+      "M14": "pending_prohibited"
+    }
+  },
+  "m03_acceptance": {
+    "matrix": "M03",
+    "name": "relay_to_direct",
+    "status": "terminal_pass",
+    "path_before": "Relay",
+    "path_after": "Direct",
+    "path_control_publish_count": 1,
+    "active_gateway_after": null,
+    "boot_identity_preserved": true,
+    "canonical_sequence_monotonic": true,
+    "accepted_tuple_unique": true,
+    "canonical_rollback_observed": false,
+    "post_switch_canonical_continuity_observed": true,
+    "relay_gateway_frames_after_path_publish": 0,
+    "old_path_grace_bounded_within_configured_window": true,
+    "configured_grace_window_seconds": 5,
+    "aead_failure_observed": false,
+    "manager_restart_count": 0,
+    "broker_restart_count": 0,
+    "home_assistant_restart_count": 0,
+    "physical_state_preserved": true,
+    "private_terminal_verified": true,
+    "private_terminal_hash_published": false
+  },
+  "m04_entry_baseline": {
+    "matrix": "M04",
+    "name": "duplicate_handling",
+    "status": "pending_prohibited",
+    "active_path_must_remain": "Direct",
+    "candidate_input": "last_saved_relay_tuple",
+    "expected_gateway_ingress_observation": true,
+    "expected_second_canonical_for_same_tuple": false,
+    "duplicate_invariant": "the resent Relay tuple may reach gateway ingress but must not produce a second canonical record for that tuple",
+    "sequence_interpretation": "global canonical sequence may advance from new Direct telemetry; the M04 invariant is tuple-specific and does not require the global sequence to freeze",
+    "package_generated": false,
+    "package_claimed": false,
+    "execution_started": false,
+    "resend_sent": false,
+    "separate_exact_authorization_required": true
+  },
+  "public_boundary": {
+    "credentials_included": false,
+    "device_identifiers_included": false,
+    "private_evidence_hashes_included": false,
+    "factory_image_hashes_included": false,
+    "private_package_hashes_included": false,
+    "private_terminal_hashes_included": false,
+    "raw_live_traces_included": false,
+    "replayable_authorization_included": false
+  },
+  "preparation_operations": {
+    "live_environment_access": false,
+    "mqtt_publish": false,
+    "path_control": false,
+    "resend": false,
+    "board_access": false,
+    "usb_or_serial_access": false,
+    "flash_erase_or_ota": false,
+    "power_change": false,
+    "service_restart_or_mutation": false,
+    "production_network_access": false,
+    "lab_init": false,
+    "m04_package_generation": false,
+    "ready_for_review": false,
+    "merge": false,
+    "deployment": false,
+    "release": false,
+    "tag": false
+  },
+  "next_gate": {
+    "draft_pr_review_required": true,
+    "exact_head_ci_review_required": true,
+    "m04_package_preparation_requires_separate_authorization": true,
+    "m04_execution_requires_separate_authorization": true
+  }
+}

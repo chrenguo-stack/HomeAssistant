@@ -1,0 +1,70 @@
+{
+  "approval_basis": "explicit project-stage approval",
+  "authorization": "D1-N3W-MANAGER-PERSISTENT-REPLAY-REGISTRY-NONLIVE-DEVELOPMENT-20260807-01",
+  "authorized_at": "2026-08-07T09:17:00+08:00",
+  "base": {
+    "ref": "main",
+    "sha": "2556c89000cc3870231bf1c18d446dee14467bfd"
+  },
+  "exit_gate": [
+    "valid N3-W boot sessions and full uint64 range are accepted",
+    "zero or malformed boot sessions and out-of-range seq fail closed",
+    "higher boot session advances high-water",
+    "lower boot session is rejected",
+    "same replay tuple is duplicate",
+    "state survives Manager process restart",
+    "failed replay insertion rolls back high-water advancement",
+    "concurrent same-tuple commits serialize to accepted plus duplicate",
+    "integrity audit detects corrupt persisted state",
+    "existing greenhouse-manager registration CLI behavior does not regress",
+    "all exact-head CI is completed successfully"
+  ],
+  "invariants": {
+    "board_or_live_execution": false,
+    "commit_rechecks_atomically": true,
+    "full_uint64_boot_session_preserved": true,
+    "inspection_is_non_mutating": true,
+    "legacy_direct_ingress_unchanged": true,
+    "persistent_state_fail_closed": true,
+    "production_wiring": false,
+    "single_hop_only": true
+  },
+  "next_gate": "Manager formal N3-W ingress wiring, relay parsing, AEAD/key/gateway authorization, Ready/merge, and all live or physical execution require separate authorization.",
+  "schema": "gh.n3w-manager-replay-stage-entry/1",
+  "source_contract": {
+    "integrated_main_sha": "2556c89000cc3870231bf1c18d446dee14467bfd",
+    "path": "protocols/transport/gh-n3w-single-hop-v1.md",
+    "preserved_source_pr": 276,
+    "preserved_source_sha": "239ea594c643d4990d449187f8b0cabae619e3d7"
+  },
+  "status": "authorized_for_non_live_manager_replay_registry_development",
+  "work_package": {
+    "allowed": [
+      "SQLite-backed per-node boot-session high-water",
+      "persistent node_id + boot_id + seq replay tuples",
+      "read-only inspect and integrity audit through an existing Manager CLI entry point",
+      "atomic commit that rechecks state inside one transaction",
+      "prune replay rows from superseded boot sessions after high-water advance",
+      "focused unit and CLI integration tests",
+      "dedicated non-live GitHub CI"
+    ],
+    "forbidden": [
+      "Manager MQTT relay subscription",
+      "production Manager runtime wiring",
+      "direct-ingress behavior change",
+      "global gh.telemetry/1 boot_id schema change",
+      "AEAD key material or decryption",
+      "gateway lease or authorization implementation",
+      "ESP-NOW firmware driver",
+      "ESPHome compile",
+      "T1, node, board, Broker, Home Assistant, or production database access",
+      "credentials",
+      "deploy",
+      "release",
+      "tag",
+      "N3-L"
+    ],
+    "goal": "replace the host-only replay-state model with a persistent fail-closed Manager core while preserving legacy telemetry behavior",
+    "name": "Manager persistent replay registry core"
+  }
+}

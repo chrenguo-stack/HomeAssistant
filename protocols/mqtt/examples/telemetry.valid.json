@@ -1,0 +1,50 @@
+{
+  "schema": "gh.telemetry/1",
+  "node_id": "node_01HZX7AQ5FJ3",
+  "boot_id": "boot_01J2A6Q9T8W4",
+  "seq": 42,
+  "uptime_ms": 125430,
+  "sampled_at": "2026-07-10T13:05:30+08:00",
+  "cap_hash": "sha256:3e19f73d5c27a84b",
+  "fw_version": "F1.0-RC2-N0.2",
+  "measurements": {
+    "air_temperature_c": 27.4,
+    "air_humidity_pct": 68.2,
+    "co2_ppm": 684,
+    "illuminance_lx": 15320,
+    "soil_temperature_c": 24.8,
+    "soil_moisture_pct": 37.6,
+    "soil_ec_us_cm": 812,
+    "vpd_kpa": 1.18,
+    "dew_point_c": 21.0,
+    "absolute_humidity_g_m3": 17.5,
+    "ppfd_umol_m2_s": 283,
+    "dli_today_mol_m2_d": 4.82,
+    "dli_yesterday_mol_m2_d": 6.10,
+    "battery_v": 3.94,
+    "battery_pct": 74
+  },
+  "quality": {
+    "air_temperature_c": "ok",
+    "air_humidity_pct": "ok",
+    "co2_ppm": "ok",
+    "illuminance_lx": "ok",
+    "soil_temperature_c": "ok",
+    "soil_moisture_pct": "ok",
+    "soil_ec_us_cm": "ok",
+    "vpd_kpa": "ok",
+    "dew_point_c": "ok",
+    "absolute_humidity_g_m3": "ok",
+    "ppfd_umol_m2_s": "ok",
+    "dli_today_mol_m2_d": "ok",
+    "dli_yesterday_mol_m2_d": "ok",
+    "battery_v": "ok",
+    "battery_pct": "ok"
+  },
+  "power": {
+    "source": "battery",
+    "battery_v": 3.94,
+    "battery_pct": 74,
+    "low": false
+  }
+}

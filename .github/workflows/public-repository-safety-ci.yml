@@ -1,0 +1,28 @@
+name: Public repository safety CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  tracked-content-safety:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Unit tests
+        run: python -m unittest discover -s tools/tests -p "test_*.py" -v
+
+      - name: Scan tracked files without echoing matches
+        run: python tools/check_public_repository_safety.py

@@ -1,0 +1,30 @@
+esphome:
+  name: gh-n3w-p4a-core
+  friendly_name: Greenhouse N3-W P4a Frame Core Compile Target
+  min_version: 2026.4.3
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: ESP32C6
+  flash_size: 8MB
+  framework:
+    type: esp-idf
+    advanced:
+      include_builtin_idf_components:
+        - nvs_flash
+
+logger:
+  level: INFO
+  hardware_uart: USB_SERIAL_JTAG
+
+external_components:
+  - source:
+      type: local
+      path: ../../components
+    components:
+      - greenhouse_n3w_core
+
+# Compile-only P4a core. It deliberately has no Wi-Fi, MQTT, ESP-NOW,
+# production key source, or board-execution automation.
+greenhouse_n3w_core:
+  id: n3w_p4a_core

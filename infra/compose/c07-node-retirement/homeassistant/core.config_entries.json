@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "minor_version": 1,
+  "key": "core.config_entries",
+  "data": {
+    "entries": [
+      {
+        "created_at": "2026-07-26T00:00:00+00:00",
+        "modified_at": "2026-07-26T00:00:00+00:00",
+        "entry_id": "c0700000000000000000000000000001",
+        "version": 1,
+        "minor_version": 1,
+        "domain": "mqtt",
+        "title": "C-07 MQTT",
+        "source": "user",
+        "unique_id": null,
+        "disabled_by": null,
+        "pref_disable_new_entities": false,
+        "pref_disable_polling": false,
+        "data": {
+          "broker": "broker",
+          "port": 1883
+        },
+        "options": {
+          "discovery": true
+        },
+        "subentries": []
+      }
+    ]
+  }
+}

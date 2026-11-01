@@ -1,0 +1,202 @@
+mqtt:
+  id: mqtt_client
+  broker: !secret n1_mqtt_broker
+  port: !secret n1_mqtt_port
+  discovery: false
+  discover_ip: false
+  topic_prefix: null
+  log_topic: null
+  clean_session: true
+  wait_for_connection: false
+  reboot_timeout: 0s
+  idf_send_async: true
+  keepalive: 30s
+  on_connect:
+    then:
+      - logger.log: "[mqtt_n1] Broker connected; scheduling immediate telemetry."
+      - delay: 2s
+      - script.execute: publish_n1_telemetry
+  on_disconnect:
+    then:
+      - logger.log:
+          level: WARN
+          format: "[mqtt_n1] Broker disconnected; local acquisition and display continue."
+
+esphome:
+  on_boot:
+    - priority: 300
+      then:
+        - lambda: |-
+            id(n1_node_id) = App.get_name();
+            char boot_id[24];
+            const uint32_t r1 = esp_random();
+            const uint32_t r2 = esp_random();
+            snprintf(boot_id, sizeof(boot_id), "boot_%08X%08X",
+                     static_cast<unsigned int>(r1),
+                     static_cast<unsigned int>(r2));
+            id(n1_boot_id) = boot_id;
+            id(n1_seq) = 0;
+
+            if (!std::isfinite(id(dli_today_ram)) || id(dli_today_ram) < 0.0f) {
+              ESP_LOGW("mqtt_n1", "Invalid restored DLI today; resetting to 0");
+              id(dli_today_ram) = 0.0f;
+              id(dli_today_nvs) = 0.0f;
+            }
+            if (!std::isfinite(id(dli_yesterday)) || id(dli_yesterday) < 0.0f) {
+              ESP_LOGW("mqtt_n1", "Invalid restored DLI yesterday; resetting to 0");
+              id(dli_yesterday) = 0.0f;
+            }
+
+            ESP_LOGI("mqtt_n1", "node_id=%s boot_id=%s",
+                     id(n1_node_id).c_str(), id(n1_boot_id).c_str());
+
+globals:
+  - id: n1_node_id
+    type: std::string
+    restore_value: false
+    initial_value: '""'
+
+  - id: n1_boot_id
+    type: std::string
+    restore_value: false
+    initial_value: '""'
+
+  - id: n1_seq
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+
+script:
+  - id: publish_n1_telemetry
+    mode: single
+    then:
+      - if:
+          condition:
+            mqtt.connected:
+          then:
+            - mqtt.publish_json:
+                topic: !lambda |-
+                  return std::string("gh/v1/${mqtt_system_id}/ingress/node/") +
+                         id(n1_node_id) + "/telemetry";
+                qos: 1
+                retain: false
+                payload: |-
+                  const uint32_t seq = id(n1_seq)++;
+                  root["schema"] = "gh.telemetry/1";
+                  root["node_id"] = id(n1_node_id);
+                  root["boot_id"] = id(n1_boot_id);
+                  root["seq"] = seq;
+                  root["uptime_ms"] = millis();
+                  root["cap_hash"] = "${mqtt_cap_hash}";
+                  root["fw_version"] = "${project_version}";
+
+                  JsonObject measurements = root["measurements"].to<JsonObject>();
+                  JsonObject quality = root["quality"].to<JsonObject>();
+
+                  auto add_sensor = [&](const char *key, auto *sensor, const char *missing_quality) {
+                    if (sensor != nullptr && sensor->has_state() &&
+                        std::isfinite(sensor->state)) {
+                      measurements[key] = sensor->state;
+                      quality[key] = "ok";
+                    } else {
+                      measurements[key] = nullptr;
+                      quality[key] = missing_quality;
+                    }
+                  };
+
+                  const bool startup_warming = millis() < 120000UL;
+                  const char *normal_missing = startup_warming ? "warming" : "fault";
+                  const char *soil_missing = id(soil_cycle_active) ? "warming" :
+                                             (startup_warming ? "warming" : "stale");
+
+                  add_sensor("air_temperature_c", id(air_temp), normal_missing);
+                  add_sensor("air_humidity_pct", id(air_humidity), normal_missing);
+                  add_sensor("co2_ppm", id(scd30_co2), normal_missing);
+                  add_sensor("illuminance_lx", id(illuminance), normal_missing);
+                  add_sensor("soil_temperature_c", id(soil_temperature), soil_missing);
+                  add_sensor("soil_moisture_pct", id(soil_moisture), soil_missing);
+                  add_sensor("soil_ec_us_cm", id(soil_ec), soil_missing);
+                  add_sensor("vpd_kpa", id(vpd), normal_missing);
+                  add_sensor("dew_point_c", id(dew_point), normal_missing);
+                  add_sensor("absolute_humidity_g_m3", id(absolute_humidity), normal_missing);
+                  add_sensor("ppfd_umol_m2_s", id(ppfd), normal_missing);
+
+                  if (std::isfinite(id(dli_today_ram)) && id(dli_today_ram) >= 0.0f) {
+                    measurements["dli_today_mol_m2_d"] = id(dli_today_ram);
+                    quality["dli_today_mol_m2_d"] = "ok";
+                  } else {
+                    measurements["dli_today_mol_m2_d"] = nullptr;
+                    quality["dli_today_mol_m2_d"] = normal_missing;
+                  }
+                  if (std::isfinite(id(dli_yesterday)) && id(dli_yesterday) >= 0.0f) {
+                    measurements["dli_yesterday_mol_m2_d"] = id(dli_yesterday);
+                    quality["dli_yesterday_mol_m2_d"] = "ok";
+                  } else {
+                    measurements["dli_yesterday_mol_m2_d"] = nullptr;
+                    quality["dli_yesterday_mol_m2_d"] = "fault";
+                  }
+
+                  const bool battery_present =
+                      id(battery_voltage).has_state() &&
+                      std::isfinite(id(battery_voltage).state) &&
+                      id(battery_voltage).state > 0.5f;
+                  if (battery_present) {
+                    measurements["battery_v"] = id(battery_voltage).state;
+                    quality["battery_v"] = "ok";
+                    if (id(battery_level).has_state() &&
+                        std::isfinite(id(battery_level).state)) {
+                      measurements["battery_pct"] = id(battery_level).state;
+                      quality["battery_pct"] = "ok";
+                    } else {
+                      measurements["battery_pct"] = nullptr;
+                      quality["battery_pct"] = normal_missing;
+                    }
+                  } else {
+                    measurements["battery_v"] = nullptr;
+                    measurements["battery_pct"] = nullptr;
+                    quality["battery_v"] = "not_present";
+                    quality["battery_pct"] = "not_present";
+                  }
+
+                  JsonObject power = root["power"].to<JsonObject>();
+                  power["source"] = id(main_power).state ? "main" : "battery";
+                  power["low"] = id(low_battery_mode);
+                  if (battery_present) {
+                    power["battery_v"] = id(battery_voltage).state;
+                    if (id(battery_level).has_state() &&
+                        std::isfinite(id(battery_level).state)) {
+                      power["battery_pct"] = id(battery_level).state;
+                    } else {
+                      power["battery_pct"] = nullptr;
+                    }
+                  } else {
+                    power["battery_v"] = nullptr;
+                    power["battery_pct"] = nullptr;
+                  }
+
+                  ESP_LOGI("mqtt_n1", "Publishing telemetry seq=%u",
+                           static_cast<unsigned int>(seq));
+          else:
+            - logger.log:
+                level: DEBUG
+                format: "[mqtt_n1] Publish skipped: broker offline."
+
+interval:
+  - interval: 10s
+    then:
+      - lambda: |-
+          if (id(main_power).state) {
+            id(low_bat_count) = 0;
+            id(recovery_count) = 0;
+          }
+          if (!std::isfinite(id(dli_today_ram)) || id(dli_today_ram) < 0.0f) {
+            id(dli_today_ram) = 0.0f;
+            id(dli_today_nvs) = 0.0f;
+          }
+          if (!std::isfinite(id(dli_yesterday)) || id(dli_yesterday) < 0.0f) {
+            id(dli_yesterday) = 0.0f;
+          }
+
+  - interval: ${mqtt_publish_interval}
+    then:
+      - script.execute: publish_n1_telemetry

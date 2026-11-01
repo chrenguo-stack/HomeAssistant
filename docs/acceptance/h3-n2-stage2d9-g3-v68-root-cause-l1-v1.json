@@ -1,0 +1,73 @@
+{
+  "schema": "gh.h3.n2.stage2d9-g3-v68-root-cause-l1/4",
+  "stage": "H3/N2 Stage 2D-9 G3",
+  "artifact_generation": "V68",
+  "status": "confirmed",
+  "correction_status": "v69_artifact_frozen_waiting_user_host_u1",
+  "root_cause": "candidate_host_contract_mismatch",
+  "frozen_source_commit": "608282bf86fcf8c1d13494437e01f1899d3c494a",
+  "frozen_executor_values": {
+    "broker_host": "stage2d9.invalid",
+    "broker_tls_server_name": "stage2d9.invalid"
+  },
+  "validation_chain": {
+    "outer_candidate_accepts_nonempty_host": true,
+    "credential_bundle_requires_valid_local_host": true,
+    "dot_invalid_accepted_by_credential_bundle": false,
+    "dot_local_accepted_by_credential_bundle": true,
+    "rejection_location": "IsolatedDeviceDriver::prepare_candidate bundle.valid",
+    "driver_failure": "invalid_configuration",
+    "package_failure": "prepare_failed",
+    "executor_failure": "command_execution"
+  },
+  "mqtt": {
+    "present_in_prepare_call_path": false,
+    "null_mqtt_failure_hypothesis": "disproved"
+  },
+  "host_proof": {
+    "workflow_run_id": 29972838732,
+    "source_root_cause_gate": "passed",
+    "actual_cpp_host_contract_test": "passed",
+    "v68_invalid_host_rejected": true,
+    "v69_local_host_accepted": true
+  },
+  "independent_observability_defect": {
+    "runner_serial_log_persistence_defect": "confirmed",
+    "caused_physical_prepare_failure": false,
+    "reduced_failure_evidence_precision": true,
+    "v69_atomic_serial_evidence_matrix": "passed"
+  },
+  "v69_correction": {
+    "status": "passed_frozen_waiting_user_host_u1",
+    "host_and_compile_workflow_run_id": 29974235928,
+    "artifact_source_commit": "30a15e39164bed4a5b96c50aa5e2e2e6f238c43b",
+    "artifact_workflow_run_id": 29974998633,
+    "artifact_id": 8551229663,
+    "artifact_zip_sha256": "21aa3383a26b66109408576040245dd60c17eb780b65de9847381b73cfb1506b",
+    "implementation_source_binding": "f39c3c4c621717a61e0b3cef8b4ec88e59ac13aa",
+    "unique_component": "greenhouse_profile_isolated_device_g3_executor_v69",
+    "candidate_host": "stage2d9.local",
+    "prepare_schema": "GH2D9_PREPARE_V2",
+    "verify_schema": "GH2D9_VERIFY_V2",
+    "actual_package_driver_prepare_test": "passed",
+    "atomic_serial_evidence_test": "passed",
+    "stage_specific_failure_markers_present": true,
+    "dedicated_compile_only": "passed",
+    "product_board_compile_only": "passed",
+    "clean_build_count": 2,
+    "byte_identical": true,
+    "artifact_gate": "LOCKED",
+    "execution_authorized": false,
+    "d2_request_generated": false
+  },
+  "protected_boundaries": {
+    "board_accessed_for_root_cause_or_correction": false,
+    "serial_access_attempted_for_root_cause_or_correction": false,
+    "flash_operation_attempted_for_root_cause_or_correction": false,
+    "network_operation_attempted_for_root_cause_or_correction": false,
+    "production_environment_modified": false,
+    "v68_replay_authorized": false,
+    "v69_device_operation_authorized": false
+  },
+  "next_gate": "user-host V69 U1 must pass before a new D2 review package may be created"
+}

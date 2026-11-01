@@ -1,0 +1,111 @@
+substitutions:
+  lab_broker_host: "192.0.2.10"
+  lab_broker_port: "18883"
+
+esphome:
+  name: greenhouse-mqtt-auth-runtime
+  friendly_name: Greenhouse MQTT Auth Runtime Lab
+  min_version: 2026.4.3
+
+esp32:
+  board: esp32-c6-devkitm-1
+  variant: ESP32C6
+  framework:
+    type: esp-idf
+
+logger:
+
+wifi:
+  ssid: !secret ci_wifi_ssid
+  password: !secret ci_wifi_password
+
+mqtt:
+  id: ci_mqtt
+  broker: ${lab_broker_host}
+  port: ${lab_broker_port}
+  username: ""
+  password: ""
+  client_id: ci-node-anon
+  discovery: false
+  reboot_timeout: 0s
+  log_topic: null
+  birth_message: null
+  will_message: null
+  shutdown_message: null
+  on_message:
+    - topic: lab/control/ci-node-anon/activate
+      payload: activate
+      then:
+        - lambda: |-
+            id(mqtt_auth).request_candidate_activation(true);
+    - topic: lab/control/ci-node/observe-success
+      payload: observe-success
+      then:
+        - lambda: |-
+            id(mqtt_auth).record_observation_success();
+    - topic: lab/control/ci-node/observe-failure
+      payload: observe-failure
+      then:
+        - lambda: |-
+            id(mqtt_auth).record_observation_failure();
+    - topic: lab/control/ci-node/commit
+      payload: commit
+      then:
+        - lambda: |-
+            id(mqtt_auth).request_candidate_commit(true);
+    - topic: lab/control/ci-node/rollback
+      payload: rollback
+      then:
+        - lambda: |-
+            id(mqtt_auth).request_anonymous_rollback();
+
+external_components:
+  - source:
+      type: local
+      path: ../components
+    components:
+      - greenhouse_mqtt_auth
+
+# This profile is limited to a non-production isolated Broker and test board.
+# The explicit true arguments are test-harness gates, not production authorization.
+greenhouse_mqtt_auth:
+  id: mqtt_auth
+  mqtt_id: ci_mqtt
+  candidate_username: ghn_ci-node
+  candidate_password: !secret mqtt_candidate_password
+  candidate_client_id: ci-node
+  anonymous_client_id: ci-node-anon
+  candidate_generation: 1
+  candidate_secret_fingerprint: "0000000000000000"
+  candidate_failure_threshold: 3
+  observation_success_threshold: 3
+  retry_cooldown: 300s
+
+interval:
+  - interval: 5s
+    then:
+      - lambda: |-
+          char payload[512];
+          snprintf(
+              payload,
+              sizeof(payload),
+              "{\"profile\":\"%s\",\"phase\":\"%s\",\"mqtt_connected\":%s,"
+              "\"candidate_failure_count\":%u,\"observation_success_count\":%u,"
+              "\"ready_for_commit\":%s,\"anonymous_fallback_present\":%s,"
+              "\"candidate_secret_present\":%s,\"candidate_generation\":%u,"
+              "\"candidate_secret_fingerprint\":\"%s\",\"last_failure_class\":\"%s\","
+              "\"secret_values_included\":false}",
+              id(mqtt_auth).active_profile_name(),
+              id(mqtt_auth).phase_name(),
+              id(mqtt_auth).mqtt_connected() ? "true" : "false",
+              id(mqtt_auth).candidate_failure_count(),
+              id(mqtt_auth).observation_success_count(),
+              id(mqtt_auth).ready_for_commit() ? "true" : "false",
+              id(mqtt_auth).anonymous_fallback_present() ? "true" : "false",
+              id(mqtt_auth).candidate_secret_present() ? "true" : "false",
+              id(mqtt_auth).candidate_generation(),
+              id(mqtt_auth).candidate_secret_fingerprint().c_str(),
+              id(mqtt_auth).last_failure_class());
+          const std::string topic =
+              "lab/state/" + id(mqtt_auth).active_client_id() + "/heartbeat";
+          id(ci_mqtt).publish(topic, payload, 0, false);

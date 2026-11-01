@@ -1,0 +1,603 @@
+# 温室环境监测系统（ESP32-C6）
+# N3-W / PR #437 Wi-Fi Recovery Budget Source Repair
+# 新会话交接文档 V1.1 — 2026-09-21
+
+```text
+HANDOFF_TEMPLATE_VERSION=1.2
+HANDOFF_REVISION=1.1_POST_REPOSITORY_CONVERGENCE
+PROJECT_WORKING_CONTEXT_VERSION=1.0
+PROJECT_WORKING_CONTEXT=docs/development/N3W_PROJECT_WORKING_CONTEXT.md
+SUPERSEDES_HANDOFF=docs/development/N3W_PR437_WIFI_RECOVERY_BUDGET_SOURCE_REPAIR_NEW_CHAT_HANDOFF_V1.0_20260921.md
+NEXT_ONE_GATE_ONLY=true
+TEAM_SHARED_WORKSPACE=GITHUB
+```
+
+> 本文修订自 V1.0。V1.0 对应 PR #447 合并前、4270f24 exact artifact 尚未构建的状态，现保留为历史证据。  
+> 本文吸收 GitHub 仓库收敛闭环、PR #447/#454 合并以及 run `35553142523` 的 exact artifact 构建结果。  
+> fresh repository/runtime/physical evidence 与本文冲突时，以 fresh 直接证据为准并先停止执行。
+
+---
+
+## 0. 会话切换结论
+
+```text
+CURRENT_STAGE=PR437_4270F24_EXACT_ARTIFACT_BUILD_PASS_BINDING_PENDING
+CURRENT_STOP_POINT=EXACT_ARTIFACT_UPLOADED; INDEPENDENT_DOWNLOAD_MEMBER_HASH_BINDING_NOT_YET_COMPLETED
+NEXT_ONE_GATE=N3W_PR437_4270F24_EXACT_ARTIFACT_BUILD_AND_BINDING_EXECUTION_20260921_01
+RESUME_POINT=INDEPENDENT_ARTIFACT_DOWNLOAD_AND_BINDING
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+HANDOFF_READY_FOR_NEW_CHAT=true
+```
+
+PR #437 的 Wi-Fi recovery budget 源码修复、源码复核、11/11 CI、exact-source 编译和 artifact 上传均已通过。下一会话不要重新构建；先完成同一 build-and-binding execution gate 剩余的独立 artifact 下载、成员校验与 hash binding。完成绑定前，不进入 Board B 写入或物理复验。
+
+---
+
+## 1. 长期上下文引用与本阶段例外
+
+```text
+PROJECT_WORKING_CONTEXT_LOADED=true
+PROJECT_WORKING_CONTEXT_VERSION=1.0
+LONG_TERM_RULES_REPEATED_IN_HANDOFF=false
+
+REPOSITORY_CONVERGENCE=CLOSED_PASS
+REPOSITORY_HYGIENE_REOPEN_REQUIRED=false
+
+STAGE_SPECIFIC_OVERRIDE_COUNT=0
+STAGE_OVERRIDES=NONE
+```
+
+GitHub 仓库收敛已经闭环。不要把历史 PR/CI/branch 清理重新当成当前 N3-W gate；后续只在确有独立工程价值时另开仓库优化任务。
+
+---
+
+## 2. Product North Star
+
+```text
+CURRENT_PRODUCT_ROUTE=N3W_MULTI_NODE_RELAY_AND_RUNTIME_FAILOVER_ACCEPTANCE
+FINAL_ACCEPTANCE_TARGET=Board B same-boot Direct -> Relay -> Direct with bounded recovery latency, single-radio safety, stable Relay service, and Manager-visible telemetry continuity under the accepted Option-B delivery contract
+DEFERRED_OR_OUT_OF_SCOPE=Option-C durable every-sample delivery architecture; PR437 merge; any Board flash before exact artifact binding and separate physical authorization
+```
+
+---
+
+## 3. Frozen Authorities
+
+```text
+REPOSITORY=chrenguo-stack/HomeAssistant
+MAIN=0f712709bff98b9288cb1b8425605a875f45d241
+TREE=592a359e0c7655c2a80318dc8bd283a4811a2760
+
+OPEN_PR_COUNT=2
+OPEN_PRS=#437,#127
+WORKFLOW_FILE_COUNT=37
+
+PR447_MERGE=67fda83c8d0d5dd425cd4f82453e750b16f7e99e
+PR454_MERGE=0f712709bff98b9288cb1b8425605a875f45d241
+
+CANDIDATE_REF=test/n3w-kf096-direct-recovery-liveness-red-20260918
+CANDIDATE_HEAD=4270f24a92a87dd5239d781ebba624c2f34b7fc2
+CANDIDATE_TREE=a2f445bf2ea60ba9994a7a467f6492975d399c4f
+CANDIDATE_STATE=OPEN_DRAFT
+CANDIDATE_CI=11_OF_11_PASS
+
+PR437_VS_CURRENT_MAIN=AHEAD_50_BEHIND_58
+PR437_MERGE_BASE=d9afc55b04042806ed8b6e1b1ae3553742aba2be
+
+TARGET_CONFIG=firmware/esphome_rc/board_lab/n3w_phase4_physical/generic.yml
+TARGET_CONFIG_BLOB=37654481747b21ca51ccecc246bf84ca437ab7a9
+
+BUILD_BRANCH=build/n3w-pr437-4270f24-boardb-artifact-20260921
+BUILD_WORKFLOW_COMMIT=6c519314e4b95f6ba3806328994daa7eced5e427
+BUILD_WORKFLOW_TREE=d848077537cc46cc18ac1d0bf2b8c4309306c453
+BUILD_WORKFLOW_DIFF=ONE_WORKFLOW_FILE_ONLY
+
+ARTIFACT_RUN_ID=35553142523
+ARTIFACT_RUN_RESULT=SUCCESS
+ARTIFACT_ID=10619047221
+ARTIFACT_NAME=n3w-pr437-4270f24-boardb-exact-source
+ARTIFACT_SIZE_BYTES=731019
+GITHUB_ARTIFACT_DIGEST_SHA256=33895089cf861a211f3f5569cd8f3e6729b0938787cda0d4a30d498ce0264895
+ARTIFACT_CREATED_AT=2026-09-21T02:12:41Z
+ARTIFACT_EXPIRES_AT=2026-09-28T02:12:40Z
+ARTIFACT_EXPIRED=false
+
+APPLICATION_SIZE=1145984
+APPLICATION_SHA256=b7836f041e8b0f68809980d516a9d9cd5c4a94f862f7d3a27515ae85d55d6843
+OTADATA_SIZE=8192
+OTADATA_SHA256=7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
+
+DEPLOYED_SOURCE_HEAD=177468e290a207f2fb7f6c554aedf60b61373b4d
+DEPLOYED_SOURCE_TREE=a50ff98887b14b70cf9d278c6f8b7edf536eae88
+DEPLOYED_ARTIFACT_ID=10607030747
+DEPLOYED_APPLICATION_SHA256=74f6b111d3af3b1247e6f367d3da10957846dbe6103e74fc507bc26e43065093
+```
+
+The GitHub artifact metadata digest and build-log inner hashes are now frozen facts. They do not by themselves satisfy the preparation document's independent download/member-set verification requirement.
+
+---
+
+## 4. Current Live Baseline
+
+```text
+MANAGER_STATE=UNKNOWN_FRESH
+MANAGER_RESTART_STATE=UNKNOWN_FRESH
+BROKER_STATE=UNKNOWN_FRESH
+HOMEASSISTANT_STATE=UNKNOWN_FRESH
+
+BOARD_A_POWER_STATE=UNKNOWN_FRESH
+BOARD_A_LOCATION_ROLE=UNKNOWN_FRESH
+BOARD_B_POWER_STATE=UNKNOWN_FRESH:last observed USB enumeration PASS
+BOARD_B_LOCATION_ROLE=PRIMARY_DUT; physical location requires fresh confirmation before any physical gate
+
+APPLICATION_SERIAL_OPEN=false
+FLASH_MUTATION=false
+NVS_MUTATION=false
+T1_RUNTIME_MUTATION=false
+```
+
+最近的 GitHub 收敛、PR #447/#454 合并和 exact artifact build 全部是仓库/云端构建操作，没有访问 Board B 或 T1。此前 read-only 现场证据仍只作为历史基线，不能替代未来物理 gate 的 fresh 检查。
+
+```text
+MANAGER_STATE_REQUIRES_FRESH_READONLY_RECHECK=true
+BROKER_STATE_REQUIRES_FRESH_READONLY_RECHECK=true
+BOARD_B_POWER_STATE_REQUIRES_FRESH_READONLY_RECHECK=true
+```
+
+---
+
+## 5. Proven Current Facts
+
+```text
+REPOSITORY_CONVERGENCE=CLOSED_PASS
+OPEN_PR_COUNT=2
+WORKFLOW_FILE_COUNT=37
+
+PR437_CURRENT_HEAD_SOURCE_REVIEW=PASS
+PR437_CURRENT_HEAD_CI=11_OF_11_PASS
+
+EXACT_ARTIFACT_PREPARATION_PR454=MERGED
+EXACT_ARTIFACT_BUILD=PASS
+EXACT_ARTIFACT_UPLOAD=PASS
+EXACT_ARTIFACT_INDEPENDENT_DOWNLOAD_VERIFY=NOT_EXECUTED
+EXACT_ARTIFACT_BINDING=PARTIAL_PENDING_INDEPENDENT_VERIFY
+
+BUILD_CHECKOUT_EXACT_SOURCE=PASS
+BUILD_SOURCE_TREE_BINDING=PASS
+BUILD_TARGET_BLOB_BINDING=PASS
+BUILD_ESPHOME_2026_4_3=PASS
+BUILD_ESP_IDF_5_5_4=PASS
+BUILD_COMPILE=PASS
+BUILD_FREEZE_ARTIFACTS=PASS
+BUILD_UPLOAD_ARTIFACT=PASS
+
+DEPLOYED_APPLICATION_READBACK=PASS
+POSTWRITE_DIRECT_BASELINE=FAIL
+LAST_MANAGER_CANONICAL_SEQ=49
+LAST_MANAGER_CANONICAL_SOURCE=direct
+
+EXACT_BOARD_B_MQTT_DISCONNECT=PROVEN
+EXACT_BOARD_B_MQTT_RECONNECT_AFTER_ANCHOR_OBSERVED=false
+MANAGER_RESTART_DURING_FORENSIC=0
+BROKER_RESTART_DURING_FORENSIC=0
+MASS_CLIENT_DISCONNECT_NEAR_EVENT=false
+BROKER_ERROR_CLUSTER_NEAR_EVENT=false
+
+DIRECT_RECOVERY_WINDOW_SECONDS=150
+DIRECT_RECOVERY_PING_SAMPLE_COUNT=25
+DIRECT_RECOVERY_PING_SUCCESS_COUNT=0
+DIRECT_RECOVERY_NEIGHBOR_STATE=INCOMPLETE_FOR_ALL_25_SAMPLES
+
+BOARD_B_USB_ENUMERATION_LAST_OBSERVED=PASS
+LOCAL_SERIAL_OWNER_LAST_OBSERVED=0
+
+ESPHOME_2026_4_3_WIFI_SCAN_FALLBACK_MS=31000
+ESPHOME_2026_4_3_WIFI_CONNECT_FALLBACK_MS=46000
+SEQUENTIAL_WIFI_FALLBACK_MS=77000
+
+NO_RELAY_WIFI_RECOVERY_BUDGET_MS=85000
+NO_RELAY_ABSOLUTE_RECOVERY_BUDGET_MS=120000
+HEALTHY_RELAY_ABSOLUTE_RECOVERY_BUDGET_MS=30000
+MQTT_RECOVERY_BUDGET_MS=25000
+DIRECT_CONFIRM_BUDGET_MS=5000
+```
+
+```text
+INFERENCE_PHYSICAL_SYMPTOM_MATCHES_CONFIRMED_SOURCE_DEFECT=true
+INFERENCE_UNIQUE_PHYSICAL_CAUSATION=NOT_PROVEN
+```
+
+---
+
+## 6. Current Root Cause / Blockers
+
+```text
+CURRENT_BLOCKER_COUNT=2
+CURRENT_BLOCKER_1=Exact artifact build passed, but independent archive/member/hash binding is not yet completed
+CURRENT_BLOCKER_2=Current repaired HEAD 4270f24 has not been physically revalidated on Board B
+
+ROOT_CAUSE=SOURCE_LEVEL_WIFI_RECOVERY_BUDGET_INTEGRATION_DEFECT_CONFIRMED; unique mapping to the observed Board-B stall remains unproven until repaired physical validation
+PROVEN_BY=ESPHome 2026.4.3 source timing + PR437 exact-source review + Board-B/T1/LAN/USB read-only evidence
+SOURCE_DEFECT_PROVEN=true
+RUNTIME_DEFECT_PROVEN=true
+RUNTIME_ROOT_CAUSE_UNIQUE=false
+```
+
+Two source-review blockers from intermediate HEAD `164def447...` remain closed:
+
+```text
+SR-B1_50S_WIFI_PHASE_TOO_SHORT=CLOSED_BY_SOURCE
+SR-B2_HEALTHY_RELAY_90S_OWNERSHIP_EXPANSION=CLOSED_BY_SOURCE
+```
+
+---
+
+## 7. Closed / Forbidden Routes
+
+```text
+REPOSITORY_HYGIENE_MAIN_TASK=CLOSED_PASS:do not reopen during PR437 product validation
+PR447_ALIGNMENT_ROUTE=CLOSED:merged as 67fda83c8d0d5dd425cd4f82453e750b16f7e99e
+PR454_BUILD_PREPARATION_ROUTE=CLOSED:merged as 0f712709bff98b9288cb1b8425605a875f45d241
+
+BROKER_OR_MANAGER_GLOBAL_OUTAGE_AS_CURRENT_CAUSE=CLOSED:not supported by event-window continuity evidence
+DYNSEC_ACL_AS_CURRENT_CAUSE=CLOSED:expected role/publish ACL present and no exact-client auth/ACL failure observed
+REWRITE_OLD_177468E_ARTIFACT=CLOSED:current route uses the newly built 4270f24 artifact after binding
+REBUILD_4270F24_ARTIFACT=CLOSED_UNLESS_BINDING_FAILS:run 35553142523 already built/uploaded successfully
+REUSE_PRIOR_BOARD_WRITE_AUTHORIZATION=CLOSED:consumed one-shot authorization
+AUTO_MERGE_PR437=CLOSED:not physically revalidated and not authorized
+```
+
+Do not claim Board power loss, application hang, changed DHCP address, or Wi-Fi enable-call absence as proven; those remain unproven alternatives in the old deployed runtime.
+
+---
+
+## 8. Authorization Ledger
+
+```text
+AUTHORIZATION=PR437 prior one-shot Board B application write
+CLAIMED=true
+CONSUMED=true
+RESULT=application write/readback succeeded; postwrite OTA-data verifier stopped on an invalid post-boot byte-equality oracle
+REPLAY_PERMITTED=false
+SUPERSEDED_BY=none
+```
+
+```text
+AUTHORIZATION=4270F24 GitHub artifact build execution
+CLAIMED=NOT_APPLICABLE
+CONSUMED=NOT_APPLICABLE
+RESULT=PASS; run 35553142523 uploaded artifact 10619047221
+REPLAY_PERMITTED=false unless current artifact cannot be independently verified and a new build is explicitly selected
+```
+
+```text
+PROPOSED_AUTHORIZATION=FUTURE_BOARD_B_REFLASH_WITH_BOUND_4270F24_EXACT_ARTIFACT
+GRANTED=false
+```
+
+The next gate is read-only artifact binding. It does not consume or imply physical Board authorization.
+
+---
+
+## 9. Rollback Authority
+
+```text
+ROLLBACK_AUTHORITY=NOT_APPLICABLE:READONLY_ARTIFACT_BINDING_GATE
+```
+
+---
+
+## 10. Next ONE Gate
+
+```text
+NEXT_ONE_GATE=N3W_PR437_4270F24_EXACT_ARTIFACT_BUILD_AND_BINDING_EXECUTION_20260921_01
+RESUME_POINT=INDEPENDENT_ARTIFACT_DOWNLOAD_AND_BINDING
+```
+
+### Purpose
+
+- Resume the already-started build-and-binding execution gate without rebuilding.
+- Independently download artifact `10619047221`.
+- Verify artifact member set, `MANIFEST.txt`, source/tree/target/toolchain/trigger fields and inner hashes.
+- Freeze an independently observed artifact/archive identity suitable for a later Board-target preflight.
+- This gate cannot prove the physical recovery defect fixed and must not access Board B.
+
+### Inputs
+
+```text
+INPUT_1=PR437_HEAD_4270f24a92a87dd5239d781ebba624c2f34b7fc2
+INPUT_2=PR437_TREE_a2f445bf2ea60ba9994a7a467f6492975d399c4f
+INPUT_3=TARGET_BLOB_37654481747b21ca51ccecc246bf84ca437ab7a9
+INPUT_4=WORKFLOW_TRIGGER_SHA_6c519314e4b95f6ba3806328994daa7eced5e427
+INPUT_5=RUN_ID_35553142523
+INPUT_6=ARTIFACT_ID_10619047221
+INPUT_7=GITHUB_ARTIFACT_DIGEST_SHA256_33895089cf861a211f3f5569cd8f3e6729b0938787cda0d4a30d498ce0264895
+INPUT_8=APPLICATION_SHA256_b7836f041e8b0f68809980d516a9d9cd5c4a94f862f7d3a27515ae85d55d6843
+INPUT_9=OTADATA_SHA256_7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f
+```
+
+### Operations
+
+```text
+1. Fresh read-only rebind main, PR437 head/tree/state/CI, build branch tip, run and artifact metadata.
+2. Download artifact 10619047221 without changing Board/T1/runtime state.
+3. Verify member set is exactly firmware.bin, ota_data_initial.bin, MANIFEST.txt.
+4. Hash downloaded archive and inner files; compare inner size/hash values with build-log/manifest values.
+5. Verify MANIFEST.txt binds source head/tree, target config/blob, Python/ESPHome/ESP-IDF and workflow trigger SHA exactly.
+6. Record public-safe binding result in GitHub.
+7. STOP before any Board B serial/reset/flash/NVS operation.
+```
+
+### PASS / FAIL / STOP
+
+```text
+PASS_IF=downloaded artifact and manifest independently match all frozen source/target/toolchain/trigger/member/size/hash evidence
+FAIL_IF=artifact expired/missing, member set differs, any hash/manifest/source/toolchain field mismatches, or independent verification cannot be completed
+STOP_BOUNDARY=after artifact binding record; do not access Board B and do not merge PR437
+
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+---
+
+## 11. Hard Allowed / Forbidden Scope
+
+```text
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+```
+
+### ALLOWED
+
+```text
+- GitHub read-only rebind of main / PR437 / build branch / workflow run / artifact metadata
+- artifact download to temporary host workspace
+- local/read-only archive listing and hashing
+- MANIFEST.txt verification
+- public-safe GitHub documentation/evidence update
+```
+
+### FORBIDDEN
+
+```text
+- rebuild or replace run 35553142523 unless this binding gate fails and a new route is explicitly selected
+- Board B serial open, reset, flash, OTA-data write, NVS write or erase
+- T1/Broker/Manager/Home Assistant runtime mutation
+- credential/DynSec/security lifecycle mutation
+- PR437 merge, auto-merge, rebase or base rewrite
+- reuse of any consumed Board authorization
+- treating artifact-build success as physical acceptance
+- reopening completed repository-hygiene work as part of this gate
+```
+
+---
+
+## 12. Execution Contract
+
+```text
+EXECUTOR=TASK_APPROPRIATE_CHAT_GITHUB_AND_HOST_READONLY_TOOLS
+EXECUTION_METHOD=chat-tool
+DIRECT_CODE_SUPPLIED=false
+DSL_COMPILATION_USED=false
+```
+
+GitHub operations remain phased and short. Stop at the first source/artifact/member/hash mismatch. Do not silently substitute a rebuild for a failed binding.
+
+---
+
+## 13. Expected Closure
+
+```text
+=== N3W_PR437_4270F24_EXACT_ARTIFACT_BUILD_AND_BINDING_EXECUTION_20260921_01 CLOSURE ===
+
+EXECUTION_ID=
+AUTHORIZATION=GITHUB_ARTIFACT_BINDING_READONLY
+AUTHORIZATION_CLAIMED=NOT_APPLICABLE
+AUTHORIZATION_CONSUMED=NOT_APPLICABLE
+
+FRESH_MAIN=
+PR437_HEAD=
+PR437_TREE=
+PR437_CI=
+
+BUILD_BRANCH_HEAD=
+WORKFLOW_RUN_ID=35553142523
+ARTIFACT_ID=10619047221
+ARTIFACT_NAME=n3w-pr437-4270f24-boardb-exact-source
+
+ARTIFACT_MEMBER_SET_MATCH=
+INDEPENDENT_ARCHIVE_SHA256=
+GITHUB_ARTIFACT_DIGEST_SHA256=
+MANIFEST_SHA256=
+
+APPLICATION_SIZE=
+APPLICATION_SHA256=
+OTADATA_SIZE=
+OTADATA_SHA256=
+
+SOURCE_HEAD_MATCH=
+SOURCE_TREE_MATCH=
+TARGET_BLOB_MATCH=
+TOOLCHAIN_VERSION_BINDING=
+WORKFLOW_TRIGGER_SHA_MATCH=
+MANIFEST_MATCH=
+
+EXACT_ARTIFACT_BUILD=PASS
+EXACT_ARTIFACT_BINDING=
+PRODUCT_SOURCE_CHANGED=false
+
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+
+BINDING_RESULT=
+NEXT_ROUTE=
+STOP=true
+
+=== END ===
+```
+
+---
+
+## 14. After PASS / FAIL
+
+```text
+AFTER_PASS_NEXT_STAGE=N3W_PR437_4270F24_BOARD_B_WRITE_TARGET_PREFLIGHT_20260921_01
+AUTO_EXECUTE_AFTER_PASS=false
+NEW_PHYSICAL_AUTHORIZATION_REQUIRED=true before Board access/write route
+
+AUTO_REBUILD_AFTER_FAIL=false
+AUTO_REPAIR_AFTER_FAIL=false
+AUTO_RETRY_AFTER_FAIL=false
+STOP_AND_REVIEW_AFTER_FAIL=true
+```
+
+The named Board B target-preflight stage is the logical successor only after binding PASS. It is not authorized by this handoff.
+
+---
+
+## 15. KNOWN_FAILURES Updates
+
+```text
+KNOWN_FAILURES_UPDATE_REQUIRED=false for repository convergence
+EXISTING_KF_GUARD_USED=KF-096
+KF096_STATUS=OPEN
+NEW_KF_REQUIRED=false
+```
+
+KF-096 remains open until the repaired exact artifact is bound and later physical recovery/failback behavior is revalidated. Repository cleanup does not change the KF-096 technical disposition.
+
+---
+
+## 16. New Chat Start Prompt
+
+```text
+阅读《docs/development/N3W_PR437_WIFI_RECOVERY_BUDGET_SOURCE_REPAIR_NEW_CHAT_HANDOFF_V1.1_20260921.md》。
+
+同时读取 current main：
+- docs/development/N3W_PROJECT_WORKING_CONTEXT.md
+- docs/development/N3W_CURRENT_STATE.md
+- docs/development/N3W_CURRENT_STATE_INDEX.md
+- docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md
+- docs/development/N3W_PR437_4270F24_EXACT_ARTIFACT_BUILD_AND_BINDING_PREPARATION_20260921.md
+
+然后 fresh rebind：
+- repository main
+- PR #437 exact head/tree/state
+- PR #437 current-head CI
+- build branch build/n3w-pr437-4270f24-boardb-artifact-20260921
+- workflow run 35553142523
+- artifact 10619047221
+
+继续“温室环境监测系统（ESP32-C6）”项目 N3-W。
+
+每次回复先写：
+主线任务：N3W_MULTI_NODE_RELAY_AND_RUNTIME_FAILOVER_ACCEPTANCE
+支线任务：PR #437 Direct recovery / failback liveness 修复与物理复验
+当前任务：N3W_PR437_4270F24_EXACT_ARTIFACT_BUILD_AND_BINDING_EXECUTION_20260921_01
+
+GitHub 仓库收敛任务已经 CLOSED_PASS，不重新进入历史仓库清理。
+
+当前只恢复同一 execution gate 的剩余步骤：
+RESUME_POINT=INDEPENDENT_ARTIFACT_DOWNLOAD_AND_BINDING
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+
+不要重新构建已成功的 run 35553142523；不要重放 consumed authorization；不要访问或刷写 Board B；不要 merge PR #437；完成 artifact binding 后停止。
+```
+
+---
+
+## 17. Final Frozen State
+
+```text
+CURRENT_STAGE=PR437_4270F24_EXACT_ARTIFACT_BUILD_PASS_BINDING_PENDING
+CURRENT_STOP_POINT=ARTIFACT_10619047221_UPLOADED; INDEPENDENT_BINDING_NOT_COMPLETED
+
+REPOSITORY_MAIN=0f712709bff98b9288cb1b8425605a875f45d241
+REPOSITORY_CONVERGENCE=CLOSED_PASS
+OPEN_PR_COUNT=2
+WORKFLOW_FILE_COUNT=37
+
+PR437_HEAD=4270f24a92a87dd5239d781ebba624c2f34b7fc2
+PR437_TREE=a2f445bf2ea60ba9994a7a467f6492975d399c4f
+PR437_CI=11_OF_11_PASS
+
+EXACT_ARTIFACT_BUILD=PASS
+EXACT_ARTIFACT_ID=10619047221
+EXACT_ARTIFACT_BINDING=PARTIAL_PENDING_INDEPENDENT_VERIFY
+
+CURRENT_BLOCKER=INDEPENDENT_ARTIFACT_BINDING_PLUS_PHYSICAL_REVALIDATION
+LIVE_SYSTEM_STATE=UNKNOWN_FRESH; last read-only evidence had Manager/Broker continuity PASS and Board-B USB enumeration PASS
+NEXT_ONE_GATE=N3W_PR437_4270F24_EXACT_ARTIFACT_BUILD_AND_BINDING_EXECUTION_20260921_01
+RESUME_POINT=INDEPENDENT_ARTIFACT_DOWNLOAD_AND_BINDING
+
+TEAM_SHARED_WORKSPACE=GITHUB
+IMPORTANT_CHAT_ONLY_ARTIFACT_COUNT=0
+TEAM_SHARE_COMPLETENESS=PASS
+
+PROJECT_WORKING_CONTEXT_VERSION=1.0
+HANDOFF_TEMPLATE_VERSION=1.2
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+```
+
+Public-safe current repository/artifact evidence is durably recorded in GitHub. Private runtime locators and raw identities remain intentionally outside public GitHub.
+
+---
+
+## 18. Handoff Compliance Audit
+
+```text
+=== HANDOFF COMPLIANCE AUDIT ===
+
+HANDOFF_TEMPLATE_VERSION=1.2
+HANDOFF_REVISION=1.1_POST_REPOSITORY_CONVERGENCE
+PROJECT_WORKING_CONTEXT_VERSION=1.0
+
+PROJECT_WORKING_CONTEXT_REFERENCED=PASS
+LONG_TERM_RULE_DUPLICATION_MINIMIZED=PASS
+STAGE_SPECIFIC_OVERRIDES_EXPLICIT=PASS
+PRIVATE_CONTEXT_EXCLUDED_FROM_PUBLIC_HANDOFF=PASS
+
+REPOSITORY_CONVERGENCE_STATUS_PRESENT=PASS
+CURRENT_MAIN_REBOUND=PASS
+CURRENT_OPEN_PR_SET_REBOUND=PASS
+CURRENT_CI_WORKFLOW_COUNT_REBOUND=PASS
+
+PRODUCT_NORTH_STAR_PRESENT=PASS
+FROZEN_AUTHORITIES_COMPLETE=PASS
+CURRENT_LIVE_BASELINE_COMPLETE=PASS
+PROVEN_FACTS_SEPARATED_FROM_INFERENCE=PASS
+CURRENT_BLOCKERS_EXPLICIT=PASS
+CLOSED_ROUTES_EXPLICIT=PASS
+
+ARTIFACT_BUILD_STATE_CURRENT=PASS
+ARTIFACT_BINDING_PENDING_EXPLICIT=PASS
+DEPLOYED_ARTIFACT_DISTINGUISHED_FROM_NEW_CANDIDATE=PASS
+
+AUTHORIZATION_LEDGER_COMPLETE=PASS
+CONSUMED_AUTH_REPLAY_GUARD=PASS
+ROLLBACK_AUTHORITY_EXPLICIT=PASS
+
+NEXT_ONE_GATE_EXPLICIT=PASS
+RESUME_POINT_EXPLICIT=PASS
+NEXT_GATE_SCOPE_BOUNDED=PASS
+ALLOWED_FORBIDDEN_SCOPE_EXPLICIT=PASS
+EXECUTION_CONTRACT_SELF_CONTAINED=PASS
+EXPECTED_CLOSURE_PRESENT=PASS
+AFTER_PASS_DOES_NOT_AUTO_EXECUTE=PASS
+
+KNOWN_FAILURES_UPDATE_CLASSIFIED=PASS
+NEW_CHAT_START_PROMPT_PRESENT=PASS
+TEAM_WORKSPACE_STATUS_PRESENT=PASS
+FINAL_FROZEN_STATE_PRESENT=PASS
+
+HANDOFF_STATE_COMPLETENESS=PASS
+HANDOFF_READY_FOR_NEW_CHAT=true
+
+=== END ===
+```

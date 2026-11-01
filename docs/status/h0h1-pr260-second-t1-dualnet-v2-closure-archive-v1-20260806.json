@@ -1,0 +1,73 @@
+{
+  "accepted_main_sha": "ba6255cb3cb4067efd72b23f81f1a799c2c0026e",
+  "artifact": {
+    "digest": "sha256:436cd7cee7f6ddd91c566f5b9e8cf51cee144d5de3e582b999c7fc52d14b87ca",
+    "expired": false,
+    "head_sha": "d628b896314efd0aff58da151e3669eb7fe21d44",
+    "id": 8834686108,
+    "name": "h0h1-v07-init-portable-restore-review-v3",
+    "size_bytes": 72553
+  },
+  "base_pr": 260,
+  "c06_frozen_heads": {
+    "261": "d0e00d264d41755101c80ad37a1f6fa661892276",
+    "262": "0ec7bb3d17f08f6e26d475ce6f2a55e5bea39434",
+    "263": "77259fe2ad0403a620c78626e01862804c7af6e4",
+    "264": "a55b59027cb58f471353983f092fede00ae85cd4",
+    "265": "8f7c8603c92eba4246cb3b0f7b15c914b19b0ff3",
+    "266": "21f288c1c47f7801e21e77ada460c6353e371e14",
+    "267": "4c29fced18e8d45cac78f71ec82112bcf65a8cef",
+    "268": "249606dbab585e3b3beed47e77b9ae77a64e4291",
+    "269": "0cc8daa58fdf1d1200af3c3c2c3ed53db2963b41"
+  },
+  "cleanup_completed": true,
+  "created_at": "2026-08-05T16:15:00Z",
+  "dual_network_candidate_validated": true,
+  "dualnet_package": {
+    "file": "H0H1_PR260_V13R3R1_DUAL_NETWORK_HOST_LOOPBACK_ISOLATED_VALIDATION_ONE_SHOT_V2_20260805T154921Z_Q7M4X2.zip",
+    "public_repository_upload": false,
+    "sha256": "d9018259a737e14bb665e92dd5ca0cd45f270bd04333c9d880e9b98dd1b36914",
+    "size_bytes": 37351
+  },
+  "dualnet_transcript": {
+    "file": "DUALNET_V2_20260805T154921Z_Q7M4X2_LOCAL_TRANSCRIPT_20260805T160652Z.log.S4aH71",
+    "public_repository_upload": false,
+    "sha256": "44ad5a73e334cd556511f96caad0c403cb190bab9bff087605f533b97d0712b2",
+    "size_bytes": 12358
+  },
+  "emergency_cleanup_required": false,
+  "handoff_document": {
+    "file": "温室环境监测系统_H0H1_PR260第二台T1双网络验证闭环与V13R4授权前开发交接文档_V1.0_20260806.md",
+    "sha256": "9e30471315ef6f64e98d633e245d20df1d0321547d564a7ff37a976da7fa888e",
+    "size_bytes": 14340
+  },
+  "identity_values_included": false,
+  "next_gate": "D1-H0H1-PR260-SECOND-T1-DUAL-NETWORK-HOST-LOOPBACK-SANITIZED-MQTT-CONFIG-FLOW-AND-CUTOVER-V13R4-SUCCESSOR-AUTHORIZATION-20260806-01",
+  "next_gate_status": "NOT_APPROVED_NOT_STARTED",
+  "pr260_head_sha": "d628b896314efd0aff58da151e3669eb7fe21d44",
+  "pr260_state": {
+    "draft": true,
+    "merged": false,
+    "open": true
+  },
+  "pr260_workflows": {
+    "count": 13,
+    "success": 13
+  },
+  "private_runtime_paths_included": false,
+  "production_cutover_authorized": false,
+  "production_services_unchanged": true,
+  "repository": "chrenguo-stack/HomeAssistant",
+  "root_cause": "BROKER_CONNECTED_ONLY_TO_INTERNAL_BRIDGE_PREVENTED_EFFECTIVE_HOST_PORT_PUBLISHING",
+  "schema": "gh.h0h1.pr260.second-t1-dualnet-v2-closure-archive/1",
+  "secret_digests_included": false,
+  "secret_values_included": false,
+  "terminal_chain": {
+    "dualnet_v2": "CONSUMED_SUCCEEDED_CLEANUP_VERIFIED_NO_REPLAY",
+    "v1": "RETIRED_NO_REPLAY",
+    "v13r3r1": "CONSUMED_FAILED_ROLLBACK_VERIFIED_NO_REPLAY",
+    "v1r1": "RETIRED_NO_REPLAY",
+    "v1r2": "RETIRED_NO_REPLAY",
+    "v1r3": "CONSUMED_FAILED_CLEANUP_VERIFIED_NO_REPLAY"
+  }
+}

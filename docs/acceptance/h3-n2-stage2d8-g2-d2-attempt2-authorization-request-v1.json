@@ -1,0 +1,53 @@
+{
+  "schema": "gh.h3.n2.stage2d8-g2-d2-authorization-request-public/2",
+  "stage": "H3/N2 Stage 2D-8 G2",
+  "attempt": 2,
+  "authorization_request_id": "D2-H3N2-STAGE2D8-G2-V64-20260722-02",
+  "authorization_status": "pending",
+  "execution_gate": "LOCKED",
+  "source_sha": "6cf37c29311601f4f83238cc8401c81ea7b9a1f0",
+  "artifact_zip_sha256": "662d9d4d850eea603d5defafb2b3c84a8bc07fae3a4b51229479b2a0a71e8ea9",
+  "g2_merged_sha256": "a3ff73ddc11115849e160637cd63e2f44c699e595c5c6aa43575f9d7626ed47d",
+  "recovery_merged_sha256": "5f6ca3024d35dea9b48679a3882a55a20ec2bc67137d6dd58cbf19c2474994ed",
+  "review_package_sha256": "939bf62e87aa05e8adbc6b5c20882ce8f7430a124226ab9b76e69cb7039b1ebb",
+  "execution_script_sha256": "903a39ee896cbeee273a398f4db1441d0c71b3e8afa84b07c6690b3f992cf47a",
+  "command_group_sha256": "c1417d7d16a37521f0fc57d0161e61fdaf4645a281c9ac30010b8aef7b2e1731",
+  "stop_conditions_sha256": "31b48f3238856b6eb406d102821cc49a5729fcd0c6f4bff67bb0d560ed4fa246",
+  "environment_marker_sha256": "320ecd5f88b4207be39ee8660117f553c80ddf22d9ded9f33f1b147df89cb3a1",
+  "environment_distributions_sha256": "bdd8912af8a954f84a1794769c759a60b7165a6bef085854d6731b3f3db59ac2",
+  "private_binding": {
+    "private_target_bound": true,
+    "private_serial_bound": true,
+    "private_security_state_bound": true,
+    "raw_private_values_in_git": false
+  },
+  "policy": {
+    "one_shot": true,
+    "replay_permitted": false,
+    "authorization_validity": "2 hours after issuance",
+    "allowed_recovery_count": 1,
+    "recovery_only_after_destructive_failure": true,
+    "old_attempt_replay_prohibited": true
+  },
+  "review_validation": {
+    "python_compile": "passed",
+    "review_mode": "passed",
+    "board_accessed": false,
+    "serial_access_attempted": false,
+    "flash_operation_attempted": false,
+    "network_operation_attempted": false
+  },
+  "prohibited": {
+    "efuse": true,
+    "wifi": true,
+    "mqtt": true,
+    "broker": true,
+    "test_key": true,
+    "writable_nvs": true,
+    "prepare_candidate": true,
+    "activate_profile": true,
+    "cleanup_test_state": true,
+    "production_environment": true,
+    "ready_merge_release": true
+  }
+}

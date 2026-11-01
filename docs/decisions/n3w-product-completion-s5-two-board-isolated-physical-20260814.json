@@ -1,0 +1,107 @@
+{
+  "schema": "gh.n3w-product-completion-stage-entry/1",
+  "stage": "S5_TWO_BOARD_ISOLATED_PHYSICAL",
+  "authorization": "D1-N3W-PRODUCT-COMPLETION-SUCCESSOR-S5-TWO-BOARD-ISOLATED-PHYSICAL-20260814-01",
+  "authorization_source": "user_approved_natural_language",
+  "authorized": true,
+  "authorized_date": "2026-08-14",
+  "base_branch": "main",
+  "base_sha": "38c3b692d4ebe90d0040c732b6c0313fdfdc1ef6",
+  "base_tree": "b1610a851cd88bbfca9c3fd5ca49d16a393696ad",
+  "status": "minimal_s3_s4_board_integration_compile_ci_candidate",
+  "objective": "Prove the automatic N3-W Product Completion path on two real ESP32-C6 boards in an isolated non-production environment.",
+  "required_integration": [
+    "wire_s3_product_runtime_into_an_inert_by_default_esphome_board_profile",
+    "wire_s4_manager_authorization_request_and_response_to_the_board_runtime",
+    "derive_pair_specific_espnow_lmk_at_each_endpoint",
+    "install_and_remove_runtime_encrypted_peers_without_factory_peer_binding",
+    "carry_child_relayframe_telemetry_over_the_authorized_peer",
+    "forward_relay_ciphertext_to_the_isolated_manager_ingress",
+    "preserve_one_node_id_one_ha_device_and_monotonic_canonical_sequence"
+  ],
+  "acceptance_matrix": [
+    "two_distinct_esp32c6_boards_bound_to_child_and_relay_roles",
+    "same_generic_application_source_without_other_node_identity",
+    "relay_direct_uplink_and_signed_health_eligible",
+    "child_direct_failure_enters_discovery_automatically",
+    "broadcast_advertisement_is_only_an_untrusted_hint",
+    "manager_rejects_unregistered_cross_system_stale_or_replayed_pairing",
+    "manager_authorized_peer_grants_validate_at_both_endpoints",
+    "both_endpoints_derive_the_same_nonzero_16_byte_lmk",
+    "encrypted_peer_becomes_active_without_manual_path_command",
+    "relay_telemetry_reaches_isolated_manager_and_home_assistant",
+    "direct_and_relay_paths_keep_one_node_id_and_one_ha_device",
+    "authorization_expiry_or_revoke_removes_the_runtime_peer",
+    "cleanup_removes_all_temporary_keys_credentials_databases_and_rendered_firmware"
+  ],
+  "preflight_facts": {
+    "two_espressif_usb_jtag_serial_devices_detected": true,
+    "distinct_usb_serial_identities_detected": true,
+    "serial_port_opened": false,
+    "board_chip_identity_read": false,
+    "existing_default_local_worktree_was_current_main": false,
+    "clean_exact_main_worktree_created": true,
+    "s3_s4_physical_entrypoint_already_present": false,
+    "legacy_p5_manual_path_harness_is_acceptable_product_evidence": false
+  },
+  "current_round": {
+    "authorized_scope": [
+      "minimal_s3_s4_board_integration",
+      "esp32c6_child_compile",
+      "esp32c6_relay_compile",
+      "repository_ci"
+    ],
+    "implemented": [
+      "one_generic_esphome_component_for_child_and_relay",
+      "inert_by_default_execution_gate",
+      "manager_eligibility_request_response_boundary",
+      "manager_peer_authorization_request_response_boundary",
+      "authorized_runtime_peer_material_installation",
+      "no_factory_peer_binding"
+    ],
+    "not_claimed": [
+      "physical_board_flash",
+      "espnow_rf_execution",
+      "full_two_board_acceptance_matrix",
+      "production_readiness"
+    ],
+    "local_validation": [
+      "child_esphome_config_valid",
+      "relay_esphome_config_valid",
+      "child_esp32c6_compile_and_link_passed",
+      "relay_esp32c6_compile_and_link_passed",
+      "s3_s4_manager_integration_contract_tests_passed",
+      "host_cxx_warning_clean_object_compile_passed"
+    ]
+  },
+  "safety_boundary": {
+    "isolated_non_production_only": true,
+    "production_t1_access": false,
+    "production_manager_mutation": false,
+    "production_broker_mutation": false,
+    "production_home_assistant_mutation": false,
+    "n3l_started": false,
+    "flash_executed": false,
+    "erase_executed": false,
+    "ota_executed": false,
+    "espnow_rf_execution_started": false,
+    "real_secret_material_created": false,
+    "real_secret_material_committed": false
+  },
+  "live_execution_policy": {
+    "repository_ci_and_esp32c6_compile_must_pass_before_flash": true,
+    "user_runs_real_board_commands": true,
+    "one_bound_execution_package_per_physical_attempt": true,
+    "failed_terminal_attempt_requires_root_cause_and_new_execution_binding": true,
+    "public_evidence_must_be_secret_free": true
+  },
+  "excluded": [
+    "three_board_multi_candidate_physical",
+    "dynamic_new_node_addition",
+    "wifi_recovery_switchback_acceptance",
+    "production_t1_acceptance",
+    "mesh",
+    "multihop",
+    "n3l"
+  ]
+}

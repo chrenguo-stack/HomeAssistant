@@ -1,0 +1,159 @@
+script:
+  - id: soil_power_down
+    mode: restart
+    then:
+      - lambda: |-
+          greenhouse::set_soil_uart_high_impedance(id(uart_485));
+          id(soil_warmed_up) = false;
+      - switch.turn_off: sensor_pwr_switch
+      - delay: 20ms
+
+  - id: soil_power_up
+    mode: restart
+    then:
+      - switch.turn_on: sensor_pwr_switch
+      - delay: 500ms
+      - lambda: |-
+          greenhouse::restore_soil_uart(id(uart_485));
+
+  # Frozen F1.0 runtime behavior for the dedicated M2 product-board lab:
+  # warm up only after boot/recovery, then keep the RS485 sensor powered and
+  # issue normal Modbus reads every 20 seconds. MQTT state never gates this path.
+  - id: soil_read_cycle
+    mode: single
+    then:
+      - if:
+          condition:
+            lambda: 'return id(low_battery_mode);'
+          then:
+            - logger.log: "[soil] Low-battery mode; soil read skipped."
+          else:
+            - lambda: 'id(soil_cycle_active) = true;'
+            - if:
+                condition:
+                  lambda: 'return !id(soil_warmed_up);'
+                then:
+                  - script.execute: soil_power_down
+                  - script.wait: soil_power_down
+                  - delay: 250ms
+                  - script.execute: soil_power_up
+                  - script.wait: soil_power_up
+                  - logger.log: "[soil] Sensor power ON; initial/recovery warm-up started."
+                  - delay: ${soil_warmup_time}
+                  - if:
+                      condition:
+                        lambda: 'return !id(low_battery_mode);'
+                      then:
+                        - lambda: 'id(soil_warmed_up) = true;'
+                        - logger.log: "[soil] Warm-up complete; starting first Modbus read."
+                      else:
+                        - logger.log: "[soil] Low battery entered during warm-up; request cancelled."
+            - if:
+                condition:
+                  lambda: 'return id(soil_warmed_up) && !id(low_battery_mode);'
+                then:
+                  - component.update: soil_modbus_controller
+                  - delay: 3s
+                  - logger.log: "[soil] Modbus read window complete; sensor remains powered."
+            - lambda: 'id(soil_cycle_active) = false;'
+
+  - id: enter_low_battery
+    mode: single
+    then:
+      - lambda: |-
+          id(low_battery_mode) = true;
+          ESP_LOGW("battery", "Entering low-battery protection mode");
+      - switch.turn_off: status_led_switch
+      - script.execute: soil_power_down
+      - script.wait: soil_power_down
+
+  - id: recover_from_low_battery
+    mode: single
+    then:
+      - logger.log: "[battery] Recovery threshold confirmed; restarting node."
+      - switch.turn_off: status_led_switch
+      - delay: 2s
+      - lambda: 'esp_restart();'
+
+output:
+  - platform: gpio
+    pin:
+      number: GPIO15
+      ignore_strapping_warning: true
+    id: sensor_pwr_out
+
+  - platform: gpio
+    pin:
+      number: GPIO6
+      inverted: false
+    id: status_led_out
+
+switch:
+  - platform: output
+    id: sensor_pwr_switch
+    output: sensor_pwr_out
+    internal: true
+    restore_mode: ALWAYS_OFF
+
+  - platform: output
+    id: status_led_switch
+    output: status_led_out
+    internal: true
+    restore_mode: ALWAYS_OFF
+
+binary_sensor:
+  - platform: gpio
+    name: "Main Power"
+    id: main_power
+    device_class: power
+    pin:
+      number: GPIO0
+      mode:
+        input: true
+        pullup: false
+        pulldown: false
+      inverted: false
+    filters:
+      - delayed_on: 100ms
+      - delayed_off: 100ms
+    on_press:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(low_battery_mode);'
+            then:
+              - script.execute: recover_from_low_battery
+
+  - platform: template
+    name: "Soil Sensor Online"
+    id: soil_sensor_online
+    device_class: connectivity
+
+  - platform: template
+    name: "Low Battery Protection"
+    id: low_battery_status
+    device_class: problem
+    lambda: 'return id(low_battery_mode);'
+
+interval:
+  - interval: ${soil_read_interval}
+    then:
+      - script.execute: soil_read_cycle
+
+  # Preserve the verified five-page LCD cadence: four seconds per page.
+  - interval: 4s
+    then:
+      - lambda: 'id(display_page) = (id(display_page) + 1) % 5;'
+
+  - interval: 60s
+    then:
+      - lambda: |-
+          if (id(ppfd).has_state()) {
+            id(dli_today_ram) += id(ppfd).state * 60.0f / 1000000.0f;
+          }
+
+  - interval: 15min
+    then:
+      - lambda: |-
+          id(dli_today_nvs) = id(dli_today_ram);
+          ESP_LOGD("dli", "Persisted DLI today=%.3f", id(dli_today_ram));

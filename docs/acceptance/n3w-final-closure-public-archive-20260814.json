@@ -1,0 +1,96 @@
+{
+  "schema": "gh.n3w-final-closure-public-archive/1",
+  "archive_date": "2026-08-14",
+  "visibility": "public_redacted_summary",
+  "repository_binding": {
+    "repository": "chrenguo-stack/HomeAssistant",
+    "source_main_sha": "972e55b459c9095d5cbf1fd3aabbe312e55ab578",
+    "source_main_tree": "3a4b1d4971756a8d3a53fec8cb5f1e2a32dcb154",
+    "m14_archive_pr": 314,
+    "m14_archive_pr_state": "MERGED",
+    "m14_archive_merge_commit": "8c7d0dfb68d218b3ad80fe7f2f8dba8bed3fdb2b",
+    "channel_recovery_pr": 315,
+    "channel_recovery_pr_state": "MERGED",
+    "channel_recovery_merge_commit": "972e55b459c9095d5cbf1fd3aabbe312e55ab578",
+    "superseded_handoff_pr": 307,
+    "superseded_handoff_pr_state": "CLOSED_UNMERGED"
+  },
+  "scope": {
+    "workstream": "N3-W",
+    "product_line": "Wi-Fi",
+    "phase": "P5",
+    "goal": "ESP-NOW single-hop coverage, path lease, switching and continuity",
+    "roadmap_reference": "V0.7",
+    "roadmap_exit_condition": "no_duplicate_device_and_no_canonical_rollback"
+  },
+  "final_result": {
+    "classification": "N3W_COMPLETE_WITH_RECORDED_DEVIATIONS",
+    "n3w_phase_exit_audit": "PASS",
+    "n3w_exit_blocker_count": 0,
+    "n3l_entry_eligible": true,
+    "n3l_authorized": false
+  },
+  "milestone_summary": {
+    "m01_m05_chain_closed": true,
+    "m06": {
+      "hostonly_semantic_proof": "PASS",
+      "physical_e2e": "EXPLICITLY_DEFERRED",
+      "live_pass": false,
+      "n3w_exit_blocker": false
+    },
+    "m07": "PASS",
+    "m08": "PASS",
+    "m09": "PASS",
+    "m10": "PASS",
+    "m11": "PASS",
+    "m12": "PASS",
+    "m13": "PASS_WITH_RECORDED_EXECUTION_DEVIATION",
+    "m14": "PASS_WITH_RECORDED_READONLY_VALIDATION_RECOVERY_DEVIATIONS"
+  },
+  "identity_continuity": {
+    "evidence_source": "previously_frozen_M14_acceptance",
+    "target_device_count": 1,
+    "target_entity_count": 6,
+    "duplicate_unique_ids": false,
+    "foreign_device_bindings": 0,
+    "channel_transition_registry_resnapshot_claimed": false
+  },
+  "espnow_channel_recovery_physical_acceptance": {
+    "result": "PASS",
+    "exactly_one_ap_channel_transition": true,
+    "specific_channel_numbers_included": false,
+    "child_auto_recovered": true,
+    "relay_auto_recovered": true,
+    "active_path_after_recovery": "relay",
+    "application_key_epoch_after_recovery": 2,
+    "service_restart_count": 0,
+    "reflash_required_for_recovery": false,
+    "path_reissue_required_for_recovery": false,
+    "key_reissue_required_for_recovery": false
+  },
+  "recorded_deviations_and_deferrals": {
+    "m13_outage_timing_deviation_preserved": true,
+    "m14_readonly_validation_recovery_history_preserved": true,
+    "m06_physical_e2e_deferred": true,
+    "p6_and_concurrency_capacity_power_loss": "DEFERRED_TO_S1_FIELD_VALIDATION"
+  },
+  "claim_boundaries": {
+    "hostonly_or_compile_only_result_promoted_to_live_pass": false,
+    "missing_pre_m01_registry_hash_pair_manufactured": false,
+    "m07_transcript_used_as_independent_ha_identity_proof": false,
+    "channel_transition_summary_used_as_new_ha_registry_identity_proof": false,
+    "n3l_started": false
+  },
+  "redaction": {
+    "full_private_evidence_included": false,
+    "private_evidence_digests_included": false,
+    "private_firmware_or_image_digests_included": false,
+    "credentials_or_key_material_included": false,
+    "raw_device_identifiers_included": false,
+    "private_filesystem_paths_included": false,
+    "host_addresses_or_port_mappings_included": false,
+    "raw_live_sequence_boot_session_tuple_included": false,
+    "authorization_tokens_included": false
+  },
+  "custody_note": "Full operational evidence, one-shot authorization history and private firmware artifacts remain outside the public repository under restricted custody."
+}
