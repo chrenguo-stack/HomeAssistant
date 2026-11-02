@@ -1,3 +1,34 @@
+## 2026-11-02 — R3 exact readonly registration-readiness preflight source repair CI PASS; live retry pending
+
+~~~text
+TASK=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_CURRENT_PRODUCT_REGISTRATION_READINESS_EXACT_READONLY_PREFLIGHT_20261102_01
+STATE=SOURCE_REPAIR_CI_PASS_AWAIT_LIVE_RETRY
+
+FINAL_REPAIR_HEAD=1a2115d40e62140ac81c48a5b4bb7d4963fe1aee
+FINAL_CI_RUN=41378062886
+FINAL_CI_RESULT=SUCCESS
+FINAL_TEST_COUNT=29
+FINAL_ARTIFACT_ID=13112421203
+FINAL_ARTIFACT_DIGEST=sha256:729dc3b72133a2fb29285b27c32cab35b81eb091f3e80cce3e64d2d5ae9f7ab8
+FINAL_PACKAGE_MANIFEST_SHA256=652017236e0e753392e72e072fa89cf6d5d59cdd92fdc2f0f1c92f220c35b2a4
+
+HOST_TRUSTED_LAN_STATE=/run/n3wfc4-trusted-lan/state.json
+MANAGER_TRUSTED_LAN_TARGET=/run/n3w/trusted-product-lan
+MANAGER_TRUSTED_LAN_BIND_READONLY=true
+
+LIVE_INSPECT_EXECUTED=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+~~~
+
+The previous live command stopped before exact inspect. The trusted-LAN host/container path
+binding defect is repaired and covered by exact CI. The next action is a new short, staged T1
+readonly preflight using artifact `13112421203`.
+
+Progress:
+`docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_CURRENT_PRODUCT_REGISTRATION_READINESS_EXACT_READONLY_PREFLIGHT_SOURCE_REPAIR_PROGRESS_20261102.md`.
+
 ## 2026-11-02 — R3 current-product registration readiness authority realignment CLOSED_PASS
 
 ~~~text

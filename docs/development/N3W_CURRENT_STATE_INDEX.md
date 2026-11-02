@@ -1,3 +1,15 @@
+## 2026-11-02 — R3 exact readonly preflight trusted-LAN path repair PASS; live retry pending
+
+- Current gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_CURRENT_PRODUCT_REGISTRATION_READINESS_EXACT_READONLY_PREFLIGHT_20261102_01`.
+- Exact repair head `1a2115d40e62140ac81c48a5b4bb7d4963fe1aee`.
+- CI `41378062886`: SUCCESS; 29 tests PASS; package build/verify PASS.
+- Artifact `13112421203`, digest `sha256:729dc3b72133a2fb29285b27c32cab35b81eb091f3e80cce3e64d2d5ae9f7ab8`.
+- Host trusted-LAN authority path corrected to `/run/n3wfc4-trusted-lan/state.json`.
+- Manager mount `/run/n3wfc4-trusted-lan -> /run/n3w/trusted-product-lan` must be an exact read-only bind.
+- Previous local script stopped before exact inspect; no product mutation occurred.
+- Live exact readonly retry remains pending.
+- Progress: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_CURRENT_PRODUCT_REGISTRATION_READINESS_EXACT_READONLY_PREFLIGHT_SOURCE_REPAIR_PROGRESS_20261102.md`.
+
 ## 2026-11-02 — R3 current-product registration readiness authority realignment CLOSED_PASS
 
 - Gate `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_CURRENT_PRODUCT_REGISTRATION_READINESS_AUTHORITY_REALIGNMENT_20261102_01`: CLOSED_PASS.
