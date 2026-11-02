@@ -165,7 +165,7 @@ def test_rejected_continue_waits_before_begin_without_renewing_pairing_id() -> N
         hello_call,
     )
     begin_call = run_once.index(
-        "return pair_with_(candidate);",
+        "return pair_with_(candidate, nullptr);",
         stop_on_wait,
     )
 

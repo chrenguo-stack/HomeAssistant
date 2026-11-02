@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -9,6 +11,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = ROOT / "tools/n3w_t1_production_v2_contract.py"
+sys.path.insert(0, str(ROOT / "tools"))
 
 
 def load_tool():
@@ -484,3 +487,236 @@ def test_evidence_insufficient_result_cannot_claim_device_failure():
         match="evidence_insufficient_misclassified",
     ):
         contract.validate_result(value)
+
+
+def portable_identity_document():
+    rootfs = ["sha256:" + "6" * 64]
+    rootfs_sha = hashlib.sha256(
+        json.dumps(rootfs, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return {
+        "schema": contract.portable.SCHEMA,
+        "representation": "docker-save",
+        "archive_sha256": "1" * 64,
+        "archive_size_bytes": 123,
+        "os": "linux",
+        "architecture": "arm64",
+        "variant": None,
+        "config_digest": "sha256:" + "2" * 64,
+        "manifest_digest": None,
+        "index_digest": None,
+        "config_semantics_sha256": "3" * 64,
+        "rootfs_diff_ids": rootfs,
+        "rootfs_diff_ids_sha256": rootfs_sha,
+    }
+
+
+def release_v2_document():
+    legacy = release_document()
+    material = copy.deepcopy(legacy)
+    material.pop("release_id")
+    material["schema"] = contract.RELEASE_SCHEMA_V2
+    material["portable_images"] = {
+        "manager": {
+            "deployment_ref": "local/greenhouse-manager:release-test",
+            "identity": portable_identity_document(),
+        }
+    }
+    material["deployment_contract_sha256"] = "4" * 64
+    material["state_contract"] = {
+        "manager_state": "5" * 64,
+    }
+    return {
+        "release_id": contract.canonical_sha256(material),
+        **material,
+    }
+
+
+def test_release_v2_extends_v1_without_reinterpreting_v1():
+    v1 = release_document()
+    assert contract.validate_release(v1) == v1
+
+    v2 = release_v2_document()
+    with pytest.raises(
+        contract.ProductionV2ContractError,
+        match="release_keys_invalid",
+    ):
+        contract.validate_release(v2)
+
+    assert contract.validate_release_v2(v2) == v2
+    assert contract.validate_release_any(v1) == v1
+    assert contract.validate_release_any(v2) == v2
+
+
+def test_release_v2_binds_portable_image_identity_and_release_id():
+    value = release_v2_document()
+    value["portable_images"]["manager"]["identity"]["config_digest"] = (
+        "sha256:" + "9" * 64
+    )
+    with pytest.raises(
+        contract.ProductionV2ContractError,
+        match="release_v2_id_mismatch",
+    ):
+        contract.validate_release_v2(value)
+
+
+def test_release_v2_rejects_malformed_portable_identity_even_with_rehashed_release():
+    value = release_v2_document()
+    value["portable_images"]["manager"]["identity"]["representation"] = "unknown-store"
+    material = copy.deepcopy(value)
+    material.pop("release_id")
+    value["release_id"] = contract.canonical_sha256(material)
+    with pytest.raises(
+        contract.ProductionV2ContractError,
+        match="portable_image_manager_identity_invalid",
+    ):
+        contract.validate_release_v2(value)
+
+
+def test_release_v2_rejects_host_local_object_binding_fields():
+    value = release_v2_document()
+    value["portable_images"]["manager"]["docker_image_id"] = (
+        "sha256:" + "7" * 64
+    )
+    material = copy.deepcopy(value)
+    material.pop("release_id")
+    value["release_id"] = contract.canonical_sha256(material)
+    with pytest.raises(
+        contract.ProductionV2ContractError,
+        match="portable_image_manager_keys_invalid",
+    ):
+        contract.validate_release_v2(value)
+
+
+def test_release_v2_requires_deployment_and_state_contracts():
+    value = release_v2_document()
+    value["state_contract"] = {}
+    material = copy.deepcopy(value)
+    material.pop("release_id")
+    value["release_id"] = contract.canonical_sha256(material)
+    with pytest.raises(
+        contract.ProductionV2ContractError,
+        match="state_contract_empty",
+    ):
+        contract.validate_release_v2(value)
+
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("os", "windows"),
+        ("architecture", "amd64"),
+        ("variant", "v8"),
+    ],
+)
+def test_release_v2_rejects_non_product_portable_platform(
+    field: str,
+    value: str,
+) -> None:
+    release = release_v2_document()
+    release["portable_images"]["manager"]["identity"][field] = value
+    material = copy.deepcopy(release)
+    material.pop("release_id")
+    release["release_id"] = contract.canonical_sha256(material)
+    with pytest.raises(
+        contract.ProductionV2ContractError,
+        match="portable_image_manager_platform_invalid",
+    ):
+        contract.validate_release_v2(release)
+
+
+def test_portable_deployment_binding_is_common_canonical_authority() -> None:
+    identity_doc = portable_identity_document()
+    service_unit = {
+        "execstart_sha256": "7" * 64,
+        "execstop_sha256": "8" * 64,
+    }
+    state = {
+        "pre_registration_inventory_sha256": "9" * 64,
+        "post_registration_inventory_sha256": "a" * 64,
+        "schema_migration_required": False,
+    }
+    first = contract.portable_deployment_binding_id(
+        source_head="b" * 40,
+        artifact_sha256="c" * 64,
+        identity=identity_doc,
+        compose_sha256="d" * 64,
+        service_unit=service_unit,
+        state_contract=state,
+    )
+    second = contract.portable_deployment_binding_id(
+        source_head="b" * 40,
+        artifact_sha256="c" * 64,
+        identity=copy.deepcopy(identity_doc),
+        compose_sha256="d" * 64,
+        service_unit=dict(reversed(list(service_unit.items()))),
+        state_contract=dict(reversed(list(state.items()))),
+    )
+    assert first == second
+    assert len(first) == 64
+
+
+def test_portable_deployment_binding_rejects_host_incompatible_platform() -> None:
+    identity_doc = portable_identity_document()
+    identity_doc["architecture"] = "amd64"
+    with pytest.raises(
+        contract.ProductionV2ContractError,
+        match="portable_deployment_platform_invalid",
+    ):
+        contract.portable_deployment_binding_id(
+            source_head="b" * 40,
+            artifact_sha256="c" * 64,
+            identity=identity_doc,
+            compose_sha256="d" * 64,
+            service_unit={"execstart_sha256": "7" * 64},
+            state_contract={"schema_migration_required": False},
+        )
+
+
+def test_portable_deployment_binding_v2_binds_compose_and_env() -> None:
+    identity_doc = portable_identity_document()
+    service_unit = {
+        "execstart_sha256": "7" * 64,
+        "execstop_sha256": "8" * 64,
+    }
+    state = {"schema_migration_required": False}
+    first = contract.portable_deployment_binding_id_v2(
+        source_head="b" * 40,
+        artifact_sha256="c" * 64,
+        identity=identity_doc,
+        deployment_inputs={
+            "compose_sha256": "d" * 64,
+            "compose_env_sha256": "e" * 64,
+        },
+        service_unit=service_unit,
+        state_contract=state,
+    )
+    changed_env = contract.portable_deployment_binding_id_v2(
+        source_head="b" * 40,
+        artifact_sha256="c" * 64,
+        identity=copy.deepcopy(identity_doc),
+        deployment_inputs={
+            "compose_sha256": "d" * 64,
+            "compose_env_sha256": "f" * 64,
+        },
+        service_unit=dict(reversed(list(service_unit.items()))),
+        state_contract=dict(reversed(list(state.items()))),
+    )
+    assert len(first) == 64
+    assert first != changed_env
+
+
+def test_portable_deployment_binding_v2_rejects_incomplete_inputs() -> None:
+    with pytest.raises(
+        contract.ProductionV2ContractError,
+        match="portable_deployment_inputs_keys_invalid",
+    ):
+        contract.portable_deployment_binding_id_v2(
+            source_head="b" * 40,
+            artifact_sha256="c" * 64,
+            identity=portable_identity_document(),
+            deployment_inputs={"compose_sha256": "d" * 64},
+            service_unit={"execstart_sha256": "7" * 64},
+            state_contract={"schema_migration_required": False},
+        )

@@ -30,7 +30,7 @@ def test_r5_reuses_registration_candidate_contract_and_bounded_transports() -> N
     assert '"gh.registration.discovery-result/1"' in header
     assert "kRegistrationDiscoveryMaxCandidates = 4" in header
     assert "kRegistrationBootstrapPort = 47110" in header
-    assert "kRegistrationCandidateTtlSeconds = 30" in header
+    assert "kRegistrationCandidateTtlSeconds = 60" in header
 
     assert 'mdns_query_ptr(\n      "_greenhouse-reg",\n      "_tcp"' in source
     assert "kRegistrationMdnsTimeoutMs = 1500" in source
@@ -63,13 +63,13 @@ def test_r5_node_contract_matches_existing_r1_manager_contract() -> None:
     assert 'bootstrap_scheme: str = "https"' in manager
     assert "bootstrap_port: int = 47110" in manager
     assert 'bootstrap_path: str = "/v1/registration/confirm"' in manager
-    assert "ttl_s: int = 30" in manager
+    assert "ttl_s: int = 60" in manager
 
     assert '"gh.n3w.first-registration/1"' in header
     assert '"gh.registration.candidate/1"' in header
     assert '"gh.registration.discovery-result/1"' in header
     assert "kRegistrationBootstrapPort = 47110" in header
-    assert "kRegistrationCandidateTtlSeconds = 30" in header
+    assert "kRegistrationCandidateTtlSeconds = 60" in header
     assert 'bootstrap_path == "/v1/registration/confirm"' in source
 
 
@@ -114,7 +114,7 @@ def test_r5_discovery_is_only_consumed_after_scan_trigger() -> None:
     discovery = function_block(
         component,
         "void SimpleProductComponent::advance_registration_discovery_()",
-        "void SimpleProductComponent::advance_pairing_()",
+        "void SimpleProductComponent::advance_registration_bootstrap_()",
     )
     trigger = "if (registration_portal_.take_scan_trigger())"
     call = "registration_discovery_.discover("
@@ -138,7 +138,7 @@ def test_r5_browser_exposes_only_opaque_candidate_id_and_label() -> None:
 
     assert "candidate.label" in page
     assert "candidate.id" in page
-    assert "candidate_id: candidateId" in page
+    assert "candidate_id: candidate.id" in page
 
     for forbidden in (
         "setup_secret",
@@ -173,11 +173,12 @@ def test_r5_browser_exposes_only_opaque_candidate_id_and_label() -> None:
 def test_r5_multiple_candidates_require_explicit_browser_selection() -> None:
     component = text(CORE / "n3w_simple_product_component.cpp")
     portal = text(CORE / "n3w_registration_portal.cpp")
+    header = text(CORE / "n3w_registration_portal.h")
 
     discovery = function_block(
         component,
         "void SimpleProductComponent::advance_registration_discovery_()",
-        "void SimpleProductComponent::advance_pairing_()",
+        "void SimpleProductComponent::advance_registration_bootstrap_()",
     )
     assert "registration_portal_.set_candidates(views);" in discovery
     portal_setup = function_block(
@@ -187,6 +188,36 @@ def test_r5_multiple_candidates_require_explicit_browser_selection() -> None:
     )
     assert "hardware_id.substr(hardware_id.size() - suffix_size)" in portal_setup
     assert 'std::string("节点 ")' in portal_setup
+
+    confirm = function_block(
+        portal,
+        "esp_err_t RegistrationPortal::handle_confirm_",
+        "esp_err_t RegistrationPortal::handle_begin_",
+    )
+    begin = function_block(
+        portal,
+        "esp_err_t RegistrationPortal::handle_begin_",
+        "esp_err_t RegistrationPortal::handle_retry_",
+    )
+
+    assert 'root["candidate_id"]' in portal
+    assert "RegistrationPortalStage::WAIT_CONFIRM" in confirm
+    assert "candidate.expires_at_ms > now_ms" in confirm
+    assert "selected_candidate_id_ = candidate_id;" in confirm
+    assert "RegistrationPortalStage::CANDIDATE_SELECTED" in confirm
+    assert '"next\\":\\"user_confirm\\"' in confirm
+    assert "RegistrationPortalStage::SELECTED_PENDING_BOOTSTRAP" not in confirm
+
+    assert "RegistrationPortalStage::CANDIDATE_SELECTED" in begin
+    assert "RegistrationPortalStage::SELECTED_PENDING_BOOTSTRAP" in begin
+    assert '"next\\":\\"bootstrap\\"' in begin
+
+    assert (
+        "discovery_stage_ !=\n"
+        "          RegistrationPortalStage::SELECTED_PENDING_BOOTSTRAP"
+        in portal
+    )
+    assert "bool take_selected_candidate_id(std::string *candidate_id);" in header
     assert "take_selected_candidate_id(&selected_id)" in discovery
     assert (
         "selected_registration_candidate_ =\n"
@@ -195,17 +226,6 @@ def test_r5_multiple_candidates_require_explicit_browser_selection() -> None:
     assert discovery.index("take_selected_candidate_id(&selected_id)") < discovery.index(
         "selected_registration_candidate_ ="
     )
-
-    confirm = function_block(
-        portal,
-        "esp_err_t RegistrationPortal::handle_confirm_",
-        "esp_err_t RegistrationPortal::handle_retry_",
-    )
-    assert 'root["candidate_id"]' in portal
-    assert "RegistrationPortalStage::WAIT_CONFIRM" in confirm
-    assert "candidate.expires_at_ms > now_ms" in confirm
-    assert "selected_candidate_id_ = candidate_id;" in confirm
-    assert "bootstrap_stage_pending" in confirm
 
     assert "registration_session_pairing_id_ = pairing_client_.pairing_id();" in discovery
     assert (
@@ -216,7 +236,6 @@ def test_r5_multiple_candidates_require_explicit_browser_selection() -> None:
     assert "RSSI" not in discovery
     assert "rssi" not in discovery
     assert "std::sort(" not in discovery
-
 
 def test_r5_retry_rearms_discovery_without_pairing_identity_mutation() -> None:
     portal = text(CORE / "n3w_registration_portal.cpp")
@@ -233,7 +252,7 @@ def test_r5_retry_rearms_discovery_without_pairing_identity_mutation() -> None:
     combined = retry + "\n" + function_block(
         component,
         "void SimpleProductComponent::advance_registration_discovery_()",
-        "void SimpleProductComponent::advance_pairing_()",
+        "void SimpleProductComponent::advance_registration_bootstrap_()",
     )
     assert "renew_pairing" not in combined
     assert "set_pairing_id" not in combined
@@ -241,7 +260,7 @@ def test_r5_retry_rearms_discovery_without_pairing_identity_mutation() -> None:
     assert "setup_secret" not in combined.lower()
 
 
-def test_r5_does_not_implement_r6_tls_bootstrap() -> None:
+def test_r5_discovery_scope_remains_transport_free_after_r6() -> None:
     discovery = text(CORE / "n3w_registration_discovery.cpp")
     discovery_h = text(CORE / "n3w_registration_discovery.h")
     portal = text(CORE / "n3w_registration_portal.cpp")
@@ -260,7 +279,7 @@ def test_r5_does_not_implement_r6_tls_bootstrap() -> None:
     discovery_block = function_block(
         component,
         "void SimpleProductComponent::advance_registration_discovery_()",
-        "void SimpleProductComponent::advance_pairing_()",
+        "void SimpleProductComponent::advance_registration_bootstrap_()",
     )
     assert "http_post_(" not in discovery_block
     assert "post_json(" not in discovery_block

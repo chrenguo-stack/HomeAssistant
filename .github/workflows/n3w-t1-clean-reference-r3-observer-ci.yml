@@ -1,0 +1,142 @@
+name: N3W T1 Clean Reference R3 observer CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, edited]
+    paths:
+      - ".github/workflows/n3w-t1-clean-reference-r3-observer-ci.yml"
+      - "tools/n3w_t1_clean_reference_observer.py"
+      - "tools/n3w_t1_clean_reference_compare.py"
+      - "tools/n3w_t1_clean_reference_r3_package_builder.py"
+      - "tests/tools/test_n3w_t1_clean_reference_r3_observer.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/n3w-t1-clean-reference-r3-observer-ci.yml"
+      - "tools/n3w_t1_clean_reference_observer.py"
+      - "tools/n3w_t1_clean_reference_compare.py"
+      - "tools/n3w_t1_clean_reference_r3_package_builder.py"
+      - "tests/tools/test_n3w_t1_clean_reference_r3_observer.py"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  source-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      R2A_CONTROL_HEAD: abeb6c31147bcf249361dcec7e9536eaed6106a6
+      R2B_CONTROL_HEAD: e15c64ac8f0f5f482a6c8538072031734002a559
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Prove accepted R2 control authorities remain byte-identical
+        run: |
+          set -euo pipefail
+          git cat-file -e "$R2A_CONTROL_HEAD^{commit}"
+          git cat-file -e "$R2B_CONTROL_HEAD^{commit}"
+          git diff --exit-code "$R2A_CONTROL_HEAD" --             tools/n3w_t1_clean_reference_r2a.py             tools/n3w_t1_clean_reference_r2a_package_builder.py             infra/n3w-t1/clean-reference/n3wfc4-broker-activation.service             infra/n3w-t1/clean-reference/n3wfc4-services-activation.service             infra/n3w-t1/clean-reference/n3wfc4-broker-certificate-lifecycle.service
+          git diff --exit-code "$R2B_CONTROL_HEAD" --             tools/n3w_t1_clean_reference_r2b.py             tools/n3w_t1_clean_reference_r2b_package_builder.py
+
+      - name: Run R3 observer source tests
+        run: |
+          set -euo pipefail
+          python -m pip install "pytest>=8,<9"
+          python -m py_compile             tools/n3w_t1_clean_reference_observer.py             tools/n3w_t1_clean_reference_compare.py             tools/n3w_t1_clean_reference_r3_package_builder.py
+          python -m pytest -q tests/tools/test_n3w_t1_clean_reference_r3_observer.py
+
+  build-observer-package:
+    needs: source-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CONTROL_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Build exact R3 observer package
+        run: |
+          set -euo pipefail
+          python tools/n3w_t1_clean_reference_r3_package_builder.py             --repo-root .             --destination "$RUNNER_TEMP/r3-observer-package"             --control-plane-head "$CONTROL_HEAD"             | tee "$RUNNER_TEMP/build-report.json"
+          grep -q '"status":"PASS"' "$RUNNER_TEMP/build-report.json"
+
+      - name: Independently verify package
+        run: |
+          set -euo pipefail
+          python - "$RUNNER_TEMP/r3-observer-package" "$CONTROL_HEAD" <<'PY'
+          import hashlib
+          import json
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          head = sys.argv[2]
+          manifest = json.loads(
+              (root / "package-manifest.json").read_text(encoding="utf-8")
+          )
+          assert manifest["schema"] == "gh.n3w-t1-clean-reference-r3-observer-package/1"
+          assert manifest["product_source_head"] == "24382caae4a1f5d459297f86e8d18f10a848ca64"
+          assert manifest["r2a_control_head"] == "abeb6c31147bcf249361dcec7e9536eaed6106a6"
+          assert manifest["r2b_control_head"] == "e15c64ac8f0f5f482a6c8538072031734002a559"
+          assert manifest["control_plane_head"] == head
+          assert manifest["t1_access"] is False
+          assert manifest["t1_mutation"] is False
+          assert manifest["network_mutation"] is False
+          assert manifest["board_access"] is False
+          expected = {
+              "tools/n3w_t1_clean_reference_observer.py",
+              "tools/n3w_t1_clean_reference_compare.py",
+          }
+          assert {item["path"] for item in manifest["files"]} == expected
+          actual = {
+              path.relative_to(root).as_posix()
+              for path in root.rglob("*")
+              if path.is_file() and path.name != "package-manifest.json"
+          }
+          assert actual == expected
+          for item in manifest["files"]:
+              path = root / item["path"]
+              assert path.stat().st_size == item["size"]
+              assert hashlib.sha256(path.read_bytes()).hexdigest() == item["sha256"]
+          print("R3_OBSERVER_PACKAGE_VERIFY=PASS")
+          PY
+
+      - name: Upload exact R3 observer artifact
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: n3w-t1-clean-reference-r3-observer-${{ env.CONTROL_HEAD }}
+          path: ${{ runner.temp }}/r3-observer-package/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Report exact artifact
+        env:
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          printf 'R3_OBSERVER_CONTROL_HEAD=%s\n' "$CONTROL_HEAD"
+          printf 'R3_OBSERVER_ARTIFACT_ID=%s\n' "$ARTIFACT_ID"
+          printf 'R3_OBSERVER_ARTIFACT_DIGEST=%s\n' "$ARTIFACT_DIGEST"
+          printf 'R2B_CONTROL_HEAD=e15c64ac8f0f5f482a6c8538072031734002a559\n'
+          printf 'PRODUCT_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64\n'
+          printf 'T1_ACCESS=false\n'
+          printf 'T1_MUTATION=false\n'
+          printf 'BOARD_ACCESS=false\n'

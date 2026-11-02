@@ -1,3 +1,29 @@
+### 2026-11-02 KF-134 — new T1 updater/authority workflows omitted from policy and fast-source trigger coverage
+
+| ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
+|---|---|---|---|---|---|
+| KF-134 | GitHub Actions governance / exact-head CI authority | 新增的 `n3w-t1-core-updater-manager-a-to-b-ci.yml` 与 `n3w-t1-core-stack-current-authority-ci.yml` 最初未进入统一 policy registration，也未被 fast-source self-trigger 路径覆盖；因此普通绿灯可能遗漏这两条新 authority workflow | workflow inventory、policy registration、concurrency/cancel/timeout 与 source-change trigger 集合没有原子更新；latest-head 证明可能 false-PASS | 把两条 workflow 纳入 policy、并发与 timeout 合同，并补齐 fast-source self-trigger；每次 stacked merge 或 docs/source head 变化后只接受新 exact head 的 fresh CI | CLOSED_PASS_SOURCE_GUARD_ACTIVE |
+
+### 2026-11-02 KF-133 — updater confirmation 之后才允许创建状态目录或持锁
+
+| ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
+|---|---|---|---|---|---|
+| KF-133 | T1_Core_Updater Manager A-to-B operator confirmation | 独立复核发现首版 updater 在用户确认前调用 `StateStore.lock()`，可能提前创建状态目录；虽然未部署产品，但已违反 confirmation-before-mutation 合同 | 状态锁被当作只读准备步骤，但其实现具有文件系统写副作用 | 把确认提示和精确输入验证移动到任何 `StateStore` 创建、目录创建、锁定或 ledger 写入之前；source tests 固定 confirmation 前零 mutation | CLOSED_PASS_PR748 |
+
+### 2026-11-02 KF-132 — post-boot whole-image verify 把 `otadata` 正常变化误判为固件损坏
+
+| ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
+|---|---|---|---|---|---|
+| KF-132 | ESP32-C6 8MB exact factory erase/write and post-boot verification | 写入阶段内部 hash verify PASS，但首次启动后的 whole-image `verify-flash` FAIL；逐分区只读比较显示仅 `otadata` 变化 12 bytes，immutable region drift=0；第二块独立板复现相同结果 | 首次启动会合法更新 OTA selection metadata；post-boot whole-image byte equality 错把 runtime-owned mutable partition 当成 immutable firmware | 写入阶段内部 hash verify 作为写入 oracle；启动后按 partition 分类，只要求 immutable regions 完全一致；`otadata` 单独记录；禁止据此自动重刷 | CLOSED_PASS_PHYSICAL_REPRODUCED |
+
+### 2026-10-29 KF-131 — first-registration ledger 时间精度不一致导致 E03
+
+| ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
+|---|---|---|---|---|---|
+| KF-131 | N3-W R10 scan-triggered first registration / 47110 transaction / 47112 identity-bound window | E6 clean baseline 为 attempt_count=0。E7 首次注册返回 E03；新增唯一 attempt 为 `ACTIVE / BOOTSTRAP_ACCEPTED`，pairing window CLOSED，TCP 47112=0。安全日志先给出 `durable_deadline_mismatch`，下一次给出 `active_intent_missing` | `open_first_registration()` 中的 in-memory timestamp 保留微秒，而 durable ledger canonicalize 为毫秒；创建 ACTIVE row 后直接 equality 比较，因此合法值被判 mismatch，随后清理路径留下与 RAM intent 不一致的 ACTIVE 状态 | PR #747 统一 canonical timestamp 比较和 ACTIVE/intent/window 事务边界；补 precision、durable deadline、intent activation 与 cleanup regression tests；禁止把旧 Manager 作为根因，因为现场 byte binding 已证明它含先前 KF-131 repair | SOURCE_REPAIR_CLOSED_PASS_REPOSITORY_SUCCESSOR_READY_LIVE_MANAGER_A_TO_B_PENDING |
+
+Final repair authority is PR #747 head `2bf8ff0a60fa3958cabb44bf8763ebb95fc6b006`, with 15/15 workflows successful and exact Manager artifact id `13122488789`. It merged into PR #705 as `b4536167aac9bede5e2268af854ab45edf7a0042`. The exact first E03 trigger is now proven; the earlier statement that it was unproven is superseded. Repository successor Manager B is ready through the canonical stack manifest, but the real T1 still runs historical Manager A and no live A-to-B mutation occurred.
+
 ### 2026-10-24 KF-130 — post-reboot readiness 未等待 Home Assistant MQTT 会话导致 false FAIL
 
 | ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
