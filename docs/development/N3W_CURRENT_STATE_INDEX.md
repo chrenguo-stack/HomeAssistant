@@ -1,5 +1,9 @@
-## 2026-11-02 — PR #700 is the current nested-convergence authority; documentation creates a new CI head
+## 2026-11-02 — PR #700 is the current nested-convergence authority; live upgrade pending after fresh CI
 
+- Canonical current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Historical Clean Reference A: source `24382caae4a1f5d459297f86e8d18f10a848ca64`, Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Current repository B: source `3539c8f871e2cb63f18462009fa03a5eb36d39fd`, Manager `local/greenhouse-manager:fresh-3539c8f871e2`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Live deployment state remains NOT_YET_APPLIED; live upgrade pending.
 - Inner merges completed: `#705 -> #702` at `7ef344d42eb63bb07c1b3071ada518d01f47a24d`, `#702 -> #701` at `9a2fb1e154094e2d9093fc0ca77b08914764dfe4`, and `#701 -> #700` at `7df395e945d3bd4faef966bf3a906c5f53b6742b`.
 - Exact pre-documentation PR #700 head `7df395e945d3bd4faef966bf3a906c5f53b6742b` completed `49/49` workflows successfully and is open, ready, and mergeable.
 - This documentation commit advances PR #700. The old 49/49 result becomes historical; the next one gate is fresh CI and review on the new exact head.
