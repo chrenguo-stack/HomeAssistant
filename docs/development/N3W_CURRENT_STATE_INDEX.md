@@ -1,3 +1,14 @@
+## 2026-11-02 — R3 repaired readonly preflight listener-parser repair pending CI
+
+- T1 baseline healthy: system running, failed units 0, three product containers, Manager restart count 0.
+- No bridge transaction, provisioning root, FACTORY_ACCEPTED, first-pair transaction, successor recovery, or transport residue.
+- Live baseline found UDP 47111 listener count 1; TCP 47112 count 0.
+- New source defect: bridge parsed the peer-address column of `ss` instead of the local-address column, creating a false-PASS risk.
+- Bounded repair head: `dab3ccc3826fe0c1c691b3a9122674862734b4fd`.
+- Focused CI: `41374354232`, queued after three polls.
+- No T1 mutation, pairing action, Board access, or merge.
+- Progress: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_PAIRING_READINESS_BRIDGE_REPAIRED_READONLY_PREFLIGHT_LISTENER_PARSE_FALSE_PASS_REPAIR_PROGRESS_20261102.md`.
+
 ## 2026-11-02 — R3 pairing-readiness bridge source repair CLOSED_PASS
 
 - Gate `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_PAIRING_READINESS_BRIDGE_SOURCE_REPAIR_AND_IDENTITY_AUTHORITY_REDESIGN_20261102_01`: CLOSED_PASS.
