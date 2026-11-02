@@ -14,9 +14,14 @@ permissions:
   contents: read
   actions: read
 
+concurrency:
+  group: n3w-t1-core-updater-manager-a-to-b-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   source:
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     env:
       SOURCE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
@@ -41,6 +46,7 @@ jobs:
   exact-manager-slice:
     needs: source
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     env:
       CONTROL_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
       UPSTREAM_RUN_ID: "41409298801"
