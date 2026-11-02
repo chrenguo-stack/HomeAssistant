@@ -494,9 +494,14 @@ def test_interrupted_poststop_transaction_can_be_recovered(
     assert store.read()["phase"] == "RECOVERY_ROLLBACK_COMPLETE"
 
 
+@pytest.mark.parametrize(
+    "phase",
+    ["AUTHORIZED", "TARGET_IMAGE_LOADED"],
+)
 def test_interrupted_prestop_transaction_recovers_without_restart(
     tmp_path,
     monkeypatch,
+    phase,
 ):
     monkeypatch.setattr(m.os, "geteuid", lambda: 0)
     host = FakeHost()
@@ -507,7 +512,7 @@ def test_interrupted_prestop_transaction_recovers_without_restart(
     store.write({
         "schema": m.TX_SCHEMA,
         "status": "APPLYING",
-        "phase": "TARGET_IMAGE_LOADED",
+        "phase": phase,
         "component": "manager",
         "predecessor_image": OLD,
         "predecessor_image_id": OLD_ID,
@@ -1106,4 +1111,121 @@ def test_application_stopped_with_predecessor_binding_recovers_by_starting_a(
     assert host.stopped is False
     assert host.stop_calls == 1
     assert host.start_calls == 1
+
+def test_wait_services_times_out_if_listener_contract_never_converges(
+    monkeypatch,
+):
+    host = hostmod.LocalHost()
+    monkeypatch.setattr(
+        host,
+        "_systemctl",
+        lambda verb, unit: "active",
+    )
+    monkeypatch.setattr(
+        host,
+        "_container_id",
+        lambda service: f"{service}-container",
+    )
+    monkeypatch.setattr(
+        host,
+        "_listener_snapshot",
+        lambda: {
+            "tcp_8883": 1,
+            "tcp_47110": 0,
+            "udp_47111": 0,
+            "tcp_47112": 0,
+        },
+    )
+    clock = [0.0]
+    monkeypatch.setattr(
+        hostmod.time,
+        "monotonic",
+        lambda: clock[0],
+    )
+    monkeypatch.setattr(
+        hostmod.time,
+        "sleep",
+        lambda seconds: clock.__setitem__(
+            0,
+            clock[0] + seconds,
+        ),
+    )
+
+    with pytest.raises(
+        m.UpdaterError,
+        match="services_readiness_timeout",
+    ):
+        host.wait_services(timeout=5)
+
+
+def test_homeassistant_identity_drift_fails_closed_after_restoring_manager_a(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(m.os, "geteuid", lambda: 0)
+    host = FakeHost()
+    original_start = host.start_services
+
+    def start_with_ha_drift():
+        original_start()
+        if host.start_calls == 1:
+            host.ha["image_id"] = "sha256:" + "8" * 64
+
+    host.start_services = start_with_ha_drift
+    store = m.StateStore(tmp_path / "state")
+    updater = m.CoreUpdater(host, store)
+    target_value = target(tmp_path)
+
+    with pytest.raises(
+        m.UpdaterError,
+        match="automatic_rollback_failed",
+    ):
+        updater.apply(
+            target_value,
+            tmp_path / "manager.tar",
+            authorization_id="N3W_T1_CORE_UPDATER_MANAGER_TEST_HA_DRIFT",
+            confirmation=m.APPLY_CONFIRMATION,
+        )
+
+    assert host.manager == OLD
+    assert host.manager_id == OLD_ID
+    assert host.ha["image_id"] != HA_ID
+    assert store.read()["status"] == "FAILED_EMERGENCY"
+    assert store.read()["phase"] == "ROLLBACK_FAILED"
+
+
+def test_broker_identity_drift_fails_closed_without_broker_mutation(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(m.os, "geteuid", lambda: 0)
+    host = FakeHost()
+    original_start = host.start_services
+
+    def start_with_broker_drift():
+        original_start()
+        if host.start_calls == 1:
+            host.broker["image_id"] = "sha256:" + "7" * 64
+
+    host.start_services = start_with_broker_drift
+    store = m.StateStore(tmp_path / "state")
+    updater = m.CoreUpdater(host, store)
+    target_value = target(tmp_path)
+
+    with pytest.raises(
+        m.UpdaterError,
+        match="automatic_rollback_failed",
+    ):
+        updater.apply(
+            target_value,
+            tmp_path / "manager.tar",
+            authorization_id="N3W_T1_CORE_UPDATER_MANAGER_TEST_BROKER_DRIFT",
+            confirmation=m.APPLY_CONFIRMATION,
+        )
+
+    assert host.manager == OLD
+    assert host.manager_id == OLD_ID
+    assert host.broker["image_id"] != BROKER_ID
+    assert store.read()["status"] == "FAILED_EMERGENCY"
+    assert store.read()["phase"] == "ROLLBACK_FAILED"
 
