@@ -61,7 +61,7 @@ class Target:
     artifact_digest_sha256: str
     artifact_name: str
     rollback_compatible: bool
-    expected_predecessor_image: str | None
+    expected_predecessor_image: str
 
     @classmethod
     def load(cls, path: Path) -> "Target":
@@ -100,7 +100,7 @@ class Target:
             raise UpdaterError("target_artifact_name_invalid")
         if rollback_compatible is not True:
             raise UpdaterError("target_rollback_compatibility_not_proven")
-        if predecessor is not None and (
+        if (
             not isinstance(predecessor, str)
             or MANAGER_IMAGE.fullmatch(predecessor) is None
         ):
