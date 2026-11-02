@@ -52,6 +52,31 @@ class CoreUpdater:
             "listeners": snapshot["listeners"],
         }
 
+    @staticmethod
+    def _stable_runtime(runtime: dict[str, Any]) -> dict[str, Any]:
+        broker = runtime["broker"]
+        homeassistant = runtime["homeassistant"]
+        return {
+            "broker": {
+                "image_ref": broker["image_ref"],
+                "image_id": broker["image_id"],
+            },
+            "homeassistant": {
+                "image_ref": homeassistant["image_ref"],
+                "image_id": homeassistant["image_id"],
+                "network_mode": homeassistant["network_mode"],
+            },
+        }
+
+    @staticmethod
+    def _verify_ha_stable(
+        current: dict[str, Any],
+        baseline: dict[str, Any],
+    ) -> None:
+        for key in ("image_ref", "image_id", "network_mode"):
+            if current.get(key) != baseline.get(key):
+                raise UpdaterError("rollback_homeassistant_identity_drift")
+
     def inspect(self) -> dict[str, Any]:
         snapshot = self.host.inspect()
         return {
@@ -263,6 +288,7 @@ class CoreUpdater:
             "predecessor_image_id": predecessor_id,
             "target": target.public(),
             "pre_compose_env_sha256": pre["compose_env_sha256"],
+            "pre_stable_runtime": self._stable_runtime(pre["runtime"]),
             "started_at_unix": int(time.time()),
             "candidate_image_preexisting": target_prestate is not None,
         }
@@ -340,14 +366,19 @@ class CoreUpdater:
         if confirmation != ROLLBACK_CONFIRMATION:
             raise UpdaterError("rollback_confirmation_missing")
         tx = self.store.read()
-        if tx is None or tx.get("status") != "COMMITTED":
-            raise UpdaterError("committed_transaction_required")
+        if tx is None or tx.get("status") not in {"COMMITTED", "APPLYING"}:
+            raise UpdaterError("recoverable_transaction_required")
         target_doc = tx.get("target")
+        stable = tx.get("pre_stable_runtime")
         if (
             not isinstance(target_doc, dict)
             or target_doc.get("rollback_compatible") is not True
+            or not isinstance(stable, dict)
+            or not isinstance(stable.get("broker"), dict)
+            or not isinstance(stable.get("homeassistant"), dict)
         ):
-            raise UpdaterError("rollback_not_compatible")
+            raise UpdaterError("rollback_transaction_authority_invalid")
+
         target_image = target_doc.get("image")
         target_id = target_doc.get("image_id")
         predecessor = tx.get("predecessor_image")
@@ -362,44 +393,30 @@ class CoreUpdater:
             )
         ):
             raise UpdaterError("transaction_image_binding_invalid")
-        pre = self.host.inspect()
-        if (
-            pre["manager_image"] != target_image
-            or pre["runtime"]["manager"]["image_id"] != target_id
-        ):
-            raise UpdaterError("rollback_target_not_active")
         if self.host.image_id(predecessor) != predecessor_id:
             raise UpdaterError("rollback_predecessor_image_missing")
-        before_render = pre["compose_render"]
-        tx.update(status="ROLLING_BACK", phase="ROLLBACK_AUTHORIZED")
-        self.store.write(tx)
-        try:
-            self.host.stop_services()
-            self.host.broker_continuity(pre["runtime"]["broker"])
-            self.host.rewrite_manager_image(target_image, predecessor)
-            after_render = self.host.render_compose()
-            validate_candidate(
-                before_render,
-                after_render,
-                target_image,
-                predecessor,
-            )
-            self.host.start_services()
-            post = self.host.inspect()
+
+        original_status = tx["status"]
+        original_phase = tx.get("phase")
+
+        if (
+            original_status == "APPLYING"
+            and original_phase in {"AUTHORIZED", "TARGET_IMAGE_LOADED"}
+        ):
+            current = self.host.inspect()
             if (
-                post["manager_image"] != predecessor
-                or post["runtime"]["manager"]["image_id"] != predecessor_id
+                current["manager_image"] != predecessor
+                or current["runtime"]["manager"]["image_id"] != predecessor_id
             ):
-                raise UpdaterError("rollback_predecessor_runtime_invalid")
-            before = pre["runtime"]["homeassistant"]
-            after = post["runtime"]["homeassistant"]
-            for key in ("image_ref", "image_id", "network_mode"):
-                if before[key] != after[key]:
-                    raise UpdaterError("rollback_homeassistant_identity_drift")
-            self.host.broker_continuity(pre["runtime"]["broker"])
+                raise UpdaterError("prestop_recovery_predecessor_drift")
+            self._verify_ha_stable(
+                current["runtime"]["homeassistant"],
+                stable["homeassistant"],
+            )
+            self.host.broker_continuity(stable["broker"])
             tx.update(
                 status="ROLLED_BACK",
-                phase="ROLLBACK_COMPLETE",
+                phase="RECOVERY_COMPLETE_PRESTOP",
                 rolled_back_at_unix=int(time.time()),
             )
             self.store.write(tx)
@@ -409,6 +426,98 @@ class CoreUpdater:
                 "operation": "rollback",
                 "component": "manager",
                 "transaction_status": "ROLLED_BACK",
+                "recovered_from_status": original_status,
+                "recovered_from_phase": original_phase,
+                "runtime": self._public_snapshot(current),
+                "t1_mutation": False,
+            }
+
+        supported_apply_phases = {
+            "STOPPING_APPLICATION_SERVICES",
+            "APPLICATION_SERVICES_STOPPED",
+            "MANAGER_BINDING_PUBLISHED",
+            "TARGET_RUNTIME_STARTED",
+        }
+        if (
+            original_status == "APPLYING"
+            and original_phase not in supported_apply_phases
+        ):
+            raise UpdaterError("rollback_apply_phase_unsupported")
+
+        if original_status == "COMMITTED":
+            current = self.host.inspect()
+            if (
+                current["manager_image"] != target_image
+                or current["runtime"]["manager"]["image_id"] != target_id
+            ):
+                raise UpdaterError("rollback_target_not_active")
+            rollback_broker = current["runtime"]["broker"]
+            rollback_ha = current["runtime"]["homeassistant"]
+        else:
+            rollback_broker = stable["broker"]
+            rollback_ha = stable["homeassistant"]
+
+        tx.update(
+            status="ROLLING_BACK",
+            phase=(
+                "ROLLBACK_AUTHORIZED"
+                if original_status == "COMMITTED"
+                else "RECOVERY_ROLLBACK_AUTHORIZED"
+            ),
+        )
+        self.store.write(tx)
+
+        try:
+            self.host.stop_services()
+            self.host.broker_continuity(rollback_broker)
+
+            binding = self.host.manager_binding()
+            if binding == target_image:
+                before_render = self.host.render_compose()
+                self.host.rewrite_manager_image(
+                    target_image,
+                    predecessor,
+                )
+                after_render = self.host.render_compose()
+                validate_candidate(
+                    before_render,
+                    after_render,
+                    target_image,
+                    predecessor,
+                )
+            elif binding != predecessor:
+                raise UpdaterError("rollback_manager_binding_unknown")
+
+            self.host.start_services()
+            post = self.host.inspect()
+            if (
+                post["manager_image"] != predecessor
+                or post["runtime"]["manager"]["image_id"] != predecessor_id
+            ):
+                raise UpdaterError("rollback_predecessor_runtime_invalid")
+            self._verify_ha_stable(
+                post["runtime"]["homeassistant"],
+                rollback_ha,
+            )
+            self.host.broker_continuity(rollback_broker)
+            tx.update(
+                status="ROLLED_BACK",
+                phase=(
+                    "ROLLBACK_COMPLETE"
+                    if original_status == "COMMITTED"
+                    else "RECOVERY_ROLLBACK_COMPLETE"
+                ),
+                rolled_back_at_unix=int(time.time()),
+            )
+            self.store.write(tx)
+            return {
+                "schema": STATUS_SCHEMA,
+                "status": "PASS",
+                "operation": "rollback",
+                "component": "manager",
+                "transaction_status": "ROLLED_BACK",
+                "recovered_from_status": original_status,
+                "recovered_from_phase": original_phase,
                 "runtime": self._public_snapshot(post),
                 "t1_mutation": True,
             }
@@ -429,5 +538,9 @@ class CoreUpdater:
             "operation": "status",
             "component": "manager",
             "mutation": False,
+            "recovery_required": (
+                transaction is not None
+                and transaction.get("status") not in {"COMMITTED", "ROLLED_BACK"}
+            ),
             "transaction": transaction,
         }
