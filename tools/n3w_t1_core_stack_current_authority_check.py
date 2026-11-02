@@ -16,6 +16,16 @@ FRESH_COMPOSE = Path("infra/n3w-t1/production/docker-compose.fresh.yml")
 BOOTSTRAP = Path("tools/n3w_t1_fresh_product_bootstrap.py")
 CURRENT_STATE = Path("docs/development/N3W_CURRENT_STATE.md")
 CURRENT_INDEX = Path("docs/development/N3W_CURRENT_STATE_INDEX.md")
+HISTORICAL_AUTHORITY_FILES = (
+    Path("tools/n3w_t1_clean_reference_r2a.py"),
+    Path("tools/n3w_t1_clean_reference_r2b.py"),
+    Path("tools/n3w_t1_clean_reference_observer.py"),
+    Path("tools/n3w_t1_clean_reference_pairing_readiness_bridge.py"),
+    Path("tools/n3w_t1_clean_reference_r2a_package_builder.py"),
+    Path("tools/n3w_t1_clean_reference_r2b_package_builder.py"),
+    Path("tools/n3w_t1_clean_reference_r3_package_builder.py"),
+    Path("tools/n3w_t1_clean_reference_pairing_readiness_bridge_package_builder.py"),
+)
 
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
@@ -299,14 +309,24 @@ def validate_documents(
 
 
 def validate_repo(root: Path) -> dict[str, Any]:
-    return validate_documents(
-        _read_json(root / AUTHORITY),
+    authority = _read_json(root / AUTHORITY)
+    result = validate_documents(
+        authority,
         _read_json(root / TARGET),
         _read_text(root / FRESH_COMPOSE),
         _read_text(root / BOOTSTRAP),
         _read_text(root / CURRENT_STATE),
         _read_text(root / CURRENT_INDEX),
     )
+    historical = authority["historical_clean_reference"]
+    source_head = historical["source_head"]
+    expected = f'PRODUCT_SOURCE_HEAD = "{source_head}"'
+    for relative in HISTORICAL_AUTHORITY_FILES:
+        _require(
+            expected in _read_text(root / relative),
+            f"historical_clean_reference_binding_drift:{relative}",
+        )
+    return result
 
 
 def main(argv: list[str] | None = None) -> int:
