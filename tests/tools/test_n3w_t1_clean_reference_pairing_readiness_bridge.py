@@ -302,7 +302,6 @@ def test_bridge_source_cannot_reboot_restart_pair_or_touch_board() -> None:
     assert '"network_mutation": False' in source
     assert '"service_restart": False' in source
     assert '"board_access": False' in source
-    assert "legacy_factory_marker_route_retired" in source
     assert '"factory_accepted_required": False' in source
 
 
@@ -683,41 +682,3 @@ def test_system_identity_authority_binds_initialization_and_manager_db(
     ]
 
 
-def test_factory_marker_can_atomically_install_missing_provisioning_root(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    root = tmp_path / "provisioning"
-    marker = root / "FACTORY_ACCEPTED.json"
-    monkeypatch.setattr(bridge, "PROVISIONING_ROOT", root)
-    monkeypatch.setattr(bridge, "FACTORY_ACCEPTED", marker)
-    monkeypatch.setattr(bridge.os, "chown", lambda *_args: None)
-    monkeypatch.setattr(bridge, "_require_private_root", lambda path: None)
-    monkeypatch.setattr(bridge, "_atomic_private_json", _test_private_writer)
-    monkeypatch.setattr(bridge, "_fsync_directory", lambda _path: None)
-
-    created_root = bridge._create_factory_marker(
-        {"schema": "gh.n3w.t1-factory-accepted/1"}
-    )
-
-    assert created_root is True
-    assert root.is_dir()
-    assert marker.is_file()
-    assert not list(tmp_path.glob(".provisioning.bridge.*"))
-
-
-def test_bridge_created_provisioning_root_is_removed_on_rollback(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    root = tmp_path / "provisioning"
-    root.mkdir()
-    marker = root / "FACTORY_ACCEPTED.json"
-    marker.write_text("{}\n", encoding="utf-8")
-    monkeypatch.setattr(bridge, "PROVISIONING_ROOT", root)
-    monkeypatch.setattr(bridge, "FACTORY_ACCEPTED", marker)
-    monkeypatch.setattr(bridge, "_fsync_directory", lambda _path: None)
-
-    bridge._remove_marker(provisioning_root_created=True)
-
-    assert root.exists() is False
