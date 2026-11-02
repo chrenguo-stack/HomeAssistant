@@ -109,14 +109,15 @@ class StateStore:
             raise UpdaterError("transaction_history_collision")
         os.replace(self.path, destination)
         os.chmod(destination, 0o600)
-        directory = os.open(
-            self.history,
-            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
-        )
-        try:
-            os.fsync(directory)
-        finally:
-            os.close(directory)
+        for path in (self.history, self.root):
+            directory = os.open(
+                path,
+                os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+            )
+            try:
+                os.fsync(directory)
+            finally:
+                os.close(directory)
 
     def write(self, document: dict[str, Any]) -> None:
         if document.get("schema") != TX_SCHEMA:
