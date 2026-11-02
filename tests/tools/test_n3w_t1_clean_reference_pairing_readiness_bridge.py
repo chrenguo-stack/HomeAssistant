@@ -222,30 +222,14 @@ def test_factory_document_is_standard_compatible_and_provenance_bound() -> None:
     assert document["bridge_control_head"] == CONTROL_HEAD
 
 
-def test_apply_route_is_retired_before_any_preflight_or_write(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    called = False
-
-    def forbidden_preflight(*_args):
-        nonlocal called
-        called = True
-        raise AssertionError("preflight must not run")
-
-    monkeypatch.setattr(bridge, "_preflight", forbidden_preflight)
-
-    with pytest.raises(bridge.BridgeError, match="legacy_factory_marker_route_retired"):
-        bridge.apply(
-            tmp_path,
-            tmp_path / "r2-reference.json",
-            bridge.CONFIRMATION,
-            bridge.AUTHORIZATION_PREFIX + "TEST_RETIRED",
-        )
-
-    assert called is False
-    assert not (tmp_path / "provisioning").exists()
-    assert not (tmp_path / "bridge-state").exists()
+def test_parser_exposes_readonly_commands_only() -> None:
+    parser = bridge._parser()
+    subparsers = next(
+        action
+        for action in parser._actions
+        if isinstance(action, bridge.argparse._SubParsersAction)
+    )
+    assert set(subparsers.choices) == {"inspect", "status"}
 
 
 def test_preexisting_bridge_state_blocks_replay(

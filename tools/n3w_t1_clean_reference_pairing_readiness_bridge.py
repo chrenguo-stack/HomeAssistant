@@ -1070,109 +1070,6 @@ def inspect(root: Path, reference_path: Path) -> dict[str, Any]:
     }
 
 
-def _write_claim(preflight: dict[str, Any], authorization_id: str) -> dict[str, Any]:
-    _create_bridge_root()
-    identity = preflight["identity"]
-    transaction = {
-        "schema": TRANSACTION_SCHEMA,
-        "stage": "CLAIMED",
-        "authorization_id": authorization_id,
-        "authorization_claimed": True,
-        "authorization_consumed": True,
-        "authorization_replay_allowed": False,
-        "product_source_head": PRODUCT_SOURCE_HEAD,
-        "r2a_control_head": R2A_CONTROL_HEAD,
-        "r2b_control_head": R2B_CONTROL_HEAD,
-        "r3_observer_control_head": R3_OBSERVER_CONTROL_HEAD,
-        "control_plane_head": preflight["manifest"]["control_plane_head"],
-        "r2_reference_sha256": R2_REFERENCE_SHA256,
-        "r2a_transaction_sha256": preflight["transactions"]["r2a_transaction_sha256"],
-        "r2b_transaction_sha256": preflight["transactions"]["r2b_transaction_sha256"],
-        "host_instance_id_sha256": identity["host_instance_id_sha256"],
-        "system_id_sha256": identity["system_id_sha256"],
-        "factory_marker_created": False,
-        "first_pairing_inspect_passed": False,
-        "board_access": False,
-    }
-    _atomic_private_json(BRIDGE_TRANSACTION, transaction)
-    return transaction
-
-
-def _update_transaction(**fields: Any) -> dict[str, Any]:
-    transaction = _read_json(BRIDGE_TRANSACTION, mode=0o600)
-    transaction.update(fields)
-    _atomic_private_json(BRIDGE_TRANSACTION, transaction)
-    return transaction
-
-
-def _create_factory_marker(document: dict[str, Any]) -> bool:
-    if FACTORY_ACCEPTED.parent != PROVISIONING_ROOT:
-        raise BridgeError("factory_marker_path_binding_invalid")
-    if PROVISIONING_ROOT.is_symlink():
-        raise BridgeError("provisioning_root_symlink_forbidden")
-    if PROVISIONING_ROOT.exists():
-        _require_private_root(PROVISIONING_ROOT)
-        if any(PROVISIONING_ROOT.iterdir()):
-            raise BridgeError("provisioning_root_not_clean")
-        _atomic_private_json(FACTORY_ACCEPTED, document)
-        return False
-
-    parent = PROVISIONING_ROOT.parent
-    if parent.is_symlink() or not parent.is_dir():
-        raise BridgeError("provisioning_parent_invalid")
-    temporary = Path(
-        tempfile.mkdtemp(
-            prefix=f".{PROVISIONING_ROOT.name}.bridge.",
-            dir=str(parent),
-        )
-    )
-    installed = False
-    try:
-        os.chmod(temporary, 0o700)
-        os.chown(temporary, 0, 0)
-        _require_private_root(temporary)
-        temporary_marker = temporary / FACTORY_ACCEPTED.name
-        _atomic_private_json(temporary_marker, document)
-        if PROVISIONING_ROOT.exists() or PROVISIONING_ROOT.is_symlink():
-            raise BridgeError("provisioning_root_race")
-        os.rename(temporary, PROVISIONING_ROOT)
-        installed = True
-        _fsync_directory(parent)
-        return True
-    finally:
-        if not installed and temporary.exists() and not temporary.is_symlink():
-            (temporary / FACTORY_ACCEPTED.name).unlink(missing_ok=True)
-            try:
-                temporary.rmdir()
-            except OSError:
-                pass
-
-
-def _remove_marker(*, provisioning_root_created: bool) -> None:
-    if PROVISIONING_ROOT.is_symlink():
-        raise BridgeError("provisioning_root_rollback_symlink")
-    if FACTORY_ACCEPTED.is_symlink():
-        raise BridgeError("factory_marker_rollback_symlink")
-    if FACTORY_ACCEPTED.exists():
-        FACTORY_ACCEPTED.unlink()
-    if provisioning_root_created:
-        if not PROVISIONING_ROOT.is_dir():
-            raise BridgeError("provisioning_root_rollback_missing")
-        if any(PROVISIONING_ROOT.iterdir()):
-            raise BridgeError("provisioning_root_rollback_not_empty")
-        PROVISIONING_ROOT.rmdir()
-        _fsync_directory(PROVISIONING_ROOT.parent)
-    elif PROVISIONING_ROOT.is_dir():
-        _fsync_directory(PROVISIONING_ROOT)
-
-def apply(
-    root: Path,
-    reference_path: Path,
-    confirmation: str,
-    authorization_id: str,
-) -> dict[str, Any]:
-    del root, reference_path, confirmation, authorization_id
-    raise BridgeError("legacy_factory_marker_route_retired")
 
 def status() -> dict[str, Any]:
     present = BRIDGE_TRANSACTION.is_file() and not BRIDGE_TRANSACTION.is_symlink()
@@ -1204,12 +1101,6 @@ def _parser() -> argparse.ArgumentParser:
     inspect_parser.add_argument("--package-root", required=True)
     inspect_parser.add_argument("--r2-reference", required=True)
 
-    apply_parser = sub.add_parser("apply")
-    apply_parser.add_argument("--package-root", required=True)
-    apply_parser.add_argument("--r2-reference", required=True)
-    apply_parser.add_argument("--confirm", required=True)
-    apply_parser.add_argument("--authorization-id", required=True)
-
     sub.add_parser("status")
     return parser
 
@@ -1234,13 +1125,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             report = inspect(
                 Path(os.path.abspath(args.package_root)),
                 Path(os.path.abspath(args.r2_reference)),
-            )
-        elif args.command == "apply":
-            report = apply(
-                Path(os.path.abspath(args.package_root)),
-                Path(os.path.abspath(args.r2_reference)),
-                args.confirm,
-                args.authorization_id,
             )
         else:
             report = status()
