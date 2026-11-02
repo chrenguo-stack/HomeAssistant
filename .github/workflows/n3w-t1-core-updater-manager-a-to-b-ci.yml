@@ -39,7 +39,7 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$SOURCE_HEAD"
           python -m pip install "pytest>=8,<9"
-          python -m py_compile             tools/n3w_t1_core_updater.py             tools/n3w_t1_core_updater_common.py             tools/n3w_t1_core_updater_core.py             tools/n3w_t1_core_updater_host.py             tools/n3w_t1_core_updater_state.py
+          python -m py_compile             tools/n3w_t1_core_updater.py             tools/n3w_t1_core_updater_common.py             tools/n3w_t1_core_updater_core.py             tools/n3w_t1_core_updater_host.py             tools/n3w_t1_core_updater_state.py             tools/n3w_t1_portable_image_identity.py
           PYTHONPATH=tools python -m pytest -q tests/tools/test_n3w_t1_core_updater.py
           ! grep -R -E 'PAIRING_SHA256|HARDWARE_SHA256|R10_E03_MANAGER_SUCCESSOR_REFRESH|KF-131'             tools/n3w_t1_core_updater*.py
 
@@ -153,6 +153,7 @@ jobs:
               "n3w_t1_core_updater_core.py",
               "n3w_t1_core_updater_host.py",
               "n3w_t1_core_updater_state.py",
+              "n3w_t1_portable_image_identity.py",
           )
           for name in updater_modules:
               shutil.copy2(Path("tools") / name, updater_source / name)

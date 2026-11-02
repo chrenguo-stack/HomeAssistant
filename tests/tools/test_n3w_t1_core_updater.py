@@ -27,6 +27,7 @@ OLD = "local/greenhouse-manager:fresh-24382caae4a1"
 OLD_ID = "sha256:" + "1" * 64
 NEW = "local/greenhouse-manager:fresh-3539c8f871e2"
 NEW_ID = "sha256:" + "2" * 64
+NEW_RUNTIME_ID = "sha256:" + "5" * 64
 HA = "local/n3w-homeassistant:2026.10.0-0c73235a"
 HA_ID = "sha256:" + "3" * 64
 BROKER = "local/n3w-mosquitto:2.1.2-3184566d"
@@ -59,6 +60,8 @@ class FakeHost:
         self.manager = OLD
         self.manager_id = OLD_ID
         self.images = {OLD: OLD_ID}
+        self.loaded_target_id = NEW_ID
+        self.portable_identity_exact = True
         self.stopped = False
         self.fail_after_start = False
         self.fail_post_start = False
@@ -139,8 +142,17 @@ class FakeHost:
     def image_id(self, reference):
         return self.images.get(reference)
 
+    def verify_image_archive(self, reference, tar_path, expected_sha256):
+        if self.images.get(reference) is None:
+            raise m.UpdaterError("target_image_missing")
+        if not self.portable_identity_exact:
+            raise m.UpdaterError(
+                "target_image_portable_identity_invalid:config_semantics_mismatch"
+            )
+        return self.images[reference]
+
     def load_image(self, tar_path):
-        self.images[NEW] = NEW_ID
+        self.images[NEW] = self.loaded_target_id
 
     def stop_services(self):
         self.stopped = True
@@ -222,6 +234,29 @@ def test_plan_is_readonly_and_binds_predecessor(tmp_path):
     assert result["target_image_prestate"] == "ABSENT"
 
 
+def test_plan_with_tar_accepts_preexisting_cross_store_runtime_id(tmp_path):
+    host = FakeHost()
+    host.images[NEW] = NEW_RUNTIME_ID
+    updater = m.CoreUpdater(host, m.StateStore(tmp_path / "state"))
+    target_value = target(tmp_path)
+    result = updater.plan(target_value, tmp_path / "manager.tar")
+    assert result["mutation"] is False
+    assert result["target_image_prestate"] == "PRESENT_AND_EXACT"
+    assert result["manager_tar_verified"] is True
+
+
+def test_plan_without_tar_requires_portable_proof_for_cross_store_id(tmp_path):
+    host = FakeHost()
+    host.images[NEW] = NEW_RUNTIME_ID
+    updater = m.CoreUpdater(host, m.StateStore(tmp_path / "state"))
+    target_value = target(tmp_path)
+    with pytest.raises(
+        m.UpdaterError,
+        match="portable_identity_requires_tar",
+    ):
+        updater.plan(target_value)
+
+
 def test_apply_wrong_confirmation_creates_no_state(
     tmp_path,
     monkeypatch,
@@ -281,6 +316,81 @@ def test_apply_commits_manager_only_and_preserves_broker_ha(
     assert host.broker["image_id"] == BROKER_ID
     assert host.ha["image_id"] == HA_ID
     assert store.read()["status"] == "COMMITTED"
+
+
+def test_apply_accepts_cross_store_runtime_id_with_portable_match(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(m.os, "geteuid", lambda: 0)
+    host = FakeHost()
+    host.loaded_target_id = NEW_RUNTIME_ID
+    store = m.StateStore(tmp_path / "state")
+    updater = m.CoreUpdater(host, store)
+    target_value = target(tmp_path)
+    result = updater.apply(
+        target_value,
+        tmp_path / "manager.tar",
+        authorization_id="N3W_T1_CORE_UPDATER_MANAGER_TEST_CROSS_STORE",
+        confirmation=m.APPLY_CONFIRMATION,
+    )
+    assert result["transaction_status"] == "COMMITTED"
+    assert host.manager == NEW
+    assert host.manager_id == NEW_RUNTIME_ID
+    assert store.read()["target"]["image_id"] == NEW_ID
+    assert store.read()["target_runtime_image_id"] == NEW_RUNTIME_ID
+
+
+def test_apply_portable_mismatch_rolls_back_before_service_stop(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(m.os, "geteuid", lambda: 0)
+    host = FakeHost()
+    host.loaded_target_id = NEW_RUNTIME_ID
+    host.portable_identity_exact = False
+    store = m.StateStore(tmp_path / "state")
+    updater = m.CoreUpdater(host, store)
+    target_value = target(tmp_path)
+    with pytest.raises(
+        m.UpdaterError,
+        match="target_image_portable_identity_invalid",
+    ):
+        updater.apply(
+            target_value,
+            tmp_path / "manager.tar",
+            authorization_id="N3W_T1_CORE_UPDATER_MANAGER_TEST_PORTABLE_BAD",
+            confirmation=m.APPLY_CONFIRMATION,
+        )
+    assert host.manager == OLD
+    assert host.stopped is False
+    assert store.read()["status"] == "ROLLED_BACK"
+    assert store.read()["phase"] == "ROLLBACK_COMPLETE_PRESTOP"
+
+
+def test_explicit_rollback_uses_local_runtime_id_after_cross_store_apply(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(m.os, "geteuid", lambda: 0)
+    host = FakeHost()
+    host.loaded_target_id = NEW_RUNTIME_ID
+    store = m.StateStore(tmp_path / "state")
+    updater = m.CoreUpdater(host, store)
+    target_value = target(tmp_path)
+    updater.apply(
+        target_value,
+        tmp_path / "manager.tar",
+        authorization_id="N3W_T1_CORE_UPDATER_MANAGER_TEST_CROSS_ROLLBACK",
+        confirmation=m.APPLY_CONFIRMATION,
+    )
+    assert host.manager_id == NEW_RUNTIME_ID
+    result = updater.rollback(
+        confirmation=m.ROLLBACK_CONFIRMATION
+    )
+    assert result["transaction_status"] == "ROLLED_BACK"
+    assert host.manager == OLD
+    assert host.manager_id == OLD_ID
 
 
 def test_apply_post_failure_automatically_rolls_back(

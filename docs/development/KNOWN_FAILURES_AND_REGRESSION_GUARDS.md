@@ -1021,6 +1021,9 @@ P2A does not close the target-Armbian OS-host identity, deployable host CLI, clo
 
 # KNOWN_FAILURES_AND_REGRESSION_GUARDS
 
+> **KF-106 RECURRENCE / UPDATER SOURCE REPAIR IN PROGRESS（2026-11-02）**：T1_Core_Updater Manager A→B 首次 live apply 在 exact tar SHA、predecessor、listener、transaction 和 `plan --manager-tar` 全部 PASS 后，target image load 成功，但 updater 重新以 build-side `.Id == T1 runtime .Id` 作为 exact binding，触发 `target_image_binding_invalid`。失败发生在 services stop 之前；transaction 自动闭环为 `ROLLED_BACK / ROLLBACK_COMPLETE_PRESTOP`，Manager/HA/Broker restart count 均保持 0，运行基线未改变。该 live authorization 已 consumed/no-replay。根因属于既有 KF-106 cross-store identity oracle 类，不新增 KF 编号。修复复用 `n3w_t1_portable_image_identity.py` 的 exact tar → RootFS diff-id + config-semantics portable binding，并同时修正 apply、post-start verification、preexisting-target plan 与 explicit rollback 的 runtime-ID 语义。真实 retry 需新 exact updater package、fresh read-only T1 portable preflight 和新的 explicit authorization；当前禁止直接重放。
+
+
 > 目的：快速定位并闪避本项目已经实际发生过的问题。  
 > 本文件是索引，不替代交接文档、CI、decision/status 文档或 private evidence。
 

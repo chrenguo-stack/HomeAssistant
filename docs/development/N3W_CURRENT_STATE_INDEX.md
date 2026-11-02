@@ -1,3 +1,18 @@
+## 2026-11-02 — Manager A->B apply R1 safe STOP; updater portable-image repair in progress
+
+- Historical Clean Reference A remains source `24382caae4a1f5d459297f86e8d18f10a848ca64`, Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`: product source `3539c8f871e2cb63f18462009fa03a5eb36d39fd`, Manager B `local/greenhouse-manager:fresh-3539c8f871e2`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Repository authority still has `LIVE_DEPLOYMENT_STATE=NOT_YET_APPLIED`; live upgrade pending after source repair and a new authorization.
+- Fresh pre-apply `status + inspect + plan --manager-tar` all PASS; exact predecessor Manager A and exact target tar were proven.
+- First live apply stopped with `target_image_binding_invalid` after target image load but before Manager/Home Assistant service stop.
+- Updater transaction closed `ROLLED_BACK / ROLLBACK_COMPLETE_PRESTOP`; `recovery_required=false`.
+- Manager, Home Assistant and Broker restart counts remained 0 and their pre-apply runtime identities were unchanged.
+- The live authorization used by R1 is consumed and must not be replayed.
+- Root-cause class is existing KF-106: strict build-side Docker image `.Id` equality was accidentally reintroduced in T1_Core_Updater despite the project portable RootFS/config identity authority.
+- Source repair branch: `fix/n3w-t1-core-updater-portable-image-identity-20261102`.
+- Next one gate: `N3W_T1_CORE_UPDATER_PORTABLE_IMAGE_IDENTITY_SOURCE_REPAIR_CI_AND_REVIEW_20261102_01`.
+- No live retry and no Board work until a new exact updater package passes source review and a fresh read-only T1 portable-identity preflight.
+
 ## 2026-11-02 — main convergence complete; next operational gate is Manager A->B read-only inspect/plan
 
 - Protected `main` is now `092c9fca70df4212110b4ad07eb8fba9e8c9ef9e`; the full stacked chain #700 -> #699 -> #698 -> #696 -> main is complete.

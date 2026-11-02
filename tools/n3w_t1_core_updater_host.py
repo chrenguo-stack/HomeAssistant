@@ -9,6 +9,12 @@ import time
 from pathlib import Path
 from typing import Any, Sequence
 
+from n3w_t1_portable_image_identity import (
+    PortableImageIdentityError,
+    parse_image_archive,
+    verify_runtime_document,
+)
+
 from n3w_t1_core_updater_common import (
     BROKER_ENV,
     BROKER_UNIT,
@@ -286,7 +292,7 @@ class LocalHost:
             "listeners": listeners,
         }
 
-    def image_id(self, reference: str) -> str | None:
+    def _image_document(self, reference: str) -> dict[str, Any] | None:
         result = self._run(
             ("docker", "image", "inspect", reference),
             check=False,
@@ -297,15 +303,52 @@ class LocalHost:
             document = json.loads(result.stdout)
         except json.JSONDecodeError as error:
             raise UpdaterError("image_inspect_invalid") from error
-        value = (
-            document[0].get("Id")
-            if isinstance(document, list)
-            and len(document) == 1
-            and isinstance(document[0], dict)
-            else None
-        )
+        if (
+            not isinstance(document, list)
+            or len(document) != 1
+            or not isinstance(document[0], dict)
+        ):
+            raise UpdaterError("image_inspect_shape_invalid")
+        return document[0]
+
+    def image_id(self, reference: str) -> str | None:
+        document = self._image_document(reference)
+        if document is None:
+            return None
+        value = document.get("Id")
         if not isinstance(value, str) or IMAGE_ID.fullmatch(value) is None:
             raise UpdaterError("image_id_invalid")
+        return value
+
+    def verify_image_archive(
+        self,
+        reference: str,
+        tar_path: Path,
+        expected_sha256: str,
+    ) -> str:
+        try:
+            identity = parse_image_archive(
+                tar_path,
+                expected_archive_sha256=expected_sha256,
+                expected_tag=reference,
+                platform_os="linux",
+                platform_architecture="arm64",
+            )
+        except PortableImageIdentityError as error:
+            raise UpdaterError(
+                "target_archive_portable_identity_invalid"
+            ) from error
+        document = self._image_document(reference)
+        if document is None:
+            raise UpdaterError("target_image_missing")
+        verdict = verify_runtime_document(identity, document)
+        if verdict.status != "VERIFIED":
+            raise UpdaterError(
+                f"target_image_portable_identity_invalid:{verdict.reason}"
+            )
+        value = verdict.runtime_image_id
+        if not isinstance(value, str) or IMAGE_ID.fullmatch(value) is None:
+            raise UpdaterError("target_image_runtime_id_invalid")
         return value
 
     def load_image(self, tar_path: Path) -> None:
