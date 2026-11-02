@@ -1,3 +1,41 @@
+## Latest authority — 2026-11-03 Updater V2 merged and exact package bound; R2 transaction reconciliation next
+
+~~~text
+AUTHORITY_STATE=UPDATER_V2_READY_R2_TRANSACTION_RECONCILIATION_NEXT
+
+MAIN=24fbc6cdf9b05796487459ad7cae038c0bdc7d5a
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+
+UPDATER_V2_REVIEWED_HEAD=43de966c70d527433a915f40b9b630227531580a
+UPDATER_V2_MERGE_COMMIT=24fbc6cdf9b05796487459ad7cae038c0bdc7d5a
+UPDATER_V2_PACKAGE_RUN=41544508199
+UPDATER_V2_PACKAGE_ARTIFACT_ID=13187736541
+UPDATER_V2_PACKAGE_DIGEST=sha256:e09fb86c8444e0510b0200e759551d3571496064c743b4171992d46ab73babb9
+UPDATER_V2_PYZ_SHA256=e92c093c7028d57ddc1e2c9c1eeb3fb97a0791a27b262b472c75482eaa3026bf
+MANAGER_TAR_SHA256=0038286140758c27c66eeb005d2a7ea4aec4538ad94447a44021bb61de7e51f0
+MANAGER_REBUILT=false
+
+LIVE_DEPLOYMENT_STATE=NOT_YET_APPLIED
+LIVE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_RUNTIME_HEALTHY=true
+
+R2_TRANSACTION_STATUS=FAILED_EMERGENCY
+R2_TRANSACTION_PHASE=ROLLBACK_FAILED
+R2_AUTHORIZATION_REPLAY_PERMITTED=false
+
+KF135=SOURCE_V2_CLOSED_LIVE_ACCEPTANCE_PENDING
+KF136=SOURCE_V2_CLOSED_LIVE_RECONCILIATION_PENDING
+
+LIVE_T1_MUTATION=false
+R2_TRANSACTION_RECONCILIATION_AUTHORIZED=false
+APPLY_RETRY=false
+BOARD_ACCESS_DEFAULT=false
+
+NEXT_ONE_GATE=N3W_T1_CORE_UPDATER_V2_R2_TRANSACTION_RECONCILIATION_READONLY_PREFLIGHT_20261103_01
+~~~
+
+The next T1 action is not another A->B apply. First use the V2 package for a fresh read-only preflight against the healthy predecessor-A runtime and the stuck R2 transaction. Any transaction mutation requires a separate explicit recovery authorization. Only after reconciliation to terminal ROLLED_BACK and another fresh PREDECESSOR_HEALTHY check may a new A->B authorization be considered.
+
 ## Latest authority — 2026-11-03 R2 incident contained; Updater V2 convergence before any further live apply
 
 ~~~text
