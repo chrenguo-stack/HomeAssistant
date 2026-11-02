@@ -1,3 +1,21 @@
+## 2026-11-03 — Updater V2 exact authority ready; stuck R2 transaction reconciliation is the next live boundary
+
+- Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source remains `3539c8f871e2cb63f18462009fa03a5eb36d39fd`.
+- Current repository Manager target remains `local/greenhouse-manager:fresh-3539c8f871e2`.
+- Current repository Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference source remains `24382caae4a1f5d459297f86e8d18f10a848ca64`, Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Updater V2 reviewed head `43de966c70d527433a915f40b9b630227531580a` merged as `24fbc6cdf9b05796487459ad7cae038c0bdc7d5a`; reviewed-head -> merge tree drift is zero.
+- Exact V2 package run `41544508199`, artifact `13187736541`, digest `sha256:e09fb86c8444e0510b0200e759551d3571496064c743b4171992d46ab73babb9`, updater pyz SHA256 `e92c093c7028d57ddc1e2c9c1eeb3fb97a0791a27b262b472c75482eaa3026bf`.
+- Manager tar remains `0038286140758c27c66eeb005d2a7ea4aec4538ad94447a44021bb61de7e51f0`; Manager was not rebuilt.
+- Repository authority remains `LIVE_DEPLOYMENT_STATE=NOT_YET_APPLIED`; live upgrade pending.
+- Fresh live evidence still places production on healthy predecessor Manager A.
+- R2 transaction remains `FAILED_EMERGENCY / ROLLBACK_FAILED`; its consumed authorization must not be replayed.
+- KF-135/KF-136 V2 source closure is complete; live reconciliation/acceptance remains pending.
+- No T1 mutation, transaction reconciliation, apply retry or Board access is authorized.
+- Next one gate: `N3W_T1_CORE_UPDATER_V2_R2_TRANSACTION_RECONCILIATION_READONLY_PREFLIGHT_20261103_01`.
+
 ## 2026-11-03 — R2 failed safely back to A; PR #754 is the sole Updater V2 development line
 
 - Canonical product authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
