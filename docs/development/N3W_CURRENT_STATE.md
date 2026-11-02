@@ -1,3 +1,40 @@
+## 2026-11-02 — R3 sensorless real first-registration route frozen; exact firmware artifact preparation entered
+
+~~~text
+TASK=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_SENSORLESS_REAL_FIRST_REGISTRATION_20261102_01
+STATE=FROZEN_READY_FOR_EXACT_FIRMWARE_ARTIFACT_AND_PREEXECUTION
+
+T1_PRODUCT_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+SOURCE_REVIEW_HEAD=e091ec469ebdacb146a84931344aa8931aa14be1
+PRODUCT_FIRST_REGISTRATION_SOURCE_DRIFT_FROM_T1_AUTHORITY=false
+
+CURRENT_HEAD_MANAGER_CI=41382450590:SUCCESS
+CURRENT_HEAD_MANAGER_PYTEST=1486_PASSED_1_SKIPPED
+CURRENT_HEAD_R8_SIMULATED_E2E=8_PASSED
+CURRENT_HEAD_F1_RC2_FIRMWARE_CI=41382450749:SUCCESS
+
+NODE_PROFILE=ESP32_C6_PLUS_LCD_PLUS_USB
+SENSORS_CONNECTED=false
+NORMAL_PRODUCT_REGISTRATION_PATH=true
+POST_CAPTURE_RULE=COMMIT_THEN_IMMEDIATE_NODE_POWER_OFF_THEN_T1_POST
+
+READINESS_BRIDGE_ENTRY_GATE=false
+READINESS_BRIDGE_DISPOSITION=HISTORICAL_DIAGNOSTIC_ONLY
+
+T1_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_EXACT_SENSORLESS_FIRMWARE_ARTIFACT_20261102_01
+~~~
+
+The R3 route is re-centered on the frozen objective: one real first-registration transition from a healthy zero-node production T1, followed by semantic PRE/POST comparison. Current source review found no registration-flow product blocker. The board will use LCD + USB with all environmental sensors disconnected. After durable Manager COMMIT the board is powered off immediately before the T1 POST snapshot, minimizing post-registration telemetry contamination.
+
+The prior readiness bridge is no longer an R3 entry gate and will not be used to decide whether the real registration may start. Its historical evidence remains retained.
+
+Frozen plan:
+`docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_SENSORLESS_REAL_FIRST_REGISTRATION_EXECUTION_PLAN_20261102.md`.
+
 ## 2026-11-02 — R3 exact readonly registration-readiness preflight source repair CI PASS; live retry pending
 
 ~~~text

@@ -1,3 +1,16 @@
+## 2026-11-02 — R3 sensorless real first-registration route FROZEN
+
+- Current gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_SENSORLESS_REAL_FIRST_REGISTRATION_20261102_01`.
+- T1 product source: `24382caae4a1f5d459297f86e8d18f10a848ca64`; review head `e091ec469ebdacb146a84931344aa8931aa14be1`.
+- No firmware or Manager first-registration runtime source drift exists between those authorities.
+- Current-head Manager CI `41382450590`: SUCCESS; full pytest `1486 passed, 1 skipped`; R8 simulated first-registration E2E `8 passed`.
+- Current-head F1.0-RC2 firmware CI `41382450749`: SUCCESS.
+- Physical R3 profile: ESP32-C6 + LCD + USB; SCD30/SHT30/BH1750/RS485/LoRa/power subsystem disconnected.
+- Frozen evidence rule: durable COMMIT -> immediately power off node -> collect T1 POST snapshot.
+- The readiness bridge is historical/diagnostic only and is not an R3 entry gate.
+- Next gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_EXACT_SENSORLESS_FIRMWARE_ARTIFACT_20261102_01`.
+- Plan: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_SENSORLESS_REAL_FIRST_REGISTRATION_EXECUTION_PLAN_20261102.md`.
+
 ## 2026-11-02 — R3 exact readonly preflight trusted-LAN path repair PASS; live retry pending
 
 - Current gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_CURRENT_PRODUCT_REGISTRATION_READINESS_EXACT_READONLY_PREFLIGHT_20261102_01`.

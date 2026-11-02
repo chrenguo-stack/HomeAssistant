@@ -383,6 +383,7 @@ def test_load_registration_guard_supports_extensionless_installed_files(
         installed_broker,
     )
     sys.modules.pop("n3w_broker_ingress_guard", None)
+    monkeypatch.setattr(bridge, "_tool_binding", lambda: None)
 
     module = bridge._load_registration_guard()
 
@@ -468,7 +469,7 @@ def test_trusted_lan_authority_reads_host_runtime_state(
             "interface": "eth0",
             "available": True,
             "generation": "generation-1",
-            "subnet": "192.168.68.0/24",
+            "subnet": "192.0.2.0/24",
         }
 
     monkeypatch.setattr(bridge, "_read_json", fake_read_json)
@@ -482,7 +483,7 @@ def test_trusted_lan_authority_reads_host_runtime_state(
                         {
                             "family": "inet",
                             "scope": "global",
-                            "local": "192.168.68.194",
+                            "local": "192.0.2.194",
                         }
                     ]
                 }

@@ -345,6 +345,31 @@
       "draft_policy": "run",
       "exceptions": {}
     },
+    "n3w-r3-sensorless-first-registration-firmware-artifact-ci.yml": {
+      "class": "EXACT",
+      "draft_policy": "ci-ready",
+      "exceptions": {}
+    },
+    "n3w-t1-clean-reference-pairing-readiness-bridge-ci.yml": {
+      "class": "EXACT",
+      "draft_policy": "ci-ready",
+      "exceptions": {}
+    },
+    "n3w-t1-clean-reference-r2a-ci.yml": {
+      "class": "EXACT",
+      "draft_policy": "ci-ready",
+      "exceptions": {}
+    },
+    "n3w-t1-clean-reference-r2b-ci.yml": {
+      "class": "EXACT",
+      "draft_policy": "ci-ready",
+      "exceptions": {}
+    },
+    "n3w-t1-clean-reference-r3-observer-ci.yml": {
+      "class": "EXACT",
+      "draft_policy": "ci-ready",
+      "exceptions": {}
+    },
     "n3w-t1-clean-reference-runtime-payload-ci.yml": {
       "class": "EXACT",
       "draft_policy": "run",
