@@ -282,8 +282,8 @@ All rows are host simulation / unit-integration tests before another T1 mutation
 | F09 | process dies after MANAGER_BINDING_PUBLISHED | recovery restores predecessor and verifies readiness |
 | F10 | target containers appear before listeners | wait, do not fail early |
 | F11 | target listeners never become ready | bounded timeout then rollback |
-| F12 | target post-check detects HA identity drift | rollback to predecessor |
-| F13 | target post-check detects Broker continuity drift | fail/recover without mutating Broker |
+| F12 | target post-check detects HA identity drift | restore Manager predecessor if possible, but remain unresolved/FAILED_EMERGENCY while HA identity drift persists; updater must not rewrite HA image |
+| F13 | target post-check detects Broker continuity drift | restore Manager predecessor if possible, but remain unresolved/FAILED_EMERGENCY while Broker drift persists; updater must not mutate Broker |
 | F14 | rollback containers appear before listeners | wait, do not create false FAILED_EMERGENCY |
 | F15 | rollback listeners never become ready | FAILED_EMERGENCY / recovery_required, runtime not guessed |
 | F16 | FAILED_EMERGENCY but predecessor is now fully healthy | explicit recovery closes ROLLED_BACK with t1_mutation=false |
@@ -300,6 +300,33 @@ All rows are host simulation / unit-integration tests before another T1 mutation
 | F27 | new apply after terminal COMMITTED/ROLLED_BACK | prior transaction archived exactly once |
 | F28 | repeated recovery after terminal ROLLED_BACK | no replay/no mutation |
 | F29 | process/host dies after transaction becomes ROLLING_BACK | explicit rollback recovery is re-entrant and converges from fresh runtime facts |
+
+## 8.1 Evidence strategy
+
+The matrix is not a requirement to create 29 mechanically duplicated test functions.
+
+Each row must have one of:
+
+```text
+DEDICATED_TEST
+SHARED_TRANSITION_TEST
+STATIC_FAIL_CLOSED_INVARIANT
+```
+
+Dedicated executable coverage is mandatory for lifecycle transitions that can strand the T1:
+
+- pre-stop interruption;
+- stop/binding/start interruption;
+- delayed/never-ready listeners;
+- target start failure;
+- rollback start failure;
+- APPLYING / ROLLING_BACK / FAILED_EMERGENCY re-entry;
+- target-active recovery;
+- predecessor-already-healthy no-mutation closure;
+- unknown binding fail-closed;
+- HA/Broker continuity drift.
+
+Shared invariant tests are acceptable for pure validation rules such as confirmation rejection, exact candidate compose delta, transaction locking and terminal archive behavior.
 
 ## 9. Merge and live gates
 
