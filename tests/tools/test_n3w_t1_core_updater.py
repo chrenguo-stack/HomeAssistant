@@ -152,6 +152,9 @@ class FakeHost:
             self.fail_after_start = True
             self.fail_post_start = False
 
+    def manager_binding(self):
+        return self.manager
+
     def rewrite_manager_image(self, expected, replacement):
         if self.manager != expected:
             raise m.UpdaterError("manager_image_env_predecessor_drift")
@@ -288,6 +291,103 @@ def test_explicit_rollback_restores_predecessor(
     assert store.read()["status"] == "ROLLED_BACK"
 
 
+def test_interrupted_poststop_transaction_can_be_recovered(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(m.os, "geteuid", lambda: 0)
+    host = FakeHost()
+    host.images[NEW] = NEW_ID
+    host.manager = NEW
+    host.manager_id = NEW_ID
+    host.stopped = True
+    store = m.StateStore(tmp_path / "state")
+    updater = m.CoreUpdater(host, store)
+    target_value = target(tmp_path)
+    store.write({
+        "schema": m.TX_SCHEMA,
+        "status": "APPLYING",
+        "phase": "MANAGER_BINDING_PUBLISHED",
+        "component": "manager",
+        "predecessor_image": OLD,
+        "predecessor_image_id": OLD_ID,
+        "target": target_value.public(),
+        "pre_stable_runtime": {
+            "broker": {
+                "image_ref": BROKER,
+                "image_id": BROKER_ID,
+            },
+            "homeassistant": {
+                "image_ref": HA,
+                "image_id": HA_ID,
+                "network_mode": "host",
+            },
+        },
+    })
+    result = updater.rollback(
+        confirmation=m.ROLLBACK_CONFIRMATION
+    )
+    assert result["transaction_status"] == "ROLLED_BACK"
+    assert result["recovered_from_status"] == "APPLYING"
+    assert result["recovered_from_phase"] == "MANAGER_BINDING_PUBLISHED"
+    assert host.manager == OLD
+    assert host.manager_id == OLD_ID
+    assert store.read()["phase"] == "RECOVERY_ROLLBACK_COMPLETE"
+
+
+def test_interrupted_prestop_transaction_recovers_without_restart(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(m.os, "geteuid", lambda: 0)
+    host = FakeHost()
+    host.images[NEW] = NEW_ID
+    store = m.StateStore(tmp_path / "state")
+    updater = m.CoreUpdater(host, store)
+    target_value = target(tmp_path)
+    store.write({
+        "schema": m.TX_SCHEMA,
+        "status": "APPLYING",
+        "phase": "TARGET_IMAGE_LOADED",
+        "component": "manager",
+        "predecessor_image": OLD,
+        "predecessor_image_id": OLD_ID,
+        "target": target_value.public(),
+        "pre_stable_runtime": {
+            "broker": {
+                "image_ref": BROKER,
+                "image_id": BROKER_ID,
+            },
+            "homeassistant": {
+                "image_ref": HA,
+                "image_id": HA_ID,
+                "network_mode": "host",
+            },
+        },
+    })
+    result = updater.rollback(
+        confirmation=m.ROLLBACK_CONFIRMATION
+    )
+    assert result["transaction_status"] == "ROLLED_BACK"
+    assert result["t1_mutation"] is False
+    assert host.manager == OLD
+    assert host.stopped is False
+    assert store.read()["phase"] == "RECOVERY_COMPLETE_PRESTOP"
+
+
+def test_status_marks_interrupted_transaction_recovery_required(tmp_path):
+    host = FakeHost()
+    store = m.StateStore(tmp_path / "state")
+    updater = m.CoreUpdater(host, store)
+    store.write({
+        "schema": m.TX_SCHEMA,
+        "status": "APPLYING",
+        "phase": "APPLICATION_SERVICES_STOPPED",
+    })
+    result = updater.status()
+    assert result["recovery_required"] is True
+
+
 def test_terminal_transaction_archived_before_next_apply(tmp_path):
     store = m.StateStore(tmp_path / "state")
     store.write({
@@ -359,6 +459,30 @@ def test_target_rejects_unproven_rollback(tmp_path):
     with pytest.raises(
         m.UpdaterError,
         match="rollback_compatibility",
+    ):
+        m.Target.load(path)
+
+
+def test_target_requires_exact_predecessor(tmp_path):
+    path = tmp_path / "target.json"
+    path.write_text(
+        json.dumps({
+            "schema": m.TARGET_SCHEMA,
+            "component": "manager",
+            "source_head": "a" * 40,
+            "image": NEW,
+            "image_id": NEW_ID,
+            "tar_sha256": "c" * 64,
+            "artifact_id": 1,
+            "artifact_digest_sha256": "d" * 64,
+            "artifact_name": "x",
+            "rollback_compatible": True,
+        }),
+        encoding="utf-8",
+    )
+    with pytest.raises(
+        m.UpdaterError,
+        match="predecessor_image",
     ):
         m.Target.load(path)
 
