@@ -1,3 +1,42 @@
+## 2026-11-02 — Manager A->B live apply R2 entered FAILED_EMERGENCY; read-only forensic required
+
+~~~text
+TASK=N3W_T1_CORE_STACK_MANAGER_A_TO_B_R2_FAILED_EMERGENCY_FORENSIC_20261102_01
+STATE=FAILED_EMERGENCY_RECOVERY_REQUIRED_READONLY_FORENSIC_ONLY
+
+MAIN=ae67dc9da98b16c8bb6a23bc45afa2c5adbc4aee
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+
+R2_PRE_STATUS=PASS
+R2_PRE_INSPECT=PASS
+R2_PRE_PLAN=PASS
+R2_PRE_TARGET_IMAGE_PRESTATE=PRESENT_AND_EXACT
+
+R2_APPLY_RESULT=STOP
+R2_APPLY_REASON=automatic_rollback_failed
+R2_APPLY_RC=2
+R2_AUTHORIZATION_CONSUMED=true
+R2_AUTHORIZATION_REPLAY_PERMITTED=false
+
+POST_STATUS=PASS
+POST_RECOVERY_REQUIRED=true
+POST_TRANSACTION_STATUS=FAILED_EMERGENCY
+POST_TRANSACTION_PHASE=ROLLBACK_FAILED
+POST_TARGET_RUNTIME_IMAGE_ID=sha256:9dd128f0700840d46d300f9a434e2d3fbf5abba7abbd03c7dd432e9f497be035
+
+POST_INSPECT=STOP
+POST_INSPECT_REASON=listener_contract_drift
+LIVE_RUNTIME_AUTHORITY=UNKNOWN_FRESH
+
+EXPLICIT_ROLLBACK_AUTHORIZED=false
+APPLY_RETRY_AUTHORIZED=false
+BOARD_ACCESS=false
+
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_MANAGER_A_TO_B_R2_FAILED_EMERGENCY_READONLY_FORENSIC_20261102_01
+~~~
+
+The updater's strict inspect requires listeners 8883=1, 47110=1, 47111=1 and 47112=0. Current source waits only for Manager and Home Assistant containers to exist after service start before calling strict inspect. This creates a strong readiness-race hypothesis, and the automatic rollback path uses the same immediate strict inspect. This is not yet the final root cause: fresh read-only evidence must first establish the current Manager binding/runtime and exact listener state.
+
 ## 2026-11-02 — replacement updater live portable-identity revalidation CLOSED_PASS; R2 apply awaits new authorization
 
 ~~~text
