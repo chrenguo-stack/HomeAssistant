@@ -212,6 +212,22 @@ class CoreUpdater:
         authorization_id: str,
         confirmation: str,
     ) -> dict[str, Any]:
+        with self.store.lock():
+            return self._apply_locked(
+                target,
+                tar_path,
+                authorization_id=authorization_id,
+                confirmation=confirmation,
+            )
+
+    def _apply_locked(
+        self,
+        target: Target,
+        tar_path: Path,
+        *,
+        authorization_id: str,
+        confirmation: str,
+    ) -> dict[str, Any]:
         if os.geteuid() != 0:
             raise UpdaterError("root_required")
         if confirmation != APPLY_CONFIRMATION:
@@ -315,6 +331,10 @@ class CoreUpdater:
             raise
 
     def rollback(self, *, confirmation: str) -> dict[str, Any]:
+        with self.store.lock():
+            return self._rollback_locked(confirmation=confirmation)
+
+    def _rollback_locked(self, *, confirmation: str) -> dict[str, Any]:
         if os.geteuid() != 0:
             raise UpdaterError("root_required")
         if confirmation != ROLLBACK_CONFIRMATION:
