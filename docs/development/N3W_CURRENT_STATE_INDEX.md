@@ -1,3 +1,18 @@
+## 2026-11-02 — R3 pairing-readiness bridge source repair committed; CI_PENDING
+
+- Current gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_PAIRING_READINESS_BRIDGE_SOURCE_REPAIR_AND_IDENTITY_AUTHORITY_REDESIGN_20261102_01`.
+- Source-repair head: `7b913c98e1eee3669fc356f01ea0b5ff098f9b66`.
+- Bridge blob: `92a9b5e1c3435eb0dd562c498878a1f65bcd808b`; focused-test blob: `2f9fe7c620595e23614bdf35505c29a8252b1afe`.
+- R2 / R2 common-reference remains CLOSED_PASS; Option A remains selected.
+- Proven `sqlite3` import defect is repaired and real SQLite execution is now covered.
+- Legacy `DEVICE_READY` assumption is removed; frozen device-provisioning authority must report `UNPROVISIONED`.
+- Clean Reference identity authority is now: exact fresh release + frozen OS host identity + verified Manager initialization identity + Manager DB system-id fingerprint binding.
+- Missing provisioning root is accepted read-only as UNPROVISIONED; preflight does not create it.
+- Future authorized apply uses a populated temporary root followed by atomic rename, so an empty provisioning root is not deliberately created.
+- CI run `41364918910` remained queued after three polls; gate remains IN_PROGRESS / CI_PENDING.
+- No authorization claimed/consumed; no FACTORY_ACCEPTED; pairing window closed; T1 mutation false; Board access false; merge false.
+- Progress: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_PAIRING_READINESS_BRIDGE_SOURCE_REPAIR_AND_IDENTITY_AUTHORITY_REDESIGN_PROGRESS_20261102.md`.
+
 ## 2026-11-02 — R3 pairing-readiness bridge preflight STOP_PRECLAIM
 
 - Exact bridge authority: `37e269300d6fadeee7ad85476374813f879cdb23`.

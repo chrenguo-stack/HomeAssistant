@@ -1,3 +1,53 @@
+## 2026-11-02 — R3 pairing-readiness bridge source repair committed; CI_PENDING
+
+~~~text
+TASK=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_PAIRING_READINESS_BRIDGE_SOURCE_REPAIR_AND_IDENTITY_AUTHORITY_REDESIGN_20261102_01
+STATE=IN_PROGRESS
+SOURCE_REPAIR_HEAD=7b913c98e1eee3669fc356f01ea0b5ff098f9b66
+SOURCE_REPAIR_BRIDGE_BLOB=92a9b5e1c3435eb0dd562c498878a1f65bcd808b
+SOURCE_REPAIR_TEST_BLOB=2f9fe7c620595e23614bdf35505c29a8252b1afe
+
+R2_COMMON_REFERENCE=CLOSED_PASS
+OPTION_A_DIRECTION=RETAINED
+PREVIOUS_PREFLIGHT=STOP_PRECLAIM
+
+SQLITE3_IMPORT_DEFECT=REPAIRED_IN_SOURCE
+DEVICE_READY_ASSUMPTION_REMOVED=true
+CURRENT_DEVICE_PROVISIONING_STATE=UNPROVISIONED
+IDENTITY_AUTHORITY=clean_reference_runtime_identity_v1
+EMPTY_PROVISIONING_ROOT_CREATION=false
+
+BRIDGE_CI_RUN=41364918910
+BRIDGE_CI_STATE=QUEUED_AFTER_3_POLLS
+BRIDGE_CI_CONCLUSION=NOT_AVAILABLE
+
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+FACTORY_ACCEPTED_CREATED=false
+PAIRING_WINDOW_OPENED=false
+T1_ACCESS=false
+BOARD_ACCESS=false
+MERGE=false
+
+GATE_CLOSED=false
+CLOSE_BLOCKER=BRIDGE_CI_PENDING
+NEXT_ACTION=READ_CI_RUN_41364918910_THEN_CLOSE_OR_BOUNDED_LOCAL_REPAIR
+~~~
+
+The focused source repair is committed but not yet closed. The bridge now treats a missing
+device-provisioning root as the frozen `UNPROVISIONED` state rather than fabricating
+`DEVICE_READY`. Identity is taken from the exact fresh release, frozen OS host identity,
+verified Manager initialization identity, and Manager DB system-id binding.
+
+The proven missing `sqlite3` import is repaired and a real SQLite test path was added.
+Future authorized marker creation can install a populated provisioning root atomically; this
+gate did not execute apply, create `FACTORY_ACCEPTED`, open pairing, access a Board, or
+merge.
+
+CI run `41364918910` remained queued after the three-poll limit, so no CI result is
+claimed. Progress archive:
+`docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_PAIRING_READINESS_BRIDGE_SOURCE_REPAIR_AND_IDENTITY_AUTHORITY_REDESIGN_PROGRESS_20261102.md`.
+
 ## 2026-11-02 — R3 pairing-readiness bridge readonly preflight STOP_PRECLAIM
 
 ~~~text
