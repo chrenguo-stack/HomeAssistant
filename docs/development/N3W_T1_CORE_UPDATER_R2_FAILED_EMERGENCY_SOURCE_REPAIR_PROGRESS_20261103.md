@@ -38,26 +38,32 @@ Repair:
 - keep waiting in `wait_services()` until containers exist and listener snapshot equals the strict contract;
 - timeout remains bounded at 120 seconds and fails closed.
 
-### KF-136 FAILED_EMERGENCY closure dead-end
+### KF-136 non-terminal recovery dead-end
 
-Current rollback accepts only COMMITTED/APPLYING while `prepare_new()` rejects FAILED_EMERGENCY.
+The old rollback path accepted only COMMITTED/APPLYING. Review of the full lifecycle also found that a process/host interruption after the transaction becomes `ROLLING_BACK` creates the same class of dead-end.
 
-Repair:
-- allow explicit rollback to read FAILED_EMERGENCY;
-- require predecessor image still exists with exact predecessor runtime ID;
-- require strict current inspect PASS;
-- require current Manager already equals predecessor A;
-- require HA identity stability and Broker continuity;
-- only then change transaction state to `ROLLED_BACK / RECOVERY_COMPLETE_FAILED_EMERGENCY`;
-- report `t1_mutation=false`;
-- if predecessor is not already restored, fail closed without runtime mutation.
+V2 repair:
+- explicit rollback/recovery accepts APPLYING, ROLLING_BACK and FAILED_EMERGENCY histories;
+- transaction history is not treated as current runtime authority;
+- validate predecessor image authority first;
+- read current Manager binding before any service mutation;
+- if predecessor A is already strictly healthy, close to ROLLED_BACK with `t1_mutation=false`;
+- if target B remains bound/active or application services are stopped, use the existing controlled rollback path to restore predecessor A;
+- if binding/runtime is unknown, fail closed before stop/restart/env rewrite;
+- never silently convert a non-terminal target runtime into COMMITTED.
 
 ## Regression coverage
 
-Added tests:
+Added/expanded tests:
 - service readiness waits through an initial missing-listener sample and returns only after exact listener contract;
+- APPLYING/STOPPING with predecessor already healthy closes without restart;
+- ROLLING_BACK is re-entrant after process/host interruption;
 - recovered FAILED_EMERGENCY closes without runtime mutation;
-- FAILED_EMERGENCY with target still active refuses to close and leaves transaction unchanged.
+- FAILED_EMERGENCY with target still active can restore predecessor under explicit rollback confirmation;
+- unknown Manager binding fails before service mutation;
+- target image load/start failure and rollback-start failure paths;
+- application-stopped predecessor recovery;
+- terminal ROLLED_BACK recovery cannot be replayed.
 
 ## Next gate
 
