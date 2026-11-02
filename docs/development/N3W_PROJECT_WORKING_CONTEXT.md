@@ -31,7 +31,7 @@ The user explicitly paused before `chip-id` / `flash-id` and requested a new-cha
 # N3W_PROJECT_WORKING_CONTEXT
 
 > Status: durable public project working context  
-> Version: `N3W_PROJECT_WORKING_CONTEXT_VERSION=1.3`  
+> Version: `N3W_PROJECT_WORKING_CONTEXT_VERSION=1.4`  
 > Scope: N3-W development for the greenhouse monitoring system  
 > Repository: `chrenguo-stack/HomeAssistant`
 
@@ -235,6 +235,20 @@ Execution rules:
 When a workflow remains unfinished, a run ID without a clickable/direct URL is
 insufficient.
 
+### 4.4 Stacked PR convergence
+
+Nested pull requests converge from the innermost PR outward, exactly one layer at a time. A merge into the next PR creates a new target head; upstream CI is historical evidence only and cannot satisfy the fresh-CI gate for that target head.
+
+```text
+STACKED_PR_CONVERGENCE=INNER_TO_OUTER_ONE_LAYER_AT_A_TIME
+TARGET_PR_NEW_HEAD_IS_NEW_CI_AUTHORITY=true
+UPSTREAM_PR_CI_NOT_REUSABLE_FOR_TARGET_NEW_HEAD=true
+TARGET_DRAFT_TO_READY_AFTER_INNER_MERGE=true
+CI_POLL_MAX_PER_EXACT_HEAD=3
+NEXT_LAYER_MERGE_REQUIRES_FRESH_REVIEW_OR_DECISION=true
+FINAL_MAIN_MERGE_IS_SEPARATE_DECISION=true
+```
+
 ## 5. Development environment convention
 
 The Mac development environment is versioned and audited separately from handoffs.
@@ -330,6 +344,19 @@ UNKNOWN_FRESH
 Do not turn `NOT_EXECUTED`, missing logs, stale evidence, or an operator assumption into `PASS`.
 
 ---
+
+### 7.5 Factory-image post-write verification
+
+The write-stage internal hash verification is the authority for bytes written during flashing. After first boot, runtime-mutable partitions such as `otadata` must be classified separately from immutable firmware regions. Whole-image byte equality after boot is not a valid standalone corruption oracle.
+
+```text
+WRITE_FLASH_INTERNAL_HASH_VERIFY=WRITE_STAGE_ORACLE
+POST_BOOT_FULL_IMAGE_BYTE_EQUALITY_REQUIRED=false
+POST_BOOT_IMMUTABLE_REGION_EQUALITY_REQUIRED=true
+RUNTIME_MUTABLE_PARTITIONS_CLASSIFIED_SEPARATELY=true
+OTADATA_ONLY_POST_BOOT_DRIFT_IS_NOT_FIRMWARE_CORRUPTION=true
+AUTO_REFLASH_AFTER_FULL_IMAGE_VERIFY_MISMATCH=false
+```
 
 ## 8. Authorization and mutation rules
 
@@ -594,7 +621,7 @@ Those belong in current state, progress alignment, known failures, or the curren
 A change to this file should explain the durable process need it addresses and should update the handoff template when the change affects new-chat continuation.
 
 ```text
-N3W_PROJECT_WORKING_CONTEXT_VERSION=1.3
+N3W_PROJECT_WORKING_CONTEXT_VERSION=1.4
 STABLE_CONVENTIONS_ONLY=true
 STAGE_SPECIFIC_VALUES_PROHIBITED=true
 HANDOFF_TEMPLATE_EXPECTED_TO_REFERENCE_THIS_FILE=true

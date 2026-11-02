@@ -1,3 +1,20 @@
+## 2026-11-02 — PR #700 is the current nested-convergence authority; documentation creates a new CI head
+
+- Inner merges completed: `#705 -> #702` at `7ef344d42eb63bb07c1b3071ada518d01f47a24d`, `#702 -> #701` at `9a2fb1e154094e2d9093fc0ca77b08914764dfe4`, and `#701 -> #700` at `7df395e945d3bd4faef966bf3a906c5f53b6742b`.
+- Exact pre-documentation PR #700 head `7df395e945d3bd4faef966bf3a906c5f53b6742b` completed `49/49` workflows successfully and is open, ready, and mergeable.
+- This documentation commit advances PR #700. The old 49/49 result becomes historical; the next one gate is fresh CI and review on the new exact head.
+- PR #699 remains open/draft/mergeable at `f6bfbb31916ea0a1bdcebe439a22ec349642f1aa`. Neither `#700 -> #699` nor the final main merge is authorized by this alignment.
+
+## 2026-11-02 — R3/KF-131/successor reconciliation
+
+- USB binding and exact factory erase/write passed. After first boot, whole-image comparison changed exactly 12 bytes in `otadata` and zero immutable bytes; a second independent ESP32-C6/8MB board reproduced the same result. Treat this as classified runtime drift, not firmware corruption.
+- E5 Wi-Fi provisioning passed; E6 clean baseline closed PASS. E7 produced E03 with a unique `ACTIVE / BOOTSTRAP_ACCEPTED` attempt, pairing window closed, and TCP 47112 absent.
+- Safe logs proved `durable_deadline_mismatch` then `active_intent_missing`. Exact root cause was microsecond in-memory timestamps compared directly with millisecond-canonical ledger timestamps.
+- PR #747 fixed KF-131 at final head `2bf8ff0a60fa3958cabb44bf8763ebb95fc6b006`, 15/15 CI, Manager artifact `13122488789`, then merged into PR #705 as `b4536167aac9bede5e2268af854ab45edf7a0042`.
+- Product source is `3539c8f871e2cb63f18462009fa03a5eb36d39fd`. F2 stale binding was repaired and run `41409298580` succeeded.
+- PR #748 updater final head `57e6bad114ce8075b695fbd6b13a421937ffde43` passed 13/13 CI; confirmation now precedes `StateStore` mutation. It merged into PR #705 as `15c3ff03cc5313789a894a675f68e54387ccee16`.
+- Canonical B authority is `infra/n3w-t1/production/t1-core-stack-current.json`. Real T1 still runs Manager A `local/greenhouse-manager:fresh-24382caae4a1`; A-to-B was not applied.
+
 ## 2026-11-02 — Current T1_Core_Stack successor authority established; live upgrade pending
 
 - Canonical current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
