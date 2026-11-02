@@ -17,9 +17,14 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: n3w-t1-core-stack-current-authority-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   authority-consistency:
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     env:
       SOURCE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
