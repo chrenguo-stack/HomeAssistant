@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 
 import n3w_t1_core_updater_common as common
 import n3w_t1_core_updater_core as core
+import n3w_t1_core_updater_host as hostmod
 import n3w_t1_core_updater_state as state
 
 
@@ -654,3 +655,134 @@ def test_source_has_no_kf131_or_e03_specific_identity():
     assert "PAIRING_SHA256" not in source
     assert "HARDWARE_SHA256" not in source
     assert "R10_E03_MANAGER_SUCCESSOR_REFRESH" not in source
+
+def test_wait_services_waits_for_listener_contract(monkeypatch):
+    host = hostmod.LocalHost()
+    monkeypatch.setattr(
+        host,
+        "_systemctl",
+        lambda verb, unit: "active",
+    )
+    monkeypatch.setattr(
+        host,
+        "_container_id",
+        lambda service: f"{service}-container",
+    )
+    samples = [
+        {
+            "tcp_8883": 1,
+            "tcp_47110": 0,
+            "udp_47111": 0,
+            "tcp_47112": 0,
+        },
+        dict(hostmod.EXPECTED_LISTENERS),
+    ]
+    monkeypatch.setattr(
+        host,
+        "_listener_snapshot",
+        lambda: samples.pop(0),
+    )
+    ticks = iter((0.0, 0.1, 0.2, 0.3))
+    monkeypatch.setattr(hostmod.time, "monotonic", lambda: next(ticks))
+    monkeypatch.setattr(hostmod.time, "sleep", lambda seconds: None)
+
+    host.wait_services(timeout=10)
+
+    assert samples == []
+
+
+def test_failed_emergency_can_close_without_runtime_mutation(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(m.os, "geteuid", lambda: 0)
+    host = FakeHost()
+    store = m.StateStore(tmp_path / "state")
+    updater = m.CoreUpdater(host, store)
+    target_value = target(tmp_path)
+    store.write({
+        "schema": m.TX_SCHEMA,
+        "status": "FAILED_EMERGENCY",
+        "phase": "ROLLBACK_FAILED",
+        "component": "manager",
+        "predecessor_image": OLD,
+        "predecessor_image_id": OLD_ID,
+        "target": target_value.public(),
+        "target_runtime_image_id": NEW_RUNTIME_ID,
+        "pre_stable_runtime": {
+            "broker": {
+                "image_ref": BROKER,
+                "image_id": BROKER_ID,
+            },
+            "homeassistant": {
+                "image_ref": HA,
+                "image_id": HA_ID,
+                "network_mode": "host",
+            },
+        },
+    })
+
+    result = updater.rollback(
+        confirmation=m.ROLLBACK_CONFIRMATION
+    )
+
+    assert result["transaction_status"] == "ROLLED_BACK"
+    assert result["recovered_from_status"] == "FAILED_EMERGENCY"
+    assert result["recovered_from_phase"] == "ROLLBACK_FAILED"
+    assert result["t1_mutation"] is False
+    assert host.manager == OLD
+    assert host.manager_id == OLD_ID
+    assert store.read()["status"] == "ROLLED_BACK"
+    assert (
+        store.read()["phase"]
+        == "RECOVERY_COMPLETE_FAILED_EMERGENCY"
+    )
+
+
+def test_failed_emergency_refuses_to_close_if_predecessor_not_restored(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(m.os, "geteuid", lambda: 0)
+    host = FakeHost()
+    host.images[NEW] = NEW_RUNTIME_ID
+    host.manager = NEW
+    host.manager_id = NEW_RUNTIME_ID
+    store = m.StateStore(tmp_path / "state")
+    updater = m.CoreUpdater(host, store)
+    target_value = target(tmp_path)
+    store.write({
+        "schema": m.TX_SCHEMA,
+        "status": "FAILED_EMERGENCY",
+        "phase": "ROLLBACK_FAILED",
+        "component": "manager",
+        "predecessor_image": OLD,
+        "predecessor_image_id": OLD_ID,
+        "target": target_value.public(),
+        "target_runtime_image_id": NEW_RUNTIME_ID,
+        "pre_stable_runtime": {
+            "broker": {
+                "image_ref": BROKER,
+                "image_id": BROKER_ID,
+            },
+            "homeassistant": {
+                "image_ref": HA,
+                "image_id": HA_ID,
+                "network_mode": "host",
+            },
+        },
+    })
+
+    with pytest.raises(
+        m.UpdaterError,
+        match="failed_emergency_predecessor_not_restored",
+    ):
+        updater.rollback(
+            confirmation=m.ROLLBACK_CONFIRMATION
+        )
+
+    assert host.manager == NEW
+    assert host.manager_id == NEW_RUNTIME_ID
+    assert store.read()["status"] == "FAILED_EMERGENCY"
+    assert store.read()["phase"] == "ROLLBACK_FAILED"
+
