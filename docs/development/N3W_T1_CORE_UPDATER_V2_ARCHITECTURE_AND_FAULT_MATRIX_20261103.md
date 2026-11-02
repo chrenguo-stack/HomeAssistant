@@ -169,7 +169,9 @@ FAILED_EMERGENCY
 
 `FAILED_EMERGENCY` means: the previous recovery attempt could not prove a terminal state at that instant.
 
-It does not mean the runtime is permanently damaged.
+`ROLLING_BACK` is also non-terminal and must be recoverable after process death or host reboot.
+
+Neither status is runtime authority and neither may become a dead-end.
 
 ## 5. Apply contract
 
@@ -224,9 +226,11 @@ No service restart and no env rewrite.
 
 This is the required closure for the observed R2 incident.
 
-### 6.2 Runtime TARGET_HEALTHY with non-terminal apply
+### 6.2 Runtime TARGET_HEALTHY with non-terminal apply/recovery
 
 Do not silently promote the failed/interrupted transaction to COMMITTED.
+
+Under an explicit rollback/recovery confirmation, restore the predecessor. This applies to APPLYING, ROLLING_BACK and FAILED_EMERGENCY histories when target binding/runtime is still present.
 
 Default recovery policy remains rollback-to-predecessor because the original apply did not prove completion.
 
@@ -283,8 +287,8 @@ All rows are host simulation / unit-integration tests before another T1 mutation
 | F14 | rollback containers appear before listeners | wait, do not create false FAILED_EMERGENCY |
 | F15 | rollback listeners never become ready | FAILED_EMERGENCY / recovery_required, runtime not guessed |
 | F16 | FAILED_EMERGENCY but predecessor is now fully healthy | explicit recovery closes ROLLED_BACK with t1_mutation=false |
-| F17 | FAILED_EMERGENCY while target still active | fail closed; no automatic mutation |
-| F18 | FAILED_EMERGENCY with unknown binding/runtime | fail closed |
+| F17 | FAILED_EMERGENCY while target still active | explicit rollback recovery restores predecessor under rollback confirmation; no silent commit |
+| F18 | FAILED_EMERGENCY with unknown binding/runtime | fail closed before service mutation |
 | F19 | host reboot with APPLYING + predecessor healthy | close to ROLLED_BACK without restart |
 | F20 | host reboot with application stopped + target bound | restore predecessor via controlled recovery |
 | F21 | host reboot with application stopped + predecessor bound | start predecessor via controlled recovery |
@@ -295,6 +299,7 @@ All rows are host simulation / unit-integration tests before another T1 mutation
 | F26 | successful COMMITTED transaction then explicit rollback | predecessor restored and verified |
 | F27 | new apply after terminal COMMITTED/ROLLED_BACK | prior transaction archived exactly once |
 | F28 | repeated recovery after terminal ROLLED_BACK | no replay/no mutation |
+| F29 | process/host dies after transaction becomes ROLLING_BACK | explicit rollback recovery is re-entrant and converges from fresh runtime facts |
 
 ## 9. Merge and live gates
 
