@@ -137,7 +137,8 @@ SimpleProductComponent::registration_display_base_state_() const {
   if (portal_stage == RegistrationPortalStage::DISCOVERING) {
     return RegistrationDisplayState::DISCOVERING;
   }
-  if (portal_stage == RegistrationPortalStage::WAIT_CONFIRM) {
+  if (portal_stage == RegistrationPortalStage::WAIT_CONFIRM ||
+      portal_stage == RegistrationPortalStage::CANDIDATE_SELECTED) {
     return RegistrationDisplayState::WAIT_CONFIRM;
   }
   return RegistrationDisplayState::IDLE_UNREGISTERED;
@@ -154,11 +155,53 @@ RegistrationDisplayError SimpleProductComponent::registration_display_error() co
 
 void SimpleProductComponent::show_registration_error_(
     RegistrationDisplayError error) {
-  registration_display_controller_.show_error(error, now_ms());
+  const uint64_t now = now_ms();
+  registration_display_controller_.show_error(error, now);
+  if (!registration_portal_.running()) return;
+
+  const char *code = "E06";
+  const char *message = "注册失败";
+  switch (error) {
+    case RegistrationDisplayError::E01_NO_HOST:
+      code = "E01";
+      message = "未找到主机";
+      break;
+    case RegistrationDisplayError::E02_HOST_UNAVAILABLE:
+      code = "E02";
+      message = "主机不可用";
+      break;
+    case RegistrationDisplayError::E03_HOST_BUSY:
+      code = "E03";
+      message = "主机忙";
+      break;
+    case RegistrationDisplayError::E04_NETWORK_INTERRUPTED:
+      code = "E04";
+      message = "网络中断";
+      break;
+    case RegistrationDisplayError::E05_REGISTRATION_TIMEOUT:
+      code = "E05";
+      message = "注册超时";
+      break;
+    case RegistrationDisplayError::E07_QR_INVALID:
+      code = "E07";
+      message = "二维码或主机信息已失效";
+      break;
+    case RegistrationDisplayError::E06_REGISTRATION_FAILED:
+    case RegistrationDisplayError::NONE:
+    default:
+      break;
+  }
+  registration_portal_.set_registration_error(code, message);
 }
 
 void SimpleProductComponent::show_registration_success_() {
-  registration_display_controller_.show_success(now_ms());
+  const uint64_t now = now_ms();
+  registration_display_controller_.show_success(now);
+  if (registration_portal_.running() && now != 0U) {
+    registration_portal_.set_registration_success();
+    registration_portal_success_until_ms_ =
+        now + kRegistrationPortalSuccessGraceMs;
+  }
 }
 
 void SimpleProductComponent::setup() {
@@ -216,14 +259,22 @@ void SimpleProductComponent::loop() {
     registration_wifi_loss_reported_ = true;
   }
 
+  const uint64_t portal_now = now_ms();
+  const bool portal_success_grace =
+      pairing_client_.provisioned() &&
+      registration_portal_.running() &&
+      registration_portal_success_until_ms_ != 0U &&
+      portal_now != 0U &&
+      portal_now < registration_portal_success_until_ms_;
   const bool portal_allowed =
       activation_enabled_ && !is_failed() && !safe_reboot_requested_ &&
-      wifi_connected() && !pairing_client_.provisioned() &&
-      !pairing_ack_pending_;
+      wifi_connected() &&
+      (!pairing_client_.provisioned() || portal_success_grace);
   registration_portal_allowed_.store(
       portal_allowed, std::memory_order_release);
   if (!portal_allowed && registration_portal_.running()) {
     registration_portal_.stop();
+    registration_portal_success_until_ms_ = 0U;
   }
   if (!activation_enabled_ || is_failed() || safe_reboot_requested_) return;
   const bool recovery_exclusive =
@@ -238,7 +289,6 @@ void SimpleProductComponent::loop() {
       advance_pairing_();
       if (!pairing_client_.provisioned()) return;
       pairing_ack_pending_ = false;
-      registration_portal_.stop();
     } else {
       advance_registration_portal_();
       advance_registration_discovery_();
@@ -246,7 +296,6 @@ void SimpleProductComponent::loop() {
       return;
     }
   }
-  registration_portal_.stop();
   if (!runtime_state_loaded_ && !load_runtime_state_()) return;
   if (!mqtt_configured_ && !configure_mqtt_()) return;
   if (!runtime_ready_) {
@@ -671,7 +720,7 @@ void SimpleProductComponent::advance_registration_discovery_() {
     registration_session_pairing_id_ = pairing_client_.pairing_id();
     if (registration_session_pairing_id_.empty()) {
       show_registration_error_(RegistrationDisplayError::E06_REGISTRATION_FAILED);
-      registration_portal_.set_no_candidates();
+      clear_registration_discovery_();
       return;
     }
 
@@ -679,7 +728,7 @@ void SimpleProductComponent::advance_registration_discovery_() {
     std::string subnet_mask;
     if (!current_wifi_ipv4_(&local_ipv4, &subnet_mask)) {
       show_registration_error_(RegistrationDisplayError::E04_NETWORK_INTERRUPTED);
-      registration_portal_.set_no_candidates();
+      clear_registration_discovery_();
       return;
     }
 
@@ -699,7 +748,7 @@ void SimpleProductComponent::advance_registration_discovery_() {
 
     if (!completed) {
       show_registration_error_(RegistrationDisplayError::E06_REGISTRATION_FAILED);
-      registration_portal_.set_no_candidates();
+      clear_registration_discovery_();
       return;
     }
     if (discovered.empty()) {
@@ -738,11 +787,9 @@ void SimpleProductComponent::advance_registration_discovery_() {
   if (registration_session_pairing_id_.empty() ||
       registration_session_pairing_id_ != pairing_client_.pairing_id() ||
       !registration_candidate_index(selected_id, &selected_index) ||
-      selected_index >= registration_candidates_.size() ||
-      registration_candidates_[selected_index].expired(now_ms())) {
+      selected_index >= registration_candidates_.size()) {
     show_registration_error_(RegistrationDisplayError::E07_QR_INVALID);
     clear_registration_discovery_();
-    registration_portal_.set_no_candidates();
     return;
   }
 
@@ -756,10 +803,14 @@ void SimpleProductComponent::advance_registration_bootstrap_() {
       pairing_client_.provisioned()) {
     return;
   }
-  if (!wifi_connected() || !registration_portal_.running() ||
-      registration_session_pairing_id_.empty() ||
-      registration_session_pairing_id_ != pairing_client_.pairing_id()) {
+  if (!wifi_connected() || !registration_portal_.running()) {
     registration_portal_.stop();
+    clear_registration_discovery_();
+    return;
+  }
+  if (registration_session_pairing_id_.empty() ||
+      registration_session_pairing_id_ != pairing_client_.pairing_id()) {
+    show_registration_error_(RegistrationDisplayError::E06_REGISTRATION_FAILED);
     clear_registration_discovery_();
     return;
   }
@@ -769,18 +820,14 @@ void SimpleProductComponent::advance_registration_bootstrap_() {
   next_registration_bootstrap_attempt_ms_ = now + kPairingRetryMs;
 
   if (!registration_bootstrap_accepted_) {
-    if (selected_registration_candidate_.expired(now)) {
-      show_registration_error_(RegistrationDisplayError::E07_QR_INVALID);
-      registration_portal_.stop();
-      clear_registration_discovery_();
-      return;
-    }
-
+    // The portal accepts /begin only while the selected-candidate confirmation
+    // deadline is still valid. Once that irreversible boundary is crossed,
+    // bootstrap must not be invalidated merely because the discovery TTL
+    // expires during the TLS/HTTP transaction.
     std::string local_ipv4;
     std::string subnet_mask;
     if (!current_wifi_ipv4_(&local_ipv4, &subnet_mask)) {
       show_registration_error_(RegistrationDisplayError::E04_NETWORK_INTERRUPTED);
-      registration_portal_.stop();
       clear_registration_discovery_();
       return;
     }
@@ -795,7 +842,6 @@ void SimpleProductComponent::advance_registration_bootstrap_() {
             &request)) {
       std::fill(setup_secret.begin(), setup_secret.end(), '\0');
       show_registration_error_(RegistrationDisplayError::E06_REGISTRATION_FAILED);
-      registration_portal_.stop();
       clear_registration_discovery_();
       return;
     }
@@ -847,7 +893,6 @@ void SimpleProductComponent::advance_registration_bootstrap_() {
           break;
       }
       show_registration_error_(display_error);
-      registration_portal_.stop();
       clear_registration_discovery_();
       return;
     }
@@ -866,7 +911,6 @@ void SimpleProductComponent::advance_registration_bootstrap_() {
     if (!parsed) {
       ESP_LOGW(TAG, "R6 registration bootstrap response rejected");
       show_registration_error_(RegistrationDisplayError::E06_REGISTRATION_FAILED);
-      registration_portal_.stop();
       clear_registration_discovery_();
       return;
     }
@@ -882,7 +926,6 @@ void SimpleProductComponent::advance_registration_bootstrap_() {
           renewed == SimplePairingClientError::NONE
               ? RegistrationDisplayError::E07_QR_INVALID
               : RegistrationDisplayError::E06_REGISTRATION_FAILED);
-      registration_portal_.stop();
       clear_registration_discovery_();
       return;
     }
@@ -891,7 +934,6 @@ void SimpleProductComponent::advance_registration_bootstrap_() {
           confirmed.reason == "registration_busy"
               ? RegistrationDisplayError::E03_HOST_BUSY
               : RegistrationDisplayError::E02_HOST_UNAVAILABLE);
-      registration_portal_.stop();
       clear_registration_discovery_();
       return;
     }
@@ -911,9 +953,8 @@ void SimpleProductComponent::advance_registration_bootstrap_() {
   if (registration_bootstrap_result_.transaction_deadline_ms == 0U ||
       now >= registration_bootstrap_result_.transaction_deadline_ms) {
     show_registration_error_(RegistrationDisplayError::E05_REGISTRATION_TIMEOUT);
-    // Do not mint a new identity from a local timer. Re-scan with the same
-    // pairing ID so 47110 can authoritatively classify the old transaction.
-    registration_portal_.stop();
+    // Do not mint a new identity from a local timer. A new explicit phone
+    // retry keeps the same pairing ID so 47110 can classify the old transaction.
     clear_registration_discovery_();
     return;
   }
@@ -929,9 +970,6 @@ void SimpleProductComponent::advance_registration_bootstrap_() {
     if (pairing_client_.provisioned()) {
       show_registration_success_();
       pairing_ack_pending_ = false;
-      registration_portal_allowed_.store(
-          false, std::memory_order_release);
-      registration_portal_.stop();
       clear_registration_discovery_();
       ESP_LOGI(
           TAG,
@@ -944,21 +982,18 @@ void SimpleProductComponent::advance_registration_bootstrap_() {
 
   if (result == SimplePairingClientError::ACK_PENDING) {
     pairing_ack_pending_ = true;
-    registration_portal_.stop();
     clear_registration_discovery_();
     return;
   }
   if (result == SimplePairingClientError::TRANSACTION_RENEWED) {
     show_registration_error_(RegistrationDisplayError::E07_QR_INVALID);
-    registration_portal_.stop();
     clear_registration_discovery_();
     return;
   }
   if (result == SimplePairingClientError::HTTP_FAILED) {
-    show_registration_error_(RegistrationDisplayError::E04_NETWORK_INTERRUPTED);
     ESP_LOGD(
         TAG,
-        "R6 pairing transaction waiting code=%u",
+        "R6 pairing transaction waiting after transient HTTP failure code=%u",
         static_cast<unsigned>(result));
     return;
   }
@@ -975,7 +1010,6 @@ void SimpleProductComponent::advance_registration_bootstrap_() {
       "R6 pairing transaction failed closed code=%u",
       static_cast<unsigned>(result));
   show_registration_error_(RegistrationDisplayError::E06_REGISTRATION_FAILED);
-  registration_portal_.stop();
   clear_registration_discovery_();
 }
 
@@ -993,9 +1027,6 @@ void SimpleProductComponent::advance_pairing_() {
     if (pairing_client_.provisioned()) {
       show_registration_success_();
       pairing_ack_pending_ = false;
-      registration_portal_allowed_.store(
-          false, std::memory_order_release);
-      registration_portal_.stop();
       ESP_LOGI(
           TAG,
           "Simplified pairing committed; loading product runtime state");
@@ -1008,7 +1039,6 @@ void SimpleProductComponent::advance_pairing_() {
       result == SimplePairingClientError::TRANSACTION_RENEWED) {
     show_registration_error_(RegistrationDisplayError::E07_QR_INVALID);
     pairing_ack_pending_ = false;
-    registration_portal_.stop();
     clear_registration_discovery_();
     ESP_LOGI(TAG, "R6 terminal pending transaction cleanup completed");
     return;
@@ -1025,9 +1055,8 @@ void SimpleProductComponent::advance_pairing_() {
   }
   ESP_LOGW(
       TAG,
-      "Simplified pairing attempt failed code=%u",
+      "Simplified pairing recovery still unresolved code=%u",
       static_cast<unsigned>(result));
-  show_registration_error_(RegistrationDisplayError::E06_REGISTRATION_FAILED);
 }
 
 void SimpleProductComponent::advance_recovery_() {
