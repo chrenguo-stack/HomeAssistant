@@ -25,6 +25,17 @@
       "image_id": "sha256:4c199d7c9d377d018313a2199f6839978f6fd2219c405ad664d0a830c14b9c7b",
       "manifest_digest": "sha256:3184566df484a083411a0e70e92c87a264b8f0648df632f10eb23d54d99f4549",
       "platform": "linux/arm64"
+    },
+    "runtime_template": {
+      "source": "infra/n3w-t1/production/docker-compose.fresh.yml",
+      "live_canonical_destination": "/opt/HomeAssistant/infra/n3w-t1/production/docker-compose.yml",
+      "manager_image_binding": "GH_MANAGER_IMAGE",
+      "staging_rule": "fresh_compose_replaces_canonical_compose"
+    },
+    "legacy_static_compose": {
+      "source": "infra/n3w-t1/production/docker-compose.yml",
+      "current_successor_authority": false,
+      "retained_for_historical_compatibility": true
     }
   },
   "manager_successor_upgrade": {
