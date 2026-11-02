@@ -8,7 +8,7 @@
 
 | ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
 |---|---|---|---|---|---|
-| KF-136 | T1_Core_Updater transaction recovery | R2 现场已经恢复到 predecessor A，但 transaction 仍为 `FAILED_EMERGENCY / ROLLBACK_FAILED` 且 `recovery_required=true`；新 apply 被 `prepare_new()` 阻止，显式 rollback 又只接受 COMMITTED/APPLYING | FAILED_EMERGENCY 没有安全的状态机恢复入口 | 显式 rollback 允许读取 FAILED_EMERGENCY，但仅当严格 inspect 证明 predecessor A 已经恢复、HA 身份稳定、Broker continuity PASS 时，以 `t1_mutation=false` 收口为 `ROLLED_BACK / RECOVERY_COMPLETE_FAILED_EMERGENCY`；若 predecessor 未恢复则 fail closed，不执行自动写操作 | SOURCE_REPAIR_IN_PROGRESS |
+| KF-136 | T1_Core_Updater non-terminal transaction recovery | R2 现场已经恢复到 predecessor A，但 transaction 仍为 `FAILED_EMERGENCY / ROLLBACK_FAILED` 且 `recovery_required=true`；进一步复核还发现进程若死在显式 rollback 写入 `ROLLING_BACK` 后，同样会形成恢复死角 | 旧 rollback 入口只接受 COMMITTED/APPLYING，并把 transaction phase 当成主要恢复依据；FAILED_EMERGENCY 与 ROLLING_BACK 都可能成为非终态死角 | V2 显式 rollback/recovery 接受 APPLYING、ROLLING_BACK、FAILED_EMERGENCY；先读取当前 binding/runtime。若 predecessor A 已严格健康，则无服务重启收口为 ROLLED_BACK；若 target B 或应用停机态仍存在，则在 rollback confirmation 下恢复 predecessor；未知 binding/runtime 在任何服务 mutation 前 fail closed；任何非终态都不得 silent commit target | SOURCE_REPAIR_IN_PROGRESS |
 
 ### 2026-11-02 KF-106 recurrence live revalidation — CLOSED_PASS
 
