@@ -237,6 +237,12 @@ class CoreUpdater:
         authorization_id: str,
         confirmation: str,
     ) -> dict[str, Any]:
+        if os.geteuid() != 0:
+            raise UpdaterError("root_required")
+        if confirmation != APPLY_CONFIRMATION:
+            raise UpdaterError("apply_confirmation_missing")
+        if AUTHORIZATION_ID.fullmatch(authorization_id) is None:
+            raise UpdaterError("authorization_id_invalid")
         with self.store.lock():
             return self._apply_locked(
                 target,
@@ -357,6 +363,10 @@ class CoreUpdater:
             raise
 
     def rollback(self, *, confirmation: str) -> dict[str, Any]:
+        if os.geteuid() != 0:
+            raise UpdaterError("root_required")
+        if confirmation != ROLLBACK_CONFIRMATION:
+            raise UpdaterError("rollback_confirmation_missing")
         with self.store.lock():
             return self._rollback_locked(confirmation=confirmation)
 
