@@ -106,13 +106,21 @@ class CoreUpdater:
         if predecessor_id != pre["runtime"]["manager"]["image_id"]:
             raise UpdaterError("predecessor_image_authority_drift")
         target_prestate = self.host.image_id(target.image)
-        if target_prestate not in {None, target.image_id}:
-            raise UpdaterError("target_image_tag_conflict")
         tar_verified = False
         if tar_path is not None:
             if sha256_file(tar_path) != target.tar_sha256:
                 raise UpdaterError("target_tar_sha256_mismatch")
             tar_verified = True
+            if target_prestate is not None:
+                target_prestate = self.host.verify_image_archive(
+                    target.image,
+                    tar_path,
+                    target.tar_sha256,
+                )
+        elif target_prestate is not None and target_prestate != target.image_id:
+            raise UpdaterError(
+                "target_image_portable_identity_requires_tar"
+            )
         return {
             "schema": PLAN_SCHEMA,
             "status": "PASS",
@@ -146,13 +154,21 @@ class CoreUpdater:
         self,
         pre: dict[str, Any],
         target: Target,
+        tar_path: Path,
+        target_runtime_id: str,
     ) -> dict[str, Any]:
         post = self.host.inspect()
         if post["manager_image"] != target.image:
             raise UpdaterError("post_manager_image_ref_invalid")
+        verified_target_id = self.host.verify_image_archive(
+            target.image,
+            tar_path,
+            target.tar_sha256,
+        )
         manager = post["runtime"]["manager"]
         if (
-            manager["image_id"] != target.image_id
+            verified_target_id != target_runtime_id
+            or manager["image_id"] != target_runtime_id
             or manager["network_mode"] != "host"
         ):
             raise UpdaterError("post_manager_runtime_invalid")
@@ -280,8 +296,13 @@ class CoreUpdater:
         if predecessor_id != pre["runtime"]["manager"]["image_id"]:
             raise UpdaterError("predecessor_image_authority_drift")
         target_prestate = self.host.image_id(target.image)
-        if target_prestate not in {None, target.image_id}:
-            raise UpdaterError("target_image_tag_conflict")
+        target_runtime_id: str | None = None
+        if target_prestate is not None:
+            target_runtime_id = self.host.verify_image_archive(
+                target.image,
+                tar_path,
+                target.tar_sha256,
+            )
         self.store.prepare_new()
         tx = {
             "schema": TX_SCHEMA,
@@ -304,8 +325,13 @@ class CoreUpdater:
                 self.host.load_image(tar_path)
                 tx.update(phase="TARGET_IMAGE_LOADED")
                 self.store.write(tx)
-            if self.host.image_id(target.image) != target.image_id:
-                raise UpdaterError("target_image_binding_invalid")
+            target_runtime_id = self.host.verify_image_archive(
+                target.image,
+                tar_path,
+                target.tar_sha256,
+            )
+            tx.update(target_runtime_image_id=target_runtime_id)
+            self.store.write(tx)
             before_render = pre["compose_render"]
             tx.update(phase="STOPPING_APPLICATION_SERVICES")
             self.store.write(tx)
@@ -332,7 +358,12 @@ class CoreUpdater:
             self.host.start_services()
             tx.update(phase="TARGET_RUNTIME_STARTED")
             self.store.write(tx)
-            post = self._verify_post(pre, target)
+            post = self._verify_post(
+                pre,
+                target,
+                tar_path,
+                target_runtime_id,
+            )
             tx.update(
                 status="COMMITTED",
                 phase="COMMITTED",
@@ -390,14 +421,14 @@ class CoreUpdater:
             raise UpdaterError("rollback_transaction_authority_invalid")
 
         target_image = target_doc.get("image")
-        target_id = target_doc.get("image_id")
+        target_runtime_id = tx.get("target_runtime_image_id")
         predecessor = tx.get("predecessor_image")
         predecessor_id = tx.get("predecessor_image_id")
         if not all(
             isinstance(value, str)
             for value in (
                 target_image,
-                target_id,
+                target_runtime_id,
                 predecessor,
                 predecessor_id,
             )
@@ -458,7 +489,8 @@ class CoreUpdater:
             current = self.host.inspect()
             if (
                 current["manager_image"] != target_image
-                or current["runtime"]["manager"]["image_id"] != target_id
+                or current["runtime"]["manager"]["image_id"]
+                != target_runtime_id
             ):
                 raise UpdaterError("rollback_target_not_active")
             rollback_broker = current["runtime"]["broker"]
