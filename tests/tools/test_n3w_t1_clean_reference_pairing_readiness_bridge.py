@@ -305,6 +305,9 @@ def test_bridge_source_cannot_reboot_restart_pair_or_touch_board() -> None:
     assert '"factory_accepted_required": False' in source
     assert 'HOST_TRUSTED_LAN_ROOT = Path("/run/n3wfc4-trusted-lan")' in source
     assert 'MANAGER_TRUSTED_LAN_TARGET = Path("/run/n3w/trusted-product-lan")' in source
+    assert 'TRUSTED_LAN_AUTHORITY_TOOL = Path("/usr/local/sbin/n3w-trusted-product-lan-authority")' in source
+    assert 'REGISTRATION_GUARD_TOOL = Path("/usr/local/sbin/n3w-registration-ingress-guard")' in source
+    assert 'BROKER_GUARD_TOOL = Path("/usr/local/sbin/n3w-broker-ingress-guard")' in source
 
 
 
@@ -351,6 +354,18 @@ def test_listener_count_does_not_match_peer_address_column(
     monkeypatch.setattr(bridge, "_run", fake_run)
 
     assert bridge._listener_count("udp", bridge.REGISTRATION_DISCOVERY_PORT) == 0
+
+
+def test_runtime_guard_tools_bind_to_installed_product_paths() -> None:
+    assert bridge.TRUSTED_LAN_AUTHORITY_TOOL == Path(
+        "/usr/local/sbin/n3w-trusted-product-lan-authority"
+    )
+    assert bridge.REGISTRATION_GUARD_TOOL == Path(
+        "/usr/local/sbin/n3w-registration-ingress-guard"
+    )
+    assert bridge.BROKER_GUARD_TOOL == Path(
+        "/usr/local/sbin/n3w-broker-ingress-guard"
+    )
 
 
 def test_manager_trusted_lan_mount_requires_exact_readonly_bind(
