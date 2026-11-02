@@ -222,6 +222,44 @@ def test_plan_is_readonly_and_binds_predecessor(tmp_path):
     assert result["target_image_prestate"] == "ABSENT"
 
 
+def test_apply_wrong_confirmation_creates_no_state(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(m.os, "geteuid", lambda: 0)
+    host = FakeHost()
+    root = tmp_path / "state"
+    updater = m.CoreUpdater(host, m.StateStore(root))
+    target_value = target(tmp_path)
+    with pytest.raises(
+        m.UpdaterError,
+        match="apply_confirmation_missing",
+    ):
+        updater.apply(
+            target_value,
+            tmp_path / "manager.tar",
+            authorization_id="N3W_T1_CORE_UPDATER_MANAGER_TEST_BAD_CONFIRM",
+            confirmation="WRONG",
+        )
+    assert not root.exists()
+
+
+def test_rollback_wrong_confirmation_creates_no_state(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(m.os, "geteuid", lambda: 0)
+    host = FakeHost()
+    root = tmp_path / "state"
+    updater = m.CoreUpdater(host, m.StateStore(root))
+    with pytest.raises(
+        m.UpdaterError,
+        match="rollback_confirmation_missing",
+    ):
+        updater.rollback(confirmation="WRONG")
+    assert not root.exists()
+
+
 def test_apply_commits_manager_only_and_preserves_broker_ha(
     tmp_path,
     monkeypatch,
