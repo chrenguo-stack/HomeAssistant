@@ -31,6 +31,15 @@ _PREWINDOW_RECONCILE_RETRY_SECONDS = 5.0
 _LOGGER = logging.getLogger(__name__)
 
 
+def _canonicalize_ledger_timestamp(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        raise ValueError("datetime must be timezone-aware")
+    normalized = value.astimezone(UTC)
+    return normalized.replace(
+        microsecond=(normalized.microsecond // 1000) * 1000,
+    )
+
+
 class FirstRegistrationTransactionRejected(RuntimeError):
     def __init__(self, reason: str, *, detail: str | None = None) -> None:
         super().__init__(reason)
@@ -431,7 +440,7 @@ class FirstRegistrationTransactionService:
                     "bootstrap_unavailable"
                 )
         else:
-            opened_at = now
+            opened_at = _canonicalize_ledger_timestamp(now)
             expires_at = opened_at + self.ttl
             intent = FirstRegistrationIntent.prepare(
                 hardware_id=hardware_id,
