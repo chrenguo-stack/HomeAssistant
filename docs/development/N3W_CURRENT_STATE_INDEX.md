@@ -1,6 +1,12 @@
 ## 2026-11-03 — R2 failed safely back to A; PR #754 is the sole Updater V2 development line
 
-- Canonical product authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; repository target is still Manager B, while live deployment has not successfully advanced.
+- Canonical product authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source remains `3539c8f871e2cb63f18462009fa03a5eb36d39fd`.
+- Current repository Manager target remains `local/greenhouse-manager:fresh-3539c8f871e2`.
+- Current repository Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference source remains `24382caae4a1f5d459297f86e8d18f10a848ca64`, Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Repository authority remains `LIVE_DEPLOYMENT_STATE=NOT_YET_APPLIED`; live upgrade pending.
 - R2 apply returned `automatic_rollback_failed`; transaction is `FAILED_EMERGENCY / ROLLBACK_FAILED`.
 - Fresh read-only forensic proved the actual runtime recovered to predecessor Manager A; HA/Broker remained stable and the listener contract is healthy.
 - R2 authorization is consumed/no-replay.
