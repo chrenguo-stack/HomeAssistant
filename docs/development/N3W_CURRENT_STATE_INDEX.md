@@ -1,3 +1,18 @@
+## 2026-11-02 — portable identity live revalidation PASS; Manager A->B R2 apply pending new authorization
+
+- Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; product source `3539c8f871e2cb63f18462009fa03a5eb36d39fd`, Manager B `local/greenhouse-manager:fresh-3539c8f871e2`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference A remains source `24382caae4a1f5d459297f86e8d18f10a848ca64`, Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Repository authority still records `LIVE_DEPLOYMENT_STATE=NOT_YET_APPLIED`; live upgrade pending.
+- Replacement package local binding PASS; updater status PASS with `recovery_required=false`.
+- Previous transaction remains terminal `ROLLED_BACK / ROLLBACK_COMPLETE_PRESTOP`; its authorization is consumed/no-replay.
+- Fresh inspect proves live Manager remains A; Manager, Home Assistant and Broker restart counts remain 0.
+- Fresh replacement-updater plan PASS with `manager_tar_verified=true`, `target_image_prestate=PRESENT_AND_EXACT`, `rollback_available=true`, and all non-Manager mutation flags false.
+- This is real-T1 proof that the preexisting Manager B image is portable-identical to the exact Manager tar despite cross-store Docker ID differences.
+- KF-106 recurrence live revalidation is CLOSED_PASS.
+- Next one gate: `N3W_T1_CORE_STACK_MANAGER_A_TO_B_LIVE_APPLY_R2_20261102_01`.
+- A new explicit authorization is required; the consumed R1 authorization must not be replayed.
+- Board work remains deferred until Manager B live deployment and post-upgrade acceptance are proven.
+
 ## 2026-11-02 — replacement updater authority ready; fresh read-only T1 portable-identity revalidation next
 
 - Historical Clean Reference A remains source `24382caae4a1f5d459297f86e8d18f10a848ca64`, Manager `local/greenhouse-manager:fresh-24382caae4a1`.
