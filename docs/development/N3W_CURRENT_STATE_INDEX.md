@@ -1,3 +1,17 @@
+## 2026-11-02 — R3 current-product registration readiness authority realignment CLOSED_PASS
+
+- Gate `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_CURRENT_PRODUCT_REGISTRATION_READINESS_AUTHORITY_REALIGNMENT_20261102_01`: CLOSED_PASS.
+- Exact control head: `f8a55c77c002163386b8f911c5048ced109a5154`.
+- Final CI `41377034111`: SUCCESS; 26 tests PASS; package build/verify PASS.
+- Exact artifact `13111538346`; digest `sha256:9baad380e01fe28d4b20c0b72b98c45f74b0ea70f6c1477e77dd5241fdfe6d31`.
+- Package manifest SHA-256 `01d7cc2ec76d268a426e3a399611529684369312cb34709837479d7eb355aa5d`.
+- R3 readiness now follows current product semantics: TCP/47110=1, UDP/47111=1, TCP/47112=0, Manager pairing control CLOSED.
+- `FACTORY_ACCEPTED` and legacy first-pair onboarding inspect are not R3 current-product readiness requirements.
+- CLI is readonly-only: `inspect`, `status`; old apply/marker mutation path removed.
+- No T1 mutation, pairing-window open, Board access, or merge.
+- Next gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_CURRENT_PRODUCT_REGISTRATION_READINESS_EXACT_READONLY_PREFLIGHT_20261102_01`.
+- Closure: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_CURRENT_PRODUCT_REGISTRATION_READINESS_AUTHORITY_REALIGNMENT_CLOSURE_20261102.md`.
+
 ## 2026-11-02 — R3 repaired readonly preflight listener-parser repair pending CI
 
 - T1 baseline healthy: system running, failed units 0, three product containers, Manager restart count 0.

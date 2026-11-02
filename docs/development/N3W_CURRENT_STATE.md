@@ -1,3 +1,47 @@
+## 2026-11-02 — R3 current-product registration readiness authority realignment CLOSED_PASS
+
+~~~text
+TASK=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_CURRENT_PRODUCT_REGISTRATION_READINESS_AUTHORITY_REALIGNMENT_20261102_01
+RESULT=CLOSED_PASS
+
+FINAL_CONTROL_HEAD=f8a55c77c002163386b8f911c5048ced109a5154
+FINAL_CI_RUN=41377034111
+FINAL_CI_RESULT=SUCCESS
+FINAL_TEST_COUNT=26
+FINAL_ARTIFACT_ID=13111538346
+FINAL_ARTIFACT_DIGEST=sha256:9baad380e01fe28d4b20c0b72b98c45f74b0ea70f6c1477e77dd5241fdfe6d31
+FINAL_PACKAGE_MANIFEST_SHA256=01d7cc2ec76d268a426e3a399611529684369312cb34709837479d7eb355aa5d
+
+READINESS_MODEL=current_product_registration_runtime
+TCP_47110_EXPECTED=1
+UDP_47111_EXPECTED=1
+TCP_47112_EXPECTED=0
+PAIRING_CONTROL_EXPECTED=CLOSED
+FACTORY_ACCEPTED_REQUIRED=false
+LEGACY_FIRST_PAIRING_ONBOARDING_REQUIRED=false
+
+CLI_COMMANDS=inspect,status
+MUTATION_ENTRY_PRESENT=false
+
+T1_MUTATION=false
+PAIRING_WINDOW_OPENED=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_CURRENT_PRODUCT_REGISTRATION_READINESS_EXACT_READONLY_PREFLIGHT_20261102_01
+~~~
+
+The R3 readiness authority is now aligned to the current product registration runtime rather
+than the retired engineering-onboarding listener semantics. TCP/47110 and UDP/47111 are expected
+registration services while idle; only privileged TCP/47112 must be absent. FACTORY_ACCEPTED is
+not required by the normal current-product registration runtime.
+
+The exact readiness tool is now structurally readonly: CLI commands are only inspect/status and
+the former marker/claim mutation helpers are absent.
+
+Closure:
+`docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_CURRENT_PRODUCT_REGISTRATION_READINESS_AUTHORITY_REALIGNMENT_CLOSURE_20261102.md`.
+
 ## 2026-11-02 — R3 repaired readonly preflight found listener-parser false-PASS; bounded repair CI pending
 
 ~~~text

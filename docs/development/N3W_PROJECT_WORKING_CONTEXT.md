@@ -1,3 +1,30 @@
+## Latest authority — 2026-11-02 R3 current-product registration readiness
+
+The R3 pairing-readiness entry has been realigned to the actual current-product registration
+runtime.
+
+~~~text
+AUTHORITY_GATE=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_CURRENT_PRODUCT_REGISTRATION_READINESS_AUTHORITY_REALIGNMENT_20261102_01
+AUTHORITY_RESULT=CLOSED_PASS
+EXACT_CONTROL_HEAD=f8a55c77c002163386b8f911c5048ced109a5154
+EXACT_ARTIFACT_ID=13111538346
+R2_REFERENCE_SHA256=89da2a2b2cc1ce0fa024c3c45e24a71f09ba05e0e0cadbd67dd6387291239747
+
+IDLE_REGISTRATION_BOOTSTRAP_TCP_47110=LISTEN
+IDLE_REGISTRATION_DISCOVERY_UDP_47111=LISTEN
+IDLE_PRIVILEGED_PAIRING_TCP_47112=CLOSED
+PAIRING_CONTROL=CLOSED
+FACTORY_ACCEPTED_REQUIRED=false
+READINESS_CLI=inspect,status
+MUTATION_ENTRY_PRESENT=false
+
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_CURRENT_PRODUCT_REGISTRATION_READINESS_EXACT_READONLY_PREFLIGHT_20261102_01
+~~~
+
+Do not revive the retired assumption that UDP/47111 must be closed while pairing is idle, and do
+not create FACTORY_ACCEPTED merely to satisfy the old engineering onboarding observer. The next
+step is exact-artifact readonly inspect against the real T1.
+
 # N3W_PROJECT_WORKING_CONTEXT
 
 > Status: durable public project working context  
