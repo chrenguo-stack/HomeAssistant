@@ -33,6 +33,20 @@ def test_current_authority_repository_contract_passes():
     assert report["live_deployment_state"] == "NOT_YET_APPLIED"
 
 
+def test_fresh_compose_uses_dynamic_manager_binding():
+    authority, target, compose, bootstrap, state, index = documents()
+    assert 'image: "' + "$" + '{GH_MANAGER_IMAGE:?GH_MANAGER_IMAGE required}"' in compose
+    report = check.validate_documents(
+        authority,
+        target,
+        compose,
+        bootstrap,
+        state,
+        index,
+    )
+    assert report["status"] == "PASS"
+
+
 def test_manager_target_drift_fails_closed():
     authority, target, compose, bootstrap, state, index = documents()
     target = copy.deepcopy(target)
