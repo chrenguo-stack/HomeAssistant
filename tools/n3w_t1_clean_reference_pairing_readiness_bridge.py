@@ -685,7 +685,7 @@ def _listener_count(protocol: str, port: int) -> int:
     return sum(
         1
         for line in output.splitlines()
-        if line.split() and target in line.split()[4]
+        if len(line.split()) >= 5 and target in line.split()[3]
     )
 
 

@@ -413,6 +413,51 @@ def test_bridge_source_cannot_reboot_restart_pair_or_touch_board() -> None:
 
 
 
+def test_listener_count_reads_local_address_column(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(
+        argv: tuple[str, ...],
+        *,
+        timeout: float = 60.0,
+        allowed: frozenset[int] = frozenset({0}),
+    ) -> str:
+        del timeout, allowed
+        if argv == ("ss", "-H", "-lun"):
+            return (
+                "UNCONN 0 0 0.0.0.0:47111 0.0.0.0:*\n"
+                "UNCONN 0 0 0.0.0.0:5353 0.0.0.0:*\n"
+            )
+        if argv == ("ss", "-H", "-ltn"):
+            return (
+                "LISTEN 0 128 127.0.0.1:47112 0.0.0.0:*\n"
+                "LISTEN 0 128 127.0.0.1:8883 0.0.0.0:*\n"
+            )
+        raise AssertionError(argv)
+
+    monkeypatch.setattr(bridge, "_run", fake_run)
+
+    assert bridge._listener_count("udp", bridge.PAIRING_UDP_PORT) == 1
+    assert bridge._listener_count("tcp", bridge.PAIRING_TCP_PORT) == 1
+
+
+def test_listener_count_does_not_match_peer_address_column(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(
+        argv: tuple[str, ...],
+        *,
+        timeout: float = 60.0,
+        allowed: frozenset[int] = frozenset({0}),
+    ) -> str:
+        del argv, timeout, allowed
+        return "UNCONN 0 0 0.0.0.0:5353 0.0.0.0:47111\n"
+
+    monkeypatch.setattr(bridge, "_run", fake_run)
+
+    assert bridge._listener_count("udp", bridge.PAIRING_UDP_PORT) == 0
+
+
 def test_missing_provisioning_root_is_valid_unprovisioned_pairing_state(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
