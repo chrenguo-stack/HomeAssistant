@@ -39,6 +39,8 @@ TARGET_PLATFORM=linux/arm64
 
 The Manager-only upgrade package must copy the exact Manager tar from the already verified three-image artifact. It must not rebuild the Manager image.
 
+The same artifact must also contain a self-contained `t1-core-updater.pyz` assembled from the reviewed updater source at the current control-plane head. Its SHA-256 is recorded in the package binding so later T1 staging does not depend on an unbound repository checkout.
+
 ## 3. Rollback compatibility proof
 
 Fresh source comparison from predecessor source
@@ -176,6 +178,8 @@ ROLLED_BACK
 
 A non-terminal transaction blocks a new apply. Before the next apply, a terminal transaction is moved into the private history directory rather than becoming a permanent global upgrade blocker.
 
+All apply/rollback mutations hold one non-blocking process-level `flock` across the complete transaction. A second mutating invocation fails closed with `upgrade_transaction_busy`. The private state root and history directory reject symlink and permission drift.
+
 ## 10. Source / test boundaries
 
 The source must contain no KF-131/E03-specific identity or pairing/hardware binding.
@@ -191,6 +195,8 @@ Required simulated coverage includes:
 - explicit committed rollback;
 - terminal transaction archival;
 - non-terminal transaction blocking;
+- process-level mutation lock exclusivity;
+- symlinked transaction-root rejection;
 - unproven rollback target rejection;
 - absence of historical E03/KF-131 identity coupling.
 
