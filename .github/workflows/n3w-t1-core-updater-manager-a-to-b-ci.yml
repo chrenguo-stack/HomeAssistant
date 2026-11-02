@@ -53,6 +53,36 @@ jobs:
           ref: ${{ env.CONTROL_HEAD }}
           fetch-depth: 0
 
+      - name: Verify upstream GitHub artifact identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$UPSTREAM_RUN_ID/artifacts?per_page=100" > "$RUNNER_TEMP/upstream-artifacts.json"
+          python - "$RUNNER_TEMP/upstream-artifacts.json" "$TARGET_MANIFEST" "$UPSTREAM_ARTIFACT_NAME" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          metadata = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          target = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+          name = sys.argv[3]
+
+          matches = [
+              item
+              for item in metadata.get("artifacts", [])
+              if item.get("name") == name
+          ]
+          assert len(matches) == 1
+          artifact = matches[0]
+          assert artifact["id"] == target["artifact_id"]
+          assert artifact.get("expired") is False
+          assert artifact.get("digest") == (
+              "sha256:" + target["artifact_digest_sha256"]
+          )
+          print("UPSTREAM_GITHUB_ARTIFACT_IDENTITY=PASS")
+          PY
+
       - name: Download exact upstream three-image artifact
         uses: actions/download-artifact@v4
         with:
