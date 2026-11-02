@@ -64,6 +64,8 @@ class FakeHost:
         self.loaded_target_id = NEW_ID
         self.portable_identity_exact = True
         self.stopped = False
+        self.stop_calls = 0
+        self.start_calls = 0
         self.fail_after_start = False
         self.fail_post_start = False
         self.broker = {
@@ -156,9 +158,11 @@ class FakeHost:
         self.images[NEW] = self.loaded_target_id
 
     def stop_services(self):
+        self.stop_calls += 1
         self.stopped = True
 
     def start_services(self):
+        self.start_calls += 1
         self.stopped = False
         self.manager_id = self.images[self.manager]
         if self.fail_post_start:
@@ -785,4 +789,234 @@ def test_failed_emergency_refuses_to_close_if_predecessor_not_restored(
     assert host.manager_id == NEW_RUNTIME_ID
     assert store.read()["status"] == "FAILED_EMERGENCY"
     assert store.read()["phase"] == "ROLLBACK_FAILED"
+
+def _write_nonterminal_transaction(
+    store,
+    target_value,
+    *,
+    status,
+    phase,
+):
+    store.write({
+        "schema": m.TX_SCHEMA,
+        "status": status,
+        "phase": phase,
+        "component": "manager",
+        "predecessor_image": OLD,
+        "predecessor_image_id": OLD_ID,
+        "target": target_value.public(),
+        "target_runtime_image_id": NEW_RUNTIME_ID,
+        "pre_stable_runtime": {
+            "broker": {
+                "image_ref": BROKER,
+                "image_id": BROKER_ID,
+            },
+            "homeassistant": {
+                "image_ref": HA,
+                "image_id": HA_ID,
+                "network_mode": "host",
+            },
+        },
+    })
+
+
+def test_stopping_phase_with_predecessor_healthy_closes_without_restart(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(m.os, "geteuid", lambda: 0)
+    host = FakeHost()
+    store = m.StateStore(tmp_path / "state")
+    updater = m.CoreUpdater(host, store)
+    target_value = target(tmp_path)
+    _write_nonterminal_transaction(
+        store,
+        target_value,
+        status="APPLYING",
+        phase="STOPPING_APPLICATION_SERVICES",
+    )
+
+    result = updater.rollback(
+        confirmation=m.ROLLBACK_CONFIRMATION
+    )
+
+    assert result["transaction_status"] == "ROLLED_BACK"
+    assert result["t1_mutation"] is False
+    assert host.manager == OLD
+    assert host.manager_id == OLD_ID
+    assert host.stop_calls == 0
+    assert host.start_calls == 0
+
+
+def test_target_runtime_started_nonterminal_rolls_back_to_predecessor(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(m.os, "geteuid", lambda: 0)
+    host = FakeHost()
+    host.images[NEW] = NEW_RUNTIME_ID
+    host.manager = NEW
+    host.manager_id = NEW_RUNTIME_ID
+    store = m.StateStore(tmp_path / "state")
+    updater = m.CoreUpdater(host, store)
+    target_value = target(tmp_path)
+    _write_nonterminal_transaction(
+        store,
+        target_value,
+        status="APPLYING",
+        phase="TARGET_RUNTIME_STARTED",
+    )
+
+    result = updater.rollback(
+        confirmation=m.ROLLBACK_CONFIRMATION
+    )
+
+    assert result["transaction_status"] == "ROLLED_BACK"
+    assert host.manager == OLD
+    assert host.manager_id == OLD_ID
+    assert host.stop_calls == 1
+    assert host.start_calls == 1
+
+
+def test_rolling_back_with_predecessor_healthy_is_reentrant_without_restart(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(m.os, "geteuid", lambda: 0)
+    host = FakeHost()
+    store = m.StateStore(tmp_path / "state")
+    updater = m.CoreUpdater(host, store)
+    target_value = target(tmp_path)
+    _write_nonterminal_transaction(
+        store,
+        target_value,
+        status="ROLLING_BACK",
+        phase="RECOVERY_ROLLBACK_AUTHORIZED",
+    )
+
+    result = updater.rollback(
+        confirmation=m.ROLLBACK_CONFIRMATION
+    )
+
+    assert result["transaction_status"] == "ROLLED_BACK"
+    assert result["t1_mutation"] is False
+    assert host.manager == OLD
+    assert host.manager_id == OLD_ID
+    assert host.stop_calls == 0
+    assert host.start_calls == 0
+
+
+def test_rolling_back_with_target_active_is_reentrant_and_restores_predecessor(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(m.os, "geteuid", lambda: 0)
+    host = FakeHost()
+    host.images[NEW] = NEW_RUNTIME_ID
+    host.manager = NEW
+    host.manager_id = NEW_RUNTIME_ID
+    store = m.StateStore(tmp_path / "state")
+    updater = m.CoreUpdater(host, store)
+    target_value = target(tmp_path)
+    _write_nonterminal_transaction(
+        store,
+        target_value,
+        status="ROLLING_BACK",
+        phase="RECOVERY_ROLLBACK_AUTHORIZED",
+    )
+
+    result = updater.rollback(
+        confirmation=m.ROLLBACK_CONFIRMATION
+    )
+
+    assert result["transaction_status"] == "ROLLED_BACK"
+    assert host.manager == OLD
+    assert host.manager_id == OLD_ID
+    assert host.stop_calls == 1
+    assert host.start_calls == 1
+
+
+def test_failed_emergency_with_target_active_can_restore_predecessor(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(m.os, "geteuid", lambda: 0)
+    host = FakeHost()
+    host.images[NEW] = NEW_RUNTIME_ID
+    host.manager = NEW
+    host.manager_id = NEW_RUNTIME_ID
+    store = m.StateStore(tmp_path / "state")
+    updater = m.CoreUpdater(host, store)
+    target_value = target(tmp_path)
+    _write_nonterminal_transaction(
+        store,
+        target_value,
+        status="FAILED_EMERGENCY",
+        phase="ROLLBACK_FAILED",
+    )
+
+    result = updater.rollback(
+        confirmation=m.ROLLBACK_CONFIRMATION
+    )
+
+    assert result["transaction_status"] == "ROLLED_BACK"
+    assert host.manager == OLD
+    assert host.manager_id == OLD_ID
+    assert host.stop_calls == 1
+    assert host.start_calls == 1
+
+
+def test_failed_emergency_unknown_binding_fails_before_service_mutation(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(m.os, "geteuid", lambda: 0)
+    host = FakeHost()
+    host.manager = "local/greenhouse-manager:fresh-deadbeefdead"
+    host.manager_id = "sha256:" + "9" * 64
+    host.images[host.manager] = host.manager_id
+    store = m.StateStore(tmp_path / "state")
+    updater = m.CoreUpdater(host, store)
+    target_value = target(tmp_path)
+    _write_nonterminal_transaction(
+        store,
+        target_value,
+        status="FAILED_EMERGENCY",
+        phase="ROLLBACK_FAILED",
+    )
+
+    with pytest.raises(m.UpdaterError):
+        updater.rollback(
+            confirmation=m.ROLLBACK_CONFIRMATION
+        )
+
+    assert host.stop_calls == 0
+    assert host.start_calls == 0
+    assert store.read()["status"] == "FAILED_EMERGENCY"
+
+
+def test_terminal_rolled_back_recovery_does_not_replay(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(m.os, "geteuid", lambda: 0)
+    host = FakeHost()
+    store = m.StateStore(tmp_path / "state")
+    updater = m.CoreUpdater(host, store)
+    store.write({
+        "schema": m.TX_SCHEMA,
+        "status": "ROLLED_BACK",
+        "phase": "RECOVERY_ROLLBACK_COMPLETE",
+    })
+
+    with pytest.raises(
+        m.UpdaterError,
+        match="recoverable_transaction_required",
+    ):
+        updater.rollback(
+            confirmation=m.ROLLBACK_CONFIRMATION
+        )
+
+    assert host.stop_calls == 0
+    assert host.start_calls == 0
 
