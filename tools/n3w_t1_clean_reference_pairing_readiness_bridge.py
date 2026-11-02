@@ -7,6 +7,7 @@ import importlib.util
 import json
 import os
 import re
+import sqlite3
 import stat
 import subprocess
 import sys
@@ -34,6 +35,18 @@ AUTHORIZATION_PREFIX = "N3W_T1_CORE_STACK_CLEAN_REFERENCE_PAIRING_READINESS_"
 
 R2A_TRANSACTION = Path("/var/lib/n3w-t1-clean-reference-r2a/transaction.json")
 R2B_TRANSACTION = Path("/var/lib/n3w-t1-clean-reference-r2b/transaction.json")
+
+RELEASE_PATH = Path("/opt/HomeAssistant/infra/n3w-t1/production/fresh-release.json")
+SYSTEM_IDENTITY_ROOT = Path("/var/lib/greenhouse-manager/identity")
+SYSTEM_IDENTITY_MARKER = SYSTEM_IDENTITY_ROOT / "INITIALIZED.json"
+SYSTEM_IDENTITY = SYSTEM_IDENTITY_ROOT / "system-identity.json"
+MANAGER_IDENTITY = SYSTEM_IDENTITY_ROOT / "manager-identity.json"
+MACHINE_ID_PATH = Path("/etc/machine-id")
+SSH_HOST_PUBLIC_KEY = Path("/etc/ssh/ssh_host_ed25519_key.pub")
+MANAGER_DB = Path("/var/lib/greenhouse-manager/manager/manager-state.sqlite3")
+CREDENTIAL_DB = Path("/var/lib/greenhouse-manager/n3w/credential-lifecycle.sqlite3")
+PEER_TRUST_DB = Path("/var/lib/greenhouse-manager/n3w/system-peer-trust.sqlite3")
+APPLICATION_KEY_DB = Path("/var/lib/greenhouse-manager/n3w/relay-authorization.sqlite3")
 
 PROVISIONING_ROOT = Path("/var/lib/n3w-t1-provisioning")
 FACTORY_ACCEPTED = PROVISIONING_ROOT / "FACTORY_ACCEPTED.json"
@@ -373,39 +386,188 @@ def _tool_binding() -> None:
         raise BridgeError("first_pairing_tool_drift")
 
 
-def _device_identity() -> dict[str, str]:
-    _tool_binding()
+def _release_binding() -> str:
+    release = _read_json(RELEASE_PATH)
+    if (
+        release.get("schema") != "gh.n3w-t1-fresh-release/1"
+        or release.get("source_head") != PRODUCT_SOURCE_HEAD
+        or release.get("release_id") != PRODUCT_SOURCE_HEAD
+        or release.get("explicit_provisioning_required") is not True
+    ):
+        raise BridgeError("fresh_release_identity_binding_invalid")
+    return PRODUCT_SOURCE_HEAD
+
+
+def _host_identity() -> dict[str, str]:
+    if (
+        MACHINE_ID_PATH.is_symlink()
+        or not MACHINE_ID_PATH.is_file()
+        or SSH_HOST_PUBLIC_KEY.is_symlink()
+        or not SSH_HOST_PUBLIC_KEY.is_file()
+    ):
+        raise BridgeError("os_identity_material_missing")
+    machine_id = MACHINE_ID_PATH.read_text(encoding="utf-8").strip()
+    if re.fullmatch(r"[0-9a-f]{32}", machine_id) is None:
+        raise BridgeError("machine_id_invalid")
+    ssh_public = SSH_HOST_PUBLIC_KEY.read_bytes().strip()
+    if not ssh_public:
+        raise BridgeError("ssh_host_identity_invalid")
+    digest = hashlib.sha256(
+        machine_id.encode("ascii") + b"\0" + ssh_public
+    ).hexdigest()
+    host_instance_id = f"t1h-{digest[:24]}"
+    return {
+        "host_instance_id": host_instance_id,
+        "host_instance_id_sha256": hashlib.sha256(
+            host_instance_id.encode()
+        ).hexdigest(),
+    }
+
+
+def _initialization_marker_digest(marker: dict[str, Any]) -> str:
+    value = dict(marker)
+    value.pop("manifest_sha256", None)
+    payload = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _system_identity_authority() -> dict[str, str]:
+    _require_private_root(SYSTEM_IDENTITY_ROOT)
+    marker = _read_json(SYSTEM_IDENTITY_MARKER)
+    if stat.S_IMODE(SYSTEM_IDENTITY_MARKER.stat().st_mode) != 0o600:
+        raise BridgeError("system_identity_marker_metadata_invalid")
+    if marker.get("schema") != "gh.h0h1.system-initialization/1":
+        raise BridgeError("system_identity_marker_schema_invalid")
+    manifest_sha256 = marker.get("manifest_sha256")
+    if (
+        not isinstance(manifest_sha256, str)
+        or manifest_sha256 != _initialization_marker_digest(marker)
+    ):
+        raise BridgeError("system_identity_marker_self_binding_invalid")
+
+    expected_names = {
+        "system-identity.json",
+        "system-root.key",
+        "system-ca.pem",
+        "system-ca-key.pem",
+        "manager-identity.json",
+    }
+    files = marker.get("files")
+    if not isinstance(files, dict) or set(files) != expected_names:
+        raise BridgeError("system_identity_inventory_invalid")
+    for name in expected_names:
+        record = files.get(name)
+        path = SYSTEM_IDENTITY_ROOT / name
+        if (
+            not isinstance(record, dict)
+            or path.is_symlink()
+            or not path.is_file()
+            or stat.S_IMODE(path.stat().st_mode) != 0o600
+            or path.stat().st_nlink != 1
+            or path.stat().st_size != record.get("size")
+            or _sha256(path) != record.get("sha256")
+        ):
+            raise BridgeError(f"system_identity_member_invalid:{name}")
+
+    identity = _read_json(SYSTEM_IDENTITY)
+    manager_identity = _read_json(MANAGER_IDENTITY)
+    if identity.get("schema") != "gh.h0h1.system-identity/1":
+        raise BridgeError("system_identity_schema_invalid")
+    if manager_identity.get("schema") != "gh.h0h1.manager-identity/1":
+        raise BridgeError("manager_identity_schema_invalid")
+    system_id = identity.get("system_id")
+    manager_id = manager_identity.get("manager_id")
+    if (
+        not isinstance(system_id, str)
+        or not system_id
+        or manager_identity.get("system_id") != system_id
+        or marker.get("system_id") != system_id
+        or not isinstance(manager_id, str)
+        or not manager_id
+        or marker.get("manager_id") != manager_id
+    ):
+        raise BridgeError("system_identity_binding_invalid")
+
+    if MANAGER_DB.is_symlink() or not MANAGER_DB.is_file():
+        raise BridgeError("manager_identity_database_invalid")
+    connection = sqlite3.connect(
+        f"{MANAGER_DB.resolve().as_uri()}?mode=ro",
+        uri=True,
+        timeout=5,
+    )
+    try:
+        connection.execute("PRAGMA query_only=ON")
+        rows = connection.execute(
+            "SELECT schema, system_id_fingerprint, "
+            "structured_legacy_manager_state_imported, "
+            "anonymous_nodes_reconstructed "
+            "FROM h0h1_legacy_adoption_provenance"
+        ).fetchall()
+    except sqlite3.Error as error:
+        raise BridgeError("manager_identity_database_query_failed") from error
+    finally:
+        connection.close()
+    system_id_sha256 = hashlib.sha256(system_id.encode()).hexdigest()
+    if (
+        len(rows) != 1
+        or rows[0][0] != "gh.h0h1.legacy-adoption-provenance/1"
+        or rows[0][1] != system_id_sha256[:24]
+        or int(rows[0][2]) != 0
+        or int(rows[0][3]) != 0
+    ):
+        raise BridgeError("manager_system_identity_binding_invalid")
+    return {
+        "system_id": system_id,
+        "system_id_sha256": system_id_sha256,
+        "system_identity_manifest_sha256": manifest_sha256,
+    }
+
+
+def _device_provisioning_state() -> str:
     try:
         report = json.loads(
             _run(
-                ("python3", str(DEVICE_PROVISIONING_TOOL), "verify"),
+                ("python3", str(DEVICE_PROVISIONING_TOOL), "status"),
                 timeout=120,
             )
         )
     except json.JSONDecodeError as error:
-        raise BridgeError("device_provisioning_verify_json_invalid") from error
+        raise BridgeError("device_provisioning_status_json_invalid") from error
     if (
         not isinstance(report, dict)
         or report.get("status") != "PASS"
-        or report.get("state") != "DEVICE_READY"
+        or report.get("state") != "UNPROVISIONED"
         or report.get("release_id") != PRODUCT_SOURCE_HEAD
+        or report.get("production_service_start") is not False
         or report.get("board_access") is not False
     ):
-        raise BridgeError("device_provisioning_verify_invalid")
-    host_instance_id = report.get("host_instance_id")
-    system_id = report.get("system_id")
-    if not isinstance(host_instance_id, str) or not host_instance_id:
-        raise BridgeError("host_instance_id_invalid")
-    if not isinstance(system_id, str) or not system_id:
-        raise BridgeError("system_id_invalid")
-    return {
-        "release_id": PRODUCT_SOURCE_HEAD,
-        "host_instance_id": host_instance_id,
-        "system_id": system_id,
-        "host_instance_id_sha256": hashlib.sha256(host_instance_id.encode()).hexdigest(),
-        "system_id_sha256": hashlib.sha256(system_id.encode()).hexdigest(),
-    }
+        raise BridgeError("device_provisioning_state_invalid")
+    return "UNPROVISIONED"
 
+
+def _device_identity() -> dict[str, str]:
+    _tool_binding()
+    release_id = _release_binding()
+    provisioning_state = _device_provisioning_state()
+    host = _host_identity()
+    system = _system_identity_authority()
+    return {
+        "release_id": release_id,
+        "host_instance_id": host["host_instance_id"],
+        "system_id": system["system_id"],
+        "host_instance_id_sha256": host["host_instance_id_sha256"],
+        "system_id_sha256": system["system_id_sha256"],
+        "system_identity_manifest_sha256": system[
+            "system_identity_manifest_sha256"
+        ],
+        "identity_authority": "clean_reference_runtime_identity_v1",
+        "device_provisioning_state": provisioning_state,
+    }
 
 def _optional_table_count(path: Path, table: str) -> int:
     if path.is_symlink():
@@ -437,29 +599,19 @@ def _optional_table_count(path: Path, table: str) -> int:
 
 
 def _security_state_counts() -> dict[str, int]:
-    credential_db = Path(
-        "/var/lib/greenhouse-manager/n3w/credential-lifecycle.sqlite3"
-    )
-    peer_trust_db = Path(
-        "/var/lib/greenhouse-manager/n3w/system-peer-trust.sqlite3"
-    )
-    application_db = Path(
-        "/var/lib/greenhouse-manager/n3w/relay-authorization.sqlite3"
-    )
-
     credential_assignments = _optional_table_count(
-        credential_db,
+        CREDENTIAL_DB,
         "credential_assignments",
     )
     peer_trust_records = _optional_table_count(
-        peer_trust_db,
+        PEER_TRUST_DB,
         "n3w_system_peer_trust",
     )
 
-    if application_db.is_symlink() or not application_db.is_file():
+    if APPLICATION_KEY_DB.is_symlink() or not APPLICATION_KEY_DB.is_file():
         raise BridgeError("application_key_database_invalid")
     connection = sqlite3.connect(
-        f"{application_db.resolve().as_uri()}?mode=ro",
+        f"{APPLICATION_KEY_DB.resolve().as_uri()}?mode=ro",
         uri=True,
         timeout=5,
     )
@@ -498,7 +650,6 @@ def _security_state_counts() -> dict[str, int]:
         "application_key_epochs": key_epochs,
     }
 
-
 def _require_clean_security_state(counts: dict[str, int]) -> None:
     expected = {
         "credential_assignments": 0,
@@ -510,12 +661,18 @@ def _require_clean_security_state(counts: dict[str, int]) -> None:
         raise BridgeError("first_pair_security_state_not_clean")
 
 
-def _pairing_records_absent() -> None:
+def _pairing_records_absent() -> bool:
+    if PROVISIONING_ROOT.is_symlink():
+        raise BridgeError("provisioning_root_symlink_forbidden")
+    if not PROVISIONING_ROOT.exists():
+        return False
     _require_private_root(PROVISIONING_ROOT)
     for path in (FACTORY_ACCEPTED, FIRST_PAIRING_TRANSACTION, SUCCESSOR_RECOVERY):
         if path.exists() or path.is_symlink():
             raise BridgeError(f"pairing_record_already_present:{path.name}")
-
+    if any(PROVISIONING_ROOT.iterdir()):
+        raise BridgeError("provisioning_root_not_clean")
+    return True
 
 def _listener_count(protocol: str, port: int) -> int:
     if protocol == "tcp":
@@ -587,7 +744,12 @@ def _factory_document(preflight: dict[str, Any]) -> dict[str, Any]:
         "host_instance_id": identity["host_instance_id"],
         "system_id": identity["system_id"],
         "system_id_sha256": identity["system_id_sha256"],
-        "acceptance_route": "clean_reference_r2_bridge_v1",
+        "identity_authority": identity["identity_authority"],
+        "device_provisioning_state": identity["device_provisioning_state"],
+        "system_identity_manifest_sha256": identity[
+            "system_identity_manifest_sha256"
+        ],
+        "acceptance_route": "clean_reference_r2_bridge_v2",
         "r2_reference_sha256": R2_REFERENCE_SHA256,
         "r2a_transaction_sha256": transactions["r2a_transaction_sha256"],
         "r2b_transaction_sha256": transactions["r2b_transaction_sha256"],
@@ -638,7 +800,12 @@ def inspect(root: Path, reference_path: Path) -> dict[str, Any]:
         "r2_reference_sha256": R2_REFERENCE_SHA256,
         "r2a_transaction_unchanged": True,
         "r2b_transaction_unchanged": True,
-        "device_provisioning_ready": True,
+        "device_provisioning_state": identity["device_provisioning_state"],
+        "device_provisioning_ready": False,
+        "identity_authority": identity["identity_authority"],
+        "system_identity_manifest_sha256": identity[
+            "system_identity_manifest_sha256"
+        ],
         "host_instance_id_sha256": identity["host_instance_id_sha256"],
         "system_id_sha256": identity["system_id_sha256"],
         "factory_accepted_present": False,
@@ -686,13 +853,65 @@ def _update_transaction(**fields: Any) -> dict[str, Any]:
     return transaction
 
 
-def _remove_marker() -> None:
+def _create_factory_marker(document: dict[str, Any]) -> bool:
+    if FACTORY_ACCEPTED.parent != PROVISIONING_ROOT:
+        raise BridgeError("factory_marker_path_binding_invalid")
+    if PROVISIONING_ROOT.is_symlink():
+        raise BridgeError("provisioning_root_symlink_forbidden")
+    if PROVISIONING_ROOT.exists():
+        _require_private_root(PROVISIONING_ROOT)
+        if any(PROVISIONING_ROOT.iterdir()):
+            raise BridgeError("provisioning_root_not_clean")
+        _atomic_private_json(FACTORY_ACCEPTED, document)
+        return False
+
+    parent = PROVISIONING_ROOT.parent
+    if parent.is_symlink() or not parent.is_dir():
+        raise BridgeError("provisioning_parent_invalid")
+    temporary = Path(
+        tempfile.mkdtemp(
+            prefix=f".{PROVISIONING_ROOT.name}.bridge.",
+            dir=str(parent),
+        )
+    )
+    installed = False
+    try:
+        os.chmod(temporary, 0o700)
+        os.chown(temporary, 0, 0)
+        _require_private_root(temporary)
+        temporary_marker = temporary / FACTORY_ACCEPTED.name
+        _atomic_private_json(temporary_marker, document)
+        if PROVISIONING_ROOT.exists() or PROVISIONING_ROOT.is_symlink():
+            raise BridgeError("provisioning_root_race")
+        os.rename(temporary, PROVISIONING_ROOT)
+        installed = True
+        _fsync_directory(parent)
+        return True
+    finally:
+        if not installed and temporary.exists() and not temporary.is_symlink():
+            (temporary / FACTORY_ACCEPTED.name).unlink(missing_ok=True)
+            try:
+                temporary.rmdir()
+            except OSError:
+                pass
+
+
+def _remove_marker(*, provisioning_root_created: bool) -> None:
+    if PROVISIONING_ROOT.is_symlink():
+        raise BridgeError("provisioning_root_rollback_symlink")
     if FACTORY_ACCEPTED.is_symlink():
         raise BridgeError("factory_marker_rollback_symlink")
     if FACTORY_ACCEPTED.exists():
         FACTORY_ACCEPTED.unlink()
+    if provisioning_root_created:
+        if not PROVISIONING_ROOT.is_dir():
+            raise BridgeError("provisioning_root_rollback_missing")
+        if any(PROVISIONING_ROOT.iterdir()):
+            raise BridgeError("provisioning_root_rollback_not_empty")
+        PROVISIONING_ROOT.rmdir()
+        _fsync_directory(PROVISIONING_ROOT.parent)
+    elif PROVISIONING_ROOT.is_dir():
         _fsync_directory(PROVISIONING_ROOT)
-
 
 def apply(
     root: Path,
@@ -706,15 +925,16 @@ def apply(
     preflight = _preflight(root, reference_path)
     transaction = _write_claim(preflight, authorization_id)
     marker_created = False
+    provisioning_root_created = False
     try:
-        _atomic_private_json(
-            FACTORY_ACCEPTED,
-            _factory_document(preflight),
+        provisioning_root_created = _create_factory_marker(
+            _factory_document(preflight)
         )
         marker_created = True
         _update_transaction(
             stage="MARKER_CREATED",
             factory_marker_created=True,
+            provisioning_root_created=provisioning_root_created,
             factory_marker_sha256=_sha256(FACTORY_ACCEPTED),
         )
 
@@ -752,7 +972,9 @@ def apply(
         rollback_error: Exception | None = None
         if marker_created:
             try:
-                _remove_marker()
+                _remove_marker(
+                    provisioning_root_created=provisioning_root_created
+                )
             except Exception as caught:
                 rollback_error = caught
         try:

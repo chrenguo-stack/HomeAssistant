@@ -142,6 +142,9 @@ def _preflight() -> dict:
             "system_id": "system-example",
             "host_instance_id_sha256": "4" * 64,
             "system_id_sha256": "5" * 64,
+            "system_identity_manifest_sha256": "6" * 64,
+            "identity_authority": "clean_reference_runtime_identity_v1",
+            "device_provisioning_state": "UNPROVISIONED",
         },
         "current": _reference(),
     }
@@ -198,7 +201,10 @@ def test_factory_document_is_standard_compatible_and_provenance_bound() -> None:
     assert document["host_instance_id"] == "t1h-example"
     assert document["system_id"] == "system-example"
     assert document["system_id_sha256"] == "5" * 64
-    assert document["acceptance_route"] == "clean_reference_r2_bridge_v1"
+    assert document["acceptance_route"] == "clean_reference_r2_bridge_v2"
+    assert document["identity_authority"] == "clean_reference_runtime_identity_v1"
+    assert document["device_provisioning_state"] == "UNPROVISIONED"
+    assert document["system_identity_manifest_sha256"] == "6" * 64
     assert document["r2_reference_sha256"] == bridge.R2_REFERENCE_SHA256
     assert document["r2a_transaction_sha256"] == "2" * 64
     assert document["r2b_transaction_sha256"] == "3" * 64
@@ -227,6 +233,10 @@ def test_apply_consumes_one_shot_and_finishes_factory_accepted(
         lambda: state_root.mkdir(),
     )
     monkeypatch.setattr(bridge, "_atomic_private_json", _test_private_writer)
+    def create_marker(document: dict) -> bool:
+        _test_private_writer(marker, document)
+        return False
+    monkeypatch.setattr(bridge, "_create_factory_marker", create_marker)
     monkeypatch.setattr(bridge, "_baseline", lambda _path: _reference())
     monkeypatch.setattr(
         bridge,
@@ -269,7 +279,7 @@ def test_apply_consumes_one_shot_and_finishes_factory_accepted(
     assert report["board_access"] is False
 
     marker_document = json.loads(marker.read_text(encoding="utf-8"))
-    assert marker_document["acceptance_route"] == "clean_reference_r2_bridge_v1"
+    assert marker_document["acceptance_route"] == "clean_reference_r2_bridge_v2"
 
     transaction_document = json.loads(transaction.read_text(encoding="utf-8"))
     assert transaction_document["stage"] == "FACTORY_ACCEPTED"
@@ -299,6 +309,14 @@ def test_apply_rolls_marker_back_when_standard_inspect_fails(
         lambda: state_root.mkdir(),
     )
     monkeypatch.setattr(bridge, "_atomic_private_json", _test_private_writer)
+    def create_marker_for_failure(document: dict) -> bool:
+        _test_private_writer(marker, document)
+        return False
+    monkeypatch.setattr(
+        bridge,
+        "_create_factory_marker",
+        create_marker_for_failure,
+    )
     monkeypatch.setattr(
         bridge,
         "_onboarding_inspect",
@@ -392,3 +410,305 @@ def test_bridge_source_cannot_reboot_restart_pair_or_touch_board() -> None:
     assert '"network_mutation": False' in source
     assert '"service_restart": False' in source
     assert '"board_access": False' in source
+
+
+
+def test_missing_provisioning_root_is_valid_unprovisioned_pairing_state(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "provisioning"
+    monkeypatch.setattr(bridge, "PROVISIONING_ROOT", root)
+    monkeypatch.setattr(bridge, "FACTORY_ACCEPTED", root / "FACTORY_ACCEPTED.json")
+    monkeypatch.setattr(
+        bridge,
+        "FIRST_PAIRING_TRANSACTION",
+        root / "FIRST_PAIRING_ONBOARDING.json",
+    )
+    monkeypatch.setattr(
+        bridge,
+        "SUCCESSOR_RECOVERY",
+        root / "FIRST_PAIRING_SUCCESSOR_RECOVERY.json",
+    )
+
+    assert bridge._pairing_records_absent() is False
+    assert root.exists() is False
+
+
+def test_security_state_counts_executes_real_sqlite_paths(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import sqlite3
+
+    credential = tmp_path / "credential.sqlite3"
+    peer = tmp_path / "peer.sqlite3"
+    application = tmp_path / "application.sqlite3"
+
+    connection = sqlite3.connect(credential)
+    connection.execute("CREATE TABLE credential_assignments (node_id TEXT)")
+    connection.commit()
+    connection.close()
+
+    connection = sqlite3.connect(peer)
+    connection.execute("CREATE TABLE n3w_system_peer_trust (node_id TEXT)")
+    connection.commit()
+    connection.close()
+
+    connection = sqlite3.connect(application)
+    connection.execute("CREATE TABLE n3w_relay_meta (id INTEGER)")
+    connection.execute("CREATE TABLE n3w_relay_nodes (active INTEGER)")
+    connection.execute("CREATE TABLE n3w_relay_key_epochs (epoch INTEGER)")
+    connection.commit()
+    connection.close()
+
+    monkeypatch.setattr(bridge, "CREDENTIAL_DB", credential)
+    monkeypatch.setattr(bridge, "PEER_TRUST_DB", peer)
+    monkeypatch.setattr(bridge, "APPLICATION_KEY_DB", application)
+
+    assert bridge._security_state_counts() == {
+        "credential_assignments": 0,
+        "peer_trust_records": 0,
+        "application_key_active_nodes": 0,
+        "application_key_epochs": 0,
+    }
+
+
+def test_device_identity_uses_unprovisioned_status_not_device_ready(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, ...]] = []
+
+    monkeypatch.setattr(bridge, "_tool_binding", lambda: None)
+    monkeypatch.setattr(
+        bridge,
+        "_release_binding",
+        lambda: bridge.PRODUCT_SOURCE_HEAD,
+    )
+    monkeypatch.setattr(
+        bridge,
+        "_host_identity",
+        lambda: {
+            "host_instance_id": "t1h-runtime",
+            "host_instance_id_sha256": "a" * 64,
+        },
+    )
+    monkeypatch.setattr(
+        bridge,
+        "_system_identity_authority",
+        lambda: {
+            "system_id": "ghs-runtime",
+            "system_id_sha256": "b" * 64,
+            "system_identity_manifest_sha256": "c" * 64,
+        },
+    )
+
+    def run(argv, **_kwargs):
+        calls.append(tuple(argv))
+        return json.dumps(
+            {
+                "status": "PASS",
+                "state": "UNPROVISIONED",
+                "release_id": bridge.PRODUCT_SOURCE_HEAD,
+                "production_service_start": False,
+                "board_access": False,
+            }
+        )
+
+    monkeypatch.setattr(bridge, "_run", run)
+    identity = bridge._device_identity()
+
+    assert calls == [
+        ("python3", str(bridge.DEVICE_PROVISIONING_TOOL), "status")
+    ]
+    assert identity["device_provisioning_state"] == "UNPROVISIONED"
+    assert identity["identity_authority"] == "clean_reference_runtime_identity_v1"
+
+
+def test_device_identity_rejects_fake_device_ready(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bridge, "_tool_binding", lambda: None)
+    monkeypatch.setattr(
+        bridge,
+        "_release_binding",
+        lambda: bridge.PRODUCT_SOURCE_HEAD,
+    )
+    monkeypatch.setattr(
+        bridge,
+        "_run",
+        lambda *_args, **_kwargs: json.dumps(
+            {
+                "status": "PASS",
+                "state": "DEVICE_READY",
+                "release_id": bridge.PRODUCT_SOURCE_HEAD,
+                "production_service_start": False,
+                "board_access": False,
+            }
+        ),
+    )
+
+    with pytest.raises(bridge.BridgeError, match="device_provisioning_state_invalid"):
+        bridge._device_identity()
+
+
+def test_host_identity_matches_frozen_os_identity_algorithm(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import hashlib
+
+    machine = tmp_path / "machine-id"
+    ssh = tmp_path / "ssh_host_ed25519_key.pub"
+    machine_id = "1" * 32
+    ssh_public = b"ssh-ed25519 AAAATEST host"
+    machine.write_text(machine_id + "\n", encoding="utf-8")
+    ssh.write_bytes(ssh_public + b"\n")
+    monkeypatch.setattr(bridge, "MACHINE_ID_PATH", machine)
+    monkeypatch.setattr(bridge, "SSH_HOST_PUBLIC_KEY", ssh)
+
+    digest = hashlib.sha256(
+        machine_id.encode("ascii") + b"\0" + ssh_public
+    ).hexdigest()
+    expected = f"t1h-{digest[:24]}"
+    identity = bridge._host_identity()
+
+    assert identity["host_instance_id"] == expected
+    assert identity["host_instance_id_sha256"] == hashlib.sha256(
+        expected.encode()
+    ).hexdigest()
+
+
+def test_system_identity_authority_binds_initialization_and_manager_db(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import hashlib
+    import os
+    import sqlite3
+
+    root = tmp_path / "identity"
+    root.mkdir(mode=0o700)
+    system_id = "ghs-0123456789abcdef"
+    manager_id = "ghm-0123456789abcdef"
+    payloads = {
+        "system-identity.json": json.dumps(
+            {
+                "schema": "gh.h0h1.system-identity/1",
+                "system_id": system_id,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode() + b"\n",
+        "system-root.key": b"root-key\n",
+        "system-ca.pem": b"certificate\n",
+        "system-ca-key.pem": b"private-key\n",
+        "manager-identity.json": json.dumps(
+            {
+                "schema": "gh.h0h1.manager-identity/1",
+                "system_id": system_id,
+                "manager_id": manager_id,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode() + b"\n",
+    }
+    files = {}
+    for name, payload in payloads.items():
+        path = root / name
+        path.write_bytes(payload)
+        os.chmod(path, 0o600)
+        files[name] = {
+            "size": len(payload),
+            "sha256": hashlib.sha256(payload).hexdigest(),
+        }
+
+    marker = {
+        "schema": "gh.h0h1.system-initialization/1",
+        "system_id": system_id,
+        "manager_id": manager_id,
+        "files": files,
+    }
+    canonical = json.dumps(
+        marker,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    marker["manifest_sha256"] = hashlib.sha256(canonical).hexdigest()
+    marker_path = root / "INITIALIZED.json"
+    marker_path.write_text(
+        json.dumps(marker, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    os.chmod(marker_path, 0o600)
+
+    manager_db = tmp_path / "manager-state.sqlite3"
+    connection = sqlite3.connect(manager_db)
+    connection.execute(
+        "CREATE TABLE h0h1_legacy_adoption_provenance ("
+        "schema TEXT, system_id_fingerprint TEXT, "
+        "structured_legacy_manager_state_imported INTEGER, "
+        "anonymous_nodes_reconstructed INTEGER)"
+    )
+    system_sha = hashlib.sha256(system_id.encode()).hexdigest()
+    connection.execute(
+        "INSERT INTO h0h1_legacy_adoption_provenance VALUES (?, ?, 0, 0)",
+        ("gh.h0h1.legacy-adoption-provenance/1", system_sha[:24]),
+    )
+    connection.commit()
+    connection.close()
+
+    monkeypatch.setattr(bridge, "SYSTEM_IDENTITY_ROOT", root)
+    monkeypatch.setattr(bridge, "SYSTEM_IDENTITY_MARKER", marker_path)
+    monkeypatch.setattr(bridge, "SYSTEM_IDENTITY", root / "system-identity.json")
+    monkeypatch.setattr(bridge, "MANAGER_IDENTITY", root / "manager-identity.json")
+    monkeypatch.setattr(bridge, "MANAGER_DB", manager_db)
+    monkeypatch.setattr(bridge, "_require_private_root", lambda path: None)
+
+    authority = bridge._system_identity_authority()
+    assert authority["system_id"] == system_id
+    assert authority["system_id_sha256"] == system_sha
+    assert authority["system_identity_manifest_sha256"] == marker[
+        "manifest_sha256"
+    ]
+
+
+def test_factory_marker_can_atomically_install_missing_provisioning_root(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "provisioning"
+    marker = root / "FACTORY_ACCEPTED.json"
+    monkeypatch.setattr(bridge, "PROVISIONING_ROOT", root)
+    monkeypatch.setattr(bridge, "FACTORY_ACCEPTED", marker)
+    monkeypatch.setattr(bridge.os, "chown", lambda *_args: None)
+    monkeypatch.setattr(bridge, "_require_private_root", lambda path: None)
+    monkeypatch.setattr(bridge, "_atomic_private_json", _test_private_writer)
+    monkeypatch.setattr(bridge, "_fsync_directory", lambda _path: None)
+
+    created_root = bridge._create_factory_marker(
+        {"schema": "gh.n3w.t1-factory-accepted/1"}
+    )
+
+    assert created_root is True
+    assert root.is_dir()
+    assert marker.is_file()
+    assert not list(tmp_path.glob(".provisioning.bridge.*"))
+
+
+def test_bridge_created_provisioning_root_is_removed_on_rollback(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "provisioning"
+    root.mkdir()
+    marker = root / "FACTORY_ACCEPTED.json"
+    marker.write_text("{}\n", encoding="utf-8")
+    monkeypatch.setattr(bridge, "PROVISIONING_ROOT", root)
+    monkeypatch.setattr(bridge, "FACTORY_ACCEPTED", marker)
+    monkeypatch.setattr(bridge, "_fsync_directory", lambda _path: None)
+
+    bridge._remove_marker(provisioning_root_created=True)
+
+    assert root.exists() is False
