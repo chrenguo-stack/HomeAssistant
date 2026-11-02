@@ -328,6 +328,42 @@ Dedicated executable coverage is mandatory for lifecycle transitions that can st
 
 Shared invariant tests are acceptable for pure validation rules such as confirmation rejection, exact candidate compose delta, transaction locking and terminal archive behavior.
 
+## 8.2 Fault-matrix coverage map
+
+Current automated test count in `tests/tools/test_n3w_t1_core_updater.py`: 40.
+
+| Matrix rows | Evidence |
+|---|---|
+| F01 | `test_apply_wrong_confirmation_creates_no_state` |
+| F02 | `test_apply_portable_mismatch_rolls_back_before_service_stop`, target validation tests |
+| F03 | normal apply commit tests start with target absent and load it |
+| F04 | `test_target_load_failure_rolls_back_prestop_without_service_restart` |
+| F05-F06 | parameterized `test_interrupted_prestop_transaction_recovers_without_restart` for AUTHORIZED and TARGET_IMAGE_LOADED |
+| F07 | `test_stopping_phase_with_predecessor_healthy_closes_without_restart` |
+| F08 | `test_application_stopped_with_predecessor_binding_recovers_by_starting_a` |
+| F09 | `test_interrupted_poststop_transaction_can_be_recovered` |
+| F10 | `test_wait_services_waits_for_listener_contract` |
+| F11 | `test_wait_services_times_out_if_listener_contract_never_converges` + target-start failure recovery |
+| F12 | `test_homeassistant_identity_drift_fails_closed_after_restoring_manager_a` |
+| F13 | `test_broker_identity_drift_fails_closed_without_broker_mutation` |
+| F14-F15 | shared start/readiness path + `test_rollback_start_failure_is_recoverable_on_next_explicit_recovery` |
+| F16 | `test_failed_emergency_can_close_without_runtime_mutation` |
+| F17 | `test_failed_emergency_with_target_active_can_restore_predecessor` |
+| F18 | `test_failed_emergency_unknown_binding_fails_before_service_mutation` |
+| F19 | STOPPING/pre-stop predecessor-healthy recovery tests |
+| F20 | post-stop target-bound recovery test |
+| F21 | application-stopped predecessor-bound recovery test |
+| F22 | `test_target_runtime_started_nonterminal_rolls_back_to_predecessor` |
+| F23 | `test_validate_candidate_allows_only_manager_image` |
+| F24 | Broker drift fail-closed test |
+| F25 | transaction lock, root symlink and active-transaction tests |
+| F26 | `test_explicit_rollback_restores_predecessor` and cross-store rollback test |
+| F27 | `test_terminal_transaction_archived_before_next_apply` |
+| F28 | `test_terminal_rolled_back_recovery_does_not_replay` |
+| F29 | both ROLLING_BACK re-entrant recovery tests |
+
+No live T1 fault injection is required to prove these source-level transition rules. The next live use is a final acceptance of the already-reviewed state machine, not exploratory bug discovery.
+
 ## 9. Merge and live gates
 
 PR #754 is not merge-ready merely because the original CI is green.
