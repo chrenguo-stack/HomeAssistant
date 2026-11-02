@@ -1,3 +1,31 @@
+## Latest authority — 2026-11-02 portable-identity live revalidation PASS; R2 apply authorization boundary
+
+~~~text
+AUTHORITY_GATE=N3W_T1_CORE_UPDATER_PORTABLE_IMAGE_IDENTITY_LIVE_READONLY_REVALIDATION_CLOSURE_20261102_01
+AUTHORITY_STATE=LIVE_READONLY_PASS_MANAGER_A_STILL_ACTIVE
+
+MAIN=9a606e579e3431d2e37e1f4378dab80b10f794f8
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=3539c8f871e2cb63f18462009fa03a5eb36d39fd
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-3539c8f871e2
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+
+LIVE_DEPLOYMENT_STATE=NOT_YET_APPLIED
+LIVE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+TARGET_IMAGE_PRESTATE=PRESENT_AND_EXACT
+MANAGER_TAR_VERIFIED=true
+PORTABLE_IDENTITY_REVALIDATION=PASS
+KF106_LIVE_REVALIDATION=CLOSED_PASS
+
+R1_AUTHORIZATION_REPLAY_PERMITTED=false
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_MANAGER_A_TO_B_LIVE_APPLY_R2_20261102_01
+NEW_AUTHORIZATION_REQUIRED=true
+BOARD_ACCESS_DEFAULT=false
+~~~
+
+Do not replay the R1 authorization. The next mutation boundary is a new Manager A->B R2 live apply using the replacement updater package. Until the user explicitly authorizes that gate, keep T1 mutation disabled and do not resume Board/R3 work.
+
 ## Latest authority — 2026-11-02 replacement updater merged; read-only portable-identity T1 revalidation next
 
 ~~~text
