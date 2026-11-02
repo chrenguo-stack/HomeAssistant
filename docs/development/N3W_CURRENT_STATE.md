@@ -1,3 +1,50 @@
+## 2026-11-02 — Manager A->B live apply R1 failed safely before service stop; KF-106 class recurred in updater path
+
+~~~text
+TASK=N3W_T1_CORE_STACK_MANAGER_A_TO_B_LIVE_APPLY_FAILURE_FORENSIC_20261102_01
+STATE=SOURCE_REPAIR_IN_PROGRESS_NO_LIVE_RETRY
+
+MAIN_AT_FAILURE=a981c6ce4764aca0f45a59faf472dc48c7ba9a1a
+EXPECTED_PREDECESSOR=local/greenhouse-manager:fresh-24382caae4a1
+TARGET_MANAGER=local/greenhouse-manager:fresh-3539c8f871e2
+
+PRE_STATUS=PASS
+PRE_RECOVERY_REQUIRED=false
+PRE_TRANSACTION=null
+PRE_INSPECT=PASS
+PRE_PLAN_WITH_TAR=PASS
+PRE_MANAGER_TAR_VERIFIED=true
+PRE_TARGET_IMAGE_PRESTATE=ABSENT
+
+LIVE_APPLY_R1_RESULT=STOP
+LIVE_APPLY_R1_REASON=target_image_binding_invalid
+LIVE_APPLY_R1_RC=2
+LIVE_APPLY_R1_AUTHORIZATION_CONSUMED=true
+LIVE_APPLY_R1_AUTHORIZATION_REPLAY_PERMITTED=false
+
+POST_STATUS=PASS
+POST_RECOVERY_REQUIRED=false
+POST_TRANSACTION_STATUS=ROLLED_BACK
+POST_TRANSACTION_PHASE=ROLLBACK_COMPLETE_PRESTOP
+POST_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+POST_MANAGER_RESTART_COUNT=0
+POST_HOMEASSISTANT_RESTART_COUNT=0
+POST_BROKER_RESTART_COUNT=0
+SERVICES_STOP_BOUNDARY_REACHED=false
+
+ROOT_CAUSE_CLASS=KF-106_CROSS_STORE_IMAGE_IDENTITY_ORACLE
+SOURCE_DEFECT=UPDATER_REINTRODUCED_STRICT_BUILD_IMAGE_ID_EQUALS_T1_RUNTIME_IMAGE_ID
+PORTABLE_IDENTITY_AUTHORITY=tools/n3w_t1_portable_image_identity.py
+
+SOURCE_REPAIR_BRANCH=fix/n3w-t1-core-updater-portable-image-identity-20261102
+LIVE_RETRY=false
+BOARD_ACCESS=false
+
+NEXT_ONE_GATE=N3W_T1_CORE_UPDATER_PORTABLE_IMAGE_IDENTITY_SOURCE_REPAIR_CI_AND_REVIEW_20261102_01
+~~~
+
+The exact tar passed SHA-256 validation and the target tag was absent before apply. The updater loaded the target image, then stopped on strict runtime `.Id` equality before entering the service-stop phase. This reproduces the already-known KF-106 cross-store identity class inside the newer T1_Core_Updater path. The transaction rolled back in the pre-stop phase; Manager, Home Assistant and Broker remained on the pre-apply runtime baseline. The consumed authorization must not be replayed.
+
 ## 2026-11-02 — stacked successor authority fully merged to main; live Manager A->B preflight is next
 
 ~~~text
