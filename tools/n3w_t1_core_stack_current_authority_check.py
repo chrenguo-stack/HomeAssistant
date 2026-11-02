@@ -240,8 +240,11 @@ def validate_documents(
         "live_target_invalid",
     )
 
+    manager_binding = (
+        'image: "' + "$" + '{GH_MANAGER_IMAGE:?GH_MANAGER_IMAGE required}"'
+    )
     _require(
-        'image: "\${GH_MANAGER_IMAGE:?GH_MANAGER_IMAGE required}"' in fresh_compose,
+        manager_binding in fresh_compose,
         "fresh_compose_manager_binding_invalid",
     )
     _require(
