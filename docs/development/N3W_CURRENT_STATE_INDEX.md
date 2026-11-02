@@ -1,3 +1,17 @@
+## 2026-11-02 — R3 sensorless real first-registration handoff at USB readonly boundary
+
+- R3 route is frozen to one real sensorless ESP32-C6 first-registration against the zero-node production T1.
+- PR #705 source head before handoff docs: `ea1488845ba05d362454678f2801232010852ecf`; open, non-draft, mergeable.
+- Known-good exact firmware artifact: run `41386911525`, artifact `13115966258`, digest `sha256:0da0eefafc4b108e4dc76864942fb5946419eac10f79a71e5db7e6db8427c715`, source head `e53e547...`.
+- `e53e547... -> ea148884...` changes only `tests/tools/test_n3w_ci_policy_check.py`; no product firmware/Manager source drift.
+- User local Board USB enumeration PASS; exact USB locator intentionally excluded from public GitHub.
+- `chip-id` / `flash-id` not executed; Flash/NVS unchanged; first registration not started.
+- User explicitly paused before Board identity read; prior execution continuation must not be replayed.
+- Current-head fast CI `41393417384` and public safety `41393417276` PASS; current-head firmware/artifact/Manager CI were still in progress at handoff.
+- Readiness bridge is historical/diagnostic only, not an R3 entry gate.
+- Next one gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_BOARD_USB_READONLY_IDENTITY_BINDING_20261102_01`.
+- Handoff: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_SENSORLESS_REAL_FIRST_REGISTRATION_BOARD_USB_READONLY_BINDING_NEW_CHAT_HANDOFF_V1.0_20261102.md`.
+
 ## 2026-11-02 — R3 sensorless real first-registration route FROZEN
 
 - Current gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_SENSORLESS_REAL_FIRST_REGISTRATION_20261102_01`.

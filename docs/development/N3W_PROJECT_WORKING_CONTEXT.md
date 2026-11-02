@@ -1,29 +1,32 @@
-## Latest authority — 2026-11-02 R3 current-product registration readiness
+## Latest authority — 2026-11-02 R3 sensorless real first-registration route
 
-The R3 pairing-readiness entry has been realigned to the actual current-product registration
-runtime.
+The current R3 product route is no longer gated by the pairing-readiness bridge. R3 is frozen to one real sensorless ESP32-C6 first registration against the already-running zero-node production T1, followed by semantic PRE/POST comparison.
 
 ~~~text
-AUTHORITY_GATE=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_CURRENT_PRODUCT_REGISTRATION_READINESS_AUTHORITY_REALIGNMENT_20261102_01
-AUTHORITY_RESULT=CLOSED_PASS
-EXACT_CONTROL_HEAD=f8a55c77c002163386b8f911c5048ced109a5154
-EXACT_ARTIFACT_ID=13111538346
-R2_REFERENCE_SHA256=89da2a2b2cc1ce0fa024c3c45e24a71f09ba05e0e0cadbd67dd6387291239747
+AUTHORITY_GATE=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_SENSORLESS_REAL_FIRST_REGISTRATION_20261102_01
+AUTHORITY_STATE=FROZEN_PREEXECUTION
+SOURCE_HEAD=ea1488845ba05d362454678f2801232010852ecf
 
-IDLE_REGISTRATION_BOOTSTRAP_TCP_47110=LISTEN
-IDLE_REGISTRATION_DISCOVERY_UDP_47111=LISTEN
-IDLE_PRIVILEGED_PAIRING_TCP_47112=CLOSED
-PAIRING_CONTROL=CLOSED
-FACTORY_ACCEPTED_REQUIRED=false
-READINESS_CLI=inspect,status
-MUTATION_ENTRY_PRESENT=false
+NODE_PROFILE=ESP32_C6_PLUS_LCD_PLUS_USB
+SENSORS_CONNECTED=false
+NORMAL_PRODUCT_REGISTRATION_PATH=true
+POST_CAPTURE_RULE=MANAGER_DURABLE_COMMIT_THEN_IMMEDIATE_NODE_POWER_OFF_THEN_T1_POST
 
-NEXT_ONE_GATE=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_CURRENT_PRODUCT_REGISTRATION_READINESS_EXACT_READONLY_PREFLIGHT_20261102_01
+READINESS_BRIDGE_ENTRY_GATE=false
+READINESS_BRIDGE_DISPOSITION=HISTORICAL_DIAGNOSTIC_ONLY
+
+KNOWN_GOOD_FIRMWARE_ARTIFACT_ID=13115966258
+KNOWN_GOOD_FIRMWARE_ARTIFACT_DIGEST=sha256:0da0eefafc4b108e4dc76864942fb5946419eac10f79a71e5db7e6db8427c715
+
+CURRENT_STOP_POINT=BOARD_USB_ENUMERATED_BEFORE_ESPTOOL_IDENTITY_READ
+FLASH_MUTATION=false
+NVS_MUTATION=false
+FIRST_REGISTRATION_STARTED=false
+
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_BOARD_USB_READONLY_IDENTITY_BINDING_20261102_01
 ~~~
 
-Do not revive the retired assumption that UDP/47111 must be closed while pairing is idle, and do
-not create FACTORY_ACCEPTED merely to satisfy the old engineering onboarding observer. The next
-step is exact-artifact readonly inspect against the real T1.
+The user explicitly paused before `chip-id` / `flash-id` and requested a new-chat handoff. Do not reuse the earlier continuation as Board authorization. Fresh rebind first, then wait for the user's continuation before local Board commands. Exact local USB locators and raw Board identities stay out of public GitHub.
 
 # N3W_PROJECT_WORKING_CONTEXT
 
