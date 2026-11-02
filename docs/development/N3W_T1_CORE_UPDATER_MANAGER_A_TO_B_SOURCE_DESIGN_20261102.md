@@ -151,6 +151,19 @@ After the stop boundary, a failed apply must:
 
 If rollback cannot be proven, transaction state becomes `FAILED_EMERGENCY`.
 
+A process exit or host reboot does not erase transaction ownership. If a durable
+`APPLYING` transaction remains:
+
+- `AUTHORIZED` / `TARGET_IMAGE_LOADED`: explicit rollback may close it without restarting healthy application services, after proving predecessor runtime and stable HA/Broker identity;
+- `STOPPING_APPLICATION_SERVICES` / `APPLICATION_SERVICES_STOPPED` /
+  `MANAGER_BINDING_PUBLISHED` / `TARGET_RUNTIME_STARTED`: explicit rollback uses the
+  frozen predecessor image and stable HA/Broker identity to restore A even when Manager/HA
+  are currently stopped;
+- any unsupported phase or `FAILED_EMERGENCY` remains fail-closed for forensic handling.
+
+The transaction stores only stable recovery authority for HA/Broker. Container IDs,
+start timestamps and restart counters are not required across a host reboot.
+
 ## 8. Explicit rollback
 
 A later explicit rollback is allowed only when:
@@ -193,6 +206,8 @@ Required simulated coverage includes:
 - successful Manager-only apply;
 - post-start failure automatic rollback;
 - explicit committed rollback;
+- interrupted pre-stop transaction recovery;
+- interrupted post-stop transaction recovery;
 - terminal transaction archival;
 - non-terminal transaction blocking;
 - process-level mutation lock exclusivity;
