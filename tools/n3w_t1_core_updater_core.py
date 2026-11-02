@@ -428,7 +428,6 @@ class CoreUpdater:
             isinstance(value, str)
             for value in (
                 target_image,
-                target_runtime_id,
                 predecessor,
                 predecessor_id,
             )
@@ -486,6 +485,10 @@ class CoreUpdater:
             raise UpdaterError("rollback_apply_phase_unsupported")
 
         if original_status == "COMMITTED":
+            if not isinstance(target_runtime_id, str):
+                raise UpdaterError(
+                    "transaction_target_runtime_image_id_missing"
+                )
             current = self.host.inspect()
             if (
                 current["manager_image"] != target_image
