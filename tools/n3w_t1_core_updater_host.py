@@ -35,6 +35,14 @@ from n3w_t1_core_updater_common import (
 )
 
 
+EXPECTED_LISTENERS = {
+    "tcp_8883": 1,
+    "tcp_47110": 1,
+    "udp_47111": 1,
+    "tcp_47112": 0,
+}
+
+
 class LocalHost:
     def _run(
         self,
@@ -268,19 +276,8 @@ class LocalHost:
             or runtime["homeassistant"]["network_mode"] != "host"
         ):
             raise UpdaterError("runtime_network_contract_drift")
-        listeners = {
-            "tcp_8883": self._listener_count("tcp", 8883),
-            "tcp_47110": self._listener_count("tcp", 47110),
-            "udp_47111": self._listener_count("udp", 47111),
-            "tcp_47112": self._listener_count("tcp", 47112),
-        }
-        expected_listeners = {
-            "tcp_8883": 1,
-            "tcp_47110": 1,
-            "udp_47111": 1,
-            "tcp_47112": 0,
-        }
-        if listeners != expected_listeners:
+        listeners = self._listener_snapshot()
+        if listeners != EXPECTED_LISTENERS:
             raise UpdaterError("listener_contract_drift")
         return {
             "manager_image": env_image,
@@ -354,6 +351,14 @@ class LocalHost:
     def load_image(self, tar_path: Path) -> None:
         self._run(("docker", "load", "-i", str(tar_path)), timeout=1800)
 
+    def _listener_snapshot(self) -> dict[str, int]:
+        return {
+            "tcp_8883": self._listener_count("tcp", 8883),
+            "tcp_47110": self._listener_count("tcp", 47110),
+            "udp_47111": self._listener_count("udp", 47111),
+            "tcp_47112": self._listener_count("tcp", 47112),
+        }
+
     def _running_count(self, service: str) -> int:
         result = self._run(
             (
@@ -391,11 +396,12 @@ class LocalHost:
                 try:
                     self._container_id("manager")
                     self._container_id("homeassistant")
-                    return
+                    if self._listener_snapshot() == EXPECTED_LISTENERS:
+                        return
                 except UpdaterError:
                     pass
             time.sleep(2)
-        raise UpdaterError("services_start_timeout")
+        raise UpdaterError("services_readiness_timeout")
 
     def rewrite_manager_image(self, expected: str, replacement: str) -> str:
         if COMPOSE_ENV.is_symlink() or not COMPOSE_ENV.is_file():

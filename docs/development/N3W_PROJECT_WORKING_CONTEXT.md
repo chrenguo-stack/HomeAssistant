@@ -1,3 +1,32 @@
+## Latest authority — 2026-11-03 R2 incident contained; Updater V2 convergence before any further live apply
+
+~~~text
+AUTHORITY_STATE=R2_FAILED_RUNTIME_RECOVERED_UPDATER_V2_SOURCE_REPAIR
+
+MAIN=ae67dc9da98b16c8bb6a23bc45afa2c5adbc4aee
+SOLE_DEVELOPMENT_PR=754
+INCIDENT_PR_753=CLOSED_SUPERSEDED
+
+LIVE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_RUNTIME_HEALTHY=true
+R2_TRANSACTION_STATUS=FAILED_EMERGENCY
+R2_TRANSACTION_PHASE=ROLLBACK_FAILED
+R2_AUTHORIZATION_REPLAY_PERMITTED=false
+
+KF135=OPEN_SOURCE_REPAIR
+KF136=OPEN_SOURCE_REPAIR
+UPDATER_V2_ARCHITECTURE_FROZEN=true
+FAULT_MATRIX_REQUIRED=true
+
+LIVE_T1_MUTATION=false
+IMMEDIATE_LIVE_RETRY=false
+BOARD_ACCESS_DEFAULT=false
+
+NEXT_ONE_GATE=N3W_T1_CORE_UPDATER_V2_SOURCE_REPAIR_CI_AND_EXACT_HEAD_REVIEW_20261103_01
+~~~
+
+The project must not treat CI green alone as permission to retry live A→B. Complete V2 architecture review, fault-matrix evidence and exact-head source review first. Only then build a new exact updater artifact, reconcile the stuck transaction under a separate recovery authorization, and later request a fresh apply authorization.
+
 ## Latest authority — 2026-11-02 portable-identity live revalidation PASS; R2 apply authorization boundary
 
 ~~~text

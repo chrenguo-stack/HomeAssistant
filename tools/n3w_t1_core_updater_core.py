@@ -407,7 +407,12 @@ class CoreUpdater:
         if confirmation != ROLLBACK_CONFIRMATION:
             raise UpdaterError("rollback_confirmation_missing")
         tx = self.store.read()
-        if tx is None or tx.get("status") not in {"COMMITTED", "APPLYING"}:
+        if tx is None or tx.get("status") not in {
+            "COMMITTED",
+            "APPLYING",
+            "ROLLING_BACK",
+            "FAILED_EMERGENCY",
+        }:
             raise UpdaterError("recoverable_transaction_required")
         target_doc = tx.get("target")
         stable = tx.get("pre_stable_runtime")
@@ -439,16 +444,16 @@ class CoreUpdater:
         original_status = tx["status"]
         original_phase = tx.get("phase")
 
-        if (
-            original_status == "APPLYING"
-            and original_phase in {"AUTHORIZED", "TARGET_IMAGE_LOADED"}
-        ):
-            current = self.host.inspect()
+        def close_predecessor(
+            current: dict[str, Any],
+            *,
+            phase: str,
+        ) -> dict[str, Any]:
             if (
                 current["manager_image"] != predecessor
                 or current["runtime"]["manager"]["image_id"] != predecessor_id
             ):
-                raise UpdaterError("prestop_recovery_predecessor_drift")
+                raise UpdaterError("recovery_predecessor_runtime_invalid")
             self._verify_ha_stable(
                 current["runtime"]["homeassistant"],
                 stable["homeassistant"],
@@ -456,7 +461,7 @@ class CoreUpdater:
             self.host.broker_continuity(stable["broker"])
             tx.update(
                 status="ROLLED_BACK",
-                phase="RECOVERY_COMPLETE_PRESTOP",
+                phase=phase,
                 rolled_back_at_unix=int(time.time()),
             )
             self.store.write(tx)
@@ -472,17 +477,43 @@ class CoreUpdater:
                 "t1_mutation": False,
             }
 
+        if (
+            original_status == "APPLYING"
+            and original_phase in {"AUTHORIZED", "TARGET_IMAGE_LOADED"}
+        ):
+            current = self.host.inspect()
+            if current["manager_image"] != predecessor:
+                raise UpdaterError("prestop_recovery_predecessor_drift")
+            return close_predecessor(
+                current,
+                phase="RECOVERY_COMPLETE_PRESTOP",
+            )
+
         supported_apply_phases = {
             "STOPPING_APPLICATION_SERVICES",
             "APPLICATION_SERVICES_STOPPED",
             "MANAGER_BINDING_PUBLISHED",
             "TARGET_RUNTIME_STARTED",
         }
+        supported_rollback_phases = {
+            "ROLLBACK_AUTHORIZED",
+            "RECOVERY_ROLLBACK_AUTHORIZED",
+        }
         if (
             original_status == "APPLYING"
             and original_phase not in supported_apply_phases
         ):
             raise UpdaterError("rollback_apply_phase_unsupported")
+        if (
+            original_status == "ROLLING_BACK"
+            and original_phase not in supported_rollback_phases
+        ):
+            raise UpdaterError("rollback_recovery_phase_unsupported")
+        if (
+            original_status == "FAILED_EMERGENCY"
+            and original_phase != "ROLLBACK_FAILED"
+        ):
+            raise UpdaterError("failed_emergency_phase_invalid")
 
         if original_status == "COMMITTED":
             if not isinstance(target_runtime_id, str):
@@ -499,6 +530,29 @@ class CoreUpdater:
             rollback_broker = current["runtime"]["broker"]
             rollback_ha = current["runtime"]["homeassistant"]
         else:
+            binding = self.host.manager_binding()
+            if binding not in {predecessor, target_image}:
+                raise UpdaterError("rollback_manager_binding_unknown")
+            if binding == predecessor:
+                try:
+                    current = self.host.inspect()
+                except UpdaterError as error:
+                    if str(error) not in {
+                        "services_stopped",
+                        "manager_container_count_invalid",
+                        "homeassistant_container_count_invalid",
+                        "listener_contract_drift",
+                    }:
+                        raise
+                else:
+                    return close_predecessor(
+                        current,
+                        phase=(
+                            "RECOVERY_COMPLETE_FAILED_EMERGENCY"
+                            if original_status == "FAILED_EMERGENCY"
+                            else "RECOVERY_ROLLBACK_COMPLETE"
+                        ),
+                    )
             rollback_broker = stable["broker"]
             rollback_ha = stable["homeassistant"]
 

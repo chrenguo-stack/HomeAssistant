@@ -1,3 +1,21 @@
+## 2026-11-03 — R2 failed safely back to A; PR #754 is the sole Updater V2 development line
+
+- Canonical product authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source remains `3539c8f871e2cb63f18462009fa03a5eb36d39fd`.
+- Current repository Manager target remains `local/greenhouse-manager:fresh-3539c8f871e2`.
+- Current repository Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference source remains `24382caae4a1f5d459297f86e8d18f10a848ca64`, Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Repository authority remains `LIVE_DEPLOYMENT_STATE=NOT_YET_APPLIED`; live upgrade pending.
+- R2 apply returned `automatic_rollback_failed`; transaction is `FAILED_EMERGENCY / ROLLBACK_FAILED`.
+- Fresh read-only forensic proved the actual runtime recovered to predecessor Manager A; HA/Broker remained stable and the listener contract is healthy.
+- R2 authorization is consumed/no-replay.
+- PR #753 is closed as incident evidence only; no second repair line remains.
+- PR #754 is the sole development PR for KF-135/KF-136 and Updater V2 lifecycle convergence.
+- V2 freezes one readiness contract, runtime-fact-first reconciliation, and recoverability from APPLYING / ROLLING_BACK / FAILED_EMERGENCY.
+- No live T1 mutation, apply retry, explicit live rollback or Board work is authorized.
+- Next one gate: `N3W_T1_CORE_UPDATER_V2_SOURCE_REPAIR_CI_AND_EXACT_HEAD_REVIEW_20261103_01`.
+
 ## 2026-11-02 — portable identity live revalidation PASS; Manager A->B R2 apply pending new authorization
 
 - Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; product source `3539c8f871e2cb63f18462009fa03a5eb36d39fd`, Manager B `local/greenhouse-manager:fresh-3539c8f871e2`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`.

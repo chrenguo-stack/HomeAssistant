@@ -1,0 +1,415 @@
+# N3-W T1 Core Updater V2 architecture and fault matrix — 2026-11-03
+
+## 0. Purpose
+
+This document is the architecture gate inserted after the Manager A->B R2 incident.
+
+It deliberately stops the patch-and-live-retry loop.
+
+```text
+LIVE_T1_MUTATION=false
+APPLY_RETRY=false
+EXPLICIT_ROLLBACK=false
+BOARD_ACCESS=false
+
+DEVELOPMENT_PR=754
+INCIDENT_PR=753
+```
+
+The goal is not a rewrite. The goal is to make the existing updater lifecycle complete, small and testable before another live apply.
+
+## 1. Product facts vs transaction history
+
+A transaction record answers:
+
+```text
+what operation was attempted?
+what phase was last durably recorded?
+what authorization was consumed?
+what failure occurred?
+```
+
+It must not be the sole authority for:
+
+```text
+what is healthy right now?
+which Manager image is actually active?
+are application services ready?
+is rollback already physically complete?
+```
+
+Current live R2 evidence proved this distinction is necessary:
+
+```text
+transaction = FAILED_EMERGENCY / ROLLBACK_FAILED
+runtime     = predecessor A healthy
+listeners   = healthy and stable
+HA/Broker   = healthy and stable
+```
+
+Therefore V2 uses live runtime facts to reconcile an interrupted or failed transaction.
+
+## 2. Minimal runtime fact model
+
+The runtime classifier is intentionally small.
+
+### 2.1 PREDECESSOR_HEALTHY
+
+All must be true:
+
+```text
+GH_MANAGER_IMAGE == predecessor
+running Manager image_ref == predecessor
+running Manager image_id == recorded predecessor runtime ID
+Manager network == host
+Home Assistant identity/network satisfy preserved baseline
+Broker identity/start/restart satisfy preserved baseline
+strict listener contract == expected
+services supervision contract == expected
+```
+
+### 2.2 TARGET_HEALTHY
+
+All must be true:
+
+```text
+GH_MANAGER_IMAGE == target
+running Manager image_ref == target
+running Manager runtime image matches exact target archive by portable identity
+Manager network == host
+Home Assistant identity/network satisfy preserved baseline
+Broker continuity satisfies preserved baseline
+strict listener contract == expected
+services supervision contract == expected
+```
+
+### 2.3 APPLICATION_STOPPED_PREDECESSOR_BOUND
+
+```text
+application service owner is stopped/inactive
+Manager + HA application containers are absent
+GH_MANAGER_IMAGE == predecessor
+Broker continuity remains valid
+```
+
+### 2.4 APPLICATION_STOPPED_TARGET_BOUND
+
+```text
+application service owner is stopped/inactive
+Manager + HA application containers are absent
+GH_MANAGER_IMAGE == target
+Broker continuity remains valid
+```
+
+### 2.5 UNRESOLVED
+
+Anything not matching the exact states above.
+
+UNRESOLVED is fail-closed. No automatic guess, promotion or deletion is allowed.
+
+## 3. One readiness authority
+
+There must be one canonical application-readiness predicate.
+
+systemd `active` is not application readiness.
+Container existence is not application readiness.
+
+For this product generation the canonical post-start readiness contract remains:
+
+```text
+services unit active
+exactly one Manager container
+exactly one Home Assistant container
+Manager binding/runtime match
+Manager host network
+Home Assistant host network
+Broker continuity valid
+TCP 8883 == 1
+TCP 47110 == 1
+UDP 47111 == 1
+TCP 47112 == 0
+```
+
+Static supervision/compose contracts remain strict.
+
+`wait_services()` may poll transient runtime conditions, but it must converge on the same listener/readiness contract that final `inspect()` enforces. It must never define a weaker competing concept of ready.
+
+## 4. Transaction model
+
+The existing durable transaction phases remain useful as operation history:
+
+```text
+AUTHORIZED
+TARGET_IMAGE_LOADED
+STOPPING_APPLICATION_SERVICES
+APPLICATION_SERVICES_STOPPED
+MANAGER_BINDING_PUBLISHED
+TARGET_RUNTIME_STARTED
+COMMITTED
+ROLLBACK_*
+RECOVERY_*
+```
+
+They are not runtime authority.
+
+### 4.1 Terminal transaction statuses
+
+```text
+COMMITTED
+ROLLED_BACK
+```
+
+### 4.2 Non-terminal transaction statuses
+
+```text
+APPLYING
+ROLLING_BACK
+FAILED_EMERGENCY
+```
+
+`FAILED_EMERGENCY` means: the previous recovery attempt could not prove a terminal state at that instant.
+
+`ROLLING_BACK` is also non-terminal and must be recoverable after process death or host reboot.
+
+Neither status is runtime authority and neither may become a dead-end.
+
+## 5. Apply contract
+
+Before claim:
+
+```text
+package exact
+target manifest exact
+predecessor runtime PREDECESSOR_HEALTHY
+target archive identity exact
+no active non-terminal transaction
+```
+
+After claim:
+
+```text
+authorization is consumed
+transaction is durable before destructive action
+```
+
+Apply sequence:
+
+```text
+verify/load target
+stop application services
+publish only Manager binding
+validate compose delta
+start application services
+wait canonical readiness
+verify target portable identity + HA/Broker continuity
+commit
+```
+
+Any failure before application service stop completes must recover without restarting services.
+
+Any failure after stop begins enters recovery/reconciliation.
+
+## 6. Recovery contract
+
+Recovery is based on both transaction history and fresh runtime classification.
+
+### 6.1 Runtime already PREDECESSOR_HEALTHY
+
+Close transaction to:
+
+```text
+ROLLED_BACK
+t1_mutation=false
+```
+
+No service restart and no env rewrite.
+
+This is the required closure for the observed R2 incident.
+
+### 6.2 Runtime TARGET_HEALTHY with non-terminal apply/recovery
+
+Do not silently promote the failed/interrupted transaction to COMMITTED.
+
+Under an explicit rollback/recovery confirmation, restore the predecessor. This applies to APPLYING, ROLLING_BACK and FAILED_EMERGENCY histories when target binding/runtime is still present.
+
+Default recovery policy remains rollback-to-predecessor because the original apply did not prove completion.
+
+### 6.3 Runtime application stopped
+
+If target-bound, rewrite only Manager binding to predecessor and start through the product service owner.
+
+If predecessor-bound, start through the product service owner.
+
+Then wait canonical readiness and verify predecessor identity + HA/Broker continuity.
+
+### 6.4 Runtime UNRESOLVED
+
+Hard STOP.
+
+Do not delete transaction state.
+Do not delete images.
+Do not blindly rewrite env.
+Do not restart product services.
+
+## 7. Restart/power-loss rule
+
+A host reboot or updater process death may leave the durable transaction in any non-terminal phase.
+
+On the next explicit recovery action:
+
+```text
+transaction phase gives historical context
+fresh runtime classification gives current fact
+recovery action is selected from the current fact
+```
+
+The system must not require the operator to infer the correct recovery command from a stale phase string.
+
+## 8. Fault injection matrix
+
+All rows are host simulation / unit-integration tests before another T1 mutation.
+
+| ID | Injection point / condition | Expected terminal behavior |
+|---|---|---|
+| F01 | wrong apply confirmation | no transaction, no mutation |
+| F02 | target tar/hash/portable identity invalid | ROLLED_BACK_PRESTOP or no transaction; services untouched |
+| F03 | target image absent, load succeeds | continue with exact portable proof |
+| F04 | target image load fails | predecessor remains healthy; transaction recoverable without service restart |
+| F05 | process dies after AUTHORIZED | explicit recovery closes PREDECESSOR_HEALTHY without restart |
+| F06 | process dies after TARGET_IMAGE_LOADED | explicit recovery closes PREDECESSOR_HEALTHY without restart |
+| F07 | process dies while STOPPING_APPLICATION_SERVICES | reconciliation decides from fresh runtime, never from phase alone |
+| F08 | process dies after APPLICATION_SERVICES_STOPPED | recovery starts predecessor through owner and verifies readiness |
+| F09 | process dies after MANAGER_BINDING_PUBLISHED | recovery restores predecessor and verifies readiness |
+| F10 | target containers appear before listeners | wait, do not fail early |
+| F11 | target listeners never become ready | bounded timeout then rollback |
+| F12 | target post-check detects HA identity drift | restore Manager predecessor if possible, but remain unresolved/FAILED_EMERGENCY while HA identity drift persists; updater must not rewrite HA image |
+| F13 | target post-check detects Broker continuity drift | restore Manager predecessor if possible, but remain unresolved/FAILED_EMERGENCY while Broker drift persists; updater must not mutate Broker |
+| F14 | rollback containers appear before listeners | wait, do not create false FAILED_EMERGENCY |
+| F15 | rollback listeners never become ready | FAILED_EMERGENCY / recovery_required, runtime not guessed |
+| F16 | FAILED_EMERGENCY but predecessor is now fully healthy | explicit recovery closes ROLLED_BACK with t1_mutation=false |
+| F17 | FAILED_EMERGENCY while target still active | explicit rollback recovery restores predecessor under rollback confirmation; no silent commit |
+| F18 | FAILED_EMERGENCY with unknown binding/runtime | fail closed before service mutation |
+| F19 | host reboot with APPLYING + predecessor healthy | close to ROLLED_BACK without restart |
+| F20 | host reboot with application stopped + target bound | restore predecessor via controlled recovery |
+| F21 | host reboot with application stopped + predecessor bound | start predecessor via controlled recovery |
+| F22 | host reboot with target healthy but transaction non-terminal | rollback policy, never silent commit |
+| F23 | compose candidate changes non-Manager field | fail closed and rollback |
+| F24 | Broker changes during apply | fail closed; never rewrite/restart Broker as recovery side effect |
+| F25 | transaction write/history/lock integrity failure | fail closed before new destructive action |
+| F26 | successful COMMITTED transaction then explicit rollback | predecessor restored and verified |
+| F27 | new apply after terminal COMMITTED/ROLLED_BACK | prior transaction archived exactly once |
+| F28 | repeated recovery after terminal ROLLED_BACK | no replay/no mutation |
+| F29 | process/host dies after transaction becomes ROLLING_BACK | explicit rollback recovery is re-entrant and converges from fresh runtime facts |
+
+## 8.1 Evidence strategy
+
+The matrix is not a requirement to create 29 mechanically duplicated test functions.
+
+Each row must have one of:
+
+```text
+DEDICATED_TEST
+SHARED_TRANSITION_TEST
+STATIC_FAIL_CLOSED_INVARIANT
+```
+
+Dedicated executable coverage is mandatory for lifecycle transitions that can strand the T1:
+
+- pre-stop interruption;
+- stop/binding/start interruption;
+- delayed/never-ready listeners;
+- target start failure;
+- rollback start failure;
+- APPLYING / ROLLING_BACK / FAILED_EMERGENCY re-entry;
+- target-active recovery;
+- predecessor-already-healthy no-mutation closure;
+- unknown binding fail-closed;
+- HA/Broker continuity drift.
+
+Shared invariant tests are acceptable for pure validation rules such as confirmation rejection, exact candidate compose delta, transaction locking and terminal archive behavior.
+
+## 8.2 Fault-matrix coverage map
+
+Current automated test count in `tests/tools/test_n3w_t1_core_updater.py`: 40.
+
+| Matrix rows | Evidence |
+|---|---|
+| F01 | `test_apply_wrong_confirmation_creates_no_state` |
+| F02 | `test_apply_portable_mismatch_rolls_back_before_service_stop`, target validation tests |
+| F03 | normal apply commit tests start with target absent and load it |
+| F04 | `test_target_load_failure_rolls_back_prestop_without_service_restart` |
+| F05-F06 | parameterized `test_interrupted_prestop_transaction_recovers_without_restart` for AUTHORIZED and TARGET_IMAGE_LOADED |
+| F07 | `test_stopping_phase_with_predecessor_healthy_closes_without_restart` |
+| F08 | `test_application_stopped_with_predecessor_binding_recovers_by_starting_a` |
+| F09 | `test_interrupted_poststop_transaction_can_be_recovered` |
+| F10 | `test_wait_services_waits_for_listener_contract` |
+| F11 | `test_wait_services_times_out_if_listener_contract_never_converges` + target-start failure recovery |
+| F12 | `test_homeassistant_identity_drift_fails_closed_after_restoring_manager_a` |
+| F13 | `test_broker_identity_drift_fails_closed_without_broker_mutation` |
+| F14-F15 | shared start/readiness path + `test_rollback_start_failure_is_recoverable_on_next_explicit_recovery` |
+| F16 | `test_failed_emergency_can_close_without_runtime_mutation` |
+| F17 | `test_failed_emergency_with_target_active_can_restore_predecessor` |
+| F18 | `test_failed_emergency_unknown_binding_fails_before_service_mutation` |
+| F19 | STOPPING/pre-stop predecessor-healthy recovery tests |
+| F20 | post-stop target-bound recovery test |
+| F21 | application-stopped predecessor-bound recovery test |
+| F22 | `test_target_runtime_started_nonterminal_rolls_back_to_predecessor` |
+| F23 | `test_validate_candidate_allows_only_manager_image` |
+| F24 | Broker drift fail-closed test |
+| F25 | transaction lock, root symlink and active-transaction tests |
+| F26 | `test_explicit_rollback_restores_predecessor` and cross-store rollback test |
+| F27 | `test_terminal_transaction_archived_before_next_apply` |
+| F28 | `test_terminal_rolled_back_recovery_does_not_replay` |
+| F29 | both ROLLING_BACK re-entrant recovery tests |
+
+No live T1 fault injection is required to prove these source-level transition rules. The next live use is a final acceptance of the already-reviewed state machine, not exploratory bug discovery.
+
+## 9. Merge and live gates
+
+PR #754 is not merge-ready merely because the original CI is green.
+
+Before merge:
+
+```text
+V2_ARCHITECTURE_REVIEW=PASS
+FAULT_MATRIX_REQUIRED_ROWS=PASS
+NEW_SOURCE_BLOCKER_COUNT=0
+CI=PASS
+```
+
+Before another live T1 apply:
+
+```text
+main contains reviewed V2 repair
+replacement updater exact artifact is rebuilt
+T1 current runtime read-only classified PREDECESSOR_HEALTHY
+stuck R2 transaction is safely reconciled to ROLLED_BACK
+fresh apply authorization is issued
+```
+
+The stuck transaction reconciliation and the later A->B apply are separate mutation claims. They must not share or replay an authorization.
+
+## 10. Scope limits
+
+This V2 closure does not:
+- redesign Manager product behavior;
+- rebuild Manager B;
+- modify Home Assistant;
+- modify Mosquitto;
+- modify Board firmware;
+- change R3/KF-131 product scope;
+- add generic orchestration frameworks.
+
+The updater stays a narrowly scoped Manager-image replacement tool.
+
+## 11. Current decision
+
+```text
+PRODUCT_ARCHITECTURE=KEEP
+UPDATER_CONCEPT=KEEP
+REWRITE_FROM_SCRATCH=false
+PR754=SOLE_DEVELOPMENT_PR_FOR_THIS_INCIDENT
+PR753=INCIDENT_EVIDENCE_ONLY
+IMMEDIATE_LIVE_RETRY=false
+NEXT_GATE=FAULT_MATRIX_IMPLEMENTATION_AND_SOURCE_REVIEW
+```

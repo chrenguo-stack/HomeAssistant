@@ -1,3 +1,15 @@
+### 2026-11-03 KF-135 — T1_Core_Updater post-start listener readiness race can false-FAIL apply and rollback
+
+| ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
+|---|---|---|---|---|---|
+| KF-135 | T1_Core_Updater Manager A→B service restart / post-start verification | R2 apply 在服务重启后返回 `automatic_rollback_failed`；随后事务被记为 `FAILED_EMERGENCY / ROLLBACK_FAILED`，但只读取证证明 Manager A、HA、Broker 实际均已恢复健康，8 次连续 listener snapshot 均为 8883=1 / 47110=1 / 47111=1 / 47112=0 | `wait_services()` 只等 services unit active + Manager/HA 容器出现；严格 `inspect()` 紧接着要求所有 listener 已经收敛。现场日志显示容器约 00:00:53 出现，而 greenhouse-manager 到约 00:01:05 才开始 runtime、00:01:06 才完成订阅，因此存在明确启动就绪空窗；automatic rollback 重启后重复同一路径 | `start_services()` 的 readiness 必须同时等待严格 listener contract；`inspect()` 继续保持同一严格合同，禁止降低最终验收标准 | SOURCE_REPAIR_IN_PROGRESS |
+
+### 2026-11-03 KF-136 — T1_Core_Updater FAILED_EMERGENCY transaction has no supported closure path after runtime already recovered
+
+| ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
+|---|---|---|---|---|---|
+| KF-136 | T1_Core_Updater non-terminal transaction recovery | R2 现场已经恢复到 predecessor A，但 transaction 仍为 `FAILED_EMERGENCY / ROLLBACK_FAILED` 且 `recovery_required=true`；进一步复核还发现进程若死在显式 rollback 写入 `ROLLING_BACK` 后，同样会形成恢复死角 | 旧 rollback 入口只接受 COMMITTED/APPLYING，并把 transaction phase 当成主要恢复依据；FAILED_EMERGENCY 与 ROLLING_BACK 都可能成为非终态死角 | V2 显式 rollback/recovery 接受 APPLYING、ROLLING_BACK、FAILED_EMERGENCY；先读取当前 binding/runtime。若 predecessor A 已严格健康，则无服务重启收口为 ROLLED_BACK；若 target B 或应用停机态仍存在，则在 rollback confirmation 下恢复 predecessor；未知 binding/runtime 在任何服务 mutation 前 fail closed；任何非终态都不得 silent commit target | SOURCE_REPAIR_IN_PROGRESS |
+
 ### 2026-11-02 KF-106 recurrence live revalidation — CLOSED_PASS
 
 Real-T1 replacement-updater revalidation is now PASS. The package binding, updater status and inspect all passed read-only. The old R1 transaction remains terminal `ROLLED_BACK / ROLLBACK_COMPLETE_PRESTOP`, `recovery_required=false`, and its authorization is consumed/no-replay. Most importantly, `plan --manager-tar` returned `manager_tar_verified=true` and `target_image_prestate=PRESENT_AND_EXACT`, proving that the Manager B image loaded during R1 is portable-identical to the exact tar even though Docker 29/containerd may expose a different local runtime `.Id`. Manager A remains live and Manager/HA/Broker restart counts remain 0. KF-106 recurrence source repair and live portable-identity revalidation are CLOSED_PASS; the remaining work is a separately authorized Manager A→B R2 live apply and post-upgrade acceptance.
