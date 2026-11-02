@@ -1,3 +1,51 @@
+## 2026-11-02 — Current T1_Core_Stack successor authority established in repository; live A->B not yet applied
+
+~~~text
+TASK=N3W_T1_CORE_STACK_SUCCESSOR_AUTHORITY_CONVERGENCE_20261102_01
+STATE=REPOSITORY_SUCCESSOR_AUTHORITY_ESTABLISHED_LIVE_DEPLOYMENT_PENDING
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+HISTORICAL_CLEAN_REFERENCE_IMMUTABLE=true
+
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=3539c8f871e2cb63f18462009fa03a5eb36d39fd
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-3539c8f871e2
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+
+T1_CORE_UPDATER_REVIEWED_HEAD=57e6bad114ce8075b695fbd6b13a421937ffde43
+T1_CORE_UPDATER_PR=748
+T1_CORE_UPDATER_MERGE_COMMIT=15c3ff03cc5313789a894a675f68e54387ccee16
+T1_CORE_UPDATER_PACKAGE_RUN=41420012030
+T1_CORE_UPDATER_PACKAGE_ARTIFACT_ID=13129366972
+T1_CORE_UPDATER_PACKAGE_DIGEST=sha256:82baaf561632718b02008e6496eb8e7f462fde87bb98561b8645439e9ca367b6
+T1_CORE_UPDATER_PYZ_SHA256=5d48460901a5d8115543c0ccfd254d440cbda1075458f2fcbfcfa082245506fc
+
+MANAGER_ONLY_UPGRADE=true
+HOMEASSISTANT_IMAGE_MUTATION=false
+BROKER_IMAGE_MUTATION=false
+HOST_PLATFORM_MUTATION=false
+BOARD_MUTATION=false
+
+LIVE_T1_MANAGER_IMAGE=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=NOT_YET_APPLIED
+LIVE_T1_MUTATION=false
+
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_REPOSITORY_SUCCESSOR_CONSISTENCY_CI_20261102_01
+~~~
+
+The repository now has a dedicated current T1_Core_Stack authority distinct from the
+historical Clean Reference evidence. The 2026-11-01 Clean Reference remains immutable and
+continues to describe the exact A baseline that was actually deployed and accepted.
+
+The current repository target is Manager B at `3539c8f...`; Home Assistant and Broker remain
+unchanged. The real T1 still runs Manager A and has not yet been upgraded.
+
+Authority:
+`infra/n3w-t1/production/t1-core-stack-current.json`.
+
 ## 2026-11-02 — R3 sensorless real first-registration paused at Board USB readonly boundary; new-chat handoff generated
 
 ~~~text
