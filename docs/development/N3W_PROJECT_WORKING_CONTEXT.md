@@ -1,3 +1,28 @@
+## Latest authority — 2026-11-02 R2 FAILED_EMERGENCY recovery boundary
+
+~~~text
+AUTHORITY_GATE=N3W_T1_CORE_STACK_MANAGER_A_TO_B_R2_FAILED_EMERGENCY_FORENSIC_20261102_01
+AUTHORITY_STATE=FAILED_EMERGENCY_READONLY_FORENSIC_REQUIRED
+
+MAIN=ae67dc9da98b16c8bb6a23bc45afa2c5adbc4aee
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+
+R2_TRANSACTION_STATUS=FAILED_EMERGENCY
+R2_TRANSACTION_PHASE=ROLLBACK_FAILED
+RECOVERY_REQUIRED=true
+POST_INSPECT_REASON=listener_contract_drift
+LIVE_RUNTIME_AUTHORITY=UNKNOWN_FRESH
+
+R2_AUTHORIZATION_REPLAY_PERMITTED=false
+EXPLICIT_ROLLBACK_AUTHORIZED=false
+APPLY_RETRY_AUTHORIZED=false
+BOARD_ACCESS_DEFAULT=false
+
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_MANAGER_A_TO_B_R2_FAILED_EMERGENCY_READONLY_FORENSIC_20261102_01
+~~~
+
+Do not infer whether A or B is currently active from the failed transaction alone. Fresh raw read-only evidence must establish compose binding, running container identities, service-unit state and listener counts before any recovery design or mutation.
+
 ## Latest authority — 2026-11-02 portable-identity live revalidation PASS; R2 apply authorization boundary
 
 ~~~text
