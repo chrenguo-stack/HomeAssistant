@@ -66,6 +66,8 @@ class FakeHost:
         self.stopped = False
         self.stop_calls = 0
         self.start_calls = 0
+        self.fail_load = False
+        self.fail_start_on_calls = set()
         self.fail_after_start = False
         self.fail_post_start = False
         self.broker = {
@@ -155,6 +157,8 @@ class FakeHost:
         return self.images[reference]
 
     def load_image(self, tar_path):
+        if self.fail_load:
+            raise m.UpdaterError("simulated_load_failure")
         self.images[NEW] = self.loaded_target_id
 
     def stop_services(self):
@@ -163,6 +167,8 @@ class FakeHost:
 
     def start_services(self):
         self.start_calls += 1
+        if self.start_calls in self.fail_start_on_calls:
+            raise m.UpdaterError("simulated_start_failure")
         self.stopped = False
         self.manager_id = self.images[self.manager]
         if self.fail_post_start:
@@ -972,4 +978,132 @@ def test_terminal_rolled_back_recovery_does_not_replay(
 
     assert host.stop_calls == 0
     assert host.start_calls == 0
+
+def test_target_load_failure_rolls_back_prestop_without_service_restart(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(m.os, "geteuid", lambda: 0)
+    host = FakeHost()
+    host.fail_load = True
+    store = m.StateStore(tmp_path / "state")
+    updater = m.CoreUpdater(host, store)
+    target_value = target(tmp_path)
+
+    with pytest.raises(
+        m.UpdaterError,
+        match="simulated_load_failure",
+    ):
+        updater.apply(
+            target_value,
+            tmp_path / "manager.tar",
+            authorization_id="N3W_T1_CORE_UPDATER_MANAGER_TEST_LOAD_FAIL",
+            confirmation=m.APPLY_CONFIRMATION,
+        )
+
+    assert host.manager == OLD
+    assert host.stop_calls == 0
+    assert host.start_calls == 0
+    assert store.read()["status"] == "ROLLED_BACK"
+    assert store.read()["phase"] == "ROLLBACK_COMPLETE_PRESTOP"
+
+
+def test_target_start_failure_automatically_restores_predecessor(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(m.os, "geteuid", lambda: 0)
+    host = FakeHost()
+    host.fail_start_on_calls = {1}
+    store = m.StateStore(tmp_path / "state")
+    updater = m.CoreUpdater(host, store)
+    target_value = target(tmp_path)
+
+    with pytest.raises(
+        m.UpdaterError,
+        match="simulated_start_failure",
+    ):
+        updater.apply(
+            target_value,
+            tmp_path / "manager.tar",
+            authorization_id="N3W_T1_CORE_UPDATER_MANAGER_TEST_START_FAIL",
+            confirmation=m.APPLY_CONFIRMATION,
+        )
+
+    assert host.manager == OLD
+    assert host.manager_id == OLD_ID
+    assert host.stop_calls == 2
+    assert host.start_calls == 2
+    assert store.read()["status"] == "ROLLED_BACK"
+
+
+def test_rollback_start_failure_is_recoverable_on_next_explicit_recovery(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(m.os, "geteuid", lambda: 0)
+    host = FakeHost()
+    host.fail_post_start = True
+    host.fail_start_on_calls = {2}
+    store = m.StateStore(tmp_path / "state")
+    updater = m.CoreUpdater(host, store)
+    target_value = target(tmp_path)
+
+    with pytest.raises(
+        m.UpdaterError,
+        match="automatic_rollback_failed",
+    ):
+        updater.apply(
+            target_value,
+            tmp_path / "manager.tar",
+            authorization_id="N3W_T1_CORE_UPDATER_MANAGER_TEST_RB_START_FAIL",
+            confirmation=m.APPLY_CONFIRMATION,
+        )
+
+    assert store.read()["status"] == "FAILED_EMERGENCY"
+    assert store.read()["phase"] == "ROLLBACK_FAILED"
+    assert host.manager == OLD
+    assert host.stopped is True
+
+    host.fail_start_on_calls = set()
+
+    result = updater.rollback(
+        confirmation=m.ROLLBACK_CONFIRMATION
+    )
+
+    assert result["transaction_status"] == "ROLLED_BACK"
+    assert host.manager == OLD
+    assert host.manager_id == OLD_ID
+    assert host.stopped is False
+    assert store.read()["status"] == "ROLLED_BACK"
+
+
+def test_application_stopped_with_predecessor_binding_recovers_by_starting_a(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(m.os, "geteuid", lambda: 0)
+    host = FakeHost()
+    host.stopped = True
+    store = m.StateStore(tmp_path / "state")
+    updater = m.CoreUpdater(host, store)
+    target_value = target(tmp_path)
+    _write_nonterminal_transaction(
+        store,
+        target_value,
+        status="APPLYING",
+        phase="APPLICATION_SERVICES_STOPPED",
+    )
+
+    result = updater.rollback(
+        confirmation=m.ROLLBACK_CONFIRMATION
+    )
+
+    assert result["transaction_status"] == "ROLLED_BACK"
+    assert result["t1_mutation"] is True
+    assert host.manager == OLD
+    assert host.manager_id == OLD_ID
+    assert host.stopped is False
+    assert host.stop_calls == 1
+    assert host.start_calls == 1
 
