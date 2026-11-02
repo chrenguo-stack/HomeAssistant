@@ -1,0 +1,55 @@
+{
+  "schema": "gh.n3w-t1-core-stack-current-authority/1",
+  "authority_state": "SUCCESSOR_READY_NOT_LIVE_APPLIED",
+  "historical_clean_reference": {
+    "source_head": "24382caae4a1f5d459297f86e8d18f10a848ca64",
+    "manager_image": "local/greenhouse-manager:fresh-24382caae4a1",
+    "immutable_history": true
+  },
+  "current_repository_stack": {
+    "product_source_head": "3539c8f871e2cb63f18462009fa03a5eb36d39fd",
+    "manager": {
+      "image": "local/greenhouse-manager:fresh-3539c8f871e2",
+      "image_id": "sha256:2a1362b828a1f09b392713ba7fb40e91359e932690e525e4d03fe9873b9c1522",
+      "tar_sha256": "0038286140758c27c66eeb005d2a7ea4aec4538ad94447a44021bb61de7e51f0",
+      "platform": "linux/arm64"
+    },
+    "homeassistant": {
+      "image": "local/n3w-homeassistant:2026.10.0-0c73235a",
+      "image_id": "sha256:b0e1ee82adfb19fa1ff3049034535633b1c4f0df6606721c0e77383854b99879",
+      "manifest_digest": "sha256:0c73235a9140a9b02e4bf618d06d8c496b12ae70656ecddb0e02ad31ad122be4",
+      "platform": "linux/arm64"
+    },
+    "broker": {
+      "image": "local/n3w-mosquitto:2.1.2-3184566d",
+      "image_id": "sha256:4c199d7c9d377d018313a2199f6839978f6fd2219c405ad664d0a830c14b9c7b",
+      "manifest_digest": "sha256:3184566df484a083411a0e70e92c87a264b8f0648df632f10eb23d54d99f4549",
+      "platform": "linux/arm64"
+    }
+  },
+  "manager_successor_upgrade": {
+    "target_manifest": "infra/n3w-t1/upgrades/manager-3539c8f871e2.json",
+    "updater_reviewed_head": "57e6bad114ce8075b695fbd6b13a421937ffde43",
+    "updater_pr": 748,
+    "updater_merge_commit": "15c3ff03cc5313789a894a675f68e54387ccee16",
+    "package_run_id": 41420012030,
+    "package_artifact_id": 13129366972,
+    "package_artifact_name": "n3w-t1-core-updater-manager-3539c8f871e2",
+    "package_artifact_digest": "sha256:82baaf561632718b02008e6496eb8e7f462fde87bb98561b8645439e9ca367b6",
+    "updater_pyz_sha256": "5d48460901a5d8115543c0ccfd254d440cbda1075458f2fcbfcfa082245506fc",
+    "manager_rebuilt": false,
+    "rollback_compatible": true
+  },
+  "mutation_scope": {
+    "manager": true,
+    "homeassistant_image": false,
+    "broker_image": false,
+    "host_platform": false,
+    "board": false
+  },
+  "live_deployment": {
+    "state": "NOT_YET_APPLIED",
+    "expected_predecessor_manager_image": "local/greenhouse-manager:fresh-24382caae4a1",
+    "expected_target_manager_image": "local/greenhouse-manager:fresh-3539c8f871e2"
+  }
+}
