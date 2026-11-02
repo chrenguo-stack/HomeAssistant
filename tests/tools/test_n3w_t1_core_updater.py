@@ -301,6 +301,31 @@ def test_terminal_transaction_archived_before_next_apply(tmp_path):
     ) == 1
 
 
+def test_transaction_lock_is_exclusive(tmp_path):
+    store = m.StateStore(tmp_path / "state")
+    with store.lock():
+        with pytest.raises(
+            m.UpdaterError,
+            match="transaction_busy",
+        ):
+            with store.lock():
+                pass
+
+
+def test_transaction_root_symlink_fails_closed(tmp_path):
+    real = tmp_path / "real"
+    real.mkdir(mode=0o700)
+    root = tmp_path / "state"
+    root.symlink_to(real, target_is_directory=True)
+    store = m.StateStore(root)
+    with pytest.raises(
+        m.UpdaterError,
+        match="root_symlink",
+    ):
+        with store.lock():
+            pass
+
+
 def test_nonterminal_transaction_blocks_new_apply(tmp_path):
     store = m.StateStore(tmp_path / "state")
     store.write({
