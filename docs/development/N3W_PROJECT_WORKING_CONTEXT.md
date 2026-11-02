@@ -1,3 +1,34 @@
+## Latest authority — 2026-11-02 replacement updater merged; read-only portable-identity T1 revalidation next
+
+~~~text
+AUTHORITY_GATE=N3W_T1_CORE_UPDATER_REPLACEMENT_PACKAGE_AUTHORITY_ALIGNMENT_20261102_01
+AUTHORITY_STATE=REPLACEMENT_UPDATER_READY_NOT_LIVE_APPLIED
+
+MAIN=c80bd9f1374ca33926cc76acbc2f2e2da1ebb67b
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=3539c8f871e2cb63f18462009fa03a5eb36d39fd
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-3539c8f871e2
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+
+UPDATER_REVIEWED_HEAD=667299b6053822ce56c2b27adb8c3c61cca12542
+UPDATER_PACKAGE_RUN=41465742145
+UPDATER_PACKAGE_ARTIFACT_ID=13151876743
+UPDATER_PACKAGE_DIGEST=sha256:42d8580c0e8e2f04363a49e4166ef4b8de0729fa4f25c05703594a2b9ad04b1c
+UPDATER_PYZ_SHA256=69227fdb2d4778f53513ace1d9065848d7e2ad771c8291f52f0375a99a65c592
+
+LIVE_DEPLOYMENT_STATE=NOT_YET_APPLIED
+LAST_FRESH_LIVE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LAST_LIVE_APPLY=ROLLED_BACK_PRESTOP
+OLD_LIVE_AUTHORIZATION_REPLAY_PERMITTED=false
+
+NEXT_ONE_GATE=N3W_T1_CORE_UPDATER_PORTABLE_IMAGE_IDENTITY_LIVE_READONLY_REVALIDATION_20261102_01
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+~~~
+
+Use the replacement updater package for the next live read-only gate. The old updater package is historical and must not be used for a successor apply. Any new live apply requires a fresh read-only PASS and a new authorization.
+
 ## Latest authority — 2026-11-02 post-merge main convergence; Manager A->B live preflight next
 
 The stacked successor-authority chain has fully converged into protected `main`. Repository authority B and the reviewed T1_Core_Updater are now in main, but this does not prove the current live T1 runtime. The last recorded live Manager A state is historical until a fresh read-only `inspect / plan` rebind is executed.
