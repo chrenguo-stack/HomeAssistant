@@ -1,0 +1,177 @@
+name: N3W T1 Clean Reference pairing readiness bridge CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, edited]
+    paths:
+      - ".github/workflows/n3w-t1-clean-reference-pairing-readiness-bridge-ci.yml"
+      - "tools/n3w_t1_clean_reference_pairing_readiness_bridge.py"
+      - "tools/n3w_t1_clean_reference_pairing_readiness_bridge_package_builder.py"
+      - "tests/tools/test_n3w_t1_clean_reference_pairing_readiness_bridge.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/n3w-t1-clean-reference-pairing-readiness-bridge-ci.yml"
+      - "tools/n3w_t1_clean_reference_pairing_readiness_bridge.py"
+      - "tools/n3w_t1_clean_reference_pairing_readiness_bridge_package_builder.py"
+      - "tests/tools/test_n3w_t1_clean_reference_pairing_readiness_bridge.py"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  source-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PRODUCT_SOURCE_HEAD: 24382caae4a1f5d459297f86e8d18f10a848ca64
+      R2A_CONTROL_HEAD: abeb6c31147bcf249361dcec7e9536eaed6106a6
+      R2B_CONTROL_HEAD: e15c64ac8f0f5f482a6c8538072031734002a559
+      R3_OBSERVER_CONTROL_HEAD: da9124fe18774cdb5822f9eb3afee40120cfb04f
+      DEVICE_PROVISIONING_BLOB: 6e63d03027a251248bbe418b60175f9f241a2865
+      FIRST_PAIRING_ONBOARDING_BLOB: 332a59ad083e1db1c29de174139b3f45342c5fa8
+      TRUSTED_LAN_AUTHORITY_BLOB: ea964cd2b9b9380785f3aee5e8d6383180be4ee0
+      REGISTRATION_GUARD_BLOB: ef5077b6bc80c73bc8d3f35cf7a33a198ce918c7
+      BROKER_GUARD_BLOB: 795903b06c7ee93a0602649e478bc070723ab8c0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Prove frozen R2 and observer authorities remain byte-identical
+        run: |
+          set -euo pipefail
+          git cat-file -e "$R2A_CONTROL_HEAD^{commit}"
+          git cat-file -e "$R2B_CONTROL_HEAD^{commit}"
+          git cat-file -e "$R3_OBSERVER_CONTROL_HEAD^{commit}"
+          git diff --exit-code "$R2A_CONTROL_HEAD" --             tools/n3w_t1_clean_reference_r2a.py             tools/n3w_t1_clean_reference_r2a_package_builder.py             infra/n3w-t1/clean-reference/n3wfc4-broker-activation.service             infra/n3w-t1/clean-reference/n3wfc4-services-activation.service             infra/n3w-t1/clean-reference/n3wfc4-broker-certificate-lifecycle.service
+          git diff --exit-code "$R2B_CONTROL_HEAD" --             tools/n3w_t1_clean_reference_r2b.py             tools/n3w_t1_clean_reference_r2b_package_builder.py
+          git diff --exit-code "$R3_OBSERVER_CONTROL_HEAD" --             tools/n3w_t1_clean_reference_observer.py             tools/n3w_t1_clean_reference_compare.py
+
+      - name: Prove frozen product tools match exact source blobs
+        run: |
+          set -euo pipefail
+          observed_device="$(git rev-parse "$PRODUCT_SOURCE_HEAD:tools/n3w_t1_device_provisioning_host.py")"
+          observed_pairing="$(git rev-parse "$PRODUCT_SOURCE_HEAD:tools/n3w_t1_first_pairing_onboarding.py")"
+          observed_trusted_lan_authority="$(git rev-parse "$PRODUCT_SOURCE_HEAD:tools/n3w_trusted_product_lan_authority.py")"
+          observed_registration_guard="$(git rev-parse "$PRODUCT_SOURCE_HEAD:tools/n3w_registration_ingress_guard.py")"
+          observed_broker_guard="$(git rev-parse "$PRODUCT_SOURCE_HEAD:tools/n3w_broker_ingress_guard.py")"
+          test "$observed_device" = "$DEVICE_PROVISIONING_BLOB"
+          test "$observed_pairing" = "$FIRST_PAIRING_ONBOARDING_BLOB"
+          test "$observed_trusted_lan_authority" = "$TRUSTED_LAN_AUTHORITY_BLOB"
+          test "$observed_registration_guard" = "$REGISTRATION_GUARD_BLOB"
+          test "$observed_broker_guard" = "$BROKER_GUARD_BLOB"
+          printf 'DEVICE_PROVISIONING_BLOB=%s\n' "$observed_device"
+          printf 'FIRST_PAIRING_ONBOARDING_BLOB=%s\n' "$observed_pairing"
+          printf 'TRUSTED_LAN_AUTHORITY_BLOB=%s\n' "$observed_trusted_lan_authority"
+          printf 'REGISTRATION_GUARD_BLOB=%s\n' "$observed_registration_guard"
+          printf 'BROKER_GUARD_BLOB=%s\n' "$observed_broker_guard"
+
+      - name: Run bridge source tests
+        run: |
+          set -euo pipefail
+          python -m pip install "pytest>=8,<9"
+          python -m py_compile             tools/n3w_t1_clean_reference_pairing_readiness_bridge.py             tools/n3w_t1_clean_reference_pairing_readiness_bridge_package_builder.py             tools/n3w_t1_clean_reference_observer.py
+          python -m pytest -q             tests/tools/test_n3w_t1_clean_reference_pairing_readiness_bridge.py             tests/tools/test_n3w_t1_clean_reference_r3_observer.py
+
+  build-bridge-package:
+    needs: source-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CONTROL_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Build exact bridge package
+        run: |
+          set -euo pipefail
+          python tools/n3w_t1_clean_reference_pairing_readiness_bridge_package_builder.py             --repo-root .             --destination "$RUNNER_TEMP/bridge-package"             --control-plane-head "$CONTROL_HEAD"             | tee "$RUNNER_TEMP/build-report.json"
+          grep -q '"status":"PASS"' "$RUNNER_TEMP/build-report.json"
+
+      - name: Independently verify package
+        run: |
+          set -euo pipefail
+          python - "$RUNNER_TEMP/bridge-package" "$CONTROL_HEAD" <<'PY'
+          import hashlib
+          import json
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          head = sys.argv[2]
+          manifest_path = root / "package-manifest.json"
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+          assert manifest["schema"] == "gh.n3w-t1-clean-reference-pairing-readiness-bridge-package/1"
+          assert manifest["product_source_head"] == "24382caae4a1f5d459297f86e8d18f10a848ca64"
+          assert manifest["r2a_control_head"] == "abeb6c31147bcf249361dcec7e9536eaed6106a6"
+          assert manifest["r2b_control_head"] == "e15c64ac8f0f5f482a6c8538072031734002a559"
+          assert manifest["r3_observer_control_head"] == "da9124fe18774cdb5822f9eb3afee40120cfb04f"
+          assert manifest["r2_reference_sha256"] == "89da2a2b2cc1ce0fa024c3c45e24a71f09ba05e0e0cadbd67dd6387291239747"
+          assert manifest["control_plane_head"] == head
+          assert manifest["t1_access"] is False
+          assert manifest["t1_mutation"] is False
+          assert manifest["network_mutation"] is False
+          assert manifest["board_access"] is False
+
+          expected = {
+              "tools/n3w_t1_clean_reference_pairing_readiness_bridge.py",
+              "tools/n3w_t1_clean_reference_observer.py",
+          }
+          assert {row["path"] for row in manifest["files"]} == expected
+
+          actual = {
+              path.relative_to(root).as_posix()
+              for path in root.rglob("*")
+              if path.is_file() and path.name != "package-manifest.json"
+          }
+          assert actual == expected
+
+          for row in manifest["files"]:
+              path = root / row["path"]
+              assert path.stat().st_size == row["size"]
+              assert hashlib.sha256(path.read_bytes()).hexdigest() == row["sha256"]
+
+          print(
+              "BRIDGE_PACKAGE_MANIFEST_SHA256="
+              + hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+          )
+          print("BRIDGE_PACKAGE_VERIFY=PASS")
+          PY
+
+      - name: Upload exact bridge artifact
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: n3w-t1-clean-reference-pairing-readiness-bridge-${{ env.CONTROL_HEAD }}
+          path: ${{ runner.temp }}/bridge-package/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Report exact artifact
+        env:
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          printf 'BRIDGE_CONTROL_HEAD=%s\n' "$CONTROL_HEAD"
+          printf 'BRIDGE_ARTIFACT_ID=%s\n' "$ARTIFACT_ID"
+          printf 'BRIDGE_ARTIFACT_DIGEST=%s\n' "$ARTIFACT_DIGEST"
+          printf 'R2_REFERENCE_SHA256=89da2a2b2cc1ce0fa024c3c45e24a71f09ba05e0e0cadbd67dd6387291239747\n'
+          printf 'T1_ACCESS=false\n'
+          printf 'T1_MUTATION=false\n'
+          printf 'BOARD_ACCESS=false\n'

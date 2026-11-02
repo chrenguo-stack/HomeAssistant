@@ -217,6 +217,7 @@ jobs:
                   "image": manager_tag,
                   "image_id": image_id(manager_tag),
                   "tar_sha256": sha(root / "greenhouse-manager-arm64.tar"),
+                  "tar_size_bytes": (root / "greenhouse-manager-arm64.tar").stat().st_size,
                   "platform": "linux/arm64",
               },
               "homeassistant": {
@@ -224,6 +225,7 @@ jobs:
                   "image_id": image_id("local/n3w-homeassistant:2026.10.0-0c73235a"),
                   "manifest_digest": "sha256:0c73235a9140a9b02e4bf618d06d8c496b12ae70656ecddb0e02ad31ad122be4",
                   "tar_sha256": sha(root / "homeassistant-arm64.tar"),
+                  "tar_size_bytes": (root / "homeassistant-arm64.tar").stat().st_size,
                   "platform": "linux/arm64",
               },
               "broker": {
@@ -231,6 +233,7 @@ jobs:
                   "image_id": image_id("local/n3w-mosquitto:2.1.2-3184566d"),
                   "manifest_digest": "sha256:3184566df484a083411a0e70e92c87a264b8f0648df632f10eb23d54d99f4549",
                   "tar_sha256": sha(root / "broker-arm64.tar"),
+                  "tar_size_bytes": (root / "broker-arm64.tar").stat().st_size,
                   "platform": "linux/arm64",
               },
               "fresh_runtime_identity_binding": True,
@@ -303,8 +306,11 @@ jobs:
               return digest.hexdigest()
 
           assert sha(root / "greenhouse-manager-arm64.tar") == binding["manager"]["tar_sha256"]
+          assert (root / "greenhouse-manager-arm64.tar").stat().st_size == binding["manager"]["tar_size_bytes"]
           assert sha(root / "homeassistant-arm64.tar") == binding["homeassistant"]["tar_sha256"]
+          assert (root / "homeassistant-arm64.tar").stat().st_size == binding["homeassistant"]["tar_size_bytes"]
           assert sha(root / "broker-arm64.tar") == binding["broker"]["tar_sha256"]
+          assert (root / "broker-arm64.tar").stat().st_size == binding["broker"]["tar_size_bytes"]
           print(f"ARTIFACT_ID={artifact_id}")
           print(f"ARTIFACT_DIGEST={artifact_digest}")
           print("R6_EXACT_ARM64_POST_UPLOAD_BINDING=PASS")

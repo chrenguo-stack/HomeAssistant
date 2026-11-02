@@ -10,7 +10,9 @@ on:
       - "host/greenhouse-manager/src/greenhouse_manager/bootstrap/system_init.py"
       - "host/greenhouse-manager/tests/bootstrap/test_fresh_install_host_only.py"
       - "tools/n3w_t1_fresh_host_baseline.py"
+      - "tools/n3w_t1_host_runtime_cache.py"
       - "tests/tools/test_n3w_t1_fresh_host_baseline.py"
+      - "tests/tools/test_n3w_t1_host_runtime_cache.py"
   push:
     branches:
       - main
@@ -22,7 +24,9 @@ on:
       - "host/greenhouse-manager/src/greenhouse_manager/bootstrap/system_init.py"
       - "host/greenhouse-manager/tests/bootstrap/test_fresh_install_host_only.py"
       - "tools/n3w_t1_fresh_host_baseline.py"
+      - "tools/n3w_t1_host_runtime_cache.py"
       - "tests/tools/test_n3w_t1_fresh_host_baseline.py"
+      - "tests/tools/test_n3w_t1_host_runtime_cache.py"
 
 permissions:
   contents: read
@@ -43,10 +47,11 @@ jobs:
       - name: Run full fresh-install host-only matrix
         run: |
           set -euo pipefail
-          python -m pytest -q             host/greenhouse-manager/tests/bootstrap/test_fresh_install_host_only.py             tests/tools/test_n3w_t1_fresh_host_baseline.py
-          python -m py_compile             tools/n3w_t1_fresh_host_baseline.py
+          python -m pytest -q             host/greenhouse-manager/tests/bootstrap/test_fresh_install_host_only.py             tests/tools/test_n3w_t1_fresh_host_baseline.py             tests/tools/test_n3w_t1_host_runtime_cache.py
+          python -m py_compile             tools/n3w_t1_fresh_host_baseline.py             tools/n3w_t1_host_runtime_cache.py
           python tools/n3w_t1_fresh_host_baseline.py --phase self-check
-          ruff check             host/greenhouse-manager/tests/bootstrap/test_fresh_install_host_only.py             tests/tools/test_n3w_t1_fresh_host_baseline.py             tools/n3w_t1_fresh_host_baseline.py
+          python tools/n3w_t1_host_runtime_cache.py --phase self-check
+          ruff check             host/greenhouse-manager/tests/bootstrap/test_fresh_install_host_only.py             tests/tools/test_n3w_t1_fresh_host_baseline.py             tests/tools/test_n3w_t1_host_runtime_cache.py             tools/n3w_t1_fresh_host_baseline.py             tools/n3w_t1_host_runtime_cache.py
           printf 'EMPTY_HOST_FULL_FRESH_INSTALL=PASS\n'
           printf 'DIRTY_BASELINE_FAIL_CLOSED=PASS\n'
           printf 'PARTIAL_CANDIDATE_REPLAY_BLOCKED=PASS\n'
