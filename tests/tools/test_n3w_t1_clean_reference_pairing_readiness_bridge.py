@@ -347,8 +347,8 @@ def test_listener_count_reads_local_address_column(
 
     monkeypatch.setattr(bridge, "_run", fake_run)
 
-    assert bridge._listener_count("udp", bridge.PAIRING_UDP_PORT) == 1
-    assert bridge._listener_count("tcp", bridge.PAIRING_TCP_PORT) == 1
+    assert bridge._listener_count("udp", bridge.REGISTRATION_DISCOVERY_PORT) == 1
+    assert bridge._listener_count("tcp", bridge.PRIVILEGED_PAIRING_PORT) == 1
 
 
 def test_listener_count_does_not_match_peer_address_column(
