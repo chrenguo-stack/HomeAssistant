@@ -397,7 +397,7 @@ class LocalHost:
             "started_at",
             "restart_count",
         ):
-            if current.get(key) != baseline.get(key):
+            if key in baseline and current.get(key) != baseline.get(key):
                 raise UpdaterError("broker_continuity_failed")
         if self._listener_count("tcp", 8883) != 1:
             raise UpdaterError("broker_listener_continuity_failed")
