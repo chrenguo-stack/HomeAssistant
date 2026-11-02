@@ -140,6 +140,77 @@ def test_durable_active_exists_before_window_and_deadline_is_1800(tmp_path) -> N
         assert intents.current().expires_at == attempt.expires_at
 
 
+def test_submillisecond_clock_canonicalization_preserves_deadline_owner(
+    tmp_path,
+) -> None:
+    precise_now = datetime(
+        2026,
+        11,
+        2,
+        6,
+        35,
+        2,
+        326789,
+        tzinfo=UTC,
+    )
+    expected_opened_at = precise_now.replace(microsecond=326000)
+    expected_expires_at = expected_opened_at + timedelta(
+        seconds=FIRST_REGISTRATION_TTL_SECONDS
+    )
+
+    with RegistrationRegistry(tmp_path / "registration.sqlite3") as registry:
+        intents = FirstRegistrationIntentStore()
+        window = Window(registry)
+        window.fail = True
+        timers = ManualDeadlineTimerFactory()
+        clock = MutableClock(precise_now)
+        reconciler = DeadlineReconciler(registry)
+        tx = FirstRegistrationTransactionService(
+            registry=registry,
+            intents=intents,
+            window=window,
+            manager_id="manager_lab_01",
+            system_id="greenhouse",
+            clock=clock,
+            reconciler=reconciler,
+            deadline_timer_factory=timers,
+        )
+
+        with pytest.raises(
+            FirstRegistrationTransactionRejected,
+            match="bootstrap_unavailable",
+        ) as rejected:
+            tx.start(
+                request(),
+                source_ip="192.0.2.44",
+            )
+
+        assert rejected.value.detail == "window_open_unavailable"
+        active = registry.first_registration_ledger().get(PAIRING_ID)
+        assert active.opened_at == expected_opened_at
+        assert active.expires_at == expected_expires_at
+        assert intents.current() is not None
+        assert intents.current().expires_at == expected_expires_at
+        assert len(timers.timers) == 1
+        assert timers.timers[0].started is True
+        assert timers.timers[0].cancelled is False
+        assert timers.timers[0].delay_seconds == pytest.approx(
+            FIRST_REGISTRATION_TTL_SECONDS - 0.000789
+        )
+
+        clock.now = expected_expires_at
+        timers.timers[0].fire()
+
+        expired = registry.first_registration_ledger().get(PAIRING_ID)
+        assert expired.state is FirstRegistrationAttemptState.EXPIRED
+        assert (
+            expired.cleanup_state
+            is FirstRegistrationCleanupState.COMPLETE
+        )
+        assert reconciler.calls == 1
+        assert intents.current() is None
+
+
 def test_exact_duplicate_reuses_deadline_and_conflicting_secret_is_busy(tmp_path) -> None:
     with RegistrationRegistry(tmp_path / "registration.sqlite3") as registry:
         intents = FirstRegistrationIntentStore()
