@@ -1,0 +1,265 @@
+name: N3W T1 Core Updater Manager A-to-B CI
+
+on:
+  pull_request:
+    paths:
+      - "tools/n3w_t1_core_updater*.py"
+      - "tests/tools/test_n3w_t1_core_updater.py"
+      - "infra/n3w-t1/upgrades/manager-3539c8f871e2.json"
+      - "docs/development/N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_SOURCE_DESIGN_20261102.md"
+      - ".github/workflows/n3w-t1-core-updater-manager-a-to-b-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    env:
+      SOURCE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_HEAD }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate updater source and simulation
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_HEAD"
+          python -m pip install "pytest>=8,<9"
+          python -m py_compile             tools/n3w_t1_core_updater.py             tools/n3w_t1_core_updater_common.py             tools/n3w_t1_core_updater_core.py             tools/n3w_t1_core_updater_host.py             tools/n3w_t1_core_updater_state.py
+          PYTHONPATH=tools python -m pytest -q tests/tools/test_n3w_t1_core_updater.py
+          ! grep -R -E 'PAIRING_SHA256|HARDWARE_SHA256|R10_E03_MANAGER_SUCCESSOR_REFRESH|KF-131'             tools/n3w_t1_core_updater*.py
+
+  exact-manager-slice:
+    needs: source
+    runs-on: ubuntu-24.04
+    env:
+      CONTROL_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      UPSTREAM_RUN_ID: "41409298801"
+      UPSTREAM_ARTIFACT_NAME: "n3w-t1-fresh-exact-arm64-3539c8f871e2cb63f18462009fa03a5eb36d39fd"
+      TARGET_MANIFEST: "infra/n3w-t1/upgrades/manager-3539c8f871e2.json"
+      PACKAGE_NAME: "n3w-t1-core-updater-manager-3539c8f871e2"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CONTROL_HEAD }}
+          fetch-depth: 0
+
+      - name: Verify upstream GitHub artifact identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$UPSTREAM_RUN_ID/artifacts?per_page=100" > "$RUNNER_TEMP/upstream-artifacts.json"
+          python - "$RUNNER_TEMP/upstream-artifacts.json" "$TARGET_MANIFEST" "$UPSTREAM_ARTIFACT_NAME" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          metadata = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          target = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+          name = sys.argv[3]
+
+          matches = [
+              item
+              for item in metadata.get("artifacts", [])
+              if item.get("name") == name
+          ]
+          assert len(matches) == 1
+          artifact = matches[0]
+          assert artifact["id"] == target["artifact_id"]
+          assert artifact.get("expired") is False
+          assert artifact.get("digest") == (
+              "sha256:" + target["artifact_digest_sha256"]
+          )
+          print("UPSTREAM_GITHUB_ARTIFACT_IDENTITY=PASS")
+          PY
+
+      - name: Download exact upstream three-image artifact
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.UPSTREAM_RUN_ID }}
+          name: ${{ env.UPSTREAM_ARTIFACT_NAME }}
+          path: ${{ runner.temp }}/upstream
+
+      - name: Verify upstream binding and produce Manager-only package
+        run: |
+          set -euo pipefail
+          python - "$RUNNER_TEMP/upstream" "$TARGET_MANIFEST" "$RUNNER_TEMP/package" "$CONTROL_HEAD" <<'PY'
+          import hashlib
+          import json
+          import shutil
+          import sys
+          import zipapp
+          from pathlib import Path
+
+          upstream = Path(sys.argv[1])
+          target_path = Path(sys.argv[2])
+          package = Path(sys.argv[3])
+          control_head = sys.argv[4]
+
+          target = json.loads(target_path.read_text(encoding="utf-8"))
+          binding = json.loads((upstream / "binding.json").read_text(encoding="utf-8"))
+          manager_tar = upstream / "greenhouse-manager-arm64.tar"
+
+          def sha(path):
+              digest = hashlib.sha256()
+              with path.open("rb") as stream:
+                  for block in iter(lambda: stream.read(1024 * 1024), b""):
+                      digest.update(block)
+              return digest.hexdigest()
+
+          assert target["schema"] == "gh.n3w-t1-core-updater-manager-target/1"
+          assert target["component"] == "manager"
+          assert target["rollback_compatible"] is True
+          assert binding["schema"] == "gh.n3w.t1-fresh-exact-arm64-binding/1"
+          assert binding["source_head"] == target["source_head"]
+          assert binding["manager"]["image"] == target["image"]
+          assert binding["manager"]["image_id"] == target["image_id"]
+          assert binding["manager"]["tar_sha256"] == target["tar_sha256"]
+          assert binding["manager"]["tar_size_bytes"] == manager_tar.stat().st_size
+          assert binding["manager"]["platform"] == "linux/arm64"
+          assert binding["secret_values_included"] is False
+          assert binding["production_service_start"] is False
+          assert binding["t1_access"] is False
+          assert binding["board_access"] is False
+          assert sha(manager_tar) == target["tar_sha256"]
+
+          package.mkdir(parents=True, exist_ok=False)
+          shutil.copy2(manager_tar, package / "greenhouse-manager-arm64.tar")
+          shutil.copy2(target_path, package / "manager-target.json")
+
+          updater_source = package.parent / "updater-source"
+          updater_source.mkdir(parents=True, exist_ok=False)
+          updater_modules = (
+              "n3w_t1_core_updater.py",
+              "n3w_t1_core_updater_common.py",
+              "n3w_t1_core_updater_core.py",
+              "n3w_t1_core_updater_host.py",
+              "n3w_t1_core_updater_state.py",
+          )
+          for name in updater_modules:
+              shutil.copy2(Path("tools") / name, updater_source / name)
+          (updater_source / "__main__.py").write_text(
+              "from n3w_t1_core_updater import main\n"
+              "raise SystemExit(main())\n",
+              encoding="utf-8",
+          )
+          updater_pyz = package / "t1-core-updater.pyz"
+          zipapp.create_archive(
+              updater_source,
+              updater_pyz,
+              interpreter="/usr/bin/env python3",
+          )
+
+          package_binding = {
+              "schema": "gh.n3w-t1-core-updater-manager-package/1",
+              "control_plane_head": control_head,
+              "target_source_head": target["source_head"],
+              "upstream_run_id": 41409298801,
+              "upstream_artifact_id": target["artifact_id"],
+              "upstream_artifact_digest_sha256": target["artifact_digest_sha256"],
+              "manager_image": target["image"],
+              "manager_image_id": target["image_id"],
+              "manager_tar_sha256": target["tar_sha256"],
+              "manager_tar_size_bytes": manager_tar.stat().st_size,
+              "manager_platform": "linux/arm64",
+              "updater_pyz_sha256": sha(updater_pyz),
+              "updater_pyz_size_bytes": updater_pyz.stat().st_size,
+              "manager_rebuilt": False,
+              "homeassistant_included": False,
+              "broker_included": False,
+              "secret_values_included": False,
+              "t1_access": False,
+              "t1_mutation": False,
+              "board_access": False
+          }
+          (package / "package-binding.json").write_text(
+              json.dumps(package_binding, sort_keys=True, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(package_binding, sort_keys=True))
+          PY
+
+      - name: Upload exact Manager-only package
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PACKAGE_NAME }}
+          path: ${{ runner.temp }}/package/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Re-download and verify Manager-only package
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ steps.upload.outputs.artifact-id }}
+          path: ${{ runner.temp }}/redownload
+          merge-multiple: true
+
+      - name: Close exact package binding
+        env:
+          PACKAGE_ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          PACKAGE_ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          python - "$RUNNER_TEMP/redownload" "$PACKAGE_ARTIFACT_ID" "$PACKAGE_ARTIFACT_DIGEST" <<'PY'
+          import hashlib
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          artifact_id = sys.argv[2]
+          artifact_digest = sys.argv[3]
+          assert {p.name for p in root.iterdir()} == {
+              "greenhouse-manager-arm64.tar",
+              "manager-target.json",
+              "package-binding.json",
+              "t1-core-updater.pyz",
+          }
+          target = json.loads((root / "manager-target.json").read_text(encoding="utf-8"))
+          package = json.loads((root / "package-binding.json").read_text(encoding="utf-8"))
+          assert package["control_plane_head"] == os.environ["CONTROL_HEAD"]
+
+          def sha(path):
+              digest = hashlib.sha256()
+              with path.open("rb") as stream:
+                  for block in iter(lambda: stream.read(1024 * 1024), b""):
+                      digest.update(block)
+              return digest.hexdigest()
+
+          assert sha(root / "greenhouse-manager-arm64.tar") == target["tar_sha256"]
+          assert sha(root / "t1-core-updater.pyz") == package["updater_pyz_sha256"]
+          assert (root / "t1-core-updater.pyz").stat().st_size == package["updater_pyz_size_bytes"]
+          assert package["manager_tar_sha256"] == target["tar_sha256"]
+          assert package["manager_image_id"] == target["image_id"]
+          assert package["manager_rebuilt"] is False
+          assert package["homeassistant_included"] is False
+          assert package["broker_included"] is False
+          assert package["secret_values_included"] is False
+          assert package["t1_mutation"] is False
+
+          print(f"MANAGER_PACKAGE_ARTIFACT_ID={artifact_id}")
+          print(f"UPDATER_PYZ_SHA256={package['updater_pyz_sha256']}")
+          print(f"MANAGER_PACKAGE_ARTIFACT_DIGEST={artifact_digest}")
+          print(f"MANAGER_TAR_SHA256={target['tar_sha256']}")
+          print(f"MANAGER_IMAGE_ID={target['image_id']}")
+          print("T1_CORE_UPDATER_MANAGER_PACKAGE_BINDING=PASS")
+          print("MANAGER_REBUILT=false")
+          print("T1_MUTATION=false")
+          PY
+          python "$RUNNER_TEMP/redownload/t1-core-updater.pyz" --help >/dev/null
+          echo "T1_CORE_UPDATER_PYZ_EXECUTION=PASS"
