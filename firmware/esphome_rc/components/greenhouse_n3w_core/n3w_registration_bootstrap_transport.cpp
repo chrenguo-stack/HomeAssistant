@@ -101,7 +101,7 @@ int verify_pinned_leaf(
     uint32_t *flags) {
   auto *verify = static_cast<VerifyContext *>(context);
   if (verify == nullptr || certificate == nullptr || flags == nullptr) {
-    return MBEDTLS_ERR_X509_CERT_VERIFY_FAILED;
+    return MBEDTLS_ERR_X509_FATAL_ERROR;
   }
 
   // The selected R5 candidate is the trust authority. CA/hostname validation is
@@ -122,7 +122,7 @@ int verify_pinned_leaf(
         !constant_time_equal(observed, verify->expected)) {
       observed.fill(0);
       verify->pin_mismatch = true;
-      return MBEDTLS_ERR_X509_CERT_VERIFY_FAILED;
+      return MBEDTLS_ERR_X509_FATAL_ERROR;
     }
     observed.fill(0);
     verify->leaf_matched = true;
@@ -504,7 +504,13 @@ bool Esp32RegistrationBootstrapTransport::post_json(
   if (result == 0) {
     mbedtls_ssl_conf_rng(
         &config, mbedtls_ctr_drbg_random, &ctr_drbg);
-    mbedtls_ssl_conf_authmode(&config, MBEDTLS_SSL_VERIFY_REQUIRED);
+    // The selected candidate's exact leaf SHA-256 pin is the trust authority.
+    // There is deliberately no CA chain. Mbed TLS rejects VERIFY_REQUIRED
+    // without a CA chain/callback before a pin-only handshake can complete.
+    // VERIFY_OPTIONAL keeps X.509 parsing/usage checks while our verification
+    // callback turns any pin mismatch into a fatal error; the post-handshake
+    // leaf_seen/leaf_matched gate remains mandatory before HTTP is built.
+    mbedtls_ssl_conf_authmode(&config, MBEDTLS_SSL_VERIFY_OPTIONAL);
     mbedtls_ssl_conf_verify(&config, verify_pinned_leaf, &verify);
     result = mbedtls_ssl_setup(&ssl, &config);
   }

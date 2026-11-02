@@ -568,15 +568,41 @@ def _classify(report: dict[str, Any]) -> dict[str, Any]:
 
     firewall = report.get("firewall")
     if isinstance(firewall, list):
+        firewall_by_command = {
+            str(item.get("command")): item
+            for item in firewall
+            if isinstance(item, dict)
+        }
+        iptables_views_complete = all(
+            isinstance(firewall_by_command.get(command), dict)
+            and firewall_by_command[command].get("rc") == 0
+            for command in ("iptables -S", "iptables -t nat -S")
+        )
         for item in firewall:
             if not isinstance(item, dict):
                 continue
-            if item.get("rc") != 0:
+            command = str(item.get("command"))
+            error = str(item.get("error") or "")
+            optional_nft_absent = (
+                command == "nft list ruleset"
+                and item.get("rc") != 0
+                and "command not found" in error.lower()
+                and iptables_views_complete
+            )
+            if item.get("rc") != 0 and not optional_nft_absent:
                 unknown.append(
                     {
                         "type": "firewall_visibility",
                         "name": item.get("command"),
                         "reason": "read_failed",
+                    }
+                )
+            elif optional_nft_absent:
+                preserve.append(
+                    {
+                        "type": "firewall_visibility",
+                        "name": command,
+                        "reason": "optional_backend_absent_iptables_views_complete",
                     }
                 )
             for line in item.get("relevant_lines", []):

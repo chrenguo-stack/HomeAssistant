@@ -1,0 +1,48 @@
+name: N3W R10 E03 replacement baseline invalidation CI
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/n3w-r10-e03-replacement-baseline-invalidation-ci.yml"
+      - "tools/n3w_t1_r10_e03_replacement_baseline_invalidation.py"
+      - "tests/tools/test_n3w_t1_r10_e03_replacement_baseline_invalidation.py"
+
+permissions:
+  contents: read
+
+jobs:
+  invalidation-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run focused invalidation tests
+        run: |
+          set -euo pipefail
+          python -m pip install "pytest>=8,<9"
+          python -m py_compile tools/n3w_t1_r10_e03_replacement_baseline_invalidation.py
+          python -m pytest -q tests/tools/test_n3w_t1_r10_e03_replacement_baseline_invalidation.py
+
+      - name: Enforce invalidation safety boundary
+        run: |
+          set -euo pipefail
+          TOOL=tools/n3w_t1_r10_e03_replacement_baseline_invalidation.py
+          grep -Fq 'BROKER_STARTED_AT_CHANGED_AFTER_T1_REBOOT' "$TOOL"
+          grep -Fq 'BROKER_BOOT_ACTIVATION_MAX_SECONDS' "$TOOL"
+          grep -Fq 'sub.add_parser("preflight")' "$TOOL"
+          grep -Fq 'sub.add_parser("claim")' "$TOOL"
+          grep -Fq 'sub.add_parser("invalidate")' "$TOOL"
+          grep -Fq 'sub.add_parser("status")' "$TOOL"
+          grep -Fq '"BLOCKED"' "$TOOL"
+          ! grep -Fq 'sub.add_parser("apply")' "$TOOL"
+          ! grep -Fq '"systemctl", "stop"' "$TOOL"
+          ! grep -Fq '"systemctl", "start"' "$TOOL"
+          ! grep -Fq '("docker", "load"' "$TOOL"
+          ! grep -Fq '("docker", "tag"' "$TOOL"
+          ! grep -Fq '("docker", "rmi"' "$TOOL"
