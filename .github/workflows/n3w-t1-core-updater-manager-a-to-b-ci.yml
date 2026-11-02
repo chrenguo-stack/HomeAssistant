@@ -217,6 +217,7 @@ jobs:
           python - "$RUNNER_TEMP/redownload" "$PACKAGE_ARTIFACT_ID" "$PACKAGE_ARTIFACT_DIGEST" <<'PY'
           import hashlib
           import json
+          import os
           import sys
           from pathlib import Path
 
@@ -231,6 +232,7 @@ jobs:
           }
           target = json.loads((root / "manager-target.json").read_text(encoding="utf-8"))
           package = json.loads((root / "package-binding.json").read_text(encoding="utf-8"))
+          assert package["control_plane_head"] == os.environ["CONTROL_HEAD"]
 
           def sha(path):
               digest = hashlib.sha256()
