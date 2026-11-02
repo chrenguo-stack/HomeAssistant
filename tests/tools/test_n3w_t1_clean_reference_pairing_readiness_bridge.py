@@ -303,6 +303,8 @@ def test_bridge_source_cannot_reboot_restart_pair_or_touch_board() -> None:
     assert '"service_restart": False' in source
     assert '"board_access": False' in source
     assert '"factory_accepted_required": False' in source
+    assert 'HOST_TRUSTED_LAN_ROOT = Path("/run/n3wfc4-trusted-lan")' in source
+    assert 'MANAGER_TRUSTED_LAN_TARGET = Path("/run/n3w/trusted-product-lan")' in source
 
 
 
@@ -351,10 +353,103 @@ def test_listener_count_does_not_match_peer_address_column(
     assert bridge._listener_count("udp", bridge.REGISTRATION_DISCOVERY_PORT) == 0
 
 
+def test_manager_trusted_lan_mount_requires_exact_readonly_bind(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = json.dumps(
+        [
+            {
+                "Type": "bind",
+                "Source": str(bridge.HOST_TRUSTED_LAN_ROOT),
+                "Destination": str(bridge.MANAGER_TRUSTED_LAN_TARGET),
+                "RW": False,
+            }
+        ]
+    )
+
+    monkeypatch.setattr(
+        bridge,
+        "_run",
+        lambda argv, **_kwargs: payload
+        if argv[:4] == ("docker", "inspect", "-f", "{{json .Mounts}}")
+        else (_ for _ in ()).throw(AssertionError(argv)),
+    )
+
+    bridge._manager_trusted_lan_mount("manager")
+
+
+def test_manager_trusted_lan_mount_rejects_writable_bind(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = json.dumps(
+        [
+            {
+                "Type": "bind",
+                "Source": str(bridge.HOST_TRUSTED_LAN_ROOT),
+                "Destination": str(bridge.MANAGER_TRUSTED_LAN_TARGET),
+                "RW": True,
+            }
+        ]
+    )
+
+    monkeypatch.setattr(
+        bridge,
+        "_run",
+        lambda _argv, **_kwargs: payload,
+    )
+
+    with pytest.raises(bridge.BridgeError, match="manager_trusted_lan_mount_invalid"):
+        bridge._manager_trusted_lan_mount("manager")
+
+
+def test_trusted_lan_authority_reads_host_runtime_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[Path] = []
+
+    def fake_read_json(path: Path, *, mode: int | None = None) -> dict:
+        del mode
+        seen.append(path)
+        return {
+            "schema": "gh.trusted-product-lan/1",
+            "interface": "eth0",
+            "available": True,
+            "generation": "generation-1",
+            "subnet": "192.168.68.0/24",
+        }
+
+    monkeypatch.setattr(bridge, "_read_json", fake_read_json)
+    monkeypatch.setattr(
+        bridge,
+        "_run",
+        lambda argv, **_kwargs: json.dumps(
+            [
+                {
+                    "addr_info": [
+                        {
+                            "family": "inet",
+                            "scope": "global",
+                            "local": "192.168.68.194",
+                        }
+                    ]
+                }
+            ]
+        )
+        if argv[:5] == ("ip", "-j", "-4", "addr", "show")
+        else (_ for _ in ()).throw(AssertionError(argv)),
+    )
+
+    report = bridge._trusted_lan_authority()
+
+    assert seen == [bridge.HOST_TRUSTED_LAN_STATE]
+    assert report["trusted_network_sha256"]
+
+
 def test_current_product_registration_readiness_accepts_registration_surface(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(bridge, "_manager_id", lambda: "manager")
+    monkeypatch.setattr(bridge, "_manager_trusted_lan_mount", lambda _manager: None)
     monkeypatch.setattr(bridge, "_manager_runtime_flags", lambda _manager: None)
     monkeypatch.setattr(
         bridge,
@@ -401,6 +496,7 @@ def test_current_product_registration_readiness_rejects_privileged_pairing_liste
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(bridge, "_manager_id", lambda: "manager")
+    monkeypatch.setattr(bridge, "_manager_trusted_lan_mount", lambda _manager: None)
     monkeypatch.setattr(bridge, "_manager_runtime_flags", lambda _manager: None)
     monkeypatch.setattr(
         bridge,

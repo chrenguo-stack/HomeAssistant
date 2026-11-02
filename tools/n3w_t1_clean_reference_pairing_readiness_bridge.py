@@ -64,9 +64,13 @@ REGISTRATION_BOOTSTRAP_PORT = 47110
 REGISTRATION_DISCOVERY_PORT = 47111
 PRIVILEGED_PAIRING_PORT = 47112
 
-TRUSTED_LAN_STATE = Path("/run/n3w/trusted-product-lan/state.json")
+HOST_TRUSTED_LAN_ROOT = Path("/run/n3wfc4-trusted-lan")
+HOST_TRUSTED_LAN_STATE = HOST_TRUSTED_LAN_ROOT / "state.json"
+MANAGER_TRUSTED_LAN_TARGET = Path("/run/n3w/trusted-product-lan")
+TRUSTED_LAN_AUTHORITY_TOOL = Path("/opt/HomeAssistant/tools/n3w_trusted_product_lan_authority.py")
 REGISTRATION_GUARD_TOOL = Path("/opt/HomeAssistant/tools/n3w_registration_ingress_guard.py")
 BROKER_GUARD_TOOL = Path("/opt/HomeAssistant/tools/n3w_broker_ingress_guard.py")
+TRUSTED_LAN_AUTHORITY_BLOB = "ea964cd2b9b9380785f3aee5e8d6383180be4ee0"
 REGISTRATION_GUARD_BLOB = "ef5077b6bc80c73bc8d3f35cf7a33a198ce918c7"
 BROKER_GUARD_BLOB = "795903b06c7ee93a0602649e478bc070723ab8c0"
 
@@ -390,6 +394,8 @@ def _current_reference(root: Path, baseline: dict[str, Any]) -> dict[str, Any]:
 def _tool_binding() -> None:
     if _git_blob_sha(DEVICE_PROVISIONING_TOOL) != DEVICE_PROVISIONING_BLOB:
         raise BridgeError("device_provisioning_tool_drift")
+    if _git_blob_sha(TRUSTED_LAN_AUTHORITY_TOOL) != TRUSTED_LAN_AUTHORITY_BLOB:
+        raise BridgeError("trusted_lan_authority_tool_drift")
     if _git_blob_sha(REGISTRATION_GUARD_TOOL) != REGISTRATION_GUARD_BLOB:
         raise BridgeError("registration_guard_tool_drift")
     if _git_blob_sha(BROKER_GUARD_TOOL) != BROKER_GUARD_BLOB:
@@ -726,6 +732,29 @@ def _manager_id() -> str:
     return manager_id
 
 
+def _manager_trusted_lan_mount(manager_id: str) -> None:
+    raw = _run(
+        ("docker", "inspect", "-f", "{{json .Mounts}}", manager_id),
+        timeout=20,
+    )
+    try:
+        mounts = json.loads(raw)
+    except json.JSONDecodeError as error:
+        raise BridgeError("manager_mounts_invalid") from error
+    if not isinstance(mounts, list):
+        raise BridgeError("manager_mounts_invalid")
+    matches = [
+        row
+        for row in mounts
+        if isinstance(row, dict)
+        and row.get("Type") == "bind"
+        and row.get("Source") == str(HOST_TRUSTED_LAN_ROOT)
+        and row.get("Destination") == str(MANAGER_TRUSTED_LAN_TARGET)
+    ]
+    if len(matches) != 1 or matches[0].get("RW") is not False:
+        raise BridgeError("manager_trusted_lan_mount_invalid")
+
+
 def _manager_runtime_flags(manager_id: str) -> None:
     raw = _run(
         ("docker", "inspect", "-f", "{{json .Config.Env}}", manager_id),
@@ -793,7 +822,7 @@ def _pairing_control_closed(manager_id: str) -> dict[str, Any]:
 
 
 def _trusted_lan_authority() -> dict[str, str]:
-    document = _read_json(TRUSTED_LAN_STATE)
+    document = _read_json(HOST_TRUSTED_LAN_STATE)
     if (
         document.get("schema") != "gh.trusted-product-lan/1"
         or document.get("interface") != "eth0"
@@ -900,6 +929,7 @@ def _registration_guard_authority(
 
 def _current_product_registration_readiness() -> dict[str, Any]:
     manager_id = _manager_id()
+    _manager_trusted_lan_mount(manager_id)
     _manager_runtime_flags(manager_id)
     control = _pairing_control_closed(manager_id)
 

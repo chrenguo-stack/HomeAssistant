@@ -35,6 +35,7 @@ jobs:
       R3_OBSERVER_CONTROL_HEAD: da9124fe18774cdb5822f9eb3afee40120cfb04f
       DEVICE_PROVISIONING_BLOB: 6e63d03027a251248bbe418b60175f9f241a2865
       FIRST_PAIRING_ONBOARDING_BLOB: 332a59ad083e1db1c29de174139b3f45342c5fa8
+      TRUSTED_LAN_AUTHORITY_BLOB: ea964cd2b9b9380785f3aee5e8d6383180be4ee0
       REGISTRATION_GUARD_BLOB: ef5077b6bc80c73bc8d3f35cf7a33a198ce918c7
       BROKER_GUARD_BLOB: 795903b06c7ee93a0602649e478bc070723ab8c0
     steps:
@@ -62,14 +63,17 @@ jobs:
           set -euo pipefail
           observed_device="$(git rev-parse "$PRODUCT_SOURCE_HEAD:tools/n3w_t1_device_provisioning_host.py")"
           observed_pairing="$(git rev-parse "$PRODUCT_SOURCE_HEAD:tools/n3w_t1_first_pairing_onboarding.py")"
+          observed_trusted_lan_authority="$(git rev-parse "$PRODUCT_SOURCE_HEAD:tools/n3w_trusted_product_lan_authority.py")"
           observed_registration_guard="$(git rev-parse "$PRODUCT_SOURCE_HEAD:tools/n3w_registration_ingress_guard.py")"
           observed_broker_guard="$(git rev-parse "$PRODUCT_SOURCE_HEAD:tools/n3w_broker_ingress_guard.py")"
           test "$observed_device" = "$DEVICE_PROVISIONING_BLOB"
           test "$observed_pairing" = "$FIRST_PAIRING_ONBOARDING_BLOB"
+          test "$observed_trusted_lan_authority" = "$TRUSTED_LAN_AUTHORITY_BLOB"
           test "$observed_registration_guard" = "$REGISTRATION_GUARD_BLOB"
           test "$observed_broker_guard" = "$BROKER_GUARD_BLOB"
           printf 'DEVICE_PROVISIONING_BLOB=%s\n' "$observed_device"
           printf 'FIRST_PAIRING_ONBOARDING_BLOB=%s\n' "$observed_pairing"
+          printf 'TRUSTED_LAN_AUTHORITY_BLOB=%s\n' "$observed_trusted_lan_authority"
           printf 'REGISTRATION_GUARD_BLOB=%s\n' "$observed_registration_guard"
           printf 'BROKER_GUARD_BLOB=%s\n' "$observed_broker_guard"
 
