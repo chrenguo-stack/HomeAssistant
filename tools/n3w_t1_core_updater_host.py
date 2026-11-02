@@ -205,6 +205,11 @@ class LocalHost:
         ).stdout.decode()
         return len([line for line in raw.splitlines() if line.strip()])
 
+    def manager_binding(self) -> str:
+        if COMPOSE_ENV.is_symlink() or not COMPOSE_ENV.is_file():
+            raise UpdaterError("compose_env_invalid")
+        return manager_env_image(COMPOSE_ENV.read_bytes())
+
     def inspect(self) -> dict[str, Any]:
         for unit in (BROKER_UNIT, SERVICES_UNIT, REGISTRATION_GUARD_UNIT):
             if self._systemctl("is-active", unit) != "active":
@@ -221,7 +226,7 @@ class LocalHost:
         ):
             raise UpdaterError("compose_authority_invalid")
         env_payload = COMPOSE_ENV.read_bytes()
-        env_image = manager_env_image(env_payload)
+        env_image = self.manager_binding()
         rendered = self.render_compose()
         services = rendered.get("services")
         if not isinstance(services, dict):
