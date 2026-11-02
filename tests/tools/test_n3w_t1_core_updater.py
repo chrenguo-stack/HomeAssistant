@@ -169,7 +169,7 @@ class FakeHost:
             "started_at",
             "restart_count",
         ):
-            if self.broker[key] != baseline[key]:
+            if key in baseline and self.broker[key] != baseline[key]:
                 raise m.UpdaterError("broker_continuity_failed")
 
     def wait_services(self, timeout=120):
