@@ -1,3 +1,14 @@
+## 2026-11-02 — Current T1_Core_Stack successor authority established; live upgrade pending
+
+- Canonical current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Historical Clean Reference A remains immutable at source `24382caae4a1f5d459297f86e8d18f10a848ca64`, Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Current repository product target B is source `3539c8f871e2cb63f18462009fa03a5eb36d39fd`, Manager `local/greenhouse-manager:fresh-3539c8f871e2`.
+- Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Canonical updater reviewed head: `57e6bad114ce8075b695fbd6b13a421937ffde43`; PR #748 merged into PR #705 as `15c3ff03cc5313789a894a675f68e54387ccee16`.
+- Final Manager-only updater artifact: run `41420012030`, artifact `13129366972`, digest `sha256:82baaf561632718b02008e6496eb8e7f462fde87bb98561b8645439e9ca367b6`.
+- Live T1 remains on Manager A; repository authority convergence does not claim live deployment.
+- Next gate: repository successor consistency CI, then read-only live `inspect / plan`.
+
 ## 2026-11-02 — R3 sensorless real first-registration handoff at USB readonly boundary
 
 - R3 route is frozen to one real sensorless ESP32-C6 first-registration against the zero-node production T1.
