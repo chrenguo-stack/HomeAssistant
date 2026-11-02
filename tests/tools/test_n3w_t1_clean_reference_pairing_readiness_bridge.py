@@ -146,6 +146,17 @@ def _preflight() -> dict:
             "identity_authority": "clean_reference_runtime_identity_v1",
             "device_provisioning_state": "UNPROVISIONED",
         },
+        "registration": {
+            "registration_ready": True,
+            "registration_bootstrap_listener_count": 1,
+            "registration_discovery_listener_count": 1,
+            "privileged_pairing_listener_count": 0,
+            "pairing_window_state": "CLOSED",
+            "trusted_network_sha256": "7" * 64,
+            "trusted_lan_generation_sha256": "8" * 64,
+            "registration_guard_applied": True,
+            "registration_guard_anchor_positions": [2, 3, 4],
+        },
         "current": _reference(),
     }
 
@@ -211,133 +222,30 @@ def test_factory_document_is_standard_compatible_and_provenance_bound() -> None:
     assert document["bridge_control_head"] == CONTROL_HEAD
 
 
-def test_apply_consumes_one_shot_and_finishes_factory_accepted(
+def test_apply_route_is_retired_before_any_preflight_or_write(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    provisioning = tmp_path / "provisioning"
-    provisioning.mkdir()
-    state_root = tmp_path / "bridge-state"
-    transaction = state_root / "transaction.json"
-    marker = provisioning / "FACTORY_ACCEPTED.json"
+    called = False
 
-    monkeypatch.setattr(bridge, "PROVISIONING_ROOT", provisioning)
-    monkeypatch.setattr(bridge, "FACTORY_ACCEPTED", marker)
-    monkeypatch.setattr(bridge, "BRIDGE_ROOT", state_root)
-    monkeypatch.setattr(bridge, "BRIDGE_TRANSACTION", transaction)
-    _relax_runner_root_metadata(monkeypatch)
-    monkeypatch.setattr(bridge, "_preflight", lambda *_args: _preflight())
-    monkeypatch.setattr(
-        bridge,
-        "_create_bridge_root",
-        lambda: state_root.mkdir(),
-    )
-    monkeypatch.setattr(bridge, "_atomic_private_json", _test_private_writer)
-    def create_marker(document: dict) -> bool:
-        _test_private_writer(marker, document)
-        return False
-    monkeypatch.setattr(bridge, "_create_factory_marker", create_marker)
-    monkeypatch.setattr(bridge, "_baseline", lambda _path: _reference())
-    monkeypatch.setattr(
-        bridge,
-        "_current_reference",
-        lambda _root, _baseline: _reference(),
-    )
-    monkeypatch.setattr(
-        bridge,
-        "_onboarding_inspect",
-        lambda: {
-            "status": "PASS",
-            "operation": "inspect",
-            "factory_accepted": True,
-            "transaction_present": False,
-            "successor_recovery_present": False,
-            "mutation": False,
-            "pairing_udp_listener_count": 0,
-            "pairing_http_listener_count": 0,
-            "pairing_window_state": "CLOSED",
-            "raw_locator_in_output": False,
-        },
-    )
+    def forbidden_preflight(*_args):
+        nonlocal called
+        called = True
+        raise AssertionError("preflight must not run")
 
-    report = bridge.apply(
-        tmp_path,
-        tmp_path / "r2-reference.json",
-        bridge.CONFIRMATION,
-        bridge.AUTHORIZATION_PREFIX + "TEST_01",
-    )
+    monkeypatch.setattr(bridge, "_preflight", forbidden_preflight)
 
-    assert report["status"] == "PASS"
-    assert report["state"] == "FACTORY_ACCEPTED"
-    assert report["authorization_consumed"] is True
-    assert report["authorization_replay_allowed"] is False
-    assert report["factory_accepted"] is True
-    assert report["first_pairing_inspect_passed"] is True
-    assert report["pairing_window_state"] == "CLOSED"
-    assert report["service_restart"] is False
-    assert report["network_mutation"] is False
-    assert report["board_access"] is False
-
-    marker_document = json.loads(marker.read_text(encoding="utf-8"))
-    assert marker_document["acceptance_route"] == "clean_reference_r2_bridge_v2"
-
-    transaction_document = json.loads(transaction.read_text(encoding="utf-8"))
-    assert transaction_document["stage"] == "FACTORY_ACCEPTED"
-    assert transaction_document["authorization_consumed"] is True
-    assert transaction_document["authorization_replay_allowed"] is False
-
-
-def test_apply_rolls_marker_back_when_standard_inspect_fails(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    provisioning = tmp_path / "provisioning"
-    provisioning.mkdir()
-    state_root = tmp_path / "bridge-state"
-    transaction = state_root / "transaction.json"
-    marker = provisioning / "FACTORY_ACCEPTED.json"
-
-    monkeypatch.setattr(bridge, "PROVISIONING_ROOT", provisioning)
-    monkeypatch.setattr(bridge, "FACTORY_ACCEPTED", marker)
-    monkeypatch.setattr(bridge, "BRIDGE_ROOT", state_root)
-    monkeypatch.setattr(bridge, "BRIDGE_TRANSACTION", transaction)
-    _relax_runner_root_metadata(monkeypatch)
-    monkeypatch.setattr(bridge, "_preflight", lambda *_args: _preflight())
-    monkeypatch.setattr(
-        bridge,
-        "_create_bridge_root",
-        lambda: state_root.mkdir(),
-    )
-    monkeypatch.setattr(bridge, "_atomic_private_json", _test_private_writer)
-    def create_marker_for_failure(document: dict) -> bool:
-        _test_private_writer(marker, document)
-        return False
-    monkeypatch.setattr(
-        bridge,
-        "_create_factory_marker",
-        create_marker_for_failure,
-    )
-    monkeypatch.setattr(
-        bridge,
-        "_onboarding_inspect",
-        lambda: (_ for _ in ()).throw(bridge.BridgeError("inspect_failed")),
-    )
-    monkeypatch.setattr(bridge, "_fsync_directory", lambda _path: None)
-
-    with pytest.raises(bridge.BridgeError, match="inspect_failed"):
+    with pytest.raises(bridge.BridgeError, match="legacy_factory_marker_route_retired"):
         bridge.apply(
             tmp_path,
             tmp_path / "r2-reference.json",
             bridge.CONFIRMATION,
-            bridge.AUTHORIZATION_PREFIX + "TEST_02",
+            bridge.AUTHORIZATION_PREFIX + "TEST_RETIRED",
         )
 
-    assert marker.exists() is False
-    transaction_document = json.loads(transaction.read_text(encoding="utf-8"))
-    assert transaction_document["stage"] == "STOPPED_ROLLED_BACK"
-    assert transaction_document["authorization_consumed"] is True
-    assert transaction_document["authorization_replay_allowed"] is False
-    assert transaction_document["marker_rollback_proven"] is True
+    assert called is False
+    assert not (tmp_path / "provisioning").exists()
+    assert not (tmp_path / "bridge-state").exists()
 
 
 def test_preexisting_bridge_state_blocks_replay(
@@ -410,6 +318,8 @@ def test_bridge_source_cannot_reboot_restart_pair_or_touch_board() -> None:
     assert '"network_mutation": False' in source
     assert '"service_restart": False' in source
     assert '"board_access": False' in source
+    assert "legacy_factory_marker_route_retired" in source
+    assert '"factory_accepted_required": False' in source
 
 
 
@@ -455,7 +365,77 @@ def test_listener_count_does_not_match_peer_address_column(
 
     monkeypatch.setattr(bridge, "_run", fake_run)
 
-    assert bridge._listener_count("udp", bridge.PAIRING_UDP_PORT) == 0
+    assert bridge._listener_count("udp", bridge.REGISTRATION_DISCOVERY_PORT) == 0
+
+
+def test_current_product_registration_readiness_accepts_registration_surface(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bridge, "_manager_id", lambda: "manager")
+    monkeypatch.setattr(bridge, "_manager_runtime_flags", lambda _manager: None)
+    monkeypatch.setattr(
+        bridge,
+        "_pairing_control_closed",
+        lambda _manager: {"pairing_window_state": "CLOSED"},
+    )
+    monkeypatch.setattr(
+        bridge,
+        "_listener_count",
+        lambda protocol, port: {
+            ("tcp", bridge.REGISTRATION_BOOTSTRAP_PORT): 1,
+            ("udp", bridge.REGISTRATION_DISCOVERY_PORT): 1,
+            ("tcp", bridge.PRIVILEGED_PAIRING_PORT): 0,
+        }[(protocol, port)],
+    )
+    monkeypatch.setattr(
+        bridge,
+        "_trusted_lan_authority",
+        lambda: {
+            "trusted_network_sha256": "a" * 64,
+            "trusted_lan_generation_sha256": "b" * 64,
+        },
+    )
+    monkeypatch.setattr(
+        bridge,
+        "_registration_guard_authority",
+        lambda network_hash: {
+            "registration_guard_applied": network_hash == "a" * 64,
+            "registration_guard_anchor_positions": [2, 3, 4],
+        },
+    )
+
+    report = bridge._current_product_registration_readiness()
+
+    assert report["registration_ready"] is True
+    assert report["registration_bootstrap_listener_count"] == 1
+    assert report["registration_discovery_listener_count"] == 1
+    assert report["privileged_pairing_listener_count"] == 0
+    assert report["pairing_window_state"] == "CLOSED"
+    assert report["registration_guard_applied"] is True
+
+
+def test_current_product_registration_readiness_rejects_privileged_pairing_listener(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bridge, "_manager_id", lambda: "manager")
+    monkeypatch.setattr(bridge, "_manager_runtime_flags", lambda _manager: None)
+    monkeypatch.setattr(
+        bridge,
+        "_pairing_control_closed",
+        lambda _manager: {"pairing_window_state": "CLOSED"},
+    )
+    monkeypatch.setattr(
+        bridge,
+        "_listener_count",
+        lambda protocol, port: {
+            ("tcp", bridge.REGISTRATION_BOOTSTRAP_PORT): 1,
+            ("udp", bridge.REGISTRATION_DISCOVERY_PORT): 1,
+            ("tcp", bridge.PRIVILEGED_PAIRING_PORT): 1,
+        }[(protocol, port)],
+    )
+
+    with pytest.raises(bridge.BridgeError, match="privileged_pairing_listener_present"):
+        bridge._current_product_registration_readiness()
 
 
 def test_missing_provisioning_root_is_valid_unprovisioned_pairing_state(

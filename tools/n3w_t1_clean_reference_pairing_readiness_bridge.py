@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import importlib.util
+import ipaddress
 import json
 import os
 import re
@@ -59,8 +60,15 @@ BRIDGE_TRANSACTION = BRIDGE_ROOT / "transaction.json"
 DEVICE_PROVISIONING_TOOL = Path("/opt/HomeAssistant/tools/n3w_t1_device_provisioning_host.py")
 FIRST_PAIRING_TOOL = Path("/opt/HomeAssistant/tools/n3w_t1_first_pairing_onboarding.py")
 
-PAIRING_UDP_PORT = 47111
-PAIRING_TCP_PORT = 47112
+REGISTRATION_BOOTSTRAP_PORT = 47110
+REGISTRATION_DISCOVERY_PORT = 47111
+PRIVILEGED_PAIRING_PORT = 47112
+
+TRUSTED_LAN_STATE = Path("/run/n3w/trusted-product-lan/state.json")
+REGISTRATION_GUARD_TOOL = Path("/opt/HomeAssistant/tools/n3w_registration_ingress_guard.py")
+BROKER_GUARD_TOOL = Path("/opt/HomeAssistant/tools/n3w_broker_ingress_guard.py")
+REGISTRATION_GUARD_BLOB = "ef5077b6bc80c73bc8d3f35cf7a33a198ce918c7"
+BROKER_GUARD_BLOB = "795903b06c7ee93a0602649e478bc070723ab8c0"
 
 EXPECTED_SERVICES = ("broker", "homeassistant", "manager")
 
@@ -382,8 +390,10 @@ def _current_reference(root: Path, baseline: dict[str, Any]) -> dict[str, Any]:
 def _tool_binding() -> None:
     if _git_blob_sha(DEVICE_PROVISIONING_TOOL) != DEVICE_PROVISIONING_BLOB:
         raise BridgeError("device_provisioning_tool_drift")
-    if _git_blob_sha(FIRST_PAIRING_TOOL) != FIRST_PAIRING_ONBOARDING_BLOB:
-        raise BridgeError("first_pairing_tool_drift")
+    if _git_blob_sha(REGISTRATION_GUARD_TOOL) != REGISTRATION_GUARD_BLOB:
+        raise BridgeError("registration_guard_tool_drift")
+    if _git_blob_sha(BROKER_GUARD_TOOL) != BROKER_GUARD_BLOB:
+        raise BridgeError("broker_guard_tool_drift")
 
 
 def _release_binding() -> str:
@@ -689,11 +699,231 @@ def _listener_count(protocol: str, port: int) -> int:
     )
 
 
-def _pairing_closed() -> None:
-    if _listener_count("udp", PAIRING_UDP_PORT) != 0:
-        raise BridgeError("pairing_udp_listener_present")
-    if _listener_count("tcp", PAIRING_TCP_PORT) != 0:
-        raise BridgeError("pairing_tcp_listener_present")
+def _manager_id() -> str:
+    output = _run(
+        (
+            "docker",
+            "ps",
+            "--filter",
+            "label=com.docker.compose.project=n3wfc4",
+            "--filter",
+            "label=com.docker.compose.service=manager",
+            "--format",
+            "{{.ID}}",
+        ),
+        timeout=20,
+    )
+    identifiers = [line.strip() for line in output.splitlines() if line.strip()]
+    if len(identifiers) != 1:
+        raise BridgeError("manager_container_not_unique")
+    manager_id = identifiers[0]
+    network_mode = _run(
+        ("docker", "inspect", "-f", "{{.HostConfig.NetworkMode}}", manager_id),
+        timeout=20,
+    ).strip()
+    if network_mode != "host":
+        raise BridgeError("manager_network_mode_invalid")
+    return manager_id
+
+
+def _manager_runtime_flags(manager_id: str) -> None:
+    raw = _run(
+        ("docker", "inspect", "-f", "{{json .Config.Env}}", manager_id),
+        timeout=20,
+    )
+    try:
+        environment = json.loads(raw)
+    except json.JSONDecodeError as error:
+        raise BridgeError("manager_environment_invalid") from error
+    if not isinstance(environment, list) or not all(
+        isinstance(item, str) for item in environment
+    ):
+        raise BridgeError("manager_environment_invalid")
+    values: dict[str, str] = {}
+    for item in environment:
+        key, separator, value = item.partition("=")
+        if separator:
+            values[key] = value
+    if values.get("GH_N3W_RUNTIME_ENABLED", "").strip().lower() not in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
+        raise BridgeError("manager_n3w_runtime_not_enabled")
+    if values.get("GH_N3W_PRODUCT_PAIRING_ENABLED", "false").strip().lower() not in {
+        "0",
+        "false",
+        "no",
+        "off",
+        "",
+    }:
+        raise BridgeError("legacy_product_pairing_runtime_enabled")
+
+
+def _pairing_control_closed(manager_id: str) -> dict[str, Any]:
+    try:
+        report = json.loads(
+            _run(
+                (
+                    "docker",
+                    "exec",
+                    manager_id,
+                    "greenhouse-manager-pairing",
+                    "window-status",
+                ),
+                timeout=20,
+            )
+        )
+    except json.JSONDecodeError as error:
+        raise BridgeError("pairing_control_status_json_invalid") from error
+    expected = {
+        "schema": "gh.n3w.pairing-window-control-result/1",
+        "accepted": True,
+        "code": "status",
+        "pairing_window_state": "CLOSED",
+        "raw_locator_in_output": False,
+    }
+    for key, value in expected.items():
+        if report.get(key) != value:
+            raise BridgeError(f"pairing_control_status_invalid:{key}")
+    if report.get("broker_host_sha256") is not None:
+        raise BridgeError("pairing_control_closed_broker_binding_present")
+    return report
+
+
+def _trusted_lan_authority() -> dict[str, str]:
+    document = _read_json(TRUSTED_LAN_STATE)
+    if (
+        document.get("schema") != "gh.trusted-product-lan/1"
+        or document.get("interface") != "eth0"
+        or document.get("available") is not True
+        or not isinstance(document.get("generation"), str)
+        or not document["generation"]
+        or not isinstance(document.get("subnet"), str)
+    ):
+        raise BridgeError("trusted_product_lan_state_invalid")
+    try:
+        network = ipaddress.ip_network(document["subnet"], strict=True)
+    except ValueError as error:
+        raise BridgeError("trusted_product_lan_subnet_invalid") from error
+    if not isinstance(network, ipaddress.IPv4Network):
+        raise BridgeError("trusted_product_lan_subnet_invalid")
+
+    try:
+        address_document = json.loads(
+            _run(("ip", "-j", "-4", "addr", "show", "dev", "eth0"), timeout=20)
+        )
+    except json.JSONDecodeError as error:
+        raise BridgeError("trusted_product_lan_interface_json_invalid") from error
+    addresses: list[ipaddress.IPv4Address] = []
+    if isinstance(address_document, list):
+        for interface in address_document:
+            if not isinstance(interface, dict):
+                continue
+            for row in interface.get("addr_info", []):
+                if (
+                    isinstance(row, dict)
+                    and row.get("family") == "inet"
+                    and row.get("scope") == "global"
+                    and isinstance(row.get("local"), str)
+                ):
+                    try:
+                        parsed = ipaddress.ip_address(row["local"])
+                    except ValueError:
+                        continue
+                    if isinstance(parsed, ipaddress.IPv4Address):
+                        addresses.append(parsed)
+    if len(addresses) != 1 or addresses[0] not in network:
+        raise BridgeError("trusted_product_lan_interface_binding_invalid")
+    return {
+        "trusted_network_sha256": hashlib.sha256(
+            str(network).encode("utf-8")
+        ).hexdigest(),
+        "trusted_lan_generation_sha256": hashlib.sha256(
+            document["generation"].encode("utf-8")
+        ).hexdigest(),
+    }
+
+
+def _load_registration_guard() -> ModuleType:
+    _tool_binding()
+    tool_directory = str(REGISTRATION_GUARD_TOOL.parent)
+    inserted = tool_directory not in sys.path
+    if inserted:
+        sys.path.insert(0, tool_directory)
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "n3w_registration_ingress_guard_readonly_probe",
+            REGISTRATION_GUARD_TOOL,
+        )
+        if spec is None or spec.loader is None:
+            raise BridgeError("registration_guard_import_invalid")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+    finally:
+        if inserted:
+            sys.path.remove(tool_directory)
+
+
+def _registration_guard_authority(
+    trusted_network_sha256: str,
+) -> dict[str, Any]:
+    guard = _load_registration_guard()
+    try:
+        decision = guard.broker_guard.read_network_decision()
+        trusted_subnet = decision.trusted_subnet
+        if trusted_subnet is None:
+            raise BridgeError("registration_guard_trusted_subnet_unavailable")
+        observed_hash = hashlib.sha256(
+            str(trusted_subnet).encode("utf-8")
+        ).hexdigest()
+        if observed_hash != trusted_network_sha256:
+            raise BridgeError("registration_guard_trusted_subnet_mismatch")
+        inventory = guard.parse_firewall_inventory(guard._save_filter_table())
+        guard.validate_applied_state(inventory, trusted_subnet)
+    except BridgeError:
+        raise
+    except Exception as error:
+        raise BridgeError(
+            f"registration_guard_validation_failed:{type(error).__name__}"
+        ) from error
+    positions = list(inventory.registration_anchor_positions)
+    if positions != [2, 3, 4]:
+        raise BridgeError("registration_guard_anchor_positions_invalid")
+    return {
+        "registration_guard_applied": True,
+        "registration_guard_anchor_positions": positions,
+    }
+
+
+def _current_product_registration_readiness() -> dict[str, Any]:
+    manager_id = _manager_id()
+    _manager_runtime_flags(manager_id)
+    control = _pairing_control_closed(manager_id)
+
+    bootstrap_count = _listener_count("tcp", REGISTRATION_BOOTSTRAP_PORT)
+    discovery_count = _listener_count("udp", REGISTRATION_DISCOVERY_PORT)
+    privileged_count = _listener_count("tcp", PRIVILEGED_PAIRING_PORT)
+    if bootstrap_count != 1:
+        raise BridgeError("registration_bootstrap_listener_count_invalid")
+    if discovery_count != 1:
+        raise BridgeError("registration_discovery_listener_count_invalid")
+    if privileged_count != 0:
+        raise BridgeError("privileged_pairing_listener_present")
+
+    trusted = _trusted_lan_authority()
+    guard = _registration_guard_authority(trusted["trusted_network_sha256"])
+    return {
+        "registration_ready": True,
+        "registration_bootstrap_listener_count": bootstrap_count,
+        "registration_discovery_listener_count": discovery_count,
+        "privileged_pairing_listener_count": privileged_count,
+        "pairing_window_state": control["pairing_window_state"],
+        **trusted,
+        **guard,
+    }
 
 
 def _preflight(root: Path, reference_path: Path) -> dict[str, Any]:
@@ -703,7 +933,7 @@ def _preflight(root: Path, reference_path: Path) -> dict[str, Any]:
     if BRIDGE_ROOT.exists() or BRIDGE_ROOT.is_symlink():
         raise BridgeError("bridge_transaction_already_claimed")
     _pairing_records_absent()
-    _pairing_closed()
+    registration = _current_product_registration_readiness()
     transactions = _r2_transactions()
     baseline = _baseline(reference_path)
     current = _current_reference(root, baseline)
@@ -718,6 +948,7 @@ def _preflight(root: Path, reference_path: Path) -> dict[str, Any]:
         "manifest": manifest,
         "transactions": transactions,
         "identity": identity,
+        "registration": registration,
         "current": current,
     }
 
@@ -788,10 +1019,11 @@ def _onboarding_inspect() -> dict[str, Any]:
 def inspect(root: Path, reference_path: Path) -> dict[str, Any]:
     preflight = _preflight(root, reference_path)
     identity = preflight["identity"]
+    registration = preflight["registration"]
     return {
         "schema": SCHEMA,
         "status": "PASS",
-        "state": "READY_TO_CLAIM",
+        "state": "CURRENT_PRODUCT_REGISTRATION_READY",
         "product_source_head": PRODUCT_SOURCE_HEAD,
         "r2a_control_head": R2A_CONTROL_HEAD,
         "r2b_control_head": R2B_CONTROL_HEAD,
@@ -808,9 +1040,29 @@ def inspect(root: Path, reference_path: Path) -> dict[str, Any]:
         ],
         "host_instance_id_sha256": identity["host_instance_id_sha256"],
         "system_id_sha256": identity["system_id_sha256"],
+        "factory_accepted_required": False,
         "factory_accepted_present": False,
+        "legacy_first_pairing_onboarding_required": False,
         "first_pairing_transaction_present": False,
-        "pairing_window_state": "CLOSED",
+        "registration_ready": registration["registration_ready"],
+        "registration_bootstrap_listener_count": registration[
+            "registration_bootstrap_listener_count"
+        ],
+        "registration_discovery_listener_count": registration[
+            "registration_discovery_listener_count"
+        ],
+        "privileged_pairing_listener_count": registration[
+            "privileged_pairing_listener_count"
+        ],
+        "pairing_window_state": registration["pairing_window_state"],
+        "trusted_network_sha256": registration["trusted_network_sha256"],
+        "trusted_lan_generation_sha256": registration[
+            "trusted_lan_generation_sha256"
+        ],
+        "registration_guard_applied": registration["registration_guard_applied"],
+        "registration_guard_anchor_positions": registration[
+            "registration_guard_anchor_positions"
+        ],
         "product_mutation": False,
         "network_mutation": False,
         "service_restart": False,
@@ -919,88 +1171,8 @@ def apply(
     confirmation: str,
     authorization_id: str,
 ) -> dict[str, Any]:
-    if confirmation != CONFIRMATION:
-        raise BridgeError("confirmation_invalid")
-    authorization_id = _authorization(authorization_id)
-    preflight = _preflight(root, reference_path)
-    transaction = _write_claim(preflight, authorization_id)
-    marker_created = False
-    provisioning_root_created = False
-    try:
-        provisioning_root_created = _create_factory_marker(
-            _factory_document(preflight)
-        )
-        marker_created = True
-        _update_transaction(
-            stage="MARKER_CREATED",
-            factory_marker_created=True,
-            provisioning_root_created=provisioning_root_created,
-            factory_marker_sha256=_sha256(FACTORY_ACCEPTED),
-        )
-
-        onboarding = _onboarding_inspect()
-        baseline = _baseline(reference_path)
-        _current_reference(root, baseline)
-
-        transaction = _update_transaction(
-            stage="FACTORY_ACCEPTED",
-            first_pairing_inspect_passed=True,
-            factory_marker_sha256=_sha256(FACTORY_ACCEPTED),
-            pairing_window_state="CLOSED",
-        )
-        return {
-            "schema": SCHEMA,
-            "status": "PASS",
-            "state": "FACTORY_ACCEPTED",
-            "authorization_id": transaction["authorization_id"],
-            "authorization_consumed": True,
-            "authorization_replay_allowed": False,
-            "factory_accepted": True,
-            "factory_marker_sha256": transaction["factory_marker_sha256"],
-            "r2_reference_sha256": R2_REFERENCE_SHA256,
-            "r2a_transaction_unchanged": True,
-            "r2b_transaction_unchanged": True,
-            "first_pairing_inspect_passed": True,
-            "pairing_window_state": onboarding["pairing_window_state"],
-            "pairing_udp_listener_count": 0,
-            "pairing_http_listener_count": 0,
-            "service_restart": False,
-            "network_mutation": False,
-            "board_access": False,
-        }
-    except Exception as error:
-        rollback_error: Exception | None = None
-        if marker_created:
-            try:
-                _remove_marker(
-                    provisioning_root_created=provisioning_root_created
-                )
-            except Exception as caught:
-                rollback_error = caught
-        try:
-            _update_transaction(
-                stage=(
-                    "STOPPED_ROLLED_BACK"
-                    if marker_created and rollback_error is None
-                    else "STOPPED_ROLLBACK_UNPROVEN"
-                    if marker_created
-                    else "STOPPED_PRE_MARKER"
-                ),
-                factory_marker_created=False if rollback_error is None else True,
-                marker_rollback_proven=rollback_error is None,
-                failure_type=type(error).__name__,
-            )
-        except Exception as transaction_error:
-            raise BridgeError(
-                "bridge_failure_transaction_update_unproven:"
-                f"{type(transaction_error).__name__}"
-            ) from error
-        if rollback_error is not None:
-            raise BridgeError(
-                f"factory_marker_rollback_unproven:{type(rollback_error).__name__}"
-            ) from error
-        raise
-
+    del root, reference_path, confirmation, authorization_id
+    raise BridgeError("legacy_factory_marker_route_retired")
 
 def status() -> dict[str, Any]:
     present = BRIDGE_TRANSACTION.is_file() and not BRIDGE_TRANSACTION.is_symlink()
