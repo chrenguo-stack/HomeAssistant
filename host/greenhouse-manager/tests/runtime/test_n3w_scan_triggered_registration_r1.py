@@ -162,6 +162,7 @@ def test_registration_discovery_uses_exact_trusted_subnet_not_rfc1918() -> None:
     assert response["candidate"]["bootstrap_port"] == 47110
     assert response["candidate"]["bootstrap_path"] == "/v1/registration/confirm"
     assert response["candidate"]["protocol"] == REGISTRATION_PROTOCOL
+    assert response["candidate"]["ttl_s"] == 60
     assert "setup_secret" not in json.dumps(response).lower()
     assert "pairing_id" not in json.dumps(response).lower()
 
@@ -259,6 +260,7 @@ def test_registration_mdns_definition_is_exact_interface_scoped() -> None:
     assert definition.addresses == (bytes((192, 0, 2, 10)),)
     assert definition.server == "192.0.2.10."
     assert definition.properties["protocol"] == REGISTRATION_PROTOCOL
+    assert definition.properties["ttl_s"] == "60"
     assert definition.properties["bootstrap_tls_sha256"] == "b" * 64
 
     with pytest.raises(
