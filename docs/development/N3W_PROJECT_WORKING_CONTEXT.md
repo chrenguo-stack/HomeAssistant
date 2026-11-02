@@ -1,3 +1,34 @@
+## Latest authority — 2026-11-02 post-merge main convergence; Manager A->B live preflight next
+
+The stacked successor-authority chain has fully converged into protected `main`. Repository authority B and the reviewed T1_Core_Updater are now in main, but this does not prove the current live T1 runtime. The last recorded live Manager A state is historical until a fresh read-only `inspect / plan` rebind is executed.
+
+~~~text
+AUTHORITY_GATE=N3W_T1_CORE_STACK_POSTMERGE_MAIN_STATE_ALIGNMENT_20261102_01
+AUTHORITY_STATE=MAIN_CONVERGED_LIVE_RUNTIME_REBIND_PENDING
+
+MAIN=092c9fca70df4212110b4ad07eb8fba9e8c9ef9e
+STACKED_PR_CONVERGENCE=COMPLETE
+MAIN_TREE_DRIFT_FROM_FINAL_PR696_HEAD=false
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=3539c8f871e2cb63f18462009fa03a5eb36d39fd
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-3539c8f871e2
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+
+LAST_RECORDED_LIVE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_T1_MANAGER=UNKNOWN_FRESH
+LIVE_A_TO_B_APPLIED=UNKNOWN_FRESH
+
+R3_BOARD_CONTINUATION_DEFERRED_UNTIL_MANAGER_B_LIVE_ACCEPTANCE=true
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_MANAGER_A_TO_B_LIVE_READONLY_INSPECT_AND_PLAN_20261102_01
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+~~~
+
+The next operational gate is read-only. It must freshly prove the current T1 runtime, predecessor authority, target-image prestate, updater transaction state, and Manager-only plan before any live A->B apply decision. Board identity/registration work remains paused until the Manager B live path is accepted.
+
 ## Latest authority — 2026-11-02 R3 sensorless real first-registration route
 
 The current R3 product route is no longer gated by the pairing-readiness bridge. R3 is frozen to one real sensorless ESP32-C6 first registration against the already-running zero-node production T1, followed by semantic PRE/POST comparison.
