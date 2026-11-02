@@ -100,6 +100,7 @@ jobs:
           import json
           import shutil
           import sys
+          import zipapp
           from pathlib import Path
 
           upstream = Path(sys.argv[1])
@@ -137,6 +138,30 @@ jobs:
           package.mkdir(parents=True, exist_ok=False)
           shutil.copy2(manager_tar, package / "greenhouse-manager-arm64.tar")
           shutil.copy2(target_path, package / "manager-target.json")
+
+          updater_source = package.parent / "updater-source"
+          updater_source.mkdir(parents=True, exist_ok=False)
+          updater_modules = (
+              "n3w_t1_core_updater.py",
+              "n3w_t1_core_updater_common.py",
+              "n3w_t1_core_updater_core.py",
+              "n3w_t1_core_updater_host.py",
+              "n3w_t1_core_updater_state.py",
+          )
+          for name in updater_modules:
+              shutil.copy2(Path("tools") / name, updater_source / name)
+          (updater_source / "__main__.py").write_text(
+              "from n3w_t1_core_updater import main\n"
+              "raise SystemExit(main())\n",
+              encoding="utf-8",
+          )
+          updater_pyz = package / "t1-core-updater.pyz"
+          zipapp.create_archive(
+              updater_source,
+              updater_pyz,
+              interpreter="/usr/bin/env python3",
+          )
+
           package_binding = {
               "schema": "gh.n3w-t1-core-updater-manager-package/1",
               "control_plane_head": control_head,
@@ -149,6 +174,8 @@ jobs:
               "manager_tar_sha256": target["tar_sha256"],
               "manager_tar_size_bytes": manager_tar.stat().st_size,
               "manager_platform": "linux/arm64",
+              "updater_pyz_sha256": sha(updater_pyz),
+              "updater_pyz_size_bytes": updater_pyz.stat().st_size,
               "manager_rebuilt": False,
               "homeassistant_included": False,
               "broker_included": False,
@@ -200,16 +227,21 @@ jobs:
               "greenhouse-manager-arm64.tar",
               "manager-target.json",
               "package-binding.json",
+              "t1-core-updater.pyz",
           }
           target = json.loads((root / "manager-target.json").read_text(encoding="utf-8"))
           package = json.loads((root / "package-binding.json").read_text(encoding="utf-8"))
 
-          digest = hashlib.sha256()
-          with (root / "greenhouse-manager-arm64.tar").open("rb") as stream:
-              for block in iter(lambda: stream.read(1024 * 1024), b""):
-                  digest.update(block)
+          def sha(path):
+              digest = hashlib.sha256()
+              with path.open("rb") as stream:
+                  for block in iter(lambda: stream.read(1024 * 1024), b""):
+                      digest.update(block)
+              return digest.hexdigest()
 
-          assert digest.hexdigest() == target["tar_sha256"]
+          assert sha(root / "greenhouse-manager-arm64.tar") == target["tar_sha256"]
+          assert sha(root / "t1-core-updater.pyz") == package["updater_pyz_sha256"]
+          assert (root / "t1-core-updater.pyz").stat().st_size == package["updater_pyz_size_bytes"]
           assert package["manager_tar_sha256"] == target["tar_sha256"]
           assert package["manager_image_id"] == target["image_id"]
           assert package["manager_rebuilt"] is False
@@ -219,6 +251,7 @@ jobs:
           assert package["t1_mutation"] is False
 
           print(f"MANAGER_PACKAGE_ARTIFACT_ID={artifact_id}")
+          print(f"UPDATER_PYZ_SHA256={package['updater_pyz_sha256']}")
           print(f"MANAGER_PACKAGE_ARTIFACT_DIGEST={artifact_digest}")
           print(f"MANAGER_TAR_SHA256={target['tar_sha256']}")
           print(f"MANAGER_IMAGE_ID={target['image_id']}")
@@ -226,3 +259,5 @@ jobs:
           print("MANAGER_REBUILT=false")
           print("T1_MUTATION=false")
           PY
+          python "$RUNNER_TEMP/redownload/t1-core-updater.pyz" --help >/dev/null
+          echo "T1_CORE_UPDATER_PYZ_EXECUTION=PASS"
