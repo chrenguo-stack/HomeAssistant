@@ -2,8 +2,10 @@
 
 - Protected `main` is now `092c9fca70df4212110b4ad07eb8fba9e8c9ef9e`; the full stacked chain #700 -> #699 -> #698 -> #696 -> main is complete.
 - Final PR #696 exact head `48058c9c6d149091d3cb6d9c1614cb1e04b482f6` had 43 SUCCESS, 5 conditional SKIPPED, 0 failure, 0 pending. The final main merge commit adds no file-tree changes.
+- Historical Clean Reference A remains source `24382caae4a1f5d459297f86e8d18f10a848ca64`, Manager `local/greenhouse-manager:fresh-24382caae4a1`.
 - Canonical repository authority remains `infra/n3w-t1/production/t1-core-stack-current.json`: Manager B `local/greenhouse-manager:fresh-3539c8f871e2`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`.
 - The reviewed Manager-only updater package remains run `41420012030`, artifact `13129366972`, digest `sha256:82baaf561632718b02008e6496eb8e7f462fde87bb98561b8645439e9ca367b6`.
+- Repository authority still records `LIVE_DEPLOYMENT_STATE=NOT_YET_APPLIED`; live upgrade pending until fresh read-only inspect/plan and a separately authorized apply.
 - The last recorded live Manager A state is historical. Current live T1 Manager / A->B application state is `UNKNOWN_FRESH` until a new read-only live rebind.
 - R3 Board continuation is deferred until Manager B live deployment and post-upgrade acceptance are proven.
 - Next one gate: `N3W_T1_CORE_STACK_MANAGER_A_TO_B_LIVE_READONLY_INSPECT_AND_PLAN_20261102_01`.
