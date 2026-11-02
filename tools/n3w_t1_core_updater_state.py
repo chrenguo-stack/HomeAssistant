@@ -32,7 +32,7 @@ class StateStore:
         metadata = path.stat()
         if stat.S_IMODE(metadata.st_mode) & 0o077:
             raise UpdaterError("transaction_directory_not_private")
-        if os.geteuid() == 0 and metadata.st_uid != 0:
+        if metadata.st_uid != os.getuid():
             raise UpdaterError("transaction_directory_owner_invalid")
 
     def _existing_root(self) -> bool:
@@ -81,7 +81,7 @@ class StateStore:
         metadata = self.path.stat()
         if stat.S_IMODE(metadata.st_mode) != 0o600:
             raise UpdaterError("transaction_metadata_invalid")
-        if os.geteuid() == 0 and metadata.st_uid != 0:
+        if metadata.st_uid != os.getuid():
             raise UpdaterError("transaction_owner_invalid")
         try:
             document = json.loads(self.path.read_text(encoding="utf-8"))
