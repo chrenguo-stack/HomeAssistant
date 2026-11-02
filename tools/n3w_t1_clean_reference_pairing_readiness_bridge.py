@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.machinery
 import importlib.util
 import ipaddress
 import json
@@ -879,19 +880,30 @@ def _load_registration_guard() -> ModuleType:
     _tool_binding()
     tool_directory = str(REGISTRATION_GUARD_TOOL.parent)
     inserted = tool_directory not in sys.path
+    module_name = "n3w_registration_ingress_guard_readonly_probe"
+    previous_module = sys.modules.get(module_name)
     if inserted:
         sys.path.insert(0, tool_directory)
     try:
-        spec = importlib.util.spec_from_file_location(
-            "n3w_registration_ingress_guard_readonly_probe",
-            REGISTRATION_GUARD_TOOL,
+        loader = importlib.machinery.SourceFileLoader(
+            module_name,
+            str(REGISTRATION_GUARD_TOOL),
+        )
+        spec = importlib.util.spec_from_loader(
+            module_name,
+            loader,
         )
         if spec is None or spec.loader is None:
             raise BridgeError("registration_guard_import_invalid")
         module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
         spec.loader.exec_module(module)
         return module
     finally:
+        if previous_module is None:
+            sys.modules.pop(module_name, None)
+        else:
+            sys.modules[module_name] = previous_module
         if inserted:
             sys.path.remove(tool_directory)
 

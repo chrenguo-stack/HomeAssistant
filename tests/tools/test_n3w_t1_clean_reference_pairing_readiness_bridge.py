@@ -356,6 +356,43 @@ def test_listener_count_does_not_match_peer_address_column(
     assert bridge._listener_count("udp", bridge.REGISTRATION_DISCOVERY_PORT) == 0
 
 
+def test_load_registration_guard_supports_extensionless_installed_files(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    installed_registration = tmp_path / "n3w-registration-ingress-guard"
+    installed_broker = tmp_path / "n3w-broker-ingress-guard"
+
+    installed_registration.write_bytes(
+        (repo_root / "tools/n3w_registration_ingress_guard.py").read_bytes()
+    )
+    installed_broker.write_bytes(
+        (repo_root / "tools/n3w_broker_ingress_guard.py").read_bytes()
+    )
+
+    monkeypatch.setattr(
+        bridge,
+        "REGISTRATION_GUARD_TOOL",
+        installed_registration,
+    )
+    monkeypatch.setattr(
+        bridge,
+        "BROKER_GUARD_TOOL",
+        installed_broker,
+    )
+    sys.modules.pop("n3w_broker_ingress_guard", None)
+
+    module = bridge._load_registration_guard()
+
+    assert module.SCHEMA == "gh.n3w-registration-ingress-guard/1"
+    assert module.PORT_RULES == (
+        ("tcp", 47110),
+        ("udp", 47111),
+        ("tcp", 47112),
+    )
+
+
 def test_runtime_guard_tools_bind_to_installed_product_paths() -> None:
     assert bridge.TRUSTED_LAN_AUTHORITY_TOOL == Path(
         "/usr/local/sbin/n3w-trusted-product-lan-authority"
