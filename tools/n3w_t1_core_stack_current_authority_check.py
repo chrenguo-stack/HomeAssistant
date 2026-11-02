@@ -197,7 +197,13 @@ def validate_documents(
         isinstance(reviewed_head, str) and SHA40.fullmatch(reviewed_head) is not None,
         "updater_reviewed_head_invalid",
     )
-    _require(upgrade.get("updater_pr") == 748, "updater_pr_invalid")
+    updater_pr = upgrade.get("updater_pr")
+    _require(
+        isinstance(updater_pr, int)
+        and not isinstance(updater_pr, bool)
+        and updater_pr > 0,
+        "updater_pr_invalid",
+    )
     merge_commit = upgrade.get("updater_merge_commit")
     _require(
         isinstance(merge_commit, str) and SHA40.fullmatch(merge_commit) is not None,

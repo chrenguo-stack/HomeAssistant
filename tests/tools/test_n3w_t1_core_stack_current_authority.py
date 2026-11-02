@@ -47,6 +47,37 @@ def test_fresh_compose_uses_dynamic_manager_binding():
     assert report["status"] == "PASS"
 
 
+def test_successor_updater_pr_can_advance():
+    authority, target, compose, bootstrap, state, index = documents()
+    authority = copy.deepcopy(authority)
+    authority["manager_successor_upgrade"]["updater_pr"] = 999
+    report = check.validate_documents(
+        authority,
+        target,
+        compose,
+        bootstrap,
+        state,
+        index,
+    )
+    assert report["status"] == "PASS"
+
+
+def test_updater_pr_must_be_positive_integer():
+    authority, target, compose, bootstrap, state, index = documents()
+    for invalid in (0, -1, True, "750"):
+        mutated = copy.deepcopy(authority)
+        mutated["manager_successor_upgrade"]["updater_pr"] = invalid
+        with pytest.raises(check.AuthorityError, match="updater_pr_invalid"):
+            check.validate_documents(
+                mutated,
+                target,
+                compose,
+                bootstrap,
+                state,
+                index,
+            )
+
+
 def test_manager_target_drift_fails_closed():
     authority, target, compose, bootstrap, state, index = documents()
     target = copy.deepcopy(target)

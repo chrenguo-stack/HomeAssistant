@@ -1,3 +1,17 @@
+## 2026-11-02 — replacement updater authority ready; fresh read-only T1 portable-identity revalidation next
+
+- Historical Clean Reference A remains source `24382caae4a1f5d459297f86e8d18f10a848ca64`, Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Current repository authority remains `infra/n3w-t1/production/t1-core-stack-current.json`: product source `3539c8f871e2cb63f18462009fa03a5eb36d39fd`, Manager B `local/greenhouse-manager:fresh-3539c8f871e2`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- PR #750 merged to main as `c80bd9f1374ca33926cc76acbc2f2e2da1ebb67b`; exact head `667299b6053822ce56c2b27adb8c3c61cca12542` passed 14/14 CI and 24 updater tests.
+- Replacement updater package: run `41465742145`, artifact `13151876743`, digest `sha256:42d8580c0e8e2f04363a49e4166ef4b8de0729fa4f25c05703594a2b9ad04b1c`, pyz SHA256 `69227fdb2d4778f53513ace1d9065848d7e2ad771c8291f52f0375a99a65c592`.
+- Manager tar remains unchanged at SHA256 `0038286140758c27c66eeb005d2a7ea4aec4538ad94447a44021bb61de7e51f0`; Manager was not rebuilt.
+- Repository authority still has `LIVE_DEPLOYMENT_STATE=NOT_YET_APPLIED`; live upgrade pending.
+- R1 apply remains `ROLLED_BACK_PRESTOP`; its authorization is consumed/no-replay.
+- Target image store prestate must be treated as `UNKNOWN_FRESH` until replacement-updater read-only plan verifies it.
+- KF-106 recurrence source repair is CLOSED_PASS; live revalidation remains pending.
+- Next one gate: `N3W_T1_CORE_UPDATER_PORTABLE_IMAGE_IDENTITY_LIVE_READONLY_REVALIDATION_20261102_01`.
+- No apply/rollback, service restart, image load, env rewrite, Board access, firmware or NVS mutation is allowed in that gate.
+
 ## 2026-11-02 — Manager A->B apply R1 safe STOP; updater portable-image repair in progress
 
 - Historical Clean Reference A remains source `24382caae4a1f5d459297f86e8d18f10a848ca64`, Manager `local/greenhouse-manager:fresh-24382caae4a1`.
