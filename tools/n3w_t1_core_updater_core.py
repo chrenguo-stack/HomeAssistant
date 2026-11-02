@@ -407,7 +407,11 @@ class CoreUpdater:
         if confirmation != ROLLBACK_CONFIRMATION:
             raise UpdaterError("rollback_confirmation_missing")
         tx = self.store.read()
-        if tx is None or tx.get("status") not in {"COMMITTED", "APPLYING"}:
+        if tx is None or tx.get("status") not in {
+            "COMMITTED",
+            "APPLYING",
+            "FAILED_EMERGENCY",
+        }:
             raise UpdaterError("recoverable_transaction_required")
         target_doc = tx.get("target")
         stable = tx.get("pre_stable_runtime")
@@ -438,6 +442,38 @@ class CoreUpdater:
 
         original_status = tx["status"]
         original_phase = tx.get("phase")
+
+        if original_status == "FAILED_EMERGENCY":
+            current = self.host.inspect()
+            if (
+                current["manager_image"] != predecessor
+                or current["runtime"]["manager"]["image_id"] != predecessor_id
+            ):
+                raise UpdaterError(
+                    "failed_emergency_predecessor_not_restored"
+                )
+            self._verify_ha_stable(
+                current["runtime"]["homeassistant"],
+                stable["homeassistant"],
+            )
+            self.host.broker_continuity(stable["broker"])
+            tx.update(
+                status="ROLLED_BACK",
+                phase="RECOVERY_COMPLETE_FAILED_EMERGENCY",
+                rolled_back_at_unix=int(time.time()),
+            )
+            self.store.write(tx)
+            return {
+                "schema": STATUS_SCHEMA,
+                "status": "PASS",
+                "operation": "rollback",
+                "component": "manager",
+                "transaction_status": "ROLLED_BACK",
+                "recovered_from_status": original_status,
+                "recovered_from_phase": original_phase,
+                "runtime": self._public_snapshot(current),
+                "t1_mutation": False,
+            }
 
         if (
             original_status == "APPLYING"
