@@ -1,3 +1,14 @@
+## 2026-11-02 — R2 live apply FAILED_EMERGENCY; freeze mutation and perform read-only forensic
+
+- R2 preflight passed: exact package, predecessor A, target B portable identity and `PRESENT_AND_EXACT`.
+- Apply returned `automatic_rollback_failed`.
+- Updater transaction is now `FAILED_EMERGENCY / ROLLBACK_FAILED`; `recovery_required=true`.
+- R2 authorization is consumed/no-replay.
+- Post inspect stopped with `listener_contract_drift`; therefore current live runtime authority is `UNKNOWN_FRESH`.
+- Source review shows service start waits only for Manager/HA containers to exist, while strict inspect immediately requires all listener counts; the rollback path repeats the same pattern. This is a strong race hypothesis, not yet a closure conclusion.
+- No explicit rollback, apply retry, Board access, firmware or NVS mutation is authorized.
+- Next one gate: `N3W_T1_CORE_STACK_MANAGER_A_TO_B_R2_FAILED_EMERGENCY_READONLY_FORENSIC_20261102_01`.
+
 ## 2026-11-02 — portable identity live revalidation PASS; Manager A->B R2 apply pending new authorization
 
 - Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; product source `3539c8f871e2cb63f18462009fa03a5eb36d39fd`, Manager B `local/greenhouse-manager:fresh-3539c8f871e2`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`.
