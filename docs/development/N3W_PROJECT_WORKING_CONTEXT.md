@@ -1,7 +1,34 @@
+## Latest authority — 2026-11-02 R3 current-product registration readiness
+
+The R3 pairing-readiness entry has been realigned to the actual current-product registration
+runtime.
+
+~~~text
+AUTHORITY_GATE=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_CURRENT_PRODUCT_REGISTRATION_READINESS_AUTHORITY_REALIGNMENT_20261102_01
+AUTHORITY_RESULT=CLOSED_PASS
+EXACT_CONTROL_HEAD=f8a55c77c002163386b8f911c5048ced109a5154
+EXACT_ARTIFACT_ID=13111538346
+R2_REFERENCE_SHA256=89da2a2b2cc1ce0fa024c3c45e24a71f09ba05e0e0cadbd67dd6387291239747
+
+IDLE_REGISTRATION_BOOTSTRAP_TCP_47110=LISTEN
+IDLE_REGISTRATION_DISCOVERY_UDP_47111=LISTEN
+IDLE_PRIVILEGED_PAIRING_TCP_47112=CLOSED
+PAIRING_CONTROL=CLOSED
+FACTORY_ACCEPTED_REQUIRED=false
+READINESS_CLI=inspect,status
+MUTATION_ENTRY_PRESENT=false
+
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_CURRENT_PRODUCT_REGISTRATION_READINESS_EXACT_READONLY_PREFLIGHT_20261102_01
+~~~
+
+Do not revive the retired assumption that UDP/47111 must be closed while pairing is idle, and do
+not create FACTORY_ACCEPTED merely to satisfy the old engineering onboarding observer. The next
+step is exact-artifact readonly inspect against the real T1.
+
 # N3W_PROJECT_WORKING_CONTEXT
 
 > Status: durable public project working context  
-> Version: `N3W_PROJECT_WORKING_CONTEXT_VERSION=1.1`  
+> Version: `N3W_PROJECT_WORKING_CONTEXT_VERSION=1.3`  
 > Scope: N3-W development for the greenhouse monitoring system  
 > Repository: `chrenguo-stack/HomeAssistant`
 
@@ -467,7 +494,86 @@ If a valuable artifact cannot be committed, record a public-safe recovery locato
 
 ---
 
-## 14. Maintenance rule
+## 14. T1_Core_Stack naming and product boundary
+
+The canonical name for the T1 production application stack is:
+
+```text
+T1_Core_Stack
+```
+
+It contains exactly:
+
+```text
+greenhouse-manager
+Home Assistant
+Mosquitto Broker
+```
+
+Armbian, Docker/Compose, systemd, provisioning, maintenance transactions, upgrade/recovery
+executors and CI are platform/operations layers around T1_Core_Stack and are not part of the
+stack name.
+
+Upgrade design should use a clean T1_Core_Stack product reference and distinguish stable
+product invariants from normal runtime drift.
+
+```text
+CLEAN_PRODUCT_REFERENCE_NOT_RUNTIME_SNAPSHOT=true
+HARD_GATE_REQUIRES_STABLE_PRODUCT_INVARIANT=true
+NORMAL_RUNTIME_DRIFT_DEFAULTS_TO_SOFT_OR_DIAGNOSTIC=true
+MODULE_UPGRADE_DEFAULT_SCOPE=ONE_T1_CORE_STACK_COMPONENT
+```
+
+Design authority:
+
+```text
+docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_AND_STABLE_INVARIANTS_DESIGN_20261031.md
+```
+
+---
+
+## 15. Dual-T1 clean-reference and upgrade-validation roles
+
+The current canonical physical-role split is:
+
+```text
+T1_A_ROLE=LEGACY_UPGRADE_AND_FAILURE_SPECIMEN
+T1_A_WIPE=false
+
+T1_B_ROLE=CLEAN_REFERENCE_AND_CLEAN_UPGRADE_TARGET
+T1_B_WIPE_AND_REINSTALL_ARMBIAN=true
+```
+
+T1_A preserves the real historical E03 successor-upgrade failure state and must not be
+reformatted merely to create a second clean machine. It is used later to validate how the
+new upgrade tooling handles a long-running/dirty/legacy T1. Any additional historical
+Manager business bug present on T1_A must be freshly proven before being used as an
+upgrade test case.
+
+T1_B is the clean-reference machine. R0/R0H/R1/R2/R3 clean-reference work starts on T1_B.
+
+The canonical upgrade tool name is:
+
+```text
+T1_Core_Updater
+CLI=t1-core-updater
+```
+
+T1_Core_Updater owns T1_Core_Stack component inspection/planning/upgrade/rollback/status.
+It does not own Armbian installation, kernel/host-platform update, initial T1 installation,
+or board firmware update.
+
+Clean-reference work and upgrade-validation work are separate phases:
+
+```text
+CLEAN_REFERENCE != UPGRADE
+UPGRADE_REQUIRES_EXPLICIT_BASELINE_A_AND_TARGET_B=true
+DEFAULT_UPGRADE_SCOPE=ONE_T1_CORE_STACK_COMPONENT
+```
+
+---
+
+## 16. Maintenance rule
 
 Update this file only when a **stable working convention** changes.
 
@@ -485,7 +591,7 @@ Those belong in current state, progress alignment, known failures, or the curren
 A change to this file should explain the durable process need it addresses and should update the handoff template when the change affects new-chat continuation.
 
 ```text
-N3W_PROJECT_WORKING_CONTEXT_VERSION=1.1
+N3W_PROJECT_WORKING_CONTEXT_VERSION=1.3
 STABLE_CONVENTIONS_ONLY=true
 STAGE_SPECIFIC_VALUES_PROHIBITED=true
 HANDOFF_TEMPLATE_EXPECTED_TO_REFERENCE_THIS_FILE=true

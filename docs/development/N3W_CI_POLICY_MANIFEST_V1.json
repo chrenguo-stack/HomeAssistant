@@ -319,8 +319,59 @@
         "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion."
       }
     },
+    "n3w-r10-e03-manager-successor-refresh-live-source-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "PR #740 source workflow predates repository-wide PR cancellation wiring; tracked debt without changing execution semantics."
+      }
+    },
+    "n3w-r10-e03-manager-successor-refresh-preflight-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "PR #740 preflight workflow predates repository-wide PR cancellation wiring; tracked debt without changing execution semantics."
+      }
+    },
+    "n3w-r10-e03-replacement-baseline-invalidation-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {
+        "missing_pr_cancel": "PR #740 focused invalidation workflow follows the existing E03 source-workflow execution model; cancellation wiring is tracked repository debt."
+      }
+    },
     "n3w-single-hop-contract-ci.yml": {
       "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "n3w-r3-sensorless-first-registration-firmware-artifact-ci.yml": {
+      "class": "EXACT",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "n3w-t1-clean-reference-pairing-readiness-bridge-ci.yml": {
+      "class": "EXACT",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "n3w-t1-clean-reference-r2a-ci.yml": {
+      "class": "EXACT",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "n3w-t1-clean-reference-r2b-ci.yml": {
+      "class": "EXACT",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "n3w-t1-clean-reference-r3-observer-ci.yml": {
+      "class": "EXACT",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "n3w-t1-clean-reference-runtime-payload-ci.yml": {
+      "class": "EXACT",
       "draft_policy": "run",
       "exceptions": {}
     },

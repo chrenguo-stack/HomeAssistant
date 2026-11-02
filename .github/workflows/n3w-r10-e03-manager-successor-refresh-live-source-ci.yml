@@ -1,0 +1,140 @@
+name: N3W R10 E03 Manager successor refresh live source CI
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/n3w-r10-e03-manager-successor-refresh-live-source-ci.yml"
+      - "tools/n3w_t1_r10_e03_manager_successor_refresh_live.py"
+      - "tests/tools/test_n3w_t1_r10_e03_manager_successor_refresh_live.py"
+      - "tools/n3w_t1_portable_image_identity.py"
+      - "tools/n3w_t1_maintenance_transaction.py"
+      - "tools/n3w_t1_maintenance_activation_gate.py"
+      - "tools/n3w_t1_r10_e03_successor_recovery.py"
+      - "tools/n3w_t1_r10_e03_preapply_pending_recovery.py"
+      - "tools/n3w_t1_r10_e03_claimed_transaction_retirement.py"
+      - "tools/n3w_t1_r10_e03_blocked_prepublish_predecessor_recovery.py"
+      - "tools/n3w_t1_production_v2_contract.py"
+      - "tests/tools/test_n3w_t1_portable_image_identity.py"
+      - "tests/tools/test_n3w_t1_maintenance_transaction.py"
+      - "tests/tools/test_n3w_t1_maintenance_activation_gate.py"
+      - "tests/tools/test_n3w_t1_r10_e03_successor_recovery.py"
+      - "tests/tools/test_n3w_t1_r10_e03_preapply_pending_recovery.py"
+      - "tests/tools/test_n3w_t1_r10_e03_claimed_transaction_retirement.py"
+      - "tests/tools/test_n3w_t1_r10_e03_blocked_prepublish_predecessor_recovery.py"
+      - "tests/tools/test_n3w_t1_production_v2_contract.py"
+      - "docs/development/N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_E03_MANAGER_SUCCESSOR_REFRESH_LIVE_PREEXECUTION_DESIGN_20261029.md"
+      - "docs/development/N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_E03_MANAGER_SUCCESSOR_REFRESH_LIVE_EXECUTOR_SOURCE_IMPLEMENTATION_PROGRESS_20261029.md"
+
+permissions:
+  contents: read
+
+jobs:
+  live-executor-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run focused tests
+        run: |
+          set -euo pipefail
+          python -m pip install "pytest>=8,<9"
+          python -m py_compile \
+            tools/n3w_t1_r10_e03_manager_successor_refresh_live.py \
+            tools/n3w_t1_portable_image_identity.py \
+            tools/n3w_t1_maintenance_transaction.py \
+            tools/n3w_t1_maintenance_activation_gate.py \
+            tools/n3w_t1_r10_e03_successor_recovery.py \
+            tools/n3w_t1_r10_e03_preapply_pending_recovery.py \
+            tools/n3w_t1_r10_e03_claimed_transaction_retirement.py \
+            tools/n3w_t1_r10_e03_blocked_prepublish_predecessor_recovery.py \
+            tools/n3w_t1_production_v2_contract.py
+          python -m pytest -q \
+            tests/tools/test_n3w_t1_r10_e03_manager_successor_refresh_live.py \
+            tests/tools/test_n3w_t1_portable_image_identity.py \
+            tests/tools/test_n3w_t1_maintenance_transaction.py \
+            tests/tools/test_n3w_t1_maintenance_activation_gate.py \
+            tests/tools/test_n3w_t1_r10_e03_successor_recovery.py \
+            tests/tools/test_n3w_t1_r10_e03_preapply_pending_recovery.py \
+            tests/tools/test_n3w_t1_r10_e03_claimed_transaction_retirement.py \
+            tests/tools/test_n3w_t1_r10_e03_blocked_prepublish_predecessor_recovery.py \
+            tests/tools/test_n3w_t1_production_v2_contract.py
+
+      - name: Enforce live executor safety contract
+        run: |
+          set -euo pipefail
+          TOOL=tools/n3w_t1_r10_e03_manager_successor_refresh_live.py
+          grep -Fq 'CONFIRMATION = "N3W_R10_E03_MANAGER_SUCCESSOR_REFRESH_LIVE_APPLY"' "$TOOL"
+          grep -Fq 'authorization_consumed": True' "$TOOL"
+          grep -Fq 'replay_allowed": False' "$TOOL"
+          grep -Fq 'fcntl.LOCK_EX | fcntl.LOCK_NB' "$TOOL"
+          grep -Fq 'pr725_executor_head_mismatch' "$TOOL"
+          grep -Fq '"--profile", "application", "config"' "$TOOL"
+          grep -Fq 'remote_abort_prestop' "$TOOL"
+          grep -Fq '("systemctl", "stop", SERVICES_UNIT)' "$TOOL"
+          grep -Fq '("systemctl", "start", SERVICES_UNIT)' "$TOOL"
+          grep -Fq '?mode=ro' "$TOOL"
+          grep -Fq 'PRAGMA query_only=ON' "$TOOL"
+          grep -Fq 'registration_count") != 0' "$TOOL"
+          grep -Fq 'EMPTY_INVENTORY_SHA256' "$TOOL"
+          ! grep -Fq -- '--force-recreate manager' "$TOOL"
+          ! grep -Fq '("docker", "stop", "manager")' "$TOOL"
+          ! grep -Fq 'UPDATE first_registration_attempts' "$TOOL"
+          ! grep -Fq 'DELETE FROM registrations' "$TOOL"
+
+      - name: Enforce successor P0 authority contract
+        run: |
+          set -euo pipefail
+          OLD=tools/n3w_t1_r10_e03_manager_successor_refresh_live.py
+          NEW=tools/n3w_t1_r10_e03_successor_recovery.py
+          grep -Fq 'successor_transaction_required' "$OLD"
+          grep -Fq 'import n3w_t1_portable_image_identity as portable' "$NEW"
+          grep -Fq 'import n3w_t1_maintenance_transaction as maintenance' "$NEW"
+          grep -Fq 'candidate_owner_not_controlled' "$NEW"
+          grep -Fq 'rollback_candidate_write_unproven' "$NEW"
+          grep -Fq 'execution_session_id' "$NEW"
+          ! grep -Fq 'TARGET_MANAGER_ID' "$NEW"
+          ! grep -Fq '("docker", "load"' "$NEW"
+          ! grep -Fq '("docker", "tag"' "$NEW"
+          ! grep -Fq '("docker", "rmi"' "$NEW"
+
+      - name: Enforce claimed transaction retirement boundary
+        run: |
+          set -euo pipefail
+          RETIRE=tools/n3w_t1_r10_e03_claimed_transaction_retirement.py
+          grep -Fq 'abort_claimed_ready_before_apply' "$RETIRE"
+          grep -Fq 'sub.add_parser("preflight")' "$RETIRE"
+          grep -Fq 'sub.add_parser("claim")' "$RETIRE"
+          grep -Fq 'sub.add_parser("retire")' "$RETIRE"
+          grep -Fq 'retire_parser.add_argument("--execution-session-id", required=True)' "$RETIRE"
+          grep -Fq 'retirement_execution_session_drift' "$RETIRE"
+          grep -Fq 'sub.add_parser("status")' "$RETIRE"
+          ! grep -Fq 'sub.add_parser("apply")' "$RETIRE"
+          ! grep -Fq '"systemctl", "stop"' "$RETIRE"
+          ! grep -Fq '"systemctl", "start"' "$RETIRE"
+          ! grep -Fq '("docker", "load"' "$RETIRE"
+          ! grep -Fq '("docker", "tag"' "$RETIRE"
+          ! grep -Fq '("docker", "rmi"' "$RETIRE"
+
+      - name: Enforce preapply pending recovery boundary
+        run: |
+          set -euo pipefail
+          RECOVERY=tools/n3w_t1_r10_e03_preapply_pending_recovery.py
+          grep -Fq 'AFFECTED_EXECUTOR_SOURCE_HEAD = "4bec6c071af547615955602ac8d6232f0a54bc63"' "$RECOVERY"
+          grep -Fq 'EXPECTED_PENDING_OPERATION = "activation_gate_install"' "$RECOVERY"
+          grep -Fq 'transaction_state": document["state"]' "$RECOVERY"
+          grep -Fq '"ABORTED"' "$RECOVERY"
+          grep -Fq 'apply_retried": False' "$RECOVERY"
+          grep -Fq 'rollback_invoked": False' "$RECOVERY"
+          ! grep -Fq 'successor.apply(' "$RECOVERY"
+          ! grep -Fq 'successor.rollback(' "$RECOVERY"
+          ! grep -Fq 'systemctl", "stop"' "$RECOVERY"
+          ! grep -Fq 'systemctl", "start"' "$RECOVERY"
+          ! grep -Fq 'docker", "load"' "$RECOVERY"
+          ! grep -Fq 'docker", "tag"' "$RECOVERY"
+          ! grep -Fq 'docker", "rmi"' "$RECOVERY"

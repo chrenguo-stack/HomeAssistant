@@ -1,3 +1,528 @@
+## 2026-11-02 — R3 sensorless real first-registration route FROZEN
+
+- Current gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_SENSORLESS_REAL_FIRST_REGISTRATION_20261102_01`.
+- T1 product source: `24382caae4a1f5d459297f86e8d18f10a848ca64`; review head `e091ec469ebdacb146a84931344aa8931aa14be1`.
+- No firmware or Manager first-registration runtime source drift exists between those authorities.
+- Current-head Manager CI `41382450590`: SUCCESS; full pytest `1486 passed, 1 skipped`; R8 simulated first-registration E2E `8 passed`.
+- Current-head F1.0-RC2 firmware CI `41382450749`: SUCCESS.
+- Physical R3 profile: ESP32-C6 + LCD + USB; SCD30/SHT30/BH1750/RS485/LoRa/power subsystem disconnected.
+- Frozen evidence rule: durable COMMIT -> immediately power off node -> collect T1 POST snapshot.
+- The readiness bridge is historical/diagnostic only and is not an R3 entry gate.
+- Next gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_EXACT_SENSORLESS_FIRMWARE_ARTIFACT_20261102_01`.
+- Plan: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_SENSORLESS_REAL_FIRST_REGISTRATION_EXECUTION_PLAN_20261102.md`.
+
+## 2026-11-02 — R3 exact readonly preflight trusted-LAN path repair PASS; live retry pending
+
+- Current gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_CURRENT_PRODUCT_REGISTRATION_READINESS_EXACT_READONLY_PREFLIGHT_20261102_01`.
+- Exact repair head `1a2115d40e62140ac81c48a5b4bb7d4963fe1aee`.
+- CI `41378062886`: SUCCESS; 29 tests PASS; package build/verify PASS.
+- Artifact `13112421203`, digest `sha256:729dc3b72133a2fb29285b27c32cab35b81eb091f3e80cce3e64d2d5ae9f7ab8`.
+- Host trusted-LAN authority path corrected to `/run/n3wfc4-trusted-lan/state.json`.
+- Manager mount `/run/n3wfc4-trusted-lan -> /run/n3w/trusted-product-lan` must be an exact read-only bind.
+- Previous local script stopped before exact inspect; no product mutation occurred.
+- Live exact readonly retry remains pending.
+- Progress: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_CURRENT_PRODUCT_REGISTRATION_READINESS_EXACT_READONLY_PREFLIGHT_SOURCE_REPAIR_PROGRESS_20261102.md`.
+
+## 2026-11-02 — R3 current-product registration readiness authority realignment CLOSED_PASS
+
+- Gate `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_CURRENT_PRODUCT_REGISTRATION_READINESS_AUTHORITY_REALIGNMENT_20261102_01`: CLOSED_PASS.
+- Exact control head: `f8a55c77c002163386b8f911c5048ced109a5154`.
+- Final CI `41377034111`: SUCCESS; 26 tests PASS; package build/verify PASS.
+- Exact artifact `13111538346`; digest `sha256:9baad380e01fe28d4b20c0b72b98c45f74b0ea70f6c1477e77dd5241fdfe6d31`.
+- Package manifest SHA-256 `01d7cc2ec76d268a426e3a399611529684369312cb34709837479d7eb355aa5d`.
+- R3 readiness now follows current product semantics: TCP/47110=1, UDP/47111=1, TCP/47112=0, Manager pairing control CLOSED.
+- `FACTORY_ACCEPTED` and legacy first-pair onboarding inspect are not R3 current-product readiness requirements.
+- CLI is readonly-only: `inspect`, `status`; old apply/marker mutation path removed.
+- No T1 mutation, pairing-window open, Board access, or merge.
+- Next gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_CURRENT_PRODUCT_REGISTRATION_READINESS_EXACT_READONLY_PREFLIGHT_20261102_01`.
+- Closure: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_CURRENT_PRODUCT_REGISTRATION_READINESS_AUTHORITY_REALIGNMENT_CLOSURE_20261102.md`.
+
+## 2026-11-02 — R3 repaired readonly preflight listener-parser repair pending CI
+
+- T1 baseline healthy: system running, failed units 0, three product containers, Manager restart count 0.
+- No bridge transaction, provisioning root, FACTORY_ACCEPTED, first-pair transaction, successor recovery, or transport residue.
+- Live baseline found UDP 47111 listener count 1; TCP 47112 count 0.
+- New source defect: bridge parsed the peer-address column of `ss` instead of the local-address column, creating a false-PASS risk.
+- Bounded repair head: `dab3ccc3826fe0c1c691b3a9122674862734b4fd`.
+- Focused CI: `41374354232`, queued after three polls.
+- No T1 mutation, pairing action, Board access, or merge.
+- Progress: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_PAIRING_READINESS_BRIDGE_REPAIRED_READONLY_PREFLIGHT_LISTENER_PARSE_FALSE_PASS_REPAIR_PROGRESS_20261102.md`.
+
+## 2026-11-02 — R3 pairing-readiness bridge source repair CLOSED_PASS
+
+- Gate `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_PAIRING_READINESS_BRIDGE_SOURCE_REPAIR_AND_IDENTITY_AUTHORITY_REDESIGN_20261102_01`: CLOSED_PASS.
+- Source repair: `7b913c98e1eee3669fc356f01ea0b5ff098f9b66`; exact executable bridge authority: `680d9efd0692de5ec06b184d961c8f3163765fab`.
+- The apparent failure run `41364918910` was cancelled by the successor PR synchronize under `cancel-in-progress=true`; its source-test was SUCCESS.
+- Final CI run `41365086172`: SUCCESS; 25 tests PASS; package build and independent verify PASS.
+- Exact artifact `13107271527`, digest `sha256:ad7c1842f09282fca3347803f33c8ef7fc11111700b5da870e2a0bbeb3b83e70`.
+- Package manifest SHA-256: `92b5fc5a58ab81af4d66f72b4743aadd3e4576dad0edf8ccd294797205eda72e`.
+- Missing `sqlite3` import repaired; real SQLite path covered.
+- DEVICE_READY assumption removed; provisioning authority remains UNPROVISIONED.
+- Identity authority is exact release + frozen OS host identity + verified Manager initialization identity + Manager DB system-id binding.
+- No empty provisioning root, no old F4 replay, no authorization claim/consume, no FACTORY_ACCEPTED, no pairing window, no T1/Board access, no merge.
+- Next separate gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_PAIRING_READINESS_BRIDGE_REPAIRED_READONLY_PREFLIGHT_20261102_01`.
+- Closure: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_PAIRING_READINESS_BRIDGE_SOURCE_REPAIR_AND_IDENTITY_AUTHORITY_REDESIGN_CLOSURE_20261102.md`.
+
+## 2026-11-02 — R3 pairing-readiness bridge source repair committed; CI_PENDING
+
+- Current gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_PAIRING_READINESS_BRIDGE_SOURCE_REPAIR_AND_IDENTITY_AUTHORITY_REDESIGN_20261102_01`.
+- Source-repair head: `7b913c98e1eee3669fc356f01ea0b5ff098f9b66`.
+- Bridge blob: `92a9b5e1c3435eb0dd562c498878a1f65bcd808b`; focused-test blob: `2f9fe7c620595e23614bdf35505c29a8252b1afe`.
+- R2 / R2 common-reference remains CLOSED_PASS; Option A remains selected.
+- Proven `sqlite3` import defect is repaired and real SQLite execution is now covered.
+- Legacy `DEVICE_READY` assumption is removed; frozen device-provisioning authority must report `UNPROVISIONED`.
+- Clean Reference identity authority is now: exact fresh release + frozen OS host identity + verified Manager initialization identity + Manager DB system-id fingerprint binding.
+- Missing provisioning root is accepted read-only as UNPROVISIONED; preflight does not create it.
+- Future authorized apply uses a populated temporary root followed by atomic rename, so an empty provisioning root is not deliberately created.
+- CI run `41364918910` remained queued after three polls; gate remains IN_PROGRESS / CI_PENDING.
+- No authorization claimed/consumed; no FACTORY_ACCEPTED; pairing window closed; T1 mutation false; Board access false; merge false.
+- Progress: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_PAIRING_READINESS_BRIDGE_SOURCE_REPAIR_AND_IDENTITY_AUTHORITY_REDESIGN_PROGRESS_20261102.md`.
+
+## 2026-11-02 — R3 pairing-readiness bridge preflight STOP_PRECLAIM
+
+- Exact bridge authority: `37e269300d6fadeee7ad85476374813f879cdb23`.
+- CI run `41322028703`: SUCCESS; 17 tests PASS.
+- Artifact `13090105684`, digest `sha256:c43d0bbd144d6d0e6e8ec5770e1b47f69e85d7e9dd7b4b72a5240d0e1055a7e8`.
+- Read-only preflight STOP: `private_root_invalid:/var/lib/n3w-t1-provisioning`.
+- Preclaim state preserved: authorization not claimed/consumed; FACTORY_ACCEPTED not created; pairing window not opened; Board access false.
+- Source defect proven: bridge references `sqlite3` without importing it.
+- Design assumption disproven: missing provisioning root means `UNPROVISIONED` under the frozen device-provisioning contract; Clean Reference did not already have DEVICE_READY authority.
+- Empty provisioning-root creation and fake DEVICE_READY are forbidden.
+- Temporary transport cleanup was trap-driven but final residue count was not reached; fresh read-only recheck required.
+- Next gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_PAIRING_READINESS_BRIDGE_SOURCE_REPAIR_AND_IDENTITY_AUTHORITY_REDESIGN_20261102_01`.
+- Archive: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_PAIRING_READINESS_BRIDGE_PREFLIGHT_FAILURE_20261102.md`.
+
+## 2026-11-01 — R3 R2 common-reference baseline CLOSED_PASS; pairing-entry gap OPEN
+
+- R2 common-reference SHA-256: `89da2a2b2cc1ce0fa024c3c45e24a71f09ba05e0e0cadbd67dd6387291239747`.
+- Exact observer authority: `da9124fe18774cdb5822f9eb3afee40120cfb04f`.
+- CI run `41317600634`: SUCCESS; 8 tests PASS; R2A/R2B byte continuity PASS.
+- Artifact `13087179158`, digest `sha256:473499d10e0487a591e8828312a76036fe438463d3455a8ed74d8eea5f96821b`.
+- Health PASS: system running, failed unit count 0, Broker/Manager/Home Assistant healthy, Manager and HA MQTT sockets present.
+- Collection integrity PASS: boot unchanged, containers unchanged, product mutation not observed, observer transport residue 0.
+- Full R1 common-reference is unavailable because the observer schema did not yet exist; T1_B will not be wiped/redeployed just to recreate it.
+- R3 first-pairing entry blocker: standard onboarding requires `FACTORY_ACCEPTED.json`; Clean Reference R1/R2 did not create it.
+- Old F4 is not safe to replay after R2 because its preactivation audit requires production units stopped/disabled and services not started.
+- Classification: host control-authority gap, not Board failure.
+- R3 remains IN_PROGRESS; workload not executed; Board work remains a separate gate.
+- Closure: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_R2_COMMON_REFERENCE_BASELINE_CLOSURE_20261101.md`.
+
+## 2026-11-01 — R2 controlled start and reboot CLOSED_PASS
+
+- Gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R2_CONTROLLED_START_AND_REBOOT_20261101`.
+- Result: CLOSED_PASS; both R2A and R2B are CLOSED_PASS.
+- Product source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- R2A control authority: `abeb6c31147bcf249361dcec7e9536eaed6106a6`.
+- Final R2B control authority: `e15c64ac8f0f5f482a6c8538072031734002a559`.
+- Final R2B CI run `41313796825`: SUCCESS; 7 tests PASS; R2A byte continuity PASS.
+- Exact R2B artifact `13086354529`, digest `sha256:b604da84720479d9f844aae49986ccc0b70fd469e25625e26ccd95386e432858`.
+- R2B package manifest SHA-256: `87a8339ffd523709758ffda3ea64bd15303ca64dbaa0e28386fb3afc63b16eff`.
+- First R2B live preflight false STOP repaired: provision-resume is correctly enabled/inactive before the first reboot and enabled/active after reboot.
+- R2B one-shot authorization consumed exactly once; replay forbidden.
+- Real reboot proven by boot ID change from `8e649419-3243-4e23-973d-b53f2a626b82` to `dc0f29fd-59f9-4f4c-ae79-206db2b22002`.
+- R2A transaction unchanged across reboot.
+- Broker + Manager + Home Assistant restored; exact running container count 3.
+- Broker authenticated readiness PASS; Home Assistant HTTP readiness PASS with 401 authenticated response.
+- Production units enabled/active after reboot.
+- Certificate timer enabled/active; certificate one-shot service quiescent; certificate identity unchanged.
+- 30-second post-reboot container stability PASS.
+- Final failed systemd unit count 0; R2B transport residue count 0.
+- Board access false; R3 not executed; merge false.
+- Closure: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R2_CONTROLLED_START_AND_REBOOT_CLOSURE_20261101.md`.
+- Next boundary: R3 is a separate gate and must not be auto-entered.
+
+## 2026-11-01 — R2A first production start CLOSED_PASS
+
+- Gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R2A_PRODUCTION_ACTIVATION_START_20261101_01`.
+- Result: CLOSED_PASS.
+- Product source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- R2A control authority: `abeb6c31147bcf249361dcec7e9536eaed6106a6`.
+- CI run `41307906081`: SUCCESS; 12 source tests PASS.
+- Exact artifact `13084461803`, digest `sha256:f6acacb0ed92defe4b46a34c27c12c13fe2f4c27cb85f81b88a6fb4d1d728bc0`.
+- Package manifest SHA-256: `a0bb9977314a7e4a3f9d051004c0bdcfe0410f2780f185d8aa68500d8919a76b`.
+- R1 stopped preflight PASS immediately before mutation.
+- Transaction reached `RUNTIME_STARTED`; one-shot authorization consumed and replay forbidden.
+- Broker + Manager + Home Assistant running; exact running container count 3.
+- Broker authenticated readiness PASS; Broker port binding exact.
+- Home Assistant HTTP readiness PASS with expected authenticated response 401.
+- 30-second container identity stability PASS; restart counts 0.
+- Production units enabled/active; certificate timer enabled but inactive before reboot.
+- Same boot preserved through R2A; reboot was not executed.
+- Closure: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R2A_FIRST_PRODUCTION_START_CLOSURE_20261101.md`.
+- Next: R2B controlled reboot/persistence acceptance; do not replay R2A authorization.
+
+## 2026-11-01 — R1 T1_B first deployment CLOSED_PASS
+
+- Gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_T1B_FIRST_DEPLOYMENT_20261101_01`.
+- Result: CLOSED_PASS.
+- S0 source remains `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Final Clean Reference control-plane authority: `ee0aaf71ddc71bba5f121e25f09a1f0189f5e6e8`.
+- Runtime payload SHA-256: `7c1fbc29bfcb5597f2736a9a6ce39192cd8c6bb317df6db37c9581df7efcdcfd`.
+- Payload manifest SHA-256: `b5570c7e97965d5afa593721849571d62ab67a67888fb2c2ace6d4d043147fa3`.
+- Final live executor/host apply: PASS; fresh product staged; node credential count 0.
+- Stopped state: 3 images, 0 containers, 0 volumes, only bridge/host/none networks, 0 product listeners.
+- Staged units are enabled/inactive; production activation units remain not-found/inactive.
+- All required product paths PASS; forbidden product paths absent; transport/candidate residue counts 0.
+- Cross-Docker portable image identity: Manager/Home Assistant/Broker RootFS and config-contract bindings all PASS.
+- Runtime `.Id` differs from CI/build image ID for all three images and is accepted under the existing Docker 29 cross-store rule; runtime `.Id` equality is not a portable oracle.
+- The ad-hoc exact-runtime-ID STOP is classified FALSE_STOP; no cleanup or replay was performed.
+- Final read-only verifier semantic result is PASS; trailing zsh `PIPESTATUS[0]` error affected only outer return-code reporting.
+- SSH ControlMaster reduced the final live route to one password prompt without changing T1 authorized_keys or persistent Mac SSH config.
+- Closure: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_T1B_FIRST_DEPLOYMENT_CLOSURE_20261101.md`.
+- R2 controlled reboot/start is NOT_AUTHORIZED and is not auto-entered.
+
+## 2026-11-01 — R1 T1_B first deployment hit pre-mutation payload file-set false STOP
+
+- First live apply stopped with `payload_file_set_invalid` before `run_fresh_staging()`.
+- No image request/load event, product-state commit, service start or board access occurred.
+- Root cause: the host wrapper copied the independent executor inside the strict manifest-validated payload tree.
+- Bounded repair stages the executor beside the payload directory and success-cleanup removes both.
+- Repair head: `340f967065460504e52cd364a3bdaa0f24aec59e`.
+- Dedicated CI run `41293344644` is queued; 3-poll limit reached.
+- T1 retry and remote evidence cleanup remain blocked until source CI succeeds.
+- Progress authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_T1B_FIRST_DEPLOYMENT_PAYLOAD_FILE_SET_FALSE_STOP_REPAIR_PROGRESS_20261101.md`.
+
+## 2026-11-01 — R1 T1_B first deployment is prepared
+
+- T1_B read-only eligibility is CLOSED_PASS and the current gate now authorizes bounded R1 mutation.
+- Exact authorities remain: source `24382caae...`, deployment tool `4b0ec26e...`, S1 three-image cache and runtime-only cache.
+- Authorized work: exact runtime transfer, one-at-a-time exact image transfer/load, fresh identity/state/Broker/DynSec creation, stopped-state runtime commit and internal stopped postcheck.
+- Forbidden: registry pull, image rebuild, production V2 authority, product service start, board access and merge.
+- Success target: exactly 3 bound images; zero containers/volumes/listeners; zero node credentials; production activation disabled.
+- Preexecution authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_T1B_FIRST_DEPLOYMENT_PREEXECUTION_20261101.md`.
+- Current stop point: operator executes the bounded R1 T1_B first deployment; do not auto-enter R2/R3.
+
+## 2026-11-01 — R1 T1_B predeployment read-only preflight is CLOSED_PASS
+
+- T1_B remains a clean R0/R0H host: systemd running, zero failed units, NetworkManager/Docker active and enabled.
+- Exact R0H package/runtime continuity remains: Docker 29.1.3, Compose 2.40.3+ds1-0ubuntu1.
+- Docker state is empty: zero containers/images/volumes and only bridge/host/none networks.
+- Product absence re-proved: zero product paths, systemd units, target listeners and unknown-stop classifications.
+- Repaired nft observer behavior accepted only the absent optional nft CLI while both iptables views remained complete.
+- Transport capacity PASS: remote free 11859628032 bytes vs worst-image requirement 10135822686 bytes and 5368709120-byte post-peak reserve.
+- T1 access remained read-only; no payload/image transfer, Docker mutation, service start or board access occurred.
+- Closure authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_T1B_PREDEPLOYMENT_READONLY_PREFLIGHT_CLOSURE_20261101.md`.
+- Next ONE gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_T1B_FIRST_DEPLOYMENT_20261101_01`; not auto-executed.
+
+## 2026-11-01 — R1 T1_B nft visibility false-STOP repair is CLOSED_PASS
+
+- Root cause: absent optional `nft` CLI was incorrectly treated as unknown firewall visibility.
+- Actual T1_B evidence remained clean: zero containers/images/volumes, only default Docker networks, no product path/unit/listener residue, both iptables read views PASS.
+- Read-only inventory repair head: `ca849ed8565504529e2e39c823172ec2070cb5a8`.
+- Dedicated CI run `41290538736`: SUCCESS.
+- Frozen R1 deployment/capacity authority remains `4b0ec26e...`; it was not changed.
+- Next action: operator executes T1_B read-only revalidation. No deployment is authorized.
+
+## 2026-11-01 — R1 T1_B predeployment read-only preflight is prepared
+
+- Target is T1_B; access is read-only and T1 mutation remains false.
+- The gate re-proves both halves required for a real Clean Reference: host still empty/clean, and exact local deployment inputs still admissible.
+- Read-only inventory must show zero containers/images/volumes, only bridge/host/none networks, and zero product paths/units/listeners/firewall residue.
+- Clean Reference preflight must revalidate local runtime/S1 cross-binding, R0H host readiness and transport capacity.
+- Systemd health, NetworkManager/Docker enablement and exact R0H Docker/Compose package continuity are checked separately.
+- No payload/image transfer, Docker load, product staging, service start or board access is authorized.
+- Preflight authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_T1B_PREDEPLOYMENT_READONLY_PREFLIGHT_20261101.md`.
+- Current stop point: operator executes the bounded T1_B read-only preflight; do not auto-enter deployment afterward.
+
+## 2026-11-01 — R1 Mac runtime-only acquisition/local cross-binding is CLOSED_PASS
+
+- Runtime-only artifact 13075576515 is durably cached on Mac in the private runtime-cache class.
+- The local runtime cache has exactly 12 runtime/control files and zero image tar files.
+- Repository-owned local verification returned PASS against the existing S1 three-image cache.
+- Exact bindings remain: source `24382caae...`, runtime payload `7c1fbc29...`, payload manifest `b5570c7e...`, S1 binding `3585049d...`.
+- Manager/Home Assistant/Mosquitto image IDs match the S1 authority exactly.
+- T1 access, Docker mutation, product service start and board access were all false.
+- Closure authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_RUNTIME_ONLY_ARTIFACT_MAC_ACQUISITION_AND_LOCAL_CROSS_BINDING_CLOSURE_20261101.md`.
+- Next ONE gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_T1B_PREDEPLOYMENT_READONLY_PREFLIGHT_20261101_01`; not auto-executed.
+
+## 2026-11-01 — R1 Mac runtime-only acquisition/cross-binding gate is prepared
+
+- Runtime-only artifact remains exact and unexpired: run 41286249917 / artifact 13075576515 / digest `sha256:7879bca9...`.
+- S1 exact image authority remains unexpired: artifact 13070404405.
+- Target is a separate private Mac runtime cache at `~/Documents/N3W/t1-core-stack-runtime-cache/<source-head>`.
+- Verification must cross-bind the runtime artifact to the existing S1 local cache with exact deployment-tool authority `4b0ec26e...`.
+- T1 access, Docker mutation, service start, board access and merge remain false.
+- Preflight authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_RUNTIME_ONLY_ARTIFACT_MAC_ACQUISITION_AND_LOCAL_CROSS_BINDING_PREFLIGHT_20261101.md`.
+- Current stop point: waiting for operator Mac acquisition and local cross-binding; do not enter T1_B preflight automatically.
+
+## 2026-11-01 — R1 runtime-only exact artifact production/binding is CLOSED_PASS
+
+- Manual workflow_dispatch run 41286249917 is completed SUCCESS; source-test and build-runtime both actually ran and passed.
+- Run head `d377446a...` differs from R1 deployment-tool authority only by three documentation commits; deployment tooling/component source did not drift.
+- Exact runtime-only artifact: ID 13075576515, size 149,421 bytes, GitHub digest `sha256:7879bca9...`, unexpired.
+- Artifact ZIP was independently downloaded and byte-inspected: exactly 12 runtime/control members, zero `*-arm64.tar` image members.
+- Runtime payload SHA-256 `7c1fbc29...`, payload-manifest SHA-256 `b5570c7e...`, capacity-contract SHA-256 `c350580e...`, S1 binding SHA-256 `3585049d...`.
+- Embedded manifest has 25 controlled files; all recomputed size/SHA-256 checks PASS.
+- Manager/Home Assistant/Mosquitto image IDs and tar hashes exactly match S1 authority; independent Manager rebuild remains ineligible.
+- `image_rebuild_performed=false`, `registry_pull_performed=false`, `production_service_start=false`, T1/board access false.
+- Closure authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_RUNTIME_ONLY_EXACT_ARTIFACT_PRODUCTION_AND_BINDING_CLOSURE_20261101.md`.
+- Next ONE gate is `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_RUNTIME_ONLY_ARTIFACT_MAC_ACQUISITION_AND_LOCAL_CROSS_BINDING_20261101_01`; it is not auto-executed.
+
+## 2026-11-01 — R1 runtime-only exact artifact production was dispatched; manual run discovery is pending
+
+- R1 local exact-image-cache source repair remains CLOSED_PASS.
+- Manual workflow: `n3w-t1-clean-reference-runtime-payload-ci.yml`.
+- Manual dispatch ref: `test/n3w-r8-full-simulated-e2e-safety-20261028`.
+- Operator reported GitHub accepted the workflow_dispatch submission.
+- Dispatch binds source head `24382caae4a1f5d459297f86e8d18f10a848ca64`, S1 image run/artifact 41275979177 / 13070404405, and runtime-source run/artifact 41275979325 / 13071308834.
+- Manual workflow run ID and produced runtime-only artifact ID/digest are not yet freshly captured.
+- PR-triggered run 41285628034 is not production evidence: event=pull_request and build-runtime=SKIPPED.
+- Do not dispatch a duplicate until the existing workflow_dispatch run is identified.
+- No T1/board/live-service mutation occurred.
+- Current stop point: identify and verify the manual workflow_dispatch run, then bind its runtime-only artifact.
+- Next ONE gate remains `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_RUNTIME_ONLY_EXACT_ARTIFACT_PRODUCTION_AND_BINDING_20261101_01`.
+
+## 2026-11-01 — R1 local exact-image-cache deployment source repair is CLOSED_PASS
+
+- S0 source authority remains `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- R1 deployment-tool source authority is `4b0ec26e04a8f10d0d9e746c05b6a5794510d8a1`.
+- S1 exact image cache remains the R1 image artifact authority.
+- Independent Manager rebuilds are no longer eligible for Clean Reference R1.
+- New runtime-only builder/host/executor paths contain no application image build/pull path.
+- Clean Reference executor reuses stopped-state `run_fresh_staging()` and does not consume production V2 marker/run-context authority.
+- Frozen T1_Core_Stack component/runtime blobs remain unchanged from S0.
+- Seven required CI runs on the repair head are all SUCCESS.
+- Exact S1 image input artifact 13070404405 and same-source runtime input artifact 13071308834 remain unexpired.
+- Closure authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_LOCAL_EXACT_IMAGE_CACHE_DEPLOYMENT_SOURCE_REPAIR_CLOSURE_20261101.md`.
+- Next ONE gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_RUNTIME_ONLY_EXACT_ARTIFACT_PRODUCTION_AND_BINDING_20261101_01`.
+
+## 2026-11-01 — R1 local exact-image-cache deployment source repair is CI pending
+
+- S1 remains CLOSED_PASS; its durable Mac three-image cache is authoritative.
+- A same-source independent Manager rebuild produced a different image ID, so the old fresh deployable artifact is not eligible for Clean Reference R1.
+- R1 invariant is now explicit: verify/cache an exact image once, then deploy that same exact image.
+- Added a runtime-payload rebinder that consumes exact S1 images without Docker build/pull.
+- Added an isolated Clean Reference target executor around the existing stopped-state `run_fresh_staging()` primitive.
+- Added local-cache Mac->T1 transport; it does not use GitHub large-artifact download.
+- Production V2 apply/marker/run-context behavior is unchanged.
+- New CI workflow: `N3W T1 Clean Reference runtime payload CI`, run 41279714935.
+- Current status: SOURCE_REPAIR_IMPLEMENTED / SOURCE_CI=PENDING.
+- R1 live apply remains blocked until source CI/review closure.
+
+## 2026-11-01 — S1 exact three-image Mac cache is CLOSED_PASS
+
+- S0 source authority remains `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- GitHub exact artifact ID 13070404405 / run 41275979177 was verified before local use.
+- Manager tar SHA-256: `4c308f192a30e628ebacad11ed3aa471554fee6c3aa9fd1c25ec647d354a5006`.
+- Home Assistant tar SHA-256: `e52d12779f7562d3f37a265d622fbaf31e758deba5998e40cafb5a33a118b663`.
+- Broker tar SHA-256: `79cf713ba9118cbd54376e7e7bef7e53e9f6638659d9f0a01093d6ac6d2d8300`.
+- Local binding verification and all three local tar SHA-256 checks are PASS.
+- Durable private Mac cache is populated; rebuild and redownload are not required.
+- T1_B remains untouched during S1.
+- Closure authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_S1_EXACT_THREE_IMAGE_ARTIFACT_ACQUISITION_AND_MAC_CACHE_CLOSURE_20261101.md`.
+- Next ONE gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R1_T1B_FIRST_DEPLOYMENT_20261101_01`.
+
+## 2026-11-01 — S1 exact three-image artifact acquisition and Mac cache gate is prepared
+
+- S0 source authority remains `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Existing exact ARM64 artifact ID 13070404405 from run 41275979177 is the preferred S1 source.
+- Artifact is currently unexpired, size 2,538,800,086 bytes, GitHub digest `sha256:99eae7602eb2f8318bb7c0fff29d71fa61471071902b854a90666d4beb931b93`.
+- Rebuild is not required unless artifact identity/availability or local exact verification fails.
+- S1 ends after a durable Mac private cache contains and verifies binding.json plus Manager, Home Assistant and Broker ARM64 tar files.
+- No T1 access, T1 mutation, image load or production service start is included.
+- Preflight authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_S1_EXACT_THREE_IMAGE_ARTIFACT_ACQUISITION_AND_MAC_CACHE_PREFLIGHT_20261101.md`.
+- Current stop point: waiting for operator Mac S1 artifact download and verification.
+
+## 2026-11-01 — S0 exact T1_Core_Stack source/version freeze is CLOSED_PASS
+
+- S0 source authority: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- All later workspace changes through R0H closure were verified docs-only relative to this source head.
+- Manager authority is current-source build at the S0 head, not historical S20 `511db028...`.
+- Home Assistant is frozen at 2026.10.0 / ARM64 digest `sha256:0c73235a...`.
+- Mosquitto is frozen at 2.1.2-alpine / ARM64 digest `sha256:3184566d...`.
+- Exact ARM64 CI run 41275979177 is SUCCESS.
+- Existing candidate artifact ID 13070404405 is unexpired, size 2,538,800,086 bytes, GitHub digest `sha256:99eae760...`.
+- Closure authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_S0_EXACT_SOURCE_AND_VERSION_FREEZE_CLOSURE_20261101.md`.
+- Next ONE gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_S1_EXACT_THREE_IMAGE_ARTIFACT_ACQUISITION_AND_MAC_CACHE_20261101_01`.
+
+## 2026-11-01 — R0H T1_B host runtime establishment is CLOSED_PASS
+
+- Exact local host-runtime bundle ID: `26bc7f78615a0ed3f1240ddfb2ecded5ef7df1da50e9969a52dffb1010185163`.
+- Successful install source authority: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Cache-only physical install PASS with `network_download_performed=false`.
+- Exact packages installed: docker.io 29.1.3-0ubuntu4.1, docker-compose-v2 2.40.3+ds1-0ubuntu1, containerd 2.2.2-0ubuntu1.2, runc 1.4.0-0ubuntu1, libnftables1 1.1.6-1.
+- Docker service is active/enabled.
+- Containers=0, images=0, volumes=0; networks are exactly bridge/host/none.
+- Install staging residue=0, product paths=0, product units=0, product listeners=0.
+- T1_Core_Stack remains undeployed; T1_A and boards remain untouched.
+- Closure authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_T1B_HOST_RUNTIME_ESTABLISHMENT_FINAL_CLOSURE_20261101.md`.
+- Next ONE gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_S0_EXACT_SOURCE_AND_VERSION_FREEZE_20261101_01`.
+
+## 2026-11-01 — R0H cache-only install R3 APT archive-cache repair is CLOSED_PASS
+
+- Current install source authority: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Existing bundle ID remains `26bc7f78615a0ed3f1240ddfb2ecded5ef7df1da50e9969a52dffb1010185163`.
+- Bundle content is unchanged and does not require reacquisition.
+- R3 stages verified .deb members into a temporary APT archive cache and sets `Dir::Cache::archives` to that directory.
+- Every manifest member is requested as `package=exact_version`.
+- `apt-get --no-download --no-remove` remains mandatory; no apt update, fix-missing or online fallback is added.
+- Exact-head CI all SUCCESS: host-only 41275979166, public safety 41275979204, greenhouse-manager 41275979255, exact ARM64 41275979177.
+- Closure authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_T1B_CACHE_ONLY_INSTALL_R3_APT_ARCHIVE_CACHE_REPAIR_CLOSURE_20261101.md`.
+- Current stop point: waiting for T1_B R3 cache-only install retry.
+- On PASS, R0H post-install acceptance closes and S0 exact T1_Core_Stack source/version freeze becomes next.
+
+## 2026-11-01 — R0H cache-only install APT sandbox path repair is CLOSED_PASS
+
+- Current install source authority: `2b87ae05f8f0ddca0c57195495432692adcef7c1`.
+- Physical failure root cause: the verified cache lived below `/root` (0700), so APT's sandbox user could not traverse the path to otherwise-readable .deb files.
+- Read-only forensics proved no partial package installation occurred.
+- APT simulation with the same five local .deb files returned success and required exactly those five packages, proving the bundle dependency closure is complete.
+- Existing bundle ID `26bc7f78615a0ed3f1240ddfb2ecded5ef7df1da50e9969a52dffb1010185163` remains valid; no re-download is required.
+- Repaired install stages verified .deb files in an APT-readable temporary directory below `/var/tmp`, rechecks size/SHA-256, retains `--no-download --no-remove`, and cleans staging on success/failure.
+- Exact-head CI is all SUCCESS: host-only 41274081543, public safety 41274081561, greenhouse-manager 41274081563, exact ARM64 41274081692.
+- Closure authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_T1B_CACHE_ONLY_INSTALL_APT_SANDBOX_PATH_REPAIR_CLOSURE_20261101.md`.
+- Current stop point: waiting for T1_B cache-only install retry using the repaired exact source.
+- On PASS, R0H post-install acceptance closes and S0 exact T1_Core_Stack freeze becomes next.
+
+## 2026-11-01 — R0H T1_B cache-only install and post-install acceptance gate is prepared
+
+- Exact bundle ID: `26bc7f78615a0ed3f1240ddfb2ecded5ef7df1da50e9969a52dffb1010185163`.
+- Installation may use only the verified T1 cache and repository `--phase install`.
+- APT package download/fallback remains forbidden; the tool uses `apt-get --no-download --no-remove`.
+- Docker service enable/start is allowed as host-runtime establishment only.
+- T1_Core_Stack images, containers, product paths, product units and product listeners remain forbidden.
+- Post-install must prove exact Docker/Compose package versions, 0 containers/images/volumes, only bridge/host/none networks, and zero product residue.
+- Preflight authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_T1B_CACHE_ONLY_INSTALL_AND_POSTINSTALL_ACCEPTANCE_PREFLIGHT_20261101.md`.
+- Current stop point: waiting for operator T1_B cache-only install.
+- On PASS, R0H closes and S0 exact T1_Core_Stack source/version freeze becomes next.
+
+## 2026-11-01 — R0H T1_B download-only host cache acquisition and Mac archive are CLOSED_PASS
+
+- Exact bundle ID: `26bc7f78615a0ed3f1240ddfb2ecded5ef7df1da50e9969a52dffb1010185163`.
+- Bundle contains 5 .deb members totaling 79,391,752 bytes.
+- Exact requested versions: `docker.io=29.1.3-0ubuntu4.1`, `docker-compose-v2=2.40.3+ds1-0ubuntu1`.
+- T1 tool-transfer SHA-256 match, self-check, acquire and strict T1 verify all PASS.
+- Durable Mac `verify-archive` PASS on the copied bundle.
+- Docker/Compose were not installed and Docker was not started.
+- T1_Core_Stack remains undeployed; T1_A and boards remain untouched.
+- Closure authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_T1B_DOWNLOAD_ONLY_CACHE_ACQUISITION_AND_MAC_ARCHIVE_CLOSURE_20261101.md`.
+- Next ONE gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_T1B_CACHE_ONLY_INSTALL_AND_POSTINSTALL_ACCEPTANCE_20261101_01`.
+
+## 2026-11-01 — R0H T1_B download-only cache acquisition is prepared
+
+- Source authority remains `c4984baf274d74d1459175153b62bed9a2b7626e`; the source gate is CLOSED_PASS.
+- Target is T1_B only; T1_A and boards remain out of scope.
+- This gate permits APT metadata refresh and package payload download only.
+- Docker/Compose installation, Docker service start and T1_Core_Stack deployment remain forbidden.
+- Required sequence: fresh preflight -> exact tool transfer -> self-check -> acquire/download-only -> T1 verify -> copy to Mac -> Mac `verify-archive` -> STOP.
+- Preflight authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_T1B_DOWNLOAD_ONLY_CACHE_ACQUISITION_AND_MAC_ARCHIVE_PREFLIGHT_20261101.md`.
+- Current stop point: waiting for operator T1_B download-only cache acquisition.
+- Automatic installation remains disabled.
+
+## 2026-11-01 — R0H local host package cache source gate is CLOSED_PASS
+
+- Exact source authority: `c4984baf274d74d1459175153b62bed9a2b7626e`.
+- `tools/n3w_t1_host_runtime_cache.py` now provides `acquire`, portable `verify-archive`, strict T1 `verify`, cache-only `install` and `self-check`.
+- Portable Mac verification binds manifest digest/bundle ID, exact .deb member set, file sizes and SHA-256 without requiring Linux, Armbian, APT or dpkg probes.
+- T1-side verification additionally checks the exact host contract, APT source policy and .deb package/version/architecture metadata.
+- Cache-only install remains fail-closed and uses `apt-get --no-download --no-remove`; no silent network fallback is present.
+- Final exact-head CI: fresh install host-only SUCCESS (41271295622), greenhouse-manager SUCCESS (41271295734), public repository safety SUCCESS (41271295641), exact ARM64 SUCCESS (41271295780).
+- No T1 or board access occurred during the source gate.
+- Closure authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_LOCAL_PACKAGE_CACHE_SOURCE_CLOSURE_20261101.md`.
+- Next ONE gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_T1B_DOWNLOAD_ONLY_CACHE_ACQUISITION_AND_MAC_ARCHIVE_20261101_01`.
+- Next gate allows APT metadata refresh and package payload download on T1_B only; Docker/Compose installation, Docker service start and T1_Core_Stack deployment remain forbidden.
+
+## 2026-11-01 — R0H Docker/Compose package payload becomes download-once local cache
+
+- The earlier direct-online R0H live-apply command is superseded before execution.
+- R0H must acquire the exact Ubuntu `docker.io` + `docker-compose-v2` dependency closure once and save it under `~/Documents/N3W/host-runtime-cache/<bundle-id>/`.
+- The bundle manifest binds Armbian/Ubuntu/architecture/source policy, exact Docker/Compose package versions, and every .deb filename/size/SHA-256.
+- First installation itself must be cache-only with downloads disabled; an incomplete cache fails instead of silently fetching from the network.
+- Later compatible fresh T1 hosts copy and verify the Mac cache, then install cache-only without re-downloading Docker/Compose payloads.
+- This host bundle is not `T1_Core_Stack` product identity and is separate from the product exact-artifact cache.
+- Full fresh-Armbian air-gapped installation remains later O1 work; this change advances only the host Docker/Compose package-cache portion.
+- Existing baseline tool needs bounded source extension; live R0H apply is blocked until that source/test closure.
+- Design authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_HOST_RUNTIME_LOCAL_PACKAGE_CACHE_DESIGN_20261101.md`.
+- Next ONE gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_LOCAL_PACKAGE_CACHE_SOURCE_IMPLEMENTATION_20261101_01`.
+
+## 2026-11-01 — R0H host-runtime design is CLOSED_PASS; bounded T1_B apply is next
+
+- R0H design/preflight result: `PASS`.
+- R0 PASS remains the required input; T1_A remains untouched.
+- Minimum host runtime is Armbian/systemd/SSH/network/time plus Ubuntu `docker.io` and `docker-compose-v2`.
+- Existing `tools/n3w_t1_fresh_host_baseline.py` is reused; no new Docker installer is required.
+- Docker/Compose are outside canonical `T1_Core_Stack` product identity.
+- R0H resolves current Ubuntu resolute/arm64 package candidates, records them, and installs those exact `package=version` values.
+- No third-party Docker repository, `get.docker.com`, snap, unversioned install, `apt upgrade`, or `dist-upgrade` fallback is allowed.
+- R0H postcondition requires Docker active/enabled with 0 containers, 0 images, 0 volumes, only default Docker networks, and zero N3-W product residue/listeners.
+- Design authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_HOST_RUNTIME_ESTABLISHMENT_DESIGN_AND_PREFLIGHT_20261101.md`.
+- Next ONE gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0H_T1B_HOST_RUNTIME_LIVE_APPLY_20261101_01`.
+- The next gate mutates T1_B host runtime only; T1_Core_Stack deployment/provisioning remains forbidden.
+
+## 2026-11-01 — T1_B R0 Fresh Armbian baseline is CLOSED_PASS
+
+- Gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0_T1B_FRESH_ARMBIAN_READONLY_BASELINE_20261101_01`.
+- T1_B runs `Armbian OS 26.05.0 resolute`, `aarch64`, kernel `6.18.33-ophub`, root filesystem on `/dev/mmcblk2p2`.
+- systemd reports `running` with 0 failed units; one default route is present; NetworkManager is active/enabled.
+- NTP evidence: `ntp=yes`, `ntp_enabled=yes`; unavailable `SystemClockSynchronized` is retained as `clock=unknown`.
+- Docker Engine and Compose are absent; `/var/lib/docker` is absent.
+- Product containers/images/volumes/networks, product paths, product units and product listeners are all 0.
+- Expected product ports 1883, 8883, 8123, 47110, 47111 and 47112 have no listeners.
+- `R0_UNEXPECTED_RESIDUALS=NONE`.
+- `T1_A_MUTATION=false`, `T1_B_MUTATION=false`, `BOARD_ACCESS=false`.
+- Result: `R0_T1B_FRESH_ARMBIAN_BASELINE=PASS`.
+- Closure: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0_T1B_FRESH_ARMBIAN_READONLY_BASELINE_CLOSURE_20261101.md`.
+- Stop point: R0 is complete. R0H remains a separate host-runtime mutation gate and is not automatically entered.
+
+## 2026-11-01 — Dual-T1 roles and T1_Core_Updater are current authority
+
+- `T1_A` is preserved: `T1_A_ROLE=LEGACY_UPGRADE_AND_FAILURE_SPECIMEN`, `T1_A_WIPE=false`.
+- The proven reason to preserve T1_A is its real historical successor-upgrade E03 failure state. Do not assume the separate first-registration E03 business bug is still present without fresh evidence.
+- `T1_B` is the Clean Reference / clean upgrade target. The operator will wipe T1_B and install official Armbian; R0 must fresh-read it before Docker or product mutation.
+- The previous statement `OLD_T1_RUNTIME_MAY_BE_DISCARDED=true` is superseded by this entry.
+- Canonical upgrade tool: `T1_Core_Updater`; CLI: `t1-core-updater`.
+- Clean Reference is not itself an upgrade. Upgrade validation requires explicit baseline A and target B.
+- Default first real product upgrade target is Manager A -> B; Home Assistant, Mosquitto and host platform remain unchanged unless an explicit compatibility boundary requires otherwise.
+- Two historical E03 labels must remain distinct: first-registration E03 = Manager business logic; successor-upgrade E03 = T1 upgrade/maintenance control.
+- PR #745 remains open/unmerged as historical repair/incident evidence pending the simplified updater architecture.
+- Updated development plan: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_DEVELOPMENT_PLAN_20261101.md`.
+- Updated design: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_AND_STABLE_INVARIANTS_DESIGN_20261031.md`.
+- Current formal handoff: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0_T1B_FRESH_ARMBIAN_NEW_CHAT_HANDOFF_V1.1_20261101.md`.
+- Next ONE gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0_T1B_FRESH_ARMBIAN_READONLY_BASELINE_20261101_01`.
+- R0 is read-only and targets T1_B only. T1_A must not be mutated during T1_B Clean Reference work.
+
+## 2026-11-01 — T1_Core_Stack clean-reference route is current authority
+
+- Canonical production application stack name is now `T1_Core_Stack` = greenhouse-manager + Home Assistant + Mosquitto Broker.
+- PR #746 merged into PR #705 as `9a046c267d5fa3edbe41e675c2409e2d50caff93`, carrying the clean-reference/stable-invariants design and working-context v1.2 naming boundary.
+- PR #745 remains open/unmerged on architecture hold. Its source repair is incident evidence, not automatic authority for the redesigned upgrade architecture.
+- Old E03 live successor/recovery retry route is paused; no further live retry is authorized.
+- Pre-wipe private maintenance evidence is archived; public-safe digest: `711359c2b6a3522daac4ce9697a20b9876b71f202b44d6c79f65eda79f67025c`. The old T1 runtime may be discarded.
+- Operator is preparing a T1 with official Armbian only. Its fresh runtime state remains `UNKNOWN_FRESH` until the next session performs R0 read-only inspection.
+- Historical Mac artifact cache entry ID `11954286988` / ZIP SHA-256 `047a40ed640bc1bfcbc8adb7007da2a4eea1f8abedffbc3cb2e2a4d9f6817928` is explicitly obsolete for the new clean reference and must not be reused.
+- The Mac exact-artifact-cache mechanism remains selected. The next exact T1_Core_Stack artifact is acquired once, exact-bound, persisted locally and reused until artifact identity changes.
+- T1_Core_Stack three-image offline loading is supported; fully air-gapped installation from a freshly flashed Armbian host is not yet complete because Docker/Compose/host package installation can still depend on APT/network sources.
+- Development plan: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_DEVELOPMENT_PLAN_20261101.md`.
+- Design authority: `docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_AND_STABLE_INVARIANTS_DESIGN_20261031.md`.
+- Next ONE gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R0_FRESH_ARMBIAN_READONLY_BASELINE_20261101_01`.
+- R0 is read-only: no package installation, Docker installation, product deployment, provisioning, T1_Core_Stack start, board access, old artifact reuse, or old authorization replay.
+
+## 2026-10-31 — E03 recovery/source convergence integrated into PR #725
+
+- PR #741 merged as `775c47dc3c8d247a7a342ca0d91aa86fec7bea88`; PR #740 then merged as `17dd9e3fcc0bc9c8bdcac05a6748d7b57e5e0be5` into PR #725's branch.
+- PR #725 current source carries the repaired pending-operation handling, bounded pre-apply recovery, baseline-invalidation-aware activation gate, and the later BlockedError pending-INTENT guard.
+- Real T1 recovery transaction is terminal `ABORTED` generation 9; the original `activation_gate_install` operation is `COMPLETE`.
+- Historical pre-apply invalidated transaction remains terminal `BLOCKED`; its baseline-invalidation record remains `COMMITTED`.
+- Live activation-gate helper blob equals PR #725 source blob `8c37974665c2dc1c66a74c7c187f6ca48932d5bf`.
+- Manager, Home Assistant and Broker remained unchanged during recovery/hotfix closure; product successor cutover did not begin.
+- Therefore this closes the E03 recovery/gate-compatibility incident, but does not close KF-131 live revalidation or successor deployment.
+- Next ONE gate: `N3W_T1_E03_PR725_PARENT_SOURCE_REVIEW_AND_MERGE_READINESS_20261031_01`; main merge remains a separate explicit boundary.
+
+## 2026-10-29 — R10 E03 ACTIVE deadline / busy source repair CLOSED_PASS
+
+- PR #733 exact tested source head: `0d49c5ff991288ef3dba17650414a81f7d8e34b0`; tree `851bb5f2427f945f3a8f8ffa776a708bffdc4032`; stacked on PR #725 head `ff750b3801a282af1667b5fa63481e2333e301b3`.
+- Physical E2E failed with E03 after a clean pre-baseline. The only new ACTIVE attempt is Board D runtime-identity-bound, phase `BOOTSTRAP_ACCEPTED`, pairing-window CLOSED, 47112 absent, and it remained ACTIVE after its absolute expiry.
+- Confirmed root cause: durable ACTIVE creation preceded the only autonomous deadline owner, which previously existed only after the pairing window became OPEN.
+- Final repair: serialize `start()`; arm pre-window absolute deadline immediately after durable ACTIVE creation and before RAM intent activation; exact retry never refreshes the deadline; successful window OPEN hands deadline ownership back to the existing window; reconciliation failures restore a bounded fallback.
+- Independent closure review found and repaired two additional false-PASS paths: timer ownership after intent activation, and reconcile exception dropping deadline ownership.
+- Final `greenhouse-manager CI` run `40874759141`: PASS; full pytest `1486 passed, 1 skipped`; R8 simulated first-registration E2E `8 passed`; lint PASS.
+- Public repository safety, Manager secret ownership, Dynamic Security, private Mosquitto, H3 Stage2B3, M0, H0/H1, isolated/native node-auth and roadmap CI are PASS.
+- Two broad non-blocking workflows were still running at closure observation: M2 board-lab ESP32 compilation after its Manager/unit/contract job had already passed, and C-07 retirement lifecycle; C-07 sources contain no first-registration transaction reference.
+- PR #733 changes no firmware files; Board D reflash is not required for this Manager-only repair.
+- KF-131 records the failure and regression guard.
+- No T1/Board/live mutation, physical retry or merge occurred in this source gate.
+- Next ONE gate: `N3W_SCAN_TRIGGERED_FIRST_PAIRING_R10_E03_SOURCE_REPAIR_TO_PR725_INTEGRATION_REVIEW_AND_MERGE_DECISION_20261029_01`.
+
 ## 2026-10-27 — R5 merged; R6 TLS-bootstrap design/preflight is next
 
 - Executable/source main after R5 merge: `32c4eef68bce48ff7a379381ab0bfad60557ef57`; tree `303378f5cffef4e4f1f71881b1955baed5b7d220`.

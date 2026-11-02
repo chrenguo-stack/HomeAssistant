@@ -357,6 +357,7 @@ class SimpleProductComponent : public Component,
   static constexpr std::size_t kTxCompletionRingSlots = 8;
   static constexpr uint32_t kPairingRetryMs = 5000;
   static constexpr uint32_t kRegistrationPortalRetryMs = 5000;
+  static constexpr uint32_t kRegistrationPortalSuccessGraceMs = 15000;
   static constexpr uint32_t kRecoveryProbeMs = 2000;
   static constexpr uint32_t kRecoveryProbeIntervalMs = 60000;
   static constexpr uint32_t kRecoveryProbeBackoffMaxMs = 480000;
@@ -400,6 +401,7 @@ class SimpleProductComponent : public Component,
   std::atomic<bool> registration_portal_allowed_{false};
   uint64_t next_pairing_attempt_ms_{0};
   uint64_t next_registration_portal_retry_ms_{0};
+  uint64_t registration_portal_success_until_ms_{0};
   uint64_t next_registration_bootstrap_attempt_ms_{0};
   uint64_t next_recovery_probe_ms_{0};
   uint64_t next_relay_restore_attempt_ms_{0};

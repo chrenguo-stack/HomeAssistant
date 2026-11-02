@@ -80,6 +80,9 @@ jobs:
       - name: Test
         run: pytest -q
 
+      - name: N3-W R8 full simulated first-registration E2E
+        run: pytest -q tests/runtime/test_n3w_scan_triggered_registration_r8_e2e.py
+
   n3w-phase3-cross-language:
     needs: scope
     if: needs.scope.outputs.phase3 == 'true'
@@ -117,6 +120,10 @@ jobs:
         run: pytest -q tests/n3w_registration/test_scan_triggered_first_pairing_r6_tls_bootstrap_contract.py
       - name: N3-W scan-triggered first-registration R7 LCD state contracts
         run: pytest -q tests/n3w_registration/test_scan_triggered_first_pairing_r7_lcd_state_contract.py
+      - name: N3-W scan-triggered first-registration R8 E2E safety contracts
+        run: pytest -q tests/n3w_registration/test_scan_triggered_first_pairing_r8_safety_contract.py
+      - name: N3-W scan-triggered first-registration R10 phone UI and LCD contracts
+        run: pytest -q tests/n3w_registration/test_scan_triggered_first_pairing_r10_phone_ui_contract.py
       - name: Build and run R7 registration display controller
         shell: bash
         run: |

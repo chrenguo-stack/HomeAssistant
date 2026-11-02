@@ -119,6 +119,83 @@ def test_failed_firewall_read_is_unknown_stop() -> None:
     )
 
 
+def test_absent_nft_is_not_unknown_when_iptables_views_are_complete() -> None:
+    tool = load_tool()
+    report = sample_report()
+    report["docker"]["networks"] = [
+        {"Name": "bridge"},
+        {"Name": "host"},
+        {"Name": "none"},
+    ]
+    report["docker"]["volumes"] = []
+    report["docker"]["volume_inspect"] = []
+    report["systemd"]["units"] = []
+    report["product_paths"] = []
+    report["firewall"] = [
+        {
+            "command": "iptables -S",
+            "rc": 0,
+            "relevant_lines": ["-N DOCKER-USER", "-A FORWARD -j DOCKER-USER"],
+            "error": "",
+        },
+        {
+            "command": "iptables -t nat -S",
+            "rc": 0,
+            "relevant_lines": [],
+            "error": "",
+        },
+        {
+            "command": "nft list ruleset",
+            "rc": 1,
+            "relevant_lines": [],
+            "error": "sudo: nft: command not found",
+        },
+    ]
+
+    classified = tool._classify(report)
+
+    assert classified["UNKNOWN_STOP"] == []
+    assert any(
+        item["type"] == "firewall_visibility"
+        and item["name"] == "nft list ruleset"
+        and item["reason"] == "optional_backend_absent_iptables_views_complete"
+        for item in classified["PRESERVE_HOST_BASELINE"]
+    )
+
+
+def test_absent_nft_still_stops_when_iptables_visibility_is_incomplete() -> None:
+    tool = load_tool()
+    report = sample_report()
+    report["firewall"] = [
+        {
+            "command": "iptables -S",
+            "rc": 0,
+            "relevant_lines": [],
+            "error": "",
+        },
+        {
+            "command": "iptables -t nat -S",
+            "rc": 1,
+            "relevant_lines": [],
+            "error": "permission denied",
+        },
+        {
+            "command": "nft list ruleset",
+            "rc": 1,
+            "relevant_lines": [],
+            "error": "sudo: nft: command not found",
+        },
+    ]
+
+    classified = tool._classify(report)
+
+    assert any(
+        item["type"] == "firewall_visibility"
+        and item["name"] == "nft list ruleset"
+        for item in classified["UNKNOWN_STOP"]
+    )
+
+
 def test_collect_uses_ssh_n_and_hashes_target(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
