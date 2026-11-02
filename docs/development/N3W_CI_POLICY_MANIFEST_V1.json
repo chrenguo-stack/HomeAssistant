@@ -510,6 +510,16 @@
         "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion.",
         "missing_timeout": "Legacy workflow predates the repository-wide explicit timeout requirement; tracked debt, no silent expansion."
       }
+    },
+    "n3w-t1-core-updater-manager-a-to-b-ci.yml": {
+      "class": "EXACT",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "n3w-t1-core-stack-current-authority-ci.yml": {
+      "class": "EVIDENCE",
+      "draft_policy": "run",
+      "exceptions": {}
     }
   }
 }
