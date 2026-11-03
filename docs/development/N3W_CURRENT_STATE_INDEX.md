@@ -1,3 +1,20 @@
+## 2026-11-03 — R3 re-entry PASS; Board USB readonly identity binding is next
+
+- Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source remains `3539c8f871e2cb63f18462009fa03a5eb36d39fd`.
+- Current/live Manager remains `local/greenhouse-manager:fresh-3539c8f871e2`.
+- Current Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64`, Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted: `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- Fresh R3 re-entry preflight PASS on Manager B.
+- Updater transaction remains `COMMITTED / COMMITTED`; corrected path is `/var/lib/n3w-t1-core-updater/manager-upgrade.json`.
+- Trusted product LAN, registration ingress guard, semantic zero-node and system peer-trust baseline all PASS.
+- Unresolved first-registration count is 0; one terminal replay tombstone remains intentionally preserved.
+- Sensorless firmware artifact `13118775924` remains bound with no firmware source drift to current main.
+- First registration has not started; T1 mutation=false; Board access=false.
+- Next one gate: `N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_BOARD_USB_READONLY_IDENTITY_BINDING_20261103_01`.
+
 ## 2026-11-03 — Manager B live upgrade accepted
 
 - Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
