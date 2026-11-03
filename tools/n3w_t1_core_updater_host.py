@@ -34,6 +34,12 @@ from n3w_t1_core_updater_common import (
     sha256_text,
 )
 
+from n3w_t1_core_updater_v2_common import (
+    COMPONENTS,
+    parse_image_bindings,
+    rewrite_component_env,
+)
+
 
 EXPECTED_LISTENERS = {
     "tcp_8883": 1,
@@ -289,6 +295,37 @@ class LocalHost:
             "listeners": listeners,
         }
 
+    def image_bindings_v2(self) -> dict[str, str]:
+        if COMPOSE_ENV.is_symlink() or not COMPOSE_ENV.is_file():
+            raise UpdaterError("compose_env_invalid")
+        try:
+            return parse_image_bindings(COMPOSE_ENV.read_bytes())
+        except Exception as error:
+            raise UpdaterError("compose_env_v2_bindings_invalid") from error
+
+    def inspect_v2(self) -> dict[str, Any]:
+        snapshot = self.inspect()
+        bindings = self.image_bindings_v2()
+        rendered = snapshot["compose_render"]
+        services = rendered.get("services")
+        if not isinstance(services, dict):
+            raise UpdaterError("compose_services_invalid")
+        for component in COMPONENTS:
+            service = services.get(component)
+            if not isinstance(service, dict):
+                raise UpdaterError(f"{component}_compose_service_missing")
+            if service.get("image") != bindings[component]:
+                raise UpdaterError(f"{component}_compose_env_image_drift")
+            runtime = snapshot["runtime"].get(component)
+            if not isinstance(runtime, dict):
+                raise UpdaterError(f"{component}_runtime_missing")
+            if runtime.get("image_ref") != bindings[component]:
+                raise UpdaterError(f"{component}_runtime_image_drift")
+        return {
+            **snapshot,
+            "image_bindings": bindings,
+        }
+
     def _image_document(self, reference: str) -> dict[str, Any] | None:
         result = self._run(
             ("docker", "image", "inspect", reference),
@@ -439,6 +476,102 @@ class LocalHost:
         if observed != updated:
             raise UpdaterError("compose_env_replace_verify_failed")
         return sha256_bytes(observed)
+
+    def rewrite_component_image(
+        self,
+        component: str,
+        expected: str,
+        replacement: str,
+    ) -> str:
+        if component not in COMPONENTS:
+            raise UpdaterError("component_invalid")
+        if COMPOSE_ENV.is_symlink() or not COMPOSE_ENV.is_file():
+            raise UpdaterError("compose_env_invalid")
+        original = COMPOSE_ENV.read_bytes()
+        try:
+            updated = rewrite_component_env(
+                original,
+                component,
+                expected,
+                replacement,
+            )
+        except Exception as error:
+            raise UpdaterError("component_image_env_rewrite_invalid") from error
+        meta = COMPOSE_ENV.stat()
+        fd, raw = tempfile.mkstemp(
+            prefix=f".{COMPOSE_ENV.name}.",
+            dir=COMPOSE_ENV.parent,
+        )
+        temporary = Path(raw)
+        try:
+            os.fchmod(fd, stat.S_IMODE(meta.st_mode))
+            with os.fdopen(fd, "wb") as stream:
+                stream.write(updated)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.chown(temporary, meta.st_uid, meta.st_gid)
+            os.replace(temporary, COMPOSE_ENV)
+            directory = os.open(
+                COMPOSE_ENV.parent,
+                os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+            )
+            try:
+                os.fsync(directory)
+            finally:
+                os.close(directory)
+        finally:
+            temporary.unlink(missing_ok=True)
+        observed = COMPOSE_ENV.read_bytes()
+        if observed != updated:
+            raise UpdaterError("compose_env_replace_verify_failed")
+        return sha256_bytes(observed)
+
+    def stop_broker(self) -> None:
+        self._run(("systemctl", "stop", BROKER_UNIT), timeout=120)
+        if self._systemctl("is-active", BROKER_UNIT) not in {
+            "inactive",
+            "failed",
+        }:
+            raise UpdaterError("broker_not_inactive")
+        if self._running_count("broker"):
+            raise UpdaterError("broker_container_still_running")
+
+    def wait_broker(self, timeout: int = 120) -> None:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if (
+                self._systemctl("is-active", BROKER_UNIT) == "active"
+                and self._listener_count("tcp", 8883) == 1
+            ):
+                try:
+                    self._container_id("broker")
+                    return
+                except UpdaterError:
+                    pass
+            time.sleep(2)
+        raise UpdaterError("broker_readiness_timeout")
+
+    def start_broker(self) -> None:
+        self._run(("systemctl", "start", BROKER_UNIT), timeout=120)
+        self.wait_broker()
+
+    def quiesce_component(self, component: str) -> None:
+        if component not in COMPONENTS:
+            raise UpdaterError("component_invalid")
+        if component == "broker":
+            self.stop_services()
+            self.stop_broker()
+            return
+        self.stop_services()
+
+    def activate_component(self, component: str) -> None:
+        if component not in COMPONENTS:
+            raise UpdaterError("component_invalid")
+        if component == "broker":
+            self.start_broker()
+            self.start_services()
+            return
+        self.start_services()
 
     def broker_continuity(self, baseline: dict[str, Any]) -> None:
         current = self._runtime("broker")
