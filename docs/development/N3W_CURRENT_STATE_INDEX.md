@@ -1,5 +1,12 @@
 ## 2026-11-03 — V2 R2 reconciliation CLOSED_PASS; repository cleanup and next A-to-B preauthorization
 
+- Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source remains `3539c8f871e2cb63f18462009fa03a5eb36d39fd`.
+- Current repository Manager target remains `local/greenhouse-manager:fresh-3539c8f871e2`.
+- Current repository Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64`, Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Repository authority remains `LIVE_DEPLOYMENT_STATE=NOT_YET_APPLIED`; live upgrade pending.
 - PR #757 is merged as `abd42c326e54902a81b31db09ec9a014235d9c78`.
 - Exact Updater V2 recovery completed successfully from `FAILED_EMERGENCY / ROLLBACK_FAILED`.
 - Durable transaction is now terminal `ROLLED_BACK / RECOVERY_COMPLETE_FAILED_EMERGENCY`.
