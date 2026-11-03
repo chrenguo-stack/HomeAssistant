@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import stat
 import subprocess
 import tempfile
@@ -46,6 +47,14 @@ EXPECTED_LISTENERS = {
     "tcp_47110": 1,
     "udp_47111": 1,
     "tcp_47112": 0,
+}
+
+CERT_LIFECYCLE_UNIT = "n3wfc4-broker-certificate-lifecycle.service"
+MQTT_IDENTITY_FILES = {
+    "manager": Path("/opt/greenhouse-secrets/mqtt/manager/identity.json"),
+    "homeassistant": Path(
+        "/opt/greenhouse-secrets/mqtt/homeassistant/identity.json"
+    ),
 }
 
 
@@ -308,6 +317,88 @@ class LocalHost:
             raise UpdaterError("component_invalid")
         return self.image_bindings_v2()[component]
 
+    def _mqtt_authenticated(self, service: str) -> bool:
+        if service not in MQTT_IDENTITY_FILES:
+            raise UpdaterError("mqtt_service_invalid")
+        path = MQTT_IDENTITY_FILES[service]
+        if path.is_symlink() or not path.is_file():
+            raise UpdaterError(f"{service}_mqtt_identity_invalid")
+        try:
+            identity = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as error:
+            raise UpdaterError(f"{service}_mqtt_identity_invalid") from error
+        if not isinstance(identity, dict):
+            raise UpdaterError(f"{service}_mqtt_identity_invalid")
+        client_id = identity.get("client_id")
+        username = identity.get("username")
+        if not all(
+            isinstance(value, str)
+            and re.fullmatch(r"[A-Za-z0-9_.:-]+", value)
+            for value in (client_id, username)
+        ):
+            raise UpdaterError(f"{service}_mqtt_identity_invalid")
+
+        broker = self._runtime("broker")
+        logs = self._run(
+            (
+                "docker",
+                "logs",
+                "--timestamps",
+                "--since",
+                broker["started_at"],
+                "--tail",
+                "10000",
+                broker["container_id"],
+            ),
+            timeout=30,
+        ).stdout.decode(errors="replace")
+        lines = logs.splitlines()
+        if len(lines) >= 10000:
+            raise UpdaterError("broker_log_coverage_insufficient")
+        connected = re.compile(
+            r"New client connected from .+ as "
+            + re.escape(client_id)
+            + r" \(p5, c[01], k[0-9]+, u'"
+            + re.escape(username)
+            + r"'\)\."
+        )
+        any_connection = re.compile(
+            r"New client connected from .+ as "
+            + re.escape(client_id)
+            + r" \("
+        )
+        terminal = re.compile(
+            r"(?:Client|client) "
+            + re.escape(client_id)
+            + r"(?: \[[^\]\r\n]+\] disconnected(?:\.|:)"
+            + r"| disconnected\b| closed its connection\b"
+            + r"| already connected, closing old connection\b"
+            + r"| has exceeded timeout, disconnecting\b)"
+        )
+        current = False
+        for line in lines:
+            if any_connection.search(line):
+                if connected.search(line) is None:
+                    raise UpdaterError(
+                        f"{service}_mqtt_authenticated_identity_mismatch"
+                    )
+                current = True
+                continue
+            if terminal.search(line):
+                current = False
+        return current
+
+    def assert_mutation_safe(self, component: str) -> None:
+        if component not in COMPONENTS:
+            raise UpdaterError("component_invalid")
+        if self._listener_count("tcp", 47112) != 0:
+            raise UpdaterError("pairing_or_registration_active")
+        if (
+            component == "broker"
+            and self._systemctl("is-active", CERT_LIFECYCLE_UNIT) == "active"
+        ):
+            raise UpdaterError("broker_certificate_lifecycle_active")
+
     def inspect_v2(self) -> dict[str, Any]:
         snapshot = self.inspect()
         bindings = self.image_bindings_v2()
@@ -326,9 +417,16 @@ class LocalHost:
                 raise UpdaterError(f"{component}_runtime_missing")
             if runtime.get("image_ref") != bindings[component]:
                 raise UpdaterError(f"{component}_runtime_image_drift")
+        authenticated = {
+            service: self._mqtt_authenticated(service)
+            for service in ("manager", "homeassistant")
+        }
+        if not all(authenticated.values()):
+            raise UpdaterError("mqtt_current_authentication_missing")
         return {
             **snapshot,
             "image_bindings": bindings,
+            "mqtt_authenticated": authenticated,
         }
 
     def _image_document(self, reference: str) -> dict[str, Any] | None:
