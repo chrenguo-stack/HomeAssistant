@@ -1,3 +1,42 @@
+## Latest authority — 2026-11-04 U0 real T1 read-only Baseline A CLOSED_PASS; U1 preparation next
+
+```text
+AUTHORITY_STATE=U0_REAL_T1_READONLY_BASELINE_A_CLOSED_PASS_U1_PREPARATION_READY
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+BASELINE_A_MANIFEST=infra/n3w-t1/clean-reference/u0-upgrade-baseline-a-20261104.json
+BASELINE_A_SCHEMA=gh.n3w-t1-core-updater-baseline/1
+BASELINE_A_SHA256=a791377083e76f765ddf978c09025674eda3586d33892e4b609a814706bdfbbc
+BASELINE_A_BYTES=2275
+A1_CLASSIFICATION_SHA256=e664ced300ea2bb743b116550b7a3e22237e7f556f54400a060eef30671d30e7
+
+MANAGER_IMAGE=local/greenhouse-manager:fresh-b863ddd95909
+HOMEASSISTANT_IMAGE=local/n3w-homeassistant:2026.10.0-0c73235a
+BROKER_IMAGE=local/n3w-mosquitto:2.1.2-3184566d
+PLATFORM_ALL=linux/arm64
+MANAGER_BINDING_MODE=dynamic
+HOMEASSISTANT_BINDING_MODE=legacy_static
+BROKER_BINDING_MODE=legacy_static
+
+U0_PHYSICAL_READ_COUNT=2
+U0_READS_BYTE_IDENTICAL=true
+U0_RESULT=CLOSED_PASS
+T1_PRODUCT_MUTATION=false
+SERVICE_RESTART=false
+UPDATER_TRANSACTION_CREATED=false
+BOARD_ACCESS=false
+PR774_MERGE=false
+
+U1_PREPARATION_READY=true
+U1_LIVE_APPLY_AUTHORIZED=false
+NEXT_ONE_GATE=N3W_T1_CORE_UPDATER_U1_MANAGER_A_TO_B_PREPARATION_20261104_01
+```
+
+U0 froze the real clean-reference T1_B as explicit Baseline A after two byte-identical read-only captures. No product/runtime mutation occurred. Manager is dynamically bound and eligible for the next Manager-focused upgrade preparation. Home Assistant and Broker remain healthy but use `legacy_static` live bindings; that is valid Baseline A state but they require a separate template-convergence gate before future per-module image mutation.
+
+Authority:
+- `infra/n3w-t1/clean-reference/u0-upgrade-baseline-a-20261104.json`
+- `docs/development/N3W_T1_CORE_UPDATER_U0_REAL_T1_READONLY_BASELINE_CLOSURE_20261104.md`
+
 ## Latest authority — 2026-11-03 A2 per-module upgrade architecture CLOSED_PASS; source implementation next, STOP
 
 ```text
