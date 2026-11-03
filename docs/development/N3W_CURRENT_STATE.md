@@ -1,35 +1,24 @@
-## 2026-11-03 — R3 exact factory write/verify PASS; Captive Portal Wi-Fi setup next
+## 2026-11-03 — R3 first registration accepted; KF-139 repaired Manager current authority
 CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+AUTHORITY_SCHEMA=gh.n3w-t1-core-stack-current-authority/2
 
-CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=3539c8f871e2cb63f18462009fa03a5eb36d39fd
-CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-3539c8f871e2
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=b863ddd959090ca139af76bd68dbef31d773e6de
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-b863ddd95909
 CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
 CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
 HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
 HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
 
-CURRENT_REPOSITORY_MAIN=c93fc3561ecee6dda13306804a3168a9c12ffe3a
 LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
-LIVE_MANAGER=local/greenhouse-manager:fresh-3539c8f871e2
+LIVE_MANAGER=local/greenhouse-manager:fresh-b863ddd95909
+LIVE_MANAGER_RUNTIME_IMAGE_ID=sha256:7c6133d87b9d378acc06ab20813b95d2e27d952f958f3ad33c7de3a4f6e9205e
+KF139=OVERALL_CLOSED_PASS
+R3_FIRST_REGISTRATION=PASS
+CREDENTIAL_LIFECYCLE_PRIVATE_DATABASE_GATE=PASS
+PAIRING_WINDOW_STATE=CLOSED
+PAIRING_WINDOW_CLOSE_REASON=committed
 
-R3_EXACT_FACTORY_WRITE_VERIFY=PASS
-R3_ARTIFACT_ID=13203682791
-R3_FACTORY_SHA256=9ccc469898832bda612634aef64ca946631e81574076be504ef864aaee56d8f9
-R3_TARGET_BLOB=6b37be9e3f281b8abcdf4443103ccb65f7920cd2
-R3_BATTERY_LOW_THRESHOLD=-1.00V
-R3_PRODUCTION_ELIGIBLE=false
-
-BOARD_CHIP=ESP32-C6
-BOARD_REVISION=v0.2
-BOARD_FLASH_SIZE=8MB
-FLASH_MUTATION=true
-NVS_ERASED=true
-T1_MUTATION=false
-FIRST_REGISTRATION_STARTED=false
-
-NEXT_ONE_GATE=N3W_T1_CORE_STACK_R3_SENSORLESS_CAPTIVE_PORTAL_WIFI_SETUP_AND_IDLE_QR_20261103_01
-
-
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_R3_KF139_POST_MERGE_MAIN_READONLY_REBIND_20261103_01
 
 ## 2026-11-03 — R3 first registration CLOSED_PASS; KF-139 overall CLOSED_PASS
 
@@ -71,15 +60,17 @@ SOURCE_REPAIR_PR=769
 EXECUTION_PR=770
 SOURCE_REPAIR_HEAD=b863ddd959090ca139af76bd68dbef31d773e6de
 EXECUTION_HEAD=7dc77ff8e839613242819aaf35348dac05c88568
-MERGE=false
+STACKED_MERGE_AUTHORIZED=true
 
-CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=3539c8f871e2cb63f18462009fa03a5eb36d39fd
-CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-3539c8f871e2
-LIVE_RUNTIME_AHEAD_OF_CANONICAL_REPOSITORY_AUTHORITY=true
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=b863ddd959090ca139af76bd68dbef31d773e6de
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-b863ddd95909
+LIVE_RUNTIME_AHEAD_OF_CANONICAL_REPOSITORY_AUTHORITY=false
+AUTHORITY_SCHEMA=gh.n3w-t1-core-stack-current-authority/2
+AUTHORITY_CONVERGENCE=PASS_IN_AUTHORIZED_STACK
 
-NEXT_ONE_GATE=N3W_T1_CORE_STACK_R3_KF139_POST_CLOSURE_SOURCE_REVIEW_AND_MERGE_READINESS_20261103_01
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_R3_KF139_POST_MERGE_MAIN_READONLY_REBIND_20261103_01
 
-The repaired Manager was proven on real T1 in two stages: isolated private DB creation produced mode 0600 and passed the existing private-database gate; then the exact Manager was deployed through the production updater, the live empty credential DB was repaired 0644 -> 0600, and one clean post-repair first registration committed successfully. The repository canonical Manager authority remains on 3539c8f until a separate source review / merge / authority-convergence gate; this closure does not imply PR #769 or #770 was merged.
+The repaired Manager was proven on real T1 in two stages: isolated private DB creation produced mode 0600 and passed the existing private-database gate; then the exact Manager was deployed through the production updater, the live empty credential DB was repaired 0644 -> 0600, and one clean post-repair first registration committed successfully. The authorized convergence stack now binds canonical repository authority to the same b863 repaired Manager while preserving the historical Clean Reference separately from the immediate 3539 predecessor.
 
 
 ## 2026-11-03 — R3 E02 root cause proven; KF-139 source repair in progress
