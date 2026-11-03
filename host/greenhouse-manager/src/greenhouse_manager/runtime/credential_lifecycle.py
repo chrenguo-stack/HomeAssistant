@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sqlite3
 import threading
 from dataclasses import dataclass
@@ -61,11 +62,31 @@ class CredentialLifecycleStore:
                 check_same_thread=False,
             )
         else:
-            self._connection = sqlite3.connect(
-                str(database),
-                isolation_level="IMMEDIATE",
-                check_same_thread=False,
-            )
+            created = False
+            descriptor: int | None = None
+            try:
+                descriptor = os.open(
+                    database,
+                    os.O_RDWR | os.O_CREAT | os.O_EXCL,
+                    0o600,
+                )
+                os.fchmod(descriptor, 0o600)
+                created = True
+            except FileExistsError:
+                pass
+            finally:
+                if descriptor is not None:
+                    os.close(descriptor)
+            try:
+                self._connection = sqlite3.connect(
+                    str(database),
+                    isolation_level="IMMEDIATE",
+                    check_same_thread=False,
+                )
+            except Exception:
+                if created:
+                    database.unlink(missing_ok=True)
+                raise
         self._connection.row_factory = sqlite3.Row
         if read_only:
             try:
