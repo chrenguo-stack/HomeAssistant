@@ -1,3 +1,10 @@
+### 2026-11-03 KF-138 closure — CLOSED_PASS
+
+Manager B semantic-zero-node recheck PASS. The prior STOP was caused by an over-strict acceptance oracle that required the historical first-registration ledger to be empty. The retained row is `EXPIRED / TERMINAL / COMPLETE`, unresolved count is 0, and current registration, node lease, credential, pairing-session, replay and relay-active state are all zero. Terminal COMPLETE rows remain replay tombstones and must not be deleted. Manager B runtime, Home Assistant continuity, Broker continuity, listener contract and systemd health all PASS.
+
+### 2026-11-03 KF-137 live closure — CLOSED_PASS
+
+The repaired updater completed the real Manager A-to-B apply with transaction `COMMITTED / COMMITTED`, `recovery_required=false`, exact Manager B runtime binding, unchanged Home Assistant image, unchanged Broker runtime and exact listener contract. The repaired stop-state handling is therefore source- and live-validated.
 ### 2026-11-03 KF-138 — Manager B post-upgrade acceptance falsely equated zero-node with empty historical ledger
 
 | ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
