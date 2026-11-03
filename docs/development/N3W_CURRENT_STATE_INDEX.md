@@ -1,3 +1,15 @@
+## 2026-11-03 — Manager B is live; independent post-upgrade acceptance is next
+
+- Repaired A→B apply completed PASS with transaction `COMMITTED / COMMITTED` and `recovery_required=false`.
+- Live Manager is now `local/greenhouse-manager:fresh-3539c8f871e2`.
+- T1-local verified Manager runtime image ID is `sha256:9dd128f0700840d46d300f9a434e2d3fbf5abba7abbd03c7dd432e9f497be035`.
+- Home Assistant image remained unchanged.
+- Broker runtime identity remained unchanged.
+- Listener contract remained exact.
+- No second apply, explicit rollback or Board access occurred.
+- Canonical repository authority intentionally remains `LIVE_DEPLOYMENT_STATE=NOT_YET_APPLIED` until independent Manager B post-upgrade acceptance.
+- Next one gate: `N3W_T1_CORE_STACK_MANAGER_B_POST_UPGRADE_LIVE_ACCEPTANCE_20261103_01`.
+
 ## 2026-11-03 — KF-137 repaired updater ready; one new A→B apply is authorized
 
 - Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
