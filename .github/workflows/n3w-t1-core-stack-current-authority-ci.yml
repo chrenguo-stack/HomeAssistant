@@ -5,6 +5,7 @@ on:
     paths:
       - "infra/n3w-t1/production/t1-core-stack-current.json"
       - "infra/n3w-t1/upgrades/manager-3539c8f871e2.json"
+      - "infra/n3w-t1/upgrades/manager-b863ddd95909.json"
       - "infra/n3w-t1/production/docker-compose.fresh.yml"
       - "tools/n3w_t1_fresh_product_bootstrap.py"
       - "tools/n3w_t1_core_stack_current_authority_check.py"
@@ -65,12 +66,16 @@ jobs:
               Path("infra/n3w-t1/production/t1-core-stack-current.json")
               .read_text(encoding="utf-8")
           )
+          assert authority["schema"] == "gh.n3w-t1-core-stack-current-authority/2"
           assert authority["authority_state"] == "CURRENT_STACK_LIVE_ACCEPTED"
           assert authority["live_deployment"]["state"] == "APPLIED_ACCEPTED"
           assert authority["live_deployment"]["transaction_status"] == "COMMITTED"
           assert authority["live_deployment"]["post_upgrade_acceptance"] == "PASS"
-          assert authority["live_deployment"]["semantic_zero_node"] == "PASS"
-          assert authority["live_deployment"]["unresolved_first_registration_count"] == 0
+          assert authority["live_deployment"]["kf139_closure"] == "CLOSED_PASS"
+          assert authority["live_deployment"]["first_registration_acceptance"] == "PASS"
+          assert authority["live_deployment"]["credential_lifecycle_private_database_gate"] == "PASS"
+          assert authority["live_deployment"]["pairing_window_state"] == "CLOSED"
+          assert authority["live_deployment"]["pairing_window_close_reason"] == "committed"
           assert authority["mutation_scope"] == {
               "manager": True,
               "homeassistant_image": False,
