@@ -1,3 +1,20 @@
+## 2026-11-04 — U0 real T1 read-only Baseline A CLOSED_PASS; U1 preparation ready
+
+- U0 gate `N3W_T1_CORE_UPDATER_U0_REAL_T1_READONLY_BASELINE_20261104_01` is `CLOSED_PASS`.
+- Frozen machine authority: `infra/n3w-t1/clean-reference/u0-upgrade-baseline-a-20261104.json`.
+- Baseline A SHA256: `a791377083e76f765ddf978c09025674eda3586d33892e4b609a814706bdfbbc`; exact size 2275 bytes.
+- Two independent live T1_B captures were both 2275 bytes, had the same SHA256, and `cmp` returned 0.
+- Stack images: Manager `local/greenhouse-manager:fresh-b863ddd95909`; HA `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- All three platforms are `linux/arm64`.
+- Image binding modes: Manager `dynamic`; Home Assistant `legacy_static`; Broker `legacy_static`.
+- Runtime contracts: Manager `ad1d38f6191c0c00afcfbee3ca489d5f95a86fefcb17976c273597c04609d6e1`; HA `bc69586866551709110435ea25bfdff9d41bc8e366f6ace8d4b7bba3db5f6868`; Broker `b4e002c7eb494812629b1a99d7e53b712d5f2239460c99334556976b6fdad492`.
+- A1 classification SHA remains `e664ced300ea2bb743b116550b7a3e22237e7f556f54400a060eef30671d30e7`.
+- No product config/state change, service restart, image mutation, transaction creation, board mutation or merge occurred.
+- HA/Broker legacy-static binding is accepted Baseline A state, not a U0 failure; separate template convergence is required before their future per-module image mutation.
+- Closure: `docs/development/N3W_T1_CORE_UPDATER_U0_REAL_T1_READONLY_BASELINE_CLOSURE_20261104.md`.
+- Next one gate: `N3W_T1_CORE_UPDATER_U1_MANAGER_A_TO_B_PREPARATION_20261104_01`.
+- U1 preparation may proceed; U1 live apply remains unauthorized.
+
 ## 2026-11-03 — A2 per-module upgrade architecture CLOSED_PASS; source implementation required before U0
 
 - Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
