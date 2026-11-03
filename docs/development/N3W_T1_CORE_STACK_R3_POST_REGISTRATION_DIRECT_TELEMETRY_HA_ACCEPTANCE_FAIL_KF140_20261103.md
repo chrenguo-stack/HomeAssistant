@@ -121,13 +121,19 @@ SEQ_35_DIRECT_MQTT_SUBMIT_CALL_RETURNED_SUCCESS=true
 
 The first “held” line is normal FIFO admission followed approximately 6 ms later by Direct submit and queue removal. It is not a stuck-queue failure.
 
-Time binding:
+Time binding clarification:
+
+ESPHome 2026.4.3 `esphome logs` does not preserve a device-origin wall-clock timestamp in this prefix. The CLI adds the prefix when each API log message arrives by calling `datetime.now().astimezone()` on the operator host.
 
 ```text
-BOARD_LOCAL_TIMEZONE=Asia/Singapore
-BOARD_SUBMIT_LOCAL=2026-11-03T20:52:58+08:00
-BOARD_SUBMIT_UTC=2026-11-03T12:52:58Z
+LOG_PREFIX_AUTHORITY=OPERATOR_MAC_RECEIPT_WALL_CLOCK
+OPERATOR_MAC_TIMEZONE_AT_CAPTURE=Asia/Singapore
+SEQ35_LOG_RECEIVED_LOCAL=2026-11-03T20:52:58+08:00
+SEQ35_LOG_RECEIVED_UTC=2026-11-03T12:52:58Z
+DEVICE_ORIGIN_WALL_CLOCK_TIMESTAMP=NOT_PROVEN
 ```
+
+Therefore the UTC conversion remains valid for the host-observed receive window, but the timestamp must not be described as a device-generated board timestamp.
 
 ## 6. Same-window downstream correlation
 
