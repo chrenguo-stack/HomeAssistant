@@ -108,6 +108,21 @@ def test_current_state_cannot_claim_live_deployment():
         )
 
 
+def test_applied_state_requires_semantic_zero_node_evidence():
+    authority, target, compose, bootstrap, state, index = documents()
+    authority = copy.deepcopy(authority)
+    authority["live_deployment"]["semantic_zero_node"] = "PENDING"
+    with pytest.raises(check.AuthorityError, match="live_semantic_zero_node_invalid"):
+        check.validate_documents(
+            authority,
+            target,
+            compose,
+            bootstrap,
+            state,
+            index,
+        )
+
+
 def test_legacy_static_compose_cannot_be_promoted_silently():
     authority, target, compose, bootstrap, state, index = documents()
     authority = copy.deepcopy(authority)
