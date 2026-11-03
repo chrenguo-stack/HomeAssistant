@@ -1,0 +1,565 @@
+{
+  "canonical_payload_sha256": "e664ced300ea2bb743b116550b7a3e22237e7f556f54400a060eef30671d30e7",
+  "canonicalization": "SHA256 of UTF-8 JSON payload with keys recursively sorted, separators=(',',':'), ensure_ascii=false; digest covers payload only",
+  "payload": {
+    "schema": "gh.n3w-t1-core-stack-a1-stable-invariant-classification/1",
+    "gate": "N3W_T1_CORE_STACK_A1_STABLE_INVARIANT_CLASSIFICATION_20261103_01",
+    "source_authority": {
+      "pr_773_input_head": "8feb62f674fd4da4c24c581da888b5ff4e79646c",
+      "r2_reference_sha256": "89da2a2b2cc1ce0fa024c3c45e24a71f09ba05e0e0cadbd67dd6387291239747",
+      "r3_reference_sha256": "e09139564280c700bc02b2e16360c511f780f7da7817f0d9bf0a22ff59dfcceb",
+      "r3_normalized_delta_sha256": "0d2ade72c9dbdc8299cc09754ed87768a02762244447c619d007951e9a522895",
+      "current_product_source": "b863ddd959090ca139af76bd68dbef31d773e6de",
+      "historical_manager": "local/greenhouse-manager:fresh-24382caae4a1",
+      "current_manager": "local/greenhouse-manager:fresh-b863ddd95909"
+    },
+    "classification_contract": {
+      "HARD_STABLE_INVARIANT": "Exact/per-instance/version-bound value is stable through healthy normal operation and its unexpected change creates a concrete upgrade-safety or compatibility risk. Mismatch stops mutation until an explicit supported migration/version transition is selected.",
+      "SOFT_RUNTIME_CHECK": "Do not require historical equality. Evaluate a semantic predicate/range/supported set. An unsafe result may stop or defer mutation, but a benign value change is allowed.",
+      "DIAGNOSTIC_ONLY": "Collect/retain for troubleshooting or evidence correlation; never block an upgrade by this field alone.",
+      "REMOVE": "Exclude from the future A2 updater gate/normal observer because it is historical-only, redundant, or an obsolete aggregate. Frozen historical evidence remains unchanged."
+    },
+    "counts": {
+      "reference_leaf_field_count": 150,
+      "refined_field_pattern_count": 58,
+      "HARD_STABLE_INVARIANT": 32,
+      "SOFT_RUNTIME_CHECK": 40,
+      "DIAGNOSTIC_ONLY": 67,
+      "REMOVE": 11
+    },
+    "principles": {
+      "hard_is_not_global_forever": true,
+      "hard_version_identity_is_baseline_or_target_bound": true,
+      "historical_gap_does_not_force_remove": true,
+      "runtime_drift_does_not_force_diagnostic": true,
+      "whole_historical_snapshot_equality_forbidden": true,
+      "a2_default_scope": "PER_MODULE",
+      "live_t1_access_required": false,
+      "board_access_required": false
+    },
+    "entries": [
+      {
+        "field_pattern": "stable_contracts.authority.product_source_head",
+        "leaf_count": 1,
+        "owner_module": "core-stack",
+        "comparability": "VERSION_AXIS_DRIFT",
+        "classification": "DIAGNOSTIC_ONLY",
+        "a2_behavior": "OBSERVE_ONLY",
+        "reason": "Repository source head is useful provenance, but docs/tools-only commits can change it without changing the deployed product. Gate the actual approved image/runtime contract instead."
+      },
+      {
+        "field_pattern": "stable_contracts.authority.r2a_control_head",
+        "leaf_count": 1,
+        "owner_module": "clean-reference",
+        "comparability": "DIRECTLY_COMPARABLE",
+        "classification": "REMOVE",
+        "a2_behavior": "DO_NOT_COLLECT_FOR_UPDATER_GATE",
+        "reason": "R2A control-plane head is historical experiment provenance, not a live product contract. Preserve it only in frozen reference evidence."
+      },
+      {
+        "field_pattern": "stable_contracts.authority.r2b_control_head",
+        "leaf_count": 1,
+        "owner_module": "clean-reference",
+        "comparability": "DIRECTLY_COMPARABLE",
+        "classification": "REMOVE",
+        "a2_behavior": "DO_NOT_COLLECT_FOR_UPDATER_GATE",
+        "reason": "R2B control-plane head is historical experiment provenance, not a live product contract. Preserve it only in frozen reference evidence."
+      },
+      {
+        "field_pattern": "stable_contracts.authority.r2a_transaction_sha256",
+        "leaf_count": 1,
+        "owner_module": "clean-reference",
+        "comparability": "DIRECTLY_COMPARABLE",
+        "classification": "REMOVE",
+        "a2_behavior": "DO_NOT_COLLECT_FOR_UPDATER_GATE",
+        "reason": "Historical R2A transaction bytes must not become a permanent runtime gate after the transaction is terminal and archived."
+      },
+      {
+        "field_pattern": "stable_contracts.authority.r2b_transaction_sha256",
+        "leaf_count": 1,
+        "owner_module": "clean-reference",
+        "comparability": "HISTORICAL_REFERENCE_GAP",
+        "classification": "REMOVE",
+        "a2_behavior": "DO_NOT_COLLECT_FOR_UPDATER_GATE",
+        "reason": "Historical R2B transaction bytes are not a current product invariant; the public gap must not trigger destructive recreation or future upgrade blocking."
+      },
+      {
+        "field_pattern": "stable_contracts.component_identity.broker.image",
+        "leaf_count": 1,
+        "owner_module": "broker",
+        "comparability": "DIRECTLY_COMPARABLE",
+        "classification": "HARD_STABLE_INVARIANT",
+        "a2_behavior": "VERSION_BOUND_EXACT_BINDING",
+        "reason": "The approved Broker image is part of the module identity. An unexpected image means the updater cannot prove which code/config contract it is about to mutate."
+      },
+      {
+        "field_pattern": "stable_contracts.component_identity.broker.platform",
+        "leaf_count": 1,
+        "owner_module": "broker",
+        "comparability": "DIRECTLY_COMPARABLE",
+        "classification": "HARD_STABLE_INVARIANT",
+        "a2_behavior": "EXACT_PLATFORM_BINDING",
+        "reason": "The production artifact is built for the approved platform. A platform mismatch can make image execution or rollback unsafe."
+      },
+      {
+        "field_pattern": "stable_contracts.component_identity.broker.runtime_contract_sha256",
+        "leaf_count": 1,
+        "owner_module": "broker",
+        "comparability": "DIRECTLY_COMPARABLE",
+        "classification": "HARD_STABLE_INVARIANT",
+        "a2_behavior": "VERSION_BOUND_EXACT_BINDING",
+        "reason": "This binds the Broker launch contract such as user, network mode, mounts, security options and port bindings. Silent drift can weaken security or break persistence/listener behavior."
+      },
+      {
+        "field_pattern": "stable_contracts.component_identity.homeassistant.image",
+        "leaf_count": 1,
+        "owner_module": "homeassistant",
+        "comparability": "DIRECTLY_COMPARABLE",
+        "classification": "HARD_STABLE_INVARIANT",
+        "a2_behavior": "VERSION_BOUND_EXACT_BINDING",
+        "reason": "The approved Home Assistant image is a module identity input. Unexpected code means compatibility and rollback assumptions are no longer proven."
+      },
+      {
+        "field_pattern": "stable_contracts.component_identity.homeassistant.platform",
+        "leaf_count": 1,
+        "owner_module": "homeassistant",
+        "comparability": "DIRECTLY_COMPARABLE",
+        "classification": "HARD_STABLE_INVARIANT",
+        "a2_behavior": "EXACT_PLATFORM_BINDING",
+        "reason": "Home Assistant must run on the supported production platform; a mismatch invalidates the frozen artifact/runtime assumptions."
+      },
+      {
+        "field_pattern": "stable_contracts.component_identity.homeassistant.runtime_contract_sha256",
+        "leaf_count": 1,
+        "owner_module": "homeassistant",
+        "comparability": "DIRECTLY_COMPARABLE",
+        "classification": "HARD_STABLE_INVARIANT",
+        "a2_behavior": "VERSION_BOUND_EXACT_BINDING",
+        "reason": "The runtime contract binds mounts, network and security properties that protect /config persistence and MQTT/HTTP behavior."
+      },
+      {
+        "field_pattern": "stable_contracts.component_identity.manager.image",
+        "leaf_count": 1,
+        "owner_module": "manager",
+        "comparability": "VERSION_AXIS_DRIFT",
+        "classification": "HARD_STABLE_INVARIANT",
+        "a2_behavior": "VERSION_BOUND_EXACT_BINDING",
+        "reason": "Manager image identity must be explicit for each baseline/target. The R3 A->b863 change proves the value may change only through an authorized version transition, not ordinary runtime drift."
+      },
+      {
+        "field_pattern": "stable_contracts.component_identity.manager.platform",
+        "leaf_count": 1,
+        "owner_module": "manager",
+        "comparability": "DIRECTLY_COMPARABLE",
+        "classification": "HARD_STABLE_INVARIANT",
+        "a2_behavior": "EXACT_PLATFORM_BINDING",
+        "reason": "Manager artifact compatibility depends on the supported platform; mismatch makes execution and rollback assumptions unsafe."
+      },
+      {
+        "field_pattern": "stable_contracts.component_identity.manager.runtime_contract_sha256",
+        "leaf_count": 1,
+        "owner_module": "manager",
+        "comparability": "VERSION_AXIS_DRIFT",
+        "classification": "HARD_STABLE_INVARIANT",
+        "a2_behavior": "VERSION_BOUND_EXACT_BINDING",
+        "reason": "Manager mounts, host-network use, runtime user and security settings are part of the supported module contract. Silent drift can break MQTT, persistence or credential ownership."
+      },
+      {
+        "field_pattern": "stable_contracts.fixed_config_sha256./etc/n3wfc4/docker-compose.yml",
+        "leaf_count": 1,
+        "owner_module": "core-stack",
+        "comparability": "DIRECTLY_COMPARABLE",
+        "classification": "DIAGNOSTIC_ONLY",
+        "a2_behavior": "OBSERVE_ONLY",
+        "reason": "A whole-Compose byte hash crosses module boundaries and would over-couple independent upgrades. A2 should gate each module by its runtime/config contract instead."
+      },
+      {
+        "field_pattern": "stable_contracts.fixed_config_sha256./opt/HomeAssistant/infra/n3w-t1/broker/mosquitto.conf",
+        "leaf_count": 1,
+        "owner_module": "broker",
+        "comparability": "DIRECTLY_COMPARABLE",
+        "classification": "HARD_STABLE_INVARIANT",
+        "a2_behavior": "VERSION_BOUND_EXACT_BINDING",
+        "reason": "The Broker fixed configuration defines listener, TLS and Dynamic Security behavior. Unexpected byte drift can change exposure or authentication semantics."
+      },
+      {
+        "field_pattern": "stable_contracts.fixed_config_sha256./opt/HomeAssistant/infra/n3w-t1/production/homeassistant-configuration.yaml",
+        "leaf_count": 1,
+        "owner_module": "homeassistant",
+        "comparability": "DIRECTLY_COMPARABLE",
+        "classification": "HARD_STABLE_INVARIANT",
+        "a2_behavior": "VERSION_BOUND_EXACT_BINDING",
+        "reason": "The fixed N3-W Home Assistant configuration is part of the supported integration contract; unplanned drift can break MQTT/bootstrap behavior."
+      },
+      {
+        "field_pattern": "stable_contracts.custom_component_tree_sha256",
+        "leaf_count": 1,
+        "owner_module": "homeassistant",
+        "comparability": "DIRECTLY_COMPARABLE",
+        "classification": "HARD_STABLE_INVARIANT",
+        "a2_behavior": "VERSION_BOUND_EXACT_BINDING",
+        "reason": "n3w_mqtt_bootstrap code is part of the Home Assistant product integration. Unexpected tree drift changes product behavior without a declared HA/module version transition."
+      },
+      {
+        "field_pattern": "stable_contracts.systemd_unit_sha256.*",
+        "leaf_count": 7,
+        "owner_module": "host-runtime",
+        "comparability": "HISTORICAL_REFERENCE_GAP",
+        "classification": "DIAGNOSTIC_ONLY",
+        "a2_behavior": "OBSERVE_ONLY",
+        "reason": "Exact unit-file bytes belong to the host/operations layer, not T1_Core_Stack module identity. A2 should check required unit semantics/state, not exact historical file hashes."
+      },
+      {
+        "field_pattern": "stable_contracts.persistent_path_metadata.*.{uid,gid,type}",
+        "leaf_count": 12,
+        "owner_module": "persistent-state",
+        "comparability": "HISTORICAL_REFERENCE_GAP",
+        "classification": "HARD_STABLE_INVARIANT",
+        "a2_behavior": "PER_INSTANCE_EXACT_OR_DECLARED_MIGRATION",
+        "reason": "Persistent paths must remain the expected object type and be owned by the service identity that must read/write them. Unexpected ownership/type drift can cause data loss, startup failure or unsafe writes."
+      },
+      {
+        "field_pattern": "stable_contracts.persistent_path_metadata.*.mode",
+        "leaf_count": 4,
+        "owner_module": "persistent-state",
+        "comparability": "HISTORICAL_REFERENCE_GAP",
+        "classification": "SOFT_RUNTIME_CHECK",
+        "a2_behavior": "SEMANTIC_PERMISSION_POLICY",
+        "reason": "Permissions must remain safe and usable, but a stricter valid mode can differ from the historical exact value. Gate by allowed permission policy, not byte-for-byte mode equality."
+      },
+      {
+        "field_pattern": "stable_contracts.sqlite_schema.*.quick_check",
+        "leaf_count": 3,
+        "owner_module": "persistent-state",
+        "comparability": "DIRECTLY_COMPARABLE",
+        "classification": "SOFT_RUNTIME_CHECK",
+        "a2_behavior": "SEMANTIC_HEALTH_PREDICATE",
+        "reason": "Database integrity must be healthy before mutation, but this is a runtime health predicate rather than product identity."
+      },
+      {
+        "field_pattern": "stable_contracts.sqlite_schema.*.user_version",
+        "leaf_count": 3,
+        "owner_module": "persistent-state",
+        "comparability": "HISTORICAL_REFERENCE_GAP",
+        "classification": "SOFT_RUNTIME_CHECK",
+        "a2_behavior": "SUPPORTED_SCHEMA_VERSION_SET",
+        "reason": "Schema version may intentionally advance during a supported migration. The updater must require a supported/migratable value rather than historical equality."
+      },
+      {
+        "field_pattern": "stable_contracts.sqlite_schema.*.schema_sha256",
+        "leaf_count": 3,
+        "owner_module": "persistent-state",
+        "comparability": "DIRECTLY_COMPARABLE",
+        "classification": "HARD_STABLE_INVARIANT",
+        "a2_behavior": "VERSION_BOUND_SCHEMA_ALLOWLIST",
+        "reason": "The exact current schema is stable during normal operation and determines whether a migration/rollback is safe. A2 may allow an explicit set of predecessor/target schema hashes, but unknown schema must stop mutation."
+      },
+      {
+        "field_pattern": "stable_contracts.sqlite_schema.*.table_count",
+        "leaf_count": 3,
+        "owner_module": "persistent-state",
+        "comparability": "DIRECTLY_COMPARABLE",
+        "classification": "REMOVE",
+        "a2_behavior": "DO_NOT_COLLECT_FOR_UPDATER_GATE",
+        "reason": "Table count is a weak derivative of schema identity and adds no safety signal once the schema hash/version are checked."
+      },
+      {
+        "field_pattern": "stable_contracts.public_certificate_sha256./etc/n3wfc4/tls/ca.pem",
+        "leaf_count": 1,
+        "owner_module": "tls",
+        "comparability": "DIRECTLY_COMPARABLE",
+        "classification": "HARD_STABLE_INVARIANT",
+        "a2_behavior": "PER_INSTANCE_TRUST_ANCHOR_BINDING",
+        "reason": "The FC4 private CA is the trust anchor used by Broker/Manager/nodes and is not replaced during ordinary server-certificate renewal. Unexpected change can break fleet TLS trust."
+      },
+      {
+        "field_pattern": "stable_contracts.public_certificate_sha256./etc/n3wfc4/tls/server.pem",
+        "leaf_count": 1,
+        "owner_module": "tls",
+        "comparability": "DIRECTLY_COMPARABLE",
+        "classification": "DIAGNOSTIC_ONLY",
+        "a2_behavior": "OBSERVE_ONLY_AND_VALIDATE_CERT_SEMANTICS_SEPARATELY",
+        "reason": "The Broker server certificate is lifecycle-managed and may be renewed while remaining valid under the same CA and hostname contract. Exact certificate bytes must not be a permanent gate."
+      },
+      {
+        "field_pattern": "stable_contracts.public_certificate_sha256./var/lib/greenhouse-manager/identity/system-ca.pem",
+        "leaf_count": 1,
+        "owner_module": "tls",
+        "comparability": "DIRECTLY_COMPARABLE",
+        "classification": "HARD_STABLE_INVARIANT",
+        "a2_behavior": "PER_INSTANCE_IDENTITY_BINDING",
+        "reason": "System CA is persistent greenhouse identity/recovery material. Rotation must be an explicit trust-migration operation, not ordinary module-runtime drift."
+      },
+      {
+        "field_pattern": "stable_contracts.dynsec_top_level_keys_sha256",
+        "leaf_count": 1,
+        "owner_module": "broker",
+        "comparability": "DIRECTLY_COMPARABLE",
+        "classification": "HARD_STABLE_INVARIANT",
+        "a2_behavior": "VERSION_BOUND_SCHEMA_ALLOWLIST",
+        "reason": "The Dynamic Security document structure is part of Broker authentication compatibility. Unknown structural drift can make authorization parsing or rollback unsafe."
+      },
+      {
+        "field_pattern": "health.system_state",
+        "leaf_count": 1,
+        "owner_module": "host-runtime",
+        "comparability": "DIRECTLY_COMPARABLE",
+        "classification": "SOFT_RUNTIME_CHECK",
+        "a2_behavior": "SEMANTIC_HEALTH_PREDICATE",
+        "reason": "The host must be in an acceptable operating state before/after an upgrade, but exact historical state text is runtime health rather than product identity."
+      },
+      {
+        "field_pattern": "health.failed_unit_count",
+        "leaf_count": 1,
+        "owner_module": "host-runtime",
+        "comparability": "DIRECTLY_COMPARABLE",
+        "classification": "REMOVE",
+        "a2_behavior": "DERIVE_FROM_FAILED_UNITS",
+        "reason": "This is redundant with the failed-unit list. A2 should inspect relevant failed units directly instead of maintaining two gates for the same fact."
+      },
+      {
+        "field_pattern": "health.failed_units",
+        "leaf_count": 1,
+        "owner_module": "host-runtime",
+        "comparability": "DIRECTLY_COMPARABLE",
+        "classification": "SOFT_RUNTIME_CHECK",
+        "a2_behavior": "RELEVANT_FAILURE_POLICY",
+        "reason": "Current failed units matter to upgrade safety, but policy should distinguish relevant product/host failures from unrelated historical exact equality."
+      },
+      {
+        "field_pattern": "health.systemd_units.*.{active,enabled}",
+        "leaf_count": 14,
+        "owner_module": "host-runtime",
+        "comparability": "DIRECTLY_COMPARABLE",
+        "classification": "SOFT_RUNTIME_CHECK",
+        "a2_behavior": "ROLE_SPECIFIC_STATE_PREDICATE",
+        "reason": "Required activation/guard/timer semantics must be healthy, but service state is a runtime condition and some units are intentionally quiescent."
+      },
+      {
+        "field_pattern": "health.runtime_services",
+        "leaf_count": 1,
+        "owner_module": "core-stack",
+        "comparability": "DIRECTLY_COMPARABLE",
+        "classification": "SOFT_RUNTIME_CHECK",
+        "a2_behavior": "EXPECTED_SERVICE_SET_WHEN_CONVERGED",
+        "reason": "The three product services should be present when the stack is converged, but running-service presence is a runtime health condition, not immutable artifact identity."
+      },
+      {
+        "field_pattern": "health.manager_current_authenticated",
+        "leaf_count": 1,
+        "owner_module": "manager",
+        "comparability": "DIRECTLY_COMPARABLE",
+        "classification": "SOFT_RUNTIME_CHECK",
+        "a2_behavior": "MUST_BE_TRUE_WHEN_CONVERGED",
+        "reason": "Manager must authenticate to Broker for normal operation. This is a minimum post-upgrade product-health behavior."
+      },
+      {
+        "field_pattern": "health.homeassistant_current_authenticated",
+        "leaf_count": 1,
+        "owner_module": "homeassistant",
+        "comparability": "DIRECTLY_COMPARABLE",
+        "classification": "SOFT_RUNTIME_CHECK",
+        "a2_behavior": "MUST_BE_TRUE_WHEN_CONVERGED",
+        "reason": "Home Assistant must authenticate to Broker for normal operation; this is runtime health, not product identity."
+      },
+      {
+        "field_pattern": "health.manager_mqtt_socket_count",
+        "leaf_count": 1,
+        "owner_module": "manager",
+        "comparability": "EXPECTED_BUSINESS_RUNTIME_DRIFT",
+        "classification": "DIAGNOSTIC_ONLY",
+        "a2_behavior": "OBSERVE_ONLY",
+        "reason": "Exact live socket count can change transiently and is explicitly disqualified from hard equality. Authentication/functional continuity are stronger gates."
+      },
+      {
+        "field_pattern": "health.homeassistant_mqtt_socket_count",
+        "leaf_count": 1,
+        "owner_module": "homeassistant",
+        "comparability": "EXPECTED_BUSINESS_RUNTIME_DRIFT",
+        "classification": "DIAGNOSTIC_ONLY",
+        "a2_behavior": "OBSERVE_ONLY",
+        "reason": "Exact Home Assistant MQTT socket count is runtime-variable and should not gate by historical equality."
+      },
+      {
+        "field_pattern": "health.homeassistant_http_status",
+        "leaf_count": 1,
+        "owner_module": "homeassistant",
+        "comparability": "EXPECTED_BUSINESS_RUNTIME_DRIFT",
+        "classification": "SOFT_RUNTIME_CHECK",
+        "a2_behavior": "ALLOWED_HTTP_STATUS_SET",
+        "reason": "HTTP availability is required after convergence, but multiple statuses such as 200/401 can be valid; use an allowed semantic set."
+      },
+      {
+        "field_pattern": "health.overall_pass",
+        "leaf_count": 1,
+        "owner_module": "core-stack",
+        "comparability": "DIRECTLY_COMPARABLE",
+        "classification": "REMOVE",
+        "a2_behavior": "RECOMPUTE_FROM_A1_RULES",
+        "reason": "This aggregate bakes old observer assumptions, including exact socket-count rules. Keeping it would preserve the very over-gating A1 is meant to remove."
+      },
+      {
+        "field_pattern": "runtime_observations.boot_id_sha256",
+        "leaf_count": 1,
+        "owner_module": "host-runtime",
+        "comparability": "EXPECTED_BUSINESS_RUNTIME_DRIFT",
+        "classification": "DIAGNOSTIC_ONLY",
+        "a2_behavior": "OBSERVE_ONLY",
+        "reason": "Boot identity necessarily changes after reboot and is useful only to correlate evidence within one boot."
+      },
+      {
+        "field_pattern": "runtime_observations.containers.broker.{container_id_sha256,started_at,restart_count}",
+        "leaf_count": 3,
+        "owner_module": "broker",
+        "comparability": "EXPECTED_BUSINESS_RUNTIME_DRIFT",
+        "classification": "DIAGNOSTIC_ONLY",
+        "a2_behavior": "OBSERVE_ONLY",
+        "reason": "Container instance ID, start time and historical restart count are runtime history; healthy restart/recreate changes them."
+      },
+      {
+        "field_pattern": "runtime_observations.containers.manager.{container_id_sha256,started_at,restart_count}",
+        "leaf_count": 3,
+        "owner_module": "manager",
+        "comparability": "VERSION_AXIS_DRIFT",
+        "classification": "DIAGNOSTIC_ONLY",
+        "a2_behavior": "OBSERVE_ONLY",
+        "reason": "Manager container instance history changes during an authorized Manager upgrade and must not become a stable gate."
+      },
+      {
+        "field_pattern": "runtime_observations.containers.homeassistant.{container_id_sha256,started_at,restart_count}",
+        "leaf_count": 3,
+        "owner_module": "homeassistant",
+        "comparability": "VERSION_AXIS_DRIFT",
+        "classification": "DIAGNOSTIC_ONLY",
+        "a2_behavior": "OBSERVE_ONLY",
+        "reason": "Home Assistant container instance history can change during service-group restart even when HA code is unchanged; retain only for forensic timing."
+      },
+      {
+        "field_pattern": "runtime_observations.mqtt_session.manager.count",
+        "leaf_count": 1,
+        "owner_module": "manager",
+        "comparability": "VERSION_AXIS_DRIFT",
+        "classification": "REMOVE",
+        "a2_behavior": "DO_NOT_COLLECT_DUPLICATE_GATE",
+        "reason": "This duplicates the Manager socket count already exposed in health and adds no independent upgrade-safety information."
+      },
+      {
+        "field_pattern": "runtime_observations.mqtt_session.manager.{fingerprint,authenticated_event_count}",
+        "leaf_count": 2,
+        "owner_module": "manager",
+        "comparability": "VERSION_AXIS_DRIFT",
+        "classification": "DIAGNOSTIC_ONLY",
+        "a2_behavior": "OBSERVE_ONLY",
+        "reason": "Connection fingerprint and historical authentication-event count change across reconnects and are useful for forensics, not gating."
+      },
+      {
+        "field_pattern": "runtime_observations.mqtt_session.manager.identity_sha256",
+        "leaf_count": 1,
+        "owner_module": "manager",
+        "comparability": "HISTORICAL_REFERENCE_GAP",
+        "classification": "HARD_STABLE_INVARIANT",
+        "a2_behavior": "PER_INSTANCE_IDENTITY_BINDING",
+        "reason": "Manager MQTT username/client identity is provisioned persistent identity. Unexpected change without coordinated credential/DynSec migration can break authentication or bind the wrong principal."
+      },
+      {
+        "field_pattern": "runtime_observations.mqtt_session.homeassistant.count",
+        "leaf_count": 1,
+        "owner_module": "homeassistant",
+        "comparability": "VERSION_AXIS_DRIFT",
+        "classification": "REMOVE",
+        "a2_behavior": "DO_NOT_COLLECT_DUPLICATE_GATE",
+        "reason": "This duplicates the Home Assistant socket count already exposed in health."
+      },
+      {
+        "field_pattern": "runtime_observations.mqtt_session.homeassistant.{fingerprint,authenticated_event_count}",
+        "leaf_count": 2,
+        "owner_module": "homeassistant",
+        "comparability": "VERSION_AXIS_DRIFT",
+        "classification": "DIAGNOSTIC_ONLY",
+        "a2_behavior": "OBSERVE_ONLY",
+        "reason": "Connection fingerprint and authentication-event history change with reconnects and service restarts."
+      },
+      {
+        "field_pattern": "runtime_observations.mqtt_session.homeassistant.identity_sha256",
+        "leaf_count": 1,
+        "owner_module": "homeassistant",
+        "comparability": "HISTORICAL_REFERENCE_GAP",
+        "classification": "HARD_STABLE_INVARIANT",
+        "a2_behavior": "PER_INSTANCE_IDENTITY_BINDING",
+        "reason": "Home Assistant MQTT identity must remain bound to the intended principal unless a coordinated credential/DynSec migration is explicitly performed."
+      },
+      {
+        "field_pattern": "runtime_observations.sqlite.*.row_counts.*",
+        "leaf_count": 17,
+        "owner_module": "persistent-state",
+        "comparability": "EXPECTED_BUSINESS_RUNTIME_DRIFT",
+        "classification": "DIAGNOSTIC_ONLY",
+        "a2_behavior": "OBSERVE_ONLY",
+        "reason": "Business rows legitimately grow/change with registrations, telemetry and replay history. Counts are useful diagnostics but must not block ordinary upgrades by historical equality."
+      },
+      {
+        "field_pattern": "runtime_observations.sqlite.*.{file_bytes,wal_bytes}",
+        "leaf_count": 6,
+        "owner_module": "persistent-state",
+        "comparability": "EXPECTED_BUSINESS_RUNTIME_DRIFT",
+        "classification": "DIAGNOSTIC_ONLY",
+        "a2_behavior": "OBSERVE_ONLY",
+        "reason": "Database and WAL sizes vary with normal use, checkpoints and compaction; exact values are not product identity."
+      },
+      {
+        "field_pattern": "runtime_observations.persistent_tree_stats.*.{file_count,directory_count,total_bytes}",
+        "leaf_count": 12,
+        "owner_module": "persistent-state",
+        "comparability": "EXPECTED_BUSINESS_RUNTIME_DRIFT",
+        "classification": "DIAGNOSTIC_ONLY",
+        "a2_behavior": "OBSERVE_ONLY",
+        "reason": "Persistent trees naturally grow and shrink with normal product operation; these values are capacity/forensic signals only."
+      },
+      {
+        "field_pattern": "runtime_observations.persistent_tree_stats.*.symlink_count",
+        "leaf_count": 4,
+        "owner_module": "persistent-state",
+        "comparability": "EXPECTED_BUSINESS_RUNTIME_DRIFT",
+        "classification": "SOFT_RUNTIME_CHECK",
+        "a2_behavior": "SAFE_PATH_TRAVERSAL_POLICY",
+        "reason": "Unexpected symlinks can make backup/restore or mutation follow unintended paths. Check a safety policy, but do not assume exact historical tree equality."
+      },
+      {
+        "field_pattern": "runtime_observations.dynsec_counts.{clients,groups,roles}",
+        "leaf_count": 3,
+        "owner_module": "broker",
+        "comparability": "EXPECTED_BUSINESS_RUNTIME_DRIFT",
+        "classification": "DIAGNOSTIC_ONLY",
+        "a2_behavior": "OBSERVE_ONLY",
+        "reason": "Client count changes with node population, and group/role counts alone are too weak to prove authorization semantics. They should not gate by exact count."
+      },
+      {
+        "field_pattern": "runtime_observations.homeassistant_registry_counts.*.present",
+        "leaf_count": 3,
+        "owner_module": "homeassistant",
+        "comparability": "EXPECTED_BUSINESS_RUNTIME_DRIFT",
+        "classification": "SOFT_RUNTIME_CHECK",
+        "a2_behavior": "REQUIRED_STORAGE_PRESENCE_POLICY",
+        "reason": "Required HA registry documents should exist in a converged installation, but this is a runtime/storage health predicate."
+      },
+      {
+        "field_pattern": "runtime_observations.homeassistant_registry_counts.*.count",
+        "leaf_count": 3,
+        "owner_module": "homeassistant",
+        "comparability": "EXPECTED_BUSINESS_RUNTIME_DRIFT",
+        "classification": "DIAGNOSTIC_ONLY",
+        "a2_behavior": "OBSERVE_ONLY",
+        "reason": "Entity/device/config-entry counts legitimately change with discovery and customer use."
+      },
+      {
+        "field_pattern": "runtime_observations.homeassistant_registry_counts.*.version",
+        "leaf_count": 3,
+        "owner_module": "homeassistant",
+        "comparability": "EXPECTED_BUSINESS_RUNTIME_DRIFT",
+        "classification": "SOFT_RUNTIME_CHECK",
+        "a2_behavior": "SUPPORTED_STORAGE_VERSION_SET",
+        "reason": "Home Assistant may migrate storage versions. The updater should require a supported/understood version, not exact equality to the clean reference."
+      }
+    ]
+  }
+}
