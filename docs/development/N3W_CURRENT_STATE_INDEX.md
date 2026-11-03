@@ -1,3 +1,13 @@
+## 2026-11-03 — R3 -> A1 route corrected
+- R3 real first registration PASS; KF-139 CLOSED_PASS.
+- Post-registration Direct telemetry / HA runtime acceptance also PASS; KF-140 CLOSED_FALSE_POSITIVE.
+- Do not repeat Direct->Relay->Direct: historical same-boot physical acceptance remains valid and frozen R3 explicitly excludes Direct/Relay failover from its required scope.
+- R3 engineering objective is complete, but the Clean Reference authority is not formally sealed because no frozen `R3_REFERENCE_SHA256` / final R2->R3 semantic compare authority exists.
+- R3 was completed after an intentional Manager A->B repair, so historical Clean Reference Manager `fresh-24382c...` and current `fresh-b863...` must be treated as separate version axes; do not classify their hash difference as runtime drift.
+- Next gate: `N3W_T1_CORE_STACK_R3_REFERENCE_CONVERGENCE_AND_A1_ENTRY_READONLY_20261103_01`.
+- On PASS, enter A1 Stable-invariant classification. No Board work or updater apply belongs to this bridge gate.
+- Reassessment authority: `docs/development/N3W_T1_CORE_STACK_R3_CLOSURE_TO_A1_STABLE_INVARIANT_ENTRY_REASSESSMENT_20261103.md`.
+
 ## 2026-11-03 — R3 Direct telemetry / HA acceptance closed PASS
 - KF-140 is `CLOSED_FALSE_POSITIVE`: the apparent Manager delivery failure was caused by an acceptance harness matching stale/non-applicable log text.
 - Board API observed fresh Direct submissions seq 100 and 101.
