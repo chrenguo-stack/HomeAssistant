@@ -327,3 +327,39 @@ MANAGER_MESSAGE_DELIVERY
 ```
 
 Next focused evidence remains read-only packet/timestamp correlation. No ACL repair is justified.
+
+
+## 13. Broker namespace live TCP session evidence
+
+Fresh read-only `ss -tin` evidence from the running Broker container network namespace proves the registered board has a live established TLS/MQTT transport to Broker port 8883.
+
+```text
+BOARD_IP_PRIVATE_REDACTED=true
+BROKER_SOCKET_STATE=ESTABLISHED
+BROKER_LOCAL_PORT=8883
+BOARD_PEER_MATCH=true
+BYTES_RECEIVED_AT_SAMPLE=145354
+DATA_SEGS_IN_AT_SAMPLE=1583
+BYTES_SENT_AT_SAMPLE=19849
+DATA_SEGS_OUT_AT_SAMPLE=551
+TCP_RETRANSMISSION_OBSERVED=true
+```
+
+This closes the candidate explanation that the board has no live TCP/TLS connection to the Broker. The transport session is alive and exchanging data. It does not by itself prove that a specific telemetry payload reached Broker MQTT processing.
+
+Updated KF-140 focused boundary:
+
+```text
+NODE_AUTH_SESSION=PASS
+BROKER_TCP_TLS_SESSION=PASS
+NODE_DIRECT_PUBLISH_ACL=PASS
+MANAGER_DIRECT_RECEIVE_ACL=PASS
+MANAGER_SUBSCRIPTION=PASS
+N3W_DIRECT_ASYNC_QUEUE_ADMISSION=PASS
+
+SPECIFIC_TELEMETRY_TCP_DELIVERY=UNPROVEN
+BROKER_MQTT_INGRESS_FOR_SEQ=UNPROVEN
+MANAGER_ACCEPT_FOR_SEQ=UNPROVEN
+```
+
+Next read-only step is time-correlated socket-counter sampling around the next board-side Direct submit.
