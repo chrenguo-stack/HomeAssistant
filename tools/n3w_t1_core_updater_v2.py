@@ -59,6 +59,9 @@ class MultiComponentCoreUpdater:
             },
             "listeners": snapshot["listeners"],
             "mqtt_authenticated": snapshot.get("mqtt_authenticated"),
+            "homeassistant_http_status": snapshot.get(
+                "homeassistant_http_status"
+            ),
         }
 
     def baseline(self) -> dict[str, Any]:
