@@ -55,7 +55,13 @@ def target(component: str, archive_sha: str) -> ComponentTarget:
         },
         expected_predecessor_image_ref=OLD[component],
         rollback_compatible=True,
-        compatibility_evidence={"peer_contracts": "proved"},
+        compatibility_evidence={
+            "schema": "gh.n3w-t1-core-updater-compatibility/1",
+            "mutation_profile": "IMAGE_ONLY_V1",
+            "peer_contracts_compatible": True,
+            "persistent_schema_compatible": True,
+            "review_evidence_sha256": "2" * 64,
+        },
         a1_classification_sha256=A1_CLASSIFICATION_SHA256,
     )
 
@@ -212,6 +218,18 @@ def test_u0_baseline_round_trip(tmp_path: Path):
     loaded = UpgradeBaseline.load(path)
     assert loaded.stack_images == OLD
     assert loaded.a1_hard_authority == {"hard": "stable"}
+
+
+def test_v2_manifest_rejects_unstructured_compatibility(tmp_path: Path):
+    doc = manifest("manager", "f" * 64)
+    doc["compatibility_evidence"] = {"peer_contracts": "claimed"}
+    path = tmp_path / "bad-compatibility.json"
+    path.write_text(json.dumps(doc), encoding="utf-8")
+    with pytest.raises(
+        UpdaterV2Error,
+        match="target_compatibility_evidence_invalid",
+    ):
+        ComponentTarget.load(path)
 
 
 def test_v2_manifest_rejects_wrong_a1_authority(tmp_path: Path):
