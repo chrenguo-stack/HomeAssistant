@@ -15,6 +15,7 @@ from n3w_t1_core_updater_v2_common import (
     COMPONENTS,
     TARGET_SCHEMA_V2,
     ComponentTarget,
+    UpgradeBaseline,
     UpdaterV2Error,
 )
 from n3w_t1_core_updater_v2_state import V2StateStore
@@ -25,12 +26,15 @@ def parser() -> argparse.ArgumentParser:
     sub = command.add_subparsers(dest="command", required=True)
     inspect = sub.add_parser("inspect")
     inspect.add_argument("--component", choices=COMPONENTS)
+    sub.add_parser("baseline")
     plan = sub.add_parser("plan")
     plan.add_argument("--target-manifest", type=Path, required=True)
+    plan.add_argument("--baseline-manifest", type=Path)
     plan.add_argument("--manager-tar", type=Path)
     plan.add_argument("--image-tar", type=Path)
     apply = sub.add_parser("apply")
     apply.add_argument("--target-manifest", type=Path, required=True)
+    apply.add_argument("--baseline-manifest", type=Path)
     apply.add_argument("--manager-tar", type=Path)
     apply.add_argument("--image-tar", type=Path)
     apply.add_argument("--authorization-id", required=True)
@@ -73,11 +77,16 @@ def main(argv: Sequence[str] | None = None) -> int:
                 if args.component is not None
                 else legacy.inspect()
             )
+        elif args.command == "baseline":
+            result = v2.baseline()
         elif args.command == "plan":
             if _target_schema(args.target_manifest) == TARGET_SCHEMA_V2:
+                if args.baseline_manifest is None:
+                    raise UpdaterV2Error("baseline_manifest_required")
                 archive = args.image_tar or args.manager_tar
                 result = v2.plan(
                     ComponentTarget.load(args.target_manifest),
+                    UpgradeBaseline.load(args.baseline_manifest),
                     archive,
                 )
             else:
@@ -90,8 +99,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 archive = args.image_tar or args.manager_tar
                 if archive is None:
                     raise UpdaterV2Error("target_archive_required")
+                if args.baseline_manifest is None:
+                    raise UpdaterV2Error("baseline_manifest_required")
                 result = v2.apply(
                     ComponentTarget.load(args.target_manifest),
+                    UpgradeBaseline.load(args.baseline_manifest),
                     archive,
                     authorization_id=args.authorization_id,
                     confirmation=args.confirmation,
