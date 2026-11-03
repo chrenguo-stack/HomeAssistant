@@ -299,8 +299,16 @@ def rewrite_component_env(
         raise UpdaterV2Error(f"{component}_image_env_predecessor_drift")
     lines[index] = f"{key}={replacement}{ending}"
     updated = "".join(lines).encode("utf-8")
-    parsed = parse_image_bindings(updated)
-    if parsed[component] != replacement:
+    try:
+        verify_text = updated.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise UpdaterV2Error("compose_env_encoding_invalid") from error
+    verified = [
+        line.split("=", 1)[1]
+        for line in verify_text.splitlines()
+        if line.startswith(f"{key}=")
+    ]
+    if verified != [replacement]:
         raise UpdaterV2Error("compose_env_replace_verify_failed")
     return updated
 
