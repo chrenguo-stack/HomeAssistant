@@ -75,6 +75,7 @@ def manifest(component: str, archive_sha: str) -> dict:
 def baseline() -> UpgradeBaseline:
     return UpgradeBaseline(
         stack_images=dict(OLD),
+        image_binding_modes={name: "dynamic" for name in OLD},
         runtime_contract_sha256={
             name: hashlib.sha256((name + "-contract").encode()).hexdigest()
             for name in OLD
@@ -153,6 +154,7 @@ class FakeHost:
         return {
             "manager_image": self.bindings["manager"],
             "image_bindings": dict(self.bindings),
+            "image_binding_modes": {name: "dynamic" for name in OLD},
             "compose_env_sha256": "a" * 64,
             "compose_render": self._render(),
             "compose_render_sha256": "b" * 64,
@@ -170,6 +172,9 @@ class FakeHost:
         }
 
     def assert_mutation_safe(self, component):
+        assert component in OLD
+
+    def assert_component_upgradeable(self, component):
         assert component in OLD
 
     def component_binding_v2(self, component):
@@ -528,6 +533,31 @@ def test_broker_adapter_preserves_owner_order(monkeypatch):
     ]
 
 
+def test_u0_baseline_can_record_legacy_static_peers(tmp_path: Path):
+    host = FakeHost()
+
+    def inspect_legacy():
+        snapshot = FakeHost.inspect_v2(host)
+        snapshot["image_binding_modes"] = {
+            "manager": "dynamic",
+            "homeassistant": "legacy_static",
+            "broker": "legacy_static",
+        }
+        return snapshot
+
+    host.inspect_v2 = inspect_legacy
+    store = V2StateStore(tmp_path / "state")
+    updater = core.MultiComponentCoreUpdater(host, store, FakePolicy())
+
+    frozen = updater.baseline()
+
+    assert frozen["image_binding_modes"] == {
+        "manager": "dynamic",
+        "homeassistant": "legacy_static",
+        "broker": "legacy_static",
+    }
+
+
 def test_baseline_detects_preexisting_hard_drift(tmp_path: Path):
     host = FakeHost()
     store = V2StateStore(tmp_path / "state")
@@ -539,6 +569,7 @@ def test_baseline_detects_preexisting_hard_drift(tmp_path: Path):
 
     bad = UpgradeBaseline(
         stack_images={**OLD, "broker": NEW["broker"]},
+        image_binding_modes=frozen.image_binding_modes,
         runtime_contract_sha256=frozen.runtime_contract_sha256,
         a1_hard_authority=frozen.a1_hard_authority,
         a1_classification_sha256=A1_CLASSIFICATION_SHA256,
