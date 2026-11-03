@@ -1,3 +1,33 @@
+## Latest authority — 2026-11-03 R2 reconciliation CLOSED_PASS; Manager A -> B fresh preauthorization next
+
+~~~text
+AUTHORITY_STATE=POST_RECONCILIATION_PREDECESSOR_A_HEALTHY_A_TO_B_PREAUTHORIZATION
+
+MAIN=5aa000055b3ee48c424ceac4ef6437fb3f98c742
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+
+LIVE_DEPLOYMENT_STATE=NOT_YET_APPLIED
+LIVE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+TARGET_MANAGER=local/greenhouse-manager:fresh-3539c8f871e2
+
+R2_TRANSACTION_STATUS=ROLLED_BACK
+R2_TRANSACTION_PHASE=RECOVERY_COMPLETE_FAILED_EMERGENCY
+R2_RECOVERY_REQUIRED=false
+R2_RECONCILIATION=CLOSED_PASS
+R2_RECONCILIATION_T1_MUTATION=false
+
+UPDATER_V2_PACKAGE_ARTIFACT_ID=13187736541
+UPDATER_V2_ARTIFACT_EXPIRED=false
+
+OLD_R1_R2_AUTHORIZATION_REPLAY_PERMITTED=false
+NEW_A_TO_B_APPLY_AUTHORIZED=false
+BOARD_ACCESS_DEFAULT=false
+
+NEXT_ONE_GATE=N3W_T1_CORE_UPDATER_V2_POST_RECONCILIATION_MANAGER_A_TO_B_READONLY_PREAUTH_20261103_01
+~~~
+
+The stale R2 transaction is terminal and no longer blocks a new Manager transaction. The next gate is fresh read-only `status / inspect / plan --manager-tar` against the exact V2 package. A new Manager A -> B apply remains forbidden until that gate closes PASS and the user separately grants a new V2-compatible authorization ID.
+
 ## Latest authority — 2026-11-03 real-T1 V2 read-only reconciliation preflight PASS
 
 ~~~text
