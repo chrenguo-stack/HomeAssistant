@@ -1,3 +1,40 @@
+## Latest authority — 2026-11-03 R3 engineering closure; reference convergence -> A1 next
+
+```text
+AUTHORITY_STATE=R3_ENGINEERING_OBJECTIVE_COMPLETE_REFERENCE_CONVERGENCE_PENDING
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+AUTHORITY_SCHEMA=gh.n3w-t1-core-stack-current-authority/2
+
+MAIN=e0841a5a43fd5847d5c5c40ab1cece42faedf3c8
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=b863ddd959090ca139af76bd68dbef31d773e6de
+CANONICAL_LIVE_MANAGER=local/greenhouse-manager:fresh-b863ddd95909
+HISTORICAL_CLEAN_REFERENCE_SOURCE=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+
+R3_FIRST_REGISTRATION=PASS
+KF139=CLOSED_PASS
+R3_POST_REGISTRATION_DIRECT_TELEMETRY_HA=PASS
+KF140=CLOSED_FALSE_POSITIVE
+DIRECT_RELAY_REPEAT_REQUIRED=false
+DIRECT_RELAY_HISTORICAL_ACCEPTANCE_REMAINS_VALID=true
+
+R3_ENGINEERING_OBJECTIVE_COMPLETE=true
+R3_CLEAN_REFERENCE_AUTHORITY_CLOSURE=PARTIAL
+R3_REFERENCE_SHA256=NOT_FROZEN
+R3_R2_SEMANTIC_COMPARE_AUTHORITY=NOT_YET_FROZEN
+MANAGER_VERSION_AXIS_MUST_BE_SEPARATED_FROM_RUNTIME_DRIFT=true
+
+CURRENT_BLOCKER_COUNT=0
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_R3_REFERENCE_CONVERGENCE_AND_A1_ENTRY_READONLY_20261103_01
+```
+
+The frozen R3 objective is complete: one real first registration reached durable commit and the current registered-node Direct telemetry/Home Assistant runtime was additionally proven healthy. Direct->Relay->Direct same-boot physical acceptance was already completed in the earlier wireless phase and is not an R3 requirement; do not repeat it without new source drift or contradictory evidence.
+
+The only remaining R3-to-A1 work is authority convergence: freeze an R3 normal-runtime reference / R2->R3 semantic delta that can be consumed by A1. Because KF-139 forced an intentional Manager transition from the immutable historical Clean Reference Manager to the current b863 Manager during R3, the next gate must keep version drift separate from business-runtime drift. It is read-only by default. After it closes PASS, enter A1 Stable-invariant classification; A1 is classification work, not another physical workload gate.
+
 ## Latest authority — 2026-11-03 R3 first registration closed; downstream runtime/business acceptance next
 
 AUTHORITY_STATE=CURRENT_STACK_LIVE_ACCEPTED
