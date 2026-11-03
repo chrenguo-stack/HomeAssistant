@@ -728,9 +728,13 @@ jobs:
                   candidate / "stage/etc-n3wfc4/docker-compose.env"
               ).read_text(encoding="utf-8")
               assert "GH_MANAGER_IMAGE=" not in credential_env
+              assert "GH_HOMEASSISTANT_IMAGE=" not in credential_env
+              assert "GH_BROKER_IMAGE=" not in credential_env
               assert compose_env == (
                   credential_env
                   + f"GH_MANAGER_IMAGE={adapter.manager_image}\n"
+                  + f"GH_HOMEASSISTANT_IMAGE={adapter.homeassistant_image}\n"
+                  + f"GH_BROKER_IMAGE={adapter.broker_image}\n"
               )
               print("FRESH_DYNSEC_VOLUME_LIFECYCLE=PASS")
               print("FRESH_CREDENTIAL_BUNDLE_IMMUTABILITY=PASS")
