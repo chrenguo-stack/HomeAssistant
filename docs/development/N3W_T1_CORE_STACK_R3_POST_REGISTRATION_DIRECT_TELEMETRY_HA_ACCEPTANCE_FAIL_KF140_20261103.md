@@ -522,3 +522,37 @@ RAW_WINDOW_RELEVANT_LOG_TAIL_REQUIRED_WHEN_ACCEPTED_COUNT_IS_ZERO=true
 ```
 
 The original active Gate is resumed. Direct product telemetry delivery is now PASS for seq=71. Remaining scope is Home Assistant/canonical runtime receipt and the originally intended continuity requirement; no product-source repair is justified.
+
+
+## 18. Post-KF140 continuity / HA observation — inconclusive
+
+A fresh 75-second read-only observation produced:
+
+```text
+WINDOW_START=2026-11-03T13:42:53.160959Z
+WINDOW_END=2026-11-03T13:44:08.182840Z
+
+MANAGER_DIRECT_ACCEPTED_COUNT=0
+MANAGER_DIRECT_REJECTED_COUNT=0
+MANAGER_DIRECT_DUPLICATE_COUNT=0
+
+HA_1883_SOCKET_UNIQUE=true
+HA_BROKER_TO_CLIENT_BYTES_DELTA=2196
+HA_BROKER_TO_CLIENT_DATA_SEGS_DELTA=6
+```
+
+Interpretation:
+
+- Home Assistant's MQTT transport was active and received fresh Broker traffic during the window.
+- Because no new Manager Direct telemetry sample was observed in the same window, those HA bytes cannot be attributed to this registered node's telemetry.
+- Therefore this observation does not prove HA fresh receipt for the node.
+- It also does not prove a product fault because board-side telemetry generation/submission was not observed in this same window.
+- Given the deployed target telemetry interval is 60 seconds, the absence of a new Manager Direct sample in a 75-second window is noteworthy and requires a same-window board API + Manager correlation before classification.
+
+```text
+DIRECT_CONTINUITY=NOT_PROVEN_IN_THIS_WINDOW
+HA_NODE_FRESH_RECEIPT=NOT_PROVEN
+HA_MQTT_TRANSPORT_ACTIVE=PASS
+PRODUCT_FAILURE=NOT_PROVEN
+NEXT_STEP=SAME_WINDOW_BOARD_API_AND_MANAGER_CORRELATION
+```
