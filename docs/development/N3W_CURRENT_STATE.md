@@ -1,16 +1,38 @@
-## 2026-11-03 — New-chat handoff frozen: R3 reference convergence -> A1
+## 2026-11-03 — R3 engineering closure; reference convergence -> A1 handoff authority
 
 ```text
 HANDOFF_READY_FOR_NEW_CHAT=true
 HANDOFF=docs/development/N3W_T1_CORE_STACK_R3_REFERENCE_CONVERGENCE_TO_A1_STABLE_INVARIANT_CLASSIFICATION_NEW_CHAT_HANDOFF_V1.0_20261103.md
-CURRENT_STAGE=R3_ENGINEERING_OBJECTIVE_COMPLETE_REFERENCE_CONVERGENCE_PENDING
-NEXT_ONE_GATE=N3W_T1_CORE_STACK_R3_REFERENCE_CONVERGENCE_AND_A1_ENTRY_READONLY_20261103_01
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+AUTHORITY_SCHEMA=gh.n3w-t1-core-stack-current-authority/2
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=b863ddd959090ca139af76bd68dbef31d773e6de
+CURRENT_MANAGER=local/greenhouse-manager:fresh-b863ddd95909
+CURRENT_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+
+HISTORICAL_CLEAN_REFERENCE_SOURCE=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+
+R3_FIRST_REGISTRATION=PASS
+KF139=CLOSED_PASS
+R3_POST_REGISTRATION_DIRECT_TELEMETRY_HA=PASS
+KF140=CLOSED_FALSE_POSITIVE
+
+R3_ENGINEERING_OBJECTIVE_COMPLETE=true
+R3_CLEAN_REFERENCE_AUTHORITY_CLOSURE=PARTIAL
+R3_REFERENCE_SHA256=NOT_FROZEN
 DIRECT_RELAY_REPEAT_REQUIRED=false
-A1_AFTER_REFERENCE_CONVERGENCE=true
+
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_R3_REFERENCE_CONVERGENCE_AND_A1_ENTRY_READONLY_20261103_01
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
 PR773_MERGE=SEPARATE_BOUNDARY
 ```
 
-The handoff captures all unfinished work through A1/A2/U0/U1/U2, keeps real-sensor/long-duration acceptance separate, and records that no important engineering result is chat-only.
+The live upgrade accepted authority remains bound to the current b863 Manager with Home Assistant and Broker unchanged. The R3 engineering objective is complete; only formal R3 reference / R2->R3 semantic-delta authority remains before A1.
 
 ## 2026-11-03 — R3 execution complete; formal Clean Reference R3 reference convergence is next before A1
 
