@@ -1,3 +1,34 @@
+## Latest authority — 2026-11-03 KF-137 repaired updater exact package ready; A -> B apply authorized
+
+~~~text
+AUTHORITY_STATE=KF137_REPAIRED_EXACT_UPDATER_APPLY_AUTHORIZED
+
+MAIN_AT_REPAIR_MERGE=2e3f1c72e5ac17a9c8a1ecb378148a0d6d2d8c29
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+
+LIVE_DEPLOYMENT_STATE=NOT_YET_APPLIED
+LIVE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+TARGET_MANAGER=local/greenhouse-manager:fresh-3539c8f871e2
+
+LAST_TRANSACTION_STATUS=ROLLED_BACK
+LAST_TRANSACTION_PHASE=ROLLBACK_COMPLETE
+LAST_RECOVERY_REQUIRED=false
+
+KF137=SOURCE_REPAIR_CLOSED_PASS
+UPDATER_PACKAGE_ARTIFACT_ID=13196564439
+UPDATER_PYZ_SHA256=6222ab4bdcb53e0b612777a585111f5ab2ab114a1c52a4997252937ef27033cc
+
+APPLY_AUTHORIZATION=N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_APPLY_V2_KF137_REPAIRED_20261103_01
+APPLY_AUTHORIZATION_GRANTED=true
+APPLY_AUTHORIZATION_CONSUMED=false
+OLD_AUTHORIZATION_REPLAY_PERMITTED=false
+
+BOARD_ACCESS_DEFAULT=false
+NEXT_ONE_GATE=N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_APPLY_V2_KF137_REPAIRED_EXECUTION_20261103_01
+~~~
+
+The repaired updater is the current execution authority. One new A -> B apply is explicitly authorized. Execution must run a fresh exact precheck first, use the repaired package only, issue at most one apply, and capture post-status/post-inspect. Any failure stops without a second apply or blind explicit rollback.
+
 ## Latest authority — 2026-11-03 Manager A -> B fresh preauthorization CLOSED_PASS
 
 ~~~text
