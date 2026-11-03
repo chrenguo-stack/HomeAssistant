@@ -67,6 +67,7 @@ def _nonempty_string(value: Any, reason: str) -> str:
 @dataclass(frozen=True)
 class UpgradeBaseline:
     stack_images: dict[str, str]
+    image_binding_modes: dict[str, str]
     runtime_contract_sha256: dict[str, str]
     a1_hard_authority: dict[str, Any]
     a1_classification_sha256: str
@@ -84,11 +85,14 @@ class UpgradeBaseline:
         if doc.get("a1_classification_sha256") != A1_CLASSIFICATION_SHA256:
             raise UpdaterV2Error("baseline_a1_authority_mismatch")
         images = doc.get("stack_images")
+        modes = doc.get("image_binding_modes")
         contracts = doc.get("runtime_contract_sha256")
         hard = doc.get("a1_hard_authority")
         if (
             not isinstance(images, dict)
             or set(images) != set(COMPONENTS)
+            or not isinstance(modes, dict)
+            or set(modes) != set(COMPONENTS)
             or not isinstance(contracts, dict)
             or set(contracts) != set(COMPONENTS)
             or not isinstance(hard, dict)
@@ -97,16 +101,19 @@ class UpgradeBaseline:
             raise UpdaterV2Error("baseline_manifest_shape_invalid")
         for component in COMPONENTS:
             image = images.get(component)
+            mode = modes.get(component)
             contract = contracts.get(component)
             if (
                 not isinstance(image, str)
                 or not image.startswith(IMAGE_PREFIXES[component])
+                or mode not in {"dynamic", "legacy_static"}
                 or not isinstance(contract, str)
                 or SHA256.fullmatch(contract) is None
             ):
                 raise UpdaterV2Error("baseline_component_authority_invalid")
         return cls(
             stack_images=copy.deepcopy(images),
+            image_binding_modes=copy.deepcopy(modes),
             runtime_contract_sha256=copy.deepcopy(contracts),
             a1_hard_authority=copy.deepcopy(hard),
             a1_classification_sha256=A1_CLASSIFICATION_SHA256,
@@ -117,6 +124,7 @@ class UpgradeBaseline:
             "schema": BASELINE_SCHEMA_V1,
             "a1_classification_sha256": self.a1_classification_sha256,
             "stack_images": copy.deepcopy(self.stack_images),
+            "image_binding_modes": copy.deepcopy(self.image_binding_modes),
             "runtime_contract_sha256": copy.deepcopy(
                 self.runtime_contract_sha256
             ),
@@ -319,6 +327,7 @@ def validate_component_candidate(
 class V2Host(Protocol):
     def inspect_v2(self) -> dict[str, Any]: ...
     def assert_mutation_safe(self, component: str) -> None: ...
+    def assert_component_upgradeable(self, component: str) -> None: ...
     def component_binding_v2(self, component: str) -> str: ...
     def image_id(self, reference: str) -> str | None: ...
     def verify_image_archive(
