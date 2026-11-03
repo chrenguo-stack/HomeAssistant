@@ -15,7 +15,7 @@ from greenhouse_manager.runtime.n3w_simplified_product_runtime import (
 )
 
 
-def test_manager_startup_created_credential_db_is_private_and_pairing_gate_compatible(
+def test_manager_created_credential_db_passes_private_pairing_gate(
     tmp_path: Path,
 ) -> None:
     database = tmp_path / "credential-lifecycle.sqlite3"
