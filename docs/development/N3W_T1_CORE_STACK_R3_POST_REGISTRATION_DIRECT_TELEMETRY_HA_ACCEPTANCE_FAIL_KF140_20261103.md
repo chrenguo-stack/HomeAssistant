@@ -363,3 +363,23 @@ MANAGER_ACCEPT_FOR_SEQ=UNPROVEN
 ```
 
 Next read-only step is time-correlated socket-counter sampling around the next board-side Direct submit.
+
+
+## 14. MQTT log-topic interference excluded
+
+Fresh source review of deployed board source `414ff0290db37e89a0e137d30f491e6c17cba2b0` confirms:
+
+```yaml
+mqtt:
+  id: n3w_mqtt_client
+  broker: 127.0.0.1
+  enable_on_boot: false
+  discovery: false
+  reboot_timeout: 0s
+  idf_send_async: true
+  log_topic: null
+```
+
+Therefore ESPHome runtime log lines such as `N3-W telemetry Direct single attempt submitted` are not mirrored to Broker through MQTT logging. This materially strengthens the planned correlation oracle: a near-synchronous increase in Broker-side TCP `bytes_received` around a fresh Direct telemetry submit cannot be explained by ESPHome MQTT log-topic traffic.
+
+The socket-counter method still proves transport bytes rather than plaintext topic/payload because TLS remains encrypted.
