@@ -216,12 +216,15 @@ class MultiComponentCoreUpdater:
         if AUTHORIZATION_ID.fullmatch(authorization_id) is None:
             raise UpdaterV2Error("authorization_id_invalid")
         with self.store.lock():
-            return self._apply_locked(
-                target,
-                baseline,
-                tar_path,
-                authorization_id=authorization_id,
-            )
+            try:
+                return self._apply_locked(
+                    target,
+                    baseline,
+                    tar_path,
+                    authorization_id=authorization_id,
+                )
+            finally:
+                self.host.release_component_guard()
 
     def _apply_locked(
         self,
@@ -610,6 +613,8 @@ class MultiComponentCoreUpdater:
                 )
                 self.store.write(tx)
                 raise
+            finally:
+                self.host.release_component_guard()
 
     def status(self) -> dict[str, Any]:
         transaction = self.store.read()
