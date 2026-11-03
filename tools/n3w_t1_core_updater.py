@@ -10,18 +10,29 @@ from n3w_t1_core_updater_common import STATUS_SCHEMA, Target, UpdaterError
 from n3w_t1_core_updater_core import CoreUpdater
 from n3w_t1_core_updater_host import LocalHost
 from n3w_t1_core_updater_state import StateStore
+from n3w_t1_core_updater_v2 import MultiComponentCoreUpdater
+from n3w_t1_core_updater_v2_common import (
+    COMPONENTS,
+    TARGET_SCHEMA_V2,
+    ComponentTarget,
+    UpdaterV2Error,
+)
+from n3w_t1_core_updater_v2_state import V2StateStore
 
 
 def parser() -> argparse.ArgumentParser:
     command = argparse.ArgumentParser(prog="t1-core-updater")
     sub = command.add_subparsers(dest="command", required=True)
-    sub.add_parser("inspect")
+    inspect = sub.add_parser("inspect")
+    inspect.add_argument("--component", choices=COMPONENTS)
     plan = sub.add_parser("plan")
     plan.add_argument("--target-manifest", type=Path, required=True)
     plan.add_argument("--manager-tar", type=Path)
+    plan.add_argument("--image-tar", type=Path)
     apply = sub.add_parser("apply")
     apply.add_argument("--target-manifest", type=Path, required=True)
-    apply.add_argument("--manager-tar", type=Path, required=True)
+    apply.add_argument("--manager-tar", type=Path)
+    apply.add_argument("--image-tar", type=Path)
     apply.add_argument("--authorization-id", required=True)
     apply.add_argument("--confirmation", required=True)
     rollback = sub.add_parser("rollback")
@@ -41,28 +52,71 @@ def safe_reason(error: Exception) -> str:
     return value
 
 
+def _target_schema(path: Path) -> str | None:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    return value.get("schema") if isinstance(value, dict) else None
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = parser().parse_args(argv)
-    updater = CoreUpdater(LocalHost(), StateStore())
+    host = LocalHost()
+    legacy = CoreUpdater(host, StateStore())
+    v2_store = V2StateStore()
+    v2 = MultiComponentCoreUpdater(host, v2_store)
     try:
         if args.command == "inspect":
-            result = updater.inspect()
+            result = (
+                v2.inspect(args.component)
+                if args.component is not None
+                else legacy.inspect()
+            )
         elif args.command == "plan":
-            result = updater.plan(
-                Target.load(args.target_manifest),
-                args.manager_tar,
-            )
+            if _target_schema(args.target_manifest) == TARGET_SCHEMA_V2:
+                archive = args.image_tar or args.manager_tar
+                result = v2.plan(
+                    ComponentTarget.load(args.target_manifest),
+                    archive,
+                )
+            else:
+                result = legacy.plan(
+                    Target.load(args.target_manifest),
+                    args.manager_tar,
+                )
         elif args.command == "apply":
-            result = updater.apply(
-                Target.load(args.target_manifest),
-                args.manager_tar,
-                authorization_id=args.authorization_id,
-                confirmation=args.confirmation,
-            )
+            if _target_schema(args.target_manifest) == TARGET_SCHEMA_V2:
+                archive = args.image_tar or args.manager_tar
+                if archive is None:
+                    raise UpdaterV2Error("target_archive_required")
+                result = v2.apply(
+                    ComponentTarget.load(args.target_manifest),
+                    archive,
+                    authorization_id=args.authorization_id,
+                    confirmation=args.confirmation,
+                )
+            else:
+                if args.manager_tar is None:
+                    raise UpdaterError("manager_tar_required")
+                result = legacy.apply(
+                    Target.load(args.target_manifest),
+                    args.manager_tar,
+                    authorization_id=args.authorization_id,
+                    confirmation=args.confirmation,
+                )
         elif args.command == "rollback":
-            result = updater.rollback(confirmation=args.confirmation)
+            result = (
+                v2.rollback(confirmation=args.confirmation)
+                if v2_store.read() is not None
+                else legacy.rollback(confirmation=args.confirmation)
+            )
         elif args.command == "status":
-            result = updater.status()
+            result = (
+                v2.status()
+                if v2_store.read() is not None
+                else legacy.status()
+            )
         else:
             raise UpdaterError("command_unknown")
     except Exception as error:
