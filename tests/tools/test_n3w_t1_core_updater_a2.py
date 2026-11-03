@@ -205,6 +205,15 @@ def test_v2_manifest_loads_all_three_components(tmp_path: Path):
         assert loaded.target_image_ref == NEW[component]
 
 
+def test_u0_baseline_round_trip(tmp_path: Path):
+    frozen = baseline()
+    path = tmp_path / "baseline.json"
+    path.write_text(json.dumps(frozen.public()), encoding="utf-8")
+    loaded = UpgradeBaseline.load(path)
+    assert loaded.stack_images == OLD
+    assert loaded.a1_hard_authority == {"hard": "stable"}
+
+
 def test_v2_manifest_rejects_wrong_a1_authority(tmp_path: Path):
     doc = manifest("manager", "f" * 64)
     doc["a1_classification_sha256"] = "0" * 64
@@ -304,6 +313,9 @@ def test_apply_mutates_only_target_binding(
     assert tx["schema"] == TX_SCHEMA_V2
     assert tx["status"] == "COMMITTED"
     assert tx["component"] == component
+    assert tx["predecessor_runtime_contract_sha256"] == (
+        baseline().runtime_contract_sha256[component]
+    )
 
 
 def test_explicit_rollback_restores_selected_component(tmp_path: Path, monkeypatch):
