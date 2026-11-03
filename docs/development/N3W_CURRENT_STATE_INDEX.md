@@ -1,22 +1,16 @@
-## 2026-11-03 — R3 exact factory image written and independently verified
-- Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
-- Current repository product source: `3539c8f871e2cb63f18462009fa03a5eb36d39fd`.
-- Current repository Manager: `local/greenhouse-manager:fresh-3539c8f871e2`.
+## 2026-11-03 — R3/KF-139 repaired Manager is the canonical current stack
+- Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json` schema `gh.n3w-t1-core-stack-current-authority/2`.
+- Current repository product source: `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Current repository Manager: `local/greenhouse-manager:fresh-b863ddd95909`.
 - Current repository Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
 - Current repository Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
 - Historical Clean Reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
 - Historical Clean Reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Immediate repair predecessor: `local/greenhouse-manager:fresh-3539c8f871e2`.
 - Live upgrade accepted: `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
-
-- PR #767 merged as `c93fc3561ecee6dda13306804a3168a9c12ffe3a`.
-- R3 exact artifact `13203682791` is tree-identical to merged main and bound to the temporary `battery_low_threshold=-1.00V` target.
-- Factory image SHA256 is `9ccc469898832bda612634aef64ca946631e81574076be504ef864aaee56d8f9`; size 1532256; offset `0x0`.
-- The selected board is ESP32-C6 QFN40 rev0.2 with 8MB Flash.
-- Full erase PASS, exact factory write PASS, write hash verification PASS, independent verify-flash PASS.
-- NVS is erased/fresh. T1 was not mutated and first registration has not started.
-- Raw Board identity and USB locator are not archived publicly.
-- Next one gate: `N3W_T1_CORE_STACK_R3_SENSORLESS_CAPTIVE_PORTAL_WIFI_SETUP_AND_IDLE_QR_20261103_01`.
-
+- KF-139 overall CLOSED_PASS; real post-repair first registration accepted.
+- Pairing window closed with `close_reason=committed`; private credential database gate PASS.
+- Next gate: `N3W_T1_CORE_STACK_R3_KF139_POST_MERGE_MAIN_READONLY_REBIND_20261103_01`.
 
 ## 2026-11-03 — R3 / KF-139 closure
 
@@ -25,9 +19,10 @@
 - Exact post-repair first registration completed `COMMITTED / TERMINAL / COMPLETE`; registrations=1, node lease=1, credential lifecycle assignment=1.
 - Pairing window closed with `close_reason=committed`; 47112 returned CLOSED after success.
 - Historical failed attempts remain terminal COMPLETE replay tombstones.
-- PR #769/#770 remain unmerged; live runtime is ahead of canonical repository Manager authority.
+- Authorized stacked convergence binds canonical repository authority to `local/greenhouse-manager:fresh-b863ddd95909`.
+- Historical Clean Reference remains separate; the immediate predecessor for this repair is `local/greenhouse-manager:fresh-3539c8f871e2`.
 - Closure authority: `docs/development/N3W_T1_CORE_STACK_R3_KF139_CLOSURE_20261103.md`.
-- Next gate: `N3W_T1_CORE_STACK_R3_KF139_POST_CLOSURE_SOURCE_REVIEW_AND_MERGE_READINESS_20261103_01`.
+- Next gate: `N3W_T1_CORE_STACK_R3_KF139_POST_MERGE_MAIN_READONLY_REBIND_20261103_01`.
 
 
 ## 2026-11-03 — Manager B live upgrade accepted

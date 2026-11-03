@@ -1,5 +1,5 @@
 {
-  "schema": "gh.n3w-t1-core-stack-current-authority/1",
+  "schema": "gh.n3w-t1-core-stack-current-authority/2",
   "authority_state": "CURRENT_STACK_LIVE_ACCEPTED",
   "historical_clean_reference": {
     "source_head": "24382caae4a1f5d459297f86e8d18f10a848ca64",
@@ -7,11 +7,11 @@
     "immutable_history": true
   },
   "current_repository_stack": {
-    "product_source_head": "3539c8f871e2cb63f18462009fa03a5eb36d39fd",
+    "product_source_head": "b863ddd959090ca139af76bd68dbef31d773e6de",
     "manager": {
-      "image": "local/greenhouse-manager:fresh-3539c8f871e2",
-      "image_id": "sha256:2a1362b828a1f09b392713ba7fb40e91359e932690e525e4d03fe9873b9c1522",
-      "tar_sha256": "0038286140758c27c66eeb005d2a7ea4aec4538ad94447a44021bb61de7e51f0",
+      "image": "local/greenhouse-manager:fresh-b863ddd95909",
+      "image_id": "sha256:9ff3b651ba0fc5879de76a91875356c522cc5809ea9f242fa11ec2fa192e4036",
+      "tar_sha256": "ea158fbefe81084989941b951e0f5c8c65f630748c72bef3f8d03a1c453c328f",
       "platform": "linux/arm64"
     },
     "homeassistant": {
@@ -39,15 +39,19 @@
     }
   },
   "manager_successor_upgrade": {
-    "target_manifest": "infra/n3w-t1/upgrades/manager-3539c8f871e2.json",
+    "target_manifest": "infra/n3w-t1/upgrades/manager-b863ddd95909.json",
+    "source_repair_pr": 769,
+    "source_repair_head": "b863ddd959090ca139af76bd68dbef31d773e6de",
+    "execution_pr": 770,
+    "package_control_head": "7dc77ff8e839613242819aaf35348dac05c88568",
     "updater_reviewed_head": "06866acc9ff8f1e9acb7c3e23097a53031e9b313",
     "updater_pr": 761,
     "updater_merge_commit": "2e3f1c72e5ac17a9c8a1ecb378148a0d6d2d8c29",
-    "package_run_id": 41561467986,
-    "package_artifact_id": 13196564439,
-    "package_artifact_name": "n3w-t1-core-updater-manager-3539c8f871e2",
-    "package_artifact_digest": "sha256:e656223c776cc9f2f9fe0c334f2ae8d65bd26681617b0d6a0d82394f8833ac8c",
-    "updater_pyz_sha256": "6222ab4bdcb53e0b612777a585111f5ab2ab114a1c52a4997252937ef27033cc",
+    "package_run_id": 41591610508,
+    "package_artifact_id": 13209859306,
+    "package_artifact_name": "n3w-t1-core-updater-manager-b863ddd95909",
+    "package_artifact_digest": "sha256:5e39b8b95dc55c19d1a3b8c1878c47b2765c426c2a09b169431d6df21aef9dc9",
+    "updater_pyz_sha256": "2e38c6c331b1275d609f805d0d22e158f3fc376ec1387e3453c8511667cf6f8a",
     "manager_rebuilt": false,
     "rollback_compatible": true
   },
@@ -60,22 +64,23 @@
   },
   "live_deployment": {
     "state": "APPLIED_ACCEPTED",
-    "expected_predecessor_manager_image": "local/greenhouse-manager:fresh-24382caae4a1",
-    "expected_target_manager_image": "local/greenhouse-manager:fresh-3539c8f871e2",
-    "current_manager_image": "local/greenhouse-manager:fresh-3539c8f871e2",
-    "current_manager_runtime_image_id": "sha256:9dd128f0700840d46d300f9a434e2d3fbf5abba7abbd03c7dd432e9f497be035",
+    "expected_predecessor_manager_image": "local/greenhouse-manager:fresh-3539c8f871e2",
+    "expected_target_manager_image": "local/greenhouse-manager:fresh-b863ddd95909",
+    "current_manager_image": "local/greenhouse-manager:fresh-b863ddd95909",
+    "current_manager_runtime_image_id": "sha256:7c6133d87b9d378acc06ab20813b95d2e27d952f958f3ad33c7de3a4f6e9205e",
     "transaction_status": "COMMITTED",
     "transaction_phase": "COMMITTED",
     "recovery_required": false,
     "post_upgrade_acceptance": "PASS",
-    "semantic_zero_node": "PASS",
-    "unresolved_first_registration_count": 0,
-    "terminal_replay_tombstone_count": 1,
+    "kf139_closure": "CLOSED_PASS",
+    "first_registration_acceptance": "PASS",
+    "credential_lifecycle_private_database_gate": "PASS",
+    "pairing_window_state": "CLOSED",
+    "pairing_window_close_reason": "committed",
     "homeassistant_continuity": "PASS",
     "broker_continuity": "PASS",
     "listener_contract": "PASS",
     "systemd_failed_units": 0,
-    "pairing_window_state": "CLOSED",
-    "board_access": false
+    "board_mutation": false
   }
 }
