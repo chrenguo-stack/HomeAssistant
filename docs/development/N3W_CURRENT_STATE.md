@@ -1,3 +1,26 @@
+## 2026-11-03 — R3 execution complete; formal Clean Reference R3 reference convergence is next before A1
+
+```text
+R3_FIRST_REGISTRATION=PASS
+R3_POST_REGISTRATION_DIRECT_TELEMETRY_HA=PASS
+DIRECT_RELAY_REPEAT_REQUIRED=false
+
+R3_ENGINEERING_OBJECTIVE_COMPLETE=true
+R3_CLEAN_REFERENCE_AUTHORITY_CLOSURE=PARTIAL
+R3_REFERENCE_SHA256=NOT_FROZEN
+R3_R2_SEMANTIC_COMPARE_AUTHORITY=NOT_YET_FROZEN
+
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+CURRENT_MANAGER=local/greenhouse-manager:fresh-b863ddd95909
+MANAGER_VERSION_AXIS_MUST_BE_SEPARATED_FROM_RUNTIME_DRIFT=true
+
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_R3_REFERENCE_CONVERGENCE_AND_A1_ENTRY_READONLY_20261103_01
+BOARD_ACCESS=false
+T1_MUTATION=false
+```
+
+The earlier proposal to repeat Direct->Relay->Direct is withdrawn. That same-boot physical path was already accepted in the prior wireless phase and is explicitly out of scope for frozen Clean Reference R3. The only missing R3 item for A1 is formal reference/delta authority. The next gate is read-only and must separate the intentional KF-139 Manager A->B version transition from legitimate business-runtime drift.
+
 ## 2026-11-03 — R3 Direct telemetry / Home Assistant runtime acceptance CLOSED_PASS; KF-140 closed false-positive
 
 ```text
