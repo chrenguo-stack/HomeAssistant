@@ -1,6 +1,6 @@
 {
   "schema": "gh.n3w-t1-core-stack-current-authority/1",
-  "authority_state": "SUCCESSOR_READY_NOT_LIVE_APPLIED",
+  "authority_state": "CURRENT_STACK_LIVE_ACCEPTED",
   "historical_clean_reference": {
     "source_head": "24382caae4a1f5d459297f86e8d18f10a848ca64",
     "manager_image": "local/greenhouse-manager:fresh-24382caae4a1",
@@ -59,8 +59,23 @@
     "board": false
   },
   "live_deployment": {
-    "state": "NOT_YET_APPLIED",
+    "state": "APPLIED_ACCEPTED",
     "expected_predecessor_manager_image": "local/greenhouse-manager:fresh-24382caae4a1",
-    "expected_target_manager_image": "local/greenhouse-manager:fresh-3539c8f871e2"
+    "expected_target_manager_image": "local/greenhouse-manager:fresh-3539c8f871e2",
+    "current_manager_image": "local/greenhouse-manager:fresh-3539c8f871e2",
+    "current_manager_runtime_image_id": "sha256:9dd128f0700840d46d300f9a434e2d3fbf5abba7abbd03c7dd432e9f497be035",
+    "transaction_status": "COMMITTED",
+    "transaction_phase": "COMMITTED",
+    "recovery_required": false,
+    "post_upgrade_acceptance": "PASS",
+    "semantic_zero_node": "PASS",
+    "unresolved_first_registration_count": 0,
+    "terminal_replay_tombstone_count": 1,
+    "homeassistant_continuity": "PASS",
+    "broker_continuity": "PASS",
+    "listener_contract": "PASS",
+    "systemd_failed_units": 0,
+    "pairing_window_state": "CLOSED",
+    "board_access": false
   }
 }
