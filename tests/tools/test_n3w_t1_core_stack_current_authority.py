@@ -138,6 +138,40 @@ def test_authority_state_must_match_live_state():
         )
 
 
+def test_pending_state_remains_supported():
+    authority, target, compose, bootstrap, state, index = documents()
+    authority = copy.deepcopy(authority)
+    authority["authority_state"] = check.PENDING_AUTHORITY_STATE
+    authority["live_deployment"] = {
+        "state": check.PENDING_LIVE_STATE,
+        "expected_predecessor_manager_image": (
+            authority["historical_clean_reference"]["manager_image"]
+        ),
+        "expected_target_manager_image": (
+            authority["current_repository_stack"]["manager"]["image"]
+        ),
+    }
+    state = state.replace(
+        "LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED",
+        "LIVE_DEPLOYMENT_STATE=NOT_YET_APPLIED",
+        1,
+    )
+    index = index.replace(
+        "live upgrade accepted",
+        "live upgrade pending",
+        1,
+    )
+    report = check.validate_documents(
+        authority,
+        target,
+        compose,
+        bootstrap,
+        state,
+        index,
+    )
+    assert report["live_deployment_state"] == "NOT_YET_APPLIED"
+
+
 def test_legacy_static_compose_cannot_be_promoted_silently():
     authority, target, compose, bootstrap, state, index = documents()
     authority = copy.deepcopy(authority)
