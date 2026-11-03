@@ -380,7 +380,10 @@ class LocalHost:
 
     def stop_services(self) -> None:
         self._run(("systemctl", "stop", SERVICES_UNIT), timeout=180)
-        if self._systemctl("is-active", SERVICES_UNIT) != "inactive":
+        if self._systemctl("is-active", SERVICES_UNIT) not in {
+            "inactive",
+            "failed",
+        }:
             raise UpdaterError("services_not_inactive")
         if self._running_count("manager") or self._running_count("homeassistant"):
             raise UpdaterError("application_container_still_running")

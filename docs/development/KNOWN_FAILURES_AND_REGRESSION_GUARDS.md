@@ -1,3 +1,11 @@
+### 2026-11-03 KF-137 — T1_Core_Updater stop-services rejects valid failed/non-active systemd state
+
+| ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
+|---|---|---|---|---|---|
+| KF-137 | T1_Core_Updater Manager A→B application service stop boundary | 新 one-shot A→B apply 通过 fresh pre-gate 后在 `stop_services()` 返回 `services_not_inactive`；授权已消费。Updater 随后自动回滚，事务终态 `ROLLED_BACK / ROLLBACK_COMPLETE`、`recovery_required=false`，Manager A 恢复健康。Manager/HA 容器 ID 未变，但 `started_at` 刷新，证明 stop/start 实际发生 | `LocalHost._systemctl()` 已把 `failed` 识别为合法稳定的非活动状态，现有 F4 生命周期代码也把 `inactive|failed` 都视为 stopped；但 `stop_services()` 额外只接受 `inactive`，因此 systemd 在前台 Compose 退出语义下落到 `failed` 时产生 false-STOP | stop 后接受 `inactive|failed`，但继续强制验证 Manager 和 Home Assistant 运行容器数都为 0；`active` 仍 fail closed；补 3 个 focused regression tests 固定三类行为 | SOURCE_REPAIR_IN_PROGRESS |
+
+本次失败不是当前产品停机：自动回滚后 Manager A、Home Assistant、Broker 与 listener contract 均恢复健康，Broker identity 未变，`recovery_required=false`。本次 apply 授权已消费，禁止 replay；source repair 与 exact repaired updater artifact 闭环后必须重新做 fresh read-only preauthorization，并申请新的 apply 授权。
+
 ### 2026-11-03 KF-136 live V2 reconciliation — CLOSED_PASS
 
 The separately authorized exact Updater V2 recovery was executed against a fresh `PREDECESSOR_HEALTHY` baseline. It recovered the durable transaction from `FAILED_EMERGENCY / ROLLBACK_FAILED` to terminal `ROLLED_BACK / RECOVERY_COMPLETE_FAILED_EMERGENCY` with `recovery_required=false`. The updater returned `t1_mutation=false`; Manager binding, Manager/HA/Broker runtime identities, restart counts and listener contract remained unchanged. No service restart, A-to-B apply, manual transaction edit/delete, host mutation or Board access occurred.

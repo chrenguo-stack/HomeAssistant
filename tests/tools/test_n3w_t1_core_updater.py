@@ -671,6 +671,86 @@ def test_source_has_no_kf131_or_e03_specific_identity():
     assert "HARDWARE_SHA256" not in source
     assert "R10_E03_MANAGER_SUCCESSOR_REFRESH" not in source
 
+def test_stop_services_accepts_failed_unit_state_when_containers_stopped(
+    monkeypatch,
+):
+    host = hostmod.LocalHost()
+    calls = []
+
+    def run(argv, *, timeout=60, check=True):
+        calls.append(tuple(argv))
+
+        class Result:
+            returncode = 0
+            stdout = b""
+            stderr = b""
+
+        return Result()
+
+    monkeypatch.setattr(host, "_run", run)
+    monkeypatch.setattr(
+        host,
+        "_systemctl",
+        lambda verb, unit: "failed",
+    )
+    monkeypatch.setattr(host, "_running_count", lambda service: 0)
+
+    host.stop_services()
+
+    assert calls == [
+        ("systemctl", "stop", hostmod.SERVICES_UNIT),
+    ]
+
+
+def test_stop_services_failed_unit_state_still_requires_containers_stopped(
+    monkeypatch,
+):
+    host = hostmod.LocalHost()
+
+    monkeypatch.setattr(
+        host,
+        "_run",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        host,
+        "_systemctl",
+        lambda verb, unit: "failed",
+    )
+    monkeypatch.setattr(
+        host,
+        "_running_count",
+        lambda service: 1 if service == "manager" else 0,
+    )
+
+    with pytest.raises(
+        m.UpdaterError,
+        match="application_container_still_running",
+    ):
+        host.stop_services()
+
+
+def test_stop_services_rejects_active_unit_state(monkeypatch):
+    host = hostmod.LocalHost()
+
+    monkeypatch.setattr(
+        host,
+        "_run",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        host,
+        "_systemctl",
+        lambda verb, unit: "active",
+    )
+
+    with pytest.raises(
+        m.UpdaterError,
+        match="services_not_inactive",
+    ):
+        host.stop_services()
+
+
 def test_wait_services_waits_for_listener_contract(monkeypatch):
     host = hostmod.LocalHost()
     monkeypatch.setattr(

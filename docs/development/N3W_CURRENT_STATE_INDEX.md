@@ -1,3 +1,21 @@
+## 2026-11-03 — Manager A→B apply safe-stopped on KF-137; focused updater repair next
+
+- Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source remains `3539c8f871e2cb63f18462009fa03a5eb36d39fd`.
+- Current repository Manager target remains `local/greenhouse-manager:fresh-3539c8f871e2`.
+- Current repository Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64`, Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Repository authority remains `LIVE_DEPLOYMENT_STATE=NOT_YET_APPLIED`; live upgrade pending.
+- Fresh pre-apply gate passed, but the one-shot apply returned `services_not_inactive`.
+- The new authorization was consumed and is non-replayable.
+- Automatic rollback closed the transaction as `ROLLED_BACK / ROLLBACK_COMPLETE`; `recovery_required=false`.
+- Live Manager is predecessor A again; Broker identity remained unchanged; Manager/HA were stop-started during apply/rollback.
+- Root cause KF-137: `stop_services()` accepted only `inactive`, although the host helper and existing production lifecycle treat `failed` as a valid non-active systemd state.
+- Focused repair preserves container-stop proof: Manager and HA running counts must still both be zero; active state remains rejected.
+- Next one gate: `N3W_T1_CORE_UPDATER_KF137_SOURCE_REPAIR_CI_AND_EXACT_ARTIFACT_20261103_01`.
+- No apply retry and no Board work before repaired exact artifact + fresh preauthorization + new explicit authorization.
+
 ## 2026-11-03 — Manager A→B fresh preauthorization PASS; new explicit apply authorization is next
 
 - Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.

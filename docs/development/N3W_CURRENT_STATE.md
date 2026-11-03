@@ -1,3 +1,46 @@
+## 2026-11-03 — Manager A→B V2 apply SAFE_STOP; KF-137 source repair in progress
+
+~~~text
+TASK=N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_APPLY_V2_POST_RECONCILIATION_20261103_01
+RESULT=SAFE_STOP_SOURCE_REPAIR_REQUIRED
+
+MAIN_AT_APPLY=2e858232f51f5d9967c531863ad01ce8e4a760bf
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=3539c8f871e2cb63f18462009fa03a5eb36d39fd
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-3539c8f871e2
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+
+LIVE_DEPLOYMENT_STATE=NOT_YET_APPLIED
+LIVE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_RUNTIME=PREDECESSOR_A_HEALTHY
+
+APPLY_RC=2
+APPLY_REASON=services_not_inactive
+TRANSACTION_STATUS=ROLLED_BACK
+TRANSACTION_PHASE=ROLLBACK_COMPLETE
+RECOVERY_REQUIRED=false
+
+AUTHORIZATION_CONSUMED=true
+AUTHORIZATION_REPLAY_PERMITTED=false
+SECOND_APPLY_EXECUTED=false
+EXPLICIT_ROLLBACK_EXECUTED=false
+BOARD_ACCESS=false
+
+KF137=SOURCE_REPAIR_IN_PROGRESS
+SOURCE_REPAIR_BRANCH=fix/n3w-t1-updater-services-stop-state-20261103
+SOURCE_FIX=ACCEPT_INACTIVE_OR_FAILED_ONLY_AFTER_SYSTEMCTL_STOP
+CONTAINER_STOP_PROOF_RETAINED=true
+
+NEXT_ONE_GATE=N3W_T1_CORE_UPDATER_KF137_SOURCE_REPAIR_CI_AND_EXACT_ARTIFACT_20261103_01
+~~~
+
+The live apply did reach the application stop/start lifecycle, but the updater falsely rejected a stable non-active systemd state. Automatic rollback restored predecessor Manager A and left the transaction terminal and clean. The consumed apply authorization must not be replayed. The next path is source repair + exact repaired updater package, then a fresh read-only preauthorization and a brand-new apply authorization.
+
 ## 2026-11-03 — Manager A→B post-reconciliation read-only preauthorization CLOSED_PASS; explicit apply authorization required
 
 ~~~text
