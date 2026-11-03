@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import re
@@ -423,6 +424,20 @@ class LocalHost:
                 current = False
         return current
 
+    def _homeassistant_http_status(self) -> int:
+        connection = http.client.HTTPConnection("127.0.0.1", 8123, timeout=5)
+        try:
+            connection.request("GET", "/api/")
+            response = connection.getresponse()
+            response.read(1024)
+            if response.status not in {200, 401}:
+                raise UpdaterError(
+                    f"homeassistant_http_status_invalid:{response.status}"
+                )
+            return int(response.status)
+        finally:
+            connection.close()
+
     def assert_mutation_safe(self, component: str) -> None:
         if component not in COMPONENTS:
             raise UpdaterError("component_invalid")
@@ -462,6 +477,7 @@ class LocalHost:
             **snapshot,
             "image_bindings": bindings,
             "mqtt_authenticated": authenticated,
+            "homeassistant_http_status": self._homeassistant_http_status(),
         }
 
     def _image_document(self, reference: str) -> dict[str, Any] | None:
