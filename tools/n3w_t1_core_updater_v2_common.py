@@ -18,6 +18,7 @@ BASELINE_SCHEMA_V1 = "gh.n3w-t1-core-updater-baseline/1"
 APPLY_CONFIRMATION_V2 = "T1_CORE_UPDATER_APPLY"
 ROLLBACK_CONFIRMATION_V2 = "T1_CORE_UPDATER_ROLLBACK"
 MUTATION_PROFILE_IMAGE_ONLY = "IMAGE_ONLY_V1"
+SUPPORTED_PLATFORM = "linux/arm64"
 
 COMPONENTS = ("manager", "homeassistant", "broker")
 IMAGE_BINDINGS = {
@@ -68,6 +69,7 @@ def _nonempty_string(value: Any, reason: str) -> str:
 class UpgradeBaseline:
     stack_images: dict[str, str]
     image_binding_modes: dict[str, str]
+    platforms: dict[str, str]
     runtime_contract_sha256: dict[str, str]
     a1_hard_authority: dict[str, Any]
     a1_classification_sha256: str
@@ -86,6 +88,7 @@ class UpgradeBaseline:
             raise UpdaterV2Error("baseline_a1_authority_mismatch")
         images = doc.get("stack_images")
         modes = doc.get("image_binding_modes")
+        platforms = doc.get("platforms")
         contracts = doc.get("runtime_contract_sha256")
         hard = doc.get("a1_hard_authority")
         if (
@@ -93,6 +96,8 @@ class UpgradeBaseline:
             or set(images) != set(COMPONENTS)
             or not isinstance(modes, dict)
             or set(modes) != set(COMPONENTS)
+            or not isinstance(platforms, dict)
+            or set(platforms) != set(COMPONENTS)
             or not isinstance(contracts, dict)
             or set(contracts) != set(COMPONENTS)
             or not isinstance(hard, dict)
@@ -102,11 +107,13 @@ class UpgradeBaseline:
         for component in COMPONENTS:
             image = images.get(component)
             mode = modes.get(component)
+            platform = platforms.get(component)
             contract = contracts.get(component)
             if (
                 not isinstance(image, str)
                 or not image.startswith(IMAGE_PREFIXES[component])
                 or mode not in {"dynamic", "legacy_static"}
+                or platform != SUPPORTED_PLATFORM
                 or not isinstance(contract, str)
                 or SHA256.fullmatch(contract) is None
             ):
@@ -114,6 +121,7 @@ class UpgradeBaseline:
         return cls(
             stack_images=copy.deepcopy(images),
             image_binding_modes=copy.deepcopy(modes),
+            platforms=copy.deepcopy(platforms),
             runtime_contract_sha256=copy.deepcopy(contracts),
             a1_hard_authority=copy.deepcopy(hard),
             a1_classification_sha256=A1_CLASSIFICATION_SHA256,
@@ -125,6 +133,7 @@ class UpgradeBaseline:
             "a1_classification_sha256": self.a1_classification_sha256,
             "stack_images": copy.deepcopy(self.stack_images),
             "image_binding_modes": copy.deepcopy(self.image_binding_modes),
+            "platforms": copy.deepcopy(self.platforms),
             "runtime_contract_sha256": copy.deepcopy(
                 self.runtime_contract_sha256
             ),
@@ -174,7 +183,7 @@ class ComponentTarget:
             raise UpdaterV2Error("target_image_namespace_invalid")
         if target_image == predecessor:
             raise UpdaterV2Error("target_not_advanced")
-        if doc.get("target_platform") != "linux/arm64":
+        if doc.get("target_platform") != SUPPORTED_PLATFORM:
             raise UpdaterV2Error("target_platform_invalid")
 
         archive_sha = doc.get("target_archive_sha256")
@@ -225,7 +234,7 @@ class ComponentTarget:
             component=component,
             mutation_profile=MUTATION_PROFILE_IMAGE_ONLY,
             target_image_ref=target_image,
-            target_platform="linux/arm64",
+            target_platform=SUPPORTED_PLATFORM,
             target_archive_sha256=archive_sha,
             artifact_identity=copy.deepcopy(artifact),
             expected_predecessor_image_ref=predecessor,
