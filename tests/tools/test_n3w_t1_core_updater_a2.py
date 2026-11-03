@@ -16,6 +16,7 @@ from n3w_t1_core_updater_v2_common import (
     TARGET_SCHEMA_V2,
     TX_SCHEMA_V2,
     ComponentTarget,
+    UpgradeBaseline,
     UpdaterV2Error,
     parse_image_bindings,
     rewrite_component_env,
@@ -64,6 +65,18 @@ def manifest(component: str, archive_sha: str) -> dict:
     return t.public()
 
 
+def baseline() -> UpgradeBaseline:
+    return UpgradeBaseline(
+        stack_images=dict(OLD),
+        runtime_contract_sha256={
+            name: hashlib.sha256((name + "-contract").encode()).hexdigest()
+            for name in OLD
+        },
+        a1_hard_authority={"hard": "stable"},
+        a1_classification_sha256=A1_CLASSIFICATION_SHA256,
+    )
+
+
 class FakePolicy:
     def __init__(self) -> None:
         self.generation = 0
@@ -75,6 +88,13 @@ class FakePolicy:
             "hard": "stable",
             "soft": "healthy",
         }
+
+    def hard_authority(self, snapshot):
+        return {"hard": snapshot["hard"]}
+
+    def validate_baseline(self, component, snapshot, expected):
+        assert component in OLD
+        assert self.hard_authority(snapshot) == expected
 
     def validate_pre(self, component, snapshot):
         assert component in OLD
@@ -115,6 +135,9 @@ class FakeHost:
                 "container_id": f"{name}-container",
                 "started_at": "now",
                 "restart_count": 0,
+                "runtime_contract_sha256": (
+                    hashlib.sha256((name + "-contract").encode()).hexdigest()
+                ),
             }
             for name in OLD
         }
@@ -260,6 +283,7 @@ def test_apply_mutates_only_target_binding(
 
     result = updater.apply(
         target(component, archive_sha),
+        baseline(),
         archive,
         authorization_id=f"N3W_T1_CORE_UPDATER_{component.upper()}_TEST_01",
         confirmation=APPLY_CONFIRMATION_V2,
@@ -292,6 +316,7 @@ def test_explicit_rollback_restores_selected_component(tmp_path: Path, monkeypat
     updater = core.MultiComponentCoreUpdater(host, store, FakePolicy())
     updater.apply(
         target("manager", archive_sha),
+        baseline(),
         archive,
         authorization_id="N3W_T1_CORE_UPDATER_MANAGER_TEST_02",
         confirmation=APPLY_CONFIRMATION_V2,
@@ -303,6 +328,25 @@ def test_explicit_rollback_restores_selected_component(tmp_path: Path, monkeypat
     assert result["status"] == "PASS"
     assert host.bindings == OLD
     assert store.read()["status"] == "ROLLED_BACK"
+
+
+def test_baseline_detects_preexisting_hard_drift(tmp_path: Path):
+    host = FakeHost()
+    store = V2StateStore(tmp_path / "state")
+    updater = core.MultiComponentCoreUpdater(host, store, FakePolicy())
+    frozen = baseline()
+    current = host.inspect_v2()
+    policy = updater.policy.capture()
+    updater._validate_baseline("manager", frozen, current, policy)
+
+    bad = UpgradeBaseline(
+        stack_images={**OLD, "broker": NEW["broker"]},
+        runtime_contract_sha256=frozen.runtime_contract_sha256,
+        a1_hard_authority=frozen.a1_hard_authority,
+        a1_classification_sha256=A1_CLASSIFICATION_SHA256,
+    )
+    with pytest.raises(UpdaterV2Error, match="baseline_stack_image_drift"):
+        updater._validate_baseline("manager", bad, current, policy)
 
 
 def test_v2_store_archives_terminal_legacy_transaction(tmp_path: Path):
