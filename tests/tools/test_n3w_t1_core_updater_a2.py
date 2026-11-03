@@ -595,6 +595,35 @@ def test_legacy_static_peer_is_readable_but_not_upgradeable(monkeypatch):
         host.assert_component_upgradeable("broker")
 
 
+def test_broker_certificate_lifecycle_lock_is_exclusive(
+    tmp_path: Path,
+    monkeypatch,
+):
+    lock = tmp_path / ".certificate-lifecycle.lock"
+    lock.write_text("", encoding="utf-8")
+    lock.chmod(0o600)
+    monkeypatch.setattr(
+        hostmod,
+        "BROKER_CERT_LIFECYCLE_LOCK",
+        lock,
+    )
+    first = hostmod.LocalHost()
+    second = hostmod.LocalHost()
+
+    first._acquire_broker_certificate_guard()
+    try:
+        with pytest.raises(
+            Exception,
+            match="broker_certificate_lifecycle_busy",
+        ):
+            second._acquire_broker_certificate_guard()
+    finally:
+        first.release_component_guard()
+
+    second._acquire_broker_certificate_guard()
+    second.release_component_guard()
+
+
 def test_broker_adapter_preserves_owner_order(monkeypatch):
     host = hostmod.LocalHost()
     events: list[str] = []
