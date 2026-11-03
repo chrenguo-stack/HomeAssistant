@@ -1,6 +1,10 @@
 ## 2026-11-04 — U0 real T1 read-only Baseline A CLOSED_PASS; U1 preparation ready
 
 - U0 gate `N3W_T1_CORE_UPDATER_U0_REAL_T1_READONLY_BASELINE_20261104_01` is `CLOSED_PASS`.
+- Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current product source remains `b863ddd959090ca139af76bd68dbef31d773e6de`; current Manager is `local/greenhouse-manager:fresh-b863ddd95909`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; canonical live deployment remains `APPLIED_ACCEPTED`.
 - Frozen machine authority: `infra/n3w-t1/clean-reference/u0-upgrade-baseline-a-20261104.json`.
 - Baseline A SHA256: `a791377083e76f765ddf978c09025674eda3586d33892e4b609a814706bdfbbc`; exact size 2275 bytes.
 - Two independent live T1_B captures were both 2275 bytes, had the same SHA256, and `cmp` returned 0.
