@@ -1,3 +1,32 @@
+## Latest authority — 2026-11-03 repaired A -> B live apply PASS; Manager B acceptance pending
+
+~~~text
+AUTHORITY_STATE=LIVE_MANAGER_B_POST_UPGRADE_ACCEPTANCE_PENDING
+
+MAIN=13afc9d68824a20af2ca6c6efac515c94ed90cdf
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+
+LIVE_DEPLOYMENT_STATE=NOT_YET_APPLIED
+LIVE_MANAGER=local/greenhouse-manager:fresh-3539c8f871e2
+LIVE_MANAGER_RUNTIME_IMAGE_ID=sha256:9dd128f0700840d46d300f9a434e2d3fbf5abba7abbd03c7dd432e9f497be035
+
+TRANSACTION_STATUS=COMMITTED
+TRANSACTION_PHASE=COMMITTED
+RECOVERY_REQUIRED=false
+
+HOMEASSISTANT_IMAGE_UNCHANGED=true
+BROKER_RUNTIME_UNCHANGED=true
+LISTENER_CONTRACT=PASS
+
+KF137=SOURCE_REPAIR_AND_LIVE_APPLY_PASS
+POST_UPGRADE_ACCEPTANCE=PENDING
+BOARD_ACCESS_DEFAULT=false
+
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_MANAGER_B_POST_UPGRADE_LIVE_ACCEPTANCE_20261103_01
+~~~
+
+Manager B is live after a successful repaired V2 apply. The repository still records NOT_YET_APPLIED only because the separate read-only post-upgrade acceptance has not yet closed. Do not resume Board/R3 until that acceptance and repository live-authority convergence are complete.
+
 ## Latest authority — 2026-11-03 KF-137 repaired updater exact package ready; A -> B apply authorized
 
 ~~~text
