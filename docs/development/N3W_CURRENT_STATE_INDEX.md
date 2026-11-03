@@ -3,7 +3,11 @@
 - Main: `e0841a5a43fd5847d5c5c40ab1cece42faedf3c8`; final #768 -> main compare has zero file drift.
 - Current repository product source: `b863ddd959090ca139af76bd68dbef31d773e6de`.
 - Current repository Manager: `local/greenhouse-manager:fresh-b863ddd95909`.
-- Home Assistant and Broker remain unchanged from the accepted current stack.
+- Current repository Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical Clean Reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted: `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
 - KF-139 overall CLOSED_PASS; first registration PASS; private DB gate PASS; pairing window last accepted CLOSED/committed.
 - PRs #768/#769/#770/#771/#772 are all merged.
 - No current blocker is open for entering the downstream acceptance stage.
