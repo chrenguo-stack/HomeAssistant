@@ -13,6 +13,7 @@ from n3w_t1_core_updater_state import StateStore
 from n3w_t1_core_updater_v2 import MultiComponentCoreUpdater
 from n3w_t1_core_updater_v2_common import (
     COMPONENTS,
+    STATUS_SCHEMA_V2,
     TARGET_SCHEMA_V2,
     ComponentTarget,
     UpgradeBaseline,
@@ -70,17 +71,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     legacy = CoreUpdater(host, StateStore())
     v2_store = V2StateStore()
     v2 = MultiComponentCoreUpdater(host, v2_store)
+    v2_operation = False
     try:
         if args.command == "inspect":
+            v2_operation = args.component is not None
             result = (
                 v2.inspect(args.component)
-                if args.component is not None
+                if v2_operation
                 else legacy.inspect()
             )
         elif args.command == "baseline":
+            v2_operation = True
             result = v2.baseline()
         elif args.command == "plan":
             if _target_schema(args.target_manifest) == TARGET_SCHEMA_V2:
+                v2_operation = True
                 if args.baseline_manifest is None:
                     raise UpdaterV2Error("baseline_manifest_required")
                 archive = args.image_tar or args.manager_tar
@@ -96,6 +101,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
         elif args.command == "apply":
             if _target_schema(args.target_manifest) == TARGET_SCHEMA_V2:
+                v2_operation = True
                 archive = args.image_tar or args.manager_tar
                 if archive is None:
                     raise UpdaterV2Error("target_archive_required")
@@ -118,24 +124,24 @@ def main(argv: Sequence[str] | None = None) -> int:
                     confirmation=args.confirmation,
                 )
         elif args.command == "rollback":
+            v2_operation = v2_store.read() is not None
             result = (
                 v2.rollback(confirmation=args.confirmation)
-                if v2_store.read() is not None
+                if v2_operation
                 else legacy.rollback(confirmation=args.confirmation)
             )
         elif args.command == "status":
-            result = (
-                v2.status()
-                if v2_store.read() is not None
-                else legacy.status()
-            )
+            v2_operation = v2_store.read() is not None
+            result = v2.status() if v2_operation else legacy.status()
         else:
             raise UpdaterError("command_unknown")
     except Exception as error:
         print(
             json.dumps(
                 {
-                    "schema": STATUS_SCHEMA,
+                    "schema": (
+                        STATUS_SCHEMA_V2 if v2_operation else STATUS_SCHEMA
+                    ),
                     "status": "STOP",
                     "operation": args.command,
                     "reason": safe_reason(error),
