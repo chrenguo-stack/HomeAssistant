@@ -1,29 +1,30 @@
-## Latest authority — 2026-11-03 R3 first registration PASS; KF-139 repaired Manager current
+## Latest authority — 2026-11-03 R3 first registration closed; downstream runtime/business acceptance next
 
 AUTHORITY_STATE=CURRENT_STACK_LIVE_ACCEPTED
 CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
 AUTHORITY_SCHEMA=gh.n3w-t1-core-stack-current-authority/2
+MAIN=e0841a5a43fd5847d5c5c40ab1cece42faedf3c8
+MAIN_MERGE_TREE_DRIFT=ZERO
 CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=b863ddd959090ca139af76bd68dbef31d773e6de
 LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
-LIVE_MANAGER=local/greenhouse-manager:fresh-b863ddd95909
-LIVE_MANAGER_RUNTIME_IMAGE_ID=sha256:7c6133d87b9d378acc06ab20813b95d2e27d952f958f3ad33c7de3a4f6e9205e
-TRANSACTION_STATUS=COMMITTED
-TRANSACTION_PHASE=COMMITTED
-RECOVERY_REQUIRED=false
-POST_UPGRADE_ACCEPTANCE=PASS
+CANONICAL_LIVE_MANAGER=local/greenhouse-manager:fresh-b863ddd95909
 KF139=CLOSED_PASS
 FIRST_REGISTRATION_ACCEPTANCE=PASS
 CREDENTIAL_LIFECYCLE_PRIVATE_DATABASE_GATE=PASS
-PAIRING_WINDOW_STATE=CLOSED
-PAIRING_WINDOW_CLOSE_REASON=committed
-HOMEASSISTANT_CONTINUITY=PASS
-BROKER_CONTINUITY=PASS
-LISTENER_CONTRACT=PASS
-SYSTEMD_FAILED_UNITS=0
-BOARD_MUTATION=false
-NEXT_ONE_GATE=N3W_T1_CORE_STACK_R3_KF139_POST_MERGE_MAIN_READONLY_REBIND_20261103_01
+PAIRING_WINDOW_LAST_ACCEPTED_STATE=CLOSED
+PAIRING_WINDOW_LAST_ACCEPTED_CLOSE_REASON=committed
+POST_MERGE_READONLY_REBIND=PASS
+CURRENT_BLOCKER_COUNT=0
 
-The exact b863 repaired Manager is live and first-registration accepted. Canonical authority v2 separates the immutable historical Clean Reference from the immediate 3539 predecessor and no longer encodes dynamic zero-node inventory as a permanent current-stack requirement.
+CURRENT_T1_RUNTIME_STATE=UNKNOWN_FRESH
+CURRENT_REGISTERED_BOARD_STATE=UNKNOWN_FRESH
+BOARD_ACCESS_DEFAULT=false
+LIVE_MUTATION_DEFAULT=false
+
+POST_REGISTRATION_DOWNSTREAM_DOMAINS=MQTT_TELEMETRY;HA_DISCOVERY_ENTITY;DIRECT_RELAY_FAILOVER;SENSOR_MEASUREMENT;LONG_DURATION_RUNTIME
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_R3_POST_REGISTRATION_PRODUCT_RUNTIME_BUSINESS_ACCEPTANCE_READONLY_PREFLIGHT_20261103_01
+
+The first-registration/KF-139 path is closed and fully merged. New work begins from the normal registered-node product state. The next gate is intentionally read-only: fresh-bind repository/main and live T1 business/runtime state, then classify passive MQTT/HA visibility before any new service, board, credential, registration, failover or sensor mutation.
 
 ## Latest authority — 2026-11-03 Manager B live accepted; R3 re-entry next
 
