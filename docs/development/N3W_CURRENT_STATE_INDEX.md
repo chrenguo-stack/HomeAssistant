@@ -1,5 +1,12 @@
 ## 2026-11-03 — R3 exact factory image written and independently verified
 - Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `3539c8f871e2cb63f18462009fa03a5eb36d39fd`.
+- Current repository Manager: `local/greenhouse-manager:fresh-3539c8f871e2`.
+- Current repository Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical Clean Reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted: `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
 
 - PR #767 merged as `c93fc3561ecee6dda13306804a3168a9c12ffe3a`.
 - R3 exact artifact `13203682791` is tree-identical to merged main and bound to the temporary `battery_low_threshold=-1.00V` target.
