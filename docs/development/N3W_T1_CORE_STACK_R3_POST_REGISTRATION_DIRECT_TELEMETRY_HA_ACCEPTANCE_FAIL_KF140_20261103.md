@@ -556,3 +556,35 @@ HA_MQTT_TRANSPORT_ACTIVE=PASS
 PRODUCT_FAILURE=NOT_PROVEN
 NEXT_STEP=SAME_WINDOW_BOARD_API_AND_MANAGER_CORRELATION
 ```
+
+
+## 19. 135-second joint forensic harness remote quoting failure
+
+The first joint Board API + Manager + HA socket correlation attempt did not start because the local harness constructed remote SSH argv as:
+
+```text
+ssh ... python3 -c import base64;exec(base64.b64decode(...))
+```
+
+OpenSSH passes the remote command through a shell. Because the Python `-c` program was not shell-quoted as one argument, the remote shell parsed the semicolon/expression itself and failed before Python execution.
+
+Classification:
+
+```text
+PRODUCT_FAILURE=false
+T1_FAILURE=false
+BOARD_FAILURE=false
+MANAGER_FAILURE=false
+HA_FAILURE=false
+FORENSIC_CAPTURE_STARTED=false
+HARNESS_REMOTE_ARGV_QUOTING_ERROR=true
+```
+
+Regression rule:
+
+```text
+REMOTE_PYTHON_WITH_SSH_MUST_USE_STDIN_OR_EXPLICIT_SHELL_QUOTING=true
+UNQUOTED_PYTHON_C_THROUGH_SSH_FORBIDDEN=true
+```
+
+The next executor uses stdin-fed remote Python for preflight and a safely quoted base64 payload only where concurrent background sampling requires it.
