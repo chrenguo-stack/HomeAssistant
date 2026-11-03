@@ -16,6 +16,7 @@ from n3w_t1_core_updater_v2_common import (
     STATUS_SCHEMA_V2,
     TX_SCHEMA_V2,
     ComponentTarget,
+    UpgradeBaseline,
     UpdaterV2Error,
     V2Host,
     sha256_file,
@@ -50,12 +51,57 @@ class MultiComponentCoreUpdater:
                     "image_ref": runtime[name]["image_ref"],
                     "image_id": runtime[name]["image_id"],
                     "network_mode": runtime[name]["network_mode"],
+                    "runtime_contract_sha256": runtime[name][
+                        "runtime_contract_sha256"
+                    ],
                 }
                 for name in ("broker", "manager", "homeassistant")
             },
             "listeners": snapshot["listeners"],
             "mqtt_authenticated": snapshot.get("mqtt_authenticated"),
         }
+
+    def baseline(self) -> dict[str, Any]:
+        snapshot = self.host.inspect_v2()
+        policy = self.policy.capture()
+        self.policy.validate_pre("manager", policy)
+        baseline = UpgradeBaseline(
+            stack_images=dict(snapshot["image_bindings"]),
+            runtime_contract_sha256={
+                component: snapshot["runtime"][component][
+                    "runtime_contract_sha256"
+                ]
+                for component in ("manager", "homeassistant", "broker")
+            },
+            a1_hard_authority=self.policy.hard_authority(policy),
+            a1_classification_sha256=(
+                "e664ced300ea2bb743b116550b7a3e22237e7f556f54400a060eef30671d30e7"
+            ),
+        )
+        return baseline.public()
+
+    def _validate_baseline(
+        self,
+        component: str,
+        baseline: UpgradeBaseline,
+        snapshot: dict[str, Any],
+        policy: dict[str, Any],
+    ) -> None:
+        if baseline.stack_images != snapshot["image_bindings"]:
+            raise UpdaterV2Error("baseline_stack_image_drift")
+        for name, expected in baseline.runtime_contract_sha256.items():
+            current = snapshot["runtime"][name].get(
+                "runtime_contract_sha256"
+            )
+            if current != expected:
+                raise UpdaterV2Error(
+                    f"baseline_runtime_contract_drift:{name}"
+                )
+        self.policy.validate_baseline(
+            component,
+            policy,
+            baseline.a1_hard_authority,
+        )
 
     def inspect(self, component: str | None = None) -> dict[str, Any]:
         snapshot = self.host.inspect_v2()
@@ -76,6 +122,7 @@ class MultiComponentCoreUpdater:
     def plan(
         self,
         target: ComponentTarget,
+        baseline: UpgradeBaseline,
         tar_path: Path | None = None,
     ) -> dict[str, Any]:
         adapter = adapter_for(target.component)
@@ -83,6 +130,12 @@ class MultiComponentCoreUpdater:
         self.host.assert_mutation_safe(target.component)
         policy = self.policy.capture()
         self.policy.validate_pre(target.component, policy)
+        self._validate_baseline(
+            target.component,
+            baseline,
+            pre,
+            policy,
+        )
 
         current = adapter.current_binding(pre)
         if current != target.expected_predecessor_image_ref:
@@ -121,6 +174,7 @@ class MultiComponentCoreUpdater:
                 "image_id": predecessor_id,
             },
             "target": target.public(),
+            "baseline_sha256": sha256_bytes(canonical(baseline.public())),
             "target_image_prestate": (
                 "ABSENT" if target_prestate is None else "PRESENT_AND_EXACT"
             ),
@@ -140,6 +194,7 @@ class MultiComponentCoreUpdater:
     def apply(
         self,
         target: ComponentTarget,
+        baseline: UpgradeBaseline,
         tar_path: Path,
         *,
         authorization_id: str,
@@ -154,6 +209,7 @@ class MultiComponentCoreUpdater:
         with self.store.lock():
             return self._apply_locked(
                 target,
+                baseline,
                 tar_path,
                 authorization_id=authorization_id,
             )
@@ -161,6 +217,7 @@ class MultiComponentCoreUpdater:
     def _apply_locked(
         self,
         target: ComponentTarget,
+        baseline: UpgradeBaseline,
         tar_path: Path,
         *,
         authorization_id: str,
@@ -173,6 +230,12 @@ class MultiComponentCoreUpdater:
         self.host.assert_mutation_safe(target.component)
         pre_policy = self.policy.capture()
         self.policy.validate_pre(target.component, pre_policy)
+        self._validate_baseline(
+            target.component,
+            baseline,
+            pre,
+            pre_policy,
+        )
 
         predecessor = adapter.current_binding(pre)
         if predecessor != target.expected_predecessor_image_ref:
@@ -199,6 +262,7 @@ class MultiComponentCoreUpdater:
             ],
             "pre_peer_runtime": adapter.peer_runtime_authority(pre),
             "pre_a1_policy": pre_policy,
+            "baseline_sha256": sha256_bytes(canonical(baseline.public())),
             "target": target.public(),
             "started_at_unix": int(time.time()),
             "candidate_image_preexisting": target_prestate is not None,
@@ -255,6 +319,10 @@ class MultiComponentCoreUpdater:
                 target_runtime_id,
                 tx["predecessor_network_mode"],
             )
+            if post["runtime"][target.component][
+                "runtime_contract_sha256"
+            ] != baseline.runtime_contract_sha256[target.component]:
+                raise UpdaterV2Error("post_target_runtime_contract_drift")
             adapter.verify_peer_runtime(post, tx["pre_peer_runtime"])
             post_policy = self.policy.capture()
             self.policy.validate_post(
