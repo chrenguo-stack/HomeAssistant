@@ -1,21 +1,29 @@
-## Latest authority — 2026-11-03 R3 exact factory write PASS; Captive Portal setup next
+## Latest authority — 2026-11-03 R3 first registration PASS; KF-139 repaired Manager current
 
+AUTHORITY_STATE=CURRENT_STACK_LIVE_ACCEPTED
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+AUTHORITY_SCHEMA=gh.n3w-t1-core-stack-current-authority/2
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=b863ddd959090ca139af76bd68dbef31d773e6de
 LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
-LIVE_MANAGER=local/greenhouse-manager:fresh-3539c8f871e2
-R3_REENTRY_PREFLIGHT=PASS
-R3_EXACT_FACTORY_WRITE_VERIFY=PASS
-R3_ARTIFACT_ID=13203682791
-R3_FACTORY_SHA256=9ccc469898832bda612634aef64ca946631e81574076be504ef864aaee56d8f9
-R3_BATTERY_LOW_THRESHOLD=-1.00V
-R3_PRODUCTION_ELIGIBLE=false
-BOARD_CHIP=ESP32-C6
-BOARD_FLASH_SIZE=8MB
-NVS_ERASED=true
-T1_MUTATION=false
-FIRST_REGISTRATION_STARTED=false
-NEXT_ONE_GATE=N3W_T1_CORE_STACK_R3_SENSORLESS_CAPTIVE_PORTAL_WIFI_SETUP_AND_IDLE_QR_20261103_01
+LIVE_MANAGER=local/greenhouse-manager:fresh-b863ddd95909
+LIVE_MANAGER_RUNTIME_IMAGE_ID=sha256:7c6133d87b9d378acc06ab20813b95d2e27d952f958f3ad33c7de3a4f6e9205e
+TRANSACTION_STATUS=COMMITTED
+TRANSACTION_PHASE=COMMITTED
+RECOVERY_REQUIRED=false
+POST_UPGRADE_ACCEPTANCE=PASS
+KF139=CLOSED_PASS
+FIRST_REGISTRATION_ACCEPTANCE=PASS
+CREDENTIAL_LIFECYCLE_PRIVATE_DATABASE_GATE=PASS
+PAIRING_WINDOW_STATE=CLOSED
+PAIRING_WINDOW_CLOSE_REASON=committed
+HOMEASSISTANT_CONTINUITY=PASS
+BROKER_CONTINUITY=PASS
+LISTENER_CONTRACT=PASS
+SYSTEMD_FAILED_UNITS=0
+BOARD_MUTATION=false
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_R3_KF139_POST_MERGE_MAIN_READONLY_REBIND_20261103_01
 
-The next gate uses the normal Captive Portal Wi-Fi configuration path and must stop at the idle unregistered QR state before any T1 selection/confirmation or first-registration transaction.
+The exact b863 repaired Manager is live and first-registration accepted. Canonical authority v2 separates the immutable historical Clean Reference from the immediate 3539 predecessor and no longer encodes dynamic zero-node inventory as a permanent current-stack requirement.
 
 ## Latest authority — 2026-11-03 Manager B live accepted; R3 re-entry next
 
