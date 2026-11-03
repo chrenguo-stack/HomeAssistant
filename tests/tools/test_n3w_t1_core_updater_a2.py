@@ -566,7 +566,7 @@ def test_nonterminal_predecessor_healthy_closes_without_mutation(
     )
 
     assert result["t1_mutation"] is False
-    assert host.events == ["release-guard"]
+    assert host.events == []
     assert store.read()["status"] == "ROLLED_BACK"
 
 
