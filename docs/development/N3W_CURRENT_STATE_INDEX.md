@@ -1,3 +1,21 @@
+## 2026-11-03 — V2 reconciliation read-only preflight PASS; transaction-only recovery authorization is next
+
+- Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source remains `3539c8f871e2cb63f18462009fa03a5eb36d39fd`.
+- Current repository Manager target remains `local/greenhouse-manager:fresh-3539c8f871e2`.
+- Current repository Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64`, Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Repository authority remains `LIVE_DEPLOYMENT_STATE=NOT_YET_APPLIED`; live upgrade pending.
+- Exact V2 package binding on operator side and T1 staging both PASS.
+- Fresh V2 status: `FAILED_EMERGENCY / ROLLBACK_FAILED`, `recovery_required=true`, mutation=false.
+- Fresh V2 inspect: predecessor Manager A exact runtime identity PASS; HA continuity PASS; Broker continuity PASS; listener contract PASS.
+- Manager/HA/Broker restart_count are all 0.
+- Runtime classifier is `PREDECESSOR_HEALTHY`.
+- No transaction reconciliation, service restart, Manager binding rewrite, apply retry or Board access has occurred.
+- Under V2, the next recovery should only close the stale transaction to terminal ROLLED_BACK with `t1_mutation=false`; it must not restart Manager/HA.
+- Next one gate: `N3W_T1_CORE_UPDATER_V2_R2_TRANSACTION_RECONCILIATION_AUTHORIZATION_20261103_01`.
+
 ## 2026-11-03 — Updater V2 exact authority ready; stuck R2 transaction reconciliation is the next live boundary
 
 - Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.

@@ -1,3 +1,7 @@
+### 2026-11-03 KF-136 live V2 reconciliation preflight — CLOSED_PASS / authorization pending
+
+Fresh real-T1 execution of the exact V2 updater package returned status PASS and inspect PASS with mutation=false. The stale R2 transaction remains `FAILED_EMERGENCY / ROLLBACK_FAILED` and `recovery_required=true`, while the actual runtime is strictly `PREDECESSOR_HEALTHY`: Manager A exact runtime identity PASS, Home Assistant continuity PASS, Broker continuity PASS, listener contract PASS, and all three restart counts remain 0. This is the exact V2 no-runtime-mutation reconciliation case. No rollback/recovery command has been executed yet. Next gate is a separate explicit authorization for transaction reconciliation; expected result is terminal `ROLLED_BACK` with `t1_mutation=false`.
+
 ### 2026-11-03 Updater V2 source/package closure — PR #754
 
 PR #754 reviewed head `43de966c70d527433a915f40b9b630227531580a` merged as `24fbc6cdf9b05796487459ad7cae038c0bdc7d5a` with zero tree drift. Exact-head CI passed 13/13; updater tests passed 41/41. Exact Manager-only updater package run `41544508199`, artifact `13187736541`, artifact digest `sha256:e09fb86c8444e0510b0200e759551d3571496064c743b4171992d46ab73babb9`, updater pyz SHA256 `e92c093c7028d57ddc1e2c9c1eeb3fb97a0791a27b262b472c75482eaa3026bf`. Upload/redownload package binding and pyz execution both PASS. Manager tar remains unchanged and Manager was not rebuilt. KF-135/KF-136 source-level V2 repair is closed; live R2 transaction reconciliation and later A->B acceptance remain separate gates.
