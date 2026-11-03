@@ -1,3 +1,17 @@
+## 2026-11-03 — New-chat handoff frozen: R3 reference convergence -> A1
+
+```text
+HANDOFF_READY_FOR_NEW_CHAT=true
+HANDOFF=docs/development/N3W_T1_CORE_STACK_R3_REFERENCE_CONVERGENCE_TO_A1_STABLE_INVARIANT_CLASSIFICATION_NEW_CHAT_HANDOFF_V1.0_20261103.md
+CURRENT_STAGE=R3_ENGINEERING_OBJECTIVE_COMPLETE_REFERENCE_CONVERGENCE_PENDING
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_R3_REFERENCE_CONVERGENCE_AND_A1_ENTRY_READONLY_20261103_01
+DIRECT_RELAY_REPEAT_REQUIRED=false
+A1_AFTER_REFERENCE_CONVERGENCE=true
+PR773_MERGE=SEPARATE_BOUNDARY
+```
+
+The handoff captures all unfinished work through A1/A2/U0/U1/U2, keeps real-sensor/long-duration acceptance separate, and records that no important engineering result is chat-only.
+
 ## 2026-11-03 — R3 execution complete; formal Clean Reference R3 reference convergence is next before A1
 
 ```text
