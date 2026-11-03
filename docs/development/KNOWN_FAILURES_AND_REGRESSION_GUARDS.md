@@ -1,3 +1,9 @@
+### 2026-11-03 KF-139 — credential lifecycle DB mode 0644 blocks R3 47112 first-registration window
+
+| ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
+|---|---|---|---|---|---|
+| KF-139 | N3-W R3 first registration / Manager B dynamic 47112 pairing window | exact Manager B 收到首次注册 confirm，新增第二条 `ACTIVE / BOOTSTRAP_ACCEPTED / NONE` first-registration attempt；47110/47111 正常，47112 未建立；pairing-window controller 保存 `open_failure / SimplifiedProductRuntimeError`；现场 `credential-lifecycle.sqlite3` 为 0644 | Manager registration startup 通过 `CredentialLifecycleStore` 直接 `sqlite3.connect()` 创建 credential DB，可能按 umask 生成 0644；随后 47112 composition 的 `_ensure_private_database()` 又强制既有 DB 必须无 group/other 权限，导致同一运行路径前后合同冲突并返回 E02 | 新 DB 在 SQLite 打开前以 0600 原子创建并显式 fchmod 0600；既有异常文件不自动 chmod，继续由 pairing private gate fail-closed；补 Manager-style 创建→pairing private gate 和既有 0644 fail-closed 回归测试。现有真实 T1 的 0644 文件不在 source-repair gate 内修改 | SOURCE_REPAIR_IN_PROGRESS |
+
 ### 2026-11-03 KF-138 closure — CLOSED_PASS
 
 Manager B semantic-zero-node recheck PASS. The prior STOP was caused by an over-strict acceptance oracle that required the historical first-registration ledger to be empty. The retained row is `EXPIRED / TERMINAL / COMPLETE`, unresolved count is 0, and current registration, node lease, credential, pairing-session, replay and relay-active state are all zero. Terminal COMPLETE rows remain replay tombstones and must not be deleted. Manager B runtime, Home Assistant continuity, Broker continuity, listener contract and systemd health all PASS.
