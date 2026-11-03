@@ -54,6 +54,7 @@ class MultiComponentCoreUpdater:
                 for name in ("broker", "manager", "homeassistant")
             },
             "listeners": snapshot["listeners"],
+            "mqtt_authenticated": snapshot.get("mqtt_authenticated"),
         }
 
     def inspect(self, component: str | None = None) -> dict[str, Any]:
@@ -79,6 +80,7 @@ class MultiComponentCoreUpdater:
     ) -> dict[str, Any]:
         adapter = adapter_for(target.component)
         pre = self.host.inspect_v2()
+        self.host.assert_mutation_safe(target.component)
         policy = self.policy.capture()
         self.policy.validate_pre(target.component, policy)
 
@@ -168,6 +170,7 @@ class MultiComponentCoreUpdater:
 
         adapter = adapter_for(target.component)
         pre = self.host.inspect_v2()
+        self.host.assert_mutation_safe(target.component)
         pre_policy = self.policy.capture()
         self.policy.validate_pre(target.component, pre_policy)
 
