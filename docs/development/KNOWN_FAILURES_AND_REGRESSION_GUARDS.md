@@ -1,3 +1,11 @@
+### 2026-11-03 KF-138 — Manager B post-upgrade acceptance falsely equated zero-node with empty historical ledger
+
+| ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
+|---|---|---|---|---|---|
+| KF-138 | T1 Core Stack Manager B post-upgrade read-only acceptance | repaired A→B apply 已 PASS；3 次 status/inspect、COMMITTED transaction、Manager B、HA/Broker continuity、listener、systemd failed units、pairing window 均已通过，但验收脚本在 `business_counts == all-zero` 处 STOP。只读分类随后证明唯一非零项为 `first_registration_attempts=1`，且该行是 `EXPIRED / TERMINAL / COMPLETE`；registrations、node leases、credentials、pairing sessions、replay、relay authorization 全为 0 | 验收脚本把“当前 zero-node / 无未解决 first registration”错误收紧成“历史 ledger 必须完全空”。项目 ADR/source 明确 terminal first-registration rows 是 durable replay tombstones，不应垃圾回收；源码的 unresolved 判据只把 ACTIVE 或 terminal cleanup 未 COMPLETE 视为阻断 | post-upgrade acceptance 改为 semantic zero-node：允许任意 terminal+cleanup COMPLETE tombstone；要求 unresolved_count=0，并继续要求 registrations/node leases/credentials/pairing sessions/replay/relay active state 全为 0、47112 CLOSED、Manager B/HA/Broker/runtime contract 稳定 | ACCEPTANCE_HARNESS_REPAIR_IN_PROGRESS |
+
+禁止为满足验收而删除该 tombstone。若 tombstone 是 `EXPIRED|RESTART_INVALIDATED` 且 `TERMINAL / COMPLETE`，它属于防重放历史证据；只有 ACTIVE、cleanup 非 COMPLETE、或出现当前 node/credential/lease 等业务对象才阻断 zero-node R3 入口。
+
 ### 2026-11-03 KF-137 source repair closure — CLOSED_PASS / exact repaired package ready
 
 PR #761 exact head `06866acc9ff8f1e9acb7c3e23097a53031e9b313` passed 13/13 workflow CI and merged as `2e3f1c72e5ac17a9c8a1ecb378148a0d6d2d8c29`. The repair accepts `inactive|failed` only as stable non-active states after successful `systemctl stop`; Manager and Home Assistant running-container counts must still both be zero, while `active` remains fail-closed. Exact repaired updater package run `41561467986`, artifact `13196564439`, digest `sha256:e656223c776cc9f2f9fe0c334f2ae8d65bd26681617b0d6a0d82394f8833ac8c`, pyz SHA256 `6222ab4bdcb53e0b612777a585111f5ab2ab114a1c52a4997252937ef27033cc`. Source repair is CLOSED_PASS; live repaired apply remains separately authorized/accepted.

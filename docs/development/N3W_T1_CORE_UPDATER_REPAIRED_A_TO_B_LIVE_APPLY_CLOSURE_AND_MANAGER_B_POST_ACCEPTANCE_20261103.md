@@ -1,3 +1,48 @@
+## 2026-11-03 acceptance correction — terminal replay tombstone is compatible with semantic zero-node
+
+The first post-upgrade acceptance harness stopped only because it required all historical business-table counts to be zero. Aggregate-only diagnosis proved:
+
+```text
+credential_assignments=0
+first_registration_attempts=1
+node_id_leases=0
+pairing_sessions=0
+registration_events=0
+registration_node_history=0
+registrations=0
+retirement_outbox=0
+
+ONLY_ATTEMPT_STATE=EXPIRED
+ONLY_ATTEMPT_PHASE=TERMINAL
+ONLY_ATTEMPT_CLEANUP_STATE=COMPLETE
+
+replay_node_count=0
+replay_tuple_count=0
+relay_active_node_count=0
+relay_key_file_count=0
+```
+
+This does not represent a current node or unresolved registration. Project ADR/source authority explicitly retains terminal first-registration rows as replay tombstones and defines unresolved state as ACTIVE or terminal rows whose cleanup is not COMPLETE.
+
+Correct acceptance rule:
+
+```text
+SEMANTIC_ZERO_NODE=
+  registrations=0
+  AND node_id_leases=0
+  AND credential_assignments=0
+  AND pairing_sessions=0
+  AND unresolved_first_registration_count=0
+  AND replay_node_count=0
+  AND replay_tuple_count=0
+  AND relay_active_node_count=0
+  AND relay_key_file_count=0
+
+TERMINAL_COMPLETE_FIRST_REGISTRATION_TOMBSTONES=ALLOWED_AND_PRESERVED
+```
+
+No cleanup or mutation is authorized. The tombstone must not be deleted merely to satisfy an empty-table oracle. The final recheck is read-only.
+
 # N3-W T1 Core Updater repaired Manager A -> B live apply closure and post-upgrade acceptance preparation — 2026-11-03
 
 ## Live apply result

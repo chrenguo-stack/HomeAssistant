@@ -1,3 +1,18 @@
+## 2026-11-03 — Manager B acceptance false-stop narrowed to terminal replay tombstone semantics
+
+- Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source remains `3539c8f871e2cb63f18462009fa03a5eb36d39fd`.
+- Current repository Manager target remains `local/greenhouse-manager:fresh-3539c8f871e2`.
+- Current repository Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64`, Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live Manager is B and updater transaction remains `COMMITTED / COMMITTED`; `recovery_required=false`.
+- Three stable status/inspect snapshots, Home Assistant continuity, Broker continuity, listener contract, zero failed systemd units and pairing window CLOSED all passed.
+- Aggregate-only diagnosis found one terminal `EXPIRED / TERMINAL / COMPLETE` first-registration replay tombstone and no current registration, node lease, credential, pairing-session, replay or relay-active state.
+- KF-138 classifies the prior STOP as an acceptance-harness false-stop; terminal COMPLETE rows are preserved replay authority and must not be deleted.
+- Repository authority still records `LIVE_DEPLOYMENT_STATE=NOT_YET_APPLIED`; live upgrade pending only until semantic-zero-node recheck closes PASS.
+- Next one gate: `N3W_T1_CORE_STACK_MANAGER_B_POST_UPGRADE_SEMANTIC_ZERO_NODE_RECHECK_20261103_01`.
+
 ## 2026-11-03 — Manager B is live; independent post-upgrade acceptance is next
 
 - Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
