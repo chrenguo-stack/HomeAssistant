@@ -133,7 +133,9 @@ def _safe_mode(mode: str) -> bool:
         value = int(mode, 8)
     except ValueError:
         return False
-    return (value & 0o022) == 0
+    # Persistent directories must be both safe and usable by their owner:
+    # owner rwx is required; group/other write is forbidden.
+    return (value & 0o700) == 0o700 and (value & 0o022) == 0
 
 
 def _tree_hash(root: Path) -> str:
