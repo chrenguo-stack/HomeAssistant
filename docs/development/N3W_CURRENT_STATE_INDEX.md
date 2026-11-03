@@ -6,7 +6,7 @@
 - Current Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
 - Historical Clean Reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
 - Historical Clean Reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
-- live upgrade accepted: `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- Live upgrade accepted: `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
 - R3 first registration PASS; KF-139 CLOSED_PASS.
 - Post-registration Direct telemetry / Home Assistant PASS; KF-140 CLOSED_FALSE_POSITIVE.
 - Direct->Relay->Direct repeat is not required.
