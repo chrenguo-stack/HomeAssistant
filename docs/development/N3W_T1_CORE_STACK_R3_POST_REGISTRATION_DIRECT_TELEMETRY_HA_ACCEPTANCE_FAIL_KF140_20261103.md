@@ -258,3 +258,66 @@ BOARD_REBOOT=false
 BOARD_LOCATION_CHANGE=false
 ROOT_CAUSE_REQUIRED_BEFORE_SOURCE_REPAIR=true
 ```
+
+
+## 12. Manager live Direct receive ACL closure
+
+Fresh live read-only DynSec evidence:
+
+```text
+DEFAULT_PUBLISH_CLIENT_RECEIVE=false
+DEFAULT_SUBSCRIBE=false
+
+MANAGER_CLIENT_COUNT=1
+MANAGER_CLIENT_ID_OK=true
+MANAGER_ROLE_ASSIGNMENT_OK=true
+MANAGER_ROLE_COUNT=1
+
+DIRECT_SUBSCRIBE_PATTERN=true
+DIRECT_PUBLISH_CLIENT_RECEIVE=true
+DIRECT_UNSUBSCRIBE_PATTERN=true
+OVERALL_EXACT_DIRECT_RECEIVE_CONTRACT=true
+```
+
+The live Manager role carries the expected exact Direct ingress filter:
+
+```text
+gh/v1/<system_id>/ingress/node/+/telemetry
+```
+
+with both:
+
+```text
+subscribePattern allow priority=100
+publishClientReceive allow priority=100
+```
+
+Therefore current KF-140 evidence excludes these candidate explanations:
+
+```text
+MANAGER_SUBSCRIBE_ACL_MISSING=false
+MANAGER_PUBLISH_CLIENT_RECEIVE_ACL_MISSING=false
+MANAGER_IDENTITY_ROLE_BINDING_DRIFT=false
+LIVE_DYNSEC_DIRECT_RECEIVE_CONTRACT_DRIFT=false
+```
+
+Updated failure boundary:
+
+```text
+PROVEN_HEALTHY_UPSTREAM=
+GEN1_AUTH;
+NODE_DIRECT_PUBLISH_ACL;
+MANAGER_DIRECT_SUBSCRIBE_ACL;
+MANAGER_DIRECT_PUBLISH_CLIENT_RECEIVE_ACL;
+MANAGER_MQTT_SUBSCRIPTION
+
+PROVEN_BOARD_EVENT=
+N3W_DIRECT_ASYNC_QUEUE_ADMISSION_ACCEPTED
+
+UNPROVEN_BOUNDARY=
+ESPHome_ASYNC_MQTT_WORKER_ACTUAL_SEND;
+BROKER_QOS1_RECEIPT_OR_PUBACK;
+MANAGER_MESSAGE_DELIVERY
+```
+
+Next focused evidence remains read-only packet/timestamp correlation. No ACL repair is justified.
