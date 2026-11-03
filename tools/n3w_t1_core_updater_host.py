@@ -53,9 +53,9 @@ EXPECTED_LISTENERS = {
 
 CERT_LIFECYCLE_UNIT = "n3wfc4-broker-certificate-lifecycle.service"
 MQTT_IDENTITY_FILES = {
-    "manager": Path("/opt/greenhouse-secrets/mqtt/manager/identity.json"),
+    "manager": Path("/opt/greenhouse-secrets/mqtt/manager/runtime.env"),
     "homeassistant": Path(
-        "/opt/greenhouse-secrets/mqtt/homeassistant/identity.json"
+        "/opt/greenhouse-secrets/mqtt/homeassistant/mqtt-bootstrap.json"
     ),
 }
 
@@ -422,13 +422,36 @@ class LocalHost:
         if path.is_symlink() or not path.is_file():
             raise UpdaterError(f"{service}_mqtt_identity_invalid")
         try:
-            identity = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError, json.JSONDecodeError) as error:
+            raw_identity = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeError) as error:
             raise UpdaterError(f"{service}_mqtt_identity_invalid") from error
-        if not isinstance(identity, dict):
-            raise UpdaterError(f"{service}_mqtt_identity_invalid")
-        client_id = identity.get("client_id")
-        username = identity.get("username")
+        if service == "manager":
+            values = {}
+            for line in raw_identity.splitlines():
+                if "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                if key in {"GH_MQTT_CLIENT_ID", "GH_MQTT_USERNAME"}:
+                    if key in values:
+                        raise UpdaterError(
+                            "manager_mqtt_identity_duplicate"
+                        )
+                    values[key] = value
+            client_id = values.get("GH_MQTT_CLIENT_ID")
+            username = values.get("GH_MQTT_USERNAME")
+        else:
+            try:
+                identity = json.loads(raw_identity)
+            except json.JSONDecodeError as error:
+                raise UpdaterError(
+                    "homeassistant_mqtt_identity_invalid"
+                ) from error
+            if not isinstance(identity, dict):
+                raise UpdaterError(
+                    "homeassistant_mqtt_identity_invalid"
+                )
+            client_id = identity.get("client_id")
+            username = identity.get("username")
         if not all(
             isinstance(value, str)
             and re.fullmatch(r"[A-Za-z0-9_.:-]+", value)
