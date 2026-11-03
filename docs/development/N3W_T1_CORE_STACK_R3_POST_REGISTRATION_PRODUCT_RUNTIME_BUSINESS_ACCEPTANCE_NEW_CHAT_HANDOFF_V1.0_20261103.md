@@ -565,3 +565,19 @@ SOURCE_REPAIR_REQUIRED=false
 Fresh corrected evidence proves the registered sensorless R3 board continues Direct telemetry normally and that Home Assistant receives fresh node-bound MQTT traffic. The earlier failure was caused by a stale Manager-log matcher in the acceptance harness, not a product defect.
 
 Remaining downstream scope is separate: Direct/Relay physical failover, real sensor measurement acceptance, long-duration stability, and production eligibility. The current sensorless R3 board remains non-production-eligible.
+
+
+---
+
+## 20. Stage correction — R3 -> A1
+
+The earlier suggestion to repeat Direct->Relay->Direct is withdrawn. Historical same-boot physical failover acceptance remains valid, and the frozen Clean Reference R3 plan explicitly excludes Direct/Relay failover from R3 required scope.
+
+```text
+R3_ENGINEERING_OBJECTIVE_COMPLETE=true
+R3_CLEAN_REFERENCE_AUTHORITY_CLOSURE=PARTIAL
+R3_REFERENCE_SHA256=NOT_FROZEN
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_R3_REFERENCE_CONVERGENCE_AND_A1_ENTRY_READONLY_20261103_01
+```
+
+This bridge gate is read-only. It freezes the R3 normal-runtime reference/delta needed by A1 and explicitly separates the KF-139 Manager A->B version transition from ordinary runtime drift. After PASS, the next phase is A1 Stable-invariant classification, not another wireless-path physical test.
