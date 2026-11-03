@@ -1,16 +1,17 @@
 # 温室环境监测系统（ESP32-C6）
-# N3-W R3 注册后 Direct Telemetry / Home Assistant 验收失败归档
-# KF-140 OPEN — 2026-11-03
+# N3-W R3 注册后 Direct Telemetry / Home Assistant 验收误判与闭环归档
+# KF-140 CLOSED_FALSE_POSITIVE — 2026-11-03
 
 ```text
 EXECUTION_ID=N3W_T1_CORE_STACK_R3_POST_REGISTRATION_DIRECT_TELEMETRY_AND_HA_DISCOVERY_ACCEPTANCE_20261103_01
-RESULT=FAIL
+RESULT=CLOSED_PASS_AFTER_ORACLE_CORRECTION
 KF=KF-140
-KF_STATE=OPEN
+KF_STATE=CLOSED_FALSE_POSITIVE
 KF139_REOPEN=false
-ROOT_CAUSE=TBD
+ROOT_CAUSE=TEST_HARNESS_MANAGER_LOG_MATCHER_FALSE_NEGATIVE
 SOURCE_RISK_PROVEN=true
-PRODUCT_RUNTIME_E2E_FAILURE_PROVEN=true
+PRODUCT_RUNTIME_E2E_FAILURE_PROVEN=false
+SOURCE_REPAIR_REQUIRED=false
 ```
 
 ## 1. 结论
@@ -588,3 +589,70 @@ UNQUOTED_PYTHON_C_THROUGH_SSH_FORBIDDEN=true
 ```
 
 The next executor uses stdin-fed remote Python for preflight and a safely quoted base64 payload only where concurrent background sampling requires it.
+
+
+## 20. Final Direct / HA closure evidence
+
+Fresh 135-second joint read-only capture closed the remaining acceptance scope:
+
+```text
+BOARD_CURRENTLY_SUBMITTING=true
+BOARD_DIRECT_SUBMITTED_SEQS=100,101
+API_CONNECTED=true
+
+MANAGER_ACCEPTED_SEQ_RANGE=71..101
+MANAGER_ACCEPTED_UNIQUE_COUNT=31
+MANAGER_STRICT_CONSECUTIVE_FROM_71=true
+MANAGER_REJECTED_COUNT=0
+MANAGER_DUPLICATE_COUNT=0
+MANAGER_MAX_CONSECUTIVE_INTERARRIVAL_SECONDS=60.111691
+
+HA_1883_VALID_SOCKET_SAMPLES=222
+
+SEQ100_NEAR_MANAGER_ACCEPT_BROKER_TO_HA_BYTES_DELTA=1097
+SEQ100_NEAR_MANAGER_ACCEPT_BROKER_TO_HA_DATA_SEGS_DELTA=2
+SEQ100_PREBASELINE_BYTES_DELTA=0
+
+SEQ101_NEAR_MANAGER_ACCEPT_BROKER_TO_HA_BYTES_DELTA=1097
+SEQ101_NEAR_MANAGER_ACCEPT_BROKER_TO_HA_DATA_SEGS_DELTA=2
+SEQ101_PREBASELINE_BYTES_DELTA=0
+
+DIRECT_CONTINUITY=PASS
+HA_FRESH_MQTT_RECEIPT_TRANSPORT_BOUND=PASS
+PRODUCT_SOURCE_REPAIR_REQUIRED=false
+```
+
+Interpretation:
+
+- Board API independently observed fresh Direct submissions for seq 100 and 101.
+- Manager accepted every seq from 71 through 101 with no gap, reject, or duplicate.
+- The maximum accepted interarrival interval is approximately 60.112 seconds, matching the deployed 60-second telemetry cadence.
+- For both seq 100 and 101, the unique Broker-to-Home-Assistant 1883 socket advanced by 1097 bytes / 2 data segments in the narrow Manager-accept correlation window, while the pre-event baseline delta was zero.
+- Combined with the already-proven HA registry state (one device, six entities) and the Manager source contract that publishes canonical telemetry/availability before the accepted log, this is sufficient for the current sensorless R3 Direct Telemetry / HA Discovery runtime acceptance.
+- This does not constitute sensor measurement acceptance, Direct/Relay movement acceptance, or long-duration stability acceptance.
+
+Final disposition:
+
+```text
+KF140=CLOSED_FALSE_POSITIVE
+DIRECT_TELEMETRY_AND_HA_DISCOVERY_GATE=CLOSED_PASS
+DIRECT_TELEMETRY_CONTINUITY=PASS
+HOME_ASSISTANT_DISCOVERY_ENTITY_VISIBILITY=PASS
+HOME_ASSISTANT_FRESH_RUNTIME_MQTT_RECEIPT=PASS
+BOARD_REPAIR_REQUIRED=false
+BROKER_REPAIR_REQUIRED=false
+MANAGER_REPAIR_REQUIRED=false
+HOME_ASSISTANT_REPAIR_REQUIRED=false
+DYNSEC_REPAIR_REQUIRED=false
+CREDENTIAL_REPAIR_REQUIRED=false
+SOURCE_REPAIR_REQUIRED=false
+```
+
+Regression guard:
+
+```text
+DO_NOT_CLASSIFY_MANAGER_DELIVERY_FAILURE_FROM_ZERO_MATCH_AGAINST_STALE_LOG_TEXT=true
+USE_DEPLOYED_SIMPLIFIED_N3W_LOG_STRINGS=true
+WHEN_HA_ENTITY_VALUE_CAN_REMAIN_CONSTANT_DO_NOT_REQUIRE_LAST_UPDATED_TO_CHANGE=true
+BIND_FRESH_HA_RECEIPT_TO_NODE_EVENT_WITH_MANAGER_ACCEPT_PLUS_UNIQUE_HA_MQTT_SOCKET_TRANSPORT=true
+```
