@@ -1,16 +1,15 @@
-## 2026-11-03 — R3/KF-139 repaired Manager is the canonical current stack
+## 2026-11-03 — R3 registration closure complete; downstream runtime/business acceptance begins
 - Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json` schema `gh.n3w-t1-core-stack-current-authority/2`.
+- Main: `e0841a5a43fd5847d5c5c40ab1cece42faedf3c8`; final #768 -> main compare has zero file drift.
 - Current repository product source: `b863ddd959090ca139af76bd68dbef31d773e6de`.
 - Current repository Manager: `local/greenhouse-manager:fresh-b863ddd95909`.
-- Current repository Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
-- Current repository Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
-- Historical Clean Reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
-- Historical Clean Reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
-- Immediate repair predecessor: `local/greenhouse-manager:fresh-3539c8f871e2`.
-- Live upgrade accepted: `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
-- KF-139 overall CLOSED_PASS; real post-repair first registration accepted.
-- Pairing window closed with `close_reason=committed`; private credential database gate PASS.
-- Next gate: `N3W_T1_CORE_STACK_R3_KF139_POST_MERGE_MAIN_READONLY_REBIND_20261103_01`.
+- Home Assistant and Broker remain unchanged from the accepted current stack.
+- KF-139 overall CLOSED_PASS; first registration PASS; private DB gate PASS; pairing window last accepted CLOSED/committed.
+- PRs #768/#769/#770/#771/#772 are all merged.
+- No current blocker is open for entering the downstream acceptance stage.
+- Current T1 runtime and registered-board power/network state are `UNKNOWN_FRESH` until the next read-only preflight.
+- Original R3 plan explicitly deferred MQTT telemetry, HA discovery/entity acceptance, Direct/Relay failover, sensor measurements and long-run stability to downstream physical-runtime acceptance.
+- Next gate: `N3W_T1_CORE_STACK_R3_POST_REGISTRATION_PRODUCT_RUNTIME_BUSINESS_ACCEPTANCE_READONLY_PREFLIGHT_20261103_01`.
 
 ## 2026-11-03 — R3 / KF-139 closure
 
