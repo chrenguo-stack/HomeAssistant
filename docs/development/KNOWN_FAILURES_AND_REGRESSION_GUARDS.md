@@ -1,3 +1,9 @@
+### 2026-11-03 KF-136 live V2 reconciliation — CLOSED_PASS
+
+The separately authorized exact Updater V2 recovery was executed against a fresh `PREDECESSOR_HEALTHY` baseline. It recovered the durable transaction from `FAILED_EMERGENCY / ROLLBACK_FAILED` to terminal `ROLLED_BACK / RECOVERY_COMPLETE_FAILED_EMERGENCY` with `recovery_required=false`. The updater returned `t1_mutation=false`; Manager binding, Manager/HA/Broker runtime identities, restart counts and listener contract remained unchanged. No service restart, A-to-B apply, manual transaction edit/delete, host mutation or Board access occurred.
+
+KF-136 source repair and live reconciliation are now CLOSED_PASS. The guard remains: any future nonterminal updater transaction must be reconciled from fresh runtime facts; if predecessor is already strictly healthy, closure must not restart services or rewrite the Manager binding. A later Manager A-to-B acceptance remains separate and still covers the KF-135 post-start readiness path.
+
 ### 2026-11-03 KF-136 live V2 reconciliation preflight — CLOSED_PASS / authorization pending
 
 Fresh real-T1 execution of the exact V2 updater package returned status PASS and inspect PASS with mutation=false. The stale R2 transaction remains `FAILED_EMERGENCY / ROLLBACK_FAILED` and `recovery_required=true`, while the actual runtime is strictly `PREDECESSOR_HEALTHY`: Manager A exact runtime identity PASS, Home Assistant continuity PASS, Broker continuity PASS, listener contract PASS, and all three restart counts remain 0. This is the exact V2 no-runtime-mutation reconciliation case. No rollback/recovery command has been executed yet. Next gate is a separate explicit authorization for transaction reconciliation; expected result is terminal `ROLLED_BACK` with `t1_mutation=false`.

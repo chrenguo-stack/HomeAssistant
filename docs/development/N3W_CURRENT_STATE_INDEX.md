@@ -1,3 +1,28 @@
+## 2026-11-03 — V2 R2 reconciliation CLOSED_PASS; repository cleanup and next A-to-B preauthorization
+
+- Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source remains `3539c8f871e2cb63f18462009fa03a5eb36d39fd`.
+- Current repository Manager target remains `local/greenhouse-manager:fresh-3539c8f871e2`.
+- Current repository Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64`, Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Repository authority remains `LIVE_DEPLOYMENT_STATE=NOT_YET_APPLIED`; live upgrade pending.
+- PR #757 is merged as `abd42c326e54902a81b31db09ec9a014235d9c78`.
+- Exact Updater V2 recovery completed successfully from `FAILED_EMERGENCY / ROLLBACK_FAILED`.
+- Durable transaction is now terminal `ROLLED_BACK / RECOVERY_COMPLETE_FAILED_EMERGENCY`.
+- `recovery_required=false`.
+- Updater reported `t1_mutation=false`.
+- Public runtime snapshot was unchanged across the recovery.
+- Manager remains exact predecessor A `local/greenhouse-manager:fresh-24382caae4a1`.
+- Manager, Home Assistant and Broker restart counts remain 0.
+- Listener contract remains 8883=1, 47110=1, UDP 47111=1, 47112=0.
+- Manager binding was not rewritten; no apply and no Board access occurred.
+- KF-136 live reconciliation is CLOSED_PASS.
+- Historical stale PR cleanup is tracked in `docs/development/N3W_T1_CORE_UPDATER_V2_R2_RECONCILIATION_CLOSURE_AND_REPOSITORY_CLEANUP_20261103.md`.
+- Closed as superseded without merge: #697, #720, #721, #722, #728, #730, #731, #732, #739.
+- A new Manager A-to-B apply is not authorized by this closure.
+- Next product gate: `N3W_T1_CORE_UPDATER_V2_POST_RECONCILIATION_BASELINE_AND_MANAGER_A_TO_B_PREAUTHORIZATION`.
+
 ## 2026-11-03 — V2 reconciliation read-only preflight PASS; transaction-only recovery authorization is next
 
 - Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
