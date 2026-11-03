@@ -1,0 +1,13 @@
+{
+  "artifact_digest_sha256": "eddeff81b3e670b66765558bb7e9795ae846caba6f487cfd6d727d5c0795403a",
+  "artifact_id": 13206763644,
+  "artifact_name": "n3w-t1-fresh-exact-arm64-b863ddd959090ca139af76bd68dbef31d773e6de",
+  "component": "manager",
+  "expected_predecessor_image": "local/greenhouse-manager:fresh-3539c8f871e2",
+  "image": "local/greenhouse-manager:fresh-b863ddd95909",
+  "image_id": "sha256:9ff3b651ba0fc5879de76a91875356c522cc5809ea9f242fa11ec2fa192e4036",
+  "rollback_compatible": true,
+  "schema": "gh.n3w-t1-core-updater-manager-target/1",
+  "source_head": "b863ddd959090ca139af76bd68dbef31d773e6de",
+  "tar_sha256": "ea158fbefe81084989941b951e0f5c8c65f630748c72bef3f8d03a1c453c328f"
+}

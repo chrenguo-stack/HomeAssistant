@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-SCHEMA = "gh.n3w-t1-core-stack-current-authority/1"
+SCHEMA = "gh.n3w-t1-core-stack-current-authority/2"
 TARGET_SCHEMA = "gh.n3w-t1-core-updater-manager-target/1"
 
 PENDING_AUTHORITY_STATE = "SUCCESSOR_READY_NOT_LIVE_APPLIED"
@@ -16,7 +16,7 @@ PENDING_LIVE_STATE = "NOT_YET_APPLIED"
 APPLIED_LIVE_STATE = "APPLIED_ACCEPTED"
 
 AUTHORITY = Path("infra/n3w-t1/production/t1-core-stack-current.json")
-TARGET = Path("infra/n3w-t1/upgrades/manager-3539c8f871e2.json")
+TARGET = Path("infra/n3w-t1/upgrades/manager-b863ddd95909.json")
 FRESH_COMPOSE = Path("infra/n3w-t1/production/docker-compose.fresh.yml")
 BOOTSTRAP = Path("tools/n3w_t1_fresh_product_bootstrap.py")
 CURRENT_STATE = Path("docs/development/N3W_CURRENT_STATE.md")
@@ -188,16 +188,37 @@ def validate_documents(
         target.get("tar_sha256") == manager.get("tar_sha256"),
         "target_tar_sha256_mismatch",
     )
-    _require(
-        target.get("expected_predecessor_image") == old_manager,
-        "target_predecessor_mismatch",
-    )
     _require(target.get("rollback_compatible") is True, "target_rollback_invalid")
 
     _require(
         upgrade.get("target_manifest") == str(TARGET),
         "upgrade_target_manifest_invalid",
     )
+    source_repair_pr = upgrade.get("source_repair_pr")
+    _require(
+        isinstance(source_repair_pr, int)
+        and not isinstance(source_repair_pr, bool)
+        and source_repair_pr > 0,
+        "source_repair_pr_invalid",
+    )
+    _require(
+        upgrade.get("source_repair_head") == product_source,
+        "source_repair_head_mismatch",
+    )
+    execution_pr = upgrade.get("execution_pr")
+    _require(
+        isinstance(execution_pr, int)
+        and not isinstance(execution_pr, bool)
+        and execution_pr > 0,
+        "execution_pr_invalid",
+    )
+    package_control_head = upgrade.get("package_control_head")
+    _require(
+        isinstance(package_control_head, str)
+        and SHA40.fullmatch(package_control_head) is not None,
+        "package_control_head_invalid",
+    )
+
     reviewed_head = upgrade.get("updater_reviewed_head")
     _require(
         isinstance(reviewed_head, str) and SHA40.fullmatch(reviewed_head) is not None,
@@ -266,9 +287,16 @@ def validate_documents(
         authority_state == expected_authority_state,
         "authority_live_state_mismatch",
     )
+    immediate_predecessor = live.get("expected_predecessor_manager_image")
     _require(
-        live.get("expected_predecessor_manager_image") == old_manager,
+        isinstance(immediate_predecessor, str)
+        and immediate_predecessor.startswith("local/greenhouse-manager:")
+        and immediate_predecessor != manager.get("image"),
         "live_predecessor_invalid",
+    )
+    _require(
+        target.get("expected_predecessor_image") == immediate_predecessor,
+        "target_predecessor_mismatch",
     )
     _require(
         live.get("expected_target_manager_image") == manager.get("image"),
@@ -303,19 +331,20 @@ def validate_documents(
             "live_post_upgrade_acceptance_invalid",
         )
         _require(
-            live.get("semantic_zero_node") == "PASS",
-            "live_semantic_zero_node_invalid",
+            live.get("kf139_closure") == "CLOSED_PASS",
+            "live_kf139_closure_invalid",
         )
         _require(
-            live.get("unresolved_first_registration_count") == 0,
-            "live_unresolved_first_registration_invalid",
+            live.get("first_registration_acceptance") == "PASS",
+            "live_first_registration_acceptance_invalid",
         )
-        tombstone_count = live.get("terminal_replay_tombstone_count")
         _require(
-            isinstance(tombstone_count, int)
-            and not isinstance(tombstone_count, bool)
-            and tombstone_count >= 0,
-            "live_terminal_tombstone_count_invalid",
+            live.get("credential_lifecycle_private_database_gate") == "PASS",
+            "live_private_database_gate_invalid",
+        )
+        _require(
+            live.get("pairing_window_close_reason") == "committed",
+            "live_pairing_window_close_reason_invalid",
         )
         _require(
             live.get("homeassistant_continuity") == "PASS",
@@ -338,8 +367,8 @@ def validate_documents(
             "live_pairing_window_state_invalid",
         )
         _require(
-            live.get("board_access") is False,
-            "live_board_access_invalid",
+            live.get("board_mutation") is False,
+            "live_board_mutation_invalid",
         )
 
     manager_binding = (

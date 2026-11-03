@@ -93,6 +93,23 @@ def test_manager_target_drift_fails_closed():
         )
 
 
+def test_target_predecessor_must_match_live_predecessor():
+    authority, target, compose, bootstrap, state, index = documents()
+    target = copy.deepcopy(target)
+    target["expected_predecessor_image"] = (
+        authority["historical_clean_reference"]["manager_image"]
+    )
+    with pytest.raises(check.AuthorityError, match="target_predecessor_mismatch"):
+        check.validate_documents(
+            authority,
+            target,
+            compose,
+            bootstrap,
+            state,
+            index,
+        )
+
+
 def test_current_state_cannot_claim_live_deployment():
     authority, target, compose, bootstrap, state, index = documents()
     authority = copy.deepcopy(authority)
@@ -108,11 +125,14 @@ def test_current_state_cannot_claim_live_deployment():
         )
 
 
-def test_applied_state_requires_semantic_zero_node_evidence():
+def test_applied_state_requires_first_registration_acceptance():
     authority, target, compose, bootstrap, state, index = documents()
     authority = copy.deepcopy(authority)
-    authority["live_deployment"]["semantic_zero_node"] = "PENDING"
-    with pytest.raises(check.AuthorityError, match="live_semantic_zero_node_invalid"):
+    authority["live_deployment"]["first_registration_acceptance"] = "PENDING"
+    with pytest.raises(
+        check.AuthorityError,
+        match="live_first_registration_acceptance_invalid",
+    ):
         check.validate_documents(
             authority,
             target,
@@ -145,7 +165,7 @@ def test_pending_state_remains_supported():
     authority["live_deployment"] = {
         "state": check.PENDING_LIVE_STATE,
         "expected_predecessor_manager_image": (
-            authority["historical_clean_reference"]["manager_image"]
+            target["expected_predecessor_image"]
         ),
         "expected_target_manager_image": (
             authority["current_repository_stack"]["manager"]["image"]
