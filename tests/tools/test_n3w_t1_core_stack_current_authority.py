@@ -30,7 +30,7 @@ def test_current_authority_repository_contract_passes():
     assert report["homeassistant_unchanged"] is True
     assert report["broker_unchanged"] is True
     assert report["legacy_static_compose_is_current_authority"] is False
-    assert report["live_deployment_state"] == "NOT_YET_APPLIED"
+    assert report["live_deployment_state"] == "APPLIED_ACCEPTED"
 
 
 def test_fresh_compose_uses_dynamic_manager_binding():
