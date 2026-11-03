@@ -1,0 +1,698 @@
+# 温室环境监测系统（ESP32-C6）N3-W
+# T1 Core Stack R3 Reference Convergence -> A1 Stable-Invariant Classification
+# 新会话交接文档 V1.0 — 2026-11-03
+
+```text
+HANDOFF_TEMPLATE_VERSION=1.3
+SOLE_VALID_HANDOFF_TEMPLATE_VERSION=1.3
+OLDER_HANDOFF_TEMPLATE_VERSIONS=INVALID_FOR_NEW_HANDOFF_GENERATION
+HISTORICAL_TEMPLATE_COPIES=HISTORICAL_EVIDENCE_ONLY
+HISTORICAL_HANDOFF_STANDARD_DOES_NOT_AUTHORIZE_OLD_TEMPLATE=true
+PROJECT_WORKING_CONTEXT_VERSION=1.4
+PROJECT_WORKING_CONTEXT=docs/development/N3W_PROJECT_WORKING_CONTEXT.md
+NEXT_ONE_GATE_ONLY=true
+TEAM_SHARED_WORKSPACE=GITHUB
+```
+
+> 本文只保存当前阶段增量。长期工作规则统一引用 `N3W_PROJECT_WORKING_CONTEXT.md`。  
+> 当前阶段已经从“R3 注册后运行态排查”转为“R3 reference 形式收口 -> A1 稳定不变量分类”。  
+> fresh repository/runtime evidence 与本文冲突时，以 fresh 直接证据为准并先停止执行。
+
+---
+
+## 0. 会话切换结论
+
+```text
+CURRENT_STAGE=R3_ENGINEERING_OBJECTIVE_COMPLETE_REFERENCE_CONVERGENCE_PENDING
+CURRENT_STOP_POINT=R3_FIRST_REGISTRATION_AND_POST_REGISTRATION_DIRECT_HA_PASS;R3_REFERENCE_NOT_YET_FROZEN
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_R3_REFERENCE_CONVERGENCE_AND_A1_ENTRY_READONLY_20261103_01
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+HANDOFF_READY_FOR_NEW_CHAT=true
+```
+
+本会话已经完成 R3 实机目标与注册后 Direct telemetry / Home Assistant 追加验收；新会话不再重复无线物理路径，而是先把 R2->R3 参考系正式收敛，随后进入 A1 稳定不变量分类。
+
+---
+
+## 1. 长期上下文引用与本阶段例外
+
+```text
+PROJECT_WORKING_CONTEXT_LOADED=true
+PROJECT_WORKING_CONTEXT_VERSION=1.4
+LONG_TERM_RULES_REPEATED_IN_HANDOFF=false
+
+STAGE_SPECIFIC_OVERRIDE_COUNT=4
+STAGE_OVERRIDES=R3_ENGINEERING_OBJECTIVE_COMPLETE;DIRECT_RELAY_REPEAT_FORBIDDEN_WITHOUT_NEW_DRIFT;R3_REFERENCE_CONVERGENCE_PRECEDES_A1;MANAGER_VERSION_AXIS_SEPARATE_FROM_RUNTIME_DRIFT
+```
+
+本阶段特别强调：
+
+```text
+DIRECT_RELAY_HISTORICAL_ACCEPTANCE_REMAINS_VALID=true
+R3_POST_REGISTRATION_DIRECT_TELEMETRY_HA_ACCEPTANCE=PASS
+R3_REFERENCE_SHA256=NOT_FROZEN
+A1_NOT_EXECUTED=true
+```
+
+---
+
+## 2. Product North Star
+
+```text
+CURRENT_PRODUCT_ROUTE=R0/R0H/S0/S1/R1/R2_COMPLETE -> R3_REAL_FIRST_REGISTRATION_COMPLETE -> R3_REFERENCE_CONVERGENCE -> A1_STABLE_INVARIANT_CLASSIFICATION -> A2_PER_MODULE_UPGRADE_ARCHITECTURE -> U0_EXPLICIT_BASELINE_A -> U1_CLEAN_MANAGER_A_TO_B -> U2_LEGACY_DIRTY_T1_A
+
+FINAL_ACCEPTANCE_TARGET=从真实 Clean Reference 与正常业务运行差异中提取长期稳定产品合同，基于这些合同收敛 T1_Core_Updater 的模块级升级边界，并完成真实版本差异下的 clean/legacy upgrade validation
+
+DEFERRED_OR_OUT_OF_SCOPE=REAL_SENSOR_MEASUREMENT_ACCEPTANCE;LONG_DURATION_RUNTIME_STABILITY;FULL_AIRGAPPED_HOST_INSTALL_O1;NEW_DIRECT_RELAY_PHYSICAL_RETEST_WITHOUT_SOURCE_DRIFT;PRODUCTION_ELIGIBILITY_OF_SENSORLESS_R3_BOARD
+```
+
+阶段目标不是继续增加历史 transaction/recovery 特例，而是明确：
+
+```text
+CLEAN_REFERENCE_PURPOSE=MEASURE_STABLE_PRODUCT_INVARIANTS
+UPGRADE_VALIDATION_REQUIRES_VERSION_DELTA=true
+UPGRADE_TOOL=T1_Core_Updater
+```
+
+---
+
+## 3. Frozen Authorities
+
+```text
+REPOSITORY=chrenguo-stack/HomeAssistant
+MAIN=e0841a5a43fd5847d5c5c40ab1cece42faedf3c8
+TREE=NOT_APPLICABLE:CURRENT_HANDOFF_USES_EXACT_MAIN_COMMIT_AND_FILE_AUTHORITIES
+
+CANDIDATE_REF=docs/n3w-r3-post-registration-runtime-business-handoff-20261103
+CANDIDATE_HEAD=NOT_APPLICABLE:DOCS_ONLY_AUTHORITY_BRANCH_MUST_BE_FRESH_REBOUND_IN_NEW_CHAT
+CANDIDATE_TREE=NOT_APPLICABLE:DOCS_ONLY_BRANCH_IS_NOT_PRODUCT_SOURCE_CANDIDATE
+
+ARTIFACT_ID=NOT_APPLICABLE:NEXT_GATE_STARTS_FROM_ARCHIVED_REFERENCE_EVIDENCE;ANY_NEW_LIVE_OBSERVER_ARTIFACT_REQUIRES_FRESH_BINDING
+ARTIFACT_SHA256=NOT_APPLICABLE
+
+DEPLOYED_SOURCE_HEAD=MANAGER=b863ddd959090ca139af76bd68dbef31d773e6de
+DEPLOYED_SOURCE_TREE=NOT_APPLICABLE:NEXT_GATE_DOES_NOT_REBUILD_OR_DEPLOY_PRODUCT_SOURCE
+
+OTHER_REQUIRED_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json;docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_R2_COMMON_REFERENCE_BASELINE_CLOSURE_20261101.md;docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_DEVELOPMENT_PLAN_20261101.md;docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_AND_STABLE_INVARIANTS_DESIGN_20261031.md;docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_SENSORLESS_REAL_FIRST_REGISTRATION_EXECUTION_PLAN_20261102.md;docs/development/N3W_T1_CORE_STACK_R3_KF139_CLOSURE_20261103.md;docs/development/N3W_T1_CORE_STACK_R3_CLOSURE_TO_A1_STABLE_INVARIANT_ENTRY_REASSESSMENT_20261103.md
+```
+
+Exact product/reference bindings:
+
+```text
+AUTHORITY_SCHEMA=gh.n3w-t1-core-stack-current-authority/2
+AUTHORITY_STATE=CURRENT_STACK_LIVE_ACCEPTED
+
+HISTORICAL_CLEAN_REFERENCE_SOURCE=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+HISTORICAL_CLEAN_REFERENCE_IMMUTABLE=true
+
+CURRENT_PRODUCT_SOURCE=b863ddd959090ca139af76bd68dbef31d773e6de
+CURRENT_MANAGER=local/greenhouse-manager:fresh-b863ddd95909
+CURRENT_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+
+R2_REFERENCE_LABEL=R2
+R2_REFERENCE_SHA256=89da2a2b2cc1ce0fa024c3c45e24a71f09ba05e0e0cadbd67dd6387291239747
+R3_OBSERVER_CONTROL_HEAD=da9124fe18774cdb5822f9eb3afee40120cfb04f
+R3_OBSERVER_HISTORICAL_ARTIFACT_ID=13087179158
+R3_OBSERVER_HISTORICAL_ARTIFACT_DIGEST=sha256:473499d10e0487a591e8828312a76036fe438463d3455a8ed74d8eea5f96821b
+
+R3_REFERENCE_SHA256=NOT_FROZEN
+R3_R2_SEMANTIC_COMPARE_AUTHORITY=NOT_YET_FROZEN
+
+PR773_STATE=OPEN_UNMERGED_DOCS_ONLY
+PR773_MERGE=SEPARATE_BOUNDARY
+```
+
+The historical R3 observer artifact is evidence authority only. Do not assume artifact availability or reuse it live without fresh binding.
+
+---
+
+## 4. Current Live Baseline
+
+本 handoff 生成阶段没有重新访问真实 T1 或板端。因此当前 live 状态按模板必须保持 `UNKNOWN_FRESH`；上一轮实机结果只作为“已证明事实”保留在下一节。
+
+```text
+MANAGER_STATE=UNKNOWN_FRESH
+MANAGER_RESTART_STATE=UNKNOWN_FRESH
+BROKER_STATE=UNKNOWN_FRESH
+HOMEASSISTANT_STATE=UNKNOWN_FRESH
+
+BOARD_A_POWER_STATE=NOT_APPLICABLE:NEXT_GATE_HAS_NO_BOARD_SCOPE
+BOARD_A_LOCATION_ROLE=NOT_APPLICABLE
+BOARD_B_POWER_STATE=NOT_APPLICABLE:NEXT_GATE_HAS_NO_BOARD_SCOPE
+BOARD_B_LOCATION_ROLE=NOT_APPLICABLE
+R3_REGISTERED_BOARD_POWER_STATE=UNKNOWN_FRESH
+R3_REGISTERED_BOARD_NETWORK_STATE=UNKNOWN_FRESH
+
+APPLICATION_SERIAL_OPEN=false
+FLASH_MUTATION=false
+NVS_MUTATION=false
+T1_RUNTIME_MUTATION=false
+
+MANAGER_STATE_REQUIRES_FRESH_READONLY_RECHECK=ONLY_IF_ARCHIVED_EVIDENCE_IS_INSUFFICIENT_FOR_REFERENCE_CONVERGENCE
+BROKER_STATE_REQUIRES_FRESH_READONLY_RECHECK=ONLY_IF_ARCHIVED_EVIDENCE_IS_INSUFFICIENT_FOR_REFERENCE_CONVERGENCE
+HOMEASSISTANT_STATE_REQUIRES_FRESH_READONLY_RECHECK=ONLY_IF_ARCHIVED_EVIDENCE_IS_INSUFFICIENT_FOR_REFERENCE_CONVERGENCE
+```
+
+下一 gate 必须优先重用已归档证据；只有缺失字段确实阻止 reference 收敛时，才进入一次纯只读 T1 observer。
+
+---
+
+## 5. Proven Current Facts
+
+```text
+FACT_R2_COMMON_REFERENCE=CLOSED_PASS
+FACT_R2_REFERENCE_SHA256=89da2a2b2cc1ce0fa024c3c45e24a71f09ba05e0e0cadbd67dd6387291239747
+FACT_R3_ENGINEERING_OBJECTIVE_COMPLETE=true
+FACT_R3_REAL_FIRST_REGISTRATION=PASS
+FACT_KF139=CLOSED_PASS
+
+FACT_PAIRING_WINDOW_FINAL=CLOSED
+FACT_PAIRING_WINDOW_CLOSE_REASON=committed
+FACT_UNRESOLVED_FIRST_REGISTRATION_COUNT=0
+FACT_ACTIVE_CREDENTIAL_GENERATION=1
+FACT_CREDENTIAL_LIFECYCLE_PRIVATE_DATABASE_GATE=PASS
+
+FACT_R3_POST_REGISTRATION_DIRECT_TELEMETRY_HA=PASS
+FACT_KF140=CLOSED_FALSE_POSITIVE
+FACT_MANAGER_ACCEPTED_SEQ_RANGE=71..101
+FACT_MANAGER_ACCEPTED_UNIQUE_COUNT=31
+FACT_MANAGER_STRICT_CONSECUTIVE=true
+FACT_MANAGER_REJECTED_COUNT=0
+FACT_MANAGER_DUPLICATE_COUNT=0
+FACT_MANAGER_MAX_INTERARRIVAL_SECONDS=60.111691
+FACT_BOARD_FRESH_DIRECT_SUBMIT_SEQS=100,101
+FACT_HA_FRESH_NODE_BOUND_MQTT_TRANSPORT=PASS
+
+FACT_DIRECT_RELAY_HISTORICAL_SAME_BOOT_ACCEPTANCE=PASS
+FACT_DIRECT_RELAY_REPEAT_REQUIRED=false
+FACT_FROZEN_R3_EXCLUDES_DIRECT_RELAY_FAILOVER=true
+
+FACT_R3_REFERENCE_SHA256=NOT_FROZEN
+FACT_FINAL_R2_TO_R3_REFERENCE_COMPARE=NOT_YET_FROZEN
+FACT_A1_STABLE_INVARIANT_CLASSIFICATION=NOT_EXECUTED
+FACT_A2_PER_MODULE_UPGRADE_ARCHITECTURE=NOT_EXECUTED
+FACT_U0_EXPLICIT_BASELINE_A=NOT_EXECUTED
+FACT_U1_CLEAN_MANAGER_A_TO_B_VALIDATION=NOT_EXECUTED_UNDER_POST_A1_A2_ARCHITECTURE
+FACT_U2_LEGACY_DIRTY_T1_A_VALIDATION=NOT_EXECUTED_UNDER_POST_A1_A2_ARCHITECTURE
+
+FACT_HISTORICAL_MANAGER_A=local/greenhouse-manager:fresh-24382caae4a1
+FACT_CURRENT_MANAGER_B863=local/greenhouse-manager:fresh-b863ddd95909
+FACT_MANAGER_VERSION_AXIS_CHANGED_DURING_R3=true
+```
+
+Important inference boundary:
+
+```text
+INFERENCE_NAIVE_R2_VS_CURRENT_R3_WHOLE_HASH_COMPARE_IS_VALID=false
+INFERENCE_MANAGER_VERSION_CHANGE_MUST_BE_SEPARATED_FROM_BUSINESS_RUNTIME_DRIFT=true
+```
+
+The second line is a stage design conclusion supported by the actual A->b863 transition and the frozen Clean Reference design; it must not be implemented as “ignore all Manager drift”. Each field still needs A1 classification and a concrete safety reason.
+
+---
+
+## 6. Current Root Cause / Blockers
+
+```text
+CURRENT_BLOCKER_COUNT=0
+CURRENT_BLOCKER=NONE
+ROOT_CAUSE=NOT_APPLICABLE:NO_ACTIVE_PRODUCT_DEFECT
+PROVEN_BY=KF139_CLOSED_PASS;KF140_CLOSED_FALSE_POSITIVE;DIRECT_TELEMETRY_HA_PASS
+SOURCE_DEFECT_PROVEN=false
+RUNTIME_DEFECT_PROVEN=false
+
+CURRENT_CLOSURE_GAP_COUNT=2
+CURRENT_CLOSURE_GAP_1=R3_REFERENCE_SHA256_NOT_FROZEN
+CURRENT_CLOSURE_GAP_2=R2_TO_R3_SEMANTIC_COMPARE_AUTHORITY_NOT_FROZEN
+```
+
+These are documentation/reference-authority gaps, not evidence of a live product failure.
+
+---
+
+## 7. Closed / Forbidden Routes
+
+```text
+REPEAT_DIRECT_TO_RELAY_TO_DIRECT=CLOSED:HISTORICAL_SAME_BOOT_PHYSICAL_ACCEPTANCE_ALREADY_PASS_AND_R3_EXPLICITLY_EXCLUDES_FAILOVER
+REPLAY_FIRST_REGISTRATION=CLOSED:R3_REAL_FIRST_REGISTRATION_ALREADY_COMMITTED
+REOPEN_KF139_WITHOUT_NEW_DIRECT_EVIDENCE=CLOSED:KF139_CLOSED_PASS
+REOPEN_KF140_AS_PRODUCT_DEFECT=CLOSED:PROVEN_ACCEPTANCE_HARNESS_FALSE_NEGATIVE
+DELETE_TERMINAL_REGISTRATION_TOMBSTONES=CLOSED:DURABLE_REPLAY_AUTHORITY
+RESET_R3_BUSINESS_STATE_TO_RECREATE_ZERO_NODE_REFERENCE=CLOSED:WOULD_DESTROY_REAL_R3_EVIDENCE
+REDEPLOY_HISTORICAL_MANAGER_A_TO_FORCE_SAME_VERSION_COMPARE=CLOSED:WOULD_MUTATE_ACCEPTED_CURRENT_STACK_AND_MANUFACTURE_REFERENCE
+TREAT_WHOLE_DATABASE_OR_DYNSEC_HASH_AS_AUTOMATIC_HARD_GATE=CLOSED:FROZEN_CLEAN_REFERENCE_DESIGN_REJECTS_RUNTIME_SNAPSHOT_EQUALITY
+CLAIM_SENSORLESS_R3_BOARD_PRODUCTION_ELIGIBLE=CLOSED:TEST_ARTIFACT_HAS_SENSORLESS_SCOPE_AND_BATTERY_THRESHOLD_OVERRIDE
+```
+
+---
+
+## 8. Authorization Ledger
+
+Only authorizations that affect the next stage are listed.
+
+```text
+AUTHORIZATION=R3_REAL_FIRST_REGISTRATION_EXECUTION
+CLAIMED=true
+CONSUMED=true
+RESULT=PASS
+REPLAY_PERMITTED=false
+SUPERSEDED_BY=R3_REFERENCE_CONVERGENCE
+
+AUTHORIZATION=KF139_REPAIRED_MANAGER_LIVE_APPLY_AND_ACCEPTANCE
+CLAIMED=true
+CONSUMED=true
+RESULT=PASS
+REPLAY_PERMITTED=false
+SUPERSEDED_BY=CURRENT_STACK_LIVE_ACCEPTED
+
+AUTHORIZATION=R3_POST_REGISTRATION_DIRECT_TELEMETRY_HA_ACCEPTANCE
+CLAIMED=true
+CONSUMED=true
+RESULT=PASS
+REPLAY_PERMITTED=false
+SUPERSEDED_BY=R3_REFERENCE_CONVERGENCE
+
+PROPOSED_AUTHORIZATION=N3W_T1_CORE_STACK_R3_REFERENCE_CONVERGENCE_AND_A1_ENTRY_READONLY_20261103_01
+GRANTED=NOT_REQUIRED:READONLY_GATE
+```
+
+PR #773 merge remains a separate repository integration boundary and is not authorized by this handoff.
+
+---
+
+## 9. Rollback Authority
+
+```text
+ROLLBACK_AUTHORITY=NOT_APPLICABLE:READONLY_GATE
+```
+
+If the gate later discovers that a live T1 mutation would be required, stop and create a separate bounded gate rather than extending this one.
+
+---
+
+## 10. Next ONE Gate
+
+```text
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_R3_REFERENCE_CONVERGENCE_AND_A1_ENTRY_READONLY_20261103_01
+```
+
+### Purpose
+
+This gate must convert the already-completed R3 engineering evidence into a formal Clean Reference input for A1.
+
+It must prove:
+
+- which R2 reference fields remain directly comparable with R3;
+- which observed differences are legitimate business-runtime drift;
+- which differences are caused by the intentional Manager version transition during KF-139;
+- which historical fields are unavailable and must be marked as historical gaps rather than recreated by destructive replay;
+- whether archived evidence is sufficient to freeze R3 reference authority;
+- if not, which minimum fresh read-only T1 observations are needed;
+- that the resulting reference/delta is complete enough for A1 to classify fields without another R3 physical workload.
+
+It cannot prove:
+
+- final A1 classifications;
+- final A2 updater architecture;
+- upgrade behavior for a new A != B release;
+- sensor measurement accuracy;
+- long-duration stability;
+- new wireless failover behavior.
+
+### Inputs
+
+```text
+INPUT_1=docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_R2_COMMON_REFERENCE_BASELINE_CLOSURE_20261101.md
+INPUT_2=R2_REFERENCE_SHA256:89da2a2b2cc1ce0fa024c3c45e24a71f09ba05e0e0cadbd67dd6387291239747
+INPUT_3=docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_SENSORLESS_REAL_FIRST_REGISTRATION_EXECUTION_PLAN_20261102.md
+INPUT_4=docs/development/N3W_T1_CORE_STACK_R3_KF139_CLOSURE_20261103.md
+INPUT_5=docs/development/N3W_T1_CORE_STACK_R3_POST_REGISTRATION_DIRECT_TELEMETRY_HA_ACCEPTANCE_FAIL_KF140_20261103.md
+INPUT_6=infra/n3w-t1/production/t1-core-stack-current.json@schema_v2
+INPUT_7=docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_DEVELOPMENT_PLAN_20261101.md
+INPUT_8=docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_AND_STABLE_INVARIANTS_DESIGN_20261031.md
+INPUT_9=tools/n3w_t1_clean_reference_observer.py
+INPUT_10=tools/n3w_t1_clean_reference_compare.py
+```
+
+### Operations
+
+```text
+1. Fresh rebind main, PR #773 current docs branch, current authority v2, R2 reference authority and all R3 closure evidence.
+2. Build an exact inventory of R2 observer fields and the evidence available for each field after R3.
+3. For each field, classify comparability before assigning any A1 stability class:
+   - DIRECTLY_COMPARABLE
+   - EXPECTED_BUSINESS_RUNTIME_DRIFT
+   - VERSION_AXIS_DRIFT
+   - HISTORICAL_REFERENCE_GAP
+   - FRESH_READONLY_OBSERVATION_REQUIRED
+4. Explicitly separate historical Clean Reference Manager A from current b863 Manager. Do not call a Manager-version hash delta a runtime defect.
+5. Reconstruct the R3 normal-runtime reference from archived evidence wherever possible.
+6. Only if one or more required fields remain FRESH_READONLY_OBSERVATION_REQUIRED, prepare and execute one minimal T1 read-only observer pass; do not access the board or mutate services.
+7. Freeze a public-safe R3 reference/delta authority and its digest/hash; raw private runtime material stays outside public GitHub.
+8. Produce the A1 input table skeleton with all observed fields and provenance, but do not yet finalize A1 HARD/SOFT/DIAGNOSTIC/REMOVE classifications.
+9. Update CURRENT_STATE, CURRENT_STATE_INDEX, PROJECT_WORKING_CONTEXT and the closure document.
+10. STOP at A1 entry.
+```
+
+### PASS / FAIL / STOP
+
+```text
+PASS_IF=R2_REFERENCE_AUTHORITY_REBOUND;ALL_R2_REFERENCE_FIELDS_HAVE_EXPLICIT_R3_COMPARABILITY_STATUS;MANAGER_VERSION_AXIS_SEPARATED;NO_DESTRUCTIVE_REFERENCE_RECREATION;R3_REFERENCE_OR_NORMALIZED_R3_DELTA_AUTHORITY_FROZEN;A1_INPUT_TABLE_COMPLETE;NO_NEW_PRODUCT_BLOCKER
+
+FAIL_IF=ARCHIVED_EVIDENCE_CONTRADICTS_ACCEPTED_R3_COMMIT;CURRENT_AUTHORITY_CONTRADICTS_KF139_CLOSURE;A_REQUIRED_REFERENCE_FIELD_CANNOT_BE_CLASSIFIED_OR_OBSERVED_READONLY;STABLE_CONTRACT_BREAK_IS_DIRECTLY_PROVEN
+
+STOP_BOUNDARY=ANY_NEED_FOR_FIRST_REGISTRATION_REPLAY;BOARD_POWER_USB_SERIAL_FLASH_NVS_OR_MOVEMENT;T1_SERVICE_RESTART_OR_IMAGE_CHANGE;DB_DYNSEC_CREDENTIAL_OR_HA_CONFIG_WRITE;HISTORICAL_MANAGER_REDEPLOY;UPDATER_APPLY;PR_MERGE
+
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+---
+
+## 11. Hard Allowed / Forbidden Scope
+
+```text
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+```
+
+### ALLOWED
+
+```text
+- GitHub source/docs/history read-only review.
+- Read current PR #773 and main authority.
+- Read frozen R0/R1/R2/R3 design and closure evidence.
+- Run local/offline comparison or analysis against public-safe archived data.
+- Create/update GitHub docs that archive this gate's evidence and closure.
+- Add a non-product analysis/report helper with tests only if manual comparison cannot be made auditable; it must not change product/updater behavior.
+- If archived evidence is insufficient, execute exactly one minimal read-only T1 observer snapshot after fresh preflight.
+- Sanitize public evidence to exclude raw device IDs, private IPs, credentials, secrets and private raw runtime archives.
+```
+
+### FORBIDDEN
+
+```text
+- Any Board access or physical movement.
+- Direct->Relay->Direct retest.
+- First-registration retry/replay.
+- Deleting or rewriting registration/credential tombstones or business state.
+- Manager/Broker/Home Assistant restart/recreate/config mutation.
+- Manager image downgrade/redeploy to historical Clean Reference A.
+- Updater apply/rollback/recovery execution.
+- Product firmware/source behavior modification.
+- Treating version-dependent hashes or runtime counts as hard invariants without A1 safety reasoning.
+- Automatic PR #773 merge.
+- Automatic transition into A1 after this gate.
+```
+
+```text
+LIVE_RUNTIME_MUTATION=false
+BOUNDED_EVIDENCE_FILESYSTEM_WRITE=true
+BOUNDED_WRITE_SCOPE=GITHUB_PUBLIC_SAFE_DOCS_AND_OPTIONAL_NONPRODUCT_ANALYSIS_HELPER_ONLY
+```
+
+---
+
+## 12. Execution Contract
+
+```text
+EXECUTOR=HIGH_LEVEL_MODEL_WITH_GITHUB_CONNECTOR;USER_MAC_TERMINAL_ONLY_IF_FRESH_T1_READONLY_OBSERVER_IS_PROVEN_NECESSARY
+EXECUTION_METHOD=chat-tool+optional-mac-terminal
+DIRECT_CODE_SUPPLIED=false
+DSL_COMPILATION_USED=false
+CI_POLL_MAX=3
+CI_PENDING_DIRECT_LINKS_REQUIRED=true
+CI_ALL_GREEN_CONTINUE_REQUIRED_REVIEW=true
+SAME_GATE_LOW_RISK_REPAIR_CONTINUE=true
+```
+
+Execution rules for this gate:
+
+- First attempt closure from GitHub/archive evidence; do not ask the operator to touch T1 merely because a live observer exists.
+- If a non-product analysis helper is required, source/test/CI repair may continue within this gate when local, unambiguous and scope-bounded.
+- Any product-source change, updater behavior change or live mutation stops the gate.
+- If CI is triggered, poll the same HEAD at most three times; if still pending, provide direct links and stop polling.
+- No merge occurs automatically.
+
+---
+
+## 13. Expected Closure
+
+```text
+=== N3W_T1_CORE_STACK_R3_REFERENCE_CONVERGENCE_AND_A1_ENTRY_READONLY_20261103_01 CLOSURE ===
+
+EXECUTION_ID=N3W_T1_CORE_STACK_R3_REFERENCE_CONVERGENCE_AND_A1_ENTRY_READONLY_20261103_01
+AUTHORIZATION=NOT_REQUIRED:READONLY_GATE
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+
+MAIN=
+PR773_HEAD=
+R2_REFERENCE_SHA256=89da2a2b2cc1ce0fa024c3c45e24a71f09ba05e0e0cadbd67dd6387291239747
+
+R2_REFERENCE_REBIND=
+R3_ENGINEERING_OBJECTIVE_COMPLETE=true
+R3_REFERENCE_RECONSTRUCTION=
+R3_REFERENCE_SHA256=
+R3_NORMALIZED_DELTA_SHA256=
+
+REFERENCE_FIELD_COUNT=
+DIRECTLY_COMPARABLE_COUNT=
+EXPECTED_BUSINESS_RUNTIME_DRIFT_COUNT=
+VERSION_AXIS_DRIFT_COUNT=
+HISTORICAL_REFERENCE_GAP_COUNT=
+FRESH_READONLY_OBSERVATION_REQUIRED_COUNT=
+
+MANAGER_VERSION_AXIS_SEPARATED=
+STABLE_CONTRACT_BREAK_COUNT=
+NEW_PRODUCT_BLOCKER_COUNT=
+A1_INPUT_TABLE_COMPLETE=
+
+T1_READONLY_OBSERVER_EXECUTED=
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+
+R3_REFERENCE_CONVERGENCE_RESULT=
+A1_ENTRY_READY=
+NEXT_ROUTE=N3W_T1_CORE_STACK_A1_STABLE_INVARIANT_CLASSIFICATION_20261103_01
+STOP=true
+
+=== END ===
+```
+
+---
+
+## 14. After PASS / FAIL
+
+```text
+AFTER_PASS_NEXT_STAGE=N3W_T1_CORE_STACK_A1_STABLE_INVARIANT_CLASSIFICATION_20261103_01
+AUTO_EXECUTE_AFTER_PASS=false
+NEW_AUTHORIZATION_REQUIRED=NO_FOR_A1_DOCS_ANALYSIS;SEPARATE_GATE_REQUIRED
+
+AUTO_REPAIR_AFTER_FAIL=false
+AUTO_RETRY_AFTER_FAIL=false
+STOP_AND_REVIEW_AFTER_FAIL=true
+```
+
+Planned downstream stages and goals:
+
+```text
+A1_GOAL=Classify every collected field as HARD_STABLE_INVARIANT / SOFT_RUNTIME_CHECK / DIAGNOSTIC_ONLY / REMOVE with owner and concrete safety reason.
+
+A2_GOAL=Redesign T1_Core_Updater per module: Manager-only by default, HA-only by default, Broker-only by default; cross-module only for explicit compatibility boundaries; resolved historical maintenance must not remain a permanent blocker.
+
+U0_GOAL=Freeze a real explicit upgrade baseline A and a distinct target B after A1/A2 converge.
+
+U1_GOAL=Run the first clean Manager A->B validation on clean T1_B, proving inspect/plan/apply/persistent compatibility/health/source-owned rollback/no unrelated mutation under the new invariant model.
+
+U2_GOAL=Freshly inspect legacy/dirty T1_A and validate classification/migration behavior without replaying consumed historical authorizations or forcing all old maintenance state into normal updater logic.
+
+O1_GOAL=Later complete full offline installation including host package/dependency bundle; not part of A1/A2/U0-U2 closure.
+```
+
+Important status distinction:
+
+```text
+HISTORICAL_UPDATER_V2_REAL_APPLY_ALREADY_EXECUTED=true
+POST_A1_A2_UPGRADE_VALIDATION_NOT_YET_EXECUTED=true
+```
+
+The earlier Updater V2 work remains valid incident/mechanism evidence. U0/U1/U2 are the validation phases after the stable-invariant architecture is formally converged.
+
+---
+
+## 15. KNOWN_FAILURES Updates
+
+```text
+KNOWN_FAILURES_UPDATE_REQUIRED=false
+EXISTING_KF_GUARD_USED=KF139_CLOSED_PASS;KF140_CLOSED_FALSE_POSITIVE;KF078_EXECUTOR_STDIN_AND_SSH_GUARDS
+NEW_KF_REQUIRED=false
+```
+
+Open a new KF only if the reference-convergence gate proves a new product/source defect. A missing historical reference field is not itself a product failure.
+
+---
+
+## 16. New Chat Start Prompt
+
+默认读取集：
+
+```text
+1. 本 handoff
+2. docs/development/N3W_PROJECT_WORKING_CONTEXT.md
+3. docs/development/N3W_CURRENT_STATE.md
+4. docs/development/N3W_CURRENT_STATE_INDEX.md
+5. docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md
+6. infra/n3w-t1/production/t1-core-stack-current.json
+7. docs/development/N3W_T1_CORE_STACK_R3_CLOSURE_TO_A1_STABLE_INVARIANT_ENTRY_REASSESSMENT_20261103.md
+8. docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_R2_COMMON_REFERENCE_BASELINE_CLOSURE_20261101.md
+9. docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_DEVELOPMENT_PLAN_20261101.md
+10. docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_AND_STABLE_INVARIANTS_DESIGN_20261031.md
+11. docs/development/N3W_T1_CORE_STACK_R3_KF139_CLOSURE_20261103.md
+12. docs/development/N3W_T1_CORE_STACK_R3_POST_REGISTRATION_DIRECT_TELEMETRY_HA_ACCEPTANCE_FAIL_KF140_20261103.md
+```
+
+建议启动文本：
+
+```text
+阅读《docs/development/N3W_T1_CORE_STACK_R3_REFERENCE_CONVERGENCE_TO_A1_STABLE_INVARIANT_CLASSIFICATION_NEW_CHAT_HANDOFF_V1.0_20261103.md》。
+
+同时读取：
+- docs/development/N3W_PROJECT_WORKING_CONTEXT.md
+- docs/development/N3W_CURRENT_STATE.md
+- docs/development/N3W_CURRENT_STATE_INDEX.md
+- docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md
+- infra/n3w-t1/production/t1-core-stack-current.json
+- docs/development/N3W_T1_CORE_STACK_R3_CLOSURE_TO_A1_STABLE_INVARIANT_ENTRY_REASSESSMENT_20261103.md
+- docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_R3_R2_COMMON_REFERENCE_BASELINE_CLOSURE_20261101.md
+- docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_DEVELOPMENT_PLAN_20261101.md
+- docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_AND_STABLE_INVARIANTS_DESIGN_20261031.md
+- docs/development/N3W_T1_CORE_STACK_R3_KF139_CLOSURE_20261103.md
+- docs/development/N3W_T1_CORE_STACK_R3_POST_REGISTRATION_DIRECT_TELEMETRY_HA_ACCEPTANCE_FAIL_KF140_20261103.md
+
+继续“温室环境监测系统（ESP32-C6）”项目 N3-W。
+
+先 fresh rebind：
+- repository main
+- PR #773 / docs/n3w-r3-post-registration-runtime-business-handoff-20261103
+- canonical authority schema v2
+- R2 reference SHA256
+- current-state / working-context authority
+
+必须先承认：
+- R3 real first registration 已 PASS；
+- KF-139 已 CLOSED_PASS；
+- post-registration Direct telemetry / Home Assistant 已 PASS；
+- KF-140 已 CLOSED_FALSE_POSITIVE；
+- Direct->Relay->Direct 同一 boot 物理路径历史上已经验收通过，不重复；
+- frozen R3 明确不要求 Direct/Relay failover、sensor measurement 或 long-duration stability；
+- R3 engineering objective 已完成；
+- 尚未收口的是 R3_REFERENCE_SHA256 / final R2->R3 semantic compare authority；
+- R3 期间 Manager 从 historical Clean Reference A 变为 current b863，version axis 必须与 business-runtime drift 分离。
+
+只进入：
+
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_R3_REFERENCE_CONVERGENCE_AND_A1_ENTRY_READONLY_20261103_01
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+
+优先使用 GitHub 已归档证据完成 reference convergence。只有明确证明某个 A1 必需字段缺少 fresh 只读事实时，才让我执行一次最小 T1 read-only observer；不要先要求 T1/板端操作。
+
+本 gate 结束时必须输出：
+- R3 reference / normalized delta authority；
+- 所有 reference field 的 comparability 分类；
+- Manager version-axis 分离结果；
+- A1 input table；
+- A1_ENTRY_READY；
+然后 STOP，不自动进入 A1，不 merge PR #773。
+```
+
+---
+
+## 17. Final Frozen State
+
+```text
+CURRENT_STAGE=R3_ENGINEERING_OBJECTIVE_COMPLETE_REFERENCE_CONVERGENCE_PENDING
+CURRENT_STOP_POINT=R3_PHYSICAL_BUSINESS_EXECUTION_COMPLETE;FORMAL_R3_REFERENCE_AND_R2_TO_R3_DELTA_NOT_YET_FROZEN
+CURRENT_BLOCKER=NONE
+LIVE_SYSTEM_STATE=UNKNOWN_FRESH
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_R3_REFERENCE_CONVERGENCE_AND_A1_ENTRY_READONLY_20261103_01
+
+UNFINISHED_TASK_1=R3_REFERENCE_CONVERGENCE
+UNFINISHED_TASK_1_GOAL=Freeze public-safe R3 normal-runtime reference / normalized delta without replaying workload
+UNFINISHED_TASK_2=A1_STABLE_INVARIANT_CLASSIFICATION
+UNFINISHED_TASK_2_GOAL=Authoritative field classification with concrete safety reasons
+UNFINISHED_TASK_3=A2_PER_MODULE_UPGRADE_ARCHITECTURE
+UNFINISHED_TASK_3_GOAL=Derive simplified module-scoped updater gates from A1
+UNFINISHED_TASK_4=U0_EXPLICIT_BASELINE_A
+UNFINISHED_TASK_4_GOAL=Freeze real A and distinct B only after A1/A2
+UNFINISHED_TASK_5=U1_CLEAN_MANAGER_A_TO_B
+UNFINISHED_TASK_5_GOAL=Validate clean upgrade under new invariant model
+UNFINISHED_TASK_6=U2_LEGACY_DIRTY_T1_A
+UNFINISHED_TASK_6_GOAL=Validate classification/migration of historical dirty state without replay
+UNFINISHED_TASK_7=PR773_REPOSITORY_INTEGRATION
+UNFINISHED_TASK_7_GOAL=Review and separately decide docs-only merge after authority convergence
+UNFINISHED_TASK_8=REAL_SENSOR_AND_LONG_DURATION_ACCEPTANCE
+UNFINISHED_TASK_8_GOAL=Separate later product runtime qualification; not an A1 prerequisite
+
+TEAM_SHARED_WORKSPACE=GITHUB
+IMPORTANT_CHAT_ONLY_ARTIFACT_COUNT=0
+TEAM_SHARE_COMPLETENESS=PASS
+
+PROJECT_WORKING_CONTEXT_VERSION=1.4
+HANDOFF_TEMPLATE_VERSION=1.3
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+```
+
+No important engineering result from this chat is intended to remain chat-only. The current docs branch is the handoff workspace; PR #773 remains open/unmerged and must be fresh rebound in the new chat.
+
+---
+
+## 18. Handoff Compliance Audit
+
+```text
+=== HANDOFF COMPLIANCE AUDIT ===
+
+HANDOFF_TEMPLATE_VERSION=1.3
+PROJECT_WORKING_CONTEXT_VERSION=1.4
+
+PROJECT_WORKING_CONTEXT_REFERENCED=PASS
+LONG_TERM_RULE_DUPLICATION_MINIMIZED=PASS
+STAGE_SPECIFIC_OVERRIDES_EXPLICIT=PASS
+PRIVATE_CONTEXT_EXCLUDED_FROM_PUBLIC_HANDOFF=PASS
+
+PRODUCT_NORTH_STAR_PRESENT=PASS
+FROZEN_AUTHORITIES_COMPLETE=PASS
+CURRENT_LIVE_BASELINE_COMPLETE=PASS
+PROVEN_FACTS_SEPARATED_FROM_INFERENCE=PASS
+CURRENT_BLOCKERS_EXPLICIT=PASS
+CLOSED_ROUTES_EXPLICIT=PASS
+
+AUTHORIZATION_LEDGER_COMPLETE=PASS
+CONSUMED_AUTH_REPLAY_GUARD=PASS
+ROLLBACK_AUTHORITY_EXPLICIT=PASS
+
+NEXT_ONE_GATE_EXPLICIT=PASS
+NEXT_GATE_SCOPE_BOUNDED=PASS
+ALLOWED_FORBIDDEN_SCOPE_EXPLICIT=PASS
+EXECUTION_CONTRACT_SELF_CONTAINED=PASS
+CI_CONTINUATION_HARD_RULES_PRESENT=PASS
+EXPECTED_CLOSURE_PRESENT=PASS
+AFTER_PASS_DOES_NOT_AUTO_EXECUTE=PASS
+
+KNOWN_FAILURES_UPDATE_CLASSIFIED=PASS
+NEW_CHAT_START_PROMPT_PRESENT=PASS
+TEAM_WORKSPACE_STATUS_PRESENT=PASS
+FINAL_FROZEN_STATE_PRESENT=PASS
+
+HANDOFF_STATE_COMPLETENESS=PASS
+HANDOFF_READY_FOR_NEW_CHAT=true
+
+=== END ===
+```
