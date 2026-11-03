@@ -1,3 +1,20 @@
+## 2026-11-03 — KF-137 repaired updater ready; one new A→B apply is authorized
+
+- Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source remains `3539c8f871e2cb63f18462009fa03a5eb36d39fd`.
+- Current repository Manager target remains `local/greenhouse-manager:fresh-3539c8f871e2`.
+- Current repository Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64`, Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Repository authority remains `LIVE_DEPLOYMENT_STATE=NOT_YET_APPLIED`; live upgrade pending.
+- PR #761 exact head `06866acc9ff8f1e9acb7c3e23097a53031e9b313` passed 13/13 CI and merged as `2e3f1c72e5ac17a9c8a1ecb378148a0d6d2d8c29`.
+- KF-137 repair accepts systemd `inactive|failed` only after successful stop and still requires both application running-container counts to be zero.
+- Exact repaired package: run `41561467986`, artifact `13196564439`, digest `sha256:e656223c776cc9f2f9fe0c334f2ae8d65bd26681617b0d6a0d82394f8833ac8c`, pyz SHA256 `6222ab4bdcb53e0b612777a585111f5ab2ab114a1c52a4997252937ef27033cc`.
+- Previous apply authorization is consumed/no-replay; its transaction is terminal `ROLLED_BACK / ROLLBACK_COMPLETE`, recovery_required=false.
+- New one-shot repaired apply authorization is granted: `N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_APPLY_V2_KF137_REPAIRED_20261103_01`.
+- No second apply, blind rollback or Board work is authorized.
+- Next one gate: `N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_APPLY_V2_KF137_REPAIRED_EXECUTION_20261103_01`.
+
 ## 2026-11-03 — Manager A→B apply safe-stopped on KF-137; focused updater repair next
 
 - Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
