@@ -1,3 +1,20 @@
+## 2026-11-03 — V2 R2 reconciliation CLOSED_PASS; repository cleanup and next A-to-B preauthorization
+
+- PR #757 is merged as `abd42c326e54902a81b31db09ec9a014235d9c78`.
+- Exact Updater V2 recovery completed successfully from `FAILED_EMERGENCY / ROLLBACK_FAILED`.
+- Durable transaction is now terminal `ROLLED_BACK / RECOVERY_COMPLETE_FAILED_EMERGENCY`.
+- `recovery_required=false`.
+- Updater reported `t1_mutation=false`.
+- Public runtime snapshot was unchanged across the recovery.
+- Manager remains exact predecessor A `local/greenhouse-manager:fresh-24382caae4a1`.
+- Manager, Home Assistant and Broker restart counts remain 0.
+- Listener contract remains 8883=1, 47110=1, UDP 47111=1, 47112=0.
+- Manager binding was not rewritten; no apply and no Board access occurred.
+- KF-136 live reconciliation is CLOSED_PASS.
+- Historical stale PR cleanup is tracked in `docs/development/N3W_T1_CORE_UPDATER_V2_R2_RECONCILIATION_CLOSURE_AND_REPOSITORY_CLEANUP_20261103.md`.
+- A new Manager A-to-B apply is not authorized by this closure.
+- Next product gate: `N3W_T1_CORE_UPDATER_V2_POST_RECONCILIATION_BASELINE_AND_MANAGER_A_TO_B_PREAUTHORIZATION`.
+
 ## 2026-11-03 — V2 reconciliation read-only preflight PASS; transaction-only recovery authorization is next
 
 - Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
