@@ -191,7 +191,22 @@ class ComponentTarget:
             raise UpdaterV2Error("target_artifact_identity_invalid")
 
         compatibility = doc.get("compatibility_evidence")
-        if not isinstance(compatibility, dict) or not compatibility:
+        if (
+            not isinstance(compatibility, dict)
+            or compatibility.get("schema")
+            != "gh.n3w-t1-core-updater-compatibility/1"
+            or compatibility.get("mutation_profile")
+            != MUTATION_PROFILE_IMAGE_ONLY
+            or compatibility.get("peer_contracts_compatible") is not True
+            or compatibility.get("persistent_schema_compatible") is not True
+            or not isinstance(
+                compatibility.get("review_evidence_sha256"), str
+            )
+            or SHA256.fullmatch(
+                compatibility["review_evidence_sha256"]
+            )
+            is None
+        ):
             raise UpdaterV2Error("target_compatibility_evidence_invalid")
         if doc.get("rollback_compatible") is not True:
             raise UpdaterV2Error("target_rollback_compatibility_not_proven")
