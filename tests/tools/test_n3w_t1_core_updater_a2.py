@@ -178,6 +178,9 @@ class FakeHost:
     def assert_component_upgradeable(self, component):
         assert component in OLD
 
+    def release_component_guard(self):
+        self.events.append("release-guard")
+
     def component_binding_v2(self, component):
         return self.bindings[component]
 
@@ -411,6 +414,7 @@ def test_apply_mutates_only_target_binding(
         f"quiesce:{component}",
         f"rewrite:{component}",
         f"activate:{component}",
+        "release-guard",
     ]
     tx = store.read()
     assert tx["schema"] == TX_SCHEMA_V2
@@ -562,7 +566,7 @@ def test_nonterminal_predecessor_healthy_closes_without_mutation(
     )
 
     assert result["t1_mutation"] is False
-    assert host.events == []
+    assert host.events == ["release-guard"]
     assert store.read()["status"] == "ROLLED_BACK"
 
 
@@ -596,6 +600,11 @@ def test_broker_adapter_preserves_owner_order(monkeypatch):
     events: list[str] = []
     monkeypatch.setattr(
         host,
+        "_acquire_broker_certificate_guard",
+        lambda: events.append("cert-lock"),
+    )
+    monkeypatch.setattr(
+        host,
         "stop_services",
         lambda: events.append("stop-application"),
     )
@@ -619,6 +628,7 @@ def test_broker_adapter_preserves_owner_order(monkeypatch):
     host.activate_component("broker")
 
     assert events == [
+        "cert-lock",
         "stop-application",
         "stop-broker",
         "start-broker",
