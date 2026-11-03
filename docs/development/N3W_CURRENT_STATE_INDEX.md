@@ -1,3 +1,14 @@
+## 2026-11-03 — R3 Direct telemetry / HA acceptance closed PASS
+- KF-140 is `CLOSED_FALSE_POSITIVE`: the apparent Manager delivery failure was caused by an acceptance harness matching stale/non-applicable log text.
+- Board API observed fresh Direct submissions seq 100 and 101.
+- Correct Manager log oracle proves continuous Direct acceptance from seq 71 through 101: 31 unique sequential samples, 0 gaps, 0 rejects, 0 duplicates; maximum interarrival about 60.112 seconds.
+- Home Assistant registry remains one device / six entities for the sensorless R3 board.
+- Both seq 100 and 101 Manager-accept windows correlate with fresh traffic on the unique Broker->HA 1883 socket: +1097 bytes / +2 data segments each, with zero pre-event baseline delta.
+- Direct telemetry continuity PASS; HA fresh MQTT runtime receipt PASS for this sensorless acceptance.
+- No product source repair is required.
+- Still out of scope / not closed by this gate: Direct/Relay physical failover, sensor measurement acceptance, long-duration stability, production eligibility of the sensorless battery-threshold-override R3 board.
+- Closure authority: `docs/development/N3W_T1_CORE_STACK_R3_POST_REGISTRATION_DIRECT_TELEMETRY_HA_ACCEPTANCE_FAIL_KF140_20261103.md`.
+
 ## 2026-11-03 — R3 registration closure complete; downstream runtime/business acceptance begins
 - Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json` schema `gh.n3w-t1-core-stack-current-authority/2`.
 - Main: `e0841a5a43fd5847d5c5c40ab1cece42faedf3c8`; final #768 -> main compare has zero file drift.
