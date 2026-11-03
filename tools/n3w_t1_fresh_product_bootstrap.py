@@ -528,6 +528,10 @@ class LiveFreshInstallerAdapters:
         return str(self.manifest["images"]["manager"]["image"])
 
     @property
+    def homeassistant_image(self) -> str:
+        return str(self.manifest["images"]["homeassistant"]["image"])
+
+    @property
     def broker_image(self) -> str:
         return str(self.manifest["images"]["broker"]["image"])
 
@@ -976,7 +980,9 @@ print(json.dumps({"status": "PASS"}))
         compose_env = etc / "docker-compose.env"
         compose_env.write_text(
             runtime_env.read_text(encoding="utf-8")
-            + f"GH_MANAGER_IMAGE={self.manager_image}\n",
+            + f"GH_MANAGER_IMAGE={self.manager_image}\n"
+            + f"GH_HOMEASSISTANT_IMAGE={self.homeassistant_image}\n"
+            + f"GH_BROKER_IMAGE={self.broker_image}\n",
             encoding="utf-8",
         )
         os.chmod(compose_env, 0o600)
