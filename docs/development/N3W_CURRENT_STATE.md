@@ -1,3 +1,42 @@
+## Latest authority — 2026-11-03 R3 reference convergence CLOSED_PASS; A1 entry ready, STOP
+
+```text
+AUTHORITY_STATE=R3_REFERENCE_CONVERGENCE_CLOSED_PASS_A1_ENTRY_READY
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+AUTHORITY_SCHEMA=gh.n3w-t1-core-stack-current-authority/2
+
+MAIN=e0841a5a43fd5847d5c5c40ab1cece42faedf3c8
+PR773_GATE_INPUT_HEAD=aa30c1bdcc42dbea8048822de181b0b7540d6494
+
+R3_ENGINEERING_OBJECTIVE_COMPLETE=true
+R3_REFERENCE_SHA256=e09139564280c700bc02b2e16360c511f780f7da7817f0d9bf0a22ff59dfcceb
+R3_NORMALIZED_DELTA_SHA256=0d2ade72c9dbdc8299cc09754ed87768a02762244447c619d007951e9a522895
+
+REFERENCE_FIELD_COUNT=150
+DIRECTLY_COMPARABLE_COUNT=48
+EXPECTED_BUSINESS_RUNTIME_DRIFT_COUNT=58
+VERSION_AXIS_DRIFT_COUNT=15
+HISTORICAL_REFERENCE_GAP_COUNT=29
+FRESH_READONLY_OBSERVATION_REQUIRED_COUNT=0
+
+MANAGER_VERSION_AXIS_SEPARATED=true
+T1_READONLY_OBSERVER_EXECUTED=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+
+A1_INPUT_TABLE_COMPLETE=true
+A1_ENTRY_READY=true
+A1_EXECUTED=false
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_A1_STABLE_INVARIANT_CLASSIFICATION_20261103_01
+AUTO_EXECUTE_NEXT_GATE=false
+PR773_MERGE=false
+STOP=true
+```
+
+R3 normal-runtime reference authority is now frozen as a public-safe normalized reconstruction from archived evidence. The historical Clean Reference Manager A and current b863 Manager are separated as an explicit version axis; ordinary business-runtime drift is not conflated with the Manager upgrade. All 150 observer leaf fields have a comparability status. The 29 gaps are historical public-reference gaps, not missing current facts, so no fresh T1 observer is required. A1 is ready but has not started.
+
+Closure: `docs/development/N3W_T1_CORE_STACK_R3_REFERENCE_CONVERGENCE_AND_A1_ENTRY_READONLY_CLOSURE_20261103.md`.
+
 ## 2026-11-03 — R3 engineering closure; reference convergence -> A1 handoff authority
 
 ```text

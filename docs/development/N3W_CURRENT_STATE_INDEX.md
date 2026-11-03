@@ -1,3 +1,14 @@
+## 2026-11-03 — R3 reference convergence CLOSED_PASS; A1 entry ready
+
+- Closure: `docs/development/N3W_T1_CORE_STACK_R3_REFERENCE_CONVERGENCE_AND_A1_ENTRY_READONLY_CLOSURE_20261103.md`
+- R3 normalized reference: `infra/n3w-t1/clean-reference/r3-normalized-reference-20261103.json`
+- R2 -> R3 normalized delta: `infra/n3w-t1/clean-reference/r2-r3-normalized-delta-20261103.json`
+- R3 reference SHA256: `e09139564280c700bc02b2e16360c511f780f7da7817f0d9bf0a22ff59dfcceb`
+- normalized delta SHA256: `0d2ade72c9dbdc8299cc09754ed87768a02762244447c619d007951e9a522895`
+- 150 leaf fields classified for comparability: 48 direct / 58 business-runtime / 15 version-axis / 29 historical-gap / 0 fresh-readonly-required.
+- Manager historical A -> current b863 is an explicit version axis.
+- `A1_ENTRY_READY=true`; A1 not executed; PR #773 not merged.
+
 ## 2026-11-03 — R3 -> A1 current authority and handoff
 - Current authority: `infra/n3w-t1/production/t1-core-stack-current.json` schema `gh.n3w-t1-core-stack-current-authority/2`.
 - Current product source: `b863ddd959090ca139af76bd68dbef31d773e6de`.

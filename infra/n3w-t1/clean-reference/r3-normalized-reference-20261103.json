@@ -1,0 +1,95 @@
+{
+  "canonical_payload_sha256": "e09139564280c700bc02b2e16360c511f780f7da7817f0d9bf0a22ff59dfcceb",
+  "canonicalization": "SHA256 of UTF-8 JSON payload with keys recursively sorted, separators=(',',':'), ensure_ascii=false; digest covers payload only",
+  "payload": {
+    "schema": "gh.n3w-t1-core-stack-r3-normalized-reference/1",
+    "reference_label": "R3",
+    "reference_kind": "PUBLIC_SAFE_NORMALIZED_REFERENCE_RECONSTRUCTED_FROM_ARCHIVED_EVIDENCE",
+    "gate": "N3W_T1_CORE_STACK_R3_REFERENCE_CONVERGENCE_AND_A1_ENTRY_READONLY_20261103_01",
+    "repository": {
+      "main": "e0841a5a43fd5847d5c5c40ab1cece42faedf3c8",
+      "pr_773_gate_input_head": "aa30c1bdcc42dbea8048822de181b0b7540d6494",
+      "current_authority_manifest": "infra/n3w-t1/production/t1-core-stack-current.json",
+      "current_authority_schema": "gh.n3w-t1-core-stack-current-authority/2"
+    },
+    "r2_authority": {
+      "reference_sha256": "89da2a2b2cc1ce0fa024c3c45e24a71f09ba05e0e0cadbd67dd6387291239747",
+      "historical_product_source_head": "24382caae4a1f5d459297f86e8d18f10a848ca64",
+      "r2a_control_head": "abeb6c31147bcf249361dcec7e9536eaed6106a6",
+      "r2b_control_head": "e15c64ac8f0f5f482a6c8538072031734002a559",
+      "observer_artifact_digest": "sha256:473499d10e0487a591e8828312a76036fe438463d3455a8ed74d8eea5f96821b"
+    },
+    "manager_version_axis": {
+      "historical_clean_reference_manager": "local/greenhouse-manager:fresh-24382caae4a1",
+      "historical_clean_reference_source_head": "24382caae4a1f5d459297f86e8d18f10a848ca64",
+      "current_manager": "local/greenhouse-manager:fresh-b863ddd95909",
+      "current_product_source_head": "b863ddd959090ca139af76bd68dbef31d773e6de",
+      "separated_from_business_runtime_drift": true
+    },
+    "current_component_identity": {
+      "manager": "local/greenhouse-manager:fresh-b863ddd95909",
+      "homeassistant": "local/n3w-homeassistant:2026.10.0-0c73235a",
+      "broker": "local/n3w-mosquitto:2.1.2-3184566d",
+      "platform": "linux/arm64"
+    },
+    "r3_engineering_closure": {
+      "real_first_registration": "PASS",
+      "kf139": "CLOSED_PASS",
+      "post_registration_direct_telemetry_homeassistant": "PASS",
+      "kf140": "CLOSED_FALSE_POSITIVE",
+      "direct_relay_repeat_required": false,
+      "frozen_r3_requires_direct_relay_failover": false,
+      "frozen_r3_requires_sensor_measurements": false,
+      "frozen_r3_requires_long_duration_stability": false,
+      "engineering_objective_complete": true,
+      "new_product_blocker_count": 0
+    },
+    "r3_business_facts": {
+      "manager_accepted_seq_range": "71..101",
+      "manager_accepted_unique_count": 31,
+      "manager_strict_consecutive": true,
+      "manager_rejected_count": 0,
+      "manager_duplicate_count": 0,
+      "homeassistant_fresh_runtime_receipt": "PASS",
+      "registrations_count": 1,
+      "node_id_leases_count": 1,
+      "pairing_sessions_count": 1,
+      "registration_events_count": 2,
+      "credential_lifecycle_assignment_count": 1,
+      "pairing_window_state": "CLOSED",
+      "pairing_window_close_reason": "committed"
+    },
+    "r2_public_safe_stable_summary": {
+      "broker_runtime_contract_sha256": "7e49a2f83176e2c47ff2cdaa5146810385c817561c60b2d8f82df457ee9bb1e7",
+      "homeassistant_runtime_contract_sha256": "9622e596f6429852a3525c5c0e62204a04301a53f2243386340cb6d7aadff76a",
+      "manager_runtime_contract_sha256": "6a6528b6c4ac48500119eb85f1b374d44d8c76a28771997a72c93d31e9360019",
+      "compose_sha256": "9ea58161d5f8e24233bacbfe1f31edd5f6f6c62c272271823788c0c5b59e8357",
+      "mosquitto_config_sha256": "6c8d0f134c26987826cbfd3149cf393249586d74642857c8159862d0005ce59a",
+      "homeassistant_configuration_sha256": "ca966d080c2ca2b5ea9cf509cc95a8e6a78987d33b0b062d00acb39ca7bd8b24",
+      "custom_component_tree_sha256": "451a470c795b3d1ed65058174a474b59bf9baccf684e29b88060982c791e704e",
+      "dynsec_top_level_keys_sha256": "59af50181cddcd17f3eddc38d4cedf360e12d86536c5841633caf350f66b04d8",
+      "broker_ca_sha256": "0548b02c964afff1b01f58817ec126225ec7f3044eec156732f1b126eb4e3898",
+      "broker_server_cert_sha256": "3329adaeca4503f81e9eb13c00c803d928b0cec8af4f52d97281f072a5bc803c",
+      "system_ca_sha256": "39de7a7fa5f3f6406dddae1523b1b0f0f69ecd8a3023ae22c8883813940ab741",
+      "manager_schema_sha256": "40f10b68870a40f861dee0ceaebf3fd09984135d67c81f51996a7c5ff2de4dd2",
+      "relay_auth_schema_sha256": "0b91a4edf4cb5a99c13e0c4b443428063d8a8de6c80d3fd31a4a7b3535b8e21f",
+      "replay_schema_sha256": "46878ae3dee61f3cb2d19a5d69bfa5e49772f250753f3ba6c601bc0b74c000cc"
+    },
+    "reference_field_inventory": {
+      "leaf_field_count": 150,
+      "directly_comparable_count": 48,
+      "expected_business_runtime_drift_count": 58,
+      "version_axis_drift_count": 15,
+      "historical_reference_gap_count": 29,
+      "fresh_readonly_observation_required_count": 0
+    },
+    "evidence_boundaries": {
+      "raw_private_r2_observation_public": false,
+      "destructive_reference_recreation": false,
+      "t1_readonly_observer_executed": false,
+      "live_runtime_mutation": false,
+      "board_access": false,
+      "a1_classification_executed": false
+    }
+  }
+}
