@@ -1,3 +1,46 @@
+## Latest authority — 2026-11-03 A1 stable-invariant classification CLOSED_PASS; A2 entry ready, STOP
+
+```text
+AUTHORITY_STATE=A1_STABLE_INVARIANT_CLASSIFICATION_CLOSED_PASS_A2_ENTRY_READY
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+AUTHORITY_SCHEMA=gh.n3w-t1-core-stack-current-authority/2
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=b863ddd959090ca139af76bd68dbef31d773e6de
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-b863ddd95909
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+R3_REFERENCE_SHA256=e09139564280c700bc02b2e16360c511f780f7da7817f0d9bf0a22ff59dfcceb
+R3_NORMALIZED_DELTA_SHA256=0d2ade72c9dbdc8299cc09754ed87768a02762244447c619d007951e9a522895
+A1_CLASSIFICATION_SHA256=e664ced300ea2bb743b116550b7a3e22237e7f556f54400a060eef30671d30e7
+
+REFERENCE_FIELD_COUNT=150
+HARD_STABLE_INVARIANT_COUNT=32
+SOFT_RUNTIME_CHECK_COUNT=40
+DIAGNOSTIC_ONLY_COUNT=67
+REMOVE_COUNT=11
+
+A1_EXECUTED=true
+A1_RESULT=CLOSED_PASS
+A2_ENTRY_READY=true
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_A2_PER_MODULE_UPGRADE_ARCHITECTURE_20261103_01
+AUTO_EXECUTE_NEXT_GATE=false
+
+T1_ACCESS=false
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+PR773_MERGE=false
+STOP=true
+```
+
+A1 rejects whole-reference byte equality as the future upgrade model. Hard fields are baseline/target/per-instance contracts, not values that can never change across an authorized version transition. Runtime-variable fields are soft, diagnostic or removed. No T1 or Board access was required.
+
+Authority:
+- `infra/n3w-t1/clean-reference/a1-stable-invariant-classification-20261103.json`
+- `docs/development/N3W_T1_CORE_STACK_A1_STABLE_INVARIANT_CLASSIFICATION_CLOSURE_20261103.md`
+
 ## Latest authority — 2026-11-03 R3 reference convergence CLOSED_PASS; A1 entry ready, STOP
 
 ```text
