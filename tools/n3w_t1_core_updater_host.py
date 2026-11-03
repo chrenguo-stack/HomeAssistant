@@ -208,6 +208,37 @@ class LocalHost:
             or labels.get("com.docker.compose.service") != service
         ):
             raise UpdaterError(f"{service}_runtime_invalid")
+        mounts = item.get("Mounts")
+        if not isinstance(mounts, list):
+            raise UpdaterError(f"{service}_runtime_mounts_invalid")
+        mount_contract = sorted(
+            (
+                {
+                    "type": row.get("Type"),
+                    "source": row.get("Source"),
+                    "destination": row.get("Destination"),
+                    "rw": row.get("RW"),
+                }
+                for row in mounts
+                if isinstance(row, dict)
+            ),
+            key=lambda row: (
+                str(row.get("destination")),
+                str(row.get("type")),
+                str(row.get("source")),
+                str(row.get("rw")),
+            ),
+        )
+        runtime_contract = {
+            "user": config.get("User"),
+            "network_mode": host.get("NetworkMode"),
+            "readonly_rootfs": host.get("ReadonlyRootfs"),
+            "restart_policy": host.get("RestartPolicy"),
+            "cap_drop": sorted(host.get("CapDrop") or []),
+            "security_opt": sorted(host.get("SecurityOpt") or []),
+            "mounts": mount_contract,
+            "port_bindings": host.get("PortBindings") or {},
+        }
         result = {
             "container_id": item.get("Id"),
             "image_ref": config.get("Image"),
@@ -215,6 +246,9 @@ class LocalHost:
             "started_at": state.get("StartedAt"),
             "restart_count": item.get("RestartCount"),
             "network_mode": host.get("NetworkMode"),
+            "runtime_contract_sha256": sha256_bytes(
+                canonical(runtime_contract)
+            ),
         }
         if (
             not isinstance(result["container_id"], str)
@@ -223,6 +257,7 @@ class LocalHost:
             or IMAGE_ID.fullmatch(result["image_id"]) is None
             or not isinstance(result["started_at"], str)
             or not isinstance(result["restart_count"], int)
+            or not isinstance(result["runtime_contract_sha256"], str)
         ):
             raise UpdaterError(f"{service}_runtime_identity_invalid")
         return result
