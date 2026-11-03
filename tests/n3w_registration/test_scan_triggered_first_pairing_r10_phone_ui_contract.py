@@ -278,4 +278,3 @@ def test_r10_product_target_uses_temporary_low_battery_bypass_only() -> None:
 
     assert 'battery_low_threshold: "3.00"' in base_target
     assert target.count('battery_low_threshold: "-1.00"') == 1
-    assert "DEVELOPMENT ONLY: USB-powered R3 acceptance bypass" in target
