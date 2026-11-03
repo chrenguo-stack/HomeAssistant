@@ -1,3 +1,11 @@
+### 2026-11-03 KF-139 closure — CLOSED_PASS
+
+Real-T1 closure is complete. The exact repaired Manager `local/greenhouse-manager:fresh-b863ddd95909` was first validated in an isolated real-T1 ARM64/Docker probe: `CredentialLifecycleStore` created `credential-lifecycle.sqlite3` as 0600/999:999 even under `umask 000`, and the existing private-database gate passed. The exact Manager was then deployed through the production updater with Broker continuity preserved and Home Assistant image unchanged. The live empty credential DB was preserved for forensic evidence, then repaired 0644 -> 0600; the live private gate passed.
+
+A single post-repair first-registration attempt then completed `COMMITTED / TERMINAL / COMPLETE` with a non-empty node ID, registrations=1, node_id_leases=1, pairing_sessions=1, registration_events=2, credential-lifecycle assignments=1, active credential generation=1, pairing window CLOSED with `close_reason=committed`, and final 47112 CLOSED. Both historical failed attempts remain `EXPIRED / TERMINAL / COMPLETE` replay tombstones and unresolved count is 0.
+
+Guard: new credential lifecycle DBs must be created privately before SQLite opens them; existing unsafe DBs must not be silently normalized by source code and must continue to fail the private gate. A live incident repair may correct an already-proven empty product-created DB only under an explicit live-mutation gate with forensic backup and post-repair validation. PR #769/#770 remain unmerged; live runtime is ahead of canonical repository Manager authority until a separate merge/authority-convergence gate.
+
 ### 2026-11-03 KF-139 — credential lifecycle DB mode 0644 blocks R3 47112 first-registration window
 
 | ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
