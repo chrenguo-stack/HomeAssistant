@@ -1,3 +1,23 @@
+## 2026-11-03 — A2 per-module upgrade architecture CLOSED_PASS; source implementation required before U0
+
+- Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
+- Current product source: `b863ddd959090ca139af76bd68dbef31d773e6de`; Manager `local/greenhouse-manager:fresh-b863ddd95909`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference source/Manager remain `24382caae4a1f5d459297f86e8d18f10a848ca64` / `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; current canonical live deployment remains `APPLIED_ACCEPTED`.
+- A1 classification SHA256: `e664ced300ea2bb743b116550b7a3e22237e7f556f54400a060eef30671d30e7`.
+- A2 architecture SHA256: `447f57f3563cb7766f145a2ea005d5d79d1beee7585ed07c6572ce2b3a833faa`.
+- Architecture: keep updater concept; refactor Manager-specialized source into generic transaction core + Manager/HA/Broker adapters; do not rewrite from scratch.
+- Keep current systemd ownership: Manager + HA share the application owner, Broker remains independent. Module-only means only target image binding mutates; lifecycle-required peer restarts are permitted.
+- Future fresh Compose binding contract: `GH_MANAGER_IMAGE`, `GH_HOMEASSISTANT_IMAGE`, `GH_BROKER_IMAGE`; all remain `pull_policy: never`.
+- Default A2 mutation profile is `IMAGE_ONLY_V1`; config/schema migrations and implicit multi-component chains are not supported by this profile.
+- One global updater mutation transaction; terminal history does not permanently block future upgrades; unresolved non-terminal state does.
+- PR #745 remains open/unmerged historical evidence; no implementation harvest or auto-merge.
+- No T1 access, live mutation, Board access, product source change or PR #773 merge occurred.
+- Closure: `docs/development/N3W_T1_CORE_STACK_A2_PER_MODULE_UPGRADE_ARCHITECTURE_CLOSURE_20261103.md`.
+- Machine authority: `infra/n3w-t1/clean-reference/a2-per-module-upgrade-architecture-20261103.json`.
+- Fresh source review shows current updater/fresh Compose are still Manager-specialized, so `U0_ENTRY_READY=false`.
+- Next one gate: `N3W_T1_CORE_UPDATER_A2_PER_MODULE_SOURCE_IMPLEMENTATION_20261103_01`; source/test only.
+
 ## 2026-11-03 — A1 stable-invariant classification CLOSED_PASS; A2 entry ready
 
 - Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
