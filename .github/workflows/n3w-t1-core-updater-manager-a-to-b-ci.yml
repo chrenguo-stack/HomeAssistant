@@ -5,7 +5,7 @@ on:
     paths:
       - "tools/n3w_t1_core_updater*.py"
       - "tests/tools/test_n3w_t1_core_updater.py"
-      - "infra/n3w-t1/upgrades/manager-3539c8f871e2.json"
+      - "infra/n3w-t1/upgrades/manager-b863ddd95909.json"
       - "docs/development/N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_SOURCE_DESIGN_20261102.md"
       - ".github/workflows/n3w-t1-core-updater-manager-a-to-b-ci.yml"
   workflow_dispatch:
@@ -49,10 +49,10 @@ jobs:
     timeout-minutes: 45
     env:
       CONTROL_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-      UPSTREAM_RUN_ID: "41409298801"
-      UPSTREAM_ARTIFACT_NAME: "n3w-t1-fresh-exact-arm64-3539c8f871e2cb63f18462009fa03a5eb36d39fd"
-      TARGET_MANIFEST: "infra/n3w-t1/upgrades/manager-3539c8f871e2.json"
-      PACKAGE_NAME: "n3w-t1-core-updater-manager-3539c8f871e2"
+      UPSTREAM_RUN_ID: "41583719655"
+      UPSTREAM_ARTIFACT_NAME: "n3w-t1-fresh-exact-arm64-b863ddd959090ca139af76bd68dbef31d773e6de"
+      TARGET_MANIFEST: "infra/n3w-t1/upgrades/manager-b863ddd95909.json"
+      PACKAGE_NAME: "n3w-t1-core-updater-manager-b863ddd95909"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -173,7 +173,7 @@ jobs:
               "schema": "gh.n3w-t1-core-updater-manager-package/1",
               "control_plane_head": control_head,
               "target_source_head": target["source_head"],
-              "upstream_run_id": 41409298801,
+              "upstream_run_id": 41583719655,
               "upstream_artifact_id": target["artifact_id"],
               "upstream_artifact_digest_sha256": target["artifact_digest_sha256"],
               "manager_image": target["image"],
