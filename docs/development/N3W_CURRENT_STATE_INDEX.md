@@ -1,3 +1,22 @@
+## 2026-11-03 — Manager A→B fresh preauthorization PASS; new explicit apply authorization is next
+
+- Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source remains `3539c8f871e2cb63f18462009fa03a5eb36d39fd`.
+- Current repository Manager target remains `local/greenhouse-manager:fresh-3539c8f871e2`.
+- Current repository Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64`, Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Repository authority remains `LIVE_DEPLOYMENT_STATE=NOT_YET_APPLIED`; live upgrade pending.
+- Fresh updater status PASS: transaction terminal `ROLLED_BACK / RECOVERY_COMPLETE_FAILED_EMERGENCY`, `recovery_required=false`.
+- Fresh inspect PASS: predecessor Manager A exact; HA/Broker continuity PASS; listener contract PASS; all restart counts remain 0.
+- Fresh exact plan PASS with `manager_tar_verified=true`, `target_image_prestate=PRESENT_AND_EXACT`, `rollback_available=true`.
+- Broker, Home Assistant image and host-platform mutation flags are all false.
+- No apply, service mutation or Board access occurred in the preauthorization gate.
+- Old R1/R2 authorization is consumed/no-replay.
+- Proposed new authorization: `N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_APPLY_V2_POST_RECONCILIATION_20261103_01`.
+- The proposed authorization is not granted yet.
+- Next one gate: `N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_APPLY_V2_POST_RECONCILIATION_AUTHORIZATION_20261103_01`.
+
 ## 2026-11-03 — V2 R2 reconciliation CLOSED_PASS; repository cleanup and next A-to-B preauthorization
 
 - Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.

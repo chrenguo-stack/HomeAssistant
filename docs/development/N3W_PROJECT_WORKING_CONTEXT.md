@@ -1,3 +1,36 @@
+## Latest authority — 2026-11-03 Manager A -> B fresh preauthorization CLOSED_PASS
+
+~~~text
+AUTHORITY_STATE=POST_RECONCILIATION_A_TO_B_PREAUTH_PASS_AWAITING_EXPLICIT_APPLY_AUTHORIZATION
+
+MAIN=92e7dfaa5e508fae1bb6477b9cdb23712a33588c
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+
+LIVE_DEPLOYMENT_STATE=NOT_YET_APPLIED
+LIVE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+TARGET_MANAGER=local/greenhouse-manager:fresh-3539c8f871e2
+
+TRANSACTION_STATUS=ROLLED_BACK
+TRANSACTION_PHASE=RECOVERY_COMPLETE_FAILED_EMERGENCY
+RECOVERY_REQUIRED=false
+
+FRESH_STATUS=PASS
+FRESH_INSPECT=PASS
+FRESH_PLAN=PASS
+MANAGER_TAR_VERIFIED=true
+TARGET_IMAGE_PRESTATE=PRESENT_AND_EXACT
+ROLLBACK_AVAILABLE=true
+
+OLD_R1_R2_AUTHORIZATION_REPLAY_PERMITTED=false
+NEW_A_TO_B_APPLY_AUTHORIZED=false
+BOARD_ACCESS_DEFAULT=false
+
+PROPOSED_APPLY_AUTHORIZATION=N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_APPLY_V2_POST_RECONCILIATION_20261103_01
+NEXT_ONE_GATE=N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_APPLY_V2_POST_RECONCILIATION_AUTHORIZATION_20261103_01
+~~~
+
+The post-reconciliation real-T1 read-only preauthorization is CLOSED_PASS. Manager A is still exact and healthy, Manager B is present and exact, the exact Manager tar is verified, and rollback is available. The next boundary is a new one-shot Manager A -> B apply authorization; no prior consumed authorization may be replayed, and no apply occurs until the user explicitly grants the new authorization.
+
 ## Latest authority — 2026-11-03 R2 reconciliation CLOSED_PASS; Manager A -> B fresh preauthorization next
 
 ~~~text
