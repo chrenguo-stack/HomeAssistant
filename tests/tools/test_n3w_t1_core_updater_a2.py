@@ -137,6 +137,9 @@ class FakeHost:
             },
         }
 
+    def assert_mutation_safe(self, component):
+        assert component in OLD
+
     def component_binding_v2(self, component):
         return self.bindings[component]
 
