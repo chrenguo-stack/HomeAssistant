@@ -498,6 +498,31 @@ def test_nonterminal_predecessor_healthy_closes_without_mutation(
     assert store.read()["status"] == "ROLLED_BACK"
 
 
+def test_legacy_static_peer_is_readable_but_not_upgradeable(monkeypatch):
+    host = hostmod.LocalHost()
+    monkeypatch.setattr(
+        host,
+        "image_binding_modes_v2",
+        lambda: {
+            "manager": "dynamic",
+            "homeassistant": "legacy_static",
+            "broker": "legacy_static",
+        },
+    )
+
+    host.assert_component_upgradeable("manager")
+    with pytest.raises(
+        Exception,
+        match="homeassistant_runtime_template_convergence_required",
+    ):
+        host.assert_component_upgradeable("homeassistant")
+    with pytest.raises(
+        Exception,
+        match="broker_runtime_template_convergence_required",
+    ):
+        host.assert_component_upgradeable("broker")
+
+
 def test_broker_adapter_preserves_owner_order(monkeypatch):
     host = hostmod.LocalHost()
     events: list[str] = []
