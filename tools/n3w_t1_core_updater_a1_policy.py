@@ -40,9 +40,9 @@ BROKER_SERVER_CERT = Path("/etc/n3wfc4/tls/server.pem")
 SYSTEM_CA = Path("/var/lib/greenhouse-manager/identity/system-ca.pem")
 DYNSEC = Path("/var/lib/n3wfc4-broker/dynamic-security.json")
 MQTT_IDENTITIES = {
-    "manager": Path("/opt/greenhouse-secrets/mqtt/manager/identity.json"),
+    "manager": Path("/opt/greenhouse-secrets/mqtt/manager/runtime.env"),
     "homeassistant": Path(
-        "/opt/greenhouse-secrets/mqtt/homeassistant/identity.json"
+        "/opt/greenhouse-secrets/mqtt/homeassistant/mqtt-bootstrap.json"
     ),
 }
 HA_STORAGE = Path("/var/lib/n3wfc4-homeassistant/.storage")
@@ -180,10 +180,36 @@ def _sqlite_snapshot(path: Path) -> dict[str, Any]:
         connection.close()
 
 
-def _mqtt_identity(path: Path) -> str:
-    document = _json_file(path)
-    client_id = document.get("client_id")
-    username = document.get("username")
+def _mqtt_identity(service: str, path: Path) -> str:
+    if path.is_symlink() or not path.is_file():
+        raise UpdaterV2Error("a1_mqtt_identity_invalid")
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as error:
+        raise UpdaterV2Error("a1_mqtt_identity_invalid") from error
+    if service == "manager":
+        values: dict[str, str] = {}
+        for line in raw.splitlines():
+            if "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            if key in {"GH_MQTT_CLIENT_ID", "GH_MQTT_USERNAME"}:
+                if key in values:
+                    raise UpdaterV2Error("a1_mqtt_identity_invalid")
+                values[key] = value
+        client_id = values.get("GH_MQTT_CLIENT_ID")
+        username = values.get("GH_MQTT_USERNAME")
+    elif service == "homeassistant":
+        try:
+            document = json.loads(raw)
+        except json.JSONDecodeError as error:
+            raise UpdaterV2Error("a1_mqtt_identity_invalid") from error
+        if not isinstance(document, dict):
+            raise UpdaterV2Error("a1_mqtt_identity_invalid")
+        client_id = document.get("client_id")
+        username = document.get("username")
+    else:
+        raise UpdaterV2Error("a1_mqtt_identity_invalid")
     if not isinstance(client_id, str) or not isinstance(username, str):
         raise UpdaterV2Error("a1_mqtt_identity_invalid")
     return _canonical_sha({"client_id": client_id, "username": username})
@@ -318,7 +344,7 @@ class LocalA1Policy:
             },
             "dynsec_top_level_keys_sha256": _dynsec_keys(),
             "mqtt_identity": {
-                name: _mqtt_identity(path)
+                name: _mqtt_identity(name, path)
                 for name, path in MQTT_IDENTITIES.items()
             },
             "ha_storage": _ha_storage_snapshot(),
