@@ -1,3 +1,7 @@
+### 2026-11-03 KF-137 source repair closure — CLOSED_PASS / exact repaired package ready
+
+PR #761 exact head `06866acc9ff8f1e9acb7c3e23097a53031e9b313` passed 13/13 workflow CI and merged as `2e3f1c72e5ac17a9c8a1ecb378148a0d6d2d8c29`. The repair accepts `inactive|failed` only as stable non-active states after successful `systemctl stop`; Manager and Home Assistant running-container counts must still both be zero, while `active` remains fail-closed. Exact repaired updater package run `41561467986`, artifact `13196564439`, digest `sha256:e656223c776cc9f2f9fe0c334f2ae8d65bd26681617b0d6a0d82394f8833ac8c`, pyz SHA256 `6222ab4bdcb53e0b612777a585111f5ab2ab114a1c52a4997252937ef27033cc`. Source repair is CLOSED_PASS; live repaired apply remains separately authorized/accepted.
+
 ### 2026-11-03 KF-137 — T1_Core_Updater stop-services rejects valid failed/non-active systemd state
 
 | ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
