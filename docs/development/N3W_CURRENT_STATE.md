@@ -1,24 +1,3 @@
-## 2026-11-03 — R3 E02 root cause proven; KF-139 source repair in progress
-
-TASK=N3W_T1_CORE_STACK_R3_CREDENTIAL_LIFECYCLE_PRIVATE_DB_PERMISSION_SOURCE_REPAIR_20261103_01
-KF139=SOURCE_REPAIR_IN_PROGRESS
-ROOT_CAUSE=PROVEN
-LIVE_MANAGER=local/greenhouse-manager:fresh-3539c8f871e2
-LIVE_MANAGER_RUNTIME_IMAGE_ID=sha256:9dd128f0700840d46d300f9a434e2d3fbf5abba7abbd03c7dd432e9f497be035
-SECOND_FIRST_REGISTRATION_ATTEMPT=ACTIVE_BOOTSTRAP_ACCEPTED
-PAIRING_WINDOW_STATE=CLOSED
-PAIRING_WINDOW_CLOSE_REASON=open_failure
-PAIRING_WINDOW_FAILURE_TYPE=SimplifiedProductRuntimeError
-LIVE_CREDENTIAL_LIFECYCLE_DB_MODE=0644
-SOURCE_REPAIR_BRANCH=fix/n3w-r3-credential-lifecycle-private-db-permission-20261103
-LIVE_MUTATION=false
-BOARD_ACCESS=false
-SECOND_REGISTRATION_RETRY=false
-MERGE=false
-NEXT_ONE_GATE=N3W_T1_CORE_STACK_R3_CREDENTIAL_LIFECYCLE_PRIVATE_DB_PERMISSION_SOURCE_REPAIR_20261103_01
-
-The repair prevents future clean creation from producing an unsafe credential DB while preserving fail-closed handling for already-existing unsafe files. The existing real-T1 0644 file remains untouched until a separate authorized live-repair gate.
-
 ## 2026-11-03 — R3 exact factory write/verify PASS; Captive Portal Wi-Fi setup next
 CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
 
@@ -49,6 +28,28 @@ T1_MUTATION=false
 FIRST_REGISTRATION_STARTED=false
 
 NEXT_ONE_GATE=N3W_T1_CORE_STACK_R3_SENSORLESS_CAPTIVE_PORTAL_WIFI_SETUP_AND_IDLE_QR_20261103_01
+
+
+## 2026-11-03 — R3 E02 root cause proven; KF-139 source repair in progress
+
+TASK=N3W_T1_CORE_STACK_R3_CREDENTIAL_LIFECYCLE_PRIVATE_DB_PERMISSION_SOURCE_REPAIR_20261103_01
+KF139=SOURCE_REPAIR_IN_PROGRESS
+ROOT_CAUSE=PROVEN
+LIVE_MANAGER=local/greenhouse-manager:fresh-3539c8f871e2
+LIVE_MANAGER_RUNTIME_IMAGE_ID=sha256:9dd128f0700840d46d300f9a434e2d3fbf5abba7abbd03c7dd432e9f497be035
+SECOND_FIRST_REGISTRATION_ATTEMPT=ACTIVE_BOOTSTRAP_ACCEPTED
+PAIRING_WINDOW_STATE=CLOSED
+PAIRING_WINDOW_CLOSE_REASON=open_failure
+PAIRING_WINDOW_FAILURE_TYPE=SimplifiedProductRuntimeError
+LIVE_CREDENTIAL_LIFECYCLE_DB_MODE=0644
+SOURCE_REPAIR_BRANCH=fix/n3w-r3-credential-lifecycle-private-db-permission-20261103
+LIVE_MUTATION=false
+BOARD_ACCESS=false
+SECOND_REGISTRATION_RETRY=false
+MERGE=false
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_R3_CREDENTIAL_LIFECYCLE_PRIVATE_DB_PERMISSION_SOURCE_REPAIR_20261103_01
+
+The repair prevents future clean creation from producing an unsafe credential DB while preserving fail-closed handling for already-existing unsafe files. The existing real-T1 0644 file remains untouched until a separate authorized live-repair gate.
 
 ## 2026-11-03 — Manager B live accepted
 
