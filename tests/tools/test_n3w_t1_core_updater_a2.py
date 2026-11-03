@@ -9,6 +9,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 
+import n3w_t1_core_updater_host as hostmod
 import n3w_t1_core_updater_v2 as core
 from n3w_t1_core_updater_v2_common import (
     A1_CLASSIFICATION_SHA256,
@@ -116,6 +117,8 @@ class FakeHost:
         self.bindings = dict(OLD)
         self.image_ids = dict(IDS)
         self.events: list[str] = []
+        self.fail_activate_count = 0
+        self.peer_drift_after_activate: str | None = None
 
     def _render(self):
         return {
@@ -196,6 +199,12 @@ class FakeHost:
 
     def activate_component(self, component):
         self.events.append(f"activate:{component}")
+        if self.fail_activate_count:
+            self.fail_activate_count -= 1
+            raise UpdaterV2Error("injected_activate_failure")
+        if self.peer_drift_after_activate is not None:
+            peer = self.peer_drift_after_activate
+            self.image_ids[self.bindings[peer]] = "sha256:" + "9" * 64
 
 
 def test_v2_manifest_loads_all_three_components(tmp_path: Path):
@@ -263,7 +272,8 @@ def test_generic_env_binding_rewrites_only_selected_component():
         assert b"PRIVATE=unchanged\n" in updated
 
 
-def test_candidate_validation_rejects_cross_component_drift():
+@pytest.mark.parametrize("component", ["manager", "homeassistant", "broker"])
+def test_candidate_validation_allows_only_selected_image(component: str):
     before = {
         "services": {
             name: {"image": OLD[name], "x": name}
@@ -271,22 +281,24 @@ def test_candidate_validation_rejects_cross_component_drift():
         }
     }
     after = json.loads(json.dumps(before))
-    after["services"]["manager"]["image"] = NEW["manager"]
+    after["services"][component]["image"] = NEW[component]
     validate_component_candidate(
         before,
         after,
-        "manager",
-        OLD["manager"],
-        NEW["manager"],
+        component,
+        OLD[component],
+        NEW[component],
     )
-    after["services"]["homeassistant"]["x"] = "drift"
+
+    peer = next(name for name in OLD if name != component)
+    after["services"][peer]["x"] = "drift"
     with pytest.raises(UpdaterV2Error, match="candidate_non_target_drift"):
         validate_component_candidate(
             before,
             after,
-            "manager",
-            OLD["manager"],
-            NEW["manager"],
+            component,
+            OLD[component],
+            NEW[component],
         )
 
 
@@ -358,6 +370,162 @@ def test_explicit_rollback_restores_selected_component(tmp_path: Path, monkeypat
     assert result["status"] == "PASS"
     assert host.bindings == OLD
     assert store.read()["status"] == "ROLLED_BACK"
+
+
+@pytest.mark.parametrize("component", ["manager", "homeassistant", "broker"])
+def test_target_activation_failure_rolls_back_all_components(
+    tmp_path: Path,
+    monkeypatch,
+    component: str,
+):
+    monkeypatch.setattr(core.os, "geteuid", lambda: 0)
+    archive = tmp_path / f"{component}.tar"
+    archive.write_bytes(f"failure-{component}".encode())
+    archive_sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+    host = FakeHost()
+    host.fail_activate_count = 1
+    store = V2StateStore(tmp_path / "state")
+    updater = core.MultiComponentCoreUpdater(host, store, FakePolicy())
+
+    with pytest.raises(UpdaterV2Error, match="injected_activate_failure"):
+        updater.apply(
+            target(component, archive_sha),
+            baseline(),
+            archive,
+            authorization_id=(
+                f"N3W_T1_CORE_UPDATER_{component.upper()}_FAIL_01"
+            ),
+            confirmation=APPLY_CONFIRMATION_V2,
+        )
+
+    assert host.bindings == OLD
+    assert store.read()["status"] == "ROLLED_BACK"
+
+
+def test_peer_hard_drift_fails_closed_after_target_restore(
+    tmp_path: Path,
+    monkeypatch,
+):
+    monkeypatch.setattr(core.os, "geteuid", lambda: 0)
+    archive = tmp_path / "manager.tar"
+    archive.write_bytes(b"peer-drift")
+    archive_sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+    host = FakeHost()
+    host.peer_drift_after_activate = "homeassistant"
+    store = V2StateStore(tmp_path / "state")
+    updater = core.MultiComponentCoreUpdater(host, store, FakePolicy())
+
+    with pytest.raises(
+        UpdaterV2Error,
+        match="automatic_rollback_failed",
+    ):
+        updater.apply(
+            target("manager", archive_sha),
+            baseline(),
+            archive,
+            authorization_id="N3W_T1_CORE_UPDATER_MANAGER_PEER_DRIFT_01",
+            confirmation=APPLY_CONFIRMATION_V2,
+        )
+
+    assert host.bindings["manager"] == OLD["manager"]
+    assert store.read()["status"] == "FAILED_EMERGENCY"
+
+
+def test_rolling_back_transaction_is_reentrant(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(core.os, "geteuid", lambda: 0)
+    archive = tmp_path / "manager.tar"
+    archive.write_bytes(b"reentrant")
+    archive_sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+    host = FakeHost()
+    store = V2StateStore(tmp_path / "state")
+    updater = core.MultiComponentCoreUpdater(host, store, FakePolicy())
+    updater.apply(
+        target("manager", archive_sha),
+        baseline(),
+        archive,
+        authorization_id="N3W_T1_CORE_UPDATER_MANAGER_REENTRANT_01",
+        confirmation=APPLY_CONFIRMATION_V2,
+    )
+    tx = store.read()
+    tx["status"] = "ROLLING_BACK"
+    tx["phase"] = "ROLLBACK_AUTHORIZED"
+    store.write(tx)
+
+    result = updater.rollback(
+        confirmation="T1_CORE_UPDATER_ROLLBACK"
+    )
+
+    assert result["transaction_status"] == "ROLLED_BACK"
+    assert host.bindings == OLD
+
+
+def test_nonterminal_predecessor_healthy_closes_without_mutation(
+    tmp_path: Path,
+    monkeypatch,
+):
+    monkeypatch.setattr(core.os, "geteuid", lambda: 0)
+    archive = tmp_path / "manager.tar"
+    archive.write_bytes(b"predecessor-healthy")
+    archive_sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+    host = FakeHost()
+    store = V2StateStore(tmp_path / "state")
+    updater = core.MultiComponentCoreUpdater(host, store, FakePolicy())
+    updater.apply(
+        target("manager", archive_sha),
+        baseline(),
+        archive,
+        authorization_id="N3W_T1_CORE_UPDATER_MANAGER_RECOVERY_01",
+        confirmation=APPLY_CONFIRMATION_V2,
+    )
+    tx = store.read()
+    host.bindings["manager"] = OLD["manager"]
+    tx["status"] = "APPLYING"
+    tx["phase"] = "QUIESCING"
+    store.write(tx)
+    host.events.clear()
+
+    result = updater.rollback(
+        confirmation="T1_CORE_UPDATER_ROLLBACK"
+    )
+
+    assert result["t1_mutation"] is False
+    assert host.events == []
+    assert store.read()["status"] == "ROLLED_BACK"
+
+
+def test_broker_adapter_preserves_owner_order(monkeypatch):
+    host = hostmod.LocalHost()
+    events: list[str] = []
+    monkeypatch.setattr(
+        host,
+        "stop_services",
+        lambda: events.append("stop-application"),
+    )
+    monkeypatch.setattr(
+        host,
+        "stop_broker",
+        lambda: events.append("stop-broker"),
+    )
+    monkeypatch.setattr(
+        host,
+        "start_broker",
+        lambda: events.append("start-broker"),
+    )
+    monkeypatch.setattr(
+        host,
+        "start_services",
+        lambda: events.append("start-application"),
+    )
+
+    host.quiesce_component("broker")
+    host.activate_component("broker")
+
+    assert events == [
+        "stop-application",
+        "stop-broker",
+        "start-broker",
+        "start-application",
+    ]
 
 
 def test_baseline_detects_preexisting_hard_drift(tmp_path: Path):
