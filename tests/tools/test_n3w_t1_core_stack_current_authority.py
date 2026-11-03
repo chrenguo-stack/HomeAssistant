@@ -123,6 +123,21 @@ def test_applied_state_requires_semantic_zero_node_evidence():
         )
 
 
+def test_authority_state_must_match_live_state():
+    authority, target, compose, bootstrap, state, index = documents()
+    authority = copy.deepcopy(authority)
+    authority["authority_state"] = check.PENDING_AUTHORITY_STATE
+    with pytest.raises(check.AuthorityError, match="authority_live_state_mismatch"):
+        check.validate_documents(
+            authority,
+            target,
+            compose,
+            bootstrap,
+            state,
+            index,
+        )
+
+
 def test_legacy_static_compose_cannot_be_promoted_silently():
     authority, target, compose, bootstrap, state, index = documents()
     authority = copy.deepcopy(authority)
