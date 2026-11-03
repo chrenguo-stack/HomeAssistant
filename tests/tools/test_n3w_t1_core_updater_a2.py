@@ -572,6 +572,149 @@ def test_nonterminal_predecessor_healthy_closes_without_mutation(
     assert store.read()["status"] == "ROLLED_BACK"
 
 
+def test_system_health_accepts_degraded_only_for_unrelated_failure(
+    monkeypatch,
+):
+    host = hostmod.LocalHost()
+
+    class Result:
+        def __init__(self, code: int, stdout: bytes):
+            self.returncode = code
+            self.stdout = stdout
+            self.stderr = b""
+
+    def run(argv, *, timeout=60, check=True):
+        del timeout, check
+        if tuple(argv) == ("systemctl", "is-system-running"):
+            return Result(1, b"degraded\n")
+        if tuple(argv) == (
+            "systemctl",
+            "--failed",
+            "--no-legend",
+            "--plain",
+        ):
+            return Result(0, b"unrelated.service loaded failed failed\n")
+        raise AssertionError(argv)
+
+    def systemctl(action, unit):
+        if unit == hostmod.CERT_LIFECYCLE_UNIT and action == "is-active":
+            return "inactive"
+        if action in {"is-active", "is-enabled"}:
+            return "active" if action == "is-active" else "enabled"
+        raise AssertionError((action, unit))
+
+    monkeypatch.setattr(host, "_run", run)
+    monkeypatch.setattr(host, "_systemctl", systemctl)
+
+    result = host._system_health_v2()
+
+    assert result["system_state"] == "degraded"
+    assert result["relevant_failed_units"] == []
+
+
+def test_system_health_rejects_relevant_failed_unit(monkeypatch):
+    host = hostmod.LocalHost()
+
+    class Result:
+        def __init__(self, code: int, stdout: bytes):
+            self.returncode = code
+            self.stdout = stdout
+            self.stderr = b""
+
+    def run(argv, *, timeout=60, check=True):
+        del timeout, check
+        if tuple(argv) == ("systemctl", "is-system-running"):
+            return Result(1, b"degraded\n")
+        if tuple(argv) == (
+            "systemctl",
+            "--failed",
+            "--no-legend",
+            "--plain",
+        ):
+            return Result(
+                0,
+                (
+                    hostmod.SERVICES_UNIT
+                    + " loaded failed failed\n"
+                ).encode(),
+            )
+        raise AssertionError(argv)
+
+    monkeypatch.setattr(host, "_run", run)
+
+    with pytest.raises(Exception, match="relevant_failed_units"):
+        host._system_health_v2()
+
+
+def test_runtime_service_set_requires_exact_three(monkeypatch):
+    host = hostmod.LocalHost()
+
+    class Result:
+        returncode = 0
+        stderr = b""
+        stdout = b"broker\nhomeassistant\nmanager\n"
+
+    monkeypatch.setattr(host, "_run", lambda *args, **kwargs: Result())
+    assert host._running_project_services_v2() == [
+        "broker",
+        "homeassistant",
+        "manager",
+    ]
+
+    Result.stdout = b"broker\nhomeassistant\nmanager\nextra\n"
+    with pytest.raises(Exception, match="runtime_service_set_invalid"):
+        host._running_project_services_v2()
+
+
+def test_runtime_rejects_unsupported_image_platform(monkeypatch):
+    host = hostmod.LocalHost()
+    monkeypatch.setattr(host, "_container_id", lambda service: "container")
+
+    runtime_document = [
+        {
+            "Id": "container",
+            "Image": "sha256:" + "1" * 64,
+            "State": {
+                "Running": True,
+                "StartedAt": "2026-11-04T00:00:00Z",
+            },
+            "Config": {
+                "Image": OLD["manager"],
+                "User": "999:999",
+                "Labels": {
+                    "com.docker.compose.project": "n3wfc4",
+                    "com.docker.compose.service": "manager",
+                },
+            },
+            "HostConfig": {
+                "NetworkMode": "host",
+                "ReadonlyRootfs": False,
+                "RestartPolicy": {"Name": "no", "MaximumRetryCount": 0},
+                "CapDrop": [],
+                "SecurityOpt": [],
+                "PortBindings": {},
+            },
+            "Mounts": [],
+            "RestartCount": 0,
+        }
+    ]
+
+    class Result:
+        returncode = 0
+        stderr = b""
+        stdout = json.dumps(runtime_document).encode()
+
+    monkeypatch.setattr(host, "_run", lambda *args, **kwargs: Result())
+    monkeypatch.setattr(
+        host,
+        "_image_document",
+        lambda reference: {"Os": "linux", "Architecture": "amd64"},
+    )
+
+    with pytest.raises(Exception, match="runtime_platform_unsupported"):
+        host._runtime("manager")
+
+
 def test_legacy_static_peer_is_readable_but_not_upgradeable(monkeypatch):
     host = hostmod.LocalHost()
     monkeypatch.setattr(
