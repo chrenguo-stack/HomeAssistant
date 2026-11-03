@@ -14,6 +14,7 @@ TX_SCHEMA_V2 = "gh.n3w-t1-core-updater-transaction/2"
 STATUS_SCHEMA_V2 = "gh.n3w-t1-core-updater-status/2"
 INSPECT_SCHEMA_V2 = "gh.n3w-t1-core-updater-inspect/2"
 PLAN_SCHEMA_V2 = "gh.n3w-t1-core-updater-plan/2"
+BASELINE_SCHEMA_V1 = "gh.n3w-t1-core-updater-baseline/1"
 APPLY_CONFIRMATION_V2 = "T1_CORE_UPDATER_APPLY"
 ROLLBACK_CONFIRMATION_V2 = "T1_CORE_UPDATER_ROLLBACK"
 MUTATION_PROFILE_IMAGE_ONLY = "IMAGE_ONLY_V1"
@@ -61,6 +62,66 @@ def _nonempty_string(value: Any, reason: str) -> str:
     if not isinstance(value, str) or not value:
         raise UpdaterV2Error(reason)
     return value
+
+
+@dataclass(frozen=True)
+class UpgradeBaseline:
+    stack_images: dict[str, str]
+    runtime_contract_sha256: dict[str, str]
+    a1_hard_authority: dict[str, Any]
+    a1_classification_sha256: str
+
+    @classmethod
+    def load(cls, path: Path) -> "UpgradeBaseline":
+        if path.is_symlink() or not path.is_file():
+            raise UpdaterV2Error("baseline_manifest_invalid")
+        try:
+            doc = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as error:
+            raise UpdaterV2Error("baseline_manifest_invalid") from error
+        if not isinstance(doc, dict) or doc.get("schema") != BASELINE_SCHEMA_V1:
+            raise UpdaterV2Error("baseline_manifest_schema_invalid")
+        if doc.get("a1_classification_sha256") != A1_CLASSIFICATION_SHA256:
+            raise UpdaterV2Error("baseline_a1_authority_mismatch")
+        images = doc.get("stack_images")
+        contracts = doc.get("runtime_contract_sha256")
+        hard = doc.get("a1_hard_authority")
+        if (
+            not isinstance(images, dict)
+            or set(images) != set(COMPONENTS)
+            or not isinstance(contracts, dict)
+            or set(contracts) != set(COMPONENTS)
+            or not isinstance(hard, dict)
+            or not hard
+        ):
+            raise UpdaterV2Error("baseline_manifest_shape_invalid")
+        for component in COMPONENTS:
+            image = images.get(component)
+            contract = contracts.get(component)
+            if (
+                not isinstance(image, str)
+                or not image.startswith(IMAGE_PREFIXES[component])
+                or not isinstance(contract, str)
+                or SHA256.fullmatch(contract) is None
+            ):
+                raise UpdaterV2Error("baseline_component_authority_invalid")
+        return cls(
+            stack_images=copy.deepcopy(images),
+            runtime_contract_sha256=copy.deepcopy(contracts),
+            a1_hard_authority=copy.deepcopy(hard),
+            a1_classification_sha256=A1_CLASSIFICATION_SHA256,
+        )
+
+    def public(self) -> dict[str, Any]:
+        return {
+            "schema": BASELINE_SCHEMA_V1,
+            "a1_classification_sha256": self.a1_classification_sha256,
+            "stack_images": copy.deepcopy(self.stack_images),
+            "runtime_contract_sha256": copy.deepcopy(
+                self.runtime_contract_sha256
+            ),
+            "a1_hard_authority": copy.deepcopy(self.a1_hard_authority),
+        }
 
 
 @dataclass(frozen=True)
