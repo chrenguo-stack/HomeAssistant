@@ -108,14 +108,18 @@ Final durable state:
 
 Attempts #1 and #2 remain `EXPIRED / TERMINAL / COMPLETE`. They are intentionally preserved durable replay tombstones. They must not be deleted to manufacture an empty ledger.
 
-## Authority boundary
+## Authority convergence
 
-PR #769 and PR #770 are not merged by this closure.
+The closure originally stopped before merging PR #769/#770, leaving the repaired live runtime ahead of repository authority. The subsequently authorized stacked convergence upgrades canonical authority to schema `gh.n3w-t1-core-stack-current-authority/2` and binds it to the same repaired Manager:
 
-The real T1 now runs the repaired Manager, while the canonical repository Manager authority still points to `local/greenhouse-manager:fresh-3539c8f871e2`. Therefore:
+- current product source: `b863ddd959090ca139af76bd68dbef31d773e6de`
+- current Manager: `local/greenhouse-manager:fresh-b863ddd95909`
+- immediate predecessor: `local/greenhouse-manager:fresh-3539c8f871e2`
+- historical Clean Reference: unchanged at `local/greenhouse-manager:fresh-24382caae4a1`
+- live/repository Manager authority: converged
 
-`LIVE_RUNTIME_AHEAD_OF_CANONICAL_REPOSITORY_AUTHORITY=true`
+Authority v2 intentionally removes dynamic zero-node inventory from the permanent current-stack contract. The stable acceptance authority is KF-139 CLOSED_PASS plus first-registration PASS, private-database gate PASS, committed pairing-window closure, and the exact Manager/package bindings.
 
-The next gate is a source review / merge-readiness / authority-convergence decision. No merge is implied by this closure.
+`LIVE_RUNTIME_AHEAD_OF_CANONICAL_REPOSITORY_AUTHORITY=false`
 
-NEXT_ONE_GATE=N3W_T1_CORE_STACK_R3_KF139_POST_CLOSURE_SOURCE_REVIEW_AND_MERGE_READINESS_20261103_01
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_R3_KF139_POST_MERGE_MAIN_READONLY_REBIND_20261103_01
