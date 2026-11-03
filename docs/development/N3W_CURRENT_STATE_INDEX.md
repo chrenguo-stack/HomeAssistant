@@ -1,3 +1,14 @@
+## 2026-11-03 — R3 exact factory image written and independently verified
+
+- PR #767 merged as `c93fc3561ecee6dda13306804a3168a9c12ffe3a`.
+- R3 exact artifact `13203682791` is tree-identical to merged main and bound to the temporary `battery_low_threshold=-1.00V` target.
+- Factory image SHA256 is `9ccc469898832bda612634aef64ca946631e81574076be504ef864aaee56d8f9`; size 1532256; offset `0x0`.
+- The selected board is ESP32-C6 QFN40 rev0.2 with 8MB Flash.
+- Full erase PASS, exact factory write PASS, write hash verification PASS, independent verify-flash PASS.
+- NVS is erased/fresh. T1 was not mutated and first registration has not started.
+- Raw Board identity and USB locator are not archived publicly.
+- Next one gate: `N3W_T1_CORE_STACK_R3_SENSORLESS_CAPTIVE_PORTAL_WIFI_SETUP_AND_IDLE_QR_20261103_01`.
+
 ## 2026-11-03 — Manager B live upgrade accepted
 
 - Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
