@@ -1,6 +1,10 @@
-## 2026-11-03 — R3 first registration accepted; KF-139 repaired Manager current authority
+## 2026-11-03 — R3 first registration and KF-139 closure complete; post-registration runtime/business acceptance next
 CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
 AUTHORITY_SCHEMA=gh.n3w-t1-core-stack-current-authority/2
+
+MAIN=e0841a5a43fd5847d5c5c40ab1cece42faedf3c8
+MAIN_MERGE_TREE_DRIFT=ZERO
+POST_MERGE_READONLY_REBIND=PASS
 
 CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=b863ddd959090ca139af76bd68dbef31d773e6de
 CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-b863ddd95909
@@ -10,15 +14,22 @@ HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
 HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
 
 LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
-LIVE_MANAGER=local/greenhouse-manager:fresh-b863ddd95909
-LIVE_MANAGER_RUNTIME_IMAGE_ID=sha256:7c6133d87b9d378acc06ab20813b95d2e27d952f958f3ad33c7de3a4f6e9205e
+CANONICAL_LIVE_MANAGER=local/greenhouse-manager:fresh-b863ddd95909
 KF139=OVERALL_CLOSED_PASS
 R3_FIRST_REGISTRATION=PASS
 CREDENTIAL_LIFECYCLE_PRIVATE_DATABASE_GATE=PASS
-PAIRING_WINDOW_STATE=CLOSED
-PAIRING_WINDOW_CLOSE_REASON=committed
+PAIRING_WINDOW_LAST_ACCEPTED_STATE=CLOSED
+PAIRING_WINDOW_LAST_ACCEPTED_CLOSE_REASON=committed
+CURRENT_BLOCKER_COUNT=0
 
-NEXT_ONE_GATE=N3W_T1_CORE_STACK_R3_KF139_POST_MERGE_MAIN_READONLY_REBIND_20261103_01
+LIVE_T1_STATE_NOW=UNKNOWN_FRESH
+REGISTERED_BOARD_STATE_NOW=UNKNOWN_FRESH
+T1_RUNTIME_MUTATION=false
+BOARD_MUTATION=false
+
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_R3_POST_REGISTRATION_PRODUCT_RUNTIME_BUSINESS_ACCEPTANCE_READONLY_PREFLIGHT_20261103_01
+
+The first-registration/KF-139 chain is closed and merged to main. The original R3 plan explicitly deferred MQTT telemetry, Home Assistant discovery/entity acceptance, Direct/Relay failover, sensor measurements and long-duration runtime stability to downstream physical-runtime acceptance. The next gate therefore begins that downstream stage with a fresh read-only runtime/business preflight before any new board or T1 mutation.
 
 ## 2026-11-03 — R3 first registration CLOSED_PASS; KF-139 overall CLOSED_PASS
 
