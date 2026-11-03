@@ -10,6 +10,11 @@ from typing import Any
 SCHEMA = "gh.n3w-t1-core-stack-current-authority/1"
 TARGET_SCHEMA = "gh.n3w-t1-core-updater-manager-target/1"
 
+PENDING_AUTHORITY_STATE = "SUCCESSOR_READY_NOT_LIVE_APPLIED"
+APPLIED_AUTHORITY_STATE = "CURRENT_STACK_LIVE_ACCEPTED"
+PENDING_LIVE_STATE = "NOT_YET_APPLIED"
+APPLIED_LIVE_STATE = "APPLIED_ACCEPTED"
+
 AUTHORITY = Path("infra/n3w-t1/production/t1-core-stack-current.json")
 TARGET = Path("infra/n3w-t1/upgrades/manager-3539c8f871e2.json")
 FRESH_COMPOSE = Path("infra/n3w-t1/production/docker-compose.fresh.yml")
@@ -78,8 +83,9 @@ def validate_documents(
     current_index: str,
 ) -> dict[str, Any]:
     _require(authority.get("schema") == SCHEMA, "authority_schema_invalid")
+    authority_state = authority.get("authority_state")
     _require(
-        authority.get("authority_state") == "SUCCESSOR_READY_NOT_LIVE_APPLIED",
+        authority_state in {PENDING_AUTHORITY_STATE, APPLIED_AUTHORITY_STATE},
         "authority_state_invalid",
     )
 
@@ -246,7 +252,20 @@ def validate_documents(
         "mutation_scope_not_manager_only",
     )
 
-    _require(live.get("state") == "NOT_YET_APPLIED", "live_state_invalid")
+    live_state = live.get("state")
+    _require(
+        live_state in {PENDING_LIVE_STATE, APPLIED_LIVE_STATE},
+        "live_state_invalid",
+    )
+    expected_authority_state = (
+        PENDING_AUTHORITY_STATE
+        if live_state == PENDING_LIVE_STATE
+        else APPLIED_AUTHORITY_STATE
+    )
+    _require(
+        authority_state == expected_authority_state,
+        "authority_live_state_mismatch",
+    )
     _require(
         live.get("expected_predecessor_manager_image") == old_manager,
         "live_predecessor_invalid",
@@ -255,6 +274,73 @@ def validate_documents(
         live.get("expected_target_manager_image") == manager.get("image"),
         "live_target_invalid",
     )
+
+    if live_state == APPLIED_LIVE_STATE:
+        _require(
+            live.get("current_manager_image") == manager.get("image"),
+            "live_current_manager_invalid",
+        )
+        runtime_image_id = live.get("current_manager_runtime_image_id")
+        _require(
+            isinstance(runtime_image_id, str)
+            and IMAGE_ID.fullmatch(runtime_image_id) is not None,
+            "live_runtime_image_id_invalid",
+        )
+        _require(
+            live.get("transaction_status") == "COMMITTED",
+            "live_transaction_status_invalid",
+        )
+        _require(
+            live.get("transaction_phase") == "COMMITTED",
+            "live_transaction_phase_invalid",
+        )
+        _require(
+            live.get("recovery_required") is False,
+            "live_recovery_required_invalid",
+        )
+        _require(
+            live.get("post_upgrade_acceptance") == "PASS",
+            "live_post_upgrade_acceptance_invalid",
+        )
+        _require(
+            live.get("semantic_zero_node") == "PASS",
+            "live_semantic_zero_node_invalid",
+        )
+        _require(
+            live.get("unresolved_first_registration_count") == 0,
+            "live_unresolved_first_registration_invalid",
+        )
+        tombstone_count = live.get("terminal_replay_tombstone_count")
+        _require(
+            isinstance(tombstone_count, int)
+            and not isinstance(tombstone_count, bool)
+            and tombstone_count >= 0,
+            "live_terminal_tombstone_count_invalid",
+        )
+        _require(
+            live.get("homeassistant_continuity") == "PASS",
+            "live_homeassistant_continuity_invalid",
+        )
+        _require(
+            live.get("broker_continuity") == "PASS",
+            "live_broker_continuity_invalid",
+        )
+        _require(
+            live.get("listener_contract") == "PASS",
+            "live_listener_contract_invalid",
+        )
+        _require(
+            live.get("systemd_failed_units") == 0,
+            "live_systemd_failed_units_invalid",
+        )
+        _require(
+            live.get("pairing_window_state") == "CLOSED",
+            "live_pairing_window_state_invalid",
+        )
+        _require(
+            live.get("board_access") is False,
+            "live_board_access_invalid",
+        )
 
     manager_binding = (
         'image: "' + "$" + '{GH_MANAGER_IMAGE:?GH_MANAGER_IMAGE required}"'
@@ -291,14 +377,24 @@ def validate_documents(
         _require(old_source in text, f"{label}_historical_source_missing")
         _require(old_manager in text, f"{label}_historical_manager_missing")
 
-    _require(
-        "LIVE_DEPLOYMENT_STATE=NOT_YET_APPLIED" in state_top,
-        "state_live_deployment_marker_missing",
-    )
-    _require(
-        "live upgrade pending" in index_top.lower(),
-        "index_live_deployment_marker_missing",
-    )
+    if live_state == PENDING_LIVE_STATE:
+        _require(
+            "LIVE_DEPLOYMENT_STATE=NOT_YET_APPLIED" in state_top,
+            "state_live_deployment_marker_missing",
+        )
+        _require(
+            "live upgrade pending" in index_top.lower(),
+            "index_live_deployment_marker_missing",
+        )
+    else:
+        _require(
+            "LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED" in state_top,
+            "state_live_deployment_marker_missing",
+        )
+        _require(
+            "live upgrade accepted" in index_top.lower(),
+            "index_live_deployment_marker_missing",
+        )
 
     return {
         "schema": "gh.n3w-t1-core-stack-current-authority-check/1",
