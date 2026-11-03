@@ -1,14 +1,3 @@
-## 2026-11-03 — R3 / KF-139 closure
-
-- KF-139 overall: CLOSED_PASS.
-- Real T1 now runs `local/greenhouse-manager:fresh-b863ddd95909`; credential lifecycle DB is 0600/999:999.
-- Exact post-repair first registration completed `COMMITTED / TERMINAL / COMPLETE`; registrations=1, node lease=1, credential lifecycle assignment=1.
-- Pairing window closed with `close_reason=committed`; 47112 returned CLOSED after success.
-- Historical failed attempts remain terminal COMPLETE replay tombstones.
-- PR #769/#770 remain unmerged; live runtime is ahead of canonical repository Manager authority.
-- Closure authority: `docs/development/N3W_T1_CORE_STACK_R3_KF139_CLOSURE_20261103.md`.
-- Next gate: `N3W_T1_CORE_STACK_R3_KF139_POST_CLOSURE_SOURCE_REVIEW_AND_MERGE_READINESS_20261103_01`.
-
 ## 2026-11-03 — R3 exact factory image written and independently verified
 - Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
 - Current repository product source: `3539c8f871e2cb63f18462009fa03a5eb36d39fd`.
@@ -27,6 +16,19 @@
 - NVS is erased/fresh. T1 was not mutated and first registration has not started.
 - Raw Board identity and USB locator are not archived publicly.
 - Next one gate: `N3W_T1_CORE_STACK_R3_SENSORLESS_CAPTIVE_PORTAL_WIFI_SETUP_AND_IDLE_QR_20261103_01`.
+
+
+## 2026-11-03 — R3 / KF-139 closure
+
+- KF-139 overall: CLOSED_PASS.
+- Real T1 now runs `local/greenhouse-manager:fresh-b863ddd95909`; credential lifecycle DB is 0600/999:999.
+- Exact post-repair first registration completed `COMMITTED / TERMINAL / COMPLETE`; registrations=1, node lease=1, credential lifecycle assignment=1.
+- Pairing window closed with `close_reason=committed`; 47112 returned CLOSED after success.
+- Historical failed attempts remain terminal COMPLETE replay tombstones.
+- PR #769/#770 remain unmerged; live runtime is ahead of canonical repository Manager authority.
+- Closure authority: `docs/development/N3W_T1_CORE_STACK_R3_KF139_CLOSURE_20261103.md`.
+- Next gate: `N3W_T1_CORE_STACK_R3_KF139_POST_CLOSURE_SOURCE_REVIEW_AND_MERGE_READINESS_20261103_01`.
+
 
 ## 2026-11-03 — Manager B live upgrade accepted
 
