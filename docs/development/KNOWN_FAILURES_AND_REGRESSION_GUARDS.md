@@ -1,14 +1,18 @@
+### 2026-11-03 Updater V2 source/package closure — PR #754
+
+PR #754 reviewed head `43de966c70d527433a915f40b9b630227531580a` merged as `24fbc6cdf9b05796487459ad7cae038c0bdc7d5a` with zero tree drift. Exact-head CI passed 13/13; updater tests passed 41/41. Exact Manager-only updater package run `41544508199`, artifact `13187736541`, artifact digest `sha256:e09fb86c8444e0510b0200e759551d3571496064c743b4171992d46ab73babb9`, updater pyz SHA256 `e92c093c7028d57ddc1e2c9c1eeb3fb97a0791a27b262b472c75482eaa3026bf`. Upload/redownload package binding and pyz execution both PASS. Manager tar remains unchanged and Manager was not rebuilt. KF-135/KF-136 source-level V2 repair is closed; live R2 transaction reconciliation and later A->B acceptance remain separate gates.
+
 ### 2026-11-03 KF-135 — T1_Core_Updater post-start listener readiness race can false-FAIL apply and rollback
 
 | ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
 |---|---|---|---|---|---|
-| KF-135 | T1_Core_Updater Manager A→B service restart / post-start verification | R2 apply 在服务重启后返回 `automatic_rollback_failed`；随后事务被记为 `FAILED_EMERGENCY / ROLLBACK_FAILED`，但只读取证证明 Manager A、HA、Broker 实际均已恢复健康，8 次连续 listener snapshot 均为 8883=1 / 47110=1 / 47111=1 / 47112=0 | `wait_services()` 只等 services unit active + Manager/HA 容器出现；严格 `inspect()` 紧接着要求所有 listener 已经收敛。现场日志显示容器约 00:00:53 出现，而 greenhouse-manager 到约 00:01:05 才开始 runtime、00:01:06 才完成订阅，因此存在明确启动就绪空窗；automatic rollback 重启后重复同一路径 | `start_services()` 的 readiness 必须同时等待严格 listener contract；`inspect()` 继续保持同一严格合同，禁止降低最终验收标准 | SOURCE_REPAIR_IN_PROGRESS |
+| KF-135 | T1_Core_Updater Manager A→B service restart / post-start verification | R2 apply 在服务重启后返回 `automatic_rollback_failed`；随后事务被记为 `FAILED_EMERGENCY / ROLLBACK_FAILED`，但只读取证证明 Manager A、HA、Broker 实际均已恢复健康，8 次连续 listener snapshot 均为 8883=1 / 47110=1 / 47111=1 / 47112=0 | `wait_services()` 只等 services unit active + Manager/HA 容器出现；严格 `inspect()` 紧接着要求所有 listener 已经收敛。现场日志显示容器约 00:00:53 出现，而 greenhouse-manager 到约 00:01:05 才开始 runtime、00:01:06 才完成订阅，因此存在明确启动就绪空窗；automatic rollback 重启后重复同一路径 | `start_services()` 的 readiness 必须同时等待严格 listener contract；`inspect()` 继续保持同一严格合同，禁止降低最终验收标准 | SOURCE_V2_CLOSED_LIVE_ACCEPTANCE_PENDING |
 
 ### 2026-11-03 KF-136 — T1_Core_Updater FAILED_EMERGENCY transaction has no supported closure path after runtime already recovered
 
 | ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
 |---|---|---|---|---|---|
-| KF-136 | T1_Core_Updater non-terminal transaction recovery | R2 现场已经恢复到 predecessor A，但 transaction 仍为 `FAILED_EMERGENCY / ROLLBACK_FAILED` 且 `recovery_required=true`；进一步复核还发现进程若死在显式 rollback 写入 `ROLLING_BACK` 后，同样会形成恢复死角 | 旧 rollback 入口只接受 COMMITTED/APPLYING，并把 transaction phase 当成主要恢复依据；FAILED_EMERGENCY 与 ROLLING_BACK 都可能成为非终态死角 | V2 显式 rollback/recovery 接受 APPLYING、ROLLING_BACK、FAILED_EMERGENCY；先读取当前 binding/runtime。若 predecessor A 已严格健康，则无服务重启收口为 ROLLED_BACK；若 target B 或应用停机态仍存在，则在 rollback confirmation 下恢复 predecessor；未知 binding/runtime 在任何服务 mutation 前 fail closed；任何非终态都不得 silent commit target | SOURCE_REPAIR_IN_PROGRESS |
+| KF-136 | T1_Core_Updater non-terminal transaction recovery | R2 现场已经恢复到 predecessor A，但 transaction 仍为 `FAILED_EMERGENCY / ROLLBACK_FAILED` 且 `recovery_required=true`；进一步复核还发现进程若死在显式 rollback 写入 `ROLLING_BACK` 后，同样会形成恢复死角 | 旧 rollback 入口只接受 COMMITTED/APPLYING，并把 transaction phase 当成主要恢复依据；FAILED_EMERGENCY 与 ROLLING_BACK 都可能成为非终态死角 | V2 显式 rollback/recovery 接受 APPLYING、ROLLING_BACK、FAILED_EMERGENCY；先读取当前 binding/runtime。若 predecessor A 已严格健康，则无服务重启收口为 ROLLED_BACK；若 target B 或应用停机态仍存在，则在 rollback confirmation 下恢复 predecessor；未知 binding/runtime 在任何服务 mutation 前 fail closed；任何非终态都不得 silent commit target | SOURCE_V2_CLOSED_LIVE_RECONCILIATION_PENDING |
 
 ### 2026-11-02 KF-106 recurrence live revalidation — CLOSED_PASS
 
