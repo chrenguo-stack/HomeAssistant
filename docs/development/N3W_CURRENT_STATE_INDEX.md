@@ -1,3 +1,18 @@
+## 2026-11-03 — A1 stable-invariant classification CLOSED_PASS; A2 entry ready
+
+- Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
+- Current product source: `b863ddd959090ca139af76bd68dbef31d773e6de`; Manager `local/greenhouse-manager:fresh-b863ddd95909`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference source/Manager remain `24382caae4a1f5d459297f86e8d18f10a848ca64` / `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; canonical live deployment remains `APPLIED_ACCEPTED`.
+- R3 reference SHA256: `e09139564280c700bc02b2e16360c511f780f7da7817f0d9bf0a22ff59dfcceb`; normalized delta SHA256: `0d2ade72c9dbdc8299cc09754ed87768a02762244447c619d007951e9a522895`.
+- A1 classification SHA256: `e664ced300ea2bb743b116550b7a3e22237e7f556f54400a060eef30671d30e7`.
+- 150 fields: 32 hard stable invariants / 40 soft runtime checks / 67 diagnostic only / 11 remove.
+- Whole historical reference equality is forbidden as an upgrade gate; hard identities are baseline/target/per-instance bound.
+- No T1 access, live mutation, Board access, product source change or PR #773 merge occurred.
+- Closure: `docs/development/N3W_T1_CORE_STACK_A1_STABLE_INVARIANT_CLASSIFICATION_CLOSURE_20261103.md`.
+- Machine authority: `infra/n3w-t1/clean-reference/a1-stable-invariant-classification-20261103.json`.
+- `A2_ENTRY_READY=true`; next one gate is `N3W_T1_CORE_STACK_A2_PER_MODULE_UPGRADE_ARCHITECTURE_20261103_01`; A2 not executed.
+
 ## 2026-11-03 — R3 reference convergence CLOSED_PASS; A1 entry ready
 
 - Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
