@@ -303,6 +303,11 @@ class LocalHost:
         except Exception as error:
             raise UpdaterError("compose_env_v2_bindings_invalid") from error
 
+    def component_binding_v2(self, component: str) -> str:
+        if component not in COMPONENTS:
+            raise UpdaterError("component_invalid")
+        return self.image_bindings_v2()[component]
+
     def inspect_v2(self) -> dict[str, Any]:
         snapshot = self.inspect()
         bindings = self.image_bindings_v2()
