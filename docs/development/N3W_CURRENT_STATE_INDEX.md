@@ -1,5 +1,14 @@
 ## 2026-11-03 — R3 reference convergence CLOSED_PASS; A1 entry ready
 
+- Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
+- Current product source: `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Current Manager: `local/greenhouse-manager:fresh-b863ddd95909`.
+- Current Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical Clean Reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; current canonical live deployment remains `APPLIED_ACCEPTED`.
+
 - Closure: `docs/development/N3W_T1_CORE_STACK_R3_REFERENCE_CONVERGENCE_AND_A1_ENTRY_READONLY_CLOSURE_20261103.md`
 - R3 normalized reference: `infra/n3w-t1/clean-reference/r3-normalized-reference-20261103.json`
 - R2 -> R3 normalized delta: `infra/n3w-t1/clean-reference/r2-r3-normalized-delta-20261103.json`
