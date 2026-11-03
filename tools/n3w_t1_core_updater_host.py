@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import fcntl
 import http.client
 import json
 import os
@@ -52,6 +53,9 @@ EXPECTED_LISTENERS = {
 }
 
 CERT_LIFECYCLE_UNIT = "n3wfc4-broker-certificate-lifecycle.service"
+BROKER_CERT_LIFECYCLE_LOCK = Path(
+    "/var/lib/n3wfc4-certificate-lifecycle/.certificate-lifecycle.lock"
+)
 MQTT_IDENTITY_FILES = {
     "manager": Path("/opt/greenhouse-secrets/mqtt/manager/runtime.env"),
     "homeassistant": Path(
@@ -61,6 +65,9 @@ MQTT_IDENTITY_FILES = {
 
 
 class LocalHost:
+    def __init__(self) -> None:
+        self._component_guard_fd: int | None = None
+
     def _run(
         self,
         argv: Sequence[str],
@@ -799,10 +806,51 @@ class LocalHost:
         self._run(("systemctl", "start", BROKER_UNIT), timeout=120)
         self.wait_broker()
 
+    def _acquire_broker_certificate_guard(self) -> None:
+        if self._component_guard_fd is not None:
+            return
+        path = BROKER_CERT_LIFECYCLE_LOCK
+        if path.is_symlink() or not path.is_file():
+            raise UpdaterError("broker_certificate_lifecycle_lock_missing")
+        descriptor = os.open(path, os.O_RDWR)
+        try:
+            metadata = os.fstat(descriptor)
+            if (
+                not stat.S_ISREG(metadata.st_mode)
+                or stat.S_IMODE(metadata.st_mode) & 0o077
+            ):
+                raise UpdaterError(
+                    "broker_certificate_lifecycle_lock_unsafe"
+                )
+            try:
+                fcntl.flock(
+                    descriptor,
+                    fcntl.LOCK_EX | fcntl.LOCK_NB,
+                )
+            except BlockingIOError as error:
+                raise UpdaterError(
+                    "broker_certificate_lifecycle_busy"
+                ) from error
+            self._component_guard_fd = descriptor
+        except Exception:
+            os.close(descriptor)
+            raise
+
+    def release_component_guard(self) -> None:
+        descriptor = self._component_guard_fd
+        self._component_guard_fd = None
+        if descriptor is None:
+            return
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+        finally:
+            os.close(descriptor)
+
     def quiesce_component(self, component: str) -> None:
         if component not in COMPONENTS:
             raise UpdaterError("component_invalid")
         if component == "broker":
+            self._acquire_broker_certificate_guard()
             self.stop_services()
             self.stop_broker()
             return
