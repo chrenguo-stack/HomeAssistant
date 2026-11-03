@@ -1,13 +1,17 @@
 ## 2026-11-03 — Manager B is live; independent post-upgrade acceptance is next
 
+- Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source remains `3539c8f871e2cb63f18462009fa03a5eb36d39fd`.
+- Current repository Manager target remains `local/greenhouse-manager:fresh-3539c8f871e2`.
+- Current repository Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64`, Manager `local/greenhouse-manager:fresh-24382caae4a1`.
 - Repaired A→B apply completed PASS with transaction `COMMITTED / COMMITTED` and `recovery_required=false`.
-- Live Manager is now `local/greenhouse-manager:fresh-3539c8f871e2`.
-- T1-local verified Manager runtime image ID is `sha256:9dd128f0700840d46d300f9a434e2d3fbf5abba7abbd03c7dd432e9f497be035`.
-- Home Assistant image remained unchanged.
-- Broker runtime identity remained unchanged.
+- Live Manager is now `local/greenhouse-manager:fresh-3539c8f871e2` with T1-local runtime image `sha256:9dd128f0700840d46d300f9a434e2d3fbf5abba7abbd03c7dd432e9f497be035`.
+- Home Assistant image remained unchanged and Broker runtime identity remained unchanged.
 - Listener contract remained exact.
 - No second apply, explicit rollback or Board access occurred.
-- Canonical repository authority intentionally remains `LIVE_DEPLOYMENT_STATE=NOT_YET_APPLIED` until independent Manager B post-upgrade acceptance.
+- Repository authority still records `LIVE_DEPLOYMENT_STATE=NOT_YET_APPLIED`; live upgrade pending only until independent Manager B post-upgrade acceptance closes PASS.
 - Next one gate: `N3W_T1_CORE_STACK_MANAGER_B_POST_UPGRADE_LIVE_ACCEPTANCE_20261103_01`.
 
 ## 2026-11-03 — KF-137 repaired updater ready; one new A→B apply is authorized
