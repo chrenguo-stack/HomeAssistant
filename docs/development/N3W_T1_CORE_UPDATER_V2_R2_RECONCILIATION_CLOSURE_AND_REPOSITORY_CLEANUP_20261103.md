@@ -50,10 +50,12 @@ UPDATER_V2_PYZ_SHA256=e92c093c7028d57ddc1e2c9c1eeb3fb97a0791a27b262b472c75482eaa
 
 ## 3. Stale PR cleanup classification
 
-The following draft PRs are closed as superseded historical development lines, not merged into current main:
+The following draft PRs were closed as superseded historical development lines and were not merged into current main:
 
 ```text
-SUPERSEDED_PR_CANDIDATES=697,720,721,722,728,730,731,732,739
+SUPERSEDED_PRS_CLOSED=697,720,721,722,728,730,731,732,739
+SUPERSEDED_PRS_MERGED=NONE
+HISTORICAL_COMMITS_PRESERVED=true
 ```
 
 Reasoning:
