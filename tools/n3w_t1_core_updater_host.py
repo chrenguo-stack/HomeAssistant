@@ -38,7 +38,8 @@ from n3w_t1_core_updater_common import (
 
 from n3w_t1_core_updater_v2_common import (
     COMPONENTS,
-    parse_image_bindings,
+    IMAGE_BINDINGS,
+    IMAGE_PREFIXES,
     rewrite_component_env,
 )
 
@@ -340,18 +341,79 @@ class LocalHost:
             "listeners": listeners,
         }
 
-    def image_bindings_v2(self) -> dict[str, str]:
+    def _image_binding_authority_v2(
+        self,
+        rendered: dict[str, Any] | None = None,
+    ) -> tuple[dict[str, str], dict[str, str]]:
         if COMPOSE_ENV.is_symlink() or not COMPOSE_ENV.is_file():
             raise UpdaterError("compose_env_invalid")
         try:
-            return parse_image_bindings(COMPOSE_ENV.read_bytes())
-        except Exception as error:
-            raise UpdaterError("compose_env_v2_bindings_invalid") from error
+            text = COMPOSE_ENV.read_text(encoding="utf-8")
+        except (OSError, UnicodeError) as error:
+            raise UpdaterError("compose_env_invalid") from error
+        document = rendered if rendered is not None else self.render_compose()
+        services = document.get("services")
+        if not isinstance(services, dict):
+            raise UpdaterError("compose_services_invalid")
+
+        bindings: dict[str, str] = {}
+        modes: dict[str, str] = {}
+        for component in COMPONENTS:
+            key = IMAGE_BINDINGS[component]
+            matches = [
+                line.split("=", 1)[1]
+                for line in text.splitlines()
+                if line.startswith(f"{key}=")
+            ]
+            service = services.get(component)
+            if not isinstance(service, dict):
+                raise UpdaterError(f"{component}_compose_service_missing")
+            rendered_image = service.get("image")
+            if not isinstance(rendered_image, str) or not rendered_image.startswith(
+                IMAGE_PREFIXES[component]
+            ):
+                raise UpdaterError(f"{component}_compose_image_invalid")
+
+            if len(matches) == 1:
+                if (
+                    not matches[0].startswith(IMAGE_PREFIXES[component])
+                    or matches[0] != rendered_image
+                ):
+                    raise UpdaterError(
+                        f"{component}_compose_env_image_drift"
+                    )
+                bindings[component] = matches[0]
+                modes[component] = "dynamic"
+                continue
+
+            if len(matches) == 0 and component != "manager":
+                bindings[component] = rendered_image
+                modes[component] = "legacy_static"
+                continue
+
+            raise UpdaterError(
+                f"{component}_image_binding_authority_invalid"
+            )
+        return bindings, modes
+
+    def image_bindings_v2(self) -> dict[str, str]:
+        return self._image_binding_authority_v2()[0]
+
+    def image_binding_modes_v2(self) -> dict[str, str]:
+        return self._image_binding_authority_v2()[1]
 
     def component_binding_v2(self, component: str) -> str:
         if component not in COMPONENTS:
             raise UpdaterError("component_invalid")
         return self.image_bindings_v2()[component]
+
+    def assert_component_upgradeable(self, component: str) -> None:
+        if component not in COMPONENTS:
+            raise UpdaterError("component_invalid")
+        if self.image_binding_modes_v2()[component] != "dynamic":
+            raise UpdaterError(
+                f"{component}_runtime_template_convergence_required"
+            )
 
     def _mqtt_authenticated(self, service: str) -> bool:
         if service not in MQTT_IDENTITY_FILES:
@@ -451,8 +513,8 @@ class LocalHost:
 
     def inspect_v2(self) -> dict[str, Any]:
         snapshot = self.inspect()
-        bindings = self.image_bindings_v2()
         rendered = snapshot["compose_render"]
+        bindings, binding_modes = self._image_binding_authority_v2(rendered)
         services = rendered.get("services")
         if not isinstance(services, dict):
             raise UpdaterError("compose_services_invalid")
@@ -476,6 +538,7 @@ class LocalHost:
         return {
             **snapshot,
             "image_bindings": bindings,
+            "image_binding_modes": binding_modes,
             "mqtt_authenticated": authenticated,
             "homeassistant_http_status": self._homeassistant_http_status(),
         }
@@ -639,6 +702,10 @@ class LocalHost:
     ) -> str:
         if component not in COMPONENTS:
             raise UpdaterError("component_invalid")
+        if self.image_binding_modes_v2()[component] != "dynamic":
+            raise UpdaterError(
+                f"{component}_runtime_template_convergence_required"
+            )
         if COMPOSE_ENV.is_symlink() or not COMPOSE_ENV.is_file():
             raise UpdaterError("compose_env_invalid")
         original = COMPOSE_ENV.read_bytes()
