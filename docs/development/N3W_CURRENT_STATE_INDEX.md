@@ -12,6 +12,7 @@
 - Manager binding was not rewritten; no apply and no Board access occurred.
 - KF-136 live reconciliation is CLOSED_PASS.
 - Historical stale PR cleanup is tracked in `docs/development/N3W_T1_CORE_UPDATER_V2_R2_RECONCILIATION_CLOSURE_AND_REPOSITORY_CLEANUP_20261103.md`.
+- Closed as superseded without merge: #697, #720, #721, #722, #728, #730, #731, #732, #739.
 - A new Manager A-to-B apply is not authorized by this closure.
 - Next product gate: `N3W_T1_CORE_UPDATER_V2_POST_RECONCILIATION_BASELINE_AND_MANAGER_A_TO_B_PREAUTHORIZATION`.
 
