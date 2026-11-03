@@ -52,6 +52,7 @@ class MultiComponentCoreUpdater:
                     "image_ref": runtime[name]["image_ref"],
                     "image_id": runtime[name]["image_id"],
                     "network_mode": runtime[name]["network_mode"],
+                    "platform": runtime[name]["platform"],
                     "runtime_contract_sha256": runtime[name][
                         "runtime_contract_sha256"
                     ],
@@ -73,6 +74,10 @@ class MultiComponentCoreUpdater:
         baseline = UpgradeBaseline(
             stack_images=dict(snapshot["image_bindings"]),
             image_binding_modes=dict(snapshot["image_binding_modes"]),
+            platforms={
+                component: snapshot["runtime"][component]["platform"]
+                for component in ("manager", "homeassistant", "broker")
+            },
             runtime_contract_sha256={
                 component: snapshot["runtime"][component][
                     "runtime_contract_sha256"
@@ -97,6 +102,12 @@ class MultiComponentCoreUpdater:
             raise UpdaterV2Error("baseline_stack_image_drift")
         if baseline.image_binding_modes != snapshot["image_binding_modes"]:
             raise UpdaterV2Error("baseline_image_binding_mode_drift")
+        current_platforms = {
+            name: snapshot["runtime"][name].get("platform")
+            for name in ("manager", "homeassistant", "broker")
+        }
+        if baseline.platforms != current_platforms:
+            raise UpdaterV2Error("baseline_platform_drift")
         for name, expected in baseline.runtime_contract_sha256.items():
             current = snapshot["runtime"][name].get(
                 "runtime_contract_sha256"
