@@ -157,8 +157,8 @@ def test_pending_state_remains_supported():
         1,
     )
     index = index.replace(
-        "live upgrade accepted",
-        "live upgrade pending",
+        "Live upgrade accepted",
+        "Live upgrade pending",
         1,
     )
     report = check.validate_documents(
