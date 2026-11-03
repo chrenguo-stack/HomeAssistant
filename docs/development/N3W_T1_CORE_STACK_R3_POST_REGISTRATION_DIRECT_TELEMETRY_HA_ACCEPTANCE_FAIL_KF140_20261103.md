@@ -451,3 +451,74 @@ KNOWN_EXECUTOR_GUARD_CLASS=KF-078
 ```
 
 Correct execution shape for this query is to omit `-n` because SSH is the sole intended stdin owner for the heredoc.
+
+
+## 17. KF-140 closure — test-harness false negative, not product defect
+
+Corrected read-only Manager correlation for the same physical sample proved:
+
+```text
+WINDOW_START=2026-11-03T13:28:45Z
+WINDOW_END=2026-11-03T13:29:15Z
+
+SEQ=71
+MANAGER_ACCEPTED_COUNT=1
+MANAGER_ACCEPTED_SEQ71=true
+MANAGER_REJECTED_COUNT=0
+MANAGER_DUPLICATE_COUNT=0
+
+MANAGER_ACCEPTED_AT=2026-11-03T13:28:59.765Z
+SOURCE=direct
+GATEWAY=None
+```
+
+The same physical sample was already independently bound to:
+
+```text
+BOARD_DIRECT_SUBMIT_LOG_RECEIVED_UTC=2026-11-03T13:28:59.527Z
+BROKER_NEAR_SUBMIT_BYTES_RECEIVED_DELTA=1077
+BROKER_NEAR_SUBMIT_DATA_SEGS_IN_DELTA=4
+BROKER_PREBASELINE_BYTES_DELTA=31
+MQTT_LOG_TOPIC=null
+```
+
+Observed Manager acceptance followed the operator-host API-log receipt timestamp by approximately 238 ms, consistent with the expected transport/processing order. The API-log prefix is operator-host receipt time, not device-origin wall-clock time.
+
+Final KF-140 classification:
+
+```text
+KF140_PRODUCT_DEFECT=false
+KF140_ROOT_CAUSE=TEST_HARNESS_MANAGER_LOG_MATCHER_FALSE_NEGATIVE
+KF140_STATE=CLOSED_FALSE_POSITIVE
+SOURCE_REPAIR_REQUIRED=false
+BOARD_REPAIR_REQUIRED=false
+BROKER_REPAIR_REQUIRED=false
+MANAGER_REPAIR_REQUIRED=false
+DYNSEC_REPAIR_REQUIRED=false
+CREDENTIAL_REPAIR_REQUIRED=false
+```
+
+The invalid harness matched legacy/non-applicable strings:
+
+```text
+Accepted telemetry node=
+Rejected telemetry node=
+```
+
+The deployed simplified N3-W Manager path uses:
+
+```text
+Accepted simplified N3-W telemetry source=direct node=...
+Rejected simplified N3-W ingress source=direct node=...
+Ignored simplified N3-W duplicate source=direct node=...
+```
+
+Regression guard:
+
+```text
+MANAGER_RUNTIME_ORACLE_MUST_BIND_DEPLOYED_SOURCE_LOG_STRINGS=true
+ZERO_MATCH_FROM_STALE_LOG_PATTERN_MUST_NOT_BE_CLASSIFIED_AS_PRODUCT_DELIVERY_FAILURE=true
+RAW_WINDOW_RELEVANT_LOG_TAIL_REQUIRED_WHEN_ACCEPTED_COUNT_IS_ZERO=true
+```
+
+The original active Gate is resumed. Direct product telemetry delivery is now PASS for seq=71. Remaining scope is Home Assistant/canonical runtime receipt and the originally intended continuity requirement; no product-source repair is justified.
