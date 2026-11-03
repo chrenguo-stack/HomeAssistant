@@ -1,4 +1,5 @@
 ## 2026-11-03 — R3 exact factory write/verify PASS; Captive Portal Wi-Fi setup next
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
 
 CURRENT_REPOSITORY_MAIN=c93fc3561ecee6dda13306804a3168a9c12ffe3a
 LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
