@@ -43,6 +43,7 @@ class MultiComponentCoreUpdater:
         runtime = snapshot["runtime"]
         return {
             "image_bindings": snapshot["image_bindings"],
+            "image_binding_modes": snapshot["image_binding_modes"],
             "compose_env_sha256": snapshot["compose_env_sha256"],
             "compose_render_sha256": snapshot["compose_render_sha256"],
             "services_unit": snapshot["services_unit"],
@@ -71,6 +72,7 @@ class MultiComponentCoreUpdater:
         self.policy.validate_pre("manager", policy)
         baseline = UpgradeBaseline(
             stack_images=dict(snapshot["image_bindings"]),
+            image_binding_modes=dict(snapshot["image_binding_modes"]),
             runtime_contract_sha256={
                 component: snapshot["runtime"][component][
                     "runtime_contract_sha256"
@@ -93,6 +95,8 @@ class MultiComponentCoreUpdater:
     ) -> None:
         if baseline.stack_images != snapshot["image_bindings"]:
             raise UpdaterV2Error("baseline_stack_image_drift")
+        if baseline.image_binding_modes != snapshot["image_binding_modes"]:
+            raise UpdaterV2Error("baseline_image_binding_mode_drift")
         for name, expected in baseline.runtime_contract_sha256.items():
             current = snapshot["runtime"][name].get(
                 "runtime_contract_sha256"
@@ -132,6 +136,7 @@ class MultiComponentCoreUpdater:
         adapter = adapter_for(target.component)
         pre = self.host.inspect_v2()
         self.host.assert_mutation_safe(target.component)
+        self.host.assert_component_upgradeable(target.component)
         policy = self.policy.capture()
         self.policy.validate_pre(target.component, policy)
         self._validate_baseline(
@@ -232,6 +237,7 @@ class MultiComponentCoreUpdater:
         adapter = adapter_for(target.component)
         pre = self.host.inspect_v2()
         self.host.assert_mutation_safe(target.component)
+        self.host.assert_component_upgradeable(target.component)
         pre_policy = self.policy.capture()
         self.policy.validate_pre(target.component, pre_policy)
         self._validate_baseline(
