@@ -10,7 +10,12 @@ from n3w_t1_core_updater_v2_common import (
     V2Host,
 )
 
-PEER_RUNTIME_KEYS = ("image_ref", "image_id", "network_mode")
+PEER_RUNTIME_KEYS = (
+    "image_ref",
+    "image_id",
+    "network_mode",
+    "runtime_contract_sha256",
+)
 
 
 @dataclass(frozen=True)
@@ -93,6 +98,7 @@ class ComponentAdapter:
             item.get("image_ref") != target.target_image_ref
             or item.get("image_id") != runtime_image_id
             or item.get("network_mode") != predecessor_network_mode
+            or not isinstance(item.get("runtime_contract_sha256"), str)
         ):
             raise UpdaterV2Error("post_target_runtime_invalid")
 
