@@ -428,3 +428,26 @@ MQTT_LOG_TOPIC=null
 ```
 
 Next required step is a fresh read-only Manager log query using the deployed exact log strings and exact seq=71 correlation. No product repair is justified unless that corrected oracle still proves a real failure.
+
+
+## 16. Corrected executor stdin ownership for seq=71 Manager correlation
+
+The first corrected-Manager-log query attempt produced no output because the local harness invoked:
+
+```text
+ssh -n ... 'python3 -' <<'PY'
+```
+
+This is an executor error. `ssh -n` redirects SSH stdin from `/dev/null`, while remote `python3 -` requires the heredoc on SSH stdin. Therefore the remote Python interpreter received no script.
+
+Classification:
+
+```text
+PRODUCT_FAILURE=false
+T1_FAILURE=false
+MANAGER_FAILURE=false
+HARNESS_STDIN_OWNERSHIP_ERROR=true
+KNOWN_EXECUTOR_GUARD_CLASS=KF-078
+```
+
+Correct execution shape for this query is to omit `-n` because SSH is the sole intended stdin owner for the heredoc.
