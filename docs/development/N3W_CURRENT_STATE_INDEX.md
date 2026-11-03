@@ -1,3 +1,30 @@
+## 2026-11-03 — R3/KF-139 repaired Manager is the canonical current stack
+- Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json` schema `gh.n3w-t1-core-stack-current-authority/2`.
+- Current repository product source: `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Current repository Manager: `local/greenhouse-manager:fresh-b863ddd95909`.
+- Current repository Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical Clean Reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Immediate repair predecessor: `local/greenhouse-manager:fresh-3539c8f871e2`.
+- Live upgrade accepted: `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- KF-139 overall CLOSED_PASS; real post-repair first registration accepted.
+- Pairing window closed with `close_reason=committed`; private credential database gate PASS.
+- Next gate: `N3W_T1_CORE_STACK_R3_KF139_POST_MERGE_MAIN_READONLY_REBIND_20261103_01`.
+
+## 2026-11-03 — R3 / KF-139 closure
+
+- KF-139 overall: CLOSED_PASS.
+- Real T1 now runs `local/greenhouse-manager:fresh-b863ddd95909`; credential lifecycle DB is 0600/999:999.
+- Exact post-repair first registration completed `COMMITTED / TERMINAL / COMPLETE`; registrations=1, node lease=1, credential lifecycle assignment=1.
+- Pairing window closed with `close_reason=committed`; 47112 returned CLOSED after success.
+- Historical failed attempts remain terminal COMPLETE replay tombstones.
+- Authorized stacked convergence binds canonical repository authority to `local/greenhouse-manager:fresh-b863ddd95909`.
+- Historical Clean Reference remains separate; the immediate predecessor for this repair is `local/greenhouse-manager:fresh-3539c8f871e2`.
+- Closure authority: `docs/development/N3W_T1_CORE_STACK_R3_KF139_CLOSURE_20261103.md`.
+- Next gate: `N3W_T1_CORE_STACK_R3_KF139_POST_MERGE_MAIN_READONLY_REBIND_20261103_01`.
+
+
 ## 2026-11-03 — Manager B live upgrade accepted
 
 - Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
