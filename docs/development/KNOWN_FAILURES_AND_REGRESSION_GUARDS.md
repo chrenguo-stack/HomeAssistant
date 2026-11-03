@@ -1,3 +1,9 @@
+### 2026-11-03 KF-140 closure — CLOSED_FALSE_POSITIVE
+
+The apparent post-registration Direct telemetry failure was an acceptance-harness false negative, not a product defect. The harness searched legacy/non-applicable Manager strings (`Accepted telemetry node=` / `Rejected telemetry node=`) while the deployed simplified N3-W path logs `Accepted simplified N3-W telemetry source=direct ...`, `Rejected simplified N3-W ingress source=direct ...`, and duplicate status separately. Corrected read-only evidence proves Manager accepted seq 71 through 101 consecutively with zero rejects and zero duplicates; fresh board API capture independently observed seq 100/101 Direct submissions. Each seq 100/101 Manager-accept event was time-correlated to +1097 bytes / +2 data segments on the unique Broker-to-Home-Assistant 1883 socket with a zero-byte pre-event baseline.
+
+Guard: runtime delivery tests must bind their log oracle to the exact deployed Manager source; a zero match against stale text must never be promoted to product failure without raw-window review. For Home Assistant entities whose state value may remain constant, do not require `last_updated` to change as the sole fresh-receipt oracle; use a node-event-bound transport/runtime signal. No firmware, Broker, Manager, DynSec, credential, or HA source repair is associated with KF-140.
+
 ### 2026-11-03 KF-139 closure — CLOSED_PASS
 
 Real-T1 closure is complete. The exact repaired Manager `local/greenhouse-manager:fresh-b863ddd95909` was first validated in an isolated real-T1 ARM64/Docker probe: `CredentialLifecycleStore` created `credential-lifecycle.sqlite3` as 0600/999:999 even under `umask 000`, and the existing private-database gate passed. The exact Manager was then deployed through the production updater with Broker continuity preserved and Home Assistant image unchanged. The live empty credential DB was preserved for forensic evidence, then repaired 0644 -> 0600; the live private gate passed.
