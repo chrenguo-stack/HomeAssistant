@@ -124,14 +124,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                     confirmation=args.confirmation,
                 )
         elif args.command == "rollback":
-            v2_operation = v2_store.read() is not None
+            v2_operation = v2_store.path.exists()
             result = (
                 v2.rollback(confirmation=args.confirmation)
                 if v2_operation
                 else legacy.rollback(confirmation=args.confirmation)
             )
         elif args.command == "status":
-            v2_operation = v2_store.read() is not None
+            v2_operation = v2_store.path.exists()
             result = v2.status() if v2_operation else legacy.status()
         else:
             raise UpdaterError("command_unknown")
