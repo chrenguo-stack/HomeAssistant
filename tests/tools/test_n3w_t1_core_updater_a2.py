@@ -9,6 +9,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 
+import n3w_t1_core_updater_a1_policy as policy_mod
 import n3w_t1_core_updater_host as hostmod
 import n3w_t1_core_updater_v2 as core
 from n3w_t1_core_updater_v2_common import (
@@ -253,6 +254,73 @@ def test_v2_manifest_rejects_wrong_a1_authority(tmp_path: Path):
     path.write_text(json.dumps(doc), encoding="utf-8")
     with pytest.raises(UpdaterV2Error, match="target_a1_authority_mismatch"):
         ComponentTarget.load(path)
+
+
+def test_production_mqtt_identity_formats(tmp_path: Path):
+    manager = tmp_path / "runtime.env"
+    manager.write_text(
+        "GH_MQTT_USERNAME=ghs_greenhouse_manager\n"
+        "GH_MQTT_CLIENT_ID=gh-manager-greenhouse\n"
+        "GH_MQTT_PASSWORD_FILE=/run/secrets/password\n",
+        encoding="utf-8",
+    )
+    ha = tmp_path / "mqtt-bootstrap.json"
+    ha.write_text(
+        json.dumps(
+            {
+                "broker": "127.0.0.1",
+                "port": 1883,
+                "protocol": "5",
+                "username": "ghs_greenhouse_homeassistant",
+                "client_id": "gh-homeassistant-greenhouse",
+                "password_file": "/run/secrets/password",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert policy_mod._mqtt_identity("manager", manager)
+    assert policy_mod._mqtt_identity("homeassistant", ha)
+
+
+def test_legacy_static_peer_binding_authority_is_readable(
+    tmp_path: Path,
+    monkeypatch,
+):
+    env = tmp_path / "docker-compose.env"
+    env.write_text(
+        f"GH_MANAGER_IMAGE={OLD['manager']}\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(hostmod, "COMPOSE_ENV", env)
+    host = hostmod.LocalHost()
+    rendered = {
+        "services": {
+            "manager": {"image": OLD["manager"]},
+            "homeassistant": {"image": OLD["homeassistant"]},
+            "broker": {"image": OLD["broker"]},
+        }
+    }
+
+    bindings, modes = host._image_binding_authority_v2(rendered)
+
+    assert bindings == OLD
+    assert modes == {
+        "manager": "dynamic",
+        "homeassistant": "legacy_static",
+        "broker": "legacy_static",
+    }
+
+
+def test_manager_rewrite_does_not_require_dynamic_peer_lines():
+    payload = f"GH_MANAGER_IMAGE={OLD['manager']}\n".encode()
+    updated = rewrite_component_env(
+        payload,
+        "manager",
+        OLD["manager"],
+        NEW["manager"],
+    )
+    assert updated == f"GH_MANAGER_IMAGE={NEW['manager']}\n".encode()
 
 
 def test_generic_env_binding_rewrites_only_selected_component():
