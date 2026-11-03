@@ -22,6 +22,12 @@ PERSISTENT_DIRS = {
     "broker": Path("/var/lib/n3wfc4-broker"),
     "homeassistant": Path("/var/lib/n3wfc4-homeassistant"),
 }
+EXPECTED_PERSISTENT_OWNERS = {
+    "manager": (999, 999),
+    "n3w": (999, 999),
+    "broker": (1883, 1883),
+    "homeassistant": (0, 0),
+}
 SQLITE_DATABASES = {
     "manager": Path("/var/lib/greenhouse-manager/manager/manager-state.sqlite3"),
     "replay": Path("/var/lib/greenhouse-manager/n3w/replay.sqlite3"),
@@ -50,6 +56,13 @@ BROKER_TLS_SERVER_NAME = "armbian"
 
 class A1Policy(Protocol):
     def capture(self) -> dict[str, Any]: ...
+    def hard_authority(self, snapshot: dict[str, Any]) -> dict[str, Any]: ...
+    def validate_baseline(
+        self,
+        component: str,
+        snapshot: dict[str, Any],
+        expected: dict[str, Any],
+    ) -> None: ...
     def validate_pre(self, component: str, snapshot: dict[str, Any]) -> None: ...
     def validate_post(
         self,
@@ -238,6 +251,48 @@ def _tls_semantics() -> dict[str, bool]:
 
 
 class LocalA1Policy:
+    def hard_authority(self, snapshot: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "fixed_config": snapshot["fixed_config"],
+            "persistent_identity": {
+                name: {
+                    "uid": item["uid"],
+                    "gid": item["gid"],
+                    "type": item["type"],
+                }
+                for name, item in snapshot["persistent_paths"].items()
+            },
+            "sqlite": {
+                name: {
+                    "user_version": item["user_version"],
+                    "schema_sha256": item["schema_sha256"],
+                }
+                for name, item in snapshot["sqlite"].items()
+            },
+            "trust": {
+                "fc4_ca_sha256": snapshot["trust"]["fc4_ca_sha256"],
+                "system_ca_sha256": snapshot["trust"]["system_ca_sha256"],
+            },
+            "dynsec_top_level_keys_sha256": snapshot[
+                "dynsec_top_level_keys_sha256"
+            ],
+            "mqtt_identity": snapshot["mqtt_identity"],
+            "ha_storage_versions": {
+                label: item["version"]
+                for label, item in snapshot["ha_storage"].items()
+            },
+        }
+
+    def validate_baseline(
+        self,
+        component: str,
+        snapshot: dict[str, Any],
+        expected: dict[str, Any],
+    ) -> None:
+        del component
+        if self.hard_authority(snapshot) != expected:
+            raise UpdaterV2Error("a1_per_instance_baseline_drift")
+
     def capture(self) -> dict[str, Any]:
         return {
             "fixed_config": {
@@ -274,6 +329,12 @@ class LocalA1Policy:
         for name, item in snapshot["persistent_paths"].items():
             if item.get("type") != "directory":
                 raise UpdaterV2Error(f"a1_path_type_invalid:{name}")
+            expected_owner = EXPECTED_PERSISTENT_OWNERS[name]
+            if (
+                item.get("uid") != expected_owner[0]
+                or item.get("gid") != expected_owner[1]
+            ):
+                raise UpdaterV2Error(f"a1_path_owner_invalid:{name}")
             if item.get("symlink_count") != 0:
                 raise UpdaterV2Error(f"a1_path_symlink_invalid:{name}")
             if not _safe_mode(str(item.get("mode"))):
