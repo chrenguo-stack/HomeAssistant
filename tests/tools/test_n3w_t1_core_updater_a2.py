@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 from pathlib import Path
 
 import pytest
 
-from tools import n3w_t1_core_updater_v2 as core
-from tools.n3w_t1_core_updater_v2_common import (
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
+
+import n3w_t1_core_updater_v2 as core
+from n3w_t1_core_updater_v2_common import (
     A1_CLASSIFICATION_SHA256,
     APPLY_CONFIRMATION_V2,
     TARGET_SCHEMA_V2,
@@ -18,7 +21,7 @@ from tools.n3w_t1_core_updater_v2_common import (
     rewrite_component_env,
     validate_component_candidate,
 )
-from tools.n3w_t1_core_updater_v2_state import V2StateStore
+from n3w_t1_core_updater_v2_state import V2StateStore
 
 
 OLD = {
