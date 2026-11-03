@@ -77,6 +77,7 @@ def baseline() -> UpgradeBaseline:
     return UpgradeBaseline(
         stack_images=dict(OLD),
         image_binding_modes={name: "dynamic" for name in OLD},
+        platforms={name: "linux/arm64" for name in OLD},
         runtime_contract_sha256={
             name: hashlib.sha256((name + "-contract").encode()).hexdigest()
             for name in OLD
@@ -143,6 +144,7 @@ class FakeHost:
                 "network_mode": (
                     "host" if name in {"manager", "homeassistant"} else "bridge"
                 ),
+                "platform": "linux/arm64",
                 "container_id": f"{name}-container",
                 "started_at": "now",
                 "restart_count": 0,
@@ -690,6 +692,27 @@ def test_u0_baseline_can_record_legacy_static_peers(tmp_path: Path):
     }
 
 
+def test_u0_baseline_rejects_unsupported_platform(tmp_path: Path):
+    frozen = baseline()
+    path = tmp_path / "baseline-platform.json"
+    payload = frozen.public()
+    payload["platforms"]["broker"] = "linux/amd64"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(
+        UpdaterV2Error,
+        match="baseline_component_authority_invalid",
+    ):
+        UpgradeBaseline.load(path)
+
+
+def test_persistent_mode_requires_owner_rwx_and_forbids_group_other_write():
+    assert policy_mod._safe_mode("0700") is True
+    assert policy_mod._safe_mode("0755") is True
+    assert policy_mod._safe_mode("0500") is False
+    assert policy_mod._safe_mode("0000") is False
+    assert policy_mod._safe_mode("0775") is False
+
+
 def test_baseline_detects_preexisting_hard_drift(tmp_path: Path):
     host = FakeHost()
     store = V2StateStore(tmp_path / "state")
@@ -702,6 +725,7 @@ def test_baseline_detects_preexisting_hard_drift(tmp_path: Path):
     bad = UpgradeBaseline(
         stack_images={**OLD, "broker": NEW["broker"]},
         image_binding_modes=frozen.image_binding_modes,
+        platforms=frozen.platforms,
         runtime_contract_sha256=frozen.runtime_contract_sha256,
         a1_hard_authority=frozen.a1_hard_authority,
         a1_classification_sha256=A1_CLASSIFICATION_SHA256,
