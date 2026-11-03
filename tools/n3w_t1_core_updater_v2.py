@@ -66,6 +66,7 @@ class MultiComponentCoreUpdater:
 
     def baseline(self) -> dict[str, Any]:
         snapshot = self.host.inspect_v2()
+        self.host.assert_mutation_safe("broker")
         policy = self.policy.capture()
         self.policy.validate_pre("manager", policy)
         baseline = UpgradeBaseline(
@@ -457,6 +458,7 @@ class MultiComponentCoreUpdater:
             if tx is None or tx.get("status") not in {
                 "COMMITTED",
                 "APPLYING",
+                "ROLLING_BACK",
                 "FAILED_EMERGENCY",
             }:
                 raise UpdaterV2Error("recoverable_transaction_required")
@@ -534,7 +536,7 @@ class MultiComponentCoreUpdater:
                 raise UpdaterV2Error("rollback_predecessor_image_missing")
 
             tx.update(
-                status="APPLYING",
+                status="ROLLING_BACK",
                 phase="ROLLBACK_AUTHORIZED",
             )
             self.store.write(tx)
