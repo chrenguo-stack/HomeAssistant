@@ -1,9 +1,18 @@
-## 2026-11-03 — Formal new-chat handoff: R3 reference convergence -> A1
-- Handoff: `docs/development/N3W_T1_CORE_STACK_R3_REFERENCE_CONVERGENCE_TO_A1_STABLE_INVARIANT_CLASSIFICATION_NEW_CHAT_HANDOFF_V1.0_20261103.md`.
-- R3 engineering objective is complete; no Direct->Relay->Direct repeat.
-- Formal closure gap is limited to R3 reference / R2->R3 semantic-delta authority.
+## 2026-11-03 — R3 -> A1 current authority and handoff
+- Current authority: `infra/n3w-t1/production/t1-core-stack-current.json` schema `gh.n3w-t1-core-stack-current-authority/2`.
+- Current product source: `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Current Manager: `local/greenhouse-manager:fresh-b863ddd95909`.
+- Current Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical Clean Reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- live upgrade accepted: `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- R3 first registration PASS; KF-139 CLOSED_PASS.
+- Post-registration Direct telemetry / Home Assistant PASS; KF-140 CLOSED_FALSE_POSITIVE.
+- Direct->Relay->Direct repeat is not required.
+- R3 engineering objective is complete; R3 reference SHA / final R2->R3 semantic compare remains unfrozen.
 - Next ONE gate: `N3W_T1_CORE_STACK_R3_REFERENCE_CONVERGENCE_AND_A1_ENTRY_READONLY_20261103_01`.
-- PASS route: A1 stable-invariant classification; then A2 per-module updater architecture, U0 explicit baseline A, U1 clean Manager A->B, U2 legacy/dirty T1_A.
+- Formal handoff: `docs/development/N3W_T1_CORE_STACK_R3_REFERENCE_CONVERGENCE_TO_A1_STABLE_INVARIANT_CLASSIFICATION_NEW_CHAT_HANDOFF_V1.0_20261103.md`.
 - PR #773 remains open/unmerged; merge is separate.
 
 ## 2026-11-03 — R3 -> A1 route corrected
