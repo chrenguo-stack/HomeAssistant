@@ -1,3 +1,18 @@
+## 2026-11-03 — Manager B live upgrade accepted
+
+- Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `3539c8f871e2cb63f18462009fa03a5eb36d39fd`.
+- Current/live Manager: `local/greenhouse-manager:fresh-3539c8f871e2`.
+- Current Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64`, Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted: `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- Updater transaction remains `COMMITTED`; recovery is not required.
+- Manager B post-upgrade acceptance PASS; semantic zero-node PASS; unresolved first registration count is 0.
+- One `EXPIRED / TERMINAL / COMPLETE` replay tombstone is intentionally preserved.
+- Home Assistant continuity, Broker continuity, listener contract and systemd health all PASS.
+- Board access remained false.
+- Next one gate: `N3W_T1_CORE_STACK_R3_SENSORLESS_REAL_FIRST_REGISTRATION_REENTRY_PREFLIGHT_20261103_01`.
 ## 2026-11-03 — Manager B acceptance false-stop narrowed to terminal replay tombstone semantics
 
 - Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.

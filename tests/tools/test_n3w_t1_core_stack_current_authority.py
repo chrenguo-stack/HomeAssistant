@@ -30,7 +30,7 @@ def test_current_authority_repository_contract_passes():
     assert report["homeassistant_unchanged"] is True
     assert report["broker_unchanged"] is True
     assert report["legacy_static_compose_is_current_authority"] is False
-    assert report["live_deployment_state"] == "NOT_YET_APPLIED"
+    assert report["live_deployment_state"] == "APPLIED_ACCEPTED"
 
 
 def test_fresh_compose_uses_dynamic_manager_binding():
@@ -106,6 +106,70 @@ def test_current_state_cannot_claim_live_deployment():
             state,
             index,
         )
+
+
+def test_applied_state_requires_semantic_zero_node_evidence():
+    authority, target, compose, bootstrap, state, index = documents()
+    authority = copy.deepcopy(authority)
+    authority["live_deployment"]["semantic_zero_node"] = "PENDING"
+    with pytest.raises(check.AuthorityError, match="live_semantic_zero_node_invalid"):
+        check.validate_documents(
+            authority,
+            target,
+            compose,
+            bootstrap,
+            state,
+            index,
+        )
+
+
+def test_authority_state_must_match_live_state():
+    authority, target, compose, bootstrap, state, index = documents()
+    authority = copy.deepcopy(authority)
+    authority["authority_state"] = check.PENDING_AUTHORITY_STATE
+    with pytest.raises(check.AuthorityError, match="authority_live_state_mismatch"):
+        check.validate_documents(
+            authority,
+            target,
+            compose,
+            bootstrap,
+            state,
+            index,
+        )
+
+
+def test_pending_state_remains_supported():
+    authority, target, compose, bootstrap, state, index = documents()
+    authority = copy.deepcopy(authority)
+    authority["authority_state"] = check.PENDING_AUTHORITY_STATE
+    authority["live_deployment"] = {
+        "state": check.PENDING_LIVE_STATE,
+        "expected_predecessor_manager_image": (
+            authority["historical_clean_reference"]["manager_image"]
+        ),
+        "expected_target_manager_image": (
+            authority["current_repository_stack"]["manager"]["image"]
+        ),
+    }
+    state = state.replace(
+        "LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED",
+        "LIVE_DEPLOYMENT_STATE=NOT_YET_APPLIED",
+        1,
+    )
+    index = index.replace(
+        "Live upgrade accepted",
+        "Live upgrade pending",
+        1,
+    )
+    report = check.validate_documents(
+        authority,
+        target,
+        compose,
+        bootstrap,
+        state,
+        index,
+    )
+    assert report["live_deployment_state"] == "NOT_YET_APPLIED"
 
 
 def test_legacy_static_compose_cannot_be_promoted_silently():
