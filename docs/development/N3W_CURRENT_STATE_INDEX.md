@@ -1,4 +1,5 @@
 ## 2026-11-03 — R3 exact factory image written and independently verified
+- Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
 
 - PR #767 merged as `c93fc3561ecee6dda13306804a3168a9c12ffe3a`.
 - R3 exact artifact `13203682791` is tree-identical to merged main and bound to the temporary `battery_low_threshold=-1.00V` target.
