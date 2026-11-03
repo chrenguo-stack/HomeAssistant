@@ -54,7 +54,7 @@ jobs:
           python -m pip install "pytest>=8,<9"
           python -m pytest -q tests/tools/test_n3w_t1_core_stack_current_authority.py
 
-      - name: Prove no live mutation in repository gate
+      - name: Prove accepted live authority contract
         run: |
           set -euo pipefail
           python - <<'PY'
@@ -65,8 +65,12 @@ jobs:
               Path("infra/n3w-t1/production/t1-core-stack-current.json")
               .read_text(encoding="utf-8")
           )
-          assert authority["authority_state"] == "SUCCESSOR_READY_NOT_LIVE_APPLIED"
-          assert authority["live_deployment"]["state"] == "NOT_YET_APPLIED"
+          assert authority["authority_state"] == "CURRENT_STACK_LIVE_ACCEPTED"
+          assert authority["live_deployment"]["state"] == "APPLIED_ACCEPTED"
+          assert authority["live_deployment"]["transaction_status"] == "COMMITTED"
+          assert authority["live_deployment"]["post_upgrade_acceptance"] == "PASS"
+          assert authority["live_deployment"]["semantic_zero_node"] == "PASS"
+          assert authority["live_deployment"]["unresolved_first_registration_count"] == 0
           assert authority["mutation_scope"] == {
               "manager": True,
               "homeassistant_image": False,
@@ -74,6 +78,6 @@ jobs:
               "host_platform": False,
               "board": False,
           }
-          print("REPOSITORY_SUCCESSOR_AUTHORITY=PASS")
-          print("LIVE_T1_MUTATION=false")
+          print("REPOSITORY_LIVE_AUTHORITY=PASS")
+          print("REPOSITORY_GATE_T1_MUTATION=false")
           PY
