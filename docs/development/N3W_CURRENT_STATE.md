@@ -1,3 +1,36 @@
+## 2026-11-03 — R3 Direct telemetry / Home Assistant runtime acceptance CLOSED_PASS; KF-140 closed false-positive
+
+```text
+TASK=N3W_T1_CORE_STACK_R3_POST_REGISTRATION_DIRECT_TELEMETRY_AND_HA_DISCOVERY_ACCEPTANCE_20261103_01
+RESULT=CLOSED_PASS
+KF140=CLOSED_FALSE_POSITIVE
+
+BOARD_CURRENTLY_SUBMITTING=true
+BOARD_DIRECT_SUBMITTED_SEQS=100,101
+
+MANAGER_ACCEPTED_SEQ_RANGE=71..101
+MANAGER_ACCEPTED_UNIQUE_COUNT=31
+MANAGER_STRICT_CONSECUTIVE=true
+MANAGER_REJECTED_COUNT=0
+MANAGER_DUPLICATE_COUNT=0
+MANAGER_MAX_INTERARRIVAL_SECONDS=60.111691
+
+HA_DEVICE_REGISTRY_MATCH_COUNT=1
+HA_ENTITY_REGISTRY_MATCH_COUNT=6
+HA_FRESH_MQTT_RECEIPT_TRANSPORT_BOUND=true
+HA_SEQ100_BYTES_DELTA=1097
+HA_SEQ101_BYTES_DELTA=1097
+
+SOURCE_REPAIR_REQUIRED=false
+T1_MUTATION=false
+BOARD_MUTATION=false
+
+NEXT_SCOPE=R3_DOWNSTREAM_RUNTIME_ACCEPTANCE_REMAINDER
+DEFERRED=Direct_Relay_failover;sensor_measurement_acceptance;long_duration_stability
+```
+
+The earlier KF-140 product-failure classification was invalidated by a stale Manager log matcher. Deployed Manager source logs Direct success as `Accepted simplified N3-W telemetry source=direct ...`; the old harness searched non-applicable strings and produced a false zero. Corrected evidence proves seq 71 through 101 arrived consecutively at Manager with no rejects or duplicates, while fresh seq 100/101 were independently observed on the board and each Manager-accept event was time-bound to fresh Broker->Home Assistant 1883 traffic. Direct telemetry and current sensorless HA discovery/runtime acceptance are therefore closed PASS. No firmware, Broker, Manager, DynSec, credential, or HA repair is required.
+
 ## 2026-11-03 — R3 first registration and KF-139 closure complete; post-registration runtime/business acceptance next
 CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
 AUTHORITY_SCHEMA=gh.n3w-t1-core-stack-current-authority/2
