@@ -1,3 +1,38 @@
+## Latest authority — 2026-11-03 real-T1 V2 read-only reconciliation preflight PASS
+
+~~~text
+AUTHORITY_STATE=PREDECESSOR_A_HEALTHY_STALE_R2_TRANSACTION_AWAITING_RECOVERY_AUTH
+
+MAIN=41e3031d1fa097043374c7582e552f5a803a1f20
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+
+LIVE_DEPLOYMENT_STATE=NOT_YET_APPLIED
+LIVE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_RUNTIME_CLASS=PREDECESSOR_HEALTHY
+
+R2_TRANSACTION_STATUS=FAILED_EMERGENCY
+R2_TRANSACTION_PHASE=ROLLBACK_FAILED
+R2_RECOVERY_REQUIRED=true
+
+V2_PACKAGE_BINDING=PASS
+V2_STATUS=PASS
+V2_INSPECT=PASS
+HA_CONTINUITY=PASS
+BROKER_CONTINUITY=PASS
+LISTENER_CONTRACT=PASS
+MANAGER_RESTART_COUNT=0
+HOMEASSISTANT_RESTART_COUNT=0
+BROKER_RESTART_COUNT=0
+
+R2_TRANSACTION_RECONCILIATION_AUTHORIZED=false
+APPLY_RETRY=false
+BOARD_ACCESS_DEFAULT=false
+
+NEXT_ONE_GATE=N3W_T1_CORE_UPDATER_V2_R2_TRANSACTION_RECONCILIATION_AUTHORIZATION_20261103_01
+~~~
+
+The next live action is a transaction-only V2 reconciliation under a separate explicit authorization. Because the runtime is already PREDECESSOR_HEALTHY, the expected V2 behavior is to update only the durable updater transaction to terminal ROLLED_BACK and return `t1_mutation=false`. A new A->B apply remains forbidden until that closure and a post-reconciliation baseline pass.
+
 ## Latest authority — 2026-11-03 Updater V2 merged and exact package bound; R2 transaction reconciliation next
 
 ~~~text
