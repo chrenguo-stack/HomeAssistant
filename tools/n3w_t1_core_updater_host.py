@@ -53,6 +53,21 @@ EXPECTED_LISTENERS = {
 }
 
 CERT_LIFECYCLE_UNIT = "n3wfc4-broker-certificate-lifecycle.service"
+CERT_LIFECYCLE_TIMER = "n3wfc4-broker-certificate-lifecycle.timer"
+PROVISION_UNIT = "n3wfc4-provision-resume.service"
+BROKER_INGRESS_GUARD_UNIT = "n3wfc4-broker-ingress-guard.service"
+REQUIRED_ACTIVE_ENABLED_UNITS = (
+    PROVISION_UNIT,
+    BROKER_INGRESS_GUARD_UNIT,
+    REGISTRATION_GUARD_UNIT,
+    BROKER_UNIT,
+    SERVICES_UNIT,
+    CERT_LIFECYCLE_TIMER,
+)
+RELEVANT_UNITS = frozenset(
+    (*REQUIRED_ACTIVE_ENABLED_UNITS, CERT_LIFECYCLE_UNIT)
+)
+EXPECTED_PLATFORM = "linux/arm64"
 BROKER_CERT_LIFECYCLE_LOCK = Path(
     "/var/lib/n3wfc4-certificate-lifecycle/.certificate-lifecycle.lock"
 )
@@ -217,6 +232,20 @@ class LocalHost:
             or labels.get("com.docker.compose.service") != service
         ):
             raise UpdaterError(f"{service}_runtime_invalid")
+        image_reference = config.get("Image")
+        if not isinstance(image_reference, str) or not image_reference:
+            raise UpdaterError(f"{service}_runtime_image_ref_invalid")
+        image_document = self._image_document(image_reference)
+        if image_document is None:
+            raise UpdaterError(f"{service}_runtime_image_missing")
+        image_os = image_document.get("Os")
+        image_arch = image_document.get("Architecture")
+        if not isinstance(image_os, str) or not isinstance(image_arch, str):
+            raise UpdaterError(f"{service}_runtime_platform_invalid")
+        platform = f"{image_os}/{image_arch}"
+        if platform != EXPECTED_PLATFORM:
+            raise UpdaterError(f"{service}_runtime_platform_unsupported")
+
         mounts = item.get("Mounts")
         if not isinstance(mounts, list):
             raise UpdaterError(f"{service}_runtime_mounts_invalid")
@@ -255,6 +284,7 @@ class LocalHost:
             "started_at": state.get("StartedAt"),
             "restart_count": item.get("RestartCount"),
             "network_mode": host.get("NetworkMode"),
+            "platform": platform,
             "runtime_contract_sha256": sha256_bytes(
                 canonical(runtime_contract)
             ),
@@ -266,6 +296,7 @@ class LocalHost:
             or IMAGE_ID.fullmatch(result["image_id"]) is None
             or not isinstance(result["started_at"], str)
             or not isinstance(result["restart_count"], int)
+            or result["platform"] != EXPECTED_PLATFORM
             or not isinstance(result["runtime_contract_sha256"], str)
         ):
             raise UpdaterError(f"{service}_runtime_identity_invalid")
@@ -283,12 +314,82 @@ class LocalHost:
             raise UpdaterError("compose_env_invalid")
         return manager_env_image(COMPOSE_ENV.read_bytes())
 
+    def _system_health_v2(self) -> dict[str, Any]:
+        state_result = self._run(
+            ("systemctl", "is-system-running"),
+            timeout=15,
+            check=False,
+        )
+        state = state_result.stdout.decode().strip()
+        if state_result.returncode not in {0, 1} or state not in {
+            "running",
+            "degraded",
+        }:
+            raise UpdaterError("system_state_not_acceptable")
+
+        failed_result = self._run(
+            ("systemctl", "--failed", "--no-legend", "--plain"),
+            timeout=20,
+            check=False,
+        )
+        if failed_result.returncode not in {0, 1}:
+            raise UpdaterError("failed_unit_query_invalid")
+        failed_units = [
+            line.split()[0]
+            for line in failed_result.stdout.decode().splitlines()
+            if line.strip()
+        ]
+        relevant_failed = sorted(set(failed_units) & RELEVANT_UNITS)
+        if relevant_failed:
+            raise UpdaterError(
+                "relevant_failed_units:" + ",".join(relevant_failed)
+            )
+
+        units: dict[str, dict[str, str]] = {}
+        for unit in RELEVANT_UNITS:
+            units[unit] = {
+                "active": self._systemctl("is-active", unit),
+                "enabled": self._systemctl("is-enabled", unit),
+            }
+        for unit in REQUIRED_ACTIVE_ENABLED_UNITS:
+            if units[unit] != {"active": "active", "enabled": "enabled"}:
+                raise UpdaterError(f"unit_health_invalid:{unit}")
+        if units[CERT_LIFECYCLE_UNIT]["active"] != "inactive":
+            raise UpdaterError("certificate_service_not_quiescent")
+
+        return {
+            "system_state": state,
+            "failed_units": failed_units,
+            "relevant_failed_units": relevant_failed,
+            "systemd_units": units,
+        }
+
+    def _running_project_services_v2(self) -> list[str]:
+        result = self._run(
+            (
+                *self._compose_argv(),
+                "--profile",
+                "application",
+                "ps",
+                "--status",
+                "running",
+                "--services",
+            ),
+            timeout=30,
+        )
+        services = sorted(
+            line.strip()
+            for line in result.stdout.decode().splitlines()
+            if line.strip()
+        )
+        expected = sorted(("broker", "homeassistant", "manager"))
+        if services != expected:
+            raise UpdaterError("runtime_service_set_invalid")
+        return services
+
     def inspect(self) -> dict[str, Any]:
-        for unit in (BROKER_UNIT, SERVICES_UNIT, REGISTRATION_GUARD_UNIT):
-            if self._systemctl("is-active", unit) != "active":
-                raise UpdaterError(f"unit_not_active:{unit}")
-            if self._systemctl("is-enabled", unit) != "enabled":
-                raise UpdaterError(f"unit_not_enabled:{unit}")
+        system_health = self._system_health_v2()
+        runtime_services = self._running_project_services_v2()
         self._activation_env()
         unit = self._service_unit()
         if (
@@ -346,6 +447,8 @@ class LocalHost:
             "services_unit": unit,
             "runtime": runtime,
             "listeners": listeners,
+            "runtime_services": runtime_services,
+            "system_health": system_health,
         }
 
     def _image_binding_authority_v2(
