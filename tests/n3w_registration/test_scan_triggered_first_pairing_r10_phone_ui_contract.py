@@ -17,6 +17,7 @@ COMPONENT_CPP = CORE / "n3w_simple_product_component.cpp"
 COMPONENT_H = CORE / "n3w_simple_product_component.h"
 DISPLAY = ROOT / "firmware/esphome_rc/f1_0_rc2/packages/display.yml"
 TARGET = ROOT / "firmware/esphome_rc/f1_0_rc2/f1_0_rc2_n3w_target.yml"
+BASE_TARGET = ROOT / "firmware/esphome_rc/f1_0_rc2/f1_0_rc2.yml"
 
 
 def text(path: Path) -> str:
@@ -271,9 +272,10 @@ def test_r10_transient_pairing_retries_do_not_publish_false_terminal_error() -> 
     assert "show_registration_error_" not in unresolved
 
 
-def test_r10_product_ui_source_does_not_embed_bench_low_battery_bypass() -> None:
+def test_r10_product_target_uses_temporary_low_battery_bypass_only() -> None:
+    base_target = text(BASE_TARGET)
     target = text(TARGET)
 
-    assert 'battery_low_threshold: "-1.00"' not in target
-    assert "PHYSICAL_ACCEPTANCE_ONLY" not in target
-    assert "LOW_BATTERY_PROTECTION_BYPASSED" not in target
+    assert 'battery_low_threshold: "3.00"' in base_target
+    assert target.count('battery_low_threshold: "-1.00"') == 1
+    assert "DEVELOPMENT ONLY: USB-powered R3 acceptance bypass" in target
