@@ -383,3 +383,48 @@ mqtt:
 Therefore ESPHome runtime log lines such as `N3-W telemetry Direct single attempt submitted` are not mirrored to Broker through MQTT logging. This materially strengthens the planned correlation oracle: a near-synchronous increase in Broker-side TCP `bytes_received` around a fresh Direct telemetry submit cannot be explained by ESPHome MQTT log-topic traffic.
 
 The socket-counter method still proves transport bytes rather than plaintext topic/payload because TLS remains encrypted.
+
+
+## 15. CORRECTION — previous Manager accepted-count oracle was invalid
+
+Fresh source review of deployed Manager source `b863ddd959090ca139af76bd68dbef31d773e6de` found that the active simplified N3-W Direct path logs accepted telemetry as:
+
+```text
+Accepted simplified N3-W telemetry source=direct node=<node> gateway=None key=(<node>, <boot>, <seq>)
+```
+
+and rejected telemetry as:
+
+```text
+Rejected simplified N3-W ingress source=direct node=<node> gateway=None code=<code>
+```
+
+The earlier acceptance harness incorrectly counted:
+
+```text
+Accepted telemetry node=
+Rejected telemetry node=
+```
+
+Those strings do not match the deployed simplified N3-W path. Therefore:
+
+```text
+PREVIOUS_MANAGER_ACCEPTED_COUNT_ZERO_VALID=false
+PREVIOUS_MANAGER_REJECTED_COUNT_ZERO_VALID=false
+PREVIOUS_MANAGER_DELIVERY_FAIL_PROVEN=false
+PREVIOUS_OVERALL_PRODUCT_FAIL_PROVEN=false
+KF140_PRODUCT_DEFECT_STATUS=UNDER_REVIEW
+TEST_HARNESS_ORACLE_DEFECT=PROVEN
+```
+
+The board-side Direct submit and Broker TCP correlation evidence remain valid independently:
+
+```text
+SEQ71_DIRECT_SUBMIT_OBSERVED=true
+NEAR_SUBMIT_BROKER_BYTES_RECEIVED_DELTA=1077
+NEAR_SUBMIT_BROKER_DATA_SEGS_IN_DELTA=4
+PREBASELINE_BYTES_DELTA=31
+MQTT_LOG_TOPIC=null
+```
+
+Next required step is a fresh read-only Manager log query using the deployed exact log strings and exact seq=71 correlation. No product repair is justified unless that corrected oracle still proves a real failure.
