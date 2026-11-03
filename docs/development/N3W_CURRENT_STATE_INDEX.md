@@ -1,3 +1,11 @@
+## 2026-11-03 — Formal new-chat handoff: R3 reference convergence -> A1
+- Handoff: `docs/development/N3W_T1_CORE_STACK_R3_REFERENCE_CONVERGENCE_TO_A1_STABLE_INVARIANT_CLASSIFICATION_NEW_CHAT_HANDOFF_V1.0_20261103.md`.
+- R3 engineering objective is complete; no Direct->Relay->Direct repeat.
+- Formal closure gap is limited to R3 reference / R2->R3 semantic-delta authority.
+- Next ONE gate: `N3W_T1_CORE_STACK_R3_REFERENCE_CONVERGENCE_AND_A1_ENTRY_READONLY_20261103_01`.
+- PASS route: A1 stable-invariant classification; then A2 per-module updater architecture, U0 explicit baseline A, U1 clean Manager A->B, U2 legacy/dirty T1_A.
+- PR #773 remains open/unmerged; merge is separate.
+
 ## 2026-11-03 — R3 -> A1 route corrected
 - R3 real first registration PASS; KF-139 CLOSED_PASS.
 - Post-registration Direct telemetry / HA runtime acceptance also PASS; KF-140 CLOSED_FALSE_POSITIVE.
