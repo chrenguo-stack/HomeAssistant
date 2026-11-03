@@ -1,0 +1,359 @@
+name: N3W scan-triggered first-pair R9 e299c937 exact artifact build
+
+on:
+  push:
+    branches:
+      - build/n3w-scan-first-pair-r9-e299c937-artifact-20261028
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout exact R9 source
+        uses: actions/checkout@v4
+        with:
+          ref: e299c937a7b89bb8a7b9a7432186ba46a416cd44
+          fetch-depth: 1
+
+      - name: Bind exact source tree and critical blobs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test "$(git rev-parse HEAD)" = "e299c937a7b89bb8a7b9a7432186ba46a416cd44"
+          test "$(git rev-parse HEAD^{tree})" = "e6e8290bdea3d9b09a70c598b4c3a9f5551540a7"
+
+          check_blob() {
+            local path="$1"
+            local expected="$2"
+            local actual
+            actual="$(git hash-object "$path")"
+            test "$actual" = "$expected"
+          }
+
+          check_blob firmware/esphome_rc/f1_0_rc2/f1_0_rc2_n3w_target.yml 176ef5a2839ba8d58b4675c5f5097eba5c662236
+          check_blob firmware/esphome_rc/f1_0_rc2/packages/n3w_product_telemetry.yml ce16f2389d146f9b25e95cbb628547e11ce36bd6
+          check_blob firmware/esphome_rc/f1_0_rc2/packages/n3w_product_transport.yml aa8dfa7e6be2ded398b8e90ab74a571e6a1b1ee2
+          check_blob firmware/esphome_rc/f1_0_rc2/packages/display.yml 35bb9e4b839b298b0b478ff30675b51671f61bb4
+          check_blob firmware/esphome_rc/components/greenhouse_n3w_core/n3w_simple_product_component.cpp 64073f3d33beaa04679c6d637fb4fca5b519652f
+          check_blob firmware/esphome_rc/components/greenhouse_n3w_core/n3w_registration_portal.cpp e0333f30e4af5862e97edf5ac16b4ee941ae0508
+          check_blob firmware/esphome_rc/components/greenhouse_n3w_core/n3w_registration_bootstrap_transport.cpp 30a176c4b8ed66aa1d7c9adaa2576d8798fb3032
+          check_blob firmware/esphome_rc/components/greenhouse_n3w_core/n3w_simple_pairing_client.cpp d5768aed73c76f2764b8619f877d952b3da7f83e
+          check_blob firmware/esphome_rc/components/greenhouse_n3w_core/n3w_esp32_pairing_nvs.cpp 059380bdccfb12204ccf8cadaff2ea87422ba926
+          check_blob host/greenhouse-manager/tests/runtime/test_n3w_scan_triggered_registration_r8_e2e.py 14b284c5114db901722ff068124ed1f4700982f0
+          check_blob tests/n3w_registration/test_scan_triggered_first_pairing_r8_safety_contract.py d617a3a3ad834b78ad924d4b55abbb715cbbc141
+          check_blob tests/n3w_registration/test_scan_triggered_first_pairing_r6_tls_bootstrap_contract.py d12968e9586c9e10d6cdbffbeb6296ab30bbc5ce
+          check_blob tests/n3w_registration/test_scan_triggered_first_pairing_r7_lcd_state_contract.py cc4ce758fe03b33b4a59619afbc2674f203f403e
+          check_blob firmware/esphome_rc/f1_0_rc2/tools/fetch_fonts.sh d752a50acf6131919bf99e29889020e3fc1fb4e0
+
+          echo "R9_EXACT_SOURCE_BINDING=PASS"
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install exact test and firmware toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check -q "pytest>=8,<9" "esphome==2026.4.3"
+          python -m pip install --disable-pip-version-check -q -e 'host/greenhouse-manager[dev]'
+          python --version
+          esphome version
+
+      - name: Materialize pinned font inputs with release-asset digest verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/firmware/esphome_rc/f1_0_rc2"
+          FONT_DIR="$ROOT/fonts"
+          TMP="$RUNNER_TEMP/r9-fonts"
+          mkdir -p "$FONT_DIR" "$TMP"
+
+          fetch_zip() {
+            local url="$1"
+            local expected="$2"
+            local out="$3"
+            curl --fail --location --retry 3 --connect-timeout 20 --output "$out" "$url"
+            printf '%s  %s\n' "$expected" "$out" | sha256sum -c -
+          }
+
+          FUSION10="$TMP/fusion10.zip"
+          FUSION12="$TMP/fusion12.zip"
+          ARK16="$TMP/ark16.zip"
+
+          fetch_zip \
+            "https://github.com/TakWolf/fusion-pixel-font/releases/download/2026.07.01/fusion-pixel-font-10px-monospaced-bdf-v2026.07.01.zip" \
+            "0f28b5850fa9b4b0f8dbb7c40f671a3574a97236a848d1e0ecf6ed302ae659c3" \
+            "$FUSION10"
+          fetch_zip \
+            "https://github.com/TakWolf/fusion-pixel-font/releases/download/2026.07.01/fusion-pixel-font-12px-monospaced-bdf-v2026.07.01.zip" \
+            "c461c312720e005f5a49843a965842e8749f196f00f97facf1ad926f330296df" \
+            "$FUSION12"
+          fetch_zip \
+            "https://github.com/TakWolf/ark-pixel-font/releases/download/2026.07.01/ark-pixel-font-16px-monospaced-bdf-v2026.07.01.zip" \
+            "c0b5e3afecf6ebadbb10d36d712d3ff828d58657382004a1fe4eae45db31ec01" \
+            "$ARK16"
+
+          extract_font() {
+            local archive="$1"
+            local primary="$2"
+            local fallback="$3"
+            local output="$4"
+            local dir="$TMP/extract-$(basename "$output" .bdf)"
+            rm -rf "$dir"
+            mkdir -p "$dir"
+            unzip -q "$archive" -d "$dir"
+            local source
+            source="$(find "$dir" -type f -iname "$primary" -print -quit)"
+            if [[ -z "$source" ]]; then
+              source="$(find "$dir" -type f -iname "$fallback" -print -quit)"
+            fi
+            test -n "$source"
+            cp "$source" "$FONT_DIR/$output"
+            test -s "$FONT_DIR/$output"
+          }
+
+          extract_font "$FUSION10" "*10px*monospaced*zh_hans*.bdf" "*10px*monospaced*zh_cn*.bdf" "fusion-pixel-10px-monospaced-zh_hans.bdf"
+          extract_font "$FUSION12" "*12px*monospaced*zh_hans*.bdf" "*12px*monospaced*zh_cn*.bdf" "fusion-pixel-12px-monospaced-zh_hans.bdf"
+          extract_font "$ARK16" "*16px*monospaced*zh_cn*.bdf" "*16px*monospaced*zh_hans*.bdf" "ark-pixel-16px-monospaced-zh_cn.bdf"
+
+          {
+            echo "FONT_RELEASE_VERSION=2026.07.01"
+            echo "FUSION_10_ARCHIVE_SHA256=0f28b5850fa9b4b0f8dbb7c40f671a3574a97236a848d1e0ecf6ed302ae659c3"
+            echo "FUSION_12_ARCHIVE_SHA256=c461c312720e005f5a49843a965842e8749f196f00f97facf1ad926f330296df"
+            echo "ARK_16_ARCHIVE_SHA256=c0b5e3afecf6ebadbb10d36d712d3ff828d58657382004a1fe4eae45db31ec01"
+            echo "FUSION_10_BDF_SHA256=$(sha256sum "$FONT_DIR/fusion-pixel-10px-monospaced-zh_hans.bdf" | awk '{print $1}')"
+            echo "FUSION_12_BDF_SHA256=$(sha256sum "$FONT_DIR/fusion-pixel-12px-monospaced-zh_hans.bdf" | awk '{print $1}')"
+            echo "ARK_16_BDF_SHA256=$(sha256sum "$FONT_DIR/ark-pixel-16px-monospaced-zh_cn.bdf" | awk '{print $1}')"
+          } | tee "$RUNNER_TEMP/r9-font-binding.env"
+
+          echo "R9_FONT_INPUT_BINDING=PASS"
+
+      - name: R4 to R8 focused source gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          pytest -q tests/n3w_registration/test_scan_triggered_first_pairing_r4_portal_contract.py
+          pytest -q tests/n3w_registration/test_scan_triggered_first_pairing_r5_discovery_contract.py
+          pytest -q tests/n3w_registration/test_scan_triggered_first_pairing_r6_tls_bootstrap_contract.py
+          pytest -q tests/n3w_registration/test_scan_triggered_first_pairing_r7_lcd_state_contract.py
+          pytest -q tests/n3w_registration/test_scan_triggered_first_pairing_r8_safety_contract.py
+          (
+            cd host/greenhouse-manager
+            pytest -q tests/runtime/test_n3w_scan_triggered_registration_r8_e2e.py
+          )
+          echo "R9_R4_R8_FOCUSED_GATES=PASS"
+
+      - name: Validate exact N3-W product configuration and hardware SPI binding
+        shell: bash
+        working-directory: firmware/esphome_rc/f1_0_rc2
+        env:
+          RC2_CONFIG: f1_0_rc2_n3w_target.yml
+        run: |
+          set -euo pipefail
+          bash tools/rc2.sh config 2>&1 | tee "$RUNNER_TEMP/r9-esphome-config.txt"
+          grep -Fq "interface: hardware" "$RUNNER_TEMP/r9-esphome-config.txt"
+          grep -Fq "interface_index: 0" "$RUNNER_TEMP/r9-esphome-config.txt"
+          echo "R9_HARDWARE_SPI_BUILD_BINDING=PASS"
+
+      - name: Compile exact production target
+        shell: bash
+        working-directory: firmware/esphome_rc/f1_0_rc2
+        env:
+          RC2_CONFIG: f1_0_rc2_n3w_target.yml
+        run: |
+          set -euo pipefail
+          bash tools/rc2.sh compile
+
+      - name: Verify exact ESP-IDF toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION_FILE="$HOME/.platformio/packages/framework-espidf/tools/cmake/version.cmake"
+          test -f "$VERSION_FILE"
+          grep -Eq 'set\(IDF_VERSION_MAJOR[[:space:]]+5\)' "$VERSION_FILE"
+          grep -Eq 'set\(IDF_VERSION_MINOR[[:space:]]+5\)' "$VERSION_FILE"
+          grep -Eq 'set\(IDF_VERSION_PATCH[[:space:]]+4\)' "$VERSION_FILE"
+          echo "R9_ESP_IDF_VERSION=5.5.4"
+
+      - name: Prove production binary is de-harnessed and registration-capable
+        shell: bash
+        run: |
+          set -euo pipefail
+          ENV="$GITHUB_WORKSPACE/firmware/esphome_rc/f1_0_rc2/.esphome/build/gh/.pioenvs/gh"
+          APP="$ENV/firmware.bin"
+          FACTORY="$ENV/firmware.factory.bin"
+          ELF="$ENV/firmware.elf"
+          MAP="$ENV/firmware.map"
+
+          test -f "$APP"
+          test -f "$FACTORY"
+          test -f "$ELF"
+          test -f "$MAP"
+
+          NM="$(find "$HOME/.platformio/packages" -type f -name riscv32-esp-elf-nm -print -quit)"
+          test -n "$NM"
+          test -x "$NM"
+
+          "$NM" -C "$ELF" > "$RUNNER_TEMP/r9-symbols.txt"
+          strings -a "$APP" > "$RUNNER_TEMP/r9-app-strings.txt"
+          strings -a "$FACTORY" > "$RUNNER_TEMP/r9-factory-strings.txt"
+
+          forbidden=(
+            Phase4PhysicalHarness
+            N3wLabDiagnostics
+            N3wRtcBreadcrumb
+            n3w_phase4_physical_harness
+            n3w_lab_diagnostics
+            n3w_rtc_breadcrumb
+            n3w_rtc_breadcrumb_
+            gh_n3w_diag
+            N3W_DIAG_DISCOVERY
+            PHASE4_LAB_TELEMETRY
+            phase4_source_harness
+            phase4_lab_diagnostics
+          )
+
+          for marker in "${forbidden[@]}"; do
+            ! grep -Fq "$marker" "$RUNNER_TEMP/r9-symbols.txt"
+            ! grep -Fq "$marker" "$MAP"
+            ! grep -Fq "$marker" "$RUNNER_TEMP/r9-app-strings.txt"
+            ! grep -Fq "$marker" "$RUNNER_TEMP/r9-factory-strings.txt"
+          done
+
+          grep -Fq "GreenhouseN3wCore" "$RUNNER_TEMP/r9-symbols.txt"
+          grep -Fq "SimpleProductComponent" "$RUNNER_TEMP/r9-symbols.txt"
+          grep -Fq "RegistrationPortal" "$RUNNER_TEMP/r9-symbols.txt"
+          grep -Fq "Esp32RegistrationBootstrapTransport" "$RUNNER_TEMP/r9-symbols.txt"
+          grep -Fq "RegistrationDisplayController" "$RUNNER_TEMP/r9-symbols.txt"
+
+          for marker in \
+            "gh.telemetry/1" \
+            "air_temperature_c" \
+            "gh.registration.portal-action/1" \
+            "gh.registration.confirm/1" \
+            "/api/v1/register/start"
+          do
+            grep -Fq "$marker" "$RUNNER_TEMP/r9-app-strings.txt"
+            grep -Fq "$marker" "$RUNNER_TEMP/r9-factory-strings.txt"
+          done
+
+          echo "R9_BINARY_DEHARNESS_PROOF=PASS"
+          echo "R9_REGISTRATION_BINARY_POSITIVE_CONTROLS=PASS"
+
+      - name: Freeze exact R9 release bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE/firmware/esphome_rc/f1_0_rc2/.esphome/build/gh"
+          ENV="$ROOT/.pioenvs/gh"
+          MEMBERS="$GITHUB_WORKSPACE/r9-release-members"
+          OUT="$GITHUB_WORKSPACE/r9-release-artifact"
+          BUNDLE="n3w-scan-first-pair-r9-e299c937-exact-source.zip"
+
+          mkdir -p "$MEMBERS" "$OUT"
+
+          files=(
+            firmware.bin
+            firmware.ota.bin
+            firmware.factory.bin
+            bootloader.bin
+            partitions.bin
+            ota_data_initial.bin
+            flash_args
+          )
+
+          for name in "${files[@]}"; do
+            test -f "$ENV/$name"
+            cp "$ENV/$name" "$MEMBERS/$name"
+          done
+
+          {
+            echo "BINDING_SCHEMA=N3W_SCAN_TRIGGERED_FIRST_PAIRING_R9_EXACT_ARTIFACT_V1"
+            echo "SOURCE_HEAD=e299c937a7b89bb8a7b9a7432186ba46a416cd44"
+            echo "SOURCE_TREE=e6e8290bdea3d9b09a70c598b4c3a9f5551540a7"
+            echo "TARGET_CONFIG=firmware/esphome_rc/f1_0_rc2/f1_0_rc2_n3w_target.yml"
+            echo "TARGET_BLOB_SHA=176ef5a2839ba8d58b4675c5f5097eba5c662236"
+            echo "TELEMETRY_PACKAGE_BLOB_SHA=ce16f2389d146f9b25e95cbb628547e11ce36bd6"
+            echo "TRANSPORT_PACKAGE_BLOB_SHA=aa8dfa7e6be2ded398b8e90ab74a571e6a1b1ee2"
+            echo "DISPLAY_PACKAGE_BLOB_SHA=35bb9e4b839b298b0b478ff30675b51671f61bb4"
+            echo "PRODUCT_COMPONENT_BLOB_SHA=64073f3d33beaa04679c6d637fb4fca5b519652f"
+            echo "REGISTRATION_PORTAL_BLOB_SHA=e0333f30e4af5862e97edf5ac16b4ee941ae0508"
+            echo "TLS_BOOTSTRAP_TRANSPORT_BLOB_SHA=30a176c4b8ed66aa1d7c9adaa2576d8798fb3032"
+            echo "PAIRING_CLIENT_BLOB_SHA=d5768aed73c76f2764b8619f877d952b3da7f83e"
+            echo "PAIRING_NVS_BLOB_SHA=059380bdccfb12204ccf8cadaff2ea87422ba926"
+            echo "R8_MANAGER_E2E_TEST_BLOB_SHA=14b284c5114db901722ff068124ed1f4700982f0"
+            echo "R8_SAFETY_CONTRACT_BLOB_SHA=d617a3a3ad834b78ad924d4b55abbb715cbbc141"
+            echo "FONT_FETCH_SCRIPT_BLOB_SHA=d752a50acf6131919bf99e29889020e3fc1fb4e0"
+            cat "$RUNNER_TEMP/r9-font-binding.env"
+            echo "PYTHON_VERSION=3.11"
+            echo "ESPHOME_VERSION=2026.4.3"
+            echo "ESP_IDF_VERSION=5.5.4"
+            echo "WORKFLOW_TRIGGER_SHA=$GITHUB_SHA"
+            echo "WORKFLOW_RUN_ID=$GITHUB_RUN_ID"
+            echo "R4_CONTRACT=PASS"
+            echo "R5_CONTRACT=PASS"
+            echo "R6_CONTRACT=PASS"
+            echo "R7_CONTRACT=PASS"
+            echo "R8_SAFETY_CONTRACT=PASS"
+            echo "R8_MANAGER_E2E=PASS"
+            echo "BINARY_DEHARNESS_PROOF=PASS"
+            echo "REGISTRATION_BINARY_POSITIVE_CONTROLS=PASS"
+            echo "HARDWARE_SPI_BUILD_BINDING=PASS"
+            for name in "${files[@]}"; do
+              key="$(printf '%s' "$name" | tr '[:lower:].' '[:upper:]_')"
+              size="$(stat -c '%s' "$MEMBERS/$name")"
+              digest="$(sha256sum "$MEMBERS/$name" | awk '{print $1}')"
+              echo "${key}_SIZE=${size}"
+              echo "${key}_SHA256=${digest}"
+            done
+          } | tee "$MEMBERS/MANIFEST.txt"
+
+          MANIFEST_SHA256="$(sha256sum "$MEMBERS/MANIFEST.txt" | awk '{print $1}')"
+
+          python - "$MEMBERS" "$OUT/$BUNDLE" <<'PY'
+          import sys
+          import zipfile
+          from pathlib import Path
+
+          source = Path(sys.argv[1])
+          target = Path(sys.argv[2])
+          names = sorted(p.name for p in source.iterdir() if p.is_file())
+
+          with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_STORED) as archive:
+              for name in names:
+                  info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+                  info.create_system = 3
+                  info.external_attr = 0o100644 << 16
+                  info.compress_type = zipfile.ZIP_STORED
+                  archive.writestr(info, (source / name).read_bytes())
+          PY
+
+          BUNDLE_SIZE="$(stat -c '%s' "$OUT/$BUNDLE")"
+          BUNDLE_SHA256="$(sha256sum "$OUT/$BUNDLE" | awk '{print $1}')"
+          printf '%s  %s\n' "$BUNDLE_SHA256" "$BUNDLE" > "$OUT/$BUNDLE.sha256"
+
+          test "$(find "$MEMBERS" -maxdepth 1 -type f | wc -l)" -eq 8
+
+          echo "R9_RELEASE_BUNDLE=$BUNDLE"
+          echo "R9_RELEASE_BUNDLE_SIZE=$BUNDLE_SIZE"
+          echo "R9_RELEASE_BUNDLE_SHA256=$BUNDLE_SHA256"
+          echo "R9_MANIFEST_SHA256=$MANIFEST_SHA256"
+          echo "R9_RELEASE_MEMBER_COUNT=8"
+          sha256sum "$MEMBERS"/*
+
+      - name: Upload exact R9 release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: n3w-scan-first-pair-r9-e299c937-exact-source
+          path: r9-release-artifact/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
