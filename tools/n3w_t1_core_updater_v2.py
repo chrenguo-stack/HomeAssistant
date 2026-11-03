@@ -260,6 +260,9 @@ class MultiComponentCoreUpdater:
             "predecessor_network_mode": pre["runtime"][target.component][
                 "network_mode"
             ],
+            "predecessor_runtime_contract_sha256": pre["runtime"][
+                target.component
+            ]["runtime_contract_sha256"],
             "pre_peer_runtime": adapter.peer_runtime_authority(pre),
             "pre_a1_policy": pre_policy,
             "baseline_sha256": sha256_bytes(canonical(baseline.public())),
@@ -373,6 +376,10 @@ class MultiComponentCoreUpdater:
                     adapter.current_binding(current) != tx["predecessor_image"]
                     or current["runtime"][target.component]["image_id"]
                     != tx["predecessor_image_id"]
+                    or current["runtime"][target.component][
+                        "runtime_contract_sha256"
+                    ]
+                    != tx["predecessor_runtime_contract_sha256"]
                 ):
                     raise UpdaterV2Error("prestop_runtime_drift")
                 adapter.verify_peer_runtime(current, tx["pre_peer_runtime"])
@@ -407,6 +414,10 @@ class MultiComponentCoreUpdater:
                 adapter.current_binding(post) != tx["predecessor_image"]
                 or post["runtime"][target.component]["image_id"]
                 != tx["predecessor_image_id"]
+                or post["runtime"][target.component][
+                    "runtime_contract_sha256"
+                ]
+                != tx["predecessor_runtime_contract_sha256"]
             ):
                 raise UpdaterV2Error("rollback_predecessor_runtime_invalid")
             adapter.verify_peer_runtime(post, tx["pre_peer_runtime"])
@@ -478,6 +489,10 @@ class MultiComponentCoreUpdater:
                 if current is not None and (
                     current["runtime"][target.component]["image_id"]
                     == tx["predecessor_image_id"]
+                    and current["runtime"][target.component][
+                        "runtime_contract_sha256"
+                    ]
+                    == tx["predecessor_runtime_contract_sha256"]
                 ):
                     adapter.verify_peer_runtime(
                         current,
@@ -546,6 +561,10 @@ class MultiComponentCoreUpdater:
                     adapter.current_binding(post) != tx["predecessor_image"]
                     or post["runtime"][target.component]["image_id"]
                     != tx["predecessor_image_id"]
+                    or post["runtime"][target.component][
+                        "runtime_contract_sha256"
+                    ]
+                    != tx["predecessor_runtime_contract_sha256"]
                 ):
                     raise UpdaterV2Error(
                         "rollback_predecessor_runtime_invalid"
