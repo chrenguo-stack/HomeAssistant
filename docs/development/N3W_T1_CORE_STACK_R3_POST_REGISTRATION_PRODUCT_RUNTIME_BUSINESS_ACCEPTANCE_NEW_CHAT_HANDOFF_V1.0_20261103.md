@@ -546,3 +546,22 @@ HANDOFF_READY_FOR_NEW_CHAT=true
 
 === END ===
 ```
+
+
+---
+
+## 19. 2026-11-03 Direct telemetry / HA acceptance update
+
+```text
+DIRECT_TELEMETRY_AND_HA_GATE=CLOSED_PASS
+KF140=CLOSED_FALSE_POSITIVE
+MANAGER_ACCEPTED_SEQ_RANGE=71..101
+MANAGER_REJECTED_COUNT=0
+MANAGER_DUPLICATE_COUNT=0
+HA_FRESH_MQTT_RECEIPT=PASS
+SOURCE_REPAIR_REQUIRED=false
+```
+
+Fresh corrected evidence proves the registered sensorless R3 board continues Direct telemetry normally and that Home Assistant receives fresh node-bound MQTT traffic. The earlier failure was caused by a stale Manager-log matcher in the acceptance harness, not a product defect.
+
+Remaining downstream scope is separate: Direct/Relay physical failover, real sensor measurement acceptance, long-duration stability, and production eligibility. The current sensorless R3 board remains non-production-eligible.
