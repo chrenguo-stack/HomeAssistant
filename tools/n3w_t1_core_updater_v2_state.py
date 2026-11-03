@@ -124,15 +124,22 @@ class V2StateStore:
         self._ensure_root()
 
         current = self.read()
-        if current is not None:
-            if current.get("status") not in TERMINAL_TX_V2:
-                raise UpdaterV2Error("upgrade_transaction_active")
-            self._archive_path(self.path, current, "v2")
-
         legacy = self.read_legacy()
+
+        if (
+            current is not None
+            and current.get("status") not in TERMINAL_TX_V2
+        ):
+            raise UpdaterV2Error("upgrade_transaction_active")
+        if (
+            legacy is not None
+            and legacy.get("status") not in {"COMMITTED", "ROLLED_BACK"}
+        ):
+            raise UpdaterV2Error("legacy_transaction_reconciliation_required")
+
+        if current is not None:
+            self._archive_path(self.path, current, "v2")
         if legacy is not None:
-            if legacy.get("status") not in {"COMMITTED", "ROLLED_BACK"}:
-                raise UpdaterV2Error("legacy_transaction_reconciliation_required")
             self._archive_path(self.legacy_path, legacy, "legacy-v1")
 
     def write(self, document: dict[str, Any]) -> None:
