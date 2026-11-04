@@ -1,3 +1,16 @@
+## 2026-11-04 — Pre-U1 G3 Node B Wi-Fi setup CLOSED_PASS; STOP before Node A restore
+
+- Local `firmware.factory.bin` read-only binding matched the frozen authority: SHA256 `9ccc469898832bda612634aef64ca946631e81574076be504ef864aaee56d8f9`, size `1532256`.
+- Node B completed normal Captive Portal Wi-Fi setup.
+- LCD page 5 now shows the idle-unregistered / online-registration QR.
+- No registration QR was scanned; no host discovery, candidate selection, “开始注册”, 47110 confirm, or 47112 pairing was started.
+- Node A remains temporarily offline; its G2 acceptance remains retained.
+- No flash replay, T1 runtime/database/credential mutation, or PR #774 merge occurred.
+- This sub-gate is `CLOSED_PASS`; overall Pre-U1 G3 remains `IN_PROGRESS`.
+- Next one gate: `N3W_PRE_U1_G3_NODE_A_RESTORE_AND_DUAL_BASELINE_READONLY_20261104_01`.
+- `AUTO_EXECUTE_NEXT_GATE=false`; Node A physical restore requires a new authorization.
+- Closure: `docs/development/N3W_PRE_U1_G3_NODE_B_WIFI_SETUP_AND_IDLE_UNREGISTERED_CLOSURE_20261104.md`.
+
 ## 2026-11-04 — Pre-U1 G3 Node B factory write PASS; STOP at Wi-Fi setup QR
 
 - Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
