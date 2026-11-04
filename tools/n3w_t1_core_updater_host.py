@@ -870,24 +870,38 @@ class LocalHost:
         deadline = time.monotonic() + timeout
         last_soft_state = "services_not_ready"
         while time.monotonic() < deadline:
-            if self._systemctl("is-active", SERVICES_UNIT) == "active":
-                try:
-                    self._container_id("manager")
-                    self._container_id("homeassistant")
-                    snapshot = self.observe_v2()
-                    if self._converged_health_v2(snapshot):
-                        return
-                    authenticated = snapshot.get("mqtt_authenticated") or {}
-                    last_soft_state = (
-                        "mqtt_manager="
-                        + str(authenticated.get("manager"))
-                        + ",mqtt_homeassistant="
-                        + str(authenticated.get("homeassistant"))
-                        + ",ha_http="
-                        + str(snapshot.get("homeassistant_http_status"))
-                    )
-                except UpdaterError as error:
-                    last_soft_state = str(error)
+            if self._systemctl("is-active", SERVICES_UNIT) != "active":
+                time.sleep(2)
+                continue
+            try:
+                self._container_id("manager")
+                self._container_id("homeassistant")
+            except UpdaterError:
+                time.sleep(2)
+                continue
+
+            listeners = self._listener_snapshot()
+            if listeners != EXPECTED_LISTENERS:
+                last_soft_state = "listeners=" + json.dumps(
+                    listeners,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                time.sleep(2)
+                continue
+
+            snapshot = self.observe_v2()
+            if self._converged_health_v2(snapshot):
+                return
+            authenticated = snapshot.get("mqtt_authenticated") or {}
+            last_soft_state = (
+                "mqtt_manager="
+                + str(authenticated.get("manager"))
+                + ",mqtt_homeassistant="
+                + str(authenticated.get("homeassistant"))
+                + ",ha_http="
+                + str(snapshot.get("homeassistant_http_status"))
+            )
             time.sleep(2)
         raise UpdaterError(
             "services_readiness_timeout:" + last_soft_state[:120]
