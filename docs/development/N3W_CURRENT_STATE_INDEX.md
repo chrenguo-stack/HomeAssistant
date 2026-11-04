@@ -1,5 +1,10 @@
 ## 2026-11-04 — Pre-U1 G3 Node B Wi-Fi setup CLOSED_PASS; STOP before Node A restore
 
+- Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current product source remains `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Current Manager remains `local/greenhouse-manager:fresh-b863ddd95909`; Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
 - Local `firmware.factory.bin` read-only binding matched the frozen authority: SHA256 `9ccc469898832bda612634aef64ca946631e81574076be504ef864aaee56d8f9`, size `1532256`.
 - Node B completed normal Captive Portal Wi-Fi setup.
 - LCD page 5 now shows the idle-unregistered / online-registration QR.
