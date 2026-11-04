@@ -119,6 +119,29 @@ class ReferenceV2Host:
             "homeassistant_http_status": 200,
         }
 
+    def observe_v2(self) -> dict:
+        return self.inspect_v2()
+
+    def observe_state_v2(self) -> dict:
+        snapshot = self.inspect_v2()
+        return {
+            "application_state": "running",
+            "services_owner_state": "active",
+            "running_counts": {
+                "manager": 1,
+                "homeassistant": 1,
+                "broker": 1,
+            },
+            "image_bindings": dict(self.bindings),
+            "image_binding_modes": dict(self.modes),
+            "listeners": dict(snapshot["listeners"]),
+            "health_state": "HEALTHY",
+            "snapshot": snapshot,
+        }
+
+    def wait_services(self, timeout: int = 120) -> None:
+        del timeout
+
     def assert_mutation_safe(self, component: str) -> None:
         assert component == "manager"
 
