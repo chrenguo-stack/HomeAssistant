@@ -1,6 +1,7 @@
 ## Latest authority — 2026-11-04 U1 Manager A->B suspended; Pre-U1 normal product runtime acceptance selected
 
 ```text
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
 AUTHORITY_STATE=U0_CLOSED_PASS_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_SELECTED
 CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
 AUTHORITY_SCHEMA=gh.n3w-t1-core-stack-current-authority/2
