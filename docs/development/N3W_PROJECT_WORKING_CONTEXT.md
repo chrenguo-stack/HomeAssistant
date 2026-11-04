@@ -1,3 +1,34 @@
+## Latest authority — 2026-11-04 Pre-U1 normal product runtime acceptance selected; U1 Manager A->B suspended
+
+```text
+AUTHORITY_STATE=PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_SELECTED
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+AUTHORITY_SCHEMA=gh.n3w-t1-core-stack-current-authority/2
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=b863ddd959090ca139af76bd68dbef31d773e6de
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+U0_RESULT=CLOSED_PASS
+BASELINE_A_SHA256=a791377083e76f765ddf978c09025674eda3586d33892e4b609a814706bdfbbc
+U0_REOPEN=false
+
+U1_MANAGER_A_TO_B_STATUS=SUSPENDED
+U1_PLAN_PRESERVED=true
+U1_LIVE_APPLY_AUTHORIZED=false
+MANAGER_B_SOURCE_CREATED=false
+
+PRE_U1_PLAN=docs/development/N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_PLAN_20261104.md
+U1_SUSPENDED_PLAN=docs/development/N3W_T1_CORE_UPDATER_U1_MANAGER_A_TO_B_SUSPENDED_PLAN_20261104.md
+NEXT_ONE_GATE=N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G0_READONLY_PREFLIGHT_20261104_01
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+MERGE=false
+```
+
+The project intentionally inserts a bounded normal-product-runtime acceptance stage before the first clean Manager upgrade. The intended eventual predecessor state for U1 is a real user/business state: Home Assistant local user active, one node with real sensors, a second normally registered node, and two-node runtime continuity. G5 then proves the upgrade hard authority still matches U0 and freezes a separate Pre-U1 business-runtime reference.
+
+U1 remains preserved but paused; do not create/retag Manager B or enter updater apply until the Pre-U1 route closes and U1 is explicitly resumed.
+
 ## Latest authority — 2026-11-04 U0 real T1 read-only Baseline A CLOSED_PASS; U1 preparation next
 
 ```text
