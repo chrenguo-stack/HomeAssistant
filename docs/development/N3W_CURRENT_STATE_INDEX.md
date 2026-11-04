@@ -1,3 +1,20 @@
+## 2026-11-04 — U1 Manager A -> B source resume selected; B0/B2 RED regression next
+
+- Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current accepted product source remains `b863ddd959090ca139af76bd68dbef31d773e6de`; Manager image remains `local/greenhouse-manager:fresh-b863ddd95909`.
+- Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- Pre-U1 G0-G5 and overall normal product runtime acceptance remain `CLOSED_PASS`; `U0_REOPEN=false`.
+- PR #774, PR #773 -> main, and PR #775 authority alignment are complete.
+- U1 Manager A -> B resume decision is now explicit: `MANAGER_A_TO_B_RESUME_DECISION=true`.
+- Recommended first real Manager B change remains `DISCOVERY_PUBLISH_FAILURE_RETRY_CORRECTNESS`.
+- Manager B source does not yet exist; the candidate defect has not yet been formally RED-proven.
+- Next one gate: `N3W_T1_CORE_UPDATER_U1_MANAGER_A_TO_B_B0_B2_RED_REGRESSION_20261104_01`.
+- This gate is source/test only. `U1_LIVE_APPLY_AUTHORIZED=false`, `LIVE_MUTATION_DEFAULT=false`, `BOARD_ACCESS_DEFAULT=false`.
+- Formal handoff: `docs/development/N3W_T1_CORE_UPDATER_U1_MANAGER_A_TO_B_RESUME_RED_REGRESSION_NEW_CHAT_HANDOFF_V1.0_20261104.md`.
+- `AUTO_EXECUTE_NEXT_GATE=false`.
+
 ## 2026-11-04 — Pre-U1 CLOSED_PASS; PR #773 stacked convergence merged to main
 
 - Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
