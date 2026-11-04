@@ -1,3 +1,53 @@
+## Latest authority — 2026-11-05 KF-141 post-reconciliation disposition CLOSED_PASS; R4 repaired A→B reapply selected
+
+```text
+AUTHORITY_STATE=U1_R3_KF141_POST_RECONCILIATION_DISPOSITION_CLOSED_PASS_R4_PREAUTH_READY
+
+CURRENT_MANAGER=local/greenhouse-manager:fresh-b863ddd95909
+CURRENT_RUNTIME_CLASS=PREDECESSOR_BOUND_RUNNING
+CURRENT_HEALTH_STATE=HEALTHY
+CURRENT_TRANSACTION_STATUS=ROLLED_BACK
+CURRENT_RECOVERY_REQUIRED=false
+
+KF141_SOURCE_REPAIR_PACKAGE=CLOSED_PASS
+KF141_TRANSACTION_RECONCILIATION=CLOSED_PASS
+KF141_REAL_REPAIRED_A_TO_B_REAPPLY=NOT_EXECUTED
+
+EXACT_UPDATER_SOURCE_HEAD=fc1e1bee1f158cc199413ead26564938fca5b1a9
+EXACT_PACKAGE_ARTIFACT_ID=13336359358
+EXACT_PACKAGE_ARTIFACT_DIGEST_SHA256=e786d23deabe5bd6c8eafa4480f7ac13944a2a908d82973f385f7446183c9527
+EXACT_UPDATER_PYZ_SHA256=65a5f62dcf9640d55067ab3104a8475a5bd1372ff1fce9a4441f18e3f53b2b46
+EXACT_PACKAGE_REUSABLE=true
+EXACT_PACKAGE_REBUILD_REQUIRED=false
+
+TARGET_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+MANAGER_B_REBUILD_REQUIRED=false
+
+SELECTED_ROUTE=U1_R4_REPAIRED_A_TO_B_LIVE_REAPPLY
+PR777_MERGE_READY=false
+MERGE_BEFORE_R4_LIVE_ACCEPTANCE=false
+
+PROPOSED_AUTHORIZATION=N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_REAPPLY_U1_R4_20261105_01
+AUTHORIZATION_GRANTED=false
+
+T1_ACCESS=false
+T1_MUTATION=false
+APPLY=false
+ROLLBACK=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_CORE_UPDATER_U1_R4_MANAGER_A_TO_B_LIVE_REAPPLY_AUTHORIZATION_20261105_01
+AUTO_EXECUTE_NEXT_GATE=false
+STOP=true
+```
+
+Post-reconciliation review selected a fresh R4 Manager A -> B live reapply using the same exact repaired updater package. The target Manager B bytes remain unchanged, the failed R3 is attributed to the updater KF-141 lifecycle defect rather than a proven Manager B defect, and source drift after the exact package head is documentation-only.
+
+No rebuild is required before R4. The R4 preflight must freshly validate the healthy Manager A predecessor, terminal ROLLED_BACK transaction, exact package/baseline and peer continuity before any mutation. A new explicit one-shot authorization is required.
+
+Authority: `docs/development/N3W_T1_CORE_UPDATER_U1_R3_KF141_POST_RECONCILIATION_DISPOSITION_20261105.md`.
+
 ## Latest authority — 2026-11-05 KF-141 transaction reconciliation CLOSED_PASS; Manager A healthy; recovery debt cleared
 
 ```text
