@@ -1,34 +1,36 @@
-## Latest authority — 2026-11-04 Pre-U1 G0 read-only preflight CLOSED_PASS; STOP before G1
+## Latest authority — 2026-11-04 Pre-U1 G1 Home Assistant local onboarding CLOSED_PASS; STOP before G2
 
 ```text
-AUTHORITY_STATE=PRE_U1_G0_READONLY_PREFLIGHT_CLOSED_PASS
+AUTHORITY_STATE=PRE_U1_G1_HOMEASSISTANT_LOCAL_ONBOARDING_CLOSED_PASS
 U0_RESULT=CLOSED_PASS
 U0_REOPEN=false
+PRE_U1_G0_RESULT=CLOSED_PASS
+PRE_U1_G1_RESULT=CLOSED_PASS
 U1_MANAGER_A_TO_B_STATUS=SUSPENDED
 U1_PLAN_PRESERVED=true
-FRESH_BASELINE_SHA256=a791377083e76f765ddf978c09025674eda3586d33892e4b609a814706bdfbbc
-FRESH_BASELINE_BYTES=2275
-FRESH_BASELINE_COMPATIBLE_WITH_U0=true
-PRODUCT_SERVICES_HEALTHY=true
+
+HOMEASSISTANT_LOCAL_OWNER_CREATED=true
+HOMEASSISTANT_LOGIN_SUCCESS=true
+HOMEASSISTANT_ONBOARDING_COMPLETE=true
+MQTT_INTEGRATION_VISIBLE=true
+MQTT_INTEGRATION_ERROR_VISIBLE=false
+NO_CONTAINER_RESTART_SINCE_G0=true
 UPDATER_TRANSACTION_STATUS=COMMITTED
 UPDATER_RECOVERY_REQUIRED=false
 PAIRING_WINDOW_STATE=CLOSED
-UNRESOLVED_FIRST_REGISTRATION_COUNT=0
-CURRENT_REGISTERED_NODE_COUNT=1
-HOMEASSISTANT_HTTP_REACHABLE=true
-HOMEASSISTANT_ONBOARDING_COMPLETE=false
-CURRENT_NODE_ONLINE_STATE=UNKNOWN_FROM_LOG_ORACLE
-LIVE_RUNTIME_MUTATION=false
-BOARD_ACCESS=false
-G0_RESULT=CLOSED_PASS
-NEXT_ONE_GATE=N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G1_HA_LOCAL_ONBOARDING_20261104_01
+PRODUCT_IMAGES_UNCHANGED=true
+RUNTIME_CONTRACTS_UNCHANGED=true
+
+NEXT_ONE_GATE=N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G2_NODE_A_REAL_SENSOR_RUNTIME_20261104_01
+G2_BOARD_PHYSICAL_WORK=true
 AUTO_EXECUTE_NEXT_GATE=false
+BOARD_ACCESS=false
 STOP=true
 ```
 
-Fresh T1_B read-only evidence matches U0 Baseline A byte-for-byte and proves the product stack healthy with no active updater or pairing mutation. Home Assistant is reachable but local onboarding is still incomplete. The 180-second Manager log probe contained zero Direct-accept lines; per KF-140 this is not used as an offline/product-failure oracle. G0 is closed PASS and execution stops before any G1 Home Assistant user mutation.
+G1 normal Home Assistant local onboarding is complete and retained as intended business state. Post-onboarding read-only evidence proves no unexpected product-container restart, no updater/pairing mutation, and no image/runtime-contract drift. G2 is the next gate, but it requires physical Node A sensor work and is not auto-executed.
 
-Authority: `docs/development/N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G0_READONLY_PREFLIGHT_CLOSURE_20261104.md`.
+Authority: `docs/development/N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G1_HA_LOCAL_ONBOARDING_CLOSURE_20261104.md`.
 
 ## Latest authority — 2026-11-04 Pre-U1 normal product runtime acceptance selected; U1 Manager A->B suspended
 
