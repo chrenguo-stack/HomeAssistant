@@ -855,6 +855,32 @@ def test_wait_services_waits_for_soft_health_convergence(monkeypatch):
     assert samples == []
 
 
+def test_wait_services_does_not_mask_hard_runtime_drift(monkeypatch):
+    host = hostmod.LocalHost()
+    monkeypatch.setattr(host, "_systemctl", lambda verb, unit: "active")
+    monkeypatch.setattr(
+        host,
+        "_container_id",
+        lambda service: f"{service}-container",
+    )
+    monkeypatch.setattr(
+        host,
+        "_listener_snapshot",
+        lambda: dict(hostmod.EXPECTED_LISTENERS),
+    )
+
+    def fail_hard():
+        raise m.UpdaterError("manager_runtime_image_drift")
+
+    monkeypatch.setattr(host, "observe_v2", fail_hard)
+
+    with pytest.raises(
+        m.UpdaterError,
+        match="manager_runtime_image_drift",
+    ):
+        host.wait_services(timeout=120)
+
+
 def test_observe_v2_keeps_structural_snapshot_while_mqtt_converges(
     monkeypatch,
 ):
