@@ -1,3 +1,39 @@
+## Latest authority — 2026-11-04 Pre-U1 G3 Node B Wi-Fi setup CLOSED_PASS; STOP before Node A restore
+
+```text
+AUTHORITY_STATE=PRE_U1_G3_NODE_B_WIFI_SETUP_CLOSED_PASS_IDLE_UNREGISTERED
+PRE_U1_G0_RESULT=CLOSED_PASS
+PRE_U1_G1_RESULT=CLOSED_PASS
+PRE_U1_G2_RESULT=CLOSED_PASS
+PRE_U1_G3_RESULT=IN_PROGRESS
+
+LOCAL_FACTORY_BINDING=PASS
+LOCAL_FACTORY_SHA256_MATCH=true
+LOCAL_FACTORY_SIZE_MATCH=true
+
+NODE_A_CURRENTLY_TEMPORARILY_OFFLINE=true
+NODE_A_G2_ACCEPTANCE_RETAINED=true
+
+NODE_B_BOOT_NORMAL=true
+NODE_B_WIFI_SETUP_COMPLETED=true
+NODE_B_WIFI_CONNECTED=true
+NODE_B_IDLE_UNREGISTERED_QR_VISIBLE=true
+NODE_B_FIRST_REGISTRATION_STARTED=false
+
+FLASH_MUTATION=false
+NVS_MUTATION=true
+T1_RUNTIME_MUTATION=false
+REGISTRATION_MUTATION=false
+
+NEXT_ONE_GATE=N3W_PRE_U1_G3_NODE_A_RESTORE_AND_DUAL_BASELINE_READONLY_20261104_01
+AUTO_EXECUTE_NEXT_GATE=false
+STOP=true
+```
+
+The frozen local factory image was rechecked before Wi-Fi mutation and matched SHA256 `9ccc469898832bda612634aef64ca946631e81574076be504ef864aaee56d8f9` and size `1532256`. Node B was then configured through the normal Captive Portal and reached the idle-unregistered / online-registration QR on LCD page 5. No registration QR was scanned and no first-registration transaction started. Node A remains temporarily offline; G2 stays closed.
+
+Closure: `docs/development/N3W_PRE_U1_G3_NODE_B_WIFI_SETUP_AND_IDLE_UNREGISTERED_CLOSURE_20261104.md`.
+
 ## Latest authority — 2026-11-04 Pre-U1 G3 Node B factory write PASS; STOP at Wi-Fi setup QR
 
 ```text
