@@ -2,6 +2,16 @@
 
 ```text
 AUTHORITY_STATE=PRE_U1_G0_READONLY_PREFLIGHT_CLOSED_PASS
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+AUTHORITY_SCHEMA=gh.n3w-t1-core-stack-current-authority/2
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=b863ddd959090ca139af76bd68dbef31d773e6de
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-b863ddd95909
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
 U0_RESULT=CLOSED_PASS
 U0_REOPEN=false
 U1_MANAGER_A_TO_B_STATUS=SUSPENDED
@@ -27,6 +37,8 @@ STOP=true
 ```
 
 Fresh T1_B read-only evidence matches U0 Baseline A byte-for-byte and proves the product stack healthy with no active updater or pairing mutation. Home Assistant is reachable but local onboarding is still incomplete. The 180-second Manager log probe contained zero Direct-accept lines; per KF-140 this is not used as an offline/product-failure oracle. G0 is closed PASS and execution stops before any G1 Home Assistant user mutation.
+
+Canonical Core Stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; live upgrade state remains `APPLIED_ACCEPTED`.
 
 Authority: `docs/development/N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G0_READONLY_PREFLIGHT_CLOSURE_20261104.md`.
 
