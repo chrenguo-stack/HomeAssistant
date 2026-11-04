@@ -1,0 +1,32 @@
+name: N3W U1 Manager A-to-B V2 live executor CI
+
+on:
+  pull_request:
+    paths:
+      - "tools/execution_packages/n3w/u1/manager_a_to_b_v2_live_apply/**"
+      - "tests/execution_packages/n3w/u1/manager_a_to_b_v2_live_apply/**"
+      - ".github/workflows/n3w-u1-manager-a-to-b-v2-live-executor-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  executor:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate executor
+        run: |
+          set -euo pipefail
+          python -m pip install "pytest>=8,<9"
+          python -m py_compile tools/execution_packages/n3w/u1/manager_a_to_b_v2_live_apply/executor.py
+          PYTHONPATH=. python -m pytest -q tests/execution_packages/n3w/u1/manager_a_to_b_v2_live_apply/test_executor.py
+          echo "U1_V2_LIVE_EXECUTOR_SINGLE_APPLY_BOUNDARY=PASS"
+          echo "AUTOMATIC_RETRY=false"
+          echo "AUTOMATIC_ROLLBACK=false"
+          echo "BOARD_ACCESS=false"
