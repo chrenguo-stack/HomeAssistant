@@ -1,3 +1,77 @@
+## Latest authority — 2026-11-04 U1 R3 real apply FAILED_EMERGENCY; KF-141 source repair in progress
+
+```text
+AUTHORITY_STATE=U1_R3_FAILED_EMERGENCY_KF141_SOURCE_REPAIR_IN_PROGRESS
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CANONICAL_PRODUCTION_AUTHORITY_SWITCHED=false
+
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=b863ddd959090ca139af76bd68dbef31d773e6de
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-b863ddd95909
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+TARGET_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+
+R3_EXECUTOR_HEAD=459e240c351ca04c01b94e1ed9ddeb8f21315f0c
+R3_EXECUTION_ID=N3W_U1_V2_B10_20261104_02_R3
+R3_APPLY_INVOKED=true
+R3_SECOND_APPLY_INVOKED=false
+R3_RESULT=STOP
+R3_FIRST_FAILED_OPERATION=apply_not_committed
+R3_APPLY_REASON=automatic_rollback_failed
+
+R3_AUTHORIZATION=N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_APPLY_U1_V2_20261104_02
+R3_AUTHORIZATION_GRANTED=true
+R3_AUTHORIZATION_CLAIMED=true
+R3_AUTHORIZATION_CONSUMED=true
+R3_AUTHORIZATION_REPLAY_PERMITTED=false
+
+LIVE_UPDATER_TRANSACTION_SCHEMA=gh.n3w-t1-core-updater-transaction/2
+LIVE_UPDATER_TRANSACTION_STATUS=FAILED_EMERGENCY
+LIVE_UPDATER_TRANSACTION_PHASE=FAILED_EMERGENCY
+LIVE_UPDATER_RECOVERY_REQUIRED=true
+LIVE_RUNTIME_CLASS=NOT_YET_FRESHLY_CLASSIFIED
+LIVE_MANAGER_BINDING=NOT_YET_FRESHLY_CLASSIFIED
+R3_T1_MUTATION_RESULT=UNKNOWN
+
+KF141=SOURCE_REPAIR_IN_PROGRESS_LIVE_RECOVERY_PENDING
+KF141_SOURCE_REPAIR_CODE_HEAD=faa39f0e6052ac968a50062110fce1ec2482bb32
+KF141_DESIGN_AUTHORITY=docs/development/N3W_T1_CORE_UPDATER_U1_R3_READINESS_RECOVERY_ARCHITECTURE_REPAIR_DESIGN_20261104.md
+KF141_PROGRESS_AUTHORITY=docs/development/N3W_T1_CORE_UPDATER_U1_R3_KF141_SOURCE_REPAIR_PROGRESS_20261104.md
+
+NEW_LIVE_APPLY_ALLOWED=false
+BLIND_ROLLBACK_ALLOWED=false
+TRANSACTION_EDIT_DELETE_ALLOWED=false
+OLD_AUTHORIZATION_REPLAY_ALLOWED=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_CORE_UPDATER_U1_R3_KF141_SOURCE_CLOSURE_AND_READONLY_RUNTIME_CLASSIFICATION_20261104_01
+STOP=true
+```
+
+R3 is the first U1 attempt that crossed the real V2 apply boundary. The one-shot
+authorization is permanently consumed. The updater then reported
+`automatic_rollback_failed`; the durable V2 transaction is non-terminal
+`FAILED_EMERGENCY` and requires reconciliation.
+
+Do not infer the current live Manager from the transaction ledger alone. The
+actual current binding/runtime must be freshly classified with the repaired
+read-only `runtime-state` path after exact-source/package CI closure. Until
+that read-only classification is archived, no new A-to-B apply, authorization
+replay, blind rollback, transaction edit/delete, board access or production
+authority switch is allowed.
+
+KF-141 source repair separates structural observation from bounded soft-health
+convergence, adds updater-owned runtime classification, makes recovery classify
+before mutation, and preserves sanitized apply/rollback error codes. The
+canonical production authority manifest is intentionally not changed by this
+failed/unaccepted upgrade.
+
+Authorities:
+- `docs/development/N3W_T1_CORE_UPDATER_U1_R3_READINESS_RECOVERY_ARCHITECTURE_REPAIR_DESIGN_20261104.md`
+- `docs/development/N3W_T1_CORE_UPDATER_U1_R3_KF141_SOURCE_REPAIR_PROGRESS_20261104.md`
+- `docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md`
+
 ## Latest authority — 2026-11-04 U1 V2 rebind CLOSED_PASS; new B10 authorization required
 
 ```text
