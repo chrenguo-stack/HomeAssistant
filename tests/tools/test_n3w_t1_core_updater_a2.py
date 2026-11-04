@@ -502,6 +502,7 @@ def test_target_activation_failure_rolls_back_all_components(
 
     assert host.bindings == OLD
     assert store.read()["status"] == "ROLLED_BACK"
+    assert store.read()["apply_error_code"] == "injected_activate_failure"
 
 
 def test_peer_hard_drift_fails_closed_after_target_restore(
@@ -531,6 +532,10 @@ def test_peer_hard_drift_fails_closed_after_target_restore(
 
     assert host.bindings["manager"] == OLD["manager"]
     assert store.read()["status"] == "FAILED_EMERGENCY"
+    assert store.read()["apply_error_code"].startswith("peer_runtime_drift:")
+    assert store.read()["rollback_error_code"].startswith("peer_runtime_drift:")
+    assert store.read()["last_runtime_class"] == "UNRESOLVED"
+    assert store.read()["last_health_state"] == "FAILED"
 
 
 def test_rolling_back_transaction_is_reentrant(tmp_path: Path, monkeypatch):
