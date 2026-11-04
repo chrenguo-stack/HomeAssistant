@@ -1,3 +1,47 @@
+## Latest authority — 2026-11-04 Pre-U1 G3 Node B factory write PASS; STOP at Wi-Fi setup QR
+
+```text
+AUTHORITY_STATE=PRE_U1_G3_NODE_B_FACTORY_WRITE_PASS_WIFI_SETUP_PENDING
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+AUTHORITY_SCHEMA=gh.n3w-t1-core-stack-current-authority/2
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=b863ddd959090ca139af76bd68dbef31d773e6de
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-b863ddd95909
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+PRE_U1_G0_RESULT=CLOSED_PASS
+PRE_U1_G1_RESULT=CLOSED_PASS
+PRE_U1_G2_RESULT=CLOSED_PASS
+PRE_U1_G3_RESULT=IN_PROGRESS
+U1_MANAGER_A_TO_B_STATUS=SUSPENDED
+
+NODE_A_CURRENTLY_TEMPORARILY_OFFLINE=true
+NODE_A_G2_ACCEPTANCE_RETAINED=true
+
+NODE_B_ERASE_FLASH=PASS
+NODE_B_FACTORY_WRITE=PASS
+NODE_B_WRITE_STAGE_INTERNAL_HASH_VERIFY=PASS
+NODE_B_POST_BOOT_WHOLE_IMAGE_VERIFY=FAIL_EXPECTED_KF132_PATTERN
+NODE_B_REFLASH_REQUIRED=false
+NODE_B_FIRST_BOOT=PASS
+NODE_B_WIFI_CONFIGURED=false
+NODE_B_WIFI_SETUP_QR_VISIBLE=true
+NODE_B_FIRST_REGISTRATION_STARTED=false
+T1_RUNTIME_MUTATION=false
+
+NEXT_ONE_GATE=N3W_PRE_U1_G3_NODE_B_WIFI_SETUP_AND_IDLE_UNREGISTERED_20261104_01
+AUTO_EXECUTE_NEXT_GATE=false
+BOARD_ACCESS=false
+STOP=true
+```
+
+G3 preparation advanced through Node B factory erase/write. The write-stage internal hash verification passed; the later post-boot whole-image digest mismatch is the already-closed KF-132 pattern and is not a reflash trigger. Node B then booted normally and currently shows the Wi-Fi setup entry/QR on LCD page 5. Wi-Fi has not been configured and first registration has not started. Node A is temporarily offline only for the Mac USB swap; G2 remains closed and is not reopened.
+
+Formal handoff: `docs/development/N3W_PRE_U1_G3_NODE_B_EXACT_FACTORY_WRITE_PASS_TO_WIFI_SETUP_NEW_CHAT_HANDOFF_V1.0_20261104.md`.
+
 ## Latest authority — 2026-11-04 Pre-U1 G2 Node A real sensor runtime CLOSED_PASS; STOP before G3
 
 ```text
