@@ -759,21 +759,24 @@ def test_wait_services_waits_for_listener_contract(monkeypatch):
         "_container_id",
         lambda service: f"{service}-container",
     )
-    samples = [
+    listeners = [
         {
-            "listeners": {
-                "tcp_8883": 1,
-                "tcp_47110": 0,
-                "udp_47111": 0,
-                "tcp_47112": 0,
-            },
-            "mqtt_authenticated": {
-                "manager": True,
-                "homeassistant": True,
-            },
-            "homeassistant_http_status": 401,
+            "tcp_8883": 1,
+            "tcp_47110": 0,
+            "udp_47111": 0,
+            "tcp_47112": 0,
         },
-        {
+        dict(hostmod.EXPECTED_LISTENERS),
+    ]
+    monkeypatch.setattr(
+        host,
+        "_listener_snapshot",
+        lambda: listeners.pop(0),
+    )
+    monkeypatch.setattr(
+        host,
+        "observe_v2",
+        lambda: {
             "listeners": dict(hostmod.EXPECTED_LISTENERS),
             "mqtt_authenticated": {
                 "manager": True,
@@ -781,15 +784,14 @@ def test_wait_services_waits_for_listener_contract(monkeypatch):
             },
             "homeassistant_http_status": 401,
         },
-    ]
-    monkeypatch.setattr(host, "observe_v2", lambda: samples.pop(0))
+    )
     ticks = iter((0.0, 0.1, 0.2, 0.3))
     monkeypatch.setattr(hostmod.time, "monotonic", lambda: next(ticks))
     monkeypatch.setattr(hostmod.time, "sleep", lambda seconds: None)
 
     host.wait_services(timeout=10)
 
-    assert samples == []
+    assert listeners == []
 
 
 def test_wait_services_waits_for_soft_health_convergence(monkeypatch):
@@ -799,6 +801,11 @@ def test_wait_services_waits_for_soft_health_convergence(monkeypatch):
         host,
         "_container_id",
         lambda service: f"{service}-container",
+    )
+    monkeypatch.setattr(
+        host,
+        "_listener_snapshot",
+        lambda: dict(hostmod.EXPECTED_LISTENERS),
     )
     samples = [
         {
@@ -1335,19 +1342,12 @@ def test_wait_services_times_out_if_listener_contract_never_converges(
     )
     monkeypatch.setattr(
         host,
-        "observe_v2",
+        "_listener_snapshot",
         lambda: {
-            "listeners": {
-                "tcp_8883": 1,
-                "tcp_47110": 0,
-                "udp_47111": 0,
-                "tcp_47112": 0,
-            },
-            "mqtt_authenticated": {
-                "manager": True,
-                "homeassistant": True,
-            },
-            "homeassistant_http_status": 401,
+            "tcp_8883": 1,
+            "tcp_47110": 0,
+            "udp_47111": 0,
+            "tcp_47112": 0,
         },
     )
     clock = [0.0]
