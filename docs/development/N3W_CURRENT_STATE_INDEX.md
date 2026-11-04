@@ -1,3 +1,21 @@
+## 2026-11-04 — Pre-U1 CLOSED_PASS; PR #773 stacked convergence merged to main
+
+- Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current product source remains `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Current Manager remains `local/greenhouse-manager:fresh-b863ddd95909`; Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- Pre-U1 G0-G5 remain `CLOSED_PASS`; overall Pre-U1 normal product runtime acceptance remains `CLOSED_PASS`.
+- PR #774 was merged into the stacked development branch.
+- PR #773 exact head `a5d959deefc42afb5fdc96fa1ad9c46d36de526b` passed all relevant CI and was merged to `main`.
+- PR #773 merge commit is `d910e3b389f447c3e3d664dc6514d1ebe4b33ff2`; post-merge comparison shows `main` is identical to that commit.
+- Node A post-G4 boot-session change is operator-initiated, not an unexplained reset.
+- Frozen business runtime reference remains `infra/n3w-t1/clean-reference/pre-u1-business-runtime-reference-20261104.json`.
+- `U0_REOPEN=false`.
+- U1 Manager A-to-B may be reconsidered, but `U1_AUTO_RESUME=false`.
+- Next one gate is not yet selected: `NEXT_ONE_GATE=UNSELECTED_AFTER_PRE_U1_MAIN_CONVERGENCE`.
+- Closure: `docs/development/N3W_PRE_U1_MAIN_MERGE_CLOSURE_20261104.md`.
+
 ## 2026-11-04 — Pre-U1 normal product runtime acceptance CLOSED_PASS; PR #774 merge review next
 
 - Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
