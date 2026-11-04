@@ -1,3 +1,14 @@
+## 2026-11-04 — U1 V2 rebind before live apply
+
+- Authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Product source: `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Manager: `local/greenhouse-manager:fresh-b863ddd95909`.
+- Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean-reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical clean-reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- live upgrade accepted; Manager A remains current while U1 control-plane V2 rebind is validated.
+
 ## 2026-11-04 — U1 Manager A -> B B8 CLOSED_PASS; B9 live apply preauthorization ready
 
 - B3/B4/B5 source repair, tests and independent review are `CLOSED_PASS`.
