@@ -753,11 +753,7 @@ def test_stop_services_rejects_active_unit_state(monkeypatch):
 
 def test_wait_services_waits_for_listener_contract(monkeypatch):
     host = hostmod.LocalHost()
-    monkeypatch.setattr(
-        host,
-        "_systemctl",
-        lambda verb, unit: "active",
-    )
+    monkeypatch.setattr(host, "_systemctl", lambda verb, unit: "active")
     monkeypatch.setattr(
         host,
         "_container_id",
@@ -765,18 +761,28 @@ def test_wait_services_waits_for_listener_contract(monkeypatch):
     )
     samples = [
         {
-            "tcp_8883": 1,
-            "tcp_47110": 0,
-            "udp_47111": 0,
-            "tcp_47112": 0,
+            "listeners": {
+                "tcp_8883": 1,
+                "tcp_47110": 0,
+                "udp_47111": 0,
+                "tcp_47112": 0,
+            },
+            "mqtt_authenticated": {
+                "manager": True,
+                "homeassistant": True,
+            },
+            "homeassistant_http_status": 401,
         },
-        dict(hostmod.EXPECTED_LISTENERS),
+        {
+            "listeners": dict(hostmod.EXPECTED_LISTENERS),
+            "mqtt_authenticated": {
+                "manager": True,
+                "homeassistant": True,
+            },
+            "homeassistant_http_status": 401,
+        },
     ]
-    monkeypatch.setattr(
-        host,
-        "_listener_snapshot",
-        lambda: samples.pop(0),
-    )
+    monkeypatch.setattr(host, "observe_v2", lambda: samples.pop(0))
     ticks = iter((0.0, 0.1, 0.2, 0.3))
     monkeypatch.setattr(hostmod.time, "monotonic", lambda: next(ticks))
     monkeypatch.setattr(hostmod.time, "sleep", lambda seconds: None)
@@ -784,6 +790,131 @@ def test_wait_services_waits_for_listener_contract(monkeypatch):
     host.wait_services(timeout=10)
 
     assert samples == []
+
+
+def test_wait_services_waits_for_soft_health_convergence(monkeypatch):
+    host = hostmod.LocalHost()
+    monkeypatch.setattr(host, "_systemctl", lambda verb, unit: "active")
+    monkeypatch.setattr(
+        host,
+        "_container_id",
+        lambda service: f"{service}-container",
+    )
+    samples = [
+        {
+            "listeners": dict(hostmod.EXPECTED_LISTENERS),
+            "mqtt_authenticated": {
+                "manager": False,
+                "homeassistant": False,
+            },
+            "homeassistant_http_status": None,
+        },
+        {
+            "listeners": dict(hostmod.EXPECTED_LISTENERS),
+            "mqtt_authenticated": {
+                "manager": True,
+                "homeassistant": False,
+            },
+            "homeassistant_http_status": 401,
+        },
+        {
+            "listeners": dict(hostmod.EXPECTED_LISTENERS),
+            "mqtt_authenticated": {
+                "manager": True,
+                "homeassistant": True,
+            },
+            "homeassistant_http_status": None,
+        },
+        {
+            "listeners": dict(hostmod.EXPECTED_LISTENERS),
+            "mqtt_authenticated": {
+                "manager": True,
+                "homeassistant": True,
+            },
+            "homeassistant_http_status": 401,
+        },
+    ]
+    monkeypatch.setattr(host, "observe_v2", lambda: samples.pop(0))
+    clock = [0.0]
+    monkeypatch.setattr(hostmod.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(
+        hostmod.time,
+        "sleep",
+        lambda seconds: clock.__setitem__(0, clock[0] + seconds),
+    )
+
+    host.wait_services(timeout=20)
+
+    assert samples == []
+
+
+def test_observe_v2_keeps_structural_snapshot_while_mqtt_converges(
+    monkeypatch,
+):
+    host = hostmod.LocalHost()
+    base = {
+        "manager_image": "local/greenhouse-manager:fresh-a",
+        "compose_env_sha256": "a" * 64,
+        "compose_render": {
+            "services": {
+                "manager": {"image": "local/greenhouse-manager:fresh-a"},
+                "homeassistant": {"image": "local/n3w-homeassistant:x"},
+                "broker": {"image": "local/n3w-mosquitto:x"},
+            }
+        },
+        "compose_render_sha256": "b" * 64,
+        "services_unit": {},
+        "runtime": {
+            "manager": {"image_ref": "local/greenhouse-manager:fresh-a"},
+            "homeassistant": {"image_ref": "local/n3w-homeassistant:x"},
+            "broker": {"image_ref": "local/n3w-mosquitto:x"},
+        },
+        "listeners": dict(hostmod.EXPECTED_LISTENERS),
+        "runtime_services": ["broker", "homeassistant", "manager"],
+        "system_health": {},
+    }
+    bindings = {
+        "manager": "local/greenhouse-manager:fresh-a",
+        "homeassistant": "local/n3w-homeassistant:x",
+        "broker": "local/n3w-mosquitto:x",
+    }
+    monkeypatch.setattr(host, "_observe_running_base_v2", lambda: base)
+    monkeypatch.setattr(
+        host,
+        "_image_binding_authority_v2",
+        lambda rendered=None: (
+            bindings,
+            {
+                "manager": "dynamic",
+                "homeassistant": "legacy_static",
+                "broker": "legacy_static",
+            },
+        ),
+    )
+    monkeypatch.setattr(
+        host,
+        "_mqtt_authenticated",
+        lambda service: service == "manager",
+    )
+    monkeypatch.setattr(
+        host,
+        "_homeassistant_http_status",
+        lambda allow_unavailable=False: None,
+    )
+
+    snapshot = host.observe_v2()
+
+    assert snapshot["image_bindings"] == bindings
+    assert snapshot["mqtt_authenticated"] == {
+        "manager": True,
+        "homeassistant": False,
+    }
+    assert snapshot["homeassistant_http_status"] is None
+    with pytest.raises(
+        m.UpdaterError,
+        match="mqtt_current_authentication_missing",
+    ):
+        host._validate_converged_health_v2(snapshot)
 
 
 def test_failed_emergency_can_close_without_runtime_mutation(
@@ -1196,11 +1327,7 @@ def test_wait_services_times_out_if_listener_contract_never_converges(
     monkeypatch,
 ):
     host = hostmod.LocalHost()
-    monkeypatch.setattr(
-        host,
-        "_systemctl",
-        lambda verb, unit: "active",
-    )
+    monkeypatch.setattr(host, "_systemctl", lambda verb, unit: "active")
     monkeypatch.setattr(
         host,
         "_container_id",
@@ -1208,20 +1335,23 @@ def test_wait_services_times_out_if_listener_contract_never_converges(
     )
     monkeypatch.setattr(
         host,
-        "_listener_snapshot",
+        "observe_v2",
         lambda: {
-            "tcp_8883": 1,
-            "tcp_47110": 0,
-            "udp_47111": 0,
-            "tcp_47112": 0,
+            "listeners": {
+                "tcp_8883": 1,
+                "tcp_47110": 0,
+                "udp_47111": 0,
+                "tcp_47112": 0,
+            },
+            "mqtt_authenticated": {
+                "manager": True,
+                "homeassistant": True,
+            },
+            "homeassistant_http_status": 401,
         },
     )
     clock = [0.0]
-    monkeypatch.setattr(
-        hostmod.time,
-        "monotonic",
-        lambda: clock[0],
-    )
+    monkeypatch.setattr(hostmod.time, "monotonic", lambda: clock[0])
     monkeypatch.setattr(
         hostmod.time,
         "sleep",
