@@ -111,7 +111,7 @@
   },
   "observations": {
     "node_a_new_boot_session_since_g4": true,
-    "node_a_new_boot_session_cause": "not_classified_by_g5",
+    "node_a_new_boot_session_cause": "operator_initiated",
     "node_a_identity_preserved": true,
     "node_a_current_source": "direct",
     "product_service_restart_observed": false,
