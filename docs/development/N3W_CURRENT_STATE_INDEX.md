@@ -1,3 +1,15 @@
+## 2026-11-04 — KF-141 fresh runtime-state CLOSED_PASS; predecessor A healthy
+
+- Exact repaired updater artifact `13336359358` / pyz SHA256 `65a5f62dcf9640d55067ab3104a8475a5bd1372ff1fce9a4441f18e3f53b2b46` executed exactly one read-only `runtime-state`.
+- Result: `PASS`, `mutation=false`, runtime class `PREDECESSOR_BOUND_RUNNING`, health `HEALTHY`.
+- Fresh Manager binding is `local/greenhouse-manager:fresh-b863ddd95909`; Home Assistant and Broker bindings remain the accepted production values.
+- Services owner is active; Manager/HA/Broker each have one running runtime; Manager and HA MQTT authentication are true; HA HTTP is 401; expected listeners are present.
+- Durable R3 transaction remains `FAILED_EMERGENCY / FAILED_EMERGENCY / recovery_required=true`; transaction was not changed.
+- Consumed authorization `N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_APPLY_U1_V2_20261104_02` remains replay-forbidden.
+- No apply, rollback, service restart, board access, production authority switch or merge occurred.
+- Next route is `N3W_T1_CORE_UPDATER_U1_R3_KF141_TRANSACTION_RECONCILIATION_DECISION_20261104_01`, but it is not auto-executed and any transaction/runtime mutation requires a separate authorization.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_U1_R3_KF141_READONLY_RUNTIME_STATE_CLASSIFICATION_CLOSURE_20261104.md`.
+
 ## 2026-11-04 — KF-141 exact repaired package CLOSED_PASS; read-only runtime-state next
 
 - Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
