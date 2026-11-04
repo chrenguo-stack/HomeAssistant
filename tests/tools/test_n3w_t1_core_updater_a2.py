@@ -174,6 +174,29 @@ class FakeHost:
             },
         }
 
+    def observe_v2(self):
+        return self.inspect_v2()
+
+    def observe_state_v2(self):
+        snapshot = self.inspect_v2()
+        return {
+            "application_state": "running",
+            "services_owner_state": "active",
+            "running_counts": {
+                "manager": 1,
+                "homeassistant": 1,
+                "broker": 1,
+            },
+            "image_bindings": dict(snapshot["image_bindings"]),
+            "image_binding_modes": dict(snapshot["image_binding_modes"]),
+            "listeners": dict(snapshot["listeners"]),
+            "health_state": "HEALTHY",
+            "snapshot": snapshot,
+        }
+
+    def wait_services(self, timeout=120):
+        del timeout
+
     def assert_mutation_safe(self, component):
         assert component in OLD
 
@@ -570,6 +593,122 @@ def test_nonterminal_predecessor_healthy_closes_without_mutation(
     assert result["t1_mutation"] is False
     assert host.events == []
     assert store.read()["status"] == "ROLLED_BACK"
+
+
+def test_runtime_state_reports_predecessor_running_without_mutation(
+    tmp_path: Path,
+    monkeypatch,
+):
+    monkeypatch.setattr(core.os, "geteuid", lambda: 0)
+    archive = tmp_path / "manager.tar"
+    archive.write_bytes(b"runtime-state")
+    archive_sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+    host = FakeHost()
+    store = V2StateStore(tmp_path / "state")
+    updater = core.MultiComponentCoreUpdater(host, store, FakePolicy())
+
+    updater.apply(
+        target("manager", archive_sha),
+        baseline(),
+        archive,
+        authorization_id="N3W_T1_CORE_UPDATER_RUNTIME_STATE_01",
+        confirmation=APPLY_CONFIRMATION_V2,
+    )
+    tx = store.read()
+    host.bindings["manager"] = OLD["manager"]
+    tx["status"] = "FAILED_EMERGENCY"
+    tx["phase"] = "FAILED_EMERGENCY"
+    store.write(tx)
+    host.events.clear()
+
+    result = updater.runtime_state()
+
+    assert result["status"] == "PASS"
+    assert result["operation"] == "runtime-state"
+    assert result["mutation"] is False
+    assert result["runtime_class"] == "PREDECESSOR_BOUND_RUNNING"
+    assert result["health_state"] == "HEALTHY"
+    assert host.events == []
+
+
+def test_recovery_waits_for_predecessor_convergence_without_restart(
+    tmp_path: Path,
+    monkeypatch,
+):
+    monkeypatch.setattr(core.os, "geteuid", lambda: 0)
+    archive = tmp_path / "manager.tar"
+    archive.write_bytes(b"converging-predecessor")
+    archive_sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+    host = FakeHost()
+    store = V2StateStore(tmp_path / "state")
+    updater = core.MultiComponentCoreUpdater(host, store, FakePolicy())
+
+    updater.apply(
+        target("manager", archive_sha),
+        baseline(),
+        archive,
+        authorization_id="N3W_T1_CORE_UPDATER_CONVERGE_01",
+        confirmation=APPLY_CONFIRMATION_V2,
+    )
+    tx = store.read()
+    host.bindings["manager"] = OLD["manager"]
+    tx["status"] = "FAILED_EMERGENCY"
+    tx["phase"] = "FAILED_EMERGENCY"
+    store.write(tx)
+    host.events.clear()
+
+    wait_calls = []
+
+    def observe_converging():
+        state = FakeHost.observe_state_v2(host)
+        state["health_state"] = "CONVERGING"
+        return state
+
+    monkeypatch.setattr(host, "observe_state_v2", observe_converging)
+    monkeypatch.setattr(
+        host,
+        "wait_services",
+        lambda timeout=120: wait_calls.append(timeout),
+    )
+
+    result = updater.rollback(
+        confirmation="T1_CORE_UPDATER_ROLLBACK"
+    )
+
+    assert result["transaction_status"] == "ROLLED_BACK"
+    assert result["t1_mutation"] is False
+    assert wait_calls == [120]
+    assert host.events == []
+
+
+def test_runtime_state_reports_target_running(
+    tmp_path: Path,
+    monkeypatch,
+):
+    monkeypatch.setattr(core.os, "geteuid", lambda: 0)
+    archive = tmp_path / "manager.tar"
+    archive.write_bytes(b"target-running")
+    archive_sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+    host = FakeHost()
+    store = V2StateStore(tmp_path / "state")
+    updater = core.MultiComponentCoreUpdater(host, store, FakePolicy())
+
+    updater.apply(
+        target("manager", archive_sha),
+        baseline(),
+        archive,
+        authorization_id="N3W_T1_CORE_UPDATER_RUNTIME_STATE_02",
+        confirmation=APPLY_CONFIRMATION_V2,
+    )
+    tx = store.read()
+    tx["status"] = "FAILED_EMERGENCY"
+    tx["phase"] = "FAILED_EMERGENCY"
+    store.write(tx)
+
+    result = updater.runtime_state()
+
+    assert result["runtime_class"] == "TARGET_BOUND_RUNNING"
+    assert result["health_state"] == "HEALTHY"
 
 
 def test_system_health_accepts_degraded_only_for_unrelated_failure(
