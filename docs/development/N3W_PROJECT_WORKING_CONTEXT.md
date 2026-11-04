@@ -1,3 +1,53 @@
+## Latest authority — 2026-11-04 Pre-U1 G2 Node A real sensor runtime CLOSED_PASS; STOP before G3
+
+```text
+AUTHORITY_STATE=PRE_U1_G2_NODE_A_REAL_SENSOR_RUNTIME_CLOSED_PASS
+U0_RESULT=CLOSED_PASS
+U0_REOPEN=false
+PRE_U1_G0_RESULT=CLOSED_PASS
+PRE_U1_G1_RESULT=CLOSED_PASS
+PRE_U1_G2_RESULT=CLOSED_PASS
+U1_MANAGER_A_TO_B_STATUS=SUSPENDED
+U1_PLAN_PRESERVED=true
+
+NODE_A_REAL_SENSOR_RUNTIME=PASS
+NODE_A_IDENTITY_PRESERVED=true
+NODE_A_FIRMWARE_UNCHANGED=true
+NODE_A_NVS_UNCHANGED=true
+REPAIR_PAIRING_REQUIRED=false
+
+CANONICAL_SOURCE=direct
+CANONICAL_SAME_BOOT=true
+CANONICAL_SEQ_BASELINE=14
+CANONICAL_SEQ_FINAL=19
+FIVE_CONSECUTIVE_CANONICAL_ADVANCES=true
+CANONICAL_SEQUENCE_GAP=false
+
+HA_NODE_DEVICE_MATCH_COUNT=1
+HA_ALL_7_RAW_ENTITIES_PRESENT=true
+HA_ALL_7_RAW_STATES_FINITE=true
+HA_UI_NODE_A_SINGLE_DEVICE=true
+HA_UI_7_RAW_ENTITIES_HAVE_VALUES=true
+HA_UI_VALUES_CONTINUE_UPDATING=true
+
+MANAGER_RESTART_COUNT=0
+HOMEASSISTANT_RESTART_COUNT=0
+SERVICE_RESTART_AS_TEST_REPAIR=false
+
+NEXT_ONE_GATE=N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G3_NODE_B_FIRST_REGISTRATION_20261104_01
+G3_T1_BUSINESS_MUTATION=true
+G3_BOARD_ACCESS=true
+AUTO_EXECUTE_NEXT_GATE=false
+BOARD_ACCESS=false
+STOP=true
+```
+
+G2 real-sensor runtime acceptance is complete. The authoritative machine proof is the Manager durable canonical cursor advancing on one Direct boot for five consecutive 60-second cycles (seq 14 through 19), plus read-only Home Assistant registry/Recorder evidence showing one Node A device and all seven required raw entities with finite state. The operator also confirmed the seven entities remain live in the normal HA UI. No product-service restart or identity repair was required.
+
+Observer-only R1/R2 failures are not product failures; the final observer did not create an additional MQTT client and relied on durable/read-only product state.
+
+Authority: `docs/development/N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G2_NODE_A_REAL_SENSOR_RUNTIME_CLOSURE_20261104.md`.
+
 ## Latest authority — 2026-11-04 Pre-U1 G1 Home Assistant local onboarding CLOSED_PASS; STOP before G2
 
 ```text
