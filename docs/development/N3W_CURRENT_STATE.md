@@ -1,3 +1,25 @@
+## Latest authority — 2026-11-04 U1 V2 rebind in progress before live apply
+
+```text
+AUTHORITY_STATE=U1_V2_REBIND_IN_PROGRESS_BEFORE_LIVE_APPLY
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=b863ddd959090ca139af76bd68dbef31d773e6de
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-b863ddd95909
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+MANAGER_B_IMAGE=local/greenhouse-manager:fresh-5b32e1ae8210
+TARGET_SCHEMA=gh.n3w-t1-core-updater-target/2
+TRANSACTION_SCHEMA=gh.n3w-t1-core-updater-transaction/2
+V2_REBIND_STATUS=CI_REPAIR_IN_PROGRESS
+REAL_T1_ACCESS=false
+REAL_T1_MUTATION=false
+```
+
+The live upgrade accepted state remains Manager A. Manager B product bytes are unchanged; only the U1 upgrade control plane is being rebound to the frozen V2 target and single-transaction model before any live apply.
+
 ## Latest authority — 2026-11-04 U1 Manager A -> B B8 CLOSED_PASS; B9 live apply preauthorization ready
 
 ```text
