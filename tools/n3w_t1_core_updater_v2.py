@@ -106,10 +106,17 @@ class MultiComponentCoreUpdater:
         if not isinstance(item, dict):
             return "UNRESOLVED", "FAILED"
 
+        adapter = adapter_for(component)
+        peer_authority = transaction.get("pre_peer_runtime")
+        if (
+            not isinstance(peer_authority, dict)
+            or set(peer_authority) != set(adapter.peers)
+        ):
+            return "UNRESOLVED", "FAILED"
         try:
-            adapter_for(component).verify_peer_runtime(
+            adapter.verify_peer_runtime(
                 snapshot,
-                transaction.get("pre_peer_runtime") or {},
+                peer_authority,
             )
         except Exception:
             return "UNRESOLVED", "FAILED"
@@ -510,6 +517,15 @@ class MultiComponentCoreUpdater:
         adapter = adapter_for(target.component)
         try:
             if tx.get("phase") in {"AUTHORIZED", "TARGET_IMAGE_READY"}:
+                observed = self.host.observe_state_v2()
+                runtime_class, health_state = self._classify_transaction_state(
+                    tx,
+                    observed,
+                )
+                if runtime_class != "PREDECESSOR_BOUND_RUNNING":
+                    raise UpdaterV2Error("prestop_runtime_drift")
+                if health_state != "HEALTHY":
+                    self.host.wait_services()
                 current = self.host.inspect_v2()
                 if (
                     adapter.current_binding(current) != tx["predecessor_image"]
