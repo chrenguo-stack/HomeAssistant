@@ -2,7 +2,7 @@ name: n3wfc4
 
 services:
   broker:
-    image: local/n3w-mosquitto:2.1.2-3184566d
+    image: "${GH_BROKER_IMAGE:?GH_BROKER_IMAGE required}"
     pull_policy: never
     restart: "no"
     ports:
@@ -118,7 +118,7 @@ services:
         condition: service_started
 
   homeassistant:
-    image: local/n3w-homeassistant:2026.10.0-0c73235a
+    image: "${GH_HOMEASSISTANT_IMAGE:?GH_HOMEASSISTANT_IMAGE required}"
     pull_policy: never
     network_mode: host
     restart: "no"

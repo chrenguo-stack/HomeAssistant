@@ -33,9 +33,15 @@ def test_current_authority_repository_contract_passes():
     assert report["live_deployment_state"] == "APPLIED_ACCEPTED"
 
 
-def test_fresh_compose_uses_dynamic_manager_binding():
+def test_fresh_compose_uses_dynamic_core_stack_bindings():
     authority, target, compose, bootstrap, state, index = documents()
     assert 'image: "' + "$" + '{GH_MANAGER_IMAGE:?GH_MANAGER_IMAGE required}"' in compose
+    assert (
+        'image: "' + "$"
+        + '{GH_HOMEASSISTANT_IMAGE:?GH_HOMEASSISTANT_IMAGE required}"'
+        in compose
+    )
+    assert 'image: "' + "$" + '{GH_BROKER_IMAGE:?GH_BROKER_IMAGE required}"' in compose
     report = check.validate_documents(
         authority,
         target,
@@ -45,6 +51,7 @@ def test_fresh_compose_uses_dynamic_manager_binding():
         index,
     )
     assert report["status"] == "PASS"
+    assert report["per_module_image_bindings_ready"] is True
 
 
 def test_successor_updater_pr_can_advance():
