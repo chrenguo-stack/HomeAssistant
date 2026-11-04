@@ -686,6 +686,66 @@ def test_recovery_waits_for_predecessor_convergence_without_restart(
     assert host.events == []
 
 
+def test_runtime_state_reports_stopped_predecessor(
+    tmp_path: Path,
+    monkeypatch,
+):
+    monkeypatch.setattr(core.os, "geteuid", lambda: 0)
+    archive = tmp_path / "manager.tar"
+    archive.write_bytes(b"stopped-predecessor")
+    archive_sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+    host = FakeHost()
+    store = V2StateStore(tmp_path / "state")
+    updater = core.MultiComponentCoreUpdater(host, store, FakePolicy())
+
+    updater.apply(
+        target("manager", archive_sha),
+        baseline(),
+        archive,
+        authorization_id="N3W_T1_CORE_UPDATER_RUNTIME_STATE_03",
+        confirmation=APPLY_CONFIRMATION_V2,
+    )
+    tx = store.read()
+    host.bindings["manager"] = OLD["manager"]
+    tx["status"] = "FAILED_EMERGENCY"
+    tx["phase"] = "FAILED_EMERGENCY"
+    store.write(tx)
+
+    monkeypatch.setattr(
+        host,
+        "observe_state_v2",
+        lambda: {
+            "application_state": "stopped",
+            "services_owner_state": "inactive",
+            "running_counts": {
+                "manager": 0,
+                "homeassistant": 0,
+                "broker": 1,
+            },
+            "image_bindings": dict(host.bindings),
+            "image_binding_modes": {
+                "manager": "dynamic",
+                "homeassistant": "dynamic",
+                "broker": "dynamic",
+            },
+            "listeners": {
+                "tcp_8883": 1,
+                "tcp_47110": 0,
+                "udp_47111": 0,
+                "tcp_47112": 0,
+            },
+            "health_state": "NOT_RUNNING",
+            "snapshot": None,
+        },
+    )
+
+    result = updater.runtime_state()
+
+    assert result["runtime_class"] == "APPLICATION_STOPPED_PREDECESSOR"
+    assert result["health_state"] == "NOT_RUNNING"
+    assert result["mutation"] is False
+
+
 def test_runtime_state_reports_target_running(
     tmp_path: Path,
     monkeypatch,
