@@ -43,6 +43,7 @@ def parser() -> argparse.ArgumentParser:
     rollback = sub.add_parser("rollback")
     rollback.add_argument("--confirmation", required=True)
     sub.add_parser("status")
+    sub.add_parser("runtime-state")
     return command
 
 
@@ -133,6 +134,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "status":
             v2_operation = v2_store.path.exists()
             result = v2.status() if v2_operation else legacy.status()
+        elif args.command == "runtime-state":
+            v2_operation = True
+            result = v2.runtime_state()
         else:
             raise UpdaterError("command_unknown")
     except Exception as error:
