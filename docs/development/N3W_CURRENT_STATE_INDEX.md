@@ -1,3 +1,21 @@
+## 2026-11-04 — KF-141 exact repaired package CLOSED_PASS; read-only runtime-state next
+
+- Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source remains `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Live upgrade accepted; canonical accepted Manager remains `local/greenhouse-manager:fresh-b863ddd95909`, HA remains `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- KF-141 source repair package is CLOSED_PASS; live transaction reconciliation remains pending.
+- Exact package source head: `fc1e1bee1f158cc199413ead26564938fca5b1a9`.
+- Updater CI #217 / run `41854863798`: SUCCESS; source tests 135 PASS; exact package and Pre-U1 V2 simulation PASS.
+- Exact package artifact ID `13336359358`, digest `e786d23deabe5bd6c8eafa4480f7ac13944a2a908d82973f385f7446183c9527`, size 63069383 bytes.
+- Exact updater pyz SHA256 `65a5f62dcf9640d55067ab3104a8475a5bd1372ff1fce9a4441f18e3f53b2b46`; downloaded pyz exposes `runtime-state`.
+- Manager B bytes remain unchanged: image `local/greenhouse-manager:fresh-5b32e1ae8210`, tar SHA256 `2de1705096b9dfcecbc260f5acb95898b4df059510b7bc4ae6ea6b60debb23fa`.
+- R3 authorization `N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_APPLY_U1_V2_20261104_02` is consumed and replay-forbidden.
+- Durable live transaction remains `FAILED_EMERGENCY` / recovery required from last evidence; current actual Manager binding/runtime is `UNKNOWN_FRESH`.
+- New live apply, blind rollback, transaction edit/delete, board access and merge remain forbidden.
+- Next one gate: `N3W_T1_CORE_UPDATER_U1_R3_KF141_READONLY_RUNTIME_STATE_CLASSIFICATION_20261104_01`.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_U1_R3_KF141_EXACT_PACKAGE_CLOSURE_AND_READONLY_RUNTIME_STATE_PREEXECUTION_20261104.md`.
+
 ## 2026-11-04 — U1 R3 real apply FAILED_EMERGENCY; KF-141 source repair in progress
 
 - Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
