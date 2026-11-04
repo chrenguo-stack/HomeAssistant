@@ -1,0 +1,16 @@
+name: N3W T1 Core Updater U1 Pre-U1 Simulation CI
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  superseded:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - run: |
+          echo "SUPERSEDED_BY=N3W T1 Core Updater Manager A-to-B CI / pre-u1-v2-simulation"
+          echo "LEGACY_V1_B8_LIVE_AUTHORITY=false"

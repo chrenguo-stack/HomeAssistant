@@ -387,7 +387,7 @@ class LocalHost:
             raise UpdaterError("runtime_service_set_invalid")
         return services
 
-    def inspect(self) -> dict[str, Any]:
+    def _observe_running_base_v2(self) -> dict[str, Any]:
         system_health = self._system_health_v2()
         runtime_services = self._running_project_services_v2()
         self._activation_env()
@@ -436,9 +436,6 @@ class LocalHost:
             or runtime["homeassistant"]["network_mode"] != "host"
         ):
             raise UpdaterError("runtime_network_contract_drift")
-        listeners = self._listener_snapshot()
-        if listeners != EXPECTED_LISTENERS:
-            raise UpdaterError("listener_contract_drift")
         return {
             "manager_image": env_image,
             "compose_env_sha256": sha256_bytes(env_payload),
@@ -446,10 +443,16 @@ class LocalHost:
             "compose_render_sha256": sha256_bytes(canonical(rendered)),
             "services_unit": unit,
             "runtime": runtime,
-            "listeners": listeners,
+            "listeners": self._listener_snapshot(),
             "runtime_services": runtime_services,
             "system_health": system_health,
         }
+
+    def inspect(self) -> dict[str, Any]:
+        snapshot = self._observe_running_base_v2()
+        if snapshot["listeners"] != EXPECTED_LISTENERS:
+            raise UpdaterError("listener_contract_drift")
+        return snapshot
 
     def _image_binding_authority_v2(
         self,
@@ -619,33 +622,52 @@ class LocalHost:
                 current = False
         return current
 
-    def _homeassistant_http_status(self) -> int:
+    def _homeassistant_http_status(
+        self,
+        *,
+        allow_unavailable: bool = False,
+    ) -> int | None:
         connection = http.client.HTTPConnection("127.0.0.1", 8123, timeout=5)
         try:
-            connection.request("GET", "/api/")
-            response = connection.getresponse()
-            response.read(1024)
-            if response.status not in {200, 401}:
-                raise UpdaterError(
-                    f"homeassistant_http_status_invalid:{response.status}"
-                )
-            return int(response.status)
+            try:
+                connection.request("GET", "/api/")
+                response = connection.getresponse()
+                response.read(1024)
+                return int(response.status)
+            except (OSError, http.client.HTTPException):
+                if allow_unavailable:
+                    return None
+                raise UpdaterError("homeassistant_http_unavailable")
         finally:
             connection.close()
 
-    def assert_mutation_safe(self, component: str) -> None:
-        if component not in COMPONENTS:
-            raise UpdaterError("component_invalid")
-        if self._listener_count("tcp", 47112) != 0:
-            raise UpdaterError("pairing_or_registration_active")
-        if (
-            component == "broker"
-            and self._systemctl("is-active", CERT_LIFECYCLE_UNIT) == "active"
-        ):
-            raise UpdaterError("broker_certificate_lifecycle_active")
+    @staticmethod
+    def _converged_health_v2(snapshot: dict[str, Any]) -> bool:
+        authenticated = snapshot.get("mqtt_authenticated")
+        return (
+            snapshot.get("listeners") == EXPECTED_LISTENERS
+            and isinstance(authenticated, dict)
+            and authenticated.get("manager") is True
+            and authenticated.get("homeassistant") is True
+            and snapshot.get("homeassistant_http_status") in {200, 401}
+        )
 
-    def inspect_v2(self) -> dict[str, Any]:
-        snapshot = self.inspect()
+    @staticmethod
+    def _validate_converged_health_v2(snapshot: dict[str, Any]) -> None:
+        if snapshot.get("listeners") != EXPECTED_LISTENERS:
+            raise UpdaterError("listener_contract_drift")
+        authenticated = snapshot.get("mqtt_authenticated")
+        if (
+            not isinstance(authenticated, dict)
+            or authenticated.get("manager") is not True
+            or authenticated.get("homeassistant") is not True
+        ):
+            raise UpdaterError("mqtt_current_authentication_missing")
+        if snapshot.get("homeassistant_http_status") not in {200, 401}:
+            raise UpdaterError("homeassistant_http_not_ready")
+
+    def observe_v2(self) -> dict[str, Any]:
+        snapshot = self._observe_running_base_v2()
         rendered = snapshot["compose_render"]
         bindings, binding_modes = self._image_binding_authority_v2(rendered)
         services = rendered.get("services")
@@ -666,15 +688,80 @@ class LocalHost:
             service: self._mqtt_authenticated(service)
             for service in ("manager", "homeassistant")
         }
-        if not all(authenticated.values()):
-            raise UpdaterError("mqtt_current_authentication_missing")
         return {
             **snapshot,
             "image_bindings": bindings,
             "image_binding_modes": binding_modes,
             "mqtt_authenticated": authenticated,
-            "homeassistant_http_status": self._homeassistant_http_status(),
+            "homeassistant_http_status": self._homeassistant_http_status(
+                allow_unavailable=True
+            ),
         }
+
+    def observe_state_v2(self) -> dict[str, Any]:
+        owner_state = self._systemctl("is-active", SERVICES_UNIT)
+        counts = {
+            name: self._running_count(name)
+            for name in ("manager", "homeassistant", "broker")
+        }
+        bindings, binding_modes = self._image_binding_authority_v2()
+        base = {
+            "services_owner_state": owner_state,
+            "running_counts": counts,
+            "image_bindings": bindings,
+            "image_binding_modes": binding_modes,
+            "listeners": self._listener_snapshot(),
+        }
+        if (
+            owner_state in {"inactive", "failed"}
+            and counts["manager"] == 0
+            and counts["homeassistant"] == 0
+            and counts["broker"] == 1
+        ):
+            return {
+                **base,
+                "application_state": "stopped",
+                "snapshot": None,
+                "health_state": "NOT_RUNNING",
+            }
+        if (
+            owner_state == "active"
+            and counts == {"manager": 1, "homeassistant": 1, "broker": 1}
+        ):
+            snapshot = self.observe_v2()
+            return {
+                **base,
+                "application_state": "running",
+                "snapshot": snapshot,
+                "health_state": (
+                    "HEALTHY"
+                    if self._converged_health_v2(snapshot)
+                    else "CONVERGING"
+                ),
+            }
+        return {
+            **base,
+            "application_state": "unresolved",
+            "snapshot": None,
+            "health_state": "FAILED",
+        }
+
+    def inspect_v2(self) -> dict[str, Any]:
+        snapshot = self.observe_v2()
+        self._validate_converged_health_v2(snapshot)
+        return snapshot
+
+    def assert_mutation_safe(self, component: str) -> None:
+        if component not in COMPONENTS:
+            raise UpdaterError("component_invalid")
+        if self._listener_count("tcp", 47112) != 0:
+            raise UpdaterError("pairing_or_registration_active")
+        if (
+            component == "broker"
+            and self._systemctl("is-active", CERT_LIFECYCLE_UNIT) == "active"
+        ):
+            raise UpdaterError("broker_certificate_lifecycle_active")
+
 
     def _image_document(self, reference: str) -> dict[str, Any] | None:
         result = self._run(
@@ -781,17 +868,44 @@ class LocalHost:
 
     def wait_services(self, timeout: int = 120) -> None:
         deadline = time.monotonic() + timeout
+        last_soft_state = "services_not_ready"
         while time.monotonic() < deadline:
-            if self._systemctl("is-active", SERVICES_UNIT) == "active":
-                try:
-                    self._container_id("manager")
-                    self._container_id("homeassistant")
-                    if self._listener_snapshot() == EXPECTED_LISTENERS:
-                        return
-                except UpdaterError:
-                    pass
+            if self._systemctl("is-active", SERVICES_UNIT) != "active":
+                time.sleep(2)
+                continue
+            try:
+                self._container_id("manager")
+                self._container_id("homeassistant")
+            except UpdaterError:
+                time.sleep(2)
+                continue
+
+            listeners = self._listener_snapshot()
+            if listeners != EXPECTED_LISTENERS:
+                last_soft_state = "listeners=" + json.dumps(
+                    listeners,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                time.sleep(2)
+                continue
+
+            snapshot = self.observe_v2()
+            if self._converged_health_v2(snapshot):
+                return
+            authenticated = snapshot.get("mqtt_authenticated") or {}
+            last_soft_state = (
+                "mqtt_manager="
+                + str(authenticated.get("manager"))
+                + ",mqtt_homeassistant="
+                + str(authenticated.get("homeassistant"))
+                + ",ha_http="
+                + str(snapshot.get("homeassistant_http_status"))
+            )
             time.sleep(2)
-        raise UpdaterError("services_readiness_timeout")
+        raise UpdaterError(
+            "services_readiness_timeout:" + last_soft_state[:120]
+        )
 
     def rewrite_manager_image(self, expected: str, replacement: str) -> str:
         if COMPOSE_ENV.is_symlink() or not COMPOSE_ENV.is_file():

@@ -1,0 +1,41 @@
+{
+  "schema": "gh.n3w-t1-core-updater-u1-v2-live-execution-package/1",
+  "gate_id": "N3W_T1_CORE_UPDATER_U1_MANAGER_A_TO_B_B10_V2_LIVE_APPLY_20261104_02",
+  "authorization_id": "N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_APPLY_U1_V2_20261104_02",
+  "confirmation": "EXECUTE U1 V2 MANAGER A TO B: YES",
+  "apply_confirmation": "T1_CORE_UPDATER_APPLY",
+  "package_authority": {
+    "workflow_run_id": 41841275491,
+    "workflow_run_number": 179,
+    "artifact_id": 13329432192,
+    "artifact_name": "n3w-t1-core-updater-manager-v2-5b32e1ae8210",
+    "artifact_digest": "sha256:b2cd55cf11de3a97f5d0df13e790094778b76582e1c885318387a8368b6ecfc5",
+    "artifact_head": "29f3094a08f28f4f6660f2394fc90a6d66ab6c79",
+    "updater_pyz_sha256": "17849b16c0f60b30b69bcd7d0a17826058748fff053a93a3d90cf349c5baded7",
+    "manager_tar_sha256": "2de1705096b9dfcecbc260f5acb95898b4df059510b7bc4ae6ea6b60debb23fa"
+  },
+  "target": {
+    "manifest": "infra/n3w-t1/upgrades/manager-5b32e1ae8210.json",
+    "schema": "gh.n3w-t1-core-updater-target/2",
+    "component": "manager",
+    "expected_predecessor": "local/greenhouse-manager:fresh-b863ddd95909",
+    "target_image": "local/greenhouse-manager:fresh-5b32e1ae8210",
+    "transaction_schema": "gh.n3w-t1-core-updater-transaction/2",
+    "baseline": "infra/n3w-t1/clean-reference/u0-upgrade-baseline-a-20261104.json"
+  },
+  "execution_contract": {
+    "fresh_status_required": true,
+    "fresh_inspect_required": true,
+    "fresh_plan_required": true,
+    "one_apply_maximum": true,
+    "automatic_retry": false,
+    "automatic_rollback": false,
+    "post_status_required": true,
+    "post_inspect_required": true,
+    "homeassistant_image_mutation": false,
+    "broker_image_mutation": false,
+    "host_platform_mutation": false,
+    "board_access": false,
+    "merge": false
+  }
+}

@@ -1,3 +1,204 @@
+## 2026-11-05 — U1 R4 repaired A→B live reapply CLOSED_PASS
+
+- Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
+- Current repository product source remains `b863ddd959090ca139af76bd68dbef31d773e6de` with Manager `local/greenhouse-manager:fresh-b863ddd95909`.
+- Repository Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted: real T1 is now Manager B `local/greenhouse-manager:fresh-5b32e1ae8210`, but repository canonical promotion is intentionally deferred until PR #777 merge supplies the real merge commit.
+
+- Fresh exact-package and remote binding checks passed.
+- Fresh preflight status/runtime-state/inspect/plan all passed from healthy Manager A and terminal `ROLLED_BACK`.
+- The one-shot R4 authorization was claimed and consumed exactly once.
+- Exactly one updater-owned apply returned `PASS / COMMITTED / t1_mutation=true`.
+- Post-status returned `recovery_required=false` and transaction `COMMITTED`.
+- Final runtime-state is `TARGET_BOUND_RUNNING / HEALTHY` on Manager B `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Home Assistant and Broker remained unchanged and post-inspect confirmed the same bindings.
+- No second apply, explicit rollback, board access or merge occurred.
+- KF-141 source repair, transaction reconciliation and repaired real A→B reapply are all CLOSED_PASS.
+- Repository canonical authority manifest still records Manager A; authority promotion and PR #777 merge decision remain separate.
+- Next gate: `N3W_T1_CORE_UPDATER_U1_R4_POST_LIVE_ACCEPTANCE_AUTHORITY_PROMOTION_AND_PR777_MERGE_DECISION_20261105_01`.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_U1_R4_MANAGER_A_TO_B_LIVE_REAPPLY_CLOSURE_20261105.md`.
+
+## 2026-11-05 — U1 R4 attempt 01 stopped locally before T1 commands
+
+- Exact local package hashes passed.
+- SSH reached the password prompt, but ControlMaster creation failed because the Unix-domain socket path was too long.
+- No remote staging, updater preflight, apply, transaction write or service mutation occurred.
+- Authorization remains granted=true, claimed=false, consumed=false.
+- Retry is allowed with a short ControlPath under `/tmp`; no new authorization is required.
+
+## 2026-11-05 — U1 R4 repaired A→B live reapply AUTHORIZED
+
+- One-shot authorization `N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_REAPPLY_U1_R4_20261105_01` is explicitly granted.
+- Current state is granted=true, claimed=false, consumed=false, replay=false.
+- Exactly one apply is permitted only after fresh status/runtime-state/inspect/plan guards pass.
+- Any preflight drift stops before claim/consumption.
+- Once apply is invoked, authorization is consumed regardless of PASS/FAIL.
+- No second apply and no blind rollback are authorized.
+- PR #777 remains unmerged.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_U1_R4_MANAGER_A_TO_B_LIVE_REAPPLY_AUTHORIZATION_20261105.md`.
+
+## 2026-11-05 — U1 R4 repaired A→B live reapply PREAUTH READY
+
+- Current live authority remains healthy Manager A; transaction is terminal `ROLLED_BACK` with `recovery_required=false`.
+- Exact repaired package `13336359358` remains reusable and unexpired; current PR drift from exact source is documentation-only.
+- Exact V2 apply uses confirmation token `T1_CORE_UPDATER_APPLY`.
+- R4 must run fresh status/runtime-state/inspect/plan and stop before mutation on any drift.
+- Proposed one-shot live authorization is `N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_REAPPLY_U1_R4_20261105_01`.
+- Authorization is not granted, claimed or consumed by merely entering this gate.
+- A successful R4 must commit Manager B while Home Assistant/Broker remain unchanged.
+- Any attempted apply consumes the authorization; no second apply and no blind rollback are allowed.
+- PR #777 remains unmerged.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_U1_R4_MANAGER_A_TO_B_LIVE_REAPPLY_AUTHORIZATION_20261105.md`.
+
+## 2026-11-05 — KF-141 post-reconciliation disposition CLOSED_PASS; R4 repaired A→B reapply selected
+
+- Current production remains healthy Manager A with `PREDECESSOR_BOUND_RUNNING / HEALTHY`.
+- R3 failed transaction debt is cleared: current transaction `ROLLED_BACK`, `recovery_required=false`.
+- Exact repaired updater package `13336359358` remains valid/unexpired; exact source `fc1e1bee...`; CI source/exact-manager-slice/Pre-U1 V2 simulation all SUCCESS.
+- Fresh compare from exact package source head to current PR #777 head is documentation/state-record only; no updater or Manager source drift.
+- Manager B bytes remain unchanged and are not rejected; no Manager B rebuild or updater-package rebuild is required.
+- Selected next route: fresh R4 repaired A→B live reapply using the same exact package.
+- PR #777 must remain unmerged until R4 live acceptance.
+- Proposed new one-shot authorization: `N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_REAPPLY_U1_R4_20261105_01`; not yet granted.
+- No T1 access/mutation occurred in this disposition gate.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_U1_R3_KF141_POST_RECONCILIATION_DISPOSITION_20261105.md`.
+
+## 2026-11-05 — KF-141 transaction metadata reconciliation CLOSED_PASS
+
+- Fresh pre-write guard remained `PREDECESSOR_BOUND_RUNNING / HEALTHY` on Manager A with transaction `FAILED_EMERGENCY`.
+- One-shot reconciliation authorization was claimed and consumed exactly once; replay is forbidden.
+- Exact updater rollback returned `PASS / ROLLED_BACK / t1_mutation=false`.
+- Post-status returned `recovery_required=false` and transaction `ROLLED_BACK`.
+- Final runtime-state remained `PREDECESSOR_BOUND_RUNNING / HEALTHY` on `local/greenhouse-manager:fresh-b863ddd95909`.
+- No second rollback, new apply, transaction delete, board access, production authority switch or merge occurred.
+- KF-141 source repair package and transaction reconciliation are CLOSED_PASS; repaired real A -> B reapply has not been executed and is not implied by this closure.
+- Next route: `N3W_T1_CORE_UPDATER_U1_R3_KF141_POST_RECONCILIATION_DISPOSITION_20261105_01`; auto-execute is false.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_U1_R3_KF141_TRANSACTION_METADATA_RECONCILIATION_CLOSURE_20261105.md`.
+
+## 2026-11-05 — KF-141 one-shot transaction metadata reconciliation authorized
+
+- Authorization `N3W_T1_CORE_UPDATER_U1_R3_KF141_TRANSACTION_METADATA_RECONCILIATION_20261105_01` is explicitly granted, not yet claimed or consumed, and non-replayable.
+- Fresh PR #777 drift since the previous archive is docs-only; exact updater source remains `fc1e1bee1f158cc199413ead26564938fca5b1a9`.
+- Artifact `13336359358` remains available/unexpired with the frozen digest and exact source head.
+- Before transaction write, a fresh read-only guard must still prove `PREDECESSOR_BOUND_RUNNING / HEALTHY`, Manager A, and `FAILED_EMERGENCY`.
+- If guard passes, exactly one updater-owned rollback invocation is authorized; apply, service restart, binding rewrite, manual transaction edit/delete and board access remain forbidden.
+- After the single invocation, only read-only status/runtime evidence is allowed; no second rollback.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_U1_R3_KF141_TRANSACTION_METADATA_RECONCILIATION_AUTHORIZATION_20261105.md`.
+
+## 2026-11-05 — KF-141 transaction reconciliation decision CLOSED_PASS
+
+- Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source remains `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Current repository Manager remains `local/greenhouse-manager:fresh-b863ddd95909`; Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; canonical production authority remains Manager A. The failed R3 successor attempt does not switch production authority.
+- Fresh real-T1 authority remains `PREDECESSOR_BOUND_RUNNING / HEALTHY` on Manager A.
+- Manual transaction edit/delete and blind service rollback were rejected.
+- Selected path: exact repaired updater-owned explicit rollback.
+- For the proven predecessor-healthy branch, source and tests require `transaction_status=ROLLED_BACK`, `t1_mutation=false`, and no host/service events.
+- `recovery_required` is computed from terminal transaction status; successful `ROLLED_BACK` is expected to make updater status report `recovery_required=false`.
+- The terminal transaction should remain in place for evidence; a future separately authorized apply will archive it through `V2StateStore.prepare_new()`.
+- This decision gate did not access T1 or modify the transaction.
+- Proposed one-shot authorization: `N3W_T1_CORE_UPDATER_U1_R3_KF141_TRANSACTION_METADATA_RECONCILIATION_20261105_01`.
+- Next gate is the explicit authorization boundary; it is not authorized or auto-executed.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_U1_R3_KF141_TRANSACTION_RECONCILIATION_DECISION_20261105.md`.
+
+## 2026-11-04 — KF-141 fresh runtime-state CLOSED_PASS; predecessor A healthy
+
+- Exact repaired updater artifact `13336359358` / pyz SHA256 `65a5f62dcf9640d55067ab3104a8475a5bd1372ff1fce9a4441f18e3f53b2b46` executed exactly one read-only `runtime-state`.
+- Result: `PASS`, `mutation=false`, runtime class `PREDECESSOR_BOUND_RUNNING`, health `HEALTHY`.
+- Fresh Manager binding is `local/greenhouse-manager:fresh-b863ddd95909`; Home Assistant and Broker bindings remain the accepted production values.
+- Services owner is active; Manager/HA/Broker each have one running runtime; Manager and HA MQTT authentication are true; HA HTTP is 401; expected listeners are present.
+- Durable R3 transaction remains `FAILED_EMERGENCY / FAILED_EMERGENCY / recovery_required=true`; transaction was not changed.
+- Consumed authorization `N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_APPLY_U1_V2_20261104_02` remains replay-forbidden.
+- No apply, rollback, service restart, board access, production authority switch or merge occurred.
+- Next route is `N3W_T1_CORE_UPDATER_U1_R3_KF141_TRANSACTION_RECONCILIATION_DECISION_20261104_01`, but it is not auto-executed and any transaction/runtime mutation requires a separate authorization.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_U1_R3_KF141_READONLY_RUNTIME_STATE_CLASSIFICATION_CLOSURE_20261104.md`.
+
+## 2026-11-04 — KF-141 exact repaired package CLOSED_PASS; read-only runtime-state next
+
+- Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source remains `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Live upgrade accepted; canonical accepted Manager remains `local/greenhouse-manager:fresh-b863ddd95909`, HA remains `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- KF-141 source repair package is CLOSED_PASS; live transaction reconciliation remains pending.
+- Exact package source head: `fc1e1bee1f158cc199413ead26564938fca5b1a9`.
+- Updater CI #217 / run `41854863798`: SUCCESS; source tests 135 PASS; exact package and Pre-U1 V2 simulation PASS.
+- Exact package artifact ID `13336359358`, digest `e786d23deabe5bd6c8eafa4480f7ac13944a2a908d82973f385f7446183c9527`, size 63069383 bytes.
+- Exact updater pyz SHA256 `65a5f62dcf9640d55067ab3104a8475a5bd1372ff1fce9a4441f18e3f53b2b46`; downloaded pyz exposes `runtime-state`.
+- Manager B bytes remain unchanged: image `local/greenhouse-manager:fresh-5b32e1ae8210`, tar SHA256 `2de1705096b9dfcecbc260f5acb95898b4df059510b7bc4ae6ea6b60debb23fa`.
+- R3 authorization `N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_APPLY_U1_V2_20261104_02` is consumed and replay-forbidden.
+- Durable live transaction remains `FAILED_EMERGENCY` / recovery required from last evidence; current actual Manager binding/runtime is `UNKNOWN_FRESH`.
+- New live apply, blind rollback, transaction edit/delete, board access and merge remain forbidden.
+- Next one gate: `N3W_T1_CORE_UPDATER_U1_R3_KF141_READONLY_RUNTIME_STATE_CLASSIFICATION_20261104_01`.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_U1_R3_KF141_EXACT_PACKAGE_CLOSURE_AND_READONLY_RUNTIME_STATE_PREEXECUTION_20261104.md`.
+
+## 2026-11-04 — U1 R3 real apply FAILED_EMERGENCY; KF-141 source repair in progress
+
+- Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source remains `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Canonical accepted Manager remains `local/greenhouse-manager:fresh-b863ddd95909`; Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; canonical production authority remains Manager A. The R3 A→B successor attempt is failed/unaccepted and does not switch production authority.
+- R3 crossed the real V2 apply boundary using executor head `459e240c351ca04c01b94e1ed9ddeb8f21315f0c`.
+- Execution `N3W_U1_V2_B10_20261104_02_R3` invoked exactly one apply and no second apply.
+- One-shot authorization `N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_APPLY_U1_V2_20261104_02` is claimed, consumed and permanently replay-forbidden.
+- Apply returned `automatic_rollback_failed`; the durable V2 transaction is `FAILED_EMERGENCY`, phase `FAILED_EMERGENCY`, with `recovery_required=true`.
+- Current live Manager binding/runtime is **not yet freshly classified**. Do not infer A or B from the stale/non-terminal transaction ledger.
+- Canonical production authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; it is not switched by the failed/unaccepted R3 attempt.
+- KF-141 is registered as `SOURCE_REPAIR_IN_PROGRESS_LIVE_RECOVERY_PENDING`.
+- KF-141 code-repair authority head before state-doc alignment: `faa39f0e6052ac968a50062110fce1ec2482bb32`.
+- Source repair separates structural observation from soft-health convergence, adds read-only `runtime-state`, classifies recovery before mutation, and preserves sanitized apply/rollback error codes.
+- New live A→B apply is forbidden; consumed authorization replay is forbidden; blind rollback and transaction edit/delete are forbidden.
+- Board access and merge remain false.
+- Next gate: exact-source/package closure, then fresh read-only real-T1 `runtime-state` classification and separate transaction reconciliation decision.
+- Design authority: `docs/development/N3W_T1_CORE_UPDATER_U1_R3_READINESS_RECOVERY_ARCHITECTURE_REPAIR_DESIGN_20261104.md`.
+- Progress authority: `docs/development/N3W_T1_CORE_UPDATER_U1_R3_KF141_SOURCE_REPAIR_PROGRESS_20261104.md`.
+- Failure/regression authority: `docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md`.
+
+## 2026-11-04 — U1 V2 rebind CLOSED_PASS; new B10 authorization required
+
+- Authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Product source remains `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Manager A remains live: `local/greenhouse-manager:fresh-b863ddd95909`; Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- V2 rebind exact head `29f3094a08f28f4f6660f2394fc90a6d66ab6c79`, CI #179 / run `41841275491`: source 128 PASS, exact V2 package PASS, Pre-U1 V2 simulation PASS, terminal V2 transaction archive PASS.
+- V2 package artifact `13329432192`, digest `b2cd55cf11de3a97f5d0df13e790094778b76582e1c885318387a8368b6ecfc5`.
+- Updater pyz SHA256 `17849b16c0f60b30b69bcd7d0a17826058748fff053a93a3d90cf349c5baded7`; Manager tar remains `2de1705096b9dfcecbc260f5acb95898b4df059510b7bc4ae6ea6b60debb23fa`.
+- Target/transaction authority is V2: `gh.n3w-t1-core-updater-target/2` + `gh.n3w-t1-core-updater-transaction/2`.
+- Previous authorization `N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_APPLY_U1_20261104_01` was voided before claim and was never consumed.
+- New proposed one-shot authorization: `N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_APPLY_U1_V2_20261104_02`.
+- No real T1 access, T1 mutation, board access or merge occurred during the V2 rebind.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_U1_MANAGER_A_TO_B_V2_REBIND_CLOSURE_AND_B10_PREAUTHORIZATION_20261104.md`.
+
+## 2026-11-04 — U1 V2 rebind before live apply
+
+- Authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Product source: `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Manager: `local/greenhouse-manager:fresh-b863ddd95909`.
+- Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean-reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical clean-reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; Manager A remains current while U1 control-plane V2 rebind is validated.
+
+## 2026-11-04 — U1 Manager A -> B B8 CLOSED_PASS; B9 live apply preauthorization ready
+
+- B3/B4/B5 source repair, tests and independent review are `CLOSED_PASS`.
+- B6 exact linux/arm64 Manager B artifact is `CLOSED_PASS`.
+- B7 exact target/package binding is `CLOSED_PASS`.
+- B8 dedicated Pre-U1 simulation CI run #1 / `41830103737` is SUCCESS; package identity and real updater inspect/plan/simulated A->B apply/B->A rollback all PASS.
+- Current real Manager remains A: `local/greenhouse-manager:fresh-b863ddd95909`.
+- Candidate Target B remains `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Exact B7 package artifact is `13322275752`, digest `720611993fa80c1f29a39399183a2adee790a497292ca07c99bc270524d30366`.
+- Proposed one-shot B10 authorization: `N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_APPLY_U1_20261104_01`.
+- B9 is preauthorization-only: `APPLY_AUTHORIZATION_GRANTED=false`, `U1_LIVE_APPLY_AUTHORIZED=false`.
+- No real T1 access, T1 mutation, board access, service restart or merge has occurred in B9.
+- Next one gate is explicit B10 live-apply authorization; auto execution remains disabled.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_U1_MANAGER_A_TO_B_B8_CLOSURE_AND_B9_LIVE_APPLY_PREAUTHORIZATION_20261104.md`.
+
 ## 2026-11-04 — Pre-U1 CLOSED_PASS; PR #773 stacked convergence merged to main
 
 - Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.

@@ -22,6 +22,7 @@ from n3w_t1_core_updater_v2_common import (
     sha256_file,
     sha256_bytes,
     canonical,
+    safe_error_code,
     validate_component_candidate,
 )
 from n3w_t1_core_updater_v2_state import V2StateStore
@@ -64,6 +65,125 @@ class MultiComponentCoreUpdater:
             "homeassistant_http_status": snapshot.get(
                 "homeassistant_http_status"
             ),
+        }
+
+    def _classify_transaction_state(
+        self,
+        transaction: dict[str, Any],
+        observed: dict[str, Any],
+    ) -> tuple[str, str]:
+        component = transaction.get("component")
+        if component not in {"manager", "homeassistant", "broker"}:
+            return "UNRESOLVED", "FAILED"
+
+        bindings = observed.get("image_bindings")
+        if not isinstance(bindings, dict):
+            return "UNRESOLVED", "FAILED"
+        binding = bindings.get(component)
+        predecessor = transaction.get("predecessor_image")
+        target_doc = transaction.get("target")
+        target = (
+            target_doc.get("target_image_ref")
+            if isinstance(target_doc, dict)
+            else None
+        )
+        application_state = observed.get("application_state")
+        health_state = str(observed.get("health_state") or "FAILED")
+
+        if application_state == "stopped":
+            if binding == predecessor:
+                return "APPLICATION_STOPPED_PREDECESSOR", "NOT_RUNNING"
+            if binding == target:
+                return "APPLICATION_STOPPED_TARGET", "NOT_RUNNING"
+            return "UNRESOLVED", "FAILED"
+
+        if application_state != "running":
+            return "UNRESOLVED", "FAILED"
+
+        snapshot = observed.get("snapshot")
+        runtime = snapshot.get("runtime") if isinstance(snapshot, dict) else None
+        item = runtime.get(component) if isinstance(runtime, dict) else None
+        if not isinstance(item, dict):
+            return "UNRESOLVED", "FAILED"
+
+        adapter = adapter_for(component)
+        peer_authority = transaction.get("pre_peer_runtime")
+        if (
+            not isinstance(peer_authority, dict)
+            or set(peer_authority) != set(adapter.peers)
+        ):
+            return "UNRESOLVED", "FAILED"
+        try:
+            adapter.verify_peer_runtime(
+                snapshot,
+                peer_authority,
+            )
+        except Exception:
+            return "UNRESOLVED", "FAILED"
+
+        if (
+            binding == predecessor
+            and item.get("image_ref") == predecessor
+            and item.get("image_id") == transaction.get("predecessor_image_id")
+            and item.get("runtime_contract_sha256")
+            == transaction.get("predecessor_runtime_contract_sha256")
+        ):
+            return "PREDECESSOR_BOUND_RUNNING", health_state
+
+        if (
+            binding == target
+            and item.get("image_ref") == target
+            and item.get("image_id")
+            == transaction.get("target_runtime_image_id")
+            and item.get("runtime_contract_sha256")
+            == transaction.get("predecessor_runtime_contract_sha256")
+        ):
+            return "TARGET_BOUND_RUNNING", health_state
+
+        return "UNRESOLVED", "FAILED"
+
+    def runtime_state(self) -> dict[str, Any]:
+        transaction = self.store.read()
+        legacy = self.store.read_legacy()
+        observed = self.host.observe_state_v2()
+
+        runtime_class = "NO_V2_TRANSACTION"
+        health_state = str(observed.get("health_state") or "FAILED")
+        if isinstance(transaction, dict):
+            runtime_class, health_state = self._classify_transaction_state(
+                transaction,
+                observed,
+            )
+
+        public_observed = {
+            "application_state": observed.get("application_state"),
+            "services_owner_state": observed.get("services_owner_state"),
+            "running_counts": observed.get("running_counts"),
+            "image_bindings": observed.get("image_bindings"),
+            "image_binding_modes": observed.get("image_binding_modes"),
+            "listeners": observed.get("listeners"),
+            "health_state": observed.get("health_state"),
+            "snapshot": (
+                self._public_snapshot(observed["snapshot"])
+                if isinstance(observed.get("snapshot"), dict)
+                else None
+            ),
+        }
+        return {
+            "schema": STATUS_SCHEMA_V2,
+            "status": "PASS",
+            "operation": "runtime-state",
+            "component": (
+                transaction.get("component")
+                if isinstance(transaction, dict)
+                else None
+            ),
+            "mutation": False,
+            "runtime_class": runtime_class,
+            "health_state": health_state,
+            "observed": public_observed,
+            "transaction": transaction,
+            "legacy_manager_transaction": legacy,
         }
 
     def baseline(self) -> dict[str, Any]:
@@ -382,6 +502,7 @@ class MultiComponentCoreUpdater:
                 target,
                 tx,
                 reason=type(error).__name__,
+                error_code=safe_error_code(error),
             )
             raise
 
@@ -391,10 +512,20 @@ class MultiComponentCoreUpdater:
         tx: dict[str, Any],
         *,
         reason: str,
+        error_code: str,
     ) -> None:
         adapter = adapter_for(target.component)
         try:
             if tx.get("phase") in {"AUTHORIZED", "TARGET_IMAGE_READY"}:
+                observed = self.host.observe_state_v2()
+                runtime_class, health_state = self._classify_transaction_state(
+                    tx,
+                    observed,
+                )
+                if runtime_class != "PREDECESSOR_BOUND_RUNNING":
+                    raise UpdaterV2Error("prestop_runtime_drift")
+                if health_state != "HEALTHY":
+                    self.host.wait_services()
                 current = self.host.inspect_v2()
                 if (
                     adapter.current_binding(current) != tx["predecessor_image"]
@@ -416,6 +547,9 @@ class MultiComponentCoreUpdater:
                     status="ROLLED_BACK",
                     phase="ROLLED_BACK",
                     failure_reason=reason,
+                    apply_error_code=error_code,
+                    last_runtime_class="PREDECESSOR_BOUND_RUNNING",
+                    last_health_state="HEALTHY",
                     rolled_back_at_unix=int(time.time()),
                     t1_mutation=False,
                 )
@@ -454,16 +588,33 @@ class MultiComponentCoreUpdater:
                 status="ROLLED_BACK",
                 phase="ROLLED_BACK",
                 failure_reason=reason,
+                apply_error_code=error_code,
+                last_runtime_class="PREDECESSOR_BOUND_RUNNING",
+                last_health_state="HEALTHY",
                 rolled_back_at_unix=int(time.time()),
                 t1_mutation=True,
             )
             self.store.write(tx)
         except Exception as rollback_error:
+            runtime_class = "UNRESOLVED"
+            health_state = "FAILED"
+            try:
+                observed = self.host.observe_state_v2()
+                runtime_class, health_state = self._classify_transaction_state(
+                    tx,
+                    observed,
+                )
+            except Exception:
+                pass
             tx.update(
                 status="FAILED_EMERGENCY",
                 phase="FAILED_EMERGENCY",
                 failure_reason=reason,
+                apply_error_code=error_code,
                 rollback_error=type(rollback_error).__name__,
+                rollback_error_code=safe_error_code(rollback_error),
+                last_runtime_class=runtime_class,
+                last_health_state=health_state,
             )
             self.store.write(tx)
             raise UpdaterV2Error("automatic_rollback_failed") from rollback_error
@@ -505,50 +656,61 @@ class MultiComponentCoreUpdater:
             )
             adapter = adapter_for(target.component)
 
-            binding = self.host.component_binding_v2(target.component)
-            if binding == tx["predecessor_image"]:
-                try:
-                    current = self.host.inspect_v2()
-                except Exception:
-                    current = None
-                if current is not None and (
-                    current["runtime"][target.component]["image_id"]
-                    == tx["predecessor_image_id"]
-                    and current["runtime"][target.component][
+            observed = self.host.observe_state_v2()
+            runtime_class, health_state = self._classify_transaction_state(
+                tx,
+                observed,
+            )
+            if runtime_class == "UNRESOLVED":
+                raise UpdaterV2Error("rollback_runtime_unresolved")
+
+            if runtime_class == "PREDECESSOR_BOUND_RUNNING":
+                if health_state != "HEALTHY":
+                    self.host.wait_services()
+                current = self.host.inspect_v2()
+                if (
+                    adapter.current_binding(current) != tx["predecessor_image"]
+                    or current["runtime"][target.component]["image_id"]
+                    != tx["predecessor_image_id"]
+                    or current["runtime"][target.component][
                         "runtime_contract_sha256"
                     ]
-                    == tx["predecessor_runtime_contract_sha256"]
+                    != tx["predecessor_runtime_contract_sha256"]
                 ):
-                    adapter.verify_peer_runtime(
-                        current,
-                        tx["pre_peer_runtime"],
+                    raise UpdaterV2Error(
+                        "rollback_predecessor_runtime_invalid"
                     )
-                    self.policy.validate_post(
-                        target.component,
-                        tx["pre_a1_policy"],
-                        self.policy.capture(),
-                    )
-                    tx.update(
-                        status="ROLLED_BACK",
-                        phase="ROLLED_BACK",
-                        rolled_back_at_unix=int(time.time()),
-                        t1_mutation=False,
-                    )
-                    self.store.write(tx)
-                    return {
-                        "schema": STATUS_SCHEMA_V2,
-                        "status": "PASS",
-                        "operation": "rollback",
-                        "component": target.component,
-                        "transaction_status": "ROLLED_BACK",
-                        "t1_mutation": False,
-                    }
+                adapter.verify_peer_runtime(current, tx["pre_peer_runtime"])
+                self.policy.validate_post(
+                    target.component,
+                    tx["pre_a1_policy"],
+                    self.policy.capture(),
+                )
+                tx.update(
+                    status="ROLLED_BACK",
+                    phase="ROLLED_BACK",
+                    last_runtime_class="PREDECESSOR_BOUND_RUNNING",
+                    last_health_state="HEALTHY",
+                    rolled_back_at_unix=int(time.time()),
+                    t1_mutation=False,
+                )
+                self.store.write(tx)
+                return {
+                    "schema": STATUS_SCHEMA_V2,
+                    "status": "PASS",
+                    "operation": "rollback",
+                    "component": target.component,
+                    "transaction_status": "ROLLED_BACK",
+                    "runtime": self._public_snapshot(current),
+                    "t1_mutation": False,
+                }
 
-            if binding not in {
-                tx["predecessor_image"],
-                target.target_image_ref,
+            if runtime_class not in {
+                "TARGET_BOUND_RUNNING",
+                "APPLICATION_STOPPED_PREDECESSOR",
+                "APPLICATION_STOPPED_TARGET",
             }:
-                raise UpdaterV2Error("rollback_binding_unknown")
+                raise UpdaterV2Error("rollback_runtime_class_invalid")
 
             if self.host.image_id(tx["predecessor_image"]) != tx[
                 "predecessor_image_id"
@@ -558,11 +720,21 @@ class MultiComponentCoreUpdater:
             tx.update(
                 status="ROLLING_BACK",
                 phase="ROLLBACK_AUTHORIZED",
+                last_runtime_class=runtime_class,
+                last_health_state=health_state,
             )
             self.store.write(tx)
 
             try:
-                adapter.quiesce(self.host)
+                if runtime_class in {
+                    "TARGET_BOUND_RUNNING",
+                }:
+                    adapter.quiesce(self.host)
+                elif runtime_class == "APPLICATION_STOPPED_TARGET":
+                    pass
+                elif runtime_class == "APPLICATION_STOPPED_PREDECESSOR":
+                    pass
+
                 if self.host.component_binding_v2(
                     target.component
                 ) == target.target_image_ref:
@@ -580,6 +752,7 @@ class MultiComponentCoreUpdater:
                         target.target_image_ref,
                         tx["predecessor_image"],
                     )
+
                 adapter.activate(self.host)
                 post = self.host.inspect_v2()
                 if (
@@ -603,6 +776,8 @@ class MultiComponentCoreUpdater:
                 tx.update(
                     status="ROLLED_BACK",
                     phase="ROLLED_BACK",
+                    last_runtime_class="PREDECESSOR_BOUND_RUNNING",
+                    last_health_state="HEALTHY",
                     rolled_back_at_unix=int(time.time()),
                     t1_mutation=True,
                 )
@@ -617,10 +792,25 @@ class MultiComponentCoreUpdater:
                     "t1_mutation": True,
                 }
             except Exception as error:
+                failed_class = "UNRESOLVED"
+                failed_health = "FAILED"
+                try:
+                    current_observed = self.host.observe_state_v2()
+                    failed_class, failed_health = (
+                        self._classify_transaction_state(
+                            tx,
+                            current_observed,
+                        )
+                    )
+                except Exception:
+                    pass
                 tx.update(
                     status="FAILED_EMERGENCY",
                     phase="FAILED_EMERGENCY",
                     rollback_error=type(error).__name__,
+                    rollback_error_code=safe_error_code(error),
+                    last_runtime_class=failed_class,
+                    last_health_state=failed_health,
                 )
                 self.store.write(tx)
                 raise

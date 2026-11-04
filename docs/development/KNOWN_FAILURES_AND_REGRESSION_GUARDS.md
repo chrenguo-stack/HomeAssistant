@@ -1,3 +1,58 @@
+### 2026-11-04 KF-141 — T1 Core Updater soft-health convergence can inflate a restart race into FAILED_EMERGENCY
+
+| ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
+|---|---|---|---|---|---|
+| KF-141 | T1_Core_Updater U1 Manager A→B V2 apply / automatic rollback / runtime classification | U1 B10 R3 fresh plan PASS 后首次真实 apply 进入 mutation；apply 返回 `automatic_rollback_failed`，事务进入 `FAILED_EMERGENCY` / `recovery_required=true`；post inspect 返回 `mqtt_current_authentication_missing`。授权已消费且禁止 replay | `start_services()/wait_services()` 与 `inspect_v2()` 对“ready”定义分裂：前者在服务/容器/listener 收敛后返回，后者立即额外要求 Manager + HA 当前 MQTT 认证和 HA HTTP；同一瞬时软健康窗口又被 automatic rollback 复用，可能把普通启动收敛延迟连续放大成 apply FAIL + rollback FAIL。进一步复核确认 `inspect_v2()` 同时承担结构观测和软健康 gate，导致软健康未收敛时结构状态不可用于 recovery；transaction 还只记录异常类名，丢失精确错误码 | 分离 structural observation 与 convergence validation；apply/rollback 共用同一 bounded canonical convergence wait；增加 read-only `runtime-state` 分类；predecessor 已运行但软健康 CONVERGING 时只等待、禁止先重启；`FAILED_EMERGENCY` 保留给 bounded convergence expiry / hard unresolved；transaction 保存脱敏 `apply_error_code` / `rollback_error_code` / last runtime class + health state；补时间序列 LocalHost tests | CLOSED_PASS |
+
+R3 evidence authority:
+- exact executor head `459e240c351ca04c01b94e1ed9ddeb8f21315f0c`;
+- one-shot authorization `N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_APPLY_U1_V2_20261104_02` is consumed and replay-forbidden;
+- target archive was verified before mutation;
+- durable V2 transaction records `FAILED_EMERGENCY` and `recovery_required=true`;
+- no second apply and no executor-driven automatic rollback occurred.
+
+Exact repaired package closure authority:
+`docs/development/N3W_T1_CORE_UPDATER_U1_R3_KF141_EXACT_PACKAGE_CLOSURE_AND_READONLY_RUNTIME_STATE_PREEXECUTION_20261104.md`.
+
+Transaction reconciliation closure authority:
+`docs/development/N3W_T1_CORE_UPDATER_U1_R3_KF141_TRANSACTION_METADATA_RECONCILIATION_CLOSURE_20261105.md`.
+
+Post-reconciliation disposition authority:
+`docs/development/N3W_T1_CORE_UPDATER_U1_R3_KF141_POST_RECONCILIATION_DISPOSITION_20261105.md`.
+
+R4 real repaired A->B live reapply closure authority:
+`docs/development/N3W_T1_CORE_UPDATER_U1_R4_MANAGER_A_TO_B_LIVE_REAPPLY_CLOSURE_20261105.md`.
+
+Final KF-141 disposition:
+- exact repaired updater package CLOSED_PASS;
+- real predecessor-healthy transaction reconciliation CLOSED_PASS;
+- fresh real A->B reapply CLOSED_PASS;
+- transaction COMMITTED and recovery_required=false;
+- Manager B TARGET_BOUND_RUNNING / HEALTHY;
+- Home Assistant and Broker unchanged;
+- no second apply or explicit rollback;
+- KF-141 is CLOSED_PASS.
+- Repository canonical current-stack authority promotion is separate post-acceptance housekeeping and does not reopen KF-141.
+
+Current disposition:
+- real T1 runs accepted Manager B `local/greenhouse-manager:fresh-5b32e1ae8210`;
+- durable transaction is terminal `COMMITTED` and `recovery_required=false`;
+- runtime is `TARGET_BOUND_RUNNING / HEALTHY`;
+- Home Assistant and Broker bindings remain unchanged;
+- KF-141 is CLOSED_PASS;
+- repository canonical current-stack authority promotion and PR #777 merge decision remain pending as a separate post-acceptance gate.
+
+Current source-repair design authority:
+`docs/development/N3W_T1_CORE_UPDATER_U1_R3_READINESS_RECOVERY_ARCHITECTURE_REPAIR_DESIGN_20261104.md`.
+
+Guards:
+- no new live apply until KF-141 source closure plus fresh read-only live classification/reconciliation;
+- no replay of the consumed U1 authorization;
+- no blind explicit rollback;
+- no manual transaction deletion/edit;
+- runtime classification must come from fresh facts, not a stale transaction phase;
+- SOFT_RUNTIME_CHECK is required when converged, not on the first instantaneous post-start read.
+
 ### 2026-11-03 KF-140 closure — CLOSED_FALSE_POSITIVE
 
 The apparent post-registration Direct telemetry failure was an acceptance-harness false negative, not a product defect. The harness searched legacy/non-applicable Manager strings (`Accepted telemetry node=` / `Rejected telemetry node=`) while the deployed simplified N3-W path logs `Accepted simplified N3-W telemetry source=direct ...`, `Rejected simplified N3-W ingress source=direct ...`, and duplicate status separately. Corrected read-only evidence proves Manager accepted seq 71 through 101 consecutively with zero rejects and zero duplicates; fresh board API capture independently observed seq 100/101 Direct submissions. Each seq 100/101 Manager-accept event was time-correlated to +1097 bytes / +2 data segments on the unique Broker-to-Home-Assistant 1883 socket with a zero-byte pre-event baseline.

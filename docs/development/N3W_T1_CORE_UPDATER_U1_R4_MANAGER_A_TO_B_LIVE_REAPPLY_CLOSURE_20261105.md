@@ -1,0 +1,230 @@
+# N3-W T1 Core Updater U1 R4 Manager A -> B live reapply closure
+
+Date: 2026-11-05
+
+## Gate
+
+```text
+TASK=N3W_T1_CORE_UPDATER_U1_R4_MANAGER_A_TO_B_LIVE_REAPPLY_EXECUTION_20261105_01
+RESULT=CLOSED_PASS
+
+AUTHORIZATION_ID=N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_REAPPLY_U1_R4_20261105_01
+AUTHORIZATION_GRANTED=true
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+AUTHORIZATION_REPLAY_PERMITTED=false
+
+EXACT_UPDATER_SOURCE_HEAD=fc1e1bee1f158cc199413ead26564938fca5b1a9
+EXACT_PACKAGE_ARTIFACT_ID=13336359358
+EXACT_UPDATER_PYZ_SHA256=65a5f62dcf9640d55067ab3104a8475a5bd1372ff1fce9a4441f18e3f53b2b46
+
+APPLY_INVOCATION_COUNT=1
+SECOND_APPLY_INVOCATION=false
+EXPLICIT_ROLLBACK_INVOCATION=false
+BOARD_ACCESS=false
+MERGE=false
+```
+
+## Attempt 01
+
+The first local executor attempt stopped before any T1 command because the
+macOS SSH ControlMaster Unix-domain-socket path was too long.
+
+```text
+ATTEMPT_01_RESULT=STOP_BEFORE_T1_COMMANDS
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+T1_MUTATION=false
+```
+
+The executor was repaired only by moving ControlPath to a short temporary path.
+No product/updater source change was required.
+
+## Attempt 02 exact package binding
+
+Local and remote package bytes all matched the frozen package:
+
+```text
+LOCAL_EXACT_PACKAGE=PASS
+REMOTE_PACKAGE_BINDING=PASS
+
+UPDATER_PYZ_SHA256=65a5f62dcf9640d55067ab3104a8475a5bd1372ff1fce9a4441f18e3f53b2b46
+MANAGER_TAR_SHA256=2de1705096b9dfcecbc260f5acb95898b4df059510b7bc4ae6ea6b60debb23fa
+TARGET_MANIFEST_SHA256=6d09dd585cdff9b2f1800b76e6c8a6326d1104a8b448d8739c3873905a44e442
+BASELINE_SHA256=a791377083e76f765ddf978c09025674eda3586d33892e4b609a814706bdfbbc
+PACKAGE_BINDING_SHA256=b227f2e5bb2f68629442bf1e3f8a190a1956884d4499fb4ecbe13154ab86bba2
+```
+
+## Fresh pre-mutation gate
+
+All required read-only operations exited 0:
+
+```text
+PRE_STATUS_EXIT_CODE=0
+PRE_RUNTIME_STATE_EXIT_CODE=0
+PRE_INSPECT_EXIT_CODE=0
+PRE_PLAN_EXIT_CODE=0
+```
+
+All semantic guards passed:
+
+```text
+PRE_STATUS=PASS
+PRE_RECOVERY_REQUIRED=false
+PRE_TRANSACTION_STATUS=ROLLED_BACK
+PRE_TRANSACTION_PHASE=ROLLED_BACK
+
+PRE_RUNTIME_CLASS=PREDECESSOR_BOUND_RUNNING
+PRE_HEALTH_STATE=HEALTHY
+PRE_MANAGER=local/greenhouse-manager:fresh-b863ddd95909
+
+PRE_INSPECT=PASS
+PRE_PLAN=PASS
+PRE_PLAN_MUTATION=false
+PRE_PLAN_CURRENT_MANAGER=local/greenhouse-manager:fresh-b863ddd95909
+PRE_PLAN_TARGET_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+PRE_PLAN_ARCHIVE_VERIFIED=true
+PRE_PLAN_ROLLBACK_AVAILABLE=true
+
+R4_PREFLIGHT=PASS
+```
+
+The authorization was claimed and consumed only after this gate passed.
+
+## One-shot apply result
+
+Exactly one updater-owned V2 apply was invoked.
+
+```text
+APPLY_EXIT_CODE=0
+APPLY_STATUS=PASS
+APPLY_OPERATION=apply
+APPLY_TRANSACTION_STATUS=COMMITTED
+APPLY_AUTHORIZATION_CONSUMED=true
+APPLY_T1_MUTATION=true
+APPLY_REASON=None
+```
+
+No second apply was invoked and no explicit rollback was invoked.
+
+## Post-apply state
+
+Required post-apply read-only commands all exited 0:
+
+```text
+POST_STATUS_EXIT_CODE=0
+POST_RUNTIME_STATE_EXIT_CODE=0
+POST_INSPECT_EXIT_CODE=0
+```
+
+Durable updater state:
+
+```text
+POST_STATUS=PASS
+POST_RECOVERY_REQUIRED=false
+POST_TRANSACTION_STATUS=COMMITTED
+POST_TRANSACTION_PHASE=COMMITTED
+POST_TRANSACTION_AUTHORIZATION_MATCH=true
+```
+
+Fresh real-T1 runtime:
+
+```text
+POST_RUNTIME_STATE_STATUS=PASS
+POST_RUNTIME_CLASS=TARGET_BOUND_RUNNING
+POST_HEALTH_STATE=HEALTHY
+
+POST_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+POST_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+POST_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+```
+
+Independent updater inspect immediately after apply confirmed the same three
+image bindings.
+
+All final executor assertions passed:
+
+```text
+FINAL_APPLY_EXIT=PASS
+FINAL_APPLY_STATUS=PASS
+FINAL_APPLY_OPERATION=PASS
+FINAL_APPLY_TRANSACTION=PASS
+FINAL_APPLY_AUTHORIZATION=PASS
+FINAL_APPLY_MUTATION=PASS
+
+FINAL_POST_STATUS_EXIT=PASS
+FINAL_POST_STATUS=PASS
+FINAL_POST_RECOVERY=PASS
+FINAL_POST_TRANSACTION=PASS
+FINAL_POST_TRANSACTION_PHASE=PASS
+FINAL_POST_AUTHORIZATION=PASS
+
+FINAL_POST_RUNTIME_EXIT=PASS
+FINAL_POST_RUNTIME=PASS
+FINAL_POST_RUNTIME_CLASS=PASS
+FINAL_POST_HEALTH=PASS
+FINAL_POST_MANAGER=PASS
+FINAL_POST_HA=PASS
+FINAL_POST_BROKER=PASS
+
+FINAL_POST_INSPECT_EXIT=PASS
+FINAL_POST_INSPECT=PASS
+FINAL_POST_INSPECT_MANAGER=PASS
+FINAL_POST_INSPECT_HA=PASS
+FINAL_POST_INSPECT_BROKER=PASS
+
+R4_RESULT=PASS
+```
+
+## KF-141 disposition
+
+The exact repaired updater has now passed both:
+
+1. real predecessor-healthy reconciliation without runtime mutation; and
+2. a fresh real Manager A -> B apply to terminal COMMITTED with target B
+   HEALTHY.
+
+Therefore the KF-141 readiness/recovery repair is real-T1 validated.
+
+```text
+KF141_SOURCE_REPAIR_PACKAGE=CLOSED_PASS
+KF141_TRANSACTION_RECONCILIATION=CLOSED_PASS
+KF141_REAL_REPAIRED_A_TO_B_REAPPLY=CLOSED_PASS
+KF141=CLOSED_PASS
+```
+
+## Canonical repository authority boundary
+
+The real T1 now runs accepted Manager B:
+
+```text
+LIVE_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+LIVE_TRANSACTION_STATUS=COMMITTED
+LIVE_RUNTIME_CLASS=TARGET_BOUND_RUNNING
+LIVE_HEALTH_STATE=HEALTHY
+```
+
+However, at this closure point the repository authority file
+`infra/n3w-t1/production/t1-core-stack-current.json` still names Manager A
+`local/greenhouse-manager:fresh-b863ddd95909`.
+
+This gate does not silently rewrite the canonical authority manifest. That
+repository promotion and its consistency/merge decision are a separate gate.
+
+```text
+LIVE_ACCEPTANCE=CLOSED_PASS
+REPOSITORY_CANONICAL_AUTHORITY_PROMOTED=false
+PR777_MERGE_READY=false
+```
+
+## Stop boundary
+
+```text
+NEXT_ONE_GATE=N3W_T1_CORE_UPDATER_U1_R4_POST_LIVE_ACCEPTANCE_AUTHORITY_PROMOTION_AND_PR777_MERGE_DECISION_20261105_01
+AUTO_EXECUTE_NEXT_GATE=false
+NEW_LIVE_APPLY_AUTHORIZED=false
+NEW_ROLLBACK_AUTHORIZED=false
+BOARD_ACCESS_AUTHORIZED=false
+MERGE_AUTHORIZED=false
+STOP=true
+```
