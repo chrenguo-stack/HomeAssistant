@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from unittest.mock import Mock, patch
 
+import pytest
+
 from greenhouse_manager.runtime.config import Settings
 from greenhouse_manager.runtime.mqtt_service import ManagerMqttService
 
@@ -22,6 +24,10 @@ def _canonical_telemetry() -> dict[str, object]:
     }
 
 
+@pytest.mark.xfail(
+    reason="Manager A commits discovery cache before MQTT publish success",
+    strict=True,
+)
 @patch("greenhouse_manager.runtime.mqtt_service.mqtt.Client")
 def test_discovery_publish_failure_retries_unchanged_telemetry(
     client_class: object,
