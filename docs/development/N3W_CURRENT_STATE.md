@@ -1,3 +1,55 @@
+## Latest authority — 2026-11-04 Pre-U1 G2 Node A real sensor runtime CLOSED_PASS; STOP before G3
+
+```text
+AUTHORITY_STATE=PRE_U1_G2_NODE_A_REAL_SENSOR_RUNTIME_CLOSED_PASS
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+AUTHORITY_SCHEMA=gh.n3w-t1-core-stack-current-authority/2
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=b863ddd959090ca139af76bd68dbef31d773e6de
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+U0_RESULT=CLOSED_PASS
+U0_REOPEN=false
+PRE_U1_G0_RESULT=CLOSED_PASS
+PRE_U1_G1_RESULT=CLOSED_PASS
+PRE_U1_G2_RESULT=CLOSED_PASS
+U1_MANAGER_A_TO_B_STATUS=SUSPENDED
+U1_PLAN_PRESERVED=true
+
+NODE_A_REAL_SENSOR_RUNTIME=PASS
+NODE_A_IDENTITY_PRESERVED=true
+REPAIR_PAIRING_REQUIRED=false
+CANONICAL_SOURCE=direct
+CANONICAL_SAME_BOOT=true
+FIVE_CONSECUTIVE_CANONICAL_ADVANCES=true
+CANONICAL_SEQ_BASELINE=14
+CANONICAL_SEQ_FINAL=19
+CANONICAL_SEQUENCE_GAP=false
+
+HA_NODE_DEVICE_MATCH_COUNT=1
+HA_ALL_7_RAW_ENTITIES_PRESENT=true
+HA_ALL_7_RAW_STATES_FINITE=true
+HA_UI_NODE_A_SINGLE_DEVICE=true
+HA_UI_7_RAW_ENTITIES_HAVE_VALUES=true
+HA_UI_VALUES_CONTINUE_UPDATING=true
+
+MANAGER_RESTART_COUNT=0
+HOMEASSISTANT_RESTART_COUNT=0
+SERVICE_RESTART_AS_TEST_REPAIR=false
+
+NEXT_ONE_GATE=N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G3_NODE_B_FIRST_REGISTRATION_20261104_01
+G3_T1_BUSINESS_MUTATION=true
+G3_BOARD_ACCESS=true
+AUTO_EXECUTE_NEXT_GATE=false
+BOARD_ACCESS=false
+STOP=true
+```
+
+G2 is closed PASS. Node A retained its registered identity and existing firmware/NVS, all four intended sensor groups were connected, and the Manager durable canonical cursor advanced on one Direct boot from seq 14 through 19 with five strict +1 advances. Home Assistant has exactly one Node A device, all seven required raw entities are present with finite state, and the operator confirmed the values remain live in the normal UI. Manager and Home Assistant restart counts remain zero.
+
+Two earlier temporary observation attempts failed only in the read-only harness (Paho callback type mismatch, then an unauthorized additional MQTT observer) and are not product failures. The final authority uses durable canonical cursor evidence plus read-only HA registry/Recorder and normal UI observation.
+
+Authority: `docs/development/N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G2_NODE_A_REAL_SENSOR_RUNTIME_CLOSURE_20261104.md`.
+
 ## Latest authority — 2026-11-04 Pre-U1 G1 Home Assistant local onboarding CLOSED_PASS; STOP before G2
 
 ```text
