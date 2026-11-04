@@ -520,6 +520,16 @@
       "class": "EVIDENCE",
       "draft_policy": "run",
       "exceptions": {}
+    },
+    "n3w-t1-core-updater-u1-pre-u1-simulation-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "n3w-u1-manager-a-to-b-v2-live-executor-ci.yml": {
+      "class": "EXACT",
+      "draft_policy": "run",
+      "exceptions": {}
     }
   }
 }
