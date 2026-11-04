@@ -1,5 +1,11 @@
 ## 2026-11-05 — U1 R4 repaired A→B live reapply CLOSED_PASS
 
+- Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
+- Current repository product source remains `b863ddd959090ca139af76bd68dbef31d773e6de` with Manager `local/greenhouse-manager:fresh-b863ddd95909`.
+- Repository Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` with Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted: real T1 is now Manager B `local/greenhouse-manager:fresh-5b32e1ae8210`, but repository canonical promotion is intentionally deferred until PR #777 merge supplies the real merge commit.
+
 - Fresh exact-package and remote binding checks passed.
 - Fresh preflight status/runtime-state/inspect/plan all passed from healthy Manager A and terminal `ROLLED_BACK`.
 - The one-shot R4 authorization was claimed and consumed exactly once.
