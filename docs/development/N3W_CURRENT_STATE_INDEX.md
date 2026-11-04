@@ -4,7 +4,7 @@
 - Current product source remains `b863ddd959090ca139af76bd68dbef31d773e6de`.
 - Current Manager remains `local/greenhouse-manager:fresh-b863ddd95909`; Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
 - Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
-- Live upgrade remains accepted; `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- Live upgrade accepted; `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
 - Node A was restored to power and preserved the frozen Node A identity hash `7c5197ca0643ea0669c2ee43d5d89a994b09b0394fdd7e9872fea5aa4d97e090`.
 - On the new Node A boot, the durable canonical Direct cursor advanced from seq 12 to 14 with one stable boot-session hash; physical power restore therefore preserved Node A business continuity.
 - Manager, Home Assistant and Broker are all running on the frozen images with restart_count=0.
