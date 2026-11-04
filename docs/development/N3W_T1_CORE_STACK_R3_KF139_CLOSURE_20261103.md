@@ -123,3 +123,22 @@ Authority v2 intentionally removes dynamic zero-node inventory from the permanen
 `LIVE_RUNTIME_AHEAD_OF_CANONICAL_REPOSITORY_AUTHORITY=false`
 
 NEXT_ONE_GATE=N3W_T1_CORE_STACK_R3_KF139_POST_MERGE_MAIN_READONLY_REBIND_20261103_01
+
+
+## Post-merge main rebind and transition
+
+```text
+MAIN=e0841a5a43fd5847d5c5c40ab1cece42faedf3c8
+MAIN_MERGE_TREE_DRIFT=ZERO
+PR768_MERGED=true
+PR769_MERGED=true
+PR770_MERGED=true
+PR771_MERGED=true
+PR772_MERGED=true
+POST_MERGE_READONLY_REBIND=PASS
+KF139_OVERALL=CLOSED_PASS
+CURRENT_BLOCKER_COUNT=0
+NEXT_ONE_GATE=N3W_T1_CORE_STACK_R3_POST_REGISTRATION_PRODUCT_RUNTIME_BUSINESS_ACCEPTANCE_READONLY_PREFLIGHT_20261103_01
+```
+
+The KF-139/first-registration chain is complete. Follow-on work must not reopen or replay first registration merely to enter runtime acceptance. The next stage starts from the existing registered-node state and covers the downstream domains that the original R3 plan explicitly left out of first-registration acceptance: MQTT telemetry, Home Assistant discovery/entities, Direct/Relay failover, sensor measurements and longer runtime stability. The first gate in that stage is read-only.

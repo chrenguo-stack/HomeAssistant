@@ -371,29 +371,39 @@ def validate_documents(
             "live_board_mutation_invalid",
         )
 
-    manager_binding = (
-        'image: "' + "$" + '{GH_MANAGER_IMAGE:?GH_MANAGER_IMAGE required}"'
-    )
-    _require(
-        manager_binding in fresh_compose,
-        "fresh_compose_manager_binding_invalid",
-    )
-    _require(
-        f'image: {homeassistant["image"]}' in fresh_compose,
-        "fresh_compose_homeassistant_invalid",
-    )
-    _require(
-        f'image: {broker["image"]}' in fresh_compose,
-        "fresh_compose_broker_invalid",
-    )
+    bindings = {
+        "manager": (
+            'image: "' + "$" + '{GH_MANAGER_IMAGE:?GH_MANAGER_IMAGE required}"'
+        ),
+        "homeassistant": (
+            'image: "' + "$"
+            + '{GH_HOMEASSISTANT_IMAGE:?GH_HOMEASSISTANT_IMAGE required}"'
+        ),
+        "broker": (
+            'image: "' + "$" + '{GH_BROKER_IMAGE:?GH_BROKER_IMAGE required}"'
+        ),
+    }
+    for component, binding in bindings.items():
+        _require(
+            binding in fresh_compose,
+            f"fresh_compose_{component}_binding_invalid",
+        )
     _require(
         "fresh_compose.replace(canonical_compose)" in bootstrap_source,
         "fresh_bootstrap_canonicalization_missing",
     )
-    _require(
-        'f"GH_MANAGER_IMAGE={self.manager_image}\\n"' in bootstrap_source,
-        "fresh_bootstrap_manager_env_missing",
-    )
+    for source, reason in (
+        ('f"GH_MANAGER_IMAGE={self.manager_image}\\n"', "manager"),
+        (
+            'f"GH_HOMEASSISTANT_IMAGE={self.homeassistant_image}\\n"',
+            "homeassistant",
+        ),
+        ('f"GH_BROKER_IMAGE={self.broker_image}\\n"', "broker"),
+    ):
+        _require(
+            source in bootstrap_source,
+            f"fresh_bootstrap_{reason}_env_missing",
+        )
 
     state_top = _first_section(current_state)
     index_top = _first_section(current_index)
@@ -434,6 +444,7 @@ def validate_documents(
         "homeassistant_unchanged": True,
         "broker_unchanged": True,
         "manager_only_upgrade": True,
+        "per_module_image_bindings_ready": True,
         "legacy_static_compose_is_current_authority": False,
         "live_deployment_state": live["state"],
     }

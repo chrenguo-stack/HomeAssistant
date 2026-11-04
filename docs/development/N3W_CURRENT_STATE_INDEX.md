@@ -1,16 +1,321 @@
-## 2026-11-03 — R3/KF-139 repaired Manager is the canonical current stack
+## 2026-11-04 — Pre-U1 normal product runtime acceptance CLOSED_PASS; PR #774 merge review next
+
+- Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current product source remains `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Current Manager remains `local/greenhouse-manager:fresh-b863ddd95909`; Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- G0/G1/G2/G3/G4/G5 are all `CLOSED_PASS`; overall Pre-U1 normal product runtime acceptance is `CLOSED_PASS`.
+- G5 reused exact U0 updater artifact 13261072174 / pyz SHA256 `54f2e6299fa8905d33033ea86b5d449f16ad4dcd6ae8c7a3e9d647d6001e22fa`.
+- Two fresh baseline reads are both 2275 bytes with SHA256 `a791377083e76f765ddf978c09025674eda3586d33892e4b609a814706bdfbbc`; byte comparison PASS and both exactly equal archived U0 Baseline A.
+- Normal business use therefore caused no hard upgrade-authority drift; `U0_REOPEN=false`.
+- Public-safe business runtime reference frozen at `infra/n3w-t1/clean-reference/pre-u1-business-runtime-reference-20261104.json`.
+- Current normal business state: 2 registered nodes / 2 active NODE_ID leases / 2 active credential assignments / 2 active application nodes / 0 unresolved first registrations.
+- HA current state: Node A 1 device / 17 entities; Node B 1 device / 6 entities; registry totals 7 devices / 41 entities / 11 config entries.
+- DynSec current population: 6 clients / 12 roles / 1 group; hard structural authority remains proven unchanged by exact baseline equality.
+- Manager, Home Assistant and Broker remain running with restart_count=0; TCP/47112 remains closed.
+- Node A is currently on a new Direct boot session relative to G4; registered identity is unchanged. The operator confirmed this reboot was intentionally initiated, so it is not an unexplained runtime reset.
+- Exact board target still has 20-minute RS485 soil cadence; keep separate product-parameter review before final production release.
+- `N3W_PROJECT_WORKING_CONTEXT.md` stable-only policy was checked; no G5 stage-specific values are added.
+- Next one gate: `N3W_PR774_FINAL_MERGE_READINESS_REVIEW_20261104_01`.
+- PR #774 remains unmerged; merge still requires explicit authorization.
+- Closure: `docs/development/N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_CLOSURE_20261104.md`.
+
+## 2026-11-04 — Pre-U1 G4 two-node normal runtime CLOSED_PASS; STOP before G5
+
+- Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current product source remains `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Current Manager remains `local/greenhouse-manager:fresh-b863ddd95909`; Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- G4 ordinary Direct-mode observation ran 601 seconds from 07:23:12Z to 07:33:13Z.
+- Node A advanced seq 44 -> 54 across all 10 one-minute intervals; one boot session; source remained Direct.
+- Node B advanced seq 24 -> 34 across all 10 one-minute intervals; one boot session; source remained Direct.
+- Business state stayed exactly 2 registered nodes / 2 active leases / 2 active credentials / 0 unresolved first registrations.
+- Manager, Home Assistant and Broker stayed running on the frozen images with restart_count=0; TCP/47112 remained closed.
+- Corrected HA end-check: Node A = 1 device / 17 entities; Node B = 1 device / 6 entities.
+- Operator confirmed Node A real sensor values still change and A/B remain two separate HA devices with no duplicate Node A.
+- The earlier HA 0/0 reading is closed as an observer false negative caused by missing SYSTEM_ID fallback.
+- Exact deployed artifact source `414ff0290db37e89a0e137d30f491e6c17cba2b0` uses N3-W telemetry interval 60s; local SCD30/SHT30/BH1750 updates are 30s and RS485 soil read cycle is 20min.
+- Non-continuous Home Assistant values are therefore expected from the current cadence. The 20-minute soil cadence is retained for separate product-parameter review before final production release.
+- Pre-U1 G0/G1/G2/G3/G4 are all `CLOSED_PASS`; G5 is `NOT_EXECUTED`.
+- Next one gate: `N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G5_FREEZE_REFERENCE_20261104_01`.
+- `AUTO_EXECUTE_NEXT_GATE=false`; PR #774 remains unmerged.
+- Closure: `docs/development/N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G4_TWO_NODE_RUNTIME_CLOSURE_20261104.md`.
+
+## 2026-11-04 — Pre-U1 G3 Node B normal first registration CLOSED_PASS; STOP before G4
+
+- Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current product source remains `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Current Manager remains `local/greenhouse-manager:fresh-b863ddd95909`; Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- Pre-U1 G0/G1/G2/G3 are now `CLOSED_PASS`; G4 is `NOT_EXECUTED`.
+- Node A public-safe NODE_ID hash remains `7c5197ca0643ea0669c2ee43d5d89a994b09b0394fdd7e9872fea5aa4d97e090`.
+- Newly registered Node B public-safe NODE_ID hash is `589486b4e4e7fb05fc0a7e8994d977b67c60ce72770b80af6ee74eef0bd1d724`; the two identities are distinct.
+- Final business state is exactly two registered nodes, two ACTIVE NODE_ID leases and two ACTIVE credential assignments; unresolved first-registration count is 0.
+- Latest Node B first-registration ledger state is `COMMITTED / TERMINAL / COMPLETE`; pairing state is approved and lease state active.
+- Node B credential generation 1 is ACTIVE with no pending generation; application-key epoch 1 is ACTIVE and key material binding is valid.
+- Node B deterministic generation-1 DynSec client, role, client-role assignment and ACL plan all match exactly.
+- TCP/47112 is closed after commit; TCP/47110 and UDP/47111 remain available.
+- Two post-registration cursor snapshots show Node A Direct seq 24 -> 26 and Node B Direct seq 4 -> 6 on stable per-node boot sessions.
+- Manager, Home Assistant and Broker remain running on the frozen images with restart_count=0.
+- Home Assistant registry contains exactly one Node A device and one Node B device; Node A has 17 entities and sensorless Node B has 6. Operator UI confirmation shows two separate devices with no Node A overwrite or duplication.
+- An earlier auxiliary read-only DynSec/HA command produced JSON decode errors because stdin was not forwarded into nested `docker exec`; the corrected read-only package passed. This was an observer defect, not a product failure.
+- Next one gate: `N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G4_TWO_NODE_RUNTIME_20261104_01`, minimum 10-minute ordinary Direct-mode observation.
+- `AUTO_EXECUTE_NEXT_GATE=false`; G4 requires a separate authorization. PR #774 remains unmerged.
+- Closure: `docs/development/N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G3_NODE_B_FIRST_REGISTRATION_CLOSURE_20261104.md`.
+
+## 2026-11-04 — Pre-U1 G3 Node A restore / dual baseline CLOSED_PASS; STOP before Node B registration
+
+- Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current product source remains `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Current Manager remains `local/greenhouse-manager:fresh-b863ddd95909`; Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- Node A was restored to power and preserved the frozen Node A identity hash `7c5197ca0643ea0669c2ee43d5d89a994b09b0394fdd7e9872fea5aa4d97e090`.
+- On the new Node A boot, the durable canonical Direct cursor advanced from seq 12 to 14 with one stable boot-session hash; physical power restore therefore preserved Node A business continuity.
+- Manager, Home Assistant and Broker are all running on the frozen images with restart_count=0.
+- Registration state remains exactly one registered node, one active NODE_ID lease and one active generation-1 credential; unresolved first-registration count remains 0.
+- TCP/47112 remains closed. Node B has not silently entered registration or pairing and remains online/unregistered.
+- This read-only sub-gate is `CLOSED_PASS`; overall Pre-U1 G3 remains `IN_PROGRESS`.
+- Next one gate: `N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G3_NODE_B_FIRST_REGISTRATION_20261104_01`.
+- `AUTO_EXECUTE_NEXT_GATE=false`; a new explicit Node B normal first-registration authorization is required.
+- Closure: `docs/development/N3W_PRE_U1_G3_NODE_A_RESTORE_AND_DUAL_BASELINE_READONLY_CLOSURE_20261104.md`.
+
+## 2026-11-04 — Pre-U1 G3 Node B Wi-Fi setup CLOSED_PASS; STOP before Node A restore
+
+- Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current product source remains `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Current Manager remains `local/greenhouse-manager:fresh-b863ddd95909`; Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- Local `firmware.factory.bin` read-only binding matched the frozen authority: SHA256 `9ccc469898832bda612634aef64ca946631e81574076be504ef864aaee56d8f9`, size `1532256`.
+- Node B completed normal Captive Portal Wi-Fi setup.
+- LCD page 5 now shows the idle-unregistered / online-registration QR.
+- No registration QR was scanned; no host discovery, candidate selection, “开始注册”, 47110 confirm, or 47112 pairing was started.
+- Node A remains temporarily offline; its G2 acceptance remains retained.
+- No flash replay, T1 runtime/database/credential mutation, or PR #774 merge occurred.
+- This sub-gate is `CLOSED_PASS`; overall Pre-U1 G3 remains `IN_PROGRESS`.
+- Next one gate: `N3W_PRE_U1_G3_NODE_A_RESTORE_AND_DUAL_BASELINE_READONLY_20261104_01`.
+- `AUTO_EXECUTE_NEXT_GATE=false`; Node A physical restore requires a new authorization.
+- Closure: `docs/development/N3W_PRE_U1_G3_NODE_B_WIFI_SETUP_AND_IDLE_UNREGISTERED_CLOSURE_20261104.md`.
+
+## 2026-11-04 — Pre-U1 G3 Node B factory write PASS; STOP at Wi-Fi setup QR
+
+- Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current product source remains `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Current Manager remains `local/greenhouse-manager:fresh-b863ddd95909`; Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; canonical live deployment remains `APPLIED_ACCEPTED`.
+- Pre-U1 G0/G1/G2 remain `CLOSED_PASS`; G3 is `IN_PROGRESS`.
+- Node A is temporarily offline because the Mac USB connection was needed for Node B; this does not reopen G2.
+- Node B exact factory erase/write completed; 1,532,256 bytes were written and the write-stage internal hash verification passed.
+- The later whole-image `verify-flash` mismatch occurred only after automatic hard reset / first boot and is classified under existing KF-132; no automatic reflash is required or authorized.
+- Node B booted normally and page 5 shows the Wi-Fi configuration entry/QR.
+- Node B Wi-Fi is still unconfigured; no registration QR workflow, discovery, candidate selection, `开始注册`, 47110 confirmation or 47112 pairing has started.
+- No T1 runtime/database/credential mutation occurred in this Node B write stage.
+- Local factory SHA256/size output was not separately captured in chat; next gate begins with a read-only local binding recheck.
+- Next one gate: `N3W_PRE_U1_G3_NODE_B_WIFI_SETUP_AND_IDLE_UNREGISTERED_20261104_01`.
+- `AUTO_EXECUTE_NEXT_GATE=false`; STOP before Wi-Fi setup until the user explicitly continues in the new chat.
+- Formal handoff: `docs/development/N3W_PRE_U1_G3_NODE_B_EXACT_FACTORY_WRITE_PASS_TO_WIFI_SETUP_NEW_CHAT_HANDOFF_V1.0_20261104.md`.
+
+## 2026-11-04 — Pre-U1 G2 Node A real sensor runtime CLOSED_PASS; STOP before G3
+
+- Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current product source remains `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Current Manager remains `local/greenhouse-manager:fresh-b863ddd95909`; Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; canonical live deployment remains `APPLIED_ACCEPTED`.
+- G2 `N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G2_NODE_A_REAL_SENSOR_RUNTIME_20261104_01` is `CLOSED_PASS`.
+- Node A firmware and NVS remained unchanged; no repair pairing was required and the existing registered identity was preserved.
+- Physical set: SCD30, SHT30, BH1750 and RS485 soil temperature/moisture/EC connected; RS485 sensor supply measured 4.85 V; Node A boot/LCD normal and no visible hardware fault.
+- Primary acceptance oracle: Manager durable canonical cursor, read-only. Same boot/source=direct advanced strictly seq 14 -> 15 -> 16 -> 17 -> 18 -> 19 with no gap.
+- Earlier same-session durable observations also showed seq 6 -> 10 -> 14, supporting longer continuity.
+- Home Assistant entity registry contains exactly one entity for each of the seven required raw channels and exactly one Node A device.
+- Recorder state is finite for all seven raw entities; current firmware only emits a finite raw measurement with matching `quality=ok`.
+- Operator UI acceptance: one Node A device, all seven raw entities have values, and values continue updating.
+- Manager and Home Assistant restart_count remain 0; no service restart, direct DB write, HA storage edit, MQTT reconfiguration or Broker ACL broadening was used.
+- Two earlier observer-only failures were harness defects/limitations and did not interrupt product canonical advancement; they are explicitly not product failures.
+- U0 remains `CLOSED_PASS`; Manager A->B U1 remains suspended.
+- Next one gate: `N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G3_NODE_B_FIRST_REGISTRATION_20261104_01`.
+- G3 requires a genuinely fresh/unregistered second board and normal-product registration; `AUTO_EXECUTE_NEXT_GATE=false`; STOP before G3.
+- Closure: `docs/development/N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G2_NODE_A_REAL_SENSOR_RUNTIME_CLOSURE_20261104.md`.
+
+## 2026-11-04 — Pre-U1 G1 Home Assistant local onboarding CLOSED_PASS; STOP before G2
+
+- Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current product source remains `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Current Manager remains `local/greenhouse-manager:fresh-b863ddd95909`; Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; canonical live deployment remains `APPLIED_ACCEPTED`.
+- Pre-U1 G0 remains `CLOSED_PASS`.
+- G1 `N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G1_HA_LOCAL_ONBOARDING_20261104_01` is `CLOSED_PASS`.
+- Home Assistant local Owner creation/login PASS; Overview and Settings usable.
+- MQTT integration is visible with no visible failure or reconfigure state.
+- Fresh onboarding endpoint reports all onboarding steps done and `HOMEASSISTANT_ONBOARDING_COMPLETE=true`.
+- Manager, Home Assistant, and Broker containers all retain restart_count=0 and started before the G0 cutoff; no unexpected product restart occurred during onboarding.
+- Updater remains terminal `COMMITTED` with `recovery_required=false`; all three inspect operations PASS.
+- Pairing window remains `CLOSED`; TCP/47112 remains closed.
+- Runtime contracts remain unchanged for Manager, Home Assistant, and Broker.
+- U0 remains `CLOSED_PASS`; Manager A->B U1 remains suspended.
+- Next one gate: `N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G2_NODE_A_REAL_SENSOR_RUNTIME_20261104_01`.
+- G2 requires physical Board work; `AUTO_EXECUTE_NEXT_GATE=false`; STOP before G2.
+- Closure: `docs/development/N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G1_HA_LOCAL_ONBOARDING_CLOSURE_20261104.md`.
+
+## 2026-11-04 — U1 Manager A->B suspended; Pre-U1 normal product runtime acceptance selected
+- Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current product source remains `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Historical Clean Reference source remains `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical Clean Reference Manager remains `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; canonical live deployment remains `APPLIED_ACCEPTED`.
+
+- U0 remains `CLOSED_PASS`; Baseline A remains `a791377083e76f765ddf978c09025674eda3586d33892e4b609a814706bdfbbc`.
+- Current Manager remains `local/greenhouse-manager:fresh-b863ddd95909`.
+- Current Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Manager A -> B is suspended before Target B source repair; the upgrade plan is preserved and must not auto-resume.
+- Preserved U1 plan: `docs/development/N3W_T1_CORE_UPDATER_U1_MANAGER_A_TO_B_SUSPENDED_PLAN_20261104.md`.
+- Manager A product-gap review remains the basis for the recommended low-risk B candidate: Discovery publish-failure retry correctness. RED proof/source repair are not yet executed.
+- New selected route: `docs/development/N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_PLAN_20261104.md`.
+- Planned gates: G0 read-only preflight; G1 Home Assistant local-user onboarding/UI; G2 Node A real sensor runtime; G3 second-node normal first registration; G4 two-node normal runtime; G5 freeze Pre-U1 business reference and revalidate upgrade safety.
+- Home Assistant Cloud/Nabu Casa is not required.
+- U0 is not reopened by normal business state growth; expected HA registry counts, node population and DynSec population are allowed runtime drift under A1.
+- G5 must fresh-read the updater baseline twice and require no unexpected hard-authority drift versus U0 before U1 can be reconsidered.
+- No T1 access, T1 mutation, Board access, HA user creation, node registration, Manager source repair, updater apply/rollback or merge occurred in this planning/alignment turn.
+- Next one gate: `N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G0_READONLY_PREFLIGHT_20261104_01`.
+- `LIVE_MUTATION_DEFAULT=false`; `BOARD_ACCESS_DEFAULT=false`.
+
+## 2026-11-04 — U0 real T1 read-only Baseline A CLOSED_PASS; U1 preparation ready
+
+- U0 gate `N3W_T1_CORE_UPDATER_U0_REAL_T1_READONLY_BASELINE_20261104_01` is `CLOSED_PASS`.
+- Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current product source remains `b863ddd959090ca139af76bd68dbef31d773e6de`; current Manager is `local/greenhouse-manager:fresh-b863ddd95909`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; canonical live deployment remains `APPLIED_ACCEPTED`.
+- Frozen machine authority: `infra/n3w-t1/clean-reference/u0-upgrade-baseline-a-20261104.json`.
+- Baseline A SHA256: `a791377083e76f765ddf978c09025674eda3586d33892e4b609a814706bdfbbc`; exact size 2275 bytes.
+- Two independent live T1_B captures were both 2275 bytes, had the same SHA256, and `cmp` returned 0.
+- Stack images: Manager `local/greenhouse-manager:fresh-b863ddd95909`; HA `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- All three platforms are `linux/arm64`.
+- Image binding modes: Manager `dynamic`; Home Assistant `legacy_static`; Broker `legacy_static`.
+- Runtime contracts: Manager `ad1d38f6191c0c00afcfbee3ca489d5f95a86fefcb17976c273597c04609d6e1`; HA `bc69586866551709110435ea25bfdff9d41bc8e366f6ace8d4b7bba3db5f6868`; Broker `b4e002c7eb494812629b1a99d7e53b712d5f2239460c99334556976b6fdad492`.
+- A1 classification SHA remains `e664ced300ea2bb743b116550b7a3e22237e7f556f54400a060eef30671d30e7`.
+- No product config/state change, service restart, image mutation, transaction creation, board mutation or merge occurred.
+- HA/Broker legacy-static binding is accepted Baseline A state, not a U0 failure; separate template convergence is required before their future per-module image mutation.
+- Closure: `docs/development/N3W_T1_CORE_UPDATER_U0_REAL_T1_READONLY_BASELINE_CLOSURE_20261104.md`.
+- Next one gate: `N3W_T1_CORE_UPDATER_U1_MANAGER_A_TO_B_PREPARATION_20261104_01`.
+- U1 preparation may proceed; U1 live apply remains unauthorized.
+
+## 2026-11-03 — A2 per-module upgrade architecture CLOSED_PASS; source implementation required before U0
+
+- Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
+- Current product source: `b863ddd959090ca139af76bd68dbef31d773e6de`; Manager `local/greenhouse-manager:fresh-b863ddd95909`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference source/Manager remain `24382caae4a1f5d459297f86e8d18f10a848ca64` / `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; current canonical live deployment remains `APPLIED_ACCEPTED`.
+- A1 classification SHA256: `e664ced300ea2bb743b116550b7a3e22237e7f556f54400a060eef30671d30e7`.
+- A2 architecture SHA256: `447f57f3563cb7766f145a2ea005d5d79d1beee7585ed07c6572ce2b3a833faa`.
+- Architecture: keep updater concept; refactor Manager-specialized source into generic transaction core + Manager/HA/Broker adapters; do not rewrite from scratch.
+- Keep current systemd ownership: Manager + HA share the application owner, Broker remains independent. Module-only means only target image binding mutates; lifecycle-required peer restarts are permitted.
+- Future fresh Compose binding contract: `GH_MANAGER_IMAGE`, `GH_HOMEASSISTANT_IMAGE`, `GH_BROKER_IMAGE`; all remain `pull_policy: never`.
+- Default A2 mutation profile is `IMAGE_ONLY_V1`; config/schema migrations and implicit multi-component chains are not supported by this profile.
+- One global updater mutation transaction; terminal history does not permanently block future upgrades; unresolved non-terminal state does.
+- PR #745 remains open/unmerged historical evidence; no implementation harvest or auto-merge.
+- No T1 access, live mutation, Board access, product source change or PR #773 merge occurred.
+- Closure: `docs/development/N3W_T1_CORE_STACK_A2_PER_MODULE_UPGRADE_ARCHITECTURE_CLOSURE_20261103.md`.
+- Machine authority: `infra/n3w-t1/clean-reference/a2-per-module-upgrade-architecture-20261103.json`.
+- Fresh source review shows current updater/fresh Compose are still Manager-specialized, so `U0_ENTRY_READY=false`.
+- Next one gate: `N3W_T1_CORE_UPDATER_A2_PER_MODULE_SOURCE_IMPLEMENTATION_20261103_01`; source/test only.
+
+## 2026-11-03 — A1 stable-invariant classification CLOSED_PASS; A2 entry ready
+
+- Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
+- Current product source: `b863ddd959090ca139af76bd68dbef31d773e6de`; Manager `local/greenhouse-manager:fresh-b863ddd95909`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference source/Manager remain `24382caae4a1f5d459297f86e8d18f10a848ca64` / `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; canonical live deployment remains `APPLIED_ACCEPTED`.
+- R3 reference SHA256: `e09139564280c700bc02b2e16360c511f780f7da7817f0d9bf0a22ff59dfcceb`; normalized delta SHA256: `0d2ade72c9dbdc8299cc09754ed87768a02762244447c619d007951e9a522895`.
+- A1 classification SHA256: `e664ced300ea2bb743b116550b7a3e22237e7f556f54400a060eef30671d30e7`.
+- 150 fields: 32 hard stable invariants / 40 soft runtime checks / 67 diagnostic only / 11 remove.
+- Whole historical reference equality is forbidden as an upgrade gate; hard identities are baseline/target/per-instance bound.
+- No T1 access, live mutation, Board access, product source change or PR #773 merge occurred.
+- Closure: `docs/development/N3W_T1_CORE_STACK_A1_STABLE_INVARIANT_CLASSIFICATION_CLOSURE_20261103.md`.
+- Machine authority: `infra/n3w-t1/clean-reference/a1-stable-invariant-classification-20261103.json`.
+- `A2_ENTRY_READY=true`; next one gate is `N3W_T1_CORE_STACK_A2_PER_MODULE_UPGRADE_ARCHITECTURE_20261103_01`; A2 not executed.
+
+## 2026-11-03 — R3 reference convergence CLOSED_PASS; A1 entry ready
+
+- Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
+- Current product source: `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Current Manager: `local/greenhouse-manager:fresh-b863ddd95909`.
+- Current Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical Clean Reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; current canonical live deployment remains `APPLIED_ACCEPTED`.
+
+- Closure: `docs/development/N3W_T1_CORE_STACK_R3_REFERENCE_CONVERGENCE_AND_A1_ENTRY_READONLY_CLOSURE_20261103.md`
+- R3 normalized reference: `infra/n3w-t1/clean-reference/r3-normalized-reference-20261103.json`
+- R2 -> R3 normalized delta: `infra/n3w-t1/clean-reference/r2-r3-normalized-delta-20261103.json`
+- R3 reference SHA256: `e09139564280c700bc02b2e16360c511f780f7da7817f0d9bf0a22ff59dfcceb`
+- normalized delta SHA256: `0d2ade72c9dbdc8299cc09754ed87768a02762244447c619d007951e9a522895`
+- 150 leaf fields classified for comparability: 48 direct / 58 business-runtime / 15 version-axis / 29 historical-gap / 0 fresh-readonly-required.
+- Manager historical A -> current b863 is an explicit version axis.
+- `A1_ENTRY_READY=true`; A1 not executed; PR #773 not merged.
+
+## 2026-11-03 — R3 -> A1 current authority and handoff
+- Current authority: `infra/n3w-t1/production/t1-core-stack-current.json` schema `gh.n3w-t1-core-stack-current-authority/2`.
+- Current product source: `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Current Manager: `local/greenhouse-manager:fresh-b863ddd95909`.
+- Current Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical Clean Reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted: `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- R3 first registration PASS; KF-139 CLOSED_PASS.
+- Post-registration Direct telemetry / Home Assistant PASS; KF-140 CLOSED_FALSE_POSITIVE.
+- Direct->Relay->Direct repeat is not required.
+- R3 engineering objective is complete; R3 reference SHA / final R2->R3 semantic compare remains unfrozen.
+- Next ONE gate: `N3W_T1_CORE_STACK_R3_REFERENCE_CONVERGENCE_AND_A1_ENTRY_READONLY_20261103_01`.
+- Formal handoff: `docs/development/N3W_T1_CORE_STACK_R3_REFERENCE_CONVERGENCE_TO_A1_STABLE_INVARIANT_CLASSIFICATION_NEW_CHAT_HANDOFF_V1.0_20261103.md`.
+- PR #773 remains open/unmerged; merge is separate.
+
+## 2026-11-03 — R3 -> A1 route corrected
+- R3 real first registration PASS; KF-139 CLOSED_PASS.
+- Post-registration Direct telemetry / HA runtime acceptance also PASS; KF-140 CLOSED_FALSE_POSITIVE.
+- Do not repeat Direct->Relay->Direct: historical same-boot physical acceptance remains valid and frozen R3 explicitly excludes Direct/Relay failover from its required scope.
+- R3 engineering objective is complete, but the Clean Reference authority is not formally sealed because no frozen `R3_REFERENCE_SHA256` / final R2->R3 semantic compare authority exists.
+- R3 was completed after an intentional Manager A->B repair, so historical Clean Reference Manager `fresh-24382c...` and current `fresh-b863...` must be treated as separate version axes; do not classify their hash difference as runtime drift.
+- Next gate: `N3W_T1_CORE_STACK_R3_REFERENCE_CONVERGENCE_AND_A1_ENTRY_READONLY_20261103_01`.
+- On PASS, enter A1 Stable-invariant classification. No Board work or updater apply belongs to this bridge gate.
+- Reassessment authority: `docs/development/N3W_T1_CORE_STACK_R3_CLOSURE_TO_A1_STABLE_INVARIANT_ENTRY_REASSESSMENT_20261103.md`.
+
+## 2026-11-03 — R3 Direct telemetry / HA acceptance closed PASS
+- KF-140 is `CLOSED_FALSE_POSITIVE`: the apparent Manager delivery failure was caused by an acceptance harness matching stale/non-applicable log text.
+- Board API observed fresh Direct submissions seq 100 and 101.
+- Correct Manager log oracle proves continuous Direct acceptance from seq 71 through 101: 31 unique sequential samples, 0 gaps, 0 rejects, 0 duplicates; maximum interarrival about 60.112 seconds.
+- Home Assistant registry remains one device / six entities for the sensorless R3 board.
+- Both seq 100 and 101 Manager-accept windows correlate with fresh traffic on the unique Broker->HA 1883 socket: +1097 bytes / +2 data segments each, with zero pre-event baseline delta.
+- Direct telemetry continuity PASS; HA fresh MQTT runtime receipt PASS for this sensorless acceptance.
+- No product source repair is required.
+- Still out of scope / not closed by this gate: Direct/Relay physical failover, sensor measurement acceptance, long-duration stability, production eligibility of the sensorless battery-threshold-override R3 board.
+- Closure authority: `docs/development/N3W_T1_CORE_STACK_R3_POST_REGISTRATION_DIRECT_TELEMETRY_HA_ACCEPTANCE_FAIL_KF140_20261103.md`.
+
+## 2026-11-03 — R3 registration closure complete; downstream runtime/business acceptance begins
 - Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json` schema `gh.n3w-t1-core-stack-current-authority/2`.
+- Main: `e0841a5a43fd5847d5c5c40ab1cece42faedf3c8`; final #768 -> main compare has zero file drift.
 - Current repository product source: `b863ddd959090ca139af76bd68dbef31d773e6de`.
 - Current repository Manager: `local/greenhouse-manager:fresh-b863ddd95909`.
 - Current repository Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
 - Current repository Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
 - Historical Clean Reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
 - Historical Clean Reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
-- Immediate repair predecessor: `local/greenhouse-manager:fresh-3539c8f871e2`.
 - Live upgrade accepted: `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
-- KF-139 overall CLOSED_PASS; real post-repair first registration accepted.
-- Pairing window closed with `close_reason=committed`; private credential database gate PASS.
-- Next gate: `N3W_T1_CORE_STACK_R3_KF139_POST_MERGE_MAIN_READONLY_REBIND_20261103_01`.
+- KF-139 overall CLOSED_PASS; first registration PASS; private DB gate PASS; pairing window last accepted CLOSED/committed.
+- PRs #768/#769/#770/#771/#772 are all merged.
+- No current blocker is open for entering the downstream acceptance stage.
+- Current T1 runtime and registered-board power/network state are `UNKNOWN_FRESH` until the next read-only preflight.
+- Original R3 plan explicitly deferred MQTT telemetry, HA discovery/entity acceptance, Direct/Relay failover, sensor measurements and long-run stability to downstream physical-runtime acceptance.
+- Next gate: `N3W_T1_CORE_STACK_R3_POST_REGISTRATION_PRODUCT_RUNTIME_BUSINESS_ACCEPTANCE_READONLY_PREFLIGHT_20261103_01`.
 
 ## 2026-11-03 — R3 / KF-139 closure
 

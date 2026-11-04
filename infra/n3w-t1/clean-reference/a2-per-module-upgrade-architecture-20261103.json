@@ -1,0 +1,291 @@
+{
+  "canonical_payload_sha256": "447f57f3563cb7766f145a2ea005d5d79d1beee7585ed07c6572ce2b3a833faa",
+  "canonicalization": "SHA256 of UTF-8 JSON payload with keys recursively sorted, separators=(',',':'), ensure_ascii=false; digest covers payload only",
+  "payload": {
+    "schema": "gh.n3w-t1-core-stack-a2-per-module-upgrade-architecture/1",
+    "gate": "N3W_T1_CORE_STACK_A2_PER_MODULE_UPGRADE_ARCHITECTURE_20261103_01",
+    "source_authority": {
+      "pr_773_input_head": "021ce42350333636412b1056cac46f490243c654",
+      "a1_classification_sha256": "e664ced300ea2bb743b116550b7a3e22237e7f556f54400a060eef30671d30e7",
+      "r3_reference_sha256": "e09139564280c700bc02b2e16360c511f780f7da7817f0d9bf0a22ff59dfcceb",
+      "r3_normalized_delta_sha256": "0d2ade72c9dbdc8299cc09754ed87768a02762244447c619d007951e9a522895",
+      "current_product_source": "b863ddd959090ca139af76bd68dbef31d773e6de"
+    },
+    "architecture": {
+      "decision": "KEEP_UPDATER_CONCEPT_REFACTOR_MANAGER_SPECIALIZATION_INTO_GENERIC_CORE_PLUS_COMPONENT_ADAPTERS",
+      "rewrite_from_scratch": false,
+      "current_source_is_manager_specialized": true,
+      "runtime_policy_engine": "TYPED_CODE_NOT_GENERIC_A1_DSL",
+      "a1_policy_digest_role": "TRACEABILITY_AND_TEST_AUTHORITY",
+      "default_mutation_profile": "IMAGE_ONLY_V1",
+      "config_or_schema_migration_profile": "NOT_SUPPORTED_BY_IMAGE_ONLY_V1_REQUIRES_EXPLICIT_LATER_MIGRATION_DESIGN",
+      "cross_module_upgrade": "NOT_IMPLICIT_REQUIRES_EXPLICIT_COORDINATED_UPGRADE_DESIGN",
+      "global_mutation_concurrency": "ONE_ACTIVE_T1_CORE_UPDATER_TRANSACTION",
+      "terminal_history_blocks_future_upgrade": false,
+      "unresolved_nonterminal_transaction_blocks_new_upgrade": true,
+      "post_apply_product_acceptance_is_separate": true,
+      "zero_downtime_guarantee": false
+    },
+    "image_binding": {
+      "canonical_compose": "infra/n3w-t1/production/docker-compose.fresh.yml",
+      "env_file": "/etc/n3wfc4/docker-compose.env",
+      "bindings": {
+        "manager": "GH_MANAGER_IMAGE",
+        "homeassistant": "GH_HOMEASSISTANT_IMAGE",
+        "broker": "GH_BROKER_IMAGE"
+      },
+      "rule": "ALL_THREE_PRODUCT_IMAGE_REFERENCES_ARE_DYNAMIC_ENV_BINDINGS_WITH_PULL_POLICY_NEVER",
+      "whole_compose_sha_is_upgrade_gate": false,
+      "candidate_delta_rule": "ONLY_TARGET_SERVICE_IMAGE_BINDING_MAY_CHANGE_IN_IMAGE_ONLY_V1"
+    },
+    "target_manifest_v2": {
+      "schema": "gh.n3w-t1-core-updater-target/2",
+      "component_values": [
+        "manager",
+        "homeassistant",
+        "broker"
+      ],
+      "required_fields": [
+        "component",
+        "mutation_profile",
+        "target_image_ref",
+        "target_platform",
+        "target_archive_sha256",
+        "artifact_identity",
+        "expected_predecessor_image_ref",
+        "rollback_compatible",
+        "compatibility_evidence",
+        "a1_classification_sha256"
+      ],
+      "local_docker_image_id_is_cross_host_authority": false,
+      "portable_archive_identity_is_authority": true,
+      "runtime_image_id_is_captured_after_local_verification": true
+    },
+    "transaction_v2": {
+      "schema": "gh.n3w-t1-core-updater-transaction/2",
+      "state_root": "/var/lib/n3w-t1-core-updater",
+      "active_file": "upgrade.json",
+      "history_dir": "history",
+      "phases": [
+        "AUTHORIZED",
+        "TARGET_IMAGE_READY",
+        "QUIESCING",
+        "QUIESCED",
+        "TARGET_BINDING_PUBLISHED",
+        "ACTIVATING",
+        "TARGET_RUNTIME_STARTED",
+        "VERIFYING",
+        "COMMITTED",
+        "ROLLBACK_AUTHORIZED",
+        "ROLLBACK_QUIESCING",
+        "ROLLBACK_BINDING_RESTORED",
+        "ROLLBACK_ACTIVATING",
+        "ROLLED_BACK",
+        "FAILED_EMERGENCY"
+      ],
+      "recovery_rule": "FRESH_RUNTIME_CLASSIFICATION_PLUS_TRANSACTION_HISTORY",
+      "nonterminal_target_healthy_default": "ROLLBACK_TO_PREDECESSOR_UNLESS_A_SEPARATE_EXPLICIT_COMMIT_RECOVERY_DESIGN_EXISTS",
+      "predecessor_healthy_recovery": "CLOSE_ROLLED_BACK_WITHOUT_MUTATION",
+      "unknown_runtime": "FAIL_CLOSED",
+      "legacy_v1_terminal": "ARCHIVE_AS_HISTORICAL_ON_FIRST_V2_MUTATION",
+      "legacy_v1_nonterminal": "DO_NOT_AUTO_CONVERT_REQUIRE_LEGACY_RECONCILIATION"
+    },
+    "systemd_ownership": {
+      "preserve_current_ownership": true,
+      "application_owner": "n3wfc4-services-activation.service",
+      "application_owner_members": [
+        "manager",
+        "homeassistant"
+      ],
+      "broker_owner": "n3wfc4-broker-activation.service",
+      "manager_upgrade_restart_side_effect": [
+        "manager",
+        "homeassistant"
+      ],
+      "homeassistant_upgrade_restart_side_effect": [
+        "manager",
+        "homeassistant"
+      ],
+      "broker_upgrade_restart_side_effect": [
+        "broker",
+        "manager",
+        "homeassistant"
+      ],
+      "restart_side_effect_is_not_image_mutation": true,
+      "out_of_band_compose_recreate_forbidden": true
+    },
+    "modules": {
+      "manager": {
+        "binding": "GH_MANAGER_IMAGE",
+        "target_mutation": [
+          "manager_image_binding"
+        ],
+        "quiesce": [
+          "stop_application_owner"
+        ],
+        "activate": [
+          "start_application_owner",
+          "wait_application_readiness"
+        ],
+        "non_target_image_mutation": [
+          "homeassistant=false",
+          "broker=false"
+        ],
+        "hard_checks": [
+          "manager_target_image_platform_runtime_contract",
+          "manager_persistent_path_owner_gid_type",
+          "manager_sqlite_schema_allowlist",
+          "manager_mqtt_identity",
+          "fc4_ca_and_system_ca_instance_identity",
+          "homeassistant_and_broker_non_target_hard_contracts"
+        ],
+        "soft_checks": [
+          "sqlite_quick_check",
+          "supported_sqlite_user_version",
+          "safe_path_modes",
+          "manager_mqtt_authenticated",
+          "homeassistant_mqtt_authenticated",
+          "homeassistant_http_available",
+          "required_systemd_state"
+        ],
+        "post_acceptance": "SEPARATE_MANAGER_PRODUCT_ACCEPTANCE"
+      },
+      "homeassistant": {
+        "binding": "GH_HOMEASSISTANT_IMAGE",
+        "target_mutation": [
+          "homeassistant_image_binding"
+        ],
+        "quiesce": [
+          "stop_application_owner"
+        ],
+        "activate": [
+          "start_application_owner",
+          "wait_application_readiness"
+        ],
+        "non_target_image_mutation": [
+          "manager=false",
+          "broker=false"
+        ],
+        "hard_checks": [
+          "homeassistant_target_image_platform_runtime_contract",
+          "homeassistant_fixed_configuration",
+          "n3w_mqtt_bootstrap_tree",
+          "homeassistant_persistent_path_owner_gid_type",
+          "homeassistant_mqtt_identity",
+          "manager_and_broker_non_target_hard_contracts"
+        ],
+        "soft_checks": [
+          "safe_path_mode",
+          "homeassistant_mqtt_authenticated",
+          "homeassistant_http_allowed_status",
+          "ha_registry_presence",
+          "ha_storage_supported_version",
+          "manager_mqtt_authenticated",
+          "required_systemd_state"
+        ],
+        "post_acceptance": "SEPARATE_HOMEASSISTANT_PRODUCT_ACCEPTANCE"
+      },
+      "broker": {
+        "binding": "GH_BROKER_IMAGE",
+        "target_mutation": [
+          "broker_image_binding"
+        ],
+        "quiesce": [
+          "stop_application_owner",
+          "stop_broker_owner"
+        ],
+        "activate": [
+          "start_broker_owner",
+          "wait_broker_tls_listener_readiness",
+          "start_application_owner",
+          "wait_application_readiness"
+        ],
+        "non_target_image_mutation": [
+          "manager=false",
+          "homeassistant=false"
+        ],
+        "hard_checks": [
+          "broker_target_image_platform_runtime_contract",
+          "mosquitto_fixed_configuration",
+          "dynsec_schema_contract",
+          "broker_persistent_path_owner_gid_type",
+          "fc4_ca_instance_identity",
+          "system_ca_instance_identity",
+          "manager_and_homeassistant_non_target_hard_contracts"
+        ],
+        "soft_checks": [
+          "safe_path_mode",
+          "broker_tls_chain_hostname_validity_semantics",
+          "dynsec_document_parseable",
+          "manager_mqtt_reauthenticated",
+          "homeassistant_mqtt_reauthenticated",
+          "required_systemd_state",
+          "certificate_lifecycle_not_actively_mutating"
+        ],
+        "post_acceptance": "SEPARATE_BROKER_PRODUCT_ACCEPTANCE"
+      }
+    },
+    "a1_runtime_mapping": {
+      "hard_count": 32,
+      "soft_count": 40,
+      "diagnostic_count": 67,
+      "remove_count": 11,
+      "hard_behavior": "EXACT_PER_INSTANCE_OR_VERSION_BOUND_BASELINE_TARGET_CONTRACT",
+      "soft_behavior": "SEMANTIC_PREDICATE_OR_SUPPORTED_SET",
+      "diagnostic_behavior": "NON_BLOCKING_EVIDENCE_ONLY",
+      "remove_behavior": "NOT_COLLECTED_AS_NORMAL_UPGRADE_GATE",
+      "container_id_start_time_restart_count_as_gate": false,
+      "exact_socket_count_as_gate": false,
+      "database_row_count_or_size_as_gate": false,
+      "ha_registry_count_as_gate": false,
+      "dynsec_count_as_gate": false,
+      "whole_compose_sha_as_gate": false,
+      "broker_server_cert_exact_sha_as_gate": false
+    },
+    "safety_boundaries": {
+      "active_pairing_or_registration": "DEFER_MUTATION_WHEN_CURRENT_OPERATION_CONFLICT_IS_PROVEN",
+      "active_certificate_rotation_for_broker": "DEFER_BROKER_MUTATION",
+      "board_access": false,
+      "host_platform_upgrade": false,
+      "initial_installation": false,
+      "firmware_upgrade": false,
+      "automatic_multi_component_chain": false,
+      "network_registry_pull": false
+    },
+    "pr745_disposition": {
+      "state": "OPEN_UNMERGED_HISTORICAL_ARCHITECTURE_HOLD",
+      "implementation_harvest": false,
+      "reusable_principles": [
+        "FAIL_CLOSED",
+        "FRESH_RUNTIME_RECONCILIATION",
+        "TERMINAL_HISTORY_NOT_PERMANENT_BLOCKER",
+        "CONSUMED_AUTHORIZATION_NO_REPLAY"
+      ],
+      "rejected_as_future_architecture": [
+        "E03_SPECIFIC_GATE_LINEAGE",
+        "HISTORICAL_BLOCKED_EXEMPTION_CHAIN",
+        "POSTPUBLISH_PREDECESSOR_RECOVERY_SPECIAL_CASE"
+      ],
+      "auto_merge": false
+    },
+    "implementation_gate": {
+      "required": true,
+      "gate": "N3W_T1_CORE_UPDATER_A2_PER_MODULE_SOURCE_IMPLEMENTATION_20261103_01",
+      "before_u0": true,
+      "required_work": [
+        "generic_target_manifest_v2",
+        "generic_transaction_v2",
+        "component_adapter_interface",
+        "dynamic_manager_homeassistant_broker_image_bindings",
+        "typed_a1_common_and_module_checks",
+        "manager_adapter_regression",
+        "homeassistant_adapter",
+        "broker_adapter",
+        "legacy_terminal_manager_transaction_migration",
+        "cross_component_no_mutation_tests",
+        "component_fault_matrices",
+        "ci_and_source_review"
+      ]
+    }
+  }
+}
