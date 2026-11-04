@@ -1,3 +1,22 @@
+## 2026-11-04 — Pre-U1 G3 Node B factory write PASS; STOP at Wi-Fi setup QR
+
+- Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current product source remains `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Current Manager remains `local/greenhouse-manager:fresh-b863ddd95909`; Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; canonical live deployment remains `APPLIED_ACCEPTED`.
+- Pre-U1 G0/G1/G2 remain `CLOSED_PASS`; G3 is `IN_PROGRESS`.
+- Node A is temporarily offline because the Mac USB connection was needed for Node B; this does not reopen G2.
+- Node B exact factory erase/write completed; 1,532,256 bytes were written and the write-stage internal hash verification passed.
+- The later whole-image `verify-flash` mismatch occurred only after automatic hard reset / first boot and is classified under existing KF-132; no automatic reflash is required or authorized.
+- Node B booted normally and page 5 shows the Wi-Fi configuration entry/QR.
+- Node B Wi-Fi is still unconfigured; no registration QR workflow, discovery, candidate selection, `开始注册`, 47110 confirmation or 47112 pairing has started.
+- No T1 runtime/database/credential mutation occurred in this Node B write stage.
+- Local factory SHA256/size output was not separately captured in chat; next gate begins with a read-only local binding recheck.
+- Next one gate: `N3W_PRE_U1_G3_NODE_B_WIFI_SETUP_AND_IDLE_UNREGISTERED_20261104_01`.
+- `AUTO_EXECUTE_NEXT_GATE=false`; STOP before Wi-Fi setup until the user explicitly continues in the new chat.
+- Formal handoff: `docs/development/N3W_PRE_U1_G3_NODE_B_EXACT_FACTORY_WRITE_PASS_TO_WIFI_SETUP_NEW_CHAT_HANDOFF_V1.0_20261104.md`.
+
 ## 2026-11-04 — Pre-U1 G2 Node A real sensor runtime CLOSED_PASS; STOP before G3
 
 - Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
