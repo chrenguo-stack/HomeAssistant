@@ -1,3 +1,26 @@
+## 2026-11-04 — Pre-U1 G3 Node B normal first registration CLOSED_PASS; STOP before G4
+
+- Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current product source remains `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Current Manager remains `local/greenhouse-manager:fresh-b863ddd95909`; Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- Pre-U1 G0/G1/G2/G3 are now `CLOSED_PASS`; G4 is `NOT_EXECUTED`.
+- Node A public-safe NODE_ID hash remains `7c5197ca0643ea0669c2ee43d5d89a994b09b0394fdd7e9872fea5aa4d97e090`.
+- Newly registered Node B public-safe NODE_ID hash is `589486b4e4e7fb05fc0a7e8994d977b67c60ce72770b80af6ee74eef0bd1d724`; the two identities are distinct.
+- Final business state is exactly two registered nodes, two ACTIVE NODE_ID leases and two ACTIVE credential assignments; unresolved first-registration count is 0.
+- Latest Node B first-registration ledger state is `COMMITTED / TERMINAL / COMPLETE`; pairing state is approved and lease state active.
+- Node B credential generation 1 is ACTIVE with no pending generation; application-key epoch 1 is ACTIVE and key material binding is valid.
+- Node B deterministic generation-1 DynSec client, role, client-role assignment and ACL plan all match exactly.
+- TCP/47112 is closed after commit; TCP/47110 and UDP/47111 remain available.
+- Two post-registration cursor snapshots show Node A Direct seq 24 -> 26 and Node B Direct seq 4 -> 6 on stable per-node boot sessions.
+- Manager, Home Assistant and Broker remain running on the frozen images with restart_count=0.
+- Home Assistant registry contains exactly one Node A device and one Node B device; Node A has 17 entities and sensorless Node B has 6. Operator UI confirmation shows two separate devices with no Node A overwrite or duplication.
+- An earlier auxiliary read-only DynSec/HA command produced JSON decode errors because stdin was not forwarded into nested `docker exec`; the corrected read-only package passed. This was an observer defect, not a product failure.
+- Next one gate: `N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G4_TWO_NODE_RUNTIME_20261104_01`, minimum 10-minute ordinary Direct-mode observation.
+- `AUTO_EXECUTE_NEXT_GATE=false`; G4 requires a separate authorization. PR #774 remains unmerged.
+- Closure: `docs/development/N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G3_NODE_B_FIRST_REGISTRATION_CLOSURE_20261104.md`.
+
 ## 2026-11-04 — Pre-U1 G3 Node A restore / dual baseline CLOSED_PASS; STOP before Node B registration
 
 - Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
