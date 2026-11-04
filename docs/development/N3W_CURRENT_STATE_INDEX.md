@@ -4,7 +4,7 @@
 - Current repository product source remains `b863ddd959090ca139af76bd68dbef31d773e6de`.
 - Canonical accepted Manager remains `local/greenhouse-manager:fresh-b863ddd95909`; Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
 - Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
-- Canonical live upgrade accepted state remains Manager A; the R3 A→B successor attempt is failed/unaccepted and does not switch production authority.
+- Live upgrade accepted; canonical production authority remains Manager A. The R3 A→B successor attempt is failed/unaccepted and does not switch production authority.
 - R3 crossed the real V2 apply boundary using executor head `459e240c351ca04c01b94e1ed9ddeb8f21315f0c`.
 - Execution `N3W_U1_V2_B10_20261104_02_R3` invoked exactly one apply and no second apply.
 - One-shot authorization `N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_APPLY_U1_V2_20261104_02` is claimed, consumed and permanently replay-forbidden.
