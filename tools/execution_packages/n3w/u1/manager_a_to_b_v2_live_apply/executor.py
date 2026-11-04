@@ -34,6 +34,8 @@ TARGET_MANAGER = "local/greenhouse-manager:fresh-5b32e1ae8210"
 TARGET_SCHEMA = "gh.n3w-t1-core-updater-target/2"
 TX_SCHEMA = "gh.n3w-t1-core-updater-transaction/2"
 STATUS_SCHEMA = "gh.n3w-t1-core-updater-status/2"
+LEGACY_STATUS_SCHEMA = "gh.n3w-t1-core-updater-status/1"
+LEGACY_TX_SCHEMA = "gh.n3w-t1-core-updater-transaction/1"
 INSPECT_SCHEMA = "gh.n3w-t1-core-updater-inspect/2"
 PLAN_SCHEMA = "gh.n3w-t1-core-updater-plan/2"
 
@@ -344,27 +346,45 @@ def stage_package(
     target: str,
     control_path: str,
 ) -> dict[str, str]:
-    quoted = shlex.quote(REMOTE_DIR)
-    ssh_command(
-        target,
-        control_path,
-        f"sudo -n test ! -e {quoted} && sudo -n install -d -m 0700 -o root -g root {quoted}",
-        timeout=60,
-    )
-    for name in sorted(EXPECTED_PACKAGE_FILES):
-        run(
-            [
-                *scp_base(control_path),
-                str(package / name),
-                f"{target}:{REMOTE_DIR}/{name}",
-            ],
-            timeout=600,
-        )
-
     local_hashes = {
         name: sha256_file(package / name)
         for name in sorted(EXPECTED_PACKAGE_FILES)
     }
+    quoted = shlex.quote(REMOTE_DIR)
+    probe = ssh_command(
+        target,
+        control_path,
+        (
+            f"if sudo -n test -e {quoted}; then "
+            f"sudo -n stat -c '%U:%G:%a:%F' {quoted}; "
+            f"sudo -n find {quoted} -mindepth 1 -maxdepth 1 -printf '%f\\n' | sort; "
+            "else echo __ABSENT__; fi"
+        ),
+        timeout=60,
+    )
+    lines = [line.strip() for line in probe.stdout.splitlines() if line.strip()]
+    if lines == ["__ABSENT__"]:
+        ssh_command(
+            target,
+            control_path,
+            f"sudo -n install -d -m 0700 -o root -g root {quoted}",
+            timeout=60,
+        )
+        for name in sorted(EXPECTED_PACKAGE_FILES):
+            run(
+                [
+                    *scp_base(control_path),
+                    str(package / name),
+                    f"{target}:{REMOTE_DIR}/{name}",
+                ],
+                timeout=600,
+            )
+    else:
+        if not lines or lines[0] != "root:root:700:directory":
+            raise StopExecution("remote_staging_metadata_invalid")
+        if set(lines[1:]) != EXPECTED_PACKAGE_FILES:
+            raise StopExecution("remote_staging_file_set_mismatch")
+
     remote = ssh_command(
         target,
         control_path,
@@ -387,18 +407,41 @@ def stage_package(
 
 def require_terminal_status(document: dict[str, Any]) -> None:
     if (
-        document.get("schema") != STATUS_SCHEMA
-        or document.get("status") != "PASS"
+        document.get("status") != "PASS"
         or document.get("operation") != "status"
+        or document.get("mutation") is not False
         or document.get("recovery_required") is not False
     ):
         raise StopExecution("fresh_status_invalid")
+
+    schema = document.get("schema")
     tx = document.get("transaction")
-    if not isinstance(tx, dict) or tx.get("status") not in {"COMMITTED", "ROLLED_BACK"}:
-        raise StopExecution("fresh_v2_terminal_transaction_missing")
-    legacy = document.get("legacy_manager_transaction")
-    if isinstance(legacy, dict) and legacy.get("status") not in {"COMMITTED", "ROLLED_BACK"}:
-        raise StopExecution("fresh_legacy_transaction_nonterminal")
+    if not isinstance(tx, dict):
+        raise StopExecution("fresh_terminal_transaction_missing")
+
+    if schema == STATUS_SCHEMA:
+        if (
+            tx.get("schema") != TX_SCHEMA
+            or tx.get("status") not in {"COMMITTED", "ROLLED_BACK"}
+        ):
+            raise StopExecution("fresh_v2_terminal_transaction_invalid")
+        legacy = document.get("legacy_manager_transaction")
+        if (
+            isinstance(legacy, dict)
+            and legacy.get("status") not in {"COMMITTED", "ROLLED_BACK"}
+        ):
+            raise StopExecution("fresh_legacy_transaction_nonterminal")
+        return
+
+    if schema == LEGACY_STATUS_SCHEMA:
+        if (
+            tx.get("schema") != LEGACY_TX_SCHEMA
+            or tx.get("status") not in {"COMMITTED", "ROLLED_BACK"}
+        ):
+            raise StopExecution("fresh_legacy_terminal_transaction_invalid")
+        return
+
+    raise StopExecution("fresh_status_schema_invalid")
 
 
 def require_inspect(document: dict[str, Any], baseline: dict[str, Any], manager: str) -> None:
