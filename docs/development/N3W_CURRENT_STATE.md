@@ -1,3 +1,44 @@
+## Latest authority — 2026-11-04 U1 Manager A->B suspended; Pre-U1 normal product runtime acceptance selected
+
+```text
+AUTHORITY_STATE=U0_CLOSED_PASS_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_SELECTED
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+AUTHORITY_SCHEMA=gh.n3w-t1-core-stack-current-authority/2
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=b863ddd959090ca139af76bd68dbef31d773e6de
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+BASELINE_A_MANIFEST=infra/n3w-t1/clean-reference/u0-upgrade-baseline-a-20261104.json
+BASELINE_A_SHA256=a791377083e76f765ddf978c09025674eda3586d33892e4b609a814706bdfbbc
+U0_RESULT=CLOSED_PASS
+U0_REOPEN=false
+
+U1_MANAGER_A_TO_B_STATUS=SUSPENDED_BEFORE_TARGET_B_SOURCE_REPAIR
+U1_PLAN_PRESERVED=true
+U1_LIVE_APPLY_AUTHORIZED=false
+RECOMMENDED_MANAGER_B_CANDIDATE=DISCOVERY_PUBLISH_FAILURE_RETRY_CORRECTNESS
+MANAGER_B_SOURCE_CREATED=false
+
+PRE_U1_PLAN=docs/development/N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_PLAN_20261104.md
+PRE_U1_PHASES=G0,G1,G2,G3,G4,G5
+NEXT_ONE_GATE=N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G0_READONLY_PREFLIGHT_20261104_01
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+
+T1_ACCESS_THIS_ALIGNMENT=false
+T1_MUTATION_THIS_ALIGNMENT=false
+BOARD_ACCESS_THIS_ALIGNMENT=false
+MERGE=false
+```
+
+The user selected a bounded normal-product-runtime acceptance stage before U1. The stage will, in separate gates, establish Home Assistant local-user operation, Node A real sensor telemetry, a second normal node registration, two-node runtime, and a final Pre-U1 upgrade-safety revalidation/reference.
+
+Manager A -> B is suspended, not discarded. Its preserved route and resume conditions are recorded in:
+- `docs/development/N3W_T1_CORE_UPDATER_U1_MANAGER_A_TO_B_SUSPENDED_PLAN_20261104.md`;
+- `docs/development/N3W_MANAGER_A_PRODUCT_GAP_REVIEW_FOR_U1_TARGET_B_20261104.md`.
+
+Only G0 read-only preflight is the next gate. No HA account creation, Board work, node registration, Manager source repair, updater apply, rollback or merge occurred during this alignment.
+
 ## Latest authority — 2026-11-04 U0 real T1 read-only Baseline A CLOSED_PASS; U1 preparation next
 
 ```text
