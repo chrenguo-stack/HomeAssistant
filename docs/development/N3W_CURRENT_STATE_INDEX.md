@@ -1,5 +1,10 @@
 ## 2026-11-05 — KF-141 transaction reconciliation decision CLOSED_PASS
 
+- Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source remains `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Current repository Manager remains `local/greenhouse-manager:fresh-b863ddd95909`; Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; canonical production authority remains Manager A. The failed R3 successor attempt does not switch production authority.
 - Fresh real-T1 authority remains `PREDECESSOR_BOUND_RUNNING / HEALTHY` on Manager A.
 - Manual transaction edit/delete and blind service rollback were rejected.
 - Selected path: exact repaired updater-owned explicit rollback.
