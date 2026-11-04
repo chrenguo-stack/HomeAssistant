@@ -1,3 +1,16 @@
+## 2026-11-05 — KF-141 transaction reconciliation decision CLOSED_PASS
+
+- Fresh real-T1 authority remains `PREDECESSOR_BOUND_RUNNING / HEALTHY` on Manager A.
+- Manual transaction edit/delete and blind service rollback were rejected.
+- Selected path: exact repaired updater-owned explicit rollback.
+- For the proven predecessor-healthy branch, source and tests require `transaction_status=ROLLED_BACK`, `t1_mutation=false`, and no host/service events.
+- `recovery_required` is computed from terminal transaction status; successful `ROLLED_BACK` is expected to make updater status report `recovery_required=false`.
+- The terminal transaction should remain in place for evidence; a future separately authorized apply will archive it through `V2StateStore.prepare_new()`.
+- This decision gate did not access T1 or modify the transaction.
+- Proposed one-shot authorization: `N3W_T1_CORE_UPDATER_U1_R3_KF141_TRANSACTION_METADATA_RECONCILIATION_20261105_01`.
+- Next gate is the explicit authorization boundary; it is not authorized or auto-executed.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_U1_R3_KF141_TRANSACTION_RECONCILIATION_DECISION_20261105.md`.
+
 ## 2026-11-04 — KF-141 fresh runtime-state CLOSED_PASS; predecessor A healthy
 
 - Exact repaired updater artifact `13336359358` / pyz SHA256 `65a5f62dcf9640d55067ab3104a8475a5bd1372ff1fce9a4441f18e3f53b2b46` executed exactly one read-only `runtime-state`.
