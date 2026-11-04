@@ -107,7 +107,7 @@ Current canonical runtime remained Direct for both registered nodes.
 
 Node B remained on the same boot-session evidence lineage and had advanced to seq 55.
 
-Node A was observed on a new boot session after G4 and was at seq 4 when G5 evidence was collected. G5 does not establish the reason for that board reboot. The registered Node A identity remained unchanged, its current source was Direct, and no Manager/Home Assistant/Broker restart accompanied it. Because G4 had already completed its required 601-second stable two-node run and G5 tests hard upgrade authority plus current business-reference state rather than board uptime continuity, this observation does not invalidate G5. It remains explicitly recorded instead of being silently discarded.
+Node A was observed on a new boot session after G4 and was at seq 4 when G5 evidence was collected. The operator subsequently confirmed that this board reboot was intentionally initiated. The registered Node A identity remained unchanged, its current source was Direct, and no Manager/Home Assistant/Broker restart accompanied it. Because G4 had already completed its required 601-second stable two-node run and G5 tests hard upgrade authority plus current business-reference state rather than board uptime continuity, this observation does not invalidate G5. It remains explicitly recorded instead of being silently discarded.
 
 ## 5. Earlier gate summary
 
