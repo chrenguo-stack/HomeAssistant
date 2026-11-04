@@ -1,3 +1,26 @@
+## 2026-11-04 — Pre-U1 normal product runtime acceptance CLOSED_PASS; PR #774 merge review next
+
+- Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current product source remains `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Current Manager remains `local/greenhouse-manager:fresh-b863ddd95909`; Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- G0/G1/G2/G3/G4/G5 are all `CLOSED_PASS`; overall Pre-U1 normal product runtime acceptance is `CLOSED_PASS`.
+- G5 reused exact U0 updater artifact 13261072174 / pyz SHA256 `54f2e6299fa8905d33033ea86b5d449f16ad4dcd6ae8c7a3e9d647d6001e22fa`.
+- Two fresh baseline reads are both 2275 bytes with SHA256 `a791377083e76f765ddf978c09025674eda3586d33892e4b609a814706bdfbbc`; byte comparison PASS and both exactly equal archived U0 Baseline A.
+- Normal business use therefore caused no hard upgrade-authority drift; `U0_REOPEN=false`.
+- Public-safe business runtime reference frozen at `infra/n3w-t1/clean-reference/pre-u1-business-runtime-reference-20261104.json`.
+- Current normal business state: 2 registered nodes / 2 active NODE_ID leases / 2 active credential assignments / 2 active application nodes / 0 unresolved first registrations.
+- HA current state: Node A 1 device / 17 entities; Node B 1 device / 6 entities; registry totals 7 devices / 41 entities / 11 config entries.
+- DynSec current population: 6 clients / 12 roles / 1 group; hard structural authority remains proven unchanged by exact baseline equality.
+- Manager, Home Assistant and Broker remain running with restart_count=0; TCP/47112 remains closed.
+- Node A is currently on a new Direct boot session relative to G4; registered identity is unchanged. G5 does not establish the cause and records it without treating it as upgrade-safety drift.
+- Exact board target still has 20-minute RS485 soil cadence; keep separate product-parameter review before final production release.
+- `N3W_PROJECT_WORKING_CONTEXT.md` stable-only policy was checked; no G5 stage-specific values are added.
+- Next one gate: `N3W_PR774_FINAL_MERGE_READINESS_REVIEW_20261104_01`.
+- PR #774 remains unmerged; merge still requires explicit authorization.
+- Closure: `docs/development/N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_CLOSURE_20261104.md`.
+
 ## 2026-11-04 — Pre-U1 G4 two-node normal runtime CLOSED_PASS; STOP before G5
 
 - Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
