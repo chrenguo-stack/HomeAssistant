@@ -1,3 +1,14 @@
+## 2026-11-05 — U1 R4 repaired A→B live reapply AUTHORIZED
+
+- One-shot authorization `N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_REAPPLY_U1_R4_20261105_01` is explicitly granted.
+- Current state is granted=true, claimed=false, consumed=false, replay=false.
+- Exactly one apply is permitted only after fresh status/runtime-state/inspect/plan guards pass.
+- Any preflight drift stops before claim/consumption.
+- Once apply is invoked, authorization is consumed regardless of PASS/FAIL.
+- No second apply and no blind rollback are authorized.
+- PR #777 remains unmerged.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_U1_R4_MANAGER_A_TO_B_LIVE_REAPPLY_AUTHORIZATION_20261105.md`.
+
 ## 2026-11-05 — U1 R4 repaired A→B live reapply PREAUTH READY
 
 - Current live authority remains healthy Manager A; transaction is terminal `ROLLED_BACK` with `recovery_required=false`.
