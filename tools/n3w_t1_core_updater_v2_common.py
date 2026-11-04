@@ -41,6 +41,17 @@ class UpdaterV2Error(RuntimeError):
     pass
 
 
+def safe_error_code(error: Exception) -> str:
+    value = str(error)
+    if (
+        not value
+        or len(value) > 200
+        or any(character in value for character in ("/", "\\", "@"))
+    ):
+        return type(error).__name__
+    return value
+
+
 def canonical(value: Any) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
@@ -342,6 +353,8 @@ def validate_component_candidate(
 
 
 class V2Host(Protocol):
+    def observe_v2(self) -> dict[str, Any]: ...
+    def observe_state_v2(self) -> dict[str, Any]: ...
     def inspect_v2(self) -> dict[str, Any]: ...
     def assert_mutation_safe(self, component: str) -> None: ...
     def assert_component_upgradeable(self, component: str) -> None: ...
