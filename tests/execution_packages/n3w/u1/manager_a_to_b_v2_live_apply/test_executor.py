@@ -77,11 +77,7 @@ def inspect(manager: str, baseline: dict) -> dict:
                 "homeassistant": baseline["stack_images"]["homeassistant"],
                 "broker": baseline["stack_images"]["broker"],
             },
-            "image_binding_modes": {
-                "manager": "dynamic",
-                "homeassistant": "dynamic",
-                "broker": "dynamic",
-            },
+            "image_binding_modes": dict(baseline["image_binding_modes"]),
             "mqtt_authenticated": {"manager": True, "homeassistant": True},
             "listeners": {
                 "tcp_8883": 1,
@@ -297,3 +293,29 @@ def test_existing_exact_remote_staging_is_reused_without_copy(
 
     assert observed == local_hashes
     assert len(ssh_calls) == 2
+
+
+def test_binding_mode_drift_stops_against_frozen_baseline() -> None:
+    baseline = package_info()["baseline"]
+    document = inspect(mod.EXPECTED_PREDECESSOR, baseline)
+    document["snapshot"]["image_binding_modes"]["broker"] = "dynamic"
+    with pytest.raises(mod.StopExecution, match="image_binding_mode_drift"):
+        mod.require_inspect(
+            document,
+            baseline,
+            mod.EXPECTED_PREDECESSOR,
+        )
+
+
+def test_frozen_legacy_static_peers_are_accepted() -> None:
+    baseline = package_info()["baseline"]
+    assert baseline["image_binding_modes"] == {
+        "manager": "dynamic",
+        "homeassistant": "legacy_static",
+        "broker": "legacy_static",
+    }
+    mod.require_inspect(
+        inspect(mod.EXPECTED_PREDECESSOR, baseline),
+        baseline,
+        mod.EXPECTED_PREDECESSOR,
+    )
