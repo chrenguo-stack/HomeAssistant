@@ -2,7 +2,7 @@
 
 | ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
 |---|---|---|---|---|---|
-| KF-141 | T1_Core_Updater U1 Manager A→B V2 apply / automatic rollback / runtime classification | U1 B10 R3 fresh plan PASS 后首次真实 apply 进入 mutation；apply 返回 `automatic_rollback_failed`，事务进入 `FAILED_EMERGENCY` / `recovery_required=true`；post inspect 返回 `mqtt_current_authentication_missing`。授权已消费且禁止 replay | `start_services()/wait_services()` 与 `inspect_v2()` 对“ready”定义分裂：前者在服务/容器/listener 收敛后返回，后者立即额外要求 Manager + HA 当前 MQTT 认证和 HA HTTP；同一瞬时软健康窗口又被 automatic rollback 复用，可能把普通启动收敛延迟连续放大成 apply FAIL + rollback FAIL。进一步复核确认 `inspect_v2()` 同时承担结构观测和软健康 gate，导致软健康未收敛时结构状态不可用于 recovery；transaction 还只记录异常类名，丢失精确错误码 | 分离 structural observation 与 convergence validation；apply/rollback 共用同一 bounded canonical convergence wait；增加 read-only `runtime-state` 分类；predecessor 已运行但软健康 CONVERGING 时只等待、禁止先重启；`FAILED_EMERGENCY` 保留给 bounded convergence expiry / hard unresolved；transaction 保存脱敏 `apply_error_code` / `rollback_error_code` / last runtime class + health state；补时间序列 LocalHost tests | SOURCE_REPAIR_PACKAGE_CLOSED_PASS_TRANSACTION_RECONCILIATION_CLOSED_PASS_R4_REAPPLY_PENDING |
+| KF-141 | T1_Core_Updater U1 Manager A→B V2 apply / automatic rollback / runtime classification | U1 B10 R3 fresh plan PASS 后首次真实 apply 进入 mutation；apply 返回 `automatic_rollback_failed`，事务进入 `FAILED_EMERGENCY` / `recovery_required=true`；post inspect 返回 `mqtt_current_authentication_missing`。授权已消费且禁止 replay | `start_services()/wait_services()` 与 `inspect_v2()` 对“ready”定义分裂：前者在服务/容器/listener 收敛后返回，后者立即额外要求 Manager + HA 当前 MQTT 认证和 HA HTTP；同一瞬时软健康窗口又被 automatic rollback 复用，可能把普通启动收敛延迟连续放大成 apply FAIL + rollback FAIL。进一步复核确认 `inspect_v2()` 同时承担结构观测和软健康 gate，导致软健康未收敛时结构状态不可用于 recovery；transaction 还只记录异常类名，丢失精确错误码 | 分离 structural observation 与 convergence validation；apply/rollback 共用同一 bounded canonical convergence wait；增加 read-only `runtime-state` 分类；predecessor 已运行但软健康 CONVERGING 时只等待、禁止先重启；`FAILED_EMERGENCY` 保留给 bounded convergence expiry / hard unresolved；transaction 保存脱敏 `apply_error_code` / `rollback_error_code` / last runtime class + health state；补时间序列 LocalHost tests | CLOSED_PASS |
 
 R3 evidence authority:
 - exact executor head `459e240c351ca04c01b94e1ed9ddeb8f21315f0c`;
@@ -19,6 +19,20 @@ Transaction reconciliation closure authority:
 
 Post-reconciliation disposition authority:
 `docs/development/N3W_T1_CORE_UPDATER_U1_R3_KF141_POST_RECONCILIATION_DISPOSITION_20261105.md`.
+
+R4 real repaired A->B live reapply closure authority:
+`docs/development/N3W_T1_CORE_UPDATER_U1_R4_MANAGER_A_TO_B_LIVE_REAPPLY_CLOSURE_20261105.md`.
+
+Final KF-141 disposition:
+- exact repaired updater package CLOSED_PASS;
+- real predecessor-healthy transaction reconciliation CLOSED_PASS;
+- fresh real A->B reapply CLOSED_PASS;
+- transaction COMMITTED and recovery_required=false;
+- Manager B TARGET_BOUND_RUNNING / HEALTHY;
+- Home Assistant and Broker unchanged;
+- no second apply or explicit rollback;
+- KF-141 is CLOSED_PASS.
+- Repository canonical current-stack authority promotion is separate post-acceptance housekeeping and does not reopen KF-141.
 
 Current disposition:
 - real T1 is back on healthy predecessor Manager A;
