@@ -11,6 +11,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: n3w-u1-manager-a-to-b-v2-live-executor-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   executor:
     runs-on: ubuntu-24.04
