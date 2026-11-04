@@ -1,3 +1,32 @@
+## Latest authority — 2026-11-04 Pre-U1 G3 Node B Wi-Fi setup CLOSED_PASS; Node A restore next
+
+```text
+AUTHORITY_STATE=PRE_U1_G3_NODE_B_WIFI_SETUP_CLOSED_PASS_IDLE_UNREGISTERED
+PRE_U1_G0_RESULT=CLOSED_PASS
+PRE_U1_G1_RESULT=CLOSED_PASS
+PRE_U1_G2_RESULT=CLOSED_PASS
+PRE_U1_G3_RESULT=IN_PROGRESS
+
+LOCAL_FACTORY_BINDING=PASS
+NODE_B_WIFI_CONNECTED=true
+NODE_B_IDLE_UNREGISTERED_QR_VISIBLE=true
+NODE_B_FIRST_REGISTRATION_STARTED=false
+
+NODE_A_CURRENTLY_TEMPORARILY_OFFLINE=true
+NODE_A_G2_ACCEPTANCE_RETAINED=true
+
+T1_RUNTIME_MUTATION=false
+REGISTRATION_MUTATION=false
+
+NEXT_ONE_GATE=N3W_PRE_U1_G3_NODE_A_RESTORE_AND_DUAL_BASELINE_READONLY_20261104_01
+AUTO_EXECUTE_NEXT_GATE=false
+STOP=true
+```
+
+Node B completed normal Captive Portal setup and is now online but still unregistered. The stop boundary was honored: no registration flow was entered. Node A remains temporarily offline and must be restored under a separate physical authorization before formal Node B registration.
+
+Closure: `docs/development/N3W_PRE_U1_G3_NODE_B_WIFI_SETUP_AND_IDLE_UNREGISTERED_CLOSURE_20261104.md`.
+
 ## Latest authority — 2026-11-04 Pre-U1 G3 Node B factory write PASS; Wi-Fi setup next
 
 ```text
