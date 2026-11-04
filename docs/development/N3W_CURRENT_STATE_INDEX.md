@@ -1,5 +1,10 @@
 ## 2026-11-04 — Pre-U1 G4 two-node normal runtime CLOSED_PASS; STOP before G5
 
+- Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current product source remains `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Current Manager remains `local/greenhouse-manager:fresh-b863ddd95909`; Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
 - G4 ordinary Direct-mode observation ran 601 seconds from 07:23:12Z to 07:33:13Z.
 - Node A advanced seq 44 -> 54 across all 10 one-minute intervals; one boot session; source remained Direct.
 - Node B advanced seq 24 -> 34 across all 10 one-minute intervals; one boot session; source remained Direct.
