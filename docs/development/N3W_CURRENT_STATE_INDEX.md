@@ -1,3 +1,16 @@
+## 2026-11-05 — KF-141 post-reconciliation disposition CLOSED_PASS; R4 repaired A→B reapply selected
+
+- Current production remains healthy Manager A with `PREDECESSOR_BOUND_RUNNING / HEALTHY`.
+- R3 failed transaction debt is cleared: current transaction `ROLLED_BACK`, `recovery_required=false`.
+- Exact repaired updater package `13336359358` remains valid/unexpired; exact source `fc1e1bee...`; CI source/exact-manager-slice/Pre-U1 V2 simulation all SUCCESS.
+- Fresh compare from exact package source head to current PR #777 head is documentation/state-record only; no updater or Manager source drift.
+- Manager B bytes remain unchanged and are not rejected; no Manager B rebuild or updater-package rebuild is required.
+- Selected next route: fresh R4 repaired A→B live reapply using the same exact package.
+- PR #777 must remain unmerged until R4 live acceptance.
+- Proposed new one-shot authorization: `N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_REAPPLY_U1_R4_20261105_01`; not yet granted.
+- No T1 access/mutation occurred in this disposition gate.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_U1_R3_KF141_POST_RECONCILIATION_DISPOSITION_20261105.md`.
+
 ## 2026-11-05 — KF-141 transaction metadata reconciliation CLOSED_PASS
 
 - Fresh pre-write guard remained `PREDECESSOR_BOUND_RUNNING / HEALTHY` on Manager A with transaction `FAILED_EMERGENCY`.
