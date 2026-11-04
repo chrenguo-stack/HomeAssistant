@@ -14,7 +14,7 @@
 - HA current state: Node A 1 device / 17 entities; Node B 1 device / 6 entities; registry totals 7 devices / 41 entities / 11 config entries.
 - DynSec current population: 6 clients / 12 roles / 1 group; hard structural authority remains proven unchanged by exact baseline equality.
 - Manager, Home Assistant and Broker remain running with restart_count=0; TCP/47112 remains closed.
-- Node A is currently on a new Direct boot session relative to G4; registered identity is unchanged. G5 does not establish the cause and records it without treating it as upgrade-safety drift.
+- Node A is currently on a new Direct boot session relative to G4; registered identity is unchanged. The operator confirmed this reboot was intentionally initiated, so it is not an unexplained runtime reset.
 - Exact board target still has 20-minute RS485 soil cadence; keep separate product-parameter review before final production release.
 - `N3W_PROJECT_WORKING_CONTEXT.md` stable-only policy was checked; no G5 stage-specific values are added.
 - Next one gate: `N3W_PR774_FINAL_MERGE_READINESS_REVIEW_20261104_01`.
