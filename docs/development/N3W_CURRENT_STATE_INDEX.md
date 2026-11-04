@@ -1,3 +1,16 @@
+## 2026-11-05 — U1 R4 repaired A→B live reapply PREAUTH READY
+
+- Current live authority remains healthy Manager A; transaction is terminal `ROLLED_BACK` with `recovery_required=false`.
+- Exact repaired package `13336359358` remains reusable and unexpired; current PR drift from exact source is documentation-only.
+- Exact V2 apply uses confirmation token `T1_CORE_UPDATER_APPLY`.
+- R4 must run fresh status/runtime-state/inspect/plan and stop before mutation on any drift.
+- Proposed one-shot live authorization is `N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_REAPPLY_U1_R4_20261105_01`.
+- Authorization is not granted, claimed or consumed by merely entering this gate.
+- A successful R4 must commit Manager B while Home Assistant/Broker remain unchanged.
+- Any attempted apply consumes the authorization; no second apply and no blind rollback are allowed.
+- PR #777 remains unmerged.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_U1_R4_MANAGER_A_TO_B_LIVE_REAPPLY_AUTHORIZATION_20261105.md`.
+
 ## 2026-11-05 — KF-141 post-reconciliation disposition CLOSED_PASS; R4 repaired A→B reapply selected
 
 - Current production remains healthy Manager A with `PREDECESSOR_BOUND_RUNNING / HEALTHY`.
