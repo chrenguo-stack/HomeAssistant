@@ -157,9 +157,9 @@ The user explicitly granted the fresh one-shot R4 live apply authorization.
 
 ```text
 AUTHORIZATION_ID=N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_REAPPLY_U1_R4_20261105_01
-AUTHORIZATION_GRANTED=false
+AUTHORIZATION_GRANTED=true
 AUTO_EXECUTE=true
-STOP=true
+STOP_BEFORE_APPLY_ON_PREFLIGHT_DRIFT=true
 ```
 
 
@@ -182,3 +182,30 @@ EXECUTION_GATE=N3W_T1_CORE_UPDATER_U1_R4_MANAGER_A_TO_B_LIVE_REAPPLY_EXECUTION_2
 
 The authorization remains unclaimed and unconsumed until all fresh pre-mutation
 guards pass and the single updater-owned apply invocation is about to occur.
+
+
+## Execution attempt 01 — local transport preflight stop
+
+```text
+EXECUTION_ATTEMPT=01
+RESULT=STOP_BEFORE_T1_COMMANDS
+LOCAL_EXACT_PACKAGE=PASS
+SSH_AUTH_PROMPT_REACHED=true
+SSH_CONTROLMASTER_CREATED=false
+FAILURE_REASON=LOCAL_UNIX_CONTROL_SOCKET_PATH_TOO_LONG
+
+R4_PREFLIGHT_STARTED=false
+APPLY_INVOKED=false
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+T1_MUTATION=false
+```
+
+The first execution script stopped on the Mac while creating the SSH
+ControlMaster socket. The ControlPath inherited the long evidence-directory
+path and exceeded the Unix-domain-socket path limit. No remote staging command,
+updater preflight, apply invocation, transaction write, or service mutation was
+reached.
+
+The one-shot authorization therefore remains valid, granted, unclaimed and
+unconsumed. The executor may be retried with a short temporary ControlPath.
