@@ -1,0 +1,133 @@
+{
+  "schema": "gh.n3w-pre-u1-business-runtime-reference/1",
+  "date": "2026-11-04",
+  "result": "CLOSED_PASS",
+  "upgrade_safety": {
+    "u0_baseline_path": "infra/n3w-t1/clean-reference/u0-upgrade-baseline-a-20261104.json",
+    "u0_baseline_sha256": "a791377083e76f765ddf978c09025674eda3586d33892e4b609a814706bdfbbc",
+    "u0_baseline_bytes": 2275,
+    "fresh_read_1_sha256": "a791377083e76f765ddf978c09025674eda3586d33892e4b609a814706bdfbbc",
+    "fresh_read_2_sha256": "a791377083e76f765ddf978c09025674eda3586d33892e4b609a814706bdfbbc",
+    "fresh_read_1_bytes": 2275,
+    "fresh_read_2_bytes": 2275,
+    "fresh_reads_byte_identical": true,
+    "fresh_baseline_equals_u0": true,
+    "a1_classification_sha256": "e664ced300ea2bb743b116550b7a3e22237e7f556f54400a060eef30671d30e7",
+    "updater_artifact_id": 13261072174,
+    "updater_artifact_digest": "sha256:cb070fdc1a10b2a17675449b3fc0e4bc868fac88a1e1f878ca2203a5d4b39aac",
+    "updater_pyz_sha256": "54f2e6299fa8905d33033ea86b5d449f16ad4dcd6ae8c7a3e9d647d6001e22fa",
+    "updater_control_head": "4dd39befedce891bd2db3cc84c592d41f778bc51"
+  },
+  "stack": {
+    "images": {
+      "manager": "local/greenhouse-manager:fresh-b863ddd95909",
+      "homeassistant": "local/n3w-homeassistant:2026.10.0-0c73235a",
+      "broker": "local/n3w-mosquitto:2.1.2-3184566d"
+    },
+    "platforms": {
+      "manager": "linux/arm64",
+      "homeassistant": "linux/arm64",
+      "broker": "linux/arm64"
+    },
+    "image_binding_modes": {
+      "manager": "dynamic",
+      "homeassistant": "legacy_static",
+      "broker": "legacy_static"
+    },
+    "runtime_contract_sha256": {
+      "manager": "ad1d38f6191c0c00afcfbee3ca489d5f95a86fefcb17976c273597c04609d6e1",
+      "homeassistant": "bc69586866551709110435ea25bfdff9d41bc8e366f6ace8d4b7bba3db5f6868",
+      "broker": "b4e002c7eb494812629b1a99d7e53b712d5f2239460c99334556976b6fdad492"
+    },
+    "services": {
+      "manager": {
+        "state": "running",
+        "restart_count": 0,
+        "started_at": "2026-11-03T07:25:09.399288929Z"
+      },
+      "homeassistant": {
+        "state": "running",
+        "restart_count": 0,
+        "started_at": "2026-11-03T07:25:09.405643767Z"
+      },
+      "broker": {
+        "state": "running",
+        "restart_count": 0,
+        "started_at": "2026-11-01T14:11:02.380481673Z"
+      }
+    },
+    "listeners": {
+      "tcp_47110": 1,
+      "udp_47111": 1,
+      "tcp_47112": 0
+    }
+  },
+  "business": {
+    "registered_node_count": 2,
+    "active_node_id_lease_count": 2,
+    "active_credential_assignment_count": 2,
+    "active_application_node_count": 2,
+    "active_or_grace_application_epoch_count": 2,
+    "unresolved_first_registration_count": 0,
+    "nodes": [
+      {
+        "label": "A",
+        "node_id_sha256": "7c5197ca0643ea0669c2ee43d5d89a994b09b0394fdd7e9872fea5aa4d97e090",
+        "current_boot_session_sha256": "bbb91291fa161862815ba9df91bcbb4517f19e78c0a1b8f2aee47a74fc8499e9",
+        "current_seq": 4,
+        "source": "direct",
+        "real_sensor_telemetry_proven": true,
+        "ha_device_match_count": 1,
+        "ha_entity_count": 17
+      },
+      {
+        "label": "B",
+        "node_id_sha256": "589486b4e4e7fb05fc0a7e8994d977b67c60ce72770b80af6ee74eef0bd1d724",
+        "current_boot_session_sha256": "665e994827f6b03167e80c1513eb356e0d4f013f2e03a3b345e1e5e3c24dfca6",
+        "current_seq": 55,
+        "source": "direct",
+        "independently_registered": true,
+        "ha_device_match_count": 1,
+        "ha_entity_count": 6
+      }
+    ]
+  },
+  "dynsec": {
+    "client_count": 6,
+    "group_count": 1,
+    "role_count": 12,
+    "hard_authority_preserved_by_exact_baseline": true
+  },
+  "homeassistant": {
+    "config_entry_count": 11,
+    "device_registry_count": 7,
+    "entity_registry_count": 41,
+    "storage_versions": {
+      "config_entries": 1,
+      "devices": 3,
+      "entities": 1
+    },
+    "two_registered_nodes_separate": true
+  },
+  "observations": {
+    "node_a_new_boot_session_since_g4": true,
+    "node_a_new_boot_session_cause": "not_classified_by_g5",
+    "node_a_identity_preserved": true,
+    "node_a_current_source": "direct",
+    "product_service_restart_observed": false,
+    "g5_product_mutation": false
+  },
+  "deferred_review": {
+    "soil_read_interval": "20min",
+    "soil_cadence_product_parameter_review_required": true
+  },
+  "privacy": {
+    "raw_hardware_id_included": false,
+    "raw_pairing_id_included": false,
+    "setup_secret_included": false,
+    "mqtt_password_included": false,
+    "application_key_material_included": false,
+    "homeassistant_credentials_included": false,
+    "private_network_locator_included": false
+  }
+}
