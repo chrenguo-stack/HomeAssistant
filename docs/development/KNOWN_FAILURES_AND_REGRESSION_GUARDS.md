@@ -2,7 +2,7 @@
 
 | ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
 |---|---|---|---|---|---|
-| KF-141 | T1_Core_Updater U1 Manager A→B V2 apply / automatic rollback / runtime classification | U1 B10 R3 fresh plan PASS 后首次真实 apply 进入 mutation；apply 返回 `automatic_rollback_failed`，事务进入 `FAILED_EMERGENCY` / `recovery_required=true`；post inspect 返回 `mqtt_current_authentication_missing`。授权已消费且禁止 replay | `start_services()/wait_services()` 与 `inspect_v2()` 对“ready”定义分裂：前者在服务/容器/listener 收敛后返回，后者立即额外要求 Manager + HA 当前 MQTT 认证和 HA HTTP；同一瞬时软健康窗口又被 automatic rollback 复用，可能把普通启动收敛延迟连续放大成 apply FAIL + rollback FAIL。进一步复核确认 `inspect_v2()` 同时承担结构观测和软健康 gate，导致软健康未收敛时结构状态不可用于 recovery；transaction 还只记录异常类名，丢失精确错误码 | 分离 structural observation 与 convergence validation；apply/rollback 共用同一 bounded canonical convergence wait；增加 read-only `runtime-state` 分类；predecessor 已运行但软健康 CONVERGING 时只等待、禁止先重启；`FAILED_EMERGENCY` 保留给 bounded convergence expiry / hard unresolved；transaction 保存脱敏 `apply_error_code` / `rollback_error_code` / last runtime class + health state；补时间序列 LocalHost tests | SOURCE_REPAIR_PACKAGE_CLOSED_PASS_LIVE_RECONCILIATION_PENDING |
+| KF-141 | T1_Core_Updater U1 Manager A→B V2 apply / automatic rollback / runtime classification | U1 B10 R3 fresh plan PASS 后首次真实 apply 进入 mutation；apply 返回 `automatic_rollback_failed`，事务进入 `FAILED_EMERGENCY` / `recovery_required=true`；post inspect 返回 `mqtt_current_authentication_missing`。授权已消费且禁止 replay | `start_services()/wait_services()` 与 `inspect_v2()` 对“ready”定义分裂：前者在服务/容器/listener 收敛后返回，后者立即额外要求 Manager + HA 当前 MQTT 认证和 HA HTTP；同一瞬时软健康窗口又被 automatic rollback 复用，可能把普通启动收敛延迟连续放大成 apply FAIL + rollback FAIL。进一步复核确认 `inspect_v2()` 同时承担结构观测和软健康 gate，导致软健康未收敛时结构状态不可用于 recovery；transaction 还只记录异常类名，丢失精确错误码 | 分离 structural observation 与 convergence validation；apply/rollback 共用同一 bounded canonical convergence wait；增加 read-only `runtime-state` 分类；predecessor 已运行但软健康 CONVERGING 时只等待、禁止先重启；`FAILED_EMERGENCY` 保留给 bounded convergence expiry / hard unresolved；transaction 保存脱敏 `apply_error_code` / `rollback_error_code` / last runtime class + health state；补时间序列 LocalHost tests | SOURCE_REPAIR_PACKAGE_CLOSED_PASS_TRANSACTION_RECONCILIATION_CLOSED_PASS_R4_REAPPLY_PENDING |
 
 R3 evidence authority:
 - exact executor head `459e240c351ca04c01b94e1ed9ddeb8f21315f0c`;
@@ -13,6 +13,20 @@ R3 evidence authority:
 
 Exact repaired package closure authority:
 `docs/development/N3W_T1_CORE_UPDATER_U1_R3_KF141_EXACT_PACKAGE_CLOSURE_AND_READONLY_RUNTIME_STATE_PREEXECUTION_20261104.md`.
+
+Transaction reconciliation closure authority:
+`docs/development/N3W_T1_CORE_UPDATER_U1_R3_KF141_TRANSACTION_METADATA_RECONCILIATION_CLOSURE_20261105.md`.
+
+Post-reconciliation disposition authority:
+`docs/development/N3W_T1_CORE_UPDATER_U1_R3_KF141_POST_RECONCILIATION_DISPOSITION_20261105.md`.
+
+Current disposition:
+- real T1 is back on healthy predecessor Manager A;
+- durable transaction is terminal `ROLLED_BACK` and `recovery_required=false`;
+- repaired exact updater package remains reusable;
+- Manager B is not rejected and does not require rebuild;
+- a fresh R4 A->B live reapply is pending a new one-shot authorization;
+- PR #777 remains unmerged until R4 live acceptance.
 
 Current source-repair design authority:
 `docs/development/N3W_T1_CORE_UPDATER_U1_R3_READINESS_RECOVERY_ARCHITECTURE_REPAIR_DESIGN_20261104.md`.
