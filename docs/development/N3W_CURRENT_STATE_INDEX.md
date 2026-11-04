@@ -1,3 +1,13 @@
+## 2026-11-05 — KF-141 one-shot transaction metadata reconciliation authorized
+
+- Authorization `N3W_T1_CORE_UPDATER_U1_R3_KF141_TRANSACTION_METADATA_RECONCILIATION_20261105_01` is explicitly granted, not yet claimed or consumed, and non-replayable.
+- Fresh PR #777 drift since the previous archive is docs-only; exact updater source remains `fc1e1bee1f158cc199413ead26564938fca5b1a9`.
+- Artifact `13336359358` remains available/unexpired with the frozen digest and exact source head.
+- Before transaction write, a fresh read-only guard must still prove `PREDECESSOR_BOUND_RUNNING / HEALTHY`, Manager A, and `FAILED_EMERGENCY`.
+- If guard passes, exactly one updater-owned rollback invocation is authorized; apply, service restart, binding rewrite, manual transaction edit/delete and board access remain forbidden.
+- After the single invocation, only read-only status/runtime evidence is allowed; no second rollback.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_U1_R3_KF141_TRANSACTION_METADATA_RECONCILIATION_AUTHORIZATION_20261105.md`.
+
 ## 2026-11-05 — KF-141 transaction reconciliation decision CLOSED_PASS
 
 - Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
