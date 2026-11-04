@@ -1,3 +1,19 @@
+## 2026-11-04 — U1 V2 rebind CLOSED_PASS; new B10 authorization required
+
+- Authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Product source remains `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Manager A remains live: `local/greenhouse-manager:fresh-b863ddd95909`; Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`.
+- V2 rebind exact head `29f3094a08f28f4f6660f2394fc90a6d66ab6c79`, CI #179 / run `41841275491`: source 128 PASS, exact V2 package PASS, Pre-U1 V2 simulation PASS, terminal V2 transaction archive PASS.
+- V2 package artifact `13329432192`, digest `b2cd55cf11de3a97f5d0df13e790094778b76582e1c885318387a8368b6ecfc5`.
+- Updater pyz SHA256 `17849b16c0f60b30b69bcd7d0a17826058748fff053a93a3d90cf349c5baded7`; Manager tar remains `2de1705096b9dfcecbc260f5acb95898b4df059510b7bc4ae6ea6b60debb23fa`.
+- Target/transaction authority is V2: `gh.n3w-t1-core-updater-target/2` + `gh.n3w-t1-core-updater-transaction/2`.
+- Previous authorization `N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_APPLY_U1_20261104_01` was voided before claim and was never consumed.
+- New proposed one-shot authorization: `N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_APPLY_U1_V2_20261104_02`.
+- No real T1 access, T1 mutation, board access or merge occurred during the V2 rebind.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_U1_MANAGER_A_TO_B_V2_REBIND_CLOSURE_AND_B10_PREAUTHORIZATION_20261104.md`.
+
 ## 2026-11-04 — U1 V2 rebind before live apply
 
 - Authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
