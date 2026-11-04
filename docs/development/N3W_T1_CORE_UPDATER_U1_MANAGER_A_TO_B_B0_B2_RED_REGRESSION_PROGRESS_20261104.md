@@ -186,3 +186,26 @@ AUTO_ENTER_B3=false
 The exact CI result confirms the candidate defect without ambiguity: after the first discovery publish attempt reports an immediate failure, unchanged telemetry does not cause a second discovery publish attempt. The existing Manager A cache semantics suppress the retry exactly as predicted.
 
 This closes only the RED-proof gate. It does not authorize or perform the Manager production-code repair, Target B artifact build, live T1 apply, board access, service restart, merge, or B3 entry.
+
+
+## Post-closure CI hygiene
+
+After the RED proof was closed, PR #777 still showed a failing `greenhouse-manager CI` because the
+new regression remained an ordinary failing test against the intentionally-unrepaired Manager A.
+
+To keep the proof while avoiding a permanently red test-only PR, the proven regression was changed
+to a strict expected failure:
+
+```text
+CI_HYGIENE_COMMIT=b699bea5ad95fbb422f6e5f6c77cd978b4626c81
+CHANGE_SCOPE=TEST_ONLY
+PYTEST_MARKER=xfail(strict=True)
+XFAIL_REASON=Manager_A_commits_discovery_cache_before_MQTT_publish_success
+MANAGER_PRODUCT_SOURCE_MUTATION=false
+B3_ENTERED=false
+```
+
+This does not weaken the future regression. While Manager A remains unfixed, the test is expected to
+XFAIL and CI may pass. Once B3 repairs the product behavior, the test will XPASS and strict mode will
+fail CI until the temporary xfail marker is removed, converting it into a normal permanent regression
+test.
