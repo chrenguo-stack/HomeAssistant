@@ -1,3 +1,11 @@
+## 2026-11-05 — U1 R4 attempt 01 stopped locally before T1 commands
+
+- Exact local package hashes passed.
+- SSH reached the password prompt, but ControlMaster creation failed because the Unix-domain socket path was too long.
+- No remote staging, updater preflight, apply, transaction write or service mutation occurred.
+- Authorization remains granted=true, claimed=false, consumed=false.
+- Retry is allowed with a short ControlPath under `/tmp`; no new authorization is required.
+
 ## 2026-11-05 — U1 R4 repaired A→B live reapply AUTHORIZED
 
 - One-shot authorization `N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_REAPPLY_U1_R4_20261105_01` is explicitly granted.
