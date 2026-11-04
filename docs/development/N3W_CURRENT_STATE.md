@@ -1,3 +1,21 @@
+## Latest execution note — 2026-11-05 U1 R4 attempt 01 stopped locally before T1 commands
+
+```text
+R4_EXECUTION_ATTEMPT=01
+RESULT=STOP_BEFORE_T1_COMMANDS
+FAILURE_REASON=LOCAL_UNIX_CONTROL_SOCKET_PATH_TOO_LONG
+LOCAL_EXACT_PACKAGE=PASS
+R4_PREFLIGHT_STARTED=false
+APPLY_INVOKED=false
+AUTHORIZATION_GRANTED=true
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+T1_MUTATION=false
+NEXT_ACTION=RETRY_EXECUTOR_WITH_SHORT_TMP_CONTROL_PATH
+```
+
+The first R4 execution attempt failed only while creating the local SSH ControlMaster socket. No remote staging, updater command, transaction write, apply or service mutation was reached. The existing one-shot authorization remains valid and unconsumed.
+
 ## Latest authority — 2026-11-05 U1 R4 repaired A→B live reapply AUTHORIZED
 
 ```text
