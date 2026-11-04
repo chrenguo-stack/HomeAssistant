@@ -141,16 +141,48 @@ Direct CI URL:
 
 The local container could not clone GitHub because DNS resolution is unavailable in that execution environment. That is a local tooling limitation, not a product/test result.
 
-The method-level source-semantic proof is already deterministic for the candidate defect, but the exact repository pytest result is intentionally not claimed until the already-running CI result is observed later.
+The exact repository CI later completed and reproduced the expected RED precisely. The only failing test was the newly added discovery retry regression; all 1489 pre-existing tests passed and one test was skipped. The failure was the expected assertion that four publish calls should have occurred after retry, while Manager A produced only two.
 
 ```text
 B2_SOURCE_SEMANTIC_RED_PROOF=PASS
-B2_EXACT_REPOSITORY_PYTEST=CI_PENDING_AT_POLL_LIMIT
-GATE_FINAL_CLOSE=PENDING_EXACT_CI_RESULT
-SOURCE_REPAIR_REQUIRED_IF_EXACT_CI_FAILS_FOR_EXPECTED_ASSERTION=true
+B2_EXACT_REPOSITORY_PYTEST=PASS_EXPECTED_RED
+B2_EXACT_CI_RUN_ID=41811967169
+B2_EXACT_CI_TEST_RESULT=1_FAILED_1489_PASSED_1_SKIPPED
+B2_EXACT_FAILURE=test_discovery_publish_failure_retries_unchanged_telemetry
+B2_EXACT_FAILURE_ASSERTION=ASSERT_2_EQUALS_4
+GATE_FINAL_CLOSE=CLOSED_PASS
+SOURCE_REPAIR_REQUIRED=true
 AUTO_ENTER_B3=false
 ```
 
 ## Stop boundary
 
 No Manager product repair, Target B artifact, T1 access, updater apply/rollback, service restart, Broker/Home Assistant/credential/registration/pairing mutation, board access, merge, or automatic B3 entry is performed in this gate.
+
+
+## Final exact CI closure
+
+```text
+EXACT_PR_HEAD=47204c8c59201dc1b3d3b6ff0d9fbe74833611d6
+GREENHOUSE_MANAGER_CI_RUN_ID=41811967169
+GREENHOUSE_MANAGER_CI=FAIL_EXPECTED_RED
+RUFF=PASS
+PYTEST_TOTAL_RESULT=1_FAILED_1489_PASSED_1_SKIPPED
+FAILED_TEST=tests/runtime/test_mqtt_discovery_retry.py::test_discovery_publish_failure_retries_unchanged_telemetry
+FAILED_ASSERTION=assert service._publish.call_count == 4
+OBSERVED_CALL_COUNT=2
+EXPECTED_CALL_COUNT=4
+UNRELATED_TEST_FAILURE_COUNT=0
+HARNESS_FAILURE=false
+PRODUCT_SOURCE_REPAIR_PERFORMED=false
+B0=PASS
+B1=PASS
+B2=PASS
+GATE_RESULT=CLOSED_PASS
+NEXT_GATE_NOT_ENTERED=B3
+AUTO_ENTER_B3=false
+```
+
+The exact CI result confirms the candidate defect without ambiguity: after the first discovery publish attempt reports an immediate failure, unchanged telemetry does not cause a second discovery publish attempt. The existing Manager A cache semantics suppress the retry exactly as predicted.
+
+This closes only the RED-proof gate. It does not authorize or perform the Manager production-code repair, Target B artifact build, live T1 apply, board access, service restart, merge, or B3 entry.
