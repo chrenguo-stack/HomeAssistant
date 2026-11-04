@@ -7,7 +7,7 @@
 - Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
 - Historical clean-reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
 - Historical clean-reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
-- live upgrade accepted; Manager A remains current while U1 control-plane V2 rebind is validated.
+- Live upgrade accepted; Manager A remains current while U1 control-plane V2 rebind is validated.
 
 ## 2026-11-04 — U1 Manager A -> B B8 CLOSED_PASS; B9 live apply preauthorization ready
 
