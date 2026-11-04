@@ -1,0 +1,80 @@
+name: N3W T1 Core Updater U1 Pre-U1 Simulation CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/n3w-t1-core-updater-u1-pre-u1-simulation-ci.yml"
+      - "tests/tools/test_n3w_t1_core_updater_u1_pre_u1_simulation.py"
+      - "tools/n3w_t1_core_updater*.py"
+      - "infra/n3w-t1/upgrades/manager-5b32e1ae8210.json"
+      - "infra/n3w-t1/clean-reference/u0-upgrade-baseline-a-20261104.json"
+      - "infra/n3w-t1/clean-reference/pre-u1-business-runtime-reference-20261104.json"
+      - "infra/n3w-t1/production/t1-core-stack-current.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  pre-u1-simulation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      SOURCE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PACKAGE_RUN_ID: "41829022162"
+      PACKAGE_ARTIFACT_ID: "13322275752"
+      PACKAGE_ARTIFACT_NAME: "n3w-t1-core-updater-manager-5b32e1ae8210"
+      PACKAGE_ARTIFACT_DIGEST: "sha256:720611993fa80c1f29a39399183a2adee790a497292ca07c99bc270524d30366"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_HEAD }}
+          fetch-depth: 0
+
+      - name: Verify exact checkout and package artifact identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_HEAD"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PACKAGE_RUN_ID/artifacts?per_page=100" > "$RUNNER_TEMP/package-artifacts.json"
+          python - "$RUNNER_TEMP/package-artifacts.json" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+          doc = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          matches = [item for item in doc["artifacts"] if item["name"] == os.environ["PACKAGE_ARTIFACT_NAME"]]
+          assert len(matches) == 1
+          artifact = matches[0]
+          assert str(artifact["id"]) == os.environ["PACKAGE_ARTIFACT_ID"]
+          assert artifact["expired"] is False
+          assert artifact["digest"] == os.environ["PACKAGE_ARTIFACT_DIGEST"]
+          print("U1_B8_PACKAGE_ARTIFACT_IDENTITY=PASS")
+          PY
+
+      - name: Download exact Manager-only package
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.PACKAGE_RUN_ID }}
+          name: ${{ env.PACKAGE_ARTIFACT_NAME }}
+          path: ${{ runner.temp }}/u1-package
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run exact Pre-U1 inspect plan apply rollback simulation
+        env:
+          U1_MANAGER_PACKAGE_DIR: ${{ runner.temp }}/u1-package
+        run: |
+          set -euo pipefail
+          python -m pip install "pytest>=8,<9"
+          PYTHONPATH=tools python -m pytest -q tests/tools/test_n3w_t1_core_updater_u1_pre_u1_simulation.py
+          echo "U1_B8_PRE_U1_INSPECT_PLAN_SIMULATION=PASS"
+          echo "T1_ACCESS=false"
+          echo "T1_MUTATION=false"
+          echo "BOARD_ACCESS=false"
