@@ -1,3 +1,20 @@
+## 2026-11-04 — Pre-U1 G2 Node A real sensor runtime CLOSED_PASS; STOP before G3
+
+- G2 `N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G2_NODE_A_REAL_SENSOR_RUNTIME_20261104_01` is `CLOSED_PASS`.
+- Node A firmware and NVS remained unchanged; no repair pairing was required and the existing registered identity was preserved.
+- Physical set: SCD30, SHT30, BH1750 and RS485 soil temperature/moisture/EC connected; RS485 sensor supply measured 4.85 V; Node A boot/LCD normal and no visible hardware fault.
+- Primary acceptance oracle: Manager durable canonical cursor, read-only. Same boot/source=direct advanced strictly seq 14 -> 15 -> 16 -> 17 -> 18 -> 19 with no gap.
+- Earlier same-session durable observations also showed seq 6 -> 10 -> 14, supporting longer continuity.
+- Home Assistant entity registry contains exactly one entity for each of the seven required raw channels and exactly one Node A device.
+- Recorder state is finite for all seven raw entities; current firmware only emits a finite raw measurement with matching `quality=ok`.
+- Operator UI acceptance: one Node A device, all seven raw entities have values, and values continue updating.
+- Manager and Home Assistant restart_count remain 0; no service restart, direct DB write, HA storage edit, MQTT reconfiguration or Broker ACL broadening was used.
+- Two earlier observer-only failures were harness defects/limitations and did not interrupt product canonical advancement; they are explicitly not product failures.
+- U0 remains `CLOSED_PASS`; Manager A->B U1 remains suspended.
+- Next one gate: `N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G3_NODE_B_FIRST_REGISTRATION_20261104_01`.
+- G3 requires a genuinely fresh/unregistered second board and normal-product registration; `AUTO_EXECUTE_NEXT_GATE=false`; STOP before G3.
+- Closure: `docs/development/N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G2_NODE_A_REAL_SENSOR_RUNTIME_CLOSURE_20261104.md`.
+
 ## 2026-11-04 — Pre-U1 G1 Home Assistant local onboarding CLOSED_PASS; STOP before G2
 
 - Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
