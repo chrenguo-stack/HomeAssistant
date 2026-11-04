@@ -1,3 +1,35 @@
+## Latest authority — 2026-11-04 Pre-U1 G0 read-only preflight CLOSED_PASS; STOP before G1
+
+```text
+AUTHORITY_STATE=PRE_U1_G0_READONLY_PREFLIGHT_CLOSED_PASS
+U0_RESULT=CLOSED_PASS
+U0_REOPEN=false
+U1_MANAGER_A_TO_B_STATUS=SUSPENDED
+U1_PLAN_PRESERVED=true
+FRESH_BASELINE_SHA256=a791377083e76f765ddf978c09025674eda3586d33892e4b609a814706bdfbbc
+FRESH_BASELINE_BYTES=2275
+FRESH_BASELINE_COMPATIBLE_WITH_U0=true
+PRODUCT_SERVICES_HEALTHY=true
+UPDATER_TRANSACTION_STATUS=COMMITTED
+UPDATER_RECOVERY_REQUIRED=false
+PAIRING_WINDOW_STATE=CLOSED
+UNRESOLVED_FIRST_REGISTRATION_COUNT=0
+CURRENT_REGISTERED_NODE_COUNT=1
+HOMEASSISTANT_HTTP_REACHABLE=true
+HOMEASSISTANT_ONBOARDING_COMPLETE=false
+CURRENT_NODE_ONLINE_STATE=UNKNOWN_FROM_LOG_ORACLE
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+G0_RESULT=CLOSED_PASS
+NEXT_ONE_GATE=N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G1_HA_LOCAL_ONBOARDING_20261104_01
+AUTO_EXECUTE_NEXT_GATE=false
+STOP=true
+```
+
+Fresh T1_B read-only evidence matches U0 Baseline A byte-for-byte and proves the product stack healthy with no active updater or pairing mutation. Home Assistant is reachable but local onboarding is still incomplete. The 180-second Manager log probe contained zero Direct-accept lines; per KF-140 this is not used as an offline/product-failure oracle. G0 is closed PASS and execution stops before any G1 Home Assistant user mutation.
+
+Authority: `docs/development/N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G0_READONLY_PREFLIGHT_CLOSURE_20261104.md`.
+
 ## Latest authority — 2026-11-04 U1 Manager A->B suspended; Pre-U1 normal product runtime acceptance selected
 
 ```text
