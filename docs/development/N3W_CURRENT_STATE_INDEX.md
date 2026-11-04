@@ -1,3 +1,21 @@
+## 2026-11-04 — U1 R3 real apply FAILED_EMERGENCY; KF-141 source repair in progress
+
+- R3 crossed the real V2 apply boundary using executor head `459e240c351ca04c01b94e1ed9ddeb8f21315f0c`.
+- Execution `N3W_U1_V2_B10_20261104_02_R3` invoked exactly one apply and no second apply.
+- One-shot authorization `N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_APPLY_U1_V2_20261104_02` is claimed, consumed and permanently replay-forbidden.
+- Apply returned `automatic_rollback_failed`; the durable V2 transaction is `FAILED_EMERGENCY`, phase `FAILED_EMERGENCY`, with `recovery_required=true`.
+- Current live Manager binding/runtime is **not yet freshly classified**. Do not infer A or B from the stale/non-terminal transaction ledger.
+- Canonical production authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; it is not switched by the failed/unaccepted R3 attempt.
+- KF-141 is registered as `SOURCE_REPAIR_IN_PROGRESS_LIVE_RECOVERY_PENDING`.
+- KF-141 code-repair authority head before state-doc alignment: `faa39f0e6052ac968a50062110fce1ec2482bb32`.
+- Source repair separates structural observation from soft-health convergence, adds read-only `runtime-state`, classifies recovery before mutation, and preserves sanitized apply/rollback error codes.
+- New live A→B apply is forbidden; consumed authorization replay is forbidden; blind rollback and transaction edit/delete are forbidden.
+- Board access and merge remain false.
+- Next gate: exact-source/package closure, then fresh read-only real-T1 `runtime-state` classification and separate transaction reconciliation decision.
+- Design authority: `docs/development/N3W_T1_CORE_UPDATER_U1_R3_READINESS_RECOVERY_ARCHITECTURE_REPAIR_DESIGN_20261104.md`.
+- Progress authority: `docs/development/N3W_T1_CORE_UPDATER_U1_R3_KF141_SOURCE_REPAIR_PROGRESS_20261104.md`.
+- Failure/regression authority: `docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md`.
+
 ## 2026-11-04 — U1 V2 rebind CLOSED_PASS; new B10 authorization required
 
 - Authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
