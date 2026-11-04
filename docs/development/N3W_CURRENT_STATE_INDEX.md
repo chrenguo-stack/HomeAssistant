@@ -1,3 +1,18 @@
+## 2026-11-05 — U1 R4 repaired A→B live reapply CLOSED_PASS
+
+- Fresh exact-package and remote binding checks passed.
+- Fresh preflight status/runtime-state/inspect/plan all passed from healthy Manager A and terminal `ROLLED_BACK`.
+- The one-shot R4 authorization was claimed and consumed exactly once.
+- Exactly one updater-owned apply returned `PASS / COMMITTED / t1_mutation=true`.
+- Post-status returned `recovery_required=false` and transaction `COMMITTED`.
+- Final runtime-state is `TARGET_BOUND_RUNNING / HEALTHY` on Manager B `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Home Assistant and Broker remained unchanged and post-inspect confirmed the same bindings.
+- No second apply, explicit rollback, board access or merge occurred.
+- KF-141 source repair, transaction reconciliation and repaired real A→B reapply are all CLOSED_PASS.
+- Repository canonical authority manifest still records Manager A; authority promotion and PR #777 merge decision remain separate.
+- Next gate: `N3W_T1_CORE_UPDATER_U1_R4_POST_LIVE_ACCEPTANCE_AUTHORITY_PROMOTION_AND_PR777_MERGE_DECISION_20261105_01`.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_U1_R4_MANAGER_A_TO_B_LIVE_REAPPLY_CLOSURE_20261105.md`.
+
 ## 2026-11-05 — U1 R4 attempt 01 stopped locally before T1 commands
 
 - Exact local package hashes passed.
