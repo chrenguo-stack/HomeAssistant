@@ -1,5 +1,10 @@
 ## 2026-11-04 — Pre-U1 G2 Node A real sensor runtime CLOSED_PASS; STOP before G3
 
+- Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current product source remains `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Current Manager remains `local/greenhouse-manager:fresh-b863ddd95909`; Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; canonical live deployment remains `APPLIED_ACCEPTED`.
 - G2 `N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G2_NODE_A_REAL_SENSOR_RUNTIME_20261104_01` is `CLOSED_PASS`.
 - Node A firmware and NVS remained unchanged; no repair pairing was required and the existing registered identity was preserved.
 - Physical set: SCD30, SHT30, BH1750 and RS485 soil temperature/moisture/EC connected; RS485 sensor supply measured 4.85 V; Node A boot/LCD normal and no visible hardware fault.
