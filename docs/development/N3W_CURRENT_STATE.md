@@ -1,3 +1,69 @@
+## Latest authority — 2026-11-04 Pre-U1 G4 two-node normal runtime CLOSED_PASS; STOP before G5
+
+```text
+AUTHORITY_STATE=PRE_U1_G4_TWO_NODE_NORMAL_RUNTIME_CLOSED_PASS
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+AUTHORITY_SCHEMA=gh.n3w-t1-core-stack-current-authority/2
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=b863ddd959090ca139af76bd68dbef31d773e6de
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-b863ddd95909
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+PRE_U1_G0_RESULT=CLOSED_PASS
+PRE_U1_G1_RESULT=CLOSED_PASS
+PRE_U1_G2_RESULT=CLOSED_PASS
+PRE_U1_G3_RESULT=CLOSED_PASS
+PRE_U1_G4_RESULT=CLOSED_PASS
+PRE_U1_G5_RESULT=NOT_EXECUTED
+
+G4_OBSERVATION_SECONDS=601
+NODE_A_DIRECT_SEQ=44_TO_54
+NODE_A_ADVANCING_INTERVAL_COUNT=10
+NODE_A_BOOT_SESSION_COUNT=1
+NODE_B_DIRECT_SEQ=24_TO_34
+NODE_B_ADVANCING_INTERVAL_COUNT=10
+NODE_B_BOOT_SESSION_COUNT=1
+
+REGISTERED_NODE_COUNT=2
+ACTIVE_NODE_ID_LEASE_COUNT=2
+ACTIVE_CREDENTIAL_ASSIGNMENT_COUNT=2
+UNRESOLVED_FIRST_REGISTRATION_COUNT=0
+
+MANAGER_RESTART_COUNT=0
+HOMEASSISTANT_RESTART_COUNT=0
+BROKER_RESTART_COUNT=0
+PAIRING_WINDOW_STATE=CLOSED
+TCP_47112=CLOSED
+
+NODE_A_HA_DEVICE_MATCH_COUNT=1
+NODE_A_HA_ENTITY_COUNT=17
+NODE_B_HA_DEVICE_MATCH_COUNT=1
+NODE_B_HA_ENTITY_COUNT=6
+HA_UI_TWO_SEPARATE_DEVICES=true
+HA_UI_NODE_A_DUPLICATED=false
+NODE_A_REAL_SENSOR_UI_CONTINUITY=PASS
+
+NODE_AB_N3W_TELEMETRY_INTERVAL=60s
+NODE_AB_SCD30_UPDATE_INTERVAL=30s
+NODE_AB_SHT30_UPDATE_INTERVAL=30s
+NODE_AB_BH1750_UPDATE_INTERVAL=30s
+NODE_AB_SOIL_READ_INTERVAL=20min
+SOIL_CADENCE_PRODUCT_PARAMETER_REVIEW_REQUIRED=true
+
+NEXT_ONE_GATE=N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G5_FREEZE_REFERENCE_20261104_01
+AUTO_EXECUTE_NEXT_GATE=false
+STOP=true
+```
+
+G4 is closed PASS after a 601-second ordinary Direct-mode run. Both nodes advanced on every one-minute observation interval while preserving one boot session each and distinct identities. Business state remained exactly 2 registered nodes / 2 active leases / 2 active credentials / 0 unresolved registrations. Manager, Home Assistant and Broker remained running with restart_count=0 and TCP/47112 stayed closed. Corrected HA registry evidence plus normal UI confirmation proves one separate device per node, no Node A duplication/overwrite, and continuing Node A real-sensor values.
+
+The exact deployed N3-W artifact reports telemetry to the product path every 60 seconds; its inherited local sensor cadences are 30 seconds for SCD30/SHT30/BH1750 and 20 minutes for the RS485 soil read cycle. This explains non-continuous HA value changes. The 20-minute soil cadence is retained as a separate product-parameter review item; it does not reopen G4.
+
+Closure: `docs/development/N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G4_TWO_NODE_RUNTIME_CLOSURE_20261104.md`.
+
 ## Latest authority — 2026-11-04 Pre-U1 G4 corrected HA end-check PASS; final UI observation pending
 
 ```text
