@@ -1,3 +1,18 @@
+## 2026-11-04 — U1 Manager A->B suspended; Pre-U1 normal product runtime acceptance selected
+
+- U0 remains `CLOSED_PASS`; Baseline A remains `a791377083e76f765ddf978c09025674eda3586d33892e4b609a814706bdfbbc`.
+- Manager A -> B is suspended before Target B source repair; the upgrade plan is preserved and must not auto-resume.
+- Preserved U1 plan: `docs/development/N3W_T1_CORE_UPDATER_U1_MANAGER_A_TO_B_SUSPENDED_PLAN_20261104.md`.
+- Manager A product-gap review remains the basis for the recommended low-risk B candidate: Discovery publish-failure retry correctness. RED proof/source repair are not yet executed.
+- New selected route: `docs/development/N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_PLAN_20261104.md`.
+- Planned gates: G0 read-only preflight; G1 Home Assistant local-user onboarding/UI; G2 Node A real sensor runtime; G3 second-node normal first registration; G4 two-node normal runtime; G5 freeze Pre-U1 business reference and revalidate upgrade safety.
+- Home Assistant Cloud/Nabu Casa is not required.
+- U0 is not reopened by normal business state growth; expected HA registry counts, node population and DynSec population are allowed runtime drift under A1.
+- G5 must fresh-read the updater baseline twice and require no unexpected hard-authority drift versus U0 before U1 can be reconsidered.
+- No T1 access, T1 mutation, Board access, HA user creation, node registration, Manager source repair, updater apply/rollback or merge occurred in this planning/alignment turn.
+- Next one gate: `N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G0_READONLY_PREFLIGHT_20261104_01`.
+- `LIVE_MUTATION_DEFAULT=false`; `BOARD_ACCESS_DEFAULT=false`.
+
 ## 2026-11-04 — U0 real T1 read-only Baseline A CLOSED_PASS; U1 preparation ready
 
 - U0 gate `N3W_T1_CORE_UPDATER_U0_REAL_T1_READONLY_BASELINE_20261104_01` is `CLOSED_PASS`.
