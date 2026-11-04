@@ -1,3 +1,43 @@
+## Latest authority — 2026-11-04 U1 Manager A -> B B8 CLOSED_PASS; B9 live apply preauthorization ready
+
+```text
+AUTHORITY_STATE=U1_MANAGER_A_TO_B_B9_PREAUTHORIZATION_READY
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-b863ddd95909
+TARGET_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+
+B3=CLOSED_PASS
+B4=CLOSED_PASS
+B5=CLOSED_PASS
+B6=CLOSED_PASS
+B7=CLOSED_PASS
+B8=CLOSED_PASS
+
+B8_RUN_ID=41830103737
+B8_RUN_NUMBER=1
+B8_RESULT=SUCCESS
+B8_PACKAGE_ARTIFACT_IDENTITY=PASS
+B8_PRE_U1_INSPECT_PLAN_SIMULATION=PASS
+
+B7_PACKAGE_ARTIFACT_ID=13322275752
+B7_PACKAGE_ARTIFACT_DIGEST_SHA256=720611993fa80c1f29a39399183a2adee790a497292ca07c99bc270524d30366
+B7_UPDATER_PYZ_SHA256=0287d7e7d9c27cf50b842d2c39511cae773ed90526527c4c46a4bff6c368c2b2
+TARGET_MANIFEST=infra/n3w-t1/upgrades/manager-5b32e1ae8210.json
+
+PROPOSED_APPLY_AUTHORIZATION=N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_APPLY_U1_20261104_01
+APPLY_AUTHORIZATION_GRANTED=false
+APPLY_AUTHORIZATION_CONSUMED=false
+AUTO_EXECUTE_B10=false
+
+U1_LIVE_APPLY_AUTHORIZED=false
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+NEXT_ONE_GATE=N3W_T1_CORE_UPDATER_U1_MANAGER_A_TO_B_B10_LIVE_APPLY_AUTHORIZATION_20261104_01
+STOP=true
+```
+
+B8 dedicated CI proved the exact B7 package against the frozen Pre-U1/current-stack authority using the real updater inspect/plan plus simulated apply/rollback path. B9 is now entered only as an explicit live-mutation authorization boundary. No real T1 access or mutation has occurred. The proposed single-use authorization is frozen in `docs/development/N3W_T1_CORE_UPDATER_U1_MANAGER_A_TO_B_B8_CLOSURE_AND_B9_LIVE_APPLY_PREAUTHORIZATION_20261104.md`.
+
 ## Latest authority — 2026-11-04 Pre-U1 CLOSED_PASS and stacked convergence merged to main
 
 ```text

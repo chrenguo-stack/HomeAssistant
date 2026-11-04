@@ -1,3 +1,18 @@
+## 2026-11-04 — U1 Manager A -> B B8 CLOSED_PASS; B9 live apply preauthorization ready
+
+- B3/B4/B5 source repair, tests and independent review are `CLOSED_PASS`.
+- B6 exact linux/arm64 Manager B artifact is `CLOSED_PASS`.
+- B7 exact target/package binding is `CLOSED_PASS`.
+- B8 dedicated Pre-U1 simulation CI run #1 / `41830103737` is SUCCESS; package identity and real updater inspect/plan/simulated A->B apply/B->A rollback all PASS.
+- Current real Manager remains A: `local/greenhouse-manager:fresh-b863ddd95909`.
+- Candidate Target B remains `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Exact B7 package artifact is `13322275752`, digest `720611993fa80c1f29a39399183a2adee790a497292ca07c99bc270524d30366`.
+- Proposed one-shot B10 authorization: `N3W_T1_CORE_UPDATER_MANAGER_A_TO_B_LIVE_APPLY_U1_20261104_01`.
+- B9 is preauthorization-only: `APPLY_AUTHORIZATION_GRANTED=false`, `U1_LIVE_APPLY_AUTHORIZED=false`.
+- No real T1 access, T1 mutation, board access, service restart or merge has occurred in B9.
+- Next one gate is explicit B10 live-apply authorization; auto execution remains disabled.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_U1_MANAGER_A_TO_B_B8_CLOSURE_AND_B9_LIVE_APPLY_PREAUTHORIZATION_20261104.md`.
+
 ## 2026-11-04 — Pre-U1 CLOSED_PASS; PR #773 stacked convergence merged to main
 
 - Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
