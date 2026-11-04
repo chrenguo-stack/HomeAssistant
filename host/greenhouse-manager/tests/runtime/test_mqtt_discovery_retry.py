@@ -1,8 +1,7 @@
 from __future__ import annotations
 
+import logging
 from unittest.mock import Mock, patch
-
-import pytest
 
 from greenhouse_manager.runtime.config import Settings
 from greenhouse_manager.runtime.mqtt_service import ManagerMqttService
@@ -24,17 +23,18 @@ def _canonical_telemetry() -> dict[str, object]:
     }
 
 
-@pytest.mark.xfail(
-    reason="Manager A commits discovery cache before MQTT publish success",
-    strict=True,
-)
 @patch("greenhouse_manager.runtime.mqtt_service.mqtt.Client")
 def test_discovery_publish_failure_retries_unchanged_telemetry(
     client_class: object,
+    caplog: object,
 ) -> None:
     service = ManagerMqttService(Settings(system_id="system-001"))
     service._publish = Mock(side_effect=[False, True, True, True])
     document = _canonical_telemetry()
+    caplog.set_level(
+        logging.INFO,
+        logger="greenhouse_manager.runtime.mqtt_service",
+    )
 
     service._publish_discovery(document)
 
@@ -42,6 +42,19 @@ def test_discovery_publish_failure_retries_unchanged_telemetry(
         call.args[0].topic for call in service._publish.call_args_list
     ]
     assert len(first_topics) == 2
+    failed_topic = first_topics[0]
+    assert any(
+        record.levelno == logging.WARNING
+        and failed_topic in record.getMessage()
+        and "will retry" in record.getMessage()
+        for record in caplog.records
+    )
+    assert not any(
+        record.levelno == logging.INFO
+        and failed_topic in record.getMessage()
+        and "Published Home Assistant discovery" in record.getMessage()
+        for record in caplog.records
+    )
 
     service._publish_discovery(document)
 
@@ -49,3 +62,7 @@ def test_discovery_publish_failure_retries_unchanged_telemetry(
     assert [
         call.args[0].topic for call in service._publish.call_args_list[2:]
     ] == first_topics
+
+    service._publish_discovery(document)
+
+    assert service._publish.call_count == 4

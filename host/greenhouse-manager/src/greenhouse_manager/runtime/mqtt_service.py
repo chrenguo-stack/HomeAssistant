@@ -160,15 +160,29 @@ class ManagerMqttService:
         return True
 
     def _publish_discovery(self, document: dict[str, Any]) -> None:
+        node_id = str(document["node_id"])
         with self._lifecycle_lock:
             messages = self.discovery.messages_for_telemetry(document)
+
+        publish_failed = False
         for outgoing in messages:
-            self._publish(outgoing)
+            if not self._publish(outgoing):
+                publish_failed = True
+                _LOGGER.warning(
+                    "Deferred Home Assistant discovery node=%s topic=%s; will retry",
+                    node_id,
+                    outgoing.topic,
+                )
+                continue
             _LOGGER.info(
                 "Published Home Assistant discovery node=%s topic=%s",
-                document.get("node_id"),
+                node_id,
                 outgoing.topic,
             )
+
+        if publish_failed:
+            with self._lifecycle_lock:
+                self.discovery.clear_node_cache(node_id)
 
     def _process_retirement_jobs(self) -> None:
         if self.registration_registry is None:

@@ -209,3 +209,45 @@ This does not weaken the future regression. While Manager A remains unfixed, the
 XFAIL and CI may pass. Once B3 repairs the product behavior, the test will XPASS and strict mode will
 fail CI until the temporary xfail marker is removed, converting it into a normal permanent regression
 test.
+
+
+## B3 minimum Manager product-source repair
+
+User authorization to enter B3 was granted after CI #6060 confirmed the post-RED strict-xfail branch
+was green.
+
+```text
+B3_AUTHORIZED=true
+B3_SCOPE=DISCOVERY_PUBLISH_FAILURE_RETRY_CORRECTNESS_ONLY
+FINDING_2_INCLUDED=false
+FINDING_3_INCLUDED=false
+BROKER_CHANGE=false
+HOMEASSISTANT_CHANGE=false
+DATABASE_MIGRATION=false
+CONFIG_MIGRATION=false
+T1_ACCESS=false
+BOARD_ACCESS=false
+U1_LIVE_APPLY_AUTHORIZED=false
+```
+
+The minimum repair changes only `ManagerMqttService._publish_discovery()`:
+
+- inspect each immediate `_publish()` boolean result;
+- log success only for successful immediate publishes;
+- log a bounded deferred/retry warning for immediate failure;
+- if any discovery publish fails, clear that node's discovery cache after the publish loop;
+- allow the next identical telemetry to regenerate and retry both discovery documents;
+- keep normal successful discovery de-duplication unchanged;
+- do not wait for PUBACK and do not change canonical telemetry commit semantics.
+
+The RED test is simultaneously converted from temporary strict-xfail back into an ordinary permanent
+regression test. It additionally proves that a fully successful retry restores normal de-duplication
+and that the failed topic is not falsely logged as successfully published.
+
+```text
+B3_PRODUCT_SOURCE_MUTATION=true
+B3_PRODUCT_FILE=host/greenhouse-manager/src/greenhouse_manager/runtime/mqtt_service.py
+B3_TEST_FILE=host/greenhouse-manager/tests/runtime/test_mqtt_discovery_retry.py
+B3_STATUS=IMPLEMENTED_PENDING_CI
+AUTO_ENTER_B4=false
+```
