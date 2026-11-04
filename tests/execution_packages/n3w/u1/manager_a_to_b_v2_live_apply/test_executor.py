@@ -45,6 +45,25 @@ def status(manager: str, *, terminal: str = "COMMITTED") -> dict:
     }
 
 
+def legacy_status(manager: str, *, terminal: str = "COMMITTED") -> dict:
+    return {
+        "schema": mod.LEGACY_STATUS_SCHEMA,
+        "status": "PASS",
+        "operation": "status",
+        "component": "manager",
+        "mutation": False,
+        "recovery_required": False,
+        "transaction": {
+            "schema": mod.LEGACY_TX_SCHEMA,
+            "status": terminal,
+            "phase": terminal,
+            "component": "manager",
+            "predecessor_image": "local/greenhouse-manager:fresh-3539c8f871e2",
+            "target": {"image": manager},
+        },
+    }
+
+
 def inspect(manager: str, baseline: dict) -> dict:
     return {
         "schema": mod.INSPECT_SCHEMA,
@@ -221,3 +240,60 @@ def test_nonterminal_prestate_stops_before_apply(
     assert result["apply_invoked"] is False
     assert result["authorization_claimed"] is False
     assert all(not call or call[0] != "apply" for call in calls)
+
+
+def test_terminal_legacy_committed_status_is_accepted() -> None:
+    mod.require_terminal_status(legacy_status(mod.EXPECTED_PREDECESSOR))
+
+
+def test_nonterminal_legacy_status_stops() -> None:
+    with pytest.raises(mod.StopExecution, match="fresh_status_invalid|fresh_legacy"):
+        document = legacy_status(mod.EXPECTED_PREDECESSOR, terminal="APPLYING")
+        document["recovery_required"] = True
+        mod.require_terminal_status(document)
+
+
+def test_existing_exact_remote_staging_is_reused_without_copy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    package = tmp_path / "package"
+    package.mkdir()
+    local_hashes = {}
+    for name in sorted(mod.EXPECTED_PACKAGE_FILES):
+        path = package / name
+        path.write_bytes(("payload-" + name).encode())
+        local_hashes[name] = mod.sha256_file(path)
+
+    ssh_calls = []
+
+    def fake_ssh(target, control_path, command, *, timeout=180, check=True):
+        ssh_calls.append(command)
+        if len(ssh_calls) == 1:
+            listing = "\n".join(
+                ["root:root:700:directory", *sorted(mod.EXPECTED_PACKAGE_FILES)]
+            ) + "\n"
+            return subprocess.CompletedProcess(
+                args=["ssh"], returncode=0, stdout=listing, stderr=""
+            )
+        hashes = "\n".join(
+            f"{local_hashes[name]}  {mod.REMOTE_DIR}/{name}"
+            for name in sorted(mod.EXPECTED_PACKAGE_FILES)
+        ) + "\n"
+        return subprocess.CompletedProcess(
+            args=["ssh"], returncode=0, stdout=hashes, stderr=""
+        )
+
+    def fail_run(*args, **kwargs):
+        raise AssertionError("scp or local copy must not run for exact staging reuse")
+
+    monkeypatch.setattr(mod, "ssh_command", fake_ssh)
+    monkeypatch.setattr(mod, "run", fail_run)
+
+    observed = mod.stage_package(
+        package,
+        "root@192.0.2.1",
+        "/tmp/n3w-test.sock",
+    )
+
+    assert observed == local_hashes
+    assert len(ssh_calls) == 2
