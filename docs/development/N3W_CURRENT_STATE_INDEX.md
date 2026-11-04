@@ -1,4 +1,9 @@
 ## 2026-11-04 — U1 Manager A->B suspended; Pre-U1 normal product runtime acceptance selected
+- Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current product source remains `b863ddd959090ca139af76bd68dbef31d773e6de`.
+- Historical Clean Reference source remains `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical Clean Reference Manager remains `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; canonical live deployment remains `APPLIED_ACCEPTED`.
 
 - U0 remains `CLOSED_PASS`; Baseline A remains `a791377083e76f765ddf978c09025674eda3586d33892e4b609a814706bdfbbc`.
 - Current Manager remains `local/greenhouse-manager:fresh-b863ddd95909`.
