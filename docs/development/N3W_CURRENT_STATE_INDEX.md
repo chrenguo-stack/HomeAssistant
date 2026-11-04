@@ -1,6 +1,9 @@
 ## 2026-11-04 — U1 Manager A->B suspended; Pre-U1 normal product runtime acceptance selected
 
 - U0 remains `CLOSED_PASS`; Baseline A remains `a791377083e76f765ddf978c09025674eda3586d33892e4b609a814706bdfbbc`.
+- Current Manager remains `local/greenhouse-manager:fresh-b863ddd95909`.
+- Current Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
 - Manager A -> B is suspended before Target B source repair; the upgrade plan is preserved and must not auto-resume.
 - Preserved U1 plan: `docs/development/N3W_T1_CORE_UPDATER_U1_MANAGER_A_TO_B_SUSPENDED_PLAN_20261104.md`.
 - Manager A product-gap review remains the basis for the recommended low-risk B candidate: Discovery publish-failure retry correctness. RED proof/source repair are not yet executed.
