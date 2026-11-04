@@ -1,3 +1,49 @@
+## Latest authority — 2026-11-04 Pre-U1 G5 freeze reference / upgrade safety revalidation IN_PROGRESS
+
+```text
+AUTHORITY_STATE=PRE_U1_G5_FREEZE_REFERENCE_UPGRADE_SAFETY_REVALIDATION_IN_PROGRESS
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+AUTHORITY_SCHEMA=gh.n3w-t1-core-stack-current-authority/2
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=b863ddd959090ca139af76bd68dbef31d773e6de
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-b863ddd95909
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+PRE_U1_G0_RESULT=CLOSED_PASS
+PRE_U1_G1_RESULT=CLOSED_PASS
+PRE_U1_G2_RESULT=CLOSED_PASS
+PRE_U1_G3_RESULT=CLOSED_PASS
+PRE_U1_G4_RESULT=CLOSED_PASS
+PRE_U1_G5_RESULT=IN_PROGRESS
+
+U0_BASELINE_A_PATH=infra/n3w-t1/clean-reference/u0-upgrade-baseline-a-20261104.json
+U0_BASELINE_A_SHA256=a791377083e76f765ddf978c09025674eda3586d33892e4b609a814706bdfbbc
+U0_BASELINE_A_BYTES=2275
+
+G5_UPDATER_ARTIFACT_ID=13261072174
+G5_UPDATER_ARTIFACT_NAME=n3w-t1-core-updater-manager-b863ddd95909
+G5_UPDATER_ARTIFACT_DIGEST=sha256:cb070fdc1a10b2a17675449b3fc0e4bc868fac88a1e1f878ca2203a5d4b39aac
+G5_UPDATER_PYZ_SHA256=54f2e6299fa8905d33033ea86b5d449f16ad4dcd6ae8c7a3e9d647d6001e22fa
+G5_UPDATER_CONTROL_HEAD=4dd39befedce891bd2db3cc84c592d41f778bc51
+G5_UPDATER_ARTIFACT_EXPIRED=false
+
+LIVE_PRODUCT_MUTATION=false
+UPDATER_APPLY=false
+UPDATER_ROLLBACK=false
+REGISTRATION_MUTATION=false
+BOARD_MUTATION=false
+PR774_MERGE=false
+
+NEXT_ACTION=EXECUTE_EXACT_REVIEWED_BASELINE_TWICE_AND_COMPARE_TO_U0
+AUTO_EXECUTE_NEXT_GATE=false
+STOP_AFTER_G5_EVIDENCE=true
+```
+
+G5 is authorized and entered. The current PR #774 head passed all fresh exact-head CI after the G4 authority-marker repair. G5 will reuse the exact updater package already used by U0, not a newly rebuilt tool, so any byte comparison with Baseline A is not contaminated by updater-tool drift. The package remains available and unexpired. Only the read-only `baseline` command is authorized; apply/rollback and other live mutations remain forbidden.
+
 ## Latest authority — 2026-11-04 Pre-U1 G4 two-node normal runtime CLOSED_PASS; STOP before G5
 
 ```text
