@@ -468,8 +468,13 @@ def require_inspect(document: dict[str, Any], baseline: dict[str, Any], manager:
     for peer in ("homeassistant", "broker"):
         if bindings.get(peer) != expected.get(peer):
             raise StopExecution(f"{peer}_binding_drift")
-    if any(modes.get(name) != "dynamic" for name in ("manager", "homeassistant", "broker")):
-        raise StopExecution("dynamic_binding_required")
+    expected_modes = baseline.get("image_binding_modes")
+    if not isinstance(expected_modes, dict):
+        raise StopExecution("baseline_binding_modes_invalid")
+    if modes != expected_modes:
+        raise StopExecution("image_binding_mode_drift")
+    if modes.get("manager") != "dynamic":
+        raise StopExecution("manager_dynamic_binding_required")
     mqtt = snapshot.get("mqtt_authenticated")
     if not isinstance(mqtt, dict) or mqtt.get("manager") is not True or mqtt.get("homeassistant") is not True:
         raise StopExecution("mqtt_authentication_missing")
