@@ -248,6 +248,72 @@ and that the failed topic is not falsely logged as successfully published.
 B3_PRODUCT_SOURCE_MUTATION=true
 B3_PRODUCT_FILE=host/greenhouse-manager/src/greenhouse_manager/runtime/mqtt_service.py
 B3_TEST_FILE=host/greenhouse-manager/tests/runtime/test_mqtt_discovery_retry.py
-B3_STATUS=IMPLEMENTED_PENDING_CI
+B3_STATUS=CLOSED_PASS
 AUTO_ENTER_B4=false
 ```
+
+
+## B3/B4/B5 source closure
+
+Exact source head for the implemented repair before this documentation-only closure advance:
+
+```text
+B3_PRODUCT_HEAD=cf2a27a1662fbfa0bf1e769f8bd92bbff762cb96
+B3_PRODUCT_TREE=77f188f1746cebf178b51b352e27e0fd6b2d8159
+GREENHOUSE_MANAGER_CI_RUN_ID=41823629187
+GREENHOUSE_MANAGER_CI_RUN_NUMBER=6061
+RUFF=PASS
+MANAGER_FULL_PYTEST=1490_PASSED_1_SKIPPED
+N3W_SCAN_TRIGGERED_E2E=8_PASSED
+PUBLIC_REPOSITORY_SAFETY_CI=PASS
+B3=CLOSED_PASS
+```
+
+B4 test closure is satisfied by the exact-head Manager CI. The new retry regression is part of the
+1490 passing Manager tests; the full suite and the separate N3-W scan-triggered E2E set both pass.
+
+Independent B5 source review re-read the repair and all discovery call paths rather than accepting CI
+alone.
+
+```text
+B5_REVIEW_RESULT=PASS
+NEW_BLOCKER_COUNT=0
+DISCOVERY_FAILURE_CACHE_INVALIDATION=BOUNDED_TO_NODE
+SUCCESS_PATH_DEDUP_PRESERVED=true
+FAILED_TOPIC_FALSE_SUCCESS_LOG_REMOVED=true
+SUCCESSFUL_RETRY_RESTORES_DEDUP=true
+SIMPLIFIED_N3W_INHERITED_PATH_COMPATIBLE=true
+FINDING_2_INCLUDED=false
+FINDING_3_INCLUDED=false
+CANONICAL_TELEMETRY_COMMIT_SEMANTICS_CHANGED=false
+PUBACK_WAIT_ADDED=false
+DATABASE_MIGRATION_REQUIRED=false
+CONFIG_MIGRATION_REQUIRED=false
+BROKER_CHANGE_REQUIRED=false
+HOMEASSISTANT_CHANGE_REQUIRED=false
+BOARD_CHANGE_REQUIRED=false
+B4=CLOSED_PASS
+B5=CLOSED_PASS
+```
+
+The bounded tradeoff is intentional: if one of the two retained discovery documents fails while the
+other succeeds, both cache entries are cleared and the next unchanged telemetry republishes both.
+Retained MQTT Discovery writes are idempotent, and this is simpler and safer than per-topic partial
+cache rollback for the first U1 Manager successor.
+
+## B6 entry
+
+```text
+B6_AUTHORIZED_BY_CONTINUE=true
+B6_TARGET=EXACT_LINUX_ARM64_MANAGER_B_ARTIFACT
+B6_BUILD_AUTHORITY=.github/workflows/n3w-t1-fresh-install-exact-arm64-ci.yml
+B6_ACTIVATION=PR_BODY_CI_READY_TRUE
+T1_ACCESS=false
+BOARD_ACCESS=false
+PRODUCTION_SERVICE_START=false
+U1_LIVE_APPLY_AUTHORIZED=false
+```
+
+B6 must build from the exact PR head, upload the exact three-image artifact, re-download it, and prove
+the Manager tar SHA/size/image/platform binding. The future Manager-only U1 package must consume that
+artifact; it must not reuse the historical Manager A artifact.
