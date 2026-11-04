@@ -35,12 +35,12 @@ Final KF-141 disposition:
 - Repository canonical current-stack authority promotion is separate post-acceptance housekeeping and does not reopen KF-141.
 
 Current disposition:
-- real T1 is back on healthy predecessor Manager A;
-- durable transaction is terminal `ROLLED_BACK` and `recovery_required=false`;
-- repaired exact updater package remains reusable;
-- Manager B is not rejected and does not require rebuild;
-- a fresh R4 A->B live reapply is pending a new one-shot authorization;
-- PR #777 remains unmerged until R4 live acceptance.
+- real T1 runs accepted Manager B `local/greenhouse-manager:fresh-5b32e1ae8210`;
+- durable transaction is terminal `COMMITTED` and `recovery_required=false`;
+- runtime is `TARGET_BOUND_RUNNING / HEALTHY`;
+- Home Assistant and Broker bindings remain unchanged;
+- KF-141 is CLOSED_PASS;
+- repository canonical current-stack authority promotion and PR #777 merge decision remain pending as a separate post-acceptance gate.
 
 Current source-repair design authority:
 `docs/development/N3W_T1_CORE_UPDATER_U1_R3_READINESS_RECOVERY_ARCHITECTURE_REPAIR_DESIGN_20261104.md`.
