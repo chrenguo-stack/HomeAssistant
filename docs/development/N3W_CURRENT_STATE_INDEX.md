@@ -1,3 +1,20 @@
+## 2026-11-04 — Pre-U1 G4 two-node normal runtime CLOSED_PASS; STOP before G5
+
+- G4 ordinary Direct-mode observation ran 601 seconds from 07:23:12Z to 07:33:13Z.
+- Node A advanced seq 44 -> 54 across all 10 one-minute intervals; one boot session; source remained Direct.
+- Node B advanced seq 24 -> 34 across all 10 one-minute intervals; one boot session; source remained Direct.
+- Business state stayed exactly 2 registered nodes / 2 active leases / 2 active credentials / 0 unresolved first registrations.
+- Manager, Home Assistant and Broker stayed running on the frozen images with restart_count=0; TCP/47112 remained closed.
+- Corrected HA end-check: Node A = 1 device / 17 entities; Node B = 1 device / 6 entities.
+- Operator confirmed Node A real sensor values still change and A/B remain two separate HA devices with no duplicate Node A.
+- The earlier HA 0/0 reading is closed as an observer false negative caused by missing SYSTEM_ID fallback.
+- Exact deployed artifact source `414ff0290db37e89a0e137d30f491e6c17cba2b0` uses N3-W telemetry interval 60s; local SCD30/SHT30/BH1750 updates are 30s and RS485 soil read cycle is 20min.
+- Non-continuous Home Assistant values are therefore expected from the current cadence. The 20-minute soil cadence is retained for separate product-parameter review before final production release.
+- Pre-U1 G0/G1/G2/G3/G4 are all `CLOSED_PASS`; G5 is `NOT_EXECUTED`.
+- Next one gate: `N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G5_FREEZE_REFERENCE_20261104_01`.
+- `AUTO_EXECUTE_NEXT_GATE=false`; PR #774 remains unmerged.
+- Closure: `docs/development/N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G4_TWO_NODE_RUNTIME_CLOSURE_20261104.md`.
+
 ## 2026-11-04 — Pre-U1 G3 Node B normal first registration CLOSED_PASS; STOP before G4
 
 - Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
