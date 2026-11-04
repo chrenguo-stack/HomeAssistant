@@ -1,3 +1,18 @@
+## 2026-11-04 — Pre-U1 G0 read-only preflight CLOSED_PASS; STOP before G1
+
+- G0 `N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G0_READONLY_PREFLIGHT_20261104_01` is `CLOSED_PASS`.
+- Fresh Baseline A re-read is 2275 bytes / `a791377083e76f765ddf978c09025674eda3586d33892e4b609a814706bdfbbc`, byte-identical to U0.
+- Product stack is healthy: system running, no relevant failed units, exactly three product containers, expected Manager/HA/Broker images and runtime contracts.
+- Updater transaction remains terminal `COMMITTED` with `recovery_required=false`; no active updater mutation.
+- Pairing window is `CLOSED` with close reason `committed`; TCP/47112 is closed; unresolved first-registration count is 0.
+- Current public-safe business counts: one registered node, one active node lease, one credential assignment.
+- Home Assistant is reachable; onboarding endpoint is available and reports onboarding incomplete.
+- The last-180-second Direct-accept log count is zero, but KF-140 forbids promoting that log absence to an offline/product failure; node online/offline remains unknown from this oracle.
+- U0 remains `CLOSED_PASS`; Manager A->B U1 remains suspended.
+- No HA user was created, no Board was accessed, and no live product mutation occurred.
+- Next one gate is `N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G1_HA_LOCAL_ONBOARDING_20261104_01`, but `AUTO_EXECUTE_NEXT_GATE=false`; STOP before G1.
+- Closure: `docs/development/N3W_PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE_G0_READONLY_PREFLIGHT_CLOSURE_20261104.md`.
+
 ## 2026-11-04 — U1 Manager A->B suspended; Pre-U1 normal product runtime acceptance selected
 - Canonical current stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
 - Current product source remains `b863ddd959090ca139af76bd68dbef31d773e6de`.
