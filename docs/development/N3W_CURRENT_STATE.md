@@ -1,3 +1,42 @@
+## Latest authority — 2026-11-04 Pre-U1 G4 two-node normal runtime IN_PROGRESS
+
+```text
+AUTHORITY_STATE=PRE_U1_G4_TWO_NODE_NORMAL_RUNTIME_IN_PROGRESS
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+AUTHORITY_SCHEMA=gh.n3w-t1-core-stack-current-authority/2
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=b863ddd959090ca139af76bd68dbef31d773e6de
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-b863ddd95909
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+PRE_U1_G0_RESULT=CLOSED_PASS
+PRE_U1_G1_RESULT=CLOSED_PASS
+PRE_U1_G2_RESULT=CLOSED_PASS
+PRE_U1_G3_RESULT=CLOSED_PASS
+PRE_U1_G4_RESULT=IN_PROGRESS
+
+G4_TARGET_OBSERVATION_MINUTES=10
+G4_MODE=ORDINARY_DIRECT
+DIRECT_RELAY_FAILOVER_TEST=false
+REGISTRATION_MUTATION=false
+T1_BUSINESS_MUTATION=false
+SERVICE_RESTART_AS_TEST_REPAIR=false
+BOARD_FLASH=false
+PR774_MERGE=false
+
+NODE_A_NODE_ID_SHA256=7c5197ca0643ea0669c2ee43d5d89a994b09b0394fdd7e9872fea5aa4d97e090
+NODE_B_NODE_ID_SHA256=589486b4e4e7fb05fc0a7e8994d977b67c60ce72770b80af6ee74eef0bd1d724
+
+NEXT_ACTION=COLLECT_10_MINUTE_TWO_NODE_READONLY_RUNTIME_EVIDENCE
+AUTO_EXECUTE_NEXT_GATE=false
+STOP_AFTER_G4_EVIDENCE=true
+```
+
+G4 authorization is granted. Both nodes remain registered from the G3 CLOSED_PASS state. This gate performs only a minimum 10-minute ordinary Direct-mode read-only runtime observation; no registration, pairing, service restart, board flashing or Direct/Relay failover exercise is authorized.
+
 ## Latest authority — 2026-11-04 Pre-U1 G3 Node B normal first registration CLOSED_PASS; STOP before G4
 
 ```text
