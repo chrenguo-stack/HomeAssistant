@@ -21,7 +21,8 @@
     "tools/n3w_t1_core_updater_v2_common.py": "b9c6561a1a8e33bdf586e6a4bd04d025f3c5d7e6",
     "tools/n3w_t1_core_updater_v2_state.py": "a5260f1097983cad4818f626826accbb185e4a37",
     "tools/n3w_t1_portable_image_identity.py": "4877f4801dd7a4364feb0cda4f9a3f79072e8214",
-    "tools/execution_packages/n3w/u2/ha_p5_live_apply/remote_live.py": "5f1e2e1df4c735a12c494cf70d09478ad0e7719d"
+    "tools/execution_packages/n3w/u2/ha_p5_live_apply/remote_live.py": "5f1e2e1df4c735a12c494cf70d09478ad0e7719d",
+    "tools/n3w_t1_fresh_product_staging_host.py": "47718484ecffc2e4e7cab9505a1833cf7f5c8d7a"
   },
   "frozen_target": {
     "target_manifest_blob_sha": "6966b4fe4d7620ccc436643cc840da9ae95e6010",
@@ -63,7 +64,14 @@
     "claim_immediately_before_apply": true,
     "apply_failure_route": "READONLY_DIAGNOSE_AND_STOP",
     "board_access": false,
-    "merge": false
+    "merge": false,
+    "capacity_policy": {
+      "storage_probe_authority": "tools/n3w_t1_fresh_product_staging_host.py",
+      "require_single_staging_docker_image_store_filesystem": true,
+      "required_peak": "staged_archive_bytes + docker_save_uncompressed_member_bytes",
+      "minimum_post_peak_free_bytes": 5368709120,
+      "stop_before_remote_staging_on_failure": true
+    }
   },
   "expected_successor": {
     "manager_image": "local/greenhouse-manager:fresh-5b32e1ae8210",
