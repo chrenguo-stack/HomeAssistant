@@ -1,3 +1,15 @@
+## 2026-11-05 — T1 Core Updater post-U1 product completion audit CLOSED_PASS
+
+- Generic V2 architecture/core/component model is complete.
+- Manager upgrade product path is CLOSED_PASS on real T1 and remains canonical on Manager B.
+- U2 legacy/dirty validation has strong real overlap from KF-141/R3/R4, but the preserved T1_A specimen has not yet received its formal fresh read-only classification.
+- Home Assistant and Broker have generic source/test support, but neither has a repository target manifest, exact product upgrade package/executor, or real T1 product acceptance.
+- No generic updater rewrite is required by current evidence.
+- Next one gate: `N3W_T1_CORE_UPDATER_U2_LEGACY_DIRTY_T1A_READONLY_CLASSIFICATION_20261105_01`.
+- U2 is read-only: no apply, rollback, service restart, transaction edit/delete, board access, or automatic cleanup.
+- After U2 closes, proceed to Home Assistant product-grade upgrade validation, then Broker product-grade upgrade validation, then final T1_Core_Updater product closure.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_POST_U1_PRODUCT_COMPLETION_READONLY_AUDIT_20261105.md`.
+
 ## 2026-11-05 — U1 R4 canonical authority promoted to Manager B
 
 - Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
