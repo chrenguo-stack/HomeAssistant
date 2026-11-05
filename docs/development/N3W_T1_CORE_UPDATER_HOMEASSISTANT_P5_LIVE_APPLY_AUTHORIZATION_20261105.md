@@ -187,3 +187,45 @@ AUTO_RETRY=false
 
 Authority for the STOP and repair:
 `docs/development/N3W_T1_CORE_UPDATER_HOMEASSISTANT_P5_LIVE_APPLY_ATTEMPT01_TRANSPORT_STOP_REPAIR_20261105.md`.
+
+
+## Attempt 02 and KF-142 transport R2
+
+Attempt 02 also stopped before preflight claim/apply:
+
+~~~text
+ATTEMPT_02_RESULT=STOP_BEFORE_PREFLIGHT
+ATTEMPT_02_REASON=command_failed:ssh-stream:255
+ATTEMPT_02_APPLY_INVOKED=false
+ATTEMPT_02_AUTHORIZATION_CLAIMED=false
+ATTEMPT_02_AUTHORIZATION_CONSUMED=false
+ATTEMPT_02_T1_MUTATION=false
+~~~
+
+The same no-reboot SSH epoch showed a second password prompt. This proves the P5
+host-side ad-hoc ControlMaster path did not satisfy the frozen one-authentication-
+per-epoch contract.
+
+The R2 repair reuses the existing production `SSHTransport` and binds that
+transport source into the P5 manifest.
+
+~~~text
+R2_REPAIR_EXECUTABLE_HEAD=bdf86c75e882e25d642221c9bb88e883abfe249d
+R2_AUTHORIZED_MANIFEST_BLOB_SHA=42bfa90650d42bc2efd425abb93551115a6c02ca
+
+AUTHORIZATION_GRANTED=true
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+AUTHORIZATION_REPLAY_PERMITTED=false
+
+EXECUTION_READY=false
+WAIT_FOR_R2_EXACT_HEAD_CI=true
+AUTO_RETRY=false
+~~~
+
+The user authorization scope is unchanged. The manifest blob changed only to
+bind the existing production SSH transport source used by the repaired host-side
+execution path.
+
+Known-failure authority:
+`docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md#kf-142`.
