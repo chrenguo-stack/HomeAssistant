@@ -23,7 +23,8 @@
     "tools/n3w_t1_portable_image_identity.py": "4877f4801dd7a4364feb0cda4f9a3f79072e8214",
     "tools/execution_packages/n3w/u2/ha_p5_live_apply/remote_live.py": "5f1e2e1df4c735a12c494cf70d09478ad0e7719d",
     "tools/n3w_t1_fresh_product_staging_host.py": "47718484ecffc2e4e7cab9505a1833cf7f5c8d7a",
-    "infra/n3w-t1/upgrades/homeassistant-2026.10.4-storage-policy.json": "01a5cec8877e2837504ed798e91ca552ab6f2a0e"
+    "infra/n3w-t1/upgrades/homeassistant-2026.10.4-storage-policy.json": "01a5cec8877e2837504ed798e91ca552ab6f2a0e",
+    "tools/n3w_t1_ssh_transport.py": "dec4c9159195e2008094d94fef3fc76c4b977e46"
   },
   "frozen_target": {
     "target_manifest_blob_sha": "6966b4fe4d7620ccc436643cc840da9ae95e6010",
