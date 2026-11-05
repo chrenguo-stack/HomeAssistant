@@ -1,0 +1,47 @@
+{
+  "schema": "gh.n3w-t1-core-updater-ha-p5-postcleanup-reapply-readonly-package/1",
+  "gate_id": "N3W_T1_CORE_UPDATER_HOMEASSISTANT_P5_POSTCLEANUP_REAPPLY_READONLY_20261106_01",
+  "authority_parent_head": "40167c5f2d89ab12213bdb371b167923cb67c1cc",
+  "source_binding": {
+    "infra/n3w-t1/upgrades/homeassistant-2026.10.4.json": "6966b4fe4d7620ccc436643cc840da9ae95e6010",
+    "tools/n3w_t1_ssh_transport.py": "dec4c9159195e2008094d94fef3fc76c4b977e46",
+    "tools/n3w_t1_portable_image_identity.py": "4877f4801dd7a4364feb0cda4f9a3f79072e8214",
+    "docs/development/N3W_T1_CORE_UPDATER_HOMEASSISTANT_P5_ATTEMPT03_RESIDUE_CLEANUP_CLOSURE_20261105.md": "8ff2bdcd7a321789a13f24111fd20d75faa94a2f",
+    "tools/execution_packages/n3w/u2/ha_p5_postcleanup_reapply_readonly/executor.py": "ef24cb500c8fdc4d0d3986980f82145a0ce809ea"
+  },
+  "cleanup_authority": {
+    "status": "CLOSED_PASS",
+    "authorization_replay_permitted": false,
+    "removed_residue_container_id_sha256": "b795e09bf6bf2b47216c124430bdb768d9c914a8e2abd99f20dd8b5f0eb59bb9"
+  },
+  "frozen_target_identity": {
+    "target_image_ref": "local/n3w-homeassistant:2026.10.4-5881590f",
+    "target_image_id": "sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365",
+    "archive_sha256": "eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973",
+    "artifact_id": 13391983948,
+    "artifact_digest_sha256": "df95749cec1e48796d2cf3241d19739601fe7be78c48638284d10eec786e4fd2",
+    "upstream_manifest_digest": "sha256:5881590fca108a6e6b5eb9fff1718baeddda9d6dd5b52d1594e3386fe33b4d66",
+    "config_semantics_sha256": "2ceae2ee88683a423315a3faf81cd14af36d8542cd5d948e1747479d4ec749bd",
+    "rootfs_diff_ids_sha256": "971b2515c2e33e9b661f40f87494519dd5d4db945a35384709c694ecc93f60c9"
+  },
+  "expected_runtime": {
+    "predecessor_image_ref": "local/n3w-homeassistant:2026.10.0-0c73235a",
+    "predecessor_image_id": "sha256:c261fa53f30508951833492ba2a19af6cfbb6aa8f2806b531d8f5c6599265306",
+    "manager_image_ref": "local/greenhouse-manager:fresh-5b32e1ae8210",
+    "broker_image_ref": "local/n3w-mosquitto:2.1.2-3184566d",
+    "homeassistant_container_count": 1,
+    "homeassistant_nonrunning_residue_count": 0
+  },
+  "t1_access": true,
+  "t1_mutation": false,
+  "persistent_t1_write": false,
+  "temporary_t1_write": false,
+  "service_restart": false,
+  "container_delete": false,
+  "image_load": false,
+  "compose_mutation": false,
+  "board_access": false,
+  "merge": false,
+  "live_reapply_authorized": false,
+  "next_boundary": "NEW_REAPPLY_DESIGN_AND_AUTHORIZATION_REQUIRED"
+}

@@ -21,6 +21,8 @@ on:
       - "tools/execution_packages/n3w/u2/ha_p5_live_apply/**"
       - "tools/execution_packages/n3w/u2/ha_p5_attempt03_residue_readonly/**"
       - "tools/execution_packages/n3w/u2/ha_p5_attempt03_residue_cleanup/**"
+      - "tools/execution_packages/n3w/u2/ha_p5_postcleanup_reapply_readonly/**"
+      - "tests/tools/test_n3w_t1_core_updater_ha_p5_postcleanup_reapply_readonly.py"
       - "tests/tools/test_n3w_t1_core_updater_ha_p5_residue_readonly.py"
       - "tests/tools/test_n3w_t1_core_updater_ha_p5_residue_cleanup.py"
       - "tools/execution_packages/n3w/u2/ha_storage_policy_review/**"
@@ -75,6 +77,7 @@ jobs:
             tools/execution_packages/n3w/u2/ha_p5_live_apply/remote_live.py \
             tools/execution_packages/n3w/u2/ha_p5_attempt03_residue_readonly/executor.py \
             tools/execution_packages/n3w/u2/ha_p5_attempt03_residue_cleanup/executor.py \
+            tools/execution_packages/n3w/u2/ha_p5_postcleanup_reapply_readonly/executor.py \
             tools/execution_packages/n3w/u2/ha_storage_policy_review/executor.py \
             tools/execution_packages/n3w/u2/ha_storage_policy_review/remote_probe.py
           python -m pytest -q \
@@ -85,6 +88,7 @@ jobs:
             tests/tools/test_n3w_t1_core_updater_ha_p5_live_apply.py \
             tests/tools/test_n3w_t1_core_updater_ha_p5_residue_readonly.py \
             tests/tools/test_n3w_t1_core_updater_ha_p5_residue_cleanup.py \
+            tests/tools/test_n3w_t1_core_updater_ha_p5_postcleanup_reapply_readonly.py \
             tests/tools/test_n3w_t1_core_updater_ha_storage_policy_review.py \
             tests/tools/test_n3w_t1_core_updater_ha_target_binding_ci_contract.py
 
