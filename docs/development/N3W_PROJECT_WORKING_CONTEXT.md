@@ -1,3 +1,30 @@
+## Stable updater completion authority — 2026-11-05
+
+```text
+PROJECT_WORKING_CONTEXT_VERSION=1.4
+
+T1_CORE_UPDATER_ARCHITECTURE=COMPLETE
+GENERIC_V2_CORE_SOURCE=COMPLETE
+GENERIC_COMPONENT_MODEL=COMPLETE
+
+MANAGER_UPGRADE_PRODUCT_PATH=CLOSED_PASS
+U2_LEGACY_DIRTY_VALIDATION=PARTIALLY_COVERED_NOT_FORMALLY_CLOSED
+HOMEASSISTANT_UPGRADE_PRODUCT_PATH=NOT_COMPLETE
+BROKER_UPGRADE_PRODUCT_PATH=NOT_COMPLETE
+
+UPDATER_GENERIC_REWRITE_REQUIRED=false
+
+UPDATER_COMPLETION_ROUTE=
+U2_READONLY_CLASSIFICATION
+-> HOMEASSISTANT_PRODUCT_VALIDATION
+-> BROKER_PRODUCT_VALIDATION
+-> FINAL_PRODUCT_CLOSURE
+```
+
+The updater completion route is now stable: do not reopen generic V2 architecture or the completed Manager product path without fresh contrary evidence. Remaining work is bounded product validation. U2 starts read-only and may only classify legacy/dirty T1_A; any cleanup or mutation requires a separate gate. Home Assistant and Broker validation must reuse the existing generic V2 core unless a fresh product blocker proves a core repair is necessary.
+
+Authority: `docs/development/N3W_T1_CORE_UPDATER_POST_U1_PRODUCT_COMPLETION_READONLY_AUDIT_20261105.md`.
+
 ## Latest stable authority — 2026-11-05 U1 R4 Manager B canonical authority
 
 ```text
