@@ -101,6 +101,15 @@ class MultiComponentCoreUpdater:
         if application_state == "stopped":
             if binding == predecessor and binding_mode == predecessor_mode:
                 return "APPLICATION_STOPPED_PREDECESSOR", "NOT_RUNNING"
+            if (
+                binding == predecessor
+                and predecessor_mode == "legacy_static"
+                and binding_mode == "dynamic"
+            ):
+                return (
+                    "APPLICATION_STOPPED_PREDECESSOR_TRANSITION",
+                    "NOT_RUNNING",
+                )
             if binding == target and binding_mode == "dynamic":
                 return "APPLICATION_STOPPED_TARGET", "NOT_RUNNING"
             return "UNRESOLVED", "FAILED"
@@ -129,15 +138,21 @@ class MultiComponentCoreUpdater:
         except Exception:
             return "UNRESOLVED", "FAILED"
 
-        if (
+        predecessor_runtime_matches = (
             binding == predecessor
-            and binding_mode == predecessor_mode
             and item.get("image_ref") == predecessor
             and item.get("image_id") == transaction.get("predecessor_image_id")
             and item.get("runtime_contract_sha256")
             == transaction.get("predecessor_runtime_contract_sha256")
-        ):
+        )
+        if predecessor_runtime_matches and binding_mode == predecessor_mode:
             return "PREDECESSOR_BOUND_RUNNING", health_state
+        if (
+            predecessor_runtime_matches
+            and predecessor_mode == "legacy_static"
+            and binding_mode == "dynamic"
+        ):
+            return "PREDECESSOR_BINDING_TRANSITION_RUNNING", health_state
 
         if (
             binding == target
@@ -774,7 +789,9 @@ class MultiComponentCoreUpdater:
 
             if runtime_class not in {
                 "TARGET_BOUND_RUNNING",
+                "PREDECESSOR_BINDING_TRANSITION_RUNNING",
                 "APPLICATION_STOPPED_PREDECESSOR",
+                "APPLICATION_STOPPED_PREDECESSOR_TRANSITION",
                 "APPLICATION_STOPPED_TARGET",
             }:
                 raise UpdaterV2Error("rollback_runtime_class_invalid")
@@ -795,11 +812,14 @@ class MultiComponentCoreUpdater:
             try:
                 if runtime_class in {
                     "TARGET_BOUND_RUNNING",
+                    "PREDECESSOR_BINDING_TRANSITION_RUNNING",
                 }:
                     adapter.quiesce(self.host)
-                elif runtime_class == "APPLICATION_STOPPED_TARGET":
-                    pass
-                elif runtime_class == "APPLICATION_STOPPED_PREDECESSOR":
+                elif runtime_class in {
+                    "APPLICATION_STOPPED_TARGET",
+                    "APPLICATION_STOPPED_PREDECESSOR",
+                    "APPLICATION_STOPPED_PREDECESSOR_TRANSITION",
+                }:
                     pass
 
                 self._restore_predecessor_binding(target, tx)
