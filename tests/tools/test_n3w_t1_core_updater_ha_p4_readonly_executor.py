@@ -4,6 +4,7 @@ import importlib.util
 import io
 import json
 import subprocess
+import sys
 import tarfile
 from pathlib import Path
 
@@ -97,6 +98,23 @@ def test_bundle_is_flat_temporary_source_only():
     assert all("/" not in item.name for item in members)
     assert all(not item.issym() and not item.islnk() for item in members)
     assert all(item.mode == 0o600 for item in members)
+
+
+def test_remote_runner_accepts_pipe_backed_bundle_and_returns_json():
+    result = subprocess.run(
+        [sys.executable, "-c", executor.REMOTE_RUNNER],
+        input=executor.bundle_source(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+        timeout=30,
+    )
+    assert result.returncode == 2
+    document = json.loads(result.stdout.decode())
+    assert document["schema"] == executor.REMOTE_SCHEMA
+    assert document["status"] == "STOP"
+    assert document["operation"] == "readonly_premutation_baseline"
+    assert document["mutation"] is False
 
 
 def test_remote_probe_has_no_mutating_updater_entrypoint():
