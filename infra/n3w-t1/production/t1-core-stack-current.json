@@ -57,7 +57,8 @@
     "package_artifact_digest": "sha256:e786d23deabe5bd6c8eafa4480f7ac13944a2a908d82973f385f7446183c9527",
     "updater_pyz_sha256": "65a5f62dcf9640d55067ab3104a8475a5bd1372ff1fce9a4441f18e3f53b2b46",
     "manager_rebuilt": false,
-    "rollback_compatible": true
+    "rollback_compatible": true,
+    "manager_build_image_id": "sha256:80d34358094638ce9c8ce5fb2635fe0a5c75ee7cc5e8c628b38ab223134e585f"
   },
   "mutation_scope": {
     "manager": true,
