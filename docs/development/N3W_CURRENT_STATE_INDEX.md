@@ -1,3 +1,20 @@
+## 2026-11-05 — Home Assistant P2 exact artifact + updater target CLOSED_PASS
+
+- P2B executable source head: `f43e3600a017af04cb253d10ec0c86b47d24b5e3`.
+- PR #784 remains OPEN/Draft, mergeable, unmerged; no merge authorization is implied.
+- Exact-head CI closed 16/16 SUCCESS.
+- Frozen HA target: `infra/n3w-t1/upgrades/homeassistant-2026.10.4.json`, schema `gh.n3w-t1-core-updater-target/2`.
+- Target image: `local/n3w-homeassistant:2026.10.4-5881590f`; predecessor: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Frozen artifact ID `13391983948`; artifact digest `df95749cec1e48796d2cf3241d19739601fe7be78c48638284d10eec786e4fd2`.
+- Exact archive SHA256 `eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973`.
+- Exact upstream linux/arm64 manifest digest `sha256:5881590fca108a6e6b5eb9fff1718baeddda9d6dd5b52d1594e3386fe33b4d66`.
+- Target-binding CI re-downloaded the frozen P2A artifact and passed GitHub artifact identity, archive bytes, portable identity, upstream manifest and compatibility-review binding.
+- Post-target P2A artifact-production job was SKIPPED and produced zero artifacts; no replacement P2A artifact exists.
+- P1 runtime-template convergence remains CLOSED_PASS: predecessor `legacy_static` -> candidate `dynamic`, double-read stable, rendered Compose semantically identical.
+- No T1 access/mutation, service restart, board access, live HA apply/rollback, Stack 1.1.0 publication or merge occurred in P2.
+- Next one gate: `N3W_T1_CORE_UPDATER_HOMEASSISTANT_P3_UPDATER_SOURCE_SIMULATION_AND_READONLY_PLAN_20261105_01`.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_HOMEASSISTANT_P2B_EXACT_TARGET_BINDING_CLOSURE_20261105.md`.
+
 ## 2026-11-05 — T1 Core Updater U2 T1_A read-only classification CLOSED_PASS
 
 - Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
