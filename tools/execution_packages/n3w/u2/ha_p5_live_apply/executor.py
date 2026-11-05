@@ -48,6 +48,7 @@ PREDECESSOR_IMAGE = "local/n3w-homeassistant:2026.10.0-0c73235a"
 P4_BASELINE_SHA256 = "78c3b0b58ad39cf887689658bec90c8466d30a93d58830b0289f1463dafad868"
 P4_TRANSACTION_SHA256 = "6ad39528f43407c6f48b83a07cb2d4ddfc916e808b3957aae176608c89a98fa3"
 P5_POST_PEAK_RESERVE_BYTES = 1610612736
+REMOTE_APPLY_TIMEOUT_SECONDS = 3600
 STORAGE_POLICY_EVIDENCE_HEAD = "9cf4fcee9512013ca99675b3b477cf77429bd669"
 
 EXPECTED_ARTIFACT_FILES = {
@@ -882,7 +883,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                 remote_dir,
                 "apply",
                 authorization_id=AUTHORIZATION_ID,
-                timeout=1800,
+                timeout=REMOTE_APPLY_TIMEOUT_SECONDS,
             )
             write_private(evidence / "apply.json", apply_report)
 

@@ -7,13 +7,13 @@
   "p4_baseline_sha256": "78c3b0b58ad39cf887689658bec90c8466d30a93d58830b0289f1463dafad868",
   "p4_transaction_sha256": "6ad39528f43407c6f48b83a07cb2d4ddfc916e808b3957aae176608c89a98fa3",
   "proposed_authorization_id": "N3W_T1_CORE_UPDATER_HOMEASSISTANT_2026_10_4_LIVE_APPLY_P5_20261105_01",
-  "live_apply_authorized": true,
+  "live_apply_authorized": false,
   "source_binding": {
     "infra/n3w-t1/upgrades/homeassistant-2026.10.4.json": "6966b4fe4d7620ccc436643cc840da9ae95e6010",
     "docs/development/N3W_T1_CORE_UPDATER_HOMEASSISTANT_P4_FRESH_READONLY_PREMUTATION_BASELINE_CLOSURE_20261105.md": "6bad54d54da4f34486f5515a457f63c0abf3075d",
     "tools/n3w_t1_core_updater_common.py": "63a0377b7df509fd44194a1752a19c013ce55858",
     "tools/n3w_t1_core_updater_core.py": "d275ca5a094f8fd981b249ed4179e8bb40978311",
-    "tools/n3w_t1_core_updater_host.py": "38e06503359314496a4113b91b28d8c6106e667b",
+    "tools/n3w_t1_core_updater_host.py": "6d43a793151f8252343fbe34d5ac4097e7cb87d5",
     "tools/n3w_t1_core_updater_state.py": "06ca6ce3a5c3703df0f9e06408773d8a607cc77c",
     "tools/n3w_t1_core_updater_a1_policy.py": "9e7de124607cc27e8a895f9cdcd38107d0f2f488",
     "tools/n3w_t1_core_updater_components.py": "1985b7441112e64e4942480628a3db43c538cd38",
@@ -53,7 +53,7 @@
     "target_image_prestate": "ABSENT"
   },
   "execution_contract": {
-    "state": "AUTHORIZED_SINGLE_APPLY",
+    "state": "CONSUMED_STOP_ROLLED_BACK",
     "confirmation": "EXECUTE HA P5 LIVE APPLY: YES",
     "updater_apply_confirmation": "T1_CORE_UPDATER_APPLY",
     "permitted_apply_invocations": 1,
@@ -100,9 +100,11 @@
     "granted": true,
     "granted_by": "explicit_user_authorization",
     "granted_date": "2026-11-05",
-    "claimed": false,
-    "consumed": false,
+    "claimed": true,
+    "consumed": true,
     "replay_permitted": false,
-    "permitted_apply_invocations": 1
+    "permitted_apply_invocations": 1,
+    "remaining_apply_invocations": 0,
+    "attempt03_result": "CLOSED_FAIL_ROLLBACK_PASS"
   }
 }

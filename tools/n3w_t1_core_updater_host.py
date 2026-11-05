@@ -72,6 +72,8 @@ RELEVANT_UNITS = frozenset(
     (*REQUIRED_ACTIVE_ENABLED_UNITS, CERT_LIFECYCLE_UNIT)
 )
 EXPECTED_PLATFORM = "linux/arm64"
+DEFAULT_SERVICES_READINESS_TIMEOUT_SECONDS = 120
+HOMEASSISTANT_SERVICES_READINESS_TIMEOUT_SECONDS = 600
 BROKER_CERT_LIFECYCLE_LOCK = Path(
     "/var/lib/n3wfc4-certificate-lifecycle/.certificate-lifecycle.lock"
 )
@@ -870,21 +872,33 @@ class LocalHost:
         if self._running_count("manager") or self._running_count("homeassistant"):
             raise UpdaterError("application_container_still_running")
 
-    def start_services(self) -> None:
+    def start_services(
+        self,
+        *,
+        readiness_timeout: int = DEFAULT_SERVICES_READINESS_TIMEOUT_SECONDS,
+    ) -> None:
+        if not isinstance(readiness_timeout, int) or isinstance(readiness_timeout, bool) or readiness_timeout <= 0:
+            raise UpdaterError("services_readiness_timeout_invalid")
         self._run(("systemctl", "start", SERVICES_UNIT), timeout=180)
-        self.wait_services()
+        self.wait_services(timeout=readiness_timeout)
 
-    def wait_services(self, timeout: int = 120) -> None:
+    def wait_services(
+        self,
+        timeout: int = DEFAULT_SERVICES_READINESS_TIMEOUT_SECONDS,
+    ) -> None:
         deadline = time.monotonic() + timeout
         last_soft_state = "services_not_ready"
         while time.monotonic() < deadline:
-            if self._systemctl("is-active", SERVICES_UNIT) != "active":
+            unit_state = self._systemctl("is-active", SERVICES_UNIT)
+            if unit_state != "active":
+                last_soft_state = "services_unit=" + unit_state
                 time.sleep(2)
                 continue
             try:
                 self._container_id("manager")
                 self._container_id("homeassistant")
             except UpdaterError:
+                last_soft_state = "application_containers_not_ready"
                 time.sleep(2)
                 continue
 
@@ -1271,6 +1285,11 @@ class LocalHost:
         if component == "broker":
             self.start_broker()
             self.start_services()
+            return
+        if component == "homeassistant":
+            self.start_services(
+                readiness_timeout=HOMEASSISTANT_SERVICES_READINESS_TIMEOUT_SECONDS,
+            )
             return
         self.start_services()
 

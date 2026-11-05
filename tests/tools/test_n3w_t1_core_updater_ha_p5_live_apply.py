@@ -35,7 +35,7 @@ executor = load_module("ha_p5_executor", EXECUTOR_PATH)
 remote = load_module("ha_p5_remote_live", REMOTE_PATH)
 
 
-def test_manifest_is_authorized_for_exactly_one_live_apply():
+def test_manifest_records_consumed_attempt03_and_forbids_replay():
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     assert manifest["gate_id"] == (
         "N3W_T1_CORE_UPDATER_HOMEASSISTANT_"
@@ -47,10 +47,10 @@ def test_manifest_is_authorized_for_exactly_one_live_apply():
     assert manifest["p4_execution_head"] == (
         "8232707eb2c91d3fa9881e4cadba6b78eefc1494"
     )
-    assert manifest["live_apply_authorized"] is True
+    assert manifest["live_apply_authorized"] is False
     assert manifest["proposed_authorization_id"] == executor.AUTHORIZATION_ID
     contract = manifest["execution_contract"]
-    assert contract["state"] == "AUTHORIZED_SINGLE_APPLY"
+    assert contract["state"] == "CONSUMED_STOP_ROLLED_BACK"
     assert contract["permitted_apply_invocations"] == 1
     assert contract["second_apply_allowed"] is False
     assert contract["blind_explicit_rollback_allowed"] is False
@@ -86,7 +86,7 @@ def test_exact_source_binding_validates_current_head():
     assert report["target_manifest_blob_sha"] == (
         "6966b4fe4d7620ccc436643cc840da9ae95e6010"
     )
-    assert report["live_apply_authorized"] is True
+    assert report["live_apply_authorized"] is False
     assert report["storage_policy_blob_sha"] == "01a5cec8877e2837504ed798e91ca552ab6f2a0e"
 
 
@@ -249,6 +249,12 @@ def test_execute_uses_bound_transport_for_diagnose_and_cleanup():
         assert node.args
         assert isinstance(node.args[0], ast.Name)
         assert node.args[0].id == "transport"
+
+
+def test_p5_outer_apply_timeout_covers_slow_t1_activation_and_rollback():
+    assert executor.REMOTE_APPLY_TIMEOUT_SECONDS == 3600
+    executor_text = EXECUTOR_PATH.read_text(encoding="utf-8")
+    assert "timeout=REMOTE_APPLY_TIMEOUT_SECONDS" in executor_text
 
 
 def test_capacity_gate_uses_evidence_bound_one_point_five_gib_reserve():
