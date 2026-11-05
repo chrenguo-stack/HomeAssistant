@@ -43,6 +43,8 @@ EXPECTED_SOURCE_PATHS = frozenset(
 )
 
 REMOTE_RUNNER = r"""
+import io
+import json
 import os
 import shutil
 import subprocess
@@ -50,10 +52,18 @@ import sys
 import tarfile
 import tempfile
 
-root = tempfile.mkdtemp(prefix="n3w-ha-p4-", dir="/tmp")
-os.chmod(root, 0o700)
+REMOTE_SCHEMA = "gh.n3w-t1-core-updater-ha-p4-readonly-premutation-baseline/1"
+MAX_BUNDLE_BYTES = 4 * 1024 * 1024
+root = None
+
 try:
-    with tarfile.open(fileobj=sys.stdin.buffer, mode="r:*") as archive:
+    bundle = sys.stdin.buffer.read(MAX_BUNDLE_BYTES + 1)
+    if len(bundle) > MAX_BUNDLE_BYTES:
+        raise RuntimeError("bundle_too_large")
+
+    root = tempfile.mkdtemp(prefix="n3w-ha-p4-", dir="/tmp")
+    os.chmod(root, 0o700)
+    with tarfile.open(fileobj=io.BytesIO(bundle), mode="r:*") as archive:
         members = archive.getmembers()
         for member in members:
             if (
@@ -65,6 +75,7 @@ try:
             ):
                 raise RuntimeError("bundle_member_invalid")
         archive.extractall(root)
+
     result = subprocess.run(
         [sys.executable, "-B", "remote_probe.py"],
         cwd=root,
@@ -77,8 +88,27 @@ try:
     sys.stdout.buffer.write(result.stdout)
     sys.stdout.buffer.flush()
     raise SystemExit(result.returncode)
+except SystemExit:
+    raise
+except Exception as error:
+    reason = "remote_runner_" + type(error).__name__
+    sys.stdout.write(
+        json.dumps(
+            {
+                "schema": REMOTE_SCHEMA,
+                "status": "STOP",
+                "operation": "readonly_premutation_baseline",
+                "mutation": False,
+                "reason": reason,
+            },
+            sort_keys=True,
+        )
+    )
+    sys.stdout.flush()
+    raise SystemExit(2)
 finally:
-    shutil.rmtree(root, ignore_errors=True)
+    if root is not None:
+        shutil.rmtree(root, ignore_errors=True)
 """
 
 
@@ -292,14 +322,19 @@ def ssh_probe(target: str, bundle: bytes) -> dict[str, Any]:
         timeout=420,
         check=False,
     )
+    if result.returncode not in (0, 2):
+        raise StopExecution(f"remote_transport_failed:{result.returncode}")
     try:
         document = json.loads(result.stdout.decode())
     except (UnicodeError, json.JSONDecodeError) as error:
         raise StopExecution("remote_report_json_invalid") from error
     if not isinstance(document, dict):
         raise StopExecution("remote_report_shape_invalid")
-    if result.returncode not in (0, 2):
-        raise StopExecution(f"remote_probe_exit_invalid:{result.returncode}")
+    if document.get("status") == "STOP":
+        reason = document.get("reason")
+        if not isinstance(reason, str) or re.fullmatch(r"[A-Za-z0-9_.:-]{1,120}", reason) is None:
+            reason = "remote_stop"
+        raise StopExecution(f"remote_probe_stop:{reason}")
     return document
 
 
