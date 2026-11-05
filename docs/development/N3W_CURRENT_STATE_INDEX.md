@@ -1,3 +1,23 @@
+## 2026-11-05 — Home Assistant P5 Attempt 02 transport STOP; KF-142 R2 WAITING_CI
+
+- Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current repository Manager: `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current repository Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical Clean Reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Attempt 01 STOP: `command_failed:scp:1`, pre-claim/pre-apply.
+- Attempt 02 STOP: `command_failed:ssh-stream:255`, second password prompt in the same no-reboot epoch, pre-claim/pre-apply.
+- Authorization remains granted=true, claimed=false, consumed=false, replay=false.
+- KF-142 is now the long-term regression authority for the P5 host-side SSH epoch/reuse failure.
+- R2 executable head: `bdf86c75e882e25d642221c9bb88e883abfe249d`.
+- R2 manifest blob: `42bfa90650d42bc2efd425abb93551115a6c02ca`.
+- R2 binds `tools/n3w_t1_ssh_transport.py` blob `dec4c9159195e2008094d94fef3fc76c4b977e46`.
+- P5 now uses the production SSH master lifecycle; child transport disables all authentication fallback.
+- No T1 product mutation, image load, service restart, updater apply/rollback, board access or merge occurred.
+- Attempt 03 is held until R2 exact-head CI succeeds.
+
 ## 2026-11-05 — Home Assistant P5 attempt 01 transport STOP; repaired retry WAITING_CI
 
 - Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
