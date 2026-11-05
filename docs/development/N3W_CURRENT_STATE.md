@@ -1,3 +1,38 @@
+## Latest authority — 2026-11-05 T1 Core Updater post-U1 product completion audit CLOSED_PASS
+
+```text
+AUTHORITY_STATE=T1_CORE_UPDATER_POST_U1_COMPLETION_AUDIT_CLOSED_PASS
+
+CURRENT_MAIN_BASE=5cabdcb50656851f9912685c2f7044cdba3eb774
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+
+T1_CORE_UPDATER_ARCHITECTURE=COMPLETE
+GENERIC_V2_CORE_SOURCE=COMPLETE
+GENERIC_COMPONENT_MODEL=COMPLETE
+
+MANAGER_UPGRADE_PRODUCT_PATH=CLOSED_PASS
+U2_LEGACY_DIRTY_VALIDATION=PARTIALLY_COVERED_NOT_FORMALLY_CLOSED
+HOMEASSISTANT_UPGRADE_PRODUCT_PATH=NOT_COMPLETE
+BROKER_UPGRADE_PRODUCT_PATH=NOT_COMPLETE
+
+NEW_ARCHITECTURE_REWRITE_REQUIRED=false
+T1_CORE_UPDATER_OVERALL_PRODUCT_COMPLETION=false
+
+NEXT_ONE_GATE=N3W_T1_CORE_UPDATER_U2_LEGACY_DIRTY_T1A_READONLY_CLASSIFICATION_20261105_01
+T1_A_MUTATION=false
+APPLY=false
+ROLLBACK=false
+BOARD_ACCESS=false
+AUTO_EXECUTE_NEXT_GATE=false
+STOP=true
+```
+
+The post-U1 completion audit separates source capability from product acceptance. The generic V2 core already supports Manager, Home Assistant and Broker; Manager is fully closed on real T1. Remaining completion work is bounded U2 legacy/dirty read-only classification, then Home Assistant and Broker product-grade upgrade validation. No generic updater rewrite is currently required.
+
+Authority: `docs/development/N3W_T1_CORE_UPDATER_POST_U1_PRODUCT_COMPLETION_READONLY_AUDIT_20261105.md`.
+
 ## Latest authority — 2026-11-05 U1 R4 canonical authority promoted to Manager B
 
 ```text
