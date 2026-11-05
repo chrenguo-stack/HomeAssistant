@@ -66,6 +66,7 @@ def test_manifest_is_authorized_for_exactly_one_live_apply():
     assert capacity["verify_post_cleanup_reserve"] is True
     assert capacity["product_runtime_min_free_requirement_state"] == "UNFROZEN_LONGITUDINAL_EVIDENCE_REQUIRED"
     assert capacity["stop_before_remote_staging_on_failure"] is True
+    assert "tools/n3w_t1_ssh_transport.py" in manifest["source_binding"]
 
 
 def test_exact_source_binding_validates_current_head():
@@ -129,9 +130,21 @@ def test_execute_stops_before_t1_if_source_authority_is_not_authorized(
     assert not args.evidence_root.exists()
 
 
-def test_staging_transport_streams_over_existing_ssh(tmp_path, monkeypatch):
+class FakeBoundTransport:
+    def __init__(self):
+        self.target = "root@192.0.2.1"
+        self.known_hosts = Path("/tmp/n3w-test-known-hosts")
+        self.control_path = Path("/tmp/n3w-test-control")
+        self.master_checks = 0
+
+    def assert_master(self):
+        self.master_checks += 1
+
+
+def test_staging_transport_streams_over_bound_master(tmp_path, monkeypatch):
     source = tmp_path / "payload.bin"
     source.write_bytes(b"payload")
+    transport = FakeBoundTransport()
     captured = {}
 
     def fake_run(
@@ -151,14 +164,22 @@ def test_staging_transport_streams_over_existing_ssh(tmp_path, monkeypatch):
     monkeypatch.setattr(executor.subprocess, "run", fake_run)
     executor.stream_file_over_ssh(
         source,
-        "root@192.0.2.1",
+        transport,
         "/var/tmp/n3w-ha-p5.ABC123/payload.bin",
-        "/tmp/n3w-ha-p5-test.sock",
         timeout=42,
     )
 
+    assert transport.master_checks == 1
     assert captured["argv"][0] == "ssh"
-    assert "scp" not in captured["argv"]
+    assert "-F" in captured["argv"]
+    assert "/dev/null" in captured["argv"]
+    assert "ControlMaster=no" in captured["argv"]
+    assert "BatchMode=yes" in captured["argv"]
+    assert "PasswordAuthentication=no" in captured["argv"]
+    assert "KbdInteractiveAuthentication=no" in captured["argv"]
+    assert "PubkeyAuthentication=no" in captured["argv"]
+    assert "PreferredAuthentications=none" in captured["argv"]
+    assert "ProxyCommand=/usr/bin/false" in captured["argv"]
     assert captured["payload"] == b"payload"
     assert captured["timeout"] == 42
 
@@ -166,14 +187,27 @@ def test_staging_transport_streams_over_existing_ssh(tmp_path, monkeypatch):
 def test_staging_transport_rejects_outside_remote_scratch(tmp_path):
     source = tmp_path / "payload.bin"
     source.write_bytes(b"payload")
+    transport = FakeBoundTransport()
     with pytest.raises(executor.StopExecution, match="stream_remote_path_invalid"):
         executor.stream_file_over_ssh(
             source,
-            "root@192.0.2.1",
+            transport,
             "/tmp/payload.bin",
-            "/tmp/n3w-ha-p5-test.sock",
             timeout=42,
         )
+
+
+def test_child_transport_is_fail_closed_to_existing_master():
+    transport = FakeBoundTransport()
+    argv = executor.child_ssh_argv(transport, "true")
+    assert transport.master_checks == 1
+    assert "ControlMaster=no" in argv
+    assert "ControlPersist=no" in argv
+    assert "PasswordAuthentication=no" in argv
+    assert "KbdInteractiveAuthentication=no" in argv
+    assert "PubkeyAuthentication=no" in argv
+    assert "PreferredAuthentications=none" in argv
+    assert "ProxyCommand=/usr/bin/false" in argv
 
 
 def test_live_sources_have_no_second_apply_or_explicit_rollback_route():
