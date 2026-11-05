@@ -21,10 +21,16 @@ def load_module():
 
 executor = load_module()
 
-def test_cleanup_package_is_prepared_but_not_authorized():
+def test_cleanup_package_has_exact_one_shot_authorization():
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-    assert manifest["live_cleanup_authorized"] is False
-    assert manifest["authorization_id"] is None
+    assert manifest["live_cleanup_authorized"] is True
+    assert manifest["authorization_id"] == "N3W_T1_CORE_UPDATER_HOMEASSISTANT_P5_ATTEMPT03_RESIDUE_CLEANUP_LIVE_20261105_01"
+    assert manifest["authorization"]["granted"] is True
+    assert manifest["authorization"]["claimed"] is False
+    assert manifest["authorization"]["consumed"] is False
+    assert manifest["authorization"]["replay_permitted"] is False
+    assert manifest["authorization"]["permitted_cleanup_invocations"] == 1
+    assert manifest["authorization"]["second_cleanup_allowed"] is False
     assert manifest["expected_residue_container_id_sha256"] == "b795e09bf6bf2b47216c124430bdb768d9c914a8e2abd99f20dd8b5f0eb59bb9"
     assert manifest["classification_source_head"] == "89ddb7415e0642167a819c521bd083509549c016"
     assert manifest["classification_gate_id"] == "N3W_T1_CORE_UPDATER_HOMEASSISTANT_P5_ATTEMPT03_RESIDUE_READONLY_20261105_01"
