@@ -385,7 +385,7 @@ def test_p3_activation_failure_automatically_restores_legacy_binding(
     assert state.is_dir()
 
 
-def test_p3_predecessor_image_with_wrong_binding_mode_is_not_false_pass(
+def test_p3_interrupted_binding_transition_is_recoverable_not_false_pass(
     tmp_path: Path,
     monkeypatch,
 ):
@@ -411,10 +411,17 @@ def test_p3_predecessor_image_with_wrong_binding_mode_is_not_false_pass(
 
     host.bindings["homeassistant"] = target.expected_predecessor_image_ref
     host.modes["homeassistant"] = "dynamic"
-    runtime_class, health = updater._classify_transaction_state(
-        tx,
-        host.observe_state_v2(),
-    )
+    tx["status"] = "APPLYING"
+    tx["phase"] = "QUIESCED"
+    updater.store.write(tx)
 
-    assert runtime_class == "UNRESOLVED"
-    assert health == "FAILED"
+    runtime = updater.runtime_state()
+    assert runtime["runtime_class"] == "PREDECESSOR_BINDING_TRANSITION_RUNNING"
+    assert runtime["runtime_class"] != "PREDECESSOR_BOUND_RUNNING"
+
+    rolled_back = updater.rollback(
+        confirmation=ROLLBACK_CONFIRMATION_V2,
+    )
+    assert rolled_back["transaction_status"] == "ROLLED_BACK"
+    assert host.bindings["homeassistant"] == target.expected_predecessor_image_ref
+    assert host.modes["homeassistant"] == "legacy_static"
