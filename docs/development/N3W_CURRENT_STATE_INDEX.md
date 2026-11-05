@@ -7,6 +7,7 @@
 - Current repository Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
 - Historical Clean Reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
 - Historical Clean Reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted: canonical Manager B remains the accepted live authority; Home Assistant 2026.10.4 has not yet been applied.
 - Attempt 01 STOP: `command_failed:scp:1`, pre-claim/pre-apply.
 - Attempt 02 STOP: `command_failed:ssh-stream:255`, second password prompt in the same no-reboot epoch, pre-claim/pre-apply.
 - Authorization remains granted=true, claimed=false, consumed=false, replay=false.
