@@ -63,3 +63,13 @@ def test_exact_artifact_workflow_has_no_t1_or_board_execution_path():
     assert "timeout-minutes:" in text
     assert "concurrency:" in text
     assert "cancel-in-progress:" in text
+
+
+def test_exact_artifact_stops_reproduction_after_target_freezes():
+    text = WORKFLOW.read_text(encoding="utf-8")
+
+    assert "target_present:" in text
+    assert "P2B_TARGET_FROZEN" in text
+    assert "P2A_BUILD_ALLOWED" in text
+    assert "if: needs.source.outputs.target_present != 'true'" in text
+    assert "infra/n3w-t1/upgrades/homeassistant-2026.10.4.json" in text
