@@ -106,7 +106,7 @@ def test_live_sources_have_no_second_apply_or_explicit_rollback_route():
     remote_text = REMOTE_PATH.read_text(encoding="utf-8")
 
     assert executor_text.count('"apply",') == 1
-    assert 'operation == "apply"' in remote_text
+    assert 'args.command == "apply"' in remote_text
     assert ".rollback(" not in executor_text
     assert ".rollback(" not in remote_text
     assert "blind_explicit_rollback_allowed" in executor_text
