@@ -77,10 +77,18 @@ class MultiComponentCoreUpdater:
             return "UNRESOLVED", "FAILED"
 
         bindings = observed.get("image_bindings")
-        if not isinstance(bindings, dict):
+        modes = observed.get("image_binding_modes")
+        if not isinstance(bindings, dict) or not isinstance(modes, dict):
             return "UNRESOLVED", "FAILED"
         binding = bindings.get(component)
+        binding_mode = modes.get(component)
         predecessor = transaction.get("predecessor_image")
+        predecessor_mode = transaction.get(
+            "predecessor_binding_mode",
+            "dynamic",
+        )
+        if predecessor_mode not in {"dynamic", "legacy_static"}:
+            return "UNRESOLVED", "FAILED"
         target_doc = transaction.get("target")
         target = (
             target_doc.get("target_image_ref")
@@ -91,9 +99,9 @@ class MultiComponentCoreUpdater:
         health_state = str(observed.get("health_state") or "FAILED")
 
         if application_state == "stopped":
-            if binding == predecessor:
+            if binding == predecessor and binding_mode == predecessor_mode:
                 return "APPLICATION_STOPPED_PREDECESSOR", "NOT_RUNNING"
-            if binding == target:
+            if binding == target and binding_mode == "dynamic":
                 return "APPLICATION_STOPPED_TARGET", "NOT_RUNNING"
             return "UNRESOLVED", "FAILED"
 
@@ -123,6 +131,7 @@ class MultiComponentCoreUpdater:
 
         if (
             binding == predecessor
+            and binding_mode == predecessor_mode
             and item.get("image_ref") == predecessor
             and item.get("image_id") == transaction.get("predecessor_image_id")
             and item.get("runtime_contract_sha256")
@@ -132,6 +141,7 @@ class MultiComponentCoreUpdater:
 
         if (
             binding == target
+            and binding_mode == "dynamic"
             and item.get("image_ref") == target
             and item.get("image_id")
             == transaction.get("target_runtime_image_id")
@@ -278,6 +288,7 @@ class MultiComponentCoreUpdater:
         )
 
         current = adapter.current_binding(pre)
+        predecessor_mode = pre["image_binding_modes"][target.component]
         if current != target.expected_predecessor_image_ref:
             raise UpdaterV2Error("target_predecessor_mismatch")
         if current == target.target_image_ref:
@@ -312,6 +323,7 @@ class MultiComponentCoreUpdater:
             "current": {
                 "image": current,
                 "image_id": predecessor_id,
+                "binding_mode": predecessor_mode,
             },
             "target": target.public(),
             "baseline_sha256": sha256_bytes(canonical(baseline.public())),
@@ -322,6 +334,11 @@ class MultiComponentCoreUpdater:
             "actions": [
                 "verify_or_load_exact_target_image",
                 f"quiesce_{target.component}_production_owner",
+                *(
+                    ["converge_homeassistant_runtime_template"]
+                    if predecessor_mode == "legacy_static"
+                    else []
+                ),
                 f"replace_only_{target.component}_image_binding",
                 "validate_effective_compose_delta_target_only",
                 f"activate_{target.component}_production_owner",
@@ -401,6 +418,9 @@ class MultiComponentCoreUpdater:
             "authorization_consumed": True,
             "predecessor_image": predecessor,
             "predecessor_image_id": predecessor_id,
+            "predecessor_binding_mode": pre["image_binding_modes"][
+                target.component
+            ],
             "predecessor_network_mode": pre["runtime"][target.component][
                 "network_mode"
             ],
@@ -466,6 +486,8 @@ class MultiComponentCoreUpdater:
                 target_runtime_id,
                 tx["predecessor_network_mode"],
             )
+            if post["image_binding_modes"].get(target.component) != "dynamic":
+                raise UpdaterV2Error("post_target_binding_mode_invalid")
             if post["runtime"][target.component][
                 "runtime_contract_sha256"
             ] != baseline.runtime_contract_sha256[target.component]:
@@ -506,6 +528,53 @@ class MultiComponentCoreUpdater:
             )
             raise
 
+    @staticmethod
+    def _predecessor_binding_mode(tx: dict[str, Any]) -> str:
+        mode = tx.get("predecessor_binding_mode", "dynamic")
+        if mode not in {"dynamic", "legacy_static"}:
+            raise UpdaterV2Error("predecessor_binding_mode_invalid")
+        return mode
+
+    def _restore_predecessor_binding(
+        self,
+        target: ComponentTarget,
+        tx: dict[str, Any],
+    ) -> None:
+        binding = self.host.component_binding_v2(target.component)
+        if binding not in {
+            target.target_image_ref,
+            tx["predecessor_image"],
+        }:
+            raise UpdaterV2Error("rollback_binding_unknown")
+        before_render = (
+            self.host.render_compose()
+            if binding == target.target_image_ref
+            else None
+        )
+        predecessor_mode = self._predecessor_binding_mode(tx)
+        if predecessor_mode == "legacy_static":
+            self.host.restore_component_binding(
+                target.component,
+                target.target_image_ref,
+                tx["predecessor_image"],
+                predecessor_mode,
+            )
+        elif binding == target.target_image_ref:
+            self.host.rewrite_component_image(
+                target.component,
+                target.target_image_ref,
+                tx["predecessor_image"],
+            )
+        if before_render is not None:
+            after_render = self.host.render_compose()
+            validate_component_candidate(
+                before_render,
+                after_render,
+                target.component,
+                target.target_image_ref,
+                tx["predecessor_image"],
+            )
+
     def _rollback_after_failure(
         self,
         target: ComponentTarget,
@@ -529,6 +598,8 @@ class MultiComponentCoreUpdater:
                 current = self.host.inspect_v2()
                 if (
                     adapter.current_binding(current) != tx["predecessor_image"]
+                    or current["image_binding_modes"].get(target.component)
+                    != self._predecessor_binding_mode(tx)
                     or current["runtime"][target.component]["image_id"]
                     != tx["predecessor_image_id"]
                     or current["runtime"][target.component][
@@ -557,19 +628,13 @@ class MultiComponentCoreUpdater:
                 return
 
             adapter.quiesce(self.host)
-            binding = self.host.component_binding_v2(target.component)
-            if binding == target.target_image_ref:
-                self.host.rewrite_component_image(
-                    target.component,
-                    target.target_image_ref,
-                    tx["predecessor_image"],
-                )
-            elif binding != tx["predecessor_image"]:
-                raise UpdaterV2Error("rollback_binding_unknown")
+            self._restore_predecessor_binding(target, tx)
             adapter.activate(self.host)
             post = self.host.inspect_v2()
             if (
                 adapter.current_binding(post) != tx["predecessor_image"]
+                or post["image_binding_modes"].get(target.component)
+                != self._predecessor_binding_mode(tx)
                 or post["runtime"][target.component]["image_id"]
                 != tx["predecessor_image_id"]
                 or post["runtime"][target.component][
@@ -670,6 +735,8 @@ class MultiComponentCoreUpdater:
                 current = self.host.inspect_v2()
                 if (
                     adapter.current_binding(current) != tx["predecessor_image"]
+                    or current["image_binding_modes"].get(target.component)
+                    != self._predecessor_binding_mode(tx)
                     or current["runtime"][target.component]["image_id"]
                     != tx["predecessor_image_id"]
                     or current["runtime"][target.component][
@@ -735,28 +802,14 @@ class MultiComponentCoreUpdater:
                 elif runtime_class == "APPLICATION_STOPPED_PREDECESSOR":
                     pass
 
-                if self.host.component_binding_v2(
-                    target.component
-                ) == target.target_image_ref:
-                    before_render = self.host.render_compose()
-                    self.host.rewrite_component_image(
-                        target.component,
-                        target.target_image_ref,
-                        tx["predecessor_image"],
-                    )
-                    after_render = self.host.render_compose()
-                    validate_component_candidate(
-                        before_render,
-                        after_render,
-                        target.component,
-                        target.target_image_ref,
-                        tx["predecessor_image"],
-                    )
+                self._restore_predecessor_binding(target, tx)
 
                 adapter.activate(self.host)
                 post = self.host.inspect_v2()
                 if (
                     adapter.current_binding(post) != tx["predecessor_image"]
+                    or post["image_binding_modes"].get(target.component)
+                    != self._predecessor_binding_mode(tx)
                     or post["runtime"][target.component]["image_id"]
                     != tx["predecessor_image_id"]
                     or post["runtime"][target.component][
