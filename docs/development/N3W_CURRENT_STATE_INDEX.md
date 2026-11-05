@@ -1,3 +1,33 @@
+## 2026-11-05 — Home Assistant P4 fresh read-only premutation baseline CLOSED_PASS
+
+- Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current repository Manager: `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current repository Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical Clean Reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live deployment remains the accepted Manager B stack; P4 performed no live product mutation.
+- P4 exact execution head: `8232707eb2c91d3fa9881e4cadba6b78eefc1494`; PR #786 remains OPEN/Draft, mergeable and unmerged.
+- P4 exact head CI: 13/13 SUCCESS.
+- Frozen HA target remains byte-identical: `infra/n3w-t1/upgrades/homeassistant-2026.10.4.json`, blob `6966b4fe4d7620ccc436643cc840da9ae95e6010`.
+- First real-T1 attempt stopped in the execution-package transport layer before the remote probe started; `T1_MUTATION=false`.
+- The transport repair buffered non-seekable SSH stdin under a 4 MiB limit and added pipe-backed regression coverage.
+- Second real-T1 attempt returned PASS.
+- Current runtime is `TARGET_BOUND_RUNNING / HEALTHY`; `recovery_required=false`.
+- Binding modes remain Manager=`dynamic`, Home Assistant=`legacy_static`, Broker=`legacy_static`.
+- Double-read baseline is stable: `78c3b0b58ad39cf887689658bec90c8466d30a93d58830b0289f1463dafad868`.
+- Read-only plan hash: `6137cb33f290113610a4f0db0021cb0a99b3c5e9aa62d2fce94a0d3c53a48d32`.
+- Current transaction hash: `6ad39528f43407c6f48b83a07cb2d4ddfc916e808b3957aae176608c89a98fa3`.
+- Product/updater/service state remained unchanged across the gate.
+- Frozen target image is absent on T1; archive verification was intentionally not performed in P4.
+- Plan includes updater-owned Home Assistant template convergence and rollback remains available.
+- No persistent T1 product write, service restart, image load, updater apply/rollback, board access or merge occurred.
+- P4 result: `CLOSED_PASS`.
+- Next one gate: `N3W_T1_CORE_UPDATER_HOMEASSISTANT_P5_LIVE_APPLY_PREAUTHORIZATION_REVIEW_20261105_01`.
+- Live HA apply is not yet authorized.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_HOMEASSISTANT_P4_FRESH_READONLY_PREMUTATION_BASELINE_CLOSURE_20261105.md`.
+
 ## 2026-11-05 — Home Assistant P3 updater source simulation CLOSED_PASS
 
 - Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
