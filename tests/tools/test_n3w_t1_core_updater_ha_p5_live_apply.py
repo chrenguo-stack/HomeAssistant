@@ -129,9 +129,58 @@ def test_execute_stops_before_t1_if_source_authority_is_not_authorized(
     assert not args.evidence_root.exists()
 
 
+def test_staging_transport_streams_over_existing_ssh(tmp_path, monkeypatch):
+    source = tmp_path / "payload.bin"
+    source.write_bytes(b"payload")
+    captured = {}
+
+    def fake_run(
+        argv,
+        *,
+        stdin=None,
+        stdout=None,
+        stderr=None,
+        check=False,
+        timeout=None,
+    ):
+        captured["argv"] = list(argv)
+        captured["payload"] = stdin.read() if stdin is not None else None
+        captured["timeout"] = timeout
+        return subprocess.CompletedProcess(argv, 0, b"", b"")
+
+    monkeypatch.setattr(executor.subprocess, "run", fake_run)
+    executor.stream_file_over_ssh(
+        source,
+        "root@192.0.2.1",
+        "/var/tmp/n3w-ha-p5.ABC123/payload.bin",
+        "/tmp/n3w-ha-p5-test.sock",
+        timeout=42,
+    )
+
+    assert captured["argv"][0] == "ssh"
+    assert "scp" not in captured["argv"]
+    assert captured["payload"] == b"payload"
+    assert captured["timeout"] == 42
+
+
+def test_staging_transport_rejects_outside_remote_scratch(tmp_path):
+    source = tmp_path / "payload.bin"
+    source.write_bytes(b"payload")
+    with pytest.raises(executor.StopExecution, match="stream_remote_path_invalid"):
+        executor.stream_file_over_ssh(
+            source,
+            "root@192.0.2.1",
+            "/tmp/payload.bin",
+            "/tmp/n3w-ha-p5-test.sock",
+            timeout=42,
+        )
+
+
 def test_live_sources_have_no_second_apply_or_explicit_rollback_route():
     executor_text = EXECUTOR_PATH.read_text(encoding="utf-8")
     remote_text = REMOTE_PATH.read_text(encoding="utf-8")
+    assert '"scp"' not in executor_text
+    assert "stream_file_over_ssh" in executor_text
 
     assert executor_text.count('"apply",') == 1
     assert 'args.command == "apply"' in remote_text
