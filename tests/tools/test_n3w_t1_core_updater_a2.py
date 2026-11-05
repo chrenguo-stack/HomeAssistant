@@ -20,7 +20,11 @@ from n3w_t1_core_updater_v2_common import (
     ComponentTarget,
     UpgradeBaseline,
     UpdaterV2Error,
+    converge_homeassistant_compose,
+    converge_homeassistant_env,
     parse_image_bindings,
+    restore_homeassistant_compose,
+    restore_homeassistant_env,
     rewrite_component_env,
     validate_component_candidate,
 )
@@ -349,6 +353,68 @@ def test_manager_rewrite_does_not_require_dynamic_peer_lines():
         NEW["manager"],
     )
     assert updated == f"GH_MANAGER_IMAGE={NEW['manager']}\n".encode()
+
+
+def test_homeassistant_binding_transition_round_trip():
+    predecessor = OLD["homeassistant"]
+    target_image = NEW["homeassistant"]
+    compose = (
+        "name: n3wfc4\n"
+        "services:\n"
+        "  broker:\n"
+        f"    image: {OLD['broker']}\n"
+        "  manager:\n"
+        '    image: "${GH_MANAGER_IMAGE:?GH_MANAGER_IMAGE required}"\n'
+        "  homeassistant:\n"
+        f"    image: {predecessor}\n"
+        "    network_mode: host\n"
+    ).encode()
+    env = f"GH_MANAGER_IMAGE={OLD['manager']}\n".encode()
+
+    dynamic_compose = converge_homeassistant_compose(
+        compose,
+        predecessor,
+    )
+    dynamic_env = converge_homeassistant_env(
+        env,
+        predecessor,
+        target_image,
+    )
+
+    assert (
+        b'    image: "${GH_HOMEASSISTANT_IMAGE:?GH_HOMEASSISTANT_IMAGE required}"\n'
+        in dynamic_compose
+    )
+    assert f"GH_HOMEASSISTANT_IMAGE={target_image}\n".encode() in dynamic_env
+
+    restored_compose = restore_homeassistant_compose(
+        dynamic_compose,
+        predecessor,
+    )
+    restored_env = restore_homeassistant_env(
+        dynamic_env,
+        predecessor,
+        target_image,
+    )
+
+    assert restored_compose == compose
+    assert restored_env == env
+
+
+def test_homeassistant_binding_transition_rejects_ambiguous_env():
+    payload = (
+        f"GH_HOMEASSISTANT_IMAGE={OLD['homeassistant']}\n"
+        f"GH_HOMEASSISTANT_IMAGE={OLD['homeassistant']}\n"
+    ).encode()
+    with pytest.raises(
+        UpdaterV2Error,
+        match="homeassistant_image_env_line_count_invalid",
+    ):
+        converge_homeassistant_env(
+            payload,
+            OLD["homeassistant"],
+            NEW["homeassistant"],
+        )
 
 
 def test_generic_env_binding_rewrites_only_selected_component():
@@ -919,7 +985,7 @@ def test_runtime_rejects_unsupported_image_platform(monkeypatch):
         host._runtime("manager")
 
 
-def test_legacy_static_peer_is_readable_but_not_upgradeable(monkeypatch):
+def test_legacy_static_homeassistant_is_transaction_upgradeable(monkeypatch):
     host = hostmod.LocalHost()
     monkeypatch.setattr(
         host,
@@ -932,11 +998,7 @@ def test_legacy_static_peer_is_readable_but_not_upgradeable(monkeypatch):
     )
 
     host.assert_component_upgradeable("manager")
-    with pytest.raises(
-        Exception,
-        match="homeassistant_runtime_template_convergence_required",
-    ):
-        host.assert_component_upgradeable("homeassistant")
+    host.assert_component_upgradeable("homeassistant")
     with pytest.raises(
         Exception,
         match="broker_runtime_template_convergence_required",
