@@ -19,6 +19,7 @@ from typing import Any
 PACKAGE_DIR = Path(__file__).resolve().parent
 REPO_ROOT = PACKAGE_DIR.parents[4]
 MANIFEST_PATH = PACKAGE_DIR / "manifest.json"
+STORAGE_POLICY_PATH = REPO_ROOT / "infra/n3w-t1/upgrades/homeassistant-2026.10.4-storage-policy.json"
 TOOLS_ROOT = REPO_ROOT / "tools"
 if str(TOOLS_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLS_ROOT))
@@ -45,7 +46,8 @@ TARGET_IMAGE = "local/n3w-homeassistant:2026.10.4-5881590f"
 PREDECESSOR_IMAGE = "local/n3w-homeassistant:2026.10.0-0c73235a"
 P4_BASELINE_SHA256 = "78c3b0b58ad39cf887689658bec90c8466d30a93d58830b0289f1463dafad868"
 P4_TRANSACTION_SHA256 = "6ad39528f43407c6f48b83a07cb2d4ddfc916e808b3957aae176608c89a98fa3"
-MIN_POST_PEAK_FREE_BYTES = 5 * 1024 * 1024 * 1024
+P5_POST_PEAK_RESERVE_BYTES = 1610612736
+STORAGE_POLICY_EVIDENCE_HEAD = "9cf4fcee9512013ca99675b3b477cf77429bd669"
 
 EXPECTED_ARTIFACT_FILES = {
     "homeassistant-arm64.tar.gz",
@@ -54,6 +56,7 @@ EXPECTED_ARTIFACT_FILES = {
 }
 LOCAL_AUTHORITY_PATHS = (
     "tools/n3w_t1_fresh_product_staging_host.py",
+    "infra/n3w-t1/upgrades/homeassistant-2026.10.4-storage-policy.json",
 )
 SOURCE_PATHS = (
     "infra/n3w-t1/upgrades/homeassistant-2026.10.4.json",
@@ -153,6 +156,42 @@ def read_json(path: Path) -> dict[str, Any]:
     return value
 
 
+def validate_storage_policy() -> dict[str, Any]:
+    policy = read_json(STORAGE_POLICY_PATH)
+    if (
+        policy.get("schema")
+        != "gh.n3w-t1-core-updater-homeassistant-storage-policy/1"
+        or policy.get("component") != "homeassistant"
+        or policy.get("target_image") != TARGET_IMAGE
+        or policy.get("target_manifest_blob_sha")
+        != "6966b4fe4d7620ccc436643cc840da9ae95e6010"
+        or policy.get("evidence_source_head") != STORAGE_POLICY_EVIDENCE_HEAD
+        or policy.get("live_ha_apply_authorized") is not False
+    ):
+        raise StopExecution("storage_policy_authority_invalid")
+    admission = policy.get("p5_upgrade_admission")
+    if not isinstance(admission, dict):
+        raise StopExecution("storage_policy_admission_invalid")
+    if (
+        admission.get("historical_fixed_5_gib_retired") is not True
+        or admission.get("derived_post_peak_reserve_bytes")
+        != P5_POST_PEAK_RESERVE_BYTES
+        or admission.get("exact_target_archive_staging_bytes")
+        != ARCHIVE_SIZE_BYTES
+        or admission.get("rollback_predecessor_already_resident") is not True
+        or admission.get("predecessor_bytes_double_counted") is not False
+    ):
+        raise StopExecution("storage_policy_admission_invalid")
+    runtime = policy.get("product_runtime_min_free_requirement")
+    if (
+        not isinstance(runtime, dict)
+        or runtime.get("state")
+        != "UNFROZEN_LONGITUDINAL_EVIDENCE_REQUIRED"
+    ):
+        raise StopExecution("storage_policy_runtime_state_invalid")
+    return policy
+
+
 def validate_target(target: str) -> None:
     if (
         not target
@@ -222,6 +261,8 @@ def validate_source(expected_head: str) -> dict[str, Any]:
         if relative not in bindings:
             raise StopExecution(f"source_binding_missing:{Path(relative).name}")
 
+    validate_storage_policy()
+
     target_blob = bindings.get("infra/n3w-t1/upgrades/homeassistant-2026.10.4.json")
     if target_blob != "6966b4fe4d7620ccc436643cc840da9ae95e6010":
         raise StopExecution("target_blob_drift")
@@ -233,6 +274,9 @@ def validate_source(expected_head: str) -> dict[str, Any]:
         "p4_closure_blob_sha": manifest["p4_closure_blob_sha"],
         "target_manifest_blob_sha": target_blob,
         "live_apply_authorized": live_authorized,
+        "storage_policy_blob_sha": bindings[
+            "infra/n3w-t1/upgrades/homeassistant-2026.10.4-storage-policy.json"
+        ],
     }
 
 
@@ -622,6 +666,8 @@ def capacity_report(
     artifact: dict[str, Any],
     storage: dict[str, Any],
 ) -> dict[str, Any]:
+    policy = validate_storage_policy()
+    admission = policy["p5_upgrade_admission"]
     image_uncompressed = artifact.get("image_uncompressed_bytes")
     if not isinstance(image_uncompressed, int) or image_uncompressed <= 0:
         raise StopExecution("image_uncompressed_bytes_invalid")
@@ -631,7 +677,7 @@ def capacity_report(
         int(storage["image_store_free_bytes"]),
     )
     required_peak = ARCHIVE_SIZE_BYTES + image_uncompressed
-    required_total = required_peak + MIN_POST_PEAK_FREE_BYTES
+    required_total = required_peak + P5_POST_PEAK_RESERVE_BYTES
     report = {
         "staging_device": storage["staging_device"],
         "docker_device": storage["docker_device"],
@@ -642,9 +688,22 @@ def capacity_report(
         "archive_size_bytes": ARCHIVE_SIZE_BYTES,
         "image_uncompressed_bytes": image_uncompressed,
         "required_peak_bytes": required_peak,
-        "minimum_post_peak_free_bytes": MIN_POST_PEAK_FREE_BYTES,
+        "post_peak_reserve_bytes": P5_POST_PEAK_RESERVE_BYTES,
         "required_total_bytes": required_total,
         "capacity_pass": free >= required_total,
+        "storage_policy_evidence_head": policy["evidence_source_head"],
+        "historical_fixed_5_gib_retired": admission[
+            "historical_fixed_5_gib_retired"
+        ],
+        "rollback_predecessor_already_resident": admission[
+            "rollback_predecessor_already_resident"
+        ],
+        "predecessor_bytes_double_counted": admission[
+            "predecessor_bytes_double_counted"
+        ],
+        "product_runtime_min_free_requirement_state": policy[
+            "product_runtime_min_free_requirement"
+        ]["state"],
     }
     if report["capacity_pass"] is not True:
         raise StopExecution("remote_capacity_insufficient")
@@ -660,6 +719,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
     source_authority = validate_source(args.expected_source_head)
     if source_authority.get("live_apply_authorized") is not True:
         raise StopExecution("live_apply_not_authorized")
+    validate_storage_policy()
     evidence = prepare_evidence_root(args.evidence_root)
 
     remote_dir: str | None = None
@@ -845,6 +905,23 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                     check=False,
                 )
                 remote_scratch_cleanup = cleanup.returncode == 0
+            if final_result is not None and remote_scratch_cleanup is True:
+                post_cleanup_storage = remote_storage_report(
+                    args.target,
+                    control_path,
+                )
+                post_cleanup_free = min(
+                    int(post_cleanup_storage["staging_free_bytes"]),
+                    int(post_cleanup_storage["docker_free_bytes"]),
+                    int(post_cleanup_storage["image_store_free_bytes"]),
+                )
+                if post_cleanup_free < P5_POST_PEAK_RESERVE_BYTES:
+                    raise StopExecution("post_cleanup_runtime_reserve_breached")
+                final_result["post_cleanup_free_bytes"] = post_cleanup_free
+                final_result["post_cleanup_reserve_bytes"] = (
+                    P5_POST_PEAK_RESERVE_BYTES
+                )
+                final_result["post_cleanup_reserve_pass"] = True
             run(
                 ["ssh", *ssh_options(control_path), "-O", "exit", args.target],
                 timeout=30,
