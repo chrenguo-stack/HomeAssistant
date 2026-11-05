@@ -84,20 +84,45 @@ tools/execution_packages/n3w/u2/ha_p5_live_apply/manifest.json
 
 The Mac-side executor:
 
+Before any SSH/T1 access, it also requires the versioned manifest field
+`live_apply_authorized=true`. The current preauthorization manifest is deliberately
+`false`, so the prepared executor fails closed even if somebody obtains the CLI
+confirmation string before explicit authorization.
+
 1. validates exact local Git head and source bindings;
 2. re-reads GitHub artifact metadata;
 3. downloads the exact frozen artifact;
 4. verifies exact file set, archive size/SHA, upstream binding and portable identity;
 5. opens an SSH ControlMaster using a short `/tmp` control path;
-6. creates a private temporary T1 staging directory only;
-7. stages exact source and exact HA archive;
-8. runs fresh read-only preflight;
-9. stops before claim on any drift;
-10. claims the one-shot authorization only immediately before the single apply invocation;
-11. runs at most one updater-owned apply;
-12. on apply failure, runs read-only diagnosis and stops;
-13. on apply PASS, performs post-apply status/runtime/inspect verification;
-14. removes temporary T1 staging material.
+6. reuses the existing production storage probe to resolve the real Docker/containerd image store;
+7. requires staging, Docker root and image store to be on the same filesystem and requires enough
+   free space for the staged archive + Docker-save uncompressed image bytes + 5 GiB post-peak reserve;
+8. creates a private temporary T1 staging directory only;
+9. stages exact source and exact HA archive;
+10. runs fresh read-only preflight;
+11. stops before claim on any drift;
+12. claims the one-shot authorization only immediately before the single apply invocation;
+13. runs at most one updater-owned apply;
+14. on apply failure, runs read-only diagnosis and stops;
+15. on apply PASS, performs post-apply status/runtime/inspect verification;
+16. removes temporary T1 staging material.
+
+## Capacity gate before staging
+
+Before the 835 MB exact HA archive is copied to T1, P5 reuses
+`tools/n3w_t1_fresh_product_staging_host.py` to identify the actual
+staging/Docker/image-store filesystem.
+
+The gate requires:
+
+~~~text
+STAGING_DOCKER_IMAGE_STORE_SAME_FILESYSTEM=true
+REQUIRED_PEAK_BYTES=TARGET_ARCHIVE_SIZE_BYTES+DOCKER_SAVE_UNCOMPRESSED_MEMBER_BYTES
+MINIMUM_POST_PEAK_FREE_BYTES=5368709120
+CAPACITY_PASS=true
+~~~
+
+Insufficient capacity is a STOP before remote staging and before authorization claim.
 
 ## Fresh preflight required before claim
 
