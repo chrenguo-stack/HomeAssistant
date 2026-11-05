@@ -993,7 +993,6 @@ class LocalHost:
     def _converge_homeassistant_binding(
         self,
         expected: str,
-        replacement: str,
     ) -> str:
         if (
             COMPOSE.is_symlink()
@@ -1008,7 +1007,7 @@ class LocalHost:
             updated_env = converge_homeassistant_env(
                 original_env,
                 expected,
-                replacement,
+                expected,
             )
             updated_compose = converge_homeassistant_compose(
                 original_compose,
@@ -1064,9 +1063,23 @@ class LocalHost:
                 raise UpdaterError(
                     f"{component}_runtime_template_convergence_required"
                 )
-            return self._converge_homeassistant_binding(
-                expected,
-                replacement,
+            self._converge_homeassistant_binding(expected)
+            original = COMPOSE_ENV.read_bytes()
+            try:
+                updated = rewrite_component_env(
+                    original,
+                    component,
+                    expected,
+                    replacement,
+                )
+            except Exception as error:
+                raise UpdaterError(
+                    "component_image_env_rewrite_invalid"
+                ) from error
+            return self._replace_product_file(
+                COMPOSE_ENV,
+                updated,
+                verify_error="compose_env_replace_verify_failed",
             )
         if mode != "dynamic":
             raise UpdaterError(
@@ -1158,14 +1171,14 @@ class LocalHost:
         except Exception as error:
             try:
                 self._replace_product_file(
-                    COMPOSE_ENV,
-                    original_env,
-                    verify_error="compose_env_recovery_verify_failed",
-                )
-                self._replace_product_file(
                     COMPOSE,
                     original_compose,
                     verify_error="compose_recovery_verify_failed",
+                )
+                self._replace_product_file(
+                    COMPOSE_ENV,
+                    original_env,
+                    verify_error="compose_env_recovery_verify_failed",
                 )
             except Exception as restore_error:
                 raise UpdaterError(
