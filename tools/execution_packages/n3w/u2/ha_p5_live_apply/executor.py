@@ -18,6 +18,11 @@ from typing import Any
 PACKAGE_DIR = Path(__file__).resolve().parent
 REPO_ROOT = PACKAGE_DIR.parents[4]
 MANIFEST_PATH = PACKAGE_DIR / "manifest.json"
+TOOLS_ROOT = REPO_ROOT / "tools"
+if str(TOOLS_ROOT) not in sys.path:
+    sys.path.insert(0, str(TOOLS_ROOT))
+
+import n3w_t1_fresh_product_staging_host as staging_host
 
 REPOSITORY = "chrenguo-stack/HomeAssistant"
 GATE_ID = "N3W_T1_CORE_UPDATER_HOMEASSISTANT_P5_LIVE_APPLY_PREAUTHORIZATION_REVIEW_20261105_01"
@@ -39,12 +44,16 @@ TARGET_IMAGE = "local/n3w-homeassistant:2026.10.4-5881590f"
 PREDECESSOR_IMAGE = "local/n3w-homeassistant:2026.10.0-0c73235a"
 P4_BASELINE_SHA256 = "78c3b0b58ad39cf887689658bec90c8466d30a93d58830b0289f1463dafad868"
 P4_TRANSACTION_SHA256 = "6ad39528f43407c6f48b83a07cb2d4ddfc916e808b3957aae176608c89a98fa3"
+MIN_POST_PEAK_FREE_BYTES = 5 * 1024 * 1024 * 1024
 
 EXPECTED_ARTIFACT_FILES = {
     "homeassistant-arm64.tar.gz",
     "portable-image-identity.json",
     "upstream-binding.json",
 }
+LOCAL_AUTHORITY_PATHS = (
+    "tools/n3w_t1_fresh_product_staging_host.py",
+)
 SOURCE_PATHS = (
     "infra/n3w-t1/upgrades/homeassistant-2026.10.4.json",
     "tools/n3w_t1_core_updater_common.py",
@@ -207,7 +216,7 @@ def validate_source(expected_head: str) -> dict[str, Any]:
         if git_text("rev-parse", f"{expected_head}:{relative}") != expected_blob:
             raise StopExecution(f"source_blob_mismatch:{Path(relative).name}")
 
-    for relative in SOURCE_PATHS:
+    for relative in (*SOURCE_PATHS, *LOCAL_AUTHORITY_PATHS):
         if relative not in bindings:
             raise StopExecution(f"source_binding_missing:{Path(relative).name}")
 
@@ -308,6 +317,15 @@ def verify_artifact(download_root: Path) -> tuple[Path, dict[str, Any]]:
         raise StopExecution("archive_size_mismatch")
     if sha256_file(archive) != ARCHIVE_SHA256:
         raise StopExecution("archive_sha256_mismatch")
+    try:
+        with tarfile.open(archive, mode="r:*") as docker_save:
+            image_uncompressed_bytes = sum(
+                member.size for member in docker_save.getmembers() if member.isfile()
+            )
+    except tarfile.TarError as error:
+        raise StopExecution("archive_tar_invalid") from error
+    if image_uncompressed_bytes <= 0:
+        raise StopExecution("archive_uncompressed_size_invalid")
 
     target = read_json(REPO_ROOT / "infra/n3w-t1/upgrades/homeassistant-2026.10.4.json")
     binding = read_json(package / "upstream-binding.json")
@@ -350,6 +368,7 @@ def verify_artifact(download_root: Path) -> tuple[Path, dict[str, Any]]:
         "artifact_source_head": metadata["workflow_run"]["head_sha"],
         "archive_sha256": ARCHIVE_SHA256,
         "archive_size_bytes": ARCHIVE_SIZE_BYTES,
+        "image_uncompressed_bytes": image_uncompressed_bytes,
         "target_image": TARGET_IMAGE,
     }
 
@@ -560,6 +579,75 @@ def require_post_pass(document: dict[str, Any]) -> None:
         raise StopExecution("live_post_transaction_sha_invalid")
 
 
+def remote_storage_report(
+    target: str,
+    control_path: str,
+) -> dict[str, Any]:
+    script = staging_host._remote_storage_probe_script()
+    result = ssh_command(
+        target,
+        control_path,
+        "python3 -c " + shlex.quote(script),
+        timeout=90,
+    )
+    try:
+        report = json.loads(result.stdout.decode())
+    except (UnicodeError, json.JSONDecodeError) as error:
+        raise StopExecution("remote_storage_report_invalid") from error
+    if not isinstance(report, dict):
+        raise StopExecution("remote_storage_report_invalid")
+    if report.get("staging_root") != "/var/tmp":
+        raise StopExecution("remote_staging_root_invalid")
+    if report.get("staging_fstype") in {"tmpfs", "ramfs"}:
+        raise StopExecution("remote_staging_root_memory_fs")
+    if report.get("image_store_backend") not in {"classic", "containerd"}:
+        raise StopExecution("remote_image_store_unresolved")
+    if not (
+        report.get("staging_device")
+        == report.get("docker_device")
+        == report.get("image_store_device")
+    ):
+        raise StopExecution("remote_storage_filesystem_split_unsupported")
+    for key in ("staging_free_bytes", "docker_free_bytes", "image_store_free_bytes"):
+        value = report.get(key)
+        if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+            raise StopExecution("remote_free_bytes_invalid")
+    return report
+
+
+def capacity_report(
+    artifact: dict[str, Any],
+    storage: dict[str, Any],
+) -> dict[str, Any]:
+    image_uncompressed = artifact.get("image_uncompressed_bytes")
+    if not isinstance(image_uncompressed, int) or image_uncompressed <= 0:
+        raise StopExecution("image_uncompressed_bytes_invalid")
+    free = min(
+        int(storage["staging_free_bytes"]),
+        int(storage["docker_free_bytes"]),
+        int(storage["image_store_free_bytes"]),
+    )
+    required_peak = ARCHIVE_SIZE_BYTES + image_uncompressed
+    required_total = required_peak + MIN_POST_PEAK_FREE_BYTES
+    report = {
+        "staging_device": storage["staging_device"],
+        "docker_device": storage["docker_device"],
+        "image_store_device": storage["image_store_device"],
+        "image_store_backend": storage["image_store_backend"],
+        "image_store_root_source": storage.get("image_store_root_source"),
+        "remote_free_bytes": free,
+        "archive_size_bytes": ARCHIVE_SIZE_BYTES,
+        "image_uncompressed_bytes": image_uncompressed,
+        "required_peak_bytes": required_peak,
+        "minimum_post_peak_free_bytes": MIN_POST_PEAK_FREE_BYTES,
+        "required_total_bytes": required_total,
+        "capacity_pass": free >= required_total,
+    }
+    if report["capacity_pass"] is not True:
+        raise StopExecution("remote_capacity_insufficient")
+    return report
+
+
 def execute(args: argparse.Namespace) -> dict[str, Any]:
     if args.authorization_id != AUTHORIZATION_ID:
         raise StopExecution("authorization_id_invalid")
@@ -569,12 +657,10 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
     source_authority = validate_source(args.expected_source_head)
     evidence = prepare_evidence_root(args.evidence_root)
 
-    authorization_claimed = False
-    authorization_consumed = False
-    apply_invoked = False
     remote_dir: str | None = None
     control_path = f"/tmp/n3w-ha-p5-{os.getpid()}.sock"
     remote_scratch_cleanup = False
+    final_result: dict[str, Any] | None = None
 
     with tempfile.TemporaryDirectory(prefix="n3w-ha-p5-local-") as raw_tmp:
         temp_root = Path(raw_tmp)
@@ -587,6 +673,10 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
             master = ssh_command(args.target, control_path, "true", timeout=30)
             if master.returncode != 0:
                 raise StopExecution("ssh_master_start_failed")
+
+            storage = remote_storage_report(args.target, control_path)
+            capacity = capacity_report(artifact, storage)
+            write_private(evidence / "capacity.json", capacity)
 
             created = ssh_command(
                 args.target,
@@ -630,12 +720,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                     shlex.quote(remote_dir),
                 ]
             )
-            ssh_command(
-                args.target,
-                control_path,
-                extract_command,
-                timeout=120,
-            )
+            ssh_command(args.target, control_path, extract_command, timeout=120)
             ssh_command(
                 args.target,
                 control_path,
@@ -653,13 +738,10 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
             write_private(evidence / "preflight.json", preflight)
             if pre_rc != 0 or preflight.get("status") != "PASS":
                 raise StopExecution(
-                    "live_preflight_stop:"
-                    + str(preflight.get("reason") or "unknown")
+                    "live_preflight_stop:" + str(preflight.get("reason") or "unknown")
                 )
             require_preflight_pass(preflight)
 
-            authorization_claimed = True
-            authorization_consumed = True
             claim = {
                 "authorization_id": AUTHORIZATION_ID,
                 "authorization_claimed": True,
@@ -670,7 +752,6 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
             }
             write_private(evidence / "authorization-claim.json", claim)
 
-            apply_invoked = True
             apply_report, apply_rc = run_remote_live(
                 args.target,
                 control_path,
@@ -691,8 +772,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                 )
                 write_private(evidence / "diagnose.json", diagnose)
                 raise StopExecution(
-                    "live_apply_stop:"
-                    + str(apply_report.get("reason") or "unknown")
+                    "live_apply_stop:" + str(apply_report.get("reason") or "unknown")
                 )
 
             require_apply_pass(apply_report)
@@ -707,18 +787,18 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
             write_private(evidence / "post.json", post)
             if post_rc != 0 or post.get("status") != "PASS":
                 raise StopExecution(
-                    "live_post_stop:"
-                    + str(post.get("reason") or "unknown")
+                    "live_post_stop:" + str(post.get("reason") or "unknown")
                 )
             require_post_pass(post)
 
-            result = {
+            final_result = {
                 "schema": SCHEMA,
                 "gate_id": GATE_ID,
                 "status": "PASS",
                 "operation": "live_apply",
                 "source_authority": source_authority,
                 "artifact": artifact,
+                "capacity": capacity,
                 "authorization_id": AUTHORIZATION_ID,
                 "authorization_claimed": True,
                 "authorization_consumed": True,
@@ -743,14 +823,13 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                 "merge": False,
                 "private_evidence_files": [
                     "artifact.json",
+                    "capacity.json",
                     "preflight.json",
                     "authorization-claim.json",
                     "apply.json",
                     "post.json",
                 ],
             }
-            write_private(evidence / "result.json", result)
-            return result
         finally:
             if remote_dir is not None:
                 cleanup = ssh_command(
@@ -762,13 +841,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                 )
                 remote_scratch_cleanup = cleanup.returncode == 0
             run(
-                [
-                    "ssh",
-                    *ssh_options(control_path),
-                    "-O",
-                    "exit",
-                    args.target,
-                ],
+                ["ssh", *ssh_options(control_path), "-O", "exit", args.target],
                 timeout=30,
                 check=False,
             )
@@ -777,8 +850,13 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
             except OSError:
                 pass
 
-    raise StopExecution("unexpected_executor_fallthrough")
-
+        if final_result is None:
+            raise StopExecution("unexpected_executor_fallthrough")
+        if remote_scratch_cleanup is not True:
+            raise StopExecution("remote_scratch_cleanup_failed_after_apply")
+        final_result["remote_scratch_cleanup"] = True
+        write_private(evidence / "result.json", final_result)
+        return final_result
 
 def main() -> int:
     parser = argparse.ArgumentParser(prog="n3w-ha-p5-live-apply")
@@ -819,6 +897,19 @@ def main() -> int:
             or "@" in reason
         ):
             reason = type(error).__name__
+        evidence = args.evidence_root.expanduser()
+        claim_exists = (evidence / "authorization-claim.json").is_file()
+        apply_path = evidence / "apply.json"
+        apply_exists = apply_path.is_file()
+        mutation: bool | str = False
+        if apply_exists:
+            mutation = "UNKNOWN"
+            try:
+                apply_doc = read_json(apply_path)
+                if apply_doc.get("status") == "PASS" and apply_doc.get("t1_mutation") is True:
+                    mutation = True
+            except Exception:
+                mutation = "UNKNOWN"
         print(
             json.dumps(
                 {
@@ -826,9 +917,10 @@ def main() -> int:
                     "gate_id": GATE_ID,
                     "status": "STOP",
                     "reason": reason,
-                    "authorization_claimed": "UNKNOWN",
-                    "authorization_consumed": "UNKNOWN",
-                    "t1_mutation": "UNKNOWN",
+                    "authorization_claimed": claim_exists,
+                    "authorization_consumed": claim_exists,
+                    "t1_mutation": mutation,
+                    "apply_invoked": apply_exists or claim_exists,
                     "second_apply_allowed": False,
                     "blind_explicit_rollback_allowed": False,
                 },
