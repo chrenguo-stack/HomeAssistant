@@ -272,7 +272,7 @@ def test_component_upgradeable_fails_closed_on_nonrunning_residue(monkeypatch):
     )
 
     with pytest.raises(
-        m.UpdaterError,
+        hostmod.UpdaterError,
         match="homeassistant_container_residue_present",
     ):
         host.assert_component_upgradeable("homeassistant")
