@@ -536,6 +536,11 @@
       "draft_policy": "run",
       "exceptions": {}
     },
+    "n3w-t1-core-updater-homeassistant-exact-artifact-ci.yml": {
+      "class": "EXACT",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
     "n3w-t1-core-stack-semantic-release-ci.yml": {
       "class": "FAST",
       "draft_policy": "run",
