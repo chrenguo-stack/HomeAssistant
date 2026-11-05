@@ -101,6 +101,33 @@ for name in os.listdir(destination):
 """
 
 
+REMOTE_STREAM_WRITE = r"""
+import os
+import sys
+
+path = sys.argv[1]
+flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+if hasattr(os, "O_NOFOLLOW"):
+    flags |= os.O_NOFOLLOW
+fd = os.open(path, flags, 0o600)
+try:
+    source = sys.stdin.buffer
+    while True:
+        block = source.read(1024 * 1024)
+        if not block:
+            break
+        view = memoryview(block)
+        while view:
+            written = os.write(fd, view)
+            if written <= 0:
+                raise SystemExit(24)
+            view = view[written:]
+    os.fsync(fd)
+finally:
+    os.close(fd)
+"""
+
+
 class StopExecution(RuntimeError):
     pass
 
@@ -481,7 +508,7 @@ def ssh_command(
     )
 
 
-def scp_file(
+def stream_file_over_ssh(
     source: Path,
     target: str,
     remote_path: str,
@@ -490,16 +517,27 @@ def scp_file(
     timeout: int,
 ) -> None:
     validate_target(target)
-    run(
-        [
-            "scp",
-            "-q",
-            *ssh_options(control_path),
-            str(source),
-            f"{target}:{remote_path}",
-        ],
-        timeout=timeout,
-    )
+    if source.is_symlink() or not source.is_file():
+        raise StopExecution("stream_source_invalid")
+    if not re.fullmatch(r"/var/tmp/n3w-ha-p5\.[A-Za-z0-9]+/[A-Za-z0-9._-]+", remote_path):
+        raise StopExecution("stream_remote_path_invalid")
+    command = "python3 -c " + shlex.quote(REMOTE_STREAM_WRITE) + " " + shlex.quote(remote_path)
+    try:
+        with source.open("rb") as stream:
+            result = subprocess.run(
+                ["ssh", *ssh_options(control_path), target, command],
+                stdin=stream,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+                timeout=timeout,
+            )
+    except subprocess.TimeoutExpired as error:
+        raise StopExecution("command_timeout:ssh-stream") from error
+    except OSError as error:
+        raise StopExecution("command_transport_error:ssh-stream") from error
+    if result.returncode != 0:
+        raise StopExecution(f"command_failed:ssh-stream:{result.returncode}")
 
 
 def parse_remote_json(result: subprocess.CompletedProcess[bytes], operation: str) -> dict[str, Any]:
@@ -760,14 +798,14 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                 timeout=30,
             )
 
-            scp_file(
+            stream_file_over_ssh(
                 bundle,
                 args.target,
                 f"{remote_dir}/source-bundle.tar",
                 control_path,
                 timeout=120,
             )
-            scp_file(
+            stream_file_over_ssh(
                 archive,
                 args.target,
                 f"{remote_dir}/{ARCHIVE_NAME}",
