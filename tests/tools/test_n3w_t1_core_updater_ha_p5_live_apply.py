@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import importlib.util
 import json
 import subprocess
@@ -223,6 +224,31 @@ def test_live_sources_have_no_second_apply_or_explicit_rollback_route():
     assert "blind_explicit_rollback_allowed" in executor_text
     assert "READONLY_DIAGNOSE_AND_STOP" in MANIFEST_PATH.read_text(encoding="utf-8")
     assert '"diagnose"' in executor_text
+
+
+def test_execute_uses_bound_transport_for_diagnose_and_cleanup():
+    tree = ast.parse(EXECUTOR_PATH.read_text(encoding="utf-8"))
+    execute_node = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "execute"
+    )
+
+    names = {
+        node.id
+        for node in ast.walk(execute_node)
+        if isinstance(node, ast.Name)
+    }
+    assert "control_path" not in names
+
+    for node in ast.walk(execute_node):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
+            continue
+        if node.func.id not in {"run_remote_live", "ssh_command"}:
+            continue
+        assert node.args
+        assert isinstance(node.args[0], ast.Name)
+        assert node.args[0].id == "transport"
 
 
 def test_capacity_gate_uses_evidence_bound_one_point_five_gib_reserve():

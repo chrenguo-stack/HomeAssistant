@@ -888,8 +888,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
 
             if apply_rc != 0 or apply_report.get("status") != "PASS":
                 diagnose, _ = run_remote_live(
-                    args.target,
-                    control_path,
+                    transport,
                     remote_dir,
                     "diagnose",
                     timeout=300,
@@ -956,8 +955,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
         finally:
             if remote_dir is not None:
                 cleanup = ssh_command(
-                    args.target,
-                    control_path,
+                    transport,
                     f"rm -rf {shlex.quote(remote_dir)}",
                     timeout=120,
                     check=False,
