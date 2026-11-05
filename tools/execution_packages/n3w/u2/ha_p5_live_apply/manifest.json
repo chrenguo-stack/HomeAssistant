@@ -22,7 +22,8 @@
     "tools/n3w_t1_core_updater_v2_state.py": "a5260f1097983cad4818f626826accbb185e4a37",
     "tools/n3w_t1_portable_image_identity.py": "4877f4801dd7a4364feb0cda4f9a3f79072e8214",
     "tools/execution_packages/n3w/u2/ha_p5_live_apply/remote_live.py": "5f1e2e1df4c735a12c494cf70d09478ad0e7719d",
-    "tools/n3w_t1_fresh_product_staging_host.py": "47718484ecffc2e4e7cab9505a1833cf7f5c8d7a"
+    "tools/n3w_t1_fresh_product_staging_host.py": "47718484ecffc2e4e7cab9505a1833cf7f5c8d7a",
+    "infra/n3w-t1/upgrades/homeassistant-2026.10.4-storage-policy.json": "01a5cec8877e2837504ed798e91ca552ab6f2a0e"
   },
   "frozen_target": {
     "target_manifest_blob_sha": "6966b4fe4d7620ccc436643cc840da9ae95e6010",
@@ -67,10 +68,19 @@
     "merge": false,
     "capacity_policy": {
       "storage_probe_authority": "tools/n3w_t1_fresh_product_staging_host.py",
+      "storage_policy_authority": "infra/n3w-t1/upgrades/homeassistant-2026.10.4-storage-policy.json",
+      "storage_policy_blob_sha": "01a5cec8877e2837504ed798e91ca552ab6f2a0e",
+      "evidence_source_head": "9cf4fcee9512013ca99675b3b477cf77429bd669",
       "require_single_staging_docker_image_store_filesystem": true,
-      "required_peak": "staged_archive_bytes + docker_save_uncompressed_member_bytes",
-      "minimum_post_peak_free_bytes": 5368709120,
-      "stop_before_remote_staging_on_failure": true
+      "historical_fixed_5_gib_retired": true,
+      "required_peak": "staged_exact_archive_bytes + exact_docker_save_uncompressed_member_bytes",
+      "post_peak_reserve_bytes": 1610612736,
+      "reserve_derivation": "max(1 GiB, 10% measured filesystem total, 8x measured mutable allocated bytes), rounded up to 256 MiB",
+      "predecessor_already_resident_and_retained": true,
+      "predecessor_bytes_double_counted": false,
+      "stop_before_remote_staging_on_failure": true,
+      "verify_post_cleanup_reserve": true,
+      "product_runtime_min_free_requirement_state": "UNFROZEN_LONGITUDINAL_EVIDENCE_REQUIRED"
     }
   },
   "expected_successor": {
