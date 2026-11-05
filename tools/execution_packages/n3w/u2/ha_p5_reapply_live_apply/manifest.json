@@ -19,7 +19,7 @@
     "tools/n3w_t1_core_updater_v2_common.py": "b9c6561a1a8e33bdf586e6a4bd04d025f3c5d7e6",
     "tools/n3w_t1_core_updater_v2_state.py": "a5260f1097983cad4818f626826accbb185e4a37",
     "tools/n3w_t1_portable_image_identity.py": "4877f4801dd7a4364feb0cda4f9a3f79072e8214",
-    "tools/execution_packages/n3w/u2/ha_p5_reapply_live_apply/remote_live.py": "bb9f3fe6f7fb436a22af668ec095a55bd5fd243e",
+    "tools/execution_packages/n3w/u2/ha_p5_reapply_live_apply/remote_live.py": "0b62edad75a55c9a670e23d9e6eea2aa48830405",
     "tools/execution_packages/n3w/u2/ha_p5_reapply_live_apply/executor.py": "2e24e8abe74e8d778726b8836f56d0bee155b291",
     "tools/n3w_t1_fresh_product_staging_host.py": "47718484ecffc2e4e7cab9505a1833cf7f5c8d7a",
     "infra/n3w-t1/upgrades/homeassistant-2026.10.4-storage-policy.json": "01a5cec8877e2837504ed798e91ca552ab6f2a0e",
