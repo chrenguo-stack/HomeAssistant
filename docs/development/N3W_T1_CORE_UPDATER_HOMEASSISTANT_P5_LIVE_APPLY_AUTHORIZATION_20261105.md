@@ -229,3 +229,50 @@ execution path.
 
 Known-failure authority:
 `docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md#kf-142`.
+
+
+## R2 CI closure and next preflight
+
+Fresh PR #788 rebind after the KF-142 R2 repair:
+
+~~~text
+R2_REPAIR_EXECUTABLE_HEAD=bdf86c75e882e25d642221c9bb88e883abfe249d
+R2_EXECUTOR_BLOB_SHA=b8d40093fe9a000a1b771dde8be0911c9e528292
+R2_AUTHORIZED_MANIFEST_BLOB_SHA=42bfa90650d42bc2efd425abb93551115a6c02ca
+SSH_TRANSPORT_BLOB_SHA=dec4c9159195e2008094d94fef3fc76c4b977e46
+DOCS_ALIGNED_GREEN_HEAD=94cd4b00089086e8fc1425142e4fddb21bdb616e
+
+CI=15/15_SUCCESS
+FAILURE_COUNT=0
+R2_TO_DOCS_HEAD_DIFF=DOCS_ONLY
+~~~
+
+The authorization remains:
+
+~~~text
+AUTHORIZATION_GRANTED=true
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+AUTHORIZATION_REPLAY_PERMITTED=false
+PERMITTED_APPLY_INVOCATIONS=1
+~~~
+
+No further live attempt may reuse the Attempt 02 CLI because the R2 executor now
+requires explicit trusted host-key binding inputs:
+
+~~~text
+--known-hosts
+--expected-host-key-sha256
+~~~
+
+The next gate is read-only and local/operator-side:
+
+~~~text
+NEXT_ONE_GATE=N3W_T1_CORE_UPDATER_HOMEASSISTANT_P5_SSH_HOST_KEY_BINDING_READONLY_PREFLIGHT_20261105_01
+LIVE_MUTATION=false
+BOARD_ACCESS=false
+ATTEMPT_03_AUTO_EXECUTE=false
+~~~
+
+Attempt 03 is entered only after the host-key preflight proves a trusted
+known_hosts record and the exact SHA256 value expected by the R2 transport.
