@@ -1,3 +1,24 @@
+## 2026-11-05 — Home Assistant P3 updater source simulation CLOSED_PASS
+
+- P3 exact reviewed executable source head: `b4409c11beda99f2aef43353b8129003760634b7`.
+- PR #785 remains OPEN/Draft, mergeable and unmerged.
+- P2B executable authority remains `f43e3600a017af04cb253d10ec0c86b47d24b5e3`; final P2 docs authority remains `74ce1940c7ee0df14e0d7635a6a47f6900f0c2c0`.
+- Frozen HA target `infra/n3w-t1/upgrades/homeassistant-2026.10.4.json` remained byte-identical with blob `6966b4fe4d7620ccc436643cc840da9ae95e6010`.
+- No P2A artifact was reproduced and no frozen target identity was modified.
+- Independent source review found the generic V2 updater rejected the real HA `legacy_static` predecessor before apply and did not previously make predecessor binding mode part of rollback authority.
+- P3 repaired this inside the existing generic V2 updater; no second upgrade engine was introduced.
+- The V2 transaction now records predecessor binding mode, requires committed HA target mode `dynamic`, and restores predecessor image plus predecessor binding mode on automatic and explicit rollback.
+- Interrupted template-binding transition is separately classified and recoverable instead of being accepted as predecessor or committed target state.
+- Conversion order is recoverable: env=predecessor -> Compose dynamic -> env=target -> target runtime verification.
+- Frozen-target simulations passed for read-only inspect/plan, apply, explicit rollback, activation-failure automatic rollback, interrupted-transition recovery, Manager continuity, Broker continuity and false-PASS rejection.
+- LocalHost file-level tests passed for exact round trip and restoration after second-file write failure.
+- All 14 workflows on the exact P3 executable head completed SUCCESS.
+- Critical runs: HA target-binding `41981502824`, generic Manager updater regression `41981502882`, fast-source `41981502737`.
+- No T1 access/mutation, service restart, board access, merge or Stack 1.1.0 publication occurred.
+- P3 result: `CLOSED_PASS`.
+- Next one gate: `HA_P4_FRESH_READONLY_PREMUTATION_BASELINE`; P4 is not auto-entered.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_HOMEASSISTANT_P3_UPDATER_SOURCE_SIMULATION_AND_READONLY_PLAN_CLOSURE_20261105.md`.
+
 ## 2026-11-05 — Home Assistant P2 exact artifact + updater target CLOSED_PASS
 
 - Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
