@@ -1,5 +1,14 @@
 ## 2026-11-05 — Home Assistant P3 updater source simulation CLOSED_PASS
 
+- Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current repository Manager: `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current repository Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical Clean Reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted: canonical Manager B remains accepted; P3 performed no live T1 mutation.
+
 - P3 exact reviewed executable source head: `b4409c11beda99f2aef43353b8129003760634b7`.
 - PR #785 remains OPEN/Draft, mergeable and unmerged.
 - P2B executable authority remains `f43e3600a017af04cb253d10ec0c86b47d24b5e3`; final P2 docs authority remains `74ce1940c7ee0df14e0d7635a6a47f6900f0c2c0`.
