@@ -1,0 +1,30 @@
+{
+  "schema": "gh.n3w-t1-core-updater-ha-p5-residue-cleanup-package/1",
+  "gate_id": "N3W_T1_CORE_UPDATER_HOMEASSISTANT_P5_ATTEMPT03_RESIDUE_CLEANUP_20261105_01",
+  "authority_parent_head": "7183954433bf381e40703a1f7c57415173261fe4",
+  "live_cleanup_authorized": false,
+  "authorization_id": null,
+  "expected_residue_container_id_sha256": null,
+  "source_binding": {
+    "infra/n3w-t1/upgrades/homeassistant-2026.10.4.json": "6966b4fe4d7620ccc436643cc840da9ae95e6010",
+    "tools/n3w_t1_ssh_transport.py": "dec4c9159195e2008094d94fef3fc76c4b977e46",
+    "tools/execution_packages/n3w/u2/ha_p5_attempt03_residue_readonly/executor.py": "2fdc92bf60b9293a4154618b7ad82506db83c0f6",
+    "tools/execution_packages/n3w/u2/ha_p5_attempt03_residue_cleanup/executor.py": "726fe5e314a449cf7d4a8e4ffaad3d1b67876361"
+  },
+  "bounds": {
+    "required_classification": "ATTEMPT03_TARGET_RECREATE_CREATED_RESIDUE",
+    "permitted_container_deletions": 1,
+    "permitted_container_state": "created",
+    "permitted_container_image": "local/n3w-homeassistant:2026.10.4-5881590f",
+    "running_predecessor_required": "local/n3w-homeassistant:2026.10.0-0c73235a"
+  },
+  "permitted_container_deletions": 1,
+  "target_image_delete_allowed": false,
+  "predecessor_container_delete_allowed": false,
+  "service_restart_allowed": false,
+  "compose_mutation_allowed": false,
+  "image_load_allowed": false,
+  "board_access": false,
+  "merge": false,
+  "stop_boundary": "LIVE_CLEANUP_AUTHORIZATION_REQUIRED"
+}
