@@ -1,3 +1,23 @@
+## 2026-11-05 — Home Assistant P5 attempt 01 transport STOP; repaired retry WAITING_CI
+
+- Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current repository Manager: `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current repository Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical Clean Reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted: canonical Manager B remains accepted; HA 2026.10.4 was not applied by attempt 01.
+- Attempt 01 stopped with `command_failed:scp:1` before remote preflight.
+- `apply_invoked=false`, `authorization_claimed=false`, `authorization_consumed=false`, `t1_mutation=false`.
+- The one-shot authorization remains granted and unconsumed; this STOP does not count as an apply.
+- Sanitized output does not support a narrower claim about the scp failure mechanism.
+- Bounded repair head: `9ab1ddf21dd191c916ef7b0dbe281d03aa8d0a2f`.
+- Repair replaces the dedicated scp staging path with streaming over the established SSH transport.
+- Frozen HA target, Generic V2, remote live updater, storage policy and authorization manifest remain unchanged.
+- Repaired retry is held until exact-head CI closes successfully; auto-retry=false.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_HOMEASSISTANT_P5_LIVE_APPLY_ATTEMPT01_TRANSPORT_STOP_REPAIR_20261105.md`.
+
 ## 2026-11-05 — Home Assistant P5 one-shot live apply AUTHORIZED_WAITING_CI
 
 - Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
