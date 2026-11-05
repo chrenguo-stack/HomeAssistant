@@ -15,6 +15,8 @@ on:
       - "tests/tools/test_n3w_t1_core_updater_a2.py"
       - "tests/tools/test_n3w_t1_core_updater_ha_target_binding.py"
       - "tests/tools/test_n3w_t1_core_updater_ha_p3_simulation.py"
+      - "tests/tools/test_n3w_t1_core_updater_ha_p4_readonly_executor.py"
+      - "tools/execution_packages/n3w/u2/ha_p4_readonly_premutation_baseline/**"
       - "tests/tools/test_n3w_t1_core_updater_ha_target_binding_ci_contract.py"
       - ".github/workflows/n3w-t1-core-updater-homeassistant-target-binding-ci.yml"
   workflow_dispatch:
@@ -57,11 +59,14 @@ jobs:
             tools/n3w_t1_core_updater_components.py \
             tools/n3w_t1_core_updater_host.py \
             tools/n3w_t1_core_updater_a1_policy.py \
-            tools/n3w_t1_portable_image_identity.py
+            tools/n3w_t1_portable_image_identity.py \
+            tools/execution_packages/n3w/u2/ha_p4_readonly_premutation_baseline/executor.py \
+            tools/execution_packages/n3w/u2/ha_p4_readonly_premutation_baseline/remote_probe.py
           python -m pytest -q \
             tests/tools/test_n3w_t1_core_updater_a2.py \
             tests/tools/test_n3w_t1_core_updater_ha_target_binding.py \
             tests/tools/test_n3w_t1_core_updater_ha_p3_simulation.py \
+            tests/tools/test_n3w_t1_core_updater_ha_p4_readonly_executor.py \
             tests/tools/test_n3w_t1_core_updater_ha_target_binding_ci_contract.py
 
   exact-binding:
