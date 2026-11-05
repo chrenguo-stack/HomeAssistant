@@ -1,3 +1,17 @@
+## 2026-11-05 — T1 Core Updater U2 T1_A read-only classification CLOSED_PASS
+
+- Fresh T1_A read-only classification completed with no T1 mutation.
+- Current V2 transaction is `COMMITTED / COMMITTED`; `recovery_required=false`.
+- Current runtime is `TARGET_BOUND_RUNNING / HEALTHY`.
+- No current legacy manager transaction exists.
+- Six archived updater transactions remain as historical evidence; all are terminal and all observed authorizations are consumed.
+- Fresh evidence supersedes the old assumption that T1_A still has a current dirty transaction.
+- `LEGACY_STATE_DISPOSITION=NO_ACTION_REQUIRED`; no cleanup gate is required.
+- Historical transaction state is not silently reused as authorization; consumed authorization replay remains forbidden by the explicit authorization contract.
+- Next route: `N3W_T1_CORE_UPDATER_HOMEASSISTANT_PRODUCT_GRADE_UPGRADE_VALIDATION_PREPARATION_20261105_01`.
+- Home Assistant validation is not auto-entered from U2.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_U2_LEGACY_DIRTY_T1A_READONLY_CLASSIFICATION_CLOSURE_20261105.md`.
+
 ## 2026-11-05 — T1 Core Updater post-U1 product completion audit CLOSED_PASS
 
 - Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
