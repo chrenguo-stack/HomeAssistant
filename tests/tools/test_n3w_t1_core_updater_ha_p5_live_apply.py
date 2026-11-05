@@ -34,7 +34,7 @@ executor = load_module("ha_p5_executor", EXECUTOR_PATH)
 remote = load_module("ha_p5_remote_live", REMOTE_PATH)
 
 
-def test_manifest_is_preauth_only_and_single_use():
+def test_manifest_is_authorized_for_exactly_one_live_apply():
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     assert manifest["gate_id"] == (
         "N3W_T1_CORE_UPDATER_HOMEASSISTANT_"
@@ -46,10 +46,10 @@ def test_manifest_is_preauth_only_and_single_use():
     assert manifest["p4_execution_head"] == (
         "8232707eb2c91d3fa9881e4cadba6b78eefc1494"
     )
-    assert manifest["live_apply_authorized"] is False
+    assert manifest["live_apply_authorized"] is True
     assert manifest["proposed_authorization_id"] == executor.AUTHORIZATION_ID
     contract = manifest["execution_contract"]
-    assert contract["state"] == "PREAUTH_ONLY"
+    assert contract["state"] == "AUTHORIZED_SINGLE_APPLY"
     assert contract["permitted_apply_invocations"] == 1
     assert contract["second_apply_allowed"] is False
     assert contract["blind_explicit_rollback_allowed"] is False
@@ -84,7 +84,7 @@ def test_exact_source_binding_validates_current_head():
     assert report["target_manifest_blob_sha"] == (
         "6966b4fe4d7620ccc436643cc840da9ae95e6010"
     )
-    assert report["live_apply_authorized"] is False
+    assert report["live_apply_authorized"] is True
     assert report["storage_policy_blob_sha"] == "01a5cec8877e2837504ed798e91ca552ab6f2a0e"
 
 
@@ -101,7 +101,10 @@ def test_storage_policy_derivation_is_bound_to_real_t1_evidence():
     assert admission["predecessor_bytes_double_counted"] is False
 
 
-def test_execute_stops_before_t1_while_manifest_is_not_authorized(tmp_path):
+def test_execute_stops_before_t1_if_source_authority_is_not_authorized(
+    tmp_path,
+    monkeypatch,
+):
     head = subprocess.check_output(
         ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
         text=True,
@@ -112,6 +115,14 @@ def test_execute_stops_before_t1_while_manifest_is_not_authorized(tmp_path):
         target="root@192.0.2.1",
         expected_source_head=head,
         evidence_root=tmp_path / "evidence",
+    )
+    monkeypatch.setattr(
+        executor,
+        "validate_source",
+        lambda expected_head: {
+            "exact_source_head": expected_head,
+            "live_apply_authorized": False,
+        },
     )
     with pytest.raises(executor.StopExecution, match="live_apply_not_authorized"):
         executor.execute(args)
