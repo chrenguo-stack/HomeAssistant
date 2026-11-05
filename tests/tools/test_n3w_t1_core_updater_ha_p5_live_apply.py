@@ -58,6 +58,10 @@ def test_manifest_is_preauth_only_and_single_use():
     assert contract["require_archive_verified_plan"] is True
     assert contract["claim_immediately_before_apply"] is True
     assert contract["apply_failure_route"] == "READONLY_DIAGNOSE_AND_STOP"
+    capacity = contract["capacity_policy"]
+    assert capacity["storage_probe_authority"] == "tools/n3w_t1_fresh_product_staging_host.py"
+    assert capacity["minimum_post_peak_free_bytes"] == 5 * 1024 * 1024 * 1024
+    assert capacity["stop_before_remote_staging_on_failure"] is True
 
 
 def test_exact_source_binding_validates_current_head():
@@ -89,6 +93,35 @@ def test_live_sources_have_no_second_apply_or_explicit_rollback_route():
     assert "blind_explicit_rollback_allowed" in executor_text
     assert "READONLY_DIAGNOSE_AND_STOP" in MANIFEST_PATH.read_text(encoding="utf-8")
     assert '"diagnose"' in executor_text
+
+
+def test_capacity_gate_keeps_five_gib_after_single_image_peak():
+    artifact = {
+        "image_uncompressed_bytes": 2 * 1024 * 1024 * 1024,
+    }
+    required = (
+        executor.ARCHIVE_SIZE_BYTES
+        + artifact["image_uncompressed_bytes"]
+        + executor.MIN_POST_PEAK_FREE_BYTES
+    )
+    storage = {
+        "staging_device": 1,
+        "docker_device": 1,
+        "image_store_device": 1,
+        "image_store_backend": "classic",
+        "image_store_root_source": "docker_root",
+        "staging_free_bytes": required,
+        "docker_free_bytes": required,
+        "image_store_free_bytes": required,
+    }
+    report = executor.capacity_report(artifact, storage)
+    assert report["capacity_pass"] is True
+    assert report["minimum_post_peak_free_bytes"] == 5 * 1024 * 1024 * 1024
+
+    too_small = dict(storage)
+    too_small["image_store_free_bytes"] = required - 1
+    with pytest.raises(executor.StopExecution, match="remote_capacity_insufficient"):
+        executor.capacity_report(artifact, too_small)
 
 
 def test_preflight_contract_requires_p4_authority_and_verified_archive():
