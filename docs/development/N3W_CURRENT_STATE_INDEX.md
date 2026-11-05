@@ -1,3 +1,17 @@
+## 2026-11-05 — U1 R4 canonical authority promoted to Manager B
+
+- Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
+- Current repository product source is `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current repository Manager is `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Repository Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted: real T1 Manager B is `TARGET_BOUND_RUNNING / HEALTHY`; updater transaction is `COMMITTED`; `recovery_required=false`.
+- Build Manager image ID is `sha256:80d34358094638ce9c8ce5fb2635fe0a5c75ee7cc5e8c628b38ab223134e585f`.
+- T1-local runtime Manager image ID is `sha256:228a42a8b14f36694cca6778b18c7be880def25c567ea5492a9e2a40a8ce912e`.
+- PR #777 merged as `62e498e2eefb9b5eedb70529b07e7354bd2921dc`.
+- KF-141 is CLOSED_PASS.
+- Canonical authority promotion is repository-only; no new T1 or board mutation occurs.
+
 ## 2026-11-05 — U1 R4 repaired A→B live reapply CLOSED_PASS
 
 - Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
