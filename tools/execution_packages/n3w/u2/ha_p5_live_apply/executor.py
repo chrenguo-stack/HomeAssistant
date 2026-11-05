@@ -725,6 +725,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
     remote_dir: str | None = None
     control_path = f"/tmp/n3w-ha-p5-{os.getpid()}.sock"
     remote_scratch_cleanup = False
+    post_cleanup_error: str | None = None
     final_result: dict[str, Any] | None = None
 
     with tempfile.TemporaryDirectory(prefix="n3w-ha-p5-local-") as raw_tmp:
@@ -906,22 +907,29 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                 )
                 remote_scratch_cleanup = cleanup.returncode == 0
             if final_result is not None and remote_scratch_cleanup is True:
-                post_cleanup_storage = remote_storage_report(
-                    args.target,
-                    control_path,
-                )
-                post_cleanup_free = min(
-                    int(post_cleanup_storage["staging_free_bytes"]),
-                    int(post_cleanup_storage["docker_free_bytes"]),
-                    int(post_cleanup_storage["image_store_free_bytes"]),
-                )
-                if post_cleanup_free < P5_POST_PEAK_RESERVE_BYTES:
-                    raise StopExecution("post_cleanup_runtime_reserve_breached")
-                final_result["post_cleanup_free_bytes"] = post_cleanup_free
-                final_result["post_cleanup_reserve_bytes"] = (
-                    P5_POST_PEAK_RESERVE_BYTES
-                )
-                final_result["post_cleanup_reserve_pass"] = True
+                try:
+                    post_cleanup_storage = remote_storage_report(
+                        args.target,
+                        control_path,
+                    )
+                    post_cleanup_free = min(
+                        int(post_cleanup_storage["staging_free_bytes"]),
+                        int(post_cleanup_storage["docker_free_bytes"]),
+                        int(post_cleanup_storage["image_store_free_bytes"]),
+                    )
+                    final_result["post_cleanup_free_bytes"] = post_cleanup_free
+                    final_result["post_cleanup_reserve_bytes"] = (
+                        P5_POST_PEAK_RESERVE_BYTES
+                    )
+                    final_result["post_cleanup_reserve_pass"] = (
+                        post_cleanup_free >= P5_POST_PEAK_RESERVE_BYTES
+                    )
+                    if final_result["post_cleanup_reserve_pass"] is not True:
+                        post_cleanup_error = (
+                            "post_cleanup_runtime_reserve_breached"
+                        )
+                except Exception:
+                    post_cleanup_error = "post_cleanup_storage_probe_failed"
             run(
                 ["ssh", *ssh_options(control_path), "-O", "exit", args.target],
                 timeout=30,
@@ -936,6 +944,8 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
             raise StopExecution("unexpected_executor_fallthrough")
         if remote_scratch_cleanup is not True:
             raise StopExecution("remote_scratch_cleanup_failed_after_apply")
+        if post_cleanup_error is not None:
+            raise StopExecution(post_cleanup_error)
         final_result["remote_scratch_cleanup"] = True
         write_private(evidence / "result.json", final_result)
         return final_result
