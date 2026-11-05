@@ -530,6 +530,11 @@
       "class": "EXACT",
       "draft_policy": "run",
       "exceptions": {}
+    },
+    "n3w-t1-core-updater-ha-template-readonly-preflight-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {}
     }
   }
 }
