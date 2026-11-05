@@ -1,0 +1,45 @@
+{
+  "schema": "gh.n3w-t1-core-stack-release/1",
+  "stack_version": "1.0.0",
+  "release_id": "5debfbe23356d67ea5ff095f7ffc3e5443d771ddb4241589fa496b901ff2b7d9",
+  "product_source_head": "5b32e1ae82104a42f9e4e6907fe44d9172e87615",
+  "components": {
+    "manager": {
+      "image": "local/greenhouse-manager:fresh-5b32e1ae8210",
+      "platform": "linux/arm64",
+      "identity": {
+        "kind": "tar_sha256",
+        "sha256": "2de1705096b9dfcecbc260f5acb95898b4df059510b7bc4ae6ea6b60debb23fa"
+      }
+    },
+    "homeassistant": {
+      "image": "local/n3w-homeassistant:2026.10.0-0c73235a",
+      "platform": "linux/arm64",
+      "identity": {
+        "kind": "manifest_digest_sha256",
+        "sha256": "0c73235a9140a9b02e4bf618d06d8c496b12ae70656ecddb0e02ad31ad122be4"
+      }
+    },
+    "broker": {
+      "image": "local/n3w-mosquitto:2.1.2-3184566d",
+      "platform": "linux/arm64",
+      "identity": {
+        "kind": "manifest_digest_sha256",
+        "sha256": "3184566df484a083411a0e70e92c87a264b8f0648df632f10eb23d54d99f4549"
+      }
+    }
+  },
+  "runtime_contract": {
+    "live_compose_path": "/opt/HomeAssistant/infra/n3w-t1/production/docker-compose.yml",
+    "image_binding_modes": {
+      "manager": "dynamic",
+      "homeassistant": "legacy_static",
+      "broker": "legacy_static"
+    },
+    "service_owners": {
+      "manager": "n3wfc4-services-activation.service",
+      "homeassistant": "n3wfc4-services-activation.service",
+      "broker": "n3wfc4-broker-activation.service"
+    }
+  }
+}
