@@ -10,6 +10,7 @@ import re
 import shlex
 import stat
 import subprocess
+import sys
 import tarfile
 import tempfile
 from pathlib import Path
