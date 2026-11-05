@@ -1,3 +1,25 @@
+## Stable updater authority — 2026-11-05 U2 T1_A classification CLOSED_PASS
+
+```text
+U2_LEGACY_DIRTY_VALIDATION=CLOSED_PASS
+U2_T1A_CURRENT_DIRTY_STATE=false
+U2_LEGACY_STATE_DISPOSITION=NO_ACTION_REQUIRED
+U2_CLEANUP_REQUIRED=false
+
+MANAGER_UPGRADE_PRODUCT_PATH=CLOSED_PASS
+HOMEASSISTANT_UPGRADE_PRODUCT_PATH=NOT_COMPLETE
+BROKER_UPGRADE_PRODUCT_PATH=NOT_COMPLETE
+
+UPDATER_COMPLETION_ROUTE=
+HOMEASSISTANT_PRODUCT_VALIDATION
+-> BROKER_PRODUCT_VALIDATION
+-> FINAL_PRODUCT_CLOSURE
+```
+
+Fresh T1_A evidence shows a terminal COMMITTED V2 transaction and TARGET_BOUND_RUNNING / HEALTHY runtime. Legacy updater transactions survive only as terminal history with consumed authorizations; no cleanup is required. Do not recreate a dirty specimen merely to repeat U2. Do not replay consumed Manager authorizations or reopen Manager U1/KF-141 without fresh contrary evidence.
+
+Authority: `docs/development/N3W_T1_CORE_UPDATER_U2_LEGACY_DIRTY_T1A_READONLY_CLASSIFICATION_CLOSURE_20261105.md`.
+
 ## Stable updater completion authority — 2026-11-05
 
 ```text
