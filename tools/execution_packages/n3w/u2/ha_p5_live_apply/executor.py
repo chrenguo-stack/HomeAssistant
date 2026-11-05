@@ -25,6 +25,7 @@ if str(TOOLS_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLS_ROOT))
 
 import n3w_t1_fresh_product_staging_host as staging_host
+from n3w_t1_ssh_transport import SSHTransport
 
 REPOSITORY = "chrenguo-stack/HomeAssistant"
 GATE_ID = "N3W_T1_CORE_UPDATER_HOMEASSISTANT_P5_LIVE_APPLY_PREAUTHORIZATION_REVIEW_20261105_01"
@@ -56,6 +57,7 @@ EXPECTED_ARTIFACT_FILES = {
 }
 LOCAL_AUTHORITY_PATHS = (
     "tools/n3w_t1_fresh_product_staging_host.py",
+    "tools/n3w_t1_ssh_transport.py",
     "infra/n3w-t1/upgrades/homeassistant-2026.10.4-storage-policy.json",
 )
 SOURCE_PATHS = (
@@ -469,54 +471,79 @@ def build_source_bundle(path: Path) -> None:
             archive.addfile(info, io.BytesIO(payload))
 
 
-def ssh_options(control_path: str) -> list[str]:
+def child_ssh_argv(transport: SSHTransport, command: str) -> list[str]:
+    transport.assert_master()
     return [
+        "ssh",
+        "-F",
+        "/dev/null",
         "-o",
-        "ControlMaster=auto",
+        "StrictHostKeyChecking=yes",
         "-o",
-        f"ControlPath={control_path}",
+        f"UserKnownHostsFile={transport.known_hosts}",
         "-o",
-        "ControlPersist=600",
+        "GlobalKnownHostsFile=/dev/null",
         "-o",
-        "ConnectTimeout=10",
+        "HashKnownHosts=no",
         "-o",
-        "ConnectionAttempts=1",
+        "IdentitiesOnly=yes",
         "-o",
-        "ServerAliveInterval=5",
+        "IdentityAgent=none",
         "-o",
-        "ServerAliveCountMax=2",
+        "ControlMaster=no",
         "-o",
-        "PreferredAuthentications=publickey,password",
+        "ControlPersist=no",
         "-o",
-        "NumberOfPasswordPrompts=1",
+        f"ControlPath={transport.control_path}",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "PubkeyAuthentication=no",
+        "-o",
+        "PasswordAuthentication=no",
+        "-o",
+        "KbdInteractiveAuthentication=no",
+        "-o",
+        "PreferredAuthentications=none",
+        "-o",
+        "ProxyCommand=/usr/bin/false",
+        transport.target,
+        command,
     ]
 
 
 def ssh_command(
-    target: str,
-    control_path: str,
+    transport: SSHTransport,
     command: str,
     *,
     timeout: int = 180,
     check: bool = True,
 ) -> subprocess.CompletedProcess[bytes]:
-    validate_target(target)
-    return run(
-        ["ssh", *ssh_options(control_path), target, command],
-        timeout=timeout,
-        check=check,
-    )
+    try:
+        result = subprocess.run(
+            child_ssh_argv(transport, command),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise StopExecution("command_timeout:ssh-child") from error
+    except OSError as error:
+        raise StopExecution("command_transport_error:ssh-child") from error
+    if check and result.returncode != 0:
+        raise StopExecution(f"command_failed:ssh-child:{result.returncode}")
+    return result
 
 
 def stream_file_over_ssh(
     source: Path,
-    target: str,
+    transport: SSHTransport,
     remote_path: str,
-    control_path: str,
     *,
     timeout: int,
 ) -> None:
-    validate_target(target)
     if source.is_symlink() or not source.is_file():
         raise StopExecution("stream_source_invalid")
     if not re.fullmatch(r"/var/tmp/n3w-ha-p5\.[A-Za-z0-9]+/[A-Za-z0-9._-]+", remote_path):
@@ -525,7 +552,7 @@ def stream_file_over_ssh(
     try:
         with source.open("rb") as stream:
             result = subprocess.run(
-                ["ssh", *ssh_options(control_path), target, command],
+                child_ssh_argv(transport, command),
                 stdin=stream,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -551,8 +578,7 @@ def parse_remote_json(result: subprocess.CompletedProcess[bytes], operation: str
 
 
 def run_remote_live(
-    target: str,
-    control_path: str,
+    transport: SSHTransport,
     remote_dir: str,
     operation: str,
     *,
@@ -578,8 +604,7 @@ def run_remote_live(
         command.extend(["--authorization-id", authorization_id])
     raw = " ".join(shlex.quote(item) if item != "&&" else item for item in command)
     result = ssh_command(
-        target,
-        control_path,
+        transport,
         raw,
         timeout=timeout,
         check=False,
@@ -665,13 +690,11 @@ def require_post_pass(document: dict[str, Any]) -> None:
 
 
 def remote_storage_report(
-    target: str,
-    control_path: str,
+    transport: SSHTransport,
 ) -> dict[str, Any]:
     script = staging_host._remote_storage_probe_script()
     result = ssh_command(
-        target,
-        control_path,
+        transport,
         "python3 -c " + shlex.quote(script),
         timeout=90,
     )
@@ -759,9 +782,14 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
         raise StopExecution("live_apply_not_authorized")
     validate_storage_policy()
     evidence = prepare_evidence_root(args.evidence_root)
+    transport = SSHTransport(
+        target=args.target,
+        known_hosts=args.known_hosts,
+        expected_host_key_sha256=args.expected_host_key_sha256,
+    )
 
     remote_dir: str | None = None
-    control_path = f"/tmp/n3w-ha-p5-{os.getpid()}.sock"
+    transport_started = False
     remote_scratch_cleanup = False
     post_cleanup_error: str | None = None
     final_result: dict[str, Any] | None = None
@@ -774,17 +802,15 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
         build_source_bundle(bundle)
 
         try:
-            master = ssh_command(args.target, control_path, "true", timeout=30)
-            if master.returncode != 0:
-                raise StopExecution("ssh_master_start_failed")
+            transport.start_epoch()
+            transport_started = True
 
-            storage = remote_storage_report(args.target, control_path)
+            storage = remote_storage_report(transport)
             capacity = capacity_report(artifact, storage)
             write_private(evidence / "capacity.json", capacity)
 
             created = ssh_command(
-                args.target,
-                control_path,
+                transport,
                 "mktemp -d /var/tmp/n3w-ha-p5.XXXXXX",
                 timeout=30,
             )
@@ -792,24 +818,21 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
             if not re.fullmatch(r"/var/tmp/n3w-ha-p5\.[A-Za-z0-9]+", remote_dir):
                 raise StopExecution("remote_dir_invalid")
             ssh_command(
-                args.target,
-                control_path,
+                transport,
                 f"chmod 700 {shlex.quote(remote_dir)}",
                 timeout=30,
             )
 
             stream_file_over_ssh(
                 bundle,
-                args.target,
+                transport,
                 f"{remote_dir}/source-bundle.tar",
-                control_path,
                 timeout=120,
             )
             stream_file_over_ssh(
                 archive,
-                args.target,
+                transport,
                 f"{remote_dir}/{ARCHIVE_NAME}",
-                control_path,
                 timeout=1800,
             )
 
@@ -824,17 +847,15 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                     shlex.quote(remote_dir),
                 ]
             )
-            ssh_command(args.target, control_path, extract_command, timeout=120)
+            ssh_command(transport, extract_command, timeout=120)
             ssh_command(
-                args.target,
-                control_path,
+                transport,
                 f"rm -f {shlex.quote(remote_dir + '/source-bundle.tar')}",
                 timeout=30,
             )
 
             preflight, pre_rc = run_remote_live(
-                args.target,
-                control_path,
+                transport,
                 remote_dir,
                 "preflight",
                 timeout=600,
@@ -857,8 +878,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
             write_private(evidence / "authorization-claim.json", claim)
 
             apply_report, apply_rc = run_remote_live(
-                args.target,
-                control_path,
+                transport,
                 remote_dir,
                 "apply",
                 authorization_id=AUTHORIZATION_ID,
@@ -882,8 +902,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
             require_apply_pass(apply_report)
 
             post, post_rc = run_remote_live(
-                args.target,
-                control_path,
+                transport,
                 remote_dir,
                 "post",
                 timeout=600,
@@ -947,8 +966,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
             if final_result is not None and remote_scratch_cleanup is True:
                 try:
                     post_cleanup_storage = remote_storage_report(
-                        args.target,
-                        control_path,
+                        transport,
                     )
                     post_cleanup_free = min(
                         int(post_cleanup_storage["staging_free_bytes"]),
@@ -968,15 +986,12 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                         )
                 except Exception:
                     post_cleanup_error = "post_cleanup_storage_probe_failed"
-            run(
-                ["ssh", *ssh_options(control_path), "-O", "exit", args.target],
-                timeout=30,
-                check=False,
-            )
-            try:
-                Path(control_path).unlink(missing_ok=True)
-            except OSError:
-                pass
+            if transport_started:
+                try:
+                    transport.close_epoch()
+                except Exception:
+                    if final_result is not None and post_cleanup_error is None:
+                        post_cleanup_error = "ssh_transport_cleanup_failed"
 
         if final_result is None:
             raise StopExecution("unexpected_executor_fallthrough")
@@ -994,6 +1009,8 @@ def main() -> int:
     parser.add_argument("--expected-source-head", required=True)
     parser.add_argument("--evidence-root", type=Path, required=True)
     parser.add_argument("--target", required=True)
+    parser.add_argument("--known-hosts", type=Path, required=True)
+    parser.add_argument("--expected-host-key-sha256", required=True)
     parser.add_argument("--authorization-id", required=True)
     parser.add_argument("--confirm", required=True)
     args = parser.parse_args()
