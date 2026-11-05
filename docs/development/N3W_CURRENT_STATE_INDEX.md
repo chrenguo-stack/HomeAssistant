@@ -1,6 +1,12 @@
 ## 2026-11-05 — Home Assistant P5 one-shot live apply AUTHORIZED_WAITING_CI
 
 - Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current repository Manager: `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current repository Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical Clean Reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
 - Live upgrade accepted: canonical Manager B remains accepted; no HA live mutation has occurred yet.
 - The user explicitly granted authorization `N3W_T1_CORE_UPDATER_HOMEASSISTANT_2026_10_4_LIVE_APPLY_P5_20261105_01`.
 - Exact authorized executable head: `ec8ba4555c022113498625cd06edd0a804ec1ebb`.
