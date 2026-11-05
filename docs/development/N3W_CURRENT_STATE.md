@@ -1,7 +1,7 @@
-## Latest authority — 2026-11-05 U1 R4 post-merge canonical authority promotion candidate
+## Latest authority — 2026-11-05 U1 R4 canonical authority promoted to Manager B
 
 ```text
-AUTHORITY_STATE=U1_R4_POST_MERGE_CANONICAL_AUTHORITY_PROMOTION_CANDIDATE
+AUTHORITY_STATE=U1_R4_CANONICAL_AUTHORITY_PROMOTED_MANAGER_B
 
 CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
 AUTHORITY_SCHEMA=gh.n3w-t1-core-stack-current-authority/2
@@ -29,14 +29,13 @@ BUILD_AND_RUNTIME_IMAGE_ID_DISTINCT=true
 PR777_MERGED=true
 PR777_MERGE_COMMIT=62e498e2eefb9b5eedb70529b07e7354bd2921dc
 KF141=CLOSED_PASS
+CANONICAL_AUTHORITY_PROMOTED=true
 
-AUTHORITY_PROMOTION_BRANCH=docs/n3w-u1-r4-post-merge-authority-promotion-20261105
-AUTHORITY_PROMOTION_MERGED=false
 T1_MUTATION=false
 BOARD_ACCESS=false
 ```
 
-PR #777 is merged and the real T1 is accepted on Manager B. This branch promotes the canonical repository authority to the same Manager B and binds the real T1-local runtime image ID separately from the build-side image ID. No T1 mutation is part of this repository-only convergence.
+PR #777 is merged and the canonical repository authority now points to the same accepted Manager B running on the real T1. Build-side image identity and T1-local runtime image identity are intentionally separate authority fields. This convergence is repository-only and performs no new T1 mutation.
 
 ## Latest authority — 2026-11-05 U1 R4 repaired A→B live reapply CLOSED_PASS
 
