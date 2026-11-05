@@ -194,14 +194,50 @@ infra/n3w-t1/upgrades/homeassistant-2026.10.4-storage-policy.json
 The policy binds the accepted evidence numbers, derivation formula, frozen target
 identity and the explicit statement that live HA apply remains unauthorized.
 
-## 9. Next boundary
+## 9. Source repair closure
 
-The P5 source repair must pass CI after this policy replacement. Only after source
-and CI closure may the project return to the explicit live-apply authorization
-decision.
+The evidence-bound P5 storage-policy repair is closed on exact executable source:
+
+~~~text
+P5_STORAGE_POLICY_REPAIR_SOURCE_HEAD=a5a9260e5dd274cca55ddd106721be3159e051ec
+PR788_STATE=OPEN_DRAFT
+PR788_MERGEABLE=true
+PR788_EXACT_HEAD_CI=14_OF_14_SUCCESS
+
+HA_TARGET_MANIFEST_BLOB_SHA=6966b4fe4d7620ccc436643cc840da9ae95e6010
+STORAGE_POLICY_BLOB_SHA=01a5cec8877e2837504ed798e91ca552ab6f2a0e
+
+GENERIC_V2_SOURCE_CHANGED=false
+FROZEN_HA_TARGET_CHANGED=false
+P5_APPLY_INVOCATION_COUNT_MAX=1
+P5_EXPLICIT_ROLLBACK_ROUTE_COUNT=0
+HISTORICAL_FIXED_5_GIB_EXECUTOR_LITERAL=false
+
+P5_SOURCE_PREAUTHORIZATION=PREAUTH_READY
+STORAGE_POLICY_REVIEW=CLOSED_PASS
+~~~
+
+The final source review confirmed that the fixed 5 GiB literal is absent from the
+P5 executor, the exact HA target blob is unchanged, Generic V2 source is unchanged,
+the executor still contains only one apply invocation and no explicit rollback
+call, and the manifest still keeps live authorization false.
+
+## 10. Next boundary
+
+The next boundary is the explicit user decision whether to grant the one-shot P5
+live Home Assistant apply authorization:
+
+~~~text
+N3W_T1_CORE_UPDATER_HOMEASSISTANT_2026_10_4_LIVE_APPLY_P5_20261105_01
+~~~
+
+Until that explicit authorization is granted:
 
 ~~~text
 LIVE_HA_APPLY_AUTHORIZED=false
+AUTHORIZATION_GRANTED=false
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
 AUTO_EXECUTE_LIVE_APPLY=false
 MERGE=false
 ~~~
