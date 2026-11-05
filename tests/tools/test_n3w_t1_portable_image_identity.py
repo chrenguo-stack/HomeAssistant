@@ -82,7 +82,14 @@ def _runtime(config_doc: dict[str, object], *, runtime_id: str = "sha256:" + "f"
     }
 
 
-def _oci_archive(path: Path, *, duplicate_platform: bool = False) -> dict[str, object]:
+def _oci_archive(
+    path: Path,
+    *,
+    duplicate_platform: bool = False,
+    omit_platform: bool = False,
+    descriptor_architecture: str = "arm64",
+    descriptor_variant: str | None = None,
+) -> dict[str, object]:
     uncompressed_layer = b"uncompressed-rootfs"
     layer = gzip.compress(uncompressed_layer, mtime=0)
     diff = "sha256:" + _sha(uncompressed_layer)
@@ -128,8 +135,15 @@ def _oci_archive(path: Path, *, duplicate_platform: bool = False) -> dict[str, o
         "mediaType": "application/vnd.oci.image.manifest.v1+json",
         "digest": manifest_digest,
         "size": len(manifest_bytes),
-        "platform": {"os": "linux", "architecture": "arm64"},
     }
+    if not omit_platform:
+        platform = {
+            "os": "linux",
+            "architecture": descriptor_architecture,
+        }
+        if descriptor_variant is not None:
+            platform["variant"] = descriptor_variant
+        descriptor["platform"] = platform
     manifests = [descriptor, dict(descriptor)] if duplicate_platform else [descriptor]
     index = {
         "schemaVersion": 2,
@@ -227,6 +241,43 @@ def test_oci_graph_and_platform_are_verified(tmp_path: Path) -> None:
     assert parsed.manifest_digest is not None
     assert parsed.index_digest is not None
     assert identity.verify_runtime_document(parsed, _runtime(config)).status == "VERIFIED"
+
+
+def test_oci_single_manifest_without_descriptor_platform_uses_config(
+    tmp_path: Path,
+) -> None:
+    archive = tmp_path / "oci-no-platform.tar"
+    config = _oci_archive(archive, omit_platform=True)
+
+    parsed = identity.parse_image_archive(archive)
+
+    assert parsed.representation == "oci-layout"
+    assert parsed.os == "linux"
+    assert parsed.architecture == "arm64"
+    assert identity.verify_runtime_document(parsed, _runtime(config)).status == "VERIFIED"
+
+
+def test_oci_arm64_v8_descriptor_matches_unspecified_expected_variant(
+    tmp_path: Path,
+) -> None:
+    archive = tmp_path / "oci-arm64-v8.tar"
+    config = _oci_archive(archive, descriptor_variant="v8")
+
+    parsed = identity.parse_image_archive(archive)
+
+    assert parsed.architecture == "arm64"
+    assert identity.verify_runtime_document(parsed, _runtime(config)).status == "VERIFIED"
+
+
+def test_oci_wrong_explicit_architecture_stops(tmp_path: Path) -> None:
+    archive = tmp_path / "oci-wrong-platform.tar"
+    _oci_archive(archive, descriptor_architecture="amd64")
+
+    with pytest.raises(
+        identity.PortableImageIdentityError,
+        match="oci_platform_ambiguous",
+    ):
+        identity.parse_image_archive(archive)
 
 
 def test_oci_ambiguous_platform_stops(tmp_path: Path) -> None:
