@@ -115,9 +115,11 @@ It writes only temporary files under the system temporary directory for Compose 
 removes them automatically. It has no apply mode and cannot mutate product paths or restart a
 service.
 
-A later separately authorized convergence mutation must use the exact candidate proven by this
-read-only step. It must not substitute the whole fresh Compose if doing so would introduce any
-other semantic delta.
+The read-only proof may proceed before the target Stack release exists. The live convergence
+mutation may not proceed independently. Under the Stack semantic-release model it becomes an
+internal mutation of the authorized 1.0.0 -> 1.1.0 Stack transaction and must use the exact
+candidate proven by this read-only step. It must not substitute the whole fresh Compose if doing
+so would introduce any other semantic delta.
 
 ## 6. Exact HA package still required
 
@@ -145,41 +147,49 @@ No target manifest may set `persistent_schema_compatible=true` or
 
 ## 7. Baseline rule
 
-Do not reuse the old U0 baseline directly for HA apply. It predates:
+Do not reuse the old U0 baseline directly for HA apply. It predates the accepted Manager B and the
+new Stack release model.
 
-- accepted Manager B as the current Manager;
-- HA runtime-template convergence;
-- the fresh product-grade HA preflight.
+Do not mutate HA template convergence merely to create a baseline. The committed predecessor is
+T1_Core_Stack 1.0.0 and the fresh baseline must be captured twice before any Stack mutation.
 
-After HA binding convergence, capture a new read-only baseline twice and require byte-identical
-results before creating the final HA target plan.
-
-Expected baseline:
+Expected predecessor baseline:
 
 ```text
+STACK_VERSION=1.0.0
 MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
 HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
 BROKER=local/n3w-mosquitto:2.1.2-3184566d
 MANAGER_BINDING_MODE=dynamic
-HOMEASSISTANT_BINDING_MODE=dynamic
+HOMEASSISTANT_BINDING_MODE=legacy_static
 BROKER_BINDING_MODE=legacy_static
 ```
 
+The HA binding changes to `dynamic` only inside the later authorized 1.0.0 -> 1.1.0 Stack
+transaction.
+
 ## 8. Product-grade live acceptance route
 
-The intended sequence is bounded:
+The Stack semantic-release model supersedes the earlier ordering that placed live template
+convergence before exact target construction.
+
+The bounded route is now:
 
 ```text
 HA_P0_SOURCE_AND_COMPATIBILITY_PREPARATION
 -> HA_P1_RUNTIME_TEMPLATE_CONVERGENCE_READONLY_PREFLIGHT
--> HA_P2_RUNTIME_TEMPLATE_CONVERGENCE_MUTATION
--> HA_P3_POST_CONVERGENCE_FRESH_BASELINE
--> HA_P4_EXACT_2026_10_4_PACKAGE_AND_TARGET
--> HA_P5_SOURCE_SIMULATION_AND_READONLY_PLAN
--> HA_P6_LIVE_APPLY
--> HA_P7_POST_APPLY_ACCEPTANCE
--> HA_P8_EXPLICIT_ROLLBACK_PROOF
--> HA_P9_FINAL_TARGET_REAPPLY_AND_ACCEPTANCE
+-> HA_P4_EXACT_2026_10_4_PACKAGE_AND_COMPONENT_TARGET
+-> STACK_1_1_0_EXACT_RELEASE_CONSTRUCTION
+-> STACK_1_0_TO_1_1_SOURCE_SIMULATION_AND_READONLY_PLAN
+-> STACK_FRESH_1_0_0_PREMUTATION_BASELINE
+-> STACK_EXPLICIT_UPGRADE_AUTHORIZATION
+-> STACK_LIVE_TRANSACTION
+     -> HA_RUNTIME_TEMPLATE_CONVERGENCE_MUTATION
+     -> HA_COMPONENT_APPLY
+     -> WHOLE_STACK_ACCEPTANCE
+-> STACK_EXPLICIT_ROLLBACK_PROOF_TO_1_0_0
+-> STACK_FRESH_AUTHORIZATION_AND_FINAL_1_1_0_REAPPLY
+-> STACK_FINAL_1_1_0_ACCEPTANCE
 ```
 
 Live authorizations are one-shot and stage-specific. An apply or rollback authorization is not
@@ -210,14 +220,18 @@ A product PASS must prove:
 LIVE_HA_UPGRADE_READY=false
 HA_RUNTIME_TEMPLATE_CONVERGENCE_REQUIRED=true
 HA_EXACT_TARGET_PACKAGE_READY=false
-HA_FRESH_POST_CONVERGENCE_BASELINE_READY=false
+STACK_1_0_0_RELEASE_FROZEN=true
+STACK_1_1_0_RELEASE_READY=false
+INDEPENDENT_HA_CONVERGENCE_MUTATION_ALLOWED=false
 
 NEXT_ONE_GATE=N3W_T1_CORE_UPDATER_HOMEASSISTANT_RUNTIME_TEMPLATE_CONVERGENCE_READONLY_PREFLIGHT_20261105_01
 
+NEXT_AFTER_READONLY_GATE=EXACT_HA_2026_10_4_ARTIFACT_AND_STACK_1_1_0_RELEASE_CONSTRUCTION
 NEXT_GATE_LIVE_MUTATION=false
 AUTO_EXECUTE_MUTATION=false
 ```
 
 The next gate is read-only against the real T1 and may only inspect whether the minimal HA
 legacy-static -> dynamic source convergence is semantically identical. It stops before any product
-file write or service restart.
+file write or service restart. A PASS goes to exact HA artifact and exact Stack 1.1.0 release
+construction, not to a live template mutation.
