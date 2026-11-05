@@ -61,7 +61,10 @@ def test_manifest_is_preauth_only_and_single_use():
     assert contract["apply_failure_route"] == "READONLY_DIAGNOSE_AND_STOP"
     capacity = contract["capacity_policy"]
     assert capacity["storage_probe_authority"] == "tools/n3w_t1_fresh_product_staging_host.py"
-    assert capacity["minimum_post_peak_free_bytes"] == 5 * 1024 * 1024 * 1024
+    assert capacity["historical_fixed_5_gib_retired"] is True
+    assert capacity["post_peak_reserve_bytes"] == 1610612736
+    assert capacity["verify_post_cleanup_reserve"] is True
+    assert capacity["product_runtime_min_free_requirement_state"] == "UNFROZEN_LONGITUDINAL_EVIDENCE_REQUIRED"
     assert capacity["stop_before_remote_staging_on_failure"] is True
 
 
@@ -82,6 +85,20 @@ def test_exact_source_binding_validates_current_head():
         "6966b4fe4d7620ccc436643cc840da9ae95e6010"
     )
     assert report["live_apply_authorized"] is False
+    assert report["storage_policy_blob_sha"] == "01a5cec8877e2837504ed798e91ca552ab6f2a0e"
+
+
+def test_storage_policy_derivation_is_bound_to_real_t1_evidence():
+    policy = executor.validate_storage_policy()
+    baseline = policy["measured_baseline"]
+    admission = policy["p5_upgrade_admission"]
+    assert baseline["filesystem_total_bytes"] == 14453903360
+    assert baseline["filesystem_free_bytes"] == 5785710592
+    assert baseline["observed_mutable_allocated_bytes"] == 174047232
+    assert admission["derived_post_peak_reserve_bytes"] == 1610612736
+    assert admission["exact_target_archive_staging_bytes"] == executor.ARCHIVE_SIZE_BYTES
+    assert admission["rollback_predecessor_already_resident"] is True
+    assert admission["predecessor_bytes_double_counted"] is False
 
 
 def test_execute_stops_before_t1_while_manifest_is_not_authorized(tmp_path):
@@ -114,14 +131,14 @@ def test_live_sources_have_no_second_apply_or_explicit_rollback_route():
     assert '"diagnose"' in executor_text
 
 
-def test_capacity_gate_keeps_five_gib_after_single_image_peak():
+def test_capacity_gate_uses_evidence_bound_one_point_five_gib_reserve():
     artifact = {
         "image_uncompressed_bytes": 2 * 1024 * 1024 * 1024,
     }
     required = (
         executor.ARCHIVE_SIZE_BYTES
         + artifact["image_uncompressed_bytes"]
-        + executor.MIN_POST_PEAK_FREE_BYTES
+        + executor.P5_POST_PEAK_RESERVE_BYTES
     )
     storage = {
         "staging_device": 1,
@@ -135,7 +152,11 @@ def test_capacity_gate_keeps_five_gib_after_single_image_peak():
     }
     report = executor.capacity_report(artifact, storage)
     assert report["capacity_pass"] is True
-    assert report["minimum_post_peak_free_bytes"] == 5 * 1024 * 1024 * 1024
+    assert report["post_peak_reserve_bytes"] == 1610612736
+    assert report["historical_fixed_5_gib_retired"] is True
+    assert report["rollback_predecessor_already_resident"] is True
+    assert report["predecessor_bytes_double_counted"] is False
+    assert report["product_runtime_min_free_requirement_state"] == "UNFROZEN_LONGITUDINAL_EVIDENCE_REQUIRED"
 
     too_small = dict(storage)
     too_small["image_store_free_bytes"] = required - 1
