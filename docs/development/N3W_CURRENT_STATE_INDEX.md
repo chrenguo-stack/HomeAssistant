@@ -1,3 +1,21 @@
+## 2026-11-05 — Home Assistant P5 one-shot live apply AUTHORIZED_WAITING_CI
+
+- Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Live upgrade accepted: canonical Manager B remains accepted; no HA live mutation has occurred yet.
+- The user explicitly granted authorization `N3W_T1_CORE_UPDATER_HOMEASSISTANT_2026_10_4_LIVE_APPLY_P5_20261105_01`.
+- Exact authorized executable head: `ec8ba4555c022113498625cd06edd0a804ec1ebb`.
+- Authorized P5 manifest blob: `1772e694e394fe9b2bfa7f041ef288ae09c0746b`.
+- `LIVE_HA_APPLY_AUTHORIZED=true`; granted=true, claimed=false, consumed=false, replay=false.
+- Exactly one apply invocation is permitted; second apply and blind explicit rollback remain forbidden.
+- Frozen HA target is unchanged: target blob `6966b4fe4d7620ccc436643cc840da9ae95e6010`, image `local/n3w-homeassistant:2026.10.4-5881590f`.
+- Storage policy is unchanged: blob `01a5cec8877e2837504ed798e91ca552ab6f2a0e`, P5 post-peak reserve 1.5 GiB.
+- Generic V2 source and P5 executor are unchanged by authorization.
+- The executor still requires exact source/artifact binding, P4 baseline/transaction match, target prestate ABSENT, verified archive, valid rollback path, exact capacity admission and fresh healthy runtime before claim.
+- Once the single apply invocation begins, the authorization is claimed and consumed regardless of PASS/FAIL.
+- Exact authorized-head CI is required before execution; therefore current execution readiness remains false.
+- No T1 mutation, service restart, image load, updater apply/rollback, board access or merge occurred in this authorization-recording step.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_HOMEASSISTANT_P5_LIVE_APPLY_AUTHORIZATION_20261105.md`.
+
 ## 2026-11-05 — Home Assistant P5 preauthorization + storage-policy repair PREAUTH_READY
 
 - Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
