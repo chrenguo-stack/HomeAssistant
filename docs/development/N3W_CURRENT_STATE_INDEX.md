@@ -1,7 +1,13 @@
 ## 2026-11-05 — T1 Core Updater post-U1 product completion audit CLOSED_PASS
 
+- Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
+- Current repository product source is `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current repository Manager is `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Repository Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted: Manager B remains the accepted production/canonical Manager; this audit performs no live mutation.
 - Generic V2 architecture/core/component model is complete.
-- Manager upgrade product path is CLOSED_PASS on real T1 and remains canonical on Manager B.
+- Manager upgrade product path is CLOSED_PASS on real T1.
 - U2 legacy/dirty validation has strong real overlap from KF-141/R3/R4, but the preserved T1_A specimen has not yet received its formal fresh read-only classification.
 - Home Assistant and Broker have generic source/test support, but neither has a repository target manifest, exact product upgrade package/executor, or real T1 product acceptance.
 - No generic updater rewrite is required by current evidence.
