@@ -30,7 +30,7 @@ executor = load_module("ha_p5_reapply_executor", EXECUTOR_PATH)
 remote = load_module("ha_p5_reapply_remote", REMOTE_PATH)
 
 
-def test_manifest_is_fresh_reapply_authority_but_not_granted():
+def test_manifest_has_exact_one_shot_authorization_but_is_unclaimed():
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     assert manifest["gate_id"] == (
         "N3W_T1_CORE_UPDATER_HOMEASSISTANT_"
@@ -42,12 +42,18 @@ def test_manifest_is_fresh_reapply_authority_but_not_granted():
     assert manifest["postcleanup_preflight_closure_blob_sha"] == (
         "5151dd8a63de7132e169068356674db001daec76"
     )
-    assert manifest["live_reapply_authorized"] is False
+    assert manifest["live_reapply_authorized"] is True
     assert manifest["proposed_authorization_id"] == executor.AUTHORIZATION_ID
-    assert manifest["authorization"]["granted"] is False
+    assert manifest["authorization"]["granted"] is True
+    assert manifest["authorization"]["granted_by"] == "explicit_user_authorization"
+    assert manifest["authorization"]["granted_date"] == "2026-11-06"
     assert manifest["authorization"]["claimed"] is False
     assert manifest["authorization"]["consumed"] is False
     assert manifest["authorization"]["replay_permitted"] is False
+    assert manifest["authorization"]["remaining_apply_invocations"] == 1
+    assert manifest["final_source_review_closure_blob_sha"] == "43caa099cac495c7c0e169e40c9583a87db5f798"
+    assert manifest["source_binding"]["docs/development/N3W_T1_CORE_UPDATER_HOMEASSISTANT_P5_REAPPLY_FINAL_SOURCE_REVIEW_CLOSURE_20261106.md"] == "43caa099cac495c7c0e169e40c9583a87db5f798"
+    assert manifest["execution_contract"]["state"] == "AUTHORIZED_UNCLAIMED"
     contract = manifest["execution_contract"]
     assert contract["require_previous_rolled_back_transaction"] is True
     assert contract["require_target_image_prestate"] == "PRESENT_AND_EXACT"
@@ -72,7 +78,7 @@ def test_exact_source_binding_validates_current_head():
     assert report["postcleanup_preflight_closure_blob_sha"] == (
         "5151dd8a63de7132e169068356674db001daec76"
     )
-    assert report["live_reapply_authorized"] is False
+    assert report["live_reapply_authorized"] is True
 
 
 def test_unauthorized_reapply_stops_before_evidence_or_t1(tmp_path, monkeypatch):

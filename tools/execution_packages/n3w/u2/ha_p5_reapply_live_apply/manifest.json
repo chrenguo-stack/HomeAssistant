@@ -5,7 +5,7 @@
   "postcleanup_preflight_closure_blob_sha": "5151dd8a63de7132e169068356674db001daec76",
   "p4_baseline_sha256": "78c3b0b58ad39cf887689658bec90c8466d30a93d58830b0289f1463dafad868",
   "proposed_authorization_id": "N3W_T1_CORE_UPDATER_HOMEASSISTANT_2026_10_4_REAPPLY_P5_20261106_01",
-  "live_reapply_authorized": false,
+  "live_reapply_authorized": true,
   "source_binding": {
     "infra/n3w-t1/upgrades/homeassistant-2026.10.4.json": "6966b4fe4d7620ccc436643cc840da9ae95e6010",
     "docs/development/N3W_T1_CORE_UPDATER_HOMEASSISTANT_P5_POSTCLEANUP_REAPPLY_READONLY_CLOSURE_20261106.md": "5151dd8a63de7132e169068356674db001daec76",
@@ -23,7 +23,8 @@
     "tools/execution_packages/n3w/u2/ha_p5_reapply_live_apply/executor.py": "2e24e8abe74e8d778726b8836f56d0bee155b291",
     "tools/n3w_t1_fresh_product_staging_host.py": "47718484ecffc2e4e7cab9505a1833cf7f5c8d7a",
     "infra/n3w-t1/upgrades/homeassistant-2026.10.4-storage-policy.json": "01a5cec8877e2837504ed798e91ca552ab6f2a0e",
-    "tools/n3w_t1_ssh_transport.py": "dec4c9159195e2008094d94fef3fc76c4b977e46"
+    "tools/n3w_t1_ssh_transport.py": "dec4c9159195e2008094d94fef3fc76c4b977e46",
+    "docs/development/N3W_T1_CORE_UPDATER_HOMEASSISTANT_P5_REAPPLY_FINAL_SOURCE_REVIEW_CLOSURE_20261106.md": "43caa099cac495c7c0e169e40c9583a87db5f798"
   },
   "frozen_target": {
     "target_manifest_blob_sha": "6966b4fe4d7620ccc436643cc840da9ae95e6010",
@@ -60,7 +61,7 @@
     "homeassistant_residue_count": 0
   },
   "execution_contract": {
-    "state": "PREAUTHORIZATION_READY",
+    "state": "AUTHORIZED_UNCLAIMED",
     "confirmation": "EXECUTE HA P5 REAPPLY: YES",
     "updater_apply_confirmation": "T1_CORE_UPDATER_APPLY",
     "permitted_apply_invocations": 1,
@@ -107,12 +108,16 @@
   },
   "authorization": {
     "authorization_id": "N3W_T1_CORE_UPDATER_HOMEASSISTANT_2026_10_4_REAPPLY_P5_20261106_01",
-    "granted": false,
+    "granted": true,
     "claimed": false,
     "consumed": false,
     "replay_permitted": false,
     "permitted_apply_invocations": 1,
     "remaining_apply_invocations": 1,
-    "second_apply_allowed": false
-  }
+    "second_apply_allowed": false,
+    "granted_by": "explicit_user_authorization",
+    "granted_date": "2026-11-06",
+    "final_source_review_closure_blob_sha": "43caa099cac495c7c0e169e40c9583a87db5f798"
+  },
+  "final_source_review_closure_blob_sha": "43caa099cac495c7c0e169e40c9583a87db5f798"
 }
