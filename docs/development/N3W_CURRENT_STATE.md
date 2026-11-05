@@ -1,3 +1,43 @@
+## Latest authority — 2026-11-05 U1 R4 post-merge canonical authority promotion candidate
+
+```text
+AUTHORITY_STATE=U1_R4_POST_MERGE_CANONICAL_AUTHORITY_PROMOTION_CANDIDATE
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+AUTHORITY_SCHEMA=gh.n3w-t1-core-stack-current-authority/2
+
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+LIVE_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+LIVE_MANAGER_RUNTIME_IMAGE_ID=sha256:228a42a8b14f36694cca6778b18c7be880def25c567ea5492a9e2a40a8ce912e
+LIVE_RUNTIME_CLASS=TARGET_BOUND_RUNNING
+LIVE_HEALTH_STATE=HEALTHY
+LIVE_TRANSACTION_STATUS=COMMITTED
+LIVE_RECOVERY_REQUIRED=false
+
+MANAGER_BUILD_IMAGE_ID=sha256:80d34358094638ce9c8ce5fb2635fe0a5c75ee7cc5e8c628b38ab223134e585f
+MANAGER_T1_RUNTIME_IMAGE_ID=sha256:228a42a8b14f36694cca6778b18c7be880def25c567ea5492a9e2a40a8ce912e
+BUILD_AND_RUNTIME_IMAGE_ID_DISTINCT=true
+
+PR777_MERGED=true
+PR777_MERGE_COMMIT=62e498e2eefb9b5eedb70529b07e7354bd2921dc
+KF141=CLOSED_PASS
+
+AUTHORITY_PROMOTION_BRANCH=docs/n3w-u1-r4-post-merge-authority-promotion-20261105
+AUTHORITY_PROMOTION_MERGED=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+```
+
+PR #777 is merged and the real T1 is accepted on Manager B. This branch promotes the canonical repository authority to the same Manager B and binds the real T1-local runtime image ID separately from the build-side image ID. No T1 mutation is part of this repository-only convergence.
+
 ## Latest authority — 2026-11-05 U1 R4 repaired A→B live reapply CLOSED_PASS
 
 ```text
