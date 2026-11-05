@@ -367,3 +367,192 @@ MERGE=false
 
 The next engineering work stays on T1_Core_Updater. The Stack release architecture remains the
 version/target/rollback contract that the updater consumes.
+
+## 15. T1_Core_Updater has its own independent version
+
+T1_Core_Updater is an independently versioned software product. Its version MUST NOT reuse or
+mirror the T1_Core_Stack version.
+
+Freeze:
+
+```text
+UPDATER_VERSION_AXIS=INDEPENDENT
+STACK_VERSION_AXIS=INDEPENDENT
+UPDATER_VERSION_EQ_STACK_VERSION_REQUIRED=false
+CURRENT_UPDATER_DEVELOPMENT_LINE=0.x
+CURRENT_UPDATER_DEVELOPMENT_VERSION=0.1.0
+CURRENT_UPDATER_PRODUCTION_1_0_RELEASED=false
+```
+
+Examples that are all valid:
+
+```text
+T1_Core_Stack 1.0.0 + T1_Core_Updater 0.1.0
+T1_Core_Stack 1.0.0 + T1_Core_Updater 0.2.0
+T1_Core_Stack 1.1.0 + T1_Core_Updater 1.0.0
+```
+
+The updater reaches `1.0.0` only after the production-grade Manager, Home Assistant and Broker
+upgrade paths, rollback, interruption/recovery behavior and Stack-release consumption are all
+accepted. The current `0.1.0` value identifies the development line; this gate does not publish a
+production updater release artifact.
+
+Updater semantic-version policy:
+
+- PATCH: bounded compatible bug fix with no intended contract/capability expansion;
+- MINOR: compatible new upgrade capability, validation or recovery capability;
+- MAJOR: incompatible updater behavior/contract that cannot safely remain on the same major line;
+- versions below 1.0.0 remain development/pre-production.
+
+## 16. Four different updater identities
+
+Updater product version, source identity, binary identity and schema identity answer different
+questions and MUST remain separate.
+
+```text
+updater_version
+= human/product software version
+
+control_plane_head
+= exact Git source authority
+
+updater_pyz_sha256
+= exact executable-byte identity
+
+schema versions
+= target / transaction / status / inspect / plan data-contract versions
+```
+
+Therefore none of the following may be used as a substitute for `updater_version`:
+
+```text
+gh.n3w-t1-core-updater-target/2
+gh.n3w-t1-core-updater-transaction/2
+<git commit>
+<pyz sha256>
+```
+
+Conversely, a human-readable updater version is never sufficient for execution authority. A real
+execution must continue to bind exact source/package bytes.
+
+Future updater execution evidence should carry all applicable identities:
+
+```text
+updater_version
+control_plane_head
+updater_pyz_sha256
+target_schema
+transaction_schema
+```
+
+Historical V2 transactions and closed Manager U1 evidence remain immutable. They are not rewritten
+merely to backfill the new product-version field. Introducing the field into runtime transaction
+documents later requires an explicit backward-compatible envelope or a reviewed successor schema.
+
+## 17. Independent immutable updater release archive
+
+Formal updater releases use their own append-only archive and do not overwrite older updater
+versions.
+
+Repository contract:
+
+`infra/n3w-t1/updater-releases/README.md`
+
+Future layout:
+
+```text
+infra/n3w-t1/updater-releases/
+  0.1.0/
+    manifest.json
+  0.2.0/
+    manifest.json
+  1.0.0/
+    manifest.json
+```
+
+The exact executable may remain a GitHub artifact rather than being committed as a binary to the
+repository. The release manifest binds the artifact identity instead.
+
+A formal updater release manifest should bind at least:
+
+```text
+updater_version
+source_head
+updater_pyz_sha256
+artifact_id
+artifact_digest_sha256
+artifact_name
+supported_target_schemas
+supported_transaction_schemas
+supported_stack_release_schemas
+capabilities
+release_state
+```
+
+Freeze:
+
+```text
+UPDATER_RELEASE_STORAGE_MODEL=APPEND_ONLY
+OLD_UPDATER_RELEASE_MUTATION_FORBIDDEN=true
+SAME_UPDATER_VERSION_REPUBLISH_FORBIDDEN=true
+LATEST_MUTABLE_UPDATER_BINARY_AUTHORITY=false
+```
+
+Existing historical updater artifacts keep their current SHA/artifact/commit provenance. This gate
+does not retroactively manufacture semantic releases for all historical pyz files.
+
+## 18. Stack-to-updater compatibility
+
+A Stack release and an Updater release are related by compatibility requirements, not by matching
+version numbers.
+
+Preferred model:
+
+```text
+required_updater_capabilities
+= primary compatibility authority
+
+minimum_updater_version
+= optional human/operator guard
+```
+
+Example future target requirements:
+
+```text
+STACK_RELEASE_V1
+HA_IMAGE_UPGRADE_V1
+HA_RUNTIME_BINDING_MIGRATION_V1
+STACK_ROLLBACK_V1
+```
+
+Capability requirements are preferred over relying only on a numeric comparison such as
+`updater >= 1.2.0`, because they state exactly which execution abilities the target release needs.
+
+Updater compatibility metadata is deployment/execution metadata, not runtime product identity.
+Therefore it must not force unrelated changes to the immutable component/runtime identity of an
+already published Stack release.
+
+## 19. Updated boundary
+
+```text
+ARCHITECTURE_MODEL_DEFINED=true
+
+STACK_RELEASE_VERSIONING=DEFINED
+STACK_RELEASE_ARCHIVE=APPEND_ONLY
+UPDATER_VERSIONING=DEFINED
+UPDATER_RELEASE_ARCHIVE=APPEND_ONLY
+
+CURRENT_UPDATER_DEVELOPMENT_VERSION=0.1.0
+CURRENT_UPDATER_PRODUCTION_1_0_RELEASED=false
+
+UPDATER_PACKAGE_REBUILD_IN_THIS_GATE=false
+UPDATER_RUNTIME_SCHEMA_MIGRATION_IN_THIS_GATE=false
+HISTORICAL_TRANSACTION_REWRITE=false
+LIVE_T1_MUTATION=false
+
+NEXT_WORKSTREAM=T1_CORE_UPDATER_PRODUCT_GRADE_HOMEASSISTANT_VALIDATION
+MERGE=false
+```
+
+The semantic version makes the updater understandable as a product; exact source head, pyz SHA256
+and artifact digest remain the execution-grade identity.
