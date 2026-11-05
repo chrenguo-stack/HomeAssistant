@@ -7,7 +7,7 @@
 - Current repository Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
 - Historical Clean Reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
 - Historical Clean Reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
-- Live deployment remains the accepted Manager B stack; P4 performed no live product mutation.
+- Live upgrade accepted: canonical Manager B remains accepted; P4 performed no live product mutation.
 - P4 exact execution head: `8232707eb2c91d3fa9881e4cadba6b78eefc1494`; PR #786 remains OPEN/Draft, mergeable and unmerged.
 - P4 exact head CI: 13/13 SUCCESS.
 - Frozen HA target remains byte-identical: `infra/n3w-t1/upgrades/homeassistant-2026.10.4.json`, blob `6966b4fe4d7620ccc436643cc840da9ae95e6010`.
