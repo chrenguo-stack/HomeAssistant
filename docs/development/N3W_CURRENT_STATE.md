@@ -1,3 +1,69 @@
+## Latest authority — 2026-11-05 Home Assistant P5 attempt 01 transport STOP; repaired retry WAITING_CI
+
+```text
+AUTHORITY_STATE=T1_CORE_UPDATER_HOMEASSISTANT_P5_ATTEMPT01_TRANSPORT_STOP_REPAIR_WAITING_CI
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+AUTHORIZATION_ID=N3W_T1_CORE_UPDATER_HOMEASSISTANT_2026_10_4_LIVE_APPLY_P5_20261105_01
+AUTHORIZATION_GRANTED=true
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+AUTHORIZATION_REPLAY_PERMITTED=false
+
+ATTEMPT_01_RESULT=STOP_BEFORE_PREFLIGHT
+ATTEMPT_01_REASON=command_failed:scp:1
+ATTEMPT_01_APPLY_INVOKED=false
+ATTEMPT_01_T1_MUTATION=false
+
+ORIGINAL_AUTHORIZED_EXECUTABLE_HEAD=ec8ba4555c022113498625cd06edd0a804ec1ebb
+REPAIR_EXECUTABLE_HEAD=9ab1ddf21dd191c916ef7b0dbe281d03aa8d0a2f
+AUTHORIZED_MANIFEST_BLOB_SHA=1772e694e394fe9b2bfa7f041ef288ae09c0746b
+
+TRANSPORT_REPAIR=SSH_STREAMING_REPLACES_SCP
+GENERIC_V2_CHANGED=false
+REMOTE_LIVE_CHANGED=false
+FROZEN_HA_TARGET_CHANGED=false
+STORAGE_POLICY_CHANGED=false
+AUTHORIZATION_MANIFEST_CHANGED=false
+
+HA_TARGET_MANIFEST_BLOB_SHA=6966b4fe4d7620ccc436643cc840da9ae95e6010
+HA_STORAGE_POLICY_BLOB_SHA=01a5cec8877e2837504ed798e91ca552ab6f2a0e
+P5_POST_PEAK_RESERVE_BYTES=1610612736
+
+T1_MUTATION=false
+SERVICE_RESTART=false
+IMAGE_LOAD=false
+UPDATER_APPLY=false
+UPDATER_ROLLBACK=false
+BOARD_ACCESS=false
+MERGE=false
+
+EXECUTION_READY=false
+WAIT_FOR_REPAIRED_EXACT_HEAD_CI=true
+NEXT_ONE_GATE=P5_ATTEMPT01_TRANSPORT_REPAIR_EXACT_HEAD_CI
+AUTO_RETRY=false
+STOP=true
+```
+
+P5 live attempt 01 stopped in the dedicated `scp` staging path before remote
+preflight and before authorization claim. The public result proves
+`apply_invoked=false`, `authorization_claimed=false`,
+`authorization_consumed=false` and `t1_mutation=false`. The sanitized STOP
+does not expose enough stderr to assert a narrower scp/SFTP root cause. The
+bounded repair removes the dedicated scp dependency and streams source/archive
+bytes over the already-established SSH transport. The existing one-shot user
+authorization remains valid because no apply invocation occurred.
+
+Authority: `docs/development/N3W_T1_CORE_UPDATER_HOMEASSISTANT_P5_LIVE_APPLY_ATTEMPT01_TRANSPORT_STOP_REPAIR_20261105.md`.
+
 ## Latest authority — 2026-11-05 Home Assistant P5 one-shot live apply AUTHORIZED_WAITING_CI
 
 ```text
