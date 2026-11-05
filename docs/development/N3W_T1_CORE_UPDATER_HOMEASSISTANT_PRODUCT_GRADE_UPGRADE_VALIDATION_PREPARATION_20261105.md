@@ -115,11 +115,12 @@ It writes only temporary files under the system temporary directory for Compose 
 removes them automatically. It has no apply mode and cannot mutate product paths or restart a
 service.
 
-The read-only proof may proceed before the target Stack release exists. The live convergence
-mutation may not proceed independently. Under the Stack semantic-release model it becomes an
-internal mutation of the authorized 1.0.0 -> 1.1.0 Stack transaction and must use the exact
-candidate proven by this read-only step. It must not substitute the whole fresh Compose if doing
-so would introduce any other semantic delta.
+The read-only proof may proceed before any future Stack release is published. The live convergence
+mutation may not proceed as a standalone manual deployment step. If live convergence is later
+needed for HA validation, it must be executed by T1_Core_Updater as part of the same bounded updater
+transaction that applies the exact HA target. It must use the exact candidate proven by this
+read-only step and must not substitute the whole fresh Compose if doing so would introduce any
+other semantic delta.
 
 ## 6. Exact HA package still required
 
@@ -147,11 +148,10 @@ No target manifest may set `persistent_schema_compatible=true` or
 
 ## 7. Baseline rule
 
-Do not reuse the old U0 baseline directly for HA apply. It predates the accepted Manager B and the
-new Stack release model.
+Do not reuse the old U0 baseline directly for HA apply. It predates the accepted Manager B.
 
-Do not mutate HA template convergence merely to create a baseline. The committed predecessor is
-T1_Core_Stack 1.0.0 and the fresh baseline must be captured twice before any Stack mutation.
+Do not mutate HA template convergence merely to create a baseline. The fresh updater baseline must
+be captured twice before any updater-owned HA mutation.
 
 Expected predecessor baseline:
 
@@ -165,32 +165,37 @@ HOMEASSISTANT_BINDING_MODE=legacy_static
 BROKER_BINDING_MODE=legacy_static
 ```
 
-The HA binding changes to `dynamic` only inside the later authorized 1.0.0 -> 1.1.0 Stack
-transaction.
+The HA binding changes to `dynamic` only inside a later explicitly authorized T1_Core_Updater
+transaction that also owns the HA component mutation and rollback evidence.
 
-## 8. Product-grade live acceptance route
+## 8. Product-grade updater acceptance route
 
-The Stack semantic-release model supersedes the earlier ordering that placed live template
-convergence before exact target construction.
+This workstream remains a T1_Core_Updater validation route. It does not publish or deploy a new
+T1_Core_Stack release.
 
-The bounded route is now:
+The bounded route is:
 
 ```text
 HA_P0_SOURCE_AND_COMPATIBILITY_PREPARATION
 -> HA_P1_RUNTIME_TEMPLATE_CONVERGENCE_READONLY_PREFLIGHT
--> HA_P4_EXACT_2026_10_4_PACKAGE_AND_COMPONENT_TARGET
--> STACK_1_1_0_EXACT_RELEASE_CONSTRUCTION
--> STACK_1_0_TO_1_1_SOURCE_SIMULATION_AND_READONLY_PLAN
--> STACK_FRESH_1_0_0_PREMUTATION_BASELINE
--> STACK_EXPLICIT_UPGRADE_AUTHORIZATION
--> STACK_LIVE_TRANSACTION
+-> HA_P2_EXACT_2026_10_4_PACKAGE_AND_COMPONENT_TARGET
+-> HA_P3_UPDATER_SOURCE_SIMULATION_AND_READONLY_PLAN
+-> HA_P4_FRESH_READONLY_PREMUTATION_BASELINE
+-> HA_P5_EXPLICIT_UPDATER_AUTHORIZATION
+-> HA_P6_UPDATER_LIVE_TRANSACTION
      -> HA_RUNTIME_TEMPLATE_CONVERGENCE_MUTATION
      -> HA_COMPONENT_APPLY
-     -> WHOLE_STACK_ACCEPTANCE
--> STACK_EXPLICIT_ROLLBACK_PROOF_TO_1_0_0
--> STACK_FRESH_AUTHORIZATION_AND_FINAL_1_1_0_REAPPLY
--> STACK_FINAL_1_1_0_ACCEPTANCE
+     -> MANAGER_HA_BROKER_ACCEPTANCE
+-> HA_P7_EXPLICIT_UPDATER_ROLLBACK_PROOF
+     -> restore HA predecessor image
+     -> restore predecessor HA binding
+     -> verify full predecessor product health
+-> HA_P8_FRESH_AUTHORIZATION_AND_FINAL_HA_REAPPLY
+-> HA_P9_FINAL_UPDATER_ACCEPTANCE
 ```
+
+A future T1_Core_Stack 1.1.0 product release may reuse the validated result of this work, but release
+publication is outside this gate.
 
 Live authorizations are one-shot and stage-specific. An apply or rollback authorization is not
 created by this preparation document.
@@ -221,17 +226,18 @@ LIVE_HA_UPGRADE_READY=false
 HA_RUNTIME_TEMPLATE_CONVERGENCE_REQUIRED=true
 HA_EXACT_TARGET_PACKAGE_READY=false
 STACK_1_0_0_RELEASE_FROZEN=true
-STACK_1_1_0_RELEASE_READY=false
+STACK_1_1_0_RELEASE_BUILD_IN_THIS_WORKSTREAM=false
 INDEPENDENT_HA_CONVERGENCE_MUTATION_ALLOWED=false
+FIELD_UPGRADE_EXECUTOR=T1_Core_Updater
 
 NEXT_ONE_GATE=N3W_T1_CORE_UPDATER_HOMEASSISTANT_RUNTIME_TEMPLATE_CONVERGENCE_READONLY_PREFLIGHT_20261105_01
 
-NEXT_AFTER_READONLY_GATE=EXACT_HA_2026_10_4_ARTIFACT_AND_STACK_1_1_0_RELEASE_CONSTRUCTION
+NEXT_AFTER_READONLY_GATE=EXACT_HA_2026_10_4_UPDATER_ARTIFACT_AND_COMPONENT_TARGET
 NEXT_GATE_LIVE_MUTATION=false
 AUTO_EXECUTE_MUTATION=false
 ```
 
 The next gate is read-only against the real T1 and may only inspect whether the minimal HA
 legacy-static -> dynamic source convergence is semantically identical. It stops before any product
-file write or service restart. A PASS goes to exact HA artifact and exact Stack 1.1.0 release
-construction, not to a live template mutation.
+file write or service restart. A PASS goes to exact HA updater artifact/component-target
+construction, not to Stack 1.1.0 publication and not directly to a live template mutation.
