@@ -3,8 +3,11 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import hashlib
 import json
+import os
 import re
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -59,6 +62,48 @@ def read_manifest() -> dict[str, Any]:
         raise StopExecution("manifest_invalid")
     return value
 
+def prepare_evidence_root(path: Path) -> Path:
+    root = path.expanduser().resolve()
+    repo = REPO_ROOT.resolve()
+    if root == repo or repo in root.parents:
+        raise StopExecution("evidence_root_inside_repository")
+    if root.exists():
+        if (
+            root.is_symlink()
+            or not root.is_dir()
+            or root.stat().st_uid != os.geteuid()
+            or stat.S_IMODE(root.stat().st_mode) != 0o700
+            or any(root.iterdir())
+        ):
+            raise StopExecution("evidence_root_invalid")
+    else:
+        root.mkdir(parents=True, mode=0o700)
+        os.chmod(root, 0o700)
+    return root
+
+
+def write_private(path: Path, value: dict[str, Any]) -> None:
+    payload = json.dumps(value, sort_keys=True, indent=2) + "\n"
+    descriptor = os.open(
+        path,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+        0o600,
+    )
+    try:
+        os.write(descriptor, payload.encode())
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+    os.chmod(path, 0o600)
+
+
+def safe_reason(error: Exception) -> str:
+    reason = str(error)
+    if not reason or len(reason) > 200 or "/" in reason or "\\" in reason or "@" in reason:
+        return type(error).__name__
+    return reason
+
+
 def validate_source(expected_head: str) -> dict[str, Any]:
     if SHA40.fullmatch(expected_head) is None:
         raise StopExecution("expected_source_head_invalid")
@@ -100,60 +145,153 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
 
     readonly = load_readonly()
     readonly.validate_target(args.target)
+    evidence = prepare_evidence_root(args.evidence_root)
     transport = SSHTransport(
         target=args.target,
         known_hosts=args.known_hosts,
         expected_host_key_sha256=args.expected_host_key_sha256,
     )
     started = False
+    authorization_claimed = False
+    mutation_invoked = False
+    mutation_succeeded = False
     try:
         transport.start_epoch()
         started = True
-        before_result = transport.run_remote(["python3", "-c", readonly.REMOTE_PROBE], timeout=180, check=True)
-        before = json.loads(before_result.stdout)
+        before_result = transport.run_remote(
+            ["python3", "-c", readonly.REMOTE_PROBE],
+            timeout=180,
+            check=True,
+        )
+        try:
+            before = json.loads(before_result.stdout)
+        except json.JSONDecodeError as error:
+            raise StopExecution("pre_cleanup_json_invalid") from error
+        if not isinstance(before, dict):
+            raise StopExecution("pre_cleanup_json_shape_invalid")
         classification = readonly.classify_remote(before)
+        write_private(evidence / "pre-cleanup-report.json", before)
+        write_private(evidence / "classification-private.json", classification)
         if classification["residue_container_id_sha256"] != expected_hash:
             raise StopExecution("residue_hash_drift")
+
         raw_id = classification["residue_container_id"]
-        removed = transport.run_remote(["docker", "rm", raw_id], timeout=120, check=True)
+        write_private(
+            evidence / "authorization-claim.json",
+            {
+                "authorization_id": authorization_id,
+                "claimed": True,
+                "consumed_by_executor": True,
+                "replay_permitted": False,
+                "residue_container_id_sha256": expected_hash,
+                "reason": "single bounded residue cleanup invocation begins",
+            },
+        )
+        authorization_claimed = True
+
+        mutation_invoked = True
+        removed = transport.run_remote(
+            ["docker", "rm", raw_id],
+            timeout=120,
+            check=False,
+        )
+        mutation_evidence = {
+            "mutation_invoked": True,
+            "command_class": "docker_rm_single_container",
+            "residue_container_id_sha256": expected_hash,
+            "returncode": removed.returncode,
+            "stdout_sha256": hashlib.sha256(removed.stdout.encode()).hexdigest(),
+            "stderr_sha256": hashlib.sha256(removed.stderr.encode()).hexdigest(),
+        }
+        write_private(evidence / "cleanup-mutation.json", mutation_evidence)
+        if removed.returncode != 0:
+            raise StopExecution("docker_rm_failed")
         if removed.stdout.strip() != raw_id:
             raise StopExecution("docker_rm_result_invalid")
-        after_result = transport.run_remote(["python3", "-c", readonly.REMOTE_PROBE], timeout=180, check=True)
-        after = json.loads(after_result.stdout)
+        mutation_succeeded = True
+
+        after_result = transport.run_remote(
+            ["python3", "-c", readonly.REMOTE_PROBE],
+            timeout=180,
+            check=True,
+        )
+        try:
+            after = json.loads(after_result.stdout)
+        except json.JSONDecodeError as error:
+            raise StopExecution("post_cleanup_json_invalid") from error
+        if not isinstance(after, dict):
+            raise StopExecution("post_cleanup_json_shape_invalid")
+        write_private(evidence / "post-cleanup-report.json", after)
         containers = after.get("containers")
         if not isinstance(containers, list):
             raise StopExecution("post_cleanup_container_report_invalid")
-        running = [item for item in containers if isinstance(item, dict) and item.get("running") is True]
-        residue = [item for item in containers if isinstance(item, dict) and item.get("running") is False]
+        running = [
+            item
+            for item in containers
+            if isinstance(item, dict) and item.get("running") is True
+        ]
+        residue = [
+            item
+            for item in containers
+            if isinstance(item, dict) and item.get("running") is False
+        ]
         if len(running) != 1 or residue:
             raise StopExecution("post_cleanup_container_state_invalid")
         current = running[0]
-        if current.get("image_ref") != readonly.PREDECESSOR_IMAGE:
+        if (
+            current.get("image_ref") != readonly.PREDECESSOR_IMAGE
+            or current.get("status") != "running"
+        ):
             raise StopExecution("post_cleanup_predecessor_invalid")
         target_image = after.get("target_image")
-        if not isinstance(target_image, dict) or target_image.get("reference") != readonly.TARGET_IMAGE:
+        if (
+            not isinstance(target_image, dict)
+            or target_image.get("reference") != readonly.TARGET_IMAGE
+        ):
             raise StopExecution("post_cleanup_target_image_missing")
-        return {
+        result = {
             "schema": SCHEMA,
             "gate_id": GATE_ID,
             "status": "PASS",
             "operation": "bounded_residue_cleanup",
             "mutation": True,
             "authorization_id": authorization_id,
+            "authorization_claimed": True,
+            "authorization_consumed": True,
+            "authorization_replay_permitted": False,
             "residue_container_id_sha256": expected_hash,
             "removed_container_count": 1,
             "running_predecessor_image_ref": readonly.PREDECESSOR_IMAGE,
             "target_image_retained": True,
             "board_access": False,
         }
+        write_private(evidence / "result.json", result)
+        return result
+    except Exception as error:
+        write_private(
+            evidence / "failure.json",
+            {
+                "status": "STOP",
+                "reason": safe_reason(error),
+                "authorization_claimed": authorization_claimed,
+                "authorization_consumed": authorization_claimed,
+                "authorization_replay_permitted": False,
+                "mutation_invoked": mutation_invoked,
+                "mutation_succeeded": mutation_succeeded,
+                "residue_container_id_sha256": expected_hash,
+            },
+        )
+        raise
     finally:
         if started:
             transport.close_epoch()
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(prog="n3w-ha-p5-attempt03-residue-cleanup")
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--expected-source-head", required=True)
+    parser.add_argument("--evidence-root", type=Path, required=True)
     parser.add_argument("--target", required=True)
     parser.add_argument("--known-hosts", type=Path, required=True)
     parser.add_argument("--expected-host-key-sha256", required=True)
@@ -166,10 +304,12 @@ def main() -> int:
     try:
         result = execute(args)
     except Exception as error:
-        reason = str(error)
-        if not reason or len(reason) > 200 or "/" in reason or "\\" in reason or "@" in reason:
-            reason = type(error).__name__
-        print(json.dumps({"schema": SCHEMA, "status": "STOP", "reason": reason}, sort_keys=True))
+        print(
+            json.dumps(
+                {"schema": SCHEMA, "status": "STOP", "reason": safe_reason(error)},
+                sort_keys=True,
+            )
+        )
         return 2
     print(json.dumps(result, sort_keys=True))
     return 0

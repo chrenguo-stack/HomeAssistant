@@ -49,6 +49,7 @@ def test_execute_stops_before_ssh_when_cleanup_not_authorized(monkeypatch):
     monkeypatch.setattr(executor, "SSHTransport", ForbiddenTransport)
     args = argparse.Namespace(
         expected_source_head="a" * 40,
+        evidence_root=Path("/tmp/never-evidence"),
         target="root@example",
         known_hosts=Path("/tmp/never"),
         expected_host_key_sha256="b" * 64,
@@ -65,3 +66,17 @@ def test_cleanup_source_has_single_bounded_container_delete():
     assert '"docker", "rm", "-f"' not in source
     assert "docker image rm" not in source
     assert "systemctl restart" not in source
+    assert 'evidence / "authorization-claim.json"' in source
+    assert 'evidence / "cleanup-mutation.json"' in source
+    assert 'evidence / "post-cleanup-report.json"' in source
+    assert 'evidence / "failure.json"' in source
+    assert source.index('evidence / "authorization-claim.json"') < source.index(
+        '["docker", "rm", raw_id]'
+    )
+
+
+def test_cleanup_requires_private_evidence_root():
+    source = EXECUTOR_PATH.read_text(encoding="utf-8")
+    assert 'parser.add_argument("--evidence-root", type=Path, required=True)' in source
+    assert "evidence_root_inside_repository" in source
+    assert "evidence_root_invalid" in source
