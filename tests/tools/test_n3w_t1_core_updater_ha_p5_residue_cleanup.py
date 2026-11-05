@@ -25,7 +25,9 @@ def test_cleanup_package_is_prepared_but_not_authorized():
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     assert manifest["live_cleanup_authorized"] is False
     assert manifest["authorization_id"] is None
-    assert manifest["expected_residue_container_id_sha256"] is None
+    assert manifest["expected_residue_container_id_sha256"] == "b795e09bf6bf2b47216c124430bdb768d9c914a8e2abd99f20dd8b5f0eb59bb9"
+    assert manifest["classification_source_head"] == "89ddb7415e0642167a819c521bd083509549c016"
+    assert manifest["classification_gate_id"] == "N3W_T1_CORE_UPDATER_HOMEASSISTANT_P5_ATTEMPT03_RESIDUE_READONLY_20261105_01"
     assert manifest["permitted_container_deletions"] == 1
     assert manifest["target_image_delete_allowed"] is False
     assert manifest["service_restart_allowed"] is False
@@ -37,7 +39,7 @@ def test_execute_stops_before_ssh_when_cleanup_not_authorized(monkeypatch):
         lambda head: {
             "live_cleanup_authorized": False,
             "authorization_id": None,
-            "expected_residue_container_id_sha256": None,
+            "expected_residue_container_id_sha256": "b795e09bf6bf2b47216c124430bdb768d9c914a8e2abd99f20dd8b5f0eb59bb9",
         },
     )
     called = {"ssh": False}
