@@ -187,8 +187,9 @@ def validate_source(expected_head: str) -> dict[str, Any]:
         raise StopExecution("p4_transaction_authority_invalid")
     if manifest.get("proposed_authorization_id") != AUTHORIZATION_ID:
         raise StopExecution("authorization_id_manifest_mismatch")
-    if manifest.get("live_apply_authorized") is not False:
-        raise StopExecution("preauth_manifest_must_not_grant_live_apply")
+    live_authorized = manifest.get("live_apply_authorized")
+    if not isinstance(live_authorized, bool):
+        raise StopExecution("manifest_live_authorization_invalid")
 
     ancestor = run(
         [
@@ -231,6 +232,7 @@ def validate_source(expected_head: str) -> dict[str, Any]:
         "p4_execution_head": manifest["p4_execution_head"],
         "p4_closure_blob_sha": manifest["p4_closure_blob_sha"],
         "target_manifest_blob_sha": target_blob,
+        "live_apply_authorized": live_authorized,
     }
 
 
@@ -656,6 +658,8 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
         raise StopExecution("live_confirmation_invalid")
     validate_target(args.target)
     source_authority = validate_source(args.expected_source_head)
+    if source_authority.get("live_apply_authorized") is not True:
+        raise StopExecution("live_apply_not_authorized")
     evidence = prepare_evidence_root(args.evidence_root)
 
     remote_dir: str | None = None
