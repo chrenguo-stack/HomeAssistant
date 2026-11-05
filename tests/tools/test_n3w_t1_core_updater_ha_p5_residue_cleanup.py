@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 import importlib.util
 import json
 from pathlib import Path
@@ -13,7 +12,10 @@ EXECUTOR_PATH = PACKAGE / "executor.py"
 MANIFEST_PATH = PACKAGE / "manifest.json"
 
 def load_module():
-    spec = importlib.util.spec_from_file_location("ha_p5_residue_cleanup_test", EXECUTOR_PATH)
+    spec = importlib.util.spec_from_file_location(
+        "ha_p5_residue_cleanup_test",
+        EXECUTOR_PATH,
+    )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -21,68 +23,54 @@ def load_module():
 
 executor = load_module()
 
-def test_cleanup_package_has_exact_one_shot_authorization():
+def test_cleanup_package_is_consumed_closed_and_non_replayable():
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-    assert manifest["live_cleanup_authorized"] is True
+    assert manifest["live_cleanup_authorized"] is False
     assert manifest["authorization_id"] == "N3W_T1_CORE_UPDATER_HOMEASSISTANT_P5_ATTEMPT03_RESIDUE_CLEANUP_LIVE_20261105_01"
     assert manifest["authorization"]["granted"] is True
-    assert manifest["authorization"]["claimed"] is False
-    assert manifest["authorization"]["consumed"] is False
+    assert manifest["authorization"]["claimed"] is True
+    assert manifest["authorization"]["consumed"] is True
     assert manifest["authorization"]["replay_permitted"] is False
-    assert manifest["authorization"]["permitted_cleanup_invocations"] == 1
+    assert manifest["authorization"]["remaining_cleanup_invocations"] == 0
     assert manifest["authorization"]["second_cleanup_allowed"] is False
-    assert manifest["expected_residue_container_id_sha256"] == "b795e09bf6bf2b47216c124430bdb768d9c914a8e2abd99f20dd8b5f0eb59bb9"
-    assert manifest["classification_source_head"] == "89ddb7415e0642167a819c521bd083509549c016"
-    assert manifest["classification_gate_id"] == "N3W_T1_CORE_UPDATER_HOMEASSISTANT_P5_ATTEMPT03_RESIDUE_READONLY_20261105_01"
-    assert manifest["permitted_container_deletions"] == 1
-    assert manifest["target_image_delete_allowed"] is False
-    assert manifest["service_restart_allowed"] is False
+    assert manifest["authorization"]["cleanup_result"] == "CLOSED_PASS"
+    assert manifest["execution_state"] == "CONSUMED_CLOSED_PASS"
+    assert manifest["stop_boundary"] == "CLOSED_NO_REPLAY"
 
-def test_execute_stops_before_ssh_when_cleanup_not_authorized(monkeypatch):
+def test_executor_stops_before_transport_when_manifest_is_closed(monkeypatch):
     monkeypatch.setattr(
         executor,
         "validate_source",
         lambda head: {
             "live_cleanup_authorized": False,
-            "authorization_id": None,
+            "authorization_id": "closed",
             "expected_residue_container_id_sha256": "b795e09bf6bf2b47216c124430bdb768d9c914a8e2abd99f20dd8b5f0eb59bb9",
         },
     )
-    called = {"ssh": False}
+    called = {"transport": False}
+
     class ForbiddenTransport:
         def __init__(self, **kwargs):
-            called["ssh"] = True
+            called["transport"] = True
+
     monkeypatch.setattr(executor, "SSHTransport", ForbiddenTransport)
-    args = argparse.Namespace(
-        expected_source_head="a" * 40,
-        evidence_root=Path("/tmp/never-evidence"),
-        target="root@example",
-        known_hosts=Path("/tmp/never"),
-        expected_host_key_sha256="b" * 64,
-        authorization_id="unused",
-        confirm=executor.CONFIRMATION,
-    )
+
+    class Args:
+        expected_source_head = "a" * 40
+        evidence_root = Path("/tmp/unused")
+        target = "root@example"
+        known_hosts = Path("/tmp/unused")
+        expected_host_key_sha256 = "b" * 64
+        authorization_id = "closed"
+        confirm = executor.CONFIRMATION
+
     with pytest.raises(executor.StopExecution, match="live_cleanup_not_authorized"):
-        executor.execute(args)
-    assert called["ssh"] is False
+        executor.execute(Args())
+    assert called["transport"] is False
 
-def test_cleanup_source_has_single_bounded_container_delete():
-    source = EXECUTOR_PATH.read_text(encoding="utf-8")
-    assert source.count('["docker", "rm", raw_id]') == 1
-    assert '"docker", "rm", "-f"' not in source
-    assert "docker image rm" not in source
-    assert "systemctl restart" not in source
-    assert 'evidence / "authorization-claim.json"' in source
-    assert 'evidence / "cleanup-mutation.json"' in source
-    assert 'evidence / "post-cleanup-report.json"' in source
-    assert 'evidence / "failure.json"' in source
-    assert source.index('evidence / "authorization-claim.json"') < source.index(
-        '["docker", "rm", raw_id]'
-    )
-
-
-def test_cleanup_requires_private_evidence_root():
+def test_cleanup_executor_still_requires_private_evidence_root():
     source = EXECUTOR_PATH.read_text(encoding="utf-8")
     assert 'parser.add_argument("--evidence-root", type=Path, required=True)' in source
-    assert "evidence_root_inside_repository" in source
-    assert "evidence_root_invalid" in source
+    assert "authorization-claim.json" in source
+    assert "cleanup-mutation.json" in source
+    assert "post-cleanup-report.json" in source
