@@ -1,0 +1,81 @@
+{
+  "schema": "gh.n3w-t1-core-updater-ha-p4-readonly-premutation-baseline-execution-package/1",
+  "gate_id": "N3W_T1_CORE_UPDATER_HOMEASSISTANT_P4_FRESH_READONLY_PREMUTATION_BASELINE_20261105_01",
+  "authority_parent_head": "bb845f5cca4f2fc3e4710d14b6176a043d2a4523",
+  "p3_executable_source_head": "b4409c11beda99f2aef43353b8129003760634b7",
+  "source_binding": {
+    "infra/n3w-t1/upgrades/homeassistant-2026.10.4.json": "6966b4fe4d7620ccc436643cc840da9ae95e6010",
+    "tools/n3w_t1_core_updater.py": "300820c2fcb7f4fcaa1d06cef12ea0e5e78e2a86",
+    "tools/n3w_t1_core_updater_common.py": "63a0377b7df509fd44194a1752a19c013ce55858",
+    "tools/n3w_t1_core_updater_core.py": "d275ca5a094f8fd981b249ed4179e8bb40978311",
+    "tools/n3w_t1_core_updater_host.py": "38e06503359314496a4113b91b28d8c6106e667b",
+    "tools/n3w_t1_core_updater_state.py": "06ca6ce3a5c3703df0f9e06408773d8a607cc77c",
+    "tools/n3w_t1_core_updater_a1_policy.py": "9e7de124607cc27e8a895f9cdcd38107d0f2f488",
+    "tools/n3w_t1_core_updater_components.py": "1985b7441112e64e4942480628a3db43c538cd38",
+    "tools/n3w_t1_core_updater_v2.py": "0802ab606e97fac6093cd3faf9692da4a3590b18",
+    "tools/n3w_t1_core_updater_v2_common.py": "b9c6561a1a8e33bdf586e6a4bd04d025f3c5d7e6",
+    "tools/n3w_t1_core_updater_v2_state.py": "a5260f1097983cad4818f626826accbb185e4a37",
+    "tools/n3w_t1_portable_image_identity.py": "4877f4801dd7a4364feb0cda4f9a3f79072e8214",
+    "tools/execution_packages/n3w/u2/ha_p4_readonly_premutation_baseline/remote_probe.py": "a8a218fe1ec852f4f5698619f6f28afe4dbe5e19"
+  },
+  "expected_runtime": {
+    "manager_image": "local/greenhouse-manager:fresh-5b32e1ae8210",
+    "homeassistant_image": "local/n3w-homeassistant:2026.10.0-0c73235a",
+    "broker_image": "local/n3w-mosquitto:2.1.2-3184566d",
+    "manager_binding_mode": "dynamic",
+    "homeassistant_binding_mode": "legacy_static",
+    "broker_binding_mode": "legacy_static",
+    "runtime_class": "TARGET_BOUND_RUNNING",
+    "health_state": "HEALTHY",
+    "current_transaction_component": "manager",
+    "current_transaction_status": "COMMITTED",
+    "current_transaction_phase": "COMMITTED",
+    "recovery_required": false,
+    "legacy_transaction_present": false
+  },
+  "frozen_target": {
+    "component": "homeassistant",
+    "target_image": "local/n3w-homeassistant:2026.10.4-5881590f",
+    "predecessor_image": "local/n3w-homeassistant:2026.10.0-0c73235a",
+    "artifact_id": 13391983948,
+    "archive_sha256": "eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973",
+    "target_image_prestate_required": "ABSENT",
+    "target_archive_required_on_t1": false
+  },
+  "execution_authority": {
+    "exact_source_head_required": true,
+    "clean_tracked_worktree_required": true,
+    "confirmation": "READONLY HA P4 PREMUTATION BASELINE: YES",
+    "t1_access": true,
+    "t1_mutation": false,
+    "persistent_t1_file_write": false,
+    "temporary_scratch_write": true,
+    "service_restart": false,
+    "image_load": false,
+    "updater_apply": false,
+    "updater_rollback": false,
+    "credential_mutation": false,
+    "board_access": false,
+    "merge": false
+  },
+  "evidence": {
+    "private_local_root_required": true,
+    "private_root_mode": "0700",
+    "private_file_mode": "0600",
+    "raw_target_public_output": false,
+    "baseline_double_read_required": true,
+    "transaction_state_stability_required": true,
+    "product_file_stability_required": true,
+    "service_state_stability_required": true
+  },
+  "pass_contract": {
+    "status": "PASS",
+    "mutation": false,
+    "baseline_double_read_stable": true,
+    "readonly_state_stable": true,
+    "template_convergence_planned": true,
+    "rollback_available": true,
+    "target_image_prestate": "ABSENT",
+    "target_archive_verified": false
+  }
+}
