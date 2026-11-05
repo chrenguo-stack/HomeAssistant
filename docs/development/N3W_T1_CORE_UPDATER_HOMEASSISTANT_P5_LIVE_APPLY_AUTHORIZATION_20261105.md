@@ -17,7 +17,8 @@ PERMITTED_APPLY_INVOCATIONS=1
 SECOND_APPLY_ALLOWED=false
 BLIND_EXPLICIT_ROLLBACK_ALLOWED=false
 
-EXACT_AUTHORIZED_EXECUTABLE_HEAD=ec8ba4555c022113498625cd06edd0a804ec1ebb
+ORIGINAL_AUTHORIZED_EXECUTABLE_HEAD=ec8ba4555c022113498625cd06edd0a804ec1ebb
+CURRENT_REPAIRED_EXECUTABLE_HEAD=9ab1ddf21dd191c916ef7b0dbe281d03aa8d0a2f
 AUTHORIZED_MANIFEST_BLOB_SHA=1772e694e394fe9b2bfa7f041ef288ae09c0746b
 LIVE_APPLY_AUTHORIZED=true
 
@@ -158,13 +159,31 @@ LISTENER_CONTRACT=PASS
 POST_CLEANUP_RESERVE_PASS=true
 ~~~
 
-## Execution hold
+## Attempt 01 and repaired execution hold
 
-The authorization is granted, but execution is not permitted from an unvalidated
-authorization commit. The exact authorized executable head must first pass CI.
+Attempt 01 stopped in staging transport before preflight:
+
+~~~text
+ATTEMPT_01_RESULT=STOP_BEFORE_PREFLIGHT
+ATTEMPT_01_REASON=command_failed:scp:1
+ATTEMPT_01_APPLY_INVOKED=false
+ATTEMPT_01_AUTHORIZATION_CLAIMED=false
+ATTEMPT_01_AUTHORIZATION_CONSUMED=false
+ATTEMPT_01_T1_MUTATION=false
+~~~
+
+Because the authorization was not claimed or consumed, the same one-shot user
+authorization remains valid for one repaired retry.
+
+The repaired executable removes the dedicated scp path and streams staging files
+over the already-established SSH transport. The repaired exact executable head
+must pass CI before retry.
 
 ~~~text
 EXECUTION_READY=false
-WAIT_FOR_EXACT_HEAD_CI=true
-AUTO_EXECUTE=false
+WAIT_FOR_REPAIRED_EXACT_HEAD_CI=true
+AUTO_RETRY=false
 ~~~
+
+Authority for the STOP and repair:
+`docs/development/N3W_T1_CORE_UPDATER_HOMEASSISTANT_P5_LIVE_APPLY_ATTEMPT01_TRANSPORT_STOP_REPAIR_20261105.md`.
