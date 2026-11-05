@@ -24,6 +24,8 @@ jobs:
   source:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    outputs:
+      target_present: ${{ steps.phase.outputs.target_present }}
     env:
       SOURCE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
       COMPATIBILITY_REVIEW: infra/n3w-t1/upgrades/homeassistant-2026.10.4-compatibility-review.json
@@ -33,6 +35,18 @@ jobs:
         with:
           ref: ${{ env.SOURCE_HEAD }}
           fetch-depth: 0
+
+      - name: Detect frozen target phase
+        id: phase
+        run: |
+          set -euo pipefail
+          if test -f infra/n3w-t1/upgrades/homeassistant-2026.10.4.json; then
+            echo "target_present=true" >> "$GITHUB_OUTPUT"
+            echo "HA_EXACT_ARTIFACT_PHASE=P2B_TARGET_FROZEN"
+          else
+            echo "target_present=false" >> "$GITHUB_OUTPUT"
+            echo "HA_EXACT_ARTIFACT_PHASE=P2A_BUILD_ALLOWED"
+          fi
 
       - uses: actions/setup-python@v5
         with:
@@ -76,6 +90,7 @@ jobs:
 
   exact-artifact:
     needs: source
+    if: needs.source.outputs.target_present != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     outputs:
