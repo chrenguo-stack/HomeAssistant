@@ -1,0 +1,49 @@
+{
+  "schema": "gh.n3w-t1-core-updater-ha-storage-policy-review-package/1",
+  "gate_id": "N3W_T1_CORE_UPDATER_HOMEASSISTANT_STORAGE_POLICY_REVIEW_20261105_01",
+  "authority_parent_head": "8310804a222676aba78334f3c0fd291da636242d",
+  "p5_source_head": "8310804a222676aba78334f3c0fd291da636242d",
+  "live_ha_apply_authorized": false,
+  "policy_question": "replace historical fixed 5 GiB reserve with evidence-based upgrade workspace plus product runtime reserve",
+  "source_binding": {
+    "tools/execution_packages/n3w/u2/ha_storage_policy_review/remote_probe.py": "c37867722d385d7b048d4a0d6d8dccb1108a090d",
+    "tools/n3w_t1_fresh_product_staging_host.py": "47718484ecffc2e4e7cab9505a1833cf7f5c8d7a",
+    "docs/adr/0009-t1-golden-master-firstboot-production-lifecycle.md": "f9c85e6b02b330b5c6995143d9b4dfffd5985b3a",
+    "docs/development/N3W_T1_FRESH_BOOTSTRAP_R8_STORAGE_CAPACITY_REMEDIATION_DESIGN_20261012.md": "6f510591dfc069ded6763c236427e1214ef6d956",
+    "infra/n3w-t1/upgrades/homeassistant-2026.10.4.json": "6966b4fe4d7620ccc436643cc840da9ae95e6010"
+  },
+  "execution_authority": {
+    "confirmation": "READONLY HA STORAGE POLICY BASELINE: YES",
+    "t1_access": true,
+    "t1_mutation": false,
+    "persistent_t1_file_write": false,
+    "temporary_scratch_write": true,
+    "service_restart": false,
+    "image_load": false,
+    "updater_apply": false,
+    "updater_rollback": false,
+    "credential_mutation": false,
+    "board_access": false,
+    "merge": false
+  },
+  "evidence_scope": {
+    "actual_storage_backend": true,
+    "filesystem_total_used_free": true,
+    "filesystem_inodes": true,
+    "current_service_container_sizes": true,
+    "current_service_image_sizes": true,
+    "writable_bind_allocated_and_apparent_bytes": true,
+    "product_state_directories": true,
+    "updater_state_directory": true,
+    "var_log_usage": true,
+    "apt_cache_usage": true,
+    "docker_system_df": true,
+    "service_runtime_stability_before_after": true
+  },
+  "forbidden_conclusions": [
+    "do not freeze PRODUCT_RUNTIME_MIN_FREE_REQUIREMENT before real T1 evidence",
+    "do not freeze UPGRADE_ROLLBACK_WORKSPACE_REQUIREMENT before real T1 evidence",
+    "do not treat historical 5 GiB as product physical minimum",
+    "do not authorize live Home Assistant apply"
+  ]
+}
