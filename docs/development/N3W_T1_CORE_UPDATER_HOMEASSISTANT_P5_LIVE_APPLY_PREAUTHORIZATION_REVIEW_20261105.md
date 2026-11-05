@@ -96,7 +96,8 @@ confirmation string before explicit authorization.
 5. opens an SSH ControlMaster using a short `/tmp` control path;
 6. reuses the existing production storage probe to resolve the real Docker/containerd image store;
 7. requires staging, Docker root and image store to be on the same filesystem and requires enough
-   free space for the staged archive + Docker-save uncompressed image bytes + 5 GiB post-peak reserve;
+   free space for the staged archive + exact Docker-save uncompressed image bytes + the evidence-bound
+   P5 post-peak reserve;
 8. creates a private temporary T1 staging directory only;
 9. stages exact source and exact HA archive;
 10. runs fresh read-only preflight;
@@ -118,9 +119,46 @@ The gate requires:
 ~~~text
 STAGING_DOCKER_IMAGE_STORE_SAME_FILESYSTEM=true
 REQUIRED_PEAK_BYTES=TARGET_ARCHIVE_SIZE_BYTES+DOCKER_SAVE_UNCOMPRESSED_MEMBER_BYTES
-MINIMUM_POST_PEAK_FREE_BYTES=5368709120
+P5_POST_PEAK_RESERVE_BYTES=1610612736
 CAPACITY_PASS=true
 ~~~
+
+The previous fixed 5 GiB reserve is retired from P5. The accepted real-T1
+read-only baseline measured:
+
+~~~text
+FILESYSTEM_TOTAL_BYTES=14453903360
+FILESYSTEM_FREE_BYTES=5785710592
+FILESYSTEM_FREE_RATIO=40.03%
+FILESYSTEM_FREE_INODE_RATIO=71.26%
+OBSERVED_MUTABLE_ALLOCATED_BYTES=174047232
+~~~
+
+The P5 reserve is derived as:
+
+~~~text
+max(
+  1 GiB absolute floor,
+  10% of measured filesystem total,
+  8 * measured mutable allocated bytes
+)
+rounded upward to 256 MiB
+= 1610612736 bytes
+= 1.5 GiB
+~~~
+
+This is an upgrade-admission safety reserve, not a claim that the lifetime
+`PRODUCT_RUNTIME_MIN_FREE_REQUIREMENT` is 1.5 GiB. Long-term product-runtime
+minimum free space remains unfrozen until longitudinal HA DB/log/state growth
+evidence exists.
+
+The predecessor HA image is already resident in the measured free-space baseline
+and Generic V2 retains it for rollback. Its bytes are therefore not added a
+second time. The incremental coexistence cost is the new target import.
+
+After successful apply and removal of the temporary staging directory, P5 also
+re-reads storage authority and requires the remaining free space to stay at or
+above the same 1.5 GiB reserve.
 
 Insufficient capacity is a STOP before remote staging and before authorization claim.
 
