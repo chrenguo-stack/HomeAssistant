@@ -1,0 +1,43 @@
+name: N3W T1 Core Updater HA template readonly preflight CI
+
+on:
+  pull_request:
+    paths:
+      - "tools/n3w_t1_core_updater_ha_template_convergence.py"
+      - "tests/tools/test_n3w_t1_core_updater_ha_template_convergence.py"
+      - "tools/execution_packages/n3w/u2/ha_template_convergence_readonly_preflight/**"
+      - "tests/execution_packages/n3w/u2/ha_template_convergence_readonly_preflight/**"
+      - "infra/n3w-t1/production/t1-core-stack-current.json"
+      - ".github/workflows/n3w-t1-core-updater-ha-template-readonly-preflight-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: n3w-t1-core-updater-ha-template-readonly-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      SOURCE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_HEAD }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate HA template read-only preflight package
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_HEAD"
+          python -m pip install "pytest>=8,<9"
+          python -m py_compile             tools/n3w_t1_core_updater_ha_template_convergence.py             tools/execution_packages/n3w/u2/ha_template_convergence_readonly_preflight/executor.py
+          PYTHONPATH=tools python -m pytest -q             tests/tools/test_n3w_t1_core_updater_ha_template_convergence.py             tests/execution_packages/n3w/u2/ha_template_convergence_readonly_preflight/test_executor.py
