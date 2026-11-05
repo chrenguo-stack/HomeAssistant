@@ -1,3 +1,25 @@
+## 2026-11-05 — Home Assistant P5 KF-142 R2 source CLOSED_PASS; SSH host-key preflight next
+
+- Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current repository Manager: `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current repository Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical Clean Reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted: canonical Manager B remains accepted; HA 2026.10.4 has not yet been applied.
+- PR #788 docs-aligned source authority `94cd4b00089086e8fc1425142e4fddb21bdb616e` passed 15/15 workflows with zero failures.
+- R2 exact executable source is `bdf86c75e882e25d642221c9bb88e883abfe249d`; diff to the green docs head is docs-only.
+- R2 executor blob `b8d40093fe9a000a1b771dde8be0911c9e528292`.
+- Authorization manifest blob `42bfa90650d42bc2efd425abb93551115a6c02ca`.
+- Production SSH transport blob `dec4c9159195e2008094d94fef3fc76c4b977e46`.
+- Frozen HA target blob remains `6966b4fe4d7620ccc436643cc840da9ae95e6010`; storage-policy blob remains `01a5cec8877e2837504ed798e91ca552ab6f2a0e`.
+- Attempt 01 and Attempt 02 both stopped before authorization claim/apply; one-shot authorization remains granted, unclaimed and unconsumed.
+- KF-142 R2 source repair is CLOSED_PASS. P5 now uses the production SSH master lifecycle and child authentication fallback is forbidden.
+- Next gate: `N3W_T1_CORE_UPDATER_HOMEASSISTANT_P5_SSH_HOST_KEY_BINDING_READONLY_PREFLIGHT_20261105_01`.
+- That gate is local/read-only: establish trusted known_hosts path and expected host-key SHA256 for the R2 CLI. Attempt 03 is not auto-executed.
+- No T1 product mutation, image load, service restart, updater apply/rollback, board access or merge is authorized by the preflight.
+
 ## 2026-11-05 — Home Assistant P5 Attempt 02 transport STOP; KF-142 R2 WAITING_CI
 
 - Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
