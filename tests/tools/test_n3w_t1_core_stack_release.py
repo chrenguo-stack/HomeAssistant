@@ -155,7 +155,7 @@ def test_stack_version_is_strict_semver(version: str) -> None:
 
 def test_repository_current_release_is_valid() -> None:
     root = Path(__file__).resolve().parents[2]
-    path = root / "infra/n3w-t1/releases/t1-core-stack-1.0.0.json"
+    path = root / "infra/n3w-t1/releases/1.0.0/release.json"
     import json
 
     release = json.loads(path.read_text(encoding="utf-8"))
