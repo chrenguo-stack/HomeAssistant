@@ -152,3 +152,13 @@ def test_empty_version_bump_is_rejected() -> None:
 def test_stack_version_is_strict_semver(version: str) -> None:
     with pytest.raises(StackReleaseError, match="stack_version_invalid"):
         make_release(material(version))
+
+def test_repository_current_release_is_valid() -> None:
+    root = Path(__file__).resolve().parents[2]
+    path = root / "infra/n3w-t1/releases/t1-core-stack-1.0.0.json"
+    import json
+
+    release = json.loads(path.read_text(encoding="utf-8"))
+    validated = validate_release(release)
+    assert validated["stack_version"] == "1.0.0"
+    assert validated["release_id"] == "5debfbe23356d67ea5ff095f7ffc3e5443d771ddb4241589fa496b901ff2b7d9"
