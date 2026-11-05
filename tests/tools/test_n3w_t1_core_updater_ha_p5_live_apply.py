@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import importlib.util
 import json
 import subprocess
@@ -80,6 +81,24 @@ def test_exact_source_binding_validates_current_head():
     assert report["target_manifest_blob_sha"] == (
         "6966b4fe4d7620ccc436643cc840da9ae95e6010"
     )
+    assert report["live_apply_authorized"] is False
+
+
+def test_execute_stops_before_t1_while_manifest_is_not_authorized(tmp_path):
+    head = subprocess.check_output(
+        ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
+        text=True,
+    ).strip()
+    args = argparse.Namespace(
+        authorization_id=executor.AUTHORIZATION_ID,
+        confirm=executor.CONFIRMATION,
+        target="root@192.0.2.1",
+        expected_source_head=head,
+        evidence_root=tmp_path / "evidence",
+    )
+    with pytest.raises(executor.StopExecution, match="live_apply_not_authorized"):
+        executor.execute(args)
+    assert not args.evidence_root.exists()
 
 
 def test_live_sources_have_no_second_apply_or_explicit_rollback_route():
