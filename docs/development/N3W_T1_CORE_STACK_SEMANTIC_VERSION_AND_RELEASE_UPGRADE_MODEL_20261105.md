@@ -1,4 +1,4 @@
-# N3-W T1 Core Stack semantic version and release-upgrade model
+# N3-W T1 Core Stack semantic version and release-upgrade architecture
 
 Date: 2026-11-05
 
@@ -6,11 +6,13 @@ Date: 2026-11-05
 
 ```text
 TASK=N3W_T1_CORE_STACK_SEMANTIC_VERSION_AND_RELEASE_UPGRADE_MODEL
-STATE=SOURCE_MODEL_IMPLEMENTATION
+STATE=ARCHITECTURE_DESIGN
 
 BASE_MAIN=5cabdcb50656851f9912685c2f7044cdba3eb774
 UPSTREAM_HA_PREPARATION_HEAD=2631729ec77045695424ce6bacb1fd0fa6685437
 
+DESIGN_ONLY=true
+T1_CORE_STACK_1_1_0_BUILD=false
 LIVE_T1_MUTATION=false
 SERVICE_RESTART=false
 IMAGE_LOAD=false
@@ -21,36 +23,29 @@ BOARD_ACCESS=false
 MERGE=false
 ```
 
-This model adds a product-release layer above the already existing exact component updater.
-It does not replace the updater and does not change the already accepted Manager U1 result.
+This gate defines the version/archive/update architecture only. It does not perform a 1.0.0 ->
+1.1.0 field upgrade and does not create a final 1.1.0 release.
 
-## 2. Product identity
+## 2. Product definition
 
-T1_Core_Stack is the production software product composed of:
+T1_Core_Stack is the production software stack composed of:
 
 - greenhouse-manager;
 - Home Assistant;
 - Mosquitto Broker;
 - the runtime contract needed to run those three components together.
 
-The product has two separate identities:
+Each product release has two identities:
 
 ```text
 stack_version = human/product semantic version
 release_id    = exact content-addressed release identity
 ```
 
-Example:
-
-```text
-T1_Core_Stack 1.1.0
-release_id=<sha256 of exact release material>
-```
-
 A semantic version is not an exact artifact identity. A release ID is not a user-facing product
 version. Both are required.
 
-## 3. Version rules
+## 3. Version policy
 
 The product version format is strict:
 
@@ -63,36 +58,60 @@ Policy:
 - PATCH: bounded compatible repair with no intended product capability expansion;
 - MINOR: compatible component update, feature addition, or compatible runtime-contract change;
 - MAJOR: incompatible product contract, persistent-state migration model, deployment architecture,
-  or other change that cannot be accepted as a normal compatible successor.
+  or another change that cannot be accepted as a normal compatible successor.
 
-A component does not need to change merely because the Stack version changes. A new Stack release
-is a new accepted combination of all three components plus the runtime contract.
+A Stack version changes when the accepted product combination changes. The three components do not
+all need to change in the same release.
 
-Accepted releases are immutable:
+## 4. Independent immutable release archive
+
+Every published T1_Core_Stack version is a separate immutable object.
+
+Freeze:
 
 ```text
-same stack_version -> exactly one accepted release_id
+RELEASE_STORAGE_MODEL=APPEND_ONLY
+OLD_RELEASE_MUTATION_FORBIDDEN=true
+SAME_STACK_VERSION_REPUBLISH_FORBIDDEN=true
+NEW_RELEASE_OVERWRITES_OLD_RELEASE=false
 ```
 
-If exact accepted content changes after publication, a new semantic version is required.
+Repository layout:
 
-## 4. Current accepted release
+```text
+infra/n3w-t1/releases/
+  1.0.0/
+    release.json
+  1.1.0/
+    release.json
+  1.2.0/
+    release.json
+```
 
-The already accepted live stack is now assigned the product version:
+A future 1.1.0 release is added beside 1.0.0. It must never replace, edit, or delete 1.0.0.
+
+The current accepted 1.0.0 authority is stored at:
+
+`infra/n3w-t1/releases/1.0.0/release.json`
+
+The archive contract is documented in:
+
+`infra/n3w-t1/releases/README.md`
+
+The versioned archive is not a live deployment directory.
+
+## 5. Current accepted release
+
+The already accepted live stack is assigned:
 
 ```text
 T1_CORE_STACK_VERSION=1.0.0
 T1_CORE_STACK_RELEASE_ID=5debfbe23356d67ea5ff095f7ffc3e5443d771ddb4241589fa496b901ff2b7d9
 ```
 
-Machine-readable authority:
+This assignment changes no T1 runtime bytes.
 
-`infra/n3w-t1/releases/t1-core-stack-1.0.0.json`
-
-This designation does not change any T1 runtime bytes. It only gives the current accepted
-combination an explicit product release identity.
-
-The release contains:
+Current composition:
 
 ```text
 Manager        local/greenhouse-manager:fresh-5b32e1ae8210
@@ -104,12 +123,11 @@ Home Assistant binding legacy_static
 Broker binding         legacy_static
 ```
 
-The immutable image identities are bound by the strongest already available repository authority:
-Manager exact tar SHA256 and HA/Broker exact manifest digest SHA256.
+The release binds exact image identities using the strongest existing repository authority.
 
-## 5. Release schema
+## 6. Release contract
 
-The source contract is implemented in:
+The pure source contract is implemented in:
 
 `tools/n3w_t1_core_stack_release.py`
 
@@ -132,245 +150,220 @@ A release binds:
 - Manager/HA shared service owner;
 - Broker independent service owner.
 
-The `release_id` is SHA256 over canonical release material with `release_id` itself omitted.
-Therefore changing a component image, immutable identity, source head, binding mode, or service
-ownership changes the exact release identity.
+The `release_id` is derived from canonical release material. Any exact product-contract change
+therefore produces a different release identity.
 
-## 6. Upgrade plan
+This module is declarative/pure. It is not a privileged field-upgrade executor.
 
-The Stack layer compares two complete release manifests and produces a bounded change set.
+## 7. One execution owner: T1_Core_Updater
 
-For the intended first successor:
+There is no second Stack deployment engine and no whole-stack overwrite installer.
+
+Freeze:
 
 ```text
-FROM=T1_Core_Stack 1.0.0
-TO=T1_Core_Stack 1.1.0
+FIELD_UPGRADE_EXECUTOR=T1_Core_Updater
+STACK_RELEASE_ROLE=DECLARATIVE_TARGET_AUTHORITY
+WHOLE_STACK_OVERWRITE_DEPLOYMENT=false
+SECOND_PRIVILEGED_UPGRADE_ENGINE=false
 ```
 
-Expected change set:
+The updater is extended to consume:
+
+1. current accepted Stack release;
+2. requested target Stack release;
+3. exact target component artifact(s);
+4. component compatibility evidence;
+5. one-shot authorization.
+
+The updater computes the release delta and mutates only the required portions.
+
+Example future relationship:
+
+```text
+1.0.0
+  Manager A
+  HA 2026.10.0
+  Broker 2.1.2
+
+1.1.0
+  Manager A
+  HA 2026.10.4
+  Broker 2.1.2
+```
+
+Expected updater change set:
 
 ```text
 Manager        KEEP
 Home Assistant UPGRADE
 Broker         KEEP
-Runtime        UPDATE
+Runtime        UPDATE only if required by the target release
 ```
 
-The runtime update is the HA image-binding convergence:
+The release model tells the updater what exact product state is requested. The updater remains
+responsible for how that state is safely reached.
+
+## 8. No "copy 1.1.0 over 1.0.0"
+
+A T1_Core_Stack upgrade is not:
 
 ```text
-legacy_static -> dynamic
+copy complete 1.1.0 tree over running 1.0.0
 ```
 
-The stack planner also binds:
+It is:
 
-- predecessor release ID;
-- target release ID;
-- rollback authority release ID;
-- target-acceptance commit rule.
+```text
+read current 1.0.0 authority
+-> read target 1.1.0 authority
+-> compute exact delta
+-> T1_Core_Updater verifies predecessor
+-> T1_Core_Updater applies only required mutations
+-> whole-stack health/identity acceptance
+-> commit current-version authority to 1.1.0
+```
 
-The target semantic version must be greater than the predecessor. An empty semantic-version bump
-with no component or runtime-contract change is rejected.
+The old 1.0.0 release remains intact in the repository and remains available as rollback authority.
 
-## 7. Stack transaction semantics
+## 9. Current-version authority is separate from release archive
 
-A component updater transaction and a Stack release transaction are different layers.
+The version archive and the current pointer/state are different things.
 
-The existing T1_Core_Updater remains the component mutation engine. It owns exact image
-verification, component mutation, health checks, component rollback, interruption handling, and
-component transaction evidence.
+```text
+release archive
+= immutable history of all supported product releases
 
-The new Stack layer owns:
+current authority
+= which exact release the running T1 has successfully accepted
+```
 
-- current committed Stack release;
-- target Stack release;
-- full change set;
-- ordering across runtime-contract and component mutations;
-- Stack-level commit;
-- Stack-level rollback authority;
-- final whole-stack acceptance.
+After a successful field upgrade, only the current authority advances from 1.0.0 to 1.1.0.
+The 1.0.0 release does not change.
 
-The Stack version must not change when the first mutation starts.
+If the updater fails before final acceptance, current authority remains 1.0.0 or enters an explicit
+recoverable in-progress state. It must never silently claim 1.1.0 merely because one component was
+already changed.
+
+## 10. Updater-owned Stack transaction
+
+The product may need multiple lower-level mutations to reach a target release. Those mutations are
+owned by one updater transaction context.
+
+The Stack release itself does not execute anything.
+
+Future updater transaction model:
+
+```text
+CURRENT_RELEASE=1.0.0
+TARGET_RELEASE=1.1.0
+
+T1_Core_Updater:
+  verify current release
+  verify target release
+  verify exact artifacts
+  create bounded change set
+  apply required runtime-contract migration
+  apply required component update(s)
+  restore/verify peer services
+  verify complete target release
+  commit current authority
+```
+
+Temporary intermediate runtime states may exist only inside this explicit updater transaction.
+They are not published as standalone Stack releases.
+
+## 11. Rollback model
+
+Rollback also belongs to T1_Core_Updater.
 
 Freeze:
 
 ```text
-CURRENT_COMMITTED_STACK=1.0.0
-TARGET_STACK=1.1.0
-STACK_TRANSACTION=IN_PROGRESS
+ROLLBACK_EXECUTOR=T1_Core_Updater
+ROLLBACK_AUTHORITY=PREDECESSOR_RELEASE
+ROLLBACK_BY_WHOLE_STACK_OVERWRITE=false
 ```
 
-During a transaction, the live host may temporarily match neither complete release. This transient
-state is permitted only while an explicit Stack transaction is active and has an exact predecessor
-rollback authority.
+For a failed 1.0.0 -> 1.1.0 attempt, the preserved 1.0.0 release provides the exact desired
+predecessor state.
 
-Only after full target acceptance:
+The updater computes the inverse delta and restores only what changed, then verifies that the full
+running product matches exact 1.0.0 again.
+
+Example:
 
 ```text
-TARGET_STACK_ACCEPTANCE=PASS
-CURRENT_COMMITTED_STACK=1.1.0
-STACK_TRANSACTION=COMMITTED
+HA image       2026.10.4 -> 2026.10.0
+HA binding     dynamic   -> legacy_static
+Manager        verify unchanged
+Broker         verify unchanged
 ```
 
-## 8. Important correction to the earlier HA route
+A rollback is PASS only when the complete predecessor release is restored, not merely when the
+changed container starts.
 
-The earlier HA preparation placed live HA template convergence before exact HA target-package
-creation. That is not acceptable once Stack release semantics are introduced.
+## 12. Relationship to current Home Assistant work
 
-Reason: a live HA binding mutation would make the host stop matching the committed 1.0.0 release
-before a complete 1.1.0 target and rollback authority exist.
+The current development program remains a T1_Core_Updater validation program.
 
-Therefore:
+The HA 2026.10.0 -> 2026.10.4 work is useful as a future first example of a Stack-version delta, but
+this architecture gate does not turn it into a real 1.1.0 deployment.
 
-```text
-HA template convergence READONLY preflight
-= may proceed early
+The previously prepared HA binding read-only inspector may still be used to prove that a future
+updater-controlled runtime-contract migration is safe.
 
-HA template convergence LIVE mutation
-= must not proceed independently
-```
-
-The live convergence mutation becomes an internal step of the authorized 1.0.0 -> 1.1.0 Stack
-transaction.
-
-This prevents a persistent unversioned intermediate state.
-
-## 9. Revised 1.0.0 -> 1.1.0 route
-
-Freeze the new ordering:
+However:
 
 ```text
-S0_SOURCE_MODEL_AND_HA_COMPATIBILITY
--> S1_HA_TEMPLATE_CONVERGENCE_READONLY_PREFLIGHT
--> S2_EXACT_HA_2026_10_4_ARTIFACT
--> S3_BUILD_EXACT_STACK_1_1_0_RELEASE
--> S4_STACK_UPGRADE_PLAN_AND_SOURCE_SIMULATION
--> S5_FRESH_READONLY_PREMUTATION_BASELINE
--> S6_EXPLICIT_STACK_UPGRADE_AUTHORIZATION
--> S7_LIVE_STACK_TRANSACTION
-     -> converge HA binding legacy_static -> dynamic
-     -> apply exact HA component target through T1_Core_Updater
-     -> verify Manager/HA/Broker and runtime contract
--> S8_TARGET_STACK_1_1_0_ACCEPTANCE
--> S9_EXPLICIT_STACK_ROLLBACK_PROOF
-     -> restore HA predecessor
-     -> restore predecessor runtime-template binding
-     -> prove exact Stack 1.0.0 acceptance
--> S10_FRESH_AUTHORIZATION_AND_FINAL_1_1_0_REAPPLY
--> S11_FINAL_STACK_1_1_0_ACCEPTANCE
-```
-
-No live Stack mutation is authorized by this document.
-
-## 10. 1.1.0 target policy
-
-The intended first target remains:
-
-```text
-STACK_VERSION=1.1.0
-
-Manager        unchanged from 1.0.0
-Home Assistant 2026.10.4 exact ARM64 artifact
-Broker         unchanged from 1.0.0
-
-Manager binding        dynamic
-Home Assistant binding dynamic
-Broker binding         legacy_static
-```
-
-However, `t1-core-stack-1.1.0.json` must not be finalized yet.
-
-The exact HA 2026.10.4 ARM64 artifact identity is still missing. Until it exists:
-
-```text
-STACK_1_1_0_RELEASE_READY=false
-STACK_1_1_0_RELEASE_ID=UNASSIGNED
-```
-
-A source-level compatibility review is not sufficient to mint the final Stack release.
-
-## 11. Stack-level acceptance
-
-A component PASS is necessary but not sufficient.
-
-The target Stack release may commit only when all of the following match the target release and
-product contract:
-
-- Manager exact image/identity expected;
-- HA exact image/identity expected;
-- Broker exact image/identity expected;
-- expected image-binding modes;
-- expected service ownership;
-- Manager MQTT authenticated;
-- HA MQTT authenticated;
-- HA HTTP ready;
-- Broker TLS/listener contract healthy;
-- persistent-state contract accepted;
-- no unexpected peer image drift;
-- no incomplete component transaction;
-- no incomplete Stack transaction recovery;
-- exact target release ID bound.
-
-The final product result is:
-
-```text
-T1_CORE_STACK_UPGRADE=1.0.0->1.1.0
-TARGET_STACK_ACCEPTANCE=PASS
-```
-
-not merely `HOMEASSISTANT_UPGRADE=PASS`.
-
-## 12. Stack-level rollback
-
-Rollback authority is the complete predecessor release manifest.
-
-For the first successor proof:
-
-```text
-ROLLBACK_AUTHORITY=T1_Core_Stack 1.0.0
-```
-
-Rollback must therefore restore both:
-
-- the predecessor Home Assistant image;
-- the predecessor HA runtime binding mode.
-
-Manager and Broker are verified as unchanged, not opportunistically rewritten.
-
-A rollback that restores only the HA image but leaves the HA binding mode at the 1.1.0 contract
-does not restore exact Stack 1.0.0 and cannot count as Stack rollback PASS.
-
-## 13. User-facing product behavior
-
-Normal product UI should expose:
-
-```text
-Current system version: T1 Core Stack 1.0.0
-Available version:      T1 Core Stack 1.1.0
-```
-
-Internal component versions remain available for diagnostics, but the farmer-facing update target is
-the Stack release, not independent Home Assistant/Mosquitto/Manager versions.
-
-Home Assistant upstream releases do not automatically become product releases. They first pass
-compatibility review, exact artifact build, integration acceptance, rollback proof, and Stack
-release publication.
-
-## 14. Boundaries and next gate
-
-```text
-STACK_1_0_0_RELEASE_FROZEN=true
-STACK_1_1_0_VERSION_RESERVED=true
-STACK_1_1_0_RELEASE_READY=false
-
 HA_TEMPLATE_READONLY_PREFLIGHT_ALLOWED=true
-HA_TEMPLATE_LIVE_MUTATION_ALLOWED=false
-INDEPENDENT_HA_COMPONENT_APPLY_ALLOWED=false
+HA_TEMPLATE_LIVE_MUTATION_IN_THIS_GATE=false
+STACK_1_1_0_BUILD_IN_THIS_GATE=false
+STACK_1_1_0_DEPLOY_IN_THIS_GATE=false
+```
 
-NEXT_ONE_GATE=N3W_T1_CORE_UPDATER_HOMEASSISTANT_RUNTIME_TEMPLATE_CONVERGENCE_READONLY_PREFLIGHT_20261105_01
-NEXT_GATE_LIVE_MUTATION=false
+If/when the project later publishes T1_Core_Stack 1.1.0, the final exact release will be created as
+a new immutable directory beside 1.0.0.
+
+## 13. Updater capabilities required by this architecture
+
+The architecture establishes requirements for T1_Core_Updater rather than a new executor.
+
+Future updater source must be able to:
+
+- load and validate current/target Stack release manifests;
+- reject target version/release identity ambiguity;
+- compute per-component KEEP/UPGRADE plus runtime-contract delta;
+- prove exact predecessor before first mutation;
+- use exact component artifacts;
+- sequence runtime-contract and component mutations safely;
+- keep unchanged peer components identity-stable;
+- maintain one updater-owned transaction/recovery record;
+- accept only after complete target Stack verification;
+- rollback against the preserved predecessor release;
+- update current Stack authority only after acceptance;
+- never delete predecessor release authority as part of normal upgrade.
+
+These are the design outputs that should guide the continuing updater work.
+
+## 14. Current boundary
+
+```text
+ARCHITECTURE_MODEL_DEFINED=true
+CURRENT_RELEASE_1_0_0_PRESERVED=true
+RELEASE_ARCHIVE_APPEND_ONLY=true
+
+STACK_1_1_0_VERSION_EXAMPLE_ONLY=true
+STACK_1_1_0_RELEASE_READY=false
+STACK_1_1_0_BUILD=false
+STACK_1_1_0_DEPLOY=false
+
+FIELD_UPGRADE_EXECUTOR=T1_Core_Updater
+LIVE_T1_MUTATION=false
+
+NEXT_WORKSTREAM=T1_CORE_UPDATER_PRODUCT_GRADE_HOMEASSISTANT_VALIDATION
 MERGE=false
 ```
 
-After the read-only convergence proof, the route goes to exact HA artifact + exact Stack 1.1.0
-release construction. It does not go directly to the live convergence mutation.
+The next engineering work stays on T1_Core_Updater. The Stack release architecture remains the
+version/target/rollback contract that the updater consumes.
