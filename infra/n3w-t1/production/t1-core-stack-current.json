@@ -7,11 +7,11 @@
     "immutable_history": true
   },
   "current_repository_stack": {
-    "product_source_head": "b863ddd959090ca139af76bd68dbef31d773e6de",
+    "product_source_head": "5b32e1ae82104a42f9e4e6907fe44d9172e87615",
     "manager": {
-      "image": "local/greenhouse-manager:fresh-b863ddd95909",
-      "image_id": "sha256:9ff3b651ba0fc5879de76a91875356c522cc5809ea9f242fa11ec2fa192e4036",
-      "tar_sha256": "ea158fbefe81084989941b951e0f5c8c65f630748c72bef3f8d03a1c453c328f",
+      "image": "local/greenhouse-manager:fresh-5b32e1ae8210",
+      "image_id": "sha256:80d34358094638ce9c8ce5fb2635fe0a5c75ee7cc5e8c628b38ab223134e585f",
+      "tar_sha256": "2de1705096b9dfcecbc260f5acb95898b4df059510b7bc4ae6ea6b60debb23fa",
       "platform": "linux/arm64"
     },
     "homeassistant": {
@@ -39,21 +39,26 @@
     }
   },
   "manager_successor_upgrade": {
-    "target_manifest": "infra/n3w-t1/upgrades/manager-b863ddd95909.json",
-    "source_repair_pr": 769,
-    "source_repair_head": "b863ddd959090ca139af76bd68dbef31d773e6de",
-    "execution_pr": 770,
-    "package_control_head": "7dc77ff8e839613242819aaf35348dac05c88568",
-    "updater_reviewed_head": "06866acc9ff8f1e9acb7c3e23097a53031e9b313",
-    "updater_pr": 761,
-    "updater_merge_commit": "2e3f1c72e5ac17a9c8a1ecb378148a0d6d2d8c29",
-    "package_run_id": 41591610508,
-    "package_artifact_id": 13209859306,
-    "package_artifact_name": "n3w-t1-core-updater-manager-b863ddd95909",
-    "package_artifact_digest": "sha256:5e39b8b95dc55c19d1a3b8c1878c47b2765c426c2a09b169431d6df21aef9dc9",
-    "updater_pyz_sha256": "2e38c6c331b1275d609f805d0d22e158f3fc376ec1387e3453c8511667cf6f8a",
+    "target_manifest": "infra/n3w-t1/upgrades/manager-5b32e1ae8210.json",
+    "target_schema": "gh.n3w-t1-core-updater-target/2",
+    "transaction_schema": "gh.n3w-t1-core-updater-transaction/2",
+    "baseline_manifest": "infra/n3w-t1/clean-reference/u0-upgrade-baseline-a-20261104.json",
+    "baseline_sha256": "a791377083e76f765ddf978c09025674eda3586d33892e4b609a814706bdfbbc",
+    "source_repair_pr": 777,
+    "source_repair_head": "5b32e1ae82104a42f9e4e6907fe44d9172e87615",
+    "execution_pr": 777,
+    "package_control_head": "fc1e1bee1f158cc199413ead26564938fca5b1a9",
+    "updater_reviewed_head": "fc1e1bee1f158cc199413ead26564938fca5b1a9",
+    "updater_pr": 777,
+    "updater_merge_commit": "62e498e2eefb9b5eedb70529b07e7354bd2921dc",
+    "package_run_id": 41854863798,
+    "package_artifact_id": 13336359358,
+    "package_artifact_name": "n3w-t1-core-updater-manager-v2-5b32e1ae8210",
+    "package_artifact_digest": "sha256:e786d23deabe5bd6c8eafa4480f7ac13944a2a908d82973f385f7446183c9527",
+    "updater_pyz_sha256": "65a5f62dcf9640d55067ab3104a8475a5bd1372ff1fce9a4441f18e3f53b2b46",
     "manager_rebuilt": false,
-    "rollback_compatible": true
+    "rollback_compatible": true,
+    "manager_build_image_id": "sha256:80d34358094638ce9c8ce5fb2635fe0a5c75ee7cc5e8c628b38ab223134e585f"
   },
   "mutation_scope": {
     "manager": true,
@@ -64,15 +69,18 @@
   },
   "live_deployment": {
     "state": "APPLIED_ACCEPTED",
-    "expected_predecessor_manager_image": "local/greenhouse-manager:fresh-3539c8f871e2",
-    "expected_target_manager_image": "local/greenhouse-manager:fresh-b863ddd95909",
-    "current_manager_image": "local/greenhouse-manager:fresh-b863ddd95909",
-    "current_manager_runtime_image_id": "sha256:7c6133d87b9d378acc06ab20813b95d2e27d952f958f3ad33c7de3a4f6e9205e",
+    "expected_predecessor_manager_image": "local/greenhouse-manager:fresh-b863ddd95909",
+    "expected_target_manager_image": "local/greenhouse-manager:fresh-5b32e1ae8210",
+    "current_manager_image": "local/greenhouse-manager:fresh-5b32e1ae8210",
+    "current_manager_runtime_image_id": "sha256:228a42a8b14f36694cca6778b18c7be880def25c567ea5492a9e2a40a8ce912e",
+    "runtime_class": "TARGET_BOUND_RUNNING",
+    "health_state": "HEALTHY",
     "transaction_status": "COMMITTED",
     "transaction_phase": "COMMITTED",
     "recovery_required": false,
     "post_upgrade_acceptance": "PASS",
     "kf139_closure": "CLOSED_PASS",
+    "kf141_closure": "CLOSED_PASS",
     "first_registration_acceptance": "PASS",
     "credential_lifecycle_private_database_gate": "PASS",
     "pairing_window_state": "CLOSED",
@@ -81,6 +89,7 @@
     "broker_continuity": "PASS",
     "listener_contract": "PASS",
     "systemd_failed_units": 0,
-    "board_mutation": false
+    "board_mutation": false,
+    "r4_live_reapply_closure": "docs/development/N3W_T1_CORE_UPDATER_U1_R4_MANAGER_A_TO_B_LIVE_REAPPLY_CLOSURE_20261105.md"
   }
 }

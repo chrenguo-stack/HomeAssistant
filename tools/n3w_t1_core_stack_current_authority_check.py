@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA = "gh.n3w-t1-core-stack-current-authority/2"
-TARGET_SCHEMA = "gh.n3w-t1-core-updater-manager-target/1"
+TARGET_SCHEMA = "gh.n3w-t1-core-updater-target/2"
 
 PENDING_AUTHORITY_STATE = "SUCCESSOR_READY_NOT_LIVE_APPLIED"
 APPLIED_AUTHORITY_STATE = "CURRENT_STACK_LIVE_ACCEPTED"
@@ -16,7 +16,7 @@ PENDING_LIVE_STATE = "NOT_YET_APPLIED"
 APPLIED_LIVE_STATE = "APPLIED_ACCEPTED"
 
 AUTHORITY = Path("infra/n3w-t1/production/t1-core-stack-current.json")
-TARGET = Path("infra/n3w-t1/upgrades/manager-b863ddd95909.json")
+TARGET = Path("infra/n3w-t1/upgrades/manager-5b32e1ae8210.json")
 FRESH_COMPOSE = Path("infra/n3w-t1/production/docker-compose.fresh.yml")
 BOOTSTRAP = Path("tools/n3w_t1_fresh_product_bootstrap.py")
 CURRENT_STATE = Path("docs/development/N3W_CURRENT_STATE.md")
@@ -181,11 +181,26 @@ def validate_documents(
 
     _require(target.get("schema") == TARGET_SCHEMA, "target_schema_invalid")
     _require(target.get("component") == "manager", "target_component_invalid")
-    _require(target.get("source_head") == product_source, "target_source_mismatch")
-    _require(target.get("image") == manager.get("image"), "target_image_mismatch")
-    _require(target.get("image_id") == manager.get("image_id"), "target_image_id_mismatch")
     _require(
-        target.get("tar_sha256") == manager.get("tar_sha256"),
+        target.get("mutation_profile") == "IMAGE_ONLY_V1",
+        "target_mutation_profile_invalid",
+    )
+    compatibility = target.get("compatibility_evidence")
+    _require(isinstance(compatibility, dict), "target_compatibility_invalid")
+    _require(
+        compatibility.get("target_source_head") == product_source,
+        "target_source_mismatch",
+    )
+    _require(
+        target.get("target_image_ref") == manager.get("image"),
+        "target_image_mismatch",
+    )
+    _require(
+        target.get("target_platform") == manager.get("platform"),
+        "target_platform_mismatch",
+    )
+    _require(
+        target.get("target_archive_sha256") == manager.get("tar_sha256"),
         "target_tar_sha256_mismatch",
     )
     _require(target.get("rollback_compatible") is True, "target_rollback_invalid")
@@ -204,6 +219,13 @@ def validate_documents(
     _require(
         upgrade.get("source_repair_head") == product_source,
         "source_repair_head_mismatch",
+    )
+    manager_build_image_id = upgrade.get("manager_build_image_id")
+    _require(
+        isinstance(manager_build_image_id, str)
+        and IMAGE_ID.fullmatch(manager_build_image_id) is not None
+        and manager_build_image_id == manager.get("image_id"),
+        "manager_build_image_id_invalid",
     )
     execution_pr = upgrade.get("execution_pr")
     _require(
@@ -295,7 +317,7 @@ def validate_documents(
         "live_predecessor_invalid",
     )
     _require(
-        target.get("expected_predecessor_image") == immediate_predecessor,
+        target.get("expected_predecessor_image_ref") == immediate_predecessor,
         "target_predecessor_mismatch",
     )
     _require(
@@ -329,6 +351,18 @@ def validate_documents(
         _require(
             live.get("post_upgrade_acceptance") == "PASS",
             "live_post_upgrade_acceptance_invalid",
+        )
+        _require(
+            live.get("runtime_class") == "TARGET_BOUND_RUNNING",
+            "live_runtime_class_invalid",
+        )
+        _require(
+            live.get("health_state") == "HEALTHY",
+            "live_health_state_invalid",
+        )
+        _require(
+            live.get("kf141_closure") == "CLOSED_PASS",
+            "live_kf141_closure_invalid",
         )
         _require(
             live.get("kf139_closure") == "CLOSED_PASS",

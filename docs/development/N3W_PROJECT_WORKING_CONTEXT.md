@@ -1,3 +1,31 @@
+## Latest stable authority — 2026-11-05 U1 R4 Manager B canonical authority
+
+```text
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+AUTHORITY_SCHEMA=gh.n3w-t1-core-stack-current-authority/2
+
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+LIVE_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+LIVE_MANAGER_RUNTIME_IMAGE_ID=sha256:228a42a8b14f36694cca6778b18c7be880def25c567ea5492a9e2a40a8ce912e
+LIVE_RUNTIME_CLASS=TARGET_BOUND_RUNNING
+LIVE_HEALTH_STATE=HEALTHY
+
+PR777_MERGED=true
+PR777_MERGE_COMMIT=62e498e2eefb9b5eedb70529b07e7354bd2921dc
+KF141=CLOSED_PASS
+CANONICAL_AUTHORITY_PROMOTED=true
+```
+
+Manager B is the accepted live and repository-canonical Manager. Build-side image identity and T1-local runtime image identity are intentionally distinct authority fields. No further T1 mutation is required for this convergence.
+
 ## Latest authority — 2026-11-04 Pre-U1 G3 Node B Wi-Fi setup CLOSED_PASS; Node A restore next
 
 ```text
