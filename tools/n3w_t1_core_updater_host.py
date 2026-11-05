@@ -526,9 +526,89 @@ class LocalHost:
             raise UpdaterError("component_invalid")
         return self.image_bindings_v2()[component]
 
+    def component_container_residue(
+        self,
+        component: str,
+    ) -> list[dict[str, str]]:
+        if component not in COMPONENTS:
+            raise UpdaterError("component_invalid")
+        result = self._run(
+            (
+                "docker",
+                "ps",
+                "-aq",
+                "--no-trunc",
+                "--filter",
+                f"label=com.docker.compose.project={PROJECT}",
+                "--filter",
+                f"label=com.docker.compose.service={component}",
+            ),
+            check=False,
+        )
+        if result.returncode:
+            raise UpdaterError(f"{component}_container_residue_lookup_failed")
+        container_ids = [
+            line.strip()
+            for line in result.stdout.decode().splitlines()
+            if line.strip()
+        ]
+        residue: list[dict[str, str]] = []
+        for container_id in container_ids:
+            try:
+                document = json.loads(
+                    self._run(("docker", "inspect", container_id)).stdout
+                )
+            except json.JSONDecodeError as error:
+                raise UpdaterError("docker_inspect_invalid") from error
+            if (
+                not isinstance(document, list)
+                or len(document) != 1
+                or not isinstance(document[0], dict)
+            ):
+                raise UpdaterError("docker_inspect_shape_invalid")
+            item = document[0]
+            state = item.get("State")
+            config = item.get("Config")
+            labels = config.get("Labels") if isinstance(config, dict) else None
+            if (
+                not isinstance(state, dict)
+                or not isinstance(config, dict)
+                or not isinstance(labels, dict)
+                or labels.get("com.docker.compose.project") != PROJECT
+                or labels.get("com.docker.compose.service") != component
+            ):
+                raise UpdaterError(f"{component}_container_residue_invalid")
+            if state.get("Running") is True:
+                continue
+            image_ref = config.get("Image")
+            image_id = item.get("Image")
+            status = state.get("Status")
+            name = item.get("Name")
+            replace = labels.get("com.docker.compose.replace")
+            if (
+                not isinstance(image_ref, str)
+                or not isinstance(image_id, str)
+                or not isinstance(status, str)
+                or not isinstance(name, str)
+            ):
+                raise UpdaterError(f"{component}_container_residue_invalid")
+            residue.append(
+                {
+                    "container_id": container_id,
+                    "image_ref": image_ref,
+                    "image_id": image_id,
+                    "status": status,
+                    "name": name,
+                    "replace": replace if isinstance(replace, str) else "",
+                }
+            )
+        return residue
+
     def assert_component_upgradeable(self, component: str) -> None:
         if component not in COMPONENTS:
             raise UpdaterError("component_invalid")
+        if self.component_container_residue(component):
+            raise UpdaterError(f"{component}_container_residue_present")
         mode = self.image_binding_modes_v2()[component]
         if mode == "dynamic":
             return

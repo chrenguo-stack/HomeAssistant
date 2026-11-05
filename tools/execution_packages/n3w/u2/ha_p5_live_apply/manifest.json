@@ -13,7 +13,7 @@
     "docs/development/N3W_T1_CORE_UPDATER_HOMEASSISTANT_P4_FRESH_READONLY_PREMUTATION_BASELINE_CLOSURE_20261105.md": "6bad54d54da4f34486f5515a457f63c0abf3075d",
     "tools/n3w_t1_core_updater_common.py": "63a0377b7df509fd44194a1752a19c013ce55858",
     "tools/n3w_t1_core_updater_core.py": "d275ca5a094f8fd981b249ed4179e8bb40978311",
-    "tools/n3w_t1_core_updater_host.py": "6d43a793151f8252343fbe34d5ac4097e7cb87d5",
+    "tools/n3w_t1_core_updater_host.py": "c10d3e80be6a58c32bf623e37e421ec9905dafd3",
     "tools/n3w_t1_core_updater_state.py": "06ca6ce3a5c3703df0f9e06408773d8a607cc77c",
     "tools/n3w_t1_core_updater_a1_policy.py": "9e7de124607cc27e8a895f9cdcd38107d0f2f488",
     "tools/n3w_t1_core_updater_components.py": "1985b7441112e64e4942480628a3db43c538cd38",

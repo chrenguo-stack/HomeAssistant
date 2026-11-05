@@ -245,6 +245,59 @@ class FakeHost:
             self.image_ids[self.bindings[peer]] = "sha256:" + "9" * 64
 
 
+def test_component_upgradeable_fails_closed_on_nonrunning_residue(monkeypatch):
+    host = hostmod.LocalHost()
+    monkeypatch.setattr(
+        host,
+        "component_container_residue",
+        lambda component: [
+            {
+                "container_id": "a" * 64,
+                "image_ref": "local/n3w-homeassistant:target",
+                "image_id": "sha256:" + "b" * 64,
+                "status": "created",
+                "name": "/replacement",
+                "replace": "homeassistant-1",
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        host,
+        "image_binding_modes_v2",
+        lambda: {
+            "manager": "dynamic",
+            "homeassistant": "legacy_static",
+            "broker": "legacy_static",
+        },
+    )
+
+    with pytest.raises(
+        m.UpdaterError,
+        match="homeassistant_container_residue_present",
+    ):
+        host.assert_component_upgradeable("homeassistant")
+
+
+def test_component_upgradeable_allows_clean_homeassistant(monkeypatch):
+    host = hostmod.LocalHost()
+    monkeypatch.setattr(
+        host,
+        "component_container_residue",
+        lambda component: [],
+    )
+    monkeypatch.setattr(
+        host,
+        "image_binding_modes_v2",
+        lambda: {
+            "manager": "dynamic",
+            "homeassistant": "legacy_static",
+            "broker": "legacy_static",
+        },
+    )
+
+    host.assert_component_upgradeable("homeassistant")
+
+
 def test_v2_manifest_loads_all_three_components(tmp_path: Path):
     archive_sha = "f" * 64
     for component in OLD:
