@@ -15,6 +15,8 @@ on:
       - ".github/workflows/n3w-t1-core-stack-semantic-release-ci.yml"
       - ".github/workflows/n3w-t1-core-updater-ha-template-readonly-preflight-ci.yml"
       - ".github/workflows/n3w-t1-core-updater-homeassistant-exact-artifact-ci.yml"
+      - ".github/workflows/n3w-t1-core-updater-homeassistant-target-binding-ci.yml"
+      - "tests/tools/test_n3w_t1_core_updater_ha_target_binding_ci_contract.py"
       - "tests/tools/test_n3w_t1_core_updater_ha_exact_artifact_ci_contract.py"
       - "tests/tools/test_n3w_t1_core_updater_ha_template_readonly_preflight_ci_contract.py"
       - "tests/tools/test_n3w_ci_fast_source_gate_exact_closure.py"
@@ -42,6 +44,8 @@ on:
       - ".github/workflows/n3w-t1-core-stack-semantic-release-ci.yml"
       - ".github/workflows/n3w-t1-core-updater-ha-template-readonly-preflight-ci.yml"
       - ".github/workflows/n3w-t1-core-updater-homeassistant-exact-artifact-ci.yml"
+      - ".github/workflows/n3w-t1-core-updater-homeassistant-target-binding-ci.yml"
+      - "tests/tools/test_n3w_t1_core_updater_ha_target_binding_ci_contract.py"
       - "tests/tools/test_n3w_t1_core_updater_ha_exact_artifact_ci_contract.py"
       - "tests/tools/test_n3w_t1_core_updater_ha_template_readonly_preflight_ci_contract.py"
       - "tests/tools/test_n3w_ci_fast_source_gate_exact_closure.py"
@@ -81,3 +85,5 @@ jobs:
         run: python tests/tools/test_n3w_t1_core_updater_ha_template_readonly_preflight_ci_contract.py
       - name: Verify exact HA updater artifact CI governance
         run: python tests/tools/test_n3w_t1_core_updater_ha_exact_artifact_ci_contract.py
+      - name: Verify HA target binding CI governance
+        run: python tests/tools/test_n3w_t1_core_updater_ha_target_binding_ci_contract.py
