@@ -2,7 +2,7 @@
 
 | ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
 |---|---|---|---|---|
-| KF-142 | T1 Core Updater / Home Assistant P5 host-side staging transport | Attempt 01 在独立 `scp` staging 路径返回 `command_failed:scp:1`；Attempt 02 改为 SSH stdin streaming 后，在同一无 reboot 执行中再次出现第二次密码提示并返回 `command_failed:ssh-stream:255`。两次均为 `apply_invoked=false`、`authorization_claimed=false`、`authorization_consumed=false`、`t1_mutation=false` | P5 executor 自建 `ControlMaster=auto/ControlPersist` 连接管理，绕开项目已冻结并已有 real-sshd 回归覆盖的 `n3w_t1_ssh_transport.SSHTransport`；因此 child transport 没有被统一的“显式 master + child 禁止认证回退 + master-loss fail-closed”合同约束。Attempt 02 的第二次密码提示直接证明同一 epoch 的单次认证合同未满足；exit 255 的更窄网络/sshd 原因不从清洗后的 stderr 猜测 | P5 改为复用统一 `SSHTransport.start_epoch()`；host key 由本地 trusted known_hosts + expected SHA256 显式绑定；所有 child ssh/stream 使用同一个 control socket，强制 `ControlMaster=no`、`BatchMode=yes`、禁止 password/kbdinteractive/pubkey fallback、`ProxyCommand=/usr/bin/false`；将 `tools/n3w_t1_ssh_transport.py` 加入 P5 source binding；补 P5 focused regression tests | SOURCE_REPAIR_R2_WAITING_CI |
+| KF-142 | T1 Core Updater / Home Assistant P5 host-side staging transport | Attempt 01 在独立 `scp` staging 路径返回 `command_failed:scp:1`；Attempt 02 改为 SSH stdin streaming 后，在同一无 reboot 执行中再次出现第二次密码提示并返回 `command_failed:ssh-stream:255`。两次均为 `apply_invoked=false`、`authorization_claimed=false`、`authorization_consumed=false`、`t1_mutation=false` | P5 executor 自建 `ControlMaster=auto/ControlPersist` 连接管理，绕开项目已冻结并已有 real-sshd 回归覆盖的 `n3w_t1_ssh_transport.SSHTransport`；因此 child transport 没有被统一的“显式 master + child 禁止认证回退 + master-loss fail-closed”合同约束。Attempt 02 的第二次密码提示直接证明同一 epoch 的单次认证合同未满足；exit 255 的更窄网络/sshd 原因不从清洗后的 stderr 猜测 | P5 改为复用统一 `SSHTransport.start_epoch()`；host key 由本地 trusted known_hosts + expected SHA256 显式绑定；所有 child ssh/stream 使用同一个 control socket，强制 `ControlMaster=no`、`BatchMode=yes`、禁止 password/kbdinteractive/pubkey fallback、`ProxyCommand=/usr/bin/false`；将 `tools/n3w_t1_ssh_transport.py` 加入 P5 source binding；补 P5 focused regression tests | SOURCE_REPAIR_R2_CLOSED_PASS_SSH_HOST_KEY_PREFLIGHT_PENDING |
 
 Guards:
 - 同一 SSH epoch 内，除了 `SSHTransport.start_epoch()` 的一次交互式认证外，P5 child transport 不得再次提示密码。
@@ -18,6 +18,11 @@ Evidence:
 - Attempt 02 private evidence root remains operator-local and is not archived publicly.
 - R2 repair executable source head: `bdf86c75e882e25d642221c9bb88e883abfe249d`.
 - R2 authorization manifest blob: `42bfa90650d42bc2efd425abb93551115a6c02ca`.
+- R2 exact executable source head `bdf86c75e882e25d642221c9bb88e883abfe249d` is source-closed by latest docs-aligned PR head `94cd4b00089086e8fc1425142e4fddb21bdb616e` with 15/15 workflows SUCCESS and zero failures.
+- `bdf86c75...` -> `94cd4b00...` is docs-only; executable blob remains `b8d40093fe9a000a1b771dde8be0911c9e528292`.
+- The existing one-shot HA authorization remains granted, unclaimed and unconsumed.
+- Next route is read-only SSH host-key binding preflight. Attempt 03 is not authorized to start from stale commands and must use the R2 CLI inputs `--known-hosts` and `--expected-host-key-sha256`.
+
 
 Relationship to earlier failures:
 - KF-115 remains a different root cause: SCP direct-final-path publication race.
