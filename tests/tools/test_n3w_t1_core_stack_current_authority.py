@@ -88,7 +88,7 @@ def test_updater_pr_must_be_positive_integer():
 def test_manager_target_drift_fails_closed():
     authority, target, compose, bootstrap, state, index = documents()
     target = copy.deepcopy(target)
-    target["image"] = "local/greenhouse-manager:fresh-000000000000"
+    target["target_image_ref"] = "local/greenhouse-manager:fresh-000000000000"
     with pytest.raises(check.AuthorityError, match="target_image_mismatch"):
         check.validate_documents(
             authority,
@@ -103,7 +103,7 @@ def test_manager_target_drift_fails_closed():
 def test_target_predecessor_must_match_live_predecessor():
     authority, target, compose, bootstrap, state, index = documents()
     target = copy.deepcopy(target)
-    target["expected_predecessor_image"] = (
+    target["expected_predecessor_image_ref"] = (
         authority["historical_clean_reference"]["manager_image"]
     )
     with pytest.raises(check.AuthorityError, match="target_predecessor_mismatch"):
@@ -172,7 +172,7 @@ def test_pending_state_remains_supported():
     authority["live_deployment"] = {
         "state": check.PENDING_LIVE_STATE,
         "expected_predecessor_manager_image": (
-            target["expected_predecessor_image"]
+            target["expected_predecessor_image_ref"]
         ),
         "expected_target_manager_image": (
             authority["current_repository_stack"]["manager"]["image"]
@@ -221,6 +221,42 @@ def test_successor_scope_cannot_mutate_homeassistant_or_broker():
     authority = copy.deepcopy(authority)
     authority["mutation_scope"]["broker_image"] = True
     with pytest.raises(check.AuthorityError, match="mutation_scope_not_manager_only"):
+        check.validate_documents(
+            authority,
+            target,
+            compose,
+            bootstrap,
+            state,
+            index,
+        )
+
+
+def test_v2_target_schema_is_canonical():
+    authority, target, compose, bootstrap, state, index = documents()
+    assert target["schema"] == "gh.n3w-t1-core-updater-target/2"
+    assert target["component"] == "manager"
+    assert target["mutation_profile"] == "IMAGE_ONLY_V1"
+    assert (
+        target["target_image_ref"]
+        == authority["current_repository_stack"]["manager"]["image"]
+    )
+
+
+def test_manager_build_and_live_runtime_image_ids_are_distinct_authorities():
+    authority, target, compose, bootstrap, state, index = documents()
+    build_id = authority["current_repository_stack"]["manager"]["image_id"]
+    runtime_id = authority["live_deployment"]["current_manager_runtime_image_id"]
+    assert authority["manager_successor_upgrade"]["manager_build_image_id"] == build_id
+    assert build_id.startswith("sha256:")
+    assert runtime_id.startswith("sha256:")
+    assert build_id != runtime_id
+
+
+def test_applied_state_requires_kf141_closure():
+    authority, target, compose, bootstrap, state, index = documents()
+    authority = copy.deepcopy(authority)
+    authority["live_deployment"]["kf141_closure"] = "OPEN"
+    with pytest.raises(check.AuthorityError, match="live_kf141_closure_invalid"):
         check.validate_documents(
             authority,
             target,
