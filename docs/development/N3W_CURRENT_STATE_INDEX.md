@@ -1,5 +1,13 @@
 ## 2026-11-05 — T1 Core Updater U2 T1_A read-only classification CLOSED_PASS
 
+- Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current repository Manager: `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current repository Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical Clean Reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted: repository/live canonical Manager B remains accepted; U2 itself performed no live mutation.
 - Fresh T1_A read-only classification completed with no T1 mutation.
 - Current V2 transaction is `COMMITTED / COMMITTED`; `recovery_required=false`.
 - Current runtime is `TARGET_BOUND_RUNNING / HEALTHY`.
