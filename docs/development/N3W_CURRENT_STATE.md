@@ -1,3 +1,32 @@
+## Latest authority — 2026-11-05 T1 Core Updater U2 T1_A read-only classification CLOSED_PASS
+
+```text
+AUTHORITY_STATE=T1_CORE_UPDATER_U2_T1A_READONLY_CLASSIFICATION_CLOSED_PASS
+
+U2_READONLY_CLASSIFICATION_RESULT=CLOSED_PASS
+LEGACY_TRANSACTION_PRESENT=false
+LEGACY_HISTORY_PRESENT=true
+LEGACY_HISTORY_TERMINAL=true
+CURRENT_V2_TRANSACTION_STATUS=COMMITTED
+RECOVERY_REQUIRED=false
+CURRENT_RUNTIME_CLASS=TARGET_BOUND_RUNNING
+CURRENT_HEALTH_STATE=HEALTHY
+CONSUMED_AUTHORIZATION_REPLAY_RISK=NO_SILENT_REPLAY_PATH_OBSERVED
+LEGACY_STATE_DISPOSITION=NO_ACTION_REQUIRED
+
+T1_A_MUTATION=false
+BOARD_ACCESS=false
+CLEANUP_REQUIRED=false
+
+NEXT_ROUTE=N3W_T1_CORE_UPDATER_HOMEASSISTANT_PRODUCT_GRADE_UPGRADE_VALIDATION_PREPARATION_20261105_01
+AUTO_EXECUTE_NEXT_GATE=false
+STOP=true
+```
+
+Fresh read-only T1_A evidence supersedes the historical assumption that the specimen still has a current dirty transaction. The current V2 transaction is terminal COMMITTED, runtime is TARGET_BOUND_RUNNING / HEALTHY, and all six archived updater transactions are terminal with consumed authorizations. No cleanup is required. Authorization replay prohibition remains explicit; archived transaction state is not used as implicit authority.
+
+Authority: `docs/development/N3W_T1_CORE_UPDATER_U2_LEGACY_DIRTY_T1A_READONLY_CLASSIFICATION_CLOSURE_20261105.md`.
+
 ## Latest authority — 2026-11-05 T1 Core Updater post-U1 product completion audit CLOSED_PASS
 
 ```text
