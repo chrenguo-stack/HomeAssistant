@@ -1,3 +1,31 @@
+## 2026-11-05 — Home Assistant P5 preauthorization + storage-policy repair PREAUTH_READY
+
+- Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current repository Manager: `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current repository Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical Clean Reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted: canonical Manager B remains accepted; the HA storage-policy review/repair performed no live HA product mutation.
+- P5 storage-policy repair exact source head: `a5a9260e5dd274cca55ddd106721be3159e051ec`; PR #788 remains OPEN/Draft, mergeable and unmerged.
+- Exact-head CI completed 14/14 SUCCESS.
+- Frozen HA target remains byte-identical: `infra/n3w-t1/upgrades/homeassistant-2026.10.4.json`, blob `6966b4fe4d7620ccc436643cc840da9ae95e6010`.
+- Versioned storage-policy authority: `infra/n3w-t1/upgrades/homeassistant-2026.10.4-storage-policy.json`, blob `01a5cec8877e2837504ed798e91ca552ab6f2a0e`.
+- Real-T1 read-only storage baseline PASS: total `14453903360` bytes, free `5785710592` bytes (40.03%), free inode ratio 71.26%, containerd backend, staging/Docker/image-store same device.
+- Observed mutable allocated footprint is `174047232` bytes.
+- Historical P5 fixed 5 GiB reserve is retired.
+- P5 post-peak reserve is `1610612736` bytes (1.5 GiB), derived from the accepted real-T1 evidence and rounded to a 256 MiB quantum.
+- P5 still dynamically requires exact target archive bytes + exact Docker-save uncompressed-member bytes before staging.
+- Generic V2 retains the already-resident predecessor HA image for rollback; predecessor bytes are not double-counted in the current free-space baseline.
+- Successful P5 apply must also pass a post-cleanup free-space check of at least 1.5 GiB.
+- `PRODUCT_RUNTIME_MIN_FREE_REQUIREMENT` remains `UNFROZEN_LONGITUDINAL_EVIDENCE_REQUIRED`; P5's 1.5 GiB reserve is not promoted to a lifetime product minimum.
+- Generic V2 product source and the frozen HA target are unchanged.
+- P5 remains single-apply; no explicit rollback route is added to the live executor.
+- `LIVE_HA_APPLY_AUTHORIZED=false`; the proposed one-shot authorization is `N3W_T1_CORE_UPDATER_HOMEASSISTANT_2026_10_4_LIVE_APPLY_P5_20261105_01`.
+- Next boundary is the explicit P5 live-apply authorization decision; no automatic execution occurs.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_HOMEASSISTANT_STORAGE_POLICY_REVIEW_CLOSURE_20261105.md`.
+
 ## 2026-11-05 — Home Assistant P4 fresh read-only premutation baseline CLOSED_PASS
 
 - Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
