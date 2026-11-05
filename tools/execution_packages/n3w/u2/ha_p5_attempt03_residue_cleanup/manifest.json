@@ -2,8 +2,8 @@
   "schema": "gh.n3w-t1-core-updater-ha-p5-residue-cleanup-package/1",
   "gate_id": "N3W_T1_CORE_UPDATER_HOMEASSISTANT_P5_ATTEMPT03_RESIDUE_CLEANUP_20261105_01",
   "authority_parent_head": "89ddb7415e0642167a819c521bd083509549c016",
-  "live_cleanup_authorized": false,
-  "authorization_id": null,
+  "live_cleanup_authorized": true,
+  "authorization_id": "N3W_T1_CORE_UPDATER_HOMEASSISTANT_P5_ATTEMPT03_RESIDUE_CLEANUP_LIVE_20261105_01",
   "expected_residue_container_id_sha256": "b795e09bf6bf2b47216c124430bdb768d9c914a8e2abd99f20dd8b5f0eb59bb9",
   "source_binding": {
     "infra/n3w-t1/upgrades/homeassistant-2026.10.4.json": "6966b4fe4d7620ccc436643cc840da9ae95e6010",
@@ -44,5 +44,16 @@
     "claim_immediately_before_delete": true,
     "consumed_at_claim": true,
     "second_cleanup_allowed": false
+  },
+  "authorization": {
+    "granted": true,
+    "granted_by": "explicit_user_authorization",
+    "granted_date": "2026-11-05",
+    "claimed": false,
+    "consumed": false,
+    "replay_permitted": false,
+    "permitted_cleanup_invocations": 1,
+    "second_cleanup_allowed": false,
+    "expected_residue_container_id_sha256": "b795e09bf6bf2b47216c124430bdb768d9c914a8e2abd99f20dd8b5f0eb59bb9"
   }
 }
