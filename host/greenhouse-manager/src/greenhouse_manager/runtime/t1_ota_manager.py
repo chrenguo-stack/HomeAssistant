@@ -87,7 +87,10 @@ class OtaRuntimeSnapshot:
     def validate(self) -> OtaRuntimeSnapshot:
         if self.phase not in _ALLOWED_PHASES:
             raise OtaControlError("ota_runtime_phase_invalid")
-        if self.progress_percent is not None and not 0 <= self.progress_percent <= 100:
+        if self.progress_percent is not None and (
+            type(self.progress_percent) is not int
+            or not 0 <= self.progress_percent <= 100
+        ):
             raise OtaControlError("ota_runtime_progress_invalid")
         if self.error_code is not None:
             _require_public_error_code(self.error_code)

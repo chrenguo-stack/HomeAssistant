@@ -322,6 +322,11 @@ class HaUsbIpcDispatcher:
                 accepted=False,
                 code=_public_code(error),
             )
+        except Exception:
+            return self._response(
+                accepted=False,
+                code="ota_host_rejected",
+            )
 
 
 class UnixSocketHaOtaServer:

@@ -564,7 +564,7 @@ def build_n3w_simplified_product_manager_service(
 def build_t1_ota_manager(settings: Settings) -> T1OtaManager | None:
     """Build the opt-in non-privileged OTA bridge without host privileges."""
 
-    if not settings.n3w_t1_ota_enabled:
+    if not getattr(settings, "n3w_t1_ota_enabled", False):
         return None
     manifest_provider = ApprovedManifestFileProvider(
         settings.n3w_t1_ota_manifest_path

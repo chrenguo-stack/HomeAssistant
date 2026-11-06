@@ -17,6 +17,7 @@ from n3w_t1_core_updater_ha_ipc import (
 )
 from n3w_t1_core_updater_ha_recovery import ImageRecoveryRecord
 from n3w_t1_core_updater_ha_usb import (
+    record_media_bound,
     record_target_ready,
     start_target_preparation,
 )
@@ -24,7 +25,6 @@ from n3w_t1_core_updater_ha_usb_media import (
     FormatAuthorization,
     UsbCapacityReport,
 )
-from n3w_t1_core_updater_ha_usb import record_media_bound
 from n3w_t1_core_updater_ha_usb_state import (
     U1,
     U5,
@@ -87,7 +87,6 @@ def test_install_requires_exact_existing_u4_admission(tmp_path: Path) -> None:
     assert current is not None
 
     authorization = FormatAuthorization(
-        selected_device="/dev/test",
         public_fingerprint="c" * 64,
         confirmation_verified=True,
         filesystem="ext4",
@@ -95,8 +94,10 @@ def test_install_requires_exact_existing_u4_admission(tmp_path: Path) -> None:
     )
     capacity = UsbCapacityReport(
         measured_usable_bytes=16 * 1024 * 1024 * 1024,
-        minimum_floor_bytes=14 * 1024 * 1024 * 1024,
-        required_transaction_bytes=15 * 1024 * 1024 * 1024,
+        required_bytes=15 * 1024 * 1024 * 1024,
+        measured_floor_bytes=14 * 1024 * 1024 * 1024,
+        measured_floor_pass=True,
+        transaction_formula_pass=True,
         capacity_pass=True,
     )
     current = record_media_bound(
@@ -114,7 +115,10 @@ def test_install_requires_exact_existing_u4_admission(tmp_path: Path) -> None:
             image_ref="local/n3w-homeassistant:2026.10.4-5881590f",
             archive_sha256=ARCHIVE_SHA,
             archive_size_bytes=835309535,
+            portable_identity_sha256="d" * 64,
+            platform="linux/arm64",
             verified=True,
+            fsynced=True,
         ),
     )
     store.write(current)
@@ -166,7 +170,7 @@ def test_dispatcher_rejects_unknown_action(tmp_path: Path) -> None:
     )
     assert response["accepted"] is False
     assert response["code"] == "ha_ota_ipc_action_invalid"
-    assert resolver.calls == [RELEASE]
+    assert resolver.calls == []
 
 
 def test_unix_server_enforces_peer_uid_and_round_trip(tmp_path: Path) -> None:
@@ -205,7 +209,9 @@ def test_unix_server_enforces_peer_uid_and_round_trip(tmp_path: Path) -> None:
 def test_server_rejects_existing_socket_path(tmp_path: Path) -> None:
     path = tmp_path / "ha-ota.sock"
     path.write_text("not a socket", encoding="utf-8")
-    executor, _, _ = _executor(tmp_path / "other")
+    other = tmp_path / "other"
+    other.mkdir()
+    executor, _, _ = _executor(other)
     server = UnixSocketHaOtaServer(
         dispatcher=HaUsbIpcDispatcher(executor),
         path=path,
