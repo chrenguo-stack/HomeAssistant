@@ -12,6 +12,7 @@ import paho.mqtt.client as mqtt
 
 from .config import Settings
 from .ha_discovery import HomeAssistantDiscovery
+from .ha_update import HomeAssistantUpdateSurface
 from .history_replay import HistoryReplayProcessor, HistoryReplayResult
 from .history_store import HistoryStore
 from .history_worker import HistoryReplayWorker, HistoryWorkItem
@@ -23,6 +24,7 @@ from .pairing_intake import (
     redacted_pairing_id,
 )
 from .registration import NodeIdLeaseState, RegistrationRegistry
+from .t1_ota_manager import OtaControlError, T1OtaManager
 from .topics import (
     canonical_telemetry_subscription,
     diagnostic_topic,
@@ -31,6 +33,7 @@ from .topics import (
     parse_canonical_telemetry_topic,
     parse_history_replay_topic,
     parse_node_telemetry_topic,
+    t1_homeassistant_ota_control_topic,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -54,7 +57,12 @@ def _now_text() -> str:
 
 
 class ManagerMqttService:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        *,
+        ota_manager: T1OtaManager | None = None,
+    ) -> None:
         settings.validate()
         self.settings = settings
         self._lifecycle_lock = threading.RLock()
@@ -68,6 +76,15 @@ class ManagerMqttService:
             prefix=settings.ha_discovery_prefix,
             device_name_prefix=settings.ha_device_name_prefix,
             enabled=settings.ha_discovery_enabled,
+        )
+        self.ota_manager = ota_manager
+        self.ha_update = (
+            HomeAssistantUpdateSurface(
+                system_id=settings.system_id,
+                prefix=settings.ha_discovery_prefix,
+            )
+            if ota_manager is not None and settings.ha_discovery_enabled
+            else None
         )
         self.registration_registry: RegistrationRegistry | None = None
         self.pairing_processor: PairingHelloProcessor | None = None
@@ -184,6 +201,20 @@ class ManagerMqttService:
             with self._lifecycle_lock:
                 self.discovery.clear_node_cache(node_id)
 
+    def _publish_ota_surface(self) -> None:
+        if self.ota_manager is None or self.ha_update is None:
+            return
+        projection = self.ota_manager.project()
+        for outgoing in self.ha_update.messages(
+            manifest=projection.manifest,
+            status=projection.status,
+        ):
+            if not self._publish(outgoing):
+                _LOGGER.warning(
+                    "Deferred Home Assistant OTA projection topic=%s",
+                    outgoing.topic,
+                )
+
     def _process_retirement_jobs(self) -> None:
         if self.registration_registry is None:
             return
@@ -255,12 +286,17 @@ class ManagerMqttService:
             topics.append(history_replay_subscription(self.settings.system_id))
         if self.pairing_processor is not None:
             topics.append(PAIRING_HELLO_SUBSCRIPTION)
+        if self.ota_manager is not None:
+            topics.append(
+                t1_homeassistant_ota_control_topic(self.settings.system_id)
+            )
         for topic in topics:
             result, _mid = client.subscribe(topic, qos=1)
             if result != mqtt.MQTT_ERR_SUCCESS:
                 _LOGGER.error("MQTT subscribe failed topic=%s rc=%s", topic, result)
                 continue
             _LOGGER.info("Subscribed to %s", topic)
+        self._publish_ota_surface()
 
     def _on_disconnect(
         self,
@@ -368,7 +404,34 @@ class ManagerMqttService:
             )
         return True
 
+    def _on_ota_message(self, message: mqtt.MQTTMessage) -> bool:
+        if (
+            self.ota_manager is None
+            or message.topic
+            != t1_homeassistant_ota_control_topic(self.settings.system_id)
+        ):
+            return False
+        try:
+            intent = self.ota_manager.handle_control(message.payload)
+        except OtaControlError as error:
+            _LOGGER.warning(
+                "Rejected Home Assistant OTA intent reason=%s",
+                error.code,
+            )
+            self._publish_ota_surface()
+            return True
+        _LOGGER.info(
+            "Accepted Home Assistant OTA intent action=%s target_release=%s",
+            intent.action,
+            intent.target_release_id,
+        )
+        self._publish_ota_surface()
+        return True
+
     def _on_message(self, client: mqtt.Client, userdata: Any, message: mqtt.MQTTMessage) -> None:
+        if self._on_ota_message(message):
+            return
+
         if self.pairing_processor is not None and message.topic.startswith("gh/bootstrap/v1/node/"):
             result = self.pairing_processor.process(message.topic, message.payload)
             log_values = (
