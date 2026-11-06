@@ -13,6 +13,7 @@ HOMEASSISTANT_PLATFORM = "linux/arm64"
 _VERSION_RE = re.compile(r"^[0-9]{4}\.[0-9]{1,2}\.[0-9]{1,3}$")
 _RELEASE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+_GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _IMAGE_RE = re.compile(
     r"^local/n3w-homeassistant:(?P<version>[0-9]{4}\.[0-9]{1,2}\.[0-9]{1,3})-"
     r"(?P<revision>[0-9a-f]{8,64})$"
@@ -142,6 +143,12 @@ def _mapping(value: object, *, code: str) -> Mapping[str, Any]:
 
 def _sha256(value: object, *, code: str) -> str:
     if not isinstance(value, str) or _SHA256_RE.fullmatch(value) is None:
+        raise OtaControlError(code)
+    return value
+
+
+def _git_sha(value: object, *, code: str) -> str:
+    if not isinstance(value, str) or _GIT_SHA_RE.fullmatch(value) is None:
         raise OtaControlError(code)
     return value
 
@@ -295,7 +302,7 @@ def normalize_approved_manifest(document: Mapping[str, Any]) -> ApprovedManifest
         code="approved_manifest_review_evidence_invalid",
     )
     for key in ("predecessor_source_head", "target_source_head"):
-        _sha256(
+        _git_sha(
             compatibility[key],
             code="approved_manifest_source_identity_invalid",
         )

@@ -1,12 +1,48 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from greenhouse_manager.runtime.ha_update import HomeAssistantUpdateSurface
 from greenhouse_manager.runtime.t1_ota_manager import (
     OtaRuntimeSnapshot,
     T1OtaManager,
 )
 
-from .test_t1_ota_manager import Provider, Runtime
+
+def approved_manifest() -> dict:
+    target_path = (
+        Path(__file__).resolve().parents[4]
+        / "infra/n3w-t1/upgrades/homeassistant-2026.10.4.json"
+    )
+    return {
+        "schema": "gh.n3w-t1-ota-approved-manifest/1",
+        "approval_status": "APPROVED",
+        "signature_status": "VERIFIED",
+        "validity_status": "VALID",
+        "verification_status": "PASS",
+        "version": "2026.10.4",
+        "release_identity": "homeassistant-2026.10.4",
+        "target_archive_size_bytes": 835309535,
+        "target": json.loads(target_path.read_text(encoding="utf-8")),
+    }
+
+
+class Provider:
+    def get_approved_homeassistant_manifest(self):
+        return approved_manifest()
+
+
+class Runtime:
+    def __init__(self, phase: str, progress: int | None = None) -> None:
+        self.phase = phase
+        self.progress = progress
+
+    def get_homeassistant_ota_runtime_state(self) -> OtaRuntimeSnapshot:
+        return OtaRuntimeSnapshot(
+            phase=self.phase,
+            progress_percent=self.progress,
+        )
 
 
 def projection(phase: str):
