@@ -176,7 +176,7 @@ USB_FILESYSTEM=ext4
 USB_FORMAT_OWNER=T1
 USB_MEASURED_USABLE_CAPACITY_MIN_BYTES=15032385536
 USB_NOMINAL_CAPACITY_NOT_AUTHORITY=true
-RECOMMENDED_MARKET_USB_SIZE=32GB_OR_LARGER
+RECOMMENDED_MARKET_USB_SIZE=16GB_OR_LARGER
 USER_PRELOAD_REQUIRED=false
 USER_COMPUTER_REQUIRED=false
 
@@ -485,7 +485,7 @@ BOARD_ACCESS_DEFAULT=false
 - 当前 P5 reapply 授权已 granted，但 claimed=false / consumed=false；不要执行它。
 - 所有 Home Assistant 版本升级都必须使用 U 盘，不再保留 no-USB product path。
 - U 盘必须由 T1 在用户确认清空后格式化为 ext4。
-- 格式化后的实际可用容量必须 >= 14 GiB；市售容量不是 authority，产品建议 32GB 或以上。
+- 格式化后的实际可用容量必须 >= 14 GiB；市售容量不是 authority，产品建议 16GB 或以上。
 - target exact archive 必须先完整下载并验证到 U 盘；完成后才通知用户 READY_TO_INSTALL。
 - 用户点击“开始升级”后才导出 predecessor；随后 quiesce HA 并创建一致性的 HA_DATA_BACKUP。
 - target / predecessor recovery / HA_DATA_BACKUP 三项全部验证前，不允许删除内部旧 HA 镜像。
