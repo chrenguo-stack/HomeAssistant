@@ -70,24 +70,33 @@ def test_manifest_records_consumed_attempt03_and_forbids_replay():
     assert "tools/n3w_t1_ssh_transport.py" in manifest["source_binding"]
 
 
-def test_exact_source_binding_validates_current_head():
+def test_historical_execution_package_rejects_successor_source_drift():
+    manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+    frozen_blob = manifest["source_binding"][
+        "tools/n3w_t1_core_updater_v2_state.py"
+    ]
+    assert frozen_blob == "a5260f1097983cad4818f626826accbb185e4a37"
+
     head = subprocess.check_output(
         ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
         text=True,
     ).strip()
-    report = executor.validate_source(head)
-    assert report["exact_source_head"] == head
-    assert report["authority_parent_head"] == (
-        "d6b6d0f89837a85d94d60b4df45ab9eb4000d764"
-    )
-    assert report["p4_execution_head"] == (
-        "8232707eb2c91d3fa9881e4cadba6b78eefc1494"
-    )
-    assert report["target_manifest_blob_sha"] == (
-        "6966b4fe4d7620ccc436643cc840da9ae95e6010"
-    )
-    assert report["live_apply_authorized"] is False
-    assert report["storage_policy_blob_sha"] == "01a5cec8877e2837504ed798e91ca552ab6f2a0e"
+    current_blob = subprocess.check_output(
+        [
+            "git",
+            "-C",
+            str(ROOT),
+            "rev-parse",
+            f"{head}:tools/n3w_t1_core_updater_v2_state.py",
+        ],
+        text=True,
+    ).strip()
+    assert current_blob != frozen_blob
+    with pytest.raises(
+        executor.StopExecution,
+        match="source_blob_mismatch:n3w_t1_core_updater_v2_state.py",
+    ):
+        executor.validate_source(head)
 
 
 def test_storage_policy_derivation_is_bound_to_real_t1_evidence():
