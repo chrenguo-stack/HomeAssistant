@@ -1,3 +1,40 @@
+## 2026-11-06 — Home Assistant mandatory-USB OTA R2 simulated transaction CLOSED_PASS
+
+```text
+STATE=HA_USB_MANDATORY_OTA_R2_SIMULATED_TRANSACTION_CLOSED_PASS
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_UPGRADE_ACCEPTED=true
+Live upgrade accepted
+
+R2_EXECUTABLE_SOURCE_HEAD=e5d9575d24d30f2498e1e64cedd245b6f124c866
+R2_EXECUTABLE_HEAD_CI=16/16_SUCCESS
+R2_SOURCE_JOB_MANAGER_A_TO_B=184_PASSED
+R2_SOURCE_JOB_HA_TARGET_BINDING=144_PASSED
+
+CURRENT_T1_RUNTIME_STACK_CHANGED=false
+CURRENT_AUTHORITY_MANIFEST_CHANGED=false
+U0_HISTORICAL_BASELINE_CHANGED=false
+
+AUTHORITY=docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_IMPLEMENTATION_R2_CLOSURE_20261106.md
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_IMPLEMENTATION_R3_20261106_01
+R3_SCOPE=GREENHOUSE_MANAGER_OTA_CONTROL_PLANE_ONLY
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+- R2 exact executable head passed 16/16 workflows with zero failures.
+- Synthetic transaction coverage proves READY_TO_INSTALL before HA stop/predecessor export, U9 destructive-cutover authority, dual image+HA-data rollback, same-USB UUID continuity and deterministic U0-U11 power-loss classification.
+- Independent review repaired the remaining N3W-UPDATE label check and full U0-U11 recovery-classification coverage before closure.
+- Initial R2 CI failure was only a test keyword mismatch and did not represent a product/state-machine failure.
+- No real USB format, block-device command, Docker command, systemd mutation, T1 mutation, board access or merge occurred.
+- Production authority, compose, greenhouse-manager source, HA configuration, Broker source and historical U0 baseline remain unchanged.
+- R3 is limited to the greenhouse-manager OTA control plane and may not add privileged host operations.
+
 ## 2026-11-06 — Home Assistant mandatory-USB OTA R1 source implementation CLOSED_PASS
 
 ```text
