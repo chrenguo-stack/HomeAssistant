@@ -1,3 +1,37 @@
+## Stable updater authority — 2026-11-06 mandatory-USB HA OTA P5 source-design delta frozen
+
+```text
+HOMEASSISTANT_UPDATE_USB_REQUIRED=true
+USB_FILESYSTEM_REQUIRED=ext4
+USB_FORMAT_OWNER=T1
+USB_MEASURED_USABLE_CAPACITY_MIN_BYTES=15032385536
+USB_NOMINAL_CAPACITY_NOT_AUTHORITY=true
+RECOMMENDED_MARKET_USB_SIZE=16GB_OR_LARGER
+
+P5_EXECUTION_PACKAGE_DISPOSITION=RETIRED_FOR_PRODUCT_EXECUTION
+P5_AUTHORIZATION_DISPOSITION=SUPERSEDED_UNCLAIMED
+P5_AUTHORIZATION_CLAIMED=false
+P5_AUTHORIZATION_CONSUMED=false
+
+GENERIC_V2_REWRITE_REQUIRED=false
+GENERIC_V2_DIRECT_HA_USB_APPLY_REUSE=false
+GENERIC_V2_PRIMITIVE_REUSE=true
+
+THREE_CONTAINER_CORE_STACK_PRESERVED=true
+T1_OTA_MANAGER_LOGICAL_CAPABILITY=true
+OTA_CONTROL_PLANE_OWNER=greenhouse-manager
+PRIVILEGED_USB_INSTALL_OWNER=host-side_T1_Core_Updater
+GREENHOUSE_MANAGER_DOCKER_SOCKET_ACCESS=false
+GREENHOUSE_MANAGER_BLOCK_DEVICE_PRIVILEGE=false
+
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_IMPLEMENTATION_R1_20261106_01
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+The mandatory-USB source route is now frozen. The prior 32GB market recommendation is superseded by 16GB-or-larger as the minimum market recommendation; it is not an admission authority. Every device is formatted by T1 as ext4 and must still provide at least 14 GiB measured usable capacity and pass the complete transaction-capacity formula. The logical T1 OTA Manager keeps update discovery/MQTT projection in greenhouse-manager while privileged USB/Docker/HA-data mutation remains host-side. No fourth Docker product service is introduced. The old P5 authorization remains unclaimed/unconsumed historical evidence and cannot authorize the new USB transaction.
+
+Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_DESIGN_DELTA_20261106.md`.
+
 ## Stable updater authority — 2026-11-06 Home Assistant mandatory-USB OTA architecture V1.1 frozen
 
 ```text
@@ -8,7 +42,7 @@ USB_FORMAT_OWNER=T1
 USB_FORMAT_REQUIRED_FOR_EVERY_HA_VERSION_UPDATE=true
 USB_MEASURED_USABLE_CAPACITY_MIN_BYTES=15032385536
 USB_NOMINAL_CAPACITY_NOT_AUTHORITY=true
-RECOMMENDED_MARKET_USB_SIZE=32GB_OR_LARGER
+RECOMMENDED_MARKET_USB_SIZE=16GB_OR_LARGER
 USER_COMPUTER_REQUIRED=false
 
 PRIMARY_HA_OTA_TRANSFER_ARTIFACT=EXACT_COMPRESSED_HA_ARCHIVE
@@ -35,7 +69,7 @@ P5_AUTHORIZATION_CONSUMED=false
 NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_TO_P5_IMPACT_READONLY_REVIEW_20261106_01
 ```
 
-V1.1 supersedes the earlier conditional-USB/terminal-OCI proposal. Every Home Assistant version update now requires a removable USB device that the T1 formats as ext4 after explicit destructive confirmation. The formatted filesystem must provide at least 14 GiB measured usable capacity, with 32GB-or-larger media recommended. The T1 downloads and fully verifies the exact compressed target archive on USB while production HA continues running; only after the UI reports READY_TO_INSTALL and the user explicitly starts installation does the T1 export the predecessor image, quiesce HA, create a consistent HA data recovery point, and enter destructive cutover. Successful target activation keeps the migrated production /config; rollback restores both predecessor image and pre-upgrade HA data. N3-W T1 OTA Manager owns approved-version discovery and exposes update state through an MQTT Update entity. Ordinary users do not need a computer.
+V1.1 supersedes the earlier conditional-USB/terminal-OCI proposal. Every Home Assistant version update now requires a removable USB device that the T1 formats as ext4 after explicit destructive confirmation. The formatted filesystem must provide at least 14 GiB measured usable capacity, with 16GB-or-larger media recommended. The T1 downloads and fully verifies the exact compressed target archive on USB while production HA continues running; only after the UI reports READY_TO_INSTALL and the user explicitly starts installation does the T1 export the predecessor image, quiesce HA, create a consistent HA data recovery point, and enter destructive cutover. Successful target activation keeps the migrated production /config; rollback restores both predecessor image and pre-upgrade HA data. N3-W T1 OTA Manager owns approved-version discovery and exposes update state through an MQTT Update entity. Ordinary users do not need a computer.
 
 Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_AND_DATA_ROLLBACK_ARCHITECTURE_V1.1_20261106.md`.
 
