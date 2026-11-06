@@ -73,12 +73,10 @@ one-shot authorization therefore remains unconsumed. The next gate is local/read
 SSH host-key binding preflight. Attempt 03 starts only after that preflight proves
 the trusted known_hosts path and expected host-key SHA256 required by the R2 CLI.
 
-## Latest authority — 2026-11-06 HA P5 storage blocker -> low-storage USB OTA architecture frozen
+## Latest authority — 2026-11-06 HA P5 storage blocker -> mandatory-USB OTA architecture V1.1 frozen
 
 ```text
-AUTHORITY_STATE=HA_P5_REAPPLY_HELD_LOW_STORAGE_ARCHITECTURE_FROZEN
-
-PR788_HEAD_AT_ARCHITECTURE_FREEZE=91a416d7678de4159a9d0e99e11d2b55d5e9e518
+AUTHORITY_STATE=HA_P5_REAPPLY_HELD_USB_MANDATORY_ARCHITECTURE_V1_1_FROZEN
 
 P5_REAPPLY_AUTHORIZATION=N3W_T1_CORE_UPDATER_HOMEASSISTANT_2026_10_4_REAPPLY_P5_20261106_01
 AUTHORIZATION_GRANTED=true
@@ -94,23 +92,38 @@ HA_2026_10_0_UNIQUE_SIZE≈5.224GB
 HA_2026_10_4_UNIQUE_SIZE≈5.221GB
 DUAL_HA_IMAGE_RESIDENCY≈10.445GB
 
-ARCHITECTURE=docs/development/N3W_T1_HOMEASSISTANT_LOW_STORAGE_USB_ASSISTED_OTA_AND_DATA_ROLLBACK_ARCHITECTURE_V1.0_20261106.md
+ARCHITECTURE=docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_AND_DATA_ROLLBACK_ARCHITECTURE_V1.1_20261106.md
 NORMAL_INTERNAL_HA_GENERATION_COUNT=1
-LOW_STORAGE_USB_FILESYSTEM=ext4
-LOW_STORAGE_USB_FORMATTED_BY_T1=true
+HOMEASSISTANT_UPDATE_USB_REQUIRED=true
+USB_FILESYSTEM=ext4
+USB_FORMATTED_BY_T1=true
+USB_MEASURED_USABLE_CAPACITY_MIN_BYTES=15032385536
+USB_NOMINAL_CAPACITY_NOT_AUTHORITY=true
+RECOMMENDED_MARKET_USB_SIZE=32GB_OR_LARGER
 USB_ASSETS_CREATED_BY_T1=true
+
+PRIMARY_HA_OTA_TRANSFER_ARTIFACT=EXACT_COMPRESSED_HA_ARCHIVE
+OFFLINE_RECOVERY_ARTIFACT=RETAIN_SAME_ARTIFACT_FAMILY
+UPDATE_DISCOVERY_OWNER=N3W_T1_OTA_MANAGER
+UPDATE_VERSION_AUTHORITY=N3W_OTA_SERVER_APPROVED_MANIFEST
+HOMEASSISTANT_NOTIFICATION_SURFACE=MQTT_UPDATE_ENTITY
+
+TARGET_DOWNLOAD_BEFORE_INSTALL_CONFIRMATION=true
+TARGET_FULL_VERIFY_BEFORE_INSTALL_CONFIRMATION=true
+USER_INSTALL_CONFIRMATION_AFTER_TARGET_READY=true
+PREDECESSOR_EXPORT_AFTER_INSTALL_CONFIRMATION=true
+
 SUCCESS_PATH_PREUPGRADE_BACKUP_RESTORE=false
 ROLLBACK_PATH_PREUPGRADE_BACKUP_RESTORE=true
-OFFLINE_RECOVERY_ARTIFACT=RETAIN
 
 CURRENT_P5_LIVE_RETRY=HELD
-NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_LOW_STORAGE_USB_OTA_TO_P5_IMPACT_READONLY_REVIEW_20261106_01
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_TO_P5_IMPACT_READONLY_REVIEW_20261106_01
 LIVE_MUTATION_DEFAULT=false
 BOARD_ACCESS_DEFAULT=false
 MERGE=false
 ```
 
-The current P5 reapply stopped before claim on the storage gate and remains unconsumed. Subsequent read-only evidence proves the dominant pressure is simultaneous residency of two ~5.22GB HA generations on a ~14.45GB root filesystem. The product route is therefore changed before any further P5 live attempt. No broad Docker prune or image deletion was authorized.
+The current P5 reapply remains stopped before claim and unconsumed. V1.1 supersedes the earlier conditional-USB proposal: every Home Assistant version update requires T1-formatted ext4 removable media. The T1 downloads and fully verifies the exact target archive to USB while HA remains online, then waits at READY_TO_INSTALL for a separate user install action. Only after that action are the predecessor recovery image and consistent HA data recovery point created; destructive internal image removal remains forbidden until all three assets are verified. N3-W T1 OTA Manager owns approved-version discovery and exposes update availability/progress through an MQTT Update entity. No broad Docker prune or image deletion was authorized.
 
 ## Latest authority — 2026-11-05 Home Assistant P5 Attempt 02 transport STOP; KF-142 R2 WAITING_CI
 
