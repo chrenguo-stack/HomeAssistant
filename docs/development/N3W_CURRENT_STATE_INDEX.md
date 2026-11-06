@@ -1,16 +1,3 @@
-# 2026-11-06 — Home Assistant low-storage USB OTA architecture
-
-- Architecture frozen: `docs/development/N3W_T1_HOMEASSISTANT_LOW_STORAGE_USB_ASSISTED_OTA_AND_DATA_ROLLBACK_ARCHITECTURE_V1.0_20261106.md`.
-- Current P5 reapply authorization remains granted but unclaimed/unconsumed; live retry is held.
-- Read-only storage diagnosis: root available ~572MB; current reapply gate deficit ~1.873GB.
-- Two HA generations each occupy ~5.22GB unique image space in the observed T1 state.
-- Product steady state for 16GB T1 is now one internal HA generation.
-- Low-storage update uses a T1-formatted ext4 USB device. T1 creates/downloads predecessor recovery image, target artifact and HA data recovery point.
-- Successful target continues with migrated production /config; pre-upgrade HA data backup is restored only on rollback.
-- Existing ~835MB exact HA archive is retained as OFFLINE_RECOVERY_ARTIFACT and may serve as low-storage staged target artifact.
-- Next gate: `N3W_T1_HOMEASSISTANT_LOW_STORAGE_USB_OTA_TO_P5_IMPACT_READONLY_REVIEW_20261106_01`.
-- No source implementation, T1 mutation, board access or merge in this architecture-freeze step.
-
 ## 2026-11-05 — Home Assistant P5 KF-142 R2 source CLOSED_PASS; SSH host-key preflight next
 
 - Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
@@ -32,6 +19,19 @@
 - Next gate: `N3W_T1_CORE_UPDATER_HOMEASSISTANT_P5_SSH_HOST_KEY_BINDING_READONLY_PREFLIGHT_20261105_01`.
 - That gate is local/read-only: establish trusted known_hosts path and expected host-key SHA256 for the R2 CLI. Attempt 03 is not auto-executed.
 - No T1 product mutation, image load, service restart, updater apply/rollback, board access or merge is authorized by the preflight.
+
+## 2026-11-06 — Home Assistant low-storage USB OTA architecture
+
+- Architecture frozen: `docs/development/N3W_T1_HOMEASSISTANT_LOW_STORAGE_USB_ASSISTED_OTA_AND_DATA_ROLLBACK_ARCHITECTURE_V1.0_20261106.md`.
+- Current P5 reapply authorization remains granted but unclaimed/unconsumed; live retry is held.
+- Read-only storage diagnosis: root available ~572MB; current reapply gate deficit ~1.873GB.
+- Two HA generations each occupy ~5.22GB unique image space in the observed T1 state.
+- Product steady state for 16GB T1 is now one internal HA generation.
+- Low-storage update uses a T1-formatted ext4 USB device. T1 creates/downloads predecessor recovery image, target artifact and HA data recovery point.
+- Successful target continues with migrated production /config; pre-upgrade HA data backup is restored only on rollback.
+- Existing ~835MB exact HA archive is retained as OFFLINE_RECOVERY_ARTIFACT and may serve as low-storage staged target artifact.
+- Next gate: `N3W_T1_HOMEASSISTANT_LOW_STORAGE_USB_OTA_TO_P5_IMPACT_READONLY_REVIEW_20261106_01`.
+- No source implementation, T1 mutation, board access or merge in this architecture-freeze step.
 
 ## 2026-11-05 — Home Assistant P5 Attempt 02 transport STOP; KF-142 R2 WAITING_CI
 
