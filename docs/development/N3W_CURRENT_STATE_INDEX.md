@@ -1,3 +1,15 @@
+## 2026-11-06 — T1_Core_Stack OTA baseline/repository source alignment prepared
+
+- Exact base main: `5cabdcb50656851f9912685c2f7044cdba3eb774`.
+- Current production authority is unchanged; no T1 or board access/mutation occurred.
+- Baselines are now explicitly separated into historical clean reference, component-upgrade baseline, current production authority and immutable Stack release.
+- Stack 1.0.0 is classified as the bootstrap accepted pre-OTA predecessor release; no rewrite of accepted production authority is required.
+- PR #714 is superseded after carrying forward two requirements: HA-independent recovery/control surface and later evaluation of content-addressed incremental distribution.
+- Active successor chain remains #779 -> #780 -> #781 -> #782 -> #784 -> #785 -> #786 -> #787 -> #788 and must converge inner-to-outer with fresh exact-head CI/review per layer.
+- Historical PRs are classified into closure candidates, development/archive candidates and source-parity-review-required candidates; no PR is closed in this gate.
+- Next gate: `N3W_T1_CORE_STACK_OTA_BASELINE_AND_REPOSITORY_CONVERGENCE_SOURCE_ALIGNMENT_REVIEW_AND_MERGE_DECISION_20261106_01`.
+- Authority: `docs/development/N3W_T1_CORE_STACK_OTA_BASELINE_AND_REPOSITORY_CONVERGENCE_SOURCE_ALIGNMENT_20261106.md`.
+
 ## 2026-11-05 — U1 R4 canonical authority promoted to Manager B
 
 - Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
