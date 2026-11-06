@@ -624,18 +624,18 @@ def test_r2_power_loss_after_u9_requires_same_recovery_media(tmp_path):
     assert classify_power_loss_reentry(
         recovered,
         usb_present=False,
-        observed_filesystem_uuid=None,
+        observed_usb_filesystem_uuid=None,
     ) == "RECOVERY_MEDIA_REQUIRED"
     assert classify_power_loss_reentry(
         recovered,
         usb_present=True,
-        observed_filesystem_uuid=USB_UUID,
+        observed_usb_filesystem_uuid=USB_UUID,
     ) == "ROLLBACK_REQUIRED"
     with pytest.raises(UpdaterV2Error, match="usb_filesystem_uuid_mismatch"):
         classify_power_loss_reentry(
             recovered,
             usb_present=True,
-            observed_filesystem_uuid=OTHER_UUID,
+            observed_usb_filesystem_uuid=OTHER_UUID,
         )
 
 
@@ -652,7 +652,7 @@ def test_r2_u12_power_loss_can_only_forward_commit_with_same_media(tmp_path):
     assert classify_power_loss_reentry(
         tx,
         usb_present=True,
-        observed_filesystem_uuid=USB_UUID,
+        observed_usb_filesystem_uuid=USB_UUID,
     ) == "FORWARD_COMMIT_ELIGIBLE"
 
 
