@@ -310,6 +310,27 @@ def _platform(value: dict[str, Any]) -> tuple[str, str, str | None]:
     return os_name, architecture, variant
 
 
+def _platform_matches(
+    actual_os: str,
+    actual_architecture: str,
+    actual_variant: str | None,
+    expected_os: str,
+    expected_architecture: str,
+    expected_variant: str | None,
+) -> bool:
+    if (
+        actual_os != expected_os
+        or actual_architecture != expected_architecture
+    ):
+        return False
+    if actual_variant == expected_variant:
+        return True
+    return (
+        expected_architecture == "arm64"
+        and {actual_variant, expected_variant} <= {None, "v8"}
+    )
+
+
 def normalized_config_contract(config: Any) -> dict[str, Any]:
     raw = config if isinstance(config, dict) else {}
     sequence_fields = {"Entrypoint", "Cmd", "Env"}
@@ -456,18 +477,38 @@ def _parse_oci(
     if not isinstance(manifests, list) or not manifests:
         raise PortableImageIdentityError("oci_index_manifests_invalid")
     selected: list[dict[str, Any]] = []
+    unqualified: list[dict[str, Any]] = []
     for descriptor in manifests:
         if not isinstance(descriptor, dict):
             raise PortableImageIdentityError("oci_manifest_descriptor_invalid")
         platform = descriptor.get("platform")
-        if not isinstance(platform, dict):
+        if platform is None:
+            unqualified.append(descriptor)
             continue
+        if not isinstance(platform, dict):
+            raise PortableImageIdentityError("oci_manifest_platform_invalid")
+        descriptor_os = platform.get("os")
+        descriptor_architecture = platform.get("architecture")
+        descriptor_variant = platform.get("variant")
         if (
-            platform.get("os") == platform_os
-            and platform.get("architecture") == platform_architecture
-            and platform.get("variant") == platform_variant
+            isinstance(descriptor_os, str)
+            and isinstance(descriptor_architecture, str)
+            and (
+                descriptor_variant is None
+                or isinstance(descriptor_variant, str)
+            )
+            and _platform_matches(
+                descriptor_os,
+                descriptor_architecture,
+                descriptor_variant,
+                platform_os,
+                platform_architecture,
+                platform_variant,
+            )
         ):
             selected.append(descriptor)
+    if not selected and len(manifests) == 1 and len(unqualified) == 1:
+        selected = unqualified
     if len(selected) != 1:
         raise PortableImageIdentityError("oci_platform_ambiguous")
     descriptor = selected[0]
@@ -494,7 +535,10 @@ def _parse_oci(
     if not isinstance(config_doc, dict):
         raise PortableImageIdentityError("image_config_invalid")
     os_name, architecture, variant = _platform(config_doc)
-    if (os_name, architecture, variant) != (
+    if not _platform_matches(
+        os_name,
+        architecture,
+        variant,
         platform_os,
         platform_architecture,
         platform_variant,

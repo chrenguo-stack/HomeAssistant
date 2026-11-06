@@ -1,0 +1,213 @@
+name: N3W T1 Core Updater Home Assistant 2026.10.4 target binding CI
+
+on:
+  pull_request:
+    paths:
+      - "infra/n3w-t1/upgrades/homeassistant-2026.10.4.json"
+      - "infra/n3w-t1/upgrades/homeassistant-2026.10.4-compatibility-review.json"
+      - "tools/n3w_t1_core_updater_v2_common.py"
+      - "tools/n3w_t1_portable_image_identity.py"
+      - "tests/tools/test_n3w_t1_core_updater_ha_target_binding.py"
+      - "tests/tools/test_n3w_t1_core_updater_ha_target_binding_ci_contract.py"
+      - ".github/workflows/n3w-t1-core-updater-homeassistant-target-binding-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: n3w-t1-core-updater-ha-target-binding-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      SOURCE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_HEAD }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate HA target schema and compatibility binding
+        env:
+          PYTHONPATH: tools
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_HEAD"
+          python -m pip install "pytest>=8,<9"
+          python -m py_compile tools/n3w_t1_core_updater_v2_common.py tools/n3w_t1_portable_image_identity.py
+          python -m pytest -q \
+            tests/tools/test_n3w_t1_core_updater_ha_target_binding.py \
+            tests/tools/test_n3w_t1_core_updater_ha_target_binding_ci_contract.py
+
+  exact-binding:
+    needs: source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      SOURCE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      TARGET_MANIFEST: infra/n3w-t1/upgrades/homeassistant-2026.10.4.json
+      COMPATIBILITY_REVIEW: infra/n3w-t1/upgrades/homeassistant-2026.10.4-compatibility-review.json
+      UPSTREAM_RUN_ID: "41976542377"
+      UPSTREAM_ARTIFACT_ID: "13391983948"
+      UPSTREAM_ARTIFACT_NAME: n3w-t1-core-updater-homeassistant-2026.10.4-arm64-fb7cfc857003ace3d368521d76ca2320ba399736
+      UPSTREAM_ARTIFACT_DIGEST_SHA256: df95749cec1e48796d2cf3241d19739601fe7be78c48638284d10eec786e4fd2
+      UPSTREAM_INDEX_DIGEST: sha256:23f4dfbb69ce76315dbc4de7915504f1c2dcecd7ca2648113a493a385972e133
+      UPSTREAM_MANIFEST_DIGEST: sha256:5881590fca108a6e6b5eb9fff1718baeddda9d6dd5b52d1594e3386fe33b4d66
+      ARCHIVE_SHA256: eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973
+      ARCHIVE_SIZE_BYTES: "835309535"
+      TARGET_IMAGE: local/n3w-homeassistant:2026.10.4-5881590f
+      ARTIFACT_SOURCE_HEAD: fb7cfc857003ace3d368521d76ca2320ba399736
+      REVIEW_CANONICAL_SHA256: 8b02e9bb0143fc4fc7900c4c0e4c52b27f92725cd41f1f03b82ba67ffb9e0267
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_HEAD }}
+          fetch-depth: 0
+
+      - name: Verify upstream GitHub artifact identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$UPSTREAM_RUN_ID/artifacts?per_page=100" > "$RUNNER_TEMP/upstream-artifacts.json"
+          python - "$RUNNER_TEMP/upstream-artifacts.json" "$TARGET_MANIFEST" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          metadata = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          target = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+          matches = [
+              item
+              for item in metadata.get("artifacts", [])
+              if item.get("name") == os.environ["UPSTREAM_ARTIFACT_NAME"]
+          ]
+          assert len(matches) == 1
+          artifact = matches[0]
+          assert artifact["id"] == int(os.environ["UPSTREAM_ARTIFACT_ID"])
+          assert artifact.get("expired") is False
+          assert artifact.get("digest") == (
+              "sha256:" + os.environ["UPSTREAM_ARTIFACT_DIGEST_SHA256"]
+          )
+          identity = target["artifact_identity"]
+          assert identity["artifact_id"] == artifact["id"]
+          assert identity["artifact_name"] == artifact["name"]
+          assert identity["artifact_digest_sha256"] == os.environ["UPSTREAM_ARTIFACT_DIGEST_SHA256"]
+          print("HA_TARGET_UPSTREAM_GITHUB_ARTIFACT_IDENTITY=PASS")
+          PY
+
+      - name: Download frozen exact HA artifact
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.UPSTREAM_RUN_ID }}
+          name: ${{ env.UPSTREAM_ARTIFACT_NAME }}
+          path: ${{ runner.temp }}/upstream
+
+      - name: Verify exact target-to-artifact binding
+        env:
+          PYTHONPATH: tools
+        run: |
+          set -euo pipefail
+          python - "$RUNNER_TEMP/upstream" "$TARGET_MANIFEST" "$COMPATIBILITY_REVIEW" <<'PY'
+          import hashlib
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          import n3w_t1_core_updater_v2_common as common
+          import n3w_t1_portable_image_identity as portable
+
+          root = Path(sys.argv[1])
+          target_path = Path(sys.argv[2])
+          review_path = Path(sys.argv[3])
+
+          assert {p.name for p in root.iterdir()} == {
+              "homeassistant-arm64.tar.gz",
+              "portable-image-identity.json",
+              "upstream-binding.json",
+          }
+
+          target = common.ComponentTarget.load(target_path)
+          review = json.loads(review_path.read_text(encoding="utf-8"))
+          binding = json.loads((root / "upstream-binding.json").read_text(encoding="utf-8"))
+          identity_doc = json.loads(
+              (root / "portable-image-identity.json").read_text(encoding="utf-8")
+          )
+          identity = portable.identity_from_dict(identity_doc)
+          archive = root / "homeassistant-arm64.tar.gz"
+
+          def sha(path):
+              digest = hashlib.sha256()
+              with path.open("rb") as stream:
+                  for block in iter(lambda: stream.read(1024 * 1024), b""):
+                      digest.update(block)
+              return digest.hexdigest()
+
+          review_sha = hashlib.sha256(
+              json.dumps(review, sort_keys=True, separators=(",", ":")).encode()
+          ).hexdigest()
+
+          assert target.component == "homeassistant"
+          assert target.target_image_ref == os.environ["TARGET_IMAGE"]
+          assert target.target_archive_sha256 == os.environ["ARCHIVE_SHA256"]
+          assert target.artifact_identity["artifact_id"] == int(os.environ["UPSTREAM_ARTIFACT_ID"])
+          assert target.artifact_identity["artifact_digest_sha256"] == os.environ["UPSTREAM_ARTIFACT_DIGEST_SHA256"]
+          assert target.compatibility_evidence["review_evidence_sha256"] == os.environ["REVIEW_CANONICAL_SHA256"]
+
+          assert archive.stat().st_size == int(os.environ["ARCHIVE_SIZE_BYTES"])
+          assert sha(archive) == os.environ["ARCHIVE_SHA256"]
+          assert identity.archive_sha256 == os.environ["ARCHIVE_SHA256"]
+          assert identity.archive_size_bytes == int(os.environ["ARCHIVE_SIZE_BYTES"])
+          assert identity.os == "linux"
+          assert identity.architecture == "arm64"
+
+          parsed = portable.parse_image_archive(
+              archive,
+              expected_archive_sha256=os.environ["ARCHIVE_SHA256"],
+              expected_archive_size_bytes=int(os.environ["ARCHIVE_SIZE_BYTES"]),
+              platform_os="linux",
+              platform_architecture="arm64",
+          )
+          assert parsed.to_dict() == identity.to_dict()
+
+          assert binding["schema"] == "gh.n3w-t1-core-updater-homeassistant-upstream-artifact/1"
+          assert binding["control_plane_head"] == os.environ["ARTIFACT_SOURCE_HEAD"]
+          assert binding["component"] == "homeassistant"
+          assert binding["version"] == "2026.10.4"
+          assert binding["platform"] == "linux/arm64"
+          assert binding["upstream_index_digest"] == os.environ["UPSTREAM_INDEX_DIGEST"]
+          assert binding["upstream_manifest_digest"] == os.environ["UPSTREAM_MANIFEST_DIGEST"]
+          assert binding["local_image"] == os.environ["TARGET_IMAGE"]
+          assert binding["archive_sha256"] == os.environ["ARCHIVE_SHA256"]
+          assert binding["archive_size_bytes"] == int(os.environ["ARCHIVE_SIZE_BYTES"])
+          assert binding["compatibility_review_canonical_sha256"] == os.environ["REVIEW_CANONICAL_SHA256"]
+          assert binding["secret_values_included"] is False
+          assert binding["t1_access"] is False
+          assert binding["t1_mutation"] is False
+          assert binding["service_restart"] is False
+          assert binding["board_access"] is False
+
+          assert review_sha == os.environ["REVIEW_CANONICAL_SHA256"]
+          assert review["live_apply_authorized"] is False
+
+          print("HA_2026_10_4_TARGET_V2_BINDING=PASS")
+          print(f"HA_TARGET_ARTIFACT_ID={target.artifact_identity['artifact_id']}")
+          print(f"HA_TARGET_ARCHIVE_SHA256={target.target_archive_sha256}")
+          print(f"HA_TARGET_IMAGE={target.target_image_ref}")
+          print(f"HA_TARGET_UPSTREAM_MANIFEST_DIGEST={binding['upstream_manifest_digest']}")
+          print("T1_ACCESS=false")
+          print("T1_MUTATION=false")
+          PY

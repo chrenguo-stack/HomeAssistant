@@ -1,3 +1,19 @@
+## 2026-11-06 — PR #784 successor: exact Home Assistant 2026.10.4 artifact/target converged
+
+- Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current repository Manager remains `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted state remains `APPLIED_ACCEPTED`; this successor performs no live mutation.
+- Stack 1.0.0 remains the immutable bootstrap accepted pre-OTA release baseline.
+- HA P2 exact package and component target remain `CLOSED_PASS`.
+- Frozen target is `infra/n3w-t1/upgrades/homeassistant-2026.10.4.json`, image `local/n3w-homeassistant:2026.10.4-5881590f`.
+- Frozen artifact ID remains `13391983948`, archive SHA256 `eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973`.
+- Artifact source head remains `fb7cfc857003ace3d368521d76ca2320ba399736`; successor convergence does not rebuild or replace it.
+- Portable image identity repair remains fail-closed for wrong architecture and ambiguous multi-manifest cases.
+- No T1, product runtime, service, image load, apply, rollback or board mutation occurs in this convergence.
+- Next route is HA P3 updater source simulation and read-only plan.
+
 ## 2026-11-06 — PR #782 successor: HA runtime-template read-only preflight source converged
 
 - Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
