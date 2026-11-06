@@ -1,3 +1,40 @@
+## Latest authority — 2026-11-06 mandatory-USB HA OTA P5 source-design delta CLOSED_PASS
+
+```text
+AUTHORITY_STATE=HA_USB_MANDATORY_P5_SOURCE_DESIGN_DELTA_CLOSED_PASS
+
+PR788_BRANCH=review/n3w-t1-core-updater-storage-policy-20261105
+SOURCE_DESIGN=docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_DESIGN_DELTA_20261106.md
+
+USB_MEASURED_USABLE_CAPACITY_MIN_BYTES=15032385536
+USB_NOMINAL_CAPACITY_NOT_AUTHORITY=true
+RECOMMENDED_MARKET_USB_SIZE=16GB_OR_LARGER
+
+P5_EXECUTION_PACKAGE_DISPOSITION=RETIRED_FOR_PRODUCT_EXECUTION
+P5_AUTHORIZATION_DISPOSITION=SUPERSEDED_UNCLAIMED
+P5_AUTHORIZATION_CLAIMED=false
+P5_AUTHORIZATION_CONSUMED=false
+
+GENERIC_V2_REWRITE_REQUIRED=false
+GENERIC_V2_PRIMITIVE_REUSE=true
+THREE_CONTAINER_CORE_STACK_PRESERVED=true
+
+OTA_CONTROL_PLANE_OWNER=greenhouse-manager
+PRIVILEGED_USB_INSTALL_OWNER=host-side_T1_Core_Updater
+CURRENT_P5_LIVE_RETRY=FORBIDDEN
+
+EXECUTABLE_SOURCE_MUTATION=false
+LIVE_T1_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_IMPLEMENTATION_R1_20261106_01
+AUTO_EXECUTE_NEXT_GATE=false
+STOP=true
+```
+
+The source-design gate is closed. The old P5 image-only/internal-dual-residency execution package is retired for product execution; its granted authorization remains unclaimed and unconsumed but is superseded and may not be used. Generic V2 remains the reusable primitive layer rather than being rewritten. The mandatory USB path preserves the three-container core stack: greenhouse-manager owns approved-manifest discovery and Home Assistant MQTT Update projection, while privileged removable-media, Docker image and HA data recovery operations remain host-side. The minimum market recommendation is now 16GB or larger, while measured ext4 usable capacity >=14 GiB plus the complete transaction-capacity formula remains the hard admission rule.
+
 ## Latest authority — 2026-11-05 Home Assistant P5 KF-142 R2 source CLOSED_PASS; SSH host-key preflight next
 
 ```text
@@ -99,7 +136,7 @@ USB_FILESYSTEM=ext4
 USB_FORMATTED_BY_T1=true
 USB_MEASURED_USABLE_CAPACITY_MIN_BYTES=15032385536
 USB_NOMINAL_CAPACITY_NOT_AUTHORITY=true
-RECOMMENDED_MARKET_USB_SIZE=32GB_OR_LARGER
+RECOMMENDED_MARKET_USB_SIZE=16GB_OR_LARGER
 USB_ASSETS_CREATED_BY_T1=true
 
 PRIMARY_HA_OTA_TRANSFER_ARTIFACT=EXACT_COMPRESSED_HA_ARCHIVE
