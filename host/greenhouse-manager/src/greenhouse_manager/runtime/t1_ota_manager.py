@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Mapping, Protocol
+from typing import Any, Protocol
 
 APPROVED_MANIFEST_SCHEMA = "gh.n3w-t1-ota-approved-manifest/1"
 TARGET_MANIFEST_SCHEMA = "gh.n3w-t1-core-updater-target/2"

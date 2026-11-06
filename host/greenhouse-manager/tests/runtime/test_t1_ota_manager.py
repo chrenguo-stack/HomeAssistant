@@ -6,11 +6,11 @@ import json
 import pytest
 
 from greenhouse_manager.runtime.t1_ota_manager import (
+    compare_versions,
+    normalize_approved_manifest,
     OtaControlError,
     OtaRuntimeSnapshot,
     T1OtaManager,
-    compare_versions,
-    normalize_approved_manifest,
 )
 
 
