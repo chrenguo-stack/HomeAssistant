@@ -1,0 +1,49 @@
+{
+  "schema": "gh.n3w-t1-core-updater-homeassistant-storage-policy/1",
+  "component": "homeassistant",
+  "target_image": "local/n3w-homeassistant:2026.10.4-5881590f",
+  "target_manifest_blob_sha": "6966b4fe4d7620ccc436643cc840da9ae95e6010",
+  "evidence_gate": "N3W_T1_CORE_UPDATER_HOMEASSISTANT_STORAGE_POLICY_REVIEW_20261105_01",
+  "evidence_source_head": "9cf4fcee9512013ca99675b3b477cf77429bd669",
+  "live_ha_apply_authorized": false,
+  "measured_baseline": {
+    "filesystem_total_bytes": 14453903360,
+    "filesystem_used_bytes": 8651415552,
+    "filesystem_free_bytes": 5785710592,
+    "filesystem_total_inodes": 903984,
+    "filesystem_free_inodes": 644147,
+    "storage_backend": "containerd",
+    "staging_docker_image_store_same_device": true,
+    "current_image_size_bytes": {
+      "broker": 27541691,
+      "homeassistant": 2448504642,
+      "manager": 62859745
+    },
+    "selected_persistent_and_maintenance_allocated_bytes": 118689792,
+    "container_writable_layer_allocated_bytes": 55357440,
+    "observed_mutable_allocated_bytes": 174047232
+  },
+  "p5_upgrade_admission": {
+    "historical_fixed_5_gib_retired": true,
+    "absolute_floor_bytes": 1073741824,
+    "filesystem_fraction_numerator": 1,
+    "filesystem_fraction_denominator": 10,
+    "observed_mutable_multiplier": 8,
+    "round_up_quantum_bytes": 268435456,
+    "derived_post_peak_reserve_bytes": 1610612736,
+    "exact_target_archive_staging_bytes": 835309535,
+    "rollback_predecessor_already_resident": true,
+    "predecessor_bytes_double_counted": false,
+    "required_formula": "free_bytes >= exact_target_archive_bytes + exact_target_import_worst_case_bytes + derived_post_peak_reserve_bytes",
+    "current_target_import_worst_case_allowance_bytes": 3339788321
+  },
+  "product_runtime_min_free_requirement": {
+    "state": "UNFROZEN_LONGITUDINAL_EVIDENCE_REQUIRED",
+    "reason": "single point-in-time baseline proves current footprint and upgrade admission headroom but does not establish long-term HA database/log/state growth"
+  },
+  "inode_policy": {
+    "measured_free_ratio_ppm": 712565,
+    "blocking_threshold": "UNFROZEN",
+    "reason": "current inode headroom is large; exact target import inode delta is not yet modeled"
+  }
+}
