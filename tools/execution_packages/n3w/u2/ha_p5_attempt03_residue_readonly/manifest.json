@@ -1,0 +1,37 @@
+{
+  "schema": "gh.n3w-t1-core-updater-ha-p5-residue-readonly-package/1",
+  "gate_id": "N3W_T1_CORE_UPDATER_HOMEASSISTANT_P5_ATTEMPT03_RESIDUE_READONLY_20261105_01",
+  "authority_parent_head": "7183954433bf381e40703a1f7c57415173261fe4",
+  "source_binding": {
+    "infra/n3w-t1/upgrades/homeassistant-2026.10.4.json": "6966b4fe4d7620ccc436643cc840da9ae95e6010",
+    "tools/n3w_t1_ssh_transport.py": "dec4c9159195e2008094d94fef3fc76c4b977e46",
+    "tools/execution_packages/n3w/u2/ha_p5_attempt03_residue_readonly/executor.py": "2fdc92bf60b9293a4154618b7ad82506db83c0f6"
+  },
+  "frozen_target": {
+    "predecessor_image": "local/n3w-homeassistant:2026.10.0-0c73235a",
+    "target_image": "local/n3w-homeassistant:2026.10.4-5881590f",
+    "target_manifest_blob_sha": "6966b4fe4d7620ccc436643cc840da9ae95e6010"
+  },
+  "expected_classification": {
+    "running_predecessor_count": 1,
+    "nonrunning_target_residue_count": 1,
+    "residue_status": "created",
+    "residue_replace_label": "homeassistant-1",
+    "residue_started": false,
+    "target_image_present": true
+  },
+  "t1_access": true,
+  "t1_mutation": false,
+  "persistent_t1_write": false,
+  "temporary_t1_write": false,
+  "service_restart": false,
+  "image_load": false,
+  "container_delete": false,
+  "board_access": false,
+  "merge": false,
+  "public_output": {
+    "raw_target": false,
+    "raw_container_id": false,
+    "residue_container_id_sha256": true
+  }
+}
