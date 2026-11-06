@@ -1,3 +1,53 @@
+## Stable updater authority — 2026-11-06 mandatory-USB HA OTA R1 source implementation CLOSED_PASS
+
+```text
+PROJECT_WORKING_CONTEXT_VERSION=1.5
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+R1_EXECUTABLE_SOURCE_HEAD=284a7120da246df733de61668f20fd46510c81ca
+R1_EXECUTABLE_HEAD_CI=16/16_SUCCESS
+R1_CLOSURE=docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_IMPLEMENTATION_R1_CLOSURE_20261106.md
+
+GENERIC_V2_SUCCESSOR_PACKAGE_ARTIFACT_ID=13478294921
+GENERIC_V2_SUCCESSOR_PACKAGE_ARTIFACT_DIGEST_SHA256=79ad50e886373cc9110503c8b9cf5347325ec7978d58d7cd7978773011499505
+GENERIC_V2_SUCCESSOR_UPDATER_PYZ_SHA256=5c094e6c147cfa4ca1c17e93d8c94a8334930a7a87c58eb179533fb9daf72095
+OLD_ACCEPTED_UPDATER_PYZ_SHA256=65a5f62dcf9640d55067ab3104a8475a5bd1372ff1fce9a4441f18e3f53b2b46
+OLD_ACCEPTED_UPDATER_PYZ_DISPOSITION=HISTORICAL_PACKAGE_EVIDENCE_ONLY
+
+HA_USB_R1_MODULES_INCLUDED_IN_MANAGER_A_TO_B_GENERIC_V2_PACKAGE=false
+R1_HOST_INTEGRATION_COMPLETE=false
+R1_REAL_USB_FORMAT=false
+R1_LIVE_T1_MUTATION=false
+
+HOMEASSISTANT_UPDATE_USB_REQUIRED=true
+USB_FILESYSTEM_REQUIRED=ext4
+USB_FORMAT_OWNER=T1
+USB_MEASURED_USABLE_CAPACITY_MIN_BYTES=15032385536
+USB_NOMINAL_CAPACITY_NOT_AUTHORITY=true
+RECOMMENDED_MARKET_USB_SIZE=16GB_OR_LARGER
+
+P5_EXECUTION_PACKAGE_DISPOSITION=RETIRED_FOR_PRODUCT_EXECUTION
+P5_AUTHORIZATION_DISPOSITION=SUPERSEDED_UNCLAIMED
+P5_AUTHORIZATION_CLAIMED=false
+P5_AUTHORIZATION_CONSUMED=false
+
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_IMPLEMENTATION_R2_20261106_01
+R2_SCOPE=SIMULATED_USB_TRANSACTION_ONLY
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+R1 is now the stable source authority for the mandatory-USB Home Assistant successor path. The accepted three-container production stack remains unchanged. The only existing Generic V2 source delta is the bounded reciprocal transaction guard, which changed the updater PYZ identity and therefore prevents reuse of the older package hash as current evidence. The Manager A-to-B Generic V2 package rebuilt at the R1 executable head proves the successor Generic V2 package identity, but it intentionally does not yet include the five new HA-USB R1 modules; host packaging/integration remains later work. Historical P4/P5 execution packages and manifests remain immutable and must reject the R1 successor source. Do not reactivate the old P5 live path. Do not modify Manager MQTT Update/control-plane source during R2; that remains a later gate. R2 is synthetic/simulated transaction validation only.
+
+Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_IMPLEMENTATION_R1_CLOSURE_20261106.md`.
+
 ## Stable updater authority — 2026-11-06 mandatory-USB HA OTA P5 source-design delta frozen
 
 ```text
