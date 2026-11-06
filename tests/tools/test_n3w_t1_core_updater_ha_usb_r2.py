@@ -43,6 +43,7 @@ from n3w_t1_core_updater_ha_usb import (
 from n3w_t1_core_updater_ha_usb_media import (
     FORMAT_CONFIRMATION,
     USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
+    FormatAuthorization,
     RemovableDeviceCandidate,
     UsbCapacityInputs,
     assess_capacity,
@@ -50,8 +51,13 @@ from n3w_t1_core_updater_ha_usb_media import (
     select_single_eligible_device,
 )
 from n3w_t1_core_updater_ha_usb_state import (
+    U0,
+    U1,
+    U2,
+    U3,
     U4,
     U5,
+    U6,
     U7,
     U8,
     U9,
@@ -654,6 +660,123 @@ def test_r2_u12_power_loss_can_only_forward_commit_with_same_media(tmp_path):
         usb_present=True,
         observed_usb_filesystem_uuid=USB_UUID,
     ) == "FORWARD_COMMIT_ELIGIBLE"
+
+
+def test_r2_media_binding_rejects_wrong_label(tmp_path):
+    media = SyntheticUsb(tmp_path / "synthetic-usb")
+    tx = request_prepare(transaction())
+    media.root.mkdir(mode=0o700)
+    forged = FormatAuthorization(
+        public_fingerprint=FINGERPRINT,
+        confirmation_verified=True,
+        filesystem="ext4",
+        label="WRONG-LABEL",
+    )
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_usb_format_authorization_invalid",
+    ):
+        record_media_bound(
+            tx,
+            format_authorization=forged,
+            filesystem_uuid=USB_UUID,
+            measured_usable_bytes=USB_BYTES,
+            capacity_report=media.report,
+        )
+
+
+def test_r2_power_loss_classification_is_deterministic_u0_through_u11(tmp_path):
+    media = SyntheticUsb(tmp_path / "synthetic-usb")
+    docker = SyntheticDockerHost()
+    ha = SyntheticHaData(tmp_path / "synthetic-config")
+
+    snapshots = {}
+    tx = transaction()
+    snapshots[U0] = tx
+
+    tx = request_prepare(tx)
+    snapshots[U1] = tx
+
+    tx = record_media_bound(
+        tx,
+        format_authorization=media.format(),
+        filesystem_uuid=USB_UUID,
+        measured_usable_bytes=USB_BYTES,
+        capacity_report=media.report,
+    )
+    snapshots[U2] = tx
+
+    tx = start_target_preparation(tx)
+    snapshots[U3] = tx
+
+    target = media.target_record()
+    tx = record_target_ready(tx, target=target)
+    snapshots[U4] = tx
+
+    tx = request_install(tx)
+    snapshots[U5] = tx
+
+    tx = start_predecessor_recovery(tx)
+    snapshots[U6] = tx
+
+    predecessor = docker.verify_predecessor(
+        media,
+        docker.export_predecessor(media),
+    )
+    ha.quiesce()
+    tx = record_predecessor_recovery_and_ha_quiesced(
+        tx,
+        predecessor=predecessor,
+        ha_quiesced=True,
+    )
+    snapshots[U7] = tx
+
+    backup = ha.verify_backup(media, ha.create_backup(media))
+    tx = record_recovery_admission(
+        tx,
+        target=target,
+        predecessor=predecessor,
+        backup=backup,
+        observed_usb_filesystem_uuid=USB_UUID,
+        capacity_report=media.report,
+        production_prestate_exact=(docker.active == CURRENT),
+    )
+    snapshots[U8] = tx
+
+    tx = claim_live_authorization(tx, AUTHORIZATION_ID)
+    snapshots[U9] = tx
+
+    docker.remove_predecessor(predecessor)
+    tx = record_predecessor_capacity_released(tx)
+    snapshots[U10] = tx
+
+    docker.load_target(target)
+    ha.start_target()
+    tx = record_target_started(tx)
+    snapshots[U11] = tx
+
+    assert set(snapshots) == {
+        U0, U1, U2, U3, U4, U5, U6, U7, U8, U9, U10, U11
+    }
+
+    for phase in (U0, U1, U2, U3, U4, U5, U6, U7, U8):
+        assert classify_power_loss_reentry(
+            snapshots[phase],
+            usb_present=False,
+            observed_usb_filesystem_uuid=None,
+        ) == "PRE_U9_PREDECESSOR_AUTHORITY"
+
+    for phase in (U9, U10, U11):
+        assert classify_power_loss_reentry(
+            snapshots[phase],
+            usb_present=False,
+            observed_usb_filesystem_uuid=None,
+        ) == "RECOVERY_MEDIA_REQUIRED"
+        assert classify_power_loss_reentry(
+            snapshots[phase],
+            usb_present=True,
+            observed_usb_filesystem_uuid=USB_UUID,
+        ) == "ROLLBACK_REQUIRED"
 
 
 def test_r2_media_binding_rejects_capacity_drift(tmp_path):
