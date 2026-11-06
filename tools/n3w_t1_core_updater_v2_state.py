@@ -20,6 +20,8 @@ from n3w_t1_core_updater_v2_common import (
 )
 
 STATE_ROOT_V2 = Path("/var/lib/n3w-t1-core-updater")
+HA_USB_TX_SCHEMA_GUARD = "gh.n3w-t1-core-updater-homeassistant-usb-transaction/1"
+HA_USB_ACTIVE_FILE_GUARD = "homeassistant-usb-upgrade.json"
 
 
 class V2StateStore:
@@ -27,6 +29,7 @@ class V2StateStore:
         self.root = root
         self.path = root / "upgrade.json"
         self.legacy_path = root / "manager-upgrade.json"
+        self.ha_usb_path = root / HA_USB_ACTIVE_FILE_GUARD
         self.history = root / "history"
 
     def _validate_private_dir(self, path: Path) -> None:
@@ -95,6 +98,9 @@ class V2StateStore:
     def read_legacy(self) -> dict[str, Any] | None:
         return self._read_path(self.legacy_path, LEGACY_TX_SCHEMA)
 
+    def read_ha_usb_guard(self) -> dict[str, Any] | None:
+        return self._read_path(self.ha_usb_path, HA_USB_TX_SCHEMA_GUARD)
+
     def _ensure_history(self) -> None:
         if self.history.is_symlink():
             raise UpdaterV2Error("transaction_history_symlink")
@@ -125,6 +131,7 @@ class V2StateStore:
 
         current = self.read()
         legacy = self.read_legacy()
+        ha_usb = self.read_ha_usb_guard()
 
         if (
             current is not None
@@ -136,6 +143,11 @@ class V2StateStore:
             and legacy.get("status") not in {"COMMITTED", "ROLLED_BACK"}
         ):
             raise UpdaterV2Error("legacy_transaction_reconciliation_required")
+        if (
+            ha_usb is not None
+            and ha_usb.get("status") not in {"COMMITTED", "ROLLED_BACK"}
+        ):
+            raise UpdaterV2Error("ha_usb_transaction_active")
 
         if current is not None:
             self._archive_path(self.path, current, "v2")
