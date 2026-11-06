@@ -1123,3 +1123,93 @@ def test_v2_store_rejects_nonterminal_legacy_transaction(tmp_path: Path):
         match="legacy_transaction_reconciliation_required",
     ):
         store.prepare_new()
+
+
+def test_ha_storage_snapshot_captures_minor_versions(
+    tmp_path: Path,
+    monkeypatch,
+):
+    monkeypatch.setattr(policy_mod, "HA_STORAGE", tmp_path)
+    records = {
+        "core.config_entries": ("entries", 1, 5),
+        "core.device_registry": ("devices", 3, 4),
+        "core.entity_registry": ("entities", 1, 23),
+    }
+    for filename, (key, version, minor_version) in records.items():
+        (tmp_path / filename).write_text(
+            json.dumps(
+                {
+                    "version": version,
+                    "minor_version": minor_version,
+                    "data": {key: []},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    snapshot = policy_mod._ha_storage_snapshot()
+
+    assert snapshot == {
+        "config_entries": {
+            "present": True,
+            "version": 1,
+            "minor_version": 5,
+        },
+        "devices": {
+            "present": True,
+            "version": 3,
+            "minor_version": 4,
+        },
+        "entities": {
+            "present": True,
+            "version": 1,
+            "minor_version": 23,
+        },
+    }
+
+
+def test_image_only_postcheck_rejects_ha_storage_minor_migration(
+    monkeypatch,
+):
+    policy = policy_mod.LocalA1Policy()
+    monkeypatch.setattr(
+        policy_mod.LocalA1Policy,
+        "validate_pre",
+        lambda self, component, snapshot: None,
+    )
+    before = {
+        "persistent_paths": {},
+        "sqlite": {},
+        "trust": {
+            "fc4_ca_sha256": "a",
+            "system_ca_sha256": "b",
+        },
+        "dynsec_top_level_keys_sha256": "c",
+        "mqtt_identity": {"manager": "d", "homeassistant": "e"},
+        "ha_storage": {
+            "config_entries": {
+                "present": True,
+                "version": 1,
+                "minor_version": 5,
+            },
+            "devices": {
+                "present": True,
+                "version": 3,
+                "minor_version": 4,
+            },
+            "entities": {
+                "present": True,
+                "version": 1,
+                "minor_version": 23,
+            },
+        },
+        "fixed_config": {"homeassistant": "f", "custom_component": "g"},
+    }
+    after = json.loads(json.dumps(before))
+    after["ha_storage"]["entities"]["minor_version"] = 24
+
+    with pytest.raises(
+        UpdaterV2Error,
+        match="a1_ha_storage_minor_version_drift:entities",
+    ):
+        policy.validate_post("homeassistant", before, after)

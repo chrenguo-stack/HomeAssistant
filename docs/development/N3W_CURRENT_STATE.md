@@ -1,3 +1,43 @@
+## Latest authority — 2026-11-06 PR #780 successor: Home Assistant product validation source preparation converged
+
+```text
+AUTHORITY_STATE=PR780_SUCCESSOR_HA_PRODUCT_VALIDATION_SOURCE_PREPARATION_CONVERGED
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+AUTHORITY_SCHEMA=gh.n3w-t1-core-stack-current-authority/2
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+PR780_SOURCE_PARITY_TO_CURRENT_MAIN=PASS
+HA_CANDIDATE_VERSION=2026.10.4
+HA_MUTATION_PROFILE=IMAGE_ONLY_V1
+HA_STORAGE_MINOR_VERSION_GUARD=ADDED
+HA_TEMPLATE_CONVERGENCE_INSPECTOR=READONLY
+HA_EXACT_TARGET_PACKAGE_READY=false
+LIVE_HA_UPGRADE_READY=false
+
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+SERVICE_RESTART=false
+HA_APPLY=false
+HA_ROLLBACK=false
+
+NEXT_ROUTE=N3W_T1_CORE_UPDATER_HOMEASSISTANT_RUNTIME_TEMPLATE_CONVERGENCE_READONLY_PREFLIGHT_20261105_01
+```
+
+PR #780's independent source delta has been rebased onto the current four-layer authority line.
+The existing A1 source had no drift versus the original #780 base, so the HA minor-version guard and
+read-only template convergence inspector were carried forward without replaying the obsolete
+stacked history.
+
+Authority:
+`docs/development/N3W_T1_CORE_UPDATER_HOMEASSISTANT_PRODUCT_GRADE_UPGRADE_VALIDATION_PREPARATION_20261105.md`.
+
 ## Latest authority — 2026-11-06 PR #779 successor convergence: U2 closure retained on current baseline
 
 ```text

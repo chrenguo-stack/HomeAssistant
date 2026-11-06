@@ -1,0 +1,58 @@
+{
+  "schema": "gh.n3w-t1-core-updater-homeassistant-compatibility-review/1",
+  "date": "2026-11-05",
+  "component": "homeassistant",
+  "mutation_profile": "IMAGE_ONLY_V1",
+  "predecessor": {
+    "version": "2026.10.0",
+    "image": "local/n3w-homeassistant:2026.10.0-0c73235a",
+    "upstream_image": "ghcr.io/home-assistant/home-assistant:2026.10.0"
+  },
+  "candidate": {
+    "version": "2026.10.4",
+    "upstream_image": "ghcr.io/home-assistant/home-assistant:2026.10.4",
+    "local_image": "TO_BE_BOUND_BY_EXACT_ARM64_PACKAGE"
+  },
+  "storage_contract": {
+    "core.config_entries": {
+      "predecessor": {
+        "version": 1,
+        "minor_version": 5
+      },
+      "candidate": {
+        "version": 1,
+        "minor_version": 5
+      }
+    },
+    "core.device_registry": {
+      "predecessor": {
+        "version": 3,
+        "minor_version": 4
+      },
+      "candidate": {
+        "version": 3,
+        "minor_version": 4
+      }
+    },
+    "core.entity_registry": {
+      "predecessor": {
+        "version": 1,
+        "minor_version": 23
+      },
+      "candidate": {
+        "version": 1,
+        "minor_version": 23
+      }
+    }
+  },
+  "peer_contracts_compatible": true,
+  "persistent_schema_compatible": true,
+  "rollback_compatible_source_review": true,
+  "exact_image_artifact_required": true,
+  "runtime_template_convergence_required": true,
+  "live_apply_authorized": false,
+  "deferred_target": {
+    "version": "2026.11.0",
+    "reason": "core.entity_registry minor_version advances 23->24 with semantic migration; not accepted under IMAGE_ONLY_V1 without explicit migration/rollback design"
+  }
+}
