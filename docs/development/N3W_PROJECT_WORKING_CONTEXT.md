@@ -1,13 +1,28 @@
-## Stable updater authority — 2026-11-06 Home Assistant low-storage USB OTA architecture frozen
+## Stable updater authority — 2026-11-06 Home Assistant mandatory-USB OTA architecture V1.1 frozen
 
 ```text
 HOMEASSISTANT_16GB_T1_STEADY_STATE_INTERNAL_IMAGE_COUNT=1
-PRIMARY_NETWORK_OTA=OCI_REGISTRY_EXACT_DIGEST
-LOW_STORAGE_OTA=USB_ASSISTED_TRANSACTION
-LOW_STORAGE_USB_FILESYSTEM=ext4
-LOW_STORAGE_USB_FORMAT_OWNER=T1
+HOMEASSISTANT_UPDATE_USB_REQUIRED=true
+USB_FILESYSTEM_REQUIRED=ext4
+USB_FORMAT_OWNER=T1
+USB_FORMAT_REQUIRED_FOR_EVERY_HA_VERSION_UPDATE=true
+USB_MEASURED_USABLE_CAPACITY_MIN_BYTES=15032385536
+USB_NOMINAL_CAPACITY_NOT_AUTHORITY=true
+RECOMMENDED_MARKET_USB_SIZE=32GB_OR_LARGER
 USER_COMPUTER_REQUIRED=false
-OFFLINE_RECOVERY_ARTIFACT=RETAIN
+
+PRIMARY_HA_OTA_TRANSFER_ARTIFACT=EXACT_COMPRESSED_HA_ARCHIVE
+OFFLINE_RECOVERY_ARTIFACT=RETAIN_SAME_ARTIFACT_FAMILY
+
+UPDATE_DISCOVERY_OWNER=N3W_T1_OTA_MANAGER
+UPDATE_VERSION_AUTHORITY=N3W_OTA_SERVER_APPROVED_MANIFEST
+HOMEASSISTANT_NOTIFICATION_SURFACE=MQTT_UPDATE_ENTITY
+
+TARGET_DOWNLOAD_BEFORE_INSTALL_CONFIRMATION=true
+TARGET_FULL_VERIFY_BEFORE_INSTALL_CONFIRMATION=true
+USER_INSTALL_CONFIRMATION_AFTER_TARGET_READY=true
+PREDECESSOR_EXPORT_AFTER_INSTALL_CONFIRMATION=true
+
 HA_DATA_BACKUP_BEFORE_DESTRUCTIVE_CUTOVER=true
 SUCCESS_PATH_RESTORE_PREUPGRADE_BACKUP=false
 ROLLBACK_PATH_RESTORE_PREUPGRADE_BACKUP=true
@@ -17,12 +32,12 @@ P5_AUTHORIZATION_GRANTED=true
 P5_AUTHORIZATION_CLAIMED=false
 P5_AUTHORIZATION_CONSUMED=false
 
-NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_LOW_STORAGE_USB_OTA_TO_P5_IMPACT_READONLY_REVIEW_20261106_01
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_TO_P5_IMPACT_READONLY_REVIEW_20261106_01
 ```
 
-The current ~14.45GB T1 must not rely on long-term dual Home Assistant image residency. In low-storage mode the T1 formats an explicitly confirmed removable USB device as ext4, prepares the predecessor recovery image, exact target artifact and consistent pre-upgrade HA data recovery point on USB, then may remove the internal predecessor before target import. A successful target keeps the migrated production /config and does not restore the old backup; rollback restores both predecessor image and pre-upgrade HA data. Ordinary users do not need a computer.
+V1.1 supersedes the earlier conditional-USB/terminal-OCI proposal. Every Home Assistant version update now requires a removable USB device that the T1 formats as ext4 after explicit destructive confirmation. The formatted filesystem must provide at least 14 GiB measured usable capacity, with 32GB-or-larger media recommended. The T1 downloads and fully verifies the exact compressed target archive on USB while production HA continues running; only after the UI reports READY_TO_INSTALL and the user explicitly starts installation does the T1 export the predecessor image, quiesce HA, create a consistent HA data recovery point, and enter destructive cutover. Successful target activation keeps the migrated production /config; rollback restores both predecessor image and pre-upgrade HA data. N3-W T1 OTA Manager owns approved-version discovery and exposes update state through an MQTT Update entity. Ordinary users do not need a computer.
 
-Authority: `docs/development/N3W_T1_HOMEASSISTANT_LOW_STORAGE_USB_ASSISTED_OTA_AND_DATA_ROLLBACK_ARCHITECTURE_V1.0_20261106.md`.
+Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_AND_DATA_ROLLBACK_ARCHITECTURE_V1.1_20261106.md`.
 
 ## Stable updater authority — 2026-11-05 U2 T1_A classification CLOSED_PASS
 
