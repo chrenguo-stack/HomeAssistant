@@ -1,3 +1,45 @@
+## Latest authority — 2026-11-06 PR #781 successor: immutable Stack 1.0.0 release baseline established
+
+```text
+AUTHORITY_STATE=STACK_1_0_0_BOOTSTRAP_ACCEPTED_PRE_OTA_RELEASE_ESTABLISHED
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+AUTHORITY_SCHEMA=gh.n3w-t1-core-stack-current-authority/2
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+STACK_RELEASE_PATH=infra/n3w-t1/releases/1.0.0/release.json
+STACK_VERSION=1.0.0
+STACK_RELEASE_ID=5debfbe23356d67ea5ff095f7ffc3e5443d771ddb4241589fa496b901ff2b7d9
+STACK_RELEASE_ROLE=BOOTSTRAP_ACCEPTED_PRE_OTA_RELEASE
+STACK_RELEASE_SCHEMA=gh.n3w-t1-core-stack-release/1
+STACK_RELEASE_IMMUTABLE=true
+STACK_1_0_0_END_USER_OTA_PUBLICATION=false
+STACK_1_0_0_REWRITE_REQUIRED=false
+
+FIELD_UPGRADE_EXECUTOR=T1_Core_Updater
+WHOLE_STACK_OVERWRITE_DEPLOYMENT=false
+SECOND_PRIVILEGED_UPGRADE_ENGINE=false
+
+FOUR_BASELINE_LAYERS_ESTABLISHED=true
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+```
+
+The fourth authority layer now has an exact immutable repository object. Stack 1.0.0 freezes the
+already accepted Manager/HA/Broker/runtime composition without changing live T1 bytes. It is the
+bootstrap accepted pre-OTA predecessor/rollback authority, not proof that the later signed
+end-user OTA publication pipeline is complete.
+
+Authority:
+- `infra/n3w-t1/releases/1.0.0/release.json`
+- `docs/development/N3W_T1_CORE_STACK_SEMANTIC_VERSION_AND_RELEASE_UPGRADE_MODEL_20261105.md`
+
 ## Latest authority — 2026-11-06 PR #780 successor: Home Assistant product validation source preparation converged
 
 ```text
