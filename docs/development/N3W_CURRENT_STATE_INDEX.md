@@ -1,3 +1,20 @@
+## 2026-11-06 — PR #787 successor: HA P5 one-shot live-apply preauthorization source converged
+
+- Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current repository Manager remains `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current repository Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted state remains `APPLIED_ACCEPTED`; this successor performs no live mutation.
+- Stack 1.0.0 remains the immutable bootstrap accepted pre-OTA release baseline.
+- HA P4 real-T1 read-only baseline remains `CLOSED_PASS`; P5 source-preauthorization package is now converged onto current main.
+- P5 manifest remains fail-closed with `live_apply_authorized=false`; no authorization is granted, claimed or consumed by repository convergence.
+- Before any future apply, P5 requires frozen artifact verification, capacity gate, fresh preflight, exact P4 baseline match, P4 transaction match and archive-verified plan.
+- The one-shot contract allows at most one updater-owned apply; no second apply or blind explicit rollback route exists.
+- On apply failure the executor permits read-only diagnosis and STOP only; recovery remains a separate decision/authorization boundary.
+- No T1 access, live apply, service restart, image load, credential mutation or board access occurs in this convergence.
+
 ## 2026-11-06 — PR #786 successor: HA P4 fresh read-only premutation baseline converged
 
 - Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
