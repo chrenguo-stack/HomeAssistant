@@ -1,3 +1,41 @@
+## Stable updater authority — PR #779 successor convergence, 2026-11-06
+
+```text
+PROJECT_WORKING_CONTEXT_VERSION=1.5
+
+T1_CORE_UPDATER_ARCHITECTURE=COMPLETE
+GENERIC_V2_CORE_SOURCE=COMPLETE
+GENERIC_COMPONENT_MODEL=COMPLETE
+
+MANAGER_UPGRADE_PRODUCT_PATH=CLOSED_PASS
+U2_LEGACY_DIRTY_VALIDATION=CLOSED_PASS
+U2_T1A_CURRENT_DIRTY_STATE=false
+U2_LEGACY_STATE_DISPOSITION=NO_ACTION_REQUIRED
+U2_CLEANUP_REQUIRED=false
+
+HOMEASSISTANT_UPGRADE_PRODUCT_PATH=NOT_COMPLETE
+BROKER_UPGRADE_PRODUCT_PATH=NOT_COMPLETE
+
+UPDATER_GENERIC_REWRITE_REQUIRED=false
+UPDATER_COMPLETION_ROUTE=
+HOMEASSISTANT_PRODUCT_VALIDATION
+-> BROKER_PRODUCT_VALIDATION
+-> FINAL_PRODUCT_CLOSURE
+```
+
+Fresh U2 evidence established that T1_A no longer has a current dirty legacy transaction; current
+V2 state is terminal COMMITTED and runtime is TARGET_BOUND_RUNNING / HEALTHY. Historical updater
+transactions remain terminal evidence with consumed authorizations. Do not manufacture a dirty
+state merely to repeat U2, and do not replay consumed Manager authorizations.
+
+This stable updater route coexists with the four-layer Stack authority model defined in Working
+Context 1.5. Home Assistant and Broker validation must reuse the generic V2 core unless fresh
+evidence proves a bounded core repair is required.
+
+Authorities:
+- `docs/development/N3W_T1_CORE_UPDATER_POST_U1_PRODUCT_COMPLETION_READONLY_AUDIT_20261105.md`
+- `docs/development/N3W_T1_CORE_UPDATER_U2_LEGACY_DIRTY_T1A_READONLY_CLASSIFICATION_CLOSURE_20261105.md`
+
 ## Latest stable authority — 2026-11-05 U1 R4 Manager B canonical authority
 
 ```text
