@@ -20,18 +20,24 @@
 - That gate is local/read-only: establish trusted known_hosts path and expected host-key SHA256 for the R2 CLI. Attempt 03 is not auto-executed.
 - No T1 product mutation, image load, service restart, updater apply/rollback, board access or merge is authorized by the preflight.
 
-## 2026-11-06 — Home Assistant low-storage USB OTA architecture
+## 2026-11-06 — Home Assistant mandatory-USB OTA architecture V1.1
 
-- Architecture frozen: `docs/development/N3W_T1_HOMEASSISTANT_LOW_STORAGE_USB_ASSISTED_OTA_AND_DATA_ROLLBACK_ARCHITECTURE_V1.0_20261106.md`.
-- Current P5 reapply authorization remains granted but unclaimed/unconsumed; live retry is held.
-- Read-only storage diagnosis: root available ~572MB; current reapply gate deficit ~1.873GB.
-- Two HA generations each occupy ~5.22GB unique image space in the observed T1 state.
-- Product steady state for 16GB T1 is now one internal HA generation.
-- Low-storage update uses a T1-formatted ext4 USB device. T1 creates/downloads predecessor recovery image, target artifact and HA data recovery point.
-- Successful target continues with migrated production /config; pre-upgrade HA data backup is restored only on rollback.
-- Existing ~835MB exact HA archive is retained as OFFLINE_RECOVERY_ARTIFACT and may serve as low-storage staged target artifact.
-- Next gate: `N3W_T1_HOMEASSISTANT_LOW_STORAGE_USB_OTA_TO_P5_IMPACT_READONLY_REVIEW_20261106_01`.
-- No source implementation, T1 mutation, board access or merge in this architecture-freeze step.
+- V1.1 authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_AND_DATA_ROLLBACK_ARCHITECTURE_V1.1_20261106.md`.
+- V1.1 supersedes the earlier conditional-USB / terminal-OCI proposal for future product/source design.
+- Every Home Assistant version update requires removable USB media.
+- T1 must explicitly warn that the USB will be erased, then format it as ext4.
+- Admission uses measured ext4 usable capacity, not marketed capacity; hard floor is 14 GiB (15032385536 bytes), and 32GB-or-larger market media is recommended.
+- The exact compressed Home Assistant archive becomes the primary terminal OTA transfer artifact and remains the OFFLINE_RECOVERY_ARTIFACT family.
+- T1 downloads and fully verifies the target archive on USB while production Home Assistant remains running.
+- After target verification the transaction stops at READY_TO_INSTALL and tells the user that preparation is complete.
+- Only after the user explicitly starts installation does T1 export the predecessor image, quiesce Home Assistant and create a consistent HA_DATA_BACKUP.
+- Internal predecessor deletion remains forbidden until target artifact, predecessor recovery package and HA data backup are all verified and durable.
+- Successful target activation continues with the migrated production `/config`; the pre-upgrade backup is restored only on rollback.
+- N3-W T1 OTA Manager owns approved-version discovery against the N3-W OTA manifest.
+- Home Assistant user notification/progress surface is an MQTT Update entity; Home Assistant Container/Supervisor is not the outer update authority.
+- Current P5 reapply authorization remains granted but unclaimed/unconsumed and is held.
+- Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_TO_P5_IMPACT_READONLY_REVIEW_20261106_01`.
+- No source implementation, T1 mutation, board access or merge occurred in this V1.1 freeze.
 
 ## 2026-11-05 — Home Assistant P5 Attempt 02 transport STOP; KF-142 R2 WAITING_CI
 
