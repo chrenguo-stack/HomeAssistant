@@ -1,3 +1,20 @@
+## 2026-11-06 — PR #785 successor: HA P3 generic V2 simulation converged
+
+- Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current repository Manager remains `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current repository Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted state remains `APPLIED_ACCEPTED`; this successor performs no live mutation.
+- Stack 1.0.0 remains the immutable bootstrap accepted pre-OTA release baseline.
+- HA P2 exact artifact/target remains frozen and unchanged; HA P3 source simulation remains `CLOSED_PASS`.
+- Historical P3 executable source head remains `b4409c11beda99f2aef43353b8129003760634b7`; later #785 commits were documentation-only.
+- Generic V2 now records Home Assistant predecessor binding mode in transaction authority, requires target mode `dynamic`, and restores predecessor image + binding mode on automatic and explicit rollback.
+- Interrupted legacy-static -> dynamic transitions are classified separately and cannot be accepted as a committed target state.
+- No T1, live runtime, service, credential or board mutation occurs in this convergence.
+- Next route is HA P4 fresh read-only premutation baseline.
+
 ## 2026-11-06 — PR #784 successor: exact Home Assistant 2026.10.4 artifact/target converged
 
 - Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
