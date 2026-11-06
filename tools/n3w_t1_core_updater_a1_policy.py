@@ -227,7 +227,11 @@ def _ha_storage_snapshot() -> dict[str, Any]:
     for label, (filename, key) in HA_STORAGE_FILES.items():
         path = HA_STORAGE / filename
         if not path.exists():
-            result[label] = {"present": False, "version": None}
+            result[label] = {
+                "present": False,
+                "version": None,
+                "minor_version": None,
+            }
             continue
         document = _json_file(path)
         data = document.get("data")
@@ -236,6 +240,7 @@ def _ha_storage_snapshot() -> dict[str, Any]:
         result[label] = {
             "present": True,
             "version": document.get("version"),
+            "minor_version": document.get("minor_version"),
         }
     return result
 
@@ -420,6 +425,10 @@ class LocalA1Policy:
             if current.get("version") != baseline.get("version"):
                 raise UpdaterV2Error(
                     f"a1_ha_storage_version_drift:{label}"
+                )
+            if current.get("minor_version") != baseline.get("minor_version"):
+                raise UpdaterV2Error(
+                    f"a1_ha_storage_minor_version_drift:{label}"
                 )
 
         # IMAGE_ONLY_V1 forbids configuration/custom-component migration.
