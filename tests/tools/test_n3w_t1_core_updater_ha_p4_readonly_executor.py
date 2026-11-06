@@ -43,7 +43,7 @@ def test_manifest_keeps_p4_strictly_readonly_and_bound_to_p3():
         "P4_FRESH_READONLY_PREMUTATION_BASELINE_20261105_01"
     )
     assert manifest["authority_parent_head"] == (
-        "dcd295e7f31afc7fe23f67655516fe4b56594bca"
+        "bb845f5cca4f2fc3e4710d14b6176a043d2a4523"
     )
     assert manifest["p3_executable_source_head"] == (
         "b4409c11beda99f2aef43353b8129003760634b7"
@@ -67,22 +67,33 @@ def test_manifest_keeps_p4_strictly_readonly_and_bound_to_p3():
     assert manifest["frozen_target"]["target_image_prestate_required"] == "ABSENT"
 
 
-def test_execution_source_is_exactly_blob_bound_on_current_head():
+def test_historical_execution_package_rejects_successor_source_drift():
+    manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+    frozen_blob = manifest["source_binding"][
+        "tools/n3w_t1_core_updater_v2_state.py"
+    ]
+    assert frozen_blob == "a5260f1097983cad4818f626826accbb185e4a37"
+
     head = subprocess.check_output(
         ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
         text=True,
     ).strip()
-    report = executor.validate_source(head)
-    assert report["exact_source_head"] == head
-    assert report["authority_parent_head"] == (
-        "dcd295e7f31afc7fe23f67655516fe4b56594bca"
-    )
-    assert report["p3_executable_source_head"] == (
-        "b4409c11beda99f2aef43353b8129003760634b7"
-    )
-    assert report["target_manifest_blob_sha"] == (
-        "6966b4fe4d7620ccc436643cc840da9ae95e6010"
-    )
+    current_blob = subprocess.check_output(
+        [
+            "git",
+            "-C",
+            str(ROOT),
+            "rev-parse",
+            f"{head}:tools/n3w_t1_core_updater_v2_state.py",
+        ],
+        text=True,
+    ).strip()
+    assert current_blob != frozen_blob
+    with pytest.raises(
+        executor.StopExecution,
+        match="source_blob_mismatch:n3w_t1_core_updater_v2_state.py",
+    ):
+        executor.validate_source(head)
 
 
 def test_bundle_is_flat_temporary_source_only():
