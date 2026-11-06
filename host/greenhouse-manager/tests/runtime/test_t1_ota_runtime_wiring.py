@@ -69,3 +69,42 @@ def test_selector_passes_same_ota_manager_into_simplified_builder(
     )
     assert wiring.build_manager_mqtt_service(settings) is expected_service
     assert captured["ota_manager"] is expected_ota
+
+
+def test_disabled_ota_preserves_legacy_base_service_call_shape(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected = object()
+    calls = []
+
+    def legacy_constructor(settings):
+        calls.append(settings)
+        return expected
+
+    monkeypatch.setattr(wiring, "ManagerMqttService", legacy_constructor)
+    settings = SimpleNamespace(n3w_runtime_enabled=False)
+    assert wiring.build_manager_mqtt_service(settings) is expected
+    assert calls == [settings]
+
+
+def test_disabled_ota_preserves_legacy_simplified_builder_call_shape(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected = object()
+    calls = []
+
+    def legacy_builder(settings):
+        calls.append(settings)
+        return expected
+
+    monkeypatch.setattr(
+        wiring,
+        "build_n3w_simplified_manager_service",
+        legacy_builder,
+    )
+    settings = SimpleNamespace(
+        n3w_runtime_enabled=True,
+        n3w_product_pairing_enabled=False,
+    )
+    assert wiring.build_manager_mqtt_service(settings) is expected
+    assert calls == [settings]

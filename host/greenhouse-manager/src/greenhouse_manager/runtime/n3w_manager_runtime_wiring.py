@@ -9,8 +9,6 @@ from .c06b2_runtime_wiring import run_manager_service as run_c06b2_manager_servi
 from .config import Settings
 from .credential_lifecycle import CredentialLifecycleStore
 from .mqtt_service import ManagerMqttService
-from .t1_ota_ipc import ApprovedManifestFileProvider, UnixSocketOtaBridge
-from .t1_ota_manager import T1OtaManager
 from .n3w_dynamic_pairing_window import (
     DynamicPairingWindowController,
     DynamicPairingWindowControlServer,
@@ -47,6 +45,8 @@ from .n3w_simplified_product_runtime import (
 )
 from .registration import RegistrationRegistry
 from .replay_registry import ReplayRegistry
+from .t1_ota_ipc import ApprovedManifestFileProvider, UnixSocketOtaBridge
+from .t1_ota_manager import T1OtaManager
 
 
 class N3wSimplifiedManagerRuntimeError(RuntimeError):
@@ -584,17 +584,29 @@ def build_manager_mqtt_service(settings: Settings) -> ManagerMqttService:
     ota_manager = build_t1_ota_manager(settings)
     if settings.n3w_runtime_enabled:
         if settings.n3w_product_pairing_enabled:
+            if ota_manager is None:
+                return (
+                    build_n3w_simplified_product_manager_service(
+                        settings
+                    )
+                )
             return (
                 build_n3w_simplified_product_manager_service(
                     settings,
                     ota_manager=ota_manager,
                 )
             )
+        if ota_manager is None:
+            return build_n3w_simplified_manager_service(
+                settings
+            )
         return build_n3w_simplified_manager_service(
             settings,
             ota_manager=ota_manager,
         )
 
+    if ota_manager is None:
+        return ManagerMqttService(settings)
     return ManagerMqttService(settings, ota_manager=ota_manager)
 
 
