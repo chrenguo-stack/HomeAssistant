@@ -10,6 +10,10 @@ from n3w_t1_core_updater_ha_recovery import (
     ImageRecoveryRecord,
     validate_image_recovery_record,
 )
+from n3w_t1_core_updater_ha_usb_media import (
+    UsbCapacityReport,
+    require_same_filesystem_uuid,
+)
 from n3w_t1_core_updater_ha_usb_state import (
     U4,
     U5,
@@ -49,17 +53,24 @@ def record_recovery_admission(
     target: ImageRecoveryRecord,
     predecessor: ImageRecoveryRecord,
     backup: HaDataBackupRecord,
-    same_bound_usb_uuid: bool,
-    capacity_pass: bool,
+    observed_usb_filesystem_uuid: str,
+    capacity_report: UsbCapacityReport,
     production_prestate_exact: bool,
 ) -> dict[str, Any]:
     current = validate_transaction_document(document)
     if current["phase"] != U7:
         raise UpdaterV2Error("ha_usb_recovery_admission_phase_invalid")
-    if same_bound_usb_uuid is not True:
-        raise UpdaterV2Error("usb_filesystem_uuid_mismatch")
-    if capacity_pass is not True:
+    require_same_filesystem_uuid(
+        current["usb_filesystem_uuid"],
+        observed_usb_filesystem_uuid,
+    )
+    if capacity_report.capacity_pass is not True:
         raise UpdaterV2Error("ha_usb_capacity_not_verified")
+    if (
+        capacity_report.measured_usable_bytes
+        != current["usb_measured_usable_bytes"]
+    ):
+        raise UpdaterV2Error("ha_usb_measured_capacity_drift")
     if production_prestate_exact is not True:
         raise UpdaterV2Error("ha_usb_production_prestate_drift")
 
