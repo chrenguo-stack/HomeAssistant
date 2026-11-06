@@ -1,3 +1,14 @@
+## 2026-11-06 — PR #782 successor: HA runtime-template read-only preflight source converged
+
+- Current Stack authority remains live accepted and unchanged; Stack 1.0.0 remains the immutable bootstrap pre-OTA release baseline.
+- Original real-T1 HA template read-only preflight remains `CLOSED_PASS` at historical execution head `60af31fc661434c9b5ae3166a3f9ebafcde7ce63`.
+- Historical closure is preserved unchanged; this successor does not claim a new T1 execution.
+- Successor execution-package ancestry is rebound to current main `ead524a3e2102454e0a49b467aaa37ee4afc803a`.
+- Inspector blob remains `9e8ad6ced381e6b4fa9ec146b4f143769c316ceb`; current-authority blob remains `07ceb3b352f21d925127caa71304cc3b29827fdb`.
+- CI policy/governance registers both Stack semantic release CI and HA readonly-preflight CI.
+- No T1, product-path, service, image, credential or board mutation occurs in this convergence.
+- Next route remains exact Home Assistant 2026.10.4 ARM64 artifact and component-target construction.
+
 ## 2026-11-06 — PR #781 successor: immutable Stack 1.0.0 release baseline established
 
 - Canonical running authority remains `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
