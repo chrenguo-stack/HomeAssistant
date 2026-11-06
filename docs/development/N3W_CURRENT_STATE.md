@@ -1,3 +1,41 @@
+## Latest authority — 2026-11-06 PR #782 successor: HA runtime-template read-only preflight source converged
+
+```text
+AUTHORITY_STATE=HA_TEMPLATE_READONLY_PREFLIGHT_SUCCESSOR_SOURCE_CONVERGED
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+AUTHORITY_SCHEMA=gh.n3w-t1-core-stack-current-authority/2
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+STACK_VERSION=1.0.0
+STACK_RELEASE_ID=5debfbe23356d67ea5ff095f7ffc3e5443d771ddb4241589fa496b901ff2b7d9
+
+HA_TEMPLATE_READONLY_PREFLIGHT_HISTORICAL_RESULT=CLOSED_PASS
+HISTORICAL_EXECUTION_HEAD=60af31fc661434c9b5ae3166a3f9ebafcde7ce63
+HISTORICAL_AUTHORITY_PARENT_HEAD=9aa8c9b42f32d94804decdb6b360ade58e4d728d
+
+SUCCESSOR_AUTHORITY_PARENT_HEAD=ead524a3e2102454e0a49b467aaa37ee4afc803a
+SUCCESSOR_INSPECTOR_BLOB=9e8ad6ced381e6b4fa9ec146b4f143769c316ceb
+SUCCESSOR_CURRENT_AUTHORITY_BLOB=07ceb3b352f21d925127caa71304cc3b29827fdb
+SUCCESSOR_SOURCE_REBIND_ONLY=true
+
+T1_ACCESS=false
+T1_MUTATION=false
+BOARD_ACCESS=false
+SERVICE_RESTART=false
+
+NEXT_ROUTE=N3W_T1_CORE_UPDATER_HOMEASSISTANT_2026_10_4_EXACT_ARM64_ARTIFACT_BUILD_AND_COMPONENT_TARGET_20261105_01
+```
+
+The original real-T1 double-read closure remains historical execution evidence and is not rewritten.
+This successor only rebinds the execution package ancestry anchor to the current canonical main;
+the reviewed inspector blob and production current-authority blob are unchanged.
+
 ## Latest authority — 2026-11-06 PR #781 successor: immutable Stack 1.0.0 release baseline established
 
 ```text
