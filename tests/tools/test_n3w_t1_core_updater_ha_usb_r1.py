@@ -173,14 +173,27 @@ def u7_transaction():
     )
 
 
+def passing_capacity_report():
+    return assess_capacity(
+        USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
+        UsbCapacityInputs(
+            target_artifact_bytes=1 * 1024**3,
+            predecessor_recovery_worst_case_bytes=2 * 1024**3,
+            ha_data_backup_worst_case_bytes=3 * 1024**3,
+            transaction_metadata_and_working_bytes=1 * 1024**3,
+            removable_media_reserve_bytes=1 * 1024**3,
+        ),
+    )
+
+
 def u8_transaction():
     return record_recovery_admission(
         u7_transaction(),
         target=target_record(),
         predecessor=predecessor_record(),
         backup=backup_record(),
-        same_bound_usb_uuid=True,
-        capacity_pass=True,
+        observed_usb_filesystem_uuid=USB_UUID,
+        capacity_report=passing_capacity_report(),
         production_prestate_exact=True,
     )
 
@@ -279,6 +292,19 @@ def test_bound_uuid_mismatch_fails_closed():
         )
 
 
+def test_marketed_capacity_is_not_an_admission_input():
+    parameters = inspect.signature(assess_capacity).parameters
+    assert "marketed_capacity_bytes" not in parameters
+    assert "marketed_size" not in parameters
+
+
+def test_production_mount_device_is_never_eligible():
+    mounted = candidate(backs_production_mount=True)
+    assert "production_mount" in classify_candidate(mounted)
+    with pytest.raises(UpdaterV2Error, match="usb_no_eligible_device"):
+        select_single_eligible_device([mounted])
+
+
 def test_install_intent_does_not_claim_or_consume_authorization():
     tx = request_install(ready_to_install())
     assert tx["authorization_claimed"] is False
@@ -295,8 +321,8 @@ def test_u8_requires_backup_predecessor_and_target_recovery_authority():
             target=target_record(),
             predecessor=predecessor_record(),
             backup=backup_record(verified=False),
-            same_bound_usb_uuid=True,
-            capacity_pass=True,
+            observed_usb_filesystem_uuid=USB_UUID,
+            capacity_report=passing_capacity_report(),
             production_prestate_exact=True,
         )
     with pytest.raises(UpdaterV2Error, match="usb_filesystem_uuid_mismatch"):
@@ -305,8 +331,8 @@ def test_u8_requires_backup_predecessor_and_target_recovery_authority():
             target=target_record(),
             predecessor=predecessor_record(),
             backup=backup_record(),
-            same_bound_usb_uuid=False,
-            capacity_pass=True,
+            observed_usb_filesystem_uuid="87654321-4321-8765-4321-876543218765",
+            capacity_report=passing_capacity_report(),
             production_prestate_exact=True,
         )
 
@@ -368,6 +394,22 @@ def test_ha_usb_store_blocks_nonterminal_generic_v2_transaction(tmp_path):
     store = HaUsbStateStore(root)
     with pytest.raises(UpdaterV2Error, match="upgrade_transaction_active"):
         store.prepare_new()
+
+
+def test_generic_v2_store_blocks_nonterminal_ha_usb_transaction(tmp_path):
+    root = tmp_path / "state"
+    ha_usb = HaUsbStateStore(root)
+    ha_usb.write(transaction())
+    generic = V2StateStore(root)
+    with pytest.raises(UpdaterV2Error, match="ha_usb_transaction_active"):
+        generic.prepare_new()
+
+
+def test_ha_usb_read_does_not_create_missing_state_root(tmp_path):
+    root = tmp_path / "missing-state"
+    store = HaUsbStateStore(root)
+    assert store.read() is None
+    assert not root.exists()
 
 
 def test_ha_usb_store_reuses_generic_v2_process_lock(monkeypatch, tmp_path):
