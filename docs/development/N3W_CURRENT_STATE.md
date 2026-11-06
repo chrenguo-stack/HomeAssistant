@@ -5,6 +5,16 @@ AUTHORITY_STATE=T1_CORE_STACK_OTA_BASELINE_REPOSITORY_SOURCE_ALIGNMENT_PREPARED
 BASE_MAIN=5cabdcb50656851f9912685c2f7044cdba3eb774
 SOURCE_ALIGNMENT_BRANCH=docs/n3w-t1-core-stack-ota-baseline-repo-convergence-20261106
 
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+AUTHORITY_SCHEMA=gh.n3w-t1-core-stack-current-authority/2
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
 CURRENT_PRODUCTION_AUTHORITY_CHANGED=false
 LIVE_T1_ACCESS=false
 LIVE_T1_MUTATION=false
@@ -26,9 +36,9 @@ NEXT_ONE_GATE=N3W_T1_CORE_STACK_OTA_BASELINE_AND_REPOSITORY_CONVERGENCE_SOURCE_A
 AUTO_EXECUTE_MERGE=false
 ```
 
-The accepted production stack remains unchanged. This source-alignment stage only freezes the
-four-layer baseline model, the pre-OTA role of Stack 1.0.0, PR #714 requirement carry-forward and
-the repository convergence route. Authority document:
+The accepted production stack remains unchanged and the live upgrade accepted state is retained.
+This source-alignment stage only freezes the four-layer baseline model, the pre-OTA role of Stack
+1.0.0, PR #714 requirement carry-forward and the repository convergence route. Authority document:
 `docs/development/N3W_T1_CORE_STACK_OTA_BASELINE_AND_REPOSITORY_CONVERGENCE_SOURCE_ALIGNMENT_20261106.md`.
 
 ## Latest authority — 2026-11-05 U1 R4 canonical authority promoted to Manager B
