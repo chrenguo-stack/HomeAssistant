@@ -1,3 +1,16 @@
+## 2026-11-06 — PR #781 successor: immutable Stack 1.0.0 release baseline established
+
+- Canonical running authority remains `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
+- Current product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager remains `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted state remains `APPLIED_ACCEPTED`; this successor performs no live mutation.
+- Fourth layer now has exact repository authority: `infra/n3w-t1/releases/1.0.0/release.json`.
+- Stack version is `1.0.0`; release ID is `5debfbe23356d67ea5ff095f7ffc3e5443d771ddb4241589fa496b901ff2b7d9`.
+- Role is `BOOTSTRAP_ACCEPTED_PRE_OTA_RELEASE`: immutable predecessor/rollback authority for the already accepted composition.
+- 1.0.0 does not claim complete signed end-user OTA publication metadata and must not be retroactively rewritten to add it.
+- T1_Core_Updater remains the sole privileged field-upgrade/rollback executor.
+- No T1, board or live runtime mutation occurs in this convergence.
+
 ## 2026-11-06 — PR #780 successor: Home Assistant validation source preparation converged
 
 - Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
