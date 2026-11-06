@@ -1,3 +1,333 @@
+## 2026-11-06 — PR #788 clean successor: mandatory-USB HA OTA R4 source converged
+
+- The successor is based exactly on post-#797 main `a1f2b1e44eb02e4197b42818dafc1acfda9e26f6`.
+- Historical R4 executable authority remains `506136a8f1fc42bb8788f8a3c0fae9220d689af4`; final historical docs head remains `5ad015c23b0522640c48a84b4da7e00507ee757b`.
+- Forty-five non-overlapping R4 files are byte-identical to the historical authority.
+- Three historical-package tests preserve current successor authority where applicable and prove fail-closed rejection of stale ancestry or USB-successor source drift.
+- Twenty public-safe historical closure/architecture documents are archived byte-identically; the three current-state documents preserve both the R4 history and the already-converged #779-#787 successor line.
+- The #797 P5 preauthorization successor remains fail-closed with `live_apply_authorized=false`; obsolete live-apply package state is not restored.
+- Interrupted branch A is incomplete/redundant forensic evidence; interrupted branch B is incomplete and contains three stale-ancestry test assumptions, so neither is merge authority.
+- Current production authority, compose, accepted images and live runtime remain unchanged.
+- No T1 access, USB formatting, Docker mutation, service restart, live apply, credential mutation or board access occurs.
+- Next gate remains `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R5_REAL_T1_READONLY_PREFLIGHT_20261106_01`, requiring separate explicit authorization.
+
+## 2026-11-06 — Home Assistant mandatory-USB OTA R4 host integration CLOSED_PASS
+
+```text
+STATE=HA_USB_MANDATORY_OTA_R4_HOST_INTEGRATION_CLOSED_PASS
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+LIVE_UPGRADE_ACCEPTED=true
+
+R4_EXECUTABLE_SOURCE_HEAD=506136a8f1fc42bb8788f8a3c0fae9220d689af4
+R4_EXECUTABLE_HEAD_CI=20/20_APPLICABLE_SUCCESS
+R4_EXPECTED_SKIPPED_WORKFLOW_COUNT=2
+R4_MANAGER_PYTEST=1528_PASSED_1_SKIPPED
+R4_MANAGER_R8_E2E=8_PASSED
+R4_HA_TARGET_SOURCE_TESTS=150_PASSED
+R4_MANAGER_A_TO_B=PASS
+R4_MANAGER_BASELINE_NON_DRIFT=PASS
+
+CURRENT_T1_RUNTIME_STACK_CHANGED=false
+CURRENT_AUTHORITY_MANIFEST_CHANGED=false
+PRODUCTION_COMPOSE_CHANGED=false
+PRODUCTION_MANAGER_IMAGE_REBUILT=false
+
+T1_CORE_STACK_OTA_DESIGN=docs/development/N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.0_20261106.md
+AUTHORITY=docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_IMPLEMENTATION_R4_CLOSURE_20261106.md
+
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R5_REAL_T1_READONLY_PREFLIGHT_20261106_01
+R5_SCOPE=REAL_T1_READONLY_PREFLIGHT
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+- R4 exact executable head passed all 20 applicable workflows; two path-gated workflows were expected skips.
+- greenhouse-manager CI passed Ruff plus 1528 tests with one skip, and the R8 simulated first-registration slice passed 8 tests.
+- Manager A-to-B source, exact package binding, updater PYZ execution and pre-U1 simulation all passed.
+- HA target source tests passed 150 tests and exact target binding passed.
+- The only earlier remaining CI failure was an external Mosquitto source-download SSL EOF; the unchanged exact head passed on rerun with 15 tests.
+- Manager default-off behavior preserves the pre-R4 builder/constructor call shape.
+- Production authority, compose and accepted Manager image remain unchanged.
+- T1 Core Stack OTA is now a separately archived successor product architecture; it does not expand R4.
+- R5 is real-T1 read-only preflight and requires separate explicit authorization.
+
+## 2026-11-06 — Home Assistant mandatory-USB OTA R3 Manager control plane CLOSED_PASS
+
+```text
+STATE=HA_USB_MANDATORY_OTA_R3_MANAGER_CONTROL_PLANE_CLOSED_PASS
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_UPGRADE_ACCEPTED=true
+Live upgrade accepted
+
+R3_EXECUTABLE_SOURCE_HEAD=f30b7cf154abdbfed1863074ed855949aaecaf3b
+R3_EXECUTABLE_HEAD_CI=19/19_APPLICABLE_SUCCESS
+R3_EXPECTED_SKIPPED_WORKFLOW_COUNT=2
+R3_MANAGER_PYTEST=1517_PASSED_1_SKIPPED
+R3_MANAGER_R8_E2E=8_PASSED
+
+CURRENT_T1_RUNTIME_STACK_CHANGED=false
+CURRENT_AUTHORITY_MANIFEST_CHANGED=false
+PRODUCTION_COMPOSE_CHANGED=false
+PRODUCTION_RUNTIME_WIRING_CHANGED=false
+
+AUTHORITY=docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_IMPLEMENTATION_R3_CLOSURE_20261106.md
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_IMPLEMENTATION_R4_20261106_01
+R4_SCOPE=HOST_INTEGRATION_PACKAGE_AND_NARROW_VALIDATED_MANAGER_TO_PRIVILEGED_UPDATER_IPC
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+- R3 exact executable head passed all 19 applicable workflows; two path-gated workflows were expected skips.
+- Approved-manifest normalization is strict and fail-closed; malformed, unapproved, unsigned/unverified, expired or unsupported targets cannot become installable updates.
+- Home Assistant MQTT Update carries installed/latest/progress state and exposes INSTALL only at READY_TO_INSTALL.
+- PREPARE remains a separate MQTT Button action; PREPARE and INSTALL are not collapsed.
+- MQTT control input is exact-release-bound, exact-field-bound, rejects duplicate fields, retained replay and non-QoS1 commands.
+- No second MQTT client, Docker socket, block-device path, root or shell authority was added.
+- Production compose, current authority manifest, production runtime wiring, Home Assistant config and live T1 state remain unchanged.
+- R4 host integration / narrow validated IPC is the next bounded source gate and is not auto-executed.
+
+## 2026-11-06 — Home Assistant mandatory-USB OTA R2 simulated transaction CLOSED_PASS
+
+```text
+STATE=HA_USB_MANDATORY_OTA_R2_SIMULATED_TRANSACTION_CLOSED_PASS
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_UPGRADE_ACCEPTED=true
+Live upgrade accepted
+
+R2_EXECUTABLE_SOURCE_HEAD=e5d9575d24d30f2498e1e64cedd245b6f124c866
+R2_EXECUTABLE_HEAD_CI=16/16_SUCCESS
+R2_SOURCE_JOB_MANAGER_A_TO_B=184_PASSED
+R2_SOURCE_JOB_HA_TARGET_BINDING=144_PASSED
+
+CURRENT_T1_RUNTIME_STACK_CHANGED=false
+CURRENT_AUTHORITY_MANIFEST_CHANGED=false
+U0_HISTORICAL_BASELINE_CHANGED=false
+
+AUTHORITY=docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_IMPLEMENTATION_R2_CLOSURE_20261106.md
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_IMPLEMENTATION_R3_20261106_01
+R3_SCOPE=GREENHOUSE_MANAGER_OTA_CONTROL_PLANE_ONLY
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+- R2 exact executable head passed 16/16 workflows with zero failures.
+- Synthetic transaction coverage proves READY_TO_INSTALL before HA stop/predecessor export, U9 destructive-cutover authority, dual image+HA-data rollback, same-USB UUID continuity and deterministic U0-U11 power-loss classification.
+- Independent review repaired the remaining N3W-UPDATE label check and full U0-U11 recovery-classification coverage before closure.
+- Initial R2 CI failure was only a test keyword mismatch and did not represent a product/state-machine failure.
+- No real USB format, block-device command, Docker command, systemd mutation, T1 mutation, board access or merge occurred.
+- Production authority, compose, greenhouse-manager source, HA configuration, Broker source and historical U0 baseline remain unchanged.
+- R3 is limited to the greenhouse-manager OTA control plane and may not add privileged host operations.
+
+## 2026-11-06 — Home Assistant mandatory-USB OTA R1 source implementation CLOSED_PASS
+
+```text
+STATE=HA_USB_MANDATORY_OTA_R1_SOURCE_IMPLEMENTATION_CLOSED_PASS
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_UPGRADE_ACCEPTED=true
+Live upgrade accepted
+
+R1_EXECUTABLE_SOURCE_HEAD=284a7120da246df733de61668f20fd46510c81ca
+R1_EXECUTABLE_HEAD_CI=16/16_SUCCESS
+GENERIC_V2_SUCCESSOR_PACKAGE_ARTIFACT_ID=13478294921
+GENERIC_V2_SUCCESSOR_PACKAGE_ARTIFACT_DIGEST_SHA256=79ad50e886373cc9110503c8b9cf5347325ec7978d58d7cd7978773011499505
+GENERIC_V2_SUCCESSOR_UPDATER_PYZ_SHA256=5c094e6c147cfa4ca1c17e93d8c94a8334930a7a87c58eb179533fb9daf72095
+OLD_ACCEPTED_UPDATER_PYZ_DISPOSITION=HISTORICAL_PACKAGE_EVIDENCE_ONLY
+HA_USB_R1_MODULES_INCLUDED_IN_MANAGER_A_TO_B_GENERIC_V2_PACKAGE=false
+
+CURRENT_T1_RUNTIME_STACK_CHANGED=false
+CURRENT_AUTHORITY_MANIFEST_CHANGED=false
+U0_HISTORICAL_BASELINE_CHANGED=false
+
+AUTHORITY=docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_IMPLEMENTATION_R1_CLOSURE_20261106.md
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_IMPLEMENTATION_R2_20261106_01
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+- R1 exact executable head passed 16/16 workflows with zero failures.
+- The only Generic V2 source change is the bounded HA-USB/Generic-V2 mutual-exclusion guard in `n3w_t1_core_updater_v2_state.py`.
+- Historical P4/P5 source-binding manifests remain immutable; their tests now prove they reject the successor source instead of rebinding old evidence.
+- CI rebuilt and re-downloaded the current Generic V2 Manager package. Its updater PYZ SHA256 is `5c094e6c147cfa4ca1c17e93d8c94a8334930a7a87c58eb179533fb9daf72095`.
+- This Generic V2 package does not yet package the new HA-USB R1 modules; that remains later host integration, not R1.
+- The accepted T1 three-container runtime, production authority manifest and U0 historical baseline remain unchanged.
+- The old P5 package remains retired for product execution and its old authorization is superseded/unclaimed.
+- R2 is limited to simulated USB transaction work and is not auto-executed.
+
+## 2026-11-06 — Home Assistant mandatory-USB OTA P5 source-design delta CLOSED_PASS
+
+```text
+STATE=HA_USB_MANDATORY_P5_SOURCE_DESIGN_DELTA_CLOSED_PASS
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_UPGRADE_ACCEPTED=true
+Live upgrade accepted
+AUTHORITY=docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_DESIGN_DELTA_20261106.md
+USB_MARKET_RECOMMENDATION=16GB_OR_LARGER
+USB_HARD_MEASURED_FLOOR=14_GiB
+P5_OLD_PACKAGE=RETIRED_FOR_PRODUCT_EXECUTION
+P5_OLD_AUTHORIZATION=SUPERSEDED_UNCLAIMED
+GENERIC_V2_REWRITE_REQUIRED=false
+THREE_CONTAINER_CORE_STACK_PRESERVED=true
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_IMPLEMENTATION_R1_20261106_01
+```
+
+## 2026-11-05 — Home Assistant P5 KF-142 R2 source CLOSED_PASS; SSH host-key preflight next
+
+- Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current repository Manager: `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current repository Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical Clean Reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted: canonical Manager B remains accepted; HA 2026.10.4 has not yet been applied.
+- PR #788 docs-aligned source authority `94cd4b00089086e8fc1425142e4fddb21bdb616e` passed 15/15 workflows with zero failures.
+- R2 exact executable source is `bdf86c75e882e25d642221c9bb88e883abfe249d`; diff to the green docs head is docs-only.
+- R2 executor blob `b8d40093fe9a000a1b771dde8be0911c9e528292`.
+- Authorization manifest blob `42bfa90650d42bc2efd425abb93551115a6c02ca`.
+- Production SSH transport blob `dec4c9159195e2008094d94fef3fc76c4b977e46`.
+- Frozen HA target blob remains `6966b4fe4d7620ccc436643cc840da9ae95e6010`; storage-policy blob remains `01a5cec8877e2837504ed798e91ca552ab6f2a0e`.
+- Attempt 01 and Attempt 02 both stopped before authorization claim/apply; one-shot authorization remains granted, unclaimed and unconsumed.
+- KF-142 R2 source repair is CLOSED_PASS. P5 now uses the production SSH master lifecycle and child authentication fallback is forbidden.
+- Next gate: `N3W_T1_CORE_UPDATER_HOMEASSISTANT_P5_SSH_HOST_KEY_BINDING_READONLY_PREFLIGHT_20261105_01`.
+- That gate is local/read-only: establish trusted known_hosts path and expected host-key SHA256 for the R2 CLI. Attempt 03 is not auto-executed.
+- No T1 product mutation, image load, service restart, updater apply/rollback, board access or merge is authorized by the preflight.
+
+## 2026-11-06 — Home Assistant mandatory-USB OTA architecture V1.1
+
+- V1.1 authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_AND_DATA_ROLLBACK_ARCHITECTURE_V1.1_20261106.md`.
+- V1.1 supersedes the earlier conditional-USB / terminal-OCI proposal for future product/source design.
+- Every Home Assistant version update requires removable USB media.
+- T1 must explicitly warn that the USB will be erased, then format it as ext4.
+- Admission uses measured ext4 usable capacity, not marketed capacity; hard floor is 14 GiB (15032385536 bytes), and 16GB-or-larger market media is recommended.
+- The exact compressed Home Assistant archive becomes the primary terminal OTA transfer artifact and remains the OFFLINE_RECOVERY_ARTIFACT family.
+- T1 downloads and fully verifies the target archive on USB while production Home Assistant remains running.
+- After target verification the transaction stops at READY_TO_INSTALL and tells the user that preparation is complete.
+- Only after the user explicitly starts installation does T1 export the predecessor image, quiesce Home Assistant and create a consistent HA_DATA_BACKUP.
+- Internal predecessor deletion remains forbidden until target artifact, predecessor recovery package and HA data backup are all verified and durable.
+- Successful target activation continues with the migrated production `/config`; the pre-upgrade backup is restored only on rollback.
+- N3-W T1 OTA Manager owns approved-version discovery against the N3-W OTA manifest.
+- Home Assistant user notification/progress surface is an MQTT Update entity; Home Assistant Container/Supervisor is not the outer update authority.
+- Current P5 reapply authorization remains granted but unclaimed/unconsumed and is held.
+- Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_TO_P5_IMPACT_READONLY_REVIEW_20261106_01`.
+- No source implementation, T1 mutation, board access or merge occurred in this V1.1 freeze.
+
+## 2026-11-05 — Home Assistant P5 Attempt 02 transport STOP; KF-142 R2 WAITING_CI
+
+- Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current repository Manager: `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current repository Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical Clean Reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted: canonical Manager B remains the accepted live authority; Home Assistant 2026.10.4 has not yet been applied.
+- Attempt 01 STOP: `command_failed:scp:1`, pre-claim/pre-apply.
+- Attempt 02 STOP: `command_failed:ssh-stream:255`, second password prompt in the same no-reboot epoch, pre-claim/pre-apply.
+- Authorization remains granted=true, claimed=false, consumed=false, replay=false.
+- KF-142 is now the long-term regression authority for the P5 host-side SSH epoch/reuse failure.
+- R2 executable head: `bdf86c75e882e25d642221c9bb88e883abfe249d`.
+- R2 manifest blob: `42bfa90650d42bc2efd425abb93551115a6c02ca`.
+- R2 binds `tools/n3w_t1_ssh_transport.py` blob `dec4c9159195e2008094d94fef3fc76c4b977e46`.
+- P5 now uses the production SSH master lifecycle; child transport disables all authentication fallback.
+- No T1 product mutation, image load, service restart, updater apply/rollback, board access or merge occurred.
+- Attempt 03 is held until R2 exact-head CI succeeds.
+
+## 2026-11-05 — Home Assistant P5 attempt 01 transport STOP; repaired retry WAITING_CI
+
+- Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current repository Manager: `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current repository Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical Clean Reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted: canonical Manager B remains accepted; HA 2026.10.4 was not applied by attempt 01.
+- Attempt 01 stopped with `command_failed:scp:1` before remote preflight.
+- `apply_invoked=false`, `authorization_claimed=false`, `authorization_consumed=false`, `t1_mutation=false`.
+- The one-shot authorization remains granted and unconsumed; this STOP does not count as an apply.
+- Sanitized output does not support a narrower claim about the scp failure mechanism.
+- Bounded repair head: `9ab1ddf21dd191c916ef7b0dbe281d03aa8d0a2f`.
+- Repair replaces the dedicated scp staging path with streaming over the established SSH transport.
+- Frozen HA target, Generic V2, remote live updater, storage policy and authorization manifest remain unchanged.
+- Repaired retry is held until exact-head CI closes successfully; auto-retry=false.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_HOMEASSISTANT_P5_LIVE_APPLY_ATTEMPT01_TRANSPORT_STOP_REPAIR_20261105.md`.
+
+## 2026-11-05 — Home Assistant P5 one-shot live apply AUTHORIZED_WAITING_CI
+
+- Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current repository Manager: `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current repository Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical Clean Reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted: canonical Manager B remains accepted; no HA live mutation has occurred yet.
+- The user explicitly granted authorization `N3W_T1_CORE_UPDATER_HOMEASSISTANT_2026_10_4_LIVE_APPLY_P5_20261105_01`.
+- Exact authorized executable head: `ec8ba4555c022113498625cd06edd0a804ec1ebb`.
+- Authorized P5 manifest blob: `1772e694e394fe9b2bfa7f041ef288ae09c0746b`.
+- `LIVE_HA_APPLY_AUTHORIZED=true`; granted=true, claimed=false, consumed=false, replay=false.
+- Exactly one apply invocation is permitted; second apply and blind explicit rollback remain forbidden.
+- Frozen HA target is unchanged: target blob `6966b4fe4d7620ccc436643cc840da9ae95e6010`, image `local/n3w-homeassistant:2026.10.4-5881590f`.
+- Storage policy is unchanged: blob `01a5cec8877e2837504ed798e91ca552ab6f2a0e`, P5 post-peak reserve 1.5 GiB.
+- Generic V2 source and P5 executor are unchanged by authorization.
+- The executor still requires exact source/artifact binding, P4 baseline/transaction match, target prestate ABSENT, verified archive, valid rollback path, exact capacity admission and fresh healthy runtime before claim.
+- Once the single apply invocation begins, the authorization is claimed and consumed regardless of PASS/FAIL.
+- Exact authorized-head CI is required before execution; therefore current execution readiness remains false.
+- No T1 mutation, service restart, image load, updater apply/rollback, board access or merge occurred in this authorization-recording step.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_HOMEASSISTANT_P5_LIVE_APPLY_AUTHORIZATION_20261105.md`.
+
+## 2026-11-05 — Home Assistant P5 preauthorization + storage-policy repair PREAUTH_READY
+
+- Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current repository Manager: `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current repository Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical Clean Reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted: canonical Manager B remains accepted; the HA storage-policy review/repair performed no live HA product mutation.
+- P5 storage-policy repair exact source head: `a5a9260e5dd274cca55ddd106721be3159e051ec`; PR #788 remains OPEN/Draft, mergeable and unmerged.
+- Exact-head CI completed 14/14 SUCCESS.
+- Frozen HA target remains byte-identical: `infra/n3w-t1/upgrades/homeassistant-2026.10.4.json`, blob `6966b4fe4d7620ccc436643cc840da9ae95e6010`.
+- Versioned storage-policy authority: `infra/n3w-t1/upgrades/homeassistant-2026.10.4-storage-policy.json`, blob `01a5cec8877e2837504ed798e91ca552ab6f2a0e`.
+- Real-T1 read-only storage baseline PASS: total `14453903360` bytes, free `5785710592` bytes (40.03%), free inode ratio 71.26%, containerd backend, staging/Docker/image-store same device.
+- Observed mutable allocated footprint is `174047232` bytes.
+- Historical P5 fixed 5 GiB reserve is retired.
+- P5 post-peak reserve is `1610612736` bytes (1.5 GiB), derived from the accepted real-T1 evidence and rounded to a 256 MiB quantum.
+- P5 still dynamically requires exact target archive bytes + exact Docker-save uncompressed-member bytes before staging.
+- Generic V2 retains the already-resident predecessor HA image for rollback; predecessor bytes are not double-counted in the current free-space baseline.
+- Successful P5 apply must also pass a post-cleanup free-space check of at least 1.5 GiB.
+- `PRODUCT_RUNTIME_MIN_FREE_REQUIREMENT` remains `UNFROZEN_LONGITUDINAL_EVIDENCE_REQUIRED`; P5's 1.5 GiB reserve is not promoted to a lifetime product minimum.
+- Generic V2 product source and the frozen HA target are unchanged.
+- P5 remains single-apply; no explicit rollback route is added to the live executor.
+- `LIVE_HA_APPLY_AUTHORIZED=false`; the proposed one-shot authorization is `N3W_T1_CORE_UPDATER_HOMEASSISTANT_2026_10_4_LIVE_APPLY_P5_20261105_01`.
+- Next boundary is the explicit P5 live-apply authorization decision; no automatic execution occurs.
+- Authority: `docs/development/N3W_T1_CORE_UPDATER_HOMEASSISTANT_STORAGE_POLICY_REVIEW_CLOSURE_20261105.md`.
+
 ## 2026-11-06 — PR #787 successor: HA P5 one-shot live-apply preauthorization source converged
 
 - Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
@@ -5061,4 +5391,3 @@ The next gate is repository-only PR #437 merge-readiness review. It must verify 
 - KF-129 remains OPEN pending exact-image and real T1/live acceptance.
 - No T1 access, Board access, production deployment or merge is part of this source closure.
 - Boundary: source repair CLOSED_PASS; stop before exact production artifact deployment, T1 recovery, Board D pairing or merge.
-

@@ -794,6 +794,52 @@ def test_wait_services_waits_for_listener_contract(monkeypatch):
     assert listeners == []
 
 
+def test_homeassistant_activation_uses_extended_readiness_budget(monkeypatch):
+    host = hostmod.LocalHost()
+    observed = []
+
+    monkeypatch.setattr(
+        host,
+        "start_services",
+        lambda *, readiness_timeout=hostmod.DEFAULT_SERVICES_READINESS_TIMEOUT_SECONDS: observed.append(
+            readiness_timeout
+        ),
+    )
+
+    host.activate_component("homeassistant")
+
+    assert observed == [
+        hostmod.HOMEASSISTANT_SERVICES_READINESS_TIMEOUT_SECONDS
+    ]
+    assert hostmod.HOMEASSISTANT_SERVICES_READINESS_TIMEOUT_SECONDS == 600
+
+
+def test_wait_services_reports_container_creation_as_soft_state(monkeypatch):
+    host = hostmod.LocalHost()
+    clock = [0.0]
+
+    monkeypatch.setattr(host, "_systemctl", lambda verb, unit: "active")
+    monkeypatch.setattr(
+        host,
+        "_container_id",
+        lambda service: (_ for _ in ()).throw(
+            m.UpdaterError("container_count_invalid")
+        ),
+    )
+    monkeypatch.setattr(hostmod.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(
+        hostmod.time,
+        "sleep",
+        lambda seconds: clock.__setitem__(0, clock[0] + seconds),
+    )
+
+    with pytest.raises(
+        m.UpdaterError,
+        match="services_readiness_timeout:application_containers_not_ready",
+    ):
+        host.wait_services(timeout=5)
+
+
 def test_wait_services_waits_for_soft_health_convergence(monkeypatch):
     host = hostmod.LocalHost()
     monkeypatch.setattr(host, "_systemctl", lambda verb, unit: "active")

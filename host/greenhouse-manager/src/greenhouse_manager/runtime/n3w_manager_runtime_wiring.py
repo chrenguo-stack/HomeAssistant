@@ -45,6 +45,8 @@ from .n3w_simplified_product_runtime import (
 )
 from .registration import RegistrationRegistry
 from .replay_registry import ReplayRegistry
+from .t1_ota_ipc import ApprovedManifestFileProvider, UnixSocketOtaBridge
+from .t1_ota_manager import T1OtaManager
 
 
 class N3wSimplifiedManagerRuntimeError(RuntimeError):
@@ -93,6 +95,7 @@ class N3wSimplifiedManagerMqttService(N3wSimplifiedIsolatedMqttService):
         registration: RegistrationRegistry,
         replay: ReplayRegistry,
         keys: SqliteNodeApplicationKeyProvider,
+        ota_manager: T1OtaManager | None = None,
     ) -> None:
         self._owned_replay = replay
         self._owned_keys = keys
@@ -101,6 +104,7 @@ class N3wSimplifiedManagerMqttService(N3wSimplifiedIsolatedMqttService):
             registration=registration,
             replay=replay,
             keys=keys,
+            ota_manager=ota_manager,
         )
 
     def run(self) -> None:
@@ -124,6 +128,7 @@ class N3wSimplifiedProductManagerMqttService(
         replay: ReplayRegistry,
         keys: SqliteNodeApplicationKeyProvider,
         pairing: SimplifiedProductPairingComposition,
+        ota_manager: T1OtaManager | None = None,
     ) -> None:
         self._product_pairing = pairing
         self._product_pairing_worker = (
@@ -137,6 +142,7 @@ class N3wSimplifiedProductManagerMqttService(
             registration=registration,
             replay=replay,
             keys=keys,
+            ota_manager=ota_manager,
         )
 
     def run(self) -> None:
@@ -160,6 +166,7 @@ class N3wDynamicPairingManagerMqttService(
         registration: RegistrationRegistry,
         replay: ReplayRegistry,
         keys: SqliteNodeApplicationKeyProvider,
+        ota_manager: T1OtaManager | None = None,
     ) -> None:
         self._settings = settings
         self._dynamic_pairing = (
@@ -196,6 +203,7 @@ class N3wDynamicPairingManagerMqttService(
             registration=registration,
             replay=replay,
             keys=keys,
+            ota_manager=ota_manager,
         )
 
     @property
@@ -392,6 +400,8 @@ class N3wDynamicPairingManagerMqttService(
 
 def build_n3w_simplified_manager_service(
     settings: Settings,
+    *,
+    ota_manager: T1OtaManager | None = None,
 ) -> N3wSimplifiedManagerMqttService:
     """Compose the Phase-4-proven Direct/Relay path for normal Manager startup.
 
@@ -430,6 +440,7 @@ def build_n3w_simplified_manager_service(
             registration=registration,
             replay=replay,
             keys=keys,
+            ota_manager=ota_manager,
         )
     except Exception as error:
         if keys is not None:
@@ -447,6 +458,8 @@ def build_n3w_simplified_manager_service(
 
 def build_n3w_simplified_product_manager_service(
     settings: Settings,
+    *,
+    ota_manager: T1OtaManager | None = None,
 ) -> N3wSimplifiedProductManagerMqttService:
     """Compose final product first-registration and Direct/Relay runtime."""
 
@@ -521,6 +534,7 @@ def build_n3w_simplified_product_manager_service(
             replay=replay,
             keys=keys,
             pairing=pairing,
+            ota_manager=ota_manager,
         )
 
     except Exception as error:
@@ -547,21 +561,53 @@ def build_n3w_simplified_product_manager_service(
         ) from error
 
 
+def build_t1_ota_manager(settings: Settings) -> T1OtaManager | None:
+    """Build the opt-in non-privileged OTA bridge without host privileges."""
+
+    if not getattr(settings, "n3w_t1_ota_enabled", False):
+        return None
+    manifest_provider = ApprovedManifestFileProvider(
+        settings.n3w_t1_ota_manifest_path
+    )
+    bridge = UnixSocketOtaBridge(settings.n3w_t1_ota_socket_path)
+    return T1OtaManager(
+        installed_version=settings.n3w_t1_ota_installed_version or "",
+        manifest_provider=manifest_provider,
+        intent_sink=bridge,
+        runtime_state_provider=bridge,
+    )
+
+
 def build_manager_mqtt_service(settings: Settings) -> ManagerMqttService:
     """Select simplified N3-W when enabled; preserve the normal base otherwise."""
 
+    ota_manager = build_t1_ota_manager(settings)
     if settings.n3w_runtime_enabled:
         if settings.n3w_product_pairing_enabled:
+            if ota_manager is None:
+                return (
+                    build_n3w_simplified_product_manager_service(
+                        settings
+                    )
+                )
             return (
                 build_n3w_simplified_product_manager_service(
-                    settings
+                    settings,
+                    ota_manager=ota_manager,
                 )
             )
+        if ota_manager is None:
+            return build_n3w_simplified_manager_service(
+                settings
+            )
         return build_n3w_simplified_manager_service(
-            settings
+            settings,
+            ota_manager=ota_manager,
         )
 
-    return ManagerMqttService(settings)
+    if ota_manager is None:
+        return ManagerMqttService(settings)
+    return ManagerMqttService(settings, ota_manager=ota_manager)
 
 
 def run_manager_service(settings: Settings) -> None:

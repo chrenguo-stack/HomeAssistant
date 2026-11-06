@@ -72,6 +72,8 @@ RELEVANT_UNITS = frozenset(
     (*REQUIRED_ACTIVE_ENABLED_UNITS, CERT_LIFECYCLE_UNIT)
 )
 EXPECTED_PLATFORM = "linux/arm64"
+DEFAULT_SERVICES_READINESS_TIMEOUT_SECONDS = 120
+HOMEASSISTANT_SERVICES_READINESS_TIMEOUT_SECONDS = 600
 BROKER_CERT_LIFECYCLE_LOCK = Path(
     "/var/lib/n3wfc4-certificate-lifecycle/.certificate-lifecycle.lock"
 )
@@ -524,9 +526,89 @@ class LocalHost:
             raise UpdaterError("component_invalid")
         return self.image_bindings_v2()[component]
 
+    def component_container_residue(
+        self,
+        component: str,
+    ) -> list[dict[str, str]]:
+        if component not in COMPONENTS:
+            raise UpdaterError("component_invalid")
+        result = self._run(
+            (
+                "docker",
+                "ps",
+                "-aq",
+                "--no-trunc",
+                "--filter",
+                f"label=com.docker.compose.project={PROJECT}",
+                "--filter",
+                f"label=com.docker.compose.service={component}",
+            ),
+            check=False,
+        )
+        if result.returncode:
+            raise UpdaterError(f"{component}_container_residue_lookup_failed")
+        container_ids = [
+            line.strip()
+            for line in result.stdout.decode().splitlines()
+            if line.strip()
+        ]
+        residue: list[dict[str, str]] = []
+        for container_id in container_ids:
+            try:
+                document = json.loads(
+                    self._run(("docker", "inspect", container_id)).stdout
+                )
+            except json.JSONDecodeError as error:
+                raise UpdaterError("docker_inspect_invalid") from error
+            if (
+                not isinstance(document, list)
+                or len(document) != 1
+                or not isinstance(document[0], dict)
+            ):
+                raise UpdaterError("docker_inspect_shape_invalid")
+            item = document[0]
+            state = item.get("State")
+            config = item.get("Config")
+            labels = config.get("Labels") if isinstance(config, dict) else None
+            if (
+                not isinstance(state, dict)
+                or not isinstance(config, dict)
+                or not isinstance(labels, dict)
+                or labels.get("com.docker.compose.project") != PROJECT
+                or labels.get("com.docker.compose.service") != component
+            ):
+                raise UpdaterError(f"{component}_container_residue_invalid")
+            if state.get("Running") is True:
+                continue
+            image_ref = config.get("Image")
+            image_id = item.get("Image")
+            status = state.get("Status")
+            name = item.get("Name")
+            replace = labels.get("com.docker.compose.replace")
+            if (
+                not isinstance(image_ref, str)
+                or not isinstance(image_id, str)
+                or not isinstance(status, str)
+                or not isinstance(name, str)
+            ):
+                raise UpdaterError(f"{component}_container_residue_invalid")
+            residue.append(
+                {
+                    "container_id": container_id,
+                    "image_ref": image_ref,
+                    "image_id": image_id,
+                    "status": status,
+                    "name": name,
+                    "replace": replace if isinstance(replace, str) else "",
+                }
+            )
+        return residue
+
     def assert_component_upgradeable(self, component: str) -> None:
         if component not in COMPONENTS:
             raise UpdaterError("component_invalid")
+        if self.component_container_residue(component):
+            raise UpdaterError(f"{component}_container_residue_present")
         mode = self.image_binding_modes_v2()[component]
         if mode == "dynamic":
             return
@@ -870,21 +952,33 @@ class LocalHost:
         if self._running_count("manager") or self._running_count("homeassistant"):
             raise UpdaterError("application_container_still_running")
 
-    def start_services(self) -> None:
+    def start_services(
+        self,
+        *,
+        readiness_timeout: int = DEFAULT_SERVICES_READINESS_TIMEOUT_SECONDS,
+    ) -> None:
+        if not isinstance(readiness_timeout, int) or isinstance(readiness_timeout, bool) or readiness_timeout <= 0:
+            raise UpdaterError("services_readiness_timeout_invalid")
         self._run(("systemctl", "start", SERVICES_UNIT), timeout=180)
-        self.wait_services()
+        self.wait_services(timeout=readiness_timeout)
 
-    def wait_services(self, timeout: int = 120) -> None:
+    def wait_services(
+        self,
+        timeout: int = DEFAULT_SERVICES_READINESS_TIMEOUT_SECONDS,
+    ) -> None:
         deadline = time.monotonic() + timeout
         last_soft_state = "services_not_ready"
         while time.monotonic() < deadline:
-            if self._systemctl("is-active", SERVICES_UNIT) != "active":
+            unit_state = self._systemctl("is-active", SERVICES_UNIT)
+            if unit_state != "active":
+                last_soft_state = "services_unit=" + unit_state
                 time.sleep(2)
                 continue
             try:
                 self._container_id("manager")
                 self._container_id("homeassistant")
             except UpdaterError:
+                last_soft_state = "application_containers_not_ready"
                 time.sleep(2)
                 continue
 
@@ -1271,6 +1365,11 @@ class LocalHost:
         if component == "broker":
             self.start_broker()
             self.start_services()
+            return
+        if component == "homeassistant":
+            self.start_services(
+                readiness_timeout=HOMEASSISTANT_SERVICES_READINESS_TIMEOUT_SECONDS,
+            )
             return
         self.start_services()
 

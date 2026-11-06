@@ -77,3 +77,15 @@ def availability_topic(system_id: str, node_id: str) -> str:
 
 def diagnostic_topic(system_id: str, node_id: str) -> str:
     return f"gh/v1/{system_id}/state/{node_id}/diagnostic"
+
+
+def t1_homeassistant_ota_control_topic(system_id: str) -> str:
+    return f"gh/v1/{system_id}/control/t1/homeassistant/ota"
+
+
+def t1_homeassistant_ota_state_topic(system_id: str) -> str:
+    return f"gh/v1/{system_id}/state/t1/homeassistant/ota"
+
+
+def t1_homeassistant_ota_attributes_topic(system_id: str) -> str:
+    return f"gh/v1/{system_id}/state/t1/homeassistant/ota/attributes"
