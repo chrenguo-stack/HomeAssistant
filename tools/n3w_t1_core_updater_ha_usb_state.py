@@ -415,10 +415,16 @@ class HaUsbStateStore:
         if metadata.st_uid != os.getuid():
             raise UpdaterV2Error("transaction_directory_owner_invalid")
 
-    def _ensure_root(self) -> None:
+    def _existing_root(self) -> bool:
         if self.root.is_symlink():
             raise UpdaterV2Error("transaction_root_symlink")
         if not self.root.exists():
+            return False
+        self._validate_private_dir(self.root)
+        return True
+
+    def _ensure_root(self) -> None:
+        if not self._existing_root():
             self.root.mkdir(parents=True, mode=0o700)
         self._validate_private_dir(self.root)
 
@@ -431,8 +437,7 @@ class HaUsbStateStore:
         self._validate_private_dir(self.history)
 
     def read(self) -> dict[str, Any] | None:
-        self._ensure_root()
-        if not self.path.exists():
+        if not self._existing_root() or not self.path.exists():
             return None
         if self.path.is_symlink() or not self.path.is_file():
             raise UpdaterV2Error("ha_usb_transaction_invalid")
