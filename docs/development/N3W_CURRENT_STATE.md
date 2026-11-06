@@ -1,3 +1,53 @@
+## Latest authority — 2026-11-06 mandatory-USB HA OTA R2 simulated transaction CLOSED_PASS
+
+```text
+AUTHORITY_STATE=HA_USB_MANDATORY_OTA_R2_SIMULATED_TRANSACTION_CLOSED_PASS
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+PR788_BRANCH=review/n3w-t1-core-updater-storage-policy-20261105
+R2_EXECUTABLE_SOURCE_HEAD=e5d9575d24d30f2498e1e64cedd245b6f124c866
+R2_EXECUTABLE_HEAD_CI=16/16_SUCCESS
+R2_EXECUTABLE_HEAD_FAILURE_COUNT=0
+R2_CLOSURE=docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_IMPLEMENTATION_R2_CLOSURE_20261106.md
+
+R2_SYNTHETIC_USB=true
+R2_SYNTHETIC_DOCKER_IMAGE_STORE=true
+R2_SYNTHETIC_HA_DATA=true
+R2_U0_U11_POWER_LOSS_CLASSIFICATION_COVERED=true
+R2_ROLLBACK_REQUIRES_IMAGE_AND_DATA=true
+R2_WRONG_MEDIA_LABEL_REJECTED=true
+
+CURRENT_AUTHORITY_MANIFEST_CHANGED=false
+U0_HISTORICAL_BASELINE_CHANGED=false
+PRODUCTION_COMPOSE_CHANGED=false
+GREENHOUSE_MANAGER_SOURCE_CHANGED=false
+HOMEASSISTANT_CONFIG_CHANGED=false
+BROKER_SOURCE_CHANGED=false
+LIVE_T1_RUNTIME_STACK_CHANGED=false
+
+REAL_USB_FORMAT=false
+REAL_BLOCK_DEVICE_ACCESS=false
+REAL_DOCKER_COMMAND=false
+LIVE_T1_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_IMPLEMENTATION_R3_20261106_01
+R3_SCOPE=GREENHOUSE_MANAGER_OTA_CONTROL_PLANE_ONLY
+AUTO_EXECUTE_NEXT_GATE=false
+STOP=true
+```
+
+R2 is CLOSED_PASS at executable source head `e5d9575d...` with 16/16 exact-head workflows successful. The simulated transaction proves READY_TO_INSTALL before predecessor export/HA stop, U9 as the destructive boundary, rollback requiring both predecessor image and pre-upgrade HA data, same-USB UUID continuity after U9, and deterministic U0-U11 power-loss classification. Independent review also added enforcement of the frozen N3W-UPDATE media label. R2 uses only synthetic resources and performs no real block-device, Docker, systemd or T1 operation. The accepted three-container production stack and historical U0 baseline remain unchanged. R3 is the next bounded greenhouse-manager OTA control-plane gate.
+
 ## Latest authority — 2026-11-06 mandatory-USB HA OTA R1 source implementation CLOSED_PASS
 
 ```text
