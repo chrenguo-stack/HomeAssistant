@@ -8,13 +8,16 @@ CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
 CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
 CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
 CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
 LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
 
 SUCCESSOR_AUTHORITY_PARENT_HEAD=a1f2b1e44eb02e4197b42818dafc1acfda9e26f6
 HISTORICAL_R4_EXECUTABLE_SOURCE_HEAD=506136a8f1fc42bb8788f8a3c0fae9220d689af4
 HISTORICAL_FINAL_DOCS_HEAD=5ad015c23b0522640c48a84b4da7e00507ee757b
 R4_IMPLEMENTATION_BLOB_PARITY=PASS
-R4_TEST_SUCCESSOR_SAFE_MERGE_COUNT=3
+R4_TEST_SUCCESSOR_SAFE_FILE_COUNT=4
+R4_TEST_SUCCESSOR_SAFE_ASSERTION_COUNT=5
 R4_ARCHIVE_DOC_BLOB_PARITY=PASS
 R4_ARCHIVE_DOC_COUNT=20
 
@@ -48,11 +51,11 @@ STOP_BOUNDARY=BEFORE_R5_ENTRY
 The clean successor carries the reviewed mandatory-USB Home Assistant OTA R4 implementation onto
 the canonical post-#797 main line without restoring obsolete P4/P5 ancestry or activating the
 retired P5 live-apply package. Forty-five non-overlapping R4 files remain byte-identical to the
-historical R4 executable authority. Three historical-package tests are successor-safe: they preserve
-the current P4 authority where applicable and explicitly prove fail-closed rejection of stale
-ancestry or source drift. Historical public-safe closure and architecture documents are archived
-byte-for-byte. No T1, USB, Docker, service, production runtime or board mutation occurs. R5 remains
-a separate real-T1 read-only authorization boundary.
+historical R4 executable authority. Four historical-package test files contain five successor-safe
+assertions: they preserve the current P4 authority where applicable and explicitly prove fail-closed
+rejection of stale ancestry or source drift. Historical public-safe closure and architecture
+documents are archived byte-for-byte. No T1, USB, Docker, service, production runtime or board
+mutation occurs. R5 remains a separate real-T1 read-only authorization boundary.
 
 ## Latest authority — 2026-11-06 mandatory-USB HA OTA R4 host integration CLOSED_PASS
 

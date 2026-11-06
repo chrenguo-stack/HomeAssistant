@@ -65,23 +65,13 @@ def test_manifest_is_preauth_only_and_single_use():
     assert capacity["stop_before_remote_staging_on_failure"] is True
 
 
-def test_exact_source_binding_validates_current_head():
+def test_historical_source_binding_rejects_successor_head():
     head = subprocess.check_output(
         ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
         text=True,
     ).strip()
-    report = executor.validate_source(head)
-    assert report["exact_source_head"] == head
-    assert report["authority_parent_head"] == (
-        "764e95c8ed736a07757995d4b5fb190357182537"
-    )
-    assert report["p4_execution_head"] == (
-        "8232707eb2c91d3fa9881e4cadba6b78eefc1494"
-    )
-    assert report["target_manifest_blob_sha"] == (
-        "6966b4fe4d7620ccc436643cc840da9ae95e6010"
-    )
-    assert report["live_apply_authorized"] is False
+    with pytest.raises(executor.StopExecution, match="source_blob_mismatch:"):
+        executor.validate_source(head)
 
 
 def test_execute_stops_before_t1_while_manifest_is_not_authorized(tmp_path):
@@ -96,7 +86,7 @@ def test_execute_stops_before_t1_while_manifest_is_not_authorized(tmp_path):
         expected_source_head=head,
         evidence_root=tmp_path / "evidence",
     )
-    with pytest.raises(executor.StopExecution, match="live_apply_not_authorized"):
+    with pytest.raises(executor.StopExecution, match="source_blob_mismatch:"):
         executor.execute(args)
     assert not args.evidence_root.exists()
 

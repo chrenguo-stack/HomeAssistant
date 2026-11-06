@@ -1,9 +1,12 @@
 ## 2026-11-06 — PR #788 clean successor: mandatory-USB HA OTA R4 source converged
 
 - The successor is based exactly on post-#797 main `a1f2b1e44eb02e4197b42818dafc1acfda9e26f6`.
+- Current authority remains `infra/n3w-t1/production/t1-core-stack-current.json` at product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Accepted images remain `local/greenhouse-manager:fresh-5b32e1ae8210`, `local/n3w-homeassistant:2026.10.0-0c73235a` and `local/n3w-mosquitto:2.1.2-3184566d`; Live upgrade accepted.
+- Historical clean reference remains `24382caae4a1f5d459297f86e8d18f10a848ca64` / `local/greenhouse-manager:fresh-24382caae4a1`.
 - Historical R4 executable authority remains `506136a8f1fc42bb8788f8a3c0fae9220d689af4`; final historical docs head remains `5ad015c23b0522640c48a84b4da7e00507ee757b`.
 - Forty-five non-overlapping R4 files are byte-identical to the historical authority.
-- Three historical-package tests preserve current successor authority where applicable and prove fail-closed rejection of stale ancestry or USB-successor source drift.
+- Four historical-package test files contain five successor-safe assertions that preserve current successor authority where applicable and prove fail-closed rejection of stale ancestry or USB-successor source drift.
 - Twenty public-safe historical closure/architecture documents are archived byte-identically; the three current-state documents preserve both the R4 history and the already-converged #779-#787 successor line.
 - The #797 P5 preauthorization successor remains fail-closed with `live_apply_authorized=false`; obsolete live-apply package state is not restored.
 - Interrupted branch A is incomplete/redundant forensic evidence; interrupted branch B is incomplete and contains three stale-ancestry test assumptions, so neither is merge authority.
