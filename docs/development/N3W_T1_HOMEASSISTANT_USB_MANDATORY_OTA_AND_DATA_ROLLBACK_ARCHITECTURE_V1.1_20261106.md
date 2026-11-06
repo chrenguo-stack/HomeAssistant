@@ -17,7 +17,7 @@ USB_FORMAT_OWNER=T1
 USB_FORMAT_REQUIRED_FOR_EVERY_HA_VERSION_UPDATE=true
 USB_MEASURED_USABLE_CAPACITY_MIN_BYTES=15032385536
 USB_NOMINAL_CAPACITY_NOT_AUTHORITY=true
-RECOMMENDED_MARKET_USB_SIZE=32GB_OR_LARGER
+RECOMMENDED_MARKET_USB_SIZE=16GB_OR_LARGER
 USER_PRELOAD_REQUIRED=false
 USER_COMPUTER_REQUIRED=false
 
@@ -178,7 +178,7 @@ FORMAT_REQUIRED=true
 DESTRUCTIVE_CONFIRMATION_REQUIRED=true
 USB_MEASURED_USABLE_CAPACITY_MIN_BYTES=15032385536
 USB_NOMINAL_CAPACITY_NOT_AUTHORITY=true
-RECOMMENDED_MARKET_USB_SIZE=32GB_OR_LARGER
+RECOMMENDED_MARKET_USB_SIZE=16GB_OR_LARGER
 ```
 
 The product must display a clear warning before formatting:
@@ -421,7 +421,7 @@ No USB or production mutation.
 
 Require removable USB media.
 
-The product explains that the device will be erased and recommends 32GB or larger.
+The product explains that the device will be erased and recommends 16GB or larger.
 
 ### Phase U2 — USB selection, destructive confirmation and format
 
@@ -618,7 +618,7 @@ Hard media gate:
 USB_MEASURED_USABLE_CAPACITY_MIN_BYTES=15032385536
 USB_MEASURED_USABLE_CAPACITY_MIN=14_GiB
 USB_NOMINAL_CAPACITY_NOT_AUTHORITY=true
-RECOMMENDED_MARKET_USB_SIZE=32GB_OR_LARGER
+RECOMMENDED_MARKET_USB_SIZE=16GB_OR_LARGER
 ```
 
 Formatting is performed first; measured usable ext4 capacity is evaluated afterward.
