@@ -1,3 +1,16 @@
+## 2026-11-06 — PR #780 successor: Home Assistant validation source preparation converged
+
+- Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current Manager remains `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted state remains `APPLIED_ACCEPTED`; this successor performs no live mutation.
+- #780 source parity against current main passed for the modified existing updater/test files.
+- HA 2026.10.4 remains the first IMAGE_ONLY_V1 compatibility candidate.
+- A1 now observes and rejects managed HA storage minor-version drift after an image-only mutation.
+- The HA template convergence inspector is read-only and requires complete rendered-Compose semantic equality.
+- Exact HA ARM64 package, live apply and rollback are not authorized or complete at this layer.
+
 ## 2026-11-06 — PR #779 successor convergence: durable U2 authority retained
 
 - Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
