@@ -1,3 +1,54 @@
+## Latest authority — 2026-11-06 PR #785 successor: HA P3 generic V2 simulation converged
+
+```text
+AUTHORITY_STATE=HA_P3_GENERIC_V2_SIMULATION_SUCCESSOR_CONVERGED
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+AUTHORITY_SCHEMA=gh.n3w-t1-core-stack-current-authority/2
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+STACK_VERSION=1.0.0
+STACK_RELEASE_ID=5debfbe23356d67ea5ff095f7ffc3e5443d771ddb4241589fa496b901ff2b7d9
+
+HA_P2_EXACT_PACKAGE_AND_COMPONENT_TARGET=CLOSED_PASS
+HA_P3_UPDATER_SOURCE_SIMULATION_AND_READONLY_PLAN=CLOSED_PASS
+P3_HISTORICAL_EXECUTABLE_SOURCE_HEAD=b4409c11beda99f2aef43353b8129003760634b7
+P3_FINAL_DOCS_ALIGNMENT_HEAD=bb845f5cca4f2fc3e4710d14b6176a043d2a4523
+
+HA_TARGET_PATH=infra/n3w-t1/upgrades/homeassistant-2026.10.4.json
+HA_TARGET_IMAGE=local/n3w-homeassistant:2026.10.4-5881590f
+HA_TARGET_ARCHIVE_SHA256=eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973
+HA_TARGET_ARTIFACT_ID=13391983948
+
+HA_LEGACY_STATIC_PREDECESSOR_TRANSACTION_SUPPORT=true
+HA_PREDECESSOR_BINDING_MODE_TRANSACTION_AUTHORITY=true
+HA_TARGET_BINDING_MODE_REQUIRED=dynamic
+HA_APPLY_SIMULATION=PASS
+HA_ROLLBACK_SIMULATION=PASS
+HA_INTERRUPTED_BINDING_RECOVERY_SIMULATION=PASS
+HA_ACTIVATION_FAILURE_AUTO_ROLLBACK_SIMULATION=PASS
+
+T1_ACCESS=false
+T1_MUTATION=false
+LIVE_RUNTIME_MUTATION=false
+SERVICE_RESTART=false
+BOARD_ACCESS=false
+LIVE_HA_UPGRADE_READY=false
+
+NEXT_ROUTE=HA_P4_FRESH_READONLY_PREMUTATION_BASELINE
+```
+
+P3 keeps one privileged execution engine: T1_Core_Updater. It makes Home Assistant
+legacy-static -> dynamic binding convergence part of the same V2 transaction as the HA image
+upgrade, records predecessor binding mode as rollback authority, and restores both predecessor
+image and binding mode on rollback. This successor carries forward the already reviewed simulation
+source and evidence without claiming a new T1 execution.
+
 ## Latest authority — 2026-11-06 PR #784 successor: exact Home Assistant 2026.10.4 artifact/target converged
 
 ```text
