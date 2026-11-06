@@ -1,3 +1,14 @@
+## 2026-11-06 — PR #779 successor convergence: durable U2 authority retained
+
+- Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository source/Manager/HA/Broker remain `5b32e1ae...` / Manager B / HA 2026.10.0 / Broker 2.1.2.
+- Historical Clean Reference remains immutable.
+- Post-U1 completion audit is retained as durable engineering authority.
+- U2 T1_A read-only classification remains `CLOSED_PASS`: current V2 transaction COMMITTED, runtime TARGET_BOUND_RUNNING/HEALTHY, recovery not required, no current legacy transaction, historical transactions terminal, no silent consumed-authorization replay path observed.
+- No T1 cleanup is required.
+- PR #779's obsolete Working Context 1.4 handoff is not promoted to current main; it remains historical PR evidence.
+- No T1, board, runtime, production authority or component mutation occurs in this convergence.
+
 ## 2026-11-06 — T1_Core_Stack OTA baseline/repository source alignment prepared
 
 - Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
