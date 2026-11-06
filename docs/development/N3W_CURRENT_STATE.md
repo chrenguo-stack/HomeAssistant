@@ -1,3 +1,45 @@
+## Latest authority — 2026-11-06 PR #784 successor: exact Home Assistant 2026.10.4 artifact/target converged
+
+```text
+AUTHORITY_STATE=HA_2026_10_4_EXACT_ARTIFACT_TARGET_SUCCESSOR_CONVERGED
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+AUTHORITY_SCHEMA=gh.n3w-t1-core-stack-current-authority/2
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+STACK_VERSION=1.0.0
+STACK_RELEASE_ID=5debfbe23356d67ea5ff095f7ffc3e5443d771ddb4241589fa496b901ff2b7d9
+
+HA_P2_EXACT_PACKAGE_AND_COMPONENT_TARGET=CLOSED_PASS
+HA_TARGET_PATH=infra/n3w-t1/upgrades/homeassistant-2026.10.4.json
+HA_TARGET_IMAGE=local/n3w-homeassistant:2026.10.4-5881590f
+HA_TARGET_ARCHIVE_SHA256=eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973
+HA_TARGET_ARTIFACT_ID=13391983948
+HA_TARGET_ARTIFACT_DIGEST_SHA256=df95749cec1e48796d2cf3241d19739601fe7be78c48638284d10eec786e4fd2
+HA_TARGET_ARTIFACT_SOURCE_HEAD=fb7cfc857003ace3d368521d76ca2320ba399736
+HA_TARGET_UPSTREAM_MANIFEST_DIGEST=sha256:5881590fca108a6e6b5eb9fff1718baeddda9d6dd5b52d1594e3386fe33b4d66
+HA_EXACT_ARTIFACT_REBUILT_IN_SUCCESSOR=false
+HA_TARGET_REWRITTEN_IN_SUCCESSOR=false
+
+T1_ACCESS=false
+T1_MUTATION=false
+SERVICE_RESTART=false
+BOARD_ACCESS=false
+LIVE_HA_UPGRADE_READY=false
+
+NEXT_ROUTE=N3W_T1_CORE_UPDATER_HOMEASSISTANT_P3_UPDATER_SOURCE_SIMULATION_AND_READONLY_PLAN_20261105_01
+```
+
+The successor preserves the already frozen P2A artifact and P2B target as exact authority. The
+artifact is not rebuilt merely because repository history was converged through successor PRs.
+The target-binding workflow must re-download and verify that original artifact; the exact-artifact
+workflow must not silently produce a replacement once the frozen target exists.
+
 ## Latest authority — 2026-11-06 PR #782 successor: HA runtime-template read-only preflight source converged
 
 ```text
