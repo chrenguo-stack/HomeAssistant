@@ -888,7 +888,7 @@ The user explicitly paused before `chip-id` / `flash-id` and requested a new-cha
 # N3W_PROJECT_WORKING_CONTEXT
 
 > Status: durable public project working context  
-> Version: `N3W_PROJECT_WORKING_CONTEXT_VERSION=1.4`  
+> Version: `N3W_PROJECT_WORKING_CONTEXT_VERSION=1.5`  
 > Scope: N3-W development for the greenhouse monitoring system  
 > Repository: `chrenguo-stack/HomeAssistant`
 
@@ -1417,6 +1417,42 @@ Design authority:
 docs/development/N3W_T1_CORE_STACK_CLEAN_REFERENCE_AND_STABLE_INVARIANTS_DESIGN_20261031.md
 ```
 
+
+### 14.1 Baseline and release authority layering
+
+The project uses four separate authority layers and must not use the word `baseline` as if these
+objects were interchangeable:
+
+```text
+HISTORICAL_CLEAN_REFERENCE
+COMPONENT_UPGRADE_BASELINE
+CURRENT_PRODUCTION_AUTHORITY
+IMMUTABLE_STACK_RELEASE
+```
+
+- Historical Clean Reference is immutable engineering/reference evidence.
+- Component Upgrade Baseline is transaction-scoped predecessor/rollback authority for
+  `T1_Core_Updater`.
+- Current Production Authority records the exact stack accepted as running now.
+- Immutable Stack Release is the append-only product-version authority used as predecessor/target
+  by product OTA.
+
+`T1_Core_Stack OTA` is the product-level release/orchestration/user-experience layer.
+`T1_Core_Updater` remains the sole privileged local execution engine.
+
+A Stack release that freezes an already accepted pre-OTA production composition may be classified
+as a bootstrap accepted/pre-OTA release. That classification does not imply the signed end-user OTA
+publication pipeline is already complete, and future OTA metadata must not be retroactively added by
+silently rewriting an already frozen predecessor release.
+
+```text
+BASELINE_LAYER_COLLAPSE_FORBIDDEN=true
+CURRENT_PRODUCTION_AUTHORITY_IS_NOT_COMPONENT_BASELINE=true
+STACK_RELEASE_IS_NOT_LIVE_RUNTIME_PROOF=true
+OLD_ACCEPTED_RELEASE_RETROACTIVE_REWRITE=false
+T1_CORE_STACK_OTA_REPLACES_UPDATER_AS_EXECUTOR=false
+```
+
 ---
 
 ## 15. Dual-T1 clean-reference and upgrade-validation roles
@@ -1478,7 +1514,7 @@ Those belong in current state, progress alignment, known failures, or the curren
 A change to this file should explain the durable process need it addresses and should update the handoff template when the change affects new-chat continuation.
 
 ```text
-N3W_PROJECT_WORKING_CONTEXT_VERSION=1.4
+N3W_PROJECT_WORKING_CONTEXT_VERSION=1.5
 STABLE_CONVENTIONS_ONLY=true
 STAGE_SPECIFIC_VALUES_PROHIBITED=true
 HANDOFF_TEMPLATE_EXPECTED_TO_REFERENCE_THIS_FILE=true
