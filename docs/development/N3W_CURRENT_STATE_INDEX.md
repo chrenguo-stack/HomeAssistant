@@ -1,3 +1,19 @@
+## 2026-11-06 — PR #786 successor: HA P4 fresh read-only premutation baseline converged
+
+- Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current repository Manager remains `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current repository Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted state remains `APPLIED_ACCEPTED`; this successor performs no live mutation.
+- Stack 1.0.0 remains the immutable bootstrap accepted pre-OTA release baseline.
+- HA P3 remains `CLOSED_PASS`; historical P4 real-T1 read-only baseline remains `CLOSED_PASS` at execution head `8232707eb2c91d3fa9881e4cadba6b78eefc1494`.
+- Historical P4 baseline SHA256 remains `78c3b0b58ad39cf887689658bec90c8466d30a93d58830b0289f1463dafad868`; target image prestate was `ABSENT`; no target archive was staged or verified on T1.
+- Successor package ancestry is rebound to current main `dcd295e7f31afc7fe23f67655516fe4b56594bca`; all P3 executable/target source blobs remain byte-identical.
+- This successor does not claim a new T1 execution and does not authorize live Home Assistant apply.
+- Next route is P5 live-apply preauthorization review.
+
 ## 2026-11-06 — PR #785 successor: HA P3 generic V2 simulation converged
 
 - Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
