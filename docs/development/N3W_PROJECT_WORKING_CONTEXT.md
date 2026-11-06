@@ -1491,6 +1491,25 @@ OLD_ACCEPTED_RELEASE_RETROACTIVE_REWRITE=false
 T1_CORE_STACK_OTA_REPLACES_UPDATER_AS_EXECUTOR=false
 ```
 
+### 14.2 Initial immutable Stack release authority
+
+The initial exact Stack release baseline is:
+
+```text
+STACK_VERSION=1.0.0
+STACK_RELEASE_ID=5debfbe23356d67ea5ff095f7ffc3e5443d771ddb4241589fa496b901ff2b7d9
+STACK_RELEASE_PATH=infra/n3w-t1/releases/1.0.0/release.json
+STACK_RELEASE_ROLE=BOOTSTRAP_ACCEPTED_PRE_OTA_RELEASE
+STACK_RELEASE_IMMUTABLE=true
+STACK_1_0_0_END_USER_OTA_PUBLICATION=false
+```
+
+It freezes the already accepted production composition and is valid predecessor/rollback authority.
+It does not mean the complete signed end-user Stack OTA publication pipeline existed at 1.0.0.
+Future richer OTA publication metadata belongs to successor releases; do not mutate or republish
+1.0.0 to backfill it.
+
+
 ---
 
 ## 15. Dual-T1 clean-reference and upgrade-validation roles
