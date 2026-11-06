@@ -1,3 +1,47 @@
+## Stable updater authority — 2026-11-06 mandatory-USB HA OTA R2 simulated transaction CLOSED_PASS
+
+```text
+PROJECT_WORKING_CONTEXT_VERSION=1.6
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+R2_EXECUTABLE_SOURCE_HEAD=e5d9575d24d30f2498e1e64cedd245b6f124c866
+R2_EXECUTABLE_HEAD_CI=16/16_SUCCESS
+R2_CLOSURE=docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_IMPLEMENTATION_R2_CLOSURE_20261106.md
+
+R2_READY_TO_INSTALL_PRECEDES_HA_STOP=true
+R2_U9_IS_DESTRUCTIVE_BOUNDARY=true
+R2_ROLLBACK_REQUIRES_PREDECESSOR_IMAGE=true
+R2_ROLLBACK_REQUIRES_PREUPGRADE_HA_DATA=true
+R2_SAME_USB_UUID_REQUIRED_AFTER_U9=true
+R2_U0_U11_POWER_LOSS_CLASSIFICATION_COVERED=true
+R2_MEDIA_LABEL_REQUIRED=N3W-UPDATE
+
+R2_REAL_USB_FORMAT=false
+R2_REAL_BLOCK_DEVICE_ACCESS=false
+R2_REAL_DOCKER_COMMAND=false
+R2_LIVE_T1_MUTATION=false
+
+P5_EXECUTION_PACKAGE_DISPOSITION=RETIRED_FOR_PRODUCT_EXECUTION
+P5_AUTHORIZATION_DISPOSITION=SUPERSEDED_UNCLAIMED
+
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_IMPLEMENTATION_R3_20261106_01
+R3_SCOPE=GREENHOUSE_MANAGER_OTA_CONTROL_PLANE_ONLY
+R3_PRIVILEGED_HOST_OPERATIONS=false
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+R2 is the stable simulated-transaction authority for the mandatory-USB Home Assistant successor path. It proves transaction ordering, destructive-cutover admission, rollback completeness and power-loss classification without introducing real host operations. The accepted T1 three-container production stack remains unchanged. Do not promote any synthetic backup protection mechanism to production. Do not reactivate the retired P5 path. R3 may add only the greenhouse-manager approved-manifest/MQTT Update/control-intent layer; greenhouse-manager must remain without Docker socket, block-device or root privilege, and T1 Core Updater remains the sole real upgrade/rollback transaction authority.
+
+Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_IMPLEMENTATION_R2_CLOSURE_20261106.md`.
+
 ## Stable updater authority — 2026-11-06 mandatory-USB HA OTA R1 source implementation CLOSED_PASS
 
 ```text
