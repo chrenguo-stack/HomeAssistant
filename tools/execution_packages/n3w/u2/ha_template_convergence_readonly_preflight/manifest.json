@@ -1,0 +1,54 @@
+{
+  "schema": "gh.n3w-t1-core-updater-ha-template-readonly-preflight-execution-package/1",
+  "gate_id": "N3W_T1_CORE_UPDATER_HOMEASSISTANT_RUNTIME_TEMPLATE_CONVERGENCE_READONLY_PREFLIGHT_20261105_01",
+  "authority_parent_head": "ead524a3e2102454e0a49b467aaa37ee4afc803a",
+  "source_binding": {
+    "authority_parent_head": "ead524a3e2102454e0a49b467aaa37ee4afc803a",
+    "inspector_path": "tools/n3w_t1_core_updater_ha_template_convergence.py",
+    "inspector_blob_sha": "9e8ad6ced381e6b4fa9ec146b4f143769c316ceb",
+    "current_authority_path": "infra/n3w-t1/production/t1-core-stack-current.json",
+    "current_authority_blob_sha": "07ceb3b352f21d925127caa71304cc3b29827fdb"
+  },
+  "expected_runtime": {
+    "homeassistant_image": "local/n3w-homeassistant:2026.10.0-0c73235a",
+    "current_binding_mode": "legacy_static",
+    "candidate_binding_mode": "dynamic",
+    "compose_path": "/etc/n3wfc4/docker-compose.yml",
+    "compose_env_path": "/etc/n3wfc4/docker-compose.env"
+  },
+  "execution_authority": {
+    "exact_source_head_required": true,
+    "clean_tracked_worktree_required": true,
+    "confirmation": "READONLY HA TEMPLATE CONVERGENCE PREFLIGHT: YES",
+    "t1_access": true,
+    "t1_mutation": false,
+    "persistent_t1_file_write": false,
+    "temporary_scratch_write": true,
+    "service_restart": false,
+    "image_load": false,
+    "updater_apply": false,
+    "updater_rollback": false,
+    "credential_mutation": false,
+    "board_access": false,
+    "merge": false
+  },
+  "evidence": {
+    "double_read_required": true,
+    "render_semantic_equality_required": true,
+    "private_local_root_required": true,
+    "private_root_mode": "0700",
+    "private_file_mode": "0600",
+    "raw_target_public_output": false,
+    "secret_values_included": false
+  },
+  "pass_contract": {
+    "inspector_status": "PASS",
+    "mutation": false,
+    "current_binding_mode": "legacy_static",
+    "candidate_binding_mode": "dynamic",
+    "render_semantically_equal": true,
+    "product_path_write": false,
+    "service_restart": false,
+    "double_read_stable": true
+  }
+}
