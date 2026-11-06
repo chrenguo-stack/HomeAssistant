@@ -65,20 +65,33 @@ def test_manifest_has_exact_one_shot_authorization_but_is_unclaimed():
     assert contract["blind_explicit_rollback_allowed"] is False
 
 
-def test_exact_source_binding_validates_current_head():
+def test_historical_execution_package_rejects_successor_source_drift():
+    manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+    frozen_blob = manifest["source_binding"][
+        "tools/n3w_t1_core_updater_v2_state.py"
+    ]
+    assert frozen_blob == "a5260f1097983cad4818f626826accbb185e4a37"
+
     head = subprocess.check_output(
         ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
         text=True,
     ).strip()
-    report = executor.validate_source(head)
-    assert report["exact_source_head"] == head
-    assert report["authority_parent_head"] == (
-        "72acefe2a4aa6505d6921f795d734db7cf3c64a8"
-    )
-    assert report["postcleanup_preflight_closure_blob_sha"] == (
-        "5151dd8a63de7132e169068356674db001daec76"
-    )
-    assert report["live_reapply_authorized"] is True
+    current_blob = subprocess.check_output(
+        [
+            "git",
+            "-C",
+            str(ROOT),
+            "rev-parse",
+            f"{head}:tools/n3w_t1_core_updater_v2_state.py",
+        ],
+        text=True,
+    ).strip()
+    assert current_blob != frozen_blob
+    with pytest.raises(
+        executor.StopExecution,
+        match="source_blob_mismatch:n3w_t1_core_updater_v2_state.py",
+    ):
+        executor.validate_source(head)
 
 
 def test_unauthorized_reapply_stops_before_evidence_or_t1(tmp_path, monkeypatch):
