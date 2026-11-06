@@ -1,3 +1,57 @@
+## Stable updater authority — 2026-11-06 mandatory-USB HA OTA R4 host integration CLOSED_PASS
+
+```text
+PROJECT_WORKING_CONTEXT_VERSION=1.8
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+R4_EXECUTABLE_SOURCE_HEAD=506136a8f1fc42bb8788f8a3c0fae9220d689af4
+R4_EXECUTABLE_HEAD_CI=20/20_APPLICABLE_SUCCESS
+R4_CLOSURE=docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_IMPLEMENTATION_R4_CLOSURE_20261106.md
+
+R4_UNIX_SOCKET_IPC=true
+R4_EXACT_REQUEST_KEYS=true
+R4_SO_PEERCRED_UID_CHECK=true
+R4_HOST_INDEPENDENT_ADMISSION_RESOLUTION=true
+R4_PREPARE_MAX_PHASE=U1_PREPARE_REQUESTED
+R4_INSTALL_REQUIRES_U4_READY_TO_INSTALL=true
+R4_INSTALL_MAX_PHASE=U5_INSTALL_REQUESTED_REVALIDATING
+
+R4_MANAGER_BASELINE_NON_DRIFT=PASS
+R4_MANAGER_A_TO_B_REGRESSION=PASS
+R4_DEFAULT_OFF_LEGACY_CALL_SHAPE=PASS
+
+R4_PRODUCTION_RUNTIME_ACTIVATION=false
+R4_PRODUCTION_COMPOSE_CHANGED=false
+R4_CURRENT_AUTHORITY_MANIFEST_CHANGED=false
+R4_LIVE_T1_MUTATION=false
+R4_REAL_USB_FORMAT=false
+R4_REAL_DOCKER_MUTATION=false
+R4_BOARD_ACCESS=false
+
+T1_CORE_STACK_OTA_DESIGN=docs/development/N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.0_20261106.md
+T1_CORE_STACK_OTA_PRODUCT_CONCEPT=true
+T1_CORE_UPDATER_REMAINS_PRIVILEGED_ENGINE=true
+STACK_OTA_R4_SCOPE_EXPANSION=false
+
+P5_EXECUTION_PACKAGE_DISPOSITION=RETIRED_FOR_PRODUCT_EXECUTION
+P5_AUTHORIZATION_DISPOSITION=SUPERSEDED_UNCLAIMED
+
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R5_REAL_T1_READONLY_PREFLIGHT_20261106_01
+R5_SCOPE=REAL_T1_READONLY_PREFLIGHT
+AUTO_EXECUTE_NEXT_GATE=false
+STOP_BOUNDARY=BEFORE_R5_ENTRY
+```
+
+R4 is the stable source authority for connecting the Manager OTA control plane to the host-side mandatory-USB Home Assistant transaction. The Manager remains non-privileged and sends only bounded release intents over a Unix socket; the host independently resolves release, transaction and privileged resources. The accepted Manager Generic V2 A-to-B path remains green and the production stack is unchanged. The T1 Core Stack OTA architecture is now the successor product-level direction covering Manager, Broker and Home Assistant while retaining T1_Core_Updater as the privileged engine; it does not authorize implementation or live activation inside R4. The next Home Assistant gate is R5 real-T1 read-only preflight and must not be entered without explicit authorization.
+
+Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_IMPLEMENTATION_R4_CLOSURE_20261106.md`.
+
 ## Stable updater authority — 2026-11-06 mandatory-USB HA OTA R3 Manager control plane CLOSED_PASS
 
 ```text

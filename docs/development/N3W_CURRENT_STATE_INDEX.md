@@ -1,3 +1,46 @@
+## 2026-11-06 — Home Assistant mandatory-USB OTA R4 host integration CLOSED_PASS
+
+```text
+STATE=HA_USB_MANDATORY_OTA_R4_HOST_INTEGRATION_CLOSED_PASS
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+LIVE_UPGRADE_ACCEPTED=true
+
+R4_EXECUTABLE_SOURCE_HEAD=506136a8f1fc42bb8788f8a3c0fae9220d689af4
+R4_EXECUTABLE_HEAD_CI=20/20_APPLICABLE_SUCCESS
+R4_EXPECTED_SKIPPED_WORKFLOW_COUNT=2
+R4_MANAGER_PYTEST=1528_PASSED_1_SKIPPED
+R4_MANAGER_R8_E2E=8_PASSED
+R4_HA_TARGET_SOURCE_TESTS=150_PASSED
+R4_MANAGER_A_TO_B=PASS
+R4_MANAGER_BASELINE_NON_DRIFT=PASS
+
+CURRENT_T1_RUNTIME_STACK_CHANGED=false
+CURRENT_AUTHORITY_MANIFEST_CHANGED=false
+PRODUCTION_COMPOSE_CHANGED=false
+PRODUCTION_MANAGER_IMAGE_REBUILT=false
+
+T1_CORE_STACK_OTA_DESIGN=docs/development/N3W_T1_CORE_STACK_OTA_PRODUCT_ARCHITECTURE_V1.0_20261106.md
+AUTHORITY=docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_IMPLEMENTATION_R4_CLOSURE_20261106.md
+
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R5_REAL_T1_READONLY_PREFLIGHT_20261106_01
+R5_SCOPE=REAL_T1_READONLY_PREFLIGHT
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+- R4 exact executable head passed all 20 applicable workflows; two path-gated workflows were expected skips.
+- greenhouse-manager CI passed Ruff plus 1528 tests with one skip, and the R8 simulated first-registration slice passed 8 tests.
+- Manager A-to-B source, exact package binding, updater PYZ execution and pre-U1 simulation all passed.
+- HA target source tests passed 150 tests and exact target binding passed.
+- The only earlier remaining CI failure was an external Mosquitto source-download SSL EOF; the unchanged exact head passed on rerun with 15 tests.
+- Manager default-off behavior preserves the pre-R4 builder/constructor call shape.
+- Production authority, compose and accepted Manager image remain unchanged.
+- T1 Core Stack OTA is now a separately archived successor product architecture; it does not expand R4.
+- R5 is real-T1 read-only preflight and requires separate explicit authorization.
+
 ## 2026-11-06 — Home Assistant mandatory-USB OTA R3 Manager control plane CLOSED_PASS
 
 ```text
