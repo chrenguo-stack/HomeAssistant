@@ -1,3 +1,17 @@
+## 2026-11-06 — Home Assistant mandatory-USB OTA P5 source-design delta CLOSED_PASS
+
+```text
+STATE=HA_USB_MANDATORY_P5_SOURCE_DESIGN_DELTA_CLOSED_PASS
+AUTHORITY=docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_DESIGN_DELTA_20261106.md
+USB_MARKET_RECOMMENDATION=16GB_OR_LARGER
+USB_HARD_MEASURED_FLOOR=14_GiB
+P5_OLD_PACKAGE=RETIRED_FOR_PRODUCT_EXECUTION
+P5_OLD_AUTHORIZATION=SUPERSEDED_UNCLAIMED
+GENERIC_V2_REWRITE_REQUIRED=false
+THREE_CONTAINER_CORE_STACK_PRESERVED=true
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_IMPLEMENTATION_R1_20261106_01
+```
+
 ## 2026-11-05 — Home Assistant P5 KF-142 R2 source CLOSED_PASS; SSH host-key preflight next
 
 - Canonical authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
@@ -26,7 +40,7 @@
 - V1.1 supersedes the earlier conditional-USB / terminal-OCI proposal for future product/source design.
 - Every Home Assistant version update requires removable USB media.
 - T1 must explicitly warn that the USB will be erased, then format it as ext4.
-- Admission uses measured ext4 usable capacity, not marketed capacity; hard floor is 14 GiB (15032385536 bytes), and 32GB-or-larger market media is recommended.
+- Admission uses measured ext4 usable capacity, not marketed capacity; hard floor is 14 GiB (15032385536 bytes), and 16GB-or-larger market media is recommended.
 - The exact compressed Home Assistant archive becomes the primary terminal OTA transfer artifact and remains the OFFLINE_RECOVERY_ARTIFACT family.
 - T1 downloads and fully verifies the target archive on USB while production Home Assistant remains running.
 - After target verification the transaction stops at READY_TO_INSTALL and tells the user that preparation is complete.
