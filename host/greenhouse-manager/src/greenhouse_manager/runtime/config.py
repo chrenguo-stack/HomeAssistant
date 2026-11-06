@@ -148,6 +148,12 @@ class Settings:
         "/var/lib/greenhouse-manager/n3w/credential-lifecycle.sqlite3"
     )
     n3w_pairing_socket_path: str = "/run/greenhouse-manager/pairing.sock"
+    n3w_t1_ota_enabled: bool = False
+    n3w_t1_ota_installed_version: str | None = None
+    n3w_t1_ota_manifest_path: str = (
+        "/run/n3w/t1-ota/approved-homeassistant.json"
+    )
+    n3w_t1_ota_socket_path: str = "/run/n3w/t1-ota/ha-ota.sock"
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -307,6 +313,22 @@ class Settings:
                 "GH_N3W_PAIRING_SOCKET_PATH",
                 "/run/greenhouse-manager/pairing.sock",
             ),
+            n3w_t1_ota_enabled=_env_bool(
+                "GH_N3W_T1_OTA_ENABLED",
+                False,
+            ),
+            n3w_t1_ota_installed_version=(
+                os.getenv("GH_N3W_T1_OTA_INSTALLED_VERSION")
+                or None
+            ),
+            n3w_t1_ota_manifest_path=os.getenv(
+                "GH_N3W_T1_OTA_MANIFEST_PATH",
+                "/run/n3w/t1-ota/approved-homeassistant.json",
+            ),
+            n3w_t1_ota_socket_path=os.getenv(
+                "GH_N3W_T1_OTA_SOCKET_PATH",
+                "/run/n3w/t1-ota/ha-ota.sock",
+            ),
         )
         settings.validate()
         return settings
@@ -393,6 +415,23 @@ class Settings:
             raise ValueError(
                 "GH_HISTORY_PRUNE_INTERVAL_S must be between 30 and 86400"
             )
+        if self.n3w_t1_ota_enabled:
+            if not self.n3w_runtime_enabled:
+                raise ValueError(
+                    "GH_N3W_T1_OTA_ENABLED requires GH_N3W_RUNTIME_ENABLED"
+                )
+            if not self.n3w_t1_ota_installed_version:
+                raise ValueError(
+                    "GH_N3W_T1_OTA_INSTALLED_VERSION is required when OTA is enabled"
+                )
+            for name, raw_path in (
+                ("GH_N3W_T1_OTA_MANIFEST_PATH", self.n3w_t1_ota_manifest_path),
+                ("GH_N3W_T1_OTA_SOCKET_PATH", self.n3w_t1_ota_socket_path),
+            ):
+                path = Path(raw_path).expanduser()
+                if not path.is_absolute():
+                    raise ValueError(f"{name} must be absolute when OTA is enabled")
+
         if self.n3w_product_pairing_enabled:
             if not self.n3w_runtime_enabled:
                 raise ValueError(

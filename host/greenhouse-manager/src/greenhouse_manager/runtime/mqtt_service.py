@@ -599,6 +599,8 @@ class ManagerMqttService:
                     if expired:
                         _LOGGER.info("Expired pairing registrations count=%d", expired)
                 self._process_retirement_jobs()
+                if self.ota_manager is not None:
+                    self._publish_ota_surface()
                 with self._lifecycle_lock:
                     stale_messages = self.processor.stale_messages()
                 for message in stale_messages:

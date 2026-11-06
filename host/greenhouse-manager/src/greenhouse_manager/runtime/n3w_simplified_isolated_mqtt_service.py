@@ -11,6 +11,7 @@ from .config import Settings
 from .mqtt_service import ManagerMqttService
 from .n3w_compact_relay import NodeApplicationKeyProvider
 from .n3w_multi_ingress_router import MultiIngressResult
+from .t1_ota_manager import T1OtaManager
 from .n3w_phase4_isolated_harness import Phase4IsolatedManagerHarness
 from .registration import RegistrationRegistry
 from .replay_registry import ReplayRegistry
@@ -36,6 +37,7 @@ class N3wSimplifiedIsolatedMqttService(ManagerMqttService):
         registration: RegistrationRegistry,
         replay: ReplayRegistry,
         keys: NodeApplicationKeyProvider,
+        ota_manager: T1OtaManager | None = None,
     ) -> None:
         # Keep the original one-line replacement as a Phase 4 source-contract
         # compatibility marker, then independently disable the superseded MQTT
@@ -46,7 +48,7 @@ class N3wSimplifiedIsolatedMqttService(ManagerMqttService):
             n3w_product_pairing_enabled=False,
         )
         source_settings = replace(source_settings, pairing_intake_enabled=False)
-        super().__init__(source_settings)
+        super().__init__(source_settings, ota_manager=ota_manager)
         if (
             self.registration_registry is not None
             and self.registration_registry is not registration
