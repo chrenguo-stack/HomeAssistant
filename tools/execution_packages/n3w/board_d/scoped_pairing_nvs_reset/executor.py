@@ -19,9 +19,9 @@ from tools.execution_packages.n3w.board_d.post_r4_write_target_preflight import 
 
 SCHEMA = "n3w.board-d.scoped-pairing-nvs-reset/1"
 CLAIM_SCHEMA = "n3w.board-d.scoped-pairing-nvs-reset-claim/1"
-PREFLIGHT_SCHEMA = "n3w.board-d.post-r4-write-target-preflight/1"
+PREFLIGHT_SCHEMA = "n3w.board-d.post-r4-write-target-preflight/2"
 
-EXPECTED_HARDWARE_ID_SHA256 = "3991b9af9e7604190a8ac8e60b780911a8faed6698cda5421eaf1eb686210df5"
+EXPECTED_HARDWARE_ID_SHA256 = "3a76b39f066e09de0a285b81319eec20f29c8fd4136b61dc5a86ace01c1e1d55"
 EXPECTED_BOOTLOADER_SHA256 = "ae9656d4a6fca0f1149d443b8ced537efe3b68af8fe600ef9ad9b8c9c7b2ca46"
 EXPECTED_PARTITION_TABLE_SHA256 = "6664b08a14a9cdc170e322823db29fbe485d87db9c4ec42759d9372028953dca"
 NVS_OFFSET = 0x790000

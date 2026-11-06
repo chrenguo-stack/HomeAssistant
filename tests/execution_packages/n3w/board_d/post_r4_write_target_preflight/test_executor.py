@@ -17,6 +17,7 @@ spec.loader.exec_module(module)
 
 
 def test_frozen_authority_constants() -> None:
+    assert module.SCHEMA_PREFLIGHT == "n3w.board-d.post-r4-write-target-preflight/2"
     assert module.MERGED_MAIN == "e24b5af4a271867c613dd52012bc83a6d40b06a5"
     assert module.PRODUCT_SOURCE == "ec5f6d68e33db7757d91c807fff708ca81b075dc"
     assert module.PRODUCT_TREE == "16740efa8ad24d423adc0b2de32b99d56e2d23d1"
@@ -98,10 +99,19 @@ def test_validate_release_bundle_rejects_nondeterministic_timestamp(tmp_path: Pa
         module.validate_release_bundle(archive, tmp_path / "out")
 
 
-def test_probe_board_sanitizes_identity_and_classifies_existing_layout(monkeypatch: pytest.MonkeyPatch) -> None:
-    sample_mac = ":".join(["12", "34", "56", "78", "9A", "BC"])
+def test_probe_board_selects_base_mac_from_realistic_esp32c6_output(monkeypatch: pytest.MonkeyPatch) -> None:
+    eui64 = ":".join(("12", "34", "56", "AB", "CD", "78", "9A", "BC"))
+    base_mac = ":".join(("12", "34", "56", "78", "9A", "BC"))
     outputs = iter([
-        f"esptool v5.1\nESP32-C6\nMAC: {sample_mac}\nSecure Boot: Disabled\nFlash Encryption: Disabled\n",
+        (
+            "esptool v5.3.1\n"
+            "ESP32-C6\n"
+            f"MAC:                 {eui64}\n"
+            f"BASE MAC:            {base_mac}\n"
+            "MAC_EXT:             ab:cd\n"
+            "Secure Boot: Disabled\n"
+            "Flash Encryption: Disabled\n"
+        ),
         "Detected flash size: 8MB\n",
     ])
     monkeypatch.setattr(module, "run_capture", lambda *args, **kwargs: next(outputs))
@@ -111,9 +121,32 @@ def test_probe_board_sanitizes_identity_and_classifies_existing_layout(monkeypat
     ])
     monkeypatch.setattr(module, "read_flash_region", lambda *args, **kwargs: next(hashes))
     board = module.probe_board("/dev/cu.usbmodem-test")
-    assert board["hardware_id_sha256"] == module.public_identity_sha256(sample_mac)
+    assert board["hardware_id_sha256"] == module.public_identity_sha256(base_mac)
+    assert board["hardware_id_sha256"] != module.public_identity_sha256(
+        ":".join(("12", "34", "56", "AB", "CD", "78"))
+    )
     assert board["write_mode_candidate"] == "APP_PLUS_OTADATA_CANDIDATE"
-    assert sample_mac not in json.dumps(board)
+    serialized = json.dumps(board)
+    assert base_mac not in serialized
+    assert eui64 not in serialized
+
+
+def test_base_mac_parser_rejects_missing_or_ambiguous_base_mac() -> None:
+    with pytest.raises(module.StopExecution, match="exactly one ESP32-C6 BASE MAC"):
+        module.base_mac_from_esptool_output(
+            "ESP32-C6\nMAC: "
+            + ":".join(("12", "34", "56", "AB", "CD", "78", "9A", "BC"))
+            + "\n"
+        )
+
+    with pytest.raises(module.StopExecution, match="exactly one ESP32-C6 BASE MAC"):
+        module.base_mac_from_esptool_output(
+            "BASE MAC: "
+            + ":".join(("12", "34", "56", "78", "9A", "BC"))
+            + "\nBASE MAC: "
+            + ":".join(("12", "34", "56", "78", "9A", "BD"))
+            + "\n"
+        )
 
 
 def test_run_preflight_never_grants_write(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
