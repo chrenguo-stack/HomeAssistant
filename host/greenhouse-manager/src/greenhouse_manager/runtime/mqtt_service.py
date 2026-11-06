@@ -411,6 +411,19 @@ class ManagerMqttService:
             != t1_homeassistant_ota_control_topic(self.settings.system_id)
         ):
             return False
+        if bool(getattr(message, "retain", False)):
+            _LOGGER.warning(
+                "Rejected Home Assistant OTA intent reason=ota_intent_retained_rejected"
+            )
+            self._publish_ota_surface()
+            return True
+        qos = getattr(message, "qos", None)
+        if type(qos) is not int or qos != 1:
+            _LOGGER.warning(
+                "Rejected Home Assistant OTA intent reason=ota_intent_qos_invalid"
+            )
+            self._publish_ota_surface()
+            return True
         try:
             intent = self.ota_manager.handle_control(message.payload)
         except OtaControlError as error:

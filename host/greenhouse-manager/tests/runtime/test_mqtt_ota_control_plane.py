@@ -51,12 +51,17 @@ class Sink:
         self.intents.append(intent)
 
 
-def mqtt_message(payload: dict) -> Mock:
+def mqtt_message(
+    payload: dict,
+    *,
+    retain: bool = False,
+    qos: int = 1,
+) -> Mock:
     message = Mock()
     message.topic = "gh/v1/system-001/control/t1/homeassistant/ota"
     message.payload = json.dumps(payload).encode()
-    message.retain = False
-    message.qos = 1
+    message.retain = retain
+    message.qos = qos
     return message
 
 
@@ -174,4 +179,37 @@ def test_mqtt_control_rejects_privileged_field_injection(client_class) -> None:
             }
         ),
     )
+    assert sink.intents == []
+
+
+@patch("greenhouse_manager.runtime.mqtt_service.mqtt.Client")
+def test_mqtt_control_rejects_retained_or_wrong_qos_command(client_class) -> None:
+    client = client_class.return_value
+    client.publish.return_value = Mock(rc=0)
+    sink = Sink()
+    ota = T1OtaManager(
+        installed_version="2026.10.0",
+        manifest_provider=Provider(),
+        intent_sink=sink,
+    )
+    service = ManagerMqttService(
+        Settings(system_id="system-001"),
+        ota_manager=ota,
+    )
+    command = {
+        "action": "PREPARE",
+        "target_release_id": "homeassistant-2026.10.4",
+    }
+
+    service._on_message(
+        client,
+        None,
+        mqtt_message(command, retain=True),
+    )
+    service._on_message(
+        client,
+        None,
+        mqtt_message(command, qos=0),
+    )
+
     assert sink.intents == []
