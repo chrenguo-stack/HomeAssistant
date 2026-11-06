@@ -41,6 +41,10 @@ from n3w_t1_core_updater_v2_common import (
     COMPONENTS,
     IMAGE_BINDINGS,
     IMAGE_PREFIXES,
+    converge_homeassistant_compose,
+    converge_homeassistant_env,
+    restore_homeassistant_compose,
+    restore_homeassistant_env,
     rewrite_component_env,
 )
 
@@ -523,10 +527,14 @@ class LocalHost:
     def assert_component_upgradeable(self, component: str) -> None:
         if component not in COMPONENTS:
             raise UpdaterError("component_invalid")
-        if self.image_binding_modes_v2()[component] != "dynamic":
-            raise UpdaterError(
-                f"{component}_runtime_template_convergence_required"
-            )
+        mode = self.image_binding_modes_v2()[component]
+        if mode == "dynamic":
+            return
+        if component == "homeassistant" and mode == "legacy_static":
+            return
+        raise UpdaterError(
+            f"{component}_runtime_template_convergence_required"
+        )
 
     def _mqtt_authenticated(self, service: str) -> bool:
         if service not in MQTT_IDENTITY_FILES:
@@ -941,6 +949,106 @@ class LocalHost:
             raise UpdaterError("compose_env_replace_verify_failed")
         return sha256_bytes(observed)
 
+    def _replace_product_file(
+        self,
+        path: Path,
+        updated: bytes,
+        *,
+        verify_error: str,
+    ) -> str:
+        if path.is_symlink() or not path.is_file():
+            raise UpdaterError("compose_authority_invalid")
+        original = path.read_bytes()
+        if original == updated:
+            return sha256_bytes(original)
+        meta = path.stat()
+        fd, raw = tempfile.mkstemp(
+            prefix=f".{path.name}.",
+            dir=path.parent,
+        )
+        temporary = Path(raw)
+        try:
+            os.fchmod(fd, stat.S_IMODE(meta.st_mode))
+            with os.fdopen(fd, "wb") as stream:
+                stream.write(updated)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.chown(temporary, meta.st_uid, meta.st_gid)
+            os.replace(temporary, path)
+            directory = os.open(
+                path.parent,
+                os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+            )
+            try:
+                os.fsync(directory)
+            finally:
+                os.close(directory)
+        finally:
+            temporary.unlink(missing_ok=True)
+        observed = path.read_bytes()
+        if observed != updated:
+            raise UpdaterError(verify_error)
+        return sha256_bytes(observed)
+
+    def _converge_homeassistant_binding(
+        self,
+        expected: str,
+    ) -> str:
+        if (
+            COMPOSE.is_symlink()
+            or not COMPOSE.is_file()
+            or COMPOSE_ENV.is_symlink()
+            or not COMPOSE_ENV.is_file()
+        ):
+            raise UpdaterError("compose_authority_invalid")
+        original_compose = COMPOSE.read_bytes()
+        original_env = COMPOSE_ENV.read_bytes()
+        try:
+            updated_env = converge_homeassistant_env(
+                original_env,
+                expected,
+                expected,
+            )
+            updated_compose = converge_homeassistant_compose(
+                original_compose,
+                expected,
+            )
+        except Exception as error:
+            raise UpdaterError(
+                "homeassistant_binding_convergence_invalid"
+            ) from error
+        try:
+            env_sha = self._replace_product_file(
+                COMPOSE_ENV,
+                updated_env,
+                verify_error="compose_env_replace_verify_failed",
+            )
+            self._replace_product_file(
+                COMPOSE,
+                updated_compose,
+                verify_error="compose_replace_verify_failed",
+            )
+            return env_sha
+        except Exception as error:
+            try:
+                self._replace_product_file(
+                    COMPOSE,
+                    original_compose,
+                    verify_error="compose_restore_verify_failed",
+                )
+                self._replace_product_file(
+                    COMPOSE_ENV,
+                    original_env,
+                    verify_error="compose_env_restore_verify_failed",
+                )
+            except Exception as restore_error:
+                raise UpdaterError(
+                    "homeassistant_binding_convergence_restore_failed"
+                ) from restore_error
+            raise UpdaterError(
+                "homeassistant_binding_convergence_failed"
+            ) from error
+
     def rewrite_component_image(
         self,
         component: str,
@@ -949,7 +1057,31 @@ class LocalHost:
     ) -> str:
         if component not in COMPONENTS:
             raise UpdaterError("component_invalid")
-        if self.image_binding_modes_v2()[component] != "dynamic":
+        mode = self.image_binding_modes_v2()[component]
+        if mode == "legacy_static":
+            if component != "homeassistant":
+                raise UpdaterError(
+                    f"{component}_runtime_template_convergence_required"
+                )
+            self._converge_homeassistant_binding(expected)
+            original = COMPOSE_ENV.read_bytes()
+            try:
+                updated = rewrite_component_env(
+                    original,
+                    component,
+                    expected,
+                    replacement,
+                )
+            except Exception as error:
+                raise UpdaterError(
+                    "component_image_env_rewrite_invalid"
+                ) from error
+            return self._replace_product_file(
+                COMPOSE_ENV,
+                updated,
+                verify_error="compose_env_replace_verify_failed",
+            )
+        if mode != "dynamic":
             raise UpdaterError(
                 f"{component}_runtime_template_convergence_required"
             )
@@ -965,34 +1097,94 @@ class LocalHost:
             )
         except Exception as error:
             raise UpdaterError("component_image_env_rewrite_invalid") from error
-        meta = COMPOSE_ENV.stat()
-        fd, raw = tempfile.mkstemp(
-            prefix=f".{COMPOSE_ENV.name}.",
-            dir=COMPOSE_ENV.parent,
+        return self._replace_product_file(
+            COMPOSE_ENV,
+            updated,
+            verify_error="compose_env_replace_verify_failed",
         )
-        temporary = Path(raw)
+
+    def restore_component_binding(
+        self,
+        component: str,
+        expected_current: str,
+        predecessor: str,
+        predecessor_mode: str,
+    ) -> None:
+        if predecessor_mode == "dynamic":
+            if self.component_binding_v2(component) == expected_current:
+                self.rewrite_component_image(
+                    component,
+                    expected_current,
+                    predecessor,
+                )
+            return
+        if predecessor_mode != "legacy_static" or component != "homeassistant":
+            raise UpdaterError("predecessor_binding_mode_unsupported")
+        if (
+            COMPOSE.is_symlink()
+            or not COMPOSE.is_file()
+            or COMPOSE_ENV.is_symlink()
+            or not COMPOSE_ENV.is_file()
+        ):
+            raise UpdaterError("compose_authority_invalid")
+        original_compose = COMPOSE.read_bytes()
+        original_env = COMPOSE_ENV.read_bytes()
         try:
-            os.fchmod(fd, stat.S_IMODE(meta.st_mode))
-            with os.fdopen(fd, "wb") as stream:
-                stream.write(updated)
-                stream.flush()
-                os.fsync(stream.fileno())
-            os.chown(temporary, meta.st_uid, meta.st_gid)
-            os.replace(temporary, COMPOSE_ENV)
-            directory = os.open(
-                COMPOSE_ENV.parent,
-                os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+            restored_compose = restore_homeassistant_compose(
+                original_compose,
+                predecessor,
             )
+            restored_env = restore_homeassistant_env(
+                original_env,
+                predecessor,
+                expected_current,
+            )
+        except Exception as error:
+            raise UpdaterError(
+                "homeassistant_binding_restore_invalid"
+            ) from error
+        try:
+            self._replace_product_file(
+                COMPOSE,
+                restored_compose,
+                verify_error="compose_restore_verify_failed",
+            )
+            self._replace_product_file(
+                COMPOSE_ENV,
+                restored_env,
+                verify_error="compose_env_restore_verify_failed",
+            )
+            rendered = self.render_compose()
+            services = rendered.get("services")
+            service = (
+                services.get("homeassistant")
+                if isinstance(services, dict)
+                else None
+            )
+            if (
+                not isinstance(service, dict)
+                or service.get("image") != predecessor
+            ):
+                raise UpdaterError(
+                    "homeassistant_binding_restore_render_invalid"
+                )
+        except Exception as error:
             try:
-                os.fsync(directory)
-            finally:
-                os.close(directory)
-        finally:
-            temporary.unlink(missing_ok=True)
-        observed = COMPOSE_ENV.read_bytes()
-        if observed != updated:
-            raise UpdaterError("compose_env_replace_verify_failed")
-        return sha256_bytes(observed)
+                self._replace_product_file(
+                    COMPOSE,
+                    original_compose,
+                    verify_error="compose_recovery_verify_failed",
+                )
+                self._replace_product_file(
+                    COMPOSE_ENV,
+                    original_env,
+                    verify_error="compose_env_recovery_verify_failed",
+                )
+            except Exception as restore_error:
+                raise UpdaterError(
+                    "homeassistant_binding_restore_recovery_failed"
+                ) from restore_error
+            raise UpdaterError("homeassistant_binding_restore_failed") from error
 
     def stop_broker(self) -> None:
         self._run(("systemctl", "stop", BROKER_UNIT), timeout=120)
