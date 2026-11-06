@@ -1,3 +1,17 @@
+## 2026-11-06 — PR #779 successor convergence: durable U2 authority retained
+
+- Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
+- Current repository product source is `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current repository Manager is `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Repository Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted state remains `APPLIED_ACCEPTED`; this successor convergence performs no live mutation.
+- Post-U1 completion audit is retained as durable engineering authority.
+- U2 T1_A read-only classification remains `CLOSED_PASS`: current V2 transaction COMMITTED, runtime TARGET_BOUND_RUNNING/HEALTHY, recovery not required, no current legacy transaction, historical transactions terminal, no silent consumed-authorization replay path observed.
+- No T1 cleanup is required.
+- PR #779's obsolete Working Context 1.4 handoff is not promoted to current main; it remains historical PR evidence.
+- No T1, board, runtime, production authority or component mutation occurs in this convergence.
+
 ## 2026-11-06 — T1_Core_Stack OTA baseline/repository source alignment prepared
 
 - Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
