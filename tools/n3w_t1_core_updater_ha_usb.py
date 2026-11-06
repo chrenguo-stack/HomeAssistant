@@ -12,6 +12,7 @@ from n3w_t1_core_updater_ha_recovery import (
 )
 from n3w_t1_core_updater_ha_usb_media import (
     USB_FILESYSTEM,
+    USB_LABEL,
     FormatAuthorization,
     UsbCapacityReport,
     require_same_filesystem_uuid,
@@ -65,6 +66,7 @@ def record_media_bound(
     if (
         format_authorization.confirmation_verified is not True
         or format_authorization.filesystem != USB_FILESYSTEM
+        or format_authorization.label != USB_LABEL
         or format_authorization.public_fingerprint is None
     ):
         raise UpdaterV2Error("ha_usb_format_authorization_invalid")
