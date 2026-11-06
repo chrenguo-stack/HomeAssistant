@@ -1,3 +1,43 @@
+## 2026-11-06 — Home Assistant mandatory-USB OTA R1 source implementation CLOSED_PASS
+
+```text
+STATE=HA_USB_MANDATORY_OTA_R1_SOURCE_IMPLEMENTATION_CLOSED_PASS
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_UPGRADE_ACCEPTED=true
+Live upgrade accepted
+
+R1_EXECUTABLE_SOURCE_HEAD=284a7120da246df733de61668f20fd46510c81ca
+R1_EXECUTABLE_HEAD_CI=16/16_SUCCESS
+GENERIC_V2_SUCCESSOR_PACKAGE_ARTIFACT_ID=13478294921
+GENERIC_V2_SUCCESSOR_PACKAGE_ARTIFACT_DIGEST_SHA256=79ad50e886373cc9110503c8b9cf5347325ec7978d58d7cd7978773011499505
+GENERIC_V2_SUCCESSOR_UPDATER_PYZ_SHA256=5c094e6c147cfa4ca1c17e93d8c94a8334930a7a87c58eb179533fb9daf72095
+OLD_ACCEPTED_UPDATER_PYZ_DISPOSITION=HISTORICAL_PACKAGE_EVIDENCE_ONLY
+HA_USB_R1_MODULES_INCLUDED_IN_MANAGER_A_TO_B_GENERIC_V2_PACKAGE=false
+
+CURRENT_T1_RUNTIME_STACK_CHANGED=false
+CURRENT_AUTHORITY_MANIFEST_CHANGED=false
+U0_HISTORICAL_BASELINE_CHANGED=false
+
+AUTHORITY=docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_IMPLEMENTATION_R1_CLOSURE_20261106.md
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_IMPLEMENTATION_R2_20261106_01
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+- R1 exact executable head passed 16/16 workflows with zero failures.
+- The only Generic V2 source change is the bounded HA-USB/Generic-V2 mutual-exclusion guard in `n3w_t1_core_updater_v2_state.py`.
+- Historical P4/P5 source-binding manifests remain immutable; their tests now prove they reject the successor source instead of rebinding old evidence.
+- CI rebuilt and re-downloaded the current Generic V2 Manager package. Its updater PYZ SHA256 is `5c094e6c147cfa4ca1c17e93d8c94a8334930a7a87c58eb179533fb9daf72095`.
+- This Generic V2 package does not yet package the new HA-USB R1 modules; that remains later host integration, not R1.
+- The accepted T1 three-container runtime, production authority manifest and U0 historical baseline remain unchanged.
+- The old P5 package remains retired for product execution and its old authorization is superseded/unclaimed.
+- R2 is limited to simulated USB transaction work and is not auto-executed.
+
 ## 2026-11-06 — Home Assistant mandatory-USB OTA P5 source-design delta CLOSED_PASS
 
 ```text
