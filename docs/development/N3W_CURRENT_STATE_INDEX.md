@@ -1,3 +1,43 @@
+## 2026-11-06 — Home Assistant mandatory-USB OTA R3 Manager control plane CLOSED_PASS
+
+```text
+STATE=HA_USB_MANDATORY_OTA_R3_MANAGER_CONTROL_PLANE_CLOSED_PASS
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_UPGRADE_ACCEPTED=true
+Live upgrade accepted
+
+R3_EXECUTABLE_SOURCE_HEAD=f30b7cf154abdbfed1863074ed855949aaecaf3b
+R3_EXECUTABLE_HEAD_CI=19/19_APPLICABLE_SUCCESS
+R3_EXPECTED_SKIPPED_WORKFLOW_COUNT=2
+R3_MANAGER_PYTEST=1517_PASSED_1_SKIPPED
+R3_MANAGER_R8_E2E=8_PASSED
+
+CURRENT_T1_RUNTIME_STACK_CHANGED=false
+CURRENT_AUTHORITY_MANIFEST_CHANGED=false
+PRODUCTION_COMPOSE_CHANGED=false
+PRODUCTION_RUNTIME_WIRING_CHANGED=false
+
+AUTHORITY=docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_IMPLEMENTATION_R3_CLOSURE_20261106.md
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_IMPLEMENTATION_R4_20261106_01
+R4_SCOPE=HOST_INTEGRATION_PACKAGE_AND_NARROW_VALIDATED_MANAGER_TO_PRIVILEGED_UPDATER_IPC
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+- R3 exact executable head passed all 19 applicable workflows; two path-gated workflows were expected skips.
+- Approved-manifest normalization is strict and fail-closed; malformed, unapproved, unsigned/unverified, expired or unsupported targets cannot become installable updates.
+- Home Assistant MQTT Update carries installed/latest/progress state and exposes INSTALL only at READY_TO_INSTALL.
+- PREPARE remains a separate MQTT Button action; PREPARE and INSTALL are not collapsed.
+- MQTT control input is exact-release-bound, exact-field-bound, rejects duplicate fields, retained replay and non-QoS1 commands.
+- No second MQTT client, Docker socket, block-device path, root or shell authority was added.
+- Production compose, current authority manifest, production runtime wiring, Home Assistant config and live T1 state remain unchanged.
+- R4 host integration / narrow validated IPC is the next bounded source gate and is not auto-executed.
+
 ## 2026-11-06 — Home Assistant mandatory-USB OTA R2 simulated transaction CLOSED_PASS
 
 ```text

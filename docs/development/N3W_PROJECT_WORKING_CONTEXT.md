@@ -1,3 +1,49 @@
+## Stable updater authority — 2026-11-06 mandatory-USB HA OTA R3 Manager control plane CLOSED_PASS
+
+```text
+PROJECT_WORKING_CONTEXT_VERSION=1.7
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+R3_EXECUTABLE_SOURCE_HEAD=f30b7cf154abdbfed1863074ed855949aaecaf3b
+R3_EXECUTABLE_HEAD_CI=19/19_APPLICABLE_SUCCESS
+R3_CLOSURE=docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_IMPLEMENTATION_R3_CLOSURE_20261106.md
+
+R3_APPROVED_MANIFEST_NORMALIZATION=STRICT_FAIL_CLOSED
+R3_HOMEASSISTANT_MQTT_UPDATE=true
+R3_PREPARE_ENTITY=SEPARATE_MQTT_BUTTON
+R3_PREPARE_INSTALL_SEPARATION=true
+R3_INSTALL_REQUIRES_READY_TO_INSTALL=true
+R3_RETAINED_CONTROL_REJECTED=true
+R3_CONTROL_QOS1_REQUIRED=true
+R3_SECOND_MQTT_CLIENT=false
+
+R3_PRODUCTION_RUNTIME_ACTIVATION=false
+R3_PRODUCTION_COMPOSE_CHANGED=false
+R3_CURRENT_AUTHORITY_MANIFEST_CHANGED=false
+R3_LIVE_T1_MUTATION=false
+R3_REAL_USB_FORMAT=false
+R3_BOARD_ACCESS=false
+
+P5_EXECUTION_PACKAGE_DISPOSITION=RETIRED_FOR_PRODUCT_EXECUTION
+P5_AUTHORIZATION_DISPOSITION=SUPERSEDED_UNCLAIMED
+
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_IMPLEMENTATION_R4_20261106_01
+R4_SCOPE=HOST_INTEGRATION_PACKAGE_AND_NARROW_VALIDATED_MANAGER_TO_PRIVILEGED_UPDATER_IPC
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+R3 is the stable greenhouse-manager OTA control-plane authority for the mandatory-USB Home Assistant successor path. It provides strict approved-manifest normalization, Home Assistant MQTT Update state/discovery, a separate PREPARE MQTT Button, and bounded PREPARE/INSTALL/STATUS intent admission using the existing Manager MQTT client. It deliberately does not activate a privileged executor or change production runtime wiring. The accepted three-container T1 stack remains unchanged, and host-side `T1_Core_Updater` remains the sole real upgrade/rollback transaction authority. R4 may add only the narrow validated Manager-to-host executor integration required to connect these interfaces; it must preserve the same privilege boundary.
+
+Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_SOURCE_IMPLEMENTATION_R3_CLOSURE_20261106.md`.
+
 ## Stable updater authority — 2026-11-06 mandatory-USB HA OTA R2 simulated transaction CLOSED_PASS
 
 ```text
