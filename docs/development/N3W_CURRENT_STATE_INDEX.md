@@ -1,8 +1,12 @@
 ## 2026-11-06 — T1_Core_Stack OTA baseline/repository source alignment prepared
 
-- Exact base main: `5cabdcb50656851f9912685c2f7044cdba3eb774`.
-- Current production authority is unchanged; no T1 or board access/mutation occurred.
-- Baselines are now explicitly separated into historical clean reference, component-upgrade baseline, current production authority and immutable Stack release.
+- Canonical authority remains `infra/n3w-t1/production/t1-core-stack-current.json`, schema `gh.n3w-t1-core-stack-current-authority/2`.
+- Current repository product source is `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current repository Manager is `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Repository Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted state remains `APPLIED_ACCEPTED`; this docs/process alignment performs no live mutation.
+- Baselines are explicitly separated into historical clean reference, component-upgrade baseline, current production authority and immutable Stack release.
 - Stack 1.0.0 is classified as the bootstrap accepted pre-OTA predecessor release; no rewrite of accepted production authority is required.
 - PR #714 is superseded after carrying forward two requirements: HA-independent recovery/control surface and later evaluation of content-addressed incremental distribution.
 - Active successor chain remains #779 -> #780 -> #781 -> #782 -> #784 -> #785 -> #786 -> #787 -> #788 and must converge inner-to-outer with fresh exact-head CI/review per layer.
