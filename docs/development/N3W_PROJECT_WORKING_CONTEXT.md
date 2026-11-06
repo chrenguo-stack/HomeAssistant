@@ -1,3 +1,29 @@
+## Stable updater authority — 2026-11-06 Home Assistant low-storage USB OTA architecture frozen
+
+```text
+HOMEASSISTANT_16GB_T1_STEADY_STATE_INTERNAL_IMAGE_COUNT=1
+PRIMARY_NETWORK_OTA=OCI_REGISTRY_EXACT_DIGEST
+LOW_STORAGE_OTA=USB_ASSISTED_TRANSACTION
+LOW_STORAGE_USB_FILESYSTEM=ext4
+LOW_STORAGE_USB_FORMAT_OWNER=T1
+USER_COMPUTER_REQUIRED=false
+OFFLINE_RECOVERY_ARTIFACT=RETAIN
+HA_DATA_BACKUP_BEFORE_DESTRUCTIVE_CUTOVER=true
+SUCCESS_PATH_RESTORE_PREUPGRADE_BACKUP=false
+ROLLBACK_PATH_RESTORE_PREUPGRADE_BACKUP=true
+
+CURRENT_P5_REAPPLY=HELD_BEFORE_CLAIM
+P5_AUTHORIZATION_GRANTED=true
+P5_AUTHORIZATION_CLAIMED=false
+P5_AUTHORIZATION_CONSUMED=false
+
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_LOW_STORAGE_USB_OTA_TO_P5_IMPACT_READONLY_REVIEW_20261106_01
+```
+
+The current ~14.45GB T1 must not rely on long-term dual Home Assistant image residency. In low-storage mode the T1 formats an explicitly confirmed removable USB device as ext4, prepares the predecessor recovery image, exact target artifact and consistent pre-upgrade HA data recovery point on USB, then may remove the internal predecessor before target import. A successful target keeps the migrated production /config and does not restore the old backup; rollback restores both predecessor image and pre-upgrade HA data. Ordinary users do not need a computer.
+
+Authority: `docs/development/N3W_T1_HOMEASSISTANT_LOW_STORAGE_USB_ASSISTED_OTA_AND_DATA_ROLLBACK_ARCHITECTURE_V1.0_20261106.md`.
+
 ## Stable updater authority — 2026-11-05 U2 T1_A classification CLOSED_PASS
 
 ```text
