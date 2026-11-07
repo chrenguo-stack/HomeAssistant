@@ -445,3 +445,51 @@ def test_committed_status_projects_target_version_without_manager_restart() -> N
         )
         == "2026.10.4"
     )
+
+
+def test_wrong_bound_usb_projects_recoverable_media_wait(tmp_path: Path) -> None:
+    root = tmp_path / "wrong-media-state"
+    root.mkdir(mode=0o700)
+    resolver = Resolver()
+    store = HaUsbStateStore(root)
+    base = HaUsbIpcExecutor(
+        store=store,
+        admission_resolver=resolver,
+    )
+    base.submit("PREPARE", RELEASE)
+    current = store.read()
+    assert current is not None
+    authorization = FormatAuthorization(
+        public_fingerprint="c" * 64,
+        confirmation_verified=True,
+        filesystem="ext4",
+        label="N3W-UPDATE",
+    )
+    capacity = UsbCapacityReport(
+        measured_usable_bytes=16 * 1024**3,
+        required_bytes=8 * 1024**3,
+        measured_floor_bytes=14 * 1024**3,
+        measured_floor_pass=True,
+        transaction_formula_pass=True,
+        capacity_pass=True,
+    )
+    current = record_media_bound(
+        current,
+        format_authorization=authorization,
+        filesystem_uuid="12345678-1234-1234-1234-123456789abc",
+        measured_usable_bytes=capacity.measured_usable_bytes,
+        capacity_report=capacity,
+    )
+    current = start_target_preparation(current)
+    store.write(current)
+
+    executor = HaUsbIpcExecutor(
+        store=store,
+        admission_resolver=resolver,
+        prepare_controller=ControllerStub(),
+    )
+    executor._prepare_error = "usb_bound_device_identity_mismatch"
+
+    status = executor.status()
+    assert status["phase"] == "RECOVERY_MEDIA_REQUIRED"
+    assert status["error_code"] is None
