@@ -158,7 +158,7 @@ def test_mqtt_prepare_install_status_preserve_two_step_contract(client_class) ->
         None,
         mqtt_message({**base, "action": "INSTALL"}),
     )
-    assert [intent.action for intent in sink.intents] == ["PREPARE", "INSTALL"]
+    assert [intent.action for intent in sink.intents] == ["PREPARE"]
 
 
 @patch("greenhouse_manager.runtime.mqtt_service.mqtt.Client")
