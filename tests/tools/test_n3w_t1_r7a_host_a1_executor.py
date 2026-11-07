@@ -48,6 +48,17 @@ def test_manifest_is_retired_after_one_shot_a1_activation() -> None:
     assert contract["rollback_restart_container_settle_wait"] is True
 
 
+def test_successor_authorization_contract_is_bound_but_not_live_authorized() -> None:
+    executor = load_executor()
+    document = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+    successor = "N3W_T1_R7A_HOST_DAEMON_COMPOSE_A1_LIVE_ACTIVATION_20261108_02"
+    consumed = "N3W_T1_R7A_HOST_DAEMON_COMPOSE_A1_LIVE_ACTIVATION_20261107_01"
+    assert executor.AUTHORIZATION == successor
+    assert document["proposed_authorization_id"] == successor
+    assert document["live_execution_authorized"] is False
+    assert executor.AUTHORIZATION != consumed
+
+
 def test_source_authority_matches_exact_git_blobs() -> None:
     document = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     for path, expected in document["source_authority"].items():
