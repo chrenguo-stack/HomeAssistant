@@ -28,7 +28,6 @@ from n3w_t1_core_updater_ha_usb_media import (
 )
 from n3w_t1_core_updater_ha_usb_state import (
     U1,
-    U5,
     U13A,
     HaUsbStateStore,
 )
@@ -189,11 +188,11 @@ def test_install_requires_exact_existing_u4_admission(tmp_path: Path) -> None:
     )
     store.write(current)
 
-    status = executor.submit("INSTALL", RELEASE)
+    with pytest.raises(UpdaterV2Error, match="ha_ota_ipc_action_invalid"):
+        executor.submit("INSTALL", RELEASE)
     installed = store.read()
     assert installed is not None
-    assert installed["phase"] == U5
-    assert status["phase"] == "INSTALL_REQUESTED_REVALIDATING"
+    assert installed["phase"] == "U4_READY_TO_INSTALL"
     assert installed["authorization_claimed"] is False
 
 
