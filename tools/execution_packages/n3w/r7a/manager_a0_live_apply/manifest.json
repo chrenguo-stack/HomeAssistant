@@ -1,7 +1,7 @@
 {
   "schema": "gh.n3w-t1-r7a-manager-a0-live-execution-package/1",
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_MANAGER_SUCCESSOR_A0_LIVE_EXECUTION_PACKAGE_PREEXECUTION_20261107_01",
-  "live_execution_authorized": false,
+  "live_execution_authorized": true,
   "authorization_id": "N3W_T1_R7A_MANAGER_SUCCESSOR_A0_LIVE_APPLY_20261107_01",
   "confirmation": "EXECUTE R7A MANAGER A0 LIVE APPLY: YES",
   "package_authority": {
@@ -52,5 +52,5 @@
     "board_access": false,
     "merge": false
   },
-  "stop_boundary": "BEFORE_REAL_SSH_EPOCH_UNTIL_SEPARATE_LIVE_AUTHORIZATION"
+  "stop_boundary": "AUTHORIZED_ONE_SHOT_MANAGER_ONLY_A0;STOP_AFTER_ONE_APPLY"
 }

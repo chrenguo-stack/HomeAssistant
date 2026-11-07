@@ -24,14 +24,14 @@ def load_executor():
     return module
 
 
-def test_manifest_is_source_only_and_not_live_authorized() -> None:
+def test_manifest_is_live_authorized_only_for_explicit_a0_gate() -> None:
     document = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
 
     assert (
         document["schema"]
         == "gh.n3w-t1-r7a-manager-a0-live-execution-package/1"
     )
-    assert document["live_execution_authorized"] is False
+    assert document["live_execution_authorized"] is True
     assert document["preconditions"]["updater_state_readonly_before_staging"] is True
     assert document["preconditions"]["remote_staging_exact_file_set_required"] is True
     assert document["preconditions"]["usb_like_disk_count"] == 0
@@ -67,7 +67,7 @@ def test_exact_package_authority_is_frozen() -> None:
     assert executor.MANAGER_BUILD_IMAGE_ID == authority["manager_build_image_id"]
 
 
-def test_live_authority_gate_stops_before_transport() -> None:
+def test_live_authority_gate_accepts_exact_authorized_head() -> None:
     executor = load_executor()
     head = subprocess.run(
         ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
@@ -76,8 +76,14 @@ def test_live_authority_gate_stops_before_transport() -> None:
         stdout=subprocess.PIPE,
     ).stdout.strip()
 
-    with pytest.raises(executor.StopExecution, match="live_execution_not_authorized"):
-        executor.validate_local_source(head, require_live=True)
+    document = executor.validate_local_source(head, require_live=True)
+    assert document["authorization_id"] == executor.AUTHORIZATION
+    assert document["live_execution_authorized"] is True
+    assert document["execution_contract"]["manager_only_mutation"] is True
+    assert document["execution_contract"]["homeassistant_image_mutation"] is False
+    assert document["execution_contract"]["broker_image_mutation"] is False
+    assert document["execution_contract"]["host_daemon_activation"] is False
+    assert document["execution_contract"]["usb_mutation"] is False
 
 
 class FakeLsblkTransport:
