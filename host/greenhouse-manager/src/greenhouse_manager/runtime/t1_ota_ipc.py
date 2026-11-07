@@ -15,12 +15,14 @@ from .t1_ota_manager import (
 
 REQUEST_SCHEMA = "gh.n3w-t1-ha-ota-ipc-request/1"
 RESPONSE_SCHEMA = "gh.n3w-t1-ha-ota-ipc-response/1"
+RESPONSE_SCHEMA_V2 = "gh.n3w-t1-ha-ota-ipc-response/2"
 MAX_FRAME_BYTES = 8192
 MAX_MANIFEST_BYTES = 65536
 DEFAULT_TIMEOUT_S = 2.0
 
 _CODE_RE = re.compile(r"^[a-z0-9_]{3,96}$")
 _RELEASE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$")
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 def _no_duplicate_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -226,7 +228,7 @@ class UnixSocketOtaBridge:
         return snapshot
 
     def submit_homeassistant_ota_intent(self, intent: OtaControlIntent) -> None:
-        if intent.action not in {"PREPARE", "INSTALL"}:
+        if intent.action not in {"PREPARE", "CONFIRM_USB_ERASE", "INSTALL"}:
             raise OtaControlError("ota_ipc_action_invalid")
         if _RELEASE_RE.fullmatch(intent.target_release_id) is None:
             raise OtaControlError("ota_ipc_release_invalid")
