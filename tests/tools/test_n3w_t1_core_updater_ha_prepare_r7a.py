@@ -61,6 +61,7 @@ class FakeBackend:
         self.prepared = 0
         self.aborted = 0
         self.reopened = 0
+        self.metadata_syncs: list[str] = []
         self.fail_prepare_once = False
         self.media_available = True
         self.last_media: PreparedUsbMedia | None = None
@@ -102,6 +103,9 @@ class FakeBackend:
         if not self.media_available:
             return None
         return self.last_media
+
+    def sync_transaction_metadata(self, transaction, media) -> None:
+        self.metadata_syncs.append(transaction["phase"])
 
     def prepare_target(
         self,
@@ -256,6 +260,11 @@ def test_confirmation_success_advances_exactly_to_u4(tmp_path: Path) -> None:
     assert backend.formatted == 1
     assert backend.prepared == 1
     assert backend.aborted == 0
+    assert backend.metadata_syncs == [
+        "U2_USB_QUALIFIED_FORMATTED_BOUND",
+        "U3_TARGET_DOWNLOADING_VERIFYING",
+        "U4_READY_TO_INSTALL",
+    ]
 
 
 def test_capacity_formula_failure_aborts_media_and_never_enters_u2(
