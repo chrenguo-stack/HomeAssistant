@@ -538,16 +538,8 @@ def collect_preflight(transport: Any) -> dict[str, Any]:
 
     transaction = require_manager_transaction(transport)
     recovery = require_recovery_clear(transport)
-    manager = docker_container(
-        transport,
-        EXPECTED_MANAGER,
-        settle_timeout_s=120.0,
-    )
-    homeassistant = docker_container(
-        transport,
-        EXPECTED_HOMEASSISTANT,
-        settle_timeout_s=120.0,
-    )
+    manager = docker_container(transport, EXPECTED_MANAGER)
+    homeassistant = docker_container(transport, EXPECTED_HOMEASSISTANT)
     broker = docker_container(transport, EXPECTED_BROKER)
 
     if (
@@ -932,8 +924,16 @@ def validate_post_activation(
     ):
         raise StopExecution("manager_transaction_drift")
 
-    manager = docker_container(transport, EXPECTED_MANAGER)
-    homeassistant = docker_container(transport, EXPECTED_HOMEASSISTANT)
+    manager = docker_container(
+        transport,
+        EXPECTED_MANAGER,
+        settle_timeout_s=120.0,
+    )
+    homeassistant = docker_container(
+        transport,
+        EXPECTED_HOMEASSISTANT,
+        settle_timeout_s=120.0,
+    )
     broker = docker_container(transport, EXPECTED_BROKER)
 
     if (

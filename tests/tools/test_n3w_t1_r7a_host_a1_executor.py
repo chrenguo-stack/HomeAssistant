@@ -358,3 +358,21 @@ def test_post_and_rollback_use_bounded_container_settle_wait() -> None:
     ]
     assert post.count("settle_timeout_s=120.0") >= 2
     assert rollback.count("settle_timeout_s=120.0") >= 2
+
+
+def test_preflight_does_not_wait_for_container_convergence() -> None:
+    source = EXECUTOR_PATH.read_text(encoding="utf-8")
+    preflight = source[
+        source.index("def collect_preflight("):
+        source.index("def remote_staging_root(")
+    ]
+    assert "settle_timeout_s=120.0" not in preflight
+
+
+def test_post_activation_waits_for_container_convergence() -> None:
+    source = EXECUTOR_PATH.read_text(encoding="utf-8")
+    post = source[
+        source.index("def validate_post_activation("):
+        source.index("def restore_targets(")
+    ]
+    assert post.count("settle_timeout_s=120.0") >= 2
