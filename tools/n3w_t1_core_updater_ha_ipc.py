@@ -147,7 +147,11 @@ class HaUsbIpcExecutor:
     def _installed_version(document: dict[str, Any] | None) -> str | None:
         if document is None:
             return None
-        image_ref = document.get("current_image_ref")
+        image_ref = (
+            document.get("target_image_ref")
+            if document.get("phase") == U13A
+            else document.get("current_image_ref")
+        )
         if not isinstance(image_ref, str):
             return None
         match = re.fullmatch(
