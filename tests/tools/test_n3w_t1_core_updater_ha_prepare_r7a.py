@@ -385,3 +385,23 @@ def test_preexisting_mounted_usb_cannot_become_fresh_by_unmount_only(
     assert status["phase"] == "USB_REQUIRED"
     assert status["usb_candidate"] is None
     assert backend.formatted == 0
+
+
+def test_raw_capacity_below_floor_never_formats_media(tmp_path: Path) -> None:
+    value, backend, _, document = controller(tmp_path)
+    value.begin(document)
+    backend.items = (
+        candidate(
+            "e" * 64,
+            capacity=USB_MEASURED_USABLE_CAPACITY_MIN_BYTES - 1,
+        ),
+    )
+    status = value.refresh_candidate()
+    assert status["usb_confirmation_required"] is True
+
+    with pytest.raises(
+        UpdaterV2Error,
+        match="usb_raw_capacity_below_floor",
+    ):
+        value.confirm_and_prepare()
+    assert backend.formatted == 0
