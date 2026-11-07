@@ -509,7 +509,11 @@ class SubprocessPrepareBackend:
         partition = self._partition(observed.locator)
         _run(("mkfs.ext4", "-F", "-L", USB_LABEL, partition), timeout=120)
 
-        _require_private_directory(\n            self.runtime_root,\n            allow_group_read_execute=True,\n        )\n        mount_root = self.runtime_root / "media"
+        _require_private_directory(
+            self.runtime_root,
+            allow_group_read_execute=True,
+        )
+        mount_root = self.runtime_root / "media"
         _require_private_directory(mount_root, create=True)
         mount_path = mount_root / transaction_id_sha256[:16]
         _require_private_directory(mount_path, create=True)
