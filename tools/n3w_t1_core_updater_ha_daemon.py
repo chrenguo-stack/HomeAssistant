@@ -89,7 +89,10 @@ def _root_owned_manifest(path: Path) -> dict[str, Any]:
     ):
         raise UpdaterV2Error("ha_ota_approved_manifest_metadata_invalid")
     try:
-        document = json.loads(\n            path.read_text(encoding="utf-8"),\n            object_pairs_hook=_reject_duplicate_object,\n        )
+        document = json.loads(
+            path.read_text(encoding="utf-8"),
+            object_pairs_hook=_reject_duplicate_object,
+        )
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise UpdaterV2Error("ha_ota_approved_manifest_invalid") from error
     if not isinstance(document, dict):
