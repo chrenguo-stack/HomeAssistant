@@ -39,6 +39,9 @@ def test_manifest_is_source_only_and_stops_before_live_a1() -> None:
     assert contract["u2_plus"] is False
     assert contract["manager_image_rollback"] is False
     assert contract["second_activation"] is False
+    assert contract["legacy_recovery_gate"] is True
+    assert contract["manager_ipc_status_probe"] is True
+    assert contract["structured_ssh_start_stop"] is True
 
 
 def test_source_authority_matches_exact_git_blobs() -> None:
@@ -145,3 +148,115 @@ def test_failure_after_claim_rolls_back_a1_wiring_not_manager_image() -> None:
     assert "EXPECTED_MANAGER" in rollback
     assert "T1_CORE_UPDATER_APPLY" not in rollback
     assert "greenhouse-manager-arm64.tar" not in rollback
+
+
+def test_legacy_nonterminal_transaction_blocks_a1(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executor = load_executor()
+    monkeypatch.setattr(
+        executor,
+        "remote_exists",
+        lambda _transport, path, kind="-e": path == executor.LEGACY_TRANSACTION,
+    )
+    monkeypatch.setattr(
+        executor,
+        "remote_private_json",
+        lambda *_args, **_kwargs: {
+            "schema": "gh.n3w-t1-core-updater-transaction/1",
+            "status": "APPLYING",
+        },
+    )
+    with pytest.raises(
+        executor.StopExecution,
+        match="legacy_manager_recovery_required",
+    ):
+        executor.require_recovery_clear(object())
+
+
+@pytest.mark.parametrize("status", ["COMMITTED", "ROLLED_BACK"])
+def test_legacy_terminal_transaction_keeps_recovery_clear(
+    monkeypatch: pytest.MonkeyPatch,
+    status: str,
+) -> None:
+    executor = load_executor()
+    monkeypatch.setattr(
+        executor,
+        "remote_exists",
+        lambda _transport, path, kind="-e": path == executor.LEGACY_TRANSACTION,
+    )
+    monkeypatch.setattr(
+        executor,
+        "remote_private_json",
+        lambda *_args, **_kwargs: {
+            "schema": "gh.n3w-t1-core-updater-transaction/1",
+            "status": status,
+        },
+    )
+    result = executor.require_recovery_clear(object())
+    assert result["legacy_manager_status"] == status
+    assert result["recovery_required"] is False
+
+
+def test_manager_ipc_probe_uses_actual_manager_uid_and_readonly_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executor = load_executor()
+    captured = {}
+
+    def fake_remote(_transport, argv, **_kwargs):
+        captured["argv"] = argv
+        return subprocess.CompletedProcess(
+            argv,
+            0,
+            stdout=json.dumps(
+                {
+                    "phase": "DISCOVERED",
+                    "progress_percent": None,
+                    "error_code": None,
+                    "usb_confirmation_required": False,
+                }
+            ),
+            stderr="",
+        )
+
+    monkeypatch.setattr(executor, "remote", fake_remote)
+    manager_id = "a" * 64
+    result = executor.manager_ipc_status_probe(object(), manager_id)
+    assert result["phase"] == "DISCOVERED"
+    assert captured["argv"][:5] == [
+        "docker",
+        "exec",
+        "--user",
+        "999:999",
+        manager_id,
+    ]
+    command = captured["argv"][-1]
+    assert "UnixSocketOtaBridge" in command
+    assert "get_homeassistant_ota_runtime_state" in command
+    assert "submit_homeassistant_ota_intent" not in command
+
+
+def test_ssh_epoch_start_failure_is_structured_stop() -> None:
+    executor = load_executor()
+
+    class BrokenTransport:
+        def __init__(self, **_kwargs):
+            pass
+
+        def start_epoch(self):
+            raise RuntimeError("synthetic")
+
+        def close_epoch(self):
+            return {"status": "PASS", "session_closed": True}
+
+    with pytest.raises(
+        executor.StopExecution,
+        match="ssh_epoch_start_failed:RuntimeError",
+    ):
+        executor.start_ssh_epoch(
+            BrokenTransport,
+            target="root@example.invalid",
+            known_hosts=Path("/tmp/known_hosts"),
+            expected_host_key_sha256="0" * 64,
+        )

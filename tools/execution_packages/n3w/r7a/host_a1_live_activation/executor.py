@@ -36,6 +36,7 @@ HOST_UNIT = "n3w-t1-ha-ota.service"
 
 STATE_ROOT = "/var/lib/n3w-t1-core-updater"
 V2_TRANSACTION = f"{STATE_ROOT}/upgrade.json"
+LEGACY_TRANSACTION = f"{STATE_ROOT}/manager-upgrade.json"
 HA_USB_TRANSACTION = f"{STATE_ROOT}/homeassistant-usb-upgrade.json"
 HA_PREPARE_STATE = f"{STATE_ROOT}/homeassistant-usb-prepare.json"
 
@@ -237,6 +238,33 @@ def load_ssh_transport(manifest: dict[str, Any]) -> type:
     return module.SSHTransport
 
 
+def start_ssh_epoch(
+    transport_type: type,
+    *,
+    target: str,
+    known_hosts: Path,
+    expected_host_key_sha256: str,
+) -> Any:
+    transport = None
+    try:
+        transport = transport_type(
+            target=target,
+            known_hosts=known_hosts.expanduser(),
+            expected_host_key_sha256=expected_host_key_sha256,
+        )
+        transport.start_epoch()
+        return transport
+    except Exception as error:
+        if transport is not None:
+            try:
+                transport.close_epoch()
+            except Exception:
+                pass
+        raise StopExecution(
+            f"ssh_epoch_start_failed:{type(error).__name__}"
+        ) from error
+
+
 def remote(
     transport: Any,
     argv: list[str],
@@ -407,6 +435,24 @@ def require_manager_transaction(transport: Any) -> dict[str, Any]:
     return transaction
 
 
+def require_recovery_clear(transport: Any) -> dict[str, Any]:
+    legacy_status = None
+    if remote_exists(transport, LEGACY_TRANSACTION):
+        legacy = remote_private_json(
+            transport,
+            LEGACY_TRANSACTION,
+            schema="gh.n3w-t1-core-updater-transaction/1",
+        )
+        legacy_status = legacy.get("status")
+        if legacy_status not in {"COMMITTED", "ROLLED_BACK"}:
+            raise StopExecution("legacy_manager_recovery_required")
+    return {
+        "v2_manager_status": "COMMITTED",
+        "legacy_manager_status": legacy_status,
+        "recovery_required": False,
+    }
+
+
 def require_activation_residue_absent(transport: Any) -> None:
     for path in (
         HOST_UNIT_PATH,
@@ -472,6 +518,7 @@ def collect_preflight(transport: Any) -> dict[str, Any]:
         raise StopExecution("usb_like_disk_present")
 
     transaction = require_manager_transaction(transport)
+    recovery = require_recovery_clear(transport)
     manager = docker_container(transport, EXPECTED_MANAGER)
     homeassistant = docker_container(transport, EXPECTED_HOMEASSISTANT)
     broker = docker_container(transport, EXPECTED_BROKER)
@@ -521,6 +568,8 @@ def collect_preflight(transport: Any) -> dict[str, Any]:
         "broker_container_id": broker.get("Id"),
         "installed_homeassistant_version": version,
         "manager_transaction_sha256": hashlib.sha256(canonical(transaction)).hexdigest(),
+        "legacy_manager_transaction_status": recovery["legacy_manager_status"],
+        "recovery_required": recovery["recovery_required"],
         "usb_like_disk_count": 0,
         "a1_residue_absent": True,
     }
@@ -739,6 +788,55 @@ def require_source_hashes(
             raise StopExecution("installed_source_hash_mismatch")
 
 
+def manager_ipc_status_probe(
+    transport: Any,
+    manager_id: str,
+) -> dict[str, Any]:
+    if (
+        not isinstance(manager_id, str)
+        or re.fullmatch(r"[0-9a-f]{12,64}", manager_id) is None
+    ):
+        raise StopExecution("manager_container_id_invalid")
+    probe = (
+        "import json;"
+        "from greenhouse_manager.runtime.t1_ota_ipc import UnixSocketOtaBridge;"
+        "s=UnixSocketOtaBridge('/run/n3w/t1-ota/ha-ota.sock')"
+        ".get_homeassistant_ota_runtime_state();"
+        "print(json.dumps({"
+        "'phase':s.phase,"
+        "'progress_percent':s.progress_percent,"
+        "'error_code':s.error_code,"
+        "'usb_confirmation_required':s.usb_confirmation_required"
+        "},sort_keys=True))"
+    )
+    result = remote(
+        transport,
+        [
+            "docker",
+            "exec",
+            "--user",
+            MANAGER_USER,
+            manager_id,
+            "python",
+            "-c",
+            probe,
+        ],
+        timeout=30,
+    )
+    try:
+        document = json.loads(result.stdout.strip())
+    except json.JSONDecodeError as error:
+        raise StopExecution("manager_ipc_status_json_invalid") from error
+    if document != {
+        "phase": "DISCOVERED",
+        "progress_percent": None,
+        "error_code": None,
+        "usb_confirmation_required": False,
+    }:
+        raise StopExecution("manager_ipc_status_invalid")
+    return document
+
+
 def validate_post_activation(
     transport: Any,
     preflight: dict[str, Any],
@@ -843,6 +941,11 @@ def validate_post_activation(
     if devices not in (None, []):
         raise StopExecution("manager_block_device_access_present")
 
+    manager_ipc_status = manager_ipc_status_probe(
+        transport,
+        manager.get("Id"),
+    )
+
     if (
         homeassistant.get("Config", {}).get("Image") != EXPECTED_HOMEASSISTANT
         or homeassistant.get("Image") != EXPECTED_PEER_RUNTIME_IDS["homeassistant"]
@@ -881,6 +984,7 @@ def validate_post_activation(
         "host_socket": SOCKET_PATH,
         "manager_ota_enabled": True,
         "manager_runtime_bind_read_only": True,
+        "manager_ipc_status": manager_ipc_status,
         "broker_continuity": True,
         "homeassistant_unchanged": True,
         "usb_like_disk_count": 0,
@@ -1025,12 +1129,12 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
     preflight: dict[str, Any] | None = None
     try:
         transport_type = load_ssh_transport(manifest)
-        transport = transport_type(
+        transport = start_ssh_epoch(
+            transport_type,
             target=args.t1_ssh_target,
-            known_hosts=args.known_hosts.expanduser(),
+            known_hosts=args.known_hosts,
             expected_host_key_sha256=args.expected_host_key_sha256,
         )
-        transport.start_epoch()
         closure["t1_access"] = True
 
         preflight = collect_preflight(transport)

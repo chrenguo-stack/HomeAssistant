@@ -53,7 +53,10 @@
     "manager_image_rollback": false,
     "second_activation": false,
     "board_access": false,
-    "merge": false
+    "merge": false,
+    "legacy_recovery_gate": true,
+    "manager_ipc_status_probe": true,
+    "structured_ssh_start_stop": true
   },
   "stop_boundary": "BEFORE_REAL_T1_SSH_EPOCH_UNTIL_SEPARATE_A1_LIVE_AUTHORIZATION"
 }
