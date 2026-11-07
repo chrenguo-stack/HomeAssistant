@@ -222,6 +222,45 @@ class FakeResponse:
         return b""
 
 
+
+
+def test_stale_target_temporaries_are_cleaned_without_touching_final_target(
+    tmp_path: Path,
+) -> None:
+    target_dir = tmp_path / "target"
+    target_dir.mkdir()
+    stale_a = target_dir / ".homeassistant-target.crash-a"
+    stale_b = target_dir / ".homeassistant-target.crash-b"
+    final = target_dir / "homeassistant-arm64.tar.gz"
+    unrelated = target_dir / "keep.txt"
+    stale_a.write_bytes(b"a")
+    stale_b.write_bytes(b"b")
+    final.write_bytes(b"final")
+    unrelated.write_bytes(b"keep")
+
+    host.SubprocessPrepareBackend._cleanup_stale_target_temporaries(target_dir)
+
+    assert not stale_a.exists()
+    assert not stale_b.exists()
+    assert final.read_bytes() == b"final"
+    assert unrelated.read_bytes() == b"keep"
+
+
+def test_stale_target_temporary_cleanup_fails_closed_on_symlink(
+    tmp_path: Path,
+) -> None:
+    target_dir = tmp_path / "target"
+    target_dir.mkdir()
+    outside = tmp_path / "outside"
+    outside.write_bytes(b"outside")
+    link = target_dir / ".homeassistant-target.link"
+    link.symlink_to(outside)
+
+    with pytest.raises(UpdaterV2Error, match="ha_target_temporary_invalid"):
+        host.SubprocessPrepareBackend._cleanup_stale_target_temporaries(target_dir)
+
+    assert outside.read_bytes() == b"outside"
+
 def test_target_download_rejects_https_to_http_redirect(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
