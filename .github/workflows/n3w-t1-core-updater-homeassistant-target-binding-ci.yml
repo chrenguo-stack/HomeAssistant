@@ -7,6 +7,7 @@ on:
       - "infra/n3w-t1/upgrades/homeassistant-2026.10.4-storage-policy.json"
       - "infra/n3w-t1/upgrades/homeassistant-2026.10.4-compatibility-review.json"
       - "infra/n3w-t1/systemd/n3w-t1-ha-ota.service"
+      - "infra/n3w-t1/systemd/n3wfc4-services-activation.ha-ota.conf"
       - "infra/n3w-t1/production/docker-compose.ha-ota.yml"
       - "tools/n3w_t1_core_updater_v2.py"
       - "tools/n3w_t1_core_updater_v2_common.py"
