@@ -124,8 +124,10 @@ class HaUsbIpcExecutor:
         self.prepare_controller = prepare_controller
         self._prepare_thread: threading.Thread | None = None
         self._prepare_error: str | None = None
-        self._prepare_retry_at = 0.0
+        self._discovery_thread: threading.Thread | None = None
+        self._discovery_error: str | None = None
         self._prepare_lock = threading.Lock()
+        self._controller_lock = threading.Lock()
 
     def _resolve(self, release_identity: str) -> HostOtaAdmission:
         if _RELEASE_RE.fullmatch(release_identity) is None:
@@ -185,7 +187,6 @@ class HaUsbIpcExecutor:
                     raise UpdaterV2Error("ha_usb_prepare_already_running")
                 return False
             self._prepare_error = None
-            self._prepare_retry_at = 0.0
             self._prepare_thread = threading.Thread(
                 target=self._prepare_worker,
                 args=(mode,),
@@ -194,6 +195,55 @@ class HaUsbIpcExecutor:
             )
             self._prepare_thread.start()
             return True
+
+    def _start_discovery_worker(self) -> bool:
+        if self.prepare_controller is None:
+            return False
+        with self._prepare_lock:
+            if (
+                self._discovery_thread is not None
+                and self._discovery_thread.is_alive()
+            ):
+                return False
+            self._discovery_error = None
+            self._discovery_thread = threading.Thread(
+                target=self._discovery_worker,
+                name="n3w-t1-ha-usb-discovery",
+                daemon=True,
+            )
+            self._discovery_thread.start()
+            return True
+
+    def start_background_recovery(self) -> None:
+        if self.prepare_controller is None:
+            return
+        document = self.store.read()
+        if document is None:
+            return
+        if document["phase"] == U1:
+            self._start_discovery_worker()
+        elif document["phase"] in {U2, U3}:
+            self._start_prepare_worker("resume", fail_if_running=False)
+
+    def _discovery_worker(self) -> None:
+        while True:
+            document = self.store.read()
+            if document is None or document["phase"] != U1:
+                return
+            try:
+                assert self.prepare_controller is not None
+                with self._controller_lock:
+                    self.prepare_controller.ensure_started(document)
+                    self.prepare_controller.refresh_candidate()
+                with self._prepare_lock:
+                    self._discovery_error = None
+            except UpdaterV2Error as error:
+                with self._prepare_lock:
+                    self._discovery_error = _public_code(error)
+            except Exception:
+                with self._prepare_lock:
+                    self._discovery_error = "ota_host_discovery_failed"
+            time.sleep(1.0)
 
     def status(self) -> dict[str, object]:
         document = self.store.read()
@@ -254,7 +304,7 @@ class HaUsbIpcExecutor:
             prepare_alive = bool(
                 self._prepare_thread and self._prepare_thread.is_alive()
             )
-            retry_at = self._prepare_retry_at
+            discovery_error = self._discovery_error
 
         if document["phase"] == U1:
             if prepare_alive:
@@ -268,40 +318,51 @@ class HaUsbIpcExecutor:
                     phase="ERROR",
                     error_code=prepare_error,
                 )
-            projection = self.prepare_controller.refresh_candidate()
+            if discovery_error is not None:
+                return self._extended_status(
+                    document=document,
+                    phase="ERROR",
+                    error_code=discovery_error,
+                )
+            try:
+                projection = self.prepare_controller.public_status()
+            except UpdaterV2Error as error:
+                if str(error) == "ha_usb_prepare_state_missing":
+                    return self._extended_status(
+                        document=document,
+                        phase="USB_REQUIRED",
+                    )
+                return self._extended_status(
+                    document=document,
+                    phase="ERROR",
+                    error_code=_public_code(error),
+                )
             return {
                 **projection,
                 "installed_version": self._installed_version(document),
             }
 
         if document["phase"] in {U2, U3}:
-            if prepare_alive:
-                return self._extended_status(
-                    document=document,
-                    phase="TARGET_DOWNLOADING_VERIFYING",
-                )
-            if (
-                prepare_error == "usb_bound_media_unavailable"
-                and time.monotonic() < retry_at
-            ):
+            if prepare_error == "usb_bound_media_unavailable":
                 return self._extended_status(
                     document=document,
                     phase="RECOVERY_MEDIA_REQUIRED",
                 )
-            if prepare_error not in {None, "usb_bound_media_unavailable"}:
+            if prepare_error is not None:
                 return self._extended_status(
                     document=document,
                     phase="ERROR",
                     error_code=prepare_error,
                 )
-            self._start_prepare_worker("resume", fail_if_running=False)
+            if prepare_alive:
+                return self._extended_status(
+                    document=document,
+                    phase="TARGET_DOWNLOADING_VERIFYING",
+                )
             return self._extended_status(
                 document=document,
-                phase=(
-                    "RECOVERY_MEDIA_REQUIRED"
-                    if prepare_error == "usb_bound_media_unavailable"
-                    else "TARGET_DOWNLOADING_VERIFYING"
-                ),
+                phase="ERROR",
+                error_code="ha_usb_prepare_worker_inactive",
             )
 
         phase = _PHASE_MAP.get(document["phase"])
@@ -313,31 +374,44 @@ class HaUsbIpcExecutor:
         )
 
     def _prepare_worker(self, mode: str) -> None:
+        if self.prepare_controller is None:
+            with self._prepare_lock:
+                self._prepare_error = "ha_usb_prepare_controller_unavailable"
+            return
+        if mode == "resume":
+            while True:
+                try:
+                    with self._controller_lock:
+                        self.prepare_controller.resume_prepare()
+                    with self._prepare_lock:
+                        self._prepare_error = None
+                    return
+                except UpdaterV2Error as error:
+                    code = _public_code(error)
+                    with self._prepare_lock:
+                        self._prepare_error = code
+                    if code == "usb_bound_media_unavailable":
+                        time.sleep(5.0)
+                        continue
+                    return
+                except Exception:
+                    with self._prepare_lock:
+                        self._prepare_error = "ota_host_prepare_failed"
+                    return
+
         try:
-            if self.prepare_controller is None:
-                raise UpdaterV2Error("ha_usb_prepare_controller_unavailable")
-            if mode == "confirm":
-                self.prepare_controller.confirm_and_prepare()
-            elif mode == "resume":
-                self.prepare_controller.resume_prepare()
-            else:
+            if mode != "confirm":
                 raise UpdaterV2Error("ha_usb_prepare_worker_mode_invalid")
+            with self._controller_lock:
+                self.prepare_controller.confirm_and_prepare()
             with self._prepare_lock:
                 self._prepare_error = None
-                self._prepare_retry_at = 0.0
         except UpdaterV2Error as error:
-            code = _public_code(error)
             with self._prepare_lock:
-                self._prepare_error = code
-                self._prepare_retry_at = (
-                    time.monotonic() + 5.0
-                    if code == "usb_bound_media_unavailable"
-                    else 0.0
-                )
+                self._prepare_error = _public_code(error)
         except Exception:
             with self._prepare_lock:
                 self._prepare_error = "ota_host_prepare_failed"
-                self._prepare_retry_at = 0.0
 
     @staticmethod
     def _require_same_admission(
@@ -399,6 +473,8 @@ class HaUsbIpcExecutor:
                     raise UpdaterV2Error("ha_ota_ipc_transaction_missing")
                 self._require_same_admission(document, admission)
                 self.store.write(request_install(document))
+        if action == "PREPARE" and self.prepare_controller is not None:
+            self._start_discovery_worker()
         return self.status()
 
 
