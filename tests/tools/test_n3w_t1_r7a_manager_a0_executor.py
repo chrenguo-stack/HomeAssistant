@@ -265,10 +265,13 @@ def test_apply_failure_path_captures_post_state_before_decision() -> None:
     assert "apply_transport.json" in execute_source
 
 
-def test_post_apply_requires_exact_manager_image_id() -> None:
+def test_post_apply_binds_live_container_to_committed_runtime_image_id() -> None:
     source = EXECUTOR_PATH.read_text(encoding="utf-8")
     validate_source = source[
         source.index("def validate_post_apply("):
         source.index("def execute(")
     ]
-    assert 'target_doc.get("Image") != MANAGER_BUILD_IMAGE_ID' in validate_source
+    assert 'transaction.get("target_runtime_image_id")' in validate_source
+    assert 'manager_runtime.get("image_id") != target_runtime_id' in validate_source
+    assert 'target_doc.get("Image") != target_runtime_id' in validate_source
+    assert 'target_doc.get("Image") != MANAGER_BUILD_IMAGE_ID' not in validate_source

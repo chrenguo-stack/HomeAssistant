@@ -722,9 +722,21 @@ def validate_post_apply(
     ):
         raise StopExecution("post_apply_updater_state_invalid")
 
+    target_runtime_id = transaction.get("target_runtime_image_id")
+    runtime = snapshot.get("runtime")
+    manager_runtime = runtime.get("manager") if isinstance(runtime, dict) else None
+    if (
+        not isinstance(target_runtime_id, str)
+        or re.fullmatch(r"sha256:[0-9a-f]{64}", target_runtime_id) is None
+        or not isinstance(manager_runtime, dict)
+        or manager_runtime.get("image_ref") != TARGET_MANAGER
+        or manager_runtime.get("image_id") != target_runtime_id
+    ):
+        raise StopExecution("post_apply_manager_runtime_authority_invalid")
+
     target_doc = docker_container(transport, TARGET_MANAGER)
     if (
-        target_doc.get("Image") != MANAGER_BUILD_IMAGE_ID
+        target_doc.get("Image") != target_runtime_id
         or target_doc.get("Config", {}).get("User") != "999:999"
         or target_doc.get("RestartCount") != 0
         or target_doc.get("State", {}).get("Status") != "running"
