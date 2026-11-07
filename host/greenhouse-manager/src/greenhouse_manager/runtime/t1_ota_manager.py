@@ -401,7 +401,7 @@ def parse_control_intent(
         code="ota_intent_fields_invalid",
     )
     action = document["action"]
-    if action not in {"PREPARE", "INSTALL", "STATUS"}:
+    if action not in {"PREPARE", "CONFIRM_USB_ERASE", "INSTALL", "STATUS"}:
         raise OtaControlError("ota_intent_action_invalid")
     release = _release_identity(
         document["target_release_id"],
