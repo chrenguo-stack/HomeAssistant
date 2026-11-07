@@ -220,10 +220,10 @@ def test_invalid_manifest_projects_non_installable_safe_error() -> None:
     assert projection.status.error_code_or_null == "approved_manifest_not_approved"
 
 
-def test_prepare_and_install_are_distinct_and_install_requires_ready() -> None:
+def test_r7a_rejects_install_before_and_after_ready_to_install() -> None:
     ota, runtime, sink = manager()
 
-    with pytest.raises(OtaControlError, match="ota_install_not_ready"):
+    with pytest.raises(OtaControlError, match="ota_intent_action_invalid"):
         ota.handle_control(payload("INSTALL"))
     assert sink.intents == []
 
@@ -232,9 +232,9 @@ def test_prepare_and_install_are_distinct_and_install_requires_ready() -> None:
     assert [item.action for item in sink.intents] == ["PREPARE"]
 
     runtime.phase = "READY_TO_INSTALL"
-    installed = ota.handle_control(payload("INSTALL"))
-    assert installed.action == "INSTALL"
-    assert [item.action for item in sink.intents] == ["PREPARE", "INSTALL"]
+    with pytest.raises(OtaControlError, match="ota_intent_action_invalid"):
+        ota.handle_control(payload("INSTALL"))
+    assert [item.action for item in sink.intents] == ["PREPARE"]
 
 
 def test_status_is_read_only_and_requires_exact_release_binding() -> None:
