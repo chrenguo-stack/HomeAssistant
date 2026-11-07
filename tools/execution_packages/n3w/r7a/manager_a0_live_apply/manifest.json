@@ -25,6 +25,8 @@
     "trusted_ssh_transport_required": true,
     "single_ssh_epoch_required": true,
     "accepted_stack_exact_required": true,
+    "updater_state_readonly_before_staging": true,
+    "remote_staging_exact_file_set_required": true,
     "usb_like_disk_count": 0,
     "r7a_host_service_not_deployed": true,
     "manager_ota_enabled": false,
