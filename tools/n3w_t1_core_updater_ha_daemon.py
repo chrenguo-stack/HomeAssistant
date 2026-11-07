@@ -300,7 +300,14 @@ class FixedHostOtaAdmissionResolver:
 def publish_manager_manifest(
     source: Path = APPROVED_MANIFEST_SOURCE,
     destination: Path = RUNTIME_MANIFEST,
-) -> None:
+) -> bool:
+    if source.is_symlink():
+        raise UpdaterV2Error("ha_ota_approved_manifest_path_invalid")
+    if not source.exists():
+        if destination.is_symlink():
+            raise UpdaterV2Error("ha_ota_runtime_manifest_path_invalid")
+        destination.unlink(missing_ok=True)
+        return False
     document = _validated_manifest(source)
     payload = json.dumps(
         document,
@@ -333,6 +340,7 @@ def publish_manager_manifest(
             os.close(directory)
     finally:
         temporary.unlink(missing_ok=True)
+    return True
 
 
 def build_server() -> UnixSocketHaOtaServer:
