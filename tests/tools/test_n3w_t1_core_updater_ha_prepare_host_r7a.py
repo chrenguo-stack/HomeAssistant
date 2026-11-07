@@ -323,6 +323,16 @@ def test_inactive_activation_assets_preserve_privilege_boundary() -> None:
     assert "/dev/" not in override
     assert "Requires=n3w-t1-ha-ota.service" in dropin
     assert "After=n3w-t1-ha-ota.service" in dropin
+    assert "[Service]" in dropin
+    assert "ExecStart=\nExecStart=/usr/bin/docker compose " in dropin
+    assert "ExecStop=\nExecStop=/usr/bin/docker compose " in dropin
+    overlay_path = (
+        "-f /opt/HomeAssistant/infra/n3w-t1/production/"
+        "docker-compose.ha-ota.yml"
+    )
+    assert dropin.count(overlay_path) == 2
+    assert "--abort-on-container-exit manager homeassistant" in dropin
+    assert "stop homeassistant manager" in dropin
 
 
 def test_daemon_requires_root_and_manager_group_contract_in_source() -> None:
@@ -336,22 +346,43 @@ def test_daemon_requires_root_and_manager_group_contract_in_source() -> None:
 
 def approved_manifest_vector() -> dict:
     root = Path(__file__).resolve().parents[2]
+    return json.loads(
+        (
+            root
+            / "infra/n3w-t1/upgrades/homeassistant-2026.10.4-approved.json"
+        ).read_text(encoding="utf-8")
+    )
+
+
+def test_production_approved_manifest_binds_exact_frozen_target() -> None:
+    root = Path(__file__).resolve().parents[2]
+    document = approved_manifest_vector()
     target = json.loads(
         (
             root / "infra/n3w-t1/upgrades/homeassistant-2026.10.4.json"
         ).read_text(encoding="utf-8")
     )
-    return {
-        "schema": "gh.n3w-t1-ota-approved-manifest/1",
-        "approval_status": "APPROVED",
-        "signature_status": "VERIFIED",
-        "validity_status": "VALID",
-        "verification_status": "PASS",
-        "version": "2026.10.4",
-        "release_identity": "homeassistant-2026.10.4",
-        "target_archive_size_bytes": 835309535,
-        "target": target,
+
+    assert set(document) == {
+        "schema",
+        "approval_status",
+        "signature_status",
+        "validity_status",
+        "verification_status",
+        "version",
+        "release_identity",
+        "target_archive_size_bytes",
+        "target",
     }
+    assert document["schema"] == "gh.n3w-t1-ota-approved-manifest/1"
+    assert document["approval_status"] == "APPROVED"
+    assert document["signature_status"] == "VERIFIED"
+    assert document["validity_status"] == "VALID"
+    assert document["verification_status"] == "PASS"
+    assert document["version"] == "2026.10.4"
+    assert document["release_identity"] == "homeassistant-2026.10.4"
+    assert document["target_archive_size_bytes"] == 835309535
+    assert document["target"] == target
 
 
 def test_privileged_manifest_accepts_exact_frozen_vector(
