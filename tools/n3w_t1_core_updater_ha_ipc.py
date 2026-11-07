@@ -128,6 +128,7 @@ class HaUsbIpcExecutor:
         self._discovery_error: str | None = None
         self._prepare_lock = threading.Lock()
         self._controller_lock = threading.Lock()
+        self._stop_workers = threading.Event()
 
     def _resolve(self, release_identity: str) -> HostOtaAdmission:
         if _RELEASE_RE.fullmatch(release_identity) is None:
@@ -226,7 +227,7 @@ class HaUsbIpcExecutor:
             self._start_prepare_worker("resume", fail_if_running=False)
 
     def _discovery_worker(self) -> None:
-        while True:
+        while not self._stop_workers.is_set():
             document = self.store.read()
             if document is None or document["phase"] != U1:
                 return
@@ -243,7 +244,14 @@ class HaUsbIpcExecutor:
             except Exception:
                 with self._prepare_lock:
                     self._discovery_error = "ota_host_discovery_failed"
-            time.sleep(1.0)
+            if self._stop_workers.wait(1.0):
+                return
+
+    def stop_background_workers(self, timeout_s: float = 2.0) -> None:
+        self._stop_workers.set()
+        for thread in (self._discovery_thread, self._prepare_thread):
+            if thread is not None and thread.is_alive():
+                thread.join(timeout_s)
 
     def status(self) -> dict[str, object]:
         document = self.store.read()
@@ -391,7 +399,8 @@ class HaUsbIpcExecutor:
                     with self._prepare_lock:
                         self._prepare_error = code
                     if code == "usb_bound_media_unavailable":
-                        time.sleep(5.0)
+                        if self._stop_workers.wait(5.0):
+                            return
                         continue
                     return
                 except Exception:
