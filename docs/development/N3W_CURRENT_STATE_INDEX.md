@@ -1,6 +1,12 @@
 ## 2026-11-07 — R7A Manager successor exact A-to-B package CLOSED_PASS
 
-- Current live authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; accepted Manager/HA/Broker remain `fresh-5b32e1ae8210` / `2026.10.0-0c73235a` / `2.1.2-3184566d`.
+- Current live authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current repository Manager remains `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current repository Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted: `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`; the R7A Manager successor remains package-ready but not live-accepted.
 - R7A Manager successor is `local/greenhouse-manager:fresh-bf38e388497b`; it is **not** live-accepted yet.
 - Exact ARM64 source artifact: run `42347679643`, artifact `13564472128`, Manager tar SHA256 `4c4492ef5008a968b2553240b3fde97912eb3ae862604ae492e5a639a93db008`, build image ID `sha256:136cdcacf84a388a91cf0adbf7e0653a78b754e1879a59d3a2ac066ecba9fa5f`.
 - Compatibility authority: `infra/n3w-t1/upgrades/manager-bf38e388497b-compatibility.json`; `IMAGE_ONLY_V1`, persistent/peer compatible, no DB/config/runtime-template/HA/Broker/board migration, rollback compatible.
