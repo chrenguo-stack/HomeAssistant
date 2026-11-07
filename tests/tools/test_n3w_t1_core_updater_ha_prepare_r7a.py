@@ -295,6 +295,9 @@ def test_capacity_formula_failure_aborts_media_and_never_enters_u2(
     assert backend.formatted == 1
     assert backend.prepared == 0
     assert backend.aborted == 1
+    next_status = value.refresh_candidate()
+    assert next_status["phase"] == "USB_REQUIRED"
+    assert next_status["usb_candidate"] is None
 
 
 def test_confirmation_without_published_candidate_does_not_format(
@@ -408,6 +411,9 @@ def test_raw_capacity_below_floor_never_formats_media(tmp_path: Path) -> None:
     ):
         value.confirm_and_prepare()
     assert backend.formatted == 0
+    next_status = value.refresh_candidate()
+    assert next_status["phase"] == "USB_REQUIRED"
+    assert next_status["usb_candidate"] is None
 
 
 def test_read_only_usb_never_becomes_confirmation_candidate(
