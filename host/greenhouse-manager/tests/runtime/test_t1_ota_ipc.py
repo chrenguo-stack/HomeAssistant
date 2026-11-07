@@ -106,27 +106,16 @@ def test_bridge_submit_cannot_carry_host_paths_or_commands(tmp_path: Path) -> No
         assert forbidden not in serialized.lower()
 
 
-def test_bridge_rejects_host_rejection(tmp_path: Path) -> None:
+def test_bridge_rejects_install_locally_in_r7a(tmp_path: Path) -> None:
     path = tmp_path / "ota.sock"
-    captured: list[dict[str, Any]] = []
-    thread = _serve_once(
-        path,
-        _response(
-            phase="ERROR",
-            accepted=False,
-            code="ha_ota_ipc_admission_drift",
-        ),
-        captured,
-    )
 
-    with pytest.raises(OtaControlError, match="ha_ota_ipc_admission_drift"):
+    with pytest.raises(OtaControlError, match="ota_ipc_action_invalid"):
         UnixSocketOtaBridge(path).submit_homeassistant_ota_intent(
             OtaControlIntent(
                 action="INSTALL",
                 target_release_id="homeassistant-2026.10.4",
             )
         )
-    thread.join(2)
 
 
 def test_manifest_file_provider_rejects_duplicate_fields(tmp_path: Path) -> None:
