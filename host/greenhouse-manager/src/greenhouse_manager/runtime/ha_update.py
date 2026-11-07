@@ -39,6 +39,10 @@ class HomeAssistantUpdateSurface:
     def prepare_discovery_topic(self) -> str:
         return f"{self.prefix}/button/n3w_t1_homeassistant_prepare/config"
 
+    @property
+    def confirm_usb_discovery_topic(self) -> str:
+        return f"{self.prefix}/button/n3w_t1_homeassistant_confirm_usb/config"
+
     def _device_info(self) -> dict[str, Any]:
         return {
             "identifiers": [f"gh_{self.system_id}_t1"],
@@ -102,6 +106,37 @@ class HomeAssistantUpdateSurface:
             "retain": False,
         }
 
+    def _confirm_usb_discovery(
+        self,
+        *,
+        manifest: ApprovedManifest,
+        status: OtaStatus,
+    ) -> dict[str, Any]:
+        if (
+            status.usb_confirmation_required is not True
+            or status.usb_candidate_model_or_null is None
+            or status.usb_candidate_capacity_bytes_or_null is None
+        ):
+            raise ValueError("usb confirmation surface requires a visible candidate")
+        gib = status.usb_candidate_capacity_bytes_or_null / (1024**3)
+        return {
+            "name": (
+                "确认清空升级 U 盘："
+                f"{status.usb_candidate_model_or_null} ({gib:.1f} GiB)"
+            ),
+            "unique_id": f"n3w_{self.system_id}_t1_homeassistant_confirm_usb",
+            "device": self._device_info(),
+            "origin": self._origin(),
+            "entity_category": "config",
+            "command_topic": t1_homeassistant_ota_control_topic(self.system_id),
+            "payload_press": _intent_payload(
+                "CONFIRM_USB_ERASE",
+                manifest.release_identity,
+            ),
+            "qos": 1,
+            "retain": False,
+        }
+
     @staticmethod
     def _state_payload(status: OtaStatus) -> dict[str, Any]:
         return {
@@ -123,6 +158,11 @@ class HomeAssistantUpdateSurface:
             "ready_to_install": status.ready_to_install,
             "in_progress": status.in_progress,
             "error_code_or_null": status.error_code_or_null,
+            "usb_candidate_model_or_null": status.usb_candidate_model_or_null,
+            "usb_candidate_capacity_bytes_or_null": (
+                status.usb_candidate_capacity_bytes_or_null
+            ),
+            "usb_confirmation_required": status.usb_confirmation_required,
         }
 
     def messages(
@@ -146,6 +186,8 @@ class HomeAssistantUpdateSurface:
         prepare_visible = (
             manifest is not None
             and status.update_available
+            and status.ota_phase
+            in {"DISCOVERED", "COMMITTED", "ROLLED_BACK", "ERROR"}
             and not status.ready_to_install
             and not status.in_progress
         )
@@ -163,6 +205,35 @@ class HomeAssistantUpdateSurface:
             messages.append(
                 PublishMessage(
                     topic=self.prepare_discovery_topic,
+                    payload=b"",
+                    qos=1,
+                    retain=True,
+                )
+            )
+
+        confirm_visible = (
+            manifest is not None
+            and status.update_available
+            and status.usb_confirmation_required
+            and status.ota_phase == "USB_REQUIRED_CONFIRMATION"
+        )
+        if confirm_visible:
+            assert manifest is not None
+            messages.append(
+                PublishMessage(
+                    topic=self.confirm_usb_discovery_topic,
+                    payload=self._confirm_usb_discovery(
+                        manifest=manifest,
+                        status=status,
+                    ),
+                    qos=1,
+                    retain=True,
+                )
+            )
+        else:
+            messages.append(
+                PublishMessage(
+                    topic=self.confirm_usb_discovery_topic,
                     payload=b"",
                     qos=1,
                     retain=True,
