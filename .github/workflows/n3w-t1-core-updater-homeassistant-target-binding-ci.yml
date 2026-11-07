@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "infra/n3w-t1/upgrades/homeassistant-2026.10.4.json"
+      - "infra/n3w-t1/upgrades/homeassistant-2026.10.4-approved.json"
       - "infra/n3w-t1/upgrades/homeassistant-2026.10.4-storage-policy.json"
       - "infra/n3w-t1/upgrades/homeassistant-2026.10.4-compatibility-review.json"
       - "infra/n3w-t1/systemd/n3w-t1-ha-ota.service"
