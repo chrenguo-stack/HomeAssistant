@@ -111,6 +111,17 @@ class HostReleasePolicy:
         )
 
 
+def _reject_duplicate_object(
+    pairs: list[tuple[str, Any]],
+) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise UpdaterV2Error("ha_prepare_json_duplicate_field")
+        result[key] = value
+    return result
+
+
 def _path_contains_symlink(path: Path) -> bool:
     current = path
     while True:
@@ -137,7 +148,7 @@ def _root_owned_json(path: Path, *, max_bytes: int) -> dict[str, Any]:
     ):
         raise UpdaterV2Error("ha_prepare_policy_metadata_invalid")
     try:
-        document = json.loads(path.read_text(encoding="utf-8"))
+        document = json.loads(\n            path.read_text(encoding="utf-8"),\n            object_pairs_hook=_reject_duplicate_object,\n        )
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise UpdaterV2Error("ha_prepare_policy_json_invalid") from error
     if not isinstance(document, dict):
