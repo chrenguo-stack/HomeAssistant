@@ -131,6 +131,19 @@ class HaUsbIpcExecutor:
             raise UpdaterV2Error("ha_ota_ipc_release_binding_invalid")
         return admission
 
+    @staticmethod
+    def _installed_version(document: dict[str, Any] | None) -> str | None:
+        if document is None:
+            return None
+        image_ref = document.get("current_image_ref")
+        if not isinstance(image_ref, str):
+            return None
+        match = re.fullmatch(
+            r"local/n3w-homeassistant:(?P<version>[0-9]{4}\\.[0-9]{1,2}\\.[0-9]{1,3})-[0-9a-f]{8,64}",
+            image_ref,
+        )
+        return None if match is None else match.group("version")
+
     def status(self) -> dict[str, object]:
         document = self.store.read()
         if document is None:
@@ -138,6 +151,23 @@ class HaUsbIpcExecutor:
                 "phase": "DISCOVERED",
                 "progress_percent": None,
                 "error_code": None,
+                "installed_version": None,
+                "usb_candidate": None,
+                "usb_confirmation_required": False,
+            }
+        with self._prepare_lock:
+            prepare_error = self._prepare_error
+            prepare_alive = bool(
+                self._prepare_thread and self._prepare_thread.is_alive()
+            )
+        if prepare_error is not None:
+            return {
+                "phase": "ERROR",
+                "progress_percent": None,
+                "error_code": prepare_error,
+                "installed_version": self._installed_version(document),
+                "usb_candidate": None,
+                "usb_confirmation_required": False,
             }
         if document["status"] == "FAILED_EMERGENCY":
             failure = document.get("failure_code")
@@ -151,6 +181,24 @@ class HaUsbIpcExecutor:
                 "phase": "ERROR",
                 "progress_percent": None,
                 "error_code": code,
+                "installed_version": self._installed_version(document),
+                "usb_candidate": None,
+                "usb_confirmation_required": False,
+            }
+        if self.prepare_controller is not None and document["phase"] == U1:
+            if prepare_alive:
+                return {
+                    "phase": "TARGET_DOWNLOADING_VERIFYING",
+                    "progress_percent": None,
+                    "error_code": None,
+                    "installed_version": self._installed_version(document),
+                    "usb_candidate": None,
+                    "usb_confirmation_required": False,
+                }
+            projection = self.prepare_controller.refresh_candidate()
+            return {
+                **projection,
+                "installed_version": self._installed_version(document),
             }
         phase = _PHASE_MAP.get(document["phase"])
         if phase is None:
@@ -159,7 +207,23 @@ class HaUsbIpcExecutor:
             "phase": phase,
             "progress_percent": None,
             "error_code": None,
+            "installed_version": self._installed_version(document),
+            "usb_candidate": None,
+            "usb_confirmation_required": False,
         }
+
+    def _prepare_worker(self) -> None:
+        try:
+            if self.prepare_controller is None:
+                raise UpdaterV2Error("ha_usb_prepare_controller_unavailable")
+            self.prepare_controller.confirm_and_prepare()
+        except UpdaterV2Error as error:
+            code = _public_code(error)
+            with self._prepare_lock:
+                self._prepare_error = code
+        except Exception:
+            with self._prepare_lock:
+                self._prepare_error = "ota_host_prepare_failed"
 
     @staticmethod
     def _require_same_admission(
@@ -179,9 +243,36 @@ class HaUsbIpcExecutor:
                 raise UpdaterV2Error("ha_ota_ipc_admission_drift")
 
     def submit(self, action: str, release_identity: str) -> dict[str, object]:
-        if action not in {"PREPARE", "INSTALL"}:
+        if action not in {"PREPARE", "CONFIRM_USB_ERASE", "INSTALL"}:
             raise UpdaterV2Error("ha_ota_ipc_action_invalid")
         admission = self._resolve(release_identity)
+        if action == "CONFIRM_USB_ERASE":
+            if self.prepare_controller is None:
+                raise UpdaterV2Error("ha_usb_prepare_controller_unavailable")
+            document = self.store.read()
+            if document is None:
+                raise UpdaterV2Error("ha_ota_ipc_transaction_missing")
+            self._require_same_admission(document, admission)
+            with self._prepare_lock:
+                if self._prepare_thread is not None and self._prepare_thread.is_alive():
+                    raise UpdaterV2Error("ha_usb_prepare_already_running")
+                self._prepare_error = None
+                self._prepare_thread = threading.Thread(
+                    target=self._prepare_worker,
+                    name="n3w-t1-ha-usb-prepare",
+                    daemon=True,
+                )
+                self._prepare_thread.start()
+            return {
+                "phase": "TARGET_DOWNLOADING_VERIFYING",
+                "progress_percent": None,
+                "error_code": None,
+                "installed_version": self._installed_version(document),
+                "usb_candidate": None,
+                "usb_confirmation_required": False,
+            }
+
+        prepared: dict[str, Any] | None = None
         with self.store.lock():
             if action == "PREPARE":
                 self.store.prepare_new()
@@ -193,13 +284,16 @@ class HaUsbIpcExecutor:
                     target_archive_sha256=admission.target_archive_sha256,
                     target_archive_size=admission.target_archive_size,
                 )
-                self.store.write(request_prepare(document))
+                prepared = request_prepare(document)
+                self.store.write(prepared)
             else:
                 document = self.store.read()
                 if document is None:
                     raise UpdaterV2Error("ha_ota_ipc_transaction_missing")
                 self._require_same_admission(document, admission)
                 self.store.write(request_install(document))
+        if prepared is not None and self.prepare_controller is not None:
+            self.prepare_controller.begin(prepared)
         return self.status()
 
 
@@ -264,14 +358,32 @@ class HaUsbIpcDispatcher:
                     "progress_percent": None,
                     "error_code": "ota_host_status_unavailable",
                 }
+        extended = any(
+            key in status
+            for key in (
+                "installed_version",
+                "usb_candidate",
+                "usb_confirmation_required",
+            )
+        )
         document = {
-            "schema": RESPONSE_SCHEMA,
+            "schema": RESPONSE_SCHEMA_V2 if extended else RESPONSE_SCHEMA,
             "accepted": accepted,
             "code": code,
             "phase": status["phase"],
             "progress_percent": status["progress_percent"],
             "error_code": status["error_code"],
         }
+        if extended:
+            document.update(
+                {
+                    "installed_version": status.get("installed_version"),
+                    "usb_candidate": status.get("usb_candidate"),
+                    "usb_confirmation_required": bool(
+                        status.get("usb_confirmation_required", False)
+                    ),
+                }
+            )
         return (
             json.dumps(document, sort_keys=True, separators=(",", ":")).encode("utf-8")
             + b"\n"
