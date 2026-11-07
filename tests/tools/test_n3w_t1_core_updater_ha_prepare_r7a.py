@@ -39,6 +39,7 @@ def candidate(
     capacity: int = 16 * 1024**3,
     root: bool = False,
     mounted: bool = False,
+    read_only: bool = False,
 ) -> HostUsbCandidate:
     return HostUsbCandidate(
         locator=locator,
@@ -48,7 +49,7 @@ def candidate(
         newly_inserted=True,
         removable=True,
         mass_storage=True,
-        read_only=False,
+        read_only=read_only,
         is_root_device=root,
         backs_production_mount=mounted,
     )
@@ -405,3 +406,48 @@ def test_raw_capacity_below_floor_never_formats_media(tmp_path: Path) -> None:
     ):
         value.confirm_and_prepare()
     assert backend.formatted == 0
+
+
+def test_read_only_usb_never_becomes_confirmation_candidate(
+    tmp_path: Path,
+) -> None:
+    value, backend, _, document = controller(tmp_path)
+    value.begin(document)
+    backend.items = (candidate("f" * 64, read_only=True),)
+
+    status = value.refresh_candidate()
+
+    assert status["phase"] == "USB_REQUIRED"
+    assert status["usb_candidate"] is None
+    assert backend.formatted == 0
+
+
+def test_u2_resume_uses_bound_media_without_reformat(tmp_path: Path) -> None:
+    value, backend, store, document = controller(tmp_path)
+    value.begin(document)
+    backend.items = (candidate("b" * 64),)
+    value.refresh_candidate()
+
+    original_prepare = backend.prepare_target
+
+    def fail_before_target(*, transaction, media):
+        raise UpdaterV2Error("synthetic_stop_after_u2")
+
+    backend.prepare_target = fail_before_target
+    with pytest.raises(UpdaterV2Error, match="synthetic_stop_after_u2"):
+        value.confirm_and_prepare()
+
+    interrupted = store.read()
+    assert interrupted is not None
+    assert interrupted["phase"] == "U3_TARGET_DOWNLOADING_VERIFYING"
+    assert backend.formatted == 1
+
+    backend.prepare_target = original_prepare
+    status = value.resume_prepare()
+
+    final = store.read()
+    assert final is not None
+    assert final["phase"] == U4
+    assert status["phase"] == "READY_TO_INSTALL"
+    assert backend.formatted == 1
+    assert backend.reopened == 1
