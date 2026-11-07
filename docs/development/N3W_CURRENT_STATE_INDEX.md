@@ -1,5 +1,6 @@
 ## 2026-11-08 — R7A A1 _01 rollback healthy; restart-settle repair CLOSED_PASS; successor authorization deferred
 
+- T1 Core Stack authority compatibility link: `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; manager reference `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / manager `local/greenhouse-manager:fresh-24382caae4a1`; live upgrade accepted.
 - Fresh repository rebind: main `bce6bd82023d5f5322eea1ab363a29df8a4cadd8`; PR #799 head `462018cbf341f1b762a35f82a87a7c98e4a8b615`; PR #800 executable repair head `922a106bd32ce98a07d2280cf08a6a9f116a11a6`, tree `3712bbcf20e47f7cf1f92fc26ce238eed6e95fd8`.
 - Exact repair-head CI: **25 success, 0 failure, 0 pending**.
 - A0 Manager successor live apply is accepted: Manager `local/greenhouse-manager:fresh-bf38e388497b`; A0 authorization `...20261107_02` is consumed and replay-forbidden.
