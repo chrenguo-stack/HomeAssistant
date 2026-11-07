@@ -24,10 +24,10 @@ def load_executor():
     return module
 
 
-def test_manifest_authorizes_exact_one_shot_a1_successor() -> None:
+def test_manifest_retires_consumed_successor_after_a1_pass() -> None:
     document = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     assert document["schema"] == "gh.n3w-t1-r7a-host-a1-live-activation-package/1"
-    assert document["live_execution_authorized"] is True
+    assert document["live_execution_authorized"] is False
     contract = document["execution_contract"]
     assert contract["host_daemon_install"] is True
     assert contract["compose_overlay_install"] is True
@@ -48,14 +48,14 @@ def test_manifest_authorizes_exact_one_shot_a1_successor() -> None:
     assert contract["rollback_restart_container_settle_wait"] is True
 
 
-def test_successor_authorization_contract_is_bound_and_live_authorized() -> None:
+def test_successor_authorization_contract_remains_bound_but_retired() -> None:
     executor = load_executor()
     document = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     successor = "N3W_T1_R7A_HOST_DAEMON_COMPOSE_A1_LIVE_ACTIVATION_20261108_02"
     consumed = "N3W_T1_R7A_HOST_DAEMON_COMPOSE_A1_LIVE_ACTIVATION_20261107_01"
     assert executor.AUTHORIZATION == successor
     assert document["proposed_authorization_id"] == successor
-    assert document["live_execution_authorized"] is True
+    assert document["live_execution_authorized"] is False
     assert executor.AUTHORIZATION != consumed
 
 
@@ -71,7 +71,7 @@ def test_source_authority_matches_exact_git_blobs() -> None:
         assert observed == expected
 
 
-def test_live_gate_accepts_exact_authorized_successor_source() -> None:
+def test_live_gate_rejects_consumed_successor_replay() -> None:
     executor = load_executor()
     head = subprocess.run(
         ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
@@ -79,9 +79,8 @@ def test_live_gate_accepts_exact_authorized_successor_source() -> None:
         text=True,
         stdout=subprocess.PIPE,
     ).stdout.strip()
-    document = executor.validate_local_source(head, require_live=True)
-    assert document["live_execution_authorized"] is True
-    assert document["proposed_authorization_id"] == executor.AUTHORIZATION
+    with pytest.raises(executor.StopExecution, match="live_execution_not_authorized"):
+        executor.validate_local_source(head, require_live=True)
 
 
 @pytest.mark.parametrize(

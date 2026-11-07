@@ -1,7 +1,7 @@
 {
   "schema": "gh.n3w-t1-r7a-host-a1-live-activation-package/1",
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_HOST_DAEMON_COMPOSE_A1_LIVE_ACTIVATION_PREEXECUTION_20261107_01",
-  "live_execution_authorized": true,
+  "live_execution_authorized": false,
   "proposed_authorization_id": "N3W_T1_R7A_HOST_DAEMON_COMPOSE_A1_LIVE_ACTIVATION_20261108_02",
   "confirmation": "EXECUTE R7A HOST DAEMON COMPOSE A1 LIVE ACTIVATION: YES",
   "source_authority": {

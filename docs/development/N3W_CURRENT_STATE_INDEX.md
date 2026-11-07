@@ -1,3 +1,16 @@
+## 2026-11-08 — R7A A1 successor live activation CLOSED_PASS
+
+- T1 Core Stack authority compatibility link: `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; manager reference `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- Authorized source head `c01b982e9d889a269e79aedeb8b9f18c15f8b3e6`, tree `74d193f675d712cf53f3484e478b523b975e1dff`, exact-head CI **25/25 SUCCESS**.
+- Execution `N3W_R7A_HOST_A1_20261107T174129Z` completed with executor rc 0 and `status=PASS`.
+- Successor authorization `N3W_T1_R7A_HOST_DAEMON_COMPOSE_A1_LIVE_ACTIVATION_20261108_02` was claimed and is consumed; replay is forbidden.
+- Activation invoked exactly once; services-owner restart invoked; host daemon active; Manager OTA enabled.
+- No automatic rollback was invoked and `recovery_required=false`.
+- USB mutation, PREPARE intent, erase confirmation, and board access all remained false.
+- KF-143 is resolved by real-T1 successor retry evidence: the bounded post-restart convergence repair passed without recurrence of `container_cardinality_invalid`.
+- Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_BOUNDARY_B_PREPARE_ONLY_PREEXECUTION_20261108_01`; no real USB/PREPARE action is authorized by this closure.
+- Closure: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_A1_SUCCESSOR_LIVE_ACTIVATION_CLOSURE_20261108.md`.
+
 ## 2026-11-08 — R7A A1 _01 rollback healthy; restart-settle repair CLOSED_PASS; successor authorization deferred
 
 - T1 Core Stack authority compatibility link: `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; manager reference `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
