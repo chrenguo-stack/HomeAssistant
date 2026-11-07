@@ -24,10 +24,10 @@ def load_executor():
     return module
 
 
-def test_manifest_is_source_only_and_stops_before_live_a1() -> None:
+def test_manifest_is_live_authorized_for_exact_a1_gate() -> None:
     document = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     assert document["schema"] == "gh.n3w-t1-r7a-host-a1-live-activation-package/1"
-    assert document["live_execution_authorized"] is False
+    assert document["live_execution_authorized"] is True
     contract = document["execution_contract"]
     assert contract["host_daemon_install"] is True
     assert contract["compose_overlay_install"] is True
@@ -58,7 +58,7 @@ def test_source_authority_matches_exact_git_blobs() -> None:
         assert observed == expected
 
 
-def test_live_gate_rejects_until_separate_a1_authorization() -> None:
+def test_live_gate_accepts_exact_authorized_a1_head() -> None:
     executor = load_executor()
     head = subprocess.run(
         ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
@@ -66,8 +66,9 @@ def test_live_gate_rejects_until_separate_a1_authorization() -> None:
         text=True,
         stdout=subprocess.PIPE,
     ).stdout.strip()
-    with pytest.raises(executor.StopExecution, match="live_execution_not_authorized"):
-        executor.validate_local_source(head, require_live=True)
+    document = executor.validate_local_source(head, require_live=True)
+    assert document["proposed_authorization_id"] == executor.AUTHORIZATION
+    assert document["live_execution_authorized"] is True
 
 
 @pytest.mark.parametrize(

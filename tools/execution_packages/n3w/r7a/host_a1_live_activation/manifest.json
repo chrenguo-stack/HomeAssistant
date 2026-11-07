@@ -1,7 +1,7 @@
 {
   "schema": "gh.n3w-t1-r7a-host-a1-live-activation-package/1",
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_HOST_DAEMON_COMPOSE_A1_LIVE_ACTIVATION_PREEXECUTION_20261107_01",
-  "live_execution_authorized": false,
+  "live_execution_authorized": true,
   "proposed_authorization_id": "N3W_T1_R7A_HOST_DAEMON_COMPOSE_A1_LIVE_ACTIVATION_20261107_01",
   "confirmation": "EXECUTE R7A HOST DAEMON COMPOSE A1 LIVE ACTIVATION: YES",
   "source_authority": {
@@ -60,5 +60,5 @@
     "symlink_nonregular_fail_closed": true,
     "rollback_backup_hash_verified": true
   },
-  "stop_boundary": "BEFORE_REAL_T1_SSH_EPOCH_UNTIL_SEPARATE_A1_LIVE_AUTHORIZATION"
+  "stop_boundary": "AUTHORIZED_ONE_SHOT_A1;STOP_AFTER_ONE_ACTIVATION"
 }
