@@ -31,6 +31,9 @@ from n3w_t1_core_updater_v2_common import (
 )
 
 HOST_RELEASE_POLICY_SCHEMA = "gh.n3w-t1-ha-ota-host-release-policy/1"
+USB_TX_MANIFEST_SCHEMA = "gh.n3w-t1-ha-usb-transaction-manifest/1"
+USB_TX_PHASE_SCHEMA = "gh.n3w-t1-ha-usb-transaction-phase/1"
+USB_TX_CHECKSUM_SCHEMA = "gh.n3w-t1-ha-usb-checksums/1"
 DEFAULT_HOST_RELEASE_POLICY = Path(
     "/etc/n3w-t1-ota/homeassistant-release-source.json"
 )
@@ -547,6 +550,110 @@ class SubprocessPrepareBackend:
             except OSError:
                 pass
             raise
+
+    @staticmethod
+    def _atomic_json(path: Path, document: dict[str, Any]) -> None:
+        if path.is_symlink():
+            raise UpdaterV2Error("usb_transaction_metadata_path_invalid")
+        payload = (
+            json.dumps(
+                document,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+            ).encode("utf-8")
+            + b"\n"
+        )
+        descriptor, raw = tempfile.mkstemp(
+            prefix=f".{path.name}.",
+            dir=path.parent,
+        )
+        temporary = Path(raw)
+        try:
+            os.fchmod(descriptor, 0o600)
+            with os.fdopen(descriptor, "wb", closefd=True) as stream:
+                stream.write(payload)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, path)
+            directory = os.open(
+                path.parent,
+                os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+            )
+            try:
+                os.fsync(directory)
+            finally:
+                os.close(directory)
+        finally:
+            temporary.unlink(missing_ok=True)
+
+    def sync_transaction_metadata(
+        self,
+        transaction: dict[str, Any],
+        media: PreparedUsbMedia,
+    ) -> None:
+        media.validate()
+        self._require_bound_media(media)
+        transaction_id = transaction.get("transaction_id_sha256")
+        phase = transaction.get("phase")
+        release = transaction.get("target_manifest_identity")
+        release_identity = (
+            release.get("release_identity")
+            if isinstance(release, dict)
+            else None
+        )
+        target_image = transaction.get("target_image_ref")
+        target_sha = transaction.get("target_archive_sha256")
+        target_size = transaction.get("target_archive_size")
+        if (
+            not isinstance(transaction_id, str)
+            or SHA256.fullmatch(transaction_id) is None
+            or not isinstance(phase, str)
+            or not isinstance(release_identity, str)
+            or not isinstance(target_image, str)
+            or not isinstance(target_sha, str)
+            or SHA256.fullmatch(target_sha) is None
+            or type(target_size) is not int
+            or target_size <= 0
+        ):
+            raise UpdaterV2Error("usb_transaction_metadata_invalid")
+
+        transaction_dir = (
+            Path(media.mount_path) / "n3w-update" / "transaction"
+        )
+        _require_private_directory(transaction_dir, create=True)
+        manifest = {
+            "schema": USB_TX_MANIFEST_SCHEMA,
+            "transaction_id_sha256": transaction_id,
+            "release_identity": release_identity,
+            "target_image_ref": target_image,
+            "target_archive_sha256": target_sha,
+            "target_archive_size_bytes": target_size,
+            "usb_filesystem_uuid": media.filesystem_uuid,
+            "usb_device_identity_public_fingerprint": (
+                media.public_fingerprint
+            ),
+        }
+        phase_document = {
+            "schema": USB_TX_PHASE_SCHEMA,
+            "transaction_id_sha256": transaction_id,
+            "phase": phase,
+            "target_artifact_verified": bool(
+                transaction.get("target_artifact_verified", False)
+            ),
+            "usb_capacity_verified": bool(
+                transaction.get("usb_capacity_verified", False)
+            ),
+        }
+        checksums = {
+            "schema": USB_TX_CHECKSUM_SCHEMA,
+            "target_archive_sha256": target_sha,
+            "target_archive_size_bytes": target_size,
+        }
+        self._atomic_json(transaction_dir / "manifest.json", manifest)
+        self._atomic_json(transaction_dir / "phase.json", phase_document)
+        self._atomic_json(transaction_dir / "checksums.json", checksums)
+        self._fsync_directory(transaction_dir)
 
     def reopen_bound_media(
         self,
