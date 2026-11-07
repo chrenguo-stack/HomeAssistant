@@ -169,7 +169,7 @@ class HaUsbIpcExecutor:
         if not isinstance(image_ref, str):
             return None
         match = re.fullmatch(
-            r"local/n3w-homeassistant:(?P<version>[0-9]{4}\\.[0-9]{1,2}\\.[0-9]{1,3})-[0-9a-f]{8,64}",
+            r"local/n3w-homeassistant:(?P<version>[0-9]{4}\.[0-9]{1,2}\.[0-9]{1,3})-[0-9a-f]{8,64}",
             image_ref,
         )
         return None if match is None else match.group("version")
