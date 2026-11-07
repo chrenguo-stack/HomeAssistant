@@ -99,7 +99,7 @@ def test_update_and_prepare_discovery_are_separate_before_prepare() -> None:
     assert prepare.retain is True
 
 
-def test_install_command_appears_only_when_ready_to_install() -> None:
+def test_r7a_ready_to_install_is_status_only_without_install_command() -> None:
     surface = HomeAssistantUpdateSurface(system_id="system-001")
     projected = projection("READY_TO_INSTALL")
 
@@ -112,10 +112,8 @@ def test_install_command_appears_only_when_ready_to_install() -> None:
 
     update = messages["homeassistant/update/n3w_t1_homeassistant/config"]
     prepare = messages["homeassistant/button/n3w_t1_homeassistant_prepare/config"]
-    assert update.payload["command_topic"] == (
-        "gh/v1/system-001/control/t1/homeassistant/ota"
-    )
-    assert '"action":"INSTALL"' in update.payload["payload_install"]
+    assert "command_topic" not in update.payload
+    assert "payload_install" not in update.payload
     assert prepare.payload == b""
 
 
