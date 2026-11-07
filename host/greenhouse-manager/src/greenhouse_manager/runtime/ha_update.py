@@ -76,14 +76,6 @@ class HomeAssistantUpdateSurface:
             "qos": 1,
             "retain": False,
         }
-        if manifest is not None and status.ready_to_install:
-            payload["command_topic"] = t1_homeassistant_ota_control_topic(
-                self.system_id
-            )
-            payload["payload_install"] = _intent_payload(
-                "INSTALL",
-                manifest.release_identity,
-            )
         return payload
 
     def _prepare_discovery(
