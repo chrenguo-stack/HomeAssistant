@@ -7,10 +7,12 @@ import socket
 import stat
 import struct
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
+from n3w_t1_core_updater_ha_prepare import HaUsbPrepareController
 from n3w_t1_core_updater_ha_usb import request_install, request_prepare
 from n3w_t1_core_updater_ha_usb_state import (
     U0,
@@ -35,6 +37,7 @@ from n3w_t1_core_updater_v2_common import UpdaterV2Error
 
 REQUEST_SCHEMA = "gh.n3w-t1-ha-ota-ipc-request/1"
 RESPONSE_SCHEMA = "gh.n3w-t1-ha-ota-ipc-response/1"
+RESPONSE_SCHEMA_V2 = "gh.n3w-t1-ha-ota-ipc-response/2"
 MAX_FRAME_BYTES = 8192
 DEFAULT_SOCKET_MODE = 0o660
 
@@ -114,9 +117,15 @@ class HaUsbIpcExecutor:
         *,
         store: HaUsbStateStore,
         admission_resolver: HostOtaAdmissionResolver,
+        prepare_controller: HaUsbPrepareController | None = None,
     ) -> None:
         self.store = store
         self.admission_resolver = admission_resolver
+        self.prepare_controller = prepare_controller
+        self._prepare_thread: threading.Thread | None = None
+        self._prepare_error: str | None = None
+        self._prepare_retry_at = 0.0
+        self._prepare_lock = threading.Lock()
 
     def _resolve(self, release_identity: str) -> HostOtaAdmission:
         if _RELEASE_RE.fullmatch(release_identity) is None:
@@ -143,6 +152,40 @@ class HaUsbIpcExecutor:
             image_ref,
         )
         return None if match is None else match.group("version")
+
+    def _extended_status(
+        self,
+        *,
+        document: dict[str, Any],
+        phase: str,
+        error_code: str | None = None,
+        usb_candidate: object | None = None,
+        usb_confirmation_required: bool = False,
+    ) -> dict[str, object]:
+        return {
+            "phase": phase,
+            "progress_percent": None,
+            "error_code": error_code,
+            "installed_version": self._installed_version(document),
+            "usb_candidate": usb_candidate,
+            "usb_confirmation_required": usb_confirmation_required,
+        }
+
+    def _start_prepare_worker(self, mode: str) -> None:
+        if mode not in {"confirm", "resume"}:
+            raise UpdaterV2Error("ha_usb_prepare_worker_mode_invalid")
+        with self._prepare_lock:
+            if self._prepare_thread is not None and self._prepare_thread.is_alive():
+                raise UpdaterV2Error("ha_usb_prepare_already_running")
+            self._prepare_error = None
+            self._prepare_retry_at = 0.0
+            self._prepare_thread = threading.Thread(
+                target=self._prepare_worker,
+                args=(mode,),
+                name=f"n3w-t1-ha-usb-{mode}",
+                daemon=True,
+            )
+            self._prepare_thread.start()
 
     def status(self) -> dict[str, object]:
         document = self.store.read()
@@ -174,26 +217,13 @@ class HaUsbIpcExecutor:
                 "progress_percent": None,
                 "error_code": None,
             }
+
         if document is None:
             return {
                 "phase": "DISCOVERED",
                 "progress_percent": None,
                 "error_code": None,
                 "installed_version": None,
-                "usb_candidate": None,
-                "usb_confirmation_required": False,
-            }
-        with self._prepare_lock:
-            prepare_error = self._prepare_error
-            prepare_alive = bool(
-                self._prepare_thread and self._prepare_thread.is_alive()
-            )
-        if prepare_error is not None:
-            return {
-                "phase": "ERROR",
-                "progress_percent": None,
-                "error_code": prepare_error,
-                "installed_version": self._installed_version(document),
                 "usb_candidate": None,
                 "usb_confirmation_required": False,
             }
@@ -205,53 +235,101 @@ class HaUsbIpcExecutor:
                 and _PUBLIC_CODE_RE.fullmatch(failure) is not None
                 else "ota_host_failure"
             )
-            return {
-                "phase": "ERROR",
-                "progress_percent": None,
-                "error_code": code,
-                "installed_version": self._installed_version(document),
-                "usb_candidate": None,
-                "usb_confirmation_required": False,
-            }
-        if self.prepare_controller is not None and document["phase"] == U1:
+            return self._extended_status(
+                document=document,
+                phase="ERROR",
+                error_code=code,
+            )
+
+        with self._prepare_lock:
+            prepare_error = self._prepare_error
+            prepare_alive = bool(
+                self._prepare_thread and self._prepare_thread.is_alive()
+            )
+            retry_at = self._prepare_retry_at
+
+        if document["phase"] == U1:
             if prepare_alive:
-                return {
-                    "phase": "TARGET_DOWNLOADING_VERIFYING",
-                    "progress_percent": None,
-                    "error_code": None,
-                    "installed_version": self._installed_version(document),
-                    "usb_candidate": None,
-                    "usb_confirmation_required": False,
-                }
+                return self._extended_status(
+                    document=document,
+                    phase="TARGET_DOWNLOADING_VERIFYING",
+                )
+            if prepare_error is not None:
+                return self._extended_status(
+                    document=document,
+                    phase="ERROR",
+                    error_code=prepare_error,
+                )
             projection = self.prepare_controller.refresh_candidate()
             return {
                 **projection,
                 "installed_version": self._installed_version(document),
             }
+
+        if document["phase"] in {U2, U3}:
+            if prepare_alive:
+                return self._extended_status(
+                    document=document,
+                    phase="TARGET_DOWNLOADING_VERIFYING",
+                )
+            if (
+                prepare_error == "usb_bound_media_unavailable"
+                and time.monotonic() < retry_at
+            ):
+                return self._extended_status(
+                    document=document,
+                    phase="RECOVERY_MEDIA_REQUIRED",
+                )
+            if prepare_error not in {None, "usb_bound_media_unavailable"}:
+                return self._extended_status(
+                    document=document,
+                    phase="ERROR",
+                    error_code=prepare_error,
+                )
+            self._start_prepare_worker("resume")
+            return self._extended_status(
+                document=document,
+                phase=(
+                    "RECOVERY_MEDIA_REQUIRED"
+                    if prepare_error == "usb_bound_media_unavailable"
+                    else "TARGET_DOWNLOADING_VERIFYING"
+                ),
+            )
+
         phase = _PHASE_MAP.get(document["phase"])
         if phase is None:
             raise UpdaterV2Error("ha_ota_ipc_phase_invalid")
-        return {
-            "phase": phase,
-            "progress_percent": None,
-            "error_code": None,
-            "installed_version": self._installed_version(document),
-            "usb_candidate": None,
-            "usb_confirmation_required": False,
-        }
+        return self._extended_status(
+            document=document,
+            phase=phase,
+        )
 
-    def _prepare_worker(self) -> None:
+    def _prepare_worker(self, mode: str) -> None:
         try:
             if self.prepare_controller is None:
                 raise UpdaterV2Error("ha_usb_prepare_controller_unavailable")
-            self.prepare_controller.confirm_and_prepare()
+            if mode == "confirm":
+                self.prepare_controller.confirm_and_prepare()
+            elif mode == "resume":
+                self.prepare_controller.resume_prepare()
+            else:
+                raise UpdaterV2Error("ha_usb_prepare_worker_mode_invalid")
+            with self._prepare_lock:
+                self._prepare_error = None
+                self._prepare_retry_at = 0.0
         except UpdaterV2Error as error:
             code = _public_code(error)
             with self._prepare_lock:
                 self._prepare_error = code
+                self._prepare_retry_at = (
+                    time.monotonic() + 5.0
+                    if code == "usb_bound_media_unavailable"
+                    else 0.0
+                )
         except Exception:
             with self._prepare_lock:
                 self._prepare_error = "ota_host_prepare_failed"
+                self._prepare_retry_at = 0.0
 
     @staticmethod
     def _require_same_admission(
@@ -281,16 +359,7 @@ class HaUsbIpcExecutor:
             if document is None:
                 raise UpdaterV2Error("ha_ota_ipc_transaction_missing")
             self._require_same_admission(document, admission)
-            with self._prepare_lock:
-                if self._prepare_thread is not None and self._prepare_thread.is_alive():
-                    raise UpdaterV2Error("ha_usb_prepare_already_running")
-                self._prepare_error = None
-                self._prepare_thread = threading.Thread(
-                    target=self._prepare_worker,
-                    name="n3w-t1-ha-usb-prepare",
-                    daemon=True,
-                )
-                self._prepare_thread.start()
+            self._start_prepare_worker("confirm")
             return {
                 "phase": "TARGET_DOWNLOADING_VERIFYING",
                 "progress_percent": None,
