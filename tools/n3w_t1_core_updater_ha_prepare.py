@@ -387,6 +387,27 @@ class HaUsbPrepareController:
         if state["release_identity"] != release_identity:
             raise UpdaterV2Error("ha_usb_prepare_release_drift")
 
+    def _exclude_candidate(
+        self,
+        state: dict[str, Any],
+        public_fingerprint: str,
+        *,
+        error_code: str,
+    ) -> None:
+        baseline = list(state["baseline_public_fingerprints"])
+        if public_fingerprint not in baseline:
+            if len(baseline) >= 32:
+                raise UpdaterV2Error("ha_usb_prepare_baseline_capacity_exceeded")
+            baseline.append(public_fingerprint)
+        next_state = dict(state)
+        next_state["baseline_public_fingerprints"] = sorted(baseline)
+        next_state["candidate"] = None
+        next_state["confirmation_required"] = False
+        next_state["confirmation_consumed"] = False
+        next_state["error_code"] = error_code
+        next_state["updated_at_unix"] = int(time.time())
+        self.prepare_store.write(next_state)
+
     def refresh_candidate(self) -> dict[str, Any]:
         transaction = self._transaction()
         if transaction["phase"] != U1:
@@ -450,6 +471,11 @@ class HaUsbPrepareController:
             candidate.display_capacity_bytes
             < USB_MEASURED_USABLE_CAPACITY_MIN_BYTES
         ):
+            self._exclude_candidate(
+                state,
+                candidate.public_fingerprint,
+                error_code="usb_raw_capacity_below_floor",
+            )
             raise UpdaterV2Error("usb_raw_capacity_below_floor")
         authorization = authorize_destructive_format(
             candidate.as_media_candidate(),
@@ -472,6 +498,11 @@ class HaUsbPrepareController:
 
         capacity = assess_capacity(media.measured_usable_bytes, capacity_inputs)
         if capacity.capacity_pass is not True:
+            self._exclude_candidate(
+                consumed,
+                candidate.public_fingerprint,
+                error_code="usb_capacity_not_verified",
+            )
             try:
                 self.backend.abort_prepared_media(media)
             finally:
