@@ -2,6 +2,7 @@
 
 - R5 `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R5_REAL_T1_READONLY_PREFLIGHT_20261106_01` is `CLOSED_PASS`.
 - Fresh real T1: Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`; all three running with restart_count 0.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; R5 does not rewrite historical authority.
 - Generic V2 active file is a terminal Home Assistant `ROLLED_BACK` transaction; no legacy transaction and no HA mandatory-USB successor transaction are active; current V2 status semantics derive `recovery_required=false`.
 - R4 runtime directory/socket/Manager OTA mount are absent on production as expected because R4 never activated production wiring.
 - Direct R4 production activation is rejected: the IPC only admits PREPARE through U1 and INSTALL through U5 and does not implement the privileged worker.
