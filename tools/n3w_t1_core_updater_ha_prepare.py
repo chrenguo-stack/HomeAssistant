@@ -17,6 +17,7 @@ from n3w_t1_core_updater_ha_usb import (
 )
 from n3w_t1_core_updater_ha_usb_media import (
     FORMAT_CONFIRMATION,
+    USB_MEASURED_USABLE_CAPACITY_MIN_BYTES,
     RemovableDeviceCandidate,
     UsbCapacityInputs,
     assess_capacity,
@@ -428,6 +429,11 @@ class HaUsbPrepareController:
         ):
             raise UpdaterV2Error("usb_confirmation_display_identity_drift")
 
+        if (
+            candidate.display_capacity_bytes
+            < USB_MEASURED_USABLE_CAPACITY_MIN_BYTES
+        ):
+            raise UpdaterV2Error("usb_raw_capacity_below_floor")
         authorization = authorize_destructive_format(
             candidate.as_media_candidate(),
             FORMAT_CONFIRMATION,
