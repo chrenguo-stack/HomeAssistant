@@ -275,6 +275,8 @@ def test_inactive_activation_assets_preserve_privilege_boundary() -> None:
     assert "systemctl" not in unit
     assert "GH_N3W_T1_OTA_ENABLED" in override
     assert ":-false" in override
+    assert '${GH_N3W_T1_OTA_INSTALLED_VERSION:-}' in override
+    assert ":?GH_N3W_T1_OTA_INSTALLED_VERSION" not in override
     assert "source: /run/n3w-t1-ota" in override
     assert "target: /run/n3w/t1-ota" in override
     assert "read_only: true" in override
