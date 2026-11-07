@@ -370,6 +370,23 @@ class HaUsbPrepareController:
             }
         )
 
+    def ensure_started(self, transaction: dict[str, Any]) -> None:
+        current = validate_transaction_document(transaction)
+        if current["phase"] != U1:
+            raise UpdaterV2Error("ha_usb_prepare_begin_phase_invalid")
+        state = self.prepare_store.read()
+        if state is None:
+            self.begin(current)
+            return
+        if state["transaction_id_sha256"] != current["transaction_id_sha256"]:
+            self.begin(current)
+            return
+        release_identity = current["target_manifest_identity"].get(
+            "release_identity"
+        )
+        if state["release_identity"] != release_identity:
+            raise UpdaterV2Error("ha_usb_prepare_release_drift")
+
     def refresh_candidate(self) -> dict[str, Any]:
         transaction = self._transaction()
         if transaction["phase"] != U1:
