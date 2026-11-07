@@ -149,6 +149,9 @@ class PreparePipelineBackend(Protocol):
     ) -> ImageRecoveryRecord:
         """Stream, verify and fsync the exact target directly on bound media."""
 
+    def abort_prepared_media(self, media: PreparedUsbMedia) -> None:
+        """Best-effort unmount/cleanup after post-format admission failure."""
+
 
 class PrepareStateStore:
     def __init__(self, root: Path) -> None:
@@ -429,6 +432,11 @@ class HaUsbPrepareController:
             raise UpdaterV2Error("usb_prepared_identity_drift")
 
         capacity = assess_capacity(media.measured_usable_bytes, capacity_inputs)
+        if capacity.capacity_pass is not True:
+            try:
+                self.backend.abort_prepared_media(media)
+            finally:
+                raise UpdaterV2Error("ha_usb_capacity_not_verified")
         u2 = record_media_bound(
             transaction,
             format_authorization=authorization,
