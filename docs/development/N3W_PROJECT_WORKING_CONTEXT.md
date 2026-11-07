@@ -1,3 +1,49 @@
+## Stable updater authority — 2026-11-07 R7A PREPARE source CLOSED_PASS
+
+```text
+PROJECT_WORKING_CONTEXT_VERSION=2.1
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+HA_USB_R5_REAL_T1_READONLY_PREFLIGHT=CLOSED_PASS
+R6_PRIVILEGED_PREPARE_PIPELINE_SOURCE_DESIGN=CLOSED_PASS_SOURCE_DESIGN
+R7A_PREPARE_PIPELINE_SOURCE_IMPLEMENTATION=CLOSED_PASS
+
+R7A_SOURCE_IMPLEMENTATION_HEAD=d5c7aca0b8f39acb0d9d014b649d943a81956262
+R7A_STACKED_PR=800
+R7A_END_PHASE=U4_READY_TO_INSTALL
+R7A_EXECUTABLE_U5_PATH=false
+PREPARE_REQUIRES_SEPARATE_USB_ERASE_CONFIRMATION=true
+MANAGER_UID_GID=999:999
+MANAGER_DOCKER_SOCKET=false
+R7A_DEFAULT_PRODUCTION_ACTIVATION=false
+
+LIVE_T1_MUTATION=false
+REAL_USB_MUTATION=false
+SERVICE_MUTATION=false
+DOCKER_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_REAL_T1_PREACTIVATION_READONLY_PREFLIGHT_20261107_01
+NEXT_GATE_LIVE_T1_ACCESS=true
+NEXT_GATE_LIVE_T1_MUTATION=false
+NEXT_GATE_REAL_USB_MUTATION=false
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+R7A now has an exact, CI-green repository implementation for the privileged PREPARE half only. The independently reviewed source requires a separate user-visible USB erase confirmation before destructive media operations, rejects internal/root/mounted/ambiguous devices, streams the approved target directly to the bound USB, resumes U2/U3 only against the same UUID/fingerprint and hard-stops at U4. All executable INSTALL/U5 paths were removed from the R7A control plane.
+
+The accepted production Manager/Home Assistant/Broker stack is unchanged and R7A has not been deployed. The next boundary is read-only real-T1 preactivation inspection; no service activation or real USB mutation is implied.
+
+Authorities:
+- `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_PREPARE_PIPELINE_SOURCE_IMPLEMENTATION_CLOSURE_20261107.md`
+- `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R6_PRIVILEGED_PREPARE_PIPELINE_SOURCE_DESIGN_20261107.md`
+
 ## Stable updater authority — 2026-11-07 R5 real-T1 read-only PASS; R6 PREPARE pipeline design frozen
 
 ```text
