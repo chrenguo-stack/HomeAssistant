@@ -25,14 +25,14 @@ def load_executor():
     return module
 
 
-def test_manifest_is_live_authorized_for_explicit_repaired_a0_gate() -> None:
+def test_manifest_is_retired_after_one_shot_a0_apply() -> None:
     document = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
 
     assert (
         document["schema"]
         == "gh.n3w-t1-r7a-manager-a0-live-execution-package/1"
     )
-    assert document["live_execution_authorized"] is True
+    assert document["live_execution_authorized"] is False
     assert document["preconditions"]["updater_state_readonly_before_staging"] is True
     assert document["preconditions"]["remote_staging_exact_file_set_required"] is True
     assert document["preconditions"]["usb_like_disk_count"] == 0
@@ -76,7 +76,7 @@ def test_authorization_id_matches_generic_v2_contract() -> None:
     )
 
 
-def test_live_authority_gate_accepts_exact_repaired_authorized_head() -> None:
+def test_live_authority_gate_rejects_replay_after_a0_apply() -> None:
     executor = load_executor()
     head = subprocess.run(
         ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
@@ -85,9 +85,8 @@ def test_live_authority_gate_accepts_exact_repaired_authorized_head() -> None:
         stdout=subprocess.PIPE,
     ).stdout.strip()
 
-    document = executor.validate_local_source(head, require_live=True)
-    assert document["authorization_id"] == executor.AUTHORIZATION
-    assert document["live_execution_authorized"] is True
+    with pytest.raises(executor.StopExecution, match="live_execution_not_authorized"):
+        executor.validate_local_source(head, require_live=True)
 
 
 class FakeLsblkTransport:
