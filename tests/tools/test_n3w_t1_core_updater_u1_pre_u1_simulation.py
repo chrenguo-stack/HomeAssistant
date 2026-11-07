@@ -22,11 +22,10 @@ from n3w_t1_core_updater_v2_common import (
 )
 from n3w_t1_core_updater_v2_state import V2StateStore
 
-TARGET_PATH = ROOT / "infra/n3w-t1/upgrades/manager-5b32e1ae8210.json"
-BASELINE_PATH = ROOT / "infra/n3w-t1/clean-reference/u0-upgrade-baseline-a-20261104.json"
-PRE_U1_PATH = ROOT / "infra/n3w-t1/clean-reference/pre-u1-business-runtime-reference-20261104.json"
+TARGET_PATH = ROOT / "infra/n3w-t1/upgrades/manager-bf38e388497b.json"
+BASELINE_PATH = ROOT / "infra/n3w-t1/clean-reference/r7a-manager-predecessor-baseline-20261107.json"
 AUTHORITY_PATH = ROOT / "infra/n3w-t1/production/t1-core-stack-current.json"
-BASELINE_FILE_SHA256 = "a791377083e76f765ddf978c09025674eda3586d33892e4b609a814706bdfbbc"
+BASELINE_FILE_SHA256 = "68e5021ed0010ea97c11d2fa8e05254ae234ae8ba92953f7c57cf8519a51672a"
 
 
 def _read(path: Path) -> dict:
@@ -196,7 +195,6 @@ def test_u1_v2_exact_package_against_frozen_pre_u1_reference(
     package_baseline = package_dir / "upgrade-baseline-a.json"
     package_binding = _read(package_dir / "package-binding.json")
 
-    pre_u1 = _read(PRE_U1_PATH)
     authority = _read(AUTHORITY_PATH)
     target = ComponentTarget.load(TARGET_PATH)
     baseline = UpgradeBaseline.load(BASELINE_PATH)
@@ -204,14 +202,17 @@ def test_u1_v2_exact_package_against_frozen_pre_u1_reference(
     assert sha256_file(BASELINE_PATH) == BASELINE_FILE_SHA256
     assert _read(package_target) == _read(TARGET_PATH)
     assert _read(package_baseline) == _read(BASELINE_PATH)
-    assert pre_u1["result"] == "CLOSED_PASS"
-    assert pre_u1["upgrade_safety"]["fresh_reads_byte_identical"] is True
-    assert pre_u1["upgrade_safety"]["fresh_baseline_equals_u0"] is True
-
-    manager_a = pre_u1["stack"]["images"]["manager"]
+    current = authority["current_repository_stack"]
+    live = authority["live_deployment"]
+    manager_a = current["manager"]["image"]
+    assert manager_a == "local/greenhouse-manager:fresh-5b32e1ae8210"
+    assert live["current_manager_image"] == manager_a
+    assert live["runtime_class"] == "TARGET_BOUND_RUNNING"
+    assert live["health_state"] == "HEALTHY"
+    assert live["recovery_required"] is False
     assert baseline.stack_images["manager"] == manager_a
     assert target.expected_predecessor_image_ref == manager_a
-    assert target.target_image_ref == "local/greenhouse-manager:fresh-5b32e1ae8210"
+    assert target.target_image_ref == "local/greenhouse-manager:fresh-bf38e388497b"
     assert target.target_archive_sha256 == sha256_file(manager_tar)
     assert target.rollback_compatible is True
 

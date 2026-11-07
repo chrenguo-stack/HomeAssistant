@@ -1,3 +1,91 @@
+## 2026-11-08 — R7A A1 successor live activation CLOSED_PASS
+
+- T1 Core Stack authority compatibility link: `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; manager reference `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- Authorized source head `c01b982e9d889a269e79aedeb8b9f18c15f8b3e6`, tree `74d193f675d712cf53f3484e478b523b975e1dff`, exact-head CI **25/25 SUCCESS**.
+- Execution `N3W_R7A_HOST_A1_20261107T174129Z` completed with executor rc 0 and `status=PASS`.
+- Successor authorization `N3W_T1_R7A_HOST_DAEMON_COMPOSE_A1_LIVE_ACTIVATION_20261108_02` was claimed and is consumed; replay is forbidden.
+- Activation invoked exactly once; services-owner restart invoked; host daemon active; Manager OTA enabled.
+- No automatic rollback was invoked and `recovery_required=false`.
+- USB mutation, PREPARE intent, erase confirmation, and board access all remained false.
+- KF-143 is resolved by real-T1 successor retry evidence: the bounded post-restart convergence repair passed without recurrence of `container_cardinality_invalid`.
+- Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_BOUNDARY_B_PREPARE_ONLY_PREEXECUTION_20261108_01`; no real USB/PREPARE action is authorized by this closure.
+- Closure: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_A1_SUCCESSOR_LIVE_ACTIVATION_CLOSURE_20261108.md`.
+
+## 2026-11-08 — R7A A1 _01 rollback healthy; restart-settle repair CLOSED_PASS; successor authorization deferred
+
+- T1 Core Stack authority compatibility link: `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; manager reference `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- Fresh repository rebind: main `bce6bd82023d5f5322eea1ab363a29df8a4cadd8`; PR #799 head `462018cbf341f1b762a35f82a87a7c98e4a8b615`; PR #800 executable repair head `922a106bd32ce98a07d2280cf08a6a9f116a11a6`, tree `3712bbcf20e47f7cf1f92fc26ce238eed6e95fd8`.
+- Exact repair-head CI: **25 success, 0 failure, 0 pending**.
+- A0 Manager successor live apply is accepted: Manager `local/greenhouse-manager:fresh-bf38e388497b`; A0 authorization `...20261107_02` is consumed and replay-forbidden.
+- A1 authorization `N3W_T1_R7A_HOST_DAEMON_COMPOSE_A1_LIVE_ACTIVATION_20261107_01` was claimed and activation invoked; it is consumed/retired and must never be replayed.
+- A1 _01 stopped on `container_cardinality_invalid`; automatic rollback was invoked. Later read-only classification proved `ROLLED_BACK_HEALTHY_FALSE_ROLLBACK_FAILURE`, so `T1_RECOVERY_REQUIRED=false`.
+- Current live Manager is `local/greenhouse-manager:fresh-bf38e388497b` / runtime image `sha256:e88a22b2...`, UID/GID 999:999, running, no OTA env/mount and no Docker socket.
+- Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a` / runtime image `sha256:c261fa53...`, running.
+- Broker remains `local/n3w-mosquitto:2.1.2-3184566d` / runtime image `sha256:df265f1e...`, running with container continuity proven.
+- A1 host service/drop-in/activation env/approved manifest/runtime root/socket are absent; HA-USB/PREPARE state absent; USB-like disk count 0.
+- KF-143 records the root cause: Type=simple services restart returns before Manager/HA container convergence; immediate `docker ps --filter ancestor` is not a readiness oracle.
+- Repair: bounded 120 s wait only after activation/rollback restarts; preflight remains strict/immediate. Repair exact head is `922a106bd32ce98a07d2280cf08a6a9f116a11a6`.
+- No new A1 authorization is established in this chat. Proposed successor ID for the next chat: `N3W_T1_R7A_HOST_DAEMON_COMPOSE_A1_LIVE_ACTIVATION_20261108_02`, currently `GRANTED=false`.
+- Next gate: `N3W_T1_R7A_HOST_DAEMON_COMPOSE_A1_SUCCESSOR_LIVE_AUTHORIZATION_BINDING_20261108_01`.
+- Formal handoff: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_A1_ROLLBACK_HEALTHY_TO_SUCCESSOR_AUTHORIZATION_NEW_CHAT_HANDOFF_V1.0_20261108.md`.
+
+## 2026-11-07 — R7A Manager A0 executor preexecution CLOSED_PASS
+
+- Current live authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Accepted production stack remains Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`; live deployment remains `APPLIED_ACCEPTED`.
+- Live upgrade accepted: `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`; no A0 live mutation has occurred.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- R7A Manager successor remains `local/greenhouse-manager:fresh-bf38e388497b`; it is package-ready but not live-accepted.
+- Frozen A0 Manager-only package: control head `921e7d5557ff3dbf4b7e7ae5510186d98f803a2a`, artifact `13564899377`, digest `sha256:6e9ca4cf103434330c0a31b51e1ba27b7d12b554648f4b0a017fd69bc4a32e1c`.
+- Final A0 executor executable authority: head `bed9aeb7c41f614bdeb8e445d71171e669e45942`, tree `7f07e82f688dfee24e22e9330485e2c02edbd4fa`.
+- Final independent review added pre-staging updater-state recovery checks, exact staging file-set/symlink guards, R7A approved-manifest residue rejection, exact post-target image-ID validation, and post-failure status/inspect evidence capture.
+- Rollback contract is explicit: the executor never issues a second explicit rollback; Generic V2 may perform its already-tested bounded internal failure rollback; no automatic retry or second apply is allowed.
+- A0 dedicated CI run `42362708336`: `source=SUCCESS`, `exact-manager-slice=SUCCESS`, `pre-u1-v2-simulation=SUCCESS`.
+- Executable-head workflow summary: 27 success, 0 failure, 0 pending, 4 ancillary cancelled; no A0 job failed or remained pending.
+- `live_execution_authorized=false`; no real SSH epoch, T1 mutation, Manager live upgrade, USB mutation, board access or merge occurred.
+- Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_MANAGER_SUCCESSOR_A0_LIVE_APPLY_20261107_01`; explicit user authorization required before any real T1 access/mutation.
+- Closure: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_MANAGER_SUCCESSOR_A0_LIVE_EXECUTION_PACKAGE_PREEXECUTION_CLOSURE_20261107.md`.
+
+## 2026-11-07 — R7A Manager successor exact A-to-B package CLOSED_PASS
+
+- Current live authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current repository Manager remains `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current repository Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted: `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`; the R7A Manager successor remains package-ready but not live-accepted.
+- R7A Manager successor is `local/greenhouse-manager:fresh-bf38e388497b`; it is **not** live-accepted yet.
+- Exact ARM64 source artifact: run `42347679643`, artifact `13564472128`, Manager tar SHA256 `4c4492ef5008a968b2553240b3fde97912eb3ae862604ae492e5a639a93db008`, build image ID `sha256:136cdcacf84a388a91cf0adbf7e0653a78b754e1879a59d3a2ac066ecba9fa5f`.
+- Compatibility authority: `infra/n3w-t1/upgrades/manager-bf38e388497b-compatibility.json`; `IMAGE_ONLY_V1`, persistent/peer compatible, no DB/config/runtime-template/HA/Broker/board migration, rollback compatible.
+- Target authority: `infra/n3w-t1/upgrades/manager-bf38e388497b.json`; expected predecessor is the accepted `fresh-5b32e1ae8210`.
+- Predecessor baseline: `infra/n3w-t1/clean-reference/r7a-manager-predecessor-baseline-20261107.json`; canonical SHA `78c3b0b58ad39cf887689658bec90c8466d30a93d58830b0289f1463dafad868`, exactly matching the 2026-11-05 real-T1 P4 double-read baseline authority.
+- Final Manager-only Generic V2 package: run `42349904235`, artifact `13564899377`, digest `sha256:6e9ca4cf103434330c0a31b51e1ba27b7d12b554648f4b0a017fd69bc4a32e1c`, updater.pyz SHA `1b556d5601f33ef050c91e990bedaaeb1611bef325350fad008a1ec69fc7dc99`.
+- Package CI passed `source`, `exact-manager-slice` and `pre-u1-v2-simulation`; simulation covers plan/apply/rollback without T1 mutation.
+- Continuity review from artifact source head `bf38e388497b0d480f4bd322426e32a98652cf6c` to package control head `921e7d5557ff3dbf4b7e7ae5510186d98f803a2a` found zero Manager product-source changes.
+- No live T1 access/mutation, Manager live upgrade, service/Docker mutation, USB mutation, board access or merge occurred.
+- Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_MANAGER_SUCCESSOR_A0_LIVE_EXECUTION_PACKAGE_PREEXECUTION_20261107_01`; source-only executor construction/review, stopping before real SSH/apply.
+- Closure: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_MANAGER_SUCCESSOR_EXACT_ARTIFACT_AND_A_TO_B_PACKAGE_CLOSURE_20261107.md`.
+
+## 2026-11-07 — HA mandatory-USB R7A PREPARE source CLOSED_PASS
+
+- Current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current repository Manager remains `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current repository Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Live upgrade accepted: `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`; R7A is source-only and does not change the accepted production stack.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- R7A gate `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_PREPARE_PIPELINE_SOURCE_IMPLEMENTATION_20261107_01` is `CLOSED_PASS`.
+- Exact executable source authority: `d5c7aca0b8f39acb0d9d014b649d943a81956262`; PR #800 exact-head CI: 18 success, 10 path-gated skips, 0 failure, 0 pending.
+- R7A implements PREPARE U1→U4 only: explicit USB erase confirmation, single-device fail-closed selection, root/production-device exclusion, ext4/UUID/self-test/capacity gates and direct-to-USB target verification.
+- Independent review removed the original executable INSTALL/U4→U5 path from HA discovery, Manager control/IPC and host IPC; R7A now hard-stops at `U4 READY_TO_INSTALL`.
+- Manager remains UID/GID 999:999 with no root, Docker socket or block-device access; host AF_UNIX admission checks `SO_PEERCRED` UID 999.
+- Power-loss recovery reuses only the same bound UUID/fingerprint, never formats a second device automatically, and bounded stale target temporaries are cleaned only inside the verified bound USB target directory.
+- Production activation remains OFF; no T1 deployment, systemd activation, Docker runtime mutation, USB formatting or board access occurred.
+- Next gate is `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_REAL_T1_PREACTIVATION_READONLY_PREFLIGHT_20261107_01`; it is read-only and must stop before service installation/enable/start or any USB write.
+- R7A closure: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_PREPARE_PIPELINE_SOURCE_IMPLEMENTATION_CLOSURE_20261107.md`.
+
 ## 2026-11-07 — HA mandatory-USB R5 real-T1 read-only PASS; R6 PREPARE pipeline source design frozen
 
 - Current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.

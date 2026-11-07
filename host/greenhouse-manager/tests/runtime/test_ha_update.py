@@ -34,14 +34,31 @@ class Provider:
 
 
 class Runtime:
-    def __init__(self, phase: str, progress: int | None = None) -> None:
+    def __init__(
+        self,
+        phase: str,
+        progress: int | None = None,
+        *,
+        installed_version: str | None = None,
+        usb_model: str | None = None,
+        usb_capacity: int | None = None,
+        usb_confirmation_required: bool = False,
+    ) -> None:
         self.phase = phase
         self.progress = progress
+        self.installed_version = installed_version
+        self.usb_model = usb_model
+        self.usb_capacity = usb_capacity
+        self.usb_confirmation_required = usb_confirmation_required
 
     def get_homeassistant_ota_runtime_state(self) -> OtaRuntimeSnapshot:
         return OtaRuntimeSnapshot(
             phase=self.phase,
             progress_percent=self.progress,
+            installed_version=self.installed_version,
+            usb_candidate_model=self.usb_model,
+            usb_candidate_capacity_bytes=self.usb_capacity,
+            usb_confirmation_required=self.usb_confirmation_required,
         )
 
 
@@ -82,7 +99,7 @@ def test_update_and_prepare_discovery_are_separate_before_prepare() -> None:
     assert prepare.retain is True
 
 
-def test_install_command_appears_only_when_ready_to_install() -> None:
+def test_r7a_ready_to_install_is_status_only_without_install_command() -> None:
     surface = HomeAssistantUpdateSurface(system_id="system-001")
     projected = projection("READY_TO_INSTALL")
 
@@ -95,10 +112,8 @@ def test_install_command_appears_only_when_ready_to_install() -> None:
 
     update = messages["homeassistant/update/n3w_t1_homeassistant/config"]
     prepare = messages["homeassistant/button/n3w_t1_homeassistant_prepare/config"]
-    assert update.payload["command_topic"] == (
-        "gh/v1/system-001/control/t1/homeassistant/ota"
-    )
-    assert '"action":"INSTALL"' in update.payload["payload_install"]
+    assert "command_topic" not in update.payload
+    assert "payload_install" not in update.payload
     assert prepare.payload == b""
 
 
@@ -139,6 +154,9 @@ def test_state_and_attributes_expose_only_public_projection() -> None:
         "ready_to_install": False,
         "in_progress": True,
         "error_code_or_null": None,
+        "usb_candidate_model_or_null": None,
+        "usb_candidate_capacity_bytes_or_null": None,
+        "usb_confirmation_required": False,
     }
     encoded = repr((state, attributes))
     for forbidden in (
@@ -150,3 +168,59 @@ def test_state_and_attributes_expose_only_public_projection() -> None:
         "target_archive_sha256",
     ):
         assert forbidden not in encoded
+
+
+def test_usb_erase_confirmation_button_names_exact_public_candidate() -> None:
+    surface = HomeAssistantUpdateSurface(system_id="system-001")
+    runtime = Runtime(
+        "USB_REQUIRED_CONFIRMATION",
+        installed_version="2026.10.0",
+        usb_model="Kingston DataTraveler",
+        usb_capacity=16 * 1024**3,
+        usb_confirmation_required=True,
+    )
+    ota = T1OtaManager(
+        installed_version="2026.10.0",
+        manifest_provider=Provider(),
+        runtime_state_provider=runtime,
+    )
+    projected = ota.project()
+
+    messages = by_topic(
+        surface.messages(
+            manifest=projected.manifest,
+            status=projected.status,
+        )
+    )
+    prepare = messages[
+        "homeassistant/button/n3w_t1_homeassistant_prepare/config"
+    ]
+    confirm = messages[
+        "homeassistant/button/n3w_t1_homeassistant_confirm_usb/config"
+    ]
+
+    assert prepare.payload == b""
+    assert "Kingston DataTraveler" in confirm.payload["name"]
+    assert "16.0 GiB" in confirm.payload["name"]
+    assert '"action":"CONFIRM_USB_ERASE"' in confirm.payload["payload_press"]
+    encoded = json.dumps(confirm.payload, ensure_ascii=False)
+    for forbidden in ("/dev/", "mount", "docker", "authorization", "serial"):
+        assert forbidden not in encoded.lower()
+
+
+def test_usb_confirmation_button_is_tombstoned_while_waiting_for_media() -> None:
+    surface = HomeAssistantUpdateSurface(system_id="system-001")
+    projected = projection("USB_REQUIRED")
+    messages = by_topic(
+        surface.messages(
+            manifest=projected.manifest,
+            status=projected.status,
+        )
+    )
+
+    assert messages[
+        "homeassistant/button/n3w_t1_homeassistant_prepare/config"
+    ].payload == b""
+    assert messages[
+        "homeassistant/button/n3w_t1_homeassistant_confirm_usb/config"
+    ].payload == b""

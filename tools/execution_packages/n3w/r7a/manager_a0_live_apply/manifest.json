@@ -1,0 +1,56 @@
+{
+  "schema": "gh.n3w-t1-r7a-manager-a0-live-execution-package/1",
+  "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_MANAGER_SUCCESSOR_A0_LIVE_EXECUTION_PACKAGE_PREEXECUTION_20261107_01",
+  "live_execution_authorized": false,
+  "authorization_id": "N3W_T1_CORE_UPDATER_R7A_MANAGER_SUCCESSOR_A0_LIVE_APPLY_20261107_02",
+  "confirmation": "EXECUTE R7A MANAGER A0 LIVE APPLY: YES",
+  "package_authority": {
+    "workflow_run_id": 42349904235,
+    "artifact_id": 13564899377,
+    "artifact_name": "n3w-t1-core-updater-manager-v2-bf38e388497b",
+    "artifact_digest": "sha256:6e9ca4cf103434330c0a31b51e1ba27b7d12b554648f4b0a017fd69bc4a32e1c",
+    "package_control_head": "921e7d5557ff3dbf4b7e7ae5510186d98f803a2a",
+    "updater_pyz_sha256": "1b556d5601f33ef050c91e990bedaaeb1611bef325350fad008a1ec69fc7dc99",
+    "manager_tar_sha256": "4c4492ef5008a968b2553240b3fde97912eb3ae862604ae492e5a639a93db008",
+    "manager_build_image_id": "sha256:136cdcacf84a388a91cf0adbf7e0653a78b754e1879a59d3a2ac066ecba9fa5f"
+  },
+  "target": {
+    "manifest": "infra/n3w-t1/upgrades/manager-bf38e388497b.json",
+    "compatibility": "infra/n3w-t1/upgrades/manager-bf38e388497b-compatibility.json",
+    "baseline": "infra/n3w-t1/clean-reference/r7a-manager-predecessor-baseline-20261107.json",
+    "expected_predecessor": "local/greenhouse-manager:fresh-5b32e1ae8210",
+    "target_image": "local/greenhouse-manager:fresh-bf38e388497b"
+  },
+  "preconditions": {
+    "trusted_ssh_transport_required": true,
+    "single_ssh_epoch_required": true,
+    "accepted_stack_exact_required": true,
+    "updater_state_readonly_before_staging": true,
+    "remote_staging_exact_file_set_required": true,
+    "usb_like_disk_count": 0,
+    "r7a_host_service_not_deployed": true,
+    "approved_manifest_absent": true,
+    "manager_ota_enabled": false,
+    "manager_docker_socket": false,
+    "manager_uid_gid": "999:999",
+    "updater_recovery_required": false
+  },
+  "execution_contract": {
+    "manager_only_mutation": true,
+    "homeassistant_image_mutation": false,
+    "broker_image_mutation": false,
+    "host_daemon_activation": false,
+    "usb_mutation": false,
+    "one_apply_maximum": true,
+    "automatic_retry": false,
+    "executor_explicit_rollback": false,
+    "updater_internal_failure_rollback": true,
+    "post_failure_state_capture_required": true,
+    "post_status_required": true,
+    "post_inspect_required": true,
+    "post_usb_zero_required": true,
+    "board_access": false,
+    "merge": false
+  },
+  "stop_boundary": "A0_APPLY_INVOKED;AUTHORIZATION_RETIRED;READONLY_CLOSURE_ONLY"
+}

@@ -22,6 +22,9 @@ _IMAGE_RE = re.compile(
 
 _IDLE_PHASES = {
     "DISCOVERED",
+    "USB_REQUIRED",
+    "USB_REQUIRED_CONFIRMATION",
+    "RECOVERY_MEDIA_REQUIRED",
     "READY_TO_INSTALL",
     "COMMITTED",
     "ROLLED_BACK",
@@ -83,6 +86,10 @@ class OtaRuntimeSnapshot:
     phase: str = "DISCOVERED"
     progress_percent: int | None = None
     error_code: str | None = None
+    installed_version: str | None = None
+    usb_candidate_model: str | None = None
+    usb_candidate_capacity_bytes: int | None = None
+    usb_confirmation_required: bool = False
 
     def validate(self) -> OtaRuntimeSnapshot:
         if self.phase not in _ALLOWED_PHASES:
@@ -94,6 +101,34 @@ class OtaRuntimeSnapshot:
             raise OtaControlError("ota_runtime_progress_invalid")
         if self.error_code is not None:
             _require_public_error_code(self.error_code)
+        if self.installed_version is not None:
+            _stable_version(
+                self.installed_version,
+                code="ota_runtime_installed_version_invalid",
+            )
+        if self.usb_candidate_model is not None and (
+            not isinstance(self.usb_candidate_model, str)
+            or not self.usb_candidate_model.strip()
+            or len(self.usb_candidate_model) > 160
+            or any(
+                character in self.usb_candidate_model
+                for character in ("\x00", "\n", "\r")
+            )
+        ):
+            raise OtaControlError("ota_runtime_usb_candidate_invalid")
+        if self.usb_candidate_capacity_bytes is not None and (
+            type(self.usb_candidate_capacity_bytes) is not int
+            or self.usb_candidate_capacity_bytes <= 0
+        ):
+            raise OtaControlError("ota_runtime_usb_candidate_invalid")
+        if type(self.usb_confirmation_required) is not bool:
+            raise OtaControlError("ota_runtime_usb_confirmation_invalid")
+        if self.usb_confirmation_required and (
+            self.phase != "USB_REQUIRED_CONFIRMATION"
+            or self.usb_candidate_model is None
+            or self.usb_candidate_capacity_bytes is None
+        ):
+            raise OtaControlError("ota_runtime_usb_confirmation_invalid")
         return self
 
 
@@ -107,6 +142,9 @@ class OtaStatus:
     ready_to_install: bool
     in_progress: bool
     error_code_or_null: str | None
+    usb_candidate_model_or_null: str | None = None
+    usb_candidate_capacity_bytes_or_null: int | None = None
+    usb_confirmation_required: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -363,7 +401,7 @@ def parse_control_intent(
         code="ota_intent_fields_invalid",
     )
     action = document["action"]
-    if action not in {"PREPARE", "INSTALL", "STATUS"}:
+    if action not in {"PREPARE", "CONFIRM_USB_ERASE", "STATUS"}:
         raise OtaControlError("ota_intent_action_invalid")
     release = _release_identity(
         document["target_release_id"],
@@ -421,9 +459,10 @@ class T1OtaManager:
         manifest: ApprovedManifest,
         runtime: OtaRuntimeSnapshot,
     ) -> OtaStatus:
-        available = compare_versions(manifest.version, self.installed_version) > 0
+        installed_version = runtime.installed_version or self.installed_version
+        available = compare_versions(manifest.version, installed_version) > 0
         return OtaStatus(
-            installed_version=self.installed_version,
+            installed_version=installed_version,
             latest_approved_version=manifest.version,
             update_available=available,
             ota_phase=runtime.phase,
@@ -431,6 +470,11 @@ class T1OtaManager:
             ready_to_install=runtime.phase == "READY_TO_INSTALL",
             in_progress=runtime.phase in _IN_PROGRESS_PHASES,
             error_code_or_null=runtime.error_code,
+            usb_candidate_model_or_null=runtime.usb_candidate_model,
+            usb_candidate_capacity_bytes_or_null=(
+                runtime.usb_candidate_capacity_bytes
+            ),
+            usb_confirmation_required=runtime.usb_confirmation_required,
         )
 
     def project(self) -> OtaProjection:
@@ -453,6 +497,9 @@ class T1OtaManager:
                     ready_to_install=False,
                     in_progress=False,
                     error_code_or_null=error.code,
+                    usb_candidate_model_or_null=None,
+                    usb_candidate_capacity_bytes_or_null=None,
+                    usb_confirmation_required=False,
                 ),
             )
 
@@ -472,13 +519,23 @@ class T1OtaManager:
             return intent
         if not status.update_available:
             raise OtaControlError("ota_update_not_available")
-        if status.in_progress:
-            raise OtaControlError("ota_transaction_in_progress")
-        if intent.action == "PREPARE":
+        if intent.action == "CONFIRM_USB_ERASE":
+            if (
+                status.ota_phase != "USB_REQUIRED_CONFIRMATION"
+                or status.usb_confirmation_required is not True
+            ):
+                raise OtaControlError("ota_usb_confirmation_not_ready")
+        else:
+            if status.in_progress:
+                raise OtaControlError("ota_transaction_in_progress")
             if status.ready_to_install:
                 raise OtaControlError("ota_already_ready_to_install")
-        elif not status.ready_to_install:
-            raise OtaControlError("ota_install_not_ready")
+            if status.ota_phase in {
+                "USB_REQUIRED",
+                "USB_REQUIRED_CONFIRMATION",
+                "RECOVERY_MEDIA_REQUIRED",
+            }:
+                raise OtaControlError("ota_prepare_already_requested")
 
         if self.intent_sink is None:
             raise OtaControlError("ota_intent_sink_unavailable")

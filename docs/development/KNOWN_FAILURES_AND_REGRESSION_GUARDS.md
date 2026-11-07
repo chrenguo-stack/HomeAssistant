@@ -1,3 +1,28 @@
+### 2026-11-08 KF-143 — R7A A1 service restart container-convergence race caused false activation STOP and false rollback-failure classification
+
+| ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
+|---|---|---|---|---|---|
+| KF-143 | T1 Home Assistant mandatory-USB OTA / R7A A1 host-daemon + Compose activation | A1 one-shot activation 已 claim 并执行；`systemctl restart n3wfc4-services-activation.service` 后立即出现 `container_cardinality_invalid`；自动 A1 wiring rollback 随后也在相同容器数量检查处失败并把 `recovery_required` 保守置为 true。后续独立只读现场分类证明 rollback 实际已完整恢复，`T1_RECOVERY_REQUIRED=false` | `n3wfc4-services-activation.service` 为 `Type=simple`，ExecStart 是前台 `docker compose ... up ...`；systemd restart 返回只证明 Compose 进程已启动，不证明 Manager/Home Assistant 容器已完成停止→重建→running 收敛。A1 executor 把 restart 后立即执行的 `docker ps --filter ancestor` cardinality 当成 readiness oracle，导致 activation 校验与 rollback 校验都可能在短暂 0-container 窗口 false-STOP | 保持 preflight 严格/立即；仅在 activation restart 与 rollback restart 后增加 bounded 120 s container convergence wait，继续要求唯一 running container、exact image/runtime identity、Manager UID/GID 999:999、无 Docker socket/block device、Broker continuity、USB=0 与 HA-USB/PREPARE state absent。旧 A1 _01 与 successor _02 均永久 retired/non-replay；successor _02 已在 repaired path 上真实 PASS | RESOLVED |
+
+Guards:
+- `systemctl restart n3wfc4-services-activation.service` 返回不得直接解释为 Manager/HA 容器已 ready。
+- A1 activation/rollback 的 container cardinality/readiness 检查必须允许 bounded convergence window；bounded timeout 到期仍非唯一 running container 才 FAIL。
+- preflight 不得使用 settle wait 掩盖进入 gate 前的既有 runtime drift。
+- A1 自动 rollback 报错后，若错误属于 post-restart cardinality/convergence 类，先做独立 read-only live classification，再决定是否需要 recovery mutation。
+- 一次性 authorization 一旦 `authorization_claimed=true` / `activation_invoked=true` 即永久不可重放。
+- successor A1 live retry 必须在 repaired exact head 全绿后使用 distinct authorization ID。
+
+Evidence:
+- Consumed A1 authorization: `N3W_T1_R7A_HOST_DAEMON_COMPOSE_A1_LIVE_ACTIVATION_20261107_01`.
+- Execution: `N3W_R7A_HOST_A1_20261107T161605Z`.
+- Read-only classification: `ROLLED_BACK_HEALTHY_FALSE_ROLLBACK_FAILURE`; recovery_required=false.
+- Source repair executable head: `922a106bd32ce98a07d2280cf08a6a9f116a11a6`; tree `3712bbcf20e47f7cf1f92fc26ce238eed6e95fd8`.
+- Exact repair-head CI: 25/25 SUCCESS.
+- Successor authorization: `N3W_T1_R7A_HOST_DAEMON_COMPOSE_A1_LIVE_ACTIVATION_20261108_02`, consumed/non-replay after PASS.
+- Successor execution: `N3W_R7A_HOST_A1_20261107T174129Z`; status PASS; executor rc 0; activation invoked once; no automatic rollback; recovery_required=false.
+- Real-T1 repaired-path validation: host daemon active, Manager OTA enabled, USB/PREPARE/erase/board mutation all false; no recurrence of `container_cardinality_invalid`.
+- Private host locator/evidence paths remain operator-local and are intentionally not archived here.
+
 ### 2026-11-05 KF-142 — P5 host-side ad-hoc SSH reuse causes repeated authentication and pre-claim staging STOP
 
 | ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
