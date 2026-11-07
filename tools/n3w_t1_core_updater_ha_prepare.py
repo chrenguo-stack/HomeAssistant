@@ -141,6 +141,12 @@ class PreparePipelineBackend(Protocol):
     ) -> PreparedUsbMedia:
         """Format only the already revalidated candidate and return bound media."""
 
+    def reopen_bound_media(
+        self,
+        transaction: dict[str, Any],
+    ) -> PreparedUsbMedia | None:
+        """Reopen only the UUID/fingerprint already durably bound at U2."""
+
     def prepare_target(
         self,
         *,
@@ -450,6 +456,22 @@ class HaUsbPrepareController:
         self.transaction_store.write(u3)
         target = self.backend.prepare_target(transaction=u3, media=media)
         u4 = record_target_ready(u3, target=target)
+        self.transaction_store.write(u4)
+        return self.public_status()
+
+    def resume_prepare(self) -> dict[str, Any]:
+        transaction = self._transaction()
+        if transaction["phase"] not in {U2, U3}:
+            raise UpdaterV2Error("ha_usb_prepare_resume_phase_invalid")
+        media = self.backend.reopen_bound_media(transaction)
+        if media is None:
+            raise UpdaterV2Error("usb_bound_media_unavailable")
+        current = transaction
+        if current["phase"] == U2:
+            current = start_target_preparation(current)
+            self.transaction_store.write(current)
+        target = self.backend.prepare_target(transaction=current, media=media)
+        u4 = record_target_ready(current, target=target)
         self.transaction_store.write(u4)
         return self.public_status()
 
