@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import inspect
 import json
 import subprocess
@@ -284,3 +285,96 @@ def test_daemon_requires_root_and_manager_group_contract_in_source() -> None:
     assert "stat.S_IMODE(metadata.st_mode) != 0o750" in source
     assert "expected_peer_uid=EXPECTED_MANAGER_UID" in source
     assert "mode=0o660" in source
+
+
+def approved_manifest_vector() -> dict:
+    root = Path(__file__).resolve().parents[2]
+    target = json.loads(
+        (
+            root / "infra/n3w-t1/upgrades/homeassistant-2026.10.4.json"
+        ).read_text(encoding="utf-8")
+    )
+    return {
+        "schema": "gh.n3w-t1-ota-approved-manifest/1",
+        "approval_status": "APPROVED",
+        "signature_status": "VERIFIED",
+        "validity_status": "VALID",
+        "verification_status": "PASS",
+        "version": "2026.10.4",
+        "release_identity": "homeassistant-2026.10.4",
+        "target_archive_size_bytes": 835309535,
+        "target": target,
+    }
+
+
+def test_privileged_manifest_accepts_exact_frozen_vector(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    document = approved_manifest_vector()
+    monkeypatch.setattr(
+        daemon,
+        "_root_owned_manifest",
+        lambda _path: copy.deepcopy(document),
+    )
+
+    validated = daemon._validated_manifest(Path("/ignored"))
+    assert validated == document
+
+
+@pytest.mark.parametrize(
+    ("mutator", "reason"),
+    (
+        (
+            lambda document: document["target"].__setitem__(
+                "a1_classification_sha256",
+                "0" * 64,
+            ),
+            "ha_ota_target_a1_authority_mismatch",
+        ),
+        (
+            lambda document: document["target"]["compatibility_evidence"].__setitem__(
+                "peer_contracts_compatible",
+                False,
+            ),
+            "ha_ota_target_compatibility_invalid",
+        ),
+        (
+            lambda document: document.__setitem__("version", "2026.10.5"),
+            "ha_ota_target_image_invalid",
+        ),
+    ),
+)
+def test_privileged_manifest_rejects_weakened_authority(
+    monkeypatch: pytest.MonkeyPatch,
+    mutator,
+    reason: str,
+) -> None:
+    document = approved_manifest_vector()
+    mutator(document)
+    monkeypatch.setattr(
+        daemon,
+        "_root_owned_manifest",
+        lambda _path: copy.deepcopy(document),
+    )
+
+    with pytest.raises(UpdaterV2Error, match=reason):
+        daemon._validated_manifest(Path("/ignored"))
+
+
+def test_privileged_json_parsers_reject_duplicate_fields() -> None:
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_prepare_json_duplicate_field",
+    ):
+        json.loads(
+            '{"schema":"a","schema":"b"}',
+            object_pairs_hook=host._reject_duplicate_object,
+        )
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_ota_approved_manifest_duplicate_field",
+    ):
+        json.loads(
+            '{"schema":"a","schema":"b"}',
+            object_pairs_hook=daemon._reject_duplicate_object,
+        )
