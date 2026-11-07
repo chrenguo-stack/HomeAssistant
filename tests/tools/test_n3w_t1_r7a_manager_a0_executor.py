@@ -32,6 +32,8 @@ def test_manifest_is_source_only_and_not_live_authorized() -> None:
         == "gh.n3w-t1-r7a-manager-a0-live-execution-package/1"
     )
     assert document["live_execution_authorized"] is False
+    assert document["preconditions"]["updater_state_readonly_before_staging"] is True
+    assert document["preconditions"]["remote_staging_exact_file_set_required"] is True
     assert document["preconditions"]["usb_like_disk_count"] == 0
     assert document["execution_contract"]["manager_only_mutation"] is True
     assert document["execution_contract"]["homeassistant_image_mutation"] is False
@@ -150,3 +152,80 @@ def test_target_is_manager_only_and_ota_stays_disabled_for_a0() -> None:
         / "host/greenhouse-manager/src/greenhouse_manager/runtime/config.py"
     ).read_text(encoding="utf-8")
     assert "n3w_t1_ota_enabled: bool = False" in config
+
+
+
+class FakeUpdaterStateTransport:
+    def __init__(self, *, current_status: str = "ROLLED_BACK", ha_usb: bool = False) -> None:
+        self.current_status = current_status
+        self.ha_usb = ha_usb
+
+    def run_remote(self, argv, *, timeout=300, check=True):
+        del timeout, check
+        command = list(argv)
+        if command[:3] == ["stat", "-c", "%U:%G:%a:%F"]:
+            path = command[3]
+            if path == "/var/lib/n3w-t1-core-updater":
+                return subprocess.CompletedProcess(argv, 0, stdout="root:root:700:directory\n", stderr="")
+            return subprocess.CompletedProcess(argv, 0, stdout="root:root:600:regular file\n", stderr="")
+        if command[:2] == ["test", "-e"]:
+            path = command[2]
+            if path.endswith("homeassistant-usb-upgrade.json") and not self.ha_usb:
+                return subprocess.CompletedProcess(argv, 1, stdout="", stderr="")
+            if path.endswith("manager-upgrade.json"):
+                return subprocess.CompletedProcess(argv, 1, stdout="", stderr="")
+            return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+        if command[:2] == ["test", "-L"]:
+            return subprocess.CompletedProcess(argv, 1, stdout="", stderr="")
+        if command[0] == "cat":
+            path = command[1]
+            if path.endswith("upgrade.json"):
+                payload = {
+                    "schema": "gh.n3w-t1-core-updater-transaction/2",
+                    "status": self.current_status,
+                    "phase": self.current_status,
+                    "component": "homeassistant",
+                }
+            elif path.endswith("homeassistant-usb-upgrade.json"):
+                payload = {
+                    "schema": "gh.n3w-t1-core-updater-homeassistant-usb-transaction/1",
+                    "status": "ROLLED_BACK",
+                }
+            else:
+                raise AssertionError(path)
+            return subprocess.CompletedProcess(
+                argv,
+                0,
+                stdout=json.dumps(payload),
+                stderr="",
+            )
+        raise AssertionError(command)
+
+
+def test_updater_state_is_readonly_and_terminal_before_staging() -> None:
+    executor = load_executor()
+    observed = executor.collect_updater_state_readonly(FakeUpdaterStateTransport())
+    assert observed["recovery_required"] is False
+    assert observed["current_transaction"]["status"] == "ROLLED_BACK"
+    assert observed["ha_usb_transaction_present"] is False
+
+
+def test_updater_state_fails_closed_on_nonterminal_or_ha_usb_successor() -> None:
+    executor = load_executor()
+    with pytest.raises(executor.StopExecution, match="updater_recovery_required"):
+        executor.collect_updater_state_readonly(
+            FakeUpdaterStateTransport(current_status="APPLYING")
+        )
+    with pytest.raises(executor.StopExecution, match="ha_usb_successor_state_present"):
+        executor.collect_updater_state_readonly(
+            FakeUpdaterStateTransport(ha_usb=True)
+        )
+
+
+def test_execute_orders_updater_state_gate_before_remote_staging() -> None:
+    executor = load_executor()
+    source = EXECUTOR_PATH.read_text(encoding="utf-8")
+    execute_source = source[source.index("def execute("):source.index("def parser(")]
+    assert execute_source.index("collect_updater_state_readonly(transport)") < (
+        execute_source.index("stage_package(transport, package)")
+    )
