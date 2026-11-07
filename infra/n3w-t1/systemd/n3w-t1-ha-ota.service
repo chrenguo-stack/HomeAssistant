@@ -1,0 +1,19 @@
+[Unit]
+Description=N3-W T1 Home Assistant mandatory-USB OTA host daemon
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=simple
+User=root
+Group=999
+UMask=0007
+RuntimeDirectory=n3w-t1-ota
+RuntimeDirectoryMode=0750
+ExecStart=/usr/bin/python3 /opt/HomeAssistant/tools/n3w_t1_core_updater_ha_daemon.py
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target
