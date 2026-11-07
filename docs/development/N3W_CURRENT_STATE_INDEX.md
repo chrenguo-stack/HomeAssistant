@@ -1,3 +1,19 @@
+## 2026-11-07 — HA mandatory-USB R7A PREPARE source CLOSED_PASS
+
+- Current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Live upgrade accepted: `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`; R7A is source-only and does not change the accepted production stack.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- R7A gate `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_PREPARE_PIPELINE_SOURCE_IMPLEMENTATION_20261107_01` is `CLOSED_PASS`.
+- Exact executable source authority: `d5c7aca0b8f39acb0d9d014b649d943a81956262`; PR #800 exact-head CI: 18 success, 10 path-gated skips, 0 failure, 0 pending.
+- R7A implements PREPARE U1→U4 only: explicit USB erase confirmation, single-device fail-closed selection, root/production-device exclusion, ext4/UUID/self-test/capacity gates and direct-to-USB target verification.
+- Independent review removed the original executable INSTALL/U4→U5 path from HA discovery, Manager control/IPC and host IPC; R7A now hard-stops at `U4 READY_TO_INSTALL`.
+- Manager remains UID/GID 999:999 with no root, Docker socket or block-device access; host AF_UNIX admission checks `SO_PEERCRED` UID 999.
+- Power-loss recovery reuses only the same bound UUID/fingerprint, never formats a second device automatically, and bounded stale target temporaries are cleaned only inside the verified bound USB target directory.
+- Production activation remains OFF; no T1 deployment, systemd activation, Docker runtime mutation, USB formatting or board access occurred.
+- Next gate is `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_REAL_T1_PREACTIVATION_READONLY_PREFLIGHT_20261107_01`; it is read-only and must stop before service installation/enable/start or any USB write.
+- R7A closure: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_PREPARE_PIPELINE_SOURCE_IMPLEMENTATION_CLOSURE_20261107.md`.
+
 ## 2026-11-07 — HA mandatory-USB R5 real-T1 read-only PASS; R6 PREPARE pipeline source design frozen
 
 - Current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
