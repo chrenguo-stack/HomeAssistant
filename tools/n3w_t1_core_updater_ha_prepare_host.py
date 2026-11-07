@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import shutil
 import stat
 import subprocess
 import tempfile
@@ -38,6 +37,7 @@ DEFAULT_HOST_RELEASE_POLICY = Path(
 DEFAULT_RUNTIME_ROOT = Path("/run/n3w-t1-ota")
 MAX_POLICY_BYTES = 64 * 1024
 MAX_DOWNLOAD_BYTES = 8 * 1024 * 1024 * 1024
+MAX_CAPACITY_INPUT_BYTES = 64 * 1024 * 1024 * 1024
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,16 +72,23 @@ class HostReleasePolicy:
             or SHA256.fullmatch(self.target_archive_sha256) is None
         ):
             raise UpdaterV2Error("ha_prepare_policy_archive_sha_invalid")
-        values = (
-            self.target_archive_size_bytes,
+        if (
+            type(self.target_archive_size_bytes) is not int
+            or self.target_archive_size_bytes <= 0
+            or self.target_archive_size_bytes > MAX_DOWNLOAD_BYTES
+        ):
+            raise UpdaterV2Error("ha_prepare_policy_capacity_invalid")
+        capacity_values = (
             self.predecessor_recovery_worst_case_bytes,
             self.ha_data_backup_worst_case_bytes,
             self.transaction_metadata_and_working_bytes,
             self.removable_media_reserve_bytes,
         )
         if any(
-            type(value) is not int or value <= 0 or value > MAX_DOWNLOAD_BYTES
-            for value in values
+            type(value) is not int
+            or value <= 0
+            or value > MAX_CAPACITY_INPUT_BYTES
+            for value in capacity_values
         ):
             raise UpdaterV2Error("ha_prepare_policy_capacity_invalid")
         return self
@@ -252,6 +259,20 @@ def _boolish(value: Any) -> bool:
     return value is True or value == 1 or value == "1"
 
 
+def _require_private_directory(path: Path, *, create: bool = False) -> None:
+    if path.is_symlink():
+        raise UpdaterV2Error("usb_runtime_directory_invalid")
+    if not path.exists():
+        if not create:
+            raise UpdaterV2Error("usb_runtime_directory_invalid")
+        path.mkdir(parents=True, mode=0o700)
+    if not path.is_dir():
+        raise UpdaterV2Error("usb_runtime_directory_invalid")
+    metadata = path.stat()
+    if metadata.st_uid != os.geteuid() or stat.S_IMODE(metadata.st_mode) & 0o077:
+        raise UpdaterV2Error("usb_runtime_directory_metadata_invalid")
+
+
 def _stable_fingerprint(node: dict[str, Any]) -> str:
     serial = node.get("serial")
     wwn = node.get("wwn")
@@ -316,6 +337,9 @@ class SubprocessPrepareBackend:
             if not isinstance(path, str) or not path.startswith("/dev/"):
                 continue
             transport = str(disk.get("tran") or "").strip().lower()
+            removable = _boolish(disk.get("rm"))
+            if transport != "usb" and not removable:
+                continue
             try:
                 size = int(disk.get("size"))
             except (TypeError, ValueError):
@@ -329,7 +353,7 @@ class SubprocessPrepareBackend:
                 ),
                 display_capacity_bytes=size,
                 newly_inserted=True,
-                removable=_boolish(disk.get("rm")),
+                removable=removable,
                 mass_storage=transport == "usb",
                 read_only=_boolish(disk.get("ro")),
                 is_root_device=root_major_minor in major_minors,
@@ -452,12 +476,11 @@ class SubprocessPrepareBackend:
         partition = self._partition(observed.locator)
         _run(("mkfs.ext4", "-F", "-L", USB_LABEL, partition), timeout=120)
 
+        _require_private_directory(self.runtime_root)
         mount_root = self.runtime_root / "media"
-        mount_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        _require_private_directory(mount_root, create=True)
         mount_path = mount_root / transaction_id_sha256[:16]
-        if mount_path.is_symlink():
-            raise UpdaterV2Error("usb_mount_path_invalid")
-        mount_path.mkdir(mode=0o700, exist_ok=True)
+        _require_private_directory(mount_path, create=True)
         mounted = False
         try:
             _run(
@@ -518,6 +541,30 @@ class SubprocessPrepareBackend:
         finally:
             os.close(descriptor)
 
+    @staticmethod
+    def _require_bound_media(media: PreparedUsbMedia) -> str:
+        media.validate()
+        mount_path = Path(media.mount_path)
+        source = _run(
+            (
+                "findmnt",
+                "--noheadings",
+                "--output",
+                "SOURCE",
+                "--target",
+                str(mount_path),
+            )
+        ).decode("utf-8", errors="strict").strip()
+        if not source.startswith("/dev/"):
+            raise UpdaterV2Error("usb_mount_source_invalid")
+        observed_uuid = _run(
+            ("blkid", "-s", "UUID", "-o", "value", source)
+        ).decode("utf-8", errors="strict").strip().lower()
+        validate_filesystem_uuid(observed_uuid)
+        if observed_uuid != media.filesystem_uuid.lower():
+            raise UpdaterV2Error("usb_filesystem_uuid_mismatch")
+        return source
+
     def prepare_target(
         self,
         *,
@@ -525,13 +572,18 @@ class SubprocessPrepareBackend:
         media: PreparedUsbMedia,
     ) -> ImageRecoveryRecord:
         media.validate()
+        self._require_bound_media(media)
         policy = self.policy_provider.load(transaction)
         mount_path = Path(media.mount_path)
         if mount_path.is_symlink() or not mount_path.is_dir():
             raise UpdaterV2Error("usb_mount_path_invalid")
-        target_dir = mount_path / "n3w-update" / "target"
-        target_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        update_dir = mount_path / "n3w-update"
+        _require_private_directory(update_dir, create=True)
+        target_dir = update_dir / "target"
+        _require_private_directory(target_dir, create=True)
         destination = target_dir / "homeassistant-arm64.tar.gz"
+        if destination.exists() or destination.is_symlink():
+            raise UpdaterV2Error("ha_target_destination_exists")
         descriptor, raw = tempfile.mkstemp(
             prefix=".homeassistant-target.",
             dir=target_dir,
@@ -550,6 +602,14 @@ class SubprocessPrepareBackend:
             except Exception as error:
                 raise UpdaterV2Error("ha_target_download_failed") from error
             with response_context as response:
+                final_url = urllib.parse.urlsplit(response.geturl())
+                if (
+                    final_url.scheme != "https"
+                    or not final_url.hostname
+                    or final_url.username is not None
+                    or final_url.password is not None
+                ):
+                    raise UpdaterV2Error("ha_target_download_redirect_invalid")
                 content_length = response.headers.get("Content-Length")
                 if content_length is not None:
                     try:
@@ -579,6 +639,7 @@ class SubprocessPrepareBackend:
                 or digest.hexdigest() != policy.target_archive_sha256
             ):
                 raise UpdaterV2Error("ha_target_download_identity_mismatch")
+            self._require_bound_media(media)
             identity = portable.parse_image_archive(
                 temporary,
                 expected_archive_sha256=policy.target_archive_sha256,
@@ -589,6 +650,7 @@ class SubprocessPrepareBackend:
             )
             os.replace(temporary, destination)
             self._fsync_directory(target_dir)
+            self._require_bound_media(media)
             return ImageRecoveryRecord(
                 kind="target",
                 image_ref=transaction["target_image_ref"],
