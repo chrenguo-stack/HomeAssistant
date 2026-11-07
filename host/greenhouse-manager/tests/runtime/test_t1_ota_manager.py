@@ -322,3 +322,16 @@ def test_prepare_cannot_be_replayed_while_waiting_for_usb() -> None:
     with pytest.raises(OtaControlError, match="ota_prepare_already_requested"):
         ota.handle_control(payload("PREPARE"))
     assert sink.intents == []
+
+
+def test_recovery_media_wait_state_blocks_new_prepare_transaction() -> None:
+    ota, runtime, sink = manager()
+    runtime.phase = "RECOVERY_MEDIA_REQUIRED"
+
+    projection = ota.project()
+    assert projection.status.ota_phase == "RECOVERY_MEDIA_REQUIRED"
+    assert projection.status.in_progress is False
+
+    with pytest.raises(OtaControlError, match="ota_prepare_already_requested"):
+        ota.handle_control(payload("PREPARE"))
+    assert sink.intents == []
