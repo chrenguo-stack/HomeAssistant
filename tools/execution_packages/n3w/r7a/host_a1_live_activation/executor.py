@@ -10,6 +10,7 @@ import re
 import stat
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -335,28 +336,43 @@ def remote_private_json(
     return document
 
 
-def docker_container(transport: Any, image: str) -> dict[str, Any]:
-    ids = [
-        line.strip()
-        for line in remote(
-            transport,
-            [
-                "docker",
-                "ps",
-                "--filter",
-                f"ancestor={image}",
-                "--format",
-                "{{.ID}}",
-            ],
-            timeout=60,
-        ).stdout.splitlines()
-        if line.strip()
-    ]
-    if len(ids) != 1:
-        raise StopExecution("container_cardinality_invalid")
+def docker_container(
+    transport: Any,
+    image: str,
+    *,
+    settle_timeout_s: float = 0.0,
+    poll_interval_s: float = 1.0,
+) -> dict[str, Any]:
+    deadline = time.monotonic() + max(settle_timeout_s, 0.0)
+    last_ids: list[str] = []
+    while True:
+        last_ids = [
+            line.strip()
+            for line in remote(
+                transport,
+                [
+                    "docker",
+                    "ps",
+                    "--filter",
+                    f"ancestor={image}",
+                    "--format",
+                    "{{.ID}}",
+                ],
+                timeout=60,
+            ).stdout.splitlines()
+            if line.strip()
+        ]
+        if len(last_ids) == 1:
+            break
+        if time.monotonic() >= deadline:
+            raise StopExecution(
+                f"container_cardinality_invalid:{image}:{len(last_ids)}"
+            )
+        time.sleep(poll_interval_s)
+
     try:
         document = json.loads(
-            remote(transport, ["docker", "inspect", ids[0]], timeout=60).stdout
+            remote(transport, ["docker", "inspect", last_ids[0]], timeout=60).stdout
         )
     except json.JSONDecodeError as error:
         raise StopExecution("container_inspect_json_invalid") from error
@@ -522,8 +538,16 @@ def collect_preflight(transport: Any) -> dict[str, Any]:
 
     transaction = require_manager_transaction(transport)
     recovery = require_recovery_clear(transport)
-    manager = docker_container(transport, EXPECTED_MANAGER)
-    homeassistant = docker_container(transport, EXPECTED_HOMEASSISTANT)
+    manager = docker_container(
+        transport,
+        EXPECTED_MANAGER,
+        settle_timeout_s=120.0,
+    )
+    homeassistant = docker_container(
+        transport,
+        EXPECTED_HOMEASSISTANT,
+        settle_timeout_s=120.0,
+    )
     broker = docker_container(transport, EXPECTED_BROKER)
 
     if (
@@ -1060,8 +1084,16 @@ def rollback_activation(
         timeout=180,
     )
 
-    manager = docker_container(transport, EXPECTED_MANAGER)
-    homeassistant = docker_container(transport, EXPECTED_HOMEASSISTANT)
+    manager = docker_container(
+        transport,
+        EXPECTED_MANAGER,
+        settle_timeout_s=120.0,
+    )
+    homeassistant = docker_container(
+        transport,
+        EXPECTED_HOMEASSISTANT,
+        settle_timeout_s=120.0,
+    )
     broker = docker_container(transport, EXPECTED_BROKER)
     manager_env = env_map(manager)
     mounts = manager.get("Mounts") or []

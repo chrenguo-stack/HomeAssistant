@@ -24,10 +24,10 @@ def load_executor():
     return module
 
 
-def test_manifest_is_live_authorized_for_exact_a1_gate() -> None:
+def test_manifest_is_retired_after_one_shot_a1_activation() -> None:
     document = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     assert document["schema"] == "gh.n3w-t1-r7a-host-a1-live-activation-package/1"
-    assert document["live_execution_authorized"] is True
+    assert document["live_execution_authorized"] is False
     contract = document["execution_contract"]
     assert contract["host_daemon_install"] is True
     assert contract["compose_overlay_install"] is True
@@ -44,6 +44,8 @@ def test_manifest_is_live_authorized_for_exact_a1_gate() -> None:
     assert contract["structured_ssh_start_stop"] is True
     assert contract["symlink_nonregular_fail_closed"] is True
     assert contract["rollback_backup_hash_verified"] is True
+    assert contract["post_restart_container_settle_wait"] is True
+    assert contract["rollback_restart_container_settle_wait"] is True
 
 
 def test_source_authority_matches_exact_git_blobs() -> None:
@@ -58,7 +60,7 @@ def test_source_authority_matches_exact_git_blobs() -> None:
         assert observed == expected
 
 
-def test_live_gate_accepts_exact_authorized_a1_head() -> None:
+def test_live_gate_rejects_replay_after_a1_activation() -> None:
     executor = load_executor()
     head = subprocess.run(
         ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
@@ -66,9 +68,8 @@ def test_live_gate_accepts_exact_authorized_a1_head() -> None:
         text=True,
         stdout=subprocess.PIPE,
     ).stdout.strip()
-    document = executor.validate_local_source(head, require_live=True)
-    assert document["proposed_authorization_id"] == executor.AUTHORIZATION
-    assert document["live_execution_authorized"] is True
+    with pytest.raises(executor.StopExecution, match="live_execution_not_authorized"):
+        executor.validate_local_source(head, require_live=True)
 
 
 @pytest.mark.parametrize(
@@ -310,3 +311,50 @@ def test_rollback_snapshot_rejects_nonregular_existing_target(
         match="activation_target_not_regular",
     ):
         executor.snapshot_rollback(object(), "/var/tmp/a1")
+
+
+def test_docker_container_waits_for_single_running_container(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executor = load_executor()
+    responses = iter(["", "abc123\n"])
+    calls = []
+
+    def fake_remote(_transport, argv, **_kwargs):
+        calls.append(argv)
+        if argv[:2] == ["docker", "ps"]:
+            return subprocess.CompletedProcess(argv, 0, next(responses), "")
+        if argv[:2] == ["docker", "inspect"]:
+            return subprocess.CompletedProcess(
+                argv,
+                0,
+                json.dumps([{"Id": "abc123", "State": {"Status": "running"}}]),
+                "",
+            )
+        raise AssertionError(argv)
+
+    monkeypatch.setattr(executor, "remote", fake_remote)
+    monkeypatch.setattr(executor.time, "sleep", lambda _seconds: None)
+    ticks = iter([0.0, 0.0, 1.0])
+    monkeypatch.setattr(executor.time, "monotonic", lambda: next(ticks))
+    result = executor.docker_container(
+        object(),
+        executor.EXPECTED_MANAGER,
+        settle_timeout_s=120.0,
+    )
+    assert result["Id"] == "abc123"
+    assert sum(argv[:2] == ["docker", "ps"] for argv in calls) == 2
+
+
+def test_post_and_rollback_use_bounded_container_settle_wait() -> None:
+    source = EXECUTOR_PATH.read_text(encoding="utf-8")
+    post = source[
+        source.index("def validate_post_activation("):
+        source.index("def restore_targets(")
+    ]
+    rollback = source[
+        source.index("def rollback_activation("):
+        source.index("def execute(")
+    ]
+    assert post.count("settle_timeout_s=120.0") >= 2
+    assert rollback.count("settle_timeout_s=120.0") >= 2
