@@ -2,6 +2,9 @@
 
 - Current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
 - Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current repository Manager remains `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current repository Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
 - Live upgrade accepted: `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`; R7A is source-only and does not change the accepted production stack.
 - Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
 - R7A gate `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_PREPARE_PIPELINE_SOURCE_IMPLEMENTATION_20261107_01` is `CLOSED_PASS`.
