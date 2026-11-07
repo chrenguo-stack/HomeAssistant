@@ -1,3 +1,19 @@
+## 2026-11-07 — R7A Manager A0 executor preexecution CLOSED_PASS
+
+- Current live authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Accepted production stack remains Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`; live deployment remains `APPLIED_ACCEPTED`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- R7A Manager successor remains `local/greenhouse-manager:fresh-bf38e388497b`; it is package-ready but not live-accepted.
+- Frozen A0 Manager-only package: control head `921e7d5557ff3dbf4b7e7ae5510186d98f803a2a`, artifact `13564899377`, digest `sha256:6e9ca4cf103434330c0a31b51e1ba27b7d12b554648f4b0a017fd69bc4a32e1c`.
+- Final A0 executor executable authority: head `bed9aeb7c41f614bdeb8e445d71171e669e45942`, tree `7f07e82f688dfee24e22e9330485e2c02edbd4fa`.
+- Final independent review added pre-staging updater-state recovery checks, exact staging file-set/symlink guards, R7A approved-manifest residue rejection, exact post-target image-ID validation, and post-failure status/inspect evidence capture.
+- Rollback contract is explicit: the executor never issues a second explicit rollback; Generic V2 may perform its already-tested bounded internal failure rollback; no automatic retry or second apply is allowed.
+- A0 dedicated CI run `42362708336`: `source=SUCCESS`, `exact-manager-slice=SUCCESS`, `pre-u1-v2-simulation=SUCCESS`.
+- Executable-head workflow summary: 27 success, 0 failure, 0 pending, 4 ancillary cancelled; no A0 job failed or remained pending.
+- `live_execution_authorized=false`; no real SSH epoch, T1 mutation, Manager live upgrade, USB mutation, board access or merge occurred.
+- Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_MANAGER_SUCCESSOR_A0_LIVE_APPLY_20261107_01`; explicit user authorization required before any real T1 access/mutation.
+- Closure: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_MANAGER_SUCCESSOR_A0_LIVE_EXECUTION_PACKAGE_PREEXECUTION_CLOSURE_20261107.md`.
+
 ## 2026-11-07 — R7A Manager successor exact A-to-B package CLOSED_PASS
 
 - Current live authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
