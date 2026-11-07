@@ -29,6 +29,7 @@ from n3w_t1_core_updater_ha_usb_media import (
 from n3w_t1_core_updater_ha_usb_state import (
     U1,
     U5,
+    U13A,
     HaUsbStateStore,
 )
 from n3w_t1_core_updater_v2_common import UpdaterV2Error
@@ -431,3 +432,16 @@ def test_r7a_background_recovery_not_status_starts_u3_resume(
     executor._prepare_thread.join(2)
     assert controller.resume_calls == 1
     executor.stop_background_workers()
+
+
+def test_committed_status_projects_target_version_without_manager_restart() -> None:
+    assert (
+        HaUsbIpcExecutor._installed_version(
+            {
+                "phase": U13A,
+                "current_image_ref": "local/n3w-homeassistant:2026.10.0-aaaaaaaa",
+                "target_image_ref": "local/n3w-homeassistant:2026.10.4-bbbbbbbb",
+            }
+        )
+        == "2026.10.4"
+    )
