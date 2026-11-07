@@ -40,9 +40,12 @@ def test_manifest_is_source_only_and_not_live_authorized() -> None:
     assert document["execution_contract"]["broker_image_mutation"] is False
     assert document["execution_contract"]["host_daemon_activation"] is False
     assert document["execution_contract"]["usb_mutation"] is False
+    assert document["preconditions"]["approved_manifest_absent"] is True
     assert document["execution_contract"]["one_apply_maximum"] is True
     assert document["execution_contract"]["automatic_retry"] is False
-    assert document["execution_contract"]["automatic_rollback"] is False
+    assert document["execution_contract"]["executor_explicit_rollback"] is False
+    assert document["execution_contract"]["updater_internal_failure_rollback"] is True
+    assert document["execution_contract"]["post_failure_state_capture_required"] is True
 
 
 def test_exact_package_authority_is_frozen() -> None:
@@ -229,3 +232,33 @@ def test_execute_orders_updater_state_gate_before_remote_staging() -> None:
     assert execute_source.index("collect_updater_state_readonly(transport)") < (
         execute_source.index("stage_package(transport, package)")
     )
+
+
+
+def test_state_symlink_checks_precede_existence_checks() -> None:
+    source = EXECUTOR_PATH.read_text(encoding="utf-8")
+    helper = source[
+        source.index("def read_remote_private_json("):
+        source.index("def collect_updater_state_readonly(")
+    ]
+    assert helper.index('["test", "-L", path]') < helper.index('["test", "-e", path]')
+
+
+def test_apply_failure_path_captures_post_state_before_decision() -> None:
+    source = EXECUTOR_PATH.read_text(encoding="utf-8")
+    execute_source = source[source.index("def execute("):source.index("def parser(")]
+    post_status = execute_source.index('["status"]')
+    post_inspect = execute_source.index('["inspect", "--component", "manager"]', post_status)
+    decision = execute_source.index('raise StopExecution("apply_not_committed")')
+    assert post_status < decision
+    assert post_inspect < decision
+    assert "apply_transport.json" in execute_source
+
+
+def test_post_apply_requires_exact_manager_image_id() -> None:
+    source = EXECUTOR_PATH.read_text(encoding="utf-8")
+    validate_source = source[
+        source.index("def validate_post_apply("):
+        source.index("def execute(")
+    ]
+    assert 'target_doc.get("Image") != MANAGER_BUILD_IMAGE_ID' in validate_source
