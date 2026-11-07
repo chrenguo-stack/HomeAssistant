@@ -148,7 +148,10 @@ def _root_owned_json(path: Path, *, max_bytes: int) -> dict[str, Any]:
     ):
         raise UpdaterV2Error("ha_prepare_policy_metadata_invalid")
     try:
-        document = json.loads(\n            path.read_text(encoding="utf-8"),\n            object_pairs_hook=_reject_duplicate_object,\n        )
+        document = json.loads(
+            path.read_text(encoding="utf-8"),
+            object_pairs_hook=_reject_duplicate_object,
+        )
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise UpdaterV2Error("ha_prepare_policy_json_invalid") from error
     if not isinstance(document, dict):
