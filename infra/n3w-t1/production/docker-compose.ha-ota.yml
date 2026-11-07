@@ -2,7 +2,7 @@ services:
   manager:
     environment:
       GH_N3W_T1_OTA_ENABLED: "${GH_N3W_T1_OTA_ENABLED:-false}"
-      GH_N3W_T1_OTA_INSTALLED_VERSION: "${GH_N3W_T1_OTA_INSTALLED_VERSION:?GH_N3W_T1_OTA_INSTALLED_VERSION required}"
+      GH_N3W_T1_OTA_INSTALLED_VERSION: "${GH_N3W_T1_OTA_INSTALLED_VERSION:-}"
       GH_N3W_T1_OTA_MANIFEST_PATH: /run/n3w/t1-ota/approved-homeassistant.json
       GH_N3W_T1_OTA_SOCKET_PATH: /run/n3w/t1-ota/ha-ota.sock
     volumes:
