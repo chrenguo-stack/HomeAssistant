@@ -1,3 +1,52 @@
+## Stable updater authority — 2026-11-07 R7A Manager A0 executor preexecution CLOSED_PASS
+
+```text
+PROJECT_WORKING_CONTEXT_VERSION=2.2
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+R7A_MANAGER_SUCCESSOR=local/greenhouse-manager:fresh-bf38e388497b
+R7A_MANAGER_SUCCESSOR_LIVE_ACCEPTED=false
+
+A0_PACKAGE_CONTROL_HEAD=921e7d5557ff3dbf4b7e7ae5510186d98f803a2a
+A0_PACKAGE_ARTIFACT_ID=13564899377
+A0_PACKAGE_ARTIFACT_DIGEST_SHA256=6e9ca4cf103434330c0a31b51e1ba27b7d12b554648f4b0a017fd69bc4a32e1c
+
+A0_EXECUTOR_PREEXECUTION=CLOSED_PASS
+A0_EXECUTOR_EXECUTABLE_HEAD=bed9aeb7c41f614bdeb8e445d71171e669e45942
+A0_EXECUTOR_EXECUTABLE_TREE=7f07e82f688dfee24e22e9330485e2c02edbd4fa
+A0_EXECUTOR_LIVE_EXECUTION_AUTHORIZED=false
+A0_EXECUTOR_STOP_BOUNDARY=BEFORE_REAL_SSH_EPOCH_UNTIL_SEPARATE_LIVE_AUTHORIZATION
+
+LIVE_T1_ACCESS=false
+LIVE_T1_MUTATION=false
+MANAGER_LIVE_UPGRADE=false
+SERVICE_MUTATION=false
+DOCKER_RUNTIME_MUTATION=false
+REAL_USB_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_MANAGER_SUCCESSOR_A0_LIVE_APPLY_20261107_01
+NEXT_GATE_EXPLICIT_USER_AUTHORIZATION_REQUIRED=true
+AUTO_EXECUTE_NEXT_GATE=false
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+```
+
+The R7A Manager A0 operator executor is now source-reviewed and exact-head validated. It uses the frozen Manager-only Generic V2 package, trusted single-epoch SSH transport, fail-closed current-stack/USB/R7A-residue/updater-state checks, exact remote staging, one-shot apply and post-transaction evidence capture. The executor manifest remains live-disabled, so it cannot open the real SSH epoch until a separate live authorization is granted.
+
+The accepted production Manager/Home Assistant/Broker authority is unchanged. The next gate is the real-T1 Manager-only A0 apply and requires explicit user authorization. Boundary A1 host-daemon/Compose activation and all real USB work remain later gates.
+
+Authority:
+- `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_MANAGER_SUCCESSOR_A0_LIVE_EXECUTION_PACKAGE_PREEXECUTION_CLOSURE_20261107.md`
+
 ## Stable updater authority — 2026-11-07 R7A PREPARE source CLOSED_PASS
 
 ```text
