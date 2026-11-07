@@ -228,7 +228,7 @@ class UnixSocketOtaBridge:
         return snapshot
 
     def submit_homeassistant_ota_intent(self, intent: OtaControlIntent) -> None:
-        if intent.action not in {"PREPARE", "CONFIRM_USB_ERASE", "INSTALL"}:
+        if intent.action not in {"PREPARE", "CONFIRM_USB_ERASE"}:
             raise OtaControlError("ota_ipc_action_invalid")
         if _RELEASE_RE.fullmatch(intent.target_release_id) is None:
             raise OtaControlError("ota_ipc_release_invalid")
