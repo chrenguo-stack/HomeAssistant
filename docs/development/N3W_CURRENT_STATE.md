@@ -1,3 +1,51 @@
+## Latest authority — 2026-11-07 HA mandatory-USB R7A PREPARE source CLOSED_PASS
+
+```text
+AUTHORITY_STATE=HA_USB_MANDATORY_OTA_R7A_PREPARE_SOURCE_CLOSED_PASS
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+R5_RESULT=CLOSED_PASS
+R6_RESULT=CLOSED_PASS_SOURCE_DESIGN
+R7A_RESULT=CLOSED_PASS
+R7A_SOURCE_IMPLEMENTATION_HEAD=d5c7aca0b8f39acb0d9d014b649d943a81956262
+R7A_STACKED_PR=800
+R7A_CI=18_SUCCESS_10_SKIPPED_0_FAILURE_0_PENDING
+
+R7A_END_PHASE=U4_READY_TO_INSTALL
+R7A_EXECUTABLE_U5_PATH=false
+R7A_MANAGER_ROOT=false
+R7A_MANAGER_DOCKER_SOCKET=false
+R7A_SO_PEERCRED_UID_999=true
+R7A_DIRECT_TO_USB_TARGET=true
+R7A_USB_MIN_MEASURED_BYTES=15032385536
+R7A_DEFAULT_PRODUCTION_ACTIVATION=false
+
+R7A_DEPLOYED_TO_T1=false
+LIVE_T1_MUTATION=false
+REAL_USB_MUTATION=false
+SERVICE_MUTATION=false
+DOCKER_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_REAL_T1_PREACTIVATION_READONLY_PREFLIGHT_20261107_01
+NEXT_SCOPE=REAL_T1_READONLY_PREACTIVATION_PREFLIGHT
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+R7A independently closed the U1→U4 PREPARE source path after repairing the original branch's false U4 stop, default-off coupling, interrupted-download temporary residue and semantic-version parsing defects. The exact source head has no executable INSTALL/U4→U5 path and passed all 18 applicable visible workflows; 10 path-gated workflows were skipped.
+
+Production remains unchanged: the accepted Manager/Home Assistant/Broker authority and live stack are still the pre-R7A production line. R7A source presence does not authorize installation of the host daemon, Manager OTA activation or any real USB write.
+
+Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_PREPARE_PIPELINE_SOURCE_IMPLEMENTATION_CLOSURE_20261107.md`.
+
 ## Latest authority — 2026-11-07 HA mandatory-USB R5 real-T1 read-only PASS; R6 source design frozen
 
 ```text
