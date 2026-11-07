@@ -321,13 +321,21 @@ def _require_private_directory(
 
 
 def _stable_fingerprint(node: dict[str, Any]) -> str:
-    serial = node.get("serial")
-    wwn = node.get("wwn")
-    stable = serial if isinstance(serial, str) and serial.strip() else wwn
-    if not isinstance(stable, str) or not stable.strip():
+    serial = (
+        node["serial"].strip()
+        if isinstance(node.get("serial"), str) and node["serial"].strip()
+        else None
+    )
+    wwn = (
+        node["wwn"].strip()
+        if isinstance(node.get("wwn"), str) and node["wwn"].strip()
+        else None
+    )
+    if serial is None and wwn is None:
         raise UpdaterV2Error("usb_stable_identity_unavailable")
     identity = {
-        "stable_id": stable.strip(),
+        "serial": serial,
+        "wwn": wwn,
         "model": str(node.get("model") or "").strip(),
         "size": node.get("size"),
         "transport": str(node.get("tran") or "").strip().lower(),
