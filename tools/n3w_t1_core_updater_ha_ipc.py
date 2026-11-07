@@ -146,6 +146,34 @@ class HaUsbIpcExecutor:
 
     def status(self) -> dict[str, object]:
         document = self.store.read()
+        if self.prepare_controller is None:
+            if document is None:
+                return {
+                    "phase": "DISCOVERED",
+                    "progress_percent": None,
+                    "error_code": None,
+                }
+            if document["status"] == "FAILED_EMERGENCY":
+                failure = document.get("failure_code")
+                code = (
+                    failure
+                    if isinstance(failure, str)
+                    and _PUBLIC_CODE_RE.fullmatch(failure) is not None
+                    else "ota_host_failure"
+                )
+                return {
+                    "phase": "ERROR",
+                    "progress_percent": None,
+                    "error_code": code,
+                }
+            phase = _PHASE_MAP.get(document["phase"])
+            if phase is None:
+                raise UpdaterV2Error("ha_ota_ipc_phase_invalid")
+            return {
+                "phase": phase,
+                "progress_percent": None,
+                "error_code": None,
+            }
         if document is None:
             return {
                 "phase": "DISCOVERED",
