@@ -1,0 +1,30 @@
+{
+  "canonical_payload_sha256": "4f9b46a2a7b42d575ae466518a0ea161c006a8560d8ef704ae69969400ec7ddb",
+  "canonicalization": "SHA256 of UTF-8 JSON payload with keys recursively sorted and separators=(',',':')",
+  "payload": {
+    "schema": "gh.n3w-t1-core-updater-compatibility/1",
+    "component": "manager",
+    "mutation_profile": "IMAGE_ONLY_V1",
+    "predecessor_source_head": "5b32e1ae82104a42f9e4e6907fe44d9172e87615",
+    "target_source_head": "c28130da1fcdeaa16d61a186d5a27c4c06fe791d",
+    "product_delta_paths": [
+      "host/greenhouse-manager/src/greenhouse_manager/runtime/config.py",
+      "host/greenhouse-manager/src/greenhouse_manager/runtime/ha_update.py",
+      "host/greenhouse-manager/src/greenhouse_manager/runtime/mqtt_service.py",
+      "host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_manager_runtime_wiring.py",
+      "host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_simplified_isolated_mqtt_service.py",
+      "host/greenhouse-manager/src/greenhouse_manager/runtime/t1_ota_ipc.py",
+      "host/greenhouse-manager/src/greenhouse_manager/runtime/t1_ota_manager.py",
+      "host/greenhouse-manager/src/greenhouse_manager/runtime/topics.py"
+    ],
+    "peer_contracts_compatible": true,
+    "persistent_schema_compatible": true,
+    "database_migration_required": false,
+    "config_migration_required": false,
+    "runtime_template_change_required": false,
+    "broker_change_required": false,
+    "homeassistant_change_required": false,
+    "board_change_required": false,
+    "rollback_compatible": true
+  }
+}
