@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -24,14 +25,14 @@ def load_executor():
     return module
 
 
-def test_manifest_is_live_authorized_only_for_explicit_a0_gate() -> None:
+def test_manifest_is_repaired_and_requires_new_live_authorization() -> None:
     document = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
 
     assert (
         document["schema"]
         == "gh.n3w-t1-r7a-manager-a0-live-execution-package/1"
     )
-    assert document["live_execution_authorized"] is True
+    assert document["live_execution_authorized"] is False
     assert document["preconditions"]["updater_state_readonly_before_staging"] is True
     assert document["preconditions"]["remote_staging_exact_file_set_required"] is True
     assert document["preconditions"]["usb_like_disk_count"] == 0
@@ -67,7 +68,15 @@ def test_exact_package_authority_is_frozen() -> None:
     assert executor.MANAGER_BUILD_IMAGE_ID == authority["manager_build_image_id"]
 
 
-def test_live_authority_gate_accepts_exact_authorized_head() -> None:
+def test_authorization_id_matches_generic_v2_contract() -> None:
+    executor = load_executor()
+    assert re.fullmatch(
+        r"^N3W_T1_CORE_UPDATER_[A-Za-z0-9_-]{1,160}$",
+        executor.AUTHORIZATION,
+    )
+
+
+def test_live_authority_gate_stops_until_new_authorization() -> None:
     executor = load_executor()
     head = subprocess.run(
         ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
@@ -76,14 +85,8 @@ def test_live_authority_gate_accepts_exact_authorized_head() -> None:
         stdout=subprocess.PIPE,
     ).stdout.strip()
 
-    document = executor.validate_local_source(head, require_live=True)
-    assert document["authorization_id"] == executor.AUTHORIZATION
-    assert document["live_execution_authorized"] is True
-    assert document["execution_contract"]["manager_only_mutation"] is True
-    assert document["execution_contract"]["homeassistant_image_mutation"] is False
-    assert document["execution_contract"]["broker_image_mutation"] is False
-    assert document["execution_contract"]["host_daemon_activation"] is False
-    assert document["execution_contract"]["usb_mutation"] is False
+    with pytest.raises(executor.StopExecution, match="live_execution_not_authorized"):
+        executor.validate_local_source(head, require_live=True)
 
 
 class FakeLsblkTransport:
