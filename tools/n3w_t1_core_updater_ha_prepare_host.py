@@ -894,6 +894,19 @@ class SubprocessPrepareBackend:
             raise UpdaterV2Error("usb_bound_device_is_root")
         return source
 
+    @staticmethod
+    def _cleanup_stale_target_temporaries(target_dir: Path) -> None:
+        removed = False
+        for item in target_dir.iterdir():
+            if not item.name.startswith(".homeassistant-target."):
+                continue
+            if item.is_symlink() or not item.is_file():
+                raise UpdaterV2Error("ha_target_temporary_invalid")
+            item.unlink()
+            removed = True
+        if removed:
+            SubprocessPrepareBackend._fsync_directory(target_dir)
+
     def prepare_target(
         self,
         *,
@@ -910,6 +923,7 @@ class SubprocessPrepareBackend:
         _require_private_directory(update_dir, create=True)
         target_dir = update_dir / "target"
         _require_private_directory(target_dir, create=True)
+        self._cleanup_stale_target_temporaries(target_dir)
         destination = target_dir / "homeassistant-arm64.tar.gz"
         if destination.is_symlink():
             raise UpdaterV2Error("ha_target_destination_invalid")
