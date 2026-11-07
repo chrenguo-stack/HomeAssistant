@@ -259,7 +259,12 @@ def _boolish(value: Any) -> bool:
     return value is True or value == 1 or value == "1"
 
 
-def _require_private_directory(path: Path, *, create: bool = False) -> None:
+def _require_private_directory(
+    path: Path,
+    *,
+    create: bool = False,
+    allow_group_read_execute: bool = False,
+) -> None:
     if path.is_symlink():
         raise UpdaterV2Error("usb_runtime_directory_invalid")
     if not path.exists():
@@ -269,7 +274,9 @@ def _require_private_directory(path: Path, *, create: bool = False) -> None:
     if not path.is_dir():
         raise UpdaterV2Error("usb_runtime_directory_invalid")
     metadata = path.stat()
-    if metadata.st_uid != os.geteuid() or stat.S_IMODE(metadata.st_mode) & 0o077:
+    mode = stat.S_IMODE(metadata.st_mode)
+    forbidden = 0o027 if allow_group_read_execute else 0o077
+    if metadata.st_uid != os.geteuid() or mode & forbidden:
         raise UpdaterV2Error("usb_runtime_directory_metadata_invalid")
 
 
@@ -476,8 +483,7 @@ class SubprocessPrepareBackend:
         partition = self._partition(observed.locator)
         _run(("mkfs.ext4", "-F", "-L", USB_LABEL, partition), timeout=120)
 
-        _require_private_directory(self.runtime_root)
-        mount_root = self.runtime_root / "media"
+        _require_private_directory(\n            self.runtime_root,\n            allow_group_read_execute=True,\n        )\n        mount_root = self.runtime_root / "media"
         _require_private_directory(mount_root, create=True)
         mount_path = mount_root / transaction_id_sha256[:16]
         _require_private_directory(mount_path, create=True)
