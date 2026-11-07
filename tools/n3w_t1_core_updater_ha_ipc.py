@@ -44,6 +44,20 @@ DEFAULT_SOCKET_MODE = 0o660
 _RELEASE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _PUBLIC_CODE_RE = re.compile(r"^[a-z0-9_]{3,96}$")
+_RECOVERABLE_MEDIA_CODES = frozenset(
+    {
+        "usb_bound_media_unavailable",
+        "usb_bound_partition_invalid",
+        "usb_bound_parent_invalid",
+        "usb_bound_parent_ambiguous",
+        "usb_bound_device_identity_mismatch",
+        "usb_bound_device_is_root",
+        "usb_bound_partition_mounted_elsewhere",
+        "usb_mount_source_invalid",
+        "usb_filesystem_uuid_mismatch",
+        "usb_bound_filesystem_contract_invalid",
+    }
+)
 
 _PHASE_MAP = {
     U0: "DISCOVERED",
@@ -356,7 +370,7 @@ class HaUsbIpcExecutor:
             }
 
         if document["phase"] in {U2, U3}:
-            if prepare_error == "usb_bound_media_unavailable":
+            if prepare_error in _RECOVERABLE_MEDIA_CODES:
                 return self._extended_status(
                     document=document,
                     phase="RECOVERY_MEDIA_REQUIRED",
@@ -403,7 +417,7 @@ class HaUsbIpcExecutor:
                     code = _public_code(error)
                     with self._prepare_lock:
                         self._prepare_error = code
-                    if code == "usb_bound_media_unavailable":
+                    if code in _RECOVERABLE_MEDIA_CODES:
                         if self._stop_workers.wait(5.0):
                             return
                         continue
