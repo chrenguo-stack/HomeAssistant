@@ -378,3 +378,17 @@ def test_privileged_json_parsers_reject_duplicate_fields() -> None:
             '{"schema":"a","schema":"b"}',
             object_pairs_hook=daemon._reject_duplicate_object,
         )
+
+
+def test_usb_fingerprint_binds_both_serial_and_wwn() -> None:
+    first = {
+        "serial": "SERIAL-1",
+        "wwn": "WWN-1",
+        "model": "Synthetic USB",
+        "size": 16 * 1024**3,
+        "tran": "usb",
+    }
+    second = dict(first)
+    second["wwn"] = "WWN-2"
+
+    assert host._stable_fingerprint(first) != host._stable_fingerprint(second)
