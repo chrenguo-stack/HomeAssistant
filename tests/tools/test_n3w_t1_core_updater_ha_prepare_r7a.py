@@ -359,3 +359,29 @@ def test_resume_waits_for_same_bound_media_instead_of_formatting_another(
     assert interrupted["phase"] == "U3_TARGET_DOWNLOADING_VERIFYING"
     assert backend.formatted == 1
     assert backend.reopened == 1
+
+
+def test_preexisting_mounted_usb_cannot_become_fresh_by_unmount_only(
+    tmp_path: Path,
+) -> None:
+    value, backend, _, document = controller(tmp_path)
+    preexisting = candidate(
+        "d" * 64,
+        locator="/dev/sdy",
+        mounted=True,
+    )
+    backend.items = (preexisting,)
+    value.begin(document)
+
+    backend.items = (
+        candidate(
+            "d" * 64,
+            locator="/dev/sdy",
+            mounted=False,
+        ),
+    )
+    status = value.refresh_candidate()
+
+    assert status["phase"] == "USB_REQUIRED"
+    assert status["usb_candidate"] is None
+    assert backend.formatted == 0
