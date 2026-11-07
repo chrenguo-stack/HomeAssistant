@@ -74,6 +74,23 @@ EXPECTED_PACKAGE_FILES = {
     "upgrade-baseline-a.json",
 }
 
+UPDATER_STATE_ROOT = "/var/lib/n3w-t1-core-updater"
+UPDATER_STATE_FILES = {
+    "current": (
+        "upgrade.json",
+        "gh.n3w-t1-core-updater-transaction/2",
+    ),
+    "legacy": (
+        "manager-upgrade.json",
+        "gh.n3w-t1-core-updater-transaction/1",
+    ),
+    "ha_usb": (
+        "homeassistant-usb-upgrade.json",
+        "gh.n3w-t1-core-updater-homeassistant-usb-transaction/1",
+    ),
+}
+TERMINAL_TRANSACTION_STATUS = {"COMMITTED", "ROLLED_BACK"}
+
 
 class StopExecution(RuntimeError):
     pass
@@ -457,6 +474,100 @@ def collect_readonly_preflight(transport: Any) -> dict[str, Any]:
     }
 
 
+def read_remote_private_json(
+    transport: Any,
+    path: str,
+    *,
+    schema: str,
+) -> dict[str, Any] | None:
+    if transport.run_remote(
+        ["test", "-e", path],
+        check=False,
+        timeout=30,
+    ).returncode != 0:
+        return None
+    if transport.run_remote(
+        ["test", "-L", path],
+        check=False,
+        timeout=30,
+    ).returncode == 0:
+        raise StopExecution("updater_state_symlink")
+    metadata = transport.run_remote(
+        ["stat", "-c", "%U:%G:%a:%F", path],
+        timeout=30,
+    ).stdout.strip()
+    if metadata != "root:root:600:regular file":
+        raise StopExecution("updater_state_metadata_invalid")
+    try:
+        document = json.loads(
+            transport.run_remote(
+                ["cat", path],
+                timeout=30,
+            ).stdout
+        )
+    except json.JSONDecodeError as error:
+        raise StopExecution("updater_state_json_invalid") from error
+    if not isinstance(document, dict) or document.get("schema") != schema:
+        raise StopExecution("updater_state_schema_invalid")
+    return document
+
+
+def collect_updater_state_readonly(transport: Any) -> dict[str, Any]:
+    metadata = transport.run_remote(
+        ["stat", "-c", "%U:%G:%a:%F", UPDATER_STATE_ROOT],
+        timeout=30,
+    ).stdout.strip()
+    if metadata != "root:root:700:directory":
+        raise StopExecution("updater_state_root_invalid")
+
+    observed: dict[str, Any] = {}
+    for label, (name, schema) in UPDATER_STATE_FILES.items():
+        document = read_remote_private_json(
+            transport,
+            f"{UPDATER_STATE_ROOT}/{name}",
+            schema=schema,
+        )
+        observed[label] = document
+
+    current = observed["current"]
+    legacy = observed["legacy"]
+    ha_usb = observed["ha_usb"]
+    if (
+        isinstance(current, dict)
+        and current.get("status") not in TERMINAL_TRANSACTION_STATUS
+    ):
+        raise StopExecution("updater_recovery_required")
+    if (
+        isinstance(legacy, dict)
+        and legacy.get("status") not in TERMINAL_TRANSACTION_STATUS
+    ):
+        raise StopExecution("legacy_updater_recovery_required")
+    if ha_usb is not None:
+        raise StopExecution("ha_usb_successor_state_present")
+
+    return {
+        "recovery_required": False,
+        "current_transaction": (
+            {
+                "component": current.get("component"),
+                "status": current.get("status"),
+                "phase": current.get("phase"),
+            }
+            if isinstance(current, dict)
+            else None
+        ),
+        "legacy_transaction": (
+            {
+                "status": legacy.get("status"),
+                "phase": legacy.get("phase"),
+            }
+            if isinstance(legacy, dict)
+            else None
+        ),
+        "ha_usb_transaction_present": False,
+    }
+
+
 def stage_package(transport: Any, package: Path) -> dict[str, str]:
     local_hashes = {
         name: sha256_file(package / name)
@@ -480,6 +591,26 @@ def stage_package(transport: Any, package: Path) -> dict[str, str]:
     ).stdout.strip()
     if metadata != "root:root:700:directory":
         raise StopExecution("remote_staging_metadata_invalid")
+
+    entries = {
+        line.strip()
+        for line in transport.run_remote(
+            [
+                "find",
+                REMOTE_DIR,
+                "-mindepth",
+                "1",
+                "-maxdepth",
+                "1",
+                "-printf",
+                "%f\\n",
+            ],
+            timeout=30,
+        ).stdout.splitlines()
+        if line.strip()
+    }
+    if entries != EXPECTED_PACKAGE_FILES:
+        raise StopExecution("remote_staging_file_set_mismatch")
 
     remote_hashes: dict[str, str] = {}
     for name in sorted(EXPECTED_PACKAGE_FILES):
@@ -642,6 +773,9 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
 
         preflight = collect_readonly_preflight(transport)
         write_private(root / "preflight.json", preflight)
+
+        updater_state = collect_updater_state_readonly(transport)
+        write_private(root / "pre_updater_state.json", updater_state)
 
         hashes = stage_package(transport, package)
         closure["t1_file_write"] = True
