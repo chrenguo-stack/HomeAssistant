@@ -1,5 +1,7 @@
 ## 2026-11-07 — HA mandatory-USB R5 real-T1 read-only PASS; R6 PREPARE pipeline source design frozen
 
+- Current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
 - R5 `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R5_REAL_T1_READONLY_PREFLIGHT_20261106_01` is `CLOSED_PASS`.
 - Fresh real T1: Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`; all three running with restart_count 0.
 - Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; R5 does not rewrite historical authority.
