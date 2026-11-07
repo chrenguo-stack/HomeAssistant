@@ -1,3 +1,36 @@
+## Stable updater authority — 2026-11-07 R5 real-T1 read-only PASS; R6 PREPARE pipeline design frozen
+
+```text
+PROJECT_WORKING_CONTEXT_VERSION=2.0
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+HA_USB_R5_REAL_T1_READONLY_PREFLIGHT=CLOSED_PASS
+REAL_T1_STACK_IDENTITY=PASS
+UPDATER_V2_HOMEASSISTANT_TRANSACTION=ROLLED_BACK_TERMINAL
+RECOVERY_REQUIRED=false
+R4_PRODUCTION_ACTIVATION_STATE=NOT_ACTIVATED_EXPECTED
+
+R6_PRIVILEGED_PREPARE_PIPELINE_SOURCE_DESIGN=CLOSED_PASS_SOURCE_DESIGN
+DIRECT_R4_PRODUCTION_ACTIVATION_ALLOWED=false
+PREPARE_REQUIRES_SEPARATE_USB_ERASE_CONFIRMATION=true
+R7A_END_PHASE=U4_READY_TO_INSTALL
+
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_PREPARE_PIPELINE_SOURCE_IMPLEMENTATION_20261107_01
+R7A_LIVE_T1_ACCESS=false
+R7A_REAL_USB_MUTATION=false
+R7A_MERGE=false
+```
+
+R5 refreshed the real T1 without mutation and found the accepted Manager/Home Assistant/Broker stack intact, with zero container restarts and no active/recovery-required updater transaction. R4 host runtime/socket/Compose OTA wiring remains absent exactly as designed. R6 therefore rejects direct activation of the intent-only R4 IPC and freezes a two-stage successor: R7A implements only the privileged U1→U4 PREPARE pipeline and explicit transaction-bound USB erase confirmation; destructive U5+ install/recovery remains a later bounded design.
+
+Authorities:
+- `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R5_REAL_T1_READONLY_PREFLIGHT_CLOSURE_20261107.md`
+- `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R6_PRIVILEGED_PREPARE_PIPELINE_SOURCE_DESIGN_20261107.md`
 ## Stable updater authority — PR #788 mandatory-USB HA OTA R4 clean successor, 2026-11-06
 
 ```text
