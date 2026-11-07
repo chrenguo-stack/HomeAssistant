@@ -46,8 +46,8 @@ EXPECTED_MANAGER_UID = 999
 EXPECTED_MANAGER_GID = 999
 MAX_MANIFEST_BYTES = 64 * 1024
 HOMEASSISTANT_CONTAINER = "n3wfc4-homeassistant-1"
-_HA_IMAGE_RE = re.compile(r"^local/n3w-homeassistant:(?P<version>[0-9]{4}\\.[0-9]{1,2}\\.[0-9]{1,3})-[0-9a-f]{8,64}$")
-_VERSION_RE = re.compile(r"^[0-9]{4}\\.[0-9]{1,2}\\.[0-9]{1,3}$")
+_HA_IMAGE_RE = re.compile(r"^local/n3w-homeassistant:(?P<version>[0-9]{4}\.[0-9]{1,2}\.[0-9]{1,3})-[0-9a-f]{8,64}$")
+_VERSION_RE = re.compile(r"^[0-9]{4}\.[0-9]{1,2}\.[0-9]{1,3}$")
 _RELEASE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$")
 _GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
