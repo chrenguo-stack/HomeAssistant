@@ -371,6 +371,7 @@ def build_server() -> UnixSocketHaOtaServer:
         admission_resolver=FixedHostOtaAdmissionResolver(),
         prepare_controller=controller,
     )
+    executor.start_background_recovery()
     return UnixSocketHaOtaServer(
         dispatcher=HaUsbIpcDispatcher(executor),
         path=SOCKET_PATH,
