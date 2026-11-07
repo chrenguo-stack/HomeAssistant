@@ -401,7 +401,7 @@ def parse_control_intent(
         code="ota_intent_fields_invalid",
     )
     action = document["action"]
-    if action not in {"PREPARE", "CONFIRM_USB_ERASE", "INSTALL", "STATUS"}:
+    if action not in {"PREPARE", "CONFIRM_USB_ERASE", "STATUS"}:
         raise OtaControlError("ota_intent_action_invalid")
     release = _release_identity(
         document["target_release_id"],
@@ -528,17 +528,14 @@ class T1OtaManager:
         else:
             if status.in_progress:
                 raise OtaControlError("ota_transaction_in_progress")
-            if intent.action == "PREPARE":
-                if status.ready_to_install:
-                    raise OtaControlError("ota_already_ready_to_install")
-                if status.ota_phase in {
-                    "USB_REQUIRED",
-                    "USB_REQUIRED_CONFIRMATION",
-                    "RECOVERY_MEDIA_REQUIRED",
-                }:
-                    raise OtaControlError("ota_prepare_already_requested")
-            elif not status.ready_to_install:
-                raise OtaControlError("ota_install_not_ready")
+            if status.ready_to_install:
+                raise OtaControlError("ota_already_ready_to_install")
+            if status.ota_phase in {
+                "USB_REQUIRED",
+                "USB_REQUIRED_CONFIRMATION",
+                "RECOVERY_MEDIA_REQUIRED",
+            }:
+                raise OtaControlError("ota_prepare_already_requested")
 
         if self.intent_sink is None:
             raise OtaControlError("ota_intent_sink_unavailable")
