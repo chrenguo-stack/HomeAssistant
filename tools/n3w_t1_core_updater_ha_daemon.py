@@ -52,6 +52,17 @@ _RELEASE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$")
 _GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
+def _reject_duplicate_object(
+    pairs: list[tuple[str, Any]],
+) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise UpdaterV2Error("ha_ota_approved_manifest_duplicate_field")
+        result[key] = value
+    return result
+
+
 def _path_contains_symlink(path: Path) -> bool:
     current = path
     while True:
@@ -78,7 +89,7 @@ def _root_owned_manifest(path: Path) -> dict[str, Any]:
     ):
         raise UpdaterV2Error("ha_ota_approved_manifest_metadata_invalid")
     try:
-        document = json.loads(path.read_text(encoding="utf-8"))
+        document = json.loads(\n            path.read_text(encoding="utf-8"),\n            object_pairs_hook=_reject_duplicate_object,\n        )
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise UpdaterV2Error("ha_ota_approved_manifest_invalid") from error
     if not isinstance(document, dict):
