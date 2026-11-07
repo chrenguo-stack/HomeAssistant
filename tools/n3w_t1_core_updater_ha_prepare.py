@@ -147,6 +147,13 @@ class PreparePipelineBackend(Protocol):
     ) -> PreparedUsbMedia | None:
         """Reopen only the UUID/fingerprint already durably bound at U2."""
 
+    def sync_transaction_metadata(
+        self,
+        transaction: dict[str, Any],
+        media: PreparedUsbMedia,
+    ) -> None:
+        """Fsync public recovery metadata to the already bound USB."""
+
     def prepare_target(
         self,
         *,
@@ -451,11 +458,14 @@ class HaUsbPrepareController:
             capacity_report=capacity,
         )
         self.transaction_store.write(u2)
+        self.backend.sync_transaction_metadata(u2, media)
 
         u3 = start_target_preparation(u2)
+        self.backend.sync_transaction_metadata(u3, media)
         self.transaction_store.write(u3)
         target = self.backend.prepare_target(transaction=u3, media=media)
         u4 = record_target_ready(u3, target=target)
+        self.backend.sync_transaction_metadata(u4, media)
         self.transaction_store.write(u4)
         return self.public_status()
 
@@ -468,10 +478,15 @@ class HaUsbPrepareController:
             raise UpdaterV2Error("usb_bound_media_unavailable")
         current = transaction
         if current["phase"] == U2:
+            self.backend.sync_transaction_metadata(current, media)
             current = start_target_preparation(current)
+            self.backend.sync_transaction_metadata(current, media)
             self.transaction_store.write(current)
+        else:
+            self.backend.sync_transaction_metadata(current, media)
         target = self.backend.prepare_target(transaction=current, media=media)
         u4 = record_target_ready(current, target=target)
+        self.backend.sync_transaction_metadata(u4, media)
         self.transaction_store.write(u4)
         return self.public_status()
 
