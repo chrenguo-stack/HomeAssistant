@@ -171,12 +171,19 @@ class HaUsbIpcExecutor:
             "usb_confirmation_required": usb_confirmation_required,
         }
 
-    def _start_prepare_worker(self, mode: str) -> None:
+    def _start_prepare_worker(
+        self,
+        mode: str,
+        *,
+        fail_if_running: bool = True,
+    ) -> bool:
         if mode not in {"confirm", "resume"}:
             raise UpdaterV2Error("ha_usb_prepare_worker_mode_invalid")
         with self._prepare_lock:
             if self._prepare_thread is not None and self._prepare_thread.is_alive():
-                raise UpdaterV2Error("ha_usb_prepare_already_running")
+                if fail_if_running:
+                    raise UpdaterV2Error("ha_usb_prepare_already_running")
+                return False
             self._prepare_error = None
             self._prepare_retry_at = 0.0
             self._prepare_thread = threading.Thread(
@@ -186,6 +193,7 @@ class HaUsbIpcExecutor:
                 daemon=True,
             )
             self._prepare_thread.start()
+            return True
 
     def status(self) -> dict[str, object]:
         document = self.store.read()
@@ -286,7 +294,7 @@ class HaUsbIpcExecutor:
                     phase="ERROR",
                     error_code=prepare_error,
                 )
-            self._start_prepare_worker("resume")
+            self._start_prepare_worker("resume", fail_if_running=False)
             return self._extended_status(
                 document=document,
                 phase=(
@@ -382,6 +390,8 @@ class HaUsbIpcExecutor:
                     target_archive_size=admission.target_archive_size,
                 )
                 prepared = request_prepare(document)
+                if self.prepare_controller is not None:
+                    self.prepare_controller.begin(prepared)
                 self.store.write(prepared)
             else:
                 document = self.store.read()
@@ -389,8 +399,6 @@ class HaUsbIpcExecutor:
                     raise UpdaterV2Error("ha_ota_ipc_transaction_missing")
                 self._require_same_admission(document, admission)
                 self.store.write(request_install(document))
-        if prepared is not None and self.prepare_controller is not None:
-            self.prepare_controller.begin(prepared)
         return self.status()
 
 
