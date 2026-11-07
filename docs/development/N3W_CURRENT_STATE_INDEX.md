@@ -1,3 +1,18 @@
+## 2026-11-07 — R7A Manager successor exact A-to-B package CLOSED_PASS
+
+- Current live authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; accepted Manager/HA/Broker remain `fresh-5b32e1ae8210` / `2026.10.0-0c73235a` / `2.1.2-3184566d`.
+- R7A Manager successor is `local/greenhouse-manager:fresh-bf38e388497b`; it is **not** live-accepted yet.
+- Exact ARM64 source artifact: run `42347679643`, artifact `13564472128`, Manager tar SHA256 `4c4492ef5008a968b2553240b3fde97912eb3ae862604ae492e5a639a93db008`, build image ID `sha256:136cdcacf84a388a91cf0adbf7e0653a78b754e1879a59d3a2ac066ecba9fa5f`.
+- Compatibility authority: `infra/n3w-t1/upgrades/manager-bf38e388497b-compatibility.json`; `IMAGE_ONLY_V1`, persistent/peer compatible, no DB/config/runtime-template/HA/Broker/board migration, rollback compatible.
+- Target authority: `infra/n3w-t1/upgrades/manager-bf38e388497b.json`; expected predecessor is the accepted `fresh-5b32e1ae8210`.
+- Predecessor baseline: `infra/n3w-t1/clean-reference/r7a-manager-predecessor-baseline-20261107.json`; canonical SHA `78c3b0b58ad39cf887689658bec90c8466d30a93d58830b0289f1463dafad868`, exactly matching the 2026-11-05 real-T1 P4 double-read baseline authority.
+- Final Manager-only Generic V2 package: run `42349904235`, artifact `13564899377`, digest `sha256:6e9ca4cf103434330c0a31b51e1ba27b7d12b554648f4b0a017fd69bc4a32e1c`, updater.pyz SHA `1b556d5601f33ef050c91e990bedaaeb1611bef325350fad008a1ec69fc7dc99`.
+- Package CI passed `source`, `exact-manager-slice` and `pre-u1-v2-simulation`; simulation covers plan/apply/rollback without T1 mutation.
+- Continuity review from artifact source head `bf38e388497b0d480f4bd322426e32a98652cf6c` to package control head `921e7d5557ff3dbf4b7e7ae5510186d98f803a2a` found zero Manager product-source changes.
+- No live T1 access/mutation, Manager live upgrade, service/Docker mutation, USB mutation, board access or merge occurred.
+- Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_MANAGER_SUCCESSOR_A0_LIVE_EXECUTION_PACKAGE_PREEXECUTION_20261107_01`; source-only executor construction/review, stopping before real SSH/apply.
+- Closure: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_MANAGER_SUCCESSOR_EXACT_ARTIFACT_AND_A_TO_B_PACKAGE_CLOSURE_20261107.md`.
+
 ## 2026-11-07 — HA mandatory-USB R7A PREPARE source CLOSED_PASS
 
 - Current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
