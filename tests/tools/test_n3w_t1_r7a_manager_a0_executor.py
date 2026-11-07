@@ -179,17 +179,17 @@ class FakeUpdaterStateTransport:
             return subprocess.CompletedProcess(argv, 1, stdout="", stderr="")
         if command[0] == "cat":
             path = command[1]
-            if path.endswith("upgrade.json"):
+            if path.endswith("homeassistant-usb-upgrade.json"):
+                payload = {
+                    "schema": "gh.n3w-t1-core-updater-homeassistant-usb-transaction/1",
+                    "status": "ROLLED_BACK",
+                }
+            elif path.endswith("/upgrade.json"):
                 payload = {
                     "schema": "gh.n3w-t1-core-updater-transaction/2",
                     "status": self.current_status,
                     "phase": self.current_status,
                     "component": "homeassistant",
-                }
-            elif path.endswith("homeassistant-usb-upgrade.json"):
-                payload = {
-                    "schema": "gh.n3w-t1-core-updater-homeassistant-usb-transaction/1",
-                    "status": "ROLLED_BACK",
                 }
             else:
                 raise AssertionError(path)
