@@ -260,6 +260,10 @@ def test_inactive_activation_assets_preserve_privilege_boundary() -> None:
     unit = (
         root / "infra/n3w-t1/systemd/n3w-t1-ha-ota.service"
     ).read_text(encoding="utf-8")
+    dropin = (
+        root
+        / "infra/n3w-t1/systemd/n3wfc4-services-activation.ha-ota.conf"
+    ).read_text(encoding="utf-8")
     override = (
         root / "infra/n3w-t1/production/docker-compose.ha-ota.yml"
     ).read_text(encoding="utf-8")
@@ -276,6 +280,8 @@ def test_inactive_activation_assets_preserve_privilege_boundary() -> None:
     assert "read_only: true" in override
     assert "/var/run/docker.sock" not in override
     assert "/dev/" not in override
+    assert "Requires=n3w-t1-ha-ota.service" in dropin
+    assert "After=n3w-t1-ha-ota.service" in dropin
 
 
 def test_daemon_requires_root_and_manager_group_contract_in_source() -> None:
@@ -463,3 +469,22 @@ def test_target_download_sha_mismatch_never_reaches_archive_parser(
         match="ha_target_download_identity_mismatch",
     ):
         backend.prepare_target(transaction=transaction, media=media)
+
+
+def test_missing_approved_release_keeps_daemon_publish_path_nonfatal(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "missing-approved.json"
+    runtime = tmp_path / "runtime"
+    runtime.mkdir(mode=0o700)
+    destination = runtime / "approved-homeassistant.json"
+    destination.write_text("stale", encoding="utf-8")
+
+    assert (
+        daemon.publish_manager_manifest(
+            source=source,
+            destination=destination,
+        )
+        is False
+    )
+    assert not destination.exists()
