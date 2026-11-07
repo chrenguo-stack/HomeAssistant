@@ -345,9 +345,12 @@ class HaUsbPrepareController:
         current = validate_transaction_document(transaction)
         if current["phase"] != U1:
             raise UpdaterV2Error("ha_usb_prepare_begin_phase_invalid")
+        observed = tuple(self.backend.inventory())
+        for candidate in observed:
+            candidate.validate()
         baseline = sorted(
             candidate.public_fingerprint
-            for candidate in _eligible(tuple(self.backend.inventory()))
+            for candidate in observed
         )
         release_identity = current["target_manifest_identity"].get("release_identity")
         if not isinstance(release_identity, str):
