@@ -808,8 +808,7 @@ class SubprocessPrepareBackend:
         finally:
             os.close(descriptor)
 
-    @staticmethod
-    def _require_bound_media(media: PreparedUsbMedia) -> str:
+    def _require_bound_media(self, media: PreparedUsbMedia) -> str:
         media.validate()
         mount_path = Path(media.mount_path)
         source = _run(
@@ -830,6 +829,43 @@ class SubprocessPrepareBackend:
         validate_filesystem_uuid(observed_uuid)
         if observed_uuid != media.filesystem_uuid.lower():
             raise UpdaterV2Error("usb_filesystem_uuid_mismatch")
+
+        parent = _run(
+            (
+                "lsblk",
+                "--noheadings",
+                "--paths",
+                "--output",
+                "PKNAME",
+                source,
+            )
+        ).decode("utf-8", errors="strict").strip()
+        if not parent.startswith("/dev/"):
+            raise UpdaterV2Error("usb_bound_parent_invalid")
+        disks = [
+            item
+            for item in self._lsblk()
+            if item.get("type") == "disk" and item.get("path") == parent
+        ]
+        if len(disks) != 1:
+            raise UpdaterV2Error("usb_bound_parent_ambiguous")
+        disk = disks[0]
+        if (
+            str(disk.get("tran") or "").strip().lower() != "usb"
+            or not _boolish(disk.get("rm"))
+            or _boolish(disk.get("ro"))
+            or _stable_fingerprint(disk) != media.public_fingerprint
+        ):
+            raise UpdaterV2Error("usb_bound_device_identity_mismatch")
+        root_major_minor = _run(
+            ("findmnt", "--noheadings", "--output", "MAJ:MIN", "/")
+        ).decode("utf-8", errors="strict").strip()
+        major_minors = {
+            str(item.get("maj:min") or "").strip()
+            for item in _flatten_blocks([disk])
+        }
+        if root_major_minor in major_minors:
+            raise UpdaterV2Error("usb_bound_device_is_root")
         return source
 
     def prepare_target(
