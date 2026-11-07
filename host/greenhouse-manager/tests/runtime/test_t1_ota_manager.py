@@ -87,11 +87,19 @@ class Runtime:
     def __init__(self, phase: str = "DISCOVERED", progress: int | None = None) -> None:
         self.phase = phase
         self.progress = progress
+        self.installed_version: str | None = None
+        self.usb_model: str | None = None
+        self.usb_capacity: int | None = None
+        self.usb_confirmation_required = False
 
     def get_homeassistant_ota_runtime_state(self) -> OtaRuntimeSnapshot:
         return OtaRuntimeSnapshot(
             phase=self.phase,
             progress_percent=self.progress,
+            installed_version=self.installed_version,
+            usb_candidate_model=self.usb_model,
+            usb_candidate_capacity_bytes=self.usb_capacity,
+            usb_confirmation_required=self.usb_confirmation_required,
         )
 
 
@@ -275,4 +283,42 @@ def test_control_intent_rejects_duplicate_json_fields() -> None:
 
     with pytest.raises(OtaControlError, match="ota_intent_duplicate_field"):
         ota.handle_control(duplicate)
+    assert sink.intents == []
+
+
+def test_runtime_installed_version_overrides_bootstrap_fallback() -> None:
+    ota, runtime, _sink = manager()
+    runtime.installed_version = "2026.10.4"
+
+    projection = ota.project()
+
+    assert projection.manifest is not None
+    assert projection.status.installed_version == "2026.10.4"
+    assert projection.status.update_available is False
+
+
+def test_usb_erase_confirmation_requires_visible_bound_candidate() -> None:
+    ota, runtime, sink = manager()
+    runtime.phase = "USB_REQUIRED"
+
+    with pytest.raises(OtaControlError, match="ota_usb_confirmation_not_ready"):
+        ota.handle_control(payload("CONFIRM_USB_ERASE"))
+    assert sink.intents == []
+
+    runtime.phase = "USB_REQUIRED_CONFIRMATION"
+    runtime.usb_model = "Synthetic USB"
+    runtime.usb_capacity = 16 * 1024**3
+    runtime.usb_confirmation_required = True
+
+    intent = ota.handle_control(payload("CONFIRM_USB_ERASE"))
+    assert intent.action == "CONFIRM_USB_ERASE"
+    assert [item.action for item in sink.intents] == ["CONFIRM_USB_ERASE"]
+
+
+def test_prepare_cannot_be_replayed_while_waiting_for_usb() -> None:
+    ota, runtime, sink = manager()
+    runtime.phase = "USB_REQUIRED"
+
+    with pytest.raises(OtaControlError, match="ota_prepare_already_requested"):
+        ota.handle_control(payload("PREPARE"))
     assert sink.intents == []
