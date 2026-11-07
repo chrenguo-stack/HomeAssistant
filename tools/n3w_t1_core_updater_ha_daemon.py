@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import signal
 import stat
 import subprocess
@@ -25,6 +26,7 @@ from n3w_t1_core_updater_ha_prepare_host import (
 )
 from n3w_t1_core_updater_ha_usb_state import HaUsbStateStore
 from n3w_t1_core_updater_v2_common import (
+    A1_CLASSIFICATION_SHA256,
     SHA256,
     UpdaterV2Error,
     canonical,
@@ -44,6 +46,10 @@ EXPECTED_MANAGER_UID = 999
 EXPECTED_MANAGER_GID = 999
 MAX_MANIFEST_BYTES = 64 * 1024
 HOMEASSISTANT_CONTAINER = "n3wfc4-homeassistant-1"
+_HA_IMAGE_RE = re.compile(r"^local/n3w-homeassistant:(?P<version>[0-9]{4}\\.[0-9]{1,2}\\.[0-9]{1,3})-[0-9a-f]{8,64}$")
+_VERSION_RE = re.compile(r"^[0-9]{4}\\.[0-9]{1,2}\\.[0-9]{1,3}$")
+_RELEASE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$")
+_GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
 def _path_contains_symlink(path: Path) -> bool:
@@ -102,14 +108,18 @@ def _validated_manifest(path: Path) -> dict[str, Any]:
         or document.get("verification_status") != "PASS"
     ):
         raise UpdaterV2Error("ha_ota_approved_manifest_not_approved")
+    version = document.get("version")
     release = document.get("release_identity")
     size = document.get("target_archive_size_bytes")
     target = document.get("target")
     if (
-        not isinstance(release, str)
-        or not 3 <= len(release) <= 128
+        not isinstance(version, str)
+        or _VERSION_RE.fullmatch(version) is None
+        or not isinstance(release, str)
+        or _RELEASE_RE.fullmatch(release) is None
         or type(size) is not int
         or size <= 0
+        or size > 8 * 1024 * 1024 * 1024
         or not isinstance(target, dict)
     ):
         raise UpdaterV2Error("ha_ota_approved_manifest_invalid")
@@ -135,9 +145,68 @@ def _validated_manifest(path: Path) -> dict[str, Any]:
         or target.get("rollback_compatible") is not True
     ):
         raise UpdaterV2Error("ha_ota_target_manifest_invalid")
+    image_ref = target.get("target_image_ref")
+    predecessor = target.get("expected_predecessor_image_ref")
+    image_match = (
+        _HA_IMAGE_RE.fullmatch(image_ref)
+        if isinstance(image_ref, str)
+        else None
+    )
+    if (
+        image_match is None
+        or image_match.group("version") != version
+        or not isinstance(predecessor, str)
+        or _HA_IMAGE_RE.fullmatch(predecessor) is None
+        or predecessor == image_ref
+    ):
+        raise UpdaterV2Error("ha_ota_target_image_invalid")
+
     archive_sha = target.get("target_archive_sha256")
     if not isinstance(archive_sha, str) or SHA256.fullmatch(archive_sha) is None:
         raise UpdaterV2Error("ha_ota_target_manifest_invalid")
+    if target.get("a1_classification_sha256") != A1_CLASSIFICATION_SHA256:
+        raise UpdaterV2Error("ha_ota_target_a1_authority_mismatch")
+
+    artifact = target.get("artifact_identity")
+    if (
+        not isinstance(artifact, dict)
+        or set(artifact)
+        != {"artifact_id", "artifact_digest_sha256", "artifact_name"}
+        or type(artifact.get("artifact_id")) is not int
+        or artifact["artifact_id"] <= 0
+        or not isinstance(artifact.get("artifact_digest_sha256"), str)
+        or SHA256.fullmatch(artifact["artifact_digest_sha256"]) is None
+        or not isinstance(artifact.get("artifact_name"), str)
+        or not artifact["artifact_name"]
+    ):
+        raise UpdaterV2Error("ha_ota_target_artifact_identity_invalid")
+
+    compatibility = target.get("compatibility_evidence")
+    if (
+        not isinstance(compatibility, dict)
+        or set(compatibility)
+        != {
+            "schema",
+            "mutation_profile",
+            "peer_contracts_compatible",
+            "persistent_schema_compatible",
+            "review_evidence_sha256",
+            "predecessor_source_head",
+            "target_source_head",
+        }
+        or compatibility.get("schema")
+        != "gh.n3w-t1-core-updater-compatibility/1"
+        or compatibility.get("mutation_profile") != "IMAGE_ONLY_V1"
+        or compatibility.get("peer_contracts_compatible") is not True
+        or compatibility.get("persistent_schema_compatible") is not True
+        or not isinstance(compatibility.get("review_evidence_sha256"), str)
+        or SHA256.fullmatch(compatibility["review_evidence_sha256"]) is None
+        or not isinstance(compatibility.get("predecessor_source_head"), str)
+        or _GIT_SHA_RE.fullmatch(compatibility["predecessor_source_head"]) is None
+        or not isinstance(compatibility.get("target_source_head"), str)
+        or _GIT_SHA_RE.fullmatch(compatibility["target_source_head"]) is None
+    ):
+        raise UpdaterV2Error("ha_ota_target_compatibility_invalid")
     return document
 
 
