@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from n3w_t1_core_updater_ha_prepare import HaUsbPrepareController
-from n3w_t1_core_updater_ha_usb import request_install, request_prepare
+from n3w_t1_core_updater_ha_usb import request_prepare
 from n3w_t1_core_updater_ha_usb_state import (
     U0,
     U1,
@@ -459,7 +459,7 @@ class HaUsbIpcExecutor:
                 raise UpdaterV2Error("ha_ota_ipc_admission_drift")
 
     def submit(self, action: str, release_identity: str) -> dict[str, object]:
-        if action not in {"PREPARE", "CONFIRM_USB_ERASE", "INSTALL"}:
+        if action not in {"PREPARE", "CONFIRM_USB_ERASE"}:
             raise UpdaterV2Error("ha_ota_ipc_action_invalid")
         admission = self._resolve(release_identity)
         if action == "CONFIRM_USB_ERASE":
@@ -479,29 +479,21 @@ class HaUsbIpcExecutor:
                 "usb_confirmation_required": False,
             }
 
-        prepared: dict[str, Any] | None = None
         with self.store.lock():
-            if action == "PREPARE":
-                self.store.prepare_new()
-                document = new_transaction(
-                    current_image_ref=admission.current_image_ref,
-                    current_image_identity=dict(admission.current_image_identity),
-                    target_manifest_identity=dict(admission.target_manifest_identity),
-                    target_image_ref=admission.target_image_ref,
-                    target_archive_sha256=admission.target_archive_sha256,
-                    target_archive_size=admission.target_archive_size,
-                )
-                prepared = request_prepare(document)
-                if self.prepare_controller is not None:
-                    self.prepare_controller.begin(prepared)
-                self.store.write(prepared)
-            else:
-                document = self.store.read()
-                if document is None:
-                    raise UpdaterV2Error("ha_ota_ipc_transaction_missing")
-                self._require_same_admission(document, admission)
-                self.store.write(request_install(document))
-        if action == "PREPARE" and self.prepare_controller is not None:
+            self.store.prepare_new()
+            document = new_transaction(
+                current_image_ref=admission.current_image_ref,
+                current_image_identity=dict(admission.current_image_identity),
+                target_manifest_identity=dict(admission.target_manifest_identity),
+                target_image_ref=admission.target_image_ref,
+                target_archive_sha256=admission.target_archive_sha256,
+                target_archive_size=admission.target_archive_size,
+            )
+            prepared = request_prepare(document)
+            if self.prepare_controller is not None:
+                self.prepare_controller.begin(prepared)
+            self.store.write(prepared)
+        if self.prepare_controller is not None:
             self._start_discovery_worker()
         return self.status()
 
