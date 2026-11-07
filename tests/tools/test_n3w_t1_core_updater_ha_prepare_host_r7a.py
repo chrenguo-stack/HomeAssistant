@@ -324,6 +324,8 @@ def test_inactive_activation_assets_preserve_privilege_boundary() -> None:
     assert "Requires=n3w-t1-ha-ota.service" in dropin
     assert "After=n3w-t1-ha-ota.service" in dropin
     assert "[Service]" in dropin
+    assert "EnvironmentFile=-/etc/n3wfc4/ha-ota-activation.env" in dropin
+    assert "2026.10.0" not in dropin
     assert "ExecStart=\nExecStart=/usr/bin/docker compose " in dropin
     assert "ExecStop=\nExecStop=/usr/bin/docker compose " in dropin
     overlay_path = (
