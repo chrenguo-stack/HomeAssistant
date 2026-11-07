@@ -60,12 +60,31 @@ class Resolver:
 class ControllerStub:
     def __init__(self) -> None:
         self.begin_calls = 0
+        self.ensure_calls = 0
         self.refresh_calls = 0
+        self.public_calls = 0
         self.confirm_calls = 0
         self.resume_calls = 0
 
     def begin(self, _document) -> None:
         self.begin_calls += 1
+
+    def ensure_started(self, _document) -> None:
+        self.ensure_calls += 1
+
+    def public_status(self):
+        self.public_calls += 1
+        return {
+            "phase": "USB_REQUIRED_CONFIRMATION",
+            "progress_percent": None,
+            "error_code": None,
+            "usb_candidate": {
+                "public_fingerprint": "c" * 64,
+                "display_model": "Synthetic USB",
+                "display_capacity_bytes": 16 * 1024**3,
+            },
+            "usb_confirmation_required": True,
+        }
 
     def refresh_candidate(self):
         self.refresh_calls += 1
@@ -322,10 +341,42 @@ def test_r7a_executor_emits_v2_only_with_prepare_controller(tmp_path: Path) -> N
     assert response["usb_candidate"]["display_model"] == "Synthetic USB"
     assert response["installed_version"] == "2026.10.0"
     assert controller.begin_calls == 1
-    assert controller.refresh_calls >= 1
+    assert executor._discovery_thread is not None
+    executor.stop_background_workers()
 
 
-def test_r7a_u3_status_starts_resume_worker(tmp_path: Path) -> None:
+def test_r7a_status_is_read_only_for_u1_candidate_projection(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "readonly-state"
+    root.mkdir(mode=0o700)
+    resolver = Resolver()
+    store = HaUsbStateStore(root)
+    HaUsbIpcExecutor(
+        store=store,
+        admission_resolver=resolver,
+    ).submit("PREPARE", RELEASE)
+
+    controller = ControllerStub()
+    executor = HaUsbIpcExecutor(
+        store=store,
+        admission_resolver=resolver,
+        prepare_controller=controller,
+    )
+
+    status = executor.status()
+
+    assert status["phase"] == "USB_REQUIRED_CONFIRMATION"
+    assert controller.public_calls == 1
+    assert controller.refresh_calls == 0
+    assert controller.ensure_calls == 0
+    assert executor._discovery_thread is None
+    assert executor._prepare_thread is None
+
+
+def test_r7a_background_recovery_not_status_starts_u3_resume(
+    tmp_path: Path,
+) -> None:
     root = tmp_path / "state"
     root.mkdir(mode=0o700)
     resolver = Resolver()
@@ -370,7 +421,13 @@ def test_r7a_u3_status_starts_resume_worker(tmp_path: Path) -> None:
     )
 
     status = executor.status()
-    assert status["phase"] == "TARGET_DOWNLOADING_VERIFYING"
+    assert status["phase"] == "ERROR"
+    assert status["error_code"] == "ha_usb_prepare_worker_inactive"
+    assert controller.resume_calls == 0
+    assert executor._prepare_thread is None
+
+    executor.start_background_recovery()
     assert executor._prepare_thread is not None
     executor._prepare_thread.join(2)
     assert controller.resume_calls == 1
+    executor.stop_background_workers()
