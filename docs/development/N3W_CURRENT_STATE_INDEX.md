@@ -1,3 +1,20 @@
+## 2026-11-08 — R7A A1 _01 rollback healthy; restart-settle repair CLOSED_PASS; successor authorization deferred
+
+- Fresh repository rebind: main `bce6bd82023d5f5322eea1ab363a29df8a4cadd8`; PR #799 head `462018cbf341f1b762a35f82a87a7c98e4a8b615`; PR #800 executable repair head `922a106bd32ce98a07d2280cf08a6a9f116a11a6`, tree `3712bbcf20e47f7cf1f92fc26ce238eed6e95fd8`.
+- Exact repair-head CI: **25 success, 0 failure, 0 pending**.
+- A0 Manager successor live apply is accepted: Manager `local/greenhouse-manager:fresh-bf38e388497b`; A0 authorization `...20261107_02` is consumed and replay-forbidden.
+- A1 authorization `N3W_T1_R7A_HOST_DAEMON_COMPOSE_A1_LIVE_ACTIVATION_20261107_01` was claimed and activation invoked; it is consumed/retired and must never be replayed.
+- A1 _01 stopped on `container_cardinality_invalid`; automatic rollback was invoked. Later read-only classification proved `ROLLED_BACK_HEALTHY_FALSE_ROLLBACK_FAILURE`, so `T1_RECOVERY_REQUIRED=false`.
+- Current live Manager is `local/greenhouse-manager:fresh-bf38e388497b` / runtime image `sha256:e88a22b2...`, UID/GID 999:999, running, no OTA env/mount and no Docker socket.
+- Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a` / runtime image `sha256:c261fa53...`, running.
+- Broker remains `local/n3w-mosquitto:2.1.2-3184566d` / runtime image `sha256:df265f1e...`, running with container continuity proven.
+- A1 host service/drop-in/activation env/approved manifest/runtime root/socket are absent; HA-USB/PREPARE state absent; USB-like disk count 0.
+- KF-143 records the root cause: Type=simple services restart returns before Manager/HA container convergence; immediate `docker ps --filter ancestor` is not a readiness oracle.
+- Repair: bounded 120 s wait only after activation/rollback restarts; preflight remains strict/immediate. Repair exact head is `922a106bd32ce98a07d2280cf08a6a9f116a11a6`.
+- No new A1 authorization is established in this chat. Proposed successor ID for the next chat: `N3W_T1_R7A_HOST_DAEMON_COMPOSE_A1_LIVE_ACTIVATION_20261108_02`, currently `GRANTED=false`.
+- Next gate: `N3W_T1_R7A_HOST_DAEMON_COMPOSE_A1_SUCCESSOR_LIVE_AUTHORIZATION_BINDING_20261108_01`.
+- Formal handoff: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_A1_ROLLBACK_HEALTHY_TO_SUCCESSOR_AUTHORIZATION_NEW_CHAT_HANDOFF_V1.0_20261108.md`.
+
 ## 2026-11-07 — R7A Manager A0 executor preexecution CLOSED_PASS
 
 - Current live authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
