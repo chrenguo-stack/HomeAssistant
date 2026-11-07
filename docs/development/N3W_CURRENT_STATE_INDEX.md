@@ -2,6 +2,7 @@
 
 - Current live authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
 - Accepted production stack remains Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`; live deployment remains `APPLIED_ACCEPTED`.
+- `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`; no A0 live mutation has occurred.
 - Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
 - R7A Manager successor remains `local/greenhouse-manager:fresh-bf38e388497b`; it is package-ready but not live-accepted.
 - Frozen A0 Manager-only package: control head `921e7d5557ff3dbf4b7e7ae5510186d98f803a2a`, artifact `13564899377`, digest `sha256:6e9ca4cf103434330c0a31b51e1ba27b7d12b554648f4b0a017fd69bc4a32e1c`.
