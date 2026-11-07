@@ -5,6 +5,7 @@ import os
 import signal
 import stat
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -40,6 +41,7 @@ RUNTIME_MANIFEST = RUNTIME_ROOT / "approved-homeassistant.json"
 SOCKET_PATH = RUNTIME_ROOT / "ha-ota.sock"
 STATE_ROOT = Path("/var/lib/n3w-t1-core-updater")
 EXPECTED_MANAGER_UID = 999
+EXPECTED_MANAGER_GID = 999
 MAX_MANIFEST_BYTES = 64 * 1024
 HOMEASSISTANT_CONTAINER = "n3wfc4-homeassistant-1"
 
@@ -225,32 +227,45 @@ def publish_manager_manifest(
     ).encode("utf-8") + b"\n"
     if destination.is_symlink():
         raise UpdaterV2Error("ha_ota_runtime_manifest_path_invalid")
-    descriptor = os.open(
-        destination,
-        os.O_CREAT | os.O_TRUNC | os.O_WRONLY,
-        0o640,
+    descriptor, raw = tempfile.mkstemp(
+        prefix=f".{destination.name}.",
+        dir=destination.parent,
     )
+    temporary = Path(raw)
     try:
-        os.write(descriptor, payload)
-        os.fsync(descriptor)
         os.fchmod(descriptor, 0o640)
+        with os.fdopen(descriptor, "wb", closefd=True) as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, destination)
+        os.chmod(destination, 0o640)
+        directory = os.open(
+            destination.parent,
+            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+        )
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
     finally:
-        os.close(descriptor)
-    directory = os.open(
-        destination.parent,
-        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
-    )
-    try:
-        os.fsync(directory)
-    finally:
-        os.close(directory)
+        temporary.unlink(missing_ok=True)
 
 
 def build_server() -> UnixSocketHaOtaServer:
     if os.geteuid() != 0:
         raise UpdaterV2Error("ha_ota_daemon_requires_root")
+    if os.getegid() != EXPECTED_MANAGER_GID:
+        raise UpdaterV2Error("ha_ota_daemon_group_invalid")
     if not RUNTIME_ROOT.is_dir() or RUNTIME_ROOT.is_symlink():
         raise UpdaterV2Error("ha_ota_runtime_root_invalid")
+    metadata = RUNTIME_ROOT.stat()
+    if (
+        metadata.st_uid != 0
+        or metadata.st_gid != EXPECTED_MANAGER_GID
+        or stat.S_IMODE(metadata.st_mode) != 0o750
+    ):
+        raise UpdaterV2Error("ha_ota_runtime_root_metadata_invalid")
     publish_manager_manifest()
     transaction_store = HaUsbStateStore(STATE_ROOT)
     prepare_store = PrepareStateStore(STATE_ROOT)
