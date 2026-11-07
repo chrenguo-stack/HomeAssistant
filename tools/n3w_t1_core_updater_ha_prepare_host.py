@@ -217,6 +217,29 @@ def _run(
     return result.stdout
 
 
+def _run_optional(
+    argv: tuple[str, ...],
+    *,
+    timeout: int = 30,
+) -> bytes | None:
+    try:
+        result = subprocess.run(
+            argv,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+            check=False,
+        )
+    except FileNotFoundError as error:
+        raise UpdaterV2Error("ha_prepare_host_tool_missing") from error
+    except subprocess.TimeoutExpired as error:
+        raise UpdaterV2Error("ha_prepare_host_command_timeout") from error
+    if result.returncode:
+        return None
+    return result.stdout
+
+
 def _strict_json_bytes(payload: bytes, code: str) -> dict[str, Any]:
     try:
         value = json.loads(payload.decode("utf-8"))
@@ -525,6 +548,137 @@ class SubprocessPrepareBackend:
                 pass
             raise
 
+    def reopen_bound_media(
+        self,
+        transaction: dict[str, Any],
+    ) -> PreparedUsbMedia | None:
+        filesystem_uuid = transaction.get("usb_filesystem_uuid")
+        fingerprint = transaction.get(
+            "usb_device_identity_public_fingerprint"
+        )
+        transaction_id = transaction.get("transaction_id_sha256")
+        measured = transaction.get("usb_measured_usable_bytes")
+        if (
+            not isinstance(filesystem_uuid, str)
+            or not isinstance(fingerprint, str)
+            or SHA256.fullmatch(fingerprint) is None
+            or not isinstance(transaction_id, str)
+            or SHA256.fullmatch(transaction_id) is None
+            or type(measured) is not int
+            or measured <= 0
+        ):
+            raise UpdaterV2Error("usb_bound_media_authority_invalid")
+        validate_filesystem_uuid(filesystem_uuid)
+
+        raw_partition = _run_optional(
+            ("blkid", "-U", filesystem_uuid.lower())
+        )
+        if raw_partition is None:
+            return None
+        partition = raw_partition.decode(
+            "utf-8",
+            errors="strict",
+        ).strip()
+        if not partition.startswith("/dev/"):
+            raise UpdaterV2Error("usb_bound_partition_invalid")
+        raw_parent = _run_optional(
+            (
+                "lsblk",
+                "--noheadings",
+                "--paths",
+                "--output",
+                "PKNAME",
+                partition,
+            )
+        )
+        if raw_parent is None:
+            return None
+        parent = raw_parent.decode("utf-8", errors="strict").strip()
+        if not parent.startswith("/dev/"):
+            raise UpdaterV2Error("usb_bound_parent_invalid")
+
+        disks = [
+            item
+            for item in self._lsblk()
+            if item.get("type") == "disk" and item.get("path") == parent
+        ]
+        if len(disks) != 1:
+            raise UpdaterV2Error("usb_bound_parent_ambiguous")
+        disk = disks[0]
+        transport = str(disk.get("tran") or "").strip().lower()
+        if (
+            transport != "usb"
+            or not _boolish(disk.get("rm"))
+            or _boolish(disk.get("ro"))
+            or _stable_fingerprint(disk) != fingerprint
+        ):
+            raise UpdaterV2Error("usb_bound_device_identity_mismatch")
+
+        root_major_minor = _run(
+            ("findmnt", "--noheadings", "--output", "MAJ:MIN", "/")
+        ).decode("utf-8", errors="strict").strip()
+        major_minors = {
+            str(item.get("maj:min") or "").strip()
+            for item in _flatten_blocks([disk])
+        }
+        if root_major_minor in major_minors:
+            raise UpdaterV2Error("usb_bound_device_is_root")
+
+        _require_private_directory(
+            self.runtime_root,
+            allow_group_read_execute=True,
+        )
+        mount_root = self.runtime_root / "media"
+        _require_private_directory(mount_root, create=True)
+        mount_path = mount_root / transaction_id[:16]
+        _require_private_directory(mount_path, create=True)
+
+        raw_target = _run_optional(
+            (
+                "findmnt",
+                "--noheadings",
+                "--output",
+                "TARGET",
+                "--source",
+                partition,
+            )
+        )
+        if raw_target is None:
+            _run(
+                (
+                    "mount",
+                    "-o",
+                    "nodev,nosuid,noexec",
+                    partition,
+                    str(mount_path),
+                )
+            )
+        else:
+            target = raw_target.decode(
+                "utf-8",
+                errors="strict",
+            ).strip()
+            if target != str(mount_path):
+                raise UpdaterV2Error("usb_bound_partition_mounted_elsewhere")
+
+        media = PreparedUsbMedia(
+            locator=parent,
+            public_fingerprint=fingerprint,
+            filesystem_uuid=filesystem_uuid.lower(),
+            measured_usable_bytes=measured,
+            mount_path=str(mount_path),
+        ).validate()
+        self._require_bound_media(media)
+        filesystem_type = _run(
+            ("blkid", "-s", "TYPE", "-o", "value", partition)
+        ).decode("utf-8", errors="strict").strip()
+        label = _run(
+            ("blkid", "-s", "LABEL", "-o", "value", partition)
+        ).decode("utf-8", errors="strict").strip()
+        if filesystem_type != "ext4" or label != USB_LABEL:
+            raise UpdaterV2Error("usb_bound_filesystem_contract_invalid")
+        return media
+
     def abort_prepared_media(self, media: PreparedUsbMedia) -> None:
         media.validate()
         mount_path = Path(media.mount_path)
@@ -588,8 +742,30 @@ class SubprocessPrepareBackend:
         target_dir = update_dir / "target"
         _require_private_directory(target_dir, create=True)
         destination = target_dir / "homeassistant-arm64.tar.gz"
-        if destination.exists() or destination.is_symlink():
-            raise UpdaterV2Error("ha_target_destination_exists")
+        if destination.is_symlink():
+            raise UpdaterV2Error("ha_target_destination_invalid")
+        if destination.exists():
+            identity = portable.parse_image_archive(
+                destination,
+                expected_archive_sha256=policy.target_archive_sha256,
+                expected_archive_size_bytes=policy.target_archive_size_bytes,
+                expected_tag=transaction["target_image_ref"],
+                platform_os="linux",
+                platform_architecture="arm64",
+            )
+            self._require_bound_media(media)
+            return ImageRecoveryRecord(
+                kind="target",
+                image_ref=transaction["target_image_ref"],
+                archive_sha256=policy.target_archive_sha256,
+                archive_size_bytes=policy.target_archive_size_bytes,
+                portable_identity_sha256=sha256_bytes(
+                    canonical(identity.to_dict())
+                ),
+                platform="linux/arm64",
+                verified=True,
+                fsynced=True,
+            )
         descriptor, raw = tempfile.mkstemp(
             prefix=".homeassistant-target.",
             dir=target_dir,
