@@ -392,3 +392,74 @@ def test_usb_fingerprint_binds_both_serial_and_wwn() -> None:
     second["wwn"] = "WWN-2"
 
     assert host._stable_fingerprint(first) != host._stable_fingerprint(second)
+
+
+class BadShaResponse:
+    headers = {"Content-Length": "1024"}
+
+    def __init__(self) -> None:
+        self.sent = False
+
+    def geturl(self):
+        return "https://updates.example.invalid/ha.tar.gz"
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return None
+
+    def read(self, _size):
+        if self.sent:
+            return b""
+        self.sent = True
+        return b"x" * 1024
+
+
+def test_target_download_sha_mismatch_never_reaches_archive_parser(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mount = tmp_path / "media-sha"
+    mount.mkdir(mode=0o700)
+    media = PreparedUsbMedia(
+        locator="/dev/sdz",
+        public_fingerprint=FINGERPRINT,
+        filesystem_uuid=UUID,
+        measured_usable_bytes=16 * 1024**3,
+        mount_path=str(mount),
+    )
+    backend = host.SubprocessPrepareBackend(
+        policy_provider=FakePolicyProvider(),
+        runtime_root=tmp_path,
+    )
+    monkeypatch.setattr(
+        backend,
+        "_require_bound_media",
+        lambda _media: "/dev/sdz1",
+    )
+    monkeypatch.setattr(
+        host.urllib.request,
+        "urlopen",
+        lambda *_a, **_k: BadShaResponse(),
+    )
+    parser = monkeypatch.setattr(
+        host.portable,
+        "parse_image_archive",
+        lambda *_a, **_k: pytest.fail("archive parser must not run"),
+    )
+
+    transaction = {
+        "target_image_ref": "local/n3w-homeassistant:2026.10.4-bbbbbbbb",
+        "target_manifest_identity": {
+            "release_identity": "homeassistant-2026.10.4",
+        },
+        "target_archive_sha256": "1" * 64,
+        "target_archive_size": 1024,
+    }
+
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_target_download_identity_mismatch",
+    ):
+        backend.prepare_target(transaction=transaction, media=media)
