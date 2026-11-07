@@ -531,6 +531,7 @@ class T1OtaManager:
                 if status.ota_phase in {
                     "USB_REQUIRED",
                     "USB_REQUIRED_CONFIRMATION",
+    "RECOVERY_MEDIA_REQUIRED",
                 }:
                     raise OtaControlError("ota_prepare_already_requested")
             elif not status.ready_to_install:
