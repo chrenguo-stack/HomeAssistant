@@ -443,7 +443,7 @@ def test_target_download_sha_mismatch_never_reaches_archive_parser(
         "urlopen",
         lambda *_a, **_k: BadShaResponse(),
     )
-    parser = monkeypatch.setattr(
+    monkeypatch.setattr(
         host.portable,
         "parse_image_archive",
         lambda *_a, **_k: pytest.fail("archive parser must not run"),
