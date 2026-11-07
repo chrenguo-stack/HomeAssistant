@@ -454,6 +454,11 @@ def collect_readonly_preflight(transport: Any) -> dict[str, Any]:
         remote_exists(transport, "/run/n3w-t1-ota", "-d")
         or remote_exists(transport, "/run/n3w-t1-ota/ha-ota.sock", "-S")
         or remote_exists(transport, "/etc/n3wfc4/ha-ota-activation.env", "-f")
+        or remote_exists(
+            transport,
+            "/etc/n3w-t1-ota/approved-homeassistant.json",
+            "-f",
+        )
     ):
         raise StopExecution("r7a_activation_residue_present")
 
@@ -481,17 +486,17 @@ def read_remote_private_json(
     schema: str,
 ) -> dict[str, Any] | None:
     if transport.run_remote(
-        ["test", "-e", path],
-        check=False,
-        timeout=30,
-    ).returncode != 0:
-        return None
-    if transport.run_remote(
         ["test", "-L", path],
         check=False,
         timeout=30,
     ).returncode == 0:
         raise StopExecution("updater_state_symlink")
+    if transport.run_remote(
+        ["test", "-e", path],
+        check=False,
+        timeout=30,
+    ).returncode != 0:
+        return None
     metadata = transport.run_remote(
         ["stat", "-c", "%U:%G:%a:%F", path],
         timeout=30,
@@ -513,6 +518,12 @@ def read_remote_private_json(
 
 
 def collect_updater_state_readonly(transport: Any) -> dict[str, Any]:
+    if transport.run_remote(
+        ["test", "-L", UPDATER_STATE_ROOT],
+        check=False,
+        timeout=30,
+    ).returncode == 0:
+        raise StopExecution("updater_state_root_symlink")
     metadata = transport.run_remote(
         ["stat", "-c", "%U:%G:%a:%F", UPDATER_STATE_ROOT],
         timeout=30,
@@ -614,8 +625,21 @@ def stage_package(transport: Any, package: Path) -> dict[str, str]:
 
     remote_hashes: dict[str, str] = {}
     for name in sorted(EXPECTED_PACKAGE_FILES):
+        remote_path = f"{REMOTE_DIR}/{name}"
+        if transport.run_remote(
+            ["test", "-L", remote_path],
+            check=False,
+            timeout=30,
+        ).returncode == 0:
+            raise StopExecution("remote_staging_symlink")
+        if transport.run_remote(
+            ["test", "-f", remote_path],
+            check=False,
+            timeout=30,
+        ).returncode != 0:
+            raise StopExecution("remote_staging_file_invalid")
         result = transport.run_remote(
-            ["sha256sum", f"{REMOTE_DIR}/{name}"],
+            ["sha256sum", remote_path],
             timeout=120,
         )
         parts = result.stdout.strip().split()
@@ -700,7 +724,8 @@ def validate_post_apply(
 
     target_doc = docker_container(transport, TARGET_MANAGER)
     if (
-        target_doc.get("Config", {}).get("User") != "999:999"
+        target_doc.get("Image") != MANAGER_BUILD_IMAGE_ID
+        or target_doc.get("Config", {}).get("User") != "999:999"
         or target_doc.get("RestartCount") != 0
         or target_doc.get("State", {}).get("Status") != "running"
     ):
@@ -749,7 +774,8 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
         "t1_file_write": False,
         "apply_invoked": False,
         "second_apply_invoked": False,
-        "automatic_rollback": False,
+        "executor_explicit_rollback_invoked": False,
+        "updater_internal_failure_rollback_possible": True,
         "usb_mutation": False,
         "host_daemon_activation": False,
         "board_access": False,
@@ -846,10 +872,44 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
             timeout=900,
             check=False,
         )
-        apply_doc = parse_updater(apply_result, "apply")
-        write_private(root / "apply.json", apply_doc)
+        apply_doc: dict[str, Any] | None = None
+        try:
+            apply_doc = parse_updater(apply_result, "apply")
+            write_private(root / "apply.json", apply_doc)
+        except StopExecution:
+            write_private(
+                root / "apply_transport.json",
+                {
+                    "returncode": apply_result.returncode,
+                    "stdout_sha256": hashlib.sha256(
+                        apply_result.stdout.encode("utf-8")
+                    ).hexdigest(),
+                    "stderr_sha256": hashlib.sha256(
+                        apply_result.stderr.encode("utf-8")
+                    ).hexdigest(),
+                },
+            )
+
+        post_status_result = updater_command(
+            transport,
+            ["status"],
+            timeout=120,
+            check=False,
+        )
+        post_inspect_result = updater_command(
+            transport,
+            ["inspect", "--component", "manager"],
+            timeout=180,
+            check=False,
+        )
+        post_status = parse_updater(post_status_result, "post_status")
+        post_inspect = parse_updater(post_inspect_result, "post_inspect")
+        write_private(root / "post_status.json", post_status)
+        write_private(root / "post_inspect.json", post_inspect)
+
         if (
             apply_result.returncode != 0
+            or not isinstance(apply_doc, dict)
             or apply_doc.get("status") != "PASS"
             or apply_doc.get("operation") != "apply"
             or apply_doc.get("transaction_status") != "COMMITTED"
@@ -857,20 +917,6 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
         ):
             raise StopExecution("apply_not_committed")
 
-        post_status = parse_updater(
-            updater_command(transport, ["status"], timeout=120),
-            "post_status",
-        )
-        post_inspect = parse_updater(
-            updater_command(
-                transport,
-                ["inspect", "--component", "manager"],
-                timeout=180,
-            ),
-            "post_inspect",
-        )
-        write_private(root / "post_status.json", post_status)
-        write_private(root / "post_inspect.json", post_inspect)
         validate_post_apply(transport, post_status, post_inspect)
 
         closure["status"] = "PASS"
