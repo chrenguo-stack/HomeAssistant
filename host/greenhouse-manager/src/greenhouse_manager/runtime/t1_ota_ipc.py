@@ -149,7 +149,10 @@ class UnixSocketOtaBridge:
             raise
         except (UnicodeDecodeError, json.JSONDecodeError) as error:
             raise OtaControlError("ota_ipc_response_invalid") from error
-        expected = {
+        if not isinstance(response, dict):
+            raise OtaControlError("ota_ipc_response_invalid")
+        schema = response.get("schema")
+        expected_v1 = {
             "schema",
             "accepted",
             "code",
@@ -157,9 +160,54 @@ class UnixSocketOtaBridge:
             "progress_percent",
             "error_code",
         }
-        if not isinstance(response, dict) or set(response) != expected:
+        expected_v2 = expected_v1 | {
+            "installed_version",
+            "usb_candidate",
+            "usb_confirmation_required",
+        }
+        if schema == RESPONSE_SCHEMA:
+            if set(response) != expected_v1:
+                raise OtaControlError("ota_ipc_response_invalid")
+            installed_version = None
+            candidate_model = None
+            candidate_capacity = None
+            confirmation_required = False
+        elif schema == RESPONSE_SCHEMA_V2:
+            if set(response) != expected_v2:
+                raise OtaControlError("ota_ipc_response_invalid")
+            installed_version = response["installed_version"]
+            if installed_version is not None and not isinstance(
+                installed_version,
+                str,
+            ):
+                raise OtaControlError("ota_ipc_response_invalid")
+            candidate = response["usb_candidate"]
+            if candidate is None:
+                candidate_model = None
+                candidate_capacity = None
+            else:
+                if (
+                    not isinstance(candidate, dict)
+                    or set(candidate)
+                    != {
+                        "public_fingerprint",
+                        "display_model",
+                        "display_capacity_bytes",
+                    }
+                    or not isinstance(candidate["public_fingerprint"], str)
+                    or _SHA256_RE.fullmatch(candidate["public_fingerprint"]) is None
+                    or not isinstance(candidate["display_model"], str)
+                    or type(candidate["display_capacity_bytes"]) is not int
+                ):
+                    raise OtaControlError("ota_ipc_response_invalid")
+                candidate_model = candidate["display_model"]
+                candidate_capacity = candidate["display_capacity_bytes"]
+            confirmation_required = response["usb_confirmation_required"]
+            if type(confirmation_required) is not bool:
+                raise OtaControlError("ota_ipc_response_invalid")
+        else:
             raise OtaControlError("ota_ipc_response_invalid")
-        if response["schema"] != RESPONSE_SCHEMA or type(response["accepted"]) is not bool:
+        if type(response["accepted"]) is not bool:
             raise OtaControlError("ota_ipc_response_invalid")
         code = response["code"]
         if not isinstance(code, str) or _CODE_RE.fullmatch(code) is None:
@@ -168,6 +216,10 @@ class UnixSocketOtaBridge:
             phase=response["phase"],
             progress_percent=response["progress_percent"],
             error_code=response["error_code"],
+            installed_version=installed_version,
+            usb_candidate_model=candidate_model,
+            usb_candidate_capacity_bytes=candidate_capacity,
+            usb_confirmation_required=confirmation_required,
         ).validate()
         if response["accepted"] is not True:
             raise OtaControlError(code)
