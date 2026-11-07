@@ -10,6 +10,7 @@ import pytest
 from n3w_t1_core_updater_ha_ipc import (
     REQUEST_SCHEMA,
     RESPONSE_SCHEMA,
+    RESPONSE_SCHEMA_V2,
     HaUsbIpcDispatcher,
     HaUsbIpcExecutor,
     HostOtaAdmission,
@@ -54,6 +55,51 @@ class Resolver:
             target_archive_sha256=ARCHIVE_SHA,
             target_archive_size=835309535,
         )
+
+
+class ControllerStub:
+    def __init__(self) -> None:
+        self.begin_calls = 0
+        self.refresh_calls = 0
+        self.confirm_calls = 0
+        self.resume_calls = 0
+
+    def begin(self, _document) -> None:
+        self.begin_calls += 1
+
+    def refresh_candidate(self):
+        self.refresh_calls += 1
+        return {
+            "phase": "USB_REQUIRED_CONFIRMATION",
+            "progress_percent": None,
+            "error_code": None,
+            "usb_candidate": {
+                "public_fingerprint": "c" * 64,
+                "display_model": "Synthetic USB",
+                "display_capacity_bytes": 16 * 1024**3,
+            },
+            "usb_confirmation_required": True,
+        }
+
+    def confirm_and_prepare(self):
+        self.confirm_calls += 1
+        return {
+            "phase": "READY_TO_INSTALL",
+            "progress_percent": None,
+            "error_code": None,
+            "usb_candidate": None,
+            "usb_confirmation_required": False,
+        }
+
+    def resume_prepare(self):
+        self.resume_calls += 1
+        return {
+            "phase": "READY_TO_INSTALL",
+            "progress_percent": None,
+            "error_code": None,
+            "usb_candidate": None,
+            "usb_confirmation_required": False,
+        }
 
 
 def _executor(tmp_path: Path) -> tuple[HaUsbIpcExecutor, Resolver, HaUsbStateStore]:
@@ -219,3 +265,112 @@ def test_server_rejects_existing_socket_path(tmp_path: Path) -> None:
     )
     with pytest.raises(UpdaterV2Error, match="ha_ota_ipc_socket_path_exists"):
         server.start()
+
+
+def test_r4_executor_without_prepare_controller_stays_v1(tmp_path: Path) -> None:
+    executor, _, _ = _executor(tmp_path)
+    dispatcher = HaUsbIpcDispatcher(executor)
+
+    response = json.loads(
+        dispatcher.handle(
+            json.dumps(
+                {"schema": REQUEST_SCHEMA, "operation": "status"}
+            ).encode("utf-8")
+        )
+    )
+
+    assert response["schema"] == RESPONSE_SCHEMA
+    assert set(response) == {
+        "schema",
+        "accepted",
+        "code",
+        "phase",
+        "progress_percent",
+        "error_code",
+    }
+
+
+def test_r7a_executor_emits_v2_only_with_prepare_controller(tmp_path: Path) -> None:
+    root = tmp_path / "state"
+    root.mkdir(mode=0o700)
+    resolver = Resolver()
+    store = HaUsbStateStore(root)
+    controller = ControllerStub()
+    executor = HaUsbIpcExecutor(
+        store=store,
+        admission_resolver=resolver,
+        prepare_controller=controller,
+    )
+    dispatcher = HaUsbIpcDispatcher(executor)
+
+    response = json.loads(
+        dispatcher.handle(
+            json.dumps(
+                {
+                    "schema": REQUEST_SCHEMA,
+                    "operation": "submit",
+                    "action": "PREPARE",
+                    "target_release_id": RELEASE,
+                }
+            ).encode("utf-8")
+        )
+    )
+
+    assert response["schema"] == RESPONSE_SCHEMA_V2
+    assert response["phase"] == "USB_REQUIRED_CONFIRMATION"
+    assert response["usb_confirmation_required"] is True
+    assert response["usb_candidate"]["display_model"] == "Synthetic USB"
+    assert response["installed_version"] == "2026.10.0"
+    assert controller.begin_calls == 1
+    assert controller.refresh_calls >= 1
+
+
+def test_r7a_u3_status_starts_resume_worker(tmp_path: Path) -> None:
+    root = tmp_path / "state"
+    root.mkdir(mode=0o700)
+    resolver = Resolver()
+    store = HaUsbStateStore(root)
+    base = HaUsbIpcExecutor(
+        store=store,
+        admission_resolver=resolver,
+    )
+    base.submit("PREPARE", RELEASE)
+    current = store.read()
+    assert current is not None
+
+    authorization = FormatAuthorization(
+        public_fingerprint="c" * 64,
+        confirmation_verified=True,
+        filesystem="ext4",
+        label="N3W-UPDATE",
+    )
+    capacity = UsbCapacityReport(
+        measured_usable_bytes=16 * 1024**3,
+        required_bytes=8 * 1024**3,
+        measured_floor_bytes=14 * 1024**3,
+        measured_floor_pass=True,
+        transaction_formula_pass=True,
+        capacity_pass=True,
+    )
+    current = record_media_bound(
+        current,
+        format_authorization=authorization,
+        filesystem_uuid="12345678-1234-1234-1234-123456789abc",
+        measured_usable_bytes=capacity.measured_usable_bytes,
+        capacity_report=capacity,
+    )
+    current = start_target_preparation(current)
+    store.write(current)
+
+    controller = ControllerStub()
+    executor = HaUsbIpcExecutor(
+        store=store,
+        admission_resolver=resolver,
+        prepare_controller=controller,
+    )
+
+    status = executor.status()
+    assert status["phase"] == "TARGET_DOWNLOADING_VERIFYING"
+    assert executor._prepare_thread is not None
+    executor._prepare_thread.join(2)
+    assert controller.resume_calls == 1
