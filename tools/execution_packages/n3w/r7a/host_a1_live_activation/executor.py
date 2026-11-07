@@ -463,7 +463,10 @@ def require_activation_residue_absent(transport: Any) -> None:
         HA_USB_TRANSACTION,
         HA_PREPARE_STATE,
     ):
-        if remote_exists(transport, path):
+        if remote_exists(transport, path, "-L") or remote_exists(
+            transport,
+            path,
+        ):
             raise StopExecution("a1_activation_residue_present")
 
 
@@ -588,7 +591,7 @@ def stage_bundle(
     installed_version: str,
 ) -> tuple[str, dict[str, str]]:
     root = remote_staging_root(execution_id)
-    if remote_exists(transport, root):
+    if remote_exists(transport, root, "-L") or remote_exists(transport, root):
         raise StopExecution("remote_staging_already_exists")
     remote(
         transport,
@@ -675,7 +678,10 @@ def snapshot_rollback(
     for index, target in enumerate(LIVE_TARGETS):
         if remote_exists(transport, target, "-L"):
             raise StopExecution("activation_target_symlink")
+        exists = remote_exists(transport, target)
         present = remote_exists(transport, target, "-f")
+        if exists and not present:
+            raise StopExecution("activation_target_not_regular")
         item: dict[str, Any] = {"present": present}
         if present:
             metadata = remote(
@@ -694,6 +700,13 @@ def snapshot_rollback(
                 raise StopExecution("activation_target_hash_invalid")
             backup = f"{backup_root}/{index:02d}"
             remote(transport, ["cp", "-a", "--", target, backup], timeout=120)
+            backup_digest = remote(
+                transport,
+                ["sha256sum", backup],
+                timeout=60,
+            ).stdout.strip().split()
+            if len(backup_digest) != 2 or backup_digest[0] != digest[0]:
+                raise StopExecution("rollback_backup_hash_mismatch")
             item.update(
                 {
                     "metadata": metadata,

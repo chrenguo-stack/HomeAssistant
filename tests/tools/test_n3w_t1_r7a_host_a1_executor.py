@@ -42,6 +42,8 @@ def test_manifest_is_source_only_and_stops_before_live_a1() -> None:
     assert contract["legacy_recovery_gate"] is True
     assert contract["manager_ipc_status_probe"] is True
     assert contract["structured_ssh_start_stop"] is True
+    assert contract["symlink_nonregular_fail_closed"] is True
+    assert contract["rollback_backup_hash_verified"] is True
 
 
 def test_source_authority_matches_exact_git_blobs() -> None:
@@ -260,3 +262,50 @@ def test_ssh_epoch_start_failure_is_structured_stop() -> None:
             known_hosts=Path("/tmp/known_hosts"),
             expected_host_key_sha256="0" * 64,
         )
+
+
+def test_activation_residue_rejects_dangling_symlink(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executor = load_executor()
+
+    def fake_exists(_transport, path, kind="-e"):
+        return (
+            path == executor.HOST_UNIT_PATH
+            and kind == "-L"
+        )
+
+    monkeypatch.setattr(executor, "remote_exists", fake_exists)
+    with pytest.raises(
+        executor.StopExecution,
+        match="a1_activation_residue_present",
+    ):
+        executor.require_activation_residue_absent(object())
+
+
+def test_rollback_snapshot_rejects_nonregular_existing_target(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executor = load_executor()
+
+    def fake_exists(_transport, path, kind="-e"):
+        first = executor.LIVE_TARGETS[0]
+        if path == first and kind == "-L":
+            return False
+        if path == first and kind == "-e":
+            return True
+        if path == first and kind == "-f":
+            return False
+        return False
+
+    monkeypatch.setattr(executor, "remote_exists", fake_exists)
+    monkeypatch.setattr(
+        executor,
+        "remote",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess([], 0, "", ""),
+    )
+    with pytest.raises(
+        executor.StopExecution,
+        match="activation_target_not_regular",
+    ):
+        executor.snapshot_rollback(object(), "/var/tmp/a1")

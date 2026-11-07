@@ -56,7 +56,9 @@
     "merge": false,
     "legacy_recovery_gate": true,
     "manager_ipc_status_probe": true,
-    "structured_ssh_start_stop": true
+    "structured_ssh_start_stop": true,
+    "symlink_nonregular_fail_closed": true,
+    "rollback_backup_hash_verified": true
   },
   "stop_boundary": "BEFORE_REAL_T1_SSH_EPOCH_UNTIL_SEPARATE_A1_LIVE_AUTHORIZATION"
 }
