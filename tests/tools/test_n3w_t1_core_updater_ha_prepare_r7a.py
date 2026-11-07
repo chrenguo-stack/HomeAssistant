@@ -60,6 +60,10 @@ class FakeBackend:
         self.formatted = 0
         self.prepared = 0
         self.aborted = 0
+        self.reopened = 0
+        self.fail_prepare_once = False
+        self.media_available = True
+        self.last_media: PreparedUsbMedia | None = None
         self.measured = 16 * 1024**3
         self.capacity = UsbCapacityInputs(
             target_artifact_bytes=1 * 1024**3,
@@ -84,13 +88,20 @@ class FakeBackend:
     ) -> PreparedUsbMedia:
         self.formatted += 1
         self.mount.mkdir(exist_ok=True)
-        return PreparedUsbMedia(
+        self.last_media = PreparedUsbMedia(
             locator=candidate.locator,
             public_fingerprint=candidate.public_fingerprint,
             filesystem_uuid=UUID,
             measured_usable_bytes=self.measured,
             mount_path=str(self.mount),
         )
+        return self.last_media
+
+    def reopen_bound_media(self, transaction):
+        self.reopened += 1
+        if not self.media_available:
+            return None
+        return self.last_media
 
     def prepare_target(
         self,
@@ -99,6 +110,9 @@ class FakeBackend:
         media: PreparedUsbMedia,
     ) -> ImageRecoveryRecord:
         self.prepared += 1
+        if self.fail_prepare_once:
+            self.fail_prepare_once = False
+            raise UpdaterV2Error("synthetic_prepare_interrupted")
         return ImageRecoveryRecord(
             kind="target",
             image_ref=TARGET,
@@ -284,3 +298,55 @@ def test_confirmation_without_published_candidate_does_not_format(
     ):
         value.confirm_and_prepare()
     assert backend.formatted == 0
+
+
+def test_u3_resume_reopens_same_bound_media_without_reformat(
+    tmp_path: Path,
+) -> None:
+    value, backend, store, document = controller(tmp_path)
+    value.begin(document)
+    backend.items = (candidate("b" * 64),)
+    value.refresh_candidate()
+    backend.fail_prepare_once = True
+
+    with pytest.raises(UpdaterV2Error, match="synthetic_prepare_interrupted"):
+        value.confirm_and_prepare()
+
+    interrupted = store.read()
+    assert interrupted is not None
+    assert interrupted["phase"] == "U3_TARGET_DOWNLOADING_VERIFYING"
+    assert backend.formatted == 1
+
+    status = value.resume_prepare()
+
+    final = store.read()
+    assert final is not None
+    assert final["phase"] == U4
+    assert status["phase"] == "READY_TO_INSTALL"
+    assert backend.formatted == 1
+    assert backend.reopened == 1
+    assert backend.prepared == 2
+
+
+def test_resume_waits_for_same_bound_media_instead_of_formatting_another(
+    tmp_path: Path,
+) -> None:
+    value, backend, store, document = controller(tmp_path)
+    value.begin(document)
+    backend.items = (candidate("b" * 64),)
+    value.refresh_candidate()
+    backend.fail_prepare_once = True
+
+    with pytest.raises(UpdaterV2Error):
+        value.confirm_and_prepare()
+    backend.media_available = False
+    backend.items = (candidate("c" * 64, locator="/dev/sdy"),)
+
+    with pytest.raises(UpdaterV2Error, match="usb_bound_media_unavailable"):
+        value.resume_prepare()
+
+    interrupted = store.read()
+    assert interrupted is not None
+    assert interrupted["phase"] == "U3_TARGET_DOWNLOADING_VERIFYING"
+    assert backend.formatted == 1
+    assert backend.reopened == 1
