@@ -33,6 +33,19 @@ def test_manager_identity_matches_current_runtime_topics() -> None:
         "publishClientSend",
         "homeassistant/binary_sensor/+/config",
     ) in allowed
+    assert (
+        "publishClientSend",
+        "homeassistant/update/n3w_t1_homeassistant/config",
+    ) in allowed
+    assert (
+        "publishClientSend",
+        "homeassistant/button/n3w_t1_homeassistant_prepare/config",
+    ) in allowed
+    assert (
+        "publishClientSend",
+        "homeassistant/button/n3w_t1_homeassistant_confirm_usb/config",
+    ) in allowed
+    assert ("publishClientSend", "homeassistant/#") not in allowed
     assert not any("+_" in topic for _acl_type, topic in allowed)
     assert ("publishClientSend", "homeassistant/status") not in allowed
     assert (
