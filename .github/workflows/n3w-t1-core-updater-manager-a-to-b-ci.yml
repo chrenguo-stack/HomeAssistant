@@ -22,8 +22,12 @@ on:
       - "infra/n3w-t1/clean-reference/r7a-repaired-manager-predecessor-bf38-baseline-20261108.json"
       - "tools/execution_packages/n3w/r7a/manager_a0_live_apply/**"
       - "tools/execution_packages/n3w/r7a/host_a1_live_activation/**"
+      - "tools/execution_packages/n3w/r7a/repaired_manager_a0r_live_apply/**"
+      - "tools/execution_packages/n3w/r7a/repaired_manager_a1_reactivation/**"
       - "tests/tools/test_n3w_t1_r7a_manager_a0_executor.py"
       - "tests/tools/test_n3w_t1_r7a_host_a1_executor.py"
+      - "tests/tools/test_n3w_t1_r7a_repaired_manager_a0r_executor.py"
+      - "tests/tools/test_n3w_t1_r7a_repaired_manager_a1r_executor.py"
       - "infra/n3w-t1/production/docker-compose.ha-ota.yml"
       - "infra/n3w-t1/systemd/n3w-t1-ha-ota.service"
       - "infra/n3w-t1/systemd/n3wfc4-services-activation.ha-ota.conf"
@@ -82,7 +86,9 @@ jobs:
             tools/n3w_t1_core_updater_ha_prepare.py \
             tools/n3w_t1_core_updater_ha_prepare_host.py \
             tools/n3w_t1_portable_image_identity.py \
-            tools/execution_packages/n3w/r7a/host_a1_live_activation/executor.py
+            tools/execution_packages/n3w/r7a/host_a1_live_activation/executor.py \
+            tools/execution_packages/n3w/r7a/repaired_manager_a0r_live_apply/executor.py \
+            tools/execution_packages/n3w/r7a/repaired_manager_a1_reactivation/executor.py
           PYTHONPATH=tools python -m pytest -q \
             tests/tools/test_n3w_t1_core_updater.py \
             tests/tools/test_n3w_t1_core_updater_a2.py \
@@ -92,6 +98,8 @@ jobs:
             tests/tools/test_n3w_t1_core_updater_manager_r7a_repair_successor.py \
             tests/tools/test_n3w_t1_r7a_manager_a0_executor.py \
             tests/tools/test_n3w_t1_r7a_host_a1_executor.py \
+            tests/tools/test_n3w_t1_r7a_repaired_manager_a0r_executor.py \
+            tests/tools/test_n3w_t1_r7a_repaired_manager_a1r_executor.py \
             tests/tools/test_n3w_t1_core_updater_ha_prepare_host_r7a.py \
             tests/tools/test_n3w_t1_core_updater_ha_prepare_r7a.py \
             tests/tools/test_n3w_t1_core_stack_current_authority.py \
