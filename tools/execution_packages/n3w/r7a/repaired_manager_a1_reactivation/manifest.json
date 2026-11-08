@@ -5,7 +5,7 @@
   "proposed_authorization_id": "N3W_T1_R7A_REPAIRED_MANAGER_A1R_LIVE_REACTIVATION_20261108_01",
   "confirmation": "EXECUTE R7A REPAIRED MANAGER A1R LIVE REACTIVATION: YES",
   "source_authority": {
-    "tools/n3w_t1_ssh_transport.py": "dec4c9159195e2008094d94fef3fc76c4b977e46",
+    "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
     "tools/n3w_t1_core_updater_ha_daemon.py": "98c879f65840c237e7ee8855412806e346d880f5",
     "tools/n3w_t1_core_updater_ha_ipc.py": "550c6336303eb767ce813c27c2b35d9a89968472",
     "tools/n3w_t1_core_updater_ha_prepare.py": "3391536669c3f545e25d51de8be51c3dc65aad75",

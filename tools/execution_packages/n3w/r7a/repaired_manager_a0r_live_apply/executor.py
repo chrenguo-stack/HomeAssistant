@@ -185,7 +185,7 @@ def load_ssh_transport() -> type:
         SSH_TRANSPORT_PATH.is_symlink()
         or not SSH_TRANSPORT_PATH.is_file()
         or git_text("hash-object", str(SSH_TRANSPORT_PATH))
-        != "dec4c9159195e2008094d94fef3fc76c4b977e46"
+        != "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7"
     ):
         raise StopExecution("ssh_transport_binding_invalid")
     spec = importlib.util.spec_from_file_location(
