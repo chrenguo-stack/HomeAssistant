@@ -1,3 +1,15 @@
+## 2026-11-09 — KF-146 OTA control DynSec source repair + live confirmation
+
+- T1 Core Stack compatibility authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; repository Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- Boundary B PREPARE was pressed exactly once, but HA-USB transaction and prepare state remained absent; USB remained absent.
+- Live Manager role has 20 ACLs and live Home Assistant role has 9 ACLs.
+- Exact OTA control topic has zero Manager subscribe/receive/unsubscribe ACLs and zero Home Assistant publish ACLs; `READONLY_RESULT=PASS_KF146_LIVE_CONFIRMED`.
+- Source repair head `41e0300e23351343bfe85f610d104cf533484e8e` adds only the exact four missing permissions and real DynSec HA→Manager delivery coverage.
+- Functional CI PASS: greenhouse-manager `42536106786`, M2 Dynamic Security `42536106920`, S20 real service handoff `42536106795`, fast source `42536106856`, public safety `42536106929`.
+- The consumed PREPARE is non-replayable; USB insertion remains forbidden until KF-146 live repair.
+- Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF146_OTA_CONTROL_DYNSEC_LIVE_APPLY_20261109_01`; not yet authorized.
+- Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF146_OTA_CONTROL_DYNSEC_SOURCE_REPAIR_AND_LIVE_READONLY_CONFIRMATION_20261109.md`.
+
 ## 2026-11-09 — KF-145 live DynSec repair CLOSED_PASS
 
 - Production Manager role repaired from 17 to 20 ACLs by adding only the three exact R7A OTA Discovery publish grants.
