@@ -57,6 +57,7 @@ def _manager_acls(system_id: str) -> tuple[DynsecAcl, ...]:
     ingress = f"gh/v1/{system_id}/ingress/node/+/telemetry"
     relay_ingress = f"gh/v1/{system_id}/ingress/gateway/+/+/frame"
     state_telemetry = f"gh/v1/{system_id}/state/+/telemetry"
+    ota_control = f"gh/v1/{system_id}/control/t1/homeassistant/ota"
     return (
         DynsecAcl("publishClientSend", "$CONTROL/#", False, 1000),
         DynsecAcl("subscribePattern", "$CONTROL/#", False, 1000),
@@ -89,15 +90,18 @@ def _manager_acls(system_id: str) -> tuple[DynsecAcl, ...]:
         *_allow_topic(ingress),
         *_allow_topic(relay_ingress),
         *_allow_topic(state_telemetry),
+        *_allow_topic(ota_control),
         *_allow_topic("gh/bootstrap/v1/node/+/hello"),
     )
 
 
 def _home_assistant_acls(system_id: str) -> tuple[DynsecAcl, ...]:
+    ota_control = f"gh/v1/{system_id}/control/t1/homeassistant/ota"
     return (
         DynsecAcl("publishClientSend", "$CONTROL/#", False, 1000),
         DynsecAcl("subscribePattern", "$CONTROL/#", False, 1000),
         DynsecAcl("publishClientSend", "homeassistant/status", True, 100),
+        DynsecAcl("publishClientSend", ota_control, True, 100),
         *_allow_topic("homeassistant/#"),
         *_allow_topic(f"gh/v1/{system_id}/state/#"),
     )
