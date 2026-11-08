@@ -1,5 +1,6 @@
 ## 2026-11-08 — repaired Manager A0R/A1R preexecution CLOSED_PASS
 
+- T1 Core Stack authority compatibility link: `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
 - Repaired Manager source remains `7807271e4c48161f2fad96a7886fa4c24b038321`; target image is `local/greenhouse-manager:fresh-7807271e4c48`.
 - A0R live package authority remains immutable at run `42480154921`, artifact `13616844356`, digest `sha256:3c07406cd51258c8ef95f02e1e6cc80d09eb7235c218e7ead74a02a5521442fd`, control head `4c883c02...`.
 - A0R/A1R executable source authority is `813acb95401612585fc73455e05c81e3e6b86009`, tree `fdea2402ab30f1f6139268d2d450eb75a9f85226`.
