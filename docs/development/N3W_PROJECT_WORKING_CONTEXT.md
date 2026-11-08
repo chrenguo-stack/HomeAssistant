@@ -1,3 +1,48 @@
+## Stable updater authority — 2026-11-08 repaired Manager A0R/A1R live CLOSED_PASS
+
+```text
+PROJECT_WORKING_CONTEXT_VERSION=2.5
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+
+R7A_REPAIRED_MANAGER_SOURCE_HEAD=7807271e4c48161f2fad96a7886fa4c24b038321
+R7A_REPAIRED_MANAGER_LIVE=local/greenhouse-manager:fresh-7807271e4c48
+R7A_A0R_STATUS=CLOSED_PASS_COMMITTED
+R7A_A1R_STATUS=CLOSED_PASS
+R7A_A1R_LIVE_AUTHORIZED_HEAD=70aaa4070641dd73c1a97738e6332be31403d45e
+R7A_HOST_DAEMON_ACTIVE=true
+R7A_MANAGER_OTA_ENABLED=true
+R7A_15S_SAME_CONTAINER_STABILITY=PASS
+KF144_STATUS=CLOSED_PASS_LIVE_REVALIDATED
+
+PREPARE=false
+USB_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_BOUNDARY_B_REAL_USB_PREPARE_ONLY_EXECUTION_20261108_01
+NEXT_GATE_EXECUTION_DEFERRED_TO_NEW_CHAT=true
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+The repaired Manager A0R/A1R chain is now live-closed. The repository compatibility
+authority manifest has not been promoted by this runtime closure; the live repaired
+Manager is carried by the exact A0R/A1R execution evidence and closure document.
+
+The next gate is the already-reviewed Boundary B PREPARE-only physical acceptance path.
+It must start with a fresh read-only rebind, execute PREPARE while the dedicated test USB
+is absent, insert exactly one dedicated test USB only after phase `USB_REQUIRED`, and
+hard-stop at `USB_REQUIRED_CONFIRMATION`. Destructive confirmation/U2+ remains outside
+that gate.
+
+Authority:
+- `docs/development/N3W_T1_R7A_REPAIRED_MANAGER_A0R_A1R_LIVE_EXECUTION_CLOSURE_20261108.md`
+- `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_BOUNDARY_B_PREPARE_ONLY_PREEXECUTION_CLOSURE_20261108.md`
+
 ## Stable updater authority — 2026-11-08 repaired Manager A0R/A1R preexecution CLOSED_PASS
 
 ```text

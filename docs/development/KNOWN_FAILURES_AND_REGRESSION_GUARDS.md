@@ -1,3 +1,35 @@
+### 2026-11-08 KF-144 live revalidation closure — CLOSED_PASS
+
+The repaired Manager path is now live-revalidated on the real production T1.
+
+```text
+KF144_STATUS=CLOSED_PASS_LIVE_REVALIDATED
+A0R_LIVE_APPLY=CLOSED_PASS
+A0R_TRANSACTION_STATUS=COMMITTED
+A0R_MANAGER_AFTER=local/greenhouse-manager:fresh-7807271e4c48
+A1R_LIVE_REACTIVATION=CLOSED_PASS
+A1R_HOST_DAEMON_ACTIVE=true
+A1R_MANAGER_OTA_ENABLED=true
+A1R_15S_SAME_CONTAINER_STABILITY=PASS
+A1R_AUTOMATIC_ROLLBACK=false
+RECOVERY_REQUIRED=false
+PREPARE=false
+USB_MUTATION=false
+BOARD_ACCESS=false
+```
+
+The source repair guard remains unchanged: simplified-runtime isolation must not
+invalidate the already-built OTA manager capability, and A1 acceptance requires the
+bounded same-container stability hold. A0R and A1R one-shot authorizations are consumed
+and must never be replayed. The next Boundary B PREPARE-only gate requires fresh live
+rebind and must stop before `CONFIRM_USB_ERASE`.
+
+Evidence:
+- A0R execution `N3W_R7A_REPAIRED_MANAGER_A0R_ATTEMPT2_20261108T151437Z`: PASS / COMMITTED.
+- A1R execution `N3W_R7A_REPAIRED_MANAGER_A1R_20261108T153901Z`: PASS.
+- Live-authorized A1R head: `70aaa4070641dd73c1a97738e6332be31403d45e`.
+- Closure: `docs/development/N3W_T1_R7A_REPAIRED_MANAGER_A0R_A1R_LIVE_EXECUTION_CLOSURE_20261108.md`.
+
 ### 2026-11-08 KF-144 preexecution successor closure — A0R/A1R CLOSED_PASS / live revalidation pending
 
 The repaired Manager successor path is now preexecution-closed at executable head
