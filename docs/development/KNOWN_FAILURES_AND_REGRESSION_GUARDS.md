@@ -1,3 +1,38 @@
+### 2026-11-09 KF-145 live repair — CLOSED_PASS
+
+The production Manager Dynamic Security role was repaired in place from the historical 17-ACL
+contract to the repaired 20-ACL contract by adding only the three exact R7A Home Assistant OTA
+Discovery publish ACLs. All three addRoleACL responses succeeded; the live readback proved one
+exact allow for each target, no broad `homeassistant/#` publish grant, and no unrelated DynSec
+state change.
+
+```text
+KF145_STATUS=CLOSED_PASS_LIVE_REVALIDATED
+DYNSEC_CHANGE_INDEX_BEFORE=11
+DYNSEC_CHANGE_INDEX_AFTER=14
+MANAGER_ACL_COUNT_BEFORE=17
+MANAGER_ACL_COUNT_AFTER=20
+POSTSTATE_EXACT=true
+UNRELATED_DYNSEC_STATE_UNCHANGED=true
+```
+
+Dynamic Security automatically forced the affected Manager MQTT session through reconnect.
+Manager, Home Assistant and Broker all remained the same containers with restart count 0.
+The Manager resubscribed to the OTA control topic, no deferred OTA projection was logged, and
+Home Assistant registered one N3-W T1 device with the PREPARE entity visible.
+
+```text
+HA_T1_DEVICE_MATCH_COUNT_AFTER=1
+HA_T1_ENTITY_MATCH_COUNT_AFTER=2
+HA_PREPARE_ENTITY_MATCH_COUNT_AFTER=1
+HA_USB_TRANSACTION_PRESENT_AFTER=false
+HA_USB_PREPARE_STATE_PRESENT_AFTER=false
+BOUNDARY_B_READY_TO_RESUME=true
+```
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_MANAGER_DYNSEC_DISCOVERY_ACL_LIVE_APPLY_CLOSURE_20261109.md`.
+
 ### 2026-11-09 KF-145 live root-cause confirmation — READONLY CLOSED_PASS
 
 Real T1 read-only evidence now proves the production Manager role is still the historical
