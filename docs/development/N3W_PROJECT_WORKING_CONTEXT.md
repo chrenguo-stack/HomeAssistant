@@ -1,3 +1,20 @@
+## Stable updater authority — 2026-11-09 KF-146 control-path guard
+
+```text
+PROJECT_WORKING_CONTEXT_VERSION=2.8
+KF146_STATUS=SOURCE_REPAIR_IMPLEMENTED_FUNCTIONAL_CI_PASS_LIVE_REPAIR_PENDING
+SOURCE_REPAIR_HEAD=41e0300e23351343bfe85f610d104cf533484e8e
+PREPARE_AUTHORIZATION_CONSUMED=true
+PREPARE_REPLAY_ALLOWED=false
+USB_INSERTION_ALLOWED=false
+```
+
+Durable guard: a Home Assistant MQTT command entity is not product-functional until its exact
+`command_topic` is covered by both sender and receiver DynSec service authorities and a real
+Broker integration proves end-to-end delivery. Discovery visibility alone is insufficient.
+
+Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF146_OTA_CONTROL_DYNSEC_SOURCE_REPAIR_AND_LIVE_READONLY_CONFIRMATION_20261109.md`.
+
 ## Stable updater authority — 2026-11-09 KF-145 live closure
 
 ```text
