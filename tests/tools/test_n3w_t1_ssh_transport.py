@@ -57,6 +57,37 @@ class FakeRunner:
         return result
 
 
+
+def test_runner_translates_timeout_to_transport_error(monkeypatch):
+    tool = load_tool()
+
+    def timeout(*_args, **_kwargs):
+        raise subprocess.TimeoutExpired(("ssh", "root@t1.local"), 3)
+
+    monkeypatch.setattr(subprocess, "run", timeout)
+    with pytest.raises(tool.SSHTransportError, match=r"command_timeout:ssh"):
+        tool.Runner().run(
+            ("ssh", "root@t1.local"),
+            timeout=3,
+            interactive=True,
+        )
+
+
+def test_runner_translates_nonzero_to_transport_error(monkeypatch):
+    tool = load_tool()
+
+    def failed(*_args, **_kwargs):
+        raise subprocess.CalledProcessError(255, ("ssh", "root@t1.local"))
+
+    monkeypatch.setattr(subprocess, "run", failed)
+    with pytest.raises(tool.SSHTransportError, match=r"command_failed:ssh:255"):
+        tool.Runner().run(
+            ("ssh", "root@t1.local"),
+            timeout=3,
+            interactive=True,
+        )
+
+
 def test_mismatch_stops_before_authentication(tmp_path):
     tool = load_tool()
     path, _digest = known_hosts(tmp_path)

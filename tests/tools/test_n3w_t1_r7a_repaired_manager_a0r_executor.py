@@ -88,3 +88,11 @@ def test_a0r_post_apply_binds_committed_runtime_image_id() -> None:
     assert 'transaction.get("target_runtime_image_id")' in post
     assert 'manager_runtime.get("image_id") != target_runtime_id' in post
     assert 'target_doc.get("Image") != target_runtime_id' in post
+
+
+def test_a0r_executor_fail_closes_unexpected_runtime_errors() -> None:
+    source = EXECUTOR_PATH.read_text(encoding="utf-8")
+    execute_source = source[source.index("def execute("):source.index("def parser(")]
+    assert "except Exception as error:" in execute_source
+    assert "executor_runtime_error:" in execute_source
+    assert 'closure["first_failed_operation"]' in execute_source

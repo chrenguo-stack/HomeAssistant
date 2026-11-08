@@ -942,6 +942,12 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
     except StopExecution as error:
         closure["first_failed_operation"] = str(error)
         return closure
+    except Exception as error:
+        closure["first_failed_operation"] = (
+            f"executor_runtime_error:{type(error).__name__}:"
+            f"{str(error)[:200]}"
+        )
+        return closure
     finally:
         if transport is not None:
             try:
