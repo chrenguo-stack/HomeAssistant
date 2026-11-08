@@ -1,3 +1,23 @@
+### 2026-11-09 KF-145 — Manager DynSec ACL omitted R7A Home Assistant OTA Discovery topics
+
+| ID | 范围 | 现场现象 | 根因 | 修复与保护 | 状态 |
+|---|---|---|---|---|---|
+| KF-145 | T1 Home Assistant mandatory-USB OTA / Manager→Broker→HA Discovery | Boundary B PREPARE 前，Manager OTA projection 正常且渲染出 Update/PREPARE Discovery，但 Home Assistant 中没有 `N3-W T1` 设备或实体 | Manager service identity 仍只授权历史 `device` / `binary_sensor` Discovery，遗漏 R7A 新增的 `update` 与两个 `button` topic；模拟 MQTT 单测未经过真实 DynSec PUBACK，形成 false-PASS | 仅增加三个精确 Discovery publish ACL；禁止扩大为 `homeassistant/#`；增加 Discovery→ACL 交叉合同和真实隔离 Mosquitto+DynSec 发布/接收测试；历史已消费 S20 17-ACL executor 保持冻结并继续对当前 20-ACL plan fail-closed | SOURCE_REPAIR_CLOSED_PASS_LIVE_REVALIDATION_PENDING |
+
+Guards:
+- Manager 不得为方便 OTA Discovery 获得 `homeassistant/#` 广泛发布权限。
+- 所有 `HomeAssistantUpdateSurface` Discovery topic 必须由 Manager service identity 明确授权。
+- 至少一条 CI 路径必须经过真实 Mosquitto Dynamic Security PUBACK/交付，不能仅依赖 fake MQTT client。
+- 已消费 S20 R5 executor 的 17-ACL 和 dependency SHA 历史合同不得因当前 Manager ACL 演进而被静默重写。
+- 源码修复通过不代表 production Broker role 已更新；live DynSec 必须 fresh read-only preflight 后走独立授权。
+- Boundary B 在 live ACL 修复和重新验证前继续停在 PREPARE 之前。
+
+Evidence:
+- executable source repair head: `f2ea76d245ef98196624aca088f492c60d6f8821`.
+- initial CI failure: run `42500168128`, 8 failed / 1531 passed / 1 skipped, all caused by historical `service_acl_count_drift`.
+- final required CI: greenhouse-manager `42500786838` SUCCESS; M2 Dynamic Security `42500787022` SUCCESS; S20 real service handoff `42500786915` SUCCESS.
+- closure: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_MANAGER_DYNSEC_DISCOVERY_ACL_SOURCE_REPAIR_CLOSURE_20261109.md`.
+
 ### 2026-11-08 KF-144 live revalidation closure — CLOSED_PASS
 
 The repaired Manager path is now live-revalidated on the real production T1.
