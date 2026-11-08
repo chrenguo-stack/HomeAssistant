@@ -1,3 +1,23 @@
+## Stable updater authority — 2026-11-09 KF-145 source repair closure
+
+```text
+PROJECT_WORKING_CONTEXT_VERSION=2.6
+R7A_MANAGER_DYNSEC_OTA_DISCOVERY_ACL_SOURCE_HEAD=f2ea76d245ef98196624aca088f492c60d6f8821
+KF145_STATUS=SOURCE_REPAIR_CLOSED_PASS_LIVE_REVALIDATION_PENDING
+BOUNDARY_B_STATUS=STOPPED_BEFORE_PREPARE
+LIVE_BROKER_DYNSEC_MUTATION=false
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_MANAGER_DYNSEC_DISCOVERY_ACL_LIVE_READONLY_PREFLIGHT_20261109_01
+AUTO_EXECUTE_LIVE_MUTATION=false
+```
+
+Durable guard added by KF-145: Home Assistant Discovery capability and Manager DynSec
+least-privilege ACLs are one cross-component contract. New Discovery entity types must be
+covered by both source-level ACL tests and at least one real isolated Mosquitto/Dynamic Security
+delivery test. Historical consumed execution contracts remain immutable when the current service
+identity evolves.
+
+Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_MANAGER_DYNSEC_DISCOVERY_ACL_SOURCE_REPAIR_CLOSURE_20261109.md`.
+
 ## Stable updater authority — 2026-11-08 repaired Manager A0R/A1R live CLOSED_PASS
 
 ```text
