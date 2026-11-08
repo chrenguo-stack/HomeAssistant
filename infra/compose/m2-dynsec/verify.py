@@ -648,6 +648,21 @@ def _run_verification() -> None:
         manager.publish(topic)
         assert homeassistant.wait_for(topic)
 
+    ota_control = "gh/v1/greenhouse/control/t1/homeassistant/ota"
+    assert manager.subscribe(ota_control)
+    manager.drain()
+    assert_publish_allowed(
+        admin,
+        homeassistant,
+        ota_control,
+    )
+    homeassistant.publish(
+        ota_control,
+        payload=b'{"action":"PREPARE","target_release_id":"homeassistant-2026.10.4"}',
+    )
+    assert manager.wait_for(ota_control)
+    print("HA_OTA_CONTROL_DYNSEC_END_TO_END=PASSED", flush=True)
+
     assert_publish_denied(admin, manager, "homeassistant/status")
     assert_publish_denied(admin, manager, "homeassistant/sensor/rogue/config")
     assert_publish_denied(admin, manager, node_ingress)
