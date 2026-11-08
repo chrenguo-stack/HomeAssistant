@@ -76,9 +76,13 @@ def test_manager_identity_matches_current_runtime_topics() -> None:
         "subscribePattern",
         "gh/v1/greenhouse/state/+/telemetry",
     ) in allowed
+    ota_control = "gh/v1/greenhouse/control/t1/homeassistant/ota"
+    assert ("subscribePattern", ota_control) in allowed
+    assert ("publishClientReceive", ota_control) in allowed
+    assert ("unsubscribePattern", ota_control) in allowed
 
 
-def test_home_assistant_identity_is_read_only_except_birth_status() -> None:
+def test_home_assistant_identity_only_writes_birth_status_and_ota_control() -> None:
     plan = build_service_identity_plan(
         system_id="greenhouse", service="homeassistant", generation=1
     )
@@ -87,8 +91,12 @@ def test_home_assistant_identity_is_read_only_except_birth_status() -> None:
     assert ("subscribePattern", "homeassistant/#") in allowed
     assert ("subscribePattern", "gh/v1/greenhouse/state/#") in allowed
     assert ("publishClientSend", "homeassistant/status") in allowed
+    ota_control = "gh/v1/greenhouse/control/t1/homeassistant/ota"
+    assert ("publishClientSend", ota_control) in allowed
     assert not any(
-        acl_type == "publishClientSend" and topic.startswith("gh/")
+        acl_type == "publishClientSend"
+        and topic.startswith("gh/")
+        and topic != ota_control
         for acl_type, topic in allowed
     )
 
