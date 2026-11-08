@@ -1,3 +1,13 @@
+## 2026-11-09 — KF-145 live DynSec repair CLOSED_PASS
+
+- Production Manager role repaired from 17 to 20 ACLs by adding only the three exact R7A OTA Discovery publish grants.
+- Exact live poststate proved all three target ACLs once, no broad Home Assistant publish grant, and no unrelated DynSec drift.
+- Manager, Home Assistant and Broker remained the same containers with restart count 0.
+- Manager automatically reconnected and republished OTA Discovery; Home Assistant now has one N3-W T1 device and one PREPARE entity.
+- HA-USB transaction/PREPARE state remain absent; Boundary B is ready to resume from the original pre-PREPARE point.
+- KF-145 status: `CLOSED_PASS_LIVE_REVALIDATED`.
+- Closure: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_MANAGER_DYNSEC_DISCOVERY_ACL_LIVE_APPLY_CLOSURE_20261109.md`.
+
 ## 2026-11-09 — KF-145 live DynSec read-only preflight CLOSED_PASS
 
 - T1 Core Stack compatibility authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; repository Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
