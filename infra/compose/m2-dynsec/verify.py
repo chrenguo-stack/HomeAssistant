@@ -507,10 +507,10 @@ def _run_verification() -> None:
         second_plan,
         second_credentials,
     )
-    for service, plan in service_plans.items():
+    for service in ("provisioning", "homeassistant"):
         provision_and_track(
             provisioner,
-            plan,
+            service_plans[service],
             service_credentials[service],
         )
 
@@ -585,6 +585,11 @@ def _run_verification() -> None:
     print("MANAGER_OTA_DISCOVERY_ACL_ROLE_MUTATION_RECONNECT=PASSED", flush=True)
     manager_pre_ota.close()
     cleanup.deprovision_and_untrack(manager_pre_ota_plan)
+    provision_and_track(
+        provisioner,
+        service_plans["manager"],
+        service_credentials["manager"],
+    )
 
     set_verify_stage("service-and-node-acl")
     node = session_for(node_credentials)
