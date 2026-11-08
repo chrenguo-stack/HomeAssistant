@@ -167,6 +167,7 @@ jobs:
           run-id: ${{ env.UPSTREAM_RUN_ID }}
           artifact-ids: ${{ env.UPSTREAM_ARTIFACT_ID }}
           path: ${{ runner.temp }}/upstream
+          merge-multiple: true
 
       - name: Verify V2 target binding and produce Manager-only package
         run: |
