@@ -1,3 +1,30 @@
+### 2026-11-09 KF-145 live root-cause confirmation — READONLY CLOSED_PASS
+
+Real T1 read-only evidence now proves the production Manager role is still the historical
+17-ACL form while repaired source requires 20 ACLs. The exact active Manager client and role
+each match once; all three R7A OTA Discovery publish ACLs are absent; the two historical HA
+Discovery ACLs remain present; broad `homeassistant/#` publish is absent; HA has zero matching
+`N3-W T1` device/entities; HA-USB/PREPARE state remains absent.
+
+```text
+KF145_LIVE_ROOT_CAUSE_CONFIRMED=true
+DYNSEC_CHANGE_INDEX=11
+LIVE_MANAGER_ACL_COUNT=17
+SOURCE_MANAGER_ACL_COUNT=20
+THREE_OTA_DISCOVERY_ACLS_ABSENT=true
+BOUNDARY_B_STATUS=STOPPED_BEFORE_PREPARE
+BROKER_LIVE_DYNSEC_MUTATION=false
+```
+
+Preexecution integration additionally proves a Dynamic Security role ACL update causes the
+affected Manager MQTT client to reconnect and that the reconnected Manager can publish the OTA
+Discovery surface; no manual Manager/Broker restart is required as the normal repair path.
+
+Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_MANAGER_DYNSEC_DISCOVERY_ACL_LIVE_APPLY_20261109_01`.
+It is not authorized by this read-only closure.
+
+Evidence: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_MANAGER_DYNSEC_DISCOVERY_ACL_LIVE_READONLY_PREFLIGHT_CLOSURE_20261109.md`.
+
 ### 2026-11-09 KF-145 — Manager DynSec ACL omitted R7A Home Assistant OTA Discovery topics
 
 | ID | 范围 | 现场现象 | 根因 | 修复与保护 | 状态 |
