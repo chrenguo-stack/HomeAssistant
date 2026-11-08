@@ -569,6 +569,9 @@ def _run_verification() -> None:
     discovery_topics = (
         "homeassistant/device/gh-n1-a9f2f8/config",
         "homeassistant/binary_sensor/gh-n1-a9f2f8_connectivity/config",
+        "homeassistant/update/n3w_t1_homeassistant/config",
+        "homeassistant/button/n3w_t1_homeassistant_prepare/config",
+        "homeassistant/button/n3w_t1_homeassistant_confirm_usb/config",
     )
     for topic in discovery_topics:
         homeassistant.drain()
