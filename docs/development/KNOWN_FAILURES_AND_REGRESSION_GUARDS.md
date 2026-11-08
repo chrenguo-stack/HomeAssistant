@@ -1,3 +1,18 @@
+### 2026-11-09 KF-146 — Home Assistant OTA control DynSec path missing
+
+| ID | 范围 | 现场现象 | 根因 | 修复与保护 | 状态 |
+|---|---|---|---|---|---|
+| KF-146 | T1 mandatory-USB OTA / HA PREPARE control path | KF-145 修复后 `N3-W T1` 与 PREPARE 按钮正常出现；用户只点击一次 PREPARE，但 HA-USB transaction / prepare state 均未建立 | HA role 缺 exact `publishClientSend gh/v1/<sid>/control/t1/homeassistant/ota`；Manager role 缺同 topic 的 `subscribePattern` / `publishClientReceive` / `unsubscribePattern`；UI/Discovery 单测没有把 command_topic 与真实 DynSec 双侧权限绑定 | source head `41e0300e23351343bfe85f610d104cf533484e8e` 增加 exact 4 ACL；增加 PREPARE command_topic→两侧 service plan 交叉合同；真实 Mosquitto+DynSec CI 证明 HA publish→Manager receive；历史 S20 authority 保持冻结 | SOURCE_REPAIR_IMPLEMENTED_FUNCTIONAL_CI_PASS_LIVE_REPAIR_PENDING |
+
+Guards:
+- Home Assistant 中出现 control button 不等于按钮命令路径可用；Discovery `command_topic` 必须同时绑定发送端和接收端 DynSec authority。
+- Manager 日志显示“Subscribed to topic”只证明发起订阅流程，不得替代 Broker role ACL readback / SUBACK / E2E delivery 证据。
+- OTA control 只允许 exact topic，不得用 `gh/#` broad publish/subscribe 绕过。
+- PREPARE 已点击但 transaction 未建立时，旧一次性 PREPARE authorization 视为 consumed；禁止重放。
+- live Broker ACL 修复前 USB 不允许插入，destructive confirmation 不允许进入。
+
+Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF146_OTA_CONTROL_DYNSEC_SOURCE_REPAIR_AND_LIVE_READONLY_CONFIRMATION_20261109.md`.
+
 ### 2026-11-09 KF-145 live repair — CLOSED_PASS
 
 The production Manager Dynamic Security role was repaired in place from the historical 17-ACL
