@@ -1,3 +1,53 @@
+## Latest authority — 2026-11-08 repaired Manager A0R/A1R live CLOSED_PASS
+
+```text
+AUTHORITY_STATE=R7A_REPAIRED_MANAGER_A0R_A1R_LIVE_CLOSED_PASS
+PR=800
+LIVE_AUTHORIZED_HEAD=70aaa4070641dd73c1a97738e6332be31403d45e
+
+REPAIRED_MANAGER_SOURCE_HEAD=7807271e4c48161f2fad96a7886fa4c24b038321
+LIVE_MANAGER=local/greenhouse-manager:fresh-7807271e4c48
+LIVE_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+LIVE_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+
+A0R_LIVE_APPLY=CLOSED_PASS
+A0R_TRANSACTION_STATUS=COMMITTED
+A0R_AUTHORIZATION_CONSUMED=true
+A0R_RECOVERY_REQUIRED=false
+
+A1R_LIVE_REACTIVATION=CLOSED_PASS
+A1R_AUTHORIZATION_CLAIMED=true
+A1R_HOST_DAEMON_ACTIVE=true
+A1R_MANAGER_OTA_ENABLED=true
+A1R_SERVICES_OWNER_RESTART=true
+A1R_15S_SAME_CONTAINER_STABILITY=PASS
+A1R_AUTOMATIC_ROLLBACK=false
+A1R_RECOVERY_REQUIRED=false
+
+KF144_STATUS=CLOSED_PASS_LIVE_REVALIDATED
+USB_PREPARE_ENTERED=false
+USB_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+REPOSITORY_CURRENT_AUTHORITY_PROMOTION=NOT_PERFORMED
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_BOUNDARY_B_REAL_USB_PREPARE_ONLY_EXECUTION_20261108_01
+NEXT_GATE_EXPLICIT_USER_AUTHORIZATION_REQUIRED=true
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+The repaired Manager and OTA wiring are now live-accepted on the real T1. A0R closed
+with a COMMITTED Manager transaction and A1R restored the host daemon/Manager OTA wiring
+without rollback, then passed the frozen 15-second same-container stability guard.
+No PREPARE, USB mutation, board access or merge occurred.
+
+The next real gate is Boundary B PREPARE-only. It must fresh-check A1R health and the
+absence of an active HA-USB transaction and dedicated USB before PREPARE, then stop at
+`USB_REQUIRED_CONFIRMATION`. Destructive USB confirmation remains separately
+authorized.
+
+Authority: `docs/development/N3W_T1_R7A_REPAIRED_MANAGER_A0R_A1R_LIVE_EXECUTION_CLOSURE_20261108.md`.
+
 ## Latest authority — 2026-11-08 repaired Manager A0R/A1R preexecution CLOSED_PASS
 
 ```text

@@ -1,3 +1,18 @@
+## 2026-11-08 — repaired Manager A0R/A1R live CLOSED_PASS
+
+- PR #800 live-authorized head: `70aaa4070641dd73c1a97738e6332be31403d45e`.
+- A0R real execution `N3W_R7A_REPAIRED_MANAGER_A0R_ATTEMPT2_20261108T151437Z` is PASS; the Manager transaction is COMMITTED and live Manager is `local/greenhouse-manager:fresh-7807271e4c48`.
+- A0R recovery is clear; no second apply, explicit rollback, USB mutation or board access occurred.
+- Fresh post-A0R A1R readonly eligibility passed with repaired Manager, exact A0R authorization hash, unchanged Home Assistant/Broker, USB-like disk count 0 and no A1 residue.
+- A1R real execution `N3W_R7A_REPAIRED_MANAGER_A1R_20261108T153901Z` is PASS.
+- Host daemon is active, Manager OTA is enabled, exactly one services-owner restart was invoked, automatic A1 rollback was not invoked, and recovery is clear.
+- A1R post-activation validation completed the frozen 15-second same-container stability guard.
+- KF-144 is `CLOSED_PASS_LIVE_REVALIDATED`.
+- No PREPARE intent, USB mutation, destructive confirmation, board access or merge occurred.
+- Repository current-authority promotion is not performed by this live closure.
+- Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_BOUNDARY_B_REAL_USB_PREPARE_ONLY_EXECUTION_20261108_01`; explicit authorization required, PREPARE first with dedicated USB absent, and hard stop at `USB_REQUIRED_CONFIRMATION`.
+- Closure: `docs/development/N3W_T1_R7A_REPAIRED_MANAGER_A0R_A1R_LIVE_EXECUTION_CLOSURE_20261108.md`.
+
 ## 2026-11-08 — repaired Manager A0R/A1R preexecution CLOSED_PASS
 
 - T1 Core Stack authority compatibility link: `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
