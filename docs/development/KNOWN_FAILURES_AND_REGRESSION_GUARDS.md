@@ -1,3 +1,25 @@
+### 2026-11-09 KF-146 live repair — CLOSED_PASS
+
+Production DynSec was repaired in place with exactly four OTA control ACLs on
+`gh/v1/<sid>/control/t1/homeassistant/ota`: Manager subscribe/receive/unsubscribe plus
+Home Assistant publish. Live readback proved Manager 20→23 ACLs, Home Assistant 9→10 ACLs,
+one exact allow for each required permission, and no unrelated DynSec drift.
+
+```text
+KF146_STATUS=CLOSED_PASS_LIVE_REVALIDATED
+DYNSEC_CHANGE_INDEX_BEFORE=14
+DYNSEC_CHANGE_INDEX_AFTER=18
+POSTSTATE_EXACT=true
+UNRELATED_DYNSEC_STATE_UNCHANGED=true
+```
+
+Manager, Home Assistant and Broker remained the same containers with restart count 0.
+The previous failed PREPARE remains consumed and was not replayed. No HA-USB transaction,
+USB insertion or destructive confirmation occurred.
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF146_OTA_CONTROL_DYNSEC_LIVE_APPLY_CLOSURE_20261109.md`.
+
 ### 2026-11-09 KF-146 — Home Assistant OTA control DynSec path missing
 
 | ID | 范围 | 现场现象 | 根因 | 修复与保护 | 状态 |
