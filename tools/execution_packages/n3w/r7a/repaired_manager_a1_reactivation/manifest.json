@@ -1,7 +1,7 @@
 {
   "schema": "gh.n3w-t1-r7a-repaired-manager-a1r-live-reactivation-package/1",
   "gate_id": "N3W_T1_R7A_REPAIRED_MANAGER_A1R_LIVE_REACTIVATION_PREEXECUTION_20261108_01",
-  "live_execution_authorized": false,
+  "live_execution_authorized": true,
   "proposed_authorization_id": "N3W_T1_R7A_REPAIRED_MANAGER_A1R_LIVE_REACTIVATION_20261108_01",
   "confirmation": "EXECUTE R7A REPAIRED MANAGER A1R LIVE REACTIVATION: YES",
   "source_authority": {
@@ -73,5 +73,5 @@
     "old_a1_authorization_replay": false,
     "old_boundary_b_authorization_replay": false
   },
-  "stop_boundary": "A1R_PREEXECUTION_ONLY;LIVE_EXECUTION_REQUIRES_SECOND_FRESH_EXPLICIT_AUTHORIZATION"
+  "stop_boundary": "A1R_LIVE_EXECUTION_AUTHORIZED;ONE_ACTIVATION_MAXIMUM;STOP_AFTER_POST_ACTIVATION_VALIDATION"
 }
