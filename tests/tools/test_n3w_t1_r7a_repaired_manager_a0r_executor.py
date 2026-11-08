@@ -84,6 +84,9 @@ def test_a0r_orders_readonly_state_before_staging_and_captures_failure_state() -
 def test_a0r_post_apply_binds_committed_runtime_image_id() -> None:
     source = EXECUTOR_PATH.read_text(encoding="utf-8")
     post = source[source.index("def validate_post_apply("):source.index("def execute(")]
+    assert 'transaction.get("authorization_consumed") is not True' in post
+    assert 'transaction.get("authorization_id_sha256")' in post
+    assert 'hashlib.sha256(AUTHORIZATION.encode("utf-8")).hexdigest()' in post
     assert 'transaction.get("target_runtime_image_id")' in post
     assert 'manager_runtime.get("image_id") != target_runtime_id' in post
     assert 'target_doc.get("Image") != target_runtime_id' in post

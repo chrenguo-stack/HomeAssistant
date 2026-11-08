@@ -49,12 +49,15 @@ def test_a1r_source_authority_matches_exact_git_blobs() -> None:
 def test_a1r_requires_committed_repaired_manager_transaction() -> None:
     executor = load_executor()
     assert executor.EXPECTED_MANAGER == "local/greenhouse-manager:fresh-7807271e4c48"
+    assert executor.EXPECTED_A0R_AUTHORIZATION == "N3W_T1_CORE_UPDATER_R7A_REPAIRED_MANAGER_A0R_LIVE_APPLY_20261108_01"
     source = EXECUTOR_PATH.read_text(encoding="utf-8")
     helper = source[source.index("def require_manager_transaction("):source.index("def require_recovery_clear(")]
     assert 'transaction.get("component") != "manager"' in helper
     assert 'transaction.get("status") != "COMMITTED"' in helper
     assert 'transaction.get("phase") != "COMMITTED"' in helper
     assert 'transaction.get("authorization_consumed") is not True' in helper
+    assert 'transaction.get("authorization_id_sha256")' in helper
+    assert "EXPECTED_A0R_AUTHORIZATION_SHA256" in helper
     assert 'transaction.get("target", {}).get("target_image_ref") != EXPECTED_MANAGER' in helper
 
 def test_a1r_preserves_15s_same_container_stability_guard() -> None:
@@ -89,3 +92,14 @@ def test_a1r_execution_order_and_failure_rollback_are_bounded() -> None:
     assert '["systemctl", "restart", SERVICES_UNIT]' in rollback
     assert "T1_CORE_UPDATER_APPLY" not in rollback
     assert "greenhouse-manager-arm64.tar" not in rollback
+
+
+def test_a1r_manifest_binds_exact_a0r_authorization_chain() -> None:
+    executor = load_executor()
+    document = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+    separation = document["authorization_separation"]
+    assert separation["a0r_authorization_id"] == executor.EXPECTED_A0R_AUTHORIZATION
+    assert separation["a0r_authorization_must_be_consumed_before_entry"] is True
+    assert executor.EXPECTED_A0R_AUTHORIZATION_SHA256 == __import__("hashlib").sha256(
+        executor.EXPECTED_A0R_AUTHORIZATION.encode("utf-8")
+    ).hexdigest()

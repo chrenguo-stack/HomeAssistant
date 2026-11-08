@@ -711,6 +711,9 @@ def validate_post_apply(
         or not isinstance(transaction, dict)
         or transaction.get("status") != "COMMITTED"
         or transaction.get("phase") != "COMMITTED"
+        or transaction.get("authorization_consumed") is not True
+        or transaction.get("authorization_id_sha256")
+        != hashlib.sha256(AUTHORIZATION.encode("utf-8")).hexdigest()
         or transaction.get("target", {}).get("target_image_ref") != TARGET_MANAGER
         or inspect.get("status") != "PASS"
         or inspect.get("component") != "manager"

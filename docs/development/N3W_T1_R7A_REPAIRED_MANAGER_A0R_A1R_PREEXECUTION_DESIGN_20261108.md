@@ -3,7 +3,7 @@
 
 ```text
 GATE=N3W_T1_R7A_REPAIRED_MANAGER_EXACT_ARTIFACT_AND_FRESH_A1_REACTIVATION_PREEXECUTION_20261108_01
-STATUS=SOURCE_PREEXECUTION_IN_PROGRESS
+STATUS=SOURCE_PREEXECUTION_FOCUSED_REPAIR
 REPOSITORY=chrenguo-stack/HomeAssistant
 PR=800
 PACKAGE_CONTROL_HEAD=4c883c02fbf3a64d944548a1dda8c7431d59ae61
@@ -131,3 +131,20 @@ fresh read-only A0R eligibility
 ## 6. Hard stop
 
 本 gate 只允许 source/preexecution、测试和 GitHub 归档。不得执行 Manager deploy、service restart、A1 activation、PREPARE、USB 写入/格式化、board 操作或 merge。
+
+
+## 7. Focused source review repair
+
+独立源码复核发现 manifest 已声明 A1R 必须建立在 A0R 授权已消费的 transaction 上，但初版 executor 只验证了
+`authorization_consumed=true` 与 repaired Manager target，没有验证 transaction 的
+`authorization_id_sha256` 是否确实来自本次 A0R authorization。
+
+本轮收紧为：
+
+- A0R post-apply 同时要求 transaction `authorization_consumed=true`；
+- A0R post-apply 要求 `authorization_id_sha256=SHA256(A0R_AUTHORIZATION)`；
+- A1R preflight 再次要求同一 A0R authorization hash；
+- A1R local-source gate 同时校验 manifest 中的 authorization separation contract；
+- 任何“同 target、不同 authorization”的旧/旁路 transaction 均 fail-closed。
+
+该修补不改变升级架构、镜像内容、T1 runtime 或授权边界；仍保持 `live_execution_authorized=false`。

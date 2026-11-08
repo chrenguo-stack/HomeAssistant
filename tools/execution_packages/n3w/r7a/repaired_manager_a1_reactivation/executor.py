@@ -35,6 +35,12 @@ SERVICES_UNIT = "n3wfc4-services-activation.service"
 BROKER_UNIT = "n3wfc4-broker-activation.service"
 HOST_UNIT = "n3w-t1-ha-ota.service"
 POST_ACTIVATION_STABILITY_SECONDS = 15.0
+EXPECTED_A0R_AUTHORIZATION = (
+    "N3W_T1_CORE_UPDATER_R7A_REPAIRED_MANAGER_A0R_LIVE_APPLY_20261108_01"
+)
+EXPECTED_A0R_AUTHORIZATION_SHA256 = hashlib.sha256(
+    EXPECTED_A0R_AUTHORIZATION.encode("utf-8")
+).hexdigest()
 
 STATE_ROOT = "/var/lib/n3w-t1-core-updater"
 V2_TRANSACTION = f"{STATE_ROOT}/upgrade.json"
@@ -205,6 +211,16 @@ def validate_local_source(
         raise StopExecution("manifest_authorization_mismatch")
     if manifest.get("confirmation") != CONFIRMATION:
         raise StopExecution("manifest_confirmation_mismatch")
+    separation = manifest.get("authorization_separation")
+    if (
+        not isinstance(separation, dict)
+        or separation.get("a0r_authorization_id") != EXPECTED_A0R_AUTHORIZATION
+        or separation.get("a0r_authorization_must_be_consumed_before_entry") is not True
+        or separation.get("a1r_authorization_is_distinct") is not True
+        or separation.get("old_a1_authorization_replay") is not False
+        or separation.get("old_boundary_b_authorization_replay") is not False
+    ):
+        raise StopExecution("manifest_authorization_separation_mismatch")
 
     authority = manifest.get("source_authority")
     expected_paths = set(SOURCE_DESTINATIONS) | {"tools/n3w_t1_ssh_transport.py"}
@@ -480,6 +496,8 @@ def require_manager_transaction(transport: Any) -> dict[str, Any]:
         or transaction.get("status") != "COMMITTED"
         or transaction.get("phase") != "COMMITTED"
         or transaction.get("authorization_consumed") is not True
+        or transaction.get("authorization_id_sha256")
+        != EXPECTED_A0R_AUTHORIZATION_SHA256
         or transaction.get("target", {}).get("target_image_ref") != EXPECTED_MANAGER
         or not isinstance(transaction.get("target_runtime_image_id"), str)
         or SHA256_RE.fullmatch(transaction["target_runtime_image_id"]) is None
