@@ -1,5 +1,6 @@
 ## 2026-11-09 — KF-145 Manager DynSec OTA Discovery ACL source repair CLOSED_PASS
 
+- T1 Core Stack compatibility authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; repository Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
 - Boundary B pre-PREPARE diagnostics proved healthy OTA projection but zero `N3-W T1` HA device/entities.
 - Root cause: Manager DynSec role omitted the R7A `update` and two `button` Home Assistant Discovery publish topics.
 - Exact source repair head: `f2ea76d245ef98196624aca088f492c60d6f8821`; only three exact OTA Discovery ACLs were added; broad `homeassistant/#` Manager publish remains forbidden.
