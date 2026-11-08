@@ -5,8 +5,6 @@ import json
 import subprocess
 from pathlib import Path
 
-import pytest
-
 ROOT = Path(__file__).resolve().parents[2]
 EXECUTOR_PATH = ROOT / "tools/execution_packages/n3w/r7a/repaired_manager_a0r_live_apply/executor.py"
 MANIFEST_PATH = EXECUTOR_PATH.with_name("manifest.json")
@@ -18,10 +16,10 @@ def load_executor():
     spec.loader.exec_module(module)
     return module
 
-def test_a0r_manifest_is_preexecution_only_and_manager_only() -> None:
+def test_a0r_manifest_is_live_authorized_and_manager_only() -> None:
     document = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     assert document["schema"] == "gh.n3w-t1-r7a-repaired-manager-a0r-live-execution-package/1"
-    assert document["live_execution_authorized"] is False
+    assert document["live_execution_authorized"] is True
     assert document["preconditions"]["fresh_live_readonly_revalidation_required"] is True
     assert document["preconditions"]["derived_baseline_is_not_fresh_live_evidence"] is True
     contract = document["execution_contract"]
@@ -62,13 +60,13 @@ def test_a0r_target_chain_is_bf38_to_repaired_780727() -> None:
     assert target["rollback_compatible"] is True
     assert baseline["stack_images"] == executor.EXPECTED_IMAGES
 
-def test_a0r_new_authorization_is_distinct_and_disabled() -> None:
+def test_a0r_new_authorization_is_distinct_and_enabled() -> None:
     executor = load_executor()
     assert executor.AUTHORIZATION == "N3W_T1_CORE_UPDATER_R7A_REPAIRED_MANAGER_A0R_LIVE_APPLY_20261108_01"
     assert executor.AUTHORIZATION != "N3W_T1_CORE_UPDATER_R7A_MANAGER_SUCCESSOR_A0_LIVE_APPLY_20261107_02"
     head = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], check=True, text=True, stdout=subprocess.PIPE).stdout.strip()
-    with pytest.raises(executor.StopExecution, match="live_execution_not_authorized"):
-        executor.validate_local_source(head, require_live=True)
+    document = executor.validate_local_source(head, require_live=True)
+    assert document["live_execution_authorized"] is True
 
 def test_a0r_orders_readonly_state_before_staging_and_captures_failure_state() -> None:
     source = EXECUTOR_PATH.read_text(encoding="utf-8")
