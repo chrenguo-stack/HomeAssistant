@@ -120,6 +120,40 @@ def test_promoted_service_constructs_with_product_pairing_enabled(
         assert service.settings.pairing_intake_enabled is False
 
 
+def test_promoted_service_keeps_injected_ota_with_legacy_runtime_disabled(
+    tmp_path,
+) -> None:
+    registration_path = tmp_path / "registration-ota.sqlite3"
+    replay_path = tmp_path / "replay-ota.sqlite3"
+    settings = Settings(
+        system_id="lab",
+        pairing_db_path=str(registration_path),
+        n3w_runtime_enabled=True,
+        n3w_product_pairing_enabled=False,
+        n3w_t1_ota_enabled=True,
+        n3w_t1_ota_installed_version="2026.10.0",
+    )
+    settings.validate()
+    ota_manager = object()
+
+    with (
+        RegistrationRegistry(registration_path) as registration,
+        ReplayRegistry(replay_path) as replay,
+    ):
+        service = simplified_mqtt.N3wSimplifiedIsolatedMqttService(
+            settings,
+            registration=registration,
+            replay=replay,
+            keys=StaticNodeApplicationKeyProvider({}),
+            ota_manager=ota_manager,
+        )
+
+        assert service.settings.n3w_runtime_enabled is False
+        assert service.settings.n3w_t1_ota_enabled is False
+        assert service.ota_manager is ota_manager
+        assert service.ha_update is not None
+
+
 def test_phase5a_wiring_has_no_path_or_finite_grant_authority() -> None:
     source = inspect.getsource(wiring)
     forbidden = (

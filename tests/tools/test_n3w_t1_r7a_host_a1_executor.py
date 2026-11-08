@@ -152,6 +152,23 @@ def test_post_activation_requires_nonprivileged_manager_and_readonly_mount() -> 
     assert "prepare_transaction_created_during_a1" in post
 
 
+def test_post_activation_requires_stable_same_containers_after_hold_window() -> None:
+    executor = load_executor()
+    source = EXECUTOR_PATH.read_text(encoding="utf-8")
+    assert executor.POST_ACTIVATION_STABILITY_SECONDS == 15.0
+    stability = source[
+        source.index("def require_post_activation_stability("):
+        source.index("def env_map(")
+    ]
+    assert '["sleep", str(POST_ACTIVATION_STABILITY_SECONDS)]' in stability
+    assert '"services_owner_unstable_post"' in stability
+    assert 'document.get("Id") != expected_id' in stability
+    post = source[
+        source.index("def validate_post_activation("):source.index("def restore_targets(")
+    ]
+    assert "require_post_activation_stability(" in post
+
+
 def test_failure_after_claim_rolls_back_a1_wiring_not_manager_image() -> None:
     source = EXECUTOR_PATH.read_text(encoding="utf-8")
     rollback = source[

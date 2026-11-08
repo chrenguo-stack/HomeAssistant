@@ -34,6 +34,7 @@ MANAGER_USER = "999:999"
 SERVICES_UNIT = "n3wfc4-services-activation.service"
 BROKER_UNIT = "n3wfc4-broker-activation.service"
 HOST_UNIT = "n3w-t1-ha-ota.service"
+POST_ACTIVATION_STABILITY_SECONDS = 15.0
 
 STATE_ROOT = "/var/lib/n3w-t1-core-updater"
 V2_TRANSACTION = f"{STATE_ROOT}/upgrade.json"
@@ -382,6 +383,42 @@ def docker_container(
     if not isinstance(item, dict):
         raise StopExecution("container_inspect_shape_invalid")
     return item
+
+
+def require_post_activation_stability(
+    transport: Any,
+    *,
+    manager_id: str,
+    homeassistant_id: str,
+    broker_id: str,
+) -> None:
+    remote(
+        transport,
+        ["sleep", str(POST_ACTIVATION_STABILITY_SECONDS)],
+        timeout=POST_ACTIVATION_STABILITY_SECONDS + 30,
+    )
+    if remote(
+        transport,
+        ["systemctl", "is-active", SERVICES_UNIT],
+        check=False,
+        timeout=30,
+    ).stdout.strip() != "active":
+        raise StopExecution("services_owner_unstable_post")
+
+    manager = docker_container(transport, EXPECTED_MANAGER)
+    homeassistant = docker_container(transport, EXPECTED_HOMEASSISTANT)
+    broker = docker_container(transport, EXPECTED_BROKER)
+    expected = (
+        (manager, manager_id, "manager_unstable_post"),
+        (homeassistant, homeassistant_id, "homeassistant_unstable_post"),
+        (broker, broker_id, "broker_unstable_post"),
+    )
+    for document, expected_id, code in expected:
+        if (
+            document.get("Id") != expected_id
+            or document.get("State", {}).get("Status") != "running"
+        ):
+            raise StopExecution(code)
 
 
 def env_map(document: dict[str, Any]) -> dict[str, str]:
@@ -1015,6 +1052,13 @@ def validate_post_activation(
     )
     if activation_env != expected_activation_env:
         raise StopExecution("activation_env_drift")
+
+    require_post_activation_stability(
+        transport,
+        manager_id=manager.get("Id"),
+        homeassistant_id=homeassistant.get("Id"),
+        broker_id=broker.get("Id"),
+    )
 
     return {
         "host_daemon": "active",
