@@ -1,3 +1,25 @@
+### 2026-11-08 KF-144 — R7A simplified runtime internal OTA flag conflicts with base Settings validation
+
+| ID | 范围 | 现场现象 | 根因 | 修复与保护 | 状态 |
+|---|---|---|---|---|---|
+| KF-144 | T1 Home Assistant mandatory-USB OTA / R7A A1 Manager compatibility | A1 曾返回 PASS，但随后 Manager 以 `GH_N3W_T1_OTA_ENABLED requires GH_N3W_RUNTIME_ENABLED` 退出并形成 services-owner restart loop；Home Assistant exit 143 为 `--abort-on-container-exit` 后的次生 SIGTERM。Boundary B 在 PREPARE 前暂停，未创建 HA-USB transaction，未插入 USB | live 外部环境实际同时存在 `GH_N3W_RUNTIME_ENABLED=true` 与 OTA flags；缺陷发生在 `N3wSimplifiedIsolatedMqttService` 内部 compatibility copy：为隔离 legacy N3-W runtime 把 `n3w_runtime_enabled` 改为 false，却把 `n3w_t1_ota_enabled=true` 带入 `ManagerMqttService`，触发第二次 `Settings.validate()` | source repair 在已构造 `ota_manager` 被注入时，仅清除内部 base-service OTA config flag；OTA subscription/control/HA projection 仍由注入对象承载。A1 postcheck 增加 15 秒 same-container 稳定性检查。exact ARM64 unchanged rerun 通过 upload/redownload SHA binding；首次 SHA mismatch 归类为 CI artifact roundtrip transient，不降低 SHA 保护 | SOURCE_REPAIR_CLOSED_LIVE_REVALIDATION_PENDING |
+
+Guards:
+- 不得把 live `GH_N3W_RUNTIME_ENABLED` 缺失作为 KF-144 根因；现场已证明该 flag 为 true。
+- simplified service 的 legacy-runtime isolation 与 OTA capability 必须分层：内部 base-service Settings 可以关闭 legacy runtime/OTA config flag，但已验证并注入的 `ota_manager` 必须继续驱动 OTA MQTT surface。
+- A1 不能仅凭瞬时 running 判 PASS；必须经过 bounded hold 后确认 services owner active 且 Manager/Home Assistant/Broker container identity 未变化并仍 running。
+- exact image artifact 的 post-upload binding SHA 校验不得因单次 CI mismatch 被删除或放宽；先在 unchanged source 上复跑分类。
+- real T1 在 source closure 后仍保持 recovered OTA-disabled path；后续 repaired Manager 部署和 A1 reactivation 必须走 fresh preexecution / authorization chain。
+- consumed A1 authorization 与旧 Boundary B PREPARE-only authorization均不可 replay。
+
+Evidence:
+- incident/source repair head: `7807271e4c48161f2fad96a7886fa4c24b038321`, tree `3d2893914d62645011a9a4badc7f939d10f9029e`.
+- exact ARM64 run `42452239964`, successful rerun attempt 2.
+- successful exact artifact: `13615963302`, digest `sha256:72b05593b91c75912e05ccd3b00bc72af5bd7ec03e39c283d0ce7acfb513fbe7`.
+- successful binding contains Manager tar SHA `9746222b145df33d98056f1349456780377875534b28f633b736360c528a0c67`, Home Assistant tar SHA `13a1b097562fdadb92fa0d75f37341ee8769191944e88bbe106c70373a5a8b64`, Broker tar SHA `7e14f96544edceb01a7db8f7f09bac4be48672ea66285679dd8fe8f1ead53d79`.
+- prior attempt artifact `13605603605` remains historical failed evidence and is not promoted as exact closure authority.
+- production recovery gate `N3W_T1_R7A_A1_RUNTIME_WIRING_WITHDRAWAL_RECOVERY_20261108_01` was already CLOSED_PASS before this source closure.
+
 ### 2026-11-08 KF-143 — R7A A1 service restart container-convergence race caused false activation STOP and false rollback-failure classification
 
 | ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |

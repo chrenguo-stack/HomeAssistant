@@ -1,3 +1,17 @@
+## 2026-11-08 — R7A simplified-runtime OTA compatibility source repair CLOSED_PASS
+
+- Source repair authority: `7807271e4c48161f2fad96a7886fa4c24b038321`, tree `3d2893914d62645011a9a4badc7f939d10f9029e`.
+- Exact ARM64 run `42452239964` attempt 2 completed SUCCESS; artifact `13615963302`, digest `sha256:72b05593b91c75912e05ccd3b00bc72af5bd7ec03e39c283d0ce7acfb513fbe7`; post-upload binding PASS.
+- Attempt 1 failed only at downloaded `homeassistant-arm64.tar` SHA verification. The unchanged rerun passed the same path, so the failure is classified as a transient CI artifact-roundtrip integrity failure; no workflow/source weakening is applied.
+- Root cause of the real R7A incident: simplified runtime internally rewrote `n3w_runtime_enabled=false` while retaining the OTA config flag, causing base `Settings.validate()` to reject the internal copy despite the live external runtime flag being correct.
+- Repair clears only the internal base-service OTA config flag when the already-built `ota_manager` is injected; MQTT OTA capability remains carried by that object.
+- Added A1 guard requires 15 seconds of services-owner stability with the same Manager/Home Assistant/Broker container identities still running.
+- Focused review: PASS; new false-PASS blockers: 0; Manager suite 1538 PASS / 1 skipped; HA MQTT bootstrap 1 PASS.
+- KF-144 is `SOURCE_REPAIR_CLOSED_LIVE_REVALIDATION_PENDING`.
+- Real T1 remains on the recovered OTA-disabled path. No new A1 activation, PREPARE, USB mutation, board access, or merge occurred.
+- Next gate: `N3W_T1_R7A_REPAIRED_MANAGER_EXACT_ARTIFACT_AND_FRESH_A1_REACTIVATION_PREEXECUTION_20261108_01`; it does not itself authorize real-T1 mutation.
+- Closure: `docs/development/N3W_T1_R7A_SIMPLIFIED_RUNTIME_OTA_COMPATIBILITY_SOURCE_REPAIR_CI_CLOSURE_20261108.md`.
+
 ## 2026-11-08 — R7A Boundary B PREPARE-only preexecution CLOSED_PASS
 
 - T1 Core Stack authority compatibility link: `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; manager reference `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.

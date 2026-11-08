@@ -1,3 +1,47 @@
+## Latest authority — 2026-11-08 R7A simplified-runtime OTA compatibility source repair CLOSED_PASS
+
+```text
+AUTHORITY_STATE=HA_USB_MANDATORY_OTA_R7A_SIMPLIFIED_RUNTIME_OTA_COMPATIBILITY_SOURCE_REPAIR_CLOSED_PASS
+
+SOURCE_REPAIR_HEAD=7807271e4c48161f2fad96a7886fa4c24b038321
+SOURCE_REPAIR_TREE=3d2893914d62645011a9a4badc7f939d10f9029e
+PR800_EXECUTABLE_TO_PREARCHIVE_HEAD_DRIFT=DOCS_ONLY
+
+ROOT_CAUSE=N3wSimplifiedIsolatedMqttService internal compatibility copy disabled n3w_runtime_enabled while retaining n3w_t1_ota_enabled before ManagerMqttService Settings.validate
+REPAIR=when an already-built ota_manager is injected, clear only the internal base-service n3w_t1_ota_enabled flag; OTA capability remains object-carried
+A1_STABILITY_GUARD=15s same-container Manager/HomeAssistant/Broker identities plus services-owner active
+
+EXACT_ARM64_RUN=42452239964
+EXACT_ARM64_ATTEMPT=2
+EXACT_ARM64_RESULT=SUCCESS
+EXACT_ARM64_ARTIFACT_ID=13615963302
+EXACT_ARM64_ARTIFACT_DIGEST_SHA256=72b05593b91c75912e05ccd3b00bc72af5bd7ec03e39c283d0ce7acfb513fbe7
+POST_UPLOAD_BINDING=PASS
+SOURCE_HEAD_CI=25_SUCCESS_0_FAILURE_0_PENDING
+
+INITIAL_ATTEMPT_FAILURE=homeassistant-arm64.tar SHA256 mismatch after upload/redownload
+INITIAL_ATTEMPT_CLASSIFICATION=TRANSIENT_CI_ARTIFACT_ROUNDTRIP_INTEGRITY_FAILURE_NONREPRODUCED_ON_UNCHANGED_RERUN
+PRODUCT_SOURCE_CAUSATION_PROVEN=false
+WORKFLOW_REPAIR_REQUIRED=false
+HASH_GUARD_WEAKENED=false
+
+KF144_STATUS=SOURCE_REPAIR_CLOSED_LIVE_REVALIDATION_PENDING
+LIVE_T1_STATE=RECOVERED_OTA_DISABLED_HEALTHY
+LIVE_T1_MUTATION=false
+USB_PREPARE_ENTERED=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_R7A_REPAIRED_MANAGER_EXACT_ARTIFACT_AND_FRESH_A1_REACTIVATION_PREEXECUTION_20261108_01
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+The compatibility defect is source-proven and repaired. The production T1 remains on the previously recovered OTA-disabled path; this source closure does not reactivate A1, deploy the repaired Manager, resume Boundary B, insert USB, or authorize merge.
+
+The exact ARM64 rerun on the unchanged source head passed the same upload/download/SHA verification that failed in attempt 1. The first failure is therefore retained as historical transient CI evidence, not converted into a product defect and not hidden by weakening exact binding.
+
+Authority: `docs/development/N3W_T1_R7A_SIMPLIFIED_RUNTIME_OTA_COMPATIBILITY_SOURCE_REPAIR_CI_CLOSURE_20261108.md`.
+
 ## Latest authority — 2026-11-08 R7A Boundary B PREPARE-only preexecution CLOSED_PASS
 
 ```text

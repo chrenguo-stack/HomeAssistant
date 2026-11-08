@@ -1,3 +1,37 @@
+## Stable updater authority — 2026-11-08 R7A simplified-runtime OTA compatibility source repair CLOSED_PASS
+
+```text
+PROJECT_WORKING_CONTEXT_VERSION=2.3
+
+R7A_COMPATIBILITY_SOURCE_REPAIR_HEAD=7807271e4c48161f2fad96a7886fa4c24b038321
+R7A_COMPATIBILITY_SOURCE_REPAIR_TREE=3d2893914d62645011a9a4badc7f939d10f9029e
+R7A_COMPATIBILITY_KF=KF-144
+R7A_COMPATIBILITY_SOURCE_STATUS=CLOSED_PASS
+R7A_COMPATIBILITY_LIVE_REVALIDATION=PENDING
+
+EXACT_ARM64_RUN_ID=42452239964
+EXACT_ARM64_SUCCESS_ATTEMPT=2
+EXACT_ARM64_ARTIFACT_ID=13615963302
+EXACT_ARM64_ARTIFACT_DIGEST_SHA256=72b05593b91c75912e05ccd3b00bc72af5bd7ec03e39c283d0ce7acfb513fbe7
+EXACT_POST_UPLOAD_BINDING=PASS
+
+LIVE_T1_STATE=RECOVERED_OTA_DISABLED_HEALTHY
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+OLD_A1_AUTHORIZATION_REPLAY=false
+OLD_BOUNDARY_B_AUTHORIZATION_REPLAY=false
+
+NEXT_ONE_GATE=N3W_T1_R7A_REPAIRED_MANAGER_EXACT_ARTIFACT_AND_FRESH_A1_REACTIVATION_PREEXECUTION_20261108_01
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+KF-144 is source-closed. The repaired Manager compatibility path preserves simplified N3-W legacy-runtime isolation while keeping OTA capability through the already-built `T1OtaManager` object. A1 acceptance now includes a 15-second same-container stability hold. The exact ARM64 unchanged rerun passed the byte-binding path that failed transiently on the first attempt.
+
+The real T1 remains deliberately recovered to the OTA-disabled pre-A1 path. No repaired Manager deployment or fresh A1 reactivation is implied by source closure; those require a new preexecution chain and separate live authorization.
+
+Authority:
+- `docs/development/N3W_T1_R7A_SIMPLIFIED_RUNTIME_OTA_COMPATIBILITY_SOURCE_REPAIR_CI_CLOSURE_20261108.md`
+
 ## Stable updater authority — 2026-11-07 R7A Manager A0 executor preexecution CLOSED_PASS
 
 ```text
