@@ -1,3 +1,46 @@
+## Stable updater authority — 2026-11-08 repaired Manager A0R/A1R preexecution CLOSED_PASS
+
+```text
+PROJECT_WORKING_CONTEXT_VERSION=2.4
+
+R7A_REPAIRED_MANAGER_SOURCE_HEAD=7807271e4c48161f2fad96a7886fa4c24b038321
+R7A_REPAIRED_MANAGER_TARGET=local/greenhouse-manager:fresh-7807271e4c48
+R7A_LAST_CONFIRMED_LIVE_PREDECESSOR=local/greenhouse-manager:fresh-bf38e388497b
+
+R7A_A0R_PACKAGE_RUN_ID=42480154921
+R7A_A0R_PACKAGE_ARTIFACT_ID=13616844356
+R7A_A0R_PACKAGE_CONTROL_HEAD=4c883c02fbf3a64d944548a1dda8c7431d59ae61
+
+R7A_A0R_A1R_EXECUTABLE_HEAD=813acb95401612585fc73455e05c81e3e6b86009
+R7A_A0R_A1R_EXECUTABLE_TREE=fdea2402ab30f1f6139268d2d450eb75a9f85226
+R7A_A0R_A1R_PREEXECUTION_STATUS=CLOSED_PASS
+R7A_A0R_A1R_AUTHORIZATION_HASH_CHAIN=ENFORCED
+
+A0R_LIVE_EXECUTION_AUTHORIZED=false
+A1R_LIVE_EXECUTION_AUTHORIZED=false
+LIVE_T1_STATE=UNKNOWN_FRESH_AFTER_REBOOT
+OPERATOR_HOMEASSISTANT_POST_REBOOT_WEB_LOGIN=PASS
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+
+NEXT_ONE_GATE=N3W_T1_R7A_REPAIRED_MANAGER_A0R_FRESH_LIVE_READONLY_ELIGIBILITY_20261108_01
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+The repaired Manager successor chain is now preexecution-closed. The frozen Manager package
+authority remains separate from the later executor source authority. A0R must prove its
+COMMITTED transaction was created under the exact A0R authorization hash; A1R must verify
+that same hash before reactivating OTA wiring.
+
+Because the T1 was rebooted after recovery and this gate did not access it, exact live runtime
+state is intentionally `UNKNOWN_FRESH` despite successful operator Home Assistant web login.
+The next gate is read-only eligibility and must stop before any remote write, package staging,
+service restart or Manager apply.
+
+Authority:
+- `docs/development/N3W_T1_R7A_REPAIRED_MANAGER_A0R_A1R_PREEXECUTION_CLOSURE_20261108.md`
+- `docs/development/N3W_T1_R7A_REPAIRED_MANAGER_A0R_A1R_PREEXECUTION_TO_A0R_FRESH_LIVE_READONLY_ELIGIBILITY_NEW_CHAT_HANDOFF_V1.0_20261108.md`
+
 ## Stable updater authority — 2026-11-08 R7A simplified-runtime OTA compatibility source repair CLOSED_PASS
 
 ```text

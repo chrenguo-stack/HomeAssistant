@@ -1,3 +1,25 @@
+### 2026-11-08 KF-144 preexecution successor closure — A0R/A1R CLOSED_PASS / live revalidation pending
+
+The repaired Manager successor path is now preexecution-closed at executable head
+`813acb95401612585fc73455e05c81e3e6b86009`. A0R is fixed to predecessor
+`fresh-bf38e388497b` and target `fresh-7807271e4c48`; A1R remains a separate
+authorization and cannot enter unless the Manager V2 transaction is COMMITTED and its
+`authorization_id_sha256` matches the exact distinct A0R authorization.
+
+Focused CI run `42482476119` passed source (274 tests), exact-manager-slice and
+pre-u1-v2-simulation. This closes the newly identified manifest/executor false-PASS gap
+without changing KF-144's live status.
+
+Guards added:
+- A0R post-apply must validate `authorization_consumed=true` and the exact A0R authorization hash.
+- A1R preflight must validate the same A0R authorization hash, not merely a matching target image.
+- A0R and A1R authorizations remain distinct and ungranted in preexecution.
+- current T1 runtime is not inferred from successful post-reboot HA web login; a fresh read-only eligibility gate is mandatory before A0R mutation.
+- old A0/A1/Boundary-B authorizations remain non-replay.
+
+Status remains:
+`SOURCE_REPAIR_AND_PREEXECUTION_CLOSED_LIVE_REVALIDATION_PENDING`.
+
 ### 2026-11-08 KF-144 — R7A simplified runtime internal OTA flag conflicts with base Settings validation
 
 | ID | 范围 | 现场现象 | 根因 | 修复与保护 | 状态 |

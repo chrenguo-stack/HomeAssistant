@@ -3,7 +3,7 @@
 
 ```text
 GATE=N3W_T1_R7A_REPAIRED_MANAGER_EXACT_ARTIFACT_AND_FRESH_A1_REACTIVATION_PREEXECUTION_20261108_01
-STATUS=SOURCE_PREEXECUTION_FOCUSED_REPAIR
+STATUS=CLOSED_PASS
 REPOSITORY=chrenguo-stack/HomeAssistant
 PR=800
 PACKAGE_CONTROL_HEAD=4c883c02fbf3a64d944548a1dda8c7431d59ae61
@@ -148,3 +148,29 @@ fresh read-only A0R eligibility
 - 任何“同 target、不同 authorization”的旧/旁路 transaction 均 fail-closed。
 
 该修补不改变升级架构、镜像内容、T1 runtime 或授权边界；仍保持 `live_execution_authorized=false`。
+
+
+## 8. Final CI closure
+
+```text
+EXECUTABLE_HEAD=813acb95401612585fc73455e05c81e3e6b86009
+EXECUTABLE_TREE=fdea2402ab30f1f6139268d2d450eb75a9f85226
+FOCUSED_CI_RUN_ID=42482476119
+SOURCE=SUCCESS
+SOURCE_PYTEST=274_PASS
+EXACT_MANAGER_SLICE=SUCCESS
+PRE_U1_V2_SIMULATION=SUCCESS
+RESULT=CLOSED_PASS
+
+LIVE_T1_ACCESS=false
+LIVE_T1_MUTATION=false
+A0R_LIVE_EXECUTION_AUTHORIZED=false
+A1R_LIVE_EXECUTION_AUTHORIZED=false
+```
+
+The current-head rebuilt package is CI revalidation evidence only. The live A0R executor
+continues to bind the previously frozen package authority from run `42480154921`; no
+recursive package/executor authority promotion is performed.
+
+Next gate:
+`N3W_T1_R7A_REPAIRED_MANAGER_A0R_FRESH_LIVE_READONLY_ELIGIBILITY_20261108_01`.
