@@ -1,0 +1,63 @@
+{
+  "schema": "gh.n3w-t1-r7a-repaired-manager-a0r-live-execution-package/1",
+  "gate_id": "N3W_T1_R7A_REPAIRED_MANAGER_A0R_LIVE_EXECUTION_PACKAGE_PREEXECUTION_20261108_01",
+  "live_execution_authorized": false,
+  "proposed_authorization_id": "N3W_T1_CORE_UPDATER_R7A_REPAIRED_MANAGER_A0R_LIVE_APPLY_20261108_01",
+  "authorization_id": "N3W_T1_CORE_UPDATER_R7A_REPAIRED_MANAGER_A0R_LIVE_APPLY_20261108_01",
+  "confirmation": "EXECUTE R7A REPAIRED MANAGER A0R LIVE APPLY: YES",
+  "package_authority": {
+    "workflow_run_id": 42480154921,
+    "artifact_id": 13616844356,
+    "artifact_name": "n3w-t1-core-updater-manager-v2-7807271e4c48",
+    "artifact_digest": "sha256:3c07406cd51258c8ef95f02e1e6cc80d09eb7235c218e7ead74a02a5521442fd",
+    "package_control_head": "4c883c02fbf3a64d944548a1dda8c7431d59ae61",
+    "updater_pyz_sha256": "c0461a5097d8af0f8a6e7f3a175b7dadc82b55a436c6c229092262cd35521b44",
+    "manager_tar_sha256": "9746222b145df33d98056f1349456780377875534b28f633b736360c528a0c67",
+    "manager_build_image_id": "sha256:b1875c6ed969df108d2df768d61369a0c93956d146f284276b392c686c13a4f9",
+    "upstream_exact_run_id": 42452239964,
+    "upstream_exact_artifact_id": 13615963302,
+    "upstream_exact_artifact_digest": "sha256:72b05593b91c75912e05ccd3b00bc72af5bd7ec03e39c283d0ce7acfb513fbe7"
+  },
+  "target": {
+    "manifest": "infra/n3w-t1/upgrades/manager-7807271e4c48.json",
+    "compatibility": "infra/n3w-t1/upgrades/manager-7807271e4c48-compatibility.json",
+    "baseline": "infra/n3w-t1/clean-reference/r7a-repaired-manager-predecessor-bf38-baseline-20261108.json",
+    "baseline_kind": "DERIVED_PREEXECUTION_CANDIDATE_NOT_FRESH_LIVE_CAPTURE",
+    "expected_predecessor": "local/greenhouse-manager:fresh-bf38e388497b",
+    "target_image": "local/greenhouse-manager:fresh-7807271e4c48"
+  },
+  "preconditions": {
+    "trusted_ssh_transport_required": true,
+    "single_ssh_epoch_required": true,
+    "fresh_live_readonly_revalidation_required": true,
+    "derived_baseline_is_not_fresh_live_evidence": true,
+    "accepted_stack_exact_required": true,
+    "updater_state_readonly_before_staging": true,
+    "remote_staging_exact_file_set_required": true,
+    "usb_like_disk_count": 0,
+    "r7a_host_service_not_deployed": true,
+    "approved_manifest_absent": true,
+    "manager_ota_enabled": false,
+    "manager_docker_socket": false,
+    "manager_uid_gid": "999:999",
+    "updater_recovery_required": false
+  },
+  "execution_contract": {
+    "manager_only_mutation": true,
+    "homeassistant_image_mutation": false,
+    "broker_image_mutation": false,
+    "host_daemon_activation": false,
+    "usb_mutation": false,
+    "one_apply_maximum": true,
+    "automatic_retry": false,
+    "executor_explicit_rollback": false,
+    "updater_internal_failure_rollback": true,
+    "post_failure_state_capture_required": true,
+    "post_status_required": true,
+    "post_inspect_required": true,
+    "post_usb_zero_required": true,
+    "board_access": false,
+    "merge": false
+  },
+  "stop_boundary": "A0R_PREEXECUTION_ONLY;LIVE_EXECUTION_REQUIRES_FRESH_EXPLICIT_AUTHORIZATION"
+}
