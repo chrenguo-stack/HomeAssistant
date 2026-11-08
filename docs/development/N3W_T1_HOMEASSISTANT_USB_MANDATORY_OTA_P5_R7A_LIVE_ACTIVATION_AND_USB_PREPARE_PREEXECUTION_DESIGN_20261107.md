@@ -223,21 +223,27 @@ Purpose: prove candidate discovery and the confirmation-before-mutation contract
 Entry requirements:
 
 - Boundary A PASS;
-- exactly one dedicated removable test USB inserted;
-- no second removable mass-storage device;
-- no active R7A transaction.
+- no active R7A transaction;
+- dedicated test USB **not yet inserted** when PREPARE is submitted;
+- no second removable mass-storage device may be inserted during this gate.
 
 Sequence:
 
 ```text
 user selects PREPARE
 -> U1 transaction created
+-> host records current removable-device baseline
+-> phase=USB_REQUIRED
+-> user inserts exactly one dedicated removable test USB
 -> host enumerates block devices read-only
--> one eligible candidate published
+-> exactly one fresh eligible candidate published
 -> phase=USB_REQUIRED_CONFIRMATION
 -> visible model/capacity shown
--> confirmation action becomes available
+-> destructive confirmation action becomes available
+-> STOP
 ```
+
+The ordering is intentional. PREPARE baselines every already-present removable-device fingerprint and only a device appearing after that baseline may become the fresh candidate. A USB inserted before PREPARE is therefore excluded rather than promoted.
 
 Hard stop:
 

@@ -1,3 +1,15 @@
+## 2026-11-08 — R7A Boundary B PREPARE-only preexecution CLOSED_PASS
+
+- A1 successor live closure head `276811043c9eca9ba6c66198588fb89b14cd3b36` is **25/25 SUCCESS**; A1 remains PASS, authorization consumed/non-replay, KF-143 RESOLVED.
+- Boundary B source review found no runtime-source defect and requires no source repair.
+- Design correction: submit PREPARE **before** inserting the dedicated test USB. PREPARE records the existing removable-device baseline; devices already present at PREPARE time are intentionally excluded from fresh-candidate selection.
+- PREPARE creates only a U1 transaction, records baseline state and starts read-only discovery. It does not invoke format, mount, target download, erase confirmation or U2+.
+- Exactly one fresh eligible removable USB must appear after PREPARE. Multiple fresh devices fail closed; root-backed, production-mounted, read-only, non-removable or non-USB devices are not eligible.
+- Home Assistant exposes PREPARE and destructive USB confirmation as separate entities. The confirmation entity appears only in `USB_REQUIRED_CONFIRMATION` with a visible model/capacity candidate.
+- Physical stop boundary: after exactly one fresh candidate is published and the system reaches `USB_REQUIRED_CONFIRMATION`; do **not** invoke `CONFIRM_USB_ERASE`.
+- Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_BOUNDARY_B_REAL_USB_PREPARE_ONLY_EXECUTION_20261108_01`. Real USB insertion and PREPARE remain unauthorized until explicit approval.
+- Closure: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_BOUNDARY_B_PREPARE_ONLY_PREEXECUTION_CLOSURE_20261108.md`.
+
 ## 2026-11-08 — R7A A1 successor live activation CLOSED_PASS
 
 - T1 Core Stack authority compatibility link: `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; manager reference `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
