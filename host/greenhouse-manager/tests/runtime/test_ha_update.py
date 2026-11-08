@@ -260,3 +260,44 @@ def test_ota_discovery_topics_are_authorized_by_manager_service_identity() -> No
     }
     assert discovery_topics <= allowed_publish_topics
     assert "homeassistant/#" not in allowed_publish_topics
+
+
+def test_prepare_button_command_topic_has_complete_dynsec_path() -> None:
+    surface = HomeAssistantUpdateSurface(system_id="system-001")
+    projected = projection("DISCOVERED")
+    messages = by_topic(
+        surface.messages(
+            manifest=projected.manifest,
+            status=projected.status,
+        )
+    )
+    control_topic = messages[
+        "homeassistant/button/n3w_t1_homeassistant_prepare/config"
+    ].payload["command_topic"]
+
+    homeassistant_plan = build_service_identity_plan(
+        system_id="system-001",
+        service="homeassistant",
+        generation=1,
+    )
+    manager_plan = build_service_identity_plan(
+        system_id="system-001",
+        service="manager",
+        generation=1,
+    )
+
+    ha_allowed = {
+        (acl.acl_type, acl.topic)
+        for acl in homeassistant_plan.acls
+        if acl.allow
+    }
+    manager_allowed = {
+        (acl.acl_type, acl.topic)
+        for acl in manager_plan.acls
+        if acl.allow
+    }
+
+    assert ("publishClientSend", control_topic) in ha_allowed
+    assert ("subscribePattern", control_topic) in manager_allowed
+    assert ("publishClientReceive", control_topic) in manager_allowed
+    assert ("unsubscribePattern", control_topic) in manager_allowed
