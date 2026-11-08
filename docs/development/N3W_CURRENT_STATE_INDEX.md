@@ -1,3 +1,15 @@
+## 2026-11-09 — KF-145 live DynSec read-only preflight CLOSED_PASS
+
+- T1 Core Stack compatibility authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; repository Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- Real T1 health is PASS with Manager/HA/Broker each unique, running, exact expected image binding and restart count 0.
+- Active Manager DynSec client and role each match exactly once; live Manager role has 17 ACLs while repaired source has 20.
+- All three R7A OTA Update/PREPARE/CONFIRM Discovery publish ACLs are absent; broad `homeassistant/#` Manager publish remains absent; historical device/binary_sensor Discovery ACLs remain intact.
+- Home Assistant still has zero matching `N3-W T1` device/entities; HA-USB transaction/PREPARE state remain absent.
+- KF-145 live root cause is confirmed; Boundary B remains stopped before PREPARE.
+- Isolated real DynSec integration at `f6e37a2f22ad6990e42d798c98fcca5798ab8dd6` proves role ACL mutation causes Manager MQTT reconnect and post-reconnect OTA Discovery publish without manual service restart.
+- Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_MANAGER_DYNSEC_DISCOVERY_ACL_LIVE_APPLY_20261109_01`; not yet authorized.
+- Closure: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_MANAGER_DYNSEC_DISCOVERY_ACL_LIVE_READONLY_PREFLIGHT_CLOSURE_20261109.md`.
+
 ## 2026-11-09 — KF-145 Manager DynSec OTA Discovery ACL source repair CLOSED_PASS
 
 - T1 Core Stack compatibility authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; repository Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
