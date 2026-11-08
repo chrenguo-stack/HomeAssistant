@@ -4,6 +4,9 @@ import json
 from pathlib import Path
 
 from greenhouse_manager.runtime.ha_update import HomeAssistantUpdateSurface
+from greenhouse_manager.runtime.service_identity_plan import (
+    build_service_identity_plan,
+)
 from greenhouse_manager.runtime.t1_ota_manager import (
     OtaRuntimeSnapshot,
     T1OtaManager,
@@ -224,3 +227,36 @@ def test_usb_confirmation_button_is_tombstoned_while_waiting_for_media() -> None
     assert messages[
         "homeassistant/button/n3w_t1_homeassistant_confirm_usb/config"
     ].payload == b""
+
+
+def test_ota_discovery_topics_are_authorized_by_manager_service_identity() -> None:
+    surface = HomeAssistantUpdateSurface(system_id="system-001")
+    projected = projection("DISCOVERED")
+    messages = surface.messages(
+        manifest=projected.manifest,
+        status=projected.status,
+    )
+
+    discovery_topics = {
+        message.topic
+        for message in messages
+        if message.topic.startswith("homeassistant/")
+    }
+    plan = build_service_identity_plan(
+        system_id="system-001",
+        service="manager",
+        generation=1,
+    )
+    allowed_publish_topics = {
+        acl.topic
+        for acl in plan.acls
+        if acl.allow and acl.acl_type == "publishClientSend"
+    }
+
+    assert discovery_topics == {
+        "homeassistant/update/n3w_t1_homeassistant/config",
+        "homeassistant/button/n3w_t1_homeassistant_prepare/config",
+        "homeassistant/button/n3w_t1_homeassistant_confirm_usb/config",
+    }
+    assert discovery_topics <= allowed_publish_topics
+    assert "homeassistant/#" not in allowed_publish_topics
