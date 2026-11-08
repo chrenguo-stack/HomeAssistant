@@ -1,3 +1,14 @@
+## 2026-11-09 — KF-146 live OTA control DynSec repair CLOSED_PASS
+
+- T1 Core Stack compatibility authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; repository Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- Production Manager role is now 23 ACLs; Home Assistant role is now 10 ACLs.
+- The four exact OTA control permissions are present once each; unrelated DynSec state is unchanged.
+- Manager/Home Assistant/Broker remained the same containers with restart count 0.
+- Previous PREPARE authorization remains consumed and non-replayable; no HA-USB transaction exists, USB remains absent, destructive confirmation remains false.
+- KF-146 status: `CLOSED_PASS_LIVE_REVALIDATED`.
+- Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_BOUNDARY_B_PREPARE_REVALIDATION_20261109_01`; not yet authorized.
+- Closure: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF146_OTA_CONTROL_DYNSEC_LIVE_APPLY_CLOSURE_20261109.md`.
+
 ## 2026-11-09 — KF-146 OTA control DynSec source repair + live confirmation
 
 - T1 Core Stack compatibility authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; repository Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
