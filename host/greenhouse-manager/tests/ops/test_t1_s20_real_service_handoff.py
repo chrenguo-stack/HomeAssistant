@@ -65,7 +65,6 @@ def test_historical_s20_executor_fail_closes_on_current_manager_acl_drift(
         module._plans()
 
 
-
 def _admin_only_state() -> dict[str, object]:
     return {
         "defaultACLAccess": dict(module.EXPECTED_DEFAULTS),
