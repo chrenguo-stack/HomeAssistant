@@ -1,5 +1,6 @@
 ## 2026-11-08 — R7A simplified-runtime OTA compatibility source repair CLOSED_PASS
 
+- T1 Core Stack authority compatibility link: `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
 - Source repair authority: `7807271e4c48161f2fad96a7886fa4c24b038321`, tree `3d2893914d62645011a9a4badc7f939d10f9029e`.
 - Exact ARM64 run `42452239964` attempt 2 completed SUCCESS; artifact `13615963302`, digest `sha256:72b05593b91c75912e05ccd3b00bc72af5bd7ec03e39c283d0ce7acfb513fbe7`; post-upload binding PASS.
 - Attempt 1 failed only at downloaded `homeassistant-arm64.tar` SHA verification. The unchanged rerun passed the same path, so the failure is classified as a transient CI artifact-roundtrip integrity failure; no workflow/source weakening is applied.
