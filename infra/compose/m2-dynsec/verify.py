@@ -6,7 +6,7 @@ import queue
 import secrets
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Sequence
 
 import paho.mqtt.client as mqtt
@@ -27,6 +27,11 @@ from greenhouse_manager.runtime.service_identity_plan import (
 
 BROKER = "broker"
 PORT = 1883
+OTA_DISCOVERY_TOPICS = (
+    "homeassistant/update/n3w_t1_homeassistant/config",
+    "homeassistant/button/n3w_t1_homeassistant_prepare/config",
+    "homeassistant/button/n3w_t1_homeassistant_confirm_usb/config",
+)
 
 _VERIFY_STAGE = "module-init"
 _CLEANUP_CONTEXT: VerificationCleanup | None = None
@@ -60,7 +65,9 @@ class Session:
         password: str | None = None,
     ) -> None:
         self.connected = threading.Event()
+        self.reconnected = threading.Event()
         self.connection_allowed: bool | None = None
+        self.connection_count = 0
         self.messages: queue.Queue[tuple[str, bytes]] = queue.Queue()
         self.subscriptions: dict[int, SubscriptionResult] = {}
         self.subscription_lock = threading.Lock()
@@ -95,6 +102,10 @@ class Session:
         _properties: mqtt.Properties | None,
     ) -> None:
         self.connection_allowed = not reason_code.is_failure
+        if self.connection_allowed:
+            self.connection_count += 1
+            if self.connection_count >= 2:
+                self.reconnected.set()
         self.connected.set()
 
     def _on_message(
@@ -520,6 +531,60 @@ def _run_verification() -> None:
         legacy,
         canary_username="gh-dynsec-legacy-forbidden-canary",
     )
+
+    set_verify_stage("manager-ota-discovery-acl-live-role-mutation")
+    manager_pre_ota_plan = replace(
+        service_plans["manager"],
+        acls=tuple(
+            acl
+            for acl in service_plans["manager"].acls
+            if acl.topic not in OTA_DISCOVERY_TOPICS
+        ),
+    )
+    assert len(manager_pre_ota_plan.acls) + len(OTA_DISCOVERY_TOPICS) == len(
+        service_plans["manager"].acls
+    )
+    provision_and_track(
+        provisioner,
+        manager_pre_ota_plan,
+        service_credentials["manager"],
+    )
+    manager_pre_ota = session_for(service_credentials["manager"])
+    manager_pre_ota.start()
+    assert manager_pre_ota.connection_count == 1
+
+    responses = transport.execute(
+        tuple(
+            {
+                "command": "addRoleACL",
+                "rolename": manager_pre_ota_plan.role_name,
+                "acltype": "publishClientSend",
+                "topic": topic,
+                "priority": 100,
+                "allow": True,
+            }
+            for topic in OTA_DISCOVERY_TOPICS
+        )
+    )
+    assert len(responses) == len(OTA_DISCOVERY_TOPICS)
+    assert all(
+        response.get("command") == "addRoleACL"
+        and not response.get("error")
+        for response in responses
+    )
+    if not manager_pre_ota.reconnected.wait(10):
+        raise AssertionError(
+            "Manager was not automatically reconnected after role ACL mutation"
+        )
+    assert manager_pre_ota.connection_count >= 2
+    assert_publish_allowed(
+        admin,
+        manager_pre_ota,
+        OTA_DISCOVERY_TOPICS[0],
+    )
+    print("MANAGER_OTA_DISCOVERY_ACL_ROLE_MUTATION_RECONNECT=PASSED", flush=True)
+    manager_pre_ota.close()
+    cleanup.deprovision_and_untrack(manager_pre_ota_plan)
 
     set_verify_stage("service-and-node-acl")
     node = session_for(node_credentials)
