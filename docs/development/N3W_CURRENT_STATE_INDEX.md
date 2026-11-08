@@ -1,3 +1,16 @@
+## 2026-11-09 — KF-145 Manager DynSec OTA Discovery ACL source repair CLOSED_PASS
+
+- Boundary B pre-PREPARE diagnostics proved healthy OTA projection but zero `N3-W T1` HA device/entities.
+- Root cause: Manager DynSec role omitted the R7A `update` and two `button` Home Assistant Discovery publish topics.
+- Exact source repair head: `f2ea76d245ef98196624aca088f492c60d6f8821`; only three exact OTA Discovery ACLs were added; broad `homeassistant/#` Manager publish remains forbidden.
+- Real Mosquitto + Dynamic Security integration now proves Manager publish and Home Assistant receipt for all three OTA Discovery topics.
+- Historical consumed S20 17-ACL executor remains frozen; tests explicitly prove the current 20-ACL plan still fail-closes against it.
+- Required CI PASS: greenhouse-manager `42500786838`; M2 Dynamic Security `42500787022`; S20 real service handoff `42500786915`; fast source `42500787067`; public safety `42500787018`.
+- KF-145 status: `SOURCE_REPAIR_CLOSED_PASS_LIVE_REVALIDATION_PENDING`.
+- Production Broker DynSec was not mutated; Boundary B remains stopped before PREPARE and before USB insertion.
+- Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_MANAGER_DYNSEC_DISCOVERY_ACL_LIVE_READONLY_PREFLIGHT_20261109_01`.
+- Closure: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_MANAGER_DYNSEC_DISCOVERY_ACL_SOURCE_REPAIR_CLOSURE_20261109.md`.
+
 ## 2026-11-08 — repaired Manager A0R/A1R live CLOSED_PASS
 
 - T1 Core Stack compatibility authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; repository Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
