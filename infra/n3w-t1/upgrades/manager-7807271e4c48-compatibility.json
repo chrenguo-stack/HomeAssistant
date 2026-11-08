@@ -1,0 +1,23 @@
+{
+  "canonical_payload_sha256": "1b8c6233a1b2de7aa8922df0647bc90e5e9c1a6bef0b6fa4a79cd2ef4230b19c",
+  "canonicalization": "SHA256 of UTF-8 JSON payload with keys recursively sorted and separators=(',',':')",
+  "payload": {
+    "schema": "gh.n3w-t1-core-updater-compatibility/1",
+    "component": "manager",
+    "mutation_profile": "IMAGE_ONLY_V1",
+    "predecessor_source_head": "bf38e388497b0d480f4bd322426e32a98652cf6c",
+    "target_source_head": "7807271e4c48161f2fad96a7886fa4c24b038321",
+    "product_delta_paths": [
+      "host/greenhouse-manager/src/greenhouse_manager/runtime/n3w_simplified_isolated_mqtt_service.py"
+    ],
+    "peer_contracts_compatible": true,
+    "persistent_schema_compatible": true,
+    "database_migration_required": false,
+    "config_migration_required": false,
+    "runtime_template_change_required": false,
+    "broker_change_required": false,
+    "homeassistant_change_required": false,
+    "board_change_required": false,
+    "rollback_compatible": true
+  }
+}

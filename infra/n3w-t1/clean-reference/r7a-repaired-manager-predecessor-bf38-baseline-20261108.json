@@ -1,0 +1,81 @@
+{
+  "a1_classification_sha256": "e664ced300ea2bb743b116550b7a3e22237e7f556f54400a060eef30671d30e7",
+  "a1_hard_authority": {
+    "dynsec_top_level_keys_sha256": "59af50181cddcd17f3eddc38d4cedf360e12d86536c5841633caf350f66b04d8",
+    "fixed_config": {
+      "custom_component": "451a470c795b3d1ed65058174a474b59bf9baccf684e29b88060982c791e704e",
+      "homeassistant": "ca966d080c2ca2b5ea9cf509cc95a8e6a78987d33b0b062d00acb39ca7bd8b24",
+      "mosquitto": "6c8d0f134c26987826cbfd3149cf393249586d74642857c8159862d0005ce59a"
+    },
+    "ha_storage_versions": {
+      "config_entries": 1,
+      "devices": 3,
+      "entities": 1
+    },
+    "mqtt_identity": {
+      "homeassistant": "ff3e3154691ee49a97d1da8663aa2a93435b7b1c759eb128310541b0b9e12ce3",
+      "manager": "839540fb9655bbf5b83b1b27799ddd86f7c73d7898f68eb2c014c0830b079eb9"
+    },
+    "persistent_identity": {
+      "broker": {
+        "gid": 1883,
+        "type": "directory",
+        "uid": 1883
+      },
+      "homeassistant": {
+        "gid": 0,
+        "type": "directory",
+        "uid": 0
+      },
+      "manager": {
+        "gid": 999,
+        "type": "directory",
+        "uid": 999
+      },
+      "n3w": {
+        "gid": 999,
+        "type": "directory",
+        "uid": 999
+      }
+    },
+    "sqlite": {
+      "manager": {
+        "schema_sha256": "40f10b68870a40f861dee0ceaebf3fd09984135d67c81f51996a7c5ff2de4dd2",
+        "user_version": 0
+      },
+      "relay_authorization": {
+        "schema_sha256": "0b91a4edf4cb5a99c13e0c4b443428063d8a8de6c80d3fd31a4a7b3535b8e21f",
+        "user_version": 0
+      },
+      "replay": {
+        "schema_sha256": "46878ae3dee61f3cb2d19a5d69bfa5e49772f250753f3ba6c601bc0b74c000cc",
+        "user_version": 0
+      }
+    },
+    "trust": {
+      "fc4_ca_sha256": "0548b02c964afff1b01f58817ec126225ec7f3044eec156732f1b126eb4e3898",
+      "system_ca_sha256": "39de7a7fa5f3f6406dddae1523b1b0f0f69ecd8a3023ae22c8883813940ab741"
+    }
+  },
+  "image_binding_modes": {
+    "broker": "legacy_static",
+    "homeassistant": "legacy_static",
+    "manager": "dynamic"
+  },
+  "platforms": {
+    "broker": "linux/arm64",
+    "homeassistant": "linux/arm64",
+    "manager": "linux/arm64"
+  },
+  "runtime_contract_sha256": {
+    "broker": "b4e002c7eb494812629b1a99d7e53b712d5f2239460c99334556976b6fdad492",
+    "homeassistant": "bc69586866551709110435ea25bfdff9d41bc8e366f6ace8d4b7bba3db5f6868",
+    "manager": "ad1d38f6191c0c00afcfbee3ca489d5f95a86fefcb17976c273597c04609d6e1"
+  },
+  "schema": "gh.n3w-t1-core-updater-baseline/1",
+  "stack_images": {
+    "broker": "local/n3w-mosquitto:2.1.2-3184566d",
+    "homeassistant": "local/n3w-homeassistant:2026.10.0-0c73235a",
+    "manager": "local/greenhouse-manager:fresh-bf38e388497b"
+  }
+}

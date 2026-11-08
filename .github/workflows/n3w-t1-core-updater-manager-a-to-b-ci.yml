@@ -15,6 +15,11 @@ on:
       - "infra/n3w-t1/upgrades/manager-bf38e388497b-compatibility.json"
       - "infra/n3w-t1/clean-reference/r7a-manager-predecessor-baseline-20261107.json"
       - "tests/tools/test_n3w_t1_core_updater_manager_r7a_successor.py"
+      - "tests/tools/test_n3w_t1_core_updater_manager_r7a_repair_successor.py"
+      - "tests/tools/test_n3w_t1_core_updater_r7a_repair_pre_u1_simulation.py"
+      - "infra/n3w-t1/upgrades/manager-7807271e4c48.json"
+      - "infra/n3w-t1/upgrades/manager-7807271e4c48-compatibility.json"
+      - "infra/n3w-t1/clean-reference/r7a-repaired-manager-predecessor-bf38-baseline-20261108.json"
       - "tools/execution_packages/n3w/r7a/manager_a0_live_apply/**"
       - "tools/execution_packages/n3w/r7a/host_a1_live_activation/**"
       - "tests/tools/test_n3w_t1_r7a_manager_a0_executor.py"
@@ -84,6 +89,7 @@ jobs:
             tests/tools/test_n3w_t1_core_updater_ha_usb_r1.py \
             tests/tools/test_n3w_t1_core_updater_ha_usb_r2.py \
             tests/tools/test_n3w_t1_core_updater_manager_r7a_successor.py \
+            tests/tools/test_n3w_t1_core_updater_manager_r7a_repair_successor.py \
             tests/tools/test_n3w_t1_r7a_manager_a0_executor.py \
             tests/tools/test_n3w_t1_r7a_host_a1_executor.py \
             tests/tools/test_n3w_t1_core_updater_ha_prepare_host_r7a.py \
@@ -101,11 +107,12 @@ jobs:
       package_artifact_digest: ${{ steps.upload.outputs.artifact-digest }}
     env:
       CONTROL_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-      UPSTREAM_RUN_ID: "42347679643"
-      UPSTREAM_ARTIFACT_NAME: "n3w-t1-fresh-exact-arm64-bf38e388497b0d480f4bd322426e32a98652cf6c"
-      TARGET_MANIFEST: "infra/n3w-t1/upgrades/manager-bf38e388497b.json"
-      BASELINE_MANIFEST: "infra/n3w-t1/clean-reference/r7a-manager-predecessor-baseline-20261107.json"
-      PACKAGE_NAME: "n3w-t1-core-updater-manager-v2-bf38e388497b"
+      UPSTREAM_RUN_ID: "42452239964"
+      UPSTREAM_ARTIFACT_ID: "13615963302"
+      UPSTREAM_ARTIFACT_NAME: "n3w-t1-fresh-exact-arm64-7807271e4c48161f2fad96a7886fa4c24b038321"
+      TARGET_MANIFEST: "infra/n3w-t1/upgrades/manager-7807271e4c48.json"
+      BASELINE_MANIFEST: "infra/n3w-t1/clean-reference/r7a-repaired-manager-predecessor-bf38-baseline-20261108.json"
+      PACKAGE_NAME: "n3w-t1-core-updater-manager-v2-7807271e4c48"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -120,6 +127,7 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$UPSTREAM_RUN_ID/artifacts?per_page=100" > "$RUNNER_TEMP/upstream-artifacts.json"
           python - "$RUNNER_TEMP/upstream-artifacts.json" "$TARGET_MANIFEST" "$UPSTREAM_ARTIFACT_NAME" <<'PY'
           import json
+          import os
           import sys
           from pathlib import Path
 
@@ -127,18 +135,26 @@ jobs:
           target = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
           name = sys.argv[3]
 
+          identity = target["artifact_identity"]
           matches = [
               item
               for item in metadata.get("artifacts", [])
-              if item.get("name") == name
+              if item.get("id") == identity["artifact_id"]
           ]
           assert len(matches) == 1
           artifact = matches[0]
-          identity = target["artifact_identity"]
-          assert artifact["id"] == identity["artifact_id"]
+          assert artifact["name"] == identity["artifact_name"] == name
           assert artifact.get("expired") is False
           assert artifact.get("digest") == (
               "sha256:" + identity["artifact_digest_sha256"]
+          )
+          workflow_run = artifact.get("workflow_run") or {}
+          assert workflow_run.get("id") == int(os.environ["UPSTREAM_RUN_ID"])
+          assert workflow_run.get("head_sha") == (
+              target["compatibility_evidence"]["target_source_head"]
+          )
+          assert identity["artifact_id"] == int(
+              os.environ["UPSTREAM_ARTIFACT_ID"]
           )
           print("UPSTREAM_GITHUB_ARTIFACT_IDENTITY=PASS")
           PY
@@ -149,7 +165,7 @@ jobs:
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
           run-id: ${{ env.UPSTREAM_RUN_ID }}
-          name: ${{ env.UPSTREAM_ARTIFACT_NAME }}
+          artifact-ids: ${{ env.UPSTREAM_ARTIFACT_ID }}
           path: ${{ runner.temp }}/upstream
 
       - name: Verify V2 target binding and produce Manager-only package
@@ -158,6 +174,7 @@ jobs:
           python - "$RUNNER_TEMP/upstream" "$TARGET_MANIFEST" "$BASELINE_MANIFEST" "$RUNNER_TEMP/package" "$CONTROL_HEAD" <<'PY'
           import hashlib
           import json
+          import os
           import shutil
           import sys
           import zipapp
@@ -239,7 +256,7 @@ jobs:
               "control_plane_head": control_head,
               "target_schema": target["schema"],
               "target_source_head": target["compatibility_evidence"]["target_source_head"],
-              "upstream_run_id": 42347679643,
+              "upstream_run_id": int(os.environ["UPSTREAM_RUN_ID"]),
               "upstream_artifact_id": target["artifact_identity"]["artifact_id"],
               "upstream_artifact_digest_sha256": target["artifact_identity"]["artifact_digest_sha256"],
               "manager_image": target["target_image_ref"],
@@ -351,6 +368,9 @@ jobs:
       U1_MANAGER_PACKAGE_ARTIFACT_DIGEST: ${{ needs.exact-manager-slice.outputs.package_artifact_digest }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
 
       - name: Download exact V2 Manager-only package from this run
         uses: actions/download-artifact@v4
@@ -369,7 +389,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install "pytest>=8,<9"
-          PYTHONPATH=tools python -m pytest -q tests/tools/test_n3w_t1_core_updater_u1_pre_u1_simulation.py
+          PYTHONPATH=tools python -m pytest -q tests/tools/test_n3w_t1_core_updater_r7a_repair_pre_u1_simulation.py
           echo "U1_B8_V2_PRE_U1_INSPECT_PLAN_SIMULATION=PASS"
           echo "U1_B8_V2_TERMINAL_TRANSACTION_ARCHIVE=PASS"
           echo "T1_ACCESS=false"
