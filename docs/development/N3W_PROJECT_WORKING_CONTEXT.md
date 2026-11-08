@@ -1,3 +1,24 @@
+## Stable updater authority — 2026-11-09 KF-145 live closure
+
+```text
+PROJECT_WORKING_CONTEXT_VERSION=2.7
+KF145_STATUS=CLOSED_PASS_LIVE_REVALIDATED
+LIVE_MANAGER_ACL_COUNT=20
+HA_T1_DEVICE_PRESENT=true
+HA_PREPARE_ENTITY_PRESENT=true
+BOUNDARY_B_READY_TO_RESUME=true
+PREPARE_INVOKED=false
+USB_INSERTION=false
+CONFIRM_USB_ERASE=false
+```
+
+Durable guard: new Home Assistant Discovery entity classes must be reflected in the Manager
+least-privilege DynSec role and verified through a real Dynamic Security broker path. A source
+change alone is not sufficient if the production role remains on an older ACL contract.
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_MANAGER_DYNSEC_DISCOVERY_ACL_LIVE_APPLY_CLOSURE_20261109.md`.
+
 ## Stable updater authority — 2026-11-09 KF-145 source repair closure
 
 ```text
