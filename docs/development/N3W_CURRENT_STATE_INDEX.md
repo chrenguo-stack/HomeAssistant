@@ -1,5 +1,6 @@
 ## 2026-11-08 — R7A Boundary B PREPARE-only preexecution CLOSED_PASS
 
+- T1 Core Stack authority compatibility link: `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; manager reference `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
 - A1 successor live closure head `276811043c9eca9ba6c66198588fb89b14cd3b36` is **25/25 SUCCESS**; A1 remains PASS, authorization consumed/non-replay, KF-143 RESOLVED.
 - Boundary B source review found no runtime-source defect and requires no source repair.
 - Design correction: submit PREPARE **before** inserting the dedicated test USB. PREPARE records the existing removable-device baseline; devices already present at PREPARE time are intentionally excluded from fresh-candidate selection.
