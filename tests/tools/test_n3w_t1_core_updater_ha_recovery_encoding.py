@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -125,3 +126,15 @@ def test_production_export_api_rejects_wrong_predecessor_before_subprocess(
             image_ref="local/n3w-homeassistant:wrong",
         )
     assert not destination.exists()
+
+
+def test_qualification_workflow_uses_production_export_api() -> None:
+    root = Path(__file__).resolve().parents[2]
+    workflow = (
+        root
+        / ".github/workflows/"
+        "n3w-t1-homeassistant-predecessor-recovery-qualification-ci.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "e.export_predecessor_archive(archive)" in workflow
+    assert "subprocess.Popen" not in workflow
