@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import pytest
 
 import n3w_t1_core_updater_ha_daemon as daemon
+import n3w_t1_core_updater_ha_capacity as capacity
 import n3w_t1_core_updater_ha_prepare_host as host
 from n3w_t1_core_updater_ha_prepare import HostUsbCandidate, PreparedUsbMedia
 from n3w_t1_core_updater_v2_common import UpdaterV2Error
@@ -27,19 +28,25 @@ def completed(stdout: bytes = b"", returncode: int = 0) -> subprocess.CompletedP
     )
 
 
-def test_capacity_policy_allows_backup_bound_above_eight_gib() -> None:
+def test_policy_v2_computes_dynamic_backup_above_eight_gib() -> None:
     policy = host.HostReleasePolicy(
         release_identity="homeassistant-2026.10.4",
-        artifact_url="https://updates.example.invalid/ha.tar.gz",
+        artifact_url=(
+            "https://ota.hahub.top/n3w/homeassistant/releases/"
+            "homeassistant-2026.10.4/homeassistant-arm64.tar.gz"
+        ),
         target_archive_sha256="1" * 64,
         target_archive_size_bytes=1 * 1024**3,
-        predecessor_recovery_worst_case_bytes=10 * 1024**3,
-        ha_data_backup_worst_case_bytes=12 * 1024**3,
-        transaction_metadata_and_working_bytes=1 * 1024**3,
-        removable_media_reserve_bytes=1 * 1024**3,
+        expected_predecessor_image_ref=(
+            "local/n3w-homeassistant:2026.10.0-0c73235a"
+        ),
+        predecessor_recovery_budget_bytes=2 * 1024**3,
+        capacity_policy=capacity.CapacityPolicy.frozen(),
     )
     assert policy.validate() is policy
-    assert policy.capacity_inputs().required_bytes() == 25 * 1024**3
+    breakdown = policy.capacity_breakdown(12 * 1024**3)
+    assert breakdown.ha_data_backup_budget_bytes == 15 * 1024**3
+    assert breakdown.usb_required_bytes > breakdown.ha_data_backup_budget_bytes
 
 
 def test_inventory_ignores_irrelevant_internal_disk_without_serial(
@@ -196,13 +203,17 @@ class FakePolicyProvider:
     def load(self, _transaction):
         return host.HostReleasePolicy(
             release_identity="homeassistant-2026.10.4",
-            artifact_url="https://updates.example.invalid/ha.tar.gz",
+            artifact_url=(
+                "https://ota.hahub.top/n3w/homeassistant/releases/"
+                "homeassistant-2026.10.4/homeassistant-arm64.tar.gz"
+            ),
             target_archive_sha256="1" * 64,
             target_archive_size_bytes=1024,
-            predecessor_recovery_worst_case_bytes=1024,
-            ha_data_backup_worst_case_bytes=1024,
-            transaction_metadata_and_working_bytes=1024,
-            removable_media_reserve_bytes=1024,
+            expected_predecessor_image_ref=(
+                "local/n3w-homeassistant:2026.10.0-0c73235a"
+            ),
+            predecessor_recovery_budget_bytes=1024,
+            capacity_policy=capacity.CapacityPolicy.frozen(),
         )
 
 
