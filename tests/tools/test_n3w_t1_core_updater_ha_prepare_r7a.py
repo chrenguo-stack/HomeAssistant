@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+import n3w_t1_core_updater_ha_capacity as capacity_model
 from n3w_t1_core_updater_ha_prepare import (
     HaUsbPrepareController,
     HostUsbCandidate,
@@ -69,20 +70,39 @@ class FakeBackend:
         self.media_available = True
         self.last_media: PreparedUsbMedia | None = None
         self.measured = 16 * 1024**3
-        self.capacity = UsbCapacityInputs(
-            target_artifact_bytes=1 * 1024**3,
-            predecessor_recovery_worst_case_bytes=2 * 1024**3,
-            ha_data_backup_worst_case_bytes=3 * 1024**3,
-            transaction_metadata_and_working_bytes=1 * 1024**3,
-            removable_media_reserve_bytes=1 * 1024**3,
-        )
+        self.target_artifact_bytes = 1 * 1024**3
+        self.predecessor_recovery_budget_bytes = 2 * 1024**3
+        self.ha_data_measured_bytes = 0
         self.mount = tmp_path / "media"
 
     def inventory(self) -> tuple[HostUsbCandidate, ...]:
         return self.items
 
+    def capacity_snapshot(self, transaction, *, calculated_at_unix):
+        return capacity_model.compute_capacity(
+            target_artifact_bytes=self.target_artifact_bytes,
+            predecessor_recovery_budget_bytes=self.predecessor_recovery_budget_bytes,
+            ha_data_measured_bytes=self.ha_data_measured_bytes,
+        ).snapshot(calculated_at_unix=calculated_at_unix)
+
     def capacity_inputs(self, transaction):
-        return self.capacity
+        snapshot = self.capacity_snapshot(
+            transaction,
+            calculated_at_unix=1_800_000_000,
+        )
+        return UsbCapacityInputs(
+            target_artifact_bytes=snapshot["target_artifact_bytes"],
+            predecessor_recovery_worst_case_bytes=snapshot[
+                "predecessor_recovery_budget_bytes"
+            ],
+            ha_data_backup_worst_case_bytes=snapshot[
+                "ha_data_backup_budget_bytes"
+            ],
+            transaction_metadata_and_working_bytes=snapshot[
+                "transaction_working_budget_bytes"
+            ],
+            removable_media_reserve_bytes=snapshot["removable_reserve_bytes"],
+        )
 
     def format_and_mount(
         self,
@@ -176,13 +196,16 @@ def test_prepare_records_inserted_baseline_and_requires_new_usb(tmp_path: Path) 
     backend.items = (old,)
 
     value.begin(document)
-    assert value.refresh_candidate() == {
-        "phase": "USB_REQUIRED",
-        "progress_percent": None,
-        "error_code": None,
-        "usb_candidate": None,
-        "usb_confirmation_required": False,
-    }
+    status = value.refresh_candidate()
+    assert status["phase"] == "USB_REQUIRED"
+    assert status["progress_percent"] is None
+    assert status["error_code"] is None
+    assert status["usb_candidate"] is None
+    assert status["usb_confirmation_required"] is False
+    assert status["usb_required_bytes_or_null"] is not None
+    assert status["usb_recommended_nominal_gb_or_null"] == 32
+    assert status["usb_capacity_check_state"] == "RECOMMENDATION_READY"
+    assert status["user_message_code_or_null"] == "USB_INSERT_RECOMMENDED"
     assert backend.formatted == 0
 
     new = candidate("b" * 64)
@@ -275,16 +298,11 @@ def test_capacity_formula_failure_aborts_media_and_never_enters_u2(
 ) -> None:
     value, backend, store, document = controller(tmp_path)
     value.begin(document)
-    backend.items = (candidate("b" * 64),)
+    backend.items = (candidate("b" * 64, capacity=32 * 1024**3),)
     value.refresh_candidate()
+    backend.predecessor_recovery_budget_bytes = 8 * 1024**3
+    backend.ha_data_measured_bytes = 4 * 1024**3
     backend.measured = USB_MEASURED_USABLE_CAPACITY_MIN_BYTES
-    backend.capacity = UsbCapacityInputs(
-        target_artifact_bytes=4 * 1024**3,
-        predecessor_recovery_worst_case_bytes=4 * 1024**3,
-        ha_data_backup_worst_case_bytes=4 * 1024**3,
-        transaction_metadata_and_working_bytes=2 * 1024**3,
-        removable_media_reserve_bytes=1 * 1024**3,
-    )
 
     with pytest.raises(UpdaterV2Error, match="ha_usb_capacity_not_verified"):
         value.confirm_and_prepare()
@@ -298,6 +316,53 @@ def test_capacity_formula_failure_aborts_media_and_never_enters_u2(
     next_status = value.refresh_candidate()
     assert next_status["phase"] == "USB_REQUIRED"
     assert next_status["usb_candidate"] is None
+
+def test_dynamic_requirement_growth_before_confirm_blocks_before_format(
+    tmp_path: Path,
+) -> None:
+    value, backend, store, document = controller(tmp_path)
+    value.begin(document)
+    backend.items = (candidate("9" * 64, capacity=16 * 1024**3),)
+    assert value.refresh_candidate()["usb_confirmation_required"] is True
+
+    backend.predecessor_recovery_budget_bytes = 12 * 1024**3
+    backend.ha_data_measured_bytes = 4 * 1024**3
+
+    with pytest.raises(UpdaterV2Error, match="ha_usb_capacity_not_verified"):
+        value.confirm_and_prepare()
+
+    final = store.read()
+    assert final is not None
+    assert final["phase"] == U1
+    assert backend.formatted == 0
+
+
+def test_existing_u1_capacity_backfill_preserves_candidate_and_confirmation(
+    tmp_path: Path,
+) -> None:
+    value, backend, _, document = controller(tmp_path)
+    value.begin(document)
+    backend.items = (candidate("8" * 64),)
+    before = value.refresh_candidate()
+    assert before["usb_confirmation_required"] is True
+
+    state = value.prepare_store.read()
+    assert state is not None
+    legacy = dict(state)
+    legacy.pop("capacity_snapshot")
+    value.prepare_store.write(legacy)
+
+    before_candidate = legacy["candidate"]
+    before_required = legacy["confirmation_required"]
+    before_consumed = legacy["confirmation_consumed"]
+    value.ensure_started(document)
+
+    after = value.prepare_store.read()
+    assert after is not None
+    assert after["candidate"] == before_candidate
+    assert after["confirmation_required"] == before_required
+    assert after["confirmation_consumed"] == before_consumed
+    assert after["capacity_snapshot"]["usb_required_bytes"] > 0
 
 
 def test_confirmation_without_published_candidate_does_not_format(
@@ -403,18 +468,17 @@ def test_raw_capacity_below_floor_never_formats_media(tmp_path: Path) -> None:
         ),
     )
     status = value.refresh_candidate()
-    assert status["usb_confirmation_required"] is True
+    assert status["usb_confirmation_required"] is False
+    assert status["phase"] == "ERROR"
+    assert status["error_code"] == "usb_capacity_insufficient"
+    assert status["usb_capacity_check_state"] == "CANDIDATE_CAPACITY_INSUFFICIENT"
 
     with pytest.raises(
         UpdaterV2Error,
-        match="usb_raw_capacity_below_floor",
+        match="usb_destructive_confirmation_not_ready",
     ):
         value.confirm_and_prepare()
     assert backend.formatted == 0
-    next_status = value.refresh_candidate()
-    assert next_status["phase"] == "USB_REQUIRED"
-    assert next_status["usb_candidate"] is None
-
 
 def test_read_only_usb_never_becomes_confirmation_candidate(
     tmp_path: Path,
