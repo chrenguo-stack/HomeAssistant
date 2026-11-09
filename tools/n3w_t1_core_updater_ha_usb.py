@@ -2,6 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
+from n3w_t1_core_updater_ha_capacity import (
+    InstallCapacityRevalidation,
+    RecoveryAdmissionCapacity,
+    validate_install_revalidation,
+    validate_recovery_admission_capacity,
+)
 from n3w_t1_core_updater_ha_backup import (
     HaDataBackupRecord,
     validate_backup_record,
@@ -117,10 +123,18 @@ def record_target_ready(
     )
 
 
-def start_predecessor_recovery(document: dict[str, Any]) -> dict[str, Any]:
+def start_predecessor_recovery(
+    document: dict[str, Any],
+    *,
+    install_capacity: InstallCapacityRevalidation,
+) -> dict[str, Any]:
     current = validate_transaction_document(document)
     if current["phase"] != U5:
         raise UpdaterV2Error("ha_usb_predecessor_prepare_phase_invalid")
+    validate_install_revalidation(
+        install_capacity,
+        expected_target_artifact_bytes=current["target_archive_size"],
+    )
     return transition(current, U6)
 
 
@@ -246,6 +260,7 @@ def record_recovery_admission(
     backup: HaDataBackupRecord,
     observed_usb_filesystem_uuid: str,
     capacity_report: UsbCapacityReport,
+    recovery_capacity: RecoveryAdmissionCapacity,
     production_prestate_exact: bool,
 ) -> dict[str, Any]:
     current = validate_transaction_document(document)
@@ -277,6 +292,12 @@ def record_recovery_admission(
         expected_image_ref=current["current_image_ref"],
     )
     validate_backup_record(backup)
+    validate_recovery_admission_capacity(
+        recovery_capacity,
+        target_archive_bytes=target.archive_size_bytes,
+        predecessor_archive_bytes=predecessor.archive_size_bytes,
+        ha_backup_archive_bytes=backup.archive_size_bytes,
+    )
 
     if current["target_artifact_verified"] is not True:
         raise UpdaterV2Error("ha_usb_target_not_verified")
