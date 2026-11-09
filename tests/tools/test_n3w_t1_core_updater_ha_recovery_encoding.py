@@ -76,3 +76,25 @@ def test_qualification_evidence_binds_encoder_and_budget() -> None:
     ).encode()
     assert len(encoding.canonical_sha256(evidence)) == 64
     assert canonical
+
+
+def test_qualification_measurement_uses_maximum_of_exact_samples() -> None:
+    assert encoding.qualification_measured_export_bytes(
+        (1_000_000_000, 1_000_012_345)
+    ) == 1_000_012_345
+
+
+@pytest.mark.parametrize(
+    "samples",
+    [
+        (),
+        (1,),
+        (0, 1),
+        (-1, 1),
+        (True, 1),
+        (1, 1.5),
+    ],
+)
+def test_qualification_measurement_rejects_invalid_samples(samples: tuple[object, ...]) -> None:
+    with pytest.raises(encoding.RecoveryEncodingError):
+        encoding.qualification_measured_export_bytes(samples)  # type: ignore[arg-type]
