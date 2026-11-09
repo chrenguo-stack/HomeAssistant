@@ -442,7 +442,7 @@ def execute(tar: Path, authorization: str, confirm: str) -> dict[str, Any]:
         "replay_permitted": False,
     })
 
-    binding_changed = False
+    rollback_needed = False
     try:
         run(["docker", "load", "-i", str(tar)], timeout=1800)
         image = json.loads(run(["docker", "image", "inspect", TARGET]).stdout)
@@ -455,10 +455,10 @@ def execute(tar: Path, authorization: str, confirm: str) -> dict[str, Any]:
         ):
             raise Stop("loaded_target_identity_invalid")
 
+        rollback_needed = True
         run(["systemctl", "stop", SERVICES_UNIT], timeout=180)
         updated = rewrite_manager(COMPOSE_ENV.read_bytes(), PREDECESSOR, TARGET)
         atomic_replace(COMPOSE_ENV, updated)
-        binding_changed = True
         run(["systemctl", "start", SERVICES_UNIT], timeout=180)
         wait_services()
         post = post_validate(pre)
@@ -479,7 +479,7 @@ def execute(tar: Path, authorization: str, confirm: str) -> dict[str, Any]:
             "replay_permitted": False,
             "first_failed_operation": str(error),
         }
-        if binding_changed:
+        if rollback_needed:
             try:
                 rollback(pre, snapshot_env)
                 result["rollback"] = "PASS"
