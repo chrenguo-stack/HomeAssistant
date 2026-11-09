@@ -1,3 +1,34 @@
+## Stable updater authority — 2026-11-09 product image lifecycle / post-acceptance cleanup policy frozen
+
+~~~text
+PROJECT_WORKING_CONTEXT_VERSION=4.4
+
+IMAGE_LIFECYCLE_POLICY=FROZEN_DESIGN_SOURCE_IMPLEMENTATION_PENDING
+STEADY_STATE_ONE_IMAGE_GENERATION_PER_COMPONENT=true
+
+MANAGER_PERMANENT_PREDECESSOR_RETENTION=false
+BROKER_PERMANENT_PREDECESSOR_RETENTION=false
+HOMEASSISTANT_PERMANENT_PREDECESSOR_RETENTION=false
+
+MANAGER_PREDECESSOR_RETAIN_UNTIL_PRODUCT_ACCEPTANCE=true
+BROKER_PREDECESSOR_RETAIN_UNTIL_PRODUCT_ACCEPTANCE=true
+HOMEASSISTANT_RECOVERY_RETAIN_UNTIL_TRANSACTION_ACCEPTANCE=true
+
+GENERIC_V2_COMMITTED_IS_FINAL_CLEANUP_BOUNDARY=false
+POST_ACCEPTANCE_EXACT_CLEANUP_REQUIRED=true
+BROAD_DOCKER_PRUNE=false
+
+CURRENT_T1_STORAGE_CLEANUP_EXECUTED=false
+CURRENT_T1_LIVE_DELETE_AUTHORIZED=false
+~~~
+
+The T1 internal Docker image store is runtime storage, not a long-term release archive. Manager and Broker keep the immediate predecessor only through Generic V2 COMMITTED and the independent product-acceptance window; after acceptance PASS an exact finalization step removes that predecessor. Home Assistant keeps the mandatory-USB V1.1 model and one internal HA generation at steady state. Generic V2 already supports explicit rollback from COMMITTED, so rollback capability is retained until the independent acceptance boundary without requiring permanent previous-image retention.
+
+The current T1 cleanup remains a separate live-mutation gate. No Docker image deletion is authorized by this design closure.
+
+Authority:
+`docs/development/N3W_T1_CORE_STACK_IMAGE_LIFECYCLE_AND_POST_ACCEPTANCE_CLEANUP_POLICY_20261109.md`.
+
 ## Stable updater authority — 2026-11-09 KF-147 Manager V3 final binding CI SUCCESS / live apply pending
 
 ```text
