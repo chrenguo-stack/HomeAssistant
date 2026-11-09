@@ -1,0 +1,72 @@
+{
+  "schema": "gh.n3w-t1-ha-predecessor-recovery-qualification-record/1",
+  "qualification": {
+    "source_head": "bd71f5eeaac215f7108d64aebe268a49b3758573",
+    "workflow_run_id": 42558486089,
+    "workflow_job_id": 128969470757,
+    "workflow_result": "success",
+    "artifact_id": 13648383855,
+    "artifact_name": "n3w-ha-predecessor-recovery-qualification-bd71f5eeaac215f7108d64aebe268a49b3758573",
+    "artifact_zip_size_bytes": 7700,
+    "artifact_zip_digest": "sha256:680e5fc7cc19d0763b61b9b55842e9427cdf6bff3d8fc7ee9217f80a456e72ab",
+    "evidence_json_sha256": "e2207aca9501875a574ac17c5fe8f71eaf60b51b7b802cde53eb1cc38a1e660b",
+    "evidence_json_canonical_sha256": "444b89c00528b5d5e5ea25e8f9333911482f30ffedd67c3f9404ccefd5f4232d"
+  },
+  "predecessor": {
+    "upstream_repository": "ghcr.io/home-assistant/home-assistant",
+    "upstream_tag": "2026.10.0",
+    "arm64_manifest_digest": "sha256:0c73235a9140a9b02e4bf618d06d8c496b12ae70656ecddb0e02ad31ad122be4",
+    "image_ref": "local/n3w-homeassistant:2026.10.0-0c73235a",
+    "image_id": "sha256:b0e1ee82adfb19fa1ff3049034535633b1c4f0df6606721c0e77383854b99879"
+  },
+  "encoding": {
+    "schema": "gh.n3w-t1-ha-predecessor-recovery-encoding/1",
+    "representation": "docker-save",
+    "compression": "gzip",
+    "compression_level": 1,
+    "no_name": true,
+    "docker_save_argv": [
+      "docker",
+      "save",
+      "local/n3w-homeassistant:2026.10.0-0c73235a"
+    ],
+    "gzip_argv": [
+      "gzip",
+      "-1",
+      "-n",
+      "-c"
+    ]
+  },
+  "measurement": {
+    "method": "max_of_two_exact_product_exports",
+    "selected_sample_index": 2,
+    "measured_export_bytes": 835454845,
+    "samples": [
+      {
+        "sample_index": 1,
+        "archive_size_bytes": 835454823,
+        "archive_sha256": "5a3476ee69cbe81c4cd292c1ff20c7c6148fc09361298a4106f97fc9d58f3acb",
+        "portable_identity_sha256": "90f9ea79ea3b55e96f5171a538cc50925c4f6141d56ad91591936ca6aabff457"
+      },
+      {
+        "sample_index": 2,
+        "archive_size_bytes": 835454845,
+        "archive_sha256": "a161b5edc144de2d69abeffe9c1e38fcc80d58d30a728c0b3581e113ccf77a21",
+        "portable_identity_sha256": "b57ed8112812bcb6ff7ff28d29c6a606f87cad5093bac077b4a3c1afb1028ab5"
+      }
+    ]
+  },
+  "budget": {
+    "ratio_percent": 110,
+    "round_up_quantum_bytes": 268435456,
+    "ratio_bound_bytes": 919000330,
+    "additive_bound_bytes": 1103890301,
+    "predecessor_recovery_budget_bytes": 1342177280
+  },
+  "verification": {
+    "portable_identity_equivalent": true,
+    "docker_load_smoke_pass_for_each_sample": true,
+    "exact_product_export_sample_count": 2,
+    "independent_budget_recalculation_pass": true
+  }
+}
