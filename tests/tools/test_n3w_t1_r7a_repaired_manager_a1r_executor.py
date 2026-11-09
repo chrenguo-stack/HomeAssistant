@@ -8,6 +8,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 EXECUTOR_PATH = ROOT / "tools/execution_packages/n3w/r7a/repaired_manager_a1_reactivation/executor.py"
 MANIFEST_PATH = EXECUTOR_PATH.with_name("manifest.json")
+CLOSURE_PATH = ROOT / "docs/development/N3W_T1_R7A_REPAIRED_MANAGER_A0R_A1R_LIVE_EXECUTION_CLOSURE_20261108.md"
+HISTORICAL_A1R_HEAD = "70aaa4070641dd73c1a97738e6332be31403d45e"
 
 def load_executor():
     spec = importlib.util.spec_from_file_location("r7a_repaired_manager_a1r_executor", EXECUTOR_PATH)
@@ -29,19 +31,28 @@ def test_a1r_manifest_is_live_authorized_and_separate_from_a0r() -> None:
     assert split["old_a1_authorization_replay"] is False
     assert split["old_boundary_b_authorization_replay"] is False
 
-def test_a1r_authorization_is_new_and_live_gate_is_enabled() -> None:
+def test_a1r_authorization_is_historical_consumed_live_authority() -> None:
     executor = load_executor()
+    document = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+    closure = CLOSURE_PATH.read_text(encoding="utf-8")
+
     assert executor.AUTHORIZATION == "N3W_T1_R7A_REPAIRED_MANAGER_A1R_LIVE_REACTIVATION_20261108_01"
     assert executor.AUTHORIZATION != "N3W_T1_R7A_HOST_DAEMON_COMPOSE_A1_LIVE_ACTIVATION_20261108_02"
     assert executor.AUTHORIZATION != "N3W_T1_R7A_HOST_DAEMON_COMPOSE_A1_LIVE_ACTIVATION_20261107_01"
-    head = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], check=True, text=True, stdout=subprocess.PIPE).stdout.strip()
-    document = executor.validate_local_source(head, require_live=True)
     assert document["live_execution_authorized"] is True
+    assert f"LIVE_AUTHORIZED_HEAD={HISTORICAL_A1R_HEAD}" in closure
+    assert "A1R_AUTHORIZATION_CLAIMED=true" in closure
+    assert "A1R_STATUS=PASS" in closure
 
-def test_a1r_source_authority_matches_exact_git_blobs() -> None:
+def test_a1r_source_authority_matches_consumed_historical_head() -> None:
     document = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     for path, expected in document["source_authority"].items():
-        observed = subprocess.run(["git", "-C", str(ROOT), "rev-parse", f"HEAD:{path}"], check=True, text=True, stdout=subprocess.PIPE).stdout.strip()
+        observed = subprocess.run(
+            ["git", "-C", str(ROOT), "rev-parse", f"{HISTORICAL_A1R_HEAD}:{path}"],
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+        ).stdout.strip()
         assert observed == expected
 
 def test_a1r_requires_committed_repaired_manager_transaction() -> None:
