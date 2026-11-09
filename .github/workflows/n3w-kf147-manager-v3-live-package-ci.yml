@@ -18,6 +18,11 @@ concurrency:
 
 jobs:
   package:
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.draft == false ||
+      contains(github.event.pull_request.labels.*.name, 'ci-ready') ||
+      contains(github.event.pull_request.body, 'CI_READY=true')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
