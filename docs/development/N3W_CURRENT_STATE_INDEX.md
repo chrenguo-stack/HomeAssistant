@@ -1,3 +1,17 @@
+## 2026-11-09 — USB enumeration differentiation E2 STOP
+
+- T1 Core Stack compatibility authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; repository Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- The same test USB that enumerated successfully on the Mac was safely ejected and reinserted into T1 once under E2.
+- T1 reproduced the original descriptor timeout exactly: repeated kernel `error -110`, xHCI port power-cycle attempt, and final `unable to enumerate USB device`.
+- No non-root lsusb device, SCSI disk or USB-like block disk appeared; the R7A candidate layer was never reached.
+- The live HA-USB transaction remains ACTIVE at U1 / `USB_REQUIRED`, with no candidate, no confirmation, no PREPARE error and no destructive action.
+- A single-transient insertion explanation is materially weakened. The remaining fault domain is T1 USB path / port / controller / power / signal behavior versus device-specific compatibility with the original USB.
+- Product-source blocker and permanent T1 hardware fault remain unproven. No KF is opened yet.
+- Current test USB remains inserted on T1. Further unplug/reinsert and second-device substitution require a separate E3 authorization.
+- Next stage: one second known-good USB substitution under E3 to distinguish T1-wide failure from original-device-specific compatibility.
+- Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_USB_ENUMERATION_DIFFERENTIATION_E2_STOP_20261109.md`.
+
+
 ## 2026-11-09 — USB enumeration differentiation E1 CLOSED_PASS
 
 - T1 Core Stack compatibility authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; repository Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
