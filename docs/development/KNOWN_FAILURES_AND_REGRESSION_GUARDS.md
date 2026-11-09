@@ -1,3 +1,39 @@
+### 2026-11-10 KF-150 — T1 ENOSPC outage recovered; steady-state storage headroom/lifecycle closure pending
+
+| ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
+|---|---|---|---|---|---|
+| KF-150 | T1 root storage / Docker core-stack recovery | KF-147 Manager staging during a nearly full root filesystem hit ENOSPC; Mosquitto persistence failed first, Broker stopped, then Manager/HA stopped. After exact cleanup, systemd/Compose could still report containers running while real containerd tasks were absent. Exact starts restored the existing three containers. | Primary outage root cause is proven root-filesystem ENOSPC. The secondary Docker/Compose list-state divergence is proven, but ENOSPC as its direct causal mechanism is NOT_PROVEN. | Implement proactive headroom/capacity admission and the frozen exact image-lifecycle/finalization policy. Keep broad prune forbidden. Require exact generation authority before image cleanup. Do not resume KF-147 until healthy headroom is proven and a fresh package is capacity-bound. | RUNTIME_RECOVERED_SOURCE_CLOSURE_PENDING |
+
+Guards:
+- root free space used for large staging/load must be freshly measured before streaming;
+- capacity accounting must include staging/archive and Docker image materialization, not only tar size;
+- Docker/Compose `Running` is insufficient after abnormal storage failure: require real process/containerd task and listeners;
+- broad `docker system prune` remains forbidden;
+- KF-147 old package/authorization cannot be replayed after capacity-contract repair.
+
+### 2026-11-10 KF-149 — deployed Core Updater CLI asset missing
+
+| ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
+|---|---|---|---|---|---|
+| KF-149 | T1 Core Updater deployment/package integrity | S2E runtime recovery succeeded, but final strict verifier failed because `/opt/HomeAssistant/tools/n3w_t1_core_updater.py` does not exist on the deployed T1. | TBD. Source contains Core Updater logic, but the exact installation/staging contract that should provide the deployed CLI has not yet been classified. | Audit repository install maps, package manifests and deployed source inventory; define the canonical deployed CLI/entrypoint; repair packaging/install binding and add deployed-asset integrity regression before using it as acceptance authority. | DEPLOYMENT_ASSET_INTEGRITY_REPAIR_REQUIRED |
+
+Guards:
+- missing verifier/CLI path is an asset-integrity failure, not proof of product runtime failure;
+- do not invent an alternate deployed path without source/package authority;
+- runtime health must remain independently observable while deployment asset repair is pending.
+
+### 2026-11-10 KF-148 — runtime use of startup Broker authenticated-readiness steals Home Assistant MQTT session
+
+| ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
+|---|---|---|---|---|---|
+| KF-148 | T1 Broker readiness / Home Assistant MQTT runtime acceptance | While HA was already connected with keepalive 60, a runtime call to `n3w-t1-broker-authenticated-readiness` created a short keepalive-10 connection using the same HA identity; Broker logged the live HA session as `disconnected: session taken over`. S2F then temporarily reported HA current authentication missing; S2G later proved HA socket/current-auth/HTTP healthy. | The readiness helper reads production HA metadata and connects with the production HA username/password/client ID. This is safe before HA starts, but runtime/post-start callers reuse the same client ID and displace the live HA session. | Preserve the helper as a pre-application startup credential probe. Remove runtime/post-start use; runtime acceptance must use non-invasive evidence such as established HA→1883 socket, Broker current-auth state for the exact identity and HA HTTP readiness. Add regression proving runtime health checks do not open a second production HA client-ID session. | SOURCE_REPAIR_DESIGN_REQUIRED |
+
+Guards:
+- do not “fix” by inventing an arbitrary alternate client ID: DynSec binds the service identity to its required client ID;
+- startup credential probe and runtime health probe are different contracts;
+- runtime acceptance must not perturb the session being measured;
+- `tools/n3w_t1_clean_reference_r2b.py` runtime/pre-reboot and post-reboot readiness use is a proven repair target.
+
 ### 2026-11-09 KF-147 Stage A OTA publication — origin + edge CLOSED_PASS
 
 ```text
