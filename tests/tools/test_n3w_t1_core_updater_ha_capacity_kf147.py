@@ -128,3 +128,89 @@ def test_oversize_arithmetic_fails_closed() -> None:
             predecessor_recovery_budget_bytes=capacity.MAX_SAFE_BYTES,
             ha_data_measured_bytes=0,
         )
+
+
+def test_install_revalidation_accounts_for_target_already_stored() -> None:
+    evidence = capacity.compute_install_revalidation(
+        target_artifact_bytes=835_309_535,
+        predecessor_recovery_budget_bytes=1_342_177_280,
+        ha_data_measured_bytes=0,
+        observed_usb_free_bytes=16 * 1024**3,
+    )
+
+    assert evidence.capacity_pass is True
+    assert evidence.target_already_stored_bytes == 835_309_535
+    assert evidence.required_remaining_bytes == (
+        evidence.usb_required_bytes - evidence.target_already_stored_bytes
+    )
+    assert (
+        capacity.validate_install_revalidation(
+            evidence,
+            expected_target_artifact_bytes=835_309_535,
+        )
+        is evidence
+    )
+
+
+def test_install_revalidation_blocks_when_requirement_growth_exceeds_free() -> None:
+    evidence = capacity.compute_install_revalidation(
+        target_artifact_bytes=835_309_535,
+        predecessor_recovery_budget_bytes=1_342_177_280,
+        ha_data_measured_bytes=20 * 1024**3,
+        observed_usb_free_bytes=2 * 1024**3,
+    )
+
+    assert evidence.capacity_pass is False
+    with pytest.raises(UpdaterV2Error, match="ha_install_capacity_not_verified"):
+        capacity.validate_install_revalidation(
+            evidence,
+            expected_target_artifact_bytes=835_309_535,
+        )
+
+
+def test_u8_capacity_uses_actual_archives_and_real_free_space() -> None:
+    evidence = capacity.compute_recovery_admission_capacity(
+        target_archive_bytes=835_309_535,
+        predecessor_archive_bytes=835_454_845,
+        ha_backup_archive_bytes=500_000_000,
+        transaction_working_budget_bytes=536_870_912,
+        observed_usb_free_bytes=4 * 1024**3,
+    )
+
+    assert evidence.capacity_pass is True
+    assert (
+        evidence.required_free_after_recovery_assets_bytes
+        == evidence.transaction_working_budget_bytes
+        + evidence.removable_reserve_bytes
+    )
+    assert (
+        capacity.validate_recovery_admission_capacity(
+            evidence,
+            target_archive_bytes=835_309_535,
+            predecessor_archive_bytes=835_454_845,
+            ha_backup_archive_bytes=500_000_000,
+        )
+        is evidence
+    )
+
+
+def test_u8_capacity_rejects_insufficient_real_free_space() -> None:
+    evidence = capacity.compute_recovery_admission_capacity(
+        target_archive_bytes=835_309_535,
+        predecessor_archive_bytes=835_454_845,
+        ha_backup_archive_bytes=500_000_000,
+        transaction_working_budget_bytes=536_870_912,
+        observed_usb_free_bytes=1,
+    )
+
+    assert evidence.capacity_pass is False
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_recovery_capacity_not_verified",
+    ):
+        capacity.validate_recovery_admission_capacity(
+            evidence,
+            target_archive_bytes=835_309_535,
+            predecessor_archive_bytes=835_454_845,
+            ha_backup_archive_bytes=500_000_000,
+        )
