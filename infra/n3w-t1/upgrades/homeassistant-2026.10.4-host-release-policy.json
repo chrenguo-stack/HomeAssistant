@@ -1,0 +1,29 @@
+{
+  "schema": "gh.n3w-t1-ha-ota-host-release-policy/2",
+  "release_identity": "homeassistant-2026.10.4",
+  "artifact_url": "https://ota.hahub.top/n3w/homeassistant/releases/homeassistant-2026.10.4/homeassistant-arm64.tar.gz",
+  "target_archive_sha256": "eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973",
+  "target_archive_size_bytes": 835309535,
+  "expected_predecessor_image_ref": "local/n3w-homeassistant:2026.10.0-0c73235a",
+  "predecessor_recovery_budget_bytes": 1342177280,
+  "capacity_policy": {
+    "usb_measured_usable_floor_bytes": 15032385536,
+    "round_up_quantum_bytes": 268435456,
+    "ha_data_backup_min_budget_bytes": 1073741824,
+    "ha_data_growth_margin_ratio_ppm": 250000,
+    "ha_data_growth_margin_floor_bytes": 536870912,
+    "transaction_working_floor_bytes": 536870912,
+    "transaction_working_target_ratio_ppm": 100000,
+    "removable_reserve_floor_bytes": 1073741824,
+    "removable_reserve_ratio_ppm": 100000,
+    "recommended_nominal_usb_sizes_gb": [
+      32,
+      64,
+      128,
+      256,
+      512,
+      1024
+    ],
+    "nominal_usable_guard_ppm": 900000
+  }
+}
