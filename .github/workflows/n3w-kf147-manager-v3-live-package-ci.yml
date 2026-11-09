@@ -100,6 +100,11 @@ jobs:
           unzip -q "$RUNNER_TEMP/upstream.zip" -d "$RUNNER_TEMP/upstream"
           test "$(find "$RUNNER_TEMP/upstream" -maxdepth 1 -type f -printf '%f\n' | sort | tr '\n' ' ')" = "binding.json broker-arm64.tar greenhouse-manager-arm64.tar homeassistant-arm64.tar "
           cp "$RUNNER_TEMP/upstream/greenhouse-manager-arm64.tar" "$RUNNER_TEMP/package/"
+          docker load -i "$RUNNER_TEMP/package/greenhouse-manager-arm64.tar"
+          test "$(docker image inspect "$MANAGER_IMAGE" --format '{{.Id}}')" = "$MANAGER_IMAGE_ID"
+          MANAGER_IMAGE_SIZE_BYTES="$(docker image inspect "$MANAGER_IMAGE" --format '{{.Size}}')"
+          test "$MANAGER_IMAGE_SIZE_BYTES" -gt 0
+          export MANAGER_IMAGE_SIZE_BYTES
           python - "$RUNNER_TEMP/upstream/binding.json" "$RUNNER_TEMP/package/greenhouse-manager-arm64.tar" "$RUNNER_TEMP/package/manager-live-binding.json" <<'PY'
           import hashlib, json, os, sys
           from pathlib import Path
@@ -127,6 +132,11 @@ jobs:
               "target_image_id":os.environ["MANAGER_IMAGE_ID"],
               "manager_tar_sha256":os.environ["MANAGER_TAR_SHA256"],
               "manager_tar_size_bytes":int(os.environ["MANAGER_TAR_SIZE"]),
+              "manager_image_size_bytes":int(os.environ["MANAGER_IMAGE_SIZE_BYTES"]),
+              "capacity_required_free_bytes":(
+                  2 * int(os.environ["MANAGER_TAR_SIZE"])
+                  + int(os.environ["MANAGER_IMAGE_SIZE_BYTES"])
+              ),
               "upstream_run_id":int(os.environ["UPSTREAM_RUN_ID"]),
               "upstream_artifact_id":int(os.environ["UPSTREAM_ARTIFACT_ID"]),
               "upstream_artifact_digest":os.environ["UPSTREAM_ARTIFACT_DIGEST"],
@@ -182,6 +192,10 @@ jobs:
                   h.update(b)
           assert h.hexdigest() == binding["manager_tar_sha256"]
           assert tar.stat().st_size == binding["manager_tar_size_bytes"]
+          assert isinstance(binding["manager_image_size_bytes"], int) and binding["manager_image_size_bytes"] > 0
+          assert binding["capacity_required_free_bytes"] == (
+              2 * binding["manager_tar_size_bytes"] + binding["manager_image_size_bytes"]
+          )
           print("PACKAGE_ARTIFACT_ID="+os.environ["PACKAGE_ARTIFACT_ID"])
           print("PACKAGE_ARTIFACT_DIGEST="+os.environ["PACKAGE_ARTIFACT_DIGEST"])
           print("KF147_MANAGER_V3_LIVE_PACKAGE=PASS")
