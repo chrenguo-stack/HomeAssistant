@@ -1,0 +1,220 @@
+name: N3W T1 Home Assistant predecessor recovery qualification CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/n3w-t1-homeassistant-predecessor-recovery-qualification-ci.yml"
+      - "tools/n3w_t1_core_updater_ha_recovery_encoding.py"
+      - "tools/n3w_t1_portable_image_identity.py"
+      - "tests/tools/test_n3w_t1_core_updater_ha_recovery_encoding.py"
+      - "tests/tools/test_n3w_t1_portable_image_identity.py"
+      - "docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_PREDECESSOR_RECOVERY_RELEASE_QUALIFICATION_SOURCE_DESIGN_20261109.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: n3w-t1-ha-predecessor-recovery-qualification-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      SOURCE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONPATH: tools
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_HEAD }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate qualification source contract
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_HEAD"
+          python -m pip install "pytest>=8,<9"
+          python -m py_compile tools/n3w_t1_core_updater_ha_recovery_encoding.py
+          PYTHONPATH=tools python -m pytest -q \
+            tests/tools/test_n3w_t1_core_updater_ha_recovery_encoding.py \
+            tests/tools/test_n3w_t1_portable_image_identity.py
+
+      - name: Materialize frozen predecessor image
+        run: |
+          set -euo pipefail
+          readarray -t values < <(PYTHONPATH=tools python - <<'PY'
+          import n3w_t1_core_updater_ha_recovery_encoding as e
+          print(e.PREDECESSOR_UPSTREAM_REPOSITORY)
+          print(e.PREDECESSOR_UPSTREAM_TAG)
+          print(e.PREDECESSOR_ARM64_MANIFEST_DIGEST)
+          print(e.PREDECESSOR_IMAGE_REF)
+          print(e.PREDECESSOR_IMAGE_ID)
+          PY
+          )
+          UPSTREAM_REPOSITORY="${values[0]}"
+          UPSTREAM_TAG="${values[1]}"
+          MANIFEST_DIGEST="${values[2]}"
+          IMAGE_REF="${values[3]}"
+          EXPECTED_IMAGE_ID="${values[4]}"
+          docker pull --platform linux/arm64 "$UPSTREAM_REPOSITORY@$MANIFEST_DIGEST"
+          docker tag "$UPSTREAM_REPOSITORY@$MANIFEST_DIGEST" "$IMAGE_REF"
+          test "$(docker image inspect "$IMAGE_REF" --format '{{.Id}}')" = "$EXPECTED_IMAGE_ID"
+
+      - name: Generate deterministic predecessor recovery twice
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/qualification"
+          PYTHONPATH=tools python - "$RUNNER_TEMP/qualification" <<'PY'
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          import n3w_t1_core_updater_ha_recovery_encoding as e
+
+          root = Path(sys.argv[1])
+
+          def encode(path: Path) -> None:
+              with path.open("xb") as output:
+                  docker = subprocess.Popen(
+                      e.docker_save_argv(),
+                      stdout=subprocess.PIPE,
+                      stderr=subprocess.PIPE,
+                  )
+                  assert docker.stdout is not None
+                  gzip = subprocess.Popen(
+                      e.gzip_argv(),
+                      stdin=docker.stdout,
+                      stdout=output,
+                      stderr=subprocess.PIPE,
+                  )
+                  docker.stdout.close()
+                  _, gzip_stderr = gzip.communicate()
+                  _, docker_stderr = docker.communicate()
+                  if docker.returncode != 0:
+                      raise RuntimeError(
+                          "docker_save_failed:" + docker_stderr.decode(errors="replace")
+                      )
+                  if gzip.returncode != 0:
+                      raise RuntimeError(
+                          "gzip_failed:" + gzip_stderr.decode(errors="replace")
+                      )
+
+          first = root / "predecessor-recovery-1.tar.gz"
+          second = root / "predecessor-recovery-2.tar.gz"
+          encode(first)
+          encode(second)
+
+          first_size = first.stat().st_size
+          second_size = second.stat().st_size
+          first_sha = e.sha256_file(first)
+          second_sha = e.sha256_file(second)
+
+          if first_size != second_size:
+              raise RuntimeError("qualification_size_not_reproducible")
+          if first_sha != second_sha:
+              raise RuntimeError("qualification_sha256_not_reproducible")
+
+          print(f"MEASURED_EXPORT_BYTES={first_size}")
+          print(f"RECOVERY_ARCHIVE_SHA256={first_sha}")
+          print(
+              "PREDECESSOR_RECOVERY_BUDGET_BYTES="
+              f"{e.predecessor_recovery_budget_bytes(first_size)}"
+          )
+          PY
+
+      - name: Verify portable identity and Docker load compatibility
+        run: |
+          set -euo pipefail
+          PYTHONPATH=tools python - "$RUNNER_TEMP/qualification" "$SOURCE_HEAD" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          import n3w_t1_core_updater_ha_recovery_encoding as e
+          import n3w_t1_portable_image_identity as portable
+
+          root = Path(sys.argv[1])
+          source_head = sys.argv[2]
+          archive = root / "predecessor-recovery-1.tar.gz"
+
+          identity = portable.parse_image_archive(
+              archive,
+              expected_tag=e.PREDECESSOR_IMAGE_REF,
+              platform_os="linux",
+              platform_architecture="arm64",
+          )
+          identity_doc = identity.to_dict()
+          identity_path = root / "portable-image-identity.json"
+          identity_path.write_text(
+              json.dumps(identity_doc, sort_keys=True, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          portable_identity_sha = e.sha256_file(identity_path)
+
+          evidence = e.QualificationEvidence(
+              source_head=source_head,
+              measured_export_bytes=archive.stat().st_size,
+              archive_sha256=e.sha256_file(archive),
+              portable_identity_sha256=portable_identity_sha,
+          ).to_dict()
+          evidence["qualification"] = {
+              "double_export_byte_identical": True,
+              "portable_identity_verified": True,
+              "docker_load_smoke_required": True,
+          }
+          evidence_path = root / "predecessor-recovery-qualification.json"
+          evidence_path.write_text(
+              json.dumps(evidence, sort_keys=True, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          print(f"EVIDENCE_CANONICAL_SHA256={e.canonical_sha256(evidence)}")
+          print(
+              "MEASURED_EXPORT_BYTES="
+              f"{evidence['measurement']['measured_export_bytes']}"
+          )
+          print(
+              "PREDECESSOR_RECOVERY_BUDGET_BYTES="
+              f"{evidence['budget']['predecessor_recovery_budget_bytes']}"
+          )
+          PY
+
+          IMAGE_REF="$(PYTHONPATH=tools python - <<'PY'
+          import n3w_t1_core_updater_ha_recovery_encoding as e
+          print(e.PREDECESSOR_IMAGE_REF)
+          PY
+          )"
+          EXPECTED_IMAGE_ID="$(PYTHONPATH=tools python - <<'PY'
+          import n3w_t1_core_updater_ha_recovery_encoding as e
+          print(e.PREDECESSOR_IMAGE_ID)
+          PY
+          )"
+          docker image rm -f "$IMAGE_REF"
+          docker load -i "$RUNNER_TEMP/qualification/predecessor-recovery-1.tar.gz"
+          test "$(docker image inspect "$IMAGE_REF" --format '{{.Id}}')" = "$EXPECTED_IMAGE_ID"
+          python - "$RUNNER_TEMP/qualification/predecessor-recovery-qualification.json" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          p = Path(sys.argv[1])
+          d = json.loads(p.read_text())
+          d["qualification"]["docker_load_smoke_pass"] = True
+          p.write_text(json.dumps(d, sort_keys=True, indent=2) + "\n")
+          PY
+          echo "PREDECESSOR_RECOVERY_QUALIFICATION=PASS"
+
+      - name: Publish bounded qualification evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: n3w-ha-predecessor-recovery-qualification-${{ env.SOURCE_HEAD }}
+          path: |
+            ${{ runner.temp }}/qualification/predecessor-recovery-qualification.json
+            ${{ runner.temp }}/qualification/portable-image-identity.json
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
