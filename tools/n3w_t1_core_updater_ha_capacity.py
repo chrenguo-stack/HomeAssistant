@@ -347,6 +347,33 @@ def compute_install_revalidation(
     )
 
 
+def validate_install_revalidation(
+    evidence: InstallCapacityRevalidation,
+    *,
+    expected_target_artifact_bytes: int,
+    policy: CapacityPolicy | None = None,
+) -> InstallCapacityRevalidation:
+    if not isinstance(evidence, InstallCapacityRevalidation):
+        raise UpdaterV2Error("ha_install_capacity_evidence_invalid")
+    policy = policy or CapacityPolicy.frozen()
+    recomputed = compute_install_revalidation(
+        target_artifact_bytes=evidence.target_artifact_bytes,
+        predecessor_recovery_budget_bytes=(
+            evidence.predecessor_recovery_budget_bytes
+        ),
+        ha_data_measured_bytes=evidence.ha_data_measured_bytes,
+        observed_usb_free_bytes=evidence.observed_usb_free_bytes,
+        policy=policy,
+    )
+    if evidence != recomputed:
+        raise UpdaterV2Error("ha_install_capacity_evidence_drift")
+    if evidence.target_artifact_bytes != expected_target_artifact_bytes:
+        raise UpdaterV2Error("ha_install_target_size_drift")
+    if evidence.capacity_pass is not True:
+        raise UpdaterV2Error("ha_install_capacity_not_verified")
+    return evidence
+
+
 @dataclass(frozen=True, slots=True)
 class RecoveryAdmissionCapacity:
     target_archive_bytes: int
@@ -408,3 +435,31 @@ def compute_recovery_admission_capacity(
         observed_usb_free_bytes=free,
         capacity_pass=free >= required_free,
     )
+
+
+def validate_recovery_admission_capacity(
+    evidence: RecoveryAdmissionCapacity,
+    *,
+    target_archive_bytes: int,
+    predecessor_archive_bytes: int,
+    ha_backup_archive_bytes: int,
+    policy: CapacityPolicy | None = None,
+) -> RecoveryAdmissionCapacity:
+    if not isinstance(evidence, RecoveryAdmissionCapacity):
+        raise UpdaterV2Error("ha_recovery_capacity_evidence_invalid")
+    policy = policy or CapacityPolicy.frozen()
+    recomputed = compute_recovery_admission_capacity(
+        target_archive_bytes=target_archive_bytes,
+        predecessor_archive_bytes=predecessor_archive_bytes,
+        ha_backup_archive_bytes=ha_backup_archive_bytes,
+        transaction_working_budget_bytes=(
+            evidence.transaction_working_budget_bytes
+        ),
+        observed_usb_free_bytes=evidence.observed_usb_free_bytes,
+        policy=policy,
+    )
+    if evidence != recomputed:
+        raise UpdaterV2Error("ha_recovery_capacity_evidence_drift")
+    if evidence.capacity_pass is not True:
+        raise UpdaterV2Error("ha_recovery_capacity_not_verified")
+    return evidence
