@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -38,6 +40,63 @@ def docker_save_argv(image_ref: str = PREDECESSOR_IMAGE_REF) -> tuple[str, ...]:
 
 def gzip_argv() -> tuple[str, ...]:
     return ("gzip", "-1", "-n", "-c")
+
+
+def export_predecessor_archive(
+    destination: Path,
+    *,
+    image_ref: str = PREDECESSOR_IMAGE_REF,
+) -> tuple[int, str]:
+    if not isinstance(destination, Path) or not destination.is_absolute():
+        raise RecoveryEncodingError("recovery_destination_invalid")
+    if destination.is_symlink() or destination.exists():
+        raise RecoveryEncodingError("recovery_destination_exists")
+    if not destination.parent.is_dir() or destination.parent.is_symlink():
+        raise RecoveryEncodingError("recovery_destination_parent_invalid")
+
+    docker_argv = docker_save_argv(image_ref)
+    gzip_command = gzip_argv()
+    try:
+        with destination.open("xb") as output:
+            docker = subprocess.Popen(
+                docker_argv,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            assert docker.stdout is not None
+            gzip = subprocess.Popen(
+                gzip_command,
+                stdin=docker.stdout,
+                stdout=output,
+                stderr=subprocess.PIPE,
+            )
+            docker.stdout.close()
+            _, gzip_stderr = gzip.communicate()
+            _, docker_stderr = docker.communicate()
+            if docker.returncode != 0:
+                raise RecoveryEncodingError(
+                    "docker_save_failed:"
+                    + docker_stderr.decode(errors="replace")[:512]
+                )
+            if gzip.returncode != 0:
+                raise RecoveryEncodingError(
+                    "gzip_failed:"
+                    + gzip_stderr.decode(errors="replace")[:512]
+                )
+            output.flush()
+            os.fsync(output.fileno())
+    except RecoveryEncodingError:
+        destination.unlink(missing_ok=True)
+        raise
+    except (OSError, subprocess.SubprocessError) as error:
+        destination.unlink(missing_ok=True)
+        raise RecoveryEncodingError("recovery_export_failed") from error
+
+    size = destination.stat().st_size
+    if size <= 0 or size > MAX_SAFE_BYTES:
+        destination.unlink(missing_ok=True)
+        raise RecoveryEncodingError("recovery_export_size_invalid")
+    return size, sha256_file(destination)
 
 
 def round_up(value: int, quantum: int = ROUND_UP_QUANTUM_BYTES) -> int:
