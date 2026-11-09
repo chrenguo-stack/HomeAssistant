@@ -39,7 +39,7 @@ def test_record_binds_exact_qualification_source_and_github_artifact() -> None:
     assert qualification["artifact_id"] == 13650277244
     assert qualification["artifact_name"] == (
         "n3w-ha-predecessor-recovery-qualification-"
-        "bd71f5eeaac215f7108d64aebe268a49b3758573"
+        "26a25537cdefa83d47c62b3ecc867a2cc37e8b8d"
     )
     assert qualification["artifact_zip_digest"] == (
         "sha256:79f2ede4a6e654e88857edde02caf52c495c3486fe706ac927098ff72bf987d9"
