@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
+import n3w_t1_core_updater_ha_capacity as capacity_model
 from n3w_t1_core_updater_ha_recovery import ImageRecoveryRecord
 from n3w_t1_core_updater_ha_usb import (
     record_media_bound,
@@ -128,6 +129,14 @@ class PreparePipelineBackend(Protocol):
     def inventory(self) -> tuple[HostUsbCandidate, ...]:
         """Return a read-only host inventory of removable-device candidates."""
 
+    def capacity_snapshot(
+        self,
+        transaction: dict[str, Any],
+        *,
+        calculated_at_unix: int,
+    ) -> dict[str, int | str]:
+        """Return the host-owned dynamic KF-147 capacity snapshot."""
+
     def capacity_inputs(
         self,
         transaction: dict[str, Any],
@@ -234,6 +243,83 @@ class PrepareStateStore:
             temporary.unlink(missing_ok=True)
 
 
+def validate_capacity_snapshot(value: Any) -> dict[str, Any]:
+    expected_keys = {
+        "capacity_policy_schema",
+        "target_artifact_bytes",
+        "predecessor_recovery_budget_bytes",
+        "ha_data_measured_bytes",
+        "ha_data_growth_margin_bytes",
+        "ha_data_backup_budget_bytes",
+        "transaction_working_budget_bytes",
+        "removable_reserve_bytes",
+        "usb_required_bytes",
+        "recommended_nominal_usb_gb",
+        "calculated_at_unix",
+    }
+    if not isinstance(value, dict) or set(value) != expected_keys:
+        raise UpdaterV2Error("ha_usb_capacity_snapshot_invalid")
+    if value["capacity_policy_schema"] != capacity_model.CAPACITY_POLICY_SCHEMA:
+        raise UpdaterV2Error("ha_usb_capacity_snapshot_schema_invalid")
+    for key in (
+        "target_artifact_bytes",
+        "predecessor_recovery_budget_bytes",
+        "ha_data_growth_margin_bytes",
+        "ha_data_backup_budget_bytes",
+        "transaction_working_budget_bytes",
+        "removable_reserve_bytes",
+        "usb_required_bytes",
+        "recommended_nominal_usb_gb",
+        "calculated_at_unix",
+    ):
+        if type(value[key]) is not int or value[key] <= 0:
+            raise UpdaterV2Error("ha_usb_capacity_snapshot_invalid")
+    if type(value["ha_data_measured_bytes"]) is not int or value[
+        "ha_data_measured_bytes"
+    ] < 0:
+        raise UpdaterV2Error("ha_usb_capacity_snapshot_invalid")
+
+    computed = capacity_model.compute_capacity(
+        target_artifact_bytes=value["target_artifact_bytes"],
+        predecessor_recovery_budget_bytes=value[
+            "predecessor_recovery_budget_bytes"
+        ],
+        ha_data_measured_bytes=value["ha_data_measured_bytes"],
+    )
+    if (
+        value["ha_data_growth_margin_bytes"]
+        != computed.ha_data_growth_margin_bytes
+        or value["ha_data_backup_budget_bytes"]
+        != computed.ha_data_backup_budget_bytes
+        or value["transaction_working_budget_bytes"]
+        != computed.transaction_working_budget_bytes
+        or value["removable_reserve_bytes"]
+        != computed.removable_reserve_bytes
+        or value["usb_required_bytes"] != computed.usb_required_bytes
+        or value["recommended_nominal_usb_gb"]
+        != computed.recommended_nominal_usb_gb
+    ):
+        raise UpdaterV2Error("ha_usb_capacity_snapshot_formula_drift")
+    return json.loads(json.dumps(value))
+
+
+def capacity_inputs_from_snapshot(value: Any) -> UsbCapacityInputs:
+    snapshot = validate_capacity_snapshot(value)
+    return UsbCapacityInputs(
+        target_artifact_bytes=snapshot["target_artifact_bytes"],
+        predecessor_recovery_worst_case_bytes=snapshot[
+            "predecessor_recovery_budget_bytes"
+        ],
+        ha_data_backup_worst_case_bytes=snapshot[
+            "ha_data_backup_budget_bytes"
+        ],
+        transaction_metadata_and_working_bytes=snapshot[
+            "transaction_working_budget_bytes"
+        ],
+        removable_media_reserve_bytes=snapshot["removable_reserve_bytes"],
+    )
+
+
 def validate_prepare_state(document: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(document, dict) or document.get("schema") != PREPARE_STATE_SCHEMA:
         raise UpdaterV2Error("ha_usb_prepare_state_schema_invalid")
@@ -293,6 +379,9 @@ def validate_prepare_state(document: dict[str, Any]) -> dict[str, Any]:
     updated_at = document.get("updated_at_unix")
     if type(updated_at) is not int or updated_at <= 0:
         raise UpdaterV2Error("ha_usb_prepare_updated_at_invalid")
+    snapshot = document.get("capacity_snapshot")
+    if snapshot is not None:
+        validate_capacity_snapshot(snapshot)
     return json.loads(json.dumps(document))
 
 
@@ -356,6 +445,13 @@ class HaUsbPrepareController:
         release_identity = current["target_manifest_identity"].get("release_identity")
         if not isinstance(release_identity, str):
             raise UpdaterV2Error("ha_usb_prepare_release_invalid")
+        now = int(time.time())
+        snapshot = validate_capacity_snapshot(
+            self.backend.capacity_snapshot(
+                current,
+                calculated_at_unix=now,
+            )
+        )
         self.prepare_store.write(
             {
                 "schema": PREPARE_STATE_SCHEMA,
@@ -365,8 +461,9 @@ class HaUsbPrepareController:
                 "candidate": None,
                 "confirmation_required": False,
                 "confirmation_consumed": False,
+                "capacity_snapshot": snapshot,
                 "error_code": None,
-                "updated_at_unix": int(time.time()),
+                "updated_at_unix": now,
             }
         )
 
@@ -386,6 +483,17 @@ class HaUsbPrepareController:
         )
         if state["release_identity"] != release_identity:
             raise UpdaterV2Error("ha_usb_prepare_release_drift")
+        if state.get("capacity_snapshot") is None:
+            now = int(time.time())
+            backfilled = dict(state)
+            backfilled["capacity_snapshot"] = validate_capacity_snapshot(
+                self.backend.capacity_snapshot(
+                    current,
+                    calculated_at_unix=now,
+                )
+            )
+            backfilled["updated_at_unix"] = now
+            self.prepare_store.write(backfilled)
 
     def _exclude_candidate(
         self,
@@ -419,8 +527,16 @@ class HaUsbPrepareController:
             for candidate in _eligible(tuple(self.backend.inventory()))
             if candidate.public_fingerprint not in baseline
         )
+        now = int(time.time())
+        snapshot = validate_capacity_snapshot(
+            self.backend.capacity_snapshot(
+                transaction,
+                calculated_at_unix=now,
+            )
+        )
         next_state = dict(state)
-        next_state["updated_at_unix"] = int(time.time())
+        next_state["capacity_snapshot"] = snapshot
+        next_state["updated_at_unix"] = now
         next_state["confirmation_consumed"] = False
         if not fresh:
             next_state["candidate"] = None
@@ -432,8 +548,15 @@ class HaUsbPrepareController:
             next_state["error_code"] = "usb_multiple_eligible_devices"
         else:
             next_state["candidate"] = fresh[0].public()
-            next_state["confirmation_required"] = True
-            next_state["error_code"] = None
+            if capacity_model.candidate_raw_capacity_plausible(
+                fresh[0].display_capacity_bytes,
+                snapshot["usb_required_bytes"],
+            ):
+                next_state["confirmation_required"] = True
+                next_state["error_code"] = None
+            else:
+                next_state["confirmation_required"] = False
+                next_state["error_code"] = "usb_capacity_insufficient"
         self.prepare_store.write(next_state)
         return self.public_status()
 
@@ -467,16 +590,26 @@ class HaUsbPrepareController:
         ):
             raise UpdaterV2Error("usb_confirmation_display_identity_drift")
 
-        if (
-            candidate.display_capacity_bytes
-            < USB_MEASURED_USABLE_CAPACITY_MIN_BYTES
-        ):
-            self._exclude_candidate(
-                state,
-                candidate.public_fingerprint,
-                error_code="usb_raw_capacity_below_floor",
+        preformat_now = int(time.time())
+        preformat_snapshot = validate_capacity_snapshot(
+            self.backend.capacity_snapshot(
+                transaction,
+                calculated_at_unix=preformat_now,
             )
-            raise UpdaterV2Error("usb_raw_capacity_below_floor")
+        )
+        if not capacity_model.candidate_raw_capacity_plausible(
+            candidate.display_capacity_bytes,
+            preformat_snapshot["usb_required_bytes"],
+        ):
+            blocked = dict(state)
+            blocked["capacity_snapshot"] = preformat_snapshot
+            self._exclude_candidate(
+                blocked,
+                candidate.public_fingerprint,
+                error_code="usb_capacity_insufficient",
+            )
+            raise UpdaterV2Error("ha_usb_capacity_not_verified")
+
         authorization = authorize_destructive_format(
             candidate.as_media_candidate(),
             FORMAT_CONFIRMATION,
@@ -484,11 +617,11 @@ class HaUsbPrepareController:
         consumed = dict(state)
         consumed["confirmation_required"] = False
         consumed["confirmation_consumed"] = True
+        consumed["capacity_snapshot"] = preformat_snapshot
         consumed["error_code"] = None
-        consumed["updated_at_unix"] = int(time.time())
+        consumed["updated_at_unix"] = preformat_now
         self.prepare_store.write(consumed)
 
-        capacity_inputs = self.backend.capacity_inputs(transaction)
         media = self.backend.format_and_mount(
             candidate=candidate,
             transaction_id_sha256=transaction["transaction_id_sha256"],
@@ -496,10 +629,22 @@ class HaUsbPrepareController:
         if media.public_fingerprint != candidate.public_fingerprint:
             raise UpdaterV2Error("usb_prepared_identity_drift")
 
+        postformat_now = int(time.time())
+        postformat_snapshot = validate_capacity_snapshot(
+            self.backend.capacity_snapshot(
+                transaction,
+                calculated_at_unix=postformat_now,
+            )
+        )
+        postformat_state = dict(consumed)
+        postformat_state["capacity_snapshot"] = postformat_snapshot
+        postformat_state["updated_at_unix"] = postformat_now
+        self.prepare_store.write(postformat_state)
+        capacity_inputs = capacity_inputs_from_snapshot(postformat_snapshot)
         capacity = assess_capacity(media.measured_usable_bytes, capacity_inputs)
         if capacity.capacity_pass is not True:
             self._exclude_candidate(
-                consumed,
+                postformat_state,
                 candidate.public_fingerprint,
                 error_code="usb_capacity_not_verified",
             )
@@ -553,11 +698,49 @@ class HaUsbPrepareController:
         candidate = None
         confirmation_required = False
         error_code = None
+        usb_required_bytes = None
+        usb_recommended_nominal_gb = None
+        usb_capacity_check_state = "NOT_CALCULATED"
+        user_message_code = None
+
+        prepare_state = self.prepare_store.read()
+        snapshot = None
+        if (
+            isinstance(prepare_state, dict)
+            and prepare_state.get("transaction_id_sha256")
+            == transaction["transaction_id_sha256"]
+        ):
+            snapshot = prepare_state.get("capacity_snapshot")
+            if snapshot is not None:
+                snapshot = validate_capacity_snapshot(snapshot)
+                usb_required_bytes = snapshot["usb_required_bytes"]
+                usb_recommended_nominal_gb = snapshot[
+                    "recommended_nominal_usb_gb"
+                ]
+
         if phase == U1:
             state = self._matching_prepare_state(transaction)
             candidate = state.get("candidate")
             confirmation_required = bool(state.get("confirmation_required"))
             error_code = state.get("error_code")
+            if snapshot is None:
+                usb_capacity_check_state = "NOT_CALCULATED"
+            elif error_code in {
+                "usb_capacity_insufficient",
+                "usb_raw_capacity_below_floor",
+                "usb_capacity_not_verified",
+            }:
+                usb_capacity_check_state = "CANDIDATE_CAPACITY_INSUFFICIENT"
+                user_message_code = "USB_CAPACITY_INSUFFICIENT"
+            elif confirmation_required:
+                usb_capacity_check_state = "CANDIDATE_READY_FOR_CONFIRMATION"
+                user_message_code = "USB_CONFIRM_ERASE"
+            elif error_code is not None:
+                usb_capacity_check_state = "CANDIDATE_PENDING"
+            else:
+                usb_capacity_check_state = "RECOMMENDATION_READY"
+                user_message_code = "USB_INSERT_RECOMMENDED"
+
             if error_code is not None:
                 public_phase = "ERROR"
             elif confirmation_required:
@@ -566,8 +749,10 @@ class HaUsbPrepareController:
                 public_phase = "USB_REQUIRED"
         elif phase in {U2, U3}:
             public_phase = "TARGET_DOWNLOADING_VERIFYING"
+            usb_capacity_check_state = "FORMATTED_CAPACITY_PASS"
         elif phase == U4:
             public_phase = "READY_TO_INSTALL"
+            usb_capacity_check_state = "FORMATTED_CAPACITY_PASS"
         else:
             raise UpdaterV2Error("ha_usb_prepare_status_phase_invalid")
         return {
@@ -576,4 +761,8 @@ class HaUsbPrepareController:
             "error_code": error_code,
             "usb_candidate": candidate,
             "usb_confirmation_required": confirmation_required,
+            "usb_required_bytes_or_null": usb_required_bytes,
+            "usb_recommended_nominal_gb_or_null": usb_recommended_nominal_gb,
+            "usb_capacity_check_state": usb_capacity_check_state,
+            "user_message_code_or_null": user_message_code,
         }
