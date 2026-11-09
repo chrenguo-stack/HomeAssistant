@@ -3,19 +3,28 @@
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261109_01",
   "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261109_01",
   "confirmation": "EXECUTE KF147 MANAGER IPC V3 IMAGE ONLY LIVE APPLY: YES",
-  "live_execution_authorized": false,
+  "live_execution_authorized": true,
   "package_authority": {
-    "workflow_run_id": null,
-    "artifact_id": null,
-    "artifact_name": null,
-    "artifact_digest": null
+    "workflow_run_id": 42625435258,
+    "workflow_job_id": 129187851904,
+    "artifact_id": 13678761257,
+    "artifact_name": "n3w-kf147-manager-v3-live-44e7d7472714",
+    "artifact_digest": "sha256:d7e4d27a40bad16316016c4c506fab70b3979d1105bed9562afd01b4116c91bb",
+    "artifact_size_bytes": 62958895,
+    "artifact_expired": false,
+    "source_executor_head": "de01bffe49d890b61b8246b9c839b74381fa9406"
   },
   "target": {
     "expected_predecessor_manager": "local/greenhouse-manager:fresh-7807271e4c48",
     "manager_image": "local/greenhouse-manager:fresh-44e7d7472714",
     "manager_image_id": "sha256:fd5104d610645347fe47137dbb24121851fa8a48530df3e3c905704607c5e3d4",
     "manager_tar_sha256": "9316817590c4fe74498629d0451a4897c2e11bef7bc4b423b66e47bb846099c5",
-    "manager_tar_size_bytes": 62957568
+    "manager_tar_size_bytes": 62957568,
+    "predecessor_image_id": "sha256:b1875c6ed969df108d2df768d61369a0c93956d146f284276b392c686c13a4f9",
+    "homeassistant_image": "local/n3w-homeassistant:2026.10.0-0c73235a",
+    "homeassistant_image_id": "sha256:b0e1ee82adfb19fa1ff3049034535633b1c4f0df6606721c0e77383854b99879",
+    "broker_image": "local/n3w-mosquitto:2.1.2-3184566d",
+    "broker_image_id": "sha256:4c199d7c9d377d018313a2199f6839978f6fd2219c405ad664d0a830c14b9c7b"
   },
   "execution_contract": {
     "manager_image_mutation": true,
@@ -35,5 +44,11 @@
     "board_access": false,
     "merge": false
   },
-  "stop_boundary": "STOP_AFTER_MANAGER_V3_CAPABILITY_AND_U1_CONTINUITY_VALIDATION"
+  "stop_boundary": "STOP_AFTER_MANAGER_V3_CAPABILITY_AND_U1_CONTINUITY_VALIDATION",
+  "authorization_state": {
+    "granted": true,
+    "claimed": false,
+    "consumed": false,
+    "replay_permitted": false
+  }
 }
