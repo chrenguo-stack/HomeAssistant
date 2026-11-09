@@ -47,6 +47,7 @@ SOCKET_PATH = f"{RUNTIME_ROOT}/ha-ota.sock"
 RUNTIME_MANIFEST = f"{RUNTIME_ROOT}/approved-homeassistant.json"
 ACTIVATION_ENV = "/etc/n3wfc4/ha-ota-activation.env"
 APPROVED_MANIFEST = "/etc/n3w-t1-ota/approved-homeassistant.json"
+HOST_RELEASE_POLICY = "/etc/n3w-t1-ota/homeassistant-release-source.json"
 HOST_UNIT_PATH = "/etc/systemd/system/n3w-t1-ha-ota.service"
 SERVICES_DROPIN = (
     "/etc/systemd/system/n3wfc4-services-activation.service.d/"
@@ -56,6 +57,8 @@ SERVICES_DROPIN = (
 SOURCE_DESTINATIONS = {
     "tools/n3w_t1_core_updater_ha_daemon.py":
         "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_daemon.py",
+    "tools/n3w_t1_core_updater_ha_capacity.py":
+        "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_capacity.py",
     "tools/n3w_t1_core_updater_ha_ipc.py":
         "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_ipc.py",
     "tools/n3w_t1_core_updater_ha_prepare.py":
@@ -88,6 +91,8 @@ SOURCE_DESTINATIONS = {
         SERVICES_DROPIN,
     "infra/n3w-t1/upgrades/homeassistant-2026.10.4-approved.json":
         APPROVED_MANIFEST,
+    "infra/n3w-t1/upgrades/homeassistant-2026.10.4-host-release-policy.json":
+        HOST_RELEASE_POLICY,
 }
 
 LIVE_TARGETS = tuple(SOURCE_DESTINATIONS.values()) + (ACTIVATION_ENV,)
@@ -935,6 +940,7 @@ def validate_post_activation(
     require_file_metadata(transport, RUNTIME_MANIFEST, "0:999:640:regular file")
     require_file_metadata(transport, ACTIVATION_ENV, "0:0:600:regular file")
     require_file_metadata(transport, APPROVED_MANIFEST, "0:0:644:regular file")
+    require_file_metadata(transport, HOST_RELEASE_POLICY, "0:0:644:regular file")
     require_file_metadata(transport, HOST_UNIT_PATH, "0:0:644:regular file")
     require_file_metadata(transport, SERVICES_DROPIN, "0:0:644:regular file")
     require_source_hashes(transport, source_hashes)
