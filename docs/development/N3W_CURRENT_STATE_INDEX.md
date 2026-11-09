@@ -1,3 +1,15 @@
+## 2026-11-09 — USB enumeration differentiation E1 CLOSED_PASS
+
+- T1 Core Stack compatibility authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; repository Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- The failed test USB was unplugged once under E1; T1 returned to zero external USB devices while the HA-USB transaction remained ACTIVE at U1 / `USB_REQUIRED`.
+- The exact same USB then enumerated successfully on a known-good Mac as `MXT USB Device`, VID:PID `aaaa:8816`, external physical `disk2`, capacity 31,914,983,424 bytes.
+- Therefore the test USB is not completely failed. The remaining fault domain is T1 USB path / contact / power / signal behavior or device-specific T1 xHCI/kernel compatibility.
+- Product-source blocker and permanent T1 hardware fault are both not yet proven. No new KF is opened yet.
+- No T1 reinsertion, second USB substitution, PREPARE replay, destructive confirmation, U2+ or merge occurred.
+- Next stage is one controlled reinsertion of the same USB into T1 under a separate E2 authorization; if descriptor timeout repeats, use a later separate known-good second-device substitution.
+- Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_USB_ENUMERATION_DIFFERENTIATION_E1_CLOSURE_20261109.md`.
+
+
 ## 2026-11-09 — Boundary B USB enumeration timeout STOP
 
 - T1 Core Stack compatibility authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; repository Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
