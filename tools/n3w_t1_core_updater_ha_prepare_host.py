@@ -484,6 +484,16 @@ class SubprocessPrepareBackend:
         measured = measure_ha_data_tree(self.ha_data_root)
         return policy.capacity_breakdown(measured)
 
+    def capacity_snapshot(
+        self,
+        transaction: dict[str, Any],
+        *,
+        calculated_at_unix: int,
+    ) -> dict[str, int | str]:
+        return self.capacity_breakdown(transaction).snapshot(
+            calculated_at_unix=calculated_at_unix
+        )
+
     def capacity_inputs(
         self,
         transaction: dict[str, Any],
