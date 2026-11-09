@@ -1,3 +1,31 @@
+### 2026-11-09 KF-147 Stage A OTA publication — origin + edge CLOSED_PASS
+
+```text
+KF147_OTA_ORIGIN_LIVE=PASS
+KF147_WEBSITE_EDGE_LIVE=PASS
+KF147_PUBLIC_OTA_ROUTE=PASS
+
+EDGE_ATTEMPT01_RESULT=FAILED_ROLLED_BACK_PASS
+EDGE_ATTEMPT01_AUTHORIZATION_CONSUMED=true
+EDGE_ATTEMPT01_REPLAY_PERMITTED=false
+
+EDGE_ATTEMPT02_RESULT=PASS
+EDGE_ATTEMPT02_AUTHORIZATION_CONSUMED=true
+EDGE_ATTEMPT02_REPLAY_PERMITTED=false
+
+PUBLIC_HTTP=200
+PUBLIC_CONTENT_LENGTH=835309535
+LOOPBACK_HTTPS_FULL_SHA256=eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973
+ROLLBACK_REQUIRED=false
+```
+
+Regression guard: do not repeat the 835 MB public self-download used by edge Attempt01. The accepted Stage A validation strategy is public HEAD + bounded first/last range body checks plus complete loopback HTTPS/SNI SHA-256 over the exact artifact.
+
+Stage A success does not authorize T1 live policy repair, PREPARE replay, destructive USB work, U2+, board mutation or merge.
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_LIVE_REPAIR_A_WEBSITE_EDGE_PUBLICATION_ATTEMPT02_CLOSURE_20261109.md`.
+
 ### 2026-11-09 KF-147 website-edge Attempt01 — validation timeout / rollback PASS
 
 ```text
