@@ -7,6 +7,7 @@ import importlib.util
 import json
 import os
 import re
+import shlex
 import stat
 import subprocess
 import tempfile
@@ -28,6 +29,29 @@ EXPECTED_TARGET = "local/greenhouse-manager:fresh-44e7d7472714"
 EXPECTED_IMAGE_ID = "sha256:fd5104d610645347fe47137dbb24121851fa8a48530df3e3c905704607c5e3d4"
 EXPECTED_SOURCE_HEAD = "44e7d74727147975de88e85c4b18ba3f7493fd76"
 SSH_TRANSPORT_BLOB = "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7"
+
+REMOTE_STREAM_WRITE = r"""
+import os
+import sys
+
+path = sys.argv[1]
+flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+flags |= getattr(os, "O_NOFOLLOW", 0)
+fd = os.open(path, flags, 0o600)
+with os.fdopen(fd, "wb", closefd=True) as output:
+    while True:
+        block = sys.stdin.buffer.read(1024 * 1024)
+        if not block:
+            break
+        output.write(block)
+    output.flush()
+    os.fsync(output.fileno())
+directory = os.open(os.path.dirname(path), os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+try:
+    os.fsync(directory)
+finally:
+    os.close(directory)
+"""
 
 
 class Stop(RuntimeError):
@@ -163,6 +187,82 @@ def verify_artifact(manifest: dict[str, Any], work: Path) -> tuple[Path, dict[st
     return package, {"metadata": meta, "binding": binding}
 
 
+def child_ssh_argv(transport: Any, command: str) -> tuple[str, ...]:
+    transport.assert_master()
+    return (
+        "ssh",
+        "-n",
+        "-F",
+        "/dev/null",
+        "-o",
+        "StrictHostKeyChecking=yes",
+        "-o",
+        f"UserKnownHostsFile={transport.known_hosts}",
+        "-o",
+        "GlobalKnownHostsFile=/dev/null",
+        "-o",
+        "HashKnownHosts=no",
+        "-o",
+        "IdentitiesOnly=yes",
+        "-o",
+        "IdentityAgent=none",
+        "-o",
+        "ControlMaster=no",
+        "-o",
+        "ControlPersist=no",
+        "-o",
+        f"ControlPath={transport.control_path}",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "PubkeyAuthentication=no",
+        "-o",
+        "PasswordAuthentication=no",
+        "-o",
+        "KbdInteractiveAuthentication=no",
+        "-o",
+        "PreferredAuthentications=none",
+        "-o",
+        "ProxyCommand=/usr/bin/false",
+        transport.target,
+        command,
+    )
+
+
+def stream_file_over_ssh(
+    source: Path,
+    transport: Any,
+    remote_path: str,
+    *,
+    timeout: int,
+) -> None:
+    if source.is_symlink() or not source.is_file():
+        raise Stop("stream_source_invalid")
+    allowed = {
+        f"{REMOTE_DIR}/remote_apply.py",
+        f"{REMOTE_DIR}/greenhouse-manager-arm64.tar",
+    }
+    if remote_path not in allowed:
+        raise Stop("stream_remote_path_invalid")
+    command = shlex.join(("python3", "-c", REMOTE_STREAM_WRITE, remote_path))
+    try:
+        with source.open("rb") as stream:
+            completed = subprocess.run(
+                child_ssh_argv(transport, command),
+                stdin=stream,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=timeout,
+                check=False,
+            )
+    except subprocess.TimeoutExpired as error:
+        raise Stop("command_timeout:ssh-stream") from error
+    except OSError as error:
+        raise Stop("command_transport_error:ssh-stream") from error
+    if completed.returncode != 0:
+        raise Stop(f"command_failed:ssh-stream:{completed.returncode}")
+
+
 def parse_json_output(payload: str, label: str) -> dict[str, Any]:
     try:
         value = json.loads(payload)
@@ -210,8 +310,18 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
         transport.run_remote([
             "install", "-d", "-m", "0700", "-o", "root", "-g", "root", REMOTE_DIR
         ], timeout=60)
-        transport.scp_to(REMOTE_APPLY_PATH, f"{REMOTE_DIR}/remote_apply.py", timeout=120)
-        transport.scp_to(package / "greenhouse-manager-arm64.tar", f"{REMOTE_DIR}/greenhouse-manager-arm64.tar", timeout=900)
+        stream_file_over_ssh(
+            REMOTE_APPLY_PATH,
+            transport,
+            f"{REMOTE_DIR}/remote_apply.py",
+            timeout=120,
+        )
+        stream_file_over_ssh(
+            package / "greenhouse-manager-arm64.tar",
+            transport,
+            f"{REMOTE_DIR}/greenhouse-manager-arm64.tar",
+            timeout=900,
+        )
         result["remote_staging"] = True
         remote_sha = transport.run_remote([
             "sha256sum", f"{REMOTE_DIR}/greenhouse-manager-arm64.tar"
