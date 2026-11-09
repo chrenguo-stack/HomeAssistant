@@ -289,3 +289,122 @@ def candidate_raw_capacity_plausible(
     raw = _positive_int(raw_capacity_bytes, "usb_raw_capacity_invalid")
     required = _positive_int(required_bytes, "ha_capacity_required_invalid")
     return raw >= max(required, policy.usb_measured_usable_floor_bytes)
+
+
+@dataclass(frozen=True, slots=True)
+class InstallCapacityRevalidation:
+    target_artifact_bytes: int
+    predecessor_recovery_budget_bytes: int
+    ha_data_measured_bytes: int
+    ha_data_backup_budget_bytes: int
+    transaction_working_budget_bytes: int
+    removable_reserve_bytes: int
+    usb_required_bytes: int
+    target_already_stored_bytes: int
+    required_remaining_bytes: int
+    observed_usb_free_bytes: int
+    capacity_pass: bool
+
+
+def compute_install_revalidation(
+    *,
+    target_artifact_bytes: int,
+    predecessor_recovery_budget_bytes: int,
+    ha_data_measured_bytes: int,
+    observed_usb_free_bytes: int,
+    policy: CapacityPolicy | None = None,
+) -> InstallCapacityRevalidation:
+    policy = policy or CapacityPolicy.frozen()
+    free = _nonnegative_int(
+        observed_usb_free_bytes,
+        "ha_install_usb_free_invalid",
+    )
+    breakdown = compute_capacity(
+        target_artifact_bytes=target_artifact_bytes,
+        predecessor_recovery_budget_bytes=predecessor_recovery_budget_bytes,
+        ha_data_measured_bytes=ha_data_measured_bytes,
+        policy=policy,
+    )
+    remaining = breakdown.usb_required_bytes - breakdown.target_artifact_bytes
+    if remaining <= 0:
+        raise UpdaterV2Error("ha_install_capacity_formula_invalid")
+    return InstallCapacityRevalidation(
+        target_artifact_bytes=breakdown.target_artifact_bytes,
+        predecessor_recovery_budget_bytes=(
+            breakdown.predecessor_recovery_budget_bytes
+        ),
+        ha_data_measured_bytes=breakdown.ha_data_measured_bytes,
+        ha_data_backup_budget_bytes=breakdown.ha_data_backup_budget_bytes,
+        transaction_working_budget_bytes=(
+            breakdown.transaction_working_budget_bytes
+        ),
+        removable_reserve_bytes=breakdown.removable_reserve_bytes,
+        usb_required_bytes=breakdown.usb_required_bytes,
+        target_already_stored_bytes=breakdown.target_artifact_bytes,
+        required_remaining_bytes=remaining,
+        observed_usb_free_bytes=free,
+        capacity_pass=free >= remaining,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class RecoveryAdmissionCapacity:
+    target_archive_bytes: int
+    predecessor_archive_bytes: int
+    ha_backup_archive_bytes: int
+    transaction_working_budget_bytes: int
+    removable_reserve_bytes: int
+    required_free_after_recovery_assets_bytes: int
+    observed_usb_free_bytes: int
+    capacity_pass: bool
+
+
+def compute_recovery_admission_capacity(
+    *,
+    target_archive_bytes: int,
+    predecessor_archive_bytes: int,
+    ha_backup_archive_bytes: int,
+    transaction_working_budget_bytes: int,
+    observed_usb_free_bytes: int,
+    policy: CapacityPolicy | None = None,
+) -> RecoveryAdmissionCapacity:
+    policy = policy or CapacityPolicy.frozen()
+    target = _positive_int(
+        target_archive_bytes,
+        "ha_recovery_target_size_invalid",
+    )
+    predecessor = _positive_int(
+        predecessor_archive_bytes,
+        "ha_recovery_predecessor_size_invalid",
+    )
+    backup = _positive_int(
+        ha_backup_archive_bytes,
+        "ha_recovery_backup_size_invalid",
+    )
+    working = _positive_int(
+        transaction_working_budget_bytes,
+        "ha_recovery_working_budget_invalid",
+    )
+    free = _nonnegative_int(
+        observed_usb_free_bytes,
+        "ha_recovery_usb_free_invalid",
+    )
+    base = _checked_add(target, predecessor, backup, working)
+    reserve = round_up(
+        max(
+            policy.removable_reserve_floor_bytes,
+            ceil_ratio_ppm(base, policy.removable_reserve_ratio_ppm),
+        ),
+        policy.round_up_quantum_bytes,
+    )
+    required_free = _checked_add(working, reserve)
+    return RecoveryAdmissionCapacity(
+        target_archive_bytes=target,
+        predecessor_archive_bytes=predecessor,
+        ha_backup_archive_bytes=backup,
+        transaction_working_budget_bytes=working,
+        removable_reserve_bytes=reserve,
+        required_free_after_recovery_assets_bytes=required_free,
+        observed_usb_free_bytes=free,
+        capacity_pass=free >= required_free,
+    )
