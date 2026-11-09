@@ -46,6 +46,10 @@ class Runtime:
         usb_model: str | None = None,
         usb_capacity: int | None = None,
         usb_confirmation_required: bool = False,
+        usb_required_bytes: int | None = None,
+        usb_recommended_nominal_gb: int | None = None,
+        usb_capacity_check_state: str = "NOT_CALCULATED",
+        user_message_code: str | None = None,
     ) -> None:
         self.phase = phase
         self.progress = progress
@@ -53,6 +57,10 @@ class Runtime:
         self.usb_model = usb_model
         self.usb_capacity = usb_capacity
         self.usb_confirmation_required = usb_confirmation_required
+        self.usb_required_bytes = usb_required_bytes
+        self.usb_recommended_nominal_gb = usb_recommended_nominal_gb
+        self.usb_capacity_check_state = usb_capacity_check_state
+        self.user_message_code = user_message_code
 
     def get_homeassistant_ota_runtime_state(self) -> OtaRuntimeSnapshot:
         return OtaRuntimeSnapshot(
@@ -62,6 +70,10 @@ class Runtime:
             usb_candidate_model=self.usb_model,
             usb_candidate_capacity_bytes=self.usb_capacity,
             usb_confirmation_required=self.usb_confirmation_required,
+            usb_required_bytes=self.usb_required_bytes,
+            usb_recommended_nominal_gb=self.usb_recommended_nominal_gb,
+            usb_capacity_check_state=self.usb_capacity_check_state,
+            user_message_code=self.user_message_code,
         )
 
 
@@ -160,6 +172,10 @@ def test_state_and_attributes_expose_only_public_projection() -> None:
         "usb_candidate_model_or_null": None,
         "usb_candidate_capacity_bytes_or_null": None,
         "usb_confirmation_required": False,
+        "usb_required_bytes_or_null": None,
+        "usb_recommended_nominal_gb_or_null": None,
+        "usb_capacity_check_state": "NOT_CALCULATED",
+        "user_message_code_or_null": None,
     }
     encoded = repr((state, attributes))
     for forbidden in (
@@ -169,6 +185,53 @@ def test_state_and_attributes_expose_only_public_projection() -> None:
         "usb_serial",
         "target_image_ref",
         "target_archive_sha256",
+    ):
+        assert forbidden not in encoded
+
+
+def test_capacity_attributes_are_public_but_private_device_identity_is_not() -> None:
+    surface = HomeAssistantUpdateSurface(system_id="system-001")
+    runtime = Runtime(
+        "USB_REQUIRED_CONFIRMATION",
+        installed_version="2026.10.0",
+        usb_model="Synthetic USB",
+        usb_capacity=32 * 1024**3,
+        usb_confirmation_required=True,
+        usb_required_bytes=5 * 1024**3,
+        usb_recommended_nominal_gb=32,
+        usb_capacity_check_state="CANDIDATE_READY_FOR_CONFIRMATION",
+        user_message_code="USB_CONFIRM_ERASE",
+    )
+    ota = T1OtaManager(
+        installed_version="2026.10.0",
+        manifest_provider=Provider(),
+        runtime_state_provider=runtime,
+    )
+    projected = ota.project()
+    attributes = by_topic(
+        surface.messages(
+            manifest=projected.manifest,
+            status=projected.status,
+        )
+    )["gh/v1/system-001/state/t1/homeassistant/ota/attributes"].payload
+
+    assert attributes["usb_required_bytes_or_null"] == 5 * 1024**3
+    assert attributes["usb_recommended_nominal_gb_or_null"] == 32
+    assert (
+        attributes["usb_capacity_check_state"]
+        == "CANDIDATE_READY_FOR_CONFIRMATION"
+    )
+    assert attributes["user_message_code_or_null"] == "USB_CONFIRM_ERASE"
+
+    encoded = json.dumps(attributes, ensure_ascii=False).lower()
+    for forbidden in (
+        "public_fingerprint",
+        "usb_serial",
+        "wwn",
+        "/dev/",
+        "/var/",
+        "mount_path",
+        "backup_path",
     ):
         assert forbidden not in encoded
 
