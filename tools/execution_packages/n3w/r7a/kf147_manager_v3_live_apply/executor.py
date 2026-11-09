@@ -191,7 +191,6 @@ def child_ssh_argv(transport: Any, command: str) -> tuple[str, ...]:
     transport.assert_master()
     return (
         "ssh",
-        "-n",
         "-F",
         "/dev/null",
         "-o",
