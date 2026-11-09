@@ -1,3 +1,15 @@
+## 2026-11-10 — T1 runtime recovery CLOSED_PASS / three source closures queued
+
+- Primary outage root cause is proven root-filesystem ENOSPC. The later Docker/Compose control-plane versus containerd-task divergence is proven independently; ENOSPC as its direct cause is not proven.
+- Exact recovery of the existing Broker, Manager and Home Assistant containers succeeded without recreate, Docker/containerd restart, broad prune, USB mutation, U2+, KF-147 apply or merge.
+- Current runtime is healthy: Broker/Manager/Home Assistant are running real tasks; Manager has one established MQTT socket to 8883; Home Assistant has one established MQTT socket to 1883; Broker current-auth state for the exact Home Assistant identity is true; Home Assistant HTTP returns 401.
+- S2F's Home Assistant MQTT false-negative was caused by running `n3w-t1-broker-authenticated-readiness` after HA was already online. The helper uses the production HA client ID and can cause `session taken over`. Treat it as a pre-application startup probe, not a runtime health probe.
+- Deployed `/opt/HomeAssistant/tools/n3w_t1_core_updater.py` is absent; deployment/packaging root cause remains TBD.
+- Last proven root free space is 592,859,136 bytes, emergency headroom only.
+- Next source queue is fixed: (1) `BROKER_READINESS_RUNTIME_SESSION_TAKEOVER_SOURCE_REPAIR_DESIGN`; (2) `CORE_UPDATER_DEPLOYED_ASSET_INTEGRITY_REPAIR`; (3) `T1_STORAGE_HEADROOM_AND_IMAGE_LIFECYCLE_CLOSURE`.
+- KF-147 resumes only after those closures, using fresh rebind → fresh capacity gate → new package/manifest binding → live retry. Old package/live authorization are not reusable.
+- Authority: `docs/development/N3W_T1_STORAGE_RECOVERY_S2G_RUNTIME_CLOSED_PASS_AND_SOURCE_REPAIR_QUEUE_20261110.md`.
+
 ## 2026-11-09 — KF-147 Manager IPC V3 final binding PASS / image-only live apply pending
 
 - Current core-stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
