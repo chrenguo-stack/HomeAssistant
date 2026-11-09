@@ -1,3 +1,15 @@
+## 2026-11-09 — KF-147 Stage A OTA publication CLOSED_PASS
+
+- Current core-stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- OTA origin live publication remains PASS with exact Home Assistant 2026.10.4 archive `835309535` bytes / SHA-256 `eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973`.
+- Website-edge Attempt02 is CLOSED_PASS. Public HEAD, first/last 1 MiB ranges and loopback HTTPS complete SHA-256 all passed.
+- Public exact target now returns HTTP 200 with exact Content-Length, `application/octet-stream`, immutable cache header and `nosniff`.
+- Website container was not recreated; OTA container was untouched; no rollback was required.
+- Attempt02 authorization is consumed and replay-forbidden.
+- T1 access/mutation, PREPARE replay, USB mutation, U2+, board access and merge did not occur.
+- Current stop point is before the separately authorized T1 KF-147 live policy repair gate.
+- Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_LIVE_REPAIR_A_WEBSITE_EDGE_PUBLICATION_ATTEMPT02_CLOSURE_20261109.md`.
+
 ## 2026-11-09 — KF-147 website-edge Attempt01 FAILED / rollback PASS
 
 - Current core-stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
