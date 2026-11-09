@@ -184,10 +184,7 @@ class HaUsbIpcExecutor:
         }
         if self.prepare_controller is None:
             return defaults
-        try:
-            projection = self.prepare_controller.public_status()
-        except Exception:
-            return defaults
+        projection = self.prepare_controller.public_status()
         return {
             "usb_required_bytes_or_null": projection.get(
                 "usb_required_bytes_or_null"
