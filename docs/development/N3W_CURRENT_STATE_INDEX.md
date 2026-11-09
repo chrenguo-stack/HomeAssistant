@@ -1,5 +1,6 @@
 ## 2026-11-09 — KF-147 Manager IPC V3 final binding PASS / image-only live apply pending
 
+- Current core-stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
 - Manager image-only gate `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261109_01` is granted, unclaimed, unconsumed and non-replayable.
 - Dedicated U1-preserving executor source is frozen at `de01bffe49d890b61b8246b9c839b74381fa9406`; Generic V2 updater is closed for this live state because the HA-USB transaction is active.
 - Bound package run `42625435258` is SUCCESS; artifact `13678761257`, digest `sha256:d7e4d27a40bad16316016c4c506fab70b3979d1105bed9562afd01b4116c91bb`, size `62958895`.

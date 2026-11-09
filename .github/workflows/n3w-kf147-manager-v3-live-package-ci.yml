@@ -1,7 +1,14 @@
 name: N3W KF147 Manager IPC V3 live package CI
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/n3w-kf147-manager-v3-live-package-ci.yml"
+      - "tools/execution_packages/n3w/r7a/kf147_manager_v3_live_apply/**"
+      - "tests/tools/test_n3w_t1_kf147_manager_v3_live_executor.py"
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, labeled, unlabeled, edited]
     paths:
       - ".github/workflows/n3w-kf147-manager-v3-live-package-ci.yml"
       - "tools/execution_packages/n3w/r7a/kf147_manager_v3_live_apply/**"
