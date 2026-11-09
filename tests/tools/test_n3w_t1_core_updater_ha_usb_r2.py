@@ -580,7 +580,10 @@ def test_r2_predecessor_corruption_stops_before_u7_and_u9(tmp_path):
 
 def test_r2_backup_corruption_stops_before_u8_and_u9(tmp_path):
     tx, media, docker, ha, _target = prepare_to_u4(tmp_path)
-    tx = start_predecessor_recovery(request_install(tx))
+    tx = start_predecessor_recovery(
+        request_install(tx),
+        install_capacity=passing_install_capacity(),
+    )
     predecessor = docker.verify_predecessor(
         media,
         docker.export_predecessor(media),
@@ -689,7 +692,10 @@ def test_r2_rollback_requires_both_image_and_data_restore(tmp_path):
 
 def test_r2_power_loss_before_u9_keeps_predecessor_authority(tmp_path):
     tx, media, docker, ha, _target = prepare_to_u4(tmp_path)
-    tx = start_predecessor_recovery(request_install(tx))
+    tx = start_predecessor_recovery(
+        request_install(tx),
+        install_capacity=passing_install_capacity(),
+    )
     predecessor = docker.verify_predecessor(
         media,
         docker.export_predecessor(media),
@@ -812,7 +818,10 @@ def test_r2_power_loss_classification_is_deterministic_u0_through_u11(tmp_path):
     tx = request_install(tx)
     snapshots[U5] = tx
 
-    tx = start_predecessor_recovery(tx)
+    tx = start_predecessor_recovery(
+        tx,
+        install_capacity=passing_install_capacity(),
+    )
     snapshots[U6] = tx
 
     predecessor = docker.verify_predecessor(
