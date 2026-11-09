@@ -14,6 +14,7 @@ from typing import Any
 
 import n3w_t1_portable_image_identity as portable
 import n3w_t1_core_updater_ha_capacity as capacity
+from n3w_t1_core_updater_ha_backup import HaDataBackupRecord
 from n3w_t1_core_updater_ha_prepare import (
     HostUsbCandidate,
     PreparedUsbMedia,
@@ -509,6 +510,60 @@ class SubprocessPrepareBackend:
                 breakdown.transaction_working_budget_bytes
             ),
             removable_media_reserve_bytes=breakdown.removable_reserve_bytes,
+        )
+
+    @staticmethod
+    def _observed_free_bytes(media: PreparedUsbMedia) -> int:
+        media.validate()
+        path = Path(media.mount_path)
+        if path.is_symlink() or not path.is_dir():
+            raise UpdaterV2Error("usb_mount_path_invalid")
+        try:
+            values = os.statvfs(path)
+        except OSError as error:
+            raise UpdaterV2Error("usb_free_space_unavailable") from error
+        free = values.f_bavail * values.f_frsize
+        if free < 0 or free > capacity.MAX_SAFE_BYTES:
+            raise UpdaterV2Error("usb_free_space_invalid")
+        return free
+
+    def install_capacity_revalidation(
+        self,
+        transaction: dict[str, Any],
+        media: PreparedUsbMedia,
+    ) -> capacity.InstallCapacityRevalidation:
+        policy = self.policy_provider.load(transaction)
+        measured = measure_ha_data_tree(self.ha_data_root)
+        return capacity.compute_install_revalidation(
+            target_artifact_bytes=policy.target_archive_size_bytes,
+            predecessor_recovery_budget_bytes=(
+                policy.predecessor_recovery_budget_bytes
+            ),
+            ha_data_measured_bytes=measured,
+            observed_usb_free_bytes=self._observed_free_bytes(media),
+            policy=policy.capacity_policy,
+        )
+
+    def recovery_admission_capacity(
+        self,
+        transaction: dict[str, Any],
+        media: PreparedUsbMedia,
+        *,
+        target: ImageRecoveryRecord,
+        predecessor: ImageRecoveryRecord,
+        backup: HaDataBackupRecord,
+    ) -> capacity.RecoveryAdmissionCapacity:
+        policy = self.policy_provider.load(transaction)
+        current = self.capacity_breakdown(transaction)
+        return capacity.compute_recovery_admission_capacity(
+            target_archive_bytes=target.archive_size_bytes,
+            predecessor_archive_bytes=predecessor.archive_size_bytes,
+            ha_backup_archive_bytes=backup.archive_size_bytes,
+            transaction_working_budget_bytes=(
+                current.transaction_working_budget_bytes
+            ),
+            observed_usb_free_bytes=self._observed_free_bytes(media),
+            policy=policy.capacity_policy,
         )
 
     def _same_candidate(self, candidate: HostUsbCandidate) -> HostUsbCandidate:
