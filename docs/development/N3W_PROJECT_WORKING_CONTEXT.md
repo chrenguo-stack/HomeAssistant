@@ -1,3 +1,31 @@
+## Stable updater authority — 2026-11-09 KF-146 live closure / Boundary B revalidation handoff
+
+```text
+PROJECT_WORKING_CONTEXT_VERSION=2.9
+KF145_STATUS=CLOSED_PASS_LIVE_REVALIDATED
+KF146_STATUS=CLOSED_PASS_LIVE_REVALIDATED
+LIVE_MANAGER_ACL_COUNT=23
+LIVE_HOMEASSISTANT_ACL_COUNT=10
+OTA_CONTROL_EXACT_REQUIRED_ACLS_PRESENT=4
+PREVIOUS_PREPARE_AUTHORIZATION_CONSUMED=true
+PREVIOUS_PREPARE_REPLAY_ALLOWED=false
+HA_USB_TRANSACTION_PRESENT=false
+HA_USB_PREPARE_STATE_PRESENT=false
+USB_LIKE_DISK_COUNT=0
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_BOUNDARY_B_PREPARE_REVALIDATION_20261109_01
+NEXT_GATE_ONE_SHOT_AUTHORIZED=true
+USB_INSERTION_AUTHORIZED=false
+CONFIRM_USB_ERASE_AUTHORIZED=false
+```
+
+Durable gate rule: after a PREPARE attempt is consumed, a repaired control path requires a new
+one-shot authorization. The new gate must fresh-recheck the exact live DynSec poststate, service
+health, zero USB and absent transaction/prepare state before invoking PREPARE exactly once. It
+hard-stops at `USB_REQUIRED`; USB insertion and destructive confirmation remain separate gates.
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF146_LIVE_CLOSURE_TO_BOUNDARY_B_PREPARE_REVALIDATION_NEW_CHAT_HANDOFF_V1.0_20261109.md`.
+
 ## Stable updater authority — 2026-11-09 KF-146 control-path guard
 
 ```text
