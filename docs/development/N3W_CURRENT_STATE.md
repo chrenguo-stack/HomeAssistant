@@ -1,3 +1,61 @@
+## Latest authority — 2026-11-09 KF-147 source repair CLOSED_PASS
+
+```text
+AUTHORITY_STATE=R7A_KF147_SOURCE_REPAIR_CLOSED_PASS
+PR=800
+SOURCE_CLOSURE_HEAD=6100c12cb917085a9ff614b3c9c391bb043fcbc7
+PRODUCTION_SOURCE_LAST_CHANGED_HEAD=26a25537cdefa83d47c62b3ecc867a2cc37e8b8d
+
+KF147_SOURCE_DESIGN=CLOSED
+KF147_SOURCE_REPAIR=CLOSED_PASS
+KF147_OTA_ORIGIN_SOURCE=CLOSED_PASS
+KF147_OVERALL_STATUS=SOURCE_CLOSED_LIVE_REPAIR_PENDING
+NEW_BLOCKER_COUNT=0
+
+HOST_RELEASE_POLICY_SCHEMA=gh.n3w-t1-ha-ota-host-release-policy/2
+OTA_ARTIFACT_ORIGIN=https://ota.hahub.top
+OTA_ORIGIN_PR=chrenguo-stack/hahub.top#4
+OTA_ORIGIN_HEAD=a4aa7ff3011c945555f7df77165bb5bee0f58d94
+OTA_ORIGIN_ROUTE_CI=SUCCESS
+
+QUALIFICATION_SOURCE_HEAD=26a25537cdefa83d47c62b3ecc867a2cc37e8b8d
+QUALIFICATION_RUN_ID=42562214305
+QUALIFICATION_ARTIFACT_ID=13650277244
+MEASURED_EXPORT_BYTES=835454838
+PREDECESSOR_RECOVERY_BUDGET_BYTES=1342177280
+PRODUCTION_ENCODER_SHARED_WITH_QUALIFICATION=true
+
+OLD_CONFIRM_USB_ERASE_AUTHORIZATION=SUPERSEDED_UNCLAIMED
+PREPARE_REPLAY=false
+CONFIRM_USB_ERASE=false
+WIPEFS=false
+PARTITION_WRITE=false
+MKFS=false
+MOUNT=false
+TARGET_DOWNLOAD=false
+U2_PLUS=false
+LIVE_T1_MUTATION=false
+LIVE_OTA_SERVER_MUTATION=false
+MERGE=false
+
+NEXT_STAGE=KF147_LIVE_REPAIR_AUTHORIZATION_DECISION
+AUTO_EXECUTE_NEXT_STAGE=false
+```
+
+The KF-147 repository/source/CI repair is closed. Exact Policy V2, shared predecessor
+recovery encoding/qualification, hybrid dynamic capacity gates, bounded IPC/Manager/HA
+projection, A1 exact policy installation, and the hahub.top OTA route source contract are
+all closed with green CI. No new false-PASS path was found in final review.
+
+The live transaction remains preserved at U1 / `USB_REQUIRED_CONFIRMATION`; PREPARE is not
+replayed and the previous destructive authorization remains superseded/unclaimed. Live OTA
+origin publication, T1 policy/source activation, a fresh destructive authorization, U2+ and
+merge remain separate later authorization boundaries.
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_HOST_RELEASE_POLICY_SOURCE_REPAIR_CLOSURE_20261109.md`.
+
+
 ## Latest authority — 2026-11-09 KF-147 source design CLOSED
 
 ```text
