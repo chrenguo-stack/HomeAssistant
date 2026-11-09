@@ -38,6 +38,7 @@ from n3w_t1_core_updater_v2_common import UpdaterV2Error
 REQUEST_SCHEMA = "gh.n3w-t1-ha-ota-ipc-request/1"
 RESPONSE_SCHEMA = "gh.n3w-t1-ha-ota-ipc-response/1"
 RESPONSE_SCHEMA_V2 = "gh.n3w-t1-ha-ota-ipc-response/2"
+RESPONSE_SCHEMA_V3 = "gh.n3w-t1-ha-ota-ipc-response/3"
 MAX_FRAME_BYTES = 8192
 DEFAULT_SOCKET_MODE = 0o660
 
@@ -182,6 +183,10 @@ class HaUsbIpcExecutor:
         error_code: str | None = None,
         usb_candidate: object | None = None,
         usb_confirmation_required: bool = False,
+        usb_required_bytes_or_null: int | None = None,
+        usb_recommended_nominal_gb_or_null: int | None = None,
+        usb_capacity_check_state: str = "NOT_CALCULATED",
+        user_message_code_or_null: str | None = None,
     ) -> dict[str, object]:
         return {
             "phase": phase,
@@ -190,6 +195,10 @@ class HaUsbIpcExecutor:
             "installed_version": self._installed_version(document),
             "usb_candidate": usb_candidate,
             "usb_confirmation_required": usb_confirmation_required,
+            "usb_required_bytes_or_null": usb_required_bytes_or_null,
+            "usb_recommended_nominal_gb_or_null": usb_recommended_nominal_gb_or_null,
+            "usb_capacity_check_state": usb_capacity_check_state,
+            "user_message_code_or_null": user_message_code_or_null,
         }
 
     def _start_prepare_worker(
@@ -311,6 +320,10 @@ class HaUsbIpcExecutor:
                 "installed_version": None,
                 "usb_candidate": None,
                 "usb_confirmation_required": False,
+                "usb_required_bytes_or_null": None,
+                "usb_recommended_nominal_gb_or_null": None,
+                "usb_capacity_check_state": "NOT_CALCULATED",
+                "user_message_code_or_null": None,
             }
         if document["status"] == "FAILED_EMERGENCY":
             failure = document.get("failure_code")
@@ -477,6 +490,10 @@ class HaUsbIpcExecutor:
                 "installed_version": self._installed_version(document),
                 "usb_candidate": None,
                 "usb_confirmation_required": False,
+                "usb_required_bytes_or_null": None,
+                "usb_recommended_nominal_gb_or_null": None,
+                "usb_capacity_check_state": "NOT_CALCULATED",
+                "user_message_code_or_null": None,
             }
 
         with self.store.lock():
@@ -559,7 +576,16 @@ class HaUsbIpcDispatcher:
                     "progress_percent": None,
                     "error_code": "ota_host_status_unavailable",
                 }
-        extended = any(
+        capacity_extended = any(
+            key in status
+            for key in (
+                "usb_required_bytes_or_null",
+                "usb_recommended_nominal_gb_or_null",
+                "usb_capacity_check_state",
+                "user_message_code_or_null",
+            )
+        )
+        extended = capacity_extended or any(
             key in status
             for key in (
                 "installed_version",
@@ -567,8 +593,15 @@ class HaUsbIpcDispatcher:
                 "usb_confirmation_required",
             )
         )
+        schema = (
+            RESPONSE_SCHEMA_V3
+            if capacity_extended
+            else RESPONSE_SCHEMA_V2
+            if extended
+            else RESPONSE_SCHEMA
+        )
         document = {
-            "schema": RESPONSE_SCHEMA_V2 if extended else RESPONSE_SCHEMA,
+            "schema": schema,
             "accepted": accepted,
             "code": code,
             "phase": status["phase"],
@@ -582,6 +615,24 @@ class HaUsbIpcDispatcher:
                     "usb_candidate": status.get("usb_candidate"),
                     "usb_confirmation_required": bool(
                         status.get("usb_confirmation_required", False)
+                    ),
+                }
+            )
+        if capacity_extended:
+            document.update(
+                {
+                    "usb_required_bytes_or_null": status.get(
+                        "usb_required_bytes_or_null"
+                    ),
+                    "usb_recommended_nominal_gb_or_null": status.get(
+                        "usb_recommended_nominal_gb_or_null"
+                    ),
+                    "usb_capacity_check_state": status.get(
+                        "usb_capacity_check_state",
+                        "NOT_CALCULATED",
+                    ),
+                    "user_message_code_or_null": status.get(
+                        "user_message_code_or_null"
                     ),
                 }
             )
