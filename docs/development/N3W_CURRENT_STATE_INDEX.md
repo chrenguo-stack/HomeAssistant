@@ -1,3 +1,18 @@
+## 2026-11-09 — KF-147 host release-policy blocker
+
+- Boundary B reached the real `USB_REQUIRED_CONFIRMATION` state with the SanDisk Extreme candidate still inserted.
+- User authorized `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_BOUNDARY_B_CONFIRM_USB_ERASE_20261109_01`, but the authorization remains unclaimed.
+- Fresh destructive preflight failed before mutation because `/etc/n3w-t1-ota/homeassistant-release-source.json` is absent.
+- Source review proves `FixedHostReleasePolicyProvider` requires that file for artifact URL, exact target binding and full USB capacity admission.
+- R7A A1 activation installs the approved manifest, daemon/service assets and activation env, but does not install a host release-policy authority.
+- Current tests use synthetic policy providers / synthetic URLs and therefore did not cover this production deployment contract.
+- Product architecture explicitly rejects GitHub Actions artifacts as the final end-user OTA CDN and leaves the final stable HTTPS release source to later design; the four non-target capacity budget values are likewise not frozen as a production policy asset.
+- KF-147 opened as `OPEN_SOURCE_DESIGN_REQUIRED`. No wipefs, partition write, mkfs, mount, target download or U2+ occurred.
+- Keep the current SanDisk candidate inserted and preserve the existing U1 transaction. Do not replay PREPARE.
+- Next stage: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_HOST_RELEASE_POLICY_SOURCE_DESIGN_20261109_01`.
+- Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_HOST_RELEASE_POLICY_AUTHORITY_MISSING_STOP_20261109.md`.
+
+
 ## 2026-11-09 — USB enumeration differentiation E3 CLOSED_PASS
 
 - T1 Core Stack compatibility authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; repository Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
