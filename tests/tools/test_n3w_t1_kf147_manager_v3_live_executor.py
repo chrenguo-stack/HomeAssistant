@@ -100,11 +100,20 @@ def test_remote_executor_binds_exact_predecessor_and_target() -> None:
     assert "eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973" in source
 
 
-def test_local_launcher_uses_single_password_controlmaster_transport() -> None:
+def test_local_launcher_uses_single_password_controlmaster_streaming_transport() -> None:
     source = LOCAL.read_text(encoding="utf-8")
     assert "n3w_t1_ssh_transport.py" in source
     assert "transport.start_epoch()" in source
-    assert "transport.scp_to(" in source
+    assert "transport.scp_to(" not in source
+    assert "stream_file_over_ssh(" in source
+    assert "ControlPath=" in source
+    assert "BatchMode=yes" in source
+    assert "PasswordAuthentication=no" in source
+    assert "ProxyCommand=/usr/bin/false" in source
+    assert "os.O_EXCL" in source
+    assert "O_NOFOLLOW" in source
+    assert "os.fsync(output.fileno())" in source
+    assert "stream_remote_path_invalid" in source
     assert "transport.close_epoch()" in source
     assert "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7" in source
 
