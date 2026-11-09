@@ -11,6 +11,7 @@ from n3w_t1_core_updater_ha_ipc import (
     REQUEST_SCHEMA,
     RESPONSE_SCHEMA,
     RESPONSE_SCHEMA_V2,
+    RESPONSE_SCHEMA_V3,
     HaUsbIpcDispatcher,
     HaUsbIpcExecutor,
     HostOtaAdmission,
@@ -84,6 +85,10 @@ class ControllerStub:
                 "display_capacity_bytes": 16 * 1024**3,
             },
             "usb_confirmation_required": True,
+            "usb_required_bytes_or_null": 5 * 1024**3,
+            "usb_recommended_nominal_gb_or_null": 32,
+            "usb_capacity_check_state": "CANDIDATE_READY_FOR_CONFIRMATION",
+            "user_message_code_or_null": "USB_CONFIRM_ERASE",
         }
 
     def refresh_candidate(self):
@@ -98,6 +103,10 @@ class ControllerStub:
                 "display_capacity_bytes": 16 * 1024**3,
             },
             "usb_confirmation_required": True,
+            "usb_required_bytes_or_null": 5 * 1024**3,
+            "usb_recommended_nominal_gb_or_null": 32,
+            "usb_capacity_check_state": "CANDIDATE_READY_FOR_CONFIRMATION",
+            "user_message_code_or_null": "USB_CONFIRM_ERASE",
         }
 
     def confirm_and_prepare(self):
@@ -108,6 +117,10 @@ class ControllerStub:
             "error_code": None,
             "usb_candidate": None,
             "usb_confirmation_required": False,
+            "usb_required_bytes_or_null": 5 * 1024**3,
+            "usb_recommended_nominal_gb_or_null": 32,
+            "usb_capacity_check_state": "FORMATTED_CAPACITY_PASS",
+            "user_message_code_or_null": None,
         }
 
     def resume_prepare(self):
@@ -118,6 +131,10 @@ class ControllerStub:
             "error_code": None,
             "usb_candidate": None,
             "usb_confirmation_required": False,
+            "usb_required_bytes_or_null": 5 * 1024**3,
+            "usb_recommended_nominal_gb_or_null": 32,
+            "usb_capacity_check_state": "FORMATTED_CAPACITY_PASS",
+            "user_message_code_or_null": None,
         }
 
 
@@ -309,7 +326,7 @@ def test_r4_executor_without_prepare_controller_stays_v1(tmp_path: Path) -> None
     }
 
 
-def test_r7a_executor_emits_v2_only_with_prepare_controller(tmp_path: Path) -> None:
+def test_r7a_executor_emits_v3_capacity_projection_with_prepare_controller(tmp_path: Path) -> None:
     root = tmp_path / "state"
     root.mkdir(mode=0o700)
     resolver = Resolver()
@@ -335,11 +352,15 @@ def test_r7a_executor_emits_v2_only_with_prepare_controller(tmp_path: Path) -> N
         )
     )
 
-    assert response["schema"] == RESPONSE_SCHEMA_V2
+    assert response["schema"] == RESPONSE_SCHEMA_V3
     assert response["phase"] == "USB_REQUIRED_CONFIRMATION"
     assert response["usb_confirmation_required"] is True
     assert response["usb_candidate"]["display_model"] == "Synthetic USB"
     assert response["installed_version"] == "2026.10.0"
+    assert response["usb_required_bytes_or_null"] == 5 * 1024**3
+    assert response["usb_recommended_nominal_gb_or_null"] == 32
+    assert response["usb_capacity_check_state"] == "CANDIDATE_READY_FOR_CONFIRMATION"
+    assert response["user_message_code_or_null"] == "USB_CONFIRM_ERASE"
     assert controller.begin_calls == 1
     assert executor._discovery_thread is not None
     executor.stop_background_workers()
