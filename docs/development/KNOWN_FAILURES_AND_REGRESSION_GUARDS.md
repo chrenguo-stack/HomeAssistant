@@ -1,3 +1,31 @@
+### 2026-11-09 KF-147 live repair Stage A — OTA origin publication PASS / edge pending
+
+```text
+KF147_SOURCE_REPAIR=CLOSED_PASS
+KF147_OTA_ORIGIN_SOURCE=CLOSED_PASS
+KF147_OTA_ORIGIN_LIVE=PASS
+KF147_WEBSITE_EDGE_PUBLICATION=PENDING_SEPARATE_AUTHORIZATION
+
+ATTEMPT02_AUTHORIZATION_CONSUMED=true
+ATTEMPT02_REPLAY_PERMITTED=false
+TARGET_ARCHIVE_EXACT_BINDING=PASS
+OTA_READONLY_MOUNTS=PASS
+LOCAL_ORIGIN_ACCEPTANCE=PASS
+PUBLIC_TARGET_HTTP=404_EXPECTED_PRE_EDGE
+WEBSITE_UNTOUCHED=PASS
+
+T1_ACCESS=false
+PREPARE_REPLAY=false
+USB_MUTATION=false
+U2_PLUS=false
+MERGE=false
+```
+
+Live guard: a successful origin-only publication does not authorize or imply website-edge publication. The public exact target must remain 404 until a separate edge gate is authorized and executed. Attempt02 is terminal and must never be replayed.
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_LIVE_REPAIR_A_OTA_ORIGIN_PUBLICATION_ATTEMPT02_CLOSURE_20261109.md`.
+
 ### 2026-11-09 KF-147 source repair — CLOSED_PASS / LIVE_REPAIR_PENDING
 
 ```text
