@@ -91,6 +91,10 @@ class Runtime:
         self.usb_model: str | None = None
         self.usb_capacity: int | None = None
         self.usb_confirmation_required = False
+        self.usb_required_bytes: int | None = None
+        self.usb_recommended_nominal_gb: int | None = None
+        self.usb_capacity_check_state = "NOT_CALCULATED"
+        self.user_message_code: str | None = None
 
     def get_homeassistant_ota_runtime_state(self) -> OtaRuntimeSnapshot:
         return OtaRuntimeSnapshot(
@@ -100,6 +104,10 @@ class Runtime:
             usb_candidate_model=self.usb_model,
             usb_candidate_capacity_bytes=self.usb_capacity,
             usb_confirmation_required=self.usb_confirmation_required,
+            usb_required_bytes=self.usb_required_bytes,
+            usb_recommended_nominal_gb=self.usb_recommended_nominal_gb,
+            usb_capacity_check_state=self.usb_capacity_check_state,
+            user_message_code=self.user_message_code,
         )
 
 
@@ -201,6 +209,46 @@ def test_projection_exposes_required_public_state_only() -> None:
     assert projection.status.ready_to_install is False
     assert projection.status.in_progress is True
     assert projection.status.error_code_or_null is None
+
+
+def test_projection_exposes_only_bounded_capacity_fields() -> None:
+    ota, runtime, _sink = manager()
+    runtime.phase = "USB_REQUIRED_CONFIRMATION"
+    runtime.usb_model = "Synthetic USB"
+    runtime.usb_capacity = 32 * 1024**3
+    runtime.usb_confirmation_required = True
+    runtime.usb_required_bytes = 5 * 1024**3
+    runtime.usb_recommended_nominal_gb = 32
+    runtime.usb_capacity_check_state = "CANDIDATE_READY_FOR_CONFIRMATION"
+    runtime.user_message_code = "USB_CONFIRM_ERASE"
+
+    projection = ota.project()
+
+    assert projection.status.usb_required_bytes_or_null == 5 * 1024**3
+    assert projection.status.usb_recommended_nominal_gb_or_null == 32
+    assert (
+        projection.status.usb_capacity_check_state
+        == "CANDIDATE_READY_FOR_CONFIRMATION"
+    )
+    assert projection.status.user_message_code_or_null == "USB_CONFIRM_ERASE"
+
+
+def test_runtime_rejects_unknown_capacity_state_and_message() -> None:
+    with pytest.raises(
+        OtaControlError,
+        match="ota_runtime_usb_capacity_state_invalid",
+    ):
+        OtaRuntimeSnapshot(
+            usb_capacity_check_state="PRIVATE_STATE",
+        ).validate()
+
+    with pytest.raises(
+        OtaControlError,
+        match="ota_runtime_user_message_code_invalid",
+    ):
+        OtaRuntimeSnapshot(
+            user_message_code="PRIVATE_MESSAGE",
+        ).validate()
 
 
 def test_invalid_manifest_projects_non_installable_safe_error() -> None:
