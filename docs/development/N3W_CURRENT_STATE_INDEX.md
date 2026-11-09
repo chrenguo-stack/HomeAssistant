@@ -1,5 +1,6 @@
 ## 2026-11-09 — KF-147 source design CLOSED / source repair ready
 
+- T1 Core Stack compatibility authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
 - KF-147 source design is closed on a hybrid dynamic capacity model.
 - OTA release origin selected: `https://ota.hahub.top`, reusing the existing independent Nginx OTA server/storage; binaries stay outside Git and outside the website `rsync --delete` tree.
 - Canonical Home Assistant payloads use immutable versioned paths under `/n3w/homeassistant/releases/<release_identity>/homeassistant-arm64.tar.gz`.
