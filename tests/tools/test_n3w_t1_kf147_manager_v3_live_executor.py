@@ -37,14 +37,14 @@ def test_manifest_live_authority_is_exact_bound_and_unclaimed() -> None:
     assert doc["authorization_id"] == GATE
     assert doc["live_execution_authorized"] is True
     assert doc["package_authority"] == {
-        "workflow_run_id": 42625435258,
-        "workflow_job_id": 129187851904,
-        "artifact_id": 13678761257,
+        "workflow_run_id": 42635443351,
+        "workflow_job_id": 129222259940,
+        "artifact_id": 13681899131,
         "artifact_name": "n3w-kf147-manager-v3-live-44e7d7472714",
-        "artifact_digest": "sha256:d7e4d27a40bad16316016c4c506fab70b3979d1105bed9562afd01b4116c91bb",
+        "artifact_digest": "sha256:f66fb945e563859788a4699ee23fe4ea0dffd4d849573bd68b501295efb95ae8",
         "artifact_size_bytes": 62958895,
         "artifact_expired": False,
-        "source_executor_head": "de01bffe49d890b61b8246b9c839b74381fa9406",
+        "source_executor_head": "9c9f546adc6a554031cab2cb7d18d7ac9146496e",
     }
     assert doc["authorization_state"] == {
         "granted": True,
