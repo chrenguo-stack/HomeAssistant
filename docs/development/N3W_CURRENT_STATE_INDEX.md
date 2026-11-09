@@ -1,3 +1,13 @@
+## 2026-11-09 — KF-147 website-edge Attempt01 FAILED / rollback PASS
+
+- Current core-stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- Edge Attempt01 authorization was claimed and consumed; replay is forbidden.
+- Exact edge source reached public HTTP 200. Final full-body validation timed out at 1800 seconds after 833,642,496 of 835,309,535 bytes.
+- Bounded rollback completed PASS. OTA origin remains accepted; website edge is not live after rollback.
+- Failure class is validation-budget/executor, not hahub.top edge-source or OTA-origin source defect.
+- Next gate is `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_LIVE_REPAIR_A_WEBSITE_EDGE_PUBLICATION_ATTEMPT02_20261109_01`; it requires fresh explicit authorization.
+- Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_LIVE_REPAIR_A_WEBSITE_EDGE_PUBLICATION_ATTEMPT01_CLOSURE_20261109.md`.
+
 ## 2026-11-09 — KF-147 Stage A Attempt02 origin publication CLOSED_PASS
 
 - Current core-stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
