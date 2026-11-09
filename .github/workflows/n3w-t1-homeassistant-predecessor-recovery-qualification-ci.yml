@@ -70,49 +70,22 @@ jobs:
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/qualification"
           PYTHONPATH=tools python - "$RUNNER_TEMP/qualification" <<'PY'
-          import subprocess
           import sys
           from pathlib import Path
 
           import n3w_t1_core_updater_ha_recovery_encoding as e
 
           root = Path(sys.argv[1])
-
-          def encode(path: Path) -> None:
-              with path.open("xb") as output:
-                  docker = subprocess.Popen(
-                      e.docker_save_argv(),
-                      stdout=subprocess.PIPE,
-                      stderr=subprocess.PIPE,
-                  )
-                  assert docker.stdout is not None
-                  gzip = subprocess.Popen(
-                      e.gzip_argv(),
-                      stdin=docker.stdout,
-                      stdout=output,
-                      stderr=subprocess.PIPE,
-                  )
-                  docker.stdout.close()
-                  _, gzip_stderr = gzip.communicate()
-                  _, docker_stderr = docker.communicate()
-                  if docker.returncode != 0:
-                      raise RuntimeError(
-                          "docker_save_failed:" + docker_stderr.decode(errors="replace")
-                      )
-                  if gzip.returncode != 0:
-                      raise RuntimeError(
-                          "gzip_failed:" + gzip_stderr.decode(errors="replace")
-                      )
-
           archives = (
               root / "predecessor-recovery-1.tar.gz",
               root / "predecessor-recovery-2.tar.gz",
           )
-          for archive in archives:
-              encode(archive)
-
-          sizes = tuple(archive.stat().st_size for archive in archives)
-          shas = tuple(e.sha256_file(archive) for archive in archives)
+          results = tuple(
+              e.export_predecessor_archive(archive)
+              for archive in archives
+          )
+          sizes = tuple(size for size, _sha in results)
+          shas = tuple(sha for _size, sha in results)
           measured = e.qualification_measured_export_bytes(sizes)
 
           for index, (size, sha) in enumerate(zip(sizes, shas), start=1):
