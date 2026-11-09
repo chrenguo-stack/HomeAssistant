@@ -1,5 +1,6 @@
 ## 2026-11-09 — KF-147 Stage A Attempt01 rollback PASS; Attempt02 handoff
 
+- Current core-stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
 - Exact Home Assistant 2026.10.4 artifact was downloaded and independently bound: outer ZIP `835314025` bytes / `df95749cec1e48796d2cf3241d19739601fe7be78c48638284d10eec786e4fd2`; inner archive `835309535` bytes / `eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973`. A0 extraction passed.
 - Stage A Attempt01 authorization was claimed and consumed. The exact target archive was atomically placed, then the chat-generated A1 shell script failed because one test expression omitted its closing `]`.
 - Rollback completed PASS: OTA mounts returned to the old read-write mode, local target returned HTTP 403, public target returned HTTP 404. The website edge was never published; T1/USB/PREPARE/U2+/board/merge were untouched.
