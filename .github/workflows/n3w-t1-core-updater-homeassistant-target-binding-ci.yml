@@ -5,6 +5,7 @@ on:
     paths:
       - "infra/n3w-t1/upgrades/homeassistant-2026.10.4.json"
       - "infra/n3w-t1/upgrades/homeassistant-2026.10.4-approved.json"
+      - "infra/n3w-t1/upgrades/homeassistant-2026.10.4-host-release-policy.json"
       - "infra/n3w-t1/upgrades/homeassistant-2026.10.0-predecessor-recovery-qualification.json"
       - "infra/n3w-t1/upgrades/homeassistant-2026.10.4-storage-policy.json"
       - "infra/n3w-t1/upgrades/homeassistant-2026.10.4-compatibility-review.json"
@@ -26,6 +27,9 @@ on:
       - "tests/tools/test_n3w_t1_core_updater_ha_prepare_r7a.py"
       - "tests/tools/test_n3w_t1_core_updater_ha_prepare_host_r7a.py"
       - "tests/tools/test_n3w_t1_core_updater_ha_predecessor_qualification_record.py"
+      - "tests/tools/test_n3w_t1_core_updater_ha_capacity_kf147.py"
+      - "tests/tools/test_n3w_t1_r7a_host_a1_executor.py"
+      - "tools/execution_packages/n3w/r7a/host_a1_live_activation/**"
       - "tests/tools/test_n3w_t1_core_updater_ha_p3_simulation.py"
       - "tests/tools/test_n3w_t1_core_updater_ha_p4_readonly_executor.py"
       - "tests/tools/test_n3w_t1_core_updater_ha_p5_live_apply.py"
@@ -83,6 +87,7 @@ jobs:
             tools/n3w_t1_core_updater_components.py \
             tools/n3w_t1_core_updater_host.py \
             tools/n3w_t1_core_updater_a1_policy.py \
+            tools/n3w_t1_core_updater_ha_capacity.py \
             tools/n3w_t1_core_updater_ha_usb.py \
             tools/n3w_t1_core_updater_ha_usb_state.py \
             tools/n3w_t1_core_updater_ha_usb_media.py \
@@ -108,11 +113,13 @@ jobs:
           python -m pytest -q \
             tests/tools/test_n3w_t1_core_updater_a2.py \
             tests/tools/test_n3w_t1_core_updater_ha_target_binding.py \
+            tests/tools/test_n3w_t1_core_updater_ha_capacity_kf147.py \
             tests/tools/test_n3w_t1_core_updater_ha_usb_r1.py \
             tests/tools/test_n3w_t1_core_updater_ha_usb_r2.py \
             tests/tools/test_n3w_t1_core_updater_ha_prepare_r7a.py \
             tests/tools/test_n3w_t1_core_updater_ha_prepare_host_r7a.py \
             tests/tools/test_n3w_t1_core_updater_ha_predecessor_qualification_record.py \
+            tests/tools/test_n3w_t1_r7a_host_a1_executor.py \
             tests/tools/test_n3w_t1_core_updater_ha_ipc.py \
             tests/tools/test_n3w_t1_core_updater_ha_p3_simulation.py \
             tests/tools/test_n3w_t1_core_updater_ha_p4_readonly_executor.py \
