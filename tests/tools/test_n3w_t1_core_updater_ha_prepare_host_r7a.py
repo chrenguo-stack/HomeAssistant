@@ -199,6 +199,148 @@ def test_format_backend_uses_fixed_argv_without_shell(
     assert all(isinstance(call, tuple) for call in calls)
 
 
+
+def production_policy_document() -> dict:
+    return {
+        "schema": "gh.n3w-t1-ha-ota-host-release-policy/2",
+        "release_identity": "homeassistant-2026.10.4",
+        "artifact_url": (
+            "https://ota.hahub.top/n3w/homeassistant/releases/"
+            "homeassistant-2026.10.4/homeassistant-arm64.tar.gz"
+        ),
+        "target_archive_sha256": "1" * 64,
+        "target_archive_size_bytes": 1024,
+        "expected_predecessor_image_ref": (
+            "local/n3w-homeassistant:2026.10.0-0c73235a"
+        ),
+        "predecessor_recovery_budget_bytes": 1_342_177_280,
+        "capacity_policy": capacity.CapacityPolicy.frozen().to_document(),
+    }
+
+
+def policy_transaction() -> dict:
+    return {
+        "current_image_ref": "local/n3w-homeassistant:2026.10.0-0c73235a",
+        "target_manifest_identity": {
+            "release_identity": "homeassistant-2026.10.4",
+        },
+        "target_archive_sha256": "1" * 64,
+        "target_archive_size": 1024,
+    }
+
+
+def test_policy_v1_fixed_budget_shape_is_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    document = {
+        "schema": "gh.n3w-t1-ha-ota-host-release-policy/1",
+        "release_identity": "homeassistant-2026.10.4",
+        "artifact_url": "https://ota.hahub.top/old.tar.gz",
+        "target_archive_sha256": "1" * 64,
+        "target_archive_size_bytes": 1024,
+        "predecessor_recovery_worst_case_bytes": 1024,
+        "ha_data_backup_worst_case_bytes": 1024,
+        "transaction_metadata_and_working_bytes": 1024,
+        "removable_media_reserve_bytes": 1024,
+    }
+    monkeypatch.setattr(host, "_root_owned_json", lambda *_a, **_k: document)
+
+    with pytest.raises(UpdaterV2Error, match="ha_prepare_policy_schema_invalid"):
+        host.FixedHostReleasePolicyProvider().load(policy_transaction())
+
+
+def test_policy_v2_exact_shape_and_binding_are_accepted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    document = production_policy_document()
+    monkeypatch.setattr(host, "_root_owned_json", lambda *_a, **_k: document)
+
+    policy = host.FixedHostReleasePolicyProvider().load(policy_transaction())
+
+    assert policy.expected_predecessor_image_ref == (
+        "local/n3w-homeassistant:2026.10.0-0c73235a"
+    )
+    assert policy.predecessor_recovery_budget_bytes == 1_342_177_280
+    assert policy.capacity_policy == capacity.CapacityPolicy.frozen()
+
+
+@pytest.mark.parametrize(
+    "artifact_url",
+    [
+        (
+            "https://example.invalid/n3w/homeassistant/releases/"
+            "homeassistant-2026.10.4/homeassistant-arm64.tar.gz"
+        ),
+        (
+            "https://ota.hahub.top/n3w/homeassistant/releases/"
+            "homeassistant-2026.10.4/homeassistant-arm64.tar.gz?x=1"
+        ),
+        (
+            "https://ota.hahub.top/n3w/homeassistant/releases/"
+            "homeassistant-2026.10.4/homeassistant-arm64.tar.gz#fragment"
+        ),
+        (
+            "http://ota.hahub.top/n3w/homeassistant/releases/"
+            "homeassistant-2026.10.4/homeassistant-arm64.tar.gz"
+        ),
+    ],
+)
+def test_policy_v2_rejects_wrong_origin_query_fragment_or_scheme(
+    artifact_url: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    document = production_policy_document()
+    document["artifact_url"] = artifact_url
+    monkeypatch.setattr(host, "_root_owned_json", lambda *_a, **_k: document)
+
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_prepare_policy_artifact_url_invalid",
+    ):
+        host.FixedHostReleasePolicyProvider().load(policy_transaction())
+
+
+def test_policy_v2_rejects_predecessor_binding_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    document = production_policy_document()
+    monkeypatch.setattr(host, "_root_owned_json", lambda *_a, **_k: document)
+    transaction = policy_transaction()
+    transaction["current_image_ref"] = "local/n3w-homeassistant:2026.9.9-wrong"
+
+    with pytest.raises(UpdaterV2Error, match="ha_prepare_policy_binding_drift"):
+        host.FixedHostReleasePolicyProvider().load(transaction)
+
+
+def test_ha_data_measurement_rejects_external_symlink(tmp_path: Path) -> None:
+    root = tmp_path / "ha"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.write_bytes(b"external")
+    (root / "external-link").symlink_to(outside)
+
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_data_external_persistent_state_unsupported",
+    ):
+        host.measure_ha_data_tree(root.resolve())
+
+
+def test_ha_data_measurement_counts_supported_tree_without_following_links(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "ha"
+    root.mkdir()
+    (root / "a").write_bytes(b"a" * 100)
+    child = root / "child"
+    child.mkdir()
+    (child / "b").write_bytes(b"b" * 200)
+
+    measured = host.measure_ha_data_tree(root.resolve())
+
+    assert measured >= 300
+
+
 class FakePolicyProvider:
     def load(self, _transaction):
         return host.HostReleasePolicy(
