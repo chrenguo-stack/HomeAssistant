@@ -24,7 +24,8 @@
     "infra/n3w-t1/systemd/n3w-t1-ha-ota.service": "fb3d86b47ff894e4f446738565f8b923e48d51e6",
     "infra/n3w-t1/systemd/n3wfc4-services-activation.ha-ota.conf": "e90b08389d33fe2ea134b9f53c018c5dd266f459",
     "infra/n3w-t1/upgrades/homeassistant-2026.10.4-approved.json": "f51b685b5b80ef84dd9c02e7ff745e7dda4dd64c",
-    "infra/n3w-t1/upgrades/homeassistant-2026.10.4-host-release-policy.json": "aa9e97ab030afd675db7c3722ebac6975cd37b71"
+    "infra/n3w-t1/upgrades/homeassistant-2026.10.4-host-release-policy.json": "aa9e97ab030afd675db7c3722ebac6975cd37b71",
+    "tools/n3w_t1_core_updater_ha_recovery_encoding.py": "6d66d864ac858f6e1ac505062892c0fd38107af2"
   },
   "expected_live_entry": {
     "manager_image": "local/greenhouse-manager:fresh-bf38e388497b",
@@ -64,7 +65,9 @@
     "post_restart_container_settle_wait": true,
     "rollback_restart_container_settle_wait": true,
     "host_release_policy_install": true,
-    "host_release_policy_exact_hash_verify": true
+    "host_release_policy_exact_hash_verify": true,
+    "predecessor_recovery_encoder_install": true,
+    "predecessor_recovery_encoder_shared_with_qualification": true
   },
   "stop_boundary": "A1_ACTIVATION_INVOKED;AUTHORIZATION_RETIRED;READONLY_RECOVERY_CLASSIFICATION_ONLY"
 }
