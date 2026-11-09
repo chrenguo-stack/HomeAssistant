@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import importlib.util
 import json
+import subprocess
+import sys
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 PACKAGE = ROOT / "tools/execution_packages/n3w/r7a/kf147_manager_v3_live_apply"
@@ -14,6 +19,15 @@ GATE = (
     "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_"
     "MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261109_01"
 )
+
+
+def load_local():
+    spec = importlib.util.spec_from_file_location("kf147_manager_v3_live_executor_test", LOCAL)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["kf147_manager_v3_live_executor_test"] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_manifest_live_authority_is_exact_bound_and_unclaimed() -> None:
@@ -116,6 +130,71 @@ def test_local_launcher_uses_single_password_controlmaster_streaming_transport()
     assert "stream_remote_path_invalid" in source
     assert "transport.close_epoch()" in source
     assert "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7" in source
+
+
+def test_streaming_transport_keeps_stdin_open_and_reuses_bound_master(tmp_path, monkeypatch) -> None:
+    local = load_local()
+    payload = b"kf147-stream-test"
+    source = tmp_path / "payload.bin"
+    source.write_bytes(payload)
+
+    class FakeTransport:
+        target = "root@t1.local"
+        known_hosts = tmp_path / "known_hosts"
+        control_path = tmp_path / "ctl"
+
+        def assert_master(self) -> None:
+            return None
+
+    observed = {}
+
+    def fake_run(argv, *, stdin, stdout, stderr, timeout, check):
+        observed["argv"] = tuple(argv)
+        observed["payload"] = stdin.read()
+        observed["timeout"] = timeout
+        return subprocess.CompletedProcess(tuple(argv), 0, b"", b"")
+
+    monkeypatch.setattr(local.subprocess, "run", fake_run)
+    local.stream_file_over_ssh(
+        source,
+        FakeTransport(),
+        f"{local.REMOTE_DIR}/remote_apply.py",
+        timeout=120,
+    )
+
+    argv = observed["argv"]
+    assert argv[0] == "ssh"
+    assert "-n" not in argv
+    assert f"ControlPath={FakeTransport.control_path}" in argv
+    assert "BatchMode=yes" in argv
+    assert "PasswordAuthentication=no" in argv
+    assert "KbdInteractiveAuthentication=no" in argv
+    assert "PubkeyAuthentication=no" in argv
+    assert "ProxyCommand=/usr/bin/false" in argv
+    assert observed["payload"] == payload
+    assert observed["timeout"] == 120
+
+
+def test_streaming_transport_rejects_non_owned_remote_path(tmp_path) -> None:
+    local = load_local()
+    source = tmp_path / "payload.bin"
+    source.write_bytes(b"x")
+
+    class FakeTransport:
+        target = "root@t1.local"
+        known_hosts = tmp_path / "known_hosts"
+        control_path = tmp_path / "ctl"
+
+        def assert_master(self) -> None:
+            return None
+
+    with pytest.raises(local.Stop, match="stream_remote_path_invalid"):
+        local.stream_file_over_ssh(
+            source,
+            FakeTransport(),
+            "/var/tmp/not-owned/payload.bin",
+            timeout=120,
+        )
 
 
 def test_workflow_builds_manager_only_slice_from_frozen_exact_artifact() -> None:
