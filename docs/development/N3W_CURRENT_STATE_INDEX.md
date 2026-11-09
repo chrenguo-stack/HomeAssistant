@@ -1,3 +1,16 @@
+## 2026-11-09 — KF-147 Stage B preclaim STOP / Manager IPC V3 exact artifact ready
+
+- Stage A OTA origin + public edge remains CLOSED_PASS.
+- Stage B fresh T1 preflight stopped before authorization claim because live Manager `fresh-7807271e4c48` supports IPC V2 but not repaired KF-147 IPC V3.
+- Live host source is also pre-KF147 and the Policy V2 file is absent; no live mutation occurred.
+- U1 transaction remains ACTIVE at `U1_PREPARE_REQUESTED`; Extreme 32,017,047,552-byte candidate remains present, confirmation required and unconsumed.
+- Public OTA target remains HTTP 200 with exact Content-Length 835,309,535.
+- Existing exact ARM64 build workflow produced V3-compatible Manager `local/greenhouse-manager:fresh-44e7d7472714`, image ID `sha256:fd5104d610645347fe47137dbb24121851fa8a48530df3e3c905704607c5e3d4`, tar SHA-256 `9316817590c4fe74498629d0451a4897c2e11bef7bc4b423b66e47bb846099c5`, artifact ID `13673322402`.
+- No Manager/source product drift occurred after KF-147 production source freeze; build is an exact materialization of already-closed source.
+- Next gate is `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261109_01`; separate explicit authorization is required because Manager replacement was outside the original Stage B live scope.
+- PREPARE replay, CONFIRM_USB_ERASE, U2+, board work and merge remain forbidden.
+- Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_STAGE_B_PRECLAIM_MANAGER_IPC_V3_BLOCKER_AND_EXACT_ARTIFACT_CLOSURE_20261109.md`.
+
 ## 2026-11-09 — KF-147 Stage A OTA publication CLOSED_PASS
 
 - Current core-stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
