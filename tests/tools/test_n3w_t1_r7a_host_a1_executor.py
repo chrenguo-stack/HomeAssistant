@@ -30,6 +30,8 @@ def test_manifest_retires_consumed_successor_after_a1_pass() -> None:
     assert document["live_execution_authorized"] is False
     contract = document["execution_contract"]
     assert contract["host_daemon_install"] is True
+    assert contract["host_release_policy_install"] is True
+    assert contract["host_release_policy_exact_hash_verify"] is True
     assert contract["compose_overlay_install"] is True
     assert contract["services_owner_restart_maximum"] == 1
     assert contract["broker_restart"] is False
@@ -46,6 +48,36 @@ def test_manifest_retires_consumed_successor_after_a1_pass() -> None:
     assert contract["rollback_backup_hash_verified"] is True
     assert contract["post_restart_container_settle_wait"] is True
     assert contract["rollback_restart_container_settle_wait"] is True
+
+
+def test_a1_binds_and_installs_exact_host_release_policy_v2() -> None:
+    executor = load_executor()
+    document = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+    policy_path = (
+        "infra/n3w-t1/upgrades/homeassistant-2026.10.4-host-release-policy.json"
+    )
+    capacity_path = "tools/n3w_t1_core_updater_ha_capacity.py"
+
+    assert policy_path in document["source_authority"]
+    assert capacity_path in document["source_authority"]
+    assert executor.SOURCE_DESTINATIONS[policy_path] == (
+        "/etc/n3w-t1-ota/homeassistant-release-source.json"
+    )
+    assert executor.SOURCE_DESTINATIONS[capacity_path] == (
+        "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_capacity.py"
+    )
+
+    policy = json.loads((ROOT / policy_path).read_text(encoding="utf-8"))
+    assert policy["schema"] == "gh.n3w-t1-ha-ota-host-release-policy/2"
+    assert policy["predecessor_recovery_budget_bytes"] == 1_342_177_280
+
+    source = EXECUTOR_PATH.read_text(encoding="utf-8")
+    post = source[
+        source.index("def validate_post_activation("):
+        source.index("def restore_targets(")
+    ]
+    assert 'require_file_metadata(transport, HOST_RELEASE_POLICY, "0:0:644:regular file")' in post
+    assert "require_source_hashes(transport, source_hashes)" in post
 
 
 def test_successor_authorization_contract_remains_bound_but_retired() -> None:
