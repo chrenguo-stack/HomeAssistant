@@ -1,3 +1,14 @@
+## 2026-11-09 — KF-147 Manager IPC V3 final binding PASS / image-only live apply pending
+
+- Manager image-only gate `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261109_01` is granted, unclaimed, unconsumed and non-replayable.
+- Dedicated U1-preserving executor source is frozen at `de01bffe49d890b61b8246b9c839b74381fa9406`; Generic V2 updater is closed for this live state because the HA-USB transaction is active.
+- Bound package run `42625435258` is SUCCESS; artifact `13678761257`, digest `sha256:d7e4d27a40bad16316016c4c506fab70b3979d1105bed9562afd01b4116c91bb`, size `62958895`.
+- Final binding run `42627429946` at executable head `7e3ed7cb80eb06a0eca2647732ee7af8edc998cf` is SUCCESS; source contract, frozen authority, upstream metadata, Manager-only materialization, upload/redownload verification and package binding all passed.
+- Expected predecessor is `local/greenhouse-manager:fresh-7807271e4c48`; target is `local/greenhouse-manager:fresh-44e7d7472714`, image ID `sha256:fd5104d610645347fe47137dbb24121851fa8a48530df3e3c905704607c5e3d4`.
+- No T1 mutation occurred. Last-proven active U1, Extreme candidate and unconsumed confirmation semantics remain historical baseline and require fresh read-only preclaim.
+- Home Assistant/Broker/host policy/host source/PREPARE/USB/U2+/board/merge are outside this gate.
+- New-chat authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_FINAL_BINDING_PASS_TO_IMAGE_ONLY_LIVE_APPLY_NEW_CHAT_HANDOFF_V1.0_20261109.md`.
+
 ## 2026-11-09 — KF-147 Stage B preclaim STOP / Manager IPC V3 exact artifact ready
 
 - Stage A OTA origin + public edge remains CLOSED_PASS.
