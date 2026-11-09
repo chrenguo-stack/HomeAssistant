@@ -175,6 +175,35 @@ class HaUsbIpcExecutor:
         )
         return None if match is None else match.group("version")
 
+    def _capacity_projection(self) -> dict[str, object]:
+        defaults: dict[str, object] = {
+            "usb_required_bytes_or_null": None,
+            "usb_recommended_nominal_gb_or_null": None,
+            "usb_capacity_check_state": "NOT_CALCULATED",
+            "user_message_code_or_null": None,
+        }
+        if self.prepare_controller is None:
+            return defaults
+        try:
+            projection = self.prepare_controller.public_status()
+        except Exception:
+            return defaults
+        return {
+            "usb_required_bytes_or_null": projection.get(
+                "usb_required_bytes_or_null"
+            ),
+            "usb_recommended_nominal_gb_or_null": projection.get(
+                "usb_recommended_nominal_gb_or_null"
+            ),
+            "usb_capacity_check_state": projection.get(
+                "usb_capacity_check_state",
+                "NOT_CALCULATED",
+            ),
+            "user_message_code_or_null": projection.get(
+                "user_message_code_or_null"
+            ),
+        }
+
     def _extended_status(
         self,
         *,
@@ -351,6 +380,7 @@ class HaUsbIpcExecutor:
                 return self._extended_status(
                     document=document,
                     phase="TARGET_DOWNLOADING_VERIFYING",
+                    **self._capacity_projection(),
                 )
             if prepare_error is not None:
                 return self._extended_status(
@@ -387,22 +417,26 @@ class HaUsbIpcExecutor:
                 return self._extended_status(
                     document=document,
                     phase="RECOVERY_MEDIA_REQUIRED",
+                    **self._capacity_projection(),
                 )
             if prepare_error is not None:
                 return self._extended_status(
                     document=document,
                     phase="ERROR",
                     error_code=prepare_error,
+                    **self._capacity_projection(),
                 )
             if prepare_alive:
                 return self._extended_status(
                     document=document,
                     phase="TARGET_DOWNLOADING_VERIFYING",
+                    **self._capacity_projection(),
                 )
             return self._extended_status(
                 document=document,
                 phase="ERROR",
                 error_code="ha_usb_prepare_worker_inactive",
+                **self._capacity_projection(),
             )
 
         phase = _PHASE_MAP.get(document["phase"])
@@ -411,6 +445,11 @@ class HaUsbIpcExecutor:
         return self._extended_status(
             document=document,
             phase=phase,
+            **(
+                self._capacity_projection()
+                if document["phase"] == U4
+                else {}
+            ),
         )
 
     def _prepare_worker(self, mode: str) -> None:
