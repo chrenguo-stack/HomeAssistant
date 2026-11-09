@@ -204,7 +204,7 @@ OTA_SERVER_STORAGE=/root/myserver/ota
 ### 3.4 Target host / runtime authority
 
 ```text
-TARGET_HOST=root@192.168.68.194
+TARGET_HOST=FROZEN_PRIVATE_T1_HOST_LAST_PROVEN
 TARGET_ARCH=aarch64
 
 LIVE_MANAGER=local/greenhouse-manager:fresh-7807271e4c48
@@ -595,7 +595,7 @@ BOARD_ACCESS_DEFAULT=false
 ### FORBIDDEN
 
 ```text
-- SSH/access/mutation of T1 192.168.68.194.
+- SSH/access/mutation of the frozen private T1 host.
 - Any physical USB action.
 - PREPARE replay.
 - CONFIRM_USB_ERASE.
