@@ -44,6 +44,20 @@ _IN_PROGRESS_PHASES = {
     "TARGET_ACCEPTANCE",
 }
 _ALLOWED_PHASES = _IDLE_PHASES | _IN_PROGRESS_PHASES
+_ALLOWED_USB_CAPACITY_STATES = {
+    "NOT_CALCULATED",
+    "RECOMMENDATION_READY",
+    "CANDIDATE_PENDING",
+    "CANDIDATE_CAPACITY_INSUFFICIENT",
+    "CANDIDATE_READY_FOR_CONFIRMATION",
+    "FORMATTED_CAPACITY_PASS",
+    "CAPACITY_REQUIREMENT_CHANGED",
+}
+_ALLOWED_USER_MESSAGE_CODES = {
+    "USB_INSERT_RECOMMENDED",
+    "USB_CAPACITY_INSUFFICIENT",
+    "USB_CONFIRM_ERASE",
+}
 
 
 class ApprovedManifestProvider(Protocol):
@@ -90,6 +104,10 @@ class OtaRuntimeSnapshot:
     usb_candidate_model: str | None = None
     usb_candidate_capacity_bytes: int | None = None
     usb_confirmation_required: bool = False
+    usb_required_bytes: int | None = None
+    usb_recommended_nominal_gb: int | None = None
+    usb_capacity_check_state: str = "NOT_CALCULATED"
+    user_message_code: str | None = None
 
     def validate(self) -> OtaRuntimeSnapshot:
         if self.phase not in _ALLOWED_PHASES:
@@ -129,6 +147,32 @@ class OtaRuntimeSnapshot:
             or self.usb_candidate_capacity_bytes is None
         ):
             raise OtaControlError("ota_runtime_usb_confirmation_invalid")
+        if self.usb_required_bytes is not None and (
+            type(self.usb_required_bytes) is not int
+            or self.usb_required_bytes <= 0
+        ):
+            raise OtaControlError("ota_runtime_usb_capacity_invalid")
+        if self.usb_recommended_nominal_gb is not None and (
+            type(self.usb_recommended_nominal_gb) is not int
+            or self.usb_recommended_nominal_gb
+            not in {32, 64, 128, 256, 512, 1024}
+        ):
+            raise OtaControlError("ota_runtime_usb_capacity_invalid")
+        if self.usb_capacity_check_state not in _ALLOWED_USB_CAPACITY_STATES:
+            raise OtaControlError("ota_runtime_usb_capacity_state_invalid")
+        if (
+            self.user_message_code is not None
+            and self.user_message_code not in _ALLOWED_USER_MESSAGE_CODES
+        ):
+            raise OtaControlError("ota_runtime_user_message_code_invalid")
+        if (
+            self.usb_capacity_check_state != "NOT_CALCULATED"
+            and (
+                self.usb_required_bytes is None
+                or self.usb_recommended_nominal_gb is None
+            )
+        ):
+            raise OtaControlError("ota_runtime_usb_capacity_invalid")
         return self
 
 
@@ -145,6 +189,10 @@ class OtaStatus:
     usb_candidate_model_or_null: str | None = None
     usb_candidate_capacity_bytes_or_null: int | None = None
     usb_confirmation_required: bool = False
+    usb_required_bytes_or_null: int | None = None
+    usb_recommended_nominal_gb_or_null: int | None = None
+    usb_capacity_check_state: str = "NOT_CALCULATED"
+    user_message_code_or_null: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -475,6 +523,12 @@ class T1OtaManager:
                 runtime.usb_candidate_capacity_bytes
             ),
             usb_confirmation_required=runtime.usb_confirmation_required,
+            usb_required_bytes_or_null=runtime.usb_required_bytes,
+            usb_recommended_nominal_gb_or_null=(
+                runtime.usb_recommended_nominal_gb
+            ),
+            usb_capacity_check_state=runtime.usb_capacity_check_state,
+            user_message_code_or_null=runtime.user_message_code,
         )
 
     def project(self) -> OtaProjection:
@@ -500,6 +554,10 @@ class T1OtaManager:
                     usb_candidate_model_or_null=None,
                     usb_candidate_capacity_bytes_or_null=None,
                     usb_confirmation_required=False,
+                    usb_required_bytes_or_null=None,
+                    usb_recommended_nominal_gb_or_null=None,
+                    usb_capacity_check_state="NOT_CALCULATED",
+                    user_message_code_or_null=None,
                 ),
             )
 
