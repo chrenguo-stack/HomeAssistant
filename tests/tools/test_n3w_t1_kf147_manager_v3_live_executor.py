@@ -16,18 +16,29 @@ GATE = (
 )
 
 
-def test_manifest_is_fail_closed_until_exact_package_binding() -> None:
+def test_manifest_live_authority_is_exact_bound_and_unclaimed() -> None:
     doc = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert doc["schema"] == "gh.n3w-t1-kf147-manager-v3-live-executor/1"
     assert doc["gate_id"] == GATE
     assert doc["authorization_id"] == GATE
-    assert doc["live_execution_authorized"] is False
+    assert doc["live_execution_authorized"] is True
     assert doc["package_authority"] == {
-        "workflow_run_id": None,
-        "artifact_id": None,
-        "artifact_name": None,
-        "artifact_digest": None,
+        "workflow_run_id": 42625435258,
+        "workflow_job_id": 129187851904,
+        "artifact_id": 13678761257,
+        "artifact_name": "n3w-kf147-manager-v3-live-44e7d7472714",
+        "artifact_digest": "sha256:d7e4d27a40bad16316016c4c506fab70b3979d1105bed9562afd01b4116c91bb",
+        "artifact_size_bytes": 62958895,
+        "artifact_expired": False,
+        "source_executor_head": "de01bffe49d890b61b8246b9c839b74381fa9406",
     }
+    assert doc["authorization_state"] == {
+        "granted": True,
+        "claimed": False,
+        "consumed": False,
+        "replay_permitted": False,
+    }
+    assert doc["target"]["predecessor_image_id"] == "sha256:b1875c6ed969df108d2df768d61369a0c93956d146f284276b392c686c13a4f9"
 
 
 def test_execution_contract_preserves_u1_and_forbids_usb_mutation() -> None:
