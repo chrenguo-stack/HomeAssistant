@@ -175,6 +175,72 @@ def test_streaming_transport_keeps_stdin_open_and_reuses_bound_master(tmp_path, 
     assert observed["timeout"] == 120
 
 
+def test_remote_capacity_report_fails_closed_before_staging() -> None:
+    local = load_local()
+    binding = {
+        "manager_image_size_bytes": 96 * 1024 * 1024,
+        "capacity_required_free_bytes": (
+            2 * local.EXPECTED_MANAGER_SIZE + 96 * 1024 * 1024
+        ),
+    }
+
+    class FakeTransport:
+        def run_remote(self, argv, *, timeout):
+            assert argv[:2] == ["python3", "-c"]
+            assert timeout == 90
+            return subprocess.CompletedProcess(
+                argv,
+                0,
+                json.dumps({
+                    "staging_root": "/var/tmp",
+                    "docker_root": "/var/lib/docker",
+                    "staging_device": 7,
+                    "docker_device": 7,
+                    "staging_free_bytes": binding["capacity_required_free_bytes"] - 1,
+                    "docker_free_bytes": binding["capacity_required_free_bytes"] - 1,
+                    "staging_fstype": "ext4",
+                    "docker_fstype": "ext4",
+                }),
+                "",
+            )
+
+    with pytest.raises(local.Stop, match="remote_capacity_insufficient"):
+        local.remote_capacity_report(FakeTransport(), binding)
+
+
+def test_remote_capacity_report_accepts_same_ext4_device_with_exact_bound() -> None:
+    local = load_local()
+    image_size = 96 * 1024 * 1024
+    required = 2 * local.EXPECTED_MANAGER_SIZE + image_size
+    binding = {
+        "manager_image_size_bytes": image_size,
+        "capacity_required_free_bytes": required,
+    }
+
+    class FakeTransport:
+        def run_remote(self, argv, *, timeout):
+            return subprocess.CompletedProcess(
+                argv,
+                0,
+                json.dumps({
+                    "staging_root": "/var/tmp",
+                    "docker_root": "/var/lib/docker",
+                    "staging_device": 7,
+                    "docker_device": 7,
+                    "staging_free_bytes": required,
+                    "docker_free_bytes": required,
+                    "staging_fstype": "ext4",
+                    "docker_fstype": "ext4",
+                }),
+                "",
+            )
+
+    report = local.remote_capacity_report(FakeTransport(), binding)
+    assert report["capacity_pass"] is True
+    assert report["required_free_bytes"] == required
+    assert report["available_free_bytes"] == required
+
+
 def test_streaming_transport_rejects_non_owned_remote_path(tmp_path) -> None:
     local = load_local()
     source = tmp_path / "payload.bin"
@@ -202,6 +268,9 @@ def test_workflow_builds_manager_only_slice_from_frozen_exact_artifact() -> None
     assert "UPSTREAM_ARTIFACT_ID: \"13673322402\"" in source
     assert "SOURCE_HEAD: 44e7d74727147975de88e85c4b18ba3f7493fd76" in source
     assert "MANAGER_TAR_SHA256: 9316817590c4fe74498629d0451a4897c2e11bef7bc4b423b66e47bb846099c5" in source
+    assert "MANAGER_IMAGE_SIZE_BYTES" in source
+    assert '"manager_image_size_bytes"' in source
+    assert '"capacity_required_free_bytes"' in source
     assert "greenhouse-manager-arm64.tar" in source
     assert "homeassistant-arm64.tar" not in "\n".join(
         line for line in source.splitlines()
