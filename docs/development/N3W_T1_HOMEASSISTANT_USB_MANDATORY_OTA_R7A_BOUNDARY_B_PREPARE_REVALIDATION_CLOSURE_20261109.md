@@ -1,0 +1,166 @@
+# N3-W T1 Home Assistant mandatory-USB OTA R7A
+# Boundary B PREPARE revalidation closure — 2026-11-09
+
+## 1. Gate result
+
+```text
+GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_BOUNDARY_B_PREPARE_REVALIDATION_20261109_01
+RESULT=CLOSED_PASS
+PR=800
+ENTRY_PR_HEAD=4c0595b9e7579658ce6b6a2cf34304c28894e3cf
+
+AUTHORIZATION=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_BOUNDARY_B_PREPARE_REVALIDATION_20261109_01
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+ONE_SHOT=true
+PREPARE_INVOKE_COUNT=1
+PREPARE_REPLAY_ALLOWED=false
+```
+
+This gate revalidated the repaired KF-146 Home Assistant -> Broker Dynamic Security ->
+Manager -> privileged host PREPARE control path on the real T1. It reached U1 /
+`USB_REQUIRED` with no USB device present and no destructive media operation.
+
+## 2. Fresh pre-PREPARE evidence
+
+```text
+FRESH_RUNTIME_HEALTH=PASS
+HOST_DAEMON_ACTIVE=true
+SERVICES_OWNER_ACTIVE=true
+BROKER_OWNER_ACTIVE=true
+
+MANAGER_RUNNING=true
+MANAGER_IMAGE=local/greenhouse-manager:fresh-7807271e4c48
+MANAGER_RUNTIME_IMAGE_ID=sha256:7e3f09ed47010a18de215faa426113b7faba4e220b41bb9dcafd8ee1d4acf20b
+MANAGER_RESTART_COUNT=0
+
+HOMEASSISTANT_RUNNING=true
+HOMEASSISTANT_IMAGE=local/n3w-homeassistant:2026.10.0-0c73235a
+HOMEASSISTANT_RUNTIME_IMAGE_ID=sha256:c261fa53f30508951833492ba2a19af6cfbb6aa8f2806b531d8f5c6599265306
+HOMEASSISTANT_RESTART_COUNT=0
+
+BROKER_RUNNING=true
+BROKER_IMAGE=local/n3w-mosquitto:2.1.2-3184566d
+BROKER_RUNTIME_IMAGE_ID=sha256:df265f1e2b2e3dc35d5eb194e698c598e01c5ebca370da307b34332f9bf0a563
+BROKER_RESTART_COUNT=0
+
+MANAGER_OTA_ENABLED=true
+MANAGER_OTA_MANIFEST_PATH_OK=true
+MANAGER_OTA_SOCKET_PATH_OK=true
+MANAGER_RUNTIME_MOUNT_READ_ONLY=true
+HOST_OTA_SOCKET_PRESENT=true
+
+DYNSEC_SHA256=b319d0027f67b9d5cf4c06fc4aed3eec45df6a1e11f286f724027cedcfa889cb
+DYNSEC_CHANGE_INDEX=18
+MANAGER_ACL_COUNT=23
+HOMEASSISTANT_ACL_COUNT=10
+OTA_CONTROL_EXACT_REQUIRED_ACLS_PRESENT=4
+
+PRE_PREPARE_HA_USB_TRANSACTION_ABSENT=true
+PRE_PREPARE_HA_USB_PREPARE_STATE_ABSENT=true
+RECOVERY_REQUIRED=false
+NONTERMINAL_PREEXISTING_UPDATER_STATE=false
+PRE_PREPARE_USB_LIKE_DISK_COUNT=0
+PRECHANGE_SNAPSHOT=PASS
+```
+
+The one-shot authorization was claimed only after this exact fresh preflight passed.
+
+## 3. Single PREPARE result
+
+The operator invoked the Home Assistant product PREPARE button exactly once after the
+authorization claim. The authorization became consumed at that first invocation.
+
+```text
+PREPARE_INVOKED=true
+PREPARE_INVOKE_COUNT=1
+
+HA_USB_TRANSACTION_PRESENT_AFTER=true
+HA_USB_PREPARE_STATE_PRESENT_AFTER=true
+
+TRANSACTION_PHASE_INTERNAL=U1_PREPARE_REQUESTED
+TRANSACTION_STATUS=ACTIVE
+PHASE_AFTER_PREPARE=USB_REQUIRED
+
+USB_CONFIRMATION_REQUIRED_AFTER_PREPARE=false
+USB_CONFIRMATION_CONSUMED=false
+USB_CANDIDATE_AFTER_PREPARE=null
+PREPARE_ERROR_CODE=null
+
+USB_LIKE_DISK_COUNT_AFTER=0
+OTA_MEDIA_MOUNT_COUNT=0
+```
+
+This is the exact intended Boundary B stop state: PREPARE has established U1 and recorded
+the zero-USB baseline, but no fresh removable candidate exists.
+
+## 4. Runtime continuity after PREPARE
+
+```text
+MANAGER_RUNNING_AFTER=true
+MANAGER_RESTART_COUNT_AFTER=0
+HOMEASSISTANT_RUNNING_AFTER=true
+HOMEASSISTANT_RESTART_COUNT_AFTER=0
+BROKER_RUNNING_AFTER=true
+BROKER_RESTART_COUNT_AFTER=0
+HOST_DAEMON_ACTIVE_AFTER=true
+```
+
+No service repair, retry or restart was required by this gate.
+
+## 5. Destructive-boundary proof
+
+```text
+USB_INSERTION=false
+CONFIRM_USB_ERASE_INVOKED=false
+WIPEFS=false
+PARTITION_WRITE=false
+MKFS=false
+MOUNT=false
+TARGET_DOWNLOAD=false
+U2_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+```
+
+The transaction remains deliberately live at U1 / `USB_REQUIRED`. It must not be deleted,
+reset, overwritten or replaced by another PREPARE attempt.
+
+## 6. Closure classification
+
+```text
+KF145_STATUS=CLOSED_PASS_LIVE_REVALIDATED
+KF146_STATUS=CLOSED_PASS_LIVE_REVALIDATED
+NEW_KF_REQUIRED=false
+
+BOUNDARY_B_PREPARE_REVALIDATION_RESULT=PASS
+STOP_BOUNDARY=USB_REQUIRED_BEFORE_ANY_USB_INSERTION
+STOP=true
+
+LIVE_RUNTIME_MUTATION=PREPARE_U1_ONLY
+PREPARE_AUTHORIZATION_REPLAY=false
+AUTOMATIC_REPAIR=false
+AUTOMATIC_RETRY=false
+AUTOMATIC_RESTART=false
+```
+
+This result upgrades the post-KF-146 expectation into a real live proven fact: the repaired
+product control path successfully creates the HA-USB U1 transaction.
+
+## 7. Next boundary
+
+```text
+CURRENT_STOP_POINT=USB_REQUIRED_BEFORE_ANY_USB_INSERTION
+NEXT_STAGE=SEPARATE_USB_INSERTION_AND_DISCOVERY_AUTHORIZATION_DECISION
+NEXT_GATE_AUTHORIZED=false
+
+USB_INSERTION_AUTHORIZED=false
+CONFIRM_USB_ERASE_AUTHORIZED=false
+U2_PLUS_AUTHORIZED=false
+BOARD_ACCESS_AUTHORIZED=false
+MERGE=false
+```
+
+A later gate may insert exactly one dedicated removable test USB and verify read-only
+candidate discovery / `USB_REQUIRED_CONFIRMATION`. That requires a new explicit physical
+authorization. It must remain separate from `CONFIRM_USB_ERASE` and all U2+ destructive work.
