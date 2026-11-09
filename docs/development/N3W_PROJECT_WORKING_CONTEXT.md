@@ -1,3 +1,43 @@
+## Stable updater authority — 2026-11-10 T1 runtime recovery closed / runtime MQTT health probe boundary frozen
+
+```text
+PROJECT_WORKING_CONTEXT_VERSION=4.5
+
+T1_BROKER_MANAGER_HA_RUNTIME_RECOVERY=CLOSED_PASS
+LAST_PROVEN_ROOT_FREE_BYTES=592859136
+
+BROKER_AUTHENTICATED_READINESS_ROLE=PRE_APPLICATION_STARTUP_CREDENTIAL_PROBE
+BROKER_AUTHENTICATED_READINESS_RUNTIME_HEALTH_USE=false
+RUNTIME_HEALTH_PROBE_MUST_BE_NONINVASIVE=true
+
+HOMEASSISTANT_RUNTIME_MQTT_EVIDENCE=
+ESTABLISHED_SOCKET_TO_1883
++BROKER_CURRENT_AUTH_EVENT_FOR_EXACT_IDENTITY
++HOMEASSISTANT_HTTP_200_OR_401
+
+READINESS_PROBE_PRODUCTION_HA_CLIENT_ID_REUSE=true
+RUNTIME_USE_CAN_CAUSE_SESSION_TAKEOVER=true
+
+CORE_UPDATER_DEPLOYED_CLI_PRESENT=false
+CORE_UPDATER_DEPLOYMENT_ROOT_CAUSE=TBD
+
+KF147_OLD_LIVE_PACKAGE_REUSABLE=false
+KF147_OLD_LIVE_AUTHORIZATION_REUSABLE=false
+
+NEXT_ONE_GATE=BROKER_READINESS_RUNTIME_SESSION_TAKEOVER_SOURCE_REPAIR_DESIGN
+NEXT_2=CORE_UPDATER_DEPLOYED_ASSET_INTEGRITY_REPAIR
+NEXT_3=T1_STORAGE_HEADROOM_AND_IMAGE_LIFECYCLE_CLOSURE
+```
+
+The emergency runtime-recovery sequence is closed: Broker, Manager and Home Assistant are all real Engine/containerd tasks again; Manager and Home Assistant MQTT sockets are present; Home Assistant current Broker authentication is proven; Home Assistant HTTP returns an accepted 401 readiness response.
+
+The authenticated Broker readiness helper is a startup credential probe, not a runtime health probe. It authenticates with the production Home Assistant identity, including the production client ID. Calling it after Home Assistant is already online can replace the live Home Assistant MQTT session with the short readiness session. Runtime/post-start acceptance must therefore use non-invasive socket/current-auth/HTTP evidence and must not call the startup helper.
+
+The deployed T1 does not contain `/opt/HomeAssistant/tools/n3w_t1_core_updater.py`; the deployment/packaging root cause remains to be proven separately. The root filesystem has only emergency-level free space, so KF-147 must not resume until source repair, deployed-asset integrity and storage/image-lifecycle closure are complete. Any later KF-147 live retry requires fresh rebind, fresh capacity admission and a newly bound package/manifest.
+
+Authority:
+`docs/development/N3W_T1_STORAGE_RECOVERY_S2G_RUNTIME_CLOSED_PASS_AND_SOURCE_REPAIR_QUEUE_20261110.md`.
+
 ## Stable updater authority — 2026-11-09 product image lifecycle / post-acceptance cleanup policy frozen
 
 ~~~text
