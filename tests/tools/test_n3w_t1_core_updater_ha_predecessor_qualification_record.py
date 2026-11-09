@@ -31,18 +31,18 @@ def test_record_binds_exact_qualification_source_and_github_artifact() -> None:
         "gh.n3w-t1-ha-predecessor-recovery-qualification-record/1"
     )
     assert qualification["source_head"] == (
-        "bd71f5eeaac215f7108d64aebe268a49b3758573"
+        "26a25537cdefa83d47c62b3ecc867a2cc37e8b8d"
     )
-    assert qualification["workflow_run_id"] == 42558486089
-    assert qualification["workflow_job_id"] == 128969470757
+    assert qualification["workflow_run_id"] == 42562214305
+    assert qualification["workflow_job_id"] == 128980900831
     assert qualification["workflow_result"] == "success"
-    assert qualification["artifact_id"] == 13648383855
+    assert qualification["artifact_id"] == 13650277244
     assert qualification["artifact_name"] == (
         "n3w-ha-predecessor-recovery-qualification-"
         "bd71f5eeaac215f7108d64aebe268a49b3758573"
     )
     assert qualification["artifact_zip_digest"] == (
-        "sha256:680e5fc7cc19d0763b61b9b55842e9427cdf6bff3d8fc7ee9217f80a456e72ab"
+        "sha256:79f2ede4a6e654e88857edde02caf52c495c3486fe706ac927098ff72bf987d9"
     )
     assert SHA256.fullmatch(qualification["evidence_json_sha256"])
     assert SHA256.fullmatch(qualification["evidence_json_canonical_sha256"])
@@ -84,7 +84,7 @@ def test_record_measurement_and_budget_are_fail_closed_and_recomputable() -> Non
     measured = encoding.qualification_measured_export_bytes(sample_sizes)
 
     assert measured == max(sample_sizes)
-    assert measured == 835454845
+    assert measured == 835454838
     assert measurement["selected_sample_index"] == 2
     assert measurement["measured_export_bytes"] == measured
     assert budget["ratio_percent"] == encoding.RECOVERY_MARGIN_RATIO_PERCENT
