@@ -550,6 +550,11 @@
       "class": "EXACT",
       "draft_policy": "run",
       "exceptions": {}
+    },
+    "n3w-t1-homeassistant-predecessor-recovery-qualification-ci.yml": {
+      "class": "EXACT",
+      "draft_policy": "run",
+      "exceptions": {}
     }
   }
 }
