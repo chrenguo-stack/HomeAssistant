@@ -12,6 +12,10 @@ RECORD = (
     ROOT
     / "infra/n3w-t1/upgrades/homeassistant-2026.10.0-predecessor-recovery-qualification.json"
 )
+POLICY = (
+    ROOT
+    / "infra/n3w-t1/upgrades/homeassistant-2026.10.4-host-release-policy.json"
+)
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -104,3 +108,28 @@ def test_record_requires_double_identity_and_load_verification() -> None:
         "exact_product_export_sample_count": 2,
         "independent_budget_recalculation_pass": True,
     }
+
+
+def test_production_policy_is_cross_bound_to_qualification_record() -> None:
+    qualification = record()
+    policy = json.loads(POLICY.read_text(encoding="utf-8"))
+
+    assert policy["schema"] == "gh.n3w-t1-ha-ota-host-release-policy/2"
+    assert policy["release_identity"] == "homeassistant-2026.10.4"
+    assert policy["target_archive_size_bytes"] == 835_309_535
+    assert policy["target_archive_sha256"] == (
+        "eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973"
+    )
+    assert policy["expected_predecessor_image_ref"] == (
+        qualification["predecessor"]["image_ref"]
+    )
+    assert policy["predecessor_recovery_budget_bytes"] == (
+        qualification["budget"]["predecessor_recovery_budget_bytes"]
+    )
+    assert policy["capacity_policy"] == encoding_capacity_policy_document()
+
+
+def encoding_capacity_policy_document() -> dict:
+    from n3w_t1_core_updater_ha_capacity import CapacityPolicy
+
+    return CapacityPolicy.frozen().to_document()
