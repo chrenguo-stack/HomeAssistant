@@ -1,3 +1,63 @@
+## Stable updater authority — 2026-11-09 KF-147 Stage A Attempt01 rolled back; Attempt02 handoff
+
+```text
+PROJECT_WORKING_CONTEXT_VERSION=3.8
+KF147_STATUS=LIVE_REPAIR_A_ATTEMPT01_FAILED_ROLLED_BACK_PASS_ATTEMPT02_HANDOFF
+
+HOMEASSISTANT_PR=800
+PR_DOCS_HEAD_BEFORE_ATTEMPT02_ARCHIVE=bd8d88f5b29d1d5bf1dd8a7cd98cd8b99c71f62c
+SOURCE_CLOSURE_HEAD=4a670ccde19cc42f4cdb1cfdddcc7d9f2a690820
+SOURCE_CLOSURE_CI=28_OF_28_SUCCESS
+PRODUCTION_SOURCE_LAST_CHANGED_HEAD=26a25537cdefa83d47c62b3ecc867a2cc37e8b8d
+
+HAHUB_REPOSITORY=chrenguo-stack/hahub.top
+HAHUB_PR=4
+HAHUB_SOURCE_HEAD=a4aa7ff3011c945555f7df77165bb5bee0f58d94
+HAHUB_ROUTE_CI=SUCCESS
+
+TARGET_ARTIFACT_GITHUB_ID=13391983948
+TARGET_ARTIFACT_OUTER_ZIP_SIZE=835314025
+TARGET_ARTIFACT_OUTER_ZIP_SHA256=df95749cec1e48796d2cf3241d19739601fe7be78c48638284d10eec786e4fd2
+TARGET_ARCHIVE_SIZE_BYTES=835309535
+TARGET_ARCHIVE_SHA256=eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973
+TARGET_ARTIFACT_EXACT_BINDING=PASS
+STAGE_A0_EXTRACTION=PASS
+
+ATTEMPT01_AUTHORIZATION=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_LIVE_REPAIR_A_OTA_ORIGIN_PUBLICATION_20261109_01
+ATTEMPT01_AUTHORIZATION_CLAIMED=true
+ATTEMPT01_AUTHORIZATION_CONSUMED=true
+ATTEMPT01_RESULT=FAILED_ROLLED_BACK_PASS
+ATTEMPT01_REPLAY_PERMITTED=false
+ATTEMPT01_FAILURE_CLASS=CHAT_GENERATED_EXECUTION_SCRIPT_DEFECT
+ATTEMPT01_FAILURE_DETAIL=missing_closing_bracket_in_inner_archive_sha_test_after_atomic_target_publication
+PRODUCT_SOURCE_DEFECT_NEW=false
+NEW_KF_REQUIRED=false
+
+ROLLBACK_OTA_RW_MOUNTS=PASS
+ROLLBACK_LOCAL_ORIGIN_HTTP=403
+ROLLBACK_PUBLIC_TARGET_HTTP=404
+ROLLBACK=PASS
+EDGE_PUBLICATION_ATTEMPTED=false
+T1_ACCESS=false
+T1_MUTATION=false
+PREPARE_REPLAY=false
+USB_MUTATION=false
+U2_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_GATE_SELECTED_BY_USER=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_LIVE_REPAIR_A_OTA_ORIGIN_PUBLICATION_ATTEMPT02_20261109_01
+NEXT_GATE_LIVE_AUTHORIZATION_GRANTED=false
+NEXT_GATE_REQUIRES_FRESH_READONLY_BASELINE=true
+```
+
+Attempt01 consumed its live authorization because the exact target archive was atomically copied to the live OTA storage before a chat-generated shell test line failed. The failure was not a product-source or artifact defect. The bounded rollback then removed the target, restored the prechange OTA configuration, recreated only the OTA container with the old read-write mounts, and re-established the last-proven local/public prestate (403/404). The website edge was never published.
+
+Do not replay the consumed Attempt01 authorization. Attempt02 is the user-selected next gate, but the new conversation must first fresh-read the rollback baseline and must not perform a second live mutation until a new live authorization is explicit.
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_LIVE_REPAIR_A_OTA_ORIGIN_PUBLICATION_ATTEMPT02_NEW_CHAT_HANDOFF_V1.0_20261109.md`.
+
 ## Stable updater authority — 2026-11-09 KF-147 source/CI CLOSED_PASS; live repair handoff ready
 
 ```text
