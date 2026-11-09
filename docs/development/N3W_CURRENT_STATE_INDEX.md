@@ -1,3 +1,16 @@
+## 2026-11-09 — Boundary B PREPARE revalidation CLOSED_PASS
+
+- Fresh live preflight passed with exact Manager/Home Assistant/Broker images, restart count 0, host daemon active, Manager OTA enabled, exact DynSec SHA/changeIndex, 23/10 service-role ACLs, all four OTA control ACLs present, no old HA-USB transaction/PREPARE state, and zero USB-like disks.
+- The authorized Home Assistant PREPARE action was invoked exactly once; the one-shot authorization is now consumed and non-replayable.
+- A new HA-USB transaction and PREPARE state exist with internal phase `U1_PREPARE_REQUESTED`, status `ACTIVE`, and public phase `USB_REQUIRED`.
+- `usb_confirmation_required=false`, `candidate=null`, no PREPARE error, USB-like disk count remains zero, and no OTA media mount exists.
+- Manager/Home Assistant/Broker remain running with restart count 0; host daemon remains active.
+- No USB insertion, `CONFIRM_USB_ERASE`, wipefs, partition write, mkfs, mount, target download, U2+, board access or merge occurred.
+- Current hard stop: `USB_REQUIRED_BEFORE_ANY_USB_INSERTION`. Do not replay PREPARE or clear the live U1 transaction.
+- Next stage is a separate USB insertion/read-only candidate-discovery authorization decision; it is not authorized yet. Destructive confirmation remains a separate later gate.
+- Closure: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_BOUNDARY_B_PREPARE_REVALIDATION_CLOSURE_20261109.md`.
+
+
 ## 2026-11-09 — Boundary B PREPARE revalidation new-chat handoff ready
 
 - T1 Core Stack compatibility authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; repository Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
