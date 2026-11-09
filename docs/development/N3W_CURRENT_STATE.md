@@ -1,3 +1,66 @@
+## Latest authority — 2026-11-10 T1 runtime recovery CLOSED_PASS / source-repair queue frozen
+
+```text
+AUTHORITY_STATE=T1_RUNTIME_RECOVERY_CLOSED_PASS_SOURCE_REPAIR_QUEUE
+PR=800
+
+T1_BROKER_MANAGER_HA_RUNTIME_RECOVERY=CLOSED_PASS
+
+LIVE_MANAGER=local/greenhouse-manager:fresh-7807271e4c48
+LIVE_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+LIVE_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+
+BROKER_RUNNING=true
+MANAGER_RUNNING=true
+HOMEASSISTANT_RUNNING=true
+
+MANAGER_MQTT_SOCKET_COUNT_8883=1
+HOMEASSISTANT_MQTT_SOCKET_COUNT_1883=1
+HOMEASSISTANT_BROKER_CURRENT_AUTHENTICATED=true
+HOMEASSISTANT_HTTP_STATUS=401
+
+LAST_PROVEN_ROOT_FREE_BYTES=592859136
+
+PRIMARY_OUTAGE_ROOT_CAUSE=ROOT_FILESYSTEM_ENOSPC
+SECONDARY_RUNTIME_DIVERGENCE=PROVEN
+ENOSPC_CAUSED_SECONDARY_DIVERGENCE=NOT_PROVEN
+
+BROKER_READINESS_RUNTIME_SESSION_TAKEOVER=PROVEN
+CORE_UPDATER_DEPLOYED_CLI_MISSING=PROVEN
+
+NEXT_ONE_GATE=BROKER_READINESS_RUNTIME_SESSION_TAKEOVER_SOURCE_REPAIR_DESIGN
+NEXT_2=CORE_UPDATER_DEPLOYED_ASSET_INTEGRITY_REPAIR
+NEXT_3=T1_STORAGE_HEADROOM_AND_IMAGE_LIFECYCLE_CLOSURE
+
+KF147_RESUME_SEQUENCE=
+FRESH_REBIND
+->FRESH_CAPACITY_GATE
+->NEW_PACKAGE_MANIFEST_BINDING
+->LIVE_RETRY
+
+KF147_OLD_PACKAGE_REUSE=false
+KF147_OLD_AUTHORIZATION_REUSE=false
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+PREPARE_REPLAY=false
+CONFIRM_USB_ERASE=false
+USB_MUTATION=false
+U2_PLUS=false
+MERGE=false
+```
+
+The emergency storage/runtime recovery is closed. Exact starts of the existing Broker, Manager and Home Assistant containers restored real containerd tasks without recreation or daemon restart. S2G proved the current Home Assistant MQTT session and HTTP readiness.
+
+S2F's temporary Home Assistant MQTT false-negative was caused by invoking the pre-application authenticated-readiness helper while Home Assistant was already online. The helper reuses the production Home Assistant client ID and can take over the live session. This is now a source-design repair item, not an active runtime outage.
+
+The deployed Core Updater CLI path used by the strict verifier is absent. This is a separate deployment-asset integrity task with root cause still TBD.
+
+Storage remains below a healthy long-term update headroom target. No broad prune or unbound image deletion is permitted. KF-147 stays paused until the three queued source/deployment/storage closures are complete.
+
+Authority:
+`docs/development/N3W_T1_STORAGE_RECOVERY_S2G_RUNTIME_CLOSED_PASS_AND_SOURCE_REPAIR_QUEUE_20261110.md`.
+
 ## Latest authority — 2026-11-09 KF-147 Manager IPC V3 final binding PASS / image-only live apply pending
 
 ```text
