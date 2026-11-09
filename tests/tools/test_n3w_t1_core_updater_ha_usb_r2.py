@@ -15,6 +15,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 
 import n3w_t1_core_updater_ha_usb as ha_usb_mod
+import n3w_t1_core_updater_ha_capacity as capacity_model
 from n3w_t1_core_updater_ha_backup import (
     HaDataBackupRecord,
     validate_backup_record,
@@ -91,6 +92,31 @@ CAPACITY_INPUTS = UsbCapacityInputs(
     transaction_metadata_and_working_bytes=1 * 1024**3,
     removable_media_reserve_bytes=1 * 1024**3,
 )
+
+
+def passing_install_capacity(*, observed_free_bytes: int = USB_BYTES):
+    return capacity_model.compute_install_revalidation(
+        target_artifact_bytes=len(TARGET_BYTES),
+        predecessor_recovery_budget_bytes=2 * 1024**3,
+        ha_data_measured_bytes=1 * 1024**2,
+        observed_usb_free_bytes=observed_free_bytes,
+    )
+
+
+def passing_recovery_capacity(
+    target: ImageRecoveryRecord,
+    predecessor: ImageRecoveryRecord,
+    backup: HaDataBackupRecord,
+    *,
+    observed_free_bytes: int = 8 * 1024**3,
+):
+    return capacity_model.compute_recovery_admission_capacity(
+        target_archive_bytes=target.archive_size_bytes,
+        predecessor_archive_bytes=predecessor.archive_size_bytes,
+        ha_backup_archive_bytes=backup.archive_size_bytes,
+        transaction_working_budget_bytes=512 * 1024**2,
+        observed_usb_free_bytes=observed_free_bytes,
+    )
 
 
 def sha(path: Path) -> str:
@@ -401,7 +427,10 @@ def drive_to_u8(tmp_path: Path):
     assert tx["authorization_claimed"] is False
     assert tx["authorization_consumed"] is False
 
-    tx = start_predecessor_recovery(tx)
+    tx = start_predecessor_recovery(
+        tx,
+        install_capacity=passing_install_capacity(),
+    )
     predecessor = docker.export_predecessor(media)
     predecessor = docker.verify_predecessor(media, predecessor)
 
@@ -422,6 +451,11 @@ def drive_to_u8(tmp_path: Path):
         backup=backup,
         observed_usb_filesystem_uuid=USB_UUID,
         capacity_report=media.report,
+        recovery_capacity=passing_recovery_capacity(
+            target,
+            predecessor,
+            backup,
+        ),
         production_prestate_exact=(docker.active == CURRENT),
     )
     assert tx["phase"] == U8
@@ -469,9 +503,71 @@ def test_r2_corrupt_target_stops_before_ready_and_leaves_production_unchanged(tm
     assert CURRENT in docker.images
 
 
+def test_r2_install_capacity_growth_blocks_before_u6(tmp_path):
+    tx, _media, _docker, _ha, _target = prepare_to_u4(tmp_path)
+    tx = request_install(tx)
+    evidence = passing_install_capacity(observed_free_bytes=1)
+
+    assert evidence.capacity_pass is False
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_install_capacity_not_verified",
+    ):
+        start_predecessor_recovery(tx, install_capacity=evidence)
+    assert tx["phase"] == U5
+    assert tx["authorization_claimed"] is False
+
+
+def test_r2_u8_actual_free_space_blocks_before_authorization(tmp_path):
+    tx, media, docker, ha, target = prepare_to_u4(tmp_path)
+    tx = request_install(tx)
+    tx = start_predecessor_recovery(
+        tx,
+        install_capacity=passing_install_capacity(),
+    )
+    predecessor = docker.verify_predecessor(
+        media,
+        docker.export_predecessor(media),
+    )
+    ha.quiesce()
+    tx = record_predecessor_recovery_and_ha_quiesced(
+        tx,
+        predecessor=predecessor,
+        ha_quiesced=True,
+    )
+    backup = ha.verify_backup(media, ha.create_backup(media))
+    insufficient = passing_recovery_capacity(
+        target,
+        predecessor,
+        backup,
+        observed_free_bytes=1,
+    )
+    assert insufficient.capacity_pass is False
+
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_recovery_capacity_not_verified",
+    ):
+        record_recovery_admission(
+            tx,
+            target=target,
+            predecessor=predecessor,
+            backup=backup,
+            observed_usb_filesystem_uuid=USB_UUID,
+            capacity_report=media.report,
+            recovery_capacity=insufficient,
+            production_prestate_exact=True,
+        )
+    assert tx["phase"] == U7
+    assert tx["authorization_claimed"] is False
+
+
 def test_r2_predecessor_corruption_stops_before_u7_and_u9(tmp_path):
     tx, media, docker, ha, _target = prepare_to_u4(tmp_path)
-    tx = start_predecessor_recovery(request_install(tx))
+    tx = start_predecessor_recovery(
+        request_install(tx),
+        install_capacity=passing_install_capacity(),
+    )
     predecessor = docker.export_predecessor(media)
     archive = media.root / "predecessor" / "homeassistant-predecessor.bin"
     archive.write_bytes(archive.read_bytes() + b"corrupt")
@@ -739,6 +835,11 @@ def test_r2_power_loss_classification_is_deterministic_u0_through_u11(tmp_path):
         backup=backup,
         observed_usb_filesystem_uuid=USB_UUID,
         capacity_report=media.report,
+        recovery_capacity=passing_recovery_capacity(
+            target,
+            predecessor,
+            backup,
+        ),
         production_prestate_exact=(docker.active == CURRENT),
     )
     snapshots[U8] = tx
