@@ -155,6 +155,12 @@ class HomeAssistantUpdateSurface:
                 status.usb_candidate_capacity_bytes_or_null
             ),
             "usb_confirmation_required": status.usb_confirmation_required,
+            "usb_required_bytes_or_null": status.usb_required_bytes_or_null,
+            "usb_recommended_nominal_gb_or_null": (
+                status.usb_recommended_nominal_gb_or_null
+            ),
+            "usb_capacity_check_state": status.usb_capacity_check_state,
+            "user_message_code_or_null": status.user_message_code_or_null,
         }
 
     def messages(
