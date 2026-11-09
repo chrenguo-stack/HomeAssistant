@@ -1,3 +1,59 @@
+## Stable updater authority — 2026-11-09 KF-147 source/CI CLOSED_PASS; live repair handoff ready
+
+```text
+PROJECT_WORKING_CONTEXT_VERSION=3.7
+KF147_STATUS=SOURCE_REPAIR_CLOSED_PASS_LIVE_REPAIR_READY
+
+HOMEASSISTANT_PR=800
+SOURCE_CLOSURE_HEAD=4a670ccde19cc42f4cdb1cfdddcc7d9f2a690820
+SOURCE_CLOSURE_CI=28_OF_28_SUCCESS
+PRODUCTION_SOURCE_LAST_CHANGED_HEAD=26a25537cdefa83d47c62b3ecc867a2cc37e8b8d
+
+HAHUB_REPOSITORY=chrenguo-stack/hahub.top
+HAHUB_PR=4
+HAHUB_SOURCE_HEAD=a4aa7ff3011c945555f7df77165bb5bee0f58d94
+HAHUB_ROUTE_CI=SUCCESS
+
+HOST_RELEASE_POLICY_SCHEMA=gh.n3w-t1-ha-ota-host-release-policy/2
+RELEASE_SOURCE=https://ota.hahub.top
+QUALIFICATION_SOURCE_HEAD=26a25537cdefa83d47c62b3ecc867a2cc37e8b8d
+QUALIFICATION_RUN_ID=42562214305
+QUALIFICATION_ARTIFACT_ID=13650277244
+MEASURED_EXPORT_BYTES=835454838
+PREDECESSOR_RECOVERY_BUDGET_BYTES=1342177280
+
+CURRENT_LIVE_BASELINE_FRESHLY_RECHECKED=false
+LAST_PROVEN_TRANSACTION_PHASE=U1_PREPARE_REQUESTED
+LAST_PROVEN_PUBLIC_PHASE=USB_REQUIRED_CONFIRMATION
+LAST_PROVEN_USB_CANDIDATE_MODEL=Extreme
+PREPARE_REPLAY=false
+OLD_CONFIRM_USB_ERASE_AUTHORIZATION=SUPERSEDED_UNCLAIMED
+
+NEXT_STAGE=KF147_LIVE_REPAIR
+NEXT_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_LIVE_REPAIR_A_OTA_ORIGIN_PUBLICATION_READONLY_PREEXECUTION_20261109_01
+NEXT_GATE_LIVE_MUTATION=false
+BOARD_ACCESS=false
+CONFIRM_USB_ERASE=false
+U2_PLUS=false
+MERGE=false
+```
+
+KF-147 source design, source repair, predecessor qualification, hybrid dynamic capacity
+contract, A1 deployment source, hahub.top OTA route source and the exact-head regression set
+are closed. The next conversation enters the live-repair phase only through a fresh read-only
+OTA-origin preexecution gate. It must rebind the real OTA server/public HTTPS state and
+establish rollback/publication authority before any upload, server configuration mutation,
+reload/restart, T1 mutation or USB destructive action.
+
+The previously granted destructive USB authorization remains superseded and unclaimed and
+must never be replayed.
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_HOST_RELEASE_POLICY_SOURCE_REPAIR_CLOSURE_20261109.md`.
+New-chat handoff:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_LIVE_REPAIR_NEW_CHAT_HANDOFF_V1.0_20261109.md`.
+
+
 ## Stable updater authority — 2026-11-09 KF-147 source design CLOSED
 
 ```text
