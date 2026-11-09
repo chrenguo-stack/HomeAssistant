@@ -43,6 +43,19 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate live executor source contract
+        run: |
+          set -euo pipefail
+          python -m pip install "pytest>=8,<9"
+          python -m py_compile \
+            tools/execution_packages/n3w/r7a/kf147_manager_v3_live_apply/executor.py \
+            tools/execution_packages/n3w/r7a/kf147_manager_v3_live_apply/remote_apply.py
+          python -m pytest -q tests/tools/test_n3w_t1_kf147_manager_v3_live_executor.py
+
       - name: Verify frozen source authority
         shell: bash
         run: |
