@@ -1,3 +1,21 @@
+### 2026-11-09 KF-147 — R7A host release-policy authority missing
+
+| ID | 范围 | 现场现象 | 根因 | 修复与保护 | 状态 |
+|---|---|---|---|---|---|
+| KF-147 | T1 mandatory-USB OTA / CONFIRM_USB_ERASE preflight | Candidate 已到 `USB_REQUIRED_CONFIRMATION`，但 destructive preflight 发现 `/etc/n3w-t1-ota/homeassistant-release-source.json` 不存在 | R7A 已实现 `FixedHostReleasePolicyProvider` 消费端并在 confirm worker 中强制读取该文件，但 A1 live activation 只安装 approved manifest / daemon / drop-in / activation env；生产 host release policy 的 exact HTTPS artifact locator 与容量预算 authority 从未冻结或部署；测试仅使用 synthetic policy provider / `updates.example.invalid` | 禁止临时合成 URL/容量参数；冻结 repository-owned exact host release policy；补 A1 deployment asset、approved-manifest cross-binding、真实 production policy tests/CI；live repair 后重新做 destructive preflight；保持现有 U1/candidate 不变 | OPEN_SOURCE_DESIGN_REQUIRED |
+
+Guards:
+- `CONFIRM_USB_ERASE` 前必须证明固定 host release-policy 文件存在、root-owned、与 live transaction/approved manifest exact-bound。
+- A1 activation 不得在缺少生产 host release policy 时报告可进入 destructive Boundary B。
+- synthetic `FakePolicyProvider` 不能替代 production deployment contract 测试。
+- 不得把 GitHub Actions artifact URL 临时当成最终产品 OTA release source；产品架构明确要求稳定 HTTPS release service，最终域名/服务尚需冻结。
+- host release policy 的四项非 target 容量预算不得凭经验随意填写，必须有明确 authority/evidence。
+- KF-147 未关闭前，已授权的 `CONFIRM_USB_ERASE` 保持 `GRANTED but UNCLAIMED`，禁止 wipefs/partition/mkfs/mount/download/U2+。
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_HOST_RELEASE_POLICY_AUTHORITY_MISSING_STOP_20261109.md`.
+
+
 ### 2026-11-09 KF-146 live repair — CLOSED_PASS
 
 Production DynSec was repaired in place with exactly four OTA control ACLs on
