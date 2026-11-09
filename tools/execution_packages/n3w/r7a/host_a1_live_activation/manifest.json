@@ -7,10 +7,11 @@
   "source_authority": {
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
     "tools/n3w_t1_core_updater_ha_daemon.py": "98c879f65840c237e7ee8855412806e346d880f5",
-    "tools/n3w_t1_core_updater_ha_ipc.py": "550c6336303eb767ce813c27c2b35d9a89968472",
-    "tools/n3w_t1_core_updater_ha_prepare.py": "3391536669c3f545e25d51de8be51c3dc65aad75",
-    "tools/n3w_t1_core_updater_ha_prepare_host.py": "dfecb541d5f39d75e51fd14bb9d3361675ba031b",
-    "tools/n3w_t1_core_updater_ha_usb.py": "c1f472d7846f94340d43c72130d1ae3cd5c897c2",
+    "tools/n3w_t1_core_updater_ha_capacity.py": "0e532679ad030e71fdddabeae0a178173e7e1eea",
+    "tools/n3w_t1_core_updater_ha_ipc.py": "70bb737a19bf743fb03ec06488d3e06445856266",
+    "tools/n3w_t1_core_updater_ha_prepare.py": "3ec44b53db8a78912114b6d70f018dfc6e00a7ec",
+    "tools/n3w_t1_core_updater_ha_prepare_host.py": "933dfb2a348ace88b0a54bf4adbd8851c1348be0",
+    "tools/n3w_t1_core_updater_ha_usb.py": "495dc29d7d4850cd485a07b739199a282446477f",
     "tools/n3w_t1_core_updater_ha_usb_state.py": "64cfcab9d1c62acd28ef4abeb161b88f8a63d2bc",
     "tools/n3w_t1_core_updater_ha_usb_media.py": "44afe444c8db5ff380e9aa74120cf5382a345baa",
     "tools/n3w_t1_core_updater_ha_backup.py": "39da0f7f95603445b0dc523ce7fbbf1c4fb145ad",
@@ -22,7 +23,8 @@
     "infra/n3w-t1/production/docker-compose.ha-ota.yml": "79932cf60f81d737414a18004868c63def731e84",
     "infra/n3w-t1/systemd/n3w-t1-ha-ota.service": "fb3d86b47ff894e4f446738565f8b923e48d51e6",
     "infra/n3w-t1/systemd/n3wfc4-services-activation.ha-ota.conf": "e90b08389d33fe2ea134b9f53c018c5dd266f459",
-    "infra/n3w-t1/upgrades/homeassistant-2026.10.4-approved.json": "f51b685b5b80ef84dd9c02e7ff745e7dda4dd64c"
+    "infra/n3w-t1/upgrades/homeassistant-2026.10.4-approved.json": "f51b685b5b80ef84dd9c02e7ff745e7dda4dd64c",
+    "infra/n3w-t1/upgrades/homeassistant-2026.10.4-host-release-policy.json": "aa9e97ab030afd675db7c3722ebac6975cd37b71"
   },
   "expected_live_entry": {
     "manager_image": "local/greenhouse-manager:fresh-bf38e388497b",
@@ -60,7 +62,9 @@
     "symlink_nonregular_fail_closed": true,
     "rollback_backup_hash_verified": true,
     "post_restart_container_settle_wait": true,
-    "rollback_restart_container_settle_wait": true
+    "rollback_restart_container_settle_wait": true,
+    "host_release_policy_install": true,
+    "host_release_policy_exact_hash_verify": true
   },
   "stop_boundary": "A1_ACTIVATION_INVOKED;AUTHORIZATION_RETIRED;READONLY_RECOVERY_CLASSIFICATION_ONLY"
 }
