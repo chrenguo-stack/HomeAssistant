@@ -30,6 +30,46 @@ EXPECTED_IMAGE_ID = "sha256:fd5104d610645347fe47137dbb24121851fa8a48530df3e3c905
 EXPECTED_SOURCE_HEAD = "44e7d74727147975de88e85c4b18ba3f7493fd76"
 SSH_TRANSPORT_BLOB = "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7"
 
+REMOTE_STORAGE_PROBE = r"""
+import json
+import os
+import shutil
+import subprocess
+
+stage = "/var/tmp"
+info = json.loads(subprocess.check_output(
+    ["docker", "info", "--format", "{{json .}}"],
+    text=True,
+))
+docker_root = info.get("DockerRootDir")
+if not isinstance(docker_root, str) or not docker_root.startswith("/") or not os.path.isdir(docker_root):
+    raise SystemExit(31)
+
+stage_stat = os.stat(stage)
+docker_stat = os.stat(docker_root)
+stage_usage = shutil.disk_usage(stage)
+docker_usage = shutil.disk_usage(docker_root)
+stage_fstype = subprocess.check_output(
+    ["findmnt", "-n", "-o", "FSTYPE", "--target", stage],
+    text=True,
+).strip()
+docker_fstype = subprocess.check_output(
+    ["findmnt", "-n", "-o", "FSTYPE", "--target", docker_root],
+    text=True,
+).strip()
+
+print(json.dumps({
+    "staging_root": stage,
+    "docker_root": docker_root,
+    "staging_device": stage_stat.st_dev,
+    "docker_device": docker_stat.st_dev,
+    "staging_free_bytes": stage_usage.free,
+    "docker_free_bytes": docker_usage.free,
+    "staging_fstype": stage_fstype,
+    "docker_fstype": docker_fstype,
+}, sort_keys=True))
+"""
+
 REMOTE_STREAM_WRITE = r"""
 import os
 import sys
@@ -180,6 +220,11 @@ def verify_artifact(manifest: dict[str, Any], work: Path) -> tuple[Path, dict[st
         or binding.get("target_manager") != EXPECTED_TARGET
         or binding.get("target_image_id") != EXPECTED_IMAGE_ID
         or binding.get("manager_tar_sha256") != EXPECTED_MANAGER_SHA
+        or not isinstance(binding.get("manager_image_size_bytes"), int)
+        or isinstance(binding.get("manager_image_size_bytes"), bool)
+        or binding.get("manager_image_size_bytes") <= 0
+        or binding.get("capacity_required_free_bytes")
+        != 2 * EXPECTED_MANAGER_SIZE + binding.get("manager_image_size_bytes")
         or binding.get("manager_only") is not True
         or binding.get("usb_mutation") is not False
     ):
@@ -262,6 +307,43 @@ def stream_file_over_ssh(
         raise Stop(f"command_failed:ssh-stream:{completed.returncode}")
 
 
+def remote_capacity_report(
+    transport: Any,
+    binding: dict[str, Any],
+) -> dict[str, Any]:
+    raw = transport.run_remote(
+        ["python3", "-c", REMOTE_STORAGE_PROBE],
+        timeout=90,
+    )
+    report = parse_json_output(raw.stdout, "capacity")
+    if report.get("staging_root") != "/var/tmp":
+        raise Stop("remote_staging_root_invalid")
+    if report.get("staging_fstype") in {"tmpfs", "ramfs"}:
+        raise Stop("remote_staging_root_memory_fs")
+    if report.get("staging_device") != report.get("docker_device"):
+        raise Stop("remote_storage_filesystem_split_unsupported")
+    free_values = []
+    for key in ("staging_free_bytes", "docker_free_bytes"):
+        value = report.get(key)
+        if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+            raise Stop("remote_free_bytes_invalid")
+        free_values.append(value)
+    required = binding.get("capacity_required_free_bytes")
+    if not isinstance(required, int) or isinstance(required, bool) or required <= 0:
+        raise Stop("capacity_required_free_bytes_invalid")
+    available = min(free_values)
+    report["manager_tar_size_bytes"] = EXPECTED_MANAGER_SIZE
+    report["manager_image_size_bytes"] = binding["manager_image_size_bytes"]
+    report["required_free_bytes"] = required
+    report["available_free_bytes"] = available
+    report["capacity_pass"] = available >= required
+    if report["capacity_pass"] is not True:
+        raise Stop(
+            f"remote_capacity_insufficient:available={available}:required={required}"
+        )
+    return report
+
+
 def parse_json_output(payload: str, label: str) -> dict[str, Any]:
     try:
         value = json.loads(payload)
@@ -306,6 +388,8 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
         result["t1_access"] = True
         if transport.run_remote(["test", "-e", REMOTE_DIR], check=False, timeout=30).returncode == 0:
             raise Stop("remote_staging_already_exists")
+        capacity = remote_capacity_report(transport, authority["binding"])
+        write_private(root / "capacity.json", capacity)
         transport.run_remote([
             "install", "-d", "-m", "0700", "-o", "root", "-g", "root", REMOTE_DIR
         ], timeout=60)
