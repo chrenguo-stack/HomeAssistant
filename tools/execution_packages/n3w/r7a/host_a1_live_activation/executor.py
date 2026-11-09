@@ -75,6 +75,8 @@ SOURCE_DESTINATIONS = {
         "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_backup.py",
     "tools/n3w_t1_core_updater_ha_recovery.py":
         "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_recovery.py",
+    "tools/n3w_t1_core_updater_ha_recovery_encoding.py":
+        "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_recovery_encoding.py",
     "tools/n3w_t1_core_updater_v2_common.py":
         "/opt/HomeAssistant/tools/n3w_t1_core_updater_v2_common.py",
     "tools/n3w_t1_core_updater_v2_state.py":
