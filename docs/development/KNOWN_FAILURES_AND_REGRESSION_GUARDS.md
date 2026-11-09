@@ -1,3 +1,23 @@
+### 2026-11-09 KF-147 website-edge Attempt01 — validation timeout / rollback PASS
+
+```text
+EDGE_ATTEMPT01_RESULT=FAILED_ROLLED_BACK_PASS
+EDGE_ATTEMPT01_FAILURE_CLASS=PUBLIC_FULL_GET_VALIDATION_TIMEOUT
+EDGE_ATTEMPT01_TIMEOUT_SECONDS=1800
+EDGE_ATTEMPT01_RECEIVED_BYTES=833642496
+EDGE_ATTEMPT01_EXPECTED_BYTES=835309535
+EDGE_ATTEMPT01_AUTHORIZATION_CONSUMED=true
+EDGE_ATTEMPT01_REPLAY_PERMITTED=false
+EDGE_SOURCE_DEFECT=false
+OTA_ORIGIN_DEFECT=false
+ROLLBACK=PASS
+```
+
+Regression guard: do not classify a fixed full-transfer validation timeout as an edge-source failure when exact source configuration, public HTTP reachability and origin acceptance are already proven. Do not replay a consumed authorization. A retry requires a new authorization and a revised transfer validation budget/strategy.
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_LIVE_REPAIR_A_WEBSITE_EDGE_PUBLICATION_ATTEMPT01_CLOSURE_20261109.md`.
+
 ### 2026-11-09 KF-147 live repair Stage A — OTA origin publication PASS / edge pending
 
 ```text
