@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 import n3w_t1_portable_image_identity as portable
+import n3w_t1_core_updater_ha_capacity as capacity
 from n3w_t1_core_updater_ha_prepare import (
     HostUsbCandidate,
     PreparedUsbMedia,
@@ -30,7 +31,7 @@ from n3w_t1_core_updater_v2_common import (
     sha256_bytes,
 )
 
-HOST_RELEASE_POLICY_SCHEMA = "gh.n3w-t1-ha-ota-host-release-policy/1"
+HOST_RELEASE_POLICY_SCHEMA = "gh.n3w-t1-ha-ota-host-release-policy/2"
 USB_TX_MANIFEST_SCHEMA = "gh.n3w-t1-ha-usb-transaction-manifest/1"
 USB_TX_PHASE_SCHEMA = "gh.n3w-t1-ha-usb-transaction-phase/1"
 USB_TX_CHECKSUM_SCHEMA = "gh.n3w-t1-ha-usb-checksums/1"
@@ -38,6 +39,7 @@ DEFAULT_HOST_RELEASE_POLICY = Path(
     "/etc/n3w-t1-ota/homeassistant-release-source.json"
 )
 DEFAULT_RUNTIME_ROOT = Path("/run/n3w-t1-ota")
+DEFAULT_HA_DATA_ROOT = Path("/var/lib/n3wfc4-homeassistant")
 MAX_POLICY_BYTES = 64 * 1024
 MAX_DOWNLOAD_BYTES = 8 * 1024 * 1024 * 1024
 MAX_CAPACITY_INPUT_BYTES = 64 * 1024 * 1024 * 1024
@@ -49,10 +51,9 @@ class HostReleasePolicy:
     artifact_url: str
     target_archive_sha256: str
     target_archive_size_bytes: int
-    predecessor_recovery_worst_case_bytes: int
-    ha_data_backup_worst_case_bytes: int
-    transaction_metadata_and_working_bytes: int
-    removable_media_reserve_bytes: int
+    expected_predecessor_image_ref: str
+    predecessor_recovery_budget_bytes: int
+    capacity_policy: capacity.CapacityPolicy
 
     def validate(self) -> "HostReleasePolicy":
         if (
@@ -62,11 +63,18 @@ class HostReleasePolicy:
         ):
             raise UpdaterV2Error("ha_prepare_policy_release_invalid")
         parsed = urllib.parse.urlsplit(self.artifact_url)
+        expected_path = (
+            f"/n3w/homeassistant/releases/{self.release_identity}/"
+            "homeassistant-arm64.tar.gz"
+        )
         if (
             parsed.scheme != "https"
-            or not parsed.hostname
+            or parsed.hostname != "ota.hahub.top"
+            or parsed.port not in (None, 443)
             or parsed.username is not None
             or parsed.password is not None
+            or parsed.path != expected_path
+            or parsed.query
             or parsed.fragment
         ):
             raise UpdaterV2Error("ha_prepare_policy_artifact_url_invalid")
@@ -81,35 +89,36 @@ class HostReleasePolicy:
             or self.target_archive_size_bytes > MAX_DOWNLOAD_BYTES
         ):
             raise UpdaterV2Error("ha_prepare_policy_capacity_invalid")
-        capacity_values = (
-            self.predecessor_recovery_worst_case_bytes,
-            self.ha_data_backup_worst_case_bytes,
-            self.transaction_metadata_and_working_bytes,
-            self.removable_media_reserve_bytes,
-        )
-        if any(
-            type(value) is not int
-            or value <= 0
-            or value > MAX_CAPACITY_INPUT_BYTES
-            for value in capacity_values
+        if (
+            not isinstance(self.expected_predecessor_image_ref, str)
+            or not self.expected_predecessor_image_ref.startswith(
+                "local/n3w-homeassistant:"
+            )
+            or self.expected_predecessor_image_ref.strip()
+            != self.expected_predecessor_image_ref
+        ):
+            raise UpdaterV2Error("ha_prepare_policy_predecessor_invalid")
+        if (
+            type(self.predecessor_recovery_budget_bytes) is not int
+            or self.predecessor_recovery_budget_bytes <= 0
+            or self.predecessor_recovery_budget_bytes > MAX_CAPACITY_INPUT_BYTES
         ):
             raise UpdaterV2Error("ha_prepare_policy_capacity_invalid")
+        if self.capacity_policy != capacity.CapacityPolicy.frozen():
+            raise UpdaterV2Error("ha_prepare_capacity_policy_drift")
         return self
 
-    def capacity_inputs(self) -> UsbCapacityInputs:
+    def capacity_breakdown(
+        self,
+        ha_data_measured_bytes: int,
+    ) -> capacity.CapacityBreakdown:
         self.validate()
-        return UsbCapacityInputs(
+        return capacity.compute_capacity(
             target_artifact_bytes=self.target_archive_size_bytes,
-            predecessor_recovery_worst_case_bytes=(
-                self.predecessor_recovery_worst_case_bytes
-            ),
-            ha_data_backup_worst_case_bytes=self.ha_data_backup_worst_case_bytes,
-            transaction_metadata_and_working_bytes=(
-                self.transaction_metadata_and_working_bytes
-            ),
-            removable_media_reserve_bytes=self.removable_media_reserve_bytes,
+            predecessor_recovery_budget_bytes=self.predecessor_recovery_budget_bytes,
+            ha_data_measured_bytes=ha_data_measured_bytes,
+            policy=self.capacity_policy,
         )
-
 
 def _reject_duplicate_object(
     pairs: list[tuple[str, Any]],
@@ -171,30 +180,29 @@ class FixedHostReleasePolicyProvider:
             "artifact_url",
             "target_archive_sha256",
             "target_archive_size_bytes",
-            "predecessor_recovery_worst_case_bytes",
-            "ha_data_backup_worst_case_bytes",
-            "transaction_metadata_and_working_bytes",
-            "removable_media_reserve_bytes",
+            "expected_predecessor_image_ref",
+            "predecessor_recovery_budget_bytes",
+            "capacity_policy",
         }
-        if set(document) != expected or document.get("schema") != HOST_RELEASE_POLICY_SCHEMA:
+        if (
+            set(document) != expected
+            or document.get("schema") != HOST_RELEASE_POLICY_SCHEMA
+        ):
             raise UpdaterV2Error("ha_prepare_policy_schema_invalid")
         policy = HostReleasePolicy(
             release_identity=document["release_identity"],
             artifact_url=document["artifact_url"],
             target_archive_sha256=document["target_archive_sha256"],
             target_archive_size_bytes=document["target_archive_size_bytes"],
-            predecessor_recovery_worst_case_bytes=document[
-                "predecessor_recovery_worst_case_bytes"
+            expected_predecessor_image_ref=document[
+                "expected_predecessor_image_ref"
             ],
-            ha_data_backup_worst_case_bytes=document[
-                "ha_data_backup_worst_case_bytes"
+            predecessor_recovery_budget_bytes=document[
+                "predecessor_recovery_budget_bytes"
             ],
-            transaction_metadata_and_working_bytes=document[
-                "transaction_metadata_and_working_bytes"
-            ],
-            removable_media_reserve_bytes=document[
-                "removable_media_reserve_bytes"
-            ],
+            capacity_policy=capacity.CapacityPolicy.from_document(
+                document["capacity_policy"]
+            ),
         ).validate()
         manifest = transaction.get("target_manifest_identity")
         if not isinstance(manifest, dict):
@@ -205,10 +213,11 @@ class FixedHostReleasePolicyProvider:
             != transaction.get("target_archive_sha256")
             or policy.target_archive_size_bytes
             != transaction.get("target_archive_size")
+            or policy.expected_predecessor_image_ref
+            != transaction.get("current_image_ref")
         ):
             raise UpdaterV2Error("ha_prepare_policy_binding_drift")
         return policy
-
 
 def _run(
     argv: tuple[str, ...],
@@ -320,6 +329,54 @@ def _require_private_directory(
         raise UpdaterV2Error("usb_runtime_directory_metadata_invalid")
 
 
+def measure_ha_data_tree(root: Path) -> int:
+    if (
+        not root.is_absolute()
+        or _path_contains_symlink(root)
+        or not root.is_dir()
+    ):
+        raise UpdaterV2Error("ha_data_root_invalid")
+    try:
+        resolved_root = root.resolve(strict=True)
+    except OSError as error:
+        raise UpdaterV2Error("ha_data_root_invalid") from error
+
+    total = 0
+    stack = [root]
+    while stack:
+        directory = stack.pop()
+        try:
+            entries = tuple(os.scandir(directory))
+        except OSError as error:
+            raise UpdaterV2Error("ha_data_measurement_failed") from error
+        for entry in entries:
+            path = Path(entry.path)
+            try:
+                metadata = entry.stat(follow_symlinks=False)
+            except OSError as error:
+                raise UpdaterV2Error("ha_data_measurement_failed") from error
+
+            if stat.S_ISLNK(metadata.st_mode):
+                try:
+                    target = path.resolve(strict=True)
+                    target.relative_to(resolved_root)
+                except (OSError, ValueError) as error:
+                    raise UpdaterV2Error(
+                        "ha_data_external_persistent_state_unsupported"
+                    ) from error
+            elif stat.S_ISDIR(metadata.st_mode):
+                stack.append(path)
+            elif not stat.S_ISREG(metadata.st_mode):
+                raise UpdaterV2Error("ha_data_special_file_unsupported")
+
+            if metadata.st_size < 0:
+                raise UpdaterV2Error("ha_data_measurement_invalid")
+            total += metadata.st_size
+            if total > capacity.MAX_SAFE_BYTES:
+                raise UpdaterV2Error("ha_data_measurement_overflow")
+    return total
+
+
 def _stable_fingerprint(node: dict[str, Any]) -> str:
     serial = (
         node["serial"].strip()
@@ -351,9 +408,11 @@ class SubprocessPrepareBackend:
         *,
         policy_provider: FixedHostReleasePolicyProvider | None = None,
         runtime_root: Path = DEFAULT_RUNTIME_ROOT,
+        ha_data_root: Path = DEFAULT_HA_DATA_ROOT,
     ) -> None:
         self.policy_provider = policy_provider or FixedHostReleasePolicyProvider()
         self.runtime_root = runtime_root
+        self.ha_data_root = ha_data_root
 
     def _lsblk(self) -> list[dict[str, Any]]:
         payload = _run(
@@ -417,11 +476,30 @@ class SubprocessPrepareBackend:
             candidates.append(candidate.validate())
         return tuple(candidates)
 
+    def capacity_breakdown(
+        self,
+        transaction: dict[str, Any],
+    ) -> capacity.CapacityBreakdown:
+        policy = self.policy_provider.load(transaction)
+        measured = measure_ha_data_tree(self.ha_data_root)
+        return policy.capacity_breakdown(measured)
+
     def capacity_inputs(
         self,
         transaction: dict[str, Any],
     ) -> UsbCapacityInputs:
-        return self.policy_provider.load(transaction).capacity_inputs()
+        breakdown = self.capacity_breakdown(transaction)
+        return UsbCapacityInputs(
+            target_artifact_bytes=breakdown.target_artifact_bytes,
+            predecessor_recovery_worst_case_bytes=(
+                breakdown.predecessor_recovery_budget_bytes
+            ),
+            ha_data_backup_worst_case_bytes=breakdown.ha_data_backup_budget_bytes,
+            transaction_metadata_and_working_bytes=(
+                breakdown.transaction_working_budget_bytes
+            ),
+            removable_media_reserve_bytes=breakdown.removable_reserve_bytes,
+        )
 
     def _same_candidate(self, candidate: HostUsbCandidate) -> HostUsbCandidate:
         matches = tuple(
