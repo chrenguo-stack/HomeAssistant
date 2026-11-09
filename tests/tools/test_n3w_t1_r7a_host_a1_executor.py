@@ -32,6 +32,8 @@ def test_manifest_retires_consumed_successor_after_a1_pass() -> None:
     assert contract["host_daemon_install"] is True
     assert contract["host_release_policy_install"] is True
     assert contract["host_release_policy_exact_hash_verify"] is True
+    assert contract["predecessor_recovery_encoder_install"] is True
+    assert contract["predecessor_recovery_encoder_shared_with_qualification"] is True
     assert contract["compose_overlay_install"] is True
     assert contract["services_owner_restart_maximum"] == 1
     assert contract["broker_restart"] is False
@@ -57,14 +59,19 @@ def test_a1_binds_and_installs_exact_host_release_policy_v2() -> None:
         "infra/n3w-t1/upgrades/homeassistant-2026.10.4-host-release-policy.json"
     )
     capacity_path = "tools/n3w_t1_core_updater_ha_capacity.py"
+    encoder_path = "tools/n3w_t1_core_updater_ha_recovery_encoding.py"
 
     assert policy_path in document["source_authority"]
     assert capacity_path in document["source_authority"]
+    assert encoder_path in document["source_authority"]
     assert executor.SOURCE_DESTINATIONS[policy_path] == (
         "/etc/n3w-t1-ota/homeassistant-release-source.json"
     )
     assert executor.SOURCE_DESTINATIONS[capacity_path] == (
         "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_capacity.py"
+    )
+    assert executor.SOURCE_DESTINATIONS[encoder_path] == (
+        "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_recovery_encoding.py"
     )
 
     policy = json.loads((ROOT / policy_path).read_text(encoding="utf-8"))
