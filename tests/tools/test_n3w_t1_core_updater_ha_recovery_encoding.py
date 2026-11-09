@@ -98,3 +98,30 @@ def test_qualification_measurement_uses_maximum_of_exact_samples() -> None:
 def test_qualification_measurement_rejects_invalid_samples(samples: tuple[object, ...]) -> None:
     with pytest.raises(encoding.RecoveryEncodingError):
         encoding.qualification_measured_export_bytes(samples)  # type: ignore[arg-type]
+
+
+def test_production_export_api_rejects_existing_destination(tmp_path) -> None:
+    destination = (tmp_path / "predecessor.tar.gz").resolve()
+    destination.write_bytes(b"existing")
+
+    with pytest.raises(
+        encoding.RecoveryEncodingError,
+        match="recovery_destination_exists",
+    ):
+        encoding.export_predecessor_archive(destination)
+
+
+def test_production_export_api_rejects_wrong_predecessor_before_subprocess(
+    tmp_path,
+) -> None:
+    destination = (tmp_path / "predecessor.tar.gz").resolve()
+
+    with pytest.raises(
+        encoding.RecoveryEncodingError,
+        match="predecessor_image_ref_mismatch",
+    ):
+        encoding.export_predecessor_archive(
+            destination,
+            image_ref="local/n3w-homeassistant:wrong",
+        )
+    assert not destination.exists()
