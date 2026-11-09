@@ -1,3 +1,81 @@
+### 2026-11-09 KF-147 source repair — CLOSED_PASS / LIVE_REPAIR_PENDING
+
+```text
+KF147_SOURCE_DESIGN=CLOSED
+KF147_SOURCE_REPAIR=CLOSED_PASS
+KF147_OTA_ORIGIN_SOURCE=CLOSED_PASS
+KF147_OVERALL_STATUS=SOURCE_CLOSED_LIVE_REPAIR_PENDING
+
+PRODUCTION_SOURCE_LAST_CHANGED_HEAD=26a25537cdefa83d47c62b3ecc867a2cc37e8b8d
+SOURCE_VALIDATION_HEAD=988e8052b08f8c65bf6c313ef232e11ee78a8e87
+HOMEASSISTANT_PR=800
+
+QUALIFICATION_RUN_ID=42562214305
+QUALIFICATION_ARTIFACT_ID=13650277244
+MEASURED_EXPORT_BYTES=835454838
+PREDECESSOR_RECOVERY_BUDGET_BYTES=1342177280
+
+OTA_ORIGIN_REPOSITORY=chrenguo-stack/hahub.top
+OTA_ORIGIN_PR=4
+OTA_ORIGIN_HEAD=a4aa7ff3011c945555f7df77165bb5bee0f58d94
+OTA_ORIGIN_ROUTE_CI=SUCCESS
+
+NEW_FALSE_PASS_PATH_FOUND=false
+NEW_BLOCKER_COUNT=0
+```
+
+Source repair closure:
+- Host release policy is repository-owned schema V2 and exact-binds the immutable
+  `https://ota.hahub.top` release URL, target archive bytes/SHA, predecessor image and
+  hybrid dynamic capacity rules.
+- Predecessor recovery budget is no longer guessed. The qualification workflow uses the
+  same production recovery encoder installed by A1; two exact exports, portable identity,
+  docker-load smoke and independent budget recomputation are bound into the qualification
+  record.
+- Dynamic HA data measurement and fixed working/reserve formulas are recomputed at the
+  destructive/install boundaries. Candidate capacity, pre-format, post-format, U5/install
+  and U8 recovery-admission checks are fail-closed.
+- Existing live U1 state is compatible only through additive capacity-snapshot backfill.
+  PREPARE replay, candidate reset, phase reset and confirmation-consumed mutation remain
+  forbidden.
+- Public Manager/HA projection is bounded to required bytes, recommended nominal tier,
+  capacity state and enumerated message code; raw USB identifiers/private paths remain
+  private.
+- A1 source authority now installs and exact-hash-verifies Policy V2 plus the shared
+  predecessor recovery encoder. The current source package remains
+  `live_execution_authorized=false`.
+- hahub.top PR #4 provides the exact OTA TLS/static-route source contract and has green CI;
+  no OTA binary was committed and no live origin publication occurred.
+- Historical consumed A1R live authority remains immutable and is validated against its
+  historical live-authorized HEAD rather than rebound to current source.
+- PR #800 source-validation HEAD `988e8052...` completed the full triggered workflow set
+  successfully after the final bounded stale-fixture repair.
+
+Permanent regression guards:
+- Never allow destructive Boundary B to proceed without a regular root-owned exact
+  `homeassistant-release-source.json` that cross-binds to the approved target and current
+  predecessor.
+- Never substitute synthetic/Fake policy providers for production deployment-contract
+  tests.
+- Never use GitHub Actions artifacts as the product OTA origin.
+- Never allow redirect/final-origin drift away from the exact frozen OTA URL.
+- Predecessor recovery qualification must call the production encoder implementation; a
+  duplicated qualification-only encoder is a false-PASS path.
+- Capacity admission must use runtime HA-data measurement plus frozen formulas and must be
+  revalidated before destructive format, after format and before INSTALL/recovery
+  authorization.
+- USB market-size recommendation is user guidance only; it is never admission authority.
+- Existing active U1 migration is additive-only; PREPARE must not be replayed.
+- Old destructive authorization
+  `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_BOUNDARY_B_CONFIRM_USB_ERASE_20261109_01`
+  is `SUPERSEDED_UNCLAIMED` and must never be reused.
+- Live OTA publication, live T1 repair, a fresh destructive authorization, U2+ and merge are
+  independent later gates.
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_HOST_RELEASE_POLICY_SOURCE_REPAIR_CLOSURE_20261109.md`.
+
+
 ### 2026-11-09 KF-147 source design — CLOSED / SOURCE_REPAIR_READY
 
 ```text
