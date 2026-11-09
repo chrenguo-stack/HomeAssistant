@@ -1,3 +1,43 @@
+### 2026-11-09 KF-147 source design — CLOSED / SOURCE_REPAIR_READY
+
+```text
+KF147_SOURCE_DESIGN=CLOSED
+RELEASE_SOURCE_SELECTED=true
+RELEASE_SOURCE=https://ota.hahub.top
+CAPACITY_FORMULA=FIXED
+CAPACITY_INPUT_MODEL=HYBRID_DYNAMIC
+UI_USB_SIZE_GUIDANCE=DYNAMIC_STANDARD_NOMINAL_TIER
+
+TARGET_ARTIFACT_INPUT=RELEASE_FIXED
+PREDECESSOR_RECOVERY_INPUT=RELEASE_TRANSITION_BOUND
+HA_DATA_BACKUP_INPUT=RUNTIME_DYNAMIC
+TRANSACTION_WORKING_INPUT=FIXED_FORMULA
+REMOVABLE_RESERVE_INPUT=FIXED_FORMULA
+
+USB_MEASURED_USABLE_FLOOR_BYTES=15032385536
+UI_MIN_RECOMMENDED_NOMINAL_USB_GB=32
+
+OLD_CONFIRM_USB_ERASE_AUTHORIZATION=SUPERSEDED_UNCLAIMED
+SOURCE_REPAIR_REQUIRED=true
+LIVE_REPAIR_REQUIRED_LATER=true
+```
+
+Guards added by the source design:
+- OTA binaries live outside Git under the existing server OTA storage and are exposed through exact `https://ota.hahub.top` immutable version paths.
+- R7A downloader accepts only the exact HTTPS origin/path contract and rejects redirect/origin drift.
+- Host release policy advances to schema V2; it stores release/transport authority and capacity-policy rules rather than four globally fixed capacity constants.
+- HA persistent-data budget is measured dynamically from the production HA state root; it is recomputed before destructive format and before INSTALL.
+- Predecessor recovery budget is bound to the exact predecessor→target release transition and must be produced by recovery-artifact qualification rather than guessed.
+- Working/reserve budgets use frozen integer formulas with 256 MiB rounding; actual post-format capacity and pre-U9 free-space checks remain fail-closed.
+- User guidance maps the dynamic byte requirement to standard 32/64/128/... GB market sizes; 32 GB is the minimum recommendation, not the admission authority.
+- The existing active U1 transaction must be migrated by additive capacity-snapshot backfill only; PREPARE replay, USB reinsert, candidate reset and phase reset are forbidden.
+- A1 activation must install and byte-verify the exact host release policy.
+- The previous destructive authorization is not reusable after this material source-contract repair; a fresh authorization is required after repaired live preflight.
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_HOST_RELEASE_POLICY_SOURCE_DESIGN_20261109.md`.
+
+
 ### 2026-11-09 KF-147 — R7A host release-policy authority missing
 
 | ID | 范围 | 现场现象 | 根因 | 修复与保护 | 状态 |
