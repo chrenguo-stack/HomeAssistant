@@ -8,7 +8,7 @@
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
     "tools/n3w_t1_core_updater_ha_daemon.py": "98c879f65840c237e7ee8855412806e346d880f5",
     "tools/n3w_t1_core_updater_ha_capacity.py": "0e532679ad030e71fdddabeae0a178173e7e1eea",
-    "tools/n3w_t1_core_updater_ha_ipc.py": "4988db804eeddaf243a91a2dd1ee34290b7f017f",
+    "tools/n3w_t1_core_updater_ha_ipc.py": "a7af0fc02c59538d05a8d91675f44d82d0d2c77f",
     "tools/n3w_t1_core_updater_ha_prepare.py": "3ec44b53db8a78912114b6d70f018dfc6e00a7ec",
     "tools/n3w_t1_core_updater_ha_prepare_host.py": "933dfb2a348ace88b0a54bf4adbd8851c1348be0",
     "tools/n3w_t1_core_updater_ha_usb.py": "495dc29d7d4850cd485a07b739199a282446477f",
