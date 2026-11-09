@@ -634,7 +634,10 @@ class BadShaResponse:
         self.sent = False
 
     def geturl(self):
-        return "https://updates.example.invalid/ha.tar.gz"
+        return (
+            "https://ota.hahub.top/n3w/homeassistant/releases/"
+            "homeassistant-2026.10.4/homeassistant-arm64.tar.gz"
+        )
 
     def __enter__(self):
         return self
