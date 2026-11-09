@@ -12,6 +12,7 @@ from greenhouse_manager.runtime.t1_ota_ipc import (
     REQUEST_SCHEMA,
     RESPONSE_SCHEMA,
     RESPONSE_SCHEMA_V2,
+    RESPONSE_SCHEMA_V3,
     ApprovedManifestFileProvider,
     UnixSocketOtaBridge,
 )
@@ -163,6 +164,64 @@ def test_bridge_accepts_v2_public_usb_confirmation_projection(tmp_path: Path) ->
     assert snapshot.usb_candidate_capacity_bytes == 16 * 1024**3
     assert snapshot.usb_confirmation_required is True
     assert captured == [{"schema": REQUEST_SCHEMA, "operation": "status"}]
+
+
+def test_bridge_accepts_v3_bounded_capacity_projection(tmp_path: Path) -> None:
+    path = tmp_path / "ota-v3.sock"
+    captured: list[dict[str, Any]] = []
+    response = {
+        "schema": RESPONSE_SCHEMA_V3,
+        "accepted": True,
+        "code": "status",
+        "phase": "USB_REQUIRED_CONFIRMATION",
+        "progress_percent": None,
+        "error_code": None,
+        "installed_version": "2026.10.0",
+        "usb_candidate": {
+            "public_fingerprint": "b" * 64,
+            "display_model": "Synthetic USB",
+            "display_capacity_bytes": 32 * 1024**3,
+        },
+        "usb_confirmation_required": True,
+        "usb_required_bytes_or_null": 5 * 1024**3,
+        "usb_recommended_nominal_gb_or_null": 32,
+        "usb_capacity_check_state": "CANDIDATE_READY_FOR_CONFIRMATION",
+        "user_message_code_or_null": "USB_CONFIRM_ERASE",
+    }
+    thread = _serve_once(path, response, captured)
+
+    snapshot = UnixSocketOtaBridge(path).get_homeassistant_ota_runtime_state()
+    thread.join(2)
+
+    assert snapshot.usb_required_bytes == 5 * 1024**3
+    assert snapshot.usb_recommended_nominal_gb == 32
+    assert snapshot.usb_capacity_check_state == "CANDIDATE_READY_FOR_CONFIRMATION"
+    assert snapshot.user_message_code == "USB_CONFIRM_ERASE"
+
+
+def test_bridge_rejects_v3_unknown_capacity_state(tmp_path: Path) -> None:
+    path = tmp_path / "ota-v3-invalid.sock"
+    captured: list[dict[str, Any]] = []
+    response = {
+        "schema": RESPONSE_SCHEMA_V3,
+        "accepted": True,
+        "code": "status",
+        "phase": "USB_REQUIRED",
+        "progress_percent": None,
+        "error_code": None,
+        "installed_version": "2026.10.0",
+        "usb_candidate": None,
+        "usb_confirmation_required": False,
+        "usb_required_bytes_or_null": 5 * 1024**3,
+        "usb_recommended_nominal_gb_or_null": 32,
+        "usb_capacity_check_state": "PRIVATE_HOST_STATE",
+        "user_message_code_or_null": None,
+    }
+    thread = _serve_once(path, response, captured)
+
+    with pytest.raises(OtaControlError, match="ota_ipc_response_invalid"):
+        UnixSocketOtaBridge(path).get_homeassistant_ota_runtime_state()
+    thread.join(2)
 
 
 def test_bridge_confirmation_intent_cannot_carry_device_path(tmp_path: Path) -> None:
