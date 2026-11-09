@@ -53,6 +53,20 @@ def round_up(value: int, quantum: int = ROUND_UP_QUANTUM_BYTES) -> int:
     return result
 
 
+def qualification_measured_export_bytes(sample_sizes: tuple[int, ...]) -> int:
+    if not isinstance(sample_sizes, tuple) or len(sample_sizes) < 2:
+        raise RecoveryEncodingError("qualification_samples_insufficient")
+    for value in sample_sizes:
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, int)
+            or value <= 0
+            or value > MAX_SAFE_BYTES
+        ):
+            raise RecoveryEncodingError("qualification_sample_size_invalid")
+    return max(sample_sizes)
+
+
 def predecessor_recovery_budget_bytes(measured_export_bytes: int) -> int:
     if (
         isinstance(measured_export_bytes, bool)
