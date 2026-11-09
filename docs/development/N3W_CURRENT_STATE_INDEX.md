@@ -1,3 +1,18 @@
+## 2026-11-09 — KF-147 source design CLOSED / source repair ready
+
+- KF-147 source design is closed on a hybrid dynamic capacity model.
+- OTA release origin selected: `https://ota.hahub.top`, reusing the existing independent Nginx OTA server/storage; binaries stay outside Git and outside the website `rsync --delete` tree.
+- Canonical Home Assistant payloads use immutable versioned paths under `/n3w/homeassistant/releases/<release_identity>/homeassistant-arm64.tar.gz`.
+- Host release policy advances to schema V2 and binds exact origin/target/predecessor plus capacity-policy rules.
+- Capacity formula is fixed; target bytes are release-fixed; predecessor recovery is transition-bound; HA data is runtime-dynamic; working and reserve use fixed formulas.
+- Capacity is rechecked at PREPARE, before/after format, and before INSTALL/U9.
+- UI recommends the smallest standard 32/64/128/... GB tier calculated from the current transaction; primary copy says the USB may be erased only after explicit confirmation.
+- Current live U1 / SanDisk candidate is preserved. Existing state is migrated only by additive capacity-snapshot backfill; PREPARE replay and USB reinsertion remain forbidden.
+- The previously granted destructive confirmation is `SUPERSEDED_UNCLAIMED` because the eligibility contract changed materially.
+- Next stage: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_HOST_RELEASE_POLICY_SOURCE_REPAIR_20261109_01`; source/CI only, no live mutation.
+- Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_HOST_RELEASE_POLICY_SOURCE_DESIGN_20261109.md`.
+
+
 ## 2026-11-09 — KF-147 host release-policy blocker
 
 - Boundary B reached the real `USB_REQUIRED_CONFIRMATION` state with the SanDisk Extreme candidate still inserted.
