@@ -54,7 +54,7 @@ Rationale:
 - keep the existing product architecture's compressed Docker-save artifact family;
 - stream from Docker to the compressed archive without requiring a second uncompressed image copy;
 - use gzip level 1 to minimize host CPU/time while still reducing removable-media use;
-- use `-n` to suppress filename/timestamp metadata so release qualification can require reproducible bytes;
+- use `-n` to suppress gzip-layer filename/timestamp metadata; this does not claim that Docker's `docker save` tar stream is byte-deterministic;
 - keep the representation directly consumable by `docker load`;
 - do not change the already-approved target artifact or its SHA/size.
 
@@ -66,12 +66,14 @@ GitHub CI must:
 
 1. materialize the exact ARM64 predecessor by manifest digest;
 2. verify its exact image ID;
-3. execute the shared recovery encoding twice;
-4. require both generated archives to have identical byte size and SHA-256;
-5. parse the compressed archive with the existing portable-image identity implementation;
-6. remove the local tag and prove the archive can be loaded back with `docker load`;
-7. verify the loaded image ID equals the frozen predecessor image ID;
-8. emit only bounded evidence JSON and portable identity JSON as the retained CI artifact.
+3. execute the shared product recovery encoding twice;
+4. record the exact byte size and SHA-256 of both generated archives;
+5. parse both archives with the existing portable-image identity implementation;
+6. require both archives to resolve to the same stable portable predecessor identity, excluding only archive-size/archive-SHA fields;
+7. prove each archive can be loaded back with `docker load`;
+8. verify each loaded image ID equals the frozen predecessor image ID;
+9. define `MEASURED_EXPORT_BYTES=max(sample_1_size,sample_2_size)`;
+10. emit only bounded evidence JSON and both portable identity JSON files as retained CI artifacts.
 
 The large recovery archive is qualification working material only and is not committed to Git and
 is not retained as the CI artifact.
@@ -81,7 +83,7 @@ is not retained as the CI artifact.
 The parent KF-147 formula remains unchanged:
 
 ```text
-MEASURED_EXPORT_BYTES=<exact qualification measurement>
+MEASURED_EXPORT_BYTES=max(EXACT_EXPORT_SAMPLE_1_BYTES, EXACT_EXPORT_SAMPLE_2_BYTES)
 
 PREDECESSOR_RECOVERY_BUDGET_BYTES =
 ROUND_UP_256_MiB(
@@ -110,13 +112,32 @@ workflow run id
 workflow artifact id
 exact predecessor identity
 encoding schema/argv
-archive SHA-256
+sample 1 archive size + SHA-256 + portable identity SHA-256
+sample 2 archive size + SHA-256 + portable identity SHA-256
+measurement method=max_of_two_exact_product_exports
+selected maximum sample
 MEASURED_EXPORT_BYTES
-portable identity SHA-256
 PREDECESSOR_RECOVERY_BUDGET_BYTES
 ```
 
 No value may be copied from a synthetic test fixture.
+
+### 6.1 Qualification failure repair evidence
+
+The first exact qualification run, `42557005111`, proved:
+
+```text
+SOURCE_CONTRACT_VALIDATION=PASS
+FROZEN_PREDECESSOR_MATERIALIZATION=PASS
+EXACT_PREDECESSOR_IMAGE_ID=PASS
+FIRST_FAILED_OPERATION=qualification_size_not_reproducible
+```
+
+This is evidence that the outer `docker save` stream itself must not be treated as a byte-stable
+artifact contract. The product recovery representation remains unchanged. The qualification repair
+therefore removes only the unsupported byte-identical assumption and conservatively uses the larger
+of two exact product-encoder measurements. No numeric value is guessed and the parent KF-147 budget
+formula is unchanged.
 
 ## 7. Parent-gate resumption rule
 
