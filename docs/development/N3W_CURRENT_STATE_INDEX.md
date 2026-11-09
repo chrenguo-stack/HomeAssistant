@@ -1,3 +1,19 @@
+## 2026-11-09 — KF-147 source repair CLOSED_PASS
+
+- HomeAssistant PR #800 source/CI closure is complete; final production source last changed at `26a25537cdefa83d47c62b3ecc867a2cc37e8b8d`; later closure commits are evidence/test/docs only.
+- Policy V2 is frozen at `gh.n3w-t1-ha-ota-host-release-policy/2`, exact-binding Home Assistant 2026.10.4 target bytes/SHA, predecessor image and the hybrid dynamic capacity policy.
+- Shared predecessor recovery qualification is bound to run `42562214305`, artifact `13650277244`; measured export is `835454838` bytes and the independently recomputed recovery budget is `1342177280` bytes.
+- Production qualification and A1 deployment share the same predecessor recovery encoder implementation; the old independent qualification encoder path is removed.
+- Capacity admission is fail-closed at PREPARE/candidate, immediately before destructive format, after format, before INSTALL/U6 and at U8 recovery admission. Existing U1 state uses additive backfill only; PREPARE replay/reset is forbidden.
+- Manager/Home Assistant public projection remains bounded to required/recommended capacity, capacity state and enumerated message code; raw USB identity/private paths remain private.
+- A1 source authority exact-binds and installs Policy V2 plus the shared recovery encoder; current A1 manifest remains `live_execution_authorized=false`.
+- hahub.top PR #4 head `a4aa7ff3011c945555f7df77165bb5bee0f58d94` passes OTA route CI `42561679317`; no OTA binary is in Git and no live server deployment occurred.
+- PR #800 exact-head regression set reached all-success before docs-only closure; final independent review found `NEW_BLOCKER_COUNT=0` and no new false-PASS path.
+- `KF147_SOURCE_REPAIR=CLOSED_PASS`; overall KF-147 remains `SOURCE_CLOSED_LIVE_REPAIR_PENDING` because live OTA publication, live T1 repair, fresh destructive authorization, U2+ and merge remain separate boundaries.
+- Previous `CONFIRM_USB_ERASE` authorization remains `SUPERSEDED_UNCLAIMED`; current U1 / SanDisk candidate is preserved and PREPARE must not be replayed.
+- Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_HOST_RELEASE_POLICY_SOURCE_REPAIR_CLOSURE_20261109.md`.
+
+
 ## 2026-11-09 — KF-147 source design CLOSED / source repair ready
 
 - T1 Core Stack compatibility authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
