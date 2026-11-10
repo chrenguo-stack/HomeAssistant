@@ -555,7 +555,7 @@ def execute(plan, authorization, confirmation, mode):
 
 
 def main():
-    if len(sys.argv) != 6:
+    if len(sys.argv) != 5:
         print(json.dumps({"status": "STOP", "reason": "arguments_invalid"}))
         return 2
     try:
