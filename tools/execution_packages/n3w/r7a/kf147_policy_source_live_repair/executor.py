@@ -391,7 +391,7 @@ def manager_ipc_probe(container_id, plan):
 import json
 import socket
 
-path = "/run/n3w-t1-ota/ha-ota.sock"
+path = "/run/n3w/t1-ota/ha-ota.sock"
 request = (
     json.dumps(
         {"schema": "gh.n3w-t1-ha-ota-ipc-request/1", "operation": "status"},
