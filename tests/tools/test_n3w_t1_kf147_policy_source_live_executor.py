@@ -32,6 +32,22 @@ EXPECTED_TARGETS = {
     "infra/n3w-t1/upgrades/homeassistant-2026.10.4-host-release-policy.json",
 }
 
+EXPECTED_UNCHANGED = {
+    "tools/n3w_t1_core_updater_ha_daemon.py",
+    "tools/n3w_t1_core_updater_ha_usb_state.py",
+    "tools/n3w_t1_core_updater_ha_usb_media.py",
+    "tools/n3w_t1_core_updater_ha_backup.py",
+    "tools/n3w_t1_core_updater_ha_recovery.py",
+    "tools/n3w_t1_core_updater_v2_common.py",
+    "tools/n3w_t1_core_updater_v2_state.py",
+    "tools/n3w_t1_core_updater_common.py",
+    "tools/n3w_t1_portable_image_identity.py",
+    "infra/n3w-t1/production/docker-compose.ha-ota.yml",
+    "infra/n3w-t1/systemd/n3w-t1-ha-ota.service",
+    "infra/n3w-t1/systemd/n3wfc4-services-activation.ha-ota.conf",
+    "infra/n3w-t1/upgrades/homeassistant-2026.10.4-approved.json",
+}
+
 
 def load_executor():
     spec = importlib.util.spec_from_file_location(
@@ -64,6 +80,11 @@ def test_manifest_is_fail_closed_and_scope_is_minimal() -> None:
     assert doc["predecessor_source_authority"]["source_head"] == (
         "70aaa4070641dd73c1a97738e6332be31403d45e"
     )
+    assert set(doc["unchanged_live_authority"]) == EXPECTED_UNCHANGED
+    assert EXPECTED_TARGETS.isdisjoint(EXPECTED_UNCHANGED)
+    for authority in doc["unchanged_live_authority"].values():
+        assert set(authority) == {"blob", "remote_path"}
+        assert authority["remote_path"].startswith("/")
 
     contract = doc["execution_contract"]
     assert contract["exact_seven_file_delta_only"] is True
@@ -91,6 +112,15 @@ def test_executor_target_set_matches_manifest_and_does_not_replace_wiring() -> N
     assert "/etc/systemd/system/n3w-t1-ha-ota.service" not in remote_targets
     assert not any("docker-compose" in path for path in remote_targets)
     assert not any("services-activation" in path for path in remote_targets)
+
+
+def test_unchanged_a1r_dependencies_are_read_only_preflight_inputs() -> None:
+    module = load_executor()
+    assert set(module.TARGETS).isdisjoint(EXPECTED_UNCHANGED)
+    source = module.REMOTE_SCRIPT
+    assert "def dependency_prestate(plan):" in source
+    assert 'raise Stop("unchanged_dependency_drift:" + item["repo_path"])' in source
+    assert '"dependencies": dependencies' in source
 
 
 def test_remote_script_compiles_and_restarts_only_host_daemon() -> None:
