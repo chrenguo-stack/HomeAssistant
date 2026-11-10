@@ -704,7 +704,7 @@ def validate_local(expected_commit: str) -> dict[str, Any]:
     manifest = read_manifest()
     if (
         manifest.get("schema")
-        != "gh.n3w-t1-kf147-u3-bound-media-recovery-manifest/1"
+        != "gh.n3w-t1-kf147-u3-permission-recovery-manifest/1"
         or manifest.get("gate_id") != GATE_ID
         or manifest.get("authorization_id") != GATE_ID
         or manifest.get("confirmation") != CONFIRMATION
