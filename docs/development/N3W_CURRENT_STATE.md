@@ -1,3 +1,49 @@
+## Latest authority — 2026-11-10 KF-147 fresh rebind PASS / fresh capacity read-only execution next
+
+~~~text
+AUTHORITY_STATE=KF147_FRESH_REBIND_PASS_CAPACITY_READONLY_READY
+PR=800
+KF147_REBIND_EXECUTABLE_HEAD=fb63707edc1ab063ddc97de8475303df8daecfb1
+
+N3W_PHASE_EXIT_BLOCKER_COUNT=0
+PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE=CLOSED_PASS
+KF148_READINESS_SOURCE_REPAIR_DESIGN=CLOSED_PASS
+KF148_READINESS_SOURCE_REPAIR_IMPLEMENTATION=NOT_EXECUTED_NONBLOCKING
+KF149_DEPLOYED_ASSET_INTEGRITY_REPAIR=CLOSED_PASS
+KF150_STORAGE_HEADROOM_IMAGE_LIFECYCLE=CLOSED_PASS
+
+KF147_OLD_PACKAGE_REUSE=false
+KF147_OLD_AUTHORIZATION_REUSE=false
+KF147_MANAGER_PRODUCT_SOURCE_DRIFT=false
+KF147_PRODUCTION_AUTHORITY_DRIFT=false
+
+KF147_MANAGER_TAR_SHA256=9316817590c4fe74498629d0451a4897c2e11bef7bc4b423b66e47bb846099c5
+KF147_MANAGER_TAR_SIZE_BYTES=62957568
+KF147_MANAGER_IMPORT_WORST_CASE_BYTES=62945412
+
+KF147_CAPACITY_PREFLIGHT_SOURCE=PASS
+KF147_FRESH_T1_CAPACITY_EVIDENCE=PENDING
+KF147_CAPACITY_GATE_FINAL_RESULT=PENDING
+
+LIVE_T1_MUTATION=false
+REMOTE_MANAGER_TAR_STAGING=false
+USB_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_KF147_FRESH_CAPACITY_READONLY_EXECUTION_20261110_01
+PASS_THEN=NEW_PACKAGE_MANIFEST_BINDING
+~~~
+
+Project/milestone review found no additional unfinished task in the current KF-147 prerequisite chain. Historical OPEN/guarded KFs remain tracked independently and are not reclassified as complete. In particular, the readiness runtime-session-takeover implementation remains NOT_EXECUTED; KF-147 preflight therefore must not use that MQTT CONNECT helper as a runtime health probe.
+
+Fresh rebind proved no Manager product-source or production-authority drift from the Manager V3 product authority. The old KF-147 live package and authorization remain non-reusable. The immutable Manager tar was re-materialized only as read-only capacity-planning input and reverified by SHA-256/size; Docker-save regular-member bytes are freshly derived.
+
+The dedicated capacity preflight source is validated by the storage/image-lifecycle CI and performs no remote staging or mutation. Final capacity PASS requires a fresh read-only T1 observation.
+
+Authority:
+docs/development/N3W_T1_KF147_FRESH_REBIND_AND_CAPACITY_PREFLIGHT_ENTRY_20261110.md.
+
 ## Latest authority — 2026-11-10 T1 storage headroom/image lifecycle CLOSED_PASS
 
 ~~~text
