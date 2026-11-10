@@ -164,8 +164,12 @@ the parent disk without the partition subtree and causes
 
 The focused source repair adds `NAME` to the explicit lsblk output columns and regression
 coverage for this requirement. Because this changes the executor blob, the prior recovery
-authorization is not inherited. The package returns to fail-closed state pending a fresh
-exact-head authorization after CI.
+authorization is not inherited.
+
+After source and exact-binding CI passed for repaired exact source head
+`766d486eb065269a1fde1f5c644d9f7aef17bf97`, the user explicitly granted a fresh
+recovery-only authorization for that exact source. The package now binds that authorization
+while preserving the same U3 transaction, filesystem UUID and USB public fingerprint.
 
 ## 6. Failure behavior
 
@@ -189,11 +193,12 @@ PREDECESSOR_AUTHORIZATION_CONSUMED=false
 PREVIOUS_AUTHORIZED_SOURCE_HEAD=94aee49ccd9293cba0a3aae3ccb9abda1b6927c8
 PREVIOUS_AUTHORIZATION_CLAIMED=false
 PREVIOUS_AUTHORIZATION_CONSUMED=false
-RECOVERY_LIVE_EXECUTION_AUTHORIZED=false
-RECOVERY_AUTHORIZATION_GRANTED=false
+AUTHORIZED_SOURCE_HEAD=766d486eb065269a1fde1f5c644d9f7aef17bf97
+RECOVERY_LIVE_EXECUTION_AUTHORIZED=true
+RECOVERY_AUTHORIZATION_GRANTED=true
 RECOVERY_AUTHORIZATION_CLAIMED=false
 RECOVERY_AUTHORIZATION_CONSUMED=false
-FRESH_REAUTHORIZATION_REQUIRED=true
+FRESH_REAUTHORIZATION_REQUIRED=false
 T1_RECOVERY_MUTATION=false
 MERGE=false
 ```
