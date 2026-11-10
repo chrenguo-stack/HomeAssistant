@@ -377,6 +377,18 @@ def baseline(plan):
         )
     ):
         raise Stop("u1_transaction_id_invalid")
+
+    target_manifest_identity = tx.get("target_manifest_identity")
+    if not isinstance(target_manifest_identity, dict):
+        raise Stop("u1_target_manifest_identity_invalid")
+    release_identity = target_manifest_identity.get("release_identity")
+    if (
+        not isinstance(release_identity, str)
+        or not 3 <= len(release_identity) <= 128
+        or any(character.isspace() for character in release_identity)
+    ):
+        raise Stop("u1_release_identity_invalid")
+
     for key in (
         "usb_device_identity_public_fingerprint",
         "usb_filesystem_uuid",
@@ -388,6 +400,31 @@ def baseline(plan):
     prep = read_private_json(PREPARE_PATH, PREPARE_SCHEMA)
     if prep.get("transaction_id_sha256") != transaction_id:
         raise Stop("prepare_transaction_binding_drift")
+    if prep.get("release_identity") != release_identity:
+        raise Stop("prepare_release_binding_drift")
+
+    baseline_fingerprints = prep.get("baseline_public_fingerprints")
+    if (
+        not isinstance(baseline_fingerprints, list)
+        or len(baseline_fingerprints) > 32
+        or any(
+            not isinstance(value, str)
+            or len(value) != 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in value
+            )
+            for value in baseline_fingerprints
+        )
+        or len(set(baseline_fingerprints)) != len(baseline_fingerprints)
+    ):
+        raise Stop("prepare_baseline_fingerprints_invalid")
+    if (
+        plan["live"]["usb_candidate_public_fingerprint"]
+        in baseline_fingerprints
+    ):
+        raise Stop("prepare_candidate_not_fresh")
+
     candidate = prep.get("candidate")
     if not isinstance(candidate, dict):
         raise Stop("prepare_candidate_missing")
@@ -501,7 +538,11 @@ def baseline(plan):
         "transaction_id_sha256": transaction_id,
         "transaction_phase": tx.get("phase"),
         "transaction_status": tx.get("status"),
+        "release_identity": release_identity,
         "prepare_sha256": sha_file(PREPARE_PATH),
+        "prepare_release_identity": prep.get("release_identity"),
+        "baseline_public_fingerprints": baseline_fingerprints,
+        "candidate_fresh_relative_to_u1_baseline": True,
         "usb_candidate": expected_candidate,
         "usb_confirmation_required": True,
         "usb_confirmation_consumed": False,
