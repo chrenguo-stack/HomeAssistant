@@ -1,3 +1,66 @@
+## Latest authority — 2026-11-10 KF-147 exact HA cleanup preexecution CLOSED_PASS / live authorization pending
+
+~~~text
+AUTHORITY_STATE=KF147_EXACT_HA_CLEANUP_PREEXECUTION_CLOSED_PASS
+PR=800
+EXECUTABLE_SOURCE_HEAD=ca0374ce4a925ec8edaf8e26f28c33c7a251dc0d
+
+PREEXECUTION_GATE=N3W_T1_KF147_EXACT_HA_2026_10_4_IMAGE_CLEANUP_PREEXECUTION_AND_AUTHORIZATION_REVIEW_20261110_01
+PREEXECUTION_GATE_RESULT=CLOSED_PASS
+
+STORAGE_LIFECYCLE_CI_RUN=42757961862
+STORAGE_LIFECYCLE_CI_RESULT=PASS
+FOCUSED_REGRESSION=90_PASSED
+FAST_SOURCE_CI_RUN=42757961676
+FAST_SOURCE_CI_RESULT=PASS
+PUBLIC_SAFETY_CI_RUN=42757961801
+PUBLIC_SAFETY_CI_RESULT=PASS
+
+PRECLAIM_EXECUTION_ID=N3W_KF147_HA_CLEANUP_PRECLAIM_R3_20261110_01
+PRECLAIM_RESULT=PASS
+EXACT_TARGET_REF=local/n3w-homeassistant:2026.10.4-5881590f
+EXACT_TARGET_ID=sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365
+TARGET_CONTAINER_REFERENCE_COUNT=0
+RUNNING_PREDECESSOR_EXACT=true
+THREE_SERVICE_RUNTIME_STABLE=true
+U1_TRANSACTION_UNCHANGED=true
+CONFIRMATION_UNCONSUMED=true
+
+PROPOSED_LIVE_AUTHORIZATION=N3W_T1_KF147_EXACT_HA_2026_10_4_IMAGE_CLEANUP_20261110_01
+LIVE_AUTHORIZATION_GRANTED=false
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+LIVE_CLEANUP_EXECUTED=false
+
+LIVE_T1_MUTATION=false
+USB_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_KF147_EXACT_HA_2026_10_4_IMAGE_CLEANUP_20261110_01
+EXPLICIT_USER_AUTHORIZATION_REQUIRED=true
+PACKAGE_MANIFEST_BINDING_ALLOWED=false
+~~~
+
+The exact cleanup preexecution gate is closed PASS. Fresh R3 T1 evidence proves the
+exact HA 2026.10.4 target remains unreferenced, Home Assistant 2026.10.0 remains the
+exact running predecessor, the three-service runtime is stable, and the active U1
+transaction/USB confirmation boundary remains unchanged. The two earlier false-STOP
+paths were repaired before closure: writable-layer growth is no longer treated as
+runtime identity drift, and refresh-only prepare timestamp/capacity churn is excluded
+from prepare semantic identity while transaction binding/candidate/confirmation
+semantics remain guarded.
+
+No live deletion authority has been granted, claimed or consumed. No image deletion,
+prune, Manager predecessor cleanup, historical /var/tmp cleanup, Manager apply, USB
+mutation, board access or merge occurred. The next gate is the exact live HA target
+cleanup and requires a new explicit user authorization. After any eventual cleanup
+PASS, fresh capacity preflight is mandatory; capacity PASS must not be inferred from
+the previously observed 5.221 GB unique allocation.
+
+Authority:
+`docs/development/N3W_T1_KF147_EXACT_HA_2026_10_4_IMAGE_CLEANUP_PREEXECUTION_CLOSURE_20261110.md`.
+
 ## Latest authority — 2026-11-10 KF-147 dialogue frozen / cleanup preexecution handoff ready
 
 ~~~text
