@@ -8,26 +8,26 @@ from typing import Any
 from n3w_t1_core_updater_a1_policy import A1Policy, LocalA1Policy
 from n3w_t1_core_updater_components import adapter_for
 from n3w_t1_core_updater_finalize import (
+    FINALIZE_CONFIRMATION_V2,
+    ProductAcceptance,
     cleanup_pending_for_successor,
+    committed_transaction_sha256,
 )
 from n3w_t1_core_updater_v2_common import (
     APPLY_CONFIRMATION_V2,
     AUTHORIZATION_ID,
-    FINALIZE_CONFIRMATION_V2,
     INSPECT_SCHEMA_V2,
     PLAN_SCHEMA_V2,
     ROLLBACK_CONFIRMATION_V2,
     STATUS_SCHEMA_V2,
     TX_SCHEMA_V2,
     ComponentTarget,
-    ProductAcceptance,
     UpgradeBaseline,
     UpdaterV2Error,
     V2Host,
     sha256_file,
     sha256_bytes,
     canonical,
-    committed_transaction_sha256,
     safe_error_code,
     validate_component_candidate,
 )
