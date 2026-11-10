@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "infra/n3w-t1/production/t1-core-stack-current.json"
+      - "infra/n3w-t1/updater-releases/delivery-contract.json"
       - "infra/n3w-t1/upgrades/manager-3539c8f871e2.json"
       - "infra/n3w-t1/upgrades/manager-b863ddd95909.json"
       - "infra/n3w-t1/upgrades/manager-5b32e1ae8210.json"
@@ -70,6 +71,10 @@ jobs:
               Path("infra/n3w-t1/production/t1-core-stack-current.json")
               .read_text(encoding="utf-8")
           )
+          delivery = json.loads(
+              Path("infra/n3w-t1/updater-releases/delivery-contract.json")
+              .read_text(encoding="utf-8")
+          )
           assert authority["schema"] == "gh.n3w-t1-core-stack-current-authority/2"
           assert authority["authority_state"] == "CURRENT_STACK_LIVE_ACCEPTED"
           assert authority["live_deployment"]["state"] == "APPLIED_ACCEPTED"
@@ -86,7 +91,7 @@ jobs:
           assert authority["live_deployment"]["credential_lifecycle_private_database_gate"] == "PASS"
           assert authority["live_deployment"]["pairing_window_state"] == "CLOSED"
           assert authority["live_deployment"]["pairing_window_close_reason"] == "committed"
-          assert authority["updater_delivery"] == {
+          assert delivery == {
               "schema": "gh.n3w-t1-core-updater-delivery/1",
               "mode": "EXACT_PACKAGE_BOUND_EPHEMERAL_PYZ",
               "canonical_package_filename": "t1-core-updater.pyz",
@@ -95,10 +100,11 @@ jobs:
               "allowed_staging_roots": ["/tmp", "/var/tmp"],
               "execution_prefix": ["python3", "-B"],
               "integrity_authority": "package-binding.json:updater_pyz_sha256",
-              "accepted_binding_source": "manager_successor_upgrade",
+              "accepted_binding_source": "infra/n3w-t1/production/t1-core-stack-current.json:manager_successor_upgrade",
               "source_checkout_required_on_t1": False,
               "runtime_health_authority": False,
           }
+          assert "updater_delivery" not in authority
           assert authority["mutation_scope"] == {
               "manager": True,
               "homeassistant_image": False,
