@@ -453,9 +453,9 @@ def execute(plan, authorization, confirmation):
         if sha_file(staged) != item["target_sha256"]:
             raise Stop("staged_sha256_mismatch:" + item["repo_path"])
 
-    state_root.mkdir(mode=0o700)
-    os.chown(state_root, 0, 0)
-    backup_dir = state_root / "backup"
+    backup_dir = stage_root / ".preclaim-backup"
+    if backup_dir.exists() or backup_dir.is_symlink():
+        raise Stop("preclaim_backup_residue")
     backup_dir.mkdir(mode=0o700)
     os.chown(backup_dir, 0, 0)
 
@@ -472,8 +472,12 @@ def execute(plan, authorization, confirmation):
     shutil.copyfile(PREPARE_PATH, prepare_backup)
     os.chmod(prepare_backup, 0o600)
     os.chown(prepare_backup, 0, 0)
+    if sha_file(prepare_backup) != pre["prepare_sha256"]:
+        raise Stop("prepare_backup_sha256_mismatch")
     fsync_dir(backup_dir)
 
+    state_root.mkdir(mode=0o700)
+    os.chown(state_root, 0, 0)
     durable_json(state_root / "preflight.json", pre)
     durable_json(
         state_root / "authorization_claim.json",
