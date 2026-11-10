@@ -19,7 +19,7 @@ MANIFEST = PACKAGE / "manifest.json"
 
 GATE = (
     "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_"
-    "U3_BOUND_MEDIA_RECOVERY_TO_U4_20261110_01"
+    "U3_BOUND_MEDIA_RECOVERY_TO_U4_R4_20261111_01"
 )
 
 
@@ -35,12 +35,15 @@ def load_executor():
     return module
 
 
-def test_manifest_binds_fresh_explicit_recovery_authorization_after_lsblk_repair() -> None:
+def test_successor_r4_manifest_is_fail_closed_after_consumed_authorization() -> None:
     doc = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert doc["gate_id"] == GATE
-    assert doc["live_execution_authorized"] is True
+    assert doc["authorization_id"] == GATE
+    assert doc["confirmation"] == "EXECUTE KF147 U3 BOUND MEDIA RECOVERY TO U4 R4: YES"
+    assert doc["state_root"].endswith("kf147-u3-bound-media-recovery-r4-20261111-01")
+    assert doc["live_execution_authorized"] is False
     assert doc["authorization_state"] == {
-        "granted": True,
+        "granted": False,
         "claimed": False,
         "consumed": False,
         "replay_permitted": False,
@@ -132,6 +135,11 @@ def test_preflight_rejects_current_bound_partition_mounted_or_live_stale_source(
 def test_lsblk_json_requests_name_column_for_children_tree() -> None:
     source = load_executor().REMOTE_SCRIPT
     assert '"NAME,PATH,TYPE,RM,RO,SIZE,MODEL,SERIAL,WWN,TRAN,MOUNTPOINTS,PKNAME"' in source
+
+def test_mount_view_uses_exact_mountpoint_semantics() -> None:
+    source = load_executor().REMOTE_SCRIPT
+    assert '["findmnt", "--noheadings", "--output", "SOURCE,TARGET", "--mountpoint", target]' in source
+    assert '["findmnt", "--noheadings", "--output", "SOURCE,TARGET", "--target", target]' not in source
 
 
 def test_remote_python_c_argument_contract_matches_remote_call() -> None:
