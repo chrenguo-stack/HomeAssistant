@@ -211,15 +211,25 @@ Focused regression coverage includes:
 
 ```text
 SOURCE_IMPLEMENTATION=COMPLETE
-FOCUSED_CI_FINAL_RESULT=PENDING
+FOCUSED_CI_FINAL_RESULT=PASS
 LIVE_T1_MUTATION=false
 CURRENT_T1_IMAGE_CLEANUP_EXECUTED=false
 KF147_CAPACITY_GATE_EXECUTED=false
 KF147_LIVE_RETRY=false
 ```
 
-The final gate may be promoted to CLOSED_PASS only after the exact final source head completes the
-focused storage/image-lifecycle CI successfully.
+Validated source head: `8fbeb8434fcb7b8731bf26ae56b68e4ea26362a0`.
+
+Validation completed successfully:
+
+```text
+FAST_SOURCE_RUN=42733581813 SUCCESS
+STORAGE_IMAGE_LIFECYCLE_RUN=42733581680 SUCCESS
+CORE_UPDATER_MANAGER_A_TO_B_RUN=42733581916 SUCCESS
+GATE_RESULT=CLOSED_PASS
+```
+
+No live T1 mutation, image cleanup, KF-147 retry, board access or merge occurred during this closure.
 
 ## 10. Next boundary
 
