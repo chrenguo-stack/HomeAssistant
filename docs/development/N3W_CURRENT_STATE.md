@@ -1,3 +1,54 @@
+## Latest authority — 2026-11-10 KF-147 Stage B systemd lifecycle R3 live validation CLOSED_PASS
+
+~~~text
+AUTHORITY_STATE=KF147_STAGE_B_SYSTEMD_LIFECYCLE_R3_LIVE_VALIDATION_CLOSED_PASS
+PR=800
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+RUNNING_MANAGER_IMAGE=local/greenhouse-manager:fresh-44e7d7472714
+RUNNING_HOMEASSISTANT_IMAGE=local/n3w-homeassistant:2026.10.0-0c73235a
+RUNNING_BROKER_IMAGE=local/n3w-mosquitto:2.1.2-3184566d
+
+R3_EXECUTED_HEAD=675871a0567aca858c8af34f9eecf0a2e79ba063
+R3_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_STAGE_B_SYSTEMD_LIFECYCLE_REVALIDATION_R3_20261110_01
+R3_RESULT=PASS
+R3_LIVE_EXECUTION_AUTHORIZED=false
+R3_AUTHORIZATION_GRANTED=true
+R3_AUTHORIZATION_CLAIMED=true
+R3_AUTHORIZATION_CONSUMED=true
+R3_REPLAY_PERMITTED=false
+
+HOST_SOURCE_MUTATION=true
+HOST_DAEMON_STOPPED=true
+HOST_DAEMON_RESTART=true
+SERVICES_OWNER_STOPPED=true
+SERVICES_OWNER_RESTART=true
+MANAGER_IPC_V3_SUPPORT=true
+CAPACITY_SNAPSHOT_PRESENT=true
+U1_TRANSACTION_PRESERVED=true
+PREPARE_CANDIDATE_PRESERVED=true
+ROLLBACK_REQUIRED=false
+
+MANAGER_MUTATION=false
+HOMEASSISTANT_MUTATION=false
+BROKER_MUTATION=false
+USB_MUTATION=false
+U2_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_STAGE=KF147_MANDATORY_USB_CONFIRMATION_AND_U2_BOUNDARY
+NEXT_STAGE_LIVE_AUTHORIZED=false
+~~~
+
+The physical T1 R3 successor validation completed PASS and closes the Stage B systemd lifecycle defect. The repaired execution and rollback paths explicitly coordinate the services owner with the host daemon; the live path completed without rollback. Manager IPC V3 capacity data is available, the U1 transaction and Extreme candidate remain continuous, and no USB mutation or U2+ transition occurred.
+
+The R3 one-shot authorization is consumed, repository-sealed fail-closed and permanently non-replayable. The next mandatory-USB confirmation/U2+ boundary remains separately unauthorized.
+
+Authority:
+`docs/development/N3W_T1_KF147_STAGE_B_SYSTEMD_LIFECYCLE_R3_LIVE_VALIDATION_CLOSURE_20261110.md`.
+
 ## Latest authority — 2026-11-10 KF-147 Manager IPC V3 R2 live apply CLOSED_PASS
 
 ~~~text
