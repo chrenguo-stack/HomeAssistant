@@ -30,14 +30,19 @@ def load_local():
     return module
 
 
-def test_manifest_is_fresh_binding_pending_and_unauthorized() -> None:
+def test_manifest_is_fresh_artifact_bound_and_unauthorized() -> None:
     doc = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert doc["schema"] == "gh.n3w-t1-kf147-manager-v3-live-executor/1"
     assert doc["gate_id"] == GATE
     assert doc["authorization_id"] == GATE
     assert doc["live_execution_authorized"] is False
-    assert doc["binding_state"] == "PENDING_FRESH_ARTIFACT"
-    assert doc["package_authority"] is None
+    assert doc["binding_state"] == "FRESH_ARTIFACT_BOUND"
+    assert doc["package_authority"] == {
+        "workflow_run_id": 42761736604,
+        "artifact_id": 13738561063,
+        "artifact_name": "n3w-kf147-manager-v3-live-44e7d7472714-20261110",
+        "artifact_digest": "sha256:69af4054e993398c25bd7788773c76cc80f54524787d1f5972a894adef22bcfc",
+    }
     assert doc["authorization_state"] == {
         "granted": False,
         "claimed": False,
