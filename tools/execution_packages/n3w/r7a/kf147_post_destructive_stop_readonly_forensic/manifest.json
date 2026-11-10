@@ -1,0 +1,49 @@
+{
+  "schema": "gh.n3w-t1-kf147-post-destructive-stop-readonly-forensic/1",
+  "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_POST_DESTRUCTIVE_STOP_READONLY_FORENSIC_20261110_01",
+  "mode": "READ_ONLY_FORENSIC",
+  "predecessor_execution_head": "ff6370c3b9e46e1ddf20409915e1b10dabb6e286",
+  "predecessor_result": {
+    "status": "STOP",
+    "authorization_claimed": true,
+    "authorization_consumed": true,
+    "replay_permitted": false,
+    "first_failed_operation": "Stop:prepare_worker_error:ha_usb_prepare_worker_inactive"
+  },
+  "package_source_authority": {
+    "tools/execution_packages/n3w/r7a/kf147_post_destructive_stop_readonly_forensic/executor.py": "051c09ce40672fab9bfb392c3bf16afdce46c9f4",
+    "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7"
+  },
+  "expected_live_entry": {
+    "manager_image": "local/greenhouse-manager:fresh-44e7d7472714",
+    "homeassistant_image": "local/n3w-homeassistant:2026.10.0-0c73235a",
+    "broker_image": "local/n3w-mosquitto:2.1.2-3184566d",
+    "transaction_id_sha256": "ca89774eb4254d0f861cc2aef136eee41e90fd6106559c0fd8d66e3ee00a3738",
+    "release_identity": "homeassistant-2026.10.4",
+    "usb_candidate_public_fingerprint": "e45fba0ad3e9997be2738c7a8f25d5c342ebba66ddbf822b1f6bf6a016c2ed93",
+    "usb_candidate_model": "Extreme",
+    "usb_candidate_capacity_bytes": 32017047552,
+    "target_archive_sha256": "eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973",
+    "target_archive_size_bytes": 835309535
+  },
+  "execution_contract": {
+    "read_only": true,
+    "remote_write": false,
+    "service_restart": false,
+    "docker_mutation": false,
+    "usb_mutation": false,
+    "authorization_replay": false,
+    "u5_plus": false,
+    "board_access": false,
+    "merge": false
+  },
+  "forensic_questions": [
+    "What is the current durable transaction phase?",
+    "Was the prepare confirmation consumed?",
+    "Does the selected USB now expose N3W-UPDATE ext4 state?",
+    "Did the target archive reach the bound USB?",
+    "Did the host daemon restart or change process identity?",
+    "Was the prior STOP a false-negative completion race or a real U2/U3 interruption?"
+  ],
+  "stop_boundary": "READ_ONLY_CLASSIFICATION_ONLY_NO_RECOVERY_MUTATION"
+}
