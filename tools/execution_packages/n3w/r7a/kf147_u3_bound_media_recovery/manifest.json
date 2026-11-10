@@ -1,0 +1,79 @@
+{
+  "schema": "gh.n3w-t1-kf147-u3-bound-media-recovery-manifest/1",
+  "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U3_BOUND_MEDIA_RECOVERY_TO_U4_20261110_01",
+  "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U3_BOUND_MEDIA_RECOVERY_TO_U4_20261110_01",
+  "confirmation": "EXECUTE KF147 U3 BOUND MEDIA RECOVERY TO U4: YES",
+  "live_execution_authorized": false,
+  "authorization_state": {
+    "granted": false,
+    "claimed": false,
+    "consumed": false,
+    "replay_permitted": false
+  },
+  "package_source_authority": {
+    "tools/execution_packages/n3w/r7a/kf147_u3_bound_media_recovery/executor.py": "98029a4c14fd9a95d3fbbaddce285f867592731f",
+    "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7"
+  },
+  "state_root": "/var/lib/n3w-t1-core-updater/kf147-u3-bound-media-recovery-20261110-01",
+  "poll_timeout_seconds": 1800,
+  "expected_live_entry": {
+    "transaction_id_sha256": "ca89774eb4254d0f861cc2aef136eee41e90fd6106559c0fd8d66e3ee00a3738",
+    "release_identity": "homeassistant-2026.10.4",
+    "usb_candidate_public_fingerprint": "e45fba0ad3e9997be2738c7a8f25d5c342ebba66ddbf822b1f6bf6a016c2ed93",
+    "usb_candidate_model": "Extreme",
+    "usb_candidate_capacity_bytes": 32017047552,
+    "usb_filesystem_uuid": "967cf065-abe5-49ee-8499-7c3f50d2c48f",
+    "target_archive_sha256": "eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973",
+    "target_archive_size_bytes": 835309535,
+    "manager_image": "local/greenhouse-manager:fresh-44e7d7472714",
+    "homeassistant_image": "local/n3w-homeassistant:2026.10.0-0c73235a",
+    "broker_image": "local/n3w-mosquitto:2.1.2-3184566d"
+  },
+  "expected_containers": {
+    "manager": {
+      "container_id": "07228043f774e1545cf4ff6156659d8fb3d10912c80e8f2241a5c88b401f0a0f",
+      "runtime_image_id": "sha256:1471828ab07cf9b71c01a6e78994711a5954f0a178b8be087a28bb65a967c7d2",
+      "restart_count": 0
+    },
+    "homeassistant": {
+      "container_id": "26b095e1ba8aa3a009f02a2460234eae45764debf61d878b965761ce75212676",
+      "runtime_image_id": "sha256:c261fa53f30508951833492ba2a19af6cfbb6aa8f2806b531d8f5c6599265306",
+      "restart_count": 0
+    },
+    "broker": {
+      "container_id": "927aea04a062caf57c8d75d73ba8902f35eef035214e85ce7e8b1c066903d963",
+      "runtime_image_id": "sha256:df265f1e2b2e3dc35d5eb194e698c598e01c5ebca370da307b34332f9bf0a563",
+      "restart_count": 0
+    }
+  },
+  "execution_contract": {
+    "preflight_read_only": true,
+    "stale_mount_cleanup_only": true,
+    "service_restart": "n3w-t1-ha-ota.service",
+    "resume_owner": "existing_product_start_background_recovery_resume_prepare",
+    "usb_wipe": false,
+    "usb_partition": false,
+    "usb_format": false,
+    "destructive_confirmation_replay": false,
+    "target_download_resume": true,
+    "success_phase": "U4_READY_TO_INSTALL",
+    "homeassistant_runtime_mutation": false,
+    "manager_runtime_mutation": false,
+    "broker_runtime_mutation": false,
+    "u5_plus": false,
+    "automatic_retry": false,
+    "automatic_rollback": false,
+    "board_access": false,
+    "merge": false
+  },
+  "failure_contract": {
+    "before_authorization_claim": "STOP_NO_MUTATION",
+    "after_authorization_claim_before_mount_cleanup": "STOP_AUTHORIZATION_CONSUMED_NO_REPLAY",
+    "mount_cleanup_failure": "STOP_NO_SERVICE_RESTART_MANUAL_RECOVERY_REQUIRED",
+    "service_restart_failure": "STOP_MANUAL_RECOVERY_REQUIRED",
+    "u3_resume_failure": "STOP_BOUND_MEDIA_RECOVERY_REQUIRED",
+    "u4_success": "STOP_BEFORE_U5_READY_TO_INSTALL",
+    "same_authorization_replay": false
+  },
+  "stop_boundary": "STOP_AFTER_U4_READY_TO_INSTALL_BEFORE_U5"
+}
