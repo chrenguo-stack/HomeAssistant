@@ -125,6 +125,8 @@ def test_unchanged_a1r_dependencies_are_read_only_preflight_inputs() -> None:
 
 def test_remote_script_compiles_and_restarts_only_host_daemon() -> None:
     module = load_executor()
+    assert not hasattr(module, "manager_ipc_probe")
+    assert "def manager_ipc_probe(container_id, plan):" in module.REMOTE_SCRIPT
     compile(module.REMOTE_SCRIPT, "<kf147-stage-b-remote>", "exec")
     source = module.REMOTE_SCRIPT
     assert 'run(["systemctl", "stop", HOST_UNIT]' in source
