@@ -26,15 +26,29 @@ class Runner:
         interactive: bool = False,
         check: bool = True,
     ) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            tuple(argv),
-            check=check,
-            text=True,
-            stdin=None if interactive else subprocess.DEVNULL,
-            stdout=None if interactive else subprocess.PIPE,
-            stderr=None if interactive else subprocess.PIPE,
-            timeout=timeout,
-        )
+        command = tuple(argv)
+        try:
+            return subprocess.run(
+                command,
+                check=check,
+                text=True,
+                stdin=None if interactive else subprocess.DEVNULL,
+                stdout=None if interactive else subprocess.PIPE,
+                stderr=None if interactive else subprocess.PIPE,
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired as error:
+            raise SSHTransportError(
+                f"command_timeout:{Path(command[0]).name}"
+            ) from error
+        except subprocess.CalledProcessError as error:
+            raise SSHTransportError(
+                f"command_failed:{Path(command[0]).name}:{error.returncode}"
+            ) from error
+        except OSError as error:
+            raise SSHTransportError(
+                f"command_transport_error:{Path(command[0]).name}"
+            ) from error
 
 
 def _sha256_bytes(value: bytes) -> str:

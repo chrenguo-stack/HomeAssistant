@@ -1,0 +1,19 @@
+{
+  "schema": "gh.n3w-t1-core-updater-delivery/1",
+  "mode": "EXACT_PACKAGE_BOUND_EPHEMERAL_PYZ",
+  "canonical_package_filename": "t1-core-updater.pyz",
+  "permanent_install_required": false,
+  "permanent_cli_path": null,
+  "allowed_staging_roots": [
+    "/tmp",
+    "/var/tmp"
+  ],
+  "execution_prefix": [
+    "python3",
+    "-B"
+  ],
+  "integrity_authority": "package-binding.json:updater_pyz_sha256",
+  "accepted_binding_source": "infra/n3w-t1/production/t1-core-stack-current.json:manager_successor_upgrade",
+  "source_checkout_required_on_t1": false,
+  "runtime_health_authority": false
+}

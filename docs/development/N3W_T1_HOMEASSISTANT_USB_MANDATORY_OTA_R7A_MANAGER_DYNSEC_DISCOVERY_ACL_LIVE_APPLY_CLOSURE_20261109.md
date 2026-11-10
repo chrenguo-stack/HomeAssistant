@@ -1,0 +1,103 @@
+# N3-W T1 Home Assistant mandatory-USB OTA
+# KF-145 Manager DynSec Discovery ACL live apply closure — 2026-11-09
+
+```text
+GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_MANAGER_DYNSEC_DISCOVERY_ACL_LIVE_APPLY_20261109_01
+RESULT=CLOSED_PASS
+KF145_LIVE_REPAIR=CLOSED_PASS
+PR=800
+PR_HEAD=7dd92de854f4391bca4e8e9d7fab4f3bc6907738
+PREPARE=false
+USB_INSERTION=false
+CONFIRM_USB_ERASE=false
+MERGE=false
+```
+
+## 1. Fresh prestate
+
+```text
+MANAGER_RUNNING=true
+HOMEASSISTANT_RUNNING=true
+BROKER_RUNNING=true
+MANAGER_RESTART_COUNT=0
+HOMEASSISTANT_RESTART_COUNT=0
+BROKER_RESTART_COUNT=0
+
+DYNSEC_SHA256_BEFORE=c0a5058185684f1fd343ed350774d15b13d6db4b7277a961b98148814feef800
+DYNSEC_CHANGE_INDEX_BEFORE=11
+MANAGER_ACL_COUNT_BEFORE=17
+TARGET_OTA_DISCOVERY_ACLS_PRESENT_BEFORE=0
+BROAD_HOMEASSISTANT_PUBLISH_COUNT_BEFORE=0
+USB_LIKE_DISK_COUNT=0
+LIVE_APPLY_PRECHECK=PASS
+```
+
+A private root-only prechange snapshot was captured before mutation.
+
+## 2. Mutation
+
+Exactly three Manager `publishClientSend allow priority=100` ACLs were added:
+
+- `homeassistant/update/n3w_t1_homeassistant/config`
+- `homeassistant/button/n3w_t1_homeassistant_prepare/config`
+- `homeassistant/button/n3w_t1_homeassistant_confirm_usb/config`
+
+All three `addRoleACL` responses returned without error.
+
+## 3. Exact poststate
+
+```text
+DYNSEC_SHA256_AFTER=627c6d2bb34e6a66bb90e693c672dba02485503392f45264c2da2b32123b749b
+DYNSEC_CHANGE_INDEX_AFTER=14
+MANAGER_ACL_COUNT_AFTER=20
+
+OTA_UPDATE_DISCOVERY_EXACT_ALLOW_COUNT_AFTER=1
+OTA_PREPARE_DISCOVERY_EXACT_ALLOW_COUNT_AFTER=1
+OTA_CONFIRM_USB_DISCOVERY_EXACT_ALLOW_COUNT_AFTER=1
+
+BROAD_HOMEASSISTANT_PUBLISH_COUNT_AFTER=0
+UNRELATED_DYNSEC_STATE_UNCHANGED=true
+POSTSTATE_EXACT=true
+```
+
+No rollback was required.
+
+## 4. Runtime and Home Assistant acceptance
+
+```text
+MANAGER_SAME_CONTAINER=true
+HOMEASSISTANT_SAME_CONTAINER=true
+BROKER_SAME_CONTAINER=true
+
+MANAGER_STARTED_AT_SAME=true
+HOMEASSISTANT_STARTED_AT_SAME=true
+BROKER_STARTED_AT_SAME=true
+
+MANAGER_RESTART_COUNT=0
+HOMEASSISTANT_RESTART_COUNT=0
+BROKER_RESTART_COUNT=0
+
+MANAGER_POSTMUTATION_OTA_SUBSCRIBE_COUNT=1
+MANAGER_POSTMUTATION_DEFERRED_OTA_COUNT=0
+
+HA_T1_DEVICE_MATCH_COUNT_AFTER=1
+HA_T1_ENTITY_MATCH_COUNT_AFTER=2
+HA_PREPARE_ENTITY_MATCH_COUNT_AFTER=1
+```
+
+The production Home Assistant registry now contains the N3-W T1 device and the PREPARE entity.
+
+## 5. Boundary B disposition
+
+```text
+HA_USB_TRANSACTION_PRESENT_AFTER=false
+HA_USB_PREPARE_STATE_PRESENT_AFTER=false
+PREPARE_INVOKED=false
+USB_INSERTION=false
+CONFIRM_USB_ERASE=false
+BOUNDARY_B_READY_TO_RESUME=true
+```
+
+KF-145 is closed in live production. Boundary B resumes from the exact pre-PREPARE state.
+The previously granted one-shot PREPARE authorization remains unconsumed until the user actually
+presses the Home Assistant PREPARE button.

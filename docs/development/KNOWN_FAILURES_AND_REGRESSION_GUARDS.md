@@ -1,3 +1,614 @@
+### 2026-11-10 KF-147 Stage B systemd lifecycle contract regression — CLOSED_PASS by R3
+
+| ID | 范围 | 现场现象 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| KF-147 Stage B lifecycle | Host-source live apply / rollback systemd ordering | R2 consumed authorization, applied the seven-file delta, then post-validation stopped at `required_unit_inactive:n3wfc4-services-activation.service`; rollback validation hit the same condition. Manager and Home Assistant were stopped while Broker remained running. | The services-owner drop-in has `Requires=n3w-t1-ha-ota.service`. Stopping only the host daemon propagates a stop to the services owner; starting the host daemon does not automatically restart the reverse dependent. The old `host_daemon_restart_only` contract contradicted the installed systemd topology. | Execute and rollback now both use `stop services -> stop host -> mutate/restore -> start host -> start services -> validate`. R2 source rollback was forensically verified, services were recovered under a separate bounded authorization, and fresh R3 physical validation completed PASS. | CLOSED_PASS |
+
+Regression guards:
+- never model `n3w-t1-ha-ota.service` as independently restartable while the services-owner unit has a reverse `Requires=` dependency on it;
+- live apply and rollback must explicitly own both unit lifecycles and preserve the dependency-safe stop/start order;
+- post-validation must wait for services owner plus Manager/Home Assistant runtime readiness before declaring PASS;
+- an authorization that reached durable claim is consumed even when later validation fails; do not replay it;
+- successor validation after a consumed attempt must use a fresh gate, confirmation, staging directory and durable state root;
+- source/rollback lifecycle repair does not authorize USB erase/write, PREPARE replay, U2+, board access or merge.
+
+Authority:
+`docs/development/N3W_T1_KF147_STAGE_B_SYSTEMD_LIFECYCLE_R3_LIVE_VALIDATION_CLOSURE_20261110.md`.
+
+### 2026-11-10 KF-147 reclaim audit remote child failure collapsed into SSH rc=1
+
+```text
+FIRST_LIVE_AUDIT=STOP
+REASON=command_failed:ssh:1
+AUDIT_FILE_CREATED=false
+MANAGER_TAR_STREAMED_TO_T1=false
+T1_MUTATION=false
+REPAIR_HEAD=b43d47f4a5fa06192ca5df513de186aed9ea9654
+```
+
+Guards:
+- a read-only diagnostic child timeout or unavailable command must be recorded in the private audit instead of aborting the whole remote collector;
+- do not claim the exact failed child command when the sanitized SSH error did not preserve remote stderr;
+- runtime stability comparison must use stable machine fields, not human-readable Docker `Status` duration text;
+- audit command failure or partial evidence never authorizes cleanup or deletion.
+
+### 2026-11-10 KF-150 live capacity closure update — admission correctly stopped before transfer
+
+```text
+KF147_FRESH_CAPACITY_RESULT=STOP_INSUFFICIENT
+FREE_BYTES=589799424
+REQUIRED_FREE_BYTES=1736515716
+CAPACITY_DEFICIT_BYTES=1146716292
+REMOTE_STAGING=false
+MANAGER_TAR_STREAMED_TO_T1=false
+T1_MUTATION=false
+```
+
+Guards:
+- a valid capacity STOP is not a source failure and must not be bypassed by lowering the 1.5 GiB maintenance reserve;
+- `/var/cache/apt` accounts for only 107,876,352 bytes and cannot close the measured deficit alone;
+- do not infer Docker reclaimability from apparent image size; prove exact image/container references and shared-layer impact first;
+- exact reclaim audit must include stopped-container references and compare runtime state before/after collection;
+- reclaim-audit collection is read-only evidence and never deletion authorization;
+- broad prune, wildcard deletion and automatic cleanup remain forbidden;
+- package/manifest binding and live retry remain blocked until a later fresh capacity PASS.
+
+### 2026-11-10 KF-111 regression recurrence — fresh-capacity preflight compared build IDs with T1 runtime IDs
+
+| ID | 范围 | 现场现象 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| KF-111 (regression recurrence) | KF-147 fresh capacity live-baseline oracle | First read-only execution stopped at `live_image_id_drift:manager` before capacity calculation. | The preflight reintroduced the KF-098/KF-111 error by binding historical build-side image IDs for all three core services instead of the accepted T1 runtime image IDs. Manager surfaced first only because validation is fail-fast. | Bind the accepted Manager/Home Assistant/Broker runtime IDs and add literal-value plus real-drift STOP regression tests. | REGRESSION_FIXED_CI_PENDING |
+
+Guards:
+- build/package image IDs and T1 runtime image IDs are separate evidence fields and must not be substituted for each other;
+- live-baseline tests must pin accepted runtime IDs literally rather than generate fixtures solely from the implementation constants;
+- a genuine ref or runtime-ID mismatch must still STOP before capacity PASS or remote staging;
+- the false STOP does not authorize cleanup, package binding, live retry or any T1 mutation.
+
+### 2026-11-10 KF-150 source implementation update — exact lifecycle + pre-transfer capacity contract
+
+~~~text
+KF150_RUNTIME_RECOVERY=CLOSED_PASS
+KF150_STORAGE_LIFECYCLE_SOURCE_IMPLEMENTATION=COMPLETE
+KF150_FOCUSED_CI_FINAL_RESULT=PASS
+
+PRIMARY_OUTAGE_ROOT_CAUSE=ROOT_FILESYSTEM_ENOSPC
+SECONDARY_DOCKER_CONTAINERD_DIVERGENCE=PROVEN
+ENOSPC_DIRECTLY_CAUSED_SECONDARY_DIVERGENCE=NOT_PROVEN
+
+GENERIC_V2_MANAGER_BROKER_FINALIZE=IMPLEMENTED
+HOMEASSISTANT_GENERIC_FINALIZE=false
+HOMEASSISTANT_LIFECYCLE=MANDATORY_USB
+
+PRETRANSFER_CAPACITY_GATE_POLICY=IMPLEMENTED
+BROAD_DOCKER_PRUNE=false
+CURRENT_T1_IMAGE_CLEANUP_EXECUTED=false
+KF147_LIVE_RETRY=false
+~~~
+
+Regression guards:
+- COMMITTED is not the automatic deletion boundary; Manager/Broker predecessor deletion requires separately supplied product-acceptance authority bound to the stable committed-transaction SHA-256.
+- cleanup must use exact predecessor image ID only and must fail if any Docker container references that image; no force, wildcard, delete-by-age, `docker system prune`, or `docker image prune -a`.
+- accepted cleanup closes the rollback window; cleanup state remains durable audit metadata.
+- a Manager/Broker COMMITTED transaction with cleanup incomplete blocks the next Generic V2 apply. Do not mutate the historical R7A HA-USB exact-source authority merely to add a reciprocal guard; future HA staging must consume the shared fresh capacity policy through a successor package/preflight.
+- Home Assistant predecessor lifecycle remains mandatory-USB-owned; Generic V2 finalize must reject Home Assistant.
+- large future T1 staging must pass fresh pre-transfer capacity admission before streaming. Required bytes count exact staged transport + exact Docker-save import worst case + freshly derived post-peak reserve.
+- staging, Docker root and actual image store must share the measured filesystem/device for the single-filesystem formula; otherwise STOP and use a topology-aware calculation.
+- the accepted 1.5 GiB reserve is maintenance-admission evidence, not a frozen lifetime runtime minimum.
+- current T1 cleanup is not authorized merely because source support now exists.
+
+Authority:
+docs/development/N3W_T1_STORAGE_HEADROOM_AND_IMAGE_LIFECYCLE_SOURCE_IMPLEMENTATION_PROGRESS_20261110.md.
+
+### 2026-11-10 KF-149 closure — missing permanent CLI path was verifier-assumption drift
+
+| ID | 范围 | 现场现象 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| KF-149 | T1 Core Updater delivery/verification | Strict verifier looked for `/opt/HomeAssistant/tools/n3w_t1_core_updater.py` and failed although product runtime was healthy. | The verifier assumed a permanent source-checkout path that is not part of the accepted updater delivery model. The accepted model is exact package-bound `t1-core-updater.pyz`, SHA-256 verified before bounded temporary execution. | Freeze the independent updater delivery contract and validate package construction, exact pyz digest binding, temporary staging and the absence of a permanent-install requirement. Preserve accepted `t1-core-stack-current.json` unchanged. | CLOSED_PASS |
+
+Guards:
+- do not reintroduce `/opt/HomeAssistant/tools/n3w_t1_core_updater.py` as a mandatory runtime-health or deployed-asset path;
+- updater executable authority comes from exact package/artifact + `updater_pyz_sha256`;
+- temporary updater staging is not a runtime-health signal;
+- accepted current stack authority must not be rewritten merely to encode updater delivery policy.
+
+### 2026-11-10 KF-148 design closure update — three literal runtime calls, passive runtime oracle frozen
+
+~~~text
+KF148_SOURCE_REPAIR_DESIGN=CLOSED_PASS
+KF148_SOURCE_REPAIR_IMPLEMENTATION=NOT_EXECUTED
+
+TOTAL_EXECUTION_CALL_SITE_COUNT=8
+STARTUP_CALL_SITE_COUNT=5
+RUNTIME_CALL_SITE_COUNT=3
+RUNTIME_PHASE_COUNT=2
+
+RUNTIME_CALLS=
+tools/n3w_t1_clean_reference_r2b.py::_pre_reboot_state
+tools/n3w_t1_clean_reference_r2b.py::_wait_post_reboot
+tools/n3w_t1_clean_reference_r2b.py::verify
+
+STARTUP_HELPER_BEHAVIOR_CHANGED=false
+DYNSEC_CLIENT_ID_BINDING_CHANGED=false
+ALTERNATE_CLIENT_ID=false
+RUNTIME_PROBE_NEW_MQTT_CONNECT=false
+~~~
+
+Design guard: the post-reboot R2B phase contains two literal calls, so a repair that removes only the final verify() call remains unsafe. The passive runtime oracle must use exact Home Assistant identity equality, container-owned established 1883 socket evidence, Broker current-auth event state with the already-proven Mosquitto 2.1.2 terminal-event semantics, HA HTTP 200/401, and a stable before/after runtime sample. Password material is not required.
+
+Historical R2B control head e15c64ac8f0f5f482a6c8538072031734002a559 remains immutable historical evidence. Future repair must not rebind the R3 normalized reference or pairing bridge to successor R2B source.
+
+Authority:
+docs/development/N3W_T1_BROKER_READINESS_RUNTIME_SESSION_TAKEOVER_SOURCE_REPAIR_DESIGN_20261110.md.
+
+### 2026-11-10 KF-150 — T1 ENOSPC outage recovered; steady-state storage headroom/lifecycle closure pending
+
+| ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
+|---|---|---|---|---|---|
+| KF-150 | T1 root storage / Docker core-stack recovery | KF-147 Manager staging during a nearly full root filesystem hit ENOSPC; Mosquitto persistence failed first, Broker stopped, then Manager/HA stopped. After exact cleanup, systemd/Compose could still report containers running while real containerd tasks were absent. Exact starts restored the existing three containers. | Primary outage root cause is proven root-filesystem ENOSPC. The secondary Docker/Compose list-state divergence is proven, but ENOSPC as its direct causal mechanism is NOT_PROVEN. | Proactive headroom/capacity admission and exact image-lifecycle/finalization policy implemented and exact-head CI validated. Broad prune remains forbidden. KF-147 must restart with fresh rebind, capacity gate and new package binding. | CLOSED_PASS_SOURCE_POLICY |
+
+Guards:
+- root free space used for large staging/load must be freshly measured before streaming;
+- capacity accounting must include staging/archive and Docker image materialization, not only tar size;
+- Docker/Compose `Running` is insufficient after abnormal storage failure: require real process/containerd task and listeners;
+- broad `docker system prune` remains forbidden;
+- KF-147 old package/authorization cannot be replayed after capacity-contract repair.
+
+### 2026-11-10 KF-149 — deployed Core Updater CLI asset missing
+
+| ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
+|---|---|---|---|---|---|
+| KF-149 | T1 Core Updater deployment/package integrity | S2E runtime recovery succeeded, but final strict verifier failed because `/opt/HomeAssistant/tools/n3w_t1_core_updater.py` does not exist on the deployed T1. | TBD. Source contains Core Updater logic, but the exact installation/staging contract that should provide the deployed CLI has not yet been classified. | Audit repository install maps, package manifests and deployed source inventory; define the canonical deployed CLI/entrypoint; repair packaging/install binding and add deployed-asset integrity regression before using it as acceptance authority. | DEPLOYMENT_ASSET_INTEGRITY_REPAIR_REQUIRED |
+
+Guards:
+- missing verifier/CLI path is an asset-integrity failure, not proof of product runtime failure;
+- do not invent an alternate deployed path without source/package authority;
+- runtime health must remain independently observable while deployment asset repair is pending.
+
+### 2026-11-10 KF-148 — runtime use of startup Broker authenticated-readiness steals Home Assistant MQTT session
+
+| ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
+|---|---|---|---|---|---|
+| KF-148 | T1 Broker readiness / Home Assistant MQTT runtime acceptance | While HA was already connected with keepalive 60, a runtime call to `n3w-t1-broker-authenticated-readiness` created a short keepalive-10 connection using the same HA identity; Broker logged the live HA session as `disconnected: session taken over`. S2F then temporarily reported HA current authentication missing; S2G later proved HA socket/current-auth/HTTP healthy. | The readiness helper reads production HA metadata and connects with the production HA username/password/client ID. This is safe before HA starts, but runtime/post-start callers reuse the same client ID and displace the live HA session. | Preserve the helper as a pre-application startup credential probe. Remove runtime/post-start use; runtime acceptance must use non-invasive evidence such as established HA→1883 socket, Broker current-auth state for the exact identity and HA HTTP readiness. Add regression proving runtime health checks do not open a second production HA client-ID session. | SOURCE_REPAIR_DESIGN_REQUIRED |
+
+Guards:
+- do not “fix” by inventing an arbitrary alternate client ID: DynSec binds the service identity to its required client ID;
+- startup credential probe and runtime health probe are different contracts;
+- runtime acceptance must not perturb the session being measured;
+- `tools/n3w_t1_clean_reference_r2b.py` runtime/pre-reboot and post-reboot readiness use is a proven repair target.
+
+### 2026-11-09 KF-147 Stage A OTA publication — origin + edge CLOSED_PASS
+
+```text
+KF147_OTA_ORIGIN_LIVE=PASS
+KF147_WEBSITE_EDGE_LIVE=PASS
+KF147_PUBLIC_OTA_ROUTE=PASS
+
+EDGE_ATTEMPT01_RESULT=FAILED_ROLLED_BACK_PASS
+EDGE_ATTEMPT01_AUTHORIZATION_CONSUMED=true
+EDGE_ATTEMPT01_REPLAY_PERMITTED=false
+
+EDGE_ATTEMPT02_RESULT=PASS
+EDGE_ATTEMPT02_AUTHORIZATION_CONSUMED=true
+EDGE_ATTEMPT02_REPLAY_PERMITTED=false
+
+PUBLIC_HTTP=200
+PUBLIC_CONTENT_LENGTH=835309535
+LOOPBACK_HTTPS_FULL_SHA256=eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973
+ROLLBACK_REQUIRED=false
+```
+
+Regression guard: do not repeat the 835 MB public self-download used by edge Attempt01. The accepted Stage A validation strategy is public HEAD + bounded first/last range body checks plus complete loopback HTTPS/SNI SHA-256 over the exact artifact.
+
+Stage A success does not authorize T1 live policy repair, PREPARE replay, destructive USB work, U2+, board mutation or merge.
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_LIVE_REPAIR_A_WEBSITE_EDGE_PUBLICATION_ATTEMPT02_CLOSURE_20261109.md`.
+
+### 2026-11-09 KF-147 website-edge Attempt01 — validation timeout / rollback PASS
+
+```text
+EDGE_ATTEMPT01_RESULT=FAILED_ROLLED_BACK_PASS
+EDGE_ATTEMPT01_FAILURE_CLASS=PUBLIC_FULL_GET_VALIDATION_TIMEOUT
+EDGE_ATTEMPT01_TIMEOUT_SECONDS=1800
+EDGE_ATTEMPT01_RECEIVED_BYTES=833642496
+EDGE_ATTEMPT01_EXPECTED_BYTES=835309535
+EDGE_ATTEMPT01_AUTHORIZATION_CONSUMED=true
+EDGE_ATTEMPT01_REPLAY_PERMITTED=false
+EDGE_SOURCE_DEFECT=false
+OTA_ORIGIN_DEFECT=false
+ROLLBACK=PASS
+```
+
+Regression guard: do not classify a fixed full-transfer validation timeout as an edge-source failure when exact source configuration, public HTTP reachability and origin acceptance are already proven. Do not replay a consumed authorization. A retry requires a new authorization and a revised transfer validation budget/strategy.
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_LIVE_REPAIR_A_WEBSITE_EDGE_PUBLICATION_ATTEMPT01_CLOSURE_20261109.md`.
+
+### 2026-11-09 KF-147 live repair Stage A — OTA origin publication PASS / edge pending
+
+```text
+KF147_SOURCE_REPAIR=CLOSED_PASS
+KF147_OTA_ORIGIN_SOURCE=CLOSED_PASS
+KF147_OTA_ORIGIN_LIVE=PASS
+KF147_WEBSITE_EDGE_PUBLICATION=PENDING_SEPARATE_AUTHORIZATION
+
+ATTEMPT02_AUTHORIZATION_CONSUMED=true
+ATTEMPT02_REPLAY_PERMITTED=false
+TARGET_ARCHIVE_EXACT_BINDING=PASS
+OTA_READONLY_MOUNTS=PASS
+LOCAL_ORIGIN_ACCEPTANCE=PASS
+PUBLIC_TARGET_HTTP=404_EXPECTED_PRE_EDGE
+WEBSITE_UNTOUCHED=PASS
+
+T1_ACCESS=false
+PREPARE_REPLAY=false
+USB_MUTATION=false
+U2_PLUS=false
+MERGE=false
+```
+
+Live guard: a successful origin-only publication does not authorize or imply website-edge publication. The public exact target must remain 404 until a separate edge gate is authorized and executed. Attempt02 is terminal and must never be replayed.
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_LIVE_REPAIR_A_OTA_ORIGIN_PUBLICATION_ATTEMPT02_CLOSURE_20261109.md`.
+
+### 2026-11-09 KF-147 source repair — CLOSED_PASS / LIVE_REPAIR_PENDING
+
+```text
+KF147_SOURCE_DESIGN=CLOSED
+KF147_SOURCE_REPAIR=CLOSED_PASS
+KF147_OTA_ORIGIN_SOURCE=CLOSED_PASS
+KF147_OVERALL_STATUS=SOURCE_CLOSED_LIVE_REPAIR_PENDING
+
+PRODUCTION_SOURCE_LAST_CHANGED_HEAD=26a25537cdefa83d47c62b3ecc867a2cc37e8b8d
+SOURCE_VALIDATION_HEAD=988e8052b08f8c65bf6c313ef232e11ee78a8e87
+HOMEASSISTANT_PR=800
+
+QUALIFICATION_RUN_ID=42562214305
+QUALIFICATION_ARTIFACT_ID=13650277244
+MEASURED_EXPORT_BYTES=835454838
+PREDECESSOR_RECOVERY_BUDGET_BYTES=1342177280
+
+OTA_ORIGIN_REPOSITORY=chrenguo-stack/hahub.top
+OTA_ORIGIN_PR=4
+OTA_ORIGIN_HEAD=a4aa7ff3011c945555f7df77165bb5bee0f58d94
+OTA_ORIGIN_ROUTE_CI=SUCCESS
+
+NEW_FALSE_PASS_PATH_FOUND=false
+NEW_BLOCKER_COUNT=0
+```
+
+Source repair closure:
+- Host release policy is repository-owned schema V2 and exact-binds the immutable
+  `https://ota.hahub.top` release URL, target archive bytes/SHA, predecessor image and
+  hybrid dynamic capacity rules.
+- Predecessor recovery budget is no longer guessed. The qualification workflow uses the
+  same production recovery encoder installed by A1; two exact exports, portable identity,
+  docker-load smoke and independent budget recomputation are bound into the qualification
+  record.
+- Dynamic HA data measurement and fixed working/reserve formulas are recomputed at the
+  destructive/install boundaries. Candidate capacity, pre-format, post-format, U5/install
+  and U8 recovery-admission checks are fail-closed.
+- Existing live U1 state is compatible only through additive capacity-snapshot backfill.
+  PREPARE replay, candidate reset, phase reset and confirmation-consumed mutation remain
+  forbidden.
+- Public Manager/HA projection is bounded to required bytes, recommended nominal tier,
+  capacity state and enumerated message code; raw USB identifiers/private paths remain
+  private.
+- A1 source authority now installs and exact-hash-verifies Policy V2 plus the shared
+  predecessor recovery encoder. The current source package remains
+  `live_execution_authorized=false`.
+- hahub.top PR #4 provides the exact OTA TLS/static-route source contract and has green CI;
+  no OTA binary was committed and no live origin publication occurred.
+- Historical consumed A1R live authority remains immutable and is validated against its
+  historical live-authorized HEAD rather than rebound to current source.
+- PR #800 source-validation HEAD `988e8052...` completed the full triggered workflow set
+  successfully after the final bounded stale-fixture repair.
+
+Permanent regression guards:
+- Never allow destructive Boundary B to proceed without a regular root-owned exact
+  `homeassistant-release-source.json` that cross-binds to the approved target and current
+  predecessor.
+- Never substitute synthetic/Fake policy providers for production deployment-contract
+  tests.
+- Never use GitHub Actions artifacts as the product OTA origin.
+- Never allow redirect/final-origin drift away from the exact frozen OTA URL.
+- Predecessor recovery qualification must call the production encoder implementation; a
+  duplicated qualification-only encoder is a false-PASS path.
+- Capacity admission must use runtime HA-data measurement plus frozen formulas and must be
+  revalidated before destructive format, after format and before INSTALL/recovery
+  authorization.
+- USB market-size recommendation is user guidance only; it is never admission authority.
+- Existing active U1 migration is additive-only; PREPARE must not be replayed.
+- Old destructive authorization
+  `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_BOUNDARY_B_CONFIRM_USB_ERASE_20261109_01`
+  is `SUPERSEDED_UNCLAIMED` and must never be reused.
+- Live OTA publication, live T1 repair, a fresh destructive authorization, U2+ and merge are
+  independent later gates.
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_HOST_RELEASE_POLICY_SOURCE_REPAIR_CLOSURE_20261109.md`.
+
+
+### 2026-11-09 KF-147 source design — CLOSED / SOURCE_REPAIR_READY
+
+```text
+KF147_SOURCE_DESIGN=CLOSED
+RELEASE_SOURCE_SELECTED=true
+RELEASE_SOURCE=https://ota.hahub.top
+CAPACITY_FORMULA=FIXED
+CAPACITY_INPUT_MODEL=HYBRID_DYNAMIC
+UI_USB_SIZE_GUIDANCE=DYNAMIC_STANDARD_NOMINAL_TIER
+
+TARGET_ARTIFACT_INPUT=RELEASE_FIXED
+PREDECESSOR_RECOVERY_INPUT=RELEASE_TRANSITION_BOUND
+HA_DATA_BACKUP_INPUT=RUNTIME_DYNAMIC
+TRANSACTION_WORKING_INPUT=FIXED_FORMULA
+REMOVABLE_RESERVE_INPUT=FIXED_FORMULA
+
+USB_MEASURED_USABLE_FLOOR_BYTES=15032385536
+UI_MIN_RECOMMENDED_NOMINAL_USB_GB=32
+
+OLD_CONFIRM_USB_ERASE_AUTHORIZATION=SUPERSEDED_UNCLAIMED
+SOURCE_REPAIR_REQUIRED=true
+LIVE_REPAIR_REQUIRED_LATER=true
+```
+
+Guards added by the source design:
+- OTA binaries live outside Git under the existing server OTA storage and are exposed through exact `https://ota.hahub.top` immutable version paths.
+- R7A downloader accepts only the exact HTTPS origin/path contract and rejects redirect/origin drift.
+- Host release policy advances to schema V2; it stores release/transport authority and capacity-policy rules rather than four globally fixed capacity constants.
+- HA persistent-data budget is measured dynamically from the production HA state root; it is recomputed before destructive format and before INSTALL.
+- Predecessor recovery budget is bound to the exact predecessor→target release transition and must be produced by recovery-artifact qualification rather than guessed.
+- Working/reserve budgets use frozen integer formulas with 256 MiB rounding; actual post-format capacity and pre-U9 free-space checks remain fail-closed.
+- User guidance maps the dynamic byte requirement to standard 32/64/128/... GB market sizes; 32 GB is the minimum recommendation, not the admission authority.
+- The existing active U1 transaction must be migrated by additive capacity-snapshot backfill only; PREPARE replay, USB reinsert, candidate reset and phase reset are forbidden.
+- A1 activation must install and byte-verify the exact host release policy.
+- The previous destructive authorization is not reusable after this material source-contract repair; a fresh authorization is required after repaired live preflight.
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_HOST_RELEASE_POLICY_SOURCE_DESIGN_20261109.md`.
+
+
+### 2026-11-09 KF-147 — R7A host release-policy authority missing
+
+| ID | 范围 | 现场现象 | 根因 | 修复与保护 | 状态 |
+|---|---|---|---|---|---|
+| KF-147 | T1 mandatory-USB OTA / CONFIRM_USB_ERASE preflight | Candidate 已到 `USB_REQUIRED_CONFIRMATION`，但 destructive preflight 发现 `/etc/n3w-t1-ota/homeassistant-release-source.json` 不存在 | R7A 已实现 `FixedHostReleasePolicyProvider` 消费端并在 confirm worker 中强制读取该文件，但 A1 live activation 只安装 approved manifest / daemon / drop-in / activation env；生产 host release policy 的 exact HTTPS artifact locator 与容量预算 authority 从未冻结或部署；测试仅使用 synthetic policy provider / `updates.example.invalid` | 禁止临时合成 URL/容量参数；冻结 repository-owned exact host release policy；补 A1 deployment asset、approved-manifest cross-binding、真实 production policy tests/CI；live repair 后重新做 destructive preflight；保持现有 U1/candidate 不变 | OPEN_SOURCE_DESIGN_REQUIRED |
+
+Guards:
+- `CONFIRM_USB_ERASE` 前必须证明固定 host release-policy 文件存在、root-owned、与 live transaction/approved manifest exact-bound。
+- A1 activation 不得在缺少生产 host release policy 时报告可进入 destructive Boundary B。
+- synthetic `FakePolicyProvider` 不能替代 production deployment contract 测试。
+- 不得把 GitHub Actions artifact URL 临时当成最终产品 OTA release source；产品架构明确要求稳定 HTTPS release service，最终域名/服务尚需冻结。
+- host release policy 的四项非 target 容量预算不得凭经验随意填写，必须有明确 authority/evidence。
+- KF-147 未关闭前，已授权的 `CONFIRM_USB_ERASE` 保持 `GRANTED but UNCLAIMED`，禁止 wipefs/partition/mkfs/mount/download/U2+。
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_HOST_RELEASE_POLICY_AUTHORITY_MISSING_STOP_20261109.md`.
+
+
+### 2026-11-09 KF-146 live repair — CLOSED_PASS
+
+Production DynSec was repaired in place with exactly four OTA control ACLs on
+`gh/v1/<sid>/control/t1/homeassistant/ota`: Manager subscribe/receive/unsubscribe plus
+Home Assistant publish. Live readback proved Manager 20→23 ACLs, Home Assistant 9→10 ACLs,
+one exact allow for each required permission, and no unrelated DynSec drift.
+
+```text
+KF146_STATUS=CLOSED_PASS_LIVE_REVALIDATED
+DYNSEC_CHANGE_INDEX_BEFORE=14
+DYNSEC_CHANGE_INDEX_AFTER=18
+POSTSTATE_EXACT=true
+UNRELATED_DYNSEC_STATE_UNCHANGED=true
+```
+
+Manager, Home Assistant and Broker remained the same containers with restart count 0.
+The previous failed PREPARE remains consumed and was not replayed. No HA-USB transaction,
+USB insertion or destructive confirmation occurred.
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF146_OTA_CONTROL_DYNSEC_LIVE_APPLY_CLOSURE_20261109.md`.
+
+### 2026-11-09 KF-146 — Home Assistant OTA control DynSec path missing
+
+| ID | 范围 | 现场现象 | 根因 | 修复与保护 | 状态 |
+|---|---|---|---|---|---|
+| KF-146 | T1 mandatory-USB OTA / HA PREPARE control path | KF-145 修复后 `N3-W T1` 与 PREPARE 按钮正常出现；用户只点击一次 PREPARE，但 HA-USB transaction / prepare state 均未建立 | HA role 缺 exact `publishClientSend gh/v1/<sid>/control/t1/homeassistant/ota`；Manager role 缺同 topic 的 `subscribePattern` / `publishClientReceive` / `unsubscribePattern`；UI/Discovery 单测没有把 command_topic 与真实 DynSec 双侧权限绑定 | source head `41e0300e23351343bfe85f610d104cf533484e8e` 增加 exact 4 ACL；增加 PREPARE command_topic→两侧 service plan 交叉合同；真实 Mosquitto+DynSec CI 证明 HA publish→Manager receive；历史 S20 authority 保持冻结 | SOURCE_REPAIR_IMPLEMENTED_FUNCTIONAL_CI_PASS_LIVE_REPAIR_PENDING |
+
+Guards:
+- Home Assistant 中出现 control button 不等于按钮命令路径可用；Discovery `command_topic` 必须同时绑定发送端和接收端 DynSec authority。
+- Manager 日志显示“Subscribed to topic”只证明发起订阅流程，不得替代 Broker role ACL readback / SUBACK / E2E delivery 证据。
+- OTA control 只允许 exact topic，不得用 `gh/#` broad publish/subscribe 绕过。
+- PREPARE 已点击但 transaction 未建立时，旧一次性 PREPARE authorization 视为 consumed；禁止重放。
+- live Broker ACL 修复前 USB 不允许插入，destructive confirmation 不允许进入。
+
+Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF146_OTA_CONTROL_DYNSEC_SOURCE_REPAIR_AND_LIVE_READONLY_CONFIRMATION_20261109.md`.
+
+### 2026-11-09 KF-145 live repair — CLOSED_PASS
+
+The production Manager Dynamic Security role was repaired in place from the historical 17-ACL
+contract to the repaired 20-ACL contract by adding only the three exact R7A Home Assistant OTA
+Discovery publish ACLs. All three addRoleACL responses succeeded; the live readback proved one
+exact allow for each target, no broad `homeassistant/#` publish grant, and no unrelated DynSec
+state change.
+
+```text
+KF145_STATUS=CLOSED_PASS_LIVE_REVALIDATED
+DYNSEC_CHANGE_INDEX_BEFORE=11
+DYNSEC_CHANGE_INDEX_AFTER=14
+MANAGER_ACL_COUNT_BEFORE=17
+MANAGER_ACL_COUNT_AFTER=20
+POSTSTATE_EXACT=true
+UNRELATED_DYNSEC_STATE_UNCHANGED=true
+```
+
+Dynamic Security automatically forced the affected Manager MQTT session through reconnect.
+Manager, Home Assistant and Broker all remained the same containers with restart count 0.
+The Manager resubscribed to the OTA control topic, no deferred OTA projection was logged, and
+Home Assistant registered one N3-W T1 device with the PREPARE entity visible.
+
+```text
+HA_T1_DEVICE_MATCH_COUNT_AFTER=1
+HA_T1_ENTITY_MATCH_COUNT_AFTER=2
+HA_PREPARE_ENTITY_MATCH_COUNT_AFTER=1
+HA_USB_TRANSACTION_PRESENT_AFTER=false
+HA_USB_PREPARE_STATE_PRESENT_AFTER=false
+BOUNDARY_B_READY_TO_RESUME=true
+```
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_MANAGER_DYNSEC_DISCOVERY_ACL_LIVE_APPLY_CLOSURE_20261109.md`.
+
+### 2026-11-09 KF-145 live root-cause confirmation — READONLY CLOSED_PASS
+
+Real T1 read-only evidence now proves the production Manager role is still the historical
+17-ACL form while repaired source requires 20 ACLs. The exact active Manager client and role
+each match once; all three R7A OTA Discovery publish ACLs are absent; the two historical HA
+Discovery ACLs remain present; broad `homeassistant/#` publish is absent; HA has zero matching
+`N3-W T1` device/entities; HA-USB/PREPARE state remains absent.
+
+```text
+KF145_LIVE_ROOT_CAUSE_CONFIRMED=true
+DYNSEC_CHANGE_INDEX=11
+LIVE_MANAGER_ACL_COUNT=17
+SOURCE_MANAGER_ACL_COUNT=20
+THREE_OTA_DISCOVERY_ACLS_ABSENT=true
+BOUNDARY_B_STATUS=STOPPED_BEFORE_PREPARE
+BROKER_LIVE_DYNSEC_MUTATION=false
+```
+
+Preexecution integration additionally proves a Dynamic Security role ACL update causes the
+affected Manager MQTT client to reconnect and that the reconnected Manager can publish the OTA
+Discovery surface; no manual Manager/Broker restart is required as the normal repair path.
+
+Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_MANAGER_DYNSEC_DISCOVERY_ACL_LIVE_APPLY_20261109_01`.
+It is not authorized by this read-only closure.
+
+Evidence: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_MANAGER_DYNSEC_DISCOVERY_ACL_LIVE_READONLY_PREFLIGHT_CLOSURE_20261109.md`.
+
+### 2026-11-09 KF-145 — Manager DynSec ACL omitted R7A Home Assistant OTA Discovery topics
+
+| ID | 范围 | 现场现象 | 根因 | 修复与保护 | 状态 |
+|---|---|---|---|---|---|
+| KF-145 | T1 Home Assistant mandatory-USB OTA / Manager→Broker→HA Discovery | Boundary B PREPARE 前，Manager OTA projection 正常且渲染出 Update/PREPARE Discovery，但 Home Assistant 中没有 `N3-W T1` 设备或实体 | Manager service identity 仍只授权历史 `device` / `binary_sensor` Discovery，遗漏 R7A 新增的 `update` 与两个 `button` topic；模拟 MQTT 单测未经过真实 DynSec PUBACK，形成 false-PASS | 仅增加三个精确 Discovery publish ACL；禁止扩大为 `homeassistant/#`；增加 Discovery→ACL 交叉合同和真实隔离 Mosquitto+DynSec 发布/接收测试；历史已消费 S20 17-ACL executor 保持冻结并继续对当前 20-ACL plan fail-closed | SOURCE_REPAIR_CLOSED_PASS_LIVE_REVALIDATION_PENDING |
+
+Guards:
+- Manager 不得为方便 OTA Discovery 获得 `homeassistant/#` 广泛发布权限。
+- 所有 `HomeAssistantUpdateSurface` Discovery topic 必须由 Manager service identity 明确授权。
+- 至少一条 CI 路径必须经过真实 Mosquitto Dynamic Security PUBACK/交付，不能仅依赖 fake MQTT client。
+- 已消费 S20 R5 executor 的 17-ACL 和 dependency SHA 历史合同不得因当前 Manager ACL 演进而被静默重写。
+- 源码修复通过不代表 production Broker role 已更新；live DynSec 必须 fresh read-only preflight 后走独立授权。
+- Boundary B 在 live ACL 修复和重新验证前继续停在 PREPARE 之前。
+
+Evidence:
+- executable source repair head: `f2ea76d245ef98196624aca088f492c60d6f8821`.
+- initial CI failure: run `42500168128`, 8 failed / 1531 passed / 1 skipped, all caused by historical `service_acl_count_drift`.
+- final required CI: greenhouse-manager `42500786838` SUCCESS; M2 Dynamic Security `42500787022` SUCCESS; S20 real service handoff `42500786915` SUCCESS.
+- closure: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_MANAGER_DYNSEC_DISCOVERY_ACL_SOURCE_REPAIR_CLOSURE_20261109.md`.
+
+### 2026-11-08 KF-144 live revalidation closure — CLOSED_PASS
+
+The repaired Manager path is now live-revalidated on the real production T1.
+
+```text
+KF144_STATUS=CLOSED_PASS_LIVE_REVALIDATED
+A0R_LIVE_APPLY=CLOSED_PASS
+A0R_TRANSACTION_STATUS=COMMITTED
+A0R_MANAGER_AFTER=local/greenhouse-manager:fresh-7807271e4c48
+A1R_LIVE_REACTIVATION=CLOSED_PASS
+A1R_HOST_DAEMON_ACTIVE=true
+A1R_MANAGER_OTA_ENABLED=true
+A1R_15S_SAME_CONTAINER_STABILITY=PASS
+A1R_AUTOMATIC_ROLLBACK=false
+RECOVERY_REQUIRED=false
+PREPARE=false
+USB_MUTATION=false
+BOARD_ACCESS=false
+```
+
+The source repair guard remains unchanged: simplified-runtime isolation must not
+invalidate the already-built OTA manager capability, and A1 acceptance requires the
+bounded same-container stability hold. A0R and A1R one-shot authorizations are consumed
+and must never be replayed. The next Boundary B PREPARE-only gate requires fresh live
+rebind and must stop before `CONFIRM_USB_ERASE`.
+
+Evidence:
+- A0R execution `N3W_R7A_REPAIRED_MANAGER_A0R_ATTEMPT2_20261108T151437Z`: PASS / COMMITTED.
+- A1R execution `N3W_R7A_REPAIRED_MANAGER_A1R_20261108T153901Z`: PASS.
+- Live-authorized A1R head: `70aaa4070641dd73c1a97738e6332be31403d45e`.
+- Closure: `docs/development/N3W_T1_R7A_REPAIRED_MANAGER_A0R_A1R_LIVE_EXECUTION_CLOSURE_20261108.md`.
+
+### 2026-11-08 KF-144 preexecution successor closure — A0R/A1R CLOSED_PASS / live revalidation pending
+
+The repaired Manager successor path is now preexecution-closed at executable head
+`813acb95401612585fc73455e05c81e3e6b86009`. A0R is fixed to predecessor
+`fresh-bf38e388497b` and target `fresh-7807271e4c48`; A1R remains a separate
+authorization and cannot enter unless the Manager V2 transaction is COMMITTED and its
+`authorization_id_sha256` matches the exact distinct A0R authorization.
+
+Focused CI run `42482476119` passed source (274 tests), exact-manager-slice and
+pre-u1-v2-simulation. This closes the newly identified manifest/executor false-PASS gap
+without changing KF-144's live status.
+
+Guards added:
+- A0R post-apply must validate `authorization_consumed=true` and the exact A0R authorization hash.
+- A1R preflight must validate the same A0R authorization hash, not merely a matching target image.
+- A0R and A1R authorizations remain distinct and ungranted in preexecution.
+- current T1 runtime is not inferred from successful post-reboot HA web login; a fresh read-only eligibility gate is mandatory before A0R mutation.
+- old A0/A1/Boundary-B authorizations remain non-replay.
+
+Status remains:
+`SOURCE_REPAIR_AND_PREEXECUTION_CLOSED_LIVE_REVALIDATION_PENDING`.
+
+### 2026-11-08 KF-144 — R7A simplified runtime internal OTA flag conflicts with base Settings validation
+
+| ID | 范围 | 现场现象 | 根因 | 修复与保护 | 状态 |
+|---|---|---|---|---|---|
+| KF-144 | T1 Home Assistant mandatory-USB OTA / R7A A1 Manager compatibility | A1 曾返回 PASS，但随后 Manager 以 `GH_N3W_T1_OTA_ENABLED requires GH_N3W_RUNTIME_ENABLED` 退出并形成 services-owner restart loop；Home Assistant exit 143 为 `--abort-on-container-exit` 后的次生 SIGTERM。Boundary B 在 PREPARE 前暂停，未创建 HA-USB transaction，未插入 USB | live 外部环境实际同时存在 `GH_N3W_RUNTIME_ENABLED=true` 与 OTA flags；缺陷发生在 `N3wSimplifiedIsolatedMqttService` 内部 compatibility copy：为隔离 legacy N3-W runtime 把 `n3w_runtime_enabled` 改为 false，却把 `n3w_t1_ota_enabled=true` 带入 `ManagerMqttService`，触发第二次 `Settings.validate()` | source repair 在已构造 `ota_manager` 被注入时，仅清除内部 base-service OTA config flag；OTA subscription/control/HA projection 仍由注入对象承载。A1 postcheck 增加 15 秒 same-container 稳定性检查。exact ARM64 unchanged rerun 通过 upload/redownload SHA binding；首次 SHA mismatch 归类为 CI artifact roundtrip transient，不降低 SHA 保护 | SOURCE_REPAIR_CLOSED_LIVE_REVALIDATION_PENDING |
+
+Guards:
+- 不得把 live `GH_N3W_RUNTIME_ENABLED` 缺失作为 KF-144 根因；现场已证明该 flag 为 true。
+- simplified service 的 legacy-runtime isolation 与 OTA capability 必须分层：内部 base-service Settings 可以关闭 legacy runtime/OTA config flag，但已验证并注入的 `ota_manager` 必须继续驱动 OTA MQTT surface。
+- A1 不能仅凭瞬时 running 判 PASS；必须经过 bounded hold 后确认 services owner active 且 Manager/Home Assistant/Broker container identity 未变化并仍 running。
+- exact image artifact 的 post-upload binding SHA 校验不得因单次 CI mismatch 被删除或放宽；先在 unchanged source 上复跑分类。
+- real T1 在 source closure 后仍保持 recovered OTA-disabled path；后续 repaired Manager 部署和 A1 reactivation 必须走 fresh preexecution / authorization chain。
+- consumed A1 authorization 与旧 Boundary B PREPARE-only authorization均不可 replay。
+
+Evidence:
+- incident/source repair head: `7807271e4c48161f2fad96a7886fa4c24b038321`, tree `3d2893914d62645011a9a4badc7f939d10f9029e`.
+- exact ARM64 run `42452239964`, successful rerun attempt 2.
+- successful exact artifact: `13615963302`, digest `sha256:72b05593b91c75912e05ccd3b00bc72af5bd7ec03e39c283d0ce7acfb513fbe7`.
+- successful binding contains Manager tar SHA `9746222b145df33d98056f1349456780377875534b28f633b736360c528a0c67`, Home Assistant tar SHA `13a1b097562fdadb92fa0d75f37341ee8769191944e88bbe106c70373a5a8b64`, Broker tar SHA `7e14f96544edceb01a7db8f7f09bac4be48672ea66285679dd8fe8f1ead53d79`.
+- prior attempt artifact `13605603605` remains historical failed evidence and is not promoted as exact closure authority.
+- production recovery gate `N3W_T1_R7A_A1_RUNTIME_WIRING_WITHDRAWAL_RECOVERY_20261108_01` was already CLOSED_PASS before this source closure.
+
+### 2026-11-08 KF-143 — R7A A1 service restart container-convergence race caused false activation STOP and false rollback-failure classification
+
+| ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
+|---|---|---|---|---|---|
+| KF-143 | T1 Home Assistant mandatory-USB OTA / R7A A1 host-daemon + Compose activation | A1 one-shot activation 已 claim 并执行；`systemctl restart n3wfc4-services-activation.service` 后立即出现 `container_cardinality_invalid`；自动 A1 wiring rollback 随后也在相同容器数量检查处失败并把 `recovery_required` 保守置为 true。后续独立只读现场分类证明 rollback 实际已完整恢复，`T1_RECOVERY_REQUIRED=false` | `n3wfc4-services-activation.service` 为 `Type=simple`，ExecStart 是前台 `docker compose ... up ...`；systemd restart 返回只证明 Compose 进程已启动，不证明 Manager/Home Assistant 容器已完成停止→重建→running 收敛。A1 executor 把 restart 后立即执行的 `docker ps --filter ancestor` cardinality 当成 readiness oracle，导致 activation 校验与 rollback 校验都可能在短暂 0-container 窗口 false-STOP | 保持 preflight 严格/立即；仅在 activation restart 与 rollback restart 后增加 bounded 120 s container convergence wait，继续要求唯一 running container、exact image/runtime identity、Manager UID/GID 999:999、无 Docker socket/block device、Broker continuity、USB=0 与 HA-USB/PREPARE state absent。旧 A1 _01 与 successor _02 均永久 retired/non-replay；successor _02 已在 repaired path 上真实 PASS | RESOLVED |
+
+Guards:
+- `systemctl restart n3wfc4-services-activation.service` 返回不得直接解释为 Manager/HA 容器已 ready。
+- A1 activation/rollback 的 container cardinality/readiness 检查必须允许 bounded convergence window；bounded timeout 到期仍非唯一 running container 才 FAIL。
+- preflight 不得使用 settle wait 掩盖进入 gate 前的既有 runtime drift。
+- A1 自动 rollback 报错后，若错误属于 post-restart cardinality/convergence 类，先做独立 read-only live classification，再决定是否需要 recovery mutation。
+- 一次性 authorization 一旦 `authorization_claimed=true` / `activation_invoked=true` 即永久不可重放。
+- successor A1 live retry 必须在 repaired exact head 全绿后使用 distinct authorization ID。
+
+Evidence:
+- Consumed A1 authorization: `N3W_T1_R7A_HOST_DAEMON_COMPOSE_A1_LIVE_ACTIVATION_20261107_01`.
+- Execution: `N3W_R7A_HOST_A1_20261107T161605Z`.
+- Read-only classification: `ROLLED_BACK_HEALTHY_FALSE_ROLLBACK_FAILURE`; recovery_required=false.
+- Source repair executable head: `922a106bd32ce98a07d2280cf08a6a9f116a11a6`; tree `3712bbcf20e47f7cf1f92fc26ce238eed6e95fd8`.
+- Exact repair-head CI: 25/25 SUCCESS.
+- Successor authorization: `N3W_T1_R7A_HOST_DAEMON_COMPOSE_A1_LIVE_ACTIVATION_20261108_02`, consumed/non-replay after PASS.
+- Successor execution: `N3W_R7A_HOST_A1_20261107T174129Z`; status PASS; executor rc 0; activation invoked once; no automatic rollback; recovery_required=false.
+- Real-T1 repaired-path validation: host daemon active, Manager OTA enabled, USB/PREPARE/erase/board mutation all false; no recurrence of `container_cardinality_invalid`.
+- Private host locator/evidence paths remain operator-local and are intentionally not archived here.
+
 ### 2026-11-05 KF-142 — P5 host-side ad-hoc SSH reuse causes repeated authentication and pre-claim staging STOP
 
 | ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |

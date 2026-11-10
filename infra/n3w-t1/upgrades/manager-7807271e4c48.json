@@ -1,0 +1,25 @@
+{
+  "schema": "gh.n3w-t1-core-updater-target/2",
+  "component": "manager",
+  "mutation_profile": "IMAGE_ONLY_V1",
+  "target_image_ref": "local/greenhouse-manager:fresh-7807271e4c48",
+  "target_platform": "linux/arm64",
+  "target_archive_sha256": "9746222b145df33d98056f1349456780377875534b28f633b736360c528a0c67",
+  "artifact_identity": {
+    "artifact_id": 13615963302,
+    "artifact_digest_sha256": "72b05593b91c75912e05ccd3b00bc72af5bd7ec03e39c283d0ce7acfb513fbe7",
+    "artifact_name": "n3w-t1-fresh-exact-arm64-7807271e4c48161f2fad96a7886fa4c24b038321"
+  },
+  "expected_predecessor_image_ref": "local/greenhouse-manager:fresh-bf38e388497b",
+  "rollback_compatible": true,
+  "compatibility_evidence": {
+    "schema": "gh.n3w-t1-core-updater-compatibility/1",
+    "mutation_profile": "IMAGE_ONLY_V1",
+    "peer_contracts_compatible": true,
+    "persistent_schema_compatible": true,
+    "review_evidence_sha256": "1b8c6233a1b2de7aa8922df0647bc90e5e9c1a6bef0b6fa4a79cd2ef4230b19c",
+    "predecessor_source_head": "bf38e388497b0d480f4bd322426e32a98652cf6c",
+    "target_source_head": "7807271e4c48161f2fad96a7886fa4c24b038321"
+  },
+  "a1_classification_sha256": "e664ced300ea2bb743b116550b7a3e22237e7f556f54400a060eef30671d30e7"
+}

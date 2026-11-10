@@ -421,12 +421,17 @@ class MultiComponentCoreUpdater:
             raise UpdaterV2Error("predecessor_image_authority_drift")
 
         target_prestate = self.host.image_id(target.target_image_ref)
+        current_transaction = self.store.read()
+        from n3w_t1_core_updater_finalize import cleanup_pending_for_successor
+        if cleanup_pending_for_successor(current_transaction):
+            raise UpdaterV2Error("post_acceptance_cleanup_required")
         self.store.prepare_new()
         tx = {
             "schema": TX_SCHEMA_V2,
             "status": "APPLYING",
             "phase": "AUTHORIZED",
             "component": target.component,
+            "post_acceptance_cleanup_required": target.component in {"manager", "broker"},
             "authorization_id_sha256": sha256_bytes(
                 authorization_id.encode("utf-8")
             ),
@@ -713,6 +718,13 @@ class MultiComponentCoreUpdater:
                 "FAILED_EMERGENCY",
             }:
                 raise UpdaterV2Error("recoverable_transaction_required")
+            cleanup_state = tx.get("cleanup_state")
+            if cleanup_state in {
+                "ACCEPTED_CLEANUP_PENDING",
+                "ACCEPTED_CLEANUP_COMPLETE",
+                "CLEANUP_STOPPED",
+            }:
+                raise UpdaterV2Error("rollback_window_closed_after_acceptance")
             target_doc = tx.get("target")
             if not isinstance(target_doc, dict):
                 raise UpdaterV2Error("rollback_transaction_authority_invalid")
@@ -890,9 +902,165 @@ class MultiComponentCoreUpdater:
             finally:
                 self.host.release_component_guard()
 
+    def finalize(
+        self,
+        acceptance: ProductAcceptance,
+        *,
+        confirmation: str,
+    ) -> dict[str, Any]:
+        from n3w_t1_core_updater_finalize import (
+            FINALIZE_CONFIRMATION_V2,
+            committed_transaction_sha256,
+        )
+        if os.geteuid() != 0:
+            raise UpdaterV2Error("root_required")
+        if confirmation != FINALIZE_CONFIRMATION_V2:
+            raise UpdaterV2Error("finalize_confirmation_missing")
+
+        with self.store.lock():
+            tx = self.store.read()
+            if tx is None or tx.get("status") != "COMMITTED":
+                raise UpdaterV2Error("committed_transaction_required")
+            cleanup_state = tx.get("cleanup_state")
+            if cleanup_state == "ACCEPTED_CLEANUP_COMPLETE":
+                raise UpdaterV2Error("finalize_already_complete")
+            if cleanup_state in {"ACCEPTED_CLEANUP_PENDING", "CLEANUP_STOPPED"}:
+                raise UpdaterV2Error("finalize_reconciliation_required")
+
+            component = tx.get("component")
+            if component not in {"manager", "broker"}:
+                raise UpdaterV2Error("finalize_component_uses_separate_lifecycle")
+            if tx.get("post_acceptance_cleanup_required") is not True:
+                raise UpdaterV2Error("finalize_lifecycle_authority_missing")
+            target_doc = tx.get("target")
+            if not isinstance(target_doc, dict):
+                raise UpdaterV2Error("finalize_transaction_authority_invalid")
+            target_ref = target_doc.get("target_image_ref")
+            if (
+                acceptance.component != component
+                or acceptance.target_image_ref != target_ref
+                or acceptance.transaction_sha256
+                != committed_transaction_sha256(tx)
+            ):
+                raise UpdaterV2Error("product_acceptance_authority_mismatch")
+
+            legacy = self.store.read_legacy()
+            if legacy is not None and legacy.get("status") not in {
+                "COMMITTED",
+                "ROLLED_BACK",
+            }:
+                raise UpdaterV2Error("legacy_transaction_reconciliation_required")
+            ha_usb = self.store.read_ha_usb_guard()
+            if ha_usb is not None and ha_usb.get("status") not in {
+                "COMMITTED",
+                "ROLLED_BACK",
+            }:
+                raise UpdaterV2Error("ha_usb_transaction_active")
+
+            self.host.assert_mutation_safe(component)
+            current = self.host.inspect_v2()
+            adapter = adapter_for(component)
+            target_runtime_id = tx.get("target_runtime_image_id")
+            if (
+                not isinstance(target_ref, str)
+                or adapter.current_binding(current) != target_ref
+                or not isinstance(target_runtime_id, str)
+                or current["runtime"][component]["image_id"] != target_runtime_id
+            ):
+                raise UpdaterV2Error("finalize_target_runtime_invalid")
+            adapter.verify_peer_runtime(current, tx["pre_peer_runtime"])
+            self.policy.validate_post(
+                component,
+                tx["pre_a1_policy"],
+                self.policy.capture(),
+            )
+
+            predecessor = tx.get("predecessor_image")
+            predecessor_id = tx.get("predecessor_image_id")
+            if (
+                not isinstance(predecessor, str)
+                or not isinstance(predecessor_id, str)
+                or self.host.image_id(predecessor) != predecessor_id
+            ):
+                raise UpdaterV2Error("finalize_predecessor_authority_invalid")
+            if predecessor in current["image_bindings"].values():
+                raise UpdaterV2Error("finalize_predecessor_is_current_binding")
+            if self.host.containers_using_image(predecessor_id):
+                raise UpdaterV2Error("predecessor_image_still_referenced")
+
+            acceptance_sha = sha256_bytes(canonical(acceptance.public()))
+            tx.update(
+                cleanup_state="ACCEPTED_CLEANUP_PENDING",
+                product_acceptance_sha256=acceptance_sha,
+                product_acceptance_authority_id_sha256=sha256_bytes(
+                    acceptance.authority_id.encode("utf-8")
+                ),
+                product_accepted_at_unix=acceptance.accepted_at_unix,
+                cleanup_started_at_unix=int(time.time()),
+            )
+            self.store.write(tx)
+
+            try:
+                self.host.remove_image_exact(predecessor_id)
+                if self.host.image_id(predecessor) is not None:
+                    raise UpdaterV2Error("predecessor_image_remove_verify_failed")
+                post = self.host.inspect_v2()
+                if (
+                    adapter.current_binding(post) != target_ref
+                    or post["runtime"][component]["image_id"] != target_runtime_id
+                ):
+                    raise UpdaterV2Error("finalize_post_target_runtime_invalid")
+                adapter.verify_peer_runtime(post, tx["pre_peer_runtime"])
+                self.policy.validate_post(
+                    component,
+                    tx["pre_a1_policy"],
+                    self.policy.capture(),
+                )
+            except Exception as error:
+                predecessor_removed = False
+                try:
+                    predecessor_removed = self.host.image_id(predecessor) is None
+                except Exception:
+                    pass
+                tx.update(
+                    cleanup_state="CLEANUP_STOPPED",
+                    cleanup_error_code=safe_error_code(error),
+                    predecessor_image_removed=predecessor_removed,
+                )
+                self.store.write(tx)
+                raise
+
+            tx.update(
+                cleanup_state="ACCEPTED_CLEANUP_COMPLETE",
+                predecessor_image_removed=True,
+                predecessor_image_removed_id=predecessor_id,
+                cleanup_completed_at_unix=int(time.time()),
+            )
+            self.store.write(tx)
+            return {
+                "schema": STATUS_SCHEMA_V2,
+                "status": "PASS",
+                "operation": "finalize",
+                "component": component,
+                "transaction_status": "COMMITTED",
+                "cleanup_state": "ACCEPTED_CLEANUP_COMPLETE",
+                "predecessor_image_removed_id": predecessor_id,
+                "product_acceptance_sha256": acceptance_sha,
+                "runtime": self._public_snapshot(post),
+                "t1_mutation": True,
+            }
+
     def status(self) -> dict[str, Any]:
         transaction = self.store.read()
         legacy = self.store.read_legacy()
+        finalize_transaction_sha256 = None
+        if (
+            isinstance(transaction, dict)
+            and transaction.get("status") == "COMMITTED"
+            and transaction.get("post_acceptance_cleanup_required") is True
+        ):
+            from n3w_t1_core_updater_finalize import committed_transaction_sha256
+            finalize_transaction_sha256 = committed_transaction_sha256(transaction)
         return {
             "schema": STATUS_SCHEMA_V2,
             "status": "PASS",
@@ -919,4 +1087,5 @@ class MultiComponentCoreUpdater:
             ),
             "transaction": transaction,
             "legacy_manager_transaction": legacy,
+            "finalize_transaction_sha256": finalize_transaction_sha256,
         }

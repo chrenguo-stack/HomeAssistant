@@ -9,6 +9,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 
 import n3w_t1_core_updater_ha_recovery as recovery_mod
+import n3w_t1_core_updater_ha_capacity as capacity_model
 from n3w_t1_core_updater_ha_backup import (
     HaDataBackupRecord,
     validate_backup_record,
@@ -186,6 +187,25 @@ def passing_capacity_report():
     )
 
 
+def recovery_capacity(
+    *,
+    target: ImageRecoveryRecord | None = None,
+    predecessor: ImageRecoveryRecord | None = None,
+    backup: HaDataBackupRecord | None = None,
+    observed_free_bytes: int = 8 * 1024**3,
+):
+    target = target or target_record()
+    predecessor = predecessor or predecessor_record()
+    backup = backup or backup_record()
+    return capacity_model.compute_recovery_admission_capacity(
+        target_archive_bytes=target.archive_size_bytes,
+        predecessor_archive_bytes=predecessor.archive_size_bytes,
+        ha_backup_archive_bytes=backup.archive_size_bytes,
+        transaction_working_budget_bytes=512 * 1024**2,
+        observed_usb_free_bytes=observed_free_bytes,
+    )
+
+
 def u8_transaction():
     return record_recovery_admission(
         u7_transaction(),
@@ -194,6 +214,7 @@ def u8_transaction():
         backup=backup_record(),
         observed_usb_filesystem_uuid=USB_UUID,
         capacity_report=passing_capacity_report(),
+        recovery_capacity=recovery_capacity(),
         production_prestate_exact=True,
     )
 
@@ -323,6 +344,7 @@ def test_u8_requires_backup_predecessor_and_target_recovery_authority():
             backup=backup_record(verified=False),
             observed_usb_filesystem_uuid=USB_UUID,
             capacity_report=passing_capacity_report(),
+            recovery_capacity=recovery_capacity(),
             production_prestate_exact=True,
         )
     with pytest.raises(UpdaterV2Error, match="usb_filesystem_uuid_mismatch"):
@@ -333,6 +355,7 @@ def test_u8_requires_backup_predecessor_and_target_recovery_authority():
             backup=backup_record(),
             observed_usb_filesystem_uuid="87654321-4321-8765-4321-876543218765",
             capacity_report=passing_capacity_report(),
+            recovery_capacity=recovery_capacity(),
             production_prestate_exact=True,
         )
 

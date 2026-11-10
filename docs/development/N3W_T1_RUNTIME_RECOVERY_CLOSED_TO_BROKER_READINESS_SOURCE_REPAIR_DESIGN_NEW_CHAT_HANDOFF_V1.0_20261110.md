@@ -1,0 +1,565 @@
+# 温室环境监测系统（ESP32-C6） / N3-W
+# T1 runtime recovery CLOSED_PASS → Broker readiness runtime-session-takeover source repair design
+# 新会话交接文档 V1.0 — 2026-11-10
+
+```text
+HANDOFF_TEMPLATE_VERSION=1.3
+SOLE_VALID_HANDOFF_TEMPLATE_VERSION=1.3
+OLDER_HANDOFF_TEMPLATE_VERSIONS=INVALID_FOR_NEW_HANDOFF_GENERATION
+HISTORICAL_TEMPLATE_COPIES=HISTORICAL_EVIDENCE_ONLY
+HISTORICAL_HANDOFF_STANDARD_DOES_NOT_AUTHORIZE_OLD_TEMPLATE=true
+PROJECT_WORKING_CONTEXT_VERSION=4.5
+PROJECT_WORKING_CONTEXT=docs/development/N3W_PROJECT_WORKING_CONTEXT.md
+NEXT_ONE_GATE_ONLY=true
+TEAM_SHARED_WORKSPACE=GITHUB
+
+HANDOFF_TEMPLATE_BLOB=613ea57c74521610f25c576f25b7ce738d5a045f
+PROJECT_WORKING_CONTEXT_BLOB=220e799c79a142094069e7ba83960e0c1ce4b21f
+CURRENT_STATE_BLOB=9f1c3d6ddd7bb95e9fa1cab51ab4b482bf9f034a
+CURRENT_STATE_INDEX_BLOB=505cd7883e09d8589af123bf5f06e7c9195f664d
+KNOWN_FAILURES_BLOB=0fdee789762783b00317cfcd333c20272270fdf6
+```
+
+> 本文严格使用当前 `docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md` V1.3。  
+> 当前 Working Context 已推进到 4.5；模板正文中历史硬编码的旧 Working Context 版本不作为当前 authority。  
+> 本文只保存当前阶段增量。长期规则统一引用 `N3W_PROJECT_WORKING_CONTEXT.md`。  
+> fresh repository/runtime/live evidence 与本文冲突时，以 fresh 直接证据为准并先停止执行。  
+> 公开文档不包含 SSH、私网地址、密码、host-key、原始 USB locator 或其他 private evidence。
+
+---
+
+## 0. 会话切换结论
+
+```text
+CURRENT_STAGE=T1_RUNTIME_RECOVERY_CLOSED_SOURCE_CLOSURE_QUEUE
+CURRENT_STOP_POINT=AFTER_S2G_CLOSED_PASS_BEFORE_NEXT_1_SOURCE_DESIGN
+NEXT_ONE_GATE=BROKER_READINESS_RUNTIME_SESSION_TAKEOVER_SOURCE_REPAIR_DESIGN
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+HANDOFF_READY_FOR_NEW_CHAT=true
+```
+
+本轮已经把 T1 Broker→Manager→Home Assistant 真实运行恢复闭环，并把现场增量写入 GitHub。新会话不再继续恢复性 live 操作，首先只进入 Broker readiness 运行期 session-takeover 的源码设计收口。
+
+---
+
+## 1. 长期上下文引用与本阶段例外
+
+```text
+PROJECT_WORKING_CONTEXT_LOADED=true
+PROJECT_WORKING_CONTEXT_VERSION=4.5
+LONG_TERM_RULES_REPEATED_IN_HANDOFF=false
+
+STAGE_SPECIFIC_OVERRIDE_COUNT=1
+STAGE_OVERRIDES=USER_FROZEN_SOURCE_QUEUE_ORDER
+```
+
+用户冻结的后续顺序：
+
+```text
+NEXT_1=BROKER_READINESS_RUNTIME_SESSION_TAKEOVER_SOURCE_REPAIR_DESIGN
+NEXT_2=CORE_UPDATER_DEPLOYED_ASSET_INTEGRITY_REPAIR
+NEXT_3=T1_STORAGE_HEADROOM_AND_IMAGE_LIFECYCLE_CLOSURE
+
+THEN=
+KF147 fresh rebind
+-> fresh capacity gate
+-> new package/manifest binding
+-> live retry
+```
+
+Formal handoff 仍遵守 NEXT_ONE_GATE_ONLY；当前只能进入 NEXT_1。
+
+---
+
+## 2. Product North Star
+
+```text
+CURRENT_PRODUCT_ROUTE=N3-W Wi-Fi + ESP-NOW single-hop relay with farmer-grade power-on usability
+FINAL_ACCEPTANCE_TARGET=stable T1 core stack plus safe mandatory-USB HA OTA and recoverable exact component updates
+DEFERRED_OR_OUT_OF_SCOPE=board mutation, PREPARE replay, CONFIRM_USB_ERASE, U2+, KF147 live retry, merge
+```
+
+---
+
+## 3. Frozen Authorities
+
+```text
+REPOSITORY=chrenguo-stack/HomeAssistant
+MAIN=bce6bd82023d5f5322eea1ab363a29df8a4cadd8
+TREE=NOT_AVAILABLE_FROM_CONNECTOR:commit_SHA_is_current_main_authority
+
+CANDIDATE_REF=feat/n3w-ha-usb-r7a-prepare-pipeline-20261107
+CANDIDATE_HEAD=2ebe88d0408bf7e16a40d78149366745a39dac50
+CANDIDATE_HEAD_ROLE=STATE_ALIGNMENT_HEAD_BEFORE_HANDOFF_COMMIT
+CANDIDATE_TREE=NOT_AVAILABLE_FROM_CONNECTOR:commit_SHA_plus_exact_doc_blobs_are_authority
+
+ARTIFACT_ID=NOT_APPLICABLE:SOURCE_DESIGN_GATE
+ARTIFACT_SHA256=NOT_APPLICABLE:SOURCE_DESIGN_GATE
+
+DEPLOYED_SOURCE_HEAD=UNKNOWN_FRESH:NOT_REQUIRED_FOR_NEXT_1_SOURCE_DESIGN
+DEPLOYED_SOURCE_TREE=NOT_APPLICABLE:SOURCE_DESIGN_GATE
+
+OTHER_REQUIRED_AUTHORITY=
+docs/development/N3W_T1_STORAGE_RECOVERY_S2G_RUNTIME_CLOSED_PASS_AND_SOURCE_REPAIR_QUEUE_20261110.md
+docs/development/N3W_T1_CORE_STACK_IMAGE_LIFECYCLE_AND_POST_ACCEPTANCE_CLEANUP_POLICY_20261109.md
+docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md@613ea57c74521610f25c576f25b7ce738d5a045f
+
+CURRENT_PRODUCTION_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_STACK_RELEASE=LIVE_RUNTIME:manager=fresh-7807271e4c48;homeassistant=2026.10.0-0c73235a;broker=2.1.2-3184566d
+STACK_RELEASE_ROLE=RECOVERED_LIVE_BASELINE
+COMPONENT_UPGRADE_BASELINE=KF147_TARGET_fresh-44e7d7472714_NOT_APPLIED
+```
+
+PR #800 fresh rebind at handoff preparation:
+
+```text
+PR_STATE=OPEN
+PR_DRAFT=true
+PR_MERGED=false
+PR_BASE=docs/n3w-r5-readonly-preflight-handoff-20261107
+PR_HEAD=feat/n3w-ha-usb-r7a-prepare-pipeline-20261107
+PR_HEAD_BEFORE_HANDOFF=2ebe88d0408bf7e16a40d78149366745a39dac50
+```
+
+---
+
+## 4. Current Live Baseline
+
+Latest direct S2G evidence:
+
+```text
+MANAGER_STATE=RUNNING
+MANAGER_IMAGE=local/greenhouse-manager:fresh-7807271e4c48
+MANAGER_RESTART_STATE=UNKNOWN_FRESH:not_sampled_by_S2G
+
+BROKER_STATE=RUNNING
+BROKER_IMAGE=local/n3w-mosquitto:2.1.2-3184566d
+
+HOMEASSISTANT_STATE=RUNNING
+HOMEASSISTANT_IMAGE=local/n3w-homeassistant:2026.10.0-0c73235a
+
+MANAGER_MQTT_SOCKET_COUNT_8883=1
+HOMEASSISTANT_MQTT_SOCKET_COUNT_1883=1
+HOMEASSISTANT_BROKER_CURRENT_AUTHENTICATED=true
+HOMEASSISTANT_HTTP_STATUS=401
+
+LAST_PROVEN_ROOT_FREE_BYTES=592859136
+
+BOARD_A_POWER_STATE=UNKNOWN_FRESH:NOT_RELEVANT_TO_CURRENT_GATE
+BOARD_A_LOCATION_ROLE=UNKNOWN_FRESH:NOT_RELEVANT_TO_CURRENT_GATE
+BOARD_B_POWER_STATE=UNKNOWN_FRESH:NOT_RELEVANT_TO_CURRENT_GATE
+BOARD_B_LOCATION_ROLE=UNKNOWN_FRESH:NOT_RELEVANT_TO_CURRENT_GATE
+
+APPLICATION_SERIAL_OPEN=false
+FLASH_MUTATION=false
+NVS_MUTATION=false
+T1_RUNTIME_MUTATION=false
+```
+
+S2E was the last live recovery mutation and its authorization is consumed. S2F/S2G were read-only.
+
+---
+
+## 5. Proven Current Facts
+
+```text
+FACT_1=T1_BROKER_MANAGER_HA_RUNTIME_RECOVERY_CLOSED_PASS
+FACT_2=PRIMARY_OUTAGE_ROOT_CAUSE_ROOT_FILESYSTEM_ENOSPC
+FACT_3=DOCKER_COMPOSE_CONTROL_PLANE_VS_CONTAINERD_TASK_DIVERGENCE_PROVEN
+FACT_4=ENOSPC_CAUSED_SECONDARY_DIVERGENCE_NOT_PROVEN
+FACT_5=EXACT_EXISTING_CONTAINER_START_RECOVERED_BROKER_MANAGER_HA_WITHOUT_RECREATE
+FACT_6=HOMEASSISTANT_CURRENT_MQTT_AUTHENTICATION_PROVEN_BY_SOCKET_PLUS_BROKER_EVENT
+FACT_7=HOMEASSISTANT_HTTP_401_ACCEPTED_READINESS
+FACT_8=AUTHENTICATED_READINESS_HELPER_REUSES_PRODUCTION_HA_CLIENT_ID
+FACT_9=RUNTIME_INVOCATION_CAN_CAUSE_BROKER_SESSION_TAKEN_OVER
+FACT_10=DEPLOYED_/opt/HomeAssistant/tools/n3w_t1_core_updater.py_ABSENT
+FACT_11=LAST_PROVEN_ROOT_FREE_SPACE_IS_EMERGENCY_HEADROOM_ONLY
+FACT_12=OLD_KF147_PACKAGE_AND_LIVE_AUTHORIZATION_NOT_REUSABLE
+```
+
+```text
+INFERENCE_NONE_FOR_NEXT_1_ROOT_CAUSE=ROOT_CAUSE_DIRECTLY_PROVEN_BY_SOURCE_PLUS_BROKER_EVENT_SEQUENCE
+```
+
+---
+
+## 6. Current Root Cause / Blockers
+
+```text
+CURRENT_BLOCKER_COUNT=3
+CURRENT_BLOCKER=
+KF-148 BROKER_READINESS_RUNTIME_SESSION_TAKEOVER
+KF-149 CORE_UPDATER_DEPLOYED_ASSET_MISSING
+KF-150 T1_STORAGE_HEADROOM_IMAGE_LIFECYCLE_PENDING
+
+ROOT_CAUSE_KF148=runtime/post-start caller invokes startup authenticated-readiness probe that connects with production HA username/password/client_id and displaces the live HA MQTT session
+PROVEN_BY=source review of tools/n3w_t1_broker_authenticated_readiness.py plus S2G Broker event sequence
+SOURCE_DEFECT_PROVEN=true
+RUNTIME_DEFECT_PROVEN=true:session_takeover_side_effect_proven_but_current_stack_recovered
+
+ROOT_CAUSE_KF149=TBD
+ROOT_CAUSE_KF150_PRIMARY_OUTAGE=ROOT_FILESYSTEM_ENOSPC
+ROOT_CAUSE_KF150_SECONDARY_DIVERGENCE=TBD
+```
+
+---
+
+## 7. Closed / Forbidden Routes
+
+```text
+RUNTIME_RECOVERY_ROUTE=CLOSED:T1_BROKER_MANAGER_HA_RUNTIME_RECOVERY_CLOSED_PASS
+BROAD_DOCKER_PRUNE=CLOSED:FORBIDDEN_BY_IMAGE_LIFECYCLE_POLICY
+DOCKER_DAEMON_RESTART_FOR_THIS_INCIDENT=CLOSED:NOT_REQUIRED_BY_RECOVERY_EVIDENCE
+CONTAINERD_RESTART_FOR_THIS_INCIDENT=CLOSED:NOT_REQUIRED_BY_RECOVERY_EVIDENCE
+CONTAINER_RECREATE_FOR_RUNTIME_RECOVERY=CLOSED:EXACT_START_RECOVERED_EXISTING_CONTAINERS
+READINESS_RANDOM_ALTERNATE_CLIENT_ID=CLOSED:DYNSEC_REQUIRED_CLIENT_ID_CONTRACT
+BROKER_AUTHENTICATED_READINESS_AS_RUNTIME_HEALTH=CLOSED:PROVEN_SESSION_TAKEOVER_SIDE_EFFECT
+KF147_OLD_PACKAGE_REPLAY=CLOSED:CAPACITY_CONTRACT_AND_BINDING_MUST_BE_FRESH
+KF147_OLD_LIVE_AUTHORIZATION_REPLAY=CLOSED:SUPERSEDED_NONREUSABLE
+PREPARE_REPLAY=CLOSED:ACTIVE_U1_SEMANTICS_PRESERVED
+```
+
+---
+
+## 8. Authorization Ledger
+
+Relevant consumed live recovery authorization:
+
+```text
+AUTHORIZATION=N3W_T1_STORAGE_RECOVERY_S2E_EXACT_MANAGER_HA_CONTAINER_START_RECONCILIATION_20261109_01
+CLAIMED=true
+CONSUMED=true
+RESULT=RUNTIME_RECOVERED_FINAL_READONLY_ACCEPTANCE_CLOSED_PASS_AT_S2G
+REPLAY_PERMITTED=false
+SUPERSEDED_BY=T1_RUNTIME_RECOVERY_CLOSED_PASS
+```
+
+KF-147 prior live authority:
+
+```text
+KF147_PRIOR_LIVE_AUTHORIZATION=SUPERSEDED_NONREUSABLE
+KF147_PRIOR_PACKAGE=SUPERSEDED_NONREUSABLE
+FRESH_LIVE_AUTHORIZATION_REQUIRED_AFTER_NEW_BINDING=true
+```
+
+Current NEXT_1 is source design only:
+
+```text
+PROPOSED_AUTHORIZATION=NOT_APPLICABLE:SOURCE_DESIGN_READONLY
+GRANTED=NOT_REQUIRED
+```
+
+---
+
+## 9. Rollback Authority
+
+```text
+ROLLBACK_AUTHORITY=NOT_APPLICABLE:READONLY_SOURCE_DESIGN_GATE
+```
+
+---
+
+## 10. Next ONE Gate
+
+```text
+NEXT_ONE_GATE=BROKER_READINESS_RUNTIME_SESSION_TAKEOVER_SOURCE_REPAIR_DESIGN
+```
+
+### Purpose
+
+- fresh rebind current branch/main/PR #800 before review;
+- enumerate all production and historical call sites of `n3w-t1-broker-authenticated-readiness`;
+- separate legitimate pre-application startup credential probing from unsafe runtime/post-start probing;
+- define a non-invasive runtime MQTT/HA health oracle that cannot create a second production HA client-ID session;
+- freeze an implementation-ready source/test/CI repair design;
+- do not modify T1 or cross into NEXT_2.
+
+This gate does **not** authorize live repair, service restart, credential/DynSec mutation, KF-147 retry, USB work or merge.
+
+### Inputs
+
+```text
+INPUT_1=tools/n3w_t1_broker_authenticated_readiness.py
+INPUT_2=tools/n3w_t1_clean_reference_r2b.py
+INPUT_3=tools/n3w_t1_f4_activation_host.py
+INPUT_4=infra/n3w-t1/systemd/n3wfc4-services-activation.service
+INPUT_5=tests/tools/test_n3w_t1_broker_authenticated_readiness.py
+INPUT_6=docs/development/N3W_T1_STORAGE_RECOVERY_S2G_RUNTIME_CLOSED_PASS_AND_SOURCE_REPAIR_QUEUE_20261110.md
+INPUT_7=docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md#KF-148
+```
+
+### Operations
+
+```text
+1. fresh rebind main, PR #800, candidate head, Working Context/Current State/Index/KF registry.
+2. independently enumerate readiness helper call sites and classify PRE_APPLICATION versus RUNTIME/POST_START use.
+3. verify DynSec required-client-id constraints before proposing any identity change.
+4. design the runtime health contract around non-invasive socket + exact Broker current-auth event + HA HTTP evidence.
+5. define bounded source/test/workflow change set and regression matrix.
+6. archive the source-repair design and stop before NEXT_2.
+```
+
+### PASS / FAIL / STOP
+
+```text
+PASS_IF=implementation-ready repair design removes runtime session takeover without weakening authenticated startup readiness or DynSec identity binding
+FAIL_IF=design requires weakening service identity/client-id binding or cannot prove a non-invasive runtime oracle
+STOP_BOUNDARY=AFTER_SOURCE_REPAIR_DESIGN_ARCHIVE_BEFORE_NEXT_2
+
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+---
+
+## 11. Hard Allowed / Forbidden Scope
+
+```text
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+```
+
+### ALLOWED
+
+```text
+- GitHub fresh read-only rebind
+- source/test/workflow read-only review
+- source-repair design document
+- Current State/Index/KF documentation alignment
+- bounded documentation commits for NEXT_1 design closure
+```
+
+### FORBIDDEN
+
+```text
+- T1 service start/stop/restart
+- docker start/restart/recreate/delete/prune
+- containerd or Docker daemon restart
+- Broker/DynSec/credential mutation
+- arbitrary alternate HA client ID as a shortcut
+- USB insertion/removal/format/write
+- PREPARE replay
+- CONFIRM_USB_ERASE
+- U2+
+- board access or mutation
+- KF147 live apply
+- merge
+- auto-enter NEXT_2/NEXT_3
+```
+
+```text
+LIVE_RUNTIME_MUTATION=false
+BOUNDED_EVIDENCE_FILESYSTEM_WRITE=false
+BOUNDED_WRITE_SCOPE=GITHUB_DOCS_ONLY
+```
+
+---
+
+## 12. Execution Contract
+
+```text
+EXECUTOR=ChatGPT GitHub connector + source review
+EXECUTION_METHOD=chat-tool
+DIRECT_CODE_SUPPLIED=false
+DSL_COMPILATION_USED=false
+CI_POLL_MAX=3
+CI_PENDING_DIRECT_LINKS_REQUIRED=true
+CI_ALL_GREEN_CONTINUE_REQUIRED_REVIEW=true
+SAME_GATE_LOW_RISK_REPAIR_CONTINUE=true
+```
+
+NEXT_1 is a source-design gate. Do not mutate production source merely to make a speculative design pass. If a later implementation gate is entered, exact-base edit / changed-file allowlist / focused tests / CI rules from Working Context apply.
+
+---
+
+## 13. Expected Closure
+
+```text
+=== BROKER_READINESS_RUNTIME_SESSION_TAKEOVER_SOURCE_REPAIR_DESIGN CLOSURE ===
+
+EXECUTION_ID=
+AUTHORIZATION=NOT_APPLICABLE:SOURCE_DESIGN
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+
+STARTUP_READINESS_CONTRACT=
+RUNTIME_HEALTH_CONTRACT=
+RUNTIME_CALL_SITE_COUNT=
+REPAIR_FILE_ALLOWLIST=
+REGRESSION_TEST_MATRIX=
+DYNSEC_IDENTITY_BINDING_PRESERVED=
+
+LIVE_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+
+SOURCE_REPAIR_DESIGN_RESULT=
+NEXT_ROUTE=CORE_UPDATER_DEPLOYED_ASSET_INTEGRITY_REPAIR
+STOP=true
+
+=== END ===
+```
+
+---
+
+## 14. After PASS / FAIL
+
+```text
+AFTER_PASS_NEXT_STAGE=CORE_UPDATER_DEPLOYED_ASSET_INTEGRITY_REPAIR
+AUTO_EXECUTE_AFTER_PASS=false
+NEW_AUTHORIZATION_REQUIRED=false:SOURCE_REVIEW_ONLY_UNLESS_LIVE_SCOPE_IS_LATER_PROPOSED
+
+AUTO_REPAIR_AFTER_FAIL=false
+AUTO_RETRY_AFTER_FAIL=false
+STOP_AND_REVIEW_AFTER_FAIL=true
+```
+
+Queued after NEXT_2:
+
+```text
+NEXT_3=T1_STORAGE_HEADROOM_AND_IMAGE_LIFECYCLE_CLOSURE
+THEN=KF147 fresh rebind -> fresh capacity gate -> new package/manifest binding -> live retry
+```
+
+---
+
+## 15. KNOWN_FAILURES Updates
+
+```text
+KNOWN_FAILURES_UPDATE_REQUIRED=true
+EXISTING_KF_GUARD_USED=KF-148,KF-149,KF-150
+NEW_KF_REQUIRED=false
+```
+
+Current new records:
+
+```text
+KF-148=SOURCE_REPAIR_DESIGN_REQUIRED:runtime authenticated-readiness steals live HA session
+KF-149=DEPLOYMENT_ASSET_INTEGRITY_REPAIR_REQUIRED:deployed Core Updater CLI absent
+KF-150=RUNTIME_RECOVERED_SOURCE_CLOSURE_PENDING:ENOSPC/headroom/image-lifecycle
+```
+
+---
+
+## 16. New Chat Start Prompt
+
+默认读取集：
+
+```text
+1. 本 handoff
+2. docs/development/N3W_PROJECT_WORKING_CONTEXT.md
+3. docs/development/N3W_CURRENT_STATE.md
+4. docs/development/N3W_CURRENT_STATE_INDEX.md
+5. docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md
+6. docs/development/N3W_T1_STORAGE_RECOVERY_S2G_RUNTIME_CLOSED_PASS_AND_SOURCE_REPAIR_QUEUE_20261110.md
+```
+
+建议启动文本：
+
+```text
+阅读《docs/development/N3W_T1_RUNTIME_RECOVERY_CLOSED_TO_BROKER_READINESS_SOURCE_REPAIR_DESIGN_NEW_CHAT_HANDOFF_V1.0_20261110.md》。
+
+同时读取：
+- docs/development/N3W_PROJECT_WORKING_CONTEXT.md
+- docs/development/N3W_CURRENT_STATE.md
+- docs/development/N3W_CURRENT_STATE_INDEX.md
+- docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md
+- docs/development/N3W_T1_STORAGE_RECOVERY_S2G_RUNTIME_CLOSED_PASS_AND_SOURCE_REPAIR_QUEUE_20261110.md
+
+继续“温室环境监测系统（ESP32-C6）”项目 N3-W。
+
+先 fresh rebind：
+- repository main
+- PR #800
+- candidate branch
+- current state / index / Working Context / KF registry
+
+然后只进入：
+
+NEXT_ONE_GATE=BROKER_READINESS_RUNTIME_SESSION_TAKEOVER_SOURCE_REPAIR_DESIGN
+
+后续顺序已经冻结，但不要自动跨 gate：
+NEXT_2=CORE_UPDATER_DEPLOYED_ASSET_INTEGRITY_REPAIR
+NEXT_3=T1_STORAGE_HEADROOM_AND_IMAGE_LIFECYCLE_CLOSURE
+THEN=KF147 fresh rebind -> fresh capacity gate -> new package/manifest binding -> live retry
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+
+不要重放任何 consumed/superseded authorization。
+不要重新进入已 CLOSED_PASS 的 T1 runtime recovery。
+不要在 HA 运行时调用 n3w-t1-broker-authenticated-readiness 作为健康探针。
+不要使用 broad Docker prune。
+不要自动 merge。
+```
+
+如需 private T1 locator/host-key，只从用户私有上下文或 fresh operator input 恢复，不复制到公开 GitHub。
+
+---
+
+## 17. Final Frozen State
+
+```text
+CURRENT_STAGE=T1_RUNTIME_RECOVERY_CLOSED_SOURCE_CLOSURE_QUEUE
+CURRENT_STOP_POINT=AFTER_S2G_CLOSED_PASS_BEFORE_NEXT_1_SOURCE_DESIGN
+CURRENT_BLOCKER=KF-148,KF-149,KF-150
+LIVE_SYSTEM_STATE=BROKER_MANAGER_HOMEASSISTANT_RUNNING_AND_MQTT_HTTP_HEALTH_PROVEN
+NEXT_ONE_GATE=BROKER_READINESS_RUNTIME_SESSION_TAKEOVER_SOURCE_REPAIR_DESIGN
+
+TEAM_SHARED_WORKSPACE=GITHUB
+IMPORTANT_CHAT_ONLY_ARTIFACT_COUNT=0
+TEAM_SHARE_COMPLETENESS=PASS
+
+PROJECT_WORKING_CONTEXT_VERSION=4.5
+HANDOFF_TEMPLATE_VERSION=1.3
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+```
+
+No important public engineering artifact remains only in chat. Private locator/credential evidence is intentionally excluded from GitHub.
+
+---
+
+## 18. Handoff Compliance Audit
+
+```text
+=== HANDOFF COMPLIANCE AUDIT ===
+
+HANDOFF_TEMPLATE_VERSION=1.3
+PROJECT_WORKING_CONTEXT_VERSION=4.5
+
+PROJECT_WORKING_CONTEXT_REFERENCED=PASS
+LONG_TERM_RULE_DUPLICATION_MINIMIZED=PASS
+STAGE_SPECIFIC_OVERRIDES_EXPLICIT=PASS
+PRIVATE_CONTEXT_EXCLUDED_FROM_PUBLIC_HANDOFF=PASS
+
+PRODUCT_NORTH_STAR_PRESENT=PASS
+FROZEN_AUTHORITIES_COMPLETE=PASS
+CURRENT_LIVE_BASELINE_COMPLETE=PASS
+PROVEN_FACTS_SEPARATED_FROM_INFERENCE=PASS
+CURRENT_BLOCKERS_EXPLICIT=PASS
+CLOSED_ROUTES_EXPLICIT=PASS
+
+AUTHORIZATION_LEDGER_COMPLETE=PASS
+CONSUMED_AUTH_REPLAY_GUARD=PASS
+ROLLBACK_AUTHORITY_EXPLICIT=PASS
+
+NEXT_ONE_GATE_EXPLICIT=PASS
+NEXT_GATE_SCOPE_BOUNDED=PASS
+ALLOWED_FORBIDDEN_SCOPE_EXPLICIT=PASS
+EXECUTION_CONTRACT_SELF_CONTAINED=PASS
+CI_CONTINUATION_HARD_RULES_PRESENT=PASS
+EXPECTED_CLOSURE_PRESENT=PASS
+AFTER_PASS_DOES_NOT_AUTO_EXECUTE=PASS
+
+KNOWN_FAILURES_UPDATE_CLASSIFIED=PASS
+NEW_CHAT_START_PROMPT_PRESENT=PASS
+TEAM_WORKSPACE_STATUS_PRESENT=PASS
+FINAL_FROZEN_STATE_PRESENT=PASS
+
+HANDOFF_STATE_COMPLETENESS=PASS
+HANDOFF_READY_FOR_NEW_CHAT=true
+
+=== END ===
+```

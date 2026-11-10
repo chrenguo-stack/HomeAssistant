@@ -38,9 +38,17 @@ class Provider:
 class Runtime:
     def __init__(self) -> None:
         self.phase = "DISCOVERED"
+        self.usb_model: str | None = None
+        self.usb_capacity: int | None = None
+        self.usb_confirmation_required = False
 
     def get_homeassistant_ota_runtime_state(self) -> OtaRuntimeSnapshot:
-        return OtaRuntimeSnapshot(phase=self.phase)
+        return OtaRuntimeSnapshot(
+            phase=self.phase,
+            usb_candidate_model=self.usb_model,
+            usb_candidate_capacity_bytes=self.usb_capacity,
+            usb_confirmation_required=self.usb_confirmation_required,
+        )
 
 
 class Sink:
@@ -150,7 +158,7 @@ def test_mqtt_prepare_install_status_preserve_two_step_contract(client_class) ->
         None,
         mqtt_message({**base, "action": "INSTALL"}),
     )
-    assert [intent.action for intent in sink.intents] == ["PREPARE", "INSTALL"]
+    assert [intent.action for intent in sink.intents] == ["PREPARE"]
 
 
 @patch("greenhouse_manager.runtime.mqtt_service.mqtt.Client")
@@ -213,3 +221,50 @@ def test_mqtt_control_rejects_retained_or_wrong_qos_command(client_class) -> Non
     )
 
     assert sink.intents == []
+
+
+@patch("greenhouse_manager.runtime.mqtt_service.mqtt.Client")
+def test_mqtt_usb_erase_confirmation_preserves_narrow_intent(client_class) -> None:
+    client = client_class.return_value
+    client.publish.return_value = Mock(rc=0)
+    runtime = Runtime()
+    runtime.phase = "USB_REQUIRED_CONFIRMATION"
+    runtime.usb_model = "Synthetic USB"
+    runtime.usb_capacity = 16 * 1024**3
+    runtime.usb_confirmation_required = True
+    sink = Sink()
+    ota = T1OtaManager(
+        installed_version="2026.10.0",
+        manifest_provider=Provider(),
+        intent_sink=sink,
+        runtime_state_provider=runtime,
+    )
+    service = ManagerMqttService(
+        Settings(system_id="system-001"),
+        ota_manager=ota,
+    )
+    base = {"target_release_id": "homeassistant-2026.10.4"}
+
+    service._on_message(
+        client,
+        None,
+        mqtt_message({**base, "action": "CONFIRM_USB_ERASE"}),
+    )
+    assert [intent.action for intent in sink.intents] == [
+        "CONFIRM_USB_ERASE"
+    ]
+
+    service._on_message(
+        client,
+        None,
+        mqtt_message(
+            {
+                **base,
+                "action": "CONFIRM_USB_ERASE",
+                "block_device": "/dev/sdz",
+            }
+        ),
+    )
+    assert [intent.action for intent in sink.intents] == [
+        "CONFIRM_USB_ERASE"
+    ]

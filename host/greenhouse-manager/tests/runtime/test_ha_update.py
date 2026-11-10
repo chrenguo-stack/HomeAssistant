@@ -4,6 +4,9 @@ import json
 from pathlib import Path
 
 from greenhouse_manager.runtime.ha_update import HomeAssistantUpdateSurface
+from greenhouse_manager.runtime.service_identity_plan import (
+    build_service_identity_plan,
+)
 from greenhouse_manager.runtime.t1_ota_manager import (
     OtaRuntimeSnapshot,
     T1OtaManager,
@@ -34,14 +37,43 @@ class Provider:
 
 
 class Runtime:
-    def __init__(self, phase: str, progress: int | None = None) -> None:
+    def __init__(
+        self,
+        phase: str,
+        progress: int | None = None,
+        *,
+        installed_version: str | None = None,
+        usb_model: str | None = None,
+        usb_capacity: int | None = None,
+        usb_confirmation_required: bool = False,
+        usb_required_bytes: int | None = None,
+        usb_recommended_nominal_gb: int | None = None,
+        usb_capacity_check_state: str = "NOT_CALCULATED",
+        user_message_code: str | None = None,
+    ) -> None:
         self.phase = phase
         self.progress = progress
+        self.installed_version = installed_version
+        self.usb_model = usb_model
+        self.usb_capacity = usb_capacity
+        self.usb_confirmation_required = usb_confirmation_required
+        self.usb_required_bytes = usb_required_bytes
+        self.usb_recommended_nominal_gb = usb_recommended_nominal_gb
+        self.usb_capacity_check_state = usb_capacity_check_state
+        self.user_message_code = user_message_code
 
     def get_homeassistant_ota_runtime_state(self) -> OtaRuntimeSnapshot:
         return OtaRuntimeSnapshot(
             phase=self.phase,
             progress_percent=self.progress,
+            installed_version=self.installed_version,
+            usb_candidate_model=self.usb_model,
+            usb_candidate_capacity_bytes=self.usb_capacity,
+            usb_confirmation_required=self.usb_confirmation_required,
+            usb_required_bytes=self.usb_required_bytes,
+            usb_recommended_nominal_gb=self.usb_recommended_nominal_gb,
+            usb_capacity_check_state=self.usb_capacity_check_state,
+            user_message_code=self.user_message_code,
         )
 
 
@@ -82,7 +114,7 @@ def test_update_and_prepare_discovery_are_separate_before_prepare() -> None:
     assert prepare.retain is True
 
 
-def test_install_command_appears_only_when_ready_to_install() -> None:
+def test_r7a_ready_to_install_is_status_only_without_install_command() -> None:
     surface = HomeAssistantUpdateSurface(system_id="system-001")
     projected = projection("READY_TO_INSTALL")
 
@@ -95,10 +127,8 @@ def test_install_command_appears_only_when_ready_to_install() -> None:
 
     update = messages["homeassistant/update/n3w_t1_homeassistant/config"]
     prepare = messages["homeassistant/button/n3w_t1_homeassistant_prepare/config"]
-    assert update.payload["command_topic"] == (
-        "gh/v1/system-001/control/t1/homeassistant/ota"
-    )
-    assert '"action":"INSTALL"' in update.payload["payload_install"]
+    assert "command_topic" not in update.payload
+    assert "payload_install" not in update.payload
     assert prepare.payload == b""
 
 
@@ -139,6 +169,13 @@ def test_state_and_attributes_expose_only_public_projection() -> None:
         "ready_to_install": False,
         "in_progress": True,
         "error_code_or_null": None,
+        "usb_candidate_model_or_null": None,
+        "usb_candidate_capacity_bytes_or_null": None,
+        "usb_confirmation_required": False,
+        "usb_required_bytes_or_null": None,
+        "usb_recommended_nominal_gb_or_null": None,
+        "usb_capacity_check_state": "NOT_CALCULATED",
+        "user_message_code_or_null": None,
     }
     encoded = repr((state, attributes))
     for forbidden in (
@@ -150,3 +187,180 @@ def test_state_and_attributes_expose_only_public_projection() -> None:
         "target_archive_sha256",
     ):
         assert forbidden not in encoded
+
+
+def test_capacity_attributes_are_public_but_private_device_identity_is_not() -> None:
+    surface = HomeAssistantUpdateSurface(system_id="system-001")
+    runtime = Runtime(
+        "USB_REQUIRED_CONFIRMATION",
+        installed_version="2026.10.0",
+        usb_model="Synthetic USB",
+        usb_capacity=32 * 1024**3,
+        usb_confirmation_required=True,
+        usb_required_bytes=5 * 1024**3,
+        usb_recommended_nominal_gb=32,
+        usb_capacity_check_state="CANDIDATE_READY_FOR_CONFIRMATION",
+        user_message_code="USB_CONFIRM_ERASE",
+    )
+    ota = T1OtaManager(
+        installed_version="2026.10.0",
+        manifest_provider=Provider(),
+        runtime_state_provider=runtime,
+    )
+    projected = ota.project()
+    attributes = by_topic(
+        surface.messages(
+            manifest=projected.manifest,
+            status=projected.status,
+        )
+    )["gh/v1/system-001/state/t1/homeassistant/ota/attributes"].payload
+
+    assert attributes["usb_required_bytes_or_null"] == 5 * 1024**3
+    assert attributes["usb_recommended_nominal_gb_or_null"] == 32
+    assert (
+        attributes["usb_capacity_check_state"]
+        == "CANDIDATE_READY_FOR_CONFIRMATION"
+    )
+    assert attributes["user_message_code_or_null"] == "USB_CONFIRM_ERASE"
+
+    encoded = json.dumps(attributes, ensure_ascii=False).lower()
+    for forbidden in (
+        "public_fingerprint",
+        "usb_serial",
+        "wwn",
+        "/dev/",
+        "/var/",
+        "mount_path",
+        "backup_path",
+    ):
+        assert forbidden not in encoded
+
+
+def test_usb_erase_confirmation_button_names_exact_public_candidate() -> None:
+    surface = HomeAssistantUpdateSurface(system_id="system-001")
+    runtime = Runtime(
+        "USB_REQUIRED_CONFIRMATION",
+        installed_version="2026.10.0",
+        usb_model="Kingston DataTraveler",
+        usb_capacity=16 * 1024**3,
+        usb_confirmation_required=True,
+    )
+    ota = T1OtaManager(
+        installed_version="2026.10.0",
+        manifest_provider=Provider(),
+        runtime_state_provider=runtime,
+    )
+    projected = ota.project()
+
+    messages = by_topic(
+        surface.messages(
+            manifest=projected.manifest,
+            status=projected.status,
+        )
+    )
+    prepare = messages[
+        "homeassistant/button/n3w_t1_homeassistant_prepare/config"
+    ]
+    confirm = messages[
+        "homeassistant/button/n3w_t1_homeassistant_confirm_usb/config"
+    ]
+
+    assert prepare.payload == b""
+    assert "Kingston DataTraveler" in confirm.payload["name"]
+    assert "16.0 GiB" in confirm.payload["name"]
+    assert '"action":"CONFIRM_USB_ERASE"' in confirm.payload["payload_press"]
+    encoded = json.dumps(confirm.payload, ensure_ascii=False)
+    for forbidden in ("/dev/", "mount", "docker", "authorization", "serial"):
+        assert forbidden not in encoded.lower()
+
+
+def test_usb_confirmation_button_is_tombstoned_while_waiting_for_media() -> None:
+    surface = HomeAssistantUpdateSurface(system_id="system-001")
+    projected = projection("USB_REQUIRED")
+    messages = by_topic(
+        surface.messages(
+            manifest=projected.manifest,
+            status=projected.status,
+        )
+    )
+
+    assert messages[
+        "homeassistant/button/n3w_t1_homeassistant_prepare/config"
+    ].payload == b""
+    assert messages[
+        "homeassistant/button/n3w_t1_homeassistant_confirm_usb/config"
+    ].payload == b""
+
+
+def test_ota_discovery_topics_are_authorized_by_manager_service_identity() -> None:
+    surface = HomeAssistantUpdateSurface(system_id="system-001")
+    projected = projection("DISCOVERED")
+    messages = surface.messages(
+        manifest=projected.manifest,
+        status=projected.status,
+    )
+
+    discovery_topics = {
+        message.topic
+        for message in messages
+        if message.topic.startswith("homeassistant/")
+    }
+    plan = build_service_identity_plan(
+        system_id="system-001",
+        service="manager",
+        generation=1,
+    )
+    allowed_publish_topics = {
+        acl.topic
+        for acl in plan.acls
+        if acl.allow and acl.acl_type == "publishClientSend"
+    }
+
+    assert discovery_topics == {
+        "homeassistant/update/n3w_t1_homeassistant/config",
+        "homeassistant/button/n3w_t1_homeassistant_prepare/config",
+        "homeassistant/button/n3w_t1_homeassistant_confirm_usb/config",
+    }
+    assert discovery_topics <= allowed_publish_topics
+    assert "homeassistant/#" not in allowed_publish_topics
+
+
+def test_prepare_button_command_topic_has_complete_dynsec_path() -> None:
+    surface = HomeAssistantUpdateSurface(system_id="system-001")
+    projected = projection("DISCOVERED")
+    messages = by_topic(
+        surface.messages(
+            manifest=projected.manifest,
+            status=projected.status,
+        )
+    )
+    control_topic = messages[
+        "homeassistant/button/n3w_t1_homeassistant_prepare/config"
+    ].payload["command_topic"]
+
+    homeassistant_plan = build_service_identity_plan(
+        system_id="system-001",
+        service="homeassistant",
+        generation=1,
+    )
+    manager_plan = build_service_identity_plan(
+        system_id="system-001",
+        service="manager",
+        generation=1,
+    )
+
+    ha_allowed = {
+        (acl.acl_type, acl.topic)
+        for acl in homeassistant_plan.acls
+        if acl.allow
+    }
+    manager_allowed = {
+        (acl.acl_type, acl.topic)
+        for acl in manager_plan.acls
+        if acl.allow
+    }
+
+    assert ("publishClientSend", control_topic) in ha_allowed
+    assert ("subscribePattern", control_topic) in manager_allowed
+    assert ("publishClientReceive", control_topic) in manager_allowed
+    assert ("unsubscribePattern", control_topic) in manager_allowed

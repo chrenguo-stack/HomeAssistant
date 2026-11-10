@@ -4,8 +4,14 @@ on:
   pull_request:
     paths:
       - "infra/n3w-t1/upgrades/homeassistant-2026.10.4.json"
+      - "infra/n3w-t1/upgrades/homeassistant-2026.10.4-approved.json"
+      - "infra/n3w-t1/upgrades/homeassistant-2026.10.4-host-release-policy.json"
+      - "infra/n3w-t1/upgrades/homeassistant-2026.10.0-predecessor-recovery-qualification.json"
       - "infra/n3w-t1/upgrades/homeassistant-2026.10.4-storage-policy.json"
       - "infra/n3w-t1/upgrades/homeassistant-2026.10.4-compatibility-review.json"
+      - "infra/n3w-t1/systemd/n3w-t1-ha-ota.service"
+      - "infra/n3w-t1/systemd/n3wfc4-services-activation.ha-ota.conf"
+      - "infra/n3w-t1/production/docker-compose.ha-ota.yml"
       - "tools/n3w_t1_core_updater_v2.py"
       - "tools/n3w_t1_core_updater_v2_common.py"
       - "tools/n3w_t1_core_updater_v2_state.py"
@@ -18,6 +24,16 @@ on:
       - "tests/tools/test_n3w_t1_core_updater_ha_target_binding.py"
       - "tests/tools/test_n3w_t1_core_updater_ha_usb_r1.py"
       - "tests/tools/test_n3w_t1_core_updater_ha_usb_r2.py"
+      - "tests/tools/test_n3w_t1_core_updater_ha_prepare_r7a.py"
+      - "tests/tools/test_n3w_t1_core_updater_ha_prepare_host_r7a.py"
+      - "tests/tools/test_n3w_t1_core_updater_ha_predecessor_qualification_record.py"
+      - "tests/tools/test_n3w_t1_core_updater_ha_capacity_kf147.py"
+      - "tests/tools/test_n3w_t1_r7a_host_a1_executor.py"
+      - "tools/execution_packages/n3w/r7a/host_a1_live_activation/**"
+      - "tools/execution_packages/n3w/r7a/kf147_policy_source_live_repair/**"
+      - "tests/tools/test_n3w_t1_kf147_policy_source_live_executor.py"
+      - "tools/execution_packages/n3w/r7a/kf147_usb_u2_readonly_baseline/**"
+      - "tests/tools/test_n3w_t1_kf147_usb_u2_readonly_baseline_executor.py"
       - "tests/tools/test_n3w_t1_core_updater_ha_p3_simulation.py"
       - "tests/tools/test_n3w_t1_core_updater_ha_p4_readonly_executor.py"
       - "tests/tools/test_n3w_t1_core_updater_ha_p5_live_apply.py"
@@ -75,13 +91,20 @@ jobs:
             tools/n3w_t1_core_updater_components.py \
             tools/n3w_t1_core_updater_host.py \
             tools/n3w_t1_core_updater_a1_policy.py \
+            tools/n3w_t1_core_updater_ha_capacity.py \
             tools/n3w_t1_core_updater_ha_usb.py \
             tools/n3w_t1_core_updater_ha_usb_state.py \
             tools/n3w_t1_core_updater_ha_usb_media.py \
             tools/n3w_t1_core_updater_ha_backup.py \
             tools/n3w_t1_core_updater_ha_recovery.py \
+            tools/n3w_t1_core_updater_ha_recovery_encoding.py \
+            tools/n3w_t1_core_updater_ha_prepare.py \
+            tools/n3w_t1_core_updater_ha_prepare_host.py \
+            tools/n3w_t1_core_updater_ha_daemon.py \
             tools/n3w_t1_core_updater_ha_ipc.py \
             tools/n3w_t1_portable_image_identity.py \
+            tools/execution_packages/n3w/r7a/kf147_policy_source_live_repair/executor.py \
+            tools/execution_packages/n3w/r7a/kf147_usb_u2_readonly_baseline/executor.py \
             tools/execution_packages/n3w/u2/ha_p4_readonly_premutation_baseline/executor.py \
             tools/execution_packages/n3w/u2/ha_p4_readonly_premutation_baseline/remote_probe.py \
             tools/execution_packages/n3w/u2/ha_p5_live_apply/executor.py \
@@ -96,8 +119,15 @@ jobs:
           python -m pytest -q \
             tests/tools/test_n3w_t1_core_updater_a2.py \
             tests/tools/test_n3w_t1_core_updater_ha_target_binding.py \
+            tests/tools/test_n3w_t1_core_updater_ha_capacity_kf147.py \
             tests/tools/test_n3w_t1_core_updater_ha_usb_r1.py \
             tests/tools/test_n3w_t1_core_updater_ha_usb_r2.py \
+            tests/tools/test_n3w_t1_core_updater_ha_prepare_r7a.py \
+            tests/tools/test_n3w_t1_core_updater_ha_prepare_host_r7a.py \
+            tests/tools/test_n3w_t1_core_updater_ha_predecessor_qualification_record.py \
+            tests/tools/test_n3w_t1_r7a_host_a1_executor.py \
+            tests/tools/test_n3w_t1_kf147_policy_source_live_executor.py \
+            tests/tools/test_n3w_t1_kf147_usb_u2_readonly_baseline_executor.py \
             tests/tools/test_n3w_t1_core_updater_ha_ipc.py \
             tests/tools/test_n3w_t1_core_updater_ha_p3_simulation.py \
             tests/tools/test_n3w_t1_core_updater_ha_p4_readonly_executor.py \

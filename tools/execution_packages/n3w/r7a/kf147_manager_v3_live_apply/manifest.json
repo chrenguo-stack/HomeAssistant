@@ -1,0 +1,81 @@
+{
+  "schema": "gh.n3w-t1-kf147-manager-v3-live-executor/1",
+  "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_R2_20261110_01",
+  "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_R2_20261110_01",
+  "confirmation": "EXECUTE KF147 MANAGER IPC V3 IMAGE ONLY LIVE APPLY R2: YES",
+  "live_execution_authorized": false,
+  "package_authority": {
+    "workflow_run_id": 42761736604,
+    "artifact_id": 13738561063,
+    "artifact_name": "n3w-kf147-manager-v3-live-44e7d7472714-20261110",
+    "artifact_digest": "sha256:69af4054e993398c25bd7788773c76cc80f54524787d1f5972a894adef22bcfc"
+  },
+  "target": {
+    "expected_predecessor_manager": "local/greenhouse-manager:fresh-7807271e4c48",
+    "manager_image": "local/greenhouse-manager:fresh-44e7d7472714",
+    "manager_image_id": "sha256:fd5104d610645347fe47137dbb24121851fa8a48530df3e3c905704607c5e3d4",
+    "manager_tar_sha256": "9316817590c4fe74498629d0451a4897c2e11bef7bc4b423b66e47bb846099c5",
+    "manager_tar_size_bytes": 62957568,
+    "predecessor_image_id": "sha256:7e3f09ed47010a18de215faa426113b7faba4e220b41bb9dcafd8ee1d4acf20b",
+    "homeassistant_image": "local/n3w-homeassistant:2026.10.0-0c73235a",
+    "homeassistant_image_id": "sha256:c261fa53f30508951833492ba2a19af6cfbb6aa8f2806b531d8f5c6599265306",
+    "broker_image": "local/n3w-mosquitto:2.1.2-3184566d",
+    "broker_image_id": "sha256:df265f1e2b2e3dc35d5eb194e698c598e01c5ebca370da307b34332f9bf0a563"
+  },
+  "execution_contract": {
+    "manager_image_mutation": true,
+    "application_owner_restart_required": true,
+    "homeassistant_image_mutation": false,
+    "homeassistant_container_recreate": false,
+    "broker_mutation": false,
+    "host_policy_mutation": false,
+    "host_source_mutation": false,
+    "u1_transaction_reset": false,
+    "prepare_replay": false,
+    "confirm_usb_erase": false,
+    "usb_mutation": false,
+    "u2_plus": false,
+    "automatic_retry": false,
+    "remote_local_rollback": true,
+    "board_access": false,
+    "merge": false
+  },
+  "stop_boundary": "STOP_AFTER_MANAGER_V3_CAPABILITY_AND_U1_CONTINUITY_VALIDATION",
+  "authorization_state": {
+    "granted": true,
+    "claimed": true,
+    "consumed": true,
+    "replay_permitted": false
+  },
+  "binding_state": "FRESH_ARTIFACT_BOUND",
+  "predecessor_authorization": {
+    "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261110_01",
+    "granted": true,
+    "claimed": true,
+    "consumed": true,
+    "replay_permitted": false,
+    "result": "STOP_PRE_SERVICE_MUTATION_LOADED_TARGET_IDENTITY_INVALID"
+  },
+  "repair": {
+    "class": "KF-106_CROSS_STORE_IMAGE_IDENTITY_RECURRENCE",
+    "portable_identity_authority": "tools/n3w_t1_portable_image_identity.py",
+    "fresh_readonly_preflight_required": true,
+    "new_live_authorization_required": true
+  },
+  "execution_result": {
+    "status": "PASS",
+    "execution_id": "N3W_KF147_MANAGER_V3_R2_LIVE_20261110_01",
+    "manager_image": "local/greenhouse-manager:fresh-44e7d7472714",
+    "manager_runtime_image_id": "sha256:1471828ab07cf9b71c01a6e78994711a5954f0a178b8be087a28bb65a967c7d2",
+    "manager_ipc_v3_support": true,
+    "homeassistant_image_mutation": false,
+    "homeassistant_container_recreated": false,
+    "broker_mutation": false,
+    "u1_transaction_preserved": true,
+    "prepare_candidate_preserved": true,
+    "rollback_required": false,
+    "usb_mutation": false,
+    "u2_plus": false,
+    "merge": false
+  }
+}

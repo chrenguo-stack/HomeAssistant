@@ -1,0 +1,235 @@
+name: N3W T1 Home Assistant predecessor recovery qualification CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/n3w-t1-homeassistant-predecessor-recovery-qualification-ci.yml"
+      - "tools/n3w_t1_core_updater_ha_recovery_encoding.py"
+      - "tools/n3w_t1_portable_image_identity.py"
+      - "tests/tools/test_n3w_t1_core_updater_ha_recovery_encoding.py"
+      - "tests/tools/test_n3w_t1_portable_image_identity.py"
+      - "docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_PREDECESSOR_RECOVERY_RELEASE_QUALIFICATION_SOURCE_DESIGN_20261109.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: n3w-t1-ha-predecessor-recovery-qualification-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      SOURCE_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      PYTHONPATH: tools
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_HEAD }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate qualification source contract
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_HEAD"
+          python -m pip install "pytest>=8,<9"
+          python -m py_compile tools/n3w_t1_core_updater_ha_recovery_encoding.py
+          PYTHONPATH=tools python -m pytest -q \
+            tests/tools/test_n3w_t1_core_updater_ha_recovery_encoding.py \
+            tests/tools/test_n3w_t1_portable_image_identity.py
+
+      - name: Materialize frozen predecessor image
+        run: |
+          set -euo pipefail
+          readarray -t values < <(PYTHONPATH=tools python - <<'PY'
+          import n3w_t1_core_updater_ha_recovery_encoding as e
+          print(e.PREDECESSOR_UPSTREAM_REPOSITORY)
+          print(e.PREDECESSOR_UPSTREAM_TAG)
+          print(e.PREDECESSOR_ARM64_MANIFEST_DIGEST)
+          print(e.PREDECESSOR_IMAGE_REF)
+          print(e.PREDECESSOR_IMAGE_ID)
+          PY
+          )
+          UPSTREAM_REPOSITORY="${values[0]}"
+          MANIFEST_DIGEST="${values[2]}"
+          IMAGE_REF="${values[3]}"
+          EXPECTED_IMAGE_ID="${values[4]}"
+          docker pull --platform linux/arm64 "$UPSTREAM_REPOSITORY@$MANIFEST_DIGEST"
+          docker tag "$UPSTREAM_REPOSITORY@$MANIFEST_DIGEST" "$IMAGE_REF"
+          test "$(docker image inspect "$IMAGE_REF" --format '{{.Id}}')" = "$EXPECTED_IMAGE_ID"
+
+      - name: Generate exact predecessor recovery twice
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/qualification"
+          PYTHONPATH=tools python - "$RUNNER_TEMP/qualification" <<'PY'
+          import sys
+          from pathlib import Path
+
+          import n3w_t1_core_updater_ha_recovery_encoding as e
+
+          root = Path(sys.argv[1])
+          archives = (
+              root / "predecessor-recovery-1.tar.gz",
+              root / "predecessor-recovery-2.tar.gz",
+          )
+          results = tuple(
+              e.export_predecessor_archive(archive)
+              for archive in archives
+          )
+          sizes = tuple(size for size, _sha in results)
+          shas = tuple(sha for _size, sha in results)
+          measured = e.qualification_measured_export_bytes(sizes)
+
+          for index, (size, sha) in enumerate(zip(sizes, shas), start=1):
+              print(f"RECOVERY_SAMPLE_{index}_SIZE_BYTES={size}")
+              print(f"RECOVERY_SAMPLE_{index}_SHA256={sha}")
+
+          print(f"MEASURED_EXPORT_BYTES={measured}")
+          print(
+              "PREDECESSOR_RECOVERY_BUDGET_BYTES="
+              f"{e.predecessor_recovery_budget_bytes(measured)}"
+          )
+          PY
+
+      - name: Verify both portable identities and Docker load compatibility
+        run: |
+          set -euo pipefail
+          PYTHONPATH=tools python - "$RUNNER_TEMP/qualification" "$SOURCE_HEAD" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          import n3w_t1_core_updater_ha_recovery_encoding as e
+          import n3w_t1_portable_image_identity as portable
+
+          root = Path(sys.argv[1])
+          source_head = sys.argv[2]
+          archives = (
+              root / "predecessor-recovery-1.tar.gz",
+              root / "predecessor-recovery-2.tar.gz",
+          )
+
+          identities = []
+          identity_paths = []
+          for index, archive in enumerate(archives, start=1):
+              identity = portable.parse_image_archive(
+                  archive,
+                  expected_tag=e.PREDECESSOR_IMAGE_REF,
+                  platform_os="linux",
+                  platform_architecture="arm64",
+              )
+              identity_doc = identity.to_dict()
+              identity_path = root / f"portable-image-identity-{index}.json"
+              identity_path.write_text(
+                  json.dumps(identity_doc, sort_keys=True, indent=2) + "\n",
+                  encoding="utf-8",
+              )
+              identities.append(identity)
+              identity_paths.append(identity_path)
+
+          def stable_identity(identity: portable.PortableImageIdentity) -> dict:
+              document = identity.to_dict()
+              document.pop("archive_sha256")
+              document.pop("archive_size_bytes")
+              return document
+
+          if stable_identity(identities[0]) != stable_identity(identities[1]):
+              raise RuntimeError("qualification_portable_identity_drift")
+
+          sizes = tuple(archive.stat().st_size for archive in archives)
+          measured = e.qualification_measured_export_bytes(sizes)
+          selected_index = max(range(len(archives)), key=lambda index: sizes[index])
+          selected_archive = archives[selected_index]
+          selected_identity_path = identity_paths[selected_index]
+
+          evidence = e.QualificationEvidence(
+              source_head=source_head,
+              measured_export_bytes=measured,
+              archive_sha256=e.sha256_file(selected_archive),
+              portable_identity_sha256=e.sha256_file(selected_identity_path),
+          ).to_dict()
+          evidence["measurement"]["method"] = "max_of_two_exact_product_exports"
+          evidence["measurement"]["selected_sample_index"] = selected_index + 1
+          evidence["measurement"]["samples"] = [
+              {
+                  "sample_index": index,
+                  "archive_size_bytes": archive.stat().st_size,
+                  "archive_sha256": e.sha256_file(archive),
+                  "portable_identity_sha256": e.sha256_file(identity_path),
+              }
+              for index, (archive, identity_path) in enumerate(
+                  zip(archives, identity_paths),
+                  start=1,
+              )
+          ]
+          evidence["qualification"] = {
+              "exact_product_export_sample_count": 2,
+              "portable_identity_equivalent": True,
+              "docker_load_smoke_required_for_each_sample": True,
+          }
+
+          evidence_path = root / "predecessor-recovery-qualification.json"
+          evidence_path.write_text(
+              json.dumps(evidence, sort_keys=True, indent=2) + "\n",
+              encoding="utf-8",
+          )
+
+          print(f"EVIDENCE_CANONICAL_SHA256={e.canonical_sha256(evidence)}")
+          print(f"MEASURED_EXPORT_BYTES={measured}")
+          print(
+              "PREDECESSOR_RECOVERY_BUDGET_BYTES="
+              f"{evidence['budget']['predecessor_recovery_budget_bytes']}"
+          )
+          PY
+
+          IMAGE_REF="$(PYTHONPATH=tools python - <<'PY'
+          import n3w_t1_core_updater_ha_recovery_encoding as e
+          print(e.PREDECESSOR_IMAGE_REF)
+          PY
+          )"
+          EXPECTED_IMAGE_ID="$(PYTHONPATH=tools python - <<'PY'
+          import n3w_t1_core_updater_ha_recovery_encoding as e
+          print(e.PREDECESSOR_IMAGE_ID)
+          PY
+          )"
+
+          for SAMPLE in 1 2; do
+            docker image rm -f "$IMAGE_REF" >/dev/null 2>&1 || true
+            docker load -i "$RUNNER_TEMP/qualification/predecessor-recovery-$SAMPLE.tar.gz"
+            test "$(docker image inspect "$IMAGE_REF" --format '{{.Id}}')" = "$EXPECTED_IMAGE_ID"
+          done
+
+          python - "$RUNNER_TEMP/qualification/predecessor-recovery-qualification.json" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          path = Path(sys.argv[1])
+          document = json.loads(path.read_text())
+          document["qualification"]["docker_load_smoke_pass_for_each_sample"] = True
+          path.write_text(
+              json.dumps(document, sort_keys=True, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          echo "PREDECESSOR_RECOVERY_QUALIFICATION=PASS"
+
+      - name: Publish bounded qualification evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: n3w-ha-predecessor-recovery-qualification-${{ env.SOURCE_HEAD }}
+          path: |
+            ${{ runner.temp }}/qualification/predecessor-recovery-qualification.json
+            ${{ runner.temp }}/qualification/portable-image-identity-1.json
+            ${{ runner.temp }}/qualification/portable-image-identity-2.json
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0

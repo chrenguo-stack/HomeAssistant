@@ -12,6 +12,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 import n3w_t1_core_updater_a1_policy as policy_mod
 import n3w_t1_core_updater_host as hostmod
 import n3w_t1_core_updater_v2 as core
+from n3w_t1_core_updater_finalize import (
+    FINALIZE_CONFIRMATION_V2,
+    ProductAcceptance,
+    committed_transaction_sha256,
+)
 from n3w_t1_core_updater_v2_common import (
     A1_CLASSIFICATION_SHA256,
     APPLY_CONFIRMATION_V2,
@@ -126,6 +131,7 @@ class FakeHost:
         self.events: list[str] = []
         self.fail_activate_count = 0
         self.peer_drift_after_activate: str | None = None
+        self.container_image_ids: set[str] = set()
 
     def _render(self):
         return {
@@ -222,6 +228,20 @@ class FakeHost:
 
     def load_image(self, tar_path):
         self.events.append("load")
+
+    def containers_using_image(self, image_id):
+        if image_id in self.container_image_ids:
+            return ("blocked-container",)
+        return ()
+
+    def remove_image_exact(self, image_id):
+        if self.containers_using_image(image_id):
+            raise UpdaterV2Error("predecessor_image_still_referenced")
+        refs = [ref for ref, observed in self.image_ids.items() if observed == image_id]
+        if len(refs) != 1:
+            raise UpdaterV2Error("predecessor_image_authority_invalid")
+        del self.image_ids[refs[0]]
+        self.events.append(f"remove-image:{image_id}")
 
     def rewrite_component_image(self, component, expected, replacement):
         assert self.bindings[component] == expected
@@ -707,6 +727,7 @@ def test_apply_mutates_only_target_binding(
     assert tx["schema"] == TX_SCHEMA_V2
     assert tx["status"] == "COMMITTED"
     assert tx["component"] == component
+    assert tx["post_acceptance_cleanup_required"] is (component in {"manager", "broker"})
     assert tx["predecessor_runtime_contract_sha256"] == (
         baseline().runtime_contract_sha256[component]
     )
@@ -1471,3 +1492,250 @@ def test_image_only_postcheck_rejects_ha_storage_minor_migration(
         match="a1_ha_storage_minor_version_drift:entities",
     ):
         policy.validate_post("homeassistant", before, after)
+
+
+def _acceptance_for(store: V2StateStore, component: str) -> ProductAcceptance:
+    tx = store.read()
+    assert tx is not None and tx["status"] == "COMMITTED"
+    return ProductAcceptance(
+        component=component,
+        transaction_sha256=committed_transaction_sha256(tx),
+        target_image_ref=NEW[component],
+        authority_id=f"N3W_{component.upper()}_PRODUCT_ACCEPTANCE_TEST_01",
+        accepted_at_unix=1,
+    )
+
+
+@pytest.mark.parametrize("component", ["manager", "broker"])
+def test_finalize_exactly_removes_accepted_predecessor(
+    tmp_path: Path,
+    monkeypatch,
+    component: str,
+):
+    monkeypatch.setattr(core.os, "geteuid", lambda: 0)
+    archive = tmp_path / f"{component}.tar"
+    archive.write_bytes(f"finalize-{component}".encode())
+    archive_sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+    host = FakeHost()
+    store = V2StateStore(tmp_path / "state")
+    updater = core.MultiComponentCoreUpdater(host, store, FakePolicy())
+    updater.apply(
+        target(component, archive_sha),
+        baseline(),
+        archive,
+        authorization_id=f"N3W_T1_CORE_UPDATER_{component.upper()}_FINALIZE_TEST_01",
+        confirmation=APPLY_CONFIRMATION_V2,
+    )
+    host.events.clear()
+    predecessor_id = IDS[OLD[component]]
+
+    result = updater.finalize(
+        _acceptance_for(store, component),
+        confirmation=FINALIZE_CONFIRMATION_V2,
+    )
+
+    assert result["status"] == "PASS"
+    assert result["operation"] == "finalize"
+    assert result["cleanup_state"] == "ACCEPTED_CLEANUP_COMPLETE"
+    assert result["predecessor_image_removed_id"] == predecessor_id
+    assert OLD[component] not in host.image_ids
+    assert host.image_ids[NEW[component]] == IDS[NEW[component]]
+    assert host.events == [f"remove-image:{predecessor_id}"]
+    tx = store.read()
+    assert tx["status"] == "COMMITTED"
+    assert tx["cleanup_state"] == "ACCEPTED_CLEANUP_COMPLETE"
+    assert tx["predecessor_image_removed"] is True
+    assert tx["predecessor_image_removed_id"] == predecessor_id
+
+
+def test_finalize_rejects_homeassistant_generic_cleanup(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(core.os, "geteuid", lambda: 0)
+    archive = tmp_path / "homeassistant.tar"
+    archive.write_bytes(b"ha-finalize")
+    archive_sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+    host = FakeHost()
+    store = V2StateStore(tmp_path / "state")
+    updater = core.MultiComponentCoreUpdater(host, store, FakePolicy())
+    updater.apply(
+        target("homeassistant", archive_sha),
+        baseline(),
+        archive,
+        authorization_id="N3W_T1_CORE_UPDATER_HOMEASSISTANT_FINALIZE_TEST_01",
+        confirmation=APPLY_CONFIRMATION_V2,
+    )
+
+    with pytest.raises(
+        UpdaterV2Error,
+        match="finalize_component_uses_separate_lifecycle",
+    ):
+        updater.finalize(
+            _acceptance_for(store, "homeassistant"),
+            confirmation=FINALIZE_CONFIRMATION_V2,
+        )
+
+    assert OLD["homeassistant"] in host.image_ids
+    assert store.read().get("cleanup_state") is None
+
+
+def test_finalize_rejects_acceptance_transaction_mismatch(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(core.os, "geteuid", lambda: 0)
+    archive = tmp_path / "manager.tar"
+    archive.write_bytes(b"acceptance-mismatch")
+    archive_sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+    host = FakeHost()
+    store = V2StateStore(tmp_path / "state")
+    updater = core.MultiComponentCoreUpdater(host, store, FakePolicy())
+    updater.apply(
+        target("manager", archive_sha),
+        baseline(),
+        archive,
+        authorization_id="N3W_T1_CORE_UPDATER_MANAGER_FINALIZE_TEST_02",
+        confirmation=APPLY_CONFIRMATION_V2,
+    )
+    acceptance = _acceptance_for(store, "manager")
+    acceptance = ProductAcceptance(
+        component=acceptance.component,
+        transaction_sha256="0" * 64,
+        target_image_ref=acceptance.target_image_ref,
+        authority_id=acceptance.authority_id,
+        accepted_at_unix=acceptance.accepted_at_unix,
+    )
+
+    with pytest.raises(UpdaterV2Error, match="product_acceptance_authority_mismatch"):
+        updater.finalize(acceptance, confirmation=FINALIZE_CONFIRMATION_V2)
+
+    assert OLD["manager"] in host.image_ids
+    assert store.read().get("cleanup_state") is None
+
+
+def test_finalize_rejects_predecessor_container_reference(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(core.os, "geteuid", lambda: 0)
+    archive = tmp_path / "manager.tar"
+    archive.write_bytes(b"referenced-predecessor")
+    archive_sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+    host = FakeHost()
+    store = V2StateStore(tmp_path / "state")
+    updater = core.MultiComponentCoreUpdater(host, store, FakePolicy())
+    updater.apply(
+        target("manager", archive_sha),
+        baseline(),
+        archive,
+        authorization_id="N3W_T1_CORE_UPDATER_MANAGER_FINALIZE_TEST_03",
+        confirmation=APPLY_CONFIRMATION_V2,
+    )
+    host.container_image_ids.add(IDS[OLD["manager"]])
+
+    with pytest.raises(UpdaterV2Error, match="predecessor_image_still_referenced"):
+        updater.finalize(
+            _acceptance_for(store, "manager"),
+            confirmation=FINALIZE_CONFIRMATION_V2,
+        )
+
+    assert OLD["manager"] in host.image_ids
+    assert store.read().get("cleanup_state") is None
+
+
+def test_finalize_closes_rollback_window(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(core.os, "geteuid", lambda: 0)
+    archive = tmp_path / "manager.tar"
+    archive.write_bytes(b"close-rollback-window")
+    archive_sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+    host = FakeHost()
+    store = V2StateStore(tmp_path / "state")
+    updater = core.MultiComponentCoreUpdater(host, store, FakePolicy())
+    updater.apply(
+        target("manager", archive_sha),
+        baseline(),
+        archive,
+        authorization_id="N3W_T1_CORE_UPDATER_MANAGER_FINALIZE_TEST_04",
+        confirmation=APPLY_CONFIRMATION_V2,
+    )
+    updater.finalize(
+        _acceptance_for(store, "manager"),
+        confirmation=FINALIZE_CONFIRMATION_V2,
+    )
+
+    with pytest.raises(UpdaterV2Error, match="rollback_window_closed_after_acceptance"):
+        updater.rollback(confirmation="T1_CORE_UPDATER_ROLLBACK")
+
+
+def test_generic_v2_apply_requires_manager_cleanup_before_successor(
+    tmp_path: Path,
+    monkeypatch,
+):
+    monkeypatch.setattr(core.os, "geteuid", lambda: 0)
+    archive = tmp_path / "manager.tar"
+    archive.write_bytes(b"cleanup-before-successor")
+    archive_sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+    host = FakeHost()
+    store = V2StateStore(tmp_path / "state")
+    updater = core.MultiComponentCoreUpdater(host, store, FakePolicy())
+    updater.apply(
+        target("manager", archive_sha),
+        baseline(),
+        archive,
+        authorization_id="N3W_T1_CORE_UPDATER_MANAGER_CLEANUP_GUARD_01",
+        confirmation=APPLY_CONFIRMATION_V2,
+    )
+
+    host.bindings["manager"] = OLD["manager"]
+    with pytest.raises(UpdaterV2Error, match="post_acceptance_cleanup_required"):
+        updater.apply(
+            target("manager", archive_sha),
+            baseline(),
+            archive,
+            authorization_id="N3W_T1_CORE_UPDATER_MANAGER_CLEANUP_GUARD_02",
+            confirmation=APPLY_CONFIRMATION_V2,
+        )
+
+    tx = store.read()
+    tx["cleanup_state"] = "ACCEPTED_CLEANUP_COMPLETE"
+    store.write(tx)
+    result = updater.apply(
+        target("manager", archive_sha),
+        baseline(),
+        archive,
+        authorization_id="N3W_T1_CORE_UPDATER_MANAGER_CLEANUP_GUARD_03",
+        confirmation=APPLY_CONFIRMATION_V2,
+    )
+    assert result["status"] == "PASS"
+
+
+def test_local_host_remove_image_uses_exact_id_only(monkeypatch):
+    host = hostmod.LocalHost()
+    image_id = IDS[OLD["manager"]]
+    calls = []
+    monkeypatch.setattr(host, "containers_using_image", lambda observed: ())
+    monkeypatch.setattr(host, "image_id", lambda observed: None)
+    monkeypatch.setattr(
+        host,
+        "_run",
+        lambda argv, **kwargs: calls.append(tuple(argv)),
+    )
+
+    host.remove_image_exact(image_id)
+
+    assert calls == [("docker", "image", "rm", image_id)]
+    assert all("prune" not in argument for call in calls for argument in call)
+    assert "--force" not in calls[0]
+
+
+def test_local_host_remove_image_refuses_container_reference(monkeypatch):
+    host = hostmod.LocalHost()
+    image_id = IDS[OLD["manager"]]
+    calls = []
+    monkeypatch.setattr(
+        host,
+        "containers_using_image",
+        lambda observed: ("still-referenced-container",),
+    )
+    monkeypatch.setattr(
+        host,
+        "_run",
+        lambda argv, **kwargs: calls.append(tuple(argv)),
+    )
+
+    with pytest.raises(hostmod.UpdaterError, match="predecessor_image_still_referenced"):
+        host.remove_image_exact(image_id)
+
+    assert calls == []

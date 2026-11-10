@@ -15,12 +15,15 @@ from .t1_ota_manager import (
 
 REQUEST_SCHEMA = "gh.n3w-t1-ha-ota-ipc-request/1"
 RESPONSE_SCHEMA = "gh.n3w-t1-ha-ota-ipc-response/1"
+RESPONSE_SCHEMA_V2 = "gh.n3w-t1-ha-ota-ipc-response/2"
+RESPONSE_SCHEMA_V3 = "gh.n3w-t1-ha-ota-ipc-response/3"
 MAX_FRAME_BYTES = 8192
 MAX_MANIFEST_BYTES = 65536
 DEFAULT_TIMEOUT_S = 2.0
 
 _CODE_RE = re.compile(r"^[a-z0-9_]{3,96}$")
 _RELEASE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$")
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 def _no_duplicate_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -149,7 +152,10 @@ class UnixSocketOtaBridge:
             raise
         except (UnicodeDecodeError, json.JSONDecodeError) as error:
             raise OtaControlError("ota_ipc_response_invalid") from error
-        expected = {
+        if not isinstance(response, dict):
+            raise OtaControlError("ota_ipc_response_invalid")
+        schema = response.get("schema")
+        expected_v1 = {
             "schema",
             "accepted",
             "code",
@@ -157,9 +163,100 @@ class UnixSocketOtaBridge:
             "progress_percent",
             "error_code",
         }
-        if not isinstance(response, dict) or set(response) != expected:
+        expected_v2 = expected_v1 | {
+            "installed_version",
+            "usb_candidate",
+            "usb_confirmation_required",
+        }
+        expected_v3 = expected_v2 | {
+            "usb_required_bytes_or_null",
+            "usb_recommended_nominal_gb_or_null",
+            "usb_capacity_check_state",
+            "user_message_code_or_null",
+        }
+
+        installed_version = None
+        candidate_model = None
+        candidate_capacity = None
+        confirmation_required = False
+        usb_required_bytes = None
+        usb_recommended_nominal_gb = None
+        usb_capacity_check_state = "NOT_CALCULATED"
+        user_message_code = None
+
+        if schema == RESPONSE_SCHEMA:
+            if set(response) != expected_v1:
+                raise OtaControlError("ota_ipc_response_invalid")
+        elif schema in {RESPONSE_SCHEMA_V2, RESPONSE_SCHEMA_V3}:
+            expected = expected_v3 if schema == RESPONSE_SCHEMA_V3 else expected_v2
+            if set(response) != expected:
+                raise OtaControlError("ota_ipc_response_invalid")
+            installed_version = response["installed_version"]
+            if installed_version is not None and not isinstance(
+                installed_version,
+                str,
+            ):
+                raise OtaControlError("ota_ipc_response_invalid")
+            candidate = response["usb_candidate"]
+            if candidate is not None:
+                if (
+                    not isinstance(candidate, dict)
+                    or set(candidate)
+                    != {
+                        "public_fingerprint",
+                        "display_model",
+                        "display_capacity_bytes",
+                    }
+                    or not isinstance(candidate["public_fingerprint"], str)
+                    or _SHA256_RE.fullmatch(candidate["public_fingerprint"]) is None
+                    or not isinstance(candidate["display_model"], str)
+                    or type(candidate["display_capacity_bytes"]) is not int
+                    or candidate["display_capacity_bytes"] <= 0
+                ):
+                    raise OtaControlError("ota_ipc_response_invalid")
+                candidate_model = candidate["display_model"]
+                candidate_capacity = candidate["display_capacity_bytes"]
+            confirmation_required = response["usb_confirmation_required"]
+            if type(confirmation_required) is not bool:
+                raise OtaControlError("ota_ipc_response_invalid")
+
+            if schema == RESPONSE_SCHEMA_V3:
+                usb_required_bytes = response["usb_required_bytes_or_null"]
+                if usb_required_bytes is not None and (
+                    type(usb_required_bytes) is not int
+                    or usb_required_bytes <= 0
+                ):
+                    raise OtaControlError("ota_ipc_response_invalid")
+                usb_recommended_nominal_gb = response[
+                    "usb_recommended_nominal_gb_or_null"
+                ]
+                if usb_recommended_nominal_gb is not None and (
+                    type(usb_recommended_nominal_gb) is not int
+                    or usb_recommended_nominal_gb
+                    not in {32, 64, 128, 256, 512, 1024}
+                ):
+                    raise OtaControlError("ota_ipc_response_invalid")
+                usb_capacity_check_state = response["usb_capacity_check_state"]
+                if usb_capacity_check_state not in {
+                    "NOT_CALCULATED",
+                    "RECOMMENDATION_READY",
+                    "CANDIDATE_PENDING",
+                    "CANDIDATE_CAPACITY_INSUFFICIENT",
+                    "CANDIDATE_READY_FOR_CONFIRMATION",
+                    "FORMATTED_CAPACITY_PASS",
+                    "CAPACITY_REQUIREMENT_CHANGED",
+                }:
+                    raise OtaControlError("ota_ipc_response_invalid")
+                user_message_code = response["user_message_code_or_null"]
+                if user_message_code is not None and user_message_code not in {
+                    "USB_INSERT_RECOMMENDED",
+                    "USB_CAPACITY_INSUFFICIENT",
+                    "USB_CONFIRM_ERASE",
+                }:
+                    raise OtaControlError("ota_ipc_response_invalid")
+        else:
             raise OtaControlError("ota_ipc_response_invalid")
-        if response["schema"] != RESPONSE_SCHEMA or type(response["accepted"]) is not bool:
+        if type(response["accepted"]) is not bool:
             raise OtaControlError("ota_ipc_response_invalid")
         code = response["code"]
         if not isinstance(code, str) or _CODE_RE.fullmatch(code) is None:
@@ -168,13 +265,21 @@ class UnixSocketOtaBridge:
             phase=response["phase"],
             progress_percent=response["progress_percent"],
             error_code=response["error_code"],
+            installed_version=installed_version,
+            usb_candidate_model=candidate_model,
+            usb_candidate_capacity_bytes=candidate_capacity,
+            usb_confirmation_required=confirmation_required,
+            usb_required_bytes=usb_required_bytes,
+            usb_recommended_nominal_gb=usb_recommended_nominal_gb,
+            usb_capacity_check_state=usb_capacity_check_state,
+            user_message_code=user_message_code,
         ).validate()
         if response["accepted"] is not True:
             raise OtaControlError(code)
         return snapshot
 
     def submit_homeassistant_ota_intent(self, intent: OtaControlIntent) -> None:
-        if intent.action not in {"PREPARE", "INSTALL"}:
+        if intent.action not in {"PREPARE", "CONFIRM_USB_ERASE"}:
             raise OtaControlError("ota_ipc_action_invalid")
         if _RELEASE_RE.fullmatch(intent.target_release_id) is None:
             raise OtaControlError("ota_ipc_release_invalid")

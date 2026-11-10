@@ -41,7 +41,10 @@ class N3wSimplifiedIsolatedMqttService(ManagerMqttService):
     ) -> None:
         # Keep the original one-line replacement as a Phase 4 source-contract
         # compatibility marker, then independently disable the superseded MQTT
-        # pairing intake for the promoted Phase 5-A path.
+        # pairing intake for the promoted Phase 5-A path. When the already-built
+        # OTA manager is injected, also clear the base-service OTA config flag:
+        # the original Settings were validated before this compatibility rewrite,
+        # and the capability itself remains carried by ota_manager.
         source_settings = replace(settings, n3w_runtime_enabled=False)
         source_settings = replace(
             source_settings,
@@ -51,6 +54,10 @@ class N3wSimplifiedIsolatedMqttService(ManagerMqttService):
         if ota_manager is None:
             super().__init__(source_settings)
         else:
+            source_settings = replace(
+                source_settings,
+                n3w_t1_ota_enabled=False,
+            )
             super().__init__(source_settings, ota_manager=ota_manager)
         if (
             self.registration_registry is not None

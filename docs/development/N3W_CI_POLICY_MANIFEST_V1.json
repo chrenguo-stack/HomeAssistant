@@ -300,6 +300,11 @@
         "missing_timeout": "Legacy workflow predates the repository-wide explicit timeout requirement; tracked debt, no silent expansion."
       }
     },
+    "n3w-kf147-manager-v3-live-package-ci.yml": {
+      "class": "EXACT",
+      "draft_policy": "ci-ready",
+      "exceptions": {}
+    },
     "n3w-manager-replay-registry-ci.yml": {
       "class": "FAST",
       "draft_policy": "run",
@@ -340,13 +345,13 @@
         "missing_pr_cancel": "PR #740 focused invalidation workflow follows the existing E03 source-workflow execution model; cancellation wiring is tracked repository debt."
       }
     },
-    "n3w-single-hop-contract-ci.yml": {
-      "class": "FAST",
+    "n3w-r3-sensorless-first-registration-firmware-artifact-ci.yml": {
+      "class": "EXACT",
       "draft_policy": "run",
       "exceptions": {}
     },
-    "n3w-r3-sensorless-first-registration-firmware-artifact-ci.yml": {
-      "class": "EXACT",
+    "n3w-single-hop-contract-ci.yml": {
+      "class": "FAST",
       "draft_policy": "run",
       "exceptions": {}
     },
@@ -372,6 +377,46 @@
     },
     "n3w-t1-clean-reference-runtime-payload-ci.yml": {
       "class": "EXACT",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "n3w-t1-core-stack-current-authority-ci.yml": {
+      "class": "EVIDENCE",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "n3w-t1-core-stack-semantic-release-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "n3w-t1-core-updater-ha-template-readonly-preflight-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "n3w-t1-core-updater-homeassistant-exact-artifact-ci.yml": {
+      "class": "EXACT",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "n3w-t1-core-updater-homeassistant-target-binding-ci.yml": {
+      "class": "EXACT",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "n3w-t1-core-updater-manager-a-to-b-ci.yml": {
+      "class": "EXACT",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "n3w-t1-core-updater-u1-pre-u1-simulation-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
+    "n3w-t1-storage-image-lifecycle-ci.yml": {
+      "class": "FAST",
       "draft_policy": "run",
       "exceptions": {}
     },
@@ -462,6 +507,11 @@
       "draft_policy": "run",
       "exceptions": {}
     },
+    "n3w-t1-homeassistant-predecessor-recovery-qualification-ci.yml": {
+      "class": "EXACT",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
     "n3w-t1-minimal-baseline-normalization-source-ci.yml": {
       "class": "FAST",
       "draft_policy": "run",
@@ -498,6 +548,11 @@
       "draft_policy": "run",
       "exceptions": {}
     },
+    "n3w-u1-manager-a-to-b-v2-live-executor-ci.yml": {
+      "class": "EXACT",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
     "project-roadmap-v07-c07-identity-ci.yml": {
       "class": "FAST",
       "draft_policy": "run",
@@ -510,46 +565,6 @@
         "missing_pr_cancel": "Legacy PR workflow predates the repository-wide PR cancellation requirement; tracked debt, no silent expansion.",
         "missing_timeout": "Legacy workflow predates the repository-wide explicit timeout requirement; tracked debt, no silent expansion."
       }
-    },
-    "n3w-t1-core-updater-manager-a-to-b-ci.yml": {
-      "class": "EXACT",
-      "draft_policy": "run",
-      "exceptions": {}
-    },
-    "n3w-t1-core-stack-current-authority-ci.yml": {
-      "class": "EVIDENCE",
-      "draft_policy": "run",
-      "exceptions": {}
-    },
-    "n3w-t1-core-updater-u1-pre-u1-simulation-ci.yml": {
-      "class": "FAST",
-      "draft_policy": "run",
-      "exceptions": {}
-    },
-    "n3w-u1-manager-a-to-b-v2-live-executor-ci.yml": {
-      "class": "EXACT",
-      "draft_policy": "run",
-      "exceptions": {}
-    },
-    "n3w-t1-core-updater-ha-template-readonly-preflight-ci.yml": {
-      "class": "FAST",
-      "draft_policy": "run",
-      "exceptions": {}
-    },
-    "n3w-t1-core-updater-homeassistant-exact-artifact-ci.yml": {
-      "class": "EXACT",
-      "draft_policy": "run",
-      "exceptions": {}
-    },
-    "n3w-t1-core-stack-semantic-release-ci.yml": {
-      "class": "FAST",
-      "draft_policy": "run",
-      "exceptions": {}
-    },
-    "n3w-t1-core-updater-homeassistant-target-binding-ci.yml": {
-      "class": "EXACT",
-      "draft_policy": "run",
-      "exceptions": {}
     }
   }
 }

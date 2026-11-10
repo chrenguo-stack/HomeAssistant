@@ -1,3 +1,624 @@
+## 2026-11-10 — KF-147 Mandatory USB Confirmation / U2 read-only preexecution CLOSED_PASS
+
+- Current core-stack authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference remains `24382caae4a1f5d459297f86e8d18f10a848ca64` / `local/greenhouse-manager:fresh-24382caae4a1`.
+- Core-stack Live upgrade accepted; this read-only KF-147 gate does not replace production authority.
+- PR #800 exact source-contract reviewed head `78e96812868cc13377746ba8d7ac00f6cef51d2f`.
+- The five final-archive CI runs named by the V1.4 handoff are terminal SUCCESS; `FINAL_ARCHIVE_CI=CLOSED_PASS`.
+- Independent source-contract review found no new blocker and requires no source repair.
+- Last-proven continuity remains U1 `U1_PREPARE_REQUESTED`, transaction SHA-256 `6e1f0b5d262e346674b62ac79bf2ffbc1c63a8dd22379a0a82c952f0e3626b49`, Extreme candidate 32,017,047,552 bytes, `confirmation_required=true`, `confirmation_consumed=false`.
+- Those values are historical continuity evidence only; `T1_NEXT_STAGE_BASELINE=UNKNOWN_FRESH`.
+- Source contract revalidates exact admission/candidate/capacity before mutation, consumes confirmation before `wipefs -> GPT/sfdisk -> mkfs.ext4`, and reaches U2 only after formatted-media UUID/self-test/capacity verification.
+- A failure after confirmation consumption must not auto-replay the old confirmation or any R2/R3 authorization.
+- Next gate is read-only: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_USB_CONFIRMATION_U2_FRESH_READONLY_BASELINE_20261110_01`.
+- USB confirmation/erase/partition/format, U2+, T1 live mutation, board access and merge remain unauthorized.
+- Authority: `docs/development/N3W_T1_KF147_MANDATORY_USB_CONFIRMATION_U2_BOUNDARY_READONLY_PREEXECUTION_REVIEW_20261110.md`.
+
+## 2026-11-10 — KF-147 Stage B systemd lifecycle R3 live validation CLOSED_PASS
+
+- Current core-stack authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference remains `24382caae4a1f5d459297f86e8d18f10a848ca64` / `local/greenhouse-manager:fresh-24382caae4a1`.
+- Core-stack Live upgrade accepted; the KF-147 Stage B R3 host-source validation does not replace the existing production authority.
+- Exact executed head: `675871a0567aca858c8af34f9eecf0a2e79ba063`; PR #800 remains open/draft/unmerged.
+- Fresh R3 successor gate used independent staging and durable state roots; consumed R2 authorization/state was not reused.
+- Physical T1 result is PASS: host source mutation=true; host daemon and services owner both stopped/restarted in the repaired dependency order; rollback was not required.
+- Manager IPC V3 support=true and capacity snapshot is present.
+- U1 transaction and Extreme prepare candidate were preserved; USB mutation=false and U2+=false.
+- Manager, Home Assistant and Broker image mutation=false; post-validation continuity guards passed.
+- R3 authorization is claimed+consumed, fail-closed and permanently non-replayable.
+- Stage B is CLOSED_PASS. Next product boundary is mandatory-USB confirmation/U2+ and remains separately unauthorized.
+- Closure authority: `docs/development/N3W_T1_KF147_STAGE_B_SYSTEMD_LIFECYCLE_R3_LIVE_VALIDATION_CLOSURE_20261110.md`.
+
+## 2026-11-10 — KF-147 Manager IPC V3 R2 live apply CLOSED_PASS
+
+- Current core-stack authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference remains `24382caae4a1f5d459297f86e8d18f10a848ca64` / `local/greenhouse-manager:fresh-24382caae4a1`.
+- Core-stack Live upgrade accepted; the KF-147 R2 Manager-only repair does not replace the existing production authority.
+- R2 one-shot authorization is claimed+consumed and permanently non-replayable.
+- Physical T1 result is PASS: Manager `local/greenhouse-manager:fresh-44e7d7472714`, runtime image ID `sha256:1471828ab07cf9b71c01a6e78994711a5954f0a178b8be087a28bb65a967c7d2`, IPC V3 support=true.
+- Home Assistant image/container and Broker were not mutated; U1 transaction and prepare candidate were preserved; rollback was not required.
+- USB mutation=false, U2+=false, board access=false, merge=false.
+- Next stage is KF-147 T1 Policy V2/repaired host-source preexecution review; current repository authority does not grant that next live mutation.
+- Closure authority: `docs/development/N3W_T1_KF147_MANAGER_IPC_V3_R2_LIVE_APPLY_CLOSURE_20261110.md`.
+
+## 2026-11-10 — KF-147 Manager IPC V3 R2 portable-identity preauthorization CLOSED_PASS
+
+- Current core-stack authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference remains `24382caae4a1f5d459297f86e8d18f10a848ca64` / `local/greenhouse-manager:fresh-24382caae4a1`.
+- Core-stack Live upgrade accepted; KF-147 R2 is a Manager-only successor live-apply gate and does not replace the accepted production authority.
+- Core-stack production authority remains unchanged; the running Manager is still predecessor `local/greenhouse-manager:fresh-7807271e4c48`.
+- The first Manager V3 live authorization was claimed and consumed exactly once and is permanently non-replayable. It stopped at `loaded_target_identity_invalid` before service-owner stop, Compose-env rewrite or Manager recreation.
+- Root cause is a recurrence of KF-106 cross-store image identity: T1 uses `io.containerd.snapshotter.v1`; build config digest is `fd5104...` while T1 runtime image ID is exact OCI manifest digest `1471828...`.
+- Fresh read-only T1 verification returned `PORTABLE_VERDICT=VERIFIED`; target is Linux/ARM64 and portable-identical to the exact bound Manager tar.
+- Running Manager remains predecessor, restart count 0; Compose Manager binding remains predecessor; `n3wfc4-services-activation.service` and `n3w-t1-ha-ota.service` are active.
+- R2 source head is `b8cfcdf88b38a82634845c5ab79ad098c4723a3d`; it reuses `tools/n3w_t1_portable_image_identity.py` and records T1-local runtime image ID instead of requiring Docker runtime `.Id` to equal build-side config digest.
+- Required R2 CI is fully PASS: KF147 package, Core Stack authority, fast source/exact closure, Manager A-to-B, storage/image lifecycle and public repository safety.
+- R2 gate `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_R2_20261110_01` remains unauthorized; a new explicit live authorization is required.
+- No USB mutation, U2+, board access or merge occurred during R2 source repair and preauthorization closure.
+- Closure authority: `docs/development/N3W_T1_KF147_MANAGER_IPC_V3_R2_PORTABLE_IDENTITY_PREAUTHORIZATION_CLOSURE_20261110.md`.
+
+## 2026-11-10 — KF-147 Manager IPC V3 fresh package + live-apply preexecution CLOSED_PASS
+
+- Current core-stack authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference remains `24382caae4a1f5d459297f86e8d18f10a848ca64` / `local/greenhouse-manager:fresh-24382caae4a1`.
+- Core-stack Live upgrade accepted; the KF-147 Manager-only repair does not replace the existing production authority.
+- KF-147 cleanup, fresh capacity, fresh Manager package binding and Manager live-apply preexecution are CLOSED_PASS.
+- Executable source head: `b85b98593fe4caaa7b5a4be63f344a85e815baa8`; validated docs-aligned head: `d2ddc1396ab072d6c1273ebea61b5b21fc9fdd3e`; drift is docs-only.
+- Bound package authority: run `42761736604`, artifact `13738561063`, digest `sha256:69af4054e993398c25bd7788773c76cc80f54524787d1f5972a894adef22bcfc`.
+- Latest-head required KF-147 CI passed: Manager package, Core Stack authority, Manager A-to-B, fast source/exact closure, storage/image lifecycle and public repository safety.
+- Exact U1 transaction SHA `6e1f0b5d262e346674b62ac79bf2ffbc1c63a8dd22379a0a82c952f0e3626b49` and USB candidate fingerprint `e45fba0ad3e9997be2738c7a8f25d5c342ebba66ddbf822b1f6bf6a016c2ed93` are now fail-closed execution prerequisites.
+- Two unrelated PR-wide legacy workflows still fail only because historical artifact `11665219740` from run `38040433177` is unavailable; generic staging/state-binding repair is outside this gate.
+- `live_execution_authorized=false`; authorization is not granted, claimed or consumed.
+- Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261110_01`; explicit user authorization is required.
+- No T1 mutation, Manager live apply, USB mutation, U2+, board access or merge occurred.
+- Closure authority: `docs/development/N3W_T1_KF147_MANAGER_IPC_V3_FRESH_PACKAGE_AND_LIVE_APPLY_PREEXECUTION_CLOSURE_20261110.md`.
+
+## 2026-11-10 — KF-147 exact HA cleanup + fresh capacity CLOSED_PASS
+
+- Current core-stack authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference remains `24382caae4a1f5d459297f86e8d18f10a848ca64` / `local/greenhouse-manager:fresh-24382caae4a1`.
+- Core-stack Live upgrade accepted; this KF-147 cleanup/capacity closure does not replace that authority.
+
+- Executed live package head: `c872eac286f11d34bea6f2d823cd2a1762084578`.
+- Exact cleanup authorization `N3W_T1_KF147_EXACT_HA_2026_10_4_IMAGE_CLEANUP_20261110_01` was granted, claimed and consumed exactly once; replay is now forbidden.
+- Exact HA 2026.10.4 target `sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365` was deleted successfully and post-delete verification passed.
+- Immediate fresh KF-147 capacity preflight returned PASS.
+- Measured free bytes: `5811048448`; required free bytes: `1736515716`; post-peak free bytes: `5685145468`.
+- Manager tar remained local; `manager_tar_streamed_to_t1=false`, `remote_staging=false`, capacity preflight mutation=false.
+- U1 remains `U1_PREPARE_REQUESTED`; transaction SHA unchanged; USB confirmation remains required and unconsumed; Extreme candidate remains present.
+- Cleanup authority is repository-sealed with `live_execution_authorized=false`, `authorization_claimed=true`, `authorization_consumed=true`, `replay_permitted=false`.
+- KF-147 capacity blocker is CLOSED_PASS. Package/manifest binding is now allowed.
+- Next gate: `NEW_PACKAGE_MANIFEST_BINDING`.
+- No Manager apply, USB mutation, U2+, board access or PR merge occurred.
+- Closure authority: `docs/development/N3W_T1_KF147_EXACT_HA_CLEANUP_AND_FRESH_CAPACITY_PASS_CLOSURE_20261110.md`.
+
+## 2026-11-10 — KF-147 exact HA cleanup preexecution CLOSED_PASS / live authorization pending
+
+- Exact executable source head: `ca0374ce4a925ec8edaf8e26f28c33c7a251dc0d`.
+- Storage lifecycle CI `42757961862`, fast source CI `42757961676`, and public safety CI `42757961801` all passed; focused regression result is 90 passed.
+- Fresh R3 T1 read-only preclaim `N3W_KF147_HA_CLEANUP_PRECLAIM_R3_20261110_01` returned PASS.
+- HA 2026.10.4 exact target `sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365` has zero container references.
+- Running HA predecessor remains exact; Broker/Manager/HA runtime is stable; active U1 transaction is unchanged; USB confirmation remains unconsumed.
+- Authorization remained unclaimed/unconsumed and no live runtime mutation occurred.
+- The preexecution/authorization-review gate is CLOSED_PASS.
+- Proposed live cleanup authorization `N3W_T1_KF147_EXACT_HA_2026_10_4_IMAGE_CLEANUP_20261110_01` is still NOT_GRANTED.
+- Next gate is exact live HA target cleanup and requires explicit user authorization. No prune, Manager predecessor cleanup, `/var/tmp` cleanup, Manager apply, USB mutation, board access or merge is authorized.
+- Closure authority: `docs/development/N3W_T1_KF147_EXACT_HA_2026_10_4_IMAGE_CLEANUP_PREEXECUTION_CLOSURE_20261110.md`.
+
+## 2026-11-10 — KF-147 dialogue frozen / formal V1.3 handoff ready
+
+- User requested immediate dialogue stop and GitHub alignment; no further live/source gate was entered.
+- Exact reclaim audit remains CLOSED_PASS. HA 2026.10.4 is the primary cleanup candidate; no cleanup authorization was granted or claimed.
+- Broker has no old image. Manager bf38 predecessor and four historical Manager tar files are separately classified and excluded from HA cleanup.
+- Next gate is preexecution/authorization review only; direct image deletion remains forbidden.
+- Formal handoff: `docs/development/N3W_T1_KF147_EXACT_RECLAIM_AUDIT_PASS_TO_HA_IMAGE_CLEANUP_PREEXECUTION_NEW_CHAT_HANDOFF_V1.0_20261110.md`.
+- Live T1 mutation, USB mutation, board access and merge remain false.
+
+## 2026-11-10 — KF-147 exact reclaim audit PASS / HA 2026.10.4 exact cleanup candidate
+
+- Repaired live read-only audit completed with `runtime_stable=true`, `mutation=false`; Manager tar streaming and remote staging remained false.
+- T1 has exactly three containers, all running. Home Assistant 2026.10.0 remains the running production image.
+- Non-running `local/n3w-homeassistant:2026.10.4-5881590f` is exact ID `sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365` with zero container references.
+- Docker reports `SHARED SIZE=0B` and `UNIQUE SIZE=5.221GB`; current capacity deficit is 1,147,052,164 bytes.
+- Active U1 stores target manifest/archive authority and does not require an internally resident target image. Mandatory-USB design retired the old P5 preexisting-target assumption.
+- The image is now an exact cleanup candidate. Actual deletion is a separate production mutation requiring explicit authorization and exact-ID pre/post checks.
+- After cleanup, fresh capacity preflight remains mandatory; capacity PASS is not inferred in advance.
+
+## 2026-11-10 — KF-147 reclaim audit first live attempt STOP / timeout repair pushed
+
+- First exact reclaim-audit execution stopped read-only with `command_failed:ssh:1`; `storage-reclaim-audit.json` was not produced.
+- The Manager tar was not streamed, remote staging was not created and T1 mutation remained false.
+- The transport intentionally sanitized the remote stderr, so the exact timed-out/failed child command is not claimed.
+- Source review found unhandled per-command timeout and directory-enumeration exceptions plus a time-varying Docker `Status` stability field.
+- Repair `b43d47f4a5fa06192ca5df513de186aed9ea9654` records command timeout/unavailability in the private audit and uses stable Docker `State` comparison.
+- Local focused result: 12 passed; Python and embedded remote-script compile PASS. CI and a fresh read-only audit retry remain pending.
+- No cleanup, image deletion, package binding, live retry, USB mutation, board access or merge is authorized.
+
+## 2026-11-10 — KF-147 exact storage-reclaim audit source ready / CI pending
+
+- Existing `tools/n3w_t1_kf147_fresh_capacity.py` now supports `--reclaim-audit-on-stop`; no parallel or stage-suffixed module was added.
+- The audit records all container-to-image references, image IDs/tags/layers, Docker verbose space data, volume allocation, major directory allocation, journal usage and root-filesystem large files.
+- It compares service/container runtime state before and after collection and declares `read_only=true`, `mutation=false`.
+- Local result: 23 focused tests PASS; Ruff, Python compile and embedded remote-script compile PASS.
+- Source head: `c14674b9fa4f17570d7f629e47563acffe296436`; GitHub CI and live read-only execution remain pending.
+- No cleanup, package binding, live retry, USB mutation, board access or merge is authorized.
+
+## 2026-11-10 — KF-147 fresh capacity STOP / exact reclaim audit next
+
+- The repaired preflight passed live identity, runtime stability, U1/Extreme confirmation-state and shared-filesystem topology checks.
+- Fresh free space is 589,799,424 bytes; required free space is 1,736,515,716 bytes; the exact deficit is 1,146,716,292 bytes (1.0680 GiB).
+- Capacity result is `STOP_CAPACITY_INSUFFICIENT`; the Manager tar was not streamed, no remote staging directory was created and no T1 mutation occurred.
+- Selected mutable allocation is 172,249,088 bytes. The largest selected path is `/var/cache/apt` at 107,876,352 bytes, which alone cannot close the deficit.
+- Package/manifest binding and live retry remain forbidden. Next one gate is an exact read-only storage/reclaim audit; broad Docker prune and automatic cleanup remain forbidden.
+- Authority: `docs/development/N3W_T1_KF147_FRESH_REBIND_AND_CAPACITY_PREFLIGHT_ENTRY_20261110.md`.
+
+## 2026-11-10 — KF-147 fresh-capacity live-image oracle repaired / CI pending
+
+- The first live read-only capacity attempt stopped before capacity calculation with `live_image_id_drift:manager`; no Manager tar was staged and no T1 mutation occurred.
+- Root cause: the new preflight used historical build-side image IDs for Manager, Home Assistant and Broker instead of the accepted T1 runtime image IDs.
+- Source fix `0ca17193a39f9b9f96da33b4ae9a5a4cc574e27d` binds the accepted runtime IDs and adds literal-value plus drift-stop regression coverage.
+- Local focused result: 21 passed; Ruff and Python compile passed. The wider local Storage CI slice had 76 passed and one Docker-dependent failure because Docker is not a supported capability on this Mac.
+- GitHub CI and a new live read-only capacity attempt remain pending. Capacity PASS, package/manifest binding and live retry are not claimed.
+- Authority: `docs/development/N3W_T1_KF147_FRESH_REBIND_AND_CAPACITY_PREFLIGHT_ENTRY_20261110.md`.
+
+## 2026-11-10 — KF-147 fresh rebind PASS / capacity read-only execution next
+
+- N3-W phase exit blockers remain zero; Pre-U1 normal-product acceptance remains CLOSED_PASS.
+- Immediate prerequisite queue is closed: readiness design CLOSED_PASS, Core Updater deployed-asset integrity CLOSED_PASS, storage headroom/image lifecycle CLOSED_PASS.
+- Readiness source implementation remains NOT_EXECUTED but is not in the current KF-147 prerequisite chain; runtime preflight must not invoke the MQTT CONNECT readiness helper.
+- PR #800 fresh rebind executable source is `fb63707edc1ab063ddc97de8475303df8daecfb1`; Manager product source and production authority show no drift from the Manager V3 candidate authority.
+- Old KF-147 package/authorization are non-reusable. Exact Manager tar was re-materialized only as candidate material: size 62,957,568 bytes, SHA-256 `9316817590c4fe74498629d0451a4897c2e11bef7bc4b423b66e47bb846099c5`, Docker-save regular-member bytes 62,945,412.
+- New read-only capacity tool `tools/n3w_t1_kf147_fresh_capacity.py` passed the dedicated storage source/policy CI. It does not stage the Manager tar or mutate T1.
+- Fresh T1 capacity evidence is still pending; no capacity PASS is claimed from historical free-space data.
+- Next one gate: `N3W_T1_KF147_FRESH_CAPACITY_READONLY_EXECUTION_20261110_01`; PASS then advances to new package/manifest binding.
+- Authority: `docs/development/N3W_T1_KF147_FRESH_REBIND_AND_CAPACITY_PREFLIGHT_ENTRY_20261110.md`.
+
+## 2026-11-10 — T1 storage headroom/image lifecycle CLOSED_PASS
+
+- Current core-stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- KF-149 is reclassified and source-closed: the missing `/opt/HomeAssistant/tools/n3w_t1_core_updater.py` path was an invalid permanent-path verifier assumption. Canonical delivery is exact package-bound ephemeral `t1-core-updater.pyz` with SHA-256 verification and bounded temporary staging.
+- KF-150 runtime recovery remains CLOSED_PASS. Storage/image-lifecycle source implementation is complete and exact-head validation is PASS.
+- Generic V2 adds explicit Manager/Broker post-acceptance `finalize`; COMMITTED alone does not delete predecessor images.
+- Finalize requires exact product-acceptance binding, exact current target, healthy peers/A1 state, exact predecessor ref+image ID, zero container references, and deletes only `docker image rm sha256:<exact-id>`.
+- Home Assistant remains on mandatory-USB lifecycle; Generic V2 finalize rejects Home Assistant.
+- A Manager/Broker COMMITTED transaction with cleanup incomplete blocks the next Generic V2 apply. Historical R7A HA-USB source remains exact-source frozen and is not rewritten by this gate; future HA staging must use the shared fresh capacity policy before transfer.
+- Pre-transfer capacity is frozen as exact staged transport + exact Docker-save import worst case + fresh derived reserve. Split storage devices or tmpfs staging fail closed.
+- Broad prune, wildcard deletion and delete-by-age remain forbidden. The 1.5 GiB reserve is maintenance-admission evidence, not a frozen lifetime runtime minimum.
+- No live T1 cleanup, board access, merge or KF-147 retry occurred in this source gate.
+- Next: KF-147 fresh rebind → fresh capacity gate → new package/manifest binding → live retry.
+- Authority: `docs/development/N3W_T1_STORAGE_HEADROOM_AND_IMAGE_LIFECYCLE_SOURCE_IMPLEMENTATION_PROGRESS_20261110.md`.
+
+## 2026-11-10 — Broker readiness runtime-session-takeover source-repair design CLOSED_PASS
+
+- Current core-stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- Fresh main and PR #800 candidate source blobs match for the readiness helper, R2A/R2B, F4 activation, three service units and focused tests; no new source drift was found.
+- Eight executable readiness invocations exist: five legitimate pre-application startup probes and three unsafe R2B runtime calls. The three runtime calls occur in _pre_reboot_state(), _wait_post_reboot() and final verify(), grouped into two runtime phases.
+- Startup behavior remains exact-production-identity credential probing. The DynSec-required Home Assistant client ID is not changed and no alternate probe identity is introduced.
+- Runtime health is frozen as non-invasive existing-session evidence: identity equality, container-owned established HA socket to 1883, exact Broker current-auth state, HA HTTP 200/401 and a stable before/after runtime sandwich.
+- Repair implementation allowlist is limited to R2B source/test, readiness regression test, and the two historical clean-reference CI assertions needed to preserve pinned old-R2B evidence.
+- Historical R2B control head e15c64ac8f0f5f482a6c8538072031734002a559 and its old source blob remain historical evidence and are not rebound.
+- This gate changed documentation only. KF-148 source implementation is NOT_EXECUTED.
+- Next frozen route: CORE_UPDATER_DEPLOYED_ASSET_INTEGRITY_REPAIR. No automatic gate crossing occurred.
+- Authority: docs/development/N3W_T1_BROKER_READINESS_RUNTIME_SESSION_TAKEOVER_SOURCE_REPAIR_DESIGN_20261110.md.
+
+## 2026-11-10 — T1 runtime recovery CLOSED_PASS / three source closures queued
+
+- Primary outage root cause is proven root-filesystem ENOSPC. The later Docker/Compose control-plane versus containerd-task divergence is proven independently; ENOSPC as its direct cause is not proven.
+- Exact recovery of the existing Broker, Manager and Home Assistant containers succeeded without recreate, Docker/containerd restart, broad prune, USB mutation, U2+, KF-147 apply or merge.
+- Current runtime is healthy: Broker/Manager/Home Assistant are running real tasks; Manager has one established MQTT socket to 8883; Home Assistant has one established MQTT socket to 1883; Broker current-auth state for the exact Home Assistant identity is true; Home Assistant HTTP returns 401.
+- S2F's Home Assistant MQTT false-negative was caused by running `n3w-t1-broker-authenticated-readiness` after HA was already online. The helper uses the production HA client ID and can cause `session taken over`. Treat it as a pre-application startup probe, not a runtime health probe.
+- Deployed `/opt/HomeAssistant/tools/n3w_t1_core_updater.py` is absent; deployment/packaging root cause remains TBD.
+- Last proven root free space is 592,859,136 bytes, emergency headroom only.
+- Next source queue is fixed: (1) `BROKER_READINESS_RUNTIME_SESSION_TAKEOVER_SOURCE_REPAIR_DESIGN`; (2) `CORE_UPDATER_DEPLOYED_ASSET_INTEGRITY_REPAIR`; (3) `T1_STORAGE_HEADROOM_AND_IMAGE_LIFECYCLE_CLOSURE`.
+- KF-147 resumes only after those closures, using fresh rebind → fresh capacity gate → new package/manifest binding → live retry. Old package/live authorization are not reusable.
+- Authority: `docs/development/N3W_T1_STORAGE_RECOVERY_S2G_RUNTIME_CLOSED_PASS_AND_SOURCE_REPAIR_QUEUE_20261110.md`.
+
+## 2026-11-09 — KF-147 Manager IPC V3 final binding PASS / image-only live apply pending
+
+- Current core-stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- Manager image-only gate `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261109_01` is granted, unclaimed, unconsumed and non-replayable.
+- Dedicated U1-preserving executor source is frozen at `de01bffe49d890b61b8246b9c839b74381fa9406`; Generic V2 updater is closed for this live state because the HA-USB transaction is active.
+- Bound package run `42625435258` is SUCCESS; artifact `13678761257`, digest `sha256:d7e4d27a40bad16316016c4c506fab70b3979d1105bed9562afd01b4116c91bb`, size `62958895`.
+- Final binding run `42627429946` at executable head `7e3ed7cb80eb06a0eca2647732ee7af8edc998cf` is SUCCESS; source contract, frozen authority, upstream metadata, Manager-only materialization, upload/redownload verification and package binding all passed.
+- Expected predecessor is `local/greenhouse-manager:fresh-7807271e4c48`; target is `local/greenhouse-manager:fresh-44e7d7472714`, image ID `sha256:fd5104d610645347fe47137dbb24121851fa8a48530df3e3c905704607c5e3d4`.
+- No T1 mutation occurred. Last-proven active U1, Extreme candidate and unconsumed confirmation semantics remain historical baseline and require fresh read-only preclaim.
+- Home Assistant/Broker/host policy/host source/PREPARE/USB/U2+/board/merge are outside this gate.
+- New-chat authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_FINAL_BINDING_PASS_TO_IMAGE_ONLY_LIVE_APPLY_NEW_CHAT_HANDOFF_V1.0_20261109.md`.
+
+## 2026-11-09 — KF-147 Stage B preclaim STOP / Manager IPC V3 exact artifact ready
+
+- Stage A OTA origin + public edge remains CLOSED_PASS.
+- Stage B fresh T1 preflight stopped before authorization claim because live Manager `fresh-7807271e4c48` supports IPC V2 but not repaired KF-147 IPC V3.
+- Live host source is also pre-KF147 and the Policy V2 file is absent; no live mutation occurred.
+- U1 transaction remains ACTIVE at `U1_PREPARE_REQUESTED`; Extreme 32,017,047,552-byte candidate remains present, confirmation required and unconsumed.
+- Public OTA target remains HTTP 200 with exact Content-Length 835,309,535.
+- Existing exact ARM64 build workflow produced V3-compatible Manager `local/greenhouse-manager:fresh-44e7d7472714`, image ID `sha256:fd5104d610645347fe47137dbb24121851fa8a48530df3e3c905704607c5e3d4`, tar SHA-256 `9316817590c4fe74498629d0451a4897c2e11bef7bc4b423b66e47bb846099c5`, artifact ID `13673322402`.
+- No Manager/source product drift occurred after KF-147 production source freeze; build is an exact materialization of already-closed source.
+- Next gate is `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261109_01`; separate explicit authorization is required because Manager replacement was outside the original Stage B live scope.
+- PREPARE replay, CONFIRM_USB_ERASE, U2+, board work and merge remain forbidden.
+- Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_STAGE_B_PRECLAIM_MANAGER_IPC_V3_BLOCKER_AND_EXACT_ARTIFACT_CLOSURE_20261109.md`.
+
+## 2026-11-09 — KF-147 Stage A OTA publication CLOSED_PASS
+
+- Current core-stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- OTA origin live publication remains PASS with exact Home Assistant 2026.10.4 archive `835309535` bytes / SHA-256 `eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973`.
+- Website-edge Attempt02 is CLOSED_PASS. Public HEAD, first/last 1 MiB ranges and loopback HTTPS complete SHA-256 all passed.
+- Public exact target now returns HTTP 200 with exact Content-Length, `application/octet-stream`, immutable cache header and `nosniff`.
+- Website container was not recreated; OTA container was untouched; no rollback was required.
+- Attempt02 authorization is consumed and replay-forbidden.
+- T1 access/mutation, PREPARE replay, USB mutation, U2+, board access and merge did not occur.
+- Current stop point is before the separately authorized T1 KF-147 live policy repair gate.
+- Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_LIVE_REPAIR_A_WEBSITE_EDGE_PUBLICATION_ATTEMPT02_CLOSURE_20261109.md`.
+
+## 2026-11-09 — KF-147 website-edge Attempt01 FAILED / rollback PASS
+
+- Current core-stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- Edge Attempt01 authorization was claimed and consumed; replay is forbidden.
+- Exact edge source reached public HTTP 200. Final full-body validation timed out at 1800 seconds after 833,642,496 of 835,309,535 bytes.
+- Bounded rollback completed PASS. OTA origin remains accepted; website edge is not live after rollback.
+- Failure class is validation-budget/executor, not hahub.top edge-source or OTA-origin source defect.
+- Next gate is `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_LIVE_REPAIR_A_WEBSITE_EDGE_PUBLICATION_ATTEMPT02_20261109_01`; it requires fresh explicit authorization.
+- Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_LIVE_REPAIR_A_WEBSITE_EDGE_PUBLICATION_ATTEMPT01_CLOSURE_20261109.md`.
+
+## 2026-11-09 — KF-147 Stage A Attempt02 origin publication CLOSED_PASS
+
+- Current core-stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- Fresh rollback-baseline recheck passed before the second mutation: frozen compose/edge/OTA hashes matched, target was absent, OTA mounts were read-write, local exact target returned 403 and public exact target returned 404.
+- Attempt02 one-shot authorization `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_LIVE_REPAIR_A_OTA_ORIGIN_PUBLICATION_ATTEMPT02_20261109_01` was explicitly granted, claimed and consumed; replay is forbidden.
+- Exact Home Assistant 2026.10.4 archive was atomically published: `835309535` bytes, SHA-256 `eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973`.
+- OTA content/config mounts are now read-only. Local origin acceptance is HTTP 200 with exact Content-Length, `application/octet-stream`, immutable cache header and `nosniff`.
+- Public exact target deliberately remains HTTP 404 because website-edge publication has not occurred.
+- Website continuity remained unchanged. T1 access/mutation, PREPARE replay, USB mutation, U2+, board access and merge did not occur.
+- Attempt02 is `CLOSED_PASS`; next stage is a separately authorized website-edge publication gate and is not auto-executed.
+- Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_LIVE_REPAIR_A_OTA_ORIGIN_PUBLICATION_ATTEMPT02_CLOSURE_20261109.md`.
+
+## 2026-11-09 — KF-147 Stage A Attempt01 rollback PASS; Attempt02 handoff
+
+- Current core-stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- Exact Home Assistant 2026.10.4 artifact was downloaded and independently bound: outer ZIP `835314025` bytes / `df95749cec1e48796d2cf3241d19739601fe7be78c48638284d10eec786e4fd2`; inner archive `835309535` bytes / `eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973`. A0 extraction passed.
+- Stage A Attempt01 authorization was claimed and consumed. The exact target archive was atomically placed, then the chat-generated A1 shell script failed because one test expression omitted its closing `]`.
+- Rollback completed PASS: OTA mounts returned to the old read-write mode, local target returned HTTP 403, public target returned HTTP 404. The website edge was never published; T1/USB/PREPARE/U2+/board/merge were untouched.
+- Attempt01 authorization is consumed and replay-forbidden. No new product-source blocker or new KF is established by this execution-script defect.
+- User selected `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_LIVE_REPAIR_A_OTA_ORIGIN_PUBLICATION_ATTEMPT02_20261109_01` as the next gate for a new conversation. Fresh rollback-baseline read-only verification and a new live authorization are required before a second mutation.
+- New-chat authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_LIVE_REPAIR_A_OTA_ORIGIN_PUBLICATION_ATTEMPT02_NEW_CHAT_HANDOFF_V1.0_20261109.md`.
+
+## 2026-11-09 — KF-147 source repair CLOSED_PASS
+
+- Current core-stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- HomeAssistant PR #800 source/CI closure is complete; final production source last changed at `26a25537cdefa83d47c62b3ecc867a2cc37e8b8d`; later closure commits are evidence/test/docs only.
+- Policy V2 is frozen at `gh.n3w-t1-ha-ota-host-release-policy/2`, exact-binding Home Assistant 2026.10.4 target bytes/SHA, predecessor image and the hybrid dynamic capacity policy.
+- Shared predecessor recovery qualification is bound to run `42562214305`, artifact `13650277244`; measured export is `835454838` bytes and the independently recomputed recovery budget is `1342177280` bytes.
+- Production qualification and A1 deployment share the same predecessor recovery encoder implementation; the old independent qualification encoder path is removed.
+- Capacity admission is fail-closed at PREPARE/candidate, immediately before destructive format, after format, before INSTALL/U6 and at U8 recovery admission. Existing U1 state uses additive backfill only; PREPARE replay/reset is forbidden.
+- Manager/Home Assistant public projection remains bounded to required/recommended capacity, capacity state and enumerated message code; raw USB identity/private paths remain private.
+- A1 source authority exact-binds and installs Policy V2 plus the shared recovery encoder; current A1 manifest remains `live_execution_authorized=false`.
+- hahub.top PR #4 head `a4aa7ff3011c945555f7df77165bb5bee0f58d94` passes OTA route CI `42561679317`; no OTA binary is in Git and no live server deployment occurred.
+- PR #800 exact-head regression set reached all-success before docs-only closure; final independent review found `NEW_BLOCKER_COUNT=0` and no new false-PASS path.
+- `KF147_SOURCE_REPAIR=CLOSED_PASS`; overall KF-147 remains `SOURCE_CLOSED_LIVE_REPAIR_PENDING` because live OTA publication, live T1 repair, fresh destructive authorization, U2+ and merge remain separate boundaries.
+- Previous `CONFIRM_USB_ERASE` authorization remains `SUPERSEDED_UNCLAIMED`; current U1 / SanDisk candidate is preserved and PREPARE must not be replayed.
+- Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_HOST_RELEASE_POLICY_SOURCE_REPAIR_CLOSURE_20261109.md`.
+
+
+## 2026-11-09 — KF-147 source design CLOSED / source repair ready
+
+- T1 Core Stack compatibility authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- KF-147 source design is closed on a hybrid dynamic capacity model.
+- OTA release origin selected: `https://ota.hahub.top`, reusing the existing independent Nginx OTA server/storage; binaries stay outside Git and outside the website `rsync --delete` tree.
+- Canonical Home Assistant payloads use immutable versioned paths under `/n3w/homeassistant/releases/<release_identity>/homeassistant-arm64.tar.gz`.
+- Host release policy advances to schema V2 and binds exact origin/target/predecessor plus capacity-policy rules.
+- Capacity formula is fixed; target bytes are release-fixed; predecessor recovery is transition-bound; HA data is runtime-dynamic; working and reserve use fixed formulas.
+- Capacity is rechecked at PREPARE, before/after format, and before INSTALL/U9.
+- UI recommends the smallest standard 32/64/128/... GB tier calculated from the current transaction; primary copy says the USB may be erased only after explicit confirmation.
+- Current live U1 / SanDisk candidate is preserved. Existing state is migrated only by additive capacity-snapshot backfill; PREPARE replay and USB reinsertion remain forbidden.
+- The previously granted destructive confirmation is `SUPERSEDED_UNCLAIMED` because the eligibility contract changed materially.
+- Next stage: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_HOST_RELEASE_POLICY_SOURCE_REPAIR_20261109_01`; source/CI only, no live mutation.
+- Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_HOST_RELEASE_POLICY_SOURCE_DESIGN_20261109.md`.
+
+
+## 2026-11-09 — KF-147 host release-policy blocker
+
+- Boundary B reached the real `USB_REQUIRED_CONFIRMATION` state with the SanDisk Extreme candidate still inserted.
+- User authorized `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_BOUNDARY_B_CONFIRM_USB_ERASE_20261109_01`, but the authorization remains unclaimed.
+- Fresh destructive preflight failed before mutation because `/etc/n3w-t1-ota/homeassistant-release-source.json` is absent.
+- Source review proves `FixedHostReleasePolicyProvider` requires that file for artifact URL, exact target binding and full USB capacity admission.
+- R7A A1 activation installs the approved manifest, daemon/service assets and activation env, but does not install a host release-policy authority.
+- Current tests use synthetic policy providers / synthetic URLs and therefore did not cover this production deployment contract.
+- Product architecture explicitly rejects GitHub Actions artifacts as the final end-user OTA CDN and leaves the final stable HTTPS release source to later design; the four non-target capacity budget values are likewise not frozen as a production policy asset.
+- KF-147 opened as `OPEN_SOURCE_DESIGN_REQUIRED`. No wipefs, partition write, mkfs, mount, target download or U2+ occurred.
+- Keep the current SanDisk candidate inserted and preserve the existing U1 transaction. Do not replay PREPARE.
+- Next stage: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_HOST_RELEASE_POLICY_SOURCE_DESIGN_20261109_01`.
+- Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_HOST_RELEASE_POLICY_AUTHORITY_MISSING_STOP_20261109.md`.
+
+
+## 2026-11-09 — USB enumeration differentiation E3 CLOSED_PASS
+
+- T1 Core Stack compatibility authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; repository Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- Original MXT device failed descriptor enumeration on T1 twice with the same `-110` pattern but enumerated normally on a known-good Mac.
+- A second known-good SanDisk Extreme device enumerated normally through the same T1 USB port/xHCI path, bound as USB Mass Storage, created SCSI disk `/dev/sda`, and reached R7A candidate discovery.
+- Live transaction remains ACTIVE at U1 with public phase `USB_REQUIRED_CONFIRMATION`; candidate model `Extreme`, capacity 32,017,047,552 bytes.
+- General T1 USB-path failure is disproven for the tested second device; R7A candidate-discovery path is proven working. The original MXT device is the primary isolated device-specific compatibility direction.
+- No PREPARE replay, destructive confirmation, wipefs, partition write, mkfs, mount, target download, U2+, board access or merge occurred.
+- Keep the second device inserted. Current hard stop is before `CONFIRM_USB_ERASE`.
+- Next stage is a separate destructive USB confirmation authorization decision.
+- Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_USB_ENUMERATION_DIFFERENTIATION_E3_CLOSURE_20261109.md`.
+
+
+## 2026-11-09 — USB enumeration differentiation E2 STOP
+
+- T1 Core Stack compatibility authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; repository Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- The same test USB that enumerated successfully on the Mac was safely ejected and reinserted into T1 once under E2.
+- T1 reproduced the original descriptor timeout exactly: repeated kernel `error -110`, xHCI port power-cycle attempt, and final `unable to enumerate USB device`.
+- No non-root lsusb device, SCSI disk or USB-like block disk appeared; the R7A candidate layer was never reached.
+- The live HA-USB transaction remains ACTIVE at U1 / `USB_REQUIRED`, with no candidate, no confirmation, no PREPARE error and no destructive action.
+- A single-transient insertion explanation is materially weakened. The remaining fault domain is T1 USB path / port / controller / power / signal behavior versus device-specific compatibility with the original USB.
+- Product-source blocker and permanent T1 hardware fault remain unproven. No KF is opened yet.
+- Current test USB remains inserted on T1. Further unplug/reinsert and second-device substitution require a separate E3 authorization.
+- Next stage: one second known-good USB substitution under E3 to distinguish T1-wide failure from original-device-specific compatibility.
+- Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_USB_ENUMERATION_DIFFERENTIATION_E2_STOP_20261109.md`.
+
+
+## 2026-11-09 — USB enumeration differentiation E1 CLOSED_PASS
+
+- T1 Core Stack compatibility authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; repository Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- The failed test USB was unplugged once under E1; T1 returned to zero external USB devices while the HA-USB transaction remained ACTIVE at U1 / `USB_REQUIRED`.
+- The exact same USB then enumerated successfully on a known-good Mac as `MXT USB Device`, VID:PID `aaaa:8816`, external physical `disk2`, capacity 31,914,983,424 bytes.
+- Therefore the test USB is not completely failed. The remaining fault domain is T1 USB path / contact / power / signal behavior or device-specific T1 xHCI/kernel compatibility.
+- Product-source blocker and permanent T1 hardware fault are both not yet proven. No new KF is opened yet.
+- No T1 reinsertion, second USB substitution, PREPARE replay, destructive confirmation, U2+ or merge occurred.
+- Next stage is one controlled reinsertion of the same USB into T1 under a separate E2 authorization; if descriptor timeout repeats, use a later separate known-good second-device substitution.
+- Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_USB_ENUMERATION_DIFFERENTIATION_E1_CLOSURE_20261109.md`.
+
+
+## 2026-11-09 — Boundary B USB enumeration timeout STOP
+
+- T1 Core Stack compatibility authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; repository Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- The live repaired Manager remains `local/greenhouse-manager:fresh-7807271e4c48`; the U1 HA-USB transaction remains ACTIVE at `USB_REQUIRED`.
+- The authorized dedicated test USB was inserted once. Linux xHCI detected a high-speed device on port 1-2 but repeated descriptor reads timed out with error `-110`; the kernel power-cycled the port and finally reported `unable to enumerate USB device`.
+- `lsusb` and USB sysfs show only the root hub; no SCSI disk or USB-like block disk exists, so R7A candidate selection was never reached.
+- No PREPARE replay, destructive confirmation, wipefs, partition write, mkfs, mount, target download, U2+, board access or service restart occurred.
+- The one-shot physical insertion authorization is consumed. Current device remains inserted; unplug/reinsert and second-device substitution are not authorized yet.
+- Current classification: physical/USB enumeration layer failure; product-source blocker and hardware fault are both not yet proven.
+- Next stage: bounded USB enumeration differentiation using known-good-device / known-good-host substitution under a separate authorization.
+- Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_BOUNDARY_B_USB_ENUMERATION_TIMEOUT_STOP_20261109.md`.
+
+
+## 2026-11-09 — Boundary B PREPARE revalidation CLOSED_PASS
+
+- T1 Core Stack compatibility authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; repository Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- Fresh live preflight passed with exact Manager/Home Assistant/Broker images, restart count 0, host daemon active, Manager OTA enabled, exact DynSec SHA/changeIndex, 23/10 service-role ACLs, all four OTA control ACLs present, no old HA-USB transaction/PREPARE state, and zero USB-like disks.
+- The authorized Home Assistant PREPARE action was invoked exactly once; the one-shot authorization is now consumed and non-replayable.
+- A new HA-USB transaction and PREPARE state exist with internal phase `U1_PREPARE_REQUESTED`, status `ACTIVE`, and public phase `USB_REQUIRED`.
+- `usb_confirmation_required=false`, `candidate=null`, no PREPARE error, USB-like disk count remains zero, and no OTA media mount exists.
+- Manager/Home Assistant/Broker remain running with restart count 0; host daemon remains active.
+- No USB insertion, `CONFIRM_USB_ERASE`, wipefs, partition write, mkfs, mount, target download, U2+, board access or merge occurred.
+- Current hard stop: `USB_REQUIRED_BEFORE_ANY_USB_INSERTION`. Do not replay PREPARE or clear the live U1 transaction.
+- Next stage is a separate USB insertion/read-only candidate-discovery authorization decision; it is not authorized yet. Destructive confirmation remains a separate later gate.
+- Closure: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_BOUNDARY_B_PREPARE_REVALIDATION_CLOSURE_20261109.md`.
+
+
+## 2026-11-09 — Boundary B PREPARE revalidation new-chat handoff ready
+
+- T1 Core Stack compatibility authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; repository Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- PR #800 parent authority head is `2838a56764ace71cdfe0213898b17d6c82d7dbd0`; its six key workflows are `SUCCESS`.
+- KF-145 and KF-146 are both `CLOSED_PASS_LIVE_REVALIDATED`; live Manager/Home Assistant roles are 23/10 ACLs with all four exact OTA control grants.
+- Previous PREPARE authorization is consumed and non-replayable; transaction/PREPARE state are absent and USB-like disk count is zero at last direct evidence.
+- User granted one new one-shot gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_BOUNDARY_B_PREPARE_REVALIDATION_20261109_01`.
+- The gate requires a fresh read-only precheck, exactly one PREPARE, and a hard stop at `USB_REQUIRED` before any USB insertion.
+- USB insertion, `CONFIRM_USB_ERASE`, U2+, board access and merge remain unauthorized.
+- Formal handoff: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF146_LIVE_CLOSURE_TO_BOUNDARY_B_PREPARE_REVALIDATION_NEW_CHAT_HANDOFF_V1.0_20261109.md`.
+
+## 2026-11-09 — KF-146 live OTA control DynSec repair CLOSED_PASS
+
+- T1 Core Stack compatibility authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; repository Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- Production Manager role is now 23 ACLs; Home Assistant role is now 10 ACLs.
+- The four exact OTA control permissions are present once each; unrelated DynSec state is unchanged.
+- Manager/Home Assistant/Broker remained the same containers with restart count 0.
+- Previous PREPARE authorization remains consumed and non-replayable; no HA-USB transaction exists, USB remains absent, destructive confirmation remains false.
+- KF-146 status: `CLOSED_PASS_LIVE_REVALIDATED`.
+- Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_BOUNDARY_B_PREPARE_REVALIDATION_20261109_01`; not yet authorized.
+- Closure: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF146_OTA_CONTROL_DYNSEC_LIVE_APPLY_CLOSURE_20261109.md`.
+
+## 2026-11-09 — KF-146 OTA control DynSec source repair + live confirmation
+
+- T1 Core Stack compatibility authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; repository Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- Boundary B PREPARE was pressed exactly once, but HA-USB transaction and prepare state remained absent; USB remained absent.
+- Live Manager role has 20 ACLs and live Home Assistant role has 9 ACLs.
+- Exact OTA control topic has zero Manager subscribe/receive/unsubscribe ACLs and zero Home Assistant publish ACLs; `READONLY_RESULT=PASS_KF146_LIVE_CONFIRMED`.
+- Source repair head `41e0300e23351343bfe85f610d104cf533484e8e` adds only the exact four missing permissions and real DynSec HA→Manager delivery coverage.
+- Functional CI PASS: greenhouse-manager `42536106786`, M2 Dynamic Security `42536106920`, S20 real service handoff `42536106795`, fast source `42536106856`, public safety `42536106929`.
+- The consumed PREPARE is non-replayable; USB insertion remains forbidden until KF-146 live repair.
+- Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF146_OTA_CONTROL_DYNSEC_LIVE_APPLY_20261109_01`; not yet authorized.
+- Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF146_OTA_CONTROL_DYNSEC_SOURCE_REPAIR_AND_LIVE_READONLY_CONFIRMATION_20261109.md`.
+
+## 2026-11-09 — KF-145 live DynSec repair CLOSED_PASS
+
+- Production Manager role repaired from 17 to 20 ACLs by adding only the three exact R7A OTA Discovery publish grants.
+- Exact live poststate proved all three target ACLs once, no broad Home Assistant publish grant, and no unrelated DynSec drift.
+- Manager, Home Assistant and Broker remained the same containers with restart count 0.
+- Manager automatically reconnected and republished OTA Discovery; Home Assistant now has one N3-W T1 device and one PREPARE entity.
+- HA-USB transaction/PREPARE state remain absent; Boundary B is ready to resume from the original pre-PREPARE point.
+- KF-145 status: `CLOSED_PASS_LIVE_REVALIDATED`.
+- Closure: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_MANAGER_DYNSEC_DISCOVERY_ACL_LIVE_APPLY_CLOSURE_20261109.md`.
+
+## 2026-11-09 — KF-145 live DynSec read-only preflight CLOSED_PASS
+
+- T1 Core Stack compatibility authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; repository Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- Real T1 health is PASS with Manager/HA/Broker each unique, running, exact expected image binding and restart count 0.
+- Active Manager DynSec client and role each match exactly once; live Manager role has 17 ACLs while repaired source has 20.
+- All three R7A OTA Update/PREPARE/CONFIRM Discovery publish ACLs are absent; broad `homeassistant/#` Manager publish remains absent; historical device/binary_sensor Discovery ACLs remain intact.
+- Home Assistant still has zero matching `N3-W T1` device/entities; HA-USB transaction/PREPARE state remain absent.
+- KF-145 live root cause is confirmed; Boundary B remains stopped before PREPARE.
+- Isolated real DynSec integration at `f6e37a2f22ad6990e42d798c98fcca5798ab8dd6` proves role ACL mutation causes Manager MQTT reconnect and post-reconnect OTA Discovery publish without manual service restart.
+- Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_MANAGER_DYNSEC_DISCOVERY_ACL_LIVE_APPLY_20261109_01`; not yet authorized.
+- Closure: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_MANAGER_DYNSEC_DISCOVERY_ACL_LIVE_READONLY_PREFLIGHT_CLOSURE_20261109.md`.
+
+## 2026-11-09 — KF-145 Manager DynSec OTA Discovery ACL source repair CLOSED_PASS
+
+- T1 Core Stack compatibility authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; repository Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- Boundary B pre-PREPARE diagnostics proved healthy OTA projection but zero `N3-W T1` HA device/entities.
+- Root cause: Manager DynSec role omitted the R7A `update` and two `button` Home Assistant Discovery publish topics.
+- Exact source repair head: `f2ea76d245ef98196624aca088f492c60d6f8821`; only three exact OTA Discovery ACLs were added; broad `homeassistant/#` Manager publish remains forbidden.
+- Real Mosquitto + Dynamic Security integration now proves Manager publish and Home Assistant receipt for all three OTA Discovery topics.
+- Historical consumed S20 17-ACL executor remains frozen; tests explicitly prove the current 20-ACL plan still fail-closes against it.
+- Required CI PASS: greenhouse-manager `42500786838`; M2 Dynamic Security `42500787022`; S20 real service handoff `42500786915`; fast source `42500787067`; public safety `42500787018`.
+- KF-145 status: `SOURCE_REPAIR_CLOSED_PASS_LIVE_REVALIDATION_PENDING`.
+- Production Broker DynSec was not mutated; Boundary B remains stopped before PREPARE and before USB insertion.
+- Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_MANAGER_DYNSEC_DISCOVERY_ACL_LIVE_READONLY_PREFLIGHT_20261109_01`.
+- Closure: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_MANAGER_DYNSEC_DISCOVERY_ACL_SOURCE_REPAIR_CLOSURE_20261109.md`.
+
+## 2026-11-08 — repaired Manager A0R/A1R live CLOSED_PASS
+
+- T1 Core Stack compatibility authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; repository Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- PR #800 live-authorized head: `70aaa4070641dd73c1a97738e6332be31403d45e`.
+- A0R real execution `N3W_R7A_REPAIRED_MANAGER_A0R_ATTEMPT2_20261108T151437Z` is PASS; the Manager transaction is COMMITTED and live Manager is `local/greenhouse-manager:fresh-7807271e4c48`.
+- A0R recovery is clear; no second apply, explicit rollback, USB mutation or board access occurred.
+- Fresh post-A0R A1R readonly eligibility passed with repaired Manager, exact A0R authorization hash, unchanged Home Assistant/Broker, USB-like disk count 0 and no A1 residue.
+- A1R real execution `N3W_R7A_REPAIRED_MANAGER_A1R_20261108T153901Z` is PASS.
+- Host daemon is active, Manager OTA is enabled, exactly one services-owner restart was invoked, automatic A1 rollback was not invoked, and recovery is clear.
+- A1R post-activation validation completed the frozen 15-second same-container stability guard.
+- KF-144 is `CLOSED_PASS_LIVE_REVALIDATED`.
+- No PREPARE intent, USB mutation, destructive confirmation, board access or merge occurred.
+- Repository current-authority promotion is not performed by this live closure.
+- Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_BOUNDARY_B_REAL_USB_PREPARE_ONLY_EXECUTION_20261108_01`; explicit authorization required, PREPARE first with dedicated USB absent, and hard stop at `USB_REQUIRED_CONFIRMATION`.
+- Closure: `docs/development/N3W_T1_R7A_REPAIRED_MANAGER_A0R_A1R_LIVE_EXECUTION_CLOSURE_20261108.md`.
+
+## 2026-11-08 — repaired Manager A0R/A1R preexecution CLOSED_PASS
+
+- T1 Core Stack authority compatibility link: `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- Repaired Manager source remains `7807271e4c48161f2fad96a7886fa4c24b038321`; target image is `local/greenhouse-manager:fresh-7807271e4c48`.
+- A0R live package authority remains immutable at run `42480154921`, artifact `13616844356`, digest `sha256:3c07406cd51258c8ef95f02e1e6cc80d09eb7235c218e7ead74a02a5521442fd`, control head `4c883c02...`.
+- A0R/A1R executable source authority is `813acb95401612585fc73455e05c81e3e6b86009`, tree `fdea2402ab30f1f6139268d2d450eb75a9f85226`.
+- Focused CI run `42482476119`: source SUCCESS with 274 tests, exact-manager-slice SUCCESS, pre-u1-v2-simulation SUCCESS, package binding PASS.
+- Independent review found and repaired a false-PASS gap: A1R now requires the V2 transaction `authorization_id_sha256` to match the exact distinct A0R authorization; A0R post-apply enforces the same binding.
+- A0R and A1R remain separate one-shot authorities and both are ungranted; old A0/A1/Boundary-B authorities remain non-replay.
+- No fresh T1 access/mutation occurred. Operator evidence says Home Assistant web login works after reboot, but exact live Manager/HA/Broker state is `UNKNOWN_FRESH` until the next read-only gate.
+- KF-144 remains live-revalidation pending.
+- Next gate: `N3W_T1_R7A_REPAIRED_MANAGER_A0R_FRESH_LIVE_READONLY_ELIGIBILITY_20261108_01`; no remote write or live apply is authorized.
+- Closure: `docs/development/N3W_T1_R7A_REPAIRED_MANAGER_A0R_A1R_PREEXECUTION_CLOSURE_20261108.md`.
+- Formal handoff: `docs/development/N3W_T1_R7A_REPAIRED_MANAGER_A0R_A1R_PREEXECUTION_TO_A0R_FRESH_LIVE_READONLY_ELIGIBILITY_NEW_CHAT_HANDOFF_V1.0_20261108.md`.
+
+## 2026-11-08 — R7A simplified-runtime OTA compatibility source repair CLOSED_PASS
+
+- T1 Core Stack authority compatibility link: `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- Source repair authority: `7807271e4c48161f2fad96a7886fa4c24b038321`, tree `3d2893914d62645011a9a4badc7f939d10f9029e`.
+- Exact ARM64 run `42452239964` attempt 2 completed SUCCESS; artifact `13615963302`, digest `sha256:72b05593b91c75912e05ccd3b00bc72af5bd7ec03e39c283d0ce7acfb513fbe7`; post-upload binding PASS.
+- Attempt 1 failed only at downloaded `homeassistant-arm64.tar` SHA verification. The unchanged rerun passed the same path, so the failure is classified as a transient CI artifact-roundtrip integrity failure; no workflow/source weakening is applied.
+- Root cause of the real R7A incident: simplified runtime internally rewrote `n3w_runtime_enabled=false` while retaining the OTA config flag, causing base `Settings.validate()` to reject the internal copy despite the live external runtime flag being correct.
+- Repair clears only the internal base-service OTA config flag when the already-built `ota_manager` is injected; MQTT OTA capability remains carried by that object.
+- Added A1 guard requires 15 seconds of services-owner stability with the same Manager/Home Assistant/Broker container identities still running.
+- Focused review: PASS; new false-PASS blockers: 0; Manager suite 1538 PASS / 1 skipped; HA MQTT bootstrap 1 PASS.
+- KF-144 is `SOURCE_REPAIR_CLOSED_LIVE_REVALIDATION_PENDING`.
+- Real T1 remains on the recovered OTA-disabled path. No new A1 activation, PREPARE, USB mutation, board access, or merge occurred.
+- Next gate: `N3W_T1_R7A_REPAIRED_MANAGER_EXACT_ARTIFACT_AND_FRESH_A1_REACTIVATION_PREEXECUTION_20261108_01`; it does not itself authorize real-T1 mutation.
+- Closure: `docs/development/N3W_T1_R7A_SIMPLIFIED_RUNTIME_OTA_COMPATIBILITY_SOURCE_REPAIR_CI_CLOSURE_20261108.md`.
+
+## 2026-11-08 — R7A Boundary B PREPARE-only preexecution CLOSED_PASS
+
+- T1 Core Stack authority compatibility link: `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; manager reference `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- A1 successor live closure head `276811043c9eca9ba6c66198588fb89b14cd3b36` is **25/25 SUCCESS**; A1 remains PASS, authorization consumed/non-replay, KF-143 RESOLVED.
+- Boundary B source review found no runtime-source defect and requires no source repair.
+- Design correction: submit PREPARE **before** inserting the dedicated test USB. PREPARE records the existing removable-device baseline; devices already present at PREPARE time are intentionally excluded from fresh-candidate selection.
+- PREPARE creates only a U1 transaction, records baseline state and starts read-only discovery. It does not invoke format, mount, target download, erase confirmation or U2+.
+- Exactly one fresh eligible removable USB must appear after PREPARE. Multiple fresh devices fail closed; root-backed, production-mounted, read-only, non-removable or non-USB devices are not eligible.
+- Home Assistant exposes PREPARE and destructive USB confirmation as separate entities. The confirmation entity appears only in `USB_REQUIRED_CONFIRMATION` with a visible model/capacity candidate.
+- Physical stop boundary: after exactly one fresh candidate is published and the system reaches `USB_REQUIRED_CONFIRMATION`; do **not** invoke `CONFIRM_USB_ERASE`.
+- Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_BOUNDARY_B_REAL_USB_PREPARE_ONLY_EXECUTION_20261108_01`. Real USB insertion and PREPARE remain unauthorized until explicit approval.
+- Closure: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_BOUNDARY_B_PREPARE_ONLY_PREEXECUTION_CLOSURE_20261108.md`.
+
+## 2026-11-08 — R7A A1 successor live activation CLOSED_PASS
+
+- T1 Core Stack authority compatibility link: `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; manager reference `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- Authorized source head `c01b982e9d889a269e79aedeb8b9f18c15f8b3e6`, tree `74d193f675d712cf53f3484e478b523b975e1dff`, exact-head CI **25/25 SUCCESS**.
+- Execution `N3W_R7A_HOST_A1_20261107T174129Z` completed with executor rc 0 and `status=PASS`.
+- Successor authorization `N3W_T1_R7A_HOST_DAEMON_COMPOSE_A1_LIVE_ACTIVATION_20261108_02` was claimed and is consumed; replay is forbidden.
+- Activation invoked exactly once; services-owner restart invoked; host daemon active; Manager OTA enabled.
+- No automatic rollback was invoked and `recovery_required=false`.
+- USB mutation, PREPARE intent, erase confirmation, and board access all remained false.
+- KF-143 is resolved by real-T1 successor retry evidence: the bounded post-restart convergence repair passed without recurrence of `container_cardinality_invalid`.
+- Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_BOUNDARY_B_PREPARE_ONLY_PREEXECUTION_20261108_01`; no real USB/PREPARE action is authorized by this closure.
+- Closure: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_A1_SUCCESSOR_LIVE_ACTIVATION_CLOSURE_20261108.md`.
+
+## 2026-11-08 — R7A A1 _01 rollback healthy; restart-settle repair CLOSED_PASS; successor authorization deferred
+
+- T1 Core Stack authority compatibility link: `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; manager reference `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- Fresh repository rebind: main `bce6bd82023d5f5322eea1ab363a29df8a4cadd8`; PR #799 head `462018cbf341f1b762a35f82a87a7c98e4a8b615`; PR #800 executable repair head `922a106bd32ce98a07d2280cf08a6a9f116a11a6`, tree `3712bbcf20e47f7cf1f92fc26ce238eed6e95fd8`.
+- Exact repair-head CI: **25 success, 0 failure, 0 pending**.
+- A0 Manager successor live apply is accepted: Manager `local/greenhouse-manager:fresh-bf38e388497b`; A0 authorization `...20261107_02` is consumed and replay-forbidden.
+- A1 authorization `N3W_T1_R7A_HOST_DAEMON_COMPOSE_A1_LIVE_ACTIVATION_20261107_01` was claimed and activation invoked; it is consumed/retired and must never be replayed.
+- A1 _01 stopped on `container_cardinality_invalid`; automatic rollback was invoked. Later read-only classification proved `ROLLED_BACK_HEALTHY_FALSE_ROLLBACK_FAILURE`, so `T1_RECOVERY_REQUIRED=false`.
+- Current live Manager is `local/greenhouse-manager:fresh-bf38e388497b` / runtime image `sha256:e88a22b2...`, UID/GID 999:999, running, no OTA env/mount and no Docker socket.
+- Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a` / runtime image `sha256:c261fa53...`, running.
+- Broker remains `local/n3w-mosquitto:2.1.2-3184566d` / runtime image `sha256:df265f1e...`, running with container continuity proven.
+- A1 host service/drop-in/activation env/approved manifest/runtime root/socket are absent; HA-USB/PREPARE state absent; USB-like disk count 0.
+- KF-143 records the root cause: Type=simple services restart returns before Manager/HA container convergence; immediate `docker ps --filter ancestor` is not a readiness oracle.
+- Repair: bounded 120 s wait only after activation/rollback restarts; preflight remains strict/immediate. Repair exact head is `922a106bd32ce98a07d2280cf08a6a9f116a11a6`.
+- No new A1 authorization is established in this chat. Proposed successor ID for the next chat: `N3W_T1_R7A_HOST_DAEMON_COMPOSE_A1_LIVE_ACTIVATION_20261108_02`, currently `GRANTED=false`.
+- Next gate: `N3W_T1_R7A_HOST_DAEMON_COMPOSE_A1_SUCCESSOR_LIVE_AUTHORIZATION_BINDING_20261108_01`.
+- Formal handoff: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_A1_ROLLBACK_HEALTHY_TO_SUCCESSOR_AUTHORIZATION_NEW_CHAT_HANDOFF_V1.0_20261108.md`.
+
+## 2026-11-07 — R7A Manager A0 executor preexecution CLOSED_PASS
+
+- Current live authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Accepted production stack remains Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`; live deployment remains `APPLIED_ACCEPTED`.
+- Live upgrade accepted: `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`; no A0 live mutation has occurred.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- R7A Manager successor remains `local/greenhouse-manager:fresh-bf38e388497b`; it is package-ready but not live-accepted.
+- Frozen A0 Manager-only package: control head `921e7d5557ff3dbf4b7e7ae5510186d98f803a2a`, artifact `13564899377`, digest `sha256:6e9ca4cf103434330c0a31b51e1ba27b7d12b554648f4b0a017fd69bc4a32e1c`.
+- Final A0 executor executable authority: head `bed9aeb7c41f614bdeb8e445d71171e669e45942`, tree `7f07e82f688dfee24e22e9330485e2c02edbd4fa`.
+- Final independent review added pre-staging updater-state recovery checks, exact staging file-set/symlink guards, R7A approved-manifest residue rejection, exact post-target image-ID validation, and post-failure status/inspect evidence capture.
+- Rollback contract is explicit: the executor never issues a second explicit rollback; Generic V2 may perform its already-tested bounded internal failure rollback; no automatic retry or second apply is allowed.
+- A0 dedicated CI run `42362708336`: `source=SUCCESS`, `exact-manager-slice=SUCCESS`, `pre-u1-v2-simulation=SUCCESS`.
+- Executable-head workflow summary: 27 success, 0 failure, 0 pending, 4 ancillary cancelled; no A0 job failed or remained pending.
+- `live_execution_authorized=false`; no real SSH epoch, T1 mutation, Manager live upgrade, USB mutation, board access or merge occurred.
+- Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_MANAGER_SUCCESSOR_A0_LIVE_APPLY_20261107_01`; explicit user authorization required before any real T1 access/mutation.
+- Closure: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_MANAGER_SUCCESSOR_A0_LIVE_EXECUTION_PACKAGE_PREEXECUTION_CLOSURE_20261107.md`.
+
+## 2026-11-07 — R7A Manager successor exact A-to-B package CLOSED_PASS
+
+- Current live authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current repository Manager remains `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current repository Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted: `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`; the R7A Manager successor remains package-ready but not live-accepted.
+- R7A Manager successor is `local/greenhouse-manager:fresh-bf38e388497b`; it is **not** live-accepted yet.
+- Exact ARM64 source artifact: run `42347679643`, artifact `13564472128`, Manager tar SHA256 `4c4492ef5008a968b2553240b3fde97912eb3ae862604ae492e5a639a93db008`, build image ID `sha256:136cdcacf84a388a91cf0adbf7e0653a78b754e1879a59d3a2ac066ecba9fa5f`.
+- Compatibility authority: `infra/n3w-t1/upgrades/manager-bf38e388497b-compatibility.json`; `IMAGE_ONLY_V1`, persistent/peer compatible, no DB/config/runtime-template/HA/Broker/board migration, rollback compatible.
+- Target authority: `infra/n3w-t1/upgrades/manager-bf38e388497b.json`; expected predecessor is the accepted `fresh-5b32e1ae8210`.
+- Predecessor baseline: `infra/n3w-t1/clean-reference/r7a-manager-predecessor-baseline-20261107.json`; canonical SHA `78c3b0b58ad39cf887689658bec90c8466d30a93d58830b0289f1463dafad868`, exactly matching the 2026-11-05 real-T1 P4 double-read baseline authority.
+- Final Manager-only Generic V2 package: run `42349904235`, artifact `13564899377`, digest `sha256:6e9ca4cf103434330c0a31b51e1ba27b7d12b554648f4b0a017fd69bc4a32e1c`, updater.pyz SHA `1b556d5601f33ef050c91e990bedaaeb1611bef325350fad008a1ec69fc7dc99`.
+- Package CI passed `source`, `exact-manager-slice` and `pre-u1-v2-simulation`; simulation covers plan/apply/rollback without T1 mutation.
+- Continuity review from artifact source head `bf38e388497b0d480f4bd322426e32a98652cf6c` to package control head `921e7d5557ff3dbf4b7e7ae5510186d98f803a2a` found zero Manager product-source changes.
+- No live T1 access/mutation, Manager live upgrade, service/Docker mutation, USB mutation, board access or merge occurred.
+- Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_MANAGER_SUCCESSOR_A0_LIVE_EXECUTION_PACKAGE_PREEXECUTION_20261107_01`; source-only executor construction/review, stopping before real SSH/apply.
+- Closure: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_MANAGER_SUCCESSOR_EXACT_ARTIFACT_AND_A_TO_B_PACKAGE_CLOSURE_20261107.md`.
+
+## 2026-11-07 — HA mandatory-USB R7A PREPARE source CLOSED_PASS
+
+- Current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source remains `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current repository Manager remains `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current repository Home Assistant remains `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current repository Broker remains `local/n3w-mosquitto:2.1.2-3184566d`.
+- Live upgrade accepted: `LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED`; R7A is source-only and does not change the accepted production stack.
+- Historical Clean Reference remains source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`.
+- R7A gate `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_PREPARE_PIPELINE_SOURCE_IMPLEMENTATION_20261107_01` is `CLOSED_PASS`.
+- Exact executable source authority: `d5c7aca0b8f39acb0d9d014b649d943a81956262`; PR #800 exact-head CI: 18 success, 10 path-gated skips, 0 failure, 0 pending.
+- R7A implements PREPARE U1→U4 only: explicit USB erase confirmation, single-device fail-closed selection, root/production-device exclusion, ext4/UUID/self-test/capacity gates and direct-to-USB target verification.
+- Independent review removed the original executable INSTALL/U4→U5 path from HA discovery, Manager control/IPC and host IPC; R7A now hard-stops at `U4 READY_TO_INSTALL`.
+- Manager remains UID/GID 999:999 with no root, Docker socket or block-device access; host AF_UNIX admission checks `SO_PEERCRED` UID 999.
+- Power-loss recovery reuses only the same bound UUID/fingerprint, never formats a second device automatically, and bounded stale target temporaries are cleaned only inside the verified bound USB target directory.
+- Production activation remains OFF; no T1 deployment, systemd activation, Docker runtime mutation, USB formatting or board access occurred.
+- Next gate is `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_REAL_T1_PREACTIVATION_READONLY_PREFLIGHT_20261107_01`; it is read-only and must stop before service installation/enable/start or any USB write.
+- R7A closure: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_PREPARE_PIPELINE_SOURCE_IMPLEMENTATION_CLOSURE_20261107.md`.
+
 ## 2026-11-07 — HA mandatory-USB R5 real-T1 read-only PASS; R6 PREPARE pipeline source design frozen
 
 - Current authority remains `infra/n3w-t1/production/t1-core-stack-current.json`.

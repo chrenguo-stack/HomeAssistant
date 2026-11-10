@@ -1,0 +1,535 @@
+# 温室环境监测系统（ESP32-C6）N3-W
+# T1 Home Assistant mandatory-USB OTA P5 R7A Manager A0 live apply
+# 新会话交接文档 V1.0 — 2026-11-07
+
+```text
+HANDOFF_TEMPLATE_VERSION=1.3
+SOLE_VALID_HANDOFF_TEMPLATE_VERSION=1.3
+OLDER_HANDOFF_TEMPLATE_VERSIONS=INVALID_FOR_NEW_HANDOFF_GENERATION
+HISTORICAL_TEMPLATE_COPIES=HISTORICAL_EVIDENCE_ONLY
+HISTORICAL_HANDOFF_STANDARD_DOES_NOT_AUTHORIZE_OLD_TEMPLATE=true
+
+PROJECT_WORKING_CONTEXT_VERSION=2.2
+PROJECT_WORKING_CONTEXT=docs/development/N3W_PROJECT_WORKING_CONTEXT.md
+
+NEXT_ONE_GATE_ONLY=true
+TEAM_SHARED_WORKSPACE=GITHUB
+```
+
+> 本文只保存当前阶段增量。长期工作规则统一引用 `N3W_PROJECT_WORKING_CONTEXT.md`。  
+> 当前模板正文历史字段仍显示较旧 Working Context 版本；本 handoff 使用 fresh repository 中已经推进的 `PROJECT_WORKING_CONTEXT_VERSION=2.2`。  
+> 公开 handoff 不包含私有 SSH 地址、私网地址、密码、known_hosts 路径、host-key hash 或原始设备 locator。  
+> fresh repository/runtime/live evidence 与本文冲突时，以 fresh 直接证据为准并先停止执行。
+
+---
+
+## 0. 会话切换结论
+
+```text
+CURRENT_STAGE=R7A_MANAGER_A0_EXECUTOR_PREEXECUTION_CLOSED_PASS
+CURRENT_STOP_POINT=BEFORE_REAL_T1_SSH_EPOCH_AND_BEFORE_A0_LIVE_AUTHORIZATION
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_MANAGER_SUCCESSOR_A0_LIVE_APPLY_20261107_01
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+HANDOFF_READY_FOR_NEW_CHAT=true
+```
+
+A0 Manager successor 的 exact artifact、Generic V2 Manager-only package 和 operator executor 已全部完成源码/CI/连续性闭环；当前应切换新会话，从 real-T1 A0 live apply 的授权边界继续，而不是继续修改 A0 executor。
+
+---
+
+## 1. 长期上下文引用与本阶段例外
+
+```text
+PROJECT_WORKING_CONTEXT_LOADED=true
+PROJECT_WORKING_CONTEXT_VERSION=2.2
+LONG_TERM_RULES_REPEATED_IN_HANDOFF=false
+
+STAGE_SPECIFIC_OVERRIDE_COUNT=1
+STAGE_OVERRIDES=HANDOFF_TEMPLATE_EMBEDDED_WORKING_CONTEXT_VERSION_IS_HISTORICAL;FRESH_REPOSITORY_2.2_IS_AUTHORITY
+```
+
+---
+
+## 2. Product North Star
+
+```text
+CURRENT_PRODUCT_ROUTE=T1_Core_Stack_OTA_PRODUCT_ARCHITECTURE -> Manager_Generic_V2_A0 -> R7A_A1_HOST_DAEMON_COMPOSE_ACTIVATION -> USB_PREPARE_U1_TO_U4
+FINAL_ACCEPTANCE_TARGET=R7A_MANAGER_SUCCESSOR_LIVE_ACCEPTED_THEN_HOST_DAEMON_ACTIVATED_THEN_REAL_USB_PREPARE_STOPS_AT_U4_READY_TO_INSTALL
+DEFERRED_OR_OUT_OF_SCOPE=R7B_U5_PLUS_INSTALL_AND_RECOVERY;PRODUCT_CDN_PROVIDER;REAL_USB_DESTRUCTIVE_CONFIRMATION_UNTIL_CAPACITY_POLICY_AND_ENGINEERING_HTTPS_SOURCE_CLOSE
+```
+
+---
+
+## 3. Frozen Authorities
+
+```text
+REPOSITORY=chrenguo-stack/HomeAssistant
+MAIN=bce6bd82023d5f5322eea1ab363a29df8a4cadd8
+TREE=f15bec7c33c4d44d27c7068e5579b07027dd5ea5
+
+CANDIDATE_REF=feat/n3w-ha-usb-r7a-prepare-pipeline-20261107
+CANDIDATE_HEAD=bed9aeb7c41f614bdeb8e445d71171e669e45942
+CANDIDATE_TREE=7f07e82f688dfee24e22e9330485e2c02edbd4fa
+CANDIDATE_ROLE=A0_EXECUTOR_EXECUTABLE_AUTHORITY
+
+PR799=OPEN_HEAD_462018cbf341f1b762a35f82a87a7c98e4a8b615_BASE_main
+PR800=OPEN_DRAFT_STACKED_ON_PR799_BRANCH
+
+ARTIFACT_ID=13564899377
+ARTIFACT_SHA256=6e9ca4cf103434330c0a31b51e1ba27b7d12b554648f4b0a017fd69bc4a32e1c
+ARTIFACT_NAME=n3w-t1-core-updater-manager-v2-bf38e388497b
+ARTIFACT_EXPIRED=false
+
+DEPLOYED_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+DEPLOYED_SOURCE_TREE=UNKNOWN_FRESH_NOT_REQUIRED_FOR_A0_ENTRY
+
+OTHER_REQUIRED_AUTHORITY=
+PACKAGE_CONTROL_HEAD=921e7d5557ff3dbf4b7e7ae5510186d98f803a2a;
+TARGET=infra/n3w-t1/upgrades/manager-bf38e388497b.json;
+COMPATIBILITY=infra/n3w-t1/upgrades/manager-bf38e388497b-compatibility.json;
+BASELINE=infra/n3w-t1/clean-reference/r7a-manager-predecessor-baseline-20261107.json;
+UPDATER_PYZ_SHA256=1b556d5601f33ef050c91e990bedaaeb1611bef325350fad008a1ec69fc7dc99;
+MANAGER_TAR_SHA256=4c4492ef5008a968b2553240b3fde97912eb3ae862604ae492e5a639a93db008;
+MANAGER_BUILD_IMAGE_ID=sha256:136cdcacf84a388a91cf0adbf7e0653a78b754e1879a59d3a2ac066ecba9fa5f
+
+CURRENT_PRODUCTION_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_STACK_RELEASE=T1_Core_Stack_1.0.0
+STACK_RELEASE_ROLE=APPLIED_ACCEPTED_PREDECESSOR
+COMPONENT_UPGRADE_BASELINE=R7A_MANAGER_PREDECESSOR_BASELINE_CANONICAL_SHA256_78c3b0b58ad39cf887689658bec90c8466d30a93d58830b0289f1463dafad868
+```
+
+Executable-head CI:
+
+```text
+PR_WORKFLOW_RUNS_TOTAL=31
+SUCCESS=27
+FAILURE=0
+PENDING=0
+CANCELLED=4
+
+A0_MANAGER_A_TO_B_RUN_ID=42362708336
+A0_SOURCE=SUCCESS
+A0_EXACT_MANAGER_SLICE=SUCCESS
+A0_PRE_U1_V2_SIMULATION=SUCCESS
+```
+
+The four cancelled runs are ancillary non-A0 workflows. The dedicated A0 three-stage pipeline fully succeeded.
+
+---
+
+## 4. Current Live Baseline
+
+No live T1 access occurred after the earlier read-only preactivation evidence. Therefore the next live gate must refresh the runtime state before staging/apply.
+
+```text
+MANAGER_STATE=UNKNOWN_FRESH
+MANAGER_RESTART_STATE=UNKNOWN_FRESH
+BROKER_STATE=UNKNOWN_FRESH
+HOMEASSISTANT_STATE=UNKNOWN_FRESH
+
+LAST_CONFIRMED_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+LAST_CONFIRMED_MANAGER_RUNTIME_IMAGE_ID=sha256:228a42a8b14f36694cca6778b18c7be880def25c567ea5492a9e2a40a8ce912e
+LAST_CONFIRMED_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+LAST_CONFIRMED_HOMEASSISTANT_RUNTIME_IMAGE_ID=sha256:c261fa53f30508951833492ba2a19af6cfbb6aa8f2806b531d8f5c6599265306
+LAST_CONFIRMED_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+LAST_CONFIRMED_BROKER_RUNTIME_IMAGE_ID=sha256:df265f1e2b2e3dc35d5eb194e698c598e01c5ebca370da307b34332f9bf0a563
+
+MANAGER_STATE_REQUIRES_FRESH_READONLY_RECHECK=true
+BROKER_STATE_REQUIRES_FRESH_READONLY_RECHECK=true
+HOMEASSISTANT_STATE_REQUIRES_FRESH_READONLY_RECHECK=true
+USB_INVENTORY_REQUIRES_FRESH_READONLY_RECHECK=true
+UPDATER_STATE_REQUIRES_FRESH_READONLY_RECHECK=true
+
+BOARD_A_POWER_STATE=UNKNOWN_FRESH_NOT_IN_A0_SCOPE
+BOARD_A_LOCATION_ROLE=UNKNOWN_FRESH_NOT_IN_A0_SCOPE
+BOARD_B_POWER_STATE=UNKNOWN_FRESH_NOT_IN_A0_SCOPE
+BOARD_B_LOCATION_ROLE=UNKNOWN_FRESH_NOT_IN_A0_SCOPE
+
+APPLICATION_SERIAL_OPEN=false
+FLASH_MUTATION=false
+NVS_MUTATION=false
+T1_RUNTIME_MUTATION=false
+```
+
+---
+
+## 5. Proven Current Facts
+
+```text
+A0_MANAGER_SUCCESSOR_REQUIRED=true
+A0_TARGET_MANAGER=local/greenhouse-manager:fresh-bf38e388497b
+A0_TARGET_LIVE_ACCEPTED=false
+
+A0_MANAGER_MUTATION_PROFILE=IMAGE_ONLY_V1
+A0_ROLLBACK_COMPATIBLE=true
+A0_DATABASE_MIGRATION_REQUIRED=false
+A0_CONFIG_MIGRATION_REQUIRED=false
+A0_HOMEASSISTANT_IMAGE_MUTATION=false
+A0_BROKER_IMAGE_MUTATION=false
+
+A0_EXECUTOR_LIVE_EXECUTION_AUTHORIZED=false
+A0_EXECUTOR_STOPS_BEFORE_REAL_SSH_EPOCH=true
+A0_TRUSTED_SSH_SINGLE_EPOCH=true
+A0_HOST_KEY_PINNING=true
+A0_USB_ZERO_REQUIRED=true
+A0_UPDATER_STATE_READONLY_BEFORE_STAGING=true
+A0_REMOTE_STAGING_EXACT_FILE_SET_REQUIRED=true
+A0_ONE_APPLY_MAXIMUM=true
+A0_AUTOMATIC_RETRY=false
+A0_EXECUTOR_EXPLICIT_ROLLBACK=false
+A0_UPDATER_INTERNAL_FAILURE_ROLLBACK=true
+A0_POST_FAILURE_STATE_CAPTURE_REQUIRED=true
+
+PACKAGE_TO_EXECUTOR_MANAGER_PRODUCT_SOURCE_DRIFT=false
+PACKAGE_TO_EXECUTOR_GENERIC_V2_PACKAGE_INPUT_DRIFT=false
+```
+
+```text
+INFERENCE_NONE=NONE
+```
+
+---
+
+## 6. Current Root Cause / Blockers
+
+```text
+CURRENT_BLOCKER_COUNT=1
+CURRENT_BLOCKER=A0_LIVE_AUTHORIZATION_NOT_GRANTED
+ROOT_CAUSE=INTENTIONAL_LIVE_MUTATION_BOUNDARY
+PROVEN_BY=manifest.live_execution_authorized=false AND no current authorization ledger grant
+SOURCE_DEFECT_PROVEN=false
+RUNTIME_DEFECT_PROVEN=false
+```
+
+There is no known source blocker at handoff time.
+
+---
+
+## 7. Closed / Forbidden Routes
+
+```text
+DIRECT_R7A_HOST_DAEMON_ACTIVATION_BEFORE_MANAGER_A0=CLOSED:CURRENT_ACCEPTED_MANAGER_DOES_NOT_CONTAIN_R7A_CONTROL_PLANE
+REUSE_OLD_MANAGER_AUTHORIZATION=CLOSED:OLD_AUTHORIZATION_NOT_VALID_FOR_R7A_A0
+A0_WITH_USB_PRESENT=CLOSED:A0_REQUIRES_USB_LIKE_DISK_COUNT_ZERO
+A0_SECOND_APPLY_OR_AUTOMATIC_RETRY=CLOSED:ONE_SHOT_TRANSACTION_ONLY
+A0_HOST_DAEMON_OR_COMPOSE_OTA_ACTIVATION=CLOSED:BOUNDARY_A1_NOT_A0
+R7B_U5_PLUS=CLOSED:OUT_OF_SCOPE_AND_NOT_AUTHORIZED
+MERGE_PR799_OR_PR800=CLOSED:MERGE_NOT_AUTHORIZED
+```
+
+---
+
+## 8. Authorization Ledger
+
+```text
+AUTHORIZATION=NONE_ACTIVE_FOR_A0
+CLAIMED=false
+CONSUMED=false
+RESULT=NOT_GRANTED
+REPLAY_PERMITTED=false
+SUPERSEDED_BY=N3W_T1_R7A_MANAGER_SUCCESSOR_A0_LIVE_APPLY_20261107_01
+```
+
+```text
+PROPOSED_AUTHORIZATION=N3W_T1_R7A_MANAGER_SUCCESSOR_A0_LIVE_APPLY_20261107_01
+GRANTED=false
+```
+
+The new chat must not infer this authorization from generic “继续”.
+
+---
+
+## 9. Rollback Authority
+
+```text
+ROLLBACK_BASELINE=infra/n3w-t1/clean-reference/r7a-manager-predecessor-baseline-20261107.json
+FRESH_PRECHANGE_SNAPSHOT_REQUIRED=true
+ROLLBACK_AUTHORITY_PATH_OR_ID=Generic_V2_transaction_plus_frozen_predecessor_Manager_image
+RESTART_SCOPE_ALLOWED=Manager_only_as_owned_by_Generic_V2_transaction
+SECOND_ATTEMPT_ALLOWED=false
+ROLLBACK_FAILURE_CLASS=ROLLBACK_INCOMPLETE
+```
+
+```text
+PREDECESSOR_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+PREDECESSOR_MANAGER_RUNTIME_IMAGE_ID=sha256:228a42a8b14f36694cca6778b18c7be880def25c567ea5492a9e2a40a8ce912e
+```
+
+The executor does not issue an explicit second rollback. Generic V2 retains its bounded internal failure rollback.
+
+---
+
+## 10. Next ONE Gate
+
+```text
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_MANAGER_SUCCESSOR_A0_LIVE_APPLY_20261107_01
+```
+
+### Purpose
+
+This gate proves that the R7A-capable Manager successor can replace only the accepted Manager predecessor on the real T1 using the existing Generic V2 transaction while Home Assistant and Broker remain exact and while all R7A host-daemon/USB functionality remains disabled.
+
+It does **not** prove A1 host-daemon/Compose activation, real USB PREPARE, USB formatting, target download, U4 readiness or R7B installation.
+
+### Inputs
+
+```text
+A0_EXECUTOR_HEAD=bed9aeb7c41f614bdeb8e445d71171e669e45942
+A0_EXECUTOR_TREE=7f07e82f688dfee24e22e9330485e2c02edbd4fa
+A0_PACKAGE_ARTIFACT_ID=13564899377
+A0_PACKAGE_ARTIFACT_DIGEST_SHA256=6e9ca4cf103434330c0a31b51e1ba27b7d12b554648f4b0a017fd69bc4a32e1c
+A0_TARGET=infra/n3w-t1/upgrades/manager-bf38e388497b.json
+A0_BASELINE=infra/n3w-t1/clean-reference/r7a-manager-predecessor-baseline-20261107.json
+```
+
+### Operations
+
+```text
+1. fresh rebind main / PR #799 / PR #800 / executable authority; prove no source drift.
+2. Do not open real SSH until explicit A0 authorization is granted.
+3. After authorization, enable only the bounded A0 live authority required by the executor and revalidate exact-head source/CI as required.
+4. Open one trusted SSH epoch using operator-local private connection material.
+5. Run the executor's fresh read-only preconditions: exact accepted stack, UID/GID, no Docker socket, no R7A residue, USB count zero, terminal updater state.
+6. Verify and stage the exact frozen Manager-only package.
+7. Run status -> inspect -> plan.
+8. Invoke exactly one Generic V2 Manager apply.
+9. Capture apply result, post-status, post-inspect, exact target image ID, HA/Broker continuity and USB-zero evidence.
+10. Close the SSH epoch and archive only public-safe evidence.
+11. Update production authority only after explicit acceptance criteria pass; otherwise STOP and classify recovery/rollback state.
+```
+
+### PASS / FAIL / STOP
+
+```text
+PASS_IF=Manager_target_exact_and_COMMITTED_and_recovery_required_false_and_HA_Broker_exact_and_USB_zero_and_no_R7A_host_activation
+FAIL_IF=apply_or_post_acceptance_fails_or_runtime_is_unresolved_or_peer_identity_drifts
+STOP_BOUNDARY=BEFORE_REAL_SSH_EPOCH_UNLESS_PROPOSED_AUTHORIZATION_GRANTED;AFTER_ANY_FAILED_PRECONDITION;AFTER_ONE_APPLY
+
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+---
+
+## 11. Hard Allowed / Forbidden Scope
+
+```text
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+```
+
+### ALLOWED
+
+```text
+- repository/GitHub fresh read-only rebind before authorization
+- after explicit A0 authorization: one trusted SSH epoch
+- fresh read-only T1 preflight
+- bounded staging of the exact A0 package
+- one Manager-only Generic V2 apply
+- Manager-only Docker/service mutation owned by that transaction
+- post-apply read-only evidence collection
+- public-safe GitHub closure documentation
+```
+
+### FORBIDDEN
+
+```text
+- real USB write/format/mount/download
+- USB PREPARE destructive confirmation
+- R7A host daemon install/enable/start
+- HA-OTA Compose overlay activation
+- Home Assistant image mutation
+- Broker image mutation
+- board access
+- flash/NVS mutation
+- second apply
+- automatic retry
+- executor-issued second rollback
+- PR #799 or #800 merge
+- publication of private SSH/T1 locator or credential material
+```
+
+---
+
+## 12. Execution Contract
+
+```text
+EXECUTOR=tools/execution_packages/n3w/r7a/manager_a0_live_apply/executor.py
+EXECUTION_METHOD=mac-terminal
+DIRECT_CODE_SUPPLIED=true
+DSL_COMPILATION_USED=false
+CI_POLL_MAX=3
+CI_PENDING_DIRECT_LINKS_REQUIRED=true
+CI_ALL_GREEN_CONTINUE_REQUIRED_REVIEW=true
+SAME_GATE_LOW_RISK_REPAIR_CONTINUE=true
+```
+
+Private target/known_hosts/host-key values stay operator-local and are never copied into the public repository.
+
+---
+
+## 13. Expected Closure
+
+```text
+=== N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_MANAGER_SUCCESSOR_A0_LIVE_APPLY_20261107_01 CLOSURE ===
+
+EXECUTION_ID=
+AUTHORIZATION=N3W_T1_R7A_MANAGER_SUCCESSOR_A0_LIVE_APPLY_20261107_01
+AUTHORIZATION_CLAIMED=
+AUTHORIZATION_CONSUMED=
+
+PRE_MANAGER_IMAGE=local/greenhouse-manager:fresh-5b32e1ae8210
+TARGET_MANAGER_IMAGE=local/greenhouse-manager:fresh-bf38e388497b
+TARGET_MANAGER_RUNTIME_IMAGE_ID=sha256:136cdcacf84a388a91cf0adbf7e0653a78b754e1879a59d3a2ac066ecba9fa5f
+
+PRE_USB_LIKE_DISK_COUNT=0
+POST_USB_LIKE_DISK_COUNT=0
+UPDATER_PLAN=PASS
+APPLY_TRANSACTION_STATUS=COMMITTED
+RECOVERY_REQUIRED=false
+POST_MANAGER_EXACT=PASS
+POST_HOMEASSISTANT_UNCHANGED=PASS
+POST_BROKER_UNCHANGED=PASS
+R7A_HOST_DAEMON_ACTIVATED=false
+R7A_OTA_ENABLED=false
+
+LIVE_RUNTIME_MUTATION=true
+BOARD_ACCESS=false
+
+A0_LIVE_APPLY_RESULT=CLOSED_PASS
+NEXT_ROUTE=R7A_BOUNDARY_A1_HOST_DAEMON_AND_COMPOSE_ACTIVATION_PREEXECUTION
+STOP=true
+
+=== END ===
+```
+
+---
+
+## 14. After PASS / FAIL
+
+```text
+AFTER_PASS_NEXT_STAGE=R7A_BOUNDARY_A1_HOST_DAEMON_AND_COMPOSE_ACTIVATION_PREEXECUTION
+AUTO_EXECUTE_AFTER_PASS=false
+NEW_AUTHORIZATION_REQUIRED=true
+
+AUTO_REPAIR_AFTER_FAIL=false
+AUTO_RETRY_AFTER_FAIL=false
+STOP_AND_REVIEW_AFTER_FAIL=true
+```
+
+---
+
+## 15. KNOWN_FAILURES Updates
+
+```text
+KNOWN_FAILURES_UPDATE_REQUIRED=false
+EXISTING_KF_GUARD_USED=Generic_V2_one_shot_transaction_and_recovery_guards
+NEW_KF_REQUIRED=false
+```
+
+The source issues found during A0 final review were repaired before live execution and did not occur on production T1, so no new KF is required at handoff time.
+
+---
+
+## 16. New Chat Start Prompt
+
+```text
+阅读《docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_MANAGER_A0_LIVE_APPLY_NEW_CHAT_HANDOFF_V1.0_20261107.md》。
+
+同时读取：
+- docs/development/N3W_PROJECT_WORKING_CONTEXT.md
+- docs/development/N3W_CURRENT_STATE.md
+- docs/development/N3W_CURRENT_STATE_INDEX.md
+- docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md
+- docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_MANAGER_SUCCESSOR_A0_LIVE_EXECUTION_PACKAGE_PREEXECUTION_CLOSURE_20261107.md
+
+继续“温室环境监测系统（ESP32-C6）”项目 N3-W。
+
+先 fresh rebind：
+- repository main
+- PR #799
+- PR #800
+- A0 executable authority bed9aeb7c41f614bdeb8e445d71171e669e45942
+- A0 package artifact 13564899377
+
+只进入：
+
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_MANAGER_SUCCESSOR_A0_LIVE_APPLY_20261107_01
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+
+在我明确授权 N3W_T1_R7A_MANAGER_SUCCESSOR_A0_LIVE_APPLY_20261107_01 之前，不得打开真实 T1 SSH epoch，不得修改 T1。
+
+不要重放旧 authorization，不要进入 A1，不要进行任何 USB 写入，不要自动 merge。
+```
+
+---
+
+## 17. Final Frozen State
+
+```text
+CURRENT_STAGE=R7A_MANAGER_A0_EXECUTOR_PREEXECUTION_CLOSED_PASS
+CURRENT_STOP_POINT=BEFORE_REAL_T1_A0_LIVE_AUTHORIZATION_AND_SSH_EPOCH
+CURRENT_BLOCKER=A0_LIVE_AUTHORIZATION_NOT_GRANTED
+LIVE_SYSTEM_STATE=LAST_ACCEPTED_STACK_UNCHANGED_BUT_REQUIRES_FRESH_READONLY_RECHECK
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_MANAGER_SUCCESSOR_A0_LIVE_APPLY_20261107_01
+
+TEAM_SHARED_WORKSPACE=GITHUB
+IMPORTANT_CHAT_ONLY_ARTIFACT_COUNT=0
+TEAM_SHARE_COMPLETENESS=PASS
+
+PROJECT_WORKING_CONTEXT_VERSION=2.2
+HANDOFF_TEMPLATE_VERSION=1.3
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+```
+
+All public-safe engineering artifacts required to resume are in GitHub. Private connection values remain intentionally operator-local and are not handoff defects.
+
+---
+
+## 18. Handoff Compliance Audit
+
+```text
+=== HANDOFF COMPLIANCE AUDIT ===
+
+HANDOFF_TEMPLATE_VERSION=1.3
+PROJECT_WORKING_CONTEXT_VERSION=2.2
+
+PROJECT_WORKING_CONTEXT_REFERENCED=PASS
+LONG_TERM_RULE_DUPLICATION_MINIMIZED=PASS
+STAGE_SPECIFIC_OVERRIDES_EXPLICIT=PASS
+PRIVATE_CONTEXT_EXCLUDED_FROM_PUBLIC_HANDOFF=PASS
+
+PRODUCT_NORTH_STAR_PRESENT=PASS
+FROZEN_AUTHORITIES_COMPLETE=PASS
+CURRENT_LIVE_BASELINE_COMPLETE=PASS
+PROVEN_FACTS_SEPARATED_FROM_INFERENCE=PASS
+CURRENT_BLOCKERS_EXPLICIT=PASS
+CLOSED_ROUTES_EXPLICIT=PASS
+
+AUTHORIZATION_LEDGER_COMPLETE=PASS
+CONSUMED_AUTH_REPLAY_GUARD=PASS
+ROLLBACK_AUTHORITY_EXPLICIT=PASS
+
+NEXT_ONE_GATE_EXPLICIT=PASS
+NEXT_GATE_SCOPE_BOUNDED=PASS
+ALLOWED_FORBIDDEN_SCOPE_EXPLICIT=PASS
+EXECUTION_CONTRACT_SELF_CONTAINED=PASS
+CI_CONTINUATION_HARD_RULES_PRESENT=PASS
+EXPECTED_CLOSURE_PRESENT=PASS
+AFTER_PASS_DOES_NOT_AUTO_EXECUTE=PASS
+
+KNOWN_FAILURES_UPDATE_CLASSIFIED=PASS
+NEW_CHAT_START_PROMPT_PRESENT=PASS
+TEAM_WORKSPACE_STATUS_PRESENT=PASS
+FINAL_FROZEN_STATE_PRESENT=PASS
+
+HANDOFF_STATE_COMPLETENESS=PASS
+HANDOFF_READY_FOR_NEW_CHAT=true
+
+=== END ===
+```

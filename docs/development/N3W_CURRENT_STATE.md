@@ -1,3 +1,2191 @@
+## Latest authority — 2026-11-10 KF-147 Mandatory USB Confirmation / U2 read-only preexecution CLOSED_PASS
+
+~~~text
+AUTHORITY_STATE=KF147_MANDATORY_USB_CONFIRMATION_U2_READONLY_PREEXECUTION_CLOSED_PASS
+PR=800
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+REVIEWED_HEAD=78e96812868cc13377746ba8d7ac00f6cef51d2f
+FINAL_ARCHIVE_CI=CLOSED_PASS
+SOURCE_CONTRACT_REVIEW=CLOSED_PASS
+NEW_SOURCE_BLOCKER_COUNT=0
+SOURCE_REPAIR_REQUIRED=false
+
+LAST_PROVEN_U1_PHASE=U1_PREPARE_REQUESTED
+LAST_PROVEN_U1_TRANSACTION_SHA256=6e1f0b5d262e346674b62ac79bf2ffbc1c63a8dd22379a0a82c952f0e3626b49
+LAST_PROVEN_USB_CONFIRMATION_REQUIRED=true
+LAST_PROVEN_USB_CONFIRMATION_CONSUMED=false
+LAST_PROVEN_USB_CANDIDATE_MODEL=Extreme
+LAST_PROVEN_USB_CANDIDATE_CAPACITY_BYTES=32017047552
+
+T1_NEXT_STAGE_BASELINE=UNKNOWN_FRESH
+FRESH_T1_BASELINE_REQUIRED=true
+FRESH_T1_BASELINE_ACQUIRED=false
+DESTRUCTIVE_EXECUTION_READY=false
+
+USB_CONFIRMATION_AUTHORIZED=false
+USB_ERASE_AUTHORIZED=false
+USB_PARTITION_WRITE_AUTHORIZED=false
+USB_FORMAT_AUTHORIZED=false
+U2_PLUS_AUTHORIZED=false
+T1_LIVE_MUTATION_AUTHORIZED=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_USB_CONFIRMATION_U2_FRESH_READONLY_BASELINE_20261110_01
+NEXT_GATE_MODE=READ_ONLY
+~~~
+
+The five final-archive CI runs named by the V1.4 handoff are all SUCCESS. Independent exact-head review confirms that destructive confirmation is admitted only from the published USB confirmation state, revalidates candidate identity/capacity before mutation, persists confirmation consumption before wipe/partition/format, and transitions U1->U2 only after formatted-media readback/capacity verification.
+
+No new source blocker was found. The next live-destructive boundary remains ineligible until one fresh real-T1 read-only baseline proves the preserved U1 transaction, Extreme candidate, unconsumed confirmation, capacity snapshot and T1_Core_Stack/host continuity. R2/R3 authorizations remain consumed and non-replayable.
+
+Authority:
+`docs/development/N3W_T1_KF147_MANDATORY_USB_CONFIRMATION_U2_BOUNDARY_READONLY_PREEXECUTION_REVIEW_20261110.md`.
+
+## Latest authority — 2026-11-10 KF-147 Stage B systemd lifecycle R3 live validation CLOSED_PASS
+
+~~~text
+AUTHORITY_STATE=KF147_STAGE_B_SYSTEMD_LIFECYCLE_R3_LIVE_VALIDATION_CLOSED_PASS
+PR=800
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+RUNNING_MANAGER_IMAGE=local/greenhouse-manager:fresh-44e7d7472714
+RUNNING_HOMEASSISTANT_IMAGE=local/n3w-homeassistant:2026.10.0-0c73235a
+RUNNING_BROKER_IMAGE=local/n3w-mosquitto:2.1.2-3184566d
+
+R3_EXECUTED_HEAD=675871a0567aca858c8af34f9eecf0a2e79ba063
+R3_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_STAGE_B_SYSTEMD_LIFECYCLE_REVALIDATION_R3_20261110_01
+R3_RESULT=PASS
+R3_LIVE_EXECUTION_AUTHORIZED=false
+R3_AUTHORIZATION_GRANTED=true
+R3_AUTHORIZATION_CLAIMED=true
+R3_AUTHORIZATION_CONSUMED=true
+R3_REPLAY_PERMITTED=false
+
+HOST_SOURCE_MUTATION=true
+HOST_DAEMON_STOPPED=true
+HOST_DAEMON_RESTART=true
+SERVICES_OWNER_STOPPED=true
+SERVICES_OWNER_RESTART=true
+MANAGER_IPC_V3_SUPPORT=true
+CAPACITY_SNAPSHOT_PRESENT=true
+U1_TRANSACTION_PRESERVED=true
+PREPARE_CANDIDATE_PRESERVED=true
+ROLLBACK_REQUIRED=false
+
+MANAGER_MUTATION=false
+HOMEASSISTANT_MUTATION=false
+BROKER_MUTATION=false
+USB_MUTATION=false
+U2_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_STAGE=KF147_MANDATORY_USB_CONFIRMATION_AND_U2_BOUNDARY
+NEXT_STAGE_LIVE_AUTHORIZED=false
+~~~
+
+The physical T1 R3 successor validation completed PASS and closes the Stage B systemd lifecycle defect. The repaired execution and rollback paths explicitly coordinate the services owner with the host daemon; the live path completed without rollback. Manager IPC V3 capacity data is available, the U1 transaction and Extreme candidate remain continuous, and no USB mutation or U2+ transition occurred.
+
+The R3 one-shot authorization is consumed, repository-sealed fail-closed and permanently non-replayable. The next mandatory-USB confirmation/U2+ boundary remains separately unauthorized.
+
+Authority:
+`docs/development/N3W_T1_KF147_STAGE_B_SYSTEMD_LIFECYCLE_R3_LIVE_VALIDATION_CLOSURE_20261110.md`.
+
+## Latest authority — 2026-11-10 KF-147 Manager IPC V3 R2 live apply CLOSED_PASS
+
+~~~text
+AUTHORITY_STATE=KF147_MANAGER_V3_R2_LIVE_APPLY_CLOSED_PASS
+PR=800
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+R2_AUTHORIZED_HEAD=093f104866398d6946e5907dec76277fb28b04a5
+R2_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_R2_20261110_01
+R2_LIVE_EXECUTION_AUTHORIZED=false
+R2_AUTHORIZATION_GRANTED=true
+R2_AUTHORIZATION_CLAIMED=true
+R2_AUTHORIZATION_CONSUMED=true
+R2_REPLAY_PERMITTED=false
+R2_RESULT=PASS
+
+RUNNING_MANAGER_IMAGE=local/greenhouse-manager:fresh-44e7d7472714
+RUNNING_MANAGER_IMAGE_ID=sha256:1471828ab07cf9b71c01a6e78994711a5954f0a178b8be087a28bb65a967c7d2
+MANAGER_IPC_V3_SUPPORT=true
+HOMEASSISTANT_IMAGE_MUTATION=false
+HOMEASSISTANT_CONTAINER_RECREATED=false
+BROKER_MUTATION=false
+U1_TRANSACTION_PRESERVED=true
+PREPARE_CANDIDATE_PRESERVED=true
+ROLLBACK_REQUIRED=false
+USB_MUTATION=false
+U2_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_STAGE=KF147_T1_LIVE_POLICY_REPAIR_PREEXECUTION_REVIEW
+NEXT_STAGE_LIVE_AUTHORIZED=false
+~~~
+
+The physical T1 Manager V3 R2 apply completed PASS. The target Manager is running with
+IPC V3 support, the containerd runtime identity is the accepted portable image identity,
+Home Assistant and Broker were not mutated, and the active U1 transaction plus Extreme
+prepare candidate were preserved. The one-shot R2 authorization is consumed and
+non-replayable.
+
+The next product stage is the KF-147 T1 Policy V2/repaired host-source live repair.
+Fresh repository authority still treats that as a separate live mutation boundary, so
+only read-only preclaim/preexecution work may continue without a new live authorization.
+
+Authority:
+`docs/development/N3W_T1_KF147_MANAGER_IPC_V3_R2_LIVE_APPLY_CLOSURE_20261110.md`.
+
+## Latest authority — 2026-11-10 KF-147 Manager IPC V3 R2 portable-identity preauthorization CLOSED_PASS
+
+~~~text
+AUTHORITY_STATE=KF147_MANAGER_V3_R2_PORTABLE_IDENTITY_PREAUTHORIZATION_CLOSED_PASS
+PR=800
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+KF147_R1_AUTHORIZATION_GRANTED=true
+KF147_R1_AUTHORIZATION_CLAIMED=true
+KF147_R1_AUTHORIZATION_CONSUMED=true
+KF147_R1_REPLAY_PERMITTED=false
+KF147_R1_RESULT=STOP_PRE_SERVICE_MUTATION_LOADED_TARGET_IDENTITY_INVALID
+
+KF147_ROOT_CAUSE_CLASS=KF-106_CROSS_STORE_IMAGE_IDENTITY_RECURRENCE
+T1_DOCKER_DRIVER_TYPE=io.containerd.snapshotter.v1
+TARGET_BUILD_CONFIG_DIGEST=sha256:fd5104d610645347fe47137dbb24121851fa8a48530df3e3c905704607c5e3d4
+TARGET_RUNTIME_IMAGE_ID=sha256:1471828ab07cf9b71c01a6e78994711a5954f0a178b8be087a28bb65a967c7d2
+TARGET_PORTABLE_IDENTITY=VERIFIED
+
+RUNNING_MANAGER_IMAGE=local/greenhouse-manager:fresh-7807271e4c48
+RUNNING_MANAGER_IMAGE_ID=sha256:7e3f09ed47010a18de215faa426113b7faba4e220b41bb9dcafd8ee1d4acf20b
+RUNNING_MANAGER_RESTART_COUNT=0
+RUNNING_MANAGER_IS_PREDECESSOR=true
+COMPOSE_MANAGER_IMAGE=local/greenhouse-manager:fresh-7807271e4c48
+N3WFC4_SERVICES_ACTIVATION=active
+N3W_T1_HA_OTA=active
+
+R2_SOURCE_HEAD=b8cfcdf88b38a82634845c5ab79ad098c4723a3d
+R2_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_R2_20261110_01
+R2_LIVE_EXECUTION_AUTHORIZED=false
+R2_AUTHORIZATION_GRANTED=false
+R2_AUTHORIZATION_CLAIMED=false
+R2_AUTHORIZATION_CONSUMED=false
+R2_REPLAY_PERMITTED=false
+
+KF147_MANAGER_PACKAGE_CI=SUCCESS
+CORE_STACK_CURRENT_AUTHORITY_CI=SUCCESS
+FAST_SOURCE_EXACT_CLOSURE_CI=SUCCESS
+MANAGER_A_TO_B_CI=SUCCESS
+STORAGE_IMAGE_LIFECYCLE_CI=SUCCESS
+PUBLIC_REPOSITORY_SAFETY_CI=SUCCESS
+R2_REQUIRED_CI=PASS
+
+PREAUTHORIZATION_RESULT=CLOSED_PASS
+NEW_LIVE_AUTHORIZATION_REQUIRED=true
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_R2_20261110_01
+
+USB_MUTATION=false
+U2_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+~~~
+
+The first Manager V3 live authorization is consumed and permanently non-replayable.
+It stopped after exact target image load but before service-owner stop, Compose-env
+rewrite or Manager container recreation. Fresh read-only T1 evidence proves the loaded
+target image is portable-identical to the exact bound tar under Docker 29/containerd,
+while the running Manager and Compose binding remain on the predecessor with restart
+count 0.
+
+R2 replaces the invalid build-store-specific image-ID comparison with the repository's
+existing portable image identity authority. Exact tar SHA/size/tag, same-host
+predecessor identity, HA/Broker continuity, U1 state and USB candidate checks remain
+fail-closed. R2 required CI is fully PASS, but the successor live gate remains
+unauthorized and requires a new explicit user authorization.
+
+Authority:
+`docs/development/N3W_T1_KF147_MANAGER_IPC_V3_R2_PORTABLE_IDENTITY_PREAUTHORIZATION_CLOSURE_20261110.md`.
+
+## Latest authority — 2026-11-10 KF-147 Manager IPC V3 fresh package + live-apply preexecution CLOSED_PASS
+
+~~~text
+AUTHORITY_STATE=KF147_MANAGER_V3_FRESH_PACKAGE_LIVE_APPLY_PREEXECUTION_CLOSED_PASS
+PR=800
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+KF147_CAPACITY_BLOCKER=CLOSED_PASS
+KF147_FRESH_MANAGER_PACKAGE=CLOSED_PASS
+KF147_MANAGER_LIVE_APPLY_PREEXECUTION=CLOSED_PASS
+
+EXECUTABLE_SOURCE_HEAD=b85b98593fe4caaa7b5a4be63f344a85e815baa8
+PREEXECUTION_VALIDATED_HEAD=d2ddc1396ab072d6c1273ebea61b5b21fc9fdd3e
+EXECUTABLE_TO_VALIDATED_DRIFT=DOCS_ONLY
+
+PACKAGE_WORKFLOW_RUN_ID=42761736604
+PACKAGE_ARTIFACT_ID=13738561063
+PACKAGE_ARTIFACT_DIGEST=sha256:69af4054e993398c25bd7788773c76cc80f54524787d1f5972a894adef22bcfc
+PACKAGE_BINDING_STATE=FRESH_ARTIFACT_BOUND
+
+LATEST_HEAD_PACKAGE_CI=SUCCESS
+CORE_STACK_AUTHORITY_CI=SUCCESS
+MANAGER_A_TO_B_CI=SUCCESS
+FAST_SOURCE_CI=SUCCESS
+STORAGE_IMAGE_LIFECYCLE_CI=SUCCESS
+PUBLIC_REPOSITORY_SAFETY_CI=SUCCESS
+KF147_GATE_REQUIRED_CI=PASS
+PR_WIDE_ALL_GREEN=false
+
+U1_TRANSACTION_SHA256=6e1f0b5d262e346674b62ac79bf2ffbc1c63a8dd22379a0a82c952f0e3626b49
+USB_CANDIDATE_PUBLIC_FINGERPRINT=e45fba0ad3e9997be2738c7a8f25d5c342ebba66ddbf822b1f6bf6a016c2ed93
+USB_CONFIRMATION_CONSUMED=false
+
+LIVE_EXECUTION_AUTHORIZED=false
+AUTHORIZATION_GRANTED=false
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261110_01
+EXPLICIT_USER_AUTHORIZATION_REQUIRED=true
+
+T1_ACCESS=false
+T1_MUTATION=false
+MANAGER_LIVE_APPLY=false
+USB_MUTATION=false
+U2_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+~~~
+
+The fresh Manager-only package is bound and the live-apply preexecution review is
+CLOSED_PASS. The current executor additionally binds the exact accepted U1 transaction
+file SHA-256 and exact Extreme USB candidate fingerprint; any drift stops before
+Manager or service mutation.
+
+All CI required by this KF-147 gate passed on the latest validated head. Two PR-wide
+legacy workflows remain red only because they still reference historical artifact
+`11665219740` from run `38040433177`, which is no longer available. Those generic
+production staging/state-binding paths are outside this bounded gate and are not used
+as substitutes for the KF-147 Manager-only package authority.
+
+No live Manager apply authority has been granted. The next gate is the exact
+Manager-only live apply and requires explicit user authorization.
+
+Authority:
+`docs/development/N3W_T1_KF147_MANAGER_IPC_V3_FRESH_PACKAGE_AND_LIVE_APPLY_PREEXECUTION_CLOSURE_20261110.md`.
+
+## Latest authority — 2026-11-10 KF-147 exact cleanup + fresh capacity CLOSED_PASS
+
+~~~text
+AUTHORITY_STATE=KF147_CLEANUP_AND_CAPACITY_CLOSED_PASS
+PR=800
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+EXECUTED_LIVE_PACKAGE_HEAD=c872eac286f11d34bea6f2d823cd2a1762084578
+EXECUTION_ID=N3W_KF147_HA_CLEANUP_LIVE_20261110_01
+
+AUTHORIZATION=N3W_T1_KF147_EXACT_HA_2026_10_4_IMAGE_CLEANUP_20261110_01
+AUTHORIZATION_GRANTED=true
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+REPLAY_PERMITTED=false
+LIVE_EXECUTION_AUTHORIZED=false
+
+EXACT_HA_TARGET_DELETED=true
+EXACT_HA_TARGET_ID=sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365
+
+KF147_FRESH_CAPACITY_RESULT=PASS
+KF147_CAPACITY_PASS=true
+KF147_FREE_BYTES=5811048448
+KF147_REQUIRED_FREE_BYTES=1736515716
+KF147_POST_PEAK_FREE_BYTES=5685145468
+KF147_DERIVED_POST_PEAK_RESERVE_BYTES=1610612736
+KF147_OBSERVED_MUTABLE_ALLOCATED_BYTES=172728320
+
+U1_PHASE=U1_PREPARE_REQUESTED
+U1_TRANSACTION_SHA256=6e1f0b5d262e346674b62ac79bf2ffbc1c63a8dd22379a0a82c952f0e3626b49
+USB_CONFIRMATION_REQUIRED=true
+USB_CONFIRMATION_CONSUMED=false
+USB_CANDIDATE_MODEL=Extreme
+USB_CANDIDATE_CAPACITY_BYTES=32017047552
+
+REMOTE_MANAGER_TAR_STAGING=false
+MANAGER_APPLY=false
+USB_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+KF147_CAPACITY_BLOCKER=CLOSED_PASS
+PACKAGE_MANIFEST_BINDING_ALLOWED=true
+NEXT_ONE_GATE=NEW_PACKAGE_MANIFEST_BINDING
+~~~
+
+The authorized exact HA 2026.10.4 cleanup completed PASS at live package head
+`c872eac286f11d34bea6f2d823cd2a1762084578`. The one-shot authorization was claimed
+and consumed, the exact target image was removed, and post-delete verification passed.
+
+The immediately-following fresh KF-147 capacity preflight also returned PASS. Measured
+free space is 5,811,048,448 bytes against 1,736,515,716 bytes required by the frozen
+capacity policy, with 5,685,145,468 bytes projected free after the Manager transfer/import
+peak. The Manager tar was not streamed to T1 and no remote staging was created.
+
+The active mandatory-USB transaction remains at U1_PREPARE_REQUESTED with the same
+transaction SHA. USB destructive confirmation remains required and unconsumed.
+No Manager apply, USB mutation, U2+, board access or merge occurred.
+
+After the live PASS, the repository-owned cleanup authority was sealed as
+`live_execution_authorized=false`, `authorization_claimed=true`,
+`authorization_consumed=true`, `replay_permitted=false`.
+
+Authority:
+`docs/development/N3W_T1_KF147_EXACT_HA_CLEANUP_AND_FRESH_CAPACITY_PASS_CLOSURE_20261110.md`.
+
+## Latest authority — 2026-11-10 KF-147 exact HA cleanup preexecution CLOSED_PASS / live authorization pending
+
+~~~text
+AUTHORITY_STATE=KF147_EXACT_HA_CLEANUP_PREEXECUTION_CLOSED_PASS
+PR=800
+EXECUTABLE_SOURCE_HEAD=ca0374ce4a925ec8edaf8e26f28c33c7a251dc0d
+
+PREEXECUTION_GATE=N3W_T1_KF147_EXACT_HA_2026_10_4_IMAGE_CLEANUP_PREEXECUTION_AND_AUTHORIZATION_REVIEW_20261110_01
+PREEXECUTION_GATE_RESULT=CLOSED_PASS
+
+STORAGE_LIFECYCLE_CI_RUN=42757961862
+STORAGE_LIFECYCLE_CI_RESULT=PASS
+FOCUSED_REGRESSION=90_PASSED
+FAST_SOURCE_CI_RUN=42757961676
+FAST_SOURCE_CI_RESULT=PASS
+PUBLIC_SAFETY_CI_RUN=42757961801
+PUBLIC_SAFETY_CI_RESULT=PASS
+
+PRECLAIM_EXECUTION_ID=N3W_KF147_HA_CLEANUP_PRECLAIM_R3_20261110_01
+PRECLAIM_RESULT=PASS
+EXACT_TARGET_REF=local/n3w-homeassistant:2026.10.4-5881590f
+EXACT_TARGET_ID=sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365
+TARGET_CONTAINER_REFERENCE_COUNT=0
+RUNNING_PREDECESSOR_EXACT=true
+THREE_SERVICE_RUNTIME_STABLE=true
+U1_TRANSACTION_UNCHANGED=true
+CONFIRMATION_UNCONSUMED=true
+
+PROPOSED_LIVE_AUTHORIZATION=N3W_T1_KF147_EXACT_HA_2026_10_4_IMAGE_CLEANUP_20261110_01
+LIVE_AUTHORIZATION_GRANTED=false
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+LIVE_CLEANUP_EXECUTED=false
+
+LIVE_T1_MUTATION=false
+USB_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_KF147_EXACT_HA_2026_10_4_IMAGE_CLEANUP_20261110_01
+EXPLICIT_USER_AUTHORIZATION_REQUIRED=true
+PACKAGE_MANIFEST_BINDING_ALLOWED=false
+~~~
+
+The exact cleanup preexecution gate is closed PASS. Fresh R3 T1 evidence proves the
+exact HA 2026.10.4 target remains unreferenced, Home Assistant 2026.10.0 remains the
+exact running predecessor, the three-service runtime is stable, and the active U1
+transaction/USB confirmation boundary remains unchanged. The two earlier false-STOP
+paths were repaired before closure: writable-layer growth is no longer treated as
+runtime identity drift, and refresh-only prepare timestamp/capacity churn is excluded
+from prepare semantic identity while transaction binding/candidate/confirmation
+semantics remain guarded.
+
+No live deletion authority has been granted, claimed or consumed. No image deletion,
+prune, Manager predecessor cleanup, historical /var/tmp cleanup, Manager apply, USB
+mutation, board access or merge occurred. The next gate is the exact live HA target
+cleanup and requires a new explicit user authorization. After any eventual cleanup
+PASS, fresh capacity preflight is mandatory; capacity PASS must not be inferred from
+the previously observed 5.221 GB unique allocation.
+
+Authority:
+`docs/development/N3W_T1_KF147_EXACT_HA_2026_10_4_IMAGE_CLEANUP_PREEXECUTION_CLOSURE_20261110.md`.
+
+## Latest authority — 2026-11-10 KF-147 dialogue frozen / cleanup preexecution handoff ready
+
+~~~text
+AUTHORITY_STATE=KF147_DIALOGUE_FROZEN_HANDOFF_READY
+PR=800
+KF147_REBIND_EXECUTABLE_HEAD=fb63707edc1ab063ddc97de8475303df8daecfb1
+KF147_CAPACITY_PREFLIGHT_FIX_SOURCE_HEAD=0ca17193a39f9b9f96da33b4ae9a5a4cc574e27d
+
+N3W_PHASE_EXIT_BLOCKER_COUNT=0
+PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE=CLOSED_PASS
+KF148_READINESS_SOURCE_REPAIR_DESIGN=CLOSED_PASS
+KF148_READINESS_SOURCE_REPAIR_IMPLEMENTATION=NOT_EXECUTED_NONBLOCKING
+KF149_DEPLOYED_ASSET_INTEGRITY_REPAIR=CLOSED_PASS
+KF150_STORAGE_HEADROOM_IMAGE_LIFECYCLE=CLOSED_PASS
+
+KF147_OLD_PACKAGE_REUSE=false
+KF147_OLD_AUTHORIZATION_REUSE=false
+KF147_MANAGER_PRODUCT_SOURCE_DRIFT=false
+KF147_PRODUCTION_AUTHORITY_DRIFT=false
+
+KF147_MANAGER_TAR_SHA256=9316817590c4fe74498629d0451a4897c2e11bef7bc4b423b66e47bb846099c5
+KF147_MANAGER_TAR_SIZE_BYTES=62957568
+KF147_MANAGER_IMPORT_WORST_CASE_BYTES=62945412
+
+KF147_CAPACITY_PREFLIGHT_SOURCE=PASS
+KF147_FIRST_LIVE_READONLY_ATTEMPT=STOP_FALSE_ORACLE
+KF147_LIVE_RUNTIME_IMAGE_ID_BINDING=REPAIRED
+KF147_FRESH_T1_CAPACITY_EVIDENCE=COMPLETE
+KF147_CAPACITY_GATE_FINAL_RESULT=STOP_INSUFFICIENT
+
+KF147_FREE_BYTES=589799424
+KF147_REQUIRED_FREE_BYTES=1736515716
+KF147_CAPACITY_DEFICIT_BYTES=1146716292
+KF147_REMOTE_STAGING_PREVENTED=true
+KF147_EXACT_RECLAIM_AUDIT_SOURCE_HEAD=b43d47f4a5fa06192ca5df513de186aed9ea9654
+KF147_EXACT_RECLAIM_AUDIT_SOURCE=TIMEOUT_REPAIR_STORAGE_CI_PASS
+KF147_EXACT_RECLAIM_AUDIT_FIRST_LIVE_EXECUTION=STOP_REMOTE_PROBE_RC1
+KF147_EXACT_RECLAIM_AUDIT_LIVE_RETRY=PASS
+
+KF147_HA_TARGET_RECLAIM_IMAGE=local/n3w-homeassistant:2026.10.4-5881590f
+KF147_HA_TARGET_RECLAIM_IMAGE_ID=sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365
+KF147_HA_TARGET_RUNNING=false
+KF147_HA_TARGET_CONTAINER_REFERENCES=0
+KF147_HA_TARGET_DOCKER_SHARED_SIZE=0B
+KF147_HA_TARGET_DOCKER_UNIQUE_SIZE=5.221GB
+KF147_HA_TARGET_CLEANUP_AUTHORIZED=false
+
+LIVE_T1_MUTATION=false
+REMOTE_MANAGER_TAR_STAGING=false
+USB_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_KF147_EXACT_HA_2026_10_4_IMAGE_CLEANUP_PREEXECUTION_AND_AUTHORIZATION_REVIEW_20261110_01
+PACKAGE_MANIFEST_BINDING_ALLOWED=false
+~~~
+
+The user stopped the current dialogue before granting cleanup authorization. Formal
+V1.3 handoff authority is
+`docs/development/N3W_T1_KF147_EXACT_RECLAIM_AUDIT_PASS_TO_HA_IMAGE_CLEANUP_PREEXECUTION_NEW_CHAT_HANDOFF_V1.0_20261110.md`.
+The next chat must remain read-only with respect to T1 until exact cleanup source,
+tests, CI and fresh preclaim have passed and a new explicit authorization is granted.
+No live image deletion, Manager predecessor finalize, historical tar cleanup,
+package binding, USB mutation, board access or merge occurred in this closure.
+
+Project/milestone review found no additional unfinished task in the current KF-147 prerequisite chain. Historical OPEN/guarded KFs remain tracked independently and are not reclassified as complete. In particular, the readiness runtime-session-takeover implementation remains NOT_EXECUTED; KF-147 preflight therefore must not use that MQTT CONNECT helper as a runtime health probe.
+
+Fresh rebind proved no Manager product-source or production-authority drift from the Manager V3 product authority. The old KF-147 live package and authorization remain non-reusable. The immutable Manager tar was re-materialized only as read-only capacity-planning input and reverified by SHA-256/size; Docker-save regular-member bytes are freshly derived.
+
+The first live read-only execution stopped before capacity evaluation because the
+preflight compared T1 runtime image IDs with earlier build-side image IDs. Accepted
+A1R, Boundary-B and 2026-11-09 live evidence consistently bind the running Manager,
+Home Assistant and Broker to runtime IDs `7e3f...`, `c261...` and `df265...`. Source
+head `0ca17193a39f9b9f96da33b4ae9a5a4cc574e27d` repairs all three bindings and adds
+literal-value plus fail-closed regression tests. Focused local validation and the
+applicable GitHub CI passed.
+
+The post-fix live read-only execution then reached the capacity calculation and
+returned a valid STOP. Free space is 589,799,424 bytes against 1,736,515,716 bytes
+required, a deficit of 1,146,716,292 bytes. Core runtime and U1 state remained
+stable; the Manager tar was not sent to T1. The next bounded activity is an exact
+read-only reclaim audit. No broad prune or cleanup is authorized by this result.
+
+The exact reclaim audit is integrated into the existing fresh-capacity entry point.
+Its first live read-only execution stopped with `command_failed:ssh:1` and did not
+produce the audit document. No Manager tar was sent and no T1 mutation occurred.
+The source-level evidence showed that an individual remote subprocess timeout or
+directory-enumeration race could escape the embedded collector and collapse into
+the sanitized SSH error; the original transport did not preserve which subcommand
+failed. Repair head `b43d47f4a5fa06192ca5df513de186aed9ea9654` records per-command
+timeouts/unavailable commands inside the audit, tolerates directory-enumeration
+races, and compares stable Docker state instead of time-varying status text.
+
+The collector records container-to-image references, image/layer metadata, Docker
+space accounting, volume and major-path allocation, journal usage and large files,
+while comparing runtime state before and after. Local focused validation is PASS;
+GitHub CI and a fresh live read-only retry are pending. It does not authorize any
+deletion.
+
+The repaired live retry completed and produced a stable read-only audit. Exactly
+three containers exist and all are running; none references Home Assistant
+2026.10.4. The target image is present as exact ID
+`sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365`,
+with Docker reporting zero container references, zero shared size and 5.221 GB
+unique size. The active U1 transaction remains at `U1_PREPARE_REQUESTED` and binds
+target manifest/archive authority rather than requiring this internal image to be
+resident. Mandatory-USB architecture explicitly retired the old P5 preexisting
+target-image assumption. The image is therefore an exact cleanup candidate, but
+the audit itself does not grant destructive T1 authority. After an authorized
+exact-ID cleanup, fresh capacity preflight must prove PASS before package binding.
+
+Authority:
+docs/development/N3W_T1_KF147_FRESH_REBIND_AND_CAPACITY_PREFLIGHT_ENTRY_20261110.md.
+
+## Latest authority — 2026-11-10 T1 storage headroom/image lifecycle CLOSED_PASS
+
+~~~text
+AUTHORITY_STATE=T1_STORAGE_HEADROOM_IMAGE_LIFECYCLE_CLOSED_PASS
+PR=800
+
+CURRENT_PRODUCTION_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+KF149_DEPLOYED_ASSET_INTEGRITY_REPAIR=CLOSED_PASS
+KF150_RUNTIME_RECOVERY=CLOSED_PASS
+KF150_STORAGE_LIFECYCLE_SOURCE_IMPLEMENTATION=COMPLETE
+KF150_FOCUSED_CI_FINAL_RESULT=PASS
+
+CORE_UPDATER_DELIVERY=EXACT_PACKAGE_BOUND_EPHEMERAL_PYZ
+CORE_UPDATER_PERMANENT_INSTALL_REQUIRED=false
+
+STEADY_STATE_INTERNAL_IMAGE_GENERATIONS_PER_COMPONENT=1
+GENERIC_V2_POST_ACCEPTANCE_FINALIZE=IMPLEMENTED_MANAGER_BROKER
+HOMEASSISTANT_GENERIC_FINALIZE=false
+HOMEASSISTANT_LIFECYCLE=MANDATORY_USB
+BROAD_DOCKER_PRUNE=false
+
+PRETRANSFER_CAPACITY_FORMULA=
+EXACT_STAGED_TRANSPORT_BYTES
++EXACT_IMAGE_IMPORT_WORST_CASE_BYTES
++DERIVED_POST_PEAK_RESERVE_BYTES
+
+MAINTENANCE_RESERVE_IS_RUNTIME_MINIMUM=false
+PRODUCT_RUNTIME_MIN_FREE_REQUIREMENT=UNFROZEN_LONGITUDINAL_EVIDENCE_REQUIRED
+
+LIVE_T1_MUTATION=false
+CURRENT_T1_IMAGE_CLEANUP_EXECUTED=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_AFTER_GATE_CLOSURE=
+KF147_FRESH_REBIND
+->FRESH_CAPACITY_GATE
+->NEW_PACKAGE_MANIFEST_BINDING
+->LIVE_RETRY
+~~~
+
+The source implementation closes the two recurrence paths identified after the ENOSPC outage: indefinite predecessor retention after accepted upgrades, and large artifact transfer before a fresh capacity proof. Generic V2 cleanup remains explicit and acceptance-bound; it never runs automatically at COMMITTED. The only image deletion primitive is exact predecessor image-ID removal after checking all Docker container references and current target/peer health.
+
+The pre-transfer capacity policy is intentionally separate from the updater apply operation so a capacity failure can STOP before a large payload is staged on T1. It reuses the accepted 2026-11-05 reserve derivation but does not promote the 1.5 GiB maintenance reserve into a lifetime runtime-minimum requirement.
+
+No live T1 image was deleted and KF-147 was not resumed in this source gate. Exact source head `8fbeb8434fcb7b8731bf26ae56b68e4ea26362a0` completed fast-source, storage/image-lifecycle and Core Updater Manager A-to-B validation successfully. This gate is CLOSED_PASS.
+
+Authority:
+docs/development/N3W_T1_STORAGE_HEADROOM_AND_IMAGE_LIFECYCLE_SOURCE_IMPLEMENTATION_PROGRESS_20261110.md.
+
+## Latest authority — 2026-11-10 Broker readiness runtime-session-takeover source-repair design CLOSED_PASS
+
+~~~text
+AUTHORITY_STATE=BROKER_READINESS_SOURCE_REPAIR_DESIGN_CLOSED
+PR=800
+
+CURRENT_PRODUCTION_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+T1_BROKER_MANAGER_HA_RUNTIME_RECOVERY=CLOSED_PASS
+KF148_SOURCE_REPAIR_DESIGN=CLOSED_PASS
+KF148_SOURCE_REPAIR_IMPLEMENTATION=NOT_EXECUTED
+
+TOTAL_EXECUTION_CALL_SITE_COUNT=8
+STARTUP_CALL_SITE_COUNT=5
+RUNTIME_CALL_SITE_COUNT=3
+RUNTIME_PHASE_COUNT=2
+
+STARTUP_READINESS_CONTRACT=PRE_APPLICATION_ONLY_EXACT_PRODUCTION_SERVICE_IDENTITY
+RUNTIME_HEALTH_CONTRACT=NONINVASIVE_EXISTING_SESSION_EVIDENCE
+DYNSEC_IDENTITY_BINDING_PRESERVED=true
+
+NEXT_ONE_GATE=CORE_UPDATER_DEPLOYED_ASSET_INTEGRITY_REPAIR
+NEXT_2=T1_STORAGE_HEADROOM_AND_IMAGE_LIFECYCLE_CLOSURE
+
+KF147_RESUME_SEQUENCE=
+FRESH_REBIND
+->FRESH_CAPACITY_GATE
+->NEW_PACKAGE_MANIFEST_BINDING
+->LIVE_RETRY
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+MERGE=false
+~~~
+
+The KF-148 implementation-ready design is frozen. Five startup uses remain valid and unchanged; three literal R2B runtime calls must eventually be replaced by passive existing-session evidence. The design explicitly preserves the unique DynSec Home Assistant client ID and rejects the earlier alternate-client-ID proposal.
+
+No product source, T1 runtime, Docker state, board state or merge was changed by this gate. The source repair implementation is not claimed complete.
+
+Authority:
+docs/development/N3W_T1_BROKER_READINESS_RUNTIME_SESSION_TAKEOVER_SOURCE_REPAIR_DESIGN_20261110.md.
+
+## Latest authority — 2026-11-10 T1 runtime recovery CLOSED_PASS / source-repair queue frozen
+
+```text
+AUTHORITY_STATE=T1_RUNTIME_RECOVERY_CLOSED_PASS_SOURCE_REPAIR_QUEUE
+PR=800
+
+T1_BROKER_MANAGER_HA_RUNTIME_RECOVERY=CLOSED_PASS
+
+LIVE_MANAGER=local/greenhouse-manager:fresh-7807271e4c48
+LIVE_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+LIVE_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+
+BROKER_RUNNING=true
+MANAGER_RUNNING=true
+HOMEASSISTANT_RUNNING=true
+
+MANAGER_MQTT_SOCKET_COUNT_8883=1
+HOMEASSISTANT_MQTT_SOCKET_COUNT_1883=1
+HOMEASSISTANT_BROKER_CURRENT_AUTHENTICATED=true
+HOMEASSISTANT_HTTP_STATUS=401
+
+LAST_PROVEN_ROOT_FREE_BYTES=592859136
+
+PRIMARY_OUTAGE_ROOT_CAUSE=ROOT_FILESYSTEM_ENOSPC
+SECONDARY_RUNTIME_DIVERGENCE=PROVEN
+ENOSPC_CAUSED_SECONDARY_DIVERGENCE=NOT_PROVEN
+
+BROKER_READINESS_RUNTIME_SESSION_TAKEOVER=PROVEN
+CORE_UPDATER_DEPLOYED_CLI_MISSING=PROVEN
+
+NEXT_ONE_GATE=BROKER_READINESS_RUNTIME_SESSION_TAKEOVER_SOURCE_REPAIR_DESIGN
+NEXT_2=CORE_UPDATER_DEPLOYED_ASSET_INTEGRITY_REPAIR
+NEXT_3=T1_STORAGE_HEADROOM_AND_IMAGE_LIFECYCLE_CLOSURE
+
+KF147_RESUME_SEQUENCE=
+FRESH_REBIND
+->FRESH_CAPACITY_GATE
+->NEW_PACKAGE_MANIFEST_BINDING
+->LIVE_RETRY
+
+KF147_OLD_PACKAGE_REUSE=false
+KF147_OLD_AUTHORIZATION_REUSE=false
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+PREPARE_REPLAY=false
+CONFIRM_USB_ERASE=false
+USB_MUTATION=false
+U2_PLUS=false
+MERGE=false
+```
+
+The emergency storage/runtime recovery is closed. Exact starts of the existing Broker, Manager and Home Assistant containers restored real containerd tasks without recreation or daemon restart. S2G proved the current Home Assistant MQTT session and HTTP readiness.
+
+S2F's temporary Home Assistant MQTT false-negative was caused by invoking the pre-application authenticated-readiness helper while Home Assistant was already online. The helper reuses the production Home Assistant client ID and can take over the live session. This is now a source-design repair item, not an active runtime outage.
+
+The deployed Core Updater CLI path used by the strict verifier is absent. This is a separate deployment-asset integrity task with root cause still TBD.
+
+Storage remains below a healthy long-term update headroom target. No broad prune or unbound image deletion is permitted. KF-147 stays paused until the three queued source/deployment/storage closures are complete.
+
+Authority:
+`docs/development/N3W_T1_STORAGE_RECOVERY_S2G_RUNTIME_CLOSED_PASS_AND_SOURCE_REPAIR_QUEUE_20261110.md`.
+
+## Latest authority — 2026-11-09 KF-147 Manager IPC V3 final binding PASS / image-only live apply pending
+
+```text
+AUTHORITY_STATE=R7A_KF147_MANAGER_V3_FINAL_BINDING_PASS_LIVE_APPLY_PENDING
+PR=800
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+PR_EXECUTABLE_HEAD=7e3ed7cb80eb06a0eca2647732ee7af8edc998cf
+EXECUTOR_SOURCE_HEAD=de01bffe49d890b61b8246b9c839b74381fa9406
+
+GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261109_01
+AUTHORIZATION_GRANTED=true
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+REPLAY_PERMITTED=false
+
+BOUND_PACKAGE_RUN_ID=42625435258
+BOUND_PACKAGE_ARTIFACT_ID=13678761257
+BOUND_PACKAGE_ARTIFACT_DIGEST=sha256:d7e4d27a40bad16316016c4c506fab70b3979d1105bed9562afd01b4116c91bb
+BOUND_PACKAGE_ARTIFACT_SIZE_BYTES=62958895
+FINAL_BINDING_CI_RUN_ID=42627429946
+FINAL_BINDING_CI_RESULT=SUCCESS
+
+LIVE_MANAGER_LAST_PROVEN=local/greenhouse-manager:fresh-7807271e4c48
+TARGET_MANAGER=local/greenhouse-manager:fresh-44e7d7472714
+TARGET_MANAGER_IMAGE_ID=sha256:fd5104d610645347fe47137dbb24121851fa8a48530df3e3c905704607c5e3d4
+TARGET_MANAGER_TAR_SHA256=9316817590c4fe74498629d0451a4897c2e11bef7bc4b423b66e47bb846099c5
+
+LAST_PROVEN_TRANSACTION_PHASE=U1_PREPARE_REQUESTED
+LAST_PROVEN_TRANSACTION_STATUS=ACTIVE
+LAST_PROVEN_USB_CANDIDATE_MODEL=Extreme
+LAST_PROVEN_USB_CANDIDATE_CAPACITY_BYTES=32017047552
+LAST_PROVEN_CONFIRMATION_REQUIRED=true
+LAST_PROVEN_CONFIRMATION_CONSUMED=false
+
+CURRENT_STOP_POINT=AFTER_FINAL_BINDING_CI_SUCCESS_BEFORE_AUTHORIZATION_CLAIM_AND_T1_MUTATION
+NEXT_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261109_01
+
+T1_MUTATION=false
+PREPARE_REPLAY=false
+CONFIRM_USB_ERASE=false
+USB_MUTATION=false
+U2_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+```
+
+The package-producing CI and the final exact-binding CI are both terminal SUCCESS. The current live state still requires fresh read-only preclaim because no T1 command was executed after the last proven baseline. The existing authorization is granted but unclaimed; execution must use the dedicated U1-preserving Manager-only path.
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_FINAL_BINDING_PASS_TO_IMAGE_ONLY_LIVE_APPLY_NEW_CHAT_HANDOFF_V1.0_20261109.md`.
+
+## Latest authority — 2026-11-09 KF-147 Stage B preclaim STOP / Manager V3 image required
+
+```text
+AUTHORITY_STATE=R7A_KF147_STAGE_B_PRECLAIM_STOP_MANAGER_V3_REQUIRED
+PR=800
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+KF147_STAGE_A_OTA_PUBLICATION=CLOSED_PASS
+KF147_STAGE_B_PRECLAIM=STOP
+STAGE_B_AUTHORIZATION_CLAIMED=false
+
+LIVE_MANAGER_IMAGE=local/greenhouse-manager:fresh-7807271e4c48
+LIVE_MANAGER_IPC_V3_SUPPORT=false
+HOST_IPC_V3_SUPPORT=false
+HOST_RELEASE_POLICY_PRESENT=false
+
+TRANSACTION_PHASE=U1_PREPARE_REQUESTED
+TRANSACTION_STATUS=ACTIVE
+TRANSACTION_AUTHORIZATION_CLAIMED=false
+TRANSACTION_AUTHORIZATION_CONSUMED=false
+PREPARE_CONFIRMATION_REQUIRED=true
+PREPARE_CONFIRMATION_CONSUMED=false
+USB_CANDIDATE_MODEL=Extreme
+USB_CANDIDATE_CAPACITY_BYTES=32017047552
+USB_LIKE_DISK_COUNT=1
+OTA_PUBLIC_HTTP=200
+OTA_PUBLIC_CONTENT_LENGTH=835309535
+
+EXACT_MANAGER_V3_IMAGE=local/greenhouse-manager:fresh-44e7d7472714
+EXACT_MANAGER_V3_IMAGE_ID=sha256:fd5104d610645347fe47137dbb24121851fa8a48530df3e3c905704607c5e3d4
+EXACT_MANAGER_V3_TAR_SHA256=9316817590c4fe74498629d0451a4897c2e11bef7bc4b423b66e47bb846099c5
+EXACT_MANAGER_V3_ARTIFACT_ID=13673322402
+EXACT_MANAGER_V3_ARTIFACT_DIGEST=c2540433fb2d33631d67c0bc7433040510f74a039af939b6438aa5c73fbda3e1
+EXACT_MANAGER_V3_BUILD_RUN_ID=42616473226
+
+CURRENT_STOP_POINT=BEFORE_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY
+NEXT_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261109_01
+NEXT_GATE_AUTHORIZED=false
+
+PREPARE_REPLAY=false
+CONFIRM_USB_ERASE=false
+USB_MUTATION=false
+U2_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+```
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_STAGE_B_PRECLAIM_MANAGER_IPC_V3_BLOCKER_AND_EXACT_ARTIFACT_CLOSURE_20261109.md`.
+
+## Latest authority — 2026-11-09 KF-147 Stage A OTA publication CLOSED_PASS
+
+```text
+AUTHORITY_STATE=R7A_KF147_STAGE_A_OTA_PUBLICATION_CLOSED_PASS
+PR=800
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+KF147_OTA_ORIGIN_LIVE=PASS
+KF147_WEBSITE_EDGE_LIVE=PASS
+KF147_PUBLIC_OTA_ROUTE=PASS
+
+TARGET_ARCHIVE_SIZE_BYTES=835309535
+TARGET_ARCHIVE_SHA256=eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973
+EDGE_SOURCE_SHA256=58d15c950adfbedcb659fe8749d4b3b7145f91ad6dbd30cd208f78b5a2d8bdcd
+PUBLIC_HTTP=200
+PUBLIC_CONTENT_LENGTH=835309535
+LOOPBACK_HTTPS_FULL_SHA256=eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973
+
+EDGE_ATTEMPT02_AUTHORIZATION_CONSUMED=true
+EDGE_ATTEMPT02_REPLAY_PERMITTED=false
+ROLLBACK_REQUIRED=false
+
+T1_ACCESS=false
+T1_MUTATION=false
+PREPARE_REPLAY=false
+CONFIRM_USB_ERASE=false
+USB_MUTATION=false
+U2_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+
+CURRENT_STOP_POINT=AFTER_STAGE_A_OTA_PUBLICATION_PASS_BEFORE_T1_KF147_LIVE_POLICY_REPAIR
+NEXT_STAGE=KF147_T1_LIVE_POLICY_REPAIR_SEPARATE_GATE
+NEXT_STAGE_AUTHORIZED=false
+AUTO_EXECUTE_NEXT_STAGE=false
+```
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_LIVE_REPAIR_A_WEBSITE_EDGE_PUBLICATION_ATTEMPT02_CLOSURE_20261109.md`.
+
+## Latest authority — 2026-11-09 KF-147 website-edge Attempt01 FAILED / rollback PASS
+
+```text
+AUTHORITY_STATE=R7A_KF147_EDGE_ATTEMPT01_FAILED_ROLLED_BACK_PASS
+PR=800
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+KF147_OTA_ORIGIN_LIVE=PASS
+WEBSITE_EDGE_ATTEMPT01_RESULT=FAILED_ROLLED_BACK_PASS
+WEBSITE_EDGE_LIVE=false
+EDGE_ATTEMPT01_AUTHORIZATION_CONSUMED=true
+EDGE_ATTEMPT01_REPLAY_PERMITTED=false
+EDGE_ATTEMPT01_FAILURE_CLASS=PUBLIC_FULL_GET_VALIDATION_TIMEOUT
+EDGE_FULL_GET_RECEIVED_BYTES=833642496
+EDGE_FULL_GET_EXPECTED_BYTES=835309535
+ROLLBACK=PASS
+
+T1_ACCESS=false
+PREPARE_REPLAY=false
+CONFIRM_USB_ERASE=false
+USB_MUTATION=false
+U2_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+
+CURRENT_STOP_POINT=AFTER_EDGE_ATTEMPT01_ROLLBACK_BEFORE_EDGE_ATTEMPT02
+NEXT_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_LIVE_REPAIR_A_WEBSITE_EDGE_PUBLICATION_ATTEMPT02_20261109_01
+NEXT_GATE_AUTHORIZED=false
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_LIVE_REPAIR_A_WEBSITE_EDGE_PUBLICATION_ATTEMPT01_CLOSURE_20261109.md`.
+
+## Latest authority — 2026-11-09 KF-147 Stage A Attempt02 origin publication CLOSED_PASS
+
+```text
+AUTHORITY_STATE=R7A_KF147_LIVE_REPAIR_A_ORIGIN_PUBLICATION_CLOSED_PASS
+PR=800
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+KF147_SOURCE_DESIGN=CLOSED
+KF147_SOURCE_REPAIR=CLOSED_PASS
+KF147_OTA_ORIGIN_SOURCE=CLOSED_PASS
+KF147_OTA_ORIGIN_LIVE=PASS
+
+ATTEMPT02_AUTHORIZATION_CLAIMED=true
+ATTEMPT02_AUTHORIZATION_CONSUMED=true
+ATTEMPT02_REPLAY_PERMITTED=false
+
+TARGET_ARCHIVE_SIZE_BYTES=835309535
+TARGET_ARCHIVE_SHA256=eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973
+TARGET_ATOMIC_PUBLICATION=PASS
+OTA_READONLY_MOUNTS=PASS
+LOCAL_ORIGIN_HTTP=200
+PUBLIC_EXACT_TARGET_HTTP=404
+WEBSITE_UNTOUCHED=PASS
+ROLLBACK_REQUIRED=false
+
+WEBSITE_EDGE_PUBLICATION=false
+T1_ACCESS=false
+T1_MUTATION=false
+PREPARE_REPLAY=false
+CONFIRM_USB_ERASE=false
+USB_MUTATION=false
+U2_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+
+CURRENT_STOP_POINT=AFTER_ATTEMPT02_ORIGIN_PASS_BEFORE_EDGE_PUBLICATION
+NEXT_STAGE=KF147_STAGE_A_EDGE_PUBLICATION_SEPARATE_GATE
+NEXT_STAGE_AUTHORIZED=false
+AUTO_EXECUTE_NEXT_STAGE=false
+```
+
+Attempt02 is terminal CLOSED_PASS. The dedicated OTA origin now serves the exact 2026.10.4 archive locally under read-only mounts. The public exact target remains 404 by design because the website edge has not been published. No T1/USB/PREPARE/U2+/board/merge boundary was crossed.
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_LIVE_REPAIR_A_OTA_ORIGIN_PUBLICATION_ATTEMPT02_CLOSURE_20261109.md`.
+
+## Latest authority — 2026-11-09 KF-147 Stage A Attempt01 FAILED / rollback PASS
+
+```text
+AUTHORITY_STATE=R7A_KF147_LIVE_REPAIR_A_ATTEMPT01_FAILED_ROLLED_BACK_PASS
+PR=800
+PR_DOCS_HEAD_BEFORE_ATTEMPT02_ARCHIVE=bd8d88f5b29d1d5bf1dd8a7cd98cd8b99c71f62c
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+KF147_SOURCE_DESIGN=CLOSED
+KF147_SOURCE_REPAIR=CLOSED_PASS
+KF147_OTA_ORIGIN_SOURCE=CLOSED_PASS
+NEW_PRODUCT_SOURCE_BLOCKER_COUNT=0
+
+TARGET_ARTIFACT_OUTER_ZIP_SIZE=835314025
+TARGET_ARTIFACT_OUTER_ZIP_SHA256=df95749cec1e48796d2cf3241d19739601fe7be78c48638284d10eec786e4fd2
+TARGET_ARCHIVE_SIZE_BYTES=835309535
+TARGET_ARCHIVE_SHA256=eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973
+TARGET_ARTIFACT_EXACT_BINDING=PASS
+STAGE_A0_EXTRACTION=PASS
+
+ATTEMPT01_AUTHORIZATION=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_LIVE_REPAIR_A_OTA_ORIGIN_PUBLICATION_20261109_01
+ATTEMPT01_AUTHORIZATION_CLAIMED=true
+ATTEMPT01_AUTHORIZATION_CONSUMED=true
+ATTEMPT01_RESULT=FAILED
+ATTEMPT01_ROOT_CAUSE=CHAT_GENERATED_A1_SCRIPT_MISSING_CLOSING_BRACKET
+TARGET_ATOMIC_PUBLICATION_BEFORE_FAILURE=PASS
+
+ROLLBACK_OTA_RW_MOUNTS=PASS
+ROLLBACK_LOCAL_ORIGIN_HTTP=403
+ROLLBACK_PUBLIC_TARGET_HTTP=404
+ROLLBACK=PASS
+ATTEMPT01_REPLAY_PERMITTED=false
+
+EDGE_PUBLICATION_ATTEMPTED=false
+T1_ACCESS=false
+T1_MUTATION=false
+PREPARE_REPLAY=false
+CONFIRM_USB_ERASE=false
+USB_MUTATION=false
+U2_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+
+CURRENT_STOP_POINT=AFTER_ATTEMPT01_ROLLBACK_PASS_BEFORE_ATTEMPT02
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_LIVE_REPAIR_A_OTA_ORIGIN_PUBLICATION_ATTEMPT02_20261109_01
+NEXT_GATE_SELECTED_BY_USER=true
+NEXT_GATE_LIVE_AUTHORIZATION_GRANTED=false
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+Attempt01 failed because a generated shell test command omitted the closing `]` after the live target archive had been atomically placed. The trap executed the bounded rollback and reported PASS only after the old OTA mount mode and HTTP prestate were restored. This incident does not reopen KF-147 source repair and does not create a new product KF.
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_LIVE_REPAIR_A_OTA_ORIGIN_PUBLICATION_ATTEMPT02_NEW_CHAT_HANDOFF_V1.0_20261109.md`.
+
+## Latest authority — 2026-11-09 KF-147 source repair CLOSED_PASS
+
+```text
+AUTHORITY_STATE=R7A_KF147_SOURCE_REPAIR_CLOSED_PASS
+PR=800
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+SOURCE_VALIDATION_HEAD=988e8052b08f8c65bf6c313ef232e11ee78a8e87
+CLOSURE_DOCUMENT_COMMIT=6100c12cb917085a9ff614b3c9c391bb043fcbc7
+PRODUCTION_SOURCE_LAST_CHANGED_HEAD=26a25537cdefa83d47c62b3ecc867a2cc37e8b8d
+
+KF147_SOURCE_DESIGN=CLOSED
+KF147_SOURCE_REPAIR=CLOSED_PASS
+KF147_OTA_ORIGIN_SOURCE=CLOSED_PASS
+KF147_OVERALL_STATUS=SOURCE_CLOSED_LIVE_REPAIR_PENDING
+NEW_BLOCKER_COUNT=0
+
+HOST_RELEASE_POLICY_SCHEMA=gh.n3w-t1-ha-ota-host-release-policy/2
+OTA_ARTIFACT_ORIGIN=https://ota.hahub.top
+OTA_ORIGIN_PR=chrenguo-stack/hahub.top#4
+OTA_ORIGIN_HEAD=a4aa7ff3011c945555f7df77165bb5bee0f58d94
+OTA_ORIGIN_ROUTE_CI=SUCCESS
+
+QUALIFICATION_SOURCE_HEAD=26a25537cdefa83d47c62b3ecc867a2cc37e8b8d
+QUALIFICATION_RUN_ID=42562214305
+QUALIFICATION_ARTIFACT_ID=13650277244
+MEASURED_EXPORT_BYTES=835454838
+PREDECESSOR_RECOVERY_BUDGET_BYTES=1342177280
+PRODUCTION_ENCODER_SHARED_WITH_QUALIFICATION=true
+
+OLD_CONFIRM_USB_ERASE_AUTHORIZATION=SUPERSEDED_UNCLAIMED
+PREPARE_REPLAY=false
+CONFIRM_USB_ERASE=false
+WIPEFS=false
+PARTITION_WRITE=false
+MKFS=false
+MOUNT=false
+TARGET_DOWNLOAD=false
+U2_PLUS=false
+LIVE_T1_MUTATION=false
+LIVE_OTA_SERVER_MUTATION=false
+MERGE=false
+
+NEXT_STAGE=KF147_LIVE_REPAIR_AUTHORIZATION_DECISION
+AUTO_EXECUTE_NEXT_STAGE=false
+```
+
+The KF-147 repository/source/CI repair is closed. Exact Policy V2, shared predecessor
+recovery encoding/qualification, hybrid dynamic capacity gates, bounded IPC/Manager/HA
+projection, A1 exact policy installation, and the hahub.top OTA route source contract are
+all closed with green CI. No new false-PASS path was found in final review.
+
+The live transaction remains preserved at U1 / `USB_REQUIRED_CONFIRMATION`; PREPARE is not
+replayed and the previous destructive authorization remains superseded/unclaimed. Live OTA
+origin publication, T1 policy/source activation, a fresh destructive authorization, U2+ and
+merge remain separate later authorization boundaries.
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_HOST_RELEASE_POLICY_SOURCE_REPAIR_CLOSURE_20261109.md`.
+
+
+## Latest authority — 2026-11-09 KF-147 source design CLOSED
+
+```text
+AUTHORITY_STATE=R7A_KF147_SOURCE_DESIGN_CLOSED_SOURCE_REPAIR_READY
+PR=800
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+KF147_ROOT_CAUSE=HOST_RELEASE_POLICY_AUTHORITY_NOT_FROZEN_OR_DEPLOYED
+KF147_SOURCE_DESIGN=CLOSED
+
+OTA_ARTIFACT_ORIGIN=https://ota.hahub.top
+OTA_ARTIFACT_PATH=IMMUTABLE_VERSIONED
+OTA_BINARY_IN_GIT=false
+
+HOST_RELEASE_POLICY_SCHEMA_NEXT=gh.n3w-t1-ha-ota-host-release-policy/2
+CAPACITY_INPUT_MODEL=HYBRID_DYNAMIC
+UI_USB_RECOMMENDATION=DYNAMIC_STANDARD_NOMINAL_TIER
+
+LIVE_TRANSACTION_PHASE=U1_PREPARE_REQUESTED
+LIVE_TRANSACTION_STATUS=ACTIVE
+LIVE_PUBLIC_PHASE=USB_REQUIRED_CONFIRMATION
+LIVE_USB_CANDIDATE=Extreme
+LIVE_USB_CANDIDATE_CAPACITY_BYTES=32017047552
+
+PREPARE_REPLAY=false
+CONFIRM_USB_ERASE=false
+WIPEFS=false
+PARTITION_WRITE=false
+MKFS=false
+MOUNT=false
+TARGET_DOWNLOAD=false
+U2_PLUS=false
+MERGE=false
+
+OLD_CONFIRM_USB_ERASE_AUTHORIZATION=SUPERSEDED_UNCLAIMED
+
+NEXT_STAGE=KF147_SOURCE_REPAIR
+NEXT_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_HOST_RELEASE_POLICY_SOURCE_REPAIR_20261109_01
+```
+
+Source repair may proceed in repository/CI scope without live T1 or live OTA-server mutation.
+Live origin publication and T1 repair remain later explicit boundaries.
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_HOST_RELEASE_POLICY_SOURCE_DESIGN_20261109.md`.
+
+
+## Latest authority — 2026-11-09 KF-147 host release-policy blocker
+
+```text
+AUTHORITY_STATE=R7A_KF147_HOST_RELEASE_POLICY_SOURCE_DESIGN_REQUIRED
+PR=800
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_AUTHORITY_MANAGER_REFERENCE=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_AUTHORITY_HOMEASSISTANT_REFERENCE=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_AUTHORITY_BROKER_REFERENCE=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+HA_USB_TRANSACTION_PRESENT=true
+HA_USB_PREPARE_STATE_PRESENT=true
+TRANSACTION_PHASE_INTERNAL=U1_PREPARE_REQUESTED
+TRANSACTION_STATUS=ACTIVE
+PHASE=USB_REQUIRED_CONFIRMATION
+USB_CONFIRMATION_REQUIRED=true
+USB_CONFIRMATION_CONSUMED=false
+USB_CANDIDATE_MODEL=Extreme
+USB_CANDIDATE_CAPACITY_BYTES=32017047552
+
+CONFIRM_USB_ERASE_AUTHORIZATION_GRANTED=true
+CONFIRM_USB_ERASE_AUTHORIZATION_CLAIMED=false
+CONFIRM_USB_ERASE_PREFLIGHT=FAIL
+HOST_RELEASE_POLICY_PRESENT=false
+
+KF147_STATUS=OPEN_SOURCE_DESIGN_REQUIRED
+PRODUCT_SOURCE_BLOCKER_PROVEN=true
+SOURCE_REPAIR_REQUIRED=true
+LIVE_REPAIR_REQUIRED=true
+
+CONFIRM_USB_ERASE=false
+WIPEFS=false
+PARTITION_WRITE=false
+MKFS=false
+MOUNT=false
+TARGET_DOWNLOAD=false
+U2_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+
+CURRENT_STOP_POINT=USB_REQUIRED_CONFIRMATION_BLOCKED_BY_KF147
+NEXT_STAGE=KF147_HOST_RELEASE_POLICY_SOURCE_DESIGN
+NEXT_GATE_AUTHORIZED=false
+```
+
+The destructive gate was authorized but deliberately not claimed. Fresh preflight proved the live candidate
+is not yet eligible for destructive execution because the production host release-policy authority file is absent.
+The repair requires a source-design decision, not a blind live file copy.
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_HOST_RELEASE_POLICY_AUTHORITY_MISSING_STOP_20261109.md`.
+
+
+## Latest authority — 2026-11-09 USB enumeration differentiation E3 CLOSED_PASS
+
+```text
+AUTHORITY_STATE=R7A_USB_ENUMERATION_DIFFERENTIATION_E3_CLOSED_PASS
+PR=800
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_AUTHORITY_MANAGER_REFERENCE=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_AUTHORITY_HOMEASSISTANT_REFERENCE=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_AUTHORITY_BROKER_REFERENCE=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+LIVE_MANAGER=local/greenhouse-manager:fresh-7807271e4c48
+LIVE_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+LIVE_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+
+HA_USB_TRANSACTION_PRESENT=true
+HA_USB_PREPARE_STATE_PRESENT=true
+TRANSACTION_PHASE_INTERNAL=U1_PREPARE_REQUESTED
+TRANSACTION_STATUS=ACTIVE
+PHASE=USB_REQUIRED_CONFIRMATION
+USB_CONFIRMATION_REQUIRED=true
+USB_CONFIRMATION_CONSUMED=false
+PREPARE_ERROR_CODE=null
+
+USB_CANDIDATE_PRESENT=true
+USB_CANDIDATE_MODEL=Extreme
+USB_CANDIDATE_CAPACITY_BYTES=32017047552
+USB_BLOCK_DEVICE=/dev/sda
+USB_TRAN=usb
+USB_SERIAL_PRESENT=true
+USB_WWN_PRESENT=false
+
+ORIGINAL_MXT_T1_INSERTION_1=DESCRIPTOR_TIMEOUT_-110
+ORIGINAL_MXT_MAC_ENUMERATION=PASS
+ORIGINAL_MXT_T1_INSERTION_2=DESCRIPTOR_TIMEOUT_-110
+SECOND_USB_T1_ENUMERATION=PASS
+SECOND_USB_R7A_CANDIDATE_DISCOVERY=PASS
+
+T1_USB_PATH_GENERAL_FAILURE=false
+R7A_CANDIDATE_DISCOVERY_PATH=PASS
+ORIGINAL_MXT_DEVICE_SPECIFIC_COMPATIBILITY=PRIMARY_CONFIRMED_DIRECTION
+PRODUCT_SOURCE_BLOCKER_PROVEN=false
+
+CONFIRM_USB_ERASE=false
+WIPEFS=false
+PARTITION_WRITE=false
+MKFS=false
+MOUNT=false
+TARGET_DOWNLOAD=false
+U2_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+
+CURRENT_STOP_POINT=USB_REQUIRED_CONFIRMATION_BEFORE_CONFIRM_USB_ERASE
+NEXT_STAGE=BOUNDARY_B_DESTRUCTIVE_USB_CONFIRMATION_DECISION
+NEXT_GATE_AUTHORIZED=false
+```
+
+E3 closed the enumeration differentiation. The second known-good USB works through the same T1
+port and current kernel/xHCI stack and is accepted by R7A candidate discovery. The original MXT device
+is the isolated compatibility outlier in this chain. No destructive operation has occurred.
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_USB_ENUMERATION_DIFFERENTIATION_E3_CLOSURE_20261109.md`.
+
+
+## Latest authority — 2026-11-09 USB enumeration differentiation E2 STOP
+
+```text
+AUTHORITY_STATE=R7A_USB_ENUMERATION_DIFFERENTIATION_E2_STOP_REPEAT_DESCRIPTOR_TIMEOUT
+PR=800
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_AUTHORITY_MANAGER_REFERENCE=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_AUTHORITY_HOMEASSISTANT_REFERENCE=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_AUTHORITY_BROKER_REFERENCE=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+LIVE_MANAGER=local/greenhouse-manager:fresh-7807271e4c48
+LIVE_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+LIVE_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+
+HA_USB_TRANSACTION_PRESENT=true
+HA_USB_PREPARE_STATE_PRESENT=true
+TRANSACTION_PHASE_INTERNAL=U1_PREPARE_REQUESTED
+TRANSACTION_STATUS=ACTIVE
+PHASE=USB_REQUIRED
+USB_CONFIRMATION_REQUIRED=false
+USB_CANDIDATE=null
+PREPARE_ERROR_CODE=null
+
+FIRST_T1_INSERTION_DESCRIPTOR_TIMEOUT=true
+SAME_TEST_USB_MAC_ENUMERATION=PASS
+SECOND_T1_INSERTION_DESCRIPTOR_TIMEOUT=true
+LSUSB_NON_ROOT_DEVICE_PRESENT=false
+USB_LIKE_BLOCK_DISK_COUNT=0
+SCSI_DISK_COUNT=0
+
+PREPARE_REPLAYED=false
+CONFIRM_USB_ERASE=false
+WIPEFS=false
+PARTITION_WRITE=false
+MKFS=false
+MOUNT=false
+TARGET_DOWNLOAD=false
+U2_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+
+PRODUCT_SOURCE_BLOCKER_PROVEN=false
+PERMANENT_T1_HARDWARE_FAULT_PROVEN=false
+REMAINING_FAULT_DOMAIN=T1_USB_PATH_OR_DEVICE_SPECIFIC_T1_COMPATIBILITY
+
+CURRENT_TEST_USB_INSERTED_ON_T1=true
+CURRENT_STOP_POINT=E2_REPEAT_DESCRIPTOR_TIMEOUT
+NEXT_STAGE=SECOND_KNOWN_GOOD_USB_SUBSTITUTION_E3
+NEXT_GATE_AUTHORIZED=false
+```
+
+E2 reproduced the same descriptor-level `-110` timeout on T1 after the exact same USB had enumerated
+normally on the Mac. This weakens a one-off transient explanation. The product candidate layer remains
+unreached and the live U1 transaction remains healthy. A second known-good USB is the next discriminating
+test and requires a separate physical authorization.
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_USB_ENUMERATION_DIFFERENTIATION_E2_STOP_20261109.md`.
+
+
+## Latest authority — 2026-11-09 USB enumeration differentiation E1 CLOSED_PASS
+
+```text
+AUTHORITY_STATE=R7A_USB_ENUMERATION_DIFFERENTIATION_E1_CLOSED_PASS
+PR=800
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_AUTHORITY_MANAGER_REFERENCE=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_AUTHORITY_HOMEASSISTANT_REFERENCE=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_AUTHORITY_BROKER_REFERENCE=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+LIVE_MANAGER=local/greenhouse-manager:fresh-7807271e4c48
+LIVE_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+LIVE_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+
+HA_USB_TRANSACTION_PRESENT=true
+HA_USB_PREPARE_STATE_PRESENT=true
+TRANSACTION_PHASE_INTERNAL=U1_PREPARE_REQUESTED
+TRANSACTION_STATUS=ACTIVE
+PHASE=USB_REQUIRED
+USB_CONFIRMATION_REQUIRED=false
+USB_CANDIDATE=null
+PREPARE_ERROR_CODE=null
+
+E1_T1_POST_UNPLUG=PASS
+SAME_TEST_USB_MAC_ENUMERATION=PASS
+MAC_EXTERNAL_PHYSICAL_DISK_PRESENT=true
+MAC_DISK_CAPACITY_BYTES=31914983424
+TEST_USB_COMPLETELY_DEAD=false
+
+PRODUCT_SOURCE_BLOCKER_PROVEN=false
+T1_HARDWARE_FAULT_PROVEN=false
+REMAINING_FAULT_DOMAIN=T1_USB_PATH_OR_DEVICE_SPECIFIC_T1_COMPATIBILITY
+
+CURRENT_STOP_POINT=E1_COMPLETE_SAME_USB_ON_MAC
+NEXT_STAGE=CONTROLLED_SAME_USB_T1_REINSERT_E2
+NEXT_GATE_AUTHORIZED=false
+
+CONFIRM_USB_ERASE=false
+U2_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+```
+
+E1 is closed. The same test USB enumerates normally on the Mac as a 31.9 GB external physical mass-storage
+device, while the live T1 U1 transaction remains intact and healthy. The next diagnostic step requires a new
+physical authorization.
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_USB_ENUMERATION_DIFFERENTIATION_E1_CLOSURE_20261109.md`.
+
+
+## Latest authority — 2026-11-09 Boundary B USB enumeration timeout STOP
+
+```text
+AUTHORITY_STATE=R7A_BOUNDARY_B_USB_ENUMERATION_TIMEOUT_STOP
+PR=800
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_AUTHORITY_MANAGER_REFERENCE=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_AUTHORITY_HOMEASSISTANT_REFERENCE=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_AUTHORITY_BROKER_REFERENCE=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+KF145_STATUS=CLOSED_PASS_LIVE_REVALIDATED
+KF146_STATUS=CLOSED_PASS_LIVE_REVALIDATED
+
+LIVE_MANAGER=local/greenhouse-manager:fresh-7807271e4c48
+LIVE_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+LIVE_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HOST_DAEMON_ACTIVE=true
+HOST_DAEMON_NRESTARTS=0
+
+HA_USB_TRANSACTION_PRESENT=true
+HA_USB_PREPARE_STATE_PRESENT=true
+TRANSACTION_PHASE_INTERNAL=U1_PREPARE_REQUESTED
+TRANSACTION_STATUS=ACTIVE
+PHASE=USB_REQUIRED
+USB_CONFIRMATION_REQUIRED=false
+USB_CANDIDATE=null
+PREPARE_ERROR_CODE=null
+
+USB_PHYSICALLY_INSERTED=true
+USB_DESCRIPTOR_ENUMERATION_FAILED=true
+KERNEL_USB_ERROR=ETIMEDOUT_-110
+LSUSB_NON_ROOT_DEVICE_PRESENT=false
+USB_SYSFS_NON_ROOT_DEVICE_PRESENT=false
+USB_LIKE_BLOCK_DISK_COUNT=0
+SCSI_DISK_COUNT=0
+OTA_MEDIA_MOUNT_COUNT=0
+
+CONFIRM_USB_ERASE=false
+WIPEFS=false
+PARTITION_WRITE=false
+MKFS=false
+MOUNT=false
+TARGET_DOWNLOAD=false
+U2_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+
+CURRENT_STOP_POINT=U1_USB_REQUIRED_WITH_INSERTED_DEVICE_NOT_ENUMERATED
+NEXT_STAGE=USB_ENUMERATION_DIFFERENTIATION
+NEXT_GATE_AUTHORIZED=false
+```
+
+The physical test USB reached the T1 xHCI port but failed descriptor enumeration with repeated
+kernel error -110 and final `unable to enumerate USB device`. No VID/PID, SCSI disk, block disk
+or R7A candidate was created. The existing U1 transaction remains healthy and must stay intact.
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_BOUNDARY_B_USB_ENUMERATION_TIMEOUT_STOP_20261109.md`.
+
+
+## Latest authority — 2026-11-09 Boundary B PREPARE revalidation CLOSED_PASS
+
+```text
+AUTHORITY_STATE=R7A_BOUNDARY_B_PREPARE_REVALIDATION_CLOSED_PASS
+PR=800
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_AUTHORITY_MANAGER_REFERENCE=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_AUTHORITY_HOMEASSISTANT_REFERENCE=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_AUTHORITY_BROKER_REFERENCE=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+KF145_STATUS=CLOSED_PASS_LIVE_REVALIDATED
+KF146_STATUS=CLOSED_PASS_LIVE_REVALIDATED
+
+LIVE_MANAGER=local/greenhouse-manager:fresh-7807271e4c48
+LIVE_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+LIVE_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+MANAGER_RESTART_COUNT=0
+HOMEASSISTANT_RESTART_COUNT=0
+BROKER_RESTART_COUNT=0
+HOST_DAEMON_ACTIVE=true
+
+DYNSEC_SHA256=b319d0027f67b9d5cf4c06fc4aed3eec45df6a1e11f286f724027cedcfa889cb
+DYNSEC_CHANGE_INDEX=18
+LIVE_MANAGER_ACL_COUNT=23
+LIVE_HOMEASSISTANT_ACL_COUNT=10
+OTA_CONTROL_EXACT_REQUIRED_ACLS_PRESENT=4
+
+PREPARE_AUTHORIZATION_CLAIMED=true
+PREPARE_AUTHORIZATION_CONSUMED=true
+PREPARE_INVOKE_COUNT=1
+PREPARE_REPLAY_ALLOWED=false
+
+HA_USB_TRANSACTION_PRESENT=true
+HA_USB_PREPARE_STATE_PRESENT=true
+TRANSACTION_PHASE_INTERNAL=U1_PREPARE_REQUESTED
+TRANSACTION_STATUS=ACTIVE
+PHASE=USB_REQUIRED
+USB_CONFIRMATION_REQUIRED=false
+USB_CANDIDATE=null
+USB_LIKE_DISK_COUNT=0
+OTA_MEDIA_MOUNT_COUNT=0
+
+CONFIRM_USB_ERASE=false
+WIPEFS=false
+PARTITION_WRITE=false
+MKFS=false
+MOUNT=false
+TARGET_DOWNLOAD=false
+U2_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+
+CURRENT_STOP_POINT=USB_REQUIRED_BEFORE_ANY_USB_INSERTION
+NEXT_STAGE=SEPARATE_USB_INSERTION_AND_DISCOVERY_AUTHORIZATION_DECISION
+NEXT_GATE_AUTHORIZED=false
+```
+
+Boundary B PREPARE revalidation is live-closed. The repaired KF-146 product control path
+created the intended U1 transaction and reached `USB_REQUIRED` with no USB present and no
+destructive operation. The transaction must remain intact; PREPARE must not be replayed.
+
+Closure:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_BOUNDARY_B_PREPARE_REVALIDATION_CLOSURE_20261109.md`.
+
+
+## Latest authority — 2026-11-09 Boundary B PREPARE revalidation new-chat handoff ready
+
+```text
+AUTHORITY_STATE=R7A_BOUNDARY_B_PREPARE_REVALIDATION_NEW_CHAT_HANDOFF_READY
+PR=800
+HANDOFF_PARENT_HEAD=2838a56764ace71cdfe0213898b17d6c82d7dbd0
+KF145_STATUS=CLOSED_PASS_LIVE_REVALIDATED
+KF146_STATUS=CLOSED_PASS_LIVE_REVALIDATED
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_AUTHORITY_MANAGER_REFERENCE=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_AUTHORITY_HOMEASSISTANT_REFERENCE=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_AUTHORITY_BROKER_REFERENCE=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+LIVE_MANAGER_ACL_COUNT=23
+LIVE_HOMEASSISTANT_ACL_COUNT=10
+OTA_CONTROL_EXACT_REQUIRED_ACLS_PRESENT=4
+UNRELATED_DYNSEC_STATE_UNCHANGED=true
+
+HA_USB_TRANSACTION_PRESENT=false
+HA_USB_PREPARE_STATE_PRESENT=false
+USB_LIKE_DISK_COUNT=0
+
+PREVIOUS_PREPARE_AUTHORIZATION_CONSUMED=true
+PREVIOUS_PREPARE_REPLAY_ALLOWED=false
+
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_BOUNDARY_B_PREPARE_REVALIDATION_20261109_01
+NEXT_GATE_AUTHORIZED=true
+NEXT_GATE_CLAIMED=false
+USB_INSERTION_AUTHORIZED=false
+CONFIRM_USB_ERASE=false
+U2_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+```
+
+Formal handoff:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF146_LIVE_CLOSURE_TO_BOUNDARY_B_PREPARE_REVALIDATION_NEW_CHAT_HANDOFF_V1.0_20261109.md`.
+
+## Latest authority — 2026-11-09 KF-146 live OTA control DynSec repair CLOSED_PASS
+
+```text
+AUTHORITY_STATE=R7A_KF146_OTA_CONTROL_DYNSEC_LIVE_REPAIR_CLOSED_PASS
+PR=800
+KF146_STATUS=CLOSED_PASS_LIVE_REVALIDATED
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_AUTHORITY_MANAGER_REFERENCE=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_AUTHORITY_HOMEASSISTANT_REFERENCE=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_AUTHORITY_BROKER_REFERENCE=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+LIVE_MANAGER_ACL_COUNT=23
+LIVE_HOMEASSISTANT_ACL_COUNT=10
+OTA_CONTROL_EXACT_REQUIRED_ACLS_PRESENT=4
+UNRELATED_DYNSEC_STATE_UNCHANGED=true
+
+HA_USB_TRANSACTION_PRESENT=false
+HA_USB_PREPARE_STATE_PRESENT=false
+USB_LIKE_DISK_COUNT=0
+
+PREVIOUS_PREPARE_AUTHORIZATION_CONSUMED=true
+PREPARE_REPLAYED=false
+USB_INSERTION=false
+CONFIRM_USB_ERASE=false
+
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_BOUNDARY_B_PREPARE_REVALIDATION_20261109_01
+NEXT_GATE_AUTHORIZED=false
+MERGE=false
+```
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF146_OTA_CONTROL_DYNSEC_LIVE_APPLY_CLOSURE_20261109.md`.
+
+## Latest authority — 2026-11-09 KF-146 OTA control DynSec root cause confirmed
+
+```text
+AUTHORITY_STATE=R7A_KF146_OTA_CONTROL_DYNSEC_SOURCE_REPAIR_IMPLEMENTED_LIVE_REPAIR_PENDING
+PR=800
+SOURCE_REPAIR_HEAD=41e0300e23351343bfe85f610d104cf533484e8e
+KF146_STATUS=SOURCE_REPAIR_IMPLEMENTED_FUNCTIONAL_CI_PASS_LIVE_REPAIR_PENDING
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_AUTHORITY_MANAGER_REFERENCE=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_AUTHORITY_HOMEASSISTANT_REFERENCE=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_AUTHORITY_BROKER_REFERENCE=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+LIVE_MANAGER_ACL_COUNT=20
+LIVE_HOMEASSISTANT_ACL_COUNT=9
+OTA_CONTROL_MANAGER_REQUIRED_ACL_COUNT=3
+OTA_CONTROL_HOMEASSISTANT_REQUIRED_ACL_COUNT=1
+OTA_CONTROL_LIVE_REQUIRED_ACLS_PRESENT=0
+KF146_LIVE_ROOT_CAUSE_CONFIRMED=true
+
+PREPARE_INVOKED=true
+PREPARE_AUTHORIZATION_CONSUMED=true
+HA_USB_TRANSACTION_PRESENT=false
+HA_USB_PREPARE_STATE_PRESENT=false
+PREPARE_REPLAY_ALLOWED=false
+USB_INSERTION_ALLOWED=false
+CONFIRM_USB_ERASE=false
+
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF146_OTA_CONTROL_DYNSEC_LIVE_APPLY_20261109_01
+NEXT_GATE_AUTHORIZED=false
+MERGE=false
+```
+
+Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF146_OTA_CONTROL_DYNSEC_SOURCE_REPAIR_AND_LIVE_READONLY_CONFIRMATION_20261109.md`.
+
+## Latest authority — 2026-11-09 KF-145 live DynSec repair CLOSED_PASS
+
+```text
+AUTHORITY_STATE=R7A_MANAGER_DYNSEC_OTA_DISCOVERY_ACL_LIVE_REPAIR_CLOSED_PASS
+PR=800
+KF145_STATUS=CLOSED_PASS_LIVE_REVALIDATED
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_AUTHORITY_MANAGER_REFERENCE=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_AUTHORITY_HOMEASSISTANT_REFERENCE=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_AUTHORITY_BROKER_REFERENCE=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+LIVE_MANAGER_ACL_COUNT=20
+OTA_DISCOVERY_EXACT_ACL_COUNT=3
+BROAD_HOMEASSISTANT_PUBLISH=false
+UNRELATED_DYNSEC_STATE_UNCHANGED=true
+
+HA_T1_DEVICE_MATCH_COUNT=1
+HA_T1_ENTITY_MATCH_COUNT=2
+HA_PREPARE_ENTITY_MATCH_COUNT=1
+
+HA_USB_TRANSACTION_PRESENT=false
+HA_USB_PREPARE_STATE_PRESENT=false
+BOUNDARY_B_READY_TO_RESUME=true
+PREPARE=false
+USB_INSERTION=false
+CONFIRM_USB_ERASE=false
+MERGE=false
+```
+
+Authority:
+`docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_MANAGER_DYNSEC_DISCOVERY_ACL_LIVE_APPLY_CLOSURE_20261109.md`.
+
+## Latest authority — 2026-11-09 KF-145 live DynSec read-only preflight CLOSED_PASS
+
+```text
+AUTHORITY_STATE=R7A_MANAGER_DYNSEC_OTA_DISCOVERY_ACL_LIVE_READONLY_PREFLIGHT_CLOSED_PASS
+PR=800
+SOURCE_REPAIR_HEAD=f2ea76d245ef98196624aca088f492c60d6f8821
+PREEXECUTION_VALIDATION_HEAD=f6e37a2f22ad6990e42d798c98fcca5798ab8dd6
+KF145_STATUS=LIVE_ROOT_CAUSE_CONFIRMED_LIVE_REPAIR_PENDING
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_AUTHORITY_MANAGER_REFERENCE=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_AUTHORITY_HOMEASSISTANT_REFERENCE=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_AUTHORITY_BROKER_REFERENCE=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+LIVE_MANAGER_ACL_COUNT=17
+SOURCE_MANAGER_ACL_COUNT=20
+THREE_OTA_DISCOVERY_ACLS_ABSENT=true
+HA_T1_DEVICE_MATCH_COUNT=0
+HA_T1_ENTITY_MATCH_COUNT=0
+HA_USB_TRANSACTION_PRESENT=false
+HA_USB_PREPARE_STATE_PRESENT=false
+
+BOUNDARY_B_STATUS=STOPPED_BEFORE_PREPARE
+BROKER_LIVE_DYNSEC_MUTATION=false
+PREPARE=false
+USB_INSERTION=false
+CONFIRM_USB_ERASE=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_MANAGER_DYNSEC_DISCOVERY_ACL_LIVE_APPLY_20261109_01
+NEXT_GATE_AUTHORIZED=false
+AUTO_EXECUTE_LIVE_MUTATION=false
+```
+
+The live root cause now exactly matches KF-145. The next gate is the bounded three-ACL
+production DynSec repair. It requires a separate explicit authorization.
+
+Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_MANAGER_DYNSEC_DISCOVERY_ACL_LIVE_READONLY_PREFLIGHT_CLOSURE_20261109.md`.
+
+## Latest authority — 2026-11-09 KF-145 Manager DynSec OTA Discovery ACL source repair CLOSED_PASS
+
+```text
+AUTHORITY_STATE=R7A_MANAGER_DYNSEC_OTA_DISCOVERY_ACL_SOURCE_REPAIR_CLOSED_PASS
+PR=800
+EXECUTABLE_SOURCE_HEAD=f2ea76d245ef98196624aca088f492c60d6f8821
+KF145_STATUS=SOURCE_REPAIR_CLOSED_PASS_LIVE_REVALIDATION_PENDING
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_AUTHORITY_MANAGER_REFERENCE=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_AUTHORITY_HOMEASSISTANT_REFERENCE=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_AUTHORITY_BROKER_REFERENCE=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+ROOT_CAUSE=MANAGER_DYNSEC_ROLE_MISSING_R7A_OTA_DISCOVERY_PUBLISH_ACLS
+MANAGER_ACL_MODE=EXACT_THREE_NEW_TOPICS
+BROAD_HOMEASSISTANT_PUBLISH=false
+REAL_DYNSEC_INTEGRATION_CI=PASS
+HISTORICAL_S20_CONSUMED_CONTRACT_REWRITTEN=false
+
+BOUNDARY_B_STATUS=STOPPED_BEFORE_PREPARE
+PREPARE=false
+USB_INSERTION=false
+BROKER_LIVE_DYNSEC_MUTATION=false
+CONFIRM_USB_ERASE=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_MANAGER_DYNSEC_DISCOVERY_ACL_LIVE_READONLY_PREFLIGHT_20261109_01
+AUTO_EXECUTE_LIVE_MUTATION=false
+```
+
+The source defect exposed by the real Boundary B product-control-plane check is repaired and
+required exact-head CI is green. Production Broker DynSec remains intentionally unchanged.
+The next gate is read-only classification of the live Manager identity/role/ACL set; any live
+ACL update requires a separate authorization after that preflight.
+
+Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_MANAGER_DYNSEC_DISCOVERY_ACL_SOURCE_REPAIR_CLOSURE_20261109.md`.
+
+## Latest authority — 2026-11-08 repaired Manager A0R/A1R live CLOSED_PASS
+
+```text
+AUTHORITY_STATE=R7A_REPAIRED_MANAGER_A0R_A1R_LIVE_CLOSED_PASS
+PR=800
+LIVE_AUTHORIZED_HEAD=70aaa4070641dd73c1a97738e6332be31403d45e
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_AUTHORITY_MANAGER_REFERENCE=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_AUTHORITY_HOMEASSISTANT_REFERENCE=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_AUTHORITY_BROKER_REFERENCE=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+REPAIRED_MANAGER_SOURCE_HEAD=7807271e4c48161f2fad96a7886fa4c24b038321
+LIVE_MANAGER=local/greenhouse-manager:fresh-7807271e4c48
+LIVE_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+LIVE_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+
+A0R_LIVE_APPLY=CLOSED_PASS
+A0R_TRANSACTION_STATUS=COMMITTED
+A0R_AUTHORIZATION_CONSUMED=true
+A0R_RECOVERY_REQUIRED=false
+
+A1R_LIVE_REACTIVATION=CLOSED_PASS
+A1R_AUTHORIZATION_CLAIMED=true
+A1R_HOST_DAEMON_ACTIVE=true
+A1R_MANAGER_OTA_ENABLED=true
+A1R_SERVICES_OWNER_RESTART=true
+A1R_15S_SAME_CONTAINER_STABILITY=PASS
+A1R_AUTOMATIC_ROLLBACK=false
+A1R_RECOVERY_REQUIRED=false
+
+KF144_STATUS=CLOSED_PASS_LIVE_REVALIDATED
+USB_PREPARE_ENTERED=false
+USB_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+REPOSITORY_CURRENT_AUTHORITY_PROMOTION=NOT_PERFORMED
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_BOUNDARY_B_REAL_USB_PREPARE_ONLY_EXECUTION_20261108_01
+NEXT_GATE_EXPLICIT_USER_AUTHORIZATION_REQUIRED=true
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+The repaired Manager and OTA wiring are now live-accepted on the real T1. A0R closed
+with a COMMITTED Manager transaction and A1R restored the host daemon/Manager OTA wiring
+without rollback, then passed the frozen 15-second same-container stability guard.
+No PREPARE, USB mutation, board access or merge occurred.
+
+The next real gate is Boundary B PREPARE-only. It must fresh-check A1R health and the
+absence of an active HA-USB transaction and dedicated USB before PREPARE, then stop at
+`USB_REQUIRED_CONFIRMATION`. Destructive USB confirmation remains separately
+authorized.
+
+Authority: `docs/development/N3W_T1_R7A_REPAIRED_MANAGER_A0R_A1R_LIVE_EXECUTION_CLOSURE_20261108.md`.
+
+## Latest authority — 2026-11-08 repaired Manager A0R/A1R preexecution CLOSED_PASS
+
+```text
+AUTHORITY_STATE=R7A_REPAIRED_MANAGER_A0R_A1R_PREEXECUTION_CLOSED_PASS
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_AUTHORITY_MANAGER_REFERENCE=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_AUTHORITY_HOMEASSISTANT_REFERENCE=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_AUTHORITY_BROKER_REFERENCE=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+REPAIRED_MANAGER_SOURCE_HEAD=7807271e4c48161f2fad96a7886fa4c24b038321
+REPAIRED_MANAGER_TARGET=local/greenhouse-manager:fresh-7807271e4c48
+LAST_CONFIRMED_LIVE_PREDECESSOR=local/greenhouse-manager:fresh-bf38e388497b
+
+A0R_PACKAGE_RUN_ID=42480154921
+A0R_PACKAGE_ARTIFACT_ID=13616844356
+A0R_PACKAGE_ARTIFACT_DIGEST_SHA256=3c07406cd51258c8ef95f02e1e6cc80d09eb7235c218e7ead74a02a5521442fd
+A0R_PACKAGE_CONTROL_HEAD=4c883c02fbf3a64d944548a1dda8c7431d59ae61
+
+A0R_A1R_EXECUTABLE_HEAD=813acb95401612585fc73455e05c81e3e6b86009
+A0R_A1R_EXECUTABLE_TREE=fdea2402ab30f1f6139268d2d450eb75a9f85226
+A0R_A1R_FOCUSED_CI_RUN=42482476119
+A0R_A1R_SOURCE=SUCCESS
+A0R_A1R_SOURCE_PYTEST=274_PASS
+A0R_A1R_EXACT_MANAGER_SLICE=SUCCESS
+A0R_A1R_PRE_U1_V2_SIMULATION=SUCCESS
+A0R_A1R_AUTHORIZATION_HASH_CHAIN=ENFORCED
+
+A0R_LIVE_EXECUTION_AUTHORIZED=false
+A1R_LIVE_EXECUTION_AUTHORIZED=false
+KF144_STATUS=SOURCE_REPAIR_AND_PREEXECUTION_CLOSED_LIVE_REVALIDATION_PENDING
+
+FRESH_LIVE_RUNTIME=UNKNOWN_FRESH
+OPERATOR_HOMEASSISTANT_POST_REBOOT_WEB_LOGIN=PASS
+T1_MUTATION=false
+SERVICE_RESTART=false
+USB_PREPARE_ENTERED=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_R7A_REPAIRED_MANAGER_A0R_FRESH_LIVE_READONLY_ELIGIBILITY_20261108_01
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+The repaired Manager A0R/A1R successor chain is source-closed. A0R remains bound to the
+immutable package produced at control head `4c883c...`; the later executable-head CI
+rebuild is validation evidence only. Independent review closed the authorization-chain
+false-PASS gap by requiring the V2 transaction authorization hash to match the exact A0R
+authorization both after A0R and before A1R.
+
+No fresh T1 read or mutation occurred in this gate. The next gate is read-only and must
+re-establish the rebooted T1's exact predecessor/recovery/OTA-disabled/zero-USB state before
+any A0R live apply authorization is considered.
+
+Authority: `docs/development/N3W_T1_R7A_REPAIRED_MANAGER_A0R_A1R_PREEXECUTION_CLOSURE_20261108.md`.
+
+## Latest authority — 2026-11-08 R7A simplified-runtime OTA compatibility source repair CLOSED_PASS
+
+```text
+AUTHORITY_STATE=HA_USB_MANDATORY_OTA_R7A_SIMPLIFIED_RUNTIME_OTA_COMPATIBILITY_SOURCE_REPAIR_CLOSED_PASS
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_AUTHORITY_MANAGER_REFERENCE=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_AUTHORITY_HOMEASSISTANT_REFERENCE=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_AUTHORITY_BROKER_REFERENCE=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+SOURCE_REPAIR_HEAD=7807271e4c48161f2fad96a7886fa4c24b038321
+SOURCE_REPAIR_TREE=3d2893914d62645011a9a4badc7f939d10f9029e
+PR800_EXECUTABLE_TO_PREARCHIVE_HEAD_DRIFT=DOCS_ONLY
+
+ROOT_CAUSE=N3wSimplifiedIsolatedMqttService internal compatibility copy disabled n3w_runtime_enabled while retaining n3w_t1_ota_enabled before ManagerMqttService Settings.validate
+REPAIR=when an already-built ota_manager is injected, clear only the internal base-service n3w_t1_ota_enabled flag; OTA capability remains object-carried
+A1_STABILITY_GUARD=15s same-container Manager/HomeAssistant/Broker identities plus services-owner active
+
+EXACT_ARM64_RUN=42452239964
+EXACT_ARM64_ATTEMPT=2
+EXACT_ARM64_RESULT=SUCCESS
+EXACT_ARM64_ARTIFACT_ID=13615963302
+EXACT_ARM64_ARTIFACT_DIGEST_SHA256=72b05593b91c75912e05ccd3b00bc72af5bd7ec03e39c283d0ce7acfb513fbe7
+POST_UPLOAD_BINDING=PASS
+SOURCE_HEAD_CI=25_SUCCESS_0_FAILURE_0_PENDING
+
+INITIAL_ATTEMPT_FAILURE=homeassistant-arm64.tar SHA256 mismatch after upload/redownload
+INITIAL_ATTEMPT_CLASSIFICATION=TRANSIENT_CI_ARTIFACT_ROUNDTRIP_INTEGRITY_FAILURE_NONREPRODUCED_ON_UNCHANGED_RERUN
+PRODUCT_SOURCE_CAUSATION_PROVEN=false
+WORKFLOW_REPAIR_REQUIRED=false
+HASH_GUARD_WEAKENED=false
+
+KF144_STATUS=SOURCE_REPAIR_CLOSED_LIVE_REVALIDATION_PENDING
+LIVE_T1_STATE=RECOVERED_OTA_DISABLED_HEALTHY
+LIVE_T1_MUTATION=false
+USB_PREPARE_ENTERED=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_R7A_REPAIRED_MANAGER_EXACT_ARTIFACT_AND_FRESH_A1_REACTIVATION_PREEXECUTION_20261108_01
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+The compatibility defect is source-proven and repaired. The production T1 remains on the previously recovered OTA-disabled path; this source closure does not reactivate A1, deploy the repaired Manager, resume Boundary B, insert USB, or authorize merge.
+
+The exact ARM64 rerun on the unchanged source head passed the same upload/download/SHA verification that failed in attempt 1. The first failure is therefore retained as historical transient CI evidence, not converted into a product defect and not hidden by weakening exact binding.
+
+Authority: `docs/development/N3W_T1_R7A_SIMPLIFIED_RUNTIME_OTA_COMPATIBILITY_SOURCE_REPAIR_CI_CLOSURE_20261108.md`.
+
+## Latest authority — 2026-11-08 R7A Boundary B PREPARE-only preexecution CLOSED_PASS
+
+```text
+AUTHORITY_STATE=HA_USB_MANDATORY_OTA_R7A_BOUNDARY_B_PREPARE_ONLY_PREEXECUTION_CLOSED_PASS
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_AUTHORITY_MANAGER_REFERENCE=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_AUTHORITY_HOMEASSISTANT_REFERENCE=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_AUTHORITY_BROKER_REFERENCE=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+A1_CLOSURE_HEAD=276811043c9eca9ba6c66198588fb89b14cd3b36
+A1_CLOSURE_CI=25_SUCCESS_0_FAILURE_0_PENDING
+A1_SUCCESSOR_RESULT=PASS
+A1_SUCCESSOR_AUTHORIZATION_CONSUMED=true
+A1_SUCCESSOR_REPLAY_ALLOWED=false
+KF143_STATUS=RESOLVED
+
+BOUNDARY_B_SOURCE_REVIEW=PASS
+BOUNDARY_B_SOURCE_REPAIR_REQUIRED=false
+BOUNDARY_B_DESIGN_CORRECTION=PREPARE_BEFORE_USB_INSERTION
+BOUNDARY_B_PREPARE_CREATES_U1_ONLY=true
+BOUNDARY_B_PREPARE_BASELINES_EXISTING_REMOVABLE_MEDIA=true
+BOUNDARY_B_DISCOVERY_READ_ONLY=true
+BOUNDARY_B_EXACTLY_ONE_FRESH_ELIGIBLE_USB_REQUIRED=true
+BOUNDARY_B_PREINSERTED_USB_EXCLUDED=true
+BOUNDARY_B_MULTIPLE_FRESH_USB_FAIL_CLOSED=true
+BOUNDARY_B_ROOT_OR_MOUNTED_DEVICE_EXCLUDED=true
+BOUNDARY_B_CONFIRM_USB_ERASE_SEPARATE_ACTION=true
+BOUNDARY_B_CONFIRM_ACTION_NOT_INVOKED=true
+BOUNDARY_B_USB_WRITE=false
+BOUNDARY_B_FORMAT=false
+BOUNDARY_B_MOUNT=false
+BOUNDARY_B_TARGET_DOWNLOAD=false
+
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_BOUNDARY_B_REAL_USB_PREPARE_ONLY_EXECUTION_20261108_01
+REAL_USB_INSERTION_AUTHORIZED=false
+PREPARE_EXECUTION_AUTHORIZED=false
+CONFIRM_USB_ERASE_AUTHORIZED=false
+U2_PLUS_AUTHORIZED=false
+BOARD_ACCESS_DEFAULT=false
+MERGE=false
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+Boundary B source review confirms that the product PREPARE path is structurally separated from destructive confirmation. Home Assistant publishes a PREPARE button that submits only `PREPARE`; the privileged daemon transitions only to U1, snapshots the current removable-device baseline, and starts read-only discovery. The destructive `CONFIRM_USB_ERASE` action is a separate control surface that is not visible until a single fresh eligible USB candidate has been published.
+
+The prior design wording that required the USB to be inserted before PREPARE was inconsistent with the implemented safety contract. The design is corrected to PREPARE first, then insert exactly one dedicated USB. No runtime source repair is required.
+
+Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_BOUNDARY_B_PREPARE_ONLY_PREEXECUTION_CLOSURE_20261108.md`.
+
+## Latest authority — 2026-11-07 R7A Manager A0 executor preexecution CLOSED_PASS
+
+```text
+AUTHORITY_STATE=HA_USB_MANDATORY_OTA_R7A_MANAGER_A0_EXECUTOR_PREEXECUTION_CLOSED_PASS_LIVE_AUTH_PENDING
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+CURRENT_ACCEPTED_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_ACCEPTED_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_ACCEPTED_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+R7A_MANAGER_SUCCESSOR=local/greenhouse-manager:fresh-bf38e388497b
+R7A_MANAGER_SUCCESSOR_LIVE_ACCEPTED=false
+
+A0_PACKAGE_CONTROL_HEAD=921e7d5557ff3dbf4b7e7ae5510186d98f803a2a
+A0_PACKAGE_ARTIFACT_ID=13564899377
+A0_PACKAGE_ARTIFACT_DIGEST_SHA256=6e9ca4cf103434330c0a31b51e1ba27b7d12b554648f4b0a017fd69bc4a32e1c
+A0_UPDATER_PYZ_SHA256=1b556d5601f33ef050c91e990bedaaeb1611bef325350fad008a1ec69fc7dc99
+A0_MANAGER_TAR_SHA256=4c4492ef5008a968b2553240b3fde97912eb3ae862604ae492e5a639a93db008
+
+A0_EXECUTOR_PREEXECUTION_RESULT=CLOSED_PASS
+A0_EXECUTOR_EXECUTABLE_HEAD=bed9aeb7c41f614bdeb8e445d71171e669e45942
+A0_EXECUTOR_EXECUTABLE_TREE=7f07e82f688dfee24e22e9330485e2c02edbd4fa
+A0_EXECUTOR_LIVE_EXECUTION_AUTHORIZED=false
+A0_EXECUTOR_STOP_BOUNDARY=BEFORE_REAL_SSH_EPOCH_UNTIL_SEPARATE_LIVE_AUTHORIZATION
+
+A0_EXECUTOR_CI_RUN_ID=42362708336
+A0_SOURCE=SUCCESS
+A0_EXACT_MANAGER_SLICE=SUCCESS
+A0_PRE_U1_V2_SIMULATION=SUCCESS
+
+LIVE_T1_ACCESS=false
+LIVE_T1_MUTATION=false
+MANAGER_LIVE_UPGRADE=false
+SERVICE_MUTATION=false
+DOCKER_RUNTIME_MUTATION=false
+REAL_USB_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_MANAGER_SUCCESSOR_A0_LIVE_APPLY_20261107_01
+NEXT_GATE_EXPLICIT_USER_AUTHORIZATION_REQUIRED=true
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+The A0 executor exact-head final review is closed. The frozen Manager-only package remains byte-bound and the executable head adds only the operator-side fail-closed execution layer. No production authority has been promoted and no real T1 access or mutation occurred. The next gate is the real Manager-only A0 apply and cannot start without explicit user authorization.
+
+Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_MANAGER_SUCCESSOR_A0_LIVE_EXECUTION_PACKAGE_PREEXECUTION_CLOSURE_20261107.md`.
+
+## Latest authority — 2026-11-07 R7A Manager successor exact A-to-B package CLOSED_PASS
+
+```text
+AUTHORITY_STATE=HA_USB_MANDATORY_OTA_R7A_MANAGER_SUCCESSOR_PACKAGE_READY_NOT_EXECUTED
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+CURRENT_ACCEPTED_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_ACCEPTED_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_ACCEPTED_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+R7A_MANAGER_SUCCESSOR=local/greenhouse-manager:fresh-bf38e388497b
+R7A_MANAGER_TARGET_SOURCE_HEAD=bf38e388497b0d480f4bd322426e32a98652cf6c
+R7A_MANAGER_TARGET_LIVE_ACCEPTED=false
+
+EXACT_ARM64_RUN_ID=42347679643
+EXACT_ARM64_ARTIFACT_ID=13564472128
+MANAGER_TAR_SHA256=4c4492ef5008a968b2553240b3fde97912eb3ae862604ae492e5a639a93db008
+MANAGER_BUILD_IMAGE_ID=sha256:136cdcacf84a388a91cf0adbf7e0653a78b754e1879a59d3a2ac066ecba9fa5f
+
+A0_PACKAGE_RUN_ID=42349904235
+A0_PACKAGE_RESULT=CLOSED_PASS
+A0_PACKAGE_ARTIFACT_ID=13564899377
+A0_PACKAGE_ARTIFACT_DIGEST_SHA256=6e9ca4cf103434330c0a31b51e1ba27b7d12b554648f4b0a017fd69bc4a32e1c
+A0_PACKAGE_CONTROL_HEAD=921e7d5557ff3dbf4b7e7ae5510186d98f803a2a
+A0_UPDATER_PYZ_SHA256=1b556d5601f33ef050c91e990bedaaeb1611bef325350fad008a1ec69fc7dc99
+
+A0_PREDECESSOR_BASELINE_CANONICAL_SHA256=78c3b0b58ad39cf887689658bec90c8466d30a93d58830b0289f1463dafad868
+A0_PREDECESSOR_BASELINE_MATCHES_REAL_T1_P4=true
+A0_MUTATION_PROFILE=IMAGE_ONLY_V1
+A0_ROLLBACK_COMPATIBLE=true
+
+LIVE_T1_ACCESS=false
+LIVE_T1_MUTATION=false
+MANAGER_LIVE_UPGRADE=false
+SERVICE_MUTATION=false
+DOCKER_RUNTIME_MUTATION=false
+REAL_USB_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_MANAGER_SUCCESSOR_A0_LIVE_EXECUTION_PACKAGE_PREEXECUTION_20261107_01
+NEXT_SCOPE=SOURCE_ONLY_A0_EXECUTOR_AND_PREEXECUTION_REVIEW
+AUTO_EXECUTE_LIVE_A0=false
+```
+
+The accepted production stack remains unchanged. R7A requires a Manager successor because the current accepted Manager image predates the R7A Manager control plane. The successor is now exact-built, compatibility-reviewed, bound to the real-T1 P4 predecessor baseline, packaged through the existing Generic V2 Manager A-to-B path and validated by plan/apply/rollback simulation. The next gate may build the operator-side A0 executor only; real T1 apply remains a separate authorization boundary.
+
+Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_MANAGER_SUCCESSOR_EXACT_ARTIFACT_AND_A_TO_B_PACKAGE_CLOSURE_20261107.md`.
+
+## Latest authority — 2026-11-07 HA mandatory-USB R7A PREPARE source CLOSED_PASS
+
+```text
+AUTHORITY_STATE=HA_USB_MANDATORY_OTA_R7A_PREPARE_SOURCE_CLOSED_PASS
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+R5_RESULT=CLOSED_PASS
+R6_RESULT=CLOSED_PASS_SOURCE_DESIGN
+R7A_RESULT=CLOSED_PASS
+R7A_SOURCE_IMPLEMENTATION_HEAD=d5c7aca0b8f39acb0d9d014b649d943a81956262
+R7A_STACKED_PR=800
+R7A_CI=18_SUCCESS_10_SKIPPED_0_FAILURE_0_PENDING
+
+R7A_END_PHASE=U4_READY_TO_INSTALL
+R7A_EXECUTABLE_U5_PATH=false
+R7A_MANAGER_ROOT=false
+R7A_MANAGER_DOCKER_SOCKET=false
+R7A_SO_PEERCRED_UID_999=true
+R7A_DIRECT_TO_USB_TARGET=true
+R7A_USB_MIN_MEASURED_BYTES=15032385536
+R7A_DEFAULT_PRODUCTION_ACTIVATION=false
+
+R7A_DEPLOYED_TO_T1=false
+LIVE_T1_MUTATION=false
+REAL_USB_MUTATION=false
+SERVICE_MUTATION=false
+DOCKER_RUNTIME_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_REAL_T1_PREACTIVATION_READONLY_PREFLIGHT_20261107_01
+NEXT_SCOPE=REAL_T1_READONLY_PREACTIVATION_PREFLIGHT
+AUTO_EXECUTE_NEXT_GATE=false
+```
+
+R7A independently closed the U1→U4 PREPARE source path after repairing the original branch's false U4 stop, default-off coupling, interrupted-download temporary residue and semantic-version parsing defects. The exact source head has no executable INSTALL/U4→U5 path and passed all 18 applicable visible workflows; 10 path-gated workflows were skipped.
+
+Production remains unchanged: the accepted Manager/Home Assistant/Broker authority and live stack are still the pre-R7A production line. R7A source presence does not authorize installation of the host daemon, Manager OTA activation or any real USB write.
+
+Authority: `docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_P5_R7A_PREPARE_PIPELINE_SOURCE_IMPLEMENTATION_CLOSURE_20261107.md`.
+
 ## Latest authority — 2026-11-07 HA mandatory-USB R5 real-T1 read-only PASS; R6 source design frozen
 
 ```text

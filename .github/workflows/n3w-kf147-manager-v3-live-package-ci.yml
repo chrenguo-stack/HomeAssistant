@@ -1,0 +1,205 @@
+name: N3W KF147 Manager IPC V3 live package CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/n3w-kf147-manager-v3-live-package-ci.yml"
+      - "tools/execution_packages/n3w/r7a/kf147_manager_v3_live_apply/**"
+      - "tests/tools/test_n3w_t1_kf147_manager_v3_live_executor.py"
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, labeled, unlabeled, edited]
+    paths:
+      - ".github/workflows/n3w-kf147-manager-v3-live-package-ci.yml"
+      - "tools/execution_packages/n3w/r7a/kf147_manager_v3_live_apply/**"
+      - "tests/tools/test_n3w_t1_kf147_manager_v3_live_executor.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: n3w-kf147-manager-v3-live-package-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.draft == false ||
+      contains(github.event.pull_request.labels.*.name, 'ci-ready') ||
+      contains(github.event.pull_request.body, 'CI_READY=true')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      SOURCE_HEAD: 44e7d74727147975de88e85c4b18ba3f7493fd76
+      UPSTREAM_RUN_ID: "42616473226"
+      UPSTREAM_ARTIFACT_ID: "13673322402"
+      UPSTREAM_ARTIFACT_NAME: n3w-t1-fresh-exact-arm64-44e7d74727147975de88e85c4b18ba3f7493fd76
+      UPSTREAM_ARTIFACT_DIGEST: sha256:c2540433fb2d33631d67c0bc7433040510f74a039af939b6438aa5c73fbda3e1
+      MANAGER_IMAGE: local/greenhouse-manager:fresh-44e7d7472714
+      MANAGER_IMAGE_ID: sha256:fd5104d610645347fe47137dbb24121851fa8a48530df3e3c905704607c5e3d4
+      MANAGER_TAR_SHA256: 9316817590c4fe74498629d0451a4897c2e11bef7bc4b423b66e47bb846099c5
+      MANAGER_TAR_SIZE: "62957568"
+      PREDECESSOR_MANAGER: local/greenhouse-manager:fresh-7807271e4c48
+      GATE_ID: N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261110_01
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate live executor source contract
+        run: |
+          set -euo pipefail
+          python -m pip install "pytest>=8,<9"
+          python -m py_compile \
+            tools/execution_packages/n3w/r7a/kf147_manager_v3_live_apply/executor.py \
+            tools/execution_packages/n3w/r7a/kf147_manager_v3_live_apply/remote_apply.py
+          python -m pytest -q tests/tools/test_n3w_t1_kf147_manager_v3_live_executor.py
+
+      - name: Verify frozen source authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          git cat-file -e "$SOURCE_HEAD^{commit}"
+          test "$(git diff --name-only "$SOURCE_HEAD"..HEAD -- host/greenhouse-manager infra/n3w-t1/production | wc -l)" -eq 0
+
+      - name: Verify upstream exact artifact metadata
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${UPSTREAM_ARTIFACT_ID}" > "$RUNNER_TEMP/upstream-meta.json"
+          python - "$RUNNER_TEMP/upstream-meta.json" <<'PY'
+          import json, os, sys
+          p=json.load(open(sys.argv[1],encoding="utf-8"))
+          assert p["id"] == int(os.environ["UPSTREAM_ARTIFACT_ID"])
+          assert p["name"] == os.environ["UPSTREAM_ARTIFACT_NAME"]
+          assert p["digest"] == os.environ["UPSTREAM_ARTIFACT_DIGEST"]
+          assert p["expired"] is False
+          assert p["workflow_run"]["id"] == int(os.environ["UPSTREAM_RUN_ID"])
+          assert p["workflow_run"]["head_sha"] == os.environ["SOURCE_HEAD"]
+          print("UPSTREAM_EXACT_ARTIFACT_METADATA=PASS")
+          PY
+
+      - name: Materialize only exact Manager slice
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/upstream" "$RUNNER_TEMP/package"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${UPSTREAM_ARTIFACT_ID}/zip" > "$RUNNER_TEMP/upstream.zip"
+          unzip -q "$RUNNER_TEMP/upstream.zip" -d "$RUNNER_TEMP/upstream"
+          test "$(find "$RUNNER_TEMP/upstream" -maxdepth 1 -type f -printf '%f\n' | sort | tr '\n' ' ')" = "binding.json broker-arm64.tar greenhouse-manager-arm64.tar homeassistant-arm64.tar "
+          cp "$RUNNER_TEMP/upstream/greenhouse-manager-arm64.tar" "$RUNNER_TEMP/package/"
+          docker load -i "$RUNNER_TEMP/package/greenhouse-manager-arm64.tar"
+          test "$(docker image inspect "$MANAGER_IMAGE" --format '{{.Id}}')" = "$MANAGER_IMAGE_ID"
+          MANAGER_IMAGE_SIZE_BYTES="$(docker image inspect "$MANAGER_IMAGE" --format '{{.Size}}')"
+          test "$MANAGER_IMAGE_SIZE_BYTES" -gt 0
+          export MANAGER_IMAGE_SIZE_BYTES
+          python - "$RUNNER_TEMP/upstream/binding.json" "$RUNNER_TEMP/package/greenhouse-manager-arm64.tar" "$RUNNER_TEMP/package/manager-live-binding.json" <<'PY'
+          import hashlib, json, os, sys
+          from pathlib import Path
+          binding=json.load(open(sys.argv[1],encoding="utf-8"))
+          tar=Path(sys.argv[2])
+          h=hashlib.sha256()
+          with tar.open("rb") as f:
+              for b in iter(lambda:f.read(1024*1024),b""):
+                  h.update(b)
+          observed=h.hexdigest()
+          assert binding["source_head"] == os.environ["SOURCE_HEAD"]
+          assert binding["manager"]["image"] == os.environ["MANAGER_IMAGE"]
+          assert binding["manager"]["image_id"] == os.environ["MANAGER_IMAGE_ID"]
+          assert binding["manager"]["tar_sha256"] == os.environ["MANAGER_TAR_SHA256"]
+          assert binding["manager"]["tar_size_bytes"] == int(os.environ["MANAGER_TAR_SIZE"])
+          assert binding["manager"]["platform"] == "linux/arm64"
+          assert observed == os.environ["MANAGER_TAR_SHA256"]
+          assert tar.stat().st_size == int(os.environ["MANAGER_TAR_SIZE"])
+          out={
+              "schema":"gh.n3w-t1-kf147-manager-v3-live-package/1",
+              "gate_id":os.environ["GATE_ID"],
+              "source_head":os.environ["SOURCE_HEAD"],
+              "expected_predecessor_manager":os.environ["PREDECESSOR_MANAGER"],
+              "target_manager":os.environ["MANAGER_IMAGE"],
+              "target_image_id":os.environ["MANAGER_IMAGE_ID"],
+              "manager_tar_sha256":os.environ["MANAGER_TAR_SHA256"],
+              "manager_tar_size_bytes":int(os.environ["MANAGER_TAR_SIZE"]),
+              "manager_image_size_bytes":int(os.environ["MANAGER_IMAGE_SIZE_BYTES"]),
+              "capacity_required_free_bytes":(
+                  2 * int(os.environ["MANAGER_TAR_SIZE"])
+                  + int(os.environ["MANAGER_IMAGE_SIZE_BYTES"])
+              ),
+              "upstream_run_id":int(os.environ["UPSTREAM_RUN_ID"]),
+              "upstream_artifact_id":int(os.environ["UPSTREAM_ARTIFACT_ID"]),
+              "upstream_artifact_digest":os.environ["UPSTREAM_ARTIFACT_DIGEST"],
+              "manager_only":True,
+              "homeassistant_image_mutation":False,
+              "broker_image_mutation":False,
+              "host_policy_mutation":False,
+              "host_source_mutation":False,
+              "usb_mutation":False,
+              "u2_plus":False,
+              "merge":False,
+          }
+          Path(sys.argv[3]).write_text(json.dumps(out,sort_keys=True,indent=2)+"\n",encoding="utf-8")
+          print(json.dumps(out,sort_keys=True))
+          print("MANAGER_ONLY_EXACT_SLICE=PASS")
+          PY
+          rm -rf "$RUNNER_TEMP/upstream" "$RUNNER_TEMP/upstream.zip"
+
+      - name: Upload Manager-only live package
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: n3w-kf147-manager-v3-live-44e7d7472714-20261110
+          path: ${{ runner.temp }}/package/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Re-download and verify package
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ steps.upload.outputs.artifact-id }}
+          path: ${{ runner.temp }}/redownload
+          merge-multiple: true
+
+      - name: Close package binding
+        shell: bash
+        env:
+          PACKAGE_ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          PACKAGE_ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          python - "$RUNNER_TEMP/redownload" <<'PY'
+          import hashlib, json, os, sys
+          from pathlib import Path
+          root=Path(sys.argv[1])
+          assert {p.name for p in root.iterdir()} == {"greenhouse-manager-arm64.tar","manager-live-binding.json"}
+          binding=json.loads((root/"manager-live-binding.json").read_text(encoding="utf-8"))
+          tar=root/"greenhouse-manager-arm64.tar"
+          h=hashlib.sha256()
+          with tar.open("rb") as f:
+              for b in iter(lambda:f.read(1024*1024),b""):
+                  h.update(b)
+          assert h.hexdigest() == binding["manager_tar_sha256"]
+          assert tar.stat().st_size == binding["manager_tar_size_bytes"]
+          assert isinstance(binding["manager_image_size_bytes"], int) and binding["manager_image_size_bytes"] > 0
+          assert binding["capacity_required_free_bytes"] == (
+              2 * binding["manager_tar_size_bytes"] + binding["manager_image_size_bytes"]
+          )
+          print("PACKAGE_ARTIFACT_ID="+os.environ["PACKAGE_ARTIFACT_ID"])
+          print("PACKAGE_ARTIFACT_DIGEST="+os.environ["PACKAGE_ARTIFACT_DIGEST"])
+          print("KF147_MANAGER_V3_LIVE_PACKAGE=PASS")
+          print("T1_ACCESS=false")
+          print("T1_MUTATION=false")
+          print("USB_MUTATION=false")
+          PY

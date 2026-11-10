@@ -1,11 +1,110 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
 from greenhouse_manager.ops import t1_s20_real_service_handoff as module
+
+_CURRENT_BUILD_SERVICE_IDENTITY_PLAN = module.build_service_identity_plan
+_R7A_OTA_CONTROL_TOPIC = "gh/v1/greenhouse/control/t1/homeassistant/ota"
+_R7A_MANAGER_ADDED_TOPICS = {
+    "homeassistant/update/n3w_t1_homeassistant/config",
+    "homeassistant/button/n3w_t1_homeassistant_prepare/config",
+    "homeassistant/button/n3w_t1_homeassistant_confirm_usb/config",
+    _R7A_OTA_CONTROL_TOPIC,
+}
+_R7A_HOMEASSISTANT_ADDED_TOPICS = {
+    _R7A_OTA_CONTROL_TOPIC,
+}
+
+
+def _historical_s20_service_identity_plan(
+    *,
+    system_id: str,
+    service: str,
+    generation: int,
+):
+    plan = _CURRENT_BUILD_SERVICE_IDENTITY_PLAN(
+        system_id=system_id,
+        service=service,  # type: ignore[arg-type]
+        generation=generation,
+    )
+    if service == "manager":
+        removed_topics = _R7A_MANAGER_ADDED_TOPICS
+    elif service == "homeassistant":
+        removed_topics = _R7A_HOMEASSISTANT_ADDED_TOPICS
+    else:
+        return plan
+    return replace(
+        plan,
+        acls=tuple(
+            acl
+            for acl in plan.acls
+            if acl.topic not in removed_topics
+        ),
+    )
+
+
+@pytest.fixture(autouse=True)
+def _freeze_historical_s20_service_identity_plan(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        module,
+        "build_service_identity_plan",
+        _historical_s20_service_identity_plan,
+    )
+
+
+def test_historical_s20_executor_fail_closes_on_current_manager_acl_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        module,
+        "build_service_identity_plan",
+        _CURRENT_BUILD_SERVICE_IDENTITY_PLAN,
+    )
+    with pytest.raises(
+        module.S20ServiceHandoffError,
+        match="service_acl_count_drift",
+    ):
+        module._plans()
+
+
+def test_historical_s20_executor_fail_closes_on_current_homeassistant_acl_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def manager_historical_homeassistant_current(
+        *,
+        system_id: str,
+        service: str,
+        generation: int,
+    ):
+        if service == "manager":
+            return _historical_s20_service_identity_plan(
+                system_id=system_id,
+                service=service,
+                generation=generation,
+            )
+        return _CURRENT_BUILD_SERVICE_IDENTITY_PLAN(
+            system_id=system_id,
+            service=service,  # type: ignore[arg-type]
+            generation=generation,
+        )
+
+    monkeypatch.setattr(
+        module,
+        "build_service_identity_plan",
+        manager_historical_homeassistant_current,
+    )
+    with pytest.raises(
+        module.S20ServiceHandoffError,
+        match="service_acl_count_drift",
+    ):
+        module._plans()
 
 
 def _admin_only_state() -> dict[str, object]:

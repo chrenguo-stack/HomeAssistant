@@ -11,6 +11,8 @@ import pytest
 from greenhouse_manager.runtime.t1_ota_ipc import (
     REQUEST_SCHEMA,
     RESPONSE_SCHEMA,
+    RESPONSE_SCHEMA_V2,
+    RESPONSE_SCHEMA_V3,
     ApprovedManifestFileProvider,
     UnixSocketOtaBridge,
 )
@@ -105,27 +107,16 @@ def test_bridge_submit_cannot_carry_host_paths_or_commands(tmp_path: Path) -> No
         assert forbidden not in serialized.lower()
 
 
-def test_bridge_rejects_host_rejection(tmp_path: Path) -> None:
+def test_bridge_rejects_install_locally_in_r7a(tmp_path: Path) -> None:
     path = tmp_path / "ota.sock"
-    captured: list[dict[str, Any]] = []
-    thread = _serve_once(
-        path,
-        _response(
-            phase="ERROR",
-            accepted=False,
-            code="ha_ota_ipc_admission_drift",
-        ),
-        captured,
-    )
 
-    with pytest.raises(OtaControlError, match="ha_ota_ipc_admission_drift"):
+    with pytest.raises(OtaControlError, match="ota_ipc_action_invalid"):
         UnixSocketOtaBridge(path).submit_homeassistant_ota_intent(
             OtaControlIntent(
                 action="INSTALL",
                 target_release_id="homeassistant-2026.10.4",
             )
         )
-    thread.join(2)
 
 
 def test_manifest_file_provider_rejects_duplicate_fields(tmp_path: Path) -> None:
@@ -142,3 +133,129 @@ def test_manifest_file_provider_rejects_symlink(tmp_path: Path) -> None:
     link.symlink_to(real)
     with pytest.raises(OtaControlError, match="approved_manifest_path_invalid"):
         ApprovedManifestFileProvider(link).get_approved_homeassistant_manifest()
+
+
+def test_bridge_accepts_v2_public_usb_confirmation_projection(tmp_path: Path) -> None:
+    path = tmp_path / "ota.sock"
+    captured: list[dict[str, Any]] = []
+    response = {
+        "schema": RESPONSE_SCHEMA_V2,
+        "accepted": True,
+        "code": "status",
+        "phase": "USB_REQUIRED_CONFIRMATION",
+        "progress_percent": None,
+        "error_code": None,
+        "installed_version": "2026.10.0",
+        "usb_candidate": {
+            "public_fingerprint": "a" * 64,
+            "display_model": "Synthetic USB",
+            "display_capacity_bytes": 16 * 1024**3,
+        },
+        "usb_confirmation_required": True,
+    }
+    thread = _serve_once(path, response, captured)
+
+    snapshot = UnixSocketOtaBridge(path).get_homeassistant_ota_runtime_state()
+    thread.join(2)
+
+    assert snapshot.phase == "USB_REQUIRED_CONFIRMATION"
+    assert snapshot.installed_version == "2026.10.0"
+    assert snapshot.usb_candidate_model == "Synthetic USB"
+    assert snapshot.usb_candidate_capacity_bytes == 16 * 1024**3
+    assert snapshot.usb_confirmation_required is True
+    assert captured == [{"schema": REQUEST_SCHEMA, "operation": "status"}]
+
+
+def test_bridge_accepts_v3_bounded_capacity_projection(tmp_path: Path) -> None:
+    path = tmp_path / "ota-v3.sock"
+    captured: list[dict[str, Any]] = []
+    response = {
+        "schema": RESPONSE_SCHEMA_V3,
+        "accepted": True,
+        "code": "status",
+        "phase": "USB_REQUIRED_CONFIRMATION",
+        "progress_percent": None,
+        "error_code": None,
+        "installed_version": "2026.10.0",
+        "usb_candidate": {
+            "public_fingerprint": "b" * 64,
+            "display_model": "Synthetic USB",
+            "display_capacity_bytes": 32 * 1024**3,
+        },
+        "usb_confirmation_required": True,
+        "usb_required_bytes_or_null": 5 * 1024**3,
+        "usb_recommended_nominal_gb_or_null": 32,
+        "usb_capacity_check_state": "CANDIDATE_READY_FOR_CONFIRMATION",
+        "user_message_code_or_null": "USB_CONFIRM_ERASE",
+    }
+    thread = _serve_once(path, response, captured)
+
+    snapshot = UnixSocketOtaBridge(path).get_homeassistant_ota_runtime_state()
+    thread.join(2)
+
+    assert snapshot.usb_required_bytes == 5 * 1024**3
+    assert snapshot.usb_recommended_nominal_gb == 32
+    assert snapshot.usb_capacity_check_state == "CANDIDATE_READY_FOR_CONFIRMATION"
+    assert snapshot.user_message_code == "USB_CONFIRM_ERASE"
+
+
+def test_bridge_rejects_v3_unknown_capacity_state(tmp_path: Path) -> None:
+    path = tmp_path / "ota-v3-invalid.sock"
+    captured: list[dict[str, Any]] = []
+    response = {
+        "schema": RESPONSE_SCHEMA_V3,
+        "accepted": True,
+        "code": "status",
+        "phase": "USB_REQUIRED",
+        "progress_percent": None,
+        "error_code": None,
+        "installed_version": "2026.10.0",
+        "usb_candidate": None,
+        "usb_confirmation_required": False,
+        "usb_required_bytes_or_null": 5 * 1024**3,
+        "usb_recommended_nominal_gb_or_null": 32,
+        "usb_capacity_check_state": "PRIVATE_HOST_STATE",
+        "user_message_code_or_null": None,
+    }
+    thread = _serve_once(path, response, captured)
+
+    with pytest.raises(OtaControlError, match="ota_ipc_response_invalid"):
+        UnixSocketOtaBridge(path).get_homeassistant_ota_runtime_state()
+    thread.join(2)
+
+
+def test_bridge_confirmation_intent_cannot_carry_device_path(tmp_path: Path) -> None:
+    path = tmp_path / "ota.sock"
+    captured: list[dict[str, Any]] = []
+    response = {
+        "schema": RESPONSE_SCHEMA_V2,
+        "accepted": True,
+        "code": "accepted",
+        "phase": "TARGET_DOWNLOADING_VERIFYING",
+        "progress_percent": None,
+        "error_code": None,
+        "installed_version": "2026.10.0",
+        "usb_candidate": None,
+        "usb_confirmation_required": False,
+    }
+    thread = _serve_once(path, response, captured)
+
+    UnixSocketOtaBridge(path).submit_homeassistant_ota_intent(
+        OtaControlIntent(
+            action="CONFIRM_USB_ERASE",
+            target_release_id="homeassistant-2026.10.4",
+        )
+    )
+    thread.join(2)
+
+    assert captured == [
+        {
+            "schema": REQUEST_SCHEMA,
+            "operation": "submit",
+            "action": "CONFIRM_USB_ERASE",
+            "target_release_id": "homeassistant-2026.10.4",
+        }
+    ]
+    encoded = json.dumps(captured[0]).lower()
+    for forbidden in ("/dev/", "mount", "docker", "shell", "authorization"):
+        assert forbidden not in encoded
