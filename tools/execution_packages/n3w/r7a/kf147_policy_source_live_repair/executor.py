@@ -381,6 +381,31 @@ def wait_host_inactive():
     raise Stop("host_service_not_inactive")
 
 
+def wait_services_inactive():
+    deadline = time.monotonic() + 90.0
+    while time.monotonic() < deadline:
+        active = run(["systemctl", "is-active", SERVICES_UNIT], check=False, timeout=30).stdout.strip()
+        if active in {"inactive", "failed"}:
+            return
+        time.sleep(1.0)
+    raise Stop("services_owner_not_inactive")
+
+
+def wait_services_active(plan):
+    deadline = time.monotonic() + 120.0
+    while time.monotonic() < deadline:
+        active = run(["systemctl", "is-active", SERVICES_UNIT], check=False, timeout=30).stdout.strip()
+        if active == "active":
+            try:
+                docker_one(plan["live"]["manager_image"])
+                docker_one(plan["live"]["homeassistant_image"])
+                return
+            except Stop:
+                pass
+        time.sleep(1.0)
+    raise Stop("services_owner_not_active")
+
+
 def wait_snapshot(plan):
     deadline = time.monotonic() + 30.0
     last = None
@@ -464,6 +489,8 @@ def target_files(plan):
 def rollback(plan, backup_dir, pre):
     result = {"attempted": True, "status": "FAIL"}
     try:
+        run(["systemctl", "stop", SERVICES_UNIT], timeout=150)
+        wait_services_inactive()
         run(["systemctl", "stop", HOST_UNIT], timeout=90)
         wait_host_inactive()
         for item in plan["files"]:
@@ -496,6 +523,8 @@ def rollback(plan, backup_dir, pre):
 
         run(["systemctl", "start", HOST_UNIT], timeout=90)
         wait_host_active()
+        run(["systemctl", "start", SERVICES_UNIT], timeout=180)
+        wait_services_active(plan)
         post = baseline(plan, require_snapshot=False)
         if (
             post["manager_container_id"] != pre["manager_container_id"]
@@ -565,6 +594,7 @@ def execute(plan, authorization, confirmation):
         "replay_permitted": False,
         "host_source_mutation": False,
         "host_daemon_restart": False,
+        "services_owner_restart": False,
         "manager_mutation": False,
         "homeassistant_mutation": False,
         "broker_mutation": False,
@@ -576,6 +606,9 @@ def execute(plan, authorization, confirmation):
     }
 
     try:
+        run(["systemctl", "stop", SERVICES_UNIT], timeout=150)
+        result["services_owner_stopped"] = True
+        wait_services_inactive()
         run(["systemctl", "stop", HOST_UNIT], timeout=90)
         result["host_daemon_stopped"] = True
         wait_host_inactive()
@@ -599,6 +632,9 @@ def execute(plan, authorization, confirmation):
         run(["systemctl", "start", HOST_UNIT], timeout=90)
         result["host_daemon_restart"] = True
         wait_host_active()
+        run(["systemctl", "start", SERVICES_UNIT], timeout=180)
+        result["services_owner_restart"] = True
+        wait_services_active(plan)
         wait_snapshot(plan)
 
         post_base = baseline(plan, require_snapshot=True)
