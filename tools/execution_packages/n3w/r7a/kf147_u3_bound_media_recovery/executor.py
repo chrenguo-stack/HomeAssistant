@@ -19,9 +19,9 @@ SSH_TRANSPORT_PATH = REPO_ROOT / "tools/n3w_t1_ssh_transport.py"
 
 GATE_ID = (
     "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_"
-    "U3_BOUND_MEDIA_RECOVERY_TO_U4_R4_20261111_01"
+    "U3_PERMISSION_REPAIR_TO_U4_R5_20261111_01"
 )
-CONFIRMATION = "EXECUTE KF147 U3 BOUND MEDIA RECOVERY TO U4 R4: YES"
+CONFIRMATION = "EXECUTE KF147 U3 PERMISSION REPAIR TO U4 R5: YES"
 
 REMOTE_SCRIPT = r"""
 import base64
@@ -39,6 +39,7 @@ TX_PATH = Path("/var/lib/n3w-t1-core-updater/homeassistant-usb-upgrade.json")
 PREPARE_PATH = Path("/var/lib/n3w-t1-core-updater/homeassistant-usb-prepare.json")
 SERVICE = "n3w-t1-ha-ota.service"
 STATE_ROOT_PARENT = Path("/var/lib/n3w-t1-core-updater")
+R4_FAILURE_PATH = STATE_ROOT_PARENT / "kf147-u3-bound-media-recovery-r4-20261111-01" / "failure.json"
 TX_SCHEMA = "gh.n3w-t1-core-updater-homeassistant-usb-transaction/1"
 PREPARE_SCHEMA = "gh.n3w-t1-ha-usb-prepare-state/1"
 U3 = "U3_TARGET_DOWNLOADING_VERIFYING"
@@ -295,6 +296,19 @@ def container_view(image):
     }
 
 
+def directory_view(path):
+    path = Path(path)
+    if path.is_symlink() or not path.is_dir():
+        raise Stop("required_directory_invalid:" + str(path))
+    metadata = path.stat()
+    return {
+        "path": str(path),
+        "uid": metadata.st_uid,
+        "gid": metadata.st_gid,
+        "mode": stat.S_IMODE(metadata.st_mode),
+    }
+
+
 def validate_preflight(plan):
     live = plan["live"]
     tx = read_json(TX_PATH, TX_SCHEMA)
@@ -322,27 +336,57 @@ def validate_preflight(plan):
     ):
         raise Stop("u3_prepare_binding_drift")
 
-    media = bound_partition(tx, live)
-    if media["current_partition_mountpoints"]:
-        raise Stop("bound_partition_mounted_unexpectedly")
+    r4_failure = read_json(
+        R4_FAILURE_PATH,
+        "gh.n3w-t1-kf147-u3-bound-media-recovery/1",
+    )
+    if (
+        r4_failure.get("authorization_claimed") is not True
+        or r4_failure.get("authorization_consumed") is not True
+        or r4_failure.get("replay_permitted") is not False
+        or r4_failure.get("service_restarted") is not True
+        or r4_failure.get("u4_ready") is not False
+        or r4_failure.get("first_failed_operation") != "Stop:u3_recovery_timeout"
+    ):
+        raise Stop("r4_terminal_failure_not_confirmed")
 
+    media = bound_partition(tx, live)
     mount_target = (
         "/run/n3w-t1-ota/media/"
         + live["transaction_id_sha256"][:16]
     )
+    if media["current_partition_mountpoints"] != [mount_target]:
+        raise Stop("bound_partition_mount_drift")
+
     mounted = mount_view(mount_target)
-    if mounted is not None:
-        if mounted["target"] != mount_target:
-            raise Stop("runtime_mount_target_drift")
-        if mounted["source"] == media["partition"]:
-            raise Stop("current_bound_partition_already_mounted")
-        live_paths = {
-            item.get("path")
-            for item in flatten(lsblk_doc()["blockdevices"])
-            if isinstance(item.get("path"), str)
-        }
-        if mounted["source"] in live_paths:
-            raise Stop("runtime_mount_source_still_live")
+    if (
+        mounted is None
+        or mounted["source"] != media["partition"]
+        or mounted["target"] != mount_target
+    ):
+        raise Stop("bound_partition_exact_mount_missing")
+
+    update_dir = directory_view(Path(mount_target) / "n3w-update")
+    if (
+        update_dir["uid"] != 0
+        or update_dir["gid"] != 999
+        or update_dir["mode"] != 0o770
+    ):
+        raise Stop("usb_update_directory_precondition_drift")
+
+    transaction_dir = directory_view(
+        Path(mount_target) / "n3w-update" / "transaction"
+    )
+    if (
+        transaction_dir["uid"] != 0
+        or transaction_dir["gid"] != 999
+        or transaction_dir["mode"] != 0o700
+    ):
+        raise Stop("usb_transaction_directory_precondition_drift")
+
+    target_dir = Path(mount_target) / "n3w-update" / "target"
+    if target_dir.exists() or target_dir.is_symlink():
+        raise Stop("usb_target_directory_unexpectedly_present")
 
     service = systemd_state()
     if service.get("ActiveState") != "active" or service.get("SubState") != "running":
@@ -366,10 +410,14 @@ def validate_preflight(plan):
     return {
         "transaction_sha256": sha_file(TX_PATH),
         "prepare_sha256": sha_file(PREPARE_PATH),
+        "r4_failure_sha256": sha_file(R4_FAILURE_PATH),
         "phase": tx["phase"],
         "media": media,
         "mount_target": mount_target,
-        "stale_mount": mounted,
+        "mount": mounted,
+        "update_dir": update_dir,
+        "transaction_dir": transaction_dir,
+        "target_dir_present": False,
         "service": service,
         "containers": containers,
     }
@@ -423,7 +471,7 @@ def execute(plan, authorization, confirmation, mode):
     pre = validate_preflight(plan)
     if mode == "preflight":
         return {
-            "schema": "gh.n3w-t1-kf147-u3-bound-media-recovery/1",
+            "schema": "gh.n3w-t1-kf147-u3-permission-recovery/1",
             "status": "PASS",
             "read_only": True,
             "recovery_eligible": True,
@@ -466,15 +514,18 @@ def execute(plan, authorization, confirmation, mode):
     )
 
     result = {
-        "schema": "gh.n3w-t1-kf147-u3-bound-media-recovery/1",
+        "schema": "gh.n3w-t1-kf147-u3-permission-recovery/1",
         "status": "STOP",
         "authorization_claimed": True,
         "authorization_consumed": True,
         "replay_permitted": False,
-        "stale_mount_unmounted": False,
+        "usb_update_dir_permission_repaired": False,
         "service_restarted": False,
         "u4_ready": False,
         "u5_plus": False,
+        "usb_reformat": False,
+        "usb_repartition": False,
+        "destructive_confirmation_replay": False,
         "homeassistant_mutation": False,
         "manager_mutation": False,
         "broker_mutation": False,
@@ -486,12 +537,40 @@ def execute(plan, authorization, confirmation, mode):
         postclaim = validate_preflight(plan)
         durable_json(state_root / "postclaim.json", postclaim)
 
-        stale = postclaim.get("stale_mount")
-        if stale is not None:
-            run(["umount", postclaim["mount_target"]], timeout=45)
-            result["stale_mount_unmounted"] = True
-            if mount_view(postclaim["mount_target"]) is not None:
-                raise Stop("stale_runtime_mount_persisted")
+        update_dir = Path(postclaim["update_dir"]["path"])
+        flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(update_dir, flags)
+        try:
+            metadata = os.fstat(descriptor)
+            if (
+                metadata.st_uid != 0
+                or metadata.st_gid != 999
+                or stat.S_IMODE(metadata.st_mode) != 0o770
+            ):
+                raise Stop("usb_update_directory_changed_before_repair")
+            os.fchmod(descriptor, 0o700)
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+
+        repaired = directory_view(update_dir)
+        if (
+            repaired["uid"] != 0
+            or repaired["gid"] != 999
+            or repaired["mode"] != 0o700
+        ):
+            raise Stop("usb_update_directory_permission_repair_failed")
+        result["usb_update_dir_permission_repaired"] = True
+        durable_json(
+            state_root / "permission_repair.json",
+            {
+                "path": str(update_dir),
+                "before_mode": "0770",
+                "after_mode": "0700",
+                "uid": repaired["uid"],
+                "gid": repaired["gid"],
+            },
+        )
 
         run(["systemctl", "restart", SERVICE], timeout=60)
         result["service_restarted"] = True
@@ -543,7 +622,7 @@ def execute(plan, authorization, confirmation, mode):
             time.sleep(2)
 
         result["last_observed"] = last
-        raise Stop("u3_recovery_timeout")
+        raise Stop("u3_permission_recovery_timeout")
     except Exception as error:
         result["first_failed_operation"] = (
             type(error).__name__ + ":" + str(error)[:240]
@@ -563,7 +642,7 @@ def main():
         plan = json.loads(base64.b64decode(sys.argv[1]).decode("utf-8"))
         if plan.get("gate_id") != (
             "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_"
-            "U3_BOUND_MEDIA_RECOVERY_TO_U4_R4_20261111_01"
+            "U3_PERMISSION_REPAIR_TO_U4_R5_20261111_01"
         ):
             raise Stop("gate_id_invalid")
         result = execute(plan, sys.argv[2], sys.argv[3], sys.argv[4])
@@ -704,7 +783,7 @@ def remote_call(transport: Any, plan: dict[str, Any], authorization: str, confir
 
 def execute(args: argparse.Namespace) -> dict[str, Any]:
     result: dict[str, Any] = {
-        "schema": "gh.n3w-t1-kf147-u3-bound-media-recovery-local-result/1",
+        "schema": "gh.n3w-t1-kf147-u3-permission-recovery-local-result/1",
         "status": "STOP",
         "gate_id": GATE_ID,
         "t1_access": False,
