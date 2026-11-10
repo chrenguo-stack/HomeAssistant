@@ -15,8 +15,14 @@ import time
 from pathlib import Path
 from typing import Any
 
-GATE_ID = "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261110_01"
-CONFIRMATION = "EXECUTE KF147 MANAGER IPC V3 IMAGE ONLY LIVE APPLY: YES"
+from n3w_t1_portable_image_identity import (
+    PortableImageIdentityError,
+    parse_image_archive,
+    verify_runtime_document,
+)
+
+GATE_ID = "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_R2_20261110_01"
+CONFIRMATION = "EXECUTE KF147 MANAGER IPC V3 IMAGE ONLY LIVE APPLY R2: YES"
 PREDECESSOR = "local/greenhouse-manager:fresh-7807271e4c48"
 PREDECESSOR_IMAGE_ID = "sha256:7e3f09ed47010a18de215faa426113b7faba4e220b41bb9dcafd8ee1d4acf20b"
 TARGET = "local/greenhouse-manager:fresh-44e7d7472714"
@@ -38,7 +44,7 @@ OTA_UNIT = "n3w-t1-ha-ota.service"
 COMPOSE_ENV = Path("/etc/n3wfc4/docker-compose.env")
 TX = Path("/var/lib/n3w-t1-core-updater/homeassistant-usb-upgrade.json")
 PREPARE = Path("/var/lib/n3w-t1-core-updater/homeassistant-usb-prepare.json")
-STATE_ROOT = Path("/var/lib/n3w-t1-core-updater/kf147-manager-v3-live-20261110-01")
+STATE_ROOT = Path("/var/lib/n3w-t1-core-updater/kf147-manager-v3-live-r2-20261110-01")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -272,6 +278,54 @@ def collect_preflight() -> dict[str, Any]:
     }
 
 
+def target_portable_identity(tar: Path, *, allow_absent: bool) -> dict[str, Any]:
+    try:
+        identity = parse_image_archive(
+            tar,
+            expected_archive_sha256=TARGET_TAR_SHA256,
+            expected_archive_size_bytes=TARGET_TAR_SIZE,
+            expected_tag=TARGET,
+            platform_os="linux",
+            platform_architecture="arm64",
+        )
+    except PortableImageIdentityError as error:
+        raise Stop(f"target_archive_portable_identity_invalid:{error}") from error
+
+    observed = run(["docker", "image", "inspect", TARGET], check=False)
+    if observed.returncode != 0:
+        if allow_absent:
+            return {
+                "target_image_prestate": "ABSENT",
+                "target_runtime_image_id": None,
+                "target_build_config_digest": identity.config_digest,
+            }
+        raise Stop("target_image_missing_after_load")
+    try:
+        document = json.loads(observed.stdout)
+    except json.JSONDecodeError as error:
+        raise Stop("target_image_inspect_invalid") from error
+    if (
+        not isinstance(document, list)
+        or len(document) != 1
+        or not isinstance(document[0], dict)
+    ):
+        raise Stop("target_image_inspect_shape_invalid")
+    verdict = verify_runtime_document(identity, document[0])
+    if verdict.status != "VERIFIED":
+        raise Stop(f"target_image_portable_identity_invalid:{verdict.reason}")
+    runtime_id = verdict.runtime_image_id
+    if (
+        not isinstance(runtime_id, str)
+        or re.fullmatch(r"sha256:[0-9a-f]{64}", runtime_id) is None
+    ):
+        raise Stop("target_runtime_image_id_invalid")
+    return {
+        "target_image_prestate": "PRESENT_AND_EXACT",
+        "target_runtime_image_id": runtime_id,
+        "target_build_config_digest": identity.config_digest,
+    }
+
+
 def wait_services(timeout: int = 180) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -290,11 +344,14 @@ def wait_services(timeout: int = 180) -> None:
     raise Stop("services_restart_timeout")
 
 
-def post_validate(pre: dict[str, Any]) -> dict[str, Any]:
+def post_validate(pre: dict[str, Any], tar: Path, target_runtime_id: str) -> dict[str, Any]:
     manager = compose_container("manager")
     ha = compose_container("homeassistant")
     broker = compose_container("broker")
-    if manager.get("Config", {}).get("Image") != TARGET or manager.get("Image") != TARGET_IMAGE_ID:
+    target_check = target_portable_identity(tar, allow_absent=False)
+    if target_check["target_runtime_image_id"] != target_runtime_id:
+        raise Stop("post_target_runtime_identity_drift")
+    if manager.get("Config", {}).get("Image") != TARGET or manager.get("Image") != target_runtime_id:
         raise Stop("post_manager_identity_invalid")
     if manager.get("RestartCount") != 0 or manager.get("State", {}).get("Running") is not True:
         raise Stop("post_manager_runtime_invalid")
@@ -351,7 +408,8 @@ def post_validate(pre: dict[str, Any]) -> dict[str, Any]:
 
     return {
         "manager_image": TARGET,
-        "manager_image_id": TARGET_IMAGE_ID,
+        "manager_image_id": target_runtime_id,
+        "manager_build_config_digest": TARGET_IMAGE_ID,
         "manager_ipc_v3_support": True,
         "manager_container_recreated": True,
         "homeassistant_image_mutation": False,
@@ -434,6 +492,8 @@ def execute(tar: Path, authorization: str, confirm: str) -> dict[str, Any]:
         raise Stop("execution_state_already_exists")
 
     pre = collect_preflight()
+    target_pre = target_portable_identity(tar, allow_absent=True)
+    pre.update(target_pre)
     STATE_ROOT.mkdir(mode=0o700)
     if STATE_ROOT.stat().st_uid != 0 or stat.S_IMODE(STATE_ROOT.stat().st_mode) != 0o700:
         raise Stop("execution_state_metadata_invalid")
@@ -451,15 +511,8 @@ def execute(tar: Path, authorization: str, confirm: str) -> dict[str, Any]:
     rollback_needed = False
     try:
         run(["docker", "load", "-i", str(tar)], timeout=1800)
-        image = json.loads(run(["docker", "image", "inspect", TARGET]).stdout)
-        if (
-            not isinstance(image, list)
-            or len(image) != 1
-            or image[0].get("Id") != TARGET_IMAGE_ID
-            or image[0].get("Os") != "linux"
-            or image[0].get("Architecture") != "arm64"
-        ):
-            raise Stop("loaded_target_identity_invalid")
+        target_loaded = target_portable_identity(tar, allow_absent=False)
+        target_runtime_id = target_loaded["target_runtime_image_id"]
 
         rollback_needed = True
         run(["systemctl", "stop", SERVICES_UNIT], timeout=180)
@@ -467,7 +520,7 @@ def execute(tar: Path, authorization: str, confirm: str) -> dict[str, Any]:
         atomic_replace(COMPOSE_ENV, updated)
         run(["systemctl", "start", SERVICES_UNIT], timeout=180)
         wait_services()
-        post = post_validate(pre)
+        post = post_validate(pre, tar, target_runtime_id)
         durable_write(STATE_ROOT / "post.json", post)
         return {
             "status": "PASS",
@@ -510,8 +563,17 @@ def main() -> int:
     parser.add_argument("--confirm", default="")
     args = parser.parse_args()
     try:
-        if args.preflight:
-            print(json.dumps({"status": "PASS", **collect_preflight()}, sort_keys=True))
+        if args.preflight and args.manager_tar:
+            if (
+                args.manager_tar.is_symlink()
+                or not args.manager_tar.is_file()
+                or args.manager_tar.stat().st_size != TARGET_TAR_SIZE
+                or sha_file(args.manager_tar) != TARGET_TAR_SHA256
+            ):
+                raise Stop("target_tar_invalid")
+            pre = collect_preflight()
+            pre.update(target_portable_identity(args.manager_tar, allow_absent=True))
+            print(json.dumps({"status": "PASS", **pre}, sort_keys=True))
             return 0
         if args.execute and args.manager_tar and args.authorization_id:
             result = execute(args.manager_tar, args.authorization_id, args.confirm)
