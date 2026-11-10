@@ -1,3 +1,15 @@
+## 2026-11-10 — KF-147 fresh rebind PASS / capacity read-only execution next
+
+- N3-W phase exit blockers remain zero; Pre-U1 normal-product acceptance remains CLOSED_PASS.
+- Immediate prerequisite queue is closed: readiness design CLOSED_PASS, Core Updater deployed-asset integrity CLOSED_PASS, storage headroom/image lifecycle CLOSED_PASS.
+- Readiness source implementation remains NOT_EXECUTED but is not in the current KF-147 prerequisite chain; runtime preflight must not invoke the MQTT CONNECT readiness helper.
+- PR #800 fresh rebind executable source is `fb63707edc1ab063ddc97de8475303df8daecfb1`; Manager product source and production authority show no drift from the Manager V3 candidate authority.
+- Old KF-147 package/authorization are non-reusable. Exact Manager tar was re-materialized only as candidate material: size 62,957,568 bytes, SHA-256 `9316817590c4fe74498629d0451a4897c2e11bef7bc4b423b66e47bb846099c5`, Docker-save regular-member bytes 62,945,412.
+- New read-only capacity tool `tools/n3w_t1_kf147_fresh_capacity.py` passed the dedicated storage source/policy CI. It does not stage the Manager tar or mutate T1.
+- Fresh T1 capacity evidence is still pending; no capacity PASS is claimed from historical free-space data.
+- Next one gate: `N3W_T1_KF147_FRESH_CAPACITY_READONLY_EXECUTION_20261110_01`; PASS then advances to new package/manifest binding.
+- Authority: `docs/development/N3W_T1_KF147_FRESH_REBIND_AND_CAPACITY_PREFLIGHT_ENTRY_20261110.md`.
+
 ## 2026-11-10 — T1 storage headroom/image lifecycle CLOSED_PASS
 
 - Current core-stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
