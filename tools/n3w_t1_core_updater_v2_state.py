@@ -139,13 +139,6 @@ class V2StateStore:
         ):
             raise UpdaterV2Error("upgrade_transaction_active")
         if (
-            current is not None
-            and current.get("status") == "COMMITTED"
-            and current.get("component") in {"manager", "broker"}
-            and current.get("cleanup_state") != "ACCEPTED_CLEANUP_COMPLETE"
-        ):
-            raise UpdaterV2Error("post_acceptance_cleanup_required")
-        if (
             legacy is not None
             and legacy.get("status") not in {"COMMITTED", "ROLLED_BACK"}
         ):
