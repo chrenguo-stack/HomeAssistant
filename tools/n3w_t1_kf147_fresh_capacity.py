@@ -137,10 +137,12 @@ def containers():
         config = item.get("Config") or {}
         state = item.get("State") or {}
         result[service] = {
+            "id": item.get("Id"),
             "image_ref": config.get("Image"),
             "image_id": item.get("Image"),
             "running": state.get("Running"),
             "restart_count": item.get("RestartCount"),
+            "started_at": state.get("StartedAt"),
             "size_rw_bytes": item.get("SizeRw"),
         }
     return result
@@ -166,6 +168,20 @@ def public_json_state(path, kind):
             result["candidate_capacity_bytes"] = candidate.get("display_capacity_bytes")
     return result
 
+def stable_containers(snapshot):
+    result = {}
+    for service in SERVICES:
+        item = snapshot[service]
+        result[service] = {
+            "id": item.get("id"),
+            "image_ref": item.get("image_ref"),
+            "image_id": item.get("image_id"),
+            "running": item.get("running"),
+            "restart_count": item.get("restart_count"),
+            "started_at": item.get("started_at"),
+        }
+    return result
+
 before = {
     "units": unit_snapshot(),
     "containers": containers(),
@@ -175,7 +191,10 @@ after = {
     "units": unit_snapshot(),
     "containers": containers(),
 }
-if before != after:
+if (
+    before["units"] != after["units"]
+    or stable_containers(before["containers"]) != stable_containers(after["containers"])
+):
     raise RuntimeError("runtime_changed_during_probe")
 
 writable = 0
