@@ -15,9 +15,13 @@ LOCAL = PACKAGE / "executor.py"
 REMOTE = PACKAGE / "remote_apply.py"
 WORKFLOW = ROOT / ".github/workflows/n3w-kf147-manager-v3-live-package-ci.yml"
 
-GATE = (
+PACKAGE_GATE = (
     "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_"
     "MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261110_01"
+)
+GATE = (
+    "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_"
+    "MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_R2_20261110_01"
 )
 
 
@@ -41,6 +45,20 @@ def test_manifest_is_fresh_artifact_bound_and_authorization_state_is_valid() -> 
         "artifact_id": 13738561063,
         "artifact_name": "n3w-kf147-manager-v3-live-44e7d7472714-20261110",
         "artifact_digest": "sha256:69af4054e993398c25bd7788773c76cc80f54524787d1f5972a894adef22bcfc",
+    }
+    assert doc["predecessor_authorization"] == {
+        "authorization_id": PACKAGE_GATE,
+        "granted": True,
+        "claimed": True,
+        "consumed": True,
+        "replay_permitted": False,
+        "result": "STOP_PRE_SERVICE_MUTATION_LOADED_TARGET_IDENTITY_INVALID",
+    }
+    assert doc["repair"] == {
+        "class": "KF-106_CROSS_STORE_IMAGE_IDENTITY_RECURRENCE",
+        "portable_identity_authority": "tools/n3w_t1_portable_image_identity.py",
+        "fresh_readonly_preflight_required": True,
+        "new_live_authorization_required": True,
     }
     authorization = doc["authorization_state"]
     assert authorization["replay_permitted"] is False
@@ -106,6 +124,18 @@ def test_remote_preflight_accepts_running_or_degraded_but_still_requires_core_un
     assert 'if not service_active(SERVICES_UNIT) or not service_active(OTA_UNIT):' in source
 
 
+def test_remote_executor_uses_portable_target_identity_before_claim_and_after_load() -> None:
+    source = REMOTE.read_text(encoding="utf-8")
+    assert "parse_image_archive" in source
+    assert "verify_runtime_document" in source
+    assert "target_portable_identity(tar, allow_absent=True)" in source
+    assert "target_portable_identity(tar, allow_absent=False)" in source
+    assert 'image[0].get("Id") != TARGET_IMAGE_ID' not in source
+    assert '"target_image_prestate": "PRESENT_AND_EXACT"' in source
+    assert '"target_runtime_image_id": runtime_id' in source
+    assert "manager.get(\"Image\") != target_runtime_id" in source
+
+
 def test_remote_executor_rolls_back_from_owner_quiesce_boundary() -> None:
     source = REMOTE.read_text(encoding="utf-8")
     assert "rollback_needed = True" in source
@@ -135,6 +165,8 @@ def test_remote_executor_binds_exact_predecessor_and_target() -> None:
 def test_local_launcher_uses_single_password_controlmaster_streaming_transport() -> None:
     source = LOCAL.read_text(encoding="utf-8")
     assert "n3w_t1_ssh_transport.py" in source
+    assert "n3w_t1_portable_image_identity.py" in source
+    assert "PORTABLE_IDENTITY_BLOB" in source
     assert "transport.start_epoch()" in source
     assert "transport.scp_to(" not in source
     assert "stream_file_over_ssh(" in source
@@ -290,7 +322,7 @@ def test_workflow_builds_manager_only_slice_from_frozen_exact_artifact() -> None
     assert '"manager_image_size_bytes"' in source
     assert '"capacity_required_free_bytes"' in source
     assert "greenhouse-manager-arm64.tar" in source
-    assert "GATE_ID: N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261110_01" in source
+    assert f"GATE_ID: {PACKAGE_GATE}" in source
     assert "n3w-kf147-manager-v3-live-44e7d7472714-20261110" in source
     assert "tools/n3w_t1_core_updater_*.py" not in source
     assert "homeassistant-arm64.tar" not in "\n".join(
