@@ -7,6 +7,9 @@ from typing import Any
 
 from n3w_t1_core_updater_a1_policy import A1Policy, LocalA1Policy
 from n3w_t1_core_updater_components import adapter_for
+from n3w_t1_core_updater_finalize import (
+    cleanup_pending_for_successor,
+)
 from n3w_t1_core_updater_v2_common import (
     APPLY_CONFIRMATION_V2,
     AUTHORIZATION_ID,
@@ -212,7 +215,6 @@ class MultiComponentCoreUpdater:
             "observed": public_observed,
             "transaction": transaction,
             "legacy_manager_transaction": legacy,
-            "finalize_transaction_sha256": finalize_transaction_sha256,
         }
 
     def baseline(self) -> dict[str, Any]:
@@ -425,6 +427,9 @@ class MultiComponentCoreUpdater:
             raise UpdaterV2Error("predecessor_image_authority_drift")
 
         target_prestate = self.host.image_id(target.target_image_ref)
+        current_transaction = self.store.read()
+        if cleanup_pending_for_successor(current_transaction):
+            raise UpdaterV2Error("post_acceptance_cleanup_required")
         self.store.prepare_new()
         tx = {
             "schema": TX_SCHEMA_V2,
@@ -1075,4 +1080,5 @@ class MultiComponentCoreUpdater:
             ),
             "transaction": transaction,
             "legacy_manager_transaction": legacy,
+            "finalize_transaction_sha256": finalize_transaction_sha256,
         }
