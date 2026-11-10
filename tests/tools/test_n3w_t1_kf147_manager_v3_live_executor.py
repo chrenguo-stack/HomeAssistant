@@ -99,6 +99,13 @@ def test_remote_executor_has_no_destructive_usb_commands_or_prepare_submission()
     assert "capacity_snapshot_present" in source
 
 
+def test_remote_preflight_accepts_running_or_degraded_but_still_requires_core_units() -> None:
+    source = REMOTE.read_text(encoding="utf-8")
+    assert 'system_state = run(["systemctl", "is-system-running"], check=False).stdout.strip()' in source
+    assert 'if system_state not in {"running", "degraded"}:' in source
+    assert 'if not service_active(SERVICES_UNIT) or not service_active(OTA_UNIT):' in source
+
+
 def test_remote_executor_rolls_back_from_owner_quiesce_boundary() -> None:
     source = REMOTE.read_text(encoding="utf-8")
     assert "rollback_needed = True" in source
