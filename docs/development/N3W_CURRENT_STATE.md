@@ -1,3 +1,80 @@
+## Latest authority — 2026-11-10 KF-147 Manager IPC V3 R2 portable-identity preauthorization CLOSED_PASS
+
+~~~text
+AUTHORITY_STATE=KF147_MANAGER_V3_R2_PORTABLE_IDENTITY_PREAUTHORIZATION_CLOSED_PASS
+PR=800
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+KF147_R1_AUTHORIZATION_GRANTED=true
+KF147_R1_AUTHORIZATION_CLAIMED=true
+KF147_R1_AUTHORIZATION_CONSUMED=true
+KF147_R1_REPLAY_PERMITTED=false
+KF147_R1_RESULT=STOP_PRE_SERVICE_MUTATION_LOADED_TARGET_IDENTITY_INVALID
+
+KF147_ROOT_CAUSE_CLASS=KF-106_CROSS_STORE_IMAGE_IDENTITY_RECURRENCE
+T1_DOCKER_DRIVER_TYPE=io.containerd.snapshotter.v1
+TARGET_BUILD_CONFIG_DIGEST=sha256:fd5104d610645347fe47137dbb24121851fa8a48530df3e3c905704607c5e3d4
+TARGET_RUNTIME_IMAGE_ID=sha256:1471828ab07cf9b71c01a6e78994711a5954f0a178b8be087a28bb65a967c7d2
+TARGET_PORTABLE_IDENTITY=VERIFIED
+
+RUNNING_MANAGER_IMAGE=local/greenhouse-manager:fresh-7807271e4c48
+RUNNING_MANAGER_IMAGE_ID=sha256:7e3f09ed47010a18de215faa426113b7faba4e220b41bb9dcafd8ee1d4acf20b
+RUNNING_MANAGER_RESTART_COUNT=0
+RUNNING_MANAGER_IS_PREDECESSOR=true
+COMPOSE_MANAGER_IMAGE=local/greenhouse-manager:fresh-7807271e4c48
+N3WFC4_SERVICES_ACTIVATION=active
+N3W_T1_HA_OTA=active
+
+R2_SOURCE_HEAD=b8cfcdf88b38a82634845c5ab79ad098c4723a3d
+R2_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_R2_20261110_01
+R2_LIVE_EXECUTION_AUTHORIZED=false
+R2_AUTHORIZATION_GRANTED=false
+R2_AUTHORIZATION_CLAIMED=false
+R2_AUTHORIZATION_CONSUMED=false
+R2_REPLAY_PERMITTED=false
+
+KF147_MANAGER_PACKAGE_CI=SUCCESS
+CORE_STACK_CURRENT_AUTHORITY_CI=SUCCESS
+FAST_SOURCE_EXACT_CLOSURE_CI=SUCCESS
+MANAGER_A_TO_B_CI=SUCCESS
+STORAGE_IMAGE_LIFECYCLE_CI=SUCCESS
+PUBLIC_REPOSITORY_SAFETY_CI=SUCCESS
+R2_REQUIRED_CI=PASS
+
+PREAUTHORIZATION_RESULT=CLOSED_PASS
+NEW_LIVE_AUTHORIZATION_REQUIRED=true
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_R2_20261110_01
+
+USB_MUTATION=false
+U2_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+~~~
+
+The first Manager V3 live authorization is consumed and permanently non-replayable.
+It stopped after exact target image load but before service-owner stop, Compose-env
+rewrite or Manager container recreation. Fresh read-only T1 evidence proves the loaded
+target image is portable-identical to the exact bound tar under Docker 29/containerd,
+while the running Manager and Compose binding remain on the predecessor with restart
+count 0.
+
+R2 replaces the invalid build-store-specific image-ID comparison with the repository's
+existing portable image identity authority. Exact tar SHA/size/tag, same-host
+predecessor identity, HA/Broker continuity, U1 state and USB candidate checks remain
+fail-closed. R2 required CI is fully PASS, but the successor live gate remains
+unauthorized and requires a new explicit user authorization.
+
+Authority:
+`docs/development/N3W_T1_KF147_MANAGER_IPC_V3_R2_PORTABLE_IDENTITY_PREAUTHORIZATION_CLOSURE_20261110.md`.
+
 ## Latest authority — 2026-11-10 KF-147 Manager IPC V3 fresh package + live-apply preexecution CLOSED_PASS
 
 ~~~text
