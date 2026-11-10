@@ -1,12 +1,12 @@
-## Stable updater authority — 2026-11-10 storage headroom/image lifecycle source implemented / focused CI pending
+## Stable updater authority — 2026-11-10 storage headroom/image lifecycle CLOSED_PASS
 
 ~~~text
-PROJECT_WORKING_CONTEXT_VERSION=4.7
+PROJECT_WORKING_CONTEXT_VERSION=4.8
 
 KF149_DEPLOYED_ASSET_INTEGRITY_REPAIR=CLOSED_PASS
 KF150_RUNTIME_RECOVERY=CLOSED_PASS
 KF150_STORAGE_LIFECYCLE_SOURCE_IMPLEMENTATION=COMPLETE
-KF150_FOCUSED_CI_FINAL_RESULT=PENDING
+KF150_FOCUSED_CI_FINAL_RESULT=PASS
 
 CORE_UPDATER_DELIVERY=EXACT_PACKAGE_BOUND_EPHEMERAL_PYZ
 CORE_UPDATER_PERMANENT_INSTALL_REQUIRED=false
@@ -47,7 +47,7 @@ The source implementation makes image retention an explicit transaction lifecycl
 
 The capacity contract is intentionally pre-transfer. A large archive must not be streamed first and evaluated later. Fresh staging/Docker/image-store topology and free-space evidence must be measured before transfer; the required bytes include exact staged transport, exact Docker-save import worst case, and the derived post-peak maintenance reserve.
 
-This gate changes source/policy only. It does not delete images on the current T1 and does not resume KF-147.
+This gate is CLOSED_PASS at validated source head `8fbeb8434fcb7b8731bf26ae56b68e4ea26362a0`. It changes source/policy only; it does not delete images on the current T1 and does not resume KF-147. The next bounded sequence is KF-147 fresh rebind → fresh capacity gate → new package/manifest binding → live retry.
 
 Authority:
 docs/development/N3W_T1_STORAGE_HEADROOM_AND_IMAGE_LIFECYCLE_SOURCE_IMPLEMENTATION_PROGRESS_20261110.md.
