@@ -155,7 +155,7 @@ def lsblk_doc():
             "--bytes",
             "--paths",
             "--output",
-            "PATH,TYPE,RM,RO,SIZE,MODEL,SERIAL,WWN,TRAN,MOUNTPOINTS,PKNAME",
+            "NAME,PATH,TYPE,RM,RO,SIZE,MODEL,SERIAL,WWN,TRAN,MOUNTPOINTS,PKNAME",
         ],
         timeout=45,
     ).stdout
