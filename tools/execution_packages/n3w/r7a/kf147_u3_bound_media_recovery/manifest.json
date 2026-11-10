@@ -1,20 +1,21 @@
 {
-  "schema": "gh.n3w-t1-kf147-u3-bound-media-recovery-manifest/1",
-  "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U3_BOUND_MEDIA_RECOVERY_TO_U4_R4_20261111_01",
-  "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U3_BOUND_MEDIA_RECOVERY_TO_U4_R4_20261111_01",
-  "confirmation": "EXECUTE KF147 U3 BOUND MEDIA RECOVERY TO U4 R4: YES",
-  "live_execution_authorized": true,
+  "schema": "gh.n3w-t1-kf147-u3-permission-recovery-manifest/1",
+  "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U3_PERMISSION_REPAIR_TO_U4_R5_20261111_01",
+  "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U3_PERMISSION_REPAIR_TO_U4_R5_20261111_01",
+  "confirmation": "EXECUTE KF147 U3 PERMISSION REPAIR TO U4 R5: YES",
+  "live_execution_authorized": false,
   "authorization_state": {
-    "granted": true,
+    "granted": false,
     "claimed": false,
     "consumed": false,
     "replay_permitted": false
   },
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/kf147_u3_bound_media_recovery/executor.py": "a80748eb9410c9254e0cabb2f676b784f0bf8471",
+    "tools/execution_packages/n3w/r7a/kf147_u3_bound_media_recovery/executor.py": "f4d7adcd3522351244d592f24b7b3f80dab176c6",
+    "tools/n3w_t1_core_updater_ha_prepare_host.py": "fc5577b9aecc405a24fe1933a3597bc2f80f0e20",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7"
   },
-  "state_root": "/var/lib/n3w-t1-core-updater/kf147-u3-bound-media-recovery-r4-20261111-01",
+  "state_root": "/var/lib/n3w-t1-core-updater/kf147-u3-permission-recovery-r5-20261111-01",
   "poll_timeout_seconds": 1800,
   "expected_live_entry": {
     "transaction_id_sha256": "ca89774eb4254d0f861cc2aef136eee41e90fd6106559c0fd8d66e3ee00a3738",
@@ -48,7 +49,10 @@
   },
   "execution_contract": {
     "preflight_read_only": true,
-    "stale_mount_cleanup_only": true,
+    "predecessor_r4_terminal_failure_required": true,
+    "usb_update_dir_permission_repair_only": true,
+    "usb_update_dir_expected_mode_before": "0770",
+    "usb_update_dir_expected_mode_after": "0700",
     "service_restart": "n3w-t1-ha-ota.service",
     "resume_owner": "existing_product_start_background_recovery_resume_prepare",
     "usb_wipe": false,
@@ -68,8 +72,8 @@
   },
   "failure_contract": {
     "before_authorization_claim": "STOP_NO_MUTATION",
-    "after_authorization_claim_before_mount_cleanup": "STOP_AUTHORIZATION_CONSUMED_NO_REPLAY",
-    "mount_cleanup_failure": "STOP_NO_SERVICE_RESTART_MANUAL_RECOVERY_REQUIRED",
+    "after_authorization_claim_before_permission_repair": "STOP_AUTHORIZATION_CONSUMED_NO_REPLAY",
+    "permission_repair_failure": "STOP_NO_SERVICE_RESTART_MANUAL_RECOVERY_REQUIRED",
     "service_restart_failure": "STOP_MANUAL_RECOVERY_REQUIRED",
     "u3_resume_failure": "STOP_BOUND_MEDIA_RECOVERY_REQUIRED",
     "u4_success": "STOP_BEFORE_U5_READY_TO_INSTALL",
