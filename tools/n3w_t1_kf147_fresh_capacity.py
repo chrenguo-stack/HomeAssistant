@@ -199,6 +199,209 @@ print(json.dumps({
 }, sort_keys=True))
 """
 
+STORAGE_RECLAIM_AUDIT_PROBE = r"""
+import json
+import os
+import subprocess
+from pathlib import Path
+
+SCHEMA = "gh.n3w-t1-kf147-storage-reclaim-audit/1"
+LARGE_FILE_MIN_BYTES = 16 * 1024 * 1024
+TOP_PATHS = (
+    "/var/lib/containerd",
+    "/var/lib/docker",
+    "/var/lib",
+    "/var/cache",
+    "/var/log",
+    "/var/tmp",
+    "/tmp",
+    "/opt",
+    "/usr",
+    "/home",
+    "/root",
+    "/boot",
+)
+CHILD_ROOTS = (
+    "/var/lib/containerd",
+    "/var/lib/docker",
+    "/var/cache",
+    "/var/log",
+    "/var/tmp",
+    "/tmp",
+    "/opt",
+)
+SCAN_ROOTS = ("/var", "/opt", "/usr", "/home", "/root", "/tmp", "/boot")
+SKIP_PREFIXES = ("/proc", "/sys", "/dev", "/run")
+
+def run(argv, timeout=180):
+    completed = subprocess.run(
+        argv,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+        timeout=timeout,
+    )
+    return {
+        "rc": completed.returncode,
+        "stdout": completed.stdout,
+        "stderr": completed.stderr[:500],
+    }
+
+def du_bytes(path):
+    target = Path(path)
+    if not target.exists() or target.is_symlink():
+        return None
+    result = run(["du", "-s", "-x", "-B1", "--", str(target)], timeout=600)
+    if result["rc"] != 0:
+        return None
+    try:
+        return int(result["stdout"].split()[0])
+    except (IndexError, ValueError):
+        return None
+
+def runtime_state():
+    containers = run([
+        "docker", "ps", "-a", "--no-trunc",
+        "--format", "{{.ID}}\\t{{.Image}}\\t{{.Status}}",
+    ])
+    units = {}
+    for unit in (
+        "n3wfc4-broker-activation.service",
+        "n3wfc4-services-activation.service",
+    ):
+        units[unit] = run([
+            "systemctl", "show", unit,
+            "--property=ActiveState,SubState,NRestarts,ExecMainStartTimestampMonotonic",
+        ])["stdout"]
+    return {"containers": containers, "units": units}
+
+def container_inventory():
+    listed = run(["docker", "ps", "-aq", "--no-trunc"])
+    ids = sorted(set(listed["stdout"].split())) if listed["rc"] == 0 else []
+    if not ids:
+        return {"records": [], "list": listed}
+    inspected = run(["docker", "container", "inspect", "--", *ids], timeout=300)
+    records = []
+    if inspected["rc"] == 0:
+        for item in json.loads(inspected["stdout"]):
+            config = item.get("Config") or {}
+            state = item.get("State") or {}
+            labels = config.get("Labels") or {}
+            records.append({
+                "id": item.get("Id"),
+                "name": item.get("Name"),
+                "image_id": item.get("Image"),
+                "image_ref": config.get("Image"),
+                "running": state.get("Running"),
+                "status": state.get("Status"),
+                "compose_project": labels.get("com.docker.compose.project"),
+                "compose_service": labels.get("com.docker.compose.service"),
+            })
+    return {"records": records, "list": listed, "inspect_error": inspected["stderr"]}
+
+def image_inventory():
+    listed = run(["docker", "image", "ls", "-aq", "--no-trunc"])
+    ids = sorted(set(listed["stdout"].split())) if listed["rc"] == 0 else []
+    if not ids:
+        return {"records": [], "list": listed}
+    inspected = run(["docker", "image", "inspect", "--", *ids], timeout=300)
+    records = []
+    if inspected["rc"] == 0:
+        for item in json.loads(inspected["stdout"]):
+            rootfs = item.get("RootFS") or {}
+            records.append({
+                "id": item.get("Id"),
+                "repo_tags": item.get("RepoTags") or [],
+                "repo_digests": item.get("RepoDigests") or [],
+                "created": item.get("Created"),
+                "size_bytes": item.get("Size"),
+                "virtual_size_bytes": item.get("VirtualSize"),
+                "rootfs_layers": rootfs.get("Layers") or [],
+            })
+    return {"records": records, "list": listed, "inspect_error": inspected["stderr"]}
+
+def volume_inventory():
+    listed = run(["docker", "volume", "ls", "-q"])
+    names = sorted(set(listed["stdout"].split())) if listed["rc"] == 0 else []
+    if not names:
+        return {"records": [], "list": listed}
+    inspected = run(["docker", "volume", "inspect", "--", *names], timeout=300)
+    records = []
+    if inspected["rc"] == 0:
+        for item in json.loads(inspected["stdout"]):
+            mountpoint = item.get("Mountpoint")
+            records.append({
+                "name": item.get("Name"),
+                "driver": item.get("Driver"),
+                "mountpoint": mountpoint,
+                "allocated_bytes": du_bytes(mountpoint) if mountpoint else None,
+            })
+    return {"records": records, "list": listed, "inspect_error": inspected["stderr"]}
+
+def directory_usage():
+    top = {path: du_bytes(path) for path in TOP_PATHS}
+    children = {}
+    for root_text in CHILD_ROOTS:
+        root = Path(root_text)
+        entries = []
+        if root.is_dir() and not root.is_symlink():
+            for child in sorted(root.iterdir(), key=lambda value: value.name):
+                entries.append({"path": str(child), "allocated_bytes": du_bytes(child)})
+        children[root_text] = entries
+    return {"top": top, "children": children}
+
+def large_files():
+    root_device = os.stat("/").st_dev
+    records = []
+    for scan_root in SCAN_ROOTS:
+        if not Path(scan_root).exists():
+            continue
+        for current, directories, files in os.walk(scan_root, topdown=True, followlinks=False):
+            directories[:] = [
+                name for name in directories
+                if not os.path.islink(os.path.join(current, name))
+                and not os.path.join(current, name).startswith(SKIP_PREFIXES)
+            ]
+            try:
+                if os.stat(current, follow_symlinks=False).st_dev != root_device:
+                    directories[:] = []
+                    continue
+            except OSError:
+                directories[:] = []
+                continue
+            for name in files:
+                path = os.path.join(current, name)
+                try:
+                    info = os.stat(path, follow_symlinks=False)
+                except OSError:
+                    continue
+                if info.st_dev == root_device and info.st_size >= LARGE_FILE_MIN_BYTES:
+                    records.append({"path": path, "size_bytes": info.st_size})
+    return sorted(records, key=lambda item: (-item["size_bytes"], item["path"]))[:200]
+
+before = runtime_state()
+document = {
+    "schema": SCHEMA,
+    "read_only": True,
+    "mutation": False,
+    "containers": container_inventory(),
+    "images": image_inventory(),
+    "volumes": volume_inventory(),
+    "docker_system_df_verbose": run(["docker", "system", "df", "-v"], timeout=300),
+    "containerd_namespaces": run(["ctr", "namespaces", "list", "-q"]),
+    "journal_disk_usage": run(["journalctl", "--disk-usage"]),
+    "directory_usage": directory_usage(),
+    "large_files": large_files(),
+}
+after = runtime_state()
+if before != after:
+    raise RuntimeError("runtime_changed_during_reclaim_audit")
+document["runtime_stable"] = True
+print(json.dumps(document, sort_keys=True))
+"""
+
 
 class CapacityPreflightError(RuntimeError):
     pass
@@ -369,7 +572,8 @@ def probe_t1(
     target: str,
     known_hosts: Path,
     expected_host_key_sha256: str,
-) -> tuple[dict[str, Any], dict[str, Any]]:
+    collect_reclaim_audit: bool = False,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any] | None]:
     transport = SSHTransport(
         target=target,
         known_hosts=known_hosts,
@@ -403,7 +607,24 @@ def probe_t1(
             ).stdout,
             "remote_report_invalid",
         )
-        return storage, remote
+        reclaim_audit = None
+        if collect_reclaim_audit:
+            reclaim_audit = _json_output(
+                transport.run_remote(
+                    ["sudo", "-n", "python3", "-c", STORAGE_RECLAIM_AUDIT_PROBE],
+                    timeout=1200,
+                ).stdout,
+                "storage_reclaim_audit_invalid",
+            )
+            if (
+                reclaim_audit.get("schema")
+                != "gh.n3w-t1-kf147-storage-reclaim-audit/1"
+                or reclaim_audit.get("read_only") is not True
+                or reclaim_audit.get("mutation") is not False
+                or reclaim_audit.get("runtime_stable") is not True
+            ):
+                raise CapacityPreflightError("storage_reclaim_audit_invalid")
+        return storage, remote, reclaim_audit
     finally:
         transport.close_epoch()
 
@@ -440,6 +661,7 @@ def parser() -> argparse.ArgumentParser:
     command.add_argument("--known-hosts", type=Path, required=True)
     command.add_argument("--expected-host-key-sha256", required=True)
     command.add_argument("--evidence-root", type=Path, required=True)
+    command.add_argument("--reclaim-audit-on-stop", action="store_true")
     return command
 
 
@@ -448,10 +670,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     root: Path | None = None
     try:
         root = _private_evidence_root(args.evidence_root)
-        storage, remote = probe_t1(
+        storage, remote, reclaim_audit = probe_t1(
             target=args.t1_ssh_target,
             known_hosts=args.known_hosts,
             expected_host_key_sha256=args.expected_host_key_sha256,
+            collect_reclaim_audit=args.reclaim_audit_on_stop,
         )
         result = evaluate(
             manager_tar=args.manager_tar,
@@ -460,6 +683,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         _write_private(root / "storage-report.json", storage)
         _write_private(root / "runtime-mutable-report.json", remote)
+        if reclaim_audit is not None and result["status"] == "STOP":
+            _write_private(root / "storage-reclaim-audit.json", reclaim_audit)
         _write_private(root / "capacity-result.json", result)
         print(json.dumps(result, sort_keys=True))
         return 0 if result["status"] == "PASS" else 2

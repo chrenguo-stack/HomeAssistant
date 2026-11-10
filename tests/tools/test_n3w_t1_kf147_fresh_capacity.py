@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import json
 import sys
 import tarfile
 from pathlib import Path
@@ -260,6 +261,79 @@ def test_remote_probe_contains_no_mutating_runtime_operations():
     )
     for token in forbidden:
         assert token not in source
+
+
+def test_reclaim_audit_probe_is_read_only_and_collects_reference_evidence():
+    source = m.STORAGE_RECLAIM_AUDIT_PROBE
+    compile(source, "<storage-reclaim-audit>", "exec")
+    forbidden = (
+        "docker rm",
+        "docker image rm",
+        "docker system prune",
+        "docker image prune",
+        "systemctl restart",
+        "systemctl start",
+        "systemctl stop",
+        "apt clean",
+        "journalctl --vacuum",
+        "truncate",
+        "unlink",
+        "shutil.rmtree",
+    )
+    for token in forbidden:
+        assert token not in source
+    for required in (
+        '"docker", "container", "inspect"',
+        '"docker", "image", "inspect"',
+        '"docker", "system", "df", "-v"',
+        '"journalctl", "--disk-usage"',
+        '"du", "-s", "-x", "-B1"',
+    ):
+        assert required in source
+
+
+def test_main_writes_private_reclaim_audit_for_capacity_stop(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    path = manager_tar(tmp_path / "manager.tar")
+    patch_candidate(monkeypatch, path)
+    audit = {
+        "schema": "gh.n3w-t1-kf147-storage-reclaim-audit/1",
+        "read_only": True,
+        "mutation": False,
+        "runtime_stable": True,
+        "images": {"records": []},
+        "containers": {"records": []},
+    }
+
+    def fake_probe_t1(**kwargs):
+        assert kwargs["collect_reclaim_audit"] is True
+        return storage_report(free=592_859_136), remote_report(), audit
+
+    monkeypatch.setattr(m, "probe_t1", fake_probe_t1)
+    monkeypatch.chdir(Path(__file__).resolve().parents[2])
+    evidence = tmp_path / "evidence"
+
+    rc = m.main(
+        [
+            "--manager-tar",
+            str(path),
+            "--t1-ssh-target",
+            "root@example.invalid",
+            "--known-hosts",
+            str(tmp_path / "known_hosts"),
+            "--expected-host-key-sha256",
+            "a" * 64,
+            "--evidence-root",
+            str(evidence),
+            "--reclaim-audit-on-stop",
+        ]
+    )
+
+    assert rc == 2
+    assert json.loads((evidence / "storage-reclaim-audit.json").read_text()) == audit
+    assert json.loads((evidence / "capacity-result.json").read_text())["status"] == "STOP"
 
 
 def test_stop_result_is_public_safe_for_bad_tar(tmp_path: Path):
