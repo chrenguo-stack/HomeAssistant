@@ -104,18 +104,36 @@ The bounded live recovery sequence is:
 
 ## 5. Authorization model
 
-The recovery package now binds the user's fresh explicit recovery-only authorization:
+The recovery package previously bound the user's explicit recovery-only authorization to
+exact head `e2ce7107897b21e3c7c7b88ebac5decd95cb0ec0`.
+
+The first live attempt reached the remote Python entry point but stopped before recovery
+authorization claim because the embedded remote script used `base64.b64decode()` without
+importing `base64`. The observed result proved:
 
 ```text
-live_execution_authorized=true
-authorization_state.granted=true
+authorization_claimed=false
+authorization_consumed=false
+usb_reformat=false
+u5_plus=false
+first_failed_operation=NameError:name 'base64' is not defined
+```
+
+The source repair adds the missing remote import and regression coverage. Because that repair
+changes the executor blob and exact package head, the authorization bound to the predecessor
+head is not inherited. The repaired package is intentionally returned to fail-closed state:
+
+```text
+live_execution_authorized=false
+authorization_state.granted=false
 authorization_state.claimed=false
 authorization_state.consumed=false
 authorization_state.replay_permitted=false
 ```
 
-This authorization is separate from the already consumed destructive authorization and is
-valid only for the exact existing U3 transaction, bound filesystem UUID and USB fingerprint.
+A fresh recovery-only authorization must be bound after the repaired exact head and CI are
+fixed. It remains valid only for the same existing U3 transaction, bound filesystem UUID and
+USB fingerprint.
 
 The recovery confirmation string is:
 
@@ -139,10 +157,14 @@ There is no automatic retry and no rollback.
 ```text
 SOURCE_REPAIR_COMPLETE=true
 RECOVERY_SOURCE_COMPLETE=true
-RECOVERY_LIVE_EXECUTION_AUTHORIZED=true
-RECOVERY_AUTHORIZATION_GRANTED=true
+PREDECESSOR_HEAD=e2ce7107897b21e3c7c7b88ebac5decd95cb0ec0
+PREDECESSOR_AUTHORIZATION_CLAIMED=false
+PREDECESSOR_AUTHORIZATION_CONSUMED=false
+RECOVERY_LIVE_EXECUTION_AUTHORIZED=false
+RECOVERY_AUTHORIZATION_GRANTED=false
 RECOVERY_AUTHORIZATION_CLAIMED=false
 RECOVERY_AUTHORIZATION_CONSUMED=false
+FRESH_REAUTHORIZATION_REQUIRED=true
 T1_RECOVERY_MUTATION=false
 MERGE=false
 ```
