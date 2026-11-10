@@ -484,6 +484,14 @@ class HaUsbStateStore:
         ):
             raise UpdaterV2Error("upgrade_transaction_active")
         if (
+            current_generic is not None
+            and current_generic.get("status") == "COMMITTED"
+            and current_generic.get("component") in {"manager", "broker"}
+            and current_generic.get("cleanup_state")
+            != "ACCEPTED_CLEANUP_COMPLETE"
+        ):
+            raise UpdaterV2Error("post_acceptance_cleanup_required")
+        if (
             legacy is not None
             and legacy.get("status") not in {"COMMITTED", "ROLLED_BACK"}
         ):
