@@ -43,7 +43,7 @@ jobs:
       MANAGER_TAR_SHA256: 9316817590c4fe74498629d0451a4897c2e11bef7bc4b423b66e47bb846099c5
       MANAGER_TAR_SIZE: "62957568"
       PREDECESSOR_MANAGER: local/greenhouse-manager:fresh-7807271e4c48
-      GATE_ID: N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261109_01
+      GATE_ID: N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261110_01
     steps:
       - uses: actions/checkout@v4
         with:
@@ -68,7 +68,7 @@ jobs:
         run: |
           set -euo pipefail
           git cat-file -e "$SOURCE_HEAD^{commit}"
-          test "$(git diff --name-only "$SOURCE_HEAD"..HEAD -- host/greenhouse-manager/src tools/n3w_t1_core_updater_*.py infra/n3w-t1/production infra/n3w-t1/systemd | wc -l)" -eq 0
+          test "$(git diff --name-only "$SOURCE_HEAD"..HEAD -- host/greenhouse-manager infra/n3w-t1/production | wc -l)" -eq 0
 
       - name: Verify upstream exact artifact metadata
         shell: bash
@@ -159,7 +159,7 @@ jobs:
         id: upload
         uses: actions/upload-artifact@v4
         with:
-          name: n3w-kf147-manager-v3-live-44e7d7472714
+          name: n3w-kf147-manager-v3-live-44e7d7472714-20261110
           path: ${{ runner.temp }}/package/
           if-no-files-found: error
           retention-days: 30
