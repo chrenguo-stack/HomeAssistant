@@ -234,15 +234,34 @@ SCAN_ROOTS = ("/var", "/opt", "/usr", "/home", "/root", "/tmp", "/boot")
 SKIP_PREFIXES = ("/proc", "/sys", "/dev", "/run")
 
 def run(argv, timeout=180):
-    completed = subprocess.run(
-        argv,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        check=False,
-        timeout=timeout,
-    )
+    try:
+        completed = subprocess.run(
+            argv,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as error:
+        stdout = error.stdout or ""
+        stderr = error.stderr or ""
+        if isinstance(stdout, bytes):
+            stdout = stdout.decode("utf-8", errors="replace")
+        if isinstance(stderr, bytes):
+            stderr = stderr.decode("utf-8", errors="replace")
+        return {
+            "rc": 124,
+            "stdout": stdout,
+            "stderr": ("timeout:" + stderr)[:500],
+        }
+    except OSError as error:
+        return {
+            "rc": 127,
+            "stdout": "",
+            "stderr": ("command_unavailable:" + type(error).__name__)[:500],
+        }
     return {
         "rc": completed.returncode,
         "stdout": completed.stdout,
@@ -264,7 +283,7 @@ def du_bytes(path):
 def runtime_state():
     containers = run([
         "docker", "ps", "-a", "--no-trunc",
-        "--format", "{{.ID}}\\t{{.Image}}\\t{{.Status}}",
+        "--format", "{{.ID}}\\t{{.Image}}\\t{{.State}}",
     ])
     units = {}
     for unit in (
@@ -347,7 +366,11 @@ def directory_usage():
         root = Path(root_text)
         entries = []
         if root.is_dir() and not root.is_symlink():
-            for child in sorted(root.iterdir(), key=lambda value: value.name):
+            try:
+                children_snapshot = sorted(root.iterdir(), key=lambda value: value.name)
+            except OSError:
+                children_snapshot = []
+            for child in children_snapshot:
                 entries.append({"path": str(child), "allocated_bytes": du_bytes(child)})
         children[root_text] = entries
     return {"top": top, "children": children}

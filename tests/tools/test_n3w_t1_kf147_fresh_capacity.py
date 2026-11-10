@@ -290,6 +290,9 @@ def test_reclaim_audit_probe_is_read_only_and_collects_reference_evidence():
         '"du", "-s", "-x", "-B1"',
     ):
         assert required in source
+    assert "except subprocess.TimeoutExpired" in source
+    assert '"{{.ID}}\\\\t{{.Image}}\\\\t{{.State}}"' in source
+    assert '"{{.ID}}\\\\t{{.Image}}\\\\t{{.Status}}"' not in source
 
 
 def test_main_writes_private_reclaim_audit_for_capacity_stop(
