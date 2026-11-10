@@ -1,3 +1,78 @@
+## Latest authority — 2026-11-10 KF-147 Manager IPC V3 fresh package + live-apply preexecution CLOSED_PASS
+
+~~~text
+AUTHORITY_STATE=KF147_MANAGER_V3_FRESH_PACKAGE_LIVE_APPLY_PREEXECUTION_CLOSED_PASS
+PR=800
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+KF147_CAPACITY_BLOCKER=CLOSED_PASS
+KF147_FRESH_MANAGER_PACKAGE=CLOSED_PASS
+KF147_MANAGER_LIVE_APPLY_PREEXECUTION=CLOSED_PASS
+
+EXECUTABLE_SOURCE_HEAD=b85b98593fe4caaa7b5a4be63f344a85e815baa8
+PREEXECUTION_VALIDATED_HEAD=d2ddc1396ab072d6c1273ebea61b5b21fc9fdd3e
+EXECUTABLE_TO_VALIDATED_DRIFT=DOCS_ONLY
+
+PACKAGE_WORKFLOW_RUN_ID=42761736604
+PACKAGE_ARTIFACT_ID=13738561063
+PACKAGE_ARTIFACT_DIGEST=sha256:69af4054e993398c25bd7788773c76cc80f54524787d1f5972a894adef22bcfc
+PACKAGE_BINDING_STATE=FRESH_ARTIFACT_BOUND
+
+LATEST_HEAD_PACKAGE_CI=SUCCESS
+CORE_STACK_AUTHORITY_CI=SUCCESS
+MANAGER_A_TO_B_CI=SUCCESS
+FAST_SOURCE_CI=SUCCESS
+STORAGE_IMAGE_LIFECYCLE_CI=SUCCESS
+PUBLIC_REPOSITORY_SAFETY_CI=SUCCESS
+KF147_GATE_REQUIRED_CI=PASS
+PR_WIDE_ALL_GREEN=false
+
+U1_TRANSACTION_SHA256=6e1f0b5d262e346674b62ac79bf2ffbc1c63a8dd22379a0a82c952f0e3626b49
+USB_CANDIDATE_PUBLIC_FINGERPRINT=e45fba0ad3e9997be2738c7a8f25d5c342ebba66ddbf822b1f6bf6a016c2ed93
+USB_CONFIRMATION_CONSUMED=false
+
+LIVE_EXECUTION_AUTHORIZED=false
+AUTHORIZATION_GRANTED=false
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+
+NEXT_ONE_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261110_01
+EXPLICIT_USER_AUTHORIZATION_REQUIRED=true
+
+T1_ACCESS=false
+T1_MUTATION=false
+MANAGER_LIVE_APPLY=false
+USB_MUTATION=false
+U2_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+~~~
+
+The fresh Manager-only package is bound and the live-apply preexecution review is
+CLOSED_PASS. The current executor additionally binds the exact accepted U1 transaction
+file SHA-256 and exact Extreme USB candidate fingerprint; any drift stops before
+Manager or service mutation.
+
+All CI required by this KF-147 gate passed on the latest validated head. Two PR-wide
+legacy workflows remain red only because they still reference historical artifact
+`11665219740` from run `38040433177`, which is no longer available. Those generic
+production staging/state-binding paths are outside this bounded gate and are not used
+as substitutes for the KF-147 Manager-only package authority.
+
+No live Manager apply authority has been granted. The next gate is the exact
+Manager-only live apply and requires explicit user authorization.
+
+Authority:
+`docs/development/N3W_T1_KF147_MANAGER_IPC_V3_FRESH_PACKAGE_AND_LIVE_APPLY_PREEXECUTION_CLOSURE_20261110.md`.
+
 ## Latest authority — 2026-11-10 KF-147 exact cleanup + fresh capacity CLOSED_PASS
 
 ~~~text
