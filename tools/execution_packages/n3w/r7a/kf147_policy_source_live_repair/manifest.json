@@ -3,11 +3,11 @@
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_STAGE_B_POLICY_SOURCE_REPAIR_R2_20261110_01",
   "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_STAGE_B_POLICY_SOURCE_REPAIR_R2_20261110_01",
   "confirmation": "EXECUTE KF147 STAGE B POLICY SOURCE REPAIR R2: YES",
-  "live_execution_authorized": true,
+  "live_execution_authorized": false,
   "authorization_state": {
     "granted": true,
-    "claimed": false,
-    "consumed": false,
+    "claimed": true,
+    "consumed": true,
     "replay_permitted": false
   },
   "source_authority": {
