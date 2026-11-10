@@ -101,12 +101,12 @@ owned by the mandatory-USB transaction, including the U10 predecessor-capacity-r
 ## 4. Cross-transaction accumulation guard
 
 A committed Manager/Broker transaction without
-`cleanup_state=ACCEPTED_CLEANUP_COMPLETE` blocks:
+`cleanup_state=ACCEPTED_CLEANUP_COMPLETE` blocks the next Generic V2 apply.
 
-- a new Generic V2 transaction;
-- a new Home Assistant mandatory-USB transaction.
-
-This prevents starting another image-heavy upgrade while an accepted predecessor is still being held.
+The existing Home Assistant mandatory-USB transaction source is historical exact-source authority for the
+accepted R7A activation package and is intentionally not modified by this gate. A future HA-USB package or
+preflight must apply the shared pre-transfer capacity policy before large staging; this source gate does not
+claim a new HA-USB cross-transaction blocker.
 
 ## 5. Pre-transfer storage admission policy
 
@@ -173,15 +173,12 @@ rather than silently applying one filesystem's free bytes to another.
 
 ```text
 tools/n3w_t1_core_updater.py
+tools/n3w_t1_core_updater_finalize.py
 tools/n3w_t1_core_updater_host.py
 tools/n3w_t1_core_updater_v2.py
-tools/n3w_t1_core_updater_v2_common.py
-tools/n3w_t1_core_updater_v2_state.py
-tools/n3w_t1_core_updater_ha_usb_state.py
 tools/n3w_t1_storage_image_lifecycle.py
 infra/n3w-t1/updater-releases/storage-image-lifecycle-policy.json
 tests/tools/test_n3w_t1_core_updater_a2.py
-tests/tools/test_n3w_t1_core_updater_ha_usb_r1.py
 tests/tools/test_n3w_t1_storage_image_lifecycle.py
 .github/workflows/n3w-t1-storage-image-lifecycle-ci.yml
 ```
@@ -198,8 +195,8 @@ Focused regression coverage includes:
 6. exact Docker image-ID deletion only;
 7. no `--force` / prune path;
 8. cleanup completion closes rollback;
-9. new Generic V2 transaction blocked before Manager/Broker cleanup;
-10. new HA-USB transaction blocked before Manager/Broker cleanup;
+9. new Generic V2 apply blocked before Manager/Broker cleanup;
+10. historical R7A HA-USB exact-source blobs remain unchanged;
 11. accepted 1.5 GiB reserve evidence reproduced;
 12. zero mutable allocation handled;
 13. zero free space yields capacity STOP;
