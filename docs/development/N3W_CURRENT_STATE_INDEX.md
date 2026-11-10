@@ -1,3 +1,16 @@
+## 2026-11-10 — KF-147 Manager IPC V3 R2 live apply CLOSED_PASS
+
+- Current core-stack authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference remains `24382caae4a1f5d459297f86e8d18f10a848ca64` / `local/greenhouse-manager:fresh-24382caae4a1`.
+- Core-stack Live upgrade accepted; the KF-147 R2 Manager-only repair does not replace the existing production authority.
+- R2 one-shot authorization is claimed+consumed and permanently non-replayable.
+- Physical T1 result is PASS: Manager `local/greenhouse-manager:fresh-44e7d7472714`, runtime image ID `sha256:1471828ab07cf9b71c01a6e78994711a5954f0a178b8be087a28bb65a967c7d2`, IPC V3 support=true.
+- Home Assistant image/container and Broker were not mutated; U1 transaction and prepare candidate were preserved; rollback was not required.
+- USB mutation=false, U2+=false, board access=false, merge=false.
+- Next stage is KF-147 T1 Policy V2/repaired host-source preexecution review; current repository authority does not grant that next live mutation.
+- Closure authority: `docs/development/N3W_T1_KF147_MANAGER_IPC_V3_R2_LIVE_APPLY_CLOSURE_20261110.md`.
+
 ## 2026-11-10 — KF-147 Manager IPC V3 R2 portable-identity preauthorization CLOSED_PASS
 
 - Current core-stack authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
