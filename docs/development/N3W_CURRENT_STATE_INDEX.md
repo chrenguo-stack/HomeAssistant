@@ -1,3 +1,15 @@
+## 2026-11-10 — Broker readiness runtime-session-takeover source-repair design CLOSED_PASS
+
+- Fresh main and PR #800 candidate source blobs match for the readiness helper, R2A/R2B, F4 activation, three service units and focused tests; no new source drift was found.
+- Eight executable readiness invocations exist: five legitimate pre-application startup probes and three unsafe R2B runtime calls. The three runtime calls occur in _pre_reboot_state(), _wait_post_reboot() and final verify(), grouped into two runtime phases.
+- Startup behavior remains exact-production-identity credential probing. The DynSec-required Home Assistant client ID is not changed and no alternate probe identity is introduced.
+- Runtime health is frozen as non-invasive existing-session evidence: identity equality, container-owned established HA socket to 1883, exact Broker current-auth state, HA HTTP 200/401 and a stable before/after runtime sandwich.
+- Repair implementation allowlist is limited to R2B source/test, readiness regression test, and the two historical clean-reference CI assertions needed to preserve pinned old-R2B evidence.
+- Historical R2B control head e15c64ac8f0f5f482a6c8538072031734002a559 and its old source blob remain historical evidence and are not rebound.
+- This gate changed documentation only. KF-148 source implementation is NOT_EXECUTED.
+- Next frozen route: CORE_UPDATER_DEPLOYED_ASSET_INTEGRITY_REPAIR. No automatic gate crossing occurred.
+- Authority: docs/development/N3W_T1_BROKER_READINESS_RUNTIME_SESSION_TAKEOVER_SOURCE_REPAIR_DESIGN_20261110.md.
+
 ## 2026-11-10 — T1 runtime recovery CLOSED_PASS / three source closures queued
 
 - Primary outage root cause is proven root-filesystem ENOSPC. The later Docker/Compose control-plane versus containerd-task divergence is proven independently; ENOSPC as its direct cause is not proven.
