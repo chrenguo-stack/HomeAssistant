@@ -344,3 +344,12 @@ def test_stop_result_is_public_safe_for_bad_tar(tmp_path: Path):
     path.write_bytes(b"bad")
     with pytest.raises(m.CapacityPreflightError, match="manager_tar_size_mismatch"):
         m.candidate_material(path)
+
+
+def test_mutable_runtime_probe_uses_stable_container_identity() -> None:
+    source = m.MUTABLE_RUNTIME_PROBE
+    assert '"id": item.get("Id")' in source
+    assert '"started_at": state.get("StartedAt")' in source
+    assert '"containers": stable_containers(before["containers"])' in source
+    stable_block = source.split("def stable_containers", 1)[1].split("before = {", 1)[0]
+    assert "size_rw_bytes" not in stable_block
