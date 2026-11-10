@@ -144,14 +144,24 @@ def test_remote_script_compiles_and_restarts_only_host_daemon() -> None:
 def test_source_backup_precedes_claim_and_prepare_snapshot_is_frozen_after_claim() -> None:
     module = load_executor()
     source = module.REMOTE_SCRIPT
-    source_backup = source.index('backup_dir = stage_root / ".preclaim-backup"')
-    state = source.index("state_root.mkdir(mode=0o700)")
-    claim = source.index('state_root / "authorization_claim.json"')
-    stop = source.index('run(["systemctl", "stop", HOST_UNIT]')
-    prepare_backup = source.index('prepare_backup = backup_dir / "homeassistant-usb-prepare.json"')
-    verify = source.index('raise Stop("prepare_backup_sha256_mismatch")')
-    install = source.index('atomic_install(item["staged_path"], item["remote_path"])')
-    assert source_backup < state < claim < stop < prepare_backup < verify < install
+    execute_start = source.index("def execute(plan, authorization, confirmation):")
+    source_backup = source.index(
+        'backup_dir = stage_root / ".preclaim-backup"',
+        execute_start,
+    )
+    state = source.index("state_root.mkdir(mode=0o700)", source_backup)
+    claim = source.index('state_root / "authorization_claim.json"', state)
+    stop = source.index('run(["systemctl", "stop", HOST_UNIT]', claim)
+    prepare_backup = source.index(
+        'prepare_backup = backup_dir / "homeassistant-usb-prepare.json"',
+        stop,
+    )
+    verify = source.index('raise Stop("prepare_backup_sha256_mismatch")', prepare_backup)
+    install = source.index(
+        'atomic_install(item["staged_path"], item["remote_path"])',
+        verify,
+    )
+    assert execute_start < source_backup < state < claim < stop < prepare_backup < verify < install
 
 
 def test_rollback_restores_prepare_state_and_predecessor_source() -> None:
