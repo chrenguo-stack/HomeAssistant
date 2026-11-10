@@ -787,9 +787,9 @@ class SubprocessPrepareBackend:
         ):
             raise UpdaterV2Error("usb_transaction_metadata_invalid")
 
-        transaction_dir = (
-            Path(media.mount_path) / "n3w-update" / "transaction"
-        )
+        update_dir = Path(media.mount_path) / "n3w-update"
+        _require_private_directory(update_dir, create=True)
+        transaction_dir = update_dir / "transaction"
         _require_private_directory(transaction_dir, create=True)
         manifest = {
             "schema": USB_TX_MANIFEST_SCHEMA,
