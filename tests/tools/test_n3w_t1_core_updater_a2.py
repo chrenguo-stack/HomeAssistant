@@ -1676,3 +1676,43 @@ def test_v2_store_requires_manager_cleanup_before_next_transaction(tmp_path: Pat
     store.write(tx)
     store.prepare_new()
     assert store.read() is None
+
+
+def test_local_host_remove_image_uses_exact_id_only(monkeypatch):
+    host = hostmod.LocalHost()
+    image_id = IDS[OLD["manager"]]
+    calls = []
+    monkeypatch.setattr(host, "containers_using_image", lambda observed: ())
+    monkeypatch.setattr(host, "image_id", lambda observed: None)
+    monkeypatch.setattr(
+        host,
+        "_run",
+        lambda argv, **kwargs: calls.append(tuple(argv)),
+    )
+
+    host.remove_image_exact(image_id)
+
+    assert calls == [("docker", "image", "rm", image_id)]
+    assert all("prune" not in argument for call in calls for argument in call)
+    assert "--force" not in calls[0]
+
+
+def test_local_host_remove_image_refuses_container_reference(monkeypatch):
+    host = hostmod.LocalHost()
+    image_id = IDS[OLD["manager"]]
+    calls = []
+    monkeypatch.setattr(
+        host,
+        "containers_using_image",
+        lambda observed: ("still-referenced-container",),
+    )
+    monkeypatch.setattr(
+        host,
+        "_run",
+        lambda argv, **kwargs: calls.append(tuple(argv)),
+    )
+
+    with pytest.raises(hostmod.UpdaterError, match="predecessor_image_still_referenced"):
+        host.remove_image_exact(image_id)
+
+    assert calls == []
