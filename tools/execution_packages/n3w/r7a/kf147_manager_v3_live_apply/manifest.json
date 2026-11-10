@@ -3,7 +3,7 @@
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261110_01",
   "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261110_01",
   "confirmation": "EXECUTE KF147 MANAGER IPC V3 IMAGE ONLY LIVE APPLY: YES",
-  "live_execution_authorized": false,
+  "live_execution_authorized": true,
   "package_authority": {
     "workflow_run_id": 42761736604,
     "artifact_id": 13738561063,
@@ -42,7 +42,7 @@
   },
   "stop_boundary": "STOP_AFTER_MANAGER_V3_CAPABILITY_AND_U1_CONTINUITY_VALIDATION",
   "authorization_state": {
-    "granted": false,
+    "granted": true,
     "claimed": false,
     "consumed": false,
     "replay_permitted": false
