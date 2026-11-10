@@ -1,3 +1,20 @@
+### 2026-11-10 KF-147 Stage B systemd lifecycle contract regression — CLOSED_PASS by R3
+
+| ID | 范围 | 现场现象 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| KF-147 Stage B lifecycle | Host-source live apply / rollback systemd ordering | R2 consumed authorization, applied the seven-file delta, then post-validation stopped at `required_unit_inactive:n3wfc4-services-activation.service`; rollback validation hit the same condition. Manager and Home Assistant were stopped while Broker remained running. | The services-owner drop-in has `Requires=n3w-t1-ha-ota.service`. Stopping only the host daemon propagates a stop to the services owner; starting the host daemon does not automatically restart the reverse dependent. The old `host_daemon_restart_only` contract contradicted the installed systemd topology. | Execute and rollback now both use `stop services -> stop host -> mutate/restore -> start host -> start services -> validate`. R2 source rollback was forensically verified, services were recovered under a separate bounded authorization, and fresh R3 physical validation completed PASS. | CLOSED_PASS |
+
+Regression guards:
+- never model `n3w-t1-ha-ota.service` as independently restartable while the services-owner unit has a reverse `Requires=` dependency on it;
+- live apply and rollback must explicitly own both unit lifecycles and preserve the dependency-safe stop/start order;
+- post-validation must wait for services owner plus Manager/Home Assistant runtime readiness before declaring PASS;
+- an authorization that reached durable claim is consumed even when later validation fails; do not replay it;
+- successor validation after a consumed attempt must use a fresh gate, confirmation, staging directory and durable state root;
+- source/rollback lifecycle repair does not authorize USB erase/write, PREPARE replay, U2+, board access or merge.
+
+Authority:
+`docs/development/N3W_T1_KF147_STAGE_B_SYSTEMD_LIFECYCLE_R3_LIVE_VALIDATION_CLOSURE_20261110.md`.
+
 ### 2026-11-10 KF-147 reclaim audit remote child failure collapsed into SSH rc=1
 
 ```text
