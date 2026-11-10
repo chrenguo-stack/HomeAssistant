@@ -19,7 +19,7 @@ MANIFEST = PACKAGE / "manifest.json"
 
 GATE = (
     "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_"
-    "KF147_STAGE_B_POLICY_SOURCE_REPAIR_R2_20261110_01"
+    "KF147_STAGE_B_SYSTEMD_LIFECYCLE_REVALIDATION_R3_20261110_01"
 )
 
 EXPECTED_TARGETS = {
@@ -61,16 +61,16 @@ def load_executor():
     return module
 
 
-def test_manifest_is_consumed_and_fail_closed_after_live_stop() -> None:
+def test_manifest_is_fresh_r3_authorized_once_and_scope_is_minimal() -> None:
     doc = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert doc["schema"] == "gh.n3w-t1-kf147-policy-source-live-repair/1"
     assert doc["gate_id"] == GATE
     assert doc["authorization_id"] == GATE
-    assert doc["live_execution_authorized"] is False
+    assert doc["live_execution_authorized"] is True
     assert doc["authorization_state"] == {
         "granted": True,
-        "claimed": True,
-        "consumed": True,
+        "claimed": False,
+        "consumed": False,
         "replay_permitted": False,
     }
     assert set(doc["source_authority"]) == EXPECTED_TARGETS | {
@@ -103,6 +103,19 @@ def test_manifest_is_consumed_and_fail_closed_after_live_stop() -> None:
     assert contract["automatic_host_source_rollback"] is True
     assert contract["board_access"] is False
     assert contract["merge"] is False
+
+
+def test_r3_uses_fresh_remote_and_state_roots() -> None:
+    module = load_executor()
+    assert module.REMOTE_DIR == (
+        "/var/tmp/n3w-kf147-stage-b-systemd-lifecycle-r3-20261110-01"
+    )
+    assert module.STATE_ROOT == (
+        "/var/lib/n3w-t1-core-updater/"
+        "kf147-stage-b-systemd-lifecycle-r3-20261110-01"
+    )
+    assert "policy-source-r2-20261110-01" not in module.REMOTE_DIR
+    assert "policy-source-r2-20261110-01" not in module.STATE_ROOT
 
 
 def test_executor_target_set_matches_manifest_and_does_not_replace_wiring() -> None:
@@ -266,7 +279,7 @@ def test_post_validation_requires_v3_capacity_and_candidate_continuity() -> None
     assert "container_continuity_failed" in source
 
 
-def test_expected_live_entry_binds_r2_manager_and_existing_u1_candidate() -> None:
+def test_expected_live_entry_binds_r3_manager_and_existing_u1_candidate() -> None:
     doc = json.loads(MANIFEST.read_text(encoding="utf-8"))
     live = doc["expected_live_entry"]
     assert live["manager_image"] == "local/greenhouse-manager:fresh-44e7d7472714"
