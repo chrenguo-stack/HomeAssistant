@@ -69,6 +69,7 @@ jobs:
             tools/n3w_t1_core_updater.py \
             tools/n3w_t1_core_updater_common.py \
             tools/n3w_t1_core_updater_core.py \
+            tools/n3w_t1_core_updater_finalize.py \
             tools/n3w_t1_core_updater_host.py \
             tools/n3w_t1_core_updater_state.py \
             tools/n3w_t1_core_updater_v2.py \
@@ -237,6 +238,7 @@ jobs:
               "n3w_t1_core_updater.py",
               "n3w_t1_core_updater_common.py",
               "n3w_t1_core_updater_core.py",
+              "n3w_t1_core_updater_finalize.py",
               "n3w_t1_core_updater_host.py",
               "n3w_t1_core_updater_state.py",
               "n3w_t1_core_updater_v2.py",
