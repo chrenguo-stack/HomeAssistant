@@ -1,3 +1,18 @@
+## 2026-11-10 — T1 storage headroom/image lifecycle source implementation complete / focused CI pending
+
+- Current core-stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
+- KF-149 is reclassified and source-closed: the missing `/opt/HomeAssistant/tools/n3w_t1_core_updater.py` path was an invalid permanent-path verifier assumption. Canonical delivery is exact package-bound ephemeral `t1-core-updater.pyz` with SHA-256 verification and bounded temporary staging.
+- KF-150 runtime recovery remains CLOSED_PASS. Storage/image-lifecycle source implementation is complete; final focused CI is pending on the exact final head.
+- Generic V2 adds explicit Manager/Broker post-acceptance `finalize`; COMMITTED alone does not delete predecessor images.
+- Finalize requires exact product-acceptance binding, exact current target, healthy peers/A1 state, exact predecessor ref+image ID, zero container references, and deletes only `docker image rm sha256:<exact-id>`.
+- Home Assistant remains on mandatory-USB lifecycle; Generic V2 finalize rejects Home Assistant.
+- A Manager/Broker COMMITTED transaction with cleanup incomplete blocks both a new Generic V2 transaction and a new HA-USB transaction.
+- Pre-transfer capacity is frozen as exact staged transport + exact Docker-save import worst case + fresh derived reserve. Split storage devices or tmpfs staging fail closed.
+- Broad prune, wildcard deletion and delete-by-age remain forbidden. The 1.5 GiB reserve is maintenance-admission evidence, not a frozen lifetime runtime minimum.
+- No live T1 cleanup, board access, merge or KF-147 retry occurred in this source gate.
+- After final CI closure: KF-147 fresh rebind → fresh capacity gate → new package/manifest binding → live retry.
+- Authority: `docs/development/N3W_T1_STORAGE_HEADROOM_AND_IMAGE_LIFECYCLE_SOURCE_IMPLEMENTATION_PROGRESS_20261110.md`.
+
 ## 2026-11-10 — Broker readiness runtime-session-takeover source-repair design CLOSED_PASS
 
 - Current core-stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
