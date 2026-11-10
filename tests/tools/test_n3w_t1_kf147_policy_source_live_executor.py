@@ -123,6 +123,25 @@ def test_unchanged_a1r_dependencies_are_read_only_preflight_inputs() -> None:
     assert '"dependencies": dependencies' in source
 
 
+def test_private_state_metadata_allows_service_group_and_rollback_preserves_it() -> None:
+    module = load_executor()
+    source = module.REMOTE_SCRIPT
+    helper_start = source.index("def require_private_regular(path, mode):")
+    helper_end = source.index("\ndef read_private_json", helper_start)
+    helper = source[helper_start:helper_end]
+    assert "meta.st_uid != 0" in helper
+    assert "stat.S_IMODE(meta.st_mode) != mode" in helper
+    assert "meta.st_gid" not in helper
+    assert "require_private_regular(str(path), 0o600)" in source
+    assert "prepare_metadata = PREPARE_PATH.stat()" in source
+    assert (
+        "os.chown(prepare_backup, prepare_metadata.st_uid, prepare_metadata.st_gid)"
+        in source
+    )
+    assert "backup_metadata = prepare_backup.stat()" in source
+    assert "os.chown(temp, backup_metadata.st_uid, backup_metadata.st_gid)" in source
+
+
 def test_remote_script_compiles_and_restarts_only_host_daemon() -> None:
     module = load_executor()
     assert not hasattr(module, "manager_ipc_probe")
