@@ -132,6 +132,7 @@ def test_preflight_rejects_current_bound_partition_mounted_or_live_stale_source(
 def test_remote_python_c_argument_contract_matches_remote_call() -> None:
     module = load_executor()
     source = module.REMOTE_SCRIPT
+    assert "import base64" in source
     assert "if len(sys.argv) != 5:" in source
     assert "execute(plan, sys.argv[2], sys.argv[3], sys.argv[4])" in source
     local_source = EXECUTOR.read_text(encoding="utf-8")
