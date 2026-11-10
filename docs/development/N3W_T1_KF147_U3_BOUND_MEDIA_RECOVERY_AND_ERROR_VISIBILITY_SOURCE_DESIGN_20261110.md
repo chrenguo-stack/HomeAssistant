@@ -240,8 +240,35 @@ opening the HTTPS artifact connection.
 
 The focused source repair now creates and validates `n3w-update` explicitly first, then
 creates and validates `n3w-update/transaction`. The repair does not automatically chmod an
-already-existing live USB directory. Any live metadata correction must use a new successor
-gate and fresh explicit authorization because the R4 authorization is already consumed.
+already-existing live USB directory.
+
+Fresh read-only metadata inspection on the mounted bound media proved the exact live defect:
+
+```text
+/run/n3w-t1-ota                          uid=0 gid=999 mode=0750
+/run/n3w-t1-ota/media                    uid=0 gid=999 mode=0700
+.../ca89774eb4254d0f                     uid=0 gid=0   mode=0755
+.../ca89774eb4254d0f/n3w-update          uid=0 gid=999 mode=0770
+.../n3w-update/transaction               uid=0 gid=999 mode=0700
+.../n3w-update/target                    absent
+```
+
+The strict helper rejects group/other permission bits on `n3w-update`, so mode `0770` is
+the direct trigger. The mounted ext4 root mode `0755` is not passed through that helper in
+the resume path and is not the failing directory.
+
+R5 is therefore a narrow successor gate. It is committed fail-closed and requires:
+- the R4 executor to have reached a durable terminal timeout record;
+- the exact existing U3 transaction, USB UUID/fingerprint and production containers;
+- the same exact bound partition already mounted at the transaction mount target;
+- `n3w-update` exactly root:999 mode `0770`;
+- `transaction` exactly root:999 mode `0700`;
+- no target directory yet.
+
+After a fresh explicit R5 authorization, the only USB mutation allowed before service restart
+is an fd-bound `fchmod(0700)` on that exact `n3w-update` directory followed by fsync and
+revalidation. R5 does not wipe, repartition, format, unmount, replay destructive confirmation,
+or enter U5.
 
 ## 6. Failure behavior
 
@@ -257,31 +284,35 @@ There is no automatic retry and no rollback.
 ## 7. Current authorization state
 
 ```text
-SOURCE_REPAIR_COMPLETE=true
-RECOVERY_SOURCE_COMPLETE=true
-PREDECESSOR_HEAD=e2ce7107897b21e3c7c7b88ebac5decd95cb0ec0
-PREDECESSOR_AUTHORIZATION_CLAIMED=false
-PREDECESSOR_AUTHORIZATION_CONSUMED=false
-PREVIOUS_AUTHORIZED_SOURCE_HEAD=94aee49ccd9293cba0a3aae3ccb9abda1b6927c8
-PREVIOUS_AUTHORIZATION_CLAIMED=false
-PREVIOUS_AUTHORIZATION_CONSUMED=false
-PREVIOUS_AUTHORIZED_SOURCE_HEAD_2=766d486eb065269a1fde1f5c644d9f7aef17bf97
-PREVIOUS_AUTHORIZATION_CLAIMED=true
-PREVIOUS_AUTHORIZATION_CONSUMED=true
-PREVIOUS_REPLAY_PERMITTED=false
-SUCCESSOR_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U3_BOUND_MEDIA_RECOVERY_TO_U4_R4_20261111_01
-AUTHORIZED_R4_SOURCE_HEAD=9d6cfeadde89b66c89316161353cf26c7946b892
-R4_READONLY_PREFLIGHT=PASS
-R4_RECOVERY_ELIGIBLE=true
+R4_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U3_BOUND_MEDIA_RECOVERY_TO_U4_R4_20261111_01
 R4_AUTHORIZATION_CLAIMED=true
 R4_AUTHORIZATION_CONSUMED=true
 R4_REPLAY_PERMITTED=false
-T1_RECOVERY_SERVICE_RESTART_REACHED=true
+R4_SERVICE_RESTART_REACHED=true
 R4_RUNTIME_ERROR=usb_runtime_directory_metadata_invalid
 R4_TARGET_DOWNLOAD_STARTED=false
 R4_U4_READY=false
-R4_LIVE_EXECUTION_COMPLETE=false
+
+LIVE_USB_UPDATE_DIR_UID=0
+LIVE_USB_UPDATE_DIR_GID=999
+LIVE_USB_UPDATE_DIR_MODE=0770
+LIVE_USB_TRANSACTION_DIR_MODE=0700
+LIVE_USB_TARGET_DIR_PRESENT=false
+
 PRODUCT_SOURCE_PARENT_DIRECTORY_REPAIR_COMPLETE=true
-FRESH_SUCCESSOR_AUTHORIZATION_REQUIRED=true
+
+R5_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U3_PERMISSION_REPAIR_TO_U4_R5_20261111_01
+R5_LIVE_EXECUTION_AUTHORIZED=false
+R5_AUTHORIZATION_GRANTED=false
+R5_AUTHORIZATION_CLAIMED=false
+R5_AUTHORIZATION_CONSUMED=false
+R5_REPLAY_PERMITTED=false
+R5_PREFLIGHT_REQUIRES_R4_TERMINAL_FAILURE=true
+
+USB_WIPE=false
+USB_PARTITION=false
+USB_FORMAT=false
+DESTRUCTIVE_CONFIRMATION_REPLAY=false
+U5_PLUS=false
 MERGE=false
 ```
