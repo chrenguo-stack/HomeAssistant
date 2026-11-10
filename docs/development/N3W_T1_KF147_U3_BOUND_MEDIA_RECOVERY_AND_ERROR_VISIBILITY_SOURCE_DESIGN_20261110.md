@@ -104,18 +104,18 @@ The bounded live recovery sequence is:
 
 ## 5. Authorization model
 
-The recovery package is committed fail-closed:
+The recovery package now binds the user's fresh explicit recovery-only authorization:
 
 ```text
-live_execution_authorized=false
-authorization_state.granted=false
+live_execution_authorized=true
+authorization_state.granted=true
 authorization_state.claimed=false
 authorization_state.consumed=false
 authorization_state.replay_permitted=false
 ```
 
-A later explicit authorization must be separate from the already consumed destructive
-authorization.
+This authorization is separate from the already consumed destructive authorization and is
+valid only for the exact existing U3 transaction, bound filesystem UUID and USB fingerprint.
 
 The recovery confirmation string is:
 
@@ -137,10 +137,12 @@ There is no automatic retry and no rollback.
 ## 7. Current authorization state
 
 ```text
-SOURCE_REPAIR_IN_PROGRESS=true
-RECOVERY_SOURCE_IN_PROGRESS=true
-RECOVERY_LIVE_EXECUTION_AUTHORIZED=false
-RECOVERY_AUTHORIZATION_GRANTED=false
+SOURCE_REPAIR_COMPLETE=true
+RECOVERY_SOURCE_COMPLETE=true
+RECOVERY_LIVE_EXECUTION_AUTHORIZED=true
+RECOVERY_AUTHORIZATION_GRANTED=true
+RECOVERY_AUTHORIZATION_CLAIMED=false
+RECOVERY_AUTHORIZATION_CONSUMED=false
 T1_RECOVERY_MUTATION=false
 MERGE=false
 ```
