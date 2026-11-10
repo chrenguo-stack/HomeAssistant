@@ -18,17 +18,20 @@ PACKAGE_DIR = Path(__file__).resolve().parent
 REPO_ROOT = PACKAGE_DIR.parents[4]
 MANIFEST_PATH = PACKAGE_DIR / "manifest.json"
 REMOTE_APPLY_PATH = PACKAGE_DIR / "remote_apply.py"
+PORTABLE_IDENTITY_PATH = REPO_ROOT / "tools/n3w_t1_portable_image_identity.py"
 SSH_TRANSPORT_PATH = REPO_ROOT / "tools/n3w_t1_ssh_transport.py"
 REPOSITORY = "chrenguo-stack/HomeAssistant"
-GATE_ID = "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261110_01"
-CONFIRMATION = "EXECUTE KF147 MANAGER IPC V3 IMAGE ONLY LIVE APPLY: YES"
-REMOTE_DIR = "/var/tmp/n3w-kf147-manager-v3-live-20261110-01"
+PACKAGE_GATE_ID = "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261110_01"
+GATE_ID = "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_R2_20261110_01"
+CONFIRMATION = "EXECUTE KF147 MANAGER IPC V3 IMAGE ONLY LIVE APPLY R2: YES"
+REMOTE_DIR = "/var/tmp/n3w-kf147-manager-v3-live-r2-20261110-01"
 EXPECTED_MANAGER_SHA = "9316817590c4fe74498629d0451a4897c2e11bef7bc4b423b66e47bb846099c5"
 EXPECTED_MANAGER_SIZE = 62957568
 EXPECTED_TARGET = "local/greenhouse-manager:fresh-44e7d7472714"
 EXPECTED_IMAGE_ID = "sha256:fd5104d610645347fe47137dbb24121851fa8a48530df3e3c905704607c5e3d4"
 EXPECTED_SOURCE_HEAD = "44e7d74727147975de88e85c4b18ba3f7493fd76"
 SSH_TRANSPORT_BLOB = "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7"
+PORTABLE_IDENTITY_BLOB = "4877f4801dd7a4364feb0cda4f9a3f79072e8214"
 
 REMOTE_STORAGE_PROBE = r"""
 import json
@@ -166,6 +169,8 @@ def load_transport() -> type:
 
 
 def verify_local(args: argparse.Namespace) -> dict[str, Any]:
+    if git_text("hash-object", str(PORTABLE_IDENTITY_PATH)) != PORTABLE_IDENTITY_BLOB:
+        raise Stop("portable_identity_binding_invalid")
     if re.fullmatch(r"[0-9a-f]{40}", args.expected_package_commit or "") is None:
         raise Stop("expected_package_commit_invalid")
     if git_text("rev-parse", "HEAD") != args.expected_package_commit:
@@ -218,6 +223,7 @@ def verify_artifact(manifest: dict[str, Any], work: Path) -> tuple[Path, dict[st
         or sha_file(tar) != EXPECTED_MANAGER_SHA
         or binding.get("source_head") != EXPECTED_SOURCE_HEAD
         or binding.get("target_manager") != EXPECTED_TARGET
+        or binding.get("gate_id") != PACKAGE_GATE_ID
         or binding.get("target_image_id") != EXPECTED_IMAGE_ID
         or binding.get("manager_tar_sha256") != EXPECTED_MANAGER_SHA
         or not isinstance(binding.get("manager_image_size_bytes"), int)
@@ -284,6 +290,7 @@ def stream_file_over_ssh(
         raise Stop("stream_source_invalid")
     allowed = {
         f"{REMOTE_DIR}/remote_apply.py",
+        f"{REMOTE_DIR}/n3w_t1_portable_image_identity.py",
         f"{REMOTE_DIR}/greenhouse-manager-arm64.tar",
     }
     if remote_path not in allowed:
@@ -400,6 +407,12 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
             timeout=120,
         )
         stream_file_over_ssh(
+            PORTABLE_IDENTITY_PATH,
+            transport,
+            f"{REMOTE_DIR}/n3w_t1_portable_image_identity.py",
+            timeout=120,
+        )
+        stream_file_over_ssh(
             package / "greenhouse-manager-arm64.tar",
             transport,
             f"{REMOTE_DIR}/greenhouse-manager-arm64.tar",
@@ -413,7 +426,8 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
             raise Stop("remote_tar_sha256_mismatch")
         pre = parse_json_output(
             transport.run_remote([
-                "python3", "-B", f"{REMOTE_DIR}/remote_apply.py", "--preflight"
+                "python3", "-B", f"{REMOTE_DIR}/remote_apply.py", "--preflight",
+                "--manager-tar", f"{REMOTE_DIR}/greenhouse-manager-arm64.tar"
             ], timeout=180).stdout,
             "preflight",
         )
