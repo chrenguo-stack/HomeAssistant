@@ -154,18 +154,39 @@ def public_json_state(path, kind):
     if not isinstance(doc, dict):
         raise RuntimeError(kind + "_invalid")
     result = {
-        "sha256": sha256_file(path),
         "schema": doc.get("schema"),
         "status": doc.get("status"),
         "phase": doc.get("phase"),
         "confirmation_required": doc.get("confirmation_required"),
         "confirmation_consumed": doc.get("confirmation_consumed"),
+        "transaction_id_sha256": doc.get("transaction_id_sha256"),
     }
-    if kind == "prepare":
-        candidate = doc.get("candidate")
-        if isinstance(candidate, dict):
-            result["candidate_model"] = candidate.get("display_model")
-            result["candidate_capacity_bytes"] = candidate.get("display_capacity_bytes")
+    if kind == "transaction":
+        result["sha256"] = sha256_file(path)
+        return result
+    if kind != "prepare":
+        raise RuntimeError(kind + "_invalid")
+    candidate = doc.get("candidate")
+    stable = {
+        "schema": doc.get("schema"),
+        "transaction_id_sha256": doc.get("transaction_id_sha256"),
+        "release_identity": doc.get("release_identity"),
+        "baseline_public_fingerprints": doc.get("baseline_public_fingerprints"),
+        "candidate": candidate,
+        "confirmation_required": doc.get("confirmation_required"),
+        "confirmation_consumed": doc.get("confirmation_consumed"),
+        "error_code": doc.get("error_code"),
+    }
+    result["sha256"] = hashlib.sha256(
+        json.dumps(stable, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    result["release_identity"] = stable["release_identity"]
+    result["baseline_public_fingerprints"] = stable["baseline_public_fingerprints"]
+    result["error_code"] = stable["error_code"]
+    if isinstance(candidate, dict):
+        result["candidate_public_fingerprint"] = candidate.get("public_fingerprint")
+        result["candidate_model"] = candidate.get("display_model")
+        result["candidate_capacity_bytes"] = candidate.get("display_capacity_bytes")
     return result
 
 def stable_containers(snapshot):
@@ -537,6 +558,20 @@ def validate_live_baseline(remote: dict[str, Any]) -> dict[str, Any]:
         raise CapacityPreflightError("u1_state_invalid")
     if transaction.get("phase") != EXPECTED_U1_PHASE:
         raise CapacityPreflightError("u1_phase_drift")
+    transaction_id = transaction.get("transaction_id_sha256")
+    prepare_transaction_id = prepare.get("transaction_id_sha256")
+    if (
+        not isinstance(transaction_id, str)
+        or SHA256_RE.fullmatch(transaction_id) is None
+        or prepare_transaction_id != transaction_id
+    ):
+        raise CapacityPreflightError("u1_prepare_transaction_binding_drift")
+    candidate_fingerprint = prepare.get("candidate_public_fingerprint")
+    if (
+        not isinstance(candidate_fingerprint, str)
+        or SHA256_RE.fullmatch(candidate_fingerprint) is None
+    ):
+        raise CapacityPreflightError("usb_candidate_fingerprint_invalid")
     if prepare.get("candidate_model") != EXPECTED_USB_MODEL:
         raise CapacityPreflightError("usb_candidate_model_drift")
     if prepare.get("candidate_capacity_bytes") != EXPECTED_USB_CAPACITY_BYTES:
@@ -554,6 +589,8 @@ def validate_live_baseline(remote: dict[str, Any]) -> dict[str, Any]:
         "observed_mutable_allocated_bytes": mutable,
         "transaction_sha256": transaction["sha256"],
         "prepare_sha256": prepare["sha256"],
+        "u1_transaction_id_sha256": transaction_id,
+        "usb_candidate_public_fingerprint": candidate_fingerprint,
         "u1_phase": transaction.get("phase"),
         "usb_candidate_model": prepare.get("candidate_model"),
         "usb_candidate_capacity_bytes": prepare.get("candidate_capacity_bytes"),
