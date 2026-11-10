@@ -29,6 +29,8 @@ BROKER = "local/n3w-mosquitto:2.1.2-3184566d"
 BROKER_IMAGE_ID = "sha256:df265f1e2b2e3dc35d5eb194e698c598e01c5ebca370da307b34332f9bf0a563"
 TARGET_ARCHIVE_SIZE = 835309535
 TARGET_ARCHIVE_SHA256 = "eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973"
+EXPECTED_TRANSACTION_SHA256 = "6e1f0b5d262e346674b62ac79bf2ffbc1c63a8dd22379a0a82c952f0e3626b49"
+EXPECTED_CANDIDATE_FINGERPRINT = "e45fba0ad3e9997be2738c7a8f25d5c342ebba66ddbf822b1f6bf6a016c2ed93"
 USB_MODEL = "Extreme"
 USB_SIZE = 32017047552
 SERVICES_UNIT = "n3wfc4-services-activation.service"
@@ -211,6 +213,8 @@ def collect_preflight() -> dict[str, Any]:
         raise Stop("broker_identity_invalid")
 
     tx = read_json(TX)
+    if sha_file(TX) != EXPECTED_TRANSACTION_SHA256:
+        raise Stop("u1_transaction_sha256_drift")
     if (
         tx.get("schema") != "gh.n3w-t1-core-updater-homeassistant-usb-transaction/1"
         or tx.get("phase") != "U1_PREPARE_REQUESTED"
@@ -225,6 +229,7 @@ def collect_preflight() -> dict[str, Any]:
     prepare = prepare_semantics(read_json(PREPARE))
     if (
         prepare["schema"] != "gh.n3w-t1-ha-usb-prepare-state/1"
+        or prepare["candidate_public_fingerprint"] != EXPECTED_CANDIDATE_FINGERPRINT
         or prepare["candidate_model"] != USB_MODEL
         or prepare["candidate_capacity_bytes"] != USB_SIZE
         or prepare["confirmation_required"] is not True
