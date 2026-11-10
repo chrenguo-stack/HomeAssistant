@@ -17,7 +17,7 @@ WORKFLOW = ROOT / ".github/workflows/n3w-kf147-manager-v3-live-package-ci.yml"
 
 GATE = (
     "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_"
-    "MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261109_01"
+    "MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261110_01"
 )
 
 
@@ -30,29 +30,23 @@ def load_local():
     return module
 
 
-def test_manifest_live_authority_is_exact_bound_and_unclaimed() -> None:
+def test_manifest_is_fresh_binding_pending_and_unauthorized() -> None:
     doc = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert doc["schema"] == "gh.n3w-t1-kf147-manager-v3-live-executor/1"
     assert doc["gate_id"] == GATE
     assert doc["authorization_id"] == GATE
-    assert doc["live_execution_authorized"] is True
-    assert doc["package_authority"] == {
-        "workflow_run_id": 42635443351,
-        "workflow_job_id": 129222259940,
-        "artifact_id": 13681899131,
-        "artifact_name": "n3w-kf147-manager-v3-live-44e7d7472714",
-        "artifact_digest": "sha256:f66fb945e563859788a4699ee23fe4ea0dffd4d849573bd68b501295efb95ae8",
-        "artifact_size_bytes": 62958895,
-        "artifact_expired": False,
-        "source_executor_head": "9c9f546adc6a554031cab2cb7d18d7ac9146496e",
-    }
+    assert doc["live_execution_authorized"] is False
+    assert doc["binding_state"] == "PENDING_FRESH_ARTIFACT"
+    assert doc["package_authority"] is None
     assert doc["authorization_state"] == {
-        "granted": True,
+        "granted": False,
         "claimed": False,
         "consumed": False,
         "replay_permitted": False,
     }
-    assert doc["target"]["predecessor_image_id"] == "sha256:b1875c6ed969df108d2df768d61369a0c93956d146f284276b392c686c13a4f9"
+    assert doc["target"]["predecessor_image_id"] == "sha256:7e3f09ed47010a18de215faa426113b7faba4e220b41bb9dcafd8ee1d4acf20b"
+    assert doc["target"]["homeassistant_image_id"] == "sha256:c261fa53f30508951833492ba2a19af6cfbb6aa8f2806b531d8f5c6599265306"
+    assert doc["target"]["broker_image_id"] == "sha256:df265f1e2b2e3dc35d5eb194e698c598e01c5ebca370da307b34332f9bf0a563"
 
 
 def test_execution_contract_preserves_u1_and_forbids_usb_mutation() -> None:
@@ -106,8 +100,11 @@ def test_remote_executor_rolls_back_from_owner_quiesce_boundary() -> None:
 def test_remote_executor_binds_exact_predecessor_and_target() -> None:
     source = REMOTE.read_text(encoding="utf-8")
     assert "local/greenhouse-manager:fresh-7807271e4c48" in source
+    assert "sha256:7e3f09ed47010a18de215faa426113b7faba4e220b41bb9dcafd8ee1d4acf20b" in source
     assert "local/greenhouse-manager:fresh-44e7d7472714" in source
     assert "sha256:fd5104d610645347fe47137dbb24121851fa8a48530df3e3c905704607c5e3d4" in source
+    assert "sha256:c261fa53f30508951833492ba2a19af6cfbb6aa8f2806b531d8f5c6599265306" in source
+    assert "sha256:df265f1e2b2e3dc35d5eb194e698c598e01c5ebca370da307b34332f9bf0a563" in source
     assert "9316817590c4fe74498629d0451a4897c2e11bef7bc4b423b66e47bb846099c5" in source
     assert "32017047552" in source
     assert "835309535" in source
@@ -272,6 +269,9 @@ def test_workflow_builds_manager_only_slice_from_frozen_exact_artifact() -> None
     assert '"manager_image_size_bytes"' in source
     assert '"capacity_required_free_bytes"' in source
     assert "greenhouse-manager-arm64.tar" in source
+    assert "GATE_ID: N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261110_01" in source
+    assert "n3w-kf147-manager-v3-live-44e7d7472714-20261110" in source
+    assert "tools/n3w_t1_core_updater_*.py" not in source
     assert "homeassistant-arm64.tar" not in "\n".join(
         line for line in source.splitlines()
         if "cp " in line and "$RUNNER_TEMP/package" in line
