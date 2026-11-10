@@ -1,3 +1,68 @@
+## Latest authority — 2026-11-10 KF-147 exact cleanup + fresh capacity CLOSED_PASS
+
+~~~text
+AUTHORITY_STATE=KF147_CLEANUP_AND_CAPACITY_CLOSED_PASS
+PR=800
+
+EXECUTED_LIVE_PACKAGE_HEAD=c872eac286f11d34bea6f2d823cd2a1762084578
+EXECUTION_ID=N3W_KF147_HA_CLEANUP_LIVE_20261110_01
+
+AUTHORIZATION=N3W_T1_KF147_EXACT_HA_2026_10_4_IMAGE_CLEANUP_20261110_01
+AUTHORIZATION_GRANTED=true
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+REPLAY_PERMITTED=false
+LIVE_EXECUTION_AUTHORIZED=false
+
+EXACT_HA_TARGET_DELETED=true
+EXACT_HA_TARGET_ID=sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365
+
+KF147_FRESH_CAPACITY_RESULT=PASS
+KF147_CAPACITY_PASS=true
+KF147_FREE_BYTES=5811048448
+KF147_REQUIRED_FREE_BYTES=1736515716
+KF147_POST_PEAK_FREE_BYTES=5685145468
+KF147_DERIVED_POST_PEAK_RESERVE_BYTES=1610612736
+KF147_OBSERVED_MUTABLE_ALLOCATED_BYTES=172728320
+
+U1_PHASE=U1_PREPARE_REQUESTED
+U1_TRANSACTION_SHA256=6e1f0b5d262e346674b62ac79bf2ffbc1c63a8dd22379a0a82c952f0e3626b49
+USB_CONFIRMATION_REQUIRED=true
+USB_CONFIRMATION_CONSUMED=false
+USB_CANDIDATE_MODEL=Extreme
+USB_CANDIDATE_CAPACITY_BYTES=32017047552
+
+REMOTE_MANAGER_TAR_STAGING=false
+MANAGER_APPLY=false
+USB_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+KF147_CAPACITY_BLOCKER=CLOSED_PASS
+PACKAGE_MANIFEST_BINDING_ALLOWED=true
+NEXT_ONE_GATE=NEW_PACKAGE_MANIFEST_BINDING
+~~~
+
+The authorized exact HA 2026.10.4 cleanup completed PASS at live package head
+`c872eac286f11d34bea6f2d823cd2a1762084578`. The one-shot authorization was claimed
+and consumed, the exact target image was removed, and post-delete verification passed.
+
+The immediately-following fresh KF-147 capacity preflight also returned PASS. Measured
+free space is 5,811,048,448 bytes against 1,736,515,716 bytes required by the frozen
+capacity policy, with 5,685,145,468 bytes projected free after the Manager transfer/import
+peak. The Manager tar was not streamed to T1 and no remote staging was created.
+
+The active mandatory-USB transaction remains at U1_PREPARE_REQUESTED with the same
+transaction SHA. USB destructive confirmation remains required and unconsumed.
+No Manager apply, USB mutation, U2+, board access or merge occurred.
+
+After the live PASS, the repository-owned cleanup authority was sealed as
+`live_execution_authorized=false`, `authorization_claimed=true`,
+`authorization_consumed=true`, `replay_permitted=false`.
+
+Authority:
+`docs/development/N3W_T1_KF147_EXACT_HA_CLEANUP_AND_FRESH_CAPACITY_PASS_CLOSURE_20261110.md`.
+
 ## Latest authority — 2026-11-10 KF-147 exact HA cleanup preexecution CLOSED_PASS / live authorization pending
 
 ~~~text
