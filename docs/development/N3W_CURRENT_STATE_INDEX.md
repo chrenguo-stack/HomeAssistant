@@ -1,5 +1,6 @@
 ## 2026-11-10 — Broker readiness runtime-session-takeover source-repair design CLOSED_PASS
 
+- Current core-stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`; current repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean source `24382caae4a1f5d459297f86e8d18f10a848ca64` / Manager `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
 - Fresh main and PR #800 candidate source blobs match for the readiness helper, R2A/R2B, F4 activation, three service units and focused tests; no new source drift was found.
 - Eight executable readiness invocations exist: five legitimate pre-application startup probes and three unsafe R2B runtime calls. The three runtime calls occur in _pre_reboot_state(), _wait_post_reboot() and final verify(), grouped into two runtime phases.
 - Startup behavior remains exact-production-identity credential probing. The DynSec-required Home Assistant client ID is not changed and no alternate probe identity is introduced.
