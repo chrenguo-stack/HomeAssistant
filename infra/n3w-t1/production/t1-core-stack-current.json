@@ -91,5 +91,24 @@
     "systemd_failed_units": 0,
     "board_mutation": false,
     "r4_live_reapply_closure": "docs/development/N3W_T1_CORE_UPDATER_U1_R4_MANAGER_A_TO_B_LIVE_REAPPLY_CLOSURE_20261105.md"
+  },
+  "updater_delivery": {
+    "schema": "gh.n3w-t1-core-updater-delivery/1",
+    "mode": "EXACT_PACKAGE_BOUND_EPHEMERAL_PYZ",
+    "canonical_package_filename": "t1-core-updater.pyz",
+    "permanent_install_required": false,
+    "permanent_cli_path": null,
+    "allowed_staging_roots": [
+      "/tmp",
+      "/var/tmp"
+    ],
+    "execution_prefix": [
+      "python3",
+      "-B"
+    ],
+    "integrity_authority": "package-binding.json:updater_pyz_sha256",
+    "accepted_binding_source": "manager_successor_upgrade",
+    "source_checkout_required_on_t1": false,
+    "runtime_health_authority": false
   }
 }
