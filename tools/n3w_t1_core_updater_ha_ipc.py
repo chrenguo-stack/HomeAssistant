@@ -291,7 +291,6 @@ class HaUsbIpcExecutor:
                     self.prepare_controller.refresh_candidate()
                 with self._prepare_lock:
                     self._discovery_error = None
-                    self._prepare_error = None
             except UpdaterV2Error as error:
                 with self._prepare_lock:
                     self._discovery_error = _public_code(error)
