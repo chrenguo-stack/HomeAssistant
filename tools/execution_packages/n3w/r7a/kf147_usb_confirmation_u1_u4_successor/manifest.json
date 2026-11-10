@@ -3,9 +3,9 @@
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_USB_CONFIRMATION_U1_U4_DESTRUCTIVE_PREPARE_20261110_01",
   "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_USB_CONFIRMATION_U1_U4_DESTRUCTIVE_PREPARE_20261110_01",
   "confirmation": "EXECUTE KF147 USB CONFIRMATION U1 TO U4 DESTRUCTIVE PREPARE: YES",
-  "live_execution_authorized": false,
+  "live_execution_authorized": true,
   "authorization_state": {
-    "granted": false,
+    "granted": true,
     "claimed": false,
     "consumed": false,
     "replay_permitted": false
