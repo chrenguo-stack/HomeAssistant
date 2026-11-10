@@ -102,6 +102,7 @@ def committed_transaction_authority(document: dict[str, Any]) -> dict[str, Any]:
         raise UpdaterV2Error("committed_transaction_required")
     required = (
         "component",
+        "post_acceptance_cleanup_required",
         "authorization_id_sha256",
         "authorization_consumed",
         "predecessor_image",
@@ -134,5 +135,6 @@ def cleanup_pending_for_successor(document: dict[str, Any] | None) -> bool:
         isinstance(document, dict)
         and document.get("status") == "COMMITTED"
         and document.get("component") in {"manager", "broker"}
+        and document.get("post_acceptance_cleanup_required") is True
         and document.get("cleanup_state") != "ACCEPTED_CLEANUP_COMPLETE"
     )
