@@ -125,8 +125,17 @@ def require_regular(path, mode):
         raise Stop("file_metadata_invalid:" + path)
 
 
+def require_private_regular(path, mode):
+    p = Path(path)
+    if p.is_symlink() or not p.is_file():
+        raise Stop("file_invalid:" + path)
+    meta = p.stat()
+    if meta.st_uid != 0 or stat.S_IMODE(meta.st_mode) != mode:
+        raise Stop("file_metadata_invalid:" + path)
+
+
 def read_private_json(path, schema):
-    require_regular(str(path), 0o600)
+    require_private_regular(str(path), 0o600)
     try:
         doc = json.loads(path.read_text(encoding="utf-8"))
     except Exception as error:
@@ -477,8 +486,9 @@ def rollback(plan, backup_dir, pre):
                 raise Stop("rollback_prepare_backup_invalid")
             temp = PREPARE_PATH.parent / (".n3w-kf147.rollback.prepare." + str(os.getpid()))
             shutil.copyfile(prepare_backup, temp)
-            os.chmod(temp, 0o600)
-            os.chown(temp, 0, 0)
+            backup_metadata = prepare_backup.stat()
+            os.chmod(temp, stat.S_IMODE(backup_metadata.st_mode))
+            os.chown(temp, backup_metadata.st_uid, backup_metadata.st_gid)
             with open(temp, "rb") as stream:
                 os.fsync(stream.fileno())
             os.replace(temp, PREPARE_PATH)
@@ -574,9 +584,10 @@ def execute(plan, authorization, confirmation):
         if frozen["transaction_sha256"] != pre["transaction_sha256"]:
             raise Stop("u1_transaction_drift_after_claim")
         prepare_backup = backup_dir / "homeassistant-usb-prepare.json"
+        prepare_metadata = PREPARE_PATH.stat()
         shutil.copyfile(PREPARE_PATH, prepare_backup)
-        os.chmod(prepare_backup, 0o600)
-        os.chown(prepare_backup, 0, 0)
+        os.chmod(prepare_backup, stat.S_IMODE(prepare_metadata.st_mode))
+        os.chown(prepare_backup, prepare_metadata.st_uid, prepare_metadata.st_gid)
         if sha_file(prepare_backup) != frozen["prepare_sha256"]:
             raise Stop("prepare_backup_sha256_mismatch")
         fsync_dir(backup_dir)
