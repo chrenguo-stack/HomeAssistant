@@ -915,6 +915,47 @@ class LocalHost:
     def load_image(self, tar_path: Path) -> None:
         self._run(("docker", "load", "-i", str(tar_path)), timeout=1800)
 
+    def containers_using_image(self, image_id: str) -> tuple[str, ...]:
+        if IMAGE_ID.fullmatch(image_id) is None:
+            raise UpdaterError("image_id_invalid")
+        result = self._run(("docker", "ps", "-aq", "--no-trunc"), check=False)
+        if result.returncode:
+            raise UpdaterError("container_inventory_failed")
+        container_ids = [
+            line.strip()
+            for line in result.stdout.decode().splitlines()
+            if line.strip()
+        ]
+        matches: list[str] = []
+        for container_id in container_ids:
+            try:
+                document = json.loads(
+                    self._run(("docker", "inspect", container_id)).stdout
+                )
+            except json.JSONDecodeError as error:
+                raise UpdaterError("docker_inspect_invalid") from error
+            if (
+                not isinstance(document, list)
+                or len(document) != 1
+                or not isinstance(document[0], dict)
+            ):
+                raise UpdaterError("docker_inspect_shape_invalid")
+            observed = document[0].get("Image")
+            if not isinstance(observed, str) or IMAGE_ID.fullmatch(observed) is None:
+                raise UpdaterError("container_image_id_invalid")
+            if observed == image_id:
+                matches.append(container_id)
+        return tuple(sorted(matches))
+
+    def remove_image_exact(self, image_id: str) -> None:
+        if IMAGE_ID.fullmatch(image_id) is None:
+            raise UpdaterError("image_id_invalid")
+        if self.containers_using_image(image_id):
+            raise UpdaterError("predecessor_image_still_referenced")
+        self._run(("docker", "image", "rm", image_id), timeout=300)
+        if self.image_id(image_id) is not None:
+            raise UpdaterError("predecessor_image_remove_verify_failed")
+
     def _listener_snapshot(self) -> dict[str, int]:
         return {
             "tcp_8883": self._listener_count("tcp", 8883),
