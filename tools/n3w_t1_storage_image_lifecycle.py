@@ -148,6 +148,57 @@ def archive_import_worst_case_bytes(path: Path) -> int:
     return total
 
 
+def validate_storage_topology(report: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(report, dict):
+        raise StorageLifecycleError("storage_topology_invalid")
+    backend = report.get("image_store_backend")
+    if backend not in {"classic", "containerd"}:
+        raise StorageLifecycleError("image_store_backend_unresolved")
+    if report.get("staging_fstype") in {"tmpfs", "ramfs"}:
+        raise StorageLifecycleError("staging_memory_filesystem_forbidden")
+    if report.get("image_store_fstype") in {"tmpfs", "ramfs"}:
+        raise StorageLifecycleError("image_store_memory_filesystem_forbidden")
+    devices = (
+        report.get("staging_device"),
+        report.get("docker_device"),
+        report.get("image_store_device"),
+    )
+    if any(
+        not isinstance(value, int) or isinstance(value, bool) or value < 0
+        for value in devices
+    ):
+        raise StorageLifecycleError("storage_device_identity_invalid")
+    if len(set(devices)) != 1:
+        raise StorageLifecycleError("staging_docker_image_store_filesystems_differ")
+    image_store_root = report.get("image_store_root")
+    if not isinstance(image_store_root, str) or not image_store_root.startswith("/"):
+        raise StorageLifecycleError("image_store_root_unresolved")
+    root_source = report.get("image_store_root_source")
+    if backend == "classic":
+        if root_source != "docker_root":
+            raise StorageLifecycleError("classic_image_store_authority_invalid")
+    elif root_source not in {
+        "embedded_containerd",
+        "containerd_cli_root",
+        "containerd_config_root",
+        "containerd_default_root",
+    }:
+        raise StorageLifecycleError("containerd_root_authority_unresolved")
+    for key in ("staging_free_bytes", "docker_free_bytes", "image_store_free_bytes"):
+        _nonnegative_int(report.get(key), f"{key}_invalid")
+    return {
+        "image_store_backend": backend,
+        "image_store_root": image_store_root,
+        "image_store_root_source": root_source,
+        "shared_device": devices[0],
+        "free_bytes": min(
+            report["staging_free_bytes"],
+            report["docker_free_bytes"],
+            report["image_store_free_bytes"],
+        ),
+    }
+
+
 def capacity_report(
     *,
     filesystem_total_bytes: int,
