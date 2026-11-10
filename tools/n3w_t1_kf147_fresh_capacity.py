@@ -208,7 +208,7 @@ print(json.dumps({
     "schema": "gh.n3w-t1-kf147-fresh-capacity-remote/1",
     "runtime_stable": True,
     "units": before["units"],
-    "containers": before["containers"],
+    "containers": stable_containers(before["containers"]),
     "mutable_paths_allocated_bytes": mutable_paths,
     "selected_persistent_and_maintenance_allocated_bytes": sum(mutable_paths.values()),
     "container_writable_layer_allocated_bytes": writable,
