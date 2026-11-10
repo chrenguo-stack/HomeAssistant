@@ -11,7 +11,7 @@
     "replay_permitted": false
   },
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/kf147_u3_bound_media_recovery/executor.py": "98029a4c14fd9a95d3fbbaddce285f867592731f",
+    "tools/execution_packages/n3w/r7a/kf147_u3_bound_media_recovery/executor.py": "1f0b0f5ac9d1f070fa4ebccb59b36645718521c3",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7"
   },
   "state_root": "/var/lib/n3w-t1-core-updater/kf147-u3-bound-media-recovery-20261110-01",
