@@ -16,6 +16,7 @@ from n3w_t1_core_updater_v2_common import (
     STATUS_SCHEMA_V2,
     TARGET_SCHEMA_V2,
     ComponentTarget,
+    ProductAcceptance,
     UpgradeBaseline,
     UpdaterV2Error,
 )
@@ -42,6 +43,9 @@ def parser() -> argparse.ArgumentParser:
     apply.add_argument("--confirmation", required=True)
     rollback = sub.add_parser("rollback")
     rollback.add_argument("--confirmation", required=True)
+    finalize = sub.add_parser("finalize")
+    finalize.add_argument("--acceptance-authority", type=Path, required=True)
+    finalize.add_argument("--confirmation", required=True)
     sub.add_parser("status")
     sub.add_parser("runtime-state")
     return command
@@ -131,6 +135,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                 if v2_operation
                 else legacy.rollback(confirmation=args.confirmation)
             )
+        elif args.command == "finalize":
+            v2_operation = True
+            result = v2.finalize(
+                ProductAcceptance.load(args.acceptance_authority),
+                confirmation=args.confirmation,
+            )
         elif args.command == "status":
             v2_operation = v2_store.path.exists()
             result = v2.status() if v2_operation else legacy.status()
@@ -151,7 +161,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "reason": safe_reason(error),
                     "t1_mutation": (
                         "UNKNOWN"
-                        if args.command in {"apply", "rollback"}
+                        if args.command in {"apply", "rollback", "finalize"}
                         else False
                     ),
                 },
