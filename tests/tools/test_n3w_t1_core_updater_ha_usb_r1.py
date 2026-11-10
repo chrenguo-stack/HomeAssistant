@@ -419,6 +419,30 @@ def test_ha_usb_store_blocks_nonterminal_generic_v2_transaction(tmp_path):
         store.prepare_new()
 
 
+def test_ha_usb_store_blocks_committed_manager_pending_cleanup(tmp_path):
+    root = tmp_path / "state"
+    generic = V2StateStore(root)
+    generic.write(
+        {
+            "schema": TX_SCHEMA_V2,
+            "status": "COMMITTED",
+            "phase": "COMMITTED",
+            "component": "manager",
+        }
+    )
+    store = HaUsbStateStore(root)
+    with pytest.raises(
+        UpdaterV2Error,
+        match="post_acceptance_cleanup_required",
+    ):
+        store.prepare_new()
+
+    document = generic.read()
+    document["cleanup_state"] = "ACCEPTED_CLEANUP_COMPLETE"
+    generic.write(document)
+    store.prepare_new()
+
+
 def test_generic_v2_store_blocks_nonterminal_ha_usb_transaction(tmp_path):
     root = tmp_path / "state"
     ha_usb = HaUsbStateStore(root)
