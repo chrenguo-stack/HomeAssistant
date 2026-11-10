@@ -114,6 +114,9 @@ def test_remote_executor_binds_exact_predecessor_and_target() -> None:
     assert "32017047552" in source
     assert "835309535" in source
     assert "eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973" in source
+    assert "6e1f0b5d262e346674b62ac79bf2ffbc1c63a8dd22379a0a82c952f0e3626b49" in source
+    assert "e45fba0ad3e9997be2738c7a8f25d5c342ebba66ddbf822b1f6bf6a016c2ed93" in source
+    assert "u1_transaction_sha256_drift" in source
 
 
 def test_local_launcher_uses_single_password_controlmaster_streaming_transport() -> None:
