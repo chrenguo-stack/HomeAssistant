@@ -21,6 +21,12 @@ def _positive_int(value: Any, reason: str) -> int:
     return value
 
 
+def _nonnegative_int(value: Any, reason: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        raise StorageLifecycleError(reason)
+    return value
+
+
 def load_policy(path: Path) -> dict[str, Any]:
     if path.is_symlink() or not path.is_file():
         raise StorageLifecycleError("policy_file_invalid")
@@ -102,7 +108,7 @@ def derived_post_peak_reserve_bytes(
     policy: dict[str, Any],
 ) -> int:
     total = _positive_int(filesystem_total_bytes, "filesystem_total_bytes_invalid")
-    mutable = _positive_int(
+    mutable = _nonnegative_int(
         observed_mutable_allocated_bytes,
         "observed_mutable_allocated_bytes_invalid",
     )
@@ -152,8 +158,8 @@ def capacity_report(
     policy: dict[str, Any],
 ) -> dict[str, Any]:
     total = _positive_int(filesystem_total_bytes, "filesystem_total_bytes_invalid")
-    free = _positive_int(free_bytes, "free_bytes_invalid")
-    mutable = _positive_int(
+    free = _nonnegative_int(free_bytes, "free_bytes_invalid")
+    mutable = _nonnegative_int(
         observed_mutable_allocated_bytes,
         "observed_mutable_allocated_bytes_invalid",
     )
