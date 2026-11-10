@@ -415,6 +415,11 @@
       "draft_policy": "run",
       "exceptions": {}
     },
+    "n3w-t1-storage-image-lifecycle-ci.yml": {
+      "class": "FAST",
+      "draft_policy": "run",
+      "exceptions": {}
+    },
     "n3w-t1-deployment-gate-ci.yml": {
       "class": "FAST",
       "draft_policy": "run",
