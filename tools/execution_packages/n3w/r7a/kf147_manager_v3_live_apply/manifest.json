@@ -4,7 +4,12 @@
   "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261110_01",
   "confirmation": "EXECUTE KF147 MANAGER IPC V3 IMAGE ONLY LIVE APPLY: YES",
   "live_execution_authorized": false,
-  "package_authority": null,
+  "package_authority": {
+    "workflow_run_id": 42761736604,
+    "artifact_id": 13738561063,
+    "artifact_name": "n3w-kf147-manager-v3-live-44e7d7472714-20261110",
+    "artifact_digest": "sha256:69af4054e993398c25bd7788773c76cc80f54524787d1f5972a894adef22bcfc"
+  },
   "target": {
     "expected_predecessor_manager": "local/greenhouse-manager:fresh-7807271e4c48",
     "manager_image": "local/greenhouse-manager:fresh-44e7d7472714",
@@ -42,5 +47,5 @@
     "consumed": false,
     "replay_permitted": false
   },
-  "binding_state": "PENDING_FRESH_ARTIFACT"
+  "binding_state": "FRESH_ARTIFACT_BOUND"
 }
