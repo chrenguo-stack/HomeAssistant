@@ -1,3 +1,61 @@
+## Latest authority — 2026-11-10 T1 storage headroom/image lifecycle source implementation complete / focused CI pending
+
+~~~text
+AUTHORITY_STATE=T1_STORAGE_HEADROOM_IMAGE_LIFECYCLE_SOURCE_IMPLEMENTED_CI_PENDING
+PR=800
+
+CURRENT_PRODUCTION_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+KF149_DEPLOYED_ASSET_INTEGRITY_REPAIR=CLOSED_PASS
+KF150_RUNTIME_RECOVERY=CLOSED_PASS
+KF150_STORAGE_LIFECYCLE_SOURCE_IMPLEMENTATION=COMPLETE
+KF150_FOCUSED_CI_FINAL_RESULT=PENDING
+
+CORE_UPDATER_DELIVERY=EXACT_PACKAGE_BOUND_EPHEMERAL_PYZ
+CORE_UPDATER_PERMANENT_INSTALL_REQUIRED=false
+
+STEADY_STATE_INTERNAL_IMAGE_GENERATIONS_PER_COMPONENT=1
+GENERIC_V2_POST_ACCEPTANCE_FINALIZE=IMPLEMENTED_MANAGER_BROKER
+HOMEASSISTANT_GENERIC_FINALIZE=false
+HOMEASSISTANT_LIFECYCLE=MANDATORY_USB
+BROAD_DOCKER_PRUNE=false
+
+PRETRANSFER_CAPACITY_FORMULA=
+EXACT_STAGED_TRANSPORT_BYTES
++EXACT_IMAGE_IMPORT_WORST_CASE_BYTES
++DERIVED_POST_PEAK_RESERVE_BYTES
+
+MAINTENANCE_RESERVE_IS_RUNTIME_MINIMUM=false
+PRODUCT_RUNTIME_MIN_FREE_REQUIREMENT=UNFROZEN_LONGITUDINAL_EVIDENCE_REQUIRED
+
+LIVE_T1_MUTATION=false
+CURRENT_T1_IMAGE_CLEANUP_EXECUTED=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_AFTER_GATE_CLOSURE=
+KF147_FRESH_REBIND
+->FRESH_CAPACITY_GATE
+->NEW_PACKAGE_MANIFEST_BINDING
+->LIVE_RETRY
+~~~
+
+The source implementation closes the two recurrence paths identified after the ENOSPC outage: indefinite predecessor retention after accepted upgrades, and large artifact transfer before a fresh capacity proof. Generic V2 cleanup remains explicit and acceptance-bound; it never runs automatically at COMMITTED. The only image deletion primitive is exact predecessor image-ID removal after checking all Docker container references and current target/peer health.
+
+The pre-transfer capacity policy is intentionally separate from the updater apply operation so a capacity failure can STOP before a large payload is staged on T1. It reuses the accepted 2026-11-05 reserve derivation but does not promote the 1.5 GiB maintenance reserve into a lifetime runtime-minimum requirement.
+
+No live T1 image was deleted and KF-147 was not resumed in this source gate. Final CLOSED_PASS still requires the exact final source head focused CI to complete successfully.
+
+Authority:
+docs/development/N3W_T1_STORAGE_HEADROOM_AND_IMAGE_LIFECYCLE_SOURCE_IMPLEMENTATION_PROGRESS_20261110.md.
+
 ## Latest authority — 2026-11-10 Broker readiness runtime-session-takeover source-repair design CLOSED_PASS
 
 ~~~text
