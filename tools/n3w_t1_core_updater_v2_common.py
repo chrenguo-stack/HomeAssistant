@@ -281,6 +281,22 @@ class ProductAcceptance:
     authority_id: str
     accepted_at_unix: int
 
+    def __post_init__(self) -> None:
+        if self.component not in COMPONENTS:
+            raise UpdaterV2Error("product_acceptance_component_invalid")
+        if SHA256.fullmatch(self.transaction_sha256) is None:
+            raise UpdaterV2Error("product_acceptance_transaction_sha256_invalid")
+        if not self.target_image_ref.startswith(IMAGE_PREFIXES[self.component]):
+            raise UpdaterV2Error("product_acceptance_target_invalid")
+        if ACCEPTANCE_AUTHORITY_ID.fullmatch(self.authority_id) is None:
+            raise UpdaterV2Error("product_acceptance_authority_invalid")
+        if (
+            not isinstance(self.accepted_at_unix, int)
+            or isinstance(self.accepted_at_unix, bool)
+            or self.accepted_at_unix <= 0
+        ):
+            raise UpdaterV2Error("product_acceptance_time_invalid")
+
     @classmethod
     def load(cls, path: Path) -> "ProductAcceptance":
         if path.is_symlink() or not path.is_file():
