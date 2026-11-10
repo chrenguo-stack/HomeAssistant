@@ -8,11 +8,11 @@ BASELINE_AUTHORITY_PR=804
 BASELINE_AUTHORITY_HEAD=bae46443ef34e34cc709a1af0de3599a739e806b
 
 NEXT_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_USB_CONFIRMATION_U1_U4_DESTRUCTIVE_PREPARE_20261110_01
-LIVE_EXECUTION_AUTHORIZED=false
-USB_CONFIRMATION_AUTHORIZED=false
-USB_ERASE_AUTHORIZED=false
-USB_FORMAT_AUTHORIZED=false
-U2_PLUS_AUTHORIZED=false
+LIVE_EXECUTION_AUTHORIZED=true
+USB_CONFIRMATION_AUTHORIZED=true
+USB_ERASE_AUTHORIZED=true
+USB_FORMAT_AUTHORIZED=true
+U2_PLUS_AUTHORIZED=true
 U5_PLUS_AUTHORIZED=false
 MERGE=false
 ```
@@ -87,19 +87,19 @@ The successor package inherits the repaired read-only baseline package and its h
 
 ## 4. One-shot authorization boundary
 
-The package is intentionally committed with:
+The package is now committed with the user's fresh explicit authorization bound:
 
 ```text
-live_execution_authorized=false
-authorization_state.granted=false
+live_execution_authorized=true
+authorization_state.granted=true
 authorization_state.claimed=false
 authorization_state.consumed=false
 authorization_state.replay_permitted=false
 ```
 
-Source review, CI and real-T1 `--preflight-only` are allowed while those values remain false.
+The authorization is exact-scope and one-shot. It is not reusable for any other candidate, transaction, release, or successor gate.
 
-A later explicit user authorization must be bound to:
+The bound authorization is:
 
 ```text
 AUTHORIZATION_ID=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_USB_CONFIRMATION_U1_U4_DESTRUCTIVE_PREPARE_20261110_01
