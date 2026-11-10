@@ -2,7 +2,7 @@
   "schema": "gh.n3w-t1-kf147-ha-image-cleanup-executor/1",
   "gate_id": "N3W_T1_KF147_EXACT_HA_2026_10_4_IMAGE_CLEANUP_20261110_01",
   "authorization_id": "N3W_T1_KF147_EXACT_HA_2026_10_4_IMAGE_CLEANUP_20261110_01",
-  "live_execution_authorized": true,
+  "live_execution_authorized": false,
   "target": {
     "image_ref": "local/n3w-homeassistant:2026.10.4-5881590f",
     "image_id": "sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365",
@@ -34,5 +34,8 @@
   "board_access": false,
   "usb_mutation": false,
   "manager_apply": false,
-  "merge": false
+  "merge": false,
+  "authorization_claimed": true,
+  "authorization_consumed": true,
+  "replay_permitted": false
 }
