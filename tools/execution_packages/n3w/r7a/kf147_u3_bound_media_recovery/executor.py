@@ -24,6 +24,7 @@ GATE_ID = (
 CONFIRMATION = "EXECUTE KF147 U3 BOUND MEDIA RECOVERY TO U4: YES"
 
 REMOTE_SCRIPT = r"""
+import base64
 import hashlib
 import json
 import os
