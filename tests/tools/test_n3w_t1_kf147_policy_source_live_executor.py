@@ -155,7 +155,16 @@ def test_source_backup_precedes_claim_and_prepare_snapshot_is_frozen_after_claim
 def test_rollback_restores_prepare_state_and_predecessor_source() -> None:
     module = load_executor()
     source = module.REMOTE_SCRIPT
-    assert 'prepare_backup = Path(backup_dir) / "homeassistant-usb-prepare.json"' in source
+    rollback_start = source.index("def rollback(plan, backup_dir, pre):")
+    rollback_stop = source.index('run(["systemctl", "stop", HOST_UNIT]', rollback_start)
+    restore_loop = source.index('for item in plan["files"]:', rollback_stop)
+    prepare_restore = source.index(
+        'prepare_backup = Path(backup_dir) / "homeassistant-usb-prepare.json"',
+        restore_loop,
+    )
+    restart = source.index('run(["systemctl", "start", HOST_UNIT]', prepare_restore)
+    assert rollback_start < rollback_stop < restore_loop < prepare_restore < restart
+    assert "wait_host_inactive()" in source[rollback_stop:restore_loop]
     assert "os.replace(temp, PREPARE_PATH)" in source
     assert "post = baseline(plan, require_snapshot=False)" in source
     assert 'result["status"] = "PASS"' in source
