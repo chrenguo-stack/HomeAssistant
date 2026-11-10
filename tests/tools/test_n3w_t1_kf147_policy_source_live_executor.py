@@ -94,8 +94,11 @@ def test_remote_script_compiles_and_restarts_only_host_daemon() -> None:
     module = load_executor()
     compile(module.REMOTE_SCRIPT, "<kf147-stage-b-remote>", "exec")
     source = module.REMOTE_SCRIPT
-    assert 'run(["systemctl", "restart", HOST_UNIT]' in source
+    assert 'run(["systemctl", "stop", HOST_UNIT]' in source
+    assert 'run(["systemctl", "start", HOST_UNIT]' in source
     assert 'run(["systemctl", "restart", SERVICES_UNIT]' not in source
+    assert 'run(["systemctl", "stop", SERVICES_UNIT]' not in source
+    assert 'run(["systemctl", "start", SERVICES_UNIT]' not in source
     assert '"wipefs"' not in source
     assert '"mkfs"' not in source
     assert '"parted"' not in source
@@ -103,15 +106,17 @@ def test_remote_script_compiles_and_restarts_only_host_daemon() -> None:
     assert "CONFIRM_USB_ERASE" not in source
 
 
-def test_preclaim_backup_is_completed_before_durable_claim() -> None:
+def test_source_backup_precedes_claim_and_prepare_snapshot_is_frozen_after_claim() -> None:
     module = load_executor()
     source = module.REMOTE_SCRIPT
-    backup = source.index('backup_dir = stage_root / ".preclaim-backup"')
-    verify = source.index('raise Stop("prepare_backup_sha256_mismatch")')
+    source_backup = source.index('backup_dir = stage_root / ".preclaim-backup"')
     state = source.index("state_root.mkdir(mode=0o700)")
     claim = source.index('state_root / "authorization_claim.json"')
+    stop = source.index('run(["systemctl", "stop", HOST_UNIT]')
+    prepare_backup = source.index('prepare_backup = backup_dir / "homeassistant-usb-prepare.json"')
+    verify = source.index('raise Stop("prepare_backup_sha256_mismatch")')
     install = source.index('atomic_install(item["staged_path"], item["remote_path"])')
-    assert backup < verify < state < claim < install
+    assert source_backup < state < claim < stop < prepare_backup < verify < install
 
 
 def test_rollback_restores_prepare_state_and_predecessor_source() -> None:
