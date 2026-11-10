@@ -1,3 +1,57 @@
+## Stable updater authority — 2026-11-10 storage headroom/image lifecycle source implemented / focused CI pending
+
+~~~text
+PROJECT_WORKING_CONTEXT_VERSION=4.7
+
+KF149_DEPLOYED_ASSET_INTEGRITY_REPAIR=CLOSED_PASS
+KF150_RUNTIME_RECOVERY=CLOSED_PASS
+KF150_STORAGE_LIFECYCLE_SOURCE_IMPLEMENTATION=COMPLETE
+KF150_FOCUSED_CI_FINAL_RESULT=PENDING
+
+CORE_UPDATER_DELIVERY=EXACT_PACKAGE_BOUND_EPHEMERAL_PYZ
+CORE_UPDATER_PERMANENT_INSTALL_REQUIRED=false
+
+GENERIC_V2_FINALIZE_COMPONENTS=manager,broker
+GENERIC_V2_FINALIZE_HOMEASSISTANT=false
+FINALIZE_REQUIRES_INDEPENDENT_PRODUCT_ACCEPTANCE=true
+FINALIZE_DELETE_MODE=EXACT_IMAGE_ID_ONLY
+
+STEADY_STATE_INTERNAL_IMAGE_GENERATIONS_PER_COMPONENT=1
+BROAD_DOCKER_PRUNE=false
+DELETE_BY_AGE=false
+WILDCARD_IMAGE_DELETE=false
+
+PRETRANSFER_CAPACITY_ADMISSION=true
+PRETRANSFER_CAPACITY_MUST_PASS_BEFORE_REMOTE_STAGING=true
+CAPACITY_COUNTS_STAGED_TRANSPORT=true
+CAPACITY_COUNTS_IMAGE_IMPORT_WORST_CASE=true
+CAPACITY_COUNTS_DERIVED_POST_PEAK_RESERVE=true
+STAGING_DOCKER_IMAGE_STORE_SHARED_DEVICE_REQUIRED=true
+
+PRODUCT_RUNTIME_MIN_FREE_REQUIREMENT=UNFROZEN_LONGITUDINAL_EVIDENCE_REQUIRED
+MAINTENANCE_RESERVE_IS_RUNTIME_MINIMUM=false
+
+LIVE_MUTATION_DEFAULT=false
+CURRENT_T1_IMAGE_CLEANUP_EXECUTED=false
+BOARD_ACCESS_DEFAULT=false
+MERGE=false
+
+NEXT_AFTER_GATE_CLOSURE=
+KF147_FRESH_REBIND
+->FRESH_CAPACITY_GATE
+->NEW_PACKAGE_MANIFEST_BINDING
+->LIVE_RETRY
+~~~
+
+The source implementation makes image retention an explicit transaction lifecycle rather than an unbounded side effect. Generic V2 Manager/Broker COMMITTED keeps rollback material until an independent acceptance authority binds the exact committed transaction; finalize then deletes only the exact predecessor image ID after proving zero container references and revalidates target/peer health. Home Assistant remains owned by the mandatory-USB lifecycle.
+
+The capacity contract is intentionally pre-transfer. A large archive must not be streamed first and evaluated later. Fresh staging/Docker/image-store topology and free-space evidence must be measured before transfer; the required bytes include exact staged transport, exact Docker-save import worst case, and the derived post-peak maintenance reserve.
+
+This gate changes source/policy only. It does not delete images on the current T1 and does not resume KF-147.
+
+Authority:
+docs/development/N3W_T1_STORAGE_HEADROOM_AND_IMAGE_LIFECYCLE_SOURCE_IMPLEMENTATION_PROGRESS_20261110.md.
+
 ## Stable updater authority — 2026-11-10 Broker readiness runtime-session-takeover repair design CLOSED_PASS
 
 ~~~text
