@@ -1,6 +1,10 @@
 ## 2026-11-10 — KF-147 Mandatory USB Confirmation / U2 read-only preexecution CLOSED_PASS
 
-- PR #800 exact reviewed head `78e96812868cc13377746ba8d7ac00f6cef51d2f`.
+- Current core-stack authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference remains `24382caae4a1f5d459297f86e8d18f10a848ca64` / `local/greenhouse-manager:fresh-24382caae4a1`.
+- Core-stack Live upgrade accepted; this read-only KF-147 gate does not replace production authority.
+- PR #800 exact source-contract reviewed head `78e96812868cc13377746ba8d7ac00f6cef51d2f`.
 - The five final-archive CI runs named by the V1.4 handoff are terminal SUCCESS; `FINAL_ARCHIVE_CI=CLOSED_PASS`.
 - Independent source-contract review found no new blocker and requires no source repair.
 - Last-proven continuity remains U1 `U1_PREPARE_REQUESTED`, transaction SHA-256 `6e1f0b5d262e346674b62ac79bf2ffbc1c63a8dd22379a0a82c952f0e3626b49`, Extreme candidate 32,017,047,552 bytes, `confirmation_required=true`, `confirmation_consumed=false`.
