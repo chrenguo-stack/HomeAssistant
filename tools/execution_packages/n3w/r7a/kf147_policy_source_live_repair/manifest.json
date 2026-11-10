@@ -21,7 +21,7 @@
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7"
   },
   "predecessor_source_authority": {
-    "source_head": "c01b982e9d889a269e79aedeb8b9f18c15f8b3e6",
+    "source_head": "70aaa4070641dd73c1a97738e6332be31403d45e",
     "files": {
       "tools/n3w_t1_core_updater_ha_capacity.py": null,
       "tools/n3w_t1_core_updater_ha_ipc.py": "550c6336303eb767ce813c27c2b35d9a89968472",
