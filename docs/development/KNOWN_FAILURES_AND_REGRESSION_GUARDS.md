@@ -1,3 +1,50 @@
+### 2026-11-10 KF-150 source implementation update — exact lifecycle + pre-transfer capacity contract
+
+~~~text
+KF150_RUNTIME_RECOVERY=CLOSED_PASS
+KF150_STORAGE_LIFECYCLE_SOURCE_IMPLEMENTATION=COMPLETE
+KF150_FOCUSED_CI_FINAL_RESULT=PENDING
+
+PRIMARY_OUTAGE_ROOT_CAUSE=ROOT_FILESYSTEM_ENOSPC
+SECONDARY_DOCKER_CONTAINERD_DIVERGENCE=PROVEN
+ENOSPC_DIRECTLY_CAUSED_SECONDARY_DIVERGENCE=NOT_PROVEN
+
+GENERIC_V2_MANAGER_BROKER_FINALIZE=IMPLEMENTED
+HOMEASSISTANT_GENERIC_FINALIZE=false
+HOMEASSISTANT_LIFECYCLE=MANDATORY_USB
+
+PRETRANSFER_CAPACITY_GATE_POLICY=IMPLEMENTED
+BROAD_DOCKER_PRUNE=false
+CURRENT_T1_IMAGE_CLEANUP_EXECUTED=false
+KF147_LIVE_RETRY=false
+~~~
+
+Regression guards:
+- COMMITTED is not the automatic deletion boundary; Manager/Broker predecessor deletion requires separately supplied product-acceptance authority bound to the stable committed-transaction SHA-256.
+- cleanup must use exact predecessor image ID only and must fail if any Docker container references that image; no force, wildcard, delete-by-age, `docker system prune`, or `docker image prune -a`.
+- accepted cleanup closes the rollback window; cleanup state remains durable audit metadata.
+- a Manager/Broker COMMITTED transaction with cleanup incomplete blocks both a new Generic V2 transaction and a new HA-USB transaction.
+- Home Assistant predecessor lifecycle remains mandatory-USB-owned; Generic V2 finalize must reject Home Assistant.
+- large future T1 staging must pass fresh pre-transfer capacity admission before streaming. Required bytes count exact staged transport + exact Docker-save import worst case + freshly derived post-peak reserve.
+- staging, Docker root and actual image store must share the measured filesystem/device for the single-filesystem formula; otherwise STOP and use a topology-aware calculation.
+- the accepted 1.5 GiB reserve is maintenance-admission evidence, not a frozen lifetime runtime minimum.
+- current T1 cleanup is not authorized merely because source support now exists.
+
+Authority:
+docs/development/N3W_T1_STORAGE_HEADROOM_AND_IMAGE_LIFECYCLE_SOURCE_IMPLEMENTATION_PROGRESS_20261110.md.
+
+### 2026-11-10 KF-149 closure — missing permanent CLI path was verifier-assumption drift
+
+| ID | 范围 | 现场现象 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| KF-149 | T1 Core Updater delivery/verification | Strict verifier looked for `/opt/HomeAssistant/tools/n3w_t1_core_updater.py` and failed although product runtime was healthy. | The verifier assumed a permanent source-checkout path that is not part of the accepted updater delivery model. The accepted model is exact package-bound `t1-core-updater.pyz`, SHA-256 verified before bounded temporary execution. | Freeze the independent updater delivery contract and validate package construction, exact pyz digest binding, temporary staging and the absence of a permanent-install requirement. Preserve accepted `t1-core-stack-current.json` unchanged. | CLOSED_PASS |
+
+Guards:
+- do not reintroduce `/opt/HomeAssistant/tools/n3w_t1_core_updater.py` as a mandatory runtime-health or deployed-asset path;
+- updater executable authority comes from exact package/artifact + `updater_pyz_sha256`;
+- temporary updater staging is not a runtime-health signal;
+- accepted current stack authority must not be rewritten merely to encode updater delivery policy.
+
 ### 2026-11-10 KF-148 design closure update — three literal runtime calls, passive runtime oracle frozen
 
 ~~~text
