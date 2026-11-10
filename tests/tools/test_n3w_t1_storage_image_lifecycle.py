@@ -145,3 +145,65 @@ def test_policy_rejects_broad_prune_enablement(tmp_path: Path) -> None:
     path.write_text(json.dumps(value), encoding="utf-8")
     with pytest.raises(storage.StorageLifecycleError, match="broad_prune_policy_invalid"):
         storage.load_policy(path)
+
+
+def test_storage_topology_requires_single_nonmemory_filesystem() -> None:
+    report = {
+        "image_store_backend": "containerd",
+        "image_store_root": "/var/lib/containerd",
+        "image_store_root_source": "containerd_default_root",
+        "staging_device": 7,
+        "docker_device": 7,
+        "image_store_device": 7,
+        "staging_free_bytes": 900,
+        "docker_free_bytes": 800,
+        "image_store_free_bytes": 700,
+        "staging_fstype": "ext4",
+        "image_store_fstype": "ext4",
+    }
+    validated = storage.validate_storage_topology(report)
+    assert validated["shared_device"] == 7
+    assert validated["free_bytes"] == 700
+    assert validated["image_store_backend"] == "containerd"
+
+
+def test_storage_topology_rejects_split_devices() -> None:
+    report = {
+        "image_store_backend": "classic",
+        "image_store_root": "/var/lib/docker",
+        "image_store_root_source": "docker_root",
+        "staging_device": 1,
+        "docker_device": 1,
+        "image_store_device": 2,
+        "staging_free_bytes": 10,
+        "docker_free_bytes": 10,
+        "image_store_free_bytes": 10,
+        "staging_fstype": "ext4",
+        "image_store_fstype": "ext4",
+    }
+    with pytest.raises(
+        storage.StorageLifecycleError,
+        match="staging_docker_image_store_filesystems_differ",
+    ):
+        storage.validate_storage_topology(report)
+
+
+def test_storage_topology_rejects_memory_staging() -> None:
+    report = {
+        "image_store_backend": "classic",
+        "image_store_root": "/var/lib/docker",
+        "image_store_root_source": "docker_root",
+        "staging_device": 1,
+        "docker_device": 1,
+        "image_store_device": 1,
+        "staging_free_bytes": 10,
+        "docker_free_bytes": 10,
+        "image_store_free_bytes": 10,
+        "staging_fstype": "tmpfs",
+        "image_store_fstype": "ext4",
+    }
+    with pytest.raises(
+        storage.StorageLifecycleError,
+        match="staging_memory_filesystem_forbidden",
+    ):
+        storage.validate_storage_topology(report)
