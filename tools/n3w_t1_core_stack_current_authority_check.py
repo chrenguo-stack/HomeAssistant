@@ -9,6 +9,7 @@ from typing import Any
 
 SCHEMA = "gh.n3w-t1-core-stack-current-authority/2"
 TARGET_SCHEMA = "gh.n3w-t1-core-updater-target/2"
+UPDATER_DELIVERY_SCHEMA = "gh.n3w-t1-core-updater-delivery/1"
 
 PENDING_AUTHORITY_STATE = "SUCCESSOR_READY_NOT_LIVE_APPLIED"
 APPLIED_AUTHORITY_STATE = "CURRENT_STACK_LIVE_ACCEPTED"
@@ -21,6 +22,15 @@ FRESH_COMPOSE = Path("infra/n3w-t1/production/docker-compose.fresh.yml")
 BOOTSTRAP = Path("tools/n3w_t1_fresh_product_bootstrap.py")
 CURRENT_STATE = Path("docs/development/N3W_CURRENT_STATE.md")
 CURRENT_INDEX = Path("docs/development/N3W_CURRENT_STATE_INDEX.md")
+FRESH_PAYLOAD_WORKFLOW = Path(
+    ".github/workflows/n3w-t1-fresh-bootstrap-deployable-payload-ci.yml"
+)
+UPDATER_PACKAGE_WORKFLOW = Path(
+    ".github/workflows/n3w-t1-core-updater-manager-a-to-b-ci.yml"
+)
+U1_EXECUTOR = Path(
+    "tools/execution_packages/n3w/u1/manager_a_to_b_v2_live_apply/executor.py"
+)
 HISTORICAL_AUTHORITY_FILES = (
     Path("tools/n3w_t1_clean_reference_r2a.py"),
     Path("tools/n3w_t1_clean_reference_r2b.py"),
@@ -74,6 +84,79 @@ def _first_section(text: str) -> str:
     return text if marker < 0 else text[:marker]
 
 
+def _validate_updater_delivery(authority: dict[str, Any]) -> dict[str, Any]:
+    delivery = authority.get("updater_delivery")
+    _require(isinstance(delivery, dict), "updater_delivery_invalid")
+    expected = {
+        "schema": UPDATER_DELIVERY_SCHEMA,
+        "mode": "EXACT_PACKAGE_BOUND_EPHEMERAL_PYZ",
+        "canonical_package_filename": "t1-core-updater.pyz",
+        "permanent_install_required": False,
+        "permanent_cli_path": None,
+        "allowed_staging_roots": ["/tmp", "/var/tmp"],
+        "execution_prefix": ["python3", "-B"],
+        "integrity_authority": "package-binding.json:updater_pyz_sha256",
+        "accepted_binding_source": "manager_successor_upgrade",
+        "source_checkout_required_on_t1": False,
+        "runtime_health_authority": False,
+    }
+    _require(delivery == expected, "updater_delivery_contract_invalid")
+    upgrade = authority.get("manager_successor_upgrade")
+    _require(isinstance(upgrade, dict), "upgrade_authority_invalid")
+    pyz = upgrade.get("updater_pyz_sha256")
+    _require(
+        isinstance(pyz, str) and SHA256.fullmatch(pyz) is not None,
+        "updater_pyz_sha256_invalid",
+    )
+    return delivery
+
+
+def validate_updater_delivery_sources(
+    fresh_payload_workflow: str,
+    updater_package_workflow: str,
+    u1_executor: str,
+) -> dict[str, Any]:
+    forbidden_permanent = (
+        "runtime-source/opt/HomeAssistant/tools/n3w_t1_core_updater.py",
+        "runtime-source/usr/local/sbin/t1-core-updater",
+        'cp tools/n3w_t1_core_updater.py "$PAYLOAD/runtime-source',
+    )
+    for value in forbidden_permanent:
+        _require(
+            value not in fresh_payload_workflow,
+            "updater_permanent_install_reintroduced",
+        )
+
+    package_required = (
+        'updater_pyz = package / "t1-core-updater.pyz"',
+        "zipapp.create_archive(",
+        '"updater_pyz_sha256": sha(updater_pyz)',
+        'sha(root / "t1-core-updater.pyz") == package["updater_pyz_sha256"]',
+    )
+    for value in package_required:
+        _require(value in updater_package_workflow, "updater_package_binding_missing")
+
+    executor_required = (
+        'REMOTE_DIR = "/var/tmp/',
+        '"t1-core-updater.pyz"',
+        "sha256_file(pyz) != UPDATER_PYZ_SHA256",
+        'for item in ["sudo", "-n", "python3", "-B", pyz, *args]',
+    )
+    for value in executor_required:
+        _require(value in u1_executor, "updater_ephemeral_execution_contract_missing")
+
+    _require(
+        "/opt/HomeAssistant/tools/n3w_t1_core_updater.py" not in u1_executor,
+        "updater_executor_uses_unbound_permanent_source",
+    )
+    return {
+        "updater_delivery_mode": "EXACT_PACKAGE_BOUND_EPHEMERAL_PYZ",
+        "updater_permanent_install_required": False,
+        "updater_runtime_health_authority": False,
+        "updater_exact_digest_required_before_execution": True,
+    }
+
+
 def validate_documents(
     authority: dict[str, Any],
     target: dict[str, Any],
@@ -100,6 +183,8 @@ def validate_documents(
     _require(isinstance(upgrade, dict), "upgrade_authority_invalid")
     _require(isinstance(mutation, dict), "mutation_scope_invalid")
     _require(isinstance(live, dict), "live_deployment_invalid")
+
+    delivery = _validate_updater_delivery(authority)
 
     old_source = historical.get("source_head")
     old_manager = historical.get("manager_image")
@@ -481,6 +566,9 @@ def validate_documents(
         "per_module_image_bindings_ready": True,
         "legacy_static_compose_is_current_authority": False,
         "live_deployment_state": live["state"],
+        "updater_delivery_mode": delivery["mode"],
+        "updater_permanent_install_required": delivery["permanent_install_required"],
+        "updater_runtime_health_authority": delivery["runtime_health_authority"],
     }
 
 
@@ -493,6 +581,13 @@ def validate_repo(root: Path) -> dict[str, Any]:
         _read_text(root / BOOTSTRAP),
         _read_text(root / CURRENT_STATE),
         _read_text(root / CURRENT_INDEX),
+    )
+    result.update(
+        validate_updater_delivery_sources(
+            _read_text(root / FRESH_PAYLOAD_WORKFLOW),
+            _read_text(root / UPDATER_PACKAGE_WORKFLOW),
+            _read_text(root / U1_EXECUTOR),
+        )
     )
     historical = authority["historical_clean_reference"]
     source_head = historical["source_head"]
