@@ -1240,7 +1240,7 @@ The user explicitly paused before `chip-id` / `flash-id` and requested a new-cha
 # N3W_PROJECT_WORKING_CONTEXT
 
 > Status: durable public project working context  
-> Version: `N3W_PROJECT_WORKING_CONTEXT_VERSION=1.5`  
+> Version: `N3W_PROJECT_WORKING_CONTEXT_VERSION=1.10`
 > Scope: N3-W development for the greenhouse monitoring system  
 > Repository: `chrenguo-stack/HomeAssistant`
 
@@ -1294,13 +1294,13 @@ Formal handoff template authority is separate from historical standard authority
 
 ```text
 SOLE_VALID_HANDOFF_TEMPLATE=docs/development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md
-SOLE_VALID_HANDOFF_TEMPLATE_VERSION=1.3
+SOLE_VALID_HANDOFF_TEMPLATE_VERSION=1.4
 OLDER_HANDOFF_TEMPLATE_VERSIONS=INVALID_FOR_NEW_HANDOFF_GENERATION
 HISTORICAL_TEMPLATE_COPIES=HISTORICAL_EVIDENCE_ONLY
 HISTORICAL_STANDARD_MAY_NOT_REACTIVATE_OLD_TEMPLATE=true
 ```
 
-A historical commit may remain authoritative for a process standard while its bundled historical handoff template is obsolete. New formal handoffs must use the current V1.3 template unless the repository later explicitly promotes a newer template.
+A historical commit may remain authoritative for a process standard while its bundled historical handoff template is obsolete. Use V1.4 for new formal handoffs. V1.3 and earlier templates and their completed records remain historical evidence. A pinned execution or process contract retains its own scope and safety requirements.
 
 ---
 
@@ -1419,7 +1419,7 @@ CI_PENDING_DIRECT_LINKS_REQUIRED=true
 CI_ALL_GREEN_CONTINUE_REQUIRED_REVIEW=true
 CI_FAILURE_READ_JOB_AND_LOG=true
 SAME_GATE_LOW_RISK_REPAIR_CONTINUE=true
-CROSS_GATE_AUTO_EXECUTE=false
+AUTO_CROSS_AUTHORIZATION_BOUNDARY=false
 ```
 
 Execution rules:
@@ -1435,9 +1435,11 @@ Execution rules:
 4. The same rule applies when focused review finds a small, bounded, low-risk defect
    inside the current source-only gate: repair it directly rather than manufacturing a
    second approval step.
-5. Stop and request a new decision only when the action would expand scope, cross into
-   a new gate, perform live/T1/board/service/credential mutation, consume a new
-   authorization, merge, or change an already frozen product/design decision.
+5. Continue implementation, relevant tests, review, and archiving within the
+   authorized task. Stop for a required operator action or an uncovered boundary
+   involving scope, a frozen design decision, an explicitly fixed gate, real
+   hardware or T1 access, live or credential changes, merge, or publication.
+   Apply any valid authorization already granted for that exact boundary.
 6. Green CI is never by itself a closure result. Required focused/source review still
    runs before closure.
 
@@ -1655,59 +1657,38 @@ Private working context is maintained outside the public repository and may be l
 
 ## 11. What belongs in a handoff
 
-A handoff is a **stage delta**, not a complete project encyclopedia.
+Use the [formal template](templates/NEW_CHAT_HANDOFF_TEMPLATE.md) to record the
+current task and stop point, exact evidence needed to resume, proven and pending
+facts, authorization and limits, the next complete task, and what is archived.
+Use the applicable addenda for CI, artifacts, physical baselines, rollback, or
+production authorities. A complete handoff may still be waiting for evidence
+or authorization.
 
-It should contain only what the next session needs that is not already durable in this file or the current-state documents.
-
-Required concepts:
-
-- why the chat is switching;
-- current project route and stop point;
-- exact current repository/candidate/artifact authorities needed by the next step;
-- fresh live baseline or explicit `UNKNOWN_FRESH` items;
-- newly proven facts;
-- current blocker, if any;
-- relevant closed/forbidden routes only;
-- authorization ledger entries that can still affect execution;
-- exactly one next gate;
-- exact allowed/forbidden scope for that gate;
-- execution method;
-- expected structured result;
-- what happens after PASS or FAIL;
-- any important artifact not yet durably shared to GitHub;
-- a compact new-chat start prompt.
-
-Do **not** repeat the full contents of this file in every handoff.
-
-```text
-HANDOFF_IS_STAGE_DELTA=true
-DUPLICATE_LONG_TERM_RULES_IN_HANDOFF=false
-```
-
-A handoff may restate a long-term rule only when:
-
-- the next gate is unusually sensitive to that rule;
-- the stage introduces a temporary stricter override;
-- the rule is required for a self-contained physical operation package.
+Continue development, review, testing, and archiving within the authorized scope.
+Explicit stage, authorization, and recovery boundaries in the current execution
+contract still apply. Cite stable rules and durable evidence by location and add
+only the stage-specific differences. Preserve a self-contained execution package
+where the physical operation requires one.
 
 ---
 
 ## 12. Minimum new-chat read set
 
-For an N3-W continuation, the default public read set is:
+1. Read the current handoff and applicable `AGENTS.md` instructions, including the
+   rules required by those instructions. For stable N3-W working context, select
+   the sections relevant to the task and reuse the version already read.
+2. Read the handoff's named documents and sections, plus any exact execution or
+   handoff standard it binds. Use [current state](N3W_CURRENT_STATE.md) for the
+   active route, [the index](N3W_CURRENT_STATE_INDEX.md) for locating evidence,
+   and [known failures](KNOWN_FAILURES_AND_REGRESSION_GUARDS.md) for applicable
+   guards. Start with the relevant sections or entries.
+3. Recheck the minimum current repository or approved runtime state needed for
+   the next action. Expand the read set when evidence is missing or conflicts,
+   or when the task or applicable repository instructions require it.
 
-```text
-1. current formal handoff
-2. docs/development/N3W_PROJECT_WORKING_CONTEXT.md
-3. docs/development/N3W_CURRENT_STATE.md
-4. docs/development/N3W_CURRENT_STATE_INDEX.md
-5. docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md
-6. exact handoff standard authority, only when the handoff specifies one
-```
-
-Then perform the smallest fresh read-only rebind needed for the current gate.
-
-Do not reread the full project history unless current evidence is insufficient.
+Historical entries and logs are available for targeted lookup. A handoff link
+identifies where to read; it does not supersede any mandatory source, review,
+or authorization rule.
 
 ---
 
@@ -1885,7 +1866,6 @@ Those belong in current state, progress alignment, known failures, or the curren
 A change to this file should explain the durable process need it addresses and should update the handoff template when the change affects new-chat continuation.
 
 ```text
-N3W_PROJECT_WORKING_CONTEXT_VERSION=1.5
 STABLE_CONVENTIONS_ONLY=true
 STAGE_SPECIFIC_VALUES_PROHIBITED=true
 HANDOFF_TEMPLATE_EXPECTED_TO_REFERENCE_THIS_FILE=true
