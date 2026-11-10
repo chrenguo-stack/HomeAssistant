@@ -326,6 +326,16 @@ def wait_host_active():
     raise Stop("host_service_not_active")
 
 
+def wait_host_inactive():
+    deadline = time.monotonic() + 45.0
+    while time.monotonic() < deadline:
+        active = run(["systemctl", "is-active", HOST_UNIT], check=False, timeout=30).stdout.strip()
+        if active in {"inactive", "failed"} and not Path(SOCKET_PATH).exists():
+            return
+        time.sleep(1.0)
+    raise Stop("host_service_not_inactive")
+
+
 def wait_snapshot(plan):
     deadline = time.monotonic() + 30.0
     last = None
@@ -409,6 +419,8 @@ def target_files(plan):
 def rollback(plan, backup_dir, pre):
     result = {"attempted": True, "status": "FAIL"}
     try:
+        run(["systemctl", "stop", HOST_UNIT], timeout=90)
+        wait_host_inactive()
         for item in plan["files"]:
             target = Path(item["remote_path"])
             backup = Path(backup_dir) / item["stage_name"]
@@ -520,8 +532,7 @@ def execute(plan, authorization, confirmation):
     try:
         run(["systemctl", "stop", HOST_UNIT], timeout=90)
         result["host_daemon_stopped"] = True
-        if run(["systemctl", "is-active", HOST_UNIT], check=False, timeout=30).stdout.strip() not in {"inactive", "failed"}:
-            raise Stop("host_service_stop_failed")
+        wait_host_inactive()
 
         frozen = prepare_view(plan, require_snapshot=False)
         if frozen["transaction_sha256"] != pre["transaction_sha256"]:
