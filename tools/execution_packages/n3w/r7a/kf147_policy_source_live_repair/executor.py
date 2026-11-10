@@ -387,7 +387,7 @@ def wait_snapshot(plan):
 
 
 def manager_ipc_probe(container_id, plan):
-    probe = r"""
+    probe = r'''
 import json
 import socket
 
@@ -414,7 +414,7 @@ with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
         if b"\n" in payload:
             break
 print(bytes(payload).split(b"\n", 1)[0].decode("utf-8"))
-"""
+'''
     raw = run(
         ["docker", "exec", "-u", "999:999", container_id, "python3", "-c", probe],
         timeout=30,
