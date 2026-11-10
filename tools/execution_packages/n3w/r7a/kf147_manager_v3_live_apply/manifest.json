@@ -1,8 +1,8 @@
 {
   "schema": "gh.n3w-t1-kf147-manager-v3-live-executor/1",
-  "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261110_01",
-  "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261110_01",
-  "confirmation": "EXECUTE KF147 MANAGER IPC V3 IMAGE ONLY LIVE APPLY: YES",
+  "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_R2_20261110_01",
+  "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_R2_20261110_01",
+  "confirmation": "EXECUTE KF147 MANAGER IPC V3 IMAGE ONLY LIVE APPLY R2: YES",
   "live_execution_authorized": false,
   "package_authority": {
     "workflow_run_id": 42761736604,
@@ -42,10 +42,24 @@
   },
   "stop_boundary": "STOP_AFTER_MANAGER_V3_CAPABILITY_AND_U1_CONTINUITY_VALIDATION",
   "authorization_state": {
+    "granted": false,
+    "claimed": false,
+    "consumed": false,
+    "replay_permitted": false
+  },
+  "binding_state": "FRESH_ARTIFACT_BOUND",
+  "predecessor_authorization": {
+    "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261110_01",
     "granted": true,
     "claimed": true,
     "consumed": true,
-    "replay_permitted": false
+    "replay_permitted": false,
+    "result": "STOP_PRE_SERVICE_MUTATION_LOADED_TARGET_IDENTITY_INVALID"
   },
-  "binding_state": "FRESH_ARTIFACT_BOUND"
+  "repair": {
+    "class": "KF-106_CROSS_STORE_IMAGE_IDENTITY_RECURRENCE",
+    "portable_identity_authority": "tools/n3w_t1_portable_image_identity.py",
+    "fresh_readonly_preflight_required": true,
+    "new_live_authorization_required": true
+  }
 }
