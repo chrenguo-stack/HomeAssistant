@@ -1,3 +1,13 @@
+## 2026-11-10 — KF-147 reclaim audit first live attempt STOP / timeout repair pushed
+
+- First exact reclaim-audit execution stopped read-only with `command_failed:ssh:1`; `storage-reclaim-audit.json` was not produced.
+- The Manager tar was not streamed, remote staging was not created and T1 mutation remained false.
+- The transport intentionally sanitized the remote stderr, so the exact timed-out/failed child command is not claimed.
+- Source review found unhandled per-command timeout and directory-enumeration exceptions plus a time-varying Docker `Status` stability field.
+- Repair `b43d47f4a5fa06192ca5df513de186aed9ea9654` records command timeout/unavailability in the private audit and uses stable Docker `State` comparison.
+- Local focused result: 12 passed; Python and embedded remote-script compile PASS. CI and a fresh read-only audit retry remain pending.
+- No cleanup, image deletion, package binding, live retry, USB mutation, board access or merge is authorized.
+
 ## 2026-11-10 — KF-147 exact storage-reclaim audit source ready / CI pending
 
 - Existing `tools/n3w_t1_kf147_fresh_capacity.py` now supports `--reclaim-audit-on-stop`; no parallel or stage-suffixed module was added.

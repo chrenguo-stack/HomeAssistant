@@ -32,9 +32,10 @@ KF147_FREE_BYTES=589799424
 KF147_REQUIRED_FREE_BYTES=1736515716
 KF147_CAPACITY_DEFICIT_BYTES=1146716292
 KF147_REMOTE_STAGING_PREVENTED=true
-KF147_EXACT_RECLAIM_AUDIT_SOURCE_HEAD=c14674b9fa4f17570d7f629e47563acffe296436
-KF147_EXACT_RECLAIM_AUDIT_SOURCE=LOCAL_PASS_CI_PENDING
-KF147_EXACT_RECLAIM_AUDIT_LIVE_EXECUTION=PENDING
+KF147_EXACT_RECLAIM_AUDIT_SOURCE_HEAD=b43d47f4a5fa06192ca5df513de186aed9ea9654
+KF147_EXACT_RECLAIM_AUDIT_SOURCE=TIMEOUT_REPAIR_LOCAL_PASS_CI_PENDING
+KF147_EXACT_RECLAIM_AUDIT_FIRST_LIVE_EXECUTION=STOP_REMOTE_PROBE_RC1
+KF147_EXACT_RECLAIM_AUDIT_LIVE_RETRY=PENDING
 
 LIVE_T1_MUTATION=false
 REMOTE_MANAGER_TAR_STAGING=false
@@ -64,12 +65,21 @@ required, a deficit of 1,146,716,292 bytes. Core runtime and U1 state remained
 stable; the Manager tar was not sent to T1. The next bounded activity is an exact
 read-only reclaim audit. No broad prune or cleanup is authorized by this result.
 
-The exact reclaim audit is integrated into the existing fresh-capacity entry point
-at source head `c14674b9fa4f17570d7f629e47563acffe296436`. It records container-to-image
-references, image/layer metadata, Docker space accounting, volume and major-path
-allocation, journal usage and large files, while comparing runtime state before
-and after. Local focused validation is PASS; GitHub CI and live read-only execution
-are pending. It does not authorize any deletion.
+The exact reclaim audit is integrated into the existing fresh-capacity entry point.
+Its first live read-only execution stopped with `command_failed:ssh:1` and did not
+produce the audit document. No Manager tar was sent and no T1 mutation occurred.
+The source-level evidence showed that an individual remote subprocess timeout or
+directory-enumeration race could escape the embedded collector and collapse into
+the sanitized SSH error; the original transport did not preserve which subcommand
+failed. Repair head `b43d47f4a5fa06192ca5df513de186aed9ea9654` records per-command
+timeouts/unavailable commands inside the audit, tolerates directory-enumeration
+races, and compares stable Docker state instead of time-varying status text.
+
+The collector records container-to-image references, image/layer metadata, Docker
+space accounting, volume and major-path allocation, journal usage and large files,
+while comparing runtime state before and after. Local focused validation is PASS;
+GitHub CI and a fresh live read-only retry are pending. It does not authorize any
+deletion.
 
 Authority:
 docs/development/N3W_T1_KF147_FRESH_REBIND_AND_CAPACITY_PREFLIGHT_ENTRY_20261110.md.

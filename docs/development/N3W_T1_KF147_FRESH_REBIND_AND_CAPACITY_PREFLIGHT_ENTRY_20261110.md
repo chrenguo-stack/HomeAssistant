@@ -400,3 +400,40 @@ The remote script contains no deletion, prune, cache-clean, journal-vacuum or
 service-control operation. Evidence is written only to the Mac private evidence
 root. Collection does not classify any item as safe to delete and creates no
 cleanup authorization.
+
+## 12. First reclaim-audit live STOP and collector repair
+
+The first live read-only audit invocation ended before producing the audit JSON:
+
+```text
+LIVE_RESULT=STOP
+REASON=command_failed:ssh:1
+AUDIT_FILE_CREATED=false
+MANAGER_TAR_STREAMED_TO_T1=false
+REMOTE_STAGING=false
+MUTATION=false
+
+CAPACITY_STOP_SHA256=3c2367c94aa64937858b94ad575cb334decf0d86539e3941b98f79bcbfc31ec0
+CAPACITY_STOP_SIZE=253
+PRIVATE_EVIDENCE_CREATED_AT=2026-11-10T10:46:32+0800
+```
+
+The SSH transport deliberately exposes only the remote command return code, so the
+private failure result cannot prove which individual child command failed. Source
+review did prove three collector reliability defects: a child `TimeoutExpired`
+escaped the remote program, a transient directory-enumeration error could also
+escape, and the before/after Docker comparison used time-varying human-readable
+`Status` text.
+
+Repair head `b43d47f4a5fa06192ca5df513de186aed9ea9654` converts per-command
+timeout/unavailability into structured audit records, tolerates directory snapshot
+races and compares stable Docker `State`. The repair does not weaken the final
+runtime stability requirement and adds no mutating command.
+
+```text
+SOURCE_REPAIR_LOCAL_FOCUSED_TESTS=12_PASS
+PY_COMPILE=PASS
+EMBEDDED_REMOTE_SCRIPT_COMPILE=PASS
+GITHUB_CI=PENDING
+LIVE_READONLY_RETRY=PENDING
+```

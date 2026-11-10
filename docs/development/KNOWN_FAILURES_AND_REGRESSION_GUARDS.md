@@ -1,3 +1,20 @@
+### 2026-11-10 KF-147 reclaim audit remote child failure collapsed into SSH rc=1
+
+```text
+FIRST_LIVE_AUDIT=STOP
+REASON=command_failed:ssh:1
+AUDIT_FILE_CREATED=false
+MANAGER_TAR_STREAMED_TO_T1=false
+T1_MUTATION=false
+REPAIR_HEAD=b43d47f4a5fa06192ca5df513de186aed9ea9654
+```
+
+Guards:
+- a read-only diagnostic child timeout or unavailable command must be recorded in the private audit instead of aborting the whole remote collector;
+- do not claim the exact failed child command when the sanitized SSH error did not preserve remote stderr;
+- runtime stability comparison must use stable machine fields, not human-readable Docker `Status` duration text;
+- audit command failure or partial evidence never authorizes cleanup or deletion.
+
 ### 2026-11-10 KF-150 live capacity closure update — admission correctly stopped before transfer
 
 ```text
