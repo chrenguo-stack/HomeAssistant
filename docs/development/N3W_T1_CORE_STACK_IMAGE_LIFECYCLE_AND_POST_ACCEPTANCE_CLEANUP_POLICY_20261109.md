@@ -1,7 +1,7 @@
 > **2026-11-10 source implementation update**
 >
 > \`SOURCE_IMPLEMENTATION=COMPLETE\`; \`FOCUSED_CI_FINAL_RESULT=PENDING\`.
-> Generic V2 now has an explicit post-acceptance \`finalize\` primitive for Manager/Broker, exact image-ID deletion guards, retained cleanup metadata, rollback-window closure after acceptance, and cross-transaction accumulation guards. Home Assistant remains on the mandatory-USB lifecycle. A separate pre-transfer storage policy now binds exact staged bytes + exact Docker-save import worst case + a fresh derived post-peak reserve; broad prune remains forbidden. No live T1 image deletion is authorized or executed by this source update.
+> Generic V2 now has an explicit post-acceptance \`finalize\` primitive for Manager/Broker, exact image-ID deletion guards, retained cleanup metadata, rollback-window closure after acceptance, and a Generic V2 successor-apply cleanup guard. Home Assistant remains on the mandatory-USB lifecycle; the historical R7A HA-USB exact-source files are intentionally unchanged. A separate pre-transfer storage policy now binds exact staged bytes + exact Docker-save import worst case + a fresh derived post-peak reserve; broad prune remains forbidden. No live T1 image deletion is authorized or executed by this source update.
 >
 > Implementation archive: \`docs/development/N3W_T1_STORAGE_HEADROOM_AND_IMAGE_LIFECYCLE_SOURCE_IMPLEMENTATION_PROGRESS_20261110.md\`.
 
