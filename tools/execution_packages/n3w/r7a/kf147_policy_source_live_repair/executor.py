@@ -410,18 +410,19 @@ def rollback(plan, backup_dir, pre):
                 atomic_install(backup, target)
 
         prepare_backup = Path(backup_dir) / "homeassistant-usb-prepare.json"
-        if not prepare_backup.is_file() or prepare_backup.is_symlink():
-            raise Stop("rollback_prepare_backup_missing")
-        temp = PREPARE_PATH.parent / (".n3w-kf147.rollback.prepare." + str(os.getpid()))
-        shutil.copyfile(prepare_backup, temp)
-        os.chmod(temp, 0o600)
-        os.chown(temp, 0, 0)
-        with open(temp, "rb") as stream:
-            os.fsync(stream.fileno())
-        os.replace(temp, PREPARE_PATH)
-        fsync_dir(PREPARE_PATH.parent)
+        if prepare_backup.exists():
+            if prepare_backup.is_symlink() or not prepare_backup.is_file():
+                raise Stop("rollback_prepare_backup_invalid")
+            temp = PREPARE_PATH.parent / (".n3w-kf147.rollback.prepare." + str(os.getpid()))
+            shutil.copyfile(prepare_backup, temp)
+            os.chmod(temp, 0o600)
+            os.chown(temp, 0, 0)
+            with open(temp, "rb") as stream:
+                os.fsync(stream.fileno())
+            os.replace(temp, PREPARE_PATH)
+            fsync_dir(PREPARE_PATH.parent)
 
-        run(["systemctl", "restart", HOST_UNIT], timeout=90)
+        run(["systemctl", "start", HOST_UNIT], timeout=90)
         wait_host_active()
         post = baseline(plan, require_snapshot=False)
         if (
@@ -468,12 +469,6 @@ def execute(plan, authorization, confirmation):
             os.chown(backup, 0, 0)
             if sha_file(backup) != item["pre_sha256"]:
                 raise Stop("backup_sha256_mismatch:" + item["repo_path"])
-    prepare_backup = backup_dir / "homeassistant-usb-prepare.json"
-    shutil.copyfile(PREPARE_PATH, prepare_backup)
-    os.chmod(prepare_backup, 0o600)
-    os.chown(prepare_backup, 0, 0)
-    if sha_file(prepare_backup) != pre["prepare_sha256"]:
-        raise Stop("prepare_backup_sha256_mismatch")
     fsync_dir(backup_dir)
 
     state_root.mkdir(mode=0o700)
@@ -509,11 +504,27 @@ def execute(plan, authorization, confirmation):
     }
 
     try:
+        run(["systemctl", "stop", HOST_UNIT], timeout=90)
+        result["host_daemon_stopped"] = True
+        if run(["systemctl", "is-active", HOST_UNIT], check=False, timeout=30).stdout.strip() not in {"inactive", "failed"}:
+            raise Stop("host_service_stop_failed")
+
+        frozen = prepare_view(plan, require_snapshot=False)
+        if frozen["transaction_sha256"] != pre["transaction_sha256"]:
+            raise Stop("u1_transaction_drift_after_claim")
+        prepare_backup = backup_dir / "homeassistant-usb-prepare.json"
+        shutil.copyfile(PREPARE_PATH, prepare_backup)
+        os.chmod(prepare_backup, 0o600)
+        os.chown(prepare_backup, 0, 0)
+        if sha_file(prepare_backup) != frozen["prepare_sha256"]:
+            raise Stop("prepare_backup_sha256_mismatch")
+        fsync_dir(backup_dir)
+
         for item in plan["files"]:
             atomic_install(item["staged_path"], item["remote_path"])
         result["host_source_mutation"] = True
 
-        run(["systemctl", "restart", HOST_UNIT], timeout=90)
+        run(["systemctl", "start", HOST_UNIT], timeout=90)
         result["host_daemon_restart"] = True
         wait_host_active()
         wait_snapshot(plan)
