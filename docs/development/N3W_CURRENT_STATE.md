@@ -1,7 +1,7 @@
-## Latest authority — 2026-11-10 KF-147 fresh capacity live-image oracle repair / CI pending
+## Latest authority — 2026-11-10 KF-147 fresh capacity STOP / exact reclaim audit next
 
 ~~~text
-AUTHORITY_STATE=KF147_FRESH_CAPACITY_LIVE_IMAGE_ORACLE_REPAIRED_CI_PENDING
+AUTHORITY_STATE=KF147_FRESH_CAPACITY_STOP_INSUFFICIENT
 PR=800
 KF147_REBIND_EXECUTABLE_HEAD=fb63707edc1ab063ddc97de8475303df8daecfb1
 KF147_CAPACITY_PREFLIGHT_FIX_SOURCE_HEAD=0ca17193a39f9b9f96da33b4ae9a5a4cc574e27d
@@ -22,11 +22,16 @@ KF147_MANAGER_TAR_SHA256=9316817590c4fe74498629d0451a4897c2e11bef7bc4b423b66e47b
 KF147_MANAGER_TAR_SIZE_BYTES=62957568
 KF147_MANAGER_IMPORT_WORST_CASE_BYTES=62945412
 
-KF147_CAPACITY_PREFLIGHT_SOURCE=FIXED_LOCAL_CI_PENDING
+KF147_CAPACITY_PREFLIGHT_SOURCE=PASS
 KF147_FIRST_LIVE_READONLY_ATTEMPT=STOP_FALSE_ORACLE
 KF147_LIVE_RUNTIME_IMAGE_ID_BINDING=REPAIRED
-KF147_FRESH_T1_CAPACITY_EVIDENCE=PENDING
-KF147_CAPACITY_GATE_FINAL_RESULT=PENDING
+KF147_FRESH_T1_CAPACITY_EVIDENCE=COMPLETE
+KF147_CAPACITY_GATE_FINAL_RESULT=STOP_INSUFFICIENT
+
+KF147_FREE_BYTES=589799424
+KF147_REQUIRED_FREE_BYTES=1736515716
+KF147_CAPACITY_DEFICIT_BYTES=1146716292
+KF147_REMOTE_STAGING_PREVENTED=true
 
 LIVE_T1_MUTATION=false
 REMOTE_MANAGER_TAR_STAGING=false
@@ -34,8 +39,8 @@ USB_MUTATION=false
 BOARD_ACCESS=false
 MERGE=false
 
-NEXT_ONE_GATE=N3W_T1_KF147_FRESH_CAPACITY_READONLY_EXECUTION_20261110_01
-PASS_THEN=NEW_PACKAGE_MANIFEST_BINDING
+NEXT_ONE_GATE=KF147_CAPACITY_STOP_EXACT_STORAGE_RECLAIM_READONLY_AUDIT
+PACKAGE_MANIFEST_BINDING_ALLOWED=false
 ~~~
 
 Project/milestone review found no additional unfinished task in the current KF-147 prerequisite chain. Historical OPEN/guarded KFs remain tracked independently and are not reclassified as complete. In particular, the readiness runtime-session-takeover implementation remains NOT_EXECUTED; KF-147 preflight therefore must not use that MQTT CONNECT helper as a runtime health probe.
@@ -47,8 +52,14 @@ preflight compared T1 runtime image IDs with earlier build-side image IDs. Accep
 A1R, Boundary-B and 2026-11-09 live evidence consistently bind the running Manager,
 Home Assistant and Broker to runtime IDs `7e3f...`, `c261...` and `df265...`. Source
 head `0ca17193a39f9b9f96da33b4ae9a5a4cc574e27d` repairs all three bindings and adds
-literal-value plus fail-closed regression tests. Focused local validation passed;
-GitHub CI and a fresh post-fix read-only execution remain pending.
+literal-value plus fail-closed regression tests. Focused local validation and the
+applicable GitHub CI passed.
+
+The post-fix live read-only execution then reached the capacity calculation and
+returned a valid STOP. Free space is 589,799,424 bytes against 1,736,515,716 bytes
+required, a deficit of 1,146,716,292 bytes. Core runtime and U1 state remained
+stable; the Manager tar was not sent to T1. The next bounded activity is an exact
+read-only reclaim audit. No broad prune or cleanup is authorized by this result.
 
 Authority:
 docs/development/N3W_T1_KF147_FRESH_REBIND_AND_CAPACITY_PREFLIGHT_ENTRY_20261110.md.

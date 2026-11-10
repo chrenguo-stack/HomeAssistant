@@ -1,3 +1,22 @@
+### 2026-11-10 KF-150 live capacity closure update — admission correctly stopped before transfer
+
+```text
+KF147_FRESH_CAPACITY_RESULT=STOP_INSUFFICIENT
+FREE_BYTES=589799424
+REQUIRED_FREE_BYTES=1736515716
+CAPACITY_DEFICIT_BYTES=1146716292
+REMOTE_STAGING=false
+MANAGER_TAR_STREAMED_TO_T1=false
+T1_MUTATION=false
+```
+
+Guards:
+- a valid capacity STOP is not a source failure and must not be bypassed by lowering the 1.5 GiB maintenance reserve;
+- `/var/cache/apt` accounts for only 107,876,352 bytes and cannot close the measured deficit alone;
+- do not infer Docker reclaimability from apparent image size; prove exact image/container references and shared-layer impact first;
+- broad prune, wildcard deletion and automatic cleanup remain forbidden;
+- package/manifest binding and live retry remain blocked until a later fresh capacity PASS.
+
 ### 2026-11-10 KF-111 regression recurrence — fresh-capacity preflight compared build IDs with T1 runtime IDs
 
 | ID | 范围 | 现场现象 | 根因 | 修复 | 状态 |

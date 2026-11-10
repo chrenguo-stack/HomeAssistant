@@ -318,3 +318,51 @@ guard, not a new independent failure class. The regression suite now asserts the
 accepted runtime IDs as literal evidence and
 separately proves that a real runtime-ID drift still fails closed. Capacity PASS,
 new package/manifest binding and live retry remain unclaimed.
+
+## 10. Post-fix fresh capacity result
+
+After the live-image oracle repair passed the Storage/Image Lifecycle and Fast
+Source CI, a new read-only execution reached the capacity calculation:
+
+```text
+STATUS=STOP
+NEXT_ACTION=STOP_CAPACITY_INSUFFICIENT
+FILESYSTEM_TOTAL_BYTES=14453903360
+FREE_BYTES=589799424
+STAGED_TRANSPORT_BYTES=62957568
+IMAGE_IMPORT_WORST_CASE_BYTES=62945412
+DERIVED_POST_PEAK_RESERVE_BYTES=1610612736
+REQUIRED_FREE_BYTES=1736515716
+CAPACITY_DEFICIT_BYTES=1146716292
+POST_PEAK_FREE_BYTES=463896444
+OBSERVED_MUTABLE_ALLOCATED_BYTES=172249088
+REMOTE_STAGING=false
+MANAGER_TAR_STREAMED_TO_T1=false
+MUTATION=false
+```
+
+Runtime identity and stability passed for all three services. The U1 transaction
+remains at `U1_PREPARE_REQUESTED`; the Extreme candidate remains bound;
+confirmation remains required and unconsumed. Staging, Docker and the containerd
+image store resolve to the same ext4 device.
+
+Private evidence remains local and is represented by these sanitized bindings:
+
+```text
+CAPACITY_RESULT_SHA256=afb439315885cad0e5306c0a30dd6ad0ff0e53d683654c70eeffd83fa9b84fa8
+CAPACITY_RESULT_SIZE=1974
+RUNTIME_MUTABLE_REPORT_SHA256=c7e8250df8321ca9df09f95c318180d92087b3845a7006ec1dc917aba70430da
+RUNTIME_MUTABLE_REPORT_SIZE=2371
+STORAGE_REPORT_SHA256=8b44e3fc094b8c15af75cab87dc08accd6a8d38dbd686caa1d0244aef4c5cf36
+STORAGE_REPORT_SIZE=617
+PRIVATE_EVIDENCE_CREATED_AT=2026-11-10T10:34:05+0800
+PRIVATE_EVIDENCE_PATH_CLASS=LOCAL_PRIVATE_N3W_KF147_CAPACITY_EVIDENCE
+PRIVATE_EVIDENCE_PURPOSE=KF147_POST_FIX_FRESH_CAPACITY_STOP
+SECRET_VALUES_INCLUDED=false
+```
+
+The selected mutable-data report totals 172,249,088 bytes. `/var/cache/apt` is
+107,876,352 bytes and therefore cannot by itself close the 1,146,716,292-byte
+deficit. No deletion is authorized from this observation. The next bounded gate is
+an exact read-only storage/reclaim audit covering image/container references and
+other large filesystem allocations before any targeted cleanup proposal.

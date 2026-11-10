@@ -1,3 +1,12 @@
+## 2026-11-10 — KF-147 fresh capacity STOP / exact reclaim audit next
+
+- The repaired preflight passed live identity, runtime stability, U1/Extreme confirmation-state and shared-filesystem topology checks.
+- Fresh free space is 589,799,424 bytes; required free space is 1,736,515,716 bytes; the exact deficit is 1,146,716,292 bytes (1.0680 GiB).
+- Capacity result is `STOP_CAPACITY_INSUFFICIENT`; the Manager tar was not streamed, no remote staging directory was created and no T1 mutation occurred.
+- Selected mutable allocation is 172,249,088 bytes. The largest selected path is `/var/cache/apt` at 107,876,352 bytes, which alone cannot close the deficit.
+- Package/manifest binding and live retry remain forbidden. Next one gate is an exact read-only storage/reclaim audit; broad Docker prune and automatic cleanup remain forbidden.
+- Authority: `docs/development/N3W_T1_KF147_FRESH_REBIND_AND_CAPACITY_PREFLIGHT_ENTRY_20261110.md`.
+
 ## 2026-11-10 — KF-147 fresh-capacity live-image oracle repaired / CI pending
 
 - The first live read-only capacity attempt stopped before capacity calculation with `live_image_id_drift:manager`; no Manager tar was staged and no T1 mutation occurred.

@@ -1,15 +1,19 @@
-## Stable updater authority — 2026-11-10 KF-147 fresh-capacity live-image oracle repair
+## Stable updater authority — 2026-11-10 KF-147 fresh capacity STOP
 
 ~~~text
-PROJECT_WORKING_CONTEXT_VERSION=5.0
+PROJECT_WORKING_CONTEXT_VERSION=5.1
 
 KF147_REPOSITORY_FRESH_REBIND=PASS
 KF147_REBIND_EXECUTABLE_HEAD=fb63707edc1ab063ddc97de8475303df8daecfb1
 KF147_CAPACITY_PREFLIGHT_FIX_SOURCE_HEAD=0ca17193a39f9b9f96da33b4ae9a5a4cc574e27d
-KF147_CAPACITY_PREFLIGHT_SOURCE=FIXED_LOCAL_CI_PENDING
+KF147_CAPACITY_PREFLIGHT_SOURCE=PASS
 KF147_FIRST_LIVE_READONLY_ATTEMPT=STOP_FALSE_ORACLE
-KF147_FRESH_T1_CAPACITY_EVIDENCE=PENDING
-KF147_CAPACITY_GATE_FINAL_RESULT=PENDING
+KF147_FRESH_T1_CAPACITY_EVIDENCE=COMPLETE
+KF147_CAPACITY_GATE_FINAL_RESULT=STOP_INSUFFICIENT
+
+KF147_FREE_BYTES=589799424
+KF147_REQUIRED_FREE_BYTES=1736515716
+KF147_CAPACITY_DEFICIT_BYTES=1146716292
 
 KF147_OLD_PACKAGE_REUSABLE=false
 KF147_OLD_AUTHORIZATION_REUSABLE=false
@@ -28,8 +32,8 @@ USB_MUTATION=false
 BOARD_ACCESS_DEFAULT=false
 MERGE=false
 
-NEXT_ONE_GATE=N3W_T1_KF147_FRESH_CAPACITY_READONLY_EXECUTION_20261110_01
-PASS_THEN=NEW_PACKAGE_MANIFEST_BINDING
+NEXT_ONE_GATE=KF147_CAPACITY_STOP_EXACT_STORAGE_RECLAIM_READONLY_AUDIT
+PACKAGE_MANIFEST_BINDING_ALLOWED=false
 ~~~
 
 The current dependency audit found no additional unfinished task in the KF-147 prerequisite chain. Historical OPEN/guarded KFs stay open unless separately closed. The fresh capacity execution must use the dedicated read-only probe and must not use the authenticated Broker readiness helper as a runtime-health oracle.
@@ -38,8 +42,10 @@ The first live read-only attempt stopped before capacity calculation because the
 preflight confused build-side image IDs with accepted T1 runtime image IDs. The
 three runtime bindings are repaired at source head
 `0ca17193a39f9b9f96da33b4ae9a5a4cc574e27d`, with literal regression coverage.
-No payload was staged and no T1 mutation occurred. GitHub CI and one fresh post-fix
-read-only execution are required before capacity PASS can be claimed.
+Applicable GitHub CI passed. The post-fix live execution produced a valid capacity
+STOP: 589,799,424 bytes free versus 1,736,515,716 required, leaving a
+1,146,716,292-byte deficit. No payload was staged and no T1 mutation occurred.
+The next gate is an exact read-only storage/reclaim audit, not cleanup.
 
 Authority:
 docs/development/N3W_T1_KF147_FRESH_REBIND_AND_CAPACITY_PREFLIGHT_ENTRY_20261110.md.
