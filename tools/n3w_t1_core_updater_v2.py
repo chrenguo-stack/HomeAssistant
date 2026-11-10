@@ -436,6 +436,7 @@ class MultiComponentCoreUpdater:
             "status": "APPLYING",
             "phase": "AUTHORIZED",
             "component": target.component,
+            "post_acceptance_cleanup_required": target.component in {"manager", "broker"},
             "authorization_id_sha256": sha256_bytes(
                 authorization_id.encode("utf-8")
             ),
@@ -930,6 +931,8 @@ class MultiComponentCoreUpdater:
             component = tx.get("component")
             if component not in {"manager", "broker"}:
                 raise UpdaterV2Error("finalize_component_uses_separate_lifecycle")
+            if tx.get("post_acceptance_cleanup_required") is not True:
+                raise UpdaterV2Error("finalize_lifecycle_authority_missing")
             target_doc = tx.get("target")
             if not isinstance(target_doc, dict):
                 raise UpdaterV2Error("finalize_transaction_authority_invalid")
@@ -1052,7 +1055,11 @@ class MultiComponentCoreUpdater:
         transaction = self.store.read()
         legacy = self.store.read_legacy()
         finalize_transaction_sha256 = None
-        if isinstance(transaction, dict) and transaction.get("status") == "COMMITTED":
+        if (
+            isinstance(transaction, dict)
+            and transaction.get("status") == "COMMITTED"
+            and transaction.get("post_acceptance_cleanup_required") is True
+        ):
             finalize_transaction_sha256 = committed_transaction_sha256(transaction)
         return {
             "schema": STATUS_SCHEMA_V2,
