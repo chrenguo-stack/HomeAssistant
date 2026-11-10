@@ -1,30 +1,21 @@
 {
   "schema": "gh.n3w-t1-kf147-manager-v3-live-executor/1",
-  "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261109_01",
-  "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261109_01",
+  "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261110_01",
+  "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261110_01",
   "confirmation": "EXECUTE KF147 MANAGER IPC V3 IMAGE ONLY LIVE APPLY: YES",
-  "live_execution_authorized": true,
-  "package_authority": {
-    "workflow_run_id": 42635443351,
-    "workflow_job_id": 129222259940,
-    "artifact_id": 13681899131,
-    "artifact_name": "n3w-kf147-manager-v3-live-44e7d7472714",
-    "artifact_digest": "sha256:f66fb945e563859788a4699ee23fe4ea0dffd4d849573bd68b501295efb95ae8",
-    "artifact_size_bytes": 62958895,
-    "artifact_expired": false,
-    "source_executor_head": "9c9f546adc6a554031cab2cb7d18d7ac9146496e"
-  },
+  "live_execution_authorized": false,
+  "package_authority": null,
   "target": {
     "expected_predecessor_manager": "local/greenhouse-manager:fresh-7807271e4c48",
     "manager_image": "local/greenhouse-manager:fresh-44e7d7472714",
     "manager_image_id": "sha256:fd5104d610645347fe47137dbb24121851fa8a48530df3e3c905704607c5e3d4",
     "manager_tar_sha256": "9316817590c4fe74498629d0451a4897c2e11bef7bc4b423b66e47bb846099c5",
     "manager_tar_size_bytes": 62957568,
-    "predecessor_image_id": "sha256:b1875c6ed969df108d2df768d61369a0c93956d146f284276b392c686c13a4f9",
+    "predecessor_image_id": "sha256:7e3f09ed47010a18de215faa426113b7faba4e220b41bb9dcafd8ee1d4acf20b",
     "homeassistant_image": "local/n3w-homeassistant:2026.10.0-0c73235a",
-    "homeassistant_image_id": "sha256:b0e1ee82adfb19fa1ff3049034535633b1c4f0df6606721c0e77383854b99879",
+    "homeassistant_image_id": "sha256:c261fa53f30508951833492ba2a19af6cfbb6aa8f2806b531d8f5c6599265306",
     "broker_image": "local/n3w-mosquitto:2.1.2-3184566d",
-    "broker_image_id": "sha256:4c199d7c9d377d018313a2199f6839978f6fd2219c405ad664d0a830c14b9c7b"
+    "broker_image_id": "sha256:df265f1e2b2e3dc35d5eb194e698c598e01c5ebca370da307b34332f9bf0a563"
   },
   "execution_contract": {
     "manager_image_mutation": true,
@@ -46,9 +37,10 @@
   },
   "stop_boundary": "STOP_AFTER_MANAGER_V3_CAPABILITY_AND_U1_CONTINUITY_VALIDATION",
   "authorization_state": {
-    "granted": true,
+    "granted": false,
     "claimed": false,
     "consumed": false,
     "replay_permitted": false
-  }
+  },
+  "binding_state": "PENDING_FRESH_ARTIFACT"
 }
