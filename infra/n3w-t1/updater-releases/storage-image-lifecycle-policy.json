@@ -1,0 +1,43 @@
+{
+  "schema": "gh.n3w-t1-storage-image-lifecycle-policy/1",
+  "target_hardware_class": "16GB-class T1",
+  "broad_docker_prune_allowed": false,
+  "steady_state_internal_generation_count": {
+    "manager": 1,
+    "homeassistant": 1,
+    "broker": 1
+  },
+  "lifecycle": {
+    "manager": "RETAIN_PREDECESSOR_UNTIL_INDEPENDENT_PRODUCT_ACCEPTANCE_THEN_EXACT_FINALIZE",
+    "broker": "RETAIN_PREDECESSOR_UNTIL_INDEPENDENT_PRODUCT_ACCEPTANCE_THEN_EXACT_FINALIZE",
+    "homeassistant": "MANDATORY_USB_TRANSACTION_RECOVERY_ASSETS_THEN_ONE_INTERNAL_GENERATION"
+  },
+  "pre_transfer_capacity": {
+    "fresh_probe_required": true,
+    "same_device_staging_docker_image_store_required": true,
+    "absolute_floor_bytes": 1073741824,
+    "filesystem_fraction_numerator": 1,
+    "filesystem_fraction_denominator": 10,
+    "observed_mutable_multiplier": 8,
+    "round_up_quantum_bytes": 268435456,
+    "evidence_bound_reference_reserve_bytes": 1610612736,
+    "required_formula": "free_bytes >= staged_transport_bytes + image_import_worst_case_bytes + derived_post_peak_reserve_bytes",
+    "staged_transport_bytes_must_be_exact": true,
+    "image_import_worst_case_source": "sum_regular_file_member_sizes_of_exact_docker_save_archive",
+    "stop_before_remote_staging_on_failure": true
+  },
+  "runtime_min_free_requirement": {
+    "state": "UNFROZEN_LONGITUDINAL_EVIDENCE_REQUIRED",
+    "maintenance_reserve_is_runtime_minimum": false
+  },
+  "cleanup": {
+    "exact_image_id_only": true,
+    "require_no_container_reference": true,
+    "require_target_and_peer_health_before_and_after": true,
+    "retain_transaction_metadata": true,
+    "wildcard_delete_allowed": false,
+    "delete_by_age_allowed": false,
+    "docker_system_prune_allowed": false,
+    "docker_image_prune_all_allowed": false
+  }
+}
