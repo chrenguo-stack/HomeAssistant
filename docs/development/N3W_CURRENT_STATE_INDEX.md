@@ -1,3 +1,16 @@
+## 2026-11-10 — KF-147 Mandatory USB Confirmation / U2 read-only preexecution CLOSED_PASS
+
+- PR #800 exact reviewed head `78e96812868cc13377746ba8d7ac00f6cef51d2f`.
+- The five final-archive CI runs named by the V1.4 handoff are terminal SUCCESS; `FINAL_ARCHIVE_CI=CLOSED_PASS`.
+- Independent source-contract review found no new blocker and requires no source repair.
+- Last-proven continuity remains U1 `U1_PREPARE_REQUESTED`, transaction SHA-256 `6e1f0b5d262e346674b62ac79bf2ffbc1c63a8dd22379a0a82c952f0e3626b49`, Extreme candidate 32,017,047,552 bytes, `confirmation_required=true`, `confirmation_consumed=false`.
+- Those values are historical continuity evidence only; `T1_NEXT_STAGE_BASELINE=UNKNOWN_FRESH`.
+- Source contract revalidates exact admission/candidate/capacity before mutation, consumes confirmation before `wipefs -> GPT/sfdisk -> mkfs.ext4`, and reaches U2 only after formatted-media UUID/self-test/capacity verification.
+- A failure after confirmation consumption must not auto-replay the old confirmation or any R2/R3 authorization.
+- Next gate is read-only: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_USB_CONFIRMATION_U2_FRESH_READONLY_BASELINE_20261110_01`.
+- USB confirmation/erase/partition/format, U2+, T1 live mutation, board access and merge remain unauthorized.
+- Authority: `docs/development/N3W_T1_KF147_MANDATORY_USB_CONFIRMATION_U2_BOUNDARY_READONLY_PREEXECUTION_REVIEW_20261110.md`.
+
 ## 2026-11-10 — KF-147 Stage B systemd lifecycle R3 live validation CLOSED_PASS
 
 - Current core-stack authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
