@@ -159,6 +159,41 @@ def docker_one(image):
     return item
 
 
+def env_map(document):
+    result = {}
+    for item in document.get("Config", {}).get("Env") or []:
+        if isinstance(item, str) and "=" in item:
+            key, value = item.split("=", 1)
+            result[key] = value
+    return result
+
+
+def require_manager_ota_wiring(document):
+    env = env_map(document)
+    expected = {
+        "GH_N3W_T1_OTA_ENABLED": "true",
+        "GH_N3W_T1_OTA_INSTALLED_VERSION": "2026.10.0",
+        "GH_N3W_T1_OTA_MANIFEST_PATH": "/run/n3w/t1-ota/approved-homeassistant.json",
+        "GH_N3W_T1_OTA_SOCKET_PATH": "/run/n3w/t1-ota/ha-ota.sock",
+    }
+    for key, value in expected.items():
+        if env.get(key) != value:
+            raise Stop("manager_ota_env_drift:" + key)
+    matches = [
+        item
+        for item in document.get("Mounts") or []
+        if isinstance(item, dict)
+        and item.get("Destination") == "/run/n3w/t1-ota"
+    ]
+    if (
+        len(matches) != 1
+        or matches[0].get("Type") != "bind"
+        or matches[0].get("Source") != "/run/n3w-t1-ota"
+        or matches[0].get("RW") is not False
+    ):
+        raise Stop("manager_ota_mount_drift")
+
+
 def prepare_view(plan, *, require_snapshot):
     tx = read_private_json(TX_PATH, TX_SCHEMA)
     if sha_file(TX_PATH) != plan["live"]["u1_transaction_sha256"]:
@@ -249,6 +284,7 @@ def baseline(plan, *, require_snapshot):
     manager = docker_one(plan["live"]["manager_image"])
     homeassistant = docker_one(plan["live"]["homeassistant_image"])
     broker = docker_one(plan["live"]["broker_image"])
+    require_manager_ota_wiring(manager)
     expected_ids = (
         (manager, plan["live"]["manager_runtime_image_id"], "manager"),
         (homeassistant, plan["live"]["homeassistant_runtime_image_id"], "homeassistant"),
