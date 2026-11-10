@@ -1,3 +1,58 @@
+## Latest authority — 2026-11-10 KF-147 Manager IPC V3 R2 live apply CLOSED_PASS
+
+~~~text
+AUTHORITY_STATE=KF147_MANAGER_V3_R2_LIVE_APPLY_CLOSED_PASS
+PR=800
+
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
+R2_AUTHORIZED_HEAD=093f104866398d6946e5907dec76277fb28b04a5
+R2_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_R2_20261110_01
+R2_LIVE_EXECUTION_AUTHORIZED=false
+R2_AUTHORIZATION_GRANTED=true
+R2_AUTHORIZATION_CLAIMED=true
+R2_AUTHORIZATION_CONSUMED=true
+R2_REPLAY_PERMITTED=false
+R2_RESULT=PASS
+
+RUNNING_MANAGER_IMAGE=local/greenhouse-manager:fresh-44e7d7472714
+RUNNING_MANAGER_IMAGE_ID=sha256:1471828ab07cf9b71c01a6e78994711a5954f0a178b8be087a28bb65a967c7d2
+MANAGER_IPC_V3_SUPPORT=true
+HOMEASSISTANT_IMAGE_MUTATION=false
+HOMEASSISTANT_CONTAINER_RECREATED=false
+BROKER_MUTATION=false
+U1_TRANSACTION_PRESERVED=true
+PREPARE_CANDIDATE_PRESERVED=true
+ROLLBACK_REQUIRED=false
+USB_MUTATION=false
+U2_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+
+NEXT_STAGE=KF147_T1_LIVE_POLICY_REPAIR_PREEXECUTION_REVIEW
+NEXT_STAGE_LIVE_AUTHORIZED=false
+~~~
+
+The physical T1 Manager V3 R2 apply completed PASS. The target Manager is running with
+IPC V3 support, the containerd runtime identity is the accepted portable image identity,
+Home Assistant and Broker were not mutated, and the active U1 transaction plus Extreme
+prepare candidate were preserved. The one-shot R2 authorization is consumed and
+non-replayable.
+
+The next product stage is the KF-147 T1 Policy V2/repaired host-source live repair.
+Fresh repository authority still treats that as a separate live mutation boundary, so
+only read-only preclaim/preexecution work may continue without a new live authorization.
+
+Authority:
+`docs/development/N3W_T1_KF147_MANAGER_IPC_V3_R2_LIVE_APPLY_CLOSURE_20261110.md`.
+
 ## Latest authority — 2026-11-10 KF-147 Manager IPC V3 R2 portable-identity preauthorization CLOSED_PASS
 
 ~~~text
