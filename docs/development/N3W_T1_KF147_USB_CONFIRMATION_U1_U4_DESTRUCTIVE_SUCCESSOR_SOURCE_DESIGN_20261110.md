@@ -178,11 +178,18 @@ The existing Home Assistant target-binding workflow is extended to compile and t
 
 ## 8. Next bounded sequence
 
+The physical execution path is intentionally collapsed into one continuous `--execute` invocation after authorization is bound.
+
 1. exact-head source/CI review;
-2. real T1 `--preflight-only` using the exact successor package;
-3. archive preflight evidence;
-4. if and only if preflight passes, request a new explicit destructive authorization from the user;
-5. bind that authorization in a new exact commit and rerun required CI;
-6. execute once;
-7. stop at U4 or at the first failure/recovery boundary;
-8. never replay the same authorization.
+2. request a new explicit destructive authorization from the user;
+3. bind that authorization in a new exact commit and rerun required CI;
+4. invoke `--execute` once;
+5. within that same invocation, run the full fresh read-only baseline first;
+6. if the fresh baseline fails, stop before authorization claim and before any USB mutation;
+7. if the fresh baseline passes, verify the one-shot state root is absent, then claim/consume the authorization;
+8. revalidate U1/release/candidate/capacity again after claim;
+9. submit `CONFIRM_USB_ERASE` and continue the product-owned U1→U4 prepare sequence;
+10. stop at U4 or at the first failure/recovery boundary;
+11. never replay the same authorization.
+
+A separate real-T1 `--preflight-only` run is optional diagnostics only and is no longer a mandatory gate step. Combining fresh preflight and destructive execution reduces the time-of-check/time-of-use window between the final physical baseline and the destructive submit.
