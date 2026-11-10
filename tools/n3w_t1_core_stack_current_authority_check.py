@@ -22,6 +22,7 @@ FRESH_COMPOSE = Path("infra/n3w-t1/production/docker-compose.fresh.yml")
 BOOTSTRAP = Path("tools/n3w_t1_fresh_product_bootstrap.py")
 CURRENT_STATE = Path("docs/development/N3W_CURRENT_STATE.md")
 CURRENT_INDEX = Path("docs/development/N3W_CURRENT_STATE_INDEX.md")
+UPDATER_DELIVERY = Path("infra/n3w-t1/updater-releases/delivery-contract.json")
 FRESH_PAYLOAD_WORKFLOW = Path(
     ".github/workflows/n3w-t1-fresh-bootstrap-deployable-payload-ci.yml"
 )
@@ -84,8 +85,10 @@ def _first_section(text: str) -> str:
     return text if marker < 0 else text[:marker]
 
 
-def _validate_updater_delivery(authority: dict[str, Any]) -> dict[str, Any]:
-    delivery = authority.get("updater_delivery")
+def validate_updater_delivery(
+    delivery: dict[str, Any],
+    authority: dict[str, Any],
+) -> dict[str, Any]:
     _require(isinstance(delivery, dict), "updater_delivery_invalid")
     expected = {
         "schema": UPDATER_DELIVERY_SCHEMA,
@@ -96,7 +99,10 @@ def _validate_updater_delivery(authority: dict[str, Any]) -> dict[str, Any]:
         "allowed_staging_roots": ["/tmp", "/var/tmp"],
         "execution_prefix": ["python3", "-B"],
         "integrity_authority": "package-binding.json:updater_pyz_sha256",
-        "accepted_binding_source": "manager_successor_upgrade",
+        "accepted_binding_source": (
+            "infra/n3w-t1/production/t1-core-stack-current.json:"
+            "manager_successor_upgrade"
+        ),
         "source_checkout_required_on_t1": False,
         "runtime_health_authority": False,
     }
@@ -183,8 +189,6 @@ def validate_documents(
     _require(isinstance(upgrade, dict), "upgrade_authority_invalid")
     _require(isinstance(mutation, dict), "mutation_scope_invalid")
     _require(isinstance(live, dict), "live_deployment_invalid")
-
-    delivery = _validate_updater_delivery(authority)
 
     old_source = historical.get("source_head")
     old_manager = historical.get("manager_image")
@@ -566,9 +570,6 @@ def validate_documents(
         "per_module_image_bindings_ready": True,
         "legacy_static_compose_is_current_authority": False,
         "live_deployment_state": live["state"],
-        "updater_delivery_mode": delivery["mode"],
-        "updater_permanent_install_required": delivery["permanent_install_required"],
-        "updater_runtime_health_authority": delivery["runtime_health_authority"],
     }
 
 
@@ -581,6 +582,21 @@ def validate_repo(root: Path) -> dict[str, Any]:
         _read_text(root / BOOTSTRAP),
         _read_text(root / CURRENT_STATE),
         _read_text(root / CURRENT_INDEX),
+    )
+    delivery = validate_updater_delivery(
+        _read_json(root / UPDATER_DELIVERY),
+        authority,
+    )
+    result.update(
+        {
+            "updater_delivery_mode": delivery["mode"],
+            "updater_permanent_install_required": delivery[
+                "permanent_install_required"
+            ],
+            "updater_runtime_health_authority": delivery[
+                "runtime_health_authority"
+            ],
+        }
     )
     result.update(
         validate_updater_delivery_sources(
