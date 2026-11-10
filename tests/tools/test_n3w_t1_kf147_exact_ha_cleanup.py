@@ -71,10 +71,10 @@ def test_executor_has_one_exact_delete_and_no_broad_cleanup() -> None:
     assert "verify_repository_authority(args.expected_package_commit, live=True)" in source
 
 
-def test_preexecution_manifest_is_not_live_authorized() -> None:
+def test_live_cleanup_manifest_is_exact_and_authorized() -> None:
     manifest = json.loads(cleanup.AUTHORIZATION_MANIFEST.read_text(encoding="utf-8"))
     assert manifest["authorization_id"] == cleanup.AUTHORIZATION_ID
-    assert manifest["live_execution_authorized"] is False
+    assert manifest["live_execution_authorized"] is True
     assert manifest["delete"] == {
         "exact_image_id_only": True,
         "force_allowed": False,
