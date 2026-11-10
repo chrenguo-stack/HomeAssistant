@@ -190,7 +190,8 @@ def collect_preflight() -> dict[str, Any]:
         raise Stop("root_required")
     if run(["uname", "-m"]).stdout.strip() != "aarch64":
         raise Stop("architecture_invalid")
-    if run(["systemctl", "is-system-running"], check=False).stdout.strip() != "running":
+    system_state = run(["systemctl", "is-system-running"], check=False).stdout.strip()
+    if system_state not in {"running", "degraded"}:
         raise Stop("system_state_invalid")
     if not service_active(SERVICES_UNIT) or not service_active(OTA_UNIT):
         raise Stop("required_service_inactive")
