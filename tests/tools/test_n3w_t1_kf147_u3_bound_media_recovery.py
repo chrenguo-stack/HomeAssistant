@@ -129,6 +129,11 @@ def test_preflight_rejects_current_bound_partition_mounted_or_live_stale_source(
     assert "bound_usb_identity_mismatch" in source
 
 
+def test_lsblk_json_requests_name_column_for_children_tree() -> None:
+    source = load_executor().REMOTE_SCRIPT
+    assert '"NAME,PATH,TYPE,RM,RO,SIZE,MODEL,SERIAL,WWN,TRAN,MOUNTPOINTS,PKNAME"' in source
+
+
 def test_remote_python_c_argument_contract_matches_remote_call() -> None:
     module = load_executor()
     source = module.REMOTE_SCRIPT
