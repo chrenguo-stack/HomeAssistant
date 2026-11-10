@@ -142,6 +142,31 @@ The recovery confirmation string is:
 EXECUTE KF147 U3 BOUND MEDIA RECOVERY TO U4: YES
 ```
 
+### 5.1 Second preflight stop and lsblk tree repair
+
+The authorization-bound live retry again stopped before authorization claim:
+
+```text
+status=STOP
+first_failed_operation=Stop:bound_partition_inventory_invalid
+authorization_claimed=false
+authorization_consumed=false
+usb_reformat=false
+u5_plus=false
+```
+
+The root cause is deterministic: `lsblk --json` only emits the hierarchical
+`children[]` structure when the `NAME` column is requested or tree mode is forced. The
+recovery preflight requested `PATH,...` but not `NAME`, then attempted to locate the bound
+partition by recursively walking `children[]`. On the target util-linux behavior this leaves
+the parent disk without the partition subtree and causes
+`bound_partition_inventory_invalid`.
+
+The focused source repair adds `NAME` to the explicit lsblk output columns and regression
+coverage for this requirement. Because this changes the executor blob, the prior recovery
+authorization is not inherited. The package returns to fail-closed state pending a fresh
+exact-head authorization after CI.
+
 ## 6. Failure behavior
 
 There is no automatic retry and no rollback.
@@ -161,12 +186,14 @@ RECOVERY_SOURCE_COMPLETE=true
 PREDECESSOR_HEAD=e2ce7107897b21e3c7c7b88ebac5decd95cb0ec0
 PREDECESSOR_AUTHORIZATION_CLAIMED=false
 PREDECESSOR_AUTHORIZATION_CONSUMED=false
-AUTHORIZED_SOURCE_HEAD=94aee49ccd9293cba0a3aae3ccb9abda1b6927c8
-RECOVERY_LIVE_EXECUTION_AUTHORIZED=true
-RECOVERY_AUTHORIZATION_GRANTED=true
+PREVIOUS_AUTHORIZED_SOURCE_HEAD=94aee49ccd9293cba0a3aae3ccb9abda1b6927c8
+PREVIOUS_AUTHORIZATION_CLAIMED=false
+PREVIOUS_AUTHORIZATION_CONSUMED=false
+RECOVERY_LIVE_EXECUTION_AUTHORIZED=false
+RECOVERY_AUTHORIZATION_GRANTED=false
 RECOVERY_AUTHORIZATION_CLAIMED=false
 RECOVERY_AUTHORIZATION_CONSUMED=false
-FRESH_REAUTHORIZATION_REQUIRED=false
+FRESH_REAUTHORIZATION_REQUIRED=true
 T1_RECOVERY_MUTATION=false
 MERGE=false
 ```
