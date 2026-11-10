@@ -68,5 +68,59 @@
     "board_access": false,
     "merge": false
   },
-  "stop_boundary": "STOP_AFTER_HOST_IPC_V3_CAPACITY_SNAPSHOT_AND_U1_CANDIDATE_CONTINUITY_VALIDATION"
+  "stop_boundary": "STOP_AFTER_HOST_IPC_V3_CAPACITY_SNAPSHOT_AND_U1_CANDIDATE_CONTINUITY_VALIDATION",
+  "unchanged_live_authority": {
+    "tools/n3w_t1_core_updater_ha_daemon.py": {
+      "blob": "98c879f65840c237e7ee8855412806e346d880f5",
+      "remote_path": "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_daemon.py"
+    },
+    "tools/n3w_t1_core_updater_ha_usb_state.py": {
+      "blob": "64cfcab9d1c62acd28ef4abeb161b88f8a63d2bc",
+      "remote_path": "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_usb_state.py"
+    },
+    "tools/n3w_t1_core_updater_ha_usb_media.py": {
+      "blob": "44afe444c8db5ff380e9aa74120cf5382a345baa",
+      "remote_path": "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_usb_media.py"
+    },
+    "tools/n3w_t1_core_updater_ha_backup.py": {
+      "blob": "39da0f7f95603445b0dc523ce7fbbf1c4fb145ad",
+      "remote_path": "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_backup.py"
+    },
+    "tools/n3w_t1_core_updater_ha_recovery.py": {
+      "blob": "1ca6648968eb75ed7fbe2d405fc36c141bfdc801",
+      "remote_path": "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_recovery.py"
+    },
+    "tools/n3w_t1_core_updater_v2_common.py": {
+      "blob": "b9c6561a1a8e33bdf586e6a4bd04d025f3c5d7e6",
+      "remote_path": "/opt/HomeAssistant/tools/n3w_t1_core_updater_v2_common.py"
+    },
+    "tools/n3w_t1_core_updater_v2_state.py": {
+      "blob": "d89d4696409d7c451ec0b37a8be87e29092806b6",
+      "remote_path": "/opt/HomeAssistant/tools/n3w_t1_core_updater_v2_state.py"
+    },
+    "tools/n3w_t1_core_updater_common.py": {
+      "blob": "63a0377b7df509fd44194a1752a19c013ce55858",
+      "remote_path": "/opt/HomeAssistant/tools/n3w_t1_core_updater_common.py"
+    },
+    "tools/n3w_t1_portable_image_identity.py": {
+      "blob": "4877f4801dd7a4364feb0cda4f9a3f79072e8214",
+      "remote_path": "/opt/HomeAssistant/tools/n3w_t1_portable_image_identity.py"
+    },
+    "infra/n3w-t1/production/docker-compose.ha-ota.yml": {
+      "blob": "79932cf60f81d737414a18004868c63def731e84",
+      "remote_path": "/opt/HomeAssistant/infra/n3w-t1/production/docker-compose.ha-ota.yml"
+    },
+    "infra/n3w-t1/systemd/n3w-t1-ha-ota.service": {
+      "blob": "fb3d86b47ff894e4f446738565f8b923e48d51e6",
+      "remote_path": "/etc/systemd/system/n3w-t1-ha-ota.service"
+    },
+    "infra/n3w-t1/systemd/n3wfc4-services-activation.ha-ota.conf": {
+      "blob": "e90b08389d33fe2ea134b9f53c018c5dd266f459",
+      "remote_path": "/etc/systemd/system/n3wfc4-services-activation.service.d/95-n3w-ha-ota.conf"
+    },
+    "infra/n3w-t1/upgrades/homeassistant-2026.10.4-approved.json": {
+      "blob": "f51b685b5b80ef84dd9c02e7ff745e7dda4dd64c",
+      "remote_path": "/etc/n3w-t1-ota/approved-homeassistant.json"
+    }
+  }
 }
