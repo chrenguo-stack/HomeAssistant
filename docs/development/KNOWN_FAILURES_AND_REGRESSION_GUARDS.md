@@ -23,7 +23,7 @@ Regression guards:
 - COMMITTED is not the automatic deletion boundary; Manager/Broker predecessor deletion requires separately supplied product-acceptance authority bound to the stable committed-transaction SHA-256.
 - cleanup must use exact predecessor image ID only and must fail if any Docker container references that image; no force, wildcard, delete-by-age, `docker system prune`, or `docker image prune -a`.
 - accepted cleanup closes the rollback window; cleanup state remains durable audit metadata.
-- a Manager/Broker COMMITTED transaction with cleanup incomplete blocks both a new Generic V2 transaction and a new HA-USB transaction.
+- a Manager/Broker COMMITTED transaction with cleanup incomplete blocks the next Generic V2 apply. Do not mutate the historical R7A HA-USB exact-source authority merely to add a reciprocal guard; future HA staging must consume the shared fresh capacity policy through a successor package/preflight.
 - Home Assistant predecessor lifecycle remains mandatory-USB-owned; Generic V2 finalize must reject Home Assistant.
 - large future T1 staging must pass fresh pre-transfer capacity admission before streaming. Required bytes count exact staged transport + exact Docker-save import worst case + freshly derived post-peak reserve.
 - staging, Docker root and actual image store must share the measured filesystem/device for the single-filesystem formula; otherwise STOP and use a topology-aware calculation.
