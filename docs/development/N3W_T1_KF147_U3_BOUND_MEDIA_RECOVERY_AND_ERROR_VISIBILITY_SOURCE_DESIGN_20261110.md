@@ -213,6 +213,36 @@ The user then explicitly granted a new R4 live recovery authorization for that e
 head. The package now binds that R4 authorization while preserving the same U3 transaction,
 filesystem UUID and USB public fingerprint.
 
+### 5.3 R4 live resume stop before target download
+
+The R4 live recovery claimed and consumed its one-shot authorization, restarted
+`n3w-t1-ha-ota.service`, and successfully reopened the UUID-bound `/dev/sdb1` media.
+A read-only IPC status query as the admitted Manager UID then reported:
+
+```text
+phase=ERROR
+error_code=usb_runtime_directory_metadata_invalid
+transaction_phase=U3_TARGET_DOWNLOADING_VERIFYING
+target_artifact_verified=false
+target_directory_absent=true
+external_https_download_connection=false
+```
+
+Source review identifies a deterministic parent-directory creation defect in
+`SubprocessPrepareBackend.sync_transaction_metadata()`. The previous code called
+`Path(.../n3w-update/transaction).mkdir(parents=True, mode=0o700)` indirectly through
+`_require_private_directory()`. Python may create the missing intermediate
+`n3w-update` parent with the default parent-directory mode rather than the requested final
+`0o700` mode. Later `prepare_target()` explicitly requires `n3w-update` itself to be
+private and rejects the already-created parent with
+`usb_runtime_directory_metadata_invalid` before creating any target temporary file or
+opening the HTTPS artifact connection.
+
+The focused source repair now creates and validates `n3w-update` explicitly first, then
+creates and validates `n3w-update/transaction`. The repair does not automatically chmod an
+already-existing live USB directory. Any live metadata correction must use a new successor
+gate and fresh explicit authorization because the R4 authorization is already consumed.
+
 ## 6. Failure behavior
 
 There is no automatic retry and no rollback.
@@ -243,11 +273,15 @@ SUCCESSOR_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U3_BOUND_MEDIA_R
 AUTHORIZED_R4_SOURCE_HEAD=9d6cfeadde89b66c89316161353cf26c7946b892
 R4_READONLY_PREFLIGHT=PASS
 R4_RECOVERY_ELIGIBLE=true
-RECOVERY_LIVE_EXECUTION_AUTHORIZED=true
-RECOVERY_AUTHORIZATION_GRANTED=true
-RECOVERY_AUTHORIZATION_CLAIMED=false
-RECOVERY_AUTHORIZATION_CONSUMED=false
-FRESH_R4_AUTHORIZATION_REQUIRED=false
-T1_RECOVERY_SERVICE_RESTART_REACHED=false
+R4_AUTHORIZATION_CLAIMED=true
+R4_AUTHORIZATION_CONSUMED=true
+R4_REPLAY_PERMITTED=false
+T1_RECOVERY_SERVICE_RESTART_REACHED=true
+R4_RUNTIME_ERROR=usb_runtime_directory_metadata_invalid
+R4_TARGET_DOWNLOAD_STARTED=false
+R4_U4_READY=false
+R4_LIVE_EXECUTION_COMPLETE=false
+PRODUCT_SOURCE_PARENT_DIRECTORY_REPAIR_COMPLETE=true
+FRESH_SUCCESSOR_AUTHORIZATION_REQUIRED=true
 MERGE=false
 ```
