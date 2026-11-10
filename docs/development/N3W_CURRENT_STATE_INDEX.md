@@ -1,3 +1,18 @@
+## 2026-11-10 — KF-147 exact HA cleanup + fresh capacity CLOSED_PASS
+
+- Executed live package head: `c872eac286f11d34bea6f2d823cd2a1762084578`.
+- Exact cleanup authorization `N3W_T1_KF147_EXACT_HA_2026_10_4_IMAGE_CLEANUP_20261110_01` was granted, claimed and consumed exactly once; replay is now forbidden.
+- Exact HA 2026.10.4 target `sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365` was deleted successfully and post-delete verification passed.
+- Immediate fresh KF-147 capacity preflight returned PASS.
+- Measured free bytes: `5811048448`; required free bytes: `1736515716`; post-peak free bytes: `5685145468`.
+- Manager tar remained local; `manager_tar_streamed_to_t1=false`, `remote_staging=false`, capacity preflight mutation=false.
+- U1 remains `U1_PREPARE_REQUESTED`; transaction SHA unchanged; USB confirmation remains required and unconsumed; Extreme candidate remains present.
+- Cleanup authority is repository-sealed with `live_execution_authorized=false`, `authorization_claimed=true`, `authorization_consumed=true`, `replay_permitted=false`.
+- KF-147 capacity blocker is CLOSED_PASS. Package/manifest binding is now allowed.
+- Next gate: `NEW_PACKAGE_MANIFEST_BINDING`.
+- No Manager apply, USB mutation, U2+, board access or PR merge occurred.
+- Closure authority: `docs/development/N3W_T1_KF147_EXACT_HA_CLEANUP_AND_FRESH_CAPACITY_PASS_CLOSURE_20261110.md`.
+
 ## 2026-11-10 — KF-147 exact HA cleanup preexecution CLOSED_PASS / live authorization pending
 
 - Exact executable source head: `ca0374ce4a925ec8edaf8e26f28c33c7a251dc0d`.
