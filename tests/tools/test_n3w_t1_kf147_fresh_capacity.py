@@ -85,6 +85,7 @@ def remote_report(*, mutable: int = 174047232) -> dict:
             "phase": m.EXPECTED_U1_PHASE,
             "confirmation_required": None,
             "confirmation_consumed": None,
+            "transaction_id_sha256": "3" * 64,
         },
         "prepare": {
             "sha256": "2" * 64,
@@ -92,6 +93,8 @@ def remote_report(*, mutable: int = 174047232) -> dict:
             "phase": m.EXPECTED_U1_PHASE,
             "confirmation_required": True,
             "confirmation_consumed": False,
+            "transaction_id_sha256": "3" * 64,
+            "candidate_public_fingerprint": "4" * 64,
             "candidate_model": m.EXPECTED_USB_MODEL,
             "candidate_capacity_bytes": m.EXPECTED_USB_CAPACITY_BYTES,
         },
@@ -221,6 +224,47 @@ def test_u1_confirmation_drift_stops(
             remote_report=remote,
             policy_path=policy_path(),
         )
+
+
+
+def test_u1_prepare_transaction_binding_drift_stops(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    path = manager_tar(tmp_path / "manager.tar")
+    patch_candidate(monkeypatch, path)
+    remote = remote_report()
+    remote["prepare"]["transaction_id_sha256"] = "5" * 64
+
+    with pytest.raises(
+        m.CapacityPreflightError,
+        match="u1_prepare_transaction_binding_drift",
+    ):
+        m.evaluate(
+            manager_tar=path,
+            storage_report=storage_report(),
+            remote_report=remote,
+            policy_path=policy_path(),
+        )
+
+
+def test_prepare_semantic_digest_excludes_refresh_only_fields() -> None:
+    source = m.MUTABLE_RUNTIME_PROBE
+    public_state = source.split("def public_json_state", 1)[1].split(
+        "def stable_containers", 1
+    )[0]
+    stable_block = public_state.split("stable = {", 1)[1].split(
+        "result[\"sha256\"]", 1
+    )[0]
+    assert '"transaction_id_sha256": doc.get("transaction_id_sha256")' in stable_block
+    assert '"release_identity": doc.get("release_identity")' in stable_block
+    assert '"baseline_public_fingerprints": doc.get("baseline_public_fingerprints")' in stable_block
+    assert '"candidate": candidate' in stable_block
+    assert '"confirmation_required": doc.get("confirmation_required")' in stable_block
+    assert '"confirmation_consumed": doc.get("confirmation_consumed")' in stable_block
+    assert '"error_code": doc.get("error_code")' in stable_block
+    assert "updated_at_unix" not in stable_block
+    assert "capacity_snapshot" not in stable_block
 
 
 def test_split_storage_device_stops(
