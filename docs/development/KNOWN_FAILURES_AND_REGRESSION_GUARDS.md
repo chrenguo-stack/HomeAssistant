@@ -1,3 +1,32 @@
+### 2026-11-10 KF-148 design closure update — three literal runtime calls, passive runtime oracle frozen
+
+~~~text
+KF148_SOURCE_REPAIR_DESIGN=CLOSED_PASS
+KF148_SOURCE_REPAIR_IMPLEMENTATION=NOT_EXECUTED
+
+TOTAL_EXECUTION_CALL_SITE_COUNT=8
+STARTUP_CALL_SITE_COUNT=5
+RUNTIME_CALL_SITE_COUNT=3
+RUNTIME_PHASE_COUNT=2
+
+RUNTIME_CALLS=
+tools/n3w_t1_clean_reference_r2b.py::_pre_reboot_state
+tools/n3w_t1_clean_reference_r2b.py::_wait_post_reboot
+tools/n3w_t1_clean_reference_r2b.py::verify
+
+STARTUP_HELPER_BEHAVIOR_CHANGED=false
+DYNSEC_CLIENT_ID_BINDING_CHANGED=false
+ALTERNATE_CLIENT_ID=false
+RUNTIME_PROBE_NEW_MQTT_CONNECT=false
+~~~
+
+Design guard: the post-reboot R2B phase contains two literal calls, so a repair that removes only the final verify() call remains unsafe. The passive runtime oracle must use exact Home Assistant identity equality, container-owned established 1883 socket evidence, Broker current-auth event state with the already-proven Mosquitto 2.1.2 terminal-event semantics, HA HTTP 200/401, and a stable before/after runtime sample. Password material is not required.
+
+Historical R2B control head e15c64ac8f0f5f482a6c8538072031734002a559 remains immutable historical evidence. Future repair must not rebind the R3 normalized reference or pairing bridge to successor R2B source.
+
+Authority:
+docs/development/N3W_T1_BROKER_READINESS_RUNTIME_SESSION_TAKEOVER_SOURCE_REPAIR_DESIGN_20261110.md.
+
 ### 2026-11-10 KF-150 — T1 ENOSPC outage recovered; steady-state storage headroom/lifecycle closure pending
 
 | ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
