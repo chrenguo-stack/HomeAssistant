@@ -1,7 +1,7 @@
-## Latest authority — 2026-11-10 T1 storage headroom/image lifecycle source implementation complete / focused CI pending
+## Latest authority — 2026-11-10 T1 storage headroom/image lifecycle CLOSED_PASS
 
 ~~~text
-AUTHORITY_STATE=T1_STORAGE_HEADROOM_IMAGE_LIFECYCLE_SOURCE_IMPLEMENTED_CI_PENDING
+AUTHORITY_STATE=T1_STORAGE_HEADROOM_IMAGE_LIFECYCLE_CLOSED_PASS
 PR=800
 
 CURRENT_PRODUCTION_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
@@ -16,7 +16,7 @@ LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
 KF149_DEPLOYED_ASSET_INTEGRITY_REPAIR=CLOSED_PASS
 KF150_RUNTIME_RECOVERY=CLOSED_PASS
 KF150_STORAGE_LIFECYCLE_SOURCE_IMPLEMENTATION=COMPLETE
-KF150_FOCUSED_CI_FINAL_RESULT=PENDING
+KF150_FOCUSED_CI_FINAL_RESULT=PASS
 
 CORE_UPDATER_DELIVERY=EXACT_PACKAGE_BOUND_EPHEMERAL_PYZ
 CORE_UPDATER_PERMANENT_INSTALL_REQUIRED=false
@@ -51,7 +51,7 @@ The source implementation closes the two recurrence paths identified after the E
 
 The pre-transfer capacity policy is intentionally separate from the updater apply operation so a capacity failure can STOP before a large payload is staged on T1. It reuses the accepted 2026-11-05 reserve derivation but does not promote the 1.5 GiB maintenance reserve into a lifetime runtime-minimum requirement.
 
-No live T1 image was deleted and KF-147 was not resumed in this source gate. Final CLOSED_PASS still requires the exact final source head focused CI to complete successfully.
+No live T1 image was deleted and KF-147 was not resumed in this source gate. Exact source head `8fbeb8434fcb7b8731bf26ae56b68e4ea26362a0` completed fast-source, storage/image-lifecycle and Core Updater Manager A-to-B validation successfully. This gate is CLOSED_PASS.
 
 Authority:
 docs/development/N3W_T1_STORAGE_HEADROOM_AND_IMAGE_LIFECYCLE_SOURCE_IMPLEMENTATION_PROGRESS_20261110.md.
