@@ -203,9 +203,15 @@ STATE_ROOT=/var/lib/n3w-t1-core-updater/kf147-u3-bound-media-recovery-r4-2026111
 LIVE_EXECUTION_AUTHORIZED=false
 ```
 
-R4 is committed fail-closed. The consumed predecessor authorization is never replayed. A fresh
-read-only state confirmation and new explicit R4 authorization are required before any later
-live execution.
+R4 was committed fail-closed. The consumed predecessor authorization is never replayed.
+
+After source and exact-binding CI passed for R4 exact source head
+`9d6cfeadde89b66c89316161353cf26c7946b892`, a fresh read-only preflight on T1 returned
+`status=PASS`, `recovery_eligible=true`, `stale_mount=null`, preserved the same U3
+transaction and bound media, and confirmed Manager / Home Assistant / Broker continuity.
+The user then explicitly granted a new R4 live recovery authorization for that exact source
+head. The package now binds that R4 authorization while preserving the same U3 transaction,
+filesystem UUID and USB public fingerprint.
 
 ## 6. Failure behavior
 
@@ -234,11 +240,14 @@ PREVIOUS_AUTHORIZATION_CLAIMED=true
 PREVIOUS_AUTHORIZATION_CONSUMED=true
 PREVIOUS_REPLAY_PERMITTED=false
 SUCCESSOR_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U3_BOUND_MEDIA_RECOVERY_TO_U4_R4_20261111_01
-RECOVERY_LIVE_EXECUTION_AUTHORIZED=false
-RECOVERY_AUTHORIZATION_GRANTED=false
+AUTHORIZED_R4_SOURCE_HEAD=9d6cfeadde89b66c89316161353cf26c7946b892
+R4_READONLY_PREFLIGHT=PASS
+R4_RECOVERY_ELIGIBLE=true
+RECOVERY_LIVE_EXECUTION_AUTHORIZED=true
+RECOVERY_AUTHORIZATION_GRANTED=true
 RECOVERY_AUTHORIZATION_CLAIMED=false
 RECOVERY_AUTHORIZATION_CONSUMED=false
-FRESH_R4_AUTHORIZATION_REQUIRED=true
+FRESH_R4_AUTHORIZATION_REQUIRED=false
 T1_RECOVERY_SERVICE_RESTART_REACHED=false
 MERGE=false
 ```
