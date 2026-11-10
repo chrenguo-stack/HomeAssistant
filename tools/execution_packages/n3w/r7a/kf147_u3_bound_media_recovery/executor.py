@@ -19,9 +19,9 @@ SSH_TRANSPORT_PATH = REPO_ROOT / "tools/n3w_t1_ssh_transport.py"
 
 GATE_ID = (
     "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_"
-    "U3_BOUND_MEDIA_RECOVERY_TO_U4_20261110_01"
+    "U3_BOUND_MEDIA_RECOVERY_TO_U4_R4_20261111_01"
 )
-CONFIRMATION = "EXECUTE KF147 U3 BOUND MEDIA RECOVERY TO U4: YES"
+CONFIRMATION = "EXECUTE KF147 U3 BOUND MEDIA RECOVERY TO U4 R4: YES"
 
 REMOTE_SCRIPT = r"""
 import base64
@@ -256,7 +256,7 @@ def bound_partition(tx, live):
 
 def mount_view(target):
     result = run(
-        ["findmnt", "--noheadings", "--output", "SOURCE,TARGET", "--target", target],
+        ["findmnt", "--noheadings", "--output", "SOURCE,TARGET", "--mountpoint", target],
         timeout=30,
         check=False,
     )
@@ -563,7 +563,7 @@ def main():
         plan = json.loads(base64.b64decode(sys.argv[1]).decode("utf-8"))
         if plan.get("gate_id") != (
             "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_"
-            "U3_BOUND_MEDIA_RECOVERY_TO_U4_20261110_01"
+            "U3_BOUND_MEDIA_RECOVERY_TO_U4_R4_20261111_01"
         ):
             raise Stop("gate_id_invalid")
         result = execute(plan, sys.argv[2], sys.argv[3], sys.argv[4])
