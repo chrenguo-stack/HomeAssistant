@@ -12,17 +12,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 import n3w_t1_core_updater_a1_policy as policy_mod
 import n3w_t1_core_updater_host as hostmod
 import n3w_t1_core_updater_v2 as core
+from n3w_t1_core_updater_finalize import (
+    FINALIZE_CONFIRMATION_V2,
+    ProductAcceptance,
+    committed_transaction_sha256,
+)
 from n3w_t1_core_updater_v2_common import (
     A1_CLASSIFICATION_SHA256,
     APPLY_CONFIRMATION_V2,
-    FINALIZE_CONFIRMATION_V2,
     TARGET_SCHEMA_V2,
     TX_SCHEMA_V2,
     ComponentTarget,
-    ProductAcceptance,
     UpgradeBaseline,
     UpdaterV2Error,
-    committed_transaction_sha256,
     converge_homeassistant_compose,
     converge_homeassistant_env,
     parse_image_bindings,
@@ -1656,26 +1658,46 @@ def test_finalize_closes_rollback_window(tmp_path: Path, monkeypatch):
         updater.rollback(confirmation="T1_CORE_UPDATER_ROLLBACK")
 
 
-def test_v2_store_requires_manager_cleanup_before_next_transaction(tmp_path: Path):
-    root = tmp_path / "state"
-    store = V2StateStore(root)
-    with store.lock():
-        store.write(
-            {
-                "schema": TX_SCHEMA_V2,
-                "status": "COMMITTED",
-                "phase": "COMMITTED",
-                "component": "manager",
-            }
-        )
+def test_generic_v2_apply_requires_manager_cleanup_before_successor(
+    tmp_path: Path,
+    monkeypatch,
+):
+    monkeypatch.setattr(core.os, "geteuid", lambda: 0)
+    archive = tmp_path / "manager.tar"
+    archive.write_bytes(b"cleanup-before-successor")
+    archive_sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+    host = FakeHost()
+    store = V2StateStore(tmp_path / "state")
+    updater = core.MultiComponentCoreUpdater(host, store, FakePolicy())
+    updater.apply(
+        target("manager", archive_sha),
+        baseline(),
+        archive,
+        authorization_id="N3W_T1_CORE_UPDATER_MANAGER_CLEANUP_GUARD_01",
+        confirmation=APPLY_CONFIRMATION_V2,
+    )
+
+    host.bindings["manager"] = OLD["manager"]
     with pytest.raises(UpdaterV2Error, match="post_acceptance_cleanup_required"):
-        store.prepare_new()
+        updater.apply(
+            target("manager", archive_sha),
+            baseline(),
+            archive,
+            authorization_id="N3W_T1_CORE_UPDATER_MANAGER_CLEANUP_GUARD_02",
+            confirmation=APPLY_CONFIRMATION_V2,
+        )
 
     tx = store.read()
     tx["cleanup_state"] = "ACCEPTED_CLEANUP_COMPLETE"
     store.write(tx)
-    store.prepare_new()
-    assert store.read() is None
+    result = updater.apply(
+        target("manager", archive_sha),
+        baseline(),
+        archive,
+        authorization_id="N3W_T1_CORE_UPDATER_MANAGER_CLEANUP_GUARD_03",
+        confirmation=APPLY_CONFIRMATION_V2,
+    )
+    assert result["status"] == "PASS"
 
 
 def test_local_host_remove_image_uses_exact_id_only(monkeypatch):
