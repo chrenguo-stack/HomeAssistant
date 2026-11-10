@@ -170,6 +170,29 @@ def test_rollback_restores_prepare_state_and_predecessor_source() -> None:
     assert 'result["status"] = "PASS"' in source
 
 
+def test_preflight_binds_manager_ota_env_and_readonly_runtime_mount() -> None:
+    module = load_executor()
+    source = module.REMOTE_SCRIPT
+    assert 'require_manager_ota_wiring(manager)' in source
+    assert '"GH_N3W_T1_OTA_ENABLED": "true"' in source
+    assert '"GH_N3W_T1_OTA_INSTALLED_VERSION": "2026.10.0"' in source
+    assert '"GH_N3W_T1_OTA_MANIFEST_PATH": "/run/n3w/t1-ota/approved-homeassistant.json"' in source
+    assert '"GH_N3W_T1_OTA_SOCKET_PATH": "/run/n3w/t1-ota/ha-ota.sock"' in source
+    assert 'item.get("Destination") == "/run/n3w/t1-ota"' in source
+    assert 'matches[0].get("Source") != "/run/n3w-t1-ota"' in source
+    assert 'matches[0].get("RW") is not False' in source
+
+
+def test_manager_ipc_probe_uses_container_socket_path() -> None:
+    module = load_executor()
+    source = module.REMOTE_SCRIPT
+    probe_start = source.index("def manager_ipc_probe")
+    probe_end = source.index("\ndef target_files", probe_start)
+    probe = source[probe_start:probe_end]
+    assert 'path = "/run/n3w/t1-ota/ha-ota.sock"' in probe
+    assert 'path = "/run/n3w-t1-ota/ha-ota.sock"' not in probe
+
+
 def test_post_validation_requires_v3_capacity_and_candidate_continuity() -> None:
     module = load_executor()
     source = module.REMOTE_SCRIPT
