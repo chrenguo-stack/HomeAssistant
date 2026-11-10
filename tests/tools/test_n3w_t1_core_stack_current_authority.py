@@ -271,21 +271,16 @@ def test_applied_state_requires_kf141_closure():
 
 
 def test_updater_delivery_contract_rejects_permanent_install():
-    authority, target, compose, bootstrap, state, index = documents()
-    authority = copy.deepcopy(authority)
-    authority["updater_delivery"]["permanent_install_required"] = True
-    authority["updater_delivery"]["permanent_cli_path"] = (
+    authority, _target, _compose, _bootstrap, _state, _index = documents()
+    delivery = json.loads(
+        (ROOT / check.UPDATER_DELIVERY).read_text(encoding="utf-8")
+    )
+    delivery["permanent_install_required"] = True
+    delivery["permanent_cli_path"] = (
         "/opt/HomeAssistant/tools/n3w_t1_core_updater.py"
     )
     with pytest.raises(check.AuthorityError, match="updater_delivery_contract_invalid"):
-        check.validate_documents(
-            authority,
-            target,
-            compose,
-            bootstrap,
-            state,
-            index,
-        )
+        check.validate_updater_delivery(delivery, authority)
 
 
 def test_updater_delivery_sources_are_package_bound_and_ephemeral():
@@ -332,3 +327,12 @@ def test_updater_delivery_sources_reject_missing_digest_binding():
             package,
             (ROOT / check.U1_EXECUTOR).read_text(encoding="utf-8"),
         )
+
+
+def test_updater_delivery_contract_is_independent_of_stack_authority():
+    authority = json.loads((ROOT / check.AUTHORITY).read_text(encoding="utf-8"))
+    delivery = json.loads((ROOT / check.UPDATER_DELIVERY).read_text(encoding="utf-8"))
+    assert "updater_delivery" not in authority
+    validated = check.validate_updater_delivery(delivery, authority)
+    assert validated["mode"] == "EXACT_PACKAGE_BOUND_EPHEMERAL_PYZ"
+    assert validated["permanent_install_required"] is False
