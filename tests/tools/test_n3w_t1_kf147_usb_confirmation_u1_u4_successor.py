@@ -35,14 +35,14 @@ def load_executor():
     return module
 
 
-def test_manifest_stays_unauthorized_until_new_explicit_user_gate() -> None:
+def test_manifest_binds_fresh_explicit_user_authorization_once() -> None:
     doc = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert doc["schema"] == "gh.n3w-t1-kf147-usb-confirm-u1-u4-successor/1"
     assert doc["gate_id"] == GATE
     assert doc["authorization_id"] == GATE
-    assert doc["live_execution_authorized"] is False
+    assert doc["live_execution_authorized"] is True
     assert doc["authorization_state"] == {
-        "granted": False,
+        "granted": True,
         "claimed": False,
         "consumed": False,
         "replay_permitted": False,
