@@ -1,7 +1,46 @@
+## Stable updater authority — 2026-11-10 KF-147 fresh rebind PASS / capacity read-only execution
+
+~~~text
+PROJECT_WORKING_CONTEXT_VERSION=4.9
+
+KF147_REPOSITORY_FRESH_REBIND=PASS
+KF147_REBIND_EXECUTABLE_HEAD=fb63707edc1ab063ddc97de8475303df8daecfb1
+KF147_CAPACITY_PREFLIGHT_SOURCE=PASS
+KF147_FRESH_T1_CAPACITY_EVIDENCE=PENDING
+KF147_CAPACITY_GATE_FINAL_RESULT=PENDING
+
+KF147_OLD_PACKAGE_REUSABLE=false
+KF147_OLD_AUTHORIZATION_REUSABLE=false
+KF147_REMOTE_STAGING_BEFORE_CAPACITY_PASS=false
+
+KF147_MANAGER_TAR_SIZE_BYTES=62957568
+KF147_MANAGER_IMPORT_WORST_CASE_BYTES=62945412
+KF147_PERSISTENT_CONTROL_SOURCE_STAGED=false
+
+READINESS_SOURCE_REPAIR_DESIGN=CLOSED_PASS
+READINESS_SOURCE_REPAIR_IMPLEMENTATION=NOT_EXECUTED_NONBLOCKING
+READINESS_RUNTIME_MQTT_CONNECT_PROBE_FORBIDDEN=true
+
+LIVE_MUTATION_DEFAULT=false
+USB_MUTATION=false
+BOARD_ACCESS_DEFAULT=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_KF147_FRESH_CAPACITY_READONLY_EXECUTION_20261110_01
+PASS_THEN=NEW_PACKAGE_MANIFEST_BINDING
+~~~
+
+The current dependency audit found no additional unfinished task in the KF-147 prerequisite chain. Historical OPEN/guarded KFs stay open unless separately closed. The fresh capacity execution must use the dedicated read-only probe and must not use the authenticated Broker readiness helper as a runtime-health oracle.
+
+The capacity gate is fail-closed before remote Manager-tar staging. Exact Manager candidate material is locally verified first; fresh T1 topology/free-space/mutable-allocation and preserved U1 state are then observed read-only. A capacity STOP does not authorize cleanup or any live retry.
+
+Authority:
+docs/development/N3W_T1_KF147_FRESH_REBIND_AND_CAPACITY_PREFLIGHT_ENTRY_20261110.md.
+
 ## Stable updater authority — 2026-11-10 storage headroom/image lifecycle CLOSED_PASS
 
 ~~~text
-PROJECT_WORKING_CONTEXT_VERSION=4.8
+PROJECT_WORKING_CONTEXT_VERSION=4.9
 
 KF149_DEPLOYED_ASSET_INTEGRITY_REPAIR=CLOSED_PASS
 KF150_RUNTIME_RECOVERY=CLOSED_PASS
