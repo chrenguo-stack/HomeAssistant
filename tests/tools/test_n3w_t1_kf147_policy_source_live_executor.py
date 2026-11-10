@@ -90,8 +90,8 @@ def test_manifest_is_consumed_and_fail_closed_after_live_stop() -> None:
     assert contract["exact_seven_file_delta_only"] is True
     assert contract["host_source_mutation"] is True
     assert contract["host_release_policy_install"] is True
-    assert contract["host_daemon_restart_only"] is True
-    assert contract["services_owner_restart"] is False
+    assert contract["host_daemon_restart_only"] is False
+    assert contract["services_owner_restart"] is True
     assert contract["manager_mutation"] is False
     assert contract["homeassistant_mutation"] is False
     assert contract["broker_mutation"] is False
@@ -142,17 +142,19 @@ def test_private_state_metadata_allows_service_group_and_rollback_preserves_it()
     assert "os.chown(temp, backup_metadata.st_uid, backup_metadata.st_gid)" in source
 
 
-def test_remote_script_compiles_and_restarts_only_host_daemon() -> None:
+def test_remote_script_compiles_and_coordinates_services_owner_with_host_daemon() -> None:
     module = load_executor()
     assert not hasattr(module, "manager_ipc_probe")
     assert "def manager_ipc_probe(container_id, plan):" in module.REMOTE_SCRIPT
     compile(module.REMOTE_SCRIPT, "<kf147-stage-b-remote>", "exec")
     source = module.REMOTE_SCRIPT
+    assert 'run(["systemctl", "stop", SERVICES_UNIT]' in source
     assert 'run(["systemctl", "stop", HOST_UNIT]' in source
     assert 'run(["systemctl", "start", HOST_UNIT]' in source
+    assert 'run(["systemctl", "start", SERVICES_UNIT]' in source
     assert 'run(["systemctl", "restart", SERVICES_UNIT]' not in source
-    assert 'run(["systemctl", "stop", SERVICES_UNIT]' not in source
-    assert 'run(["systemctl", "start", SERVICES_UNIT]' not in source
+    assert "def wait_services_inactive():" in source
+    assert "def wait_services_active(plan):" in source
     assert '"wipefs"' not in source
     assert '"mkfs"' not in source
     assert '"parted"' not in source
@@ -160,7 +162,7 @@ def test_remote_script_compiles_and_restarts_only_host_daemon() -> None:
     assert "CONFIRM_USB_ERASE" not in source
 
 
-def test_source_backup_precedes_claim_and_prepare_snapshot_is_frozen_after_claim() -> None:
+def test_source_backup_precedes_claim_and_services_stop_before_host_stop() -> None:
     module = load_executor()
     source = module.REMOTE_SCRIPT
     execute_start = source.index("def execute(plan, authorization, confirmation):")
@@ -170,34 +172,63 @@ def test_source_backup_precedes_claim_and_prepare_snapshot_is_frozen_after_claim
     )
     state = source.index("state_root.mkdir(mode=0o700)", source_backup)
     claim = source.index('state_root / "authorization_claim.json"', state)
-    stop = source.index('run(["systemctl", "stop", HOST_UNIT]', claim)
+    services_stop = source.index('run(["systemctl", "stop", SERVICES_UNIT]', claim)
+    host_stop = source.index('run(["systemctl", "stop", HOST_UNIT]', services_stop)
     prepare_backup = source.index(
         'prepare_backup = backup_dir / "homeassistant-usb-prepare.json"',
-        stop,
+        host_stop,
     )
     verify = source.index('raise Stop("prepare_backup_sha256_mismatch")', prepare_backup)
     install = source.index(
         'atomic_install(item["staged_path"], item["remote_path"])',
         verify,
     )
-    assert execute_start < source_backup < state < claim < stop < prepare_backup < verify < install
+    host_start = source.index('run(["systemctl", "start", HOST_UNIT]', install)
+    services_start = source.index('run(["systemctl", "start", SERVICES_UNIT]', host_start)
+    assert (
+        execute_start
+        < source_backup
+        < state
+        < claim
+        < services_stop
+        < host_stop
+        < prepare_backup
+        < verify
+        < install
+        < host_start
+        < services_start
+    )
 
 
-def test_rollback_restores_prepare_state_and_predecessor_source() -> None:
+def test_rollback_restores_prepare_state_and_restarts_dependency_order() -> None:
     module = load_executor()
     source = module.REMOTE_SCRIPT
     rollback_start = source.index("def rollback(plan, backup_dir, pre):")
-    rollback_stop = source.index('run(["systemctl", "stop", HOST_UNIT]', rollback_start)
-    restore_loop = source.index('for item in plan["files"]:', rollback_stop)
+    services_stop = source.index('run(["systemctl", "stop", SERVICES_UNIT]', rollback_start)
+    host_stop = source.index('run(["systemctl", "stop", HOST_UNIT]', services_stop)
+    restore_loop = source.index('for item in plan["files"]:', host_stop)
     prepare_restore = source.index(
         'prepare_backup = Path(backup_dir) / "homeassistant-usb-prepare.json"',
         restore_loop,
     )
-    restart = source.index('run(["systemctl", "start", HOST_UNIT]', prepare_restore)
-    assert rollback_start < rollback_stop < restore_loop < prepare_restore < restart
-    assert "wait_host_inactive()" in source[rollback_stop:restore_loop]
+    host_start = source.index('run(["systemctl", "start", HOST_UNIT]', prepare_restore)
+    services_start = source.index('run(["systemctl", "start", SERVICES_UNIT]', host_start)
+    post = source.index("post = baseline(plan, require_snapshot=False)", services_start)
+    assert (
+        rollback_start
+        < services_stop
+        < host_stop
+        < restore_loop
+        < prepare_restore
+        < host_start
+        < services_start
+        < post
+    )
+    assert "wait_services_inactive()" in source[services_stop:host_stop]
+    assert "wait_host_inactive()" in source[host_stop:restore_loop]
+    assert "wait_host_active()" in source[host_start:services_start]
+    assert "wait_services_active(plan)" in source[services_start:post]
     assert "os.replace(temp, PREPARE_PATH)" in source
-    assert "post = baseline(plan, require_snapshot=False)" in source
     assert 'result["status"] = "PASS"' in source
 
 
