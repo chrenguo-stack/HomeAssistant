@@ -6,7 +6,7 @@
 - Generic V2 adds explicit Manager/Broker post-acceptance `finalize`; COMMITTED alone does not delete predecessor images.
 - Finalize requires exact product-acceptance binding, exact current target, healthy peers/A1 state, exact predecessor ref+image ID, zero container references, and deletes only `docker image rm sha256:<exact-id>`.
 - Home Assistant remains on mandatory-USB lifecycle; Generic V2 finalize rejects Home Assistant.
-- A Manager/Broker COMMITTED transaction with cleanup incomplete blocks both a new Generic V2 transaction and a new HA-USB transaction.
+- A Manager/Broker COMMITTED transaction with cleanup incomplete blocks the next Generic V2 apply. Historical R7A HA-USB source remains exact-source frozen and is not rewritten by this gate; future HA staging must use the shared fresh capacity policy before transfer.
 - Pre-transfer capacity is frozen as exact staged transport + exact Docker-save import worst case + fresh derived reserve. Split storage devices or tmpfs staging fail closed.
 - Broad prune, wildcard deletion and delete-by-age remain forbidden. The 1.5 GiB reserve is maintenance-admission evidence, not a frozen lifetime runtime minimum.
 - No live T1 cleanup, board access, merge or KF-147 retry occurred in this source gate.
