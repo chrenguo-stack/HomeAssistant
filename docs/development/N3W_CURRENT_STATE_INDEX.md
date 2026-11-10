@@ -1,3 +1,15 @@
+## 2026-11-10 — KF-147 Stage B systemd lifecycle R3 live validation CLOSED_PASS
+
+- Exact executed head: `675871a0567aca858c8af34f9eecf0a2e79ba063`; PR #800 remains open/draft/unmerged.
+- Fresh R3 successor gate used independent staging and durable state roots; consumed R2 authorization/state was not reused.
+- Physical T1 result is PASS: host source mutation=true; host daemon and services owner both stopped/restarted in the repaired dependency order; rollback was not required.
+- Manager IPC V3 support=true and capacity snapshot is present.
+- U1 transaction and Extreme prepare candidate were preserved; USB mutation=false and U2+=false.
+- Manager, Home Assistant and Broker image mutation=false; post-validation continuity guards passed.
+- R3 authorization is claimed+consumed, fail-closed and permanently non-replayable.
+- Stage B is CLOSED_PASS. Next product boundary is mandatory-USB confirmation/U2+ and remains separately unauthorized.
+- Closure authority: `docs/development/N3W_T1_KF147_STAGE_B_SYSTEMD_LIFECYCLE_R3_LIVE_VALIDATION_CLOSURE_20261110.md`.
+
 ## 2026-11-10 — KF-147 Manager IPC V3 R2 live apply CLOSED_PASS
 
 - Current core-stack authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
