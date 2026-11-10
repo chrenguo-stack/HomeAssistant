@@ -11,7 +11,7 @@
     "replay_permitted": false
   },
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/kf147_usb_confirmation_u1_u4_successor/executor.py": "d207204f4348c4b481ac8b7c26614c6de52da836"
+    "tools/execution_packages/n3w/r7a/kf147_usb_confirmation_u1_u4_successor/executor.py": "5cf8b1e6c3234c0ca8a25a27029825ed71c4241a"
   },
   "inherited_readonly_authority": {
     "tools/execution_packages/n3w/r7a/kf147_usb_u2_readonly_baseline/executor.py": "21a813dcfd45c256684779c04facfab7513016f9",
@@ -53,7 +53,7 @@
     "prepare_confirmation_consumed_before_physical_format": true,
     "usb_wipe_partition_format": true,
     "target_download_to_usb": true,
-    "success_phase": "U4_TARGET_READY",
+    "success_phase": "U4_READY_TO_INSTALL",
     "success_public_phase": "READY_TO_INSTALL",
     "homeassistant_runtime_mutation": false,
     "manager_runtime_mutation": false,
