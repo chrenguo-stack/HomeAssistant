@@ -11,8 +11,10 @@ on:
       - "tools/n3w_t1_core_updater_v2_state.py"
       - "tools/n3w_t1_core_updater_host.py"
       - "tools/n3w_t1_storage_image_lifecycle.py"
+      - "tools/n3w_t1_kf147_fresh_capacity.py"
       - "tests/tools/test_n3w_t1_core_updater_a2.py"
       - "tests/tools/test_n3w_t1_storage_image_lifecycle.py"
+      - "tests/tools/test_n3w_t1_kf147_fresh_capacity.py"
       - "infra/n3w-t1/updater-releases/storage-image-lifecycle-policy.json"
       - "docs/development/N3W_T1_CORE_STACK_IMAGE_LIFECYCLE_AND_POST_ACCEPTANCE_CLEANUP_POLICY_20261109.md"
       - "docs/development/N3W_CURRENT_STATE.md"
@@ -59,7 +61,8 @@ jobs:
             tools/n3w_t1_core_updater_v2_common.py \
             tools/n3w_t1_core_updater_v2_state.py \
             tools/n3w_t1_core_updater_host.py \
-            tools/n3w_t1_storage_image_lifecycle.py
+            tools/n3w_t1_storage_image_lifecycle.py \
+            tools/n3w_t1_kf147_fresh_capacity.py
 
       - name: Run focused regression tests
         run: |
@@ -67,7 +70,8 @@ jobs:
           python -m pip install "pytest>=8,<9"
           PYTHONPATH=tools python -m pytest -q \
             tests/tools/test_n3w_t1_core_updater_a2.py \
-            tests/tools/test_n3w_t1_storage_image_lifecycle.py
+            tests/tools/test_n3w_t1_storage_image_lifecycle.py \
+            tests/tools/test_n3w_t1_kf147_fresh_capacity.py
 
       - name: Guard exact cleanup and no broad prune
         run: |
