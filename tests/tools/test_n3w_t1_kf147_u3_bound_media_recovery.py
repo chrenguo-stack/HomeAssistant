@@ -142,6 +142,28 @@ def test_mount_view_uses_exact_mountpoint_semantics() -> None:
     assert '["findmnt", "--noheadings", "--output", "SOURCE,TARGET", "--target", target]' not in source
 
 
+def test_usb_transaction_metadata_creates_private_update_parent_first() -> None:
+    source = (
+        ROOT / "tools" / "n3w_t1_core_updater_ha_prepare_host.py"
+    ).read_text(encoding="utf-8")
+    update_dir = source.index(
+        'update_dir = Path(media.mount_path) / "n3w-update"'
+    )
+    update_check = source.index(
+        "_require_private_directory(update_dir, create=True)",
+        update_dir,
+    )
+    transaction_dir = source.index(
+        'transaction_dir = update_dir / "transaction"',
+        update_check,
+    )
+    transaction_check = source.index(
+        "_require_private_directory(transaction_dir, create=True)",
+        transaction_dir,
+    )
+    assert update_dir < update_check < transaction_dir < transaction_check
+
+
 def test_remote_python_c_argument_contract_matches_remote_call() -> None:
     module = load_executor()
     source = module.REMOTE_SCRIPT
