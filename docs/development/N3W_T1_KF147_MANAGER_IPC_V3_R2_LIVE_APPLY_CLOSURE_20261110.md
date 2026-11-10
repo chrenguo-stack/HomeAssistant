@@ -1,0 +1,81 @@
+# N3-W T1 KF-147 Manager IPC V3 R2 live apply closure — 2026-11-10
+
+## 0. Result
+
+```text
+TASK=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_R2_20261110_01
+RESULT=CLOSED_PASS
+PR=800
+AUTHORIZED_HEAD=093f104866398d6946e5907dec76277fb28b04a5
+EXECUTION_ID=N3W_KF147_MANAGER_V3_R2_LIVE_20261110_01
+```
+
+The one-shot R2 Manager-only live apply completed successfully on the physical T1.
+
+## 1. Authorization closure
+
+```text
+AUTHORIZATION_GRANTED=true
+AUTHORIZATION_CLAIMED=true
+AUTHORIZATION_CONSUMED=true
+REPLAY_PERMITTED=false
+LIVE_EXECUTION_AUTHORIZED=false
+```
+
+The authorization is permanently consumed and must not be replayed.
+
+## 2. Live result
+
+```text
+STATUS=PASS
+LIVE_APPLY_INVOKED=true
+REMOTE_RETURNCODE=0
+FIRST_FAILED_OPERATION=NONE
+
+MANAGER_IMAGE=local/greenhouse-manager:fresh-44e7d7472714
+MANAGER_RUNTIME_IMAGE_ID=sha256:1471828ab07cf9b71c01a6e78994711a5954f0a178b8be087a28bb65a967c7d2
+MANAGER_IPC_V3_SUPPORT=true
+
+HOMEASSISTANT_IMAGE_MUTATION=false
+HOMEASSISTANT_CONTAINER_RECREATED=false
+BROKER_MUTATION=false
+U1_TRANSACTION_PRESERVED=true
+PREPARE_CANDIDATE_PRESERVED=true
+USB_MUTATION=false
+U2_PLUS=false
+ROLLBACK_REQUIRED=false
+SSH_MASTER_CLEANUP=true
+MERGE=false
+```
+
+The T1 runtime image ID is the containerd-store runtime identity accepted by the R2 portable-image identity contract.
+
+## 3. Package and CI authority
+
+```text
+PACKAGE_WORKFLOW_RUN_ID=42761736604
+PACKAGE_ARTIFACT_ID=13738561063
+PACKAGE_ARTIFACT_DIGEST=sha256:69af4054e993398c25bd7788773c76cc80f54524787d1f5972a894adef22bcfc
+
+AUTHORIZATION_HEAD_FAST_SOURCE_EXACT=SUCCESS run=42779603866
+AUTHORIZATION_HEAD_PUBLIC_REPOSITORY_SAFETY=SUCCESS run=42779603932
+AUTHORIZATION_HEAD_CORE_STACK_AUTHORITY=SUCCESS run=42779604073
+AUTHORIZATION_HEAD_STORAGE_IMAGE_LIFECYCLE=SUCCESS run=42779604102
+AUTHORIZATION_HEAD_KF147_MANAGER_PACKAGE=SUCCESS run=42779604071
+AUTHORIZATION_HEAD_MANAGER_A_TO_B=SUCCESS run=42779603807
+REQUIRED_CI=PASS
+```
+
+## 4. Preserved boundaries
+
+No Home Assistant image/container replacement, Broker mutation, PREPARE replay, USB erase/format/write, U2+, board access or merge occurred.
+
+## 5. Next stage
+
+```text
+KF147_MANAGER_V3_LIVE_APPLY=CLOSED_PASS
+NEXT_STAGE=KF147_T1_LIVE_POLICY_REPAIR_PREEXECUTION_REVIEW
+NEXT_STAGE_LIVE_AUTHORIZED=false
+```
+
+Fresh repository authority still treats the Stage B T1 live policy/source repair as a separate live mutation boundary. Fresh preclaim/preexecution review may proceed read-only; live Policy V2/host-source installation requires a new explicit authorization.
