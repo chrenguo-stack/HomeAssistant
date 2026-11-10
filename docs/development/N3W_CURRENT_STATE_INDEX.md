@@ -1,3 +1,20 @@
+## 2026-11-10 — KF-147 Manager IPC V3 fresh package + live-apply preexecution CLOSED_PASS
+
+- Current core-stack authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference remains `24382caae4a1f5d459297f86e8d18f10a848ca64` / `local/greenhouse-manager:fresh-24382caae4a1`.
+- Core-stack Live upgrade accepted; the KF-147 Manager-only repair does not replace the existing production authority.
+- KF-147 cleanup, fresh capacity, fresh Manager package binding and Manager live-apply preexecution are CLOSED_PASS.
+- Executable source head: `b85b98593fe4caaa7b5a4be63f344a85e815baa8`; validated docs-aligned head: `d2ddc1396ab072d6c1273ebea61b5b21fc9fdd3e`; drift is docs-only.
+- Bound package authority: run `42761736604`, artifact `13738561063`, digest `sha256:69af4054e993398c25bd7788773c76cc80f54524787d1f5972a894adef22bcfc`.
+- Latest-head required KF-147 CI passed: Manager package, Core Stack authority, Manager A-to-B, fast source/exact closure, storage/image lifecycle and public repository safety.
+- Exact U1 transaction SHA `6e1f0b5d262e346674b62ac79bf2ffbc1c63a8dd22379a0a82c952f0e3626b49` and USB candidate fingerprint `e45fba0ad3e9997be2738c7a8f25d5c342ebba66ddbf822b1f6bf6a016c2ed93` are now fail-closed execution prerequisites.
+- Two unrelated PR-wide legacy workflows still fail only because historical artifact `11665219740` from run `38040433177` is unavailable; generic staging/state-binding repair is outside this gate.
+- `live_execution_authorized=false`; authorization is not granted, claimed or consumed.
+- Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_20261110_01`; explicit user authorization is required.
+- No T1 mutation, Manager live apply, USB mutation, U2+, board access or merge occurred.
+- Closure authority: `docs/development/N3W_T1_KF147_MANAGER_IPC_V3_FRESH_PACKAGE_AND_LIVE_APPLY_PREEXECUTION_CLOSURE_20261110.md`.
+
 ## 2026-11-10 — KF-147 exact HA cleanup + fresh capacity CLOSED_PASS
 
 - Current core-stack authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
