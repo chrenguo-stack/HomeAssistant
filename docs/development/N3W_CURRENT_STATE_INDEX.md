@@ -1,3 +1,13 @@
+## 2026-11-10 — KF-147 exact reclaim audit PASS / HA 2026.10.4 exact cleanup candidate
+
+- Repaired live read-only audit completed with `runtime_stable=true`, `mutation=false`; Manager tar streaming and remote staging remained false.
+- T1 has exactly three containers, all running. Home Assistant 2026.10.0 remains the running production image.
+- Non-running `local/n3w-homeassistant:2026.10.4-5881590f` is exact ID `sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365` with zero container references.
+- Docker reports `SHARED SIZE=0B` and `UNIQUE SIZE=5.221GB`; current capacity deficit is 1,147,052,164 bytes.
+- Active U1 stores target manifest/archive authority and does not require an internally resident target image. Mandatory-USB design retired the old P5 preexisting-target assumption.
+- The image is now an exact cleanup candidate. Actual deletion is a separate production mutation requiring explicit authorization and exact-ID pre/post checks.
+- After cleanup, fresh capacity preflight remains mandatory; capacity PASS is not inferred in advance.
+
 ## 2026-11-10 — KF-147 reclaim audit first live attempt STOP / timeout repair pushed
 
 - First exact reclaim-audit execution stopped read-only with `command_failed:ssh:1`; `storage-reclaim-audit.json` was not produced.

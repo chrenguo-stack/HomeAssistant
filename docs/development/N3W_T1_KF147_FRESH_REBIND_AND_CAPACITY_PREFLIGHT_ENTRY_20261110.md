@@ -437,3 +437,64 @@ EMBEDDED_REMOTE_SCRIPT_COMPILE=PASS
 GITHUB_CI=PENDING
 LIVE_READONLY_RETRY=PENDING
 ```
+
+## 13. Repaired reclaim-audit live PASS and exact HA cleanup candidate
+
+The repaired read-only audit completed without changing T1:
+
+```text
+AUDIT_SCHEMA=gh.n3w-t1-kf147-storage-reclaim-audit/1
+AUDIT_READ_ONLY=true
+AUDIT_MUTATION=false
+AUDIT_RUNTIME_STABLE=true
+
+FREE_BYTES=589463552
+REQUIRED_FREE_BYTES=1736515716
+CAPACITY_DEFICIT_BYTES=1147052164
+
+MANAGER_TAR_STREAMED_TO_T1=false
+REMOTE_STAGING=false
+```
+
+The exact Home Assistant image inventory is:
+
+```text
+RUNNING_PREDECESSOR=local/n3w-homeassistant:2026.10.0-0c73235a
+RUNNING_PREDECESSOR_ID=sha256:c261fa53f30508951833492ba2a19af6cfbb6aa8f2806b531d8f5c6599265306
+
+RECLAIM_CANDIDATE=local/n3w-homeassistant:2026.10.4-5881590f
+RECLAIM_CANDIDATE_ID=sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365
+RECLAIM_CANDIDATE_RUNNING=false
+RECLAIM_CANDIDATE_CONTAINER_REFERENCES=0
+RECLAIM_CANDIDATE_INSPECT_SIZE_BYTES=2447072066
+RECLAIM_CANDIDATE_DOCKER_SHARED_SIZE=0B
+RECLAIM_CANDIDATE_DOCKER_UNIQUE_SIZE=5.221GB
+```
+
+The current mandatory-USB transaction stores target image reference, manifest
+identity and archive SHA/size. It does not require the target image to be present
+in the internal image store at U1. The accepted architecture explicitly retired
+the earlier P5 assumptions `target_image_prestate=PRESENT_AND_EXACT` and
+`preexisting_exact_target_required=true`; pre-U9 recovery authority is the running
+predecessor plus durable USB recovery material.
+
+The 2026.10.4 image is therefore a valid exact cleanup candidate. This conclusion
+does not itself authorize deletion. Any cleanup must revalidate exact ref/ID, zero
+references, three-service runtime stability and unchanged U1 state immediately
+before deletion; delete only the exact image ID; then prove runtime/U1 continuity
+and rerun the fresh capacity gate.
+
+Private evidence bindings:
+
+```text
+CAPACITY_RESULT_SHA256=18a9fd87eee45fe36cca5f5715fca338e110cf24ed6da24d22494de7f8ac764a
+CAPACITY_RESULT_SIZE=1974
+RUNTIME_MUTABLE_REPORT_SHA256=d569bc372ecdcef5a27ce06c664c8f3903daac07e7df2ef7d98f390215b23c1c
+RUNTIME_MUTABLE_REPORT_SIZE=2371
+STORAGE_REPORT_SHA256=32e48742de6c03c6beb05fc759836c381d28012d721286b5a058ac115d737e06
+STORAGE_REPORT_SIZE=617
+STORAGE_RECLAIM_AUDIT_SHA256=d15a55ae125f046ba7eaad3b63fc15a483cce95e9a5837fd6555cac904ff152c
+STORAGE_RECLAIM_AUDIT_SIZE=30024
+PRIVATE_EVIDENCE_CREATED_AT=2026-11-10T11:00:00+0800
+SECRET_VALUES_INCLUDED=false
+```

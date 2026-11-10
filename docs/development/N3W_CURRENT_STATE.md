@@ -1,7 +1,7 @@
-## Latest authority — 2026-11-10 KF-147 fresh capacity STOP / exact reclaim audit next
+## Latest authority — 2026-11-10 KF-147 exact reclaim audit PASS / HA target cleanup authorization next
 
 ~~~text
-AUTHORITY_STATE=KF147_FRESH_CAPACITY_STOP_INSUFFICIENT
+AUTHORITY_STATE=KF147_EXACT_RECLAIM_AUDIT_PASS
 PR=800
 KF147_REBIND_EXECUTABLE_HEAD=fb63707edc1ab063ddc97de8475303df8daecfb1
 KF147_CAPACITY_PREFLIGHT_FIX_SOURCE_HEAD=0ca17193a39f9b9f96da33b4ae9a5a4cc574e27d
@@ -33,9 +33,17 @@ KF147_REQUIRED_FREE_BYTES=1736515716
 KF147_CAPACITY_DEFICIT_BYTES=1146716292
 KF147_REMOTE_STAGING_PREVENTED=true
 KF147_EXACT_RECLAIM_AUDIT_SOURCE_HEAD=b43d47f4a5fa06192ca5df513de186aed9ea9654
-KF147_EXACT_RECLAIM_AUDIT_SOURCE=TIMEOUT_REPAIR_LOCAL_PASS_CI_PENDING
+KF147_EXACT_RECLAIM_AUDIT_SOURCE=TIMEOUT_REPAIR_STORAGE_CI_PASS
 KF147_EXACT_RECLAIM_AUDIT_FIRST_LIVE_EXECUTION=STOP_REMOTE_PROBE_RC1
-KF147_EXACT_RECLAIM_AUDIT_LIVE_RETRY=PENDING
+KF147_EXACT_RECLAIM_AUDIT_LIVE_RETRY=PASS
+
+KF147_HA_TARGET_RECLAIM_IMAGE=local/n3w-homeassistant:2026.10.4-5881590f
+KF147_HA_TARGET_RECLAIM_IMAGE_ID=sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365
+KF147_HA_TARGET_RUNNING=false
+KF147_HA_TARGET_CONTAINER_REFERENCES=0
+KF147_HA_TARGET_DOCKER_SHARED_SIZE=0B
+KF147_HA_TARGET_DOCKER_UNIQUE_SIZE=5.221GB
+KF147_HA_TARGET_CLEANUP_AUTHORIZED=false
 
 LIVE_T1_MUTATION=false
 REMOTE_MANAGER_TAR_STAGING=false
@@ -43,7 +51,7 @@ USB_MUTATION=false
 BOARD_ACCESS=false
 MERGE=false
 
-NEXT_ONE_GATE=KF147_CAPACITY_STOP_EXACT_STORAGE_RECLAIM_READONLY_AUDIT
+NEXT_ONE_GATE=KF147_EXACT_HA_2026_10_4_IMAGE_CLEANUP_AUTHORIZATION
 PACKAGE_MANIFEST_BINDING_ALLOWED=false
 ~~~
 
@@ -80,6 +88,18 @@ space accounting, volume and major-path allocation, journal usage and large file
 while comparing runtime state before and after. Local focused validation is PASS;
 GitHub CI and a fresh live read-only retry are pending. It does not authorize any
 deletion.
+
+The repaired live retry completed and produced a stable read-only audit. Exactly
+three containers exist and all are running; none references Home Assistant
+2026.10.4. The target image is present as exact ID
+`sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365`,
+with Docker reporting zero container references, zero shared size and 5.221 GB
+unique size. The active U1 transaction remains at `U1_PREPARE_REQUESTED` and binds
+target manifest/archive authority rather than requiring this internal image to be
+resident. Mandatory-USB architecture explicitly retired the old P5 preexisting
+target-image assumption. The image is therefore an exact cleanup candidate, but
+the audit itself does not grant destructive T1 authority. After an authorized
+exact-ID cleanup, fresh capacity preflight must prove PASS before package binding.
 
 Authority:
 docs/development/N3W_T1_KF147_FRESH_REBIND_AND_CAPACITY_PREFLIGHT_ENTRY_20261110.md.
