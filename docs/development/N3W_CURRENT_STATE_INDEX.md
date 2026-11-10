@@ -1,5 +1,10 @@
 ## 2026-11-10 — KF-147 exact HA cleanup + fresh capacity CLOSED_PASS
 
+- Current core-stack authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference remains `24382caae4a1f5d459297f86e8d18f10a848ca64` / `local/greenhouse-manager:fresh-24382caae4a1`.
+- Core-stack live upgrade accepted; this KF-147 cleanup/capacity closure does not replace that authority.
+
 - Executed live package head: `c872eac286f11d34bea6f2d823cd2a1762084578`.
 - Exact cleanup authorization `N3W_T1_KF147_EXACT_HA_2026_10_4_IMAGE_CLEANUP_20261110_01` was granted, claimed and consumed exactly once; replay is now forbidden.
 - Exact HA 2026.10.4 target `sha256:31bc185bfa185ed3dddce2f5bab867eb7d4ae96302bfd8b7f839fb0a9d5b7365` was deleted successfully and post-delete verification passed.
