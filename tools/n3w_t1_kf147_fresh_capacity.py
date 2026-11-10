@@ -6,7 +6,6 @@ import hashlib
 import json
 import os
 import re
-import subprocess
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -34,9 +33,9 @@ EXPECTED_LIVE_IMAGES = {
     "broker": "local/n3w-mosquitto:2.1.2-3184566d",
 }
 EXPECTED_LIVE_IMAGE_IDS = {
-    "manager": "sha256:b1875c6ed969df108d2df768d61369a0c93956d146f284276b392c686c13a4f9",
-    "homeassistant": "sha256:b0e1ee82adfb19fa1ff3049034535633b1c4f0df6606721c0e77383854b99879",
-    "broker": "sha256:4c199d7c9d377d018313a2199f6839978f6fd2219c405ad664d0a830c14b9c7b",
+    "manager": "sha256:7e3f09ed47010a18de215faa426113b7faba4e220b41bb9dcafd8ee1d4acf20b",
+    "homeassistant": "sha256:c261fa53f30508951833492ba2a19af6cfbb6aa8f2806b531d8f5c6599265306",
+    "broker": "sha256:df265f1e2b2e3dc35d5eb194e698c598e01c5ebca370da307b34332f9bf0a563",
 }
 EXPECTED_U1_PHASE = "U1_PREPARE_REQUESTED"
 EXPECTED_USB_MODEL = "Extreme"

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import io
-import json
 import sys
 import tarfile
 from pathlib import Path
@@ -105,6 +104,14 @@ def policy_path() -> Path:
     )
 
 
+def test_live_runtime_image_ids_match_accepted_t1_evidence():
+    assert m.EXPECTED_LIVE_IMAGE_IDS == {
+        "manager": "sha256:7e3f09ed47010a18de215faa426113b7faba4e220b41bb9dcafd8ee1d4acf20b",
+        "homeassistant": "sha256:c261fa53f30508951833492ba2a19af6cfbb6aa8f2806b531d8f5c6599265306",
+        "broker": "sha256:df265f1e2b2e3dc35d5eb194e698c598e01c5ebca370da307b34332f9bf0a563",
+    }
+
+
 def test_candidate_material_uses_exact_tar_and_regular_member_sum(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -171,6 +178,24 @@ def test_live_manager_drift_stops_before_capacity_claim(
     remote["containers"]["manager"]["image_ref"] = "local/greenhouse-manager:fresh-drift"
 
     with pytest.raises(m.CapacityPreflightError, match="live_image_ref_drift:manager"):
+        m.evaluate(
+            manager_tar=path,
+            storage_report=storage_report(),
+            remote_report=remote,
+            policy_path=policy_path(),
+        )
+
+
+def test_live_image_id_drift_stops_before_capacity_claim(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    path = manager_tar(tmp_path / "manager.tar")
+    patch_candidate(monkeypatch, path)
+    remote = remote_report()
+    remote["containers"]["manager"]["image_id"] = "sha256:" + "f" * 64
+
+    with pytest.raises(m.CapacityPreflightError, match="live_image_id_drift:manager"):
         m.evaluate(
             manager_tar=path,
             storage_report=storage_report(),
