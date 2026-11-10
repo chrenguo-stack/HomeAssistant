@@ -180,3 +180,31 @@ def test_preflight_reuses_repaired_readonly_authority() -> None:
             "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7"
         ),
     }
+
+
+def test_execute_runs_fresh_readonly_preflight_before_authorization_and_destructive_path() -> None:
+    module = load_executor()
+    source = EXECUTOR.read_text(encoding="utf-8")
+    execute_start = source.index("def execute(args: argparse.Namespace)")
+    fresh_preflight = source.index("readonly.run_remote(", execute_start)
+    validate = source.index("validate_baseline(baseline, manifest)", fresh_preflight)
+    state_root = source.index(
+        "check_state_root_absent(transport, manifest[\"state_root\"])",
+        validate,
+    )
+    authorization = source.index(
+        'manifest.get("live_execution_authorized") is not True',
+        state_root,
+    )
+    live_execute = source.index('result["live_execute_invoked"] = True', authorization)
+    remote_execute = source.index("run_remote_execute(", live_execute)
+    assert (
+        execute_start
+        < fresh_preflight
+        < validate
+        < state_root
+        < authorization
+        < live_execute
+        < remote_execute
+    )
+    assert module.GATE_ID == GATE
