@@ -100,7 +100,7 @@ jobs:
               Path("tools/execution_packages/n3w/r7a/kf147_ha_image_cleanup/manifest.json")
               .read_text(encoding="utf-8")
           )
-          assert authorization["live_execution_authorized"] is False
+          assert authorization["live_execution_authorized"] is True
           assert authorization["delete"] == {
               "exact_image_id_only": True,
               "force_allowed": False,
