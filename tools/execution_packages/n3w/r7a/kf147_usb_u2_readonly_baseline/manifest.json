@@ -1,0 +1,103 @@
+{
+  "schema": "gh.n3w-t1-kf147-usb-u2-readonly-baseline/1",
+  "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_USB_CONFIRMATION_U2_FRESH_READONLY_BASELINE_20261110_01",
+  "mode": "READ_ONLY",
+  "live_execution_authorized": false,
+  "package_source_authority": {
+    "tools/execution_packages/n3w/r7a/kf147_usb_u2_readonly_baseline/executor.py": "b2e13309a771e03a131cfe1ec70c14338df7db25",
+    "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7"
+  },
+  "expected_live_entry": {
+    "manager_image": "local/greenhouse-manager:fresh-44e7d7472714",
+    "manager_runtime_image_id": "sha256:1471828ab07cf9b71c01a6e78994711a5954f0a178b8be087a28bb65a967c7d2",
+    "homeassistant_image": "local/n3w-homeassistant:2026.10.0-0c73235a",
+    "homeassistant_runtime_image_id": "sha256:c261fa53f30508951833492ba2a19af6cfbb6aa8f2806b531d8f5c6599265306",
+    "broker_image": "local/n3w-mosquitto:2.1.2-3184566d",
+    "broker_runtime_image_id": "sha256:df265f1e2b2e3dc35d5eb194e698c598e01c5ebca370da307b34332f9bf0a563",
+    "u1_transaction_sha256": "6e1f0b5d262e346674b62ac79bf2ffbc1c63a8dd22379a0a82c952f0e3626b49",
+    "usb_candidate_public_fingerprint": "e45fba0ad3e9997be2738c7a8f25d5c342ebba66ddbf822b1f6bf6a016c2ed93",
+    "usb_candidate_model": "Extreme",
+    "usb_candidate_capacity_bytes": 32017047552,
+    "confirmation_required": true,
+    "confirmation_consumed": false,
+    "capacity_snapshot_present": true,
+    "host_service_active": true,
+    "services_owner_active": true
+  },
+  "remote_source_authority": {
+    "tools/n3w_t1_core_updater_ha_capacity.py": {
+      "blob": "0e532679ad030e71fdddabeae0a178173e7e1eea",
+      "remote_path": "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_capacity.py"
+    },
+    "tools/n3w_t1_core_updater_ha_ipc.py": {
+      "blob": "a7af0fc02c59538d05a8d91675f44d82d0d2c77f",
+      "remote_path": "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_ipc.py"
+    },
+    "tools/n3w_t1_core_updater_ha_prepare.py": {
+      "blob": "3ec44b53db8a78912114b6d70f018dfc6e00a7ec",
+      "remote_path": "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_prepare.py"
+    },
+    "tools/n3w_t1_core_updater_ha_prepare_host.py": {
+      "blob": "933dfb2a348ace88b0a54bf4adbd8851c1348be0",
+      "remote_path": "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_prepare_host.py"
+    },
+    "tools/n3w_t1_core_updater_ha_recovery_encoding.py": {
+      "blob": "6d66d864ac858f6e1ac505062892c0fd38107af2",
+      "remote_path": "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_recovery_encoding.py"
+    },
+    "tools/n3w_t1_core_updater_ha_usb.py": {
+      "blob": "495dc29d7d4850cd485a07b739199a282446477f",
+      "remote_path": "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_usb.py"
+    },
+    "tools/n3w_t1_core_updater_ha_daemon.py": {
+      "blob": "98c879f65840c237e7ee8855412806e346d880f5",
+      "remote_path": "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_daemon.py"
+    },
+    "tools/n3w_t1_core_updater_ha_usb_state.py": {
+      "blob": "64cfcab9d1c62acd28ef4abeb161b88f8a63d2bc",
+      "remote_path": "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_usb_state.py"
+    },
+    "tools/n3w_t1_core_updater_ha_usb_media.py": {
+      "blob": "44afe444c8db5ff380e9aa74120cf5382a345baa",
+      "remote_path": "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_usb_media.py"
+    },
+    "tools/n3w_t1_core_updater_v2_common.py": {
+      "blob": "b9c6561a1a8e33bdf586e6a4bd04d025f3c5d7e6",
+      "remote_path": "/opt/HomeAssistant/tools/n3w_t1_core_updater_v2_common.py"
+    },
+    "infra/n3w-t1/upgrades/homeassistant-2026.10.4-host-release-policy.json": {
+      "blob": "aa9e97ab030afd675db7c3722ebac6975cd37b71",
+      "remote_path": "/etc/n3w-t1-ota/homeassistant-release-source.json"
+    },
+    "infra/n3w-t1/upgrades/homeassistant-2026.10.4-approved.json": {
+      "blob": "f51b685b5b80ef84dd9c02e7ff745e7dda4dd64c",
+      "remote_path": "/etc/n3w-t1-ota/approved-homeassistant.json"
+    },
+    "infra/n3w-t1/production/docker-compose.ha-ota.yml": {
+      "blob": "79932cf60f81d737414a18004868c63def731e84",
+      "remote_path": "/opt/HomeAssistant/infra/n3w-t1/production/docker-compose.ha-ota.yml"
+    },
+    "infra/n3w-t1/systemd/n3w-t1-ha-ota.service": {
+      "blob": "fb3d86b47ff894e4f446738565f8b923e48d51e6",
+      "remote_path": "/etc/systemd/system/n3w-t1-ha-ota.service"
+    },
+    "infra/n3w-t1/systemd/n3wfc4-services-activation.ha-ota.conf": {
+      "blob": "e90b08389d33fe2ea134b9f53c018c5dd266f459",
+      "remote_path": "/etc/systemd/system/n3wfc4-services-activation.service.d/95-n3w-ha-ota.conf"
+    }
+  },
+  "execution_contract": {
+    "read_only": true,
+    "remote_write": false,
+    "service_restart": false,
+    "docker_mutation": false,
+    "host_source_mutation": false,
+    "prepare_replay": false,
+    "confirm_usb_erase": false,
+    "usb_mutation": false,
+    "u2_plus": false,
+    "board_access": false,
+    "merge": false
+  },
+  "stop_boundary": "STOP_AFTER_FRESH_READONLY_BASELINE_BEFORE_DESTRUCTIVE_AUTHORIZATION"
+}
