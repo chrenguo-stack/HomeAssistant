@@ -3,7 +3,7 @@
 ~~~text
 KF150_RUNTIME_RECOVERY=CLOSED_PASS
 KF150_STORAGE_LIFECYCLE_SOURCE_IMPLEMENTATION=COMPLETE
-KF150_FOCUSED_CI_FINAL_RESULT=PENDING
+KF150_FOCUSED_CI_FINAL_RESULT=PASS
 
 PRIMARY_OUTAGE_ROOT_CAUSE=ROOT_FILESYSTEM_ENOSPC
 SECONDARY_DOCKER_CONTAINERD_DIVERGENCE=PROVEN
@@ -78,7 +78,7 @@ docs/development/N3W_T1_BROKER_READINESS_RUNTIME_SESSION_TAKEOVER_SOURCE_REPAIR_
 
 | ID | 范围 | 现场现象 | 根因 | 修复方向 | 状态 |
 |---|---|---|---|---|---|
-| KF-150 | T1 root storage / Docker core-stack recovery | KF-147 Manager staging during a nearly full root filesystem hit ENOSPC; Mosquitto persistence failed first, Broker stopped, then Manager/HA stopped. After exact cleanup, systemd/Compose could still report containers running while real containerd tasks were absent. Exact starts restored the existing three containers. | Primary outage root cause is proven root-filesystem ENOSPC. The secondary Docker/Compose list-state divergence is proven, but ENOSPC as its direct causal mechanism is NOT_PROVEN. | Implement proactive headroom/capacity admission and the frozen exact image-lifecycle/finalization policy. Keep broad prune forbidden. Require exact generation authority before image cleanup. Do not resume KF-147 until healthy headroom is proven and a fresh package is capacity-bound. | RUNTIME_RECOVERED_SOURCE_CLOSURE_PENDING |
+| KF-150 | T1 root storage / Docker core-stack recovery | KF-147 Manager staging during a nearly full root filesystem hit ENOSPC; Mosquitto persistence failed first, Broker stopped, then Manager/HA stopped. After exact cleanup, systemd/Compose could still report containers running while real containerd tasks were absent. Exact starts restored the existing three containers. | Primary outage root cause is proven root-filesystem ENOSPC. The secondary Docker/Compose list-state divergence is proven, but ENOSPC as its direct causal mechanism is NOT_PROVEN. | Proactive headroom/capacity admission and exact image-lifecycle/finalization policy implemented and exact-head CI validated. Broad prune remains forbidden. KF-147 must restart with fresh rebind, capacity gate and new package binding. | CLOSED_PASS_SOURCE_POLICY |
 
 Guards:
 - root free space used for large staging/load must be freshly measured before streaming;
