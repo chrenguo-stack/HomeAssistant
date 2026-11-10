@@ -158,11 +158,17 @@ def test_remote_script_revalidates_u1_candidate_capacity_and_ipc_v3() -> None:
     assert '"ACTIVE"' in source
     assert '"confirmation_required"' in source
     assert '"confirmation_consumed"' in source
+    assert '"target_manifest_identity"' in source
+    assert '"release_identity"' in source
+    assert '"baseline_public_fingerprints"' in source
     assert '"usb_required_bytes"' in source
     assert '"recommended_nominal_usb_gb"' in source
     assert '"CANDIDATE_READY_FOR_CONFIRMATION"' in source
     assert '"USB_REQUIRED_CONFIRMATION"' in source
     assert '"USB_CONFIRM_ERASE"' in source
+    assert "prepare_release_binding_drift" in source
+    assert "prepare_candidate_not_fresh" in source
+    assert '"candidate_fresh_relative_to_u1_baseline": True' in source
     assert "usb_physical_candidate_drift:" in source
     assert "remote_authority_drift:" in source
 
