@@ -727,6 +727,7 @@ def test_apply_mutates_only_target_binding(
     assert tx["schema"] == TX_SCHEMA_V2
     assert tx["status"] == "COMMITTED"
     assert tx["component"] == component
+    assert tx["post_acceptance_cleanup_required"] is (component in {"manager", "broker"})
     assert tx["predecessor_runtime_contract_sha256"] == (
         baseline().runtime_contract_sha256[component]
     )
