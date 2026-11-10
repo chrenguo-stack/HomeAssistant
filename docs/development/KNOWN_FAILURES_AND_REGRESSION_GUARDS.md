@@ -14,6 +14,8 @@ Guards:
 - a valid capacity STOP is not a source failure and must not be bypassed by lowering the 1.5 GiB maintenance reserve;
 - `/var/cache/apt` accounts for only 107,876,352 bytes and cannot close the measured deficit alone;
 - do not infer Docker reclaimability from apparent image size; prove exact image/container references and shared-layer impact first;
+- exact reclaim audit must include stopped-container references and compare runtime state before/after collection;
+- reclaim-audit collection is read-only evidence and never deletion authorization;
 - broad prune, wildcard deletion and automatic cleanup remain forbidden;
 - package/manifest binding and live retry remain blocked until a later fresh capacity PASS.
 

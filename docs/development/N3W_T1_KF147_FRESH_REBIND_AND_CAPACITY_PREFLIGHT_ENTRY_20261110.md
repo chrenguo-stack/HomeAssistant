@@ -366,3 +366,37 @@ The selected mutable-data report totals 172,249,088 bytes. `/var/cache/apt` is
 deficit. No deletion is authorized from this observation. The next bounded gate is
 an exact read-only storage/reclaim audit covering image/container references and
 other large filesystem allocations before any targeted cleanup proposal.
+
+## 11. Exact read-only reclaim audit source
+
+The next diagnostic is implemented in the existing capacity entry point:
+
+```text
+SOURCE_HEAD=c14674b9fa4f17570d7f629e47563acffe296436
+ENTRY=tools/n3w_t1_kf147_fresh_capacity.py
+MODE=--reclaim-audit-on-stop
+NEW_PARALLEL_MODULE=false
+FOCUSED_TESTS=23_PASS
+RUFF=PASS
+PY_COMPILE=PASS
+EMBEDDED_REMOTE_SCRIPT_COMPILE=PASS
+GITHUB_CI=PENDING
+LIVE_READONLY_EXECUTION=PENDING
+```
+
+The private audit captures:
+
+- every running or stopped container's exact image ID and image reference;
+- image IDs, tags, digests, total sizes and RootFS layer identities;
+- Docker verbose disk accounting;
+- Docker volume allocation;
+- containerd namespace visibility;
+- major root-filesystem path and child allocation;
+- journal disk usage;
+- files at least 16 MiB on the root filesystem;
+- stable container/service state before and after collection.
+
+The remote script contains no deletion, prune, cache-clean, journal-vacuum or
+service-control operation. Evidence is written only to the Mac private evidence
+root. Collection does not classify any item as safe to delete and creates no
+cleanup authorization.

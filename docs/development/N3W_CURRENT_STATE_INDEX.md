@@ -1,3 +1,12 @@
+## 2026-11-10 — KF-147 exact storage-reclaim audit source ready / CI pending
+
+- Existing `tools/n3w_t1_kf147_fresh_capacity.py` now supports `--reclaim-audit-on-stop`; no parallel or stage-suffixed module was added.
+- The audit records all container-to-image references, image IDs/tags/layers, Docker verbose space data, volume allocation, major directory allocation, journal usage and root-filesystem large files.
+- It compares service/container runtime state before and after collection and declares `read_only=true`, `mutation=false`.
+- Local result: 23 focused tests PASS; Ruff, Python compile and embedded remote-script compile PASS.
+- Source head: `c14674b9fa4f17570d7f629e47563acffe296436`; GitHub CI and live read-only execution remain pending.
+- No cleanup, package binding, live retry, USB mutation, board access or merge is authorized.
+
 ## 2026-11-10 — KF-147 fresh capacity STOP / exact reclaim audit next
 
 - The repaired preflight passed live identity, runtime stability, U1/Extreme confirmation-state and shared-filesystem topology checks.

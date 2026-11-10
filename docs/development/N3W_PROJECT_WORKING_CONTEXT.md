@@ -1,7 +1,7 @@
-## Stable updater authority — 2026-11-10 KF-147 fresh capacity STOP
+## Stable updater authority — 2026-11-10 KF-147 exact reclaim audit source ready
 
 ~~~text
-PROJECT_WORKING_CONTEXT_VERSION=5.1
+PROJECT_WORKING_CONTEXT_VERSION=5.2
 
 KF147_REPOSITORY_FRESH_REBIND=PASS
 KF147_REBIND_EXECUTABLE_HEAD=fb63707edc1ab063ddc97de8475303df8daecfb1
@@ -14,6 +14,9 @@ KF147_CAPACITY_GATE_FINAL_RESULT=STOP_INSUFFICIENT
 KF147_FREE_BYTES=589799424
 KF147_REQUIRED_FREE_BYTES=1736515716
 KF147_CAPACITY_DEFICIT_BYTES=1146716292
+KF147_EXACT_RECLAIM_AUDIT_SOURCE_HEAD=c14674b9fa4f17570d7f629e47563acffe296436
+KF147_EXACT_RECLAIM_AUDIT_SOURCE=LOCAL_PASS_CI_PENDING
+KF147_EXACT_RECLAIM_AUDIT_LIVE_EXECUTION=PENDING
 
 KF147_OLD_PACKAGE_REUSABLE=false
 KF147_OLD_AUTHORIZATION_REUSABLE=false
@@ -46,6 +49,12 @@ Applicable GitHub CI passed. The post-fix live execution produced a valid capaci
 STOP: 589,799,424 bytes free versus 1,736,515,716 required, leaving a
 1,146,716,292-byte deficit. No payload was staged and no T1 mutation occurred.
 The next gate is an exact read-only storage/reclaim audit, not cleanup.
+
+That audit is now integrated into the existing capacity CLI rather than a new
+parallel module. It collects exact reference and allocation evidence without T1
+file creation or deletion and guards runtime stability before/after. Local focused
+validation passed at `c14674b9fa4f17570d7f629e47563acffe296436`; GitHub CI and
+the live read-only audit remain pending.
 
 Authority:
 docs/development/N3W_T1_KF147_FRESH_REBIND_AND_CAPACITY_PREFLIGHT_ENTRY_20261110.md.

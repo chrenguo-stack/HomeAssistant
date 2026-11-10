@@ -32,6 +32,9 @@ KF147_FREE_BYTES=589799424
 KF147_REQUIRED_FREE_BYTES=1736515716
 KF147_CAPACITY_DEFICIT_BYTES=1146716292
 KF147_REMOTE_STAGING_PREVENTED=true
+KF147_EXACT_RECLAIM_AUDIT_SOURCE_HEAD=c14674b9fa4f17570d7f629e47563acffe296436
+KF147_EXACT_RECLAIM_AUDIT_SOURCE=LOCAL_PASS_CI_PENDING
+KF147_EXACT_RECLAIM_AUDIT_LIVE_EXECUTION=PENDING
 
 LIVE_T1_MUTATION=false
 REMOTE_MANAGER_TAR_STAGING=false
@@ -60,6 +63,13 @@ returned a valid STOP. Free space is 589,799,424 bytes against 1,736,515,716 byt
 required, a deficit of 1,146,716,292 bytes. Core runtime and U1 state remained
 stable; the Manager tar was not sent to T1. The next bounded activity is an exact
 read-only reclaim audit. No broad prune or cleanup is authorized by this result.
+
+The exact reclaim audit is integrated into the existing fresh-capacity entry point
+at source head `c14674b9fa4f17570d7f629e47563acffe296436`. It records container-to-image
+references, image/layer metadata, Docker space accounting, volume and major-path
+allocation, journal usage and large files, while comparing runtime state before
+and after. Local focused validation is PASS; GitHub CI and live read-only execution
+are pending. It does not authorize any deletion.
 
 Authority:
 docs/development/N3W_T1_KF147_FRESH_REBIND_AND_CAPACITY_PREFLIGHT_ENTRY_20261110.md.
