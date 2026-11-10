@@ -1,0 +1,72 @@
+{
+  "schema": "gh.n3w-t1-kf147-policy-source-live-repair/1",
+  "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_STAGE_B_POLICY_SOURCE_REPAIR_R2_20261110_01",
+  "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_STAGE_B_POLICY_SOURCE_REPAIR_R2_20261110_01",
+  "confirmation": "EXECUTE KF147 STAGE B POLICY SOURCE REPAIR R2: YES",
+  "live_execution_authorized": false,
+  "authorization_state": {
+    "granted": false,
+    "claimed": false,
+    "consumed": false,
+    "replay_permitted": false
+  },
+  "source_authority": {
+    "tools/n3w_t1_core_updater_ha_capacity.py": "0e532679ad030e71fdddabeae0a178173e7e1eea",
+    "tools/n3w_t1_core_updater_ha_ipc.py": "a7af0fc02c59538d05a8d91675f44d82d0d2c77f",
+    "tools/n3w_t1_core_updater_ha_prepare.py": "3ec44b53db8a78912114b6d70f018dfc6e00a7ec",
+    "tools/n3w_t1_core_updater_ha_prepare_host.py": "933dfb2a348ace88b0a54bf4adbd8851c1348be0",
+    "tools/n3w_t1_core_updater_ha_recovery_encoding.py": "6d66d864ac858f6e1ac505062892c0fd38107af2",
+    "tools/n3w_t1_core_updater_ha_usb.py": "495dc29d7d4850cd485a07b739199a282446477f",
+    "infra/n3w-t1/upgrades/homeassistant-2026.10.4-host-release-policy.json": "aa9e97ab030afd675db7c3722ebac6975cd37b71",
+    "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7"
+  },
+  "predecessor_source_authority": {
+    "source_head": "c01b982e9d889a269e79aedeb8b9f18c15f8b3e6",
+    "files": {
+      "tools/n3w_t1_core_updater_ha_capacity.py": null,
+      "tools/n3w_t1_core_updater_ha_ipc.py": "550c6336303eb767ce813c27c2b35d9a89968472",
+      "tools/n3w_t1_core_updater_ha_prepare.py": "3391536669c3f545e25d51de8be51c3dc65aad75",
+      "tools/n3w_t1_core_updater_ha_prepare_host.py": "dfecb541d5f39d75e51fd14bb9d3361675ba031b",
+      "tools/n3w_t1_core_updater_ha_recovery_encoding.py": null,
+      "tools/n3w_t1_core_updater_ha_usb.py": "c1f472d7846f94340d43c72130d1ae3cd5c897c2",
+      "infra/n3w-t1/upgrades/homeassistant-2026.10.4-host-release-policy.json": null
+    }
+  },
+  "expected_live_entry": {
+    "manager_image": "local/greenhouse-manager:fresh-44e7d7472714",
+    "manager_runtime_image_id": "sha256:1471828ab07cf9b71c01a6e78994711a5954f0a178b8be087a28bb65a967c7d2",
+    "manager_ipc_v3_support": true,
+    "homeassistant_image": "local/n3w-homeassistant:2026.10.0-0c73235a",
+    "homeassistant_runtime_image_id": "sha256:c261fa53f30508951833492ba2a19af6cfbb6aa8f2806b531d8f5c6599265306",
+    "broker_image": "local/n3w-mosquitto:2.1.2-3184566d",
+    "broker_runtime_image_id": "sha256:df265f1e2b2e3dc35d5eb194e698c598e01c5ebca370da307b34332f9bf0a563",
+    "u1_transaction_sha256": "6e1f0b5d262e346674b62ac79bf2ffbc1c63a8dd22379a0a82c952f0e3626b49",
+    "usb_candidate_public_fingerprint": "e45fba0ad3e9997be2738c7a8f25d5c342ebba66ddbf822b1f6bf6a016c2ed93",
+    "usb_candidate_model": "Extreme",
+    "usb_candidate_capacity_bytes": 32017047552,
+    "confirmation_required": true,
+    "confirmation_consumed": false,
+    "capacity_snapshot_present": false,
+    "host_service_active": true,
+    "host_release_policy_present": false
+  },
+  "execution_contract": {
+    "exact_seven_file_delta_only": true,
+    "host_source_mutation": true,
+    "host_release_policy_install": true,
+    "host_daemon_restart_only": true,
+    "services_owner_restart": false,
+    "manager_mutation": false,
+    "homeassistant_mutation": false,
+    "broker_mutation": false,
+    "prepare_replay": false,
+    "confirm_usb_erase": false,
+    "usb_mutation": false,
+    "u2_plus": false,
+    "automatic_retry": false,
+    "automatic_host_source_rollback": true,
+    "board_access": false,
+    "merge": false
+  },
+  "stop_boundary": "STOP_AFTER_HOST_IPC_V3_CAPACITY_SNAPSHOT_AND_U1_CANDIDATE_CONTINUITY_VALIDATION"
+}
