@@ -7,12 +7,6 @@ from typing import Any
 
 from n3w_t1_core_updater_a1_policy import A1Policy, LocalA1Policy
 from n3w_t1_core_updater_components import adapter_for
-from n3w_t1_core_updater_finalize import (
-    FINALIZE_CONFIRMATION_V2,
-    ProductAcceptance,
-    cleanup_pending_for_successor,
-    committed_transaction_sha256,
-)
 from n3w_t1_core_updater_v2_common import (
     APPLY_CONFIRMATION_V2,
     AUTHORIZATION_ID,
@@ -428,6 +422,7 @@ class MultiComponentCoreUpdater:
 
         target_prestate = self.host.image_id(target.target_image_ref)
         current_transaction = self.store.read()
+        from n3w_t1_core_updater_finalize import cleanup_pending_for_successor
         if cleanup_pending_for_successor(current_transaction):
             raise UpdaterV2Error("post_acceptance_cleanup_required")
         self.store.prepare_new()
@@ -913,6 +908,10 @@ class MultiComponentCoreUpdater:
         *,
         confirmation: str,
     ) -> dict[str, Any]:
+        from n3w_t1_core_updater_finalize import (
+            FINALIZE_CONFIRMATION_V2,
+            committed_transaction_sha256,
+        )
         if os.geteuid() != 0:
             raise UpdaterV2Error("root_required")
         if confirmation != FINALIZE_CONFIRMATION_V2:
@@ -1060,6 +1059,7 @@ class MultiComponentCoreUpdater:
             and transaction.get("status") == "COMMITTED"
             and transaction.get("post_acceptance_cleanup_required") is True
         ):
+            from n3w_t1_core_updater_finalize import committed_transaction_sha256
             finalize_transaction_sha256 = committed_transaction_sha256(transaction)
         return {
             "schema": STATUS_SCHEMA_V2,
