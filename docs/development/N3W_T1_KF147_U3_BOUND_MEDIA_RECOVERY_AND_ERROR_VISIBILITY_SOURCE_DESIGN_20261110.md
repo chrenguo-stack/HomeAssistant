@@ -131,9 +131,10 @@ authorization_state.consumed=false
 authorization_state.replay_permitted=false
 ```
 
-A fresh recovery-only authorization must be bound after the repaired exact head and CI are
-fixed. It remains valid only for the same existing U3 transaction, bound filesystem UUID and
-USB fingerprint.
+A fresh recovery-only authorization was explicitly granted by the user for repaired exact
+source head `94aee49ccd9293cba0a3aae3ccb9abda1b6927c8` after source and exact-binding CI passed.
+The package now binds that authorization while preserving the same existing U3 transaction,
+bound filesystem UUID and USB fingerprint.
 
 The recovery confirmation string is:
 
@@ -160,11 +161,12 @@ RECOVERY_SOURCE_COMPLETE=true
 PREDECESSOR_HEAD=e2ce7107897b21e3c7c7b88ebac5decd95cb0ec0
 PREDECESSOR_AUTHORIZATION_CLAIMED=false
 PREDECESSOR_AUTHORIZATION_CONSUMED=false
-RECOVERY_LIVE_EXECUTION_AUTHORIZED=false
-RECOVERY_AUTHORIZATION_GRANTED=false
+AUTHORIZED_SOURCE_HEAD=94aee49ccd9293cba0a3aae3ccb9abda1b6927c8
+RECOVERY_LIVE_EXECUTION_AUTHORIZED=true
+RECOVERY_AUTHORIZATION_GRANTED=true
 RECOVERY_AUTHORIZATION_CLAIMED=false
 RECOVERY_AUTHORIZATION_CONSUMED=false
-FRESH_REAUTHORIZATION_REQUIRED=true
+FRESH_REAUTHORIZATION_REQUIRED=false
 T1_RECOVERY_MUTATION=false
 MERGE=false
 ```
