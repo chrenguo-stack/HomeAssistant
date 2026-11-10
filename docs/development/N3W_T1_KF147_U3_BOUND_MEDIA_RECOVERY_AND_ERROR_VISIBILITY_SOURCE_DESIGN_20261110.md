@@ -171,6 +171,42 @@ After source and exact-binding CI passed for repaired exact source head
 recovery-only authorization for that exact source. The package now binds that authorization
 while preserving the same U3 transaction, filesystem UUID and USB public fingerprint.
 
+### 5.2 Third live stop after authorization claim and R4 successor
+
+The authorization-bound retry on package head
+`3c17f51bc8f19c12bc2aedbc59db0db4ee688201` passed the pre-claim and post-claim U3
+preflight, claimed and consumed the recovery authorization, and successfully returned from
+the exact `umount` command. It then stopped before the OTA service restart:
+
+```text
+status=STOP
+first_failed_operation=Stop:stale_runtime_mount_persisted
+authorization_claimed=true
+authorization_consumed=true
+replay_permitted=false
+usb_reformat=false
+u5_plus=false
+```
+
+The source review found that `mount_view()` used `findmnt --target <path>`. That operation
+answers which filesystem contains a path; after the exact stale mount is removed it may still
+return the parent filesystem containing the directory. Therefore the post-unmount verification
+could report a persisted stale mount even when the exact mountpoint was already gone.
+
+The successor repair changes the lookup to exact mountpoint semantics with
+`findmnt --mountpoint <path>`. Because the previous recovery authorization is consumed, R4
+uses a new gate/authorization identity and a new state root:
+
+```text
+GATE_ID=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U3_BOUND_MEDIA_RECOVERY_TO_U4_R4_20261111_01
+STATE_ROOT=/var/lib/n3w-t1-core-updater/kf147-u3-bound-media-recovery-r4-20261111-01
+LIVE_EXECUTION_AUTHORIZED=false
+```
+
+R4 is committed fail-closed. The consumed predecessor authorization is never replayed. A fresh
+read-only state confirmation and new explicit R4 authorization are required before any later
+live execution.
+
 ## 6. Failure behavior
 
 There is no automatic retry and no rollback.
@@ -193,12 +229,16 @@ PREDECESSOR_AUTHORIZATION_CONSUMED=false
 PREVIOUS_AUTHORIZED_SOURCE_HEAD=94aee49ccd9293cba0a3aae3ccb9abda1b6927c8
 PREVIOUS_AUTHORIZATION_CLAIMED=false
 PREVIOUS_AUTHORIZATION_CONSUMED=false
-AUTHORIZED_SOURCE_HEAD=766d486eb065269a1fde1f5c644d9f7aef17bf97
-RECOVERY_LIVE_EXECUTION_AUTHORIZED=true
-RECOVERY_AUTHORIZATION_GRANTED=true
+PREVIOUS_AUTHORIZED_SOURCE_HEAD_2=766d486eb065269a1fde1f5c644d9f7aef17bf97
+PREVIOUS_AUTHORIZATION_CLAIMED=true
+PREVIOUS_AUTHORIZATION_CONSUMED=true
+PREVIOUS_REPLAY_PERMITTED=false
+SUCCESSOR_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U3_BOUND_MEDIA_RECOVERY_TO_U4_R4_20261111_01
+RECOVERY_LIVE_EXECUTION_AUTHORIZED=false
+RECOVERY_AUTHORIZATION_GRANTED=false
 RECOVERY_AUTHORIZATION_CLAIMED=false
 RECOVERY_AUTHORIZATION_CONSUMED=false
-FRESH_REAUTHORIZATION_REQUIRED=false
-T1_RECOVERY_MUTATION=false
+FRESH_R4_AUTHORIZATION_REQUIRED=true
+T1_RECOVERY_SERVICE_RESTART_REACHED=false
 MERGE=false
 ```
