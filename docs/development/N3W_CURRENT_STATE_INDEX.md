@@ -1,6 +1,9 @@
 ## 2026-11-10 — KF-147 Manager IPC V3 R2 portable-identity preauthorization CLOSED_PASS
 
 - Current core-stack authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`; Manager `local/greenhouse-manager:fresh-5b32e1ae8210`; Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`; Broker `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference remains `24382caae4a1f5d459297f86e8d18f10a848ca64` / `local/greenhouse-manager:fresh-24382caae4a1`.
+- Core-stack Live upgrade accepted; KF-147 R2 is a Manager-only successor live-apply gate and does not replace the accepted production authority.
 - Core-stack production authority remains unchanged; the running Manager is still predecessor `local/greenhouse-manager:fresh-7807271e4c48`.
 - The first Manager V3 live authorization was claimed and consumed exactly once and is permanently non-replayable. It stopped at `loaded_target_identity_invalid` before service-owner stop, Compose-env rewrite or Manager recreation.
 - Root cause is a recurrence of KF-106 cross-store image identity: T1 uses `io.containerd.snapshotter.v1`; build config digest is `fd5104...` while T1 runtime image ID is exact OCI manifest digest `1471828...`.
