@@ -35,15 +35,15 @@ def load_executor():
     return module
 
 
-def test_successor_r4_manifest_is_fail_closed_after_consumed_authorization() -> None:
+def test_successor_r4_manifest_binds_fresh_explicit_authorization() -> None:
     doc = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert doc["gate_id"] == GATE
     assert doc["authorization_id"] == GATE
     assert doc["confirmation"] == "EXECUTE KF147 U3 BOUND MEDIA RECOVERY TO U4 R4: YES"
     assert doc["state_root"].endswith("kf147-u3-bound-media-recovery-r4-20261111-01")
-    assert doc["live_execution_authorized"] is False
+    assert doc["live_execution_authorized"] is True
     assert doc["authorization_state"] == {
-        "granted": False,
+        "granted": True,
         "claimed": False,
         "consumed": False,
         "replay_permitted": False,
