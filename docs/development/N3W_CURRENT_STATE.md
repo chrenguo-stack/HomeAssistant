@@ -1,3 +1,43 @@
+## Latest authority — 2026-11-10 Broker readiness runtime-session-takeover source-repair design CLOSED_PASS
+
+~~~text
+AUTHORITY_STATE=BROKER_READINESS_SOURCE_REPAIR_DESIGN_CLOSED
+PR=800
+
+T1_BROKER_MANAGER_HA_RUNTIME_RECOVERY=CLOSED_PASS
+KF148_SOURCE_REPAIR_DESIGN=CLOSED_PASS
+KF148_SOURCE_REPAIR_IMPLEMENTATION=NOT_EXECUTED
+
+TOTAL_EXECUTION_CALL_SITE_COUNT=8
+STARTUP_CALL_SITE_COUNT=5
+RUNTIME_CALL_SITE_COUNT=3
+RUNTIME_PHASE_COUNT=2
+
+STARTUP_READINESS_CONTRACT=PRE_APPLICATION_ONLY_EXACT_PRODUCTION_SERVICE_IDENTITY
+RUNTIME_HEALTH_CONTRACT=NONINVASIVE_EXISTING_SESSION_EVIDENCE
+DYNSEC_IDENTITY_BINDING_PRESERVED=true
+
+NEXT_ONE_GATE=CORE_UPDATER_DEPLOYED_ASSET_INTEGRITY_REPAIR
+NEXT_2=T1_STORAGE_HEADROOM_AND_IMAGE_LIFECYCLE_CLOSURE
+
+KF147_RESUME_SEQUENCE=
+FRESH_REBIND
+->FRESH_CAPACITY_GATE
+->NEW_PACKAGE_MANIFEST_BINDING
+->LIVE_RETRY
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+MERGE=false
+~~~
+
+The KF-148 implementation-ready design is frozen. Five startup uses remain valid and unchanged; three literal R2B runtime calls must eventually be replaced by passive existing-session evidence. The design explicitly preserves the unique DynSec Home Assistant client ID and rejects the earlier alternate-client-ID proposal.
+
+No product source, T1 runtime, Docker state, board state or merge was changed by this gate. The source repair implementation is not claimed complete.
+
+Authority:
+docs/development/N3W_T1_BROKER_READINESS_RUNTIME_SESSION_TAKEOVER_SOURCE_REPAIR_DESIGN_20261110.md.
+
 ## Latest authority — 2026-11-10 T1 runtime recovery CLOSED_PASS / source-repair queue frozen
 
 ```text
