@@ -35,12 +35,12 @@ def load_executor():
     return module
 
 
-def test_manifest_is_fail_closed_after_source_repair_pending_reauthorization() -> None:
+def test_manifest_binds_fresh_explicit_recovery_authorization() -> None:
     doc = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert doc["gate_id"] == GATE
-    assert doc["live_execution_authorized"] is False
+    assert doc["live_execution_authorized"] is True
     assert doc["authorization_state"] == {
-        "granted": False,
+        "granted": True,
         "claimed": False,
         "consumed": False,
         "replay_permitted": False,
