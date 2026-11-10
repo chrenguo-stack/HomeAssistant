@@ -21,7 +21,7 @@ CI 执行策略的机器权威为 `docs/development/N3W_CI_POLICY_MANIFEST_V1.js
 - 常规 PR 完整检查：不超过 15 分钟；
 - 重型 ESPHome、Docker、Dynamic Security 集成检查：不阻塞普通反馈，转入完整检查或夜间检查；
 - 一个普通 PR 尽量只进行 1～3 次远程推送；
-- 一个前台对话默认只承担一个清晰阶段门，不连续串行完成多个重型 PR；
+- 前台对话按已授权的完整任务推进开发、测试、复核和归档。重型 PR 分阶段反馈，遇到实机、生产、合并、发布或范围变化等尚未覆盖的边界时暂停；
 - 任何提速不得绕过生产授权、回滚、匿名兼容或受保护服务边界。
 
 # Project Safety Boundaries
@@ -565,27 +565,14 @@ CI 在运行时可继续：
 
 # Documentation and Handoff Efficiency
 
-## 1. 使用一个机器可读状态文件作为事实源
+## 1. 使用现有状态文档和正式交接模板
 
-建议维护：
+当前状态记录在 [N3W_CURRENT_STATE.md](../../development/N3W_CURRENT_STATE.md)，
+通过 [状态索引](../../development/N3W_CURRENT_STATE_INDEX.md)定位相关记录。
+阶段交接使用[正式模板](../../development/templates/NEW_CHAT_HANDOFF_TEMPLATE.md)，只记录本次增量。
+新会话按[最小读取集](../../development/N3W_PROJECT_WORKING_CONTEXT.md#12-minimum-new-chat-read-set)读取适用规则和相关章节。
 
-```text
-docs/development/active-stage.yaml
-```
-
-包含：
-
-- current_stage；
-- repository_sha；
-- manager_version；
-- completed_gates；
-- pending_gates；
-- production_boundaries；
-- latest_live_evidence；
-- next_action；
-- prohibited_replays。
-
-交接文档从该状态生成或引用，不在每轮手工重写全部历史。
+---
 
 ## 2. ADR 只记录架构决策
 
@@ -601,7 +588,7 @@ docs/development/active-stage.yaml
 - 出现必须长期保留的新阻塞；
 - 用户明确要求。
 
-普通 PR 完成后只更新 active stage 和简短 changelog。
+普通 PR 完成后只更新适用的状态增量和必要记录。
 
 # Live Validation Efficiency
 
@@ -711,9 +698,8 @@ cache_hit
 1. 固定项目 CI 容器镜像；
 2. 编译 artifact 复用；
 3. 测试 marker 和变更影响映射；
-4. active-stage.yaml 机器可读状态；
-5. 参数化 M2 CLI 替代一次性 Vxx 脚本；
-6. nightly 深度测试和定期性能报告。
+4. 参数化 M2 CLI 替代一次性 Vxx 脚本；
+5. nightly 深度测试和定期性能报告。
 
 ## P3：只有仍然不足时考虑
 
@@ -762,7 +748,7 @@ cache_hit
 
 ## 阶段结束
 
-- [ ] active stage 已更新
+- [ ] 适用的项目状态已更新
 - [ ] 只记录增量结果
 - [ ] T1 测试已批量准备或完成
 - [ ] 临时包、凭据和 workspace 已清理
