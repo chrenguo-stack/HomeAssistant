@@ -10,13 +10,13 @@ from n3w_t1_core_updater_common import STATUS_SCHEMA, Target, UpdaterError
 from n3w_t1_core_updater_core import CoreUpdater
 from n3w_t1_core_updater_host import LocalHost
 from n3w_t1_core_updater_state import StateStore
+from n3w_t1_core_updater_finalize import ProductAcceptance
 from n3w_t1_core_updater_v2 import MultiComponentCoreUpdater
 from n3w_t1_core_updater_v2_common import (
     COMPONENTS,
     STATUS_SCHEMA_V2,
     TARGET_SCHEMA_V2,
     ComponentTarget,
-    ProductAcceptance,
     UpgradeBaseline,
     UpdaterV2Error,
 )
