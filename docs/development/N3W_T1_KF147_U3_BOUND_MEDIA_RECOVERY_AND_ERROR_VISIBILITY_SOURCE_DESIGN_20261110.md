@@ -1,0 +1,146 @@
+# N3W T1 KF-147 U3 Bound-Media Recovery and Error-Visibility Source Design
+
+## 1. Trigger
+
+The authorized destructive U1→U4 prepare execution on exact head
+`ff6370c3b9e46e1ddf20409915e1b10dabb6e286` stopped after the one-shot
+authorization was claimed and consumed.
+
+The subsequent read-only forensic gate on PR #806 proved:
+
+```text
+DURABLE_STATE=DURABLE_U3
+TRANSACTION_PHASE=U3_TARGET_DOWNLOADING_VERIFYING
+TRANSACTION_STATUS=ACTIVE
+PREPARE_CONFIRMATION_CONSUMED=true
+USB_CAPACITY_VERIFIED=true
+TARGET_ARTIFACT_VERIFIED=false
+SAME_AUTHORIZATION_REPLAY_PERMITTED=false
+```
+
+The bound filesystem is still present and identity-consistent:
+
+```text
+USB_MODEL=Extreme
+USB_PUBLIC_FINGERPRINT=e45fba0ad3e9997be2738c7a8f25d5c342ebba66ddbf822b1f6bf6a016c2ed93
+USB_FILESYSTEM_UUID=967cf065-abe5-49ee-8499-7c3f50d2c48f
+CURRENT_PARTITION=/dev/sdb1
+FSTYPE=ext4
+LABEL=N3W-UPDATE
+MEASURED_USABLE_BYTES=29712691200
+```
+
+The current bound partition is not mounted, while the product runtime mount target still
+reports an old `/dev/sda1` source. The current block inventory no longer contains
+`/dev/sda`.
+
+## 2. Source-level error-visibility defect
+
+The U1 discovery worker and the confirm worker share the prepare controller lock.
+
+A discovery iteration can capture U1 before confirmation, wait behind the confirm worker,
+then complete after the confirm worker has already failed in U3. The discovery success path
+previously cleared both:
+
+```text
+_discovery_error = None
+_prepare_error = None
+```
+
+This can erase the real prepare-worker error and later project only
+`ha_usb_prepare_worker_inactive`.
+
+The source repair removes discovery ownership of `_prepare_error`.
+Only the prepare worker may set or clear the prepare-worker error state.
+
+## 3. Recovery invariant
+
+The consumed destructive authorization is never replayed.
+
+Recovery is constrained to the already-bound U3 transaction. It must not:
+
+- submit `CONFIRM_USB_ERASE`;
+- create a new PREPARE transaction;
+- run wipefs;
+- repartition the disk;
+- run mkfs;
+- change the filesystem UUID;
+- change the bound public fingerprint;
+- enter U5 or later.
+
+## 4. Recovery mechanism
+
+The existing product already defines the intended U2/U3 recovery path:
+
+```text
+daemon startup
+-> start_background_recovery()
+-> U2/U3 detected
+-> _start_prepare_worker("resume")
+-> HaUsbPrepareController.resume_prepare()
+-> reopen_bound_media()
+-> prepare_target()
+-> record_target_ready()
+-> U4
+```
+
+Therefore the recovery executor does not implement its own target-download pipeline.
+
+The bounded live recovery sequence is:
+
+1. fresh read-only U3 preflight;
+2. verify exact transaction ID, release, target archive, filesystem UUID and USB fingerprint;
+3. verify Manager / Home Assistant / Broker container continuity;
+4. verify the current UUID-bound partition is unmounted;
+5. verify any existing runtime mount is stale and is not backed by a currently live block path;
+6. claim/consume a new recovery-only one-shot authorization;
+7. rerun the complete U3 preflight;
+8. unmount only the stale runtime mount target if present;
+9. restart only `n3w-t1-ha-ota.service`;
+10. allow existing product startup recovery to run `resume_prepare()`;
+11. poll the durable transaction until U4 or the first failure;
+12. at U4 verify exact archive size/SHA, same filesystem UUID and unchanged production containers;
+13. stop before U5.
+
+## 5. Authorization model
+
+The recovery package is committed fail-closed:
+
+```text
+live_execution_authorized=false
+authorization_state.granted=false
+authorization_state.claimed=false
+authorization_state.consumed=false
+authorization_state.replay_permitted=false
+```
+
+A later explicit authorization must be separate from the already consumed destructive
+authorization.
+
+The recovery confirmation string is:
+
+```text
+EXECUTE KF147 U3 BOUND MEDIA RECOVERY TO U4: YES
+```
+
+## 6. Failure behavior
+
+There is no automatic retry and no rollback.
+
+- before recovery authorization claim: STOP, no mutation;
+- after claim but before stale mount cleanup: STOP, authorization consumed, no replay;
+- stale mount cleanup failure: STOP before service restart;
+- service restart failure: STOP and manual recovery;
+- U3 resume failure: STOP and preserve bound media for another forensic gate;
+- U4 success: STOP before U5.
+
+## 7. Current authorization state
+
+```text
+SOURCE_REPAIR_IN_PROGRESS=true
+RECOVERY_SOURCE_IN_PROGRESS=true
+RECOVERY_LIVE_EXECUTION_AUTHORIZED=false
+RECOVERY_AUTHORIZATION_GRANTED=false
+T1_RECOVERY_MUTATION=false
+MERGE=false
+```
