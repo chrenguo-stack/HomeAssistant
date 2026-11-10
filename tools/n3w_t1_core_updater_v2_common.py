@@ -282,13 +282,22 @@ class ProductAcceptance:
     accepted_at_unix: int
 
     def __post_init__(self) -> None:
-        if self.component not in COMPONENTS:
+        if not isinstance(self.component, str) or self.component not in COMPONENTS:
             raise UpdaterV2Error("product_acceptance_component_invalid")
-        if SHA256.fullmatch(self.transaction_sha256) is None:
+        if (
+            not isinstance(self.transaction_sha256, str)
+            or SHA256.fullmatch(self.transaction_sha256) is None
+        ):
             raise UpdaterV2Error("product_acceptance_transaction_sha256_invalid")
-        if not self.target_image_ref.startswith(IMAGE_PREFIXES[self.component]):
+        if (
+            not isinstance(self.target_image_ref, str)
+            or not self.target_image_ref.startswith(IMAGE_PREFIXES[self.component])
+        ):
             raise UpdaterV2Error("product_acceptance_target_invalid")
-        if ACCEPTANCE_AUTHORITY_ID.fullmatch(self.authority_id) is None:
+        if (
+            not isinstance(self.authority_id, str)
+            or ACCEPTANCE_AUTHORITY_ID.fullmatch(self.authority_id) is None
+        ):
             raise UpdaterV2Error("product_acceptance_authority_invalid")
         if (
             not isinstance(self.accepted_at_unix, int)
