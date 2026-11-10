@@ -1,3 +1,40 @@
+## Stable updater authority — 2026-11-10 Broker readiness runtime-session-takeover repair design CLOSED_PASS
+
+~~~text
+PROJECT_WORKING_CONTEXT_VERSION=4.6
+
+BROKER_READINESS_SOURCE_REPAIR_DESIGN=CLOSED_PASS
+BROKER_READINESS_SOURCE_REPAIR_IMPLEMENTATION=NOT_EXECUTED
+
+STARTUP_READINESS_CONTRACT=PRE_APPLICATION_ONLY_EXACT_PRODUCTION_SERVICE_IDENTITY
+RUNTIME_HEALTH_CONTRACT=NONINVASIVE_EXISTING_SESSION_EVIDENCE
+TOTAL_EXECUTION_CALL_SITE_COUNT=8
+STARTUP_CALL_SITE_COUNT=5
+RUNTIME_CALL_SITE_COUNT=3
+RUNTIME_PHASE_COUNT=2
+DYNSEC_IDENTITY_BINDING_PRESERVED=true
+
+READINESS_RANDOM_ALTERNATE_CLIENT_ID=false
+READINESS_RUNTIME_USE=false
+
+NEXT_ONE_GATE=CORE_UPDATER_DEPLOYED_ASSET_INTEGRITY_REPAIR
+NEXT_2=T1_STORAGE_HEADROOM_AND_IMAGE_LIFECYCLE_CLOSURE
+THEN=KF147_FRESH_REBIND_CAPACITY_BINDING_LIVE_RETRY
+
+LIVE_MUTATION_DEFAULT=false
+BOARD_ACCESS_DEFAULT=false
+MERGE=false
+~~~
+
+The design gate independently enumerated eight executable readiness invocations: five are legitimate pre-application startup probes and three are unsafe runtime invocations in two R2B runtime phases. The third literal runtime call is inside _wait_post_reboot(), so repairing only _pre_reboot_state() and final verify() would be incomplete.
+
+The frozen repair keeps the existing readiness helper and DynSec client-ID binding unchanged. Runtime/post-start evidence becomes passive: Home Assistant identity equality, container-owned established socket to 1883, exact Broker current-auth event state, accepted Home Assistant HTTP status, and a stable before/after runtime sandwich. No password read and no new MQTT CONNECT are allowed.
+
+This closure is design-only. Product source is not modified in this gate.
+
+Authority:
+docs/development/N3W_T1_BROKER_READINESS_RUNTIME_SESSION_TAKEOVER_SOURCE_REPAIR_DESIGN_20261110.md.
+
 ## Stable updater authority — 2026-11-10 T1 runtime recovery closed / runtime MQTT health probe boundary frozen
 
 ```text
