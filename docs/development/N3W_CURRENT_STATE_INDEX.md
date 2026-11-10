@@ -1,3 +1,16 @@
+## 2026-11-10 — KF-147 Manager IPC V3 R2 portable-identity preauthorization CLOSED_PASS
+
+- Core-stack production authority remains unchanged; the running Manager is still predecessor `local/greenhouse-manager:fresh-7807271e4c48`.
+- The first Manager V3 live authorization was claimed and consumed exactly once and is permanently non-replayable. It stopped at `loaded_target_identity_invalid` before service-owner stop, Compose-env rewrite or Manager recreation.
+- Root cause is a recurrence of KF-106 cross-store image identity: T1 uses `io.containerd.snapshotter.v1`; build config digest is `fd5104...` while T1 runtime image ID is exact OCI manifest digest `1471828...`.
+- Fresh read-only T1 verification returned `PORTABLE_VERDICT=VERIFIED`; target is Linux/ARM64 and portable-identical to the exact bound Manager tar.
+- Running Manager remains predecessor, restart count 0; Compose Manager binding remains predecessor; `n3wfc4-services-activation.service` and `n3w-t1-ha-ota.service` are active.
+- R2 source head is `b8cfcdf88b38a82634845c5ab79ad098c4723a3d`; it reuses `tools/n3w_t1_portable_image_identity.py` and records T1-local runtime image ID instead of requiring Docker runtime `.Id` to equal build-side config digest.
+- Required R2 CI is fully PASS: KF147 package, Core Stack authority, fast source/exact closure, Manager A-to-B, storage/image lifecycle and public repository safety.
+- R2 gate `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_MANAGER_IPC_V3_IMAGE_ONLY_LIVE_APPLY_R2_20261110_01` remains unauthorized; a new explicit live authorization is required.
+- No USB mutation, U2+, board access or merge occurred during R2 source repair and preauthorization closure.
+- Closure authority: `docs/development/N3W_T1_KF147_MANAGER_IPC_V3_R2_PORTABLE_IDENTITY_PREAUTHORIZATION_CLOSURE_20261110.md`.
+
 ## 2026-11-10 — KF-147 Manager IPC V3 fresh package + live-apply preexecution CLOSED_PASS
 
 - Current core-stack authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
