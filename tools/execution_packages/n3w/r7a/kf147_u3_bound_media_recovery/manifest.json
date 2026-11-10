@@ -1,20 +1,20 @@
 {
   "schema": "gh.n3w-t1-kf147-u3-bound-media-recovery-manifest/1",
-  "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U3_BOUND_MEDIA_RECOVERY_TO_U4_20261110_01",
-  "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U3_BOUND_MEDIA_RECOVERY_TO_U4_20261110_01",
-  "confirmation": "EXECUTE KF147 U3 BOUND MEDIA RECOVERY TO U4: YES",
-  "live_execution_authorized": true,
+  "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U3_BOUND_MEDIA_RECOVERY_TO_U4_R4_20261111_01",
+  "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U3_BOUND_MEDIA_RECOVERY_TO_U4_R4_20261111_01",
+  "confirmation": "EXECUTE KF147 U3 BOUND MEDIA RECOVERY TO U4 R4: YES",
+  "live_execution_authorized": false,
   "authorization_state": {
-    "granted": true,
+    "granted": false,
     "claimed": false,
     "consumed": false,
     "replay_permitted": false
   },
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/kf147_u3_bound_media_recovery/executor.py": "e6696042d995c38c09fc470e87dce2d51bb71eed",
+    "tools/execution_packages/n3w/r7a/kf147_u3_bound_media_recovery/executor.py": "a80748eb9410c9254e0cabb2f676b784f0bf8471",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7"
   },
-  "state_root": "/var/lib/n3w-t1-core-updater/kf147-u3-bound-media-recovery-20261110-01",
+  "state_root": "/var/lib/n3w-t1-core-updater/kf147-u3-bound-media-recovery-r4-20261111-01",
   "poll_timeout_seconds": 1800,
   "expected_live_entry": {
     "transaction_id_sha256": "ca89774eb4254d0f861cc2aef136eee41e90fd6106559c0fd8d66e3ee00a3738",
