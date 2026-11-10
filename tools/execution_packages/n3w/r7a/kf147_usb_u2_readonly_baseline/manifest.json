@@ -4,7 +4,7 @@
   "mode": "READ_ONLY",
   "live_execution_authorized": false,
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/kf147_usb_u2_readonly_baseline/executor.py": "b2e13309a771e03a131cfe1ec70c14338df7db25",
+    "tools/execution_packages/n3w/r7a/kf147_usb_u2_readonly_baseline/executor.py": "21a813dcfd45c256684779c04facfab7513016f9",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7"
   },
   "expected_live_entry": {
