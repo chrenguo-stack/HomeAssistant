@@ -61,6 +61,9 @@ def test_manifest_is_fail_closed_and_scope_is_minimal() -> None:
         "tools/n3w_t1_ssh_transport.py"
     }
     assert set(doc["predecessor_source_authority"]["files"]) == EXPECTED_TARGETS
+    assert doc["predecessor_source_authority"]["source_head"] == (
+        "70aaa4070641dd73c1a97738e6332be31403d45e"
+    )
 
     contract = doc["execution_contract"]
     assert contract["exact_seven_file_delta_only"] is True
