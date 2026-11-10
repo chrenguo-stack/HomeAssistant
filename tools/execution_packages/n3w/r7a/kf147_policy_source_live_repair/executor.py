@@ -226,6 +226,18 @@ def file_prestate(plan):
     return observed
 
 
+def dependency_prestate(plan):
+    observed = {}
+    for item in plan["dependencies"]:
+        path = item["remote_path"]
+        require_regular(path, 0o644)
+        value = sha_file(path)
+        if value != item["sha256"]:
+            raise Stop("unchanged_dependency_drift:" + item["repo_path"])
+        observed[item["repo_path"]] = value
+    return observed
+
+
 def baseline(plan, *, require_snapshot):
     system_state = run(["systemctl", "is-system-running"], check=False, timeout=30).stdout.strip()
     if system_state not in {"running", "degraded"}:
@@ -248,6 +260,7 @@ def baseline(plan, *, require_snapshot):
 
     state = prepare_view(plan, require_snapshot=require_snapshot)
     files = file_prestate(plan) if not require_snapshot else None
+    dependencies = dependency_prestate(plan)
     return {
         "system_state": system_state,
         "manager_container_id": manager.get("Id"),
@@ -256,6 +269,7 @@ def baseline(plan, *, require_snapshot):
         "transaction_sha256": state["transaction_sha256"],
         "prepare_sha256": state["prepare_sha256"],
         "files": files,
+        "dependencies": dependencies,
     }
 
 
@@ -713,6 +727,22 @@ def validate_local(expected_commit: str, *, require_live: bool) -> dict[str, Any
     for relative, blob in manifest["source_authority"].items():
         if git_text("rev-parse", f"HEAD:{relative}") != blob:
             raise Stop(f"source_authority_drift:{relative}")
+
+    dependencies = manifest.get("unchanged_live_authority")
+    if not isinstance(dependencies, dict) or not dependencies:
+        raise Stop("unchanged_live_authority_invalid")
+    for relative, authority in dependencies.items():
+        if (
+            not isinstance(authority, dict)
+            or set(authority) != {"blob", "remote_path"}
+            or not isinstance(authority.get("blob"), str)
+            or re.fullmatch(r"[0-9a-f]{40}", authority["blob"]) is None
+            or not isinstance(authority.get("remote_path"), str)
+            or not authority["remote_path"].startswith("/")
+        ):
+            raise Stop(f"unchanged_live_authority_invalid:{relative}")
+        if git_text("rev-parse", f"HEAD:{relative}") != authority["blob"]:
+            raise Stop(f"unchanged_source_authority_drift:{relative}")
     if require_live:
         auth = manifest.get("authorization_state", {})
         if not (
@@ -766,6 +796,20 @@ def build_plan(manifest: dict[str, Any]) -> dict[str, Any]:
                 "target_sha256": target_sha,
             }
         )
+    dependencies = []
+    for relative, authority in manifest["unchanged_live_authority"].items():
+        source = REPO_ROOT / relative
+        if source.is_symlink() or not source.is_file():
+            raise Stop(f"unchanged_source_invalid:{relative}")
+        if git_text("rev-parse", f"HEAD:{relative}") != authority["blob"]:
+            raise Stop(f"unchanged_source_blob_drift:{relative}")
+        dependencies.append(
+            {
+                "repo_path": relative,
+                "remote_path": authority["remote_path"],
+                "sha256": sha_file(source),
+            }
+        )
     return {
         "gate_id": GATE_ID,
         "confirmation": CONFIRMATION,
@@ -773,6 +817,7 @@ def build_plan(manifest: dict[str, Any]) -> dict[str, Any]:
         "state_root": STATE_ROOT,
         "live": manifest["expected_live_entry"],
         "files": files,
+        "dependencies": dependencies,
     }
 
 
