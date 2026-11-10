@@ -1,9 +1,10 @@
-## Latest authority — 2026-11-10 KF-147 fresh rebind PASS / fresh capacity read-only execution next
+## Latest authority — 2026-11-10 KF-147 fresh capacity live-image oracle repair / CI pending
 
 ~~~text
-AUTHORITY_STATE=KF147_FRESH_REBIND_PASS_CAPACITY_READONLY_READY
+AUTHORITY_STATE=KF147_FRESH_CAPACITY_LIVE_IMAGE_ORACLE_REPAIRED_CI_PENDING
 PR=800
 KF147_REBIND_EXECUTABLE_HEAD=fb63707edc1ab063ddc97de8475303df8daecfb1
+KF147_CAPACITY_PREFLIGHT_FIX_SOURCE_HEAD=0ca17193a39f9b9f96da33b4ae9a5a4cc574e27d
 
 N3W_PHASE_EXIT_BLOCKER_COUNT=0
 PRE_U1_NORMAL_PRODUCT_RUNTIME_ACCEPTANCE=CLOSED_PASS
@@ -21,7 +22,9 @@ KF147_MANAGER_TAR_SHA256=9316817590c4fe74498629d0451a4897c2e11bef7bc4b423b66e47b
 KF147_MANAGER_TAR_SIZE_BYTES=62957568
 KF147_MANAGER_IMPORT_WORST_CASE_BYTES=62945412
 
-KF147_CAPACITY_PREFLIGHT_SOURCE=PASS
+KF147_CAPACITY_PREFLIGHT_SOURCE=FIXED_LOCAL_CI_PENDING
+KF147_FIRST_LIVE_READONLY_ATTEMPT=STOP_FALSE_ORACLE
+KF147_LIVE_RUNTIME_IMAGE_ID_BINDING=REPAIRED
 KF147_FRESH_T1_CAPACITY_EVIDENCE=PENDING
 KF147_CAPACITY_GATE_FINAL_RESULT=PENDING
 
@@ -39,7 +42,13 @@ Project/milestone review found no additional unfinished task in the current KF-1
 
 Fresh rebind proved no Manager product-source or production-authority drift from the Manager V3 product authority. The old KF-147 live package and authorization remain non-reusable. The immutable Manager tar was re-materialized only as read-only capacity-planning input and reverified by SHA-256/size; Docker-save regular-member bytes are freshly derived.
 
-The dedicated capacity preflight source is validated by the storage/image-lifecycle CI and performs no remote staging or mutation. Final capacity PASS requires a fresh read-only T1 observation.
+The first live read-only execution stopped before capacity evaluation because the
+preflight compared T1 runtime image IDs with earlier build-side image IDs. Accepted
+A1R, Boundary-B and 2026-11-09 live evidence consistently bind the running Manager,
+Home Assistant and Broker to runtime IDs `7e3f...`, `c261...` and `df265...`. Source
+head `0ca17193a39f9b9f96da33b4ae9a5a4cc574e27d` repairs all three bindings and adds
+literal-value plus fail-closed regression tests. Focused local validation passed;
+GitHub CI and a fresh post-fix read-only execution remain pending.
 
 Authority:
 docs/development/N3W_T1_KF147_FRESH_REBIND_AND_CAPACITY_PREFLIGHT_ENTRY_20261110.md.

@@ -1,11 +1,13 @@
-## Stable updater authority — 2026-11-10 KF-147 fresh rebind PASS / capacity read-only execution
+## Stable updater authority — 2026-11-10 KF-147 fresh-capacity live-image oracle repair
 
 ~~~text
-PROJECT_WORKING_CONTEXT_VERSION=4.9
+PROJECT_WORKING_CONTEXT_VERSION=5.0
 
 KF147_REPOSITORY_FRESH_REBIND=PASS
 KF147_REBIND_EXECUTABLE_HEAD=fb63707edc1ab063ddc97de8475303df8daecfb1
-KF147_CAPACITY_PREFLIGHT_SOURCE=PASS
+KF147_CAPACITY_PREFLIGHT_FIX_SOURCE_HEAD=0ca17193a39f9b9f96da33b4ae9a5a4cc574e27d
+KF147_CAPACITY_PREFLIGHT_SOURCE=FIXED_LOCAL_CI_PENDING
+KF147_FIRST_LIVE_READONLY_ATTEMPT=STOP_FALSE_ORACLE
 KF147_FRESH_T1_CAPACITY_EVIDENCE=PENDING
 KF147_CAPACITY_GATE_FINAL_RESULT=PENDING
 
@@ -32,7 +34,12 @@ PASS_THEN=NEW_PACKAGE_MANIFEST_BINDING
 
 The current dependency audit found no additional unfinished task in the KF-147 prerequisite chain. Historical OPEN/guarded KFs stay open unless separately closed. The fresh capacity execution must use the dedicated read-only probe and must not use the authenticated Broker readiness helper as a runtime-health oracle.
 
-The capacity gate is fail-closed before remote Manager-tar staging. Exact Manager candidate material is locally verified first; fresh T1 topology/free-space/mutable-allocation and preserved U1 state are then observed read-only. A capacity STOP does not authorize cleanup or any live retry.
+The first live read-only attempt stopped before capacity calculation because the
+preflight confused build-side image IDs with accepted T1 runtime image IDs. The
+three runtime bindings are repaired at source head
+`0ca17193a39f9b9f96da33b4ae9a5a4cc574e27d`, with literal regression coverage.
+No payload was staged and no T1 mutation occurred. GitHub CI and one fresh post-fix
+read-only execution are required before capacity PASS can be claimed.
 
 Authority:
 docs/development/N3W_T1_KF147_FRESH_REBIND_AND_CAPACITY_PREFLIGHT_ENTRY_20261110.md.

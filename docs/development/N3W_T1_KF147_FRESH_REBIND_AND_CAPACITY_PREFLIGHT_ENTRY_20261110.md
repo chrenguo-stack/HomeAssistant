@@ -263,3 +263,58 @@ NEW_PACKAGE_MANIFEST_BINDING
 
 STOP on insufficient capacity or any authority/runtime/U1 drift. A capacity STOP
 does not authorize automatic cleanup or live repair.
+
+## 9. First live attempt false STOP and source repair
+
+The first live read-only execution reached T1 successfully and stopped before
+capacity evaluation:
+
+```text
+STATUS=STOP
+REASON=live_image_id_drift:manager
+REMOTE_STAGING=false
+MANAGER_TAR_STREAMED_TO_T1=false
+MUTATION=false
+```
+
+Private evidence remains local and is publicly represented only by this sanitized
+binding:
+
+```text
+PRIVATE_EVIDENCE_PRESENT=true
+PRIVATE_EVIDENCE_PATH_CLASS=LOCAL_PRIVATE_N3W_KF147_CAPACITY_EVIDENCE
+PRIVATE_EVIDENCE_SHA256=7e2dd8e7473068bb2e4c3ccdc28e6622b676c34fab6e69ec5823503908e49247
+PRIVATE_EVIDENCE_SIZE=260
+PRIVATE_EVIDENCE_CREATED_AT=2026-11-10T10:22:46+0800
+PRIVATE_EVIDENCE_PURPOSE=KF147_FIRST_FRESH_CAPACITY_READONLY_FALSE_STOP
+SECRET_VALUES_INCLUDED=false
+```
+
+The cause was a source-side oracle error. `EXPECTED_LIVE_IMAGE_IDS` used the
+historical build-side image IDs while the accepted A1R, Boundary-B and 2026-11-09
+live evidence binds the running T1 images to:
+
+```text
+MANAGER_RUNTIME_IMAGE_ID=sha256:7e3f09ed47010a18de215faa426113b7faba4e220b41bb9dcafd8ee1d4acf20b
+HOMEASSISTANT_RUNTIME_IMAGE_ID=sha256:c261fa53f30508951833492ba2a19af6cfbb6aa8f2806b531d8f5c6599265306
+BROKER_RUNTIME_IMAGE_ID=sha256:df265f1e2b2e3dc35d5eb194e698c598e01c5ebca370da307b34332f9bf0a563
+```
+
+The issue affects all three components even though fail-fast ordering exposed
+Manager first. Source repair:
+
+```text
+KF111_REGRESSION_FIX_HEAD=0ca17193a39f9b9f96da33b4ae9a5a4cc574e27d
+FOCUSED_CAPACITY_TESTS=10_PASS
+FOCUSED_STORAGE_AND_CAPACITY_TESTS=21_PASS
+RUFF=PASS
+PY_COMPILE=PASS
+GITHUB_CI=PENDING
+FRESH_POST_FIX_T1_READONLY_EXECUTION=PENDING
+```
+
+This is a recurrence of the existing KF-098/KF-111 cross-image-store identity
+guard, not a new independent failure class. The regression suite now asserts the
+accepted runtime IDs as literal evidence and
+separately proves that a real runtime-ID drift still fails closed. Capacity PASS,
+new package/manifest binding and live retry remain unclaimed.

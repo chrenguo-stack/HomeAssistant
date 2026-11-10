@@ -1,3 +1,15 @@
+### 2026-11-10 KF-111 regression recurrence — fresh-capacity preflight compared build IDs with T1 runtime IDs
+
+| ID | 范围 | 现场现象 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| KF-111 (regression recurrence) | KF-147 fresh capacity live-baseline oracle | First read-only execution stopped at `live_image_id_drift:manager` before capacity calculation. | The preflight reintroduced the KF-098/KF-111 error by binding historical build-side image IDs for all three core services instead of the accepted T1 runtime image IDs. Manager surfaced first only because validation is fail-fast. | Bind the accepted Manager/Home Assistant/Broker runtime IDs and add literal-value plus real-drift STOP regression tests. | REGRESSION_FIXED_CI_PENDING |
+
+Guards:
+- build/package image IDs and T1 runtime image IDs are separate evidence fields and must not be substituted for each other;
+- live-baseline tests must pin accepted runtime IDs literally rather than generate fixtures solely from the implementation constants;
+- a genuine ref or runtime-ID mismatch must still STOP before capacity PASS or remote staging;
+- the false STOP does not authorize cleanup, package binding, live retry or any T1 mutation.
+
 ### 2026-11-10 KF-150 source implementation update — exact lifecycle + pre-transfer capacity contract
 
 ~~~text

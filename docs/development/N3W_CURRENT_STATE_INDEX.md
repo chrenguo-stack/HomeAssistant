@@ -1,3 +1,12 @@
+## 2026-11-10 — KF-147 fresh-capacity live-image oracle repaired / CI pending
+
+- The first live read-only capacity attempt stopped before capacity calculation with `live_image_id_drift:manager`; no Manager tar was staged and no T1 mutation occurred.
+- Root cause: the new preflight used historical build-side image IDs for Manager, Home Assistant and Broker instead of the accepted T1 runtime image IDs.
+- Source fix `0ca17193a39f9b9f96da33b4ae9a5a4cc574e27d` binds the accepted runtime IDs and adds literal-value plus drift-stop regression coverage.
+- Local focused result: 21 passed; Ruff and Python compile passed. The wider local Storage CI slice had 76 passed and one Docker-dependent failure because Docker is not a supported capability on this Mac.
+- GitHub CI and a new live read-only capacity attempt remain pending. Capacity PASS, package/manifest binding and live retry are not claimed.
+- Authority: `docs/development/N3W_T1_KF147_FRESH_REBIND_AND_CAPACITY_PREFLIGHT_ENTRY_20261110.md`.
+
 ## 2026-11-10 — KF-147 fresh rebind PASS / capacity read-only execution next
 
 - N3-W phase exit blockers remain zero; Pre-U1 normal-product acceptance remains CLOSED_PASS.
