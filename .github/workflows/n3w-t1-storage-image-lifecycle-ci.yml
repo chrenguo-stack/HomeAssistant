@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/n3w-t1-storage-image-lifecycle-ci.yml"
       - "tools/n3w_t1_core_updater.py"
+      - "tools/n3w_t1_core_updater_finalize.py"
       - "tools/n3w_t1_core_updater_v2.py"
       - "tools/n3w_t1_core_updater_v2_common.py"
       - "tools/n3w_t1_core_updater_v2_state.py"
