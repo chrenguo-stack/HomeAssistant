@@ -1,3 +1,12 @@
+## 2026-11-10 — KF-147 dialogue frozen / formal V1.3 handoff ready
+
+- User requested immediate dialogue stop and GitHub alignment; no further live/source gate was entered.
+- Exact reclaim audit remains CLOSED_PASS. HA 2026.10.4 is the primary cleanup candidate; no cleanup authorization was granted or claimed.
+- Broker has no old image. Manager bf38 predecessor and four historical Manager tar files are separately classified and excluded from HA cleanup.
+- Next gate is preexecution/authorization review only; direct image deletion remains forbidden.
+- Formal handoff: `docs/development/N3W_T1_KF147_EXACT_RECLAIM_AUDIT_PASS_TO_HA_IMAGE_CLEANUP_PREEXECUTION_NEW_CHAT_HANDOFF_V1.0_20261110.md`.
+- Live T1 mutation, USB mutation, board access and merge remain false.
+
 ## 2026-11-10 — KF-147 exact reclaim audit PASS / HA 2026.10.4 exact cleanup candidate
 
 - Repaired live read-only audit completed with `runtime_stable=true`, `mutation=false`; Manager tar streaming and remote staging remained false.

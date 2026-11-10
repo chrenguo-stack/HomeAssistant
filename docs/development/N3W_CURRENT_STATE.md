@@ -1,7 +1,7 @@
-## Latest authority — 2026-11-10 KF-147 exact reclaim audit PASS / HA target cleanup authorization next
+## Latest authority — 2026-11-10 KF-147 dialogue frozen / cleanup preexecution handoff ready
 
 ~~~text
-AUTHORITY_STATE=KF147_EXACT_RECLAIM_AUDIT_PASS
+AUTHORITY_STATE=KF147_DIALOGUE_FROZEN_HANDOFF_READY
 PR=800
 KF147_REBIND_EXECUTABLE_HEAD=fb63707edc1ab063ddc97de8475303df8daecfb1
 KF147_CAPACITY_PREFLIGHT_FIX_SOURCE_HEAD=0ca17193a39f9b9f96da33b4ae9a5a4cc574e27d
@@ -51,9 +51,17 @@ USB_MUTATION=false
 BOARD_ACCESS=false
 MERGE=false
 
-NEXT_ONE_GATE=KF147_EXACT_HA_2026_10_4_IMAGE_CLEANUP_AUTHORIZATION
+NEXT_ONE_GATE=N3W_T1_KF147_EXACT_HA_2026_10_4_IMAGE_CLEANUP_PREEXECUTION_AND_AUTHORIZATION_REVIEW_20261110_01
 PACKAGE_MANIFEST_BINDING_ALLOWED=false
 ~~~
+
+The user stopped the current dialogue before granting cleanup authorization. Formal
+V1.3 handoff authority is
+`docs/development/N3W_T1_KF147_EXACT_RECLAIM_AUDIT_PASS_TO_HA_IMAGE_CLEANUP_PREEXECUTION_NEW_CHAT_HANDOFF_V1.0_20261110.md`.
+The next chat must remain read-only with respect to T1 until exact cleanup source,
+tests, CI and fresh preclaim have passed and a new explicit authorization is granted.
+No live image deletion, Manager predecessor finalize, historical tar cleanup,
+package binding, USB mutation, board access or merge occurred in this closure.
 
 Project/milestone review found no additional unfinished task in the current KF-147 prerequisite chain. Historical OPEN/guarded KFs remain tracked independently and are not reclassified as complete. In particular, the readiness runtime-session-takeover implementation remains NOT_EXECUTED; KF-147 preflight therefore must not use that MQTT CONNECT helper as a runtime health probe.
 
