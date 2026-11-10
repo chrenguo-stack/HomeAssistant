@@ -31,6 +31,9 @@ def test_current_authority_repository_contract_passes():
     assert report["broker_unchanged"] is True
     assert report["legacy_static_compose_is_current_authority"] is False
     assert report["live_deployment_state"] == "APPLIED_ACCEPTED"
+    assert report["updater_delivery_mode"] == "EXACT_PACKAGE_BOUND_EPHEMERAL_PYZ"
+    assert report["updater_permanent_install_required"] is False
+    assert report["updater_runtime_health_authority"] is False
 
 
 def test_fresh_compose_uses_dynamic_core_stack_bindings():
@@ -264,4 +267,68 @@ def test_applied_state_requires_kf141_closure():
             bootstrap,
             state,
             index,
+        )
+
+
+def test_updater_delivery_contract_rejects_permanent_install():
+    authority, target, compose, bootstrap, state, index = documents()
+    authority = copy.deepcopy(authority)
+    authority["updater_delivery"]["permanent_install_required"] = True
+    authority["updater_delivery"]["permanent_cli_path"] = (
+        "/opt/HomeAssistant/tools/n3w_t1_core_updater.py"
+    )
+    with pytest.raises(check.AuthorityError, match="updater_delivery_contract_invalid"):
+        check.validate_documents(
+            authority,
+            target,
+            compose,
+            bootstrap,
+            state,
+            index,
+        )
+
+
+def test_updater_delivery_sources_are_package_bound_and_ephemeral():
+    report = check.validate_updater_delivery_sources(
+        (ROOT / check.FRESH_PAYLOAD_WORKFLOW).read_text(encoding="utf-8"),
+        (ROOT / check.UPDATER_PACKAGE_WORKFLOW).read_text(encoding="utf-8"),
+        (ROOT / check.U1_EXECUTOR).read_text(encoding="utf-8"),
+    )
+    assert report == {
+        "updater_delivery_mode": "EXACT_PACKAGE_BOUND_EPHEMERAL_PYZ",
+        "updater_permanent_install_required": False,
+        "updater_runtime_health_authority": False,
+        "updater_exact_digest_required_before_execution": True,
+    }
+
+
+def test_updater_delivery_sources_reject_bootstrap_permanent_copy():
+    fresh = (ROOT / check.FRESH_PAYLOAD_WORKFLOW).read_text(encoding="utf-8")
+    fresh += (
+        '\\ncp tools/n3w_t1_core_updater.py '
+        '"$PAYLOAD/runtime-source/opt/HomeAssistant/tools/"\\n'
+    )
+    with pytest.raises(
+        check.AuthorityError,
+        match="updater_permanent_install_reintroduced",
+    ):
+        check.validate_updater_delivery_sources(
+            fresh,
+            (ROOT / check.UPDATER_PACKAGE_WORKFLOW).read_text(encoding="utf-8"),
+            (ROOT / check.U1_EXECUTOR).read_text(encoding="utf-8"),
+        )
+
+
+def test_updater_delivery_sources_reject_missing_digest_binding():
+    package = (ROOT / check.UPDATER_PACKAGE_WORKFLOW).read_text(encoding="utf-8")
+    package = package.replace(
+        '"updater_pyz_sha256": sha(updater_pyz)',
+        '"updater_pyz_sha256": "unbound"',
+        1,
+    )
+    with pytest.raises(check.AuthorityError, match="updater_package_binding_missing"):
+        check.validate_updater_delivery_sources(
+            (ROOT / check.FRESH_PAYLOAD_WORKFLOW).read_text(encoding="utf-8"),
+            package,
+            (ROOT / check.U1_EXECUTOR).read_text(encoding="utf-8"),
         )
