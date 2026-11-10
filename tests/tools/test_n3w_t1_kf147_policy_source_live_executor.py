@@ -61,14 +61,14 @@ def load_executor():
     return module
 
 
-def test_manifest_is_fail_closed_and_scope_is_minimal() -> None:
+def test_manifest_is_authorized_once_and_scope_is_minimal() -> None:
     doc = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert doc["schema"] == "gh.n3w-t1-kf147-policy-source-live-repair/1"
     assert doc["gate_id"] == GATE
     assert doc["authorization_id"] == GATE
-    assert doc["live_execution_authorized"] is False
+    assert doc["live_execution_authorized"] is True
     assert doc["authorization_state"] == {
-        "granted": False,
+        "granted": True,
         "claimed": False,
         "consumed": False,
         "replay_permitted": False,
