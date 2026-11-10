@@ -513,3 +513,41 @@ def test_wrong_bound_usb_projects_recoverable_media_wait(tmp_path: Path) -> None
     status = executor.status()
     assert status["phase"] == "RECOVERY_MEDIA_REQUIRED"
     assert status["error_code"] is None
+
+
+def test_discovery_success_does_not_clear_prepare_worker_error(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "preserve-prepare-error"
+    root.mkdir(mode=0o700)
+    resolver = Resolver()
+    store = HaUsbStateStore(root)
+    base = HaUsbIpcExecutor(
+        store=store,
+        admission_resolver=resolver,
+    )
+    base.submit("PREPARE", RELEASE)
+
+    controller = ControllerStub()
+    executor = HaUsbIpcExecutor(
+        store=store,
+        admission_resolver=resolver,
+        prepare_controller=controller,
+    )
+
+    original_refresh = controller.refresh_candidate
+
+    def refresh_once():
+        result = original_refresh()
+        executor._stop_workers.set()
+        return result
+
+    controller.refresh_candidate = refresh_once
+    executor._prepare_error = "ha_target_download_failed"
+
+    executor._discovery_worker()
+
+    assert controller.ensure_calls == 1
+    assert controller.refresh_calls == 1
+    assert executor._discovery_error is None
+    assert executor._prepare_error == "ha_target_download_failed"
