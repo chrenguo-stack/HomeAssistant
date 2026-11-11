@@ -75,6 +75,14 @@ def sha_file(path):
     return digest.hexdigest()
 
 
+def git_blob_sha1(path):
+    payload = Path(path).read_bytes()
+    digest = hashlib.sha1()
+    digest.update(b"blob " + str(len(payload)).encode("ascii") + b"\0")
+    digest.update(payload)
+    return digest.hexdigest()
+
+
 
 def _boolish(value):
     if isinstance(value, bool):
@@ -437,13 +445,102 @@ def durable_json(path, value):
         os.close(directory)
 
 
-def validate_u4(plan):
-    source_hashes = {}
+def validate_installed_sources(plan):
+    sha256_view = {}
     for path, expected in plan["installed_predecessor_sha256"].items():
         observed = sha_file(path)
         if observed != expected:
             raise Stop("installed_source_drift:" + Path(path).name)
-        source_hashes[path] = observed
+        sha256_view[path] = observed
+
+    blob_view = {}
+    for path, expected in plan["installed_runtime_git_blob_sha1"].items():
+        observed = git_blob_sha1(path)
+        if observed != expected:
+            raise Stop("installed_runtime_source_drift:" + Path(path).name)
+        blob_view[path] = observed
+    return sha256_view, blob_view
+
+
+def _usb_metadata_object(path):
+    path = Path(path)
+    if path.is_symlink() or not path.is_file():
+        raise Stop("usb_transaction_metadata_invalid:" + path.name)
+    metadata = path.stat()
+    if metadata.st_uid != 0 or stat.S_IMODE(metadata.st_mode) != 0o600:
+        raise Stop("usb_transaction_metadata_metadata_invalid:" + path.name)
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as error:
+        raise Stop("usb_transaction_metadata_json_invalid:" + path.name) from error
+    if not isinstance(value, dict):
+        raise Stop("usb_transaction_metadata_shape_invalid:" + path.name)
+    return value
+
+
+def usb_transaction_phase_observed(plan):
+    phase_path = (
+        Path(plan["mount_target"]) / "n3w-update" / "transaction" / "phase.json"
+    )
+    value = _usb_metadata_object(phase_path)
+    if (
+        value.get("schema") != "gh.n3w-t1-ha-usb-transaction-phase/1"
+        or value.get("transaction_id_sha256") != plan["transaction_id_sha256"]
+    ):
+        raise Stop("usb_transaction_phase_binding_invalid")
+    return value.get("phase")
+
+
+def usb_transaction_metadata_view(plan, transaction, expected_phase):
+    root = Path(plan["mount_target"]) / "n3w-update" / "transaction"
+    manifest_path = root / "manifest.json"
+    phase_path = root / "phase.json"
+    checksums_path = root / "checksums.json"
+    manifest = _usb_metadata_object(manifest_path)
+    phase = _usb_metadata_object(phase_path)
+    checksums = _usb_metadata_object(checksums_path)
+
+    release = transaction.get("target_manifest_identity")
+    release_identity = (
+        release.get("release_identity")
+        if isinstance(release, dict)
+        else None
+    )
+    if manifest != {
+        "schema": "gh.n3w-t1-ha-usb-transaction-manifest/1",
+        "transaction_id_sha256": plan["transaction_id_sha256"],
+        "release_identity": release_identity,
+        "target_image_ref": transaction.get("target_image_ref"),
+        "target_archive_sha256": plan["target_sha256"],
+        "target_archive_size_bytes": plan["target_size_bytes"],
+        "usb_filesystem_uuid": plan["usb_filesystem_uuid"],
+        "usb_device_identity_public_fingerprint": plan["usb_public_fingerprint"],
+    }:
+        raise Stop("usb_transaction_manifest_drift")
+    if phase != {
+        "schema": "gh.n3w-t1-ha-usb-transaction-phase/1",
+        "transaction_id_sha256": plan["transaction_id_sha256"],
+        "phase": expected_phase,
+        "target_artifact_verified": True,
+        "usb_capacity_verified": True,
+    }:
+        raise Stop("usb_transaction_phase_drift")
+    if checksums != {
+        "schema": "gh.n3w-t1-ha-usb-checksums/1",
+        "target_archive_sha256": plan["target_sha256"],
+        "target_archive_size_bytes": plan["target_size_bytes"],
+    }:
+        raise Stop("usb_transaction_checksums_drift")
+    return {
+        "phase": expected_phase,
+        "manifest_sha256": sha_file(manifest_path),
+        "phase_sha256": sha_file(phase_path),
+        "checksums_sha256": sha_file(checksums_path),
+    }
+
+
+def validate_u4(plan):
+    source_hashes, runtime_blobs = validate_installed_sources(plan)
 
     claim = read_object(R6_ROOT / "authorization_claim.json")
     activation = read_object(R6_ROOT / "activation.json")
@@ -508,12 +605,19 @@ def validate_u4(plan):
         or ipc.get("installed_version") != "2026.10.0"
     ):
         raise Stop("ipc_not_ready_to_install")
+    usb_transaction_metadata = usb_transaction_metadata_view(
+        plan,
+        transaction,
+        "U4_READY_TO_INSTALL",
+    )
     return {
         "transaction": transaction,
         "transaction_sha256": transaction_sha256,
         "installed_source_sha256": source_hashes,
+        "installed_runtime_git_blob_sha1": runtime_blobs,
         "service": service,
         "usb_binding": media_binding,
+        "usb_transaction_metadata": usb_transaction_metadata,
         "target_sha256": plan["target_sha256"],
         "target_size_bytes": target.stat().st_size,
         "containers": containers,
@@ -522,12 +626,7 @@ def validate_u4(plan):
 
 
 def validate_u5(plan, baseline):
-    source_hashes = {}
-    for path, expected in plan["installed_predecessor_sha256"].items():
-        observed = sha_file(path)
-        if observed != expected:
-            raise Stop("installed_source_changed:" + Path(path).name)
-        source_hashes[path] = observed
+    source_hashes, runtime_blobs = validate_installed_sources(plan)
 
     transaction = read_object(TX_PATH)
     if (
@@ -572,12 +671,26 @@ def validate_u5(plan, baseline):
         or ipc.get("installed_version") != "2026.10.0"
     ):
         raise Stop("ipc_not_u5")
+    usb_transaction_metadata = usb_transaction_metadata_view(
+        plan,
+        transaction,
+        "U5_INSTALL_REQUESTED_REVALIDATING",
+    )
+    before_usb = baseline["usb_transaction_metadata"]
+    if (
+        usb_transaction_metadata["manifest_sha256"] != before_usb["manifest_sha256"]
+        or usb_transaction_metadata["checksums_sha256"] != before_usb["checksums_sha256"]
+        or usb_transaction_metadata["phase_sha256"] == before_usb["phase_sha256"]
+    ):
+        raise Stop("usb_transaction_metadata_transition_invalid")
     return {
         "transaction_phase": transaction["phase"],
         "transaction_sha256": transaction_sha256,
         "installed_source_sha256": source_hashes,
+        "installed_runtime_git_blob_sha1": runtime_blobs,
         "service": service,
         "usb_binding": media_binding,
+        "usb_transaction_metadata": usb_transaction_metadata,
         "target_sha256": plan["target_sha256"],
         "target_size_bytes": target.stat().st_size,
         "containers": containers,
@@ -598,6 +711,7 @@ def execute(plan):
             "authorization_consumed": False,
             "transaction_mutation": False,
             "usb_mutation": False,
+            "usb_transaction_metadata_mutation": False,
             "host_source_mutation": False,
             "service_restart": False,
             "homeassistant_mutation": False,
@@ -656,6 +770,8 @@ def execute(plan):
         "host_state_mutation": True,
         "host_source_mutation": False,
         "usb_mutation": False,
+        "usb_transaction_metadata_mutation": False,
+        "split_state_detected": False,
         "service_restart": False,
         "homeassistant_mutation": False,
         "manager_mutation": False,
@@ -673,6 +789,8 @@ def execute(plan):
             plan["target_release_id"],
         )
         result["transaction_mutation"] = True
+        result["usb_mutation"] = True
+        result["usb_transaction_metadata_mutation"] = True
         result["u5_transition"] = True
         durable_json(state_root / "install_response.json", install_response)
 
@@ -685,18 +803,29 @@ def execute(plan):
         return result
     except Exception as error:
         result["reason"] = type(error).__name__ + ":" + str(error)[:240]
+        host_phase = None
+        usb_phase = None
         try:
             transaction = read_object(TX_PATH)
-            phase = transaction.get("phase")
-            result["observed_transaction_phase"] = phase
-            result["u5_transition"] = phase == "U5_INSTALL_REQUESTED_REVALIDATING"
-            result["u6_plus"] = phase not in {
+            host_phase = transaction.get("phase")
+            result["observed_transaction_phase"] = host_phase
+            result["u5_transition"] = host_phase == "U5_INSTALL_REQUESTED_REVALIDATING"
+            result["u6_plus"] = host_phase not in {
                 "U4_READY_TO_INSTALL",
                 "U5_INSTALL_REQUESTED_REVALIDATING",
             }
             result["transaction_mutation"] = result["u5_transition"] or result["u6_plus"]
         except Exception:
             pass
+        try:
+            usb_phase = usb_transaction_phase_observed(plan)
+            result["observed_usb_transaction_phase"] = usb_phase
+            result["usb_mutation"] = usb_phase != "U4_READY_TO_INSTALL"
+            result["usb_transaction_metadata_mutation"] = result["usb_mutation"]
+        except Exception:
+            pass
+        if host_phase is not None and usb_phase is not None:
+            result["split_state_detected"] = host_phase != usb_phase
         try:
             durable_json(state_root / "failure.json", result)
         except Exception:
@@ -799,6 +928,14 @@ def read_manifest(expected_commit: str, *, execute: bool) -> dict[str, Any]:
     for relative, expected_sha in document["target_source_sha256"].items():
         if sha_file(ROOT / relative) != expected_sha:
             raise Stop("target_source_sha256_drift:" + relative)
+    runtime_blobs = document["expected_live_entry"]["installed_runtime_git_blob_sha1"]
+    prefix = "/opt/HomeAssistant/"
+    for installed, expected_blob in runtime_blobs.items():
+        if not installed.startswith(prefix):
+            raise Stop("installed_runtime_source_path_invalid")
+        relative = installed[len(prefix):]
+        if git_text("rev-parse", "HEAD:" + relative) != expected_blob:
+            raise Stop("installed_runtime_source_authority_drift:" + relative)
     return document
 
 
@@ -866,6 +1003,8 @@ def main() -> int:
         "host_source_mutation": False,
         "transaction_mutation": False,
         "usb_mutation": False,
+        "usb_transaction_metadata_mutation": False,
+        "split_state_detected": False,
         "service_restart": False,
         "homeassistant_mutation": False,
         "manager_mutation": False,
