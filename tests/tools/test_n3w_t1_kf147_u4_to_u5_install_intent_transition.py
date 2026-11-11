@@ -286,6 +286,32 @@ def test_execute_failure_detects_usb_u5_host_u4_split(
     assert result["u6_plus"] is False
 
 
+def test_local_wrapper_propagates_failure_mutation_and_split_state_evidence() -> None:
+    source = EXECUTOR.read_text(encoding="utf-8")
+    block_start = source.index('if completed.returncode != 0 or remote.get("status") not in {')
+    block_end = source.index("        else:\n            result.update(remote)", block_start)
+    block = source[block_start:block_end]
+    for key in (
+        "authorization_claimed",
+        "authorization_consumed",
+        "transaction_mutation",
+        "host_state_mutation",
+        "host_source_mutation",
+        "usb_mutation",
+        "usb_transaction_metadata_mutation",
+        "split_state_detected",
+        "service_restart",
+        "homeassistant_mutation",
+        "manager_mutation",
+        "broker_mutation",
+        "u5_transition",
+        "u6_plus",
+        "board_access",
+        "merge",
+    ):
+        assert f'"{key}"' in block
+
+
 def test_target_binding_workflow_covers_transition_package() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
     package_glob = (
