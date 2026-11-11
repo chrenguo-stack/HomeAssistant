@@ -1,3 +1,42 @@
+## Latest authority — 2026-11-11 KF-147 U5 writable mount restoration source design / preexecution CI pending
+
+~~~text
+AUTHORITY_STATE=KF147_U5_WRITABLE_MOUNT_RESTORATION_SOURCE_DESIGN_PREEXECUTION_CI_PENDING
+PR=807
+SOURCE_HEAD=b84621714ba910da5b0bd401f85c677f00159275
+BASE_SOURCE_HEAD=b72985f7570afc6ac3183090d3888742998789e9
+DESIGN_FROZEN=true
+PRODUCT_DAEMON_IMPLICIT_REMOUNT=false
+DEDICATED_ONE_SHOT_RESTORATION_EXECUTOR_REQUIRED=true
+
+U5_PREFLIGHT_NORECOVERY_ALIAS_GUARD_FIXED=true
+TARGET_BINDING_RUN=43035002529
+TARGET_BINDING_SOURCE=SUCCESS
+TARGET_BINDING_EXACT=IN_PROGRESS
+MANAGER_A_TO_B_RUN=43035002483
+MANAGER_SOURCE=SUCCESS
+MANAGER_EXACT_MANAGER_SLICE=IN_PROGRESS
+FAST_CONTRACT_RUN=43035002462
+FAST_CONTRACT=SUCCESS
+CI_POLL_LIMIT_REACHED=true
+
+T1_ACCESS=false
+T1_MUTATION=false
+USB_MUTATION=false
+U4_TO_U5_TRANSITION=false
+INSTALL=false
+MERGE=false
+
+CURRENT_BLOCKER=EXACT_CI_NONTERMINAL
+NEXT_ONE_GATE=N3W_T1_KF147_U5_WRITABLE_MOUNT_RESTORATION_EXECUTOR_SOURCE_REPAIR_AND_CI_20261111_01
+~~~
+
+The source design rejects implicit product-daemon remounting. The exceptional recovery state will be handled by a dedicated one-shot executor: exact read-only preflight, one-shot authorization claim, explicit unmount, fresh normal ext4 writable mount, post-validation, bounded single rollback path, and stop before U5.
+
+The live T1 exposed the ext4 alias `norecovery`; the official U5 preflight now forbids `ro`, `noload`, and `norecovery`, with a focused regression for `rw,norecovery`. The source job and fast contract CI passed. Exact jobs remain non-terminal after the permitted polling window, so no further polling or T1 action is performed in this gate.
+
+Authority: `docs/development/N3W_T1_KF147_U5_WRITABLE_MOUNT_RESTORATION_SOURCE_DESIGN_PREEXECUTION_PROGRESS_20261111.md`.
+
 ## Latest authority — 2026-11-11 KF-147 official U5 preflight executed / current mount fail-closed STOP
 
 ~~~text

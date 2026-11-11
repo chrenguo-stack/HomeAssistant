@@ -1,3 +1,12 @@
+### 2026-11-11 KF-147 U5 writable restoration design / norecovery alias guard
+
+- Real T1 evidence showed the recovery mount as `ro,norecovery`; kernel ext4 treats `norecovery` and `noload` as journal-suppression aliases.
+- The earlier U5 preflight already stopped because `ro` was forbidden, but `rw,norecovery` was not explicitly guarded. Source head `b84621714ba910da5b0bd401f85c677f00159275` adds `norecovery` to the forbidden set and regression coverage.
+- Do not use a simple implicit remount in `reopen_bound_media()`. An already-mounted recovery filesystem is an exceptional live predecessor state and must require explicit mutation authority.
+- Restoration design is unmount + fresh normal ext4 writable mount, not `remount,rw` from a journal-suppressed mount. The normal writable mount may replay the journal and therefore counts as USB mutation.
+- After any writable-mount restoration, rerun official U5 preflight before U4→U5.
+- Source implementation of the one-shot restoration executor remains the next repository-only gate; live unmount/mount remains unauthorized.
+
 ### 2026-11-11 KF-147 official U5 preflight — read-only recovery mount correctly rejected
 
 ```text

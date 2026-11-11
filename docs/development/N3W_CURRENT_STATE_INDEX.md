@@ -1,3 +1,14 @@
+## 2026-11-11 — KF-147 U5 writable mount restoration source design / preexecution CI pending
+
+- Exact source head: `b84621714ba910da5b0bd401f85c677f00159275`.
+- Design: do not add implicit remount behavior to the product daemon; use a dedicated one-shot restoration executor with read-only preflight and separately authorized live execution.
+- Frozen live sequence: exact validation → authorization claim → unmount recovery mount → fresh `rw,nodev,nosuid,noexec` ext4 mount → full post-validation → stop before U5; one bounded rollback only on failure.
+- Admission fix: official U5 preflight now rejects the ext4 journal-suppression aliases `noload` and `norecovery`; `rw,norecovery` has regression coverage.
+- CI: target-binding source SUCCESS, exact-binding IN_PROGRESS; Manager source SUCCESS, exact-manager-slice IN_PROGRESS; fast contract SUCCESS. Poll limit reached, no more active checks this round.
+- No T1 access or mutation occurred.
+- Next source gate: `N3W_T1_KF147_U5_WRITABLE_MOUNT_RESTORATION_EXECUTOR_SOURCE_REPAIR_AND_CI_20261111_01`.
+- Progress: [writable mount restoration source design / preexecution](N3W_T1_KF147_U5_WRITABLE_MOUNT_RESTORATION_SOURCE_DESIGN_PREEXECUTION_PROGRESS_20261111.md).
+
 ## 2026-11-11 — KF-147 official U5 preflight current-mount validation STOP / archived
 
 - State: `KF147_OFFICIAL_U5_PREFLIGHT_CURRENT_MOUNT_STOP_ARCHIVED`.
