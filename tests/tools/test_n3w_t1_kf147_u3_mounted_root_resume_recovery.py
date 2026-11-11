@@ -196,3 +196,24 @@ def test_execution_contract_forbids_destructive_or_u5_plus_scope() -> None:
     assert contract["u5_plus"] is False
     assert contract["board_access"] is False
     assert contract["merge"] is False
+
+
+def test_target_binding_workflow_runs_r6_compile_and_regression() -> None:
+    workflow = (
+        ROOT
+        / ".github"
+        / "workflows"
+        / "n3w-t1-core-updater-homeassistant-target-binding-ci.yml"
+    ).read_text(encoding="utf-8")
+    package_path = (
+        "tools/execution_packages/n3w/r7a/"
+        "kf147_u3_mounted_root_resume_recovery/executor.py"
+    )
+    test_path = "tests/tools/test_n3w_t1_kf147_u3_mounted_root_resume_recovery.py"
+    package_glob = (
+        "tools/execution_packages/n3w/r7a/"
+        "kf147_u3_mounted_root_resume_recovery/**"
+    )
+    assert workflow.count(package_glob) == 1
+    assert workflow.count(package_path) == 1
+    assert workflow.count(test_path) == 2
