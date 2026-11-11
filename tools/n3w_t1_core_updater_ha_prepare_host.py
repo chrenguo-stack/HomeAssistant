@@ -907,7 +907,6 @@ class SubprocessPrepareBackend:
         mount_root = self.runtime_root / "media"
         _require_private_directory(mount_root, create=True)
         mount_path = mount_root / transaction_id[:16]
-        _require_private_directory(mount_path, create=True)
 
         raw_target = _run_optional(
             (
@@ -920,6 +919,7 @@ class SubprocessPrepareBackend:
             )
         )
         if raw_target is None:
+            _require_private_directory(mount_path, create=True)
             _run(
                 (
                     "mount",
@@ -936,6 +936,8 @@ class SubprocessPrepareBackend:
             ).strip()
             if target != str(mount_path):
                 raise UpdaterV2Error("usb_bound_partition_mounted_elsewhere")
+            if mount_path.is_symlink() or not mount_path.is_dir():
+                raise UpdaterV2Error("usb_mount_path_invalid")
 
         media = PreparedUsbMedia(
             locator=parent,
