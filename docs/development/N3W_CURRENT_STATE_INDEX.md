@@ -1,3 +1,15 @@
+## 2026-11-11 — KF-147 CI artifact rerun failure reclassified / workflow repaired
+
+- Rerun attempt 2 of Manager A-to-B run `43038325461` failed again at exact artifact re-download.
+- Attempt 2 log: upload finalized successfully, artifact ID issued, download reported `Found 1 artifact(s)` and then rejected the provided ID.
+- Repeated failure means this is no longer classified as a transient propagation race.
+- Root class: workflow artifact lookup ambiguity/visibility across rerun attempts when using the internal current-run artifact client.
+- Fix head: `8d6024ae889951eab1ff2427ad60e4a5598c8065`.
+- Fix: exact artifact-ID downloads explicitly set `github-token`, `repository` and `run-id`, forcing the documented REST-backed path while keeping artifact-ID authority.
+- Added workflow contract regression test.
+- New CI: fast contract SUCCESS; Manager/source and target-binding/source in progress at polling stop.
+- No T1 action or mutation occurred.
+
 ## 2026-11-11 — KF-147 observability repair CI failure classified as GitHub artifact race
 
 - Source head remains `8cbf63f3af4c2a904770842a3a223c97b56c1630`; no repair commit was required.

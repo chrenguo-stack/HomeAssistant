@@ -1,3 +1,51 @@
+## Latest authority — 2026-11-11 KF-147 CI exact artifact rerun design repair / CI pending
+
+~~~text
+AUTHORITY_STATE=KF147_CI_EXACT_ARTIFACT_RERUN_DESIGN_REPAIR_CI_PENDING
+RESTORATION_OBSERVABILITY_HEAD=8cbf63f3af4c2a904770842a3a223c97b56c1630
+CI_REPAIR_HEAD=8d6024ae889951eab1ff2427ad60e4a5598c8065
+
+REPEATED_FAILURE_RUN=43038325461
+REPEATED_FAILURE_ATTEMPT=2
+REPEATED_FAILURE_JOB=exact-manager-slice
+FAILURE_REPEAT_CONFIRMED=true
+FAILURE_CLASS=WORKFLOW_ARTIFACT_LOOKUP_ACROSS_RERUN_ATTEMPTS
+RESTORATION_EXECUTOR_SOURCE_REGRESSION=false
+
+WORKFLOW_FIX=EXACT_ARTIFACT_ID_DOWNLOAD_VIA_GITHUB_REST_API
+GITHUB_TOKEN_EXPLICIT=true
+REPOSITORY_EXPLICIT=true
+RUN_ID_EXPLICIT=true
+EXACT_ARTIFACT_ID_PRESERVED=true
+WORKFLOW_CONTRACT_TEST_ADDED=true
+
+NEW_MANAGER_RUN=43039728250
+NEW_MANAGER_SOURCE=IN_PROGRESS
+NEW_TARGET_BINDING_RUN=43039727825
+NEW_TARGET_BINDING_SOURCE=IN_PROGRESS
+NEW_FAST_CONTRACT_RUN=43039728013
+NEW_FAST_CONTRACT=SUCCESS
+NEW_PUBLIC_SAFETY_RUN=43039728077
+NEW_PUBLIC_SAFETY=IN_PROGRESS
+CI_POLL_LIMIT_REACHED=true
+FULL_CI_PASS=false
+
+T1_ACCESS=false
+T1_MUTATION=false
+USB_MUTATION=false
+LIVE_UNMOUNT_OR_RW_MOUNT_AUTHORIZED=false
+U5_TRANSITION=false
+MERGE=false
+~~~
+
+Rerun attempt 2 reproduced the same exact-manager artifact download failure. The repeated evidence
+invalidates the earlier one-off propagation-race classification. The failure is now treated as a
+workflow design defect in exact artifact lookup across rerun attempts.
+
+The repair does not change restoration/product source. Both exact-ID download steps in Manager
+A-to-B now explicitly provide GitHub token, repository and run-id so download-artifact uses the
+public REST lookup path while preserving the unique upload artifact ID.
+
 ## Latest authority — 2026-11-11 KF-147 observability repair CI external artifact race / rerun in progress
 
 ~~~text

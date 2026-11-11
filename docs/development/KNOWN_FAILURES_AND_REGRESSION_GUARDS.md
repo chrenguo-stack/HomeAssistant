@@ -1,3 +1,12 @@
+### 2026-11-11 CI exact artifact download across rerun attempts
+
+- Do not assume an `actions/download-artifact` exact-ID failure after a successful upload is transient if it repeats on a rerun.
+- Rerun attempts may expose artifact lookup ambiguity within the same workflow run.
+- For exact immutable artifact identity, keep `artifact-ids` as authority and explicitly set `github-token`, `repository`, and `run-id` so the download action uses the GitHub REST-backed lookup path.
+- Do not fall back to artifact name when exact artifact ID is part of the integrity contract.
+- Regression authority: `tests/tools/test_n3w_t1_core_updater_manager_a_to_b_ci_contract.py`.
+- Fix head: `8d6024ae889951eab1ff2427ad60e4a5598c8065`.
+
 ### 2026-11-11 KF-147 restoration preflight — preserve transport evidence before JSON parsing
 
 - Failure signature: local wrapper receives non-JSON/empty remote stdout and reports `remote_result_json_invalid`.
