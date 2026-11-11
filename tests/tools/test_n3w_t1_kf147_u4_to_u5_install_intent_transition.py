@@ -64,13 +64,28 @@ def test_manifest_is_ungranted_and_binds_exact_u4_state() -> None:
     assert live["usb_filesystem_uuid"] == "967cf065-abe5-49ee-8499-7c3f50d2c48f"
     assert live["mount_required_options"] == ["rw", "nodev", "nosuid", "noexec"]
     assert live["mount_forbidden_options"] == ["ro", "noload", "norecovery"]
+    runtime_blobs = live["installed_runtime_git_blob_sha1"]
+    assert runtime_blobs[
+        "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_usb.py"
+    ] == "495dc29d7d4850cd485a07b739199a282446477f"
+    assert runtime_blobs[
+        "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_usb_state.py"
+    ] == "64cfcab9d1c62acd28ef4abeb161b88f8a63d2bc"
+    assert runtime_blobs[
+        "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_daemon.py"
+    ] == "98c879f65840c237e7ee8855412806e346d880f5"
+    assert len(runtime_blobs) == 10
     contract = document["execution_contract"]
     assert contract["transaction_mutation_on_execute"] is True
     assert contract["u5_transition_on_execute"] is True
     assert contract["u6_plus"] is False
     assert contract["source_deployment"] is False
     assert contract["service_restart"] is False
-    assert contract["usb_mutation"] is False
+    assert contract["usb_mutation_on_preflight"] is False
+    assert contract["usb_mutation_on_execute"] is True
+    assert contract["usb_transaction_metadata_write_on_execute"] is True
+    assert contract["target_archive_mutation"] is False
+    assert contract["split_state_fail_closed"] is True
     assert contract["homeassistant_mutation"] is False
     assert contract["manager_mutation"] is False
     assert contract["broker_mutation"] is False
@@ -102,6 +117,7 @@ def test_preflight_mode_is_read_only_and_does_not_claim() -> None:
     assert result["authorization_consumed"] is False
     assert result["transaction_mutation"] is False
     assert result["usb_mutation"] is False
+    assert result["usb_transaction_metadata_mutation"] is False
     assert result["u5_transition"] is False
     assert result["u6_plus"] is False
 
@@ -136,6 +152,10 @@ def test_remote_transition_is_bounded_to_install_intent_only() -> None:
     assert '"U4_READY_TO_INSTALL"' in source
     assert '"U5_INSTALL_REQUESTED_REVALIDATING"' in source
     assert '"INSTALL_REQUESTED_REVALIDATING"' in source
+    assert "git_blob_sha1" in source
+    assert "usb_transaction_metadata_view" in source
+    assert "usb_transaction_phase_observed" in source
+    assert "split_state_detected" in source
     assert "start_predecessor_recovery(" not in source
     assert "claim_live_authorization(" not in source
     assert 'run(["systemctl", "restart"' not in source
@@ -154,6 +174,116 @@ def test_execute_claims_before_install_request_and_has_no_rollback() -> None:
     assert install in source
     assert source.index(claim) < source.index(install)
     assert "rollback" not in source.lower()
+
+
+def test_authorized_execute_marks_usb_metadata_mutation_and_stops_at_u5(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    namespace = load_remote_namespace()
+    baseline = {
+        "containers": {
+            "manager": {"container_id": "manager-id"},
+        },
+        "usb_transaction_metadata": {
+            "manifest_sha256": "a" * 64,
+            "phase_sha256": "b" * 64,
+            "checksums_sha256": "c" * 64,
+        },
+    }
+    namespace["validate_u4"] = lambda plan: baseline
+    namespace["ipc_install"] = lambda manager_id, release_id: {
+        "accepted": True,
+        "phase": "INSTALL_REQUESTED_REVALIDATING",
+    }
+    namespace["validate_u5"] = lambda plan, before: {
+        "transaction_phase": "U5_INSTALL_REQUESTED_REVALIDATING",
+    }
+    monkeypatch.setattr(namespace["os"], "chown", lambda *args: None)
+
+    result = namespace["execute"](
+        {
+            "mode": "execute",
+            "live_execution_authorized": True,
+            "authorization_state": {
+                "granted": True,
+                "claimed": False,
+                "consumed": False,
+                "replay_permitted": False,
+            },
+            "authorization": GATE,
+            "authorization_id": GATE,
+            "confirmation": CONFIRMATION,
+            "expected_confirmation": CONFIRMATION,
+            "state_root": str(tmp_path / "state"),
+            "transaction_id_sha256": "1" * 64,
+            "usb_filesystem_uuid": "uuid",
+            "target_release_id": "homeassistant-2026.10.4",
+        }
+    )
+    assert result["status"] == "U5_INSTALL_INTENT_TRANSITION_PASS"
+    assert result["authorization_claimed"] is True
+    assert result["authorization_consumed"] is True
+    assert result["transaction_mutation"] is True
+    assert result["usb_mutation"] is True
+    assert result["usb_transaction_metadata_mutation"] is True
+    assert result["u5_transition"] is True
+    assert result["u6_plus"] is False
+    assert result["split_state_detected"] is False
+
+
+def test_execute_failure_detects_usb_u5_host_u4_split(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    namespace = load_remote_namespace()
+    namespace["validate_u4"] = lambda plan: {
+        "containers": {"manager": {"container_id": "manager-id"}},
+    }
+    stop_type = namespace["Stop"]
+
+    def fail_install(manager_id, release_id):
+        raise stop_type("synthetic_ipc_response_loss")
+
+    namespace["ipc_install"] = fail_install
+    namespace["read_object"] = lambda path: {"phase": "U4_READY_TO_INSTALL"}
+    namespace["usb_transaction_phase_observed"] = (
+        lambda plan: "U5_INSTALL_REQUESTED_REVALIDATING"
+    )
+    monkeypatch.setattr(namespace["os"], "chown", lambda *args: None)
+
+    result = namespace["execute"](
+        {
+            "mode": "execute",
+            "live_execution_authorized": True,
+            "authorization_state": {
+                "granted": True,
+                "claimed": False,
+                "consumed": False,
+                "replay_permitted": False,
+            },
+            "authorization": GATE,
+            "authorization_id": GATE,
+            "confirmation": CONFIRMATION,
+            "expected_confirmation": CONFIRMATION,
+            "state_root": str(tmp_path / "state"),
+            "transaction_id_sha256": "1" * 64,
+            "usb_filesystem_uuid": "uuid",
+            "target_release_id": "homeassistant-2026.10.4",
+        }
+    )
+    assert result["status"] == "STOP"
+    assert result["authorization_claimed"] is True
+    assert result["authorization_consumed"] is True
+    assert result["transaction_mutation"] is False
+    assert result["usb_mutation"] is True
+    assert result["usb_transaction_metadata_mutation"] is True
+    assert result["observed_transaction_phase"] == "U4_READY_TO_INSTALL"
+    assert result["observed_usb_transaction_phase"] == (
+        "U5_INSTALL_REQUESTED_REVALIDATING"
+    )
+    assert result["split_state_detected"] is True
+    assert result["u6_plus"] is False
 
 
 def test_target_binding_workflow_covers_transition_package() -> None:
