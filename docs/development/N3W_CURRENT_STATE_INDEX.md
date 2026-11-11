@@ -1,3 +1,14 @@
+## 2026-11-11 — KF-147 U5 dynamic binding repair CI CLOSED_PASS / bounded T1 preflight ready
+
+- State: `KF147_U5_PREFLIGHT_DYNAMIC_BINDING_REPAIR_CI_CLOSED_PASS_T1_PREFLIGHT_READY`.
+- Exact repair head remains `b72985f7570afc6ac3183090d3888742998789e9`; PR #807 source branch has no drift beyond it.
+- Target-binding run `43031942495`: `source=SUCCESS`, `exact-binding=SUCCESS`.
+- Manager A-to-B run `43031941993`: all applicable jobs SUCCESS.
+- Full repair CI is now PASS; bounded read-only T1 preflight is eligible to run under the existing authorization.
+- `OFFICIAL_U5_PREFLIGHT_PASS=false` until real T1 execution; fresh mount state remains `UNKNOWN_FRESH`.
+- No USB remount/write, source deployment, service restart, U4→U5 transition, U6+, board access or merge is authorized.
+- Progress authority: [official U5 dynamic USB binding source repair / CI progress](N3W_T1_KF147_OFFICIAL_U5_PREFLIGHT_DYNAMIC_USB_BINDING_SOURCE_REPAIR_CI_PROGRESS_20261111.md).
+
 ## 2026-11-11 — KF-147 official U5 preflight dynamic USB binding source repaired / exact CI pending
 
 - State: `KF147_U5_PREFLIGHT_DYNAMIC_BINDING_SOURCE_REPAIRED_CI_PENDING`.

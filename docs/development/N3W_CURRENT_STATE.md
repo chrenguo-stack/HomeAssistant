@@ -1,3 +1,47 @@
+## Latest authority — 2026-11-11 KF-147 U5 dynamic binding repair CI CLOSED_PASS / bounded T1 preflight ready
+
+~~~text
+AUTHORITY_STATE=KF147_U5_PREFLIGHT_DYNAMIC_BINDING_REPAIR_CI_CLOSED_PASS_T1_PREFLIGHT_READY
+PR=807
+SOURCE_REPAIR_HEAD=b72985f7570afc6ac3183090d3888742998789e9
+SOURCE_REPAIR_TREE=92e47f86cd2549cb28f14207984af92dc5403eb6
+
+TARGET_BINDING_RUN=43031942495
+TARGET_BINDING_SOURCE=SUCCESS
+TARGET_BINDING_EXACT=SUCCESS
+MANAGER_A_TO_B_RUN=43031941993
+MANAGER_A_TO_B=SUCCESS
+FULL_REPAIR_CI_PASS=true
+
+OFFICIAL_U5_PREFLIGHT_PASS=false
+T1_PREFLIGHT_EXECUTED=false
+CURRENT_MOUNT_FRESH_STATE=UNKNOWN_FRESH
+NEXT_ONE_GATE=FRESH_PRIVATE_IDENTITY_BOUND_BOUNDED_READ_ONLY_OFFICIAL_U5_PREFLIGHT
+
+SOURCE_DEPLOYMENT=false
+SERVICE_RESTART=false
+U4_TO_U5_TRANSITION=false
+USB_WRITE_OR_REMOUNT=false
+HOMEASSISTANT_MUTATION=false
+MANAGER_MUTATION=false
+BROKER_MUTATION=false
+U6_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+~~~
+
+Fresh readback confirms target-binding run `43031942495` is terminal SUCCESS for both
+`source` and `exact-binding`. PR #807 remains open/draft/mergeable, and its source branch
+is still exactly `b72985f7570afc6ac3183090d3888742998789e9`; no post-repair source drift exists.
+
+The next permitted action is the already-authorized bounded read-only official U5 preflight using
+the private T1 SSH target, dedicated known-hosts binding and expected host-key SHA-256. No remount,
+source deployment, service restart, U4→U5 transition, installation, U6+, board access or merge is
+authorized.
+
+Authority:
+`docs/development/N3W_T1_KF147_OFFICIAL_U5_PREFLIGHT_DYNAMIC_USB_BINDING_SOURCE_REPAIR_CI_PROGRESS_20261111.md`.
+
 ## Latest authority — 2026-11-11 KF-147 official U5 preflight dynamic USB binding source repaired / exact CI pending
 
 ~~~text
