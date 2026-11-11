@@ -1,3 +1,12 @@
+### 2026-11-11 KF-147 U4 mount operator — missing lsblk tree output
+
+- Phenomenon: authorized U4 mount recovery stopped at `Stop:usb_parent_ambiguous`; `mount_attempted=false`, `mount_restored=false`, no source/service/transaction/U5 changes; SSH cleanup completed.
+- Root cause: the operator requested PATH but neither NAME nor --tree, then relied on children[] to bind the partition to its parent disk. util-linux only supplies children[] with NAME or --tree. This defect was reproduced using documented flat/tree command output fixtures; raw live lsblk output was not collected.
+- Repair: explicitly request --tree, retaining unique UUID, USB fingerprint, filesystem, mount and transaction guards. Attempt 02 uses a separate local evidence directory and requires the exact prior pre-mount STOP record; never delete old evidence or replay an attempted/uncertain mount.
+- Tests: 13 unittest methods passed, including old-code reproduction/new-code pass and unsafe retry rejection. Prior tests mocked resolve_usb and therefore missed the real inventory shape; tests must exercise command-output shape at this boundary.
+- Status: SOURCE_FIXED_LIVE_PENDING. Original U5 historical /dev/sdb1 equality defect remains unresolved. No U5 install authorization inferred.
+- Scope: disposable operator only; no installed product source changes. Reference: tools/execution_packages/n3w/r7a/kf147_u4_mount_recovery/.
+
 ### 2026-11-11 KF-147 U3 mounted-root recovery — U4 closed pass, U5 source gate entered
 
 | ID | 范围 | 现场现象 | 根因 | 修复 | 状态 |
