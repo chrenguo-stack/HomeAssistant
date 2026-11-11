@@ -12,7 +12,7 @@
   },
   "state_root": "/var/lib/n3w-t1-core-updater/kf147-u5-writable-mount-restoration-r8-20261111-01",
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/kf147_u5_writable_mount_restoration/executor.py": "00af29e42a71ccc31258a7635ec1267766ec5606",
+    "tools/execution_packages/n3w/r7a/kf147_u5_writable_mount_restoration/executor.py": "add45ba4fe2ec3d2122305d71ec82155c4af47b1",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7",
     "tools/n3w_t1_core_updater_ha_prepare.py": "9ca7f0411a9e45d488e6cba4a3526bfaa7c77e20",
     "tools/n3w_t1_core_updater_ha_prepare_host.py": "85f0765050c025f3d68a5667fda0d4772b4f15a6",

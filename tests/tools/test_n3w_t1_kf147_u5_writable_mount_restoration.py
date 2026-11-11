@@ -152,6 +152,21 @@ def test_restoration_requires_recovery_and_writable_mount_contracts() -> None:
     assert '"usb_writable_mount_contract_invalid:"' in source
 
 
+
+def test_remote_parse_failure_preserves_private_transport_evidence() -> None:
+    source = EXECUTOR.read_text(encoding="utf-8")
+    assert 'result["remote_returncode"] = completed.returncode' in source
+    assert 'evidence_root / "remote_transport.json"' in source
+    assert 'evidence_root / "remote_stdout.json"' in source
+    assert 'evidence_root / "remote_stderr.json"' in source
+    assert source.index('result["remote_returncode"] = completed.returncode') < source.index(
+        "remote = json.loads(completed.stdout)"
+    )
+    assert source.index('evidence_root / "remote_stderr.json"') < source.index(
+        "remote = json.loads(completed.stdout)"
+    )
+    assert "remote_result_json_invalid:" in source
+
 def test_target_binding_workflow_covers_restoration_package() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
     package_glob = (

@@ -1035,12 +1035,35 @@ def main() -> int:
             timeout=900,
             check=False,
         )
+        result["remote_returncode"] = completed.returncode
+        write_private(
+            evidence_root / "remote_transport.json",
+            {
+                "returncode": completed.returncode,
+                "stdout_length": len(completed.stdout),
+                "stderr_length": len(completed.stderr),
+            },
+        )
+        write_private(
+            evidence_root / "remote_stdout.json",
+            {"stdout": completed.stdout},
+        )
+        write_private(
+            evidence_root / "remote_stderr.json",
+            {"stderr": completed.stderr},
+        )
         try:
             remote = json.loads(completed.stdout)
         except json.JSONDecodeError as error:
-            raise Stop("remote_result_json_invalid") from error
+            raise Stop(
+                "remote_result_json_invalid:"
+                + str(completed.returncode)
+                + ":stdout_len="
+                + str(len(completed.stdout))
+                + ":stderr_len="
+                + str(len(completed.stderr))
+            ) from error
         write_private(evidence_root / "result.json", remote)
-        result["remote_returncode"] = completed.returncode
         if completed.returncode != 0 or remote.get("status") not in {
             "PASS",
             "WRITABLE_MOUNT_RESTORATION_PASS",
