@@ -83,7 +83,6 @@
     "transaction_mutation_on_execute": true,
     "source_deployment": false,
     "service_restart": false,
-    "usb_mutation": false,
     "homeassistant_mutation": false,
     "manager_mutation": false,
     "broker_mutation": false,
@@ -96,7 +95,8 @@
     "usb_mutation_on_execute": true,
     "usb_transaction_metadata_write_on_execute": true,
     "target_archive_mutation": false,
-    "split_state_fail_closed": true
+    "split_state_fail_closed": true,
+    "usb_mutation_on_preflight": false
   },
   "stop_boundary": "STOP_AFTER_U5_INSTALL_INTENT_TRANSITION_BEFORE_U6_PREDECESSOR_RECOVERY",
   "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U4_TO_U5_INSTALL_INTENT_TRANSITION_R9_20261111_01",
