@@ -10,7 +10,7 @@
     "tools/n3w_t1_core_updater_ha_capacity.py": "0e532679ad030e71fdddabeae0a178173e7e1eea",
     "tools/n3w_t1_core_updater_ha_ipc.py": "716f77e2ca61c9be10734da7710a47aa2a71f31c",
     "tools/n3w_t1_core_updater_ha_prepare.py": "3ec44b53db8a78912114b6d70f018dfc6e00a7ec",
-    "tools/n3w_t1_core_updater_ha_prepare_host.py": "fc5577b9aecc405a24fe1933a3597bc2f80f0e20",
+    "tools/n3w_t1_core_updater_ha_prepare_host.py": "5504dd2348dc8b9f670f78b4a85d3583a34fefc6",
     "tools/n3w_t1_core_updater_ha_usb.py": "495dc29d7d4850cd485a07b739199a282446477f",
     "tools/n3w_t1_core_updater_ha_usb_state.py": "64cfcab9d1c62acd28ef4abeb161b88f8a63d2bc",
     "tools/n3w_t1_core_updater_ha_usb_media.py": "44afe444c8db5ff380e9aa74120cf5382a345baa",
