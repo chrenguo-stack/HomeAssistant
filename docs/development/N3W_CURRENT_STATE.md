@@ -1,3 +1,58 @@
+## Latest authority — 2026-11-11 KF-147 U4 read-only mount recovery CLOSED_PASS / official U5 preflight repair pending
+
+~~~text
+AUTHORITY_STATE=KF147_U4_READONLY_MOUNT_RECOVERY_CLOSED_PASS_U5_PREFLIGHT_REPAIR_PENDING
+PR=807
+MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+PR_SOURCE_AUTHORITY_HEAD=7a641462f321fd5d738eff78624d675839c0a63d
+PR_HEAD=da5c16886e4d129e3398caa9df61a1ebb07ecdf8
+PR_HEAD_ADVANCE_FROM_SOURCE_AUTHORITY=HANDOFF_DOC_ONLY
+RECOVERY_ARCHIVE_HEAD=715416a4be8fa2caf56ddc6f73121965ba4c0f7b
+RECOVERY_EXECUTED_HEAD=b4f0dd23edf8b96cd4d2354973b9a9774b40947e
+RECOVERY_OPERATOR_SHA256=ad84aa7794474f7341989cc0d12f56c11815fd26a98db95c1b67af062ea88a8c
+
+U4_MOUNT_RECOVERY_RESULT=PASS
+U4_MOUNT_RECOVERY_AUTHORIZATION=COMPLETED_NON_REPLAYABLE
+USB_SAME_IDENTITY=true
+HISTORICAL_PARTITION_PATH=/dev/sdb1
+CURRENT_PARTITION_PATH=/dev/sda1
+PARTITION_PATH_CHANGED=true
+MOUNT_RESTORED=true
+MOUNT_MODE=read_only_no_journal_replay
+RUNTIME_DIRECTORIES_CREATED=2
+TARGET_VERIFIED=true
+TRANSACTION_PHASE=U4_READY_TO_INSTALL
+TRANSACTION_UNCHANGED=true
+RUNTIME_UNCHANGED=true
+SSH_MASTER_CLEANUP=true
+
+U4_TRANSACTION_SHA256=dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259
+TARGET_SIZE_BYTES=835309535
+TARGET_SHA256=eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973
+
+SOURCE_DEPLOYMENT=false
+SERVICE_RESTART=false
+TRANSACTION_MUTATION=false
+U5_TRANSITION=false
+U6_PLUS=false
+OFFICIAL_U5_PREFLIGHT_PASS=false
+U5_INSTALL_AUTHORIZED=false
+MERGE=false
+
+CURRENT_BLOCKER=OFFICIAL_U5_PREFLIGHT_HARD_CODES_HISTORICAL_DEV_SDB1
+NEXT_ONE_GATE=N3W_T1_KF147_OFFICIAL_U5_PREFLIGHT_DYNAMIC_USB_BINDING_SOURCE_REPAIR_AND_CURRENT_MOUNT_VALIDATION_20261111_01
+NEXT_GATE_SCOPE=SOURCE_TEST_DOCS_AND_EXPLICITLY_BOUNDED_READ_ONLY_MOUNT_VERIFICATION
+~~~
+
+The original bound USB is again mounted at the transaction-derived target. Attempt 03 verified the exact Home Assistant archive while the filesystem was mounted read-only with journal replay disabled. The U4 transaction, installed source, OTA service, three core containers and Manager IPC remained unchanged; no source deployment, service restart, U4→U5 transition or U6+ action occurred. The one-shot U4 mount-recovery authorization has completed its purpose and must not be replayed.
+
+The Linux kernel path changed from the historical `/dev/sdb1` observation to `/dev/sda1`, while filesystem UUID and the transaction-bound public USB identity remained continuous. The official U5 eligibility preflight is still invalid for this state because its manifest binds `usb_partition=/dev/sdb1` and its executor requires exact path equality. Therefore `official_u5_preflight_pass=false` remains authoritative.
+
+The next conversation may repair and test only the official U5 preflight binding and perform the explicitly requested bounded read-only verification of current mount conditions after fresh repository/runtime binding. It must independently decide from product source whether the current read-only mount is sufficient for eligibility; it must not silently treat read-only recovery as writable installation readiness. Remounting read-write, U5 source deployment, service restart, U4→U5 transition, Home Assistant installation, U6+, board access and merge remain unauthorized.
+
+Authority:
+`docs/development/N3W_T1_KF147_U4_MOUNT_RECOVERY_PASS_TO_OFFICIAL_U5_PREFLIGHT_BINDING_REPAIR_NEW_CHAT_HANDOFF_V1.0_20261111.md`.
+
 ## Latest authority — 2026-11-10 KF-147 Mandatory USB Confirmation / U2 read-only preexecution CLOSED_PASS
 
 ~~~text
