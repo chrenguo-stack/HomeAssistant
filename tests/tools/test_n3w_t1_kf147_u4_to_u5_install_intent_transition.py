@@ -41,17 +41,26 @@ def load_remote_namespace():
     return namespace
 
 
-def test_manifest_is_granted_unclaimed_and_binds_exact_u4_state() -> None:
+def test_manifest_is_consumed_retired_and_binds_exact_u4_state() -> None:
     document = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert document["gate_id"] == GATE
     assert document["authorization_id"] == GATE
     assert document["confirmation"] == CONFIRMATION
-    assert document["live_execution_authorized"] is True
+    assert document["live_execution_authorized"] is False
     assert document["authorization_state"] == {
         "granted": True,
-        "claimed": False,
-        "consumed": False,
+        "claimed": True,
+        "consumed": True,
         "replay_permitted": False,
+    }
+    assert document["terminal_live_result"] == {
+        "status": "STOP",
+        "reason": "Stop:ipc_request_rejected:ha_ota_ipc_action_invalid",
+        "transaction_mutation": False,
+        "usb_mutation": False,
+        "u5_transition": False,
+        "u6_plus": False,
+        "split_state_detected": False,
     }
     assert document["state_root"].endswith(
         "kf147-u4-u5-install-intent-r9-20261111-01"
