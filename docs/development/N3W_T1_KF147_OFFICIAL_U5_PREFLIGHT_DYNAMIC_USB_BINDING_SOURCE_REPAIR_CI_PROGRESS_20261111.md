@@ -147,3 +147,38 @@ CURRENT_MOUNT_FRESH_STATE=UNKNOWN_FRESH
 This supersedes the earlier polling-stop state in section 3. The source/test/CI boundary is now
 closed PASS. The next action is the already-authorized private-identity-bound bounded read-only T1
 preflight. It must not perform any mount-mode change or other mutation.
+
+## 7. Real T1 current-mount validation
+
+```text
+T1_PREFLIGHT_EXECUTED=true
+T1_ACCESS=true
+READ_ONLY_PREFLIGHT=true
+STATUS=STOP
+REMOTE_RETURNCODE=2
+REASON=Stop:usb_mount_not_u5_writable:nodev,noexec,norecovery,nosuid,relatime,ro
+CURRENT_MOUNT_FRESH_STATE=READ_ONLY_NO_RECOVERY
+OFFICIAL_U5_PREFLIGHT_PASS=false
+
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+LIVE_EXECUTION_AUTHORIZED=false
+REMOTE_STAGING=false
+HOST_SOURCE_MUTATION=false
+USB_MUTATION=false
+HOMEASSISTANT_MUTATION=false
+U6_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+SSH_MASTER_CLEANUP=true
+```
+
+The real T1 result matches the repaired fail-closed contract. The current USB mount is read-only,
+so it cannot admit U5 because the product U4→U5 path persists transaction metadata to the bound
+media. The earlier recovery operation therefore remains valid as recovery evidence only.
+
+The operator-local private evidence root was not copied into the public repository. The public
+closure records only the sanitized terminal result supplied by the operator.
+
+No remount or installation follows from this STOP. The next gate is
+`N3W_T1_KF147_U5_WRITABLE_MOUNT_RESTORATION_SOURCE_DESIGN_AND_PREEXECUTION_20261111_01`.

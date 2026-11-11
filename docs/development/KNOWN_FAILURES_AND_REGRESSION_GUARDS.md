@@ -1,3 +1,27 @@
+### 2026-11-11 KF-147 official U5 preflight — read-only recovery mount correctly rejected
+
+```text
+SOURCE_REPAIR_HEAD=b72985f7570afc6ac3183090d3888742998789e9
+FULL_REPAIR_CI_PASS=true
+T1_PREFLIGHT_EXECUTED=true
+PREFLIGHT_STATUS=STOP
+PREFLIGHT_REASON=usb_mount_not_u5_writable
+PREFLIGHT_REMOTE_RETURNCODE=2
+CURRENT_MOUNT_OPTIONS=nodev,noexec,norecovery,nosuid,relatime,ro
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+USB_MUTATION=false
+U4_TO_U5_TRANSITION=false
+```
+
+- The repaired preflight passed through stable-media binding far enough to evaluate the actual current mount mode and correctly rejected the recovery mount as not U5-writable.
+- The observed Linux option is `norecovery` rather than the earlier user-space spelling `noload`; the decisive admission facts are `ro` and absence of `rw`. Do not hard-code one journal-replay spelling as the sole safety oracle.
+- A U4 recovery PASS on a read-only/no-recovery mount must never be promoted to U5 installation readiness.
+- Do not bypass this STOP by weakening the preflight. U5 writes transaction metadata to the bound USB.
+- Any later writable-mount restoration must remain transaction-bound, preserve UUID/public fingerprint/root-device exclusion/exact mount target, and be separately authorized before live mutation.
+- After restoration, rerun the same official U5 preflight before any U4→U5 transition.
+- This real-T1 STOP is expected fail-closed evidence, not a new source defect.
+
 ### 2026-11-11 KF-147 official U5 preflight fixed /dev/sdX identity — SOURCE_REPAIRED_CI_PENDING
 
 - Phenomenon: the same transaction-bound USB changed Linux kernel path from historical `/dev/sdb1` to `/dev/sda1`; the old official U5 preflight stopped at `usb_partition_drift` because it treated the ephemeral path as identity.

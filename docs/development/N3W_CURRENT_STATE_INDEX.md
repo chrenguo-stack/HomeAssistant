@@ -1,3 +1,14 @@
+## 2026-11-11 — KF-147 official U5 preflight current-mount validation STOP / archived
+
+- State: `KF147_OFFICIAL_U5_PREFLIGHT_CURRENT_MOUNT_STOP_ARCHIVED`.
+- Real T1 bounded read-only preflight executed against exact repair head `b72985f7570afc6ac3183090d3888742998789e9`.
+- Result: `STOP`, remote rc=2, `usb_mount_not_u5_writable`.
+- Fresh mount options: `nodev,noexec,norecovery,nosuid,relatime,ro`; therefore current media is recovery-readable but not U5-writable.
+- `authorization_claimed=false`, `authorization_consumed=false`; no source, USB, Home Assistant, U4→U5, U6+, board or merge mutation occurred.
+- This is expected fail-closed behavior of the repaired admission contract, not a new source failure.
+- Next gate: `N3W_T1_KF147_U5_WRITABLE_MOUNT_RESTORATION_SOURCE_DESIGN_AND_PREEXECUTION_20261111_01`; live remount/unmount remains unauthorized.
+- Closure: [official U5 preflight current mount validation STOP](N3W_T1_KF147_OFFICIAL_U5_PREFLIGHT_CURRENT_MOUNT_VALIDATION_STOP_CLOSURE_20261111.md).
+
 ## 2026-11-11 — KF-147 U5 dynamic binding repair CI CLOSED_PASS / bounded T1 preflight ready
 
 - State: `KF147_U5_PREFLIGHT_DYNAMIC_BINDING_REPAIR_CI_CLOSED_PASS_T1_PREFLIGHT_READY`.

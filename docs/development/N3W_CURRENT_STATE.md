@@ -1,3 +1,57 @@
+## Latest authority — 2026-11-11 KF-147 official U5 preflight executed / current mount fail-closed STOP
+
+~~~text
+AUTHORITY_STATE=KF147_OFFICIAL_U5_PREFLIGHT_CURRENT_MOUNT_STOP_ARCHIVED
+PR=807
+SOURCE_REPAIR_HEAD=b72985f7570afc6ac3183090d3888742998789e9
+FULL_REPAIR_CI_PASS=true
+
+T1_PREFLIGHT_EXECUTED=true
+T1_ACCESS=true
+READ_ONLY_PREFLIGHT=true
+OFFICIAL_U5_PREFLIGHT_PASS=false
+PREFLIGHT_STATUS=STOP
+PREFLIGHT_REMOTE_RETURNCODE=2
+PREFLIGHT_REASON=usb_mount_not_u5_writable
+CURRENT_MOUNT_FRESH_STATE=READ_ONLY_NO_RECOVERY
+CURRENT_MOUNT_OPTIONS=nodev,noexec,norecovery,nosuid,relatime,ro
+
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+LIVE_EXECUTION_AUTHORIZED=false
+REMOTE_STAGING=false
+HOST_SOURCE_MUTATION=false
+USB_MUTATION=false
+HOMEASSISTANT_MUTATION=false
+U4_TO_U5_TRANSITION=false
+U6_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+SSH_MASTER_CLEANUP=true
+
+CURRENT_BLOCKER=BOUND_USB_IS_RECOVERY_MOUNTED_READ_ONLY_AND_NOT_U5_WRITABLE
+NEXT_ONE_GATE=N3W_T1_KF147_U5_WRITABLE_MOUNT_RESTORATION_SOURCE_DESIGN_AND_PREEXECUTION_20261111_01
+NEXT_GATE_LIVE_MUTATION_AUTHORIZED=false
+~~~
+
+The repaired official preflight reached the mount-writability admission check on the real T1 and
+stopped exactly as designed. The current bound USB is mounted read-only with `norecovery`; it is
+valid recovery evidence but not eligible for U5 because the U4→U5 product path must persist U5
+transaction metadata to USB.
+
+This STOP is not a source regression and does not consume installation authority. The executor
+reported no host-source, USB, Home Assistant, U6+, board or merge mutation and cleaned up its SSH
+master. No remount or install is authorized from this result.
+
+Before any later live mount change, the next gate must define and review a bounded restoration from
+the current exact read-only recovery mount to the product-required writable mount while preserving
+UUID/fingerprint/root exclusion, transaction mount target, target archive and U4 transaction.
+Only after such restoration is separately authorized and completed may the official U5 preflight be
+rerun.
+
+Authority:
+`docs/development/N3W_T1_KF147_OFFICIAL_U5_PREFLIGHT_CURRENT_MOUNT_VALIDATION_STOP_CLOSURE_20261111.md`.
+
 ## Latest authority — 2026-11-11 KF-147 U5 dynamic binding repair CI CLOSED_PASS / bounded T1 preflight ready
 
 ~~~text
