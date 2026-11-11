@@ -1,3 +1,19 @@
+### 2026-11-11 KF-147 R9 install-intent source/deployment authority mismatch — successor R10 source activation prepared
+
+| ID | 范围 | 现场现象 | 根因 | 修复 | 状态 |
+|---|---|---|---|---|---|
+| KF-147 R9 source/deployment authority mismatch | U4→U5 install-intent live transition | R9 corrected-head read-only preflight PASS 后，一次性 live authorization 被 claim/consume；host IPC 对唯一 `INSTALL` intent 返回 `ha_ota_ipc_action_invalid`。R9 terminal result 同时证明 host transaction 未修改、USB transaction metadata 未修改、无 split state、未进入 U5/U6+。 | R9 正确验证了实机旧 IPC 的 SHA256/运行依赖没有漂移，却把 repository 中后续 U5 source commit 的能力错误当成了实机已部署能力。实际 T1 host IPC 仍是 Stage-B lineage，只允许 `PREPARE / CONFIRM_USB_ERASE`；repository U5 source commit `15b9d50e...` 才同时为 `ipc.py / prepare.py / prepare_host.py` 增加 U5 install-intent 路径，且这组三文件从未部署到当前 T1。 | R9 永久 consumed/no-replay；禁止绕过 IPC 或重放 INSTALL。新增 R10 successor，只允许 exact 三文件 U5 source slice 部署，复用已实机验证的 `stop services-owner -> stop host -> atomic source install -> start host -> start services-owner` 生命周期，要求 Host/USB/target/containers/IPC 全部仍保持 U4，STOP before any new install-intent preflight。 | R9_TERMINAL_STOP_R10_SOURCE_ACTIVATION_PREPARED |
+
+Regression guards:
+- “repository source supports capability”不得替代“live installed source supports capability”；
+- live preflight 必须验证将被调用的**已部署**入口能力，而不只是验证文件未漂移；
+- R9 authorization 已 claimed/consumed，任何结果都不得 replay；
+- R9 terminal successor 必须要求 exact failure `ha_ota_ipc_action_invalid` 且 host/USB transaction 均未变；
+- U5 source activation 必须把 `n3w_t1_core_updater_ha_ipc.py`、`n3w_t1_core_updater_ha_prepare.py`、`n3w_t1_core_updater_ha_prepare_host.py` 作为一个 exact source slice 部署，不能只补 IPC 白名单；
+- source activation 本身不得提交 `INSTALL`，不得修改 transaction/USB metadata/target archive，不得进入 U5/U6+；
+- source activation 使用既有 systemd dependency-safe 顺序，任何生命周期切换或部分 source 写入失败都必须最多执行一次 exact-source rollback；
+- source activation PASS 后必须重新执行新的只读 install-intent eligibility preflight，不能把旧 R9 preflight 复用为 live authority。
+
 ### 2026-11-11 KF-147 U3 mounted-root recovery — U4 closed pass, U5 source gate entered
 
 | ID | 范围 | 现场现象 | 根因 | 修复 | 状态 |
