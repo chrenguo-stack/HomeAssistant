@@ -718,3 +718,89 @@ def test_missing_approved_release_keeps_daemon_publish_path_nonfatal(
         is False
     )
     assert not destination.exists()
+
+
+def test_reopen_bound_media_accepts_exact_existing_mount_with_ext4_root_mode_0755(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime = tmp_path / "runtime"
+    runtime.mkdir(mode=0o750)
+    media_root = runtime / "media"
+    media_root.mkdir(mode=0o700)
+    transaction_id = "b" * 64
+    mount_path = media_root / transaction_id[:16]
+    mount_path.mkdir(mode=0o755)
+
+    backend = host.SubprocessPrepareBackend(runtime_root=runtime)
+    fingerprint = host._stable_fingerprint(
+        {
+            "serial": "SERIAL-1",
+            "wwn": None,
+            "model": "Synthetic USB",
+            "size": 16 * 1024**3,
+            "tran": "usb",
+        }
+    )
+    transaction = {
+        "usb_filesystem_uuid": UUID,
+        "usb_device_identity_public_fingerprint": fingerprint,
+        "transaction_id_sha256": transaction_id,
+        "usb_measured_usable_bytes": 16 * 1024**3,
+    }
+
+    disk = {
+        "path": "/dev/sdz",
+        "type": "disk",
+        "rm": True,
+        "ro": False,
+        "size": 16 * 1024**3,
+        "model": "Synthetic USB",
+        "serial": "SERIAL-1",
+        "wwn": None,
+        "tran": "usb",
+        "mountpoints": [str(mount_path)],
+        "maj:min": "8:240",
+        "children": [
+            {
+                "path": "/dev/sdz1",
+                "type": "part",
+                "pkname": "/dev/sdz",
+                "mountpoints": [str(mount_path)],
+                "maj:min": "8:241",
+            }
+        ],
+    }
+
+    monkeypatch.setattr(backend, "_lsblk", lambda: [disk])
+    monkeypatch.setattr(
+        backend,
+        "_require_bound_media",
+        lambda _media: "/dev/sdz1",
+    )
+    monkeypatch.setattr(
+        host,
+        "_run_optional",
+        lambda argv: (
+            (b"/dev/sdz1\n" if argv[0] == "blkid" else b"/dev/sdz\n")
+            if argv[0] in {"blkid", "lsblk"}
+            else (str(mount_path) + "\n").encode()
+        ),
+    )
+
+    def fake_run(argv, **_kwargs):
+        if argv[:4] == ("findmnt", "--noheadings", "--output", "MAJ:MIN"):
+            return b"179:1\n"
+        if argv[:5] == ("blkid", "-s", "TYPE", "-o", "value"):
+            return b"ext4\n"
+        if argv[:5] == ("blkid", "-s", "LABEL", "-o", "value"):
+            return b"N3W-UPDATE\n"
+        raise AssertionError(argv)
+
+    monkeypatch.setattr(host, "_run", fake_run)
+
+    media = backend.reopen_bound_media(transaction)
+
+    assert media is not None
+    assert media.mount_path == str(mount_path)
+    assert stat.S_IMODE(mount_path.stat().st_mode) == 0o755
