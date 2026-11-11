@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import inspect
 import json
+import stat
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
