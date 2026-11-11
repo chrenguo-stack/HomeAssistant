@@ -1,3 +1,12 @@
+### 2026-11-11 KF-147 embedded remote-script compile coverage
+
+- Any executor that transports an embedded Python script must compile the embedded script in CI, not only py_compile the outer executor.
+- Putting a test file in workflow path triggers does not mean the test is executed.
+- The target-binding source job must explicitly py_compile the restoration executor and run `tests/tools/test_n3w_t1_kf147_u5_writable_mount_restoration.py`.
+- Regression signature: remote rc=1, stdout empty, stderr nonempty before JSON result.
+- Known defect fixed at `f9002512b20f95af0bfa3541cea7e175bf9eebdf`: literal `\\n` tokens in `verify_bound_media()` REMOTE_SCRIPT signature.
+- Never proceed to live USB mutation after a parser-stage remote failure.
+
 ### 2026-11-11 CI exact artifact download across rerun attempts
 
 - Do not assume an `actions/download-artifact` exact-ID failure after a successful upload is transient if it repeats on a rerun.

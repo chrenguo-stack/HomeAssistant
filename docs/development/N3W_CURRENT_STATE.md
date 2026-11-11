@@ -1,3 +1,54 @@
+## Latest authority — 2026-11-11 KF-147 readonly preflight Attempt02 remote syntax failure repaired / CI pending
+
+~~~text
+AUTHORITY_STATE=KF147_READONLY_PREFLIGHT_ATTEMPT02_REMOTE_SYNTAX_REPAIRED_CI_PENDING
+ATTEMPT02_SOURCE_HEAD=8d6024ae889951eab1ff2427ad60e4a5598c8065
+ATTEMPT02_STATUS=STOP
+ATTEMPT02_REASON=remote_result_json_invalid
+ATTEMPT02_REMOTE_RC=1
+ATTEMPT02_STDOUT_LEN=0
+ATTEMPT02_STDERR_LEN=258
+
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+HOST_STATE_MUTATION=false
+USB_MUTATION=false
+U5_TRANSITION=false
+
+ROOT_CAUSE=REMOTE_SCRIPT_VERIFY_BOUND_MEDIA_SIGNATURE_CONTAINED_LITERAL_BACKSLASH_N
+CI_COVERAGE_GAP=RESTORATION_TEST_TRIGGERED_BUT_NOT_EXECUTED_IN_TARGET_BINDING_SOURCE_JOB
+
+REPAIR_HEAD=f9002512b20f95af0bfa3541cea7e175bf9eebdf
+REPAIR_EXECUTOR_BLOB=122203aaa534b15e45ea16dbbf0ef46ba236cecd
+REPAIR_MANIFEST_BLOB=42fabe839b8dda7a27015e82c0dc86ed156f7f9e
+REPAIR_TARGET_BINDING_WORKFLOW_BLOB=94067a09c91d46491e1400b8d32f0a982948f89a
+
+TARGET_BINDING_RUN=43041346219
+TARGET_BINDING_SOURCE=SUCCESS
+TARGET_BINDING_EXACT=IN_PROGRESS
+MANAGER_A_TO_B_RUN=43041345855
+MANAGER_SOURCE=SUCCESS
+MANAGER_EXACT_MANAGER_SLICE=QUEUED
+FAST_CONTRACT_RUN=43041345992
+FAST_CONTRACT=SUCCESS
+PUBLIC_SAFETY_RUN=43041346291
+PUBLIC_SAFETY=SUCCESS
+CI_POLL_LIMIT_REACHED=true
+FULL_APPLICABLE_CI_PASS=false
+
+NEXT_SAFE_ENTRY=CONFIRM_F9002512_APPLICABLE_CI_SUCCESS_THEN_RERUN_READONLY_PREFLIGHT_ONCE
+LIVE_UNMOUNT_OR_RW_MOUNT_AUTHORIZED=false
+~~~
+
+Attempt02 again stopped before any mutation. The new transport evidence showed remote Python exited
+with rc=1 before emitting stdout. Independent source inspection found a parser-level defect in the
+embedded REMOTE_SCRIPT: the verify_bound_media function signature contained literal backslash-n
+sequences instead of actual line breaks.
+
+The existing restoration test already compiled REMOTE_SCRIPT, but target-binding CI only listed the
+test in pull-request path triggers; it did not execute that test or py_compile the restoration
+executor. Repair head f9002512 fixes the embedded script and closes the CI coverage gap.
+
 ## Latest authority — 2026-11-11 KF-147 CI repair CLOSED_PASS / readonly preflight ready
 
 ~~~text

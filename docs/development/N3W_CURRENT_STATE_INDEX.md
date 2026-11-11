@@ -1,3 +1,14 @@
+## 2026-11-11 — KF-147 readonly preflight Attempt02 remote syntax repair / CI pending
+
+- Attempt02 on `8d6024ae...` returned remote rc=1, stdout length 0, stderr length 258; no authority claim or USB/U5 mutation occurred.
+- Exact source review found `verify_bound_media()` inside `REMOTE_SCRIPT` had literal `\\n` tokens in its function signature.
+- This fully explains a parser-stage remote Python exit before JSON output.
+- Existing test `test_executor_and_remote_compile` would catch the defect, but target-binding source job had not actually run the restoration test or py_compile this executor.
+- Repair head: `f9002512b20f95af0bfa3541cea7e175bf9eebdf`.
+- Repair fixes the embedded remote function signature and adds restoration executor/test to target-binding source execution.
+- New target-binding source is SUCCESS, proving the remote compile test is now active and passing.
+- Exact downstream jobs were still nonterminal at polling stop; no T1 rerun yet.
+
 ## 2026-11-11 — KF-147 CI repair CLOSED_PASS / read-only preflight resumed
 
 - Exact source head: `8d6024ae889951eab1ff2427ad60e4a5598c8065`; PR #807 has no drift.
