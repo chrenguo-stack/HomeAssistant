@@ -160,7 +160,13 @@ def _single_output(argv, reason, *, timeout=30):
     return value
 
 
-def verify_bound_media(\n    plan,\n    transaction,\n    service,\n    expected_mode,\n    require_service_namespace=True,\n):
+def verify_bound_media(
+    plan,
+    transaction,
+    service,
+    expected_mode,
+    require_service_namespace=True,
+):
     expected_uuid = plan["usb_filesystem_uuid"].lower()
     expected_fingerprint = plan["usb_public_fingerprint"]
     if transaction.get("usb_device_identity_public_fingerprint") != expected_fingerprint:
