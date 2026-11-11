@@ -1,3 +1,66 @@
+## Latest authority — 2026-11-11 KF-147 official U5 preflight dynamic USB binding source repaired / exact CI pending
+
+~~~text
+AUTHORITY_STATE=KF147_U5_PREFLIGHT_DYNAMIC_BINDING_SOURCE_REPAIRED_CI_PENDING
+PR=807
+MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+PREDECESSOR_U5_SOURCE_AUTHORITY_HEAD=7a641462f321fd5d738eff78624d675839c0a63d
+PRE_REPAIR_PR_HEAD=da5c16886e4d129e3398caa9df61a1ebb07ecdf8
+SOURCE_REPAIR_HEAD=b72985f7570afc6ac3183090d3888742998789e9
+SOURCE_REPAIR_TREE=92e47f86cd2549cb28f14207984af92dc5403eb6
+
+FIXED_DEV_SDX_AUTHORITY_REMOVED=true
+STABLE_USB_BINDING=UUID_PLUS_TRANSACTION_PUBLIC_FINGERPRINT
+ROOT_DEVICE_EXCLUSION=true
+ACTUAL_MOUNT_SOURCE_TARGET_NAMESPACE_MODE_VALIDATION=true
+READONLY_RECOVERY_MOUNT_U5_WRITABLE_ELIGIBILITY=false
+
+TARGET_BINDING_RUN=43031942495
+TARGET_BINDING_SOURCE=SUCCESS_331_PASSED
+TARGET_BINDING_EXACT=IN_PROGRESS
+TARGET_BINDING_POLL_LIMIT_REACHED=true
+MANAGER_A_TO_B_RUN=43031941993
+MANAGER_A_TO_B=SUCCESS
+
+OFFICIAL_U5_PREFLIGHT_PASS=false
+T1_PREFLIGHT_EXECUTED=false
+CURRENT_MOUNT_FRESH_STATE=UNKNOWN_FRESH
+FULL_REPAIR_CI_PASS=false
+
+SOURCE_DEPLOYMENT=false
+SERVICE_RESTART=false
+U4_TO_U5_TRANSITION=false
+USB_WRITE_OR_REMOUNT=false
+HOMEASSISTANT_MUTATION=false
+MANAGER_MUTATION=false
+BROKER_MUTATION=false
+U6_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+
+CURRENT_BLOCKER=TARGET_BINDING_EXACT_CI_NONTERMINAL
+NEXT_ONE_GATE=CONFIRM_TARGET_BINDING_RUN_43031942495_TERMINAL_SUCCESS_THEN_FRESH_BOUNDED_READONLY_U5_PREFLIGHT
+~~~
+
+The official U5 preflight source has been repaired on exact head `b72985f7570afc6ac3183090d3888742998789e9`.
+It no longer treats any `/dev/sdX` text as stable USB identity. The repaired contract uses the
+unique filesystem UUID plus the transaction-bound public USB fingerprint, parent USB/removable/RO
+properties, root-device exclusion, ext4/`N3W-UPDATE`, exact transaction mount target, actual
+mount-source `MAJ:MIN`, mount namespace and mount mode.
+
+Product source independently proves that U4→U5 install-intent processing writes U5 transaction
+metadata back to the USB through `sync_transaction_metadata(u5, media)`. Therefore the historical
+`ro,noload,nodev,nosuid,noexec` U4 recovery mount is **not** writable U5 readiness. The repaired
+preflight fails closed on `ro` or `noload` and never remounts the device.
+
+The exact-head target-binding source job passed with 331 tests. Manager A-to-B run
+`43031941993` is fully SUCCESS. Target-binding run `43031942495` still had its exact-binding
+job in progress after the allowed three checks, so active polling stopped and no T1 preflight was
+executed. A later explicit check must first prove that run terminal SUCCESS.
+
+Authority:
+`docs/development/N3W_T1_KF147_OFFICIAL_U5_PREFLIGHT_DYNAMIC_USB_BINDING_SOURCE_REPAIR_CI_PROGRESS_20261111.md`.
+
 ## Latest authority — 2026-11-11 KF-147 U4 read-only mount recovery CLOSED_PASS / official U5 preflight repair pending
 
 ~~~text

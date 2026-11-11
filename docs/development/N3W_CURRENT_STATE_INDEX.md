@@ -1,3 +1,14 @@
+## 2026-11-11 — KF-147 official U5 preflight dynamic USB binding source repaired / exact CI pending
+
+- State: `KF147_U5_PREFLIGHT_DYNAMIC_BINDING_SOURCE_REPAIRED_CI_PENDING`.
+- PR #807 source repair exact head: `b72985f7570afc6ac3183090d3888742998789e9`; tree `92e47f86cd2549cb28f14207984af92dc5403eb6`.
+- The repair removes historical `/dev/sdb1`/all `/dev/sdX` path equality and binds by unique filesystem UUID + transaction public USB fingerprint, parent USB/removable/RO properties, root exclusion, ext4/`N3W-UPDATE`, exact mount target/source `MAJ:MIN`, namespace and mode.
+- Product U5 path writes USB transaction metadata after `request_install()`; therefore the prior `ro,noload` recovery mount is not U5 writable eligibility. The repaired preflight requires `rw,nodev,nosuid,noexec` and rejects `ro`/`noload` without remounting.
+- Target-binding run `43031942495`: source SUCCESS with 331 tests; exact-binding remained IN_PROGRESS after three checks, so polling stopped. Manager A-to-B run `43031941993`: all three jobs SUCCESS.
+- `OFFICIAL_U5_PREFLIGHT_PASS=false`; `T1_PREFLIGHT_EXECUTED=false`; fresh current mount state remains `UNKNOWN_FRESH`.
+- Next safe step is a later explicit CI status check; only terminal SUCCESS permits fresh private-identity-bound T1 read-only preflight. No remount, U5 source deployment, service restart, U4→U5 transition, U6+, board access or merge.
+- Progress authority: [official U5 dynamic USB binding source repair / CI progress](N3W_T1_KF147_OFFICIAL_U5_PREFLIGHT_DYNAMIC_USB_BINDING_SOURCE_REPAIR_CI_PROGRESS_20261111.md).
+
 ## 2026-11-11 — KF-147 U4 read-only mount recovery PASS / official U5 preflight binding repair pending
 
 - State: `KF147_U4_READONLY_MOUNT_RECOVERY_CLOSED_PASS_U5_PREFLIGHT_REPAIR_PENDING`.

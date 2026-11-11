@@ -1,3 +1,13 @@
+### 2026-11-11 KF-147 official U5 preflight fixed /dev/sdX identity — SOURCE_REPAIRED_CI_PENDING
+
+- Phenomenon: the same transaction-bound USB changed Linux kernel path from historical `/dev/sdb1` to `/dev/sda1`; the old official U5 preflight stopped at `usb_partition_drift` because it treated the ephemeral path as identity.
+- Root cause: a kernel enumeration pathname was frozen in the manifest and compared for exact equality even though the product's real stable media contract is filesystem UUID + transaction-bound public USB fingerprint.
+- Repair: exact head `b72985f7570afc6ac3183090d3888742998789e9` removes fixed `usb_partition`; requires unique UUID, product-compatible public fingerprint, USB/removable/non-RO parent, root-device exclusion, ext4/`N3W-UPDATE`, transaction target, actual source `MAJ:MIN`, shared OTA-service mount namespace and explicit mount-mode policy.
+- U5 readiness guard: `revalidate_and_request_install()` writes `sync_transaction_metadata(u5, media)` after creating U5 state. A `ro,noload` recovery mount is read-only recovery evidence, not writable U5 readiness; the repaired preflight rejects it and does not remount.
+- Regression: covers same USB `sdb1→sda1` PASS, wrong fingerprint, duplicate UUID, invalid USB/removable/RO properties, root disk, wrong filesystem, missing/elsewhere mount, wrong source, namespace mismatch and read-only/no-journal-replay rejection. Target-binding source job reports 331 passed.
+- CI/status: Manager A-to-B run `43031941993` is SUCCESS. Target-binding run `43031942495` source is SUCCESS; exact-binding remained non-terminal after the maximum three active checks. No T1 preflight has run. Status is `SOURCE_REPAIRED_CI_PENDING_NO_T1_PREFLIGHT`.
+- Guard: never use `/dev/sdX` as stable identity; duplicate UUID must fail closed; actual mount source should be bound by canonical block identity such as `MAJ:MIN`; mount namespace and mode are admission facts; never promote read-only recovery PASS into writable install readiness.
+
 ### 2026-11-11 KF-147 U4 mount recovery — Attempt 03 LIVE PASS
 
 - User-executed exact operator `b4f0dd23edf8b96cd4d2354973b9a9774b40947e` returned `U4_MOUNT_RECOVERY_PASS`, rc=0. Evidence: https://github.com/chrenguo-stack/HomeAssistant/pull/807#issuecomment-6797091202.
