@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import base64
 import importlib.util
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -84,6 +86,22 @@ def test_executor_and_remote_script_compile() -> None:
     compile(EXECUTOR.read_text(encoding="utf-8"), str(EXECUTOR), "exec")
     compile(module.REMOTE_SCRIPT, "<kf147-u4-u5-preflight>", "exec")
     assert module.GATE_ID == GATE
+
+
+def test_remote_script_decodes_plan_without_name_error() -> None:
+    module = load_executor()
+    payload = base64.b64encode(json.dumps({"gate_id": GATE}).encode()).decode()
+    completed = subprocess.run(
+        [sys.executable, "-c", module.REMOTE_SCRIPT, payload],
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    result = json.loads(completed.stdout)
+    assert completed.returncode == 2
+    assert result["status"] == "STOP"
+    assert not result["reason"].startswith("NameError:")
 
 
 def test_remote_preflight_is_read_only_and_requires_exact_u4() -> None:
