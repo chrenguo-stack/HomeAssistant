@@ -1,3 +1,15 @@
+## 2026-11-11 — KF-147 U4 read-only mount recovery PASS / official U5 preflight binding repair pending
+
+- State: `KF147_U4_READONLY_MOUNT_RECOVERY_CLOSED_PASS_U5_PREFLIGHT_REPAIR_PENDING`.
+- Fresh repository bind: main `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`; PR #807 source authority `7a641462f321fd5d738eff78624d675839c0a63d`; current PR head `da5c16886e4d129e3398caa9df61a1ebb07ecdf8` is exactly one handoff-document commit beyond source authority.
+- Recovery evidence branch: `exec/kf147-u4-readonly-mount-recovery-20261111`; executed operator `b4f0dd23edf8b96cd4d2354973b9a9774b40947e`; initial closure head `715416a4be8fa2caf56ddc6f73121965ba4c0f7b`.
+- Live result: `U4_MOUNT_RECOVERY_PASS`; same USB identity, current partition `/dev/sda1`, read-only/no-journal-replay mount restored; exact 835,309,535-byte target / SHA-256 `eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973` verified; transaction remains `U4_READY_TO_INSTALL`.
+- No source deployment, service restart, transaction mutation, U5 transition or U6+ occurred. Recovery authorization is complete and non-replayable.
+- Official U5 preflight remains STOP/not passed because it hard-codes historical `/dev/sdb1`; current read-only mount must be explicitly classified against U5 eligibility requirements.
+- Next gate: source/test/docs repair of dynamic USB identity and actual mount binding, followed by fresh bounded read-only verification. No read-write remount, U5 installation, service mutation, U6+, board access or merge.
+- Handoff: [U4 mount recovery PASS → official U5 preflight binding repair](N3W_T1_KF147_U4_MOUNT_RECOVERY_PASS_TO_OFFICIAL_U5_PREFLIGHT_BINDING_REPAIR_NEW_CHAT_HANDOFF_V1.0_20261111.md).
+- PR evidence: [Attempt 03 U4 recovery PASS](https://github.com/chrenguo-stack/HomeAssistant/pull/807#issuecomment-6797091202).
+
 ## 2026-11-10 — KF-147 Mandatory USB Confirmation / U2 read-only preexecution CLOSED_PASS
 
 - Current core-stack authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
