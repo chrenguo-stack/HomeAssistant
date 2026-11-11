@@ -72,7 +72,7 @@ def test_manifest_binds_exact_u4_live_entry_and_sources() -> None:
     assert live["usb_filesystem_type"] == "ext4"
     assert live["usb_filesystem_label"] == "N3W-UPDATE"
     assert live["mount_required_options"] == ["rw", "nodev", "nosuid", "noexec"]
-    assert live["mount_forbidden_options"] == ["ro", "noload"]
+    assert live["mount_forbidden_options"] == ["ro", "noload", "norecovery"]
     assert live["target_size_bytes"] == 835309535
     assert live["target_sha256"] == (
         "eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973"
@@ -311,7 +311,7 @@ def remote_media_fixture(namespace: dict[str, object]):
         "usb_filesystem_label": "N3W-UPDATE",
         "mount_target": mount_target,
         "mount_required_options": ["rw", "nodev", "nosuid", "noexec"],
-        "mount_forbidden_options": ["ro", "noload"],
+        "mount_forbidden_options": ["ro", "noload", "norecovery"],
     }
     transaction = {
         "usb_device_identity_public_fingerprint": fingerprint,
@@ -442,6 +442,17 @@ def test_read_only_no_journal_replay_mount_is_not_u5_writable() -> None:
     namespace = load_remote_namespace()
     plan, transaction, service, _disk, state = remote_media_fixture(namespace)
     state["mount_options"] = "ro,noload,nodev,nosuid,noexec"
+    assert_remote_stop(
+        namespace,
+        "usb_mount_not_u5_writable",
+        lambda: namespace["verify_bound_media"](plan, transaction, service),
+    )
+
+
+def test_rw_norecovery_mount_is_not_u5_writable() -> None:
+    namespace = load_remote_namespace()
+    plan, transaction, service, _disk, state = remote_media_fixture(namespace)
+    state["mount_options"] = "rw,norecovery,nodev,nosuid,noexec"
     assert_remote_stop(
         namespace,
         "usb_mount_not_u5_writable",

@@ -60,7 +60,8 @@
     ],
     "mount_forbidden_options": [
       "ro",
-      "noload"
+      "noload",
+      "norecovery"
     ]
   },
   "execution_contract": {
