@@ -1,3 +1,43 @@
+## Latest authority — 2026-11-11 KF-147 observability repair CI external artifact race / rerun in progress
+
+~~~text
+AUTHORITY_STATE=KF147_OBSERVABILITY_REPAIR_CI_EXTERNAL_ARTIFACT_RACE_RERUN_IN_PROGRESS
+SOURCE_HEAD=8cbf63f3af4c2a904770842a3a223c97b56c1630
+SOURCE_REPAIR_REQUIRED=false
+NEW_SOURCE_COMMIT_REQUIRED=false
+
+FAILED_RUN=43038325461
+FAILED_JOB=exact-manager-slice
+FAILED_JOB_ID=130583197781
+FAILURE_CLASS=GITHUB_ARTIFACT_IMMEDIATE_REDOWNLOAD_VISIBILITY_RACE
+UPLOAD_SUCCEEDED=true
+UPLOADED_ARTIFACT_ID=13863947090
+REDOWNLOAD_RESULT=Found_0_artifacts
+BUSINESS_SOURCE_FAILURE=false
+
+RERUN_REQUESTED=true
+RERUN_ATTEMPT=2
+RERUN_STATUS=IN_PROGRESS
+RERUN_SOURCE=SUCCESS
+CI_POLL_LIMIT_REACHED=true
+
+TARGET_BINDING_RUN=43038325282
+TARGET_BINDING_SOURCE=SUCCESS
+TARGET_BINDING_EXACT=IN_PROGRESS
+
+T1_ACCESS=false
+T1_MUTATION=false
+USB_MUTATION=false
+LIVE_UNMOUNT_OR_RW_MOUNT_AUTHORIZED=false
+U5_TRANSITION=false
+MERGE=false
+~~~
+
+The Manager A-to-B failure is not a source regression. The job built and uploaded the exact
+Manager package successfully, then GitHub's immediate artifact-ID re-download returned zero
+visible artifacts. The failed exact job was rerun without a source change. Polling stopped at the
+project limit while run attempt 2 remained in progress.
+
 ## Latest authority — 2026-11-11 KF-147 writable restoration readonly preflight Attempt01 transport parse STOP / observability repair CI pending
 
 ~~~text

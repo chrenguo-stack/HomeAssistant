@@ -56,3 +56,30 @@ Run links:
 Next safe entry: after exact repair CI is terminal SUCCESS, rerun the same read-only preflight once
 using exact head `8cbf63f3af4c2a904770842a3a223c97b56c1630`. Real unmount or writable
 mount remains separately unauthorized.
+
+## CI failure classification update
+
+```text
+SOURCE_HEAD=8cbf63f3af4c2a904770842a3a223c97b56c1630
+MANAGER_A_TO_B_RUN=43038325461
+FAILED_JOB=exact-manager-slice
+FAILED_STEP=Re-download and verify Manager-only V2 package
+ARTIFACT_UPLOAD_SUCCEEDED=true
+UPLOADED_ARTIFACT_ID=13863947090
+FAILURE=Found 0 artifact(s)
+CLASSIFICATION=GITHUB_ARTIFACT_VISIBILITY_RACE
+SOURCE_REPAIR_REQUIRED=false
+RERUN_REQUESTED=true
+RERUN_ATTEMPT=2
+RERUN_STATUS=IN_PROGRESS
+RERUN_SOURCE=SUCCESS
+CI_POLL_LIMIT_REACHED=true
+```
+
+The failure occurred after exact package creation and upload completed successfully. The immediate
+artifact-ID download could not see the just-uploaded artifact. No source change is justified from
+this evidence. The failed job was rerun directly. Active polling stopped after the allowed three
+checks.
+
+Run:
+https://github.com/chrenguo-stack/HomeAssistant/actions/runs/43038325461

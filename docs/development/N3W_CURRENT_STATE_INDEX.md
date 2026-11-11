@@ -1,3 +1,13 @@
+## 2026-11-11 — KF-147 observability repair CI failure classified as GitHub artifact race
+
+- Source head remains `8cbf63f3af4c2a904770842a3a223c97b56c1630`; no repair commit was required.
+- Manager A-to-B run `43038325461` failed only in `exact-manager-slice` step “Re-download and verify Manager-only V2 package”.
+- Exact package generation and upload succeeded; GitHub assigned artifact ID `13863947090`.
+- Immediate download by that artifact ID returned `Found 0 artifact(s)`, so this is classified as GitHub artifact visibility/propagation race, not business source failure.
+- Failed job rerun requested; run attempt 2 is in progress and source job is SUCCESS.
+- Target-binding source is SUCCESS; exact-binding was still IN_PROGRESS at polling stop.
+- Polling limit reached; no T1 access or mutation follows from this CI state.
+
 ## 2026-11-11 — KF-147 writable restoration readonly preflight Attempt01 STOP / diagnostic repair pending
 
 - Attempt01 on source `002b5158...` returned `STOP:remote_result_json_invalid`, rc=2.
