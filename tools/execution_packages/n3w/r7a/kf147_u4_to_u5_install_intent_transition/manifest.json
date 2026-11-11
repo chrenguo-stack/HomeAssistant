@@ -9,7 +9,7 @@
     "replay_permitted": false
   },
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/kf147_u4_to_u5_install_intent_transition/executor.py": "6a7d55521010e0c280a78db28548c0e89c02c4b4",
+    "tools/execution_packages/n3w/r7a/kf147_u4_to_u5_install_intent_transition/executor.py": "429f7c3fbddeb756638a9800335549ec5e904f4d",
     "tools/n3w_t1_core_updater_ha_prepare.py": "9ca7f0411a9e45d488e6cba4a3526bfaa7c77e20",
     "tools/n3w_t1_core_updater_ha_prepare_host.py": "85f0765050c025f3d68a5667fda0d4772b4f15a6",
     "tools/n3w_t1_core_updater_ha_ipc.py": "ebd71331eaef4ef5a9fb76a130a66c714370d92e",
@@ -63,7 +63,19 @@
       "noload",
       "norecovery"
     ],
-    "target_release_id": "homeassistant-2026.10.4"
+    "target_release_id": "homeassistant-2026.10.4",
+    "installed_runtime_git_blob_sha1": {
+      "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_daemon.py": "98c879f65840c237e7ee8855412806e346d880f5",
+      "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_usb.py": "495dc29d7d4850cd485a07b739199a282446477f",
+      "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_usb_state.py": "64cfcab9d1c62acd28ef4abeb161b88f8a63d2bc",
+      "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_recovery.py": "1ca6648968eb75ed7fbe2d405fc36c141bfdc801",
+      "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_usb_media.py": "44afe444c8db5ff380e9aa74120cf5382a345baa",
+      "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_capacity.py": "0e532679ad030e71fdddabeae0a178173e7e1eea",
+      "/opt/HomeAssistant/tools/n3w_t1_core_updater_v2_common.py": "b9c6561a1a8e33bdf586e6a4bd04d025f3c5d7e6",
+      "/opt/HomeAssistant/tools/n3w_t1_core_updater_v2_state.py": "d89d4696409d7c451ec0b37a8be87e29092806b6",
+      "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_backup.py": "39da0f7f95603445b0dc523ce7fbbf1c4fb145ad",
+      "/opt/HomeAssistant/tools/n3w_t1_portable_image_identity.py": "4877f4801dd7a4364feb0cda4f9a3f79072e8214"
+    }
   },
   "execution_contract": {
     "read_only_preflight": true,
@@ -80,7 +92,11 @@
     "board_access": false,
     "merge": false,
     "automatic_retry": false,
-    "rollback_permitted": false
+    "rollback_permitted": false,
+    "usb_mutation_on_execute": true,
+    "usb_transaction_metadata_write_on_execute": true,
+    "target_archive_mutation": false,
+    "split_state_fail_closed": true
   },
   "stop_boundary": "STOP_AFTER_U5_INSTALL_INTENT_TRANSITION_BEFORE_U6_PREDECESSOR_RECOVERY",
   "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U4_TO_U5_INSTALL_INTENT_TRANSITION_R9_20261111_01",
