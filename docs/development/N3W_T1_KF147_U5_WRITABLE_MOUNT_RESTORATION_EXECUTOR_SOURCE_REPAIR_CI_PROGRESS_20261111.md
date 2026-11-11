@@ -97,3 +97,26 @@ LIVE_UNMOUNT_OR_RW_MOUNT_AUTHORIZED=false
 
 Even after CI PASS, the first real-T1 step is read-only preflight only. A separate explicit
 authorization is required later for actual unmount/journal-capable writable mount restoration.
+
+## 6. CI closure update
+
+```text
+SOURCE_HEAD=002b5158c525be18ff85b10d4ef1a94e16cc1866
+TARGET_BINDING_RUN=43036123164
+TARGET_BINDING_SOURCE=SUCCESS
+TARGET_BINDING_EXACT=SUCCESS
+MANAGER_A_TO_B_RUN=43036122676
+MANAGER_SOURCE=SUCCESS
+MANAGER_EXACT_MANAGER_SLICE=SUCCESS
+MANAGER_PRE_U1_V2_SIMULATION=SUCCESS
+FAST_CONTRACT_RUN=43036122788
+FAST_CONTRACT=SUCCESS
+PUBLIC_SAFETY_RUN=43036122783
+PUBLIC_SAFETY=SUCCESS
+FULL_SOURCE_GATE_CI_PASS=true
+RESTORATION_MANIFEST_LIVE_AUTHORIZED=false
+READONLY_PREFLIGHT_ALLOWED=true
+```
+
+This supersedes the earlier polling-stop status. The exact-head source gate is now CLOSED_PASS.
+The next real-T1 action is read-only restoration preflight only.

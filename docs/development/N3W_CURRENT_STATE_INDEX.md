@@ -1,3 +1,14 @@
+## 2026-11-11 — KF-147 writable-mount restoration source CI CLOSED_PASS / read-only preflight ready
+
+- Exact source head: `002b5158c525be18ff85b10d4ef1a94e16cc1866`; PR #807 has no drift.
+- Target-binding run `43036123164`: source SUCCESS, exact-binding SUCCESS.
+- Manager A-to-B run `43036122676`: source SUCCESS, exact-manager-slice SUCCESS, pre-u1-v2-simulation SUCCESS.
+- Fast contract `43036122788` SUCCESS; public safety `43036122783` SUCCESS.
+- Full source gate CI is CLOSED_PASS.
+- Committed restoration manifest remains `live_execution_authorized=false`.
+- Next gate: `N3W_T1_KF147_U5_WRITABLE_MOUNT_RESTORATION_READONLY_PREFLIGHT_20261111_01`.
+- This next gate may access T1 read-only only; unmount/rw mount and U5 remain unauthorized.
+
 ## 2026-11-11 — KF-147 writable-mount restoration executor source repaired / CI pending
 
 - Exact source head: `002b5158c525be18ff85b10d4ef1a94e16cc1866`.

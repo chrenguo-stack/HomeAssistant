@@ -1,3 +1,42 @@
+## Latest authority — 2026-11-11 KF-147 writable-mount restoration source CI CLOSED_PASS / read-only preflight authorized
+
+~~~text
+AUTHORITY_STATE=KF147_U5_WRITABLE_MOUNT_RESTORATION_SOURCE_CI_CLOSED_PASS_READONLY_PREFLIGHT_READY
+PR=807
+SOURCE_HEAD=002b5158c525be18ff85b10d4ef1a94e16cc1866
+FULL_SOURCE_GATE_CI_PASS=true
+
+TARGET_BINDING_RUN=43036123164
+TARGET_BINDING_SOURCE=SUCCESS
+TARGET_BINDING_EXACT=SUCCESS
+
+MANAGER_A_TO_B_RUN=43036122676
+MANAGER_SOURCE=SUCCESS
+MANAGER_EXACT_MANAGER_SLICE=SUCCESS
+MANAGER_PRE_U1_V2_SIMULATION=SUCCESS
+
+FAST_CONTRACT_RUN=43036122788
+FAST_CONTRACT=SUCCESS
+PUBLIC_SAFETY_RUN=43036122783
+PUBLIC_SAFETY=SUCCESS
+
+RESTORATION_MANIFEST_LIVE_AUTHORIZED=false
+READONLY_PREFLIGHT_AUTHORIZED=true
+LIVE_UNMOUNT_OR_RW_MOUNT_AUTHORIZED=false
+T1_MUTATION=false
+USB_MUTATION=false
+U4_TO_U5_TRANSITION=false
+INSTALL=false
+MERGE=false
+
+NEXT_ONE_GATE=N3W_T1_KF147_U5_WRITABLE_MOUNT_RESTORATION_READONLY_PREFLIGHT_20261111_01
+~~~
+
+Fresh rebind confirms PR #807 remains on exact source head `002b5158c525be18ff85b10d4ef1a94e16cc1866` and all applicable source/exact
+CI is terminal SUCCESS. The next permitted action is the real-T1 restoration executor in
+`--preflight-only` mode. The committed manifest remains ungranted; no live unmount, writable
+mount, U5 transition or install is authorized.
+
 ## Latest authority — 2026-11-11 KF-147 U5 writable mount restoration executor source repaired / CI pending
 
 ~~~text
