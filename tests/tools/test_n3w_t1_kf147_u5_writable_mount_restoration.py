@@ -134,6 +134,9 @@ def test_rollback_is_bounded_and_u5_transition_is_absent() -> None:
     source = load_executor().REMOTE_SCRIPT
     assert 'result["rollback_attempted"] = True' in source
     assert "automatic_retry" not in source
+    assert "usb_disk_descendant_still_mounted" in source
+    assert "require_service_namespace=False" in source
+    assert "rollback_transaction_changed" in source
     assert "request_install(" not in source
     assert 'run(["systemctl", "restart"' not in source
     assert 'run(["docker", "stop"' not in source

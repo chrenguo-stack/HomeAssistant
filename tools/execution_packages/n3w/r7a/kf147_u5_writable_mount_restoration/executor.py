@@ -160,7 +160,7 @@ def _single_output(argv, reason, *, timeout=30):
     return value
 
 
-def verify_bound_media(plan, transaction, service, expected_mode):
+def verify_bound_media(\n    plan,\n    transaction,\n    service,\n    expected_mode,\n    require_service_namespace=True,\n):
     expected_uuid = plan["usb_filesystem_uuid"].lower()
     expected_fingerprint = plan["usb_public_fingerprint"]
     if transaction.get("usb_device_identity_public_fingerprint") != expected_fingerprint:
@@ -275,13 +275,17 @@ def verify_bound_media(plan, transaction, service, expected_mode):
     if mount_major_minor != partition_major_minor:
         raise Stop("usb_mount_source_mismatch")
 
-    main_pid = service.get("MainPID")
-    if not isinstance(main_pid, str) or not main_pid.isdigit() or int(main_pid) <= 0:
-        raise Stop("ota_service_pid_invalid")
     preflight_namespace = _mount_namespace(None)
-    service_namespace = _mount_namespace(int(main_pid))
-    if preflight_namespace != service_namespace:
-        raise Stop("usb_mount_namespace_mismatch")
+    service_namespace = None
+    if require_service_namespace:
+        if not isinstance(service, dict):
+            raise Stop("ota_service_state_invalid")
+        main_pid = service.get("MainPID")
+        if not isinstance(main_pid, str) or not main_pid.isdigit() or int(main_pid) <= 0:
+            raise Stop("ota_service_pid_invalid")
+        service_namespace = _mount_namespace(int(main_pid))
+        if preflight_namespace != service_namespace:
+            raise Stop("usb_mount_namespace_mismatch")
 
     mount_options = {
         item.strip()
@@ -465,6 +469,25 @@ def verify_unmounted_media(plan, transaction):
     ):
         raise Stop("usb_bound_filesystem_contract_invalid")
 
+    mounted_descendants = []
+    for item in _flatten_blocks([disk]):
+        mountpoints = item.get("mountpoints")
+        if isinstance(mountpoints, list):
+            mounted_descendants.extend(
+                point.strip()
+                for point in mountpoints
+                if isinstance(point, str) and point.strip()
+            )
+        else:
+            legacy_mountpoint = item.get("mountpoint")
+            if isinstance(legacy_mountpoint, str) and legacy_mountpoint.strip():
+                mounted_descendants.append(legacy_mountpoint.strip())
+    if mounted_descendants:
+        raise Stop(
+            "usb_disk_descendant_still_mounted:"
+            + ",".join(sorted(set(mounted_descendants)))
+        )
+
     mounted = run(
         ["findmnt", "--noheadings", "--output", "TARGET", "--source", partition],
         timeout=30,
@@ -640,7 +663,7 @@ def durable_json(path, value):
         os.close(directory)
 
 
-def rollback_recovery_mount(plan, transaction, service):
+def rollback_recovery_mount(plan, transaction):
     target = plan["mount_target"]
     mounted = run(
         ["findmnt", "--noheadings", "--mountpoint", target, "--output", "SOURCE"],
@@ -662,9 +685,22 @@ def rollback_recovery_mount(plan, transaction, service):
         ],
         timeout=60,
     )
-    binding = verify_bound_media(plan, transaction, service, "recovery")
+    binding = verify_bound_media(
+        plan,
+        transaction,
+        None,
+        "recovery",
+        require_service_namespace=False,
+    )
     target_view = verify_target(plan)
-    return {"usb_binding": binding, "target": target_view}
+    transaction_sha256 = sha_file(TX_PATH)
+    if transaction_sha256 != plan["transaction_sha256"]:
+        raise Stop("rollback_transaction_changed")
+    return {
+        "usb_binding": binding,
+        "target": target_view,
+        "transaction_sha256": transaction_sha256,
+    }
 
 
 def execute(plan):
@@ -784,8 +820,7 @@ def execute(plan):
             result["rollback_attempted"] = True
             try:
                 transaction, _ = validate_transaction(plan)
-                service = service_state()
-                rollback = rollback_recovery_mount(plan, transaction, service)
+                rollback = rollback_recovery_mount(plan, transaction)
                 result["rollback_succeeded"] = True
                 result["rollback"] = rollback
             except Exception as rollback_error:
