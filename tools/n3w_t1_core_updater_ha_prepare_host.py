@@ -1183,3 +1183,44 @@ class SubprocessPrepareBackend:
             except OSError:
                 pass
             temporary.unlink(missing_ok=True)
+
+    def verify_prepared_target(
+        self,
+        *,
+        transaction: dict[str, Any],
+        media: PreparedUsbMedia,
+    ) -> ImageRecoveryRecord:
+        media.validate()
+        self._require_bound_media(media)
+        policy = self.policy_provider.load(transaction)
+        mount_path = Path(media.mount_path)
+        if mount_path.is_symlink() or not mount_path.is_dir():
+            raise UpdaterV2Error("usb_mount_path_invalid")
+        update_dir = mount_path / "n3w-update"
+        _require_private_directory(update_dir, create=False)
+        target_dir = update_dir / "target"
+        _require_private_directory(target_dir, create=False)
+        destination = target_dir / "homeassistant-arm64.tar.gz"
+        if destination.is_symlink() or not destination.is_file():
+            raise UpdaterV2Error("ha_target_destination_invalid")
+        identity = portable.parse_image_archive(
+            destination,
+            expected_archive_sha256=policy.target_archive_sha256,
+            expected_archive_size_bytes=policy.target_archive_size_bytes,
+            expected_tag=transaction["target_image_ref"],
+            platform_os="linux",
+            platform_architecture="arm64",
+        )
+        self._require_bound_media(media)
+        return ImageRecoveryRecord(
+            kind="target",
+            image_ref=transaction["target_image_ref"],
+            archive_sha256=policy.target_archive_sha256,
+            archive_size_bytes=policy.target_archive_size_bytes,
+            portable_identity_sha256=sha256_bytes(
+                canonical(identity.to_dict())
+            ),
+            platform="linux/arm64",
+            verified=True,
+            fsynced=True,
+        )

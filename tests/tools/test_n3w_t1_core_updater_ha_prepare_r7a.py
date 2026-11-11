@@ -63,6 +63,7 @@ class FakeBackend:
         self.items: tuple[HostUsbCandidate, ...] = ()
         self.formatted = 0
         self.prepared = 0
+        self.verified = 0
         self.aborted = 0
         self.reopened = 0
         self.metadata_syncs: list[str] = []
@@ -140,6 +141,24 @@ class FakeBackend:
         if self.fail_prepare_once:
             self.fail_prepare_once = False
             raise UpdaterV2Error("synthetic_prepare_interrupted")
+        return ImageRecoveryRecord(
+            kind="target",
+            image_ref=TARGET,
+            archive_sha256=TARGET_SHA,
+            archive_size_bytes=4096,
+            portable_identity_sha256="2" * 64,
+            platform="linux/arm64",
+            verified=True,
+            fsynced=True,
+        )
+
+    def verify_prepared_target(
+        self,
+        *,
+        transaction,
+        media: PreparedUsbMedia,
+    ) -> ImageRecoveryRecord:
+        self.verified += 1
         return ImageRecoveryRecord(
             kind="target",
             image_ref=TARGET,
@@ -291,6 +310,29 @@ def test_confirmation_success_advances_exactly_to_u4(tmp_path: Path) -> None:
         "U3_TARGET_DOWNLOADING_VERIFYING",
         "U4_READY_TO_INSTALL",
     ]
+
+
+def test_install_intent_revalidates_exact_target_and_stops_at_u5(
+    tmp_path: Path,
+) -> None:
+    value, backend, store, document = controller(tmp_path)
+    value.begin(document)
+    backend.items = (candidate("b" * 64),)
+    value.refresh_candidate()
+    value.confirm_and_prepare()
+
+    result = value.revalidate_and_request_install()
+
+    final = store.read()
+    assert final is not None
+    assert result["phase"] == "U5_INSTALL_REQUESTED_REVALIDATING"
+    assert final["phase"] == "U5_INSTALL_REQUESTED_REVALIDATING"
+    assert final["authorization_claimed"] is False
+    assert final["authorization_consumed"] is False
+    assert backend.reopened == 1
+    assert backend.verified == 1
+    assert backend.metadata_syncs[-1] == "U5_INSTALL_REQUESTED_REVALIDATING"
+    assert value.public_status()["phase"] == "INSTALL_REQUESTED_REVALIDATING"
 
 
 def test_capacity_formula_failure_aborts_media_and_never_enters_u2(
@@ -539,4 +581,3 @@ def test_u2_resume_uses_bound_media_without_reformat(tmp_path: Path) -> None:
         "U3_TARGET_DOWNLOADING_VERIFYING",
         "U4_READY_TO_INSTALL",
     ]
-

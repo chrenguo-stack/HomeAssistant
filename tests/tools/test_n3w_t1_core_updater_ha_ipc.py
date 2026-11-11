@@ -21,6 +21,7 @@ from n3w_t1_core_updater_ha_recovery import ImageRecoveryRecord
 from n3w_t1_core_updater_ha_usb import (
     record_media_bound,
     record_target_ready,
+    request_install,
     start_target_preparation,
 )
 from n3w_t1_core_updater_ha_usb_media import (
@@ -66,6 +67,8 @@ class ControllerStub:
         self.public_calls = 0
         self.confirm_calls = 0
         self.resume_calls = 0
+        self.install_calls = 0
+        self.store = None
 
     def begin(self, _document) -> None:
         self.begin_calls += 1
@@ -137,6 +140,15 @@ class ControllerStub:
             "user_message_code_or_null": None,
         }
 
+    def revalidate_and_request_install(self):
+        self.install_calls += 1
+        assert self.store is not None
+        current = self.store.read()
+        assert current is not None
+        installed = request_install(current)
+        self.store.write(installed)
+        return installed
+
 
 def _executor(tmp_path: Path) -> tuple[HaUsbIpcExecutor, Resolver, HaUsbStateStore]:
     root = tmp_path / "state"
@@ -163,7 +175,7 @@ def test_prepare_creates_only_u1_transaction(tmp_path: Path) -> None:
 
 
 def test_install_requires_exact_existing_u4_admission(tmp_path: Path) -> None:
-    executor, _, store = _executor(tmp_path)
+    executor, resolver, store = _executor(tmp_path)
     executor.submit("PREPARE", RELEASE)
     current = store.read()
     assert current is not None
@@ -205,12 +217,21 @@ def test_install_requires_exact_existing_u4_admission(tmp_path: Path) -> None:
     )
     store.write(current)
 
-    with pytest.raises(UpdaterV2Error, match="ha_ota_ipc_action_invalid"):
-        executor.submit("INSTALL", RELEASE)
+    controller = ControllerStub()
+    controller.store = store
+    executor = HaUsbIpcExecutor(
+        store=store,
+        admission_resolver=resolver,
+        prepare_controller=controller,
+    )
+    status = executor.submit("INSTALL", RELEASE)
     installed = store.read()
     assert installed is not None
-    assert installed["phase"] == "U4_READY_TO_INSTALL"
+    assert status["phase"] == "INSTALL_REQUESTED_REVALIDATING"
+    assert installed["phase"] == "U5_INSTALL_REQUESTED_REVALIDATING"
     assert installed["authorization_claimed"] is False
+    assert installed["authorization_consumed"] is False
+    assert controller.install_calls == 1
 
 
 def test_dispatcher_rejects_path_injection_without_executor_call(tmp_path: Path) -> None:

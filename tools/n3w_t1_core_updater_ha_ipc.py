@@ -507,9 +507,19 @@ class HaUsbIpcExecutor:
                 raise UpdaterV2Error("ha_ota_ipc_admission_drift")
 
     def submit(self, action: str, release_identity: str) -> dict[str, object]:
-        if action not in {"PREPARE", "CONFIRM_USB_ERASE"}:
+        if action not in {"PREPARE", "CONFIRM_USB_ERASE", "INSTALL"}:
             raise UpdaterV2Error("ha_ota_ipc_action_invalid")
         admission = self._resolve(release_identity)
+        if action == "INSTALL":
+            if self.prepare_controller is None:
+                raise UpdaterV2Error("ha_usb_prepare_controller_unavailable")
+            document = self.store.read()
+            if document is None:
+                raise UpdaterV2Error("ha_ota_ipc_transaction_missing")
+            self._require_same_admission(document, admission)
+            with self._controller_lock:
+                self.prepare_controller.revalidate_and_request_install()
+            return self.status()
         if action == "CONFIRM_USB_ERASE":
             if self.prepare_controller is None:
                 raise UpdaterV2Error("ha_usb_prepare_controller_unavailable")

@@ -10,10 +10,14 @@ from pathlib import Path
 from typing import Any, Protocol
 
 import n3w_t1_core_updater_ha_capacity as capacity_model
-from n3w_t1_core_updater_ha_recovery import ImageRecoveryRecord
+from n3w_t1_core_updater_ha_recovery import (
+    ImageRecoveryRecord,
+    validate_image_recovery_record,
+)
 from n3w_t1_core_updater_ha_usb import (
     record_media_bound,
     record_target_ready,
+    request_install,
     start_target_preparation,
 )
 from n3w_t1_core_updater_ha_usb_media import (
@@ -30,6 +34,7 @@ from n3w_t1_core_updater_ha_usb_state import (
     U2,
     U3,
     U4,
+    U5,
     HaUsbStateStore,
     validate_transaction_document,
 )
@@ -171,6 +176,14 @@ class PreparePipelineBackend(Protocol):
         media: PreparedUsbMedia,
     ) -> ImageRecoveryRecord:
         """Stream, verify and fsync the exact target directly on bound media."""
+
+    def verify_prepared_target(
+        self,
+        *,
+        transaction: dict[str, Any],
+        media: PreparedUsbMedia,
+    ) -> ImageRecoveryRecord:
+        """Read-only revalidate the already prepared exact target at U4."""
 
     def abort_prepared_media(self, media: PreparedUsbMedia) -> None:
         """Best-effort unmount/cleanup after post-format admission failure."""
@@ -397,7 +410,7 @@ def _eligible(
 
 
 class HaUsbPrepareController:
-    """Bound U1->U4 controller. It never enters U5 or later phases."""
+    """Bound U1->U5 controller. It never enters U6 or later phases."""
 
     def __init__(
         self,
@@ -692,6 +705,29 @@ class HaUsbPrepareController:
         self.transaction_store.write(u4)
         return self.public_status()
 
+    def revalidate_and_request_install(self) -> dict[str, Any]:
+        transaction = self._transaction()
+        if transaction["phase"] != U4:
+            raise UpdaterV2Error("ha_usb_install_revalidation_phase_invalid")
+        media = self.backend.reopen_bound_media(transaction)
+        if media is None:
+            raise UpdaterV2Error("usb_bound_media_unavailable")
+        target = validate_image_recovery_record(
+            self.backend.verify_prepared_target(
+                transaction=transaction,
+                media=media,
+            ),
+            expected_kind="target",
+            expected_image_ref=transaction["target_image_ref"],
+            expected_archive_sha256=transaction["target_archive_sha256"],
+        )
+        if target.archive_size_bytes != transaction["target_archive_size"]:
+            raise UpdaterV2Error("ha_usb_target_archive_size_mismatch")
+        u5 = request_install(transaction)
+        self.backend.sync_transaction_metadata(u5, media)
+        self.transaction_store.write(u5)
+        return validate_transaction_document(u5)
+
     def public_status(self) -> dict[str, Any]:
         transaction = self._transaction()
         phase = transaction["phase"]
@@ -752,6 +788,9 @@ class HaUsbPrepareController:
             usb_capacity_check_state = "FORMATTED_CAPACITY_PASS"
         elif phase == U4:
             public_phase = "READY_TO_INSTALL"
+            usb_capacity_check_state = "FORMATTED_CAPACITY_PASS"
+        elif phase == U5:
+            public_phase = "INSTALL_REQUESTED_REVALIDATING"
             usb_capacity_check_state = "FORMATTED_CAPACITY_PASS"
         else:
             raise UpdaterV2Error("ha_usb_prepare_status_phase_invalid")
