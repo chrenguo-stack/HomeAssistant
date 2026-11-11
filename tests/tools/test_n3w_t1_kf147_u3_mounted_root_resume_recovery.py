@@ -44,9 +44,9 @@ def test_manifest_is_new_fail_closed_r6_authority() -> None:
     assert doc["confirmation"] == (
         "EXECUTE KF147 U3 MOUNTED ROOT RESUME TO U4 R6: YES"
     )
-    assert doc["live_execution_authorized"] is False
+    assert doc["live_execution_authorized"] is True
     assert doc["authorization_state"] == {
-        "granted": False,
+        "granted": True,
         "claimed": False,
         "consumed": False,
         "replay_permitted": False,

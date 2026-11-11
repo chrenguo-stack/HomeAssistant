@@ -1,8 +1,8 @@
-### 2026-11-11 KF-147 U3 resume rejected an already-mounted ext4 root — source repair closed, R6 live pending
+### 2026-11-11 KF-147 U3 resume rejected an already-mounted ext4 root — source repair closed, R6 live authorized
 
 | ID | 范围 | 现场现象 | 根因 | 修复 | 状态 |
 |---|---|---|---|---|---|
-| KF-147 U3 mounted-root resume | Home Assistant mandatory-USB OTA host recovery | R5 repaired `n3w-update` from `0770` to `0700` and restarted the OTA daemon, but IPC returned `usb_runtime_directory_metadata_invalid`; the target directory remained absent and no HTTPS download began. | `reopen_bound_media()` applied the pre-mount private-directory `0700` contract to the root of an already-mounted ext4 filesystem. The exact bound filesystem root is valid `root:root 0755`, so recovery stopped before transaction metadata sync and target creation. | The product source now applies the private-directory check only before mounting. An already exact-mounted partition retains the UUID, USB fingerprint, root-device exclusion, exact mount target, ext4 label/type and bound-media checks without chmodding the filesystem root. R6 stages only the repaired `prepare_host.py`, restarts only the OTA daemon and stops at U4. | SOURCE_REPAIR_CI_PASS_R6_LIVE_NOT_AUTHORIZED |
+| KF-147 U3 mounted-root resume | Home Assistant mandatory-USB OTA host recovery | R5 repaired `n3w-update` from `0770` to `0700` and restarted the OTA daemon, but IPC returned `usb_runtime_directory_metadata_invalid`; the target directory remained absent and no HTTPS download began. | `reopen_bound_media()` applied the pre-mount private-directory `0700` contract to the root of an already-mounted ext4 filesystem. The exact bound filesystem root is valid `root:root 0755`, so recovery stopped before transaction metadata sync and target creation. | The product source now applies the private-directory check only before mounting. An already exact-mounted partition retains the UUID, USB fingerprint, root-device exclusion, exact mount target, ext4 label/type and bound-media checks without chmodding the filesystem root. R6 stages only the repaired `prepare_host.py`, restarts only the OTA daemon and stops at U4. | SOURCE_REPAIR_CI_PASS_R6_LIVE_AUTHORIZED_UNCLAIMED |
 
 Regression guards:
 - bind a successor prestate to the last accepted physical source-deployment authority, not to a later repository source repair that no live package installed;
@@ -13,7 +13,7 @@ Regression guards:
 - R5 authorization is claimed, consumed and permanently non-replayable;
 - an R6 preflight must require the terminal R5 failure, exact old installed source, U3 transaction, IPC error, USB modes/mount and container continuity before eligibility;
 - R6 source activation may resume the intended target download to USB, but it must not wipe, repartition, format, replay destructive confirmation, enter U5+, access a board or merge the PR;
-- R6 begins fail-closed with live authorization disabled. Source/CI readiness does not authorize T1 mutation.
+- Attempt02 read-only preflight passed against exact head `6918bd8632ba0549bf61f7392af8e79944c21046`; a fresh explicit operator authorization was then granted on 2026-11-11. R6 is authorized but remains unclaimed and unconsumed until the live executor crosses its durable claim boundary.
 
 ### 2026-11-10 KF-147 Stage B systemd lifecycle contract regression — CLOSED_PASS by R3
 
