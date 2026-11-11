@@ -35,16 +35,16 @@ def load_executor():
     return module
 
 
-def test_r5_manifest_is_fail_closed_and_exact_scope() -> None:
+def test_r5_manifest_is_authorized_and_exact_scope() -> None:
     doc = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert doc["schema"] == "gh.n3w-t1-kf147-u3-permission-recovery-manifest/1"
     assert doc["gate_id"] == GATE
     assert doc["authorization_id"] == GATE
     assert doc["confirmation"] == "EXECUTE KF147 U3 PERMISSION REPAIR TO U4 R5: YES"
     assert doc["state_root"].endswith("kf147-u3-permission-recovery-r5-20261111-01")
-    assert doc["live_execution_authorized"] is False
+    assert doc["live_execution_authorized"] is True
     assert doc["authorization_state"] == {
-        "granted": False,
+        "granted": True,
         "claimed": False,
         "consumed": False,
         "replay_permitted": False,
