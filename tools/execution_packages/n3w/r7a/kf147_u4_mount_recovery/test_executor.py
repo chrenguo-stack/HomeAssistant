@@ -82,12 +82,12 @@ class Guards(unittest.TestCase):
             def digest(path):
                 if str(path)==str(remote['TX_PATH']):
                     count[0]+=1
-                    if fault=='transaction' and count[0]>=3: return 'changed'
+                    if fault=='transaction' and count[0]>=4: return 'changed'
                 return sha(path)
             overrides=dict(read_object=read_object,sha_file=digest,run=run,resolve_usb=resolve,
                 service_state=lambda:dict(ActiveState='active',SubState='running',MainPID='5'),
                 container_view=container,ipc_status=lambda _:dict(accepted=True,phase='READY_TO_INSTALL',error_code=None,installed_version='2026.10.0'),
-                safe_mountpoint=lambda _:None,mount_rows=lambda *a:[],validate_unmounted=lambda *a:None,
+                safe_mountpoint=lambda *a:None,mount_rows=lambda *a:[],validate_unmounted=lambda *a:None,
                 validate_mounted=lambda *a:None,verify_target=verify)
             output=io.StringIO()
             with patch.dict(remote,overrides), patch('os.readlink',return_value='mnt:1'),patch('sys.argv',['remote',base64.b64encode(json.dumps(plan).encode()).decode()]),contextlib.redirect_stdout(output):
@@ -123,7 +123,7 @@ class Guards(unittest.TestCase):
                 old_scope['resolve_usb'](module.PLAN,tx)
 
     def test_retry_requires_exact_pre_mutation_stop(self):
-        previous=dict(status='STOP',stop_code='Stop:usb_parent_ambiguous',mount_attempted=False,
+        previous=dict(status='STOP',stop_code="FileNotFoundError:[Errno 2] No such file or directory: '/run/n3w-t1-ota/media/ca89774eb4254d0f'",mount_attempted=False,
             mount_restored=False,service_restart=False,source_deployment=False,transaction_mutation=False,
             u5_transition=False,u6_plus=False,ssh_master_cleanup=True,rc=2)
         module.validate_retry(previous)
@@ -131,5 +131,46 @@ class Guards(unittest.TestCase):
                           ('stop_code','unknown'),('rc',0),('ssh_master_cleanup',False)]:
             with self.assertRaises(RuntimeError): module.validate_retry(dict(previous,**{key:value}))
         with self.assertRaises(RuntimeError): module.validate_retry({})
+
+    def test_directory_recovery_filesystem_cases(self):
+        import tempfile, stat
+        from types import SimpleNamespace
+        original=Path.lstat
+        for case in ('missing_target','missing_media','symlink','nonempty','unsafe_mode','missing_runtime'):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as temp:
+                base=Path(temp)/'runtime'
+                if case!='missing_runtime': base.mkdir(mode=0o700)
+                media=base/'media'; target=media/'transaction'
+                if case not in ('missing_media','missing_runtime'): media.mkdir(mode=0o700)
+                if case=='symlink': target.symlink_to(base, target_is_directory=True)
+                if case in ('nonempty','unsafe_mode'):
+                    target.mkdir(mode=0o700)
+                    if case=='nonempty': (target/'keep').write_text('retain')
+                    else: target.chmod(0o777)
+                def lstat(path,*a,**kw):
+                    if path==base or base in path.parents:
+                        info=original(path,*a,**kw)
+                        return SimpleNamespace(st_mode=info.st_mode,st_uid=0)
+                    return SimpleNamespace(st_mode=stat.S_IFDIR|0o755,st_uid=0)
+                result=dict(runtime_directory_creation_attempted=False,runtime_directories_created=0)
+                with patch.object(Path,'lstat',lstat):
+                    if case in ('missing_target','missing_media'):
+                        remote['safe_mountpoint'](str(target),result)
+                        self.assertEqual(result['runtime_directories_created'],1 if case=='missing_target' else 2)
+                        self.assertEqual(target.stat().st_mode & 0o777,0o700)
+                    else:
+                        with self.assertRaises((Stop,FileNotFoundError)):
+                            remote['safe_mountpoint'](str(target),result)
+                        self.assertEqual(result['runtime_directories_created'],0)
+
+    def test_mkdir_failure_is_reported_before_mount(self):
+        from types import SimpleNamespace
+        def check(path):
+            if str(path).endswith('/media'): raise FileNotFoundError()
+        result=dict(runtime_directory_creation_attempted=False,runtime_directories_created=0)
+        with patch.dict(remote,checked_directory=check),patch.object(Path,'mkdir',side_effect=PermissionError()):
+            with self.assertRaises(PermissionError): remote['safe_mountpoint']('/run/test/media/tx',result)
+        self.assertTrue(result['runtime_directory_creation_attempted'])
+        self.assertEqual(result['runtime_directories_created'],0)
 
 if __name__=='__main__': unittest.main()
