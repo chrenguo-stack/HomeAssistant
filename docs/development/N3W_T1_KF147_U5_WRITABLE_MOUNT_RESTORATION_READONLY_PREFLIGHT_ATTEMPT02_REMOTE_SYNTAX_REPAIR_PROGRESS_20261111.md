@@ -68,3 +68,25 @@ Links:
 
 Next safe entry: after all applicable CI for exact head f9002512 is terminal SUCCESS, rerun the same
 read-only preflight once. Live unmount, writable mount and U5 remain unauthorized.
+
+## Repair CI closure
+
+```text
+SOURCE_HEAD=f9002512b20f95af0bfa3541cea7e175bf9eebdf
+TARGET_BINDING_RUN=43041346219
+TARGET_BINDING_SOURCE=SUCCESS
+TARGET_BINDING_EXACT=SUCCESS
+MANAGER_A_TO_B_RUN=43041345855
+MANAGER_SOURCE=SUCCESS
+MANAGER_EXACT_MANAGER_SLICE=SUCCESS
+MANAGER_PRE_U1_V2_SIMULATION=SUCCESS
+FAST_CONTRACT_RUN=43041345992
+FAST_CONTRACT=SUCCESS
+PUBLIC_SAFETY_RUN=43041346291
+PUBLIC_SAFETY=SUCCESS
+FULL_APPLICABLE_CI_PASS=true
+REMOTE_SCRIPT_COMPILE_COVERAGE_ACTIVE=true
+```
+
+The parser-level remote script repair and CI false-PASS repair are now CLOSED_PASS. The next safe
+entry is one rerun of the same real-T1 `--preflight-only` gate.

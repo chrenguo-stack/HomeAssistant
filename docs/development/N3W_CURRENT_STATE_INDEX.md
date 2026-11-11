@@ -1,3 +1,15 @@
+## 2026-11-11 — KF-147 remote-script repair CLOSED_PASS / read-only preflight resumed
+
+- Exact source head: `f9002512b20f95af0bfa3541cea7e175bf9eebdf`; PR #807 and source branch have no drift.
+- Target-binding `43041346219`: source SUCCESS, exact-binding SUCCESS.
+- Manager A-to-B `43041345855`: source SUCCESS, exact-manager-slice SUCCESS, pre-u1-v2-simulation SUCCESS.
+- Fast contract `43041345992` SUCCESS; public safety `43041346291` SUCCESS.
+- Restoration executor blob: `122203aaa534b15e45ea16dbbf0ef46ba236cecd`.
+- Restoration manifest remains `live_execution_authorized=false`, `granted=false`.
+- Target-binding source now executes the restoration test that compiles `REMOTE_SCRIPT`.
+- Next action: rerun the same KF-147 restoration read-only preflight once.
+- Real unmount/rw mount and U5 remain unauthorized.
+
 ## 2026-11-11 — KF-147 readonly preflight Attempt02 remote syntax repair / CI pending
 
 - Attempt02 on `8d6024ae...` returned remote rc=1, stdout length 0, stderr length 258; no authority claim or USB/U5 mutation occurred.
