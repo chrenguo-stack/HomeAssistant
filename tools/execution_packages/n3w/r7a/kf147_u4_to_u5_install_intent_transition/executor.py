@@ -1092,8 +1092,18 @@ def main() -> int:
                 "authorization_consumed",
                 "transaction_mutation",
                 "host_state_mutation",
+                "host_source_mutation",
+                "usb_mutation",
+                "usb_transaction_metadata_mutation",
+                "split_state_detected",
+                "service_restart",
+                "homeassistant_mutation",
+                "manager_mutation",
+                "broker_mutation",
                 "u5_transition",
                 "u6_plus",
+                "board_access",
+                "merge",
             ):
                 if key in remote:
                     result[key] = remote[key]
