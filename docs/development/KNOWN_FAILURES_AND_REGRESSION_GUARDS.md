@@ -1,3 +1,13 @@
+### 2026-11-11 KF-147 writable-mount restoration executor — source hardening
+
+- Source head `002b5158c525be18ff85b10d4ef1a94e16cc1866` implements the exceptional recovery-state transition as a dedicated one-shot executor instead of adding implicit remount behavior to the product daemon.
+- Guard: after unmount, validate all descendants of the bound USB have no mountpoints; checking only the target partition is insufficient.
+- Guard: rollback to the read-only recovery mount must not require a healthy OTA service PID/mount namespace, because service drift may be the condition that triggered post-write validation failure.
+- Guard: rollback success requires the exact U4 transaction SHA-256 to remain unchanged after recovery mount restoration.
+- Guard: committed manifest stays ungranted; source completion or CI PASS never authorizes real unmount/mount.
+- Guard: after a later writable restoration PASS, rerun official U5 preflight before any U4→U5 transition.
+- Applicable exact CI remains nonterminal at the current polling stop; source gate is not yet CLOSED_PASS.
+
 ### 2026-11-11 KF-147 U5 writable restoration design / norecovery alias guard
 
 - Real T1 evidence showed the recovery mount as `ro,norecovery`; kernel ext4 treats `norecovery` and `noload` as journal-suppression aliases.

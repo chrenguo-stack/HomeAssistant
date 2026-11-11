@@ -1,3 +1,65 @@
+## Latest authority — 2026-11-11 KF-147 U5 writable mount restoration executor source repaired / CI pending
+
+~~~text
+AUTHORITY_STATE=KF147_U5_WRITABLE_MOUNT_RESTORATION_EXECUTOR_SOURCE_REPAIRED_CI_PENDING
+PR=807
+SOURCE_HEAD=002b5158c525be18ff85b10d4ef1a94e16cc1866
+SOURCE_PARENT=af400bb578a96957faba43aa4b354456d5db7099
+DESIGN_BASE=b84621714ba910da5b0bd401f85c677f00159275
+
+RESTORATION_EXECUTOR_ADDED=true
+RESTORATION_MANIFEST_LIVE_AUTHORIZED=false
+PRELIGHT_MODE_READ_ONLY=true
+EXPLICIT_UNMOUNT_THEN_FRESH_RW_MOUNT=true
+IMPLICIT_REMOUNT=false
+MAX_ROLLBACK_ATTEMPTS=1
+USB_DESCENDANT_MOUNT_EXCLUSION=true
+ROLLBACK_SERVICE_NAMESPACE_INDEPENDENT=true
+ROLLBACK_TRANSACTION_REVALIDATION=true
+U5_TRANSITION_IN_EXECUTOR=false
+
+TARGET_BINDING_RUN=43036123164
+TARGET_BINDING_SOURCE=IN_PROGRESS
+TARGET_BINDING_EXACT=NOT_STARTED_OR_PENDING_SOURCE
+MANAGER_A_TO_B_RUN=43036122676
+MANAGER_SOURCE=SUCCESS
+MANAGER_EXACT_MANAGER_SLICE=IN_PROGRESS
+FAST_CONTRACT_RUN=43036122788
+FAST_CONTRACT=SUCCESS
+PUBLIC_SAFETY_RUN=43036122783
+PUBLIC_SAFETY=SUCCESS
+CI_POLL_LIMIT_REACHED=true
+
+T1_ACCESS=false
+T1_MUTATION=false
+USB_MUTATION=false
+SOURCE_DEPLOYMENT=false
+SERVICE_RESTART=false
+U4_TO_U5_TRANSITION=false
+INSTALL=false
+MERGE=false
+
+CURRENT_BLOCKER=RESTORATION_SOURCE_APPLICABLE_CI_NONTERMINAL
+NEXT_SAFE_ENTRY=CONFIRM_SOURCE_HEAD_002b5158c525be18ff85b10d4ef1a94e16cc1866_APPLICABLE_CI_TERMINAL_SUCCESS_THEN_FRESH_READONLY_RESTORATION_PREFLIGHT
+~~~
+
+The dedicated one-shot writable-mount restoration executor is now implemented on exact source
+head `002b5158c525be18ff85b10d4ef1a94e16cc1866`. Its committed manifest remains ungranted
+(`live_execution_authorized=false`), so this source state cannot authorize a real unmount or
+writable mount.
+
+Independent review found and repaired two local defects in the first executor version: after
+unmount the executor now proves that no descendant of the bound USB remains mounted; and rollback
+verification no longer depends on the OTA service retaining its previous PID/mount namespace.
+Rollback also revalidates the exact U4 transaction hash after restoring the read-only recovery
+mount.
+
+No T1 access occurred in this source gate. Applicable CI is partially complete; active polling
+stopped at the project limit and must not be treated as full validation.
+
+Authority:
+`docs/development/N3W_T1_KF147_U5_WRITABLE_MOUNT_RESTORATION_EXECUTOR_SOURCE_REPAIR_CI_PROGRESS_20261111.md`.
+
 ## Latest authority — 2026-11-11 KF-147 U5 writable mount restoration source design / preexecution CI pending
 
 ~~~text

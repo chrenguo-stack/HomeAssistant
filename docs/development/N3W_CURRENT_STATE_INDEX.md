@@ -1,3 +1,15 @@
+## 2026-11-11 — KF-147 writable-mount restoration executor source repaired / CI pending
+
+- Exact source head: `002b5158c525be18ff85b10d4ef1a94e16cc1866`.
+- Added dedicated one-shot restoration executor + ungranted manifest + focused tests + target-binding CI wiring.
+- Live execution remains impossible from the committed manifest: `live_execution_authorized=false`, authorization state ungranted/unclaimed/unconsumed.
+- Frozen sequence remains explicit unmount → whole-USB unmounted proof → fresh `rw,nodev,nosuid,noexec` ext4 mount → exact U4/target/runtime post-validation → stop before U5.
+- Independent review repaired two local gaps: whole-USB descendant mount exclusion after unmount, and rollback verification independent of OTA service PID/namespace; rollback also checks the exact U4 transaction hash.
+- CI at polling stop: Manager source SUCCESS / exact-manager-slice IN_PROGRESS; fast contract SUCCESS; public safety SUCCESS; target-binding source IN_PROGRESS. Polling limit reached.
+- No T1 access, USB mutation, source deployment, service restart, U4→U5 transition, install or merge occurred.
+- Next safe entry: confirm this exact head's applicable CI terminal SUCCESS, then execute only a fresh read-only restoration preflight.
+- Progress: [writable mount restoration executor source repair / CI progress](N3W_T1_KF147_U5_WRITABLE_MOUNT_RESTORATION_EXECUTOR_SOURCE_REPAIR_CI_PROGRESS_20261111.md).
+
 ## 2026-11-11 — KF-147 U5 writable mount restoration source design / preexecution CI pending
 
 - Exact source head: `b84621714ba910da5b0bd401f85c677f00159275`.
