@@ -99,4 +99,37 @@ class Guards(unittest.TestCase):
             self.assertFalse(result['u5_transition'])
             self.assertFalse(result['official_u5_preflight_pass'])
 
+    def test_resolve_usb_requires_tree_output(self):
+        import os, stat
+        from types import SimpleNamespace
+        disk=dict(path='/dev/sda',type='disk',tran='usb',rm=True,ro=False,
+                  serial='test',wwn=None,model='test',size=10000,**{'maj:min':'8:0'})
+        part=dict(path='/dev/sda1',type='part',fstype='ext4',uuid=module.PLAN['usb_filesystem_uuid'],**{'maj:min':'8:1'})
+        seen=[]
+        def run(argv,**kwargs):
+            seen.append(argv)
+            if argv[0]=='blkid': return SimpleNamespace(stdout='/dev/sda1\n')
+            inventory=[dict(disk,children=[part])] if '--tree' in argv else [disk,part]
+            return SimpleNamespace(stdout=json.dumps(dict(blockdevices=inventory)))
+        tx=dict(usb_device_identity_public_fingerprint=remote['fingerprint'](disk))
+        with patch.dict(remote,run=run), patch('os.stat',return_value=SimpleNamespace(st_mode=stat.S_IFBLK,st_rdev=os.makedev(8,1))),patch('os.path.realpath',side_effect=lambda p:p):
+            self.assertEqual(remote['resolve_usb'](module.PLAN,tx),('/dev/sda1','8:1',{'8:0','8:1'}))
+        self.assertIn('--tree',seen[1])
+        old=module.REMOTE.replace("'--json', '--tree', '--bytes'", "'--json', '--bytes'")
+        old_scope={'__name__':'old_test'}
+        exec(compile(old,'old_remote','exec'),old_scope)
+        with patch.dict(old_scope,run=run), patch('os.stat',return_value=SimpleNamespace(st_mode=stat.S_IFBLK,st_rdev=os.makedev(8,1))),patch('os.path.realpath',side_effect=lambda p:p):
+            with self.assertRaisesRegex(old_scope['Stop'],'usb_parent_ambiguous'):
+                old_scope['resolve_usb'](module.PLAN,tx)
+
+    def test_retry_requires_exact_pre_mutation_stop(self):
+        previous=dict(status='STOP',stop_code='Stop:usb_parent_ambiguous',mount_attempted=False,
+            mount_restored=False,service_restart=False,source_deployment=False,transaction_mutation=False,
+            u5_transition=False,u6_plus=False,ssh_master_cleanup=True,rc=2)
+        module.validate_retry(previous)
+        for key,value in [('mount_attempted',True),('mount_restored',True),('status','PASS'),
+                          ('stop_code','unknown'),('rc',0),('ssh_master_cleanup',False)]:
+            with self.assertRaises(RuntimeError): module.validate_retry(dict(previous,**{key:value}))
+        with self.assertRaises(RuntimeError): module.validate_retry({})
+
 if __name__=='__main__': unittest.main()
