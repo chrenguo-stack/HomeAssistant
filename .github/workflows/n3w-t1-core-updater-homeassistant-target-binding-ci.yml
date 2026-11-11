@@ -46,6 +46,8 @@ on:
       - "tests/tools/test_n3w_t1_kf147_u4_to_u5_install_intent_preflight.py"
       - "tools/execution_packages/n3w/r7a/kf147_u4_to_u5_install_intent_transition/**"
       - "tests/tools/test_n3w_t1_kf147_u4_to_u5_install_intent_transition.py"
+      - "tools/execution_packages/n3w/r7a/kf147_u5_source_activation_successor/**"
+      - "tests/tools/test_n3w_t1_kf147_u5_source_activation_successor.py"
       - "tools/execution_packages/n3w/r7a/kf147_u5_writable_mount_restoration/**"
       - "tests/tools/test_n3w_t1_kf147_u5_writable_mount_restoration.py"
       - "tests/tools/test_n3w_t1_core_updater_ha_p3_simulation.py"
@@ -125,6 +127,7 @@ jobs:
             tools/execution_packages/n3w/r7a/kf147_u3_mounted_root_resume_recovery/executor.py \
             tools/execution_packages/n3w/r7a/kf147_u4_to_u5_install_intent_preflight/executor.py \
             tools/execution_packages/n3w/r7a/kf147_u4_to_u5_install_intent_transition/executor.py \
+            tools/execution_packages/n3w/r7a/kf147_u5_source_activation_successor/executor.py \
             tools/execution_packages/n3w/r7a/kf147_u5_writable_mount_restoration/executor.py \
             tools/execution_packages/n3w/u2/ha_p4_readonly_premutation_baseline/executor.py \
             tools/execution_packages/n3w/u2/ha_p4_readonly_premutation_baseline/remote_probe.py \
@@ -155,6 +158,7 @@ jobs:
             tests/tools/test_n3w_t1_kf147_u3_mounted_root_resume_recovery.py \
             tests/tools/test_n3w_t1_kf147_u4_to_u5_install_intent_preflight.py \
             tests/tools/test_n3w_t1_kf147_u4_to_u5_install_intent_transition.py \
+            tests/tools/test_n3w_t1_kf147_u5_source_activation_successor.py \
             tests/tools/test_n3w_t1_kf147_u5_writable_mount_restoration.py \
             tests/tools/test_n3w_t1_core_updater_ha_ipc.py \
             tests/tools/test_n3w_t1_core_updater_ha_p3_simulation.py \
