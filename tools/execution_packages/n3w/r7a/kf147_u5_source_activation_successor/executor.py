@@ -552,6 +552,7 @@ def execute(plan, authorization, confirmation):
         "authorization_consumed": True,
         "replay_permitted": False,
         "host_source_mutation": False,
+        "lifecycle_mutation_started": False,
         "host_daemon_restart": False,
         "services_owner_restart": False,
         "transaction_mutation": False,
@@ -568,8 +569,11 @@ def execute(plan, authorization, confirmation):
     }
     try:
         postclaim = baseline(plan, target_sources=False)
+        if postclaim["transaction_sha256"] != pre["transaction_sha256"]:
+            raise Stop("postclaim_transaction_drift")
         durable_json(state_root / "postclaim.json", postclaim)
 
+        result["lifecycle_mutation_started"] = True
         run(["systemctl", "stop", SERVICES_UNIT], timeout=150)
         wait_unit(SERVICES_UNIT, "inactive", 90)
         run(["systemctl", "stop", HOST_UNIT], timeout=90)
@@ -581,12 +585,12 @@ def execute(plan, authorization, confirmation):
         verify_usb_metadata(plan, tx)
         verify_media_and_target(plan)
 
+        result["host_source_mutation"] = True
         for item in plan["source_files"]:
             atomic_install(
                 stage_root / item["stage_name"],
                 item["remote_path"],
             )
-        result["host_source_mutation"] = True
         verify_source_set(plan, target=True)
 
         run(["systemctl", "start", HOST_UNIT], timeout=90)
@@ -618,7 +622,9 @@ def execute(plan, authorization, confirmation):
         return result
     except Exception as error:
         result["first_failed_operation"] = type(error).__name__ + ":" + str(error)[:240]
-        result["rollback_required"] = result["host_source_mutation"]
+        result["rollback_required"] = bool(
+            result["lifecycle_mutation_started"] or result["host_source_mutation"]
+        )
         if result["rollback_required"]:
             result["rollback"] = rollback(plan, backup_dir)
         try:
