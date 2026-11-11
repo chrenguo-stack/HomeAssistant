@@ -74,6 +74,249 @@ def sha_file(path):
     return digest.hexdigest()
 
 
+
+def _boolish(value):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return value != 0
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes"}
+    return False
+
+
+def _flatten_blocks(nodes):
+    flattened = []
+    for node in nodes:
+        if not isinstance(node, dict):
+            continue
+        flattened.append(node)
+        children = node.get("children")
+        if isinstance(children, list):
+            flattened.extend(_flatten_blocks(children))
+    return flattened
+
+
+def _stable_fingerprint(node):
+    serial = (
+        node["serial"].strip()
+        if isinstance(node.get("serial"), str) and node["serial"].strip()
+        else None
+    )
+    wwn = (
+        node["wwn"].strip()
+        if isinstance(node.get("wwn"), str) and node["wwn"].strip()
+        else None
+    )
+    if serial is None and wwn is None:
+        raise Stop("usb_stable_identity_unavailable")
+    identity = {
+        "serial": serial,
+        "wwn": wwn,
+        "model": str(node.get("model") or "").strip(),
+        "size": node.get("size"),
+        "transport": str(node.get("tran") or "").strip().lower(),
+    }
+    payload = json.dumps(identity, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _lsblk_tree():
+    completed = run(
+        [
+            "lsblk",
+            "--json",
+            "--bytes",
+            "--paths",
+            "--tree",
+            "--output",
+            "NAME,PATH,TYPE,RM,RO,SIZE,MODEL,SERIAL,WWN,TRAN,MOUNTPOINTS,MAJ:MIN",
+        ],
+        timeout=30,
+    )
+    try:
+        document = json.loads(completed.stdout)
+    except json.JSONDecodeError as error:
+        raise Stop("usb_inventory_invalid") from error
+    blocks = document.get("blockdevices")
+    if not isinstance(blocks, list):
+        raise Stop("usb_inventory_invalid")
+    return [node for node in blocks if isinstance(node, dict)]
+
+
+def _mount_namespace(pid):
+    path = "/proc/self/ns/mnt" if pid is None else "/proc/" + str(pid) + "/ns/mnt"
+    try:
+        value = os.readlink(path)
+    except OSError as error:
+        raise Stop("mount_namespace_unavailable") from error
+    if not value:
+        raise Stop("mount_namespace_unavailable")
+    return value
+
+
+def _single_output(argv, reason, *, timeout=30):
+    completed = run(argv, timeout=timeout, check=False)
+    if completed.returncode != 0:
+        raise Stop(reason)
+    value = completed.stdout.strip()
+    if not value:
+        raise Stop(reason)
+    return value
+
+
+def verify_bound_media(plan, transaction, service):
+    expected_uuid = plan["usb_filesystem_uuid"].lower()
+    expected_fingerprint = plan["usb_public_fingerprint"]
+    if transaction.get("usb_device_identity_public_fingerprint") != expected_fingerprint:
+        raise Stop("u4_usb_fingerprint_drift")
+
+    uuid_matches = [
+        line.strip()
+        for line in _single_output(
+            ["blkid", "-t", "UUID=" + expected_uuid, "-o", "device"],
+            "usb_filesystem_uuid_unavailable",
+        ).splitlines()
+        if line.strip()
+    ]
+    if len(uuid_matches) != 1:
+        raise Stop("usb_filesystem_uuid_cardinality_invalid")
+    partition = uuid_matches[0]
+    if not partition.startswith("/dev/"):
+        raise Stop("usb_bound_partition_invalid")
+
+    parent = _single_output(
+        ["lsblk", "--noheadings", "--paths", "--output", "PKNAME", partition],
+        "usb_bound_parent_invalid",
+    )
+    if not parent.startswith("/dev/"):
+        raise Stop("usb_bound_parent_invalid")
+
+    disks = [
+        item
+        for item in _lsblk_tree()
+        if item.get("type") == "disk" and item.get("path") == parent
+    ]
+    if len(disks) != 1:
+        raise Stop("usb_bound_parent_ambiguous")
+    disk = disks[0]
+    if (
+        str(disk.get("tran") or "").strip().lower() != "usb"
+        or not _boolish(disk.get("rm"))
+        or _boolish(disk.get("ro"))
+    ):
+        raise Stop("usb_bound_device_properties_invalid")
+    observed_fingerprint = _stable_fingerprint(disk)
+    if observed_fingerprint != expected_fingerprint:
+        raise Stop("usb_public_fingerprint_mismatch")
+
+    root_major_minor = _single_output(
+        ["findmnt", "--noheadings", "--output", "MAJ:MIN", "/"],
+        "usb_root_device_unresolved",
+    )
+    major_minors = {
+        str(item.get("maj:min") or "").strip()
+        for item in _flatten_blocks([disk])
+    }
+    if root_major_minor in major_minors:
+        raise Stop("usb_bound_device_is_root")
+
+    filesystem_type = _single_output(
+        ["blkid", "-s", "TYPE", "-o", "value", partition],
+        "usb_filesystem_type_unavailable",
+    )
+    filesystem_label = _single_output(
+        ["blkid", "-s", "LABEL", "-o", "value", partition],
+        "usb_filesystem_label_unavailable",
+    )
+    if (
+        filesystem_type != plan["usb_filesystem_type"]
+        or filesystem_label != plan["usb_filesystem_label"]
+    ):
+        raise Stop("usb_bound_filesystem_contract_invalid")
+
+    expected_target = plan["mount_target"]
+    source_targets = [
+        line.strip()
+        for line in _single_output(
+            ["findmnt", "--noheadings", "--output", "TARGET", "--source", partition],
+            "usb_mount_missing",
+        ).splitlines()
+        if line.strip()
+    ]
+    if len(source_targets) != 1:
+        raise Stop("usb_mount_cardinality_invalid")
+    if source_targets[0] != expected_target:
+        raise Stop("usb_bound_partition_mounted_elsewhere")
+
+    mount_source = _single_output(
+        ["findmnt", "--noheadings", "--mountpoint", expected_target, "--output", "SOURCE"],
+        "usb_mount_missing",
+    )
+    mount_target = _single_output(
+        ["findmnt", "--noheadings", "--mountpoint", expected_target, "--output", "TARGET"],
+        "usb_mount_missing",
+    )
+    mount_type = _single_output(
+        ["findmnt", "--noheadings", "--mountpoint", expected_target, "--output", "FSTYPE"],
+        "usb_mount_missing",
+    )
+    mount_options_raw = _single_output(
+        ["findmnt", "--noheadings", "--mountpoint", expected_target, "--output", "OPTIONS"],
+        "usb_mount_missing",
+    )
+    mount_major_minor = _single_output(
+        ["findmnt", "--noheadings", "--mountpoint", expected_target, "--output", "MAJ:MIN"],
+        "usb_mount_missing",
+    )
+    partition_major_minor = _single_output(
+        ["lsblk", "--noheadings", "--output", "MAJ:MIN", partition],
+        "usb_partition_major_minor_unavailable",
+    )
+    if mount_target != expected_target:
+        raise Stop("usb_mount_target_drift")
+    if mount_type != plan["usb_filesystem_type"]:
+        raise Stop("usb_mount_filesystem_drift")
+    if mount_major_minor != partition_major_minor:
+        raise Stop("usb_mount_source_mismatch")
+
+    main_pid = service.get("MainPID")
+    if not isinstance(main_pid, str) or not main_pid.isdigit() or int(main_pid) <= 0:
+        raise Stop("ota_service_pid_invalid")
+    preflight_namespace = _mount_namespace(None)
+    service_namespace = _mount_namespace(int(main_pid))
+    if preflight_namespace != service_namespace:
+        raise Stop("usb_mount_namespace_mismatch")
+
+    mount_options = {
+        item.strip()
+        for item in mount_options_raw.split(",")
+        if item.strip()
+    }
+    required_options = set(plan["mount_required_options"])
+    forbidden_options = set(plan["mount_forbidden_options"])
+    if (
+        not required_options.issubset(mount_options)
+        or mount_options.intersection(forbidden_options)
+    ):
+        raise Stop("usb_mount_not_u5_writable:" + ",".join(sorted(mount_options)))
+
+    return {
+        "partition": partition,
+        "parent": parent,
+        "public_fingerprint": observed_fingerprint,
+        "filesystem_uuid": expected_uuid,
+        "filesystem_type": filesystem_type,
+        "filesystem_label": filesystem_label,
+        "mount_source": mount_source,
+        "mount_target": mount_target,
+        "mount_major_minor": mount_major_minor,
+        "mount_options": sorted(mount_options),
+        "preflight_mount_namespace": preflight_namespace,
+        "service_mount_namespace": service_namespace,
+    }
+
+
 def read_object(path):
     path = Path(path)
     if path.is_symlink() or not path.is_file():
@@ -198,15 +441,11 @@ def main():
         if transaction_sha256 != plan["transaction_sha256"]:
             raise Stop("u4_transaction_sha256_drift")
 
-        partition = run(["blkid", "-U", plan["usb_filesystem_uuid"]], timeout=30).stdout.strip()
-        if partition != plan["usb_partition"]:
-            raise Stop("usb_partition_drift")
-        mount_target = run(
-            ["findmnt", "--noheadings", "--output", "TARGET", "--source", partition],
-            timeout=30,
-        ).stdout.strip()
-        if mount_target != plan["mount_target"]:
-            raise Stop("usb_mount_drift")
+        service = service_state()
+        if service.get("ActiveState") != "active" or service.get("SubState") != "running":
+            raise Stop("ota_service_not_running")
+        media_binding = verify_bound_media(plan, transaction, service)
+        mount_target = media_binding["mount_target"]
         target = Path(mount_target) / "n3w-update" / "target" / "homeassistant-arm64.tar.gz"
         if target.is_symlink() or not target.is_file():
             raise Stop("target_archive_missing")
@@ -215,9 +454,6 @@ def main():
         if sha_file(target) != plan["target_sha256"]:
             raise Stop("target_archive_sha256_drift")
 
-        service = service_state()
-        if service.get("ActiveState") != "active" or service.get("SubState") != "running":
-            raise Stop("ota_service_not_running")
         containers = {
             key: container_view(value["image"])
             for key, value in plan["containers"].items()
@@ -250,6 +486,7 @@ def main():
             "target_size_bytes": target.stat().st_size,
             "target_sha256": plan["target_sha256"],
             "installed_source_sha256": source_hashes,
+            "usb_binding": media_binding,
             "service": service,
             "containers": containers,
             "ipc": ipc,

@@ -9,7 +9,7 @@
     "replay_permitted": false
   },
   "package_source_authority": {
-    "tools/execution_packages/n3w/r7a/kf147_u4_to_u5_install_intent_preflight/executor.py": "948621386d869b28a7fad072cb3b857205465d44",
+    "tools/execution_packages/n3w/r7a/kf147_u4_to_u5_install_intent_preflight/executor.py": "5f84233de74f36c1473a7dddc638e91db3d3143a",
     "tools/n3w_t1_core_updater_ha_prepare.py": "9ca7f0411a9e45d488e6cba4a3526bfaa7c77e20",
     "tools/n3w_t1_core_updater_ha_prepare_host.py": "85f0765050c025f3d68a5667fda0d4772b4f15a6",
     "tools/n3w_t1_core_updater_ha_ipc.py": "ebd71331eaef4ef5a9fb76a130a66c714370d92e",
@@ -24,7 +24,6 @@
     "transaction_id_sha256": "ca89774eb4254d0f861cc2aef136eee41e90fd6106559c0fd8d66e3ee00a3738",
     "transaction_sha256": "dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259",
     "usb_filesystem_uuid": "967cf065-abe5-49ee-8499-7c3f50d2c48f",
-    "usb_partition": "/dev/sdb1",
     "mount_target": "/run/n3w-t1-ota/media/ca89774eb4254d0f",
     "target_size_bytes": 835309535,
     "target_sha256": "eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973",
@@ -49,7 +48,20 @@
         "container_id": "927aea04a062caf57c8d75d73ba8902f35eef035214e85ce7e8b1c066903d963",
         "runtime_image_id": "sha256:df265f1e2b2e3dc35d5eb194e698c598e01c5ebca370da307b34332f9bf0a563"
       }
-    }
+    },
+    "usb_public_fingerprint": "e45fba0ad3e9997be2738c7a8f25d5c342ebba66ddbf822b1f6bf6a016c2ed93",
+    "usb_filesystem_type": "ext4",
+    "usb_filesystem_label": "N3W-UPDATE",
+    "mount_required_options": [
+      "rw",
+      "nodev",
+      "nosuid",
+      "noexec"
+    ],
+    "mount_forbidden_options": [
+      "ro",
+      "noload"
+    ]
   },
   "execution_contract": {
     "read_only_preflight": true,
