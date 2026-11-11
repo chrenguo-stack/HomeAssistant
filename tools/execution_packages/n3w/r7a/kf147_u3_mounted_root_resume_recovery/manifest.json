@@ -16,9 +16,9 @@
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7"
   },
   "predecessor_source_authority": {
-    "source_head": "ff17360ae74083190613f674c24506d35759c922",
-    "prepare_host_blob": "fc5577b9aecc405a24fe1933a3597bc2f80f0e20",
-    "prepare_host_sha256": "7866b96dc11cc5536a0783fc413f84d8405ad59c3eaa76862054626f1d047a77"
+    "source_head": "675871a0567aca858c8af34f9eecf0a2e79ba063",
+    "prepare_host_blob": "933dfb2a348ace88b0a54bf4adbd8851c1348be0",
+    "prepare_host_sha256": "469a4de0a41ac8a3c513f29a2ef6566eecfe927b7cdc26ec169f664221fa52a4"
   },
   "target_prepare_host_sha256": "a11089ef57cf68c40a648c85ac7e7569a281f7fad13f75a09c0a3b04bad80ecf",
   "remote_target": "/opt/HomeAssistant/tools/n3w_t1_core_updater_ha_prepare_host.py",

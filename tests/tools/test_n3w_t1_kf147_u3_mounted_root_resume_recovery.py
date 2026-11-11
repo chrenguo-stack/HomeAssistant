@@ -60,13 +60,13 @@ def test_manifest_binds_exact_one_file_source_transition() -> None:
     doc = json.loads(MANIFEST.read_text(encoding="utf-8"))
     predecessor = doc["predecessor_source_authority"]
     assert predecessor["source_head"] == (
-        "ff17360ae74083190613f674c24506d35759c922"
+        "675871a0567aca858c8af34f9eecf0a2e79ba063"
     )
     assert predecessor["prepare_host_blob"] == (
-        "fc5577b9aecc405a24fe1933a3597bc2f80f0e20"
+        "933dfb2a348ace88b0a54bf4adbd8851c1348be0"
     )
     assert predecessor["prepare_host_sha256"] == (
-        "7866b96dc11cc5536a0783fc413f84d8405ad59c3eaa76862054626f1d047a77"
+        "469a4de0a41ac8a3c513f29a2ef6566eecfe927b7cdc26ec169f664221fa52a4"
     )
     assert doc["target_prepare_host_sha256"] == (
         "a11089ef57cf68c40a648c85ac7e7569a281f7fad13f75a09c0a3b04bad80ecf"
@@ -78,6 +78,20 @@ def test_manifest_binds_exact_one_file_source_transition() -> None:
     assert contract["exact_one_file_host_source_repair"] is True
     assert contract["predecessor_r5_consumed_failure_required"] is True
     assert contract["service_restart"] == "n3w-t1-ha-ota.service"
+
+
+def test_predecessor_is_last_accepted_physical_source_deployment() -> None:
+    doc = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    predecessor = doc["predecessor_source_authority"]
+    assert predecessor["source_head"] == (
+        "675871a0567aca858c8af34f9eecf0a2e79ba063"
+    )
+    assert predecessor["source_head"] != (
+        "ff17360ae74083190613f674c24506d35759c922"
+    )
+    assert predecessor["prepare_host_blob"] != (
+        "fc5577b9aecc405a24fe1933a3597bc2f80f0e20"
+    )
 
 
 def test_executor_and_remote_script_compile() -> None:

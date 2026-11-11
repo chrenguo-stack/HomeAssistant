@@ -5,6 +5,8 @@
 | KF-147 U3 mounted-root resume | Home Assistant mandatory-USB OTA host recovery | R5 repaired `n3w-update` from `0770` to `0700` and restarted the OTA daemon, but IPC returned `usb_runtime_directory_metadata_invalid`; the target directory remained absent and no HTTPS download began. | `reopen_bound_media()` applied the pre-mount private-directory `0700` contract to the root of an already-mounted ext4 filesystem. The exact bound filesystem root is valid `root:root 0755`, so recovery stopped before transaction metadata sync and target creation. | The product source now applies the private-directory check only before mounting. An already exact-mounted partition retains the UUID, USB fingerprint, root-device exclusion, exact mount target, ext4 label/type and bound-media checks without chmodding the filesystem root. R6 stages only the repaired `prepare_host.py`, restarts only the OTA daemon and stops at U4. | SOURCE_REPAIR_CI_PASS_R6_LIVE_NOT_AUTHORIZED |
 
 Regression guards:
+- bind a successor prestate to the last accepted physical source-deployment authority, not to a later repository source repair that no live package installed;
+- the accepted installed predecessor for this R6 transition is Stage B R3 head `675871a0567aca858c8af34f9eecf0a2e79ba063`, prepare-host blob `933dfb2a348ace88b0a54bf4adbd8851c1348be0`;
 - distinguish a private pre-mount directory from the root directory of an already-mounted filesystem;
 - never chmod the mounted ext4 root merely to satisfy the pre-mount `0700` contract;
 - exact existing mounts must still match the bound partition, transaction-derived target, UUID, public USB fingerprint, filesystem contract and root-device exclusion;
