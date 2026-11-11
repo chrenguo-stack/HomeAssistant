@@ -54,3 +54,24 @@ Run links:
 - https://github.com/chrenguo-stack/HomeAssistant/actions/runs/43039728077
 
 No T1 access is allowed until this exact source head reaches terminal applicable CI success.
+
+## CI closure
+
+```text
+SOURCE_HEAD=8d6024ae889951eab1ff2427ad60e4a5598c8065
+MANAGER_A_TO_B_RUN=43039728250
+MANAGER_SOURCE=SUCCESS
+MANAGER_EXACT_MANAGER_SLICE=SUCCESS
+MANAGER_PRE_U1_V2_SIMULATION=SUCCESS
+TARGET_BINDING_RUN=43039727825
+TARGET_BINDING_SOURCE=SUCCESS
+TARGET_BINDING_EXACT=SUCCESS
+FAST_CONTRACT_RUN=43039728013
+FAST_CONTRACT=SUCCESS
+PUBLIC_SAFETY_RUN=43039728077
+PUBLIC_SAFETY=SUCCESS
+FULL_APPLICABLE_CI_PASS=true
+```
+
+The artifact exact-ID workflow repair is now CLOSED_PASS. The next safe entry is the same real-T1
+restoration `--preflight-only` gate. No live USB mutation authority is implied by this closure.

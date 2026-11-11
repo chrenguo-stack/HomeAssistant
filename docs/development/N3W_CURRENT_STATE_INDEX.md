@@ -1,3 +1,14 @@
+## 2026-11-11 — KF-147 CI repair CLOSED_PASS / read-only preflight resumed
+
+- Exact source head: `8d6024ae889951eab1ff2427ad60e4a5598c8065`; PR #807 has no drift.
+- Manager A-to-B run `43039728250`: source SUCCESS, exact-manager-slice SUCCESS, pre-u1-v2-simulation SUCCESS.
+- Target-binding run `43039727825`: source SUCCESS, exact-binding SUCCESS.
+- Fast contract `43039728013` SUCCESS; public safety `43039728077` SUCCESS.
+- Workflow artifact exact-ID REST binding repair is validated.
+- Restoration executor blob remains `add45ba4f...`; manifest remains `live_execution_authorized=false`, `granted=false`.
+- Next action: rerun `N3W_T1_KF147_U5_WRITABLE_MOUNT_RESTORATION_READONLY_PREFLIGHT_20261111_01` in read-only mode only.
+- Real unmount/rw mount and U5 remain unauthorized.
+
 ## 2026-11-11 — KF-147 CI artifact rerun failure reclassified / workflow repaired
 
 - Rerun attempt 2 of Manager A-to-B run `43038325461` failed again at exact artifact re-download.

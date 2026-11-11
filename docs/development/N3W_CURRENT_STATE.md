@@ -1,3 +1,44 @@
+## Latest authority — 2026-11-11 KF-147 CI repair CLOSED_PASS / readonly preflight ready
+
+~~~text
+AUTHORITY_STATE=KF147_CI_REPAIR_CLOSED_PASS_READONLY_PREFLIGHT_READY
+SOURCE_HEAD=8d6024ae889951eab1ff2427ad60e4a5598c8065
+PR=807
+SOURCE_DRIFT=false
+
+MANAGER_A_TO_B_RUN=43039728250
+MANAGER_SOURCE=SUCCESS
+MANAGER_EXACT_MANAGER_SLICE=SUCCESS
+MANAGER_PRE_U1_V2_SIMULATION=SUCCESS
+
+TARGET_BINDING_RUN=43039727825
+TARGET_BINDING_SOURCE=SUCCESS
+TARGET_BINDING_EXACT=SUCCESS
+
+FAST_CONTRACT_RUN=43039728013
+FAST_CONTRACT=SUCCESS
+PUBLIC_SAFETY_RUN=43039728077
+PUBLIC_SAFETY=SUCCESS
+FULL_APPLICABLE_CI_PASS=true
+
+RESTORATION_EXECUTOR_BLOB=add45ba4fe2ec3d2122305d71ec82155c4af47b1
+RESTORATION_MANIFEST_BLOB=3a5cd0671e932a1595d2fbd36328f720d06ffc6a
+RESTORATION_MANIFEST_LIVE_AUTHORIZED=false
+RESTORATION_AUTHORIZATION_GRANTED=false
+READONLY_PREFLIGHT_SUPPORTED=true
+
+NEXT_ONE_GATE=N3W_T1_KF147_U5_WRITABLE_MOUNT_RESTORATION_READONLY_PREFLIGHT_20261111_01
+LIVE_UNMOUNT_OR_RW_MOUNT_AUTHORIZED=false
+U5_TRANSITION=false
+MERGE=false
+~~~
+
+The workflow artifact rerun design repair is now fully validated. PR #807 and its source branch remain
+exactly at `8d6024ae889951eab1ff2427ad60e4a5598c8065`. The previously failing exact-manager-slice and the downstream
+pre-u1-v2-simulation are both SUCCESS. The committed restoration manifest remains ungranted and
+live execution remains disabled. The only next permitted real-T1 action is the same
+`--preflight-only` restoration preflight.
+
 ## Latest authority — 2026-11-11 KF-147 CI exact artifact rerun design repair / CI pending
 
 ~~~text
