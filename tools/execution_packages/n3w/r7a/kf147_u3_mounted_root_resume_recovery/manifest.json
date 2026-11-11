@@ -3,11 +3,11 @@
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U3_MOUNTED_ROOT_RESUME_TO_U4_R6_20261111_01",
   "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U3_MOUNTED_ROOT_RESUME_TO_U4_R6_20261111_01",
   "confirmation": "EXECUTE KF147 U3 MOUNTED ROOT RESUME TO U4 R6: YES",
-  "live_execution_authorized": true,
+  "live_execution_authorized": false,
   "authorization_state": {
     "granted": true,
-    "claimed": false,
-    "consumed": false,
+    "claimed": true,
+    "consumed": true,
     "replay_permitted": false
   },
   "package_source_authority": {

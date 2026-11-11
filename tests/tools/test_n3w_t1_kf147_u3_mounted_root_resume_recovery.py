@@ -34,7 +34,7 @@ def load_executor():
     return module
 
 
-def test_manifest_is_new_fail_closed_r6_authority() -> None:
+def test_manifest_is_consumed_no_replay_r6_authority() -> None:
     doc = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert doc["schema"] == (
         "gh.n3w-t1-kf147-u3-mounted-root-resume-recovery-manifest/1"
@@ -44,11 +44,11 @@ def test_manifest_is_new_fail_closed_r6_authority() -> None:
     assert doc["confirmation"] == (
         "EXECUTE KF147 U3 MOUNTED ROOT RESUME TO U4 R6: YES"
     )
-    assert doc["live_execution_authorized"] is True
+    assert doc["live_execution_authorized"] is False
     assert doc["authorization_state"] == {
         "granted": True,
-        "claimed": False,
-        "consumed": False,
+        "claimed": True,
+        "consumed": True,
         "replay_permitted": False,
     }
     assert doc["state_root"].endswith(
