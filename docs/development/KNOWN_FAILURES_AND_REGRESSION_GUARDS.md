@@ -1,3 +1,11 @@
+### 2026-11-11 KF-147 U4 mount recovery — Attempt 03 LIVE PASS
+
+- User-executed exact operator `b4f0dd23edf8b96cd4d2354973b9a9774b40947e` returned `U4_MOUNT_RECOVERY_PASS`, rc=0. Evidence: https://github.com/chrenguo-stack/HomeAssistant/pull/807#issuecomment-6797091202.
+- Original USB binding and exact target verified; two private runtime directories created; read-only/no-journal-replay mount restored. U4 transaction and runtime unchanged; no source deployment, service restart, U5 or U6+. SSH cleanup passed.
+- The missing-directory and lsblk-tree operator repairs are live-validated for this recovery. Do not replay the successful recovery authorization.
+- Remaining OPEN: root cause of original mount/directory disappearance; official U5 preflight historical device-path equality; writable-media readiness for any future separately authorized installation. `official_u5_preflight_pass=false` remains authoritative.
+- This closure is based on user-supplied terminal evidence, not cloud direct access. Private raw evidence stays operator-local; its hash was not supplied.
+
 ### 2026-11-11 KF-147 U4 mount Attempt 02 — missing runtime mountpoint
 
 - Observed: original USB identity checks passed, then FileNotFoundError for the transaction-derived mountpoint. mount_attempted=false, mount_restored=false, rc=2; service/source/transaction/U5/U6 unchanged and SSH cleanup completed.
