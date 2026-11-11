@@ -3,16 +3,16 @@
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U3_PERMISSION_REPAIR_TO_U4_R5_20261111_01",
   "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U3_PERMISSION_REPAIR_TO_U4_R5_20261111_01",
   "confirmation": "EXECUTE KF147 U3 PERMISSION REPAIR TO U4 R5: YES",
-  "live_execution_authorized": true,
+  "live_execution_authorized": false,
   "authorization_state": {
     "granted": true,
-    "claimed": false,
-    "consumed": false,
+    "claimed": true,
+    "consumed": true,
     "replay_permitted": false
   },
   "package_source_authority": {
     "tools/execution_packages/n3w/r7a/kf147_u3_bound_media_recovery/executor.py": "f4d7adcd3522351244d592f24b7b3f80dab176c6",
-    "tools/n3w_t1_core_updater_ha_prepare_host.py": "fc5577b9aecc405a24fe1933a3597bc2f80f0e20",
+    "tools/n3w_t1_core_updater_ha_prepare_host.py": "5504dd2348dc8b9f670f78b4a85d3583a34fefc6",
     "tools/n3w_t1_ssh_transport.py": "5bc28b30e696bd3d0f5ae4c98fd81b8f8679aaa7"
   },
   "state_root": "/var/lib/n3w-t1-core-updater/kf147-u3-permission-recovery-r5-20261111-01",
