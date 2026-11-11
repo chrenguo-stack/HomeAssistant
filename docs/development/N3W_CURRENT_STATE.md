@@ -1,3 +1,47 @@
+## Latest authority — 2026-11-11 KF-147 writable restoration readonly preflight Attempt01 transport parse STOP / observability repair CI pending
+
+~~~text
+AUTHORITY_STATE=KF147_U5_WRITABLE_RESTORATION_PREFLIGHT_ATTEMPT01_REMOTE_JSON_STOP_REPAIR_CI_PENDING
+ATTEMPT01_SOURCE_HEAD=002b5158c525be18ff85b10d4ef1a94e16cc1866
+ATTEMPT01_STATUS=STOP
+ATTEMPT01_REASON=remote_result_json_invalid
+ATTEMPT01_RC=2
+T1_ACCESS=true
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+HOST_STATE_MUTATION=false
+USB_MUTATION=false
+U5_TRANSITION=false
+
+OBSERVABILITY_REPAIR_HEAD=8cbf63f3af4c2a904770842a3a223c97b56c1630
+OBSERVABILITY_REPAIR_EXECUTOR_BLOB=add45ba4fe2ec3d2122305d71ec82155c4af47b1
+OBSERVABILITY_REPAIR_MANIFEST_BLOB=3a5cd0671e932a1595d2fbd36328f720d06ffc6a
+OBSERVABILITY_REPAIR_TEST_BLOB=3b52a48c65e6dc7ee4e095f255c06efb6663343b
+
+PUBLIC_SAFETY_RUN=43038325634
+PUBLIC_SAFETY=SUCCESS
+TARGET_BINDING_RUN=43038325282
+TARGET_BINDING_SOURCE=IN_PROGRESS
+MANAGER_A_TO_B_RUN=43038325461
+MANAGER_SOURCE=IN_PROGRESS
+FAST_CONTRACT_RUN=43038325205
+FAST_CONTRACT=QUEUED
+CI_POLL_LIMIT_REACHED=true
+FULL_REPAIR_CI_PASS=false
+
+NEXT_SAFE_ENTRY=CONFIRM_8cbf63f_APPLICABLE_CI_SUCCESS_THEN_RERUN_READONLY_PREFLIGHT_ONCE
+LIVE_UNMOUNT_OR_RW_MOUNT_AUTHORIZED=false
+~~~
+
+Attempt01 failed before the remote JSON result could be parsed. The local result proves no
+authorization claim, host-state mutation, USB mutation or U5 transition occurred. Because the
+executor did not preserve raw remote stdout/stderr before parsing, the underlying remote failure is
+not recoverable from Attempt01 evidence alone.
+
+A localized observability repair at `8cbf63f3af4c2a904770842a3a223c97b56c1630` now persists
+remote return code, stdout length, stderr length, and private raw stdout/stderr before JSON parsing.
+It does not expand mutation authority; the committed manifest remains ungranted.
+
 ## Latest authority — 2026-11-11 KF-147 writable-mount restoration source CI CLOSED_PASS / read-only preflight authorized
 
 ~~~text

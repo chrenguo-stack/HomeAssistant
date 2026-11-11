@@ -1,3 +1,12 @@
+### 2026-11-11 KF-147 restoration preflight — preserve transport evidence before JSON parsing
+
+- Failure signature: local wrapper receives non-JSON/empty remote stdout and reports `remote_result_json_invalid`.
+- Safety rule: treat this as a read-only STOP; never infer USB eligibility from a transport parse failure.
+- Diagnostic rule: persist remote return code plus private raw stdout/stderr before attempting JSON parsing.
+- Do not include raw transport output in public GitHub archives; it remains operator-local evidence.
+- A parse failure must never claim authorization, retry live execution, unmount USB or change mount mode.
+- Repair head: `8cbf63f3af4c2a904770842a3a223c97b56c1630`.
+
 ### 2026-11-11 KF-147 writable-mount restoration executor — source hardening
 
 - Source head `002b5158c525be18ff85b10d4ef1a94e16cc1866` implements the exceptional recovery-state transition as a dedicated one-shot executor instead of adding implicit remount behavior to the product daemon.

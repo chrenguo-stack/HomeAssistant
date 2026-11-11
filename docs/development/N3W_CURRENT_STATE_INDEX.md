@@ -1,3 +1,14 @@
+## 2026-11-11 — KF-147 writable restoration readonly preflight Attempt01 STOP / diagnostic repair pending
+
+- Attempt01 on source `002b5158...` returned `STOP:remote_result_json_invalid`, rc=2.
+- Boundary remained clean: authorization unclaimed/unconsumed, host-state/USB/U5 mutation all false.
+- The failure is at transport/result parsing, before a meaningful remote preflight verdict can be trusted.
+- Executor gap: raw remote stdout/stderr and return code were not persisted before JSON parsing.
+- Repair head `8cbf63f3af4c2a904770842a3a223c97b56c1630` records those diagnostics first, then fails closed on invalid JSON.
+- Public safety CI is SUCCESS; applicable source/exact CI was still nonterminal at poll limit.
+- Do not rerun T1 until exact repair CI succeeds; actual unmount/rw mount remains unauthorized.
+- Progress: [Attempt01 remote JSON STOP](N3W_T1_KF147_U5_WRITABLE_MOUNT_RESTORATION_READONLY_PREFLIGHT_ATTEMPT01_REMOTE_JSON_STOP_PROGRESS_20261111.md).
+
 ## 2026-11-11 — KF-147 writable-mount restoration source CI CLOSED_PASS / read-only preflight ready
 
 - Exact source head: `002b5158c525be18ff85b10d4ef1a94e16cc1866`; PR #807 has no drift.
