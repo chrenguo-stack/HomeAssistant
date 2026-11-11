@@ -41,14 +41,14 @@ def load_remote_namespace():
     return namespace
 
 
-def test_manifest_is_ungranted_and_binds_exact_u4_state() -> None:
+def test_manifest_is_granted_unclaimed_and_binds_exact_u4_state() -> None:
     document = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert document["gate_id"] == GATE
     assert document["authorization_id"] == GATE
     assert document["confirmation"] == CONFIRMATION
-    assert document["live_execution_authorized"] is False
+    assert document["live_execution_authorized"] is True
     assert document["authorization_state"] == {
-        "granted": False,
+        "granted": True,
         "claimed": False,
         "consumed": False,
         "replay_permitted": False,
