@@ -1,3 +1,12 @@
+### 2026-11-11 KF-147 U4 mount Attempt 02 — missing runtime mountpoint
+
+- Observed: original USB identity checks passed, then FileNotFoundError for the transaction-derived mountpoint. mount_attempted=false, mount_restored=false, rc=2; service/source/transaction/U5/U6 unchanged and SSH cleanup completed.
+- Root cause: disposable recovery operator required the mountpoint to preexist; recovering a missing mount also needs bounded creation of its runtime directory. The cause of the original mount/directory disappearance is still unknown.
+- Repair: after source/U4/runtime/USB and unmounted guards, require existing safe runtime root; create only its media directory and exact transaction child when absent, mode 0700, with root ownership/no symlink/no group-or-world-write checks. Existing nonempty or unsafe targets remain STOP. Recheck USB, transaction, service and mounts before the single read-only/no-journal-replay mount. Report directory creation attempts/count separately from mount attempts.
+- Attempt 03 requires the exact prior Attempt 02 pre-mount STOP in private Mac evidence; uses a new fixed evidence root and preserves prior records. Existing U4 mount-recovery authorization applies; no new installation or service authority.
+- Validation: 15 unittest methods passed, including real temporary filesystem cases for missing target/media, symlink, nonempty target, unsafe mode, missing runtime root and mkdir failure. Python compilation passed. Live recovery remains pending.
+- Guards: do not assume /run transaction mountpoints survive loss of a mount/reboot; do not infer the actual disappearance cause without evidence; do not auto-retry once a mount was attempted or its outcome is unknown.
+
 ### 2026-11-11 KF-147 U4 mount operator — missing lsblk tree output
 
 - Phenomenon: authorized U4 mount recovery stopped at `Stop:usb_parent_ambiguous`; `mount_attempted=false`, `mount_restored=false`, no source/service/transaction/U5 changes; SSH cleanup completed.
