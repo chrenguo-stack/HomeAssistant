@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import sys
@@ -65,6 +66,14 @@ def test_manifest_is_ungranted_and_exact_eight_file_slice() -> None:
     assert contract["automatic_retry"] is False
     assert contract["automatic_source_rollback"] is True
     assert contract["maximum_rollback_attempts"] == 1
+
+
+def test_manifest_target_hashes_match_exact_repository_files() -> None:
+    document = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    for item in document["source_files"]:
+        source = ROOT / item["repo_path"]
+        digest = hashlib.sha256(source.read_bytes()).hexdigest()
+        assert digest == item["target_sha256"]
 
 
 def test_executor_and_remote_script_compile() -> None:
