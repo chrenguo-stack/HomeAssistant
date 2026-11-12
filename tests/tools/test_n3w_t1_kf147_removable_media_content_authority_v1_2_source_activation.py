@@ -41,17 +41,21 @@ def load_executor():
     return module
 
 
-def test_manifest_is_ungranted_and_exact_eight_file_slice() -> None:
+def test_manifest_is_granted_once_and_exact_eight_file_slice() -> None:
     document = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert document["gate_id"] == GATE
     assert document["authorization_id"] == GATE
-    assert document["live_execution_authorized"] is False
+    assert document["live_execution_authorized"] is True
     assert document["authorization_state"] == {
-        "granted": False,
+        "granted": True,
         "claimed": False,
         "consumed": False,
         "replay_permitted": False,
     }
+    assert document["authorization_grant"]["scope"] == (
+        "activate_exact_8_file_v1_2_source_slice_on_real_t1_only"
+    )
+    assert document["authorization_grant"]["execute_in_next_chat"] is True
     assert len(document["source_files"]) == 8
     assert len({item["repo_path"] for item in document["source_files"]}) == 8
     contract = document["execution_contract"]
@@ -126,14 +130,22 @@ def test_execute_has_single_claim_source_swap_and_rollback() -> None:
     assert 'run(["systemctl", "start", SERVICES_UNIT]' in body
 
 
-def test_local_ungranted_manifest_blocks_execute_before_transport() -> None:
-    module = load_executor()
+def test_granted_execute_still_runs_preflight_before_staging() -> None:
     document = json.loads(MANIFEST.read_text(encoding="utf-8"))
-    assert document["live_execution_authorized"] is False
+    assert document["live_execution_authorized"] is True
+    assert document["authorization_state"]["granted"] is True
     source = EXECUTOR.read_text(encoding="utf-8")
     manifest = source.index("manifest = read_manifest(")
     transport = source.index("transport_type = load_transport()", manifest)
-    assert manifest < transport
+    remote_preflight = source.index(
+        'remote_mode(\n            transport,\n            "preflight"',
+        transport,
+    )
+    stage = source.index(
+        'transport.run_remote(\n            [\n                "install",',
+        remote_preflight,
+    )
+    assert manifest < transport < remote_preflight < stage
     assert "execute=args.execute" in source
     assert 'raise Stop("live_execution_not_authorized")' in source
 
