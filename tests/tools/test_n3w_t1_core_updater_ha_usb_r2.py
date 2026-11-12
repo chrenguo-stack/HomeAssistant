@@ -422,7 +422,7 @@ def prepare_to_u4(tmp_path: Path):
 
 def drive_to_u8(tmp_path: Path):
     tx, media, docker, ha, target = prepare_to_u4(tmp_path)
-    tx = request_install(tx)
+    tx = request_install(tx, target=target)
     assert tx["phase"] == U5
     assert tx["authorization_claimed"] is False
     assert tx["authorization_consumed"] is False
@@ -449,7 +449,6 @@ def drive_to_u8(tmp_path: Path):
         target=target,
         predecessor=predecessor,
         backup=backup,
-        observed_usb_filesystem_uuid=USB_UUID,
         capacity_report=media.report,
         recovery_capacity=passing_recovery_capacity(
             target,
@@ -463,7 +462,7 @@ def drive_to_u8(tmp_path: Path):
 
 
 def test_r2_prepare_reaches_ready_without_stopping_ha_or_exporting_predecessor(tmp_path):
-    tx, media, docker, ha, _target = prepare_to_u4(tmp_path)
+    tx, media, docker, ha, target = prepare_to_u4(tmp_path)
     assert tx["phase"] == U4
     assert tx["target_artifact_verified"] is True
     assert tx["authorization_claimed"] is False
@@ -504,7 +503,7 @@ def test_r2_corrupt_target_stops_before_ready_and_leaves_production_unchanged(tm
 
 
 def test_r2_install_capacity_growth_blocks_before_u6(tmp_path):
-    tx, _media, _docker, _ha, _target = prepare_to_u4(tmp_path)
+    tx, _media, _docker, _ha, target = prepare_to_u4(tmp_path)
     tx = request_install(tx)
     evidence = passing_install_capacity(observed_free_bytes=1)
 
@@ -553,7 +552,6 @@ def test_r2_u8_actual_free_space_blocks_before_authorization(tmp_path):
             target=target,
             predecessor=predecessor,
             backup=backup,
-            observed_usb_filesystem_uuid=USB_UUID,
             capacity_report=media.report,
             recovery_capacity=insufficient,
             production_prestate_exact=True,
@@ -565,7 +563,7 @@ def test_r2_u8_actual_free_space_blocks_before_authorization(tmp_path):
 def test_r2_predecessor_corruption_stops_before_u7_and_u9(tmp_path):
     tx, media, docker, ha, _target = prepare_to_u4(tmp_path)
     tx = start_predecessor_recovery(
-        request_install(tx),
+        request_install(tx, target=target),
         install_capacity=passing_install_capacity(),
     )
     predecessor = docker.export_predecessor(media)
@@ -646,7 +644,11 @@ def test_r2_failed_target_restores_predecessor_and_preupgrade_data(tmp_path):
     ha.restore_backup(media, backup)
     tx = record_rollback_complete(
         tx,
-        observed_usb_filesystem_uuid=USB_UUID,
+        predecessor=predecessor,
+        backup=backup,
+        observed_recovery_content_manifest_sha256=tx[
+            "recovery_content_manifest_sha256"
+        ],
         predecessor_image_restored=(docker.active == CURRENT),
         ha_data_backup_restored=(
             "preupgrade"
@@ -670,7 +672,11 @@ def test_r2_rollback_requires_both_image_and_data_restore(tmp_path):
     ):
         record_rollback_complete(
             tx,
-            observed_usb_filesystem_uuid=USB_UUID,
+            predecessor=predecessor,
+            backup=backup,
+            observed_recovery_content_manifest_sha256=tx[
+                "recovery_content_manifest_sha256"
+            ],
             predecessor_image_restored=False,
             ha_data_backup_restored=True,
         )
@@ -680,7 +686,11 @@ def test_r2_rollback_requires_both_image_and_data_restore(tmp_path):
     ):
         record_rollback_complete(
             tx,
-            observed_usb_filesystem_uuid=USB_UUID,
+            predecessor=predecessor,
+            backup=backup,
+            observed_recovery_content_manifest_sha256=tx[
+                "recovery_content_manifest_sha256"
+            ],
             predecessor_image_restored=True,
             ha_data_backup_restored=False,
         )
@@ -715,12 +725,12 @@ def test_r2_power_loss_before_u9_keeps_predecessor_authority(tmp_path):
     assert CURRENT in docker.images
     assert classify_power_loss_reentry(
         recovered,
-        usb_present=False,
-        observed_usb_filesystem_uuid=None,
+        recovery_media_present=False,
+        exact_recovery_content_verified=False,
     ) == "PRE_U9_PREDECESSOR_AUTHORITY"
 
 
-def test_r2_power_loss_after_u9_requires_same_recovery_media(tmp_path):
+def test_r2_power_loss_after_u9_requires_exact_recovery_content(tmp_path):
     tx, _media, _docker, _ha, _target, _predecessor, _backup = drive_to_u8(tmp_path)
     tx = claim_live_authorization(tx, AUTHORIZATION_ID)
     store = HaUsbStateStore(tmp_path / "state")
@@ -736,18 +746,17 @@ def test_r2_power_loss_after_u9_requires_same_recovery_media(tmp_path):
     ) == "RECOVERY_MEDIA_REQUIRED"
     assert classify_power_loss_reentry(
         recovered,
-        usb_present=True,
-        observed_usb_filesystem_uuid=USB_UUID,
+        recovery_media_present=True,
+        exact_recovery_content_verified=True,
     ) == "ROLLBACK_REQUIRED"
-    with pytest.raises(UpdaterV2Error, match="usb_filesystem_uuid_mismatch"):
-        classify_power_loss_reentry(
-            recovered,
-            usb_present=True,
-            observed_usb_filesystem_uuid=OTHER_UUID,
-        )
+    assert classify_power_loss_reentry(
+        recovered,
+        recovery_media_present=True,
+        exact_recovery_content_verified=False,
+    ) == "RECOVERY_MEDIA_REQUIRED"
 
 
-def test_r2_u12_power_loss_can_only_forward_commit_with_same_media(tmp_path):
+def test_r2_u12_power_loss_can_forward_commit_with_exact_recovery_content(tmp_path):
     tx, _media, docker, ha, target, predecessor, _backup = drive_to_u8(tmp_path)
     tx = claim_live_authorization(tx, AUTHORIZATION_ID)
     docker.remove_predecessor(predecessor)
@@ -912,3 +921,33 @@ def test_r2_orchestrator_remains_command_free():
     assert "docker system prune" not in source
     assert "docker image prune" not in source
     assert "systemctl" not in source
+
+
+
+def test_r2_rollback_rejects_wrong_recovery_content_manifest(tmp_path):
+    tx, _media, _docker, _ha, _target, predecessor, backup = drive_to_u8(tmp_path)
+    tx = claim_live_authorization(tx, AUTHORIZATION_ID)
+    with pytest.raises(
+        UpdaterV2Error,
+        match="ha_usb_recovery_content_manifest_mismatch",
+    ):
+        record_rollback_complete(
+            tx,
+            predecessor=predecessor,
+            backup=backup,
+            observed_recovery_content_manifest_sha256="0" * 64,
+            predecessor_image_restored=True,
+            ha_data_backup_restored=True,
+        )
+
+
+def test_r2_physical_uuid_is_not_recovery_authority(tmp_path):
+    tx, _media, _docker, _ha, _target, _predecessor, _backup = drive_to_u8(tmp_path)
+    tx = claim_live_authorization(tx, AUTHORIZATION_ID)
+    assert tx["usb_filesystem_uuid"] == USB_UUID
+    assert OTHER_UUID != tx["usb_filesystem_uuid"]
+    assert classify_power_loss_reentry(
+        tx,
+        recovery_media_present=True,
+        exact_recovery_content_verified=True,
+    ) == "ROLLBACK_REQUIRED"

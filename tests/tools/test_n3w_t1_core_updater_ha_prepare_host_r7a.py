@@ -107,7 +107,7 @@ def test_inventory_ignores_irrelevant_internal_disk_without_serial(
     assert candidates[0].public_fingerprint
 
 
-def test_relevant_usb_without_stable_identity_fails_closed(
+def test_relevant_usb_without_serial_or_wwn_is_supported(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     lsblk = {
@@ -136,8 +136,10 @@ def test_relevant_usb_without_stable_identity_fails_closed(
         raise AssertionError(argv)
 
     monkeypatch.setattr(host.subprocess, "run", fake_run)
-    with pytest.raises(UpdaterV2Error, match="usb_stable_identity_unavailable"):
-        host.SubprocessPrepareBackend().inventory()
+    candidates = host.SubprocessPrepareBackend().inventory()
+    assert len(candidates) == 1
+    assert candidates[0].display_model == "Anonymous USB"
+    assert candidates[0].public_fingerprint
 
 
 def test_format_backend_uses_fixed_argv_without_shell(
@@ -185,7 +187,12 @@ def test_format_backend_uses_fixed_argv_without_shell(
     monkeypatch.setattr(
         host.os,
         "statvfs",
-        lambda _path: SimpleNamespace(f_bavail=16 * 1024**3, f_frsize=1),
+        lambda _path: SimpleNamespace(
+            f_blocks=16 * 1024**3,
+            f_bfree=16 * 1024**3,
+            f_bavail=16 * 1024**3,
+            f_frsize=1,
+        ),
     )
 
     media = backend.format_and_mount(
@@ -721,7 +728,7 @@ def test_missing_approved_release_keeps_daemon_publish_path_nonfatal(
     assert not destination.exists()
 
 
-def test_reopen_bound_media_accepts_exact_existing_mount_with_ext4_root_mode_0755(
+def test_resolve_transaction_media_ignores_old_uuid_and_fingerprint(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -734,74 +741,81 @@ def test_reopen_bound_media_accepts_exact_existing_mount_with_ext4_root_mode_075
     mount_path.mkdir(mode=0o755)
 
     backend = host.SubprocessPrepareBackend(runtime_root=runtime)
-    fingerprint = host._stable_fingerprint(
-        {
-            "serial": "SERIAL-1",
-            "wwn": None,
-            "model": "Synthetic USB",
-            "size": 16 * 1024**3,
-            "tran": "usb",
-        }
-    )
     transaction = {
-        "usb_filesystem_uuid": UUID,
-        "usb_device_identity_public_fingerprint": fingerprint,
         "transaction_id_sha256": transaction_id,
-        "usb_measured_usable_bytes": 16 * 1024**3,
+        "usb_filesystem_uuid": "87654321-4321-8765-4321-876543218765",
+        "usb_device_identity_public_fingerprint": "f" * 64,
     }
-
     disk = {
-        "path": "/dev/sdz",
+        "path": "/dev/sda",
         "type": "disk",
         "rm": True,
         "ro": False,
         "size": 16 * 1024**3,
         "model": "Synthetic USB",
-        "serial": "SERIAL-1",
+        "serial": None,
         "wwn": None,
         "tran": "usb",
         "mountpoints": [str(mount_path)],
-        "maj:min": "8:240",
+        "maj:min": "8:0",
         "children": [
             {
-                "path": "/dev/sdz1",
+                "path": "/dev/sda1",
                 "type": "part",
-                "pkname": "/dev/sdz",
+                "pkname": "/dev/sda",
                 "mountpoints": [str(mount_path)],
-                "maj:min": "8:241",
+                "maj:min": "8:1",
             }
         ],
     }
-
     monkeypatch.setattr(backend, "_lsblk", lambda: [disk])
     monkeypatch.setattr(
         backend,
         "_require_bound_media",
-        lambda _media: "/dev/sdz1",
+        lambda _media: "/dev/sda1",
     )
-    monkeypatch.setattr(
-        host,
-        "_run_optional",
-        lambda argv: (
-            (b"/dev/sdz1\n" if argv[0] == "blkid" else b"/dev/sdz\n")
-            if argv[0] in {"blkid", "lsblk"}
-            else (str(mount_path) + "\n").encode()
-        ),
-    )
+
+    def fake_optional(argv, **_kwargs):
+        if argv[0] == "blkid" and argv[2] == "TYPE":
+            return b"ext4\n"
+        if argv[0] == "blkid" and argv[2] == "LABEL":
+            return b"N3W-UPDATE\n"
+        if argv[0] == "blkid" and argv[2] == "UUID":
+            return (UUID + "\n").encode()
+        if argv[0] == "findmnt":
+            return (str(mount_path) + "\n").encode()
+        raise AssertionError(argv)
+
+    monkeypatch.setattr(host, "_run_optional", fake_optional)
 
     def fake_run(argv, **_kwargs):
         if argv[:4] == ("findmnt", "--noheadings", "--output", "MAJ:MIN"):
             return b"179:1\n"
-        if argv[:5] == ("blkid", "-s", "TYPE", "-o", "value"):
-            return b"ext4\n"
-        if argv[:5] == ("blkid", "-s", "LABEL", "-o", "value"):
-            return b"N3W-UPDATE\n"
         raise AssertionError(argv)
 
     monkeypatch.setattr(host, "_run", fake_run)
+    monkeypatch.setattr(
+        host.os,
+        "statvfs",
+        lambda _path: SimpleNamespace(
+            f_blocks=16 * 1024**3,
+            f_bfree=15 * 1024**3,
+            f_bavail=15 * 1024**3,
+            f_frsize=1,
+        ),
+    )
 
-    media = backend.reopen_bound_media(transaction)
+    media = backend.resolve_transaction_media(
+        transaction,
+        write_required=True,
+    )
 
     assert media is not None
+    assert media.locator == "/dev/sda"
+    assert media.filesystem_uuid == UUID
+    assert media.filesystem_uuid != transaction["usb_filesystem_uuid"]
+    assert media.public_fingerprint != transaction[
+        "usb_device_identity_public_fingerprint"
+    ]
     assert media.mount_path == str(mount_path)
     assert stat.S_IMODE(mount_path.stat().st_mode) == 0o755

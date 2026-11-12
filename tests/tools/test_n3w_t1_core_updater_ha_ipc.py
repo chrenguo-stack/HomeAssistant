@@ -83,7 +83,6 @@ class ControllerStub:
             "progress_percent": None,
             "error_code": None,
             "usb_candidate": {
-                "public_fingerprint": "c" * 64,
                 "display_model": "Synthetic USB",
                 "display_capacity_bytes": 16 * 1024**3,
             },
@@ -145,7 +144,19 @@ class ControllerStub:
         assert self.store is not None
         current = self.store.read()
         assert current is not None
-        installed = request_install(current)
+        installed = request_install(
+            current,
+            target=ImageRecoveryRecord(
+                kind="target",
+                image_ref=current["target_image_ref"],
+                archive_sha256=current["target_archive_sha256"],
+                archive_size_bytes=current["target_archive_size"],
+                portable_identity_sha256="d" * 64,
+                platform="linux/arm64",
+                verified=True,
+                fsynced=True,
+            ),
+        )
         self.store.write(installed)
         return installed
 
@@ -377,6 +388,7 @@ def test_r7a_executor_emits_v3_capacity_projection_with_prepare_controller(tmp_p
     assert response["phase"] == "USB_REQUIRED_CONFIRMATION"
     assert response["usb_confirmation_required"] is True
     assert response["usb_candidate"]["display_model"] == "Synthetic USB"
+    assert "public_fingerprint" not in response["usb_candidate"]
     assert response["installed_version"] == "2026.10.0"
     assert response["usb_required_bytes_or_null"] == 5 * 1024**3
     assert response["usb_recommended_nominal_gb_or_null"] == 32
