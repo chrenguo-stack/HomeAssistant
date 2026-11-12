@@ -1,3 +1,42 @@
+### 2026-11-12 KF-147 R11 post-reboot U4 mount precondition — R12 successor source CLOSED_PASS
+
+```text
+R11_RESULT=STOP
+R11_REASON=usb_mount_missing
+T1_REBOOT_OCCURRED_BEFORE_R11=true
+R11_AUTHORIZATION_CLAIMED=false
+R11_AUTHORIZATION_CONSUMED=false
+TRANSACTION_MUTATION=false
+USB_MUTATION=false
+U5_TRANSITION=false
+U6_PLUS=false
+
+R12_SOURCE_AUTHORITY_HEAD=52b0b8aecbd0641e369227b4c4f636bacf876a6d
+R12_REQUIRED_CI=CLOSED_PASS
+R12_LIVE_EXECUTION_AUTHORIZED=false
+R12_AUTHORIZATION_GRANTED=false
+```
+
+Root cause:
+- the exact U4 USB mount target lives under volatile `/run/n3w-t1-ota/media`; the user confirmed T1 rebooted immediately before the R11 live attempt;
+- the systemd OTA unit recreates its RuntimeDirectory after boot but does not persist/recreate the previous transaction mount;
+- product `SubprocessPrepareBackend.reopen_bound_media()` can reopen the exact UUID/fingerprint-bound USB during INSTALL revalidation, but the R11 harness preclaim oracle requires the mount to exist first and therefore stops at `usb_mount_missing`.
+
+Repair / successor:
+- do not weaken R11 fail-closed admission and do not auto-retry it from the unmounted state;
+- R12 is a dedicated post-reboot U4 mount-restoration successor;
+- R12 read-only preflight requires the exact U4 transaction, exact R10 terminal/source slice, stable runtime and the exact bound USB present but unmounted;
+- R12 live execute remains separately unauthorized and, if later authorized, may only recreate the transaction-derived runtime directories, mount the exact ext4 USB with `rw,nodev,nosuid,noexec`, revalidate the exact 2026.10.4 target and U4 USB metadata, then STOP before U5;
+- post-mount failure permits at most one rollback to the original unmounted prestate.
+
+Regression guards:
+- reboot between U4 readiness and install-intent submission is a first-class recovery state; volatile runtime mounts must never be assumed durable across reboot;
+- R11 authorization is still granted but unclaimed/unconsumed; that does not permit automatic replay while its expected mount prestate is false;
+- R12 preflight must not create runtime directories, mount media, claim authorization or mutate transaction state;
+- R12 live mutation requires a separate explicit authorization;
+- R12 must never submit INSTALL, enter U5/U6+, restart services, deploy source, mutate HA/Manager/Broker, access boards or merge;
+- after R12 PASS, R11 reuse eligibility still requires a fresh exact-state decision; do not infer it solely from the prior unconsumed authorization.
+
 ### 2026-11-12 KF-147 R10 IPC status probe framing defect — source repair
 
 ```text
