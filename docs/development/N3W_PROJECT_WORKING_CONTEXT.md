@@ -1,59 +1,47 @@
-## Stable updater authority — 2026-11-12 KF-147 R11 real-T1 preflight CLOSED_PASS / live U4→U5 authorization boundary
+## Stable updater authority — 2026-11-12 KF-147 R11 preclaim STOP after reboot / R12 source gate
 
 ```text
-PROJECT_WORKING_CONTEXT_VERSION=5.6
+PROJECT_WORKING_CONTEXT_VERSION=5.7
 
 PR=807
 PR_STATE=OPEN_DRAFT_UNMERGED
 
-R10_AUTHORIZED_SOURCE_HEAD=7bc4249d969f85f81ee4d86a811629747d761157
-R10_RESULT=U5_SOURCE_ACTIVATION_PASS
-R10_AUTHORIZATION_CONSUMED=true
-R10_REPLAY_PERMITTED=false
-
-R11_SOURCE_HEAD=d63c4ff37feb49e984e5a66e6f7cfc9c0a439279
-R11_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U4_TO_U5_INSTALL_INTENT_TRANSITION_R11_20261112_01
-R11_EXECUTOR_BLOB=e6a607332b64facdf6ec53d88181936c60c5bb20
-R11_MANIFEST_BLOB=84cb3008298c0de0dbd9386051ffe7db092ea99e
-R11_TEST_BLOB=c6faff0855a5d953f3414aa68e3efe1df71f0381
-R11_REQUIRED_CI=CLOSED_PASS
-
-R11_PREFLIGHT_RESULT=PASS
-R11_PREFLIGHT_READ_ONLY=true
-R11_U5_TRANSITION_ELIGIBLE=true
-R11_HOST_STATE_MUTATION=false
-R11_HOST_SOURCE_MUTATION=false
-R11_TRANSACTION_MUTATION=false
-R11_USB_MUTATION=false
-R11_SERVICE_RESTART=false
-R11_HOMEASSISTANT_MUTATION=false
-R11_MANAGER_MUTATION=false
-R11_BROKER_MUTATION=false
-R11_U5_TRANSITION=false
-R11_U6_PLUS=false
-
-LAST_PROVEN_TRANSACTION_PHASE=U4_READY_TO_INSTALL
-LAST_PROVEN_TRANSACTION_SHA256=dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259
-LAST_PROVEN_USB_TRANSACTION_PHASE=U4_READY_TO_INSTALL
-LAST_PROVEN_TARGET_SHA256=eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973
-LAST_PROVEN_TARGET_SIZE_BYTES=835309535
-LAST_PROVEN_IPC_PHASE=READY_TO_INSTALL
-LAST_PROVEN_IPC_INSTALLED_VERSION=2026.10.0
-
-LIVE_SOURCE_HA_IPC_SHA256=a7d335c597771b0297f690d0e97fb3288f5f1c83fd670d8af00d76ca983e56ac
-LIVE_SOURCE_HA_PREPARE_SHA256=4dc6226ae493f18b3dab2c8773c1d3687a8f5f1750a6b4d9fa791cebe22db596
-LIVE_SOURCE_HA_PREPARE_HOST_SHA256=d7f1e5468e24446f3ade0e22778cebecc8cda0fed07179a8fccb55b9f7e4ff8a
-
-R11_LIVE_EXECUTION_AUTHORIZED=true
+R11_AUTHORIZED_SOURCE_HEAD=f2e03ea92ff0df26c6b4c644cc6aca09953a2b24
+R11_ATTEMPT_RESULT=STOP
+R11_ATTEMPT_REASON=usb_mount_missing
 R11_AUTHORIZATION_GRANTED=true
 R11_AUTHORIZATION_CLAIMED=false
 R11_AUTHORIZATION_CONSUMED=false
 R11_REPLAY_PERMITTED=false
+R11_TRANSACTION_MUTATION=false
+R11_USB_MUTATION=false
+R11_U5_TRANSITION=false
+R11_U6_PLUS=false
 
-NEXT_ONE_GATE=R11_AUTHORIZED_SOURCE_EXACT_CI
+T1_REBOOT_OCCURRED_BEFORE_R11_ATTEMPT=true
+ROOT_CAUSE_CLASS=R11_HARNESS_POST_REBOOT_MOUNT_PRECONDITION
+PRODUCT_REOPEN_BOUND_MEDIA_CAPABLE=true
+AUTO_RETRY_R11=false
+
+LAST_PROVEN_TRANSACTION_PHASE=U4_READY_TO_INSTALL
+LAST_PROVEN_TRANSACTION_SHA256=dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259
+LAST_PROVEN_TARGET_SHA256=eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973
+LAST_PROVEN_TARGET_SIZE_BYTES=835309535
+
+R12_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_POST_REBOOT_U4_MOUNT_RESTORATION_R12_20261112_01
+R12_EXECUTOR_BLOB=9f238bb71f5aa19c7c705861fceea2e5b7ca9460
+R12_MANIFEST_BLOB=5f0bd8c1290a647fa9bd4bd7fbcad2bd92426e85
+R12_TEST_BLOB=e58de8d322c053f68576e72af75959eb6bcad494
+R12_LIVE_EXECUTION_AUTHORIZED=false
+R12_AUTHORIZATION_GRANTED=false
+R12_AUTHORIZATION_CLAIMED=false
+R12_AUTHORIZATION_CONSUMED=false
+R12_REPLAY_PERMITTED=false
+R12_REQUIRED_CI=PENDING
+
+NEXT_ONE_GATE=R12_POST_REBOOT_U4_MOUNT_RESTORATION_EXACT_CI
 NEXT_GATE_LIVE_MUTATION=false
-EXPLICIT_AUTHORIZATION_REQUIRED=false
-AUTO_EXECUTE=false
+EXPLICIT_R12_AUTHORIZATION_REQUIRED_LATER=true
 
 HANDOFF_TEMPLATE_VERSION=1.4
 HANDOFF_TEMPLATE_AUTHORITY_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
@@ -63,9 +51,13 @@ BOARD_ACCESS=false
 MERGE=false
 ```
 
-R11 real-T1 read-only preflight is CLOSED_PASS. It revalidated the R10 terminal PASS, current three-file host source, exact U4 Host/USB transaction, exact Home Assistant 2026.10.4 target archive, healthy writable bound media, stable services/containers and IPC `READY_TO_INSTALL` on Home Assistant 2026.10.0.
+The R11 live attempt stopped before authorization claim because the exact bound USB was no longer mounted. The user disclosed that T1 had rebooted immediately before the attempt. This is consistent with the mount living under the volatile `/run` tree. R11 therefore failed closed without consuming authorization or mutating transaction/USB/product state.
 
-No authorization claim/consume or mutation occurred during preflight. The user has now explicitly granted one one-shot R11 live U4→U5 INSTALL-intent authorization. The manifest is frozen as live=true / granted=true / claimed=false / consumed=false / replay=false, with scope limited to advancing the exact current Home Assistant 2026.10.4 transaction from U4 to U5 and synchronizing Host/USB transaction metadata. U6+, Home Assistant stop/replacement, HA/Manager/Broker product mutation, source deployment, board access and merge remain forbidden. Live execution is blocked until the authorized-source head completes fresh exact CI.
+The product backend already supports reopening the exact bound media during INSTALL revalidation. The gap is the R11 harness preclaim assumption that the U4 mount is already present. Rather than weaken that gate, R12 is a dedicated post-reboot mount-restoration successor.
+
+R12 is repository-only and ungranted. It requires the exact U4 transaction, current R10-activated three-file source, stable runtime and exact UUID/fingerprint-bound USB in an unmounted state. If later separately authorized, it may restore only the transaction-derived writable mount, revalidate exact target/USB U4 metadata, and stop before U5. Failure after mount attempt allows at most one rollback to the original unmounted prestate.
+
+R11 is not to be automatically retried until R12 closes. R11 authorization remains technically unclaimed/unconsumed; whether it remains reusable will be decided only after the exact expected U4 mount state is restored and revalidated.
 
 ## Stable updater authority — 2026-11-10 KF-147 exact reclaim audit source ready
 
