@@ -1,7 +1,7 @@
 ## Latest authority — 2026-11-12 KF-147 R11 real-T1 read-only preflight CLOSED_PASS / live U4→U5 authorization boundary
 
 ```text
-AUTHORITY_STATE=KF147_R11_REAL_T1_PREFLIGHT_CLOSED_PASS_LIVE_U4_TO_U5_AUTHORIZATION_REQUIRED
+AUTHORITY_STATE=KF147_R11_LIVE_U4_TO_U5_AUTHORIZED_PENDING_EXACT_CI
 PR=807
 PR_STATE=OPEN_DRAFT_UNMERGED
 
@@ -60,15 +60,15 @@ LIVE_SOURCE_HA_IPC_SHA256=a7d335c597771b0297f690d0e97fb3288f5f1c83fd670d8af00d76
 LIVE_SOURCE_HA_PREPARE_SHA256=4dc6226ae493f18b3dab2c8773c1d3687a8f5f1750a6b4d9fa791cebe22db596
 LIVE_SOURCE_HA_PREPARE_HOST_SHA256=d7f1e5468e24446f3ade0e22778cebecc8cda0fed07179a8fccb55b9f7e4ff8a
 
-R11_LIVE_EXECUTION_AUTHORIZED=false
-R11_AUTHORIZATION_GRANTED=false
+R11_LIVE_EXECUTION_AUTHORIZED=true
+R11_AUTHORIZATION_GRANTED=true
 R11_AUTHORIZATION_CLAIMED=false
 R11_AUTHORIZATION_CONSUMED=false
 R11_REPLAY_PERMITTED=false
 
-NEXT_ONE_GATE=R11_LIVE_U4_TO_U5_INSTALL_INTENT_AUTHORIZATION
-NEXT_GATE_MODE=LIVE_MUTATION_REQUIRES_EXPLICIT_AUTHORIZATION
-EXPLICIT_AUTHORIZATION_REQUIRED=true
+NEXT_ONE_GATE=R11_AUTHORIZED_SOURCE_EXACT_CI
+NEXT_GATE_MODE=SOURCE_VALIDATION_ONLY_BEFORE_LIVE_EXECUTION
+EXPLICIT_AUTHORIZATION_REQUIRED=false
 AUTO_EXECUTE=false
 
 BOARD_ACCESS=false
@@ -79,7 +79,7 @@ The real-T1 R11 `--preflight-only` is CLOSED_PASS. It independently revalidated 
 
 The preflight performed no authorization claim/consume, host-state/source mutation, transaction/USB mutation, service restart, product-container mutation, U5/U6+ transition, board access or merge.
 
-The next boundary is a new one-shot R11 live U4→U5 INSTALL-intent authorization. R11 execute remains bounded to U5 `INSTALL_REQUESTED_REVALIDATING` and stops before U6 predecessor recovery; it does not stop/load/start Home Assistant at this gate.
+The user explicitly granted one one-shot R11 live U4→U5 INSTALL-intent authorization. The manifest is now frozen as live=true / granted=true / claimed=false / consumed=false / replay=false. Scope remains limited to advancing the exact current Home Assistant 2026.10.4 transaction from U4 `READY_TO_INSTALL` to U5 `INSTALL_REQUESTED_REVALIDATING` and synchronizing Host/USB transaction metadata. U6+, Home Assistant stop/replacement, HA/Manager/Broker product mutation, source deployment, board access and merge remain forbidden. Live execution is still blocked until the authorized-source head completes fresh exact CI.
 
 Authority:
 - PR #807 R11 exact-CI and real-T1 preflight evidence.
