@@ -1,5 +1,6 @@
 ## 2026-11-12 — KF-147 R10 live source activation CLOSED_PASS / R11 successor preparation
 
+- Current core-stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`: repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`, Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean reference remains `24382caae4a1f5d459297f86e8d18f10a848ca64` / `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
 - PR #807 remains open/draft/unmerged.
 - R10 authorized source head `7bc4249d969f85f81ee4d86a811629747d761157` executed successfully on the real T1.
 - Result: `U5_SOURCE_ACTIVATION_PASS`; authorization claimed=true, consumed=true, replay=false.
