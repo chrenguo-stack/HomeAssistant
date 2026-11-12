@@ -1,5 +1,7 @@
 ## 2026-11-12 — removable-media content-authority V1.2 source design frozen
 
+- Core Stack current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+
 - Source design PASS; executable repair is now the next gate.
 - Keep current private transaction schema /1 for the first repair and extend it additively, so the live old U4 document remains readable without a separate migration executor.
 - INSTALL revalidation upgrades the live U4 transaction in place by persisting exact target identity before U5.

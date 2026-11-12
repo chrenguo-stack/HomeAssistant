@@ -1,5 +1,7 @@
 ## Latest authority — 2026-11-12 removable-media content-authority V1.2 source design frozen
 
+CORE_STACK_CURRENT_AUTHORITY=infra/n3w-t1/production/t1-core-stack-current.json
+
 AUTHORITY_STATE=HA_USB_CONTENT_AUTHORITY_V1_2_SOURCE_DESIGN_FROZEN
 SOURCE_DESIGN=PASS
 SOURCE_DESIGN_FROZEN=true
