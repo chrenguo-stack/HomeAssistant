@@ -1,7 +1,7 @@
 ## Latest authority — 2026-11-12 KF-147 R10 live source activation CLOSED_PASS / U4→U5 successor source preparation
 
 ```text
-AUTHORITY_STATE=KF147_R10_LIVE_SOURCE_ACTIVATION_CLOSED_PASS_R11_U4_TO_U5_SUCCESSOR_SOURCE_PREPARATION
+AUTHORITY_STATE=KF147_R10_LIVE_SOURCE_ACTIVATION_CLOSED_PASS_R11_U4_TO_U5_SUCCESSOR_SOURCE_READY_CI_PENDING
 PR=807
 PR_STATE=OPEN_DRAFT_UNMERGED
 
@@ -47,9 +47,18 @@ LIVE_SOURCE_HA_PREPARE_HOST_SHA256=d7f1e5468e24446f3ade0e22778cebecc8cda0fed0717
 
 R9_REPLAY_PERMITTED=false
 R10_REPLAY_PERMITTED=false
-NEXT_ONE_GATE=R11_U4_TO_U5_INSTALL_INTENT_SUCCESSOR_SOURCE_PREPARATION
-NEXT_GATE_MODE=SOURCE_ONLY_NO_LIVE_MUTATION
+NEXT_ONE_GATE=R11_U4_TO_U5_INSTALL_INTENT_SUCCESSOR_EXACT_CI
+NEXT_GATE_MODE=SOURCE_VALIDATION_ONLY_NO_LIVE_MUTATION
 R11_LIVE_EXECUTION_AUTHORIZED=false
+R11_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U4_TO_U5_INSTALL_INTENT_TRANSITION_R11_20261112_01
+R11_EXECUTOR_BLOB=e6a607332b64facdf6ec53d88181936c60c5bb20
+R11_MANIFEST_BLOB=84cb3008298c0de0dbd9386051ffe7db092ea99e
+R11_TEST_BLOB=e5bc9eb4ad9aa9211c2edd244f889df7cc9e0e4e
+R11_AUTHORIZATION_GRANTED=false
+R11_AUTHORIZATION_CLAIMED=false
+R11_AUTHORIZATION_CONSUMED=false
+R11_REPLAY_PERMITTED=false
+R11_REQUIRED_CI=PENDING
 
 BOARD_ACCESS=false
 MERGE=false
@@ -57,7 +66,7 @@ MERGE=false
 
 R10 completed successfully on the real T1. The exact three U5 host-source files are now active, host OTA and services-owner restarted successfully, Home Assistant/Manager/Broker containers remained unchanged and stable, and Host/USB transaction state remained exactly U4 READY_TO_INSTALL. No rollback was needed. The one-shot R10 authorization is consumed and non-replayable.
 
-The old R9 U4→U5 package is also non-replayable and no longer matches live source preconditions because it binds the predecessor three-file hashes. It must not be reused. The next safe engineering step is a new successor package that binds the R10 terminal state and the newly active three-file hashes, while remaining ungranted until a separate explicit live U4→U5 authorization is given.
+The old R9 U4→U5 package is non-replayable and no longer matches live source preconditions. R11 successor source is now prepared: it binds the R10 terminal PASS, the newly active three-file hashes, the unchanged U4 transaction/USB/target archive, and the same bounded U4→U5 INSTALL-intent-only transition. R11 remains ungranted and cannot execute live. Fresh exact CI is required before any read-only/live successor step.
 
 Authority:
 - PR #807 R10 authorized-source CI closure and live result archive.
