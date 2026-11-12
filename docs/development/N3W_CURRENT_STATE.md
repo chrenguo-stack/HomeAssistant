@@ -1,7 +1,7 @@
-## Latest authority — 2026-11-12 KF-147 R9 terminal STOP / R10 source-activation preflight ready
+## Latest authority — 2026-11-12 KF-147 R10 corrected preflight CLOSED_PASS / live source activation awaiting authorization
 
 ```text
-AUTHORITY_STATE=KF147_R9_TERMINAL_STOP_R10_SOURCE_ACTIVATION_PREFLIGHT_READY
+AUTHORITY_STATE=KF147_R10_CORRECTED_PREFLIGHT_CLOSED_PASS_LIVE_SOURCE_ACTIVATION_AWAITING_AUTHORIZATION
 PR=807
 PR_STATE=OPEN_DRAFT_UNMERGED
 
@@ -15,63 +15,64 @@ HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
 LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
 
 R9_RESULT=STOP
-R9_REASON=ha_ota_ipc_action_invalid
 R9_AUTHORIZATION_CLAIMED=true
 R9_AUTHORIZATION_CONSUMED=true
 R9_REPLAY_PERMITTED=false
-R9_TRANSACTION_MUTATION=false
-R9_USB_MUTATION=false
-R9_U5_TRANSITION=false
-R9_U6_PLUS=false
-R9_SPLIT_STATE_DETECTED=false
 
-ROOT_CAUSE=LIVE_INSTALLED_U5_SOURCE_SLICE_MISSING
-SOURCE_DEFECT_PROVEN=false
-DEPLOYMENT_AUTHORITY_MISMATCH_PROVEN=true
+R10_PREFLIGHT_SOURCE_HEAD=46ff563a95553074880efc01f36dbe238ebbf831
+R10_PREFLIGHT_RESULT=PASS
+R10_PREFLIGHT_READ_ONLY=true
+R10_SOURCE_ACTIVATION_ELIGIBLE=true
+R10_REMOTE_STAGING=false
+R10_HOST_SOURCE_MUTATION=false
+R10_TRANSACTION_MUTATION=false
+R10_USB_MUTATION=false
+R10_U5_TRANSITION=false
+R10_U6_PLUS=false
 
 LAST_PROVEN_TRANSACTION_PHASE=U4_READY_TO_INSTALL
 LAST_PROVEN_TRANSACTION_SHA256=dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259
 LAST_PROVEN_USB_TRANSACTION_PHASE=U4_READY_TO_INSTALL
 LAST_PROVEN_TARGET_SHA256=eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973
 LAST_PROVEN_TARGET_SIZE_BYTES=835309535
+LAST_PROVEN_IPC_PHASE=READY_TO_INSTALL
+LAST_PROVEN_IPC_INSTALLED_VERSION=2026.10.0
+LAST_PROVEN_USB_CAPACITY_CHECK_STATE=FORMATTED_CAPACITY_PASS
 
-R10_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U5_SOURCE_ACTIVATION_R10_20261111_01
-R10_PACKAGE=tools/execution_packages/n3w/r7a/kf147_u5_source_activation_successor
 R10_EXECUTOR_BLOB=40b2908dfb4904a8ef47a7ea35db403591c538bc
 R10_MANIFEST_BLOB=f19c1b6c65a3638c2f236f4469c15f3070d40b3f
+R10_TEST_BLOB=ee68701fd48ef33f8e136e9f57c6d9d7a7f5d41d
+
+R10_CORE_STACK_AUTHORITY_CI=SUCCESS:43128531524
+R10_PUBLIC_REPOSITORY_SAFETY_CI=SUCCESS:43128531586
+R10_FAST_SOURCE_EXACT_CI=SUCCESS:43128531688
+R10_TARGET_BINDING_CI=SUCCESS:43128531594
+R10_MANAGER_A_TO_B_CI=SUCCESS:43128531919
+R10_REQUIRED_CI=CLOSED_PASS
+
 R10_LIVE_EXECUTION_AUTHORIZED=false
 R10_AUTHORIZATION_GRANTED=false
 R10_AUTHORIZATION_CLAIMED=false
 R10_AUTHORIZATION_CONSUMED=false
+R10_REPLAY_PERMITTED=false
 
-R10_TARGET_BINDING_CI=SUCCESS:43125842749
-R10_MANAGER_A_TO_B_CI=SUCCESS:43125842806
-R10_FAST_SOURCE_EXACT_CI=SUCCESS:43125843158
-R10_PUBLIC_REPOSITORY_SAFETY_CI=SUCCESS:43125843096
-R10_REQUIRED_CI=PENDING_AFTER_IPC_FRAME_REPAIR
-
-HANDOFF_TEMPLATE_VERSION=1.4
-HANDOFF_TEMPLATE_AUTHORITY=main@3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
-HANDOFF_TEMPLATE_BLOB=885fd63131e80936e5e1fe907378be08a0060f12
-
-NEXT_ONE_GATE=R10 --preflight-only
-NEXT_GATE_MODE=READ_ONLY
-R10_COMBINED_PREFLIGHT_AND_DEPLOYMENT_CAN_BE_EVALUATED=true
-COMBINED_EXECUTION_REQUIRES_FRESH_EXPLICIT_R10_LIVE_AUTHORIZATION=true
+NEXT_ONE_GATE=R10_LIVE_THREE_FILE_SOURCE_ACTIVATION_AUTHORIZATION
+NEXT_GATE_MODE=LIVE_MUTATION_REQUIRES_EXPLICIT_AUTHORIZATION
 
 BOARD_ACCESS=false
 MERGE=false
 ```
 
-The R9 one-shot live attempt is terminal and cannot be replayed. The deployed host IPC rejected `INSTALL` before any U4→U5 transaction or USB metadata mutation. Repository review proved the live T1 still carries the pre-U5 versions of `n3w_t1_core_updater_ha_ipc.py`, `n3w_t1_core_updater_ha_prepare.py` and `n3w_t1_core_updater_ha_prepare_host.py`; the later repository U5 source adds the missing install-intent path across this exact three-file slice.
+The corrected R10 real-T1 `--preflight-only` is CLOSED_PASS. It re-proved the consumed/non-replayable R9 terminal, exact Host U4 transaction, exact USB U4 metadata, writable bound media, exact target archive, exact predecessor three-file host source, stable services/containers, and IPC `READY_TO_INSTALL` on Home Assistant 2026.10.0. The run performed no staging, source mutation, transaction/USB mutation, U5/U6+ transition, board access, or merge.
 
-R10 is the bounded source-activation successor and remains unauthorized. The first real-T1 R10 read-only preflight stopped at `ipc_status_rejected` with no staging or mutation. Independent comparison to the previously live-PASS R9 probe proved an R10-only framing defect: the embedded probe generated literal backslash + `n` bytes instead of the required newline terminator. The executor is repaired, its manifest authority is rebound, and regression coverage now freezes the wire framing; fresh exact CI is pending. R10 execute, if later authorized, may activate only the exact three-file source slice with dependency-safe service ordering, must preserve Host/USB U4 and the exact target archive, and must stop before any new INSTALL intent.
+The earlier R10 `ipc_status_rejected` was an executor framing defect and is closed by the corrected newline probe plus regression coverage. All five repaired-head authority/exact CI gates are SUCCESS.
 
-Next conversation starts with R10 `--preflight-only`. A combined preflight+deployment route may be considered because R10 execute already performs a fresh remote preflight before staging, but this requires a new explicit R10 live authorization and authorized-source CI.
+The next boundary is no longer read-only: R10 live source activation would stop services-owner and host OTA, atomically activate exactly the three bound U5 host-source files, restart the two services in dependency-safe order, postvalidate Host/USB still at U4 and IPC still READY_TO_INSTALL, then STOP before any INSTALL intent. That boundary remains unauthorized and requires a new explicit R10 live authorization plus authorized-source commit/exact CI before execution.
 
 Authority:
-- `docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md` KF-147 R9 source/deployment authority mismatch entry.
-- PR #807 exact R10 package/tests and terminal/live archive comments.
+- PR #807 archived corrected-preflight evidence and exact CI closure.
+- `docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md` KF-147 R9/R10 guards.
+- R10 successor package at `46ff563a95553074880efc01f36dbe238ebbf831`.
 
 ## Latest authority — 2026-11-10 KF-147 Mandatory USB Confirmation / U2 read-only preexecution CLOSED_PASS
 
