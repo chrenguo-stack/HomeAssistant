@@ -1,3 +1,20 @@
+## 2026-11-12 — KF-147 R9 terminal STOP / R10 source activation preflight ready
+
+- PR #807 remains open/draft/unmerged. R9 one-shot U4→U5 authorization was claimed and consumed exactly once; replay is permanently forbidden.
+- R9 live result: `STOP`, reason `ha_ota_ipc_action_invalid`; transaction mutation=false, USB mutation=false, U5=false, U6+=false, split-state=false.
+- Root cause is proven source/deployment authority mismatch, not a new product-source defect: the live T1 still runs the pre-U5 host IPC/prepare slice, while later repository U5 source adds the missing INSTALL path across exactly three files.
+- Exact U5 source slice: `tools/n3w_t1_core_updater_ha_ipc.py`, `tools/n3w_t1_core_updater_ha_prepare.py`, `tools/n3w_t1_core_updater_ha_prepare_host.py`.
+- Last-proven Host transaction remains `U4_READY_TO_INSTALL`, SHA-256 `dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259`; USB transaction metadata remained U4; exact target archive remains SHA-256 `eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973`, size 835,309,535 bytes.
+- R10 successor package: `tools/execution_packages/n3w/r7a/kf147_u5_source_activation_successor`.
+- R10 remains unauthorized: live=false, granted=false, claimed=false, consumed=false.
+- R10 executor blob `17a708c0d3189fc007dbef9ceeeb4253a4d20b00`; manifest blob `f05fabad818625482d25a1f28a2881956d832a8b`.
+- Fresh repaired-head CI is fully PASS: Target binding run `43125842749`; Manager A-to-B `43125842806`; fast source/exact `43125843158`; public safety `43125843096`.
+- The failed predecessor Target-binding run was a local executor syntax error from nested triple quotes; repaired with no architecture, product-source or T1-state impact.
+- Formal new handoffs must use template V1.4 from main head `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`, template blob `885fd63131e80936e5e1fe907378be08a0060f12`; PR branch's V1.3 template copy is stale.
+- Next conversation starts from R10 `--preflight-only`.
+- The new conversation may evaluate combining fresh preflight with R10 source deployment because `--execute` already performs preflight before staging, but any live deployment still requires a new explicit R10 authorization and authorized-source CI.
+- No board access or merge occurred.
+
 ## 2026-11-10 — KF-147 Mandatory USB Confirmation / U2 read-only preexecution CLOSED_PASS
 
 - Current core-stack authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
