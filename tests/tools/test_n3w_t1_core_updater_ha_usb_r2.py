@@ -881,8 +881,8 @@ def test_r2_power_loss_classification_is_deterministic_u0_through_u11(tmp_path):
     for phase in (U9, U10, U11):
         assert classify_power_loss_reentry(
             snapshots[phase],
-            usb_present=False,
-            observed_usb_filesystem_uuid=None,
+            recovery_media_present=False,
+            exact_recovery_content_verified=False,
         ) == "RECOVERY_MEDIA_REQUIRED"
         assert classify_power_loss_reentry(
             snapshots[phase],
