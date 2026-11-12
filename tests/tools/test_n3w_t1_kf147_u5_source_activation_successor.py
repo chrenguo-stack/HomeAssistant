@@ -60,14 +60,14 @@ def load_executor():
     return module
 
 
-def test_manifest_is_ungranted_and_exact_three_file_source_slice() -> None:
+def test_manifest_is_authorized_once_and_exact_three_file_source_slice() -> None:
     doc = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert doc["gate_id"] == GATE
     assert doc["authorization_id"] == GATE
     assert doc["confirmation"] == CONFIRMATION
-    assert doc["live_execution_authorized"] is False
+    assert doc["live_execution_authorized"] is True
     assert doc["authorization_state"] == {
-        "granted": False,
+        "granted": True,
         "claimed": False,
         "consumed": False,
         "replay_permitted": False,
@@ -114,6 +114,19 @@ def test_r9_terminal_failure_is_required_as_successor_prestate() -> None:
     assert 'failure.get("u5_transition") is not False' in source
     assert 'failure.get("u6_plus") is not False' in source
     assert 'failure.get("split_state_detected") is not False' in source
+
+
+def test_execute_requires_granted_unclaimed_unconsumed_nonreplayable_authorization() -> None:
+    source = load_executor().REMOTE_SCRIPT
+    execute_start = source.index("def execute(plan, authorization, confirmation):")
+    execute_body = source[execute_start:]
+    assert 'plan.get("live_execution_authorized") is not True' in execute_body
+    assert '"granted": True' in execute_body
+    assert '"claimed": False' in execute_body
+    assert '"consumed": False' in execute_body
+    assert '"replay_permitted": False' in execute_body
+    assert 'authorization != plan["authorization_id"]' in execute_body
+    assert 'confirmation != plan["confirmation"]' in execute_body
 
 
 def test_remote_script_compiles_and_preflight_is_read_only() -> None:
