@@ -3,11 +3,11 @@
   "gate_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_ACTIVATION_20261112_01",
   "authorization_id": "N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_ACTIVATION_20261112_01",
   "confirmation": "EXECUTE KF147 REMOVABLE MEDIA CONTENT AUTHORITY V1.2 SOURCE ACTIVATION: YES",
-  "live_execution_authorized": true,
+  "live_execution_authorized": false,
   "authorization_state": {
-    "granted": true,
-    "claimed": false,
-    "consumed": false,
+    "granted": false,
+    "claimed": true,
+    "consumed": true,
     "replay_permitted": false
   },
   "package_source_authority": {
@@ -136,6 +136,28 @@
     "source": "explicit_user_authorization_in_chat",
     "date": "2026-11-12",
     "scope": "activate_exact_8_file_v1_2_source_slice_on_real_t1_only",
-    "execute_in_next_chat": true
+    "execute_in_next_chat": false,
+    "terminal": "consumed_by_real_t1_attempt_20261112"
+  },
+  "terminal_execution_record": {
+    "status": "STOP",
+    "reason": "container_drift:homeassistant",
+    "authorization_claimed": true,
+    "authorization_consumed": true,
+    "replay_permitted": false,
+    "rollback_status_recorded": "STOP",
+    "rollback_restoration_readonly_verified": true,
+    "source_summary": {
+      "predecessor": 8,
+      "target": 0,
+      "other": 0
+    },
+    "transaction_phase": "U4_READY_TO_INSTALL",
+    "transaction_sha256": "dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259",
+    "u4_preserved": true,
+    "transaction_mutation": false,
+    "usb_mutation": false,
+    "u5_transition": false,
+    "u6_plus": false
   }
 }
