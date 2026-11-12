@@ -58,6 +58,8 @@ on:
       - "tests/tools/test_n3w_t1_kf147_removable_media_content_authority_v1_2_readonly_preexecution.py"
       - "tools/execution_packages/n3w/r7a/kf147_removable_media_content_authority_v1_2_source_activation/**"
       - "tests/tools/test_n3w_t1_kf147_removable_media_content_authority_v1_2_source_activation.py"
+      - "tools/execution_packages/n3w/r7a/kf147_removable_media_content_authority_v1_2_source_activation_r2/**"
+      - "tests/tools/test_n3w_t1_kf147_removable_media_content_authority_v1_2_source_activation_r2.py"
       - "tests/tools/test_n3w_t1_core_updater_ha_p3_simulation.py"
       - "tests/tools/test_n3w_t1_core_updater_ha_p4_readonly_executor.py"
       - "tests/tools/test_n3w_t1_core_updater_ha_p5_live_apply.py"
@@ -141,6 +143,7 @@ jobs:
             tools/execution_packages/n3w/r7a/kf147_post_reboot_u4_mount_restoration_successor/executor.py \
             tools/execution_packages/n3w/r7a/kf147_removable_media_content_authority_v1_2_readonly_preexecution/executor.py \
             tools/execution_packages/n3w/r7a/kf147_removable_media_content_authority_v1_2_source_activation/executor.py \
+            tools/execution_packages/n3w/r7a/kf147_removable_media_content_authority_v1_2_source_activation_r2/executor.py \
             tools/execution_packages/n3w/u2/ha_p4_readonly_premutation_baseline/executor.py \
             tools/execution_packages/n3w/u2/ha_p4_readonly_premutation_baseline/remote_probe.py \
             tools/execution_packages/n3w/u2/ha_p5_live_apply/executor.py \
@@ -176,6 +179,7 @@ jobs:
             tests/tools/test_n3w_t1_kf147_post_reboot_u4_mount_restoration_successor.py \
             tests/tools/test_n3w_t1_kf147_removable_media_content_authority_v1_2_readonly_preexecution.py \
             tests/tools/test_n3w_t1_kf147_removable_media_content_authority_v1_2_source_activation.py \
+            tests/tools/test_n3w_t1_kf147_removable_media_content_authority_v1_2_source_activation_r2.py \
             tests/tools/test_n3w_t1_core_updater_ha_ipc.py \
             tests/tools/test_n3w_t1_core_updater_ha_p3_simulation.py \
             tests/tools/test_n3w_t1_core_updater_ha_p4_readonly_executor.py \
