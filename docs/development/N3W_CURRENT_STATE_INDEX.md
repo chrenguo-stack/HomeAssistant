@@ -1,3 +1,18 @@
+
+## 2026-11-12 — Home Assistant removable-media content-authority architecture review CLOSED_PASS
+
+- User approved replacing physical USB identity continuity with safe-media + exact-content authority.
+- Review result: CLOSED_PASS; source repair is required before further live OTA mutation.
+- /dev/sdX is runtime-only; filesystem UUID and public fingerprint are demoted from continuity authority to locator/diagnostic evidence.
+- Internal durable transaction + exact target/predecessor/HA-backup identities become recovery/install authority.
+- Current source cannot simply drop UUID checks because U8 persists predecessor and HA-backup verification only as booleans; V1.2 must persist exact SHA/size/identity fields before U9.
+- Before U9, replacement compatible media may be re-prepared while production HA remains authoritative.
+- After U9, physical identity still does not matter, but the exact complete recovery content set is mandatory; blank replacement remains RECOVERY_MEDIA_REQUIRED and must never be auto-formatted.
+- Current old-schema U4 should migrate without destructive reset through fresh safe-media discovery + target content validation.
+- R12 read-only PASS remains valid evidence; R12 live mount restoration is HOLD/SUPERSEDED and remains ungranted/unclaimed/unconsumed.
+- Next gate: REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_DESIGN; no T1/USB live mutation, board access or merge.
+- Authority: docs/development/N3W_T1_HOMEASSISTANT_REMOVABLE_MEDIA_CONTENT_AUTHORITY_ARCHITECTURE_REVIEW_20261112.md.
+
 ## 2026-11-12 — KF-147 R12 real-T1 read-only preflight PASS / live mount-restoration authorization boundary
 
 - Exact R12 source authority remains `52b0b8aecbd0641e369227b4c4f636bacf876a6d`; PR #807 remains open/draft/unmerged.

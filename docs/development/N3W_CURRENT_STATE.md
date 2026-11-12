@@ -1,3 +1,43 @@
+
+## Latest authority — 2026-11-12 removable-media content-authority architecture review CLOSED_PASS
+
+AUTHORITY_STATE=HA_USB_CONTENT_AUTHORITY_ARCHITECTURE_REVIEW_CLOSED_PASS
+USER_APPROVED_ARCHITECTURE_DIRECTION=true
+ARCHITECTURE_REVIEW=CLOSED_PASS
+SOURCE_REPAIR_REQUIRED=true
+
+DEVICE_NODE_CONTINUITY_AUTHORITY=false
+FILESYSTEM_UUID_CONTINUITY_AUTHORITY=false
+PUBLIC_FINGERPRINT_CONTINUITY_AUTHORITY=false
+INTERNAL_TRANSACTION_AUTHORITY=true
+EXACT_RECOVERY_CONTENT_AUTHORITY=true
+
+CURRENT_LIVE_TRANSACTION_PHASE=U4_READY_TO_INSTALL
+CURRENT_R12_READONLY_PREFLIGHT=PASS
+R12_LIVE_MOUNT_RESTORATION=HOLD_SUPERSEDED
+R12_AUTHORIZATION_GRANTED=false
+R12_AUTHORIZATION_CLAIMED=false
+R12_AUTHORIZATION_CONSUMED=false
+AUTO_RETRY_R11=false
+
+NEXT_ONE_GATE=REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_DESIGN
+NEXT_GATE_LIVE_MUTATION=false
+T1_MUTATION=false
+USB_MUTATION=false
+BOARD_ACCESS=false
+MERGE=false
+
+Independent architecture/source review confirms the frozen V1.1 design makes filesystem UUID/fingerprint continuity a business authority at U2/U5/U8 and post-U9 recovery. That constraint is not required to preserve the real safety goals.
+
+The approved replacement separates runtime locator, media observation and transaction recovery authority. Device nodes, filesystem UUID and public fingerprint become runtime/diagnostic information; internal durable transaction plus exact target/predecessor/HA-backup identities become recovery authority.
+
+A critical source requirement was found: current U8 persists predecessor/backup verification only as booleans. Before removing UUID continuity, V1.2 must persist exact predecessor archive identity and exact HA backup archive/manifest identity in the internal transaction. Post-U9 replacement media may be accepted only when the complete recovery set verifies exactly; a blank replacement remains RECOVERY_MEDIA_REQUIRED and must never be auto-formatted.
+
+R12 read-only PASS remains valid evidence, but R12 live mount restoration is held/superseded because it exists only to restore the old same-media precondition. Current U4 should instead migrate through a source successor that freshly discovers safe media and validates exact content without destructive reset.
+
+Authority:
+docs/development/N3W_T1_HOMEASSISTANT_REMOVABLE_MEDIA_CONTENT_AUTHORITY_ARCHITECTURE_REVIEW_20261112.md
+
 ## Latest authority — 2026-11-12 KF-147 R12 real-T1 read-only preflight PASS / live mount-restoration authorization boundary
 
 ```text
