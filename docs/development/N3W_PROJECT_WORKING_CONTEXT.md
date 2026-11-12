@@ -1,3 +1,40 @@
+## Stable updater authority — 2026-11-12 KF-147 R12 real-T1 read-only preflight PASS / authorization boundary
+
+```text
+PROJECT_WORKING_CONTEXT_VERSION=5.9
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+R12_SOURCE_AUTHORITY_HEAD=52b0b8aecbd0641e369227b4c4f636bacf876a6d
+R12_PREFLIGHT_RESULT=PASS
+R12_PREFLIGHT_READ_ONLY=true
+R12_RESTORATION_ELIGIBLE=true
+R12_AUTHORIZATION_GRANTED=false
+R12_AUTHORIZATION_CLAIMED=false
+R12_AUTHORIZATION_CONSUMED=false
+R12_LIVE_EXECUTION_AUTHORIZED=false
+LAST_PROVEN_TRANSACTION_PHASE=U4_READY_TO_INSTALL
+LAST_PROVEN_TRANSACTION_SHA256=dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259
+LAST_PROVEN_IPC_PHASE=READY_TO_INSTALL
+LAST_PROVEN_BOUND_USB_STATE=PRESENT_UNMOUNTED
+LAST_PROVEN_BOUND_PARTITION=/dev/sda1
+USB_DURABLE_IDENTITY=FILESYSTEM_UUID_PLUS_PUBLIC_FINGERPRINT
+DEVICE_NODE_DURABLE_IDENTITY=false
+R12_PREFLIGHT_MUTATION=false
+AUTO_RETRY_R11=false
+NEXT_ONE_GATE=R12_LIVE_MOUNT_RESTORATION_EXPLICIT_AUTHORIZATION
+NEXT_GATE_LIVE_MUTATION=true
+EXPLICIT_USER_AUTHORIZATION_REQUIRED=true
+BOARD_ACCESS=false
+MERGE=false
+```
+
+The exact R12 real-T1 read-only preflight is CLOSED_PASS. The post-reboot physical baseline matches the expected prestate: exact U4 transaction, current three-file installed source, stable services/containers, IPC READY_TO_INSTALL, and exact bound USB present but unmounted.
+
+The bound USB now enumerates as `/dev/sda1`; successful UUID/fingerprint rebind confirms `/dev/sdX` is not durable product identity. No live authorization was claimed or consumed and no mount/runtime-directory/transaction/product mutation occurred. Stop at the explicit R12 live mount-restoration authorization boundary.
+
+Authority:
+`docs/development/N3W_T1_KF147_R12_READONLY_PREFLIGHT_PASS_TO_LIVE_MOUNT_RESTORATION_AUTHORIZATION_BOUNDARY_20261112.md`.
+
 ## Stable updater authority — 2026-11-12 KF-147 R11 preclaim STOP after reboot / R12 source gate
 
 ```text

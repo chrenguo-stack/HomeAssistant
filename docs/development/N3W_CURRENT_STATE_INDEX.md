@@ -1,3 +1,15 @@
+## 2026-11-12 — KF-147 R12 real-T1 read-only preflight PASS / live mount-restoration authorization boundary
+
+- Exact R12 source authority remains `52b0b8aecbd0641e369227b4c4f636bacf876a6d`; PR #807 remains open/draft/unmerged.
+- Real-T1 R12 `--preflight-only` returned `PASS` / RC 0 with `read_only=true` and `restoration_eligible=true`.
+- Exact transaction remains `U4_READY_TO_INSTALL`, SHA-256 `dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259`; IPC reports `READY_TO_INSTALL`.
+- Manager, Home Assistant and Broker are running with restart count 0; OTA service is active/running with restart count 0.
+- Exact bound USB is present but unmounted. After reboot it enumerated as `/dev/sda1`; durable binding is filesystem UUID + public fingerprint, not a fixed `/dev/sdX` node.
+- Authorization remains granted=false, claimed=false, consumed=false; no runtime-directory creation, writable mount, Host/source/USB/transaction/product mutation, U5/U6+ transition, board access or merge occurred.
+- Required stop boundary reached. Next gate is `R12_LIVE_MOUNT_RESTORATION_EXPLICIT_AUTHORIZATION`; live mutation requires a separate explicit user decision.
+- R11 remains `AUTO_RETRY=false`.
+- Closure authority: `docs/development/N3W_T1_KF147_R12_READONLY_PREFLIGHT_PASS_TO_LIVE_MOUNT_RESTORATION_AUTHORIZATION_BOUNDARY_20261112.md`.
+
 ## 2026-11-12 — KF-147 R11 preclaim STOP after T1 reboot / R12 mount-restoration source gate
 
 - Current core-stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`: repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`, Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean reference remains `24382caae4a1f5d459297f86e8d18f10a848ca64` / `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.

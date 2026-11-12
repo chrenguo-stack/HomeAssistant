@@ -1,3 +1,65 @@
+## Latest authority — 2026-11-12 KF-147 R12 real-T1 read-only preflight PASS / live mount-restoration authorization boundary
+
+```text
+AUTHORITY_STATE=KF147_R12_REAL_T1_READONLY_PREFLIGHT_PASS
+PR=807
+PR_STATE=OPEN_DRAFT_UNMERGED
+R12_SOURCE_AUTHORITY_HEAD=52b0b8aecbd0641e369227b4c4f636bacf876a6d
+R12_PREFLIGHT_RESULT=PASS
+R12_PREFLIGHT_RC=0
+R12_READ_ONLY=true
+R12_RESTORATION_ELIGIBLE=true
+R12_AUTHORIZATION_GRANTED=false
+R12_AUTHORIZATION_CLAIMED=false
+R12_AUTHORIZATION_CONSUMED=false
+R12_LIVE_EXECUTION_AUTHORIZED=false
+TRANSACTION_PHASE=U4_READY_TO_INSTALL
+TRANSACTION_SHA256=dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259
+IPC_PHASE=READY_TO_INSTALL
+TARGET_SHA256=eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973
+TARGET_SIZE_BYTES=835309535
+BOUND_USB_PRESENT=true
+BOUND_USB_MOUNTED=false
+OBSERVED_BOUND_PARTITION=/dev/sda1
+PERSISTENT_USB_IDENTITY=FILESYSTEM_UUID_PLUS_PUBLIC_FINGERPRINT
+LINUX_DEVICE_NODE_IS_PERSISTENT_IDENTITY=false
+MANAGER_RUNNING=true
+MANAGER_RESTART_COUNT=0
+HOMEASSISTANT_RUNNING=true
+HOMEASSISTANT_RESTART_COUNT=0
+BROKER_RUNNING=true
+BROKER_RESTART_COUNT=0
+OTA_SERVICE_RUNNING=true
+OTA_SERVICE_RESTART_COUNT=0
+RUNTIME_DIRECTORY_CREATION_ATTEMPTED=false
+WRITABLE_MOUNT_ATTEMPTED=false
+WRITABLE_MOUNT_RESTORED=false
+HOST_STATE_MUTATION=false
+HOST_SOURCE_MUTATION=false
+USB_MUTATION=false
+TRANSACTION_MUTATION=false
+HOMEASSISTANT_MUTATION=false
+MANAGER_MUTATION=false
+BROKER_MUTATION=false
+U5_TRANSITION=false
+U6_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+NEXT_ONE_GATE=R12_LIVE_MOUNT_RESTORATION_EXPLICIT_AUTHORIZATION
+NEXT_GATE_LIVE_MUTATION=true
+EXPLICIT_USER_AUTHORIZATION_REQUIRED=true
+AUTO_RETRY_R11=false
+```
+
+Real-T1 R12 `--preflight-only` completed PASS against the exact R12 source authority. It freshly proved the exact U4 transaction, the current R10-installed three-file source slice, stable T1_Core_Stack runtime, IPC `READY_TO_INSTALL`, and the exact bound USB present but unmounted.
+
+After reboot, the same bound media enumerated as `/dev/sda1`. R12 still matched it by persisted filesystem UUID and public fingerprint. This is direct physical evidence that a Linux `/dev/sdX` node is a volatile locator and must not be used as durable USB identity.
+
+No runtime directory creation, mount/remount, authorization claim/consume, Host/USB/transaction/product mutation, U5/U6+ transition, board access or merge occurred. The required stop boundary has been reached. The next action requires a separate explicit authorization for R12 live mount restoration; R11 remains non-auto-retry.
+
+Authority:
+`docs/development/N3W_T1_KF147_R12_READONLY_PREFLIGHT_PASS_TO_LIVE_MOUNT_RESTORATION_AUTHORIZATION_BOUNDARY_20261112.md`.
+
 ## Latest authority — 2026-11-12 KF-147 R11 preclaim STOP after T1 reboot / R12 post-reboot mount restoration source ready
 
 ```text
