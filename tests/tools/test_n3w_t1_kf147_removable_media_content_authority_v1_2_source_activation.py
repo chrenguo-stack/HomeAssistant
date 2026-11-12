@@ -41,21 +41,35 @@ def load_executor():
     return module
 
 
-def test_manifest_is_granted_once_and_exact_eight_file_slice() -> None:
+def test_manifest_is_terminal_consumed_and_exact_eight_file_slice() -> None:
     document = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert document["gate_id"] == GATE
     assert document["authorization_id"] == GATE
-    assert document["live_execution_authorized"] is True
+    assert document["live_execution_authorized"] is False
     assert document["authorization_state"] == {
-        "granted": True,
-        "claimed": False,
-        "consumed": False,
+        "granted": False,
+        "claimed": True,
+        "consumed": True,
         "replay_permitted": False,
     }
     assert document["authorization_grant"]["scope"] == (
         "activate_exact_8_file_v1_2_source_slice_on_real_t1_only"
     )
-    assert document["authorization_grant"]["execute_in_next_chat"] is True
+    assert document["authorization_grant"]["execute_in_next_chat"] is False
+    terminal = document["terminal_execution_record"]
+    assert terminal["status"] == "STOP"
+    assert terminal["reason"] == "container_drift:homeassistant"
+    assert terminal["rollback_restoration_readonly_verified"] is True
+    assert terminal["source_summary"] == {
+        "predecessor": 8,
+        "target": 0,
+        "other": 0,
+    }
+    assert terminal["transaction_phase"] == "U4_READY_TO_INSTALL"
+    assert terminal["transaction_sha256"] == (
+        "dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259"
+    )
+    assert terminal["u4_preserved"] is True
     assert len(document["source_files"]) == 8
     assert len({item["repo_path"] for item in document["source_files"]}) == 8
     contract = document["execution_contract"]
@@ -130,24 +144,29 @@ def test_execute_has_single_claim_source_swap_and_rollback() -> None:
     assert 'run(["systemctl", "start", SERVICES_UNIT]' in body
 
 
-def test_granted_execute_still_runs_preflight_before_staging() -> None:
+def test_consumed_manifest_is_not_replayable() -> None:
     document = json.loads(MANIFEST.read_text(encoding="utf-8"))
-    assert document["live_execution_authorized"] is True
-    assert document["authorization_state"]["granted"] is True
+    assert document["live_execution_authorized"] is False
+    assert document["authorization_state"]["claimed"] is True
+    assert document["authorization_state"]["consumed"] is True
+    assert document["authorization_state"]["replay_permitted"] is False
     source = EXECUTOR.read_text(encoding="utf-8")
-    manifest = source.index("manifest = read_manifest(")
-    transport = source.index("transport_type = load_transport()", manifest)
-    remote_preflight = source.index(
-        'remote_mode(\n            transport,\n            "preflight"',
-        transport,
-    )
-    stage = source.index(
-        'transport.run_remote(\n            [\n                "install",',
-        remote_preflight,
-    )
-    assert manifest < transport < remote_preflight < stage
-    assert "execute=args.execute" in source
+    assert '"manifest_authorization_state_invalid"' in source
     assert 'raise Stop("live_execution_not_authorized")' in source
+    assert document["authorization_state"] not in (
+        {
+            "granted": True,
+            "claimed": False,
+            "consumed": False,
+            "replay_permitted": False,
+        },
+        {
+            "granted": False,
+            "claimed": False,
+            "consumed": False,
+            "replay_permitted": False,
+        },
+    )
 
 
 def test_target_binding_workflow_covers_v1_2_source_activation() -> None:
