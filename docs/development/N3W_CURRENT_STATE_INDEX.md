@@ -12,7 +12,9 @@
 - Manager/Home Assistant/Broker remain running with restart_count=0; host OTA service remains active/running with NRestarts=0.
 - No authorization claim/consume, host-state/source mutation, transaction/USB mutation, service restart, product-container mutation, U5/U6+ transition, board access or merge occurred.
 - R10 remains consumed/non-replayable; R11 remains live=false, granted=false, claimed=false, consumed=false, replay=false.
-- Next boundary is a new explicit one-shot R11 live U4→U5 INSTALL-intent authorization. R11 execute stops at U5 `INSTALL_REQUESTED_REVALIDATING` before U6 predecessor recovery and does not yet replace Home Assistant.
+- The user has explicitly granted one one-shot R11 live U4→U5 INSTALL-intent authorization. Manifest state is frozen as live=true, granted=true, claimed=false, consumed=false, replay=false.
+- Authorized scope is only the exact U4→U5 INSTALL-intent transition plus synchronized Host/USB transaction metadata. U6+, Home Assistant stop/replacement, HA/Manager/Broker product mutation, source deployment, board access and merge remain forbidden.
+- Live execution remains blocked until the authorized-source head completes fresh exact CI.
 
 ## 2026-11-10 — KF-147 Mandatory USB Confirmation / U2 read-only preexecution CLOSED_PASS
 
