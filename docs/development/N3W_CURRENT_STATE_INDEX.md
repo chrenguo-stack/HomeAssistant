@@ -1,3 +1,23 @@
+## 2026-11-12 — removable-media content-authority V1.2 source repair CLOSED_PASS / real-T1 read-only preexecution next
+
+- Core Stack current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current Manager: `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical clean reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; Core Stack authority remains APPLIED_ACCEPTED.
+- V1.2 source repair head `2639538a9c00a3ac1d9655681a49bef1d821ba1c` is CLOSED_PASS.
+- HA target-binding CI run `43244109304` is SUCCESS; all mandatory source-repair checks are closed.
+- Independent source review PASS; new design blocker count 0.
+- R12 live mount restoration remains superseded/not executed; R11 auto-retry remains false.
+- Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_READONLY_PREEXECUTION_20261112_01`.
+- Next gate is real-T1 read-only only: no remote staging, mount/unmount, USB write, source deployment, restart, transaction mutation, U5/U6+, board access or merge.
+- Physical USB UUID/fingerprint continuity is explicitly not part of the preflight authority.
+- Source repair closure: `docs/development/N3W_T1_HOMEASSISTANT_REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_REPAIR_CLOSURE_20261112.md`.
+- Read-only preexecution authority: `docs/development/N3W_T1_HOMEASSISTANT_REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_READONLY_PREEXECUTION_20261112.md`.
+
 ## 2026-11-12 — removable-media content-authority V1.2 source design frozen
 
 - Core Stack current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
