@@ -1,7 +1,7 @@
 ## Stable updater authority — 2026-11-12 KF-147 R11 preclaim STOP after reboot / R12 source gate
 
 ```text
-PROJECT_WORKING_CONTEXT_VERSION=5.7
+PROJECT_WORKING_CONTEXT_VERSION=5.8
 
 PR=807
 PR_STATE=OPEN_DRAFT_UNMERGED
@@ -37,10 +37,17 @@ R12_AUTHORIZATION_GRANTED=false
 R12_AUTHORIZATION_CLAIMED=false
 R12_AUTHORIZATION_CONSUMED=false
 R12_REPLAY_PERMITTED=false
-R12_REQUIRED_CI=PENDING
+R12_REQUIRED_CI=CLOSED_PASS
+R12_SOURCE_AUTHORITY_HEAD=52b0b8aecbd0641e369227b4c4f636bacf876a6d
+R12_CORE_STACK_AUTHORITY_CI=SUCCESS:43225405781
+R12_PUBLIC_REPOSITORY_SAFETY_CI=SUCCESS:43225405752
+R12_FAST_SOURCE_EXACT_CI=SUCCESS:43225405725
+R12_MANAGER_A_TO_B_CI=SUCCESS:43225405926
+R12_TARGET_BINDING_CI=SUCCESS:43225405440
 
-NEXT_ONE_GATE=R12_POST_REBOOT_U4_MOUNT_RESTORATION_EXACT_CI
+NEXT_ONE_GATE=R12_POST_REBOOT_U4_MOUNT_RESTORATION_REAL_T1_READONLY_PREFLIGHT
 NEXT_GATE_LIVE_MUTATION=false
+NEXT_GATE_READ_ONLY_T1_ACCESS=true
 EXPLICIT_R12_AUTHORIZATION_REQUIRED_LATER=true
 
 HANDOFF_TEMPLATE_VERSION=1.4
@@ -57,7 +64,7 @@ The product backend already supports reopening the exact bound media during INST
 
 R12 is repository-only and ungranted. It requires the exact U4 transaction, current R10-activated three-file source, stable runtime and exact UUID/fingerprint-bound USB in an unmounted state. If later separately authorized, it may restore only the transaction-derived writable mount, revalidate exact target/USB U4 metadata, and stop before U5. Failure after mount attempt allows at most one rollback to the original unmounted prestate.
 
-R11 is not to be automatically retried until R12 closes. R11 authorization remains technically unclaimed/unconsumed; whether it remains reusable will be decided only after the exact expected U4 mount state is restored and revalidated.
+R12 source/exact CI is CLOSED_PASS at exact source authority `52b0b8aecbd0641e369227b4c4f636bacf876a6d`. The user explicitly directed the next chat to begin with the real-T1 R12 `--preflight-only`. That preflight is read-only and does not grant or consume R12 live authorization. R11 is not to be automatically retried until R12 closes. R11 authorization remains technically unclaimed/unconsumed; whether it remains reusable will be decided only after the exact expected U4 mount state is restored and revalidated.
 
 ## Stable updater authority — 2026-11-10 KF-147 exact reclaim audit source ready
 
