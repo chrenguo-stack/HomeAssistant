@@ -85,3 +85,27 @@ def validate_backup_record(record: HaDataBackupRecord) -> HaDataBackupRecord:
     if any(value is not True for value in required_true):
         raise UpdaterV2Error("ha_data_backup_contract_incomplete")
     return record
+
+
+def backup_record_from_document(value: object) -> HaDataBackupRecord:
+    expected_fields = {
+        "archive_sha256",
+        "archive_size_bytes",
+        "manifest_sha256",
+        "verified",
+        "fsynced",
+        "consistent_preupgrade_point",
+        "complete_production_config",
+        "storage_integrity_verified",
+        "ownership_metadata_present",
+        "confidentiality_protected",
+        "authenticity_protected",
+        "unsupported_external_state",
+    }
+    if not isinstance(value, dict) or set(value) != expected_fields:
+        raise UpdaterV2Error("ha_data_backup_document_invalid")
+    try:
+        record = HaDataBackupRecord(**value)
+    except TypeError as error:
+        raise UpdaterV2Error("ha_data_backup_document_invalid") from error
+    return validate_backup_record(record)

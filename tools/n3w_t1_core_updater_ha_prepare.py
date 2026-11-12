@@ -723,7 +723,7 @@ class HaUsbPrepareController:
         )
         if target.archive_size_bytes != transaction["target_archive_size"]:
             raise UpdaterV2Error("ha_usb_target_archive_size_mismatch")
-        u5 = request_install(transaction)
+        u5 = request_install(transaction, target=target)
         self.backend.sync_transaction_metadata(u5, media)
         self.transaction_store.write(u5)
         return validate_transaction_document(u5)

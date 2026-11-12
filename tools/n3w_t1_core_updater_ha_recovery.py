@@ -103,3 +103,34 @@ def validate_image_recovery_record(
     if record.verified is not True or record.fsynced is not True:
         raise UpdaterV2Error("image_recovery_not_durable_verified")
     return record
+
+
+def image_recovery_record_from_document(
+    value: object,
+    *,
+    expected_kind: str,
+    expected_image_ref: str | None = None,
+    expected_archive_sha256: str | None = None,
+) -> ImageRecoveryRecord:
+    expected_fields = {
+        "kind",
+        "image_ref",
+        "archive_sha256",
+        "archive_size_bytes",
+        "portable_identity_sha256",
+        "platform",
+        "verified",
+        "fsynced",
+    }
+    if not isinstance(value, dict) or set(value) != expected_fields:
+        raise UpdaterV2Error("image_recovery_document_invalid")
+    try:
+        record = ImageRecoveryRecord(**value)
+    except TypeError as error:
+        raise UpdaterV2Error("image_recovery_document_invalid") from error
+    return validate_image_recovery_record(
+        record,
+        expected_kind=expected_kind,
+        expected_image_ref=expected_image_ref,
+        expected_archive_sha256=expected_archive_sha256,
+    )

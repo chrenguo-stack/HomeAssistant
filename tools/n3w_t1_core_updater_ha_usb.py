@@ -21,7 +21,6 @@ from n3w_t1_core_updater_ha_usb_media import (
     USB_LABEL,
     FormatAuthorization,
     UsbCapacityReport,
-    require_same_filesystem_uuid,
 )
 from n3w_t1_core_updater_ha_usb_state import (
     PHASE_INDEX,
@@ -40,6 +39,7 @@ from n3w_t1_core_updater_ha_usb_state import (
     U12,
     U13A,
     U13B,
+    compute_recovery_content_manifest_sha256,
     transition,
     validate_transaction_document,
 )
@@ -119,7 +119,10 @@ def record_target_ready(
     return transition(
         current,
         U4,
-        updates={"target_artifact_verified": True},
+        updates={
+            "target_artifact_verified": True,
+            "target_artifact_identity": target.public(),
+        },
     )
 
 
@@ -157,7 +160,10 @@ def record_predecessor_recovery_and_ha_quiesced(
     return transition(
         current,
         U7,
-        updates={"predecessor_recovery_verified": True},
+        updates={
+            "predecessor_recovery_verified": True,
+            "predecessor_recovery_identity": predecessor.public(),
+        },
     )
 
 
@@ -194,17 +200,31 @@ def record_commit(document: dict[str, Any]) -> dict[str, Any]:
 def record_rollback_complete(
     document: dict[str, Any],
     *,
-    observed_usb_filesystem_uuid: str,
+    predecessor: ImageRecoveryRecord,
+    backup: HaDataBackupRecord,
+    observed_recovery_content_manifest_sha256: str,
     predecessor_image_restored: bool,
     ha_data_backup_restored: bool,
 ) -> dict[str, Any]:
     current = validate_transaction_document(document)
     if current["phase"] not in {U9, U10, U11, U12}:
         raise UpdaterV2Error("ha_usb_rollback_phase_invalid")
-    require_same_filesystem_uuid(
-        current["usb_filesystem_uuid"],
-        observed_usb_filesystem_uuid,
+    expected_manifest = current["recovery_content_manifest_sha256"]
+    if (
+        observed_recovery_content_manifest_sha256 != expected_manifest
+        or compute_recovery_content_manifest_sha256(current) != expected_manifest
+    ):
+        raise UpdaterV2Error("ha_usb_recovery_content_manifest_mismatch")
+    validate_image_recovery_record(
+        predecessor,
+        expected_kind="predecessor",
+        expected_image_ref=current["current_image_ref"],
     )
+    validate_backup_record(backup)
+    if predecessor.public() != current["predecessor_recovery_identity"]:
+        raise UpdaterV2Error("ha_usb_rollback_predecessor_identity_mismatch")
+    if backup.public() != current["ha_data_backup_identity"]:
+        raise UpdaterV2Error("ha_usb_rollback_backup_identity_mismatch")
     if predecessor_image_restored is not True:
         raise UpdaterV2Error("ha_usb_rollback_predecessor_not_restored")
     if ha_data_backup_restored is not True:
@@ -215,8 +235,8 @@ def record_rollback_complete(
 def classify_power_loss_reentry(
     document: dict[str, Any],
     *,
-    usb_present: bool,
-    observed_usb_filesystem_uuid: str | None,
+    recovery_media_present: bool,
+    exact_recovery_content_verified: bool,
 ) -> str:
     current = validate_transaction_document(document)
     if current["phase"] in {U13A, U13B}:
@@ -225,24 +245,54 @@ def classify_power_loss_reentry(
     if PHASE_INDEX[current["phase"]] < PHASE_INDEX[U9]:
         return "PRE_U9_PREDECESSOR_AUTHORITY"
 
-    if usb_present is not True:
+    if (
+        recovery_media_present is not True
+        or exact_recovery_content_verified is not True
+    ):
         return "RECOVERY_MEDIA_REQUIRED"
-    if observed_usb_filesystem_uuid is None:
-        raise UpdaterV2Error("ha_usb_recovery_uuid_missing")
-    require_same_filesystem_uuid(
-        current["usb_filesystem_uuid"],
-        observed_usb_filesystem_uuid,
-    )
     if current["phase"] == U12:
         return "FORWARD_COMMIT_ELIGIBLE"
     return "ROLLBACK_REQUIRED"
 
 
-def request_install(document: dict[str, Any]) -> dict[str, Any]:
+def request_target_reprepare(document: dict[str, Any]) -> dict[str, Any]:
+    current = validate_transaction_document(document)
+    if current["phase"] != U4:
+        raise UpdaterV2Error("ha_usb_target_reprepare_phase_invalid")
+    return transition(
+        current,
+        U3,
+        updates={
+            "target_artifact_verified": False,
+            "target_artifact_identity": None,
+        },
+    )
+
+
+def request_install(
+    document: dict[str, Any],
+    *,
+    target: ImageRecoveryRecord,
+) -> dict[str, Any]:
     current = validate_transaction_document(document)
     if current["phase"] != U4:
         raise UpdaterV2Error("ha_usb_not_ready_to_install")
-    result = transition(current, U5)
+    validated_target = validate_image_recovery_record(
+        target,
+        expected_kind="target",
+        expected_image_ref=current["target_image_ref"],
+        expected_archive_sha256=current["target_archive_sha256"],
+    )
+    if validated_target.archive_size_bytes != current["target_archive_size"]:
+        raise UpdaterV2Error("ha_usb_target_archive_size_mismatch")
+    result = transition(
+        current,
+        U5,
+        updates={
+            "target_artifact_verified": True,
+            "target_artifact_identity": validated_target.public(),
+        },
+    )
     if (
         result["authorization_claimed"] is not False
         or result["authorization_consumed"] is not False
@@ -258,7 +308,6 @@ def record_recovery_admission(
     target: ImageRecoveryRecord,
     predecessor: ImageRecoveryRecord,
     backup: HaDataBackupRecord,
-    observed_usb_filesystem_uuid: str,
     capacity_report: UsbCapacityReport,
     recovery_capacity: RecoveryAdmissionCapacity,
     production_prestate_exact: bool,
@@ -266,32 +315,27 @@ def record_recovery_admission(
     current = validate_transaction_document(document)
     if current["phase"] != U7:
         raise UpdaterV2Error("ha_usb_recovery_admission_phase_invalid")
-    require_same_filesystem_uuid(
-        current["usb_filesystem_uuid"],
-        observed_usb_filesystem_uuid,
-    )
     if capacity_report.capacity_pass is not True:
         raise UpdaterV2Error("ha_usb_capacity_not_verified")
-    if (
-        capacity_report.measured_usable_bytes
-        != current["usb_measured_usable_bytes"]
-    ):
-        raise UpdaterV2Error("ha_usb_measured_capacity_drift")
     if production_prestate_exact is not True:
         raise UpdaterV2Error("ha_usb_production_prestate_drift")
 
-    validate_image_recovery_record(
+    validated_target = validate_image_recovery_record(
         target,
         expected_kind="target",
         expected_image_ref=current["target_image_ref"],
         expected_archive_sha256=current["target_archive_sha256"],
     )
-    validate_image_recovery_record(
+    validated_predecessor = validate_image_recovery_record(
         predecessor,
         expected_kind="predecessor",
         expected_image_ref=current["current_image_ref"],
     )
-    validate_backup_record(backup)
+    validated_backup = validate_backup_record(backup)
+    if validated_target.public() != current["target_artifact_identity"]:
+        raise UpdaterV2Error("ha_usb_target_identity_drift")
+    if validated_predecessor.public() != current["predecessor_recovery_identity"]:
+        raise UpdaterV2Error("ha_usb_predecessor_identity_drift")
     validate_recovery_admission_capacity(
         recovery_capacity,
         target_archive_bytes=target.archive_size_bytes,
@@ -302,16 +346,19 @@ def record_recovery_admission(
     if current["target_artifact_verified"] is not True:
         raise UpdaterV2Error("ha_usb_target_not_verified")
 
-    return transition(
-        current,
-        U8,
-        updates={
-            "predecessor_recovery_verified": True,
-            "ha_data_backup_verified": True,
-            "production_prestate_verified": True,
-            "usb_capacity_verified": True,
-        },
+    updates = {
+        "predecessor_recovery_verified": True,
+        "ha_data_backup_verified": True,
+        "ha_data_backup_identity": validated_backup.public(),
+        "production_prestate_verified": True,
+        "usb_capacity_verified": True,
+    }
+    manifest_source = dict(current)
+    manifest_source.update(updates)
+    updates["recovery_content_manifest_sha256"] = (
+        compute_recovery_content_manifest_sha256(manifest_source)
     )
+    return transition(current, U8, updates=updates)
 
 
 def claim_live_authorization(
