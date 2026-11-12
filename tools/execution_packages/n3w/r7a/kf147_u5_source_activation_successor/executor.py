@@ -230,7 +230,7 @@ def ipc_status(manager_id):
 s=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)
 s.settimeout(5)
 s.connect("/run/n3w/t1-ota/ha-ota.sock")
-s.sendall(json.dumps({"schema":"gh.n3w-t1-ha-ota-ipc-request/1","operation":"status"},sort_keys=True,separators=(",",":")).encode()+b"\\n")
+s.sendall(json.dumps({"schema":"gh.n3w-t1-ha-ota-ipc-request/1","operation":"status"},sort_keys=True,separators=(",",":")).encode()+b"\n")
 s.shutdown(socket.SHUT_WR)
 print(s.recv(8192).decode().strip())'''
     completed = run(
