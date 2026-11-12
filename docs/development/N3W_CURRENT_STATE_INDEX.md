@@ -1,4 +1,18 @@
 
+## 2026-11-12 — Home Assistant removable-media content-authority architecture V1.2 frozen
+
+- V1.2 supersedes the V1.1 physical-media identity continuity rules while preserving mandatory USB, rollback, capacity, integrity and privilege safety boundaries.
+- /dev/sdX, filesystem UUID and public fingerprint are no longer business continuity authority.
+- Internal durable transaction + exact target/predecessor/HA-backup identities are the recovery authority.
+- Existing compatible N3W-UPDATE ext4 media is inspected before destructive formatting; formatting is no longer mandatory for every update.
+- Before U9, missing target content may be re-prepared while production HA remains authoritative.
+- After U9, any physical media may be used only if the complete exact recovery set verifies; blank replacement media is RECOVERY_MEDIA_REQUIRED and must not be auto-formatted.
+- Current old-schema U4 transaction must migrate non-destructively through corrected U4->U5 source logic.
+- R12 live mount restoration is superseded/not executed; R12 read-only PASS remains valid evidence; R11 auto-retry remains false.
+- Next gate: REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_DESIGN.
+- Authority: docs/development/N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_REMOVABLE_MEDIA_CONTENT_AUTHORITY_ARCHITECTURE_V1.2_20261112.md.
+
+
 ## 2026-11-12 — Home Assistant removable-media content-authority architecture review CLOSED_PASS
 
 - User approved replacing physical USB identity continuity with safe-media + exact-content authority.
