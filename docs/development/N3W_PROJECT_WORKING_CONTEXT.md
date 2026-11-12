@@ -1,41 +1,18 @@
-## Stable updater authority — 2026-11-12 KF-147 R10 corrected preflight CLOSED_PASS / live source activation awaiting authorization
+## Stable updater authority — 2026-11-12 KF-147 R10 live source activation CLOSED_PASS / R11 source preparation
 
 ```text
-PROJECT_WORKING_CONTEXT_VERSION=5.4
+PROJECT_WORKING_CONTEXT_VERSION=5.5
 
 PR=807
 PR_STATE=OPEN_DRAFT_UNMERGED
-R10_CORRECTED_SOURCE_HEAD=46ff563a95553074880efc01f36dbe238ebbf831
-
-HANDOFF_TEMPLATE_VERSION=1.4
-HANDOFF_TEMPLATE_AUTHORITY_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
-HANDOFF_TEMPLATE_BLOB=885fd63131e80936e5e1fe907378be08a0060f12
-PR_BRANCH_TEMPLATE_COPY=STALE_V1.3_DO_NOT_USE_FOR_NEW_HANDOFF
-
-R9_RESULT=STOP
-R9_AUTHORIZATION_CLAIMED=true
-R9_AUTHORIZATION_CONSUMED=true
-R9_REPLAY_PERMITTED=false
-
-R10_PREFLIGHT_RESULT=PASS
-R10_PREFLIGHT_READ_ONLY=true
-R10_SOURCE_ACTIVATION_ELIGIBLE=true
-R10_REMOTE_STAGING=false
-R10_HOST_SOURCE_MUTATION=false
-R10_TRANSACTION_MUTATION=false
-R10_USB_MUTATION=false
-R10_U5_TRANSITION=false
-R10_U6_PLUS=false
-
-R10_EXECUTOR_BLOB=40b2908dfb4904a8ef47a7ea35db403591c538bc
-R10_MANIFEST_BLOB=f19c1b6c65a3638c2f236f4469c15f3070d40b3f
-R10_TEST_BLOB=ee68701fd48ef33f8e136e9f57c6d9d7a7f5d41d
-
-R10_CORE_STACK_AUTHORITY_CI=SUCCESS:43128531524
-R10_PUBLIC_REPOSITORY_SAFETY_CI=SUCCESS:43128531586
-R10_FAST_SOURCE_EXACT_CI=SUCCESS:43128531688
-R10_TARGET_BINDING_CI=SUCCESS:43128531594
-R10_MANAGER_A_TO_B_CI=SUCCESS:43128531919
+R10_AUTHORIZED_SOURCE_HEAD=7bc4249d969f85f81ee4d86a811629747d761157
+R10_RESULT=U5_SOURCE_ACTIVATION_PASS
+R10_AUTHORIZATION_CLAIMED=true
+R10_AUTHORIZATION_CONSUMED=true
+R10_REPLAY_PERMITTED=false
+R10_SOURCE_ACTIVATED=true
+R10_U4_PRESERVED=true
+R10_ROLLBACK_REQUIRED=false
 
 LAST_PROVEN_TRANSACTION_PHASE=U4_READY_TO_INSTALL
 LAST_PROVEN_TRANSACTION_SHA256=dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259
@@ -45,32 +22,27 @@ LAST_PROVEN_TARGET_SIZE_BYTES=835309535
 LAST_PROVEN_IPC_PHASE=READY_TO_INSTALL
 LAST_PROVEN_IPC_INSTALLED_VERSION=2026.10.0
 
-R10_LIVE_EXECUTION_AUTHORIZED=true
-R10_AUTHORIZATION_GRANTED=true
-R10_AUTHORIZATION_CLAIMED=false
-R10_AUTHORIZATION_CONSUMED=false
-R10_REPLAY_PERMITTED=false
+LIVE_SOURCE_HA_IPC_SHA256=a7d335c597771b0297f690d0e97fb3288f5f1c83fd670d8af00d76ca983e56ac
+LIVE_SOURCE_HA_PREPARE_SHA256=4dc6226ae493f18b3dab2c8773c1d3687a8f5f1750a6b4d9fa791cebe22db596
+LIVE_SOURCE_HA_PREPARE_HOST_SHA256=d7f1e5468e24446f3ade0e22778cebecc8cda0fed07179a8fccb55b9f7e4ff8a
 
-NEXT_ONE_GATE=R10_AUTHORIZED_SOURCE_EXACT_CI
+R9_REPLAY_PERMITTED=false
+R10_REPLAY_PERMITTED=false
+R11_LIVE_EXECUTION_AUTHORIZED=false
+NEXT_ONE_GATE=R11_U4_TO_U5_INSTALL_INTENT_SUCCESSOR_SOURCE_PREPARATION
 NEXT_GATE_LIVE_MUTATION=false
-EXPLICIT_AUTHORIZATION_REQUIRED=false
-AUTO_EXECUTE_DEPLOYMENT=false
+
+HANDOFF_TEMPLATE_VERSION=1.4
+HANDOFF_TEMPLATE_AUTHORITY_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
+HANDOFF_TEMPLATE_BLOB=885fd63131e80936e5e1fe907378be08a0060f12
 
 BOARD_ACCESS=false
 MERGE=false
 ```
 
-The corrected R10 real-T1 read-only preflight is CLOSED_PASS. It independently revalidated the consumed R9 terminal, U4 host transaction, U4 USB metadata, writable bound media, exact target archive, exact predecessor three-file host source, stable runtime services/containers and IPC `READY_TO_INSTALL`. No remote staging or mutation occurred.
+R10 successfully activated the exact three U5 host-source files on T1 and preserved the complete U4 Home Assistant 2026.10.4 installation transaction. Home Assistant remains 2026.10.0, the target archive remains intact on USB, and IPC is READY_TO_INSTALL. No rollback or product-container mutation occurred.
 
-The earlier R10 IPC rejection is closed as an executor-only framing defect. Corrected-head exact CI is fully SUCCESS, and the repair remains bounded to the R10 execution package plus regression/authority documentation.
-
-The user has now explicitly granted a one-shot R10 live three-file source activation authorization. The manifest is frozen as live=true / granted=true / claimed=false / consumed=false / replay=false, with scope limited to the exact bound three U5 host-source files, dependency-safe services-owner/host-OTA lifecycle handling, and at most one exact rollback on failure. INSTALL, U5/U6+, Home Assistant/Manager/Broker product mutation, board access and merge remain forbidden. Live execution is still blocked until the authorized-source head completes fresh exact CI; execute mode must then fresh-preflight before staging and fail closed on any drift.
-
-Authority:
-- PR #807 corrected-preflight and CI archive comments.
-- `docs/development/N3W_CURRENT_STATE.md` latest section.
-- `docs/development/KNOWN_FAILURES_AND_REGRESSION_GUARDS.md` KF-147 guards.
-- R10 package at `46ff563a95553074880efc01f36dbe238ebbf831`.
+Both R9 and R10 authorizations are terminal and non-replayable. R9 cannot be reused additionally because its manifest binds the old predecessor three-file hashes that R10 intentionally replaced. The next source-only task is to create a new R11 U4→U5 install-intent successor that binds the R10 terminal evidence and current source hashes. R11 must remain ungranted until a separate explicit live authorization is given.
 
 ## Stable updater authority — 2026-11-10 KF-147 exact reclaim audit source ready
 
