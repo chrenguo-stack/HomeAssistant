@@ -44,15 +44,15 @@ LIVE_SOURCE_HA_IPC_SHA256=a7d335c597771b0297f690d0e97fb3288f5f1c83fd670d8af00d76
 LIVE_SOURCE_HA_PREPARE_SHA256=4dc6226ae493f18b3dab2c8773c1d3687a8f5f1750a6b4d9fa791cebe22db596
 LIVE_SOURCE_HA_PREPARE_HOST_SHA256=d7f1e5468e24446f3ade0e22778cebecc8cda0fed07179a8fccb55b9f7e4ff8a
 
-R11_LIVE_EXECUTION_AUTHORIZED=false
-R11_AUTHORIZATION_GRANTED=false
+R11_LIVE_EXECUTION_AUTHORIZED=true
+R11_AUTHORIZATION_GRANTED=true
 R11_AUTHORIZATION_CLAIMED=false
 R11_AUTHORIZATION_CONSUMED=false
 R11_REPLAY_PERMITTED=false
 
-NEXT_ONE_GATE=R11_LIVE_U4_TO_U5_INSTALL_INTENT_AUTHORIZATION
-NEXT_GATE_LIVE_MUTATION=true
-EXPLICIT_AUTHORIZATION_REQUIRED=true
+NEXT_ONE_GATE=R11_AUTHORIZED_SOURCE_EXACT_CI
+NEXT_GATE_LIVE_MUTATION=false
+EXPLICIT_AUTHORIZATION_REQUIRED=false
 AUTO_EXECUTE=false
 
 HANDOFF_TEMPLATE_VERSION=1.4
@@ -65,7 +65,7 @@ MERGE=false
 
 R11 real-T1 read-only preflight is CLOSED_PASS. It revalidated the R10 terminal PASS, current three-file host source, exact U4 Host/USB transaction, exact Home Assistant 2026.10.4 target archive, healthy writable bound media, stable services/containers and IPC `READY_TO_INSTALL` on Home Assistant 2026.10.0.
 
-No authorization claim/consume or mutation occurred. The next boundary is a new explicit one-shot R11 live U4→U5 INSTALL-intent authorization. If later authorized, R11 is still bounded to transition only to U5 `INSTALL_REQUESTED_REVALIDATING` and stop before U6 predecessor recovery; it does not perform Home Assistant replacement at this gate.
+No authorization claim/consume or mutation occurred during preflight. The user has now explicitly granted one one-shot R11 live U4→U5 INSTALL-intent authorization. The manifest is frozen as live=true / granted=true / claimed=false / consumed=false / replay=false, with scope limited to advancing the exact current Home Assistant 2026.10.4 transaction from U4 to U5 and synchronizing Host/USB transaction metadata. U6+, Home Assistant stop/replacement, HA/Manager/Broker product mutation, source deployment, board access and merge remain forbidden. Live execution is blocked until the authorized-source head completes fresh exact CI.
 
 ## Stable updater authority — 2026-11-10 KF-147 exact reclaim audit source ready
 
