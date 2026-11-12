@@ -1,3 +1,19 @@
+## 2026-11-12 — V1.2 real-T1 read-only preexecution CLOSED_PASS / source activation package ungranted
+
+- Core Stack current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current Manager: `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical clean reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Real-T1 V1.2 read-only preexecution PASS: exact legacy U4 preserved; compatible N3W-UPDATE media rediscovered without UUID/fingerprint continuity; OTA service/containers/IPC healthy; zero mutation.
+- Eight real-T1 predecessor source SHA-256 values are now frozen for source activation rollback authority.
+- Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_ACTIVATION_20261112_01`.
+- Source activation package is prepared but explicitly UNGRANTED. A separate user authorization + grant-only successor commit is required before live execution.
+- Read-only closure: `docs/development/N3W_T1_HOMEASSISTANT_REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_READONLY_PREEXECUTION_CLOSURE_20261112.md`.
+- Source activation design: `docs/development/N3W_T1_HOMEASSISTANT_REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_ACTIVATION_DESIGN_20261112.md`.
+
 ## 2026-11-12 — removable-media content-authority V1.2 source repair CLOSED_PASS / real-T1 read-only preexecution next
 
 - Core Stack current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
