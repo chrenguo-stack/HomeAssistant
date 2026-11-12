@@ -1,3 +1,38 @@
+### 2026-11-12 KF-147 R10 IPC status probe framing defect — source repair
+
+```text
+R10_PREFLIGHT_RESULT=STOP
+R10_PREFLIGHT_REASON=Stop:ipc_status_rejected
+REMOTE_STAGING=false
+AUTHORIZATION_CLAIMED=false
+AUTHORIZATION_CONSUMED=false
+HOST_SOURCE_MUTATION=false
+TRANSACTION_MUTATION=false
+USB_MUTATION=false
+U5_TRANSITION=false
+U6_PLUS=false
+BOARD_ACCESS=false
+MERGE=false
+```
+
+Root cause:
+- R10's embedded Manager-side status probe used `b"\\\\n"` in the generated remote Python source, which sends the two literal bytes backslash + `n` instead of the newline frame terminator required by the HA OTA Unix-socket protocol.
+- The already-proven R9 probe used `b"\\n"`, and the host IPC frame reader expects an actual newline or a clean EOF-delimited JSON object. The malformed R10 payload is therefore rejected before any source staging or mutation.
+- Exact CI previously compiled the embedded remote script but did not freeze the runtime framing bytes, so syntax coverage alone produced a false-PASS gap.
+
+Repair:
+- change only the R10 status probe frame terminator to a real newline byte;
+- rebind the R10 executor blob in the manifest;
+- add a regression test requiring the generated remote source to contain `b"\\n"` and reject `b"\\\\n"`;
+- no product source, U4 transaction authority, USB authority, target archive, live authorization, service lifecycle, board or merge scope changes.
+
+Regression guards:
+- embedded remote-script compile coverage is necessary but not sufficient for IPC framing;
+- status/submit probes must freeze the exact newline-delimited wire contract, not only Python syntax;
+- a read-only preflight probe rejection with `remote_staging=false` and all mutation fields false is a source/preflight defect until live-state drift is independently proven;
+- do not retry the same defective R10 head against T1;
+- corrected R10 head requires fresh exact CI before another real-T1 `--preflight-only`.
+
 ### 2026-11-11 KF-147 R9 install-intent source/deployment authority mismatch — successor R10 source activation prepared
 
 | ID | 范围 | 现场现象 | 根因 | 修复 | 状态 |
