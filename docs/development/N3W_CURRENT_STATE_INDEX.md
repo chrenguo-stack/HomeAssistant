@@ -1,20 +1,18 @@
-## 2026-11-12 — KF-147 R11 real-T1 read-only preflight CLOSED_PASS / live U4→U5 authorization boundary
+## 2026-11-12 — KF-147 R11 preclaim STOP after T1 reboot / R12 mount-restoration source gate
 
-- Current core-stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`: repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`, Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean reference remains `24382caae4a1f5d459297f86e8d18f10a848ca64` / `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
 - PR #807 remains open/draft/unmerged.
-- R11 source authority: `d63c4ff37feb49e984e5a66e6f7cfc9c0a439279`.
-- Required CI is CLOSED_PASS: public safety `43132705833`, Core Stack authority `43132705998`, fast source/exact `43132706037`, Manager A-to-B `43132705870`, HA 2026.10.4 target binding `43132706006`.
-- Real-T1 R11 `--preflight-only`: `PASS`, read_only=true, u5_transition_eligible=true.
-- Host transaction remains `U4_READY_TO_INSTALL`, SHA-256 `dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259`; USB transaction metadata also remains U4.
-- IPC remains healthy at `READY_TO_INSTALL`, installed_version `2026.10.0`, capacity state `FORMATTED_CAPACITY_PASS`.
-- Target Home Assistant 2026.10.4 archive remains exact: SHA-256 `eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973`, size 835,309,535 bytes.
-- Current three live host-source SHA-256 values remain exact: IPC `a7d335c597771b0297f690d0e97fb3288f5f1c83fd670d8af00d76ca983e56ac`, prepare `4dc6226ae493f18b3dab2c8773c1d3687a8f5f1750a6b4d9fa791cebe22db596`, prepare_host `d7f1e5468e24446f3ade0e22778cebecc8cda0fed07179a8fccb55b9f7e4ff8a`.
-- Manager/Home Assistant/Broker remain running with restart_count=0; host OTA service remains active/running with NRestarts=0.
-- No authorization claim/consume, host-state/source mutation, transaction/USB mutation, service restart, product-container mutation, U5/U6+ transition, board access or merge occurred.
-- R10 remains consumed/non-replayable; R11 remains live=false, granted=false, claimed=false, consumed=false, replay=false.
-- The user has explicitly granted one one-shot R11 live U4→U5 INSTALL-intent authorization. Manifest state is frozen as live=true, granted=true, claimed=false, consumed=false, replay=false.
-- Authorized scope is only the exact U4→U5 INSTALL-intent transition plus synchronized Host/USB transaction metadata. U6+, Home Assistant stop/replacement, HA/Manager/Broker product mutation, source deployment, board access and merge remain forbidden.
-- Live execution remains blocked until the authorized-source head completes fresh exact CI.
+- R11 authorized source `f2e03ea92ff0df26c6b4c644cc6aca09953a2b24` was executed after a T1 reboot and fail-closed at `usb_mount_missing`.
+- R11 authorization remained granted but unclaimed/unconsumed; no Host/USB transaction mutation, no U5/U6+ transition, no product/source/service/board/merge mutation occurred.
+- The reboot detail explains the state: the OTA USB mount lives under `/run/n3w-t1-ota/media` and is not persistent across host reboot.
+- Product `reopen_bound_media()` can remount the exact UUID/fingerprint-bound USB during real INSTALL revalidation; the R11 harness currently requires the mount before its durable claim boundary.
+- R11 must not be automatically retried from the current unmounted state.
+- New R12 gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_POST_REBOOT_U4_MOUNT_RESTORATION_R12_20261112_01`.
+- R12 executor blob `9f238bb71f5aa19c7c705861fceea2e5b7ca9460`; manifest blob `5f0bd8c1290a647fa9bd4bd7fbcad2bd92426e85`; test blob `e58de8d322c053f68576e72af75959eb6bcad494`.
+- R12 remains live=false, granted=false, claimed=false, consumed=false, replay=false.
+- R12 preflight accepts only the exact current U4 transaction plus the exact bound USB present but unmounted.
+- If separately authorized later, R12 only recreates the transaction-derived runtime mount directories, mounts the same ext4 USB `rw,nodev,nosuid,noexec`, revalidates the 2026.10.4 target and U4 USB metadata, and stops before U5.
+- Any post-mount failure permits at most one rollback to the original unmounted prestate; no U5 transition, service restart, product-container mutation, source deployment, board access or merge is allowed.
+- Next gate: R12 source/exact CI. T1 mutation remains blocked.
 
 ## 2026-11-10 — KF-147 Mandatory USB Confirmation / U2 read-only preexecution CLOSED_PASS
 
