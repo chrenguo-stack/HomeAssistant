@@ -5,6 +5,15 @@ AUTHORITY_STATE=KF147_R9_TERMINAL_STOP_R10_SOURCE_ACTIVATION_PREFLIGHT_READY
 PR=807
 PR_STATE=OPEN_DRAFT_UNMERGED
 
+CURRENT_AUTHORITY_MANIFEST=infra/n3w-t1/production/t1-core-stack-current.json
+CURRENT_REPOSITORY_PRODUCT_SOURCE_HEAD=5b32e1ae82104a42f9e4e6907fe44d9172e87615
+CURRENT_REPOSITORY_MANAGER=local/greenhouse-manager:fresh-5b32e1ae8210
+CURRENT_REPOSITORY_HOMEASSISTANT=local/n3w-homeassistant:2026.10.0-0c73235a
+CURRENT_REPOSITORY_BROKER=local/n3w-mosquitto:2.1.2-3184566d
+HISTORICAL_CLEAN_REFERENCE_SOURCE_HEAD=24382caae4a1f5d459297f86e8d18f10a848ca64
+HISTORICAL_CLEAN_REFERENCE_MANAGER=local/greenhouse-manager:fresh-24382caae4a1
+LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
+
 R9_RESULT=STOP
 R9_REASON=ha_ota_ipc_action_invalid
 R9_AUTHORIZATION_CLAIMED=true
@@ -28,8 +37,8 @@ LAST_PROVEN_TARGET_SIZE_BYTES=835309535
 
 R10_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U5_SOURCE_ACTIVATION_R10_20261111_01
 R10_PACKAGE=tools/execution_packages/n3w/r7a/kf147_u5_source_activation_successor
-R10_EXECUTOR_BLOB=17a708c0d3189fc007dbef9ceeeb4253a4d20b00
-R10_MANIFEST_BLOB=f05fabad818625482d25a1f28a2881956d832a8b
+R10_EXECUTOR_BLOB=40b2908dfb4904a8ef47a7ea35db403591c538bc
+R10_MANIFEST_BLOB=f19c1b6c65a3638c2f236f4469c15f3070d40b3f
 R10_LIVE_EXECUTION_AUTHORIZED=false
 R10_AUTHORIZATION_GRANTED=false
 R10_AUTHORIZATION_CLAIMED=false
@@ -39,7 +48,7 @@ R10_TARGET_BINDING_CI=SUCCESS:43125842749
 R10_MANAGER_A_TO_B_CI=SUCCESS:43125842806
 R10_FAST_SOURCE_EXACT_CI=SUCCESS:43125843158
 R10_PUBLIC_REPOSITORY_SAFETY_CI=SUCCESS:43125843096
-R10_REQUIRED_CI=PASS
+R10_REQUIRED_CI=PENDING_AFTER_IPC_FRAME_REPAIR
 
 HANDOFF_TEMPLATE_VERSION=1.4
 HANDOFF_TEMPLATE_AUTHORITY=main@3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
@@ -56,7 +65,7 @@ MERGE=false
 
 The R9 one-shot live attempt is terminal and cannot be replayed. The deployed host IPC rejected `INSTALL` before any U4→U5 transaction or USB metadata mutation. Repository review proved the live T1 still carries the pre-U5 versions of `n3w_t1_core_updater_ha_ipc.py`, `n3w_t1_core_updater_ha_prepare.py` and `n3w_t1_core_updater_ha_prepare_host.py`; the later repository U5 source adds the missing install-intent path across this exact three-file slice.
 
-R10 is the bounded source-activation successor and remains unauthorized. Its source/tests/CI are closed PASS after a local syntax-only executor repair. R10 execute, if later authorized, may activate only the exact three-file source slice with dependency-safe service ordering, must preserve Host/USB U4 and the exact target archive, and must stop before any new INSTALL intent.
+R10 is the bounded source-activation successor and remains unauthorized. The first real-T1 R10 read-only preflight stopped at `ipc_status_rejected` with no staging or mutation. Independent comparison to the previously live-PASS R9 probe proved an R10-only framing defect: the embedded probe generated literal backslash + `n` bytes instead of the required newline terminator. The executor is repaired, its manifest authority is rebound, and regression coverage now freezes the wire framing; fresh exact CI is pending. R10 execute, if later authorized, may activate only the exact three-file source slice with dependency-safe service ordering, must preserve Host/USB U4 and the exact target archive, and must stop before any new INSTALL intent.
 
 Next conversation starts with R10 `--preflight-only`. A combined preflight+deployment route may be considered because R10 execute already performs a fresh remote preflight before staging, but this requires a new explicit R10 live authorization and authorized-source CI.
 
