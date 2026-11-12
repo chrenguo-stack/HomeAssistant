@@ -7,6 +7,7 @@
 - Current Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
 - Historical clean reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
 - Historical clean reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; current repository Core Stack authority remains APPLIED_ACCEPTED.
 - Real-T1 V1.2 read-only preexecution PASS: exact legacy U4 preserved; compatible N3W-UPDATE media rediscovered without UUID/fingerprint continuity; OTA service/containers/IPC healthy; zero mutation.
 - Eight real-T1 predecessor source SHA-256 values are now frozen for source activation rollback authority.
 - Next gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_ACTIVATION_20261112_01`.
