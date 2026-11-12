@@ -12,8 +12,9 @@
 - No authorization claim/consume, host source mutation, transaction mutation, USB mutation, U5/U6+ transition, board access or merge occurred.
 - R10 repaired executor blob `40b2908dfb4904a8ef47a7ea35db403591c538bc`; manifest blob `f19c1b6c65a3638c2f236f4469c15f3070d40b3f`; regression-test blob `ee68701fd48ef33f8e136e9f57c6d9d7a7f5d41d`.
 - Repaired-head CI is CLOSED_PASS: Core Stack authority `43128531524`, public safety `43128531586`, fast source/exact `43128531688`, HA target binding `43128531594`, Manager A-to-B `43128531919`.
-- Next boundary is R10 live three-file source activation authorization. It is currently unauthorized and must not be inferred from this preflight PASS.
-- A future authorized R10 execute must fresh-preflight before staging, activate exactly the three bound files with dependency-safe lifecycle handling, preserve Host/USB at U4, and stop before any INSTALL intent.
+- The user has now explicitly granted one one-shot R10 live three-file source activation authorization. Manifest authorization is frozen as live=true, granted=true, claimed=false, consumed=false, replay=false.
+- Authorized scope is only the manifest-bound three U5 host-source files plus dependency-safe services-owner/host-OTA lifecycle handling and at most one exact rollback on failure. INSTALL, U5/U6+, Home Assistant/Manager/Broker product mutation, board access and merge remain forbidden.
+- Live execution remains blocked until the authorized-source head completes fresh exact CI. Any future R10 execute must still fresh-preflight before staging, preserve Host/USB at U4, and stop before any INSTALL intent.
 - No board access or merge occurred.
 
 ## 2026-11-10 — KF-147 Mandatory USB Confirmation / U2 read-only preexecution CLOSED_PASS
