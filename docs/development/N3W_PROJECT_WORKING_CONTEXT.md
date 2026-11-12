@@ -45,15 +45,15 @@ LAST_PROVEN_TARGET_SIZE_BYTES=835309535
 LAST_PROVEN_IPC_PHASE=READY_TO_INSTALL
 LAST_PROVEN_IPC_INSTALLED_VERSION=2026.10.0
 
-R10_LIVE_EXECUTION_AUTHORIZED=false
-R10_AUTHORIZATION_GRANTED=false
+R10_LIVE_EXECUTION_AUTHORIZED=true
+R10_AUTHORIZATION_GRANTED=true
 R10_AUTHORIZATION_CLAIMED=false
 R10_AUTHORIZATION_CONSUMED=false
 R10_REPLAY_PERMITTED=false
 
-NEXT_ONE_GATE=R10_LIVE_THREE_FILE_SOURCE_ACTIVATION_AUTHORIZATION
-NEXT_GATE_LIVE_MUTATION=true
-EXPLICIT_AUTHORIZATION_REQUIRED=true
+NEXT_ONE_GATE=R10_AUTHORIZED_SOURCE_EXACT_CI
+NEXT_GATE_LIVE_MUTATION=false
+EXPLICIT_AUTHORIZATION_REQUIRED=false
 AUTO_EXECUTE_DEPLOYMENT=false
 
 BOARD_ACCESS=false
@@ -64,7 +64,7 @@ The corrected R10 real-T1 read-only preflight is CLOSED_PASS. It independently r
 
 The earlier R10 IPC rejection is closed as an executor-only framing defect. Corrected-head exact CI is fully SUCCESS, and the repair remains bounded to the R10 execution package plus regression/authority documentation.
 
-The next meaningful boundary is live R10 three-file source activation. This is intentionally not authorized by the preflight result. Before any execute-mode invocation, a new explicit R10 live authorization must be granted and frozen into the authorized source/manifest, followed by exact CI. A future authorized execute must still run a fresh remote preflight before staging, fail closed on drift, activate only the exact bound three-file source slice, preserve Host/USB at U4, and stop before INSTALL/U5.
+The user has now explicitly granted a one-shot R10 live three-file source activation authorization. The manifest is frozen as live=true / granted=true / claimed=false / consumed=false / replay=false, with scope limited to the exact bound three U5 host-source files, dependency-safe services-owner/host-OTA lifecycle handling, and at most one exact rollback on failure. INSTALL, U5/U6+, Home Assistant/Manager/Broker product mutation, board access and merge remain forbidden. Live execution is still blocked until the authorized-source head completes fresh exact CI; execute mode must then fresh-preflight before staging and fail closed on any drift.
 
 Authority:
 - PR #807 corrected-preflight and CI archive comments.
