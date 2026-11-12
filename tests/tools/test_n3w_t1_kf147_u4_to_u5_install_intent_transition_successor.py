@@ -200,14 +200,15 @@ def test_remote_transition_is_bounded_to_install_intent_only() -> None:
     assert 'run(["mount"' not in source
 
 
-def test_execute_claims_before_install_request_and_has_no_rollback() -> None:
+def test_execute_claims_before_install_request_and_has_no_rollback_action() -> None:
     source = load_executor().REMOTE_SCRIPT
     claim = 'durable_json(\n        state_root / "authorization_claim.json"'
     install = "install_response = ipc_install("
     assert claim in source
     assert install in source
     assert source.index(claim) < source.index(install)
-    assert "rollback" not in source.lower()
+    assert 'terminal.get("rollback_required") is not False' in source
+    assert source.lower().count("rollback") == 1
 
 
 def test_authorized_execute_marks_usb_metadata_mutation_and_stops_at_u5(
