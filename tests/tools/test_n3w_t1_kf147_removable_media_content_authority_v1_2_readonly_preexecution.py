@@ -308,7 +308,11 @@ def test_target_binding_workflow_covers_v1_2_readonly_package() -> None:
         "tools/execution_packages/n3w/r7a/"
         "kf147_removable_media_content_authority_v1_2_readonly_preexecution/**"
     )
-    executor_path = package_glob[:-3] + "executor.py"
+    executor_path = (
+        "tools/execution_packages/n3w/r7a/"
+        "kf147_removable_media_content_authority_v1_2_"
+        "readonly_preexecution/executor.py"
+    )
     test_path = (
         "tests/tools/"
         "test_n3w_t1_kf147_removable_media_content_authority_v1_2_"
