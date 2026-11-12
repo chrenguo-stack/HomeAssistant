@@ -1,4 +1,19 @@
 
+## 2026-11-12 — removable-media content-authority V1.2 source design frozen
+
+- Source design PASS; executable repair is now the next gate.
+- Keep current private transaction schema /1 for the first repair and extend it additively, so the live old U4 document remains readable without a separate migration executor.
+- INSTALL revalidation upgrades the live U4 transaction in place by persisting exact target identity before U5.
+- U7 persists exact predecessor recovery identity; U8 persists exact protected HA backup identity and a media-independent recovery-content manifest SHA-256.
+- Cross-session UUID/fingerprint continuity is removed. Same-session UUID/fingerprint/major-minor checks remain valid anti-device-swap protection.
+- Stable USB serial/WWN is no longer required. Newly-inserted-only selection is retired; destructive format safety becomes exactly-one eligible USB + explicit confirmation + immediate pre-wipe re-enumeration.
+- Current U4 may move back to U3 only for a bounded pre-U9 target reprepare, preserving the transaction instead of resetting it.
+- Post-U9 recovery is admitted by exact complete recovery content; blank media is RECOVERY_MEDIA_REQUIRED and never auto-formatted.
+- R12 live restoration remains superseded/not executed; R11 auto-retry remains false.
+- Next gate: REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_REPAIR; source-only.
+- Authority: docs/development/N3W_T1_HOMEASSISTANT_REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_DESIGN_20261112.md.
+
+
 ## 2026-11-12 — Home Assistant removable-media content-authority architecture V1.2 frozen
 
 - V1.2 supersedes the V1.1 physical-media identity continuity rules while preserving mandatory USB, rollback, capacity, integrity and privilege safety boundaries.
