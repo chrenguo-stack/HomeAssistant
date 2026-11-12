@@ -435,7 +435,7 @@ def test_u3_resume_reopens_same_bound_media_without_reformat(
     assert final["phase"] == U4
     assert status["phase"] == "READY_TO_INSTALL"
     assert backend.formatted == 1
-    assert backend.reopened == 1
+    assert backend.reopened == 2
     assert backend.prepared == 2
 
 
@@ -463,7 +463,7 @@ def test_resume_waits_for_compatible_media_without_auto_formatting_another(
     assert interrupted is not None
     assert interrupted["phase"] == "U3_TARGET_DOWNLOADING_VERIFYING"
     assert backend.formatted == 1
-    assert backend.reopened == 1
+    assert backend.reopened == 2
 
 
 def test_preexisting_usb_can_become_candidate_after_safe_unmount(

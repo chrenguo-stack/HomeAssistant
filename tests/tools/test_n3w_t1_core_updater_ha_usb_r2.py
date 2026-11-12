@@ -519,7 +519,7 @@ def test_r2_install_capacity_growth_blocks_before_u6(tmp_path):
 
 def test_r2_u8_actual_free_space_blocks_before_authorization(tmp_path):
     tx, media, docker, ha, target = prepare_to_u4(tmp_path)
-    tx = request_install(tx)
+    tx = request_install(tx, target=target)
     tx = start_predecessor_recovery(
         tx,
         install_capacity=passing_install_capacity(),
@@ -577,7 +577,7 @@ def test_r2_predecessor_corruption_stops_before_u7_and_u9(tmp_path):
 
 
 def test_r2_backup_corruption_stops_before_u8_and_u9(tmp_path):
-    tx, media, docker, ha, _target = prepare_to_u4(tmp_path)
+    tx, media, docker, ha, target = prepare_to_u4(tmp_path)
     tx = start_predecessor_recovery(
         request_install(tx, target=target),
         install_capacity=passing_install_capacity(),
@@ -682,11 +682,9 @@ def test_r2_rollback_requires_both_image_and_data_restore(tmp_path):
     ):
         record_rollback_complete(
             tx,
+            target=target,
             predecessor=predecessor,
             backup=backup,
-            observed_recovery_content_manifest_sha256=tx[
-                "recovery_content_manifest_sha256"
-            ],
             predecessor_image_restored=True,
             ha_data_backup_restored=False,
         )
@@ -697,9 +695,9 @@ def test_r2_rollback_requires_both_image_and_data_restore(tmp_path):
 
 
 def test_r2_power_loss_before_u9_keeps_predecessor_authority(tmp_path):
-    tx, media, docker, ha, _target = prepare_to_u4(tmp_path)
+    tx, media, docker, ha, target = prepare_to_u4(tmp_path)
     tx = start_predecessor_recovery(
-        request_install(tx),
+        request_install(tx, target=target),
         install_capacity=passing_install_capacity(),
     )
     predecessor = docker.verify_predecessor(
@@ -764,7 +762,8 @@ def test_r2_u12_power_loss_can_forward_commit_with_exact_recovery_content(tmp_pa
     assert tx["phase"] == U12
     assert classify_power_loss_reentry(
         tx,
-        usb_present=True,
+        recovery_media_present=True,
+        exact_recovery_content_verified=True,
     ) == "FORWARD_COMMIT_ELIGIBLE"
 
 
@@ -819,7 +818,7 @@ def test_r2_power_loss_classification_is_deterministic_u0_through_u11(tmp_path):
     tx = record_target_ready(tx, target=target)
     snapshots[U4] = tx
 
-    tx = request_install(tx)
+    tx = request_install(tx, target=target)
     snapshots[U5] = tx
 
     tx = start_predecessor_recovery(
@@ -846,7 +845,6 @@ def test_r2_power_loss_classification_is_deterministic_u0_through_u11(tmp_path):
         target=target,
         predecessor=predecessor,
         backup=backup,
-        observed_usb_filesystem_uuid=USB_UUID,
         capacity_report=media.report,
         recovery_capacity=passing_recovery_capacity(
             target,
@@ -876,8 +874,8 @@ def test_r2_power_loss_classification_is_deterministic_u0_through_u11(tmp_path):
     for phase in (U0, U1, U2, U3, U4, U5, U6, U7, U8):
         assert classify_power_loss_reentry(
             snapshots[phase],
-            usb_present=False,
-            observed_usb_filesystem_uuid=None,
+            recovery_media_present=False,
+            exact_recovery_content_verified=False,
         ) == "PRE_U9_PREDECESSOR_AUTHORITY"
 
     for phase in (U9, U10, U11):
@@ -888,7 +886,8 @@ def test_r2_power_loss_classification_is_deterministic_u0_through_u11(tmp_path):
         ) == "RECOVERY_MEDIA_REQUIRED"
         assert classify_power_loss_reentry(
             snapshots[phase],
-            usb_present=True,
+            recovery_media_present=True,
+            exact_recovery_content_verified=True,
         ) == "ROLLBACK_REQUIRED"
 
 
