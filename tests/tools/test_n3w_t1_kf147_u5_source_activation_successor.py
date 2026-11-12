@@ -238,3 +238,12 @@ def test_target_binding_workflow_covers_r10_package_and_test() -> None:
     assert workflow.count(package_glob) == 1
     assert workflow.count(executor_path) == 1
     assert workflow.count(test_path) == 2
+
+def test_r10_ipc_status_probe_uses_real_newline_frame_terminator() -> None:
+    source = load_executor().REMOTE_SCRIPT
+    start = source.index("def ipc_status(manager_id):")
+    end = source.index("def verify_r9_terminal(plan):", start)
+    probe = source[start:end]
+    assert 'b"\\n"' in probe
+    assert 'b"\\\\n"' not in probe
+
