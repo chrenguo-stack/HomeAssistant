@@ -41,14 +41,14 @@ def load_remote_namespace():
     return namespace
 
 
-def test_manifest_is_ungranted_successor_and_binds_r10_u4_state() -> None:
+def test_manifest_is_authorized_once_and_binds_r10_u4_state() -> None:
     document = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert document["gate_id"] == GATE
     assert document["authorization_id"] == GATE
     assert document["confirmation"] == CONFIRMATION
-    assert document["live_execution_authorized"] is False
+    assert document["live_execution_authorized"] is True
     assert document["authorization_state"] == {
-        "granted": False,
+        "granted": True,
         "claimed": False,
         "consumed": False,
         "replay_permitted": False,
@@ -136,6 +136,19 @@ def test_executor_and_remote_compile() -> None:
     compile(module.REMOTE_SCRIPT, "<kf147-u4-u5-install-intent-transition>", "exec")
     assert module.GATE_ID == GATE
     assert module.CONFIRMATION == CONFIRMATION
+
+
+def test_execute_requires_granted_unclaimed_unconsumed_nonreplayable_authorization() -> None:
+    source = load_executor().REMOTE_SCRIPT
+    execute_start = source.index("def execute(plan):")
+    execute_body = source[execute_start:]
+    assert 'plan.get("live_execution_authorized") is not True' in execute_body
+    assert '"granted": True' in execute_body
+    assert '"claimed": False' in execute_body
+    assert '"consumed": False' in execute_body
+    assert '"replay_permitted": False' in execute_body
+    assert 'plan.get("authorization") != plan.get("authorization_id")' in execute_body
+    assert 'plan.get("confirmation") != plan.get("expected_confirmation")' in execute_body
 
 
 def test_preflight_mode_is_read_only_and_does_not_claim() -> None:
