@@ -321,7 +321,7 @@ def test_install_intent_revalidates_exact_target_and_stops_at_u5(
     assert final["phase"] == "U5_INSTALL_REQUESTED_REVALIDATING"
     assert final["authorization_claimed"] is False
     assert final["authorization_consumed"] is False
-    assert backend.reopened == 1
+    assert backend.reopened == 2
     assert backend.verified == 1
     assert backend.metadata_syncs[-1] == "U5_INSTALL_REQUESTED_REVALIDATING"
     assert value.public_status()["phase"] == "INSTALL_REQUESTED_REVALIDATING"

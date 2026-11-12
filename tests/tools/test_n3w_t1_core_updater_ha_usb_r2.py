@@ -504,7 +504,7 @@ def test_r2_corrupt_target_stops_before_ready_and_leaves_production_unchanged(tm
 
 def test_r2_install_capacity_growth_blocks_before_u6(tmp_path):
     tx, _media, _docker, _ha, target = prepare_to_u4(tmp_path)
-    tx = request_install(tx)
+    tx = request_install(tx, target=target)
     evidence = passing_install_capacity(observed_free_bytes=1)
 
     assert evidence.capacity_pass is False
@@ -561,7 +561,7 @@ def test_r2_u8_actual_free_space_blocks_before_authorization(tmp_path):
 
 
 def test_r2_predecessor_corruption_stops_before_u7_and_u9(tmp_path):
-    tx, media, docker, ha, _target = prepare_to_u4(tmp_path)
+    tx, media, docker, ha, target = prepare_to_u4(tmp_path)
     tx = start_predecessor_recovery(
         request_install(tx, target=target),
         install_capacity=passing_install_capacity(),
@@ -579,7 +579,7 @@ def test_r2_predecessor_corruption_stops_before_u7_and_u9(tmp_path):
 def test_r2_backup_corruption_stops_before_u8_and_u9(tmp_path):
     tx, media, docker, ha, _target = prepare_to_u4(tmp_path)
     tx = start_predecessor_recovery(
-        request_install(tx),
+        request_install(tx, target=target),
         install_capacity=passing_install_capacity(),
     )
     predecessor = docker.verify_predecessor(
@@ -646,9 +646,7 @@ def test_r2_failed_target_restores_predecessor_and_preupgrade_data(tmp_path):
         tx,
         predecessor=predecessor,
         backup=backup,
-        observed_recovery_content_manifest_sha256=tx[
-            "recovery_content_manifest_sha256"
-        ],
+        target=target,
         predecessor_image_restored=(docker.active == CURRENT),
         ha_data_backup_restored=(
             "preupgrade"
@@ -664,7 +662,7 @@ def test_r2_failed_target_restores_predecessor_and_preupgrade_data(tmp_path):
 
 
 def test_r2_rollback_requires_both_image_and_data_restore(tmp_path):
-    tx, media, docker, ha, _target, predecessor, backup = drive_to_u8(tmp_path)
+    tx, media, docker, ha, target, predecessor, backup = drive_to_u8(tmp_path)
     tx = claim_live_authorization(tx, AUTHORIZATION_ID)
     with pytest.raises(
         UpdaterV2Error,
@@ -674,9 +672,7 @@ def test_r2_rollback_requires_both_image_and_data_restore(tmp_path):
             tx,
             predecessor=predecessor,
             backup=backup,
-            observed_recovery_content_manifest_sha256=tx[
-                "recovery_content_manifest_sha256"
-            ],
+            target=target,
             predecessor_image_restored=False,
             ha_data_backup_restored=True,
         )
@@ -741,8 +737,8 @@ def test_r2_power_loss_after_u9_requires_exact_recovery_content(tmp_path):
 
     assert classify_power_loss_reentry(
         recovered,
-        usb_present=False,
-        observed_usb_filesystem_uuid=None,
+        recovery_media_present=False,
+        exact_recovery_content_verified=False,
     ) == "RECOVERY_MEDIA_REQUIRED"
     assert classify_power_loss_reentry(
         recovered,
@@ -769,7 +765,6 @@ def test_r2_u12_power_loss_can_forward_commit_with_exact_recovery_content(tmp_pa
     assert classify_power_loss_reentry(
         tx,
         usb_present=True,
-        observed_usb_filesystem_uuid=USB_UUID,
     ) == "FORWARD_COMMIT_ELIGIBLE"
 
 
@@ -894,7 +889,6 @@ def test_r2_power_loss_classification_is_deterministic_u0_through_u11(tmp_path):
         assert classify_power_loss_reentry(
             snapshots[phase],
             usb_present=True,
-            observed_usb_filesystem_uuid=USB_UUID,
         ) == "ROLLBACK_REQUIRED"
 
 
@@ -924,18 +918,28 @@ def test_r2_orchestrator_remains_command_free():
 
 
 
-def test_r2_rollback_rejects_wrong_recovery_content_manifest(tmp_path):
-    tx, _media, _docker, _ha, _target, predecessor, backup = drive_to_u8(tmp_path)
+def test_r2_rollback_rejects_wrong_recovery_content(tmp_path):
+    tx, _media, _docker, _ha, target, predecessor, backup = drive_to_u8(tmp_path)
     tx = claim_live_authorization(tx, AUTHORIZATION_ID)
+    wrong_target = ImageRecoveryRecord(
+        kind=target.kind,
+        image_ref=target.image_ref,
+        archive_sha256=target.archive_sha256,
+        archive_size_bytes=target.archive_size_bytes,
+        portable_identity_sha256="9" * 64,
+        platform=target.platform,
+        verified=True,
+        fsynced=True,
+    )
     with pytest.raises(
         UpdaterV2Error,
         match="ha_usb_recovery_content_manifest_mismatch",
     ):
         record_rollback_complete(
             tx,
+            target=wrong_target,
             predecessor=predecessor,
             backup=backup,
-            observed_recovery_content_manifest_sha256="0" * 64,
             predecessor_image_restored=True,
             ha_data_backup_restored=True,
         )

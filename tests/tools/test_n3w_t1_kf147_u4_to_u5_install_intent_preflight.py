@@ -143,7 +143,7 @@ def test_product_u5_intent_stops_before_u6_and_u9_claim() -> None:
     assert "def revalidate_and_request_install" in prepare
     assert "self.backend.verify_prepared_target" in prepare
     assert "self.backend.sync_transaction_metadata(u5, media)" in prepare
-    assert "u5 = request_install(transaction)" in prepare
+    assert "u5 = request_install(transaction, target=target)" in prepare
     assert 'action not in {"PREPARE", "CONFIRM_USB_ERASE", "INSTALL"}' in ipc
     assert "self.prepare_controller.revalidate_and_request_install()" in ipc
     assert 'transition(transaction, "U6_' not in prepare

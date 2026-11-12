@@ -236,30 +236,42 @@ def record_commit(document: dict[str, Any]) -> dict[str, Any]:
 def record_rollback_complete(
     document: dict[str, Any],
     *,
+    target: ImageRecoveryRecord,
     predecessor: ImageRecoveryRecord,
     backup: HaDataBackupRecord,
-    observed_recovery_content_manifest_sha256: str,
     predecessor_image_restored: bool,
     ha_data_backup_restored: bool,
 ) -> dict[str, Any]:
     current = validate_transaction_document(document)
     if current["phase"] not in {U9, U10, U11, U12}:
         raise UpdaterV2Error("ha_usb_rollback_phase_invalid")
-    expected_manifest = current["recovery_content_manifest_sha256"]
-    if (
-        observed_recovery_content_manifest_sha256 != expected_manifest
-        or compute_recovery_content_manifest_sha256(current) != expected_manifest
-    ):
-        raise UpdaterV2Error("ha_usb_recovery_content_manifest_mismatch")
-    validate_image_recovery_record(
+
+    validated_target = validate_image_recovery_record(
+        target,
+        expected_kind="target",
+        expected_image_ref=current["target_image_ref"],
+        expected_archive_sha256=current["target_archive_sha256"],
+    )
+    validated_predecessor = validate_image_recovery_record(
         predecessor,
         expected_kind="predecessor",
         expected_image_ref=current["current_image_ref"],
     )
-    validate_backup_record(backup)
-    if predecessor.public() != current["predecessor_recovery_identity"]:
+    validated_backup = validate_backup_record(backup)
+
+    observed = dict(current)
+    observed["target_artifact_identity"] = validated_target.public()
+    observed["predecessor_recovery_identity"] = validated_predecessor.public()
+    observed["ha_data_backup_identity"] = validated_backup.public()
+    observed_manifest = compute_recovery_content_manifest_sha256(observed)
+    expected_manifest = current["recovery_content_manifest_sha256"]
+    if observed_manifest != expected_manifest:
+        raise UpdaterV2Error("ha_usb_recovery_content_manifest_mismatch")
+    if validated_target.public() != current["target_artifact_identity"]:
+        raise UpdaterV2Error("ha_usb_rollback_target_identity_mismatch")
+    if validated_predecessor.public() != current["predecessor_recovery_identity"]:
         raise UpdaterV2Error("ha_usb_rollback_predecessor_identity_mismatch")
-    if backup.public() != current["ha_data_backup_identity"]:
+    if validated_backup.public() != current["ha_data_backup_identity"]:
         raise UpdaterV2Error("ha_usb_rollback_backup_identity_mismatch")
     if predecessor_image_restored is not True:
         raise UpdaterV2Error("ha_usb_rollback_predecessor_not_restored")

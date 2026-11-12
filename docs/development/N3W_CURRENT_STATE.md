@@ -1,4 +1,3 @@
-
 ## Latest authority — 2026-11-12 removable-media content-authority V1.2 source design frozen
 
 AUTHORITY_STATE=HA_USB_CONTENT_AUTHORITY_V1_2_SOURCE_DESIGN_FROZEN

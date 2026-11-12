@@ -1,4 +1,3 @@
-
 ## 2026-11-12 — removable-media content-authority V1.2 source design frozen
 
 - Source design PASS; executable repair is now the next gate.
