@@ -1,18 +1,36 @@
-## Stable updater authority — 2026-11-12 KF-147 R10 live source activation CLOSED_PASS / R11 source preparation
+## Stable updater authority — 2026-11-12 KF-147 R11 real-T1 preflight CLOSED_PASS / live U4→U5 authorization boundary
 
 ```text
-PROJECT_WORKING_CONTEXT_VERSION=5.5
+PROJECT_WORKING_CONTEXT_VERSION=5.6
 
 PR=807
 PR_STATE=OPEN_DRAFT_UNMERGED
+
 R10_AUTHORIZED_SOURCE_HEAD=7bc4249d969f85f81ee4d86a811629747d761157
 R10_RESULT=U5_SOURCE_ACTIVATION_PASS
-R10_AUTHORIZATION_CLAIMED=true
 R10_AUTHORIZATION_CONSUMED=true
 R10_REPLAY_PERMITTED=false
-R10_SOURCE_ACTIVATED=true
-R10_U4_PRESERVED=true
-R10_ROLLBACK_REQUIRED=false
+
+R11_SOURCE_HEAD=d63c4ff37feb49e984e5a66e6f7cfc9c0a439279
+R11_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U4_TO_U5_INSTALL_INTENT_TRANSITION_R11_20261112_01
+R11_EXECUTOR_BLOB=e6a607332b64facdf6ec53d88181936c60c5bb20
+R11_MANIFEST_BLOB=84cb3008298c0de0dbd9386051ffe7db092ea99e
+R11_TEST_BLOB=c6faff0855a5d953f3414aa68e3efe1df71f0381
+R11_REQUIRED_CI=CLOSED_PASS
+
+R11_PREFLIGHT_RESULT=PASS
+R11_PREFLIGHT_READ_ONLY=true
+R11_U5_TRANSITION_ELIGIBLE=true
+R11_HOST_STATE_MUTATION=false
+R11_HOST_SOURCE_MUTATION=false
+R11_TRANSACTION_MUTATION=false
+R11_USB_MUTATION=false
+R11_SERVICE_RESTART=false
+R11_HOMEASSISTANT_MUTATION=false
+R11_MANAGER_MUTATION=false
+R11_BROKER_MUTATION=false
+R11_U5_TRANSITION=false
+R11_U6_PLUS=false
 
 LAST_PROVEN_TRANSACTION_PHASE=U4_READY_TO_INSTALL
 LAST_PROVEN_TRANSACTION_SHA256=dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259
@@ -26,20 +44,16 @@ LIVE_SOURCE_HA_IPC_SHA256=a7d335c597771b0297f690d0e97fb3288f5f1c83fd670d8af00d76
 LIVE_SOURCE_HA_PREPARE_SHA256=4dc6226ae493f18b3dab2c8773c1d3687a8f5f1750a6b4d9fa791cebe22db596
 LIVE_SOURCE_HA_PREPARE_HOST_SHA256=d7f1e5468e24446f3ade0e22778cebecc8cda0fed07179a8fccb55b9f7e4ff8a
 
-R9_REPLAY_PERMITTED=false
-R10_REPLAY_PERMITTED=false
-R11_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U4_TO_U5_INSTALL_INTENT_TRANSITION_R11_20261112_01
-R11_EXECUTOR_BLOB=e6a607332b64facdf6ec53d88181936c60c5bb20
-R11_MANIFEST_BLOB=84cb3008298c0de0dbd9386051ffe7db092ea99e
-R11_TEST_BLOB=c6faff0855a5d953f3414aa68e3efe1df71f0381
 R11_LIVE_EXECUTION_AUTHORIZED=false
 R11_AUTHORIZATION_GRANTED=false
 R11_AUTHORIZATION_CLAIMED=false
 R11_AUTHORIZATION_CONSUMED=false
 R11_REPLAY_PERMITTED=false
-R11_REQUIRED_CI=PENDING_AFTER_TEST_ASSERTION_REPAIR
-NEXT_ONE_GATE=R11_U4_TO_U5_INSTALL_INTENT_SUCCESSOR_EXACT_CI
-NEXT_GATE_LIVE_MUTATION=false
+
+NEXT_ONE_GATE=R11_LIVE_U4_TO_U5_INSTALL_INTENT_AUTHORIZATION
+NEXT_GATE_LIVE_MUTATION=true
+EXPLICIT_AUTHORIZATION_REQUIRED=true
+AUTO_EXECUTE=false
 
 HANDOFF_TEMPLATE_VERSION=1.4
 HANDOFF_TEMPLATE_AUTHORITY_MAIN_HEAD=3e7faf258d670c9eaf3be6ede9bbb02df2ac009d
@@ -49,9 +63,9 @@ BOARD_ACCESS=false
 MERGE=false
 ```
 
-R10 successfully activated the exact three U5 host-source files on T1 and preserved the complete U4 Home Assistant 2026.10.4 installation transaction. Home Assistant remains 2026.10.0, the target archive remains intact on USB, and IPC is READY_TO_INSTALL. No rollback or product-container mutation occurred.
+R11 real-T1 read-only preflight is CLOSED_PASS. It revalidated the R10 terminal PASS, current three-file host source, exact U4 Host/USB transaction, exact Home Assistant 2026.10.4 target archive, healthy writable bound media, stable services/containers and IPC `READY_TO_INSTALL` on Home Assistant 2026.10.0.
 
-Both R9 and R10 authorizations are terminal and non-replayable. R11 successor source is now prepared and binds the R10 terminal PASS, current three-file source hashes, unchanged U4 Host/USB state and exact Home Assistant 2026.10.4 target archive. R11 remains ungranted and cannot execute live. Its execute path is bounded to the U4→U5 INSTALL intent transition only and stops before U6 predecessor recovery; fresh exact CI is pending.
+No authorization claim/consume or mutation occurred. The next boundary is a new explicit one-shot R11 live U4→U5 INSTALL-intent authorization. If later authorized, R11 is still bounded to transition only to U5 `INSTALL_REQUESTED_REVALIDATING` and stop before U6 predecessor recovery; it does not perform Home Assistant replacement at this gate.
 
 ## Stable updater authority — 2026-11-10 KF-147 exact reclaim audit source ready
 
