@@ -1,14 +1,16 @@
 ## 2026-11-12 — KF-147 R9 terminal STOP / R10 source activation preflight ready
 
 - PR #807 remains open/draft/unmerged. R9 one-shot U4→U5 authorization was claimed and consumed exactly once; replay is permanently forbidden.
+- Current core-stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`: repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`, Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean reference remains `24382caae4a1f5d459297f86e8d18f10a848ca64` / `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
 - R9 live result: `STOP`, reason `ha_ota_ipc_action_invalid`; transaction mutation=false, USB mutation=false, U5=false, U6+=false, split-state=false.
 - Root cause is proven source/deployment authority mismatch, not a new product-source defect: the live T1 still runs the pre-U5 host IPC/prepare slice, while later repository U5 source adds the missing INSTALL path across exactly three files.
 - Exact U5 source slice: `tools/n3w_t1_core_updater_ha_ipc.py`, `tools/n3w_t1_core_updater_ha_prepare.py`, `tools/n3w_t1_core_updater_ha_prepare_host.py`.
 - Last-proven Host transaction remains `U4_READY_TO_INSTALL`, SHA-256 `dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259`; USB transaction metadata remained U4; exact target archive remains SHA-256 `eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973`, size 835,309,535 bytes.
 - R10 successor package: `tools/execution_packages/n3w/r7a/kf147_u5_source_activation_successor`.
 - R10 remains unauthorized: live=false, granted=false, claimed=false, consumed=false.
-- R10 executor blob `17a708c0d3189fc007dbef9ceeeb4253a4d20b00`; manifest blob `f05fabad818625482d25a1f28a2881956d832a8b`.
-- Fresh repaired-head CI is fully PASS: Target binding run `43125842749`; Manager A-to-B `43125842806`; fast source/exact `43125843158`; public safety `43125843096`.
+- R10 repaired executor blob `40b2908dfb4904a8ef47a7ea35db403591c538bc`; manifest blob `f19c1b6c65a3638c2f236f4469c15f3070d40b3f`.
+- Pre-framing-fix R10 source head had full CI PASS: Target binding `43125842749`, Manager A-to-B `43125842806`, fast source/exact `43125843158`, public safety `43125843096`; those runs do not validate the repaired executor bytes.
+- First real-T1 R10 `--preflight-only` stopped at `ipc_status_rejected` with `remote_staging=false` and all mutation fields false. Root cause is the R10 probe sending literal backslash + `n` instead of the newline IPC frame terminator; repaired-head exact CI is pending before any rerun.
 - The failed predecessor Target-binding run was a local executor syntax error from nested triple quotes; repaired with no architecture, product-source or T1-state impact.
 - Formal new handoffs must use template V1.4 from main head `3e7faf258d670c9eaf3be6ede9bbb02df2ac009d`, template blob `885fd63131e80936e5e1fe907378be08a0060f12`; PR branch's V1.3 template copy is stale.
 - Next conversation starts from R10 `--preflight-only`.
