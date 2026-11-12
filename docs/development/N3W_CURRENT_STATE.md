@@ -1,7 +1,7 @@
-## Latest authority — 2026-11-12 KF-147 R10 live source activation CLOSED_PASS / U4→U5 successor source preparation
+## Latest authority — 2026-11-12 KF-147 R11 real-T1 read-only preflight CLOSED_PASS / live U4→U5 authorization boundary
 
 ```text
-AUTHORITY_STATE=KF147_R10_LIVE_SOURCE_ACTIVATION_CLOSED_PASS_R11_U4_TO_U5_SUCCESSOR_SOURCE_READY_CI_PENDING
+AUTHORITY_STATE=KF147_R11_REAL_T1_PREFLIGHT_CLOSED_PASS_LIVE_U4_TO_U5_AUTHORIZATION_REQUIRED
 PR=807
 PR_STATE=OPEN_DRAFT_UNMERGED
 
@@ -16,22 +16,37 @@ LIVE_DEPLOYMENT_STATE=APPLIED_ACCEPTED
 
 R10_AUTHORIZED_SOURCE_HEAD=7bc4249d969f85f81ee4d86a811629747d761157
 R10_RESULT=U5_SOURCE_ACTIVATION_PASS
-R10_AUTHORIZATION_CLAIMED=true
 R10_AUTHORIZATION_CONSUMED=true
 R10_REPLAY_PERMITTED=false
-R10_SOURCE_ACTIVATED=true
-R10_U4_PRESERVED=true
-R10_ROLLBACK_REQUIRED=false
-R10_HOST_SOURCE_MUTATION=true
-R10_HOST_DAEMON_RESTART=true
-R10_SERVICES_OWNER_RESTART=true
-R10_HOMEASSISTANT_MUTATION=false
-R10_MANAGER_MUTATION=false
-R10_BROKER_MUTATION=false
-R10_TRANSACTION_MUTATION=false
-R10_USB_MUTATION=false
-R10_U5_TRANSITION=false
-R10_U6_PLUS=false
+
+R11_SOURCE_HEAD=d63c4ff37feb49e984e5a66e6f7cfc9c0a439279
+R11_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U4_TO_U5_INSTALL_INTENT_TRANSITION_R11_20261112_01
+R11_EXECUTOR_BLOB=e6a607332b64facdf6ec53d88181936c60c5bb20
+R11_MANIFEST_BLOB=84cb3008298c0de0dbd9386051ffe7db092ea99e
+R11_TEST_BLOB=c6faff0855a5d953f3414aa68e3efe1df71f0381
+
+R11_PUBLIC_REPOSITORY_SAFETY_CI=SUCCESS:43132705833
+R11_CORE_STACK_AUTHORITY_CI=SUCCESS:43132705998
+R11_FAST_SOURCE_EXACT_CI=SUCCESS:43132706037
+R11_MANAGER_A_TO_B_CI=SUCCESS:43132705870
+R11_TARGET_BINDING_CI=SUCCESS:43132706006
+R11_REQUIRED_CI=CLOSED_PASS
+
+R11_PREFLIGHT_RESULT=PASS
+R11_PREFLIGHT_READ_ONLY=true
+R11_U5_TRANSITION_ELIGIBLE=true
+R11_REMOTE_STAGING=false
+R11_HOST_STATE_MUTATION=false
+R11_HOST_SOURCE_MUTATION=false
+R11_TRANSACTION_MUTATION=false
+R11_USB_MUTATION=false
+R11_USB_TRANSACTION_METADATA_MUTATION=false
+R11_SERVICE_RESTART=false
+R11_HOMEASSISTANT_MUTATION=false
+R11_MANAGER_MUTATION=false
+R11_BROKER_MUTATION=false
+R11_U5_TRANSITION=false
+R11_U6_PLUS=false
 
 LAST_PROVEN_TRANSACTION_PHASE=U4_READY_TO_INSTALL
 LAST_PROVEN_TRANSACTION_SHA256=dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259
@@ -45,32 +60,30 @@ LIVE_SOURCE_HA_IPC_SHA256=a7d335c597771b0297f690d0e97fb3288f5f1c83fd670d8af00d76
 LIVE_SOURCE_HA_PREPARE_SHA256=4dc6226ae493f18b3dab2c8773c1d3687a8f5f1750a6b4d9fa791cebe22db596
 LIVE_SOURCE_HA_PREPARE_HOST_SHA256=d7f1e5468e24446f3ade0e22778cebecc8cda0fed07179a8fccb55b9f7e4ff8a
 
-R9_REPLAY_PERMITTED=false
-R10_REPLAY_PERMITTED=false
-NEXT_ONE_GATE=R11_U4_TO_U5_INSTALL_INTENT_SUCCESSOR_EXACT_CI
-NEXT_GATE_MODE=SOURCE_VALIDATION_ONLY_NO_LIVE_MUTATION
 R11_LIVE_EXECUTION_AUTHORIZED=false
-R11_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U4_TO_U5_INSTALL_INTENT_TRANSITION_R11_20261112_01
-R11_EXECUTOR_BLOB=e6a607332b64facdf6ec53d88181936c60c5bb20
-R11_MANIFEST_BLOB=84cb3008298c0de0dbd9386051ffe7db092ea99e
-R11_TEST_BLOB=c6faff0855a5d953f3414aa68e3efe1df71f0381
 R11_AUTHORIZATION_GRANTED=false
 R11_AUTHORIZATION_CLAIMED=false
 R11_AUTHORIZATION_CONSUMED=false
 R11_REPLAY_PERMITTED=false
-R11_REQUIRED_CI=PENDING_AFTER_TEST_ASSERTION_REPAIR
+
+NEXT_ONE_GATE=R11_LIVE_U4_TO_U5_INSTALL_INTENT_AUTHORIZATION
+NEXT_GATE_MODE=LIVE_MUTATION_REQUIRES_EXPLICIT_AUTHORIZATION
+EXPLICIT_AUTHORIZATION_REQUIRED=true
+AUTO_EXECUTE=false
 
 BOARD_ACCESS=false
 MERGE=false
 ```
 
-R10 completed successfully on the real T1. The exact three U5 host-source files are now active, host OTA and services-owner restarted successfully, Home Assistant/Manager/Broker containers remained unchanged and stable, and Host/USB transaction state remained exactly U4 READY_TO_INSTALL. No rollback was needed. The one-shot R10 authorization is consumed and non-replayable.
+The real-T1 R11 `--preflight-only` is CLOSED_PASS. It independently revalidated the consumed/non-replayable R10 terminal, exact newly activated three-file source slice, unchanged Host/USB U4 transaction, writable bound USB media, exact Home Assistant 2026.10.4 target archive, stable containers/service, and IPC `READY_TO_INSTALL` on installed Home Assistant 2026.10.0.
 
-The old R9 U4→U5 package is non-replayable and no longer matches live source preconditions. R11 successor source is now prepared: it binds the R10 terminal PASS, the newly active three-file hashes, the unchanged U4 transaction/USB/target archive, and the same bounded U4→U5 INSTALL-intent-only transition. R11 remains ungranted and cannot execute live. Fresh exact CI is required before any read-only/live successor step.
+The preflight performed no authorization claim/consume, host-state/source mutation, transaction/USB mutation, service restart, product-container mutation, U5/U6+ transition, board access or merge.
+
+The next boundary is a new one-shot R11 live U4→U5 INSTALL-intent authorization. R11 execute remains bounded to U5 `INSTALL_REQUESTED_REVALIDATING` and stops before U6 predecessor recovery; it does not stop/load/start Home Assistant at this gate.
 
 Authority:
-- PR #807 R10 authorized-source CI closure and live result archive.
-- R10 successor package at `7bc4249d969f85f81ee4d86a811629747d761157`.
+- PR #807 R11 exact-CI and real-T1 preflight evidence.
+- R11 successor source authority at `d63c4ff37feb49e984e5a66e6f7cfc9c0a439279`.
 
 ## Latest authority — 2026-11-10 KF-147 Mandatory USB Confirmation / U2 read-only preexecution CLOSED_PASS
 
