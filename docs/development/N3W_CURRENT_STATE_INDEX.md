@@ -13,7 +13,8 @@
 - R12 preflight accepts only the exact current U4 transaction plus the exact bound USB present but unmounted.
 - If separately authorized later, R12 only recreates the transaction-derived runtime mount directories, mounts the same ext4 USB `rw,nodev,nosuid,noexec`, revalidates the 2026.10.4 target and U4 USB metadata, and stops before U5.
 - Any post-mount failure permits at most one rollback to the original unmounted prestate; no U5 transition, service restart, product-container mutation, source deployment, board access or merge is allowed.
-- Next gate: R12 source/exact CI. T1 mutation remains blocked.
+- R12 exact source authority is `52b0b8aecbd0641e369227b4c4f636bacf876a6d`; required CI is CLOSED_PASS: Core Stack authority `43225405781`, public safety `43225405752`, fast source/exact `43225405725`, Manager A-to-B `43225405926`, HA 2026.10.4 target binding `43225405440`.
+- Next gate is the real-T1 R12 `--preflight-only`. The user explicitly requested the new chat to begin with this read-only preflight. R12 live mutation remains unauthorized; R11 must not be retried before R12 closes.
 
 ## 2026-11-10 — KF-147 Mandatory USB Confirmation / U2 read-only preexecution CLOSED_PASS
 
