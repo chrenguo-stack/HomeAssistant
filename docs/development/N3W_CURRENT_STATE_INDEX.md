@@ -18,7 +18,7 @@
 - Original R9 U4→U5 authorization is also consumed/non-replayable, and its source precondition now points to obsolete predecessor hashes.
 - R11 successor source is prepared and remains ungranted. It binds the R10 terminal PASS, current three-file source hashes, unchanged U4 Host/USB state and the exact 2026.10.4 archive.
 - R11 gate: `N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U4_TO_U5_INSTALL_INTENT_TRANSITION_R11_20261112_01`.
-- R11 executor blob `e6a607332b64facdf6ec53d88181936c60c5bb20`; manifest blob `84cb3008298c0de0dbd9386051ffe7db092ea99e`; test blob `e5bc9eb4ad9aa9211c2edd244f889df7cc9e0e4e`.
+- R11 executor blob `e6a607332b64facdf6ec53d88181936c60c5bb20`; manifest blob `84cb3008298c0de0dbd9386051ffe7db092ea99e`; test blob `c6faff0855a5d953f3414aa68e3efe1df71f0381`.
 - R11 live=false, granted=false, claimed=false, consumed=false, replay=false. It cannot mutate T1 until a separate explicit authorization is granted.
 - R11 execute is still bounded to U4→U5 INSTALL intent only and stops before U6 predecessor recovery. No HA container stop/load/start occurs at this gate.
 - Fresh R11 exact CI is pending.
