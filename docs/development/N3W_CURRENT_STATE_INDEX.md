@@ -1,3 +1,21 @@
+## 2026-11-12 — V1.2 source activation AUTHORIZED / new-chat execution boundary
+
+- Core Stack current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
+- Current repository product source: `5b32e1ae82104a42f9e4e6907fe44d9172e87615`.
+- Current Manager: `local/greenhouse-manager:fresh-5b32e1ae8210`.
+- Current Home Assistant: `local/n3w-homeassistant:2026.10.0-0c73235a`.
+- Current Broker: `local/n3w-mosquitto:2.1.2-3184566d`.
+- Historical clean reference source: `24382caae4a1f5d459297f86e8d18f10a848ca64`.
+- Historical clean reference Manager: `local/greenhouse-manager:fresh-24382caae4a1`.
+- Live upgrade accepted; current repository Core Stack authority remains APPLIED_ACCEPTED.
+- Real-T1 V1.2 read-only preexecution is CLOSED_PASS; exact legacy U4 remains authoritative.
+- User explicitly authorized the next chat to execute the exact 8-file V1.2 source activation.
+- Authorized execution candidate: `edc3d2b76c5a7a75382f056c11786f00d32c0fa6`; authorized manifest blob: `68618d76b40dfa169e2b0c61e56240cfcac66c7e`.
+- Authorization state: granted=true, claimed=false, consumed=false, replay=false.
+- New chat must first require fresh CI SUCCESS for the authorized candidate and then rely on the executor's remote preflight before staging/claim.
+- Activation success stops at U4 READY_TO_INSTALL; INSTALL/U5 remains outside this authorization.
+- Handoff V1.4: `docs/development/N3W_T1_HOMEASSISTANT_REMOVABLE_MEDIA_CONTENT_AUTHORITY_V1_2_SOURCE_ACTIVATION_AUTHORIZED_NEW_CHAT_HANDOFF_V1.0_20261112.md`.
+
 ## 2026-11-12 — V1.2 real-T1 read-only preexecution CLOSED_PASS / source activation package ungranted
 
 - Core Stack current authority: `infra/n3w-t1/production/t1-core-stack-current.json`.
