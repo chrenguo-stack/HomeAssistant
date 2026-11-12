@@ -1,7 +1,7 @@
 ## Latest authority — 2026-11-12 KF-147 R10 corrected preflight CLOSED_PASS / live source activation awaiting authorization
 
 ```text
-AUTHORITY_STATE=KF147_R10_CORRECTED_PREFLIGHT_CLOSED_PASS_LIVE_SOURCE_ACTIVATION_AWAITING_AUTHORIZATION
+AUTHORITY_STATE=KF147_R10_LIVE_SOURCE_ACTIVATION_AUTHORIZED_PENDING_EXACT_CI
 PR=807
 PR_STATE=OPEN_DRAFT_UNMERGED
 
@@ -50,14 +50,14 @@ R10_TARGET_BINDING_CI=SUCCESS:43128531594
 R10_MANAGER_A_TO_B_CI=SUCCESS:43128531919
 R10_REQUIRED_CI=CLOSED_PASS
 
-R10_LIVE_EXECUTION_AUTHORIZED=false
-R10_AUTHORIZATION_GRANTED=false
+R10_LIVE_EXECUTION_AUTHORIZED=true
+R10_AUTHORIZATION_GRANTED=true
 R10_AUTHORIZATION_CLAIMED=false
 R10_AUTHORIZATION_CONSUMED=false
 R10_REPLAY_PERMITTED=false
 
-NEXT_ONE_GATE=R10_LIVE_THREE_FILE_SOURCE_ACTIVATION_AUTHORIZATION
-NEXT_GATE_MODE=LIVE_MUTATION_REQUIRES_EXPLICIT_AUTHORIZATION
+NEXT_ONE_GATE=R10_AUTHORIZED_SOURCE_EXACT_CI
+NEXT_GATE_MODE=SOURCE_VALIDATION_ONLY_BEFORE_LIVE_EXECUTION
 
 BOARD_ACCESS=false
 MERGE=false
@@ -67,7 +67,7 @@ The corrected R10 real-T1 `--preflight-only` is CLOSED_PASS. It re-proved the co
 
 The earlier R10 `ipc_status_rejected` was an executor framing defect and is closed by the corrected newline probe plus regression coverage. All five repaired-head authority/exact CI gates are SUCCESS.
 
-The next boundary is no longer read-only: R10 live source activation would stop services-owner and host OTA, atomically activate exactly the three bound U5 host-source files, restart the two services in dependency-safe order, postvalidate Host/USB still at U4 and IPC still READY_TO_INSTALL, then STOP before any INSTALL intent. That boundary remains unauthorized and requires a new explicit R10 live authorization plus authorized-source commit/exact CI before execution.
+The user explicitly authorized one one-shot R10 live three-file source activation. The authorization is now frozen as live=true / granted=true / claimed=false / consumed=false / replay=false. The authorized task is limited to the manifest-bound three U5 host-source files, dependency-safe stop/start of services-owner and host OTA, and at most one exact rollback on failure. INSTALL, U5/U6+, Home Assistant/Manager/Broker product mutation, board access and merge remain forbidden. Live execution is still blocked until this authorized-source head completes exact CI.
 
 Authority:
 - PR #807 archived corrected-preflight evidence and exact CI closure.
