@@ -28,8 +28,17 @@ LIVE_SOURCE_HA_PREPARE_HOST_SHA256=d7f1e5468e24446f3ade0e22778cebecc8cda0fed0717
 
 R9_REPLAY_PERMITTED=false
 R10_REPLAY_PERMITTED=false
+R11_GATE=N3W_T1_HOMEASSISTANT_USB_MANDATORY_OTA_R7A_KF147_U4_TO_U5_INSTALL_INTENT_TRANSITION_R11_20261112_01
+R11_EXECUTOR_BLOB=e6a607332b64facdf6ec53d88181936c60c5bb20
+R11_MANIFEST_BLOB=84cb3008298c0de0dbd9386051ffe7db092ea99e
+R11_TEST_BLOB=e5bc9eb4ad9aa9211c2edd244f889df7cc9e0e4e
 R11_LIVE_EXECUTION_AUTHORIZED=false
-NEXT_ONE_GATE=R11_U4_TO_U5_INSTALL_INTENT_SUCCESSOR_SOURCE_PREPARATION
+R11_AUTHORIZATION_GRANTED=false
+R11_AUTHORIZATION_CLAIMED=false
+R11_AUTHORIZATION_CONSUMED=false
+R11_REPLAY_PERMITTED=false
+R11_REQUIRED_CI=PENDING
+NEXT_ONE_GATE=R11_U4_TO_U5_INSTALL_INTENT_SUCCESSOR_EXACT_CI
 NEXT_GATE_LIVE_MUTATION=false
 
 HANDOFF_TEMPLATE_VERSION=1.4
@@ -42,7 +51,7 @@ MERGE=false
 
 R10 successfully activated the exact three U5 host-source files on T1 and preserved the complete U4 Home Assistant 2026.10.4 installation transaction. Home Assistant remains 2026.10.0, the target archive remains intact on USB, and IPC is READY_TO_INSTALL. No rollback or product-container mutation occurred.
 
-Both R9 and R10 authorizations are terminal and non-replayable. R9 cannot be reused additionally because its manifest binds the old predecessor three-file hashes that R10 intentionally replaced. The next source-only task is to create a new R11 U4→U5 install-intent successor that binds the R10 terminal evidence and current source hashes. R11 must remain ungranted until a separate explicit live authorization is given.
+Both R9 and R10 authorizations are terminal and non-replayable. R11 successor source is now prepared and binds the R10 terminal PASS, current three-file source hashes, unchanged U4 Host/USB state and exact Home Assistant 2026.10.4 target archive. R11 remains ungranted and cannot execute live. Its execute path is bounded to the U4→U5 INSTALL intent transition only and stops before U6 predecessor recovery; fresh exact CI is pending.
 
 ## Stable updater authority — 2026-11-10 KF-147 exact reclaim audit source ready
 
