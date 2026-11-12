@@ -1,21 +1,21 @@
-## 2026-11-12 — KF-147 R10 corrected preflight CLOSED_PASS / live source activation awaiting authorization
+## 2026-11-12 — KF-147 R10 live source activation CLOSED_PASS / R11 successor preparation
 
-- PR #807 remains open/draft/unmerged. R9 authorization remains consumed and permanently non-replayable.
-- Current core-stack authority remains `infra/n3w-t1/production/t1-core-stack-current.json`: repository product source `5b32e1ae82104a42f9e4e6907fe44d9172e87615`, Manager `local/greenhouse-manager:fresh-5b32e1ae8210`, Home Assistant `local/n3w-homeassistant:2026.10.0-0c73235a`, Broker `local/n3w-mosquitto:2.1.2-3184566d`; historical clean reference remains `24382caae4a1f5d459297f86e8d18f10a848ca64` / `local/greenhouse-manager:fresh-24382caae4a1`; Live upgrade accepted.
-- Corrected R10 source head: `46ff563a95553074880efc01f36dbe238ebbf831`.
-- Corrected real-T1 R10 `--preflight-only`: `PASS`, `read_only=true`, `source_activation_eligible=true`, `remote_staging=false`.
-- Host transaction remains `U4_READY_TO_INSTALL`, SHA-256 `dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259`; USB transaction metadata remains U4.
-- Bound media remains writable ext4 at the expected UUID-derived mount; target archive remains SHA-256 `eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973`, size 835,309,535 bytes.
-- IPC is healthy again: accepted=true, code=status, phase=`READY_TO_INSTALL`, installed_version=`2026.10.0`, capacity state=`FORMATTED_CAPACITY_PASS`.
-- Manager / Home Assistant / Broker containers are running with restart_count=0; host OTA and services-owner are active/running with NRestarts=0.
-- Exact predecessor source hashes remain bound for `ha_ipc.py`, `ha_prepare.py`, and `ha_prepare_host.py`.
-- No authorization claim/consume, host source mutation, transaction mutation, USB mutation, U5/U6+ transition, board access or merge occurred.
-- R10 repaired executor blob `40b2908dfb4904a8ef47a7ea35db403591c538bc`; manifest blob `f19c1b6c65a3638c2f236f4469c15f3070d40b3f`; regression-test blob `ee68701fd48ef33f8e136e9f57c6d9d7a7f5d41d`.
-- Repaired-head CI is CLOSED_PASS: Core Stack authority `43128531524`, public safety `43128531586`, fast source/exact `43128531688`, HA target binding `43128531594`, Manager A-to-B `43128531919`.
-- The user has now explicitly granted one one-shot R10 live three-file source activation authorization. Manifest authorization is frozen as live=true, granted=true, claimed=false, consumed=false, replay=false.
-- Authorized scope is only the manifest-bound three U5 host-source files plus dependency-safe services-owner/host-OTA lifecycle handling and at most one exact rollback on failure. INSTALL, U5/U6+, Home Assistant/Manager/Broker product mutation, board access and merge remain forbidden.
-- Live execution remains blocked until the authorized-source head completes fresh exact CI. Any future R10 execute must still fresh-preflight before staging, preserve Host/USB at U4, and stop before any INSTALL intent.
-- No board access or merge occurred.
+- PR #807 remains open/draft/unmerged.
+- R10 authorized source head `7bc4249d969f85f81ee4d86a811629747d761157` executed successfully on the real T1.
+- Result: `U5_SOURCE_ACTIVATION_PASS`; authorization claimed=true, consumed=true, replay=false.
+- Exact three U5 host-source files are active:
+  - `n3w_t1_core_updater_ha_ipc.py` SHA-256 `a7d335c597771b0297f690d0e97fb3288f5f1c83fd670d8af00d76ca983e56ac`
+  - `n3w_t1_core_updater_ha_prepare.py` SHA-256 `4dc6226ae493f18b3dab2c8773c1d3687a8f5f1750a6b4d9fa791cebe22db596`
+  - `n3w_t1_core_updater_ha_prepare_host.py` SHA-256 `d7f1e5468e24446f3ade0e22778cebecc8cda0fed07179a8fccb55b9f7e4ff8a`
+- Host OTA and services-owner restarted successfully; rollback was not required.
+- Home Assistant remains `2026.10.0`; Manager and Broker unchanged; restart_count remains 0 for all three containers.
+- Host and USB transaction remain `U4_READY_TO_INSTALL`, transaction SHA-256 `dc6252c231269582233065558bdd21f7b52307a6e06b7d0104e594689853f259`.
+- Target Home Assistant 2026.10.4 archive remains exact: SHA-256 `eba1da958fc9c759c30d1cb34445c364e895bcd8d5e6c0d8392ab6849ece9973`, size 835,309,535 bytes.
+- IPC is healthy at `READY_TO_INSTALL`, installed_version `2026.10.0`.
+- No transaction mutation, USB mutation, U5/U6+ transition, product-container mutation, board access, or merge occurred in R10.
+- R10 authorization is consumed and must never be replayed.
+- Original R9 U4→U5 authorization is also consumed/non-replayable, and its source precondition now points to obsolete predecessor hashes.
+- Next safe step is source-only preparation of a new R11 U4→U5 install-intent successor binding the R10 terminal state and new live source hashes. R11 live execution remains unauthorized.
 
 ## 2026-11-10 — KF-147 Mandatory USB Confirmation / U2 read-only preexecution CLOSED_PASS
 
